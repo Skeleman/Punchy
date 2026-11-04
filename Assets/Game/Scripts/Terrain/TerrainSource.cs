@@ -136,6 +136,8 @@ namespace Punchy.Terrain
         public BlobAssetReference<ArchipelagoBlob> Archipelago;
         /// <summary>Set when every place is baked: biome ponds are dug only after that, so they never move a landmark, road, cave or anchor.</summary>
         public bool PondsOn;
+        /// <summary>W-43c: set with <see cref="PondsOn"/>: riverbanks get their seeded width, slope and shoreline wobble (v2 rivers only).</summary>
+        public bool RiverRoughOn;
         /// <summary>
         /// W-10: 0..1 per 16 m cell (cell centres, sampled bilinearly) scaling the biome ponds' dig: 0 over every pond
         /// smaller than <see cref="PondMinCells"/> cells and the dry ring round it, so no specks of water are left.
@@ -591,7 +593,7 @@ namespace Punchy.Terrain
             if (Archipelago.IsCreated)
                 h = Punchy.Terrain.Archipelago.Shape(ref Archipelago.Value, xz, h);
             if (Rivers.IsCreated)
-                h = RiverSampling.Carve(RiverSampling.Query(ref Rivers.Value, RiverSettings, xz), RiverSettings, h);
+                h = RiverSampling.Carve(RiverSampling.Query(ref Rivers.Value, RiverSettings, xz, RiverRoughOn), RiverSettings, h);
             if (Landmarks.IsCreated)
                 h = LandmarkSampling.Shape(ref Landmarks.Value, xz, h);
             if (GrandFalls.IsCreated)
@@ -632,7 +634,7 @@ namespace Punchy.Terrain
 
             if (Rivers.IsCreated)
             {
-                var river = RiverSampling.Query(ref Rivers.Value, RiverSettings, xz);
+                var river = RiverSampling.Query(ref Rivers.Value, RiverSettings, xz, RiverRoughOn);
                 // A loaded heightmap already contains the carved channels; only noise heights get carved here.
                 if (!UsesHeightmap)
                     g.Height = RiverSampling.Carve(river, RiverSettings, g.Height);
@@ -802,7 +804,18 @@ namespace Punchy.Terrain
         }
 
         /// <summary>Whether the ground surface here is cut away by a cave entrance.</summary>
-        public bool IsCaveHole(float2 xz) => MouthCut(xz, SampleHeight(xz)) < 0f;
+        public bool IsCaveHole(float2 xz) => MouthCut(xz, SampleHeight(xz)) < 0f || TempleCut(xz) < 0f;
+
+        /// <summary>
+        /// W-56: signed distance (m) to the sunken temple's entrance cut (its open ruin rooms), negative inside: the
+        /// ground surface is cut away there like a cave mouth. 100 away from any temple.
+        /// </summary>
+        public float TempleCut(float2 xz) =>
+            Temple(xz, out var temple) ? SunkenTempleShape.Cut(ref Landmarks.Value, temple, xz) : 100f;
+
+        /// <summary>W-56: whether a point is in the air of one of the sunken temple's rooms (under the ground, but not rock).</summary>
+        public bool TempleAir(float3 p) =>
+            Temple(p.xz, out var temple) && SunkenTempleShape.Air(ref Landmarks.Value, SunkenTempleShape.Local(temple, p));
 
         /// <summary>
         /// Whether the cave walls keep rock just under the ground surface here (positive, at most 0.25) or a mouth opens
@@ -847,7 +860,7 @@ namespace Punchy.Terrain
         /// walking player) test this to keep out of the walls.
         /// </summary>
         public bool IsRock(float3 p, float margin = 0f) =>
-            p.y < SampleHeight(p.xz) - margin && CaveDistance(p) > -margin;
+            p.y < SampleHeight(p.xz) - margin && CaveDistance(p) > -margin && !TempleAir(p);
 
         /// <summary>The climbable tower (W-27, SaltTowerShape) whose steps reach a point, if any, and its height.</summary>
         public bool Tower(float2 xz, out LandmarkInstance tower, out float height)
@@ -895,7 +908,7 @@ namespace Punchy.Terrain
         /// <summary>Whether the tower's body or a step too high to step onto stands where a body at p would be (W-27).</summary>
         public bool TowerWall(float3 p, float stepUp, float head) =>
             Tower(p.xz, out var tower, out var height) && SaltTowerShape.Wall(SaltTowerShape.Layout(tower, height), p, stepUp, head)
-            || Temple(p.xz, out var temple) && SunkenTempleShape.Wall(temple, p, stepUp, head)
+            || Temple(p.xz, out var temple) && SunkenTempleShape.Wall(ref Landmarks.Value, temple, p, stepUp, head, SampleHeight(p.xz) - temple.Base)
             || Icebergs.IsCreated && IcebergShape.Wall(ref Icebergs.Value, World.SeaLevel, p, stepUp, head);
 
         /// <summary>A bridge deck under a point that's on or just below it (see SettlementSampling.Deck).</summary>
@@ -916,8 +929,10 @@ namespace Punchy.Terrain
                 deck = step;
                 onDeck = true;
             }
-            // W-32: the sunken temple's floors, drifts and mound stand bodies the same way.
-            if (Temple(p.xz, out var temple) && SunkenTempleShape.Floor(temple, p, out var templeFloor) && (!onDeck || templeFloor > deck))
+            // W-32: the sunken temple's box tops stand bodies the same way (W-56: only above the ground; its rooms are
+            // under the ground, where FloorUnder answers).
+            if (Temple(p.xz, out var temple) && SunkenTempleShape.Floor(ref Landmarks.Value, temple, p, out var templeFloor) &&
+                templeFloor > SampleHeight(p.xz) - 0.05f && (!onDeck || templeFloor > deck))
             {
                 deck = templeFloor;
                 onDeck = true;
@@ -949,8 +964,17 @@ namespace Punchy.Terrain
         public float FloorUnder(float3 p, out bool inCave)
         {
             inCave = false;
-            if (Temple(p.xz, out var temple) && SunkenTempleShape.Floor(temple, p, out var templeFloor))
-                return math.max(templeFloor, SampleHeight(p.xz));
+            // W-56: in the temple's rooms (under the ground, or in the entrance cut) the floor is the room's, like a cave.
+            if (Temple(p.xz, out var temple) && SunkenTempleShape.Floor(ref Landmarks.Value, temple, p, out var templeFloor))
+            {
+                var ground = SampleHeight(p.xz);
+                if (p.y < ground - 0.3f || SunkenTempleShape.Cut(ref Landmarks.Value, temple, p.xz) < 0f)
+                {
+                    inCave = true;
+                    return templeFloor;
+                }
+                return math.max(templeFloor, ground);
+            }
             if (Tower(p.xz, out var tower, out var towerHeight) && SaltTowerShape.Floor(SaltTowerShape.Layout(tower, towerHeight), p, out var step))
                 return math.max(step, SampleHeight(p.xz));
             if (Deck(p, out var deck))
@@ -1085,6 +1109,37 @@ namespace Punchy.Terrain
             if (Landmarks.IsCreated)
                 LandmarkSampling.TroddenGround(ref Landmarks.Value, xz, context.EdgeNoise, ref result);
             return result;
+        }
+
+        /// <summary>
+        /// The snow the biomes lay at a point on flat ground, before any landmark's or settlement's ground paint (#82):
+        /// a square or street repaints the ground without its snow, but the tents and stalls standing on it should still
+        /// take snow on top in a snowy biome. Used only where props are placed, never on the per-vertex hot path.
+        /// </summary>
+        public float SampleBiomeSnow(float2 xz)
+        {
+            if (!HasBiomes)
+                return 0f;
+            var ground = SampleGround(xz);
+            var context = new GroundContext
+            {
+                Position = xz,
+                Height = ground.Height - World.SeaLevel,
+                Slope = 0f,
+                WaterDepth = ground.WaterDepth,
+                River = ground.River,
+                EdgeNoise = noise.snoise(xz * 0.045f) * 0.7f + noise.snoise(xz * 0.17f) * 0.3f,
+                ColorNoise = noise.snoise(xz * 0.021f + 113.5f) * 0.6f + noise.snoise(xz * 0.11f - 57.1f) * 0.4f
+            };
+            var result = default(SurfaceProps);
+            ref var set = ref Biomes.Value;
+            for (int i = 0; i < 4; i++)
+            {
+                var w = ground.Biomes.Weights[i];
+                if (w > 0f)
+                    result.AddScaled(BiomeSampling.EvaluateBiome(ref set, ground.Biomes.Ids[i], context), w);
+            }
+            return result.Snow;
         }
 
         public bool Equals(TerrainSource o) =>

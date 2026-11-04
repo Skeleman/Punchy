@@ -482,8 +482,9 @@ namespace Punchy.Terrain
         /// bed and it lies still, well under the thick-and-oily threshold (0.55); the whiteness comes from the colour and a
         /// self-glow, which also shows it where nobody carries a light. The glow's hue swirl only trades blue for green, which stays near white.
         /// W-17: toned down (the pool read as a milky blob); the shader also darkens and thins the middle (_SoftRim).
+        /// W-61: milkier again (#35: a milky-white look): a warm bone white instead of the blue-grey, murk 0.24 (still under 0.3).
         /// </summary>
-        static readonly float4 WhitePoolWater = new float4(0.72f, 0.8f, 0.82f, 0.18f);
+        static readonly float4 WhitePoolWater = new float4(0.88f, 0.88f, 0.84f, 0.24f);
         const float WhitePoolGlow = 0.12f;
         /// <summary>_SoftRim = 1 for white pool draws (the water shader fades them out towards the disc's rim).</summary>
         static MaterialPropertyBlock softRimProps;

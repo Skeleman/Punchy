@@ -46,6 +46,8 @@ namespace Punchy.Flora
         public float Yaw;
         public float Scale;
         public int Grid;
+        /// <summary>W-67 (#79): a kit building's or ruin's grid, skipped by the player (skipKit), which stands on its boxes.</summary>
+        public bool Kit;
     }
 
     /// <summary>A surface to stand on, found by PropSupport.</summary>
@@ -74,7 +76,7 @@ namespace Punchy.Flora
         /// The highest surface under a body of this radius at <paramref name="feet"/> whose top is at most
         /// <paramref name="stepUp"/> above the feet (so nothing far overhead catches it: eaves, arches, a well's roof).
         /// </summary>
-        public static bool Sample(ref SupportGridSet set, in DynamicBuffer<FloraSupport> props, float3 feet, float radius, float stepUp, out SupportHit hit)
+        public static bool Sample(ref SupportGridSet set, in DynamicBuffer<FloraSupport> props, float3 feet, float radius, float stepUp, out SupportHit hit, bool skipKit = false)
         {
             hit = default;
             hit.Height = float.MinValue;
@@ -83,6 +85,8 @@ namespace Punchy.Flora
             for (int i = 0; i < props.Length; i++)
             {
                 var p = props[i];
+                if (skipKit && p.Kit)
+                    continue;
                 ref var g = ref set.Grids[p.Grid];
                 if (math.distancesq(p.Position.xz, feet.xz) > math.square(g.Reach * p.Scale + radius))
                     continue;
@@ -122,12 +126,14 @@ namespace Punchy.Flora
         /// A wall: the highest surface at <paramref name="at"/> between a step up and head height (so too high to step
         /// onto and in the way), e.g. a fountain's rim seen from outside, a boulder, a house's eaves at head height.
         /// </summary>
-        public static bool Wall(ref SupportGridSet set, in DynamicBuffer<FloraSupport> props, float3 at, float stepUp, float headHeight, out float wallTop)
+        public static bool Wall(ref SupportGridSet set, in DynamicBuffer<FloraSupport> props, float3 at, float stepUp, float headHeight, out float wallTop, bool skipKit = false)
         {
             wallTop = float.MinValue;
             for (int i = 0; i < props.Length; i++)
             {
                 var p = props[i];
+                if (skipKit && p.Kit)
+                    continue;
                 ref var g = ref set.Grids[p.Grid];
                 if (math.distancesq(p.Position.xz, at.xz) > math.square(g.Reach * p.Scale))
                     continue;

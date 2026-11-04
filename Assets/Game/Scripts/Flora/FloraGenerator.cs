@@ -40,6 +40,11 @@ namespace Punchy.Flora
         /// </summary>
         public readonly List<Vector4> Colliders = new List<Vector4>();
         /// <summary>
+        /// W-67 (#79): a kit building's or ruin's solid parts as boxes (model space): the player stands on, bumps into
+        /// and jumps under these rather than its cylinders and support grid. Empty for everything else.
+        /// </summary>
+        public readonly List<KitBox> Boxes = new List<KitBox>();
+        /// <summary>
         /// Where each collider starts above the base, by index (missing = 0, the ground). Lets a leaning shape (an
         /// ArcSpire's prongs) be a stack of short slices that follow its tilt instead of one fat upright cylinder.
         /// </summary>
@@ -54,6 +59,8 @@ namespace Punchy.Flora
         /// rotation and scale. Empty for most plants (see FloraPlacement.NearPerches).
         /// </summary>
         public readonly List<Vector3> Perches = new List<Vector3>();
+        /// <summary>Its chimneys' flue tops (W-43c, where smoke rises), before the plant's own rotation and scale.</summary>
+        public readonly List<Vector3> Chimneys = new List<Vector3>();
         /// <summary>Whether it casts shadows. Small props (fences, palisades, signposts, garden rows, woodpiles,
         /// stalls, flowers) don't: towns have hundreds of them, and every shadow-casting draw costs a shadow pass.</summary>
         public bool CastsShadows = true;
@@ -117,6 +124,7 @@ namespace Punchy.Flora
                     case FloraForm.Torch: Torch(g); break;
                     case FloraForm.Bench: Bench(g); break;
                     case FloraForm.Log: SeatLog(g); break;
+                    case FloraForm.Driftwood: Driftwood(g); break;
                     case FloraForm.Stump: Stump(g); break;
                     case FloraForm.FirePit: FirePit(g); break;
                     case FloraForm.HiveTree: Broadleaf(g); Hive(g); break;
@@ -136,6 +144,9 @@ namespace Punchy.Flora
                     case FloraForm.Bedroll: Bedroll(g); break;
                     case FloraForm.RailFence: RailFence(g); break;
                     case FloraForm.FloatingRock: FloatingRock(g); break;
+                    case FloraForm.HazardShelter: HazardShelter(g); break;
+                    case FloraForm.KitBuilding: KitStructure(g, false); break;
+                    case FloraForm.KitRuin: KitStructure(g, true); break;
                     case FloraForm.Tent: Tent(g); break;
                     case FloraForm.Tower: Tower(g); break;
                     case FloraForm.Pen: Pen(g); break;
@@ -183,8 +194,10 @@ namespace Punchy.Flora
                     builder.Bounds(out model.CentreY, out model.Radius);
                     model.TrunkRadius = g.TrunkRadius;
                     model.Colliders.AddRange(g.Colliders);
+                    model.Boxes.AddRange(g.Boxes);
                     model.ColliderBase.AddRange(g.ColliderBase);
                     model.Perches.AddRange(g.Perches);
+                    model.Chimneys.AddRange(g.Chimneys);
                     model.Pools.AddRange(g.Pools);
                     model.DoorHeight = g.DoorHeight;
                     model.Height = g.Height;
@@ -265,14 +278,31 @@ namespace Punchy.Flora
             /// <summary>A tree's limbs (Broadleaf), each a path from the trunk outwards, for things that hang from them.</summary>
             public List<List<Vector3>> Limbs;
             public readonly List<Vector4> Colliders = new List<Vector4>();
+            public readonly List<KitBox> Boxes = new List<KitBox>();
             public readonly List<float> ColliderBase = new List<float>();
             public readonly List<Vector3> Perches = new List<Vector3>();
+            public readonly List<Vector3> Chimneys = new List<Vector3>();
             public readonly List<Vector4> Pools = new List<Vector4>();
 
             /// <summary>
             /// Adds upright cylinders covering a rotated ellipsoid's footprint: a row of circles along its longer
             /// horizontal axis, each as wide as the shorter one, as tall as its top.
             /// </summary>
+            /// <summary>
+            /// AddCollider for a low rounded lump the player meets edge-on: the footprint shrinks to where its surface
+            /// rises past the player's step (0.4 m), so they walk over the thin rim and stop at the real face, not at
+            /// an invisible wall round it (#70).
+            /// </summary>
+            public void AddSteppedCollider(Vector3 centre, Vector3 radii, Quaternion rotation)
+            {
+                const float step = 0.4f;
+                if (centre.y + radii.y < step + 0.05f)
+                    return;
+                var below = Mathf.Clamp01((step - centre.y) / Mathf.Max(radii.y, 0.01f));
+                var shrink = centre.y >= step ? 1f : Mathf.Sqrt(1f - below * below);
+                AddCollider(centre, new Vector3(radii.x * shrink, radii.y, radii.z * shrink), rotation);
+            }
+
             public void AddCollider(Vector3 centre, Vector3 radii, Quaternion rotation)
             {
                 var top = centre.y + radii.y;
@@ -1297,7 +1327,7 @@ namespace Punchy.Flora
         /// <summary>Forms people can climb onto and stand on (their tops go into PropSupport).</summary>
         public static bool Standable(FloraForm form) => Founded(form) || form switch
         {
-            FloraForm.Boulder or FloraForm.Spire or FloraForm.Den or FloraForm.Log or FloraForm.Woodpile or FloraForm.IceArch => true,
+            FloraForm.Boulder or FloraForm.Spire or FloraForm.Den or FloraForm.Log or FloraForm.Driftwood or FloraForm.Woodpile or FloraForm.IceArch => true,
             // Not fire pits: nobody stands in the flames (their ring collider keeps people out).
             _ => false
         };
@@ -1315,7 +1345,7 @@ namespace Punchy.Flora
             FloraForm.Hut or FloraForm.StoneHouse or FloraForm.Tent or FloraForm.Tower or FloraForm.Stall or FloraForm.Inn or
             FloraForm.Smithy or FloraForm.Forum or FloraForm.Fountain or FloraForm.Well or FloraForm.Hall or FloraForm.Shrine or
             FloraForm.Columns or FloraForm.Lodge or FloraForm.Palisade or FloraForm.Pen or FloraForm.Garden or
-            FloraForm.Signpost or FloraForm.Bench or FloraForm.Stump or FloraForm.Ruin or FloraForm.RailFence => true,
+            FloraForm.Signpost or FloraForm.Bench or FloraForm.Stump or FloraForm.Ruin or FloraForm.RailFence or FloraForm.HazardShelter or FloraForm.KitBuilding or FloraForm.KitRuin => true,
             _ => false
         };
 
@@ -1463,6 +1493,47 @@ namespace Punchy.Flora
                            Color.Lerp(g.Bark, new Color(0.75f, 0.62f, 0.45f).linear, 0.7f), FloraPart.Bark);
             g.Colliders.Add(new Vector4(-0.5f, 0f, 0.3f, LogSeat));
             g.Colliders.Add(new Vector4(0.5f, 0f, 0.3f, LogSeat));
+        }
+
+        /// <summary>
+        /// W-63 river dressing: a weathered log lying along X, Height long and Thickness in radius, gently bent, with
+        /// snapped branch stubs and a flare of root stubs at one end. Driftwood on a gravel bar, or (long) a log fallen
+        /// across a narrows. Its middle rests on the origin.
+        /// </summary>
+        static void Driftwood(Grower g)
+        {
+            var b = g.B;
+            var len = g.Range(g.S.Height.x, Mathf.Max(g.S.Height.x, g.S.Height.y));
+            var r = Mathf.Max(0.06f, g.S.Thickness * g.Range(0.85f, 1.15f));
+            g.Height = r * 2f;
+            g.Width = len;
+            g.TrunkRadius = 0f;
+            var bend = g.Range(-0.08f, 0.08f) * len;
+            var sides = g.Sides(9, 6, 4);
+            var first = b.VertexCount;
+            b.Tube(new List<Vector3> { new Vector3(-len * 0.5f, r * 1.1f, 0f), new Vector3(0f, r, bend), new Vector3(len * 0.5f, r * 0.8f, bend * 0.3f) },
+                   new List<float> { r * 1.15f, r, r * 0.6f }, sides, g.Bark, FloraPart.Bark);
+            b.Occlude(first, (p, n) => GroundOcclusion(p, r * 0.8f));
+            if (g.Lod >= 2)
+                return;
+            // Root stubs flare out of the thick end, some up in the air.
+            for (int k = 0, n = 3 + (int)g.Range(0f, 3f); k < n; k++)
+            {
+                var a = (k + g.Range(0f, 0.6f)) * Mathf.PI * 2f / n;
+                var tip = new Vector3(-len * 0.5f - g.Range(0.2f, 0.6f), r * 1.1f + Mathf.Sin(a) * r * 2.2f, Mathf.Cos(a) * r * 2.2f);
+                b.Tube(new List<Vector3> { new Vector3(-len * 0.5f + 0.1f, r * 1.1f, 0f), tip }, new List<float> { r * 0.45f, r * 0.12f },
+                       g.Sides(5, 4, 3), g.Bark, FloraPart.Bark);
+            }
+            // A few snapped branch stubs along the length.
+            for (int k = 0, n = 1 + (int)g.Range(0f, 3.5f); k < n; k++)
+            {
+                var x = g.Range(-0.3f, 0.4f) * len;
+                var a = g.Range(-1.2f, 1.2f);
+                var from = new Vector3(x, r, Mathf.Lerp(0f, bend, 1f - Mathf.Abs(x) / (len * 0.5f)));
+                var dir = new Vector3(g.Range(0.2f, 0.6f), Mathf.Cos(a), Mathf.Sin(a)).normalized;
+                b.Tube(new List<Vector3> { from, from + dir * (r + g.Range(0.15f, 0.5f)) }, new List<float> { r * 0.3f, r * 0.15f },
+                       g.Sides(5, 4, 3), g.Bark, FloraPart.Bark);
+            }
         }
 
         /// <summary>A sawn stump to sit on, its pale top 0.42 m up.</summary>
@@ -2071,6 +2142,11 @@ namespace Punchy.Flora
         {
             var s = g.S;
             var b = g.B;
+            if (s.RiverSpot == RiverSpot.Narrows)
+            {
+                StoneRow(g);
+                return;
+            }
             var size = g.Range(s.Height);
             var family = g.Variant % 5;
             var detail = g.Sides(3, 2, 1);
@@ -2136,6 +2212,51 @@ namespace Punchy.Flora
             g.Width = w * 2.4f;
             g.TrunkRadius = w * 0.45f;
             b.Occlude(first, (p, n) => GroundOcclusion(p, size * 0.25f) * Mathf.Lerp(0.75f, 1f, Mathf.Clamp01(n.y + 0.6f)));
+            Moss(g, first);
+        }
+
+        /// <summary>
+        /// How long a row of stepping stones is, end stone to end stone, by its variant (W-65d: 4, 6, ... 14 m, so
+        /// FloraPlacement can fit a row to the narrows it crosses and seat both ends on the bank; was always 12 m).
+        /// </summary>
+        public static float StoneRowLength(int variant) => 4f + 2f * variant;
+        /// <summary>How many row lengths there are (the SteppingStone species needs this many variants).</summary>
+        public const int StoneRowVariants = 6;
+        /// <summary>The shortest row variant reaching across <paramref name="width"/> m of water (bank to bank), or -1
+        /// when the water is narrower than 3 m or wider than the longest row.</summary>
+        public static int StoneRowVariant(float width) =>
+            width < 3f || width > StoneRowLength(StoneRowVariants - 1) ? -1 : Mathf.Max(0, Mathf.CeilToInt((width - 4f) / 2f));
+
+        /// <summary>
+        /// W-65b: stepping stones as one row across a shallow narrows (a single stone per draw left 10 m gaps, W-63).
+        /// flat stones along X, about 0.85 m apart (W-65f), tops 4-12 cm over the origin (FloraPlacement seats the origin
+        /// on the water surface) and reaching 0.9 m down to the bed. No colliders: they are stood on, through the
+        /// support grid, not bumped into.
+        /// </summary>
+        static void StoneRow(Grower g)
+        {
+            var b = g.B;
+            var first = b.VertexCount;
+            var detail = g.Sides(3, 2, 1);
+            // W-65d: the length by variant. W-65f: stones about 0.85 m apart (were 1.1): a stone's standable top (the part
+            // under 57 degrees) is only about 0.36 m round its middle, so 1.1 m left 0.4 m holes in the support grid that
+            // the player dropped through into the river; at 0.85 m the holes are narrower than the feet's sample spread.
+            var length = StoneRowLength(g.Variant % StoneRowVariants);
+            var n = Mathf.RoundToInt(length / 0.85f) + 1;
+            var pitch = length / (n - 1);
+            for (int k = 0; k < n; k++)
+            {
+                var x = -length * 0.5f + k * pitch + (k == 0 || k == n - 1 ? 0f : g.Range(-0.06f, 0.06f));
+                var radii = new Vector3(g.Range(0.42f, 0.5f), 0.48f, g.Range(0.4f, 0.5f));
+                var top = g.Range(0.04f, 0.12f);
+                var at = new Vector3(x, top - radii.y, g.Range(-0.15f, 0.15f));
+                var turn = Quaternion.Euler(g.Range(-3f, 3f), g.Range(0f, 360f), g.Range(-3f, 3f));
+                b.Blob(at, radii, turn, detail, 0.1f, g.R() * 100f, Color.Lerp(g.Bark, g.Bark * 0.8f, g.R()), FloraPart.Bark, 1f, g.Range(0.35f, 0.6f), 0.55f);
+            }
+            g.Height = 0.2f;
+            g.Width = length + 1f;
+            g.TrunkRadius = 0f;
+            b.Occlude(first, (p, n2) => Mathf.Lerp(0.7f, 1f, Mathf.Clamp01(n2.y + 0.6f)));
             Moss(g, first);
         }
 
@@ -2368,7 +2489,8 @@ namespace Punchy.Flora
 
         /// <summary>
         /// Floating debris (FloraForm.Debris): lumps of dark rock hovering over a cracked mound, the cluster slowly orbiting
-        /// it and each lump bobbing (FloraMeshBuilder.Orbit). No collision.
+        /// it and each lump bobbing (FloraMeshBuilder.Orbit). The mound and any lumps low enough to hit lie still and are
+        /// solid; the floating ones are not.
         /// </summary>
         static void Debris(Grower g)
         {
@@ -2385,18 +2507,162 @@ namespace Punchy.Flora
             b.Blob(Vector3.up * mound * 0.05f, new Vector3(mound, mound * 0.3f, mound * 0.9f), Quaternion.Euler(0f, g.R() * 360f, 0f),
                    g.Sides(2, 1, 0), 0.4f, g.R() * 100f, g.Bark * 0.7f, FloraPart.Bark);
             b.Occlude(first, (p, n) => GroundOcclusion(p, mound));
+            // Solid (#70): the mound where it stands above a step (its turn isn't kept, so the narrower, round footprint).
+            g.AddSteppedCollider(Vector3.up * mound * 0.05f, new Vector3(mound * 0.9f, mound * 0.3f, mound * 0.9f), Quaternion.identity);
 
-            var floating = b.VertexCount;
+            // Pieces that would hang within walking reach (bottom under head height) have dropped instead: they lie
+            // still on the ground or the mound, half sunk, and are solid; only the high ones orbit (#70).
             var pieces = g.Count(s.Branches);
+            var high = new List<(Vector3 at, Vector3 radii, Quaternion turn, float seed, Color color)>();
             for (int k = 0; k < pieces; k++)
             {
                 var a = g.R() * 6.28f;
                 var at = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * ring * g.Range(0.3f, 1f) + Vector3.up * height * g.Range(0.3f, 1f);
                 var size = height * g.Range(0.05f, 0.16f);
-                b.Blob(at, new Vector3(size, size * g.Range(0.6f, 0.9f), size * g.Range(0.7f, 1f)), Quaternion.Euler(g.R() * 360f, g.R() * 360f, g.R() * 360f),
-                       g.Sides(1, 1, 0), 0.3f, g.R() * 100f, Color.Lerp(g.Bark, g.Bark * 1.4f, g.R()), FloraPart.Metal, 1f, 0.5f);
+                var radii = new Vector3(size, size * g.Range(0.6f, 0.9f), size * g.Range(0.7f, 1f));
+                var turn = Quaternion.Euler(g.R() * 360f, g.R() * 360f, g.R() * 360f);
+                var seed = g.R() * 100f;
+                var color = Color.Lerp(g.Bark, g.Bark * 1.4f, g.R());
+                if (at.y - size >= DebrisHeadroom)
+                {
+                    high.Add((at, radii, turn, seed, color));
+                    continue;
+                }
+                var flat = new Vector2(at.x, at.z);
+                var onMound = flat.magnitude < mound * 0.85f ? mound * 0.35f * Mathf.Sqrt(1f - Mathf.Pow(flat.magnitude / mound, 2f)) : 0f;
+                var rest = new Vector3(at.x, onMound + radii.y * 0.45f, at.z);
+                var lying = Quaternion.Euler(g.Range(-12f, 12f), turn.eulerAngles.y, g.Range(-12f, 12f));
+                b.Blob(rest, radii, lying, g.Sides(1, 1, 0), 0.3f, seed, color * 0.8f, FloraPart.Bark, 1f, 0.5f);
+                g.AddSteppedCollider(rest, radii, lying);
             }
+            var floating = b.VertexCount;
+            foreach (var p in high)
+                b.Blob(p.at, p.radii, p.turn, g.Sides(1, 1, 0), 0.3f, p.seed, p.color, FloraPart.Metal, 1f, 0.5f);
             b.Orbit(floating, height * 0.06f);
+        }
+
+        /// <summary>How high (m, before scaling) a Debris piece's bottom must float to stay in the air: above a head.</summary>
+        const float DebrisHeadroom = 2.2f;
+
+        /// <summary>
+        /// A shelter against a harsh biome's hazard (FloraForm.HazardShelter, #69): settlements in ash, snow and storm
+        /// country put one on a house plot (SettlementBuilding.OnlyIn). The style is data (FloraSpecies.ShelterStyle).
+        /// </summary>
+        static void HazardShelter(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var height = g.Range(s.Height);
+            var radius = height * s.Spread * 0.5f;
+            g.Height = height;
+            g.Width = radius * 2.6f;
+            g.TrunkRadius = 0f;
+            var heap = s.FoliageVariation.linear;
+            var detail = g.Sides(2, 1, 0);
+
+            if (s.ShelterStyle == ShelterStyle.SnowLeanTo)
+            {
+                // A roof of poles and hides sloping from the snow at the back (-Z) up to two posts at the open front.
+                var back = -radius * 0.9f;
+                var front = radius * 0.7f;
+                var rise = height;
+                var slope = Mathf.Atan2(rise, front - back) * Mathf.Rad2Deg;
+                var length = Mathf.Sqrt(rise * rise + (front - back) * (front - back));
+                var mid = new Vector3(0f, rise * 0.5f, (front + back) * 0.5f);
+                var tilt = Quaternion.Euler(-slope, 0f, 0f);
+                b.Box(mid, new Vector3(radius * 1.9f, 0.12f, length), tilt, g.FoliageColor(), FloraPart.Bark);
+                // Snow lying on the roof, thicker low down.
+                b.Box(mid + tilt * new Vector3(0f, 0.12f, -length * 0.1f), new Vector3(radius * 1.8f, 0.1f, length * 0.75f), tilt, heap, FloraPart.Bark);
+                for (int side = -1; side <= 1; side += 2)
+                {
+                    b.Tube(new List<Vector3> { new Vector3(side * radius * 0.9f, -0.2f, front), new Vector3(side * radius * 0.9f, rise + 0.25f, front + 0.1f) },
+                           new List<float> { 0.11f, 0.08f }, g.Sides(6, 5, 4), g.Bark, FloraPart.Bark);
+                    // Snow blocks stacked up each side as a wind wall, lower towards the front.
+                    for (int k = 0; k < 3; k++)
+                    {
+                        var z = Mathf.Lerp(back + 0.5f, front - 0.6f, k / 2f);
+                        var wallTop = Mathf.Lerp(rise * 0.25f, rise * 0.85f, (z - back) / (front - back)) * 0.8f;
+                        b.Box(new Vector3(side * radius, wallTop * 0.5f, z), new Vector3(0.45f, wallTop, 1.05f), Quaternion.Euler(0f, g.Range(-4f, 4f), 0f), heap * 0.95f, FloraPart.Bark);
+                    }
+                }
+                // The drift banked over the back, and loose drifts round the sides.
+                var first = b.VertexCount;
+                b.Blob(new Vector3(0f, 0f, back - 0.2f), new Vector3(radius * 1.4f, rise * 0.45f, radius * 0.7f), Quaternion.identity, detail, 0.25f, g.R() * 100f, heap, FloraPart.Bark);
+                for (int side = -1; side <= 1; side += 2)
+                    b.Blob(new Vector3(side * radius * 1.25f, 0f, back * 0.3f), new Vector3(radius * 0.45f, rise * 0.22f, radius * 0.9f), Quaternion.identity, detail, 0.3f, g.R() * 100f, heap, FloraPart.Bark);
+                b.Occlude(first, (p, n) => GroundOcclusion(p, rise * 0.4f));
+                // Solid: the drifted back and the snow walls; the front is open to walk in.
+                g.Colliders.Add(new Vector4(0f, back - 0.2f, radius * 0.7f, rise * 0.45f));
+                for (int side = -1; side <= 1; side += 2)
+                {
+                    g.Colliders.Add(new Vector4(side * radius, back + 0.6f, 0.45f, rise * 0.4f));
+                    g.Colliders.Add(new Vector4(side * radius, (back + front) * 0.5f, 0.45f, rise * 0.55f));
+                }
+                g.Perches.Add(new Vector3(0f, rise + 0.25f, front + 0.1f));
+                return;
+            }
+
+            // A dome of rough stone, sunk a quarter into the ground (Ash: tall; Shard: low and wide).
+            var shard = s.ShelterStyle == ShelterStyle.ShardDome;
+            var domeY = -radius * 0.2f;
+            var domeH = shard ? height * 0.75f : height * 1.05f;
+            var dome = b.VertexCount;
+            b.Blob(Vector3.up * domeY, new Vector3(radius, domeH - domeY, radius * 0.95f), Quaternion.identity, g.Sides(3, 2, 1), 0.35f, g.R() * 100f, g.Bark, FloraPart.Bark, 1f, 0.25f);
+            b.Occlude(dome, (p, n) => GroundOcclusion(p, domeH * 0.6f));
+            // A smoke hole's ring on top.
+            b.Tube(new List<Vector3> { Vector3.up * (domeH - 0.15f), Vector3.up * (domeH + 0.2f) }, new List<float> { 0.3f, 0.26f }, g.Sides(8, 6, 4), g.Bark * 0.7f, FloraPart.Bark);
+            g.Chimneys.Add(Vector3.up * (domeH + 0.2f));
+            // The crawl tunnel to the door (+Z): a half-buried vault, its dark mouth, a lintel stone.
+            var tunnelR = Mathf.Min(1.15f, radius * 0.4f);
+            var tunnelEnd = radius * 1.3f;
+            b.Tube(new List<Vector3> { new Vector3(0f, 0f, radius * 0.6f), new Vector3(0f, 0f, tunnelEnd) }, new List<float> { tunnelR, tunnelR * 0.95f },
+                   g.Sides(10, 7, 5), g.Bark * 0.9f, FloraPart.Bark);
+            b.Box(new Vector3(0f, tunnelR * 0.4f, tunnelEnd + 0.01f), new Vector3(tunnelR * 1.1f, tunnelR * 0.8f, 0.05f), Quaternion.identity, new Color(0.02f, 0.02f, 0.02f), FloraPart.Bark);
+            b.Box(new Vector3(0f, tunnelR * 0.92f, tunnelEnd + 0.05f), new Vector3(tunnelR * 1.6f, 0.22f, 0.4f), Quaternion.Euler(0f, 0f, g.Range(-4f, 4f)), g.Bark * 1.15f, FloraPart.Bark);
+            g.Colliders.Add(new Vector4(0f, 0f, radius * 0.95f, domeH * 0.7f));
+            for (int side = -1; side <= 1; side += 2)
+                g.Colliders.Add(new Vector4(side * tunnelR * 0.8f, (radius * 0.6f + tunnelEnd) * 0.5f, 0.3f, tunnelR));
+            g.Perches.Add(Vector3.up * (domeH + 0.2f));
+
+            if (!shard)
+            {
+                // Ash fall: grey ash heaped on the back and drifted against the foot all round.
+                var ash = b.VertexCount;
+                b.Blob(new Vector3(0f, domeH * 0.55f, -radius * 0.35f), new Vector3(radius * 0.8f, domeH * 0.35f, radius * 0.6f), Quaternion.identity, detail, 0.3f, g.R() * 100f, heap, FloraPart.Bark);
+                var drifts = g.Lod == 2 ? 3 : 6;
+                for (int k = 0; k < drifts; k++)
+                {
+                    var a = (k + 0.5f) / drifts * Mathf.PI * 1.6f + Mathf.PI * 0.7f;
+                    var at = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * radius * 0.95f;
+                    b.Blob(at, new Vector3(radius * 0.35f, g.Range(0.2f, 0.45f), radius * 0.25f), Quaternion.Euler(0f, -a * Mathf.Rad2Deg, 0f), detail, 0.3f, g.R() * 100f, heap, FloraPart.Bark);
+                }
+                b.Occlude(ash, (p, n) => Mathf.Lerp(0.7f, 1f, Mathf.Clamp01(n.y)));
+                return;
+            }
+
+            // Electric storms: glass shards stood round the dome, leaning out, tips up (they take the strikes), and a
+            // tall one by the door.
+            var shards = Mathf.Max(3, g.Count(s.Branches));
+            var glass = FloraPart.Foliage;   // the builder draws Foliage as glass when Finish is Glass
+            for (int k = 0; k <= shards; k++)
+            {
+                var tall = k == shards;
+                var a = tall ? Mathf.PI * 0.5f + 0.5f : k / (float)shards * Mathf.PI * 2f + g.Range(-0.25f, 0.25f);
+                var dir = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
+                if (!tall && dir.z > 0.8f)
+                    continue;   // keep the tunnel clear
+                var len = tall ? height * 1.6f : height * g.Range(0.6f, 1.05f);
+                var foot = dir * (tall ? radius * 1.35f : radius * g.Range(0.95f, 1.1f));
+                var lean = Quaternion.AngleAxis(g.Range(8f, 22f), Vector3.Cross(Vector3.up, dir)) * Quaternion.Euler(0f, g.R() * 360f, 0f);
+                var w = g.Range(0.18f, 0.32f) * (tall ? 1.3f : 1f);
+                b.Box(foot + lean * Vector3.up * len * 0.45f, new Vector3(w, len, w * 0.6f), lean, g.FoliageColor(), glass);
+                if (tall)
+                    g.Colliders.Add(new Vector4(foot.x, foot.z, w + 0.1f, len * 0.8f));
+            }
+            // Scorch and fused sand round the foot.
+            var scorch = b.VertexCount;
+            b.Blob(Vector3.up * 0.02f, new Vector3(radius * 1.5f, 0.06f, radius * 1.5f), Quaternion.identity, 1, 0.2f, g.R() * 50f, heap, FloraPart.Bark);
+            b.Occlude(scorch, (p, n) => 0.8f);
         }
 
         /// <summary>
@@ -2419,6 +2685,9 @@ namespace Punchy.Flora
             b.Blob(Vector3.up * mound * 0.04f, new Vector3(mound, mound * 0.18f, mound * 0.9f), Quaternion.Euler(0f, g.R() * 360f, 0f),
                    g.Sides(2, 1, 0), 0.45f, g.R() * 100f, g.Bark * 0.6f, FloraPart.Bark);
             b.Occlude(first, (p, n) => GroundOcclusion(p, mound));
+            // Solid (#70): the scorched mound (the flat chunk underfoot). The rock itself floats at least ~5 m up, far
+            // over a head, so it stays non-solid.
+            g.AddSteppedCollider(Vector3.up * mound * 0.04f, new Vector3(mound * 0.9f, mound * 0.18f, mound * 0.9f), Quaternion.identity);
 
             var floating = b.VertexCount;
             var centre = Vector3.up * (lift + size * 0.5f);
@@ -2613,6 +2882,7 @@ namespace Punchy.Flora
                 FloraForm.Tower => half * 1.38f + 0.05f,
                 FloraForm.Inn => half * 0.8f + 0.02f,
                 FloraForm.Hall => half * 0.55f + 0.04f,
+                FloraForm.KitBuilding => half * 0.93f + 0.3f,
                 _ => -1f
             };
         }
@@ -2766,6 +3036,173 @@ namespace Punchy.Flora
             b.Box(P(0f, 0f, 0.035f), new Vector3(bar * 0.6f, height, 0.04f), facing, frame, FloraPart.Bark);
             // The sill sticks out past the frame and runs back into the wall with it.
             b.Box(P(0f, -height * 0.5f - bar * 1.4f, (front + 0.08f - back) * 0.5f), new Vector3(width + bar * 3f, bar * 0.8f, front + 0.08f + back), facing, frame, FloraPart.Bark);
+        }
+
+        /// <summary>
+        /// A structure-kit building (FloraForm.KitBuilding) or its ruin (FloraForm.KitRuin), #24: StructureKit lays out
+        /// the parts from a seed drawn per variant, in the species' Kit Culture trim set (a ruin takes its stone from Bark
+        /// and its moss from Accent). Far LODs drop the small trim. Intact buildings collide round their walls up to the
+        /// eaves; ruins per standing ground-storey bay, like Ruin. Perches on the highest tops.
+        /// </summary>
+        static void KitStructure(Grower g, bool ruined)
+        {
+            var s = g.S;
+            var b = g.B;
+            var width = g.Range(s.Height) * s.Spread;
+            var depth = width * g.Range(0.8f, 1.05f);
+            var seed = (uint)(g.R() * 16777215f) ^ ((uint)g.Variant << 24) ^ (uint)s.Seed * 0x9E3779B9u;
+            var roll = g.R();
+            var storeys = ruined ? (roll < 0.5f ? 1 : 2) : roll < 0.3f ? 1 : roll < 0.8f ? 2 : 3;
+            var trim = Punchy.Terrain.StructureKit.For(s.KitCulture);
+            if (ruined)
+            {
+                trim.Wall = g.Bark;
+                trim.Trim = g.Bark * 0.82f;
+                if (g.HasAccent)
+                    trim.Moss = g.Accent;
+            }
+            // #36: fishing villages' shapes. Their draws come after the house's own, so every existing kit building is the same.
+            var shape = ruined ? Punchy.Terrain.KitShape.House : s.KitShape;
+            var lift = 0f;
+            var wharfHouses = new System.Collections.Generic.List<Vector4>();
+            System.Collections.Generic.List<Punchy.Terrain.KitPart> parts;
+            switch (shape)
+            {
+                case Punchy.Terrain.KitShape.StiltHouse:
+                    storeys = 1;
+                    lift = g.Range(1.4f, 2.2f);
+                    parts = Punchy.Terrain.StructureKit.StiltHouse(seed, trim, width, depth, lift);
+                    break;
+                case Punchy.Terrain.KitShape.Dock:
+                    parts = Punchy.Terrain.StructureKit.Dock(seed, trim, width * 2.4f, 2.6f, 0.8f);
+                    break;
+                case Punchy.Terrain.KitShape.Shore:
+                    parts = Punchy.Terrain.StructureKit.Shore(seed, trim, 2.5f);
+                    break;
+                case Punchy.Terrain.KitShape.Igloo:     // #38: a turtle folk's dome, one tall storey
+                    storeys = 1;
+                    parts = Punchy.Terrain.StructureKit.Igloo(seed, trim, width);
+                    break;
+                case Punchy.Terrain.KitShape.Alpine:    // #38: mountaintop details, walked round
+                    parts = Punchy.Terrain.StructureKit.AlpineCluster(seed, trim, 2.5f);
+                    break;
+                case Punchy.Terrain.KitShape.ShellDome: // #37: sea folk on the lake bed
+                    storeys = 1;
+                    parts = Punchy.Terrain.StructureKit.ShellDome(seed, trim, width);
+                    break;
+                case Punchy.Terrain.KitShape.Spire:     // #37: Height is the spire's full height, tall enough to break the lake surface
+                    parts = Punchy.Terrain.StructureKit.Spire(seed, trim, width);
+                    break;
+                case Punchy.Terrain.KitShape.Pier:      // #37: Height is the deck's length; piles reach 30 m down to a deep bed
+                    parts = Punchy.Terrain.StructureKit.Pier(seed, trim, width, 2.8f, 1.0f, 30f);
+                    break;
+                case Punchy.Terrain.KitShape.Reef:      // #37: lake-bed details
+                    parts = Punchy.Terrain.StructureKit.Reef(seed, trim, 3f);
+                    break;
+                case Punchy.Terrain.KitShape.Wharf:     // W-65: walkways and houses over the water, laid out by the seed
+                    storeys = 1;
+                    parts = Punchy.Terrain.StructureKit.Wharf(seed, trim, 1.0f, wharfHouses);
+                    break;
+                default:
+                    parts = Punchy.Terrain.StructureKit.House(seed, trim, width, depth, storeys, ruined ? g.Range(0.45f, 0.9f) : 0f);
+                    break;
+            }
+            var house = shape == Punchy.Terrain.KitShape.House || shape == Punchy.Terrain.KitShape.StiltHouse ||
+                        shape == Punchy.Terrain.KitShape.Igloo || shape == Punchy.Terrain.KitShape.ShellDome;
+
+            var first = b.VertexCount;
+            var top = 0f;
+            var perch = Vector3.zero;
+            var eaves = house ? lift + storeys * trim.Storey : 0f;
+            for (int i = 0; i < parts.Count; i++)
+            {
+                var p = parts[i];
+                var small = p.Piece == Punchy.Terrain.KitPiece.Trim || p.Piece == Punchy.Terrain.KitPiece.Rail ||
+                            p.Piece == Punchy.Terrain.KitPiece.Rubble || p.Piece == Punchy.Terrain.KitPiece.Moss || p.Piece == Punchy.Terrain.KitPiece.MossCap ||
+                            (p.Piece == Punchy.Terrain.KitPiece.Window && p.Material != Punchy.Terrain.KitMaterial.Opening);
+                if (small && g.Lod >= 2)
+                    continue;
+                var c = Punchy.Terrain.StructureKit.Colour(trim, p.Material);
+                var jitter = ((i * 2654435761u) >> 24) / 255f;                 // a little per-stone variety, the same at every LOD
+                c = Color.Lerp(c * 0.94f, c * 1.08f, jitter);
+                if (p.Piece == Punchy.Terrain.KitPiece.MossCap)
+                {
+                    // W-64 (#24): one ragged, see-through sheet draped over the stone (was a 9 cm box that read as a pad).
+                    b.MossSheet(p.Centre, p.Size, p.Rotation, c, (uint)i * 2654435761u ^ seed);
+                    continue;
+                }
+                b.Box(p.Centre, p.Size, p.Rotation, c, p.Material == Punchy.Terrain.KitMaterial.Moss ? FloraPart.Foliage :
+                                                       p.Material == Punchy.Terrain.KitMaterial.Lamp || p.Material == Punchy.Terrain.KitMaterial.Rune ? FloraPart.Window : FloraPart.Bark);
+                var high = p.Centre.y + p.Size.y * 0.5f;
+                top = Mathf.Max(top, high);
+                // W-67 (#79): every part is a solid box unless it's decor (moss, trim, windows, lamps and runes): the
+                // collision is the art. Only LOD 0 keeps them (that's the one FloraModel copies).
+                var decor = p.Piece == Punchy.Terrain.KitPiece.Moss || p.Piece == Punchy.Terrain.KitPiece.Trim ||
+                            p.Piece == Punchy.Terrain.KitPiece.Window || p.Material == Punchy.Terrain.KitMaterial.Lamp ||
+                            p.Material == Punchy.Terrain.KitMaterial.Rune || p.Material == Punchy.Terrain.KitMaterial.Moss;
+                if (g.Lod == 0 && !decor)
+                    g.Boxes.Add(new KitBox { Centre = p.Centre, Half = p.Size * 0.5f, Rotation = p.Rotation, Reach = p.Size.magnitude * 0.5f });
+                if (p.Solid)
+                {
+                    var r = Mathf.Max(p.Size.x, p.Size.z) * 0.55f;
+                    if (ruined)
+                    {
+                        if (high > 0.7f)
+                            g.Colliders.Add(new Vector4(p.Centre.x, p.Centre.z, r, high));
+                    }
+                    else
+                    {
+                        // A wall's circle is set back so its outer edge sits on the wall's outer face: centred on the wall
+                        // it bulged ~1.2 m out over the door step and any outside stair (W-58b walk test).
+                        var at = new Vector2(p.Centre.x, p.Centre.z);
+                        if (p.Piece == Punchy.Terrain.KitPiece.Wall && wharfHouses.Count > 0)
+                        {
+                            // W-65: a wharf's houses stand off the origin; set each wall back from its own house's centre.
+                            var home = wharfHouses[0];
+                            foreach (var h in wharfHouses)
+                                if ((new Vector2(h.x, h.y) - at).sqrMagnitude < (new Vector2(home.x, home.y) - at).sqrMagnitude)
+                                    home = h;
+                            var local = at - new Vector2(home.x, home.y);
+                            var outward = Mathf.Abs(local.x) / home.z > Mathf.Abs(local.y) / home.w ? new Vector2(Mathf.Sign(local.x), 0f) : new Vector2(0f, Mathf.Sign(local.y));
+                            at -= outward * Mathf.Max(0f, r - Punchy.Terrain.StructureKit.Thick * 0.5f);
+                        }
+                        else if (p.Piece == Punchy.Terrain.KitPiece.Wall)
+                        {
+                            var outward = Mathf.Abs(at.x) / width > Mathf.Abs(at.y) / depth ? new Vector2(Mathf.Sign(at.x), 0f) : new Vector2(0f, Mathf.Sign(at.y));
+                            at -= outward * Mathf.Max(0f, r - Punchy.Terrain.StructureKit.Thick * 0.5f);
+                        }
+                        g.Colliders.Add(new Vector4(at.x, at.y, r, Mathf.Max(high, p.Piece == Punchy.Terrain.KitPiece.Wall && p.Size.x * p.Size.z > 4f ? high : eaves)));
+                    }
+                }
+                if ((p.Piece == Punchy.Terrain.KitPiece.Wall || p.Piece == Punchy.Terrain.KitPiece.Roof) && high > perch.y)
+                    perch = new Vector3(p.Centre.x, high, p.Centre.z);
+            }
+            if (!ruined && house)   // the inside: one fat cylinder so nothing walks through the middle of the house
+            {
+                var inner = Mathf.Min(width, depth) * 0.45f;
+                // W-64 (#38): an igloo's door stands well inside the dome now; the cylinder stops 0.4 m short of it.
+                if (shape == Punchy.Terrain.KitShape.Igloo)
+                    foreach (var p in parts)
+                        if (p.Piece == Punchy.Terrain.KitPiece.Door)
+                            inner = Mathf.Min(inner, p.Centre.z - 0.4f);
+                g.Colliders.Add(new Vector4(0f, 0f, inner, eaves));
+                // W-65c (#38): a collider-only circle behind the igloo's door (no mesh, so nothing shows through), its
+                // front 0.1 m before the door slab: walkers stop at the door line, not inside it.
+                if (shape == Punchy.Terrain.KitShape.Igloo)
+                    foreach (var p in parts)
+                        if (p.Piece == Punchy.Terrain.KitPiece.Door)
+                            g.Colliders.Add(new Vector4(p.Centre.x, p.Centre.z + 0.2f - 0.95f, 0.95f, p.Size.y));
+            }
+            foreach (var h in wharfHouses)  // W-65: one inside cylinder per house on the wharf, up to its eaves
+                g.Colliders.Add(new Vector4(h.x, h.y, Mathf.Min(h.z, h.w) * 0.45f, 1.0f + trim.Storey));
+            if (perch.y > 1f)
+                g.Perches.Add(perch);
+            b.Recolor(first, (p, c) => p.y < 0.5f ? c * 0.82f : c);   // darker footing
+            b.Occlude(first, (p, n) => GroundOcclusion(p, Mathf.Min(top, 4f) * 0.5f));
+            g.Height = top;
+            g.Width = shape == Punchy.Terrain.KitShape.Wharf ? 30f : Mathf.Max(width, depth) * 1.4f;
+            // (A dock or a shore cluster is walked on and round, not a trunk to bump into.)
+            g.TrunkRadius = house ? Mathf.Max(width, depth) * 0.55f : 0f;
         }
 
         static void StoneHouse(Grower g)
@@ -3091,6 +3528,7 @@ namespace Punchy.Flora
         /// </summary>
         static void ChimneyTop(Grower g, Vector3 top, float half, Color stone)
         {
+            g.Chimneys.Add(top + Vector3.up * 0.1f);
             if (g.Lod == 2)
                 return;
             var b = g.B;

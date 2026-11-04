@@ -538,9 +538,60 @@ namespace Punchy.Terrain
             biomeRealm.Dispose();
             biomeRanges.Dispose();
 
+            ApplyLooks(source, palette, types, instances);
             if (instances.Count == 0)
                 return default;
             return BuildBlob(types, instances, allocator);
+        }
+
+        /// <summary>W-57: appends every biome look the listed types use (after them all, so no index moves).</summary>
+        public static void AddLooks(List<LandmarkType> types)
+        {
+            var count = types.Count;
+            for (int i = 0; i < count; i++)
+                if (types[i] != null && types[i].BiomeLooks != null)
+                    foreach (var look in types[i].BiomeLooks)
+                        if (look?.Look != null && !types.Contains(look.Look))
+                            types.Add(look.Look);
+        }
+
+        /// <summary>
+        /// W-57: every landmark whose type has a look for the biome under its centre (LandmarkType.BiomeLooks) takes that
+        /// look's type. Done after placement, so a look never moves, adds or drops a landmark.
+        /// </summary>
+        public static void ApplyLooks(in TerrainSource source, IReadOnlyList<BiomeDefinition> palette, IReadOnlyList<LandmarkType> types,
+                                      List<LandmarkInstance> instances)
+        {
+            for (int i = 0; i < instances.Count; i++)
+            {
+                var instance = instances[i];
+                if (instance.Type < 0 || instance.Type >= types.Count || types[instance.Type] == null)
+                    continue;
+                var looks = types[instance.Type].BiomeLooks;
+                if (looks == null || looks.Count == 0)
+                    continue;
+                var biomes = source.SampleGround(instance.Position).Biomes;
+                var best = 0;
+                for (int k = 1; k < 4; k++)
+                    if (biomes.Weights[k] > biomes.Weights[best])
+                        best = k;
+                var id = (int)biomes.Ids[best];
+                if (id < 0 || id >= palette.Count)
+                    continue;
+                foreach (var look in looks)
+                {
+                    if (look?.Look == null || look.Biomes == null || !look.Biomes.Contains(palette[id]))
+                        continue;
+                    for (int to = 0; to < types.Count; to++)
+                        if (types[to] == look.Look)
+                        {
+                            instance.Type = to;
+                            instances[i] = instance;
+                            break;
+                        }
+                    break;
+                }
+            }
         }
 
         /// <summary>
@@ -613,6 +664,15 @@ namespace Punchy.Terrain
             var instanceArray = builder.Allocate(ref root.Instances, instances.Count);
             for (int i = 0; i < instances.Count; i++)
                 instanceArray[i] = instances[i];
+            // W-56: the sunken temple's ruin, laid out by the ruin kit from its landmark's key (seed-derived).
+            RuinKit.Layout ruin = null;
+            foreach (var temple in instances)
+                if (types[temple.Type].OnePerIsland && types[temple.Type].Temple)
+                {
+                    ruin = RuinKit.Temple(RuinKit.Scramble(temple.Key));
+                    break;
+                }
+            RuinKit.Fill(ref builder, ref root, ruin);
 
             // Grid over all footprints.
             float2 min = float.MaxValue, max = float.MinValue;

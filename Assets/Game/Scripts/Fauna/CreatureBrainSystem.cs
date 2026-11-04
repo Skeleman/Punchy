@@ -926,7 +926,7 @@ namespace Punchy.Fauna
                             {
                                 // (A hermit's chores: chopping at its woodpile is stage 1, stooped over its garden or the
                                 // water stage 2, so every machine poses it right.)
-                                s.Stage = (byte)(s.Task == CreatureTask.Hermit && s.AnchorSide == 2 ? 2 : 1);
+                                s.Stage = (byte)(s.Task == CreatureTask.Hermit && s.AnchorSide >= 2 ? s.AnchorSide : 1);
                                 s.StageTime = 0f;
                             }
                         }
@@ -3241,7 +3241,9 @@ namespace Punchy.Fauna
                     SetMode(ref s, CreatureMode.Work);
                     s.WorkSpot = set.Anchors[a].Position.xz;
                     s.WorkFace = s.WorkSpot + set.Anchors[a].Facing * 2f;
-                    s.AnchorSide = 1;
+                    // W-57: the landmark's Work rides in the anchor's Variety: 0 chops (side 1), else side 2 + work
+                    // (3 sweeps, 4 shovels, 5 hammers), which becomes the replicated Stage on arrival.
+                    s.AnchorSide = (byte)(set.Anchors[a].Variety > 0 ? 2 + set.Anchors[a].Variety : 1);
                     s.Timer = rng.NextFloat(40f, 90f);
                     return true;
                 }

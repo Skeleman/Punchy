@@ -74,6 +74,11 @@ namespace Punchy.Terrain
         public int2 GridSize;
         public BlobArray<int2> Cells;   // (first item, count)
         public BlobArray<int> Items;    // instance indices
+        // W-56: the sunken temple's ruin, built from the ruin kit (RuinKit) in its frame; empty without a temple.
+        public BlobArray<RuinRoom> RuinRooms;
+        public BlobArray<RuinBox> RuinBoxes;
+        public BlobArray<RuinDrift> RuinDrifts;
+        public BlobArray<RuinSconce> RuinSconces;
     }
 
     /// <summary>Where a point lies relative to a landmark.</summary>
@@ -186,6 +191,13 @@ namespace Punchy.Terrain
             return inst.BaseHeight + type.Height * inst.Scale * Profile(ref type, centre, radius) * Mask(distance) - 0.3f;
         }
 
+        /// <summary>max(a, b) with the corner rounded over k metres (no curvature break where two surfaces meet).</summary>
+        public static float SmoothMax(float a, float b, float k)
+        {
+            var m = math.max(k - math.abs(a - b), 0f) / k;
+            return math.max(a, b) + m * m * k * 0.25f;
+        }
+
         /// <summary>Ground height with landmarks' shapes, levelling, bumps and pool basins applied.</summary>
         public static float Shape(ref LandmarkSetBlob set, float2 xz, float h)
         {
@@ -201,6 +213,19 @@ namespace Punchy.Terrain
                 h += type.Height * inst.Scale * Profile(ref type, hit.Local, hit.Radius) * mask;
                 if (type.Roughness > 0f)
                     h += type.Roughness * inst.Scale * mask * (noise.snoise(hit.Local * 0.11f + inst.Seed) * 0.7f + noise.snoise(hit.Local * 0.31f - inst.Seed) * 0.3f);
+
+                // W-56: the sunken temple's sand swell is ground (same sand, shading and curvature as the dunes): the
+                // mound's height merged into the dunes with a smooth max, faded out over its last quarter.
+                if (type.Temple != 0)
+                {
+                    var t = SunkenTempleShape.MoundT(hit.Local.x, hit.Local.y);
+                    if (t < 1f)
+                    {
+                        var ripple = 0.35f * noise.snoise(hit.Local * 0.07f + inst.Seed) * math.saturate(3f * t) * (1f - t);
+                        var target = inst.BaseHeight + SunkenTempleShape.MoundTop(hit.Local.x, hit.Local.y) + ripple;
+                        h = math.lerp(h, SmoothMax(h, target, 3f), 1f - math.smoothstep(0.75f, 1f, t));
+                    }
+                }
 
                 // Pools: a raised lip keeps the water in on sloping ground, then the bowl is dug out of it.
                 for (int p = 0; p < type.PoolCount; p++)

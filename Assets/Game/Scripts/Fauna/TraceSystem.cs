@@ -91,10 +91,23 @@ namespace Punchy.Fauna
             hasTops = SystemAPI.TryGetSingleton(out grids) && grids.Set.IsCreated &&
                       SystemAPI.TryGetSingletonBuffer(out tops, true);
             CreatureSnapshotSystem.Get(World, query, out var states, out var bodies, out var entities);
-            for (int i = 0; i < entities.Length; i++)
+            // Two passes. First, per creature, the cheap checks from its own state (#55: a feather dropping, a stone let
+            // go, a foot coming down this frame); only the creatures with something due (and breachers, burrowers) need
+            // their ground. Then those grounds (cave-mouth test, water under it) are looked up in one Burst job: done one
+            // by one in managed code it was the costliest game system near busy caves (#81, about 4 ms a frame).
+            // (-oldtrace keeps the old managed lookups for every creature in range, to measure against.)
+            var n = entities.Length;
+            var need = new NativeArray<byte>(n, Allocator.TempJob);
+            var due = new NativeArray<byte>(n, Allocator.Temp);
+            var lastPhases = new NativeArray<float>(n, Allocator.Temp);
+            var positions = new NativeArray<float3>(n, Allocator.TempJob);
+            var noSurface = new NativeArray<bool>(n, Allocator.TempJob);
+            var grounds = new NativeArray<GroundSample>(n, Allocator.TempJob);
+            for (int i = 0; i < n; i++)
             {
                 var s = states[i];
                 ref var b = ref bodies[i].Blob.Value;
+                positions[i] = s.Position;
                 // (Huge animals seen from far off leave their marks as far: a serpent's splash across the lake.)
                 var range = math.max(Range, b.SeenFrom);
                 if (math.distancesq(s.Position, camPos) > range * range)
@@ -104,27 +117,46 @@ namespace Punchy.Fauna
                 }
                 if (b.Breaches || b.Tunnels)
                 {
-                    Splash(entities[i], s, ref b, terrain, now);
+                    need[i] = 2;
                     continue;
                 }
-                // (#55: the cheap checks first, from the creature's own state: a feather dropping, a stone let go, a foot
-                // coming down this frame. Most frames none is, and the ground isn't sampled at all.)
-                var feather = FeatherDue(entities[i], s, ref b);
-                var stone = StoneDue(entities[i], s);
-                var step = StepDue(entities[i], s, ref b, out var lastPhase);
-                if (!OldOrder && !feather && !stone && !step)
+                var flags = (FeatherDue(entities[i], s, ref b) ? 1 : 0) | (StoneDue(entities[i], s) ? 2 : 0) |
+                            (StepDue(entities[i], s, ref b, out var lastPhase) ? 4 : 0);
+                due[i] = (byte)flags;
+                lastPhases[i] = lastPhase;
+                if (OldOrder || flags != 0)
+                    need[i] = (byte)(b.CrossesWater ? 2 : 1);
+            }
+            if (!OldTrace)
+                Unity.Jobs.IJobParallelForExtensions.Run(new GroundJob
+                    { Terrain = terrain, Positions = positions, Need = need, NoSurface = noSurface, Grounds = grounds }, n);
+            for (int i = 0; i < n; i++)
+            {
+                if (need[i] == 0)
                     continue;
+                var s = states[i];
+                ref var b = ref bodies[i].Blob.Value;
+                if (OldTrace && need[i] == 2)
+                    grounds[i] = terrain.SampleGround(s.Position.xz);
+                if (b.Breaches || b.Tunnels)
+                {
+                    Splash(entities[i], s, ref b, terrain, grounds[i], now);
+                    continue;
+                }
+                var feather = (due[i] & 1) != 0;
+                var stone = (due[i] & 2) != 0;
+                var step = (due[i] & 4) != 0;
                 // Nothing is printed over a cave mouth or from underground: the marks sit on the terrain's surface, which is cut
                 // away there (#14, prints hanging in the air).
                 NoSurfaceCalls++;
-                if (NoSurface(terrain, s.Position))
+                if (OldTrace ? NoSurface(terrain, s.Position) : noSurface[i])
                     continue;
                 if (feather)
                     Feather(entities[i], s, ref b, terrain, now);
                 if (stone)
                     Stone(entities[i], s, terrain, now);
-                if ((step || OldOrder) && !Wake(entities[i], s, ref b, terrain, now) && step)
-                    Footprint(s, ref b, terrain, now, lastPhase);
+                if ((step || OldOrder) && !Wake(s, ref b, grounds[i]) && step)
+                    Footprint(s, ref b, terrain, now, lastPhases[i]);
             }
             if (Stats)
             {
@@ -132,6 +164,38 @@ namespace Punchy.Fauna
                 Ticks += System.Diagnostics.Stopwatch.GetTimestamp() - start;
             }
             CreatureSnapshotSystem.Release(World, states, bodies, entities);
+            need.Dispose();
+            due.Dispose();
+            lastPhases.Dispose();
+            positions.Dispose();
+            noSurface.Dispose();
+            grounds.Dispose();
+        }
+
+        /// <summary>A/B switch for #81: "-oldtrace" on a shot line (DebugControls) keeps the per-creature managed ground lookups.</summary>
+        public static bool OldTrace;
+
+        /// <summary>
+        /// Each in-range creature's ground, in Burst: whether the surface is there to mark (NoSurface) and, for the
+        /// bodies that need it (breachers, burrowers, waders), the ground sample with its water.
+        /// </summary>
+        [Unity.Burst.BurstCompile]
+        struct GroundJob : Unity.Jobs.IJobParallelFor
+        {
+            [ReadOnly] public TerrainSource Terrain;
+            [ReadOnly] public NativeArray<float3> Positions;
+            [ReadOnly] public NativeArray<byte> Need;
+            [WriteOnly] public NativeArray<bool> NoSurface;
+            [WriteOnly] public NativeArray<GroundSample> Grounds;
+
+            public void Execute(int i)
+            {
+                if (Need[i] == 0)
+                    return;
+                NoSurface[i] = TraceSystem.NoSurface(Terrain, Positions[i]);
+                if (Need[i] == 2)
+                    Grounds[i] = Terrain.SampleGround(Positions[i].xz);
+            }
         }
 
         /// <summary>#55 A/B switch ("-oldtrace"): the ground is sampled for every creature in range, as before.</summary>
@@ -293,11 +357,10 @@ namespace Punchy.Fauna
         /// Whether a land animal is swimming (in water deeper than half its standing height): it leaves no footprints
         /// then. Its wake is the water's own now (Water.shader's V and rings, fed by CreatureWakeSystem).
         /// </summary>
-        bool Wake(Entity e, in CreatureState s, ref CreatureBlob b, in TerrainSource terrain, float now)
+        static bool Wake(in CreatureState s, ref CreatureBlob b, in GroundSample g)
         {
             if (!b.CrossesWater)
                 return false;
-            var g = terrain.SampleGround(s.Position.xz);
             return g.HasWater && s.Position.y <= g.WaterSurface - b.StandHeight * s.Scale * 0.5f;
         }
 
@@ -307,9 +370,8 @@ namespace Punchy.Fauna
         /// spreading out across the surface and fading, and a few soft puffs of mist rising off it, all sized to the
         /// serpent and over in a few seconds. (Thrown once; each frame just works out where everything is by now.)
         /// </summary>
-        void Splash(Entity e, in CreatureState s, ref CreatureBlob b, in TerrainSource terrain, float now)
+        void Splash(Entity e, in CreatureState s, ref CreatureBlob b, in TerrainSource terrain, in GroundSample g, float now)
         {
-            var g = terrain.SampleGround(s.Position.xz);
             // (A worm breaks the ground, not water: its spray is sand, or snow.)
             var surfaceY = b.Tunnels ? g.Height : g.WaterSurface;
             var isUnder = (b.Tunnels || g.HasWater) && s.Position.y < surfaceY;

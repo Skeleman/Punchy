@@ -84,3 +84,23 @@ MonoBehaviour:
     NightOnly: 1
   Residents: []
   Anchors: 1
+  BiomeLooks:
+  - Biomes:
+    - {fileID: 11400000, guid: 46ea94191e2f71c4a8446135874892e0, type: 2}
+    - {fileID: 11400000, guid: 3abd880b4b52a0d45ac7f2b3a687cee8, type: 2}
+    - {fileID: 11400000, guid: 141565d02b6f28c4b9331e5d77a83fac, type: 2}
+    Look: {fileID: 11400000, guid: 504ee8c9834c46b59d480bdb88e25e7c, type: 2}
+  - Biomes:
+    - {fileID: 11400000, guid: efa1fb2872ceb1d45b6ee561e78c8774, type: 2}
+    - {fileID: 11400000, guid: 20ddf4d9933283446b410b041eced8ef, type: 2}
+    - {fileID: 11400000, guid: b6dbd4f6350cf6743b5cf90b12731cfe, type: 2}
+    Look: {fileID: 11400000, guid: 1d46afe67b83429899d7f14a8f7e928f, type: 2}
+  - Biomes:
+    - {fileID: 11400000, guid: b8464ff24e973e14bbdaf441e0f45b14, type: 2}
+    Look: {fileID: 11400000, guid: ee8466eda22445e4b472e1fa2e1946e4, type: 2}
+  - Biomes:
+    - {fileID: 11400000, guid: 85ee83dd85b5ba542b880bbcf85da039, type: 2}
+    - {fileID: 11400000, guid: 3c3b1f5dd38bdb84f949fc2b75db975a, type: 2}
+    - {fileID: 11400000, guid: 2643950432d89264cafbe718d23c0c4e, type: 2}
+    - {fileID: 11400000, guid: fa4ebbcc3834f4c47afc7a79abe40ad7, type: 2}
+    Look: {fileID: 11400000, guid: f943c02b3fa6465fbcc3c97f6a1beea7, type: 2}

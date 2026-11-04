@@ -156,6 +156,8 @@ namespace Punchy.Flora
         float nextSupport;
         /// <summary>Walkable tops are gathered within this distance of every player.</summary>
         const float SupportRange = 40f;
+        /// <summary>W-67 (#79): kit buildings whose bounds come within this of a player have their boxes placed for collision.</summary>
+        const float KitBoxRange = 12f;
         float2 lastObstacleCentre = new float2(float.MaxValue);
         bool obstaclesDirty;
 
@@ -479,15 +481,20 @@ namespace Punchy.Flora
             }
         }
 
+        /// <summary>Set when a flora keep-out circle changes (a colossus placed): every streamed tile is dropped once and re-placed.</summary>
+        public static bool Replant;
+
         void Stream(in TerrainSource source, float2 camXZ)
         {
-            // Unload tiles that fell out of range.
+            // Unload tiles that fell out of range (or every tile once, when a keep-out circle changed: see Replant).
+            var all = Replant;
+            Replant = false;
             foreach (var l in layers)
             {
                 scratch.Clear();
                 var keep = l.Radius + l.Settings.TileSize * 1.5f;
                 foreach (var kv in l.Tiles)
-                    if (math.distance(TileCentre(l, kv.Key), camXZ) > keep)
+                    if (all || math.distance(TileCentre(l, kv.Key), camXZ) > keep)
                         scratch.Add(kv.Key);
                 foreach (var key in scratch)
                 {
@@ -837,8 +844,13 @@ namespace Punchy.Flora
                 em.SetComponentData(obstacleEntity, new SupportGrids { Set = supportSet });
             if (!em.HasBuffer<FloraSupport>(obstacleEntity))
                 em.AddBuffer<FloraSupport>(obstacleEntity);
+            if (!em.HasBuffer<KitBox>(obstacleEntity))
+                em.AddBuffer<KitBox>(obstacleEntity);
             var buffer = em.GetBuffer<FloraSupport>(obstacleEntity);
             buffer.Clear();
+            // W-67 (#79): the kit buildings' boxes near any player, placed in the world (same refresh as the tops).
+            var kitBoxes = em.GetBuffer<KitBox>(obstacleEntity);
+            kitBoxes.Clear();
             for (int li = 1; li < 3; li++)
             {
                 var l = layers[li];
@@ -853,13 +865,17 @@ namespace Punchy.Flora
                         continue;
                     foreach (var inst in kv.Value)
                     {
-                        if (inst.Model < 0 || inst.Model >= modelGrid.Length || modelGrid[inst.Model] < 0)
+                        if (inst.Model < 0 || inst.Model >= modelGrid.Length)
                             continue;
-                        var close = false;
+                        var nearest = float.MaxValue;
                         foreach (var c in centres)
-                            close |= math.distancesq(inst.Position.xz, c) < SupportRange * SupportRange;
-                        if (close)
-                            buffer.Add(new FloraSupport { Position = inst.Position, Yaw = inst.Yaw, Scale = inst.Scale, Grid = modelGrid[inst.Model] });
+                            nearest = math.min(nearest, math.distancesq(inst.Position.xz, c));
+                        var model = models[inst.Model];
+                        if (model.Boxes.Count > 0 && nearest < math.square(KitBoxRange + model.Radius * inst.Scale))
+                            foreach (var box in model.Boxes)
+                                kitBoxes.Add(KitCollision.Placed(box, inst.Position, inst.Yaw, inst.Scale));
+                        if (modelGrid[inst.Model] >= 0 && nearest < SupportRange * SupportRange)
+                            buffer.Add(new FloraSupport { Position = inst.Position, Yaw = inst.Yaw, Scale = inst.Scale, Grid = modelGrid[inst.Model], Kit = model.Boxes.Count > 0 });
                     }
                 }
             }
@@ -1122,7 +1138,8 @@ namespace Punchy.Flora
                             {
                                 Position = inst.Position + new float3(offset.x, y0 * inst.Scale, offset.y),
                                 Radius = col.z * inst.Scale,
-                                Height = (col.w - y0) * inst.Scale
+                                Height = (col.w - y0) * inst.Scale,
+                                Kit = model.Boxes.Count > 0
                             });
                         }
                     }

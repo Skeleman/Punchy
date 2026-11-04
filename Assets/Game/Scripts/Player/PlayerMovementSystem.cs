@@ -60,6 +60,9 @@ namespace Punchy.Player
             var hasProps = SystemAPI.TryGetSingletonBuffer<FloraSupport>(out var props, true);
             var hasGrids = SystemAPI.TryGetSingleton<SupportGrids>(out var grids);
             var tops = hasProps && hasGrids && grids.Set.IsCreated;
+            // W-67 (#79): kit buildings' and ruins' boxes near the player (FloraSystem): floors, walls and ceilings that
+            // match the art. Their old circles and support grids are skipped below (Kit flags); other props keep theirs.
+            var hasKit = SystemAPI.TryGetSingletonBuffer<KitBox>(out var kitBoxes, true) && kitBoxes.Length > 0;
             var size = body.Size > 0f ? body.Size : 1f;
             var stepUp = StepUp * size;
 
@@ -226,6 +229,8 @@ namespace Punchy.Player
                 var wallHead = body.ClimbsWalls ? WallClimbHead : 1.7f * size;
                 if (tops)
                     position.xz = KeepOutOfPropWalls(ref grids.Set.Value, props, from, position.xz, stepUp, wallHead, out blocked);
+                if (hasKit)   // W-67 (#79): kit walls, slid along the same way.
+                    position.xz = KitCollision.KeepOut(kitBoxes, from, position.xz, settings.Radius, stepUp, wallHead, ref blocked);
                 // The salt tower's body and its steps from below (W-27): slid along the same way.
                 position.xz = KeepOutOfTower(terrain, from, position.xz, stepUp, 1.7f * size, ref blocked);
                 // (#33 probe, -place wall only: every term of the wall latch below, and what stopped the move first.)
@@ -272,8 +277,8 @@ namespace Punchy.Player
                     m.LatchCooldown = 0.5f;
                     position.xz = from.xz - math.normalizesafe(math.mul(t.Rotation, new float3(0f, 0f, 1f)).xz) * 0.4f;
                 }
-                else if (wasOnWall && body.ClimbsWalls && tops && wallUp >= 0f && !swimming &&
-                         PropSupport.Sample(ref grids.Set.Value, props, from, 0.3f, stepUp, out var perch) &&
+                else if (wasOnWall && body.ClimbsWalls && (tops || hasKit) && wallUp >= 0f && !swimming &&
+                         TopUnder(tops, grids, props, hasKit, kitBoxes, from, 0.3f, stepUp, out var perch) &&
                          perch.Height >= from.y - 0.3f && perch.Height <= from.y + stepUp)
                 {
                     // Feet on a top (a wall's, after the climb): let go of the wall, with no stick needed (#33).
@@ -295,8 +300,8 @@ namespace Punchy.Player
                     // crept onto) and it climbs over onto it, rather than clinging on below the rim (#33).
                     var wallInto = math.normalizesafe(math.mul(t.Rotation, new float3(0f, 0f, 1f)).xz);
                     var overAt = position.xz + wallInto * (settings.Radius + 0.15f);
-                    if (tops && wasOnWall && rising > 0f &&
-                        PropSupport.Sample(ref grids.Set.Value, props, new float3(overAt.x, from.y, overAt.y), 0f, TopOutReach * math.max(size, 0.5f), out var over) &&
+                    if ((tops || hasKit) && wasOnWall && rising > 0f &&
+                        TopUnder(tops, grids, props, hasKit, kitBoxes, new float3(overAt.x, from.y, overAt.y), 0f, TopOutReach * math.max(size, 0.5f), out var over) &&
                         over.Height > from.y - stepUp)
                     {
                         m.OnWall = false;
@@ -334,7 +339,7 @@ namespace Punchy.Player
                 // Standing on a prop's top, if it's higher than the ground there; slid off it where it's steep.
                 var wasOnProp = m.OnProp;
                 m.OnProp = false;
-                if (tops && PropSupport.Sample(ref grids.Set.Value, props, position, settings.Radius * 0.6f, stepUp, out var top) && top.Height > ground)
+                if ((tops || hasKit) && TopUnder(tops, grids, props, hasKit, kitBoxes, position, settings.Radius * 0.6f, stepUp, out var top) && top.Height > ground)
                 {
                     ground = top.Height;
                     m.OnProp = true;
@@ -343,7 +348,7 @@ namespace Punchy.Player
                 }
                 // A wall climber walking off a top's edge goes over onto the wall, turned to face it, and climbs down
                 // (#33: it used to let go and fall). Its feet start just below the rim, so the wall holds it.
-                if (body.ClimbsWalls && tops && wasOnProp && !m.OnProp && m.Grounded && pressing && !input.JumpPressed && !swimming &&
+                if (body.ClimbsWalls && (tops || hasKit) && wasOnProp && !m.OnProp && m.Grounded && pressing && !input.JumpPressed && !swimming &&
                     position.y - ground > math.max(settings.GroundSnapDistance + speed * dt, stepUp))
                 {
                     var off = math.normalizesafe(position.xz - from.xz, input.MoveDirection);
@@ -365,6 +370,12 @@ namespace Punchy.Player
                 {
                     m.VerticalVelocity -= settings.Gravity * dt;
                     position.y += m.VerticalVelocity * dt;
+                    // W-67 (#79): rising into a kit floor or roof from below: the head stops under it.
+                    if (hasKit && m.VerticalVelocity > 0f && KitCollision.Ceiling(kitBoxes, from, stepUp, out var ceiling) && position.y + 1.7f * size > ceiling)
+                    {
+                        position.y = math.max(from.y, ceiling - 1.7f * size);
+                        m.VerticalVelocity = 0f;
+                    }
                     m.Grounded = position.y <= ground;
                     if (m.Grounded)
                     {
@@ -782,17 +793,36 @@ namespace Punchy.Player
         /// A move into a prop's top too high to step onto is cut back to whichever of its X and Z parts is clear (sliding
         /// along it), or cancelled; blocked says it was stopped at all.
         /// </summary>
+        /// <summary>
+        /// W-67 (#79): the highest top under the feet within a step up: non-kit props' grids and kit boxes together.
+        /// </summary>
+        static bool TopUnder(bool tops, SupportGrids grids, in DynamicBuffer<FloraSupport> props, bool hasKit, in DynamicBuffer<KitBox> kit,
+                             float3 feet, float radius, float stepUp, out SupportHit hit)
+        {
+            hit = default;
+            hit.Height = float.MinValue;
+            var found = tops && PropSupport.Sample(ref grids.Set.Value, props, feet, radius, stepUp, out hit, true);
+            if (hasKit && KitCollision.Floor(kit, feet, radius, stepUp, out var height) && (!found || height > hit.Height))
+            {
+                hit = default;
+                hit.Height = height;
+                hit.Normal = new float3(0f, 1f, 0f);
+                found = true;
+            }
+            return found;
+        }
+
         static float2 KeepOutOfPropWalls(ref SupportGridSet set, in DynamicBuffer<FloraSupport> props, float3 from, float2 to,
                                          float stepUp, float head, out bool blocked)
         {
-            blocked = PropSupport.Wall(ref set, props, new float3(to.x, from.y, to.y), stepUp, head, out _);
+            blocked = PropSupport.Wall(ref set, props, new float3(to.x, from.y, to.y), stepUp, head, out _, true);
             if (!blocked)
                 return to;
             var slideX = new float2(to.x, from.z);
-            if (!PropSupport.Wall(ref set, props, new float3(slideX.x, from.y, slideX.y), stepUp, head, out _))
+            if (!PropSupport.Wall(ref set, props, new float3(slideX.x, from.y, slideX.y), stepUp, head, out _, true))
                 return slideX;
             var slideZ = new float2(from.x, to.y);
-            return !PropSupport.Wall(ref set, props, new float3(slideZ.x, from.y, slideZ.y), stepUp, head, out _) ? slideZ : from.xz;
+            return !PropSupport.Wall(ref set, props, new float3(slideZ.x, from.y, slideZ.y), stepUp, head, out _, true) ? slideZ : from.xz;
         }
 
         /// <summary>A move into the salt tower's body or a step too high to step onto: cut back to its clear X or Z part, or cancelled.</summary>
@@ -816,7 +846,8 @@ namespace Punchy.Player
             for (int i = 0; i < obstacles.Length; i++)
             {
                 var o = obstacles[i];
-                if (position.y + stepUp > o.Position.y + o.Height || position.y + 1.8f < o.Position.y)
+                // (W-67: a kit building's circles are skipped; its boxes stop the player, KitCollision.)
+                if (o.Kit || position.y + stepUp > o.Position.y + o.Height || position.y + 1.8f < o.Position.y)
                     continue;
                 var away = xz - o.Position.xz;
                 var minDistance = o.Radius + radius;
@@ -1107,6 +1138,9 @@ namespace Punchy.Player
         public static float SolidDistance(in TerrainSource terrain, float3 p)
         {
             var open = p.y - terrain.SampleHeight(p.xz);
+            // W-56: a sunken temple room is air under the ground; its walls are TowerWall's (SunkenTempleShape.Wall).
+            if (terrain.TempleAir(p))
+                return math.max(open, 0.5f);
             if (open > 0f)
                 return math.max(open, -terrain.CaveDistance(p));
             return -terrain.CaveDistance(p);

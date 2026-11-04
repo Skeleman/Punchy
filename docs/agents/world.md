@@ -48,6 +48,7 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
   #35); murk above about 0.3 makes the pool a hard-edged opaque slab that reads as snow. White pools set `_SoftRim`:
   the rim fades, the middle darkens and stays see-through (body alpha x0.55), and the glow is a band inside the rim.
 - **Bat folk (#35, W-18):** `BatFolkBaking` runs after CaveBaking, reads the caves only and writes its own blob
+- **Bat folk kit (#35, W-61):** wall/ceiling houses are kit `StructureKit.House` in `FolkCulture.BatFolk` trim, rebuilt in `BatFolkMeshes` from a hash of the spot (no extra blob data; Lamp/Rune parts skipped, never add lights). Details come from the weighted `BatFolkBaking.Details` table, jittered per site. Pools of bat sites use `CaveSystem.WhitePoolWater`.
   (`TerrainSource.BatFolk`), so landmark and cave hashes never see it. A cave qualifies with a chamber >= 9 m
   at least 3 nodes in and a water pool (the chamber's own, else the nearest in the cave); up to 1 in 6 (min 1) is
   picked by a scrambled mouth-cell hash on its own seed stream. Its `WhitePools` (per cave pool) draws those
@@ -98,3 +99,116 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
 - W-28b: bergs vary by a seeded shape class (IcebergData.Shape, Scale, Tilt, peaks, notch, ledge, overhang) drawn and stood on from the same IcebergShape functions; their colour comes from a runtime palette strip indexed by mesh u. TerrainSource.Deck also returns a salt tower step floor, because the player only uses FloorUnder in a cave.
 - River pits (W-36, `RiverBaking.FillRiverPits`): a river bed below the bed it drains into backs its water up to that dam while its carve digs the banks down to the low bed, so the water stands above the banks (open ends). The pass raises such beds under their water, downstream first; lake and sea backwater are left alone. River `Gradient` (rapids foam) is the smaller of the bed and water drop, and lake-outlet foam scales with how far the surface really ramps, or flat backed-up water shows a white strip.
 - `DunesColossus.MeshBuilder` (also used by `Mantrap`) takes `Tri(a, c, b)`: Ellipsoid/Dome/Limb were written with inward winding, so the corners are swapped in `Tri` (W-48). Unity front faces are clockwise seen from outside; check a new shape with cross(b-a, c-a) pointing out.
+
+## Ruins (W-56, issue #24)
+
+- Ruins are built from the ruin kit (`Landmarks/RuinKit.cs`): set pieces (entrance, chamber, sanctum, hall, stair,
+  corner, dead end) described as data in their own frame (a along the entry, b to the left, y up from the entry floor):
+  rooms (UV box, floor, ceiling, slope, kind 0 closed / 1 open to the sky), solid boxes, sand drifts, wall torches and
+  exit sockets. A seeded builder (`RuinKit.Temple(seed)`) joins pieces socket to socket, tries side branches only
+  where they clear every room, and the result is baked into the landmark blob (`RuinRooms`, `RuinBoxes`, ...), so host
+  and client build the same ruin from the seed (`RuinKit.Fingerprint` checks it).
+- The kit is meant to grow into cities, fishing villages and new races' settlements: keep pieces as data (a new biome
+  or culture adds a piece factory and a plan, not new collision or drawing code). `SunkenTempleShape` answers floor,
+  air, wall and cut from the blob only, and `SunkenTempleSystem` draws the same data, so collision matches the art.
+- Open rooms cut the ground surface like a cave mouth (`TerrainSource.TempleCut`, `IsCaveHole`); closed rooms are air
+  under the ground (`TempleAir`, `IsRock`). The swell over the temple is part of the heightmap, so the ground hash
+  changes near temples only.
+- Gotcha: rooms stack in plan (the lower corridors and the second stair run under the pillared hall), so anything
+  that asks "which room is this point in" must pick by height too (highest floor within step reach of the feet),
+  never the first room whose UV box contains it. W-56's walk probe did that and read a false 7.5 m sink; it also
+  walked straight lines between door centres through a pillar row, which looked like a collision block.
+
+## StructureKit (W-58, W-58b, issue #24)
+
+`Terrain/Landmarks/StructureKit.cs` builds whole buildings out of boxes, from a seed and a culture trim, so new
+building kinds are code plus a species asset, not hand-made meshes. Everything is in building space: +Z is the
+front (the door side), y = 0 is the ground, metres.
+
+- **Parts.** `House`, `Gate`, `Platform`, `Stair`, `Balcony` and `Tower` append `KitPart`s (`Piece`, `Material`,
+  `Centre`, `Size`, `Rotation`, `Solid`) to a list. `KitPiece` says what a box is (Wall, Floor, Roof, Stair, Column,
+  Arch, Platform, Balcony, Rail, Window, Door, Trim, Rubble, Moss, Beam, Chimney); `KitMaterial` picks its colour
+  from the trim (Wall, Trim, Roof, Wood, Opening, Moss, Stone). Walls are `StructureKit.Thick` (0.4 m) thick; only
+  ground-storey wall bays are `Solid`.
+- **Culture trims.** `StructureKit.For(FolkCulture)` returns a `CultureTrim`: colours, roof shape (`KitRoof` Gable,
+  Tiered, Flat, Steep), storey height, bay width, pitch, and the details: quoins, crenels, shutters, and the chances
+  of a tower, balcony and outside stair. Dwarf: flat roof, crenels. Elf: tiered roof, 3.4 m storeys, 2.2 m bays,
+  balcony 0.7, stair 0.3. Goblin, Ogre, SnowFolk: steep roof, shutters. Human (the default): gable roof, quoins,
+  shutters. A new people is one more case in `For`.
+- **House.** `House(seed, trim, width, depth, storeys, decay)` lays bays round four walls (door bay in the middle of
+  the front, windows by chance, more at the front), string courses, quoins, the roof, then a balcony and an outside
+  stair by chance. `decay > 0` makes a ruin: walls broken down to a slope, rubble, moss caps, ivy strands, empty
+  window holes, a few fallen rafters, no roof or door. `Fingerprint(parts)` hashes a part list for regressions
+  (seed 42, Human, 8 x 7 m, 2 storeys: 203 parts).
+- **Stair and Platform.** `Stair(parts, at, yaw, rise, width)` makes 0.3 m treads of at most 0.28 m rise (not
+  solid, so the support grid makes them walkable) with a landing on top. `Platform(parts, at, yaw, width, length,
+  deckHeight, rails)` is a deck on posts with optional rails: the piece for jetties and docks.
+- **From parts to a model.** `FloraForm.KitBuilding` and `FloraForm.KitRuin` call `FloraGenerator.KitStructure`,
+  which turns each part into a box (Moss as foliage, the rest as bark; trims and moss drop at LOD2), and adds
+  colliders: intact buildings get one circle per solid part up to the eaves (wall circles set back so their outer
+  edge is the wall's outer face, W-58b) plus one fat cylinder inside; ruins get a circle per standing ground-storey
+  piece. Kit forms are Founded, so they get a support grid of walkable tops (door steps, stair treads, landings).
+  Species fields: `Height` x `Spread` is the width, `KitCulture` the trim; ruins take their wall colour from `Bark`
+  and moss from `Accent`.
+- **How a layout uses it.** Settlement plots name species. `FloraPlacement.PlotSpecies()` swaps the biggest
+  settlement's house, seat, inn, smithy, store and workshop plots to the `KitHouse` species (FloraForm.KitBuilding),
+  which stands on the plot centre facing `SettlementPlot.Facing`; `FloraGenerator.DoorFront` gives the door step
+  distance. Ruin landmarks use a species with `FloraForm.KitRuin`.
+- **Walk test (W-58b).** Intact doors are closed (no interiors yet): the player walks up to all 5 tested ElfGrove
+  doors and stops on the step. 7 of 24 KitHouse variants have an outside stair; all climb to the 3.4 m landing.
+- **Fishing village wharf (W-65).** Prop 0 of FishingVillage is `FishWharf` (KitShape.Wharf, `StructureKit.Wharf`): a seeded walkway network (main + 1-3 T/L branches) with 2-4 one-storey stilt houses whose door side sits tight on a walkway with no rail there; rails only on open-water edges, ladders, lanterns at joins, skiffs, nets. Shore end is flat treads, not a pitched ramp: a pitched ramp's support sampled in >0.4 m steps where the bank fell away beside it.
+- **For fishing villages (W-59).** Add a coastal trim (a new `FolkCulture` case or a variant of Human), build huts
+  with `House` (1 storey, small bays), docks and jetties with `Platform` (deckHeight above the water level,
+  rails), and boathouses as `House` on a `Platform`. Give them their own species with `KitCulture` set, and a
+  settlement layout whose plots name those species. Keep new random draws after the existing ones in `House`, or
+  every existing kit building changes.
+
+## Sea folk (W-62, W-62b, issue #37)
+
+`Terrain/Settlements/SeaFolkBaking.cs` puts one underwater settlement in the island's biggest deep lake (island v2
+only). It is two landmarks, placed after every other place on their own new spots, so nothing placed earlier moves;
+neither stamps the ground or the water.
+
+- **Lake pick.** Connected lake cells on the river map (`LakeDepth > 0.3`, 4-neighbour). The biggest lake that is at
+  least `MinDepth` (8 m, surface to deepest bed) deep wins; the lowest cell index breaks ties, so the pick is fixed
+  for a seed. No lake that deep: no sea folk (logged as `[sea folk] none: ...`).
+- **Village (`Resources/SeaFolkVillage`).** Its middle is the lake cell nearest the lake's centroid that is 9-16 m
+  deep, clear of every landmark, with its whole ring (8 points at 0.85 x radius) more than 3 m under water and a
+  bank for the landing. Its props (StructureKit, `FolkCulture.SeaFolk` trim) are 6 shell domes on the bed, 3 spiral
+  spires tall enough to break the surface (so the village reads from the shore), reefs and lake-bed details (kelp,
+  shell mosaics, bubble vents, sunken trade goods, coral arches, glowing anemones), all as data in the landmark's
+  layout. Seed 8121: village at -1480,-24, bed 13.1 m down.
+- **Landing (`Resources/SeaFolkLanding`).** On the nearest bank, a `StructureKit.Pier` (species `SeaFolkPier`,
+  `FaceLandmark` 1) runs out towards the village, seated on the bank's ground. Like the fishing docks (W-59c), its
+  land end is a ramp that starts 0.4 m in the ground; on a pier it is 8 m long (about 10 degrees), because a long
+  model gets coarse support-grid cells (~0.8 m) and a dock's 4.6 m ramp rose 0.5 m per cell, a step the player
+  could not climb (W-62b). A solid bed sits 0.17 m under the planks: the planks' thin gaps caught three grid cell
+  centres, which read as holes and dropped a walker to the lake bed. Fishing docks got the same bed (W-62c, #36).
+- **Clear pier end (W-62c).** A spire (`FloraRules.PierClear`) is not placed within 6.5 m x scale of any pier's far
+  end (`PierReach`, the pier species' length), so the village reads from the deck. Placement rule only: no landmark
+  moves. Probe gotcha: the support grid exists only for loaded tiles, so walk-sim a dock from its own village (a
+  walk far from the player reports `support -` everywhere and "drops" to the bed).
+- **Underwater view.** The camera and water have no underwater mode yet (#22): from below the surface you see the
+  sky, no fog, tint or surface from beneath, so shots of the village look like dry land.
+
+## Fishing villages, igloos and river dressing (W-60 to W-65b)
+
+- **Wharf network:** `StructureKit.Wharf` builds a main walkway out from the shore with side branches and stilt houses on
+  them. A FishWharf has 6 variants; the variant follows the village (`FloraPlacement.VillageVariant`: rank among
+  wharves plus a scrambled offset), so no two villages share a layout (W-65b, #36). `DockLaneDistance` keeps other
+  props off the main lane only, not the branches.
+- **Stilt houses:** stand on the branches, doors face the deck. The W-65 editor walk (BFS on a 0.3 m grid, step-up 0.4,
+  head 1.7) reaches every door.
+- **Igloo scale:** domes are bigger since W-64; the porch tunnel ends 1-1.8 m past the dome foot plus a 0.8 m path.
+  `PorchSeat` turns an igloo at most 30 degrees (was 60) to seat its mouth, so mouth-to-mouth paths stay clear of
+  domes. A hidden 1 m snow block sits behind the door slab so the support grid has a wall there (a 0.14 m slab falls
+  between grid samples).
+- **Moss sheet:** kit moss is a textured sheet on the Foliage part; it is not solid (only Bark/Metal parts go into the
+  support grid).
+- **River dressing:** cattails on banks, driftwood on gravel bars (along the flow), fallen logs across LogNarrows (both
+  ends on dry bank), and stepping stones as one row model across a Narrows (W-65b: 11-12 stones over 12 m, tops 4-12 cm
+  over the water surface, both end stones on or just off the bank).
+- **Gotcha, near-player support grid:** prop support grids (what you stand on and walk into) exist only near the
+  player, and the player's cylinder colliders come from `model.Colliders`, not the grid. Editor sims that use
+  `PropSupport` only see props whose grid is loaded: move the player next to the subject first, and expect a sim and
+  a player walk to differ when a prop has cylinders but a thin grid.

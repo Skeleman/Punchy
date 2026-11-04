@@ -245,4 +245,43 @@ void FloraDither(float4 positionCS, float fade, float3 positionWS)
     PunchyPlayerRevealClip(positionWS, dither);
 }
 
+// Moss sheets (FloraPart.Moss = 13, W-64 #24): x the cover from the vertex colour's alpha (1 in the sheet's middle,
+// 0 at its rim), or 2 on any other part; yzw the point in the plant's own frame. Every pass carries it and calls
+// FloraMossClip, so the holes and torn edge cut the same in the colour, shadows and depth.
+float4 FloraMossData(FloraAttributes input)
+{
+    return float4(abs(input.data.y - 13) < 0.5 ? input.color.a : 2, input.positionOS);
+}
+
+float FloraMossHash(float3 p)
+{
+    p = frac(p * 0.3183099 + 0.1);
+    p *= 17.0;
+    return frac(p.x * p.y * p.z * (p.x + p.y + p.z));
+}
+
+float FloraMossNoise(float3 p)
+{
+    float3 i = floor(p);
+    float3 f = frac(p);
+    f = f * f * (3 - 2 * f);
+    return lerp(lerp(lerp(FloraMossHash(i), FloraMossHash(i + float3(1, 0, 0)), f.x),
+                     lerp(FloraMossHash(i + float3(0, 1, 0)), FloraMossHash(i + float3(1, 1, 0)), f.x), f.y),
+                lerp(lerp(FloraMossHash(i + float3(0, 0, 1)), FloraMossHash(i + float3(1, 0, 1)), f.x),
+                     lerp(FloraMossHash(i + float3(0, 1, 1)), FloraMossHash(i + float3(1, 1, 1)), f.x), f.y), f.z);
+}
+
+// Clumps (coarse noise) and a frayed fringe (fine noise): the thinner the cover, the more of the sheet is cut away.
+half FloraMossClump(float3 p)
+{
+    return FloraMossNoise(p * 9) * 0.6 + FloraMossNoise(p * 31 + 3.1) * 0.4;
+}
+
+void FloraMossClip(float4 moss)
+{
+    if (moss.x > 1.5)
+        return;
+    clip(moss.x * 1.4 + FloraMossClump(moss.yzw) - 1.0);
+}
+
 #endif

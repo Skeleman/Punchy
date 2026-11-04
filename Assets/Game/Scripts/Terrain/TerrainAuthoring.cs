@@ -83,6 +83,19 @@ namespace Punchy.Terrain
             foreach (var r in Roadside)
                 if (r.Type != null && !types.Contains(r.Type))
                     types.Add(r.Type);
+            LandmarkBaking.AddLooks(types);
+            // #36: fishing villages last of all, so no other type's index moves (placed on island v2 only).
+            var village = FishingVillageBaking.LoadType();
+            if (village != null && !types.Contains(village))
+                types.Add(village);
+            // #38: turtle folk settlements after the villages, for the same reason.
+            var turtles = TurtleVillageBaking.LoadType();
+            if (turtles != null && !types.Contains(turtles))
+                types.Add(turtles);
+            // #37: the sea folk village and its landing after those.
+            foreach (var sea in new[] { SeaFolkBaking.LoadVillage(), SeaFolkBaking.LoadLanding() })
+                if (sea != null && !types.Contains(sea))
+                    types.Add(sea);
             return types;
         }
 
@@ -122,13 +135,14 @@ namespace Punchy.Terrain
 
         /// <summary>Rivers, landmarks, settlements, caves and anchors, in that order: the part of a bake that follows the ground.</summary>
         public static void BuildPlaces(ref TerrainSource source, List<BiomeDefinition> palette, List<LandmarkType> landmarkTypes,
-                                       List<PlacedLandmark> placed, List<RoadsideLandmark> roadsideTypes, Allocator allocator)
+                                       List<PlacedLandmark> placed, List<RoadsideLandmark> roadsideTypes, Allocator allocator, bool villages = false)
         {
             // W-14: each stage's time goes to the "[bake] stages" log line (island v2 rebuilds all of this at launch).
             var watch = System.Diagnostics.Stopwatch.StartNew();
             var stages = new System.Text.StringBuilder("[bake] stages ms:");
             void Stage(string name) { stages.Append($" {name} {watch.ElapsedMilliseconds}"); watch.Restart(); }
             source.PondsOn = false;
+            source.RiverRoughOn = false;
             source.PondMask = default;
             // W-53 (W-37, option b): wide rivers on island v2 meander in bends that scale with width, but every place
             // (landmarks, settlements, the salt tower) is chosen against the jittered rivers they were always placed
@@ -148,10 +162,11 @@ namespace Punchy.Terrain
             Stage("landmarks");
             if (source.Landmarks.IsCreated)
             {
-                source.Settlements = SettlementBaking.Build(source, landmarkTypes, roadsideTypes, out var roadside, allocator);
+                source.Settlements = SettlementBaking.Build(source, landmarkTypes, roadsideTypes, out var roadside, allocator, palette);
                 if (roadside.Count > 0)
                 {
                     var before = source.Landmarks;
+                    LandmarkBaking.ApplyLooks(source, palette, landmarkTypes, roadside);
                     source.Landmarks = LandmarkBaking.Append(before, landmarkTypes, roadside, allocator);
                     before.Dispose();
                 }
@@ -177,12 +192,41 @@ namespace Punchy.Terrain
             if (source.Landmarks.IsCreated)
                 source.Caves = CaveBaking.Build(source, palette, landmarkTypes, allocator);
             Stage("caves");
+            // #36: fishing villages after the caves too, each on its own new spot, so no landmark, road or cave moves.
+            if (villages && source.Landmarks.IsCreated)
+            {
+                var mouths = FishingVillageBaking.Place(source, landmarkTypes);
+                if (mouths.Count > 0)
+                {
+                    var before = source.Landmarks;
+                    source.Landmarks = LandmarkBaking.Append(before, landmarkTypes, mouths, allocator);
+                    before.Dispose();
+                }
+                // #38: turtle folk settlements on the highest peaks, last of all, each on its own new spot.
+                var peaks = TurtleVillageBaking.Place(source, landmarkTypes);
+                if (peaks.Count > 0)
+                {
+                    var before = source.Landmarks;
+                    source.Landmarks = LandmarkBaking.Append(before, landmarkTypes, peaks, allocator);
+                    before.Dispose();
+                }
+                // #37: the sea folk settlement in the largest deep lake and its landing, after the turtles.
+                var lake = SeaFolkBaking.Place(source, landmarkTypes);
+                if (lake.Count > 0)
+                {
+                    var before = source.Landmarks;
+                    source.Landmarks = LandmarkBaking.Append(before, landmarkTypes, lake, allocator);
+                    before.Dispose();
+                }
+            }
             // #35: bat folk read the caves only and write nothing anything else reads, so every hash stays put.
             source.BatFolk = BatFolkBaking.Build(source, allocator);
             UnityEngine.Debug.Log(BatFolkBaking.LastLog);
             Stage("batfolk");
             source.Anchors = AnchorBaking.Build(source, landmarkTypes, allocator);
             Stage("anchors");
+            // W-43c: rough riverbanks (width, slope and shoreline wobble) only now, so no landmark or cave moves.
+            source.RiverRoughOn = true;
             source.PondsOn = true;
             // W-10: label the ponds' wet cells and drop every pond under 3 cells (with the dry ring round it).
             // W-14: one labelling pass gives the mask and the log (the two extra PondCount passes cost ~2.8 s each).

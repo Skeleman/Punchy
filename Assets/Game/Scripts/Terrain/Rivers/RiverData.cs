@@ -197,17 +197,44 @@ namespace Punchy.Terrain
         /// <summary>River water surfaces extend this far (metres) past the channel edge, under the banks.</summary>
         public const float SurfaceMargin = 8f;
 
-        public static RiverQuery Query(ref RiverMapBlob map, in RiverSettings s, float2 xz)
+        /// <summary>
+        /// W-43c bank roughness at one point: the channel's width scale, the valley walls' slope and a broken
+        /// shoreline offset. Neutral (1, BankSlope, 0) unless <c>rough</c>; the terrain only turns it on once every
+        /// place is baked (see <see cref="TerrainSource.RiverRoughOn"/>), so no landmark or cave moves.
+        /// </summary>
+        struct Bank
+        {
+            public float WidthScale, Slope, Edge, BaseSlope;
+
+            public static Bank At(ref RiverMapBlob map, in RiverSettings s, float2 xz, bool rough)
+            {
+                if (!rough || !s.Smooth)
+                    return new Bank { WidthScale = 1f, Slope = s.BankSlope };
+                // Seeded offsets so each island's banks differ (multiplied, not math.hash: that has no avalanche).
+                var off = new float2((map.Seed * 0x9E3779B9u) >> 20, (map.Seed * 0x85EBCA6Bu) >> 20);
+                var p = xz + off;
+                // Width changes slowly along the river (about ±20%); left and right banks wander independently.
+                var width = 1f + 0.2f * noise.snoise(p / 90f);
+                // Some reaches cut steep banks, others leave gentle shelves.
+                var slope = s.BankSlope * math.lerp(0.5f, 2.2f, math.smoothstep(-0.6f, 0.6f, noise.snoise(p / 140f + 17.3f)));
+                // A broken shoreline: bumps and bites of up to about a metre along the water's edge.
+                var edge = 0.6f * noise.snoise(p / 9f + 41.7f) + 0.3f * noise.snoise(p / 3.5f - 23.1f);
+                return new Bank { WidthScale = width, Slope = slope, Edge = edge, BaseSlope = s.BankSlope };
+            }
+        }
+
+        public static RiverQuery Query(ref RiverMapBlob map, in RiverSettings s, float2 xz, bool rough = false)
         {
             var q = new RiverQuery { Carve = float.MaxValue, Distance = float.MaxValue, FallWater = float.MinValue };
+            var bank = Bank.At(ref map, s, xz, rough);
             var cell = (int2)math.floor((xz - map.Origin) / map.CellSize);
             for (int y = -1; y <= 1; y++)
             for (int x = -1; x <= 1; x++)
             {
                 var c = math.clamp(cell + new int2(x, y), 0, map.Resolution - 1);
                 var candidates = map.Nearest[c.y * map.Resolution + c.x];
-                Consider(ref map, s, xz, candidates.x, ref q);
-                Consider(ref map, s, xz, candidates.y, ref q);
+                Consider(ref map, s, bank, xz, candidates.x, ref q);
+                Consider(ref map, s, bank, xz, candidates.y, ref q);
             }
             // Above a waterfall's lip the pool below carves its wide bowl back up under the upper river (cells are
             // narrower than the channel), so the lower water would win there and leave land between the two surfaces.
@@ -245,7 +272,7 @@ namespace Punchy.Terrain
             return Hermite(a, b, ta, tb, 0.5f);
         }
 
-        static void Consider(ref RiverMapBlob map, in RiverSettings s, float2 xz, int start, ref RiverQuery q)
+        static void Consider(ref RiverMapBlob map, in RiverSettings s, in Bank bank, float2 xz, int start, ref RiverQuery q)
         {
             if (start < 0)
                 return;
@@ -291,8 +318,9 @@ namespace Punchy.Terrain
             var fall = s.FallDrop > 0f && map.Bed[start] - endLevel >= s.FallDrop;
             var tl = fall ? math.smoothstep(0.46f, 0.54f, t) : t;
             var level = math.lerp(map.Bed[start], endLevel, tl);
-            var width = math.lerp(map.Width[start], endWidth, t);
-            var carve = Profile(distance, level, width, s);
+            var baseWidth = math.lerp(map.Width[start], endWidth, t);
+            var width = baseWidth * bank.WidthScale;
+            var carve = Profile(distance, level, width, Depth(baseWidth, s), bank);
 
             // The water here belongs to whichever river shaped the ground lowest, so water and banks always agree.
             if (carve < q.Carve)
@@ -307,7 +335,9 @@ namespace Punchy.Terrain
                 q.Found = true;
                 q.Distance = distance;
                 q.Level = level;
-                q.Width = width;
+                // The water claims at least the unwobbled width: a narrowed channel leaves bank inside the claim
+                // rather than dry ground below the water just past its edge (an open end on a low floodplain).
+                q.Width = math.max(width, baseWidth);
                 q.Flow = flow;
                 // The water's fall too (W-36): where it backs up flat to a lake or a dam over a steep bed, no rapids.
                 var waterEnd = down >= 0 ? map.WaterLevel[down] : map.WaterLevel[start];
@@ -315,16 +345,25 @@ namespace Punchy.Terrain
             }
         }
 
-        /// <summary>Cross-section: a rounded channel below the bank level, then valley walls rising at BankSlope.</summary>
-        static float Profile(float distance, float level, float width, in RiverSettings s)
+        /// <summary>
+        /// Cross-section: a rounded channel below the bank level, then valley walls rising at the bank's slope. The
+        /// depth comes from the unwobbled width so the bed stays continuous; the shoreline offset only acts in a
+        /// band round the water's edge.
+        /// </summary>
+        static float Profile(float distance, float level, float width, float depth, in Bank bank)
         {
             var half = width * 0.5f;
-            if (distance < half)
+            var h = distance < half
+                ? level - depth * (1f - (distance / half) * (distance / half))
+                : level + (distance - half) * bank.Slope;
+            if (bank.Edge != 0f)
             {
-                var r = distance / half;
-                return level - Depth(width, s) * (1f - r * r);
+                h += bank.Edge * math.smoothstep(half - 1.5f, half + 1f, distance) * (1f - math.smoothstep(half + 5f, half + 12f, distance));
+                // A dip in the noisy edge must not drop the bank below the water, or the river spills out (an open end).
+                if (distance >= half)
+                    h = math.max(h, level + 0.4f + math.min(distance - half, SurfaceMargin + 2f) * bank.BaseSlope);
             }
-            return level + (distance - half) * s.BankSlope;
+            return h;
         }
 
         public static float Depth(float width, in RiverSettings s) => s.ChannelDepth + width * 0.04f;
