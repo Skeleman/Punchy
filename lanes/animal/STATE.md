@@ -1,6 +1,24 @@
-# Animal lane: state (2026-11-02, A-43 done)
+# Animal lane: state (2026-11-03, A-49 done)
 
-Worktree `Punchy` (animal lane only). On `animal-behaviours`: 3ba679b (A-43, pushed, built) on 89270af (A-42b) on 237d226 (A-42) on e3b8521 (A-41) on b2b6a70 (A-40) on e75918e (A-39). Lane hashes (A-40 build): v2 126 / 053C63D5 (A-41 touches no world code).
+Worktree `Punchy` (animal lane only). On `animal-behaviours`: 5fe1f85 (A-48 #63 caches, pushed, built to Builds/Dev) on
+f0be45c (A-48 guard; doesn't compile alone) on a merge of origin/main 3a4acb8 (PR #94). Older: 3ba679b (A-43).
+
+## A-49 (7e05224, flags only, not built)
+- New shot flags: `-goflat N` (Nth flat spot, each 150 m apart: a fresh herd per line), `-thirsty`, `-watch Species:Mode`.
+- #46 holds: 30 m pass 0/10, 5 m 10/10 on fresh herds. #12: wander turn rates are about 0 now; Play turns at 77-116 deg/s.
+- #64 waits on Zach (3-line proposal in REPORTS). The Drink shot needs a better frame (riverfall framed the waterfall).
+- This editor's log is D:/Unity/Punchy/Logs/Editor.log. Editor shots: the shotdir must exist (mkdir first).
+
+## A-48 (f0be45c, 5fe1f85, built)
+- DebugControls.QueriesLive(): rebuilds cached queries when the default world changes (a client joins or loses the
+  host), false if no world. Use it before any cached-query TryGetSingleton. Host+client: 0 exceptions both sides.
+- #63: sky-bird cell grounds cached (CreatureRenderSystem.SkyGroundSamples), songbird ground perches cached
+  (AmbientLife.PerchGroundSamples). The "flees this line" log prints both counters. #63 still open (partial).
+- Net runs: joins started while host/client are loading time out or drop (Couldn't reach / ClosedByRemote).
+  Wait for the host to finish loading before shots that need a real client; tell multiplayer lane.
+
+## Older notes (A-43 and before)
+On `animal-behaviours` at A-43: 3ba679b (A-43, pushed, built) on 89270af (A-42b) on 237d226 (A-42) on e3b8521 (A-41) on b2b6a70 (A-40) on e75918e (A-39). Lane hashes (A-40 build): v2 126 / 053C63D5 (A-41 touches no world code).
 Untracked `Assets/_Recovery/` is old and not ours. `Temp/PlayArgs.txt` holds an old a29b line (editor Play mode
 reads it as extra flags); swap it out only for an editor shot run and put it back (restored after A-41).
 Editor: ports are swapped (7800 reaches Punchy-world). Target the animal editor by --pid (26472 on 2026-11-02;
