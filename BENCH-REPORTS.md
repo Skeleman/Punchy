@@ -2,6 +2,16 @@
 
 Newest first.
 
+## 2026-11-04: job 25 + 26 (self-fix b/fix-netstatus 7c23477): the 10 s "Net status" line stalled every client, host and solo game for 23-29 ms; now 0.8 ms. The q25 guard-spot burst and disconnect frame didn't reproduce
+Method, job 25: main 0b39e9b, Profile build, the q21d guard scenario with host and client both captured. The host's capture covers its last 100 s at 20 fps, so it spans the burst time (~141 s) and the client disconnect (~170 s). Job 26/26b: Profile builds of main ccdad75 and the fix, solo at the v2 bat folk cave (187-211 animals), here stop 60 s at -fpscap 60, captured, 2 runs each alternating. BProfileTools per marker (26b with -keep NetMenu, so the small marker is listed). 0 exceptions, no crash.
+- **Job 25:** no frame over 300 ms on host or client, so neither the 800+ ms guard-spot burst nor the 1.65 s disconnect frame happened this time. One run, so they are rare or need something q21d had. The longest frames were StoneColossi.Update 46-87 ms (the far shadow stall, fixed in ccdad75) and, on the client, NetMenu.Update 34-83 ms.
+- **Cause:** NetMenu.Update -> LogStatus -> Behaviours(), every 10 s. It called TerrainSource.SampleHeight twice per animal on the main thread (in caves / up a tree counts). With about 200 animals that's 23-29 ms in solo and 34-83 ms on a client.
+- **Fix (b/fix-netstatus 7c23477, on main 1699574; NetMenu.cs is unchanged since ccdad75):** one Burst IJobParallelFor fills the ground height under every animal, and the loop reads it. The counts in the line come out the same (e.g. in caves 40-49, up a tree 11-23 in both builds).
+- **Before -> after, NetMenu.Update max call per capture:** 28.86, 27.07, 28.95, 22.68 ms -> 0.80, 0.79, 0.80, 0.79 ms. The GroundJob itself is 0.22-0.30 ms on a worker. Frames over 33 ms per 2000: 3 -> 0 (the status frames). p95 17.12-17.16 -> 17.08-17.12 ms (capped at 60).
+- Bench tools (b/bench-runner e663dbb): BProfileTools -keep <marker>; runner -hitchms N for a lower hitch log threshold.
+- Scripts: q25.sh, q26.sh, q26b.sh. Logs: results/q25logs/, q26logs/, q26blogs/, prof26*.txt.
+- Cost: session total so far 471 calls, peak 380k context, $33.87
+
 ## 2026-11-04: job 24c, far shadow fix (W-90, PR #120) on main ccdad75: the 4 s stall is gone. Worst frame 23-34 ms on every walk (was 56-87 ms), no frame over 50 ms, and shadows on = -nofarshadow. StoneColossi.Update peaks at 0.52 ms in the capture (was 44 ms)
 Method: Bench-ccdad75, v3, uncapped, the q24 walks (hereclose: 300 m out along the colossus's facing, 6 m/s to 20 m), far shadows on vs -nofarshadow, 2 runs each, rotated. Then a Profile-build capture of the lizard walk (shadows on), last 2000 frames, with BigFrame and BProfileTools. 0 exceptions, no crash.
 - PR #118 moved the plant: (-53, 34, 516), facing 309 (was -167, 78). The lizard is unchanged at (-515, 26, -2477). Golem and saguaro are now placed too (7 colossi).
