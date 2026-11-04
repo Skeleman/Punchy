@@ -1980,3 +1980,13 @@ Commits on world-features: f94399e (#102), 56f6568 (#40).
 - #72 not done (out of calls). Plan: CampsiteSwamp (Mud, swamp tent, Bogwood/Cattail/Driftwood) and CampsiteForest (Woodpile/Stump/FallenLog) as BiomeLooks on Campsite. Snow/desert/fungal/ash looks already exist.
 - Shots: W85-drowned-knight.png
 - Calls: ~44
+
+## W-86 (2026-11-04): #72 campsite looks, #40 ash smith
+
+Commits on world-features: 375e76c (#72), feecbc2 (#40).
+
+- #72: Campsite gains two biome looks. CampsiteSwamp (FoggyMarsh, PoisonSwamp): mud ground, olive oilcloth tent (CampTentSwamp), driftwood, a bogwood snag and a ring of five cattails. CampsiteForest (Temperate, SparklingForest): green canvas tent (CampTentForest), seat log plus two stump seats, woodpile, fallen log. Snow/desert/ash/fungal looks already existed. On this seed the island has only 3 campsites (1 ash, 2 fungal), none in swamp or forest, so the new looks don't show here; no campsite shot (my ash-camp framing missed, out of calls).
+- #40: AshSmith for Ashlands/Volcano/EmberForest (most distinct of the uncovered biomes): basalt smith sitting cross-legged over a house-sized anvil, hammer under one hand, tongs on a glowing half-made blade, ember cracks and eyes, ash on up faces; seeded slag lumps (every fourth glowing) and a quench trough. Own salt 0xA54D, second keep-out slot. Placed in this world. Landmark hash 4D2643D7 / game 3A0DC7BB before and after.
+- Shots: W86-ash-smith.png
+- Left: a campsite shot for two biomes (needs a seed with a swamp or forest campsite, or a forced look); the ash weathering on the smith may want a darker pass.
+- Calls: ~41
