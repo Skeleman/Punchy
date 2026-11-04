@@ -58,6 +58,15 @@ namespace Punchy.Terrain
             return v == "v1" ? 1 : v == "v3" ? IslandV3.Version : Version;
         }
 
+        /// <summary>
+        /// W-74: whether the v3 bake ends with its audit reports (V3Audit, V3Ranges.Checks, V3Ground.Report, ~17 s).
+        /// Only on request: <c>-islandaudit</c> on the command line or PUNCHY_ISLANDAUDIT=1 (the editor menu
+        /// Punchy/Island/Audit Reports and the world probe set it). Releases and joins skip them.
+        /// </summary>
+        public static bool AuditRequested() =>
+            Array.IndexOf(Environment.GetCommandLineArgs(), "-islandaudit") >= 0
+            || Environment.GetEnvironmentVariable("PUNCHY_ISLANDAUDIT") == "1";
+
         public struct Result
         {
             public BlobAssetReference<BiomeMapBlob> Map;
@@ -469,8 +478,9 @@ namespace Punchy.Terrain
             var report = System.Diagnostics.Stopwatch.StartNew();
             // (Ponds: the "[ponds]" line from BuildPlaces; W-14 dropped the second count here, ~2.8 s.)
             if (source.Rivers.IsCreated) Debug.Log("[island] " + RiverReport(ref source.Rivers.Value));
-            // W-68: v3 ends every bake with the water audit (V3Audit; on v2 run it from the editor for a baseline).
-            if (version == IslandV3.Version) { Debug.Log(V3Audit.Run(source)); Debug.Log(V3Ranges.Checks(source)); Debug.Log(V3Ground.Report(source)); }
+            // W-68: v3 ends the bake with the water audit (V3Audit; on v2 run it from the editor for a baseline).
+            // W-74: only when asked (-islandaudit / PUNCHY_ISLANDAUDIT=1); they cost ~17 s against a ~6 s bake.
+            if (version == IslandV3.Version && IslandV2.AuditRequested()) { Debug.Log(V3Audit.Run(source)); Debug.Log(V3Ranges.Checks(source)); Debug.Log(V3Ground.Report(source)); }
             Debug.Log($"[island] reports {report.ElapsedMilliseconds} ms; v{version} ready at {UnityEngine.Time.realtimeSinceStartup:F1} s since start ({World.Name})");
         }
 

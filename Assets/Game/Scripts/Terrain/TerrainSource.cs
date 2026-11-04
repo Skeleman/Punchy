@@ -321,12 +321,26 @@ namespace Punchy.Terrain
             if (V3Ground.IsCreated && Island.IsCreated)
             {
                 var field = Island.Value.Sample(xz);
-                float baseElevation = 0f;
-                for (int i = 0; i < 4; i++)
-                    if (shape.Weights[i] > 0f)
-                        baseElevation += shape.Weights[i] * set.Biomes[shape.Ids[i]].BaseElevation;
-                top = math.max(math.smoothstep(35f, 95f, field),
-                               math.smoothstep(100f, 160f, field + baseElevation) * math.smoothstep(15f, 40f, field));
+                top = math.smoothstep(35f, 95f, field);
+                var onRange = math.smoothstep(15f, 40f, field);
+                if (onRange > 0f && top < 1f)
+                {
+                    // W-74: the base elevation is blurred (here plus a 6-point ring at 110 m), so a base elevation
+                    // jump between Hills and its neighbours doesn't make `top` (and the relief) change quickly.
+                    float baseElevation = 0f;
+                    for (int i = 0; i < 4; i++)
+                        if (shape.Weights[i] > 0f)
+                            baseElevation += shape.Weights[i] * set.Biomes[shape.Ids[i]].BaseElevation;
+                    for (int k = 0; k < 6; k++)
+                    {
+                        math.sincos(k * (math.PI / 3f), out var sn, out var cs);
+                        SampleBiomes(xz + new float2(cs, sn) * 110f, out _, out var near);
+                        for (int i = 0; i < 4; i++)
+                            if (near.Weights[i] > 0f) baseElevation += near.Weights[i] * set.Biomes[near.Ids[i]].BaseElevation;
+                    }
+                    baseElevation /= 7f;
+                    top = math.max(top, math.smoothstep(100f, 160f, field + baseElevation) * onRange);
+                }
             }
             for (int i = 0; i < 4; i++)
             {
