@@ -86,6 +86,8 @@ namespace Punchy.Terrain
         public const float StreetBlend = 2.5f;
         /// <summary>How far a plot's pad blends into the ground round it (m).</summary>
         public const float PadBlend = 3f;
+        /// <summary>The furthest a pad far off the ground's height blends out (m); plot bounds reach this far.</summary>
+        public const float PadBlendMax = 6f;
 
         /// <summary>The grid cell holding a point, or -1 outside the grid.</summary>
         public static int Cell(ref SettlementSetBlob set, float2 xz)
@@ -132,6 +134,11 @@ namespace Punchy.Terrain
             // W-74 (#87): plots no longer level one after another (a later neighbour's blend fringe tilted an earlier
             // plot's pad and left house corners buried or floating). The pads mix weighted by w^8, so a plot's own
             // pad all but wins inside it and the seam between two fringes stays smooth.
+            // W-80 (#87): a pad whose ground is far off its level blends out further (PadBlend plus a metre per metre of
+            // height, up to PadBlendMax), so a pad cut into a slope gets a bank instead of a 3 m step; plots whose
+            // bounds are too tight for that (gates, signposts) keep PadBlend. The weight also grows without bound as w
+            // reaches 1, so inside its rectangle a plot's own pad wins outright and a close neighbour's fringe no
+            // longer tilts it.
             range = set.PlotCells[cell];
             float best = 0f, sum = 0f, mix = 0f;
             for (int k = range.x; k < range.x + range.y; k++)
@@ -140,11 +147,13 @@ namespace Punchy.Terrain
                 // Bridges and palisades stand on the ground as it is.
                 if (p.Role == PlotRole.Bridge || p.Role == PlotRole.Palisade || p.Role == PlotRole.Fence || math.any(xz < p.Min) || math.any(xz > p.Max))
                     continue;
-                var w = 1f - math.smoothstep(0f, PadBlend, Outside(p, xz));
+                var room = math.cmin(p.Max - p.Centre) - math.length(p.Half);
+                var blend = math.max(PadBlend, math.min(PadBlend + math.abs(h - p.Pad), math.min(room, PadBlendMax)));
+                var w = 1f - math.smoothstep(0f, blend, Outside(p, xz));
                 if (w <= 0f)
                     continue;
                 var w2 = w * w;
-                var w8 = w2 * w2 * w2 * w2;
+                var w8 = w2 * w2 * w2 * w2 / math.max(1f - w, 1e-4f);
                 sum += w8;
                 mix += w8 * p.Pad;
                 best = math.max(best, w);
