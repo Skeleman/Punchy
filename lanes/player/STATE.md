@@ -14,7 +14,7 @@ inventory (#26). Kit shapes and collision stay with the world lane until handed 
 3. Work only in D:/Unity/Punchy-player. Your editor: `--project-path D:\Unity\Punchy-player`. Never send to the
    D:/Unity/Punchy or D:/Unity/Punchy-world editors; never kill their Punchy.exe or editors.
 4. Build only to `Builds/Dev` inside your own tree. RAM is tight: one build at a time, quit your player runs.
-5. Take the lowest open card `batches/P-*.md` not marked done in REPORTS-player.md. None open: stay idle, don't poll.
+5. Take the lowest open card `batches/P-*.md` not marked done in REPORTS-player.md. When a card is done, take the next open one straight away (the supervisor keeps two queued). None open: stay idle, don't poll.
 
 ## Rules
 Never merge PRs, close or comment-close issues (one-line progress comments are fine). Keep line endings per file
@@ -23,6 +23,7 @@ no machine paths or personal info. Never bare `git stash`.
 
 ## In flight
 - Queue 11-04: P-9 (temple chests, small-body camera, sky), P-10 (doors and interiors, #25), P-11 (items and inventory, #26).
+- Queue 11-04 (3): P-14 (#26 object inventories), P-15 (#27 quests first slice). P-13 merged (PR #119, da2e0c0).
 - Queue 11-04 (2): P-12 (chest model with a lid, gamepad inventory, host/solo log nit; #99 fallback first if q23 still crashes on the laptop).
 - P-1 done 11-03 (player-client 1a9ef6c): resolution + window mode in the Graphics tab (#78). PR #90 merged 11-03 (5a56458).
 - P-2 done 11-03 (player-client 99cfd9c), but don't merge alone: joiners can time out while baking (P-3).
