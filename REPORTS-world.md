@@ -2,17 +2,19 @@
 
 Newest first.
 
-## W-76 (2026-11-04): parallel island bake, paused (not committed)
+## W-76 (2026-11-04): parallel island bake
 
-Stopped at the coordinator's request (editor queue: R-12 and P-7 first). Nothing committed. The work is left uncommitted in the world tree: BatFolkBaking, RiverBaking, TerrainAuthoring, FishingVillageBaking, TurtleVillageBaking, SeaFolkBaking (114+/32-).
+world-features: b262269. Pushed. Row 2 dropped (see below).
 
-- Row 0, before (v2, warm editor): rivers 1153, landmarks 24, settlements 395 (towns 130, roads 176, roadside 40), caves 597, "batfolk" 2708, anchors 157, pondmask 95, icebergs 32 ms. v2 ready at 14.0-15.1 s. The island bake is ~5.2 s of that; the rest is play-mode entry.
-- Row 0, before (v3): v2base 521, ranges 567, ground 66; rivers 1506, settlements 406, caves 497, "batfolk" 2178, anchors 91, pondmask 97, icebergs 21 ms. v3 ready at 37.2 s (the audit reports are most of that, see W-73).
-- Finding: the "batfolk" stage also timed the fishing, turtle and sea folk placements. Split on v2: fishing 773, turtles 547, seafolk 488, batfolk 429 ms.
-- Done so far (v2, after): bat folk sites place in parallel; the fishing mouth scan, turtle height grid and sea folk lake beds sample in parallel rows; the second river build copies the first's drainage grid. Now fishing 678, turtles 63, seafolk 154, batfolk 470, rivers 1070-1143 ms. About 1.4 s off the v2 bake.
-- Hashes unchanged on v2 after the changes: 136/4E61F1CF, caves C49E8E3036C741FC, ground F37805C9C70E3822, rivers 835B1404BEBDF563, batfolk 3/70 5E495C663CB43E07. v3 before: 108/4D2643D7, caves 5307D41E3A2AE83C, ground CBD3E62DCF42728C, rivers F46CF58544C3E072, batfolk 1/29 7019110BE7B5BB34. v3 after is not measured yet.
-- Row 2: the pond mask can't run beside the chain. TerrainSource heights read the landmarks, settlements and caves, and the mask needs PondsOn and RiverRoughOn. The three village placements can't run side by side either: SampleHeight sees each earlier one's flattening. Only the icebergs (~30 ms) are independent, so row 2 is not worth doing.
-- Left to do: the v3 after hashes and stages, the worst frame during the bake (row 3), the fishing remainder (~680 ms), caves, roads, then commit.
+- Row 1: bat folk sites place in parallel; the fishing mouth scan, turtle height grid and sea folk lake beds sample in parallel rows; the second river build copies the first's drainage grid. The stage log now splits fishing / turtles / seafolk / batfolk (the old "batfolk" stage timed all four).
+- v2 stages ms, before -> after: rivers 1153-1245 -> 1070-1143; settlements 340-395 -> 385; caves 566-598 -> 576; fishing 773 -> 678-695; turtles 547 -> 61-63; seafolk 488 -> 151-154; batfolk 429 -> 430-470 (the four together 2657-2734 -> ~1340); anchors 148-157 -> 153; pondmask ~100 -> 101; icebergs 32-88 -> 16. About 1.4 s off a ~5.2 s bake. Ready at 13.7-15.1 s -> 12.6 s.
+- v3 stages ms, before -> after: v2base 521 -> 536, ranges 567 -> 589, ground 66 -> 58; rivers 1506 -> 1461; settlements 406 -> 455; caves 497 -> 509; the four placements 2178 -> 1252 (fishing 540, turtles 73, seafolk 478, batfolk 161); anchors 91 -> 98; pondmask 97 -> 91; icebergs 21 -> 22. Ready at 37.2 -> 37.7 s: the editor audit reports (23.2 s) dominate.
+- The 10 s target is out of reach through the bake: the whole v2 bake is ~3.8 s now and most of the ~13 s ready time is play-mode entry. A bake cache (the next card) or a faster play entry is what's left.
+- Hashes, bit-identical before and after. v2: 136/4E61F1CF, caves C49E8E3036C741FC, ground F37805C9C70E3822, rivers 835B1404BEBDF563, batfolk 3/70 5E495C663CB43E07. v3: 108/4D2643D7, caves 5307D41E3A2AE83C, ground CBD3E62DCF42728C, rivers F46CF58544C3E072, batfolk 1/29 7019110BE7B5BB34.
+- Row 3, worst frame (v2, editor): before 7.0 / 7.6 s, after 7.4 s, so not worse, but not better either. The bake still runs inside one main-thread frame (the workers only help inside it), and that frame also holds ~4 s of work after the bake ends. v3 after: 7.5 s bake frame, then a 44.7 s frame with the editor audit reports.
+- Row 2 dropped: the pond mask can't run beside the chain (TerrainSource heights read the landmarks, settlements and caves; the mask needs PondsOn and RiverRoughOn), and the three village placements can't overlap (SampleHeight sees each earlier one's flattening). Only the icebergs (~30 ms) are independent.
+- Fishing, caves and roads: same cave, ground, landmark (roadside included) and bat folk hashes on v2 and v3, no errors or exceptions in the play logs. Not walked in game.
+- Calls: ~25 in this resume (plus the paused first part).
 
 ## W-75 (2026-11-04): spread frame work, faster world load
 
