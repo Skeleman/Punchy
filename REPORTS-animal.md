@@ -1606,3 +1606,19 @@ Calls: about 80 across A-51 and the aborted A-50 start (A-51 alone was about 55)
   and replication read (Position, Yaw, Speed, GaitSpeed, Phase, Mode, Scale, Action, Lie/Sit/Fly...). Brain jobs get
   CreatureMind RW; the snapshot and ghosts get a smaller CreatureState. Mostly CreatureBrainSystem.* plus DebugControls.
 - Calls: ~42 of 45. Editor closed. Temp/PlayArgs.txt removed.
+## A-53b (2026-11-04): #58 CreatureState split, step 1
+- 0462c21 (animal-behaviours, pushed, on main 0ec7a8d): new `CreatureMind` component (LookAt, LookEntity, LookKind,
+  LodDebt, LodCoast, ChatResume, RouteLeg, ChaseCooldown, WeaponCalm, Unsettled) leaves CreatureState. The brain job
+  copies it into a job field per tick and writes it back, so no helper signature changed (Needs, BeginChat, EndChat lost
+  `static`). FaunaDirector adds it on spawn (host/local only; ghosts and avatars don't get it). DungeonPosts writes
+  m.LookAt. Compiles clean.
+- Editor Play, uncapped, about 3.5 min, shot list `-warp town 1 -wait 90 -perflog` x2, 0 exceptions/errors.
+  Fauna fingerprint E698F061 before and after. Brain ms (180 frames): busy1 0.616 (175 creatures) -> 0.638 (180);
+  busy2 0.971 (134) -> 0.966 (127). Same within noise, as expected for a mechanical move.
+- Step 2 not done (call ceiling): Timer, Partner, Leash, Home, ChatCool, TargetHeight. They are not brain-only:
+  FaunaDirector spawn setup (~25 writes), Interactions (Timer, Leash in Tame, TargetHeight, Partner), FolkTalkSystem
+  (Leash, ChatCool, Partner, Home), DungeonPosts, DebugControls, and the brain reads other creatures' Partner, Leash and
+  ChatCool from the snapshot (would need a Minds array). Suggest keeping Leash/Partner/Home in CreatureState
+  (Tame and FolkTalk may run off the host) and moving only Timer, TargetHeight and ChatCool in a step 2.
+- Stale comment: player lane's PlayerOptions.cs line 124 ("AudioListener.volume don't read GameAudio.Master yet").
+- Calls: ~38 of 40. Editor closed (PID 23316, mine); Punchy-world editor left alone. Temp/PlayArgs.txt removed.
