@@ -303,6 +303,11 @@ namespace Punchy.Flora
             // Rebuild everything when the terrain is re-baked or (in the editor) a biome's flora or a species changes.
             if (built && (!source.Equals(lastSource) || ConfigChanged(palette)))
                 Teardown();
+            // W-79b (#102): not before the island is baked. The first build used to run on the old terrain (~4 s, its
+            // plants not pregrown) and was thrown away when the bake replaced it; now the one build follows the bake,
+            // whose plants grew on worker threads beside it.
+            if (!built && WaitForIsland && Punchy.Terrain.IslandV2.ActiveVersion == 0)
+                return;
             if (!built)
             {
                 Build(palette);
@@ -394,6 +399,9 @@ namespace Punchy.Flora
             nextConfigCheck = Time.unscaledTime + 1f;
             return ConfigStamp(palette) != configStamp;
         }
+
+        /// <summary>When off, the plants are built before the island is baked too, and again after it (for before/after timing).</summary>
+        public static bool WaitForIsland = System.Environment.GetEnvironmentVariable("PUNCHY_FLORAWAIT") != "0";
 
         /// <summary>When off, Build grows every variant on the main thread (for before/after timing).</summary>
         public static bool PregrowOn = true;
