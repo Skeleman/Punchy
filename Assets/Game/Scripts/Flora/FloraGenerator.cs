@@ -88,13 +88,15 @@ namespace Punchy.Flora
     /// </summary>
     public static class FloraGenerator
     {
-        public static FloraModel Grow(FloraSpecies species, int variant)
+        /// <param name="shapeOnly">A-52: only what the animals' tables read (LOD 0's colliders, perches, chimneys, trunk
+        /// and height), with no meshes and no support grid: the same sequence, so those match a full grow exactly.</param>
+        public static FloraModel Grow(FloraSpecies species, int variant, bool shapeOnly = false)
         {
             var model = new FloraModel { Species = species };
             var builder = new FloraMeshBuilder();
             model.CastsShadows = !FloraModel.Shadowless(species.Form);
             var seed = (int)Hash((uint)species.Seed, (uint)variant, StableHash(species.name));
-            for (int lod = 0; lod < 3; lod++)
+            for (int lod = 0; lod < (shapeOnly ? 1 : 3); lod++)
             {
                 builder.Clear();
                 builder.FoliageAs = species.Finish == FoliageFinish.Metallic ? FloraPart.Metal
@@ -181,7 +183,7 @@ namespace Punchy.Flora
                     builder.Skirt(FoundationDepth);
                 if (lod == 0)
                 {
-                    if (Standable(species.Form))
+                    if (Standable(species.Form) && !shapeOnly)
                     {
                         // Clear ice arches stand like rock; a fountain's water (drawn as metal) is for wading.
                         var fountain = species.Form == FloraForm.Fountain;
@@ -209,6 +211,8 @@ namespace Punchy.Flora
                 }
                 // Built things stand rigid in the wind (benches, halls, palisades swayed like plants, Z-11); a garden's
                 // plants still move, and cloth has its own motion (Flora.hlsl).
+                if (shapeOnly)
+                    break;
                 var flexibility = Founded(species.Form) && species.Form != FloraForm.Garden ? 0f : species.Flexibility;
                 model.Lods[lod] = builder.ToMesh($"{species.name} {variant} LOD{lod}", g.Height, g.Width, flexibility, species.Form == FloraForm.Flowers);
             }

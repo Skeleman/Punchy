@@ -212,7 +212,14 @@ namespace Punchy.Fauna
         void Update()
         {
             using (UpdateMarker.Auto())
+            {
+                // (The build frame's whole cost, Build and the first spawn passes, for the startup hitch, #102.)
+                var wasBuilt = built;
+                var watch = wasBuilt ? null : System.Diagnostics.Stopwatch.StartNew();
                 UpdateDirector();
+                if (!wasBuilt && built)
+                    Debug.Log($"[fauna build] build frame {watch.ElapsedMilliseconds} ms");
+            }
         }
 
         void UpdateDirector()
@@ -344,6 +351,13 @@ namespace Punchy.Fauna
             // Each species once, by name: in a built player the Domestics table (loaded from Resources) holds its own
             // copies of species the world's palette also lists, so the same species can arrive as two objects. (Counted
             // twice, the indices shifted, and an editor and a build disagreed on what each index meant.)
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            var stages = new System.Text.StringBuilder();
+            void Stage(string what)
+            {
+                stages.Append(' ').Append(what).Append(' ').Append(watch.ElapsedMilliseconds);
+                watch.Restart();
+            }
             var named = new HashSet<string>();
             void AddSpecies(CreatureSpecies s)
             {
@@ -378,6 +392,7 @@ namespace Punchy.Fauna
             speciesByName.Clear();
             for (int i = 0; i < species.Count; i++)
                 speciesByName[species[i].name] = i;
+            Stage("species");
             // Who hunts whom: a listed species covers its variants too. Matched by name, not by object: in a built
             // player a species loaded from Resources (the Domestics table's Dog) points at Resources copies of its
             // prey, which aren't the objects the palette listed (A-20: dogs saw no rabbits in the build).
@@ -402,19 +417,23 @@ namespace Punchy.Fauna
                         hunted[j] = true;
                     }
             }
+            Stage("prey");
             for (int i = 0; i < species.Count; i++)
             {
                 Regards(i, out var regard, out var kinship);
                 blobs.Add(CreatureBlobBuilder.Build(species[i], preyLists[i], hunted[i], regard, kinship));
             }
+            Stage("blobs");
 
             capsule = BuildCapsule(12, 6, 4);
+            Stage("capsule");
             var em = queryWorld.EntityManager;
             settingsEntity = em.CreateEntity();
             em.SetName(settingsEntity, "Fauna Render Settings");
             em.AddComponentObject(settingsEntity, new FaunaRenderSettings { Material = Material, Capsule = capsule });
             em.AddComponentData(settingsEntity, new FaunaClock());
             carryBlob = BuildCarryTable();
+            Stage("carry");
             em.AddComponentData(settingsEntity, new CarryTable { Blob = carryBlob });
             if (simWorld != null && simWorld != queryWorld)
             {
@@ -435,10 +454,47 @@ namespace Punchy.Fauna
                 floraEntity = simWorld.EntityManager.CreateEntity();
                 simWorld.EntityManager.SetName(floraEntity, "Flora Lookup");
                 simWorld.EntityManager.AddComponentData(floraEntity, new Punchy.Flora.FloraLookup { Blob = floraBlob });
+                Stage("flora");
             }
+            Debug.Log($"[fauna build] {species.Count} species, ms:{stages} fingerprint {BuildFingerprint():X8}");
             lastSource = source;
             configStamp = ConfigStamp();
             built = true;
+        }
+
+        /// <summary>
+        /// Editor only (0 in a player): a hash of everything Build makes, the species order and every baked blob byte
+        /// for byte (bodies, carry table, flora lookup), so a change to how Build runs can show it makes the same data.
+        /// The blobs go through a temp file (Entities' internal file writer, found by reflection) because this assembly
+        /// has no unsafe code to read them directly.
+        /// </summary>
+        uint BuildFingerprint()
+        {
+            if (!Application.isEditor)
+                return 0;
+            var path = System.IO.Path.Combine(Application.temporaryCachePath, "fauna-fingerprint.bin");
+            var type = typeof(Unity.Entities.Serialization.BinaryWriter).Assembly.GetType("Unity.Entities.Serialization.StreamBinaryWriter");
+            if (type == null)
+                return 0;
+            using (var writer = (Unity.Entities.Serialization.BinaryWriter)System.Activator.CreateInstance(type,
+                       System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic,
+                       null, new object[] { path, 65536, default(EntityManager) }, null))
+            {
+                foreach (var blob in blobs)
+                    BlobAssetSerializeExtensions.Write(writer, blob);
+                if (carryBlob.IsCreated)
+                    BlobAssetSerializeExtensions.Write(writer, carryBlob);
+                if (floraBlob.IsCreated)
+                    BlobAssetSerializeExtensions.Write(writer, floraBlob);
+            }
+            var hash = 2166136261u;
+            foreach (var s in species)
+                foreach (var c in s.name)
+                    hash = (hash ^ c) * 16777619u;
+            foreach (var b in System.IO.File.ReadAllBytes(path))
+                hash = (hash ^ b) * 16777619u;
+            System.IO.File.Delete(path);
+            return hash;
         }
 
         /// <summary>
