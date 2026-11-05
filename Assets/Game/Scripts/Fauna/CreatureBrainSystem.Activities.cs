@@ -106,7 +106,28 @@ namespace Punchy.Fauna
                     {
                         System.Threading.Interlocked.Increment(ref Shelters.Data.NotFound);
                         M.ShelterRetry = seek.NextFloat(20f, 40f);
+                        // Row 3: nowhere to go, it puts up with it where it stands.
+                        DecideWeatherPose(ref s, ref b, ref seek);
                     }
+                }
+                // Row 3: waiting out the retry in the open, now and then it pants, shivers or hunches again.
+                else if (M.Discomfort > 0.4f && pressure > 0.02f && M.ShelterRetry > 0f && s.Action == IdleAction.None &&
+                         s.Mode != CreatureMode.Shelter && MaySeekShelter(in s, ref b))
+                {
+                    var again = new Random(math.hash(new uint2(s.Individual, (uint)(Now * 10f) ^ 0x5E5Eu)) | 1u);
+                    if (again.NextFloat() < 0.2f)
+                        DecideWeatherPose(ref s, ref b, ref again);
+                }
+                // Row 3: out of the rain at last, it shakes the water off (once: the meter drops below the line).
+                else if (pressure <= 0.02f && M.DiscomfortKind == ComfortKind.Rain && M.Discomfort > 0.3f && s.Action == IdleAction.None &&
+                         MaySeekShelter(in s, ref b) && s.Mode != CreatureMode.Rest && !Flying(in s))
+                {
+                    SetMode(ref s, CreatureMode.Idle);
+                    s.Action = IdleAction.Shake;
+                    s.ActionLength = 1.2f;
+                    s.Timer = 1.4f;
+                    M.Discomfort = 0.29f;
+                    System.Threading.Interlocked.Increment(ref Shelters.Data.Posed);
                 }
                 if (pressure > 0.02f)
                 {
@@ -119,6 +140,35 @@ namespace Punchy.Fauna
                     if (M.Discomfort <= 0f)
                         M.DiscomfortKind = ComfortKind.None;
                 }
+            }
+
+            /// <summary>
+            /// A-71 row 3: with no shelter in reach, it stands and shows the weather it's bearing: panting in the heat or
+            /// the dry, shivering with arms hugged in the cold or snow, hunched against a storm or the wind (or the rain,
+            /// shaking it off now and then), and folk shading their eyes from a glare (animals pant). A few seconds, then
+            /// on with its business. Not lying down, nor a flier in the air.
+            /// </summary>
+            void DecideWeatherPose(ref CreatureState s, ref CreatureBlob b, ref Random rng)
+            {
+                if (s.Mode == CreatureMode.Rest || Flying(in s) || !Free(s.Mode) && s.Mode != CreatureMode.Work && s.Mode != CreatureMode.Sit)
+                    return;
+                var folk = b.Comfort.Race != ComfortRace.None && b.Upright;
+                var pose = M.DiscomfortKind switch
+                {
+                    ComfortKind.Hot or ComfortKind.Dry => IdleAction.Pant,
+                    ComfortKind.Cold or ComfortKind.Snow => rng.NextFloat() < 0.7f ? IdleAction.Shiver : IdleAction.Hunch,
+                    ComfortKind.Bright => folk ? IdleAction.ShieldEyes : IdleAction.Pant,
+                    ComfortKind.Rain => rng.NextFloat() < 0.4f ? IdleAction.Shake : IdleAction.Hunch,
+                    ComfortKind.Storm or ComfortKind.Wind => IdleAction.Hunch,
+                    _ => IdleAction.None
+                };
+                if (pose == IdleAction.None)
+                    return;
+                SetMode(ref s, CreatureMode.Idle);
+                s.Action = pose;
+                s.ActionLength = pose == IdleAction.Shake ? 1.2f : rng.NextFloat(3f, 6f);
+                s.Timer = s.ActionLength + 0.3f;
+                System.Threading.Interlocked.Increment(ref Shelters.Data.Posed);
             }
 
             /// <summary>How much a need pushes an activity: a little even when met, a lot when pressing.</summary>

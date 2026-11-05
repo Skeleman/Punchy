@@ -9,11 +9,11 @@ namespace Punchy.Fauna
     {
         /// <summary>
         /// A-71 row 2 counters (Interlocked from the brain's workers): searches this frame (capped, reset each frame),
-        /// and running totals of shelters set off for, arrived at and searches that found none.
+        /// and running totals of shelters set off for, arrived at, searches that found none and weather poses struck (row 3).
         /// </summary>
-        public static readonly SharedStatic<ShelterCounts> Shelters = SharedStatic<ShelterCounts>.GetOrCreate<ShelterCountsKey>();
-        struct ShelterCountsKey { }
-        public struct ShelterCounts { public int ThisFrame; public long Started, Arrived, NotFound, Indoors; }
+        public static readonly SharedStatic<ShelterCounts> Shelters = SharedStatic<ShelterCounts>.GetOrCreate<ShelterCountsKeyV2>();
+        struct ShelterCountsKeyV2 { }
+        public struct ShelterCounts { public int ThisFrame; public long Started, Arrived, NotFound, Indoors, Posed; }
         /// <summary>At most this many shelter searches a frame, over every creature (each looks up trees, anchors, caves).</summary>
         const int ShelterSearchesPerFrame = 8;
 

@@ -1085,7 +1085,7 @@ namespace Punchy.Debugging
                       $"off {Comfort.Off.Data}: {groups.Count} species");
             var counts = CreatureBrainSystem.Shelters.Data;
             Debug.Log($"[comfort] sheltered {sheltered} (roof {covered[0]} tree {covered[1]} water {covered[2]} fire {covered[3]} shade {covered[4]} " +
-                      $"cave {covered[5]}) going {going} | started {counts.Started} indoors {counts.Indoors} arrived {counts.Arrived} none found {counts.NotFound}");
+                      $"cave {covered[5]}) going {going} | started {counts.Started} indoors {counts.Indoors} arrived {counts.Arrived} none found {counts.NotFound} posed {counts.Posed}");
             // Every folk race's profile at the player's spot (the same five individuals each), whether or not any are near:
             // one line per race, mean pressure and the commonest complaint (the card's 5 races x 3 scenes).
             if (director != null && QueriesLive() && playerQuery.TryGetSingleton<LocalTransform>(out var me) && EnsureLocations(out var ground))
@@ -1463,6 +1463,10 @@ namespace Punchy.Debugging
         /// <summary>"-untilwork": the most seconds a shot waits past -wait for the watched folk to work, and since when it has.</summary>
         static float untilWork;
         static float workSince = -1f;
+        /// <summary>"-untilaction" (A-71): the most seconds a shot waits past -wait for the watched one to be doing the
+        /// action asked for in "-watch Deer:Pant" (watchAction).</summary>
+        static float untilAction;
+        static IdleAction watchAction;
         /// <summary>"-spawn Osprey" (or "Trout:6"): a few of a species put near the player once the world is up (testing).</summary>
         static readonly List<string> pendingSpawns = new List<string>();
         /// <summary>"-pose Bat" (or "Bat:fly", "Bat:glide", "Bat:rest", "Bat:hang", "Crow:nest", and a camera pitch: "Bat:glide:70"):
@@ -1546,6 +1550,7 @@ namespace Punchy.Debugging
             rockWatchFor = 0f;
             rockWatchSince = -1f;
             untilWork = 0f;
+            untilAction = 0f;
             pendingSpawns.Clear();
             poseRequest = null;
             interactRequest = null;
@@ -1829,6 +1834,8 @@ namespace Punchy.Debugging
                 // has been at its work (Mode Work) for a second, so a smith on a break is caught hammering.
                 if (args[i] == "-untilwork" && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var untilWorkFor))
                     untilWork = untilWorkFor;
+                if (args[i] == "-untilaction" && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var untilActionFor))
+                    untilAction = untilActionFor;
                 // "-timescale 4": everything runs four times as fast (a dusk, a burrow cycle, a roost in seconds).
                 if (args[i] == "-timescale" && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var scale))
                     Time.timeScale = Mathf.Clamp(scale, 0.1f, 20f);
@@ -2679,11 +2686,14 @@ namespace Punchy.Debugging
             // ("Deer:Drink": only those doing that, A-49 #64.)
             var watchDoing = CreatureMode.Wander;
             var hasDoing = !hasTask && !hasJob && watchParts.Length > 1 && System.Enum.TryParse(watchParts[1], true, out watchDoing);
+            // ("Deer:Pant": only those doing that idle action, re-picked every second, A-71.)
+            watchAction = IdleAction.None;
+            var hasAction = !hasTask && !hasJob && !hasDoing && watchParts.Length > 1 && System.Enum.TryParse(watchParts[1], true, out watchAction);
             if (index < 0 || !playerQuery.TryGetSingleton<LocalTransform>(out var player))
                 return;
             if (Time.unscaledTime >= nextWatchPick || !em.Exists(watched))
             {
-                nextWatchPick = Time.unscaledTime + 8f;
+                nextWatchPick = Time.unscaledTime + (hasAction ? 1f : 8f);
                 var entities = creatureQuery.ToEntityArray(Unity.Collections.Allocator.Temp);
                 var best = float.MaxValue;
                 watched = Entity.Null;
@@ -2692,7 +2702,7 @@ namespace Punchy.Debugging
                 {
                     var species = em.GetComponentData<CreatureBody>(e).Species;
                     var c = em.GetComponentData<CreatureState>(e);
-                    if (hasTask && c.Task != watchTask || hasJob && FolkJobs.Of(c) != watchJob || hasDoing && c.Mode != watchDoing)
+                    if (hasTask && c.Task != watchTask || hasJob && FolkJobs.Of(c) != watchJob || hasDoing && c.Mode != watchDoing || hasAction && c.Action != watchAction)
                         continue;
                     if (!anySpecies && species != index)
                     {
@@ -3140,6 +3150,18 @@ namespace Punchy.Debugging
                 else if (workSince < 0f)
                     workSince = Time.realtimeSinceStartup;
                 if (!working || Time.realtimeSinceStartup - workSince < 1f)
+                    return;
+            }
+            // "-untilaction": likewise, till the watched one is doing the -watch action (A-71 weather poses).
+            if (untilAction > 0f && Time.realtimeSinceStartup - shotStarted < shotWait + untilAction)
+            {
+                var doing = watched != Entity.Null && queryWorld != null && queryWorld.IsCreated && queryWorld.EntityManager.Exists(watched) &&
+                            watchAction != IdleAction.None && queryWorld.EntityManager.GetComponentData<CreatureState>(watched).Action == watchAction;
+                if (!doing)
+                    workSince = -1f;
+                else if (workSince < 0f)
+                    workSince = Time.realtimeSinceStartup;
+                if (!doing || Time.realtimeSinceStartup - workSince < 1f)
                     return;
             }
             // Underground, also until the caves round the camera are built (up to 10 s more).
@@ -4741,6 +4763,7 @@ namespace Punchy.Debugging
             walkTarget = null;
             walkPath.Clear();
             untilWork = 0f;
+            untilAction = 0f;
             workSince = -1f;
             swimSpot = null;
             poseRequest = null;
