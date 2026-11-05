@@ -4,3 +4,4 @@ Oldest first. Add yourself at the bottom; only the first line may open an editor
 
 - animal A-69 rows 3-4 (closed for world W-98; batch suite running on own tree)
 - world W-98 rows 3-4 (closed for queue after row 2)
+- player P-19 (rebuild for row 3) since 21:54
