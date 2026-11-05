@@ -54,6 +54,7 @@ Shader "Punchy/Terrain Surface"
             int _PunchyBurrowerCount;
             // How far out the marks are drawn (GraphicsSettings: DetailRange(BurrowRange), the feeder's range too).
             float _PunchyBurrowRange;
+            float _PunchyTerrainDetailFar;   // where the fine relief has faded out (TerrainStreamingSystem, by Detail distance)
             // Where the marks are, coarsely (CreatureBurrowSystem's MarkMask): a cell 1 where some mark reaches into it,
             // and (x, z of the map's corner, cells per metre, cells across).
             TEXTURE2D(_PunchyBurrowMask);
@@ -276,8 +277,10 @@ Shader "Punchy/Terrain Surface"
                     normalWS = normalize(normalWS + half3(burrowTilt.x, 0, burrowTilt.y));
                 }
 
-                // Fine relief up close (fades out before it could shimmer), skipped on skirts.
-                half detailFade = (1 - smoothstep(25, 70, distance)) * input.bump * (input.extra.w <= 0.01);
+                // Fine relief up close (fades out before it could shimmer), skipped on skirts. How far it reaches
+                // follows the Detail distance setting (W-101: 110 m at Detail 1, was a fixed 70 m).
+                float detailFar = _PunchyTerrainDetailFar > 0 ? _PunchyTerrainDetailFar : 70;
+                half detailFade = (1 - smoothstep(detailFar * 0.36, detailFar, distance)) * input.bump * (input.extra.w <= 0.01);
                 float3 micro = detailFade > 0.001 ? MicroDetail(p) : float3(0, 0, 0.5);
 
                 // Rain: flat ground collects puddles (dark, mirror-smooth, no relief); elsewhere wet ground just

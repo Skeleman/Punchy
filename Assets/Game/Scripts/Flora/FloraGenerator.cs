@@ -2587,8 +2587,8 @@ namespace Punchy.Flora
             // The cracked base mound: a low core, so the player can't slip in between the prongs' feet.
             g.Colliders.Add(new Vector4(0f, 0f, baseRadius * 0.6f, baseRadius * 0.5f));
             g.ColliderBase.Add(0f);
-            if (g.Lod == 2)
-                return;
+            // Far off (LOD2) the arcs stay as three-point, thicker strokes, so a wasteland still crackles from afar (W-101).
+            var arcRadius = g.Lod == 2 ? 0.09f : 0.03f;
             var arc = g.HasAccent ? AccentAt(g, 0) : new Color(0.65f, 0.85f, 1f);
             for (int k = 0; k < tips.Count; k++)
             {
@@ -2602,7 +2602,7 @@ namespace Punchy.Flora
                     var t = j / (points - 1f);
                     var zig = j == 0 || j == points - 1 ? Vector3.zero : (new Vector3(g.R(), g.R(), g.R()) - Vector3.one * 0.5f) * Vector3.Distance(a, c) * 0.18f;
                     path.Add(Vector3.Lerp(a, c, t) + Vector3.down * Mathf.Sin(t * Mathf.PI) * Vector3.Distance(a, c) * 0.12f + zig);
-                    radii.Add(0.03f);
+                    radii.Add(arcRadius);
                 }
                 b.Tube(path, radii, 3, arc, FloraPart.Arc);
             }
@@ -2853,10 +2853,10 @@ namespace Punchy.Flora
                 shards.Add(at);
             }
             // Arcs from the rock to some of its shards (they crackle: FloraPart.Arc).
-            if (g.Lod < 2)
+            // Far off (LOD2) half as many, thicker and three points each (W-101).
             {
                 var arcColor = s.Foliage.linear;
-                for (int k = 0; k < shards.Count; k += 2)
+                for (int k = 0; k < shards.Count; k += g.Lod == 2 ? 4 : 2)
                 {
                     var from = centre + (shards[k] - centre).normalized * Mathf.Min(dims.x, dims.z) * 0.9f;
                     var to = shards[k];
@@ -2868,7 +2868,7 @@ namespace Punchy.Flora
                         var t = j / (points - 1f);
                         var zig = j == 0 || j == points - 1 ? Vector3.zero : (new Vector3(g.R(), g.R(), g.R()) - Vector3.one * 0.5f) * Vector3.Distance(from, to) * 0.2f;
                         path.Add(Vector3.Lerp(from, to, t) + zig);
-                        radii.Add(size * 0.006f);
+                        radii.Add(size * (g.Lod == 2 ? 0.016f : 0.006f));
                     }
                     b.Tube(path, radii, 3, arcColor, FloraPart.Arc);
                 }

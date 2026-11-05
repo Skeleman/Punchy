@@ -1284,6 +1284,7 @@ namespace Punchy.Terrain
         /// </summary>
         void GatherSurfaceGlow(in TerrainSource source, float3 camPos)
         {
+            Shader.SetGlobalVector(GlowMapParamsId, Vector4.zero);
             if (paletteQuery.IsEmpty || Underground > 0.9f)
                 return;
             var palette = queryWorld.EntityManager.GetComponentObject<BiomePalette>(paletteQuery.GetSingletonEntity());
@@ -1294,15 +1295,33 @@ namespace Punchy.Terrain
             }
             surfaceGlow.Update(source, palette, flora, camPos);
             var night = Shader.GetGlobalFloat(NightId);
+            var windowsOn = night < 0.25f ? 0f : math.smoothstep(0.25f, 0.55f, night);
+            // The far tier (Glow.hlsl): every glowing plant and lit window within about 300 m, baked into a light map,
+            // fading in over the distance the near lights fade out over.
+            if (surfaceGlow.MapReady && (GlowTiers & 2) != 0)
+            {
+                Shader.SetGlobalTexture(GlowMapId, surfaceGlow.MapPlants);
+                Shader.SetGlobalTexture(GlowMapNightId, surfaceGlow.MapWindows);
+                Shader.SetGlobalVector(GlowMapRectId, new Vector4(surfaceGlow.MapCorner.x, surfaceGlow.MapCorner.y,
+                                                                  1f / (SurfaceGlow.MapSize * SurfaceGlow.MapTexel), 0f));
+                Shader.SetGlobalVector(GlowMapParamsId, new Vector4((1f - Underground) * FarGlowStrength, windowsOn, NearGlowFade.x * 0.7f, NearGlowFade.y));
+            }
+            if ((GlowTiers & 1) == 0)
+                return;
             foreach (var (position, light) in surfaceGlow.Found)
             {
-                var l = light;
+                // Near lights fade out by distance (the far map takes over), rather than popping at the scan's edge.
+                var near = 1f - math.smoothstep(NearGlowFade.x, NearGlowFade.y, math.distance(position.xz, camPos.xz));
+                if (near <= 0f)
+                    continue;
+                var l = light * near;
+                l.w = light.w;
                 if (l.w < 0f)
                 {
                     // Lit windows: only after dark.
                     if (night < 0.25f)
                         continue;
-                    l = new Vector4(l.x, l.y, l.z, 0f) * math.smoothstep(0.25f, 0.55f, night);
+                    l = new Vector4(l.x, l.y, l.z, 0f) * windowsOn;
                     l.w = -light.w;
                 }
                 var at = new Vector4(position.x, position.y, position.z, 0f);
@@ -1311,6 +1330,20 @@ namespace Punchy.Terrain
         }
 
         static readonly int NightId = Shader.PropertyToID("_PunchyNight");
+        static readonly int GlowMapId = Shader.PropertyToID("_PunchyGlowMap");
+        static readonly int GlowMapNightId = Shader.PropertyToID("_PunchyGlowMapNight");
+        static readonly int GlowMapRectId = Shader.PropertyToID("_PunchyGlowMapRect");
+        static readonly int GlowMapParamsId = Shader.PropertyToID("_PunchyGlowMapParams");
+        /// <summary>Camera distance over which surface glow's near lights fade out (m); the far map fades in from 70%
+        /// of the start to the end, so the hand-over adds up to about the same light.</summary>
+        static readonly Vector2 NearGlowFade = new Vector2(18f, 30f);
+        /// <summary>Which surface glow tiers are on (1 near lights, 2 far map): both, bar a frame-cost measurement.</summary>
+        public static int GlowTiers = 3;
+        /// <summary>The far map's brightness: a little under the near lights', so a cluster reads as a soft wash from
+        /// afar rather than a floodlit floor.</summary>
+        public static float FarGlowStrength = 1f;
+        /// <summary>The far map's last scan time (ms, start to pick-up), for the frame-cost report.</summary>
+        public float FarGlowScanMs => surfaceGlow.FarScanMs;
 
         Punchy.Flora.FloraSystem flora;
 
