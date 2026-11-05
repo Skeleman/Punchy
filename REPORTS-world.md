@@ -2192,3 +2192,7 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
 ### W-99 row 2 - contact shading (commits 23bcb6f + 32a9ce4) - done (verified)
 - Kit walls, posts, piles and chimneys get a vertex occlusion band where they meet a floor, deck, balcony or plinth (BandedBox, LOD 0-1). Fishing village pier posts darken under the deck (gallery r2q.png); stilt house wall darkens toward its deck (r2h.png).
 - Weather drifted to overcast during the shots; time was noon.
+
+### W-99 row 3 - log stack (code in 23bcb6f) - done (verified)
+- Woodpile logs have flat ends with growth rings and a bark rim, bark sides, and the odd split log with woodgrain (gallery r3.png, hermit hut at 140,-545).
+- Hash note: the Woodpile builder draws more RNG than before, so woodpile meshes differ; landmark placement is untouched.
