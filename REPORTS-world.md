@@ -2295,3 +2295,11 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
   - FloraSystem.cs is shared (one additive hook plus a field).
   - Scripts/Fauna is animal-owned by path, and the new file sits there next to StoneColossi and DunesColossus. Those are world-lane through the W cards.
   - CreatureBrainSystem and BuildingFootprints (animal lane, A-70) are untouched.
+
+## W-102 row 1: flora shadows near the camera only (done, verified)
+- Commit 1ca7d1a (world-features). FloraCull.compute writes separate shadow lists (DRAWS 5: 3 LOD + 2 shadow); a plant casts only within its layer's ShadowCastDistance (shrubs 40 m, trees 60 m, ground layer never). Main draws are ShadowCastingMode.Off. Shadow lists include off-screen casters within the distance, so near shadows behind the camera stay.
+- Editor GPU ms, v2, noon, uncapped, 500-frame mean, shot camera (editor numbers on the main PC; the profiler should re-measure in a build):
+  - fishing village 1 (-3304,-1644): 2.97 -> 2.46 ms; tris 5.11M -> 3.16M; instances 17595 -> 9730.
+  - forest (850,835, Temperate): 3.73 -> 2.91 ms; tris 5.82M -> 5.64M; instances 16402 -> 15412.
+- Shots (near shadows unchanged): gallery W-102/r1_before_fv1, r1_after_fv1, r1_before_forest, r1_after_forest.
+- Risk: FloraSystem.cs and FloraCull.compute are shared flora files. Shrub shadows between 40 m and the 50 m URP shadow distance are gone (a few pixels each).
