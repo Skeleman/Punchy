@@ -2506,3 +2506,25 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
 - Render ms there at 22:00, uncapped, 500 frames, fires on / off (48 trees, 213 flames): gpu 1.94 / 1.97 ms, then 2.00 / 1.90 ms; frame 6.47 / 6.36, then 6.58 / 6.01 ms; +2 batches, +2 setpass. Within the noise.
 - Landmarks_V3 and Fauna_Fingerprint unchanged (no placement code touched): "110 09EAC0FE", 61459BF0.
 - Paused W-106 here for W-107 (priority from Zach). Rows 2 (mesa tortoise) and 3 (Wasteland stepping stones) are written but uncommitted, shelved as a patch; row 4 not started.
+
+## W-107 rows 1-2: cheap far tree caster, still far shadows (done, verified; off by default)
+- Commit e6bcbf1 (world-features). Switches in `Punchy.Rendering.FloraShadowOptions` (public static, read every frame; each also a command-line argument; all off draws as main):
+  - `CheapFarCaster` / `-cheapfarcaster`: trees past `NearRange` (`-shadownear`, default 25 m) cast with their far level of detail (LOD 2) instead of LOD 1. Only the trees layer.
+  - `StillFarShadows` / `-stillfarshadows`: in the flora ShadowCaster pass, wind sway and flutter fade out over 10 m round `StillFrom` (`-stillfrom`, default 40 m; 30-50 is the intended range).
+- Bench: editor, v2 island, noon, uncapped, 500-frame means. Shadow ms is the GPU time of URP's MainLightShadow marker. Tree shadow casters come from reading back the shadow draw args.
+
+| Spot | Switch | GPU ms | Shadow pass ms | Tree shadow casters (near+far) | Tree shadow tris |
+|---|---|---|---|---|---|
+| Fishing village 1 (-3304,-1644) | off | 3.32 | 0.57 | 60+13 | 1549k |
+| | cheap | 3.03 | 0.28 | 7+66 | 231k |
+| | still | 3.44 | 0.56 | 60+13 | 1549k |
+| Forest (OakGrove 1925,2335) | off | 2.11 / 2.25 | 0.16 / 0.16 | 35+0 | 217k |
+| | cheap | 2.07 / 2.18 | 0.13 / 0.13 | 15+20 | 90k |
+| | still | 2.14 / 2.19 | 0.15 / 0.17 | 35+0 | 217k |
+
+- Look:
+  - Cheap: at the village (dense canopy) the far canopy is a little lighter, with less fine self-shadow between crowns. The grove's ground shadow looks the same.
+  - Still: no visible difference in stills. The sway fades over 10 m, so there's no step where a shadow could pop.
+  - Still costs nothing and saves nothing measurable here; its gain would be less cascade shimmer in wind.
+- Shots (Assets/Temp/shots): w107_fv1_cheap_false/true-800, w107_fv1_still_true-800, w107_forest_cheap_false/true-800, w107_forest_still_true-800. The forest shots are in rain, so the shadows are faint.
+- Note: rows 1-2 also add the inert FloraCache shader pass and the cull's inner skip (`_Shadow.w`) for row 3. Both do nothing while row 3's switch is off.
