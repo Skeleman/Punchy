@@ -2335,3 +2335,11 @@ Rows 2-4 share one commit because their files overlap (FaunaDirector, WharfSpots
 ## A-74 rows 1-2 (animal-behaviours c17e66f)
 - Row 1 done. Cause: launch options run on the baked first island; fishing villages (and every other type the v2/v3 pass appends) only exist after that pass, so the generic `-place` found nothing and left the player where they were. Fix in DebugControls: a `-place` that finds nothing retries each time the landmark key changes, for up to 120 s, then logs a warning. Verified: "started at FishingVillage:centre", player at the village (shot fv-over shows the stilt houses). Covers every `<Landmark>` / `<Landmark>:centre` target that is v2/v3-only; baked types still place on the first try. Also added `-pickspecies <Body>` for the row 3 shots (compiles clean).
 - Row 2 done, no code change needed. At 20.3 h in rain at the fishing village, 8 folk are in Home mode within 150 m: 7 of them are within 0.7-2.1 m of their door anchor. Shot fe-door2: a villager at the foot of a stilt hut's stairs, lit. (fe-door1/fe-door3 show huts with no one outside; the ones at 0.7 m are on the deck.) Night shots at 21.7 h (fd-*) were too dark to read.
+
+## A-74 row 4 (#40): colossus extras (animal-behaviours 8a91273)
+- Dust and ground shake only play within 300 m of the player.
+- A walking colossus within 40 m of the player holds its step (2 s ease), turns its root up to 70 deg and its head up to 35 deg toward the player, then catches up on its loop at 1.5x pace. If the player stays close for more than 30 s, it gets bored and walks on.
+- Cosmetic and local per client: each client's walker reacts to its own player, and the loop clock doesn't drift, because the lag is paid back. `-walkerlog` prints hold / lag / look / bored.
+- Strip wstrip (w-far, w-0, w-1, w-2): the walking saguaro at 45 m side-on stops and turns to look at the player. Log "hold 0.21 look 8" when it's in range, "hold 0.00 look 0" when it's far.
+- Brain ms with the walker awake: 0.269 at w-far and 0.303 at w-2.
+- ColossusCollision.cs and StoneColossi.cs were not touched.
