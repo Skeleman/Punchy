@@ -1494,10 +1494,22 @@ namespace Punchy.Terrain
                         new Vector3(0.22f, 0.22f, len), R() * 360f, false, Mathf.Asin(Mathf.Clamp01(2f * rise / len)) * Mathf.Rad2Deg);
                 }
 
+            // W-100: a balcony and the landing at a stair's top each get a door in the wall behind them, so neither
+            // leads nowhere (no extra draws: the island's other rolls stay where they were).
             if (storeys >= 2 && R() < (ruined ? t.BalconyChance * 0.5f : t.BalconyChance))
-                Balcony(parts, t, new Vector3(Range(-0.15f, 0.15f) * width, h, depth * 0.5f), 0f, Mathf.Min(width * 0.5f, 3.6f), ruined);
+            {
+                var at = new Vector3(Range(-0.15f, 0.15f) * width, h, depth * 0.5f);
+                Balcony(parts, t, at, 0f, Mathf.Min(width * 0.5f, 3.6f), ruined);
+                UpperDoor(parts, at.x, depth * 0.5f, 0f, h, ruined);
+            }
             if (storeys >= 2 && R() < t.StairChance)
+            {
+                var steps = Mathf.Max(2, Mathf.CeilToInt(h / 0.28f));
                 Stair(parts, new Vector3(width * 0.5f + 0.55f, 0f, -depth * 0.35f), 0f, h, 1f);
+                // The landing's centre (Stair: steps * 0.15 + 0.5 past its middle), as a distance along the +X wall
+                // (yaw 90 turns +X along a wall to -Z).
+                UpperDoor(parts, depth * 0.35f - steps * 0.15f - 0.5f, width * 0.5f, 90f, h, ruined);
+            }
             if (R() < t.TowerChance)
                 Tower(parts, t, rng, new Vector3(-width * 0.5f, 0f, -depth * 0.5f), Mathf.Min(width, depth) * 0.42f, top + h * Range(1f, 1.8f), ruined ? keep[gone == 1 ? 3 : 1] : 1f);
             if (ruined)
@@ -1676,6 +1688,33 @@ namespace Punchy.Terrain
             if (!ruined)
                 Add(parts, KitPiece.Door, KitMaterial.Wood, Turn(yaw, new Vector3(x, dh * 0.5f, out_ - 0.05f)), new Vector3(dw, dh, 0.12f), yaw, false);
             Add(parts, KitPiece.Trim, KitMaterial.Stone, Turn(yaw, new Vector3(x, 0.08f, out_ + 0.45f)), new Vector3(dw + 0.5f, 0.16f, 0.6f), yaw, false);   // step
+        }
+
+        /// <summary>
+        /// W-100: a door on an upper floor (behind a balcony or a stair's landing): a leaf proud of the wall with jambs,
+        /// a lintel and a sill. Any window, shutter or flower box already in that spot is taken out first. x runs along
+        /// the wall, out_ is the wall's line, both in the wall's frame (yaw, as the house's walls).
+        /// </summary>
+        static void UpperDoor(List<KitPart> parts, float x, float out_, float yaw, float floor, bool ruined)
+        {
+            const float dw = 1.0f, dh = 2.1f;
+            var face = out_ + Thick * 0.5f;
+            var inv = Quaternion.Euler(0f, -yaw, 0f);
+            parts.RemoveAll(p =>
+            {
+                if (p.Piece != KitPiece.Window && p.Piece != KitPiece.Trim || p.Size.x > 2f)   // (string courses stay)
+                    return false;
+                var l = inv * p.Centre;
+                return Mathf.Abs(l.x - x) < dw * 0.5f + 0.5f && l.y > floor - 0.2f && l.y < floor + dh + 0.35f && Mathf.Abs(l.z - out_) < 0.6f;
+            });
+            if (!ruined)
+                Add(parts, KitPiece.Door, KitMaterial.Wood, Turn(yaw, new Vector3(x, floor + dh * 0.5f, face + 0.05f)), new Vector3(dw, dh, 0.1f), yaw, false);
+            else   // a ruin's doorway: a dark opening, the leaf long gone
+                Add(parts, KitPiece.Window, KitMaterial.Opening, Turn(yaw, new Vector3(x, floor + dh * 0.5f, face + 0.02f)), new Vector3(dw, dh, 0.04f), yaw, false);
+            foreach (var s in new[] { -1f, 1f })
+                Add(parts, KitPiece.Trim, KitMaterial.Trim, Turn(yaw, new Vector3(x + s * (dw * 0.5f + 0.08f), floor + dh * 0.5f, face + 0.06f)), new Vector3(0.16f, dh, 0.12f), yaw, false);
+            Add(parts, KitPiece.Trim, KitMaterial.Trim, Turn(yaw, new Vector3(x, floor + dh + 0.1f, face + 0.07f)), new Vector3(dw + 0.4f, 0.2f, 0.14f), yaw, false);
+            Add(parts, KitPiece.Trim, KitMaterial.Stone, Turn(yaw, new Vector3(x, floor + 0.04f, face + 0.08f)), new Vector3(dw + 0.2f, 0.08f, 0.16f), yaw, false);
         }
 
         static void WindowBay(List<KitPart> parts, CultureTrim t, System.Random rng, float yaw, float x, float out_, float y0, float y1, float bw, float h, int storey, bool ruined)
