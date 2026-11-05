@@ -60,6 +60,8 @@ namespace Punchy.Ambience
 
         readonly List<Emitter> plumes = new List<Emitter>();
         readonly List<Emitter> falls = new List<Emitter>();
+        /// <summary>River waterfalls (W-98): heard like a curtain but not drawn, as the river's own surface falls there.</summary>
+        readonly List<Emitter> heardFalls = new List<Emitter>();
         /// <summary>Nearby landmarks' flames (position, size; seed, palette), handed to FireSystem every frame.</summary>
         readonly List<(Vector3 at, float size, int seed, int palette, bool night)> fires = new List<(Vector3, float, int, int, bool)>();
         static readonly int NightId = Shader.PropertyToID("_PunchyNight");
@@ -152,8 +154,9 @@ namespace Punchy.Ambience
         {
             fallHeard.Clear();
             float3 ear = eye;
-            foreach (var f in falls)
+            for (int k = 0; k < falls.Count + heardFalls.Count; k++)
             {
+                var f = k < falls.Count ? falls[k] : heardFalls[k - falls.Count];
                 var mid = f.Position + new float3(f.Out.x, 0f, f.Out.y) * f.Shape.x * 0.5f - new float3(0f, f.Drop * 0.5f, 0f);
                 FallVoice(f.Drop, out var volume, out var reach);
                 var d = math.distance(mid, ear);
@@ -317,6 +320,7 @@ namespace Punchy.Ambience
 
             plumes.Clear();
             falls.Clear();
+            heardFalls.Clear();
             fires.Clear();
             maxParticles = 1;
             float3 min = float.MaxValue, max = float.MinValue;
@@ -334,10 +338,11 @@ namespace Punchy.Ambience
                 }
                 if (i <= -RiverFallBase)
                 {
-                    // A river waterfall: a curtain over the step in the bed, white water at the lip and spray and foam at the foot.
+                    // A river waterfall: white water at the lip and spray and foam at the foot. The falling water itself is
+                    // the river's surface over the step (Water.shader, W-98); its curtain is only heard, not drawn.
                     var rf = source.Rivers.Value.Falls[-i - RiverFallBase];
                     var seed = math.frac(-i * 0.618f);
-                    falls.Add(new Emitter
+                    heardFalls.Add(new Emitter
                     {
                         Position = rf.Lip,
                         Seed = seed,

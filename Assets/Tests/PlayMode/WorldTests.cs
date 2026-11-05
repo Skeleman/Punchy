@@ -26,13 +26,13 @@ namespace Punchy.Tests
             yield return null;
         }
 
-        /// <summary>Target: REPORTS-world (v3 rework): 108 landmarks, probe hash 4D2643D7 (the game's own: 3A0DC7BB).</summary>
+        /// <summary>Target: REPORTS-world W-98 row 3 (spring pools at river heads): 107 landmarks, probe hash 14D92F64 (was 108 / 4D2643D7).</summary>
         [UnityTest, Order(1)]
         public IEnumerator Landmarks_V3()
         {
             var hash = Game.Hook<string>("LandmarkHash");
             LogWatch.Measure($"landmarks {hash}; game line: {LogWatch.Last("[island]")}");
-            Assert.AreEqual("108 4D2643D7", hash);
+            Assert.AreEqual("107 14D92F64", hash);
             yield return null;
         }
 

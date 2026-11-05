@@ -119,6 +119,7 @@ Shader "Punchy/Terrain Surface"
                 float  cave       : TEXCOORD7;
                 half   strata     : TEXCOORD8;
                 half   paving     : TEXCOORD9;
+                half   hollow     : TEXCOORD10;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -254,6 +255,7 @@ Shader "Punchy/Terrain Surface"
                 o.cave = input.morph.w;
                 o.strata = input.strata.x;
                 o.paving = input.strata.y;
+                o.hollow = input.strata.z;
                 return o;
             }
 
@@ -290,10 +292,14 @@ Shader "Punchy/Terrain Surface"
                     shore = smoothstep(0.2, 0.75, saturate(-input.extra.w) + (PunchyValueNoise(p * 0.8) - 0.5) * 0.35
                                                 + (PunchyValueNoise(p * 0.13 + 2.9) - 0.5) * 0.5)
                           * (1 - saturate(input.extra.z * 2));
-                half flatness = smoothstep(0.96, 0.995, normalWS.y);
+                half flatness = smoothstep(0.8, 0.93, normalWS.y);
                 half puddleNoise = PunchyValueNoise(p / 2.3) * 0.65 + PunchyValueNoise(p / 0.9 + 5.1) * 0.35;
-                half puddle = smoothstep(0.62, 0.7, puddleNoise + wet * 0.35 - 0.25) * flatness * smoothstep(0.2, 0.5, wet)
-                            * (1 - input.extra.y);
+                // W-98: puddles gather in the dips (the mesh's hollow depth: how far below the ground round it), the
+                // noise cutting them into separate pools with crisp edges (a dip that glazes over whole reads as dark
+                // ground, not water), spreading as the rain goes on; none on open flats.
+                half dip = smoothstep(0.0, 0.08, input.hollow);
+                half puddle = smoothstep(0.82, 0.9, dip * 0.4 + puddleNoise * 0.6 + wet * 0.15) * flatness * smoothstep(0.1, 0.3, wet)
+                            * (1 - 0.6 * input.extra.y);   // grass pokes through, but meadow dips still pool
                 half sheen = max(wet, shore * 0.6) * (1 - 0.8 * input.extra.y) * (1 - smoothstep(120, 450, distance));
 
                 half relief = detailFade * 0.45 * (1 - puddle);
@@ -408,7 +414,9 @@ Shader "Punchy/Terrain Surface"
                     float3 n = normalize(float3(-ripple.x, 1, -ripple.y));
                     float3 r = reflect(-v, n);
                     r.y = max(r.y, 0.03);
-                    half fresnel = 0.02 + 0.98 * pow(1 - saturate(dot(n, v)), 5);
+                    // (A shallow sheet mirrors more than deep water seen from above, so the floor is well over
+                    // water's 2%: puddles must read as sky even when looked down on.)
+                    half fresnel = 0.35 + 0.65 * pow(1 - saturate(dot(n, v)), 5);
                     half3 body = color.rgb * half3(0.42, 0.47, 0.5);
                     Light sun = GetMainLight(inputData.shadowCoord);
                     half glint = pow(saturate(dot(r, sun.direction)), 600) * sun.shadowAttenuation * 3;
