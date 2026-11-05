@@ -194,6 +194,7 @@ namespace Punchy.Flora
         static readonly int LodId = Shader.PropertyToID("_Lod");
         static readonly int ShadowId = Shader.PropertyToID("_Shadow");
         static readonly int ShadowStillId = Shader.PropertyToID("_FloraShadowStill");
+        static readonly int CheapHolesId = Shader.PropertyToID("_FloraCheapHoles");
         static readonly int ThinId = Shader.PropertyToID("_Thin");
 
         public int PlantCount
@@ -284,6 +285,7 @@ namespace Punchy.Flora
 
         void Teardown()
         {
+            ReleaseShadowCache();
             foreach (var l in layers)
                 l?.Release();
             Array.Clear(layers, 0, layers.Length);
@@ -785,6 +787,9 @@ namespace Punchy.Flora
             // W-107: where the flora shadow pass stops swaying (0: never).
             Shader.SetGlobalVector(ShadowStillId, new Vector4(camPos.x, camPos.y, camPos.z,
                 FloraShadowOptions.StillFarShadows ? FloraShadowOptions.StillFrom : 0f));
+            // W-107: where the cheap far caster's cards get holes (0: off).
+            Shader.SetGlobalVector(CheapHolesId, new Vector4(camPos.x, camPos.y, camPos.z,
+                FloraShadowOptions.CheapFarCaster ? FloraShadowOptions.NearRange : 0f));
 
             foreach (var l in layers)
             {
@@ -802,6 +807,9 @@ namespace Punchy.Flora
                 Culling.SetVector(CameraId, camPos);
                 Culling.SetVector(LodId, new Vector4(l.Lod1Distance, l.Lod2Distance, l.Radius, 0f));
                 var cast = s.CastShadows ? math.min(s.ShadowCastDistance, shadowDistance) : 0f;
+                // W-107's shadow cache: past the near range, trees cast into the cache instead (ShadowCache.cs).
+                if (FloraShadowOptions.CachedFarShadows && l.Index == CacheLayer)
+                    cast = math.min(cast, FloraShadowOptions.NearRange);
                 // W-107's cheap far caster: past the near range, trees cast with their far level of detail.
                 var cheap = FloraShadowOptions.CheapFarCaster && l.Index == 2 && cast > 0f;
                 if (cheap != l.CheapArgs)
@@ -875,6 +883,7 @@ namespace Punchy.Flora
                     }
                 }
             }
+            DrawShadowCache(cam, camPos);
         }
 
         // ------------------------------------------------------------------------------------------- collisions
