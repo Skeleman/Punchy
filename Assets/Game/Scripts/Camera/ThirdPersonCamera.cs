@@ -187,29 +187,16 @@ namespace Punchy.CameraRig
                     caveArm = Distance;
                 SetNearPlane(near);
                 var lens = new Unity.Mathematics.float3(position.x, position.y, position.z);
-                // P-18: under a cave stream or pool there's no underwater effect, so the lens stays above the surface.
-                if (underground && terrain.Caves.IsCreated)
-                {
-                    var surface = CaveWaterAbove(ref terrain.Caves.Value, lens);
-                    if (surface > float.MinValue && position.y < surface + WaterClearance)
-                    {
-                        if (Time.unscaledTime >= nextWaterLog)
-                        {
-                            nextWaterLog = Time.unscaledTime + 2f;
-                            Debug.Log($"Camera: kept above cave water (surface {surface:F2}, lens {position.y:F2} -> {surface + WaterClearance:F2})");
-                        }
-                        position.y = surface + WaterClearance;
-                        lens.y = position.y;
-                        rotation = Quaternion.LookRotation(target - position);
-                    }
-                }
+                // (P-19: the lens may go under cave water now: Underwater draws it. P-18 kept it above.)
                 if (terrain.CaveDistance(lens) < 0f || underground && (terrain.TempleAir(lens) || position.y < terrain.SampleHeight(lens.xz)))
                 {
                     Place(position, rotation, lookUp, target, playerPosition);
                     return;
                 }
                 var ground = terrain.SampleGround(new Unity.Mathematics.float2(position.x, position.z));
-                var minY = Mathf.Max(ground.Height, ground.HasWater ? ground.WaterSurface : float.MinValue) + GroundClearance;
+                // (P-19: the ground only, not water: the lens may go under a lake, a river or the sea now, and Underwater
+                // draws it. It used to stay above every water surface.)
+                var minY = ground.Height + GroundClearance;
                 // Roofs, rocks and rims (PropSupport): stay above one the camera has sunk into, not ones overhead.
                 if (!supportQuery.IsEmpty)
                 {
@@ -279,7 +266,7 @@ namespace Punchy.CameraRig
         /// The surface of the cave stream or pool a point is under (its water, not just over its channel), or
         /// float.MinValue: the streams' segments (each point's surface height and width) and the pools' discs.
         /// </summary>
-        static float CaveWaterAbove(ref CaveSetBlob set, Unity.Mathematics.float3 p)
+        public static float CaveWaterAbove(ref CaveSetBlob set, Unity.Mathematics.float3 p)
         {
             var best = float.MinValue;
             for (int s = 0; s < set.Streams.Length; s++)

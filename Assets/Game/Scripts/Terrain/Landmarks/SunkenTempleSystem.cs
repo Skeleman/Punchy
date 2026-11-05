@@ -496,11 +496,11 @@ namespace Punchy.Terrain
                 return v.Count - 1;
             }
 
-            /// <summary>A stone's shade from its cell (the same on every machine): 0.86 to 1.08.</summary>
-            static float Shade(int a, int b, int c) => 0.86f + 0.22f * (math.hash(new int3(a, b, c)) & 1023) / 1023f;
+            /// <summary>A stone's shade from its cell (the same on every machine): 0.74 to 1.14.</summary>
+            static float Shade(int a, int b, int c) => 0.74f + 0.4f * (math.hash(new int3(a, b, c)) & 1023) / 1023f;
 
-            /// <summary>How dark the seam makes a corner: 0.55 at the seam, 1 from Seam away.</summary>
-            static float SeamDark(float d) => math.lerp(0.55f, 1f, math.saturate(d / Seam));
+            /// <summary>How dark the seam makes a corner: 0.4 at the seam, 1 from Seam away.</summary>
+            static float SeamDark(float d) => math.lerp(0.4f, 1f, math.saturate(d / Seam));
 
             void Index(int s, int a, int b, int c, Vector3 normal)
             {
