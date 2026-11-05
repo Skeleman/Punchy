@@ -73,13 +73,15 @@ namespace Punchy.Tests
 
         /// <summary>
         /// A species (its asset name, e.g. "Deer") spawned at x,z: the player goes there and the game spawns it beside
-        /// them once the ground round them has settled. Waits for the game's "spawned" line.
+        /// them once the ground round them has settled (within radius m if given, else the game's 45). Waits for the
+        /// game's "spawned" line.
         /// </summary>
-        public static IEnumerator Spawn(string species, float x, float z, int count = 1)
+        public static IEnumerator Spawn(string species, float x, float z, int count = 1, float radius = 0f)
         {
             var before = LogWatch.Last("DebugControls: spawned");
             var inv = System.Globalization.CultureInfo.InvariantCulture;
-            Game.RunOptions($"-goto {x.ToString(inv)},{z.ToString(inv)} -spawn {species}:{count}");
+            var near = radius > 0f ? $" -spawnradius {radius.ToString(inv)}" : "";
+            Game.RunOptions($"-goto {x.ToString(inv)},{z.ToString(inv)}{near} -spawn {species}:{count}");
             var start = Time.realtimeSinceStartup;
             while (LogWatch.Last("DebugControls: spawned") == before || !LogWatch.Last("DebugControls: spawned").Contains(species))
             {

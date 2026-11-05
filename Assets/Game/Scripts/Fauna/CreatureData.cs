@@ -709,6 +709,10 @@ namespace Punchy.Fauna
         /// looks for shelter again after a search that found none (s).</summary>
         public ShelterNeed Cover;
         public float ShelterRetry;
+        /// <summary>A-71 row 6: the player it's following on a lead quest (their Holder id, Interactions.HolderId; 0 for
+        /// none) and how long before it gives up (s). Set by Follow.Start and Follow.Stop on the host.</summary>
+        public int FollowHolder;
+        public float FollowTime;
     }
 
     /// <summary>The need cue a creature shows (CreatureState.Cue), strongest need first.</summary>
