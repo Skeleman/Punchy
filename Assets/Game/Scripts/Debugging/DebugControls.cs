@@ -1734,6 +1734,8 @@ namespace Punchy.Debugging
             // A-72: "-walkershot Saguaro,80,side" frames a walking colossus (see WalkerShot).
             var wsArg = System.Array.IndexOf(args, "-walkershot");
             ColossusWalker.Shot = wsArg >= 0 && wsArg + 1 < args.Length ? args[wsArg + 1] : null;
+            var wpArg = System.Array.IndexOf(args, "-walkerphase");
+            ColossusWalker.Phase = wpArg >= 0 && wpArg + 1 < args.Length ? args[wpArg + 1] : null;
             var colArg = System.Array.IndexOf(args, "-colossusshot");
             colossusShotDistance = colArg >= 0 && colArg + 1 < args.Length && float.TryParse(args[colArg + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var cd) ? cd : 0f;
             // "-huntlog": log land hunters' chases (Z-53).

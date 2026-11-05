@@ -31,6 +31,8 @@ namespace Punchy.Fauna
         public static string Shot;
         /// <summary>"-walkerlog": log each walker's loop and place every 10 s, and the host/client clock check.</summary>
         public static bool Log;
+        /// <summary>"-walkerphase walk|rest|seconds" (DebugControls, for shots): shift each walker's clock once so it is mid-walk, mid-rest or that far into its cycle.</summary>
+        public static string Phase;
 
         /// <summary>How each kind walks.</summary>
         struct Gait
@@ -54,7 +56,7 @@ namespace Punchy.Fauna
         };
 
         const float Ramp = 5f, AwakeRange = 600f, FarPeriod = 0.5f, ShakeRange = 120f, ShakeTime = 0.35f;
-        const float TownClear = 150f, MaxSlope = 0.35f, Tilt = 8f;
+        const float TownClear = 150f, MaxSlope = 0.35f, Tilt = 8f, SettleTime = 6f;
         const int Checks = 48, Table = 256;
         static readonly int ClockId = Shader.PropertyToID("_PunchyClock");
 
@@ -75,6 +77,10 @@ namespace Punchy.Fauna
             public float Heading, Pace, NextPose;
             public double Distance;
             public long Step = long.MinValue;
+            /// <summary>Its body animation while it is the awake one (ColossusRigs), made the first time it wakes.</summary>
+            public ColossusRig Rig;
+            public bool Rigged;
+            public string PhaseDone;
         }
 
         public static ColossusWalker Instance { get; private set; }
@@ -133,6 +139,7 @@ namespace Punchy.Fauna
             double t = clock > 0f ? clock : Time.time;
             var eye = cam != null ? (float3)cam.transform.position : float3.zero;
             // The awake one: the nearest walker in view range, the only one moved every frame.
+            var was = awake;
             awake = -1;
             var best = AwakeRange * AwakeRange;
             for (int i = 0; i < walkers.Length; i++)
@@ -147,6 +154,8 @@ namespace Punchy.Fauna
                     awake = i;
                 }
             }
+            if (was != awake && was >= 0 && walkers[was] != null)
+                walkers[was].Rig?.Sleep();
             var zones = float4x4.zero;
             for (int i = 0; i < walkers.Length; i++)
             {
@@ -158,7 +167,10 @@ namespace Punchy.Fauna
                     w.NextPose = Time.time + FarPeriod;
                     Pose(w, source, t);
                     if (i == awake)
+                    {
                         Footfall(w, eye);
+                        Animate(w, t);
+                    }
                 }
                 // Creatures make room only while it is on the move (a resting giant is just a hill).
                 if (w.Pace > 0.2f)
@@ -337,12 +349,43 @@ namespace Punchy.Fauna
             return (laps * (g.Walk - Ramp) + d) * g.Speed;
         }
 
+        /// <summary>How far (0 to 1) a resting walker has settled at clock time t: it sinks in once stopped and is up again before it sets off.</summary>
+        static float Settled(in Gait g, double t, float offset)
+        {
+            double cycle = g.Walk + g.Rest, u = t + offset;
+            var c = (float)(u - math.floor(u / cycle) * cycle);
+            if (c < g.Walk)
+                return 0f;
+            return math.smoothstep(0f, 1f, math.saturate((c - g.Walk) / SettleTime)) * math.smoothstep(0f, 1f, math.saturate(((float)cycle - c) / SettleTime));
+        }
+
+        /// <summary>The awake walker's body (ColossusRigs): limbs, sway and settling, on the pose just set.</summary>
+        static void Animate(Walker w, double t)
+        {
+            if (!w.Rigged)
+            {
+                w.Rigged = true;
+                w.Rig = ColossusRig.For(w.G.Kind, w.Root);
+            }
+            w.Rig?.Animate(w.Pace, (float)(w.Distance / w.G.Stride), Settled(w.G, t, w.Offset), (float)(t % 3600.0));
+        }
+
         /// <summary>Where a walker stands at clock time t (no ground fit), for the host/client check.</summary>
         static float2 PlaceAt(Walker w, double t) => At(w, Walked(w.G, t, w.Offset, out _));
 
         void Pose(Walker w, in TerrainSource source, double t)
         {
             var g = w.G;
+            if (Phase != w.PhaseDone)
+            {
+                // -walkerphase (shots only): move this walker's clock once so it is where the shot wants it in its cycle.
+                w.PhaseDone = Phase;
+                double cycle = g.Walk + g.Rest, u = t + w.Offset;
+                var want = Phase == "walk" ? g.Walk * 0.5f : Phase == "rest" ? g.Walk + g.Rest * 0.5f
+                         : float.TryParse(Phase, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var at0) ? at0 : float.NaN;
+                if (!float.IsNaN(want))
+                    w.Offset += want - (float)(u - math.floor(u / cycle) * cycle);
+            }
             w.Distance = Walked(g, t, w.Offset, out w.Pace);
             var at = At(w, w.Distance);
             var ahead = At(w, w.Distance + 1.0) - At(w, w.Distance - 1.0);
