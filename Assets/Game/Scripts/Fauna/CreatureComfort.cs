@@ -57,6 +57,8 @@ namespace Punchy.Fauna
         /// <summary>Per cell: x heat, y humidity, z sunlight.</summary>
         public FixedList4096Bytes<float4> Ground;
         public float2 Origin;
+        /// <summary>The way the wind blows (toward, unit xz; A-72 row 6, for a rock's lee side).</summary>
+        public float2 WindDirection;
         public int Ready;
     }
 
@@ -66,8 +68,8 @@ namespace Punchy.Fauna
     /// </summary>
     public static class Comfort
     {
-        struct GridKey { }
-        public static readonly SharedStatic<ComfortGrid> Grid = SharedStatic<ComfortGrid>.GetOrCreate<GridKey>();
+        struct GridKeyV2 { }   // (V2: A-72 row 6 added WindDirection; a SharedStatic's key can't change size in one editor run)
+        public static readonly SharedStatic<ComfortGrid> Grid = SharedStatic<ComfortGrid>.GetOrCreate<GridKeyV2>();
         struct OffKey { }
         /// <summary>Test flag "-comfort off": no creature minds the weather.</summary>
         public static readonly SharedStatic<int> Off = SharedStatic<int>.GetOrCreate<OffKey>();
@@ -120,6 +122,8 @@ namespace Punchy.Fauna
                     g.Sky.Add(sky);
                     g.Ground.Add(new float4(math.saturate(climate.x + HeatShift.Data), climate.y, sun, 0f));
                 }
+            var wind = weather != null ? (Vector2)weather.WindDirection : Vector2.right;
+            g.WindDirection = new float2(wind.x, wind.y);
             g.Ready = 1;
         }
 

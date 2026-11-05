@@ -1095,7 +1095,7 @@ namespace Punchy.Debugging
                       $"off {Comfort.Off.Data}: {groups.Count} species");
             var counts = CreatureBrainSystem.Shelters.Data;
             Debug.Log($"[comfort] sheltered {sheltered} (roof {covered[0]} tree {covered[1]} water {covered[2]} fire {covered[3]} shade {covered[4]} " +
-                      $"cave {covered[5]}) going {going} | started {counts.Started} indoors {counts.Indoors} arrived {counts.Arrived} none found {counts.NotFound} posed {counts.Posed}");
+                      $"cave {covered[5]}) going {going} | started {counts.Started} indoors {counts.Indoors} arrived {counts.Arrived} none found {counts.NotFound} posed {counts.Posed} rock {counts.Rock}");
             // Every folk race's profile at the player's spot (the same five individuals each), whether or not any are near:
             // one line per race, mean pressure and the commonest complaint (the card's 5 races x 3 scenes).
             if (director != null && QueriesLive() && playerQuery.TryGetSingleton<LocalTransform>(out var me) && EnsureLocations(out var ground))
