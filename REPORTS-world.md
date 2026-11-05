@@ -2328,3 +2328,12 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
 
 - Caster and setpass counts are deterministic; ms is noisy (single runs vary up to about 1 ms).
 - Proposal (needs Zach's OK): 3 cascades at 50 m, map 2048. About 25% fewer casters and 6 fewer setpass; about 0.2 ms at fv1 and up to about 1 ms in the forest. 2 cascades is cheaper but softens near shadows. A 1024 map gains nothing. 40 m vs 50 m makes no difference.
+
+## W-103 row 1: bat folk placement (done, verified)
+- Merged origin/main first (6d961d9). Commit d961ac3 (world-features), BatFolkBaking.cs and BatFolkBaking.Homes.cs only.
+- Every placement loop (huts, floor props, details, pods, niches) draws all of a try's numbers before any test, and only the last test (crowding) reads what is already placed. New Attempts helper: draws 24 tries in order, runs their rock/pool/path tests in parallel, then crowds and places in order; when enough are placed mid-batch the RNG rewinds to that try, so later loops on the same RNG draw what they drew before.
+- Editor stage times (one bake each; card's 2.3 s was a build number):
+  - v2: batfolk 1644 -> 291 ms; bake 6682 -> 5389 ms.
+  - v3: batfolk 689 -> 92 ms.
+- Identity: bat folk list diff = 0 on both (v2 2 sites, 47 props, 7 homes, hash 8A17B4DB; v3 1 site, 27 props, 5 homes, hash DCB70DE3). Landmark hash v2 95EAB5B4, v3 80EBFCE6, Fauna_Fingerprint F99FD9E4, heightmap checksum v2 9CBCD24A / v3 C524062E: all unchanged.
+- Seen on the way (for row 5): v3 logs "reports 22287 ms" before "v3 ready"; v2 reports take 2 ms.
