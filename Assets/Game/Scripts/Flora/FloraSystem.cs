@@ -918,6 +918,8 @@ namespace Punchy.Flora
                     }
                 }
             }
+            // W-96 (#35): the blind pygmies' wall niches in the bat folk chambers are solid too.
+            BatFolkHomes.AddKitBoxes(lastSource, centres, kitBoxes);
         }
 
         // ------------------------------------------------------------------------------------------- bolts
