@@ -528,7 +528,7 @@ namespace Punchy.Fauna
                 var gulls = 0;
                 foreach (var list in gullCells.Values)
                     gulls += list.Count;
-                stages.Append(" gulls ").Append(gulls);
+                stages.Append(" gulls ").Append(gulls).Append(" (").Append(WharfSpots.MastGulls.Count).Append(" on buoy masts)");
                 if (pendingShapes != null)
                     stages.Append(" (shapes waited ").Append(shapeFrames).Append(" frames)");
                 pendingShapes = null;
