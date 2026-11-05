@@ -2201,3 +2201,8 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
 - Snow now lands on every clearly upward face. Tent cloth takes it by its own facet, and faceted stake tips by the steeper of normal and facet. Per Zach's feedback the cover is capped at 0.7, only faces above about 45 degrees fully whiten, noise breaks it up, and the tint is greyer to match the terrain snow. The debug force in the shader was removed before committing.
 - Shots: gallery r4-before.png and r4-after.png, the snowy DwarfMiningCamp (-1966,651) on island v3. The slab shelter stops glowing and sits with the ground snow.
 - Risks: the card's -2077,1301 has no camp on my v3 island, so the corral Pen fence was not seen (unverified). The stone and timber house roofs there show no snow in either shot; they may use another material or sit on a low snow value. Worth a check.
+
+### URGENT bloom / black hex at camp village (0ff5b2e, own commit, cherry-pick ready) - done (verified)
+- Cause: not a W-98 puddle or a shader. `SettlementSampling.Height` returned NaN on a thin ring at the outer edge of every plot pad's blend (w ~1e-6, so w^8 underflowed to 0 and the mix was 0/0). Terrain vertices on that ring got NaN normals or heights, which drew black hexes (the 6 triangles round each vertex), and bloom smeared them white. The pale hex beside it was the same bug.
+- Fix: a one-line guard in SettlementData.cs. When sum is 0 the ground keeps its own height, because the pad has no pull there. A 1M-point scan of SampleHeight over the camp went from 3 NaN points to 0.
+- Shots: gallery nanhex-before.png and nanhex-after.png, DwarfMiningCamp shrine (-1984,655) on v3, about 11 m away, bloom on. Both hexes are gone.
