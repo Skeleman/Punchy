@@ -2658,3 +2658,27 @@ fresh poses; the 2x2 tile is w108-ruins-all.
 The game's order is fine: FloraSystem runs at execution order 1000, after the camera has moved. A gotcha line is in
 docs/agents/editor-and-assets.md so other lanes' shots don't hit this. Shots are in the world tree under
 Assets/Temp/shots (not committed).
+
+### W-108 row 2: cobbled roads (#39 part 1), world-features c6e20b1
+
+Roads near and inside paved settlements are now cobblestone. Far roads stay dirt. A road fades from dirt to cobble
+over about 14 m at the settlement's edge (radius -2 m to +12 m, with a noisy edge), and town streets are cobbled out
+to the edge, not only at the centre. The look is all in the existing terrain shader, driven by the vertex paving
+channel: no new meshes, decals or textures. It has uneven stones, dirt and grass tufts in the gaps (more grass
+towards the verges), and a worn middle band where the ruts run: paler, smoother stones with packed dust in the
+joints and no grass. About 1 stone in 30 is missing (only a dirt hole) and 1 in 15 is sunken (darker and flatter).
+The two ruts merge into one worn band on the 1 m terrain grid, which reads fine.
+
+Shots (world tree, Assets/Temp/shots): w108r2-entry-before/-after (a road entering HumanVillage, dirt to cobble),
+w108r2-close-before/-after and w108r2-top-after (close-ups).
+
+GPU ms, uncapped, 500 frames, 2 rounds, at HumanVillage:
+
+| Pose | Before | After |
+|---|---|---|
+| entry | 3.19 / 3.43 | 3.25 / 3.35 |
+| close | 3.87 / 4.20 | 4.16 / 4.11 |
+
+That is within noise. Casters and batches are unchanged (453/2650 and 490/2705). Island ready: 35.4 to 38.3 s this
+session, no worse than before. The change is look-only, so the landmark hash is unchanged; the suite at the end of
+the card confirms it.
