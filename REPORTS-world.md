@@ -2196,3 +2196,8 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
 ### W-99 row 3 - log stack (code in 23bcb6f) - done (verified)
 - Woodpile logs have flat ends with growth rings and a bark rim, bark sides, and the odd split log with woodgrain (gallery r3.png, hermit hut at 140,-545).
 - Hash note: the Woodpile builder draws more RNG than before, so woodpile meshes differ; landmark placement is untouched.
+
+### W-99 row 4 - snow on the camp village (9a2de7f) - done (verified, see risks)
+- Snow now lands on every clearly upward face. Tent cloth takes it by its own facet, and faceted stake tips by the steeper of normal and facet. Per Zach's feedback the cover is capped at 0.7, only faces above about 45 degrees fully whiten, noise breaks it up, and the tint is greyer to match the terrain snow. The debug force in the shader was removed before committing.
+- Shots: gallery r4-before.png and r4-after.png, the snowy DwarfMiningCamp (-1966,651) on island v3. The slab shelter stops glowing and sits with the ground snow.
+- Risks: the card's -2077,1301 has no camp on my v3 island, so the corral Pen fence was not seen (unverified). The stone and timber house roofs there show no snow in either shot; they may use another material or sit on a low snow value. Worth a check.
