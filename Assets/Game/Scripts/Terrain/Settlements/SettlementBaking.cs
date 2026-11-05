@@ -347,8 +347,9 @@ namespace Punchy.Terrain
             void Street(float2 a, float2 b, float width) => Street(new List<float2> { a, b }, width);
 
             /// <summary>
-            /// A street through the given points, cut into stretches; it stops where it would run into water or over a
-            /// cave hole. The line it actually takes is kept, so plots can follow its whole length.
+            /// A street through the given points, cut into stretches; it stops where it would run into water, over a
+            /// cave hole or off a cliff (steeper than the roads' MaxGrade, W-100 #39: a main street ran off a plateau's
+            /// edge). The line it actually takes is kept, so plots can follow its whole length.
             /// </summary>
             void Street(List<float2> points, float width)
             {
@@ -363,7 +364,7 @@ namespace Punchy.Terrain
                     {
                         var p = math.lerp(a, b, k / (float)n);
                         var mid = math.lerp(from.xz, p, 0.5f);
-                        if (Wet(mid) || source.IsCaveHole(mid))
+                        if (Wet(mid) || source.IsCaveHole(mid) || RoadBaking.TooSteep(source, from.xz, p))
                         {
                             lines.Add((line, width));
                             return;
