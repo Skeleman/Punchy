@@ -24,6 +24,8 @@ namespace Punchy.Fauna
     /// The player gets them through the flora obstacle buffer (FloraSystem.UpdateObstacles adds the ones in reach, so
     /// player movement slides round them like trunks); creatures are pushed out by <see cref="ColossusPushSystem"/>
     /// after their brains move them. Seed-derived like the colossi themselves, so every machine has the same columns.
+    /// W-105 row 6: the columns are kept relative to the colossus's root (its spot and heading), and follow it when the
+    /// root moves, so the walking colossi (ColossusWalker) are solid where they are, not where they were built.
     /// </summary>
     public static class ColossusCollision
     {
@@ -39,6 +41,47 @@ namespace Punchy.Fauna
             public float2 Centre;
             public float Reach;
             public readonly List<ColossusCylinder> Columns = new List<ColossusCylinder>();
+            // W-105 row 6: the columns and centre in the root's frame (its spot, turned by its heading), and the root's
+            // pose they were last laid at; Moves counts each re-lay, so readers know to copy them again.
+            public readonly List<ColossusCylinder> Local = new List<ColossusCylinder>();
+            public float2 LocalCentre;
+            public Vector3 PosedAt;
+            public Quaternion PosedAs;
+            public int Moves, MovesSeen;
+        }
+
+        /// <summary>The root's heading only (a walker's sway and lean leave its columns upright).</summary>
+        static quaternion Heading(Quaternion rotation)
+        {
+            var f = rotation * Vector3.forward;
+            return quaternion.RotateY(math.atan2(f.x, f.z));
+        }
+
+        /// <summary>
+        /// Lays the group's columns again where its root now stands, if the root has moved since (a walking colossus).
+        /// No allocation: the world columns are rewritten in place. True when they moved.
+        /// </summary>
+        static bool Follow(Group g)
+        {
+            if (g.Root == null)
+                return false;
+            var at = g.Root.position;
+            var turn = g.Root.rotation;
+            if (at == g.PosedAt && turn == g.PosedAs)
+                return false;
+            g.PosedAt = at;
+            g.PosedAs = turn;
+            var q = Heading(turn);
+            var origin = (float3)at;
+            for (int i = 0; i < g.Local.Count; i++)
+            {
+                var c = g.Local[i];
+                c.Base = origin + math.mul(q, c.Base);
+                g.Columns[i] = c;
+            }
+            g.Centre = origin.xz + math.mul(q, new float3(g.LocalCentre.x, 0f, g.LocalCentre.y)).xz;
+            g.Moves++;
+            return true;
         }
 
         static readonly Dictionary<int, Group> groups = new Dictionary<int, Group>();
@@ -90,6 +133,14 @@ namespace Punchy.Fauna
             }
             if (moving != null)
                 g.Reach = 0f;   // (The ball's own circle is checked on its own: it may roll anywhere.)
+            // W-105 row 6: the same columns in the root's frame, to follow it from here.
+            g.PosedAt = root.position;
+            g.PosedAs = root.rotation;
+            var back = math.inverse(Heading(g.PosedAs));
+            var from = (float3)g.PosedAt;
+            foreach (var c in g.Columns)
+                g.Local.Add(new ColossusCylinder { Base = math.mul(back, c.Base - from), Radius = c.Radius, Height = c.Height });
+            g.LocalCentre = math.mul(back, new float3(g.Centre.x - from.x, 0f, g.Centre.y - from.z)).xz;
             groups[slot] = g;
             version++;
             Debug.Log($"ColossusCollision: {name} solid, {g.Columns.Count} columns of {Cell:F0} m within {g.Reach:F0} m of ({g.Centre.x:F0}, {g.Centre.y:F0}){(moving != null ? $", plus a rolling ball of {movingRadius:F0} m" : "")}");
@@ -130,10 +181,19 @@ namespace Punchy.Fauna
         /// near it has to be rebuilt as it rolls.</summary>
         public static bool MovingNear(float2 xz, float range)
         {
+            var near = false;
             foreach (var g in groups.Values)
-                if (g.Moving != null && Shown(g) && math.distance(((float3)g.Moving.position).xz, xz) < range + g.MovingRadius)
-                    return true;
-            return false;
+            {
+                if (!Shown(g))
+                    continue;
+                if (g.Moving != null && math.distance(((float3)g.Moving.position).xz, xz) < range + g.MovingRadius)
+                    near = true;
+                // W-105 row 6: a walking colossus in reach that has moved since the buffer was last filled.
+                Follow(g);
+                if (g.Moves != g.MovesSeen && math.distance(g.Centre, xz) < range + g.Reach)
+                    near = true;
+            }
+            return near;
         }
 
         /// <summary>The flora obstacle buffer gets every column within <paramref name="range"/> of xz (FloraSystem).</summary>
@@ -143,6 +203,8 @@ namespace Punchy.Fauna
             {
                 if (!Shown(g))
                     continue;
+                Follow(g);
+                g.MovesSeen = g.Moves;
                 if (g.Moving != null)
                 {
                     var ball = Ball(g);
@@ -171,13 +233,15 @@ namespace Punchy.Fauna
             {
                 cachedShown = shown;
                 cachedVersion = version;
-                allCache.Clear(); circleCache.Clear(); rangeCache.Clear(); balls.Clear();
+                allCache.Clear(); circleCache.Clear(); rangeCache.Clear(); balls.Clear(); walkers.Clear();
                 foreach (var g in groups.Values)
                 {
                     if (!Shown(g))
                         continue;
+                    Follow(g);
                     if (g.Columns.Count > 0)
                     {
+                        walkers.Add((g, circleCache.Count, allCache.Count, g.Moves));
                         circleCache.Add(new float3(g.Centre, g.Reach));
                         rangeCache.Add(new int2(allCache.Count, g.Columns.Count));
                         allCache.AddRange(g.Columns);
@@ -190,6 +254,18 @@ namespace Punchy.Fauna
                         allCache.Add(default);
                     }
                 }
+            }
+            // W-105 row 6: a colossus that has walked since is copied over its old columns (same count, same place).
+            for (int w = 0; w < walkers.Count; w++)
+            {
+                var (g, circle, column, moves) = walkers[w];
+                Follow(g);
+                if (g.Moves == moves)
+                    continue;
+                walkers[w] = (g, circle, column, g.Moves);
+                circleCache[circle] = new float3(g.Centre, g.Reach);
+                for (int i = 0; i < g.Columns.Count; i++)
+                    allCache[column + i] = g.Columns[i];
             }
             foreach (var (g, circle, column) in balls)
             {
@@ -209,6 +285,7 @@ namespace Punchy.Fauna
         static readonly List<float3> circleCache = new List<float3>();
         static readonly List<int2> rangeCache = new List<int2>();
         static readonly List<(Group, int, int)> balls = new List<(Group, int, int)>();
+        static readonly List<(Group, int, int, int)> walkers = new List<(Group, int, int, int)>();
 
         /// <summary>Logs the frames the push system moves creatures (set from a probe; off by default, as reading the
         /// count waits for the creature jobs).</summary>
@@ -224,6 +301,7 @@ namespace Punchy.Fauna
             {
                 if (!Shown(g))
                     continue;
+                Follow(g);
                 void Check(in ColossusCylinder c)
                 {
                     if (at.y + 0.5f > c.Base.y + c.Height || at.y + 1.8f < c.Base.y)

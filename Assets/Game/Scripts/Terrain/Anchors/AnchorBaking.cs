@@ -246,18 +246,11 @@ namespace Punchy.Terrain
             }
         }
 
-        /// <summary>
-        /// Anchors for people living rough, owned by the landmark, for types that ask (LandmarkType.Anchors).
-        /// A campsite: a Camp at its fire facing the landmark's way (towards the road; Capacity its beds), a Hearth, a Bed
-        /// on each bedroll it places (feet towards the fire: they face the centre), and a Sit on each seat.
-        /// A hermit's place: Home inside the hut (the placed building that faces the centre), its Door 0.6 m out from the
-        /// door itself, a Work spot by the woodpile facing it, the Garden, a Hearth at the fire in the middle and a Sit on
-        /// each seat. Placed props only: their spots are known, where scattered ones are not.
-        /// </summary>
         /// <summary>W-104 (#36): a placed kit house or stilt house that folk live in (a fishing village's homes).</summary>
         static bool FolkHouse(Punchy.Flora.FloraSpecies s) =>
             s != null && s.Form == Punchy.Flora.FloraForm.KitBuilding && (s.KitShape == KitShape.House || s.KitShape == KitShape.StiltHouse);
 
+        /// <summary>Whether a landmark type places folk houses facing its centre, so it gets Home and Door anchors.</summary>
         static bool HasFolkHouses(LandmarkType type)
         {
             foreach (var prop in type.Props)
@@ -266,6 +259,14 @@ namespace Punchy.Terrain
             return false;
         }
 
+        /// <summary>
+        /// Anchors for people living rough, owned by the landmark, for types that ask (LandmarkType.Anchors).
+        /// A campsite: a Camp at its fire facing the landmark's way (towards the road; Capacity its beds), a Hearth, a Bed
+        /// on each bedroll it places (feet towards the fire: they face the centre), and a Sit on each seat.
+        /// A hermit's place: Home inside the hut (the placed building that faces the centre), its Door 0.6 m out from the
+        /// door itself, a Work spot by the woodpile facing it, the Garden, a Hearth at the fire in the middle and a Sit on
+        /// each seat. Placed props only: their spots are known, where scattered ones are not.
+        /// </summary>
         static void AddWildAnchors(in TerrainSource source, IReadOnlyList<LandmarkType> types, List<Anchor> anchors)
         {
             ref var set = ref source.Landmarks.Value;
@@ -316,11 +317,13 @@ namespace Punchy.Terrain
                             var spot = LandmarkSampling.ToWorld(inst, LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / prop.Count), radius);
                             if (LandmarkSampling.OnRiver(src, spot, facing, 0f))
                                 continue;   // flora leaves a plot on river water empty (W-91)
+                            if (species.KitShape == KitShape.StiltHouse && !LandmarkSampling.StiltHouseFits(src, centre, spot, out _))
+                                continue;   // nor a stilt house where the bank or water doesn't suit it (W-105)
                             var toCentre = math.normalizesafe(centre - spot);
-                            // A stilt house's door is up on its porch: the folk's way in is the foot of its stair, out past
-                            // the porch (StructureKit.StiltHouse: porch 0.8 + 2.2 m, then about 2 m of stair).
-                            var reach = Punchy.Flora.FloraGenerator.DoorFront(species) * scale + 0.6f +
-                                        (species.KitShape == KitShape.StiltHouse ? 5f : 0f);
+                            // A stilt house's door is up on its porch out over the water (W-105): the folk's way in is
+                            // the walkway's end, where its stair comes down at the plot (StructureKit.StiltHouse).
+                            var reach = species.KitShape == KitShape.StiltHouse ? 0.8f :
+                                        Punchy.Flora.FloraGenerator.DoorFront(species) * scale + 0.6f;
                             Add(AnchorKind.Home, spot, 0.1f, toCentre, 0.8f, 1, Anchor.Shelter);
                             Add(AnchorKind.Door, spot + toCentre * reach, 0f, toCentre, 0.6f, 1);
                         }

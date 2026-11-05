@@ -281,6 +281,12 @@ namespace Punchy.Debugging
             InteractionPrompt.Hidden = noHud;
             if (keyboard.f3Key.wasPressedThisFrame)
                 CopyPosition();
+            // F4 (#131): every fire in the standard fire's next colour, then back to each its own.
+            if (keyboard.f4Key.wasPressedThisFrame)
+            {
+                var colours = Punchy.Ambience.FireSystem.Effect != null ? Punchy.Ambience.FireSystem.Effect.Colours.Length : 0;
+                Punchy.Ambience.FireSystem.ColourOverride = Punchy.Ambience.FireSystem.ColourOverride + 1 >= colours ? -1 : Punchy.Ambience.FireSystem.ColourOverride + 1;
+            }
             if (keyboard.bKey.wasPressedThisFrame && Weather != null)
                 Weather.NextDayType();
             if (keyboard.yKey.wasPressedThisFrame && Cycle != null)

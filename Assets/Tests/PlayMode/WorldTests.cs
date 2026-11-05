@@ -26,20 +26,22 @@ namespace Punchy.Tests
             yield return null;
         }
 
-        /// <summary>Target: measured on main after PR #148 (W-99 to W-103; W-104 row 1 repinned it): 109 landmarks, probe hash C96F266F
+        /// <summary>Target: 110 landmarks, probe hash 09EAC0FE since W-105 row 3 (stilt houses out over the shallows; village
+        /// placement asks for a stilt house spot). Before that, on main after PR #148 (W-104 row 1 repinned it): 109 / C96F266F
         /// (was 107 / 14D92F64 after W-98 row 3).</summary>
         [UnityTest, Order(1)]
         public IEnumerator Landmarks_V3()
         {
             var hash = Game.Hook<string>("LandmarkHash");
             LogWatch.Measure($"landmarks {hash}; game line: {LogWatch.Last("[island]")}");
-            Assert.AreEqual("109 C96F266F", hash);
+            Assert.AreEqual("110 09EAC0FE", hash);
             yield return null;
         }
 
         /// <summary>
-        /// Target: 773CA7F6 since A-73 row 4 (Gull and Mackerel joined the critter table). 1202B8ED since W-104 row 4
-        /// (fishing villages got Home and Door anchors). Before that, on main after PR #148
+        /// Target: F4E66093 since the A-73 merge (W-105 stilt houses plus A-73 Gull and Mackerel in the critter table;
+        /// A-73 alone read 773CA7F6). 61459BF0 since W-105 row 3 (stilt house Home and Door anchors only where the house fits, doors at the
+        /// walkway end). 1202B8ED since W-104 row 4 (fishing villages got Home and Door anchors). Before that, on main after PR #148
         /// (W-104 row 1 repinned it): fingerprint F99FD9E4, 115 species. A-71 pinned EA6A4DE5 on
         /// animal-behaviours before the merge (before A-71 it read 2E01A16B, A-68's target). The fingerprint is of the species data the fauna
         /// build bakes, so it reads the same wherever the player stands (the standard start spot here).
@@ -49,7 +51,7 @@ namespace Punchy.Tests
         {
             var line = LogWatch.Last("fingerprint") ?? "no fingerprint line";
             LogWatch.Measure("fauna " + line);
-            StringAssert.Contains("fingerprint 773CA7F6", line);
+            StringAssert.Contains("fingerprint F4E66093", line);
             yield return null;
         }
 

@@ -303,8 +303,11 @@ namespace Punchy.Terrain
         }
 
         /// <summary>
-        /// A fishing folk's house (#36): one storey of House raised on stilts over a plank deck with a porch and a
-        /// stair down at the door (+Z), and a detail or two beside it (a net frame, a fish rack, a boat pulled up).
+        /// A fishing folk's house (#36): one storey of House raised on stilts over a plank deck with a porch at the door
+        /// (+Z), and a detail or two by its stair (a net frame, a fish rack, a boat pulled up). W-105: the house stands
+        /// out over the shallows: a railed plank walkway runs from the porch back to the shore, and the stair at its end
+        /// comes down at the origin (the plot, on the bank), so the house itself is <see cref="StiltReach"/> or so out
+        /// along -Z. Posts that reach the ground carry on <see cref="StiltPile"/> m down as piles into the sea bed.
         /// </summary>
         public static List<KitPart> StiltHouse(uint seed, CultureTrim t, float width, float depth, float stilts)
         {
@@ -321,16 +324,42 @@ namespace Punchy.Terrain
             var doorX = DoorX(t, width);
             Platform(parts, new Vector3(doorX, 0f, depth * 0.5f + 0.8f + 1.1f), 0f, 2.4f, 2.2f, stilts, true);
             var steps = Mathf.Max(2, Mathf.CeilToInt(stilts / 0.28f));
-            Stair(parts, new Vector3(doorX, 0f, depth * 0.5f + 0.8f + 2.2f + steps * 0.15f + 0.5f), 180f, stilts, 1.3f);
+            // W-105: the walkway, its length from the seed's hash (no new draws: the details below are as they were).
+            var porchEnd = depth * 0.5f + 0.8f + 2.2f;
+            var walk = StiltWalkMin + (Scramble(seed ^ 0x3A1C5u) & 0xFF) / 255f * StiltWalkSpread;
+            Platform(parts, new Vector3(doorX, 0f, porchEnd + walk * 0.5f), 0f, 1.6f, walk, stilts, true);
+            Stair(parts, new Vector3(doorX, 0f, porchEnd + walk + steps * 0.15f + 0.5f), 180f, stilts, 1.3f);
+            // Everything moves back so the stair's foot is at the origin; posts down to the ground become piles.
+            var foot = porchEnd + walk + 0.65f + steps * 0.3f;
+            for (int i = 0; i < parts.Count; i++)
+            {
+                var p = parts[i];
+                p.Centre.z -= foot;
+                p.Centre.x -= doorX;
+                if (p.Piece == KitPiece.Column && p.Centre.y - p.Size.y * 0.5f < 0.1f)
+                {
+                    p.Centre.y -= StiltPile * 0.5f;
+                    p.Size.y += StiltPile;
+                }
+                parts[i] = p;
+            }
             var rng = new System.Random((int)(Scramble(seed ^ 0xC0A57u) & 0x7FFFFFFF));
             for (int k = 0, n = 1 + rng.Next(2); k < n; k++)
             {
                 var side = k == 0 ? (rng.Next(2) == 0 ? -1f : 1f) : -1f;
-                var at = new Vector3(side * (width * 0.5f + 2.4f), 0f, ((float)rng.NextDouble() - 0.5f) * depth);
+                // On the bank beside the stair's foot (they stood beside the house when it was on land).
+                var at = new Vector3(side * (2.4f + k * 0.8f), 0f, 0.6f + (float)rng.NextDouble() * 0.5f * depth);
                 Detail(parts, PickDetail(rng), at, (float)rng.NextDouble() * 360f, rng, t);
             }
             return parts;
         }
+
+        /// <summary>W-105: a stilt house's walkway is this long, plus up to <see cref="StiltWalkSpread"/> more (m, unscaled).</summary>
+        public const float StiltWalkMin = 4f, StiltWalkSpread = 2.5f;
+        /// <summary>How far past the ground a stilt house's posts run down into the sea bed (m, before the skirt).</summary>
+        public const float StiltPile = 8f;
+        /// <summary>About how far out from its plot a stilt house's middle stands (m, unscaled: stair, walkway, porch and half a house).</summary>
+        public const float StiltReach = 15f;
 
         /// <summary>
         /// Where House puts its door along the +Z front: the middle bay, which is half a bay right of centre when the
