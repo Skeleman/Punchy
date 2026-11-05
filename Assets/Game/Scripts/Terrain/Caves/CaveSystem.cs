@@ -606,8 +606,12 @@ namespace Punchy.Terrain
         /// <summary>PlantRadius at the graphics settings' Detail distance.</summary>
         float PlantRange => Punchy.Settings.GraphicsSettings.DetailRange(PlantRadius);
         float nextFloraLookup;
-        /// <summary>Variants grown per species (as the flora system does).</summary>
-        public const int PlantVariants = 3;
+        /// <summary>
+        /// Variants grown per species, and the stride between species' models. It must cover every variant baking
+        /// stores: mine frames use one per MineFrameHeights entry, and with a stride of 3 their tall variants 3 and 4
+        /// drew the next species' models instead, a frame-sized wall torch standing mid-passage (W-100).
+        /// </summary>
+        public static readonly int PlantVariants = math.max(3, Punchy.Flora.FloraGenerator.MineFrameHeights.Length);
         /// <summary>Cave plants nearer than this use the finest mesh, the rest the middle one.</summary>
         const float PlantLod0 = 20f;
 

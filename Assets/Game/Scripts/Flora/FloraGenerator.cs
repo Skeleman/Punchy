@@ -4152,15 +4152,17 @@ namespace Punchy.Flora
             b.Wood = true;   // the porch deck and its posts (Z-30)
             b.Box(new Vector3(0f, 0.15f, front + porch * 0.5f), new Vector3(half * 1.8f, 0.3f, porch), Quaternion.identity, g.Bark * 0.75f, FloraPart.Bark);
             b.Wood = false;
-            b.Beam(new Vector3(0f, wall * 0.48f, front), new Vector3(0f, wall * 0.4f, front + porch + 0.3f), half * 1.9f, 0.12f, roof, FloraPart.Bark);
+            // W-100: the porch roof half as high again at its front edge (it hung at head height), and only as steep as
+            // still clears the upper windows' sills where it meets the wall.
+            b.Beam(new Vector3(0f, wall * 0.66f, front), new Vector3(0f, wall * 0.6f, front + porch + 0.3f), half * 1.9f, 0.12f, roof, FloraPart.Bark);
             b.Wood = true;
             foreach (var x in new[] { -0.85f, 0.85f })
-                b.Tube(new List<Vector3> { new Vector3(x * half, 0.3f, front + porch - 0.1f), new Vector3(x * half, wall * 0.41f, front + porch - 0.1f) },
+                b.Tube(new List<Vector3> { new Vector3(x * half, 0.3f, front + porch - 0.1f), new Vector3(x * half, wall * 0.61f, front + porch - 0.1f) },
                        new List<float> { 0.1f, 0.1f }, g.Sides(6, 4, 3), timber, FloraPart.Bark);
             b.Wood = false;
             // A sign hanging from the porch roof.
             if (g.Lod < 2)
-                b.Box(new Vector3(half * 0.55f, wall * 0.3f, front + porch + 0.2f), new Vector3(0.9f, 0.55f, 0.06f), Quaternion.identity, AccentAt(g, 1), FloraPart.Bark);
+                b.Box(new Vector3(half * 0.55f, wall * 0.45f, front + porch + 0.2f), new Vector3(0.9f, 0.55f, 0.06f), Quaternion.identity, AccentAt(g, 1), FloraPart.Bark);
         }
 
         /// <summary>

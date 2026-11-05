@@ -1262,23 +1262,34 @@ namespace Punchy.Terrain
                 var phi = (r + 0.5f) * 90f / rings;
                 var ringR = radius * Mathf.Cos(phi * Mathf.Deg2Rad);
                 var y = radius * squash * Mathf.Sin(phi * Mathf.Deg2Rad);
-                var tall = radius * squash * (Mathf.Sin((r + 1) * 90f / rings * Mathf.Deg2Rad) - Mathf.Sin(phi0 * Mathf.Deg2Rad)) + 0.08f;
+                var phi1 = (r + 1) * 90f / rings;
+                var tall = radius * squash * (Mathf.Sin(phi1 * Mathf.Deg2Rad) - Mathf.Sin(phi0 * Mathf.Deg2Rad)) + 0.08f;
+                // W-100: each block spans the ring's whole slant (the chord from its foot to its head) and leans along it;
+                // the old blocks were only as tall as the ring's rise, which near the crown is a fraction of the slope, so
+                // the upper rings stood apart with sky between them. (`tall` stays the rise for the door cut.)
+                var dr = radius * (Mathf.Cos(phi0 * Mathf.Deg2Rad) - Mathf.Cos(phi1 * Mathf.Deg2Rad));
+                var dy = tall - 0.08f;
+                var slant = Mathf.Sqrt(dr * dr + dy * dy) + 0.14f;
+                var lean = Mathf.Atan2(dr, dy) * Mathf.Rad2Deg;
                 var blocks = Mathf.Max(4, Mathf.RoundToInt(2f * Mathf.PI * ringR / 1.25f));
                 var offset = (r % 2) * 0.5f;                  // stagger the joints ring on ring
+                // Long enough to meet round the ring's foot, its widest girth (the old length met only at mid-height).
+                var footR = radius * Mathf.Cos(phi0 * Mathf.Deg2Rad);
                 for (int k = 0; k < blocks; k++)
                 {
                     var a = (k + offset) * 360f / blocks;
-                    var len = 2f * Mathf.PI * ringR / blocks + 0.06f;
+                    var len = 2f * Mathf.PI * footR / blocks + 0.06f;
+                    var cutLen = 2f * Mathf.PI * ringR / blocks + 0.06f;
                     if (door && doorHalf > 0f)
                     {
                         var ar = a * Mathf.Deg2Rad;
-                        if (Mathf.Cos(ar) > 0f && Mathf.Abs(ringR * Mathf.Sin(ar)) - len * 0.5f < doorHalf && y - tall * 0.5f < doorTop)
+                        if (Mathf.Cos(ar) > 0f && Mathf.Abs(ringR * Mathf.Sin(ar)) - cutLen * 0.5f < doorHalf && y - tall * 0.5f < doorTop)
                             continue;
                     }
                     else if (door && r < 3 && Mathf.Abs(Mathf.DeltaAngle(a, 0f)) < 18f + r * 2f)
                         continue;
                     var centre = at + Turn(a, new Vector3(0f, y, ringR - 0.25f));
-                    Add(parts, KitPiece.Wall, KitMaterial.Ice, centre, new Vector3(len, tall, 0.5f), a, door && r == 0, -phi * 0.9f);
+                    Add(parts, KitPiece.Wall, KitMaterial.Ice, centre, new Vector3(len, slant, 0.5f), a, door && r == 0, -lean);
                 }
             }
             Add(parts, KitPiece.Roof, KitMaterial.Ice, at + new Vector3(0f, radius * squash - 0.1f, 0f), new Vector3(radius * 0.5f, 0.3f, radius * 0.5f), (float)rng.NextDouble() * 90f, false);
