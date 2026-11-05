@@ -361,7 +361,7 @@ namespace Punchy.Fauna
 
             /// <summary>
             /// Weighted Surface (#35): off up its cave to the mouth (the cave whose passage is nearest), for a look
-            /// outside; false if it isn't in a cave. (A straight walk to the mouth, not along the passage.)
+            /// outside; false if it isn't in a cave. (Steer takes it along the passage node by node: PassageWay, A-69.)
             /// </summary>
             bool StartSurface(ref CreatureState s, ref Random rng)
             {

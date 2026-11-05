@@ -277,7 +277,9 @@ namespace Punchy.Fauna
                     // to either side of its heading, turning towards it), or stops.
                     var step = s.Speed * dt;
                     var next = s.Position.xz + forward * step;
-                    if (step > 0f && !CaveFloor(next, s.Position.y))
+                    var floorY = s.Position.y;
+                    var stepped = step > 0f && CaveStep(next, s.Position.y, step, out floorY);
+                    if (step > 0f && !stepped)
                     {
                         var moved = false;
                         // (All the way round if need be: cornered, it turns back the way it came.)
@@ -286,8 +288,9 @@ namespace Punchy.Fauna
                             {
                                 var angle = s.Yaw + side * k * 0.45f;
                                 var slide = s.Position.xz + new float2(math.sin(angle), math.cos(angle)) * step;
-                                if (CaveFloor(slide, s.Position.y))
+                                if (CaveStep(slide, s.Position.y, step, out floorY))
                                 {
+                                    stepped = true;
                                     next = slide;
                                     s.Yaw = WrapAngle(s.Yaw + WrapAngle(angle - s.Yaw) * 0.3f);
                                     moved = true;
@@ -302,8 +305,8 @@ namespace Punchy.Fauna
                     s.Position.xz = next;
                     // (Only a floor in the cave: outside it FloorUnder gives the surface, which would lift it through
                     // the rock to the ground overhead.)
-                    // Onto the floor: up a step at once, down off a ledge falling.
-                    if (CaveFloorAt(s.Position.xz, s.Position.y, out var floorY))
+                    // Onto the floor: up a step at once (only as far as the step allowed, A-69), down off a ledge falling.
+                    if (stepped || CaveFloorAt(s.Position.xz, s.Position.y, out floorY, 0.05f))
                         s.Position.y = floorY > s.Position.y ? floorY : math.max(floorY, s.Position.y - dt * 6f);
                     CreatureMotion.AdvancePhase(ref s, ref b, dt);
                     return;

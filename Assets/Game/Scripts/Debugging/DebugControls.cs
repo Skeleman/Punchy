@@ -69,7 +69,7 @@ namespace Punchy.Debugging
         /// </summary>
         // A-69 "-rockwatch SECONDS": once a second, every cave dweller within 60 m of the player whose body (half a metre
         // up from its feet) is inside rock, under the cave roof or the ground; logged per check and in total at the end.
-        static float rockWatchFor, rockWatchSince = -1f, rockWatchNext;
+        static float rockWatchFor, rockWatchSince = -1f, rockWatchNext, batFolkPlaceUntil;
         static int rockWatchChecks, rockWatchHits, rockWatchSeen;
         static readonly HashSet<uint> rockWatchStuck = new HashSet<uint>();
 
@@ -258,6 +258,12 @@ namespace Punchy.Debugging
             SettleGoto();
             WalkTo();
             FlyCave();
+            // (A-69: "-place batfolk" again until the bat folk homes are baked; they come after the island.)
+            if (batFolkPlaceUntil > 0f && Time.unscaledTime < batFolkPlaceUntil && EnsureLocations(out var batRetry) && PlaceAtBatFolk(batRetry))
+            {
+                batFolkPlaceUntil = 0f;
+                rockWatchSince = -1f; // (-rockwatch counts from there.)
+            }
             RockWatch();
             Pose();
             Interact();
@@ -1739,8 +1745,8 @@ namespace Punchy.Debugging
                     flyHitchMs = hitchMs;
                 if (args[i] == "-flycave" && EnsureLocations(out var flySource))
                     StartFlyCave(flySource, args[i + 1]);
-                if (args[i] == "-place" && args[i + 1].StartsWith("batfolk", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var batSource))
-                    PlaceAtBatFolk(batSource);
+                if (args[i] == "-place" && args[i + 1].StartsWith("batfolk", System.StringComparison.OrdinalIgnoreCase))
+                    batFolkPlaceUntil = EnsureLocations(out var batSource) && PlaceAtBatFolk(batSource) ? 0f : Time.unscaledTime + 60f;
                 else if (args[i] == "-place" && args[i + 1].StartsWith("tree:", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var treeSource))
                     PlaceByTree(treeSource, args[i + 1].Substring(5));
                 else if (args[i] == "-place" && args[i + 1].StartsWith("prop:", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var propSource))
@@ -3437,10 +3443,10 @@ namespace Punchy.Debugging
         /// A-67/A-69 "-place batfolk": on the floor of the first bat folk chamber with a pod (BatFolkHomes, W-96), a few
         /// metres back from the pod's door toward the chamber's middle, facing the pod.
         /// </summary>
-        void PlaceAtBatFolk(in TerrainSource source)
+        bool PlaceAtBatFolk(in TerrainSource source)
         {
             if (!source.BatFolk.IsCreated || !playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
-                return;
+                return false;
             ref var bats = ref source.BatFolk.Value;
             for (int i = 0; i < bats.Sites.Length; i++)
             {
@@ -3458,9 +3464,12 @@ namespace Punchy.Debugging
                 t.Rotation = quaternion.RotateY(math.atan2(-back.x, -back.y));
                 em.SetComponentData(player, t);
                 Debug.Log($"DebugControls: at bat folk chamber {i}, pod door at ({at.x:F0}, {at.y:F0}, {at.z:F0}), pod floor at y {pod.Stand.y:F1}");
-                return;
+                return true;
             }
-            Debug.LogWarning("DebugControls: no bat folk chamber with a pod");
+            // (Said once, when the retries give up.)
+            if (batFolkPlaceUntil > 0f && Time.unscaledTime + 0.1f >= batFolkPlaceUntil)
+                Debug.LogWarning("DebugControls: no bat folk chamber with a pod");
+            return false;
         }
 
         /// <summary>

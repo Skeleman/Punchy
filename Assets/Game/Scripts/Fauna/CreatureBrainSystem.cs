@@ -1200,7 +1200,8 @@ namespace Punchy.Fauna
                 var turn = 0f;
                 // (Not within 10 cm of the target: the way to it there is noise, and following it spins the body on
                 // the spot at its full turn rate, Z-07.)
-                var to = s.Target - s.Position.xz;
+                // (A cave walker under the rock goes by its passage, node by node, not straight through the rock: A-69.)
+                var to = (moving && b.CaveDweller && !b.Crawls && Below(s, ref b) ? PassageWay(s.Position, s.Target) : s.Target) - s.Position.xz;
                 if (moving && math.lengthsq(to) > 0.01f)
                 {
                     var wanted = WrapAngle(math.atan2(to.x, to.y) - s.Yaw);
