@@ -2175,13 +2175,16 @@ namespace Punchy.Debugging
         static int flyLeg, flyCycles, flyCycle, flyStuck, flyLanded, flyTimeouts, flyBlocked0, flyExits;
         static bool flyOn;
         /// <summary>Which legs of a cycle are the way out at the mouth, and the cycle's length.</summary>
-        static int flyMouthOut, flyCycleLength;
+        static int flyMouthOut, flyCycleLength, flyClimbLeg, flyClimbs;
         static float flyLegSince, flyStillSince;
         static float3 flyStillAt;
         static bool flyStillCounted, flyDown;
         /// <summary>Frame times (ms) and speeds over the last 3 s, and the window after a mouth crossing still being filled.</summary>
         static readonly Queue<float2> flyRecent = new();
         static readonly List<float2> flyAfter = new();
+        /// <summary>The climb out (a steep, fast climb away over new ground, where chunks stream in): its frames, and frames on the wing but held still.</summary>
+        static readonly List<float2> flyClimb = new();
+        static int flyClimbHeld;
         static float flyAfterUntil;
         static string flyExitPre;
         static float3 flyLastPos;
@@ -2246,17 +2249,31 @@ namespace Punchy.Debugging
                 var outward = math.normalizesafe(cave.Mouth.xz - inner.xz, new float2(0f, 1f));
                 var outside = new float3(mouth.x + outward.x * 10f, source.SampleHeight(mouth.xz + outward * 10f) + 4f, mouth.z + outward.y * 10f);
                 outside.y = math.max(outside.y, mouth.y + 2f);
+                // A doorstep 3 m out on the passage's axis, so it comes at the mouth lined up, not from the side.
+                var doorstep = new float3(mouth.x + outward.x * 3f, 0f, mouth.z + outward.y * 3f);
+                doorstep.y = math.max(mouth.y, source.SampleHeight(doorstep.xz) + 1.2f);
                 for (int cycle = 0; cycle < flyCycles; cycle++)
                 {
+                    flyRoute.Add(doorstep);
                     flyRoute.Add(mouth);
+                    // (Nodes at the mouth itself are left out: under open sky their mid-air point sits above the lip.)
                     for (int k = 0; k <= chamber; k++)
-                        flyRoute.Add(MidAir(source, set.Nodes[cave.FirstNode + k].Position));
+                        if (math.distance(set.Nodes[cave.FirstNode + k].Position.xz, cave.Mouth.xz) > 1f)
+                            flyRoute.Add(MidAir(source, set.Nodes[cave.FirstNode + k].Position));
                     for (int k = chamber - 1; k >= 0; k--)
-                        flyRoute.Add(MidAir(source, set.Nodes[cave.FirstNode + k].Position));
+                        if (math.distance(set.Nodes[cave.FirstNode + k].Position.xz, cave.Mouth.xz) > 1f)
+                            flyRoute.Add(MidAir(source, set.Nodes[cave.FirstNode + k].Position));
                     if (cycle == 0)
                         flyMouthOut = flyRoute.Count;
                     flyRoute.Add(mouth);
+                    flyRoute.Add(doorstep);
                     flyRoute.Add(outside);
+                    // Then a steep climb away, 60 m out and 30 m up (Zach's control loss: flying up fast out of a cave
+                    // while a big chunk of land loads).
+                    if (cycle == 0)
+                        flyClimbLeg = flyRoute.Count;
+                    var away = outside.xz + outward * 60f;
+                    flyRoute.Add(new float3(away.x, math.max(outside.y, source.SampleHeight(away)) + 30f, away.y));
                     if (cycle == 0)
                         flyCycleLength = flyRoute.Count;
                 }
@@ -2285,6 +2302,8 @@ namespace Punchy.Debugging
             flyRecent.Clear();
             flyAfter.Clear();
             flyAfterUntil = 0f;
+            flyClimb.Clear();
+            flyClimbHeld = flyClimbs = 0;
         }
 
         /// <summary>A-69 "-flycave": steers the flying player along the route and counts what goes wrong.</summary>
@@ -2321,15 +2340,34 @@ namespace Punchy.Debugging
                 }
             }
 
+            if (flyLeg % flyCycleLength == flyClimbLeg)
+            {
+                flyClimb.Add(new float2(ms, speed));
+                flyClimbHeld += motion.Flying && speed < 1f ? 1 : 0;
+            }
             var target = flyRoute[flyLeg];
             var to = target - at;
             var horizontal = math.length(to.xz);
-            if (math.length(to) < 2f || Time.time - flyLegSince > 25f)
+            // (On the last leg, held till the last exit's frame times are in.)
+            // (Arrived within 2 m across and 1 m up or down: a sphere let it tick off the mouth from above the lip.)
+            var reached = horizontal < 2f && math.abs(to.y) < 1f;
+            var arrived = reached || Time.time - flyLegSince > 25f;
+            if (arrived && flyLeg == flyRoute.Count - 1 && flyAfterUntil > 0f)
+                arrived = false;
+            if (arrived)
             {
-                if (math.length(to) >= 2f)
+                if (!reached)
                 {
                     flyTimeouts++;
                     Debug.Log($"DebugControls: flycave leg {flyLeg} TIMED OUT at ({V(at.x)}, {V(at.y)}, {V(at.z)}), {V(math.length(to))} m short");
+                }
+                if (flyLeg % flyCycleLength == flyClimbLeg)
+                {
+                    flyClimbs++;
+                    Debug.Log($"DebugControls: flycave climb {flyClimbs}: {FlyWindow(flyClimb)}, {flyClimbHeld} frames on the wing held under 1 m/s, " +
+                              $"{(reached ? "reached" : "TIMED OUT")}");
+                    flyClimb.Clear();
+                    flyClimbHeld = 0;
                 }
                 if (flyLeg % flyCycleLength == flyMouthOut)
                 {
@@ -2373,7 +2411,10 @@ namespace Punchy.Debugging
                     }
                     Debug.Log($"DebugControls: flycave LANDED on leg {flyLeg} at ({V(at.x)}, {V(at.y)}, {V(at.z)}){gap}");
                 }
-                PlayerInputSystem.TestJump = motion.Grounded;
+                // Close and level, it walks on (taking off there, nose up, lifts it over a low mouth); otherwise off again.
+                var walkOn = horizontal > 2f && horizontal < 6f && to.y < 0.8f;
+                PlayerInputSystem.TestMove = horizontal > 0.1f ? to.xz / horizontal : float2.zero;
+                PlayerInputSystem.TestJump = motion.Grounded && !walkOn;
                 return;
             }
             flyDown = false;
