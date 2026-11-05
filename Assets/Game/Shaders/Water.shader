@@ -573,6 +573,22 @@ Shader "Punchy/Water"
                                         // flow (Z-34, seen with -waterprobe 4), striping every cave stream.
                                         * (1 - caveRun));
                 foam = max(foam, max(foamParts.y, foamParts.z));
+                // W-98: a waterfall is the river's own surface where it tips over a drop (no curtain over it any more):
+                // where the face is steep (from the mesh, not the ripples), it turns to falling water, white sheets and
+                // darker gaps streaming straight down across its width.
+                float3 face = cross(ddy(input.positionWS), ddx(input.positionWS));
+                face *= face.y < 0 ? -1 : 1;
+                face = normalize(face);
+                half falling = smoothstep(0.8, 0.45, face.y) * smoothstep(0.0, 0.1, flowAmount) * (1 - viscous) * (1 - lava);
+                [branch] if (falling > 0.01)
+                {
+                    float2 across = normalize(float2(-face.z, face.x) + 1e-5);
+                    float u = dot(p, across);
+                    float fallV = input.positionWS.y + t * 5.5;
+                    half sheet = PunchyValueNoise(float2(u * 2.3, fallV * 0.35)) * 0.6 + PunchyValueNoise(float2(u * 6.1 + 3.1, fallV * 0.9)) * 0.4;
+                    falling *= lerp(0.4, 1, smoothstep(0.35, 0.75, sheet));
+                    foam = max(foam, falling * 0.9);
+                }
                 foam = max(foam, wakeFoam * (1 - viscous));
                 half3 foamLit = _FoamColor.rgb * (ambient + light.color * shadow * saturate(light.direction.y) + lanternLit);
                 color = lerp(color, foamLit, foam * (1 - lava));
