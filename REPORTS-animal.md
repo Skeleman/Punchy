@@ -1977,3 +1977,10 @@ Calls used: about 110 (over budget).
 - Shot: Assets/Temp/shots/a69-mimic-wild.png. It shows the mimic disguised among real ocotillos and cacti.
 - Not changed: ocotillo plants also grow in MesaCanyonlands (3.12 km² on v3), but no mimics live there. Adding the mimic to that biome's fauna list would roughly triple where it can be found. That is a biome asset edit (re-bake risk), so it waits for a decision.
 - New hooks: TestHooks.BiomeArea(name) and TestHooks.SpeciesNear(name, radius).
+
+## A-69 row 4: cave walkers climb walls (done, verified) - 2fbb4e3
+- How far a creature can step up now depends on how far it moved: up to 0.5 m, as 0.01 + 1.5 x the distance walked that frame (CaveStep). The creature also snaps up to the floor only when it really stepped; otherwise it can rise at most 0.05 m.
+- Bat folk and other cave walkers under the rock now follow the cave passage node by node to the mouth (PassageWay), instead of heading straight for the target.
+- CaveFolk now puts bat folk at their BatFolkHomes pods and pygmies at their niches. `-place batfolk` already used those spots. It now keeps retrying until the homes exist; before this fix it fired too early and logged "no bat folk chamber with a pod". `-rockwatch` starts counting from that placement.
+- Log for `-island v3 -place batfolk -rockwatch 300` (chamber 0 in cave 5, pod door at -2668,11,-601): `[rockwatch] DONE 301 checks over 300 s: up to 8 cave dwellers near, 0 in-rock samples, 0 creatures ever in rock`.
+- No shot: the card asked for a logged count. Fingerprint: see the suite result in the hand-back.
