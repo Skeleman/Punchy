@@ -1260,6 +1260,13 @@ namespace Punchy.Flora
             return reach;
         }
 
+        /// <summary>A-70: WallReach for callers that cache placed walls (Fauna's BuildingFootprints).</summary>
+        public static float WallReachOf(ref FloraBlob f, int species) => WallReach(ref f, species);
+
+        /// <summary>A-70: Inside for callers that cache placed walls (Fauna's BuildingFootprints).</summary>
+        public static bool InsideWalls(ref FloraBlob f, in FloraSystem.FloraInstance plant, float2 xz, float radius) =>
+            Inside(ref f, plant, xz, radius);
+
         /// <summary>Inside one placed plant's walls (turned and scaled as FloraSystem turns them for the player).</summary>
         static bool Inside(ref FloraBlob f, in FloraSystem.FloraInstance plant, float2 xz, float radius)
         {
