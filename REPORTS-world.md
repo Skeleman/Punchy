@@ -2642,3 +2642,19 @@ Suite on 278a190: 13 passed, 0 failed. Landmarks_V3 110 09EAC0FE and Fauna_Finge
 v3 ready at 31.7 s (66.4 s before), and warm play ready with the new defaults is 37.3 s, so no worse. The URP asset and
 QualitySettings are untouched. The bench's Tools/bench/BenchmarkRoute.cs.txt (the profiler's) still sets the
 switches by reflection, so it is unaffected.
+
+## W-108 row 1: ruin C (world-features 4a2bbea)
+
+Ruin C draws; it was never a game bug. Cause: the shot. The W-106 shot moved Camera.main and called cam.Render() in
+the same eval. FloraSystem culls in LateUpdate, for the pose the camera had that frame, so the camera's plant lists
+were still the previous pose's. The shadow cache doesn't depend on the view, so it still cast. Every plant, rock and
+ruin near the new pose was missing, not only ruin C. I reproduced it on purpose (shoot elsewhere, then ruin C in the
+next eval: w108-ruinC-stale). With a pose step and one frame between pose and render, ruin C draws: w108-ruinC.
+
+Ruins checked: the Ruin species (KitRuin form) is used only by the one Ruins landmark at (-2226.2, 2325.5). It has
+four ruins, at (-2206.3, 2318.7) (C), (-2226.2, 2325.5), (-2230.3, 2346.1) and (-2242.1, 2311.6). All four draw from
+fresh poses; the 2x2 tile is w108-ruins-all.
+
+The game's order is fine: FloraSystem runs at execution order 1000, after the camera has moved. A gotcha line is in
+docs/agents/editor-and-assets.md so other lanes' shots don't hit this. Shots are in the world tree under
+Assets/Temp/shots (not committed).
