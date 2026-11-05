@@ -46,3 +46,4 @@ no machine paths or personal info. Never bare `git stash`.
 - P-15 done 11-04 (77887d3): quests archive + notice boards + host-owned progress. Nothing in flight.
 - P-16 done 11-04 (941e41b): quest UI sizing, interior ambient, rabbit camera checked clean, pad inventory input (item move not shown). P-17 next.
 - P-17 done 11-04 (1eda8de): host-checked hand-ins; clear-an-area quests (solo proven, MP chase not); lead-quest ask in the report.
+- P-18 done 11-04 (079be61): rows 1-3 verified; row 4 (temple materials) needs SunkenTempleSystem lent.
