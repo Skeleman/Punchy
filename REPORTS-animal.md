@@ -1951,3 +1951,9 @@ Calls used: about 110 (over budget).
   - The hammock stays until W-96 merges.
 - **White circle:** I didn't see it in my editor, and my runs took no building-walk shots, so I couldn't reproduce it.
 - Editor closed.
+
+## A-69 row 1: flying in caves (done, verified) - 002b76e
+- **Cause:** at the rock, flight stopped dead (and the mouth's open sky read as rock); every floor touch landed the bird and its takeoff (nose up) lifted it out of the mouth; the 2.2 rad/s turn was wider than the passages.
+- **Fix:** slide along the rock's normal (then level, sink, back out); skim a cave floor while flying on; 4 rad/s turns in caves.
+- **Check:** `-body Bat -flycave 3`, cave 0 (style 5) mouth to chamber node 4, 36 legs: 0 stuck, 0 landed, 0 legs timed out, 0 blocked frames.
+- No shot (the row asks for a log).
