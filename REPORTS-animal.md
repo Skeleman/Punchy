@@ -2250,3 +2250,18 @@ Human (Human, Dramatic) waiting Storm cell (94,-28) [1 up in cell]: Run for your
 - World-data side effect: each walker's flora keep-out circle is widened once to the whole loop (radius x1.15 + body, 64-76 m), then Replant. This makes a trampled clearing.
 - Debug: `-walkershot Kind,dist[,side|front|back]` frames a walker. `-walkerlog` logs every 10 s.
 - Shots (scratchpad, unreviewed by Zach): saguaro-near/far, golem-near2 (front, 120 m), golem-far, tortoise-near/far2. The golem-near side view is blocked by its own spires.
+
+## A-72 row 3: walking saguaro (commit 816d198)
+- New animal-lane file `Fauna/ColossusRigs.cs`. Only the awake walker is posed. While it is awake, the saguaro's baked body is swapped for a skinned copy of the same mesh (149k verts). It switches back when the walker sleeps. No mesh, placement or Salt change.
+- Bones come from the mesh itself:
+  - The trunk axis is fitted to the mesh (47 m tall, leaning 6.5 m).
+  - The arms are found by bearing clusters (2 arms).
+  - There are 3 root-legs at 0/300/60 degrees.
+  - The footprint trail is hidden while the saguaro walks.
+- Motion:
+  - The trunk sways with pace and footfall.
+  - The arms swing like pendulums, with a little breeze sway at rest.
+  - One root-leg lifts on each footfall, up to 16 degrees.
+  - Dust emission is x(1+3·pace).
+- Hook: ColossusWalker calls `Rig.Animate(pace, stride, settle, t)` and `Rig.Sleep()`. New debug arg: `-walkerphase walk|rest|seconds` puts every walker mid-walk or mid-rest, for shot lists.
+- Shots (scratchpad a72/keep, unreviewed by Zach): a 3-frame side strip, saguaro-walk1/2/3 (60 m, 1.2 s apart). The root-legs are visibly in different places from frame to frame. Also saguaro-rest. 0 errors in the shot run.
