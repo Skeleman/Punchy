@@ -2343,3 +2343,11 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
 - The two river maps already share one drainage grid (W-76), so the drainage is built once. Timing the rest showed most of the stage was CutDams on the drawn map: 24 ground samples per river cell in one thread (about 590 ms). Those samples and the shore-level loop now run in parallel over the same managed maths, and blob arrays are block-copied.
 - Editor stage times (one bake each): v2 rivers 1169 -> 541 ms (bake 5389 -> 4954 ms); v3 rivers 1460 -> 886 ms.
 - Identity: landmark hash v2 95EAB5B4 / v3 80EBFCE6, heights v2 9CBCD24A+C8D060BA / v3 C524062E+D4AD0999, bat folk 8A17B4DB / DCB70DE3, Fauna_Fingerprint F99FD9E4: all unchanged.
+
+## W-103 row 3: Generate in parallel (done, verified)
+- Commit 02a67ea (world-features): IslandV2.cs, RiverBaking.cs, new Terrain/BakeParallel.cs (+ .meta).
+- IslandV2.Generate's cell loop runs per row; counts and border heights are summed in row order, so the report line and heightmap are identical. PickRealms is only 15 ms.
+- Found: the plants pregrow (#102) fills the .NET thread pool just before the bake, so a Parallel.For queued behind them ran on the main thread alone. New BakeParallel helper uses its own above-normal threads; the row 2 river loops use it too.
+- Generate alone (eval): about 50 ms. In the bake it still shares the CPU with the pregrow: v2 generate 1010 -> 713 ms, bake 4954 -> 4364 ms; v3 bake 6028 -> 4979 ms (v2base 1071 -> 736).
+- Tried starting the pregrow after Generate: generate drops to 57 ms, but rivers then slow by the same amount (v2 bake 4327, v3 5461). The CPU is the limit while plants grow, so I kept the original order.
+- Identity: landmark hash v2 95EAB5B4 / v3 80EBFCE6, heights 9CBCD24A / C524062E, bat folk 8A17B4DB / DCB70DE3, Fauna_Fingerprint F99FD9E4: all unchanged.
