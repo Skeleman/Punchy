@@ -2216,3 +2216,18 @@ Human (Human, Dramatic) waiting Storm cell (94,-28) [1 up in cell]: Run for your
 - Heads-up for rows 2-5: StoneColossi.cs (world lane, #40, W-58/W-89/W-92/W-94) already has WalkingSaguaro,
   RockGolem and GiantTortoise as static colossi. I'm doing row 6 next and will not edit StoneColossi without a
   go-ahead; see the hand-back for options.
+
+## A-72 row 6: rock shelter (commit 36222a4)
+- The comfort shelter search now counts big rocks: a boulder, tor, standing stone or hoodoo, at least the animal's height and 0.7 m through.
+  - In wind, rain, snow or a storm, the animal goes to the downwind (lee) side.
+  - In sun or heat, it goes to the side it came from.
+  - A tall rock (over 2.5 m and over 1 m through) counts as an overhang, and the animal tucks in close.
+  - In weather, a rock is worth a 25% longer walk than a tree.
+- The search scans rings out to 7x7 tree-layer cells. A first try with a 24-cell sample (like FindTree) missed the one boulder in reach.
+- The comfort grid now carries the wind direction. The grid's SharedStatic key is renamed (GridKeyV2) because its size changed; in one editor run, the old key hangs Burst.
+- The `-comfort` log now has a `rock N` counter.
+- Run: `-place prop:Boulder -time 13 -weather Storm -comfort -spawn Deer:8 -spawnradius 10 -wait 200`, one play session, 0 errors.
+  - Deer meter 1.00, kind Wind; shelters: 7 started, 5 arrived, 3 at a rock.
+  - The meter needs about 2 min of storm to pass 0.3, so a 60 s wait showed none.
+- Shot: a72-rock-storm, a deer lying in the lee of a 2 m boulder in driving rain. It is partly hidden by the rock.
+- No species or landmark change: the fingerprint and the landmark hash are unaffected. The suite runs before the hand-back.
