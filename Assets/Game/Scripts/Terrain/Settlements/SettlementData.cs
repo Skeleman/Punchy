@@ -30,6 +30,10 @@ namespace Punchy.Terrain
         public float2 Road;
         /// <summary>The palisade's radius (0 = none).</summary>
         public float Palisade;
+        /// <summary>W-108 (#39): the paved square's diameter round the middle (0 = none), and the world angles where
+        /// lanes come into it (up to four; 99 = none), which folk's feet have worn paths towards.</summary>
+        public float Square;
+        public float4 Mouths;
     }
 
     /// <summary>
@@ -180,6 +184,7 @@ namespace Punchy.Terrain
             var cell = Cell(ref set, xz);
             if (cell < 0)
                 return;
+            var lane = 0f;   // how much xz is on a town's own street (not a road or square): no kerb across a lane's mouth
             var range = set.StreetCells[cell];
             for (int k = range.x; k < range.x + range.y; k++)
             {
@@ -247,8 +252,78 @@ namespace Punchy.Terrain
                     else
                         street.Albedo *= earthShade;
                 }
+                if (s.Road == 0 && !s.A.xz.Equals(s.B.xz))
+                    lane = math.max(lane, w);
                 props = SurfaceProps.Lerp(props, street, w);
             }
+            for (int i = 0; i < set.Settlements.Length; i++)
+                if (set.Settlements[i].Square > 0f)
+                    Square(ref set, i, xz, edgeNoise, colorNoise, lane, ref props);
+        }
+
+        /// <summary>One of a town's square draws (0..1): five bits of its hash.</summary>
+        static float Draw(uint seed, int k) => ((seed >> (k * 5)) & 31u) / 31f;
+
+        /// <summary>
+        /// W-108 (#39 part 2): a big town's paved square. Big flagstones in a rounded square (or a near circle), turned
+        /// and shaped per town, ringed by a kerb of paler setts that stops where a lane comes in; paths worn smooth from
+        /// each lane's mouth to the well or fountain and a ring worn round it, where folk stand to draw water, inside a
+        /// ring of darker stones laid round it. Its shape, tint and lean come from the town's own hash, so no two match.
+        /// </summary>
+        static void Square(ref SettlementSetBlob set, int i, float2 xz, float edgeNoise, float colorNoise, float lane, ref SurfaceProps props)
+        {
+            ref var town = ref set.Settlements[i];
+            var reach = town.Square * 0.5f + 1.5f;   // out over the open space's edge to the house fronts
+            var d = xz - town.Centre;
+            if (math.lengthsq(d) > (reach + 2f) * (reach + 2f))
+                return;
+            ref var layout = ref set.Layouts[town.Layout];
+            var seed = math.hash(new uint2((uint)town.Landmark, 0x5c0a7eu));
+            seed = (seed ^ (seed >> 15)) * 0x2c1b3c6du;
+            seed ^= seed >> 12;
+            // Shape: a superellipse turned to its own angle, from nearly round (p 2) to a soft square (p 5).
+            var turn = Draw(seed, 0) * math.PI * 0.5f;
+            var p = math.lerp(2.2f, 5f, Draw(seed, 1));
+            var local = math.abs(new float2(d.x * math.cos(turn) + d.y * math.sin(turn), -d.x * math.sin(turn) + d.y * math.cos(turn)));
+            var n = math.pow(math.pow(local.x, p) + math.pow(local.y, p), 1f / p) / math.lerp(1f, 0.92f, Draw(seed, 1));
+            var inside = 1f - math.smoothstep(reach - 0.5f, reach + 0.5f, n + edgeNoise * 0.5f);
+            if (inside <= 0f)
+                return;
+            var kerb = (1f - math.smoothstep(0.4f, 0.9f, math.abs(n - (reach - 0.7f)))) * (1f - lane);
+
+            var stone = layout.Street.Props;
+            stone.Paving = math.max(stone.Paving, 0.8f);   // an elf town's path is not cobbled, but its square is laid
+            var tint = new float3(1f + (Draw(seed, 2) - 0.5f) * 0.16f, 1f, 1f - (Draw(seed, 2) - 0.5f) * 0.16f) * math.lerp(0.95f, 1.12f, Draw(seed, 3));
+            var flags = stone;
+            flags.Albedo *= tint * (1f + colorNoise * layout.Street.ColorVariation);
+            flags.Slabs = 1f;
+            flags.Pebbles *= 0.4f;
+            // Worn paths: from each lane's mouth to the water, and round the water where folk stand.
+            var water = town.Water.xz;
+            var worn = 0f;
+            for (int m = 0; m < 4; m++)
+            {
+                var a = town.Mouths[m];
+                if (a > 9f)
+                    continue;
+                var mouth = town.Centre + new float2(math.cos(a), math.sin(a)) * reach;
+                var ab = water - mouth;
+                var t = math.saturate(math.dot(xz - mouth, ab) / math.max(math.lengthsq(ab), 1e-4f));
+                var off = math.distance(xz, mouth + ab * t) + edgeNoise * 0.6f;
+                worn = math.max(worn, 1f - math.smoothstep(0.6f, 1.8f, off));
+            }
+            var r = math.distance(xz, water);
+            var ringAt = math.lerp(2.2f, 3f, Draw(seed, 4));
+            worn = math.max(worn, 1f - math.smoothstep(0.5f, 1.2f, math.abs(r - ringAt)));
+            flags.Paving = stone.Paving + worn * 0.85f;
+            // A ring of darker stones laid round the water, just inside the worn ring.
+            flags.Albedo *= 1f - 0.22f * (1f - math.smoothstep(0.25f, 0.6f, math.abs(r - (ringAt - 1.1f))));
+            // The kerb: a band of paler, smaller setts at the square's edge.
+            var setts = stone;
+            setts.Albedo = math.lerp(stone.Albedo, new float3(0.6f, 0.58f, 0.54f), 0.55f) * (1f + colorNoise * 0.06f);
+            setts.Paving = 1f;
+            flags = SurfaceProps.Lerp(flags, setts, kerb);
+            props = SurfaceProps.Lerp(props, flags, inside);
         }
 
         /// <summary>

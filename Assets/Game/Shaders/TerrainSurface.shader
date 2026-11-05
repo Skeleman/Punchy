@@ -119,7 +119,7 @@ Shader "Punchy/Terrain Surface"
                 half   bump       : TEXCOORD6;
                 float  cave       : TEXCOORD7;
                 half   strata     : TEXCOORD8;
-                half   paving     : TEXCOORD9;
+                half2  paving     : TEXCOORD9;   // paving amount, flagstones (W-108)
                 half   hollow     : TEXCOORD10;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
@@ -266,7 +266,7 @@ Shader "Punchy/Terrain Surface"
                 o.bump = input.morph.z;
                 o.cave = input.morph.w;
                 o.strata = input.strata.x;
-                o.paving = input.strata.y;
+                o.paving = input.strata.yw;
                 o.hollow = input.strata.z;
                 return o;
             }
@@ -318,16 +318,21 @@ Shader "Punchy/Terrain Surface"
 
                 half relief = detailFade * 0.45 * (1 - puddle);
                 normalWS = normalize(normalWS - half3(micro.x, 0, micro.y) * relief);
-                half cobbleFade = smoothstep(0.3, 0.55, input.paving) * (1 - smoothstep(30, 80, distance));
+                half cobbleFade = smoothstep(0.3, 0.55, input.paving.x) * (1 - smoothstep(30, 80, distance));
                 // W-108: paving above 1 is wear (SettlementSampling.Ground: the ruts down a cobbled road), and paving
                 // a little under 1 (a road's verge, the fade at a town's edge) lets the grass in between the stones.
-                half wear = saturate(input.paving - 1);
-                half sparse = 1 - smoothstep(0.6, 1, input.paving);
+                half wear = saturate(input.paving.x - 1);
+                half sparse = 1 - smoothstep(0.6, 1, input.paving.x);
+                // W-108 (#39): a town's square is laid with big flagstones (the same stones at twice the size, flatter),
+                // with a hard line where they meet the kerb.
+                half slab = step(0.5, input.paving.y);
                 float4 cb = float4(0, 0, 0, 0);
                 half cbHue = 0, cbDome = 1, cbSunk = 0;
                 [branch] if (cobbleFade > 0.001)
                 {
-                    cb = Cobbles(p, cbHue, cbDome, cbSunk);
+                    cb = Cobbles(p * (1 - 0.5 * slab), cbHue, cbDome, cbSunk);
+                    cb.zw *= 1 - 0.4 * slab;
+                    cbDome = lerp(cbDome, sqrt(cbDome), slab);   // broad flat tops, only their edges darken
                     normalWS = normalize(normalWS - half3(cb.z, 0, cb.w) * cobbleFade * (1 - puddle * 0.7) * (1 - 0.6 * wear));
                 }
                 // Rock faces (steep ground) up close: the caves' shared grain and fine relief, read three ways, so cliffs
