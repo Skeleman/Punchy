@@ -4,3 +4,4 @@ Oldest first. Add yourself at the bottom; only the first line may open an editor
 
 - player P-19 (rebuild for row 3) since 21:54
 - world W-98 fixes 2-3 (v2 spot check, puddles)
+- animal A-70 (perf rows, benches) since 23:37
