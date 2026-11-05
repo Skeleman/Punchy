@@ -164,6 +164,9 @@ namespace Punchy.Terrain
             return best > 0f && sum > 0f ? math.lerp(h, mix / sum, best) : h;
         }
 
+        /// <summary>Packed earth's colour (linear) where paved streets give way outside a town's centre.</summary>
+        static readonly float3 PackedEarth = new float3(0.17f, 0.115f, 0.07f);
+
         /// <summary>Paints the streets' surface over the ground, with a ragged edge.</summary>
         public static void Ground(ref SettlementSetBlob set, float2 xz, float edgeNoise, float colorNoise, ref SurfaceProps props)
         {
@@ -185,6 +188,21 @@ namespace Punchy.Terrain
                     continue;
                 var street = layout.Street.Props;
                 street.Albedo *= 1f + colorNoise * layout.Street.ColorVariation;
+                if (street.Paving > 0f)
+                {
+                    // W-104 (#39): paved layouts lay cobbles only through the centre; past about half the radius the
+                    // streets, and the roads leaving town, turn to packed earth (no cobbles, browner, duller), with a
+                    // ragged fade between.
+                    ref var town = ref set.Settlements[s.Settlement];
+                    var d = math.distance(xz, town.Centre) + edgeNoise * 3f;
+                    var paved = 1f - math.smoothstep(town.Radius * 0.35f, town.Radius * 0.6f, d);
+                    var earth = street;
+                    earth.Paving = 0f;
+                    earth.Albedo = math.lerp(street.Albedo, PackedEarth * (1f + colorNoise * 0.15f), 0.75f);
+                    earth.Smoothness *= 0.6f;
+                    earth.Pebbles = math.max(street.Pebbles, 0.35f);
+                    street = SurfaceProps.Lerp(earth, street, paved);
+                }
                 if (s.Road != 0)
                 {
                     // Roads are worn darker than town streets, with two wheel ruts and a darker verge, so they read
