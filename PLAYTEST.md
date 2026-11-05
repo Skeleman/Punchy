@@ -5,6 +5,9 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 
 | Issue | What to check | Where | Shipped |
 |---|---|---|---|
+| Folk heat | Desert and snow folk are out working at 8 h; at midday most stand in the shade of the eaves | Desert HumanVillage | PR #161, 2026-11-05 |
+| #40 tortoise | The mesa tortoise walks a slow loop and turns to look at you | MesaCanyonlands | PR #161, 2026-11-05 |
+| Gulls | Some gulls sit on the buoy masts off the wharf end | Fishing village 1 | PR #161, 2026-11-05 |
 | Shadows | Far trees still look right with the new default (cheap + cached far shadows); no shadow pops while walking | Forest, fishing village 1 | PR #158, 2026-11-05 |
 | #80 | Ruin brick walls: broken courses, fallen bricks, moss and sand | Any ruin | PR #158, 2026-11-05 |
 | #70 | You can't run through the flat rock chunks, and you can stand on the low ones | Electric Wastelands | PR #158, 2026-11-05 |
