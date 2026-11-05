@@ -14,7 +14,7 @@ namespace Punchy.Ambience
     /// streak procedurally from time, so there is no simulation on the CPU. Emitters are rebuilt only when the set
     /// of nearby landmarks changes.
     /// </summary>
-    public class LandmarkEffectSystem : MonoBehaviour
+    public partial class LandmarkEffectSystem : MonoBehaviour
     {
         public Material PlumeMaterial;
         [Tooltip("Material (Punchy/Flame) for the flames FireSystem collects each frame: torches, campfires.")]
@@ -122,6 +122,7 @@ namespace Punchy.Ambience
                 if (size > 0.02f && (f.at - eye).sqrMagnitude < flameRange * flameRange)
                     FireSystem.AddFlame(f.at, size, f.seed, f.palette);
             }
+            ForestFires(source, palette, eye, lit);
             Draw();
         }
 

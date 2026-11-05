@@ -1239,6 +1239,47 @@ namespace Punchy.Flora
 
         float nextMovingObstacles;
 
+        /// <summary>
+        /// W-106 (#131): trees of the given species within range of a point, for cosmetic effects (the Ember Forest's
+        /// night fires): the trunk's foot, its top as drawn (the trunk's lean), its height and crown radius (scaled),
+        /// and a seed that stays the same while the tree stands. Appends to <paramref name="into"/>; no allocation.
+        /// </summary>
+        public void TreesNear(float2 centre, float range, HashSet<FloraSpecies> species,
+                              List<(float3 foot, float3 top, float height, float crown, int seed)> into)
+        {
+            for (int li = 1; li < 3; li++)
+            {
+                var l = layers[li];
+                if (l == null)
+                    continue;
+                var size = l.Settings.TileSize;
+                var min = (int2)math.floor((centre - range) / size);
+                var max = (int2)math.floor((centre + range) / size);
+                for (int z = min.y; z <= max.y; z++)
+                for (int x = min.x; x <= max.x; x++)
+                {
+                    if (!l.Tiles.TryGetValue(new int2(x, z), out var tile))
+                        continue;
+                    for (int i = 0; i < tile.Length; i++)
+                    {
+                        var inst = tile[i];
+                        if (inst.Model < 0 || inst.Model >= models.Count)
+                            continue;
+                        var model = models[inst.Model];
+                        if (model.TrunkRadius <= 0f || model.Colliders.Count > 0 || !species.Contains(model.Species)
+                            || math.distance(inst.Position.xz, centre) > range)
+                            continue;
+                        float c = math.cos(inst.Yaw), sn = math.sin(inst.Yaw);
+                        var lean = new float2(model.TrunkLeanTop.x * c - model.TrunkLeanTop.y * sn,
+                                              model.TrunkLeanTop.x * sn + model.TrunkLeanTop.y * c) * inst.Scale;
+                        var height = model.Height * inst.Scale;
+                        into.Add((inst.Position, inst.Position + new float3(lean.x, height, lean.y), height,
+                                  model.Radius * inst.Scale, (int)math.hash(new int3((int2)math.round(inst.Position.xz * 4f), li))));
+                    }
+                }
+            }
+        }
+
         // ------------------------------------------------------------------------------------------- placement
 
         [BurstCompile]
