@@ -26,6 +26,8 @@ namespace Punchy.Terrain
         public float Strata;
         /// <summary>Cobble paving amount (TerrainSurface.Paving).</summary>
         public float Paving;
+        /// <summary>W-108: 1 where the paving is big flagstones (a town's square), 0 for cobbles (TerrainSurface).</summary>
+        public float Slabs;
 
         public static SurfaceProps Lerp(in SurfaceProps a, in SurfaceProps b, float t) => new SurfaceProps
         {
@@ -38,7 +40,8 @@ namespace Punchy.Terrain
             Bump = math.lerp(a.Bump, b.Bump, t),
             Pebbles = math.lerp(a.Pebbles, b.Pebbles, t),
             Strata = math.lerp(a.Strata, b.Strata, t),
-            Paving = math.lerp(a.Paving, b.Paving, t)
+            Paving = math.lerp(a.Paving, b.Paving, t),
+            Slabs = math.lerp(a.Slabs, b.Slabs, t)
         };
 
         public void AddScaled(in SurfaceProps s, float w)
@@ -53,6 +56,7 @@ namespace Punchy.Terrain
             Pebbles += s.Pebbles * w;
             Strata += s.Strata * w;
             Paving += s.Paving * w;
+            Slabs += s.Slabs * w;
         }
     }
 
