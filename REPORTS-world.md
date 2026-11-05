@@ -2528,3 +2528,37 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
   - Still costs nothing and saves nothing measurable here; its gain would be less cascade shimmer in wind.
 - Shots (Assets/Temp/shots): w107_fv1_cheap_false/true-800, w107_fv1_still_true-800, w107_forest_cheap_false/true-800, w107_forest_still_true-800. The forest shots are in rain, so the shadows are faint.
 - Note: rows 1-2 also add the inert FloraCache shader pass and the cull's inner skip (`_Shadow.w`) for row 3. Both do nothing while row 3's switch is off.
+
+## W-107 row 3: cached far shadows + profiler job 33 answers (world-features 3b41973)
+
+Switches (all off by default; defaults, URP asset, QualitySettings and -benchtune untouched):
+`CheapFarCaster` / `-cheapfarcaster`, `StillFarShadows` / `-stillfarshadows`, `CachedFarShadows` / `-cachedfarshadows`.
+Tunables: `-shadownear` 25, `-stillfrom` 40, `-shadowcachefar` 50 (cache: 0.5 deg sun step, 10 m move step, 1024, 4 frames).
+
+**Cache**: far trees (past the near range) are laid once into a 1024 sun-view depth cache, redrawn over 4 frames when the
+sun turns 0.5 deg or the camera moves 10 m, then applied with one full-screen pass (multiplies, skips pixels the real-time
+shadow already darkens, strength 0.42). Memory: 15.3 MB (2 x 1024^2 RFloat + 16-bit depth + buffers). At 24-min days it
+redraws about every 2 s; 79 redraws over the whole bench below.
+**Sun check** (shots w107_cache_sun_9 / _13 / _17.5): the shadows follow the sun; redraw count went 2 -> 3 -> 4.
+
+Table, editor, v2 fishing village 1, noon, uncapped, 2 rounds averaged (round-to-round spread ~0.4 ms gpu, so gpu deltas are in the noise; the shadow pass is the clean measure):
+
+| Switches | GPU ms | Frame ms | Shadow pass ms | Look |
+|---|---|---|---|---|
+| off (default) | 2.56 | 5.99 | 0.10-0.11 | reference |
+| cheap | 2.57 | 6.35 | 0.04-0.05 | forest now dappled (holes), same as default at a glance |
+| still | 2.62 | 6.24 | 0.10-0.11 | far shadows stop swaying |
+| cheap + still | 2.55 | 5.96 | 0.04-0.05 | as cheap |
+| cache | 2.58 | 5.97 | 0.04 | meadow shadows kept; far trees a little lighter |
+| all | 2.56 | 5.87 | 0.03-0.04 | as cache |
+
+Profiler job 33:
+1. Forest blob: the cheap card now alpha-clips 1.3 m value-noise holes in the shadow pass past the near range. Re-shot at
+   (800, 800), noon and 16:30, on vs off: w107_forest3_cheap_false/true, w107_forest4_cheap_false/true. They now look
+   nearly the same; the seam no longer shows at a glance.
+2. Still at FV1: there is no separate still draw list. `StillFarShadows` only sets a shader global that zeroes far sway,
+   so no tree is drawn twice (casters 285 in both). The extra cost is per-vertex branch work in the shadow pass, about +0.0 ms
+   shadow pass here and noise-level in gpu. In the build, I'd use cheap + still or cache rather than still alone.
+3. Cache: done (above). Its shadow pass matches cheap; the full-screen apply isn't split out in GpuSpy.
+
+Shots are in the world tree under Assets/Temp/shots (not committed): w107_forest3/4_*, w107_forest4_cache_true, w107_cache_sun_*.
