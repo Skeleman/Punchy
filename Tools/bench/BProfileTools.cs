@@ -47,6 +47,7 @@ public static class BProfileTools
     {
         var inputs = Arg("-raws", "").Split(';');
         var outPath = Arg("-out", "analysis.txt");
+        var keep = Arg("-keep", "");   // markers containing this always listed, however small (e.g. NetMenu)
         float skipSec = float.Parse(Arg("-skip", "0"), System.Globalization.CultureInfo.InvariantCulture);
         var sb = new StringBuilder();
         foreach (var raw in inputs)
@@ -119,7 +120,7 @@ public static class BProfileTools
                 var a = kv.Value;
                 double ms = a.self.Average();
                 // Brain.* marks always show: some are empty counters (Brain.Moving), read by their calls a frame.
-                if (ms < 0.03 && a.incl.Average() < 0.3 && !kv.Key.Contains("|Brain.")) continue;
+                if (ms < 0.03 && a.incl.Average() < 0.3 && !kv.Key.Contains("|Brain.") && (keep.Length == 0 || !kv.Key.Contains(keep))) continue;
                 sb.AppendLine($"{kv.Key}\t{Med(a.incl):F3}\t{a.incl.Average():F3}\t{Med(a.self):F3}\t{ms:F3}\t{(double)a.calls / Math.Max(1, used):F1}\t{a.maxCall:F2}\t{a.maxFrame:F2}");
             }
         }
