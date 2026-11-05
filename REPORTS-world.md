@@ -2583,3 +2583,38 @@ pieces at or above 3.4 m still orbit. Checked on v3 at the MagneticDebris plant 
 - Player ms: PlayerMovementSystem takes 0.034 ms on the stone and 0.033 ms 50 m away. Unchanged.
 - Island ready on v3 with a warm editor: 36.4 s and 30.0 s, under the 72 s line.
 Shots are in the world tree under Assets/Temp/shots (not committed).
+
+## W-106 row 4 (#80) ruin brick walls (world-features 17ae4db)
+
+Ruin walls are now built from coursed StructureKit bricks with moss, sand and fallen blocks. Shots w106r4-ruinA and
+w106r4-ruinB look right. Ruin C showed only its shadow: not looked into yet. At ruin A in the editor (vsync-bound): main
+thread 7.13 ms, render thread 2.14 ms, URP Main Camera 3.03 ms.
+
+## W-106 (A-73) wharf buoy masts in the perch Boxes (world-features 648d9f5)
+
+The buoy masts are now Column pieces inside the model's perch Boxes. Caveat for the animal lane: WharfSpots drops perches
+whose bottom is below Deck - 0.2. The buoy masts sit at about 0.15, so they are probably filtered out until that filter
+is relaxed. The wharf spot count is unchanged: 48 spots, 190 perches.
+
+## W-107 job 33 follow-ups (world-features d8a796a)
+
+(a) Gap between the near range and the cache. The cache cull skipped trees within near - 2 m of where the cache was
+laid. The camera can drift up to CacheMove (10 m) before a redraw, so trees just past the near range cast nowhere, and
+the gap grew as the near range shrank. Changing the near range at runtime also never redrew the cache. Fixes:
+- The cache now starts at max(0, near - CacheMove - 2 m), so the overlap can't double a shadow (the receiver leaves
+  real-time shade alone).
+- The cache is redrawn whenever the near range changes.
+Checked at OakGrove on v3 (noon, cache on, near 15, camera 8 m from where the cache was laid): shot w107fix-drift8
+shows full ground shadow under the oaks. My "before" emulation, w107fix-before, looks the same from this angle, so the
+gap the profiler saw is not visible in this frame. Please re-check with the profiler's job 33 view.
+
+(b) Still far shadows made cheaper. The distance and smoothstep now run once per plant in FloraCull (the shadow list
+fade = 1 + stillness). The shadow vertex only does a saturate. GpuSpy at OakGrove, cache off, two rounds each:
+- Draw Main Light Shadowmap is 0.28 ms with the switch on and 0.28 ms with it off.
+- GPU total is 0.12-0.21 ms either way: noise.
+The switch is now about free here, but it still saves nothing, since the cascades draw the same meshes.
+
+Defaults are unchanged: every switch is off, NearRange is 25 and CacheMove is 10.
+Suite on d8a796a: 13 passed, 0 failed. Landmarks_V3 110 09EAC0FE and Fauna_Fingerprint F4E66093 are unchanged, so no
+repin. v3 ready at 66.4 s in the cold suite (66.6 s before), and world up in 35 s. Warm play ready was 40.8 s earlier.
+Shots are in the world tree under Assets/Temp/shots (not committed).
