@@ -4,3 +4,4 @@ Oldest first. Add yourself at the bottom; only the first line may open an editor
 
 - world W-96 since 18:20
 - animal A-68 (play-mode suite) since 18:33
+- player P-18 since 18:34
