@@ -1957,3 +1957,9 @@ Calls used: about 110 (over budget).
 - **Fix:** slide along the rock's normal (then level, sink, back out); skim a cave floor while flying on; 4 rad/s turns in caves.
 - **Check:** `-body Bat -flycave 3`, cave 0 (style 5) mouth to chamber node 4, 36 legs: 0 stuck, 0 landed, 0 legs timed out, 0 blocked frames.
 - No shot (the row asks for a log).
+
+## A-69 row 2: cave exit freeze (done, verified) - 26d3a46
+- **Check:** `-body Bat -flycave 5`, 5 flights out of cave 0 with no stop: 0 stuck, 0 legs timed out, 0 blocked frames (2 floor touches walked on).
+- **Frame times per exit (about 150 frames before and 180 after):** every window has a mean of 16.7 ms and 0 frames over 50 ms. The worst frame is 22.6 ms on exit 1, 39.2 ms on exit 2 and at most 23.8 ms on exits 3-5. The slowest speed is 2.7-4.9 m/s and SurfaceHidden is 0.00.
+- **Fast climb out (30 m up, 60 m away, while chunks stream):** 5 of 5 climbs reached, 0 frames under 1 m/s, worst 41.7 ms, 0 over 50 ms.
+- No shot (the row asks for a log). At default quality the brains and movement kept running, so no fix was needed in this row. The ultra plus crow repro is in the hand-back.
