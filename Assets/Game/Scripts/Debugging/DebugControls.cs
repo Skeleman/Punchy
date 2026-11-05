@@ -1712,6 +1712,8 @@ namespace Punchy.Debugging
             comfortLog = cfArg >= 0;
             comfortNext = 6f; // (statics outlive a play with domain reload off)
             Comfort.Off.Data = cfArg >= 0 && cfArg + 1 < args.Length && args[cfArg + 1] == "off" ? 1 : 0;
+            // "-weathertalk": log each weather line folk say, with its cell and how many are up there (A-71 row 4).
+            WeatherTalkSystem.LogLines = System.Array.IndexOf(args, "-weathertalk") >= 0;
             // "-comfortheat -0.3": shifts the comfort grid's heat (a forced cold snap or heat wave for comfort shots).
             var chArg = System.Array.IndexOf(args, "-comfortheat");
             Comfort.HeatShift.Data = chArg >= 0 && chArg + 1 < args.Length && float.TryParse(args[chArg + 1], System.Globalization.NumberStyles.Float,
