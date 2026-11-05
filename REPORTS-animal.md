@@ -2238,3 +2238,15 @@ Human (Human, Dramatic) waiting Storm cell (94,-28) [1 up in cell]: Run for your
   - (a) The animal lane animates the world lane's colossi, with the world agent's OK to touch StoneColossi.
   - (b) The animal lane builds new walkers on the species, body and pose path (scaled up, from the ocean serpent species), and the world lane retires its static ones.
 - My editor is closed.
+
+## A-72 row 2: walking colossi groundwork (commit 53e688b)
+- New animal-lane file `Fauna/ColossusWalker.cs` walks the GiantTortoise, RockGolem and WalkingSaguaro. The still giants stay still; the Mesa tortoise is not touched.
+- Loop: a seeded wobbly circle (golem 38 m, saguaro 45 m, tortoise 40 m radius; 245-286 m round). Every check point is dry, in the spot's biome, slope at most 0.35 and clear of settlements by radius + 150 m + body. The loop shrinks x0.8 up to 4 times and may be nudged off the spot in 8 seeded directions (the golem and saguaro needed 2 shrinks and a nudge). If nothing fits, the giant stays still and logs why.
+- Pace: walk then rest (golem 120/45 s, saguaro 100/50 s, tortoise 80/70 s) with 5 s ramps. Position is seed + `_PunchyClock`, so nothing is networked. Host and client places agree within 0.07 m (`-host -walkerlog`, 6 samples per walker).
+- LOD: the walker nearest the camera within 600 m is awake (every frame, footfall sound StepRock pitch 0.3, 8-puff dust, camera shake within 120 m). The others update every 0.5 s. The far shadow re-lays after 10 m.
+- Creatures give way: CreatureBrainSystem gets colossus zones (radius body + 6 m, x1.6 for fleeing species). A creature ahead runs off the path line, others away from the centre. 18 flees counted in one 60 s host run.
+- Perf, one walker awake, near shot, uncapped editor: golem frame 16.7 ms (vsync), main 6.5, render 2.7, brain 0.225 ms. Saguaro main 6.2, render 2.2, brain 0.217 ms. Tortoise main 6.3, render 2.0, brain 0.471 ms (100 creatures). For comparison, the tortoise-far spot: main 5.8, render 1.6, brain 0.552 ms.
+- StoneColossi.cs hooks (world lane, small, nothing else changed): (1) `public static float3[] Spots`, set at placement; (2) `public Transform Root(int slot)`; (3) `laidAt[]`, so a far shadow left 10 m behind is disposed and laid again. No placement, mesh or Salt change.
+- World-data side effect: each walker's flora keep-out circle is widened once to the whole loop (radius x1.15 + body, 64-76 m), then Replant. This makes a trampled clearing.
+- Debug: `-walkershot Kind,dist[,side|front|back]` frames a walker. `-walkerlog` logs every 10 s.
+- Shots (scratchpad, unreviewed by Zach): saguaro-near/far, golem-near2 (front, 120 m), golem-far, tortoise-near/far2. The golem-near side view is blocked by its own spires.
