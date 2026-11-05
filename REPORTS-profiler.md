@@ -2,6 +2,44 @@
 
 Newest first.
 
+## 2026-11-05 job 33 re-run: the shadow sweep after W-107 PR #156 (card holes, cached far shadows), main b19e37d
+
+**Short answer:**
+- At fishing village 1, **cheap + cached comes within 0.5 ms of no flora shadows** (11.8 vs 11.3 ms; default 13.3). Adding still changes nothing.
+- In the forest, every option is within about 0.5 ms of default (9.3-10.2 ms), so flora shadows barely matter there.
+- **Looks:** the cheap far caster's holes fixed the solid blob; its forest shadow is now dappled like default. Cheap + cached gives a broader, flatter patch.
+- **Near range 15 m with the cache loses most of the forest's ground shadow** (see the sheet). There's a gap between 15 m and where the cached shadow starts.
+- **Still far shadows still cost +0.3 ms** (13.6 vs 13.3 fv1, 10.2 vs 9.9 forest) and save nothing. The world agent says the cost is the per-vertex fade.
+- **Recommendation:** cheap + cached at the default 25 m near range. Drop still unless its fade is made cheaper.
+
+**Method:** as job 33 (q34): Bench build, v2, uncapped, BenchTune in-session sweep, 4 s settle + 8 s measured per set, 2 sessions per spot (the second in reverse order). Tables give the mean of both sessions. Script: q35.sh. Sheets: shots/job33/rerun-fv1.jpg (session 2), rerun-forest.jpg (session 1). Logs: results/q35logs.
+
+| setting | fv1 gpu ms (s1 / s2) | forest gpu ms (s1 / s2) |
+|---|---|---|
+| default | 13.26 (13.15 / 13.36) | 9.93 |
+| Option 1: x0.5, 2 cascades | 12.01 | 9.38 |
+| No flora shadows | 11.32 | 9.34 |
+| Cheap far (with holes) | 12.00 | 9.75 |
+| Still far | 13.60 | 10.16 |
+| Cached far | 12.65 (12.93 / 12.37) | 9.90 |
+| Cheap + still | 12.07 | 9.93 |
+| Cheap + cached | 11.83 (12.16 / 11.50) | 9.86 |
+| All three | 11.82 (12.23 / 11.41) | 9.88 |
+| All three, near 15 m | 11.77 (12.14 / 11.40) | 9.75 |
+
+- The fv1 combinations differ by about 0.8 ms between sessions (order and drift), so the ranking among cheap+cached, all three and all-n15 is within noise. The gap to default (about 1.4 ms) is not.
+
+**Stall repeat (investigation, b/fix-stall-hang):**
+- q35 fv1 session 1 **hung for good**: the sweep finished, the log stopped at 13:06:11 (187 s into the stop; the 10 s status line stops too), and the run was killed at the 900 s timeout. This is the third hang in three sweeps (q33 twice, q34 once for 452 s).
+- **Signature:** sessions with a hang or near-hang have recurring hitches of **510-523 ms** (q35 fv1-1: 521 @ 52 s, 523 @ 94 s, 510 @ 188 s right before the hang; fv1-2: 521, 510; q34: 514, 508, 520, 663).
+  - A wait with a 0.5 s timeout firing repeatedly, then once never returning.
+  - The earlier "500 ms stalls" on this laptop were blamed on a firewall dialog. The dialog check is clean now.
+- No crash, no exception, nothing in the Windows System log. The Player.log just stops.
+- Next step, if you want the slot: a Profile build at fv1 with `-profilestop here` and the hitch log at 400 ms. The 0.5 s frames will then be in the capture, showing what they wait on.
+  - A frozen process can't write its last frame, so for the hang itself a dump is the only way. I'd ask Zach before using a dump tool.
+
+- Cost: 14 calls, peak 285k context (session), $1.6
+
 ## 2026-11-05 job 33 (Zach): shadow options 1 and 2 vs W-107's far-tree switches, with screenshots
 
 **Short answer:**
