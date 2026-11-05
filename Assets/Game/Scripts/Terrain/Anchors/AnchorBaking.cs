@@ -317,11 +317,13 @@ namespace Punchy.Terrain
                             var spot = LandmarkSampling.ToWorld(inst, LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / prop.Count), radius);
                             if (LandmarkSampling.OnRiver(src, spot, facing, 0f))
                                 continue;   // flora leaves a plot on river water empty (W-91)
+                            if (species.KitShape == KitShape.StiltHouse && !LandmarkSampling.StiltHouseFits(src, centre, spot, out _))
+                                continue;   // nor a stilt house where the bank or water doesn't suit it (W-105)
                             var toCentre = math.normalizesafe(centre - spot);
-                            // A stilt house's door is up on its porch: the folk's way in is the foot of its stair, out past
-                            // the porch (StructureKit.StiltHouse: porch 0.8 + 2.2 m, then about 2 m of stair).
-                            var reach = Punchy.Flora.FloraGenerator.DoorFront(species) * scale + 0.6f +
-                                        (species.KitShape == KitShape.StiltHouse ? 5f : 0f);
+                            // A stilt house's door is up on its porch out over the water (W-105): the folk's way in is
+                            // the walkway's end, where its stair comes down at the plot (StructureKit.StiltHouse).
+                            var reach = species.KitShape == KitShape.StiltHouse ? 0.8f :
+                                        Punchy.Flora.FloraGenerator.DoorFront(species) * scale + 0.6f;
                             Add(AnchorKind.Home, spot, 0.1f, toCentre, 0.8f, 1, Anchor.Shelter);
                             Add(AnchorKind.Door, spot + toCentre * reach, 0f, toCentre, 0.6f, 1);
                         }

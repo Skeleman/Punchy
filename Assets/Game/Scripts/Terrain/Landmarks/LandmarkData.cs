@@ -113,6 +113,26 @@ namespace Punchy.Terrain
             return false;
         }
 
+        /// <summary>W-105: a stilt house's plot (its walkway's stair foot) stands this high over the sea (m).</summary>
+        public const float StiltBankLow = 0.2f, StiltBankHigh = 3.5f;
+        /// <summary>W-105: the sea bed under a stilt house lies this far under the sea (m): in water, within its piles' reach.</summary>
+        public const float StiltShallowsLow = 0.3f, StiltShallowsDeep = 6f;
+
+        /// <summary>
+        /// W-105 (#36): whether a stilt house fits at a plot of a landmark centred at <paramref name="centre"/>: the plot
+        /// on a low bank, and the house (<paramref name="house"/>, StructureKit.StiltReach m on, away from the centre)
+        /// over shallows, neither on river water. Village placement, flora and the Home/Door anchors all ask this.
+        /// </summary>
+        public static bool StiltHouseFits(in TerrainSource source, float2 centre, float2 spot, out float2 house)
+        {
+            house = spot + math.normalizesafe(spot - centre) * StructureKit.StiltReach;
+            var sea = source.World.SeaLevel;
+            var bank = source.SampleHeight(spot) - sea;
+            var under = source.SampleHeight(house) - sea;
+            return bank >= StiltBankLow && bank <= StiltBankHigh && under <= -StiltShallowsLow && under >= -StiltShallowsDeep &&
+                   !OnRiver(source, spot, float2.zero, 0f) && !OnRiver(source, house, float2.zero, 0f);
+        }
+
         /// <summary>The range of grid items (indices into Items) for the cell containing a point.</summary>
         public static int2 CellRange(ref LandmarkSetBlob set, float2 xz)
         {

@@ -39,7 +39,7 @@ namespace Punchy.Flora
         public int FaceLandmark;
         /// <summary>1 for fishing villages' shore clutter (#36, W-59d): kept off the walk lane up each of the village's docks.</summary>
         public int ShoreKit;
-        /// <summary>W-63 (#36): 1 for a kit house or stilt house: a placed one never stands on a dock's walk lane.</summary>
+        /// <summary>W-63 (#36): 1 for a kit house, 2 for a stilt house: a placed one never stands on a dock's walk lane.</summary>
         public int House;
         /// <summary>W-62c (#37): for a landing pier, its deck length (m, the species' Height); 0 for everything else.</summary>
         public float PierReach;
@@ -276,7 +276,7 @@ namespace Punchy.Flora
                     // A sea folk pier (#37) faces its landing's way too, but sits on its bank as placed: DockShore seats on the sea.
                     FaceLandmark = s.Form == FloraForm.HiveTree || s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Pier ? 1 : s.Form == FloraForm.KitBuilding && (s.KitShape == Punchy.Terrain.KitShape.Dock || s.KitShape == Punchy.Terrain.KitShape.Wharf) ? 2 : 0,
                     ShoreKit = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Shore ? 1 : 0,
-                    House = s.Form == FloraForm.KitBuilding && Punchy.Terrain.StructureKit.HouseLike(s.KitShape) ? 1 : 0,
+                    House = s.Form == FloraForm.KitBuilding && Punchy.Terrain.StructureKit.HouseLike(s.KitShape) ? (s.KitShape == Punchy.Terrain.KitShape.StiltHouse ? 2 : 1) : 0,
                     PierReach = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Pier ? s.Height.y : 0f,
                     PierClear = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Spire ? 1 : 0,
                     PerVillage = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Wharf ? 1 : 0,
@@ -1465,6 +1465,13 @@ namespace Punchy.Flora
                                 // W-65c: and off every branch of a wharf, not just its main lane.
                                 var houseClear = placedRule.Footprint * prop.Scale.y + 1.5f;
                                 if (placedRule.House != 0 && math.min(DockLaneDistance(ref f, source, landmark, spot, houseClear), WharfDistance(ref f, source, landmark, spot, houseClear)) < houseClear)
+                                    return none;
+                                // W-105: a stilt house stands out over the shallows from its plot: none where the bank or
+                                // the water doesn't suit it (LandmarkSampling.StiltHouseFits), nor with the house on a dock's
+                                // or wharf's lane (no draws moved: the cell just stays empty).
+                                if (placedRule.House == 2 && !footprint &&
+                                    (!LandmarkSampling.StiltHouseFits(source, set.Instances[landmark.Instance].Position, spot, out var stilt) ||
+                                     math.min(DockLaneDistance(ref f, source, landmark, stilt, houseClear), WharfDistance(ref f, source, landmark, stilt, houseClear)) < houseClear))
                                     return none;
                                 // W-91 (#36): houses, stilt houses, docks and wharfs stand by the sea or a lake, never in a
                                 // river: a plot on river water (a dock along its whole run out) stays empty (no draws moved).
