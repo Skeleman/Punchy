@@ -2316,3 +2316,12 @@ Human (Human, Dramatic) waiting Storm cell (94,-28) [1 up in cell]: Run for your
 - Cause: `-place HumanVillage` stood the player at a stale village 98 m from the centre (DebugControls never cleared `centres`), so the count swung with whichever village it was.
 - Fix: clear `centres` with `locations`; test places at `HumanVillage:centre`. Band re-baselined to 8-40 creatures (was up to 20) and a new folk floor of 4, so it checks more than before, not less.
 - 5 suite runs in a row, all 13/13 passed: 25/11, 28/13, 29/16, 26/14, 28/15 (creatures/folk). Fingerprint 1202B8ED, landmarks 109 C96F266F.
+
+## A-73 rows 2-4: hut doors, pier work, wharf gulls and fish (8222749, repin 6afa951)
+Rows 2-4 share one commit because their files overlap (FaunaDirector, WharfSpots, brain).
+- Row 2: at night and in rain, fishing folk head for their own hut's door (Shelter weighting). They never seek shelter while they're on the pier. Shot door-a: at dusk in rain, folk walk in by the stilt-hut steps.
+- Row 3: WharfSpots reads the end, loop, nets and crate spots from the wharf model. 48 spots and 190 rail perches across the island. Folk walk the deck, fish off the end or loop with a rod, mend nets, and carry crates (drawn as a wooden crate). Shots fish-a (folk at the crates on the deck) and wharf-wide.
+- Row 4: seeded gulls (new Gull species) sit on half of the wharf rail and post perches, 38 spots. They're critter-tier creatures that flee and take off within 7 m of the player. A new Mackerel species gives 1-2 leaping fish 4-9 m off each pier end, in water at least 1.2 m deep. Shot gulls-b (gulls on the rails and posts). Perf at the fishing wharf: render 1.76 ms, cpu main 6.35 ms, gpu 0.22 ms, 155 creatures.
+- Fauna_Fingerprint 1202B8ED -> 773CA7F6, because Gull and Mackerel joined the CritterTable (it feeds AddSpecies). The test is repinned. Landmarks are still 109 C96F266F. Suite 13/13 passed (209 s).
+- Ask for the world lane: buoy masts aren't in the wharf model Boxes, so gulls can't perch on them yet. Please export them as perches.
+- Main has moved since my merge (PR #152, W-105). I haven't re-merged.
