@@ -240,87 +240,100 @@ namespace Punchy.Terrain
 
             // Huts: a pod hung on a silk stalk from the ceiling, its bottom 3-6 m above the floor (W-20: low enough for
             // the lantern to reach, high enough to walk under), clear of the walls round the pod and along the stalk.
-            var huts = 0;
-            for (int attempt = 0; attempt < 60 && huts < wantHuts; attempt++)
+            // W-103: each loop runs as speculative batches (Attempts); the tests below read the caves only.
+            var src = source;
+            var st = site;
+            Attempts(ref rng, 60, wantHuts, props, first, null, (ref Random r) =>
             {
-                var angle = rng.NextFloat(math.PI * 2f);
-                var dist = site.Radius * math.sqrt(rng.NextFloat(0.04f, 0.6f));
+                var angle = r.NextFloat(math.PI * 2f);
+                var dist = st.Radius * math.sqrt(r.NextFloat(0.04f, 0.6f));
                 // W-96: bigger, so they read as woven nests a bat folk can sleep in (drawn as BatFolkMeshes.Pod).
-                var radius = rng.NextFloat(0.75f, 1.05f);
-                var length = radius * rng.NextFloat(2.1f, 2.5f);
-                var lift = rng.NextFloat(3f, 6f);
-                var yaw = rng.NextFloat(math.PI * 2f);
-                var xz = site.Centre.xz + new float2(math.cos(angle), math.sin(angle)) * dist;
-                var start = new float3(xz.x, site.Centre.y, xz.y);
-                if (source.CaveDistance(start) > -0.5f || NearPool(ref set, cave, xz, radius + 0.6f))
-                    continue;
-                var ceiling = Ceiling(source, start);
-                var floor = source.FloorUnder(start, out var inCave);
+                var radius = r.NextFloat(0.75f, 1.05f);
+                var length = radius * r.NextFloat(2.1f, 2.5f);
+                var lift = r.NextFloat(3f, 6f);
+                var yaw = r.NextFloat(math.PI * 2f);
+                var xz = st.Centre.xz + new float2(math.cos(angle), math.sin(angle)) * dist;
+                return (xz, radius, length, lift, yaw);
+            }, t =>
+            {
+                var (xz, radius, length, lift, yaw) = t;
+                ref var caves = ref src.Caves.Value;
+                var start = new float3(xz.x, st.Centre.y, xz.y);
+                if (src.CaveDistance(start) > -0.5f || NearPool(ref caves, caves.Caves[st.Cave], xz, radius + 0.6f))
+                    return default;
+                var ceiling = Ceiling(src, start);
+                var floor = src.FloorUnder(start, out var inCave);
                 // A low ceiling lifts the pod to just under it (short stalk), but never below 2.6 m of headroom.
                 var stalk = math.max(ceiling - floor - lift - length, 0.35f);
                 if (!inCave || ceiling - floor < length + stalk + 2.6f)
-                    continue;
+                    return default;
                 // The pod's top, middle and bottom, each with room for its girth (the top narrows to the stalk).
                 var top = ceiling - stalk;
-                if (source.CaveDistance(new float3(xz.x, top - 0.15f, xz.y)) > -0.35f ||
-                    source.CaveDistance(new float3(xz.x, top - length * 0.55f, xz.y)) > -(radius + 0.2f) ||
-                    source.CaveDistance(new float3(xz.x, top - length + 0.1f, xz.y)) > -0.4f)
-                    continue;
+                if (src.CaveDistance(new float3(xz.x, top - 0.15f, xz.y)) > -0.35f ||
+                    src.CaveDistance(new float3(xz.x, top - length * 0.55f, xz.y)) > -(radius + 0.2f) ||
+                    src.CaveDistance(new float3(xz.x, top - length + 0.1f, xz.y)) > -0.4f)
+                    return default;
                 // The stalk runs through air all the way (a long one must not pass through a ledge).
                 var blocked = false;
                 for (float y = ceiling - 0.5f; y > top && !blocked; y -= 1f)
-                    blocked = source.CaveDistance(new float3(xz.x, y, xz.y)) > -0.1f;
+                    blocked = src.CaveDistance(new float3(xz.x, y, xz.y)) > -0.1f;
                 if (blocked)
-                    continue;
-                if (Crowded(props, first, xz, radius, BatFolkPropKind.Hut))
-                    continue;
-                props.Add(new BatFolkProp
+                    return default;
+                return new Placed
                 {
-                    Position = new float3(xz.x, ceiling, xz.y), Size = new float3(radius, length, stalk), Yaw = yaw,
-                    Kind = BatFolkPropKind.Hut, Site = siteIndex
-                });
-                huts++;
-            }
+                    Ok = true, At = xz, Reach = radius,
+                    Prop = new BatFolkProp
+                    {
+                        Position = new float3(xz.x, ceiling, xz.y), Size = new float3(radius, length, stalk), Yaw = yaw,
+                        Kind = BatFolkPropKind.Hut, Site = siteIndex
+                    }
+                };
+            });
 
             // Floor props: a ring round the chamber, on floor flat enough to stand on, with headroom.
-            var placed = 0;
-            for (int attempt = 0; attempt < 80 && placed < wantProps; attempt++)
+            Attempts(ref rng, 80, wantProps, props, first, null, (ref Random r) =>
             {
-                var angle = rng.NextFloat(math.PI * 2f);
-                var dist = site.Radius * rng.NextFloat(0.3f, 0.85f);
-                var rack = rng.NextFloat() < 0.4f;
+                var angle = r.NextFloat(math.PI * 2f);
+                var dist = st.Radius * r.NextFloat(0.3f, 0.85f);
+                var rack = r.NextFloat() < 0.4f;
                 var size = rack
-                    ? new float3(rng.NextFloat(1.3f, 1.8f), rng.NextFloat(1.2f, 1.6f), 0.35f)
-                    : new float3(rng.NextFloat(0.32f, 0.55f), rng.NextFloat(0.4f, 0.7f), 0f);
+                    ? new float3(r.NextFloat(1.3f, 1.8f), r.NextFloat(1.2f, 1.6f), 0.35f)
+                    : new float3(r.NextFloat(0.32f, 0.55f), r.NextFloat(0.4f, 0.7f), 0f);
+                var yaw = r.NextFloat(math.PI * 2f);
+                var xz = st.Centre.xz + new float2(math.cos(angle), math.sin(angle)) * dist;
+                return (xz, rack, size, yaw);
+            }, t =>
+            {
+                var (xz, rack, size, yaw) = t;
+                ref var caves = ref src.Caves.Value;
                 var reach = rack ? size.x * 0.5f + 0.15f : size.x;
-                var yaw = rng.NextFloat(math.PI * 2f);
-                var xz = site.Centre.xz + new float2(math.cos(angle), math.sin(angle)) * dist;
-                if (NearPool(ref set, cave, xz, reach + 0.8f) || OnPath(ref set, site.Chamber, xz, reach + PathClear))
-                    continue;
-                var floor = source.FloorUnder(new float3(xz.x, site.Centre.y + 1f, xz.y), out var inCave);
-                if (!inCave || source.CaveDistance(new float3(xz.x, floor + 0.3f, xz.y)) > -0.2f)
-                    continue;
+                if (NearPool(ref caves, caves.Caves[st.Cave], xz, reach + 0.8f) || OnPath(ref caves, st.Chamber, xz, reach + PathClear))
+                    return default;
+                var floor = src.FloorUnder(new float3(xz.x, st.Centre.y + 1f, xz.y), out var inCave);
+                if (!inCave || src.CaveDistance(new float3(xz.x, floor + 0.3f, xz.y)) > -0.2f)
+                    return default;
                 // Flat: the floor under each corner of its footprint within 30 cm, each with air above it.
                 var flat = true;
                 for (int k = 0; k < 4 && flat; k++)
                 {
                     var o = new float2(math.cos(yaw + k * math.PI * 0.5f), math.sin(yaw + k * math.PI * 0.5f)) * reach;
-                    var f = source.FloorUnder(new float3(xz.x + o.x, floor + 1f, xz.y + o.y), out var inside);
+                    var f = src.FloorUnder(new float3(xz.x + o.x, floor + 1f, xz.y + o.y), out var inside);
                     flat = inside && math.abs(f - floor) < 0.3f &&
-                           source.CaveDistance(new float3(xz.x + o.x, f + size.y * 0.6f, xz.y + o.y)) < -0.15f;
+                           src.CaveDistance(new float3(xz.x + o.x, f + size.y * 0.6f, xz.y + o.y)) < -0.15f;
                 }
-                if (!flat || source.CaveDistance(new float3(xz.x, floor + size.y + 0.6f, xz.y)) > -0.5f)
-                    continue;
-                if (Crowded(props, first, xz, reach, rack ? BatFolkPropKind.Rack : BatFolkPropKind.Basket))
-                    continue;
-                props.Add(new BatFolkProp
+                if (!flat || src.CaveDistance(new float3(xz.x, floor + size.y + 0.6f, xz.y)) > -0.5f)
+                    return default;
+                return new Placed
                 {
-                    // Sunk a little, so a gentle slope never shows a gap under it.
-                    Position = new float3(xz.x, floor - 0.08f, xz.y), Size = size, Yaw = yaw,
-                    Kind = rack ? BatFolkPropKind.Rack : BatFolkPropKind.Basket, Site = siteIndex
-                });
-                placed++;
-            }
+                    Ok = true, At = xz, Reach = reach,
+                    Prop = new BatFolkProp
+                    {
+                        // Sunk a little, so a gentle slope never shows a gap under it.
+                        Position = new float3(xz.x, floor - 0.08f, xz.y), Size = size, Yaw = yaw,
+                        Kind = rack ? BatFolkPropKind.Rack : BatFolkPropKind.Basket, Site = siteIndex
+                    }
+                };
+            });
         }
 
         /// <summary>The ceiling above a point in cave air: marches up through the air by part of the distance to rock.</summary>
@@ -377,6 +390,71 @@ namespace Punchy.Terrain
             return false;
         }
 
+        // ------------------------------------------------------------------------------------ W-103 speculative attempts
+
+        /// <summary>One attempt's outcome: the thing to place (and its home, if it is one) if every rock test passed.</summary>
+        struct Placed
+        {
+            public bool Ok, HasHome;
+            public BatFolkProp Prop;
+            public BatFolkHome Home;
+            /// <summary>Where and how far it reaches for the crowding test (a niche crowds from its middle, not its origin).</summary>
+            public float2 At;
+            public float Reach;
+        }
+
+        delegate T Draw<T>(ref Random rng);
+
+        /// <summary>Attempts that run ahead in parallel: this many are drawn (sequentially, from the one RNG), tested at once.</summary>
+        const int Speculate = 24;
+
+        /// <summary>
+        /// W-103 (#102): a placement loop, "up to <paramref name="attempts"/> tries until <paramref name="want"/> are
+        /// placed", run faster with the same result. Every try draws all its numbers first, then runs rock and pool
+        /// tests that read only the caves, and only then the crowding test against what is already placed. So a
+        /// batch of tries is drawn in order, their rock tests run in parallel, and the crowding test and placing run
+        /// in order again. When enough are placed mid-batch the RNG goes back to where that try began, so the next
+        /// loop on the same RNG draws exactly what it drew before. Bit-identical to the one-at-a-time loop.
+        /// </summary>
+        static void Attempts<T>(ref Random rng, int attempts, int want, List<BatFolkProp> props, int first, List<BatFolkHome> homes,
+            Draw<T> draw, System.Func<T, Placed> test)
+        {
+            var tries = new T[Speculate];
+            var before = new Random[Speculate];
+            var results = new Placed[Speculate];
+            for (int attempt = 0, n = 0; attempt < attempts && n < want;)
+            {
+                var k = math.min(Speculate, attempts - attempt);
+                var r = rng;
+                for (int i = 0; i < k; i++)
+                {
+                    before[i] = r;
+                    tries[i] = draw(ref r);
+                }
+                System.Threading.Tasks.Parallel.For(0, k, i => results[i] = test(tries[i]));
+                rng = r;
+                for (int i = 0; i < k; i++, attempt++)
+                {
+                    if (n >= want)
+                    {
+                        rng = before[i];
+                        return;
+                    }
+                    var p = results[i];
+                    if (!p.Ok || Crowded(props, first, p.At, p.Reach, p.Prop.Kind))
+                        continue;
+                    if (p.HasHome)
+                    {
+                        var h = p.Home;
+                        h.Prop = props.Count;
+                        homes.Add(h);
+                    }
+                    props.Add(p.Prop);
+                    n++;
+                }
+            }
+        }
+
         /// <summary>Things up off the floor (hung or on the wall) only crowd each other; floor things likewise.</summary>
         static bool High(BatFolkPropKind k) => k == BatFolkPropKind.Hut || k == BatFolkPropKind.WallHouse ||
                                                k == BatFolkPropKind.CeilingHouse || k == BatFolkPropKind.RoostFrame || k == BatFolkPropKind.EchoChime ||
@@ -427,9 +505,11 @@ namespace Punchy.Terrain
             for (int i = 0; i < Details.Length; i++)
                 total += weights[i] = Details[i].Weight * rng.NextFloat(0.3f, 1.7f);
             var want = rng.NextInt(MinDetails, MaxDetails + 1);
-            for (int attempt = 0, n = 0; attempt < 240 && n < want; attempt++)
+            var src = source;
+            var st = site;
+            Attempts(ref rng, 240, want, props, first, null, (ref Random r) =>
             {
-                var pick = rng.NextFloat(total);
+                var pick = r.NextFloat(total);
                 var kind = Details[Details.Length - 1].Kind;
                 for (int i = 0; i < Details.Length; i++)
                     if ((pick -= weights[i]) < 0f)
@@ -437,14 +517,21 @@ namespace Punchy.Terrain
                         kind = Details[i].Kind;
                         break;
                     }
-                if (PlaceDetail(source, ref set, cave, site, siteIndex, kind, ref rng, props, first))
-                    n++;
-            }
+                return DrawDetail(st, kind, ref r);
+            }, d => TestDetail(src, st, siteIndex, d));
         }
 
-        /// <summary>One detail of this kind somewhere in the chamber (hung from the ceiling or on flat floor), or false.</summary>
-        static bool PlaceDetail(in TerrainSource source, ref CaveSetBlob set, in CaveData cave, in BatFolkSite site, int siteIndex,
-            BatFolkPropKind kind, ref Random rng, List<BatFolkProp> props, int first)
+        /// <summary>A detail try's numbers, all drawn up front (W-103: so tries can be tested ahead in parallel).</summary>
+        struct DetailTry
+        {
+            public BatFolkPropKind Kind;
+            public float2 Xz;
+            public float3 Size;
+            public float Yaw, Lift;
+        }
+
+        /// <summary>The numbers for one detail of this kind: hung from the ceiling or on flat floor.</summary>
+        static DetailTry DrawDetail(in BatFolkSite site, BatFolkPropKind kind, ref Random rng)
         {
             var angle = rng.NextFloat(math.PI * 2f);
             var yaw = rng.NextFloat(math.PI * 2f);
@@ -455,24 +542,7 @@ namespace Punchy.Terrain
                     : new float3(rng.NextFloat(0.25f, 0.45f), rng.NextFloat(0.6f, 1.1f), 0f);
                 var lift = rng.NextFloat(2.8f, 5f);
                 var xz = site.Centre.xz + new float2(math.cos(angle), math.sin(angle)) * site.Radius * math.sqrt(rng.NextFloat(0.03f, 0.7f));
-                var start = new float3(xz.x, site.Centre.y, xz.y);
-                var reach = kind == BatFolkPropKind.RoostFrame ? size.x * 0.5f + 0.1f : size.x + 0.2f;
-                if (source.CaveDistance(start) > -0.5f || NearPool(ref set, cave, xz, reach + 0.3f))
-                    return false;
-                var ceiling = Ceiling(source, start);
-                var floor = source.FloorUnder(start, out var inCave);
-                var stalk = math.max(ceiling - floor - lift - size.y, 0.3f);
-                if (!inCave || ceiling - floor < size.y + stalk + 2.5f)
-                    return false;
-                // The cord needs only a thin column of air; the frame or ring at its end needs its full reach.
-                for (float y = ceiling - 0.4f; y > ceiling - stalk - size.y; y -= 0.5f)
-                    if (source.CaveDistance(new float3(xz.x, y, xz.y)) > (y > ceiling - stalk + 0.3f ? -0.15f : -(reach + 0.05f)))
-                        return false;
-                if (Crowded(props, first, xz, reach, kind))
-                    return false;
-                size.z = stalk;
-                props.Add(new BatFolkProp { Position = new float3(xz.x, ceiling, xz.y), Size = size, Yaw = yaw, Kind = kind, Site = siteIndex });
-                return true;
+                return new DetailTry { Kind = kind, Xz = xz, Size = size, Yaw = yaw, Lift = lift };
             }
             {
                 var size = kind switch
@@ -481,24 +551,60 @@ namespace Punchy.Terrain
                     BatFolkPropKind.Hammock => new float3(rng.NextFloat(2f, 2.6f), rng.NextFloat(1.3f, 1.6f), 0f),
                     _ => new float3(1 + rng.NextInt(3), rng.NextFloat(1.4f, 1.8f), 0f)
                 };
-                var reach = kind == BatFolkPropKind.Hammock ? size.x * 0.5f + 0.1f : kind == BatFolkPropKind.GogglePeg ? 0.45f : size.x;
                 var xz = site.Centre.xz + new float2(math.cos(angle), math.sin(angle)) * site.Radius * rng.NextFloat(0.25f, 0.9f);
+                return new DetailTry { Kind = kind, Xz = xz, Size = size, Yaw = yaw };
+            }
+        }
+
+        /// <summary>Whether a detail fits where it was drawn (rock, pools and the path only; crowding is tested after).</summary>
+        static Placed TestDetail(in TerrainSource source, in BatFolkSite site, int siteIndex, DetailTry d)
+        {
+            ref var set = ref source.Caves.Value;
+            ref var cave = ref set.Caves[site.Cave];
+            var (kind, xz, size, yaw) = (d.Kind, d.Xz, d.Size, d.Yaw);
+            if (kind == BatFolkPropKind.RoostFrame || kind == BatFolkPropKind.EchoChime)
+            {
+                var start = new float3(xz.x, site.Centre.y, xz.y);
+                var reach = kind == BatFolkPropKind.RoostFrame ? size.x * 0.5f + 0.1f : size.x + 0.2f;
+                if (source.CaveDistance(start) > -0.5f || NearPool(ref set, cave, xz, reach + 0.3f))
+                    return default;
+                var ceiling = Ceiling(source, start);
+                var floor = source.FloorUnder(start, out var inCave);
+                var stalk = math.max(ceiling - floor - d.Lift - size.y, 0.3f);
+                if (!inCave || ceiling - floor < size.y + stalk + 2.5f)
+                    return default;
+                // The cord needs only a thin column of air; the frame or ring at its end needs its full reach.
+                for (float y = ceiling - 0.4f; y > ceiling - stalk - size.y; y -= 0.5f)
+                    if (source.CaveDistance(new float3(xz.x, y, xz.y)) > (y > ceiling - stalk + 0.3f ? -0.15f : -(reach + 0.05f)))
+                        return default;
+                size.z = stalk;
+                return new Placed
+                {
+                    Ok = true, At = xz, Reach = reach,
+                    Prop = new BatFolkProp { Position = new float3(xz.x, ceiling, xz.y), Size = size, Yaw = yaw, Kind = kind, Site = siteIndex }
+                };
+            }
+            {
+                var reach = kind == BatFolkPropKind.Hammock ? size.x * 0.5f + 0.1f : kind == BatFolkPropKind.GogglePeg ? 0.45f : size.x;
                 if (NearPool(ref set, cave, xz, reach + 0.8f) || OnPath(ref set, site.Chamber, xz, reach + 1.2f))
-                    return false;
+                    return default;
                 var floor = source.FloorUnder(new float3(xz.x, site.Centre.y + 1f, xz.y), out var inCave);
                 if (!inCave || source.CaveDistance(new float3(xz.x, floor + 0.3f, xz.y)) > -0.2f)
-                    return false;
+                    return default;
                 for (int k = 0; k < 4; k++)
                 {
                     var o = new float2(math.cos(yaw + k * math.PI * 0.5f), math.sin(yaw + k * math.PI * 0.5f)) * reach;
                     var f = source.FloorUnder(new float3(xz.x + o.x, floor + 1f, xz.y + o.y), out var inside);
                     if (!inside || math.abs(f - floor) > 0.45f || source.CaveDistance(new float3(xz.x + o.x, f + size.y * 0.6f, xz.y + o.y)) > -0.15f)
-                        return false;
+                        return default;
                 }
-                if (source.CaveDistance(new float3(xz.x, floor + size.y + 0.5f, xz.y)) > -0.4f || Crowded(props, first, xz, reach, kind))
-                    return false;
-                props.Add(new BatFolkProp { Position = new float3(xz.x, floor - 0.08f, xz.y), Size = size, Yaw = yaw, Kind = kind, Site = siteIndex });
-                return true;
+                if (source.CaveDistance(new float3(xz.x, floor + size.y + 0.5f, xz.y)) > -0.4f)
+                    return default;
+                return new Placed
+                {
+                    Ok = true, At = xz, Reach = reach,
+                    Prop = new BatFolkProp { Position = new float3(xz.x, floor - 0.08f, xz.y), Size = size, Yaw = yaw, Kind = kind, Site = siteIndex }
+                };
             }
         }
 
