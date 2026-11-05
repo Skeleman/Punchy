@@ -46,13 +46,18 @@ namespace Punchy.Flora
             [Tooltip("W-102: plants cast shadows only this near the camera (m), and never past the sun's shadow " +
                      "distance. The shadow passes draw their own short list, not the camera's.")]
             public float ShadowCastDistance = 60f;
+            [Tooltip("W-102: past this share of Radius, natural plants (not rocks or built things) thin out, each " +
+                     "dithering away at its own distance. Keep it beyond the LOD 2 change and the shadow cast distance.")]
+            public float ThinFrom = 0.5f;
+            [Tooltip("W-102: the share of natural plants still drawn at Radius.")]
+            public float ThinTo = 0.3f;
         }
 
         public Material Material;
         public ComputeShader Culling;
-        public LayerSettings Ground = new LayerSettings { CellSize = 0.7f, TileSize = 14f, Radius = 70f, Lod1Distance = 18f, Lod2Distance = 1000f, CastShadows = false };
-        public LayerSettings Shrubs = new LayerSettings { CellSize = 2f, TileSize = 40f, Radius = 260f, Lod1Distance = 30f, Lod2Distance = 110f, ShadowCastDistance = 40f };
-        public LayerSettings Trees = new LayerSettings { CellSize = 4.5f, TileSize = 108f, Radius = 1500f, Lod1Distance = 55f, Lod2Distance = 220f, ShadowCastDistance = 60f };
+        public LayerSettings Ground = new LayerSettings { CellSize = 0.7f, TileSize = 14f, Radius = 70f, Lod1Distance = 18f, Lod2Distance = 1000f, CastShadows = false, ThinFrom = 0.4f, ThinTo = 0.25f };
+        public LayerSettings Shrubs = new LayerSettings { CellSize = 2f, TileSize = 40f, Radius = 260f, Lod1Distance = 30f, Lod2Distance = 110f, ShadowCastDistance = 40f, ThinFrom = 0.5f, ThinTo = 0.25f };
+        public LayerSettings Trees = new LayerSettings { CellSize = 4.5f, TileSize = 108f, Radius = 1500f, Lod1Distance = 55f, Lod2Distance = 220f, ShadowCastDistance = 60f, ThinFrom = 0.25f, ThinTo = 0.5f };
         [Tooltip("Placement cells started per frame across all layers. Placement runs on worker threads in the " +
                  "background; too many at once crowds out the terrain's own jobs and causes hitches.")]
         public int CellsPerFrame = 6000;
@@ -140,6 +145,8 @@ namespace Punchy.Flora
         }
 
         readonly List<FloraModel> models = new List<FloraModel>();
+        /// <summary>Per model: a natural plant (trees through mushrooms) that thins out with distance (W-102).</summary>
+        readonly List<bool> thins = new List<bool>();
         readonly List<FloraSpecies> species = new List<FloraSpecies>();
         readonly Layer[] layers = new Layer[3];
         /// <summary>Where plants grow (shared with the animals through FloraPlacement).</summary>
@@ -183,6 +190,7 @@ namespace Punchy.Flora
         static readonly int CameraId = Shader.PropertyToID("_CameraPosition");
         static readonly int LodId = Shader.PropertyToID("_Lod");
         static readonly int ShadowId = Shader.PropertyToID("_Shadow");
+        static readonly int ThinId = Shader.PropertyToID("_Thin");
 
         public int PlantCount
         {
@@ -282,6 +290,7 @@ namespace Punchy.Flora
             foreach (var m in models)
                 m.Destroy();
             models.Clear();
+            thins.Clear();
             species.Clear();
             if (placement.IsCreated) placement.Dispose();
             placement = default;
@@ -442,7 +451,10 @@ namespace Punchy.Flora
             var placed = clock.Elapsed.TotalMilliseconds;
             foreach (var s in species)
                 for (int v = 0; v < s.Variants; v++)
+                {
                     models.Add(FloraGenerator.Grow(s, v));
+                    thins.Add(s.Form <= FloraForm.Mushroom);
+                }
             var grown = clock.Elapsed.TotalMilliseconds;
             BuildSupportGrids();
             long vertices = 0;
@@ -478,13 +490,13 @@ namespace Punchy.Flora
             layer.Args = new GraphicsBuffer(GraphicsBuffer.Target.IndirectArguments | GraphicsBuffer.Target.CopyDestination, draws, GraphicsBuffer.IndirectDrawIndexedArgs.size);
             layer.Counts = new GraphicsBuffer(GraphicsBuffer.Target.Structured | GraphicsBuffer.Target.CopySource, draws, GraphicsBuffer.IndirectDrawIndexedArgs.size);
             var args = new GraphicsBuffer.IndirectDrawIndexedArgs[draws];
-            var bounds = new float2[math.max(1, layer.ModelCount)];
+            var bounds = new float3[math.max(1, layer.ModelCount)];
             if (layer.Material == null)
                 layer.Material = new Material(Material) { name = $"Flora layer {layer.Index}" };
             for (int m = 0; m < layer.ModelCount; m++)
             {
                 var model = models[layer.ModelBase + m];
-                bounds[m] = new float2(model.Radius, model.CentreY);
+                bounds[m] = new float3(model.Radius, model.CentreY, thins[layer.ModelBase + m] ? 1f : 0f);
                 for (int draw = 0; draw < Draws; draw++)
                 {
                     var mesh = model.Lods[DrawLod(draw)];
@@ -500,7 +512,7 @@ namespace Punchy.Flora
             layer.ArgsData = args;
             layer.Args.SetData(args);
             layer.Counts.SetData(args);
-            layer.Bounds = new GraphicsBuffer(GraphicsBuffer.Target.Structured, bounds.Length, sizeof(float) * 2);
+            layer.Bounds = new GraphicsBuffer(GraphicsBuffer.Target.Structured, bounds.Length, sizeof(float) * 3);
             layer.Bounds.SetData(bounds);
             layer.Regions = new GraphicsBuffer(GraphicsBuffer.Target.Structured, draws, sizeof(uint));
         }
@@ -764,6 +776,7 @@ namespace Punchy.Flora
                 Culling.SetVector(LodId, new Vector4(l.Lod1Distance, l.Lod2Distance, l.Radius, 0f));
                 var cast = s.CastShadows ? math.min(s.ShadowCastDistance, shadowDistance) : 0f;
                 Culling.SetVector(ShadowId, new Vector4(cast, ShadowMargin, 0f, 0f));
+                Culling.SetVector(ThinId, new Vector4(s.ThinFrom * l.Radius, s.ThinTo, 0f, 0f));
                 Culling.SetBuffer(cull, InstancesId, l.Instances);
                 Culling.SetBuffer(cull, VisibleId, l.Visible);
                 Culling.SetBuffer(cull, ArgsId, l.Counts);

@@ -6,7 +6,8 @@
 //   fade -t <  0  draw where dither >= t        (the two halves of a crossfade never overlap)
 // W-102: the camera's lists cast no shadows. Plants near enough to cast (the layer's cast distance) also go, once
 // each, into a shadow list per variant at LOD 0 or 1 (the outgoing level through a change, as shadows don't
-// crossfade), so the shadow cascades never draw the far plants the camera sees.
+// crossfade), so the shadow cascades never draw the far plants the camera sees. Far natural plants also thin out
+// (see _Thin); rocks and built things never do.
 
 #pragma kernel Clear
 #pragma kernel Cull
@@ -24,7 +25,7 @@ struct FloraInstance
 };
 
 StructuredBuffer<FloraInstance> _FloraInstances;
-StructuredBuffer<float2> _ModelBounds;   // radius, centre height (unscaled), per variant in this layer
+StructuredBuffer<float3> _ModelBounds;   // radius, centre height (unscaled), thins (1: a natural plant), per variant
 StructuredBuffer<uint> _Regions;         // output offset per variant × draw (3 LODs, then 2 shadow lists)
 RWStructuredBuffer<uint2> _FloraVisible; // instance index, asuint(fade)
 // IndirectDrawIndexedArgs, one per variant x LOD. Structured, not raw: D3D11 can't write an IndirectArguments buffer as
@@ -46,6 +47,7 @@ float4 _Planes[6];
 float3 _CameraPosition;
 float4 _Lod;      // x LOD1 distance, y LOD2 distance, z radius
 float4 _Shadow;   // x cast distance (0: the layer casts none), y margin off-screen
+float4 _Thin;     // x distance natural plants start thinning, y share of them left at the radius
 
 [numthreads(64, 1, 1)]
 void Clear(uint id : SV_DispatchThreadID)
@@ -71,7 +73,7 @@ void Cull(uint id : SV_DispatchThreadID)
         return;
     FloraInstance plant = _FloraInstances[id];
     uint local = (uint)(plant.model - _ModelBase);
-    float2 bounds = _ModelBounds[local];
+    float3 bounds = _ModelBounds[local];
     float radius = bounds.x * plant.scale;
     float3 centre = plant.position + float3(0, bounds.y * plant.scale, 0);
     float distance = length(centre - _CameraPosition);
@@ -98,6 +100,13 @@ void Cull(uint id : SV_DispatchThreadID)
     if (!seen)
         return;
     float keep = 1 - smoothstep(_Lod.z * 0.88, _Lod.z, d);
+    // W-102: natural plants thin out past _Thin.x. Each has its own threshold in the falling share, and dithers away
+    // over a tenth of it, so the thinning has no line: plants drop out one by one, scattered over the distance.
+    if (bounds.z > 0)
+    {
+        float share = lerp(1, _Thin.y, smoothstep(_Thin.x, _Lod.z, d));
+        keep *= saturate((share * 1.1 - frac(plant.random * 61.7)) * 10);
+    }
     if (keep <= 0)
         return;
 
