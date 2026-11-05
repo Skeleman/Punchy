@@ -185,6 +185,44 @@ namespace Punchy.Flora
             return height < float.MaxValue;
         }
 
+        /// <summary>
+        /// Whether the straight line from a to b passes through any box (W-97): a wall, roof or floor between two heads,
+        /// so walk-by folk talk doesn't carry through a house wall.
+        /// </summary>
+        public static bool Blocks(in DynamicBuffer<KitBox> boxes, float3 a, float3 b)
+        {
+            var mid = (a + b) * 0.5f;
+            var halfLength = math.distance(a, b) * 0.5f;
+            for (int i = 0; i < boxes.Length; i++)
+            {
+                var box = boxes[i];
+                if (math.distance(box.Centre, mid) > box.Reach + halfLength)
+                    continue;
+                // (Slab test in the box's own frame.)
+                var inv = math.inverse(box.Rotation);
+                var from = math.mul(inv, a - box.Centre);
+                var dir = math.mul(inv, b - a);
+                float enter = 0f, exit = 1f;
+                var hit = true;
+                for (int k = 0; k < 3 && hit; k++)
+                {
+                    if (math.abs(dir[k]) < 1e-6f)
+                    {
+                        hit = math.abs(from[k]) <= box.Half[k];
+                        continue;
+                    }
+                    var t0 = (-box.Half[k] - from[k]) / dir[k];
+                    var t1 = (box.Half[k] - from[k]) / dir[k];
+                    enter = math.max(enter, math.min(t0, t1));
+                    exit = math.min(exit, math.max(t0, t1));
+                    hit = enter <= exit;
+                }
+                if (hit)
+                    return true;
+            }
+            return false;
+        }
+
         /// <summary>Whether any box reaches within margin of xz (in plan): the kit set round there has been placed.</summary>
         public static bool AnyNear(in DynamicBuffer<KitBox> boxes, float2 xz, float margin)
         {
