@@ -2374,3 +2374,11 @@ Rows 2-4 share one commit because their files overlap (FaunaDirector, WharfSpots
 - Shots: d8, d13 (after); base-d8 and base-d13 are the old code. The snow shots are s8 and s13, and the ash shot is a13.
 - Brain ms in the desert village at 13 h: 0.617 after, 0.604 before.
 - Risk: the hour is a global static, so on a joined client it is that client's own clock (it's cosmetic behaviour only).
+
+## A-75 row 2 (#40 the mesa tortoise walks) - done (verified)
+
+- Commit on animal-behaviours: the ColossusWalker gait MesaTortoise (slot 8), a MesaTortoiseRig in ColossusRigs, the A-74 look-at-player head and in-range dust. StoneColossi.cs needed no change (KeepOutLast already covers slot 8).
+- The canyon ground near its spot fits no loop (the first try said "slope 2.03"). So Lay() gains a last-try search 1.2-2.4 radii farther out; the walkers that already fit never reach it. Log: "MesaTortoise walks a 147 m loop (radius 23 m, 8 shrinks) round (2064, 1327), 0.5 m/s, 90 s walking then 80 s resting; flora kept 52 m out".
+- Shots: the walking strip is m-0, m-1 and m-2, from 110 m at the side with the eye 45 m up (`-walkershot` takes an optional 4th part, the eye lift). m-far is the setup shot and m-look is from 45 m in front. In m-look the head is low right and the shell fills the frame, so it's tight; a wider look shot can follow if wanted.
+- Brain ms with it awake: 1.043 (m-far) and 0.910 (m-look), with 106-114 creatures. The desert village gives 0.617 for comparison. The extra cost is the canyon fauna (more creatures and flee searches), not the walker, which runs on the main thread outside the brain.
+- Fauna_Fingerprint: reported at the suite run before hand-back.
