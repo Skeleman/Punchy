@@ -2278,3 +2278,10 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
   - The ruins' part lists changed (ivy parts, lintels), so the landmark fingerprint will move. Rafters reuse the old draws and the glyphs use their own rng, so the layout is otherwise unchanged.
   - FloraGenerator.cs is shared: RuinBricks has a new mortar shade and a new RuinGlyph helper (additive). Tell the other owner.
   - Flora.shader and Flora.hlsl moss edits affect every moss sheet (W-64 caves and houses too).
+
+## W-101 row 3: runed stones + archipelago scatter (done, verified) - commit 3d58161
+- StoneCircle (v2, 282,2837) now uses a new RunedStone species (StandingStone copy; Monument/Ruins keep the plain stone): glowing glyphs on both faces of every stone, 4 colour patterns (cyan, amber, violet, green), each with its own glyph family (ringed cross, chevrons, tree rune, eye). One pattern per landmark instance (scrambled hash), applied on fixed props, centrepiece and density rings; rng draw counts unchanged. The v2 circle draws amber.
+- Archipelago (v2): the first 4 islands zigzag off the spine on alternating sides. Head islets before (3224,2425) (3644,2638) (3760,2823), roughly a line at 36 deg; after (3113,2573) (3553,2444) (3534,2888) (3941,2806). Now 14 islets / 2 sandbars (was 11 / 4).
+- Hashes (allowed): v2 landmark game hash is 95EAB5B4 (list hash AC866923, 131 landmarks). Flora models and the archipelago shape move; the landmark list itself is untouched by these edits.
+- Shots: gallery r3_runes_b (noon, inside the ring), r3_runes_c (noon, wide), r3_runes_dusk (glow), r3_archipelago (aerial, hazy).
+- Risk: FloraGenerator.cs (shared) gets the additive SpireRunes helper. FloraPlacement.cs gets the additive Patterns rule field and PatternModel. FloraSpecies.cs gets the RunePatterns field.
