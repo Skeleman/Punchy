@@ -2366,3 +2366,8 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
 - v3 "before" printed ready at about 31 s because the editor's Island/Audit Reports menu sets PUNCHY_ISLANDAUDIT=1 and the audit (V3Audit, ranges checks, ground report) adds about 22.7 s. That is editor-only and opt-in; builds skip it. The numbers above leave it out. If Zach's 30 s+ v3 startup was in the editor, turning off Punchy/Island/Audit Reports removes most of it.
 - Target under 6 s: v2 meets it, v3 is 0.1 s over. The rest is settlements (about 920 ms, roads about 620), rivers (about 1000), caves (about 490), fishing (about 550) and seafolk (about 470), all sharing the CPU with the plant pregrow. No cheap win left that keeps the output identical without a deeper change, so I stopped here.
 - Identity on every run: landmark hash v2 95EAB5B4 / v3 80EBFCE6, heights 9CBCD24A / C524062E, bat folk 8A17B4DB / DCB70DE3, Fauna_Fingerprint F99FD9E4: all unchanged.
+
+## W-104 row 1: test pins (done, verified)
+- Commit 8a1315c (world-features): Assets/Tests/PlayMode/WorldTests.cs, comments name PR #148 / W-104 row 1.
+- Landmarks_V3: 107 14D92F64 -> 109 C96F266F. Fauna_Fingerprint: EA6A4DE5 (A-71's pin on animal-behaviours) -> F99FD9E4 (main after PR #148; also the value before W-103).
+- Suite on v3: 13/13 passed.
