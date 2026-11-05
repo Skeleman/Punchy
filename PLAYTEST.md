@@ -5,6 +5,8 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 
 | Issue | What to check | Where | Shipped |
 |---|---|---|---|
+| #40 heron | A glass heron wades the dunes, rests, and stabs at the sand; it turns to look at you | GlassDesert | PR #163, 2026-11-05 |
+| #40 stag | A huge stag grazes between the trees; its antler lanterns glow brighter at night | SparklingForest | PR #163, 2026-11-05 |
 | #39 roads | Roads turn from dirt to cobblestone at a town's edge; ruts, gaps with grass, the odd missing stone | Any HumanVillage road | PR #162, 2026-11-05 |
 | #39 squares | Flagstone square with a kerb and worn paths round the town's pond or fountain | HumanVillage, elf town | PR #162, 2026-11-05 |
 | Buoys | Buoys off the wharf end float clear of the stilt-house piles | Fishing village 2 | PR #162, 2026-11-05 |
