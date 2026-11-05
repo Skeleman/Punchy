@@ -2428,7 +2428,7 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
 - v2 island-ready time, editor play mode, audit off: 5.7 / 5.6 s (the first run, cold, was 15.8 s). Bake 4579-4603 ms, hash 95EAB5B4.
 - Not quiet: one other editor was busy, the main tree (D:/Unity/Punchy). It used about 2.5 cores during the runs (427 CPU-s in about 170 s). No other lane editor or build was running. So v2 is 0.1-0.2 s over 5.5 s with that load.
 
-## W-105 row 2: missing wharf (#36), COMMIT
+## W-105 row 2: missing wharf (#36), 7a09321
 
 - Cause: the wharf at the village near (-3144, -1596) ran out over river water, so flora left the plot empty (W-91's OnRiver rule). Placement never checked for that.
 - Fix (FishingVillageBaking.cs): a layout whose docks or wharf run over river water no longer fits. Placement then tries the shore angle turned 30° and 60° each way. The straight-out try comes first, so villages that fitted before don't move.
