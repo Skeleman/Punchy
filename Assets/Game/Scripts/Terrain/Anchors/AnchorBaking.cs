@@ -254,6 +254,18 @@ namespace Punchy.Terrain
         /// door itself, a Work spot by the woodpile facing it, the Garden, a Hearth at the fire in the middle and a Sit on
         /// each seat. Placed props only: their spots are known, where scattered ones are not.
         /// </summary>
+        /// <summary>W-104 (#36): a placed kit house or stilt house that folk live in (a fishing village's homes).</summary>
+        static bool FolkHouse(Punchy.Flora.FloraSpecies s) =>
+            s != null && s.Form == Punchy.Flora.FloraForm.KitBuilding && (s.KitShape == KitShape.House || s.KitShape == KitShape.StiltHouse);
+
+        static bool HasFolkHouses(LandmarkType type)
+        {
+            foreach (var prop in type.Props)
+                if (prop.FaceCentre && !prop.Centrepiece && FolkHouse(prop.Species))
+                    return true;
+            return false;
+        }
+
         static void AddWildAnchors(in TerrainSource source, IReadOnlyList<LandmarkType> types, List<Anchor> anchors)
         {
             ref var set = ref source.Landmarks.Value;
@@ -266,7 +278,10 @@ namespace Punchy.Terrain
                     continue;
                 if (type.Anchors != WildAnchors.Hermit)
                     AddWorkSpots(src, ref set, i, type, anchors);
-                if (type.Anchors == WildAnchors.None)
+                // W-104 (#36): a fishing village asks for no wild anchors, but its folk still need their houses' doors
+                // (A-71 saw them shelter under trees); for those types only the house anchors below are added.
+                var housesOnly = type.Anchors == WildAnchors.None && HasFolkHouses(type);
+                if (type.Anchors == WildAnchors.None && !housesOnly)
                     continue;
                 var radius = set.Types[inst.Type].Radius * inst.Scale;
                 var owner = Anchor.OwnerLandmark(i);
@@ -292,6 +307,25 @@ namespace Punchy.Terrain
                         continue;
                     var scale = (prop.Scale.x + math.max(prop.Scale.x, prop.Scale.y)) * 0.5f;
                     var size = (species.Height.x + species.Height.y) * 0.5f * scale;
+                    if (housesOnly)
+                    {
+                        if (!FolkHouse(species) || !prop.FaceCentre)
+                            continue;
+                        for (int k = 0; k < prop.Count; k++)
+                        {
+                            var spot = LandmarkSampling.ToWorld(inst, LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / prop.Count), radius);
+                            if (LandmarkSampling.OnRiver(src, spot, facing, 0f))
+                                continue;   // flora leaves a plot on river water empty (W-91)
+                            var toCentre = math.normalizesafe(centre - spot);
+                            // A stilt house's door is up on its porch: the folk's way in is the foot of its stair, out past
+                            // the porch (StructureKit.StiltHouse: porch 0.8 + 2.2 m, then about 2 m of stair).
+                            var reach = Punchy.Flora.FloraGenerator.DoorFront(species) * scale + 0.6f +
+                                        (species.KitShape == KitShape.StiltHouse ? 5f : 0f);
+                            Add(AnchorKind.Home, spot, 0.1f, toCentre, 0.8f, 1, Anchor.Shelter);
+                            Add(AnchorKind.Door, spot + toCentre * reach, 0f, toCentre, 0.6f, 1);
+                        }
+                        continue;
+                    }
                     // The fire in the middle: a hearth to gather round, a pace out from its stones.
                     if (prop.Centrepiece)
                     {
