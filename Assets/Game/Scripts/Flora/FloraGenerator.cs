@@ -3495,7 +3495,7 @@ namespace Punchy.Flora
                 else if (g.Lod == 0 && p.Piece == Punchy.Terrain.KitPiece.Roof && (look == Punchy.Terrain.KitSurface.Shingles || look == Punchy.Terrain.KitSurface.Thatch))
                     RoofCourses(b, p, c, look == Punchy.Terrain.KitSurface.Thatch, seed ^ (uint)i * 0x85EBCA77u);
                 else if (g.Lod < 2 && Contacts(parts, i, contacts))
-                    b.BandedBox(p.Centre, p.Size, p.Rotation, c, FloraPart.Bark, contacts, Mathf.Min(0.35f, p.Size.y * 0.3f), 0.55f);
+                    b.BandedBox(p.Centre, p.Size, p.Rotation, c, FloraPart.Bark, contacts, Mathf.Min(0.5f, p.Size.y * 0.3f), 0.7f);
                 else
                     b.Box(p.Centre, p.Size, p.Rotation, c, p.Material == Punchy.Terrain.KitMaterial.Moss ? FloraPart.Foliage :
                                                            p.Material == Punchy.Terrain.KitMaterial.Lamp || p.Material == Punchy.Terrain.KitMaterial.Rune ? FloraPart.Window : FloraPart.Bark);
