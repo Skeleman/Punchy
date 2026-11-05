@@ -2390,3 +2390,18 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
 - Drawing only, from its own stream: kit parts, colliders and hashes are unchanged.
 - The mound crest has no collider, so a walker sinks into it a little.
 - Shots: Assets/Temp/shots/w104-80b-after-ruin{0,1}_{close,medium}.png. The before shots are w104-80-after-*. The ruin 1 medium shot shows the mound plainly. Ruin 0 is on snow, where the sand reads less.
+
+## W-104 row 4: fishing villages (#36), 784e034
+
+- Pier networks now branch and join. When the mid and end branches both reach out on one side, a walkway links their tips parallel to the main walkway, closing a loop round open water. It sits as near the shorter tip as it can while clear of the houses. Wharves with only one branch stay a T or an L.
+- Small details added: one to three crates by the land end (the bottom ones are solid) and two to four buoys with masts off the far end. These join the nets, crab pots, lanterns, moored skiffs and ladder that were already there.
+- Everything new draws from its own stream, so walkways, houses and older details are unchanged.
+- Doors: AnchorBaking now gives fishing villages Home and Door anchors for their placed kit and stilt houses. A stilt house's Door anchor is at the foot of its stair. Plots dropped on river water are skipped.
+  - Result: each of the 3 v3 villages now has 4 Door anchors (it had none). This is the A-71 "huts gave the folk no door" problem.
+- Stilt houses over the water: the wharf houses already stand over the water. The 4 FaceCentre stilt houses per village stay on the bank, since moving them would change the asset and re-bake.
+- Shots, all in Assets/Temp/shots/:
+  - w104-36-wharf-shore: village at (-3941, 1290), seen from the bank.
+  - w104-36-wharf-above: the same village from above, showing the loop.
+  - w104-36-wharf-above2: village (-4041, 921), a one-branch L.
+  - Village (-3144, -1596) shows no wharf at its spot (on river water, dropped by W-91).
+- Landmark hash: see the suite result in the final row-5 entry. Landmark positions are unchanged; only drawing and anchors changed. The fauna fingerprint may move because of the new anchors.
