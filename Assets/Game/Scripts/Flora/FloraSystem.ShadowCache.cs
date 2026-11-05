@@ -6,7 +6,7 @@ using UnityEngine.Rendering;
 namespace Punchy.Flora
 {
     /// <summary>
-    /// W-107 (FloraShadowOptions.CachedFarShadows, off by default): cached far-tree shadows. While on, trees cast in
+    /// W-107 (FloraShadowOptions.CachedFarShadows, on by default): cached far-tree shadows. While on, trees cast in
     /// the real-time cascades only inside NearRange; the trees between there and CacheRange are drawn from the sun
     /// (orthographic, the Flora shader's FloraCache pass) into a float texture that keeps, per texel, how far along the
     /// sunlight the nearest tree is. The cache is redrawn only when the sun has turned CacheSunDegrees or the camera
@@ -50,6 +50,8 @@ namespace Punchy.Flora
         Matrix4x4 cacheBackVP, cacheBackUv, cacheFrontUv;
         Vector3 cacheBackSun, cacheFrontSun, cacheLaidSun;
         float3 cacheLaidAt;
+        /// <summary>The near range the cache was laid for (it's redrawn when the near range changes).</summary>
+        float cacheLaidNear = -1f;
         GraphicsBuffer cacheFor;
         int cacheForCount;
 
@@ -79,7 +81,8 @@ namespace Punchy.Flora
             if (cacheStep >= 0 && (l.Instances != cacheFor || l.Count != cacheForCount))
                 cacheStep = -1;   // the layer re-uploaded mid-redraw: its visible list points at old plants
             if (cacheStep < 0 && (!cacheReady || Vector3.Angle(dir, cacheLaidSun) > FloraShadowOptions.CacheSunDegrees ||
-                                  math.distance(eye, cacheLaidAt) > FloraShadowOptions.CacheMove))
+                                  math.distance(eye, cacheLaidAt) > FloraShadowOptions.CacheMove ||
+                                  cacheLaidNear != FloraShadowOptions.NearRange))
                 StartCacheRedraw(l, eye, dir);
             if (cacheStep >= 0)
                 DrawCacheSlice(l);
@@ -151,6 +154,7 @@ namespace Punchy.Flora
             cacheBackSun = dir;
             cacheLaidSun = dir;
             cacheLaidAt = eye;
+            cacheLaidNear = FloraShadowOptions.NearRange;
             cacheFor = l.Instances;
             cacheForCount = l.Count;
 
@@ -173,8 +177,12 @@ namespace Punchy.Flora
             Culling.SetVectorArray(PlanesId, planeVectors);
             Culling.SetVector(CameraId, (Vector3)eye);
             Culling.SetVector(LodId, new Vector4(l.Lod1Distance, l.Lod2Distance, l.Radius, 0f));
-            // Every tree out to CacheRange goes to the first shadow list (full mesh); the near ones cast in real time.
-            Culling.SetVector(ShadowId, new Vector4(FloraShadowOptions.CacheRange, 0f, 1e6f, FloraShadowOptions.NearRange - 2f));
+            // Every tree out to CacheRange goes to the first shadow list (full mesh). The cache starts where the real-time
+            // shadows end, less the CacheMove the camera can drift before the next redraw and 2 m of overlap: otherwise
+            // the trees between the near range round the laid spot and round the camera cast nowhere (a gap that grows
+            // as the near range shrinks). The overlap can't double a shadow: the receiver leaves real-time shade alone.
+            var cacheFrom = math.max(0f, FloraShadowOptions.NearRange - FloraShadowOptions.CacheMove - 2f);
+            Culling.SetVector(ShadowId, new Vector4(FloraShadowOptions.CacheRange, 0f, 1e6f, cacheFrom));
             Culling.SetBuffer(cull, InstancesId, l.Instances);
             Culling.SetBuffer(cull, VisibleId, cacheVisible);
             Culling.SetBuffer(cull, ArgsId, cacheCounts);
