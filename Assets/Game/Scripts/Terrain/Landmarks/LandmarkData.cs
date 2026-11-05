@@ -277,6 +277,21 @@ namespace Punchy.Terrain
                     // The bank rises gently out of the water (0.6 m per metre), so the shore line falls across the terrain
                     // grid smoothly instead of a near-vertical step between two vertices (ragged shards of water).
                     var bowl = level - 0.1f - pool.Depth * math.smoothstep(r, r * 0.35f, dp) + math.max(dp - r, 0f) * 0.6f;
+                    // W-98: stepped pools: a lower pool's bowl never cuts into a higher pool's rim (it did when the higher
+                    // came first, and that water spilled out over the lower one), so each pool stays contained.
+                    for (int o = 0; o < type.PoolCount; o++)
+                    {
+                        if (o == p)
+                            continue;
+                        ref var other = ref set.Pools[type.FirstPool + o];
+                        var ro = other.Radius * hit.Radius;
+                        var dpo = math.distance(hit.Local, other.Offset * hit.Radius);
+                        if (dpo > ro * 1.4f)
+                            continue;
+                        var levelO = PoolLevel(ref inst, ref type, ref other, hit.Radius);
+                        if (levelO > level)
+                            bowl = math.lerp(math.max(bowl, levelO + 0.25f), bowl, math.smoothstep(ro * 1.15f, ro * 1.4f, dpo));
+                    }
                     h = math.min(h, bowl);
                 }
             }

@@ -349,6 +349,30 @@ namespace Punchy.Terrain
                                     : (down >= 0 && map.Down[down] >= 0 ? SegmentGradient(ref map, down) : here);
                 q.Gradient = math.lerp(here, next, math.abs(t - 0.5f));
             }
+
+            // W-98: a river never starts out of bare ground. Its head wells up from a spring pool, a round basin wider
+            // than the stream and set a little back from it (not where it rises out of a lake).
+            if (s.Smooth && down >= 0 && map.Up[start] < 0 && map.LakeDepth[start] <= 0f)
+            {
+                var poolWidth = math.max(map.Width[start] * 2.2f, 5f) * bank.WidthScale;
+                var centre = a - math.normalizesafe(ab) * poolWidth * 0.25f;
+                var pd = math.distance(xz, centre);
+                var pc = Profile(pd, map.Bed[start], poolWidth, Depth(map.Width[start], s) * 1.3f, bank);
+                if (pc < q.Carve)
+                {
+                    q.Carve = pc;
+                    q.Water = map.WaterLevel[start];
+                }
+                if (pd - poolWidth * 0.5f < q.Distance - q.Width * 0.5f)
+                {
+                    q.Found = true;
+                    q.Distance = pd;
+                    q.Level = map.Bed[start];
+                    q.Width = poolWidth;
+                    q.Flow = math.normalizesafe(ab);
+                    q.Gradient = 0f;
+                }
+            }
         }
 
         /// <summary>The water's fall per metre along the segment from cell start to the next one down (0 at a river's end).</summary>
