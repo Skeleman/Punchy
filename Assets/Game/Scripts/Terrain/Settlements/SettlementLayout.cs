@@ -62,6 +62,9 @@ namespace Punchy.Terrain
         [Tooltip("If set, this building is never picked by weight: a settlement whose centre lies in one of these " +
                  "biomes puts it on one House plot instead (a hazard shelter, #69). Empty = an ordinary building.")]
         public List<BiomeDefinition> OnlyIn = new List<BiomeDefinition>();
+        [Tooltip("If set, a house of this named style (W-95, #69): never picked by weight. A settlement seeded into the " +
+                 "style (the layout's House Style Chance) puts the style's houses on all its house plots instead.")]
+        public string Style = "";
     }
 
     /// <summary>
@@ -128,6 +131,9 @@ namespace Punchy.Terrain
                  "store and workshop plots from this structure-kit species instead (#24), each its own variant. " +
                  "Plots and placement are unchanged.")]
         public Punchy.Flora.FloraSpecies KitBuilding;
+        [Tooltip("How often a settlement of this layout is built in its house style (the Buildings with a Style set), " +
+                 "seeded per settlement after its plots are laid out, so plots and landmarks never move (W-95, #69).")]
+        [Range(0f, 1f)] public float HouseStyleChance;
         public List<SettlementBuilding> Buildings = new List<SettlementBuilding>();
     }
 }
