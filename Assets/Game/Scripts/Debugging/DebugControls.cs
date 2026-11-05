@@ -1693,12 +1693,25 @@ namespace Punchy.Debugging
             landmarkPlaced = PlaceAtLandmark(landmarkPlacePending) || landmarkPlaced;
         }
 
+        /// <summary>
+        /// The player entity exists and has left the origin. Player builds can't use TestHooks (editor only), so this
+        /// does the same lookup itself.
+        /// </summary>
+        static bool PlayerPlaced()
+        {
+            var w = World.DefaultGameObjectInjectionWorld;
+            if (w == null || !w.IsCreated)
+                return false;
+            using var q = w.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadOnly<LocalTransform>());
+            return q.TryGetSingleton<LocalTransform>(out var t) && math.lengthsq(t.Position) >= 1e-6f;
+        }
+
         /// <summary>A-74: "-pickspecies Name" once NetAvatars and the player exist, held for 3 s past that.</summary>
         void PickSpeciesPending()
         {
             if (speciesPickPending == null)
                 return;
-            if (FindAnyObjectByType<Punchy.Net.NetAvatars>() is not Punchy.Net.NetAvatars avatars || TestHooks.PlayerPosition().sqrMagnitude < 1e-6f)
+            if (FindAnyObjectByType<Punchy.Net.NetAvatars>() is not Punchy.Net.NetAvatars avatars || !PlayerPlaced())
                 return;
             var index = avatars.PlayableSpecies.FindIndex(sp => sp != null && string.Equals(sp.name, speciesPickPending, System.StringComparison.OrdinalIgnoreCase));
             if (index < 0)
