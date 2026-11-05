@@ -62,6 +62,19 @@ current release. Lane: A = animal, W = world.
 - One standard fire effect (flame, glow, light, embers, smoke) with a colour setting, used by everything that burns:
   torches, campfires, ruin sconces, braziers, the forest. Build the shared effect first, then move the existing fires onto it.
 
+## Seasons (long term, 2026-11-04)
+
+- Generic, not tied to Earth: a world calendar with a day-of-year counter and a configurable year length and number of
+  seasons. Values change gradually day by day (curves over the year), never jumping at a season boundary. Synced in multiplayer.
+- Global: the sun and moon arcs (height, rising and setting points) and the length of day versus night change across the year.
+- Per biome, a season profile driven by the day of the year:
+  - temperature offset;
+  - weather odds (rain, snow, storms, fog, wind);
+  - flora appearance (colour shifts, leaf drop, bloom, snow cover, dormant plants);
+  - fauna spawn rates (migrations, hibernation, breeding bursts).
+- NPCs and creatures never read the season directly. They only react to what it changes around them: light, temperature
+  and storms. This builds on the weather comfort work (A-71).
+
 ## Current roadmap (snapshot 2026-11-04, from open GitHub issues and Zach's direction)
 
 Zach's order (2026-11-03): (1) a modular building kit plus more colossi, (2) fishing villages built from the kit,
