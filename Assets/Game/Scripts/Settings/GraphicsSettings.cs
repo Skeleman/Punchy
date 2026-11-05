@@ -52,8 +52,11 @@ namespace Punchy.Settings
             new Vector3(1.3f, 1.5f, 1.4f),
             new Vector3(1.7f, 2f, 2f),
         };
-        /// <summary>Below this Shadows setting the sun casts two cascades instead of the pipeline's own count.</summary>
-        const float FewCascadesBelow = 0.75f;
+        /// <summary>
+        /// The sun's shadow cascades by Shadows setting (W-105, Zach 11-05): Low 2, Medium 3, High and Ultra 4. Custom
+        /// settings take the nearest preset's count by these limits. Set on the running pipeline only, never saved.
+        /// </summary>
+        const float TwoCascadesBelow = 0.8f, ThreeCascadesBelow = 1.2f;
 
         const string ViewKey = "Punchy.Gfx.View", DetailKey = "Punchy.Gfx.Detail", ShadowsKey = "Punchy.Gfx.Shadows";
 
@@ -142,7 +145,7 @@ namespace Punchy.Settings
 
         /// <summary>"view 1.0 detail 1.0 shadows 1.0 (Medium)".</summary>
         public static string Describe() => string.Format(CultureInfo.InvariantCulture,
-            "view {0:0.0#} detail {1:0.0#} shadows {2:0.0#} ({3})", View, Detail, Shadows, Preset);
+            "view {0:0.0#} detail {1:0.0#} shadows {2:0.0#} ({3}, {4} cascades)", View, Detail, Shadows, Preset, Cascades);
 
         static float Clamp(float value) => Mathf.Clamp(float.IsNaN(value) ? 1f : value, Min, Max);
 
@@ -161,8 +164,11 @@ namespace Punchy.Settings
             if (pipeline == null)
                 return;
             pipeline.shadowDistance = baseShadowDistance * Shadows;
-            pipeline.shadowCascadeCount = Shadows < FewCascadesBelow ? Mathf.Min(baseCascades, 2) : baseCascades;
+            pipeline.shadowCascadeCount = Cascades;
         }
+
+        /// <summary>How many shadow cascades the sun casts at the current Shadows setting.</summary>
+        public static int Cascades => Shadows < TwoCascadesBelow ? 2 : Shadows < ThreeCascadesBelow ? 3 : 4;
 
         static void RestorePipeline()
         {
