@@ -2343,3 +2343,12 @@ Rows 2-4 share one commit because their files overlap (FaunaDirector, WharfSpots
 - Strip wstrip (w-far, w-0, w-1, w-2): the walking saguaro at 45 m side-on stops and turns to look at the player. Log "hold 0.21 look 8" when it's in range, "hold 0.00 look 0" when it's far.
 - Brain ms with the walker awake: 0.269 at w-far and 0.303 at w-2.
 - ColossusCollision.cs and StoneColossi.cs were not touched.
+
+## A-74 row 3 (#8): NPC reactions to the player's race (animal-behaviours 485cb4e)
+- #8 was already built in Z-52. Each species has a stance table toward the player's body, picked by seed (Kin / Neutral / Wary / Annoyed / Rival). A player emote within 20 m gets an answer: Wary folk ignore it, Annoyed folk walk off 5-8 m, Kin and Warm folk wave back, Rival folk give a mock bow. Without an emote, a Wary one within 3 m steps back to 4.5 m, and Kin, Warm and Rival folk sometimes wave at 1.5-6 m. FolkTalk walk-by lines match the stance. It's simulated state: brain and FolkTalk run on the host, and clients see the emote and pose. `-stancelog` prints the tables.
+- Code this row (debug only, 485cb4e): `-place` places again when the v2/v3 pass moves landmarks inside its 120 s window. Before, HumanVillage:centre could land at a stale baked spot on a bare hillside (settled folk 0/60); now it lands at the real village (7 m away, 28/60). `-goto` / `-at` / `-walkershot` cancel a pending re-place. `-pickspecies` waits for the player to exist. Caveat: `-weather` applies at the player's position, so put it on a later shot line.
+- Shots at ElfGrove:centre, 9 h, clear, 21/60 settled. Strip s21 (e-hum1, e-hum2, e-elf1, e-elf2).
+  - Wary, Human body (Elf stance toward Human: Neutral 48 / Wary 32 / Annoyed 20): log "Elf (Wary) to a Human: Humans cut trees. We remember." The Neutral ones answer the wave politely ("Be welcome.") and don't wave back.
+  - Friendly, Elf body (Kin): e-elf2 shows an elf waving back with the line "Ah, family. Welcome."
+- Why not a human village: folk at the desert HumanVillage (2979, -887) stay in Shelter/Home almost all day because of heat comfort, even at 7-8 h in clear weather (run16: 8 of 9 near folk in Shelter/Home). Reactions only run in Free/Work modes, so the shots were taken at ElfGrove. Possible follow-up: is desert sheltering too strong?
+- Brain ms: 0.914 (Human body) and 1.091 (Elf body) at the grove, and 0.42 / 0.47 at the desert village (96 creatures). The brain code didn't change this row, so brain cost is unchanged. The numbers differ between sites only because of creature counts.
