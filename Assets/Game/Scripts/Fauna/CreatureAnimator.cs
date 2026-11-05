@@ -223,6 +223,25 @@ namespace Punchy.Fauna
                 height += act * 0.35f * b.StandHeight * scale * math.abs(math.sin(s.Clock * 9f));
             else if (s.Action == IdleAction.Sniff)
                 pitch += act * 0.08f;
+            // A-71 weather poses: panting heaves the chest fast and bends a little forward; a shiver is a fine quick
+            // tremble; a hunch bends folk over and draws an animal down low.
+            else if (s.Action == IdleAction.Pant)
+            {
+                height += act * 0.025f * b.StandHeight * scale * math.sin(s.Clock * 15f);
+                pitch += act * (b.Upright ? 0.12f : 0.05f);
+            }
+            else if (s.Action == IdleAction.Shiver)
+            {
+                roll = act * 0.035f * math.sin(s.Clock * 57f);
+                pitch += act * (b.Upright ? 0.1f : 0f);
+            }
+            else if (s.Action == IdleAction.Hunch)
+            {
+                if (b.Upright)
+                    pitch += act * 0.3f;
+                else
+                    height -= act * 0.15f * b.StandHeight * scale;
+            }
 
             // A player's roll: a forward somersault (a full turn of the body), tucked up off the ground as it goes over.
             if (s.Roll > 0f)
@@ -979,6 +998,32 @@ namespace Punchy.Fauna
                     if (part.Role == LimbRole.Tail) return new float3(-0.2f * e, 0.6f * swing * e * (1f + joint * 0.5f), 0f);
                     break;
                 }
+                case IdleAction.Pant:
+                    // Head low and bobbing with each quick breath; hands on the knees for folk.
+                    if (part.Role == LimbRole.Neck) return new float3((0.3f + 0.06f * math.sin(s.Clock * 15f)) * e / n, 0f, 0f);
+                    if (part.Role == LimbRole.Head) return new float3((0.25f + 0.08f * math.sin(s.Clock * 15f)) * e, 0f, 0f);
+                    if (part.Role == LimbRole.Tail) return new float3(0.3f * e, 0f, 0f);
+                    if (part.Role == LimbRole.Arm && joint == 0) return new float3(-0.45f * e, 0f, 0f);
+                    break;
+                case IdleAction.Shiver:
+                {
+                    // Arms hugged across the chest, the whole of it trembling; head drawn down, ears and tail tucked.
+                    var tremble = 0.05f * math.sin(s.Clock * 57f + joint);
+                    if (part.Role == LimbRole.Arm && joint == 0) return new float3((-0.85f + tremble) * e, 0f, -0.25f * e);
+                    if (part.Role == LimbRole.Arm && joint == 1) return new float3(-1.9f * e, 0f, 0f);
+                    if (part.Role == LimbRole.Head) return new float3((0.3f + tremble) * e, 0f, 0f);
+                    if (part.Role == LimbRole.Neck) return new float3(0.25f * e / n, 0f, 0f);
+                    if (part.Role == LimbRole.Ear || part.Role == LimbRole.Tail) return new float3(0.5f * e, tremble * e, 0f);
+                    break;
+                }
+                case IdleAction.Hunch:
+                    // Head down and in, arms drawn up close, ears flat and tail clamped down.
+                    if (part.Role == LimbRole.Head) return new float3(0.5f * e, 0f, 0f);
+                    if (part.Role == LimbRole.Neck) return new float3(0.45f * e / n, 0f, 0f);
+                    if (part.Role == LimbRole.Arm && joint == 0) return new float3(-0.5f * e, 0f, -0.15f * e);
+                    if (part.Role == LimbRole.Arm && joint == 1) return new float3(-1.4f * e, 0f, 0f);
+                    if (part.Role == LimbRole.Ear || part.Role == LimbRole.Tail) return new float3(0.7f * e, 0f, 0f);
+                    break;
                 case IdleAction.ShieldEyes:
                     // Bat folk from a light (#35): the right arm raised and folded so the forearm lies across the eyes
                     // (the elbow out to the side), the head bowed and turned a little away, the left hand up at the chest.

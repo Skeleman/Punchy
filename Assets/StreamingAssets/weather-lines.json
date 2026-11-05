@@ -1,0 +1,959 @@
+{
+ "format": 1,
+ "_readme": [
+  "Weather lines (A-71): what folk say when the weather gets to them (WeatherTalkSystem, read by WeatherLines).",
+  "lines[kind][key]: kind is a ComfortKind name (Hot, Dry, Cold, Rain, Snow, Storm, Bright, Wind) or Relief (on reaching shelter).",
+  "key is a ComfortRace name (Ogre, Goblin, BatFolk, FishFolk, Dwarf, Elf, ...), a demeanor (Cheerful, Grumpy, Timid, Proud, Dramatic) or Any.",
+  "A race in ownVoice speaks only its own lines; other races mix their own pool (if any), their demeanor's and Any.",
+  "alias: a race with no pool of its own borrows another pool as its own (lines recycled across races).",
+  "Read again whenever the file changes, in Play mode too."
+ ],
+ "ownVoice": [
+  "Ogre",
+  "Goblin",
+  "BatFolk",
+  "FishFolk"
+ ],
+ "alias": {
+  "Hermit": "Grumpy",
+  "Pygmy": "Cheerful"
+ },
+ "lines": {
+  "Hot": {
+   "Any": [
+    "Hot, hot, hot!",
+    "I think I'm going to faint!",
+    "This heat is unbearable.",
+    "I'm melting out here.",
+    "Shade. I need shade.",
+    "The sun's cooking me alive.",
+    "Is it always this hot?",
+    "Phew! What a scorcher.",
+    "My boots are baking.",
+    "I could fry an egg on my head.",
+    "Too hot to think.",
+    "Somebody fetch me a fan!"
+   ],
+   "Cheerful": [
+    "Sunny day! A little too sunny.",
+    "Whew! Good day for a swim!",
+    "Hot! But what a lovely sky.",
+    "I'm sweating like a happy pig!",
+    "Summer's here, ha!",
+    "Toasty! Maybe too toasty."
+   ],
+   "Grumpy": [
+    "Bah. Heat.",
+    "Who ordered this weather?",
+    "Hot. Of course it's hot.",
+    "Sweating like a fool. Great.",
+    "Stupid sun.",
+    "Not a breath of air. Typical."
+   ],
+   "Timid": [
+    "It's so hot... is that bad?",
+    "I... I think I need to sit down.",
+    "Um, is anyone else melting?",
+    "Too hot... too hot...",
+    "Oh dear, oh dear, the heat.",
+    "I don't like this sun."
+   ],
+   "Proud": [
+    "This heat is beneath me.",
+    "I do not sweat. I glisten.",
+    "The sun dares to test me?",
+    "Heat? Hardly worth noticing.",
+    "Mere warmth. I endure.",
+    "I will retire to the shade. With dignity."
+   ],
+   "Dramatic": [
+    "I'm melting! Melting!",
+    "The sun has chosen me to die!",
+    "Tell my family... it was the heat...",
+    "I burn! I BURN!",
+    "This is how it ends. Sweaty.",
+    "Oh, cruel summer!"
+   ],
+   "Ogre": [
+    "Ogre too hot. Ogre angry.",
+    "Sun burn ogre. Bad sun.",
+    "Hot. Ogre sweat bucket.",
+    "Ogre want mud. Cool mud.",
+    "Too hot for smash.",
+    "Hot hot. Ogre go shade."
+   ],
+   "Goblin": [
+    "Oi! Wot's with this 'eat?",
+    "Ugh. Sweaty.",
+    "Cookin' me ears off, it is!",
+    "Oi oi, too 'ot!",
+    "Me skin's goin' crispy!",
+    "Wot idiot turned up the sun?"
+   ],
+   "BatFolk": [
+    "Too warm... we like cool stone...",
+    "The heat... it's stuffy...",
+    "Back to the cave... the cool cave...",
+    "Our wings are sweating...",
+    "Hot air... can't hang still...",
+    "Hot... hot... let us down..."
+   ],
+   "FishFolk": [
+    "This heat dries my scales.",
+    "My gills are wilting.",
+    "Hot air is no place for a fish.",
+    "To the water, before I bake.",
+    "I'm steaming like a kettle.",
+    "Even my fins are sweating."
+   ],
+   "Dwarf": [
+    "Hot as a forge, and no anvil.",
+    "Sweat in me beard. Lovely.",
+    "I've worked hotter mines. Barely.",
+    "Too much sun for a stout fellow.",
+    "Hot! Take me under a mountain.",
+    "This heat's for elves."
+   ],
+   "Elf": [
+    "The sun burns without grace.",
+    "Even the leaves wilt.",
+    "A heat unbecoming of the forest.",
+    "I shall seek the cool of the boughs.",
+    "The air shimmers. How tiresome.",
+    "Summer forgets its manners."
+   ]
+  },
+  "Dry": {
+   "Any": [
+    "What an arid torture!",
+    "I think I'm going to faint!",
+    "My throat's like sand.",
+    "Water... anyone got water?",
+    "So dry my lips are cracking.",
+    "Not a drop of rain in sight.",
+    "This dust gets everywhere.",
+    "I'd trade my hat for a drink.",
+    "Parched. Utterly parched.",
+    "The air itself is thirsty.",
+    "I need a well, and fast.",
+    "Dry as an old bone out here."
+   ],
+   "Cheerful": [
+    "Dry as a biscuit! Ha!",
+    "Thirsty work, being cheerful.",
+    "A drink would make this perfect!",
+    "Dusty, but I'm smiling!",
+    "Who needs rain? Well... me.",
+    "Crunchy ground, crunchy me!"
+   ],
+   "Grumpy": [
+    "Dust. Wonderful.",
+    "Not a drop. Figures.",
+    "Dry as my patience.",
+    "Bah. Thirsty.",
+    "Who drank all the rain?",
+    "Every year, drier. Every year."
+   ],
+   "Timid": [
+    "So thirsty... oh no...",
+    "Um... is there water?",
+    "My lips... they're cracking...",
+    "Is the well far? Please say no.",
+    "Dry... so dry...",
+    "Oh, I hope it rains soon."
+   ],
+   "Proud": [
+    "I refuse to be parched.",
+    "A noble thirst, nothing more.",
+    "This dust insults my boots.",
+    "The land may be dry. I am not.",
+    "Bring me water. Fine water.",
+    "I have crossed worse deserts."
+   ],
+   "Dramatic": [
+    "What an arid torture!",
+    "Water! Water, or I perish!",
+    "My tongue is a desert!",
+    "I am a raisin! A raisin!",
+    "The dust, it consumes me!",
+    "Remember me as I was. Moist."
+   ],
+   "Ogre": [
+    "Ogre thirsty. Where water?",
+    "Mouth dry like rock.",
+    "Ogre drink whole well.",
+    "No water. Ogre sad.",
+    "Dust in ogre nose.",
+    "Dry. Ogre hate dry."
+   ],
+   "Goblin": [
+    "Oi! Who nicked the water?",
+    "Ugh. Dusty.",
+    "Gob's dry as a boot.",
+    "Need a drink, need it now!",
+    "Wot, no puddles? Rubbish!",
+    "Me tongue's stuck to me teeth!"
+   ],
+   "BatFolk": [
+    "So dry... our skin crinkles...",
+    "Need the drip... the cave drip...",
+    "No damp anywhere...",
+    "Our wings crack when it's dry...",
+    "Dry air hurts the ears...",
+    "Where is the moss water?"
+   ],
+   "FishFolk": [
+    "This sand insults my gills.",
+    "Dry! The worst word there is.",
+    "Water. Now. I insist.",
+    "I was not made for dust.",
+    "My scales are flaking!",
+    "A puddle, a kingdom for a puddle."
+   ],
+   "Dwarf": [
+    "Dry as a coal seam.",
+    "Me throat needs ale, not dust.",
+    "Dust in the beard again.",
+    "Dry enough to crack stone.",
+    "Fetch me a mug, any mug.",
+    "Thirsty work, being out here."
+   ],
+   "Elf": [
+    "The trees thirst, and so do I.",
+    "A land without water has no song.",
+    "Dust, where there should be dew.",
+    "How crude, this dryness.",
+    "The streams have forgotten us.",
+    "I long for morning mist."
+   ]
+  },
+  "Cold": {
+   "Any": [
+    "My skin has turned to ice!",
+    "I must escape this frigid hellscape!",
+    "Brr! It's freezing!",
+    "I can't feel my toes.",
+    "My teeth won't stop chattering.",
+    "Where's a fire when you need one?",
+    "Cold, cold, cold!",
+    "I should've brought a thicker coat.",
+    "My nose is going to fall off.",
+    "This chill goes right to the bone.",
+    "Fire. Somebody light a fire.",
+    "Even my breath is shivering."
+   ],
+   "Cheerful": [
+    "Brr! Bracing, isn't it?",
+    "Cold cheeks, warm heart!",
+    "Nippy! Let's find a fire!",
+    "Ooh, frosty! Hot cocoa time!",
+    "Chilly, but what a view!",
+    "Hop about, keeps you warm!"
+   ],
+   "Grumpy": [
+    "Bah. Cold.",
+    "Freezing. Naturally.",
+    "Who left the winter open?",
+    "My knees hate this.",
+    "Cold again. Fantastic.",
+    "Fire. Now."
+   ],
+   "Timid": [
+    "S-s-so cold...",
+    "Oh no, my fingers...",
+    "Can I... sit by your fire?",
+    "Cold... cold... cold...",
+    "I'm f-freezing, sorry.",
+    "Please, somewhere warm..."
+   ],
+   "Proud": [
+    "Cold does not trouble me. Much.",
+    "I shiver only for effect.",
+    "A true hero ignores frost.",
+    "I will warm myself. By choice.",
+    "Winter knows my name.",
+    "This chill is unworthy of me."
+   ],
+   "Dramatic": [
+    "My skin has turned to ice!",
+    "I must escape this frigid hellscape!",
+    "I'm frozen! Frozen solid!",
+    "Winter has come for my soul!",
+    "Goodbye, toes! I loved you!",
+    "The cold! It has my heart!"
+   ],
+   "Ogre": [
+    "Bah. Fire. Now.",
+    "Ogre cold. Need fire.",
+    "Ice on ogre toes.",
+    "Cold bite ogre. Ogre bite back.",
+    "Ogre want big fire.",
+    "Brr. Ogre not like."
+   ],
+   "Goblin": [
+    "Oi! Me toes is froze!",
+    "Ugh. Freezin'.",
+    "Brrr, wot a nippy one.",
+    "Who left the cold on?",
+    "Gimme a fire, I'll nick it later!",
+    "Me ears is gonna snap off!"
+   ],
+   "BatFolk": [
+    "Cold... wrap the wings...",
+    "Huddle... we must huddle...",
+    "Too cold to fly...",
+    "Brr... wings stiff...",
+    "Cold stone... colder air...",
+    "Fold up... stay small..."
+   ],
+   "FishFolk": [
+    "Cold water I love. Cold air, no.",
+    "My fins have gone stiff.",
+    "The deep is warmer than this.",
+    "Ice on my scales. Unpleasant.",
+    "Back to the warm shallows.",
+    "Brr. My gills fog up."
+   ],
+   "Dwarf": [
+    "Cold? I've known colder halls.",
+    "Frost in me beard.",
+    "Get the forge lit, lads!",
+    "Cold enough to crack an axe.",
+    "Me bones want a fire.",
+    "Brr. Not even good stone keeps warm."
+   ],
+   "Elf": [
+    "The frost bites, even an elf.",
+    "The trees sleep. I envy them.",
+    "A cold without beauty.",
+    "Winter is ungracious today.",
+    "I shall abide this. Barely.",
+    "Fetch me a cloak. A fine one."
+   ]
+  },
+  "Rain": {
+   "Any": [
+    "Ugh, I'm soaked.",
+    "Not the rain again!",
+    "My socks are wet. Wonderful.",
+    "Somebody find me a roof.",
+    "Wet, wet, wet.",
+    "Rain down my collar. Lovely.",
+    "I'm drenched to the bone.",
+    "Should've stayed in bed.",
+    "Under a tree, quick!",
+    "This rain's not letting up.",
+    "Puddles everywhere.",
+    "I'll catch my death out here."
+   ],
+   "Cheerful": [
+    "Rain! Good for the crops!",
+    "Splish splash!",
+    "A bit of rain never hurt anyone!",
+    "Puddle jumping, anyone?",
+    "Fresh rain smell! Lovely!",
+    "Wet, but I'm still smiling!"
+   ],
+   "Grumpy": [
+    "Rain. Of course.",
+    "Wet. Again.",
+    "Bah. Soaked.",
+    "This is why I stay home.",
+    "Rain in my ear. Perfect.",
+    "Grumble grumble. Wet."
+   ],
+   "Timid": [
+    "Oh no, oh no, I'm wet.",
+    "Um, is it going to stop?",
+    "Eek! Cold drops!",
+    "Sorry, can I share your roof?",
+    "I'll just... hide over here.",
+    "Wet... everything's wet..."
+   ],
+   "Proud": [
+    "Rain dares to dampen me?",
+    "My cloak deserves better.",
+    "I shall stand dry, by will alone.",
+    "Weather like this is for lesser folk.",
+    "I'll take shelter. Graciously.",
+    "Mind the hair. The hair!"
+   ],
+   "Dramatic": [
+    "Drowning! I'm drowning on land!",
+    "Why, sky? Why me?",
+    "The heavens weep, and so do I!",
+    "Soaked! Ruined! Undone!",
+    "This is a tragedy!",
+    "My hair! My beautiful hair!"
+   ],
+   "Ogre": [
+    "Water fall on ogre. Why?",
+    "Ogre wet. Ogre stinky.",
+    "Rain. Ogre go under tree.",
+    "Wet ogre grumpy ogre.",
+    "Sky leak again.",
+    "Rain stop! Ogre say!"
+   ],
+   "Goblin": [
+    "Oi! I'm drippin'!",
+    "Ugh. Wet.",
+    "Wot's the sky cryin' for?",
+    "Rain, rain, go bother someone else!",
+    "Me pockets is full of water!",
+    "Soggy goblin, sad goblin."
+   ],
+   "BatFolk": [
+    "Wet wings... can't fly...",
+    "Drops in our ears...",
+    "Rain is so loud...",
+    "Hang under something... quickly...",
+    "Soggy fur... soggy fur...",
+    "The rain hurts our ears..."
+   ],
+   "FishFolk": [
+    "Rain! Finally, decent weather.",
+    "Ah, the sky remembers us.",
+    "Rain. Hmm. Could be wetter.",
+    "Land folk complain. I glisten.",
+    "A drizzle. How quaint.",
+    "Wet is how it should be."
+   ],
+   "Dwarf": [
+    "Rain rusts me axe.",
+    "Wet beard, bad temper.",
+    "Under stone, that's where I belong.",
+    "Rain. Pfah.",
+    "Me boots are filling up!",
+    "A roof, lads, a solid roof."
+   ],
+   "Elf": [
+    "The rain sings, but too loudly.",
+    "Even the leaves seek shelter.",
+    "My hair was not meant for this.",
+    "The forest drinks. I need not.",
+    "A tedious drizzle.",
+    "Under the boughs, where it's dry."
+   ]
+  },
+  "Snow": {
+   "Any": [
+    "Snow in my boots!",
+    "It's piling up fast.",
+    "I can barely see for snow.",
+    "My hands are numb.",
+    "Snowflakes down my back!",
+    "Where's a hearth?",
+    "Too much snow, too much!",
+    "I'm turning into a snowman.",
+    "My ears are frozen.",
+    "It just keeps coming down.",
+    "I'll be buried by supper.",
+    "Inside, before I freeze!"
+   ],
+   "Cheerful": [
+    "Snow! Snowball fight later!",
+    "Every flake's different, you know!",
+    "So pretty, so cold!",
+    "Snow angels after this!",
+    "Ooh, it's sticking!",
+    "Winter wonderland! Brr!"
+   ],
+   "Grumpy": [
+    "Bah. Fire. Now.",
+    "Snow. Who asked for snow?",
+    "Shovelling this tomorrow. Great.",
+    "Snow down my neck. Lovely.",
+    "Nobody likes snow. Nobody.",
+    "White. Cold. Wet. Bah."
+   ],
+   "Timid": [
+    "It's... it's still snowing...",
+    "Oh dear, I'll get lost in this.",
+    "C-cold... so much snow...",
+    "Please stop, please stop...",
+    "I can't see the path...",
+    "Is it safe? It doesn't feel safe."
+   ],
+   "Proud": [
+    "Snow becomes me.",
+    "I march through snow. Nobly.",
+    "I have seen deeper drifts.",
+    "Let the snow bow to me.",
+    "A dusting. A mere dusting.",
+    "Even frozen, I am magnificent."
+   ],
+   "Dramatic": [
+    "Buried alive! In snow!",
+    "I am a snowman now. Forever.",
+    "The white death approaches!",
+    "I'll never see spring again!",
+    "Snow! Endless, merciless snow!",
+    "Save me from this frozen doom!"
+   ],
+   "Ogre": [
+    "Bah. Fire. Now.",
+    "Snow cold. Ogre colder.",
+    "White stuff everywhere.",
+    "Ogre feet freeze.",
+    "Snow in ogre ears.",
+    "Ogre squash snow. Snow win."
+   ],
+   "Goblin": [
+    "Oi! Snow down me back!",
+    "Ugh. White stuff.",
+    "Who threw that? Oh. Sky did.",
+    "Me feet's gone numb!",
+    "Snow's for trolls, not me!",
+    "Wot, more of it?!"
+   ],
+   "BatFolk": [
+    "Snow... so bright and cold...",
+    "White everywhere... too much...",
+    "Cold flakes on the wings...",
+    "Snow muffles the echoes...",
+    "We can't hear our way...",
+    "Back down... back down..."
+   ],
+   "FishFolk": [
+    "Frozen water? An outrage.",
+    "Snow is just water being rude.",
+    "My gills hate the snow.",
+    "Cold flakes on warm scales.",
+    "The water's freezing over!",
+    "Snow. Dry water. Disgusting."
+   ],
+   "Dwarf": [
+    "Snow up to me knees. Which ain't far.",
+    "Snow's no match for dwarven boots.",
+    "Shovel. Somebody hand me a shovel.",
+    "Pfah. Snow.",
+    "Frozen beard, frozen soul.",
+    "Back to the hearth, sharpish."
+   ],
+   "Elf": [
+    "Snow muffles the forest's song.",
+    "Lovely, from indoors.",
+    "Cold silver on the branches.",
+    "I prefer my snow at a distance.",
+    "Even starlight would be warmer.",
+    "The world has gone pale and quiet."
+   ]
+  },
+  "Storm": {
+   "Any": [
+    "I can't handle this!",
+    "Run! Find cover!",
+    "Did you hear that thunder?",
+    "The sky's splitting open!",
+    "Get inside, quick!",
+    "That was close!",
+    "I'm not staying out in this.",
+    "Lightning! Down!",
+    "This storm's going to blow us away.",
+    "Hide! Hide!",
+    "Oh, that's a bad one.",
+    "Everybody under a roof!"
+   ],
+   "Cheerful": [
+    "Woo! What a racket!",
+    "Big storm! Better find a roof!",
+    "Thunder! Count the seconds!",
+    "Exciting, but let's go inside!",
+    "Wow, look at that flash!",
+    "Hold onto your hats, everyone!"
+   ],
+   "Grumpy": [
+    "Bah! Noise!",
+    "Thunder. Just what I needed.",
+    "Out of my way, I'm going in.",
+    "Storms. Always storms.",
+    "I've had enough of this sky.",
+    "Typical. Just typical."
+   ],
+   "Timid": [
+    "I can't handle this!",
+    "Eek! Thunder!",
+    "Make it stop, make it stop!",
+    "I'm scared... I'm scared...",
+    "Hide! Somewhere! Anywhere!",
+    "Oh no oh no oh no."
+   ],
+   "Proud": [
+    "The storm fears me. Slightly.",
+    "I retreat only tactically.",
+    "Thunder? I have heard louder.",
+    "I choose to go inside. Not flee.",
+    "Let the sky rage. I'll be indoors.",
+    "This storm is beneath my notice."
+   ],
+   "Dramatic": [
+    "I can't handle this!",
+    "The sky is falling!",
+    "We're doomed! Doomed!",
+    "The gods are angry!",
+    "Run for your lives!",
+    "This is the end of everything!"
+   ],
+   "Ogre": [
+    "Sky shout at ogre!",
+    "Boom! Ogre not like boom!",
+    "Ogre go cave. Now.",
+    "Sky fight ogre. Sky winning.",
+    "Big noise. Ogre hide.",
+    "Lightning hit ogre? No! Run!"
+   ],
+   "Goblin": [
+    "Oi oi oi! Run!",
+    "Wot was that bang?!",
+    "Ugh. Thunder. Leggit!",
+    "Not me! Strike someone else!",
+    "Everybody 'ide!",
+    "I ain't stayin' out in this!"
+   ],
+   "BatFolk": [
+    "Too loud! Too loud!",
+    "The thunder rattles the ears!",
+    "Flash! It hurts!",
+    "Down the hole! Now!",
+    "Echoes everywhere... can't think...",
+    "The sky screams..."
+   ],
+   "FishFolk": [
+    "The sea calls in storms like this.",
+    "Thunder over the waves. Dive!",
+    "Lightning and water don't mix.",
+    "Under the surface, quick!",
+    "This storm churns the shallows.",
+    "The tide's angry today."
+   ],
+   "Dwarf": [
+    "Under a mountain, now!",
+    "Thunder like a cave-in!",
+    "Lightning? Hide the axes!",
+    "Pfah. Sky's got no manners.",
+    "Into the hall, everyone!",
+    "I've heard louder hammers. Still. Inside."
+   ],
+   "Elf": [
+    "The sky has lost its temper.",
+    "Even the oldest trees bow to this.",
+    "Inside. I insist.",
+    "Thunder is so vulgar.",
+    "The storm has no respect for the old ways.",
+    "I shall wait this out beneath the eaves."
+   ]
+  },
+  "Bright": {
+   "Any": [
+    "Too bright! My eyes!",
+    "I can't see a thing in this glare.",
+    "Ow, the sun's in my eyes.",
+    "So bright it hurts.",
+    "Somebody dim that sun.",
+    "I'm squinting so hard my face aches.",
+    "Shade, please, any shade.",
+    "That glare is blinding.",
+    "Need a hat. Need a big hat.",
+    "Who turned the sky up so high?",
+    "My eyes are watering.",
+    "Spots. I'm seeing spots."
+   ],
+   "Cheerful": [
+    "Bright and beautiful! Ow.",
+    "Such a shiny day!",
+    "Sunshine! Bit much, though!",
+    "Gotta squint to smile!",
+    "The sky's glowing today!",
+    "Sunny! Where's my hat?"
+   ],
+   "Grumpy": [
+    "Too bright. Bah.",
+    "Somebody shut the sky.",
+    "Glare. Hate glare.",
+    "My eyes. My poor eyes.",
+    "Sun's showing off again.",
+    "Bah. Squinting."
+   ],
+   "Timid": [
+    "Too bright... too bright...",
+    "My eyes... it hurts...",
+    "Please, some shade...",
+    "Oh, I can't look up.",
+    "So bright... I'll hide.",
+    "Um... could the sun go away?"
+   ],
+   "Proud": [
+    "The sun envies my radiance.",
+    "I squint only for drama.",
+    "Such glare. Almost as bright as me.",
+    "I'll shade my eyes. Elegantly.",
+    "Even the sun must share the stage.",
+    "Bright, yes. Brilliant, no."
+   ],
+   "Dramatic": [
+    "Blinded! I'm blinded!",
+    "The light! It burns my soul!",
+    "Oh, the searing glare!",
+    "I'll never see again!",
+    "The sun is attacking me!",
+    "Too much light! Too much!"
+   ],
+   "Ogre": [
+    "Sun poke ogre eyes.",
+    "Too shiny. Ogre squint.",
+    "Bright hurt. Ogre go dark.",
+    "Ogre not like sun.",
+    "Eyes burn. Ogre grumpy.",
+    "Sun go away. Ogre say."
+   ],
+   "Goblin": [
+    "Oi! Me eyes!",
+    "Ugh. Too shiny.",
+    "Wot's the sun wavin' at?",
+    "Can't see nuffin'!",
+    "Me eyes is for dark, not this!",
+    "Sun's a bully, it is."
+   ],
+   "BatFolk": [
+    "Too bright... too bright...",
+    "The light... it stabs...",
+    "Close the eyes... close them...",
+    "Dark... we need the dark...",
+    "Sun... go away... please...",
+    "So much light... where's the shadow?"
+   ],
+   "FishFolk": [
+    "The sun sears my scales.",
+    "Too bright. The deep is kinder.",
+    "My eyes are for murky water.",
+    "Glare off the water. Blinding.",
+    "I need the shade of the reef.",
+    "Bright light is for land folk."
+   ],
+   "Dwarf": [
+    "Too much light for a miner.",
+    "Me eyes are for lantern light.",
+    "Squinting like a mole.",
+    "Sun's brighter than molten gold.",
+    "Pfah. Shade.",
+    "Bright as a fresh-cut gem, and twice as rude."
+   ],
+   "Elf": [
+    "The sun is quite immodest today.",
+    "Such glare. Uncouth.",
+    "I prefer the dappled light of leaves.",
+    "Too bright for reflection.",
+    "Shade, please. The ancient kind.",
+    "Even my eyes need rest."
+   ]
+  },
+  "Wind": {
+   "Any": [
+    "Hold onto your hat!",
+    "This wind's going to knock me over.",
+    "Whoa! Nearly lost my footing.",
+    "My hair's in my mouth.",
+    "The wind's howling today.",
+    "I can't hear myself think.",
+    "It's blowing right through me.",
+    "Gah! Grit in my eye.",
+    "Somebody tie me down.",
+    "Windy enough to fly a cow.",
+    "Behind a wall, quick.",
+    "That gust nearly took me."
+   ],
+   "Cheerful": [
+    "Wheee! Windy!",
+    "Feels like I could fly!",
+    "Kite weather!",
+    "Breezy! My hair's a mess!",
+    "The wind's dancing today!",
+    "Woo! That one tickled!"
+   ],
+   "Grumpy": [
+    "Stupid wind.",
+    "Bah. Blown about.",
+    "Wind took my hat. Again.",
+    "Gusts. Hate gusts.",
+    "Stop pushing me, wind.",
+    "Windy. Cold. Bah."
+   ],
+   "Timid": [
+    "Eek! It's pulling me!",
+    "Oh no, I'll blow away!",
+    "Hold me down, please!",
+    "So loud... the wind...",
+    "I don't like this wind.",
+    "Help, my hat!"
+   ],
+   "Proud": [
+    "The wind dares to ruffle me?",
+    "My cape billows heroically.",
+    "Not even a gale can bend me.",
+    "I lean into it. Proudly.",
+    "Wind, you shall not have my hat.",
+    "A mere breeze for one such as I."
+   ],
+   "Dramatic": [
+    "I'm being carried away!",
+    "The wind wants me dead!",
+    "Farewell! I'll be blown to sea!",
+    "Hold me! Never let go!",
+    "This gale will tear me apart!",
+    "Oh, the howling! The howling!"
+   ],
+   "Ogre": [
+    "Wind push ogre? Nobody push ogre.",
+    "Wind loud. Ogre louder.",
+    "Ogre hair blow.",
+    "Wind stupid.",
+    "Wind steal ogre lunch.",
+    "Ogre lean on wind. Wind lean back."
+   ],
+   "Goblin": [
+    "Oi! Gimme back me 'at!",
+    "Ugh. Windy.",
+    "Wind's tryin' to nick me!",
+    "Wot, I'm flyin' now?",
+    "Hold on to yer loot!",
+    "Blow off, wind!"
+   ],
+   "BatFolk": [
+    "Wind tangles our wings...",
+    "Can't hang still...",
+    "The wind whistles in our ears...",
+    "Blown off the perch...",
+    "Hold the rock... hold tight...",
+    "Too gusty to glide..."
+   ],
+   "FishFolk": [
+    "The wind dries my gills.",
+    "Wind is just rude water.",
+    "Waves are nicer than this.",
+    "This gust stings my scales.",
+    "I'd rather swim against a current.",
+    "Wind, take your dry air elsewhere."
+   ],
+   "Dwarf": [
+    "Wind in me beard!",
+    "Can't knock a dwarf over. Can try.",
+    "Gusts! Hold your hats!",
+    "Pfah. Draughty.",
+    "Wind's for sailors.",
+    "Stone walls, that's the cure for wind."
+   ],
+   "Elf": [
+    "The wind tangles my hair.",
+    "The trees whisper complaints.",
+    "A rude wind, this.",
+    "The leaves are scattering.",
+    "I shall stand in the lee.",
+    "The wind carries no song today."
+   ]
+  },
+  "Relief": {
+   "Any": [
+    "Ahh, that's the stuff.",
+    "Much better.",
+    "Oh, thank goodness.",
+    "Finally, some shelter.",
+    "Phew. Safe and dry.",
+    "I can breathe again.",
+    "Now this is comfortable.",
+    "I'm staying right here.",
+    "That's more like it.",
+    "Let it do its worst now.",
+    "Sweet relief.",
+    "Home sweet shelter."
+   ],
+   "Cheerful": [
+    "Ahh, cosy!",
+    "Snug as a bug!",
+    "Perfect! Just perfect!",
+    "Now that's a nice spot!",
+    "Look at us, all comfy!",
+    "Best seat in the house!"
+   ],
+   "Grumpy": [
+    "Hmph. Better.",
+    "About time.",
+    "Fine. This'll do.",
+    "Don't talk to me. I'm resting.",
+    "Finally. Quiet.",
+    "Hmph. Dry."
+   ],
+   "Timid": [
+    "Oh... oh, that's better.",
+    "Safe... I'm safe.",
+    "Phew... thank you, roof.",
+    "I'll stay here. Quietly.",
+    "Oh good, oh good.",
+    "Much better... much better..."
+   ],
+   "Proud": [
+    "Shelter, worthy of me.",
+    "Yes. This will do nicely.",
+    "I approve of this roof.",
+    "Comfort, as I deserve.",
+    "A fine retreat. Well chosen, me.",
+    "Now I may look dignified again."
+   ],
+   "Dramatic": [
+    "Saved! I'm saved!",
+    "Oh, blessed shelter!",
+    "I live! I LIVE!",
+    "Shelter! Sweet, sweet shelter!",
+    "Never again will I go out!",
+    "Rescued from the jaws of doom!"
+   ],
+   "Ogre": [
+    "Ahh. Ogre happy now.",
+    "Warm. Good. Ogre stay.",
+    "Fire good. Fire friend.",
+    "Ogre comfy.",
+    "Mmm. Ogre nap here.",
+    "Better. Ogre not smash."
+   ],
+   "Goblin": [
+    "Oi, this is nice.",
+    "Heh. Cosy.",
+    "Bagsy this spot!",
+    "Ahh. Me bones say fanks.",
+    "Not budgin'. Mine now.",
+    "Heh heh. Dry as a bone."
+   ],
+   "BatFolk": [
+    "Ahh... dark and cool...",
+    "Quiet... finally quiet...",
+    "Hang here... rest here...",
+    "Shadows... lovely shadows...",
+    "Better... much better...",
+    "Safe in the dark..."
+   ],
+   "FishFolk": [
+    "Ahh, water. Home.",
+    "Finally, my gills breathe.",
+    "Back where I belong.",
+    "Cool, wet, perfect.",
+    "My scales thank you.",
+    "Now this is proper weather."
+   ],
+   "Dwarf": [
+    "Ahh. Solid roof.",
+    "Now that's proper stonework.",
+    "Warm hearth, warm heart.",
+    "Better. Pour me an ale.",
+    "Good. Sturdy. Dry.",
+    "Like home under the mountain."
+   ],
+   "Elf": [
+    "Ahh, the old trees shelter us.",
+    "Calm, at last.",
+    "This will suffice.",
+    "The forest welcomes us back.",
+    "Peace, beneath the boughs.",
+    "Graceful, and dry."
+   ]
+  }
+ }
+}
