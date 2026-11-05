@@ -2,6 +2,14 @@
 
 Newest first.
 
+## 2026-11-04 batch A-68 (PARTIAL, paused for Zach's test build): row 1 done, rows 2 and 3 left
+- DONE row 1 #132: exact wall-check skips in FloraPlacement.Blocked (prop spot beyond its walls' reach) and dock lane / wharf distance (dock whose slid stretch is past the caller's limit skips its DockShore walk) (animal-behaviours 3d66652). v2 fishing village 3 (-2883,-2121, noon, 121-126 creatures, editor uncapped): brain ms 4.92 -> 3.29, advance 4.05 -> 2.72, solids 3.62 -> 2.49, frame 11.6 -> 9.7 ms (about 86 -> 102 fps). `-oldwalls` = old path for A/B. Commented on #132.
+- Fingerprint: code-only skips with the same answers; run printed C1D6A1EA (not 8726AADB) only because the row 2 BatFolk.asset edit was imported in the editor.
+- LEFT row 2 #35: BatFolk.asset (hair caps removed, ears x1.4 and re-socketed, coats x1.35) and LightNear (hearth/camp fire or a torch/lantern carrier within 4 m) are on disk in the animal tree, uncommitted and not yet shot.
+- LEFT row 3 #35: pygmies back into the bat folk chamber with shared Decide entries and anchor-name hooks (not started).
+- White circle in the building-walk test: not found in my editor; my A-68 runs took no shots (the shot dir was missing), so I could not check it. Probably another lane's test setup; still open.
+- Weak: fps measured in the editor, not the build bench; solids still about 2.5 ms in that village (settlement-plot Place in BuildingSink). Editor closed.
+
 ## 2026-11-02 batch A-42: skunk flee gas, goblin arms halfway in, lying legs fold above ground; gas not visible in the shots yet
 - DONE: skunk puffs green gas on each flee start plus a 2.5 s wind trail, 10 s cooldown, one pooled system, no network fields (animal-behaviours 237d226)
 - DONE: goblin arms pulled about halfway to neutral (HumanArm direction 180 -> 155 on Goblin.asset): shoulder back-angle idle 58.7 -> 33.7 deg, walk mean 54.1 -> 29.2 deg (range 27.2..81.0 -> 2.6..56.1). Human unchanged (8.7 / 8.9).

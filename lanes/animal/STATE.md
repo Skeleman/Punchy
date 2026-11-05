@@ -3,6 +3,9 @@
 Worktree `Punchy` (animal lane only). `animal-behaviours` = origin/main 6f139d0 merged + c0277c9 (A-67 bat folk), pushed.
 Fauna fingerprint 8726AADB on branch (115 species); main D0B9488A.
 
+## A-68 (paused)
+- Row 1 #132 done (3d66652): brain 4.92 -> 3.29 ms at v2 fishing village 3. Rows 2 (BatFolk.asset + LightNear, uncommitted on disk) and 3 (pygmies back with bat folk) left.
+
 ## A-67
 - #35: BatFolk species in the bat folk chambers (1 chamber, 6 folk); hammock/goggle peg posts; `ShunsLight` -> Shield
   entry (player within 6 m underground), `SurfaceTrips` -> Surface entry with goggles by day. Pygmies moved to the largest
