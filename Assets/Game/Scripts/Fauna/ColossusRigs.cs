@@ -9,7 +9,7 @@ namespace Punchy.Fauna
     /// Only the awake walker (the one nearest the camera) is animated; the others keep the pose StoneColossi built them in.
     /// <para>
     /// StoneColossi builds each one as a single baked mesh (or, for the golem, loose rocks), and nothing here changes how
-    /// it is built. The saguaro and the tortoise get a skinned copy of their body mesh with a few bones, weighted from
+    /// it is built. The saguaro and the two tortoises get a skinned copy of their body mesh with a few bones, weighted from
     /// where each vertex sits; the copy is shown instead of the baked mesh only while the walker is awake. The golem's
     /// rocks are already separate, so its rig just nudges them on top of <see cref="GolemArcs"/>' bob each frame.
     /// </para>
@@ -32,6 +32,7 @@ namespace Punchy.Fauna
                 StoneColossi.Kind.WalkingSaguaro => new SaguaroRig(root),
                 StoneColossi.Kind.RockGolem => new GolemRig(root),
                 StoneColossi.Kind.GiantTortoise => new TortoiseRig(root),
+                StoneColossi.Kind.MesaTortoise => new MesaTortoiseRig(root),
                 _ => null,
             };
             return rig != null && rig.Ready ? rig : null;
@@ -506,6 +507,110 @@ namespace Punchy.Fauna
             {
                 mushrooms.localPosition = mushroomsAt + Vector3.up * (breath - Sink * settle);
                 mushrooms.localRotation = shell.localRotation;
+            }
+        }
+    }
+
+    /// <summary>
+    /// A-75 row 2 (#40): the mesa tortoise. Its strata shell rocks slowly side to side, the four stubby legs step in
+    /// diagonal pairs, and the head, which rests on the ground under the overhang, lifts a little while it walks and
+    /// sinks back down at rest. The talus skirt round its feet would only be dragged along, so it slides under the ground
+    /// while the tortoise walks and pushes back up once it has settled (a fresh scree where it stopped). The scrub, cacti
+    /// and cairn on top ride the shell.
+    /// </summary>
+    sealed class MesaTortoiseRig : ColossusRig
+    {
+        const float Sink = 1.6f, TalusDown = 3f;
+        static readonly Vector3 ShellAt = new Vector3(0f, 6.5f, 0f), NeckAt = new Vector3(0f, 6f, 17f);
+
+        readonly MeshRenderer baked;
+        readonly SkinnedMeshRenderer skinned;
+        readonly Transform shell, head, talus, scrub;
+        readonly Transform[] legs = new Transform[4];
+        readonly Vector3 scrubAt;
+
+        protected override bool Ready => skinned != null;
+
+        public MesaTortoiseRig(Transform root) : base(root)
+        {
+            var body = root.Find("Body");
+            var filter = body != null ? body.GetComponent<MeshFilter>() : null;
+            if (filter == null || filter.sharedMesh == null || !filter.sharedMesh.isReadable)
+                return;
+            baked = body.GetComponent<MeshRenderer>();
+            var mesh = filter.sharedMesh;
+            var v = mesh.vertices;
+            var rig = Bone("Rig", root, Vector3.zero);
+            shell = Bone("Shell", rig, ShellAt);
+            head = Bone("Neck", shell, NeckAt - ShellAt);
+            talus = Bone("Talus", rig, Vector3.zero);
+            var bones = new List<Transform> { rig, shell, head, talus };
+            for (int k = 0; k < 4; k++)
+            {
+                float sx = k % 2 == 0 ? -1f : 1f, sz = k < 2 ? 1f : -1f;   // as BuildMesaTortoise: 0 front left .. 3 back right
+                legs[k] = Bone("Leg" + k, rig, new Vector3(sx * 11f, 6.5f, sz * 11f));
+                bones.Add(legs[k]);
+            }
+            var weights = new BoneWeight[v.Length];
+            for (int i = 0; i < v.Length; i++)
+            {
+                var p = v[i];
+                var ring = (p.x / 18f) * (p.x / 18f) + (p.z / 21f) * (p.z / 21f);
+                // The nearest foot (as built: front right a step forward) and how far from it.
+                var k = (p.x < 0f ? 0 : 1) + (p.z > 0f ? 0 : 2);
+                var footAt = new Vector2(k % 2 == 0 ? -14.5f : 14.5f, k < 2 ? 14f + (k == 1 ? 2.5f : 0f) : -14f);
+                var nearFoot = Vector2.Distance(new Vector2(p.x, p.z), footAt) < 7.5f;
+                var neck = p.z > 23f || (p.z > 19.5f && p.y < 6.5f && math.abs(p.x) < 7f);
+                if (p.x < -17f && p.z < -8f && p.z > -19f && p.y < 7.5f && !nearFoot)
+                    weights[i] = Weigh(6, 6, 0f);                                                       // the fallen slab leans on the back left foot
+                else if (neck)
+                    weights[i] = Weigh(1, 2, p.z > 23f ? 1f : math.smoothstep(19.5f, 23f, p.z));
+                else if (nearFoot && p.y < 5.2f)
+                    weights[i] = Weigh(1, 4 + k, 1f - math.smoothstep(4f, 5.2f, p.y));
+                else if (ring > 1.08f && p.y < 3f)
+                    weights[i] = Weigh(3, 3, 0f);                                                       // talus
+                else
+                    weights[i] = Weigh(1, 1, 0f);
+            }
+            skinned = Skin(body, mesh, bones.ToArray(), weights);
+            scrub = root.Find("Scrub");
+            if (scrub != null)
+                scrubAt = scrub.localPosition;
+            Debug.Log($"ColossusRig: mesa tortoise skinned ({v.Length} verts)");
+        }
+
+        protected override void Show(bool animated)
+        {
+            Swap(baked, skinned, animated);
+            if (scrub != null && !animated)
+            {
+                scrub.localPosition = scrubAt;
+                scrub.localRotation = Quaternion.identity;
+            }
+        }
+
+        protected override void Pose(float pace, float stride, float settle, float t)
+        {
+            var phase = math.PI * stride;
+            var breath = 0.1f * settle * math.sin(t * 0.5f);
+            var rise = Vector3.up * (breath - Sink * settle);
+            shell.localPosition = ShellAt + rise;
+            shell.localRotation = Quaternion.Euler(0.6f * pace * math.sin(2f * phase), 0f, 1.5f * pace * math.sin(phase));
+            // The head lifts off the ground to walk, nods with each step, rests at the halt and looks slowly about.
+            head.localRotation = Quaternion.Euler(-7f * pace + 2.5f * pace * math.sin(2f * phase) + 2f * settle,
+                                                  5f * math.sin(t * 0.11f) * (1f - math.saturate(math.abs(Look) / 10f)) + Look, 0f);
+            // The scree slides under while it walks and is back, fresh, once it has settled.
+            talus.localPosition = Vector3.down * (TalusDown * (1f - settle));
+            for (int k = 0; k < 4; k++)
+            {
+                var leg = phase + (k == 0 || k == 3 ? 0f : math.PI);
+                legs[k].localRotation = Quaternion.Euler(10f * pace * math.sin(leg), 0f, 0f);
+                legs[k].localPosition = new Vector3(k % 2 == 0 ? -11f : 11f, 6.5f + 0.7f * pace * math.max(0f, math.cos(leg)), k < 2 ? 11f : -11f);
+            }
+            if (scrub != null)
+            {
+                scrub.localPosition = scrubAt + rise;
+                scrub.localRotation = shell.localRotation;
             }
         }
     }
