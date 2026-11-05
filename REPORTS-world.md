@@ -2562,3 +2562,13 @@ Profiler job 33:
 3. Cache: done (above). Its shadow pass matches cheap; the full-screen apply isn't split out in GpuSpy.
 
 Shots are in the world tree under Assets/Temp/shots (not committed): w107_forest3/4_*, w107_forest4_cache_true, w107_cache_sun_*.
+
+## W-106 row 2 (#40) mesa rock tortoise (world-features, commit after 3b41973)
+
+New colossus `MesaTortoise` (ninth slot, MesaCanyonlands, own salt so the other eight keep their spots). On v3 it stands at
+(2026, 142, 1344). Shots (world tree Assets/Temp/shots): w106_tortoise_far (reads as a small banded mesa among the
+canyon buttes), w106_tortoise_near (head with lidded eye and toes under the strata, talus at the foot).
+Landmark hash: the colossi aren't landmarks, so Landmarks_V3 should stay at 110 09EAC0FE; the final suite run checks it
+(and Fauna_Fingerprint 61459BF0), and I'll report it in my hand-back.
+Row 3 (#70 Electric rock chunks held still as stepping stones) is applied in the working tree but not verified or committed:
+out of budget. Row 4 and the buoy perches have not been started.
