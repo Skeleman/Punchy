@@ -2418,3 +2418,11 @@ The gaps are GlassDesert, SparklingForest, EmberForest/Volcano and FoggyMarsh. T
    - Cost: medium. It is a walker with a day/night state (it reads the same clock that A-75 row 1 feeds to comfort) and an emissive pod material. The rig is about two times the tortoise's, because of the four long legs and the neck.
 
 Runner-up: give the DrownedKnight its own slot in FoggyMarsh, rising slowly from the water at dusk. It is the cheapest, because BuildKnight already exists, but a new slot is placement work, so it needs the world lane and a warning first.
+
+## A-75 extra (gulls on the wharf buoy masts) - done (verified)
+
+- Merged origin/main into animal-behaviours (4c6bded). It brings #158, #159 and the PlayerPlaced fix in DebugControls, taken as is. No TestHooks calls remain outside Editor/ and Tests/, and the scripts compile clean in the editor.
+- Commit 27647f1. The WharfSpots perch filter now also accepts a short post that starts above -0.3 and tops out under Deck + 0.2 (the buoy masts, bottom about 0.15). Piles reach deep below and stay out. The startup log now says "gulls 61 (7 on buoy masts)".
+- Shot: g-mast2, a gull on a buoy mast at (408.6, 1.2, -605.2).
+- Risk for the world lane: in that shot the buoy floats right beside a stilt house's piles. The buoys "off the far end" can land under neighbouring stilt houses.
+- Suite: 13 passed, 0 failed. Fauna_Fingerprint F4E66093, unchanged: the A-75 changes are behaviour, a walker and spot code, with no species or creature data. Landmarks 110 09EAC0FE, unchanged.
