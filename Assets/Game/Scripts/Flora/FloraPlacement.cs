@@ -1358,6 +1358,9 @@ namespace Punchy.Flora
         /// <summary>Four more circles for colossi past the fourth (W-85 drowned knight).</summary>
         public static readonly SharedStatic<float4x4> KeepOutMore = SharedStatic<float4x4>.GetOrCreate<KeepOutCirclesMore>();
         class KeepOutCirclesMore { }
+        /// <summary>Four more circles for colossi past the eighth (W-106 mesa tortoise).</summary>
+        public static readonly SharedStatic<float4x4> KeepOutLast = SharedStatic<float4x4>.GetOrCreate<KeepOutCirclesLast>();
+        class KeepOutCirclesLast { }
         /// <summary>#132: 1 turns Blocked's wall-reach skip off (DebugControls "-oldwalls"), for A/B timing.</summary>
         public static readonly SharedStatic<int> OldWalls = SharedStatic<int>.GetOrCreate<OldWallsKey>();
         class OldWallsKey { }
@@ -1376,6 +1379,10 @@ namespace Punchy.Flora
             var keepMore = KeepOutMore.Data;
             for (int k = 0; k < 4; k++)
                 if (keepMore[k].w > 0f && math.distancesq(xz, keepMore[k].xy) < keepMore[k].z * keepMore[k].z)
+                    return none;
+            var keepLast = KeepOutLast.Data;
+            for (int k = 0; k < 4; k++)
+                if (keepLast[k].w > 0f && math.distancesq(xz, keepLast[k].xy) < keepLast[k].z * keepLast[k].z)
                     return none;
             var roll = rng.NextFloat();
             var area = cellSize * cellSize / 100f;
