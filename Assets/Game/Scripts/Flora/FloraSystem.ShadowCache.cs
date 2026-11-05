@@ -6,7 +6,7 @@ using UnityEngine.Rendering;
 namespace Punchy.Flora
 {
     /// <summary>
-    /// W-107 (FloraShadowOptions.CachedFarShadows, off by default): cached far-tree shadows. While on, trees cast in
+    /// W-107 (FloraShadowOptions.CachedFarShadows, on by default): cached far-tree shadows. While on, trees cast in
     /// the real-time cascades only inside NearRange; the trees between there and CacheRange are drawn from the sun
     /// (orthographic, the Flora shader's FloraCache pass) into a float texture that keeps, per texel, how far along the
     /// sunlight the nearest tree is. The cache is redrawn only when the sun has turned CacheSunDegrees or the camera
