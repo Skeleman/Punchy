@@ -1984,3 +1984,19 @@ Calls used: about 110 (over budget).
 - CaveFolk now puts bat folk at their BatFolkHomes pods and pygmies at their niches. `-place batfolk` already used those spots. It now keeps retrying until the homes exist; before this fix it fired too early and logged "no bat folk chamber with a pod". `-rockwatch` starts counting from that placement.
 - Log for `-island v3 -place batfolk -rockwatch 300` (chamber 0 in cave 5, pod door at -2668,11,-601): `[rockwatch] DONE 301 checks over 300 s: up to 8 cave dwellers near, 0 in-rock samples, 0 creatures ever in rock`.
 - No shot: the card asked for a logged count. Fingerprint: see the suite result in the hand-back.
+
+## A-70 row 1: building solids baked once per settlement (done, verified) - c563b6c
+- **What:** a new FootprintBakeJob runs on a worker before the brain. It places each settlement plot's building and each landmark's walled props once, when a player first comes near. `BuildingFootprints.Blocked` then reads those placements instead of re-placing the buildings (FloraPlacement.Place) on every check. The answers are identical: `-footprintcheck` found 0 disagreements in 916k checks across fv3, the village and fv1. `-oldfootprints` switches back to the old path for A/B runs.
+- **Read stays in BrainJob:** the wall checks are interleaved with KeepOutOfSolids' step decisions, so they can't be pulled out into a separate pass without changing behaviour. Only the bake is separate.
+- **Before/after, uncapped, ms per frame, two runs each:**
+
+  | Spot | Brain.Built | Brain | Frame | BrainJob wall |
+  |---|---|---|---|---|
+  | fv3 | 2.45 / 2.50 -> 0.011 / 0.010 | 3.28 -> 0.80 | 8.27 -> 6.45 | 2.91 -> 0.45 |
+  | meadow | 0.003 -> 0.003 | 0.98 -> 1.13 (noise) | 5.72 -> 5.64 | 0.40 -> 0.39 |
+
+- **2 minutes at fv3 with `-solidstats`:** hidden >0.15 m went from about 9-12k ticks a minute to 0 / 0 ticks, max sink 0.00 m. Two cases caused the old count, and both were already there before this row:
+  - A mouse or frog critter was drawn on a CritterSpot 0.3 m inside a house wall and sat there all visit. Fixed in AmbientLife.CritterSpots, which now skips mouse and frog spots that FloraPlacement.Blocked rejects.
+  - A songbird resting 8 m up over a house footprint was counted as inside it. The stat now ignores creatures more than 2 m above the ground for building sinks.
+- **World lane:** FloraPlacement.cs got small additive helpers (WallReachOf, InsideWalls), and Blocked itself behaves the same.
+- **Fingerprint:** the critter-spot filter may move it. Suite result is in the hand-back. No shot (the row asks for numbers).
