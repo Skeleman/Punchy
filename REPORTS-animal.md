@@ -2015,3 +2015,23 @@ Calls used: about 110 (over budget).
 - Wall time is down 2-3x. The summed brain ms goes up a little (fv3 0.80 -> 0.75-1.12) because of lookup access and more workers starting up.
 - Spread stays around 2x at fv3: the slowest batch holds the expensive near-player creatures. Frame time moves within noise, since the brain was not the critical path after row 1.
 - Behaviour: suite and fingerprint are run before the hand-back. No shot.
+
+## A-70 row 3: sync points (done, verified) - 940428b
+- CreatureSnapshotSystem no longer copies on the main thread. It schedules one Burst CopyJob (states, bodies, entities) chained on the brain's handle, first in the presentation group.
+- CreatureRenderSystem culls from this frame's copy behind that handle, so its own three copies are gone.
+- The stale-tolerant readers (audio, breath, burrows, wakes, folk talk, traces and the mantraps, which now use the snapshot too) read last frame's finished copy (the double buffer), so they never wait.
+- HeldPose skips the creature pass when nothing was held or carried in the last copy (a pickup flags it). When it does move anyone, the renderer copies its own that frame.
+- `-syncsnapshot` restores the old path for A/B runs. `-perflog` now logs copies per frame and the main-thread brain wait.
+- **Finding:** the 4.2 ms main-thread wait was already gone after rows 1 and 2. The brain job's wall time is now about 0.17 ms, so the wait is about 0.03 ms either way. What this row removes is the main-thread copying.
+- **Uncapped, two runs each, sync (before) -> new (after):**
+
+  | Spot | Frame ms | Copies/frame | Main-thread copy ms/frame | Brain wait ms/frame |
+  |---|---|---|---|---|
+  | fv3 | 7.27 / 7.41 -> 7.38 / 7.23 | 6.2 -> 3.0 (one job) | 0.015 -> 0.000 | 0.034 -> 0.032 |
+  | meadow | 6.26 / 6.37 -> 6.40 / 6.34 | 6.2 -> 3.0 (one job) | 0.015 -> 0.000 | 0.033 -> 0.034 |
+
+- Frame time stays within noise. In sync mode the old renderer copies plus Mantrap's are counted, so 6.2 is the "4 a frame" from the card as measured here.
+- **Caveats:**
+  - A pickup replicated to a client shows a frame later (it only appears in the next copy).
+  - Stale readers can name entities gone since last frame. They only use them as keys or via Exists/HasComponent checks.
+- No exceptions in either mode. Suite and fingerprint are run before the hand-back.
