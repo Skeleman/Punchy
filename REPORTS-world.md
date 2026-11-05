@@ -2156,3 +2156,9 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
 - Commit a8c459d. The water shader adds a falling-sheet look on steep, flowing faces (smoothstep on the face normal's y, 0.8 down to 0.45), with streaks scrolling at 5.5 m/s. The overlay curtain is no longer drawn; the emitter stays for sound only, and plumes are kept.
 - Shot: gallery/w98-fall-after.png (fall 61, 24.5 m drop, lip -301.5,113.7,2591.6). The whole face is streaked water, with no river showing through.
 - Risk: the falling look keys on the shading slope, so any steep rapid (more than about 37 degrees) gets streaks too. Re-importing the shader in play mode left the water half-broken until play was restarted.
+
+## W-98 row 3 (#83): river sources and stepped pools - done (partly verified)
+- Commit 0c0e0a3 (see the git log). River heads outside a lake carve a spring pool (width max(2.2x river, 5 m), depth 1.3x) just upstream. In landmark stepped pools, a lower pool can't cut below a higher pool's level plus 0.25 m within 1.15-1.4 r of it.
+- Hashes: landmarks 108 / 4D2643D7 -> **107 / 14D92F64**. One landmark loses its spot to the new pools, so Landmarks_V3 in WorldTests needs the new target if this is accepted.
+- Shot: gallery/w98-head-after.png (river head at -1617,1506 beside a pond). The river now leaves a basin.
+- Weak point: the card's spots don't match this tree's v3 island. At 176,-253 the ground is 123 m (the card says 43.1), and at -2389,1740 it is 146 m (the card says 116.8). Neither is in a cave and there is no water or landmark there. So the card's spots weren't shot, and the stepped-pool containment has no shot.
