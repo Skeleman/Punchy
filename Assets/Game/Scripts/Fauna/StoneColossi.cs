@@ -40,6 +40,13 @@ namespace Punchy.Fauna
         /// <summary>Where each slot's colossus stands (NaN until placed), for probes and shot lists.</summary>
         public static readonly float3[] Positions = { new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN) };
 
+        /// <summary>A-72 hook: the seeded spot each slot was placed on (NaN until placed). <see cref="Positions"/> follows
+        /// a colossus that walks (<see cref="ColossusWalker"/>); this keeps the spot its loop is centred on.</summary>
+        public static readonly float3[] Spots = { new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN) };
+
+        /// <summary>A-72 hook: the root a slot's colossus was built under (null until placed), for <see cref="ColossusWalker"/>.</summary>
+        public Transform Root(int slot) => roots[slot];
+
         const float Step = 150f;
         /// <summary>The biomes each kind looks for, by <see cref="Kind"/>.</summary>
         static readonly string[][] Biomes =
@@ -84,6 +91,8 @@ namespace Punchy.Fauna
 
         readonly Transform[] roots = new Transform[Kinds];
         readonly FarShadow[] shadows = new FarShadow[Kinds + 1];
+        // A-72 hook: where each far shadow was last laid, so a walking colossus gets a fresh strip once it has moved.
+        readonly float3[] laidAt = new float3[Kinds + 1];
         bool placed;
         float nextTry;
 
@@ -137,6 +146,14 @@ namespace Punchy.Fauna
                 var at = k < Kinds ? Positions[k] : DunesColossus.Position;
                 if (k < Kinds ? roots[k] == null : math.all(at == 0f))
                     continue;
+                // A-72 hook: the strip only re-lays when the sun moves, so one left 10 m behind a walker is laid anew.
+                if (shadows[k] != null && math.distancesq(laidAt[k].xz, ((float3)at).xz) > 100f)
+                {
+                    shadows[k].Dispose();
+                    shadows[k] = null;
+                }
+                if (shadows[k] == null)
+                    laidAt[k] = at;
                 shadows[k] ??= new FarShadow(k < Kinds ? $"{Placed[k]} far shadow" : "DunesColossus far shadow");
                 // W-91 (#40): the carnivorous plant is a quarter of its old height now (about 11 m, 8 m across).
                 var cast = k < Kinds && Placed[k] == Kind.CarnivorousPlant ? new float2(11f, 8f) : Casts[k];
@@ -203,6 +220,7 @@ namespace Punchy.Fauna
                 }
                 var ground = source.SampleHeight(spot);
                 Positions[kind] = new float3(spot.x, ground, spot.y);
+                Spots[kind] = Positions[kind];
                 // Keep flora out of a circle round it and re-place the streamed tiles, so no tree grows through it (#40).
                 // The head's circle is wide enough (W-59d) to leave a clear sight line from about 40 m away.
                 // Kinds past the fourth go in a second static (W-85): a live editor can't resize one it already made.

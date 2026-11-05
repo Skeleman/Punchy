@@ -69,6 +69,15 @@ namespace Punchy.Fauna
         // (Key renamed when the struct grew in A-47: a SharedStatic keeps its first size until the editor restarts.)
         struct SearchCountsKey2 { }
         public struct SearchCounts { public long Predator, Alarm, Chat, PredatorFlee, AlarmFlee, PlayerFlee, Thinks, LodSkips; }
+        /// <summary>
+        /// A-72: the walking colossi (<see cref="ColossusWalker"/>), one column each: (x, z, radius m, heading radians);
+        /// radius 0 is an empty column. Creatures inside a circle get out of the way (A-72 row 2).
+        /// </summary>
+        public static readonly Unity.Burst.SharedStatic<float4x4> ColossusZones = Unity.Burst.SharedStatic<float4x4>.GetOrCreate<ColossusZonesKey>();
+        struct ColossusZonesKey { }
+        /// <summary>A-72 counter for -walkerlog: flees started by a walking colossus.</summary>
+        public static readonly Unity.Burst.SharedStatic<long> ColossusFlees = Unity.Burst.SharedStatic<long>.GetOrCreate<ColossusFleesKey>();
+        struct ColossusFleesKey { }
         /// <summary>#59 A/B switch ("-nobrainlod"): every creature thinks every frame, however far from a player.</summary>
         public static readonly Unity.Burst.SharedStatic<int> BrainLodOff = Unity.Burst.SharedStatic<int>.GetOrCreate<BrainLodOffKey>();
         struct BrainLodOffKey { }
@@ -937,6 +946,14 @@ namespace Punchy.Fauna
                         threat = s.Position.xz - math.normalizesafe(outward + veer * 0.6f, outward) * 5f;
                     }
                 }
+                // A walking colossus coming through (A-72): the skittish bolt from further off, the rest step aside.
+                if (!threatened && !aloft && !perched && !b.Rooted && NearColossus(s.Position.xz, b.FleeDistance > 0f ? 1.6f : 1f, out var giant))
+                {
+                    threatened = true;
+                    threat = giant;
+                    if (s.Mode != CreatureMode.Flee)
+                        System.Threading.Interlocked.Increment(ref ColossusFlees.Data);
+                }
                 // One bolts, they all bolt: a herd (or a flock) runs when any of it close by does, from the same thing.
                 if (!threatened && !aloft && b.FleeDistance > 0f && s.Mode != CreatureMode.Flee && searchDue && FindAlarm(self, ref s, species, out var alarm))
                 {
@@ -945,6 +962,35 @@ namespace Punchy.Fauna
                     System.Threading.Interlocked.Increment(ref Searches.Data.AlarmFlee);
                 }
                 return threatened;
+            }
+
+            /// <summary>
+            /// A-72: whether a walking colossus is within its circle (times reach) of here, and the point to run from.
+            /// One in front of the giant runs from the giant's path beside it, so it steps off the path to the side
+            /// rather than running on ahead; one behind or beside runs from the giant itself.
+            /// </summary>
+            static bool NearColossus(float2 at, float reach, out float2 from)
+            {
+                var zones = ColossusZones.Data;
+                for (int i = 0; i < 4; i++)
+                {
+                    var z = zones[i];
+                    if (z.z <= 0f)
+                        continue;
+                    var off = at - z.xy;
+                    var r = z.z * reach;
+                    if (math.lengthsq(off) > r * r)
+                        continue;
+                    var heading = new float2(math.sin(z.w), math.cos(z.w));
+                    var ahead = math.dot(off, heading);
+                    from = ahead > 0f ? z.xy + heading * ahead : z.xy;
+                    // Right on the path line: pick a side so "away" is never zero.
+                    if (math.lengthsq(at - from) < 0.25f)
+                        from = at - new float2(heading.y, -heading.x);
+                    return true;
+                }
+                from = default;
+                return false;
             }
 
             /// <summary>What else it heeds round it: a flock taking off, a game of chase, its burrow, a startled roost, snapping, a town it is driven from.</summary>
