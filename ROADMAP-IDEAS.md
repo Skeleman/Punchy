@@ -71,9 +71,10 @@ current release. Lane: A = animal, W = world.
   - temperature offset;
   - weather odds (rain, snow, storms, fog, wind);
   - flora appearance (colour shifts, leaf drop, bloom, snow cover, dormant plants);
-  - fauna spawn rates (migrations, hibernation, breeding bursts).
-- NPCs and creatures never read the season directly. They only react to what it changes around them: light, temperature
-  and storms. This builds on the weather comfort work (A-71).
+  - fauna spawn rates (which species appear, and how many). Spawn numbers only, no behaviour.
+- No season-driven tasks or scripted seasonal behaviour for animals or humanoids. They never read the season. Any change
+  in what they do emerges only from their response to the environment it changes: light, temperature and storms.
+  This builds on the weather comfort work (A-71).
 
 ## Current roadmap (snapshot 2026-11-04, from open GitHub issues and Zach's direction)
 
