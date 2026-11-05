@@ -2035,3 +2035,21 @@ Calls used: about 110 (over budget).
   - A pickup replicated to a client shows a frame later (it only appears in the next copy).
   - Stale readers can name entities gone since last frame. They only use them as keys or via Exists/HasComponent checks.
 - No exceptions in either mode. Suite and fingerprint are run before the hand-back.
+
+## A-70 row 4: pose rate (done, verified) - af84055
+- Distance bands: under 40 m posed every frame, 40-100 m every 2nd frame, past 100 m every 4th, staggered by entity index. Held, puppet, haunting and lava creatures always pose.
+- On a skipped frame the PoseJob carries last frame's body segments along with the creature's move and turn (one rotate + offset per segment) instead of running the animator. Grounding, fades, marks and held items still run every frame.
+- Frustum cull, with a 6 m margin (plus 10% of SeenFrom) on the side planes. A creature carrying a light (lantern, torch) is never culled.
+- Fewer capsule segments at distance: the mid band draws 8x3x2 capsules and the far band 6x2x1. Near creatures keep the full mesh.
+- `-oldposerate` restores the old path for A/B runs. `-perflog` logs the pose job's median and worst ms, creatures posed per frame and creatures carried on per frame.
+- **Uncapped, two runs each, old (before) -> new (after):**
+
+  | Spot | Creatures | PoseJob median ms | PoseJob worst ms | Posed/frame | Frame ms |
+  |---|---|---|---|---|---|
+  | fv3 | 115-119 | 1.12 / 1.18 -> 0.25 / 0.30 | 2.07 / 2.23 -> 0.57 / 0.70 | 92 / 91 -> 15 / 21 (+9.5 carried on) | 6.63 / 6.60 -> 6.53 / 6.66 |
+  | meadow | 178-212 | 0.46 / 0.49 -> 0.24 / 0.27 | 0.87 / 0.83 -> 0.39 / 0.56 | 55 / 53 -> 18 / 17 (+6-9 carried on) | 5.60 / 5.72 -> 5.88 / 5.85 |
+
+- PoseJob ms is the job's own time summed over its workers. It drops 4x at fv3 and 2x in the meadow. Frame time stays within noise, because the pose job runs on workers off the critical path.
+- One meadow "new" run had a single 29.8 ms max frame. Its median was normal and no exception was logged.
+- Shot: fv3, the same spot with old and new side by side (row4-side.png, unviewed full res). The player, the deer about 15 m away and the birds look the same in both.
+- No exceptions in either mode. Suite and fingerprint are run before the hand-back.
