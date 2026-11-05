@@ -93,19 +93,27 @@ namespace Punchy.Tests
         /// <summary>
         /// Creatures round the player in a human village at noon. No range was ever set; the band is today's count (4
         /// within 50 m on main 69ca891) with a tolerance. Also checks the village's butterflies stay under the meadow ceiling (CritterSystem: villages 0.6x).
+        /// A-73: in the village's middle ("HumanVillage:centre"), at noon in clear weather. "-place HumanVillage" stands
+        /// the player 1.1 radii out (98 m from the middle), where 50 m only reached the odd stray hen or wild animal, so
+        /// the count was 0 to 4 by chance (0 once, failing); the residents live within 0.45 radii of the middle. The band
+        /// is now the village's own head count: at least its fewest grown folk (4 free, 4 at posts, less a couple strayed
+        /// past 50 m), and no more than everyone it can field with its animals (about 40); 23 and 13 folk at first.
         /// </summary>
         [UnityTest, Order(5)]
         public IEnumerator Village_CreatureDensity()
         {
-            yield return TestSceneSetup.Place("HumanVillage", 12f);
+            yield return TestSceneSetup.TimeOfDay(12f);
+            yield return TestSceneSetup.Weather(false);
+            yield return TestSceneSetup.Place("HumanVillage:centre", 12f);
             var near = Game.Hook<int[]>("CreaturesNear", 50f);
             var d = Game.Hook<Vector3>("CritterDensity", 60f);
             LogWatch.Measure($"village within 50 m: {near[0]} creatures, {near[1]} folk; butterflies {d.y:F2} per 100 m2 at {Game.Hook<Vector3>("PlayerPosition")}");
             Assert.That(near[0], Is.InRange(VillageLow, VillageHigh));
+            Assert.That(near[1], Is.InRange(VillageFolkLow, VillageHigh), "village folk round the middle");
             Assert.That(d.y, Is.LessThanOrEqualTo(8f), "village butterflies over the CritterSystem ceiling");
         }
 
-        const int VillageLow = 1, VillageHigh = 20;
+        const int VillageLow = 8, VillageFolkLow = 4, VillageHigh = 40;
 
         /// <summary>TestSceneSetup's spawn and weather, and a checked shot of the result (the shot helper's own test).</summary>
         [UnityTest, Order(6)]
