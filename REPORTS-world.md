@@ -2264,3 +2264,17 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
   - FloraGenerator.cs is shared (additive only), so the other owner should be told about the LOD2 arc change.
   - Ground glow beyond 70 m gives no far light.
   - The far scan is a single-threaded job; it could become a parallel job if it shows up in a bench.
+
+## W-101 row 2: ruins (#80), done (verified)
+- **Commit:** b6ed421 on world-features.
+- **Changes:**
+  - Fallen rafters now rest their high end on the inside of a standing wall stub, not in the air.
+  - The floating door lintel over a broken bay is gone: a ruin's lintels and window heads are only added where the wall reaches them.
+  - Ivy is now a stem with leaf clumps instead of cloth-like ribbons.
+  - Moss sheets have tuft cushions and a ragged, frayed hem.
+  - Ruin bricks have a darker mortar core, so the joints read as linework. About 1 in 10 whole blocks carries a carved glyph (ringed cross, chevrons or spiral).
+- **Shots:** v2 at (1420,2160), noon, in D:\Unity\PunchyMilestones\world\W-101\gallery: r2_a (overview), r2_c (ivy close), r2_d (interior and rafters from above), r2_e (side, no floating lintel), r2_f (moss and carvings close).
+- **Risks:**
+  - The ruins' part lists changed (ivy parts, lintels), so the landmark fingerprint will move. Rafters reuse the old draws and the glyphs use their own rng, so the layout is otherwise unchanged.
+  - FloraGenerator.cs is shared: RuinBricks has a new mortar shade and a new RuinGlyph helper (additive). Tell the other owner.
+  - Flora.shader and Flora.hlsl moss edits affect every moss sheet (W-64 caves and houses too).
