@@ -4896,6 +4896,7 @@ namespace Punchy.Debugging
                 floraQuery = em.CreateEntityQuery(ComponentType.ReadOnly<FloraLookup>());
                 queryWorld = world;
                 locations.Clear();
+                centres.Clear();
             }
             if (!terrainQuery.TryGetSingleton(out source) || playerQuery.CalculateEntityCount() != 1 || paletteQuery.CalculateEntityCount() != 1)
                 return false;
@@ -4907,6 +4908,7 @@ namespace Punchy.Debugging
             {
                 locationsKey = landmarkKey;
                 locations.Clear();
+                centres.Clear();
             }
             if (locations.Count == 0)
             {

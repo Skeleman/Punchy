@@ -507,6 +507,10 @@ namespace Punchy.Fauna
                     case Weighted.Work:
                         SetMode(ref s, CreatureMode.Work);
                         s.Timer = s.Task == CreatureTask.Fish ? rng.NextFloat(120f, 300f) : rng.NextFloat(40f, 120f);
+                        // (A-73: a village fisher works on its wharf when it has one, else on its own bit of shore.)
+                        s.PierSpot = 0;
+                        if (s.Task == CreatureTask.Fish)
+                            FindWharf(ref s, ref rng);
                         return true;
                     case Weighted.Home:
                         SetMode(ref s, CreatureMode.Home);
