@@ -2053,3 +2053,21 @@ Calls used: about 110 (over budget).
 - One meadow "new" run had a single 29.8 ms max frame. Its median was normal and no exception was logged.
 - Shot: fv3, the same spot with old and new side by side (row4-side.png, unviewed full res). The player, the deer about 15 m away and the birds look the same in both.
 - No exceptions in either mode. Suite and fingerprint are run before the hand-back.
+
+## A-70 row 5: Burst jobs for the per-creature reader loops (commit 61bf86b)
+- CreatureAudio (HearJob, MoodJob), traces (DueJob), mantraps (NearJob) and wakes (SwimJob) now run their per-creature passes in Burst, in creature order. Sounds, marks and adds stay on the main thread, so the order and the budget are unchanged.
+- -perflog now prints each reader's mean/worst ms per frame (ReaderTimes). Uncapped, two runs each:
+
+| Reader | fv3 before | fv3 after | Meadow before | Meadow after |
+|---|---|---|---|---|
+| Audio | 0.102/0.395, 0.106/0.713 | 0.087/0.422, 0.091/0.434 | 0.104/0.295, 0.121/3.281 | 0.083/0.214, 0.083/0.238 |
+| Trace | 0.091/1.239, 0.162/1.719 | 0.060/0.871, 0.073/0.981 | 0.053/0.936, 0.215/2.130 | 0.040/0.774, 0.089/1.166 |
+| Mantrap | 0.085/0.153, 0.078/0.091 | 0.013/0.019, 0.015/0.047 | 0.117/0.151, 0.133/0.207 | 0.015/0.017, 0.016/0.017 |
+| Wake | 0.083/1.483, 0.099/0.433 | 0.019/0.091, 0.023/0.063 | 0.026/0.207, 0.028/0.126 | 0.017/0.060, 0.017/0.152 |
+
+- Frame ms (max in brackets): fv3 before 6.55 (8.1) and 6.59 (9.6), after 6.23 (8.3) and 6.21 (8.7). Meadow before 5.40 (6.8) and 5.97 (27.2), after 5.42 (6.6) and 5.29 (6.8).
+- The suite found two problems, both fixed in this commit:
+  - Last frame's snapshot could hand a disposed body blob to a Burst job after a body swap. The fix is CreatureSnapshotSystem.Forget(), called from FaunaDirector before blobs are disposed.
+  - A reader's own fallback copy was Temp, which jobs can't take. It is now TempJob. FolkTalk also now releases its first copy (that was missing).
+- The bench ran before these fixes. They only touch body swaps and fallback copies.
+- Suite 11/11. Fingerprint 2E01A16B and landmarks 108 4D2643D7 are unchanged. No exceptions in either bench.
