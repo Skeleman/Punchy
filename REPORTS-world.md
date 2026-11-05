@@ -2225,3 +2225,12 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
 - Lights: wharf door lamps now hang from a wood bracket and arm beside the door instead of floating on the wall (same RNG draw). Other village lights already had a source: coast lanterns (post + arm), pier shell lamps on rail posts, and residents' carried lanterns. The warm patches at night are resident lanterns, and the green points are fireflies. Shot: gallery row3-night-lights.png.
 - Boat (-2374,1.9,-2113): the foundation skirt drops every vertex at or below y 0 by 1.6 m, which stretched the hull into the beach. Boat parts are now marked KitPart.Afloat and the mesh builder leaves them out of the skirt. Shot: gallery row3-boat-on-beach.png.
 - Seen, not fixed: in both noon shots a large translucent dome edge shows over the water at the left. It looks like a water or bubble render issue, not part of this row.
+
+## W-100 row 4 (roads: max grade, #39) - done (verified)
+- Commit 221e16c on world-features. Roads re-route around stretches steeper than MaxGrade 0.45 (rise over run, checked every metre; up to 3 tries with the steep cells closed) and leave out any stretch still too steep. Town streets now also stop where they would run off a cliff, like they stop at water and cave holes.
+- The card's spot (-1419,165.2,2236) was a town street, not a road: it ran 16 m down the plateau edge (grade 1.65). Gone in the after shot.
+- Island v2, end-to-end grade of laid stretches, before -> after:
+  - Roads (1132 -> 1010 stretches): >0.2 184 -> 116, >0.3 97 -> 33, >0.5 45 -> 0, worst -> 0.42.
+  - Town streets (364 -> 320 stretches): >0.2 20 -> 2, >0.3 15 -> 0, >0.5 11 -> 0, worst 1.65 -> 0.21.
+- Shots: gallery/row4-road-before.png, gallery/row4-road-after.png (camera -1460,175,2215 looking at -1420,152,2245).
+- Risks: settlement layouts and roads change where streets or roads were steep, so the fingerprint will move. A road that can't meet the grade now has a gap where it meets the cliff instead of running down it. A metre-level probe still finds steps where the levelled street terraces at stretch ends; that's the existing levelling, not the route.
