@@ -2265,3 +2265,10 @@ Human (Human, Dramatic) waiting Storm cell (94,-28) [1 up in cell]: Run for your
   - Dust emission is x(1+3·pace).
 - Hook: ColossusWalker calls `Rig.Animate(pace, stride, settle, t)` and `Rig.Sleep()`. New debug arg: `-walkerphase walk|rest|seconds` puts every walker mid-walk or mid-rest, for shot lists.
 - Shots (scratchpad a72/keep, unreviewed by Zach): a 3-frame side strip, saguaro-walk1/2/3 (60 m, 1.2 s apart). The root-legs are visibly in different places from frame to frame. Also saguaro-rest. 0 errors in the shot run.
+
+## A-72 row 4: floating-rock golem (commit 816d198)
+- `GolemRig` in ColossusRigs.cs. While walking, the golem's segments drift out from its middle by pace × drift. Drift is 1.2 m for the limbs, 0.6 m for the pelvis, 0.8 m for the torso, 1.6 m for the head and 3 m for the shards, with a slow wobble. Arms and legs swing in opposite phase, the feet lift and the chest rocks.
+- At rest it closes up. The offsets are added after GolemArcs resets each segment every frame, so nothing builds up. No StoneColossi change.
+- Shots (unreviewed by Zach), in the scratchpad (a72/keep and shots3):
+  - golemb-walk1/2 and golemb-rest, from the back at 150 m. Walking it is a loose cloud of rocks with arcs between them; at rest it is a tighter body.
+  - golem-walk1/2/3 and golem-rest, from the side at 220 m.
