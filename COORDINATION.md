@@ -82,6 +82,12 @@ feature code, and it never edits files in another session's checkout.
 16. **Handoff after every row (Zach, 2026-11-04):** as soon as a row is finished and verified, commit and push it,
    then append it to your REPORTS-<lane>.md and push that: verified, UNVERIFIED, and what's next. Do this before
    starting the next row, so a usage limit never loses work. On the main account the `handoff` skill does all of it.
+17. **Don't steal Zach's focus (Zach, 2026-11-04):** start every Unity editor and every build window through
+   `tools/start-quiet.ps1` (in the coordination tree), run in the background:
+   `powershell -ExecutionPolicy Bypass -File <coordination>/tools/start-quiet.ps1 -Exe "<exe>" -ArgLine "<args>"`.
+   It starts the program minimized without focus, and for the life of the process it hands focus back if the program
+   grabs it on its own (load finished, play mode entered). In each editor, also set the Game view's play-mode
+   dropdown to Play Unfocused before the first play-mode test. Batch-mode runs (`-batchmode`) don't need this.
 
 ## Sessions and lanes
 
