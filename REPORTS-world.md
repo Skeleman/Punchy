@@ -2240,3 +2240,27 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
 - New play-mode test WorldTests.Place_PropFindsAndFramesWharf (Order 8): runs `-place prop:FishWharf@0,0` and checks the found and framing lines, and that the player stands within 30 m of wharf #1. Passed in my editor through the Test Runner, with Harness_WorldUp: 2 FishWharf found on v3, #1 at (-4056.9, 0.5, 904.2), player at (-4048.4, 11.1, 907.1). The full suite runs at the end of the batch.
 - Also checked: PlayArgs `-place prop:FishWharf` at play start logs both wharves and frames #1.
 - Risks: in the editor the options run after the lookup is up, so the waiting branch itself only gets exercised in a player build (the profiler's original case). Worth one bench run with `-place prop:FishWharf`. TestHooks.WorldReady still doesn't wait for the flora lookup.
+
+## W-101 row 1 (light at distance) - done (verified)
+- Commit 43747a5 on world-features. Glowing things now light the world in two tiers.
+  - **Near:** the 16 nearest lights, as before. Surface ones now fade out between 18 and 30 m from the camera.
+  - **Far:** SurfaceGlow bakes every glowing plant (ground 70 m, shrubs 200 m, trees 300 m) and every lit window into a light map centred on the camera: 640 m across, 4 m per texel, one map for plants and one for windows. It runs in a Burst job off the main thread and rescans after the camera moves 24 m.
+  - Glow.hlsl reads the far map with 2 texture samples per pixel and fades it in as the near lights fade out. A height test keeps the light off cliff tops, and a soft brightness cap stops dense clusters from floodlighting the ground. Creatures use the same shader, so moving things get lit with no proxy lights.
+- **Technique:** I didn't use the vertex-channel bake. Every terrain and flora mesh would need rebuilding whenever night falls or windows light. The light map is the same idea kept in one texture around the camera, with a cost that stays the same however many sources there are. No URP rendering-layer lights were needed.
+- **Electric wastelands:** arc spires and shard rocks keep thick, low-fidelity arcs at LOD2 (an additive FloraGenerator edit, see the risks).
+- **Terrain detail texture:** it now fades out at 110 m times the Detail graphics setting (it was a fixed 70 m).
+- **Frame cost per tier:** editor, uncapped, standing in a town at night, average of 3 runs. The numbers are noisy by about ±0.3 ms.
+
+  | Tiers on | ms/frame |
+  |---|---|
+  | none | 7.31 |
+  | near only | 7.43 |
+  | far only | 7.78 |
+  | both | 7.72 |
+
+  So the far tier costs about 0.3 to 0.4 ms. Its scan takes up to 70 ms on one worker thread (start to pick-up, off the main thread), once per 24 m of camera movement.
+- **Shots:** night sets for a town (-2511,-1518), a SparklingForest (-2500,600) and the ElectricWastelands (-600,-1200) on v3, in D:\Unity\PunchyMilestones\world\W-101\gallery\r1_{town,forest,wastes}_{far,mid,near}.png. For comparison, r1_tn_far_nearonly and r1_town_mid_t1 are near-only shots from the same views.
+- **Risks:**
+  - FloraGenerator.cs is shared (additive only), so the other owner should be told about the LOD2 arc change.
+  - Ground glow beyond 70 m gives no far light.
+  - The far scan is a single-threaded job; it could become a parallel job if it shows up in a bench.
