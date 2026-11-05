@@ -158,7 +158,10 @@ namespace Punchy.Terrain
                 mix += w8 * p.Pad;
                 best = math.max(best, w);
             }
-            return best > 0f ? math.lerp(h, mix / sum, best) : h;
+            // At the very edge of a blend w is ~1e-6 and w^8 underflows to 0, so sum can be 0 while best is not: that
+            // gave 0/0 = NaN heights on a thin ring round each pad (NaN normals drew black hexes that bloom smeared
+            // white). The pad's pull there is nil anyway, so the ground stays as it is.
+            return best > 0f && sum > 0f ? math.lerp(h, mix / sum, best) : h;
         }
 
         /// <summary>Paints the streets' surface over the ground, with a ragged edge.</summary>
