@@ -862,8 +862,31 @@ namespace Punchy.Fauna
                     s.Timer = 40f;
                 }
 
+                // Bat folk (#35): a light coming near breaks off what it was doing, so Decide (DecideShield) has it
+                // cover its face at once rather than when its timer runs out.
+                if (b.ShunsLight && s.Action != IdleAction.ShieldEyes && s.Held != HeldItem.Goggles &&
+                    (Free(s.Mode) || s.Mode == CreatureMode.Work) && !(s.Mode == CreatureMode.Idle && s.Timer <= 0.6f) && LightNear(in s))
+                {
+                    SetMode(ref s, CreatureMode.Idle);
+                    s.Timer = 0f;
+                }
+
                 if (b.RaidsHives)
                     M.ChaseCooldown = math.max(M.ChaseCooldown - dt, 0f);
+            }
+
+            /// <summary>
+            /// For bat folk (#35): a light near enough to dazzle it. Under the rock, a player within 6 m (their lantern
+            /// lights by itself underground); out in the open, the day. (Fires and others' torches aren't looked for.)
+            /// </summary>
+            bool LightNear(in CreatureState s)
+            {
+                if (!underRock)
+                    return Night < 0.5f;
+                for (int p = 0; p < Players.Length; p++)
+                    if (math.distancesq(Players[p], s.Position) < 36f)
+                        return true;
+                return false;
             }
 
             /// <summary>CreatureMode.Idle: talking, reading a message, or standing about until it decides on something.</summary>
@@ -1312,6 +1335,14 @@ namespace Punchy.Fauna
                 }
                 // A child out by day has a stick or a stone (its own kind of plaything), not indoors or asleep.
                 // A blind cave pygmy needs no light: up and about, most feel their way with a staff (the rest by hand).
+                // Bat folk never carry a light (#35): goggles out on the surface by day (none underground, none at night),
+                // else their own tool, a staff or a stick or empty hands (by a hash of the individual), put down to sleep.
+                else if (b.ShunsLight && b.Hands)
+                {
+                    var tool = ((s.Individual >> 9) % 3u) switch { 0u => HeldItem.Staff, 1u => HeldItem.Stick, _ => HeldItem.None };
+                    s.Held = !underRock && Night < 0.5f ? HeldItem.Goggles
+                           : s.Mode != CreatureMode.Sleep && s.Mode != CreatureMode.Rest ? tool : HeldItem.None;
+                }
                 else if (b.Blind && b.Hands)
                     s.Held = ((s.Individual >> 7) & 3u) != 0 && s.Mode != CreatureMode.Sleep && s.Mode != CreatureMode.Rest ? HeldItem.Staff : HeldItem.None;
                 else if (b.Child && b.Hands && Night < 0.5f && s.Mode != CreatureMode.Sleep && !(s.Mode == CreatureMode.Home && s.Stage >= 1))

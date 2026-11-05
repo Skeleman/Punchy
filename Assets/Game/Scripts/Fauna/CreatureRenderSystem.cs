@@ -78,7 +78,7 @@ namespace Punchy.Fauna
         static int HeldCount(HeldItem held, CreatureTask task) => task == CreatureTask.Hunt && (held == HeldItem.Spear || held == HeldItem.SpearDrawn) ? 0 :
                                                held == HeldItem.Lantern ? LanternParts : held == HeldItem.Spear || held == HeldItem.SpearDrawn || held == HeldItem.Torch ? GuardParts :
                                                held == HeldItem.Rod ? RodParts : held == HeldItem.Stick || held == HeldItem.Stone ? 1 :
-                                               held == HeldItem.Pickaxe || held == HeldItem.OreSack ? MinerParts : held == HeldItem.Staff || held == HeldItem.Letter ? 2 : held == HeldItem.Honey ? 1 : 0;
+                                               held == HeldItem.Pickaxe || held == HeldItem.OreSack ? MinerParts : held == HeldItem.Staff || held == HeldItem.Letter ? 2 : held == HeldItem.Honey ? 1 : held == HeldItem.Goggles ? 3 : 0;
         /// <summary>
         /// Capsules for a worker's gear, from its job alone (already on every machine, nothing more sent): the tool in
         /// hand while at work (a smith's hammer, a woodcutter's axe, a water-carrier's bucket), and what it wears (an
@@ -1180,6 +1180,8 @@ namespace Punchy.Fauna
                     Letter(state, ref body.Blob.Value, offset, held, faded);
                 else if (state.Held == HeldItem.Honey)
                     Honey(state, ref body.Blob.Value, offset, held, faded);
+                else if (state.Held == HeldItem.Goggles)
+                    Goggles(state, ref body.Blob.Value, offset, held, faded);
                 if (HasGear(state.Task))
                     Gear(state, ref body.Blob.Value, offset, held + HeldCount(state.Held, state.Task), faded);
             }
@@ -1427,6 +1429,32 @@ namespace Punchy.Fauna
             /// A rolled message: a little roll on a messenger bird's leg, under its body; in the hands of one reading it,
             /// the roll across between the hands and the sheet hanging open from it, towards their face.
             /// </summary>
+            /// <summary>Bat folk's smoked goggles (#35): two dark lenses on the front of the head, a strap round it.</summary>
+            void Goggles(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded)
+            {
+                Output[at] = default;
+                Output[at + 1] = default;
+                Output[at + 2] = default;
+                int head = -1;
+                for (int i = 0; i < b.Parts.Length && head < 0; i++)
+                    if (b.Parts[i].Role == LimbRole.Head)
+                        head = b.Parts[i].FirstSegment;
+                if (head < 0)
+                    return;
+                var h = Output[offset + head];
+                var forward = new Unity.Mathematics.float3(Unity.Mathematics.math.sin(state.Yaw), 0f, Unity.Mathematics.math.cos(state.Yaw));
+                var right = new Unity.Mathematics.float3(forward.z, 0f, -forward.x);
+                var r = Unity.Mathematics.math.max(h.RadiusStart, h.RadiusEnd);
+                // (The eye line: a little above the head segment's middle.)
+                var eyes = h.Position + Unity.Mathematics.math.mul(h.Rotation, new Unity.Mathematics.float3(0f, 0f, h.Length * 0.55f));
+                var glass = new Unity.Mathematics.float4(0.05f, 0.05f, 0.06f, 0f);
+                var strap = new Unity.Mathematics.float4(0.22f, 0.14f, 0.08f, 0f);
+                for (int k = 0; k < 2; k++)
+                    Output[at + k] = Piece(eyes + forward * r * 0.82f + right * r * (k == 0 ? 0.42f : -0.42f), forward, new Unity.Mathematics.float3(0f, 1f, 0f),
+                                           r * 0.22f, r * 0.3f, r * 0.3f, 1f, glass, faded, SegmentMaterial.Cloth);
+                Output[at + 2] = Piece(eyes - right * r * 1.02f, right, new Unity.Mathematics.float3(0f, 1f, 0f), r * 2.04f, r * 0.12f, r * 0.12f, 1f, strap, faded, SegmentMaterial.Cloth);
+            }
+
             void Letter(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded)
             {
                 Output[at] = default;

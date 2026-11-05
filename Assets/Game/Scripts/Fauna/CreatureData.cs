@@ -56,6 +56,10 @@ namespace Punchy.Fauna
         /// <summary>No eyes: notices by sound and nearness (Sense). Wades: water folk's taste for the shallows (Decide, StartSwim).</summary>
         public bool Blind;
         public float Wades;
+        /// <summary>Bat folk (#35): covers its face from light unless in goggles, never carries a light (ShunsLight); how
+        /// keen it is on walks to the surface (SurfaceTrips, a Decide weight).</summary>
+        public bool ShunsLight;
+        public float SurfaceTrips;
         /// <summary>Its town guards' kit (helmet, weapon) and the colours of their armour and sash (linear).</summary>
         public GuardKit GuardKit;
         public float4 GuardArmour, GuardSash;
@@ -505,7 +509,10 @@ namespace Punchy.Fauna
         /// <summary>A rolled message: on a messenger bird's leg, then in the hands of the one who took it, reading it.</summary>
         Letter,
         /// <summary>A chunk of honeycomb a raiding bear knocked down, on the ground at its nose while it licks at it.</summary>
-        Honey
+        Honey,
+        /// <summary>Smoked goggles over the eyes (bat folk on the surface by day, #35): worn, not held, so the light
+        /// doesn't make it cover its face.</summary>
+        Goggles
     }
 
     /// <summary>A town guard's weapon, by its folk: how long, and where it's worn sheathed.</summary>
@@ -837,6 +844,8 @@ namespace Punchy.Fauna
             root.CaveDweller = species.CaveDweller;
             root.Blind = species.Blind;
             root.Wades = species.Wades;
+            root.ShunsLight = species.ShunsLight;
+            root.SurfaceTrips = species.ShunsLight ? species.SurfaceTrips : 0f;
             root.Roosts = species.Roosts;
             root.Friendly = species.Friendly;
             root.CrossesWater = species.CrossesWater && species.Habitat == Habitat.Land;

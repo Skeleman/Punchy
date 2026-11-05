@@ -1653,6 +1653,8 @@ namespace Punchy.Debugging
                         : Quaternion.LookRotation(new Vector3(c[3], c[4], c.Length > 5 ? c[5] : 0f) - new Vector3(c[0], c[1], c[2])));
                 if (args[i] == "-place" && args[i + 1].StartsWith("cave:", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var caveSource))
                     PlaceInCave(caveSource, args[i + 1].Substring(5));
+                if (args[i] == "-place" && args[i + 1].StartsWith("batfolk", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var batSource))
+                    PlaceAtBatFolk(batSource);
                 else if (args[i] == "-place" && args[i + 1].StartsWith("tree:", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var treeSource))
                     PlaceByTree(treeSource, args[i + 1].Substring(5));
                 else if (args[i] == "-place" && args[i + 1].StartsWith("prop:", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var propSource))
@@ -3012,6 +3014,33 @@ namespace Punchy.Debugging
                 }
             }
             Debug.LogWarning($"DebugControls: no {styleName} cave with a chamber");
+        }
+
+        /// <summary>A-67 "-place batfolk": on the floor of the first bat folk chamber with a hammock, a few metres off it, facing it.</summary>
+        void PlaceAtBatFolk(in TerrainSource source)
+        {
+            if (!source.BatFolk.IsCreated || !playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
+                return;
+            ref var bats = ref source.BatFolk.Value;
+            for (int i = 0; i < bats.Props.Length; i++)
+            {
+                if (bats.Props[i].Kind != BatFolkPropKind.Hammock)
+                    continue;
+                var site = bats.Sites[bats.Props[i].Site];
+                var at = bats.Props[i].Position;
+                // Back toward the chamber's middle, so the hammock and its sleeper are in view.
+                var back = math.normalizesafe(site.Centre.xz - at.xz, new float2(0f, 1f)) * math.min(4f, math.max(1.5f, site.Radius * 0.5f));
+                var stand = new float3(at.x + back.x, at.y + 0.5f, at.z + back.y);
+                var floor = source.FloorUnder(stand, out _);
+                var em = queryWorld.EntityManager;
+                var t = em.GetComponentData<LocalTransform>(player);
+                t.Position = new float3(stand.x, floor + 0.05f, stand.z);
+                t.Rotation = quaternion.RotateY(math.atan2(-back.x, -back.y));
+                em.SetComponentData(player, t);
+                Debug.Log($"DebugControls: at bat folk chamber {bats.Props[i].Site}, hammock at ({at.x:F0}, {at.y:F0}, {at.z:F0})");
+                return;
+            }
+            Debug.LogWarning("DebugControls: no bat folk chamber with a hammock");
         }
 
         /// <summary>

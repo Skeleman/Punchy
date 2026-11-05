@@ -174,4 +174,5 @@ MonoBehaviour:
     Range: 1
     Task: 8
   CaveFolk:
+  - {fileID: 11400000, guid: 0690049cf9dc4171bb5804bc5b933e42, type: 2}
   - {fileID: 11400000, guid: cbb815d60ecb46bd9e5b824c868cc533, type: 2}
