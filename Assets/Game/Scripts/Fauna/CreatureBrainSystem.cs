@@ -121,6 +121,8 @@ namespace Punchy.Fauna
         /// <summary>The whole of one creature's tick (#59: DebugControls' -perflog sums it per frame as "brain ms").</summary>
         public static readonly Unity.Profiling.ProfilerMarker TickMarker = new Unity.Profiling.ProfilerMarker("Brain.Tick");
         EntityQuery creatures;
+        /// <summary>A-70 row 2: the creatures the brain runs (BrainJob's own set: not players' bodies or test specimens).</summary>
+        EntityQuery thinkers;
         /// <summary>Where each player was last frame (by Holder id), for how fast they're going.</summary>
         NativeHashMap<int, float3> lastPlayerPositions;
         /// <summary>Frames run, for the brain LOD's turns (#59).</summary>
@@ -156,6 +158,8 @@ namespace Punchy.Fauna
             state.RequireForUpdate<TerrainSource>();
             state.RequireForUpdate<CreatureState>();
             creatures = SystemAPI.QueryBuilder().WithAll<CreatureState, CreatureBody>().Build();
+            thinkers = SystemAPI.QueryBuilder().WithAllRW<CreatureState, CreatureMind>().WithAll<CreatureBody>()
+                .WithNone<PlayerAvatar, RemoteAvatar, PosedForTest>().Build();
             lastPlayerPositions = new NativeHashMap<int, float3>(8, Allocator.Persistent);
             footprintPlots = new NativeHashMap<int, FloraSystem.FloraInstance>(256, Allocator.Persistent);
             footprintLandmarks = new NativeHashMap<int, int2>(64, Allocator.Persistent);
@@ -352,6 +356,9 @@ namespace Punchy.Fauna
             FoldSpread();
             var terrain = SystemAPI.GetSingleton<TerrainSource>();
             var footprints = FootprintsFor(ref state, terrain, hasFlora ? flora.Blob : default, hasFlora, players.AsArray());
+            // A-70 row 2: one creature per index, handed out to the workers 8 at a time, in place of whole chunks (a chunk
+            // holds over a hundred, so a few busy chunks left most workers idle while one or two ran on).
+            var thinking = thinkers.ToEntityArray(Allocator.TempJob);
 
             state.Dependency = new BrainJob
             {
@@ -379,8 +386,13 @@ namespace Punchy.Fauna
                 Bodies = bodies,
                 Lookup = lookup,
                 Grid = grid,
-                Hunters = hunters.AsArray()
-            }.ScheduleParallel(state.Dependency);
+                Hunters = hunters.AsArray(),
+                Thinking = thinking,
+                StateRW = SystemAPI.GetComponentLookup<CreatureState>(false),
+                MindRW = SystemAPI.GetComponentLookup<CreatureMind>(false),
+                BodyRO = SystemAPI.GetComponentLookup<CreatureBody>(true)
+            }.Schedule(thinking.Length, BrainBatch, state.Dependency);
+            thinking.Dispose(state.Dependency);
             hunters.Dispose(state.Dependency);
             entities.Dispose(state.Dependency);
             states.Dispose(state.Dependency);
@@ -407,11 +419,29 @@ namespace Punchy.Fauna
 
         static int2 Cell(float2 xz) => (int2)math.floor(xz / CellSize);
 
-        /// <summary>Every creature but players' bodies (PlayerAvatarSystem moves those) and test specimens.</summary>
+        /// <summary>A-70 row 2: creatures per batch a worker takes from the brain at a time.</summary>
+        const int BrainBatch = 8;
+
+        /// <summary>Every creature but players' bodies (PlayerAvatarSystem moves those) and test specimens (thinkers).</summary>
         [BurstCompile]
-        [WithNone(typeof(PlayerAvatar), typeof(RemoteAvatar), typeof(PosedForTest))]
-        partial struct BrainJob : IJobEntity
+        partial struct BrainJob : IJobParallelFor
         {
+            /// <summary>A-70 row 2: the creatures to run, one per index, and their state, mind and body (each index
+            /// writes only its own creature).</summary>
+            [ReadOnly] public NativeArray<Entity> Thinking;
+            [NativeDisableParallelForRestriction] public ComponentLookup<CreatureState> StateRW;
+            [NativeDisableParallelForRestriction] public ComponentLookup<CreatureMind> MindRW;
+            [ReadOnly] public ComponentLookup<CreatureBody> BodyRO;
+
+            public void Execute(int index)
+            {
+                var self = Thinking[index];
+                var s = StateRW[self];
+                var mind = MindRW[self];
+                Run(self, ref s, ref mind, BodyRO[self]);
+                StateRW[self] = s;
+                MindRW[self] = mind;
+            }
             public TerrainSource Terrain;
             /// <summary>A-70: buildings' and landmark props' walls, placed once (Walled and BuildingSink ask it).</summary>
             public BuildingFootprints Footprints;
@@ -455,7 +485,7 @@ namespace Punchy.Fauna
             /// reaches it without passing it along; the job struct is each worker's own, as with Dt and Step).</summary>
             CreatureMind M;
 
-            void Execute(Entity self, ref CreatureState s, ref CreatureMind mind, in CreatureBody body)
+            void Run(Entity self, ref CreatureState s, ref CreatureMind mind, in CreatureBody body)
             {
                 var started = Timed ? Unity.Profiling.LowLevel.Unsafe.ProfilerUnsafeUtility.Timestamp : 0L;
                 M = mind;
