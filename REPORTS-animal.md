@@ -2278,3 +2278,13 @@ Human (Human, Dramatic) waiting Storm cell (94,-28) [1 up in cell]: Run for your
 - Walking: the legs swing in diagonal pairs (12 degrees, 0.8 m lift), the shell rolls and the head nods.
 - Settling: over the 6 s after a walk ends, the shell sinks 2.4 m and breathes, and the head lowers and looks slowly side to side. It rises again in the last 6 s of the rest. The mushrooms on the shell follow the shell.
 - Shots (scratchpad shots3, unreviewed by Zach): tortoiseb-walk (side, 80 m) and tortoisec-rest (back, 90 m, sunk low). tortoiseb-rest is partly hidden by giant mushrooms.
+
+## A-72 rows 2-5 suite and hand-back
+- Suite on 816d198: 12 passed, 0 failed (243 s). Fingerprint EA6A4DE5 (unchanged); landmarks 107 14D92F64 (unchanged). FolkTalk: 16 lines up, 0 through a wall.
+- All six A-72 rows are done. The Mesa tortoise is left for later; the still giants stay still.
+- Work outside the animal files:
+  - StoneColossi.cs hooks from row 2 (Spots, Root(slot), laidAt).
+  - The CreatureBrainSystem colossus flee zones.
+  - The flora keep-out widened to each loop.
+- The rigs are all in `Fauna/ColossusRigs.cs`. New debug arg: `-walkerphase`.
+- My editor is closed.
