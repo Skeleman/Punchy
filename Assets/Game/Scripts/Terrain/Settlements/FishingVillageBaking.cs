@@ -20,6 +20,10 @@ namespace Punchy.Terrain
         const float Inland = 24f;
         /// <summary>The longest dock (m, StructureKit.Dock at the biggest species size): its far end must be over water.</summary>
         const float DockReach = 19f;
+        /// <summary>How far a dock's run out is checked for river water (FloraPlacement.RiverDockReach).</summary>
+        const float RiverDockReach = 30f;
+        /// <summary>Shore angles tried in turn (degrees off straight out to sea) until the docks clear the river.</summary>
+        static readonly float[] Turns = { 0f, 30f, -30f, 60f, -60f };
 
         public static string LastLog = "";
 
@@ -97,21 +101,34 @@ namespace Punchy.Terrain
                     var bank = mouth + new float2(-dir.y, dir.x) * side * (rivers.Width[m] * 0.5f + 36f);
                     if (!Shore(source, bank, dir, sea, out var waterline))
                         continue;
-                    var centre = waterline - dir * Inland;
-                    if (!Fits(source, ref set, types, type, placed, centre, dir, sea))
+                    // W-105 (#36): if the straight-out layout puts a dock on river water, try the shore angle turned by
+                    // 30 then 60 degrees each way, so the village keeps its wharf. The straight-out try comes first, so a
+                    // village that fitted before stays where it was.
+                    var fits = false;
+                    var facing = dir;
+                    var centre = waterline;
+                    foreach (var turn in Turns)
+                    {
+                        math.sincos(math.radians(turn), out var sn, out var cs);
+                        facing = new float2(dir.x * cs - dir.y * sn, dir.x * sn + dir.y * cs);
+                        centre = waterline - facing * Inland;
+                        if (fits = Fits(source, ref set, types, type, placed, centre, facing, sea))
+                            break;
+                    }
+                    if (!fits)
                         continue;
                     var key = math.hash(new uint3(math.asuint(centre.x), math.asuint(centre.y), 0xF15Au)) | 1u;
                     placed.Add(new LandmarkInstance
                     {
                         Position = centre,
-                        Facing = dir,
+                        Facing = facing,
                         Scale = 1f,
                         Type = t,
                         BaseHeight = source.SampleHeight(centre),
                         Seed = (BiomeSampling.Scramble(key) >> 8) * (1f / 16777216f),
                         Key = key
                     });
-                    LastLog += (LastLog.Length > 0 ? "\n" : "") + $"[villages] fishing village {placed.Count} at {centre.x:F0},{centre.y:F0} facing {math.degrees(math.atan2(dir.y, dir.x)):F0} deg, mouth width {rivers.Width[m]:F1}";
+                    LastLog += (LastLog.Length > 0 ? "\n" : "") + $"[villages] fishing village {placed.Count} at {centre.x:F0},{centre.y:F0} facing {math.degrees(math.atan2(facing.y, facing.x)):F0} deg, mouth width {rivers.Width[m]:F1}";
                     break;
                 }
             }
@@ -195,7 +212,9 @@ namespace Punchy.Terrain
                 for (int k = 0; k < math.max(1, prop.Count); k++)
                 {
                     var spot = LandmarkSampling.ToWorld(inst, LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / math.max(1, prop.Count)), type.Radius);
-                    if (source.SampleHeight(spot + dir * DockReach) > sea - 0.6f)
+                    // W-105 (#36): nor on river water along its run out, where flora leaves the plot empty (W-91): the
+                    // village at -3144,-1596 lost its wharf that way. The other bank or the next mouth gets it instead.
+                    if (source.SampleHeight(spot + dir * DockReach) > sea - 0.6f || LandmarkSampling.OnRiver(source, spot, dir, RiverDockReach))
                         return false;
                 }
             }
