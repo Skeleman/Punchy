@@ -654,6 +654,28 @@ namespace Punchy.Terrain
                         }
                     }
 
+            // W-104 (#36): the network joins back on itself. When the mid branch and the end branch both reach out on
+            // the -X side, a walkway runs between their tips, parallel to the main one, so the planks close a loop
+            // round a patch of open water. It runs as near the shorter branch's tip as it can, clear of the houses;
+            // it draws from its own stream, so the walkways and houses above are as before.
+            var branchCount = walks.Count;
+            var extra = new System.Random((int)(Scramble(seed ^ 0x100Bu) & 0x7FFFFFFF));
+            if (branches >= 2 && extra.NextDouble() < 0.8)
+            {
+                // From the shorter branch's tip inwards in 0.5 m steps, the first place clear of every house.
+                for (var x = Mathf.Max(walks[1].x, walks[2].x); x + W < -half - 1.2f; x += 0.5f)
+                {
+                    var loop = new Vector4(x, mid + half, x + W, length - half);
+                    var fits = loop.w - loop.y > 3f;
+                    foreach (var hm in homes)
+                        fits &= !Overlaps(loop, hm.box, 0.3f);
+                    if (!fits)
+                        continue;
+                    walks.Add(loop);
+                    break;
+                }
+            }
+
             // Decks: planks, a solid bed under them, piles down into the water.
             foreach (var wk in walks)
             {
@@ -800,7 +822,7 @@ namespace Punchy.Terrain
             }
 
             // Lantern posts at each join with the main walkway, on the corner away from the houses.
-            for (int bi = 1; bi < walks.Count; bi++)
+            for (int bi = 1; bi < branchCount; bi++)
             {
                 var br = walks[bi];
                 var zb = (br.y + br.w) * 0.5f;
@@ -814,7 +836,7 @@ namespace Punchy.Terrain
             }
 
             // Skiffs tied alongside the branches' open edges, riding at the water, a bollard on the deck by each.
-            for (int bi = 1, tied = 0; bi < walks.Count && tied < 2; bi++)
+            for (int bi = 1, tied = 0; bi < branchCount && tied < 2; bi++)
             {
                 if (R() < 0.3f)
                     continue;
@@ -835,6 +857,28 @@ namespace Punchy.Terrain
             // Crab pots stacked at the far end of the main walkway's left edge, clear of the walk lane.
             if (R() < 0.7f)
                 Detail(parts, CoastDetail.CrabPots, new Vector3(-half + 0.42f, deck, 2f + R() * Mathf.Max(0.5f, (branches >= 2 ? mid : length) - half - 4.5f)), 270f, rng, t);
+
+            // W-104 (#36): crates stacked by the main walkway's right edge near the land end (one to three, the odd one
+            // turned or set on top), and two to four buoys riding the water off the far end, each a float with a
+            // little mast, on their own stream.
+            for (int k = 0, n = 1 + extra.Next(3); k < n; k++)
+            {
+                var s = 0.5f + (float)extra.NextDouble() * 0.15f;
+                var top = k == 2;
+                var at = new Vector3(half - 0.4f, deck + (top ? s + s * 0.5f : s * 0.5f), 3f + (top ? 0.3f : k * 0.75f));
+                Add(parts, KitPiece.Trim, KitMaterial.Wood, at, new Vector3(s, s, s), (float)(extra.NextDouble() - 0.5) * (top ? 40f : 12f), !top);
+                Add(parts, KitPiece.Trim, KitMaterial.Trim, at + Vector3.up * (s * 0.5f + 0.01f), new Vector3(s * 0.9f, 0.03f, 0.1f), 0f, false);
+            }
+            for (int k = 0, n = 2 + extra.Next(3); k < n; k++)
+            {
+                var ang = ((float)extra.NextDouble() - 0.5f) * 140f * Mathf.Deg2Rad;
+                var dist = 5f + (float)extra.NextDouble() * 7f;
+                var at = new Vector3(Mathf.Sin(ang) * dist, -0.15f, length + half + Mathf.Cos(ang) * dist);
+                var tilt = ((float)extra.NextDouble() - 0.5f) * 14f;
+                Add(parts, KitPiece.Trim, KitMaterial.Roof, at, new Vector3(0.55f, 0.5f, 0.55f), (float)extra.NextDouble() * 90f, false, tilt);
+                Add(parts, KitPiece.Trim, KitMaterial.Trim, at + Vector3.up * 0.3f, new Vector3(0.6f, 0.1f, 0.6f), 0f, false, tilt);
+                Add(parts, KitPiece.Trim, KitMaterial.Wood, at + Vector3.up * 0.7f, new Vector3(0.06f, 0.8f, 0.06f), 0f, false, tilt);
+            }
             return parts;
         }
 
