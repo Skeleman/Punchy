@@ -1963,3 +1963,10 @@ Calls used: about 110 (over budget).
 - **Frame times per exit (about 150 frames before and 180 after):** every window has a mean of 16.7 ms and 0 frames over 50 ms. The worst frame is 22.6 ms on exit 1, 39.2 ms on exit 2 and at most 23.8 ms on exits 3-5. The slowest speed is 2.7-4.9 m/s and SurfaceHidden is 0.00.
 - **Fast climb out (30 m up, 60 m away, while chunks stream):** 5 of 5 climbs reached, 0 frames under 1 m/s, worst 41.7 ms, 0 over 50 ms.
 - No shot (the row asks for a log). At default quality the brains and movement kept running, so no fix was needed in this row. The ultra plus crow repro is in the hand-back.
+
+## A-69 control loss (Zach: crow, Ultra, fast climb out of a cave): not reproduced; probe + test - f372b82
+- **Repro:** `-gfx Ultra -body Crow -flycave 5`: 0 stuck, 0 timeouts, 0 blocked frames; exits mean 16.7 ms, worst 24.7 ms, 0 over 50 ms; 5 of 5 climbs reached.
+- **With hitches:** new `-flyhitch 700` stalls 700 ms every 45 frames on the climb. 3 climbs: worst frame about 718 ms, 0 frames off the wing, all reached.
+- **Audit:** no fauna cull, sleep or disable pass matches the player (all exclude PlayerAvatar); no crow-specific system; no dt clamp or "no ground" cut-off in PlayerMovementSystem.
+- **Test:** WorldTests `Player_CrowFliesOutOfCaveThroughHitches` (crow, cave 0 and out, climb through 700 ms hitches; asserts on the wing and reached).
+- **Open guess (unverified, build only):** a long load hitch in a build may drop window focus; the Input System then resets held keys, so a held climb key stops until pressed again. Needs a build repro.
