@@ -47,3 +47,4 @@ no machine paths or personal info. Never bare `git stash`.
 - P-16 done 11-04 (941e41b): quest UI sizing, interior ambient, rabbit camera checked clean, pad inventory input (item move not shown). P-17 next.
 - P-17 done 11-04 (1eda8de): host-checked hand-ins; clear-an-area quests (solo proven, MP chase not); lead-quest ask in the report.
 - P-18 done 11-04 (079be61): rows 1-3 verified; row 4 (temple materials) needs SunkenTempleSystem lent.
+- P-19 done 11-05 (1b7b595, 2c63be3): clear quests gated by player presence (no clear yet: needs a fleeing species); temple floors/walls; camera under water (sea/lake verified, river/cave not reached). SunkenTempleSystem loan handed back.
