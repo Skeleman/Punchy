@@ -59,15 +59,18 @@ namespace Punchy.Fauna
                     {
                         var outward = new float2(math.sin(s.AnchorYaw), math.cos(s.AnchorYaw));
                         var spot = s.Anchor.xz + outward * 0.6f + new float2(-outward.y, outward.x) * rng.NextFloat(-0.8f, 0.8f);
-                        var d = math.distance(at, spot);
+                        // (A-73 row 2: out of the wet or the cold, folk go home rather than drip under a tree, so their
+                        // own door is worth a much longer walk, and they go in.)
+                        var wet = (wanted & ShelterNeed.Roof) != 0 &&
+                                  M.DiscomfortKind is ComfortKind.Rain or ComfortKind.Snow or ComfortKind.Storm or ComfortKind.Cold;
+                        var d = math.distance(at, spot) * (wet ? 0.15f : 1f);
                         if (d < best)
                         {
                             best = d;
                             target = spot;
                             focus = spot + outward * 5f;
                             kind = (wanted & ShelterNeed.Roof) != 0 ? ShelterNeed.Roof : ShelterNeed.Shade;
-                            indoors = (wanted & ShelterNeed.Roof) != 0 &&
-                                      (M.DiscomfortKind == ComfortKind.Storm || M.DiscomfortKind == ComfortKind.Cold || rng.NextFloat() < 0.5f);
+                            indoors = wet || (wanted & ShelterNeed.Roof) != 0 && rng.NextFloat() < 0.5f;
                         }
                     }
                     if (!indoors)
@@ -329,7 +332,7 @@ namespace Punchy.Fauna
             /// rooted, disguised or haunting.</summary>
             bool MaySeekShelter(in CreatureState s, ref CreatureBlob b) =>
                 (Free(s.Mode) || s.Mode == CreatureMode.Sit && s.Stage == 0 || s.Mode == CreatureMode.Work && M.Discomfort > 0.55f) &&
-                !CaveWalker(in s, ref b) &&
+                !CaveWalker(in s, ref b) && !OnPier(in s) &&
                 !b.Rooted && !b.Disguised && !b.Haunts;
         }
     }

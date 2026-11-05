@@ -1252,6 +1252,12 @@ namespace Punchy.Fauna
                     // Both hands on the rod held out over the water; casting, the right swings it up over the shoulder
                     // and whips it through; landing a fish, both lift it high. (The rod is drawn to match: see
                     // CreatureRenderSystem's Rod.)
+                    // (Out on a wharf, A-73: walking the deck arms free or round a crate (OreSack's pose); mending nets
+                    // by the crates, both hands busy low in front, working the mesh.)
+                    if (s.Stage >= CreatureBrainSystem.PierOut)
+                        return float3.zero;
+                    if (s.Stage == CreatureBrainSystem.PierNets)
+                        return new float3(joint == 0 ? -0.65f + 0.22f * math.sin(t * 1.5f + (right ? 0f : 1.4f)) : -0.95f + 0.25f * math.sin(t * 3.1f + (right ? 0.7f : 0f)), 0f, 0f);
                     if (s.Stage == 3)
                         return new float3(joint == 0 ? -1.5f : -0.6f, 0f, 0f);
                     if (s.Stage == 2 && right)

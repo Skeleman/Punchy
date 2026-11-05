@@ -15,6 +15,8 @@ namespace Punchy.Fauna
         [Tooltip("On a low bough at night.")] public CreatureSpecies Owl;
         [Tooltip("At the water's edge at night.")] public CreatureSpecies Frog;
         [Tooltip("In the grass, day or night.")] public CreatureSpecies Mouse;
+        [Tooltip("On a wharf's rail posts by day (A-73).")] public CreatureSpecies Gull;
+        [Tooltip("In the water off a wharf's end, leaping now and then (A-73).")] public CreatureSpecies WharfFish;
         [Header("Wild folk (FaunaDirector.SpawnWildFolk)")]
         [Tooltip("The one who lives alone at a hermit's shelter (a Home anchor).")] public CreatureSpecies Hermit;
 
@@ -25,6 +27,8 @@ namespace Punchy.Fauna
             yield return Owl;
             yield return Frog;
             yield return Mouse;
+            yield return Gull;
+            yield return WharfFish;
             yield return Hermit;
         }
     }

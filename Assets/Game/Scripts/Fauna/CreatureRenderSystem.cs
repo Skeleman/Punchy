@@ -1849,8 +1849,12 @@ namespace Punchy.Fauna
                     // A lumpy sack of ore held to the chest, low.
                     var front = Unity.Mathematics.math.normalize(forward - axis * Unity.Mathematics.math.dot(forward, axis));
                     var at3 = torso.Position + front * r * 1.25f;
-                    Output[at + 3] = Piece(at3 - axis * 0.06f * scale, axis, front, 0.14f * scale, 0.16f * scale, 0.12f * scale, 0.85f,
-                                           new Unity.Mathematics.float4(0.36f, 0.3f, 0.2f, 0f), faded, SegmentMaterial.Cloth);
+                    Output[at + 3] = state.Task == CreatureTask.Fish
+                        // (A fisher's fish crate carried out along the wharf, A-73: wider, squarer, weathered plank.)
+                        ? Piece(at3 - axis * 0.1f * scale, axis, front, 0.22f * scale, 0.2f * scale, 0.2f * scale, 0.35f,
+                                new Unity.Mathematics.float4(0.5f, 0.37f, 0.22f, 0f), faded, SegmentMaterial.Wood)
+                        : Piece(at3 - axis * 0.06f * scale, axis, front, 0.14f * scale, 0.16f * scale, 0.12f * scale, 0.85f,
+                                new Unity.Mathematics.float4(0.36f, 0.3f, 0.2f, 0f), faded, SegmentMaterial.Cloth);
                 }
             }
 

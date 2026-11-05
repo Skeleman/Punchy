@@ -652,6 +652,13 @@ namespace Punchy.Fauna
         /// had here); the web's facing and side.</summary>
         public float AnchorSize, AnchorYaw;
         public byte AnchorSide;
+        /// <summary>
+        /// A-73: a fishing folk's wharf spot (WharfSpotSet.Spots index + 1; 0 = none), and where that wharf stands
+        /// (its base, turn and size), for the walk out along its deck.
+        /// </summary>
+        public short PierSpot;
+        public float3 PierOrigin;
+        public float PierYaw, PierScale;
         /// <summary>Where a flight or a climb ends up, height-wise (absolute).</summary>
         public float TargetHeight;
         /// <summary>Caught (by a diving bird of prey): FaunaDirector removes it.</summary>

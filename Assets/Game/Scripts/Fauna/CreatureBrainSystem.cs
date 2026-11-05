@@ -362,6 +362,8 @@ namespace Punchy.Fauna
                     hunters.Add(i);
             }
             var hasFlora = SystemAPI.TryGetSingleton<FloraLookup>(out var flora) && flora.Blob.IsCreated;
+            var wharves = default(WharfSpotLookup);
+            var hasWharves = hasFlora && SystemAPI.TryGetSingleton(out wharves) && wharves.Blob.IsCreated;
             // (The last brain job is done: the snapshot above waited for its CreatureState.)
             FoldSpread();
             var terrain = SystemAPI.GetSingleton<TerrainSource>();
@@ -379,6 +381,8 @@ namespace Punchy.Fauna
                 Timed = SpreadOn.Data != 0,
                 Flora = hasFlora ? flora.Blob : default,
                 HasFlora = hasFlora,
+                Wharves = hasWharves ? wharves.Blob : default,
+                HasWharves = hasWharves,
                 Players = players.AsArray(),
                 PlayerIds = playerIds.AsArray(),
                 PlayerYaws = playerYaws.AsArray(),
@@ -461,6 +465,9 @@ namespace Punchy.Fauna
             public bool Timed;
             public BlobAssetReference<FloraBlob> Flora;
             public bool HasFlora;
+            /// <summary>A-73: where fishing folk stand on the wharves (WharfSpots).</summary>
+            public BlobAssetReference<WharfSpotSet> Wharves;
+            public bool HasWharves;
             [ReadOnly] public NativeArray<float3> Players;
             [ReadOnly] public NativeArray<int> PlayerIds;
             [ReadOnly] public NativeArray<float> PlayerYaws;
@@ -1104,7 +1111,7 @@ namespace Punchy.Fauna
             void Errands(Entity self, ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, bool threatened)
             {
                 // Swimming with nowhere to go (it stopped, or wanted to graze or rest): it makes for the nearest shore.
-                if (b.CrossesWater && !threatened && s.Mode != CreatureMode.Wander && s.Mode != CreatureMode.Flee &&
+                if (b.CrossesWater && !threatened && !OnPier(in s) && s.Mode != CreatureMode.Wander && s.Mode != CreatureMode.Flee &&
                     s.Mode != CreatureMode.Hunt && s.Mode != CreatureMode.Play && s.Mode != CreatureMode.Greet && s.Mode != CreatureMode.Held &&
                     WaterDepth(s.Position.xz) > b.StandHeight * s.Scale * 0.8f && NearestShore(s.Position.xz, out var ashore))
                 {
@@ -1373,6 +1380,10 @@ namespace Punchy.Fauna
                     Messenger(ref s, ref b, ref rng, dt, ref vertical);
                     return;
                 }
+                // (A-73: out along a wharf's deck, off the terrain's floor: PierWork walks it.)
+                if (s.Task == CreatureTask.Fish && s.PierSpot > 0 &&
+                    PierWork(ref s, ref b, ref rng, dt, walk, ref targetSpeed, ref moving, ref custom, ref desiredLook))
+                    return;
                 if (s.Stage >= CreatureAnimator.RaidWalk && s.Stage <= CreatureAnimator.RaidLick)
                 {
                     Raiding(ref s, ref b, ref rng, dt, walk, run, ref targetSpeed, ref moving, ref sit, ref vertical, ref desiredLook, ref headDown, ref bow);
@@ -1603,7 +1614,7 @@ namespace Punchy.Fauna
                 if (s.Task == CreatureTask.Patrol && s.Mode == CreatureMode.Patrol)
                     s.Held = Night > 0.5f ? HeldItem.Torch : s.Held == HeldItem.SpearDrawn ? HeldItem.SpearDrawn : HeldItem.Spear;
                 else if (s.Task == CreatureTask.Fish && s.Mode == CreatureMode.Work && s.Stage >= 1)
-                    s.Held = HeldItem.Rod;
+                    s.Held = !OnPier(in s) ? HeldItem.Rod : s.Stage == PierCarry ? HeldItem.OreSack : s.Stage == PierNets || s.Stage == PierSetDown ? HeldItem.None : HeldItem.Rod;
                 // A traveller has its staff by day, a lantern after dark.
                 else if (s.Task == CreatureTask.Travel && s.Mode == CreatureMode.Work)
                     s.Held = Night > 0.5f ? HeldItem.Lantern : HeldItem.Staff;
