@@ -119,6 +119,7 @@ Shader "Punchy/Terrain Surface"
                 float  cave       : TEXCOORD7;
                 half   strata     : TEXCOORD8;
                 half   paving     : TEXCOORD9;
+                half   hollow     : TEXCOORD10;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -254,6 +255,7 @@ Shader "Punchy/Terrain Surface"
                 o.cave = input.morph.w;
                 o.strata = input.strata.x;
                 o.paving = input.strata.y;
+                o.hollow = input.strata.z;
                 return o;
             }
 
@@ -290,10 +292,13 @@ Shader "Punchy/Terrain Surface"
                     shore = smoothstep(0.2, 0.75, saturate(-input.extra.w) + (PunchyValueNoise(p * 0.8) - 0.5) * 0.35
                                                 + (PunchyValueNoise(p * 0.13 + 2.9) - 0.5) * 0.5)
                           * (1 - saturate(input.extra.z * 2));
-                half flatness = smoothstep(0.96, 0.995, normalWS.y);
+                half flatness = smoothstep(0.92, 0.985, normalWS.y);
                 half puddleNoise = PunchyValueNoise(p / 2.3) * 0.65 + PunchyValueNoise(p / 0.9 + 5.1) * 0.35;
-                half puddle = smoothstep(0.62, 0.7, puddleNoise + wet * 0.35 - 0.25) * flatness * smoothstep(0.2, 0.5, wet)
-                            * (1 - input.extra.y);
+                // W-98: puddles gather in the dips (the mesh's hollow depth: how far below the ground round it), the
+                // noise only breaking up their edges, and spread up the sides as the rain goes on; none on open flats.
+                half dip = smoothstep(0.02, 0.2, input.hollow);
+                half puddle = smoothstep(0.55, 0.7, dip * 0.9 + puddleNoise * 0.35 + wet * 0.25 - 0.25) * flatness * smoothstep(0.2, 0.5, wet)
+                            * (1 - 0.6 * input.extra.y);   // grass pokes through, but meadow dips still pool
                 half sheen = max(wet, shore * 0.6) * (1 - 0.8 * input.extra.y) * (1 - smoothstep(120, 450, distance));
 
                 half relief = detailFade * 0.45 * (1 - puddle);
