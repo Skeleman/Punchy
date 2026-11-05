@@ -323,11 +323,15 @@ Shader "Punchy/Flora"
                     albedo = half3(0.05, 0.06, 0.07) + albedo * 0.06;
 
                 // Snow settles on upward faces where the ground under the plant is snowy.
-                // W-99: from any face turned even a little up (steep tent hides, sharpened stakes), and cloth by its own
-                // facet turned up (n faces the viewer there, which from below would keep a tent's roof bare).
-                half up = part == 10 ? abs(facet.y) : n.y;
-                half snow = saturate(input.extra.z * 1.5) * smoothstep(0.08, 0.4, up);
-                albedo = lerp(albedo, half3(0.86, 0.88, 0.92), snow);
+                // W-99: cloth goes by its own facet turned up (n faces the viewer there, which from below would keep a
+                // tent's roof bare), and other parts by the steeper of normal and facet so faceted stake tips catch it.
+                // Only clearly upward faces fully whiten, the cover is capped and broken up so it sits with the
+                // terrain snow nearby instead of glowing.
+                half3 fA = dot(facet, n) < 0 ? -facet : facet;
+                half up = part == 10 ? abs(facet.y) : max(n.y, fA.y);
+                half breakup = PunchyValueNoise(input.positionWS.xz * 1.7) * 0.6 + PunchyValueNoise(input.positionWS.xz * 7.3) * 0.4;
+                half snow = min(saturate(input.extra.z * 1.5) * smoothstep(0.3, 0.7, up) * lerp(0.6, 1.1, breakup), 0.7);
+                albedo = lerp(albedo, half3(0.78, 0.8, 0.85), snow);
 
                 half wet = PunchyWetnessAt(input.positionWS.xz).r * (1 - snow);
                 // Rocks on dry ground take the biome's own rock colour (FloraPlacement.RockTint: the ground's alpha at its
