@@ -324,7 +324,11 @@ namespace Punchy.Fauna
                 if (h.x > 0.1f || h.z > 0.1f || h.y < 0.3f || h.y > 0.8f)
                     continue;
                 var top = Top(box, out var bottom);
-                if (bottom < WharfSpotSet.Deck - 0.2f || top > WharfSpotSet.Deck + 1.6f)
+                // (A-75: the buoy masts off the far end stand on floats just under the water, bottom about 0.15 and top
+                // just under the deck; a short post like that, starting above -0.3, is a perch too, but piles, which
+                // reach deep below, are not.)
+                var mast = bottom > -0.3f && top < WharfSpotSet.Deck + 0.2f;
+                if (!mast && bottom < WharfSpotSet.Deck - 0.2f || top > WharfSpotSet.Deck + 1.6f)
                     continue;
                 var p = new float3(box.Centre.x, top, box.Centre.z);
                 var near = false;
@@ -367,6 +371,9 @@ namespace Punchy.Fauna
             spots.Add(new WharfSpot { At = centre(cell % size.x, cell / size.x), Yaw = yaw, Kind = kind, Path = new int2(start, points.Count - start) });
         }
 
+        /// <summary>A-75: the gulls GullSpots put on buoy masts (perches below the deck), for the startup log and shots.</summary>
+        public static readonly List<float3> MastGulls = new();
+
         /// <summary>
         /// A-73 row 4: gull and fish spots on the island's wharves (the critter tier's, from the seed): about half the rail-post
         /// tops of each fishing village's wharf, placed as the art is (FloraPlacement.Place on the landmark's Wharf prop), and a
@@ -377,6 +384,7 @@ namespace Punchy.Fauna
                                      Dictionary<int2, List<AmbientLife.CritterSpot>> into)
         {
             into.Clear();
+            MastGulls.Clear();
             if (!terrain.Landmarks.IsCreated)
                 return;
             ref var set = ref terrain.Landmarks.Value;
@@ -412,6 +420,8 @@ namespace Punchy.Fauna
                             if (!into.TryGetValue(cell, out var list))
                                 into[cell] = list = new List<AmbientLife.CritterSpot>();
                             list.Add(new AmbientLife.CritterSpot { Kind = AmbientLife.CritterKind.Gull, Id = rng.NextUInt() | 1u, Position = at });
+                            if (local.y < WharfSpotSet.Deck)
+                                MastGulls.Add(at);
                         }
                         // A fish or two in the water off each end of the lane, leaping now and then (the odd jump off the wharf).
                         var spots = wharf.Model < w.ModelSpots.Length ? w.ModelSpots[wharf.Model] : int2.zero;

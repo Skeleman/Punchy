@@ -9,9 +9,10 @@ using UnityEngine;
 namespace Punchy.Fauna
 {
     /// <summary>
-    /// A-72 (#40): walks three of the seed-placed colossi (the FungalForest tortoise, the ElectricWastelands rock golem and
-    /// the Sonoran walking saguaro) slowly round a loop about the spot <see cref="StoneColossi"/> placed them on. It builds
-    /// nothing of its own: it picks up the roots StoneColossi built and moves them.
+    /// A-72 (#40): walks four of the seed-placed colossi (the FungalForest tortoise, the ElectricWastelands rock golem, the
+    /// Sonoran walking saguaro and, since A-75, the MesaCanyonlands mesa tortoise) slowly round a loop about the spot
+    /// <see cref="StoneColossi"/> placed them on. It builds nothing of its own: it picks up the roots StoneColossi built
+    /// and moves them.
     /// <para>
     /// The loop is seeded (its own salt, so no landmark draw moves) and checked to stay dry, in the colossus's own biome,
     /// on gentle ground and clear of settlements; where no loop fits, the colossus stands still. Where each one is comes
@@ -61,6 +62,8 @@ namespace Punchy.Fauna
             new Gait { Kind = StoneColossi.Kind.GiantTortoise, Slot = 2, Radius = 40f, Speed = 0.6f, Walk = 80f, Rest = 70f, Stride = 3.5f, Bob = 0.25f, Shake = 0.08f, Body = 30f, Height = 26f, Salt = 0xA72Du },
             new Gait { Kind = StoneColossi.Kind.RockGolem, Slot = 3, Radius = 60f, Speed = 1.5f, Walk = 120f, Rest = 45f, Stride = 4.5f, Bob = 0.4f, Shake = 0.12f, Body = 20f, Height = 56f, Salt = 0xA72Bu },
             new Gait { Kind = StoneColossi.Kind.WalkingSaguaro, Slot = 6, Radius = 70f, Speed = 1.1f, Walk = 100f, Rest = 50f, Stride = 4f, Bob = 0.3f, Shake = 0.06f, Body = 16f, Height = 50f, Salt = 0xA725u },
+            // A-75 row 2: the mesa tortoise, the slowest of them (a walking hill), on a short loop with long rests.
+            new Gait { Kind = StoneColossi.Kind.MesaTortoise, Slot = 8, Radius = 45f, Speed = 0.45f, Walk = 90f, Rest = 80f, Stride = 3.5f, Bob = 0.25f, Shake = 0.1f, Body = 26f, Height = 30f, Salt = 0xA75Du },
         };
 
         const float Ramp = 5f, AwakeRange = 600f, FarPeriod = 0.5f, ShakeRange = 120f, ShakeTime = 0.35f, DustRange = 300f;
@@ -100,7 +103,7 @@ namespace Punchy.Fauna
         }
 
         public static ColossusWalker Instance { get; private set; }
-        readonly Walker[] walkers = new Walker[3];
+        readonly Walker[] walkers = new Walker[4];   // (one per Gait; ColossusZones has room for four)
         float nextTry, gaveUp;
         ParticleSystem dust;
         Vector3 shakeApplied;
@@ -286,6 +289,25 @@ namespace Punchy.Fauna
                 if (why == null)
                     break;
             }
+            // A-75 row 2: cut-up ground (the mesa tortoise's canyonlands) may fit no loop near the spot, so as a last try
+            // it looks farther out, 1.2-2.4 radii off in sixteen directions, and walks off to that loop. Only reached when
+            // every near loop failed, so the walkers that already fit keep their loops.
+            var near = why;
+            for (int k = 0; why != null && k < 5; k++)
+            {
+                w.Radius = g.Radius * math.pow(0.8f, k);
+                for (int ring = 0; ring < 3 && why != null; ring++)
+                    for (int n = 0; n < 16; n++)
+                    {
+                        var a = turn + (n + 0.5f * ring) * math.PI / 8f;
+                        w.Centre = spot.xz + (1.2f + 0.6f * ring) * w.Radius * new float2(math.cos(a), math.sin(a));
+                        if ((why = Unfit(source, w, biome)) == null)
+                            break;
+                    }
+                tries = 5 + k;
+            }
+            if (why != null)
+                why = near;
             if (why != null)
             {
                 w.Still = true;
@@ -310,6 +332,12 @@ namespace Punchy.Fauna
                 var keep = FloraPlacement.KeepOut.Data;
                 keep[g.Slot] = circle;
                 FloraPlacement.KeepOut.Data = keep;
+            }
+            else if (g.Slot >= 8)
+            {
+                var keep = FloraPlacement.KeepOutLast.Data;
+                keep[g.Slot - 8] = circle;
+                FloraPlacement.KeepOutLast.Data = keep;
             }
             else
             {
@@ -558,7 +586,7 @@ namespace Punchy.Fauna
         }
 
         /// <summary>
-        /// "-walkershot Saguaro,80[,side|front|back]": a camera this far from the named walker, at its side (or ahead, or
+        /// "-walkershot Saguaro,80[,side|front|back[,lift]]": a camera this far from the named walker, at its side (or ahead, or
         /// behind), looking at its middle, and where the player should stand for the island to stream in round it.
         /// </summary>
         public static bool ShotPose(string spec, out Vector3 eye, out Quaternion rotation, out float3 stand)
@@ -580,7 +608,10 @@ namespace Punchy.Fauna
                 var foot = w.Position.xz + dir * distance;
                 var ground = source.SampleHeight(foot);
                 var middle = new Vector3(w.Position.x, w.Position.y - w.Sink + w.G.Height * 0.45f, w.Position.z);
-                eye = new Vector3(foot.x, ground + (distance > 200f ? distance * 0.1f : 4f), foot.y);
+                // An optional fourth part lifts the eye that far over the ground or the walker's feet, whichever is higher (A-75: the mesa tortoise's canyon walls hide it from 4 m).
+                var lift = parts.Length > 3 && float.TryParse(parts[3], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var h) ? h
+                    : distance > 200f ? distance * 0.1f : 4f;
+                eye = new Vector3(foot.x, (parts.Length > 3 ? math.max(ground, w.Position.y) : ground) + lift, foot.y);
                 rotation = Quaternion.LookRotation(middle - eye);
                 stand = new float3(foot.x, ground + 0.1f, foot.y);
                 return true;

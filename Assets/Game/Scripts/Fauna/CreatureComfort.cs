@@ -76,6 +76,10 @@ namespace Punchy.Fauna
         struct HeatShiftKey { }
         /// <summary>Test flag "-comfortheat x": added to the grid's heat everywhere (a forced cold snap or heat wave).</summary>
         public static readonly SharedStatic<float> HeatShift = SharedStatic<float>.GetOrCreate<HeatShiftKey>();
+        struct HourKey { }
+        /// <summary>The hour of day (x) and whether it's known yet (y = 1), set each frame by FaunaDirector, so the heat
+        /// a creature feels can peak at midday (A-75 row 1).</summary>
+        public static readonly SharedStatic<float2> Hour = SharedStatic<float2>.GetOrCreate<HourKey>();
 
         static Punchy.Weather.WeatherSystem weather;
         static float nextRefresh;
@@ -182,12 +186,22 @@ namespace Punchy.Fauna
         /// <summary>
         /// The heat a creature feels: the climate's, warmer by day and colder by night (more so where it's dry, as in a
         /// desert), warmer in the sun, cooler in rain and wind. In a cave or under rock it's mild whatever the weather.
+        /// A hot climate's heat peaks at midday (A-75 row 1): away from about 11-16 h it's up to 0.35 cooler, so desert
+        /// folk work outdoors mornings and evenings and only shelter in the hot middle of the day. Mild and cold
+        /// climates are unchanged.
         /// </summary>
         public static float FeltHeat(in ComfortWeather w, float night, bool underground)
         {
             var day = 1f - night;
             var heat = w.Heat + (day - 0.5f) * 0.2f * (1.2f - w.Humidity) + w.Sunlight * 0.06f * day
                      - (w.Rain + w.Snow) * 0.05f - w.Wind * 0.04f;
+            var hour = Hour.Data;
+            if (hour.y > 0.5f)
+            {
+                var hot = math.saturate((w.Heat - 0.55f) / 0.25f);
+                var midday = math.smoothstep(0f, 1f, 1f - math.abs(hour.x - 13.5f) / 3.5f);
+                heat -= 0.35f * hot * (1f - midday);
+            }
             return underground ? math.lerp(heat, 0.45f, 0.8f) : heat;
         }
 

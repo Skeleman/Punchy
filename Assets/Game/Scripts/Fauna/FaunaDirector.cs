@@ -272,6 +272,7 @@ namespace Punchy.Fauna
 
             var clock = new FaunaClock { Night = Cycle != null ? Cycle.Night : 0f, Hour = Cycle != null ? Cycle.TimeOfDay : 12f };
             queryWorld.EntityManager.SetComponentData(settingsEntity, clock);
+            Comfort.Hour.Data = new float2(clock.Hour, Cycle != null ? 1f : 0f);
             if (simWorld == null)
                 return;
             if (simWorld != queryWorld)
@@ -527,7 +528,7 @@ namespace Punchy.Fauna
                 var gulls = 0;
                 foreach (var list in gullCells.Values)
                     gulls += list.Count;
-                stages.Append(" gulls ").Append(gulls);
+                stages.Append(" gulls ").Append(gulls).Append(" (").Append(WharfSpots.MastGulls.Count).Append(" on buoy masts)");
                 if (pendingShapes != null)
                     stages.Append(" (shapes waited ").Append(shapeFrames).Append(" frames)");
                 pendingShapes = null;
