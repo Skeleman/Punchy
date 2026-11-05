@@ -2377,3 +2377,8 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
 - v3 walk tests at the MagneticDebris at (-982.1, -4004.8) (14 boxes): walking east stopped at x -987.07 against its face; walking south stepped up onto the low tier (y 8.42 over ground about 8.2) and off again; stopping on it held the player at y 8.419.
 - The thin flat pieces have no boxes: they're ground decals, the issue's "clearly non-solid" option.
 - Shots: Assets/Temp/shots/w104-70-blocked.png, w104-70-standing.png.
+
+## W-104 row 3: #80 ruins sand (partial, verified in play)
+- Commit 8136740 (world-features, FloraGenerator.cs, CRLF kept). The v3 Ruins use FloraForm.KitRuin, which already had W-94's worn coursed blocks, gaps and fallen blocks. New RuinSand adds drifts at the wall feet, one low mound with a tail drift, and dry tufts at LOD 0. It's drawing only and uses its own RNG, so boxes and colliders don't change.
+- Shots: Assets/Temp/shots/w104-80-before-ruin{0,1}_{close,medium}.png and w104-80-after-*.png.
+- Honest note: this ruin stands on a raised stone floor in tundra grass, so the sand reads as small tan patches on the floor, not a strong mound. A bigger, ground-level mound would need the floor height. This is a follow-up.
