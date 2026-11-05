@@ -2351,3 +2351,10 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
 - Generate alone (eval): about 50 ms. In the bake it still shares the CPU with the pregrow: v2 generate 1010 -> 713 ms, bake 4954 -> 4364 ms; v3 bake 6028 -> 4979 ms (v2base 1071 -> 736).
 - Tried starting the pregrow after Generate: generate drops to 57 ms, but rivers then slow by the same amount (v2 bake 4327, v3 5461). The CPU is the limit while plants grow, so I kept the original order.
 - Identity: landmark hash v2 95EAB5B4 / v3 80EBFCE6, heights 9CBCD24A / C524062E, bat folk 8A17B4DB / DCB70DE3, Fauna_Fingerprint F99FD9E4: all unchanged.
+
+## W-103 row 4: v3 generate (done, verified)
+- Commit 9eef1d1 (world-features): IslandV2.cs, IslandV3.cs, V3Ranges.cs, V3Ground.cs.
+- IslandV3.Generate no longer runs the v2 Generate (it was only used for the report line). The v3 line now prints the layout part only (version, seed, realms, forbidden borders) plus "v2 border ridge and cell counts not built". The v2 line is unchanged.
+- PickRealms is computed once per process; callers get copies. The v3 range and ground loops use BakeParallel.
+- v3 generate 1407 -> 1205 ms: v2base 736 ms gone, layout 41 ms. Ranges and ground still share the CPU with the plant pregrow, so ranges is about 1080 ms in the bake (it was about 580 ms when v2base took the contention).
+- Identity: landmark hash v3 80EBFCE6 / v2 95EAB5B4, heights C524062E / 9CBCD24A, bat folk DCB70DE3 / 8A17B4DB, Fauna_Fingerprint F99FD9E4: all unchanged.
