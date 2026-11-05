@@ -2473,3 +2473,25 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
 - Repinned in WorldTests.cs: Landmarks_V3 is "110 09EAC0FE" (island line 110 landmarks, hash CE5EB4D9; it was 109 C96F266F) and Fauna_Fingerprint is 61459BF0 (was 1202B8ED). v3 bake 5207 ms (places 3897).
 - Shared files: Flora.hlsl, FloraDoors.cs, FloraPlacement.cs and LandmarkData.cs (the new StiltHouseFits).
 - Shots, village (-2151, 3731): Assets/Temp/shots/w105_stilt_shore.png (from the beach: house on stilts in the water, walkway to the shore) and w105_stilt_above.png (the pier and the stilt house side by side).
+
+## W-105 row 4: shared fire effect #131 (20d14b2, world-features)
+
+- One standard fire: a FireEffect asset (Resources/StandardFire). It holds the colours (Wood, Blue, Green, Violet; each has outer, mid, core and light), glow size and strength, light intensity and reach, embers (chance, rate, rise) and smoke (strength, rise, rate, colour). Flame.shader draws a flame, a spark, a soft glow and two smoke puffs per flame; the smoke is a second, alpha-blended pass.
+- Debug: F4 (after F3) cycles every fire through the effect's colours and back to each fire's own.
+- Fix: the colour index was truncated from an interpolated value, so a non-orange palette bled orange (goblin green was hit too). It is rounded now.
+- Moved onto it. Every flame already went through FireSystem.AddFlame, so callers didn't change:
+  - landmark Flame effects on fire pits and braziers: campsites, hermit hut, goblin camp (green), ogre camp, human village, human and dwarf mining camps, dwarf hold;
+  - cave wall torches (flame and light);
+  - sunken temple ruin sconces (flame and light);
+  - carried torches (flame only).
+- Left alone:
+  - the carried torch light in CreatureRenderSystem (animal lane file);
+  - the Ember Forest night fire (not started, per the card);
+  - cave lava light, landmark ember and smoke plumes, ambient Embers particles, burnt campfires and lanterns.
+- Shots in Assets/Temp/shots: w105_4_campfire_before / _after, w105_4_sconce_before / _after, and w105_4_campfire_green (debug override, green).
+- Render ms, human village (2972, -885) at 22:00, v3, uncapped, 500 frames, fires on / off (flame material removed):
+  - frame 4.83 / 5.11 ms, then 4.80 / 4.86 ms;
+  - gpu 1.68 / 1.29 ms, then 1.00 / 1.24 ms;
+  - fires add 2 batches and 2 setpass calls. The difference is inside the noise, so no regression.
+- Bake: v3 6261 ms this session (110 landmarks, hash CE5EB4D9, unchanged) against 5207 ms in row 3. Row 4 adds no bake work (runtime and shader only), so I read this as machine load. The suite run will re-measure it.
+- StoneColossi.cs untouched.
