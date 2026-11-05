@@ -2189,6 +2189,6 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
 - Tent panels (all Form Tent species, goblin hides included) are now the Cloth part, held still (no wind). This changes their lighting a little (cloth faces the viewer).
 - Risk: the weave reads faintly at 800 px; the seams are what you see at a few metres. The commit also carries the row 2-4 code, which later rows verify.
 
-### W-99 row 2 - contact shading (commits 23bcb6f + fd row-2 tweak) - done (verified)
+### W-99 row 2 - contact shading (commits 23bcb6f + 32a9ce4) - done (verified)
 - Kit walls, posts, piles and chimneys get a vertex occlusion band where they meet a floor, deck, balcony or plinth (BandedBox, LOD 0-1). Fishing village pier posts darken under the deck (gallery r2q.png); stilt house wall darkens toward its deck (r2h.png).
 - Weather drifted to overcast during the shots; time was noon.
