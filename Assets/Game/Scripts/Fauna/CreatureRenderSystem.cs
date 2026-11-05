@@ -533,10 +533,26 @@ namespace Punchy.Fauna
             PassStart(0);
             FinishPosed(cam, settings);
 
-            // (Copied out once: the counts below and the pose job both read these.)
-            var bodies = query.ToComponentDataArray<CreatureBody>(Allocator.TempJob);
-            var states = query.ToComponentDataArray<CreatureState>(Allocator.TempJob);
-            var entities = query.ToEntityArray(Allocator.TempJob);
+            // The creatures, as CreatureSnapshotSystem's copy job makes them this frame (A-70 row 3): the cull below
+            // waits on its handle on the workers, so the main thread doesn't stop for the brain here. Copied out here
+            // instead when HeldPoseSystem has moved carried ones since that copy (or with no copy this frame).
+            var heldMoved = HeldPoseSystem.Ran.Data != 0;
+            HeldPoseSystem.Ran.Data = 0;
+            var ownCopy = !CreatureSnapshotSystem.Current(World, out var allStates, out var allBodies, out var allEntities, out var copied) || heldMoved;
+            if (ownCopy)
+            {
+                var copyStart = System.Diagnostics.Stopwatch.GetTimestamp();
+                allBodies = query.ToComponentDataArray<CreatureBody>(Allocator.TempJob);
+                allStates = query.ToComponentDataArray<CreatureState>(Allocator.TempJob);
+                allEntities = query.ToEntityArray(Allocator.TempJob);
+                CreatureSnapshotSystem.CopyTicks += System.Diagnostics.Stopwatch.GetTimestamp() - copyStart;
+                CreatureSnapshotSystem.Copies += 3;
+                copied = default;
+            }
+            // (The kept ones are packed into these: the counts below and the pose job both read them.)
+            var bodies = new NativeArray<CreatureBody>(allBodies.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+            var states = new NativeArray<CreatureState>(allBodies.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+            var entities = new NativeArray<Entity>(allBodies.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
             // Deep in a cave, out of sight of every mouth (CaveSystem.SurfaceHidden): the creatures up on the surface are
             // neither posed nor drawn. (Players' bodies always are.)
             // And anything well behind the camera (past BehindCullRange, so the shadows of those close behind still fall
@@ -558,29 +574,35 @@ namespace Punchy.Fauna
             var counted = new NativeReference<int2>(Allocator.TempJob);
             var culling = default(JobHandle);
             if (OldCull)
+            {
+                copied.Complete();
                 for (int i = 0; i < bodies.Length; i++)
                 {
-                    var to = states[i].Position - camPos;
+                    var to = allStates[i].Position - camPos;
                     var far = math.lengthsq(to) > BehindCullRange * BehindCullRange;
                     var behind = far && math.dot(math.normalizesafe(to), camFwd) < behindCos &&
-                                 math.length(to) > bodies[i].Blob.Value.SeenFrom * 0.5f;
-                    var underground = hidden && !(states[i].Position.y < hiddenFrom.SampleHeight(states[i].Position.xz) - 1f);
-                    keepFlags[i] = states[i].Mode == CreatureMode.Puppet || !behind && !underground;
+                                 math.length(to) > allBodies[i].Blob.Value.SeenFrom * 0.5f;
+                    var underground = hidden && !(allStates[i].Position.y < hiddenFrom.SampleHeight(allStates[i].Position.xz) - 1f);
+                    keepFlags[i] = allStates[i].Mode == CreatureMode.Puppet || !behind && !underground;
                 }
+            }
             else
                 culling = new CullJob
                 {
-                    States = states,
-                    Bodies = bodies,
+                    States = allStates,
+                    Bodies = allBodies,
                     Terrain = hiddenFrom,
                     CameraPosition = camPos,
                     CameraForward = camFwd,
                     BehindCos = behindCos,
                     Hidden = hidden,
                     Keep = keepFlags
-                }.Schedule(bodies.Length, 16);
+                }.Schedule(bodies.Length, 16, copied);
             culling = new CompactJob
             {
+                AllBodies = allBodies,
+                AllStates = allStates,
+                AllEntities = allEntities,
                 Bodies = bodies,
                 States = states,
                 Entities = entities,
@@ -607,8 +629,16 @@ namespace Punchy.Fauna
             extraCount += traceCount;
             Pass(3);
 
+            var waitStart = System.Diagnostics.Stopwatch.GetTimestamp();
             culling.Complete();
+            CreatureSnapshotSystem.WaitTicks += System.Diagnostics.Stopwatch.GetTimestamp() - waitStart;
             keepFlags.Dispose();
+            if (ownCopy)
+            {
+                allBodies.Dispose();
+                allStates.Dispose();
+                allEntities.Dispose();
+            }
             var keep = counted.Value.x;
             var total = counted.Value.y;
             counted.Dispose();
@@ -1035,6 +1065,10 @@ namespace Punchy.Fauna
         [BurstCompile]
         struct CompactJob : IJob
         {
+            /// <summary>Every creature (the snapshot's copy, read only: A-70 row 3), and the kept ones packed into these.</summary>
+            [ReadOnly] public NativeArray<CreatureBody> AllBodies;
+            [ReadOnly] public NativeArray<CreatureState> AllStates;
+            [ReadOnly] public NativeArray<Entity> AllEntities;
             public NativeArray<CreatureBody> Bodies;
             public NativeArray<CreatureState> States;
             public NativeArray<Entity> Entities;
@@ -1047,12 +1081,12 @@ namespace Punchy.Fauna
             public void Execute()
             {
                 var keep = 0;
-                for (int i = 0; i < Bodies.Length; i++)
+                for (int i = 0; i < AllBodies.Length; i++)
                     if (Keep[i])
                     {
-                        Bodies[keep] = Bodies[i];
-                        States[keep] = States[i];
-                        Entities[keep] = Entities[i];
+                        Bodies[keep] = AllBodies[i];
+                        States[keep] = AllStates[i];
+                        Entities[keep] = AllEntities[i];
                         keep++;
                     }
                 var total = 0;

@@ -246,6 +246,9 @@ namespace Punchy.Fauna
             s.Partner = Entity.Null;
             s.Action = IdleAction.None;
             s.ActionTime = 0f;
+            // (A pickup: HeldPoseSystem clamps it to the carrier's arms from this frame on, A-70 row 3.)
+            if (mode == CreatureMode.Held)
+                HeldPoseSystem.Pending.Data = 1;
         }
     }
 

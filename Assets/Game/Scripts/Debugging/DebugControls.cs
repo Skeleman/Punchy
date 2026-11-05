@@ -1875,6 +1875,8 @@ namespace Punchy.Debugging
             Punchy.Fauna.BuildingFootprints.Off.Data = System.Array.IndexOf(args, "-oldfootprints") >= 0 || System.Array.IndexOf(LaunchArgs, "-oldfootprints") >= 0 ? 1 : 0;
             Punchy.Fauna.BuildingFootprints.Check.Data = System.Array.IndexOf(args, "-footprintcheck") >= 0 || System.Array.IndexOf(LaunchArgs, "-footprintcheck") >= 0 ? 1 : 0;
             Punchy.Fauna.CreatureSnapshotSystem.Off = System.Array.IndexOf(args, "-oldsnapshot") >= 0;
+            // A-70 row 3 A/B: "-syncsnapshot", the snapshot copied on the main thread (waiting for the brain), as before.
+            Punchy.Fauna.CreatureSnapshotSystem.Sync = System.Array.IndexOf(args, "-syncsnapshot") >= 0 || System.Array.IndexOf(LaunchArgs, "-syncsnapshot") >= 0;
             Punchy.Fauna.TraceSystem.OldOrder = System.Array.IndexOf(args, "-oldtrace") >= 0;
             Punchy.Fauna.TraceSystem.Stats = perfLog;
             Punchy.Fauna.CreatureBrainSystem.SpreadOn.Data = perfLog ? 1 : 0;
@@ -3087,6 +3089,7 @@ namespace Punchy.Debugging
         struct long3 { public long X, Y, Z; public long3(long x, long y, long z) { X = x; Y = y; Z = z; } }
         long3 perfTrace0;
         long2 perfCopies0;
+        long perfWait0;
         Punchy.Fauna.CreatureBrainSystem.SearchCounts perfSearch0, lineSearch0;
         readonly FrameTiming[] perfTiming = new FrameTiming[1];
 
@@ -3098,6 +3101,7 @@ namespace Punchy.Debugging
                 perfProbeTicks0 = ThirdPersonCamera.ProbeTicks;
                 perfTrace0 = new long3(Punchy.Fauna.TraceSystem.Frames, Punchy.Fauna.TraceSystem.Ticks, Punchy.Fauna.TraceSystem.NoSurfaceCalls);
                 perfCopies0 = new long2(Punchy.Fauna.CreatureSnapshotSystem.Copies, Punchy.Fauna.CreatureSnapshotSystem.CopyTicks);
+                perfWait0 = Punchy.Fauna.CreatureSnapshotSystem.WaitTicks;
                 perfSearch0 = Punchy.Fauna.CreatureBrainSystem.Searches.Data;
                 perfSpread0 = Punchy.Fauna.CreatureBrainSystem.Spread.Data;
                 Punchy.Fauna.CreatureBrainSystem.Spread.Data.WorstWallTicks = 0;
@@ -3206,7 +3210,8 @@ namespace Punchy.Debugging
                       $"trace {(Punchy.Fauna.TraceSystem.Ticks - perfTrace0.Y) * 1000.0 / freq / traceFrames:F3} ms/frame, " +
                       $"{(double)(Punchy.Fauna.TraceSystem.NoSurfaceCalls - perfTrace0.Z) / traceFrames:F1} surface checks/frame; " +
                       $"snapshot copies {(double)(Punchy.Fauna.CreatureSnapshotSystem.Copies - perfCopies0.X) / n:F1}/frame, " +
-                      $"{(Punchy.Fauna.CreatureSnapshotSystem.CopyTicks - perfCopies0.Y) * 1000.0 / freq / n:F3} ms/frame; " +
+                      $"{(Punchy.Fauna.CreatureSnapshotSystem.CopyTicks - perfCopies0.Y) * 1000.0 / freq / n:F3} ms/frame, " +
+                      $"brain wait {(Punchy.Fauna.CreatureSnapshotSystem.WaitTicks - perfWait0) * 1000.0 / freq / n:F3} ms/frame; " +
                       $"searches/frame predator {(double)(se.Predator - perfSearch0.Predator) / n:F1}, alarm {(double)(se.Alarm - perfSearch0.Alarm) / n:F1}, " +
                       $"chat {(double)(se.Chat - perfSearch0.Chat) / n:F1}; flees predator {se.PredatorFlee - perfSearch0.PredatorFlee}, " +
                       $"alarm {se.AlarmFlee - perfSearch0.AlarmFlee}; totals flee {se.PredatorFlee}/{se.AlarmFlee}; " +

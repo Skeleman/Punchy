@@ -238,22 +238,22 @@ namespace Punchy.Fauna
                     None = new[] { ComponentType.ReadOnly<PlayerAvatar>() }
                 });
             }
-            var states = creatureQuery.ToComponentDataArray<CreatureState>(Allocator.Temp);
-            var entities = creatureQuery.ToEntityArray(Allocator.Temp);
+            // (The creatures as the shared snapshot last had them, a frame behind at most, A-70 row 3; it includes
+            // players' bodies, which this query leaves out.)
+            CreatureSnapshotSystem.Get(sim, creatureQuery, out var states, out var bodies, out var entities);
             for (int i = 0; i < states.Length; i++)
             {
                 // Only those anywhere near a plant matter.
                 var near = false;
                 for (int k = 0; k < plants.Count && !near; k++)
                     near = math.distancesq(new float2(plants[k].Position.x, plants[k].Position.z), states[i].Position.xz) < TrackRange * TrackRange * 1.5f;
-                if (!near)
+                if (!near || simManager.HasComponent<PlayerAvatar>(entities[i]))
                     continue;
                 tPos.Add(states[i].Position);
                 tEntity.Add(entities[i]);
                 tKind.Add(1);
             }
-            states.Dispose();
-            entities.Dispose();
+            CreatureSnapshotSystem.Release(sim, states, bodies, entities);
         }
 
         // ---------------------------------------------------------------- behaviour
