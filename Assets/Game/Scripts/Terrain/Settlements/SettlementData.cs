@@ -167,6 +167,13 @@ namespace Punchy.Terrain
         /// <summary>Packed earth's colour (linear) where paved streets give way outside a town's centre.</summary>
         static readonly float3 PackedEarth = new float3(0.17f, 0.115f, 0.07f);
 
+        /// <summary>
+        /// How cobbled the ground is at distance d from a paved town's centre (W-108): fully out to its edge, fading to
+        /// dirt over the next dozen metres, raggedly.
+        /// </summary>
+        static float Cobbled(float radius, float d, float edgeNoise)
+            => 1f - math.smoothstep(radius - 2f, radius + 12f, d + edgeNoise * 4f);
+
         /// <summary>Paints the streets' surface over the ground, with a ragged edge.</summary>
         public static void Ground(ref SettlementSetBlob set, float2 xz, float edgeNoise, float colorNoise, ref SurfaceProps props)
         {
@@ -190,12 +197,10 @@ namespace Punchy.Terrain
                 street.Albedo *= 1f + colorNoise * layout.Street.ColorVariation;
                 if (street.Paving > 0f)
                 {
-                    // W-104 (#39): paved layouts lay cobbles only through the centre; past about half the radius the
-                    // streets, and the roads leaving town, turn to packed earth (no cobbles, browner, duller), with a
-                    // ragged fade between.
+                    // W-104 (#39): paved layouts' roads turn to packed earth (no cobbles, browner, duller) away from
+                    // town. W-108: the town's own streets are cobbled out to its edge; roads take their cobbles below.
                     ref var town = ref set.Settlements[s.Settlement];
-                    var d = math.distance(xz, town.Centre) + edgeNoise * 3f;
-                    var paved = 1f - math.smoothstep(town.Radius * 0.35f, town.Radius * 0.6f, d);
+                    var paved = s.Road != 0 ? 0f : Cobbled(town.Radius, math.distance(xz, town.Centre), edgeNoise);
                     var earth = street;
                     earth.Paving = 0f;
                     earth.Albedo = math.lerp(street.Albedo, PackedEarth * (1f + colorNoise * 0.15f), 0.75f);
@@ -210,7 +215,37 @@ namespace Punchy.Terrain
                     var across = Across(s, xz, out _);
                     var rut = 1f - math.smoothstep(0.12f, 0.4f, math.abs(across - half * 0.42f));
                     var verge = math.smoothstep(half - 1f, half - 0.2f, across);
-                    street.Albedo *= 0.8f * (1f - 0.2f * rut) * (1f - 0.18f * verge);
+                    var earthShade = 0.8f * (1f - 0.2f * rut) * (1f - 0.18f * verge);
+                    // W-108 (#39): near a paved town (whoever's road it is) the road is cobbled, fading from the dirt
+                    // over a short ragged stretch at the town's edge. Paving above 1 is the shader's wear: the stones
+                    // down the wheel ruts are rubbed flat; at the verge it dips under 1 and grass gets between them.
+                    var cobbled = 0f;
+                    var paver = -1;
+                    for (int i = 0; i < set.Settlements.Length; i++)
+                    {
+                        ref var town = ref set.Settlements[i];
+                        ref var l = ref set.Layouts[town.Layout];
+                        if (l.HasStreetSurface == 0 || l.Street.Props.Paving <= 0f)
+                            continue;
+                        var c = Cobbled(town.Radius, math.distance(xz, town.Centre), edgeNoise);
+                        if (c > cobbled)
+                        {
+                            cobbled = c;
+                            paver = i;
+                        }
+                    }
+                    if (paver >= 0)
+                    {
+                        ref var l = ref set.Layouts[set.Settlements[paver].Layout];
+                        var cobbles = l.Street.Props;
+                        cobbles.Albedo *= (1f + colorNoise * l.Street.ColorVariation) * (1f - 0.1f * verge);
+                        var worn = 1f - math.smoothstep(0.2f, 0.7f, math.abs(across - half * 0.42f));
+                        cobbles.Paving *= 1f + worn * 0.9f - verge * 0.3f;
+                        street.Albedo *= earthShade;
+                        street = SurfaceProps.Lerp(street, cobbles, cobbled);
+                    }
+                    else
+                        street.Albedo *= earthShade;
                 }
                 props = SurfaceProps.Lerp(props, street, w);
             }

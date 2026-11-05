@@ -185,7 +185,9 @@ Shader "Punchy/Terrain Surface"
 
             // The paving at p: x = the stone's shade (-0.5..0.5), y = gap share (1 = gap), zw = slope (dh/dx, dh/dz).
             // hue: a warm/cool tint per stone (-0.5..0.5); dome: 0 at a stone's rim to 1 on top (dark rims).
-            float4 Cobbles(float2 p, out half hue, out half dome)
+            // W-108 (#39): about one stone in thirty is missing (its hole shows the gap's earth and grass) and one in
+            // fifteen has sunk (flatter, darker, a puddle of shade); sunk = 1 for those.
+            float4 Cobbles(float2 p, out half hue, out half dome, out half sunk)
             {
                 uint id; float edge;
                 const float e = 0.015;
@@ -198,7 +200,16 @@ Shader "Punchy/Terrain Surface"
                 dome = saturate(h / 0.03);
                 float shade = ((tone >> 8) & 255u) / 255.0 - 0.5;
                 float mortar = 1 - smoothstep(-0.004, 0.006, edge);
-                return float4(shade, mortar, (hx - h) / e, (hz - h) / e);
+                uint fate = (tone >> 16) & 63u;
+                float2 slope = float2(hx - h, hz - h) / e;
+                sunk = fate >= 2u && fate < 6u ? 1 : 0;
+                if (fate < 2u)
+                {
+                    mortar = 1;
+                    slope *= 0.2;
+                }
+                slope *= 1 - 0.65 * sunk;
+                return float4(shade, mortar, slope);
             }
 
             // -0.5..0.5 per cell of p (an integer hash: far from the origin a sin hash breaks up).
@@ -307,13 +318,17 @@ Shader "Punchy/Terrain Surface"
 
                 half relief = detailFade * 0.45 * (1 - puddle);
                 normalWS = normalize(normalWS - half3(micro.x, 0, micro.y) * relief);
-                half cobbleFade = smoothstep(0.25, 0.6, input.paving) * (1 - smoothstep(30, 80, distance));
+                half cobbleFade = smoothstep(0.3, 0.55, input.paving) * (1 - smoothstep(30, 80, distance));
+                // W-108: paving above 1 is wear (SettlementSampling.Ground: the ruts down a cobbled road), and paving
+                // a little under 1 (a road's verge, the fade at a town's edge) lets the grass in between the stones.
+                half wear = saturate(input.paving - 1);
+                half sparse = 1 - smoothstep(0.6, 1, input.paving);
                 float4 cb = float4(0, 0, 0, 0);
-                half cbHue = 0, cbDome = 1;
+                half cbHue = 0, cbDome = 1, cbSunk = 0;
                 [branch] if (cobbleFade > 0.001)
                 {
-                    cb = Cobbles(p, cbHue, cbDome);
-                    normalWS = normalize(normalWS - half3(cb.z, 0, cb.w) * cobbleFade * (1 - puddle * 0.7));
+                    cb = Cobbles(p, cbHue, cbDome, cbSunk);
+                    normalWS = normalize(normalWS - half3(cb.z, 0, cb.w) * cobbleFade * (1 - puddle * 0.7) * (1 - 0.6 * wear));
                 }
                 // Rock faces (steep ground) up close: the caves' shared grain and fine relief, read three ways, so cliffs
                 // carry the same detail as cave walls.
@@ -366,8 +381,15 @@ Shader "Punchy/Terrain Surface"
                     half patch = PunchyValueNoise(p * 0.21 + 4.7) - 0.5;
                     half3 stone = lerp(albedo, grey.xxx, 0.45) * (1.2 + cb.x * 0.55 + patch * 0.25)
                                 * half3(1 + cbHue * 0.16, 1 + cbHue * 0.03, 1 - cbHue * 0.16) * lerp(0.6, 1, cbDome);
-                    half tuft = smoothstep(0.5, 0.72, PunchyValueNoise(p * 2.6 + 12.1) * 0.7 + PunchyValueNoise(p * 9.3) * 0.3);
+                    // W-108: worn stones in the ruts are rubbed flat and smooth: greyer, a touch darker, their rims
+                    // less dark; sunk stones sit in shade with dirt washed over them.
+                    stone = lerp(stone, grey.xxx * half3(0.86, 0.84, 0.8) * (0.9 + cb.x * 0.2) * lerp(0.9, 1, cbDome), wear);
+                    stone *= lerp(1, half3(0.62, 0.58, 0.52), cbSunk);
+                    half tuft = smoothstep(0.5 - sparse * 0.3, 0.72 - sparse * 0.2,
+                                           PunchyValueNoise(p * 2.6 + 12.1) * 0.7 + PunchyValueNoise(p * 9.3) * 0.3)
+                              * (1 - wear);   // nothing grows where the wheels run
                     half3 gap = lerp(albedo * half3(0.34, 0.29, 0.22), half3(0.10, 0.16, 0.05), tuft);
+                    gap = lerp(gap, albedo * half3(0.62, 0.52, 0.4), wear);   // packed dust tamped into the joints
                     albedo = lerp(albedo, lerp(stone, gap, cb.y), cobbleFade);
                 }
                 // Rock strata (mesa cliffs, canyon walls): bands of darker red and paler cream rock by height, a thick
