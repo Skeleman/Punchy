@@ -2071,3 +2071,11 @@ Calls used: about 110 (over budget).
   - A reader's own fallback copy was Temp, which jobs can't take. It is now TempJob. FolkTalk also now releases its first copy (that was missing).
 - The bench ran before these fixes. They only touch body swaps and fallback copies.
 - Suite 11/11. Fingerprint 2E01A16B and landmarks 108 4D2643D7 are unchanged. No exceptions in either bench.
+
+## A-70 extra row: mimic ocotillos in MesaCanyonlands (commit 9a870b3)
+- OcotilloMimic is added to the MesaCanyonlands fauna list at density 0.2, the same as Sonoran. The rules are the same too: it waits curled beside a real ocotillo. The two-line asset edit is the only change.
+- Suite 11/11 with the edit.
+- Fingerprint 2E01A16B, unchanged. The fingerprint covers species builds (115 species), not biome fauna lists, so it doesn't move.
+- Landmarks 108 4D2643D7, unchanged.
+- No re-bake signal: the landmark hash and placement are the same. The editor bakes on every play start anyway, so I can't tell a forced re-bake apart from that.
+- Shot (unviewed full res, local to the animal machine): mesa-mimic.png. It shows a mimic in Rest, curl 1.00, at (1943.6, -610.1), next to a lone real Ocotillo at (1946, -610), with Mesa red rock behind.
