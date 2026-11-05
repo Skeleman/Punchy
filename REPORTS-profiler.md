@@ -2,6 +2,53 @@
 
 Newest first.
 
+## 2026-11-05 job 33 (Zach): shadow options 1 and 2 vs W-107's far-tree switches, with screenshots
+
+**Short answer:**
+- On main a38f9ca (W-102 + W-107), flora shadows cost only **about 1.6 ms of GPU at fishing village 1 and 0.6 ms in the forest**. That's default against no flora shadows. W-102 already took the big share.
+- **The cheap far caster gets 70-100% of that back:** cheap + still with a 15 m near range = the no-flora-shadows number.
+  - **But its look is wrong in the forest:** the far caster throws a large, solid, dark blob where the default casts a dappled canopy shadow (see the forest sheet).
+- **Still far shadows on their own cost more than default** at fishing village 1 (+0.6 ms, 13.7 vs 13.1 ms). They're neutral in the forest.
+- Option 1 at x0.5 / 2 cascades saves about 0.9 ms (fv1) and 0.5 ms (forest), and shortens every shadow.
+- The High preset (x1.5, 4 cascades) costs +1.1 ms (fv1) and +0.8 ms (forest).
+
+**Method:**
+- Bench build of a38f9ca, v2, uncapped, 1280x720.
+- The bench runner's new BenchTune sweep (`-benchtunesweep`) runs every setting in one session, so the light, weather and camera match: 4 s settle, 8 s measured, screenshot.
+- 2 sessions per spot, the second in reverse order. Shown: forest mean of both; fv1 from session 1, because session 2 froze (see notes).
+- GPU ms from FrameTimingManager.
+- Default here is the bench profile's Shadows 1.0: 50 m, 3 cascades; trees cast to 60 m and shrubs to 40 m (W-102), both capped by the 50 m shadow distance.
+- Scripts: lanes/profiler/scripts/q33.sh (separate sessions, numbers only) and q34.sh (sweep). Sheets: shots/job33/sheet-fv1.jpg, sheet-forest.jpg. Logs and full shots: results/q33logs, q34logs, q34shots.
+
+| setting | fv1 gpu ms (fps) | forest gpu ms (fps) | look |
+|---|---|---|---|
+| default (x1 = 50 m, 3 cascades, W-102 cast 60/40 m) | 13.07 (74) | 9.89 (97) | — |
+| High preset: x1.5, 4 cascades | 14.20 (67) | 10.66 (87) | Same as default in these views. |
+| Option 1: x0.75, 3 cascades | 12.68 (77) | 9.79 (99) | Close to default; shadows end at 38 m. |
+| Option 1: x0.5, 2 cascades | 12.14 (74) | 9.42 (102) | Shadows end at 25 m; far trees unshaded. |
+| Option 2: trees 30 m, shrubs 20 m | 12.61 (77) | 9.63 (100) | The forest shadow stops short of the tree line. |
+| No flora shadows | 11.50 (83) | 9.30 (104) | Flat: fv1 is visibly brighter under the canopy. |
+| Cheap far caster | 11.95 (81) | 9.58 (101) | **Forest: a big solid shadow blob, darker and larger than the canopy's dappled shadow.** |
+| Still far shadows | 13.69 (71) | 9.90 (98) | Like default. **Slower** at fv1. |
+| Cheap + still | 11.80 (81) | 9.56 (101) | As cheap. |
+| Cheap + still, near 15 m | 11.47 (84) | 9.51 (101) | As cheap; the solid blob comes closer. |
+| Cheap + still + option 1 x0.75 | 11.60 (83) | 9.50 (101) | As cheap. |
+
+**For the world lane (W-107):**
+1. **Cheap far caster's shape is too solid.** It draws a filled silhouette where the real tree has gaps, so far shadows get darker and blockier than near ones, and the seam at the near range is visible.
+   - Suggestion: give the card or mesh alpha-tested holes from a canopy noise texture, or a lower shadow strength for the far caster.
+2. **Still far shadows cost +0.6 ms at fv1.** Possibly the still path adds draws rather than replacing them. Worth checking that the still and near lists don't overlap.
+3. Cached far shadows (row 3) aren't in yet. They'd remove the remaining far-caster cost.
+
+**Notes:**
+- **Two freezes, cause unknown:**
+  - q34 fv1 session 2 froze for 452 s in one frame, during the "cheapstill" set. The process was alive before and after, and the system log has no sleep or display-driver event.
+  - Two q33 sessions (fv1 x0.5/4 cascades, forest trees 30 m) never finished their stop in 15 min while the game kept running.
+  - None of the three is tied to one setting. I'll watch for it; if it repeats I'll capture it.
+- fv1 (v2 -3304,-1644) is a misty swamp forest by the village. The mist still drifts between sets, so judge fv1 looks loosely; the forest sheet is the clean comparison.
+- Live use: launch the bench build (a38f9ca) with `-benchtune` (add `-island v2` etc.). The BenchTune panel shows fps, GPU and main ms. F9 hides it, F10 picks a row, F11 changes it, F12 saves a screenshot named by the settings. Rows: shadow distance, cascades, tree/shrub cast distance, flora shadows, cheap far caster, still far shadows, cached far shadows (pending), near range, still-from distance.
+- Cost: 42 calls, peak 285k context (session), $5.1
+
 ## 2026-11-05 job 32: #102 island-ready frame breakdown, and the W-102 flora-shadow baseline (read only, main 7492c31)
 
 ### A) #102: the island-ready frame
