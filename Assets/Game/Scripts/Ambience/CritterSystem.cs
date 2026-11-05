@@ -96,6 +96,25 @@ namespace Punchy.Ambience
 
         int MaxPerTile => (int)(TileSize * TileSize * MaxDensity / 100f);
 
+        /// <summary>
+        /// Tests (W-97): fireflies and butterflies per 100 m² over the built tiles whose centre lies within radius of xz
+        /// (x, y), and how many tiles that was (z).
+        /// </summary>
+        public float3 DensityNear(float2 xz, float radius)
+        {
+            float fireflies = 0f, butterflies = 0f;
+            var count = 0;
+            foreach (var t in tiles.Values)
+                if (math.distance(((float3)t.Bounds.center).xz, xz) <= radius)
+                {
+                    fireflies += t.FireflyCount;
+                    butterflies += t.ButterflyCount;
+                    count++;
+                }
+            var area = math.max(count, 1) * TileSize * TileSize / 100f;
+            return new float3(fireflies / area, butterflies / area, count);
+        }
+
         void OnDisable()
         {
             DropPending();
