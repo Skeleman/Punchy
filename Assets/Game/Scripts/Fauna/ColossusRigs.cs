@@ -33,6 +33,8 @@ namespace Punchy.Fauna
                 StoneColossi.Kind.RockGolem => new GolemRig(root),
                 StoneColossi.Kind.GiantTortoise => new TortoiseRig(root),
                 StoneColossi.Kind.MesaTortoise => new MesaTortoiseRig(root),
+                StoneColossi.Kind.GlassHeron => new HeronRig(root),
+                StoneColossi.Kind.LanternStag => new StagRig(root),
                 _ => null,
             };
             return rig != null && rig.Ready ? rig : null;
@@ -611,6 +613,259 @@ namespace Punchy.Fauna
             {
                 scrub.localPosition = scrubAt + rise;
                 scrub.localRotation = shell.localRotation;
+            }
+        }
+    }
+
+    /// <summary>
+    /// A-76 row 1 (#40): the glass heron. It wades on its two stilt legs (one thigh swings forward as the other pushes
+    /// back, the shin folding at the backward ankle to lift each foot clear), the body rocking over each step and the
+    /// S-neck pumping. At rest it stands still, then every few seconds tips its body and neck down and stabs the sand with
+    /// its beak, and slowly straightens. The litter round its feet stays lying; the sandpiper on its back rides the body.
+    /// The sand drifts round its feet stay in the ground while it walks and are left behind.
+    /// "-walkerphase stab" (DebugControls, for shots) holds it at the bottom of a stab.
+    /// </summary>
+    sealed class HeronRig : ColossusRig
+    {
+        const float StabEvery = 9f, BodyStab = 45f, NeckStab = 65f;
+        static readonly Vector3 HipAt = new Vector3(0f, 16f, 0f), NeckAt = new Vector3(0f, 21f, 5f), HeadAt = new Vector3(0f, 28.5f, 7.8f);
+
+        readonly MeshRenderer baked;
+        readonly SkinnedMeshRenderer skinned;
+        readonly Transform body, neck, head;
+        readonly Transform[] thighs = new Transform[2], shins = new Transform[2];
+        readonly Vector3[] thighAt = new Vector3[2];
+        readonly List<Transform> bones = new List<Transform>();
+        readonly List<Vector3> restAt = new List<Vector3>();
+        protected override bool Ready => skinned != null;
+
+        public HeronRig(Transform root) : base(root)
+        {
+            var part = root.Find("Body");
+            var filter = part != null ? part.GetComponent<MeshFilter>() : null;
+            if (filter == null || filter.sharedMesh == null || !filter.sharedMesh.isReadable)
+                return;
+            baked = part.GetComponent<MeshRenderer>();
+            var mesh = filter.sharedMesh;
+            var v = mesh.vertices;
+            var rig = Bone("Rig", root, Vector3.zero);
+            body = Bone("Body", rig, HipAt);
+            neck = Bone("Neck", body, NeckAt - HipAt);
+            head = Bone("Head", neck, HeadAt - NeckAt);
+            bones.AddRange(new[] { rig, body, neck, head });
+            // As BuildGlassHeron: 0 left, 1 right; the right foot a little ahead.
+            var feet = new Vector3[2];
+            for (int k = 0; k < 2; k++)
+            {
+                float s = k == 0 ? -1f : 1f, ahead = k == 0 ? -0.6f : 1.6f;
+                thighAt[k] = new Vector3(s * 2.2f, 16f, 0f);
+                var ankle = new Vector3(s * 2.5f, 8f, -1.6f + ahead * 0.4f);
+                feet[k] = new Vector3(s * 2.7f, 0.5f, 0.4f + ahead);
+                thighs[k] = Bone("Thigh" + k, rig, thighAt[k]);
+                shins[k] = Bone("Shin" + k, thighs[k], ankle - thighAt[k]);
+                bones.Add(thighs[k]);
+                bones.Add(shins[k]);
+            }
+            var drift = Bone("Drift", rig, Vector3.zero);
+            bones.Add(drift);   // 8
+            foreach (var b in bones)
+                restAt.Add(b.localPosition);
+
+            var weights = new BoneWeight[v.Length];
+            for (int i = 0; i < v.Length; i++)
+            {
+                var p = v[i];
+                var k = p.x < 0f ? 0 : 1;
+                int thigh = 4 + k * 2, shin = thigh + 1;
+                var foot = feet[k];
+                var fromFoot = new Vector2(p.x - foot.x, p.z - foot.z);
+                // The toes run up to 3.6 m forward of the foot and 2.2 m back, thin, along the ground.
+                var onToes = p.y < 0.9f && math.abs(fromFoot.x) < 2.6f && fromFoot.y > -2.6f && fromFoot.y < 4f
+                             && (math.abs(fromFoot.x) < 0.5f || math.abs(math.abs(fromFoot.x) - 0.5f * fromFoot.y) < 0.6f);
+                if (p.y < 0.65f && !onToes)
+                    weights[i] = Weigh(8, 8, 0f);                                                        // sand drift
+                else if (p.y < 15.4f && math.abs(p.x) > 0.8f)
+                    weights[i] = p.y < 8.6f ? Weigh(thigh, shin, 1f - math.smoothstep(7.4f, 8.6f, p.y))
+                                            : Weigh(thigh, 1, math.smoothstep(14.2f, 15.4f, p.y));
+                else if (p.y > 28.2f)
+                    weights[i] = Weigh(3, 3, 0f);                                                        // head, beak and crest
+                else if (p.z > 2f && math.abs(p.x) < 1.9f && p.y > 20.5f)
+                    weights[i] = p.y > 27f ? Weigh(2, 3, math.smoothstep(27f, 28.2f, p.y))
+                                           : Weigh(1, 2, math.smoothstep(20.5f, 22.5f, p.y));
+                else
+                    weights[i] = Weigh(1, 1, 0f);
+            }
+            skinned = Skin(part, mesh, bones.ToArray(), weights);
+            // The sandpiper rides the body bone.
+            var piper = root.Find("Sandpiper");
+            if (piper != null)
+                piper.SetParent(body, true);
+            Debug.Log($"ColossusRig: glass heron skinned ({v.Length} verts)");
+        }
+
+        protected override void Show(bool animated)
+        {
+            Swap(baked, skinned, animated);
+            if (animated)
+                return;
+            for (int i = 0; i < bones.Count; i++)
+            {
+                bones[i].localPosition = restAt[i];
+                bones[i].localRotation = Quaternion.identity;
+            }
+        }
+
+        protected override void Pose(float pace, float stride, float settle, float t)
+        {
+            var phase = math.PI * stride;
+            // The stab: quick down, a moment's hold, slowly back up; only once it has settled into its rest.
+            var c = (float)(t % StabEvery);
+            var stab = ColossusWalker.Phase == "stab" ? 1f : settle * math.smoothstep(0f, 0.6f, c) * (1f - math.smoothstep(1.6f, 3.2f, c));
+            var watch = 1f - stab;
+            body.localPosition = HipAt + Vector3.up * (0.25f * pace * math.abs(math.sin(phase)));
+            body.localRotation = Quaternion.Euler(BodyStab * stab + 2f * pace * math.sin(2f * phase), 0f, 2.5f * pace * math.sin(phase));
+            // The neck pumps with each step, turns a little toward the player and stabs; the head does most of the looking.
+            neck.localRotation = Quaternion.Euler(NeckStab * stab + 6f * pace * math.sin(2f * phase), 0.4f * Look * watch, 0f);
+            var glance = 8f * math.sin(t * 0.13f) * settle * (1f - math.saturate(math.abs(Look) / 10f));
+            head.localRotation = Quaternion.Euler(-4f * stab, (0.6f * Look + glance) * watch, 0f);
+            for (int k = 0; k < 2; k++)
+            {
+                var leg = phase + (k == 0 ? 0f : math.PI);
+                // Swinging forward while cos > 0: the foot lifts, the shin folding back at the ankle.
+                var lift = pace * math.max(0f, math.cos(leg));
+                thighs[k].localRotation = Quaternion.Euler(-14f * pace * math.sin(leg) - 10f * lift, 0f, 0f);
+                thighs[k].localPosition = thighAt[k] + Vector3.up * (0.6f * lift);
+                shins[k].localRotation = Quaternion.Euler(32f * lift, 0f, 0f);
+            }
+        }
+    }
+
+    /// <summary>
+    /// A-76 row 2 (#40): the lantern stag. It walks on four slim legs in diagonal pairs, the knees folding as each leg
+    /// lifts, its barrel rolling a little and its neck nodding with the steps. At rest it lowers its head to graze now and
+    /// then and raises it again to look about (toward the player when one is near). The lantern flames
+    /// (StoneColossi.GlowLanterns) hang from its antlers, so the rig moves their points onto its head bone.
+    /// </summary>
+    sealed class StagRig : ColossusRig
+    {
+        const float GrazeEvery = 14f, Graze = 32f;
+        static readonly Vector3 BodyAt = new Vector3(0f, 16.5f, 0f), NeckAt = new Vector3(0f, 18.5f, 9.5f), HeadAt = new Vector3(0f, 24.5f, 13.5f);
+
+        readonly MeshRenderer baked;
+        readonly SkinnedMeshRenderer skinned;
+        readonly Transform body, neck, head;
+        readonly Transform[] uppers = new Transform[4], lowers = new Transform[4];
+        readonly Vector3[] hipAt = new Vector3[4];
+        readonly List<Transform> bones = new List<Transform>();
+        readonly List<Vector3> restAt = new List<Vector3>();
+
+        protected override bool Ready => skinned != null;
+
+        public StagRig(Transform root) : base(root)
+        {
+            var part = root.Find("Body");
+            var filter = part != null ? part.GetComponent<MeshFilter>() : null;
+            if (filter == null || filter.sharedMesh == null || !filter.sharedMesh.isReadable)
+                return;
+            baked = part.GetComponent<MeshRenderer>();
+            var mesh = filter.sharedMesh;
+            var v = mesh.vertices;
+            var rig = Bone("Rig", root, Vector3.zero);
+            body = Bone("Body", rig, BodyAt);
+            neck = Bone("Neck", body, NeckAt - BodyAt);
+            head = Bone("Head", neck, HeadAt - NeckAt);
+            bones.AddRange(new[] { rig, body, neck, head });
+            // As BuildLanternStag: 0 front left, 1 front right (a step ahead), 2 back left (a step back), 3 back right.
+            var knees = new Vector3[4];
+            var hooves = new Vector3[4];
+            for (int k = 0; k < 4; k++)
+            {
+                float sx = k % 2 == 0 ? -1f : 1f, sz = k < 2 ? 1f : -1f;
+                var forward = k == 1 ? 2f : k == 2 ? -1.5f : 0f;
+                hipAt[k] = new Vector3(sx * 3.4f, 15f, sz * 9f);
+                knees[k] = new Vector3(sx * 3.3f, 8f, sz * 9f + (sz < 0f ? -2.2f : 0.6f) + forward * 0.5f);
+                hooves[k] = new Vector3(sx * 3.2f, 1.2f, sz * 9f + forward);
+                uppers[k] = Bone("Leg" + k, rig, hipAt[k]);
+                lowers[k] = Bone("Shank" + k, uppers[k], knees[k] - hipAt[k]);
+                bones.Add(uppers[k]);
+                bones.Add(lowers[k]);
+            }
+            foreach (var b in bones)
+                restAt.Add(b.localPosition);
+
+            var neckFrom = NeckAt;
+            var neckDir = (HeadAt - NeckAt).normalized;
+            var neckLength = Vector3.Distance(HeadAt, NeckAt);
+            var weights = new BoneWeight[v.Length];
+            for (int i = 0; i < v.Length; i++)
+            {
+                var p = v[i];
+                var k = (p.x < 0f ? 0 : 1) + (p.z > 0f ? 0 : 2);
+                int upper = 4 + k * 2, lower = upper + 1;
+                // Where this leg runs at the vertex's height, and whether the vertex is on it.
+                var legAt = p.y > 8f ? Vector3.Lerp(knees[k], hipAt[k], (p.y - 8f) / 7f) : Vector3.Lerp(hooves[k], knees[k], (p.y - 1.2f) / 6.8f);
+                var onLeg = p.y < 13.5f && math.abs(p.x - legAt.x) < 2.3f && math.abs(p.z - legAt.z) < 2.3f;
+                var u = Vector3.Dot(p - neckFrom, neckDir) / neckLength;
+                var offAxis = Vector3.Distance(p, neckFrom + neckDir * (u * neckLength));
+                if (onLeg)
+                    weights[i] = p.y < 8.6f ? Weigh(upper, lower, 1f - math.smoothstep(7.4f, 8.6f, p.y))
+                                            : Weigh(upper, 1, math.smoothstep(12f, 13.5f, p.y));
+                else if (p.y > 25.2f || (p.y > 22f && p.z > 9f && math.abs(p.x) > 2.6f))
+                    weights[i] = Weigh(3, 3, 0f);                                                        // head, antlers, lanterns, vine, nest
+                else if (p.z > 10f && p.y > 23.8f)
+                    weights[i] = Weigh(2, 3, math.smoothstep(23.8f, 25.2f, p.y));
+                else if (u > 0.1f && (offAxis < 3.6f || u > 0.6f))
+                    weights[i] = Weigh(1, 2, math.smoothstep(0.1f, 0.4f, u));
+                else
+                    weights[i] = Weigh(1, 1, 0f);
+            }
+            skinned = Skin(part, mesh, bones.ToArray(), weights);
+            // The lantern flame points follow the head.
+            for (int i = 0; i < root.childCount; i++)
+            {
+                var child = root.GetChild(i);
+                if (child.name.StartsWith("Lantern"))
+                {
+                    child.SetParent(head, true);
+                    i--;
+                }
+            }
+            Debug.Log($"ColossusRig: lantern stag skinned ({v.Length} verts)");
+        }
+
+        protected override void Show(bool animated)
+        {
+            Swap(baked, skinned, animated);
+            if (animated)
+                return;
+            for (int i = 0; i < bones.Count; i++)
+            {
+                bones[i].localPosition = restAt[i];
+                bones[i].localRotation = Quaternion.identity;
+            }
+        }
+
+        protected override void Pose(float pace, float stride, float settle, float t)
+        {
+            var phase = math.PI * stride;
+            body.localPosition = BodyAt + Vector3.up * (0.3f * pace * math.abs(math.sin(phase)) + 0.08f * settle * math.sin(t * 0.6f));
+            body.localRotation = Quaternion.Euler(0.8f * pace * math.sin(2f * phase), 0f, 1.6f * pace * math.sin(phase));
+            // Grazing at rest, unless the player is near enough to be looked at.
+            var c = (float)(t % GrazeEvery);
+            var watching = math.saturate(math.abs(Look) / 6f);
+            var graze = settle * (1f - watching) * math.smoothstep(0f, 2.5f, c) * (1f - math.smoothstep(7f, 9.5f, c));
+            neck.localRotation = Quaternion.Euler(Graze * graze + 4f * pace * math.sin(2f * phase), 0.35f * Look, 0f);
+            var glance = 10f * math.sin(t * 0.12f) * settle * (1f - graze) * (1f - watching);
+            head.localRotation = Quaternion.Euler(14f * graze - 3f * pace, 0.65f * Look + glance, 0f);
+            for (int k = 0; k < 4; k++)
+            {
+                var leg = phase + (k == 0 || k == 3 ? 0f : math.PI);
+                var lift = pace * math.max(0f, math.cos(leg));
+                var hind = k >= 2;
+                uppers[k].localRotation = Quaternion.Euler(-16f * pace * math.sin(leg) + (hind ? 8f : -12f) * lift, 0f, 0f);
+                uppers[k].localPosition = hipAt[k] + Vector3.up * (0.4f * lift);
+                // Front knees fold back, hind hocks fold forward.
+                lowers[k].localRotation = Quaternion.Euler((hind ? -30f : 36f) * lift, 0f, 0f);
             }
         }
     }
