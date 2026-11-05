@@ -2151,3 +2151,8 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
 - **Numbers:** landmarks 108 / 4D2643D7 (unchanged). Rapids values shift near segment ends, so rapids-gated rocks (MinRapids) may move a little.
 - **Shots:** w98-rapid-before/after (cam -575.9,41.5,698.75 -> -577,38.6,691), w98-cave-before/after (cave stream 1, cam -1331.3,90.3,1423.6). Full-res in the gallery.
 - **Risks:** stills can't show the motion. The rapid is fairly white overall (green shows through). There are 2 extra value-noise reads per pixel, only where rapids > 0.02.
+
+## W-98 row 2 (#83): waterfall = river ribbon - done (verified)
+- Commit a8c459d. The water shader adds a falling-sheet look on steep, flowing faces (smoothstep on the face normal's y, 0.8 down to 0.45), with streaks scrolling at 5.5 m/s. The overlay curtain is no longer drawn; the emitter stays for sound only, and plumes are kept.
+- Shot: gallery/w98-fall-after.png (fall 61, 24.5 m drop, lip -301.5,113.7,2591.6). The whole face is streaked water, with no river showing through.
+- Risk: the falling look keys on the shading slope, so any steep rapid (more than about 37 degrees) gets streaks too. Re-importing the shader in play mode left the water half-broken until play was restarted.
