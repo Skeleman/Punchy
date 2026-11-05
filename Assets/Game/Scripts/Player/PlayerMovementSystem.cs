@@ -93,7 +93,7 @@ namespace Punchy.Player
                 if (m.Flying)
                 {
                     var hasFlora = SystemAPI.TryGetSingleton<Punchy.Flora.FloraLookup>(out var flora) && flora.Blob.IsCreated;
-                    Fly(ref t, ref m, body, input, terrain, settings, inCave, dt, obstacles, hasFlora ? flora.Blob : default);
+                    Fly(ref t, ref m, body, input, terrain, settings, inCave, dt, obstacles, hasFlora ? flora.Blob : default, hasKit, kitBoxes);
                     continue;
                 }
                 // Up a tree trunk: climbing it, round it, or letting go.
@@ -230,7 +230,7 @@ namespace Punchy.Player
                 if (tops)
                     position.xz = KeepOutOfPropWalls(ref grids.Set.Value, props, from, position.xz, stepUp, wallHead, out blocked);
                 if (hasKit)   // W-67 (#79): kit walls, slid along the same way.
-                    position.xz = KitCollision.KeepOut(kitBoxes, from, position.xz, settings.Radius, stepUp, wallHead, ref blocked);
+                    position.xz = KitCollision.KeepOut(kitBoxes, from, position.xz, settings.Radius, math.max(stepUp, KitStep), wallHead, ref blocked);
                 // The salt tower's body and its steps from below (W-27): slid along the same way.
                 position.xz = KeepOutOfTower(terrain, from, position.xz, stepUp, 1.7f * size, ref blocked);
                 // (#33 probe, -place wall only: every term of the wall latch below, and what stopped the move first.)
@@ -564,7 +564,7 @@ namespace Punchy.Player
         /// </summary>
         static void Fly(ref LocalTransform t, ref PlayerMotion m, in PlayerBody body, in PlayerInput input, in TerrainSource terrain,
                         in PlayerMotor settings, bool inCave, float dt, in DynamicBuffer<FloraObstacle> obstacles,
-                        BlobAssetReference<Punchy.Flora.FloraBlob> flora)
+                        BlobAssetReference<Punchy.Flora.FloraBlob> flora, bool hasKit, in DynamicBuffer<KitBox> kit)
         {
             var forward3 = math.mul(t.Rotation, new float3(0f, 0f, 1f));
             var yaw = math.atan2(forward3.x, forward3.z);
@@ -661,7 +661,21 @@ namespace Punchy.Player
                 else if (normal.y > 0.5f)
                     m.Pitch = math.max(m.Pitch, 0f);
             }
+            // W-100: kit buildings (walls, stairs, balconies, roofs) are solid on the wing too: it slides along a wall
+            // rather than flying through it, and comes down on a stair tread or a deck as it would on the ground.
+            var onKit = false;
+            if (hasKit)
+            {
+                var size = body.Size > 0f ? body.Size : 1f;
+                var blocked = false;
+                position.xz = KitCollision.KeepOut(kit, t.Position, position.xz, settings.Radius, 0.05f, 0.6f * size, ref blocked);
+            }
             Floor(terrain, position, settings.SwimDepth, out ground, out _);
+            if (hasKit && KitCollision.TopAt(kit, position.xz, position.y + 0.25f, 0.5f * (body.Size > 0f ? body.Size : 1f), out var kitTop) && kitTop > ground)
+            {
+                onKit = true;
+                ground = kitTop;
+            }
             if (position.y <= ground && inCave && steering && !descend && !dive)
             {
                 // A-69: brushing a cave's floor while flying on, it skims it rather than landing (landing there
@@ -675,6 +689,7 @@ namespace Punchy.Player
                 position.y = ground;
                 m.Flying = false;
                 m.Grounded = true;
+                m.OnProp = onKit;
                 m.VerticalVelocity = 0f;
                 m.Pitch = 0f;
             }
@@ -832,6 +847,11 @@ namespace Punchy.Player
 
         /// <summary>The highest a body of human size steps up onto without a climb (m).</summary>
         const float StepUp = 0.4f;
+        /// <summary>
+        /// W-100: the least step up onto kit boxes, whatever the body's size: a stair tread (0.28 m or less), so a bird
+        /// or a cat hops up a stair rather than meeting each tread as a wall.
+        /// </summary>
+        const float KitStep = 0.32f;
         /// <summary>The highest ledge (above the feet) a body of human size climbs onto, and how long it takes (s).</summary>
         const float MantleReach = 1.8f, MantleTime = 0.8f;
         /// <summary>Steeper than this (a surface normal's up part: 45°) a top slides you off, at this speed (m/s).</summary>
@@ -850,7 +870,7 @@ namespace Punchy.Player
             hit = default;
             hit.Height = float.MinValue;
             var found = tops && PropSupport.Sample(ref grids.Set.Value, props, feet, radius, stepUp, out hit, true);
-            if (hasKit && KitCollision.Floor(kit, feet, radius, stepUp, out var height) && (!found || height > hit.Height))
+            if (hasKit && KitCollision.Floor(kit, feet, radius, math.max(stepUp, KitStep), out var height) && (!found || height > hit.Height))
             {
                 hit = default;
                 hit.Height = height;

@@ -69,9 +69,7 @@ namespace Punchy.Debugging
         /// </summary>
         // A-69 "-rockwatch SECONDS": once a second, every cave dweller within 60 m of the player whose body (half a metre
         // up from its feet) is inside rock, under the cave roof or the ground; logged per check and in total at the end.
-        static float rockWatchFor, rockWatchSince = -1f, rockWatchNext, batFolkPlaceUntil, propPlaceUntil;
-        // (#137: "-place prop:" waits for the flora placement blob, which comes after the island.)
-        static string propPlaceRequest;
+        static float rockWatchFor, rockWatchSince = -1f, rockWatchNext, batFolkPlaceUntil;
         static int rockWatchChecks, rockWatchHits, rockWatchSeen;
         static readonly HashSet<uint> rockWatchStuck = new HashSet<uint>();
 
@@ -260,19 +258,12 @@ namespace Punchy.Debugging
             SettleGoto();
             WalkTo();
             FlyCave();
+            PlacePropPending();
             // (A-69: "-place batfolk" again until the bat folk homes are baked; they come after the island.)
             if (batFolkPlaceUntil > 0f && Time.unscaledTime < batFolkPlaceUntil && EnsureLocations(out var batRetry) && PlaceAtBatFolk(batRetry))
             {
                 batFolkPlaceUntil = 0f;
                 rockWatchSince = -1f; // (-rockwatch counts from there.)
-            }
-            // (#137: "-place prop:" again each frame until the flora placement is built; a warning if it never is.)
-            if (propPlaceRequest != null && EnsureLocations(out var propRetry) && PlaceByProp(propRetry, propPlaceRequest))
-                propPlaceRequest = null;
-            else if (propPlaceRequest != null && Time.unscaledTime >= propPlaceUntil)
-            {
-                Debug.LogWarning($"DebugControls: -place prop:{propPlaceRequest} gave up, the flora placement never came up");
-                propPlaceRequest = null;
             }
             RockWatch();
             Pose();
@@ -1577,9 +1568,9 @@ namespace Punchy.Debugging
             flyOn = false;
             flyRoute.Clear();
             flyPending = null;
+            propPending = null;
             rockWatchFor = 0f;
             rockWatchSince = -1f;
-            propPlaceRequest = null;
             untilWork = 0f;
             untilAction = 0f;
             pendingSpawns.Clear();
@@ -1912,8 +1903,11 @@ namespace Punchy.Debugging
                     PlaceByTree(treeSource, args[i + 1].Substring(5));
                 else if (args[i] == "-place" && args[i + 1].StartsWith("prop:", System.StringComparison.OrdinalIgnoreCase))
                 {
-                    propPlaceRequest = args[i + 1].Substring(5);
-                    propPlaceUntil = Time.unscaledTime + 60f;
+                    // (#137: kept until the flora lookup is up, which is built on workers since #102; Update retries it.)
+                    propPending = args[i + 1].Substring(5);
+                    propPendingUntil = Time.unscaledTime + PropWait;
+                    if (EnsureLocations(out var propSource) && PlaceByProp(propSource, propPending))
+                        propPending = null;
                 }
                 else if (args[i] == "-place" && args[i + 1].StartsWith("cavestream", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var streamSource))
                     PlaceByCaveStream(streamSource, args[i + 1].Substring(10));
@@ -3917,6 +3911,28 @@ namespace Punchy.Debugging
             Debug.LogWarning($"DebugControls: no lone {speciesName} near");
         }
 
+        /// <summary>A "-place prop:" spec waiting for the world, the player and the flora lookup, and until when (#137).</summary>
+        static string propPending;
+        static float propPendingUntil;
+        const float PropWait = 120f;
+
+        /// <summary>Whether a "-place prop:" request is still waiting (for tests).</summary>
+        public static bool PropPlacePending => propPending != null;
+
+        /// <summary>#137: retries a waiting "-place prop:" each frame until it can run, warning if it never can.</summary>
+        void PlacePropPending()
+        {
+            if (propPending == null)
+                return;
+            if (Time.unscaledTime > propPendingUntil)
+            {
+                Debug.LogWarning($"DebugControls: -place prop:{propPending} gave up; the flora lookup never came up");
+                propPending = null;
+            }
+            else if (EnsureLocations(out var source) && PlaceByProp(source, propPending))
+                propPending = null;
+        }
+
         /// <summary>
         /// "-place prop:Bench" (any plant species, wherever it's placed: a landmark's props, a town's buildings, or the
         /// biome's own scatter): logs the eight nearest with their coordinates and puts the player in front of the
@@ -3924,7 +3940,7 @@ namespace Punchy.Debugging
         /// "prop:Bench@115,-401" (or "prop:Bench@115,-401#2") measures from that point instead of the player. For lining
         /// up shots: the logged spot, height and front go straight into -camlook.
         /// </summary>
-        /// Returns false while the flora placement isn't built yet (the caller tries again), true once handled.
+        /// <remarks>Returns false while the flora lookup or the player isn't up yet, so the request can wait (#137).</remarks>
         bool PlaceByProp(in TerrainSource source, string spec)
         {
             var director = FindAnyObjectByType<FaunaDirector>();

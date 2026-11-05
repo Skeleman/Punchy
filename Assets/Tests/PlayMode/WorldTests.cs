@@ -26,19 +26,20 @@ namespace Punchy.Tests
             yield return null;
         }
 
-        /// <summary>Target: REPORTS-world W-98 row 3 (spring pools at river heads): 107 landmarks, probe hash 14D92F64 (was 108 / 4D2643D7).</summary>
+        /// <summary>Target: measured on main after PR #148 (W-99 to W-103; W-104 row 1 repinned it): 109 landmarks, probe hash C96F266F
+        /// (was 107 / 14D92F64 after W-98 row 3).</summary>
         [UnityTest, Order(1)]
         public IEnumerator Landmarks_V3()
         {
             var hash = Game.Hook<string>("LandmarkHash");
             LogWatch.Measure($"landmarks {hash}; game line: {LogWatch.Last("[island]")}");
-            Assert.AreEqual("107 14D92F64", hash);
+            Assert.AreEqual("109 C96F266F", hash);
             yield return null;
         }
 
         /// <summary>
-        /// Target: REPORTS-animal A-71 (115 species): fingerprint EA6A4DE5 on animal-behaviours with main 6d89525 merged in (the
-        /// weather comfort profiles in the species data; before A-71 it read 2E01A16B, A-68's target). The fingerprint is of the species data the fauna
+        /// Target: measured on main after PR #148 (W-104 row 1 repinned it): fingerprint F99FD9E4, 115 species. A-71 pinned EA6A4DE5 on
+        /// animal-behaviours before the merge (before A-71 it read 2E01A16B, A-68's target). The fingerprint is of the species data the fauna
         /// build bakes, so it reads the same wherever the player stands (the standard start spot here).
         /// </summary>
         [UnityTest, Order(2)]
@@ -46,7 +47,7 @@ namespace Punchy.Tests
         {
             var line = LogWatch.Last("fingerprint") ?? "no fingerprint line";
             LogWatch.Measure("fauna " + line);
-            StringAssert.Contains("fingerprint EA6A4DE5", line);
+            StringAssert.Contains("fingerprint F99FD9E4", line);
             yield return null;
         }
 
@@ -153,6 +154,43 @@ namespace Punchy.Tests
             // hill above it now and then; the climb out through the hitches is what must hold.)
             StringAssert.Contains(" 0 off the wing", climb);
             StringAssert.Contains("reached", climb);
+        }
+
+        /// <summary>
+        /// #137 (W-100 row 5): "-place prop:FishWharf" did nothing once the flora lookup was built on workers (#102);
+        /// the request now waits for it. Must log the wharves it found, frame the nearest and put the player beside it
+        /// (2 on v3, the nearest at (-4056.9, 0.5, 904.2), measured from 0,0 so it doesn't hang on where earlier tests left the player).
+        /// </summary>
+        [UnityTest, Order(8)]
+        public IEnumerator Place_PropFindsAndFramesWharf()
+        {
+            var before = LogWatch.Last("FishWharf found in all");
+            Game.RunOptions("-place prop:FishWharf@0,0");
+            var start = Time.realtimeSinceStartup;
+            while ((Game.Hook<bool>("PropPlacePending") || LogWatch.Last("FishWharf found in all") == before) && Time.realtimeSinceStartup - start < 30f)
+                yield return null;
+            var found = LogWatch.Last("FishWharf found in all") ?? "no found line";
+            var first = LogWatch.Last("FishWharf #1 at") ?? "no #1 line";
+            var framing = LogWatch.Last("framing FishWharf") ?? "no framing line";
+            var at = Game.Hook<Vector3>("PlayerPosition");
+            LogWatch.Measure($"place prop: {found}; {first}; player at {at}");
+            Assert.AreNotEqual(before, LogWatch.Last("FishWharf found in all"), "-place prop: logged nothing (#137)");
+            StringAssert.Contains("framing FishWharf #1", framing);
+            var wharf = ParseAt(first);
+            Assert.Less(Vector2.Distance(new Vector2(at.x, at.z), new Vector2(wharf.x, wharf.z)), 30f, "the player wasn't put beside the wharf");
+            yield return TestSceneSetup.Seconds(1f);
+        }
+
+        /// <summary>The "(x, y, z)" after " at " in a DebugControls line.</summary>
+        static Vector3 ParseAt(string line)
+        {
+            var open = line.IndexOf(" at (");
+            if (open < 0)
+                return new Vector3(float.NaN, 0f, float.NaN);
+            var close = line.IndexOf(')', open);
+            var parts = line.Substring(open + 5, close - open - 5).Split(',');
+            var c = System.Globalization.CultureInfo.InvariantCulture;
+            return new Vector3(float.Parse(parts[0], c), float.Parse(parts[1], c), float.Parse(parts[2], c));
         }
     }
 }

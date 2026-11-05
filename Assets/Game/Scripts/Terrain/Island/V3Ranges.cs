@@ -255,7 +255,7 @@ namespace Punchy.Terrain
             }
             var field = new float[Res * Res];
             float cell = W / Res;
-            System.Threading.Tasks.Parallel.For(0, Res, y =>
+            BakeParallel.For(Res, y =>
             {
                 for (int x = 0; x < Res; x++)
                 {
@@ -307,7 +307,7 @@ namespace Punchy.Terrain
             var tmp = new float[Res * Res];
             for (int pass = 0; pass < 2; pass++)
             {
-                System.Threading.Tasks.Parallel.For(0, Res, y =>
+                BakeParallel.For(Res, y =>
                 {
                     for (int x = 0; x < Res; x++)
                     {
@@ -315,7 +315,7 @@ namespace Punchy.Terrain
                         tmp[y * Res + x] = acc * 0.2f;
                     }
                 });
-                System.Threading.Tasks.Parallel.For(0, Res, y =>
+                BakeParallel.For(Res, y =>
                 {
                     for (int x = 0; x < Res; x++)
                     {
@@ -398,7 +398,7 @@ namespace Punchy.Terrain
             var s = source; float sea = s.World.SeaLevel;
             int size = (int)(s.World.WorldSize / step); float half = s.World.WorldSize * 0.5f;
             var g = new float[size * size];
-            System.Threading.Tasks.Parallel.For(0, size, z =>
+            BakeParallel.For(size, z =>
             {
                 for (int x = 0; x < size; x++) g[z * size + x] = s.SampleHeight(new float2(-half + (x + 0.5f) * step, -half + (z + 0.5f) * step));
             });
@@ -504,7 +504,7 @@ namespace Punchy.Terrain
         {
             var s = source; float sea = s.World.SeaLevel, size = s.World.WorldSize, half = size * 0.5f, cell = size / px;
             var h = new float[px * px];
-            System.Threading.Tasks.Parallel.For(0, px, j => { for (int i = 0; i < px; i++) h[j * px + i] = s.SampleHeight(new float2(-half + (i + 0.5f) * cell, -half + (j + 0.5f) * cell)); });
+            BakeParallel.For(px, j => { for (int i = 0; i < px; i++) h[j * px + i] = s.SampleHeight(new float2(-half + (i + 0.5f) * cell, -half + (j + 0.5f) * cell)); });
             var tex = new Texture2D(px, px, TextureFormat.RGB24, false);
             var cols = new Color[px * px];
             for (int j = 0; j < px; j++)

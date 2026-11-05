@@ -44,6 +44,9 @@ namespace Punchy.Terrain
         }
 
         static readonly int TerrainFocusId = Shader.PropertyToID("_TerrainFocus");
+        static readonly int DetailFarId = Shader.PropertyToID("_PunchyTerrainDetailFar");
+        /// <summary>Where the terrain's fine relief has faded out at Detail 1 (m; TerrainSurface.shader). W-101: was a fixed 70.</summary>
+        const float DetailFar = 110f;
         /// <summary>Vertices per batch (a full-detail chunk is about 4,500).</summary>
         const int VertexBudget = 14000;
         /// <summary>When off, the first batch is load-boosted too (for before/after timing).</summary>
@@ -163,6 +166,7 @@ namespace Punchy.Terrain
                 : float2.zero;
             // The terrain shader geomorphs vertices by their distance from this same point.
             Shader.SetGlobalVector(TerrainFocusId, new Vector4(focus.x, focus.y, 0f, 0f));
+            Shader.SetGlobalFloat(DetailFarId, Punchy.Settings.GraphicsSettings.DetailRange(DetailFar));
 
             // The focus's speed since the last batch started (batches can be frames apart), smoothed over about half a
             // second (a teleport reads as briefly fast).

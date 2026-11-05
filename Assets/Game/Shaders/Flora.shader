@@ -316,6 +316,10 @@ Shader "Punchy/Flora"
                     half fine = FloraMossNoise(input.moss.yzw * 80);
                     albedo *= lerp(half3(0.42, 0.56, 0.36), half3(1.0, 0.98, 0.62), clump) * (0.8 + 0.4 * fine);
                     albedo *= lerp(0.75, 1, saturate(input.moss.x * 2));
+                    // W-101 (#80): tiny cushions, each with a bright crown and a dark seam round it, so the sheet reads
+                    // as a mat of tufts rather than a smooth green cloth.
+                    half tuft = FloraMossNoise(input.moss.yzw * 26 + 9.7);
+                    albedo *= lerp(0.5, 1.15, smoothstep(0.25, 0.75, tuft));
                 }
                 // Windows: dark glass by day (their colour is the light they give at night, below).
                 half3 windowLight = albedo;

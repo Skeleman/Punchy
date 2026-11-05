@@ -4,6 +4,10 @@
 // change (and the fade-out at the layer's radius) a plant is appended to both levels with a dither fade:
 //   fade  t >= 0  draw where dither <  t
 //   fade -t <  0  draw where dither >= t        (the two halves of a crossfade never overlap)
+// W-102: the camera's lists cast no shadows. Plants near enough to cast (the layer's cast distance) also go, once
+// each, into a shadow list per variant at LOD 0 or 1 (the outgoing level through a change, as shadows don't
+// crossfade), so the shadow cascades never draw the far plants the camera sees. Far natural plants also thin out
+// (see _Thin); rocks and built things never do.
 
 #pragma kernel Clear
 #pragma kernel Cull
@@ -21,8 +25,8 @@ struct FloraInstance
 };
 
 StructuredBuffer<FloraInstance> _FloraInstances;
-StructuredBuffer<float2> _ModelBounds;   // radius, centre height (unscaled), per variant in this layer
-StructuredBuffer<uint> _Regions;         // output offset per variant × LOD
+StructuredBuffer<float3> _ModelBounds;   // radius, centre height (unscaled), thins (1: a natural plant), per variant
+StructuredBuffer<uint> _Regions;         // output offset per variant × draw (3 LODs, then 2 shadow lists)
 RWStructuredBuffer<uint2> _FloraVisible; // instance index, asuint(fade)
 // IndirectDrawIndexedArgs, one per variant x LOD. Structured, not raw: D3D11 can't write an IndirectArguments buffer as
 // raw, so FloraSystem counts into this and copies it into the draws' arguments.
@@ -34,7 +38,7 @@ struct DrawArgs
     int baseVertex;
     uint startInstance;
 };
-RWStructuredBuffer<DrawArgs> _Args;      // IndirectDrawIndexedArgs per variant × LOD (5 uints)
+RWStructuredBuffer<DrawArgs> _Args;      // IndirectDrawIndexedArgs per variant × draw (5 uints)
 
 uint _Count;
 uint _DrawCount;
@@ -42,7 +46,8 @@ int _ModelBase;
 float4 _Planes[6];
 float3 _CameraPosition;
 float4 _Lod;      // x LOD1 distance, y LOD2 distance, z radius
-float4 _Shadow;   // x shadow distance, y margin
+float4 _Shadow;   // x cast distance (0: the layer casts none), y margin off-screen
+float4 _Thin;     // x distance natural plants start thinning, y share of them left at the radius
 
 [numthreads(64, 1, 1)]
 void Clear(uint id : SV_DispatchThreadID)
@@ -51,9 +56,11 @@ void Clear(uint id : SV_DispatchThreadID)
         _Args[id].instanceCount = 0;
 }
 
+#define DRAWS 5
+
 void Append(uint instance, uint local, uint lod, float fade)
 {
-    uint draw = local * 3 + lod;
+    uint draw = local * DRAWS + lod;
     uint slot;
     InterlockedAdd(_Args[draw].instanceCount, 1, slot);
     _FloraVisible[_Regions[draw] + slot] = uint2(instance, asuint(fade));
@@ -66,22 +73,40 @@ void Cull(uint id : SV_DispatchThreadID)
         return;
     FloraInstance plant = _FloraInstances[id];
     uint local = (uint)(plant.model - _ModelBase);
-    float2 bounds = _ModelBounds[local];
+    float3 bounds = _ModelBounds[local];
     float radius = bounds.x * plant.scale;
     float3 centre = plant.position + float3(0, bounds.y * plant.scale, 0);
     float distance = length(centre - _CameraPosition);
     if (distance - radius > _Lod.z)
         return;
 
-    float margin = distance < _Shadow.x ? _Shadow.y : 0;
+    // Plants a little off-screen still cast into the view; the camera's own lists take only the visible ones.
+    bool casts = distance - radius < _Shadow.x;
+    float margin = casts ? _Shadow.y : 0;
+    bool seen = true;
     [unroll]
     for (int p = 0; p < 6; p++)
-        if (dot(_Planes[p].xyz, centre) + _Planes[p].w < -(radius + margin))
+    {
+        float side = dot(_Planes[p].xyz, centre) + _Planes[p].w;
+        if (side < -(radius + margin))
             return;
+        seen = seen && side >= -radius;
+    }
 
     // Distance to the plant's base on the ground plane suits LOD better than to its centre (tall trees).
     float d = length(plant.position.xz - _CameraPosition.xz);
+    if (casts)
+        Append(id, local, d < _Lod.x * 1.075 ? 3 : 4, 1);
+    if (!seen)
+        return;
     float keep = 1 - smoothstep(_Lod.z * 0.88, _Lod.z, d);
+    // W-102: natural plants thin out past _Thin.x. Each has its own threshold in the falling share, and dithers away
+    // over a tenth of it, so the thinning has no line: plants drop out one by one, scattered over the distance.
+    if (bounds.z > 0)
+    {
+        float share = lerp(1, _Thin.y, smoothstep(_Thin.x, _Lod.z, d));
+        keep *= saturate((share * 1.1 - frac(plant.random * 61.7)) * 10);
+    }
     if (keep <= 0)
         return;
 

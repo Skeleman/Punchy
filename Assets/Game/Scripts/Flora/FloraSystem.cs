@@ -43,18 +43,29 @@ namespace Punchy.Flora
             [Tooltip("Set beyond Radius to never use the coarsest level.")]
             public float Lod2Distance = 110f;
             public bool CastShadows = true;
+            [Tooltip("W-102: plants cast shadows only this near the camera (m), and never past the sun's shadow " +
+                     "distance. The shadow passes draw their own short list, not the camera's.")]
+            public float ShadowCastDistance = 60f;
+            [Tooltip("W-102: past this share of Radius, natural plants (not rocks or built things) thin out, each " +
+                     "dithering away at its own distance. Keep it beyond the LOD 2 change and the shadow cast distance.")]
+            public float ThinFrom = 0.5f;
+            [Tooltip("W-102: the share of natural plants still drawn at Radius.")]
+            public float ThinTo = 0.3f;
         }
 
         public Material Material;
         public ComputeShader Culling;
-        public LayerSettings Ground = new LayerSettings { CellSize = 0.7f, TileSize = 14f, Radius = 70f, Lod1Distance = 18f, Lod2Distance = 1000f, CastShadows = false };
-        public LayerSettings Shrubs = new LayerSettings { CellSize = 2f, TileSize = 40f, Radius = 260f, Lod1Distance = 30f, Lod2Distance = 110f };
-        public LayerSettings Trees = new LayerSettings { CellSize = 4.5f, TileSize = 108f, Radius = 1500f, Lod1Distance = 55f, Lod2Distance = 220f };
+        public LayerSettings Ground = new LayerSettings { CellSize = 0.7f, TileSize = 14f, Radius = 70f, Lod1Distance = 18f, Lod2Distance = 1000f, CastShadows = false, ThinFrom = 0.4f, ThinTo = 0.25f };
+        public LayerSettings Shrubs = new LayerSettings { CellSize = 2f, TileSize = 40f, Radius = 260f, Lod1Distance = 30f, Lod2Distance = 110f, ShadowCastDistance = 40f, ThinFrom = 0.5f, ThinTo = 0.25f };
+        public LayerSettings Trees = new LayerSettings { CellSize = 4.5f, TileSize = 108f, Radius = 1500f, Lod1Distance = 55f, Lod2Distance = 220f, ShadowCastDistance = 60f, ThinFrom = 0.25f, ThinTo = 0.5f };
         [Tooltip("Placement cells started per frame across all layers. Placement runs on worker threads in the " +
                  "background; too many at once crowds out the terrain's own jobs and causes hitches.")]
         public int CellsPerFrame = 6000;
         [Tooltip("Plants this far outside the view still draw into the shadow maps, so off-screen trees cast shadows.")]
         public float ShadowMargin = 30f;
+        /// <summary>Indirect draws per variant: its 3 LODs for the camera, then LOD 0 and 1 shadow lists (W-102).</summary>
+        const int Draws = 5;
+        static int DrawLod(int draw) => draw < 3 ? draw : draw - 3;
         [Tooltip("Solid plants within this distance of the player are given to player movement as obstacles.")]
         public float CollisionRange = 24f;
         /// <summary>Plants whose collision is stacked slices (FloraModel.ColliderBase) only count within this distance:
@@ -134,6 +145,8 @@ namespace Punchy.Flora
         }
 
         readonly List<FloraModel> models = new List<FloraModel>();
+        /// <summary>Per model: a natural plant (trees through mushrooms) that thins out with distance (W-102).</summary>
+        readonly List<bool> thins = new List<bool>();
         readonly List<FloraSpecies> species = new List<FloraSpecies>();
         readonly Layer[] layers = new Layer[3];
         /// <summary>Where plants grow (shared with the animals through FloraPlacement).</summary>
@@ -177,6 +190,7 @@ namespace Punchy.Flora
         static readonly int CameraId = Shader.PropertyToID("_CameraPosition");
         static readonly int LodId = Shader.PropertyToID("_Lod");
         static readonly int ShadowId = Shader.PropertyToID("_Shadow");
+        static readonly int ThinId = Shader.PropertyToID("_Thin");
 
         public int PlantCount
         {
@@ -276,6 +290,7 @@ namespace Punchy.Flora
             foreach (var m in models)
                 m.Destroy();
             models.Clear();
+            thins.Clear();
             species.Clear();
             if (placement.IsCreated) placement.Dispose();
             placement = default;
@@ -436,7 +451,10 @@ namespace Punchy.Flora
             var placed = clock.Elapsed.TotalMilliseconds;
             foreach (var s in species)
                 for (int v = 0; v < s.Variants; v++)
+                {
                     models.Add(FloraGenerator.Grow(s, v));
+                    thins.Add(s.Form <= FloraForm.Mushroom);
+                }
             var grown = clock.Elapsed.TotalMilliseconds;
             BuildSupportGrids();
             long vertices = 0;
@@ -468,21 +486,21 @@ namespace Punchy.Flora
 
         void CreateDrawBuffers(Layer layer)
         {
-            var draws = math.max(1, layer.ModelCount * 3);
+            var draws = math.max(1, layer.ModelCount * Draws);
             layer.Args = new GraphicsBuffer(GraphicsBuffer.Target.IndirectArguments | GraphicsBuffer.Target.CopyDestination, draws, GraphicsBuffer.IndirectDrawIndexedArgs.size);
             layer.Counts = new GraphicsBuffer(GraphicsBuffer.Target.Structured | GraphicsBuffer.Target.CopySource, draws, GraphicsBuffer.IndirectDrawIndexedArgs.size);
             var args = new GraphicsBuffer.IndirectDrawIndexedArgs[draws];
-            var bounds = new float2[math.max(1, layer.ModelCount)];
+            var bounds = new float3[math.max(1, layer.ModelCount)];
             if (layer.Material == null)
                 layer.Material = new Material(Material) { name = $"Flora layer {layer.Index}" };
             for (int m = 0; m < layer.ModelCount; m++)
             {
                 var model = models[layer.ModelBase + m];
-                bounds[m] = new float2(model.Radius, model.CentreY);
-                for (int lod = 0; lod < 3; lod++)
+                bounds[m] = new float3(model.Radius, model.CentreY, thins[layer.ModelBase + m] ? 1f : 0f);
+                for (int draw = 0; draw < Draws; draw++)
                 {
-                    var mesh = model.Lods[lod];
-                    var d = m * 3 + lod;
+                    var mesh = model.Lods[DrawLod(draw)];
+                    var d = m * Draws + draw;
                     args[d] = new GraphicsBuffer.IndirectDrawIndexedArgs
                     {
                         indexCountPerInstance = mesh.GetIndexCount(0),
@@ -494,7 +512,7 @@ namespace Punchy.Flora
             layer.ArgsData = args;
             layer.Args.SetData(args);
             layer.Counts.SetData(args);
-            layer.Bounds = new GraphicsBuffer(GraphicsBuffer.Target.Structured, bounds.Length, sizeof(float) * 2);
+            layer.Bounds = new GraphicsBuffer(GraphicsBuffer.Target.Structured, bounds.Length, sizeof(float) * 3);
             layer.Bounds.SetData(bounds);
             layer.Regions = new GraphicsBuffer(GraphicsBuffer.Target.Structured, draws, sizeof(uint));
         }
@@ -677,20 +695,20 @@ namespace Punchy.Flora
                 l.Visible?.Release();
                 var capacity = math.ceilpow2(total);
                 l.Instances = new GraphicsBuffer(GraphicsBuffer.Target.Structured, capacity, Marshal.SizeOf<FloraInstance>());
-                l.Visible = new GraphicsBuffer(GraphicsBuffer.Target.Structured, capacity * 3, sizeof(uint) * 2);
+                l.Visible = new GraphicsBuffer(GraphicsBuffer.Target.Structured, capacity * Draws, sizeof(uint) * 2);
             }
             l.Instances.SetData(all, 0, 0, total);
             all.Dispose();
             l.Count = total;
 
-            // Each variant gets room for all its plants at each LOD (a plant appears at most once per LOD).
-            var regions = new uint[l.ModelCount * 3];
+            // Each variant gets room for all its plants in each draw (a plant appears at most once per draw).
+            var regions = new uint[l.ModelCount * Draws];
             uint offset = 0;
             for (int m = 0; m < l.ModelCount; m++)
-            for (int lod = 0; lod < 3; lod++)
+            for (int draw = 0; draw < Draws; draw++)
             {
-                regions[m * 3 + lod] = offset;
-                l.ArgsData[m * 3 + lod].startInstance = offset;
+                regions[m * Draws + draw] = offset;
+                l.ArgsData[m * Draws + draw].startInstance = offset;
                 offset += (uint)l.ModelCounts[m];
             }
             l.Regions.SetData(regions);
@@ -746,7 +764,7 @@ namespace Punchy.Flora
                 if (l.Count == 0 || l.ModelCount == 0)
                     continue;
                 var s = l.Settings;
-                var draws = l.ModelCount * 3;
+                var draws = l.ModelCount * Draws;
                 Culling.SetInt(DrawCountId, draws);
                 Culling.SetBuffer(clear, ArgsId, l.Counts);
                 Culling.Dispatch(clear, (draws + 63) / 64, 1, 1);
@@ -756,7 +774,9 @@ namespace Punchy.Flora
                 Culling.SetVectorArray(PlanesId, planeVectors);
                 Culling.SetVector(CameraId, camPos);
                 Culling.SetVector(LodId, new Vector4(l.Lod1Distance, l.Lod2Distance, l.Radius, 0f));
-                Culling.SetVector(ShadowId, new Vector4(s.CastShadows ? shadowDistance : 0f, ShadowMargin, 0f, 0f));
+                var cast = s.CastShadows ? math.min(s.ShadowCastDistance, shadowDistance) : 0f;
+                Culling.SetVector(ShadowId, new Vector4(cast, ShadowMargin, 0f, 0f));
+                Culling.SetVector(ThinId, new Vector4(s.ThinFrom * l.Radius, s.ThinTo, 0f, 0f));
                 Culling.SetBuffer(cull, InstancesId, l.Instances);
                 Culling.SetBuffer(cull, VisibleId, l.Visible);
                 Culling.SetBuffer(cull, ArgsId, l.Counts);
@@ -794,11 +814,32 @@ namespace Punchy.Flora
                         var rp = new RenderParams(l.Material)
                         {
                             worldBounds = bounds,
-                            // Small props (fences, palisades, signposts...) cast none: the shadow pass's cost is per draw.
-                            shadowCastingMode = s.CastShadows && model.CastsShadows && lod < 2 ? ShadowCastingMode.On : ShadowCastingMode.Off,
+                            shadowCastingMode = ShadowCastingMode.Off,
                             receiveShadows = true
                         };
-                        Graphics.RenderMeshIndirect(rp, model.Lods[lod], l.Args, 1, m * 3 + lod);
+                        Graphics.RenderMeshIndirect(rp, model.Lods[lod], l.Args, 1, m * Draws + lod);
+                    }
+                    // The shadow lists (W-102), bounded to the cast distance so cascades they can't reach skip them.
+                    // Small props (fences, palisades, signposts...) cast none: the shadow pass's cost is per draw.
+                    if (cast <= 0f || !model.CastsShadows)
+                        continue;
+                    var castReach = cast + reach + ShadowMargin;
+                    var smin = math.max(min, eye - castReach);
+                    var smax = math.min(max, eye + castReach);
+                    if (math.any(smin > smax))
+                        continue;
+                    var shadowBounds = new Bounds((Vector3)((smin + smax) * 0.5f), (Vector3)(smax - smin));
+                    for (int lod = 0; lod < 2; lod++)
+                    {
+                        if (nearest > Near(cast) || lod == 0 && nearest > Near(l.Lod1Distance))
+                            continue;
+                        var rp = new RenderParams(l.Material)
+                        {
+                            worldBounds = shadowBounds,
+                            shadowCastingMode = ShadowCastingMode.ShadowsOnly,
+                            receiveShadows = false
+                        };
+                        Graphics.RenderMeshIndirect(rp, model.Lods[lod], l.Args, 1, m * Draws + 3 + lod);
                     }
                 }
             }
@@ -1117,6 +1158,12 @@ namespace Punchy.Flora
             if (!playerQuery.TryGetSingleton<LocalTransform>(out var player))
                 return;
             var centre = player.Position.xz;
+            // W-101 row 4 (#40): a rolling colossus (the salt ball) in reach rebuilds the buffer five times a second.
+            if (Time.time >= nextMovingObstacles && Punchy.Fauna.ColossusCollision.MovingNear(centre, CollisionRange))
+            {
+                nextMovingObstacles = Time.time + 0.2f;
+                obstaclesDirty = true;
+            }
             if (!obstaclesDirty && math.distance(centre, lastObstacleCentre) < CollisionRange * 0.25f)
                 return;
             obstaclesDirty = false;
@@ -1186,7 +1233,11 @@ namespace Punchy.Flora
                     }
                 }
             }
+            // W-101 row 4 (#40): the colossi's columns, slid round like trunks.
+            Punchy.Fauna.ColossusCollision.AddNear(buffer, centre, CollisionRange);
         }
+
+        float nextMovingObstacles;
 
         // ------------------------------------------------------------------------------------------- placement
 

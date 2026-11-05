@@ -30,9 +30,9 @@ namespace Punchy.Terrain
             var watch = System.Diagnostics.Stopwatch.StartNew();
             var steps = new System.Text.StringBuilder("[bake] v3 generate ms:");
             void Step(string name) { steps.Append($" {name} {watch.ElapsedMilliseconds}"); watch.Restart(); }
-            var gen = IslandV2.Generate(palette, hasOcean, allocator);
-            gen.Island.Dispose();
-            Step("v2base");
+            // W-103: the v2 pass only gave the report its layout line (its map and heights were thrown away).
+            var gen = new IslandV2.Result { Report = IslandV2.Layout() + "; v2 border ridge and cell counts not built" };
+            Step("layout");
 
             const float coastWobble = 0.14f, lakeRadius = 0.13f;
             IslandV2.PickRealms(out var sites, out var fam, out uint seed, out _);
@@ -47,14 +47,13 @@ namespace Punchy.Terrain
 
             // B3: the biome map follows the ranges (no border strips, blend radius, bleed through passes); B4's
             // geology rides along in the ground blob.
-            gen.Map.Dispose();
             gen.Map = V3Ground.Build(palette, hasOcean, (float[])field.Clone(), allocator, out gen.V3Ground, out var biomeLog);
             Debug.Log(biomeLog);
             Step("ground");
 
             // Same lake bowl as version 2, on the finer grid.
             const int R = V3Ranges.Res;
-            System.Threading.Tasks.Parallel.For(0, R, y =>
+            BakeParallel.For(R, y =>
             {
                 for (int x = 0; x < R; x++)
                 {
