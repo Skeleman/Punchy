@@ -1117,6 +1117,12 @@ namespace Punchy.Flora
             if (!playerQuery.TryGetSingleton<LocalTransform>(out var player))
                 return;
             var centre = player.Position.xz;
+            // W-101 row 4 (#40): a rolling colossus (the salt ball) in reach rebuilds the buffer five times a second.
+            if (Time.time >= nextMovingObstacles && Punchy.Fauna.ColossusCollision.MovingNear(centre, CollisionRange))
+            {
+                nextMovingObstacles = Time.time + 0.2f;
+                obstaclesDirty = true;
+            }
             if (!obstaclesDirty && math.distance(centre, lastObstacleCentre) < CollisionRange * 0.25f)
                 return;
             obstaclesDirty = false;
@@ -1186,7 +1192,11 @@ namespace Punchy.Flora
                     }
                 }
             }
+            // W-101 row 4 (#40): the colossi's columns, slid round like trunks.
+            Punchy.Fauna.ColossusCollision.AddNear(buffer, centre, CollisionRange);
         }
+
+        float nextMovingObstacles;
 
         // ------------------------------------------------------------------------------------------- placement
 

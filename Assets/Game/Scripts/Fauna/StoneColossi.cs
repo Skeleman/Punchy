@@ -189,6 +189,7 @@ namespace Punchy.Fauna
                 }
             for (int kind = 0; kind < Kinds; kind++)
             {
+                ColossusCollision.Clear(kind);
                 var wanted = new HashSet<int>();
                 for (int b = 0; b < palette.Biomes.Length; b++)
                     if (palette.Biomes[b] != null)
@@ -233,6 +234,12 @@ namespace Punchy.Fauna
                     Kind.SaltCrystal => BuildCrystal(source, Positions[kind], yaw, (uint)source.World.Seed ^ Salts[kind]),
                     _ => BuildLizard(Positions[kind], yaw),
                 };
+                // W-101 row 4 (#40): solid to the player and the creatures. The salt ball follows its roll; the crumbs
+                // beside its track are left to step over.
+                if (Placed[kind] == Kind.SaltCrystal)
+                    ColossusCollision.Register(kind, roots[kind], Placed[kind].ToString(), roots[kind].Find("Ball"), CrystalBall * 1.1f, "Crumbs");
+                else
+                    ColossusCollision.Register(kind, roots[kind], Placed[kind].ToString());
                 Debug.Log($"StoneColossi: {Placed[kind]} placed at ({spot.x:F0}, {ground:F1}, {spot.y:F0}), facing {yaw:F0} degrees, region {cells} cells, relief {Relief(source, spot, KeepRadius[kind] * 0.7f):F1} m");
             }
         }
