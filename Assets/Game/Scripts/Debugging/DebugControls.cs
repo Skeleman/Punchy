@@ -1055,10 +1055,22 @@ namespace Punchy.Debugging
                 if (cq.CalculateEntityCount() == 1)
                     night = cq.GetSingleton<FaunaClock>().Night;
             var groups = new SortedDictionary<string, (int n, float meter, float pressure, int[] kinds, float3 at)>(System.StringComparer.Ordinal);
+            // Row 2: how many are in shelter now (by kind), and how many are on their way to one.
+            var covered = new int[6];
+            int sheltered = 0, going = 0;
             for (int i = 0; i < states.Length; i++)
             {
                 if (states[i].Gone || !bodies[i].Blob.Value.Comfort.Minds)
                     continue;
+                if (minds[i].Cover != ShelterNeed.None)
+                {
+                    sheltered++;
+                    for (int k = 0; k < 6; k++)
+                        if (((int)minds[i].Cover & (1 << k)) != 0)
+                            covered[k]++;
+                }
+                if (states[i].Mode == CreatureMode.Shelter && states[i].Stage == 0)
+                    going++;
                 var name = director != null ? director.SpeciesAt(bodies[i].Species)?.name : null;
                 name ??= "#" + bodies[i].Species;
                 if (!groups.TryGetValue(name, out var g))
@@ -1071,6 +1083,9 @@ namespace Punchy.Debugging
             }
             Debug.Log($"[comfort] {queryWorld.Name} t {Time.timeSinceLevelLoad:F0} s night {night:F2} grid ready {Comfort.Grid.Data.Ready} " +
                       $"off {Comfort.Off.Data}: {groups.Count} species");
+            var counts = CreatureBrainSystem.Shelters.Data;
+            Debug.Log($"[comfort] sheltered {sheltered} (roof {covered[0]} tree {covered[1]} water {covered[2]} fire {covered[3]} shade {covered[4]} " +
+                      $"cave {covered[5]}) going {going} | started {counts.Started} indoors {counts.Indoors} arrived {counts.Arrived} none found {counts.NotFound}");
             // Every folk race's profile at the player's spot (the same five individuals each), whether or not any are near:
             // one line per race, mean pressure and the commonest complaint (the card's 5 races x 3 scenes).
             if (director != null && QueriesLive() && playerQuery.TryGetSingleton<LocalTransform>(out var me) && EnsureLocations(out var ground))
@@ -1093,7 +1108,7 @@ namespace Punchy.Debugging
                     var kinds = new int[9];
                     for (uint k = 1; k <= 5; k++)
                     {
-                        sum += Comfort.Pressure(in profile, k * 0x9E3779B9u, in here, night, underground, false, out var kind);
+                        sum += Comfort.Pressure(in profile, k * 0x9E3779B9u, in here, night, underground, ShelterNeed.None, out var kind);
                         kinds[(int)kind]++;
                     }
                     int worst = 0;
@@ -1692,6 +1707,10 @@ namespace Punchy.Debugging
             comfortLog = cfArg >= 0;
             comfortNext = 6f; // (statics outlive a play with domain reload off)
             Comfort.Off.Data = cfArg >= 0 && cfArg + 1 < args.Length && args[cfArg + 1] == "off" ? 1 : 0;
+            // "-comfortheat -0.3": shifts the comfort grid's heat (a forced cold snap or heat wave for comfort shots).
+            var chArg = System.Array.IndexOf(args, "-comfortheat");
+            Comfort.HeatShift.Data = chArg >= 0 && chArg + 1 < args.Length && float.TryParse(args[chArg + 1], System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var chv) ? chv : 0f;
             // "-thirsty" (A-49 #64): every creature's thirst is topped up for this line, so drinking shows up soon.
             thirsty = System.Array.IndexOf(args, "-thirsty") >= 0;
             personalityAt = -1f;

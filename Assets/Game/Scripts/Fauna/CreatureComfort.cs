@@ -71,6 +71,9 @@ namespace Punchy.Fauna
         struct OffKey { }
         /// <summary>Test flag "-comfort off": no creature minds the weather.</summary>
         public static readonly SharedStatic<int> Off = SharedStatic<int>.GetOrCreate<OffKey>();
+        struct HeatShiftKey { }
+        /// <summary>Test flag "-comfortheat x": added to the grid's heat everywhere (a forced cold snap or heat wave).</summary>
+        public static readonly SharedStatic<float> HeatShift = SharedStatic<float>.GetOrCreate<HeatShiftKey>();
 
         static Punchy.Weather.WeatherSystem weather;
         static float nextRefresh;
@@ -115,7 +118,7 @@ namespace Punchy.Fauna
                         sun = math.saturate(v.Sunlight * (1f - v.Overcast * 0.6f));
                     }
                     g.Sky.Add(sky);
-                    g.Ground.Add(new float4(climate.x, climate.y, sun, 0f));
+                    g.Ground.Add(new float4(math.saturate(climate.x + HeatShift.Data), climate.y, sun, 0f));
                 }
             g.Ready = 1;
         }
@@ -186,20 +189,35 @@ namespace Punchy.Fauna
 
         /// <summary>
         /// How uncomfortable one individual is right now, 0..1, and the worst reason. Each individual's tolerance and
-        /// heat range are its own (seeded), so some are hardier or fussier than others. Sheltered (row 2) takes off the
-        /// sky: no rain, snow, wind or sun.
+        /// heat range are its own (seeded), so some are hardier or fussier than others. Cover (row 2) is the shelter it
+        /// stands in: a roof or a cave takes off the whole sky (and a cave's air is mild); a tree most of the rain and
+        /// sun and half the wind; shade the sun; water the dry heat and much of the heat; a fire warms it.
         /// </summary>
         public static float Pressure(in ComfortProfile p, uint individual, in ComfortWeather w, float night, bool underground,
-                                     bool sheltered, out ComfortKind kind)
+                                     ShelterNeed cover, out ComfortKind kind)
         {
             kind = ComfortKind.None;
             if (!p.Minds || Off.Data != 0)
                 return 0f;
             var tol = math.max(p.Tolerance * (1f + 0.4f * CreatureBlob.Trait(individual, 7101)), 0f);
             var shift = 0.05f * CreatureBlob.Trait(individual, 7102);
-            var covered = underground || sheltered;
-            var heat = FeltHeat(w, night, underground) - (sheltered ? w.Sunlight * 0.06f * (1f - night) : 0f);
             var day = 1f - night;
+            var roofed = underground || (cover & (ShelterNeed.Roof | ShelterNeed.Cave)) != 0;
+            var tree = !roofed && (cover & ShelterNeed.Tree) != 0;
+            var shaded = roofed || (cover & (ShelterNeed.Tree | ShelterNeed.Shade)) != 0;
+            var heat = FeltHeat(w, night, underground || (cover & ShelterNeed.Cave) != 0) - (shaded ? w.Sunlight * 0.06f * day : 0f);
+            if (!roofed && (cover & ShelterNeed.Shade) != 0)
+                heat -= 0.04f;
+            var watered = (cover & ShelterNeed.Water) != 0;
+            if (watered)
+                heat = math.min(heat - 0.12f, math.lerp(heat, 0.45f, 0.6f)); // (a dip, or a well's wet stones, cools a lot)
+            if ((cover & ShelterNeed.Fire) != 0)
+                heat = math.max(heat, math.min(heat + 0.35f, 0.6f));
+            // How much of each kind of sky still reaches it.
+            var wetness = roofed ? 0f : tree ? 0.35f : 1f;
+            var storminess = roofed ? 0f : tree ? 0.6f : 1f;
+            var glare = roofed ? 0f : shaded ? 0.2f : 1f;
+            var windiness = roofed ? 0f : tree ? 0.5f : 1f;
             var best = 0f;
             static void Consider(float v, ComfortKind k, ref float best, ref ComfortKind kind)
             {
@@ -210,21 +228,30 @@ namespace Punchy.Fauna
                 }
             }
             // (Dry first: on a tie with Hot, a fish folk's complaint is the dryness.)
-            // (Rain on it is no dry heat, whatever the air's humidity.)
-            var wet = covered ? 0f : w.Rain;
-            Consider(math.saturate(p.Dry * math.saturate((heat - 0.55f) / 0.3f) * (1f - w.Humidity) * (1f - wet) * 1.5f - tol), ComfortKind.Dry, ref best, ref kind);
+            // (Rain on it is no dry heat, whatever the air's humidity; nor is a dip in the water.)
+            if (!watered)
+                Consider(math.saturate(p.Dry * math.saturate((heat - 0.55f) / 0.3f) * (1f - w.Humidity) * (1f - w.Rain * wetness) * 1.5f - tol),
+                         ComfortKind.Dry, ref best, ref kind);
             Consider(math.saturate((heat - (p.Heat.y + shift) - tol) / 0.45f), ComfortKind.Hot, ref best, ref kind);
             Consider(math.saturate(((p.Heat.x + shift) - tol - heat) / 0.45f), ComfortKind.Cold, ref best, ref kind);
-            if (!covered)
-            {
-                Consider(math.saturate(p.Rain * w.Rain - tol), ComfortKind.Rain, ref best, ref kind);
-                Consider(math.saturate(p.Snow * w.Snow - tol), ComfortKind.Snow, ref best, ref kind);
-                Consider(math.saturate(p.Storm * w.Storm - tol), ComfortKind.Storm, ref best, ref kind);
-                Consider(math.saturate(p.Bright * day * w.Sunlight - tol), ComfortKind.Bright, ref best, ref kind);
-                Consider(math.saturate(p.Wind * math.saturate((w.Wind - 0.35f) / 0.65f) - tol), ComfortKind.Wind, ref best, ref kind);
-            }
+            Consider(math.saturate(p.Rain * w.Rain * wetness - tol), ComfortKind.Rain, ref best, ref kind);
+            Consider(math.saturate(p.Snow * w.Snow * wetness - tol), ComfortKind.Snow, ref best, ref kind);
+            Consider(math.saturate(p.Storm * w.Storm * storminess - tol), ComfortKind.Storm, ref best, ref kind);
+            Consider(math.saturate(p.Bright * day * w.Sunlight * glare - tol), ComfortKind.Bright, ref best, ref kind);
+            Consider(math.saturate(p.Wind * math.saturate((w.Wind - 0.35f) / 0.65f) * windiness - tol), ComfortKind.Wind, ref best, ref kind);
             return best;
         }
+
+        /// <summary>The kinds of shelter that help with a complaint (A-71 row 2), before the creature's own tastes.</summary>
+        public static ShelterNeed Helps(ComfortKind kind) => kind switch
+        {
+            ComfortKind.Hot => ShelterNeed.Shade | ShelterNeed.Tree | ShelterNeed.Roof | ShelterNeed.Cave | ShelterNeed.Water,
+            ComfortKind.Dry => ShelterNeed.Water | ShelterNeed.Shade | ShelterNeed.Tree | ShelterNeed.Roof,
+            ComfortKind.Cold => ShelterNeed.Fire | ShelterNeed.Roof | ShelterNeed.Cave,
+            ComfortKind.Bright => ShelterNeed.Shade | ShelterNeed.Tree | ShelterNeed.Cave | ShelterNeed.Roof,
+            ComfortKind.None => ShelterNeed.None,
+            _ => ShelterNeed.Roof | ShelterNeed.Cave | ShelterNeed.Tree   // rain, snow, storm, wind
+        };
     }
 
     /// <summary>

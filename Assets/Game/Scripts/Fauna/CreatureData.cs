@@ -389,7 +389,13 @@ namespace Punchy.Fauna
         /// on the ground facing Focus (1: by the well, on the green), or lying back in the grass (3). (2 is kept for
         /// sitting on a seat, once there are seats to sit on.)
         /// </summary>
-        Sit
+        Sit,
+        /// <summary>
+        /// A-71 row 2: out of the weather. To the shelter it chose (Target, stage 0; walking, or hurrying when the
+        /// weather is bad), then waiting there facing Focus (1) till the weather lets up or its time runs out. What the
+        /// shelter is (a ShelterNeed bit) rides in TargetHeight.
+        /// </summary>
+        Shelter
     }
 
     /// <summary>What a worker does at its post (posed by CreatureAnimator).</summary>
@@ -699,6 +705,10 @@ namespace Punchy.Fauna
         /// comfort or shelter), why (the worst reason last seen), and how hard the weather pressed at the last check.</summary>
         public float Discomfort, ComfortPressure;
         public ComfortKind DiscomfortKind;
+        /// <summary>A-71 row 2: the shelter it is standing in now (none out in the open), and how long before it
+        /// looks for shelter again after a search that found none (s).</summary>
+        public ShelterNeed Cover;
+        public float ShelterRetry;
     }
 
     /// <summary>The need cue a creature shows (CreatureState.Cue), strongest need first.</summary>

@@ -157,6 +157,7 @@ namespace Punchy.Fauna
         {
             state.RequireForUpdate<TerrainSource>();
             state.RequireForUpdate<CreatureState>();
+            Shelters.Data = default;   // (A-71: the shelter totals count from this play's start; statics outlive plays)
             creatures = SystemAPI.QueryBuilder().WithAll<CreatureState, CreatureBody>().Build();
             thinkers = SystemAPI.QueryBuilder().WithAllRW<CreatureState, CreatureMind>().WithAll<CreatureBody>()
                 .WithNone<PlayerAvatar, RemoteAvatar, PosedForTest>().Build();
@@ -359,6 +360,7 @@ namespace Punchy.Fauna
             // A-70 row 2: one creature per index, handed out to the workers 8 at a time, in place of whole chunks (a chunk
             // holds over a hundred, so a few busy chunks left most workers idle while one or two ran on).
             var thinking = thinkers.ToEntityArray(Allocator.TempJob);
+            Shelters.Data.ThisFrame = 0;   // (A-71: the shelter search cap is per frame)
 
             state.Dependency = new BrainJob
             {
@@ -831,6 +833,10 @@ namespace Punchy.Fauna
 
                     case CreatureMode.Home:
                         GoIndoors(ref s, ref b, ref rng, dt, walk, ref targetSpeed, ref moving, ref custom);
+                        break;
+
+                    case CreatureMode.Shelter:
+                        Sheltering(ref s, ref b, ref rng, dt, walk, run, idleLook, ref targetSpeed, ref moving, ref lie, ref desiredLook);
                         break;
                 }
 

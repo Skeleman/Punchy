@@ -85,8 +85,29 @@ namespace Punchy.Fauna
                 var dt = SearchEveryFrame.Data != 0 ? Step : period;
                 var w = Comfort.WeatherAt(s.Position.xz);
                 var underground = underRock || s.Position.y < Terrain.SampleHeight(s.Position.xz) - 2f;
-                var pressure = Comfort.Pressure(in b.Comfort, s.Individual, in w, Night, underground, false, out var kind);
+                var cover = CoverNow(in s, ref b);
+                M.Cover = cover;
+                var pressure = Comfort.Pressure(in b.Comfort, s.Individual, in w, Night, underground, cover, out var kind);
                 M.ComfortPressure = pressure;
+                M.ShelterRetry -= dt;
+                // Row 2: sheltering, it goes on its way once the weather out in the open lets up.
+                if (s.Mode == CreatureMode.Shelter && s.Stage >= 1 && s.StageTime > 8f &&
+                    Comfort.Pressure(in b.Comfort, s.Individual, in w, Night, underground, ShelterNeed.None, out _) < 0.05f)
+                {
+                    var rested = new Random(math.hash(new uint2(s.Individual, (uint)(Now * 10f))) | 1u);
+                    Pause(ref s, ref b, ref rested);
+                }
+                // Out in it and bothered enough, it looks for shelter (a few searches a frame, over everyone).
+                else if (M.Discomfort > 0.3f && pressure > 0.02f && M.ShelterRetry <= 0f && MaySeekShelter(in s, ref b) &&
+                         System.Threading.Interlocked.Increment(ref Shelters.Data.ThisFrame) <= ShelterSearchesPerFrame)
+                {
+                    var seek = new Random(math.hash(new uint2(s.Individual, (uint)(Now * 10f))) | 1u);
+                    if (!StartShelter(ref s, ref b, ref seek))
+                    {
+                        System.Threading.Interlocked.Increment(ref Shelters.Data.NotFound);
+                        M.ShelterRetry = seek.NextFloat(20f, 40f);
+                    }
+                }
                 if (pressure > 0.02f)
                 {
                     M.Discomfort = math.min(M.Discomfort + pressure * dt / 30f, 1f);
