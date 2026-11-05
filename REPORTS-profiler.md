@@ -38,7 +38,7 @@ Newest first.
 - Next step, if you want the slot: a Profile build at fv1 with `-profilestop here` and the hitch log at 400 ms. The 0.5 s frames will then be in the capture, showing what they wait on.
   - A frozen process can't write its last frame, so for the hang itself a dump is the only way. I'd ask Zach before using a dump tool.
 
-- Cost: 14 calls, peak 285k context (session), $1.6
+- Cost: 14 calls, peak 285k context (session), $1.0
 
 ## 2026-11-05 job 33 (Zach): shadow options 1 and 2 vs W-107's far-tree switches, with screenshots
 
