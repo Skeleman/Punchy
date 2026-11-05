@@ -2212,3 +2212,10 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
 - Bird walk: playing as Crow, -walk from the foot of the stair at the ElfGrove house (-2518.5,-1458.8) to its landing. It went from y 12.69 to 16.29 on foot the whole way (Flying=False, Grounded=True, OnProp=True on the treads). Kit treads now step up to 0.32 m, and flight keeps out of kit walls and lands on kit tops.
 - Shot: gallery row1-elf-stair-door.png (the stair and its new top door, biggest town = the elf grove at -2511,-1518).
 - Risks: this touches PlayerMovementSystem.cs (Fly/KeepOut/TopUnder kit handling), which may be the player lane's file and needs a look from them.
+
+### W-100 row 2 - inn porch, igloo roofs, mine torches (d44ee31) - done (verified)
+- Inn patio: the porch roof now meets the wall at 0.66 of wall height and the front edge at 0.6 (was about 0.41), so it is about 50% higher. The posts and sign follow. Shot: gallery row2-inn-porch.png.
+- Igloos: the dome blocks span the slant between rings and lean along it, so no sky shows through. Shots: gallery row2-igloos.png and row2-igloo-roof-low.png.
+- Mine (-1471,116.1,2109, island v2): the free-standing "torches" were mine frames drawn with the wrong model. Cave plants grew 3 variants per species, but tall frames use variants 3 and 4. Those indexes landed on the next species (WallTorch) at frame scale (about 2x), so a big unlit torch stood in the middle of the passage every 4 m. The stride now covers every frame variant, so those spots show their timber frames. No torch was added, and the wall torches and their light are unchanged. Shots: gallery row2-mine-before.png and row2-mine-after.png.
+- Note: the card's coordinates are on island v2 (the default), not v3. On v3 that spot has no cave. Inn and igloo shots were taken on v3. That fix is per asset, so it applies on both islands.
+- Risk: cave species now grow 5 variants each instead of 3, so there are more cave models to pregrow and grow (still on a per-frame time budget).
