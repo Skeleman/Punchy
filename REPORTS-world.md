@@ -2358,3 +2358,11 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
 - PickRealms is computed once per process; callers get copies. The v3 range and ground loops use BakeParallel.
 - v3 generate 1407 -> 1205 ms: v2base 736 ms gone, layout 41 ms. Ranges and ground still share the CPU with the plant pregrow, so ranges is about 1080 ms in the bake (it was about 580 ms when v2base took the contention).
 - Identity: landmark hash v3 80EBFCE6 / v2 95EAB5B4, heights C524062E / 9CBCD24A, bat folk DCB70DE3 / 8A17B4DB, Fauna_Fingerprint F99FD9E4: all unchanged.
+
+## W-103 row 5: island-ready time (done, measured; no code change)
+- Island-ready time, editor play mode, 3 runs each. Before is the pre-W-103 code (6d961d9 files checked out temporarily); after is 9eef1d1.
+  - v2: before 7.5 / 7.6 s (first run 24.6 s, cold), after 5.5 / 5.6 / 5.6 s. Bake 6348-6682 -> 4339-4485 ms.
+  - v3: before 7.9 / 8.0 / 7.9 s, after 6.1 / 6.1 / 6.1 s. Bake 6614-6796 -> 4962-5002 ms.
+- v3 "before" printed ready at about 31 s because the editor's Island/Audit Reports menu sets PUNCHY_ISLANDAUDIT=1 and the audit (V3Audit, ranges checks, ground report) adds about 22.7 s. That is editor-only and opt-in; builds skip it. The numbers above leave it out. If Zach's 30 s+ v3 startup was in the editor, turning off Punchy/Island/Audit Reports removes most of it.
+- Target under 6 s: v2 meets it, v3 is 0.1 s over. The rest is settlements (about 920 ms, roads about 620), rivers (about 1000), caves (about 490), fishing (about 550) and seafolk (about 470), all sharing the CPU with the plant pregrow. No cheap win left that keeps the output identical without a deeper change, so I stopped here.
+- Identity on every run: landmark hash v2 95EAB5B4 / v3 80EBFCE6, heights 9CBCD24A / C524062E, bat folk 8A17B4DB / DCB70DE3, Fauna_Fingerprint F99FD9E4: all unchanged.
