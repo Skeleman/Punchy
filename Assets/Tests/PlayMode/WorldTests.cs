@@ -38,7 +38,8 @@ namespace Punchy.Tests
         }
 
         /// <summary>
-        /// Target: 1202B8ED since W-104 row 4 (fishing villages got Home and Door anchors). Before that, on main after PR #148
+        /// Target: 773CA7F6 since A-73 row 4 (Gull and Mackerel joined the critter table). 1202B8ED since W-104 row 4
+        /// (fishing villages got Home and Door anchors). Before that, on main after PR #148
         /// (W-104 row 1 repinned it): fingerprint F99FD9E4, 115 species. A-71 pinned EA6A4DE5 on
         /// animal-behaviours before the merge (before A-71 it read 2E01A16B, A-68's target). The fingerprint is of the species data the fauna
         /// build bakes, so it reads the same wherever the player stands (the standard start spot here).
@@ -48,7 +49,7 @@ namespace Punchy.Tests
         {
             var line = LogWatch.Last("fingerprint") ?? "no fingerprint line";
             LogWatch.Measure("fauna " + line);
-            StringAssert.Contains("fingerprint 1202B8ED", line);
+            StringAssert.Contains("fingerprint 773CA7F6", line);
             yield return null;
         }
 
