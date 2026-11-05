@@ -29,9 +29,7 @@ StructuredBuffer<uint2> _FloraVisible;
 #include "UnityIndirect.cginc"
 float _FloraNoBatcher;   // see Flora.shader's Properties
 float _FloraInCave;      // 1 for cave plants (CaveSystem's copy of the material)
-// W-107 (FloraShadowOptions): the camera (xyz) and where shadows stop swaying (w; 0: they always sway), for the
-// shadow pass; and the shadow cache's draws, which aren't RenderMeshIndirect's, so each gives its visible list's start.
-float4 _FloraShadowStill;
+// W-107 (FloraShadowOptions): the shadow cache's draws aren't RenderMeshIndirect's, so each gives its visible list's start.
 uint _FloraCacheBase;
 float2 _PunchyWindDirection;
 half _PunchyWind;
@@ -132,13 +130,13 @@ FloraVertex FloraTransform(FloraAttributes input)
     float3 windDir = float3(_PunchyWindDirection.x, 0, _PunchyWindDirection.y);
     float phase = _Time.y * (0.7 + _PunchyWind * 1.1) - dot(plant.position.xz, _PunchyWindDirection) * 0.04 + plant.random * 6.28;
     float gust = (0.6 + 0.4 * sin(phase) * sin(phase * 0.37 + 1.3)) * (0.08 + 0.92 * _PunchyWind);
-    // W-107: far shadows can stand still (the shadow pass, past _FloraShadowStill.w; the cache always).
+    // W-107: far shadows can stand still (the cache always). The cull works out how still each shadow-list plant is,
+    // once per plant, and hands it over as its fade above 1 (FloraCull.compute), so no vertex measures a distance.
     float still = 0;
 #if defined(FLORA_CACHE_PASS)
     still = 1;
 #elif defined(FLORA_SHADOW_PASS)
-    if (_FloraShadowStill.w > 0)
-        still = smoothstep(_FloraShadowStill.w - 5, _FloraShadowStill.w + 5, distance(plant.position, _FloraShadowStill.xyz));
+    still = saturate(asfloat(visible.y) - 1);
 #endif
     gust *= 1 - still;
     // (A door leaf's x is its distance from the hinge, not how much it bends.)

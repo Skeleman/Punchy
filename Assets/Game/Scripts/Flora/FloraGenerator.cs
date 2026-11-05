@@ -2742,9 +2742,26 @@ namespace Punchy.Flora
                 var turn = Quaternion.Euler(g.R() * 360f, g.R() * 360f, g.R() * 360f);
                 var seed = g.R() * 100f;
                 var color = Color.Lerp(g.Bark, g.Bark * 1.4f, g.R());
-                if (at.y - size >= DebrisHeadroom)
+                if (at.y - size >= DebrisHoldAbove)
                 {
                     high.Add((at, radii, turn, seed, color));
+                    continue;
+                }
+                if (at.y - size >= DebrisHeadroom)
+                {
+                    // W-106 (#70): a piece that would orbit within a jumping head's reach is held still instead, low
+                    // over the ground: a flat stepping stone hovering at knee to hip height, solid (a kit box, so its
+                    // top is a floor and its underside a ceiling), that the player can jump onto. No new draws from
+                    // the rng (its height comes from the piece's seed), so the pieces after it keep their shapes.
+                    var stoneTop = DebrisStoneTop.x + (DebrisStoneTop.y - DebrisStoneTop.x) * Mathf.Repeat(seed * 7.31f, 1f);
+                    var stoneRadii = new Vector3(Mathf.Max(radii.x, 0.45f), Mathf.Min(radii.y, 0.22f), Mathf.Max(radii.z, 0.4f));
+                    var stoneAt = new Vector3(at.x, stoneTop - stoneRadii.y, at.z);
+                    var stoneTurn = Quaternion.Euler(0f, turn.eulerAngles.y, 0f);
+                    b.Blob(stoneAt, stoneRadii, stoneTurn, g.Sides(1, 1, 0), 0.25f, seed, color, FloraPart.Metal, 1f, 0.5f);
+                    // A small grain of rock held under it, as if pinned there by the field.
+                    b.Blob(stoneAt + Vector3.down * (stoneRadii.y + 0.25f), stoneRadii * 0.22f, turn, 1, 0.3f, seed + 3f, color * 0.9f, FloraPart.Metal, 1f, 0.5f);
+                    var half = new Vector3(stoneRadii.x * 0.75f, stoneRadii.y, stoneRadii.z * 0.75f);
+                    g.Boxes.Add(new KitBox { Centre = stoneAt, Half = half, Rotation = stoneTurn, Reach = half.magnitude });
                     continue;
                 }
                 var flat = new Vector2(at.x, at.z);
@@ -2769,6 +2786,12 @@ namespace Punchy.Flora
 
         /// <summary>How high (m, before scaling) a Debris piece's bottom must float to stay in the air: above a head.</summary>
         const float DebrisHeadroom = 2.2f;
+
+        /// <summary>W-106 (#70): a piece whose bottom floats under this (m) is in reach of a jumping head, so it's held still as a stepping stone.</summary>
+        const float DebrisHoldAbove = 3.4f;
+
+        /// <summary>W-106 (#70): a held stepping stone's top height range (m): under the 1.28 m a jump clears.</summary>
+        static readonly Vector2 DebrisStoneTop = new Vector2(0.75f, 1.1f);
 
         /// <summary>W-93 (#70): a wasteland chunk topping out under this (m, before scaling) is walked over, so it gets no boxes.</summary>
         const float ChunkStep = 0.45f;
@@ -3870,7 +3893,9 @@ namespace Punchy.Flora
         /// <summary>
         /// A ruined stone house: four walls of stone piers, each wall's tops sloping down towards one end (the way walls
         /// fall, from a corner) with a ragged edge, one wall nearly gone, a gap for the door at +Z, a window hole in a
-        /// tall side wall, moss on some broken tops and fallen stones round the foot. No roof.
+        /// tall side wall, moss on some broken tops and fallen stones round the foot. No roof. W-106 (#80): up close each
+        /// pier is old coursed stone brick (StructureKit's ruin blocks, RuinBricks, seeded per pier so no two walls
+        /// match), with a few blocks fallen at its foot and sand drifted against some walls.
         /// </summary>
         static void Ruin(Grower g)
         {
@@ -3885,6 +3910,18 @@ namespace Punchy.Flora
             var pier = g.Sides(1, 2, 4) * 0.55f;      // finer piers up close, so the broken edge reads as stones
             var doorHalf = Mathf.Min(half * 0.3f, 0.7f);
             var gone = g.Variant % 4;                   // the wall that has nearly all fallen
+
+            // W-106 (#80): a pier up close is laid as brick courses (a kit wall part through RuinBricks); its seed comes
+            // from the species, variant, wall and pier, never from g.R(), so every ruin keeps its layout and collision.
+            var brickSeed = (uint)s.Seed * 0x9E3779B9u ^ (uint)g.Variant * 0x85EBCA77u;
+            void Pier(Vector3 centre, Vector3 size, Quaternion facing, Color colour, uint pierSeed)
+            {
+                if (g.Lod == 0)
+                    RuinBricks(b, new Punchy.Terrain.KitPart { Piece = Punchy.Terrain.KitPiece.Wall, Material = Punchy.Terrain.KitMaterial.Wall,
+                                                               Centre = centre, Size = size, Rotation = facing }, colour, pierSeed);
+                else
+                    b.Box(centre, size, facing, colour, FloraPart.Bark);
+            }
 
             var first = b.VertexCount;
             for (int w = 0; w < 4; w++)
@@ -3904,16 +3941,18 @@ namespace Punchy.Flora
                     var u = (i + 0.5f) / n;
                     var top = Mathf.Max(0.25f, height * keep * Mathf.Lerp(0.3f, 1f, fromLeft ? u : 1f - u) * g.Range(0.75f, 1.05f));
                     var colour = Color.Lerp(g.Bark, g.Bark * 1.15f, g.R());
+                    var pierSeed = brickSeed ^ (uint)(w * 64 + i + 1) * 0xC2B2AE35u;
                     // A window hole: a pier in the middle of a tall side wall, split round the opening.
                     if (w != 0 && i == n / 2 && top > 2.3f && g.Lod < 2)
                     {
-                        b.Box(facing * new Vector3(x, 0.4f, half), new Vector3(step * 1.02f, 1.1f, thick), facing, colour, FloraPart.Bark);
-                        b.Box(facing * new Vector3(x, (1.85f + top) * 0.5f, half), new Vector3(step * 1.02f, top - 1.85f, thick), facing, colour, FloraPart.Bark);
+                        Pier(facing * new Vector3(x, 0.4f, half), new Vector3(step * 1.02f, 1.1f, thick), facing, colour, pierSeed);
+                        Pier(facing * new Vector3(x, (1.85f + top) * 0.5f, half), new Vector3(step * 1.02f, top - 1.85f, thick), facing, colour, pierSeed ^ 0x27D4EB2Fu);
                     }
                     else
-                        b.Box(facing * new Vector3(x, top * 0.5f - 0.15f, half), new Vector3(step * 1.02f, top + 0.3f, thick), facing, colour, FloraPart.Bark);
+                        Pier(facing * new Vector3(x, top * 0.5f - 0.15f, half), new Vector3(step * 1.02f, top + 0.3f, thick), facing, colour, pierSeed);
+                    // Moss on the broken top: up close it sits down among the ragged top course, not on a slab over it.
                     if (g.HasAccent && g.Lod < 2 && g.R() < s.AccentAmount)
-                        b.Box(facing * new Vector3(x, top + 0.03f, half), new Vector3(step * 0.95f, 0.07f, thick * 1.06f), facing, g.Accent, FloraPart.Foliage);
+                        b.Box(facing * new Vector3(x, top + (g.Lod == 0 ? -0.07f : 0.03f), half), new Vector3(step * 0.95f, 0.07f, thick * 1.06f), facing, g.Accent, FloraPart.Foliage);
                     if (top > 0.7f)
                     {
                         var c = facing * new Vector3(x, 0f, half);
@@ -3945,6 +3984,30 @@ namespace Punchy.Flora
                           Quaternion.Euler(g.Range(-15f, 15f), g.R() * 360f, g.Range(-15f, 15f)), Color.Lerp(g.Bark * 0.85f, g.Bark * 1.1f, g.R()), FloraPart.Bark);
                 }
                 b.Occlude(rubble, (p, n) => GroundOcclusion(p, 0.5f));
+
+                // W-106 (#80): sand drifted against the foot of one or two walls, banked higher in the middle of the wall
+                // and thinning out to its ends (its own rng, so the ruin's other draws are unchanged).
+                var drifts = new System.Random((int)(brickSeed & 0x7FFFFFFF));
+                var sand = new Color(0.76f, 0.66f, 0.48f);
+                var drift = b.VertexCount;
+                for (int w = 0; w < 4; w++)
+                {
+                    if (w == gone || drifts.NextDouble() < 0.55)
+                        continue;
+                    var facing = Quaternion.Euler(0f, w * 90f, 0f);
+                    var side = drifts.NextDouble() < 0.6 ? 1f : -1f;       // outside the wall, or banked up inside it
+                    var lumps = 2 + drifts.Next(3);
+                    for (int k = 0; k < lumps; k++)
+                    {
+                        var x = ((k + 0.5f) / lumps - 0.5f) * half * 1.7f + (float)(drifts.NextDouble() - 0.5) * 0.6f;
+                        var bank = 0.35f + (float)drifts.NextDouble() * 0.4f * (1f - Mathf.Abs(x) / half);
+                        var reach = 0.8f + (float)drifts.NextDouble() * 0.7f;
+                        var at = facing * new Vector3(x, 0f, half + side * (thick * 0.5f + reach * 0.35f));
+                        b.Blob(at, new Vector3(half * 0.55f, bank, reach), facing * Quaternion.Euler(0f, (float)(drifts.NextDouble() - 0.5) * 20f, 0f),
+                               1, 0.35f, (float)drifts.NextDouble() * 100f, Color.Lerp(sand, g.Bark, 0.2f + (float)drifts.NextDouble() * 0.15f), FloraPart.Bark);
+                    }
+                }
+                b.Occlude(drift, (p, n) => GroundOcclusion(p, 0.4f));
             }
         }
 
