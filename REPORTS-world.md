@@ -2312,3 +2312,19 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
   - far view (800,800): 4.17 -> 2.88 (tris 2.70M -> 2.63M). The far drop is larger than the triangle change explains; part of it is likely run noise or streaming state. Editor noise is about +-0.15 ms; the profiler should re-measure in a build.
 - Far shot: no visible pop line or density edge (before/after near identical). gallery W-102/r2_before_far.png, r2_after_far.png.
 - No terrain/landmark code touched; hash checked in the final suite.
+
+## W-102 row 3: shadow settings sweep (measured; proposal only, no asset change)
+- Runtime-only sweep of the PC URP asset (shadow distance / cascades / map size), restored to 50 m / 4 / 2048 afterwards. No QualitySettings or URP asset edited.
+- Medians of 3 interleaved passes, editor, v2, noon, uncapped (GPU ms / shadow casters / setpass):
+
+| Config | fv1 ms | fv1 casters | fv1 setpass | forest ms | forest casters | forest setpass |
+|---|---|---|---|---|---|---|
+| 50 m / 4 / 2048 (current) | 3.80 | 347 | 193 | 3.81 | 364 | 175 |
+| 50 / 3 / 2048 | 3.59 | 260 | 187 | 2.54 | 272 | 169 |
+| 40 / 3 / 2048 | 3.60 | 258 | 187 | 2.51 | 271 | 169 |
+| 50 / 2 / 2048 | 2.99 | 176 | 181 | 2.67 | 182 | 163 |
+| 40 / 4 / 2048 | 3.94 | 347 | 193 | 2.78 | 364 | 175 |
+| 50 / 4 / 1024 | 3.89 | 349 | 193 | 2.89 | 370 | 175 |
+
+- Caster and setpass counts are deterministic; ms is noisy (single runs vary up to about 1 ms).
+- Proposal (needs Zach's OK): 3 cascades at 50 m, map 2048. About 25% fewer casters and 6 fewer setpass; about 0.2 ms at fv1 and up to about 1 ms in the forest. 2 cascades is cheaper but softens near shadows. A 1024 map gains nothing. 40 m vs 50 m makes no difference.
