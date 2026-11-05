@@ -1488,8 +1488,20 @@ namespace Punchy.Terrain
                         for (int v = 0, strands = rng.Next(3, 6); v < strands; v++)
                         {
                             var len = ivy * Range(0.35f, 1f);
-                            Add(parts, KitPiece.Moss, KitMaterial.Moss, Turn(yaw, new Vector3(ix + (v - strands * 0.5f) * 0.13f + Range(-0.04f, 0.04f), standing - len * 0.5f, out_ + Thick * 0.5f + 0.02f + v % 2 * 0.012f)),
-                                new Vector3(Range(0.06f, 0.12f), len, 0.04f), yaw, false);
+                            var sx = ix + (v - strands * 0.5f) * 0.13f + Range(-0.04f, 0.04f);
+                            var leaf = Range(0.06f, 0.12f) + 0.06f;
+                            var face = out_ + Thick * 0.5f + 0.02f + v % 2 * 0.012f;
+                            // W-101 (#80): a thin stem with small leaf clumps along it, not a flat ribbon (it read as cloth).
+                            // The jitter comes from a hash, not the rng, so the draws (and every later part) stay as they were.
+                            Add(parts, KitPiece.Moss, KitMaterial.Moss, Turn(yaw, new Vector3(sx, standing - len * 0.5f, face)), new Vector3(0.025f, len, 0.025f), yaw, false);
+                            for (int j = 0, leaves = Mathf.Min(14, Mathf.CeilToInt(len / 0.2f)); j < leaves; j++)
+                            {
+                                var hsh = Mathf.Abs(Mathf.Sin((v * 31 + j * 7 + x * 3.1f) * 12.9898f) * 43758.55f) % 1f;
+                                var tip = 1f - (float)j / leaves * 0.5f;   // smaller towards the trailing end
+                                Add(parts, KitPiece.Moss, KitMaterial.Moss,
+                                    Turn(yaw, new Vector3(sx + (j % 2 == 0 ? -1f : 1f) * leaf * 0.35f, standing - (j + 0.5f) * len / leaves, face + 0.015f)),
+                                    new Vector3(leaf * tip, leaf * 0.8f * tip, 0.02f), yaw + (hsh - 0.5f) * 40f, false, (hsh - 0.5f) * 30f, (j % 2 == 0 ? 1f : -1f) * (25f + hsh * 30f));
+                            }
                         }
                     }
                 }
@@ -1527,12 +1539,28 @@ namespace Punchy.Terrain
             if (!ruined)
                 Roof(parts, t, rng, width, depth, top);
             else
-                for (int k = 0, n = rng.Next(0, 4); k < n; k++)   // a few fallen rafters, one end on the floor, leaning up
+                for (int k = 0, n = rng.Next(0, 4); k < n; k++)   // a few fallen rafters, one end on the floor
                 {
+                    // W-101 (#80): the high end leans on the inside of a standing wall (never the door wall), no higher
+                    // than that wall's lowest possible stub there and under a window sill, so it can't hang in the air
+                    // or in an opening. Too low a stub: it lies on the floor. Same draws as before, so the rest of the
+                    // ruin stays put.
                     var len = depth * Range(0.6f, 1f);
-                    var rise = Mathf.Min(len * Range(0.15f, 0.42f), top * 0.6f);
-                    Add(parts, KitPiece.Beam, KitMaterial.Wood, new Vector3(Range(-0.3f, 0.3f) * width, rise, Range(-0.2f, 0.2f) * depth),
-                        new Vector3(0.22f, 0.22f, len), R() * 360f, false, Mathf.Asin(Mathf.Clamp01(2f * rise / len)) * Mathf.Rad2Deg);
+                    var lean = Range(0.15f, 0.42f);
+                    var xr = Range(-0.3f, 0.3f);
+                    var skew = Range(-0.2f, 0.2f) * 20f;
+                    var s = 1 + Mathf.Min(2, (int)(R() * 3f));
+                    var along = s % 2 == 0 ? width : depth;
+                    var inner = (s % 2 == 0 ? depth : width) - Thick;
+                    var u = xr + 0.5f;
+                    var stub = top * keep[s] * Mathf.Lerp(0.35f, 1f, fromLeft[s] ? u : 1f - u) * 0.8f;
+                    var rest = stub < 0.35f ? 0.11f : Mathf.Min(len * lean, stub - 0.05f, h * 0.3f);
+                    len = Mathf.Min(len, Mathf.Sqrt(rest * rest + inner * inner * 0.8f));
+                    var pitch = Mathf.Asin(Mathf.Clamp01(rest / len)) * Mathf.Rad2Deg;
+                    var run = Mathf.Sqrt(Mathf.Max(0f, len * len - rest * rest));
+                    var wallSide = (s % 2 == 0 ? depth : width) * 0.5f - Thick * 0.5f - 0.12f;
+                    var mid = Turn(s * 90f, new Vector3(xr * along, rest * 0.5f + 0.11f, wallSide - run * 0.5f));
+                    Add(parts, KitPiece.Beam, KitMaterial.Wood, mid, new Vector3(0.22f, 0.22f, len), s * 90f + 180f + skew, false, pitch);
                 }
 
             // W-100: a balcony and the landing at a stair's top each get a door in the wall behind them, so neither
@@ -1725,7 +1753,9 @@ namespace Punchy.Terrain
                 Add(parts, KitPiece.Wall, KitMaterial.Wall, Turn(yaw, new Vector3(x + s * (dw + side) * 0.5f, (y0 + y1) * 0.5f, out_)), new Vector3(side + 0.01f, y1 - y0, Thick), yaw, true);
             if (y1 > dh + 0.05f)
                 Add(parts, KitPiece.Wall, KitMaterial.Wall, Turn(yaw, new Vector3(x, (dh + y1) * 0.5f, out_)), new Vector3(dw + 0.02f, y1 - dh, Thick), yaw, false);
-            Add(parts, KitPiece.Trim, KitMaterial.Trim, Turn(yaw, new Vector3(x, dh + 0.12f, out_ + 0.1f)), new Vector3(dw + 0.4f, 0.24f, Thick * 0.6f), yaw, false);
+            // W-101 (#80): a ruin's lintel only where the wall still stands up to it (it hung in the air over a broken bay).
+            if (!ruined || y1 > dh + 0.24f)
+                Add(parts, KitPiece.Trim, KitMaterial.Trim, Turn(yaw, new Vector3(x, dh + 0.12f, out_ + 0.1f)), new Vector3(dw + 0.4f, 0.24f, Thick * 0.6f), yaw, false);
             if (!ruined)
                 Add(parts, KitPiece.Door, KitMaterial.Wood, Turn(yaw, new Vector3(x, dh * 0.5f, out_ - 0.05f)), new Vector3(dw, dh, 0.12f), yaw, false);
             Add(parts, KitPiece.Trim, KitMaterial.Stone, Turn(yaw, new Vector3(x, 0.08f, out_ + 0.45f)), new Vector3(dw + 0.5f, 0.16f, 0.6f), yaw, false);   // step
@@ -1774,7 +1804,8 @@ namespace Punchy.Terrain
             if (!ruined)
                 Add(parts, KitPiece.Window, KitMaterial.Opening, Turn(yaw, new Vector3(x, (sill + head) * 0.5f, out_ - 0.08f)), new Vector3(ww, wh, 0.1f), yaw, false);
             Add(parts, KitPiece.Trim, KitMaterial.Trim, Turn(yaw, new Vector3(x, sill - 0.05f, out_ + 0.08f)), new Vector3(ww + 0.24f, 0.1f, Thick * 0.5f + 0.12f), yaw, false);
-            Add(parts, KitPiece.Trim, KitMaterial.Trim, Turn(yaw, new Vector3(x, head + 0.08f, out_ + 0.05f)), new Vector3(ww + 0.3f, 0.16f, Thick * 0.5f + 0.06f), yaw, false);
+            if (!ruined || y1 > head + 0.16f)   // W-101 (#80): likewise a ruin's window head
+                Add(parts, KitPiece.Trim, KitMaterial.Trim, Turn(yaw, new Vector3(x, head + 0.08f, out_ + 0.05f)), new Vector3(ww + 0.3f, 0.16f, Thick * 0.5f + 0.06f), yaw, false);
             if (t.Shutters && !ruined && rng.NextDouble() < 0.5)
                 foreach (var s in new[] { -1f, 1f })
                     Add(parts, KitPiece.Window, KitMaterial.Wood, Turn(yaw, new Vector3(x + s * (ww * 0.75f + 0.03f), (sill + head) * 0.5f, out_ + Thick * 0.5f + 0.04f)), new Vector3(ww * 0.48f, wh, 0.06f), yaw, false);

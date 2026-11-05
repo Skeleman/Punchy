@@ -281,7 +281,8 @@ void FloraMossClip(float4 moss)
 {
     if (moss.x > 1.5)
         return;
-    clip(moss.x * 1.4 + FloraMossClump(moss.yzw) - 1.0);
+    // W-101 (#80): a fine ragged hem on top of the clumps, so the rim frays into tufts instead of a smooth cut.
+    clip(moss.x * 1.4 + FloraMossClump(moss.yzw) + (FloraMossNoise(moss.yzw * 70 + 1.3) - 0.5) * 0.4 - 1.0);
 }
 
 #endif
