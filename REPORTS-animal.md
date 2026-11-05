@@ -2000,3 +2000,18 @@ Calls used: about 110 (over budget).
   - A songbird resting 8 m up over a house footprint was counted as inside it. The stat now ignores creatures more than 2 m above the ground for building sinks.
 - **World lane:** FloraPlacement.cs got small additive helpers (WallReachOf, InsideWalls), and Blocked itself behaves the same.
 - **Fingerprint:** the critter-spot filter may move it. Suite result is in the hand-back. No shot (the row asks for numbers).
+
+## A-70 row 2: brain as IJobParallelFor, batches of 8 (done, verified) - d7c147c
+- BrainJob is now an IJobParallelFor over the thinkers query (the same set it ran on before: no player bodies, no test specimens). It takes one creature per index and gives workers 8 at a time. Each index writes only its own creature, through lookups. As an IJobEntity it was split by chunk, and with over a hundred creatures per chunk only about 4 workers ever got any work.
+- **Uncapped, two runs each.** Before is row 1's after (same code apart from the scheduling):
+
+  | Spot | BrainJob wall ms | Workers used | Spread (busiest / mean) | Frame ms |
+  |---|---|---|---|---|
+  | fv3 before | 0.453 / 0.353 | 4 / 4 | 2.19x / 1.73x | 6.45 / 6.43 |
+  | fv3 after | 0.169 / 0.128 | 15.9 / 14.9 | 2.14x / 2.27x | 6.40 / 7.27 |
+  | meadow before | 0.395 / 0.386 | 4 | 2.30x / 1.94x | 5.72 / 5.64 |
+  | meadow after | 0.187 / 0.248 | 20.8 / 21.7 | 1.55x / 1.36x | 6.17 / 6.42 |
+
+- Wall time is down 2-3x. The summed brain ms goes up a little (fv3 0.80 -> 0.75-1.12) because of lookup access and more workers starting up.
+- Spread stays around 2x at fv3: the slowest batch holds the expensive near-player creatures. Frame time moves within noise, since the brain was not the critical path after row 1.
+- Behaviour: suite and fingerprint are run before the hand-back. No shot.
