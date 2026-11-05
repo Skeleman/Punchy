@@ -298,8 +298,9 @@ namespace Punchy.Terrain
 
         // ------------------------------------------------------------------------------------------- bat folk
 
-        /// <summary>Per bat folk site: its pale and dark meshes (BatFolkMeshes), built when the world is first drawn.</summary>
-        readonly List<(Mesh pale, Mesh dark)> batFolkMeshes = new List<(Mesh, Mesh)>();
+        /// <summary>Per bat folk site: its pale, dark and rock meshes (BatFolkMeshes), built when the world is first drawn.
+        /// The rock mesh (W-96: the pygmy niches) is drawn with the cave material, in the cave's own style slot.</summary>
+        readonly List<(Mesh pale, Mesh dark, Mesh rock)> batFolkMeshes = new List<(Mesh, Mesh, Mesh)>();
         Material batFolkPale, batFolkDark;
         static readonly int RockColorId = Shader.PropertyToID("_RockColor");
         static readonly int DarkColorId = Shader.PropertyToID("_DarkColor");
@@ -319,8 +320,10 @@ namespace Punchy.Terrain
             {
                 for (int s = 0; s < bat.Sites.Length; s++)
                 {
-                    BatFolkMeshes.Build(ref bat, s, out var pale, out var dark);
-                    batFolkMeshes.Add((pale, dark));
+                    var cave = bat.Sites[s].Cave;
+                    var style = source.Caves.IsCreated && cave >= 0 && cave < source.Caves.Value.Caves.Length ? source.Caves.Value.Caves[cave].Style : 0;
+                    BatFolkMeshes.Build(ref bat, s, style, out var pale, out var dark, out var rock);
+                    batFolkMeshes.Add((pale, dark, rock));
                 }
                 batFolkPale = new Material(Material) { name = "Bat folk pale" };
                 batFolkPale.SetColor(RockColorId, BatFolkMeshes.PaleRock);
@@ -333,20 +336,23 @@ namespace Punchy.Terrain
             {
                 if (math.distance(bat.Sites[s].Centre, camPos) > LoadRadius)
                     continue;
-                var (pale, dark) = batFolkMeshes[s];
+                var (pale, dark, rock) = batFolkMeshes[s];
                 if (pale != null)
                     Graphics.RenderMesh(new RenderParams(batFolkPale) { worldBounds = pale.bounds, shadowCastingMode = ShadowCastingMode.On, receiveShadows = true }, pale, 0, Matrix4x4.identity);
                 if (dark != null)
                     Graphics.RenderMesh(new RenderParams(batFolkDark) { worldBounds = dark.bounds, shadowCastingMode = ShadowCastingMode.On, receiveShadows = true }, dark, 0, Matrix4x4.identity);
+                if (rock != null)
+                    Graphics.RenderMesh(new RenderParams(Material) { worldBounds = rock.bounds, shadowCastingMode = ShadowCastingMode.On, receiveShadows = true }, rock, 0, Matrix4x4.identity);
             }
         }
 
         void ReleaseBatFolk()
         {
-            foreach (var (pale, dark) in batFolkMeshes)
+            foreach (var (pale, dark, rock) in batFolkMeshes)
             {
                 if (pale != null) Destroy(pale);
                 if (dark != null) Destroy(dark);
+                if (rock != null) Destroy(rock);
             }
             batFolkMeshes.Clear();
             if (batFolkPale != null) Destroy(batFolkPale);

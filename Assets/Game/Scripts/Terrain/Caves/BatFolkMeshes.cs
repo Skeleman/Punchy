@@ -2,14 +2,16 @@ using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
+using Punchy.Flora;
 
 namespace Punchy.Terrain
 {
     /// <summary>
-    /// Placeholder meshes for bat folk huts and floor props (#35, BATFOLK-PLAN step 3), built once per site from the
-    /// baked BatFolkProp list and drawn by CaveSystem with copies of the cave material. Two meshes per site: the pale
-    /// one (silk and hide: hut pods, the hides on racks) and the dark one (wood and weave: stalks, rack posts,
-    /// baskets). The vertex layout is the cave walls' own (colour alpha = openness 0, uv0.y = tint, slot 0), so the
+    /// Placeholder meshes for bat folk homes and floor props (#35, BATFOLK-PLAN step 3), built once per site from the
+    /// baked BatFolkProp list and drawn by CaveSystem with copies of the cave material. Three meshes per site: the pale
+    /// one (silk, straw and hide: pale woven pods, the hides on racks), the dark one (wood and reed: dark woven pods,
+    /// hangers, rack posts, baskets) and the rock one (W-96: the pygmy niches, in the cave's own style slot). W-96:
+    /// huts and pods are both drawn as hollow woven nests (Pod); the bat folk have no houses. The vertex layout is the cave walls' own (colour alpha = openness 0, uv0.y = tint, slot 0), so the
     /// lantern and the glow lights light them exactly as they light the rock. Shading is darker underneath (tint).
     /// </summary>
     public static class BatFolkMeshes
@@ -18,13 +20,6 @@ namespace Punchy.Terrain
         public static readonly Color PaleRock = new Color(0.84f, 0.8f, 0.72f), PaleDark = new Color(0.62f, 0.57f, 0.5f);
         public static readonly Color DarkRock = new Color(0.44f, 0.33f, 0.23f), DarkDark = new Color(0.24f, 0.17f, 0.11f);
 
-        /// <summary>A hut pod's profile from top to bottom: (share of length, share of radius, tint).</summary>
-        static readonly float3[] PodProfile =
-        {
-            new float3(0f, 0.14f, 1f), new float3(0.08f, 0.5f, 1f), new float3(0.22f, 0.84f, 0.95f),
-            new float3(0.42f, 1f, 0.85f), new float3(0.62f, 0.96f, 0.72f), new float3(0.8f, 0.72f, 0.6f),
-            new float3(0.92f, 0.4f, 0.5f), new float3(1f, 0f, 0.45f)
-        };
         /// <summary>A basket's profile from the base up: (share of height, share of radius, tint).</summary>
         static readonly float3[] BasketProfile =
         {
@@ -32,21 +27,22 @@ namespace Punchy.Terrain
             new float3(0.8f, 0.94f, 0.95f), new float3(0.94f, 0.82f, 1f), new float3(1.06f, 0.4f, 1f), new float3(1.1f, 0f, 1f)
         };
 
-        static readonly List<KitPart> Parts = new List<KitPart>();
-
         class Builder
         {
             public readonly List<Vector3> Positions = new List<Vector3>();
             public readonly List<Vector3> Normals = new List<Vector3>();
             public readonly List<Vector4> Data = new List<Vector4>();
             public readonly List<int> Indices = new List<int>();
+            /// <summary>The cave style slot written to every vertex: 0 (the material's own colours), or the cave's
+            /// style for the rock mesh (W-96), so the pygmy niches take the look of the walls they are cut into.</summary>
+            public float Slot;
 
             public void Vertex(float3 p, float3 n, float tint)
             {
                 Positions.Add(p);
                 Normals.Add(math.normalizesafe(n, new float3(0f, 1f, 0f)));
-                // x terrain blend 0, y tint, z style slot 0 (the material's own colours), w rib shade 0.
-                Data.Add(new Vector4(0f, tint, 0f, 0f));
+                // x terrain blend 0, y tint, z style slot, w rib shade 0.
+                Data.Add(new Vector4(0f, tint, Slot, 0f));
             }
 
             /// <summary>A surface of revolution round a vertical axis through <paramref name="origin"/>: rings at
@@ -80,6 +76,47 @@ namespace Punchy.Terrain
                         Indices.Add(i); Indices.Add(j); Indices.Add(i + 1);
                         Indices.Add(i + 1); Indices.Add(j); Indices.Add(j + 1);
                     }
+            }
+
+            /// <summary>
+            /// W-96: a woven surface of revolution over an arc (from, span) round a vertical axis through origin, rings
+            /// at (height, radius, tint): every other quad of the weave is shaded darker (a checker of reeds), and an
+            /// inside surface has its normals turned in (the cave shader draws both faces, but lights by the normal).
+            /// </summary>
+            public void Weave(float3 origin, IReadOnlyList<float3> rings, float from, float span, int sides, bool inside, float shade)
+            {
+                // Each quad has its own four corners, so the checker stays crisp instead of blurring across shared ones.
+                for (int r = 0; r < rings.Count - 1; r++)
+                    for (int s = 0; s < sides; s++)
+                    {
+                        var start = Positions.Count;
+                        var tint = ((r + s) & 1) == 0 ? 1f : shade;
+                        for (int c = 0; c < 4; c++)
+                        {
+                            var ring = r + (c >> 1);
+                            var a = from + (s + (c & 1)) * span / sides;
+                            var dir = new float3(math.cos(a), 0f, math.sin(a));
+                            Vertex(origin + dir * rings[ring].y + new float3(0f, rings[ring].x, 0f), WeaveNormal(rings, ring, dir, inside), rings[ring].z * tint);
+                        }
+                        Indices.Add(start); Indices.Add(start + 2); Indices.Add(start + 1);
+                        Indices.Add(start + 1); Indices.Add(start + 2); Indices.Add(start + 3);
+                    }
+            }
+
+            /// <summary>
+            /// A woven ring's normal: out from the axis along the profile (in, for an inside wall). A flat ring (a cap)
+            /// faces up or down by its profile alone, which is already right seen from inside.
+            /// </summary>
+            static float3 WeaveNormal(IReadOnlyList<float3> rings, int r, float3 dir, bool inside)
+            {
+                var prev = rings[math.max(r - 1, 0)];
+                var next = rings[math.min(r + 1, rings.Count - 1)];
+                var dy = next.x - prev.x;
+                var dr = next.y - prev.y;
+                if (math.abs(dy) < 1e-5f)
+                    return new float3(0f, dr > 0f ? -1f : 1f, 0f);
+                var normal = (dir * dy - new float3(0f, dr, 0f)) * math.sign(dy);
+                return math.normalizesafe(inside ? -normal : normal, dir);
             }
 
             /// <summary>A box round <paramref name="centre"/>, turned by <paramref name="rotation"/>; tint is lower on its underside.</summary>
@@ -126,12 +163,17 @@ namespace Punchy.Terrain
             }
         }
 
-        /// <summary>Builds the pale and dark meshes of one site (either may be null if the site has none of that).</summary>
-        public static void Build(ref BatFolkSetBlob set, int site, out Mesh pale, out Mesh dark)
+        /// <summary>
+        /// Builds the pale, dark and rock meshes of one site (any may be null if the site has none of that). The rock
+        /// mesh (W-96: the pygmy niches) is drawn with the cave material itself, in the cave's style slot.
+        /// </summary>
+        public static void Build(ref BatFolkSetBlob set, int site, int caveStyle, out Mesh pale, out Mesh dark, out Mesh rock)
         {
             var p = new Builder();
             var d = new Builder();
+            var stone = new Builder { Slot = caveStyle };
             var rings = new List<float3>();
+            var shell = new KitBox[BatFolkHomes.ShellBoxes];
             for (int i = 0; i < set.Props.Length; i++)
             {
                 ref var prop = ref set.Props[i];
@@ -143,24 +185,9 @@ namespace Punchy.Terrain
                 switch (prop.Kind)
                 {
                     case BatFolkPropKind.Hut:
-                    {
-                        // The silk stalk, from a little inside the ceiling down into the pod's top.
-                        rings.Clear();
-                        rings.Add(new float3(0.3f, 0.07f, 0.8f));
-                        rings.Add(new float3(-size.z - 0.1f, 0.05f, 0.7f));
-                        d.Lathe(at, prop.Yaw, rings, 6);
-                        rings.Clear();
-                        foreach (var r in PodProfile)
-                            rings.Add(new float3(-size.z - r.x * size.y, r.y * size.x, r.z));
-                        p.Lathe(at, prop.Yaw, rings);
-                        // A dark band round its middle (the entrance flap's seam), so the pod reads as made.
-                        rings.Clear();
-                        var band = -size.z - 0.5f * size.y;
-                        rings.Add(new float3(band + 0.06f, size.x * 1.015f, 0.5f));
-                        rings.Add(new float3(band - 0.06f, size.x * 1.015f, 0.5f));
-                        d.Lathe(at, prop.Yaw, rings);
+                        // W-96: the roost huts are woven nest pods too (their Size means the same as a Pod's).
+                        Pod(prop, p, d, rings);
                         break;
-                    }
                     case BatFolkPropKind.Rack:
                     {
                         var w = size.x * 0.5f;
@@ -179,53 +206,6 @@ namespace Punchy.Terrain
                         foreach (var r in BasketProfile)
                             rings.Add(new float3(r.x * size.y, r.y * size.x, r.z));
                         d.Lathe(at, prop.Yaw, rings, 10);
-                        break;
-                    }
-                    case BatFolkPropKind.WallHouse:
-                    case BatFolkPropKind.CeilingHouse:
-                    {
-                        var wall = prop.Kind == BatFolkPropKind.WallHouse;
-                        // The deck it stands on: planks, with struts back to the wall or cords up to the ceiling.
-                        var deck = new float3(size.x * 0.5f + 0.35f, 0.09f, size.y * 0.5f + (wall ? 0.6f : 0.35f));
-                        var deckAt = at + math.mul(turn, new float3(0f, -0.09f, wall ? 0.15f : 0f));
-                        d.Box(deckAt, deck, turn, 0.85f);
-                        if (wall)
-                        {
-                            // Two struts from under the deck's front down and back into the wall.
-                            for (int s = -1; s <= 1; s += 2)
-                            {
-                                var top = new float3(s * size.x * 0.4f, -0.15f, size.y * 0.35f);
-                                var foot = new float3(s * size.x * 0.4f, -1.6f, -size.y * 0.5f - 0.5f);
-                                var mid = (top + foot) * 0.5f;
-                                var dir = math.normalize(foot - top);
-                                var lean = math.mul(turn, quaternion.RotateX(math.atan2(dir.z, -dir.y)));
-                                d.Box(at + math.mul(turn, mid), new float3(0.06f, math.length(foot - top) * 0.5f + 0.1f, 0.06f), lean, 0.7f);
-                            }
-                        }
-                        else
-                        {
-                            // Four cords from the deck's corners to past the roof top and into the ceiling.
-                            var cordTop = BatFolkBaking.HouseHeight + size.z + 0.4f;
-                            for (int c = 0; c < 4; c++)
-                            {
-                                var corner = new float3((c & 1) == 0 ? -deck.x + 0.1f : deck.x - 0.1f, 0f, (c & 2) == 0 ? -deck.z + 0.1f : deck.z - 0.1f);
-                                d.Box(at + math.mul(turn, corner + new float3(0f, cordTop * 0.5f, 0f)), new float3(0.025f, cordTop * 0.5f, 0.025f), turn, 0.75f);
-                            }
-                        }
-                        // The kit house itself (BatFolk trim; rebuilt from a hash of its spot, so nothing extra is baked).
-                        Parts.Clear();
-                        var seed = BiomeSampling.Scramble(math.hash(new int3(math.floor(at * 16f))) ^ 0xBA7F0061u);
-                        StructureKit.House(seed, StructureKit.For(FolkCulture.BatFolk), size.x, size.y, 1, 0f, Parts);
-                        foreach (var part in Parts)
-                        {
-                            if (part.Material == KitMaterial.Lamp || part.Material == KitMaterial.Rune)
-                                continue;   // bat folk have no lights
-                            var light = part.Material == KitMaterial.Wall || part.Material == KitMaterial.Roof ||
-                                        part.Material == KitMaterial.Stone || part.Material == KitMaterial.Ice || part.Material == KitMaterial.Net;
-                            var c = (float3)part.Centre;
-                            var tint = math.lerp(0.55f, 1f, math.saturate(c.y / 3f));
-                            (light ? p : d).Box(at + math.mul(turn, c), (float3)part.Size * 0.5f, math.mul(turn, part.Rotation), tint);
-                        }
                         break;
                     }
                     case BatFolkPropKind.RoostFrame:
@@ -316,10 +296,234 @@ namespace Punchy.Terrain
                         }
                         break;
                     }
+                    case BatFolkPropKind.Pod:
+                        Pod(prop, p, d, rings);
+                        break;
+                    case BatFolkPropKind.Niche:
+                        Niche(prop, p, d, stone, rings, shell);
+                        break;
                 }
             }
             pale = p.ToMesh("Bat folk (pale)");
             dark = d.ToMesh("Bat folk (dark)");
+            rock = stone.ToMesh("Bat folk (rock)");
+        }
+
+        /// <summary>
+        /// W-96: a bat folk pod, the only kind of bat folk home (Zach: nothing that looks like a house). An egg hung by
+        /// its narrow end from a cord or a root, hollow like a weaver bird's nest: an outer and an inner woven wall
+        /// (a checker of light and dark reed), a wide opening in one side with a thick woven lip, a closed woven floor
+        /// with bedding on it, loose twigs poking out and straws dangling under it. Dark reed or pale straw from a hash
+        /// of its anchor. The huts are drawn the same way (their Size means the same).
+        /// </summary>
+        static void Pod(in BatFolkProp prop, Builder p, Builder d, List<float3> rings)
+        {
+            var at = prop.Position;
+            var r = prop.Size.x;
+            var len = prop.Size.y;
+            var style = BatFolkHomes.Style(at);
+            var reed = BatFolkHomes.Woven(style) ? d : p;
+            var rng = new Unity.Mathematics.Random(style | 1u);
+            var top = -prop.Size.z;
+            if (BatFolkHomes.Root(style))
+            {
+                // A root down from the rock: a flared foot in the ceiling, then a crooked run of segments to the pod.
+                rings.Clear();
+                rings.Add(new float3(0.3f, 0.32f, 0.5f)); rings.Add(new float3(-0.1f, 0.2f, 0.55f)); rings.Add(new float3(-0.45f, 0.08f, 0.6f));
+                d.Lathe(at, prop.Yaw, rings, 7);
+                var from = new float3(0f, -0.4f, 0f);
+                const int Segments = 4;
+                for (int s = 1; s <= Segments; s++)
+                {
+                    var t = s / (float)Segments;
+                    var sway = s == Segments ? float2.zero
+                        : 0.24f * new float2(BatFolkHomes.Unit(style, 8 + s * 3) - 0.5f, BatFolkHomes.Unit(style, 12 + s * 3) - 0.5f);
+                    var to = new float3(sway.x, math.lerp(-0.4f, top + 0.15f, t), sway.y);
+                    Strand(d, at + from, at + to, 0.05f, 0.55f);
+                    from = to;
+                }
+            }
+            else
+            {
+                rings.Clear();
+                rings.Add(new float3(0.3f, 0.035f, 0.8f)); rings.Add(new float3(top - 0.1f, 0.03f, 0.7f));
+                d.Lathe(at, prop.Yaw, rings, 6);
+            }
+            // The opening faces along the prop's Face (sin yaw, cos yaw), as BatFolkHome.Face says.
+            var open = math.atan2(math.cos(prop.Yaw), math.sin(prop.Yaw));
+            const float Gap = 2.1f, Full = math.PI * 2f, Inner = 0.86f;
+            float t0 = PodOpenFrom, t1 = PodOpenTo;
+            // The outer wall: whole above and below the opening, an arc round it.
+            PodWall(reed, at, rings, r, top, len, 0f, t0, 1f, 0f, Full, false, false, false);
+            PodWall(reed, at, rings, r, top, len, t0, t1, 1f, open + Gap * 0.5f, Full - Gap, false, false, false);
+            PodWall(reed, at, rings, r, top, len, t1, 1f, 1f, 0f, Full, false, false, false);
+            // The inner wall (what is seen through the opening), capped under the neck and over the floor.
+            PodWall(reed, at, rings, r, top, len, 0.05f, t0, Inner, 0f, Full, true, true, false);
+            PodWall(reed, at, rings, r, top, len, t0, t1, Inner, open + Gap * 0.5f, Full - Gap, true, false, false);
+            PodWall(reed, at, rings, r, top, len, t1, BatFolkHomes.PodFloor, Inner, 0f, Full, true, false, true);
+            // The top knot where the hanger takes it.
+            rings.Clear();
+            rings.Add(new float3(top + 0.12f, 0f, 0.8f)); rings.Add(new float3(top + 0.12f, r * 0.2f, 0.8f)); rings.Add(new float3(top - 0.1f, r * 0.36f, 0.8f));
+            d.Lathe(at, prop.Yaw, rings, 10);
+            // The lip: bundles of reed round the opening's edge, bridging the two walls.
+            var thick = 0.03f + 0.05f * r;
+            for (int e = 0; e < 2; e++)
+            {
+                var a = open + (e == 0 ? -0.5f : 0.5f) * Gap;
+                for (int s = 0; s < 6; s++)
+                    Strand(reed, PodPoint(at, r, top, len, a, math.lerp(t0, t1, s / 6f), rng.NextFloat(-0.04f, 0.04f)),
+                        PodPoint(at, r, top, len, a, math.lerp(t0, t1, (s + 1) / 6f), rng.NextFloat(-0.04f, 0.04f)), thick, 0.7f);
+            }
+            for (int e = 0; e < 2; e++)
+                for (int s = 0; s < 8; s++)
+                {
+                    var t = e == 0 ? t0 : t1;
+                    Strand(reed, PodPoint(at, r, top, len, open + Gap * (s / 8f - 0.5f), t, rng.NextFloat(-0.04f, 0.04f)),
+                        PodPoint(at, r, top, len, open + Gap * ((s + 1) / 8f - 0.5f), t, rng.NextFloat(-0.04f, 0.04f)), thick, 0.75f);
+                }
+            // Bedding on the floor inside: a pale pad of hide and moss.
+            var bed = top - len * BatFolkHomes.PodFloor + 0.02f;
+            rings.Clear();
+            rings.Add(new float3(bed + 0.06f, 0f, 1f)); rings.Add(new float3(bed + 0.06f, PodRadius(r, BatFolkHomes.PodFloor - 0.08f) * Inner * 0.8f, 0.9f));
+            rings.Add(new float3(bed, PodRadius(r, BatFolkHomes.PodFloor - 0.08f) * Inner * 0.85f, 0.8f));
+            p.Lathe(at, prop.Yaw, rings, 10);
+            // Loose twigs poking out of the weave (not out of the opening).
+            var twigs = 8 + (int)(r * 6f);
+            for (int i = 0; i < twigs; i++)
+            {
+                var a = rng.NextFloat(Full);
+                var t = rng.NextFloat(0.12f, 0.95f);
+                if (t > t0 - 0.04f && t < t1 + 0.04f && math.abs(math.atan2(math.sin(a - open), math.cos(a - open))) < Gap * 0.5f + 0.15f)
+                    continue;
+                var root = PodPoint(at, r, top, len, a, t, 0.04f);
+                var dir = math.normalize(new float3(math.cos(a), rng.NextFloat(-0.6f, 0.6f), math.sin(a)) + rng.NextFloat3(-0.5f, 0.5f));
+                Strand(d, root - dir * 0.08f, root + dir * r * rng.NextFloat(0.18f, 0.45f), 0.012f + 0.006f * r, 0.5f);
+            }
+            // Straws dangling under it.
+            for (int i = 0; i < 5; i++)
+            {
+                var a = rng.NextFloat(Full);
+                var t = rng.NextFloat(0.86f, 0.97f);
+                var root = PodPoint(at, r, top, len, a, t, 0f);
+                var tip = root + new float3(math.cos(a) * 0.1f, -rng.NextFloat(0.3f, 0.75f) * math.sqrt(r), math.sin(a) * 0.1f);
+                Strand(reed, root, tip, 0.012f, 0.6f);
+            }
+        }
+
+        /// <summary>Where the pod's opening runs, as shares of its length from the top.</summary>
+        const float PodOpenFrom = 0.3f, PodOpenTo = 0.8f;
+
+        /// <summary>
+        /// One woven section of a pod's wall, from share t0 to t1 of its length, over an arc (from, span) round it:
+        /// scale 1 for the outer wall, less for the inner (whose normals face in). Caps close it to the axis.
+        /// </summary>
+        static void PodWall(Builder b, float3 at, List<float3> rings, float r, float top, float len, float t0, float t1,
+            float scale, float from, float span, bool inside, bool capStart, bool capEnd)
+        {
+            rings.Clear();
+            var n = math.max(2, (int)math.ceil((t1 - t0) * 16f));
+            if (capStart)
+                rings.Add(new float3(top - t0 * len, 0f, 0.6f));
+            for (int i = 0; i <= n; i++)
+            {
+                var t = math.lerp(t0, t1, i / (float)n);
+                // Lighter where the light reaches, darker inside and towards the bottom.
+                var tint = math.lerp(1f, 0.62f, t) * (inside ? 0.72f : 1f);
+                rings.Add(new float3(top - t * len, PodRadius(r, t) * scale, tint));
+            }
+            if (capEnd)
+                rings.Add(new float3(top - t1 * len, 0f, 0.5f));
+            var sides = math.max(6, (int)math.ceil(span / (math.PI * 2f) * 22f));
+            b.Weave(at, rings, from, span, sides, inside, 0.68f);
+        }
+
+        /// <summary>A point in the pod's wall at angle a and share t of its length, pushed out by out (m).</summary>
+        static float3 PodPoint(float3 at, float r, float top, float len, float a, float t, float push)
+        {
+            var radius = PodRadius(r, t) * 0.93f + push;
+            return at + new float3(math.cos(a) * radius, top - t * len, math.sin(a) * radius);
+        }
+
+        /// <summary>An egg hung by its narrow end: a neck at the top, fullest a little below the middle, rounded shut at the bottom.</summary>
+        static float PodRadius(float r, float t)
+        {
+            var s = math.sin(math.PI * math.lerp(0.07f, 1f, math.saturate(t)));
+            return r * math.pow(math.max(s, 0f), 0.7f) * math.lerp(0.82f, 1f, math.saturate(t));
+        }
+
+        /// <summary>A thin square rod from one point to another (a twig, a reed bundle, a root segment).</summary>
+        static void Strand(Builder b, float3 from, float3 to, float thick, float tint)
+        {
+            var run = to - from;
+            var length = math.length(run);
+            if (length < 1e-4f)
+                return;
+            var dir = run / length;
+            var rotation = quaternion.LookRotationSafe(dir, math.abs(dir.y) > 0.95f ? new float3(1f, 0f, 0f) : new float3(0f, 1f, 0f));
+            b.Box((from + to) * 0.5f, new float3(thick, thick, length * 0.5f + thick * 0.5f), rotation, tint);
+        }
+
+        /// <summary>
+        /// W-96: a blind pygmy home niche: its rock shell (the same boxes as its collision) in the cave's look, a
+        /// bedroll on one side and a glow-pool in a stone rim or a fire ring on the other.
+        /// </summary>
+        static void Niche(in BatFolkProp prop, Builder p, Builder d, Builder k, List<float3> rings, KitBox[] shell)
+        {
+            var n = BatFolkHomes.NicheShell(prop, shell);
+            for (int i = 0; i < n; i++)
+                k.Box(shell[i].Centre, shell[i].Half, shell[i].Rotation, i == 3 ? 0.7f : 0.95f);
+            var style = BatFolkHomes.Style(prop.Position);
+            var w = prop.Size.x * 0.5f;
+            var depth = prop.Size.y;
+            var turn = quaternion.RotateY(prop.Yaw);
+            var headroom = BatFolkHomes.Headroom(prop);
+            // A few rough stones on the brow and the jambs, so the cut doesn't read as a box.
+            for (int s = 0; s < 4; s++)
+            {
+                var x = (BatFolkHomes.Unit(style, 4 + s * 6) - 0.5f) * 2f * (w + BatFolkHomes.Jamb * 0.6f);
+                var y = s < 2 ? headroom + BatFolkHomes.Lintel * 0.8f : headroom * (0.3f + 0.4f * BatFolkHomes.Unit(style, 7 + s * 5));
+                if (s >= 2)
+                    x = (s == 2 ? -1f : 1f) * (w + BatFolkHomes.Jamb * 0.7f);
+                var size = 0.18f + 0.14f * BatFolkHomes.Unit(style, 9 + s * 5);
+                var lump = math.mul(turn, quaternion.Euler(0.4f + 0.5f * s, 0.9f * s, 0.3f));
+                k.Box(BatFolkHomes.At(prop, new float3(x, y, depth + 0.04f)), new float3(size, size * 0.8f, size), lump, 0.9f);
+            }
+            // The bedroll along the niche, a rolled head end at the back, a dark tie.
+            var side = BatFolkHomes.Left(style) ? -1f : 1f;
+            var bx = side * (w - 0.42f);
+            var bedLength = math.min(depth - 0.15f, 1.25f);
+            p.Box(BatFolkHomes.At(prop, new float3(bx, 0.05f, depth * 0.5f)), new float3(0.33f, 0.05f, bedLength * 0.5f), turn, 0.85f);
+            p.Box(BatFolkHomes.At(prop, new float3(bx, 0.13f, depth * 0.5f - bedLength * 0.5f + 0.14f)), new float3(0.3f, 0.08f, 0.11f), turn, 0.95f);
+            d.Box(BatFolkHomes.At(prop, new float3(bx, 0.1f, depth * 0.5f + 0.1f)), new float3(0.34f, 0.012f, 0.03f), turn, 0.5f);
+            // The glow-pool or the fire ring on the other side, towards the opening.
+            var c = BatFolkHomes.At(prop, new float3(-side * (w - 0.38f), 0f, depth * 0.62f));
+            if (BatFolkHomes.Fire(style))
+            {
+                for (int s = 0; s < 7; s++)
+                {
+                    var a = prop.Yaw + s * math.PI * 2f / 7f;
+                    k.Box(c + new float3(math.cos(a) * 0.26f, 0.05f, math.sin(a) * 0.26f), new float3(0.07f, 0.06f, 0.06f), quaternion.RotateY(a), 0.85f);
+                }
+                // Ash and three crossed sticks, burnt dark (no flame: the pygmies are blind, and the bat folk keep no lights).
+                rings.Clear();
+                rings.Add(new float3(0.015f, 0f, 0.4f)); rings.Add(new float3(0.015f, 0.2f, 0.35f));
+                p.Lathe(c, prop.Yaw, rings, 9);
+                for (int s = 0; s < 3; s++)
+                {
+                    var stick = math.mul(quaternion.RotateY(prop.Yaw + s * 2.1f), quaternion.RotateX(0.35f));
+                    d.Box(c + new float3(0f, 0.09f, 0f), new float3(0.022f, 0.022f, 0.17f), stick, 0.3f);
+                }
+            }
+            else
+            {
+                // A glow-pool: a shallow bowl of pale water in a rim of stone.
+                rings.Clear();
+                rings.Add(new float3(0f, 0.3f, 0.8f)); rings.Add(new float3(0.08f, 0.28f, 0.9f)); rings.Add(new float3(0.08f, 0.22f, 0.9f));
+                k.Lathe(c, prop.Yaw, rings, 10);
+                rings.Clear();
+                rings.Add(new float3(0.055f, 0.23f, 1f)); rings.Add(new float3(0.055f, 0f, 1f));
+                p.Lathe(c, prop.Yaw, rings, 10);
+            }
         }
     }
 }
