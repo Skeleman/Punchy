@@ -38,7 +38,8 @@ namespace Punchy.Tests
         }
 
         /// <summary>
-        /// Target: measured on main after PR #148 (W-104 row 1 repinned it): fingerprint F99FD9E4, 115 species. A-71 pinned EA6A4DE5 on
+        /// Target: 1202B8ED since W-104 row 4 (fishing villages got Home and Door anchors). Before that, on main after PR #148
+        /// (W-104 row 1 repinned it): fingerprint F99FD9E4, 115 species. A-71 pinned EA6A4DE5 on
         /// animal-behaviours before the merge (before A-71 it read 2E01A16B, A-68's target). The fingerprint is of the species data the fauna
         /// build bakes, so it reads the same wherever the player stands (the standard start spot here).
         /// </summary>
@@ -47,7 +48,7 @@ namespace Punchy.Tests
         {
             var line = LogWatch.Last("fingerprint") ?? "no fingerprint line";
             LogWatch.Measure("fauna " + line);
-            StringAssert.Contains("fingerprint F99FD9E4", line);
+            StringAssert.Contains("fingerprint 1202B8ED", line);
             yield return null;
         }
 
