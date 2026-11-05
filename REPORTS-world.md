@@ -2206,3 +2206,9 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
 - Cause: not a W-98 puddle or a shader. `SettlementSampling.Height` returned NaN on a thin ring at the outer edge of every plot pad's blend (w ~1e-6, so w^8 underflowed to 0 and the mix was 0/0). Terrain vertices on that ring got NaN normals or heights, which drew black hexes (the 6 triangles round each vertex), and bloom smeared them white. The pale hex beside it was the same bug.
 - Fix: a one-line guard in SettlementData.cs. When sum is 0 the ground keeps its own height, because the pad has no pull there. A 1M-point scan of SampleHeight over the camp went from 3 NaN points to 0.
 - Shots: gallery nanhex-before.png and nanhex-after.png, DwarfMiningCamp shrine (-1984,655) on v3, about 11 m away, bloom on. Both hexes are gone.
+
+### W-100 row 1 - doors on elven stairs and balconies (6442e9f) - done (verified)
+- Every kit-house balcony and every outside stair's landing now has a door in the wall behind it: jambs, lintel and sill, or a dark opening on a ruin. It replaces the small window or trim it would overlap. No new RNG draws, so placement and variants are unchanged.
+- Bird walk: playing as Crow, -walk from the foot of the stair at the ElfGrove house (-2518.5,-1458.8) to its landing. It went from y 12.69 to 16.29 on foot the whole way (Flying=False, Grounded=True, OnProp=True on the treads). Kit treads now step up to 0.32 m, and flight keeps out of kit walls and lands on kit tops.
+- Shot: gallery row1-elf-stair-door.png (the stair and its new top door, biggest town = the elf grove at -2511,-1518).
+- Risks: this touches PlayerMovementSystem.cs (Fly/KeepOut/TopUnder kit handling), which may be the player lane's file and needs a look from them.
