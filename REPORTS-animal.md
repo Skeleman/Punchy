@@ -2311,3 +2311,8 @@ Human (Human, Dramatic) waiting Storm cell (94,-28) [1 up in cell]: Run for your
   - Effect: an invisible solid footprint stays at each build spot, the walking body has no collision for most of its loop, and ColossusPushSystem pushes creatures out of empty air.
   - Possible fix: store the columns relative to the root and transform them by the root's pose each frame, or re-register while walking. This needs a world-lane decision, since ColossusCollision.cs is world-lane code.
 - My editor is closed.
+
+## A-73 row 1: Village_CreatureDensity deterministic (b42fd25)
+- Cause: `-place HumanVillage` stood the player at a stale village 98 m from the centre (DebugControls never cleared `centres`), so the count swung with whichever village it was.
+- Fix: clear `centres` with `locations`; test places at `HumanVillage:centre`. Band re-baselined to 8-40 creatures (was up to 20) and a new folk floor of 4, so it checks more than before, not less.
+- 5 suite runs in a row, all 13/13 passed: 25/11, 28/13, 29/16, 26/14, 28/15 (creatures/folk). Fingerprint 1202B8ED, landmarks 109 C96F266F.
