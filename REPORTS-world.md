@@ -2145,3 +2145,9 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
 - **Numbers:** landmarks 108 / 4D2643D7 (unchanged).
 - **Shot:** w96-batfolk-homes.png (pods + niche in one frame; at 8.9 m, a little past the 8 m guide, so the niche fits). Full-res file in the gallery.
 - **Risks:** #35 not commented (the brief forbids it). FloraSystem is shared (+1 additive line), so tell its owner. DebugControls `-place batfolk` and FaunaDirector.CaveFolk still use Hammock/Hut spots: the animal lane should move to the BatFolkHomes anchors (Stand is now the pod floor). Detail draws per site changed with the house loops gone (landmarks unaffected); the fauna fingerprint may move. The glow-pool is not emissive. Only 1 niche is placed on v3.
+
+## W-98 water (#83), world-features
+- **Row 1 done (verified), e937ccb:** whitewater is now foam carried by the current. Water.shader FlowFoam: two flow-advected reads on a 1.6 s cycle, cross-faded, replacing the static flecks (the decal look). Cover grows with rapids, ripples get choppier with speed (x1+1.3 rapids), and streak flecks thin out in white water. RiverData: the gradient blends mid-segment to mid-segment with the neighbour segment. Rapids along a line at (-577,691), 4 m steps: before 0 -> 1.00 in one step; after 0, 0.07, 0.39, 0.77, 0.91, 1.00. Cave streams: the drop is measured over 5 points, so the white builds at the steep step.
+- **Numbers:** landmarks 108 / 4D2643D7 (unchanged). Rapids values shift near segment ends, so rapids-gated rocks (MinRapids) may move a little.
+- **Shots:** w98-rapid-before/after (cam -575.9,41.5,698.75 -> -577,38.6,691), w98-cave-before/after (cave stream 1, cam -1331.3,90.3,1423.6). Full-res in the gallery.
+- **Risks:** stills can't show the motion. The rapid is fairly white overall (green shows through). There are 2 extra value-noise reads per pixel, only where rapids > 0.02.
