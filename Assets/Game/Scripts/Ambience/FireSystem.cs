@@ -10,12 +10,53 @@ namespace Punchy.Ambience
     /// each flame every frame (position of its base, height, a stable seed, a palette, and how far its tip trails); the
     /// LandmarkEffectSystem draws them all at once with the Flame shader, which shapes and flickers them on the shared
     /// clock, and the list is cleared. A flame's lean is eased between frames by its seed, so a jerky carrier doesn't
-    /// snap it about. Light on their surroundings is separate (CaveSystem.MovingLights): flames are emissive only.
+    /// snap it about. Every flame is the standard fire (#131, Resources/StandardFire, a FireEffect): its flame, a spark
+    /// now and then (the embers), a soft glow round its base and two puffs of smoke, in one of the effect's colours.
+    /// The light it throws is the caller's to add (CaveSystem.MovingLights), coloured by Light(colour).
     /// </summary>
     public static class FireSystem
     {
-        /// <summary>Palettes: 0 wood fire, 1 blue, 2 green, 3 violet.</summary>
+        /// <summary>Colours (indices into the standard fire's colours): 0 wood fire, 1 blue, 2 green, 3 violet.</summary>
         public const int Wood = 0, Blue = 1, Green = 2, Violet = 3;
+
+        /// <summary>Debug (F4): every fire burns in this colour of the standard fire; -1 for each its own.</summary>
+        public static int ColourOverride = -1;
+
+        /// <summary>Quads per flame: the flame, its spark, its glow and two smoke puffs (Corner.w = colour + 10 x quad).</summary>
+        const int Quads = 5;
+
+        static FireEffect effect;
+        static readonly Vector4[] colourTable = new Vector4[FireEffect.MaxColours * 3];
+        static readonly int ColoursId = Shader.PropertyToID("_PunchyFireColours");
+        static readonly int GlowId = Shader.PropertyToID("_PunchyFireGlow");
+        static readonly int EmberId = Shader.PropertyToID("_PunchyFireEmbers");
+        static readonly int SmokeId = Shader.PropertyToID("_PunchyFireSmoke");
+        static readonly int SmokeColourId = Shader.PropertyToID("_PunchyFireSmokeColour");
+
+        /// <summary>The standard fire (Resources/StandardFire), loaded on first use.</summary>
+        public static FireEffect Effect => effect != null ? effect : effect = Resources.Load<FireEffect>("StandardFire");
+
+        /// <summary>The colour a flame of <paramref name="colour"/> burns in (after the debug override), in range.</summary>
+        static int Colour(int colour)
+        {
+            var e = Effect;
+            var count = e != null ? Mathf.Min(e.Colours.Length, FireEffect.MaxColours) : 1;
+            var c = ColourOverride >= 0 ? ColourOverride : colour;
+            return c >= 0 && c < count ? c : 0;
+        }
+
+        /// <summary>
+        /// The light a fire of <paramref name="colour"/> throws, for CaveSystem.MovingLights: rgb x intensity x the
+        /// caller's <paramref name="flicker"/>, w its reach (m).
+        /// </summary>
+        public static Vector4 Light(int colour, float flicker = 1f)
+        {
+            var e = Effect;
+            if (e == null || e.Colours.Length == 0)
+                return new Vector4(1.7f * flicker, 0.95f * flicker, 0.4f * flicker, 9f);
+            var c = (Vector4)e.Colours[Colour(colour)].Light * (e.LightIntensity * flicker);
+            return new Vector4(c.x, c.y, c.z, e.LightReach);
+        }
 
         struct Flame
         {
@@ -48,7 +89,7 @@ namespace Punchy.Ambience
         /// <param name="position">The base of the flame (a torch head, the logs of a fire).</param>
         /// <param name="size">Its height (m): a torch about 0.35, a campfire 0.8–1.2.</param>
         /// <param name="seed">Anything that stays the same while it burns (an entity index), so its flicker is its own.</param>
-        /// <param name="palette">Wood, Blue, Green or Violet.</param>
+        /// <param name="palette">The standard fire's colour: Wood, Blue, Green, Violet or a later one.</param>
         public static void AddFlame(Vector3 position, float size, int seed, int palette = Wood) =>
             AddFlame(position, size, seed, palette, Vector3.zero);
 
@@ -57,7 +98,7 @@ namespace Punchy.Ambience
         public static void AddFlame(Vector3 position, float size, int seed, int palette, Vector3 lean)
         {
             if (flames.Count < 4096)
-                flames.Add(new Flame { Position = position, Size = size, Seed = seed, Palette = palette, Lean = lean });
+                flames.Add(new Flame { Position = position, Size = size, Seed = seed, Palette = Colour(palette), Lean = lean });
         }
 
         /// <summary>Draws this frame's flames and clears the list (LandmarkEffectSystem, once a frame).</summary>
@@ -69,6 +110,7 @@ namespace Punchy.Ambience
                 eased.Clear();
                 return;
             }
+            Upload();
             var dt = math.min(Time.deltaTime, 0.1f);
             var follow = 1f - math.exp(-dt / 0.12f);
             vertices.Clear();
@@ -81,8 +123,8 @@ namespace Punchy.Ambience
                 var lean = eased.TryGetValue(f.Seed, out var was) ? Vector3.Lerp(was, f.Lean, follow) : f.Lean;
                 easedNext[f.Seed] = lean;
                 var seed01 = (math.hash(new int2(f.Seed, 0x5EED)) & 0xFFFF) / 65535f;
-                // The flame, then its spark.
-                for (int quad = 0; quad < 2; quad++)
+                // The flame, its spark, its glow and its two smoke puffs.
+                for (int quad = 0; quad < Quads; quad++)
                 {
                     var first = vertices.Count;
                     for (int k = 0; k < 4; k++)
@@ -112,12 +154,33 @@ namespace Punchy.Ambience
             mesh.SetIndexBufferParams(indices.Count, IndexFormat.UInt32);
             mesh.SetIndexBufferData(indices, 0, 0, indices.Count);
             mesh.subMeshCount = 1;
-            // Bounds round every base, with room for the tallest flame and its sparks.
-            var bounds = new Bounds((Vector3)((min + max) * 0.5f), (Vector3)(max - min + 8f));
+            // Bounds round every base, with room for the tallest flame, its sparks and its smoke.
+            var bounds = new Bounds((Vector3)((min + max) * 0.5f), (Vector3)(max - min + 12f));
             mesh.SetSubMesh(0, new SubMeshDescriptor(0, indices.Count), MeshUpdateFlags.DontRecalculateBounds);
             mesh.bounds = bounds;
             Graphics.RenderMesh(new RenderParams(material) { worldBounds = bounds, shadowCastingMode = ShadowCastingMode.Off, receiveShadows = false },
                                 mesh, 0, Matrix4x4.identity);
+        }
+
+        /// <summary>The standard fire's colours and settings, for the Flame shader (globals: a few floats a frame).</summary>
+        static void Upload()
+        {
+            var e = Effect;
+            if (e == null || e.Colours.Length == 0)
+                return;
+            var count = Mathf.Min(e.Colours.Length, FireEffect.MaxColours);
+            for (int i = 0; i < FireEffect.MaxColours; i++)
+            {
+                var c = e.Colours[i < count ? i : 0];
+                colourTable[i * 3] = (Vector4)c.Outer;
+                colourTable[i * 3 + 1] = (Vector4)c.Mid;
+                colourTable[i * 3 + 2] = (Vector4)c.Core;
+            }
+            Shader.SetGlobalVectorArray(ColoursId, colourTable);
+            Shader.SetGlobalVector(GlowId, new Vector4(e.GlowSize, e.GlowStrength, 0f, 0f));
+            Shader.SetGlobalVector(EmberId, new Vector4(e.EmberChance, e.EmberRate, e.EmberRise, 0f));
+            Shader.SetGlobalVector(SmokeId, new Vector4(e.SmokeStrength, e.SmokeRise, e.SmokeRate, 0f));
+            Shader.SetGlobalVector(SmokeColourId, (Vector4)e.SmokeColour);
         }
     }
 }

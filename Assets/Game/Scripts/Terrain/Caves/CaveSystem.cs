@@ -660,8 +660,6 @@ namespace Punchy.Terrain
         readonly List<float> speciesTorch = new List<float>();
         /// <summary>Torches near the camera: where the flame sits and the plant's index (its seed).</summary>
         readonly List<(float3 flame, int plant)> nearTorches = new List<(float3, int)>();
-        /// <summary>A wall torch's light on the rock round it (warm, about 9 m).</summary>
-        static readonly Vector4 TorchLight = new Vector4(1.7f, 0.95f, 0.4f, 9f);
         /// <summary>How far a glowing plant lights the floor and walls round it (m).</summary>
         const float PlantGlowReach = 5f;
         float3 plantsAround = new float3(float.MaxValue);
@@ -818,7 +816,7 @@ namespace Punchy.Terrain
             {
                 Punchy.Ambience.FireSystem.AddFlame(flame, 0.3f, plant, Punchy.Ambience.FireSystem.Wood);
                 var at = new Vector4(flame.x, flame.y + 0.15f, flame.z, 0f);
-                glowing.Add((math.distance(flame, camPos), at, at, TorchLight));
+                glowing.Add((math.distance(flame, camPos), at, at, Punchy.Ambience.FireSystem.Light(Punchy.Ambience.FireSystem.Wood)));
             }
 
             var bounds = new Bounds(camPos, new Vector3(PlantRange * 2f, PlantRange * 2f, PlantRange * 2f));
