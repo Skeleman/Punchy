@@ -33,6 +33,7 @@ MonoBehaviour:
   Signpost: {fileID: 11400000, guid: 4b43cc542a9e3e446a95fb86645732a1, type: 2}
   Bridge: {fileID: 11400000, guid: 6fd3b583e4717e64ea5a0270c7ea34e4, type: 2}
   PalisadeWall: {fileID: 0}
+  HouseStyleChance: 0.75
   Buildings:
   - Role: 0
     Species: {fileID: 11400000, guid: cd21dbf16eff8d64ea65f16948e9db37, type: 2}
@@ -55,14 +56,14 @@ MonoBehaviour:
     Weight: 1
     Count: 0
   - Role: 0
-    Species: {fileID: 11400000, guid: 8b3d682c89ea4b3eba7de6d6165e262c, type: 2}
+    Species: {fileID: 11400000, guid: 14f2d380081349c39afabc54098edf98, type: 2}
     Weight: 1
     Count: 1
     OnlyIn:
     - {fileID: 11400000, guid: 46ea94191e2f71c4a8446135874892e0, type: 2}
     - {fileID: 11400000, guid: 3abd880b4b52a0d45ac7f2b3a687cee8, type: 2}
   - Role: 0
-    Species: {fileID: 11400000, guid: 176d60675112466c9cadf46ed199e1aa, type: 2}
+    Species: {fileID: 11400000, guid: b477f82a71fe4ebd8ec2b00d11b60f7b, type: 2}
     Weight: 1
     Count: 1
     OnlyIn:
@@ -70,16 +71,40 @@ MonoBehaviour:
     - {fileID: 11400000, guid: 20ddf4d9933283446b410b041eced8ef, type: 2}
     - {fileID: 11400000, guid: b6dbd4f6350cf6743b5cf90b12731cfe, type: 2}
   - Role: 0
-    Species: {fileID: 11400000, guid: f17cf23e30eb41419d78e68a143fcc1b, type: 2}
+    Species: {fileID: 11400000, guid: afe925a36a3d4dcc865ef225fa453a65, type: 2}
     Weight: 1
     Count: 1
     OnlyIn:
     - {fileID: 11400000, guid: 141565d02b6f28c4b9331e5d77a83fac, type: 2}
   - Role: 0
-    Species: {fileID: 11400000, guid: 14da0fe2e8e54b1fbe38b7f196fc16d7, type: 2}
+    Species: {fileID: 11400000, guid: eccb968760a44ac19b11f4883e6958d6, type: 2}
     Weight: 1
     Count: 1
     OnlyIn:
     - {fileID: 11400000, guid: 85ee83dd85b5ba542b880bbcf85da039, type: 2}
     - {fileID: 11400000, guid: fa4ebbcc3834f4c47afc7a79abe40ad7, type: 2}
     - {fileID: 11400000, guid: 2643950432d89264cafbe718d23c0c4e, type: 2}
+  - Role: 0
+    Species: {fileID: 11400000, guid: 8b3d682c89ea4b3eba7de6d6165e262c, type: 2}
+    Weight: 1
+    Count: 1
+    OnlyIn: []
+    Style: Frontier
+  - Role: 0
+    Species: {fileID: 11400000, guid: 176d60675112466c9cadf46ed199e1aa, type: 2}
+    Weight: 1
+    Count: 1
+    OnlyIn: []
+    Style: Frontier
+  - Role: 0
+    Species: {fileID: 11400000, guid: f17cf23e30eb41419d78e68a143fcc1b, type: 2}
+    Weight: 1
+    Count: 1
+    OnlyIn: []
+    Style: Frontier
+  - Role: 0
+    Species: {fileID: 11400000, guid: 14da0fe2e8e54b1fbe38b7f196fc16d7, type: 2}
+    Weight: 1
+    Count: 1
+    OnlyIn: []
+    Style: Frontier

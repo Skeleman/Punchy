@@ -189,6 +189,12 @@ namespace Punchy.Debugging
                           $"player {fs.PlayerFlee - fixedSearch0.PlayerFlee}, {SimPrint()}");
             }
             ApplyLaunchOptions();
+            if (laterOptions != null && launchOptionsApplied)
+            {
+                var line = laterOptions;
+                laterOptions = null;
+                ApplyOptions(line.Split((char[])null, System.StringSplitOptions.RemoveEmptyEntries));
+            }
             SpawnRequested();
             PlaceByLedge();
             ClimbTest();
@@ -1378,8 +1384,17 @@ namespace Punchy.Debugging
             shotLines.Clear();
             shotIndex = -1;
             Time.timeScale = 1f;
+            laterOptions = null;
         }
 #endif
+
+        /// <summary>
+        /// Play-mode tests (W-97): test flags applied mid-session, as a shot line applies them ("-weather Rain -time 22"),
+        /// on the next frame once the launch options are in.
+        /// </summary>
+        public static void RunOptions(string line) => laterOptions = line;
+
+        static string laterOptions;
 
         /// <summary>
         /// For unattended tests: "-time 22" sets the clock, "-place summit" starts at the first preset location whose

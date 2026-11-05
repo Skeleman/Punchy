@@ -675,10 +675,13 @@ namespace Punchy.Terrain
             RuinKit.Fill(ref builder, ref root, ruin);
 
             // Grid over all footprints.
+            // W-95 (#80): the sunken temple's sand swell reaches past its Radius, so the grid lists it out to its Reach.
+            static float Footprint(LandmarkType t, float scale) =>
+                t.OnePerIsland && t.Temple ? math.max(t.Radius * scale, SunkenTempleShape.Reach) : t.Radius * scale;
             float2 min = float.MaxValue, max = float.MinValue;
             foreach (var inst in instances)
             {
-                var r = types[inst.Type].Radius * inst.Scale;
+                var r = Footprint(types[inst.Type], inst.Scale);
                 min = math.min(min, inst.Position - r);
                 max = math.max(max, inst.Position + r);
             }
@@ -690,7 +693,7 @@ namespace Punchy.Terrain
             for (int i = 0; i < instances.Count; i++)
             {
                 var inst = instances[i];
-                var r = types[inst.Type].Radius * inst.Scale;
+                var r = Footprint(types[inst.Type], inst.Scale);
                 var c0 = (int2)math.floor((inst.Position - r - min) / GridCell);
                 var c1 = (int2)math.floor((inst.Position + r - min) / GridCell);
                 for (int z = c0.y; z <= c1.y; z++)

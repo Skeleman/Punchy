@@ -162,6 +162,8 @@ namespace Punchy.Fauna
                     }
                 }
 
+            var hasKit = SystemAPI.TryGetSingletonBuffer<Punchy.Flora.KitBox>(out var kit, true) && kit.Length > 0;
+
             if (LogStances && playerIndex >= 0 && playerIndex != stanceTableFor)
                 LogStanceTable(playerIndex);
 
@@ -194,6 +196,12 @@ namespace Punchy.Fauna
                         continue;
                     if (nextTalk.TryGetValue(entities[i], out var next) && now < next)
                         continue;
+                }
+                // W-97: no line through a house wall (a speaker indoors and the player out, or the other side of a wall).
+                if (hasKit && Walled(kit, s, ref b, player))
+                {
+                    HeldBack++;
+                    continue;
                 }
                 nextTalk[entities[i]] = now + Again;
                 var species = director.SpeciesAt(bodies[i].Species);
@@ -436,6 +444,13 @@ namespace Punchy.Fauna
 
         /// <summary>A ghost abroad (not a player's body, not gone to rest by day).</summary>
         static bool CanHaunt(in CreatureState s) => s.Mode != CreatureMode.Puppet && s.Mode != CreatureMode.Sleep;
+
+        /// <summary>Lines kept back because a kit wall stood between speaker and player (W-97; tests read it).</summary>
+        public static int HeldBack;
+
+        /// <summary>Whether a kit wall, roof or floor stands between this speaker's eyes and the player's (W-97).</summary>
+        public static bool Walled(in DynamicBuffer<Punchy.Flora.KitBox> kit, in CreatureState s, ref CreatureBlob b, float3 player) =>
+            Punchy.Flora.KitCollision.Blocks(kit, s.Position + new float3(0f, b.StandHeight * s.Scale * 0.9f, 0f), player + new float3(0f, 1.5f, 0f));
 
         static float3 Head(in CreatureState s, ref CreatureBlob b) => s.Position + new float3(0f, b.StandHeight * s.Scale + 0.45f, 0f);
 

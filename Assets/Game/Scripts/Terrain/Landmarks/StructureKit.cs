@@ -32,7 +32,9 @@ namespace Punchy.Terrain
         /// <summary>Wind-blown sand drifted against a desert house (#69).</summary>
         Sand,
         /// <summary>Grey volcanic ash heaped on and around an ash house (#69).</summary>
-        Ash
+        Ash,
+        /// <summary>Trodden dirt: a slab shelter's (#69) floor and ramp, tinted a little toward the local rock.</summary>
+        Dirt
     }
 
     /// <summary>
@@ -63,7 +65,12 @@ namespace Punchy.Terrain
         /// <summary>A hazard house (#69) grounded by a copper rod down to a stake and plate (ElectricWastelands).</summary>
         StormHouse,
         /// <summary>A hazard house (#69) with thick walls, a slatted shade porch and sand drifts (Dunes, SaltFlat, GlassDesert).</summary>
-        SandHouse
+        SandHouse,
+        /// <summary>
+        /// W-95 (#69): a harsh-biome slab shelter, a crooked ramada of three leaning rock slabs under a fourth laid across
+        /// as the roof, dug into the ground with a dirt ramp up out of its open front (+Z). No shell, no inside cylinder.
+        /// </summary>
+        SlabShelter
     }
 
     /// <summary>The small things a sea folk settlement leaves on the lake bed (#37), picked by weight from SeaDetails.</summary>
@@ -236,6 +243,7 @@ namespace Punchy.Terrain
             KitMaterial.Copper => new Color(0.62f, 0.40f, 0.24f),
             KitMaterial.Sand => new Color(0.84f, 0.73f, 0.52f),
             KitMaterial.Ash => new Color(0.36f, 0.34f, 0.33f),
+            KitMaterial.Dirt => Color.Lerp(new Color(0.52f, 0.41f, 0.29f), t.Wall, 0.15f),
             _ => t.Wall
         };
 
@@ -301,6 +309,82 @@ namespace Punchy.Terrain
         /// corner, its strap down to a stone plate and on to an earth stake, a strap along the ridge. SandHouse: a stone
         /// skin, a four-post porch under slats and a cloth, sand drifted against the walls. The door's front stays clear.
         /// </summary>
+        /// <summary>How deep (m) a slab shelter's (#69) plot is dug (SettlementBaking lowers its pad by this).</summary>
+        public const float SlabDig = 0.9f;
+
+        /// <summary>
+        /// W-95 (#69): a slab shelter. Three rough rock slabs stand as back and side walls, each buried a little, leaning
+        /// and twisted by the seed, with a few lumps on their faces; a fourth rests across their uneven tops as the roof,
+        /// tipped to match. Wall is the local rock (ash, granite, scorched, sandstone), Trim its cap (ash, snow, char,
+        /// sand) on the roof and wall tops. The floor is the dug plot (SlabDig below the street); a dirt ramp runs from
+        /// the open front (+Z) up the bank. Every slab is its own collision box (no Solid circles: you walk in under it).
+        /// </summary>
+        public static List<KitPart> SlabShelter(uint seed, CultureTrim t, float width, float depth)
+        {
+            var parts = new List<KitPart>();
+            var rng = new System.Random((int)(Scramble(seed ^ 0x51AB5u) & 0x7FFFFFFF));
+            float R() => (float)rng.NextDouble();
+            float S() => R() * 2f - 1f;
+            float hw = width * 0.5f, hd = depth * 0.5f;
+            const float bury = 0.5f;
+            void Lumps(Vector3 c, Vector3 size, float yaw, float pitch, float roll, Vector3 outward)
+            {
+                var q = Quaternion.Euler(pitch, yaw, roll);
+                var n = 2 + rng.Next(3);
+                for (int i = 0; i < n; i++)
+                {
+                    var along = new Vector3(S() * size.x * 0.35f, R() * size.y * 0.35f, S() * size.z * 0.35f);
+                    along -= Vector3.Scale(along, new Vector3(Mathf.Abs(outward.x), Mathf.Abs(outward.y), Mathf.Abs(outward.z)));   // keep it on the face
+                    var lump = new Vector3(0.7f + R() * 0.9f, 0.5f + R() * 0.7f, 0.7f + R() * 0.9f);
+                    var thick = Mathf.Abs(Vector3.Dot(size, outward));
+                    Add(parts, KitPiece.Rubble, KitMaterial.Wall, c + q * (along + outward * (thick * 0.5f + 0.12f)), lump, yaw + S() * 25f, false, pitch + S() * 15f, roll + S() * 15f);
+                }
+            }
+            // The back slab, leaning in or out a little.
+            var backH = 2.6f + R() * 0.6f;
+            var back = new Vector3(S() * 0.3f, backH * 0.5f - bury, -hd);
+            var backSize = new Vector3(width + 0.4f + R() * 0.6f, backH, 0.5f + R() * 0.25f);
+            float bYaw = S() * 10f, bPitch = (R() < 0.5f ? -1f : 1f) * (5f + R() * 9f), bRoll = S() * 8f;
+            Add(parts, KitPiece.Wall, KitMaterial.Wall, back, backSize, bYaw, false, bPitch, bRoll);
+            Lumps(back, backSize, bYaw, bPitch, bRoll, Vector3.back);
+            // The side slabs, each its own height, mostly leaning in.
+            var tops = new float[2];
+            for (int k = 0; k < 2; k++)
+            {
+                var side = k == 0 ? -1f : 1f;
+                var h = backH * (0.75f + R() * 0.35f);
+                var len = depth * (0.85f + R() * 0.2f);
+                var c = new Vector3(side * hw + S() * 0.2f, h * 0.5f - bury, -hd + len * 0.5f - 0.1f);
+                var size = new Vector3(0.45f + R() * 0.25f, h, len);
+                float yaw = S() * 14f, pitch = S() * 8f, roll = side * (7f + R() * 11f) * (R() < 0.75f ? 1f : -1f);
+                Add(parts, KitPiece.Wall, KitMaterial.Wall, c, size, yaw, false, pitch, roll);
+                Lumps(c, size, yaw, pitch, roll, side < 0f ? Vector3.left : Vector3.right);
+                tops[k] = h - bury;
+                // Its cap along the top edge.
+                Add(parts, KitPiece.Trim, KitMaterial.Trim, c + Quaternion.Euler(pitch, yaw, roll) * (Vector3.up * (h * 0.5f + 0.02f)),
+                    new Vector3(size.x * 1.1f, 0.12f, len * (0.5f + R() * 0.4f)), yaw, false, pitch, roll);
+            }
+            // The roof slab across their tops, tipped to their uneven heights, overhanging the front.
+            var roofT = 0.5f + R() * 0.25f;
+            var roof = new Vector3(S() * 0.6f, (tops[0] + tops[1]) * 0.5f + roofT * 0.5f, 0.35f + R() * 0.4f);
+            var roofSize = new Vector3(width + 1.2f + R() * 0.8f, roofT, depth + 0.9f + R() * 0.8f);
+            var rRoll = Mathf.Atan2(tops[1] - tops[0], width) * Mathf.Rad2Deg;
+            float rYaw = S() * 18f, rPitch = S() * 9f;
+            Add(parts, KitPiece.Roof, KitMaterial.Wall, roof, roofSize, rYaw, false, rPitch, rRoll);
+            Lumps(roof, roofSize, rYaw, rPitch, rRoll, Vector3.up);
+            // Its cap: a ragged sheet or two of the local cover (ash, snow, char, sand).
+            for (int i = 0, n = 1 + rng.Next(2); i < n; i++)
+                Add(parts, KitPiece.Trim, KitMaterial.Trim, roof + Quaternion.Euler(rPitch, rYaw, rRoll) * new Vector3(S() * width * 0.2f, roofT * 0.5f + 0.05f, S() * depth * 0.2f),
+                    new Vector3(roofSize.x * (0.45f + R() * 0.35f), 0.14f, roofSize.z * (0.45f + R() * 0.35f)), rYaw + S() * 20f, false, rPitch, rRoll);
+            // The floor and the ramp: trodden dirt from the back slab out of the open front and up the dug bank.
+            Add(parts, KitPiece.Trim, KitMaterial.Dirt, new Vector3(0f, 0.03f, 0.2f), new Vector3(width * 0.95f, 0.08f, depth + 0.4f), S() * 4f, false);
+            var run = 4.2f + R() * 1.2f;
+            var slope = Mathf.Atan2(SlabDig, run) * Mathf.Rad2Deg;
+            Add(parts, KitPiece.Trim, KitMaterial.Dirt, new Vector3(S() * 0.3f, SlabDig * 0.5f - 0.04f, hd + 0.4f + run * 0.5f),
+                new Vector3(width * (0.55f + R() * 0.2f), 0.1f, Mathf.Sqrt(run * run + SlabDig * SlabDig)), S() * 6f, false, -slope);
+            return parts;
+        }
+
         public static List<KitPart> HazardHouse(uint seed, CultureTrim t, KitShape shape, float width, float depth)
         {
             var parts = House(seed, t, width, depth, 1, 0f);
