@@ -2079,3 +2079,37 @@ Calls used: about 110 (over budget).
 - Landmarks 108 4D2643D7, unchanged.
 - No re-bake signal: the landmark hash and placement are the same. The editor bakes on every play start anyway, so I can't tell a forced re-bake apart from that.
 - Shot (unviewed full res, local to the animal machine): mesa-mimic.png. It shows a mimic in Rest, curl 1.00, at (1943.6, -610.1), next to a lone real Ocotillo at (1946, -610), with Mesa red rock behind.
+
+## A-71 row 1: comfort profiles and meter (commit 79a2d5a)
+- New CreatureComfort.cs. Every species and race has a ComfortProfile:
+  - A heat range, taken from its home biomes' climate.
+  - How much rain, snow, storm, bright sun, wind and dry heat bother it.
+  - A tolerance, and the shelter kinds it seeks.
+  - Each individual gets a seeded tolerance (+-40%) and heat shift (+-0.05).
+- Race tastes follow the card. Bat folk: Bright 1. Fish folk: Dry 1, and they like rain (-0.5). Humans: rain, storm and cold. Ogres: a warm range (0.42-0.90), so they feel the cold. Pygmies: Storm 1. Cats mind rain, frogs like it, big furry beasts pant earlier, birds mind wind and rain.
+- Weather grid: 15x15 cells at 32 m round the players, built from WeatherField and biome climate. It is sampled on the main thread once a second (WeatherField is managed) and read in Burst.
+- The brain checks each creature every 1-3 s, using a per-individual period and phase so checks are staggered. The meter builds by pressure*dt/30 and fades by dt/20. Underground or under rock, the sky terms are dropped and heat is mild.
+- `-comfort` logs every 6 s: the meter per species, and each race's pressure at the player. `-comfort off` turns it off for the perf "before".
+- Two fixes from the runs:
+  - The log and grid timers survived between plays (domain reload is off), so the second play showed the last play's weather. Both now reset.
+  - Rain now cancels dry heat (fish folk had complained of dryness in a storm).
+
+Race pressure and kind at the player (pressure is 0..1):
+
+| Race | Dunes noon (heat 1.00, sun 1.00) | Glacier midnight + SnowShowers (heat 0.17, snow 0.55) | Town 1 noon + forced Storm (rain, wind, storm 1.00) |
+|---|---|---|---|
+| Human | 0.77 Hot | 0.37 Cold | 0.72 Storm |
+| Ogre | 0.37 Hot | 0.68 Cold | 0.32 Storm |
+| BatFolk | 0.92 Bright | 0.20 Cold | 0.42 Storm |
+| FishFolk | 1.00 Dry | 0.11 Snow | 0.22 Storm |
+| Pygmy | 0.82 Hot | 0.42 Cold | 0.92 Storm |
+| Dwarf | 0.97 Hot | 0.20 Cold | 0.42 Storm |
+| Elf | 0.86 Hot | 0.42 Cold | 0.52 Storm |
+| Goblin | 0.64 Hot | 0.42 Cold | 0.62 Storm |
+| Hermit | 0.64 Hot | 0.20 Cold | 0.42 Storm |
+
+- Animal meters:
+  - Desert noon: they climb, for example Bat 0.17 to 0.51 in 16 s, Coyote 0.24, Gila monster 0.27, all Hot. Cave species stay at 0 underground.
+  - Storm: Bat, Caribou, Crow, Ptarmigan and Wolf rise to 0.31-0.41 (Wind).
+- Note: `-place Tundra` matches no landmark, so I used Glacier for the snowy night.
+- No exceptions.
