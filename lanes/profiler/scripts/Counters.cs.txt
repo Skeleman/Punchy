@@ -1,0 +1,44 @@
+// Profiler-only editor script (never committed): averages Render counters over every frame of a .raw capture.
+// Unity -batchmode -executeMethod Counters.Dump -raw <file> -out <txt>
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Text;
+using UnityEditor.Profiling;
+using UnityEditorInternal;
+
+public static class Counters
+{
+    static string Arg(string n, string d) { var a = Environment.GetCommandLineArgs(); var i = Array.IndexOf(a, n); return i >= 0 && i + 1 < a.Length ? a[i + 1] : d; }
+    static readonly string[] Names = { "Draw Calls Count", "SetPass Calls Count", "Batches Count", "Shadow Casters Count", "Triangles Count", "Vertices Count",
+        "Static Batched Draw Calls Count", "Dynamic Batched Draw Calls Count", "Instanced Batched Draw Calls Count", "Instanced Batches Count" };
+    public static void Dump()
+    {
+        var sb = new StringBuilder();
+        ProfilerDriver.ClearAllFrames();
+        var ok = ProfilerDriver.LoadProfile(Arg("-raw", ""), false);
+        int first = ProfilerDriver.firstFrameIndex, last = ProfilerDriver.lastFrameIndex;
+        var sum = new Dictionary<string, double>(); var n = new Dictionary<string, int>(); var max = new Dictionary<string, long>();
+        double gpu = 0; int frames = 0;
+        for (int f = first; f <= last; f++)
+            using (var v = ProfilerDriver.GetRawFrameDataView(f, 0))
+            {
+                if (!v.valid) continue;
+                frames++;
+                foreach (var name in Names)
+                {
+                    var id = v.GetMarkerId(name);
+                    if (id == FrameDataView.invalidMarkerId || !v.HasCounterValue(id)) continue;
+                    var x = v.GetCounterValueAsLong(id);
+                    sum[name] = (sum.TryGetValue(name, out var s) ? s : 0) + x;
+                    n[name] = (n.TryGetValue(name, out var c) ? c : 0) + 1;
+                    max[name] = Math.Max(max.TryGetValue(name, out var m) ? m : 0, x);
+                }
+            }
+        sb.AppendLine($"loaded={ok} frames {frames}");
+        foreach (var name in Names)
+            sb.AppendLine(n.TryGetValue(name, out var c) ? $"{name}: avg {sum[name] / c:F0}, max {max[name]}, frames {c}" : $"{name}: none");
+        File.WriteAllText(Arg("-out", "counters.txt"), sb.ToString());
+        UnityEditor.EditorApplication.Exit(0);
+    }
+}

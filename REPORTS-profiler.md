@@ -2,6 +2,93 @@
 
 Newest first.
 
+## 2026-11-05 job 32: #102 island-ready frame breakdown, and the W-102 flora-shadow baseline (read only, main 7492c31)
+
+### A) #102: the island-ready frame
+
+**Short answer: the frame is the island bake running on the main thread.**
+- The frame is 12.0 s on v2 and 14.3 s on v3. It's the same within 1% over 3 runs each, and the weather seed changes nothing.
+- IslandV2System.OnUpdate is 10.4 s (v2) / 12.7 s (v3) of it. Burst jobs are only 0.5-1 s of that; the rest is managed code with no markers.
+- The bake already times itself in its log (`[bake] stages ms`, `[bake] v3 generate ms`, `[island] baked in`). Those lines rank it without a deep profile.
+- **Biggest wins:**
+  1. Bat folk placement: 2.3 s on v2.
+  2. Rivers: 2.0-2.5 s.
+  3. v3 generating the whole v2 island first and throwing part of it away: 1.9 s.
+  4. V3 ranges: 2.2 s.
+- None of this is in profiler-owned files, so there's no self-fix. All of it belongs to the **world lane** (terrain/island/caves).
+
+**Method:**
+- Profile build, launched with `-profiler-enable` capturing from the first frame, `-fpscap 20`, `-benchstops here`.
+- 3 runs each on v2 and v3. The island seed is fixed in code (`IslandV2.PickRealms`, base seed 202), so the runs vary `-weatherseed` 1-3.
+- BigFrame call tree of the longest frame, plus the bake's own stopwatch lines in each run's log.
+- One deep-profiling build (`-deepprofiling`). It hit the 900 s timeout inside `PickRealms` after a 4 GB capture, so its timings are distorted by deep-profiling overhead. It only showed that the unmarked time is managed noise math (`Warped -> Fbm -> Value -> H01 -> H -> Scramble`).
+- Scripts: lanes/profiler/scripts/q32.sh. Logs: results/q32logs/.
+
+**The frame (median of 3 runs, ms):**
+
+| | v2 | v3 |
+|---|---|---|
+| Island-ready frame | 12 000 | 14 300 |
+| IslandV2System (all) | 10 440 | 12 730 |
+| of which Burst job waits (RiverBaking SampleCells about 490, RoadBaking Ground 230-400, others under 30 each) | about 900 | about 1 100 |
+| `[island] baked in`: generate | 1 815 | 4 540 |
+| `[island] baked in`: places (TerrainAuthoring.BuildPlaces + falls + archipelago) | 8 580 | 8 150 |
+| BehaviourUpdate in the same frame (WeatherSystem about 200, CaveSystem about 160, the rest under 80 each) | about 1 090 | about 1 100 |
+| Other frames: launch frame 0 / frame 1 / frame after ready | 7 200 / 1 100 / 500 | 7 200 / 1 090 / 440 |
+
+**Ranked bake stages (ms, 3 runs: v2 range; v3 range):**
+
+| # | stage | v2 | v3 | where | likely cause | suggested fix | lane |
+|---|---|---|---|---|---|---|---|
+| 1 | batfolk | 2 332-2 345 | 1 014-1 016 | `Terrain/Caves/BatFolkBaking.cs:110` (Build), called at `TerrainAuthoring.cs:229` | Managed main-thread placement. Attempt loops at :244 (huts, 60 tries) and :287 (props, 80 tries) probe the cave SDF. `Ceiling` (:326) marches up to 200 `source.CaveDistance` calls per probe. `OnPath` (:349) scans every cave segment per test. | Make the probes Burst. Put `Ceiling`/`CaveDistance` in a Burst function, or run each site's placement as a Burst job (sites are independent, so IJobParallelFor over sites). Also index segments by chamber node rather than scanning all of them. | world |
+| 2 | rivers | 2 019-2 124 | 2 532-2 543 | `TerrainAuthoring.cs:159-160`: `RiverBaking.Build` twice (jittered + plain; W-76 already shares the drainage grid) | About 0.5 s is the Burst SampleCellsJob. The rest is managed tracing and smoothing, done twice. | Run the two river bakes in parallel or as jobs. Check whether the jittered map can be derived from the plain one. | world |
+| 3 | generate (v2) / v2base (v3) | 1 780-1 915 | 1 864 | `Terrain/Island/IslandV2.cs:208` Generate: per-cell loop at :233 (Fbm ridge/pass noise per cell), PickRealms at :178 (2 attempts of a 96x96 Warped grid) | Managed per-cell noise (`Fbm`/`Warped`, hashes) on the main thread. | Move the :233 per-cell loop into a Burst IJobParallelFor over rows; the noise helpers are pure static math and Burst-able as they are. | world |
+| 4 | v3 ranges | — | 2 227 | `Terrain/Island/IslandV3.cs:45` `V3Ranges.Build` | Managed field build. | Burst job, as row 3. | world |
+| 5 | v3 throws away v2 work | — | part of 1 864 | `IslandV3.cs:33-34`: full `IslandV2.Generate`, then `gen.Island.Dispose()`. `PickRealms` is also run 3 times on v3 (`IslandV2.cs:210`, `IslandV3.cs:38`, `V3Ground.cs:54`) for the same deterministic answer. | Duplicate work. | Split Generate so v3 only builds the parts it keeps. Cache PickRealms' result (it's constant per seed). | world |
+| 6 | settlements | 950-956 (roads 540-560) | 1 189-1 220 (roads 718-736) | `SettlementBaking.Build` (`TerrainAuthoring.cs:168`) | Road tracing. | Profile when next touched. | world |
+| 7 | fishing | 934-954 | 747-750 | `FishingVillageBaking.Place` (`TerrainAuthoring.cs:201`) | Spot search. | Same as row 1: Burst the probes. | world |
+| 8 | caves | 904-925 | 756-770 | `CaveBaking.Build` (`TerrainAuthoring.cs:196`). Its own split: shape 165, streams 194, rubble 158, plants 129, speleothems 98, fittings 97. | Spread over its steps. | Low priority. | world |
+| 9 | pondmask, seafolk, anchors, turtles, icebergs, landmarks | 326-339, 246-259, 218-224, 163-208, 81-112, 74-76 | 404-418, 685-692, 138-143, 234-282, 89, 102-108 | `TerrainAuthoring.cs` stages | — | Seafolk on v3 (690) is worth a look when touched. | world |
+
+**Notes for #102:**
+- The frame was 10.0 s on 1699574 (job 27) and is 12.0 s on v2 now. The bake has grown about 2 s since then: bat folk pods (W-96 row 1, #35) and fishing villages are new stages.
+- The cleanest structural fix is the one already in #102: run the bake off the main thread behind a loading screen that keeps drawing. The bake's inputs are blobs and static data, so `Generate` + `BuildPlaces` could run in a managed worker `Task`. Rows 1-5 cut the total time either way.
+
+### B) W-102 baseline: draw counts with flora and shadows off
+
+**Method:**
+- Profile build of 7492c31, v2, uncapped, `-profilestop` capture of the stop.
+- Counters averaged over every captured frame, read by lanes/profiler/scripts/Counters.cs.txt.
+- Spots: fishing village 1 (`-goto -3304,-1644`, here 10 s) and the route's forest stop.
+- RenderDoc isn't installed, and the Frame Debugger needs an editor attached to the player, so the counts come from the Profiler's Render counters.
+- **"Draw Calls Count" and "Batches Count" aren't recorded in this build's captures.** The game's flora and props go through instanced draws, so "Instanced Batched Draw Calls" (instances drawn) and SetPass are the usable counters.
+- **No counts per shadow cascade:** that needs RenderDoc or the Frame Debugger.
+
+| spot / variant | gpu ms | fps | SetPass | shadow casters | instanced draws (instances) | tris (M) |
+|---|---|---|---|---|---|---|
+| fv1 plain | 13.9 | 60.6 | 208 | 340 | 22 351 | 9.05 |
+| fv1 flora off | 6.8 | 95.3 | 197 | 17 | 15 208 | 6.65 |
+| fv1 shadows off | 7.2 | 84.7 | 192 | 0 | 8 462 | 4.26 |
+| forest plain | 9.4 | 77.3 | 187 | 417 | 17 795 | 7.68 |
+| forest flora off | 6.0 | 101.5 | 176 | 19 | 18 584 | 7.94 |
+| forest shadows off | 6.3 | 93.7 | 171 | 0 | 5 444 | 3.39 |
+
+**What W-102 should move:**
+- **Shadow casters:** flora is 323 of 340 casters at fv1 and 398 of 417 in the forest.
+- **The shadow passes draw more than the camera.** Shadows on vs off:
+  - fv1: +13.9k instances (62% of all instances) and +4.8M tris (53%).
+  - Forest: +12.4k instances (69%) and +4.3M tris (56%).
+- SetPass is low (171-208) and changes by only 11-16 either way, so the cost is triangles and instances, not state changes.
+- **Target for W-102 with flora shadows cut to near the camera:**
+  - Shadow casters fall toward about 20-60.
+  - Instances fall toward the shadows-off numbers (8.5k fv1, 5.4k forest) plus the near flora.
+  - GPU ms falls toward 7-8 ms at fv1 and 6-7 ms in the forest.
+  - Use `-benchnoshadows` and these runs as the bounds.
+- **Caveat on "flora off":** `-benchnoshader` turns off the flora shader's passes but leaves the renderers alive, so the triangle and instance counters can still count submitted flora. The forest's flora-off row (instances and tris slightly up) shows this. The shadows-off row is the clean comparison; flora off is clean only for shadow casters and gpu ms.
+
+- Tools: Counters.cs.txt (new). BProfileTools.BuildDeep (deep-profiling build) is committed on b/bench-runner. Script: q32b.sh. Logs: results/q32logs/.
+- Cost: 48 calls, peak 285k context (session), $2.08
+
 ## 2026-11-05 job 31: GPU split at fishing village 1 (v2, day) and the v3 human village at 22:00 (read only, main 69ca891, uncapped)
 
 **Short answer: it isn't water.** At fishing village 1, flora (7.9-8.8 ms) and camera shadows (7.3-7.8 ms) are the GPU frame, and they overlap: most of the shadow cost is flora casting shadows. Water, post-processing, the opaque/depth copies, sky and structures each cost about 0 ms (within the ±0.5 ms noise). The night town is cheap (gpu 8.2 ms, 100 fps) and has no point lights to cull.
