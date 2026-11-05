@@ -70,7 +70,9 @@ namespace Punchy.Fauna
                             target = spot;
                             focus = spot + outward * 5f;
                             kind = (wanted & ShelterNeed.Roof) != 0 ? ShelterNeed.Roof : ShelterNeed.Shade;
-                            indoors = wet || (wanted & ShelterNeed.Roof) != 0 && rng.NextFloat() < 0.5f;
+                            // (A-75 row 1: out of the heat most stand in the shade of the eaves; the odd one goes in.)
+                            var heat = M.DiscomfortKind is ComfortKind.Hot or ComfortKind.Dry or ComfortKind.Bright;
+                            indoors = wet || (wanted & ShelterNeed.Roof) != 0 && rng.NextFloat() < (heat ? 0.15f : 0.5f);
                         }
                     }
                     if (!indoors)

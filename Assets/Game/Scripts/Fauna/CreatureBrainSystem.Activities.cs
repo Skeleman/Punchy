@@ -102,7 +102,15 @@ namespace Punchy.Fauna
                          System.Threading.Interlocked.Increment(ref Shelters.Data.ThisFrame) <= ShelterSearchesPerFrame)
                 {
                     var seek = new Random(math.hash(new uint2(s.Individual, (uint)(Now * 10f))) | 1u);
-                    if (!StartShelter(ref s, ref b, ref seek))
+                    // (A-75 row 1: in the midday heat only some folk give in; the hardy half fan themselves and carry on.)
+                    var hardy = new Random(math.hash(new uint2(s.Individual, 0x4EA7u)) | 1u);
+                    if (b.Comfort.Race != ComfortRace.None && M.DiscomfortKind is ComfortKind.Hot or ComfortKind.Dry or ComfortKind.Bright &&
+                        hardy.NextFloat() < 0.5f)
+                    {
+                        M.ShelterRetry = seek.NextFloat(40f, 80f);
+                        DecideWeatherPose(ref s, ref b, ref seek);
+                    }
+                    else if (!StartShelter(ref s, ref b, ref seek))
                     {
                         System.Threading.Interlocked.Increment(ref Shelters.Data.NotFound);
                         M.ShelterRetry = seek.NextFloat(20f, 40f);
