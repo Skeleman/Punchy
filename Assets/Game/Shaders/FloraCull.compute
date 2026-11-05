@@ -50,6 +50,9 @@ float4 _Lod;      // x LOD1 distance, y LOD2 distance, z radius
 // level (0: the LOD 1 change; W-107's cheap far caster sets the near range), w skip plants nearer than this (W-107's
 // shadow cache: the near trees cast in real time)
 float4 _Shadow;
+// W-107's still far shadows: where the shadow lists stop swaying (m; 0: never). A shadow-list plant's fade is 1 plus
+// how still it is (the shadow pass reads it; fades of 1 and above all cast).
+float _ShadowStill;
 float4 _Thin;     // x distance natural plants start thinning, y share of them left at the radius
 
 [numthreads(64, 1, 1)]
@@ -101,7 +104,8 @@ void Cull(uint id : SV_DispatchThreadID)
     if (d < _Shadow.w)
         return;
     if (casts)
-        Append(id, local, d < (_Shadow.z > 0 ? _Shadow.z : _Lod.x * 1.075) ? 3 : 4, 1);
+        Append(id, local, d < (_Shadow.z > 0 ? _Shadow.z : _Lod.x * 1.075) ? 3 : 4,
+               1 + (_ShadowStill > 0 ? smoothstep(_ShadowStill - 5, _ShadowStill + 5, d) : 0));
     if (!seen)
         return;
     float keep = 1 - smoothstep(_Lod.z * 0.88, _Lod.z, d);

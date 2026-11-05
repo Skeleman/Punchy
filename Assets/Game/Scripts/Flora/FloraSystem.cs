@@ -193,7 +193,7 @@ namespace Punchy.Flora
         static readonly int CameraId = Shader.PropertyToID("_CameraPosition");
         static readonly int LodId = Shader.PropertyToID("_Lod");
         static readonly int ShadowId = Shader.PropertyToID("_Shadow");
-        static readonly int ShadowStillId = Shader.PropertyToID("_FloraShadowStill");
+        static readonly int ShadowStillId = Shader.PropertyToID("_ShadowStill");
         static readonly int CheapHolesId = Shader.PropertyToID("_FloraCheapHoles");
         static readonly int ThinId = Shader.PropertyToID("_Thin");
 
@@ -784,9 +784,8 @@ namespace Punchy.Flora
             var shadowDistance = QualitySettings.shadowDistance;
             if (GraphicsSettings.currentRenderPipeline is UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset urp)
                 shadowDistance = urp.shadowDistance;
-            // W-107: where the flora shadow pass stops swaying (0: never).
-            Shader.SetGlobalVector(ShadowStillId, new Vector4(camPos.x, camPos.y, camPos.z,
-                FloraShadowOptions.StillFarShadows ? FloraShadowOptions.StillFrom : 0f));
+            // W-107: where the shadow lists stop swaying (0: never). The cull does it once per plant, not per vertex.
+            Culling.SetFloat(ShadowStillId, FloraShadowOptions.StillFarShadows ? FloraShadowOptions.StillFrom : 0f);
             // W-107: where the cheap far caster's cards get holes (0: off).
             Shader.SetGlobalVector(CheapHolesId, new Vector4(camPos.x, camPos.y, camPos.z,
                 FloraShadowOptions.CheapFarCaster ? FloraShadowOptions.NearRange : 0f));
