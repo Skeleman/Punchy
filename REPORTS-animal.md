@@ -2352,3 +2352,8 @@ Rows 2-4 share one commit because their files overlap (FaunaDirector, WharfSpots
   - Friendly, Elf body (Kin): e-elf2 shows an elf waving back with the line "Ah, family. Welcome."
 - Why not a human village: folk at the desert HumanVillage (2979, -887) stay in Shelter/Home almost all day because of heat comfort, even at 7-8 h in clear weather (run16: 8 of 9 near folk in Shelter/Home). Reactions only run in Free/Work modes, so the shots were taken at ElfGrove. Possible follow-up: is desert sheltering too strong?
 - Brain ms: 0.914 (Human body) and 1.091 (Elf body) at the grove, and 0.42 / 0.47 at the desert village (96 creatures). The brain code didn't change this row, so brain cost is unchanged. The numbers differ between sites only because of creature counts.
+
+## A-74 done: suite
+- Suite on animal-behaviours 485cb4e: 13 passed, 0 failed in 257 s (Unity exit 0).
+- Fauna_Fingerprint F4E66093, unchanged: no species or species assets changed in A-74. Landmarks 110 09EAC0FE.
+- A-74 commits: c17e66f (rows 1-2), 8a91273 (row 4, #40), 485cb4e (row 3, #8). All pushed. The Punchy editor is closed. No PRs merged and no issues closed.
