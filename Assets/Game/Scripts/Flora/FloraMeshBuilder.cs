@@ -66,6 +66,13 @@ namespace Punchy.Flora
         /// alpha (0.25 X, 0.5 Y, 0.75 Z), for the flora shader's grain. Builders set it round planks, posts and beams.
         /// </summary>
         public bool Wood;
+        /// <summary>
+        /// A built surface's look (W-99), while non-zero: 1 planks, 2 shingles, 3 thatch (StructureKit.KitSurface), 4 a
+        /// shingle course laid as geometry (FloraGenerator.RoofCourses: the shader draws only its tiles), 5 a sawn log end
+        /// (FloraGenerator.LogEnd: fine end-grain noise only). Bark built while it's set is marked as wood too, and the
+        /// look rides on the grain code (plus 0.02 per step, under the 0.125 the axis rounds by) for the flora shader.
+        /// </summary>
+        public int Surface;
         float grainCode = 0.5f;
 
         /// <summary>The grain runs along this direction (the nearest object axis) for the wood that follows.</summary>
@@ -90,6 +97,7 @@ namespace Punchy.Flora
             data.Clear();
             indices.Clear();
             Wood = false;
+            Surface = 0;
         }
 
         public int Vertex(Vector3 p, Vector3 n, Color c, FloraPart part, float ao, float flutter = -1f)
@@ -99,9 +107,9 @@ namespace Punchy.Flora
                 flutter = part == FloraPart.Foliage && FoliageAs != FloraPart.Glass || part == FloraPart.Petal ? 1f : 0f;
             if (part == FloraPart.Foliage) part = FoliageAs;
             else if (part == FloraPart.Petal) part = PetalAs;
-            var wood = Wood && part == FloraPart.Bark && !BarkVeins && !BarkSeams && !BarkStrata;
+            var wood = (Wood || Surface > 0) && part == FloraPart.Bark && !BarkVeins && !BarkSeams && !BarkStrata;
             if (wood)
-                c.a = grainCode;
+                c.a = grainCode + Mathf.Clamp(Surface, 0, 5) * 0.02f;
             positions.Add(p);
             normals.Add(n);
             colors.Add(c);
@@ -360,6 +368,70 @@ namespace Punchy.Flora
                 }
                 Triangle(first, first + 1, first + 2);
                 Triangle(first, first + 2, first + 3);
+            }
+        }
+
+        /// <summary>
+        /// An upright box (a wall, post or pile, turned about Y only) darkened where something meets it (W-99: contact
+        /// shading). <paramref name="contacts"/> are heights, local to the box's centre, where a floor, deck or plinth
+        /// touches it; its side faces are cut into rows there and a band either side, and their vertices' occlusion drops
+        /// by <paramref name="dark"/> at each contact, back to none <paramref name="band"/> away.
+        /// </summary>
+        public void BandedBox(Vector3 centre, Vector3 size, Quaternion rotation, Color color, FloraPart part,
+                              IReadOnlyList<float> contacts, float band, float dark)
+        {
+            if (Wood)
+                GrainAlong(Longest(size, rotation));
+            var half = size * 0.5f;
+            float Ao(float y)
+            {
+                var f = 1f;
+                foreach (var c in contacts)
+                    f *= 1f - dark * (1f - Mathf.Min(Mathf.Abs(y - c) / band, 1f));
+                return f;
+            }
+            var ys = new List<float> { -half.y, half.y };
+            foreach (var c in contacts)
+                foreach (var y in new[] { c - band, c, c + band })
+                    if (y > -half.y + 0.01f && y < half.y - 0.01f)
+                        ys.Add(y);
+            ys.Sort();
+            for (int j = ys.Count - 1; j > 0; j--)
+                if (ys[j] - ys[j - 1] < 0.01f)
+                    ys.RemoveAt(j);
+            Vector3[] faces = { Vector3.right, Vector3.left, Vector3.up, Vector3.down, Vector3.forward, Vector3.back };
+            foreach (var n in faces)
+            {
+                var first = positions.Count;
+                if (Mathf.Abs(n.y) > 0.5f)
+                {
+                    // Top and bottom: one quad each, as Box.
+                    var w0 = Vector3.Cross(n, Vector3.right);
+                    for (int k = 0; k < 4; k++)
+                    {
+                        var su = k == 0 || k == 3 ? -1f : 1f;
+                        var sw = k < 2 ? -1f : 1f;
+                        var local = Vector3.Scale(n + Vector3.right * su + w0 * sw, half);
+                        Vertex(centre + rotation * local, rotation * n, color, part, Ao(local.y) * (n.y < -0.5f ? 0.6f : 1f));
+                    }
+                    Triangle(first, first + 1, first + 2);
+                    Triangle(first, first + 2, first + 3);
+                    continue;
+                }
+                // Sides: rows up the face, two vertices each, quads wound as Box's (its u is up here).
+                var w = Vector3.Cross(n, Vector3.up);
+                foreach (var y in ys)
+                    for (int sw = -1; sw <= 1; sw += 2)
+                    {
+                        var local = Vector3.Scale(n + w * sw, half) + Vector3.up * y;
+                        Vertex(centre + rotation * local, rotation * n, color, part, Ao(y));
+                    }
+                for (int j = 0; j < ys.Count - 1; j++)
+                {
+                    int a = first + j * 2, b = a + 2, c = a + 3, d = a + 1;
+                    Triangle(a, b, c);
+                    Triangle(a, c, d);
+                }
             }
         }
 

@@ -2981,7 +2981,9 @@ namespace Punchy.Flora
             var overhang = radius * 1.3f;
             var roofColor = g.FoliageColor();
             // A thick lip at the rim (#32): a lower ring just inside the edge, so the eave has a visible thickness.
+            b.Surface = (int)Punchy.Terrain.KitSurface.Thatch;   // W-99: drawn as thatch
             RoofTube(b, wall - 0.3f, overhang, sides, roofColor, FloraPart.Bark, height, 0.05f, wall + (height - wall) * 0.45f, overhang * 0.55f);
+            b.Surface = 0;
             b.Occlude(roof, (p, n) => Mathf.Lerp(0.55f, 1f, Mathf.Clamp01(n.y + 0.2f)));
             g.Perches.Add(Vector3.up * height);
 
@@ -3281,6 +3283,101 @@ namespace Punchy.Flora
         }
 
         /// <summary>
+        /// A pitched kit roof slab up close (W-99): the slab itself (the collision), then overlapping courses laid on it
+        /// from the eave up, each tipped so its lower edge stands proud (shingle rows, or thicker thatch layers), and on
+        /// thatch a ragged fringe hanging over the eave, each tuft its own length. Flat tiers keep only the shader's
+        /// courses. Drawing only, like RuinBricks; the caller sets the builder's Surface so the courses get the look too.
+        /// </summary>
+        /// <summary>
+        /// Where the upright part <paramref name="index"/> (a wall, post, pile or chimney, turned about Y only) meets a
+        /// floor, deck plank or plinth (W-99: contact shading): heights local to its centre, into
+        /// <paramref name="into"/>. A slab's top counts where the upright stands on it or passes up through it, its
+        /// underside where the upright holds it up or passes down through it. False when nothing meets it.
+        /// </summary>
+        static bool Contacts(System.Collections.Generic.List<Punchy.Terrain.KitPart> parts, int index, List<float> into)
+        {
+            into.Clear();
+            var u = parts[index];
+            if (u.Piece != Punchy.Terrain.KitPiece.Wall && u.Piece != Punchy.Terrain.KitPiece.Column && u.Piece != Punchy.Terrain.KitPiece.Chimney ||
+                (u.Rotation * Vector3.up).y < 0.995f || u.Size.y < 0.4f)
+                return false;
+            var bottom = u.Centre.y - u.Size.y * 0.5f;
+            var topY = u.Centre.y + u.Size.y * 0.5f;
+            for (int j = 0; j < parts.Count && into.Count < 4; j++)
+            {
+                var f = parts[j];
+                if (j == index || (f.Rotation * Vector3.up).y < 0.995f || f.Size.y > 0.6f)
+                    continue;
+                var slab = f.Piece == Punchy.Terrain.KitPiece.Floor || f.Piece == Punchy.Terrain.KitPiece.Platform || f.Piece == Punchy.Terrain.KitPiece.Balcony ||
+                           f.Piece == Punchy.Terrain.KitPiece.Trim && f.Size.x > 1f && f.Size.z > 1f;   // a plinth round a house's foot
+                if (!slab)
+                    continue;
+                // The upright's middle, in the slab's frame, must lie over the slab (give or take the upright's own half).
+                var local = Quaternion.Inverse(f.Rotation) * (u.Centre - f.Centre);
+                var reach = Mathf.Max(u.Size.x, u.Size.z) * 0.5f;
+                if (Mathf.Abs(local.x) > f.Size.x * 0.5f + reach || Mathf.Abs(local.z) > f.Size.z * 0.5f + reach)
+                    continue;
+                var fTop = f.Centre.y + f.Size.y * 0.5f;
+                var fBottom = f.Centre.y - f.Size.y * 0.5f;
+                if (fTop > bottom - 0.15f && fTop < topY - 0.1f)
+                    Add(into, Mathf.Max(fTop, bottom) - u.Centre.y);
+                if (fBottom > bottom + 0.1f && fBottom < topY + 0.15f)
+                    Add(into, Mathf.Min(fBottom, topY) - u.Centre.y);
+            }
+            return into.Count > 0;
+
+            static void Add(List<float> list, float y)
+            {
+                foreach (var v in list)
+                    if (Mathf.Abs(v - y) < 0.15f)   // a deck's planks and the bed under them: one join
+                        return;
+                list.Add(y);
+            }
+        }
+
+        static void RoofCourses(FloraMeshBuilder b, in Punchy.Terrain.KitPart p, Color c, bool thatch, uint seed)
+        {
+            b.Box(p.Centre, p.Size, p.Rotation, c, FloraPart.Bark);
+            var up = p.Rotation * Vector3.up;
+            if (up.y < 0.2f || up.y > 0.97f)
+                return;
+            var rng = new System.Random((int)(seed & 0x7FFFFFFF));
+            float R() => (float)rng.NextDouble();
+            // The slab's local z runs down the slope one way or the other: the eave is its lower end.
+            var downhill = (p.Rotation * Vector3.forward).y > 0f ? -1f : 1f;
+            float course = thatch ? 0.42f : 0.26f, thick = thatch ? 0.09f : 0.035f, proud = thatch ? 0.05f : 0.022f;
+            var length = p.Size.z;
+            var rows = Mathf.Max(2, Mathf.FloorToInt(length / course));
+            course = length / rows;
+            var tip = Quaternion.Euler(-downhill * Mathf.Atan2(proud, course) * Mathf.Rad2Deg, 0f, 0f);
+            var lift = p.Size.y * 0.5f + thick * 0.5f + proud * 0.5f;
+            var look = b.Surface;
+            if (!thatch)
+                b.Surface = 4;   // the rows are geometry: the shader adds only the tiles (FloraMeshBuilder.Surface)
+            for (int k = 0; k < rows; k++)
+            {
+                var z = downhill * (length * 0.5f - (k + 0.5f) * course);
+                var shade = Color.Lerp(c * 0.9f, c * 1.07f, R());
+                b.Box(p.Centre + p.Rotation * new Vector3((R() - 0.5f) * 0.06f, lift, z), new Vector3(p.Size.x - R() * 0.06f, thick, course * 1.18f),
+                      p.Rotation * tip, shade, FloraPart.Bark);
+            }
+            b.Surface = look;
+            if (!thatch)
+                return;
+            // The fringe: tufts along the eave, hanging a little lower and further out, each its own length and shade.
+            var tufts = Mathf.Max(3, Mathf.RoundToInt(p.Size.x / 0.26f));
+            var droop = Quaternion.Euler(-downhill * (8f + R() * 6f), 0f, 0f);
+            for (int j = 0; j < tufts; j++)
+            {
+                var hang = 0.22f + R() * 0.22f;
+                var x = -p.Size.x * 0.5f + (j + 0.5f) * p.Size.x / tufts + (R() - 0.5f) * 0.08f;
+                var at = new Vector3(x, lift + thick * 0.2f, downhill * (length * 0.5f + hang * 0.25f));
+                b.Box(p.Centre + p.Rotation * at, new Vector3(p.Size.x / tufts * (1.05f + R() * 0.3f), thick * (1.1f + R() * 0.5f), hang),
+                      p.Rotation * droop, Color.Lerp(c * 0.78f, c * 0.96f, R()), FloraPart.Bark);
+            }
+        }
+
+        /// <summary>
         /// A structure-kit building (FloraForm.KitBuilding) or its ruin (FloraForm.KitRuin), #24: StructureKit lays out
         /// the parts from a seed drawn per variant, in the species' Kit Culture trim set (a ruin takes its stone from Bark
         /// and its moss from Accent). Far LODs drop the small trim. Intact buildings collide round their walls up to the
@@ -3365,6 +3462,8 @@ namespace Punchy.Flora
             var house = Punchy.Terrain.StructureKit.HouseLike(shape) && shape != Punchy.Terrain.KitShape.SlabShelter ||   // a slab shelter is walked into
                         shape == Punchy.Terrain.KitShape.Igloo || shape == Punchy.Terrain.KitShape.ShellDome;
 
+            var looks = Punchy.Terrain.StructureKit.Surfaces(s.KitCulture, seed);
+            var contacts = new List<float>();
             var first = b.VertexCount;
             var top = 0f;
             var perch = Vector3.zero;
@@ -3386,11 +3485,22 @@ namespace Punchy.Flora
                     b.MossSheet(p.Centre, p.Size, p.Rotation, c, (uint)i * 2654435761u ^ seed);
                     continue;
                 }
+                // W-99: planks, shingles or thatch on the folk's timber walls and roofs, fine grain on bare timber.
+                var look = ruined ? Punchy.Terrain.KitSurface.Plain : p.Material == Punchy.Terrain.KitMaterial.Wall ? looks.Wall :
+                           p.Material == Punchy.Terrain.KitMaterial.Roof ? looks.Roof : Punchy.Terrain.KitSurface.Plain;
+                b.Surface = (int)look;
+                b.Wood = p.Material == Punchy.Terrain.KitMaterial.Wood;
                 if (ruined && g.Lod == 0 && p.Piece == Punchy.Terrain.KitPiece.Wall && p.Material == Punchy.Terrain.KitMaterial.Wall)
                     RuinBricks(b, p, c, seed ^ (uint)i * 0x9E3779B9u);   // W-94 (#80): old coursed blocks up close
+                else if (g.Lod == 0 && p.Piece == Punchy.Terrain.KitPiece.Roof && (look == Punchy.Terrain.KitSurface.Shingles || look == Punchy.Terrain.KitSurface.Thatch))
+                    RoofCourses(b, p, c, look == Punchy.Terrain.KitSurface.Thatch, seed ^ (uint)i * 0x85EBCA77u);
+                else if (g.Lod < 2 && Contacts(parts, i, contacts))
+                    b.BandedBox(p.Centre, p.Size, p.Rotation, c, FloraPart.Bark, contacts, Mathf.Min(0.5f, p.Size.y * 0.3f), 0.7f);
                 else
                     b.Box(p.Centre, p.Size, p.Rotation, c, p.Material == Punchy.Terrain.KitMaterial.Moss ? FloraPart.Foliage :
                                                            p.Material == Punchy.Terrain.KitMaterial.Lamp || p.Material == Punchy.Terrain.KitMaterial.Rune ? FloraPart.Window : FloraPart.Bark);
+                b.Surface = 0;
+                b.Wood = false;
                 var high = p.Centre.y + p.Size.y * 0.5f;
                 top = Mathf.Max(top, high);
                 // W-67 (#79): every part is a solid box unless it's decor (moss, trim, windows, lamps and runes): the
@@ -3749,6 +3859,8 @@ namespace Punchy.Flora
                     b.Triangle(i0 + 1, i0 + 2, i0 + 3);
                 }
             }
+            // The panels are cloth (W-99): the linen weave and the snow that settles on cloth, but held still on the poles.
+            b.Cloth(first, p => 0f);
             b.Occlude(first, (p, n) => GroundOcclusion(p, height * 0.3f));
             DoorMat(g, radius, radius * 0.7f);
 
@@ -4614,6 +4726,65 @@ namespace Punchy.Flora
         }
 
 
+        /// <summary>Pale cut wood, for log ends and stripped logs (W-99).</summary>
+        static readonly Color LogSapwood = new Color(0.74f, 0.58f, 0.37f);
+
+        /// <summary>
+        /// A sawn log end (W-99): a flat disc facing along X (side -1 or +1) instead of a rounded cap, its rings laid
+        /// out as concentric vertex rings in alternating sapwood shades round a slightly off-centre heart, inside a
+        /// thin bark rim. Marked as Surface 5 so the flora shader adds only fine end-grain noise, no lengthwise grain.
+        /// </summary>
+        static void LogEnd(Grower g, Vector3 centre, float side, float radius, int sides, Color bark)
+        {
+            var b = g.B;
+            var sap = Color.Lerp(LogSapwood, bark, 0.12f) * g.Range(0.92f, 1.06f);
+            var heart = Color.Lerp(sap, new Color(0.55f, 0.34f, 0.2f), 0.45f);
+            var n = new Vector3(side, 0f, 0f);
+            centre += n * 0.002f;
+            // Radius fractions and shades, outside in: bark rim, sapwood, then rings darkening to the heart.
+            var lod = g.Lod;
+            var fractions = lod >= 2 ? new[] { 1f, 0f } : new[] { 1f, 0.9f, 0.78f, 0.62f, 0.47f, 0.3f, 0.14f, 0f };
+            var heartShift = new Vector3(0f, g.Range(-0.15f, 0.15f), g.Range(-0.15f, 0.15f)) * radius;
+            b.Surface = 5;
+            var first = b.VertexCount;
+            for (int i = 0; i < fractions.Length; i++)
+            {
+                var f = fractions[i];
+                Color c;
+                if (lod >= 2) c = Color.Lerp(sap, bark, 0.3f);
+                else if (i == 0) c = bark;
+                else if (i == fractions.Length - 1) c = heart * 0.9f;
+                else c = Color.Lerp(sap, heart, (1f - f) * 0.8f) * (i % 2 == 0 ? 0.86f : 1.04f);
+                // Rings drift towards the off-centre heart as they shrink, and wobble a little.
+                var ringCentre = centre + heartShift * (1f - f);
+                var count = f == 0f ? 1 : sides;
+                for (int s = 0; s < count; s++)
+                {
+                    var angle = s / (float)sides * Mathf.PI * 2f;
+                    var dir = new Vector3(0f, -Mathf.Sin(angle), Mathf.Cos(angle));
+                    var wobble = i == 0 ? 1f : 1f + g.Range(-0.05f, 0.05f);
+                    b.Vertex(ringCentre + dir * radius * f * wobble, n, c, FloraPart.Bark, 1f);
+                }
+            }
+            for (int i = 0; i < fractions.Length - 1; i++)
+            {
+                var outer = first + i * sides;
+                var inner = outer + sides;
+                var last = i == fractions.Length - 2;
+                for (int s = 0; s < sides; s++)
+                {
+                    int o0 = outer + s, o1 = outer + (s + 1) % sides;
+                    int i0 = last ? inner : inner + s, i1 = last ? inner : inner + (s + 1) % sides;
+                    if (side > 0f) b.Triangle(o0, o1, i0); else b.Triangle(o1, o0, i0);
+                    if (!last)
+                    {
+                        if (side > 0f) b.Triangle(o1, i1, i0); else b.Triangle(i1, o1, i0);
+                    }
+                }
+            }
+            b.Surface = 0;
+        }
+
         static void Woodpile(Grower g)
         {
             var s = g.S;
@@ -4635,9 +4806,20 @@ namespace Punchy.Flora
                     var z = (k - (count - 1) * 0.5f) * log * 2.05f;
                     var y = log + r * log * 1.75f;
                     var ends = g.Range(-0.15f, 0.15f);
-                    b.Tube(new List<Vector3> { new Vector3(-length * 0.5f + ends, y, z), new Vector3(length * 0.5f + ends, y, z) },
-                           new List<float> { log * g.Range(0.85f, 1.05f), log * g.Range(0.85f, 1.05f) }, g.Sides(7, 5, 4),
-                           Color.Lerp(g.Bark, g.Bark * 1.25f, g.R()), FloraPart.Bark, cap: g.Lod < 2);
+                    var r0 = log * g.Range(0.85f, 1.05f);
+                    var r1 = log * g.Range(0.85f, 1.05f);
+                    var bark = Color.Lerp(g.Bark, g.Bark * 1.25f, g.R());
+                    var sides = g.Sides(9, 6, 4);
+                    // Most logs keep their bark; now and then one is split or stripped, its grain showing (W-99).
+                    var stripped = g.R() < 0.2f;
+                    var a = new Vector3(-length * 0.5f + ends, y, z);
+                    var e = new Vector3(length * 0.5f + ends, y, z);
+                    b.Wood = stripped;
+                    b.Tube(new List<Vector3> { a, e }, new List<float> { r0, r1 }, sides,
+                           stripped ? Color.Lerp(bark, LogSapwood, 0.55f) : bark, FloraPart.Bark);
+                    b.Wood = false;
+                    LogEnd(g, a, -1f, r0, sides, stripped ? Color.Lerp(bark, LogSapwood, 0.55f) : bark);
+                    LogEnd(g, e, 1f, r1, sides, stripped ? Color.Lerp(bark, LogSapwood, 0.55f) : bark);
                 }
             }
             // The chopping block in front, with an axe in it.

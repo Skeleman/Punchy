@@ -104,6 +104,12 @@ namespace Punchy.Terrain
         Steep
     }
 
+    /// <summary>
+    /// How a kit surface is drawn up close (W-99): the flora shader's planks, shingles or thatch (FloraMeshBuilder.Surface
+    /// takes the number). Plain surfaces keep the weathered render or plaster look.
+    /// </summary>
+    public enum KitSurface : byte { Plain, Planks, Shingles, Thatch }
+
     /// <summary>One box of a kit structure, in the structure's own space (+Z is the front, y up from the ground).</summary>
     public struct KitPart
     {
@@ -226,6 +232,32 @@ namespace Punchy.Terrain
             }
         }
 
+
+        /// <summary>
+        /// A folk's wall and roof looks (W-99): timber folk (fish folk, goblins, ogres, snow folk) build in planks under
+        /// thatch; humans roof in shingles or planks, chosen by the building's seed; elves in shingles. Stone, daub, shell
+        /// and ice stay plain. Drawing only: no draw is taken from the layout's own random stream.
+        /// </summary>
+        public static (KitSurface Wall, KitSurface Roof) Surfaces(FolkCulture culture, uint seed)
+        {
+            switch (culture)
+            {
+                case FolkCulture.FishFolk:
+                case FolkCulture.Goblin:
+                case FolkCulture.Ogre:
+                case FolkCulture.SnowFolk:
+                    return (KitSurface.Planks, KitSurface.Thatch);
+                case FolkCulture.Elf:
+                    return (KitSurface.Plain, KitSurface.Shingles);
+                case FolkCulture.Dwarf:
+                case FolkCulture.TurtleFolk:
+                case FolkCulture.BatFolk:
+                case FolkCulture.SeaFolk:
+                    return (KitSurface.Plain, KitSurface.Plain);
+                default:
+                    return (KitSurface.Plain, ((seed * 0x9E3779B1u) >> 31) == 0 ? KitSurface.Shingles : KitSurface.Planks);
+            }
+        }
 
         /// <summary>A culture's trim colour for a material.</summary>
         public static Color Colour(in CultureTrim t, KitMaterial m) => m switch
