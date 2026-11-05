@@ -1877,6 +1877,8 @@ namespace Punchy.Debugging
             Punchy.Fauna.CreatureSnapshotSystem.Off = System.Array.IndexOf(args, "-oldsnapshot") >= 0;
             // A-70 row 3 A/B: "-syncsnapshot", the snapshot copied on the main thread (waiting for the brain), as before.
             Punchy.Fauna.CreatureSnapshotSystem.Sync = System.Array.IndexOf(args, "-syncsnapshot") >= 0 || System.Array.IndexOf(LaunchArgs, "-syncsnapshot") >= 0;
+            // A-70 row 4 A/B: "-oldposerate", every creature posed every frame with the full capsule and no frustum cull.
+            Punchy.Fauna.CreatureRenderSystem.OldPoseRate = System.Array.IndexOf(args, "-oldposerate") >= 0 || System.Array.IndexOf(LaunchArgs, "-oldposerate") >= 0;
             Punchy.Fauna.TraceSystem.OldOrder = System.Array.IndexOf(args, "-oldtrace") >= 0;
             Punchy.Fauna.TraceSystem.Stats = perfLog;
             Punchy.Fauna.CreatureBrainSystem.SpreadOn.Data = perfLog ? 1 : 0;
@@ -3105,6 +3107,8 @@ namespace Punchy.Debugging
                 perfSearch0 = Punchy.Fauna.CreatureBrainSystem.Searches.Data;
                 perfSpread0 = Punchy.Fauna.CreatureBrainSystem.Spread.Data;
                 Punchy.Fauna.CreatureBrainSystem.Spread.Data.WorstWallTicks = 0;
+                Punchy.Fauna.CreatureRenderSystem.PoseMs.Clear();
+                Punchy.Fauna.CreatureRenderSystem.PoseEvaluated = Punchy.Fauna.CreatureRenderSystem.PoseReused = Punchy.Fauna.CreatureRenderSystem.PoseFrames = 0;
             }
             var dt = Time.unscaledDeltaTime * 1000.0;
             perfFrames++;
@@ -3150,6 +3154,20 @@ namespace Punchy.Debugging
         }
 
         /// <summary>One "perf" line per -perflog shot: frame, thread and GPU ms, cave chunks, lights, particles, probes.</summary>
+        /// <summary>A-70 row 4, for perf2: the creature pose job's median and worst frame (ms summed over the workers), and
+        /// how many creatures a frame were posed afresh or moved on from their last pose.</summary>
+        static string PoseSummary()
+        {
+            var ms = Punchy.Fauna.CreatureRenderSystem.PoseMs;
+            var frames = System.Math.Max(Punchy.Fauna.CreatureRenderSystem.PoseFrames, 1);
+            var sorted = ms.ToArray();
+            System.Array.Sort(sorted);
+            var median = sorted.Length > 0 ? sorted[sorted.Length / 2] : 0.0;
+            var worst = sorted.Length > 0 ? sorted[sorted.Length - 1] : 0.0;
+            return $"pose job median {median:F3} ms, worst {worst:F3} ms, posed {(double)Punchy.Fauna.CreatureRenderSystem.PoseEvaluated / frames:F1}/frame, " +
+                   $"moved on {(double)Punchy.Fauna.CreatureRenderSystem.PoseReused / frames:F1}/frame, old pose rate {Punchy.Fauna.CreatureRenderSystem.OldPoseRate}";
+        }
+
         void LogPerf(string name, float3 at)
         {
             var n = System.Math.Max(perfFrames, 1);
@@ -3219,7 +3237,7 @@ namespace Punchy.Debugging
                       $"advance ms {perfAdvance / n:F3} (walls {perfWalls / n:F3}, solids {perfSolids / n:F3}, of it buildings {perfBuilt / n:F3}); " +
                       $"footprints {(Punchy.Fauna.BuildingFootprints.Off.Data != 0 ? "off" : "on")}, baked towns {fp.x} landmarks {fp.y}, checked {fp.z} mismatches {fp.w}; " +
                       $"brain job wall {(sp.WallTicks - perfSpread0.WallTicks) * 1000.0 / spFreq / spFrames:F3} ms (worst {sp.WorstWallTicks * 1000.0 / spFreq:F3}), " +
-                      $"workers {(double)spWorkers / spFrames:F1}, busiest {spMax * 1000.0 / spFreq:F3} ms, mean {spMean * 1000.0 / spFreq:F3} ms, spread {spMax / System.Math.Max(spMean, 1.0):F2}x");
+                      $"workers {(double)spWorkers / spFrames:F1}, busiest {spMax * 1000.0 / spFreq:F3} ms, mean {spMean * 1000.0 / spFreq:F3} ms, spread {spMax / System.Math.Max(spMean, 1.0):F2}x; " + PoseSummary());
             perfBrain = perfAdvance = perfWalls = perfSolids = perfBuilt = 0;
             perfFrames = perfTimed = perfChunkFrames = 0;
             perfFrame = perfMax = perfMain = perfRender = perfGpu = perfDraws = perfTris = 0;

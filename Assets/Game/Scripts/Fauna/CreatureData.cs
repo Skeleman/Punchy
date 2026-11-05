@@ -736,6 +736,8 @@ namespace Punchy.Fauna
     {
         public Material Material;
         public Mesh Capsule;
+        /// <summary>Fewer sides and rows, for creatures in the middle and far pose bands (A-70 row 4).</summary>
+        public Mesh CapsuleMid, CapsuleFar;
     }
 
     public static class CreatureBlobBuilder
