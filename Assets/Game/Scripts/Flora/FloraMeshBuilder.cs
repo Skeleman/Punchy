@@ -73,6 +73,12 @@ namespace Punchy.Flora
         /// look rides on the grain code (plus 0.02 per step, under the 0.125 the axis rounds by) for the flora shader.
         /// </summary>
         public int Surface;
+        /// <summary>
+        /// While set, vertices keep their shape under Skirt (W-100): a boat sits on its keel, not on a 1.6 m plinth of
+        /// its own hull stretched into the beach.
+        /// </summary>
+        public bool Unfounded;
+        readonly HashSet<int> unfounded = new HashSet<int>();
         float grainCode = 0.5f;
 
         /// <summary>The grain runs along this direction (the nearest object axis) for the wood that follows.</summary>
@@ -98,6 +104,8 @@ namespace Punchy.Flora
             indices.Clear();
             Wood = false;
             Surface = 0;
+            Unfounded = false;
+            unfounded.Clear();
         }
 
         public int Vertex(Vector3 p, Vector3 n, Color c, FloraPart part, float ao, float flutter = -1f)
@@ -110,6 +118,8 @@ namespace Punchy.Flora
             var wood = (Wood || Surface > 0) && part == FloraPart.Bark && !BarkVeins && !BarkSeams && !BarkStrata;
             if (wood)
                 c.a = grainCode + Mathf.Clamp(Surface, 0, 5) * 0.02f;
+            if (Unfounded)
+                unfounded.Add(positions.Count);
             positions.Add(p);
             normals.Add(n);
             colors.Add(c);
@@ -595,7 +605,7 @@ namespace Punchy.Flora
         public void Skirt(float depth)
         {
             for (int i = 0; i < positions.Count; i++)
-                if (positions[i].y <= 0.001f)
+                if (positions[i].y <= 0.001f && !unfounded.Contains(i))
                     positions[i] -= new Vector3(0f, depth, 0f);
         }
 

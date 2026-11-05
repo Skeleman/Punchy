@@ -119,6 +119,8 @@ namespace Punchy.Terrain
         public Quaternion Rotation;
         /// <summary>Stands on the ground and stops the player (ruins collide per standing wall bay).</summary>
         public bool Solid;
+        /// <summary>Not carried into the ground by the foundation skirt: boats keep their hulls (W-100).</summary>
+        public bool Afloat;
     }
 
     /// <summary>
@@ -314,9 +316,12 @@ namespace Punchy.Terrain
                 parts[i] = p;
             }
             Platform(parts, Vector3.zero, 0f, width + 1.6f, depth + 1.6f, stilts, false);
-            Platform(parts, new Vector3(0f, 0f, depth * 0.5f + 0.8f + 1.1f), 0f, 2.4f, 2.2f, stilts, true);
+            // W-100: the porch and its stair line up with the door, which sits off centre when the front has an even
+            // number of bays (they used to stand at the middle, half a bay to one side of it).
+            var doorX = DoorX(t, width);
+            Platform(parts, new Vector3(doorX, 0f, depth * 0.5f + 0.8f + 1.1f), 0f, 2.4f, 2.2f, stilts, true);
             var steps = Mathf.Max(2, Mathf.CeilToInt(stilts / 0.28f));
-            Stair(parts, new Vector3(0f, 0f, depth * 0.5f + 0.8f + 2.2f + steps * 0.15f + 0.5f), 180f, stilts, 1.3f);
+            Stair(parts, new Vector3(doorX, 0f, depth * 0.5f + 0.8f + 2.2f + steps * 0.15f + 0.5f), 180f, stilts, 1.3f);
             var rng = new System.Random((int)(Scramble(seed ^ 0xC0A57u) & 0x7FFFFFFF));
             for (int k = 0, n = 1 + rng.Next(2); k < n; k++)
             {
@@ -325,6 +330,17 @@ namespace Punchy.Terrain
                 Detail(parts, PickDetail(rng), at, (float)rng.NextDouble() * 360f, rng, t);
             }
             return parts;
+        }
+
+        /// <summary>
+        /// Where House puts its door along the +Z front: the middle bay, which is half a bay right of centre when the
+        /// front has an even number of bays. Porches, stairs and lamps line up with this.
+        /// </summary>
+        public static float DoorX(CultureTrim t, float width)
+        {
+            var bays = Mathf.Max(1, Mathf.RoundToInt(width / t.Bay));
+            var bw = width / bays;
+            return -width * 0.5f + (bays / 2 + 0.5f) * bw;
         }
 
         /// <summary>Whether a kit shape is a walled house with a door and an inside (House, StiltHouse and the #69 hazard houses).</summary>
@@ -687,9 +703,15 @@ namespace Punchy.Terrain
                 foreach (var sx in new[] { -1f, 1f })
                     foreach (var sz in new[] { -1f, 1f })
                         Add(parts, KitPiece.Column, KitMaterial.Wood, new Vector3(h.x + sx * h.z * 0.45f, deck - 3.3f, h.y + sz * h.w * 0.45f), new Vector3(0.3f, 6f, 0.3f), 0f, false);
-                // A lamp by the door, lit at dusk.
+                // A lamp by the door, lit at dusk, on a bracket out of the wall (W-100: beside the door wherever House put
+                // it, and hung from something rather than floating in front of the wall).
                 var side = rng.Next(2) == 0 ? -1f : 1f;
-                Add(parts, KitPiece.Window, KitMaterial.Lamp, at + turn * new Vector3(side * 1.25f, 2f, h.w * 0.5f + 0.18f), new Vector3(0.24f, 0.32f, 0.24f), yaw, false);
+                var lampX = DoorX(t, h.z) + side * 1.05f;
+                if (Mathf.Abs(lampX) > h.z * 0.5f - 0.3f)
+                    lampX = DoorX(t, h.z) - side * 1.05f;
+                Add(parts, KitPiece.Trim, KitMaterial.Wood, at + turn * new Vector3(lampX, 2.3f, h.w * 0.5f + 0.12f), new Vector3(0.06f, 0.06f, 0.3f), yaw, false);
+                Add(parts, KitPiece.Trim, KitMaterial.Wood, at + turn * new Vector3(lampX, 2.2f, h.w * 0.5f + 0.27f), new Vector3(0.03f, 0.2f, 0.03f), yaw, false);
+                Add(parts, KitPiece.Window, KitMaterial.Lamp, at + turn * new Vector3(lampX, 1.95f, h.w * 0.5f + 0.27f), new Vector3(0.24f, 0.32f, 0.24f), yaw, false);
             }
 
             // Rails: walked in 0.5 m steps round every walkway edge; a step gets rail unless it opens onto another
@@ -839,6 +861,7 @@ namespace Punchy.Terrain
                 case CoastDetail.Boat:
                 {
                     // A rowing boat: keel, two sides flaring out, a transom, a bow, thwarts; now and then upturned.
+                    var boatFirst = parts.Count;
                     var len = 3.6f + R() * 1.6f;
                     var flip = R() < 0.3f;
                     var y = flip ? 0.55f : 0.2f;
@@ -852,6 +875,13 @@ namespace Punchy.Terrain
                     {
                         Add(parts, KitPiece.Trim, KitMaterial.Wood, at + Turn(yaw, new Vector3(0f, 0.3f, 0.1f)), new Vector3(1.05f, 0.06f, 0.25f), yaw, false);
                         Add(parts, KitPiece.Trim, KitMaterial.Wood, at + Turn(yaw, new Vector3(0.35f, 0.4f, -0.4f)), new Vector3(0.06f, 0.06f, 2.4f), yaw, false, 8f);
+                    }
+                    // W-100: boats are exempt from the foundation skirt; on a beach it showed the hull stretched into the sand.
+                    for (int b = boatFirst; b < parts.Count; b++)
+                    {
+                        var bp = parts[b];
+                        bp.Afloat = true;
+                        parts[b] = bp;
                     }
                     break;
                 }

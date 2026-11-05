@@ -3490,6 +3490,7 @@ namespace Punchy.Flora
                            p.Material == Punchy.Terrain.KitMaterial.Roof ? looks.Roof : Punchy.Terrain.KitSurface.Plain;
                 b.Surface = (int)look;
                 b.Wood = p.Material == Punchy.Terrain.KitMaterial.Wood;
+                b.Unfounded = p.Afloat;
                 if (ruined && g.Lod == 0 && p.Piece == Punchy.Terrain.KitPiece.Wall && p.Material == Punchy.Terrain.KitMaterial.Wall)
                     RuinBricks(b, p, c, seed ^ (uint)i * 0x9E3779B9u);   // W-94 (#80): old coursed blocks up close
                 else if (g.Lod == 0 && p.Piece == Punchy.Terrain.KitPiece.Roof && (look == Punchy.Terrain.KitSurface.Shingles || look == Punchy.Terrain.KitSurface.Thatch))
@@ -3501,6 +3502,7 @@ namespace Punchy.Flora
                                                            p.Material == Punchy.Terrain.KitMaterial.Lamp || p.Material == Punchy.Terrain.KitMaterial.Rune ? FloraPart.Window : FloraPart.Bark);
                 b.Surface = 0;
                 b.Wood = false;
+                b.Unfounded = false;
                 var high = p.Centre.y + p.Size.y * 0.5f;
                 top = Mathf.Max(top, high);
                 // W-67 (#79): every part is a solid box unless it's decor (moss, trim, windows, lamps and runes): the
