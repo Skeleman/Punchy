@@ -2382,3 +2382,11 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
 - Commit 8136740 (world-features, FloraGenerator.cs, CRLF kept). The v3 Ruins use FloraForm.KitRuin, which already had W-94's worn coursed blocks, gaps and fallen blocks. New RuinSand adds drifts at the wall feet, one low mound with a tail drift, and dry tufts at LOD 0. It's drawing only and uses its own RNG, so boxes and colliders don't change.
 - Shots: Assets/Temp/shots/w104-80-before-ruin{0,1}_{close,medium}.png and w104-80-after-*.png.
 - Honest note: this ruin stands on a raised stone floor in tundra grass, so the sand reads as small tan patches on the floor, not a strong mound. A bigger, ground-level mound would need the floor height. This is a follow-up.
+
+## W-104 row 3b: ruin sand mound at ground level (#80), 60212c5
+
+- Cause of the tan patches: StructureKit.House puts a 0.5 m plinth under the ruin, and the row 3 sand sat below its top.
+- Now: drifts outside the walls and the mound start from the ground beside the plinth and rise past it. The mound is about 0.8 m tall, bigger, and pushed out from the windward edge. Drifts inside sit on the floor.
+- Drawing only, from its own stream: kit parts, colliders and hashes are unchanged.
+- The mound crest has no collider, so a walker sinks into it a little.
+- Shots: Assets/Temp/shots/w104-80b-after-ruin{0,1}_{close,medium}.png. The before shots are w104-80-after-*. The ruin 1 medium shot shows the mound plainly. Ruin 0 is on snow, where the sand reads less.
