@@ -1929,3 +1929,25 @@ Calls used: about 110 (over budget).
   - The shield shot is side-on and dim.
   - Close up, some still bolt after shielding (alarm cascade).
 - **Next:** merge main f403b9c, run the play-mode suite, then row 3.
+
+## A-68 merge + play-mode suite
+- Merged origin/main f403b9c into animal-behaviours (8ba2385, plus cbf166d to fix the build). Pushed.
+- **Suite** (scripts/run-playmode-tests.sh, editor closed, 231 s): 9 passed, 1 failed. The failure was Fauna_Fingerprint: it expected C1D6A1EA and read 2E01A16B, because main's species data is merged in. In 115678a the target is set to 2E01A16B, which the branch reads live now. The suite was not re-run after that fix.
+- **Measured:** Any share 6.2% (worst HumanChild 13.0%); dialogue 0 unfilled; folk talk 13 lines, 0 through a wall; landmarks 108 / 4D2643D7; meadow fireflies 2.26, butterflies 0.29; river max 119.5, p99 103.4; village 4 creatures; world up in 44 s.
+
+## A-68 row 3, #35 pygmies share the bat folk chamber: done (verified)
+- Commit 9025e90 on animal-behaviours, pushed. #35 commented.
+- **Placement:** A-67's separate PygmyChamber is gone. Each bat folk chamber now gets a pygmy band with its own seeds.
+- **Shared chores:** blind cave dwellers below ground fish at the pool or tend near home. Bat folk carry an ore sack home on surface trips (Stage CarryGoods).
+- **Bug fix:** underRock is never set for cave dwellers. The new `Below()` helper covers them. It fixes three things: pygmy chores never fired, bat folk wore goggles underground by day, and bat folk surface trips had never fired since A-67.
+- **W-96 hooks:** the animal lane reads BatFolkPropKind `Pod` (RoostKeeper home, stand underneath) and `Niche` (pygmy home; stand = Position + mouth*(Size.y+0.5)) by name. Until W-96 lands the log says "not yet" and the lane falls back to the old homes.
+- **Counts on v3:** 1 chamber. BatFolk: 6 (PoolFisher 1, RoostKeeper 2, Forager 2, Tanner 1). CavePygmy: 1 band, 3 in all, 0 at niches. By day, the pygmies work and tend within a few metres of the bat folk.
+- **Fingerprint:** 2E01A16B, unchanged. This row only touches behaviour code, which doesn't feed the fingerprint.
+- **Shot:** D:\PunchyMilestones\animal\A-68\a68-together.png. It shows the camp with pods and a hammock, a bat folk with a staff, and a pygmy working near the hammock.
+- **Weak points:**
+  - Two pygmies crept high up the chamber walls, one of them into rock. CaveFloorAt allows a 0.5 m step up every frame. This is older than this row. A possible fix is to scale the step-up by the horizontal distance moved.
+  - The surface walk is still a straight line.
+  - The sack only shows underground or at night.
+  - The hammock stays until W-96 merges.
+- **White circle:** I didn't see it in my editor, and my runs took no building-walk shots, so I couldn't reproduce it.
+- Editor closed.
