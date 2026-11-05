@@ -2397,6 +2397,8 @@ namespace Punchy.Flora
             var first = b.VertexCount;
             var y = -radius * 0.2f;
             var offset = Vector3.zero;
+            Vector3 runeCentre = default, runeRadii = default;
+            var runeTurn = Quaternion.identity;
             for (int i = 0; i < blocks; i++)
             {
                 var t = blocks > 1 ? i / (blocks - 1f) : 0f;
@@ -2415,6 +2417,12 @@ namespace Punchy.Flora
                 var rotation = yaw * Quaternion.Euler(g.Range(-5f, 5f), g.Range(-25f, 25f), g.Range(-5f, 5f));
                 var color = Color.Lerp(g.Bark, bands, g.R());
                 b.Blob(centre, radii, rotation, detail, cap ? 0.1f : 0.16f, g.R() * 100f, color, FloraPart.Bark);
+                if (i == 0)
+                {
+                    runeCentre = centre;
+                    runeRadii = radii;
+                    runeTurn = rotation;
+                }
                 y += blockHeight * 0.88f;
                 offset += g.Flat(g.R() * 6.28f) * r * g.Range(0f, 0.12f);
             }
@@ -2422,7 +2430,95 @@ namespace Punchy.Flora
             g.Width = radius * 2f * Mathf.Max(capScale, 1.35f);
             g.TrunkRadius = radius * (blocks > 1 ? 1.2f : Mathf.Lerp(s.Spread, 1f, 0.5f));
             b.Occlude(first, (p, n) => GroundOcclusion(p, radius * 2f) * Mathf.Lerp(0.7f, 1f, Mathf.Clamp01(n.y + 0.7f)));
+            if (s.RunePatterns > 0 && g.Lod < 2)
+                SpireRunes(g, runeCentre, runeRadii, runeTurn);
             Moss(g, first);
+        }
+
+        // W-101: the glyph colours of a runed spire's patterns (FloraSpecies.RunePatterns), bright enough to read as
+        // light at dusk without washing out to white at noon (the shader adds 1.6x albedo on top of the lit colour):
+        // cyan, amber, violet, green, rose, ice, gold, teal.
+        static readonly Color[] RuneColours =
+        {
+            new Color(0.04f, 0.55f, 0.75f), new Color(0.8f, 0.36f, 0.03f), new Color(0.42f, 0.12f, 0.8f), new Color(0.18f, 0.72f, 0.1f),
+            new Color(0.8f, 0.12f, 0.35f), new Color(0.45f, 0.6f, 0.8f), new Color(0.75f, 0.6f, 0.05f), new Color(0.05f, 0.7f, 0.5f),
+        };
+
+        /// <summary>
+        /// W-101: glowing glyphs carved into a runed spire's lowest block, on both broad faces. The variant's pattern
+        /// (its run of FloraSpecies.Variants / RunePatterns, matching FloraPlacement.PatternModel) picks the colour and
+        /// the glyph family, so a whole stone circle glows alike; the variant itself only nudges where the glyphs sit.
+        /// Uses its own random so the stone's shape and moss draws stay as they were.
+        /// </summary>
+        static void SpireRunes(Grower g, Vector3 centre, Vector3 radii, Quaternion turn)
+        {
+            var s = g.S;
+            var patterns = Mathf.Min(s.RunePatterns, Mathf.Max(1, s.Variants));
+            var shapes = Mathf.Max(1, s.Variants / patterns);
+            var pattern = Mathf.Min(g.Variant / shapes, patterns - 1);
+            var glow = RuneColours[pattern % RuneColours.Length];
+            var rng = new System.Random(s.Seed * 7919 + g.Variant * 104729 + 31);
+            var w = 0.085f;
+            for (int face = -1; face <= 1; face += 2)
+            {
+                var count = 2 + rng.Next(0, 2);
+                for (int k = 0; k < count; k++)
+                {
+                    // Stacked down the face's middle, glyph squares about half the stone's width.
+                    var gy = Mathf.Lerp(0.35f, -0.4f, count > 1 ? k / (count - 1f) : 0.5f) + (float)(rng.NextDouble() - 0.5) * 0.06f;
+                    var gx = (float)(rng.NextDouble() - 0.5) * 0.15f;
+                    var size = radii.x * 0.78f;
+                    var cx = gx * radii.x;
+                    var cy = gy * radii.y;
+                    void Stroke(float a0, float b0, float a1, float b1)
+                    {
+                        var px = cx + (a0 + a1) * 0.5f * size;
+                        var py = cy + (b0 + b1) * 0.5f * size;
+                        var ex = px / radii.x;
+                        var ey = py / radii.y;
+                        var depth = radii.z * Mathf.Sqrt(Mathf.Max(0.05f, 1f - ex * ex - ey * ey));
+                        var d = new Vector2(a1 - a0, b1 - b0);
+                        var ang = Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg;
+                        var at = new Vector3(px, py, face * depth);
+                        g.B.Box(centre + turn * at, new Vector3((d.magnitude + w) * size, w * size, radii.z * 0.36f),
+                                turn * Quaternion.Euler(0f, 0f, ang), glow, FloraPart.Glow);
+                    }
+                    switch ((pattern + k) % 4)
+                    {
+                        case 0:   // a ringed cross
+                            Stroke(-0.28f, 0f, 0.28f, 0f);
+                            Stroke(0f, -0.28f, 0f, 0.28f);
+                            for (int r = 0; r < 6; r++)
+                            {
+                                float t0 = r * Mathf.PI / 3f, t1 = (r + 1) * Mathf.PI / 3f;
+                                Stroke(Mathf.Cos(t0) * 0.42f, Mathf.Sin(t0) * 0.42f, Mathf.Cos(t1) * 0.42f, Mathf.Sin(t1) * 0.42f);
+                            }
+                            break;
+                        case 1:   // two stacked chevrons
+                            for (int r = 0; r < 2; r++)
+                            {
+                                var vy = -0.25f + r * 0.32f;
+                                Stroke(-0.36f, vy, 0f, vy + 0.22f);
+                                Stroke(0f, vy + 0.22f, 0.36f, vy);
+                            }
+                            break;
+                        case 2:   // a stave with branches, like a tree rune
+                            Stroke(0f, -0.42f, 0f, 0.42f);
+                            Stroke(0f, 0.12f, -0.3f, 0.38f);
+                            Stroke(0f, 0.12f, 0.3f, 0.38f);
+                            Stroke(0f, -0.18f, -0.26f, 0.02f);
+                            Stroke(0f, -0.18f, 0.26f, 0.02f);
+                            break;
+                        default:  // an eye: a diamond with a dot
+                            Stroke(-0.4f, 0f, 0f, 0.26f);
+                            Stroke(0f, 0.26f, 0.4f, 0f);
+                            Stroke(0.4f, 0f, 0f, -0.26f);
+                            Stroke(0f, -0.26f, -0.4f, 0f);
+                            Stroke(-0.06f, 0f, 0.06f, 0f);
+                            break;
+                    }
+                }
+            }
         }
 
         static void Crystal(Grower g)
