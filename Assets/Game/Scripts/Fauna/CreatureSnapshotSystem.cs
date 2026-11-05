@@ -106,6 +106,23 @@ namespace Punchy.Fauna
             Copies += 3;
         }
 
+        /// <summary>
+        /// Drops both copies in every world, before body blobs they point at are disposed (the player's body changed,
+        /// the species rebuilt): last frame's copy would otherwise hand the readers a released blob next frame, which
+        /// their Burst jobs throw on. Until the next copy is made, readers copy their own.
+        /// </summary>
+        public static void Forget()
+        {
+            foreach (var world in World.All)
+            {
+                var shared = world.IsCreated ? world.GetExistingSystemManaged<CreatureSnapshotSystem>() : null;
+                if (shared == null)
+                    continue;
+                shared.current.Free();
+                shared.last.Free();
+            }
+        }
+
         /// <summary>Every creature's state, body and entity, in the query's order (as ToComponentDataArray gives them).</summary>
         [BurstCompile]
         partial struct CopyJob : IJobEntity
@@ -174,10 +191,11 @@ namespace Punchy.Fauna
                     return;
                 }
             }
+            // (TempJob, not Temp: the readers hand these to their Burst jobs, A-70 row 5.)
             var start = System.Diagnostics.Stopwatch.GetTimestamp();
-            states = query.ToComponentDataArray<CreatureState>(Allocator.Temp);
-            bodies = query.ToComponentDataArray<CreatureBody>(Allocator.Temp);
-            entities = query.ToEntityArray(Allocator.Temp);
+            states = query.ToComponentDataArray<CreatureState>(Allocator.TempJob);
+            bodies = query.ToComponentDataArray<CreatureBody>(Allocator.TempJob);
+            entities = query.ToEntityArray(Allocator.TempJob);
             CopyTicks += System.Diagnostics.Stopwatch.GetTimestamp() - start;
             Copies += 3;
         }
@@ -192,6 +210,48 @@ namespace Punchy.Fauna
             states.Dispose();
             bodies.Dispose();
             entities.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// A-70 row 5, for -perflog: each main-thread creature reader's time per frame (audio, traces, the mantraps' target
+    /// refresh, wakes), the total and the worst frame, so a spike in one of them shows.
+    /// </summary>
+    public static class ReaderTimes
+    {
+        public const int Audio = 0, Trace = 1, Mantrap = 2, Wake = 3, Count = 4;
+        public static readonly string[] Names = { "audio", "trace", "mantrap", "wake" };
+        public static bool On;
+        public static readonly long[] Ticks = new long[Count], Worst = new long[Count], Calls = new long[Count];
+
+        public static long Start() => On ? System.Diagnostics.Stopwatch.GetTimestamp() : 0L;
+
+        public static void Stop(int reader, long start)
+        {
+            if (!On)
+                return;
+            var t = System.Diagnostics.Stopwatch.GetTimestamp() - start;
+            Ticks[reader] += t;
+            Calls[reader]++;
+            if (t > Worst[reader])
+                Worst[reader] = t;
+        }
+
+        public static void Clear()
+        {
+            System.Array.Clear(Ticks, 0, Count);
+            System.Array.Clear(Worst, 0, Count);
+            System.Array.Clear(Calls, 0, Count);
+        }
+
+        /// <summary>"readers audio 0.012/0.140 ms, ..." (mean per call / worst call).</summary>
+        public static string Summary()
+        {
+            var freq = (double)System.Diagnostics.Stopwatch.Frequency;
+            var text = "readers";
+            for (int r = 0; r < Count; r++)
+                text += $" {Names[r]} {Ticks[r] * 1000.0 / freq / System.Math.Max(Calls[r], 1):F3}/{Worst[r] * 1000.0 / freq:F3} ms" + (r < Count - 1 ? "," : "");
+            return text;
         }
     }
 }

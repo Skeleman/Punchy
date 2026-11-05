@@ -54,8 +54,6 @@ namespace Punchy.Audio
         }
 
         EntityQuery query;
-        /// <summary>What each creature was doing last frame (its gait phase, action, flap count).</summary>
-        readonly Dictionary<Entity, (float phase, IdleAction action, int flap, int4 calls)> last = new Dictionary<Entity, (float, IdleAction, int, int4)>();
         /// <summary>Each species' calls (its own, or the species it's based on), by species index; and the cats and dogs.</summary>
         List<CreatureCall>[] calls;
         bool[] cats, dogs;
@@ -85,6 +83,10 @@ namespace Punchy.Audio
         {
             if (near.IsCreated)
                 near.Dispose();
+            if (lastHeard.IsCreated) lastHeard.Dispose();
+            if (intervals.IsCreated) intervals.Dispose();
+            if (callCounts.IsCreated) callCounts.Dispose();
+            if (moodFamilies.IsCreated) moodFamilies.Dispose();
         }
 
         protected override void OnUpdate()
@@ -125,46 +127,56 @@ namespace Punchy.Audio
             GameAudio.Terrain = terrain;
             GameAudio.HasTerrain = true;
             callBudget = math.min(callBudget + SystemAPI.Time.DeltaTime * CallRate, CallBurst);
+            var timed = ReaderTimes.Start();
             Creatures(ear, terrain);
             Hives(ear, terrain, night);
             Countryside(ear, night);
             Moods(ear);
+            ReaderTimes.Stop(ReaderTimes.Audio, timed);
         }
 
         void Creatures(float3 ear, TerrainSource terrain)
         {
             var clock = (float)SystemAPI.Time.ElapsedTime;
             CreatureSnapshotSystem.Get(World, query, out var states, out var bodies, out var entities);
-            var seen = new HashSet<Entity>();
-            for (int i = 0; i < states.Length; i++)
+            // (Each species' call intervals, read afresh each frame: species assets apply live.)
+            var n = calls.Length;
+            if (!intervals.IsCreated || intervals.Length != n * 4)
             {
+                if (intervals.IsCreated) intervals.Dispose();
+                if (callCounts.IsCreated) callCounts.Dispose();
+                intervals = new NativeArray<float2>(n * 4, Allocator.Persistent);
+                callCounts = new NativeArray<int>(n, Allocator.Persistent);
+            }
+            for (int k = 0; k < n; k++)
+            {
+                var list = calls[k];
+                callCounts[k] = list != null ? list.Count : 0;
+                for (int c = 0; list != null && c < list.Count && c < 4; c++)
+                    intervals[k * 4 + c] = list[c].Interval;
+            }
+            if (!lastHeard.IsCreated)
+                lastHeard = new NativeHashMap<Entity, Heard>(256, Allocator.Persistent);
+            // Who's in hearing and what each did since last frame, in Burst (A-70 row 5), as events in creature order;
+            // then played here in that order, so the budget and the per-play variation fall as they did.
+            var events = new NativeList<HeardEvent>(32, Allocator.TempJob);
+            Unity.Jobs.IJobExtensions.Run(new HearJob
+            {
+                States = states, Bodies = bodies, Entities = entities, Remote = GetComponentLookup<RemoteAvatar>(true),
+                Intervals = intervals, Counts = callCounts, Ear = ear, Stamp = ++heardStamp, Last = lastHeard, Events = events
+            });
+            for (int k = 0; k < events.Length; k++)
+            {
+                var ev = events[k];
+                var i = ev.Index;
                 var s = states[i];
-                var d = math.distance(s.Position, ear);
-                if (d > FarthestCall)
-                    continue;
                 ref var b = ref bodies[i].Blob.Value;
-                var e = entities[i];
-                seen.Add(e);
-                var had = last.TryGetValue(e, out var was);
-                var flap = (int)math.floor(s.Clock * math.max(b.FlapRate, 0.1f));
-                var species = bodies[i].Species;
-                // (Another player's body carries no species of its own: its calls by the species it was spawned as.)
-                if (species < 0 && EntityManager.HasComponent<RemoteAvatar>(e))
-                    species = EntityManager.GetComponentData<RemoteAvatar>(e).Species;
-                var mine = species >= 0 && species < calls.Length ? calls[species] : null;
-                var slots = int4.zero;
-                if (mine != null)
-                    for (int c = 0; c < mine.Count && c < 4; c++)
-                    {
-                        // (Each individual calls every so often, somewhere in the call's range, from its own clock.)
-                        var every = math.lerp(mine[c].Interval.x, mine[c].Interval.y, CreatureBlob.Trait(s.Individual, 50 + c) * 0.5f + 0.5f);
-                        slots[c] = (int)math.floor((s.Clock + (s.Individual % 101u)) / math.max(every, 0.5f));
-                    }
-                if (had)
+                var d = ev.Distance;
+                var mine = ev.Species >= 0 && ev.Species < calls.Length ? calls[ev.Species] : null;
+                switch (ev.Kind)
                 {
-                    // An action just begun.
-                    if (s.Action != was.action)
-                    {
+                    case HeardKind.Action:
+                        // An action just begun.
                         if (s.Action == IdleAction.Howl)
                             GameAudio.PlayOneShot(SoundId.Howl, s.Position, 0.9f + (s.Individual % 13u) * 0.015f, 0.5f, HowlReach);
                         else if (s.Action == IdleAction.Draw && d < StepReach * 1.5f)
@@ -174,70 +186,160 @@ namespace Punchy.Audio
                         else if (s.Mode == CreatureMode.Puppet && s.Action >= IdleAction.Wave && s.Action <= IdleAction.Dance &&
                                  !b.Hands && mine != null && mine.Count > 0)
                         {
+                            var e = entities[i];
                             var call = mine[(s.Action - IdleAction.Wave) % mine.Count];
                             GameAudio.PlayOneShot(call.Sound, s.Position + new float3(0f, b.StandHeight * s.Scale, 0f),
                                                   (call.Pitch.x + call.Pitch.y) * 0.5f, call.Volume, call.Reach, SoundGroup.Player);
                             UnityEngine.Debug.Log($"CreatureAudio: emote {s.Action} plays {call.Sound} from {(EntityManager.HasComponent<RemoteAvatar>(e) ? "another player's" : "our")} body" +
                                                   $" at ({s.Position.x:F1}, {s.Position.y:F1}, {s.Position.z:F1}), {d:F1} m away");
                         }
-                    }
-                    // Footfalls: a leg's phase wrapping round, while moving on the ground.
-                    if (d < StepReach && s.Speed > 0.2f && s.Fly < 0.5f && (b.Upright || b.BodyLength * s.Scale > 0.8f))
-                        for (int p = 0; p < b.Parts.Length; p++)
-                        {
-                            ref var part = ref b.Parts[p];
-                            if (part.Role != LimbRole.Leg || part.Parent >= 0)
-                                continue;
-                            var legPhase = b.LegPhase(ref part, b.Sprint(s, s.GaitSpeed));
-                            var now = math.frac(s.Phase + legPhase);
-                            var then = math.frac(was.phase + legPhase);
-                            if (now < then && then - now > 0.5f)
-                                Step(s, ref b, part.Side, terrain);
-                        }
-                    // A messenger's wingbeats while it flies.
-                    if (s.Task == CreatureTask.Messenger && s.Fly > 0.5f && flap != was.flap && d < WingReach)
+                        break;
+                    case HeardKind.Step:
+                        Step(s, ref b, ev.Arg, terrain);
+                        break;
+                    case HeardKind.Wing:
                         GameAudio.PlayOneShot(SoundId.Wingbeat, s.Position, 1.1f, 0.5f, WingReach);
-                    // Its calls, each when its time comes round (awake and out, at the call's time of day). Not a player's
-                    // body: a player makes its animal's sounds only by emoting (above).
-                    if (mine != null && s.Mode != CreatureMode.Puppet && Awake(s))
-                        for (int c = 0; c < mine.Count && c < 4; c++)
+                        break;
+                    case HeardKind.Call:
+                    {
+                        // Its calls, each when its time comes round (awake and out, at the call's time of day). Not a
+                        // player's body: a player makes its animal's sounds only by emoting (above).
+                        var c = (int)ev.Arg;
+                        var call = mine[c];
+                        if (d > call.Reach || !Now(call.When))
+                            break;
+                        var pitch = math.lerp(call.Pitch.x, call.Pitch.y, CreatureBlob.Trait(s.Individual, 60 + c) * 0.5f + 0.5f);
+                        // (A herd doesn't call over itself: one moo, bleat or grunt, then that sound waits a while
+                        // near there before another of the herd takes it up.)
+                        if (Herd(call.Sound))
                         {
-                            var call = mine[c];
-                            if (slots[c] == was.calls[c] || d > call.Reach || !Now(call.When))
-                                continue;
-                            var pitch = math.lerp(call.Pitch.x, call.Pitch.y, CreatureBlob.Trait(s.Individual, 60 + c) * 0.5f + 0.5f);
-                            // (A herd doesn't call over itself: one moo, bleat or grunt, then that sound waits a while
-                            // near there before another of the herd takes it up.)
-                            if (Herd(call.Sound))
-                            {
-                                if (herdCalls.TryGetValue(call.Sound, out var lastCall) && clock - lastCall.time < 8f &&
-                                    math.distance(lastCall.at, s.Position) < 30f)
-                                    continue;
-                                herdCalls[call.Sound] = (clock, s.Position);
-                            }
-                            // (A bird, owl, frog or insect call only where the biome has that sound: AmbientSounds.)
-                            var group = AmbientSounds.Of(call.Sound);
-                            if (group != AmbientGroup.None && (AmbientSounds.At(terrain, s.Position.xz) & group) == AmbientGroup.None)
-                                continue;
-                            if (!Spend(d))
-                                continue;
-                            if (GameAudio.PlayOneShot(call.Sound, s.Position + new float3(0f, b.StandHeight * s.Scale, 0f), pitch * Jitter(), call.Volume, call.Reach))
-                            {
-                                CallsPlayed++;
-                                LogVoice(call.Sound, s, d);
-                            }
+                            if (herdCalls.TryGetValue(call.Sound, out var lastCall) && clock - lastCall.time < 8f &&
+                                math.distance(lastCall.at, s.Position) < 30f)
+                                break;
+                            herdCalls[call.Sound] = (clock, s.Position);
                         }
+                        // (A bird, owl, frog or insect call only where the biome has that sound: AmbientSounds.)
+                        var group = AmbientSounds.Of(call.Sound);
+                        if (group != AmbientGroup.None && (AmbientSounds.At(terrain, s.Position.xz) & group) == AmbientGroup.None)
+                            break;
+                        if (!Spend(d))
+                            break;
+                        if (GameAudio.PlayOneShot(call.Sound, s.Position + new float3(0f, b.StandHeight * s.Scale, 0f), pitch * Jitter(), call.Volume, call.Reach))
+                        {
+                            CallsPlayed++;
+                            LogVoice(call.Sound, s, d);
+                        }
+                        break;
+                    }
                 }
-                last[e] = (s.Phase, s.Action, flap, slots);
             }
-            // (Forget those gone or out of hearing.)
-            stale.Clear();
-            foreach (var e in last.Keys)
-                if (!seen.Contains(e))
-                    stale.Add(e);
-            foreach (var e in stale)
-                last.Remove(e);
+            events.Dispose();
             CreatureSnapshotSystem.Release(World, states, bodies, entities);
+        }
+
+        /// <summary>What each creature in hearing was doing last frame (its gait phase, action, flap count, call slots), and
+        /// the frame it was last heard (those not heard this frame are forgotten).</summary>
+        struct Heard
+        {
+            public float Phase;
+            public IdleAction Action;
+            public int Flap, Stamp;
+            public int4 Calls;
+        }
+
+        enum HeardKind : byte { Action, Step, Wing, Call }
+
+        /// <summary>Something a creature did that may make a sound: Arg is the foot's side for a step, the call's index for
+        /// a call.</summary>
+        struct HeardEvent
+        {
+            public int Index, Species;
+            public float Distance, Arg;
+            public HeardKind Kind;
+        }
+
+        NativeHashMap<Entity, Heard> lastHeard;
+        NativeArray<float2> intervals;
+        NativeArray<int> callCounts;
+        int heardStamp;
+
+        /// <summary>
+        /// A-70 row 5: per creature in hearing, what it did since last frame, as events in the order they're played (an
+        /// action begun, each footfall, a wingbeat, each call whose time came round). Keeps last frame's state per creature.
+        /// </summary>
+        [Unity.Burst.BurstCompile]
+        struct HearJob : Unity.Jobs.IJob
+        {
+            [ReadOnly] public NativeArray<CreatureState> States;
+            [ReadOnly] public NativeArray<CreatureBody> Bodies;
+            [ReadOnly] public NativeArray<Entity> Entities;
+            [ReadOnly] public ComponentLookup<RemoteAvatar> Remote;
+            [ReadOnly] public NativeArray<float2> Intervals;
+            [ReadOnly] public NativeArray<int> Counts;
+            public float3 Ear;
+            public int Stamp;
+            public NativeHashMap<Entity, Heard> Last;
+            public NativeList<HeardEvent> Events;
+
+            public void Execute()
+            {
+                for (int i = 0; i < States.Length; i++)
+                {
+                    var s = States[i];
+                    var d = math.distance(s.Position, Ear);
+                    if (d > FarthestCall)
+                        continue;
+                    ref var b = ref Bodies[i].Blob.Value;
+                    var e = Entities[i];
+                    var had = Last.TryGetValue(e, out var was);
+                    var flap = (int)math.floor(s.Clock * math.max(b.FlapRate, 0.1f));
+                    var species = Bodies[i].Species;
+                    // (Another player's body carries no species of its own: its calls by the species it was spawned as.)
+                    if (species < 0 && Remote.HasComponent(e))
+                        species = Remote[e].Species;
+                    var count = species >= 0 && species < Counts.Length ? Counts[species] : 0;
+                    var slots = int4.zero;
+                    for (int c = 0; c < count && c < 4; c++)
+                    {
+                        // (Each individual calls every so often, somewhere in the call's range, from its own clock.)
+                        var interval = Intervals[species * 4 + c];
+                        var every = math.lerp(interval.x, interval.y, CreatureBlob.Trait(s.Individual, 50 + c) * 0.5f + 0.5f);
+                        slots[c] = (int)math.floor((s.Clock + (s.Individual % 101u)) / math.max(every, 0.5f));
+                    }
+                    if (had)
+                    {
+                        if (s.Action != was.Action)
+                            Events.Add(new HeardEvent { Index = i, Species = species, Distance = d, Kind = HeardKind.Action });
+                        // Footfalls: a leg's phase wrapping round, while moving on the ground.
+                        if (d < StepReach && s.Speed > 0.2f && s.Fly < 0.5f && (b.Upright || b.BodyLength * s.Scale > 0.8f))
+                            for (int p = 0; p < b.Parts.Length; p++)
+                            {
+                                ref var part = ref b.Parts[p];
+                                if (part.Role != LimbRole.Leg || part.Parent >= 0)
+                                    continue;
+                                var legPhase = b.LegPhase(ref part, b.Sprint(s, s.GaitSpeed));
+                                var now = math.frac(s.Phase + legPhase);
+                                var then = math.frac(was.Phase + legPhase);
+                                if (now < then && then - now > 0.5f)
+                                    Events.Add(new HeardEvent { Index = i, Species = species, Distance = d, Arg = part.Side, Kind = HeardKind.Step });
+                            }
+                        // A messenger's wingbeats while it flies.
+                        if (s.Task == CreatureTask.Messenger && s.Fly > 0.5f && flap != was.Flap && d < WingReach)
+                            Events.Add(new HeardEvent { Index = i, Species = species, Distance = d, Kind = HeardKind.Wing });
+                        if (count > 0 && s.Mode != CreatureMode.Puppet && Awake(s))
+                            for (int c = 0; c < count && c < 4; c++)
+                                if (slots[c] != was.Calls[c])
+                                    Events.Add(new HeardEvent { Index = i, Species = species, Distance = d, Arg = c, Kind = HeardKind.Call });
+                    }
+                    Last[e] = new Heard { Phase = s.Phase, Action = s.Action, Flap = flap, Calls = slots, Stamp = Stamp };
+                }
+                // (Forget those gone or out of hearing.)
+                var keys = Last.GetKeyArray(Allocator.Temp);
+                for (int k = 0; k < keys.Length; k++)
+                    if (Last[keys[k]].Stamp != Stamp)
+                        Last.Remove(keys[k]);
+                keys.Dispose();
+            }
         }
 
         /// <summary>Whether a call this far off fits the budget (taking its share if so).</summary>
@@ -293,12 +395,21 @@ namespace Punchy.Audio
             var now = (float)SystemAPI.Time.ElapsedTime;
             var dt = SystemAPI.Time.DeltaTime;
             var purring = new HashSet<Entity>();
-            for (int i = 0; i < states.Length; i++)
+            // (Only cats and dogs within 25 m have a mood to voice: picked out in Burst, A-70 row 5, in creature order.)
+            if (!moodFamilies.IsCreated || moodFamilies.Length != cats.Length)
             {
+                if (moodFamilies.IsCreated) moodFamilies.Dispose();
+                moodFamilies = new NativeArray<byte>(cats.Length, Allocator.Persistent);
+            }
+            for (int k = 0; k < cats.Length; k++)
+                moodFamilies[k] = (byte)((cats[k] ? 1 : 0) | (dogs[k] ? 2 : 0));
+            var picked = new NativeList<int>(8, Allocator.TempJob);
+            Unity.Jobs.IJobExtensions.Run(new MoodJob { States = states, Bodies = bodies, Families = moodFamilies, Ear = ear, Picked = picked });
+            for (int n = 0; n < picked.Length; n++)
+            {
+                var i = picked[n];
                 var s = states[i];
                 var species = bodies[i].Species;
-                if (species < 0 || species >= cats.Length)
-                    continue;
                 var d = math.distance(s.Position, ear);
                 if (cats[species] && s.Mode == CreatureMode.Held && s.Action != IdleAction.Shake && d < 6f)
                 {
@@ -363,7 +474,32 @@ namespace Punchy.Audio
             }
             if (moodVoice.Count > 512)
                 moodVoice.Clear();
+            picked.Dispose();
             CreatureSnapshotSystem.Release(World, states, bodies, entities);
+        }
+
+        /// <summary>Per species: 1 a cat's voice, 2 a dog's (for MoodJob).</summary>
+        NativeArray<byte> moodFamilies;
+
+        /// <summary>A-70 row 5: the cats and dogs within 25 m of the listener (indices, in order), for Moods.</summary>
+        [Unity.Burst.BurstCompile]
+        struct MoodJob : Unity.Jobs.IJob
+        {
+            [ReadOnly] public NativeArray<CreatureState> States;
+            [ReadOnly] public NativeArray<CreatureBody> Bodies;
+            [ReadOnly] public NativeArray<byte> Families;
+            public float3 Ear;
+            public NativeList<int> Picked;
+
+            public void Execute()
+            {
+                for (int i = 0; i < States.Length; i++)
+                {
+                    var species = Bodies[i].Species;
+                    if (species >= 0 && species < Families.Length && Families[species] != 0 && math.distance(States[i].Position, Ear) < 25f)
+                        Picked.Add(i);
+                }
+            }
         }
 
         void Step(in CreatureState s, ref CreatureBlob b, float side, TerrainSource terrain)

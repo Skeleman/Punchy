@@ -240,20 +240,48 @@ namespace Punchy.Fauna
             }
             // (The creatures as the shared snapshot last had them, a frame behind at most, A-70 row 3; it includes
             // players' bodies, which this query leaves out.)
+            var timed = ReaderTimes.Start();
             CreatureSnapshotSystem.Get(sim, creatureQuery, out var states, out var bodies, out var entities);
-            for (int i = 0; i < states.Length; i++)
+            // Only those anywhere near a plant matter: picked out in Burst (A-70 row 5), in creature order.
+            var roots = new NativeArray<float2>(plants.Count, Allocator.TempJob);
+            for (int k = 0; k < plants.Count; k++)
+                roots[k] = new float2(plants[k].Position.x, plants[k].Position.z);
+            var picked = new NativeList<int>(16, Allocator.TempJob);
+            new NearJob { States = states, Roots = roots, RangeSq = TrackRange * TrackRange * 1.5f, Picked = picked }.Run();
+            for (int n = 0; n < picked.Length; n++)
             {
-                // Only those anywhere near a plant matter.
-                var near = false;
-                for (int k = 0; k < plants.Count && !near; k++)
-                    near = math.distancesq(new float2(plants[k].Position.x, plants[k].Position.z), states[i].Position.xz) < TrackRange * TrackRange * 1.5f;
-                if (!near || simManager.HasComponent<PlayerAvatar>(entities[i]))
+                var i = picked[n];
+                if (simManager.HasComponent<PlayerAvatar>(entities[i]))
                     continue;
                 tPos.Add(states[i].Position);
                 tEntity.Add(entities[i]);
                 tKind.Add(1);
             }
+            roots.Dispose();
+            picked.Dispose();
             CreatureSnapshotSystem.Release(sim, states, bodies, entities);
+            ReaderTimes.Stop(ReaderTimes.Mantrap, timed);
+        }
+
+        /// <summary>A-70 row 5: the creatures within reach of any plant (indices, in order), for Refresh.</summary>
+        [BurstCompile]
+        struct NearJob : IJob
+        {
+            [ReadOnly] public NativeArray<CreatureState> States;
+            [ReadOnly] public NativeArray<float2> Roots;
+            public float RangeSq;
+            public NativeList<int> Picked;
+
+            public void Execute()
+            {
+                for (int i = 0; i < States.Length; i++)
+                    for (int k = 0; k < Roots.Length; k++)
+                        if (math.distancesq(Roots[k], States[i].Position.xz) < RangeSq)
+                        {
+                            Picked.Add(i);
+                            break;
+                        }
+            }
         }
 
         // ---------------------------------------------------------------- behaviour

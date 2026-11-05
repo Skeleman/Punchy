@@ -195,6 +195,7 @@ namespace Punchy.Fauna
                     em.DestroyEntity(settingsEntity);
             }
             settingsEntity = simClockEntity = floraEntity = Entity.Null;
+            CreatureSnapshotSystem.Forget();
             foreach (var b in blobs)
                 if (b.IsCreated) b.Dispose();
             blobs.Clear();
@@ -805,6 +806,8 @@ namespace Punchy.Fauna
         {
             if (queryWorld != null && queryWorld.IsCreated)
                 queryWorld.EntityManager.DestroyEntity(avatarQuery);
+            // (The creature snapshot still holds this body's blob: dropped first, A-70 row 5.)
+            CreatureSnapshotSystem.Forget();
             if (avatarBlob.IsCreated)
                 avatarBlob.Dispose();
             avatarBlob = default;

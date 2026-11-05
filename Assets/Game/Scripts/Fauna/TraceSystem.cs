@@ -84,6 +84,7 @@ namespace Punchy.Fauna
             if (cam == null)
                 return;
             var start = Stats ? System.Diagnostics.Stopwatch.GetTimestamp() : 0L;
+            var timed = ReaderTimes.Start();
             var terrain = SystemAPI.GetSingleton<TerrainSource>();
             var now = (float)SystemAPI.Time.ElapsedTime;
             float3 camPos = cam.transform.position;
@@ -98,35 +99,18 @@ namespace Punchy.Fauna
             // (-oldtrace keeps the old managed lookups for every creature in range, to measure against.)
             var n = entities.Length;
             var need = new NativeArray<byte>(n, Allocator.TempJob);
-            var due = new NativeArray<byte>(n, Allocator.Temp);
-            var lastPhases = new NativeArray<float>(n, Allocator.Temp);
+            var due = new NativeArray<byte>(n, Allocator.TempJob);
+            var lastPhases = new NativeArray<float>(n, Allocator.TempJob);
             var positions = new NativeArray<float3>(n, Allocator.TempJob);
             var noSurface = new NativeArray<bool>(n, Allocator.TempJob);
             var grounds = new NativeArray<GroundSample>(n, Allocator.TempJob);
-            for (int i = 0; i < n; i++)
+            // (The first pass in Burst, A-70 row 5: in creature order, on one thread, as the managed loop had it.)
+            Unity.Jobs.IJobExtensions.Run(new DueJob
             {
-                var s = states[i];
-                ref var b = ref bodies[i].Blob.Value;
-                positions[i] = s.Position;
-                // (Huge animals seen from far off leave their marks as far: a serpent's splash across the lake.)
-                var range = math.max(Range, b.SeenFrom);
-                if (math.distancesq(s.Position, camPos) > range * range)
-                {
-                    steps.Remove(entities[i]);
-                    continue;
-                }
-                if (b.Breaches || b.Tunnels)
-                {
-                    need[i] = 2;
-                    continue;
-                }
-                var flags = (FeatherDue(entities[i], s, ref b) ? 1 : 0) | (StoneDue(entities[i], s) ? 2 : 0) |
-                            (StepDue(entities[i], s, ref b, out var lastPhase) ? 4 : 0);
-                due[i] = (byte)flags;
-                lastPhases[i] = lastPhase;
-                if (OldOrder || flags != 0)
-                    need[i] = (byte)(b.CrossesWater ? 2 : 1);
-            }
+                States = states, Bodies = bodies, Entities = entities, Camera = camPos, Range = Range, OldOrder = OldOrder,
+                Steps = steps, Actions = actions, Throws = throws, Need = need, Due = due, LastPhases = lastPhases,
+                Positions = positions
+            });
             if (!OldTrace)
                 Unity.Jobs.IJobParallelForExtensions.Run(new GroundJob
                     { Terrain = terrain, Positions = positions, Need = need, NoSurface = noSurface, Grounds = grounds }, n);
@@ -164,12 +148,63 @@ namespace Punchy.Fauna
                 Ticks += System.Diagnostics.Stopwatch.GetTimestamp() - start;
             }
             CreatureSnapshotSystem.Release(World, states, bodies, entities);
+            ReaderTimes.Stop(ReaderTimes.Trace, timed);
             need.Dispose();
             due.Dispose();
             lastPhases.Dispose();
             positions.Dispose();
             noSurface.Dispose();
             grounds.Dispose();
+        }
+
+        /// <summary>
+        /// The first pass, per creature, from its own state: whether it's in range, and what's due this frame (a feather
+        /// dropping, a stone let go, a foot coming down), and so whether its ground is needed (Need: 1 the surface, 2 the
+        /// ground sample too). Keeps each creature's last gait phase, action and throw time for next frame.
+        /// </summary>
+        [Unity.Burst.BurstCompile]
+        struct DueJob : Unity.Jobs.IJob
+        {
+            [ReadOnly] public NativeArray<CreatureState> States;
+            [ReadOnly] public NativeArray<CreatureBody> Bodies;
+            [ReadOnly] public NativeArray<Entity> Entities;
+            public float3 Camera;
+            public float Range;
+            public bool OldOrder;
+            public NativeHashMap<Entity, float4> Steps;
+            public NativeHashMap<Entity, byte> Actions;
+            public NativeHashMap<Entity, float> Throws;
+            public NativeArray<byte> Need, Due;
+            public NativeArray<float> LastPhases;
+            public NativeArray<float3> Positions;
+
+            public void Execute()
+            {
+                for (int i = 0; i < States.Length; i++)
+                {
+                    var s = States[i];
+                    ref var b = ref Bodies[i].Blob.Value;
+                    Positions[i] = s.Position;
+                    // (Huge animals seen from far off leave their marks as far: a serpent's splash across the lake.)
+                    var range = math.max(Range, b.SeenFrom);
+                    if (math.distancesq(s.Position, Camera) > range * range)
+                    {
+                        Steps.Remove(Entities[i]);
+                        continue;
+                    }
+                    if (b.Breaches || b.Tunnels)
+                    {
+                        Need[i] = 2;
+                        continue;
+                    }
+                    var flags = (FeatherDue(Actions, Entities[i], s, ref b) ? 1 : 0) | (StoneDue(Throws, Entities[i], s) ? 2 : 0) |
+                                (StepDue(Steps, Entities[i], s, ref b, out var lastPhase) ? 4 : 0);
+                    Due[i] = (byte)flags;
+                    LastPhases[i] = lastPhase;
+                    if (OldOrder || flags != 0)
+                        Need[i] = (byte)(b.CrossesWater ? 2 : 1);
+                }
+            }
         }
 
         /// <summary>A/B switch for #81: "-oldtrace" on a shot line (DebugControls) keeps the per-creature managed ground lookups.</summary>
@@ -243,7 +278,7 @@ namespace Punchy.Fauna
 
         /// <summary>Whether a foot came down since last frame (its leg's cycle turned from swing to stance); keeps the gait
         /// phase for next frame. <paramref name="lastPhase"/> is last frame's phase.</summary>
-        bool StepDue(Entity e, in CreatureState s, ref CreatureBlob b, out float lastPhase)
+        static bool StepDue(NativeHashMap<Entity, float4> steps, Entity e, in CreatureState s, ref CreatureBlob b, out float lastPhase)
         {
             lastPhase = 0f;
             if (b.Habitat == Habitat.Swims || b.Habitat == Habitat.Floats || s.Fly > 0.5f || s.Lie > 0.5f || s.Speed < 0.05f)
@@ -486,7 +521,7 @@ namespace Punchy.Fauna
         /// A child's stone, thrown: the moment its throw lets go (worked out on every machine from the replicated throw),
         /// a stone flies from about the child's hand, up and out ahead, and drops back to the ground. StoneDue says when.
         /// </summary>
-        bool StoneDue(Entity e, in CreatureState s)
+        static bool StoneDue(NativeHashMap<Entity, float> throws, Entity e, in CreatureState s)
         {
             if (s.Held != HeldItem.Stone || s.Action != IdleAction.Throw)
             {
@@ -523,7 +558,7 @@ namespace Punchy.Fauna
         }
 
         /// <summary>A feather drifts to the ground when a bird finishes preening or shaking.</summary>
-        bool FeatherDue(Entity e, in CreatureState s, ref CreatureBlob b)
+        static bool FeatherDue(NativeHashMap<Entity, byte> actions, Entity e, in CreatureState s, ref CreatureBlob b)
         {
             if (b.Habitat != Habitat.Flies)
                 return false;

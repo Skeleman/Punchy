@@ -1881,6 +1881,7 @@ namespace Punchy.Debugging
             Punchy.Fauna.CreatureRenderSystem.OldPoseRate = System.Array.IndexOf(args, "-oldposerate") >= 0 || System.Array.IndexOf(LaunchArgs, "-oldposerate") >= 0;
             Punchy.Fauna.TraceSystem.OldOrder = System.Array.IndexOf(args, "-oldtrace") >= 0;
             Punchy.Fauna.TraceSystem.Stats = perfLog;
+            Punchy.Fauna.ReaderTimes.On = perfLog;
             Punchy.Fauna.CreatureBrainSystem.SpreadOn.Data = perfLog ? 1 : 0;
             CaveSystem.CountStats = ThirdPersonCamera.ProbeStats = perfLog;
             // "-goflat" (A-13 #46): to the nearest dry spot whose ground height spread over a 30 m circle is under 0.5 m
@@ -3109,6 +3110,7 @@ namespace Punchy.Debugging
                 Punchy.Fauna.CreatureBrainSystem.Spread.Data.WorstWallTicks = 0;
                 Punchy.Fauna.CreatureRenderSystem.PoseMs.Clear();
                 Punchy.Fauna.CreatureRenderSystem.PoseEvaluated = Punchy.Fauna.CreatureRenderSystem.PoseReused = Punchy.Fauna.CreatureRenderSystem.PoseFrames = 0;
+                Punchy.Fauna.ReaderTimes.Clear();
             }
             var dt = Time.unscaledDeltaTime * 1000.0;
             perfFrames++;
@@ -3153,7 +3155,6 @@ namespace Punchy.Debugging
             perfCaveTris += CaveSystem.StatTriangles;
         }
 
-        /// <summary>One "perf" line per -perflog shot: frame, thread and GPU ms, cave chunks, lights, particles, probes.</summary>
         /// <summary>A-70 row 4, for perf2: the creature pose job's median and worst frame (ms summed over the workers), and
         /// how many creatures a frame were posed afresh or moved on from their last pose.</summary>
         static string PoseSummary()
@@ -3165,9 +3166,11 @@ namespace Punchy.Debugging
             var median = sorted.Length > 0 ? sorted[sorted.Length / 2] : 0.0;
             var worst = sorted.Length > 0 ? sorted[sorted.Length - 1] : 0.0;
             return $"pose job median {median:F3} ms, worst {worst:F3} ms, posed {(double)Punchy.Fauna.CreatureRenderSystem.PoseEvaluated / frames:F1}/frame, " +
-                   $"moved on {(double)Punchy.Fauna.CreatureRenderSystem.PoseReused / frames:F1}/frame, old pose rate {Punchy.Fauna.CreatureRenderSystem.OldPoseRate}";
+                   $"moved on {(double)Punchy.Fauna.CreatureRenderSystem.PoseReused / frames:F1}/frame, old pose rate {Punchy.Fauna.CreatureRenderSystem.OldPoseRate}; " +
+                   Punchy.Fauna.ReaderTimes.Summary();
         }
 
+        /// <summary>One "perf" line per -perflog shot: frame, thread and GPU ms, cave chunks, lights, particles, probes.</summary>
         void LogPerf(string name, float3 at)
         {
             var n = System.Math.Max(perfFrames, 1);
