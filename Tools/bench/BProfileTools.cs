@@ -34,6 +34,17 @@ public static class BProfileTools
         EditorApplication.Exit(r.summary.result == UnityEditor.Build.Reporting.BuildResult.Succeeded ? 0 : 1);
     }
 
+    // Development build with deep profiling support: launched with -deepprofiling, every managed call is a marker
+    // (job 32: the island-ready frame's unmarked bake code).
+    public static void BuildDeep()
+    {
+        BenchIdentity();
+        var scenes = EditorBuildSettings.scenes.Where(s => s.enabled).Select(s => s.path).ToArray();
+        var r = BuildPipeline.BuildPlayer(scenes, Arg("-out", "Builds/Profile/Punchy.exe"), BuildTarget.StandaloneWindows64, BuildOptions.Development | BuildOptions.EnableDeepProfilingSupport);
+        Debug.Log("BProfile build: " + r.summary.result);
+        EditorApplication.Exit(r.summary.result == UnityEditor.Build.Reporting.BuildResult.Succeeded ? 0 : 1);
+    }
+
     static string Arg(string name, string def)
     {
         var a = Environment.GetCommandLineArgs();
