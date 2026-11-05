@@ -64,6 +64,8 @@ namespace Punchy.Net
             avatars.SetLocalSpecies(index);
         }
 
+        static int lastDrawFrame = -100;
+
         public static void Draw(NetAvatars avatars, MenuNav nav)
         {
             var list = avatars.PlayableSpecies;
@@ -75,6 +77,26 @@ namespace Punchy.Net
             var index = avatars.LocalIndex;
             var current = index >= 0 ? list[index] : null;
             var currentClass = current != null ? ClassOf(current) : (BodyClass)(-1);
+            // P-18: on opening (the first draw after a gap), the pad focus starts on the body being played, not the
+            // first button: its stop is the class buttons shown before it plus its place in its class's row.
+            if (Time.frameCount - lastDrawFrame > 2 && current != null && Event.current.type == EventType.Layout)
+            {
+                var classes = 0;
+                for (var c = BodyClass.Humanoid; c <= BodyClass.Other; c++)
+                    foreach (var s in list)
+                        if (s != null && ClassOf(s) == c)
+                        {
+                            classes++;
+                            break;
+                        }
+                var place = 0;
+                for (int i = 0; i < index; i++)
+                    if (list[i] != null && ClassOf(list[i]) == currentClass)
+                        place++;
+                nav.Focus = classes + place;
+                Debug.Log($"CharacterTab: opened on {current.name} (stop {nav.Focus})");
+            }
+            lastDrawFrame = Time.frameCount;
 
             // Classes: only those some playable species falls in.
             GUILayout.Label("Class");

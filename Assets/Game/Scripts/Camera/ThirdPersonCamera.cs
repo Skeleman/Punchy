@@ -72,6 +72,9 @@ namespace Punchy.CameraRig
         {
             yaw = transform.eulerAngles.y;
             camLog = System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-camlog") >= 0;
+            var spinAt = System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-spin");
+            if (spinAt >= 0 && spinAt + 1 < Punchy.Debugging.DebugControls.LaunchArgs.Length)
+                float.TryParse(Punchy.Debugging.DebugControls.LaunchArgs[spinAt + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out spin);
             SetCursorCaptured(true);
         }
 
@@ -88,6 +91,7 @@ namespace Punchy.CameraRig
                 Distance = Mathf.MoveTowards(Distance, WatchDistance, Time.deltaTime * 4f);
             }
 
+            yaw += spin * Time.deltaTime;
             if (Cursor.lockState == CursorLockMode.Locked)
             {
                 var look = Mouse.current != null ? Mouse.current.delta.ReadValue() * MouseSensitivity : Vector2.zero;
@@ -183,6 +187,22 @@ namespace Punchy.CameraRig
                     caveArm = Distance;
                 SetNearPlane(near);
                 var lens = new Unity.Mathematics.float3(position.x, position.y, position.z);
+                // P-18: under a cave stream or pool there's no underwater effect, so the lens stays above the surface.
+                if (underground && terrain.Caves.IsCreated)
+                {
+                    var surface = CaveWaterAbove(ref terrain.Caves.Value, lens);
+                    if (surface > float.MinValue && position.y < surface + WaterClearance)
+                    {
+                        if (Time.unscaledTime >= nextWaterLog)
+                        {
+                            nextWaterLog = Time.unscaledTime + 2f;
+                            Debug.Log($"Camera: kept above cave water (surface {surface:F2}, lens {position.y:F2} -> {surface + WaterClearance:F2})");
+                        }
+                        position.y = surface + WaterClearance;
+                        lens.y = position.y;
+                        rotation = Quaternion.LookRotation(target - position);
+                    }
+                }
                 if (terrain.CaveDistance(lens) < 0f || underground && (terrain.TempleAir(lens) || position.y < terrain.SampleHeight(lens.xz)))
                 {
                     Place(position, rotation, lookUp, target, playerPosition);
@@ -246,10 +266,55 @@ namespace Punchy.CameraRig
             {
                 nextCamLog = Time.unscaledTime + 2f;
                 var p = ToFloat3(position);
-                Debug.Log($"Camera: at ({p.x:F1}, {p.y:F1}, {p.z:F1}), pivot {PivotHeight:F2} m, arm {(position - target).magnitude:F2} m, pitch {pitch:F0} tilt {lookUp:F0}, " +
+                Debug.Log($"Camera: at ({p.x:F1}, {p.y:F1}, {p.z:F1}), pivot {PivotHeight:F2} m, arm {(position - target).magnitude:F2} m, yaw {yaw % 360f:F0} (view {transform.eulerAngles.y:F0}), pitch {pitch:F0} tilt {lookUp:F0}, " +
                           $"underground {underground}, in temple air {t.TempleAir(p)}, ground {t.SampleHeight(p.xz) - p.y:+0.0;-0.0} m vs lens, cave {t.CaveDistance(p):F1}");
             }
         }
+
+        /// <summary>How far above a cave stream's or pool's surface the lens is kept (m).</summary>
+        const float WaterClearance = 0.15f;
+        float nextWaterLog;
+
+        /// <summary>
+        /// The surface of the cave stream or pool a point is under (its water, not just over its channel), or
+        /// float.MinValue: the streams' segments (each point's surface height and width) and the pools' discs.
+        /// </summary>
+        static float CaveWaterAbove(ref CaveSetBlob set, Unity.Mathematics.float3 p)
+        {
+            var best = float.MinValue;
+            for (int s = 0; s < set.Streams.Length; s++)
+            {
+                ref var st = ref set.Streams[s];
+                if (p.x < st.Min.x - 2f || p.z < st.Min.y - 2f || p.x > st.Max.x + 2f || p.z > st.Max.y + 2f)
+                    continue;
+                for (int k = st.FirstPoint; k < st.FirstPoint + st.PointCount - 1; k++)
+                {
+                    var a = set.StreamPoints[k];
+                    var b = set.StreamPoints[k + 1];
+                    var ab = b.Position.xz - a.Position.xz;
+                    var t = Unity.Mathematics.math.saturate(Unity.Mathematics.math.dot(p.xz - a.Position.xz, ab) / Unity.Mathematics.math.max(Unity.Mathematics.math.lengthsq(ab), 1e-4f));
+                    var half = Unity.Mathematics.math.lerp(a.Width, b.Width, t) * 0.5f;
+                    if (Unity.Mathematics.math.distance(p.xz, a.Position.xz + ab * t) > half)
+                        continue;
+                    var level = Unity.Mathematics.math.lerp(a.Position.y, b.Position.y, t);
+                    var depth = Unity.Mathematics.math.lerp(a.Depth, b.Depth, t);
+                    if (p.y < level && p.y > level - depth - 1.5f)
+                        best = Unity.Mathematics.math.max(best, level);
+                }
+            }
+            for (int i = 0; i < set.Pools.Length; i++)
+            {
+                var pool = set.Pools[i];
+                if (pool.Lava > 0.5f || Unity.Mathematics.math.distance(p.xz, pool.Centre.xz) > pool.Radius)
+                    continue;
+                if (p.y < pool.Centre.y && p.y > pool.Centre.y - pool.Depth - 1.5f)
+                    best = Unity.Mathematics.math.max(best, pool.Centre.y);
+            }
+            return best;
+        }
+
+        /// <summary>Testing: "-spin N" turns the view N degrees a second, as a mouse would (P-18: is the yaw free?).</summary>
+        float spin;
 
         /// <summary>Testing: "-camlog" logs where the camera is every 2 s (P-9: is it inside the room it should be?).</summary>
         bool camLog;
