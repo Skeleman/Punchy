@@ -228,9 +228,14 @@ namespace Punchy.Terrain
             var offset = new float[N * N];
             float cx0 = PX * 0.5f + LakeShiftM / WorldSizeM * PX + (H01(seed, 8, 8) - 0.5f) * 40f, cy0 = PX * 0.5f + (H01(seed, 9, 9) - 0.5f) * 40f;
             float lakeR = lakeRadius * PX;
-            int ridgeCells = 0, lakeCells = 0, landCells = 0;
-            var lineHeights = new List<float>();
-            for (int y = 0; y < N; y++)
+            // W-103: rows run in parallel (every cell reads only the seed and the realms); counts and border heights are
+            // kept per row and summed in row order, so the result is identical to the old single-thread loop.
+            var rowRidge = new int[N]; var rowLake = new int[N]; var rowLand = new int[N];
+            var rowLines = new List<float>[N];
+            BakeParallel.For(N, y =>
+            {
+                int ridgeCells = 0, lakeCells = 0, landCells = 0;
+                var lineHeights = rowLines[y] = new List<float>();
                 for (int x = 0; x < N; x++)
                 {
                     float px = (x + 0.5f) / N * PX, py = (y + 0.5f) / N * PX;
@@ -272,14 +277,22 @@ namespace Punchy.Terrain
                     if (rl < lakeR) lakeCells++;
                     biomeIds[i] = (byte)id; offset[i] = h;
                 }
+                rowRidge[y] = ridgeCells; rowLake[y] = lakeCells; rowLand[y] = landCells;
+            });
+            int ridgeCells = 0, lakeCells = 0, landCells = 0;
+            var lineHeights = new List<float>();
+            for (int y = 0; y < N; y++)
+            {
+                ridgeCells += rowRidge[y]; lakeCells += rowLake[y]; landCells += rowLand[y];
+                lineHeights.AddRange(rowLines[y]);
+            }
 
             // Blobs. The map's row 0 is the south edge (z = origin), like the biome map images.
             var origin = new float2(-WorldSizeM * 0.5f);
             var b1 = new BlobBuilder(Allocator.Temp);
             ref var map1 = ref b1.ConstructRoot<BiomeMapBlob>();
             map1.Resolution = N; map1.Origin = origin; map1.WorldSize = WorldSizeM;
-            var arr = b1.Allocate(ref map1.Ids, N * N);
-            for (int i = 0; i < N * N; i++) arr[i] = biomeIds[i];
+            b1.Construct(ref map1.Ids, biomeIds);
             var mapBlob = b1.CreateBlobAssetReference<BiomeMapBlob>(allocator); b1.Dispose();
 
             var b2 = new BlobBuilder(Allocator.Temp);

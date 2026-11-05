@@ -178,7 +178,7 @@ namespace Punchy.Terrain
                 var lakeDepths = lakes.ToArray();
                 var lakeLevels = lakeLevel.ToArray();
                 var shore = new float[count];
-                System.Threading.Tasks.Parallel.For(0, resolution, z =>
+                BakeParallel.For(resolution, z =>
                 {
                     for (int x = 0; x < resolution; x++)
                     {
@@ -457,7 +457,7 @@ namespace Punchy.Terrain
             var centres = points.ToArray();
             var ground = source;
             var lows = new float[count];
-            System.Threading.Tasks.Parallel.For(0, count, c =>
+            BakeParallel.For(count, c =>
             {
                 if (widths[c] <= 0f || depths[c] > 0f)
                     return;
