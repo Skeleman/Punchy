@@ -2129,3 +2129,12 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
 - Hash with -campsitetest swamp: 109 landmarks, F8E930BB (game 67B353C1).
 - Left: forest shot, rows 3 (#36 river plots), 4 (#88 shelf bay), 5 (#40 plant size and fog).
 - Calls: ~44.
+
+## W-97 play-mode test harness (2026-11-04, world-features 1ff6d90..66a9456)
+- **Asmdef:** separate test-only asmdef Punchy.Tests.PlayMode; reaches Assembly-CSharp by reflection via TestHooks (editor-only statics) + DebugControls.RunOptions (test flags mid-run). No game asmdefs, playModeTestRunnerEnabled stays off.
+- **Rows 1-4 done:** TestSceneSetup (island v3, time, weather, place/goto, spawn), scripts/run-playmode-tests.sh (UNITY_EXE or Hub, PASS/FAIL + measured lines, exit 1 on failure: verified), Shots.Take (checked shot), docs/agents/testing.md.
+- **Suite:** 10 tests, 161 s (world up in 40 s). 9 pass, 1 fails:
+  - PASS: Harness_WorldUp, Landmarks_V3 (108 4D2643D7), Rivers (max 119.5 / limit 130, measured), meadow butterflies (0.33/100 m2, band 0.1-1.5, measured), village creatures (5 within 50 m, band 1-20, measured), Setup_SpawnRainAndShot, WalkBy_NeverThroughWall (12 lines, 0 through walls, 143 held back), PlayerSlot_AlwaysFilled (0 unfilled of 4800), AnyLines <= 30% (6.2%, worst HumanChild 13%).
+  - FAIL: Fauna_Fingerprint: main 69ca891 reads 286E0A52, target 8726AADB is the animal branch's (STATE.md's "main D0B9488A" is stale too). Left failing on purpose: passes once that branch merges, or retarget if 286E0A52 is accepted.
+- **Fix shipped:** walk-by folk talk now held back when a kit box is between speaker and player (FolkTalkSystem.Walled, KitCollision.Blocks).
+- **Notes:** row 1 commit alone doesn't compile (TestHooks uses row 2's Blocks/DensityNear/HeldBack); branch head is clean. Unity on Windows needs C:/ paths (cygpath) and empties Temp/ on quit, so results go to Logs/.
