@@ -2204,3 +2204,15 @@ Human (Human, Dramatic) waiting Storm cell (94,-28) [1 up in cell]: Run for your
 - Landmarks 107 14D92F64: the new main baseline from W-98, not from A-71.
 - FolkTalk WalkBy_NeverThroughWall failed once ("1 through a wall"). A real A-71 interaction, not flake: folk now head indoors out of rain/cold, sometimes right after a weather line, and the line rode them through the wall. Fix: lines already up drop once a kit wall comes between speaker and player (FolkTalkSystem). Rerun: 17 up, 0 through a wall, 805 held back.
 - Follow test: dog 7.2 m off at start, 4.9 m behind at walk end, 2.7 m after 6 s.
+
+## A-72 row 1: -place prop: waits for the flora placement (#137), c3879d2
+
+- `-place prop:X` is now a pending request, tried each frame until the flora placement blob is built; warning
+  "gave up, the flora placement never came up" after 60 s. `PlaceByProp` returns false while not ready.
+- Verified: `-place prop:FishWharf` logs "2 FishWharf found in all", "framing FishWharf #1", shot a72-wharf after 31 s.
+- Note for the world lane (asked by the coordinator): the A-71 FolkTalk wall drop (0722b22) changed world-lane W-97
+  code in FolkTalkSystem.cs: a line already up is now dropped when a kit wall stands between its speaker and the
+  player (`hasKit && Walled(...)` in the follow-speaker loop, which now runs backwards).
+- Heads-up for rows 2-5: StoneColossi.cs (world lane, #40, W-58/W-89/W-92/W-94) already has WalkingSaguaro,
+  RockGolem and GiantTortoise as static colossi. I'm doing row 6 next and will not edit StoneColossi without a
+  go-ahead; see the hand-back for options.
