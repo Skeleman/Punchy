@@ -2742,9 +2742,26 @@ namespace Punchy.Flora
                 var turn = Quaternion.Euler(g.R() * 360f, g.R() * 360f, g.R() * 360f);
                 var seed = g.R() * 100f;
                 var color = Color.Lerp(g.Bark, g.Bark * 1.4f, g.R());
-                if (at.y - size >= DebrisHeadroom)
+                if (at.y - size >= DebrisHoldAbove)
                 {
                     high.Add((at, radii, turn, seed, color));
+                    continue;
+                }
+                if (at.y - size >= DebrisHeadroom)
+                {
+                    // W-106 (#70): a piece that would orbit within a jumping head's reach is held still instead, low
+                    // over the ground: a flat stepping stone hovering at knee to hip height, solid (a kit box, so its
+                    // top is a floor and its underside a ceiling), that the player can jump onto. No new draws from
+                    // the rng (its height comes from the piece's seed), so the pieces after it keep their shapes.
+                    var stoneTop = DebrisStoneTop.x + (DebrisStoneTop.y - DebrisStoneTop.x) * Mathf.Repeat(seed * 7.31f, 1f);
+                    var stoneRadii = new Vector3(Mathf.Max(radii.x, 0.45f), Mathf.Min(radii.y, 0.22f), Mathf.Max(radii.z, 0.4f));
+                    var stoneAt = new Vector3(at.x, stoneTop - stoneRadii.y, at.z);
+                    var stoneTurn = Quaternion.Euler(0f, turn.eulerAngles.y, 0f);
+                    b.Blob(stoneAt, stoneRadii, stoneTurn, g.Sides(1, 1, 0), 0.25f, seed, color, FloraPart.Metal, 1f, 0.5f);
+                    // A small grain of rock held under it, as if pinned there by the field.
+                    b.Blob(stoneAt + Vector3.down * (stoneRadii.y + 0.25f), stoneRadii * 0.22f, turn, 1, 0.3f, seed + 3f, color * 0.9f, FloraPart.Metal, 1f, 0.5f);
+                    var half = new Vector3(stoneRadii.x * 0.75f, stoneRadii.y, stoneRadii.z * 0.75f);
+                    g.Boxes.Add(new KitBox { Centre = stoneAt, Half = half, Rotation = stoneTurn, Reach = half.magnitude });
                     continue;
                 }
                 var flat = new Vector2(at.x, at.z);
@@ -2769,6 +2786,12 @@ namespace Punchy.Flora
 
         /// <summary>How high (m, before scaling) a Debris piece's bottom must float to stay in the air: above a head.</summary>
         const float DebrisHeadroom = 2.2f;
+
+        /// <summary>W-106 (#70): a piece whose bottom floats under this (m) is in reach of a jumping head, so it's held still as a stepping stone.</summary>
+        const float DebrisHoldAbove = 3.4f;
+
+        /// <summary>W-106 (#70): a held stepping stone's top height range (m): under the 1.28 m a jump clears.</summary>
+        static readonly Vector2 DebrisStoneTop = new Vector2(0.75f, 1.1f);
 
         /// <summary>W-93 (#70): a wasteland chunk topping out under this (m, before scaling) is walked over, so it gets no boxes.</summary>
         const float ChunkStep = 0.45f;
