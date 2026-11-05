@@ -47,6 +47,17 @@ namespace Punchy.Debugging
         readonly List<Location> locations = new List<Location>();
         /// <summary>Landmarks' middles (for -place, not in the N list).</summary>
         readonly List<Location> centres = new List<Location>();
+        /// <summary>
+        /// A-74: the last "-place Landmark" or "-place Landmark:centre" that found nothing, tried again each time the island's
+        /// landmarks change until it times out. The launch options run on the first island (the baked one), and fishing villages and the other
+        /// types the v2/v3 pass appends only exist after it, so "-place FishingVillage:centre" found nothing and stayed put.
+        /// </summary>
+        string landmarkPlacePending;
+        float3 landmarkPlaceKey;
+        float landmarkPlaceUntil;
+        bool landmarkPlaced;
+        string speciesPickPending;
+        float speciesPickUntil;
         int current = -1;
         EntityQuery playerQuery, terrainQuery, paletteQuery, floraQuery;
         World queryWorld;
@@ -259,6 +270,8 @@ namespace Punchy.Debugging
             WalkTo();
             FlyCave();
             PlacePropPending();
+            PlaceAtLandmarkPending();
+            PickSpeciesPending();
             // (A-69: "-place batfolk" again until the bat folk homes are baked; they come after the island.)
             if (batFolkPlaceUntil > 0f && Time.unscaledTime < batFolkPlaceUntil && EnsureLocations(out var batRetry) && PlaceAtBatFolk(batRetry))
             {
@@ -1630,9 +1643,81 @@ namespace Punchy.Debugging
         static Unity.Profiling.ProfilerRecorder drawCalls, batches, tris;
         static BlobAssetReference<ArchipelagoBlob> archipelagoKept;
 
+        /// <summary>
+        /// "-place HumanVillage" (by a landmark), "-place HumanVillage:centre" (in its middle) or "-place summit" (the first
+        /// place whose name contains the word). False if no such place is on the island yet.
+        /// </summary>
+        bool PlaceAtLandmark(string name)
+        {
+            // An exact name first (the landmark itself), else the first that contains it.
+            var index = locations.FindIndex(l => string.Equals(l.Name, name, System.StringComparison.OrdinalIgnoreCase));
+            if (index < 0)
+                index = locations.FindIndex(l => l.Name.IndexOf(name, System.StringComparison.OrdinalIgnoreCase) >= 0);
+            if (index < 0)
+            {
+                var middle = centres.FindIndex(l => string.Equals(l.Name, name, System.StringComparison.OrdinalIgnoreCase));
+                if (middle < 0)
+                    return false;
+                index = locations.FindIndex(l => l.Name == centres[middle].Name);
+                if (index < 0)
+                {
+                    locations.Add(centres[middle]);
+                    index = locations.Count - 1;
+                }
+            }
+            current = index - 1;
+            Jump(1);
+            Debug.Log($"DebugControls: started at {locations[index].Name}");
+            return true;
+        }
+
+        /// <summary>
+        /// A-74: "-place Landmark[:centre]" again whenever the island's landmarks change, until it times out: one not
+        /// found yet (a v2/v3-only type), and one found on the baked first island, whose landmarks the v2/v3 pass can
+        /// move (HumanVillage:centre was a bare hillside 130 m from any village). A -goto or -at on the same line holds.
+        /// </summary>
+        void PlaceAtLandmarkPending()
+        {
+            if (landmarkPlacePending == null)
+                return;
+            if (Time.unscaledTime > landmarkPlaceUntil)
+            {
+                if (!landmarkPlaced)
+                    Debug.LogWarning($"DebugControls: -place {landmarkPlacePending} gave up; no such place on the island");
+                landmarkPlacePending = null;
+                return;
+            }
+            if (!EnsureLocations(out _) || math.all(locationsKey == landmarkPlaceKey))
+                return;
+            landmarkPlaceKey = locationsKey;
+            landmarkPlaced = PlaceAtLandmark(landmarkPlacePending) || landmarkPlaced;
+        }
+
+        /// <summary>A-74: "-pickspecies Name" once NetAvatars and the player exist, held for 3 s past that.</summary>
+        void PickSpeciesPending()
+        {
+            if (speciesPickPending == null)
+                return;
+            if (FindAnyObjectByType<Punchy.Net.NetAvatars>() is not Punchy.Net.NetAvatars avatars || TestHooks.PlayerPosition().sqrMagnitude < 1e-6f)
+                return;
+            var index = avatars.PlayableSpecies.FindIndex(sp => sp != null && string.Equals(sp.name, speciesPickPending, System.StringComparison.OrdinalIgnoreCase));
+            if (index < 0)
+            {
+                Debug.LogWarning($"DebugControls: -pickspecies {speciesPickPending}: no such playable body");
+                speciesPickPending = null;
+                return;
+            }
+            if (speciesPickUntil < 0f)
+                speciesPickUntil = Time.unscaledTime + 3f;
+            avatars.SetLocalSpecies(index);
+            if (Time.unscaledTime > speciesPickUntil)
+                speciesPickPending = null;
+        }
+
         void ApplyOptions(string[] args)
         {
             optionsAt = Time.timeSinceLevelLoad;
+            landmarkPlacePending = null; // (a later shot's options replace an earlier -place still being retried)
             if (!drawCalls.Valid)
             {
                 drawCalls = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Render, "Draw Calls Count");
@@ -1795,6 +1880,14 @@ namespace Punchy.Debugging
                 if (pickAvatars != null)
                     Punchy.Net.CharacterTab.PickClass(pickAvatars, pickClass);
             }
+            // A-74 (#8): "-pickspecies Elf": the player in that playable body, for race reaction shots. Held for a few
+            // seconds once the player exists, since the body saved last session is restored on the first avatar frame.
+            var speciesAt = System.Array.IndexOf(args, "-pickspecies");
+            if (speciesAt >= 0 && speciesAt + 1 < args.Length)
+            {
+                speciesPickPending = args[speciesAt + 1];
+                speciesPickUntil = -1f;
+            }
             var menuAt = System.Array.IndexOf(args, "-menu");
             Punchy.UI.MainMenu.Show(menuAt >= 0 && menuAt + 1 < args.Length && !args[menuAt + 1].StartsWith("-") ? args[menuAt + 1] : null, menuAt >= 0);
             Punchy.Fauna.AmbientSounds.TableOff.Data = System.Array.IndexOf(args, "-nobiometable") >= 0 ? 1 : 0;
@@ -1950,31 +2043,17 @@ namespace Punchy.Debugging
                     PlaceInTemple(templeSource, args[i + 1]);
                 else if (args[i] == "-place")
                 {
-                    // An exact name first (the landmark itself), else the first that contains it.
-                    var index = locations.FindIndex(l => string.Equals(l.Name, args[i + 1], System.StringComparison.OrdinalIgnoreCase));
-                    if (index < 0)
-                        index = locations.FindIndex(l => l.Name.IndexOf(args[i + 1], System.StringComparison.OrdinalIgnoreCase) >= 0);
-                    if (index >= 0)
-                    {
-                        current = index - 1;
-                        Jump(1);
-                        Debug.Log($"DebugControls: started at {locations[index].Name}");
-                    }
-                    else
-                    {
-                        var middle = centres.FindIndex(l => string.Equals(l.Name, args[i + 1], System.StringComparison.OrdinalIgnoreCase));
-                        if (middle >= 0)
-                        {
-                            locations.Add(centres[middle]);
-                            current = locations.Count - 2;
-                            Jump(1);
-                            Debug.Log($"DebugControls: started at {centres[middle].Name}");
-                        }
-                    }
+                    landmarkPlacePending = args[i + 1];
+                    landmarkPlaceUntil = Time.unscaledTime + 120f;
+                    landmarkPlaceKey = locationsKey;
+                    landmarkPlaced = PlaceAtLandmark(args[i + 1]);
                 }
             }
             if (inCave && EnsureLocations(out var source))
                 GoIntoCave(source);
+            if (System.Array.IndexOf(args, "-goto") >= 0 || System.Array.IndexOf(args, "-at") >= 0
+                || System.Array.IndexOf(args, "-walkershot") >= 0)
+                landmarkPlacePending = null;
             // "-goto 120,-340" (x,z, as F3 copies it): there, on the ground (after any -place).
             var goTo = System.Array.IndexOf(args, "-goto");
             if (goTo >= 0 && goTo + 1 < args.Length && EnsureLocations(out var ground) && playerQuery.TryGetSingletonEntity<LocalTransform>(out var goer))

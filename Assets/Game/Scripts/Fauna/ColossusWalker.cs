@@ -20,8 +20,16 @@ namespace Punchy.Fauna
     /// </para>
     /// <para>
     /// Only the one nearest the camera (within <see cref="AwakeRange"/>) is awake: it moves every frame and its feet land
-    /// with a thud, a dust burst and a small camera shake. The others are posed twice a second. Creatures near a walking
-    /// one get out of its way (<see cref="CreatureBrainSystem.ColossusZones"/>).
+    /// with a thud, a small camera shake (within <see cref="ShakeRange"/>) and a dust burst (within <see cref="DustRange"/>).
+    /// The others are posed twice a second. Creatures near a walking one get out of its way
+    /// (<see cref="CreatureBrainSystem.ColossusZones"/>).
+    /// </para>
+    /// <para>
+    /// A-74: when the local player comes within <see cref="LookRange"/> of its body, it eases to a stop and turns its body
+    /// and head toward them (root and head only), then walks on. This is local and cosmetic: the stop falls behind the
+    /// shared clock by Lag (at most <see cref="MaxLag"/> s), which it walks back off a little faster once the player
+    /// leaves, so every peer agrees again within a minute or so. Once Lag is used up it gets bored and ignores the player
+    /// until they go away.
     /// </para>
     /// </summary>
     [DefaultExecutionOrder(60)]   // after the camera's own Update, so the shake offset is taken back off first
@@ -55,7 +63,9 @@ namespace Punchy.Fauna
             new Gait { Kind = StoneColossi.Kind.WalkingSaguaro, Slot = 6, Radius = 70f, Speed = 1.1f, Walk = 100f, Rest = 50f, Stride = 4f, Bob = 0.3f, Shake = 0.06f, Body = 16f, Height = 50f, Salt = 0xA725u },
         };
 
-        const float Ramp = 5f, AwakeRange = 600f, FarPeriod = 0.5f, ShakeRange = 120f, ShakeTime = 0.35f;
+        const float Ramp = 5f, AwakeRange = 600f, FarPeriod = 0.5f, ShakeRange = 120f, ShakeTime = 0.35f, DustRange = 300f;
+        /// <summary>A-74 stop and look: reach past its body (m), ease time (s), most it may fall behind the clock (s), how much faster it catches up, and how far (degrees) the body and head turn.</summary>
+        const float LookRange = 40f, HoldTime = 2f, MaxLag = 30f, CatchUp = 1.5f, BodyTurn = 70f, HeadTurn = 35f;
         const float TownClear = 150f, MaxSlope = 0.35f, Tilt = 8f, SettleTime = 6f;
         const int Checks = 48, Table = 256;
         static readonly int ClockId = Shader.PropertyToID("_PunchyClock");
@@ -81,6 +91,12 @@ namespace Punchy.Fauna
             public ColossusRig Rig;
             public bool Rigged;
             public string PhaseDone;
+            /// <summary>A-74: how stopped it is for the player (0 to 1), how far behind the shared clock (s), and whether it has had enough.</summary>
+            public float Hold, Lag;
+            public bool Bored;
+            /// <summary>The clock at its last pose, its own clock (shared clock less Lag), and its head's turn this frame (degrees).</summary>
+            public double Clock = double.NaN, Own;
+            public float Look;
         }
 
         public static ColossusWalker Instance { get; private set; }
@@ -90,6 +106,8 @@ namespace Punchy.Fauna
         Vector3 shakeApplied;
         float shakeAmp, shakeLeft, nextLog;
         int awake = -1;
+        EntityQuery playerQuery;
+        World playerWorld;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Create()
@@ -138,6 +156,7 @@ namespace Punchy.Fauna
             var clock = Shader.GetGlobalFloat(ClockId);
             double t = clock > 0f ? clock : Time.time;
             var eye = cam != null ? (float3)cam.transform.position : float3.zero;
+            var viewer = Viewer(eye);
             // The awake one: the nearest walker in view range, the only one moved every frame.
             var was = awake;
             awake = -1;
@@ -165,7 +184,7 @@ namespace Punchy.Fauna
                 if (i == awake || Time.time >= w.NextPose)
                 {
                     w.NextPose = Time.time + FarPeriod;
-                    Pose(w, source, t);
+                    Pose(w, source, t, viewer);
                     if (i == awake)
                     {
                         Footfall(w, eye);
@@ -195,6 +214,20 @@ namespace Punchy.Fauna
             var k = Time.time * 40f;
             shakeApplied = new Vector3(Mathf.PerlinNoise(k, 0.3f) - 0.5f, Mathf.PerlinNoise(0.7f, k) - 0.5f, Mathf.PerlinNoise(k, k * 0.5f) - 0.5f) * (2f * shakeAmp * fade);
             cam.transform.position += shakeApplied;
+        }
+
+        /// <summary>Where the local player stands (the camera when there is none yet).</summary>
+        float3 Viewer(float3 eye)
+        {
+            var world = World.DefaultGameObjectInjectionWorld;
+            if (world == null || !world.IsCreated)
+                return eye;
+            if (playerWorld != world)
+            {
+                playerWorld = world;
+                playerQuery = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<Punchy.Player.PlayerTag>(), ComponentType.ReadOnly<Unity.Transforms.LocalTransform>());
+            }
+            return playerQuery.CalculateEntityCount() == 1 ? playerQuery.GetSingleton<Unity.Transforms.LocalTransform>().Position : eye;
         }
 
         static bool TryGetSource(out TerrainSource source)
@@ -367,15 +400,43 @@ namespace Punchy.Fauna
                 w.Rigged = true;
                 w.Rig = ColossusRig.For(w.G.Kind, w.Root);
             }
-            w.Rig?.Animate(w.Pace, (float)(w.Distance / w.G.Stride), Settled(w.G, t, w.Offset), (float)(t % 3600.0));
+            if (w.Rig == null)
+                return;
+            w.Rig.Look = w.Look;
+            w.Rig.Animate(w.Pace, (float)(w.Distance / w.G.Stride), Settled(w.G, w.Own, w.Offset), (float)(t % 3600.0));
         }
 
         /// <summary>Where a walker stands at clock time t (no ground fit), for the host/client check.</summary>
         static float2 PlaceAt(Walker w, double t) => At(w, Walked(w.G, t, w.Offset, out _));
 
-        void Pose(Walker w, in TerrainSource source, double t)
+        /// <summary>
+        /// A-74: eases the walker's stop for a nearby player and keeps its own clock (Own = clock less Lag). Returns the
+        /// rate its own clock runs at this frame (0 stopped, 1 shared, above 1 catching up).
+        /// </summary>
+        static float Hold(Walker w, double t, float3 viewer)
+        {
+            var dt = double.IsNaN(w.Clock) ? 0f : (float)math.clamp(t - w.Clock, 0.0, 1.0);
+            w.Clock = t;
+            var gap = math.distance(viewer.xz, w.Position.xz);
+            if (w.Lag >= MaxLag - 0.01f)
+                w.Bored = true;
+            if (gap > w.G.Body + LookRange + 20f)
+                w.Bored = false;
+            var near = gap < w.G.Body + LookRange && !w.Bored;
+            w.Hold = math.saturate(w.Hold + (near ? dt : -dt) / HoldTime);
+            var rate = near || w.Hold > 0f ? 1f - w.Hold : w.Lag > 0f ? CatchUp : 1f;
+            w.Lag = math.clamp(w.Lag + (1f - rate) * dt, 0f, MaxLag);
+            w.Own = t - w.Lag;
+            return rate;
+        }
+
+        static float DeltaAngle(float a, float b) => math.atan2(math.sin(b - a), math.cos(b - a));
+
+        void Pose(Walker w, in TerrainSource source, double t, float3 viewer)
         {
             var g = w.G;
+            var rate = Hold(w, t, viewer);
+            t = w.Own;
             if (Phase != w.PhaseDone)
             {
                 // -walkerphase (shots only): move this walker's clock once so it is where the shot wants it in its cycle.
@@ -391,6 +452,12 @@ namespace Punchy.Fauna
             var ahead = At(w, w.Distance + 1.0) - At(w, w.Distance - 1.0);
             var fwd = math.normalizesafe(ahead, new float2(0f, 1f));
             w.Heading = math.atan2(fwd.x, fwd.y);
+            // A-74: slowed by the stop, and turned toward the player: the body takes most of it, the head the rest.
+            w.Pace *= math.min(rate, 1f);
+            var toward = viewer.xz - at;
+            var aim = math.lengthsq(toward) > 1f ? math.degrees(DeltaAngle(w.Heading, math.atan2(toward.x, toward.y))) * w.Hold : 0f;
+            var turn = math.clamp(aim * 0.6f, -BodyTurn, BodyTurn);
+            w.Look = math.clamp(aim - turn, -HeadTurn, HeadTurn);
             // Fit to the ground under its whole footprint: the mean height, tilted (a little) with the slope.
             var side = new float2(fwd.y, -fwd.x);
             var reach = g.Body * 0.5f;
@@ -403,7 +470,7 @@ namespace Punchy.Fauna
             var stride = (float)(w.Distance / g.Stride);
             var bob = -g.Bob * w.Pace * math.abs(math.sin(math.PI * (stride - math.floor(stride))));
             w.Position = new float3(at.x, ground + w.Sink + bob, at.y);
-            w.Root.SetPositionAndRotation(w.Position, Quaternion.Euler(0f, math.degrees(w.Heading), 0f) * Quaternion.Euler(pitch, 0f, roll));
+            w.Root.SetPositionAndRotation(w.Position, Quaternion.Euler(0f, math.degrees(w.Heading) + turn, 0f) * Quaternion.Euler(pitch, 0f, roll));
             StoneColossi.Positions[g.Slot] = new float3(at.x, ground, at.y);
         }
 
@@ -420,8 +487,9 @@ namespace Punchy.Fauna
             var foot2 = w.Position.xz + fwd * (w.G.Body * 0.4f) + side * (w.G.Body * 0.45f);
             var foot = new Vector3(foot2.x, StoneColossi.Positions[w.G.Slot].y + 0.5f, foot2.y);
             GameAudio.PlayOneShot(SoundId.StepRock, foot, 0.3f, w.Pace, 160f, SoundGroup.World);
-            Dust(foot, w.G.Body * 0.25f);
             var d = math.distance(eye, (float3)foot);
+            if (d < DustRange)
+                Dust(foot, w.G.Body * 0.25f);
             if (d < ShakeRange)
             {
                 var amp = w.G.Shake * (1f - d / ShakeRange) * (1f - d / ShakeRange) * w.Pace;
@@ -554,7 +622,7 @@ namespace Punchy.Fauna
                     check = $", host/client clocks {server:F2}/{client:F2} s, places {gap:F2} m apart";
                 }
                 Debug.Log($"ColossusWalker: {w.G.Kind}{(i == awake ? " (awake)" : "")} at ({w.Position.x:F1}, {w.Position.y:F1}, {w.Position.z:F1}), " +
-                          $"{w.Distance % w.Length:F0} of {w.Length:F0} m round, pace {w.Pace:F2}, heading {math.degrees(w.Heading):F0}, clock {t:F1} s{check}");
+                          $"{w.Distance % w.Length:F0} of {w.Length:F0} m round, pace {w.Pace:F2}, heading {math.degrees(w.Heading):F0}, hold {w.Hold:F2} lag {w.Lag:F1} s look {w.Look:F0}{(w.Bored ? " bored" : "")}, clock {t:F1} s{check}");
             }
             Debug.Log($"ColossusWalker: {CreatureBrainSystem.ColossusFlees.Data} creature flees from walking colossi so far");
         }

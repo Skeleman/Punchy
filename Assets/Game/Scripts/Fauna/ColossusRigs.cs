@@ -19,6 +19,8 @@ namespace Punchy.Fauna
     {
         protected readonly Transform root;
         bool awake;
+        /// <summary>A-74: how far (degrees, + to its right) the head turns toward the player, set by ColossusWalker each frame.</summary>
+        public float Look;
 
         protected ColossusRig(Transform root) => this.root = root;
 
@@ -313,7 +315,7 @@ namespace Punchy.Fauna
         protected override void Pose(float pace, float stride, float settle, float t)
         {
             // The trunk leans into the walk and rolls with the steps; a slow breeze on top.
-            trunk.localRotation = Quaternion.Euler(1.5f * pace + 0.4f * math.sin(t * 0.37f), 0f,
+            trunk.localRotation = Quaternion.Euler(1.5f * pace + 0.4f * math.sin(t * 0.37f), Look,
                                                    1.5f * pace * math.sin(math.PI * stride * 2f / 3f) + 0.4f * math.sin(t * 0.23f + 1f));
             // Each arm a pendulum of its own, wider while walking.
             for (int k = 0; k < arms.Count; k++)
@@ -356,6 +358,8 @@ namespace Punchy.Fauna
         };
 
         readonly List<Part> parts = new List<Part>();
+        readonly Transform head;
+        readonly Quaternion headRest;
         static readonly Vector3 Middle = new Vector3(0f, 30f, 0f);
 
         protected override bool Ready => parts.Count > 0;
@@ -372,6 +376,9 @@ namespace Punchy.Fauna
             Add("Head", 0, 0f, 0f, false, 1.6f);
             for (int k = 0; k < 7; k++)
                 Add("Shard" + k, 0, 0f, 0f, false, 3f);
+            head = root.Find("Head");
+            if (head != null)
+                headRest = head.localRotation;
         }
 
         void Add(string name, int side, float swing, float lift, bool arm, float drift)
@@ -381,10 +388,16 @@ namespace Punchy.Fauna
                 parts.Add(new Part { T = t, Side = side, Swing = swing, Lift = lift, Arm = arm, Drift = drift, Phase = parts.Count * 2.1f });
         }
 
-        protected override void Show(bool animated) { }
+        protected override void Show(bool animated)
+        {
+            if (!animated && head != null)
+                head.localRotation = headRest;
+        }
 
         protected override void Pose(float pace, float stride, float settle, float t)
         {
+            if (head != null)
+                head.localRotation = Quaternion.Euler(0f, Look, 0f) * headRest;   // A-74: turned toward the player
             if (pace <= 0f)
                 return;
             var phase = math.PI * stride;   // two footfalls a cycle, the left foot first
@@ -480,7 +493,7 @@ namespace Punchy.Fauna
             shell.localPosition = ShellAt + Vector3.up * (breath - Sink * settle);
             shell.localRotation = Quaternion.Euler(0f, 0f, 1.2f * pace * math.sin(phase));
             // The head nods with each step, sinks to the ground at rest, and looks slowly about either way.
-            head.localRotation = Quaternion.Euler(3f * pace * math.sin(2f * phase) + 4f * settle, 6f * math.sin(t * 0.13f), 0f);
+            head.localRotation = Quaternion.Euler(3f * pace * math.sin(2f * phase) + 4f * settle, 6f * math.sin(t * 0.13f) * (1f - math.saturate(math.abs(Look) / 10f)) + Look, 0f);
             // Diagonal pairs: front left with back right, then front right with back left.
             for (int k = 0; k < 4; k++)
             {
