@@ -37,7 +37,8 @@ namespace Punchy.Tests
         }
 
         /// <summary>
-        /// Target: REPORTS-animal (115 species): fingerprint 8726AADB (the animal branch; main 69ca891 reads 286E0A52). The fingerprint is of the species data the fauna
+        /// Target: REPORTS-animal A-68 row 2 (115 species): fingerprint C1D6A1EA on animal-behaviours (the bat folk look; it read
+        /// 8726AADB before, and main 69ca891 reads 286E0A52). The fingerprint is of the species data the fauna
         /// build bakes, so it reads the same wherever the player stands (the standard start spot here).
         /// </summary>
         [UnityTest, Order(2)]
@@ -45,7 +46,7 @@ namespace Punchy.Tests
         {
             var line = LogWatch.Last("fingerprint") ?? "no fingerprint line";
             LogWatch.Measure("fauna " + line);
-            StringAssert.Contains("fingerprint 8726AADB", line);
+            StringAssert.Contains("fingerprint C1D6A1EA", line);
             yield return null;
         }
 
