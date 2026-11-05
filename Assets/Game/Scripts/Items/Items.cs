@@ -142,6 +142,7 @@ namespace Punchy.Items
             instance.putArg = System.Array.IndexOf(args, "-putitem") >= 0;
             instance.takeArg = System.Array.IndexOf(args, "-takeitem") >= 0;
             instance.QuestArgs(args);
+            instance.CheckArgs(args);
         }
 
         bool Hosting => server != null && server.IsCreated && server.IsServer();
@@ -463,7 +464,10 @@ namespace Punchy.Items
                     var uid = em.GetComponentData<PickupRpc>(r).Uid;
                     var from = em.GetComponentData<ReceiveRpcCommandRequest>(r).SourceConnection;
                     if (Take(uid, out var it) && em.Exists(from))
+                    {
                         Send(em, from, new GrantRpc { Item = it.Item, Count = it.Count });
+                        Carry(PlayerId(em, from), it.Item, it.Count);   // (P-17: the host's tally)
+                    }
                     em.DestroyEntity(r);
                 }
             using (var q = em.CreateEntityQuery(typeof(DropRpc), typeof(ReceiveRpcCommandRequest)))
@@ -471,6 +475,7 @@ namespace Punchy.Items
                 foreach (var r in rs)
                 {
                     var d = em.GetComponentData<DropRpc>(r);
+                    Carry(PlayerId(em, em.GetComponentData<ReceiveRpcCommandRequest>(r).SourceConnection), d.Item, -d.Count);
                     Spawn(d.Item, d.Count, d.Pos);
                     em.DestroyEntity(r);
                 }
@@ -614,9 +619,15 @@ namespace Punchy.Items
                 return;
             var keyboard = Keyboard.current;
             var pad = Gamepad.current;
-            var toggle = keyboard != null && (keyboard.tabKey.wasPressedThisFrame || keyboard.iKey.wasPressedThisFrame) ||
-                         pad != null && pad.leftShoulder.wasPressedThisFrame;
-            if (toggle || panel && pad != null && pad.buttonEast.wasPressedThisFrame)
+            // (Any pad's LB / B, not only Gamepad.current: P-16's virtual pad wasn't current on its first press.)
+            bool padLB = false, padB = false;
+            foreach (var g in Gamepad.all)
+            {
+                padLB |= g.leftShoulder.wasPressedThisFrame;
+                padB |= g.buttonEast.wasPressedThisFrame;
+            }
+            var toggle = keyboard != null && (keyboard.tabKey.wasPressedThisFrame || keyboard.iKey.wasPressedThisFrame) || padLB;
+            if (toggle || panel && padB)
             {
                 panel = toggle && !panel;
                 nav.Reset();
@@ -655,17 +666,24 @@ namespace Punchy.Items
             padAt = padAt == 0f ? Time.realtimeSinceStartup + 45f : padAt;
             if (Time.realtimeSinceStartup < padAt)
                 return;
-            padAt = Time.realtimeSinceStartup + 0.35f;
+            padAt = Time.realtimeSinceStartup + 1f;   // (a second a step, so a shot can catch the panel open)
             // (A test window often isn't in front: let its input through anyway, as a real pad's would be when focused.)
             InputSystem.settings.backgroundBehavior = InputSettings.BackgroundBehavior.IgnoreFocus;
-            testPad ??= InputSystem.AddDevice<Gamepad>("InventoryTestPad");
+            if (testPad == null)
+            {
+                testPad = InputSystem.AddDevice<Gamepad>("InventoryTestPad");
+                // (P-16: a device added while the window isn't in front can come up disabled.)
+                InputSystem.EnableDevice(testPad);
+            }
             testPad.MakeCurrent();
-            GamepadButton[] script = { GamepadButton.LeftShoulder, GamepadButton.DpadRight, GamepadButton.DpadRight, GamepadButton.DpadRight, GamepadButton.South, GamepadButton.East };
+            GamepadButton[] script = { GamepadButton.LeftShoulder, GamepadButton.DpadRight, GamepadButton.DpadRight, GamepadButton.DpadLeft, GamepadButton.South, GamepadButton.East };
             var press = padStep % 2 == 0;
             var button = script[padStep / 2];
             InputSystem.QueueStateEvent(testPad, press ? new UnityEngine.InputSystem.LowLevel.GamepadState().WithButton(button) : new UnityEngine.InputSystem.LowLevel.GamepadState());
+            // (P-16: processed now, so this frame's actions and wasPressedThisFrame see it.)
+            InputSystem.Update();
             if (press)
-                Debug.Log($"Items: -invpad presses {button}");
+                Debug.Log($"Items: -invpad presses {button} (pad enabled {testPad.enabled}, current {Gamepad.current == testPad}, {button} down {testPad[button].isPressed})");
             if (++padStep >= script.Length * 2)
             {
                 padTest = false;
@@ -792,9 +810,12 @@ namespace Punchy.Items
                 return;
             if (prompt != null)
             {
-                promptStyle ??= new GUIStyle(GUI.skin.box) { fontSize = 20, alignment = TextAnchor.MiddleCenter };
-                var size = promptStyle.CalcSize(new GUIContent(prompt)) + new Vector2(24f, 10f);
-                GUI.Box(new Rect((Screen.width - size.x) * 0.5f, Screen.height * 0.72f, size.x, size.y), prompt, promptStyle);
+                // (P-16: long text, a quest's, wraps at 60% of the screen and the box grows to fit.)
+                promptStyle ??= new GUIStyle(GUI.skin.box) { fontSize = 20, alignment = TextAnchor.MiddleCenter, wordWrap = true, padding = new RectOffset(12, 12, 6, 6) };
+                var content = new GUIContent(prompt);
+                var width = Mathf.Min(promptStyle.CalcSize(content).x + 4f, Screen.width * 0.6f);
+                var height = promptStyle.CalcHeight(content, width);
+                GUI.Box(new Rect((Screen.width - width) * 0.5f, Screen.height * 0.72f, width, height), content, promptStyle);
             }
             if (!panel)
                 return;

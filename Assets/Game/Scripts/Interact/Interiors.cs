@@ -29,6 +29,7 @@ namespace Punchy.Interact
     /// own (their own body moves). Test flags: "-enterdoor N" (stand at door N, open it, go in), "-lamp" (switch the
     /// lamp 8 s after going in), "-leaveroom" (come back out 16 s after going in).
     /// </summary>
+    [DefaultExecutionOrder(1000)]   // (after WeatherSystem sets the sky's ambient each frame: see LateUpdate)
     public class Interiors : MonoBehaviour
     {
         struct Room
@@ -41,6 +42,7 @@ namespace Punchy.Interact
             public GameObject Root;
             public string Furniture;
             public bool HasShelf;
+            public bool HasHearth;
         }
 
         static Interiors instance;
@@ -280,6 +282,7 @@ namespace Punchy.Interact
                 DoorInside = new float3(centre.x, min.y + 0.05f, max.z - 1.0f),
                 Furniture = pieces.Count > 0 ? string.Join(", ", pieces) : "bare",
                 HasShelf = storage.Exists(x => x.StartsWith("shelf")),
+                HasHearth = pieces.Contains("hearth"),
             };
         }
 
@@ -505,6 +508,39 @@ namespace Punchy.Interact
                 leaveArg = false;
                 Leave();
             }
+        }
+
+        float indoors;
+        int ambientRoom = -1;
+        bool ambientLamp;
+
+        /// <summary>
+        /// P-16: a room's own light. Out in the open past the island, a room took the sky's ambient (WeatherSystem sets it
+        /// every frame), so it went bright at noon and black at night. Inside, the ambient blends (over 0.6 s) to a dim,
+        /// warm, steady colour, a little brighter with the lamp lit or a hearth; at the door it blends back to the sky's.
+        /// </summary>
+        void LateUpdate()
+        {
+            indoors = Mathf.MoveTowards(indoors, inRoom >= 0 ? 1f : 0f, Time.deltaTime / 0.6f);
+            if (indoors <= 0f)
+            {
+                ambientRoom = -1;
+                return;
+            }
+            var room = inRoom >= 0 ? inRoom : ambientRoom;
+            if (room < 0 || room >= rooms.Count)
+                return;
+            var lamp = lampsOn.Contains(room);
+            var warm = new Color(0.17f, 0.13f, 0.09f) + (lamp ? new Color(0.1f, 0.075f, 0.045f) : Color.clear) + (rooms[room].HasHearth ? new Color(0.05f, 0.03f, 0.01f) : Color.clear);
+            if (room != ambientRoom || lamp != ambientLamp)
+            {
+                (ambientRoom, ambientLamp) = (room, lamp);
+                Debug.Log($"Interiors: room {room}'s own ambient ({warm.r:F2}, {warm.g:F2}, {warm.b:F2}){(lamp ? ", lamp lit" : "")}{(rooms[room].HasHearth ? ", hearth" : "")}");
+            }
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
+            RenderSettings.ambientSkyColor = Color.Lerp(RenderSettings.ambientSkyColor, warm * 1.1f, indoors);
+            RenderSettings.ambientEquatorColor = Color.Lerp(RenderSettings.ambientEquatorColor, warm, indoors);
+            RenderSettings.ambientGroundColor = Color.Lerp(RenderSettings.ambientGroundColor, warm * 0.7f, indoors);
         }
 
         void OnGUI()
