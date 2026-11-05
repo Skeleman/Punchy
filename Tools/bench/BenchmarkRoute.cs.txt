@@ -228,6 +228,18 @@ namespace Punchy.Debugging
             var t = 0f;
             frameMs.Clear(); cpuMs.Clear(); gpuMs.Clear(); mainMs.Clear(); renderMs.Clear(); hitchLines = 0; phase = name;
             TurnOff();
+            PassesOff();
+            // The render counters only exist once something has rendered: made in Start they stayed invalid, so (re)made here.
+            if (!drawCalls.Valid)
+            {
+                drawCalls.Dispose(); batches.Dispose(); setPass.Dispose(); shadowCasters.Dispose(); tris.Dispose();
+                drawCalls = ProfilerRecorder.StartNew(ProfilerCategory.Render, "Draw Calls Count");
+                batches = ProfilerRecorder.StartNew(ProfilerCategory.Render, "Batches Count");
+                setPass = ProfilerRecorder.StartNew(ProfilerCategory.Render, "SetPass Calls Count");
+                shadowCasters = ProfilerRecorder.StartNew(ProfilerCategory.Render, "Shadow Casters Count");
+                tris = ProfilerRecorder.StartNew(ProfilerCategory.Render, "Triangles Count");
+                Debug.Log($"BenchRoute: render counters remade, valid {drawCalls.Valid}");
+            }
             lightsMax = 0; lightsTotal = 0; drawTotal = 0; batchTotal = 0; setPassTotal = 0; shadowTotal = 0; triTotal = 0;
             var settle = Settle;   // waitCaves: pushed on while cave chunks are queued or building, up to MaxCaveSettle
             var caves = waitCaves ? FindAnyObjectByType<CaveSystem>() : null;
@@ -312,6 +324,70 @@ namespace Punchy.Debugging
                     }
             if (off.Count > 0)
                 Debug.Log("BenchRoute: off " + string.Join(",", off));
+        }
+
+        /// <summary>-benchnoshadows / -benchnopost: the main camera drawn without shadows / post-processing, to split the
+        /// GPU frame by pass where the GPU recorders read nothing (D3D11): the stop's gpu ms against a plain run.</summary>
+        static void PassesOff()
+        {
+            var args = System.Environment.GetCommandLineArgs();
+            var cam = Camera.main;
+            var data = cam != null ? cam.GetComponent<UnityEngine.Rendering.Universal.UniversalAdditionalCameraData>() : null;
+            if (data == null)
+                return;
+            if (System.Array.IndexOf(args, "-benchnoshadows") >= 0 && data.renderShadows)
+            {
+                data.renderShadows = false;
+                Debug.Log("BenchRoute: off camera shadows");
+            }
+            if (System.Array.IndexOf(args, "-benchnopost") >= 0 && data.renderPostProcessing)
+            {
+                data.renderPostProcessing = false;
+                Debug.Log("BenchRoute: off camera post-processing");
+            }
+            // -benchnocopies: no opaque colour / depth texture copies for this camera (what the water and soft particles read).
+            if (System.Array.IndexOf(args, "-benchnocopies") >= 0)
+            {
+                data.requiresColorOption = UnityEngine.Rendering.Universal.CameraOverrideOption.Off;
+                data.requiresDepthOption = UnityEngine.Rendering.Universal.CameraOverrideOption.Off;
+                Debug.Log("BenchRoute: off camera opaque and depth textures");
+            }
+            // -benchnolights: every light but the directional ones off (lamps, torches, fires: what distance lights would cull).
+            if (System.Array.IndexOf(args, "-benchnolights") >= 0)
+            {
+                var n = 0;
+                foreach (var light in FindObjectsByType<Light>(FindObjectsSortMode.None))
+                    if (light.enabled && light.type != LightType.Directional)
+                    {
+                        light.enabled = false;
+                        n++;
+                    }
+                Debug.Log($"BenchRoute: off {n} non-directional lights");
+            }
+            // -benchnoshader Water,Grass: every loaded material whose shader name contains one of these drawn with no
+            // forward pass (nor shadow caster), so its share of the GPU frame shows against a plain run.
+            var shaderArg = System.Array.IndexOf(args, "-benchnoshader");
+            if (shaderArg >= 0 && shaderArg + 1 < args.Length)
+            {
+                var parts = args[shaderArg + 1].Split(',');
+                var hit = new List<string>();
+                foreach (var m in Resources.FindObjectsOfTypeAll<Material>())
+                {
+                    if (m == null || m.shader == null)
+                        continue;
+                    foreach (var part in parts)
+                        if (part.Length > 0 && m.shader.name.Contains(part))
+                        {
+                            m.SetShaderPassEnabled("UniversalForward", false);
+                            m.SetShaderPassEnabled("UniversalForwardOnly", false);
+                            m.SetShaderPassEnabled("SRPDefaultUnlit", false);
+                            m.SetShaderPassEnabled("ShadowCaster", false);
+                            hit.Add(m.name);
+                            break;
+                        }
+                }
+                Debug.Log($"BenchRoute: off shaders {args[shaderArg + 1]}: {hit.Count} materials ({string.Join(",", hit)})");
+            }
         }
 
         // -benchgpupasses (Development builds): GPU time of every marker that samples the GPU (the render passes),
