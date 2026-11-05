@@ -69,7 +69,9 @@ namespace Punchy.Debugging
         /// </summary>
         // A-69 "-rockwatch SECONDS": once a second, every cave dweller within 60 m of the player whose body (half a metre
         // up from its feet) is inside rock, under the cave roof or the ground; logged per check and in total at the end.
-        static float rockWatchFor, rockWatchSince = -1f, rockWatchNext, batFolkPlaceUntil;
+        static float rockWatchFor, rockWatchSince = -1f, rockWatchNext, batFolkPlaceUntil, propPlaceUntil;
+        // (#137: "-place prop:" waits for the flora placement blob, which comes after the island.)
+        static string propPlaceRequest;
         static int rockWatchChecks, rockWatchHits, rockWatchSeen;
         static readonly HashSet<uint> rockWatchStuck = new HashSet<uint>();
 
@@ -263,6 +265,14 @@ namespace Punchy.Debugging
             {
                 batFolkPlaceUntil = 0f;
                 rockWatchSince = -1f; // (-rockwatch counts from there.)
+            }
+            // (#137: "-place prop:" again each frame until the flora placement is built; a warning if it never is.)
+            if (propPlaceRequest != null && EnsureLocations(out var propRetry) && PlaceByProp(propRetry, propPlaceRequest))
+                propPlaceRequest = null;
+            else if (propPlaceRequest != null && Time.unscaledTime >= propPlaceUntil)
+            {
+                Debug.LogWarning($"DebugControls: -place prop:{propPlaceRequest} gave up, the flora placement never came up");
+                propPlaceRequest = null;
             }
             RockWatch();
             Pose();
@@ -1549,6 +1559,7 @@ namespace Punchy.Debugging
             flyPending = null;
             rockWatchFor = 0f;
             rockWatchSince = -1f;
+            propPlaceRequest = null;
             untilWork = 0f;
             untilAction = 0f;
             pendingSpawns.Clear();
@@ -1874,8 +1885,11 @@ namespace Punchy.Debugging
                     batFolkPlaceUntil = EnsureLocations(out var batSource) && PlaceAtBatFolk(batSource) ? 0f : Time.unscaledTime + 60f;
                 else if (args[i] == "-place" && args[i + 1].StartsWith("tree:", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var treeSource))
                     PlaceByTree(treeSource, args[i + 1].Substring(5));
-                else if (args[i] == "-place" && args[i + 1].StartsWith("prop:", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var propSource))
-                    PlaceByProp(propSource, args[i + 1].Substring(5));
+                else if (args[i] == "-place" && args[i + 1].StartsWith("prop:", System.StringComparison.OrdinalIgnoreCase))
+                {
+                    propPlaceRequest = args[i + 1].Substring(5);
+                    propPlaceUntil = Time.unscaledTime + 60f;
+                }
                 else if (args[i] == "-place" && args[i + 1].StartsWith("cavestream", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var streamSource))
                     PlaceByCaveStream(streamSource, args[i + 1].Substring(10));
                 else if (args[i] == "-place" && args[i + 1].StartsWith("riverfall", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var fallSource))
@@ -3885,11 +3899,12 @@ namespace Punchy.Debugging
         /// "prop:Bench@115,-401" (or "prop:Bench@115,-401#2") measures from that point instead of the player. For lining
         /// up shots: the logged spot, height and front go straight into -camlook.
         /// </summary>
-        void PlaceByProp(in TerrainSource source, string spec)
+        /// Returns false while the flora placement isn't built yet (the caller tries again), true once handled.
+        bool PlaceByProp(in TerrainSource source, string spec)
         {
             var director = FindAnyObjectByType<FaunaDirector>();
             if (director == null || !director.FloraPlacementBlob.IsCreated || !playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
-                return;
+                return false;
             var pick = 1;
             var hash = spec.IndexOf('#');
             if (hash >= 0)
@@ -3915,7 +3930,7 @@ namespace Punchy.Debugging
             if (index < 0)
             {
                 Debug.LogWarning($"DebugControls: no plant species '{spec}'");
-                return;
+                return true;
             }
             ref var flora = ref director.FloraPlacementBlob.Value;
             var first = flora.Rules[index].FirstModel;
@@ -3993,7 +4008,7 @@ namespace Punchy.Debugging
             if (found.Count == 0)
             {
                 Debug.LogWarning($"DebugControls: no {spec} found");
-                return;
+                return true;
             }
             var origin = from;
             found.Sort((a, b) => math.distance(a.at.xz, origin).CompareTo(math.distance(b.at.xz, origin)));
@@ -4016,6 +4031,7 @@ namespace Punchy.Debugging
             var eye = new Vector3(eyeXZ.x, math.max(source.SampleHeight(eyeXZ), chosen.at.y) + 1.5f + chosen.height * 0.4f, eyeXZ.y);
             PoseCamera(eye, Quaternion.LookRotation((Vector3)chosen.at + Vector3.up * chosen.height * 0.45f - eye));
             Debug.Log(System.FormattableString.Invariant($"DebugControls: framing {spec} #{pick} from ({eye.x:F1}, {eye.y:F1}, {eye.z:F1})"));
+            return true;
         }
 
         /// <summary>For PlaceByProp: the plant in a cell, kept if it's one of the species' models and not already listed.</summary>
