@@ -628,7 +628,36 @@ namespace Punchy.Terrain
                     plot.Building = PickBuilding(plot.Role);
                     plots[p] = plot;
                 }
+                PlaceStyle();
                 PlaceShelters();
+            }
+
+            /// <summary>
+            /// W-95 (#69): a settlement seeded into its layout's house style (HouseStyleChance) swaps every house plot's
+            /// building for one of the style's houses, each picked by a hash of the plot. Done after the layout with its
+            /// own hashes (no rng is drawn), so plots, roles and landmarks never move.
+            /// </summary>
+            void PlaceStyle()
+            {
+                if (layout.HouseStyleChance <= 0f)
+                    return;
+                var styled = new List<int>();
+                for (int i = 0; i < layout.Buildings.Count; i++)
+                {
+                    var b = layout.Buildings[i];
+                    if (b.Role == PlotRole.House && b.Species != null && !string.IsNullOrEmpty(b.Style))
+                        styled.Add(i);
+                }
+                if (styled.Count == 0 || BiomeSampling.Scramble(inst.Key ^ 0x57A1E5u) / 4294967296f >= layout.HouseStyleChance)
+                    return;
+                for (int p = firstPlot; p < plots.Count; p++)
+                {
+                    var plot = plots[p];
+                    if (plot.Role != PlotRole.House)
+                        continue;
+                    plot.Building = firstBuilding + styled[(int)(BiomeSampling.Scramble(inst.Key * 0x9E3779B9u ^ (uint)p) % (uint)styled.Count)];
+                    plots[p] = plot;
+                }
             }
 
             /// <summary>
@@ -661,6 +690,7 @@ namespace Punchy.Terrain
                         continue;
                     var plot = plots[houses[next]];
                     plot.Building = firstBuilding + i;
+                    plot.Pad -= StructureKit.SlabDig;   // W-95 (#69): a slab shelter stands dug in; the pad's bank is its ramp
                     plots[houses[next++]] = plot;
                 }
             }
@@ -688,7 +718,7 @@ namespace Punchy.Terrain
                     return layout.WaterFeature != null ? firstBuilding + layout.Buildings.Count : -1;
                 var total = 0f;
                 foreach (var b in layout.Buildings)
-                    if (b.Role == role && b.Species != null && (b.OnlyIn == null || b.OnlyIn.Count == 0))
+                    if (b.Role == role && b.Species != null && (b.OnlyIn == null || b.OnlyIn.Count == 0) && string.IsNullOrEmpty(b.Style))
                         total += b.Weight;
                 if (total <= 0f)
                     return -1;
@@ -696,7 +726,7 @@ namespace Punchy.Terrain
                 for (int i = 0; i < layout.Buildings.Count; i++)
                 {
                     var b = layout.Buildings[i];
-                    if (b.Role != role || b.Species == null || (b.OnlyIn != null && b.OnlyIn.Count > 0))
+                    if (b.Role != role || b.Species == null || (b.OnlyIn != null && b.OnlyIn.Count > 0) || !string.IsNullOrEmpty(b.Style))
                         continue;
                     roll -= b.Weight;
                     if (roll <= 0f)
