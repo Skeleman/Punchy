@@ -667,6 +667,10 @@ namespace Punchy.Fauna
                 // through rock as well as anyone. #10.)
                 if (b.Blind)
                     alert *= playerSpeed < 2.5f ? 0.45f : 1f;
+                // (Bat folk covering their eyes from a light (#35) see nothing: they stand and cover rather than bolt
+                // from the lantern that dazzled them, and only someone running up, or a step right by them, startles them. A-68.)
+                else if (s.Action == IdleAction.ShieldEyes)
+                    alert *= playerSpeed < 2.5f ? 0.2f : 1f;
                 else if (playerSpeed < 2.5f)
                     alert *= math.dot(facing, math.normalizesafe(-away)) < 0.3f ? 0.1f : 0.5f;
                 // Danger is judged by real distance, so high overhead is far: a player flying over the herd doesn't
@@ -866,14 +870,13 @@ namespace Punchy.Fauna
                     s.Timer = 40f;
                 }
 
-                // Bat folk (#35): a light coming near breaks off what it was doing, so Decide (DecideShield) has it
-                // cover its face at once rather than when its timer runs out.
+                // Bat folk (#35): a light coming near breaks off what it was doing, to cover its face at once
+                // (DecideShield) rather than when its timer runs out.
                 if (b.ShunsLight && s.Action != IdleAction.ShieldEyes && s.Held != HeldItem.Goggles &&
-                    (Free(s.Mode) || s.Mode == CreatureMode.Work) && !(s.Mode == CreatureMode.Idle && s.Timer <= 0.6f) && LightNear(in s))
-                {
-                    SetMode(ref s, CreatureMode.Idle);
-                    s.Timer = 0f;
-                }
+                    (Free(s.Mode) || s.Mode == CreatureMode.Work) && !(s.Mode == CreatureMode.Idle && s.Timer <= 0.6f))
+                    // (Straight into the cover, not via Decide next tick: a moment idle and facing the light, it would
+                    // see the player and bolt instead. A-68.)
+                    DecideShield(ref s, ref b, ref rng);
 
                 if (b.RaidsHives)
                     M.ChaseCooldown = math.max(M.ChaseCooldown - dt, 0f);
@@ -881,17 +884,48 @@ namespace Punchy.Fauna
 
             /// <summary>
             /// For bat folk (#35): a light near enough to dazzle it. Under the rock, a player within 6 m (their lantern
-            /// lights by itself underground); out in the open, the day. (Fires and others' torches aren't looked for.)
+            /// lights by itself underground); out in the open, the day. Anywhere, a fire (a hearth or a camp's pit) or
+            /// another creature's torch or lantern within FireGlare (A-68).
             /// </summary>
-            bool LightNear(in CreatureState s)
+            bool LightNear(in CreatureState s, ref CreatureBlob b)
             {
-                if (!underRock)
-                    return Night < 0.5f;
-                for (int p = 0; p < Players.Length; p++)
-                    if (math.distancesq(Players[p], s.Position) < 36f)
+                // (Below: for bat folk, cave dwellers, whether they're below the ground here. A-68.)
+                var under = Below(s, ref b);
+                if (!under && Night < 0.5f)
+                    return true;
+                if (under)
+                    for (int p = 0; p < Players.Length; p++)
+                        if (math.distancesq(Players[p], s.Position) < 36f)
+                            return true;
+                if (Terrain.Anchors.IsCreated)
+                {
+                    ref var set = ref Terrain.Anchors.Value;
+                    var fires = new NativeList<int>(2, Allocator.Temp);
+                    Anchors.Near(ref set, s.Position, FireGlare, AnchorKind.Hearth, ref fires);
+                    Anchors.Near(ref set, s.Position, FireGlare, AnchorKind.Camp, ref fires);
+                    if (fires.Length > 0)
                         return true;
+                }
+                var c = Cell(s.Position.xz);
+                for (int z = -1; z <= 1; z++)
+                for (int x = -1; x <= 1; x++)
+                {
+                    if (!Grid.TryGetFirstValue(c + new int2(x, z), out var j, out var it))
+                        continue;
+                    do
+                    {
+                        var o = States[j];
+                        if ((o.Held == HeldItem.Torch || o.Held == HeldItem.Lantern) && !o.Gone &&
+                            math.distancesq(o.Position, s.Position) < FireGlare * FireGlare)
+                            return true;
+                    }
+                    while (Grid.TryGetNextValue(out j, ref it));
+                }
                 return false;
             }
+
+            /// <summary>How near a fire or a carried flame dazzles a light shunner (m, A-68).</summary>
+            const float FireGlare = 4f;
 
             /// <summary>CreatureMode.Idle: talking, reading a message, or standing about until it decides on something.</summary>
             void Idling(Entity self, ref CreatureState s, ref CreatureBlob b, int species, ref Random rng, float dt, float walk, float idleLook, bool perched, float3 player, ref float targetSpeed, ref bool moving, ref float desiredLook)
@@ -992,6 +1026,9 @@ namespace Punchy.Fauna
                         s.Target = CaveEscape(s, s.Focus, ref rng);
                         s.StageTime = 0f;
                     }
+                    // (A-68: and it calms down like any other once nothing's after it; it used to run on for good.)
+                    else if (!threatened && (s.ModeTime > 3f || math.distance(s.Position.xz, s.Target) < 1.5f))
+                        Pause(ref s, ref b, ref rng);
                 }
                 else if (threatened && math.distance(s.Position.xz, s.Target) < 2f)
                     s.Target = s.Position.xz + math.normalizesafe(s.Position.xz - s.Focus, new float2(1f, 0f)) * 30f;
@@ -1343,8 +1380,11 @@ namespace Punchy.Fauna
                 // else their own tool, a staff or a stick or empty hands (by a hash of the individual), put down to sleep.
                 else if (b.ShunsLight && b.Hands)
                 {
+                    // (Bringing goods down from the surface, a sack held to the chest: DecideChamberChores.)
                     var tool = ((s.Individual >> 9) % 3u) switch { 0u => HeldItem.Staff, 1u => HeldItem.Stick, _ => HeldItem.None };
-                    s.Held = !underRock && Night < 0.5f ? HeldItem.Goggles
+                    if (s.Mode == CreatureMode.Wander && s.Stage == CarryGoods)
+                        tool = HeldItem.OreSack;
+                    s.Held = !Below(s, ref b) && Night < 0.5f ? HeldItem.Goggles
                            : s.Mode != CreatureMode.Sleep && s.Mode != CreatureMode.Rest ? tool : HeldItem.None;
                 }
                 else if (b.Blind && b.Hands)

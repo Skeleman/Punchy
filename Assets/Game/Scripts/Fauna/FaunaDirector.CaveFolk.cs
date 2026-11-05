@@ -12,8 +12,11 @@ namespace Punchy.Fauna
     /// each goggle peg, a roost keeper under each hut, a tanner at each drying rack, a forager at each basket, a fisher
     /// at its white pool). Band size and who takes which post come from a hash of the chamber's key, never the
     /// director's rng, so the other spawns keep their draws and the same chamber has the same band on every machine.
-    /// The blind cave pygmies, who had the chambers before the bat folk came, keep one band in the largest chamber of
-    /// a cave with no bat folk.
+    /// The blind cave pygmies share each chamber with the bat folk (#35, Zach 11-04): a small band of their own, homed in
+    /// the chamber's wall niches once the world lane places them (else round its middle), who tend the pool and forage
+    /// the floor while the bat folk bring goods down from the surface (CreatureBrainSystem.DecideChamberChores).
+    /// Homes are found by prop kind name (HomeKind), so this builds before and after W-96 adds them: "Pod" (a bat folk
+    /// ceiling pod, its keeper standing under it, ahead of the hammocks) and "Niche" (a pygmy wall niche).
     /// </summary>
     public partial class FaunaDirector
     {
@@ -88,8 +91,11 @@ namespace Punchy.Fauna
                     }
                 }
             }
-            // The props by job, in their baked order: hammocks (homes) and goggle pegs first, so each has a keeper.
-            var kinds = new[] { BatFolkPropKind.Hammock, BatFolkPropKind.GogglePeg, BatFolkPropKind.Hut, BatFolkPropKind.Rack, BatFolkPropKind.Basket };
+            // The props by job, in their baked order: homes (ceiling pods, when the world has them, then hammocks) and goggle
+            // pegs first, so each has a keeper. (A pod's keeper stands under it, like a hut's.)
+            var kinds = PodKind >= 0
+                ? new[] { (BatFolkPropKind)PodKind, BatFolkPropKind.Hammock, BatFolkPropKind.GogglePeg, BatFolkPropKind.Hut, BatFolkPropKind.Rack, BatFolkPropKind.Basket }
+                : new[] { BatFolkPropKind.Hammock, BatFolkPropKind.GogglePeg, BatFolkPropKind.Hut, BatFolkPropKind.Rack, BatFolkPropKind.Basket };
             var next = new int[kinds.Length];
             var any = true;
             while (chamberPosts.Count < band && any)
@@ -105,21 +111,22 @@ namespace Punchy.Fauna
                         // A hut hangs from the roof: its keeper stands on the floor under it. A rack or basket's worker
                         // stands a little off it, on the side toward the chamber's middle.
                         var inward = math.normalizesafe(s.Centre.xz - p.Position.xz);
-                        var at = p.Kind == BatFolkPropKind.Hut ? p.Position : p.Position + new float3(inward.x * 0.7f, 0.4f, inward.y * 0.7f);
+                        var hung = p.Kind == BatFolkPropKind.Hut || (int)p.Kind == PodKind;
+                        var at = hung ? p.Position : p.Position + new float3(inward.x * 0.7f, 0.4f, inward.y * 0.7f);
                         next[k]++;
                         var stand = float3.zero;
                         var found = false;
-                        // (Under a hut: a few drops below its anchor, clear of the pod and short of the floor.)
+                        // (Under a hut or pod: a few drops below its anchor, clear of the pod and short of the floor.)
                         for (int d = 0; d < 4 && !found; d++)
-                            found = ChamberFloor(source, at - new float3(0f, p.Kind == BatFolkPropKind.Hut ? 0.6f + d * 1.5f : d * 0.3f, 0f), out stand);
+                            found = ChamberFloor(source, at - new float3(0f, hung ? 0.6f + d * 1.5f : d * 0.3f, 0f), out stand);
                         if (!found)
                             continue;
                         chamberPosts.Add(new ChamberPost
                         {
                             Stand = stand,
-                            Face = p.Kind == BatFolkPropKind.Hut ? s.Centre.xz : p.Position.xz,
-                            // (A hammock's keeper is its sleeper: the roost keeper's job, at home.)
-                            Job = p.Kind == BatFolkPropKind.Hammock ? FolkJob.RoostKeeper : FolkJobs.BatJob(p.Kind)
+                            Face = hung ? s.Centre.xz : p.Position.xz,
+                            // (A home's keeper is its sleeper: the roost keeper's job, at home.)
+                            Job = p.Kind == BatFolkPropKind.Hammock || (int)p.Kind == PodKind ? FolkJob.RoostKeeper : FolkJobs.BatJob(p.Kind)
                         });
                         any = true;
                         break;
@@ -187,72 +194,62 @@ namespace Punchy.Fauna
                         em.SetComponentData(e, state);
                     });
                 }
+                SpawnPygmies(source, i);
             }
-            SpawnPygmyBand(source);
         }
 
-        // The pygmies' chamber (a node index, -2 = not looked for yet, -1 = none), and whether their band is out.
-        int pygmyNode = -2;
-        bool pygmiesOut;
+        // The home kinds the world lane adds in W-96 (bat folk ceiling pods, pygmy wall niches), by name, so this builds
+        // with or without them: -1 while the enum has no such kind.
+        static readonly int PodKind = HomeKind("Pod"), NicheKind = HomeKind("Niche");
+
+        static int HomeKind(string name) => System.Enum.TryParse<BatFolkPropKind>(name, out var k) ? (int)k : -1;
 
         /// <summary>
-        /// The largest chamber node of a cave with no bat folk site in its box, or -1. Seed-derived, so every machine
-        /// picks the same one.
+        /// The pygmies' share of a chamber: 2 or 3 of them (seeded by the chamber, apart from the bat folk's draws), each
+        /// homed at one of the chamber's wall niches in turn when it has any (standing at its mouth), else round the
+        /// chamber's middle. Fills chamberPosts with their homes; returns the band size.
         /// </summary>
-        static int PygmyChamber(in TerrainSource source)
+        int PlanPygmies(in TerrainSource source, int site)
         {
-            ref var caves = ref source.Caves.Value;
             ref var bats = ref source.BatFolk.Value;
-            int best = -1;
-            for (int c = 0; c < caves.Caves.Length; c++)
+            var s = bats.Sites[site];
+            var band = 2 + (int)((BiomeSampling.Scramble(s.Key ^ 0x51ED270Bu) >> 5) % 2u);
+            chamberPosts.Clear();
+            if (NicheKind < 0)
+                return band;
+            for (int i = 0; i < bats.Props.Length && chamberPosts.Count < band; i++)
             {
-                var cave = caves.Caves[c];
-                var batty = false;
-                for (int i = 0; i < bats.Sites.Length && !batty; i++)
-                    batty = math.all(bats.Sites[i].Centre >= cave.Min) && math.all(bats.Sites[i].Centre <= cave.Max);
-                if (batty)
+                ref var p = ref bats.Props[i];
+                if (p.Site != site || (int)p.Kind != NicheKind)
                     continue;
-                for (int n = cave.FirstNode; n < cave.FirstNode + cave.NodeCount; n++)
-                    if (caves.Kinds[n] == CaveNodeKind.Chamber && (best < 0 || caves.Nodes[n].Radius > caves.Nodes[best].Radius))
-                        best = n;
+                // (A niche's opening faces +Z by its yaw: its sleeper stands just out of the mouth, on the floor below
+                // any ledge.)
+                var mouth = new float2(math.sin(p.Yaw), math.cos(p.Yaw));
+                var at = p.Position + new float3(mouth.x, 0f, mouth.y) * (p.Size.y + 0.5f) + new float3(0f, 0.4f, 0f);
+                if (ChamberFloor(source, at, out var stand) || ChamberFloor(source, at - new float3(0f, p.Size.z, 0f), out stand))
+                    chamberPosts.Add(new ChamberPost { Stand = stand, Face = p.Position.xz, Job = FolkJob.None });
             }
-            return best;
+            return band;
         }
 
-        /// <summary>Spawns the pygmy band in its chamber once a player comes near; forgets it once every player is well away.</summary>
-        void SpawnPygmyBand(in TerrainSource source)
+        /// <summary>Spawns a chamber's pygmy band (after its bat folk, so theirs keep their draws), homed by PlanPygmies.</summary>
+        void SpawnPygmies(in TerrainSource source, int site)
         {
             var sp = ChamberFolkIndex(false);
             if (sp < 0 || sp == ChamberFolkIndex(true))
                 return;
-            if (pygmyNode == -2)
-            {
-                pygmyNode = PygmyChamber(source);
-                if (pygmyNode >= 0)
-                    Debug.Log($"[cavefolk] {species[sp].name} band moved to the chamber at {source.Caves.Value.Nodes[pygmyNode].Position} (no bat folk there)");
-            }
-            if (pygmyNode < 0 || pygmyNode >= source.Caves.Value.Nodes.Length)
-                return;
-            var node = source.Caves.Value.Nodes[pygmyNode];
-            var near = NearestPlayer(node.Position.xz);
-            if (pygmiesOut)
-            {
-                pygmiesOut = near <= DespawnDistance + 20f;
-                return;
-            }
-            if (near > Radius || caveCount >= MaxCave)
-                return;
-            pygmiesOut = true;
-            var r = new Unity.Mathematics.Random(BiomeSampling.Scramble((uint)pygmyNode ^ 0x51ED270Bu) | 1u);
-            var g = species[sp].Body.GroupSize;
-            var band = math.max(1, g.x) + r.NextInt(0, math.max(1, g.y - g.x + 1));
-            var home = node.Position.xz;
-            var leash = math.max(node.Radius, 6f);
+            var s = source.BatFolk.Value.Sites[site];
+            var band = PlanPygmies(source, site);
+            var r = new Unity.Mathematics.Random(BiomeSampling.Scramble(s.Key ^ 0x3A7F19C5u) | 1u);
             for (int k = 0; k < band && caveCount < MaxCave; k++)
             {
-                var off = r.NextFloat2Direction() * r.NextFloat(0.5f, math.max(1f, node.Radius * 0.5f));
-                if (!ChamberFloor(source, node.Position + new float3(off.x, 0f, off.y), out var start) && !ChamberFloor(source, node.Position, out start))
+                var homed = k < chamberPosts.Count;
+                var at = homed ? chamberPosts[k].Stand : s.Centre;
+                var off = r.NextFloat2Direction() * r.NextFloat(0.5f, homed ? 1.5f : math.max(1f, s.Radius * 0.5f));
+                if (!ChamberFloor(source, at + new float3(off.x, 0.4f, off.y), out var start) && !ChamberFloor(source, at + new float3(0f, 0.4f, 0f), out start))
                     continue;
+                var home = homed ? chamberPosts[k].Stand.xz : start.xz;
+                var leash = math.max(s.Radius, 6f);
                 Enqueue(sp, start, SpawnTier.Cave, e =>
                 {
                     var em = simWorld.EntityManager;
@@ -280,14 +277,24 @@ namespace Punchy.Fauna
             if (math.all(key == bandsLogged))
                 return;
             bandsLogged = key;
-            int members = 0;
+            int members = 0, pygmies = 0, niched = 0;
             var jobs = new Dictionary<FolkJob, int>();
+            var pyg = ChamberFolkIndex(false);
+            var shared = pyg >= 0 && pyg != sp;
             for (int i = 0; i < bats.Sites.Length; i++)
             {
                 members += PlanChamber(source, i, species[sp]);
                 foreach (var p in chamberPosts)
                     jobs[p.Job] = (jobs.TryGetValue(p.Job, out var had) ? had : 0) + 1;
+                if (shared)
+                {
+                    pygmies += PlanPygmies(source, i);
+                    niched += chamberPosts.Count;
+                }
             }
+            if (shared)
+                Debug.Log($"[cavefolk] {species[pyg].name} share the chambers: {bats.Sites.Length} bands, {pygmies} in all, {niched} homed at wall niches " +
+                          $"(home kinds: Pod {(PodKind >= 0 ? "yes" : "not yet")}, Niche {(NicheKind >= 0 ? "yes" : "not yet")})");
             var text = new System.Text.StringBuilder();
             foreach (var kv in jobs)
                 text.Append($" {kv.Key} {kv.Value}");

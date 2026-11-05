@@ -103,7 +103,8 @@ namespace Punchy.Fauna
             /// urgent   Greet        friendly, a person near its range, awake                   35% + lonely 60%     Greet
             /// urgent   Roost        roosting species                                           always               StartRoost / NightLoop
             /// urgent   Burrow       burrower in its sleeping time with sleep weight            has or digs one      Burrow
-            /// weighted Work         posted task                                                6 day, 10 night*     Work   (*0 for day work)
+            /// urgent   Chores       pygmy under the rock / bat folk on the surface, awake      45% / 60%            pool or forage Work / carry goods home
+            /// weighted Work         posted task                                               6 day, 10 night*     Work   (*0 for day work)
             /// weighted Home         townsfolk with a door (not the watch)                      14 night, 0.15 day   Home
             /// weighted Hunt         prey found (fierce enough)                                 hunger x2.5 (x1.5 near) Hunt
             /// weighted Play         kin to play with                                           play x2 x lonely     Play
@@ -154,6 +155,9 @@ namespace Punchy.Fauna
                 // (Only the fierce ones of a species with a hunting threshold: a dog chases hares if it's aggressive, #50.)
                 if (b.Prey.Length > 0 && b.Hunger > 0f && sleepy < 0.5f && CreaturePersonality.WillHunt(ref b, s.Individual))
                     FindPrey(self, ref s, ref b, flier ? 60f : 35f, out prey);
+                // (A pygmy's chore is one stint, not a post: done with it, it isn't drawn back to the spot or kept up at night.)
+                if (b.Blind && b.CaveDweller && b.Hands && s.Mode != CreatureMode.Work)
+                    s.Task = CreatureTask.None;
                 var w = new FixedList64Bytes<float>();
                 w.Length = (int)Weighted.Count;
                 var wander = Weights(ref s, ref b, ref w, sleepy, awake, flier, perched, playmate, prey, out var awayFromNest);
@@ -191,7 +195,7 @@ namespace Punchy.Fauna
                                          w[(int)Weighted.Web] + w[(int)Weighted.Fly] + w[(int)Weighted.Home] + w[(int)Weighted.Swim] +
                                          w[(int)Weighted.Lounge] + w[(int)Weighted.Surface]);
                 if (DecideGreet(ref s, ref b, ref rng, sleepy, player) || DecideRoost(ref s, ref b, ref rng, sleepy) ||
-                    DecideBurrow(ref s, ref b, ref rng, sleepy, w[(int)Weighted.Sleep]))
+                    DecideBurrow(ref s, ref b, ref rng, sleepy, w[(int)Weighted.Sleep]) || DecideChamberChores(ref s, ref b, ref rng, sleepy))
                     return;
 
                 // ---- weighted
@@ -284,7 +288,7 @@ namespace Punchy.Fauna
                 w[(int)Weighted.Fly] = fly;
                 // Bat folk now and then walk up out of their cave (#35): goggles on by day (UpdateHeld), bare at night.
                 // (Last in the roll's sum and 0 for everyone else, so their draws are unchanged.)
-                w[(int)Weighted.Surface] = b.SurfaceTrips > 0f && underRock && sleepy < 0.5f ? b.SurfaceTrips * 0.5f * awake : 0f;
+                w[(int)Weighted.Surface] = b.SurfaceTrips > 0f && Below(s, ref b) && sleepy < 0.5f ? b.SurfaceTrips * 0.5f * awake : 0f;
                 return wander;
             }
 
@@ -295,13 +299,63 @@ namespace Punchy.Fauna
             /// </summary>
             bool DecideShield(ref CreatureState s, ref CreatureBlob b, ref Random rng)
             {
-                if (!b.ShunsLight || s.Held == HeldItem.Goggles || !LightNear(in s))
+                if (!b.ShunsLight || s.Held == HeldItem.Goggles || !LightNear(in s, ref b))
                     return false;
                 SetMode(ref s, CreatureMode.Idle);
                 s.Action = IdleAction.ShieldEyes;
                 s.ActionTime = 0f;
                 s.ActionLength = rng.NextFloat(3f, 6f);
                 s.Timer = 0.5f;
+                return true;
+            }
+
+            /// <summary>Wander's stage for a bat folk carrying surface goods home (DecideChamberChores; a sack in UpdateHeld).</summary>
+            public const byte CarryGoods = 110;
+
+            /// <summary>
+            /// The chamber folk's shared round (#35): bat folk and blind pygmies live in one chamber. A pygmy awake under the
+            /// rock now and then tends the chamber's pool (a fisher at its rim, from FindCaveWater) or forages the floor near
+            /// its home; a bat folk up on the surface heads home with goods (a sack, once out of the sun: UpdateHeld). Only
+            /// cave dwellers with hands draw here, so every other creature's choices are unchanged.
+            /// </summary>
+            bool DecideChamberChores(ref CreatureState s, ref CreatureBlob b, ref Random rng, float sleepy)
+            {
+                if (!b.Hands || !b.CaveDweller || sleepy >= 0.5f || s.Leash <= 0f)
+                    return false;
+                var below = Below(s, ref b);
+                if (b.Blind && below)
+                {
+                    var chore = rng.NextFloat();
+                    if (chore < 0.25f && FindCaveWater(ref s, ref b, ref rng, out var shore, out var water))
+                        return StartChore(ref s, ref rng, CreatureTask.Fish, FolkJob.PoolFisher, shore, water);
+                    if (chore < 0.45f)
+                    {
+                        var spot = s.Home + rng.NextFloat2Direction() * rng.NextFloat(1f, math.clamp(s.Leash * 0.6f, 1.5f, 8f));
+                        if (CaveFloor(spot, s.Position.y))
+                            return StartChore(ref s, ref rng, CreatureTask.Tend, FolkJob.Forager, spot, spot + rng.NextFloat2Direction());
+                    }
+                    return false;
+                }
+                if (b.ShunsLight && !below && rng.NextFloat() < 0.6f)
+                {
+                    SetMode(ref s, CreatureMode.Wander);
+                    s.Target = s.Home;
+                    s.Stage = CarryGoods;
+                    s.Timer = rng.NextFloat(90f, 150f);
+                    return true;
+                }
+                return false;
+            }
+
+            /// <summary>A chore as a short stint of work at a spot (its task and job for the pose), done when the timer runs out.</summary>
+            static bool StartChore(ref CreatureState s, ref Random rng, CreatureTask task, FolkJob job, float2 spot, float2 face)
+            {
+                SetMode(ref s, CreatureMode.Work);
+                s.Task = task;
+                s.Job = (byte)job;
+                s.WorkSpot = spot;
+                s.WorkFace = face;
+                s.Timer = rng.NextFloat(30f, 80f);
                 return true;
             }
 
