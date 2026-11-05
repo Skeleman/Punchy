@@ -264,6 +264,41 @@ namespace Punchy.Debugging
 
         public static string WorstAnyCulture;
 
+        /// <summary>
+        /// A-69: switches the player's body to a playable species by asset name, as the Character tab does, and returns
+        /// the body it had ("" for none). A switch mid-session is saved as next session's body: put the old one back
+        /// with SetBody, then the saved pick with PutBodyPref(BodyPref() read before).
+        /// </summary>
+        public static string SetBody(string name)
+        {
+            var avatars = Object.FindAnyObjectByType<Punchy.Net.NetAvatars>();
+            var director = Object.FindAnyObjectByType<FaunaDirector>();
+            var was = director != null && director.PlayerSpecies != null ? director.PlayerSpecies.name : "";
+            if (avatars != null)
+                avatars.SetLocalSpecies(avatars.PlayableSpecies.FindIndex(s => s != null && s.name == name));
+            return was;
+        }
+
+        const string BodyPrefKey = "Punchy.Character.Body";
+
+        public static string BodyPref() => PlayerPrefs.GetString(BodyPrefKey, "");
+
+        public static void PutBodyPref(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+                PlayerPrefs.DeleteKey(BodyPrefKey);
+            else
+                PlayerPrefs.SetString(BodyPrefKey, name);
+            PlayerPrefs.Save();
+        }
+
+        /// <summary>The player's body flies (PlayerBody.Flies).</summary>
+        public static bool BodyFlies()
+        {
+            using var q = EM.CreateEntityQuery(ComponentType.ReadOnly<PlayerBody>());
+            return q.TryGetSingleton<PlayerBody>(out var body) && body.Flies;
+        }
+
         static List<Regex> Templates(DialogueArchive.Culture c)
         {
             var list = new List<Regex>();

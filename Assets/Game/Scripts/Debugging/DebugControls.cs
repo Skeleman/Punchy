@@ -1735,6 +1735,8 @@ namespace Punchy.Debugging
                     rockWatchFor = rockSeconds;
                     rockWatchSince = -1f;
                 }
+                if (args[i] == "-flyhitch" && int.TryParse(args[i + 1], out var hitchMs))
+                    flyHitchMs = hitchMs;
                 if (args[i] == "-flycave" && EnsureLocations(out var flySource))
                     StartFlyCave(flySource, args[i + 1]);
                 if (args[i] == "-place" && args[i + 1].StartsWith("batfolk", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var batSource))
@@ -2185,6 +2187,9 @@ namespace Punchy.Debugging
         /// <summary>The climb out (a steep, fast climb away over new ground, where chunks stream in): its frames, and frames on the wing but held still.</summary>
         static readonly List<float2> flyClimb = new();
         static int flyClimbHeld;
+        /// <summary>"-flyhitch MS": a main-thread stall this long every 45 frames of a climb (a chunk load's hitch on
+        /// Ultra, which the editor's capped frames never show), and climb frames that fell off the wing.</summary>
+        static int flyHitchMs, flyClimbFrame, flyClimbDropped;
         static float flyAfterUntil;
         static string flyExitPre;
         static float3 flyLastPos;
@@ -2344,6 +2349,9 @@ namespace Punchy.Debugging
             {
                 flyClimb.Add(new float2(ms, speed));
                 flyClimbHeld += motion.Flying && speed < 1f ? 1 : 0;
+                flyClimbDropped += motion.Flying ? 0 : 1;
+                if (flyHitchMs > 0 && ++flyClimbFrame % 45 == 0)
+                    System.Threading.Thread.Sleep(flyHitchMs);
             }
             var target = flyRoute[flyLeg];
             var to = target - at;
@@ -2365,9 +2373,9 @@ namespace Punchy.Debugging
                 {
                     flyClimbs++;
                     Debug.Log($"DebugControls: flycave climb {flyClimbs}: {FlyWindow(flyClimb)}, {flyClimbHeld} frames on the wing held under 1 m/s, " +
-                              $"{(reached ? "reached" : "TIMED OUT")}");
+                              $"{flyClimbDropped} off the wing, hitch {flyHitchMs} ms, {(reached ? "reached" : "TIMED OUT")}");
                     flyClimb.Clear();
-                    flyClimbHeld = 0;
+                    flyClimbHeld = flyClimbDropped = flyClimbFrame = 0;
                 }
                 if (flyLeg % flyCycleLength == flyMouthOut)
                 {

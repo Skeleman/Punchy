@@ -117,5 +117,43 @@ namespace Punchy.Tests
             Shots.Take("test-rain-deer");
             yield return TestSceneSetup.Weather(false);
         }
+
+        /// <summary>
+        /// A-69 (Zach: control lost flying fast up out of a cave as a crow on Ultra, while land streams in): the player
+        /// as a crow flies cave 0 to its chamber and out, then climbs 30 m away over new ground with a 700 ms stall every
+        /// 45 frames (a chunk load's hitch). The climb must stay on the wing and reach its point. Last, as it
+        /// moves the player and changes the body (put back after, with the saved pick).
+        /// </summary>
+        [UnityTest, Order(7)]
+        public IEnumerator Player_CrowFliesOutOfCaveThroughHitches()
+        {
+            var pref = Game.Hook<string>("BodyPref");
+            var was = Game.Hook<string>("SetBody", "Crow");
+            var start = Time.realtimeSinceStartup;
+            while (!Game.Hook<bool>("BodyFlies") && Time.realtimeSinceStartup - start < 15f)
+                yield return null;
+            var flies = Game.Hook<bool>("BodyFlies");
+            var before = LogWatch.Last("flycave DONE");
+            if (flies)
+            {
+                Game.RunOptions("-flyhitch 700 -flycave 1");
+                start = Time.realtimeSinceStartup;
+                while (LogWatch.Last("flycave DONE") == before && Time.realtimeSinceStartup - start < 240f)
+                    yield return null;
+            }
+            var done = LogWatch.Last("flycave DONE");
+            var climb = LogWatch.Last("flycave climb") ?? "no climb line";
+            Game.RunOptions("-flyhitch 0");
+            Game.Hook<string>("SetBody", was);
+            yield return TestSceneSetup.Seconds(1f);
+            Game.Hook<object>("PutBodyPref", pref);
+            LogWatch.Measure($"crow cave flight: {done}; {climb}");
+            Assert.IsTrue(flies, "the crow body never flew");
+            Assert.AreNotEqual(before, done, "the flight never finished");
+            // (The cave legs are measured, not asserted: at a crow's 14 m/s it can overshoot the mouth and land on the
+            // hill above it now and then; the climb out through the hitches is what must hold.)
+            StringAssert.Contains(" 0 off the wing", climb);
+            StringAssert.Contains("reached", climb);
+        }
     }
 }
