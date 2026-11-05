@@ -2440,3 +2440,20 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
 - Landmark hash (game log): v3 110 landmarks, 12D60044, against 109 before. The change is the extra village and the moved one. The suite's Landmarks_V3 is repinned in row 3 along with the stilt house move.
 - v2: hash 95EAB5B4, unchanged.
 - Shot: Assets/Temp/shots/w105-2-wharf-above.png (village (368, -613) with its wharf; the stilt houses are still on the bank).
+
+## W-105 row 5: shadow cascades by preset, 69f1a66
+
+- GraphicsSettings.cs picks the cascade count from the Shadows setting: Low 2, Medium 3, High and Ultra 4. A custom setting gets the nearest preset's count (2 below 0.8, 3 below 1.2, otherwise 4). The shadow distance still scales with the setting as before.
+- Runtime only: the count goes on the running pipeline and is put back on quit, as the distance already was. The URP asset and QualitySettings are untouched; the asset reads 3 after play. Describe() now names the count, e.g. "(Medium, 3 cascades)".
+- The only change in behaviour is High and Ultra going from 3 to 4 cascades. Low already had 2 and Medium 3.
+- Shots, same forest view (SparklingForest near (-1000, -400), 14:00): Assets/Temp/shots/w105-5-Low.png, -Medium, -High, -Ultra (each also has an -800 copy). Each preset also changes the view and detail ranges, so the tree counts differ between shots.
+- Render ms, editor play mode, uncapped, 400 frames, two rounds (frame ms / GPU ms):
+
+  | Preset | Frame ms | GPU ms | Shadow casters |
+  |---|---|---|---|
+  | Low | 5.2 / 8.3 | 1.7 | 124 |
+  | Medium | 6.9 / 6.3 | 2.3 | 217 |
+  | High | 7.9 / 8.5 | 2.9-3.0 | 341 |
+  | Ultra | 15.1 / 11.3 | 4.1-6.8 | 535 |
+
+- High with 3 cascades against 4, A/B twice: 9.1 / 8.6 ms against 8.8 / 8.9 ms. The 4th cascade's cost is within noise here.
