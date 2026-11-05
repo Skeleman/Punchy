@@ -2113,3 +2113,14 @@ Race pressure and kind at the player (pressure is 0..1):
   - Storm: Bat, Caribou, Crow, Ptarmigan and Wolf rise to 0.31-0.41 (Wind).
 - Note: `-place Tundra` matches no landmark, so I used Glacier for the snowy night.
 - No exceptions.
+
+## A-71 row 2: shelter seeking (commit abc9669)
+
+- Uncomfortable creatures (meter > 0.3; 8 searches a frame cap, 20-40 s retry) walk (hurry over pressure 0.6) to the nearest shelter that helps their complaint and that they like: door eaves or indoors (storm and cold always indoors), tree foot, well/pool/shore, hearth/camp fire (half-weighted distance when cold), cave mouth. Fliers roost. Wait facing out (animals lie down), leave when the open-sky pressure < 0.05 or after 90-240 s. Workers break off at meter > 0.55.
+- Count, human village (2972,-885) in a forced storm at noon: sheltered at 30 s 6 (roof 5, tree 1), 13 on the way; at ~70 s 18 (roof 13, tree 5), 13 of them indoors. Humans' complaint there: Storm 0.61-0.72.
+- Fish folk x8 spawned at DesertSpring (3531,-1122), 13:00, clear: kind Hot, 7 at the water within ~45 s. Shot: a71-fishfolk-desert (one standing in the spring).
+- Ogres at OgreCamp, midnight, SnowShowers: the camp is warm (felt 0.52 > their 0.42 min), so only Snow (they took eaves/trees). With the debug cold snap -comfortheat -0.3 (forced, says so): kind Cold, 1 ogre at a fire, others indoors/eaves. Shot: a71-ogre-fire-snow (ogre with torch by the fire's glow, snowing).
+- Humans in rain: shot a71-human-rain is weak (a Baker on the way to shelter in the plaza). That village is hot, so their complaint is Hot, not Rain.
+- Bat folk at noon: not shot. They only exist in their underground chamber (cave 5), where sky terms don't apply, and -spawn puts cave dwellers on cave floors only. The profile (bright 1.0, seeks shade/caves/trees/roofs) is in place for when they come up.
+- Not done: rock shadow and overhangs as shelter.
+- Debug tool bug (pre-existing): -place NAME resolves against the first (v1) island's landmarks, so it lands in stale spots. Use -goto x,z.
