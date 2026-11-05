@@ -11,9 +11,10 @@ namespace Punchy.Fauna
         /// A-71 row 2 counters (Interlocked from the brain's workers): searches this frame (capped, reset each frame),
         /// and running totals of shelters set off for, arrived at, searches that found none and weather poses struck (row 3).
         /// </summary>
-        public static readonly SharedStatic<ShelterCounts> Shelters = SharedStatic<ShelterCounts>.GetOrCreate<ShelterCountsKeyV2>();
-        struct ShelterCountsKeyV2 { }
-        public struct ShelterCounts { public int ThisFrame; public long Started, Arrived, NotFound, Indoors, Posed; }
+        public static readonly SharedStatic<ShelterCounts> Shelters = SharedStatic<ShelterCounts>.GetOrCreate<ShelterCountsKeyV3>();
+        struct ShelterCountsKeyV3 { }
+        /// <summary>(Rock: of those started, how many went to a big rock's lee or overhang, A-72 row 6.)</summary>
+        public struct ShelterCounts { public int ThisFrame; public long Started, Arrived, NotFound, Indoors, Posed, Rock; }
         /// <summary>At most this many shelter searches a frame, over every creature (each looks up trees, anchors, caves).</summary>
         const int ShelterSearchesPerFrame = 8;
 
@@ -47,6 +48,7 @@ namespace Punchy.Fauna
                 var kind = ShelterNeed.None;
                 float2 target = default, focus = default;
                 var indoors = false;
+                var rockShelter = false;
 
                 // A door: in, or under its eaves facing out (eaves shade too).
                 if ((wanted & (ShelterNeed.Roof | ShelterNeed.Shade)) != 0 && b.Comfort.Race != ComfortRace.None)
@@ -90,6 +92,34 @@ namespace Punchy.Fauna
                         indoors = false;
                     }
                 }
+                // A big rock (A-72 row 6): in its lee, out of the wind and the driven rain, or in its shade; a tall one
+                // with an overhang, tucked in close under it. Out of rain and wind it's worth a longer walk than a
+                // dripping tree.
+                if ((wanted & (ShelterNeed.Tree | ShelterNeed.Cave | ShelterNeed.Shade)) != 0 && HasFlora && !b.Burrows &&
+                    FindRock(at, 30f, math.max(1.2f, (b.StandHeight + b.FrontRadius) * s.Scale), out var rock, out var rockRadius, out var rockHeight))
+                {
+                    ref var grid = ref Comfort.Grid.Data;
+                    var weathered = M.DiscomfortKind is ComfortKind.Rain or ComfortKind.Snow or ComfortKind.Storm or ComfortKind.Wind;
+                    // (The lee is downwind; in the sun, any side: the side it came from.)
+                    var lee = weathered && math.lengthsq(grid.WindDirection) > 0.5f
+                        ? grid.WindDirection
+                        : math.normalizesafe(at - rock, new float2(0f, 1f));
+                    lee = math.normalizesafe(lee + new float2(-lee.y, lee.x) * rng.NextFloat(-0.4f, 0.4f), lee);
+                    var overhang = rockHeight > 2.5f && rockRadius > 1f;
+                    var clear = BodyRadius(s, ref b) + b.BodyLength * 0.25f * s.Scale + (overhang ? 0.15f : 0.35f);
+                    var spot = rock + lee * (rockRadius + clear);
+                    var d = math.distance(at, spot) * (weathered ? 0.8f : 1f);
+                    if (d < best)
+                    {
+                        best = d;
+                        target = spot;
+                        focus = spot + lee * 5f;
+                        kind = (wanted & ShelterNeed.Tree) != 0 ? ShelterNeed.Tree
+                             : (wanted & ShelterNeed.Cave) != 0 ? ShelterNeed.Cave : ShelterNeed.Shade;
+                        indoors = false;
+                        rockShelter = true;
+                    }
+                }
                 // Water: a well or pool, else the shore.
                 if ((wanted & ShelterNeed.Water) != 0)
                 {
@@ -116,6 +146,7 @@ namespace Punchy.Fauna
                             target = spot;
                             focus = toward;
                             kind = ShelterNeed.Water;
+                            rockShelter = false;
                             indoors = false;
                         }
                     }
@@ -139,6 +170,7 @@ namespace Punchy.Fauna
                             target = spot;
                             focus = flame;
                             kind = ShelterNeed.Fire;
+                            rockShelter = false;
                             indoors = false;
                         }
                     }
@@ -162,6 +194,7 @@ namespace Punchy.Fauna
                             target = spot;
                             focus = mouth - inward * 5f;
                             kind = ShelterNeed.Cave;
+                            rockShelter = false;
                             indoors = false;
                         }
                     }
@@ -170,6 +203,8 @@ namespace Punchy.Fauna
                 if (kind == ShelterNeed.None)
                     return false;
                 System.Threading.Interlocked.Increment(ref Shelters.Data.Started);
+                if (rockShelter)
+                    System.Threading.Interlocked.Increment(ref Shelters.Data.Rock);
                 if (indoors)
                 {
                     System.Threading.Interlocked.Increment(ref Shelters.Data.Indoors);
@@ -183,6 +218,47 @@ namespace Punchy.Fauna
                 s.TargetHeight = (float)kind;
                 s.Timer = rng.NextFloat(90f, 240f);
                 return true;
+            }
+
+            /// <summary>
+            /// A big solid rock near a point to shelter by (A-72 row 6): a boulder, tor, standing stone or hoodoo at least
+            /// <paramref name="minHeight"/> tall and 0.7 m through, as placed (FloraPlacement.Place on the tree layer, where
+            /// they grow; no buildings, which have walls instead, and no trees). The cells in reach ring by ring out to
+            /// three, stopping at the first ring with one; the nearest found wins. Its middle, radius and height.
+            /// </summary>
+            bool FindRock(float2 near, float radius, float minHeight, out float2 rock, out float rockRadius, out float rockHeight)
+            {
+                rock = default;
+                rockRadius = rockHeight = 0f;
+                ref var f = ref Flora.Value;
+                var cellSize = f.CellSizes[FloraPlacement.TreeLayer];
+                var centre = (int2)math.floor(near / cellSize);
+                // Rocks are few, so a sample can miss the one in reach: every cell, nearest rings first, at most 7x7.
+                var rings = math.min((int)math.ceil(radius / cellSize), 3);
+                var best = float.MaxValue;
+                for (int r = 0; r <= rings && best == float.MaxValue; r++)
+                    for (int dz = -r; dz <= r; dz++)
+                    for (int dx = -r; dx <= r; dx++)
+                    {
+                        if (math.max(math.abs(dx), math.abs(dz)) != r)
+                            continue;
+                        var plant = FloraPlacement.Place(ref f, Terrain, centre + new int2(dx, dz), FloraPlacement.TreeLayer);
+                        if (plant.Model < 0 || plant.Model >= f.Models.Length)
+                            continue;
+                        var shape = f.Models[plant.Model];
+                        if (shape.Kind != TreeKind.None || shape.ObstacleCount > 0)
+                            continue;
+                        var height = shape.Height * plant.Scale;
+                        var thick = shape.TrunkRadius * plant.Scale;
+                        var d = math.distance(plant.Position.xz, near);
+                        if (height < minHeight || thick < 0.7f || d > radius || d >= best)
+                            continue;
+                        best = d;
+                        rock = plant.Position.xz;
+                        rockRadius = thick;
+                        rockHeight = height;
+                    }
+                return best < float.MaxValue;
             }
 
             /// <summary>

@@ -331,6 +331,7 @@ namespace Punchy.Debugging
             ChatShot();
             RemoteRoll();
             ColossusShot();
+            WalkerShot();
             MantrapShot();
             MimicShot();
         }
@@ -702,6 +703,25 @@ namespace Punchy.Debugging
                 Debug.Log($"DebugControls: colossus at ({at.x:F0}, {at.z:F0}): nearest settlement {near:F0} m away at ({nearAt.x:F0}, {nearAt.y:F0}), of {towns.Settlements.Length}");
             }
             Debug.Log($"DebugControls: colossus shot from {d:F0} m: camera ({eye.x:F0}, {eye.y:F0}, {eye.z:F0}) looking at ({target.x:F0}, {target.y:F0}, {target.z:F0})");
+        }
+
+        /// <summary>
+        /// A-72: "-walkershot Saguaro,80[,side|front|back]": the camera follows that walking colossus from that far off
+        /// (ColossusWalker.ShotPose), with the player moved to stand there when more than 40 m away, so the ground streams in.
+        /// </summary>
+        void WalkerShot()
+        {
+            if (ColossusWalker.Shot == null || !ColossusWalker.ShotPose(ColossusWalker.Shot, out var eye, out var rotation, out var stand))
+                return;
+            PoseCamera(eye, rotation);
+            if (!playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
+                return;
+            var em = queryWorld.EntityManager;
+            var t = em.GetComponentData<LocalTransform>(player);
+            if (math.distance(t.Position.xz, stand.xz) <= 40f)
+                return;
+            t.Position = stand;
+            em.SetComponentData(player, t);
         }
 
         /// <summary>
@@ -1086,7 +1106,7 @@ namespace Punchy.Debugging
                       $"off {Comfort.Off.Data}: {groups.Count} species");
             var counts = CreatureBrainSystem.Shelters.Data;
             Debug.Log($"[comfort] sheltered {sheltered} (roof {covered[0]} tree {covered[1]} water {covered[2]} fire {covered[3]} shade {covered[4]} " +
-                      $"cave {covered[5]}) going {going} | started {counts.Started} indoors {counts.Indoors} arrived {counts.Arrived} none found {counts.NotFound} posed {counts.Posed}");
+                      $"cave {covered[5]}) going {going} | started {counts.Started} indoors {counts.Indoors} arrived {counts.Arrived} none found {counts.NotFound} posed {counts.Posed} rock {counts.Rock}");
             // Every folk race's profile at the player's spot (the same five individuals each), whether or not any are near:
             // one line per race, mean pressure and the commonest complaint (the card's 5 races x 3 scenes).
             if (director != null && QueriesLive() && playerQuery.TryGetSingleton<LocalTransform>(out var me) && EnsureLocations(out var ground))
@@ -1702,6 +1722,11 @@ namespace Punchy.Debugging
             var mtArg = System.Array.IndexOf(args, "-mantrapshot");
             mantrapShotMode = mtArg >= 0 && mtArg + 1 < args.Length ? args[mtArg + 1] : null;
             DunesColossus.FrameLog = System.Array.IndexOf(args, "-framelog") >= 0;
+            // A-72: "-walkershot Saguaro,80,side" frames a walking colossus (see WalkerShot).
+            var wsArg = System.Array.IndexOf(args, "-walkershot");
+            ColossusWalker.Shot = wsArg >= 0 && wsArg + 1 < args.Length ? args[wsArg + 1] : null;
+            var wpArg = System.Array.IndexOf(args, "-walkerphase");
+            ColossusWalker.Phase = wpArg >= 0 && wpArg + 1 < args.Length ? args[wpArg + 1] : null;
             var colArg = System.Array.IndexOf(args, "-colossusshot");
             colossusShotDistance = colArg >= 0 && colArg + 1 < args.Length && float.TryParse(args[colArg + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var cd) ? cd : 0f;
             // "-huntlog": log land hunters' chases (Z-53).
