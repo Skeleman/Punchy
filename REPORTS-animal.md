@@ -2196,3 +2196,11 @@ Human (Human, Dramatic) waiting Storm cell (94,-28) [1 up in cell]: Run for your
   Mean: on 0.483, off 0.470, so +0.013 ms.
 - Result: the added cost is under 0.05 ms at both places, far below the 0.5 ms bar.
 - Seen in the [comfort] log: in the town, folk went indoors (indoors 19, roof 10 at the end). At village 3, every shelter was a tree (roof 0) and "none found" kept climbing (20, then 42). Its huts gave the folk there no door to take.
+
+## A-71 suite and fingerprint (0722b22)
+
+- Suite 12/12 pass (217 s) on animal-behaviours with main 6d89525 merged in.
+- Fauna fingerprint **EA6A4DE5** (was 2E01A16B; the comfort profiles). WorldTests retargeted.
+- Landmarks 107 14D92F64: the new main baseline from W-98, not from A-71.
+- FolkTalk WalkBy_NeverThroughWall failed once ("1 through a wall"). A real A-71 interaction, not flake: folk now head indoors out of rain/cold, sometimes right after a weather line, and the line rode them through the wall. Fix: lines already up drop once a kit wall comes between speaker and player (FolkTalkSystem). Rerun: 17 up, 0 through a wall, 805 held back.
+- Follow test: dog 7.2 m off at start, 4.9 m behind at walk end, 2.7 m after 6 s.
