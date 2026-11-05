@@ -2288,3 +2288,26 @@ Human (Human, Dramatic) waiting Storm cell (94,-28) [1 up in cell]: Run for your
   - The flora keep-out widened to each loop.
 - The rigs are all in `Fauna/ColossusRigs.cs`. New debug arg: `-walkerphase`.
 - My editor is closed.
+
+## A-72 merge of main (#148, #149, #150) into animal-behaviours (77bd6b3)
+- Merge 8d82fa9 brought in #148 and #149; merge 77bd6b3 brought in #150.
+- DebugControls.cs conflict: both sides had fixed #137 (`-place prop:` waits for the flora lookup). I kept main's `PlacePropPending` and dropped the branch's copy of the retry. `-walkershot` and `-walkerphase` are kept. The file is still LF.
+- Suite on 77bd6b3, with my editor closed: 13 passed, 0 failed (263 s). Both baselines match main's:
+  - Fauna_Fingerprint: 1202B8ED
+  - Landmarks_V3: 109 C96F266F
+- The walkers still walk on main's terrain:
+  - Golem loop: 245 m. Saguaro loop: 286 m. Tortoise loop: 255 m.
+  - The rigs build, and the shot merge-golem2 shows the golem walking with its rocks drifting.
+- **The walkers fight ColossusCollision (not fixed, as asked).**
+  - Cause: `ColossusCollision.Register` samples each colossus into fixed world-space columns once, when StoneColossi builds it, before the walkers start. The columns never follow the root.
+  - In play, the column centres stay at their build spots while the roots move:
+
+    | Walker | Column centre (build spot) | Root (live) | Root off the column centre |
+    |---|---|---|---|
+    | Golem | (705, -328) | (706, -364) | about 36 m (reach 34 m) |
+    | Saguaro | (2937, -1697) | (2867, -1675) | about 73 m (reach 53 m) |
+    | Tortoise | (-1503, -2767) | (-1531, -2748) | about 34 m (reach 44 m) |
+
+  - Effect: an invisible solid footprint stays at each build spot, the walking body has no collision for most of its loop, and ColossusPushSystem pushes creatures out of empty air.
+  - Possible fix: store the columns relative to the root and transform them by the root's pose each frame, or re-register while walking. This needs a world-lane decision, since ColossusCollision.cs is world-lane code.
+- My editor is closed.
