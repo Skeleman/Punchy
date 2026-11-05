@@ -246,18 +246,11 @@ namespace Punchy.Terrain
             }
         }
 
-        /// <summary>
-        /// Anchors for people living rough, owned by the landmark, for types that ask (LandmarkType.Anchors).
-        /// A campsite: a Camp at its fire facing the landmark's way (towards the road; Capacity its beds), a Hearth, a Bed
-        /// on each bedroll it places (feet towards the fire: they face the centre), and a Sit on each seat.
-        /// A hermit's place: Home inside the hut (the placed building that faces the centre), its Door 0.6 m out from the
-        /// door itself, a Work spot by the woodpile facing it, the Garden, a Hearth at the fire in the middle and a Sit on
-        /// each seat. Placed props only: their spots are known, where scattered ones are not.
-        /// </summary>
         /// <summary>W-104 (#36): a placed kit house or stilt house that folk live in (a fishing village's homes).</summary>
         static bool FolkHouse(Punchy.Flora.FloraSpecies s) =>
             s != null && s.Form == Punchy.Flora.FloraForm.KitBuilding && (s.KitShape == KitShape.House || s.KitShape == KitShape.StiltHouse);
 
+        /// <summary>Whether a landmark type places folk houses facing its centre, so it gets Home and Door anchors.</summary>
         static bool HasFolkHouses(LandmarkType type)
         {
             foreach (var prop in type.Props)
@@ -266,6 +259,14 @@ namespace Punchy.Terrain
             return false;
         }
 
+        /// <summary>
+        /// Anchors for people living rough, owned by the landmark, for types that ask (LandmarkType.Anchors).
+        /// A campsite: a Camp at its fire facing the landmark's way (towards the road; Capacity its beds), a Hearth, a Bed
+        /// on each bedroll it places (feet towards the fire: they face the centre), and a Sit on each seat.
+        /// A hermit's place: Home inside the hut (the placed building that faces the centre), its Door 0.6 m out from the
+        /// door itself, a Work spot by the woodpile facing it, the Garden, a Hearth at the fire in the middle and a Sit on
+        /// each seat. Placed props only: their spots are known, where scattered ones are not.
+        /// </summary>
         static void AddWildAnchors(in TerrainSource source, IReadOnlyList<LandmarkType> types, List<Anchor> anchors)
         {
             ref var set = ref source.Landmarks.Value;
