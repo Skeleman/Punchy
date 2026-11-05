@@ -2405,3 +2405,19 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
   - w104-36-wharf-above2: village (-4041, 921), a one-branch L.
   - Village (-3144, -1596) shows no wharf at its spot (on river water, dropped by W-91).
 - Landmark hash: see the suite result in the final row-5 entry. Landmark positions are unchanged; only drawing and anchors changed. The fauna fingerprint may move because of the new anchors.
+
+## W-104 row 5: cobble roads (#39), 8623d53
+
+- Paved layouts now lay cobbles only through the centre. Those are the human village and mining camp (Cobbles) and the dwarf hold and mining camp (Flagstones).
+- From about 0.35 to 0.6 of the town radius, streets and the roads leaving town fade to packed earth: no cobble pattern, browner, duller, a few pebbles. The fade edge is ragged with noise.
+- Only surface sampling changed (SettlementData.Ground). Street layout and the road bake are unchanged. Unpaved layouts look the same as before.
+- Shots: Assets/Temp/shots/w104-39-fade-above.png (human town at (2972, -885), looking out along the main road; cobbles fade to earth) and w104-39-fade-eye.png.
+- Road bake: about 650 ms (`[bake] stages`, roads 649-652 in v3 editor runs, 697 in the suite). Unchanged, since the bake isn't touched.
+- Island-ready time, editor play mode, audit off:
+  - v3: 6.1 / 6.1 s. On budget.
+  - v2: 5.7 / 5.7 s. This is 0.2 s over the 5.5 s from W-103. Bake was 4502-4553 ms against 4339-4485 then, while three other Unity editors were busy on the machine. Neither row adds bake work, so I read this as load, not a regression. Worth one re-measure on a quiet machine.
+- Suite on v3 at 684dcdc (with the repin): 13/13 passed.
+  - Landmarks_V3: 109 C96F266F, unchanged after row 4.
+  - Fauna_Fingerprint: F99FD9E4 -> 1202B8ED, from row 4's Home/Door anchors. I repinned it in WorldTests.cs; the first run failed only on that pin.
+  - v2 landmark hash 95EAB5B4, unchanged.
+- StoneColossi.cs untouched.
