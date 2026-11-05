@@ -1,6 +1,6 @@
-# World lane state (after W-93, 2026-11-04)
+# World lane state (after W-95 partial, 2026-11-04)
 
-Branch world-features, head 34a0924 (W-93, pushed). Worktree D:/Unity/Punchy-world.
+Branch world-features, head 772ed5f (W-95 rows 1, 2, 4, pushed). Worktree D:/Unity/Punchy-world.
 
 ## Hashes (v3, editor play mode, WorldProbe.LmList)
 
@@ -23,7 +23,15 @@ Branch world-features, head 34a0924 (W-93, pushed). Worktree D:/Unity/Punchy-wor
 - #70: wasteland Debris/FloatingRock mounds get terraced kit boxes (0.35 m tiers); fallen chunks under 0.45 m are flat decals, no boxes.
 - #40: plant skirt darker, rooted high on the bulb and draping down. Salt ball lumpy (own rng), furrow trail with lips; roll on _PunchyClock, absolute rotation, trail rebuilt per 0.5 m.
 
+## W-94 / W-95
+
+- #80: ruin bricks; dune mound gentler (max 25.6 deg, Reach 120).
+- #69: W-94 hazard houses are now the human "Frontier" house style (HouseStyleChance 0.75 on Human layouts; v3 HumanVillage uses it). Harsh-biome slots hold SlabShelter species (KitShape 15, pad dug StructureKit.SlabDig 0.9 m).
+
 ## Open
+
+- W-95 row 3 (#40 salt ball round body with fine dents) not started.
+- Tundra SnowSlabShelter not seen in shots although baked onto plots (DwarfHold, DwarfMiningCamp); check placement.
 
 - #69 row 2 of W-93 (kit-built hazard houses per harsh biome) not started: W-57b HazardShelter domes + PlaceShelters swap already exist; needs a kit shelter shape.
 - #70 caveat: on slopes a drift mound's lowest tier edge reads as a wall from the downhill side.

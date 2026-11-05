@@ -2,6 +2,26 @@
 
 Newest first.
 
+## W-95 (2026-11-04, partial: paused for Zach's test build): gentler dune mound, human house style, slab shelters
+
+Commits on world-features: f2936f5 (row 1), 3a9997e (row 2), 772ed5f (row 4). All pushed. Done: rows 1, 2 and 4. Left: row 3 (#40 salt ball: round body with fine dents), not started.
+- Row 1 (#80): the dune mound is gentler (Reach 120). Max mound slope 25.6 deg (was 61), below the rock-slope threshold. 13-14 cells sit at 24-25.6 deg and none above 29. The ruin walk ARRIVED and the east wall walk STOPPED at x 1424.91. Landmarks v2 136/4E61F1CF and v3 108/4D2643D7 are unchanged. Shot: w95-sandmound.png.
+- Row 2 (#69): the four W-94 shelter houses are now a human house style named "Frontier" (SettlementBuilding.Style; layout HouseStyleChance). It is seeded per settlement and swapped onto house plots after placement, so plots and landmarks don't move. I set the chance to 0.75 so that v3's only human settlement uses the style: HumanVillage (2972,-885, Sonoran), 38 houses. No other v3 settlement gets it. v3 landmarks are 108/4D2643D7. Shot: w95-humanstyle.png.
+- Row 4 (#69): new kit shape SlabShelter, a crooked ramada.
+  - Three rough rock slabs stand as walls: buried, leaning and twisted, with lumps on their faces. A fourth slab rests across them as the roof, tipped to their uneven tops, with ash, snow, char or sand caps.
+  - The plot pad is dug 0.9 m down (StructureKit.SlabDig). Under the roof is a dirt floor, and a dirt ramp runs up the bank from the open front.
+  - Four species (AshSlabShelter, SnowSlabShelter, StormSlabShelter, SandSlabShelter) take the local rock colour. They fill the harsh-biome shelter slots in all 7 layouts.
+  - Each slab and lump is a KitCollision box, with no inside cylinder.
+  - v3 landmarks are 108/4D2643D7. On v3 the shelters land in OgreCamp (Ashlands), DwarfHold and DwarfMiningCamp (Tundra).
+  - Walk at the Ashlands shelter (890.9,-3864.9): it goes down from 8.99 to the pit floor at 8.60, under the roof, and is STOPPED 2.8 m behind the centre at the back slab.
+  - Shot: w95-slabshelter-ashlands.png.
+- Weak:
+  - No Tundra shot. The bake puts SnowSlabShelter on plots at DwarfHold (-3292,1564) and DwarfMiningCamp (-1977,642), but two framed shots after a 45-60 s wait showed none. I didn't have time to find out why, so it needs a look.
+  - The slabs are plain boxes and the caps look blocky.
+  - The ramp is a sloped sheet over the terrain's own bank, so it can float or sink a little.
+  - The biggest settlement's KitBuilding override may replace style houses there.
+- The bright white circle with a black silhouette: I didn't find it in my editor. My shots and a Game-view capture at the Ashlands shelter show no disc; the sky is Punchy/Sky and the sun is high. It is likely from another lane's walk test.
+
 ## W-94 (2026-11-04): hazard shelter houses, brick ruins + dune mound, sunk mound lip, meteoroid salt ball
 
 Commits on world-features: 26c6163 (row 1), 853b1bc (row 2), cbdf6cf (row 3), aab2d6a (row 4). All pushed. I commented on #69, #80, #70 and #40.
