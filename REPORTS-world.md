@@ -2158,7 +2158,13 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
 - Risk: the falling look keys on the shading slope, so any steep rapid (more than about 37 degrees) gets streaks too. Re-importing the shader in play mode left the water half-broken until play was restarted.
 
 ## W-98 row 3 (#83): river sources and stepped pools - done (partly verified)
-- Commit 0c0e0a3 (see the git log). River heads outside a lake carve a spring pool (width max(2.2x river, 5 m), depth 1.3x) just upstream. In landmark stepped pools, a lower pool can't cut below a higher pool's level plus 0.25 m within 1.15-1.4 r of it.
+- Commit b4d875d. River heads outside a lake carve a spring pool (width max(2.2x river, 5 m), depth 1.3x) just upstream. In landmark stepped pools, a lower pool can't cut below a higher pool's level plus 0.25 m within 1.15-1.4 r of it.
 - Hashes: landmarks 108 / 4D2643D7 -> **107 / 14D92F64**. One landmark loses its spot to the new pools, so Landmarks_V3 in WorldTests needs the new target if this is accepted.
 - Shot: gallery/w98-head-after.png (river head at -1617,1506 beside a pond). The river now leaves a basin.
 - Weak point: the card's spots don't match this tree's v3 island. At 176,-253 the ground is 123 m (the card says 43.1), and at -2389,1740 it is 146 m (the card says 116.8). Neither is in a cave and there is no water or landmark there. So the card's spots weren't shot, and the stepped-pool containment has no shot.
+
+## W-98 row 4 (#83): puddles in dips - done (UNVERIFIED shot)
+- Commit 1a1068f. Near chunks store a hollow depth per vertex (Strata.z: the 8-ring mean at 2.5/6 m minus the height). Puddles need hollow > 0.02-0.2 m on flat ground, and grass now damps them (x0.4) instead of removing them.
+- Numbers: in a 90x90 m meadow at -1660,1534, 281 of 961 points are flat (normal y > 0.95), 185 of those are dips deeper than 5 cm, and the deepest is 1.03 m.
+- Shot: gallery/w98-puddles-after.png (forced rain, 50 s soak). The ground is wet, with darker patches in the dips, but no clear mirror puddles, so this is UNVERIFIED. The puddle thresholds (0.55-0.7 smoothstep) may need lowering.
+- Note: "-weather Rain" at launch rains at the spawn point only. Use DebugControls.RunOptions("-weather Rain") after a goto.
