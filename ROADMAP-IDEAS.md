@@ -61,3 +61,49 @@ current release. Lane: A = animal, W = world.
   every player): orange (standard, the most common), golden, silver, violet, emerald, crimson, black.
 - One standard fire effect (flame, glow, light, embers, smoke) with a colour setting, used by everything that burns:
   torches, campfires, ruin sconces, braziers, the forest. Build the shared effect first, then move the existing fires onto it.
+
+## Current roadmap (snapshot 2026-11-04, from open GitHub issues and Zach's direction)
+
+Zach's order (2026-11-03): (1) a modular building kit plus more colossi, (2) fishing villages built from the kit,
+(3) new settlements with their races. Core rule throughout: small, varied, seeded details everywhere, kept sparse.
+
+### In progress or queued now
+- (A) Bat folk look: no hat-like hair, bigger ears, a lighter coat; fires and torches count as light (#35, A-68 row 2).
+- (A) Blind cave pygmies live with the bat folk in the same chamber, in a symbiotic setup (#35, A-68 row 3).
+- (W) Bat folk homes are organic pods hung from the ceiling; pygmy homes are cutouts in the cave walls (#35, W-96).
+- (W) Play-mode test harness that every lane runs before asking for a merge (W-97).
+- (W) Salt ball as a meteoroid: higher-poly irregular body, smaller crystals, a trail that varies in width (#40, W-95 row 3).
+- (W) Fire revamp: one shared fire effect for everything that burns; Ember Forest burns at night in a seeded colour (#131).
+- (A) Fishing villages: the brain still spends about 2.5 ms on solids checks; next is a BuildingSink precheck (#132).
+
+### World (W)
+- Colossi: one unique giant creature per biome, built to Zach's per-biome design in the issue (#40).
+- Shelters and work suited to each biome, for hermits and harsh-biome settlements; the Tundra shelter has not shown up yet (#69).
+- Electric wastelands: the player still runs through some flat rock chunks (#70).
+- Ruins: old stone-brick walls and a natural wind-shaped sand mound (#80).
+- Water geography rethink: stepped pools and the open water issues, redone rather than patched (#83).
+- Roads: cobblestone, paved stone settlements, tunnels (#39).
+- Sea folk: an underwater settlement in the central lake (#37).
+- Dungeons: caves and ruins as large dungeons, in two phases. First, set pieces made from underground tilesets
+  (player lane, plus the socket contract). Second, spawn points filled at random with creatures, chests and clutter
+  per biome and dungeon type (animal lane). The world lane adds entrances and tile art later (#24).
+- Interactive doors, gates and torches whose state syncs in multiplayer; interiors with portal culling (see Dungeons above).
+
+### Creatures and NPCs (A)
+- Decide as one activity table with explicit priorities (#60).
+- NPC reactions to the player's race (#8).
+- NPCs and characters: personality-driven lines, then dialogue options; shared skills and attributes (#25).
+- Sand worm and snow worm (see Creatures above).
+
+### Player, items and quests (P)
+- Graphics settings: resolution and full screen (#78).
+- Camera underground: clipping in ruins and vertical control (#85).
+- Items and inventory: player and object inventories, picking up and moving objects, harvest yields (#26).
+- Quests: more objective types on the shipped base: lead an NPC, find a rare item (#27).
+
+### Tech, performance and platforms
+- Startup: one 16 s main-thread frame after the island is ready (#102).
+- MonoBehaviours driving ECS: explicit order and job dependencies (#62).
+- Underwater camera, visuals and sound (#22, Z-64).
+- Plant fidelity experiments (#21, Z-63).
+- Linux build (#28).
