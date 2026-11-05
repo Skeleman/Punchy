@@ -906,7 +906,8 @@ namespace Punchy.Terrain
                 var tilt = ((float)extra.NextDouble() - 0.5f) * 14f;
                 Add(parts, KitPiece.Trim, KitMaterial.Roof, at, new Vector3(0.55f, 0.5f, 0.55f), (float)extra.NextDouble() * 90f, false, tilt);
                 Add(parts, KitPiece.Trim, KitMaterial.Trim, at + Vector3.up * 0.3f, new Vector3(0.6f, 0.1f, 0.6f), 0f, false, tilt);
-                Add(parts, KitPiece.Trim, KitMaterial.Wood, at + Vector3.up * 0.7f, new Vector3(0.06f, 0.8f, 0.06f), 0f, false, tilt);
+                // W-106 (A-73): the mast is a Column, not Trim, so it lands in the model's Boxes and gulls can perch on it.
+                Add(parts, KitPiece.Column, KitMaterial.Wood, at + Vector3.up * 0.7f, new Vector3(0.06f, 0.8f, 0.06f), 0f, false, tilt);
             }
             return parts;
         }
