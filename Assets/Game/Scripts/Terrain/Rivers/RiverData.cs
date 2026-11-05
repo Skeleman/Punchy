@@ -342,9 +342,23 @@ namespace Punchy.Terrain
                 q.Width = math.max(width, baseWidth);
                 q.Flow = flow;
                 // The water's fall too (W-36): where it backs up flat to a lake or a dam over a steep bed, no rapids.
-                var waterEnd = down >= 0 ? map.WaterLevel[down] : map.WaterLevel[start];
-                q.Gradient = math.min(map.Bed[start] - endLevel, map.WaterLevel[start] - waterEnd) / math.max(math.length(ab), 1e-3f);
+                // W-98: blended mid-segment to mid-segment with the segment upstream or downstream, so the rapids (and
+                // the water's apparent speed) ramp up over a segment into white water rather than jumping at a cell.
+                var here = SegmentGradient(ref map, start);
+                var next = t < 0.5f ? (map.Up[start] >= 0 ? SegmentGradient(ref map, map.Up[start]) : here)
+                                    : (down >= 0 && map.Down[down] >= 0 ? SegmentGradient(ref map, down) : here);
+                q.Gradient = math.lerp(here, next, math.abs(t - 0.5f));
             }
+        }
+
+        /// <summary>The water's fall per metre along the segment from cell start to the next one down (0 at a river's end).</summary>
+        static float SegmentGradient(ref RiverMapBlob map, int start)
+        {
+            var down = map.Down[start];
+            if (down < 0)
+                return 0f;
+            var len = math.max(math.length(map.Point(down) - map.Point(start)), 1e-3f);
+            return math.min(map.Bed[start] - map.Bed[down], map.WaterLevel[start] - map.WaterLevel[down]) / len;
         }
 
         /// <summary>

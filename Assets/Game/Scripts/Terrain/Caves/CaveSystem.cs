@@ -903,7 +903,14 @@ namespace Punchy.Terrain
                 var taper = math.lerp(0.15f, 1f, math.saturate(math.min(k, fromEnd) / 2f));
                 // A little past where the banks rise out of the water (the edges tuck under them), so it fills the channel.
                 var side = new float2(-along.y, along.x) * p.Width * 0.58f * taper;
-                var drop = (prev.y - next.y) / math.max(math.distance(prev.xz, next.xz), 0.1f);
+                // The drop is measured over five points (about 6 m), not one step either side, so the water quickens into
+                // a steep step and slows after it rather than switching to white at one point (W-98).
+                var k0 = math.max(k - 2, 0);
+                var k1 = math.min(k + 2, count - 1);
+                var run = 0f;
+                for (int j = k0; j < k1; j++)
+                    run += math.distance(points[j].Position.xz, points[j + 1].Position.xz);
+                var drop = (points[k0].Position.y - points[k1].Position.y) / math.max(run, 0.1f);
                 // Cave streams run steep all the way, so only the steepest steps churn white; but a brook is never still.
                 var rapids = math.max(math.saturate(drop * 1.5f - 0.15f), 0.2f);
                 foreach (var edge in new[] { -1f, 0f, 1f })
