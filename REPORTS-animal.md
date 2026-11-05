@@ -2131,3 +2131,35 @@ Race pressure and kind at the player (pressure is 0..1):
 - Counts (comfort log, "posed N" is cumulative): human village, 13:00, heat +0.3: 6-8 posed in 46 s. Ice field (912,-3837), snow, cold snap -0.5 (forced): 8 posed. Village in a forced storm: 102 posed by about 120 s, with 12 sheltered and 34 shelter searches started.
 - Shots: a71-pose-pant (a chicken panting by a bench in the plaza; it's seen from behind, so the open beak is hard to see), a71-pose-shiver (a cinder lizard shivering on a dead branch in snow; small in frame), a71-pose-hunch (a puppy hunched in the storm). Poses are motion, so stills only show part of them.
 - Gotcha: adding a field to the ShelterCounts SharedStatic needed a new key and an editor restart. Burst kept the old size even after the key was renamed, so the restart was what fixed it.
+
+## A-71 row 4: weather line bank (commit acc3177)
+
+- Bank: `Assets/StreamingAssets/weather-lines.json`, 702 lines. Each of the 9 kinds (Hot, Dry, Cold, Rain, Snow, Storm, Bright, Wind, Relief) has 78 lines: 12 for anyone, plus 6 in each of 11 pools. The pools are 5 demeanors (Cheerful, Grumpy, Timid, Proud, Dramatic) and 6 races (Ogre, Goblin, BatFolk, FishFolk, Dwarf, Elf). Humans take the anyone and demeanor pools. Zach's seed lines are kept.
+- When folk speak (`WeatherTalkSystem`, presentation, runs on every machine): by chance when setting off for shelter, ducking indoors, striking a weather pose, arriving (a Relief line), or now and then while waiting.
+- Limits: one line per speaker per about 40 s; at most 2 lines up per 32 m cell (counting any folk line); 2 s between lines in a cell; nothing said through walls.
+- Animals don't speak. They only pose. No new animal sounds were added.
+- Test: storm at town (2972,-885) with `-comfort -weathertalk`, logged 22 lines. Every line was the only one up in its cell at the time (`[1 up in cell]`). The "most 2" in the log was left over from an earlier play, because domain reload is off; it is now reset in OnCreate. The log is below:
+```
+HumanChild (Human, Cheerful) indoors Storm cell (92,-29) [1 up in cell]: Wow, look at that flash!
+HumanChild (Human, Grumpy) indoors Storm cell (93,-28) [1 up in cell]: Typical. Just typical.
+Human (Human, Cheerful) indoors Storm cell (93,-29) [1 up in cell]: Woo! What a racket!
+Human (Human, Cheerful) indoors Storm cell (93,-28) [1 up in cell]: Exciting, but let's go inside!
+Elf (Elf, Dramatic) indoors Storm cell (92,-28) [1 up in cell]: The gods are angry!
+Human (Human, Dramatic) seeking Storm cell (94,-28) [1 up in cell]: The sky is falling!
+HumanChild (Human, Grumpy) indoors Storm cell (93,-29) [1 up in cell]: I've had enough of this sky.
+Human (Human, Proud) arrived Relief cell (92,-28) [1 up in cell]: Comfort, as I deserve.
+Human (Human, Cheerful) seeking Storm cell (93,-29) [1 up in cell]: Hold onto your hats, everyone!
+HumanChild (Human, Grumpy) indoors Storm cell (92,-28) [1 up in cell]: Thunder. Just what I needed.
+Human (Human, Cheerful) seeking Storm cell (93,-28) [1 up in cell]: Exciting, but let's go inside!
+Human (Human, Cheerful) seeking Storm cell (92,-27) [1 up in cell]: Exciting, but let's go inside!
+Elf (Elf, Dramatic) indoors Storm cell (92,-28) [1 up in cell]: The sky has lost its temper.
+Human (Human, Proud) waiting Storm cell (92,-28) [1 up in cell]: Thunder? I have heard louder.
+HumanChild (Human, Grumpy) seeking Storm cell (93,-28) [1 up in cell]: Storms. Always storms.
+Human (Human, Cheerful) waiting Storm cell (93,-29) [1 up in cell]: Thunder! Count the seconds!
+Human (Human, Dramatic) waiting Storm cell (94,-28) [1 up in cell]: The sky is falling!
+Human (Human, Cheerful) waiting Storm cell (93,-28) [1 up in cell]: Oh, that's a bad one.
+HumanChild (Human, Cheerful) seeking Storm cell (92,-29) [1 up in cell]: Exciting, but let's go inside!
+Human (Human, Cheerful) waiting Storm cell (92,-28) [1 up in cell]: Big storm! Better find a roof!
+HumanChild (Human, Grumpy) waiting Storm cell (93,-29) [1 up in cell]: Bah! Noise!
+Human (Human, Dramatic) waiting Storm cell (94,-28) [1 up in cell]: Run for your lives!
+```
