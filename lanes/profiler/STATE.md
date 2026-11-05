@@ -9,7 +9,7 @@ Released: v0.11.0 = 4eea658. main = 8b4bf19 (A-51, PR #101).
 2. Check: `gh auth status` (repo is public: no machine paths in issues or comments); `git pull --rebase` here;
    `results/.lock` absent in `Punchy-wt/Tools/bench/results/` (if present, read `.lock/job` and ask Zach).
 3. Hooks: `sh hooks/install.sh <folder outside the trees>` (BENCH-QUEUE setup) if telemetry isn't installed.
-4. Jobs 17-26 reported 2026-11-04 (24c: far shadow fix confirmed; 26: self-fix b/fix-netstatus pushed for review). Self-fix rule: COORDINATION.md File ownership (b/fix-* from current main, file not busy, small, before/after numbers; supervisor merges). Jobs 27 (1699574) and 28 (6f139d0) reported: NetMenu hitches gone (#125); open: fishing village brain cost (#132, animal lane), startup bake (#102), fast-flight streaming. Standing order: keep finding frames over 33 ms when idle.
+4. Jobs 17-26 reported 2026-11-04 (24c: far shadow fix confirmed; 26: self-fix b/fix-netstatus pushed for review). Self-fix rule: COORDINATION.md File ownership (b/fix-* from current main, file not busy, small, before/after numbers; supervisor merges). Jobs 27 (1699574) and 28 (6f139d0) reported: NetMenu hitches gone (#125); open: fishing village brain cost (#132, animal lane), startup bake (#102), fast-flight streaming, -place prop: broken (#137; use -goto or -warp town N). Queued: job 29, #132 before/after once A-68 row 1 lands (supervisor pings). Standing order: keep finding frames over 33 ms when idle.
 
 ## How work arrives (the supervisor messages directly with SendMessage, or adds BENCH-QUEUE items)
 - Pull `coordination` at the start of every job and before every push (`git pull --rebase` on rejection).

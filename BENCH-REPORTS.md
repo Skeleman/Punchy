@@ -2,6 +2,21 @@
 
 Newest first.
 
+## 2026-11-05: jobs 28c/28d, every settlement on v2 and v3 incl. the W-94 hazard shelters: 0 frames over 33 ms, 71-118 fps. Correction: the "wharf" runs in jobs 27/28 stood at spawn, because -place prop: has silently done nothing since 6c441fab (#137)
+Method: Bench-6f139d0, uncapped, hitch log at 33 ms, 30 s standing. 28c: -place prop:<Ash|Sand|Snow|Storm>ShelterHouse on v2 and v3. 28d: -warp town 1-8 (the F6 settlement list, nearest first; it wraps after 6) on v2 and v3. 0 exceptions, no crash.
+- **-place prop: is broken from the command line (#137):**
+  - Every 28c run reported `at 0,0`, with none of PlaceByProp's "found" lines. The same is true of the job 27/28 `-place prop:FishWharf` runs, so the "wharf 113-118 fps" figures in jobs 27 and 28 are the spawn point, not the wharf.
+  - The wharves themselves are covered by the job 28 fishing village runs (-goto): wharf #1 is at v2 village 4 (100 fps), #2 at village 2 (88), #3 at village 3 (50), #4 at village 1 (62).
+  - Cause: PlaceByProp needs FaunaDirector.FloraPlacementBlob, which since 6c441fab (#102) is built on workers after the args are read. -goto and -warp still work.
+- **The 6 settlements on each island (the same 6 on v2 and v3), avg fps / 1% low / worst ms:**
+  - v2: OgreCamp 87.5/47.8/26; DwarfMiningCamp (Tundra) 86.7/54.4/23; ElfGrove 78.7/42.1/27; DwarfHold 71.0/50.0/30; HumanVillage 90.1/48.2/24; GoblinCamp 79.4/49.2/24.
+  - v3: DwarfMiningCamp 102.7/55.5/24; ElfGrove 80.3/47.6/29; HumanVillage 89.1/49.1/28; GoblinCamp 78.7/45.9/25; DwarfHold 92.6/50.2/32; OgreCamp 118.2/68.0/22.
+  - 0 frames over 33 ms in all 16 runs.
+- **Hazard shelters:** the interiors log lists 1 SnowShelterHouse on v2, and 1 Ash + 1 Snow on v3. The places list puts DwarfMiningCamp in Tundra, so that camp's snow shelter is covered. The Ash shelter's settlement isn't named in the log, but all 6 settlements were visited, so every shelter was within a stop.
+- How to cover them from now on: -warp town N, with N = 1..6 per island (scripts q28d.sh).
+- Scripts: q28c.sh, q28d.sh. Logs: results/q28logs/haz-*.log, town-*.log.
+- Cost: 26 calls, peak 381k context, $1.37
+
 ## 2026-11-04: job 28, recheck on main 6f139d0: the NetMenu hitches are gone (host 14 -> 2, client 3 -> 0). New: fishing villages run at 50-62 fps because the brain job's Brain.Advance costs 6.7 ms a frame there (#132). The salt flat with the bigger ball and the town are clean. A glide burst seen once did not reproduce
 Method: Bench-6f139d0, uncapped, hitch log at 33 ms: the job 27 v2 route, the fish wharf, 30 s in each of the 7 fishing villages (4 on v2, 3 on v3), the salt crystal walk (hereclose), and host + client join/leave at the v2 cave. Then Profile-6f139d0p captures (-fpscap 60) of townwalk, glide, v2 fishing village 1 and the salt walk. q28b: the glide stop alone, 6f139d0 vs 1699574, 3 runs each, alternating. 0 exceptions, no crash.
 - **NetMenu fix (#125) confirmed.** Host: 2 hitches (33, 35 ms, not on the 10 s beat), down from 14 (34-55 ms, one every 10 s); worst frame 34.9 ms (was 55.2). Client: 0 hitches (was 3); 126.8 fps with a 1% low of 85.1 (was 110.0 / 60.4). The river's 40 ms status frame is gone (worst 27.6 ms).
