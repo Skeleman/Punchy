@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using Punchy.Player;
+using Punchy.Rendering;
 using Punchy.Terrain;
 using Unity.Burst;
 using Unity.Collections;
@@ -29,7 +30,7 @@ namespace Punchy.Flora
     /// crystals, dens) on the same grids, so props never overlap plants either.
     /// </summary>
     [DefaultExecutionOrder(1000)]   // after the camera has moved this frame
-    public class FloraSystem : MonoBehaviour
+    public partial class FloraSystem : MonoBehaviour
     {
         [Serializable]
         public class LayerSettings
@@ -113,6 +114,8 @@ namespace Punchy.Flora
             /// <summary>The draw arguments as last uploaded: each variant × LOD's mesh range, and its region of the
             /// visible list as startInstance (the shader adds it), so draws need no per-draw property block.</summary>
             public GraphicsBuffer.IndirectDrawIndexedArgs[] ArgsData;
+            /// <summary>W-107's cheap far caster: the second shadow list draws the far level of detail (see SetCheapArgs).</summary>
+            public bool CheapArgs;
             /// <summary>This layer's copy of the flora material, holding its buffers. Every draw in the layer shares it,
             /// so consecutive draws don't re-apply the shader (a property block per draw made each one a state change).</summary>
             public Material Material;
@@ -190,6 +193,7 @@ namespace Punchy.Flora
         static readonly int CameraId = Shader.PropertyToID("_CameraPosition");
         static readonly int LodId = Shader.PropertyToID("_Lod");
         static readonly int ShadowId = Shader.PropertyToID("_Shadow");
+        static readonly int ShadowStillId = Shader.PropertyToID("_FloraShadowStill");
         static readonly int ThinId = Shader.PropertyToID("_Thin");
 
         public int PlantCount
@@ -510,6 +514,7 @@ namespace Punchy.Flora
                 }
             }
             layer.ArgsData = args;
+            layer.CheapArgs = false;
             layer.Args.SetData(args);
             layer.Counts.SetData(args);
             layer.Bounds = new GraphicsBuffer(GraphicsBuffer.Target.Structured, bounds.Length, sizeof(float) * 3);
@@ -747,6 +752,25 @@ namespace Punchy.Flora
 
         // ------------------------------------------------------------------------------------------- drawing
 
+        /// <summary>
+        /// W-107 (FloraShadowOptions.CheapFarCaster): points every model's second shadow list at its far level of detail
+        /// (on) or back at LOD 1 (off). Only the mesh range changes; Upload keeps the visible-list offsets.
+        /// </summary>
+        void SetCheapArgs(Layer l, bool cheap)
+        {
+            for (int m = 0; m < l.ModelCount; m++)
+            {
+                var mesh = models[l.ModelBase + m].Lods[cheap ? 2 : 1];
+                ref var a = ref l.ArgsData[m * Draws + 4];
+                a.indexCountPerInstance = mesh.GetIndexCount(0);
+                a.startIndex = mesh.GetIndexStart(0);
+                a.baseVertexIndex = mesh.GetBaseVertex(0);
+            }
+            l.Args.SetData(l.ArgsData);
+            l.Counts.SetData(l.ArgsData);
+            l.CheapArgs = cheap;
+        }
+
         void Draw(Camera cam)
         {
             GeometryUtility.CalculateFrustumPlanes(cam, planes);
@@ -758,6 +782,9 @@ namespace Punchy.Flora
             var shadowDistance = QualitySettings.shadowDistance;
             if (GraphicsSettings.currentRenderPipeline is UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset urp)
                 shadowDistance = urp.shadowDistance;
+            // W-107: where the flora shadow pass stops swaying (0: never).
+            Shader.SetGlobalVector(ShadowStillId, new Vector4(camPos.x, camPos.y, camPos.z,
+                FloraShadowOptions.StillFarShadows ? FloraShadowOptions.StillFrom : 0f));
 
             foreach (var l in layers)
             {
@@ -775,7 +802,12 @@ namespace Punchy.Flora
                 Culling.SetVector(CameraId, camPos);
                 Culling.SetVector(LodId, new Vector4(l.Lod1Distance, l.Lod2Distance, l.Radius, 0f));
                 var cast = s.CastShadows ? math.min(s.ShadowCastDistance, shadowDistance) : 0f;
-                Culling.SetVector(ShadowId, new Vector4(cast, ShadowMargin, 0f, 0f));
+                // W-107's cheap far caster: past the near range, trees cast with their far level of detail.
+                var cheap = FloraShadowOptions.CheapFarCaster && l.Index == 2 && cast > 0f;
+                if (cheap != l.CheapArgs)
+                    SetCheapArgs(l, cheap);
+                var lod0Until = cheap ? math.min(FloraShadowOptions.NearRange, l.Lod1Distance * 1.075f) : l.Lod1Distance;
+                Culling.SetVector(ShadowId, new Vector4(cast, ShadowMargin, cheap ? lod0Until : 0f, 0f));
                 Culling.SetVector(ThinId, new Vector4(s.ThinFrom * l.Radius, s.ThinTo, 0f, 0f));
                 Culling.SetBuffer(cull, InstancesId, l.Instances);
                 Culling.SetBuffer(cull, VisibleId, l.Visible);
@@ -831,7 +863,7 @@ namespace Punchy.Flora
                     var shadowBounds = new Bounds((Vector3)((smin + smax) * 0.5f), (Vector3)(smax - smin));
                     for (int lod = 0; lod < 2; lod++)
                     {
-                        if (nearest > Near(cast) || lod == 0 && nearest > Near(l.Lod1Distance))
+                        if (nearest > Near(cast) || lod == 0 && nearest > Near(lod0Until))
                             continue;
                         var rp = new RenderParams(l.Material)
                         {
@@ -839,7 +871,7 @@ namespace Punchy.Flora
                             shadowCastingMode = ShadowCastingMode.ShadowsOnly,
                             receiveShadows = false
                         };
-                        Graphics.RenderMeshIndirect(rp, model.Lods[lod], l.Args, 1, m * Draws + 3 + lod);
+                        Graphics.RenderMeshIndirect(rp, model.Lods[lod == 1 && cheap ? 2 : lod], l.Args, 1, m * Draws + 3 + lod);
                     }
                 }
             }

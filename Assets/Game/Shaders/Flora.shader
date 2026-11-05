@@ -543,6 +543,7 @@ Shader "Punchy/Flora"
             #pragma vertex Vert
             #pragma fragment Frag
             #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
+            #define FLORA_SHADOW_PASS
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
@@ -580,6 +581,55 @@ Shader "Punchy/Flora"
                 clip(input.fade >= 0 && input.fade < 1 ? -1 : 1);
                 FloraMossClip(input.moss);
                 return 0;
+            }
+            ENDHLSL
+        }
+
+        Pass
+        {
+            // W-107: FloraSystem's far shadow cache (FloraSystem.ShadowCache.cs) draws trees from the sun into a float
+            // texture: each texel keeps how far along the sun's direction the nearest caster is. Never a URP pass.
+            Name "FloraCache"
+            Tags { "LightMode" = "FloraCache" }
+            ZWrite On
+            ZTest LEqual
+            Cull Off
+
+            HLSLPROGRAM
+            #pragma target 4.5
+            #pragma vertex Vert
+            #pragma fragment Frag
+            #define FLORA_CACHE_PASS
+
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Flora.hlsl"
+
+            float4 _FloraCacheSun;   // xyz the way the sunlight travels
+
+            struct Varyings
+            {
+                float4 positionCS : SV_POSITION;
+                float fade : TEXCOORD0;
+                float along : TEXCOORD1;
+                float4 moss : TEXCOORD2;
+            };
+
+            Varyings Vert(FloraAttributes input)
+            {
+                FloraVertex v = FloraTransform(input);
+                Varyings o;
+                o.positionCS = TransformWorldToHClip(v.positionWS);
+                o.fade = v.fade;
+                o.along = dot(v.positionWS, _FloraCacheSun.xyz);
+                o.moss = FloraMossData(input);
+                return o;
+            }
+
+            float Frag(Varyings input) : SV_Target
+            {
+                clip(input.fade >= 0 && input.fade < 1 ? -1 : 1);
+                FloraMossClip(input.moss);
+                return input.along;
             }
             ENDHLSL
         }

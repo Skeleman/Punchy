@@ -29,6 +29,10 @@ StructuredBuffer<uint2> _FloraVisible;
 #include "UnityIndirect.cginc"
 float _FloraNoBatcher;   // see Flora.shader's Properties
 float _FloraInCave;      // 1 for cave plants (CaveSystem's copy of the material)
+// W-107 (FloraShadowOptions): the camera (xyz) and where shadows stop swaying (w; 0: they always sway), for the
+// shadow pass; and the shadow cache's draws, which aren't RenderMeshIndirect's, so each gives its visible list's start.
+float4 _FloraShadowStill;
+uint _FloraCacheBase;
 float2 _PunchyWindDirection;
 half _PunchyWind;
 // Doors something has opened (FloraDoors): xyz where, w how far open; how many are set.
@@ -65,8 +69,12 @@ struct FloraVertex
 
 FloraVertex FloraTransform(FloraAttributes input)
 {
+#ifdef FLORA_CACHE_PASS
+    uint2 visible = _FloraVisible[_FloraCacheBase + input.instanceID];
+#else
     InitIndirectDrawArgs(0);
     uint2 visible = _FloraVisible[GetIndirectInstanceID_Base(input.instanceID)];
+#endif
     FloraInstance plant = _FloraInstances[visible.x];
 
     float c = cos(plant.yaw), s = sin(plant.yaw);
@@ -124,6 +132,15 @@ FloraVertex FloraTransform(FloraAttributes input)
     float3 windDir = float3(_PunchyWindDirection.x, 0, _PunchyWindDirection.y);
     float phase = _Time.y * (0.7 + _PunchyWind * 1.1) - dot(plant.position.xz, _PunchyWindDirection) * 0.04 + plant.random * 6.28;
     float gust = (0.6 + 0.4 * sin(phase) * sin(phase * 0.37 + 1.3)) * (0.08 + 0.92 * _PunchyWind);
+    // W-107: far shadows can stand still (the shadow pass, past _FloraShadowStill.w; the cache always).
+    float still = 0;
+#if defined(FLORA_CACHE_PASS)
+    still = 1;
+#elif defined(FLORA_SHADOW_PASS)
+    if (_FloraShadowStill.w > 0)
+        still = smoothstep(_FloraShadowStill.w - 5, _FloraShadowStill.w + 5, distance(plant.position, _FloraShadowStill.xyz));
+#endif
+    gust *= 1 - still;
     // (A door leaf's x is its distance from the hinge, not how much it bends.)
     float sway = ((int)round(input.data.y) == 12 ? 0 : input.data.x) * (0.05 + 0.045 * p.y);
     // A bend, not a shear (#30): the vertex swings on a sphere round the plant's base, so a stem keeps its length
@@ -131,7 +148,7 @@ FloraVertex FloraTransform(FloraAttributes input)
     float bendLen = length(p);
     p += windDir * sway * gust * 2.2;
     p *= bendLen / max(length(p), 1e-4);
-    float flutter = ((int)round(input.data.y) == 12 ? 0 : max(input.data.z, 0)) * (0.15 + _PunchyWind) * 0.022 * plant.scale;
+    float flutter = ((int)round(input.data.y) == 12 ? 0 : max(input.data.z, 0)) * (0.15 + _PunchyWind) * 0.022 * plant.scale * (1 - still);
     p += n * sin(_Time.y * 7.3 + dot(input.positionOS, float3(3.1, 2.3, 4.7)) + plant.random * 20) * flutter;
     // Motions carried in the flutter channel as negatives (FloraMeshBuilder.Motion, Sway), on the shared clock: a slow
     // breath along the normal (mushroom caps), below -2 a sudden small jerk now and then (cocoons), and below -10 a
