@@ -2457,3 +2457,9 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
   | Ultra | 15.1 / 11.3 | 4.1-6.8 | 535 |
 
 - High with 3 cascades against 4, A/B twice: 9.1 / 8.6 ms against 8.8 / 8.9 ms. The 4th cascade's cost is within noise here.
+
+## W-105 row 6: colossus collision follows the walkers (1630cdb, world-features, merged origin/main with A-72 first)
+
+- ColossusCollision now stores each colossus's columns in its root's frame (position plus heading only, so a walker's lean leaves the columns upright). It lays them again in place whenever the root moves, with no per-frame allocation: the lists are rewritten and the push snapshot copies only the moved columns into its cache. ColossusPushSystem, the player's obstacle buffer (MovingNear now also flags a walker in reach that has moved) and Against all read the real body. Still giants keep their pose, so nothing changes for them. StoneColossi.cs was not touched.
+- Check (v3, golem slot 3): the golem walked 39, then 47, then 66 m from its build spot. Against() at the body gives RockGolem; at the build spot (707, -329) it gives nothing. The summary centre tracks the root: (715, -369), then (732, -370). The player walked west into it (PlayerInputSystem.TestMove) and logged "player stopped against the RockGolem" four times along its current flank, at x 767, 759, 730 and 725.
+- Cost with the golem awake, player 20 m off: Brain.Tick 0.65 ms/frame, Brain.Advance 0.18, ColossusPushSystem 0.04 ms/frame.
