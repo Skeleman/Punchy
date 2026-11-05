@@ -3352,11 +3352,17 @@ namespace Punchy.Flora
                     storeys = 1;
                     parts = Punchy.Terrain.StructureKit.HazardHouse(seed, trim, shape, width, depth);
                     break;
+                case Punchy.Terrain.KitShape.SlabShelter:   // W-95 (#69): Bark is the local rock, the accent its cap (snow, ash, sand)
+                    storeys = 1;
+                    trim.Wall = g.Bark;
+                    trim.Trim = g.HasAccent ? g.Accent : g.Bark * 1.1f;
+                    parts = Punchy.Terrain.StructureKit.SlabShelter(seed, trim, width, depth);
+                    break;
                 default:
                     parts = Punchy.Terrain.StructureKit.House(seed, trim, width, depth, storeys, ruined ? g.Range(0.45f, 0.9f) : 0f);
                     break;
             }
-            var house = Punchy.Terrain.StructureKit.HouseLike(shape) ||
+            var house = Punchy.Terrain.StructureKit.HouseLike(shape) && shape != Punchy.Terrain.KitShape.SlabShelter ||   // a slab shelter is walked into
                         shape == Punchy.Terrain.KitShape.Igloo || shape == Punchy.Terrain.KitShape.ShellDome;
 
             var first = b.VertexCount;

@@ -690,6 +690,7 @@ namespace Punchy.Terrain
                         continue;
                     var plot = plots[houses[next]];
                     plot.Building = firstBuilding + i;
+                    plot.Pad -= StructureKit.SlabDig;   // W-95 (#69): a slab shelter stands dug in; the pad's bank is its ramp
                     plots[houses[next++]] = plot;
                 }
             }
