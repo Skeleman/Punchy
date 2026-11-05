@@ -2371,3 +2371,9 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
 - Commit 8a1315c (world-features): Assets/Tests/PlayMode/WorldTests.cs, comments name PR #148 / W-104 row 1.
 - Landmarks_V3: 107 14D92F64 -> 109 C96F266F. Fauna_Fingerprint: EA6A4DE5 (A-71's pin on animal-behaviours) -> F99FD9E4 (main after PR #148; also the value before W-103).
 - Suite on v3: 13/13 passed.
+
+## W-104 row 2: #70 magnetic debris solid (done, verified, no code change)
+- Commit b20a7ff (world-features, empty, names #70).
+- v3 walk tests at the MagneticDebris at (-982.1, -4004.8) (14 boxes): walking east stopped at x -987.07 against its face; walking south stepped up onto the low tier (y 8.42 over ground about 8.2) and off again; stopping on it held the player at y 8.419.
+- The thin flat pieces have no boxes: they're ground decals, the issue's "clearly non-solid" option.
+- Shots: Assets/Temp/shots/w104-70-blocked.png, w104-70-standing.png.
