@@ -2168,3 +2168,23 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
 - Numbers: in a 90x90 m meadow at -1660,1534, 281 of 961 points are flat (normal y > 0.95), 185 of those are dips deeper than 5 cm, and the deepest is 1.03 m.
 - Shot: gallery/w98-puddles-after.png (forced rain, 50 s soak). The ground is wet, with darker patches in the dips, but no clear mirror puddles, so this is UNVERIFIED. The puddle thresholds (0.55-0.7 smoothstep) may need lowering.
 - Note: "-weather Rain" at launch rains at the spawn point only. Use DebugControls.RunOptions("-weather Rain") after a goto.
+
+### W-98 fix 2 - row 3 spots re-checked on v2 (no code change)
+- Both card spots are v2 coordinates: ground 43.3 at 176,-253 and 116.8 near -2389,1740 (v2 has 136 landmarks).
+- -2389,1740 is HotSprings at (-2378,1732): the stepped pools are contained, each with a lip, no spill (gallery w98-pools-after.png).
+- 176,-253 is the river head pond with its driftwood; the water stays in the basin (gallery w98-v2head-after.png).
+- On v3 these spots have no source or pool, so the row 3 card numbers came from v2, not from a bug.
+
+### W-98 fix 3 - rain puddles visible (commit 0873f2f)
+- A debug view showed the dips were already counted as wet, flat and hollow, so lowering thresholds alone would not help: whole dips glazed over evenly, and from above the 2% Fresnel floor left only dark ground.
+- Now: noise cuts dips into separate crisp-edged pools, flatness 0.8-0.93 (was 0.88-0.97), dip 0-0.08 m, wet 0.1-0.3, and the puddle film reflects at least 35% sky. Grass damping kept (x(1-0.6*grass)).
+- Forced rain on v3 (RunOptions after GoTo, 55 s soak): pale sky-mirror pools with rain rings on the terraces and dips (gallery w98-puddles-after.png). Shader has no errors, CRLF, no BOM.
+- Weak point: at a steep downward view the pools are mostly sky-grey; they read best at a low angle.
+
+### W-98 fix 1 - suite (commit 64c0a1b)
+- Landmarks_V3 now expects 107 / 14D92F64 and passes. Suite: 10/10 on the second run. The first run was 9/10 because Village_CreatureDensity measured 0 creatures within 50 m (4 on the rerun). That test is flaky and none of W-98 touches it.
+
+### W-99 row 1 - surface looks (commit 23bcb6f) - done (verified)
+- Planks roof and plank walls on a human house (gallery r1-planks.png), elf shingle courses (r1e.png), goblin mud hut thatch with course rows and edge (r1t.png), tent cloth with linen weave and sewn panel seams (r1c.png). Shots in PunchyMilestones/world/W-99/gallery.
+- Tent panels (all Form Tent species, goblin hides included) are now the Cloth part, held still (no wind). This changes their lighting a little (cloth faces the viewer).
+- Risk: the weave reads faintly at 800 px; the seams are what you see at a few metres. The commit also carries the row 2-4 code, which later rows verify.
