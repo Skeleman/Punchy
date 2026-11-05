@@ -2382,3 +2382,39 @@ Rows 2-4 share one commit because their files overlap (FaunaDirector, WharfSpots
 - Shots: the walking strip is m-0, m-1 and m-2, from 110 m at the side with the eye 45 m up (`-walkershot` takes an optional 4th part, the eye lift). m-far is the setup shot and m-look is from 45 m in front. In m-look the head is low right and the shell fills the frame, so it's tight; a wider look shot can follow if wanted.
 - Brain ms with it awake: 1.043 (m-far) and 0.910 (m-look), with 106-114 creatures. The desert village gives 0.617 for comparison. The extra cost is the canyon fauna (more creatures and flee searches), not the walker, which runs on the main thread outside the brain.
 - Fauna_Fingerprint: reported at the suite run before hand-back.
+
+## A-75 row 3 (#40 colossus per biome) - done (written only, no code)
+
+Each colossus stands in the first matching biome region that StoneColossi's survey finds (one per island, seeded). The Dunes giant has its own placer (DunesColossus).
+
+| Biome | Colossus | Moves? |
+|---|---|---|
+| Tundra / Glacier / Mountains | Kneeling titan (one, in whichever of the three it finds) | Still |
+| Grassland / Temperate | Half-buried head | Still |
+| FungalForest | Giant tortoise | Walks (A-72) |
+| ElectricWastelands | Rock golem | Walks (A-72) |
+| PoisonSwamp | Carnivorous plant | Still |
+| Ashlands | Skeletal lizard | Still |
+| Sonoran | Walking saguaro | Walks (A-72) |
+| SaltFlat | Salt crystal | Rolls in slow circles (W-92) |
+| MesaCanyonlands | Mesa tortoise | Walks (A-75 row 2) |
+| Dunes | Half-buried humanoid, arm drags a furrow in a sandstorm | Idles in place |
+| FoggyMarsh | None (the drowned knight is built in code; `-colossus` swaps it in for the plant) | - |
+| EmberForest, Volcano | None (the ash smith is built in code; `-colossus` swaps it in for the lizard) | - |
+| GlassDesert | None | - |
+| SparklingForest | None | - |
+| Ocean | None | - |
+
+The gaps are GlassDesert, SparklingForest, EmberForest/Volcano and FoggyMarsh. Two of those already have built but unplaced kinds (DrownedKnight, AshSmith; CrystalSerpent is unused too), so the cheapest wins are there. My two proposals for the next giants are below.
+
+1. **Glass heron (GlassDesert).**
+   - Look: a 45 m wading bird of fused glass plates on two stilt legs. It's see-through, so the sun casts coloured light and sparkles through it.
+   - Behaviour: it stalks a slow seeded loop like the walkers. Every few minutes it stops, dips its beak into the sand and lifts it with a glitter puff. It is a walker with a one-bone dip.
+   - Cost: low to medium. It uses the ColossusWalker gait and rig pattern, plus one tinted-glass material. No new systems are needed. About one card row, plus a world-lane slot and salt in StoneColossi (adding a slot does not move the existing landmarks).
+
+2. **Lantern stag (SparklingForest).**
+   - Look: a 40 m stag of mossy bark. Its antlers are hung with glowing seed pods that light the canopy at night.
+   - Behaviour: still by day, lying down, with its head turning. At dusk it rises, walks its loop, and sheds a few drifting light motes (particle) that small creatures gather round.
+   - Cost: medium. It is a walker with a day/night state (it reads the same clock that A-75 row 1 feeds to comfort) and an emissive pod material. The rig is about two times the tortoise's, because of the four long legs and the neck.
+
+Runner-up: give the DrownedKnight its own slot in FoggyMarsh, rising slowly from the water at dusk. It is the cheapest, because BuildKnight already exists, but a new slot is placement work, so it needs the world lane and a warning first.
