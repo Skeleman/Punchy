@@ -24,6 +24,17 @@ namespace Punchy.Debugging
     /// </summary>
     public class BenchmarkRoute : MonoBehaviour
     {
+        // b/fix-stall-hang: one FrameTimingManager capture per frame at most. The route and BenchTune (and its sweep)
+        // each called it, up to 3 times a frame; only sessions doing that showed recurring ~0.5 s frames and hangs.
+        static int timingsFrame = -1;
+        public static void CaptureTimingsOnce()
+        {
+            if (Time.frameCount == timingsFrame)
+                return;
+            timingsFrame = Time.frameCount;
+            FrameTimingManager.CaptureFrameTimings();
+        }
+
         const float Settle = 10f, Measure = 20f, MaxCaveSettle = 30f;
         // Approach walks: start this far out, at walking pace, so settling plus measuring ends about 100 m short.
         const float ApproachFrom = 400f, ApproachSpeed = 6f, ApproachMeasure = 40f;
@@ -437,7 +448,7 @@ namespace Punchy.Debugging
 
         void Update()
         {
-            FrameTimingManager.CaptureFrameTimings();
+            BenchmarkRoute.CaptureTimingsOnce();
             // -benchnocreatures: creatures neither posed nor drawn, to split their share of the frame (CPU and GPU).
             if (NoCreatures && World.DefaultGameObjectInjectionWorld != null)
             {
@@ -1100,7 +1111,7 @@ namespace Punchy.Debugging
                     {
                         yield return null;
                         t += Time.unscaledDeltaTime; fr++;
-                        FrameTimingManager.CaptureFrameTimings();
+                        BenchmarkRoute.CaptureTimingsOnce();
                         if (FrameTimingManager.GetLatestTimings(1, timing) > 0 && timing[0].gpuFrameTime > 0) { g += timing[0].gpuFrameTime; m += timing[0].cpuMainThreadFrameTime; gn++; }
                     }
                     var line = $"{fr / t:F1} fps, gpu {(gn > 0 ? g / gn : 0):F2} ms, main {(gn > 0 ? m / gn : 0):F2} ms";
@@ -1176,7 +1187,7 @@ namespace Punchy.Debugging
                 if (kb.f11Key.wasPressedThisFrame) Step();
                 if (kb.f12Key.wasPressedThisFrame) Shot(FileTag() + "-" + System.DateTime.Now.ToString("HHmmss"));
             }
-            FrameTimingManager.CaptureFrameTimings();
+            BenchmarkRoute.CaptureTimingsOnce();
             if (FrameTimingManager.GetLatestTimings(1, timing) > 0 && timing[0].gpuFrameTime > 0)
             {
                 gpuAcc += timing[0].gpuFrameTime; mainAcc += timing[0].cpuMainThreadFrameTime; gpuN++;
