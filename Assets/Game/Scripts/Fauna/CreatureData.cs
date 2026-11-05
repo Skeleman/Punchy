@@ -106,6 +106,8 @@ namespace Punchy.Fauna
         public bool Rooted;
         /// <summary>Sits still as a plant until startled (see CreatureSpecies.Disguised).</summary>
         public bool Disguised;
+        /// <summary>Its taste in weather (A-71): what makes it uncomfortable and what shelter it seeks.</summary>
+        public ComfortProfile Comfort;
 
         public BlobArray<CreaturePart> Parts;
         public BlobArray<CreatureSegment> Segments;
@@ -693,6 +695,10 @@ namespace Punchy.Fauna
         // activity that meets them; what it decides to do next is weighted by them. Only the brain reads them (#58:
         // moved here from CreatureState); what others see is CreatureState.Cue.
         public float Hunger, Thirst, Tired, Lonely;
+        /// <summary>A-71: how uncomfortable the weather has made it (0..1: builds while out of its comfort, fades in
+        /// comfort or shelter), why (the worst reason last seen), and how hard the weather pressed at the last check.</summary>
+        public float Discomfort, ComfortPressure;
+        public ComfortKind DiscomfortKind;
     }
 
     /// <summary>The need cue a creature shows (CreatureState.Cue), strongest need first.</summary>
@@ -758,7 +764,8 @@ namespace Punchy.Fauna
         /// <param name="hunted">Whether any species hunts it.</param>
         /// <param name="regard">Folk only: its regard for each species (by index), and its kinship (FolkKin).</param>
         public static BlobAssetReference<CreatureBlob> Build(CreatureSpecies variant, IReadOnlyList<int> prey = null, bool hunted = false,
-                                                             IReadOnlyList<float> regard = null, IReadOnlyList<byte> kinship = null)
+                                                             IReadOnlyList<float> regard = null, IReadOnlyList<byte> kinship = null,
+                                                             Vector2? home = null)
         {
             var species = variant.Body;
             // Expand slots: mirrored slots become left and right copies; children follow every copy of their parent.
@@ -869,6 +876,7 @@ namespace Punchy.Fauna
             root.SeenFrom = species.SeenFrom * sizeScale;
             root.Rooted = species.Rooted;
             root.Disguised = species.Disguised;
+            root.Comfort = ComfortProfiles.For(variant, home ?? new Vector2(-1f, -1f));
             root.Nests = species.Nests;
             root.WebSize = species.WebSize * sizeScale;
             root.FlightHeight = new float2(species.FlightHeight.x, math.max(species.FlightHeight.x, species.FlightHeight.y));

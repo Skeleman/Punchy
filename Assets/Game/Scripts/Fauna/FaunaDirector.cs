@@ -271,6 +271,7 @@ namespace Punchy.Fauna
                 simWorld.EntityManager.SetComponentData(simClockEntity, clock);
 
             GatherPlayers();
+            Comfort.Refresh(players, source);
             if (Time.time >= nextDespawn)
             {
                 nextDespawn = Time.time + 0.25f;
@@ -456,10 +457,30 @@ namespace Punchy.Fauna
                     }
             }
             Stage("prey");
+            // A-71: each species' home climate, the middle of the temperature and humidity of the biomes that list it
+            // (weighted by how narrow each biome's ranges are: a biome that spans every climate says nothing).
+            var homes = new Dictionary<string, Vector3>();
+            foreach (var biome in biomes)
+            {
+                if (biome == null)
+                    continue;
+                var w = Mathf.Clamp01(1f - (biome.Temperature.y - biome.Temperature.x));
+                if (w < 0.05f)
+                    continue;
+                var t = (biome.Temperature.x + biome.Temperature.y) * 0.5f;
+                var h = (biome.Humidity.x + biome.Humidity.y) * 0.5f;
+                foreach (var f in biome.Fauna)
+                    if (f.Species != null)
+                    {
+                        homes.TryGetValue(f.Species.name, out var sum);
+                        homes[f.Species.name] = sum + new Vector3(t * w, h * w, w);
+                    }
+            }
             for (int i = 0; i < species.Count; i++)
             {
                 Regards(i, out var regard, out var kinship);
-                blobs.Add(CreatureBlobBuilder.Build(species[i], preyLists[i], hunted[i], regard, kinship));
+                Vector2? home = homes.TryGetValue(species[i].name, out var sum) ? new Vector2(sum.x / sum.z, sum.y / sum.z) : null;
+                blobs.Add(CreatureBlobBuilder.Build(species[i], preyLists[i], hunted[i], regard, kinship, home));
             }
             Stage("blobs");
 

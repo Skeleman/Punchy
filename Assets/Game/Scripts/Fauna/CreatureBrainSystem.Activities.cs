@@ -61,6 +61,43 @@ namespace Punchy.Fauna
                     if (M.Lonely > strongest) cue = NeedCue.Lonely;
                 }
                 s.Cue = (byte)cue;
+                ComfortCheck(ref s, ref b);
+            }
+
+            /// <summary>
+            /// A-71: the weather's pressure on it, checked every 1-3 s (its own period and phase, so checks spread over
+            /// the frames): its discomfort builds while the pressure lasts (about half a minute to full at its worst) and
+            /// fades out of it. In a cave or under rock the sky can't reach it.
+            /// </summary>
+            void ComfortCheck(ref CreatureState s, ref CreatureBlob b)
+            {
+                if (!b.Comfort.Minds || s.Holder != 0 || Comfort.Off.Data != 0)
+                {
+                    M.Discomfort = 0f;
+                    M.ComfortPressure = 0f;
+                    return;
+                }
+                var h = math.hash(new uint2(s.Individual, 0xC0F0u));
+                var period = 1f + 2f * ((h & 0xFFFFu) / 65536f);
+                var phase = (h >> 16) / 65536f * period;
+                if (math.floor((Now + phase) / period) == math.floor((Now - Step + phase) / period) && SearchEveryFrame.Data == 0)
+                    return;
+                var dt = SearchEveryFrame.Data != 0 ? Step : period;
+                var w = Comfort.WeatherAt(s.Position.xz);
+                var underground = underRock || s.Position.y < Terrain.SampleHeight(s.Position.xz) - 2f;
+                var pressure = Comfort.Pressure(in b.Comfort, s.Individual, in w, Night, underground, false, out var kind);
+                M.ComfortPressure = pressure;
+                if (pressure > 0.02f)
+                {
+                    M.Discomfort = math.min(M.Discomfort + pressure * dt / 30f, 1f);
+                    M.DiscomfortKind = kind;
+                }
+                else
+                {
+                    M.Discomfort = math.max(M.Discomfort - dt / 20f, 0f);
+                    if (M.Discomfort <= 0f)
+                        M.DiscomfortKind = ComfortKind.None;
+                }
             }
 
             /// <summary>How much a need pushes an activity: a little even when met, a lot when pressing.</summary>

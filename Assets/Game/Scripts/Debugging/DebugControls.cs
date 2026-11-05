@@ -325,6 +325,7 @@ namespace Punchy.Debugging
             SpinCheck();
             HuntLog();
             PersonalityLog();
+            ComfortLog();
             ShotOnHunt();
             ChatShot();
             RemoteRoll();
@@ -1029,6 +1030,97 @@ namespace Punchy.Debugging
             bodies.Dispose();
         }
 
+        // ---------------------------------------------------------------- comfort
+
+        /// <summary>"-comfort": every 5 s, logs each species that minds the weather with its count, mean discomfort meter,
+        /// mean pressure and most common complaint, plus the weather and felt heat where they stand (A-71, #69).
+        /// "-comfort off" switches the comfort check off in the brain (for the perf before/after).</summary>
+        static bool comfortLog;
+        static float comfortNext = 6f;
+
+        void ComfortLog()
+        {
+            if (!comfortLog || queryWorld == null || !queryWorld.IsCreated || Time.timeSinceLevelLoad < comfortNext)
+                return;
+            comfortNext = Time.timeSinceLevelLoad + 5f;
+            var director = FindAnyObjectByType<FaunaDirector>();
+            var em = queryWorld.EntityManager;
+            using var q = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>(),
+                ComponentType.ReadOnly<CreatureMind>());
+            var states = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
+            var bodies = q.ToComponentDataArray<CreatureBody>(Allocator.Temp);
+            var minds = q.ToComponentDataArray<CreatureMind>(Allocator.Temp);
+            var night = 0f;
+            using (var cq = em.CreateEntityQuery(ComponentType.ReadOnly<FaunaClock>()))
+                if (cq.CalculateEntityCount() == 1)
+                    night = cq.GetSingleton<FaunaClock>().Night;
+            var groups = new SortedDictionary<string, (int n, float meter, float pressure, int[] kinds, float3 at)>(System.StringComparer.Ordinal);
+            for (int i = 0; i < states.Length; i++)
+            {
+                if (states[i].Gone || !bodies[i].Blob.Value.Comfort.Minds)
+                    continue;
+                var name = director != null ? director.SpeciesAt(bodies[i].Species)?.name : null;
+                name ??= "#" + bodies[i].Species;
+                if (!groups.TryGetValue(name, out var g))
+                    g = (0, 0f, 0f, new int[9], states[i].Position);
+                g.n++;
+                g.meter += minds[i].Discomfort;
+                g.pressure += minds[i].ComfortPressure;
+                g.kinds[(int)minds[i].DiscomfortKind]++;
+                groups[name] = g;
+            }
+            Debug.Log($"[comfort] {queryWorld.Name} t {Time.timeSinceLevelLoad:F0} s night {night:F2} grid ready {Comfort.Grid.Data.Ready} " +
+                      $"off {Comfort.Off.Data}: {groups.Count} species");
+            // Every folk race's profile at the player's spot (the same five individuals each), whether or not any are near:
+            // one line per race, mean pressure and the commonest complaint (the card's 5 races x 3 scenes).
+            if (director != null && QueriesLive() && playerQuery.TryGetSingleton<LocalTransform>(out var me) && EnsureLocations(out var ground))
+            {
+                var here = Comfort.WeatherAt(me.Position.xz);
+                var underground = me.Position.y < ground.SampleHeight(me.Position.xz) - 2f;
+                Debug.Log($"[comfort] at player ({me.Position.x:F0},{me.Position.z:F0}) hour {(Cycle != null ? Cycle.TimeOfDay : -1f):F1}: " +
+                          $"heat {here.Heat:F2} felt {Comfort.FeltHeat(here, night, underground):F2} humid {here.Humidity:F2} rain {here.Rain:F2} " +
+                          $"snow {here.Snow:F2} wind {here.Wind:F2} storm {here.Storm:F2} sun {here.Sunlight:F2}");
+                var seen = new HashSet<ComfortRace>();
+                for (int sp = 0; sp < director.SpeciesCount; sp++)
+                {
+                    var blob = director.BlobAt(sp);
+                    if (!blob.IsCreated)
+                        continue;
+                    ref var profile = ref blob.Value.Comfort;
+                    if (profile.Race == ComfortRace.None || !profile.Minds || !seen.Add(profile.Race))
+                        continue;
+                    var sum = 0f;
+                    var kinds = new int[9];
+                    for (uint k = 1; k <= 5; k++)
+                    {
+                        sum += Comfort.Pressure(in profile, k * 0x9E3779B9u, in here, night, underground, false, out var kind);
+                        kinds[(int)kind]++;
+                    }
+                    int worst = 0;
+                    for (int k = 1; k < kinds.Length; k++)
+                        if (kinds[k] > 0 && (worst == 0 || kinds[k] > kinds[worst]))
+                            worst = k;
+                    Debug.Log($"[comfort] race {profile.Race} ({director.SpeciesAt(sp).name}): pressure {sum / 5f:F2} kind {(ComfortKind)worst} " +
+                              $"likes {profile.Heat.x:F2}-{profile.Heat.y:F2} tol {profile.Tolerance:F2}");
+                }
+            }
+            foreach (var kv in groups)
+            {
+                var g = kv.Value;
+                int top = 0;
+                for (int k = 1; k < g.kinds.Length; k++)
+                    if (g.kinds[k] > g.kinds[top] || (top == 0 && g.kinds[k] > 0))
+                        top = k;
+                var w = Comfort.WeatherAt(g.at.xz);
+                Debug.Log($"[comfort] {kv.Key} x{g.n}: meter {g.meter / g.n:F2} pressure {g.pressure / g.n:F2} kind {(ComfortKind)top} " +
+                          $"({g.kinds[top]}) | heat {w.Heat:F2} felt {Comfort.FeltHeat(w, night, false):F2} humid {w.Humidity:F2} " +
+                          $"rain {w.Rain:F2} snow {w.Snow:F2} wind {w.Wind:F2} storm {w.Storm:F2} sun {w.Sunlight:F2}");
+            }
+            states.Dispose();
+            bodies.Dispose();
+            minds.Dispose();
+        }
+
         // ---------------------------------------------------------------- spin check
 
         /// <summary>"-spincheck" (or "-spincheck 270,3"): logs any creature that turns this many degrees within this many
@@ -1595,6 +1687,11 @@ namespace Punchy.Debugging
             // "-personalitylog Dog": list each of that species' personality a few seconds in (#50).
             var plArg = System.Array.IndexOf(args, "-personalitylog");
             personalitySpecies = plArg >= 0 && plArg + 1 < args.Length ? args[plArg + 1] : null;
+            // "-comfort": log weather comfort meters every 5 s; "-comfort off" disables the brain's comfort check (A-71).
+            var cfArg = System.Array.IndexOf(args, "-comfort");
+            comfortLog = cfArg >= 0;
+            comfortNext = 6f; // (statics outlive a play with domain reload off)
+            Comfort.Off.Data = cfArg >= 0 && cfArg + 1 < args.Length && args[cfArg + 1] == "off" ? 1 : 0;
             // "-thirsty" (A-49 #64): every creature's thirst is topped up for this line, so drinking shows up soon.
             thirsty = System.Array.IndexOf(args, "-thirsty") >= 0;
             personalityAt = -1f;
