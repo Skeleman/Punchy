@@ -2682,3 +2682,33 @@ GPU ms, uncapped, 500 frames, 2 rounds, at HumanVillage:
 That is within noise. Casters and batches are unchanged (453/2650 and 490/2705). Island ready: 35.4 to 38.3 s this
 session, no worse than before. The change is look-only, so the landmark hash is unchanged; the suite at the end of
 the card confirms it.
+
+### W-108 row 3: paved squares (#39 part 2), world-features 883bb9a
+
+Towns with a water feature of radius 70 or more now get a flagstone square round it. Its shape is a superellipse,
+and the seed sets the shape and tint. A kerb runs round it and breaks where the lanes come in. Worn paths run from
+each lane mouth to the water, and a worn ring circles the water. Shots (world tree, Assets/Temp/shots):
+w108r3-village-top (HumanVillage) and w108r3-elf-top (an elf town). In HumanVillage the well stands just outside the
+square, and the ring goes round the campfire in the middle. Island ready 36.6 s. Landmark hash unchanged.
+
+### W-108 extra: wharf buoys clear of other props (A-75 risk), world-features 301ca93
+
+Cause: StructureKit.Wharf placed two to four buoys off the far end without checking footprints. That end can carry
+houses on piles (seaward of the end branch, reaching about length + 6.6 m), and the second dock lane is about 12 m off
+on +X. Fix: each buoy keeps its draws, so the stream and the other buoys stay put. It is pulled in from the dock side
+(x at most 7), then steps out to sea in 0.5 m steps until it is 1 m clear of every walkway and house. Offline check
+over 2000 wharf seeds: 0 of 5979 buoy masts inside a house footprint (0.8 m margin). Gulls follow the masts on their
+own (PR #161).
+
+- Shot: w108b-fv2-wharf-end, fishing village 2 (the A-75 g-mast2 spot). Both buoys float well clear of the stilt
+  house piles.
+- Village 1 has no wharf in game, so there is no wharf end to shoot there. Its loaded props are four FishShore, one
+  FishStiltHouse and one FishDock. This was there before my change, which can't affect placement; a FloraPlacement
+  drop rule probably removes it. Not fixed here: worth a card.
+- Play v3: island hash CE5EB4D9, 110 landmarks, ready 37.2 s, Fauna_Fingerprint F4E66093 (unchanged), 48 wharf
+  spots, 190 perches.
+- Gotcha (added to docs/agents/editor-and-assets.md): an editor killed in Play mode leaves Temp/__Backupscenes, and
+  the next start sits at a hidden "Recovering Scene Backups" dialog. Delete that folder first.
+- Suite at 301ca93 (editor closed): 13 passed, 0 failed. Landmarks_V3 110 09EAC0FE and Fauna_Fingerprint F4E66093,
+  both unchanged, so no repin. World up in 37 s. The place-prop test also finds only 3 FishWharf on v3, which fits
+  village 1 having none.
