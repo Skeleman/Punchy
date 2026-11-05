@@ -2357,3 +2357,20 @@ Rows 2-4 share one commit because their files overlap (FaunaDirector, WharfSpots
 - Suite on animal-behaviours 485cb4e: 13 passed, 0 failed in 257 s (Unity exit 0).
 - Fauna_Fingerprint F4E66093, unchanged: no species or species assets changed in A-74. Landmarks 110 09EAC0FE.
 - A-74 commits: c17e66f (rows 1-2), 8a91273 (row 4, #40), 485cb4e (row 3, #8). All pushed. The Punchy editor is closed. No PRs merged and no issues closed.
+
+## A-75 row 1 (desert folk shelter only at midday) - done (verified)
+
+- Commit 70eca71 on animal-behaviours. Comfort learns the hour (a shared static fed by FaunaDirector). On hot islands the felt heat eases off away from about 11-16 h. At midday a seeded hardy half of the folk fan themselves and carry on. Of those who shelter from Hot/Dry/Bright, 85% stand under the eaves, and 15% go indoors (it was 50%). Rain is unchanged. #69 hermit and settlement code are untouched.
+- Desert HumanVillage, folk within 70 m (indoors / eaves shelter / outdoors):
+  - before, 8 h: 16 folk, 5 / 10 / 1
+  - before, 13 h: 15 folk, 4 / 9 / 2
+  - after, 8.8 h: 17 folk, 2 / 0 / 15 (heat meter 0.03)
+  - after, 13.8 h: 15 folk, 3 / 6 / 6 (meter 1.00; all feel Hot)
+- Snow village (tundra), after:
+  - It had the same fault: at 14.6 h before the hardy rule, 2 of 15 were out (Bright/Hot glare).
+  - after, 13.8 h: 14 folk, 5 / 0 / 9
+  - after, 8.8 h: 14 folk, 4 / 2 / 8
+- Ash village (the island has no ElectricWastelands settlement), after, 13.8 h: 12 folk, 4 / 1 / 7. It was already fine before (6 of 11 out).
+- Shots: d8, d13 (after); base-d8 and base-d13 are the old code. The snow shots are s8 and s13, and the ash shot is a13.
+- Brain ms in the desert village at 13 h: 0.617 after, 0.604 before.
+- Risk: the hour is a global static, so on a joined client it is that client's own clock (it's cosmetic behaviour only).
