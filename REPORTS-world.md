@@ -2337,3 +2337,9 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
   - v3: batfolk 689 -> 92 ms.
 - Identity: bat folk list diff = 0 on both (v2 2 sites, 47 props, 7 homes, hash 8A17B4DB; v3 1 site, 27 props, 5 homes, hash DCB70DE3). Landmark hash v2 95EAB5B4, v3 80EBFCE6, Fauna_Fingerprint F99FD9E4, heightmap checksum v2 9CBCD24A / v3 C524062E: all unchanged.
 - Seen on the way (for row 5): v3 logs "reports 22287 ms" before "v3 ready"; v2 reports take 2 ms.
+
+## W-103 row 2: rivers (done, verified)
+- Commit 7b75d2c (world-features), RiverBaking.cs only.
+- The two river maps already share one drainage grid (W-76), so the drainage is built once. Timing the rest showed most of the stage was CutDams on the drawn map: 24 ground samples per river cell in one thread (about 590 ms). Those samples and the shore-level loop now run in parallel over the same managed maths, and blob arrays are block-copied.
+- Editor stage times (one bake each): v2 rivers 1169 -> 541 ms (bake 5389 -> 4954 ms); v3 rivers 1460 -> 886 ms.
+- Identity: landmark hash v2 95EAB5B4 / v3 80EBFCE6, heights v2 9CBCD24A+C8D060BA / v3 C524062E+D4AD0999, bat folk 8A17B4DB / DCB70DE3, Fauna_Fingerprint F99FD9E4: all unchanged.
