@@ -72,6 +72,8 @@ current release. Lane: A = animal, W = world.
   - weather odds (rain, snow, storms, fog, wind);
   - flora appearance (colour shifts, leaf drop, bloom, snow cover, dormant plants);
   - fauna spawn rates (which species appear, and how many). Spawn numbers only, no behaviour.
+  - water: desert rivers are dry beds most of the year (cracked mud, stranded driftwood) and flow in a monsoon season,
+    filling gradually. Other seasonal water could follow the same idea (frozen lakes, spring floods, shrinking ponds).
 - No season-driven tasks or scripted seasonal behaviour for animals or humanoids. They never read the season. Any change
   in what they do emerges only from their response to the environment it changes: light, temperature and storms.
   This builds on the weather comfort work (A-71).
