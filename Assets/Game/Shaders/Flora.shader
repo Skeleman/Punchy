@@ -551,13 +551,37 @@ Shader "Punchy/Flora"
 
             float3 _LightDirection;
             float3 _LightPosition;
+            // W-107's cheap far caster: xyz the camera, w the near range (0: off). Past it the far level of detail
+            // casts as a solid card, so world-space noise cuts holes in it for a dappled canopy shadow.
+            float4 _FloraCheapHoles;
 
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
                 float fade : TEXCOORD0;
                 float4 moss : TEXCOORD1;
+                float3 positionWS : TEXCOORD2;
             };
+
+            float HoleHash(float3 p)
+            {
+                p = frac(p * 0.1031);
+                p += dot(p, p.yzx + 33.33);
+                return frac((p.x + p.y) * p.z);
+            }
+
+            // Value noise on 1.3 m cells: blotches about the size of the gaps between a crown's leaf clumps.
+            float HoleNoise(float3 p)
+            {
+                p /= 1.3;
+                float3 i = floor(p);
+                float3 f = p - i;
+                f = f * f * (3 - 2 * f);
+                return lerp(lerp(lerp(HoleHash(i), HoleHash(i + float3(1, 0, 0)), f.x),
+                                 lerp(HoleHash(i + float3(0, 1, 0)), HoleHash(i + float3(1, 1, 0)), f.x), f.y),
+                            lerp(lerp(HoleHash(i + float3(0, 0, 1)), HoleHash(i + float3(1, 0, 1)), f.x),
+                                 lerp(HoleHash(i + float3(0, 1, 1)), HoleHash(i + float3(1, 1, 1)), f.x), f.y), f.z);
+            }
 
             Varyings Vert(FloraAttributes input)
             {
@@ -571,6 +595,7 @@ Shader "Punchy/Flora"
                 o.positionCS = ApplyShadowClamping(TransformWorldToHClip(ApplyShadowBias(v.positionWS, v.normalWS, lightDirectionWS)));
                 o.fade = v.fade;
                 o.moss = FloraMossData(input);
+                o.positionWS = v.positionWS;
                 return o;
             }
 
@@ -580,6 +605,8 @@ Shader "Punchy/Flora"
                 // LOD keeps casting with its outgoing level until the change is complete.
                 clip(input.fade >= 0 && input.fade < 1 ? -1 : 1);
                 FloraMossClip(input.moss);
+                if (_FloraCheapHoles.w > 0 && distance(input.positionWS.xz, _FloraCheapHoles.xz) > _FloraCheapHoles.w)
+                    clip(HoleNoise(input.positionWS) - 0.45);
                 return 0;
             }
             ENDHLSL
@@ -605,6 +632,7 @@ Shader "Punchy/Flora"
             #include "Flora.hlsl"
 
             float4 _FloraCacheSun;   // xyz the way the sunlight travels
+            float4x4 _FloraCacheVP;  // the cache's view from the sun (orthographic), ready for the GPU
 
             struct Varyings
             {
@@ -618,7 +646,7 @@ Shader "Punchy/Flora"
             {
                 FloraVertex v = FloraTransform(input);
                 Varyings o;
-                o.positionCS = TransformWorldToHClip(v.positionWS);
+                o.positionCS = mul(_FloraCacheVP, float4(v.positionWS, 1));
                 o.fade = v.fade;
                 o.along = dot(v.positionWS, _FloraCacheSun.xyz);
                 o.moss = FloraMossData(input);
