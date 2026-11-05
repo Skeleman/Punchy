@@ -174,20 +174,26 @@ namespace Punchy.Terrain
                 Copy(ref builder, ref root.LakeDepth, lakes);
                 Copy(ref builder, ref root.Points, points);
                 // Each cell's highest lake level within two cells (for bays the cell grid misses).
-                var shore = builder.Allocate(ref root.ShoreLevel, count);
-                for (int i = 0; i < count; i++)
+                // W-103: rows in parallel over managed copies (each cell is independent, so the result is identical).
+                var lakeDepths = lakes.ToArray();
+                var lakeLevels = lakeLevel.ToArray();
+                var shore = new float[count];
+                System.Threading.Tasks.Parallel.For(0, resolution, z =>
                 {
-                    int x = i % resolution, z = i / resolution;
-                    var best = float.MinValue;
-                    for (int dz = math.max(z - 2, 0); dz <= math.min(z + 2, resolution - 1); dz++)
-                    for (int dx = math.max(x - 2, 0); dx <= math.min(x + 2, resolution - 1); dx++)
+                    for (int x = 0; x < resolution; x++)
                     {
-                        var n = dz * resolution + dx;
-                        if (lakes[n] > 0f)
-                            best = math.max(best, lakeLevel[n]);
+                        var best = float.MinValue;
+                        for (int dz = math.max(z - 2, 0); dz <= math.min(z + 2, resolution - 1); dz++)
+                        for (int dx = math.max(x - 2, 0); dx <= math.min(x + 2, resolution - 1); dx++)
+                        {
+                            var n = dz * resolution + dx;
+                            if (lakeDepths[n] > 0f)
+                                best = math.max(best, lakeLevels[n]);
+                        }
+                        shore[z * resolution + x] = best;
                     }
-                    shore[i] = best;
-                }
+                });
+                builder.Construct(ref root.ShoreLevel, shore);
                 // Main upstream neighbour (the widest feeder) of each river cell, for the curve tangents.
                 var up = builder.Allocate(ref root.Up, count);
                 for (int i = 0; i < count; i++) up[i] = -1;
@@ -444,20 +450,32 @@ namespace Punchy.Terrain
             var count = down.Length;
             var target = new NativeArray<float>(count, Allocator.Temp);
             for (int i = 0; i < count; i++) target[i] = float.MaxValue;
-            for (int c = 0; c < count; c++)
+            // The lowest ground just outside the banks, where the open-end rule looks. W-103: these samples were most
+            // of the rivers stage; they only read the ground, so they run in parallel (same managed maths, same result).
+            var widths = width.ToArray();
+            var depths = lakes.ToArray();
+            var centres = points.ToArray();
+            var ground = source;
+            var lows = new float[count];
+            System.Threading.Tasks.Parallel.For(0, count, c =>
             {
-                if (width[c] <= 0f || lakes[c] > 0f)
-                    continue;
-                // The lowest ground just outside the banks, where the open-end rule looks.
+                if (widths[c] <= 0f || depths[c] > 0f)
+                    return;
                 var low = float.MaxValue;
                 for (int k = 0; k < 8; k++)
                 {
                     math.sincos(k * math.PI / 4f, out var sn, out var cs);
                     var dir = new float2(cs, sn);
-                    for (float r = width[c] * 0.5f + 4f; r <= width[c] * 0.5f + 12f; r += 4f)
-                        low = math.min(low, source.BaseHeight(points[c] + dir * r));
+                    for (float r = widths[c] * 0.5f + 4f; r <= widths[c] * 0.5f + 12f; r += 4f)
+                        low = math.min(low, ground.BaseHeight(centres[c] + dir * r));
                 }
-                var level = low - Margin;
+                lows[c] = low;
+            });
+            for (int c = 0; c < count; c++)
+            {
+                if (width[c] <= 0f || lakes[c] > 0f)
+                    continue;
+                var level = lows[c] - Margin;
                 if (water[c] <= level + 0.01f)
                     continue;
                 // Walk down until the river is already this low; give up at backwater or past the limits.
@@ -513,9 +531,8 @@ namespace Punchy.Terrain
 
         static void Copy<T>(ref BlobBuilder builder, ref BlobArray<T> target, NativeArray<T> source) where T : unmanaged
         {
-            var array = builder.Allocate(ref target, source.Length);
-            for (int i = 0; i < source.Length; i++)
-                array[i] = source[i];
+            // W-103: one block copy instead of a checked read and write per element.
+            builder.Construct(ref target, source.ToArray());
         }
 
         [BurstCompile]
