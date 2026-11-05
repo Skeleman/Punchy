@@ -2,6 +2,8 @@
 
 Newest first.
 
+## 2026-11-05: job 34, new shadow defaults (PR #158) vs old, main c19e799: shadow-pass GPU halved where flora shadows matter (fishing village 3.5 -> 1.5 ms, +7.6 fps; swamp 4.3 -> 2.2 ms, +5.3 fps); forest and desert unchanged. CPU shadow cost unchanged. No hitches over 300 ms; 0 frames of 0.5 s and 0 hangs in 2 sweep sessions. Details: REPORTS-profiler.md.
+
 ## 2026-11-05: job 29, #132 fix (A-68 row 1, 3d66652c) before/after: fishing villages +3 to +38% (v3 village 3: 64 -> 89 fps). Brain.Walls is gone; what's left at v2 village 3 is Brain.Built, 5.4 ms (the building check for wild animals near a player)
 Method: before 12c9318 (first parent of merge 69ca891), after 69ca891 (that merge brings only 3d66652c). Bench, uncapped, 30 s at the 7 job 28 fishing village spots, 2 rounds with the build order alternated. Profile captures (-fpscap 60, BProfileTools -keep Brain) at v2 villages 1 and 3 for each build. 0 exceptions, no crash.
 - **Avg fps, mean of 2 runs (before -> after):** v2 1: 59.0 -> 62.7; v2 2: 86.6 -> 87.9; v2 3: 47.5 -> 53.8; v2 4: 96.3 -> 99.4; v3 1: 93.6 -> 97.9; v3 2: 90.8 -> 89.8; **v3 3: 64.1 -> 88.5**.

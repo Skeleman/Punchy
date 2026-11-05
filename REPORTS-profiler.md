@@ -2,6 +2,73 @@
 
 Newest first.
 
+## 2026-11-05 job 34: new shadow defaults (PR #158) vs the old default, main c19e799
+
+**Short answer:**
+- The new default (cheap far caster + cached far shadows, near 25 m) cuts the **shadow passes' GPU cost by about half where flora shadows matter**:
+  - Fishing village: 3.5 -> 1.5 ms, GPU 12.1 -> 10.1 ms, +7.6 fps (67.1 -> 74.8).
+  - Swamp spot: 4.3 -> 2.2 ms, GPU 12.5 -> 10.4 ms, +5.3 fps (68.7 -> 74.0).
+- **Forest and desert village: no real difference** (0.2 ms or less). Shadows there cost about 1 ms either way.
+- **CPU shadow cost is unchanged**: the render thread's Shadows.Draw is the same in new and old at every spot. The saving is all GPU.
+- **Hitches: none over 300 ms** in 24 Profile runs and 2 sweep sessions. Worst frame 62 ms (swamp, old, round 1).
+- **Stall check: 0 frames of 0.5 s, 0 hangs**, both sweep sessions finished. That makes 6 clean BenchTune sessions since PR #159.
+
+**Method:**
+- Profile build of main c19e799, v2 island, uncapped (-fpscap 0), hitch log at 300 ms. 20 s measured at each stop (forest: the route stop).
+- Variants: new (no flags), old (`-cheapfarcaster 0 -cachedfarshadows 0`), and no camera shadows (`-benchnoshadows`). Shadow-pass GPU = variant - no shadows.
+- 2 rounds, order reversed in round 2. Tables give the mean of both. Round 1 new and old were also captured for the CPU markers.
+- Then a Bench build of c19e799, 2 BenchTune sweep sessions at the swamp spot.
+- **Spot note:** job 33's "fv1" (-3304,-1644) is now a swamp forest on v2. The only fishing village on v2 is at -2883,-2121, so both are reported. Desert village: the Sonoran HumanVillage at 3045,-827.
+- Script: q38.sh. Logs: results/q38logs.
+
+| spot | variant | fps | median ms | GPU ms | shadow-pass GPU ms |
+|---|---|---|---|---|---|
+| fishing village | new | 74.8 | 13.1 | 10.1 | 1.5 |
+| | old | 67.1 | 14.6 | 12.1 | 3.5 |
+| | no shadows | 78.5 | 12.5 | 8.6 | - |
+| swamp (job 33 "fv1") | new | 74.0 | 13.3 | 10.4 | 2.2 |
+| | old | 68.7 | 14.4 | 12.5 | 4.3 |
+| | no shadows | 81.4 | 11.9 | 8.2 | - |
+| forest | new | 90.8 | 10.8 | 6.6 | 0.9 |
+| | old | 88.3 | 11.4 | 6.8 | 1.1 |
+| | no shadows | 96.9 | 10.1 | 5.7 | - |
+| desert village | new | 101.9 | 9.7 | 7.5 | 0.8 |
+| | old | 102.0 | 9.8 | 7.6 | 0.9 |
+| | no shadows | 112.0 | 8.9 | 6.7 | - |
+
+- Round-to-round spread: GPU within 0.6 ms (swamp new 10.1 / 10.7, forest new 6.9 / 6.3). The fishing and swamp new-vs-old gaps (2.0-2.1 ms) are well outside that.
+- Fishing and swamp are still GPU-light compared with the frame (main thread about 9-11 ms, frame 13 ms), so frame time falls by about 1.1-1.5 ms, not the full GPU saving.
+
+**CPU shadow markers (round 1 captures, ms per frame, mean):**
+
+| spot | Render Shadows.Draw new / old | Workers Shadows.Draw new / old | MainLightShadow new / old |
+|---|---|---|---|
+| fishing | 0.59 / 0.59 | 0.40 / 0.40 | 0.65 / 0.65 |
+| swamp | 0.62 / 0.61 | 0.41 / 0.41 | 0.68 / 0.67 |
+| forest | 0.82 / 0.80 | 0.51 / 0.51 | 0.89 / 0.87 |
+| desert | 1.37 / 1.33 | 0.75 / 0.76 | 1.46 / 1.42 |
+
+- The desert village has the highest CPU shadow cost (1.4 ms render thread, buildings) but the lowest GPU shadow cost.
+
+**Sweep (Bench build, swamp spot, GPU ms, session 1 / 2):**
+
+| set | GPU ms |
+|---|---|
+| new (default) | 12.29 / 12.24 |
+| old (cheap=0, cached=0) | 13.58 / 13.71 |
+| Option 1: x0.5, 2 cascades | 12.21 / 12.16 |
+| No flora shadows | 11.79 / 11.92 |
+| Cheap only | 12.65 / 12.79 |
+| Cached only | 13.37 / 13.69 |
+| New + still | 12.86 / 12.94 |
+
+- In-session, new beats old by 1.4 ms and is within 0.4 ms of no flora shadows. Cheap does most of the work; cached adds about 0.4 ms on top.
+- Still far shadows still cost about +0.6 ms over the new default. Keep them off.
+- The sweep's absolute GPU is about 2 ms higher than the Profile runs at the same spot (a different build and a longer stop). Compare within the table, not across.
+- 0.5 s frames: 0 and 0. Hangs: 0. Hitches over 300 ms: none.
+
+- Cost: 29 calls, peak 303k context (session), $2.5
+
 ## 2026-11-05 b/fix-stall-hang: the 0.5 s frames and hangs came from the bench runner, not the game
 
 **Short answer:**
