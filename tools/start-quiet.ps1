@@ -73,6 +73,10 @@ public static class Quiet {
 "@
 
 $exePath = (Resolve-Path $Exe).Path
+# Unity editors get one asset import worker (Zach 2026-11-04): each worker holds about 1.1-1.3 GB.
+if ([IO.Path]::GetFileName($exePath) -ieq "Unity.exe" -and $ArgLine -notmatch "-desiredWorkerCount") {
+  $ArgLine = "$ArgLine -desiredWorkerCount 1 -standbyWorkerCount 1".Trim()
+}
 $prev = [Quiet]::GetForegroundWindow()
 $childPid = [Quiet]::Start($exePath, $ArgLine)
 Write-Output "started pid $childPid"
