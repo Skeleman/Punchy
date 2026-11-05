@@ -2171,3 +2171,28 @@ Human (Human, Dramatic) waiting Storm cell (94,-28) [1 up in cell]: Run for your
   - The walk goes along the flattest dry 30 m line (new FlatWay hook). The first spot walked up a 0.8 slope, the brain's steep-ground limit for every animal, and the dog crawled at 0.3 m/s.
   - TestSceneSetup.Spawn gained an optional radius.
 - Card question, "do creatures flee a remote (client) player on the host?": yes. The host brain senses and flees from the nearest of all players' positions, including every GhostOwner player, not only the host's own.
+
+## A-71 row 5: comfort + shelter seeking perf in a storm (no code change; measured on ade09d7)
+- Run: one play session, `-island v3`, a shot list of 8 lines. Each line is `-time 12 -weather Storm -wait 30 -perflog`, alternating `-comfort off` and `-comfort` at the same spot. Brain ms comes from perf2, summed over workers over the last 3 s of each line, editor build, uncapped.
+- Fishing village 3 (-4041,921):
+
+  | Line | Comfort | Brain ms | Creatures |
+  |---|---|---|---|
+  | 1 | off | 0.330 | 83 (still spawning in, left out) |
+  | 2 | on | 0.787 | 121 |
+  | 3 | off | 0.954 | 137 |
+  | 4 | on | 0.898 | 138 |
+
+  Mean: on 0.84, off 0.95, so no measurable added cost; the creature count dominates.
+- Busy town (2972,-885), about 100 creatures:
+
+  | Line | Comfort | Brain ms |
+  |---|---|---|
+  | 5 | off | 0.485 |
+  | 6 | on | 0.477 |
+  | 7 | off | 0.455 |
+  | 8 | on | 0.489 |
+
+  Mean: on 0.483, off 0.470, so +0.013 ms.
+- Result: the added cost is under 0.05 ms at both places, far below the 0.5 ms bar.
+- Seen in the [comfort] log: in the town, folk went indoors (indoors 19, roof 10 at the end). At village 3, every shelter was a tree (roof 0) and "none found" kept climbing (20, then 42). Its huts gave the folk there no door to take.
