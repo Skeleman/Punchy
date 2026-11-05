@@ -2303,3 +2303,12 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
   - forest (850,835, Temperate): 3.73 -> 2.91 ms; tris 5.82M -> 5.64M; instances 16402 -> 15412.
 - Shots (near shadows unchanged): gallery W-102/r1_before_fv1, r1_after_fv1, r1_before_forest, r1_after_forest.
 - Risk: FloraSystem.cs and FloraCull.compute are shared flora files. Shrub shadows between 40 m and the 50 m URP shadow distance are gone (a few pixels each).
+
+## W-102 row 2: far flora fade and thinning (done, verified)
+- Commit 499a18c (world-features). Natural plants thin past a per-layer share of radius with a per-plant dither threshold; rocks/built things never thin. Trees thin last and keep 50% at radius; shrubs and ground keep 25%.
+- GPU ms (editor, uncapped, 500 frames, plain), before (row 1 code) -> after:
+  - fv1 (-3304,-1644): 2.61 -> 2.53 (tris 4.11M -> 3.85M)
+  - forest (850,835): 3.12 -> 2.77 (tris 5.66M -> 4.89M, instances 14230 -> 12689)
+  - far view (800,800): 4.17 -> 2.88 (tris 2.70M -> 2.63M). The far drop is larger than the triangle change explains; part of it is likely run noise or streaming state. Editor noise is about +-0.15 ms; the profiler should re-measure in a build.
+- Far shot: no visible pop line or density edge (before/after near identical). gallery W-102/r2_before_far.png, r2_after_far.png.
+- No terrain/landmark code touched; hash checked in the final suite.
