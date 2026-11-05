@@ -19,8 +19,31 @@ namespace Punchy.Terrain
     public class SurfaceGlow
     {
         /// <summary>How far round the camera each layer is searched (ground, shrubs, trees), in metres.</summary>
-        static readonly float3 Radius = new float3(22f, 32f, 50f);
+        static readonly float3 Radius = new float3(30f, 32f, 50f);
         const float MoveBeforeRescan = 4f;
+
+        /// <summary>The far light map (W-101, Glow.hlsl): texels a side, metres a texel (640 m across).</summary>
+        public const int MapSize = 160;
+        public const float MapTexel = 4f;
+        /// <summary>How far round the camera each layer is searched for the far map (ground, shrubs, trees), in metres,
+        /// and in steps of how many cells (a skipped cell's light is made up by the ones taken: these are soft anyway).</summary>
+        static readonly float3 FarRadius = new float3(70f, 200f, 300f);
+        static readonly int3 FarStride = new int3(3, 2, 1);
+        const float MoveBeforeFarRescan = 24f;
+
+        JobHandle farJob;
+        bool farRunning;
+        NativeArray<float4> farPlants, farWindows;
+        float2 farCorner;
+        float3 farScannedAt = new float3(float.MaxValue);
+
+        /// <summary>The far light maps (plants; lit windows) and their corner, once a far scan has finished.</summary>
+        public Texture2D MapPlants, MapWindows;
+        public float2 MapCorner;
+        public bool MapReady;
+        /// <summary>The last far scan's time from start to pick-up (ms; an upper bound on its worker time), for the frame-cost report.</summary>
+        public float FarScanMs;
+        System.Diagnostics.Stopwatch farClock;
 
         BlobAssetReference<FloraBlob> blob;
         NativeArray<float4> modelGlow;
@@ -72,6 +95,42 @@ namespace Punchy.Terrain
                 }.Schedule();
                 running = true;
             }
+            UpdateFar(source, camPos);
+        }
+
+        /// <summary>The far map: picks up a finished scan (uploading its textures) and starts one when the camera has
+        /// moved far enough. Its corner snaps to the texel grid, so texels two scans share come out the same.</summary>
+        void UpdateFar(in TerrainSource source, float3 camPos)
+        {
+            if (farRunning && farJob.IsCompleted)
+            {
+                farJob.Complete();
+                farRunning = false;
+                FarScanMs = (float)farClock.Elapsed.TotalMilliseconds;
+                MapPlants.SetPixelData(farPlants, 0);
+                MapPlants.Apply(false, false);
+                MapWindows.SetPixelData(farWindows, 0);
+                MapWindows.Apply(false, false);
+                MapCorner = farCorner;
+                MapReady = true;
+            }
+            if (!farRunning && math.distancesq(camPos.xz, farScannedAt.xz) > MoveBeforeFarRescan * MoveBeforeFarRescan)
+            {
+                farScannedAt = camPos;
+                farCorner = math.floor(camPos.xz / MapTexel) * MapTexel - MapSize * MapTexel * 0.5f;
+                farJob = new FarScanJob
+                {
+                    Flora = blob,
+                    Source = source,
+                    ModelGlow = modelGlow,
+                    Corner = farCorner,
+                    CellSizes = cellSizes,
+                    Plants = farPlants,
+                    Windows = farWindows
+                }.Schedule();
+                farClock = System.Diagnostics.Stopwatch.StartNew();
+                farRunning = true;
+            }
         }
 
         void Build(BiomePalette palette, FloraSystem flora)
@@ -100,7 +159,22 @@ namespace Punchy.Terrain
             positions = new NativeList<float4>(256, Allocator.Persistent);
             colors = new NativeList<float4>(256, Allocator.Persistent);
             scannedAt = new float3(float.MaxValue);
+            if (!anyGlow)
+                return;
+            farPlants = new NativeArray<float4>(MapSize * MapSize, Allocator.Persistent);
+            farWindows = new NativeArray<float4>(MapSize * MapSize, Allocator.Persistent);
+            MapPlants = NewMap("Far glow (plants)");
+            MapWindows = NewMap("Far glow (windows)");
+            farScannedAt = new float3(float.MaxValue);
         }
+
+        static Texture2D NewMap(string name) => new Texture2D(MapSize, MapSize, TextureFormat.RGBAFloat, false, true)
+        {
+            name = name,
+            wrapMode = TextureWrapMode.Clamp,
+            filterMode = FilterMode.Bilinear,
+            hideFlags = HideFlags.DontSave
+        };
 
         public void Release()
         {
@@ -109,6 +183,21 @@ namespace Punchy.Terrain
                 job.Complete();
                 running = false;
             }
+            if (farRunning)
+            {
+                farJob.Complete();
+                farRunning = false;
+            }
+            if (farPlants.IsCreated)
+                farPlants.Dispose();
+            if (farWindows.IsCreated)
+                farWindows.Dispose();
+            if (MapPlants != null)
+                Object.Destroy(MapPlants);
+            if (MapWindows != null)
+                Object.Destroy(MapWindows);
+            MapPlants = MapWindows = null;
+            MapReady = false;
             if (blob.IsCreated)
                 blob.Dispose();
             if (modelGlow.IsCreated)
@@ -158,6 +247,74 @@ namespace Punchy.Terrain
                         Positions.Add(new float4(plant.Position + new float3(0f, 0.4f * scale, 0f), 0f));
                         Colors.Add(new float4(glow.xyz, glow.w * math.sqrt(scale)));   // negative: night only (lit windows)
                     }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Bakes the light every glowing plant and lit window within FarRadius casts on the ground into the far maps:
+        /// each spreads over a wider, softer reach than its near light (at least 12 m, so it can't slip between texels)
+        /// with the same total light. The alpha sums each source's height times its light, for the shader's height test.
+        /// </summary>
+        [BurstCompile]
+        struct FarScanJob : IJob
+        {
+            [ReadOnly] public BlobAssetReference<FloraBlob> Flora;
+            public TerrainSource Source;
+            [ReadOnly] public NativeArray<float4> ModelGlow;
+            public float2 Corner;
+            public float3 CellSizes;
+            public NativeArray<float4> Plants, Windows;
+
+            public void Execute()
+            {
+                for (int i = 0; i < Plants.Length; i++)
+                    Plants[i] = Windows[i] = float4.zero;
+                ref var f = ref Flora.Value;
+                var centre = Corner + MapSize * MapTexel * 0.5f;
+                for (int layer = 0; layer < 3; layer++)
+                {
+                    var size = CellSizes[layer];
+                    var r = FarRadius[layer];
+                    var step = FarStride[layer];
+                    // Steps on the whole-island grid of cells (not from the corner), so scans agree where they overlap.
+                    var lo = (int2)math.floor((centre - r) / size);
+                    lo -= ((lo % step) + step) % step;
+                    var hi = (int2)math.floor((centre + r) / size);
+                    for (int y = lo.y; y <= hi.y; y += step)
+                    for (int x = lo.x; x <= hi.x; x += step)
+                    {
+                        var cell = new int2(x, y);
+                        if (math.distancesq(((float2)cell + 0.5f) * size, centre) > r * r)
+                            continue;
+                        var plant = FloraPlacement.Place(ref f, Source, cell, layer);
+                        if (plant.Model < 0 || plant.Model >= ModelGlow.Length)
+                            continue;
+                        var glow = ModelGlow[plant.Model];
+                        if (glow.w == 0f)
+                            continue;
+                        var scale = math.max(plant.Scale, 0.3f);
+                        var reach = math.abs(glow.w) * math.sqrt(scale);
+                        var wide = math.max(reach * 1.6f, 12f);
+                        var light = glow.xyz * (reach * reach / (wide * wide) * step * step);
+                        Splat(glow.w < 0f ? Windows : Plants, plant.Position + new float3(0f, 0.4f * scale, 0f), light, wide);
+                    }
+                }
+            }
+
+            void Splat(NativeArray<float4> map, float3 at, float3 light, float reach)
+            {
+                var lo = math.max((int2)math.floor((at.xz - reach - Corner) / MapTexel), 0);
+                var hi = math.min((int2)math.floor((at.xz + reach - Corner) / MapTexel), MapSize - 1);
+                for (int y = lo.y; y <= hi.y; y++)
+                for (int x = lo.x; x <= hi.x; x++)
+                {
+                    var d = math.distance(Corner + (new float2(x, y) + 0.5f) * MapTexel, at.xz);
+                    if (d >= reach)
+                        continue;
+                    var fall = 1f - d / reach;
+                    var l = light * fall * fall;
+                    map[y * MapSize + x] += new float4(l, at.y * (l.x + l.y + l.z));
                 }
             }
         }

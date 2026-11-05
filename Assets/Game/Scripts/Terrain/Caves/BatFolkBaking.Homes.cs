@@ -200,59 +200,80 @@ namespace Punchy.Terrain
             const int first = 0;
 
             // Pods: hung like the huts (checked the same way: the pod's girth and the hanger in air), in three sizes.
+            // W-103: both loops run as speculative batches (Attempts); the tests read the caves only.
+            var src = source;
+            var st = site;
             var want = rng.NextInt(MinPods, MaxPods + 1);
-            for (int attempt = 0, n = 0; attempt < 120 && n < want; attempt++)
+            Attempts(ref rng, 120, want, props, first, homes, (ref Random r) =>
             {
-                var angle = rng.NextFloat(math.PI * 2f);
-                var dist = site.Radius * math.sqrt(rng.NextFloat(0.03f, 0.7f));
-                var size = PodSizes[rng.NextFloat() < 0.45f ? 0 : rng.NextFloat() < 0.65f ? 1 : 2];
-                var radius = rng.NextFloat(size.x, size.y);
-                var length = radius * rng.NextFloat(2.1f, 2.5f);
-                var lift = rng.NextFloat(2.6f, 5f);
-                var yaw = rng.NextFloat(math.PI * 2f);
-                var xz = site.Centre.xz + new float2(math.cos(angle), math.sin(angle)) * dist;
-                var start = new float3(xz.x, site.Centre.y, xz.y);
-                if (source.CaveDistance(start) > -0.5f || NearPool(ref set, cave, xz, radius + 0.4f))
-                    continue;
-                var ceiling = Ceiling(source, start);
-                var floor = source.FloorUnder(start, out var inCave);
+                var angle = r.NextFloat(math.PI * 2f);
+                var dist = st.Radius * math.sqrt(r.NextFloat(0.03f, 0.7f));
+                var size = PodSizes[r.NextFloat() < 0.45f ? 0 : r.NextFloat() < 0.65f ? 1 : 2];
+                var radius = r.NextFloat(size.x, size.y);
+                var length = radius * r.NextFloat(2.1f, 2.5f);
+                var lift = r.NextFloat(2.6f, 5f);
+                var yaw = r.NextFloat(math.PI * 2f);
+                var xz = st.Centre.xz + new float2(math.cos(angle), math.sin(angle)) * dist;
+                return (xz, radius, length, lift, yaw);
+            }, t =>
+            {
+                var (xz, radius, length, lift, yaw) = t;
+                ref var caves = ref src.Caves.Value;
+                var start = new float3(xz.x, st.Centre.y, xz.y);
+                if (src.CaveDistance(start) > -0.5f || NearPool(ref caves, caves.Caves[st.Cave], xz, radius + 0.4f))
+                    return default;
+                var ceiling = Ceiling(src, start);
+                var floor = src.FloorUnder(start, out var inCave);
                 var hanger = math.max(ceiling - floor - lift - length, 0.3f);
                 if (!inCave || ceiling - floor < length + hanger + 2.6f)
-                    continue;
+                    return default;
                 var top = ceiling - hanger;
-                if (source.CaveDistance(new float3(xz.x, top - 0.15f, xz.y)) > -0.35f ||
-                    source.CaveDistance(new float3(xz.x, top - length * 0.5f, xz.y)) > -(radius + 0.2f) ||
-                    source.CaveDistance(new float3(xz.x, top - length * 0.72f, xz.y)) > -(radius + 0.1f) ||
-                    source.CaveDistance(new float3(xz.x, top - length + 0.1f, xz.y)) > -0.4f)
-                    continue;
+                if (src.CaveDistance(new float3(xz.x, top - 0.15f, xz.y)) > -0.35f ||
+                    src.CaveDistance(new float3(xz.x, top - length * 0.5f, xz.y)) > -(radius + 0.2f) ||
+                    src.CaveDistance(new float3(xz.x, top - length * 0.72f, xz.y)) > -(radius + 0.1f) ||
+                    src.CaveDistance(new float3(xz.x, top - length + 0.1f, xz.y)) > -0.4f)
+                    return default;
                 var blocked = false;
                 for (float y = ceiling - 0.5f; y > top && !blocked; y -= 1f)
-                    blocked = source.CaveDistance(new float3(xz.x, y, xz.y)) > -0.1f;
-                if (blocked || Crowded(props, first, xz, radius, BatFolkPropKind.Pod))
-                    continue;
-                homes.Add(new BatFolkHome
+                    blocked = src.CaveDistance(new float3(xz.x, y, xz.y)) > -0.1f;
+                if (blocked)
+                    return default;
+                return new Placed
                 {
-                    Kind = BatFolkHomeKind.BatFolkPod, Site = siteIndex, Prop = props.Count,
-                    Stand = new float3(xz.x, top - length * BatFolkHomes.PodFloor, xz.y), Door = new float3(xz.x, floor, xz.y),
-                    Face = new float2(math.sin(yaw), math.cos(yaw))
-                });
-                props.Add(new BatFolkProp
-                {
-                    Position = new float3(xz.x, ceiling, xz.y), Size = new float3(radius, length, hanger), Yaw = yaw,
-                    Kind = BatFolkPropKind.Pod, Site = siteIndex
-                });
-                n++;
-            }
+                    Ok = true, At = xz, Reach = radius, HasHome = true,
+                    Home = new BatFolkHome
+                    {
+                        Kind = BatFolkHomeKind.BatFolkPod, Site = siteIndex,
+                        Stand = new float3(xz.x, top - length * BatFolkHomes.PodFloor, xz.y), Door = new float3(xz.x, floor, xz.y),
+                        Face = new float2(math.sin(yaw), math.cos(yaw))
+                    },
+                    Prop = new BatFolkProp
+                    {
+                        Position = new float3(xz.x, ceiling, xz.y), Size = new float3(radius, length, hanger), Yaw = yaw,
+                        Kind = BatFolkPropKind.Pod, Site = siteIndex
+                    }
+                };
+            });
 
             // Niches: march out from the chamber's middle at waist height to the wall, and cut the niche into it facing in.
             var floorC = source.FloorUnder(site.Centre + new float3(0f, 1f, 0f), out _);
             want = rng.NextInt(MinNiches, MaxNiches + 1);
-            for (int attempt = 0, n = 0; attempt < 200 && n < want; attempt++)
+            Attempts(ref rng, 200, want, props, first, homes, (ref Random r) =>
             {
-                var angle = rng.NextFloat(math.PI * 2f);
-                var width = rng.NextFloat(1.6f, 2.2f);
-                var depth = rng.NextFloat(1.1f, 1.5f);
-                var ledge = rng.NextFloat() < 0.5f ? 0f : rng.NextFloat(0.25f, 0.4f);
+                var angle = r.NextFloat(math.PI * 2f);
+                var width = r.NextFloat(1.6f, 2.2f);
+                var depth = r.NextFloat(1.1f, 1.5f);
+                var ledge = r.NextFloat() < 0.5f ? 0f : r.NextFloat(0.25f, 0.4f);
+                return (angle, width, depth, ledge);
+            }, t => TestNiche(src, st, siteIndex, floorC, t.angle, t.width, t.depth, t.ledge));
+        }
+
+        /// <summary>Whether a niche fits where it was drawn (rock, pools and the path only; crowding is tested after).</summary>
+        static Placed TestNiche(in TerrainSource source, in BatFolkSite site, int siteIndex, float floorC, float angle, float width, float depth, float ledge)
+        {
+            ref var set = ref source.Caves.Value;
+            ref var cave = ref set.Caves[site.Cave];
+            {
                 var dir = new float2(math.cos(angle), math.sin(angle));
                 var y = floorC + 1f;
                 var hit = -1f;
@@ -270,20 +291,20 @@ namespace Punchy.Terrain
                     }
                 }
                 if (hit < depth + 2f)
-                    continue;
+                    return default;
                 var w = new float3(site.Centre.x + dir.x * hit, y, site.Centre.z + dir.y * hit);
                 var g = new float2(source.CaveDistance(w + new float3(0.3f, 0f, 0f)) - source.CaveDistance(w - new float3(0.3f, 0f, 0f)),
                     source.CaveDistance(w + new float3(0f, 0f, 0.3f)) - source.CaveDistance(w - new float3(0f, 0f, 0.3f)));
                 var outward = math.normalizesafe(g, dir);
                 if (math.dot(outward, dir) < 0.4f)
-                    continue;   // a wall seen edge-on (a buttress or a passage mouth): no flat face to cut into
+                    return default;   // a wall seen edge-on (a buttress or a passage mouth): no flat face to cut into
                 var yaw = math.atan2(-outward.x, -outward.y);   // the opening (+Z) faces into the chamber
                 // The niche's back edge sits a little in from the wall, so its shell runs back into the rock.
                 var back = w.xz - outward * 0.15f;
                 var mid = back - outward * depth * 0.5f;
                 var floor = source.FloorUnder(new float3(mid.x, y + 0.5f, mid.y), out var inCave);
                 if (!inCave || math.abs(floor + 1f - y) > 0.7f)
-                    continue;
+                    return default;
                 // Flat: the cave floor under the niche's front corners and its door within 25 cm, never above its floor.
                 var turn = quaternion.RotateY(yaw);
                 var nicheFloor = floor + ledge;
@@ -295,30 +316,28 @@ namespace Punchy.Terrain
                     flat = inside && math.abs(f - floor) < 0.25f;
                 }
                 if (!flat)
-                    continue;
+                    return default;
                 var origin = new float3(back.x, nicheFloor, back.y);
                 var probeProp = new BatFolkProp { Position = origin, Size = new float3(width, depth, ledge), Yaw = yaw, Kind = BatFolkPropKind.Niche };
                 var h = BatFolkHomes.Headroom(probeProp);
                 // The inside of the niche, and the way in before it, in cave air (the back half-metre may touch the wall).
                 if (!BoxInAir(source, BatFolkHomes.At(probeProp, new float3(0f, 0.1f, depth * 0.5f + 0.25f)), yaw, width, h - 0.2f, depth - 0.5f) ||
                     !BoxInAir(source, new float3(back.x, floor, back.y) + math.mul(turn, new float3(0f, 0.15f, depth + 0.7f)), yaw, width, 1.6f, 1f))
-                    continue;
+                    return default;
                 var reach = width * 0.5f + NicheJamb;
-                if (OnPath(ref set, site.Chamber, mid, reach + 1.2f) || NearPool(ref set, cave, mid, reach + 0.6f) ||
-                    Crowded(props, first, mid, reach, BatFolkPropKind.Niche))
-                    continue;
+                if (OnPath(ref set, site.Chamber, mid, reach + 1.2f) || NearPool(ref set, cave, mid, reach + 0.6f))
+                    return default;
                 var style = BatFolkHomes.Style(origin);
                 var side = BatFolkHomes.Left(style) ? -1f : 1f;
-                homes.Add(new BatFolkHome
+                var home = new BatFolkHome
                 {
-                    Kind = BatFolkHomeKind.PygmyNiche, Site = siteIndex, Prop = props.Count,
+                    Kind = BatFolkHomeKind.PygmyNiche, Site = siteIndex,
                     Stand = BatFolkHomes.At(probeProp, new float3(side * (width * 0.5f - 0.42f), 0.1f, depth * 0.5f)),
                     Door = new float3(back.x, floor, back.y) + math.mul(turn, new float3(0f, 0f, depth + 0.7f)),
                     Face = math.mul(turn, new float3(0f, 0f, 1f)).xz
-                });
+                };
                 probeProp.Site = siteIndex;
-                props.Add(probeProp);
-                n++;
+                return new Placed { Ok = true, At = mid, Reach = reach, HasHome = true, Home = home, Prop = probeProp };
             }
         }
     }

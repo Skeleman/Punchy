@@ -74,7 +74,7 @@ namespace Punchy.Terrain
                 return field[fz * R + fx];
             }
             var bledRows = new int[N]; var landRows = new int[N]; var narrowRows = new int[N]; var wideRows = new int[N];
-            System.Threading.Tasks.Parallel.For(0, N, y =>
+            BakeParallel.For(N, y =>
             {
                 for (int x = 0; x < N; x++)
                 {
@@ -288,7 +288,7 @@ namespace Punchy.Terrain
             var s = source; if (!s.V3Ground.IsCreated) return "[rock] no v3 ground";
             int size = (int)(s.World.WorldSize / step); float half = s.World.WorldSize * 0.5f, sea = s.World.SeaLevel;
             var counts = new int[5 * 5 * size];
-            System.Threading.Tasks.Parallel.For(0, size, z =>
+            BakeParallel.For(size, z =>
             {
                 ref var g = ref s.V3Ground.Value;
                 for (int x = 0; x < size; x++)
@@ -325,7 +325,7 @@ namespace Punchy.Terrain
         {
             var s = source; float size = s.World.WorldSize, half = size * 0.5f, cell = size / px, sea = s.World.SeaLevel;
             var h = new float[px * px]; var cols = new Color[px * px];
-            System.Threading.Tasks.Parallel.For(0, px, j =>
+            BakeParallel.For(px, j =>
             {
                 ref var set = ref s.Biomes.Value;
                 for (int i = 0; i < px; i++)

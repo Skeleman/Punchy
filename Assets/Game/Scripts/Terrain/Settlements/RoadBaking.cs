@@ -21,6 +21,14 @@ namespace Punchy.Terrain
         const float WanderScale = 260f;
         const float Margin = 300f;
         const float MaxSlope = 0.45f;
+        /// <summary>
+        /// The steepest a laid road may be, rise over run between ground samples a metre apart (W-100, #39). The grid's
+        /// 20 m cells can't see a plateau's edge between two of their centres, so a found route is checked at this
+        /// grain: re-routed round the steep stretches up to RerouteTries times, and any stretch still too steep isn't
+        /// laid (the road ends at the top and picks up again at the bottom instead of running off the cliff).
+        /// </summary>
+        const float MaxGrade = 0.45f;
+        const int RerouteTries = 3;
         /// <summary>Ground steeper than this anywhere inside a grid cell (a mesa's cliff, a gorge wall) is a cliff the road
         /// goes round: the cell's own centre samples can't see a sheer drop between them.</summary>
         const float CliffSlope = 1f;
@@ -155,10 +163,47 @@ namespace Punchy.Terrain
                 for (int x = 0; x < size.x; x++)
                     wander[y * size.x + x] = Wander(origin + new float2(x, y) * Cell, offset);
             });
+            var src = source;
             System.Threading.Tasks.Parallel.For(0, pairs.Count, i =>
             {
                 var found = Route(cells, wander, size, min, pairs[i].from, pairs[i].to);
-                paths[i] = found == null ? null : Smooth(Smooth(Relax(found, 3)));
+                var path = found == null ? null : Smooth(Smooth(Relax(found, 3)));
+                // W-100 (#39): close the cells round any stretch too steep to lay and route again on this pair's own copy
+                // of the grid. Roads that pass first time are unchanged.
+                float4[] closed = null;
+                var best = path;
+                var fewest = int.MaxValue;
+                for (int attempt = 0; attempt <= RerouteTries && path != null; attempt++)
+                {
+                    var steep = Steep(src, path, settlements);
+                    if (steep.Count < fewest)
+                    {
+                        best = path;
+                        fewest = steep.Count;
+                    }
+                    if (steep.Count == 0 || attempt == RerouteTries)
+                        break;
+                    closed ??= (float4[])cells.Clone();
+                    var keepA = math.clamp((int2)math.round((pairs[i].from - min) / Cell), 0, size - 1);
+                    var keepB = math.clamp((int2)math.round((pairs[i].to - min) / Cell), 0, size - 1);
+                    foreach (var at in steep)
+                    {
+                        var c = (int2)math.round((at - min) / Cell);
+                        for (int y = c.y - 1; y <= c.y + 1; y++)
+                        for (int x = c.x - 1; x <= c.x + 1; x++)
+                        {
+                            var n = new int2(x, y);
+                            if (math.any(n < 0) || math.any(n >= size) || math.all(n == keepA) || math.all(n == keepB))
+                                continue;
+                            closed[y * size.x + x].z = 1f;
+                        }
+                    }
+                    var again = Route(closed, wander, size, min, pairs[i].from, pairs[i].to);
+                    if (again == null)
+                        break;   // no way round: keep the best route so far, and Emit leaves out its steep stretches
+                    path = Smooth(Smooth(Relax(again, 3)));
+                }
+                paths[i] = best;
             });
             for (int i = 0; i < pairs.Count; i++)
             {
@@ -514,10 +559,9 @@ namespace Punchy.Terrain
             }
         }
 
-        static void Emit(in TerrainSource source, List<float2> path, float width, int settlement, List<SettlementData> settlements,
-                         List<SettlementStreet> streets)
+        /// <summary>The road cut into stretches of at most StretchLength, in order.</summary>
+        static List<(float2 p0, float2 p1)> Stretches(List<float2> path)
         {
-            // Every stretch first (ends and a skip flag), sampled in parallel, then added in order (W-16).
             var stretches = new List<(float2 p0, float2 p1)>();
             for (int i = 0; i < path.Count - 1; i++)
             {
@@ -527,18 +571,60 @@ namespace Punchy.Terrain
                 for (int k = 0; k < n; k++)
                     stretches.Add((math.lerp(a, b, k / (float)n), math.lerp(a, b, (k + 1) / (float)n)));
             }
+            return stretches;
+        }
+
+        /// <summary>A stretch that isn't paved anyway: inside a settlement (its own streets are there), over water (a
+        /// ford, left as it is) or over a cave entrance.</summary>
+        static bool Unlaid(TerrainSource source, float2 p0, float2 p1, List<SettlementData> settlements)
+        {
+            var mid = (p0 + p1) * 0.5f;
+            foreach (var s in settlements)
+                if (math.distance(mid, s.Centre) < s.Radius * 0.85f)
+                    return true;
+            var g = source.SampleGround(mid);
+            return g.HasWater && g.WaterSurface > g.Height - 0.1f || source.IsCaveHole(mid);
+        }
+
+        /// <summary>Whether the ground along a stretch, sampled every metre, rises or falls faster than MaxGrade.</summary>
+        internal static bool TooSteep(TerrainSource source, float2 p0, float2 p1)
+        {
+            var length = math.distance(p0, p1);
+            var n = math.max(1, (int)math.ceil(length));
+            var step = length / n;
+            var previous = source.SampleHeight(p0);
+            for (int k = 1; k <= n; k++)
+            {
+                var h = source.SampleHeight(math.lerp(p0, p1, k / (float)n));
+                if (math.abs(h - previous) > MaxGrade * step)
+                    return true;
+                previous = h;
+            }
+            return false;
+        }
+
+        /// <summary>The middles of a path's stretches that would be laid but are too steep (see MaxGrade).</summary>
+        static List<float2> Steep(TerrainSource source, List<float2> path, List<SettlementData> settlements)
+        {
+            var steep = new List<float2>();
+            foreach (var (p0, p1) in Stretches(path))
+                if (!Unlaid(source, p0, p1, settlements) && TooSteep(source, p0, p1))
+                    steep.Add((p0 + p1) * 0.5f);
+            return steep;
+        }
+
+        static void Emit(in TerrainSource source, List<float2> path, float width, int settlement, List<SettlementData> settlements,
+                         List<SettlementStreet> streets)
+        {
+            // Every stretch first (ends and a skip flag), sampled in parallel, then added in order (W-16).
+            var stretches = Stretches(path);
             var laid = new (bool skip, float3 from, float3 to)[stretches.Count];
             var src = source;
             System.Threading.Tasks.Parallel.For(0, stretches.Count, i =>
             {
                 var (p0, p1) = stretches[i];
-                var mid = (p0 + p1) * 0.5f;
-                var inside = false;
-                foreach (var s in settlements)
-                    if (math.distance(mid, s.Centre) < s.Radius * 0.85f)
-                        inside = true;
-                var g = src.SampleGround(mid);
-                if (inside || g.HasWater && g.WaterSurface > g.Height - 0.1f || src.IsCaveHole(mid))
+                // (W-100: a stretch too steep for MaxGrade isn't laid, so the road ends rather than running off a cliff.)
+                if (Unlaid(src, p0, p1, settlements) || TooSteep(src, p0, p1))
                     laid[i] = (true, default, default);
                 else
                     laid[i] = (false, new float3(p0.x, src.SampleHeight(p0), p0.y), new float3(p1.x, src.SampleHeight(p1), p1.y));

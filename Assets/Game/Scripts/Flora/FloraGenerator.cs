@@ -2397,6 +2397,8 @@ namespace Punchy.Flora
             var first = b.VertexCount;
             var y = -radius * 0.2f;
             var offset = Vector3.zero;
+            Vector3 runeCentre = default, runeRadii = default;
+            var runeTurn = Quaternion.identity;
             for (int i = 0; i < blocks; i++)
             {
                 var t = blocks > 1 ? i / (blocks - 1f) : 0f;
@@ -2415,6 +2417,12 @@ namespace Punchy.Flora
                 var rotation = yaw * Quaternion.Euler(g.Range(-5f, 5f), g.Range(-25f, 25f), g.Range(-5f, 5f));
                 var color = Color.Lerp(g.Bark, bands, g.R());
                 b.Blob(centre, radii, rotation, detail, cap ? 0.1f : 0.16f, g.R() * 100f, color, FloraPart.Bark);
+                if (i == 0)
+                {
+                    runeCentre = centre;
+                    runeRadii = radii;
+                    runeTurn = rotation;
+                }
                 y += blockHeight * 0.88f;
                 offset += g.Flat(g.R() * 6.28f) * r * g.Range(0f, 0.12f);
             }
@@ -2422,7 +2430,95 @@ namespace Punchy.Flora
             g.Width = radius * 2f * Mathf.Max(capScale, 1.35f);
             g.TrunkRadius = radius * (blocks > 1 ? 1.2f : Mathf.Lerp(s.Spread, 1f, 0.5f));
             b.Occlude(first, (p, n) => GroundOcclusion(p, radius * 2f) * Mathf.Lerp(0.7f, 1f, Mathf.Clamp01(n.y + 0.7f)));
+            if (s.RunePatterns > 0 && g.Lod < 2)
+                SpireRunes(g, runeCentre, runeRadii, runeTurn);
             Moss(g, first);
+        }
+
+        // W-101: the glyph colours of a runed spire's patterns (FloraSpecies.RunePatterns), bright enough to read as
+        // light at dusk without washing out to white at noon (the shader adds 1.6x albedo on top of the lit colour):
+        // cyan, amber, violet, green, rose, ice, gold, teal.
+        static readonly Color[] RuneColours =
+        {
+            new Color(0.04f, 0.55f, 0.75f), new Color(0.8f, 0.36f, 0.03f), new Color(0.42f, 0.12f, 0.8f), new Color(0.18f, 0.72f, 0.1f),
+            new Color(0.8f, 0.12f, 0.35f), new Color(0.45f, 0.6f, 0.8f), new Color(0.75f, 0.6f, 0.05f), new Color(0.05f, 0.7f, 0.5f),
+        };
+
+        /// <summary>
+        /// W-101: glowing glyphs carved into a runed spire's lowest block, on both broad faces. The variant's pattern
+        /// (its run of FloraSpecies.Variants / RunePatterns, matching FloraPlacement.PatternModel) picks the colour and
+        /// the glyph family, so a whole stone circle glows alike; the variant itself only nudges where the glyphs sit.
+        /// Uses its own random so the stone's shape and moss draws stay as they were.
+        /// </summary>
+        static void SpireRunes(Grower g, Vector3 centre, Vector3 radii, Quaternion turn)
+        {
+            var s = g.S;
+            var patterns = Mathf.Min(s.RunePatterns, Mathf.Max(1, s.Variants));
+            var shapes = Mathf.Max(1, s.Variants / patterns);
+            var pattern = Mathf.Min(g.Variant / shapes, patterns - 1);
+            var glow = RuneColours[pattern % RuneColours.Length];
+            var rng = new System.Random(s.Seed * 7919 + g.Variant * 104729 + 31);
+            var w = 0.085f;
+            for (int face = -1; face <= 1; face += 2)
+            {
+                var count = 2 + rng.Next(0, 2);
+                for (int k = 0; k < count; k++)
+                {
+                    // Stacked down the face's middle, glyph squares about half the stone's width.
+                    var gy = Mathf.Lerp(0.35f, -0.4f, count > 1 ? k / (count - 1f) : 0.5f) + (float)(rng.NextDouble() - 0.5) * 0.06f;
+                    var gx = (float)(rng.NextDouble() - 0.5) * 0.15f;
+                    var size = radii.x * 0.78f;
+                    var cx = gx * radii.x;
+                    var cy = gy * radii.y;
+                    void Stroke(float a0, float b0, float a1, float b1)
+                    {
+                        var px = cx + (a0 + a1) * 0.5f * size;
+                        var py = cy + (b0 + b1) * 0.5f * size;
+                        var ex = px / radii.x;
+                        var ey = py / radii.y;
+                        var depth = radii.z * Mathf.Sqrt(Mathf.Max(0.05f, 1f - ex * ex - ey * ey));
+                        var d = new Vector2(a1 - a0, b1 - b0);
+                        var ang = Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg;
+                        var at = new Vector3(px, py, face * depth);
+                        g.B.Box(centre + turn * at, new Vector3((d.magnitude + w) * size, w * size, radii.z * 0.36f),
+                                turn * Quaternion.Euler(0f, 0f, ang), glow, FloraPart.Glow);
+                    }
+                    switch ((pattern + k) % 4)
+                    {
+                        case 0:   // a ringed cross
+                            Stroke(-0.28f, 0f, 0.28f, 0f);
+                            Stroke(0f, -0.28f, 0f, 0.28f);
+                            for (int r = 0; r < 6; r++)
+                            {
+                                float t0 = r * Mathf.PI / 3f, t1 = (r + 1) * Mathf.PI / 3f;
+                                Stroke(Mathf.Cos(t0) * 0.42f, Mathf.Sin(t0) * 0.42f, Mathf.Cos(t1) * 0.42f, Mathf.Sin(t1) * 0.42f);
+                            }
+                            break;
+                        case 1:   // two stacked chevrons
+                            for (int r = 0; r < 2; r++)
+                            {
+                                var vy = -0.25f + r * 0.32f;
+                                Stroke(-0.36f, vy, 0f, vy + 0.22f);
+                                Stroke(0f, vy + 0.22f, 0.36f, vy);
+                            }
+                            break;
+                        case 2:   // a stave with branches, like a tree rune
+                            Stroke(0f, -0.42f, 0f, 0.42f);
+                            Stroke(0f, 0.12f, -0.3f, 0.38f);
+                            Stroke(0f, 0.12f, 0.3f, 0.38f);
+                            Stroke(0f, -0.18f, -0.26f, 0.02f);
+                            Stroke(0f, -0.18f, 0.26f, 0.02f);
+                            break;
+                        default:  // an eye: a diamond with a dot
+                            Stroke(-0.4f, 0f, 0f, 0.26f);
+                            Stroke(0f, 0.26f, 0.4f, 0f);
+                            Stroke(0.4f, 0f, 0f, -0.26f);
+                            Stroke(0f, -0.26f, -0.4f, 0f);
+                            Stroke(-0.06f, 0f, 0.06f, 0f);
+                            break;
+                    }
+                }
+            }
         }
 
         static void Crystal(Grower g)
@@ -2587,8 +2683,8 @@ namespace Punchy.Flora
             // The cracked base mound: a low core, so the player can't slip in between the prongs' feet.
             g.Colliders.Add(new Vector4(0f, 0f, baseRadius * 0.6f, baseRadius * 0.5f));
             g.ColliderBase.Add(0f);
-            if (g.Lod == 2)
-                return;
+            // Far off (LOD2) the arcs stay as three-point, thicker strokes, so a wasteland still crackles from afar (W-101).
+            var arcRadius = g.Lod == 2 ? 0.09f : 0.03f;
             var arc = g.HasAccent ? AccentAt(g, 0) : new Color(0.65f, 0.85f, 1f);
             for (int k = 0; k < tips.Count; k++)
             {
@@ -2602,7 +2698,7 @@ namespace Punchy.Flora
                     var t = j / (points - 1f);
                     var zig = j == 0 || j == points - 1 ? Vector3.zero : (new Vector3(g.R(), g.R(), g.R()) - Vector3.one * 0.5f) * Vector3.Distance(a, c) * 0.18f;
                     path.Add(Vector3.Lerp(a, c, t) + Vector3.down * Mathf.Sin(t * Mathf.PI) * Vector3.Distance(a, c) * 0.12f + zig);
-                    radii.Add(0.03f);
+                    radii.Add(arcRadius);
                 }
                 b.Tube(path, radii, 3, arc, FloraPart.Arc);
             }
@@ -2853,10 +2949,10 @@ namespace Punchy.Flora
                 shards.Add(at);
             }
             // Arcs from the rock to some of its shards (they crackle: FloraPart.Arc).
-            if (g.Lod < 2)
+            // Far off (LOD2) half as many, thicker and three points each (W-101).
             {
                 var arcColor = s.Foliage.linear;
-                for (int k = 0; k < shards.Count; k += 2)
+                for (int k = 0; k < shards.Count; k += g.Lod == 2 ? 4 : 2)
                 {
                     var from = centre + (shards[k] - centre).normalized * Mathf.Min(dims.x, dims.z) * 0.9f;
                     var to = shards[k];
@@ -2868,7 +2964,7 @@ namespace Punchy.Flora
                         var t = j / (points - 1f);
                         var zig = j == 0 || j == points - 1 ? Vector3.zero : (new Vector3(g.R(), g.R(), g.R()) - Vector3.one * 0.5f) * Vector3.Distance(from, to) * 0.2f;
                         path.Add(Vector3.Lerp(from, to, t) + zig);
-                        radii.Add(size * 0.006f);
+                        radii.Add(size * (g.Lod == 2 ? 0.016f : 0.006f));
                     }
                     b.Tube(path, radii, 3, arcColor, FloraPart.Arc);
                 }
@@ -3240,7 +3336,9 @@ namespace Punchy.Flora
             var alongX = p.Size.x >= p.Size.z;
             float length = alongX ? p.Size.x : p.Size.z, thick = alongX ? p.Size.z : p.Size.x, height = p.Size.y;
             Vector3 Local(float a, float y, float t) => alongX ? new Vector3(a, y, t) : new Vector3(t, y, a);
-            b.Box(p.Centre, Local(length - 0.04f, height - 0.02f, Mathf.Max(0.05f, thick - 0.1f)), p.Rotation, c * 0.6f, FloraPart.Bark);
+            // W-101 (#80): the mortar core darker (was 0.6), so the joints between blocks read as lines from further off.
+            b.Box(p.Centre, Local(length - 0.04f, height - 0.02f, Mathf.Max(0.05f, thick - 0.1f)), p.Rotation, c * 0.38f, FloraPart.Bark);
+            var glyphs = new System.Random((int)((seed * 2654435761u ^ 0x5bd1e995u) & 0x7FFFFFFF));
             var courses = Mathf.Max(1, Mathf.RoundToInt(height / 0.32f));
             var ch = height / courses;
             for (int row = 0; row < courses; row++)
@@ -3268,7 +3366,12 @@ namespace Punchy.Flora
                     if (!gone)
                     {
                         var size = Local(Mathf.Max(0.1f, l - wear), bh, thick + 0.02f - R() * 0.06f);
-                        b.Box(p.Centre + p.Rotation * Local(a, y, (R() - 0.5f) * 0.03f), size, p.Rotation * tip, shade, FloraPart.Bark);
+                        var at = p.Centre + p.Rotation * Local(a, y, (R() - 0.5f) * 0.03f);
+                        b.Box(at, size, p.Rotation * tip, shade, FloraPart.Bark);
+                        // W-101 (#80): now and then an old carving on one face of a whole block (its own draws, so the
+                        // courses above are laid exactly as before).
+                        if (!top && l > 0.45f && glyphs.NextDouble() < 0.1)
+                            RuinGlyph(b, at, p.Rotation * tip, alongX, l - wear, bh, (alongX ? size.z : size.x) * 0.5f, shade, glyphs);
                     }
                     else if (row > 0 && R() < 0.6f && p.Centre.y - height * 0.5f < 0.3f)   // only from a bay standing on the ground
                     {
@@ -3279,6 +3382,59 @@ namespace Punchy.Flora
                         b.Box(p.Centre + p.Rotation * at, Local(Mathf.Max(0.2f, l - wear), bh, thick * 0.8f), p.Rotation * fall, shade * 0.95f, FloraPart.Bark);
                     }
                 }
+            }
+        }
+
+        /// <summary>
+        /// W-101 (#80): a worn carving on one face of a ruin block: a frame line or none, then one of a few simple glyphs
+        /// (a ringed cross, a chevron stack, a stepped spiral) cut as dark grooves a few millimetres proud of the face.
+        /// </summary>
+        static void RuinGlyph(FloraMeshBuilder b, Vector3 centre, Quaternion rot, bool alongX, float len, float high, float face, Color shade, System.Random rng)
+        {
+            var side = rng.NextDouble() < 0.5 ? -1f : 1f;
+            var groove = shade * 0.3f;
+            var w = 0.06f;
+            var s = Mathf.Min(len * 0.8f, high * 0.95f);   // the glyph's square
+            void Stroke(float a0, float y0, float a1, float y1)
+            {
+                var d = new Vector2(a1 - a0, y1 - y0);
+                var l = d.magnitude + w;
+                var ang = Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg;
+                var local = new Vector3((a0 + a1) * 0.5f * s, (y0 + y1) * 0.5f * s, side * (face + 0.004f));
+                var at = alongX ? local : new Vector3(local.z, local.y, local.x);
+                var turn = alongX ? Quaternion.Euler(0f, 0f, ang) : Quaternion.Euler(0f, -90f, 0f) * Quaternion.Euler(0f, 0f, ang);
+                b.Box(centre + rot * at, new Vector3(l * s, w * s, 0.012f), rot * turn, groove, FloraPart.Bark);
+            }
+            switch (rng.Next(0, 3))
+            {
+                case 0:   // a cross in a ring of eight strokes
+                    Stroke(-0.3f, 0f, 0.3f, 0f);
+                    Stroke(0f, -0.3f, 0f, 0.3f);
+                    for (int k = 0; k < 8; k++)
+                    {
+                        float t0 = k * Mathf.PI / 4f, t1 = (k + 1) * Mathf.PI / 4f;
+                        Stroke(Mathf.Cos(t0) * 0.42f, Mathf.Sin(t0) * 0.42f, Mathf.Cos(t1) * 0.42f, Mathf.Sin(t1) * 0.42f);
+                    }
+                    break;
+                case 1:   // three stacked chevrons
+                    for (int k = 0; k < 3; k++)
+                    {
+                        var y = -0.3f + k * 0.28f;
+                        Stroke(-0.35f, y, 0f, y + 0.18f);
+                        Stroke(0f, y + 0.18f, 0.35f, y);
+                    }
+                    break;
+                default:  // a squared spiral
+                    float x = -0.05f, yy = -0.05f, step = 0.1f;
+                    for (int k = 0; k < 6; k++, step += 0.1f)
+                    {
+                        float nx = x, ny = yy;
+                        switch (k % 4) { case 0: nx += step; break; case 1: ny += step; break; case 2: nx -= step; break; default: ny -= step; break; }
+                        Stroke(x, yy, nx, ny);
+                        x = nx;
+                        yy = ny;
+                    }
+                    break;
             }
         }
 
@@ -3490,6 +3646,7 @@ namespace Punchy.Flora
                            p.Material == Punchy.Terrain.KitMaterial.Roof ? looks.Roof : Punchy.Terrain.KitSurface.Plain;
                 b.Surface = (int)look;
                 b.Wood = p.Material == Punchy.Terrain.KitMaterial.Wood;
+                b.Unfounded = p.Afloat;
                 if (ruined && g.Lod == 0 && p.Piece == Punchy.Terrain.KitPiece.Wall && p.Material == Punchy.Terrain.KitMaterial.Wall)
                     RuinBricks(b, p, c, seed ^ (uint)i * 0x9E3779B9u);   // W-94 (#80): old coursed blocks up close
                 else if (g.Lod == 0 && p.Piece == Punchy.Terrain.KitPiece.Roof && (look == Punchy.Terrain.KitSurface.Shingles || look == Punchy.Terrain.KitSurface.Thatch))
@@ -3501,6 +3658,7 @@ namespace Punchy.Flora
                                                            p.Material == Punchy.Terrain.KitMaterial.Lamp || p.Material == Punchy.Terrain.KitMaterial.Rune ? FloraPart.Window : FloraPart.Bark);
                 b.Surface = 0;
                 b.Wood = false;
+                b.Unfounded = false;
                 var high = p.Centre.y + p.Size.y * 0.5f;
                 top = Mathf.Max(top, high);
                 // W-67 (#79): every part is a solid box unless it's decor (moss, trim, windows, lamps and runes): the
@@ -4152,15 +4310,17 @@ namespace Punchy.Flora
             b.Wood = true;   // the porch deck and its posts (Z-30)
             b.Box(new Vector3(0f, 0.15f, front + porch * 0.5f), new Vector3(half * 1.8f, 0.3f, porch), Quaternion.identity, g.Bark * 0.75f, FloraPart.Bark);
             b.Wood = false;
-            b.Beam(new Vector3(0f, wall * 0.48f, front), new Vector3(0f, wall * 0.4f, front + porch + 0.3f), half * 1.9f, 0.12f, roof, FloraPart.Bark);
+            // W-100: the porch roof half as high again at its front edge (it hung at head height), and only as steep as
+            // still clears the upper windows' sills where it meets the wall.
+            b.Beam(new Vector3(0f, wall * 0.66f, front), new Vector3(0f, wall * 0.6f, front + porch + 0.3f), half * 1.9f, 0.12f, roof, FloraPart.Bark);
             b.Wood = true;
             foreach (var x in new[] { -0.85f, 0.85f })
-                b.Tube(new List<Vector3> { new Vector3(x * half, 0.3f, front + porch - 0.1f), new Vector3(x * half, wall * 0.41f, front + porch - 0.1f) },
+                b.Tube(new List<Vector3> { new Vector3(x * half, 0.3f, front + porch - 0.1f), new Vector3(x * half, wall * 0.61f, front + porch - 0.1f) },
                        new List<float> { 0.1f, 0.1f }, g.Sides(6, 4, 3), timber, FloraPart.Bark);
             b.Wood = false;
             // A sign hanging from the porch roof.
             if (g.Lod < 2)
-                b.Box(new Vector3(half * 0.55f, wall * 0.3f, front + porch + 0.2f), new Vector3(0.9f, 0.55f, 0.06f), Quaternion.identity, AccentAt(g, 1), FloraPart.Bark);
+                b.Box(new Vector3(half * 0.55f, wall * 0.45f, front + porch + 0.2f), new Vector3(0.9f, 0.55f, 0.06f), Quaternion.identity, AccentAt(g, 1), FloraPart.Bark);
         }
 
         /// <summary>
