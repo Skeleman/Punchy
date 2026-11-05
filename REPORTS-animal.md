@@ -2163,3 +2163,11 @@ Human (Human, Cheerful) waiting Storm cell (92,-28) [1 up in cell]: Big storm! B
 HumanChild (Human, Grumpy) waiting Storm cell (93,-29) [1 up in cell]: Bah! Noise!
 Human (Human, Dramatic) waiting Storm cell (94,-28) [1 up in cell]: Run for your lives!
 ```
+
+## A-71 row 6: follow hook for lead quests, P-17 (commit ade09d7)
+- API (host or solo; it goes through the server world): `Punchy.Fauna.Follow.Start(Entity, int playerNetworkId, float seconds = 0)` returns a bool, and `seconds` defaults to 600. Also `Stop(Entity)`, `IsFollowing(Entity)`, and `Following(Entity)`, which returns the player's networkId or -1. `Find(string species, float3 at, float radius)` returns the nearest free creature of that species, or Entity.Null. It skips ones that are gone, puppets, held, asleep or indoors.
+- Behaviour: Greet stage 2. It walks once the player is >4 m ahead, runs when it is far behind, stops about 2.5 m plus half its body length short of them, and waits facing them while they stand. It gives up when the player leaves, gets >40 m ahead, or the time runs out, and also if the creature is rooted. It isn't threatened while following, it ignores its leash, and folk following a player don't take messenger errands.
+- Test: FollowTests.Follow_ArrivesWithinFourMetres_StopReleases. `[measure] follow: dog 6.1 m off at the start, 4.7 m behind as the walk ended, 2.6 m after 6 s; following True, after Stop False`.
+  - The walk goes along the flattest dry 30 m line (new FlatWay hook). The first spot walked up a 0.8 slope, the brain's steep-ground limit for every animal, and the dog crawled at 0.3 m/s.
+  - TestSceneSetup.Spawn gained an optional radius.
+- Card question, "do creatures flee a remote (client) player on the host?": yes. The host brain senses and flees from the nearest of all players' positions, including every GhostOwner player, not only the host's own.
