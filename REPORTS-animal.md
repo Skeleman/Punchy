@@ -2124,3 +2124,10 @@ Race pressure and kind at the player (pressure is 0..1):
 - Bat folk at noon: not shot. They only exist in their underground chamber (cave 5), where sky terms don't apply, and -spawn puts cave dwellers on cave floors only. The profile (bright 1.0, seeks shade/caves/trees/roofs) is in place for when they come up.
 - Not done: rock shadow and overhangs as shelter.
 - Debug tool bug (pre-existing): -place NAME resolves against the first (v1) island's landmarks, so it lands in stale spots. Use -goto x,z.
+
+## A-71 row 3: weather poses (commit a72e19f)
+
+- New idle actions Pant, Shiver and Hunch, plus the existing ShieldEyes and a Shake on leaving the rain. Creatures that are uncomfortable but not sheltering (no shelter found, or one that can't shelter) strike the pose that fits the complaint: Hot/Dry pant, Cold/Snow shiver, Storm/Wind hunch, Bright shields eyes (folk) or squints. Folk and animals both pose; animals only make poses (and the existing sounds).
+- Counts (comfort log, "posed N" is cumulative): human village, 13:00, heat +0.3: 6-8 posed in 46 s. Ice field (912,-3837), snow, cold snap -0.5 (forced): 8 posed. Village in a forced storm: 102 posed by about 120 s, with 12 sheltered and 34 shelter searches started.
+- Shots: a71-pose-pant (a chicken panting by a bench in the plaza; it's seen from behind, so the open beak is hard to see), a71-pose-shiver (a cinder lizard shivering on a dead branch in snow; small in frame), a71-pose-hunch (a puppy hunched in the storm). Poses are motion, so stills only show part of them.
+- Gotcha: adding a field to the ShelterCounts SharedStatic needed a new key and an editor restart. Burst kept the old size even after the key was renamed, so the restart was what fixed it.
