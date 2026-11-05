@@ -3329,7 +3329,62 @@ namespace Punchy.Flora
         /// apart; a few blocks missing (more along the ragged top course), and some of those lying fallen at the wall's
         /// foot. Drawing only: the bay's collision box is still the part's own (KitStructure adds it), so walks are unchanged.
         /// </summary>
+        /// <summary>
+        /// W-104 (#80): wind-blown sand round a kit ruin. Drifts lean on the feet of the standing wall bays (mostly on one
+        /// windward side), one low natural mound lies against the ruin where a wall came down, and dry grass tufts poke
+        /// out of the sand up close. Drawing only, from its own random stream: the kit parts, boxes and colliders are the
+        /// same as before, and the sand stays below a step so it never blocks a walker.
+        /// </summary>
+        static void RuinSand(Grower g, System.Collections.Generic.List<Punchy.Terrain.KitPart> parts, float width, float depth, uint seed)
+        {
+            var b = g.B;
+            var rng = new System.Random((int)(seed * 0x27D4EB2Du ^ 0x5A17u));
+            float R() => (float)rng.NextDouble();
+            var sand = new Color(0.58f, 0.52f, 0.4f);
+            var grass = new Color(0.52f, 0.55f, 0.3f);
+            var wind = Quaternion.Euler(0f, R() * 360f, 0f) * Vector3.forward;   // the side the sand piles up on
+            var tufts = new System.Collections.Generic.List<Vector3>();
+            var first = b.VertexCount;
+            for (int i = 0; i < parts.Count; i++)
+            {
+                var p = parts[i];
+                if (p.Piece != Punchy.Terrain.KitPiece.Wall || p.Centre.y - p.Size.y * 0.5f > 0.3f || p.Size.y < 0.6f)
+                    continue;                                              // only bays standing on the ground
+                var along = p.Size.x >= p.Size.z ? p.Rotation * Vector3.right : p.Rotation * Vector3.forward;
+                var normal = p.Size.x >= p.Size.z ? p.Rotation * Vector3.forward : p.Rotation * Vector3.right;
+                var len = Mathf.Max(p.Size.x, p.Size.z);
+                var thick = Mathf.Min(p.Size.x, p.Size.z);
+                var side = Vector3.Dot(normal, wind) < 0f ? 1f : -1f;      // windward face first
+                if (R() > 0.75f)
+                    side = -side;
+                if (R() < 0.2f)
+                    continue;                                              // a few bare feet
+                var r = new Vector3(Mathf.Min(len * 0.3f, 1.1f) + R() * 0.5f, Mathf.Min(0.16f + R() * 0.24f, p.Size.y * 0.4f), 0.45f + R() * 0.4f);
+                var at = new Vector3(p.Centre.x, -r.y * 0.3f, p.Centre.z) + along * (R() - 0.5f) * len * 0.4f + normal * side * (thick * 0.5f + r.z * 0.35f);
+                var rot = Quaternion.LookRotation(normal, Vector3.up) * Quaternion.Euler(0f, 90f, 0f);
+                b.Blob(at, r, rot, 2, 0.2f, i * 1.7f + (seed & 255), Color.Lerp(sand, sand * 0.88f, R()), FloraPart.Bark, 1f, 0f, 0.6f);
+                if (R() < 0.4f)
+                    tufts.Add(at + Vector3.up * r.y * 0.55f + along * (R() - 0.5f) * r.x);
+            }
+            // The mound: a long low swell lapping one side of the ruin, its gentle flank to windward, with a smaller
+            // drift running off its end.
+            var reach = Mathf.Max(width, depth) * 0.5f;
+            var centre = -wind * (Mathf.Min(width, depth) * 0.5f + 0.8f) + Vector3.Cross(Vector3.up, wind) * (R() - 0.5f) * reach * 0.6f;
+            var mr = new Vector3(reach * (0.7f + R() * 0.3f), 0.5f + R() * 0.25f, 1.6f + R() * 0.8f);
+            var face = Quaternion.LookRotation(wind, Vector3.up) * Quaternion.Euler(0f, 90f + (R() - 0.5f) * 25f, 0f);
+            b.Blob(centre + Vector3.down * mr.y * 0.35f, mr, face, g.Lod == 0 ? 2 : 1, 0.14f, seed & 1023, sand, FloraPart.Bark, 1f, 0f, 0.6f);
+            var tail = centre + face * new Vector3(mr.x * (0.8f + R() * 0.3f), 0f, 0.4f);
+            b.Blob(tail + Vector3.down * 0.12f, new Vector3(mr.x * 0.45f, mr.y * 0.55f, mr.z * 0.6f), face, 1, 0.12f, (seed & 1023) + 5f, sand * 0.95f, FloraPart.Bark, 1f, 0f, 0.6f);
+            for (int k = 0; k < 3; k++)
+                tufts.Add(centre + face * new Vector3((R() - 0.5f) * mr.x * 1.2f, mr.y * 0.4f, (R() - 0.5f) * mr.z * 0.8f));
+            b.Occlude(first, (p, n) => GroundOcclusion(p, 0.5f));
+            if (g.Lod == 0)
+                foreach (var t in tufts)
+                    b.Leaves(t + Vector3.up * 0.15f, new Vector3(0.3f, 0.22f, 0.3f), 10, 0.16f, rng, grass, grass * 1.25f);
+        }
+
         static void RuinBricks(FloraMeshBuilder b, in Punchy.Terrain.KitPart p, Color c, uint seed)
+
         {
             var rng = new System.Random((int)(seed & 0x7FFFFFFF));
             float R() => (float)rng.NextDouble();
@@ -3724,6 +3779,8 @@ namespace Punchy.Flora
             if (perch.y > 1f)
                 g.Perches.Add(perch);
             b.Recolor(first, (p, c) => p.y < 0.5f ? c * 0.82f : c);   // darker footing
+            if (ruined && g.Lod < 2)
+                RuinSand(g, parts, width, depth, seed);
             b.Occlude(first, (p, n) => GroundOcclusion(p, Mathf.Min(top, 4f) * 0.5f));
             g.Height = top;
             g.Width = shape == Punchy.Terrain.KitShape.Wharf ? 30f : Mathf.Max(width, depth) * 1.4f;
