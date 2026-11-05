@@ -2618,3 +2618,27 @@ Defaults are unchanged: every switch is off, NearRange is 25 and CacheMove is 10
 Suite on d8a796a: 13 passed, 0 failed. Landmarks_V3 110 09EAC0FE and Fauna_Fingerprint F4E66093 are unchanged, so no
 repin. v3 ready at 66.4 s in the cold suite (66.6 s before), and world up in 35 s. Warm play ready was 40.8 s earlier.
 Shots are in the world tree under Assets/Temp/shots (not committed).
+
+## W-107 new tree shadow defaults (world-features 278a190)
+
+Per Zach: CheapFarCaster and CachedFarShadows are now on by default, near range 25 m. StillFarShadows stays off. This
+builds on the gap fix in d8a796a.
+
+Flags: each switch takes "-name 0" to turn it off, so use `-cheapfarcaster 0` and `-cachedfarshadows 0`.
+`-stillfarshadows` (or "-name 1") turns a switch on, so the old bench flags still work. This is noted in
+docs/agents/rendering.md.
+
+Editor, v3, clear noon. Two rounds each, Draw Main Light Shadowmap ms, old defaults (all off) then new defaults:
+- OakGrove forest (camera (1719.6, 34.4, 3389)): 0.33 / 0.33 before, 0.20 / 0.18 after.
+- Fishing village 1 (camera (435, 22, -585) looking at the wharf): 0.14 / 0.15 before, 0.11 / 0.12 after.
+- The frame is vsync-bound in the editor (16.7 ms either way), and GPU totals of 0.10-0.17 ms are noise. Build frame
+  ms needs the profiler's bench.
+
+Shots are in the world tree under Assets/Temp/shots (not committed): w107def-forest-before/after-r2 and
+w107def-fv1-before/after-r2, at 1920 plus -800 copies. Ground shadow under the oaks looks the same in both forest shots,
+with no gap.
+
+Suite on 278a190: 13 passed, 0 failed. Landmarks_V3 110 09EAC0FE and Fauna_Fingerprint F4E66093 are unchanged.
+v3 ready at 31.7 s (66.4 s before), and warm play ready with the new defaults is 37.3 s, so no worse. The URP asset and
+QualitySettings are untouched. The bench's Tools/bench/BenchmarkRoute.cs.txt (the profiler's) still sets the
+switches by reflection, so it is unaffected.
