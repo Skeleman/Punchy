@@ -29,21 +29,22 @@ namespace Punchy.Fauna
         // W-89 (#40, Zach's designs): a golem of floating rocks held together by arcs takes the ElectricWastelands slot
         // (the crystal serpent comes back with "-colossus CrystalSerpent"), and a seventh slot holds a walking saguaro in
         // the Sonoran.
-        public enum Kind { KneelingTitan, HalfBuriedHead, GiantTortoise, CrystalSerpent, DrownedKnight, AshSmith, CarnivorousPlant, SkeletalLizard, RockGolem, WalkingSaguaro, SaltCrystal, MesaTortoise }
+        public enum Kind { KneelingTitan, HalfBuriedHead, GiantTortoise, CrystalSerpent, DrownedKnight, AshSmith, CarnivorousPlant, SkeletalLizard, RockGolem, WalkingSaguaro, SaltCrystal, MesaTortoise, GlassHeron, LanternStag }
         // W-92 (#40, Zach's SaltFlat design): an eighth slot holds a giant rounded salt crystal rolling in slow circles.
         // W-106 row 2 (#40): a ninth slot holds a rock tortoise in the MesaCanyonlands that reads as a small mesa.
+        // A-76 (#40): a tenth holds a glass heron wading the GlassDesert, an eleventh a lantern stag in the SparklingForest.
         /// <summary>Slots: one colossus stands in each.</summary>
-        const int Kinds = 9;
+        const int Kinds = 11;
 
         /// <summary>What stands in each slot. Slots 3, 4 and 5 hold the golem, the plant and the lizard unless a "-colossus" flag swaps the old kind back in.</summary>
-        public static readonly Kind[] Placed = { Kind.KneelingTitan, Kind.HalfBuriedHead, Kind.GiantTortoise, Kind.RockGolem, Kind.CarnivorousPlant, Kind.SkeletalLizard, Kind.WalkingSaguaro, Kind.SaltCrystal, Kind.MesaTortoise };
+        public static readonly Kind[] Placed = { Kind.KneelingTitan, Kind.HalfBuriedHead, Kind.GiantTortoise, Kind.RockGolem, Kind.CarnivorousPlant, Kind.SkeletalLizard, Kind.WalkingSaguaro, Kind.SaltCrystal, Kind.MesaTortoise, Kind.GlassHeron, Kind.LanternStag };
 
         /// <summary>Where each slot's colossus stands (NaN until placed), for probes and shot lists.</summary>
-        public static readonly float3[] Positions = { new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN) };
+        public static readonly float3[] Positions = { new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN) };
 
         /// <summary>A-72 hook: the seeded spot each slot was placed on (NaN until placed). <see cref="Positions"/> follows
         /// a colossus that walks (<see cref="ColossusWalker"/>); this keeps the spot its loop is centred on.</summary>
-        public static readonly float3[] Spots = { new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN) };
+        public static readonly float3[] Spots = { new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN), new float3(float.NaN) };
 
         /// <summary>A-72 hook: the root a slot's colossus was built under (null until placed), for <see cref="ColossusWalker"/>.</summary>
         public Transform Root(int slot) => roots[slot];
@@ -54,13 +55,14 @@ namespace Punchy.Fauna
         {
             new[] { "Tundra", "Glacier", "Mountains" }, new[] { "Grassland", "Temperate" }, new[] { "FungalForest" }, new[] { "ElectricWastelands" },
             new[] { "FoggyMarsh", "PoisonSwamp" }, new[] { "Ashlands", "Volcano", "EmberForest" }, new[] { "PoisonSwamp" }, new[] { "Ashlands" },
-            new[] { "ElectricWastelands" }, new[] { "Sonoran" }, new[] { "SaltFlat" }, new[] { "MesaCanyonlands" },
+            new[] { "ElectricWastelands" }, new[] { "Sonoran" }, new[] { "SaltFlat" }, new[] { "MesaCanyonlands" }, new[] { "GlassDesert" },
+            new[] { "SparklingForest" },
         };
         // Each slot draws from its own salt on the world seed, so adding one moves no other colossus or landmark.
-        static readonly uint[] Salts = { 0x71A4u, 0x4EADu, 0x7027u, 0x5E2Bu, 0xD20Au, 0xA54Du, 0x5A6Au, 0x5A17u, 0x3E5Au };
-        static readonly float[] KeepRadius = { 34f, 42f, 38f, 44f, 44f, 46f, 34f, CrystalKeep, 34f };
+        static readonly uint[] Salts = { 0x71A4u, 0x4EADu, 0x7027u, 0x5E2Bu, 0xD20Au, 0xA54Du, 0x5A6Au, 0x5A17u, 0x3E5Au, 0x6E70u, 0x57A6u };
+        static readonly float[] KeepRadius = { 34f, 42f, 38f, 44f, 44f, 46f, 34f, CrystalKeep, 34f, 26f, 30f };
         /// <summary>Height and half-width each slot casts with its far shadow (#84); the last entry is the Dunes colossus.</summary>
-        static readonly float2[] Casts = { new float2(46f, 14f), new float2(22f, 12f), new float2(30f, 20f), new float2(52f, 14f), new float2(40f, 18f), new float2(18f, 20f), new float2(56f, 12f), new float2(2f * CrystalBall, CrystalBall), new float2(24f, 20f), new float2(58f, 20f) };
+        static readonly float2[] Casts = { new float2(46f, 14f), new float2(22f, 12f), new float2(30f, 20f), new float2(52f, 14f), new float2(40f, 18f), new float2(18f, 20f), new float2(56f, 12f), new float2(2f * CrystalBall, CrystalBall), new float2(24f, 20f), new float2(32f, 8f), new float2(34f, 14f), new float2(58f, 20f) };
         /// <summary>
         /// W-89 (#40): the most relief (highest minus lowest ground, m) a colossus spot may have across its keep circle.
         /// A spot steeper than this is redrawn (up to eight times, then the flattest draw wins), so no colossus stands
@@ -123,6 +125,7 @@ namespace Punchy.Fauna
                 Debug.Log($"[farshadow] {(laid ? "schedule" : "land")} frame: StoneColossi far shadows {watch.Elapsed.TotalMilliseconds:F2} ms");
             }
             landing = laid;
+            GlowLanterns();
         }
 
         bool landing;
@@ -192,6 +195,7 @@ namespace Punchy.Fauna
             var biomes = grid.ToArray();
             grid.Dispose();
             placed = true;
+            Lanterns.Clear();
             // "-colossus AshSmith" (or DrownedKnight) puts a kept kind back in the slot it used to stand in.
             // Reset first: statics live on between editor play runs.
             Placed[3] = Kind.RockGolem;
@@ -224,7 +228,7 @@ namespace Punchy.Fauna
                 Spots[kind] = Positions[kind];
                 // Keep flora out of a circle round it and re-place the streamed tiles, so no tree grows through it (#40).
                 // The head's circle is wide enough (W-59d) to leave a clear sight line from about 40 m away.
-                // Kinds past the fourth go in a second static (W-85), past the eighth in a third (W-106): a live editor
+                // Kinds past the fourth go in a second static (W-85), past the eighth in a third (W-106, four circles: room up to slot 11): a live editor
                 // can't resize one it already made.
                 var circle = new float4(spot.x, spot.y, KeepRadius[kind], 1f);
                 if (kind < 4)
@@ -259,6 +263,8 @@ namespace Punchy.Fauna
                     Kind.WalkingSaguaro => BuildSaguaro(Positions[kind], yaw, (uint)source.World.Seed ^ Salts[kind]),
                     Kind.SaltCrystal => BuildCrystal(source, Positions[kind], yaw, (uint)source.World.Seed ^ Salts[kind]),
                     Kind.MesaTortoise => BuildMesaTortoise(Positions[kind], yaw, (uint)source.World.Seed ^ Salts[kind]),
+                    Kind.GlassHeron => BuildGlassHeron(Positions[kind], yaw, (uint)source.World.Seed ^ Salts[kind]),
+                    Kind.LanternStag => BuildLanternStag(Positions[kind], yaw, (uint)source.World.Seed ^ Salts[kind]),
                     _ => BuildLizard(Positions[kind], yaw),
                 };
                 // W-101 row 4 (#40): solid to the player and the creatures. The salt ball follows its roll; the crumbs
@@ -1633,6 +1639,279 @@ namespace Punchy.Fauna
             f.Limb(sun + look * new Vector3(0f, 0f, -0.4f), sun + look * new Vector3(0.35f, 0f, -0.85f), 0.07f, 0.02f, lizard, 4);
             AddPart("Scrub", root, f.ToMesh("MesaTortoiseScrub"));
             return root;
+        }
+
+        static readonly Color GlassPale = new Color(0.80f, 0.92f, 0.93f);
+        static readonly Color GlassTeal = new Color(0.46f, 0.72f, 0.76f);
+        static readonly Color GlassDeep = new Color(0.24f, 0.44f, 0.52f);
+        static readonly Color GlassSmoke = new Color(0.30f, 0.37f, 0.42f);
+        static readonly Color GlassSand = new Color(0.84f, 0.80f, 0.70f);
+
+        /// <summary>
+        /// A-76 row 1 (#40): a heron of cut glass about 30 m tall wading the GlassDesert's dunes as if they were shallows.
+        /// Every part is a low, few-sided shape so it reads as faceted glass, in pale, sea and deep teal tones: a body with
+        /// folded wings ending in long shard primaries, an S-necked head with an amber dagger beak and a crest of two glass
+        /// plumes, and two stilt legs with backward-bending ankles and splayed toes sunk into small sand drifts. Details:
+        /// shed shard feathers lying round its feet, a branching fulgurite (lightning glass) beside it, a small sandpiper
+        /// standing on its back. Body (body, neck, head, legs) and Litter are separate parts, laid out with the hips at
+        /// (0, 16, 0) and the neck forward on +z, so ColossusRigs' heron rig can stab and walk it (A-72 hooks: Spots, Root).
+        /// </summary>
+        static Transform BuildGlassHeron(float3 at, float yaw, uint seed)
+        {
+            var root = new GameObject("GlassHeron").transform;
+            root.SetPositionAndRotation(new Vector3(at.x, at.y - 0.4f, at.z), Quaternion.Euler(0f, yaw, 0f));
+            var m = new DunesColossus.MeshBuilder();
+            var rng = Unity.Mathematics.Random.CreateFromIndex(seed | 1u);
+            Color Tone() => rng.NextFloat() < 0.5f ? Color.Lerp(GlassPale, GlassTeal, rng.NextFloat(0f, 0.6f)) : Color.Lerp(GlassTeal, GlassDeep, rng.NextFloat(0f, 0.7f));
+
+            // Two stilt legs: thigh from the hip down and back to the ankle, shin down and forward to the foot, three
+            // toes forward and one back; the right foot a little ahead (mid-wade).
+            for (int s = -1; s <= 1; s += 2)
+            {
+                var ahead = s > 0 ? 1.6f : -0.6f;
+                var hip = new Vector3(s * 2.2f, 16f, 0f);
+                var ankle = new Vector3(s * 2.5f, 8f, -1.6f + ahead * 0.4f);
+                var foot = new Vector3(s * 2.7f, 0.5f, 0.4f + ahead);
+                m.Limb(hip, ankle, 0.9f, 0.55f, GlassSmoke, 6);
+                m.Ellipsoid(ankle, new Vector3(0.75f, 0.75f, 0.75f), Quaternion.identity, GlassDeep, 6, 4);
+                m.Limb(ankle, foot, 0.55f, 0.45f, GlassSmoke, 6);
+                for (int t = -1; t <= 1; t++)
+                    m.Limb(foot, foot + new Vector3(t * 1.9f, -0.35f, 3.6f - math.abs(t) * 0.6f), 0.32f, 0.1f, GlassSmoke, 5);
+                m.Limb(foot, foot + new Vector3(0f, -0.3f, -2.2f), 0.28f, 0.08f, GlassSmoke, 5);
+                m.Ellipsoid(foot + new Vector3(0f, -0.6f, 0.8f), new Vector3(3.2f, 0.7f, 3.8f), Quaternion.Euler(0f, rng.NextFloat(0f, 360f), 0f), GlassSand, 7, 3);   // sand drift
+            }
+            // The body, tipped up at the front, a paler breast under it and a short tail of shards behind.
+            var tip = Quaternion.Euler(-14f, 0f, 0f);
+            m.Ellipsoid(new Vector3(0f, 19f, 0f), new Vector3(4.2f, 4.4f, 8f), tip, GlassTeal, 8, 5);
+            m.Ellipsoid(new Vector3(0f, 17.6f, 2.6f), new Vector3(3.4f, 3f, 5f), tip, GlassPale, 7, 4);
+            for (int k = 0; k < 5; k++)
+                m.Ellipsoid(new Vector3((k - 2) * 0.9f, 17.4f - math.abs(k - 2) * 0.3f, -8.6f), new Vector3(0.5f, 0.25f, 2.6f), Quaternion.Euler(18f, (k - 2) * 7f, 0f), Tone(), 4, 3);
+            // Folded wings along the sides, each ending in a fan of long shard primaries crossing over the tail.
+            for (int s = -1; s <= 1; s += 2)
+            {
+                var wing = Quaternion.Euler(-10f, s * 4f, s * 6f);
+                m.Ellipsoid(new Vector3(s * 3.7f, 19.6f, -1f), new Vector3(1.3f, 3.6f, 8.4f), wing, GlassTeal, 6, 4);
+                var shards = rng.NextInt(6, 9);
+                for (int k = 0; k < shards; k++)
+                {
+                    var y = 20.8f - k * 0.55f;
+                    var len = rng.NextFloat(3.4f, 5.6f);
+                    m.Ellipsoid(new Vector3(s * (3.2f + k * 0.08f), y, -7.4f - len * 0.4f), new Vector3(0.45f, 0.18f, len), Quaternion.Euler(14f + k * 1.5f, -s * (6f + k * 1.6f), 0f), Tone(), 4, 3);
+                }
+            }
+            // The S-neck: up and back from the breast, then forward to the head.
+            Tentacle(m, new Vector3(0f, 20.5f, 5.5f), new Vector3(0f, 26f, 2.4f), new Vector3(0f, 24.5f, 8.4f), new Vector3(0f, 29.4f, 7.6f), 1.6f, 0.95f, GlassPale, GlassTeal, 12);
+            var head = new Vector3(0f, 30f, 8f);
+            m.Ellipsoid(head, new Vector3(1.3f, 1.4f, 2.2f), Quaternion.Euler(-6f, 0f, 0f), GlassPale, 7, 4);
+            m.Limb(head + new Vector3(0f, -0.2f, 1.8f), head + new Vector3(0f, -0.5f, 7f), 0.62f, 0.05f, new Color(0.86f, 0.74f, 0.42f), 5);   // amber dagger beak
+            for (int s = -1; s <= 1; s += 2)
+                m.Ellipsoid(head + new Vector3(s * 1.05f, 0.35f, 0.9f), new Vector3(0.3f, 0.3f, 0.34f), Quaternion.identity, Hollow, 5, 3);
+            m.Ellipsoid(head + new Vector3(0f, 1.1f, -0.2f), new Vector3(0.7f, 0.4f, 1.6f), Quaternion.identity, GlassDeep, 5, 3);   // dark cap
+            for (int k = 0; k < 2; k++)                                                                                       // two crest plumes trailing back
+                m.Limb(head + new Vector3((k - 0.5f) * 0.5f, 1f, -1f), head + new Vector3((k - 0.5f) * 1.4f, 1.6f + k * 0.4f, -6.5f + k * 1.2f), 0.22f, 0.04f, GlassPale, 4);
+            AddPart("Body", root, m.ToMesh("GlassHeron"));
+
+            // Round its feet, in its own part (the rig leaves it lying): shed shard feathers, a fulgurite, a sandpiper on its back.
+            var f = new DunesColossus.MeshBuilder();
+            var feathers = rng.NextInt(10, 16);
+            for (int k = 0; k < feathers; k++)
+            {
+                var a = rng.NextFloat(0f, Mathf.PI * 2f);
+                var r = rng.NextFloat(5f, 17f);
+                var len = rng.NextFloat(1.2f, 3.4f);
+                f.Ellipsoid(new Vector3(Mathf.Cos(a) * r, 0.1f, Mathf.Sin(a) * r), new Vector3(0.35f, 0.14f, len), Quaternion.Euler(rng.NextFloat(-8f, 8f), rng.NextFloat(0f, 360f), rng.NextFloat(-20f, 20f)), Tone(), 4, 3);
+            }
+            // A fulgurite: a crooked tube of fused sand standing out of a dune, branching twice.
+            var fa = rng.NextFloat(0f, Mathf.PI * 2f);
+            var fb = new Vector3(Mathf.Cos(fa) * 20f, -0.4f, Mathf.Sin(fa) * 20f);
+            var fulg = new Color(0.62f, 0.58f, 0.50f);
+            var f1 = fb + new Vector3(0.6f, 2.6f, -0.3f);
+            var f2 = f1 + new Vector3(-0.5f, 2f, 0.4f);
+            f.Limb(fb, f1, 0.55f, 0.42f, fulg, 6);
+            f.Limb(f1, f2, 0.42f, 0.22f, fulg, 6);
+            f.Limb(f1, f1 + new Vector3(1.3f, 1.1f, 0.2f), 0.26f, 0.08f, fulg, 5);
+            f.Limb(f2, f2 + new Vector3(0.2f, 1f, -0.7f), 0.2f, 0.06f, fulg, 5);
+            AddPart("Litter", root, f.ToMesh("GlassHeronLitter"));
+            // A sandpiper standing on its back, facing aft, in a part of its own that rides the body bone.
+            var b = new DunesColossus.MeshBuilder();
+            var bird = new Vector3(0.6f, 23.3f, -2f);
+            var down = new Color(0.62f, 0.54f, 0.44f);
+            b.Ellipsoid(bird, new Vector3(0.22f, 0.2f, 0.36f), Quaternion.Euler(-10f, 180f, 0f), down, 6, 3);
+            b.Ellipsoid(bird + new Vector3(0f, 0.2f, -0.34f), new Vector3(0.13f, 0.13f, 0.14f), Quaternion.identity, down, 5, 3);
+            b.Limb(bird + new Vector3(0f, 0.18f, -0.46f), bird + new Vector3(0f, 0.15f, -0.8f), 0.03f, 0.01f, Hollow, 3);
+            AddPart("Sandpiper", root, b.ToMesh("GlassHeronSandpiper"));
+            return root;
+        }
+
+        static readonly Color StagPelt = new Color(0.26f, 0.24f, 0.40f);
+        static readonly Color StagBelly = new Color(0.52f, 0.50f, 0.62f);
+        static readonly Color StagAntler = new Color(0.86f, 0.82f, 0.72f);
+        static readonly Color Brass = new Color(0.55f, 0.42f, 0.20f);
+        static readonly Color LanternPane = new Color(1.00f, 0.90f, 0.62f);
+
+        /// <summary>A-76 row 2: the flame points of the lantern stag's lanterns (StoneColossi glows them each frame).</summary>
+        static readonly List<Transform> Lanterns = new List<Transform>();
+        static Punchy.Weather.DayNightCycle cycle;
+
+        /// <summary>
+        /// A-76 row 2 (#40): a stag about 34 m to its antler tips walking the SparklingForest, its antlers hung with brass
+        /// lanterns that glow faintly by day and brightly at night (a small flame and a warm light each, see
+        /// <see cref="GlowLanterns"/>). Dusk-violet pelt flecked with pale sparkles, a paler belly and throat, slim legs with
+        /// dark hooves, head raised; wide branching antlers of pale bone. Details: moss caught on the beams, a trailing vine
+        /// of small blossoms on one antler, a bird's nest with three eggs in a fork of the other, one lantern hanging lower
+        /// than the rest on a longer chain. Body (body, legs, neck, head, antlers, lantern cages) is one part, laid out as
+        /// the mesa tortoise is (shoulders forward on +z, hips at -z), so ColossusRigs' stag rig can walk it; the flame
+        /// points ("Lantern0".."LanternN") are empty children the rig moves onto its head bone.
+        /// </summary>
+        static Transform BuildLanternStag(float3 at, float yaw, uint seed)
+        {
+            var root = new GameObject("LanternStag").transform;
+            root.SetPositionAndRotation(new Vector3(at.x, at.y - 0.3f, at.z), Quaternion.Euler(0f, yaw, 0f));
+            var m = new DunesColossus.MeshBuilder();
+            var rng = Unity.Mathematics.Random.CreateFromIndex(seed | 1u);
+
+            // Four slim legs: upper leg to the knee (the hind ones bent back), cannon down to a dark hoof.
+            for (int k = 0; k < 4; k++)
+            {
+                float sx = k % 2 == 0 ? -1f : 1f, sz = k < 2 ? 1f : -1f;
+                var forward = k == 1 ? 2f : k == 2 ? -1.5f : 0f;
+                var hip = new Vector3(sx * 3.4f, 15f, sz * 9f);
+                var knee = new Vector3(sx * 3.3f, 8f, sz * 9f + (sz < 0f ? -2.2f : 0.6f) + forward * 0.5f);
+                var hoof = new Vector3(sx * 3.2f, 1.2f, sz * 9f + forward);
+                m.Limb(hip, knee, 1.7f, 0.9f, StagPelt, 7);
+                m.Limb(knee, hoof, 0.8f, 0.6f, StagPelt, 7);
+                m.Ellipsoid(hoof + new Vector3(0f, -0.5f, 0.3f), new Vector3(0.8f, 0.7f, 1f), Quaternion.identity, Hollow, 6, 3);
+            }
+            // Barrel, chest and haunches, belly paler; a short tail with a pale underside.
+            m.Ellipsoid(new Vector3(0f, 16.5f, 0f), new Vector3(4.6f, 4.6f, 11f), Quaternion.identity, StagPelt);
+            m.Ellipsoid(new Vector3(0f, 15.4f, 0.5f), new Vector3(3.8f, 3.2f, 9f), Quaternion.identity, StagBelly);
+            m.Ellipsoid(new Vector3(0f, 17.2f, 8f), new Vector3(4.4f, 5f, 4.6f), Quaternion.identity, StagPelt);
+            m.Ellipsoid(new Vector3(0f, 17.5f, -8.5f), new Vector3(4.6f, 4.8f, 4.4f), Quaternion.identity, StagPelt);
+            m.Ellipsoid(new Vector3(0f, 18.6f, -12.8f), new Vector3(1f, 1.6f, 0.8f), Quaternion.Euler(-30f, 0f, 0f), StagBelly, 6, 4);
+            // The neck up and forward to the head, with a pale throat patch.
+            m.Limb(new Vector3(0f, 18.5f, 9.5f), new Vector3(0f, 24.5f, 13.5f), 3.2f, 2f, StagPelt, 9);
+            m.Ellipsoid(new Vector3(0f, 20.8f, 12.6f), new Vector3(1.8f, 2.6f, 1.4f), Quaternion.Euler(-30f, 0f, 0f), StagBelly, 7, 4);
+            var head = new Vector3(0f, 25.5f, 14.5f);
+            var face = Quaternion.Euler(32f, 0f, 0f);
+            m.Ellipsoid(head, new Vector3(1.8f, 1.9f, 2.4f), face, StagPelt);
+            m.Limb(head + face * new Vector3(0f, -0.2f, 1.2f), head + face * new Vector3(0f, -0.4f, 4.6f), 1.3f, 0.8f, StagPelt, 8);   // muzzle
+            m.Ellipsoid(head + face * new Vector3(0f, -0.3f, 4.7f), new Vector3(0.75f, 0.6f, 0.5f), face, Hollow, 6, 3);           // nose
+            for (int s = -1; s <= 1; s += 2)
+            {
+                m.Ellipsoid(head + face * new Vector3(s * 1.5f, 0.5f, 1f), new Vector3(0.35f, 0.4f, 0.4f), face, Hollow, 5, 3);   // eyes
+                m.Ellipsoid(head + new Vector3(s * 2.4f, 1.2f, -0.8f), new Vector3(1.4f, 0.5f, 0.8f), Quaternion.Euler(0f, s * 20f, s * -25f), StagPelt, 6, 3);   // ears
+            }
+            // Sparkle flecks on the pelt: tiny pale facets over the back and flanks.
+            for (int k = 0; k < 70; k++)
+            {
+                var a = rng.NextFloat(-1.3f, 1.3f);
+                var z = rng.NextFloat(-11f, 10f);
+                var p = new Vector3(Mathf.Sin(a) * 4.7f, 16.5f + Mathf.Cos(a) * 4.7f, z);
+                m.Ellipsoid(p, new Vector3(0.18f, 0.12f, 0.18f), Quaternion.Euler(0f, rng.NextFloat(0f, 360f), 0f), Color.Lerp(LanternPane, Color.white, 0.6f), 4, 2);
+            }
+
+            // Antlers: a beam each side sweeping up, out and back, three tines and a split crown; lanterns hang under
+            // the tine tips on short chains (the brow tines carry none, one hangs lower than the rest).
+            var tineTips = new List<Vector3>();
+            for (int s = -1; s <= 1; s += 2)
+            {
+                var b0 = head + new Vector3(s * 1.1f, 1.7f, -0.6f);
+                var b1 = b0 + new Vector3(s * 3.2f, 2.8f, -1.2f);
+                var b2 = b1 + new Vector3(s * 2.6f, 3.6f, -1.6f);
+                var b3 = b2 + new Vector3(s * 1.4f, 3.2f, 0.4f);
+                var b4 = b2 + new Vector3(s * 3.2f, 1.4f, -1.4f);
+                m.Limb(b0, b1, 0.7f, 0.55f, StagAntler, 6);
+                m.Limb(b1, b2, 0.55f, 0.42f, StagAntler, 6);
+                m.Limb(b2, b3, 0.42f, 0.18f, StagAntler, 6);
+                m.Limb(b2, b4, 0.32f, 0.12f, StagAntler, 5);
+                Vector3[] from = { b0 + (b1 - b0) * 0.4f, b1, b1 + (b2 - b1) * 0.6f };
+                Vector3[] reach = { new Vector3(s * 0.6f, 1.8f, 2.6f), new Vector3(s * 2.8f, 1.2f, 1.2f), new Vector3(s * 1.2f, 2.6f, -2.4f) };
+                for (int k = 0; k < 3; k++)
+                {
+                    m.Limb(from[k], from[k] + reach[k], 0.36f, 0.12f, StagAntler, 5);
+                    tineTips.Add(from[k] + reach[k]);
+                }
+                tineTips.Add(b3);
+                tineTips.Add(b4);
+            }
+            var lanternAt = new List<Vector3>();
+            var low = 1 + rng.NextInt(4);
+            for (int k = 0; k < tineTips.Count; k++)
+            {
+                if (k % 5 == 0)
+                    continue;
+                var hook = tineTips[k];
+                var chain = k == low ? 3.4f : rng.NextFloat(0.9f, 1.6f);
+                var lamp = hook + Vector3.down * (chain + 0.7f);
+                m.Limb(hook, lamp + Vector3.up * 0.7f, 0.06f, 0.06f, Dark, 3);                                              // chain
+                m.Ellipsoid(lamp + Vector3.up * 0.7f, new Vector3(0.55f, 0.22f, 0.55f), Quaternion.identity, Brass, 6, 3);   // cap
+                m.Ellipsoid(lamp, new Vector3(0.48f, 0.62f, 0.48f), Quaternion.Euler(0f, 45f, 0f), LanternPane, 4, 3);       // pane
+                m.Ellipsoid(lamp + Vector3.down * 0.62f, new Vector3(0.42f, 0.14f, 0.42f), Quaternion.identity, Brass, 6, 2); // base
+                lanternAt.Add(lamp);
+            }
+            // Moss on the beams, a vine of small blossoms trailing from one antler, and a nest in a fork of the other.
+            for (int k = 0; k < 10; k++)
+            {
+                var q = Vector3.Lerp(head + Vector3.up * 2f, tineTips[rng.NextInt(tineTips.Count)], rng.NextFloat(0.3f, 0.7f));
+                m.Ellipsoid(q, new Vector3(0.5f, 0.3f, 0.5f), Quaternion.Euler(0f, rng.NextFloat(0f, 360f), 0f), Moss, 5, 3);
+            }
+            var vineSide = rng.NextFloat() < 0.5f ? -1f : 1f;
+            var v0 = head + new Vector3(vineSide * 4.3f, 4.5f, -1.8f);
+            Tentacle(m, v0, v0 + new Vector3(vineSide * 1.5f, -2.5f, 0.4f), v0 + new Vector3(vineSide * 0.6f, -4.5f, 1.2f), v0 + new Vector3(vineSide * 1.8f, -6.2f, 0.6f), 0.12f, 0.06f, Moss, Moss, 8);
+            for (int k = 0; k < 6; k++)
+            {
+                var t = (k + 0.5f) / 6f;
+                var p = v0 + new Vector3(vineSide * 1.5f * t, -6f * t, 0.8f * Mathf.Sin(t * 3f));
+                m.Ellipsoid(p + new Vector3(0.2f, 0f, 0.15f), new Vector3(0.22f, 0.18f, 0.22f), Quaternion.identity, k % 2 == 0 ? new Color(0.96f, 0.72f, 0.86f) : new Color(0.98f, 0.94f, 0.80f), 5, 3);
+            }
+            var nest = head + new Vector3(-vineSide * 4.3f, 4.5f, -1.8f);
+            m.Ellipsoid(nest, new Vector3(0.9f, 0.45f, 0.9f), Quaternion.identity, new Color(0.45f, 0.36f, 0.24f), 7, 3);
+            m.Ellipsoid(nest + Vector3.up * 0.32f, new Vector3(0.6f, 0.15f, 0.6f), Quaternion.identity, new Color(0.30f, 0.24f, 0.16f), 6, 2);
+            for (int k = 0; k < 3; k++)
+                m.Ellipsoid(nest + new Vector3((k - 1) * 0.25f, 0.42f, (k % 2) * 0.2f), new Vector3(0.13f, 0.11f, 0.15f), Quaternion.identity, new Color(0.62f, 0.80f, 0.86f), 5, 3);
+            AddPart("Body", root, m.ToMesh("LanternStag"));
+
+            // The flame points, as children so they follow the root (and the rig's head once it is awake).
+            for (int k = 0; k < lanternAt.Count; k++)
+            {
+                var point = new GameObject("Lantern" + k).transform;
+                point.SetParent(root, false);
+                point.localPosition = lanternAt[k] + Vector3.down * 0.25f;
+                Lanterns.Add(point);
+            }
+            return root;
+        }
+
+        /// <summary>Lanterns glow within this far of the camera (m).</summary>
+        const float LanternRange = 450f;
+
+        /// <summary>
+        /// A-76 row 2: each frame the stag's lanterns burn as small standard-fire flames and throw a warm light round them
+        /// (CaveSystem.MovingLights lights the ground and trees too), faint by day and brightening into the night
+        /// (DayNightCycle.Night). Cosmetic and local.
+        /// </summary>
+        void GlowLanterns()
+        {
+            if (Lanterns.Count == 0 || DunesColossus.Hidden)
+                return;
+            var cam = Camera.main;
+            if (cam == null)
+                return;
+            if (cycle == null)
+                cycle = FindAnyObjectByType<Punchy.Weather.DayNightCycle>();
+            var night = cycle != null ? cycle.Night : 0f;
+            var eye = cam.transform.position;
+            for (int k = 0; k < Lanterns.Count; k++)
+            {
+                var point = Lanterns[k];
+                if (point == null || !point.gameObject.activeInHierarchy || (point.position - eye).sqrMagnitude > LanternRange * LanternRange)
+                    continue;
+                var flicker = 0.9f + 0.1f * Mathf.Sin(Time.time * 7f + k * 1.7f);
+                Punchy.Ambience.FireSystem.AddFlame(point.position, 0.3f + 0.25f * night, 0x57A60 + k, Punchy.Ambience.FireSystem.Wood);
+                var light = Punchy.Ambience.FireSystem.Light(Punchy.Ambience.FireSystem.Wood, flicker * (0.35f + 1.4f * night));
+                light.w *= 0.6f + 0.8f * night;
+                Punchy.Terrain.CaveSystem.MovingLights.Add((0x57A60 + k, point.position, light));
+            }
         }
 
         /// <summary>Slow, soft puffs rising from a box round <paramref name="local"/> (ash, dust, spores), in the ambience puff material.</summary>

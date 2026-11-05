@@ -40,7 +40,7 @@ namespace Punchy.Fauna
         public static string Shot;
         /// <summary>"-walkerlog": log each walker's loop and place every 10 s, and the host/client clock check.</summary>
         public static bool Log;
-        /// <summary>"-walkerphase walk|rest|seconds" (DebugControls, for shots): shift each walker's clock once so it is mid-walk, mid-rest or that far into its cycle.</summary>
+        /// <summary>"-walkerphase walk|rest|stab|seconds" (DebugControls, for shots): shift each walker's clock once so it is mid-walk, mid-rest or that far into its cycle ("stab" is mid-rest with the heron held at the bottom of a stab).</summary>
         public static string Phase;
 
         /// <summary>How each kind walks.</summary>
@@ -64,6 +64,9 @@ namespace Punchy.Fauna
             new Gait { Kind = StoneColossi.Kind.WalkingSaguaro, Slot = 6, Radius = 70f, Speed = 1.1f, Walk = 100f, Rest = 50f, Stride = 4f, Bob = 0.3f, Shake = 0.06f, Body = 16f, Height = 50f, Salt = 0xA725u },
             // A-75 row 2: the mesa tortoise, the slowest of them (a walking hill), on a short loop with long rests.
             new Gait { Kind = StoneColossi.Kind.MesaTortoise, Slot = 8, Radius = 45f, Speed = 0.45f, Walk = 90f, Rest = 80f, Stride = 3.5f, Bob = 0.25f, Shake = 0.1f, Body = 26f, Height = 30f, Salt = 0xA75Du },
+            // A-76: the glass heron wades a small loop with long still rests (it stabs at the sand while resting); the lantern stag roams wider.
+            new Gait { Kind = StoneColossi.Kind.GlassHeron, Slot = 9, Radius = 45f, Speed = 0.8f, Walk = 70f, Rest = 60f, Stride = 4f, Bob = 0.2f, Shake = 0.05f, Body = 10f, Height = 32f, Salt = 0xA76Eu },
+            new Gait { Kind = StoneColossi.Kind.LanternStag, Slot = 10, Radius = 65f, Speed = 1.3f, Walk = 90f, Rest = 50f, Stride = 5f, Bob = 0.3f, Shake = 0.07f, Body = 14f, Height = 34f, Salt = 0xA757u },
         };
 
         const float Ramp = 5f, AwakeRange = 600f, FarPeriod = 0.5f, ShakeRange = 120f, ShakeTime = 0.35f, DustRange = 300f;
@@ -103,7 +106,7 @@ namespace Punchy.Fauna
         }
 
         public static ColossusWalker Instance { get; private set; }
-        readonly Walker[] walkers = new Walker[4];   // (one per Gait; ColossusZones has room for four)
+        readonly Walker[] walkers = new Walker[Gaits.Length];   // (one per Gait; ColossusZones has room for the four nearest)
         float nextTry, gaveUp;
         ParticleSystem dust;
         Vector3 shakeApplied;
@@ -178,7 +181,9 @@ namespace Punchy.Fauna
             }
             if (was != awake && was >= 0 && walkers[was] != null)
                 walkers[was].Rig?.Sleep();
+            // ColossusZones holds four: the nearest four on the move get them.
             var zones = float4x4.zero;
+            var zoneDist = new float4(float.MaxValue);
             for (int i = 0; i < walkers.Length; i++)
             {
                 var w = walkers[i];
@@ -196,7 +201,18 @@ namespace Punchy.Fauna
                 }
                 // Creatures make room only while it is on the move (a resting giant is just a hill).
                 if (w.Pace > 0.2f)
-                    zones[i] = new float4(w.Position.xz, w.G.Body + 6f, w.Heading);
+                {
+                    var zone = new float4(w.Position.xz, w.G.Body + 6f, w.Heading);
+                    var d = math.distancesq(w.Position.xz, eye.xz);
+                    for (int z = 0; z < 4; z++)
+                    {
+                        if (d >= zoneDist[z])
+                            continue;
+                        // Push the farther ones down a place and drop the fifth.
+                        (zoneDist[z], d) = (d, zoneDist[z]);
+                        (zones[z], zone) = (zone, zones[z]);
+                    }
+                }
             }
             CreatureBrainSystem.ColossusZones.Data = zones;
             if (Log && Time.time >= nextLog)
@@ -470,7 +486,7 @@ namespace Punchy.Fauna
                 // -walkerphase (shots only): move this walker's clock once so it is where the shot wants it in its cycle.
                 w.PhaseDone = Phase;
                 double cycle = g.Walk + g.Rest, u = t + w.Offset;
-                var want = Phase == "walk" ? g.Walk * 0.5f : Phase == "rest" ? g.Walk + g.Rest * 0.5f
+                var want = Phase == "walk" ? g.Walk * 0.5f : (Phase == "rest" || Phase == "stab") ? g.Walk + g.Rest * 0.5f
                          : float.TryParse(Phase, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var at0) ? at0 : float.NaN;
                 if (!float.IsNaN(want))
                     w.Offset += want - (float)(u - math.floor(u / cycle) * cycle);
