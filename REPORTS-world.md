@@ -2495,3 +2495,14 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
   - fires add 2 batches and 2 setpass calls. The difference is inside the noise, so no regression.
 - Bake: v3 6261 ms this session (110 landmarks, hash CE5EB4D9, unchanged) against 5207 ms in row 3. Row 4 adds no bake work (runtime and shader only), so I read this as machine load. The suite run will re-measure it.
 - StoneColossi.cs untouched.
+
+## W-106 row 1: Ember Forest ablaze at night #131 part 2 (4e7ae31, world-features)
+
+- Ember Forest trees within 70 m of the camera (DetailRange scales it) carry StandardFire flames: 3-5 in each crown, sometimes one at the foot and a patch of burning litter on the ground. The 6 nearest crowns light the ground through CaveSystem.MovingLights.
+- One colour per night from the world seed and the night (evening and the morning after count as one): ForestColour. On this seed nights 0..5 are blue, green, violet, wood, wood, violet.
+- Cosmetic only, local. It catches as the light goes and dies down at dawn with the landmark night fires. Gathered twice a second or when the camera moves 6 m, capped at 320 flames.
+- New: FloraSystem.TreesNear (read only, from the placed flora) and LandmarkEffectSystem.ForestFire.cs (LandmarkEffectSystem is now partial). Debug switch LandmarkEffectSystem.ForestFiresOn.
+- Shots at (800, -1700), v3, in Assets/Temp/shots: w106-ember-night-a-800.png (night 0, blue, 22:00), w106-ember-night-b-800.png (night 1, green), w106-ember-dawn-800.png (05:54, flames dying down).
+- Render ms there at 22:00, uncapped, 500 frames, fires on / off (48 trees, 213 flames): gpu 1.94 / 1.97 ms, then 2.00 / 1.90 ms; frame 6.47 / 6.36, then 6.58 / 6.01 ms; +2 batches, +2 setpass. Within the noise.
+- Landmarks_V3 and Fauna_Fingerprint unchanged (no placement code touched): "110 09EAC0FE", 61459BF0.
+- Paused W-106 here for W-107 (priority from Zach). Rows 2 (mesa tortoise) and 3 (Wasteland stepping stones) are written but uncommitted, shelved as a patch; row 4 not started.
