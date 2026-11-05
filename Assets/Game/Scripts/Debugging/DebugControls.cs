@@ -1775,6 +1775,8 @@ namespace Punchy.Debugging
             var oldSearch = System.Array.IndexOf(args, "-oldsearch") >= 0 || System.Array.IndexOf(LaunchArgs, "-oldsearch") >= 0 ? 1 : 0;
             Debug.Log($"DebugControls: -oldsearch {(oldSearch != 0 ? "ON (every brain search every frame)" : "off (staggered searches)")}");
             Punchy.Fauna.CreatureBrainSystem.SearchEveryFrame.Data = oldSearch;
+            // #132 A/B: "-oldwalls" places every landmark prop within 15 m for each wall check, as before.
+            FloraPlacement.OldWalls.Data = System.Array.IndexOf(args, "-oldwalls") >= 0 ? 1 : 0;
             Punchy.Fauna.CreatureSnapshotSystem.Off = System.Array.IndexOf(args, "-oldsnapshot") >= 0;
             Punchy.Fauna.TraceSystem.OldOrder = System.Array.IndexOf(args, "-oldtrace") >= 0;
             Punchy.Fauna.TraceSystem.Stats = perfLog;
@@ -2662,6 +2664,9 @@ namespace Punchy.Debugging
         // "-perflog" sums over the last 3 s of a shot line's wait.
         Unity.Profiling.ProfilerRecorder brainTick;
         double perfBrain;
+        // #132: Advance and its two wall checks inside the brain tick.
+        Unity.Profiling.ProfilerRecorder brainAdvance, brainWalls, brainSolids, brainBuilt;
+        double perfAdvance, perfWalls, perfSolids, perfBuilt;
         bool perfLog;
         int perfFrames, perfTimed, perfChunkFrames;
         double perfFrame, perfMax, perfMain, perfRender, perfGpu, perfDraws, perfTris;
@@ -2692,6 +2697,20 @@ namespace Punchy.Debugging
                 brainTick = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Scripts, "Brain.Tick");
             else
                 perfBrain += brainTick.LastValue * 1e-6;
+            if (!brainAdvance.Valid)
+            {
+                brainAdvance = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Scripts, "Brain.Advance");
+                brainWalls = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Scripts, "Brain.Walls");
+                brainSolids = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Scripts, "Brain.Solids");
+                brainBuilt = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Scripts, "Brain.Built");
+            }
+            else
+            {
+                perfAdvance += brainAdvance.LastValue * 1e-6;
+                perfWalls += brainWalls.LastValue * 1e-6;
+                perfSolids += brainSolids.LastValue * 1e-6;
+                perfBuilt += brainBuilt.LastValue * 1e-6;
+            }
             perfMax = System.Math.Max(perfMax, dt);
             FrameTimingManager.CaptureFrameTimings();
             if (FrameTimingManager.GetLatestTimings(1, perfTiming) > 0)
@@ -2770,8 +2789,9 @@ namespace Punchy.Debugging
                       $"searches/frame predator {(double)(se.Predator - perfSearch0.Predator) / n:F1}, alarm {(double)(se.Alarm - perfSearch0.Alarm) / n:F1}, " +
                       $"chat {(double)(se.Chat - perfSearch0.Chat) / n:F1}; flees predator {se.PredatorFlee - perfSearch0.PredatorFlee}, " +
                       $"alarm {se.AlarmFlee - perfSearch0.AlarmFlee}; totals flee {se.PredatorFlee}/{se.AlarmFlee}; " +
-                      $"brain ms {perfBrain / n:F3} (summed over workers), thinks/frame {(double)(se.Thinks - perfSearch0.Thinks) / n:F1}, lod skips/frame {(double)(se.LodSkips - perfSearch0.LodSkips) / n:F1}, lod off {Punchy.Fauna.CreatureBrainSystem.BrainLodOff.Data}");
-            perfBrain = 0;
+                      $"brain ms {perfBrain / n:F3} (summed over workers), thinks/frame {(double)(se.Thinks - perfSearch0.Thinks) / n:F1}, lod skips/frame {(double)(se.LodSkips - perfSearch0.LodSkips) / n:F1}, lod off {Punchy.Fauna.CreatureBrainSystem.BrainLodOff.Data}; " +
+                      $"advance ms {perfAdvance / n:F3} (walls {perfWalls / n:F3}, solids {perfSolids / n:F3}, of it buildings {perfBuilt / n:F3})");
+            perfBrain = perfAdvance = perfWalls = perfSolids = perfBuilt = 0;
             perfFrames = perfTimed = perfChunkFrames = 0;
             perfFrame = perfMax = perfMain = perfRender = perfGpu = perfDraws = perfTris = 0;
             perfLoaded = perfSubmitted = perfInView = perfShadows = perfCaveTris = 0;
