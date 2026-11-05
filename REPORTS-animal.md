@@ -1915,3 +1915,17 @@ Commit c0277c9 on `animal-behaviours`, pushed. It is on top of origin/main 6f139
 - **Shot gotcha:** on `-island v3`, a shot list needs a `-wait 25` warmup line before `-place`.
 - #35 commented, left open. Editor closed.
 Calls used: about 110 (over budget).
+
+## A-68 row 2, #35 bat folk look: done (verified)
+- Commit d2a2bb3 on animal-behaviours, pushed. #35 commented.
+- **Look:** hat caps gone (52 parts down to 31), ears 1.4x, coats about 1.35x lighter.
+- **Light:** fires (hearth and camp anchors) and NPC torches or lanterns within 4 m count. A player within 6 m now counts underground. This was a bug: underRock is never set for cave dwellers, so the player's light used to be ignored at home.
+- **Shield:** a light breaks off work straight into ShieldEyes, and alert drops while shielding.
+- **Bug fix:** cave walkers that fled never stopped. The cave branch skipped Pause.
+- **Verified on v3** (`-place batfolk`, player moved 3-5 m from a bat folk): ShieldEyes at 3.3-5.8 m in four samples. They return to Idle/Work afterwards.
+- **Fingerprint:** 8726AADB became C1D6A1EA (BatFolk.asset only; brain changes don't feed it).
+- **Shots:** D:\PunchyMilestones\animal\A-68\a68-batfolk.png (ears, hammock) and a68-batfolk-shield.png (arm across the face, side view).
+- **Weak points:**
+  - The shield shot is side-on and dim.
+  - Close up, some still bolt after shielding (alarm cascade).
+- **Next:** merge main f403b9c, run the play-mode suite, then row 3.
