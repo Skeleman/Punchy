@@ -2,6 +2,25 @@
 
 Newest first.
 
+## 2026-11-05 b/fix-stall-hang: the 0.5 s frames and hangs came from the bench runner, not the game
+
+**Short answer:**
+- The recurring 510-523 ms frames and the 3 hangs (q33, q34, q35) happened **only in sessions using BenchTune**, the live shadow panel added for job 33.
+- BenchTune, its sweep and the route each called `FrameTimingManager.CaptureFrameTimings()`, so during a sweep it ran **up to 3 times a frame**.
+- With one capture per frame (b/fix-stall-hang, Tools/bench/BenchmarkRoute.cs.txt only), the same sweep on the same game commit had **no 0.5 s frames and no hangs in 4 sessions**. Worst frame 125 ms.
+- The game itself is not implicated, and no dump was needed. Fix for review: branch b/fix-stall-hang (one commit on main a35a4d0).
+
+**Evidence:**
+- Earlier bench logs without BenchTune: q27, q28, q29 and q31, 137 logs, 688 hitches over 50 ms, **0** in the 500-529 ms band.
+- With BenchTune before the fix:
+  - q34 + q35 (sweep): 8 sessions, 8 frames of 508-523 ms (one of 663), 1 permanent hang and 1 452 s freeze.
+  - q33 (BenchTune without a sweep): 2 runs that never finished their stop.
+- A Profile build with the same sweep (q36, 2 sessions, every frame captured) showed no frame over 300 ms. The stall needs the release build's timing; I didn't chase why.
+- After the fix (q37 = q35's sweep, Bench build of b19e37d with the fixed runner): fv1 x2 and forest x2, 0 frames of 0.5 s, 0 hangs. Every session ended normally ("BenchRoute: done").
+- **Not proven:** hangs were 3 in about 24 BenchTune sessions, so 4 clean sessions is good but not conclusive. Later sweeps will keep counting.
+- Scripts: q36.sh (Profile capture), q37.sh (after). dump.ps1 is ready (dbghelp MiniDumpWriteDump, exact PID, Punchy only, output stays in results/) for a repeat. It was not used.
+- Cost: 17 calls, peak 285k context (session), $1.4
+
 ## 2026-11-05 job 33 re-run: the shadow sweep after W-107 PR #156 (card holes, cached far shadows), main b19e37d
 
 **Short answer:**
