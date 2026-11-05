@@ -977,4 +977,247 @@ namespace Punchy.Debugging
             return true;
         }
     }
+
+    /// <summary>
+    /// Bench builds only (copied in by the bench scripts, never committed to the game): live shadow tuning to compare
+    /// options under any conditions. "-benchtune" (optionally "-benchtune shadows=0.5,cascades=2,trees=120,shrubs=40")
+    /// starts it. F9 shows or hides the panel, F10 picks a row, F11 steps its value, F12 saves a screenshot named by the
+    /// settings (next to the log, or in -benchshots' folder). The panel shows fps, GPU and main-thread ms (1 s averages).
+    /// Rows: sun shadow distance (x the pipeline's own), cascades, tree and shrub shadow cast distance (m), flora
+    /// shadows on/off, and W-107's FloraShadowOptions (cheap far caster, still far shadows, cached far shadows, near
+    /// range, still-from distance; their own launch flags -cheapfarcaster etc. set them at start).
+    /// </summary>
+    public class BenchTune : MonoBehaviour
+    {
+        static readonly float[] Dists = { 0.25f, 0.5f, 0.75f, 1f, 1.5f };
+        static readonly int[] CascadeSteps = { 1, 2, 3, 4 };
+        static readonly float[] Casts = { 0f, 20f, 40f, 60f, 90f, 120f, 250f, 1000f };
+        static readonly float[] Nears = { 15f, 25f, 40f, 60f };
+        static readonly float[] StillFroms = { 20f, 40f, 60f, 90f };
+        static readonly string[] Rows = { "Shadow distance", "Cascades", "Tree cast m", "Shrub cast m", "Flora shadows",
+            "Cheap far caster", "Still far shadows", "Cached far shadows", "Near range m", "Still from m" };
+        // W-107's switches by name: field, row. Missing on builds before PR #153 (the rows then show "n/a").
+        static readonly string[] OptionFields = { "CheapFarCaster", "StillFarShadows", "CachedFarShadows", "NearRange", "StillFrom" };
+        static System.Type options;
+        static object Opt(string f) => options?.GetField(f, BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
+        static void SetOpt(string f, object v) => options?.GetField(f, BindingFlags.Public | BindingFlags.Static)?.SetValue(null, v);
+        static string OptText(string f) { var v = Opt(f); return v == null ? "n/a" : v is bool b ? (b ? "on" : "off") : $"{v:0.#}"; }
+        float baseDist; int row; bool show = true; bool ready;
+        float dist = 1f; int cascades = -1; float trees = -1f, shrubs = -1f; bool floraShadows = true;
+        readonly FrameTiming[] timing = new FrameTiming[1];
+        float acc; int frames; double gpuAcc, mainAcc; int gpuN;
+        string stats = "";
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        static void Boot()
+        {
+            if (System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-benchtune") < 0)
+                return;
+            var go = new GameObject("BenchTune");
+            DontDestroyOnLoad(go);
+            go.AddComponent<BenchTune>();
+        }
+
+        static UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset Urp =>
+            UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline as UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset;
+
+        void Start()
+        {
+            foreach (var asm in System.AppDomain.CurrentDomain.GetAssemblies())
+                if ((options = asm.GetType("Punchy.Rendering.FloraShadowOptions")) != null) break;
+            var args = System.Environment.GetCommandLineArgs();
+            var i = System.Array.IndexOf(args, "-benchtune");
+            if (i + 1 < args.Length && !args[i + 1].StartsWith("-"))
+                Parse(args[i + 1]);
+            StartCoroutine(ApplyWhenReady());
+        }
+
+        void Parse(string set)
+        {
+                foreach (var kv in set.Split(','))
+                {
+                    var p = kv.Split('=');
+                    if (p.Length != 2 || !float.TryParse(p[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v)) continue;
+                    switch (p[0])
+                    {
+                        case "shadows": dist = v; break;
+                        case "cascades": cascades = (int)v; break;
+                        case "trees": trees = v; break;
+                        case "shrubs": shrubs = v; break;
+                        case "flora": floraShadows = v > 0.5f; break;
+                        case "panel": show = v > 0.5f; break;
+                        case "cheap": SetOpt("CheapFarCaster", v > 0.5f); break;
+                        case "still": SetOpt("StillFarShadows", v > 0.5f); break;
+                        case "cached": SetOpt("CachedFarShadows", v > 0.5f); break;
+                        case "near": SetOpt("NearRange", v); break;
+                        case "stillfrom": SetOpt("StillFrom", v); break;
+                    }
+                }
+        }
+
+        IEnumerator ApplyWhenReady()
+        {
+            // The flora exists only once the island is baked.
+            for (int n = 0; n < 600 && FindAnyObjectByType<Punchy.Flora.FloraSystem>() == null; n++)
+                yield return new WaitForSecondsRealtime(0.5f);
+            var flora = FindAnyObjectByType<Punchy.Flora.FloraSystem>();
+            if (flora != null)
+            {
+                if (trees < 0f) trees = flora.Trees.ShadowCastDistance;
+                if (shrubs < 0f) shrubs = flora.Shrubs.ShadowCastDistance;
+            }
+            // The game's Shadows setting has already scaled the pipeline: x1 here is the pipeline's value at that point.
+            var urp = Urp;
+            baseDist = urp != null ? urp.shadowDistance : QualitySettings.shadowDistance;
+            if (cascades < 0) cascades = urp != null ? urp.shadowCascadeCount : 4;
+            ready = true;
+            Apply();
+            // -benchtunesweep "name:k=v,...;name:k=v,...": in this one session (same weather, light and camera), each
+            // set in turn: settle 4 s, measure 8 s, screenshot "<name>.png", one "BenchTune: sweep" line. Every set
+            // starts from the launch values. Keep the stop alive with -benchlong.
+            var args = System.Environment.GetCommandLineArgs();
+            var w = System.Array.IndexOf(args, "-benchtunesweep");
+            if (w >= 0 && w + 1 < args.Length)
+            {
+                for (int n = 0; n < 40 && !BenchmarkRouteMeasuring(); n++)
+                    yield return new WaitForSecondsRealtime(1f);
+                yield return new WaitForSecondsRealtime(3f);
+                float d0 = dist, t0 = trees, s0 = shrubs; int c0 = cascades; bool f0 = floraShadows;
+                var o0 = new object[OptionFields.Length];
+                for (int k = 0; k < o0.Length; k++) o0[k] = Opt(OptionFields[k]);
+                foreach (var entry in args[w + 1].Split(';'))
+                {
+                    var colon = entry.IndexOf(':');
+                    var name = colon > 0 ? entry.Substring(0, colon) : entry;
+                    dist = d0; trees = t0; shrubs = s0; cascades = c0; floraShadows = f0;
+                    for (int k = 0; k < o0.Length; k++) if (o0[k] != null) SetOpt(OptionFields[k], o0[k]);
+                    if (colon > 0) Parse(entry.Substring(colon + 1));
+                    show = false;
+                    Apply();
+                    yield return new WaitForSecondsRealtime(4f);
+                    int fr = 0; float t = 0f; double g = 0, m = 0; int gn = 0;
+                    while (t < 8f)
+                    {
+                        yield return null;
+                        t += Time.unscaledDeltaTime; fr++;
+                        FrameTimingManager.CaptureFrameTimings();
+                        if (FrameTimingManager.GetLatestTimings(1, timing) > 0 && timing[0].gpuFrameTime > 0) { g += timing[0].gpuFrameTime; m += timing[0].cpuMainThreadFrameTime; gn++; }
+                    }
+                    var line = $"{fr / t:F1} fps, gpu {(gn > 0 ? g / gn : 0):F2} ms, main {(gn > 0 ? m / gn : 0):F2} ms";
+                    Shot(name);
+                    yield return new WaitForSecondsRealtime(1.5f);
+                    Debug.Log($"BenchTune: sweep {name}: {line}; {Describe()}");
+                }
+                Debug.Log("BenchTune: sweep done");
+            }
+        }
+
+        // The route is in a stop's measured part (so the world is settled): BenchmarkRoute's private flag, by reflection.
+        static bool BenchmarkRouteMeasuring()
+        {
+            var route = FindAnyObjectByType<BenchmarkRoute>();
+            var f = typeof(BenchmarkRoute).GetField("measuring", BindingFlags.NonPublic | BindingFlags.Instance);
+            return route == null || f == null || (bool)f.GetValue(route);
+        }
+
+        void Apply()
+        {
+            if (!ready) return;
+            var urp = Urp;
+            if (urp != null)
+            {
+                urp.shadowDistance = baseDist * dist;
+                urp.shadowCascadeCount = Mathf.Clamp(cascades, 1, 4);
+            }
+            var flora = FindAnyObjectByType<Punchy.Flora.FloraSystem>();
+            if (flora != null)
+            {
+                flora.Trees.ShadowCastDistance = trees; flora.Shrubs.ShadowCastDistance = shrubs;
+                flora.Trees.CastShadows = floraShadows; flora.Shrubs.CastShadows = floraShadows;
+            }
+            Debug.Log("BenchTune: " + Describe());
+        }
+
+        string Describe() => $"shadows x{dist:0.##} ({baseDist * dist:F0} m), cascades {cascades}, trees {trees:F0} m, shrubs {shrubs:F0} m, flora shadows {(floraShadows ? "on" : "off")}" +
+            (options == null ? "" : $", cheap far {OptText("CheapFarCaster")}, still far {OptText("StillFarShadows")}, cached far {OptText("CachedFarShadows")}, near {OptText("NearRange")} m, still from {OptText("StillFrom")} m");
+        string FileTag() => $"sh{dist:0.##}-c{cascades}-t{trees:F0}-s{shrubs:F0}{(floraShadows ? "" : "-nofs")}" +
+            (options == null ? "" : $"{(Opt("CheapFarCaster") is true ? "-cheap" : "")}{(Opt("StillFarShadows") is true ? "-still" : "")}{(Opt("CachedFarShadows") is true ? "-cached" : "")}-n{OptText("NearRange")}");
+
+        void Step()
+        {
+            switch (row)
+            {
+                case 0: dist = Next(Dists, dist); break;
+                case 1: cascades = CascadeSteps[(System.Array.IndexOf(CascadeSteps, cascades) + 1) % CascadeSteps.Length]; break;
+                case 2: trees = Next(Casts, trees); break;
+                case 3: shrubs = Next(Casts, shrubs); break;
+                case 4: floraShadows = !floraShadows; break;
+                case 5: case 6: case 7: if (Opt(OptionFields[row - 5]) is bool on) SetOpt(OptionFields[row - 5], !on); break;
+                case 8: if (Opt("NearRange") is float n) SetOpt("NearRange", Next(Nears, n)); break;
+                case 9: if (Opt("StillFrom") is float f) SetOpt("StillFrom", Next(StillFroms, f)); break;
+            }
+            Apply();
+        }
+
+        static float Next(float[] steps, float v)
+        {
+            for (int i = 0; i < steps.Length; i++)
+                if (steps[i] > v + 1e-3f) return steps[i];
+            return steps[0];
+        }
+
+        void Update()
+        {
+            var kb = UnityEngine.InputSystem.Keyboard.current;
+            if (kb != null)
+            {
+                if (kb.f9Key.wasPressedThisFrame) show = !show;
+                if (kb.f10Key.wasPressedThisFrame) row = (row + 1) % Rows.Length;
+                if (kb.f11Key.wasPressedThisFrame) Step();
+                if (kb.f12Key.wasPressedThisFrame) Shot(FileTag() + "-" + System.DateTime.Now.ToString("HHmmss"));
+            }
+            FrameTimingManager.CaptureFrameTimings();
+            if (FrameTimingManager.GetLatestTimings(1, timing) > 0 && timing[0].gpuFrameTime > 0)
+            {
+                gpuAcc += timing[0].gpuFrameTime; mainAcc += timing[0].cpuMainThreadFrameTime; gpuN++;
+            }
+            acc += Time.unscaledDeltaTime; frames++;
+            if (acc >= 1f)
+            {
+                stats = $"{frames / acc:F0} fps, gpu {(gpuN > 0 ? gpuAcc / gpuN : 0):F1} ms, main {(gpuN > 0 ? mainAcc / gpuN : 0):F1} ms";
+                acc = 0; frames = 0; gpuAcc = mainAcc = 0; gpuN = 0;
+            }
+        }
+
+        /// <summary>A screenshot (panel hidden) named by tag; the log gets the settings and the last second's stats.</summary>
+        public void Shot(string tag)
+        {
+            var args = System.Environment.GetCommandLineArgs();
+            var i = System.Array.IndexOf(args, "-benchshots");
+            var dir = i >= 0 && i + 1 < args.Length ? args[i + 1] : System.IO.Path.GetDirectoryName(Application.consoleLogPath) ?? ".";
+            StartCoroutine(Capture(System.IO.Path.Combine(dir, tag + ".png")));
+        }
+
+        IEnumerator Capture(string path)
+        {
+            var was = show; show = false;
+            yield return null;
+            yield return new WaitForEndOfFrame();
+            ScreenCapture.CaptureScreenshot(path);
+            yield return null;
+            show = was;
+            Debug.Log($"BenchTune: shot {System.IO.Path.GetFileName(path)}: {Describe()}; {stats}");
+        }
+
+        void OnGUI()
+        {
+            if (!show) return;
+            GUI.Box(new Rect(10, 10, 420, 40 + Rows.Length * 20), "");
+            GUI.Label(new Rect(18, 14, 410, 20), "BenchTune  " + stats + "   (F9 hide, F10 row, F11 change, F12 shot)");
+            string[] vals = { $"x{dist:0.##} ({baseDist * dist:F0} m)", cascades.ToString(), $"{trees:F0}", $"{shrubs:F0}", floraShadows ? "on" : "off",
+                OptText("CheapFarCaster"), OptText("StillFarShadows"), OptText("CachedFarShadows") + " (row 3 pending)", OptText("NearRange"), OptText("StillFrom") };
+            for (int r = 0; r < Rows.Length; r++)
+                GUI.Label(new Rect(18, 36 + r * 20, 410, 20), (r == row ? "> " : "   ") + Rows[r] + ": " + vals[r]);
+        }
+    }
 }
