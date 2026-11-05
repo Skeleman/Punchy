@@ -2,6 +2,21 @@
 
 Newest first.
 
+## 2026-11-05: job 29, #132 fix (A-68 row 1, 3d66652c) before/after: fishing villages +3 to +38% (v3 village 3: 64 -> 89 fps). Brain.Walls is gone; what's left at v2 village 3 is Brain.Built, 5.4 ms (the building check for wild animals near a player)
+Method: before 12c9318 (first parent of merge 69ca891), after 69ca891 (that merge brings only 3d66652c). Bench, uncapped, 30 s at the 7 job 28 fishing village spots, 2 rounds with the build order alternated. Profile captures (-fpscap 60, BProfileTools -keep Brain) at v2 villages 1 and 3 for each build. 0 exceptions, no crash.
+- **Avg fps, mean of 2 runs (before -> after):** v2 1: 59.0 -> 62.7; v2 2: 86.6 -> 87.9; v2 3: 47.5 -> 53.8; v2 4: 96.3 -> 99.4; v3 1: 93.6 -> 97.9; v3 2: 90.8 -> 89.8; **v3 3: 64.1 -> 88.5**.
+- **Medians (before -> after):** v2 3: 20.8 -> 18.2 ms; v3 3: 15.5 -> 11.3 ms. 1% lows are within noise except v3 1 (52 -> 59).
+- **Captures:**
+  - v2 1: BrainJob median 5.4 -> 1.8 ms, Brain.Advance 3.1 -> 0.48 ms, and the CreatureSnapshotSystem main-thread wait 2.6 ms -> below the listing threshold.
+  - v2 3: BrainJob 12.1 -> 7.1 ms, Advance 10.0 -> 5.7 ms, snapshot wait 7.2 -> 4.1 ms.
+- **Left at v2 3:**
+  - Brain.Built is 5.36 ms over about 50 calls a frame, inside Brain.Solids (12.8 calls); Brain.Walls is 0.014 ms.
+  - Built is BuildingSink: up to 4 FloraPlacement.Blocked probes per SolidAt, which KeepOutOfSolids calls for every slide it tries, for wild land animals near a player (A-44b).
+  - Commented on #132.
+- v2 village 1 still runs at 62 fps with the brain at 1.8 ms, so something else bounds it now. That goes to job 30 (the creature system audit).
+- Scripts: q29.sh. Logs: results/q29logs/, results/prof29-*.txt.
+- Cost: 47 calls, peak 228k context, $2.69
+
 ## 2026-11-05: jobs 28c/28d, every settlement on v2 and v3 incl. the W-94 hazard shelters: 0 frames over 33 ms, 71-118 fps. Correction: the "wharf" runs in jobs 27/28 stood at spawn, because -place prop: has silently done nothing since 6c441fab (#137)
 Method: Bench-6f139d0, uncapped, hitch log at 33 ms, 30 s standing. 28c: -place prop:<Ash|Sand|Snow|Storm>ShelterHouse on v2 and v3. 28d: -warp town 1-8 (the F6 settlement list, nearest first; it wraps after 6) on v2 and v3. 0 exceptions, no crash.
 - **-place prop: is broken from the command line (#137):**
