@@ -2272,3 +2272,9 @@ Human (Human, Dramatic) waiting Storm cell (94,-28) [1 up in cell]: Run for your
 - Shots (unreviewed by Zach), in the scratchpad (a72/keep and shots3):
   - golemb-walk1/2 and golemb-rest, from the back at 150 m. Walking it is a loose cloud of rocks with arcs between them; at rest it is a tighter body.
   - golem-walk1/2/3 and golem-rest, from the side at 220 m.
+
+## A-72 row 5: FungalForest tortoise walks and settles (commit 816d198)
+- `TortoiseRig` in ColossusRigs.cs uses a skinned copy of the body (7356 verts), swapped in only while the walker is awake. The Mesa tortoise and the still giants are not touched.
+- Walking: the legs swing in diagonal pairs (12 degrees, 0.8 m lift), the shell rolls and the head nods.
+- Settling: over the 6 s after a walk ends, the shell sinks 2.4 m and breathes, and the head lowers and looks slowly side to side. It rises again in the last 6 s of the rest. The mushrooms on the shell follow the shell.
+- Shots (scratchpad shots3, unreviewed by Zach): tortoiseb-walk (side, 80 m) and tortoisec-rest (back, 90 m, sunk low). tortoiseb-rest is partly hidden by giant mushrooms.
