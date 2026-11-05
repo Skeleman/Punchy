@@ -889,9 +889,8 @@ namespace Punchy.Fauna
             /// </summary>
             bool LightNear(in CreatureState s, ref CreatureBlob b)
             {
-                // (underRock is only worked out for cave visitors; bat folk are cave dwellers, so for them it's
-                // whether they're below the ground here: at home, or not yet up on a surface trip. A-68.)
-                var under = underRock || b.CaveDweller && s.Position.y < Terrain.SampleHeight(s.Position.xz) - 1f;
+                // (Below: for bat folk, cave dwellers, whether they're below the ground here. A-68.)
+                var under = Below(s, ref b);
                 if (!under && Night < 0.5f)
                     return true;
                 if (under)
@@ -1381,8 +1380,11 @@ namespace Punchy.Fauna
                 // else their own tool, a staff or a stick or empty hands (by a hash of the individual), put down to sleep.
                 else if (b.ShunsLight && b.Hands)
                 {
+                    // (Bringing goods down from the surface, a sack held to the chest: DecideChamberChores.)
                     var tool = ((s.Individual >> 9) % 3u) switch { 0u => HeldItem.Staff, 1u => HeldItem.Stick, _ => HeldItem.None };
-                    s.Held = !underRock && Night < 0.5f ? HeldItem.Goggles
+                    if (s.Mode == CreatureMode.Wander && s.Stage == CarryGoods)
+                        tool = HeldItem.OreSack;
+                    s.Held = !Below(s, ref b) && Night < 0.5f ? HeldItem.Goggles
                            : s.Mode != CreatureMode.Sleep && s.Mode != CreatureMode.Rest ? tool : HeldItem.None;
                 }
                 else if (b.Blind && b.Hands)

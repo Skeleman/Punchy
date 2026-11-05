@@ -669,6 +669,13 @@ namespace Punchy.Fauna
             }
 
             /// <summary>
+            /// Under the rock, for any creature: underRock for a cave visitor; for a cave dweller (bat folk, pygmies;
+            /// underRock is never worked out for them) whether it's below the ground here, at home rather than up on a trip.
+            /// </summary>
+            bool Below(in CreatureState s, ref CreatureBlob b) =>
+                underRock || b.CaveDweller && s.Position.y < Terrain.SampleHeight(s.Position.xz) - 1f;
+
+            /// <summary>
             /// Land on the far side of water within 60 m, in one of a few directions tried: the way there starts on
             /// land, crosses water it can swim, and ends on dry land.
             /// </summary>
