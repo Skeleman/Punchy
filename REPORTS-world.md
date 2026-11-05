@@ -2234,3 +2234,9 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
   - Town streets (364 -> 320 stretches): >0.2 20 -> 2, >0.3 15 -> 0, >0.5 11 -> 0, worst 1.65 -> 0.21.
 - Shots: gallery/row4-road-before.png, gallery/row4-road-after.png (camera -1460,175,2215 looking at -1420,152,2245).
 - Risks: settlement layouts and roads change where streets or roads were steep, so the fingerprint will move. A road that can't meet the grade now has a gap where it meets the cliff instead of running down it. A metre-level probe still finds steps where the levelled street terraces at stretch ends; that's the existing levelling, not the route.
+
+## W-100 row 5 (-place prop regression, #137) - done (verified)
+- Commit 4e60c44 on world-features. `-place prop:` now keeps the request and retries it each frame until the flora lookup (FloraPlacementBlob) and the player are up, instead of returning silently. It warns if it gives up after 120 s. New hook TestHooks.PropPlacePending.
+- New play-mode test WorldTests.Place_PropFindsAndFramesWharf (Order 8): runs `-place prop:FishWharf@0,0` and checks the found and framing lines, and that the player stands within 30 m of wharf #1. Passed in my editor through the Test Runner, with Harness_WorldUp: 2 FishWharf found on v3, #1 at (-4056.9, 0.5, 904.2), player at (-4048.4, 11.1, 907.1). The full suite runs at the end of the batch.
+- Also checked: PlayArgs `-place prop:FishWharf` at play start logs both wharves and frames #1.
+- Risks: in the editor the options run after the lookup is up, so the waiting branch itself only gets exercised in a player build (the profiler's original case). Worth one bench run with `-place prop:FishWharf`. TestHooks.WorldReady still doesn't wait for the flora lookup.
