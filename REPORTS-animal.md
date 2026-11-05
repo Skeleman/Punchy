@@ -2231,3 +2231,10 @@ Human (Human, Dramatic) waiting Storm cell (94,-28) [1 up in cell]: Run for your
   - The meter needs about 2 min of storm to pass 0.3, so a 60 s wait showed none.
 - Shot: a72-rock-storm, a deer lying in the lee of a 2 m boulder in driving rain. It is partly hidden by the rock.
 - No species or landmark change: the fingerprint and the landmark hash are unaffected. The suite runs before the hand-back.
+
+## A-72 suite and hand-back
+- Suite on 36222a4: 12 passed, 0 failed (251 s). Fingerprint EA6A4DE5 (unchanged), landmarks 107 14D92F64 (unchanged). FolkTalk: 21 up, 0 through a wall.
+- Rows 1 and 6 are done. Rows 2-5 (colossus groundwork, walking saguaro, floating-rock golem, rock tortoise) are not started; they wait on a lane decision. StoneColossi.cs is world-lane code (#40), and it already places static WalkingSaguaro, RockGolem and GiantTortoise, which overlap these rows. Two options:
+  - (a) The animal lane animates the world lane's colossi, with the world agent's OK to touch StoneColossi.
+  - (b) The animal lane builds new walkers on the species, body and pose path (scaled up, from the ocean serpent species), and the world lane retires its static ones.
+- My editor is closed.
