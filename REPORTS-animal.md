@@ -1970,3 +1970,10 @@ Calls used: about 110 (over budget).
 - **Audit:** no fauna cull, sleep or disable pass matches the player (all exclude PlayerAvatar); no crow-specific system; no dt clamp or "no ground" cut-off in PlayerMovementSystem.
 - **Test:** WorldTests `Player_CrowFliesOutOfCaveThroughHitches` (crow, cave 0 and out, climb through 700 ms hitches; asserts on the wing and reached).
 - **Open guess (unverified, build only):** a long load hitch in a build may drop window focus; the Input System then resets held keys, so a held climb key stops until pressed again. Needs a build repro.
+
+## A-69 row 3: mimic ocotillos (done, verified) - 6401071
+- They do spawn in normal play, with no -spawn. The only biome that lists them is the Sonoran (density 0.2/ha, about 0.9 expected within 120 m). On v3 the Sonoran covers 1.64 km² in scattered patches, mostly around x 1570-3400, z -290 to -1950.
+- In play with `-goto 2720,-736`: 1 mimic within 120 m about 30 s after the world was ready (at 2676,17,-812), alongside 92 other Sonoran animals. With `-place Sonoran` there were 0 mimics after 2 min. That flag lands at a HumanVillage in another biome, which may be how Zach missed them.
+- Shot: Assets/Temp/shots/a69-mimic-wild.png. It shows the mimic disguised among real ocotillos and cacti.
+- Not changed: ocotillo plants also grow in MesaCanyonlands (3.12 km² on v3), but no mimics live there. Adding the mimic to that biome's fauna list would roughly triple where it can be found. That is a biome asset edit (re-bake risk), so it waits for a decision.
+- New hooks: TestHooks.BiomeArea(name) and TestHooks.SpeciesNear(name, radius).
