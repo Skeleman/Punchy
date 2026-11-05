@@ -339,7 +339,7 @@ namespace Punchy.Fauna
             /// (so not in the rock: inside solid rock FloorUnder answers "in a cave" with the floor where the point
             /// is) and the floor is near that level, under the rock (not out of the mouth).
             /// </summary>
-            bool CaveFloorAt(float2 xz, float y, out float floor)
+            bool CaveFloorAt(float2 xz, float y, out float floor, float rise = 0.5f)
             {
                 floor = y;
                 var above = new float3(xz.x, y + 0.6f, xz.y);
@@ -348,7 +348,71 @@ namespace Punchy.Fauna
                 floor = Terrain.FloorUnder(above, out var inCave);
                 // (Up a step of up to half a metre; down off a ledge of up to 3 m. A real floor is below the point
                 // asked from: FloorUnder answers with the point's own height when its search starts in rock.)
-                return inCave && floor < above.y - 0.05f && floor - y < 0.5f && y - floor < 3f && floor < Terrain.SampleHeight(xz) - 1f;
+                return inCave && floor < above.y - 0.05f && floor - y < rise && y - floor < 3f && floor < Terrain.SampleHeight(xz) - 1f;
+            }
+
+            /// <summary>
+            /// A-69: whether a cave walker at <paramref name="from"/> can take a step of <paramref name="step"/> metres to
+            /// <paramref name="xz"/>. Its rise is scaled by the distance moved (no steeper than about 56 degrees, and never
+            /// over half a metre), so one pressed against a curving chamber wall, moving a few centimetres a frame, can't
+            /// climb half a metre each frame up it; and its body must be in air at the new floor, not in the wall.
+            /// </summary>
+            bool CaveStep(float2 xz, float y, float step, out float floor)
+            {
+                if (!CaveFloorAt(xz, y, out floor, math.min(0.5f, 0.01f + step * 1.5f)))
+                    return false;
+                return Terrain.CaveDistance(new float3(xz.x, floor + 0.5f, xz.y)) < -0.1f;
+            }
+
+            /// <summary>
+            /// A-69: where a cave walker heads on its way to <paramref name="target"/>: along its passage, node by node (the
+            /// mouth before node 0), rather than straight at it through the rock between. The target itself when it's
+            /// close, or in the same stretch of passage; else the next node toward it (the nearer one first, if the walker
+            /// hasn't reached it yet).
+            /// </summary>
+            float2 PassageWay(float3 position, float2 target)
+            {
+                if (!Terrain.Caves.IsCreated || math.distancesq(position.xz, target) < 16f)
+                    return target;
+                ref var set = ref Terrain.Caves.Value;
+                // (Its cave and node: the node nearest it. The mouth counts as node -1.)
+                int cave = -1, here = 0;
+                var best = 900f;
+                for (int c = 0; c < set.Caves.Length; c++)
+                {
+                    ref var cv = ref set.Caves[c];
+                    for (int n = 0; n < cv.NodeCount; n++)
+                    {
+                        var d = math.distancesq(set.Nodes[cv.FirstNode + n].Position, position);
+                        if (d < best)
+                        {
+                            best = d;
+                            cave = c;
+                            here = n;
+                        }
+                    }
+                }
+                if (cave < 0)
+                    return target;
+                ref var cs = ref set.Caves[cave];
+                var there = -1;
+                var nearest = math.distancesq(cs.Mouth.xz, target);
+                for (int n = 0; n < cs.NodeCount; n++)
+                {
+                    var d = math.distancesq(set.Nodes[cs.FirstNode + n].Position.xz, target);
+                    if (d < nearest)
+                    {
+                        nearest = d;
+                        there = n;
+                    }
+                }
+                if (there == here)
+                    return target;
+                var step = there > here ? 1 : -1;
+                var at = set.Nodes[cs.FirstNode + here].Position.xz;
+                var next = here + step < 0 ? cs.Mouth.xz : set.Nodes[cs.FirstNode + here + step].Position.xz;
+                // (Short of its own node, on the far side from the next: to its own node first, round the bend.)
+                return math.dot(next - at, position.xz - at) < 0f && math.distancesq(position.xz, at) > 1f ? at : next;
             }
 
             /// <summary>A short, low loop to somewhere nearby: a bat hawking for insects.</summary>

@@ -67,6 +67,61 @@ namespace Punchy.Debugging
         /// here on the main thread unburst for the animals within reach, scaled to 50 (an upper bound: the brain runs
         /// them Burst-compiled, spread over the workers).
         /// </summary>
+        // A-69 "-rockwatch SECONDS": once a second, every cave dweller within 60 m of the player whose body (half a metre
+        // up from its feet) is inside rock, under the cave roof or the ground; logged per check and in total at the end.
+        static float rockWatchFor, rockWatchSince = -1f, rockWatchNext, batFolkPlaceUntil;
+        static int rockWatchChecks, rockWatchHits, rockWatchSeen;
+        static readonly HashSet<uint> rockWatchStuck = new HashSet<uint>();
+
+        void RockWatch()
+        {
+            if (rockWatchFor <= 0f || queryWorld == null || !queryWorld.IsCreated || !terrainQuery.TryGetSingleton<TerrainSource>(out var terrain))
+                return;
+            if (rockWatchSince < 0f)
+            {
+                rockWatchSince = rockWatchNext = Time.unscaledTime;
+                rockWatchChecks = rockWatchHits = rockWatchSeen = 0;
+                rockWatchStuck.Clear();
+            }
+            if (Time.unscaledTime < rockWatchNext)
+                return;
+            rockWatchNext += 1f;
+            var eye = Camera.main != null ? (float3)Camera.main.transform.position : float3.zero;
+            var em = queryWorld.EntityManager;
+            using var q = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
+            var states = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
+            var bodies = q.ToComponentDataArray<CreatureBody>(Allocator.Temp);
+            int near = 0, inRock = 0;
+            for (int i = 0; i < states.Length; i++)
+            {
+                var st = states[i];
+                ref var b = ref bodies[i].Blob.Value;
+                if (st.Gone || !b.CaveDweller || b.Crawls || b.Habitat == Habitat.Flies || math.distance(eye, st.Position) > 60f)
+                    continue;
+                near++;
+                var body = st.Position + new float3(0f, 0.5f * math.max(st.Scale, 0.5f), 0f);
+                var solid = math.min(terrain.CaveDistance(body), terrain.SampleHeight(body.xz) - body.y);
+                if (solid > 0.05f)
+                {
+                    inRock++;
+                    if (rockWatchStuck.Add(st.Individual))
+                        Debug.Log($"[rockwatch] in rock: {(b.ShunsLight ? "bat folk" : b.Blind ? "pygmy" : "cave dweller")} #{st.Individual} at {st.Position} ({solid:F2} m in), mode {st.Mode} stage {st.Stage}");
+                }
+            }
+            states.Dispose();
+            bodies.Dispose();
+            rockWatchChecks++;
+            rockWatchHits += inRock;
+            rockWatchSeen = math.max(rockWatchSeen, near);
+            if (rockWatchChecks % 30 == 0)
+                Debug.Log($"[rockwatch] {rockWatchChecks} s: {near} cave dwellers near, {inRock} in rock now, {rockWatchHits} in-rock samples so far");
+            if (Time.unscaledTime - rockWatchSince >= rockWatchFor)
+            {
+                Debug.Log($"[rockwatch] DONE {rockWatchChecks} checks over {rockWatchFor:F0} s: up to {rockWatchSeen} cave dwellers near, {rockWatchHits} in-rock samples, {rockWatchStuck.Count} creatures ever in rock");
+                rockWatchFor = 0f;
+            }
+        }
+
         void SolidStatsLog()
         {
             if (CreatureMotion.StatsOn.Data == 0 || queryWorld == null || !queryWorld.IsCreated)
@@ -202,6 +257,14 @@ namespace Punchy.Debugging
             Watch();
             SettleGoto();
             WalkTo();
+            FlyCave();
+            // (A-69: "-place batfolk" again until the bat folk homes are baked; they come after the island.)
+            if (batFolkPlaceUntil > 0f && Time.unscaledTime < batFolkPlaceUntil && EnsureLocations(out var batRetry) && PlaceAtBatFolk(batRetry))
+            {
+                batFolkPlaceUntil = 0f;
+                rockWatchSince = -1f; // (-rockwatch counts from there.)
+            }
+            RockWatch();
             Pose();
             Interact();
             ShotList();
@@ -1370,6 +1433,11 @@ namespace Punchy.Debugging
             watchFromAt = null;
             walkTarget = null;
             walkPath.Clear();
+            flyOn = false;
+            flyRoute.Clear();
+            flyPending = null;
+            rockWatchFor = 0f;
+            rockWatchSince = -1f;
             untilWork = 0f;
             pendingSpawns.Clear();
             poseRequest = null;
@@ -1668,8 +1736,17 @@ namespace Punchy.Debugging
                         : Quaternion.LookRotation(new Vector3(c[3], c[4], c.Length > 5 ? c[5] : 0f) - new Vector3(c[0], c[1], c[2])));
                 if (args[i] == "-place" && args[i + 1].StartsWith("cave:", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var caveSource))
                     PlaceInCave(caveSource, args[i + 1].Substring(5));
-                if (args[i] == "-place" && args[i + 1].StartsWith("batfolk", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var batSource))
-                    PlaceAtBatFolk(batSource);
+                if (args[i] == "-rockwatch" && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var rockSeconds))
+                {
+                    rockWatchFor = rockSeconds;
+                    rockWatchSince = -1f;
+                }
+                if (args[i] == "-flyhitch" && int.TryParse(args[i + 1], out var hitchMs))
+                    flyHitchMs = hitchMs;
+                if (args[i] == "-flycave" && EnsureLocations(out var flySource))
+                    StartFlyCave(flySource, args[i + 1]);
+                if (args[i] == "-place" && args[i + 1].StartsWith("batfolk", System.StringComparison.OrdinalIgnoreCase))
+                    batFolkPlaceUntil = EnsureLocations(out var batSource) && PlaceAtBatFolk(batSource) ? 0f : Time.unscaledTime + 60f;
                 else if (args[i] == "-place" && args[i + 1].StartsWith("tree:", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var treeSource))
                     PlaceByTree(treeSource, args[i + 1].Substring(5));
                 else if (args[i] == "-place" && args[i + 1].StartsWith("prop:", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var propSource))
@@ -2099,6 +2176,317 @@ namespace Punchy.Debugging
                           $"{V(walker.Position.y - floor)} m over the floor (in cave {walkInCave}), pushed out {V(Punchy.Player.PlayerMovementSystem.PushedTotal.Data)} m in all" +
                           (Punchy.Player.PlayerMovementSystem.NoPushOut.Data ? " (push-out off)" : ""));
             }
+        }
+
+        /// <summary>A-69 "-flycave": the route still to fly (outside, mouth, the passage's nodes in to a chamber and back out).</summary>
+        static readonly List<float3> flyRoute = new();
+        static int flyLeg, flyCycles, flyCycle, flyStuck, flyLanded, flyTimeouts, flyBlocked0, flyExits;
+        static bool flyOn;
+        /// <summary>Which legs of a cycle are the way out at the mouth, and the cycle's length.</summary>
+        static int flyMouthOut, flyCycleLength, flyClimbLeg, flyClimbs;
+        static float flyLegSince, flyStillSince;
+        static float3 flyStillAt;
+        static bool flyStillCounted, flyDown;
+        /// <summary>Frame times (ms) and speeds over the last 3 s, and the window after a mouth crossing still being filled.</summary>
+        static readonly Queue<float2> flyRecent = new();
+        static readonly List<float2> flyAfter = new();
+        /// <summary>The climb out (a steep, fast climb away over new ground, where chunks stream in): its frames, and frames on the wing but held still.</summary>
+        static readonly List<float2> flyClimb = new();
+        static int flyClimbHeld;
+        /// <summary>"-flyhitch MS": a main-thread stall this long every 45 frames of a climb (a chunk load's hitch on
+        /// Ultra, which the editor's capped frames never show), and climb frames that fell off the wing.</summary>
+        static int flyHitchMs, flyClimbFrame, flyClimbDropped;
+        static float flyAfterUntil;
+        static string flyExitPre;
+        static float3 flyLastPos;
+        /// <summary>A "-flycave" spec waiting for the flying body to land, and since when.</summary>
+        static string flyPending;
+        static float flyPendingSince;
+
+        /// <summary>
+        /// A-69 "-flycave N" or "-flycave N:Style": the player (a flying body, "-body Bat") flies a set route through the
+        /// first cave (of that style) with a chamber, N times: from 10 m outside its mouth, in node by node to the chamber
+        /// and back out, steered like a stick and the climb or descend buttons. Logs each stuck event (on the wing but
+        /// under 1 m/s for a quarter second), each landing on the way, and frame times and speeds 3 s either side of
+        /// each exit by the mouth.
+        /// </summary>
+        void StartFlyCave(in TerrainSource source, string spec)
+        {
+            var parts = spec.Split(':');
+            flyCycles = int.TryParse(parts[0], out var n) ? math.max(n, 1) : 1;
+            var styleIndex = -1;
+            if (parts.Length > 1)
+            {
+                var palette = queryWorld.EntityManager.GetComponentObject<BiomePalette>(paletteQuery.GetSingletonEntity());
+                var styles = CaveStyleTable.Collect(palette.Landmarks);
+                styleIndex = styles.FindIndex(s => s != null && string.Equals(s.name, parts[1], System.StringComparison.OrdinalIgnoreCase));
+            }
+            if (!source.Caves.IsCreated || !playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
+                return;
+            // ("-body Bat" lands a little after the world is up: wait for a body that flies, else the route is walked.)
+            using (var flierQuery = queryWorld.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<PlayerBody>()))
+                if (!flierQuery.TryGetSingleton<PlayerBody>(out var flier) || !flier.Flies)
+                {
+                    if (flyPending == null)
+                        flyPendingSince = Time.time;
+                    flyPending = spec;
+                    return;
+                }
+            flyPending = null;
+            ref var set = ref source.Caves.Value;
+            flyRoute.Clear();
+            for (int c = 0; c < set.Caves.Length && flyRoute.Count == 0; c++)
+            {
+                ref var cave = ref set.Caves[c];
+                if (styleIndex >= 0 && cave.Style != styleIndex + 1 || cave.NodeCount < 2)
+                    continue;
+                var chamber = -1;
+                for (int k = 0; k < cave.NodeCount && chamber < 0; k++)
+                    if (set.Kinds[cave.FirstNode + k] == CaveNodeKind.Chamber)
+                        chamber = k;
+                if (chamber < 0)
+                    continue;
+                // In at the mouth low (its sky reads as open air, so a mid-air point would sit above the lip), from
+                // straight out along the passage: its first node a metre or more in (the first node is the mouth itself).
+                var mouthFloor = source.FloorUnder(cave.Mouth + new float3(0f, 0.5f, 0f), out _);
+                var mouth = new float3(cave.Mouth.x, mouthFloor + 1.2f, cave.Mouth.z);
+                var inner = set.Nodes[cave.FirstNode + math.min(1, cave.NodeCount - 1)].Position;
+                for (int k = 0; k < cave.NodeCount; k++)
+                    if (math.distance(set.Nodes[cave.FirstNode + k].Position.xz, cave.Mouth.xz) > 1f)
+                    {
+                        inner = set.Nodes[cave.FirstNode + k].Position;
+                        break;
+                    }
+                var outward = math.normalizesafe(cave.Mouth.xz - inner.xz, new float2(0f, 1f));
+                var outside = new float3(mouth.x + outward.x * 10f, source.SampleHeight(mouth.xz + outward * 10f) + 4f, mouth.z + outward.y * 10f);
+                outside.y = math.max(outside.y, mouth.y + 2f);
+                // A doorstep 3 m out on the passage's axis, so it comes at the mouth lined up, not from the side.
+                var doorstep = new float3(mouth.x + outward.x * 3f, 0f, mouth.z + outward.y * 3f);
+                doorstep.y = math.max(mouth.y, source.SampleHeight(doorstep.xz) + 1.2f);
+                for (int cycle = 0; cycle < flyCycles; cycle++)
+                {
+                    flyRoute.Add(doorstep);
+                    flyRoute.Add(mouth);
+                    // (Nodes at the mouth itself are left out: under open sky their mid-air point sits above the lip.)
+                    for (int k = 0; k <= chamber; k++)
+                        if (math.distance(set.Nodes[cave.FirstNode + k].Position.xz, cave.Mouth.xz) > 1f)
+                            flyRoute.Add(MidAir(source, set.Nodes[cave.FirstNode + k].Position));
+                    for (int k = chamber - 1; k >= 0; k--)
+                        if (math.distance(set.Nodes[cave.FirstNode + k].Position.xz, cave.Mouth.xz) > 1f)
+                            flyRoute.Add(MidAir(source, set.Nodes[cave.FirstNode + k].Position));
+                    if (cycle == 0)
+                        flyMouthOut = flyRoute.Count;
+                    flyRoute.Add(mouth);
+                    flyRoute.Add(doorstep);
+                    flyRoute.Add(outside);
+                    // Then a steep climb away, 60 m out and 30 m up (Zach's control loss: flying up fast out of a cave
+                    // while a big chunk of land loads).
+                    if (cycle == 0)
+                        flyClimbLeg = flyRoute.Count;
+                    var away = outside.xz + outward * 60f;
+                    flyRoute.Add(new float3(away.x, math.max(outside.y, source.SampleHeight(away)) + 30f, away.y));
+                    if (cycle == 0)
+                        flyCycleLength = flyRoute.Count;
+                }
+                var em = queryWorld.EntityManager;
+                var t = em.GetComponentData<LocalTransform>(player);
+                t.Position = outside;
+                t.Rotation = quaternion.RotateY(math.atan2(-outward.x, -outward.y));
+                em.SetComponentData(player, t);
+                using var bodyQuery = em.CreateEntityQuery(ComponentType.ReadOnly<PlayerBody>());
+                bodyQuery.TryGetSingleton<PlayerBody>(out var body);
+                var flySpeed = body.FlySpeed;
+                em.SetComponentData(player, new PlayerMotion { Flying = body.Flies, Airspeed = math.max(flySpeed, 1f) });
+                Debug.Log($"DebugControls: flycave cave {c} (style {cave.Style}), chamber node {chamber}, mouth ({V(cave.Mouth.x)}, {V(cave.Mouth.y)}, {V(cave.Mouth.z)}), " +
+                          $"{flyRoute.Count} legs over {flyCycles} cycles, body flies {body.Flies} at {V(flySpeed)} m/s");
+            }
+            if (flyRoute.Count == 0)
+            {
+                Debug.LogWarning($"DebugControls: flycave found no cave with a chamber ('{spec}')");
+                return;
+            }
+            flyOn = true;
+            flyLeg = flyCycle = flyStuck = flyLanded = flyTimeouts = flyExits = 0;
+            flyBlocked0 = PlayerMovementSystem.FlyBlocked.Data;
+            flyLegSince = flyStillSince = Time.time;
+            flyStillAt = float3.zero;
+            flyRecent.Clear();
+            flyAfter.Clear();
+            flyAfterUntil = 0f;
+            flyClimb.Clear();
+            flyClimbHeld = flyClimbs = 0;
+        }
+
+        /// <summary>A-69 "-flycave": steers the flying player along the route and counts what goes wrong.</summary>
+        void FlyCave()
+        {
+            if (flyPending != null && EnsureLocations(out var pendingSource))
+            {
+                if (Time.time - flyPendingSince > 30f)
+                {
+                    Debug.LogWarning("DebugControls: flycave: the body never flew (pass a flying body, e.g. -body Bat)");
+                    flyPending = null;
+                }
+                else
+                    StartFlyCave(pendingSource, flyPending);
+            }
+            if (!flyOn || queryWorld == null || !queryWorld.IsCreated || !playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
+                return;
+            var em = queryWorld.EntityManager;
+            var at = em.GetComponentData<LocalTransform>(player).Position;
+            var motion = em.GetComponentData<PlayerMotion>(player);
+            var ms = Time.unscaledDeltaTime * 1000f;
+            var speed = Time.deltaTime > 0f ? math.distance(at, flyLastPos) / Time.deltaTime : 0f;
+            flyLastPos = at;
+            flyRecent.Enqueue(new float2(ms, speed));
+            while (flyRecent.Count > 0 && flyRecent.Count > 3f / math.max(Time.unscaledDeltaTime, 1e-3f))
+                flyRecent.Dequeue();
+            if (flyAfterUntil > 0f)
+            {
+                flyAfter.Add(new float2(ms, speed));
+                if (Time.time >= flyAfterUntil)
+                {
+                    flyAfterUntil = 0f;
+                    Debug.Log($"DebugControls: flycave exit {flyExits}: before {flyExitPre}; after {FlyWindow(flyAfter)}; SurfaceHidden {CaveSystem.SurfaceHidden:F2}");
+                }
+            }
+
+            if (flyLeg % flyCycleLength == flyClimbLeg)
+            {
+                flyClimb.Add(new float2(ms, speed));
+                flyClimbHeld += motion.Flying && speed < 1f ? 1 : 0;
+                flyClimbDropped += motion.Flying ? 0 : 1;
+                if (flyHitchMs > 0 && ++flyClimbFrame % 45 == 0)
+                    System.Threading.Thread.Sleep(flyHitchMs);
+            }
+            var target = flyRoute[flyLeg];
+            var to = target - at;
+            var horizontal = math.length(to.xz);
+            // (On the last leg, held till the last exit's frame times are in.)
+            // (Arrived within 2 m across and 1 m up or down: a sphere let it tick off the mouth from above the lip.)
+            var reached = horizontal < 2f && math.abs(to.y) < 1f;
+            var arrived = reached || Time.time - flyLegSince > 25f;
+            if (arrived && flyLeg == flyRoute.Count - 1 && flyAfterUntil > 0f)
+                arrived = false;
+            if (arrived)
+            {
+                if (!reached)
+                {
+                    flyTimeouts++;
+                    Debug.Log($"DebugControls: flycave leg {flyLeg} TIMED OUT at ({V(at.x)}, {V(at.y)}, {V(at.z)}), {V(math.length(to))} m short");
+                }
+                if (flyLeg % flyCycleLength == flyClimbLeg)
+                {
+                    flyClimbs++;
+                    Debug.Log($"DebugControls: flycave climb {flyClimbs}: {FlyWindow(flyClimb)}, {flyClimbHeld} frames on the wing held under 1 m/s, " +
+                              $"{flyClimbDropped} off the wing, hitch {flyHitchMs} ms, {(reached ? "reached" : "TIMED OUT")}");
+                    flyClimb.Clear();
+                    flyClimbHeld = flyClimbDropped = flyClimbFrame = 0;
+                }
+                if (flyLeg % flyCycleLength == flyMouthOut)
+                {
+                    // Out by the mouth: frame times and speeds for 3 s either side.
+                    flyExits++;
+                    flyExitPre = FlyWindow(new List<float2>(flyRecent));
+                    flyAfter.Clear();
+                    flyAfterUntil = Time.time + 3f;
+                }
+                flyLeg++;
+                flyLegSince = Time.time;
+                if (flyLeg >= flyRoute.Count)
+                {
+                    flyOn = false;
+                    PlayerInputSystem.TestMove = null;
+                    PlayerInputSystem.TestPitch = null;
+                    PlayerInputSystem.TestClimb = PlayerInputSystem.TestCrouch = false;
+                    Debug.Log($"DebugControls: flycave DONE {flyCycles} cycles: {flyStuck} stuck, {flyLanded} landed, {flyTimeouts} legs timed out, " +
+                              $"{PlayerMovementSystem.FlyBlocked.Data - flyBlocked0} blocked frames, {flyExits} exits");
+                    return;
+                }
+                target = flyRoute[flyLeg];
+                to = target - at;
+                horizontal = math.length(to.xz);
+            }
+            // Down on the way: counted, and off again.
+            if (!motion.Flying)
+            {
+                if (motion.Grounded && !flyDown)
+                {
+                    flyDown = true;
+                    flyLanded++;
+                    var gap = "";
+                    if (flyLanded <= 6 && EnsureLocations(out var landSource))
+                    {
+                        // (Where it came down: how much air is above it, and where the leg's target sits in its passage.)
+                        var ceiling = CeilingAbove(landSource, at);
+                        var targetFloor = landSource.FloorUnder(target + new float3(0f, 0.5f, 0f), out _);
+                        gap = $", air above {V(ceiling)} m, pitch {motion.Pitch:F2}; target ({V(target.x)}, {V(target.y)}, {V(target.z)}) " +
+                              $"floor {V(targetFloor)}, air above target floor {V(CeilingAbove(landSource, new float3(target.x, targetFloor, target.z)))} m";
+                    }
+                    Debug.Log($"DebugControls: flycave LANDED on leg {flyLeg} at ({V(at.x)}, {V(at.y)}, {V(at.z)}){gap}");
+                }
+                // Close and level, it walks on (taking off there, nose up, lifts it over a low mouth); otherwise off again.
+                var walkOn = horizontal > 2f && horizontal < 6f && to.y < 0.8f;
+                PlayerInputSystem.TestMove = horizontal > 0.1f ? to.xz / horizontal : float2.zero;
+                PlayerInputSystem.TestJump = motion.Grounded && !walkOn;
+                return;
+            }
+            flyDown = false;
+            // Stuck: on the wing but hardly moving for a quarter second (counted once till it moves again).
+            if (math.distance(at, flyStillAt) > 0.25f)
+            {
+                flyStillAt = at;
+                flyStillSince = Time.time;
+                flyStillCounted = false;
+            }
+            else if (!flyStillCounted && Time.time - flyStillSince > 0.25f)
+            {
+                flyStillCounted = true;
+                flyStuck++;
+                Debug.Log($"DebugControls: flycave STUCK on leg {flyLeg} at ({V(at.x)}, {V(at.y)}, {V(at.z)}), pitch {motion.Pitch:F2}, airspeed {V(motion.Airspeed)}");
+            }
+            PlayerInputSystem.TestMove = horizontal > 0.1f ? to.xz / horizontal : float2.zero;
+            var angle = math.atan2(to.y, math.max(horizontal, 0.5f));
+            PlayerInputSystem.TestClimb = angle > 0.3f;
+            PlayerInputSystem.TestCrouch = angle < -0.3f;
+            PlayerInputSystem.TestPitch = math.clamp(angle, -0.3f, 0.3f) / 0.6f;
+        }
+
+        /// <summary>A-69 "-flycave": a route point lifted to the middle of its passage's air (up to 3 m off the floor), as a player flies it.</summary>
+        static float3 MidAir(in TerrainSource source, float3 p)
+        {
+            var floor = source.FloorUnder(p + new float3(0f, 0.5f, 0f), out _);
+            var air = CeilingAbove(source, new float3(p.x, floor, p.z));
+            return new float3(p.x, floor + math.clamp(air * 0.5f, 0.8f, 3f), p.z);
+        }
+
+        /// <summary>A-69: how far up from a point the air goes before rock (the cave's or the ground's), up to 30 m.</summary>
+        static float CeilingAbove(in TerrainSource source, float3 p)
+        {
+            for (float up = 0.1f; up < 30f; up += 0.1f)
+            {
+                var q = p + new float3(0f, up, 0f);
+                if (math.min(source.CaveDistance(q), source.SampleHeight(q.xz) - q.y) > 0f)
+                    return up;
+            }
+            return 30f;
+        }
+
+        /// <summary>A frame-time and speed summary: mean and worst frame (ms), frames over 50 ms, slowest speed (m/s).</summary>
+        static string FlyWindow(List<float2> frames)
+        {
+            if (frames.Count == 0)
+                return "no frames";
+            float sum = 0f, worst = 0f, slowest = float.MaxValue;
+            var hitches = 0;
+            foreach (var f in frames)
+            {
+                sum += f.x;
+                worst = math.max(worst, f.x);
+                slowest = math.min(slowest, f.y);
+                hitches += f.x > 50f ? 1 : 0;
+            }
+            return $"{frames.Count} frames, mean {V(sum / frames.Count)} ms, worst {V(worst)} ms, {hitches} over 50 ms, slowest {V(slowest)} m/s";
         }
 
         /// <summary>
@@ -3051,19 +3439,22 @@ namespace Punchy.Debugging
             Debug.LogWarning($"DebugControls: no {styleName} cave with a chamber");
         }
 
-        /// <summary>A-67 "-place batfolk": on the floor of the first bat folk chamber with a hammock, a few metres off it, facing it.</summary>
-        void PlaceAtBatFolk(in TerrainSource source)
+        /// <summary>
+        /// A-67/A-69 "-place batfolk": on the floor of the first bat folk chamber with a pod (BatFolkHomes, W-96), a few
+        /// metres back from the pod's door toward the chamber's middle, facing the pod.
+        /// </summary>
+        bool PlaceAtBatFolk(in TerrainSource source)
         {
             if (!source.BatFolk.IsCreated || !playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
-                return;
+                return false;
             ref var bats = ref source.BatFolk.Value;
-            for (int i = 0; i < bats.Props.Length; i++)
+            for (int i = 0; i < bats.Sites.Length; i++)
             {
-                if (bats.Props[i].Kind != BatFolkPropKind.Hammock)
+                if (BatFolkHomes.Count(source, BatFolkHomeKind.BatFolkPod, i) == 0 || !BatFolkHomes.Get(source, BatFolkHomeKind.BatFolkPod, i, 0, out var pod))
                     continue;
-                var site = bats.Sites[bats.Props[i].Site];
-                var at = bats.Props[i].Position;
-                // Back toward the chamber's middle, so the hammock and its sleeper are in view.
+                var site = bats.Sites[i];
+                var at = pod.Door;
+                // Back toward the chamber's middle, so the pod and its keeper are in view.
                 var back = math.normalizesafe(site.Centre.xz - at.xz, new float2(0f, 1f)) * math.min(4f, math.max(1.5f, site.Radius * 0.5f));
                 var stand = new float3(at.x + back.x, at.y + 0.5f, at.z + back.y);
                 var floor = source.FloorUnder(stand, out _);
@@ -3072,10 +3463,13 @@ namespace Punchy.Debugging
                 t.Position = new float3(stand.x, floor + 0.05f, stand.z);
                 t.Rotation = quaternion.RotateY(math.atan2(-back.x, -back.y));
                 em.SetComponentData(player, t);
-                Debug.Log($"DebugControls: at bat folk chamber {bats.Props[i].Site}, hammock at ({at.x:F0}, {at.y:F0}, {at.z:F0})");
-                return;
+                Debug.Log($"DebugControls: at bat folk chamber {i}, pod door at ({at.x:F0}, {at.y:F0}, {at.z:F0}), pod floor at y {pod.Stand.y:F1}");
+                return true;
             }
-            Debug.LogWarning("DebugControls: no bat folk chamber with a hammock");
+            // (Said once, when the retries give up.)
+            if (batFolkPlaceUntil > 0f && Time.unscaledTime + 0.1f >= batFolkPlaceUntil)
+                Debug.LogWarning("DebugControls: no bat folk chamber with a pod");
+            return false;
         }
 
         /// <summary>

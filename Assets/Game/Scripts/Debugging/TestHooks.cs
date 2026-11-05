@@ -264,6 +264,104 @@ namespace Punchy.Debugging
 
         public static string WorstAnyCulture;
 
+        /// <summary>
+        /// A-69: dry land where a biome is the dominant one, sampled every 32 m over the island: [km², cells, then the
+        /// x,z of up to 8 cells spread through it (every n-th)]. Empty if the world isn't up or the biome isn't there.
+        /// </summary>
+        public static float[] BiomeArea(string name)
+        {
+            if (!Source(out var s))
+                return new float[0];
+            using var q = EM.CreateEntityQuery(ComponentType.ReadOnly<BiomePalette>());
+            if (q.CalculateEntityCount() == 0)
+                return new float[0];
+            var palette = q.GetSingleton<BiomePalette>();
+            var id = System.Array.FindIndex(palette.Biomes, b => b != null && b.name == name);
+            if (id < 0)
+                return new float[0];
+            const float step = 32f;
+            var half = s.World.WorldSize * 0.5f;
+            var cells = new List<float2>();
+            for (var x = -half; x < half; x += step)
+                for (var z = -half; z < half; z += step)
+                {
+                    var g = s.SampleGround(new float2(x, z));
+                    if (!g.HasWater && g.Biomes.Dominant() == id)
+                        cells.Add(new float2(x, z));
+                }
+            var result = new List<float> { cells.Count * step * step / 1e6f, cells.Count };
+            for (int i = 0, every = math.max(1, cells.Count / 8); i < cells.Count && result.Count < 18; i += every)
+            {
+                result.Add(cells[i].x);
+                result.Add(cells[i].y);
+            }
+            return result.ToArray();
+        }
+
+        /// <summary>A-69: creatures of one species (asset name) within radius of the player: [count, nearest distance (or -1), its x, y, z].</summary>
+        public static float[] SpeciesNear(string name, float radius)
+        {
+            var director = Object.FindAnyObjectByType<FaunaDirector>();
+            var index = director != null ? director.SpeciesIndex(name) : -1;
+            var result = new float[] { 0f, -1f, 0f, 0f, 0f };
+            if (index < 0)
+                return result;
+            using var q = EM.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
+            using var states = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
+            using var bodies = q.ToComponentDataArray<CreatureBody>(Allocator.Temp);
+            var player = (float3)PlayerPosition();
+            for (int i = 0; i < states.Length; i++)
+            {
+                var d = math.distance(states[i].Position.xz, player.xz);
+                if (bodies[i].Species != index || states[i].Mode == CreatureMode.Puppet || d > radius)
+                    continue;
+                result[0]++;
+                if (result[1] < 0f || d < result[1])
+                {
+                    result[1] = d;
+                    result[2] = states[i].Position.x;
+                    result[3] = states[i].Position.y;
+                    result[4] = states[i].Position.z;
+                }
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// A-69: switches the player's body to a playable species by asset name, as the Character tab does, and returns
+        /// the body it had ("" for none). A switch mid-session is saved as next session's body: put the old one back
+        /// with SetBody, then the saved pick with PutBodyPref(BodyPref() read before).
+        /// </summary>
+        public static string SetBody(string name)
+        {
+            var avatars = Object.FindAnyObjectByType<Punchy.Net.NetAvatars>();
+            var director = Object.FindAnyObjectByType<FaunaDirector>();
+            var was = director != null && director.PlayerSpecies != null ? director.PlayerSpecies.name : "";
+            if (avatars != null)
+                avatars.SetLocalSpecies(avatars.PlayableSpecies.FindIndex(s => s != null && s.name == name));
+            return was;
+        }
+
+        const string BodyPrefKey = "Punchy.Character.Body";
+
+        public static string BodyPref() => PlayerPrefs.GetString(BodyPrefKey, "");
+
+        public static void PutBodyPref(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+                PlayerPrefs.DeleteKey(BodyPrefKey);
+            else
+                PlayerPrefs.SetString(BodyPrefKey, name);
+            PlayerPrefs.Save();
+        }
+
+        /// <summary>The player's body flies (PlayerBody.Flies).</summary>
+        public static bool BodyFlies()
+        {
+            using var q = EM.CreateEntityQuery(ComponentType.ReadOnly<PlayerBody>());
+            return q.TryGetSingleton<PlayerBody>(out var body) && body.Flies;
+        }
+
         static List<Regex> Templates(DialogueArchive.Culture c)
         {
             var list = new List<Regex>();
