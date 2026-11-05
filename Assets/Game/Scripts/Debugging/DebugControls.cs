@@ -56,6 +56,8 @@ namespace Punchy.Debugging
         float3 landmarkPlaceKey;
         float landmarkPlaceUntil;
         bool landmarkPlaced;
+        string speciesPickPending;
+        float speciesPickUntil;
         int current = -1;
         EntityQuery playerQuery, terrainQuery, paletteQuery, floraQuery;
         World queryWorld;
@@ -269,6 +271,7 @@ namespace Punchy.Debugging
             FlyCave();
             PlacePropPending();
             PlaceAtLandmarkPending();
+            PickSpeciesPending();
             // (A-69: "-place batfolk" again until the bat folk homes are baked; they come after the island.)
             if (batFolkPlaceUntil > 0f && Time.unscaledTime < batFolkPlaceUntil && EnsureLocations(out var batRetry) && PlaceAtBatFolk(batRetry))
             {
@@ -1668,22 +1671,47 @@ namespace Punchy.Debugging
             return true;
         }
 
-        /// <summary>A-74: "-place Landmark[:centre]" again whenever the island's landmarks change, until it times out.</summary>
+        /// <summary>
+        /// A-74: "-place Landmark[:centre]" again whenever the island's landmarks change, until it times out: one not
+        /// found yet (a v2/v3-only type), and one found on the baked first island, whose landmarks the v2/v3 pass can
+        /// move (HumanVillage:centre was a bare hillside 130 m from any village). A -goto or -at on the same line holds.
+        /// </summary>
         void PlaceAtLandmarkPending()
         {
-            // (Only one not found yet: a place already found keeps the player there, so a -goto or -at after it holds.)
-            if (landmarkPlacePending == null || landmarkPlaced)
+            if (landmarkPlacePending == null)
                 return;
             if (Time.unscaledTime > landmarkPlaceUntil)
             {
-                Debug.LogWarning($"DebugControls: -place {landmarkPlacePending} gave up; no such place on the island");
+                if (!landmarkPlaced)
+                    Debug.LogWarning($"DebugControls: -place {landmarkPlacePending} gave up; no such place on the island");
                 landmarkPlacePending = null;
                 return;
             }
             if (!EnsureLocations(out _) || math.all(locationsKey == landmarkPlaceKey))
                 return;
             landmarkPlaceKey = locationsKey;
-            landmarkPlaced = PlaceAtLandmark(landmarkPlacePending);
+            landmarkPlaced = PlaceAtLandmark(landmarkPlacePending) || landmarkPlaced;
+        }
+
+        /// <summary>A-74: "-pickspecies Name" once NetAvatars and the player exist, held for 3 s past that.</summary>
+        void PickSpeciesPending()
+        {
+            if (speciesPickPending == null)
+                return;
+            if (FindAnyObjectByType<Punchy.Net.NetAvatars>() is not Punchy.Net.NetAvatars avatars || TestHooks.PlayerPosition().sqrMagnitude < 1e-6f)
+                return;
+            var index = avatars.PlayableSpecies.FindIndex(sp => sp != null && string.Equals(sp.name, speciesPickPending, System.StringComparison.OrdinalIgnoreCase));
+            if (index < 0)
+            {
+                Debug.LogWarning($"DebugControls: -pickspecies {speciesPickPending}: no such playable body");
+                speciesPickPending = null;
+                return;
+            }
+            if (speciesPickUntil < 0f)
+                speciesPickUntil = Time.unscaledTime + 3f;
+            avatars.SetLocalSpecies(index);
+            if (Time.unscaledTime > speciesPickUntil)
+                speciesPickPending = null;
         }
 
         void ApplyOptions(string[] args)
@@ -1852,15 +1880,13 @@ namespace Punchy.Debugging
                 if (pickAvatars != null)
                     Punchy.Net.CharacterTab.PickClass(pickAvatars, pickClass);
             }
-            // A-74 (#8): "-pickspecies Elf": the player in that playable body (not remembered), for race reaction shots.
+            // A-74 (#8): "-pickspecies Elf": the player in that playable body, for race reaction shots. Held for a few
+            // seconds once the player exists, since the body saved last session is restored on the first avatar frame.
             var speciesAt = System.Array.IndexOf(args, "-pickspecies");
-            if (speciesAt >= 0 && speciesAt + 1 < args.Length && FindAnyObjectByType<Punchy.Net.NetAvatars>() is Punchy.Net.NetAvatars speciesAvatars)
+            if (speciesAt >= 0 && speciesAt + 1 < args.Length)
             {
-                var index = speciesAvatars.PlayableSpecies.FindIndex(sp => sp != null && string.Equals(sp.name, args[speciesAt + 1], System.StringComparison.OrdinalIgnoreCase));
-                if (index >= 0)
-                    speciesAvatars.SetLocalSpecies(index);
-                else
-                    Debug.LogWarning($"DebugControls: -pickspecies {args[speciesAt + 1]}: no such playable body");
+                speciesPickPending = args[speciesAt + 1];
+                speciesPickUntil = -1f;
             }
             var menuAt = System.Array.IndexOf(args, "-menu");
             Punchy.UI.MainMenu.Show(menuAt >= 0 && menuAt + 1 < args.Length && !args[menuAt + 1].StartsWith("-") ? args[menuAt + 1] : null, menuAt >= 0);
@@ -2025,6 +2051,9 @@ namespace Punchy.Debugging
             }
             if (inCave && EnsureLocations(out var source))
                 GoIntoCave(source);
+            if (System.Array.IndexOf(args, "-goto") >= 0 || System.Array.IndexOf(args, "-at") >= 0
+                || System.Array.IndexOf(args, "-walkershot") >= 0)
+                landmarkPlacePending = null;
             // "-goto 120,-340" (x,z, as F3 copies it): there, on the ground (after any -place).
             var goTo = System.Array.IndexOf(args, "-goto");
             if (goTo >= 0 && goTo + 1 < args.Length && EnsureLocations(out var ground) && playerQuery.TryGetSingletonEntity<LocalTransform>(out var goer))
