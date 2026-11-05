@@ -903,6 +903,23 @@ namespace Punchy.Terrain
                 var ang = ((float)extra.NextDouble() - 0.5f) * 140f * Mathf.Deg2Rad;
                 var dist = 5f + (float)extra.NextDouble() * 7f;
                 var at = new Vector3(Mathf.Sin(ang) * dist, -0.15f, length + half + Mathf.Cos(ang) * dist);
+                // W-108: clear of the other props' footprints. A buoy could ride under a house's piles seaward of the
+                // end branch, or drift over to the second dock 12 m off on +X. It keeps its draws (the stream and the
+                // other buoys stay put): it moves in from the dock's side, then out to sea until it is 1 m clear of
+                // every walkway and house.
+                at.x = Mathf.Min(at.x, 7f);
+                for (var step = 0; step < 40; step++)
+                {
+                    var spot = new Vector4(at.x - 0.3f, at.z - 0.3f, at.x + 0.3f, at.z + 0.3f);
+                    var clear = true;
+                    foreach (var wk in walks)
+                        clear &= !Overlaps(spot, wk, 1f);
+                    foreach (var hm in homes)
+                        clear &= !Overlaps(spot, hm.box, 1f);
+                    if (clear)
+                        break;
+                    at.z += 0.5f;
+                }
                 var tilt = ((float)extra.NextDouble() - 0.5f) * 14f;
                 Add(parts, KitPiece.Trim, KitMaterial.Roof, at, new Vector3(0.55f, 0.5f, 0.55f), (float)extra.NextDouble() * 90f, false, tilt);
                 Add(parts, KitPiece.Trim, KitMaterial.Trim, at + Vector3.up * 0.3f, new Vector3(0.6f, 0.1f, 0.6f), 0f, false, tilt);
