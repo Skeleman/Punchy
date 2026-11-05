@@ -2325,3 +2325,9 @@ Rows 2-4 share one commit because their files overlap (FaunaDirector, WharfSpots
 - Fauna_Fingerprint 1202B8ED -> 773CA7F6, because Gull and Mackerel joined the CritterTable (it feeds AddSpecies). The test is repinned. Landmarks are still 109 C96F266F. Suite 13/13 passed (209 s).
 - Ask for the world lane: buoy masts aren't in the wharf model Boxes, so gulls can't perch on them yet. Please export them as perches.
 - Main has moved since my merge (PR #152, W-105). I haven't re-merged.
+
+## A-73 merge (origin/main PR #152)
+- Merge a08fa3d on animal-behaviours, pushed. WorldTests.cs conflict resolved to main's landmark pin 110 09EAC0FE.
+- Fauna_Fingerprint repinned to F4E66093 with comment: W-105 stilt houses (main alone 61459BF0) plus A-73 Gull and Mackerel (A-73 alone 773CA7F6).
+- Suite: 13 passed, 0 failed in 206 s (fingerprint F4E66093, landmarks 110 09EAC0FE, wharf spots 48, gull perches 190).
+- Doors: NOT verified after the merge. Dusk rain shot door-m1 shows the stilt walkway and steps intact, but no folk in frame; -place prop:FishWharf now picks wharf #1 (390, -619), away from village folk, and -place FishingVillage:centre no longer moves the player. door-m2 camera ended inside geometry. Pre-merge door-a showed folk at stilt-hut steps. Needs a framed shot at a village wharf.
