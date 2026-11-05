@@ -49,6 +49,9 @@ namespace Punchy.Debugging
             return q.CalculateEntityCount() == 1 && director != null && director.SpeciesCount > 0;
         }
 
+        /// <summary>A "-place prop:" request is still waiting for the flora lookup (#137).</summary>
+        public static bool PropPlacePending() => DebugControls.PropPlacePending;
+
         public static Vector3 PlayerPosition()
         {
             using var q = EM.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadOnly<LocalTransform>());

@@ -258,6 +258,7 @@ namespace Punchy.Debugging
             SettleGoto();
             WalkTo();
             FlyCave();
+            PlacePropPending();
             // (A-69: "-place batfolk" again until the bat folk homes are baked; they come after the island.)
             if (batFolkPlaceUntil > 0f && Time.unscaledTime < batFolkPlaceUntil && EnsureLocations(out var batRetry) && PlaceAtBatFolk(batRetry))
             {
@@ -1436,6 +1437,7 @@ namespace Punchy.Debugging
             flyOn = false;
             flyRoute.Clear();
             flyPending = null;
+            propPending = null;
             rockWatchFor = 0f;
             rockWatchSince = -1f;
             untilWork = 0f;
@@ -1749,8 +1751,14 @@ namespace Punchy.Debugging
                     batFolkPlaceUntil = EnsureLocations(out var batSource) && PlaceAtBatFolk(batSource) ? 0f : Time.unscaledTime + 60f;
                 else if (args[i] == "-place" && args[i + 1].StartsWith("tree:", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var treeSource))
                     PlaceByTree(treeSource, args[i + 1].Substring(5));
-                else if (args[i] == "-place" && args[i + 1].StartsWith("prop:", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var propSource))
-                    PlaceByProp(propSource, args[i + 1].Substring(5));
+                else if (args[i] == "-place" && args[i + 1].StartsWith("prop:", System.StringComparison.OrdinalIgnoreCase))
+                {
+                    // (#137: kept until the flora lookup is up, which is built on workers since #102; Update retries it.)
+                    propPending = args[i + 1].Substring(5);
+                    propPendingUntil = Time.unscaledTime + PropWait;
+                    if (EnsureLocations(out var propSource) && PlaceByProp(propSource, propPending))
+                        propPending = null;
+                }
                 else if (args[i] == "-place" && args[i + 1].StartsWith("cavestream", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var streamSource))
                     PlaceByCaveStream(streamSource, args[i + 1].Substring(10));
                 else if (args[i] == "-place" && args[i + 1].StartsWith("riverfall", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var fallSource))
@@ -3738,6 +3746,28 @@ namespace Punchy.Debugging
             Debug.LogWarning($"DebugControls: no lone {speciesName} near");
         }
 
+        /// <summary>A "-place prop:" spec waiting for the world, the player and the flora lookup, and until when (#137).</summary>
+        static string propPending;
+        static float propPendingUntil;
+        const float PropWait = 120f;
+
+        /// <summary>Whether a "-place prop:" request is still waiting (for tests).</summary>
+        public static bool PropPlacePending => propPending != null;
+
+        /// <summary>#137: retries a waiting "-place prop:" each frame until it can run, warning if it never can.</summary>
+        void PlacePropPending()
+        {
+            if (propPending == null)
+                return;
+            if (Time.unscaledTime > propPendingUntil)
+            {
+                Debug.LogWarning($"DebugControls: -place prop:{propPending} gave up; the flora lookup never came up");
+                propPending = null;
+            }
+            else if (EnsureLocations(out var source) && PlaceByProp(source, propPending))
+                propPending = null;
+        }
+
         /// <summary>
         /// "-place prop:Bench" (any plant species, wherever it's placed: a landmark's props, a town's buildings, or the
         /// biome's own scatter): logs the eight nearest with their coordinates and puts the player in front of the
@@ -3745,11 +3775,12 @@ namespace Punchy.Debugging
         /// "prop:Bench@115,-401" (or "prop:Bench@115,-401#2") measures from that point instead of the player. For lining
         /// up shots: the logged spot, height and front go straight into -camlook.
         /// </summary>
-        void PlaceByProp(in TerrainSource source, string spec)
+        /// <remarks>Returns false while the flora lookup or the player isn't up yet, so the request can wait (#137).</remarks>
+        bool PlaceByProp(in TerrainSource source, string spec)
         {
             var director = FindAnyObjectByType<FaunaDirector>();
             if (director == null || !director.FloraPlacementBlob.IsCreated || !playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
-                return;
+                return false;
             var pick = 1;
             var hash = spec.IndexOf('#');
             if (hash >= 0)
@@ -3775,7 +3806,7 @@ namespace Punchy.Debugging
             if (index < 0)
             {
                 Debug.LogWarning($"DebugControls: no plant species '{spec}'");
-                return;
+                return true;
             }
             ref var flora = ref director.FloraPlacementBlob.Value;
             var first = flora.Rules[index].FirstModel;
@@ -3853,7 +3884,7 @@ namespace Punchy.Debugging
             if (found.Count == 0)
             {
                 Debug.LogWarning($"DebugControls: no {spec} found");
-                return;
+                return true;
             }
             var origin = from;
             found.Sort((a, b) => math.distance(a.at.xz, origin).CompareTo(math.distance(b.at.xz, origin)));
@@ -3876,6 +3907,7 @@ namespace Punchy.Debugging
             var eye = new Vector3(eyeXZ.x, math.max(source.SampleHeight(eyeXZ), chosen.at.y) + 1.5f + chosen.height * 0.4f, eyeXZ.y);
             PoseCamera(eye, Quaternion.LookRotation((Vector3)chosen.at + Vector3.up * chosen.height * 0.45f - eye));
             Debug.Log(System.FormattableString.Invariant($"DebugControls: framing {spec} #{pick} from ({eye.x:F1}, {eye.y:F1}, {eye.z:F1})"));
+            return true;
         }
 
         /// <summary>For PlaceByProp: the plant in a cell, kept if it's one of the species' models and not already listed.</summary>
