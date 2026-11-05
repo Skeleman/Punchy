@@ -2572,3 +2572,14 @@ Landmark hash: the colossi aren't landmarks, so Landmarks_V3 should stay at 110 
 (and Fauna_Fingerprint 61459BF0), and I'll report it in my hand-back.
 Row 3 (#70 Electric rock chunks held still as stepping stones) is applied in the working tree but not verified or committed:
 out of budget. Row 4 and the buoy perches have not been started.
+
+## W-106 row 3 (#70) debris stepping stones (world-features 8ff0876)
+
+Wastelands debris pieces below 3.4 m now settle as flat stones (top 0.75-1.1 m above the ground) with a KitBox each;
+pieces at or above 3.4 m still orbit. Checked on v3 at the MagneticDebris plant at (-640, 19, -1230):
+- Standing: the player dropped from 21.5 m lands at y 19.86, on the stone's top (ground 18.97). Shot w106r3-standing.
+- Blocked: a 0.9 m step west into the stone's side comes back blocked (KitCollision.KeepOut on the live box buffer).
+  The shot w106r3-blocked shows the player against the stone's side.
+- Player ms: PlayerMovementSystem takes 0.034 ms on the stone and 0.033 ms 50 m away. Unchanged.
+- Island ready on v3 with a warm editor: 36.4 s and 30.0 s, under the 72 s line.
+Shots are in the world tree under Assets/Temp/shots (not committed).
