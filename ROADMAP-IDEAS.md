@@ -61,6 +61,8 @@ current release. Lane: A = animal, W = world.
   every player): orange (standard, the most common), golden, silver, violet, emerald, crimson, black.
 - One standard fire effect (flame, glow, light, embers, smoke) with a colour setting, used by everything that burns:
   torches, campfires, ruin sconces, braziers, the forest. Build the shared effect first, then move the existing fires onto it.
+- 2026-11-05: both parts shipped (#131 closed, PRs #152, #153). Zach: passable for now, wants to tweak fire further later.
+  The forest uses 4 colours (Wood, Blue, Green, Violet), not the 7 listed above.
 
 ## Seasons (long term, 2026-11-04)
 
