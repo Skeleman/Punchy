@@ -2285,3 +2285,13 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
 - Hashes (allowed): v2 landmark game hash is 95EAB5B4 (list hash AC866923, 131 landmarks). Flora models and the archipelago shape move; the landmark list itself is untouched by these edits.
 - Shots: gallery r3_runes_b (noon, inside the ring), r3_runes_c (noon, wide), r3_runes_dusk (glow), r3_archipelago (aerial, hazy).
 - Risk: FloraGenerator.cs (shared) gets the additive SpireRunes helper. FloraPlacement.cs gets the additive Patterns rule field and PatternModel. FloraSpecies.cs gets the RunePatterns field.
+
+## W-101 row 4: colossi collision #40 (done, verified) - commit 1fb6edf
+- The meshes of each colossus are sampled into 3 m columns at build time (new Scripts/Fauna/ColossusCollision.cs). On v2: Dunes 311 columns, KneelingTitan 125, HalfBuriedHead 163, GiantTortoise 301, RockGolem 149, CarnivorousPlant 32, SkeletalLizard 186, WalkingSaguaro 110, SaltCrystal 132 plus its rolling ball as a moving cylinder.
+- Player: the columns join the flora obstacle buffer through an additive hook in FloraSystem.UpdateObstacles, so the player slides round a colossus. PlayerMovementSystem is untouched. Creatures: a new ColossusPushSystem runs after CreatureBrainSystem and pushes bodies out to the nearest edge. It skips the player avatar, birds overhead and anything under an arm.
+- Walk test (v2): from (1510,2220) with `-walk 1478,2221` into the HalfBuriedHead. Log: "ColossusCollision: player stopped against the HalfBuriedHead at (1506.7, 26.4, 2220.1), gap 0.00 m". The player was still held there 35 s later. With LogPushes on, the push system pushed a creature out of a colossus on each of the 20 logged frames.
+- Shot: gallery r4_head_stop (noon, the head from the side the player walked in on).
+- Risks:
+  - FloraSystem.cs is shared (one additive hook plus a field).
+  - Scripts/Fauna is animal-owned by path, and the new file sits there next to StoneColossi and DunesColossus. Those are world-lane through the W cards.
+  - CreatureBrainSystem and BuildingFootprints (animal lane, A-70) are untouched.
