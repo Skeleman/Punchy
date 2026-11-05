@@ -2421,3 +2421,9 @@ Commits on world-features: 375e76c (#72), feecbc2 (#40).
   - Fauna_Fingerprint: F99FD9E4 -> 1202B8ED, from row 4's Home/Door anchors. I repinned it in WorldTests.cs; the first run failed only on that pin.
   - v2 landmark hash 95EAB5B4, unchanged.
 - StoneColossi.cs untouched.
+
+## W-105 row 1: tidy-ups, 64e6f75
+
+- AnchorBaking.cs: FolkHouse and HasFolkHouses now sit above AddWildAnchors' summary, and each has its own. No code change.
+- v2 island-ready time, editor play mode, audit off: 5.7 / 5.6 s (the first run, cold, was 15.8 s). Bake 4579-4603 ms, hash 95EAB5B4.
+- Not quiet: one other editor was busy, the main tree (D:/Unity/Punchy). It used about 2.5 cores during the runs (427 CPU-s in about 170 s). No other lane editor or build was running. So v2 is 0.1-0.2 s over 5.5 s with that load.
