@@ -1869,9 +1869,20 @@ namespace Punchy.Debugging
             Punchy.Fauna.CreatureBrainSystem.SearchEveryFrame.Data = oldSearch;
             // #132 A/B: "-oldwalls" places every landmark prop within 15 m for each wall check, as before.
             FloraPlacement.OldWalls.Data = System.Array.IndexOf(args, "-oldwalls") >= 0 ? 1 : 0;
+            // A-70 row 1 A/B: "-oldfootprints" places buildings again for every wall check, as before; "-footprintcheck"
+            // asks FloraPlacement.Blocked too and counts any disagreement with the baked walls (logged with perf2).
+            // (Both also hold from PlayArgs through every shot-list line, as -oldsearch does.)
+            Punchy.Fauna.BuildingFootprints.Off.Data = System.Array.IndexOf(args, "-oldfootprints") >= 0 || System.Array.IndexOf(LaunchArgs, "-oldfootprints") >= 0 ? 1 : 0;
+            Punchy.Fauna.BuildingFootprints.Check.Data = System.Array.IndexOf(args, "-footprintcheck") >= 0 || System.Array.IndexOf(LaunchArgs, "-footprintcheck") >= 0 ? 1 : 0;
             Punchy.Fauna.CreatureSnapshotSystem.Off = System.Array.IndexOf(args, "-oldsnapshot") >= 0;
+            // A-70 row 3 A/B: "-syncsnapshot", the snapshot copied on the main thread (waiting for the brain), as before.
+            Punchy.Fauna.CreatureSnapshotSystem.Sync = System.Array.IndexOf(args, "-syncsnapshot") >= 0 || System.Array.IndexOf(LaunchArgs, "-syncsnapshot") >= 0;
+            // A-70 row 4 A/B: "-oldposerate", every creature posed every frame with the full capsule and no frustum cull.
+            Punchy.Fauna.CreatureRenderSystem.OldPoseRate = System.Array.IndexOf(args, "-oldposerate") >= 0 || System.Array.IndexOf(LaunchArgs, "-oldposerate") >= 0;
             Punchy.Fauna.TraceSystem.OldOrder = System.Array.IndexOf(args, "-oldtrace") >= 0;
             Punchy.Fauna.TraceSystem.Stats = perfLog;
+            Punchy.Fauna.ReaderTimes.On = perfLog;
+            Punchy.Fauna.CreatureBrainSystem.SpreadOn.Data = perfLog ? 1 : 0;
             CaveSystem.CountStats = ThirdPersonCamera.ProbeStats = perfLog;
             // "-goflat" (A-13 #46): to the nearest dry spot whose ground height spread over a 30 m circle is under 0.5 m
             // (found once, by rings round the start; the spot and its measured spread are logged).
@@ -3066,6 +3077,7 @@ namespace Punchy.Debugging
 
         // "-perflog" sums over the last 3 s of a shot line's wait.
         Unity.Profiling.ProfilerRecorder brainTick;
+        Punchy.Fauna.CreatureBrainSystem.BrainSpread perfSpread0;
         double perfBrain;
         // #132: Advance and its two wall checks inside the brain tick.
         Unity.Profiling.ProfilerRecorder brainAdvance, brainWalls, brainSolids, brainBuilt;
@@ -3080,6 +3092,7 @@ namespace Punchy.Debugging
         struct long3 { public long X, Y, Z; public long3(long x, long y, long z) { X = x; Y = y; Z = z; } }
         long3 perfTrace0;
         long2 perfCopies0;
+        long perfWait0;
         Punchy.Fauna.CreatureBrainSystem.SearchCounts perfSearch0, lineSearch0;
         readonly FrameTiming[] perfTiming = new FrameTiming[1];
 
@@ -3091,7 +3104,13 @@ namespace Punchy.Debugging
                 perfProbeTicks0 = ThirdPersonCamera.ProbeTicks;
                 perfTrace0 = new long3(Punchy.Fauna.TraceSystem.Frames, Punchy.Fauna.TraceSystem.Ticks, Punchy.Fauna.TraceSystem.NoSurfaceCalls);
                 perfCopies0 = new long2(Punchy.Fauna.CreatureSnapshotSystem.Copies, Punchy.Fauna.CreatureSnapshotSystem.CopyTicks);
+                perfWait0 = Punchy.Fauna.CreatureSnapshotSystem.WaitTicks;
                 perfSearch0 = Punchy.Fauna.CreatureBrainSystem.Searches.Data;
+                perfSpread0 = Punchy.Fauna.CreatureBrainSystem.Spread.Data;
+                Punchy.Fauna.CreatureBrainSystem.Spread.Data.WorstWallTicks = 0;
+                Punchy.Fauna.CreatureRenderSystem.PoseMs.Clear();
+                Punchy.Fauna.CreatureRenderSystem.PoseEvaluated = Punchy.Fauna.CreatureRenderSystem.PoseReused = Punchy.Fauna.CreatureRenderSystem.PoseFrames = 0;
+                Punchy.Fauna.ReaderTimes.Clear();
             }
             var dt = Time.unscaledDeltaTime * 1000.0;
             perfFrames++;
@@ -3134,6 +3153,21 @@ namespace Punchy.Debugging
             perfInView += CaveSystem.StatInView;
             perfShadows += CaveSystem.StatShadows;
             perfCaveTris += CaveSystem.StatTriangles;
+        }
+
+        /// <summary>A-70 row 4, for perf2: the creature pose job's median and worst frame (ms summed over the workers), and
+        /// how many creatures a frame were posed afresh or moved on from their last pose.</summary>
+        static string PoseSummary()
+        {
+            var ms = Punchy.Fauna.CreatureRenderSystem.PoseMs;
+            var frames = System.Math.Max(Punchy.Fauna.CreatureRenderSystem.PoseFrames, 1);
+            var sorted = ms.ToArray();
+            System.Array.Sort(sorted);
+            var median = sorted.Length > 0 ? sorted[sorted.Length / 2] : 0.0;
+            var worst = sorted.Length > 0 ? sorted[sorted.Length - 1] : 0.0;
+            return $"pose job median {median:F3} ms, worst {worst:F3} ms, posed {(double)Punchy.Fauna.CreatureRenderSystem.PoseEvaluated / frames:F1}/frame, " +
+                   $"moved on {(double)Punchy.Fauna.CreatureRenderSystem.PoseReused / frames:F1}/frame, old pose rate {Punchy.Fauna.CreatureRenderSystem.OldPoseRate}; " +
+                   Punchy.Fauna.ReaderTimes.Summary();
         }
 
         /// <summary>One "perf" line per -perflog shot: frame, thread and GPU ms, cave chunks, lights, particles, probes.</summary>
@@ -3184,16 +3218,29 @@ namespace Punchy.Debugging
             var freq = (double)System.Diagnostics.Stopwatch.Frequency;
             var traceFrames = System.Math.Max(Punchy.Fauna.TraceSystem.Frames - perfTrace0.X, 1);
             var se = Punchy.Fauna.CreatureBrainSystem.Searches.Data;
+            var fp = Punchy.Fauna.BuildingFootprints.Stats.Data;
+            var sp = Punchy.Fauna.CreatureBrainSystem.Spread.Data;
+            var spFrames = System.Math.Max(sp.Frames - perfSpread0.Frames, 1);
+            var spWorkers = System.Math.Max(sp.Workers - perfSpread0.Workers, 1);
+            var spMean = (double)(sp.SumBusyTicks - perfSpread0.SumBusyTicks) / spWorkers;
+            var spMax = (double)(sp.MaxBusyTicks - perfSpread0.MaxBusyTicks) / spFrames;
+            // (The brain job times itself with the profiler's Burst-safe clock, not Stopwatch.)
+            var ratio = Unity.Profiling.LowLevel.Unsafe.ProfilerUnsafeUtility.TimestampToNanosecondsConversionRatio;
+            var spFreq = 1e9 * ratio.Denominator / ratio.Numerator;
             Debug.Log($"DebugControls: perf2 '{name}' {perfFrames} frames, creatures {World.DefaultGameObjectInjectionWorld?.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>()).CalculateEntityCount() ?? 0}; " +
                       $"trace {(Punchy.Fauna.TraceSystem.Ticks - perfTrace0.Y) * 1000.0 / freq / traceFrames:F3} ms/frame, " +
                       $"{(double)(Punchy.Fauna.TraceSystem.NoSurfaceCalls - perfTrace0.Z) / traceFrames:F1} surface checks/frame; " +
                       $"snapshot copies {(double)(Punchy.Fauna.CreatureSnapshotSystem.Copies - perfCopies0.X) / n:F1}/frame, " +
-                      $"{(Punchy.Fauna.CreatureSnapshotSystem.CopyTicks - perfCopies0.Y) * 1000.0 / freq / n:F3} ms/frame; " +
+                      $"{(Punchy.Fauna.CreatureSnapshotSystem.CopyTicks - perfCopies0.Y) * 1000.0 / freq / n:F3} ms/frame, " +
+                      $"brain wait {(Punchy.Fauna.CreatureSnapshotSystem.WaitTicks - perfWait0) * 1000.0 / freq / n:F3} ms/frame; " +
                       $"searches/frame predator {(double)(se.Predator - perfSearch0.Predator) / n:F1}, alarm {(double)(se.Alarm - perfSearch0.Alarm) / n:F1}, " +
                       $"chat {(double)(se.Chat - perfSearch0.Chat) / n:F1}; flees predator {se.PredatorFlee - perfSearch0.PredatorFlee}, " +
                       $"alarm {se.AlarmFlee - perfSearch0.AlarmFlee}; totals flee {se.PredatorFlee}/{se.AlarmFlee}; " +
                       $"brain ms {perfBrain / n:F3} (summed over workers), thinks/frame {(double)(se.Thinks - perfSearch0.Thinks) / n:F1}, lod skips/frame {(double)(se.LodSkips - perfSearch0.LodSkips) / n:F1}, lod off {Punchy.Fauna.CreatureBrainSystem.BrainLodOff.Data}; " +
-                      $"advance ms {perfAdvance / n:F3} (walls {perfWalls / n:F3}, solids {perfSolids / n:F3}, of it buildings {perfBuilt / n:F3})");
+                      $"advance ms {perfAdvance / n:F3} (walls {perfWalls / n:F3}, solids {perfSolids / n:F3}, of it buildings {perfBuilt / n:F3}); " +
+                      $"footprints {(Punchy.Fauna.BuildingFootprints.Off.Data != 0 ? "off" : "on")}, baked towns {fp.x} landmarks {fp.y}, checked {fp.z} mismatches {fp.w}; " +
+                      $"brain job wall {(sp.WallTicks - perfSpread0.WallTicks) * 1000.0 / spFreq / spFrames:F3} ms (worst {sp.WorstWallTicks * 1000.0 / spFreq:F3}), " +
+                      $"workers {(double)spWorkers / spFrames:F1}, busiest {spMax * 1000.0 / spFreq:F3} ms, mean {spMean * 1000.0 / spFreq:F3} ms, spread {spMax / System.Math.Max(spMean, 1.0):F2}x; " + PoseSummary());
             perfBrain = perfAdvance = perfWalls = perfSolids = perfBuilt = 0;
             perfFrames = perfTimed = perfChunkFrames = 0;
             perfFrame = perfMax = perfMain = perfRender = perfGpu = perfDraws = perfTris = 0;

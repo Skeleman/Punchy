@@ -5,6 +5,7 @@ using Punchy.Terrain;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Transforms;
 
@@ -120,10 +121,36 @@ namespace Punchy.Fauna
         /// <summary>The whole of one creature's tick (#59: DebugControls' -perflog sums it per frame as "brain ms").</summary>
         public static readonly Unity.Profiling.ProfilerMarker TickMarker = new Unity.Profiling.ProfilerMarker("Brain.Tick");
         EntityQuery creatures;
+        /// <summary>A-70 row 2: the creatures the brain runs (BrainJob's own set: not players' bodies or test specimens).</summary>
+        EntityQuery thinkers;
         /// <summary>Where each player was last frame (by Holder id), for how fast they're going.</summary>
         NativeHashMap<int, float3> lastPlayerPositions;
         /// <summary>Frames run, for the brain LOD's turns (#59).</summary>
         uint frame;
+        // A-70: the walls of settlements and landmarks near a player, placed once (BuildingFootprints), which ones were
+        // asked for, and the blobs they were placed from (a re-bake starts them again).
+        NativeHashMap<int, FloraSystem.FloraInstance> footprintPlots;
+        NativeHashMap<int, int2> footprintLandmarks;
+        NativeList<BuildingFootprints.BakedProp> footprintProps;
+        NativeHashSet<int> footprintTowns, footprintLandmarkSet;
+        BlobAssetReference<SettlementSetBlob> footprintTownBlob;
+        BlobAssetReference<LandmarkSetBlob> footprintLandmarkBlob;
+        BlobAssetReference<FloraBlob> footprintFloraBlob;
+        /// <summary>
+        /// A-70 row 2: how the brain's work lies over the job workers, for -perflog ("-perflog" sets SpreadOn): per frame,
+        /// its wall time (first creature started to last one done), the busiest worker's and the mean worker's summed
+        /// ticks, and how many workers took part; summed here over frames (Stopwatch ticks).
+        /// </summary>
+        public struct BrainSpread { public long Frames, WallTicks, WorstWallTicks, MaxBusyTicks, SumBusyTicks, Workers; }
+        public static readonly SharedStatic<BrainSpread> Spread = SharedStatic<BrainSpread>.GetOrCreate<BrainSpreadKey>();
+        struct BrainSpreadKey { }
+        public static readonly SharedStatic<int> SpreadOn = SharedStatic<int>.GetOrCreate<SpreadOnKey>();
+        struct SpreadOnKey { }
+        /// <summary>Per job worker (ThreadIndex): busy ticks, first start, last end, of the last brain job.</summary>
+        NativeArray<long> spreadTicks;
+        /// <summary>A-70: settlements and landmarks are baked once a player is within this (m) of their edge: past the
+        /// brain LOD's range, so a creature that thinks every frame near a player always finds its walls baked.</summary>
+        const float FootprintRange = 200f;
 
         [BurstCompile]
         public void OnCreate(ref SystemState state)
@@ -131,7 +158,15 @@ namespace Punchy.Fauna
             state.RequireForUpdate<TerrainSource>();
             state.RequireForUpdate<CreatureState>();
             creatures = SystemAPI.QueryBuilder().WithAll<CreatureState, CreatureBody>().Build();
+            thinkers = SystemAPI.QueryBuilder().WithAllRW<CreatureState, CreatureMind>().WithAll<CreatureBody>()
+                .WithNone<PlayerAvatar, RemoteAvatar, PosedForTest>().Build();
             lastPlayerPositions = new NativeHashMap<int, float3>(8, Allocator.Persistent);
+            footprintPlots = new NativeHashMap<int, FloraSystem.FloraInstance>(256, Allocator.Persistent);
+            footprintLandmarks = new NativeHashMap<int, int2>(64, Allocator.Persistent);
+            footprintProps = new NativeList<BuildingFootprints.BakedProp>(256, Allocator.Persistent);
+            footprintTowns = new NativeHashSet<int>(16, Allocator.Persistent);
+            footprintLandmarkSet = new NativeHashSet<int>(64, Allocator.Persistent);
+            spreadTicks = new NativeArray<long>(Unity.Jobs.LowLevel.Unsafe.JobsUtility.ThreadIndexCount * 3, Allocator.Persistent);
         }
 
         [BurstCompile]
@@ -139,6 +174,125 @@ namespace Punchy.Fauna
         {
             if (lastPlayerPositions.IsCreated)
                 lastPlayerPositions.Dispose();
+            state.Dependency.Complete();
+            if (footprintPlots.IsCreated)
+                footprintPlots.Dispose();
+            if (footprintLandmarks.IsCreated)
+                footprintLandmarks.Dispose();
+            if (footprintProps.IsCreated)
+                footprintProps.Dispose();
+            if (footprintTowns.IsCreated)
+                footprintTowns.Dispose();
+            if (footprintLandmarkSet.IsCreated)
+                footprintLandmarkSet.Dispose();
+            if (spreadTicks.IsCreated)
+                spreadTicks.Dispose();
+        }
+
+        /// <summary>A-70 row 2: adds the last brain job's spread over the workers to Spread, and clears it for this one.</summary>
+        void FoldSpread()
+        {
+            long first = long.MaxValue, last = 0, max = 0, sum = 0, workers = 0;
+            for (int t = 0; t < spreadTicks.Length; t += 3)
+            {
+                if (spreadTicks[t] == 0)
+                    continue;
+                workers++;
+                sum += spreadTicks[t];
+                max = math.max(max, spreadTicks[t]);
+                first = math.min(first, spreadTicks[t + 1]);
+                last = math.max(last, spreadTicks[t + 2]);
+                spreadTicks[t] = spreadTicks[t + 1] = spreadTicks[t + 2] = 0;
+            }
+            if (workers == 0)
+                return;
+            ref var spread = ref Spread.Data;
+            spread.Frames++;
+            spread.WallTicks += last - first;
+            spread.WorstWallTicks = math.max(spread.WorstWallTicks, last - first);
+            spread.MaxBusyTicks += max;
+            spread.SumBusyTicks += sum;
+            spread.Workers += workers;
+        }
+
+        /// <summary>
+        /// A-70: asks FootprintBakeJob for the walls of any settlement or landmark a player has come within FootprintRange
+        /// of and that isn't baked yet (scheduled before the brain, which reads them), and hands the brain the cache.
+        /// </summary>
+        BuildingFootprints FootprintsFor(ref SystemState state, in TerrainSource terrain, BlobAssetReference<FloraBlob> flora, bool hasFlora,
+                                      NativeArray<float3> players)
+        {
+            // (Off, the brain still gets the containers: a job can't carry unmade ones.)
+            if (!hasFlora || BuildingFootprints.Off.Data != 0)
+                return new BuildingFootprints { Plots = footprintPlots, Landmarks = footprintLandmarks, Props = footprintProps, On = false };
+            if (terrain.Settlements != footprintTownBlob || terrain.Landmarks != footprintLandmarkBlob || flora != footprintFloraBlob)
+            {
+                // (A re-bake or a new flora table: what was placed is stale. Rare, so waiting on the brain here is fine.)
+                state.Dependency.Complete();
+                footprintPlots.Clear();
+                footprintLandmarks.Clear();
+                footprintProps.Clear();
+                footprintTowns.Clear();
+                footprintLandmarkSet.Clear();
+                footprintTownBlob = terrain.Settlements;
+                footprintLandmarkBlob = terrain.Landmarks;
+                footprintFloraBlob = flora;
+            }
+            var towns = new NativeList<int>(Allocator.TempJob);
+            var landmarks = new NativeList<int>(Allocator.TempJob);
+            if (terrain.Settlements.IsCreated && flora.Value.SettlementSpecies.Length > 0)
+            {
+                ref var set = ref terrain.Settlements.Value;
+                for (int t = 0; t < set.Settlements.Length; t++)
+                {
+                    if (footprintTowns.Contains(t))
+                        continue;
+                    ref var town = ref set.Settlements[t];
+                    for (int p = 0; p < players.Length; p++)
+                        if (math.distance(players[p].xz, town.Centre) < town.Radius + FootprintRange)
+                        {
+                            footprintTowns.Add(t);
+                            towns.Add(t);
+                            break;
+                        }
+                }
+            }
+            if (terrain.Landmarks.IsCreated)
+            {
+                ref var set = ref terrain.Landmarks.Value;
+                for (int i = 0; i < set.Instances.Length; i++)
+                {
+                    if (footprintLandmarkSet.Contains(i))
+                        continue;
+                    ref var inst = ref set.Instances[i];
+                    var radius = set.Types[inst.Type].Radius * inst.Scale;
+                    for (int p = 0; p < players.Length; p++)
+                        if (math.distance(players[p].xz, inst.Position) < radius + 15f + FootprintRange)
+                        {
+                            footprintLandmarkSet.Add(i);
+                            landmarks.Add(i);
+                            break;
+                        }
+                }
+            }
+            if (towns.Length > 0 || landmarks.Length > 0)
+            {
+                state.Dependency = new FootprintBakeJob
+                {
+                    Terrain = terrain,
+                    Flora = flora,
+                    Settlements = towns.AsArray(),
+                    LandmarkInstances = landmarks.AsArray(),
+                    Plots = footprintPlots,
+                    Landmarks = footprintLandmarks,
+                    Props = footprintProps
+                }.Schedule(state.Dependency);
+            }
+            towns.Dispose(state.Dependency);
+            landmarks.Dispose(state.Dependency);
+            BuildingFootprints.Stats.Data.x = footprintTowns.Count;
+            BuildingFootprints.Stats.Data.y = footprintLandmarkSet.Count;
+            return new BuildingFootprints { Plots = footprintPlots, Landmarks = footprintLandmarks, Props = footprintProps, On = true };
         }
 
         [BurstCompile]
@@ -198,10 +352,20 @@ namespace Punchy.Fauna
                     hunters.Add(i);
             }
             var hasFlora = SystemAPI.TryGetSingleton<FloraLookup>(out var flora) && flora.Blob.IsCreated;
+            // (The last brain job is done: the snapshot above waited for its CreatureState.)
+            FoldSpread();
+            var terrain = SystemAPI.GetSingleton<TerrainSource>();
+            var footprints = FootprintsFor(ref state, terrain, hasFlora ? flora.Blob : default, hasFlora, players.AsArray());
+            // A-70 row 2: one creature per index, handed out to the workers 8 at a time, in place of whole chunks (a chunk
+            // holds over a hundred, so a few busy chunks left most workers idle while one or two ran on).
+            var thinking = thinkers.ToEntityArray(Allocator.TempJob);
 
             state.Dependency = new BrainJob
             {
-                Terrain = SystemAPI.GetSingleton<TerrainSource>(),
+                Terrain = terrain,
+                Footprints = footprints,
+                SpreadTicks = spreadTicks,
+                Timed = SpreadOn.Data != 0,
                 Flora = hasFlora ? flora.Blob : default,
                 HasFlora = hasFlora,
                 Players = players.AsArray(),
@@ -222,8 +386,13 @@ namespace Punchy.Fauna
                 Bodies = bodies,
                 Lookup = lookup,
                 Grid = grid,
-                Hunters = hunters.AsArray()
-            }.ScheduleParallel(state.Dependency);
+                Hunters = hunters.AsArray(),
+                Thinking = thinking,
+                StateRW = SystemAPI.GetComponentLookup<CreatureState>(false),
+                MindRW = SystemAPI.GetComponentLookup<CreatureMind>(false),
+                BodyRO = SystemAPI.GetComponentLookup<CreatureBody>(true)
+            }.Schedule(thinking.Length, BrainBatch, state.Dependency);
+            thinking.Dispose(state.Dependency);
             hunters.Dispose(state.Dependency);
             entities.Dispose(state.Dependency);
             states.Dispose(state.Dependency);
@@ -250,12 +419,35 @@ namespace Punchy.Fauna
 
         static int2 Cell(float2 xz) => (int2)math.floor(xz / CellSize);
 
-        /// <summary>Every creature but players' bodies (PlayerAvatarSystem moves those) and test specimens.</summary>
+        /// <summary>A-70 row 2: creatures per batch a worker takes from the brain at a time.</summary>
+        const int BrainBatch = 8;
+
+        /// <summary>Every creature but players' bodies (PlayerAvatarSystem moves those) and test specimens (thinkers).</summary>
         [BurstCompile]
-        [WithNone(typeof(PlayerAvatar), typeof(RemoteAvatar), typeof(PosedForTest))]
-        partial struct BrainJob : IJobEntity
+        partial struct BrainJob : IJobParallelFor
         {
+            /// <summary>A-70 row 2: the creatures to run, one per index, and their state, mind and body (each index
+            /// writes only its own creature).</summary>
+            [ReadOnly] public NativeArray<Entity> Thinking;
+            [NativeDisableParallelForRestriction] public ComponentLookup<CreatureState> StateRW;
+            [NativeDisableParallelForRestriction] public ComponentLookup<CreatureMind> MindRW;
+            [ReadOnly] public ComponentLookup<CreatureBody> BodyRO;
+
+            public void Execute(int index)
+            {
+                var self = Thinking[index];
+                var s = StateRW[self];
+                var mind = MindRW[self];
+                Run(self, ref s, ref mind, BodyRO[self]);
+                StateRW[self] = s;
+                MindRW[self] = mind;
+            }
             public TerrainSource Terrain;
+            /// <summary>A-70: buildings' and landmark props' walls, placed once (Walled and BuildingSink ask it).</summary>
+            public BuildingFootprints Footprints;
+            /// <summary>A-70 row 2 (-perflog): each worker's busy ticks, first start and last end (ThreadIndex * 3).</summary>
+            [NativeDisableParallelForRestriction] public NativeArray<long> SpreadTicks;
+            public bool Timed;
             public BlobAssetReference<FloraBlob> Flora;
             public bool HasFlora;
             [ReadOnly] public NativeArray<float3> Players;
@@ -293,11 +485,22 @@ namespace Punchy.Fauna
             /// reaches it without passing it along; the job struct is each worker's own, as with Dt and Step).</summary>
             CreatureMind M;
 
-            void Execute(Entity self, ref CreatureState s, ref CreatureMind mind, in CreatureBody body)
+            void Run(Entity self, ref CreatureState s, ref CreatureMind mind, in CreatureBody body)
             {
+                var started = Timed ? Unity.Profiling.LowLevel.Unsafe.ProfilerUnsafeUtility.Timestamp : 0L;
                 M = mind;
                 Tick(self, ref s, in body);
                 mind = M;
+                if (Timed)
+                {
+                    // (Each worker writes only its own three slots.)
+                    var done = Unity.Profiling.LowLevel.Unsafe.ProfilerUnsafeUtility.Timestamp;
+                    var slot = Unity.Jobs.LowLevel.Unsafe.JobsUtility.ThreadIndex * 3;
+                    SpreadTicks[slot] += math.max(done - started, 1L);
+                    if (SpreadTicks[slot + 1] == 0 || started < SpreadTicks[slot + 1])
+                        SpreadTicks[slot + 1] = started;
+                    SpreadTicks[slot + 2] = math.max(SpreadTicks[slot + 2], done);
+                }
             }
 
             void Tick(Entity self, ref CreatureState s, in CreatureBody body)

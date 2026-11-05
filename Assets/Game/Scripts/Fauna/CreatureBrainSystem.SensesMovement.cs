@@ -424,7 +424,7 @@ namespace Punchy.Fauna
                 (b.Habitat == Habitat.Land || b.Habitat == Habitat.Flies && s.Fly < 0.5f) &&
                 math.distancesq(s.Position.xz, s.Target) > 4f;
 
-            bool Walled(float2 at, float radius) => FloraPlacement.Blocked(ref Flora.Value, Terrain, at, radius);
+            bool Walled(float2 at, float radius) => Footprints.Blocked(ref Flora.Value, Terrain, at, radius);
 
             bool CaveWalkerNot(in CreatureState s, ref CreatureBlob b) => !CaveWalker(s, ref b);
 
@@ -550,15 +550,15 @@ namespace Punchy.Fauna
             float BuildingSink(float2 xz, float2 forward, float radius, float halfLength, out bool walled)
             {
                 walled = false;
-                if (FloraPlacement.Blocked(ref Flora.Value, Terrain, xz, radius))
+                if (Footprints.Blocked(ref Flora.Value, Terrain, xz, radius))
                 {
                     walled = true;
-                    if (!FloraPlacement.Blocked(ref Flora.Value, Terrain, xz, math.max(radius - 0.15f, 0.02f)))
+                    if (!Footprints.Blocked(ref Flora.Value, Terrain, xz, math.max(radius - 0.15f, 0.02f)))
                         return 0.1f;
-                    return FloraPlacement.Blocked(ref Flora.Value, Terrain, xz, radius * 0.3f) ? math.max(radius * 0.8f, 0.3f)
+                    return Footprints.Blocked(ref Flora.Value, Terrain, xz, radius * 0.3f) ? math.max(radius * 0.8f, 0.3f)
                                                                                              : math.max(radius * 0.5f, 0.16f);
                 }
-                walled = FloraPlacement.Blocked(ref Flora.Value, Terrain, xz + forward * halfLength, radius * 0.6f);
+                walled = Footprints.Blocked(ref Flora.Value, Terrain, xz + forward * halfLength, radius * 0.6f);
                 return 0f;
             }
 
@@ -642,6 +642,10 @@ namespace Punchy.Fauna
                 var forward = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
                 SolidAt(s, ref b, s.Position.xz, forward, out var sink, out var kind);
                 System.Threading.Interlocked.Decrement(ref stats.Queries); // (a count, not a move: Queries are the moves' cost)
+                // (A-70: perched over 2 m up, on a crown or a roof, it is above the walls' footprint, not in them: a songbird
+                // resting 8 m up over a fishing village 3 house counted as 0.30 m into it all minute.)
+                if (kind == CreatureMotion.SolidKind.Building && s.Position.y > Terrain.SampleHeight(s.Position.xz) + 2f)
+                    sink = 0f;
                 if (sink > 0.15f)
                 {
                     System.Threading.Interlocked.Increment(ref stats.Hidden);

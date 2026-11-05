@@ -239,6 +239,7 @@ namespace Punchy.Fauna
                                           $"{(answering ? " answering " + emoted : "")}: {text}");
                 Shown.Add(new Said { Who = entities[i], Text = text, Head = Head(s, ref b), Start = now, Until = now + 3.5f + text.Length * 0.05f });
             }
+            CreatureSnapshotSystem.Release(World, states, bodies, entities);
             FolkTalkLabels.Ensure();
             FolkTalkLabels.Show(Shown.Count > 0 || Bubbles.Count > 0);
         }

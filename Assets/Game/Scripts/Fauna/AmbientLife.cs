@@ -500,6 +500,11 @@ namespace Punchy.Fauna
                 var spot = into[i];
                 if ((AmbientSounds.At(terrain, spot.Position.xz) & AmbientSounds.Of(spot.Kind)) != AmbientSounds.Of(spot.Kind))
                     continue;
+                // (A-70: nor a mouse or frog on the ground inside a building's walls. It sits still at its spot, so one
+                // drawn there spent the whole visit 0.3 m into the wall, at fishing village 3.)
+                if ((spot.Kind == CritterKind.Mouse || spot.Kind == CritterKind.Frog) &&
+                    FloraPlacement.Blocked(ref flora, terrain, spot.Position.xz, 0.3f))
+                    continue;
                 into[kept++] = spot;
             }
             into.Length = kept;

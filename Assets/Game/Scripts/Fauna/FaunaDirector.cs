@@ -89,7 +89,7 @@ namespace Punchy.Fauna
         /// <summary>The plant placement animals use (where a machine simulates them), and its species in rule order (tests).</summary>
         public BlobAssetReference<Punchy.Flora.FloraBlob> FloraPlacementBlob => floraBlob;
         public IReadOnlyList<Punchy.Flora.FloraSpecies> FloraSpeciesList => floraSpecies;
-        Mesh capsule;
+        Mesh capsule, capsuleMid, capsuleFar;
         float spawnBudget;
         bool built;
         // (The flora lookup's shape-only grows, started on workers before Build, #102.)
@@ -195,6 +195,7 @@ namespace Punchy.Fauna
                     em.DestroyEntity(settingsEntity);
             }
             settingsEntity = simClockEntity = floraEntity = Entity.Null;
+            CreatureSnapshotSystem.Forget();
             foreach (var b in blobs)
                 if (b.IsCreated) b.Dispose();
             blobs.Clear();
@@ -205,7 +206,9 @@ namespace Punchy.Fauna
             occupiedChambers.Clear();
             Caught = 0;
             if (capsule != null) Destroy(capsule);
-            capsule = null;
+            if (capsuleMid != null) Destroy(capsuleMid);
+            if (capsuleFar != null) Destroy(capsuleFar);
+            capsule = capsuleMid = capsuleFar = null;
             built = false;
             pendingShapes = null;
         }
@@ -461,11 +464,14 @@ namespace Punchy.Fauna
             Stage("blobs");
 
             capsule = BuildCapsule(12, 6, 4);
+            // (Fewer sides and rows for the middle and far pose bands, A-70 row 4: 336 triangles, then 112, then 48.)
+            capsuleMid = BuildCapsule(8, 3, 2);
+            capsuleFar = BuildCapsule(6, 2, 1);
             Stage("capsule");
             var em = queryWorld.EntityManager;
             settingsEntity = em.CreateEntity();
             em.SetName(settingsEntity, "Fauna Render Settings");
-            em.AddComponentObject(settingsEntity, new FaunaRenderSettings { Material = Material, Capsule = capsule });
+            em.AddComponentObject(settingsEntity, new FaunaRenderSettings { Material = Material, Capsule = capsule, CapsuleMid = capsuleMid, CapsuleFar = capsuleFar });
             em.AddComponentData(settingsEntity, new FaunaClock());
             carryBlob = BuildCarryTable();
             Stage("carry");
@@ -800,6 +806,8 @@ namespace Punchy.Fauna
         {
             if (queryWorld != null && queryWorld.IsCreated)
                 queryWorld.EntityManager.DestroyEntity(avatarQuery);
+            // (The creature snapshot still holds this body's blob: dropped first, A-70 row 5.)
+            CreatureSnapshotSystem.Forget();
             if (avatarBlob.IsCreated)
                 avatarBlob.Dispose();
             avatarBlob = default;
