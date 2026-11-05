@@ -311,6 +311,7 @@ namespace Punchy.Fauna
                 var to = s.Position.xz + forward * s.Speed * dt;
                 if (s.Speed > 0f && WalksRoundWalls(in s, ref b, keepHeight))
                 {
+                    using var walls = WallsMarker.Auto();
                     // Buildings are solid: walled off, it walks along the wall (the nearest open way to either side,
                     // turning towards it), so it goes round the building rather than through it; boxed in, it stops.
                     // (One already inside, spawned there, walks out.)
@@ -341,7 +342,10 @@ namespace Punchy.Fauna
                 // A-44: near a player, cave walls, towers and icebergs are solid too: it slides along them by its own
                 // body's size, and one already in one is pushed out sideways.
                 if (nearSolids && !keepHeight && s.Fly < 0.5f && s.Mode != CreatureMode.Held && !b.CaveDweller && !underRock)
+                {
+                    using var solids = SolidsMarker.Auto();
                     to = KeepOutOfSolids(ref s, ref b, to, forward, dt);
+                }
                 s.Position.xz = to;
                 if (b.Haunts)
                 {
@@ -521,7 +525,10 @@ namespace Punchy.Fauna
                                                math.max((b.StandHeight + b.FrontRadius) * s.Scale, radius * 2f), out sink, out kind);
                 if (!HasFlora)
                     return hit;
-                var built = BuildingSink(xz, forward, radius, halfLength, out var walled);
+                float built;
+                bool walled;
+                using (BuiltMarker.Auto())
+                    built = BuildingSink(xz, forward, radius, halfLength, out walled);
                 if (walled && !hit)
                     kind = CreatureMotion.SolidKind.Building;
                 if (built > sink)

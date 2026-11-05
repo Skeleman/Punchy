@@ -588,6 +588,9 @@ namespace Punchy.Flora
         /// clear of the sea; never below the sea itself. (W-59b's docks started anywhere from 1.7 m under water to 2.5 m
         /// up the bank, and the player snagged at the land end.)
         /// </summary>
+        /// <summary>How far DockShore can slide a dock's spot out along its facing (on the bank) and back (in the water).</summary>
+        const float ShoreSlideOut = 14f, ShoreSlideBack = 30f;
+
         static float3 DockShore(in TerrainSource source, float2 spot, float2 facing)
         {
             var sea = source.World.SeaLevel;
@@ -597,7 +600,7 @@ namespace Punchy.Flora
             if (source.SampleHeight(spot) > sea + above)
             {
                 // On the bank: walk out to the last dry step before the water.
-                for (var d = 0.5f; d <= 14f; d += 0.5f)
+                for (var d = 0.5f; d <= ShoreSlideOut; d += 0.5f)
                 {
                     if (source.SampleHeight(spot + dir * d) <= sea + above)
                         break;
@@ -609,7 +612,7 @@ namespace Punchy.Flora
                 // In the water: walk back up to the first dry step. W-63 (#36): up to 30 m. A ring spot more than 14 m out
                 // (dock -3296.5,-1656.1) used to stop in the water at sea + 0.1, so the ramp foot sank about 1 m into the
                 // steep bank behind it and the walker met a 1.3 m wall; now every dock's base sits on its bank.
-                for (var d = 0.5f; d <= 30f; d += 0.5f)
+                for (var d = 0.5f; d <= ShoreSlideBack; d += 0.5f)
                 {
                     best = spot - dir * d;
                     if (source.SampleHeight(best) > sea + above)
@@ -730,7 +733,8 @@ namespace Punchy.Flora
         /// Shore clutter (a boat pulled up, a net frame) and the biome's plants stay off it, so the lane up the ramp and
         /// down the deck is clear. float.MaxValue when the landmark has no docks.
         /// </summary>
-        static float DockLaneDistance(ref FloraBlob f, in TerrainSource source, in LandmarkHit landmark, float2 xz)
+        static float DockLaneDistance(ref FloraBlob f, in TerrainSource source, in LandmarkHit landmark, float2 xz,
+                                      float limit = float.MaxValue)
         {
             ref var set = ref source.Landmarks.Value;
             var instance = set.Instances[landmark.Instance];
@@ -747,6 +751,15 @@ namespace Punchy.Flora
                     for (int k = 0; k < prop.Count; k++)
                     {
                         var spot = LandmarkSampling.ToWorld(instance, LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / prop.Count), landmark.Radius);
+                        // #132: DockShore only slides the spot along the facing (ShoreSlideOut out, ShoreSlideBack in), so
+                        // the lane lies on that line's slid stretch: no nearer than limit means it can't decide the answer,
+                        // and its shore (dozens of height samples) isn't measured.
+                        if (OldWalls.Data == 0)
+                        {
+                            var reach = math.clamp(math.dot(xz - spot, dir), -ShoreSlideBack - DockRampRun, ShoreSlideOut + DockMaxLength);
+                            if (math.distance(xz, spot + dir * reach) >= limit)
+                                continue;
+                        }
                         var start = DockShore(source, spot, instance.Facing).xz;
                         var along = math.clamp(math.dot(xz - start, dir), -DockRampRun, DockMaxLength);
                         best = math.min(best, math.distance(xz, start + dir * along));
@@ -762,7 +775,8 @@ namespace Punchy.Flora
         /// on its -X side, 7 m on its +X side, out to the lane's length plus the end walk). A box in the wharf's frame,
         /// 0 inside it. float.MaxValue when the landmark has no wharf.
         /// </summary>
-        static float WharfDistance(ref FloraBlob f, in TerrainSource source, in LandmarkHit landmark, float2 xz)
+        static float WharfDistance(ref FloraBlob f, in TerrainSource source, in LandmarkHit landmark, float2 xz,
+                                   float limit = float.MaxValue)
         {
             ref var set = ref source.Landmarks.Value;
             var instance = set.Instances[landmark.Instance];
@@ -781,6 +795,17 @@ namespace Punchy.Flora
                     for (int k = 0; k < prop.Count; k++)
                     {
                         var spot = LandmarkSampling.ToWorld(instance, LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / prop.Count), landmark.Radius);
+                        // #132: as in DockLaneDistance, its box slides only along the facing, so first the box stretched
+                        // over that slide: no nearer than limit and the shore isn't measured.
+                        if (OldWalls.Data == 0)
+                        {
+                            var d0 = xz - spot;
+                            var local0 = new float2(math.dot(d0, side), math.dot(d0, dir));
+                            var out0 = math.max(math.max(lo - new float2(0f, ShoreSlideBack) - local0,
+                                                         local0 - hi - new float2(0f, ShoreSlideOut)), 0f);
+                            if (math.length(out0) >= limit)
+                                continue;
+                        }
                         var d = xz - DockShore(source, spot, instance.Facing).xz;
                         var local = new float2(math.dot(d, side), math.dot(d, dir));
                         var outside = math.max(math.max(lo - local, local - hi), 0f);
@@ -1161,11 +1186,17 @@ namespace Punchy.Flora
                         var prop = f.Props[e];
                         if (prop.Count == 0 || f.Models[f.Rules[prop.Species].FirstModel].ObstacleCount == 0)
                             continue;
+                        // #132: its walls reach no further than this from its spot (any variant, at its biggest), so a
+                        // spot further off can't block and skips Place, which for a house measures every dock's shore
+                        // (dozens of height samples each). Same answers, a fraction of the cost in a fishing village.
+                        var reach = OldWalls.Data != 0 ? float.MaxValue
+                                  : WallReach(ref f, prop.Species) * math.max(prop.Scale.x, prop.Scale.y) + radius + 0.01f;
                         for (int k = 0; k < prop.Count; k++)
                         {
                             var spot = LandmarkSampling.ToWorld(set.Instances[landmark.Instance],
                                 LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / prop.Count), landmark.Radius);
-                            if (math.distance(spot, xz) > 15f + radius)
+                            var away = math.distance(spot, xz);
+                            if (away > 15f + radius || away >= reach)
                                 continue;
                             var plant = Place(ref f, source, (int2)math.floor(spot / f.CellSizes[l]), l, footprint: true);
                             if (Inside(ref f, plant, xz, radius))
@@ -1207,6 +1238,26 @@ namespace Punchy.Flora
                     top = math.max(top, f.Models[plant.Model].Height * plant.Scale);
             }
             return top > 0f;
+        }
+
+        /// <summary>
+        /// #132: how far a species' walls reach from where it's placed, at scale 1, over all its variants (each wall
+        /// cylinder's offset plus its radius): nothing further off is ever Inside it.
+        /// </summary>
+        static float WallReach(ref FloraBlob f, int species)
+        {
+            var rule = f.Rules[species];
+            var reach = 0f;
+            for (int m = rule.FirstModel; m < rule.FirstModel + math.max(rule.Variants, 1) && m < f.Models.Length; m++)
+            {
+                var shape = f.Models[m];
+                for (int i = shape.FirstObstacle; i < shape.FirstObstacle + shape.ObstacleCount; i++)
+                {
+                    var col = f.Obstacles[i];
+                    reach = math.max(reach, math.length(col.xy) + col.z);
+                }
+            }
+            return reach;
         }
 
         /// <summary>Inside one placed plant's walls (turned and scaled as FloraSystem turns them for the player).</summary>
@@ -1282,6 +1333,9 @@ namespace Punchy.Flora
         /// <summary>Four more circles for colossi past the fourth (W-85 drowned knight).</summary>
         public static readonly SharedStatic<float4x4> KeepOutMore = SharedStatic<float4x4>.GetOrCreate<KeepOutCirclesMore>();
         class KeepOutCirclesMore { }
+        /// <summary>#132: 1 turns Blocked's wall-reach skip off (DebugControls "-oldwalls"), for A/B timing.</summary>
+        public static readonly SharedStatic<int> OldWalls = SharedStatic<int>.GetOrCreate<OldWallsKey>();
+        class OldWallsKey { }
 
         public static FloraSystem.FloraInstance Place(ref FloraBlob f, in TerrainSource source, int2 cell, int layer, bool footprint = false)
         {
@@ -1377,12 +1431,13 @@ namespace Punchy.Flora
                                     return none;
                                 // W-59d: a shore cluster reaches about 5 m (2.5 m spread plus half a pulled-up boat):
                                 // none within that of a dock's walk lane, so nothing stands on the ramp or deck.
-                                if (placedRule.ShoreKit != 0 && DockLaneDistance(ref f, source, landmark, spot) < ShoreReach * prop.Scale.y)
+                                if (placedRule.ShoreKit != 0 && DockLaneDistance(ref f, source, landmark, spot, ShoreReach * prop.Scale.y) < ShoreReach * prop.Scale.y)
                                     return none;
                                 // W-63 (#36): nor a house. A stilt house at -3294.1,-1653.6 stood across a dock's deck and
                                 // the walker met a 0.9-1.6 m wall there (no draws moved: the cell just stays empty).
                                 // W-65c: and off every branch of a wharf, not just its main lane.
-                                if (placedRule.House != 0 && math.min(DockLaneDistance(ref f, source, landmark, spot), WharfDistance(ref f, source, landmark, spot)) < placedRule.Footprint * prop.Scale.y + 1.5f)
+                                var houseClear = placedRule.Footprint * prop.Scale.y + 1.5f;
+                                if (placedRule.House != 0 && math.min(DockLaneDistance(ref f, source, landmark, spot, houseClear), WharfDistance(ref f, source, landmark, spot, houseClear)) < houseClear)
                                     return none;
                                 // W-91 (#36): houses, stilt houses, docks and wharfs stand by the sea or a lake, never in a
                                 // river: a plot on river water (a dock along its whole run out) stays empty (no draws moved).
@@ -1423,7 +1478,7 @@ namespace Punchy.Flora
                 if (blocked)
                     return none;
                 // W-59d: the biome's plants (bushes, rocks) stay off the docks' walk lanes too.
-                if (DockLaneDistance(ref f, source, landmark, xz) < 2f)
+                if (DockLaneDistance(ref f, source, landmark, xz, 2f) < 2f)
                     return none;
                 var propRange = f.PropRanges[landmark.Type * 3 + layer];
                 for (int e = propRange.x; e < propRange.x + propRange.y; e++)

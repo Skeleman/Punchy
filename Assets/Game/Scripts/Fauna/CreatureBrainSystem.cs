@@ -112,6 +112,10 @@ namespace Punchy.Fauna
         static readonly Unity.Profiling.ProfilerMarker FidgetMarker = new Unity.Profiling.ProfilerMarker("Brain.Fidget");
         static readonly Unity.Profiling.ProfilerMarker DecideMarker = new Unity.Profiling.ProfilerMarker("Brain.Decide");
         static readonly Unity.Profiling.ProfilerMarker AdvanceMarker = new Unity.Profiling.ProfilerMarker("Brain.Advance");
+        // #132: Advance's two wall checks (buildings' walls, and A-44's solids near a player), for -perflog.
+        static readonly Unity.Profiling.ProfilerMarker WallsMarker = new Unity.Profiling.ProfilerMarker("Brain.Walls");
+        static readonly Unity.Profiling.ProfilerMarker SolidsMarker = new Unity.Profiling.ProfilerMarker("Brain.Solids");
+        static readonly Unity.Profiling.ProfilerMarker BuiltMarker = new Unity.Profiling.ProfilerMarker("Brain.Built");
         static readonly Unity.Profiling.ProfilerMarker EaseMarker = new Unity.Profiling.ProfilerMarker("Brain.EaseGait");
         /// <summary>The whole of one creature's tick (#59: DebugControls' -perflog sums it per frame as "brain ms").</summary>
         public static readonly Unity.Profiling.ProfilerMarker TickMarker = new Unity.Profiling.ProfilerMarker("Brain.Tick");
