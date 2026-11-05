@@ -106,6 +106,8 @@ namespace Punchy.Fauna
         public bool Rooted;
         /// <summary>Sits still as a plant until startled (see CreatureSpecies.Disguised).</summary>
         public bool Disguised;
+        /// <summary>Its taste in weather (A-71): what makes it uncomfortable and what shelter it seeks.</summary>
+        public ComfortProfile Comfort;
 
         public BlobArray<CreaturePart> Parts;
         public BlobArray<CreatureSegment> Segments;
@@ -387,7 +389,13 @@ namespace Punchy.Fauna
         /// on the ground facing Focus (1: by the well, on the green), or lying back in the grass (3). (2 is kept for
         /// sitting on a seat, once there are seats to sit on.)
         /// </summary>
-        Sit
+        Sit,
+        /// <summary>
+        /// A-71 row 2: out of the weather. To the shelter it chose (Target, stage 0; walking, or hurrying when the
+        /// weather is bad), then waiting there facing Focus (1) till the weather lets up or its time runs out. What the
+        /// shelter is (a ShelterNeed bit) rides in TargetHeight.
+        /// </summary>
+        Shelter
     }
 
     /// <summary>What a worker does at its post (posed by CreatureAnimator).</summary>
@@ -693,6 +701,18 @@ namespace Punchy.Fauna
         // activity that meets them; what it decides to do next is weighted by them. Only the brain reads them (#58:
         // moved here from CreatureState); what others see is CreatureState.Cue.
         public float Hunger, Thirst, Tired, Lonely;
+        /// <summary>A-71: how uncomfortable the weather has made it (0..1: builds while out of its comfort, fades in
+        /// comfort or shelter), why (the worst reason last seen), and how hard the weather pressed at the last check.</summary>
+        public float Discomfort, ComfortPressure;
+        public ComfortKind DiscomfortKind;
+        /// <summary>A-71 row 2: the shelter it is standing in now (none out in the open), and how long before it
+        /// looks for shelter again after a search that found none (s).</summary>
+        public ShelterNeed Cover;
+        public float ShelterRetry;
+        /// <summary>A-71 row 6: the player it's following on a lead quest (their Holder id, Interactions.HolderId; 0 for
+        /// none) and how long before it gives up (s). Set by Follow.Start and Follow.Stop on the host.</summary>
+        public int FollowHolder;
+        public float FollowTime;
     }
 
     /// <summary>The need cue a creature shows (CreatureState.Cue), strongest need first.</summary>
@@ -758,7 +778,8 @@ namespace Punchy.Fauna
         /// <param name="hunted">Whether any species hunts it.</param>
         /// <param name="regard">Folk only: its regard for each species (by index), and its kinship (FolkKin).</param>
         public static BlobAssetReference<CreatureBlob> Build(CreatureSpecies variant, IReadOnlyList<int> prey = null, bool hunted = false,
-                                                             IReadOnlyList<float> regard = null, IReadOnlyList<byte> kinship = null)
+                                                             IReadOnlyList<float> regard = null, IReadOnlyList<byte> kinship = null,
+                                                             Vector2? home = null)
         {
             var species = variant.Body;
             // Expand slots: mirrored slots become left and right copies; children follow every copy of their parent.
@@ -869,6 +890,7 @@ namespace Punchy.Fauna
             root.SeenFrom = species.SeenFrom * sizeScale;
             root.Rooted = species.Rooted;
             root.Disguised = species.Disguised;
+            root.Comfort = ComfortProfiles.For(variant, home ?? new Vector2(-1f, -1f));
             root.Nests = species.Nests;
             root.WebSize = species.WebSize * sizeScale;
             root.FlightHeight = new float2(species.FlightHeight.x, math.max(species.FlightHeight.x, species.FlightHeight.y));

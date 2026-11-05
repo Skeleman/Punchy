@@ -157,6 +157,7 @@ namespace Punchy.Fauna
         {
             state.RequireForUpdate<TerrainSource>();
             state.RequireForUpdate<CreatureState>();
+            Shelters.Data = default;   // (A-71: the shelter totals count from this play's start; statics outlive plays)
             creatures = SystemAPI.QueryBuilder().WithAll<CreatureState, CreatureBody>().Build();
             thinkers = SystemAPI.QueryBuilder().WithAllRW<CreatureState, CreatureMind>().WithAll<CreatureBody>()
                 .WithNone<PlayerAvatar, RemoteAvatar, PosedForTest>().Build();
@@ -359,6 +360,7 @@ namespace Punchy.Fauna
             // A-70 row 2: one creature per index, handed out to the workers 8 at a time, in place of whole chunks (a chunk
             // holds over a hundred, so a few busy chunks left most workers idle while one or two ran on).
             var thinking = thinkers.ToEntityArray(Allocator.TempJob);
+            Shelters.Data.ThisFrame = 0;   // (A-71: the shelter search cap is per frame)
 
             state.Dependency = new BrainJob
             {
@@ -647,6 +649,9 @@ namespace Punchy.Fauna
                 // Danger (Sense), what else is going on round it (React), and running from it.
                 var threatened = Sense(self, ref s, ref b, body.Species, player, playerSpeed, emote, away, ownKind, aloft, perched, flier, tame, out var threat);
                 React(self, ref s, ref b, body.Species, ref rng, player, emote, flier, perched, ref threatened, threat);
+                // (One following a player on a quest keeps with them rather than bolting: A-71 row 6.)
+                if (M.FollowHolder != 0)
+                    threatened = false;
                 if (threatened)
                     StartFleeing(ref s, ref b, ref rng, threat, flier);
                 // How one of the folk takes the nearest player's body (Z-52): kin, a rival, wary, annoyed, warm or neither.
@@ -679,6 +684,8 @@ namespace Punchy.Fauna
                 var lookAtPlayer = math.clamp(WrapAngle(math.atan2(-away.x, -away.y) - s.Yaw), -1.2f, 1.2f);
                 var idleLook = watchPlayer ? lookAtPlayer : math.sin(s.Clock * 0.7f + s.Seed % 7) * 0.5f;
 
+                // Following a player (Follow.Start) takes the place of its own mode while it lasts.
+                if (!Following(ref s, ref b, ref rng, dt, walk, run, ref targetSpeed, ref moving, ref desiredLook))
                 switch (s.Mode)
                 {
                     case CreatureMode.Idle:
@@ -831,6 +838,10 @@ namespace Punchy.Fauna
 
                     case CreatureMode.Home:
                         GoIndoors(ref s, ref b, ref rng, dt, walk, ref targetSpeed, ref moving, ref custom);
+                        break;
+
+                    case CreatureMode.Shelter:
+                        Sheltering(ref s, ref b, ref rng, dt, walk, run, idleLook, ref targetSpeed, ref moving, ref lie, ref desiredLook);
                         break;
                 }
 
@@ -1064,7 +1075,7 @@ namespace Punchy.Fauna
                     StartChat(self, ref s, ref b, ref rng, dt);
 
                 // A messenger bird coming to this one: it stops what it's doing to meet it.
-                if (b.Upright && b.Hands && s.Leash > 0f && (Free(s.Mode) || s.Mode == CreatureMode.Greet) && !(s.Mode == CreatureMode.Idle && s.Stage >= MessageWait) &&
+                if (M.FollowHolder == 0 && b.Upright && b.Hands && s.Leash > 0f && (Free(s.Mode) || s.Mode == CreatureMode.Greet) && !(s.Mode == CreatureMode.Idle && s.Stage >= MessageWait) &&
                     rng.NextFloat() < 0.25f && FindMessenger(self, in s, out var messenger))
                 {
                     SetMode(ref s, CreatureMode.Idle);
@@ -1382,7 +1393,9 @@ namespace Punchy.Fauna
                 // Animals with a home never head out of range of it (penned animals stay in their pen, even fleeing).
                 // Going indoors is going home: a door beyond the leash would otherwise be cut short to a spot it stands
                 // on for a minute, turning on it (Z-07, an elf by the ElfGrove fountain).
-                if (s.Leash > 0f && moving && s.Mode != CreatureMode.Patrol && s.Mode != CreatureMode.Swim && s.Mode != CreatureMode.Home)
+                // (One following a player goes where they go: A-71 row 6.)
+                if (s.Leash > 0f && moving && s.Mode != CreatureMode.Patrol && s.Mode != CreatureMode.Swim && s.Mode != CreatureMode.Home &&
+                    M.FollowHolder == 0)
                 {
                     var fromHome = s.Target - s.Home;
                     var far = math.length(fromHome);

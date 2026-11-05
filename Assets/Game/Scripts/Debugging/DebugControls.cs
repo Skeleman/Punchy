@@ -326,6 +326,7 @@ namespace Punchy.Debugging
             SpinCheck();
             HuntLog();
             PersonalityLog();
+            ComfortLog();
             ShotOnHunt();
             ChatShot();
             RemoteRoll();
@@ -1030,6 +1031,112 @@ namespace Punchy.Debugging
             bodies.Dispose();
         }
 
+        // ---------------------------------------------------------------- comfort
+
+        /// <summary>"-comfort": every 5 s, logs each species that minds the weather with its count, mean discomfort meter,
+        /// mean pressure and most common complaint, plus the weather and felt heat where they stand (A-71, #69).
+        /// "-comfort off" switches the comfort check off in the brain (for the perf before/after).</summary>
+        static bool comfortLog;
+        static float comfortNext = 6f;
+
+        void ComfortLog()
+        {
+            if (!comfortLog || queryWorld == null || !queryWorld.IsCreated || Time.timeSinceLevelLoad < comfortNext)
+                return;
+            comfortNext = Time.timeSinceLevelLoad + 5f;
+            var director = FindAnyObjectByType<FaunaDirector>();
+            var em = queryWorld.EntityManager;
+            using var q = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>(),
+                ComponentType.ReadOnly<CreatureMind>());
+            var states = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
+            var bodies = q.ToComponentDataArray<CreatureBody>(Allocator.Temp);
+            var minds = q.ToComponentDataArray<CreatureMind>(Allocator.Temp);
+            var night = 0f;
+            using (var cq = em.CreateEntityQuery(ComponentType.ReadOnly<FaunaClock>()))
+                if (cq.CalculateEntityCount() == 1)
+                    night = cq.GetSingleton<FaunaClock>().Night;
+            var groups = new SortedDictionary<string, (int n, float meter, float pressure, int[] kinds, float3 at)>(System.StringComparer.Ordinal);
+            // Row 2: how many are in shelter now (by kind), and how many are on their way to one.
+            var covered = new int[6];
+            int sheltered = 0, going = 0;
+            for (int i = 0; i < states.Length; i++)
+            {
+                if (states[i].Gone || !bodies[i].Blob.Value.Comfort.Minds)
+                    continue;
+                if (minds[i].Cover != ShelterNeed.None)
+                {
+                    sheltered++;
+                    for (int k = 0; k < 6; k++)
+                        if (((int)minds[i].Cover & (1 << k)) != 0)
+                            covered[k]++;
+                }
+                if (states[i].Mode == CreatureMode.Shelter && states[i].Stage == 0)
+                    going++;
+                var name = director != null ? director.SpeciesAt(bodies[i].Species)?.name : null;
+                name ??= "#" + bodies[i].Species;
+                if (!groups.TryGetValue(name, out var g))
+                    g = (0, 0f, 0f, new int[9], states[i].Position);
+                g.n++;
+                g.meter += minds[i].Discomfort;
+                g.pressure += minds[i].ComfortPressure;
+                g.kinds[(int)minds[i].DiscomfortKind]++;
+                groups[name] = g;
+            }
+            Debug.Log($"[comfort] {queryWorld.Name} t {Time.timeSinceLevelLoad:F0} s night {night:F2} grid ready {Comfort.Grid.Data.Ready} " +
+                      $"off {Comfort.Off.Data}: {groups.Count} species");
+            var counts = CreatureBrainSystem.Shelters.Data;
+            Debug.Log($"[comfort] sheltered {sheltered} (roof {covered[0]} tree {covered[1]} water {covered[2]} fire {covered[3]} shade {covered[4]} " +
+                      $"cave {covered[5]}) going {going} | started {counts.Started} indoors {counts.Indoors} arrived {counts.Arrived} none found {counts.NotFound} posed {counts.Posed}");
+            // Every folk race's profile at the player's spot (the same five individuals each), whether or not any are near:
+            // one line per race, mean pressure and the commonest complaint (the card's 5 races x 3 scenes).
+            if (director != null && QueriesLive() && playerQuery.TryGetSingleton<LocalTransform>(out var me) && EnsureLocations(out var ground))
+            {
+                var here = Comfort.WeatherAt(me.Position.xz);
+                var underground = me.Position.y < ground.SampleHeight(me.Position.xz) - 2f;
+                Debug.Log($"[comfort] at player ({me.Position.x:F0},{me.Position.z:F0}) hour {(Cycle != null ? Cycle.TimeOfDay : -1f):F1}: " +
+                          $"heat {here.Heat:F2} felt {Comfort.FeltHeat(here, night, underground):F2} humid {here.Humidity:F2} rain {here.Rain:F2} " +
+                          $"snow {here.Snow:F2} wind {here.Wind:F2} storm {here.Storm:F2} sun {here.Sunlight:F2}");
+                var seen = new HashSet<ComfortRace>();
+                for (int sp = 0; sp < director.SpeciesCount; sp++)
+                {
+                    var blob = director.BlobAt(sp);
+                    if (!blob.IsCreated)
+                        continue;
+                    ref var profile = ref blob.Value.Comfort;
+                    if (profile.Race == ComfortRace.None || !profile.Minds || !seen.Add(profile.Race))
+                        continue;
+                    var sum = 0f;
+                    var kinds = new int[9];
+                    for (uint k = 1; k <= 5; k++)
+                    {
+                        sum += Comfort.Pressure(in profile, k * 0x9E3779B9u, in here, night, underground, ShelterNeed.None, out var kind);
+                        kinds[(int)kind]++;
+                    }
+                    int worst = 0;
+                    for (int k = 1; k < kinds.Length; k++)
+                        if (kinds[k] > 0 && (worst == 0 || kinds[k] > kinds[worst]))
+                            worst = k;
+                    Debug.Log($"[comfort] race {profile.Race} ({director.SpeciesAt(sp).name}): pressure {sum / 5f:F2} kind {(ComfortKind)worst} " +
+                              $"likes {profile.Heat.x:F2}-{profile.Heat.y:F2} tol {profile.Tolerance:F2}");
+                }
+            }
+            foreach (var kv in groups)
+            {
+                var g = kv.Value;
+                int top = 0;
+                for (int k = 1; k < g.kinds.Length; k++)
+                    if (g.kinds[k] > g.kinds[top] || (top == 0 && g.kinds[k] > 0))
+                        top = k;
+                var w = Comfort.WeatherAt(g.at.xz);
+                Debug.Log($"[comfort] {kv.Key} x{g.n}: meter {g.meter / g.n:F2} pressure {g.pressure / g.n:F2} kind {(ComfortKind)top} " +
+                          $"({g.kinds[top]}) | heat {w.Heat:F2} felt {Comfort.FeltHeat(w, night, false):F2} humid {w.Humidity:F2} " +
+                          $"rain {w.Rain:F2} snow {w.Snow:F2} wind {w.Wind:F2} storm {w.Storm:F2} sun {w.Sunlight:F2}");
+            }
+            states.Dispose();
+            bodies.Dispose();
+            minds.Dispose();
+        }
+
         // ---------------------------------------------------------------- spin check
 
         /// <summary>"-spincheck" (or "-spincheck 270,3"): logs any creature that turns this many degrees within this many
@@ -1357,6 +1464,10 @@ namespace Punchy.Debugging
         /// <summary>"-untilwork": the most seconds a shot waits past -wait for the watched folk to work, and since when it has.</summary>
         static float untilWork;
         static float workSince = -1f;
+        /// <summary>"-untilaction" (A-71): the most seconds a shot waits past -wait for the watched one to be doing the
+        /// action asked for in "-watch Deer:Pant" (watchAction).</summary>
+        static float untilAction;
+        static IdleAction watchAction;
         /// <summary>"-spawn Osprey" (or "Trout:6"): a few of a species put near the player once the world is up (testing).</summary>
         static readonly List<string> pendingSpawns = new List<string>();
         /// <summary>"-pose Bat" (or "Bat:fly", "Bat:glide", "Bat:rest", "Bat:hang", "Crow:nest", and a camera pitch: "Bat:glide:70"):
@@ -1441,6 +1552,7 @@ namespace Punchy.Debugging
             rockWatchFor = 0f;
             rockWatchSince = -1f;
             untilWork = 0f;
+            untilAction = 0f;
             pendingSpawns.Clear();
             poseRequest = null;
             interactRequest = null;
@@ -1597,6 +1709,17 @@ namespace Punchy.Debugging
             // "-personalitylog Dog": list each of that species' personality a few seconds in (#50).
             var plArg = System.Array.IndexOf(args, "-personalitylog");
             personalitySpecies = plArg >= 0 && plArg + 1 < args.Length ? args[plArg + 1] : null;
+            // "-comfort": log weather comfort meters every 5 s; "-comfort off" disables the brain's comfort check (A-71).
+            var cfArg = System.Array.IndexOf(args, "-comfort");
+            comfortLog = cfArg >= 0;
+            comfortNext = 6f; // (statics outlive a play with domain reload off)
+            Comfort.Off.Data = cfArg >= 0 && cfArg + 1 < args.Length && args[cfArg + 1] == "off" ? 1 : 0;
+            // "-weathertalk": log each weather line folk say, with its cell and how many are up there (A-71 row 4).
+            WeatherTalkSystem.LogLines = System.Array.IndexOf(args, "-weathertalk") >= 0;
+            // "-comfortheat -0.3": shifts the comfort grid's heat (a forced cold snap or heat wave for comfort shots).
+            var chArg = System.Array.IndexOf(args, "-comfortheat");
+            Comfort.HeatShift.Data = chArg >= 0 && chArg + 1 < args.Length && float.TryParse(args[chArg + 1], System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var chv) ? chv : 0f;
             // "-thirsty" (A-49 #64): every creature's thirst is topped up for this line, so drinking shows up soon.
             thirsty = System.Array.IndexOf(args, "-thirsty") >= 0;
             personalityAt = -1f;
@@ -1715,6 +1838,8 @@ namespace Punchy.Debugging
                 // has been at its work (Mode Work) for a second, so a smith on a break is caught hammering.
                 if (args[i] == "-untilwork" && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var untilWorkFor))
                     untilWork = untilWorkFor;
+                if (args[i] == "-untilaction" && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var untilActionFor))
+                    untilAction = untilActionFor;
                 // "-timescale 4": everything runs four times as fast (a dusk, a burrow cycle, a roost in seconds).
                 if (args[i] == "-timescale" && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var scale))
                     Time.timeScale = Mathf.Clamp(scale, 0.1f, 20f);
@@ -2571,11 +2696,14 @@ namespace Punchy.Debugging
             // ("Deer:Drink": only those doing that, A-49 #64.)
             var watchDoing = CreatureMode.Wander;
             var hasDoing = !hasTask && !hasJob && watchParts.Length > 1 && System.Enum.TryParse(watchParts[1], true, out watchDoing);
+            // ("Deer:Pant": only those doing that idle action, re-picked every second, A-71.)
+            watchAction = IdleAction.None;
+            var hasAction = !hasTask && !hasJob && !hasDoing && watchParts.Length > 1 && System.Enum.TryParse(watchParts[1], true, out watchAction);
             if (index < 0 || !playerQuery.TryGetSingleton<LocalTransform>(out var player))
                 return;
             if (Time.unscaledTime >= nextWatchPick || !em.Exists(watched))
             {
-                nextWatchPick = Time.unscaledTime + 8f;
+                nextWatchPick = Time.unscaledTime + (hasAction ? 1f : 8f);
                 var entities = creatureQuery.ToEntityArray(Unity.Collections.Allocator.Temp);
                 var best = float.MaxValue;
                 watched = Entity.Null;
@@ -2584,7 +2712,7 @@ namespace Punchy.Debugging
                 {
                     var species = em.GetComponentData<CreatureBody>(e).Species;
                     var c = em.GetComponentData<CreatureState>(e);
-                    if (hasTask && c.Task != watchTask || hasJob && FolkJobs.Of(c) != watchJob || hasDoing && c.Mode != watchDoing)
+                    if (hasTask && c.Task != watchTask || hasJob && FolkJobs.Of(c) != watchJob || hasDoing && c.Mode != watchDoing || hasAction && c.Action != watchAction)
                         continue;
                     if (!anySpecies && species != index)
                     {
@@ -3032,6 +3160,18 @@ namespace Punchy.Debugging
                 else if (workSince < 0f)
                     workSince = Time.realtimeSinceStartup;
                 if (!working || Time.realtimeSinceStartup - workSince < 1f)
+                    return;
+            }
+            // "-untilaction": likewise, till the watched one is doing the -watch action (A-71 weather poses).
+            if (untilAction > 0f && Time.realtimeSinceStartup - shotStarted < shotWait + untilAction)
+            {
+                var doing = watched != Entity.Null && queryWorld != null && queryWorld.IsCreated && queryWorld.EntityManager.Exists(watched) &&
+                            watchAction != IdleAction.None && queryWorld.EntityManager.GetComponentData<CreatureState>(watched).Action == watchAction;
+                if (!doing)
+                    workSince = -1f;
+                else if (workSince < 0f)
+                    workSince = Time.realtimeSinceStartup;
+                if (!doing || Time.realtimeSinceStartup - workSince < 1f)
                     return;
             }
             // Underground, also until the caves round the camera are built (up to 10 s more).
@@ -4657,6 +4797,7 @@ namespace Punchy.Debugging
             walkTarget = null;
             walkPath.Clear();
             untilWork = 0f;
+            untilAction = 0f;
             workSince = -1f;
             swimSpot = null;
             poseRequest = null;

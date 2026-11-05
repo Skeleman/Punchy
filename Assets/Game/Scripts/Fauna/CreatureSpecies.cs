@@ -354,7 +354,10 @@ namespace Punchy.Fauna
         // A player's roll on the ground (the right face button); a body-wide somersault, not an action's limb pose.
         Roll,
         // Bat folk (#35): a forearm up across the eyes, head bowed, from a light near (DecideShield).
-        ShieldEyes
+        ShieldEyes,
+        // A-71: out in the weather with no shelter in reach (DecideWeatherPose): panting in the heat, shivering with
+        // arms hugged in the cold, hunched over against a storm or the wind.
+        Pant, Shiver, Hunch
     }
 
     public enum GallopStyle : byte
