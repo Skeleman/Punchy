@@ -579,6 +579,15 @@ namespace Punchy.Terrain
         /// </summary>
         float SkirtOverCave(float2 xz, float top, float depth)
         {
+            // W-113 (item 12): over the sunken temple a 6-24 m skirt hangs through its rooms as a flat, untextured
+            // sand-coloured wall the player walks through. Stop it 0.3 m above the first room air below the surface.
+            if (Source.Landmarks.IsCreated && Source.TempleCut(xz) < 99f)  // 100 away from any temple
+                for (float d = 0.25f; d <= depth; d += 0.25f)
+                    if (Source.TempleAir(new float3(xz.x, top - d, xz.y)))
+                    {
+                        depth = math.max(d - 0.3f, 0.05f);
+                        break;
+                    }
             if (!Source.Caves.IsCreated || !CaveSampling.NearColumn(ref Source.Caves.Value, xz))
                 return depth;
             // Round a mouth, none at all: a skirt there hangs into the opening as a long flat ribbon (seen from inside the

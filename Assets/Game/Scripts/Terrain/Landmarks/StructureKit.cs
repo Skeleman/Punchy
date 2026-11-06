@@ -1849,7 +1849,9 @@ namespace Punchy.Terrain
                 Add(parts, KitPiece.Trim, KitMaterial.Trim, Turn(yaw, new Vector3(x, dh + 0.12f, out_ + 0.1f)), new Vector3(dw + 0.4f, 0.24f, Thick * 0.6f), yaw, false);
             if (!ruined)
                 Add(parts, KitPiece.Door, KitMaterial.Wood, Turn(yaw, new Vector3(x, dh * 0.5f, out_ - 0.05f)), new Vector3(dw, dh, 0.12f), yaw, false);
-            Add(parts, KitPiece.Trim, KitMaterial.Stone, Turn(yaw, new Vector3(x, 0.08f, out_ + 0.45f)), new Vector3(dw + 0.5f, 0.16f, 0.6f), yaw, false);   // step
+            // Step. W-113 (item 10): a ruin's plinth is solid, so its step is half the plinth (0.25 m) and a body climbs both.
+            var stepH = ruined ? 0.25f : 0.16f;
+            Add(parts, KitPiece.Trim, KitMaterial.Stone, Turn(yaw, new Vector3(x, stepH * 0.5f, out_ + 0.45f)), new Vector3(dw + 0.5f, stepH, 0.6f), yaw, false);
         }
 
         /// <summary>

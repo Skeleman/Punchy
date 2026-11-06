@@ -681,7 +681,8 @@ namespace Punchy.Terrain
 
             /// <summary>
             /// A settlement in a harsh biome swaps its house plots nearest the centre for the shelters made for that biome's
-            /// hazard (SettlementBuilding.OnlyIn, #69). No rng is drawn, so nothing else in the layout moves.
+            /// hazard (SettlementBuilding.OnlyIn, #69): hazard houses, and since W-113 shade in the town's own style (a ramada
+            /// or the race's tent) where the slab shelters stood. No rng is drawn, so nothing else in the layout moves.
             /// </summary>
             void PlaceShelters()
             {
@@ -709,7 +710,10 @@ namespace Punchy.Terrain
                         continue;
                     var plot = plots[houses[next]];
                     plot.Building = firstBuilding + i;
-                    plot.Pad -= StructureKit.SlabDig;   // W-95 (#69): a slab shelter stands dug in; the pad's bank is its ramp
+                    // W-95 (#69): a slab shelter stands dug in; the pad's bank is its ramp. W-113: towns no longer take slab
+                    // shelters (they're for hermits), but a layout could still name one.
+                    if (b.Species.Form == Punchy.Flora.FloraForm.KitBuilding && b.Species.KitShape == KitShape.SlabShelter)
+                        plot.Pad -= StructureKit.SlabDig;
                     plots[houses[next++]] = plot;
                 }
             }

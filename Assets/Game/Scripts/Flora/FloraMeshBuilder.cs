@@ -166,6 +166,13 @@ namespace Punchy.Flora
             }
         }
 
+        /// <summary>Tilts the normals of a vertex range towards straight up (an amount of 1 points them all up).</summary>
+        public void LiftNormals(int firstVertex, int count, float amount)
+        {
+            for (int v = firstVertex; v < Mathf.Min(firstVertex + count, positions.Count); v++)
+                normals[v] = Vector3.Lerp(normals[v], Vector3.up, amount).normalized;
+        }
+
         /// <summary>Applies ambient occlusion since a vertex: ao(position, normal) multiplies what's there.</summary>
         public void Occlude(int firstVertex, Func<Vector3, Vector3, float> ao)
         {
@@ -851,6 +858,21 @@ namespace Punchy.Flora
             {
                 var d = data[v];
                 d.y = (float)FloraPart.Cloth + Mathf.Clamp01(free(positions[v])) * (taut ? -0.4f : 0.4f);
+                d.z = 0f;
+                data[v] = d;
+            }
+        }
+
+        /// <summary>
+        /// Makes the vertices from <paramref name="firstVertex"/> hide (W-113): cloth held still (snow settles on it), but
+        /// drawn as leather, not linen. Carried as Cloth + 0.45, past any free cloth's fraction (Flora.hlsl, Flora.shader).
+        /// </summary>
+        public void Hide(int firstVertex)
+        {
+            for (int v = firstVertex; v < data.Count; v++)
+            {
+                var d = data[v];
+                d.y = (float)FloraPart.Cloth + 0.45f;
                 d.z = 0f;
                 data[v] = d;
             }
