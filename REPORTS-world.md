@@ -2801,3 +2801,10 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
 - **Shots:** Assets/Temp/shots/w111-v3fall{74,67,61}-{before,after}.png (world tree).
 - **Hashes:** Landmarks_V3 110 09EAC0FE, Fauna_Fingerprint F4E66093: unchanged (pinned tests pass). Suite 13/13.
 - **Risks / left over:** fall 74 still shows a paler flat pane near the lip on the right (a flatter mesh piece; it looks like the shelf). Sheet noise can zigzag where the triangles turn. Both are geometry follow-ups (BuildWater). The v2 shots and the v2 recheck were skipped as asked.
+
+## W-112 row 1: cave mouths - done (verified)
+- **Commit:** 273a914 on world-features.
+- **Lip:** the walls ended 10 cm under the terrain, and the terrain's mouth cut reached past the walls' rim, so the buried skin showed as a ring. One shared `CaveSampling.SkinGap` (now 2 cm) drives the wall field, the rock test, the terrain cut and the settled mesh. At cave 4 the ring is gone.
+- **Normal detail:** the terrain has no normal map to raise: its relief is procedural. Instead, round a mouth (cut field under 8 m, within 60 m of the camera) the terrain takes the walls' own detail texture at the walls' scale. GPU (editor, vsync-capped) is 0.18 ms off vs 0.13 ms on, which is noise. Frame time 16.76 vs 16.67 ms. Memory: +0, since it reuses the 683 KB cave detail texture that is already loaded.
+- **Shots:** Assets/Temp/shots/w112-mouth{0,4}-{before,after}.png (world tree).
+- **Risks:** the grain round a mouth reads quite strong on a steep rock face. It can be tuned (the `mouth * 0.7` weight in TerrainSurface.shader).
