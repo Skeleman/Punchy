@@ -2,6 +2,38 @@
 
 Newest first.
 
+## 2026-11-06 finding 11 follow-up 2: where the village water's frame time goes, main adb11e0
+
+**Short answer:**
+- **Water is real render work, not an idle wait.** In the Profile captures at v3 fishing village 1, water costs:
+  - **GPU 2.1 ms** (7.05 -> 4.85 ms with water shaders off). The Bench build's GPU timer showed only 0.3 ms for the same switch, so that timer under-reads it. Trust the frame and fps drop (1.5 ms, 101 -> 117 fps) over the Bench GPU figure.
+  - **About 1.4 ms of render jobs on worker threads** (EngineJob inclusive 5.10 -> 3.68 ms), spread over:
+    - RenderLoop.DrawSRPBatcher (inclusive 1.39 -> 0.75);
+    - SRPBatcher.Flush (0.88 -> 0.46);
+    - RenderLoop.Sort (0.85 -> 0.51);
+    - SRPBatcher.DrawCommandsInjection (0.89 -> 0.72).
+  - **0.6 ms on the render thread** (3.1 -> 2.5; DrawBuffersBatchMode 1.00 -> 0.68).
+  - **0.15 ms of DXGI.WaitOnSwapChain on main** (0 with water off): the CPU waiting for the GPU to present. That's the visible tip of the GPU cost. In the Bench build, where the main thread is shorter, it becomes the 1.5 ms gap between frame and main thread.
+- **The extra sort and SRP-batcher flush time** suggests water is drawn as many separate transparent objects (sorted back to front, each breaking a batch), not as one or a few draws. That's a guess from the markers. A water renderer and draw count would confirm it.
+- **Suggested card, world lane:**
+  1. Count the water draws at the village.
+  2. If it's many tiles or chunks, merge them, or draw them as one batched (instanced, or in the opaque-after-opaques queue) set.
+  3. Check the water shader's per-pixel cost (2 ms GPU for a coastline is a lot on this laptop).
+- The opaque/depth copies were already ruled out (q42).
+
+**Method:**
+- Profile build of adb11e0, v3 fishing village 1 (-2151,3731), uncapped, 20 s fully captured.
+- Plain vs -benchnoshader Water, 2 rounds each (A B B A). Every capture went through BProfileTools.Analyze. The diff is the mean of the 2 plain runs minus the mean of the 2 water-off runs, per marker.
+- The Profile build is main-thread bound (10.6 ms), so its frame moves only 0.35 ms (10.9 -> 10.5 mean). The work and GPU deltas are the useful part.
+- Script: q43.sh. Analyses: results/q43logs.
+
+| run | fps | median ms | GPU ms | main ms | render thread ms |
+|---|---|---|---|---|---|
+| plain 1 / 2 | 91.7 / 91.6 | 10.5 / 10.5 | 7.0 / 7.1 | 10.7 / 10.7 | 3.1 / 3.1 |
+| water off 1 / 2 | 94.5 / 95.9 | 10.2 / 10.1 | 4.9 / 4.8 | 10.6 / 10.4 | 2.5 / 2.5 |
+
+- Cost: 6 calls, peak 200k context, $0.5
+
 ## 2026-11-06 finding 11 follow-ups: village water and GC.Alloc callers, main adb11e0
 
 **Short answer:**
