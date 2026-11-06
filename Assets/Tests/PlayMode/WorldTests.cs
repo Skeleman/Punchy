@@ -39,7 +39,8 @@ namespace Punchy.Tests
         }
 
         /// <summary>
-        /// Target: F4E66093 since the A-73 merge (W-105 stilt houses plus A-73 Gull and Mackerel in the critter table;
+        /// Target: 90AC5F60 since W-113 (rows 1-3 changed tent, ruin plinth and roof flora, whose colliders and perches go into
+        /// the flora blob this hashes; landmarks unchanged). F4E66093 since the A-73 merge (W-105 stilt houses plus A-73 Gull and Mackerel in the critter table;
         /// A-73 alone read 773CA7F6). 61459BF0 since W-105 row 3 (stilt house Home and Door anchors only where the house fits, doors at the
         /// walkway end). 1202B8ED since W-104 row 4 (fishing villages got Home and Door anchors). Before that, on main after PR #148
         /// (W-104 row 1 repinned it): fingerprint F99FD9E4, 115 species. A-71 pinned EA6A4DE5 on
@@ -51,7 +52,7 @@ namespace Punchy.Tests
         {
             var line = LogWatch.Last("fingerprint") ?? "no fingerprint line";
             LogWatch.Measure("fauna " + line);
-            StringAssert.Contains("fingerprint F4E66093", line);
+            StringAssert.Contains("fingerprint 90AC5F60", line);
             yield return null;
         }
 

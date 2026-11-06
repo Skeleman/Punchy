@@ -66,7 +66,10 @@ namespace Punchy.Terrain
             var d = Vector3.Distance(cp, bounds.ClosestPoint(cp));
             var lod = d < Lod0Distance ? 0 : d < Lod1Distance ? 1 : 2;
             var q = SunkenTempleShape.Local(layout, cp);
-            var inside = lod == 0 && q.x > -40f && q.x < 36f && math.abs(q.z) < 20f && q.y < 20f;
+            // W-113 (item 12): the interior shows from well outside the door (30 m round the ruin), so the plugs that
+            // close the door while it's hidden never stand between a chase camera and the player walking in (they
+            // read as a plane splitting the temple that the player passed through).
+            var inside = lod == 0 && q.x > -70f && q.x < 66f && math.abs(q.z) < 50f && q.y < 40f;
             InteriorShown = inside;
 
             Draw(lods[lod], 0, stone, ShadowCastingMode.TwoSided);
@@ -115,7 +118,11 @@ namespace Punchy.Terrain
                 return true;
             // W-77: tinted copies of the Colossus material (vertex colour x tint, terrain haze), so the ruins fade into
             // the fog from high up like the ground around them.
-            var basalt = Resources.Load<Material>("Colossus");
+            // W-113 (item 12): the temple's own material (Punchy/SunkenTemple: the same haze, plus sandstone blocks or
+            // sand ripples and the torches' glow light); the plain Colossus one if it's missing.
+            var basalt = Resources.Load<Material>("SunkenTemple");
+            if (basalt == null)
+                basalt = Resources.Load<Material>("Colossus");
             if (basalt == null)
             {
                 if (!warned)
@@ -124,18 +131,20 @@ namespace Punchy.Terrain
                 return false;
             }
             stone = Tint(basalt, new Color(0.72f, 0.58f, 0.40f), "SunkenTempleStone");
-            sand = Tint(basalt, new Color(0.80f, 0.67f, 0.46f), "SunkenTempleSand");
+            sand = Tint(basalt, new Color(0.80f, 0.67f, 0.46f), "SunkenTempleSand", false);
             innerStone = Tint(basalt, new Color(0.42f, 0.33f, 0.23f), "SunkenTempleInnerStone");
-            innerSand = Tint(basalt, new Color(0.55f, 0.45f, 0.30f), "SunkenTempleInnerSand");
+            innerSand = Tint(basalt, new Color(0.55f, 0.45f, 0.30f), "SunkenTempleInnerSand", false);
             var g = Resources.Load<Material>("TempleGlow");
             glow = g != null ? g : Tint(basalt, new Color(1f, 0.8f, 0.5f), "SunkenTempleGlow");
             return true;
         }
 
-        static Material Tint(Material from, Color c, string name)
+        static Material Tint(Material from, Color c, string name, bool blocks = true)
         {
             var m = new Material(from) { name = name };
             m.SetColor("_BaseColor", c);
+            if (m.HasProperty("_Blocks"))
+                m.SetFloat("_Blocks", blocks ? 1f : 0f);
             if (m.HasProperty("_Smoothness"))
                 m.SetFloat("_Smoothness", 0.08f);
             return m;

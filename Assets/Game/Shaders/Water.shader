@@ -247,6 +247,13 @@ Shader "Punchy/Water"
                 return saturate((s - 0.5) * (1.7 + 0.9 * (1 - abs(2 * w0 - 1))) + 0.5);
             }
 
+            // A waterfall's falling sheets along one horizontal axis u: broad white bands, finer ropes and flecks.
+            half FallSheet(float u, float fallV)
+            {
+                return PunchyValueNoise(float2(u * 2.3, fallV * 0.35)) * 0.5 + PunchyValueNoise(float2(u * 6.1 + 3.1, fallV * 0.9)) * 0.3
+                     + PunchyValueNoise(float2(u * 15.0 + 7.7, fallV * 2.4)) * 0.2;
+            }
+
             // Raindrop rings: each cell of a jittered grid spawns a ring that expands and fades, at a random phase.
             float2 RainRipples(float2 p, float t)
             {
@@ -564,6 +571,10 @@ Shader "Punchy/Water"
                 foam *= smoothstep(0.02, 0.12, thickness) * (0.55 + 0.45 * smoothstep(0.3, 0.7, PunchyValueNoise(p * 1.6 + t * 0.3)));
                 foam *= lerp(1, 0.2, _PunchyUnderground);
                 foam *= 1 - viscous * 0.7;
+                // W-113 item 15: on a steep face the water lies a hair over its bed, so the thickness (from the depth buffer)
+                // flickers pixel to pixel and this line came out as fine static all down steep cave creeks. The falling
+                // sheets below carry the white there instead.
+                foam *= 1 - steep;
                 // White water: the churned (steepest) parts of the flowing ripples turn to foam on rapids, broken into
                 // flecks, never a flat sheet (G-28; not gated by the streaks, whose direction turns sharply at the river
                 // mesh's corners and drew zigzags), and flecks ride the streaks downstream on any river.
@@ -596,11 +607,16 @@ Shader "Punchy/Water"
                 alpha = max(alpha, falling * 0.85);
                 [branch] if (falling > 0.01)
                 {
+                    // W-113 item 15: the sheets were read along the face's own across direction, dot(p, across); that
+                    // direction comes from screen derivatives and wobbles a hair pixel to pixel, and times a world position
+                    // over a kilometre out it turned the sheets to static on every steep cave creek. Read along the fixed
+                    // x and z axes instead and blend by how the face is turned (as triplanar mapping does).
                     float2 across = normalize(float2(-face.z, face.x) + 1e-5);
-                    float u = dot(p, across);
+                    float2 axisWeight = across * across;
                     float fallV = input.positionWS.y + t * 5.5;
-                    half sheet = PunchyValueNoise(float2(u * 2.3, fallV * 0.35)) * 0.6 + PunchyValueNoise(float2(u * 6.1 + 3.1, fallV * 0.9)) * 0.4;
-                    falling *= lerp(0.3, 1, smoothstep(0.35, 0.75, sheet));
+                    // (A third, finer octave breaks the slow sheets into ropes and flecks.)
+                    half sheet = FallSheet(p.x, fallV) * axisWeight.x + FallSheet(p.y + 11.3, fallV) * axisWeight.y;
+                    falling *= lerp(0.2, 1, smoothstep(0.32, 0.78, sheet));
                     foam = max(foam, falling * 0.9);
                 }
                 foam = max(foam, wakeFoam * (1 - viscous));

@@ -107,6 +107,53 @@ Shader "Punchy/Terrain Surface"
                 return tilt;
             }
 
+            // W-113 (item 16): the SaltFlat colossus's furrow behind its rolling salt ball (SaltCrystalRoll), drawn into
+            // the ground the way the worms' marks are rather than as a mesh lying on it. The ball rolls round a circle,
+            // so the furrow is an arc: x, z its centre, the circle's radius, the furrow's half width (0: none);
+            // the ball's angle, its direction (+1 or -1), the arc behind it (radians), how deep (m); and two whole-turn
+            // width waves (counts, phases), so it presses in wider and narrower at the same spots for every player.
+            float4 _PunchySaltTrail;
+            float4 _PunchySaltTrailRun;
+            float4 _PunchySaltTrailWave;
+
+            // The furrow's height across it (x: -1..1 edge to edge): a pressed-in floor between two raised lips.
+            float SaltFurrowHeight(float x, float depth)
+            {
+                float ax = abs(x);
+                float lip = (ax - 0.72) / 0.2;
+                return depth * (0.65 * exp(-lip * lip) - (1 - smoothstep(0.3, 0.62, ax)));
+            }
+
+            // The furrow at p: its tilt for the normal, and how much of the dark dirt under the salt it shows.
+            float2 SaltFurrow(float2 p, out half dirt)
+            {
+                dirt = 0;
+                float2 tilt = 0;
+                float2 rel = p - _PunchySaltTrail.xy;
+                float r = length(rel);
+                // (Only near the circle; then only along the arc behind the ball, 0 at the ball to 1 at the tail.)
+                [branch] if (abs(r - _PunchySaltTrail.z) < _PunchySaltTrail.w * 1.6)
+                {
+                    float a = atan2(rel.y, rel.x);
+                    float t = frac((_PunchySaltTrailRun.x - a) * _PunchySaltTrailRun.y / 6.2831853) * 6.2831853 / _PunchySaltTrailRun.z;
+                    [branch] if (t < 1)
+                    {
+                        float w = _PunchySaltTrail.w * (1 + 0.15 * sin(_PunchySaltTrailWave.x * a + _PunchySaltTrailWave.z)
+                                                          + 0.09 * sin(_PunchySaltTrailWave.y * a + _PunchySaltTrailWave.w));
+                        float x = (r - _PunchySaltTrail.z) / w;
+                        // The salt creeps back in towards the tail: shallower, then gone (soft at both ends, no hard cut).
+                        float fade = (1 - 0.7 * t) * smoothstep(1, 0.8, t) * smoothstep(0, 0.02, t);
+                        float depth = _PunchySaltTrailRun.w * fade;
+                        const float e = 0.05;
+                        float slope = (SaltFurrowHeight(x + e, depth) - SaltFurrowHeight(x - e, depth)) / (2 * e * w);
+                        float ax = abs(x);
+                        dirt = ((1 - smoothstep(0.3, 0.62, ax)) * 0.8 + exp(-(ax - 0.5) * (ax - 0.5) / 0.01) * 0.2) * (1 - pow(saturate(t), 0.8));
+                        tilt = -rel / max(r, 1e-3) * slope * 1.6;
+                    }
+                }
+                return tilt;
+            }
+
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
@@ -287,6 +334,13 @@ Shader "Punchy/Terrain Surface"
                     float2 burrowTilt = BurrowMarks(p, burrowDarken);
                     normalWS = normalize(normalWS + half3(burrowTilt.x, 0, burrowTilt.y));
                 }
+                // (The salt ball's furrow, W-113: only near its circle, out to the marks' range.)
+                half saltDirt = 0;
+                [branch] if (_PunchySaltTrail.w > 0 && distance < _PunchyBurrowRange * 1.5)
+                {
+                    float2 furrowTilt = SaltFurrow(p, saltDirt);
+                    normalWS = normalize(normalWS + half3(furrowTilt.x, 0, furrowTilt.y));
+                }
 
                 // Fine relief up close (fades out before it could shimmer), skipped on skirts. How far it reaches
                 // follows the Detail distance setting (W-101: 110 m at Detail 1, was a fixed 70 m).
@@ -414,6 +468,7 @@ Shader "Punchy/Terrain Surface"
                 }
                 albedo *= rockShade;
                 albedo *= 1 - burrowDarken;
+                albedo = lerp(albedo, half3(0.33, 0.26, 0.20), saltDirt);
                 // Under the grass blades (near the camera, where they're drawn) the ground takes their colour, so the
                 // gaps between blades read as more grass rather than bare soil (GroundDetailSystem.GroundTint).
                 half underGrass = input.extra.y * _PunchyGrassTint.x * (1 - smoothstep(_PunchyGrassTint.y * 0.7, _PunchyGrassTint.y, distance));

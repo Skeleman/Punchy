@@ -666,6 +666,21 @@ namespace Punchy.Terrain
         static readonly int FloraInstancesId = Shader.PropertyToID("_FloraInstances");
         static readonly int FloraVisibleId = Shader.PropertyToID("_FloraVisible");
 
+        /// <summary>Whether p is in a bat folk settlement's chamber (its radius and a margin, a little above and below).</summary>
+        static bool InBatFolkChamber(in TerrainSource source, float3 p)
+        {
+            if (!source.BatFolk.IsCreated)
+                return false;
+            ref var sites = ref source.BatFolk.Value.Sites;
+            for (int s = 0; s < sites.Length; s++)
+            {
+                var reach = sites[s].Radius * 1.4f + 4f;
+                if (math.distancesq(p.xz, sites[s].Centre.xz) < reach * reach && math.abs(p.y - sites[s].Centre.y) < reach)
+                    return true;
+            }
+            return false;
+        }
+
         /// <summary>
         /// Draws the cave plants near the camera with the flora system's own material, shader and procedural meshes
         /// (grown once per species and variant), so they match the plants above ground and add no materials. Each
@@ -735,6 +750,10 @@ namespace Punchy.Terrain
                         continue;
                     var model = p.Species * PlantVariants + p.Variant;
                     if (model < 0 || model >= plantModels.Count)
+                        continue;
+                    // W-113 (item 17): no glowing plants in a bat folk chamber (the bat folk keep no lights and the
+                    // pygmies are blind). Dropped here, not at bake, so the cave plants and their hashes stay as they are.
+                    if (speciesGlow[p.Species].w > 0f && InBatFolkChamber(source, p.Position))
                         continue;
                     plantKeys.Add((model * 2 + (d < PlantLod0 ? 0 : 1), i));
                     if (speciesGlow[p.Species].w > 0f)
