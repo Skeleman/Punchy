@@ -77,3 +77,5 @@ MonoBehaviour:
   GlowEverywhere: 0.55
   CrackDarkness: 0.9
   CrackBreakup: 0
+  RoomChance: 0.55
+  RoomWeights: {x: 2, y: 1.5, z: 0, w: 0.3}

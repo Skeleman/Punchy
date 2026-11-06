@@ -17,8 +17,65 @@ namespace Punchy.Terrain
         /// <summary>A room: the end of the main passage, one along it, or the end of a side passage.</summary>
         Chamber,
         /// <summary>Part of a shaft rising to the surface.</summary>
-        Shaft
+        Shaft,
+        /// <summary>
+        /// W-115: the doorway of a destination chamber (a <see cref="CaveRoom"/>): a chamber that became a tile-built
+        /// room. The node keeps the passage's width; the room's own boxes carve the air past it.
+        /// </summary>
+        Room
     }
+
+    /// <summary>
+    /// W-115: a destination chamber, a tile-built room (crystal grotto, underground lake, bat roost or buried ruin room)
+    /// at the end of a passage. Its air is a box carved out of the rock and walled off from the cave's own noise, so its
+    /// tiled floor, walls and ceiling sit flush on it; a doorway stub joins it to the passage. In a frame at the door:
+    /// z runs into the room along F, x across it, y up from the floor F0.
+    /// </summary>
+    public struct CaveRoom
+    {
+        public int Cave, Node;
+        /// <summary>A <see cref="CaveRoomType"/>.</summary>
+        public int Type;
+        /// <summary>The doorway's middle on the floor (y = the room's floor), and the horizontal way into the room.</summary>
+        public float3 Origin;
+        public float2 F;
+        /// <summary>Half width (across) and half depth (along F) of the room, and its height.</summary>
+        public float HX, HZ, Height;
+        public float DoorWidth, DoorHeight;
+        public uint Seed;
+        /// <summary>The lake room's pool (index into Pools), or -1.</summary>
+        public int Pool;
+        /// <summary>
+        /// The passage floor's height over the room's floor <see cref="Ramp"/> out from the wall's face (measured on
+        /// the passages before rooms were added): the floor in front of the doorway is ramped to meet it.
+        /// </summary>
+        public float Approach;
+
+        /// <summary>Wall thickness: the rock kept round the room's air, which the doorway passes through.</summary>
+        public const float Wall = 1.2f;
+        /// <summary>Length of the ramp in front of the doorway, from the wall's face out (m).</summary>
+        public const float Ramp = 4f;
+        /// <summary>Steepest the ramp may be (rise over run), well under the player's 45° slide.</summary>
+        public const float RampSlope = 0.7f;
+        /// <summary>The ramp's rise per metre out from the wall's face (negative when the passage is lower).</summary>
+        public float Slope => math.clamp(Approach / Ramp, -RampSlope, RampSlope);
+        /// <summary>The ramped floor's height (over the room's floor) at a local z in front of the wall's face.</summary>
+        public float RampFloor(float z) => Slope * math.clamp(-z - Wall, 0f, Ramp);
+
+        public float3 Right => new float3(F.y, 0f, -F.x);
+        public float3 Forward => new float3(F.x, 0f, F.y);
+        /// <summary>A world point in the room's frame (x across, y up from the floor, z into the room).</summary>
+        public float3 Local(float3 p)
+        {
+            var q = p - Origin;
+            return new float3(math.dot(q, Right), q.y, math.dot(q, Forward));
+        }
+        public float3 World(float3 l) => Origin + Right * l.x + new float3(0f, l.y, 0f) + Forward * l.z;
+        public float3 Centre => World(new float3(0f, 0f, HZ));
+    }
+
+    /// <summary>W-115: the kinds of destination chamber. Values are stored in <see cref="CaveRoom.Type"/>; never renumber.</summary>
+    public enum CaveRoomType { Grotto = 0, Lake = 1, Roost = 2, Ruin = 3 }
 
     /// <summary>One cave network: everything reached from one landmark's mouth.</summary>
     public struct CaveData
@@ -44,6 +101,8 @@ namespace Punchy.Terrain
         public float2 Facet;
         public int FirstPool, PoolCount;
         public int FirstStream, StreamCount;
+        /// <summary>W-115: its destination chambers (in Rooms).</summary>
+        public int FirstRoom, RoomCount;
     }
 
     /// <summary>
@@ -159,6 +218,8 @@ namespace Punchy.Terrain
         public BlobArray<CaveStream> Streams;
         public BlobArray<CaveStreamPoint> StreamPoints;
         public BlobArray<CavePlant> Plants;
+        /// <summary>W-115: destination chambers, grouped by cave.</summary>
+        public BlobArray<CaveRoom> Rooms;
         public float2 GridOrigin;
         public float CellSize;
         public int2 GridSize;
@@ -412,7 +473,13 @@ namespace Punchy.Terrain
             }
             Settle(ref set, current, d, p, floorY, height, ref best, ref cave);
             if (best < SpeleothemReach && set.SpeleothemCells.Length > 0)
+            {
                 best = Speleothems(ref set, p, best);
+                // A speleothem never stands in a destination chamber: its walls and air are set again over them (W-115).
+                if (cave >= 0)
+                    for (int i = set.Caves[cave].FirstRoom; i < set.Caves[cave].FirstRoom + set.Caves[cave].RoomCount; i++)
+                        best = Room(set.Rooms[i], p, best);
+            }
             return best;
         }
 
@@ -513,11 +580,159 @@ namespace Punchy.Terrain
             var full = d > reach + SkipBeyond ? d - reach
                      : d < -reach - SkipBeyond ? d + reach
                      : d + WallNoise(c, p, floorY, height);
+            // W-115: each destination chamber walls its box off from the cave's own air, then carves its room and
+            // doorway in (always, not only near walls, so the field stays continuous).
+            for (int i = c.FirstRoom; i < c.FirstRoom + c.RoomCount; i++)
+                full = Room(set.Rooms[i], p, full);
             if (full < best)
             {
                 best = full;
                 cave = current;
             }
+        }
+
+        /// <summary>
+        /// W-115: a destination chamber's air at a point, given the cave's own: the cave's air is taken out of the
+        /// room's clip box (its air plus the wall round it), then the room box, the doorway stub through the wall and
+        /// (in a lake room) the pool's basin are added. Boxes are exact distances, so stepping never overshoots.
+        /// </summary>
+        internal static float Room(in CaveRoom r, float3 p, float air)
+        {
+            var l = r.Local(p);
+            const float t = CaveRoom.Wall;
+            var cave = air;
+            var clip = Box(l, new float3(0f, (r.Height + t - 3f) * 0.5f, r.HZ), new float3(r.HX + t, (r.Height + t + 3f) * 0.5f, r.HZ + t));
+            air = math.max(air, -clip);
+            var room = Box(l, new float3(0f, r.Height * 0.5f, r.HZ), new float3(r.HX, r.Height * 0.5f, r.HZ));
+            var door = Box(l, new float3(0f, r.DoorHeight * 0.5f, -(t + 0.4f) * 0.5f), new float3(r.DoorWidth * 0.5f, r.DoorHeight * 0.5f, (t + 0.6f) * 0.5f));
+            // A porch out in front, wider and taller than the doorway, so the passage opens to the whole frame and no
+            // rock stands across its jambs.
+            // It starts at the wall's face, where the frame stands, and clears the frame's posts and lintel.
+            var porch = Box(l, new float3(0f, (r.DoorHeight + 0.6f) * 0.5f, -(t + Porch * 0.5f)),
+                            new float3(r.DoorWidth * 0.5f + 0.6f, (r.DoorHeight + 0.6f) * 0.5f, Porch * 0.5f));
+            // In front of the porch the floor is ramped to meet the passage's (Approach): the air of the doorway's
+            // size above the ramp, and rock below it (filling where the passage dips), so the doorway is a walk up or
+            // down a slope rather than a step or a pit. Sheared boxes, scaled so they still never overstate distance.
+            var k = r.Slope;
+            var sheared = new float3(l.x, l.y - r.RampFloor(l.z), l.z);
+            var scale = math.rsqrt(1f + k * k);
+            var run = Box(sheared, new float3(0f, (r.DoorHeight + 0.6f) * 0.5f, -(t + CaveRoom.Ramp * 0.5f)),
+                          new float3(r.DoorWidth * 0.5f + 0.6f, (r.DoorHeight + 0.6f) * 0.5f, CaveRoom.Ramp * 0.5f)) * scale;
+            air = math.min(air, math.min(math.min(room, door), math.min(porch, run)));
+            // Where the passage meets the ramp's far end it flares out (a smooth union), so the passage's walls round
+            // into it instead of standing as thin sheets across the frame. Kept clear of the wall's face, so the rock
+            // still backs the frame's posts and lintel.
+            var mouth = math.min(porch, run);
+            var h = math.max(Flare - math.abs(cave - mouth), 0f) / Flare;
+            var flare = math.min(cave, mouth) - h * h * Flare * 0.25f;
+            air = math.min(air, math.max(flare, l.z + t + 0.4f));
+            var fill = Box(sheared, new float3(0f, -1.25f, -(t + CaveRoom.Ramp * 0.5f)),
+                           new float3(r.DoorWidth * 0.5f + 1.6f, 1.25f, CaveRoom.Ramp * 0.5f)) * scale;
+            air = math.max(air, -fill);
+            if (r.Type == (int)CaveRoomType.Lake)
+            {
+                // A round basin in the middle of the floor, its rim a step down from the tiles.
+                var radius = LakeRadius(r);
+                var q = new float2(math.length(l.xz - new float2(0f, r.HZ)) - radius, math.abs(l.y + LakeDepth * 0.5f - 0.25f) - (LakeDepth * 0.5f + 0.25f));
+                air = math.min(air, math.length(math.max(q, 0f)) + math.min(math.cmax(q), 0f));
+            }
+            return air;
+        }
+
+        /// <summary>Depth of the porch carved in front of a destination chamber's doorway (m).</summary>
+        const float Porch = 1.6f;
+
+        /// <summary>Reach of the smooth union between a porch's mouth and the passage (m).</summary>
+        const float Flare = 1.6f;
+
+        /// <summary>
+        /// W-115 row 2: surface nets put a wall vertex at the average of its cell's crossings, which rounds a room's
+        /// inside corners up to half a voxel out into its air, where the rock would show past the tiles and trims. A
+        /// wall vertex inside a room's box or doorway stub is moved onto the nearest face (1 cm behind it), so the
+        /// meshed rock keeps to the room's planes and the kit always covers it. Mesh only: the field is unchanged.
+        /// </summary>
+        public static float3 OutOfRooms(ref CaveSetBlob set, float3 p)
+        {
+            const float back = 0.01f;
+            // Under this far from a second face (less than a voxel), a vertex belongs to the corner, not the face.
+            const float Corner = 0.35f;
+            const float t = CaveRoom.Wall;
+            for (int i = 0; i < set.Rooms.Length; i++)
+            {
+                var r = set.Rooms[i];
+                var l = r.Local(p);
+                if (math.abs(l.x) > r.HX + 0.5f || l.z < -t - Porch - 0.5f || l.z > 2f * r.HZ + 0.5f || l.y < -0.5f || l.y > r.Height + 0.5f)
+                    continue;
+                var halfDoor = r.DoorWidth * 0.5f;
+                var inOpening = math.abs(l.x) < halfDoor && l.y < r.DoorHeight;
+                // Depth inside each face of the room box (the front face has the doorway cut through it).
+                var side = r.HX - math.abs(l.x);
+                var floor = l.y;
+                var roof = r.Height - l.y;
+                // Open across the doorway, but only in the room itself: a vertex back in the stub is the stub's (taken
+                // onto a room face, it would stretch a sheet of rock across the opening).
+                var front = inOpening && l.z > -back ? float.MaxValue : l.z;
+                var rear = 2f * r.HZ - l.z;
+                if (math.cmin(new float4(side, floor, roof, rear)) > -back && front > -back)
+                {
+                    // Onto the nearest face, and onto any other face it is within Corner of too: a vertex in an
+                    // inside corner's cell goes onto the edge itself, so no rock face cuts across the corner.
+                    var least = math.min(math.cmin(new float4(side, floor, roof, rear)), front);
+                    if (side == least || side < Corner) l.x = math.sign(l.x) * (r.HX + back);
+                    if (floor == least || floor < Corner) l.y = -back;
+                    else if (roof == least || roof < Corner) l.y = r.Height + back;
+                    if (rear == least || rear < Corner) l.z = 2f * r.HZ + back;
+                    else if (front == least || front < Corner) l.z = -back;
+                    return r.World(l);
+                }
+                // The doorway stub: its sides, soffit and threshold (its ends open into the room and the passage).
+                if (l.z < 0.1f && l.z > -t)
+                {
+                    var stubSide = halfDoor - math.abs(l.x);
+                    var stubRoof = r.DoorHeight - l.y;
+                    if (stubSide > -back && floor > -back && stubRoof > -back)
+                    {
+                        var least = math.min(stubSide, math.min(floor, stubRoof));
+                        if (stubSide == least || stubSide < Corner) l.x = math.sign(l.x) * (halfDoor + back);
+                        if (floor == least || floor < Corner) l.y = -back;
+                        else if (stubRoof == least || stubRoof < Corner) l.y = r.DoorHeight + back;
+                        return r.World(l);
+                    }
+                }
+                // The porch: its sides, roof, floor and the wall's face round the doorway (its front opens into the
+                // passage). Without this, the corner where the wall meets the porch rounds out into a sheet of rock
+                // standing in front of the frame's posts.
+                if (l.z <= -t + back && l.z > -t - Porch)
+                {
+                    // The porch's floor follows the ramp (its roof too, so the opening keeps its height).
+                    var ramp = r.RampFloor(l.z);
+                    floor = l.y - ramp;
+                    var porchHalf = halfDoor + 0.6f;
+                    var porchSide = porchHalf - math.abs(l.x);
+                    var porchRoof = math.max(ramp, 0f) + r.DoorHeight + 0.6f - l.y;
+                    var face = inOpening ? float.MaxValue : -t - l.z;
+                    if (porchSide > -back && floor > -back && porchRoof > -back && face > -back)
+                    {
+                        var least = math.min(math.min(porchSide, floor), math.min(porchRoof, face));
+                        if (porchSide == least || porchSide < Corner) l.x = math.sign(l.x) * (porchHalf + back);
+                        if (floor == least || floor < Corner) l.y = ramp - back;
+                        else if (porchRoof == least || porchRoof < Corner) l.y = math.max(ramp, 0f) + r.DoorHeight + 0.6f + back;
+                        if (face == least || face < Corner) l.z = -t + back;
+                        return r.World(l);
+                    }
+                }
+            }
+            return p;
+        }
+
+        public const float LakeDepth = 1.6f;
+        public static float LakeRadius(in CaveRoom r) => math.min(r.HX, r.HZ) * 0.72f;
+
+        /// <summary>Signed distance to a box (centre, half size).</summary>
+        static float Box(float3 p, float3 centre, float3 half)
+        {
+            var q = math.abs(p - centre) - half;
+            return math.length(math.max(q, 0f)) + math.min(math.cmax(q), 0f);
         }
 
         /// <summary>

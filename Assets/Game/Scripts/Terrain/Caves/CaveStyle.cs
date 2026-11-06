@@ -155,6 +155,13 @@ namespace Punchy.Terrain
         [Tooltip("How broken the cracks are: 0 = whole nets of cells, 1 = short scattered fragments that fade in and out.")]
         [Range(0f, 1f)] public float CrackBreakup;
 
+        [Header("Destination chambers (W-115)")]
+        [Tooltip("Chance a cave of this style turns its main passage's end chamber into a tile-built destination chamber " +
+                 "(big networks also try a side chamber, at half this).")]
+        [Range(0f, 1f)] public float RoomChance = 0.55f;
+        [Tooltip("How often each kind of destination chamber is picked here: crystal grotto, underground lake, bat roost, buried ruin room.")]
+        public Vector4 RoomWeights = Vector4.one;
+
         /// <summary>The look as four vectors for the cave shader's style table.</summary>
         public void Pack(Vector4[] table, int slot)
         {

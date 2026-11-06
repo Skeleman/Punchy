@@ -13,7 +13,7 @@ namespace Punchy.Terrain
     /// the surface (after landmark shapes), so passages never break out of the hillside. Each cave takes a style
     /// suited to its biome, which sets the passages' shape and the walls' look.
     /// </summary>
-    public static class CaveBaking
+    public static partial class CaveBaking
     {
         const float NodeSpacing = 7f;
         /// <summary>Column size of the segment grid (m): a few passage segments across, so cells stay short.</summary>
@@ -220,6 +220,9 @@ namespace Punchy.Terrain
             void Step(string name) { timing.Append($" {name} {watch.ElapsedMilliseconds}"); watch.Restart(); }
             var extras = new Extras();
             var withCaves = source;
+            // W-115: destination chambers first, as they change the shape everything else is placed against.
+            PlaceRooms(source, caves, nodes, kinds, segments, styles, extras);
+            Step("rooms");
             var bare = BuildBlob(caves, nodes, kinds, segments, extras, Allocator.Persistent);
             withCaves.Caves = bare;
             Step("blob");
@@ -242,6 +245,7 @@ namespace Punchy.Terrain
             Step("plants");
             PlaceFittings(withCaves, caves, nodes, kinds, segments, styles, CaveFloraTable.Collect(types), extras);
             Step("fittings");
+            FinishRooms(caves, extras);
             withWater.Dispose();
             var result = BuildBlob(caves, nodes, kinds, segments, extras, allocator);
             Step("blob");
@@ -258,6 +262,7 @@ namespace Punchy.Terrain
             public readonly List<CaveStreamPoint> StreamPoints = new List<CaveStreamPoint>();
             public readonly List<CaveSpeleothem> Speleothems = new List<CaveSpeleothem>();
             public readonly List<CavePlant> Plants = new List<CavePlant>();
+            public readonly List<CaveRoom> Rooms = new List<CaveRoom>();
         }
 
         /// <summary>
@@ -457,7 +462,10 @@ namespace Punchy.Terrain
             var pointArray = builder.Allocate(ref root.StreamPoints, extras.StreamPoints.Count);
             for (int i = 0; i < extras.StreamPoints.Count; i++)
                 pointArray[i] = extras.StreamPoints[i];
-            BuildGrid(builder, ref root, caves, nodes, segments);
+            var roomArray = builder.Allocate(ref root.Rooms, extras.Rooms.Count);
+            for (int i = 0; i < extras.Rooms.Count; i++)
+                roomArray[i] = extras.Rooms[i];
+            BuildGrid(builder, ref root, caves, nodes, segments, extras.Rooms);
             BuildSpeleothemGrid(builder, ref root, speleothems);
             var blob = builder.CreateBlobAssetReference<CaveSetBlob>(allocator);
             builder.Dispose();
@@ -1121,7 +1129,8 @@ namespace Punchy.Terrain
         /// Lists every segment in the grid columns its box touches. Segments go in cave by cave, so each cell's items
         /// stay grouped by cave (sampling relies on it).
         /// </summary>
-        static void BuildGrid(BlobBuilder builder, ref CaveSetBlob root, List<CaveData> caves, List<CaveNode> nodes, List<CaveSegment> segments)
+        static void BuildGrid(BlobBuilder builder, ref CaveSetBlob root, List<CaveData> caves, List<CaveNode> nodes, List<CaveSegment> segments,
+                              List<CaveRoom> rooms)
         {
             float2 min = float.MaxValue, max = float.MinValue;
             for (int i = 0; i < segments.Count; i++)
@@ -1135,6 +1144,14 @@ namespace Punchy.Terrain
                             + (CaveSampling.SegmentMargin + CaveSampling.WallReach(c)) * CaveSampling.Stretch(c.Profile);
                 seg.Min = math.min(a.Position, b.Position) - reach;
                 seg.Max = math.max(a.Position, b.Position) + reach;
+                // W-115: the passage into a destination chamber reaches over the whole room, so its air is sampled.
+                foreach (var room in rooms)
+                    if (room.Node == seg.A || room.Node == seg.B)
+                    {
+                        RoomBox(room, out var lo, out var hi);
+                        seg.Min = math.min(seg.Min, lo - 1f);
+                        seg.Max = math.max(seg.Max, hi + 1f);
+                    }
                 segments[i] = seg;
                 min = math.min(min, seg.Min.xz);
                 max = math.max(max, seg.Max.xz);

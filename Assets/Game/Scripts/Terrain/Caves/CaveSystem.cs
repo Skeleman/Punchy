@@ -27,7 +27,7 @@ namespace Punchy.Terrain
     /// Underground (camera in a cave, well below the surface) fades from 0 to 1: weather stops, and a lantern on the
     /// player lights the way.
     /// </summary>
-    public class CaveSystem : MonoBehaviour
+    public partial class CaveSystem : MonoBehaviour
     {
         public Material Material;
         [Tooltip("Caves within this distance of the camera are built and drawn.")]
@@ -297,6 +297,7 @@ namespace Punchy.Terrain
                 Destroy(caveWater);
             caveWater = null;
             ReleaseBatFolk();
+            ReleaseRooms();
             Shader.SetGlobalVector(LanternId, Vector4.zero);
         }
 
@@ -1410,6 +1411,7 @@ namespace Punchy.Terrain
             DrawPools(source, camPos);
             marks[3] = clock.Elapsed.TotalMilliseconds;
             DrawBatFolk(source, camPos);
+            DrawRooms(source, camPos);
             marks[4] = clock.Elapsed.TotalMilliseconds;
             DrawPlants(source, camPos);
             marks[5] = clock.Elapsed.TotalMilliseconds;
@@ -1918,6 +1920,8 @@ namespace Punchy.Terrain
                         crossings++;
                     }
                     var p = ((float3)(Origin + new int3(x, y, z)) + sum / crossings) * Voxel;
+                    // Room corners kept square, so the destination chambers' tiles cover the rock (W-115).
+                    p = CaveSampling.OutOfRooms(ref Source.Caves.Value, p);
                     cellVertex[Cell(x, y, z)] = Positions.Length;
                     Positions.Add(p);
                     Normals.Add(Gradient(p));
