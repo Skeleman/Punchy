@@ -27,6 +27,8 @@ namespace Punchy.Debugging
     ///  ] / [        force the next weather over the player / clear it (WeatherSystem);
     ///  F1           show / hide this readout (off by default since A-51: about 0.5 ms of IMGUI a frame; "-hud" starts
     ///               with it on). "-nohud" hides the interaction prompt too, for screenshots.
+    ///  -shotcam x,y,z,tx,ty,tz  (shot lists / PlayArgs) pins the camera at x,y,z looking at tx,ty,tz for every frame of
+    ///               every later shot until "-shotcam off", so a movement strip keeps its subject in frame (A-79).
     /// The player-facing panels (multiplayer, graphics, quit) are in the main menu on Esc or Start (UI.MainMenu).
     /// </summary>
     public class DebugControls : MonoBehaviour
@@ -351,6 +353,18 @@ namespace Punchy.Debugging
             WalkerShot();
             MantrapShot();
             MimicShot();
+            ShotCam();
+        }
+
+        /// <summary>A-79: "-shotcam": a fixed camera that holds across shot-list lines (set in ApplyOptions, never in normal play).</summary>
+        bool shotCamOn;
+        Vector3 shotCamFrom, shotCamTo;
+
+        /// <summary>Poses the camera at the pinned "-shotcam" point every frame, after every other shot helper, so it wins.</summary>
+        void ShotCam()
+        {
+            if (shotCamOn)
+                PoseCamera(shotCamFrom, Quaternion.LookRotation(shotCamTo - shotCamFrom));
         }
 
         // ---------------------------------------------------------------- A-09 shots
@@ -2198,6 +2212,20 @@ namespace Punchy.Debugging
                 Shader.SetGlobalFloat("_PunchyWaterProbe", probe);
             // "-camrel dx,dy,dz,tx,ty,tz": like -camlook, but both points relative to where the player ends up (after any
             // -place), for framing a place whose coordinates aren't known.
+            // A-79: "-shotcam x,y,z,tx,ty,tz" pins the camera from this line on (held by ShotCam); "-shotcam off" frees it.
+            var shotCamArg = System.Array.IndexOf(args, "-shotcam");
+            if (shotCamArg >= 0 && shotCamArg + 1 < args.Length)
+            {
+                if (ParseFloats(args[shotCamArg + 1]) is float[] sc && sc.Length >= 6)
+                {
+                    shotCamFrom = new Vector3(sc[0], sc[1], sc[2]);
+                    shotCamTo = new Vector3(sc[3], sc[4], sc[5]);
+                    shotCamOn = (shotCamTo - shotCamFrom).sqrMagnitude > 0.01f;
+                    Debug.Log($"DebugControls: shotcam {shotCamFrom} looking at {shotCamTo}");
+                }
+                else
+                    shotCamOn = false;
+            }
             var camRel = System.Array.IndexOf(args, "-camrel");
             if (camRel >= 0 && camRel + 1 < args.Length && ParseFloats(args[camRel + 1]) is float[] rel && rel.Length >= 6 &&
                 QueriesLive() && playerQuery.TryGetSingleton<LocalTransform>(out var origin))
