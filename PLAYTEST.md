@@ -5,6 +5,8 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 
 | Issue | What to check | Where | Shipped |
 |---|---|---|---|
+| #40 snail | A huge cinder snail creeps a slow loop through the Ember Forest; its eyes and shell seams glow from far off | EmberForest | PR #168, 2026-11-05 |
+| Cave folk | `-incave` lands you in the bat folk chamber on v3; pygmies and bat folk live in their caves | v3 caves, `-incave` | PR #168, 2026-11-05 |
 | Cave mouths | No rim where a cave mouth meets the hillside; the ground round it has the cave's rock grain | Any cave mouth | PR #167, 2026-11-05 |
 | Far shadows | Tree shadows reach 120 m and are darker. If still too light, launch with `-shadowcachedark 0.8` | Forest from a hill | PR #167, 2026-11-05 |
 | Far fires | Burning forests glow from far away at night; embers match the fire's colour | Forest fire at night | PR #167, 2026-11-05 |
