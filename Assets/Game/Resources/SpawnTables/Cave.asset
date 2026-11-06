@@ -1,0 +1,424 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6e35ddb82ae5493c8cd51d8493bb7ceb, type: 3}
+  m_Name: Cave
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Fauna.SpawnTable
+  Rows:
+  - Content: Empty
+    Species: {fileID: 11400000, guid: 95c27f9bad710144ab7e6bee8a1e05e6, type: 2}
+    Weight: 10
+    Count: {x: 1, y: 2}
+    Seeded: 1
+    Kind: 0
+    Size: {x: 0, y: 2}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Empty
+    Species: {fileID: 11400000, guid: 44ada7010e7e0a644b76380d89a8d591, type: 2}
+    Weight: 10
+    Count: {x: 1, y: 2}
+    Seeded: 1
+    Kind: 0
+    Size: {x: 0, y: 2}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Empty
+    Species: {fileID: 11400000, guid: 14fd190e1b6f2f14796160e9a24c36bd, type: 2}
+    Weight: 10
+    Count: {x: 1, y: 2}
+    Seeded: 1
+    Kind: 0
+    Size: {x: 0, y: 2}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Empty
+    Species: {fileID: 11400000, guid: 9901b81802b06874e8ed1fd38ef55bbc, type: 2}
+    Weight: 10
+    Count: {x: 1, y: 2}
+    Seeded: 1
+    Kind: 0
+    Size: {x: 0, y: 2}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Empty
+    Species: {fileID: 11400000, guid: d9b8e39f7dbafe546bf70c1f924ea9bc, type: 2}
+    Weight: 10
+    Count: {x: 1, y: 2}
+    Seeded: 1
+    Kind: 0
+    Size: {x: 0, y: 2}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Empty
+    Species: {fileID: 11400000, guid: 1311770de2f621b4dbded83c2fd71b0a, type: 2}
+    Weight: 10
+    Count: {x: 1, y: 2}
+    Seeded: 1
+    Kind: 0
+    Size: {x: 0, y: 2}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Empty
+    Species: {fileID: 11400000, guid: daf13f8cb748edd4584f1e45c4951596, type: 2}
+    Weight: 10
+    Count: {x: 1, y: 2}
+    Seeded: 1
+    Kind: 0
+    Size: {x: 0, y: 2}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Empty
+    Species: {fileID: 11400000, guid: c0733a25a6bab64458eb8c570f83bf7a, type: 2}
+    Weight: 10
+    Count: {x: 1, y: 2}
+    Seeded: 1
+    Kind: 0
+    Size: {x: 0, y: 2}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Empty
+    Species: {fileID: 11400000, guid: bcec9f97bfcd3544992e948efb4c0aac, type: 2}
+    Weight: 10
+    Count: {x: 1, y: 2}
+    Seeded: 1
+    Kind: 0
+    Size: {x: 0, y: 2}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Empty
+    Species: {fileID: 11400000, guid: e079c2cb8c62f9e45a9c6f9c1809ecbb, type: 2}
+    Weight: 10
+    Count: {x: 1, y: 2}
+    Seeded: 1
+    Kind: 0
+    Size: {x: 0, y: 2}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Empty
+    Species: {fileID: 11400000, guid: ccbe8daf9a8343141a4cd1d5f922505d, type: 2}
+    Weight: 10
+    Count: {x: 1, y: 2}
+    Seeded: 1
+    Kind: 0
+    Size: {x: 0, y: 2}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Empty
+    Species: {fileID: 11400000, guid: 2ba8f1aa663ffe446aee91e9ff93b88d, type: 2}
+    Weight: 10
+    Count: {x: 1, y: 2}
+    Seeded: 1
+    Kind: 0
+    Size: {x: 0, y: 2}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Empty
+    Species: {fileID: 11400000, guid: e409612441eee3946a84dd35f9e7cc13, type: 2}
+    Weight: 10
+    Count: {x: 1, y: 1}
+    Seeded: 1
+    Kind: 4
+    Size: {x: 0, y: 2}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Empty
+    Species: {fileID: 11400000, guid: 0af12a737ecac45499a1ff21bd72f79f, type: 2}
+    Weight: 10
+    Count: {x: 1, y: 1}
+    Seeded: 1
+    Kind: 4
+    Size: {x: 0, y: 2}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Empty
+    Species: {fileID: 11400000, guid: 01c3f689069b3c548b19c78f57796cfb, type: 2}
+    Weight: 10
+    Count: {x: 1, y: 1}
+    Seeded: 1
+    Kind: 4
+    Size: {x: 0, y: 2}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Empty
+    Species: {fileID: 11400000, guid: 7199114923ac3fb428d57650f289f0c5, type: 2}
+    Weight: 10
+    Count: {x: 1, y: 2}
+    Seeded: 1
+    Kind: 1
+    Size: {x: 0, y: 2}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Empty
+    Species: {fileID: 11400000, guid: 9cb3dbacf7364f64bbeb2735f28e1559, type: 2}
+    Weight: 6
+    Count: {x: 2, y: 4}
+    Seeded: 1
+    Kind: 1
+    Size: {x: 0, y: 2}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 3
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Empty
+    Species: {fileID: 0}
+    Weight: 12
+    Count: {x: 1, y: 1}
+    Seeded: 1
+    Kind: 1
+    Size: {x: 0, y: 2}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Empty
+    Species: {fileID: 11400000, guid: 7199114923ac3fb428d57650f289f0c5, type: 2}
+    Weight: 20
+    Count: {x: 2, y: 4}
+    Seeded: 1
+    Kind: 2
+    Size: {x: 0, y: 2}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Empty
+    Species: {fileID: 0}
+    Weight: 5
+    Count: {x: 1, y: 1}
+    Seeded: 1
+    Kind: 2
+    Size: {x: 0, y: 2}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Empty
+    Species: {fileID: 11400000, guid: 7199114923ac3fb428d57650f289f0c5, type: 2}
+    Weight: 10
+    Count: {x: 2, y: 3}
+    Seeded: 1
+    Kind: 3
+    Size: {x: 0, y: 2}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Empty
+    Species: {fileID: 11400000, guid: d9b8e39f7dbafe546bf70c1f924ea9bc, type: 2}
+    Weight: 6
+    Count: {x: 1, y: 1}
+    Seeded: 1
+    Kind: 3
+    Size: {x: 0, y: 2}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: 
+    - {fileID: 11400000, guid: 277e2018d3d2abb46be2568301b07cab, type: 2}
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Empty
+    Species: {fileID: 11400000, guid: ccbe8daf9a8343141a4cd1d5f922505d, type: 2}
+    Weight: 6
+    Count: {x: 1, y: 2}
+    Seeded: 1
+    Kind: 3
+    Size: {x: 0, y: 2}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 6
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Empty
+    Species: {fileID: 11400000, guid: 9cb3dbacf7364f64bbeb2735f28e1559, type: 2}
+    Weight: 8
+    Count: {x: 3, y: 6}
+    Seeded: 1
+    Kind: 3
+    Size: {x: 0, y: 2}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 3
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
