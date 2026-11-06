@@ -2831,7 +2831,7 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
 
 ## W-113 row 4: salt ball dent trail, no glow mushrooms in bat folk caves - done (verified)
 - **Commit:** e5dd5ec on world-features.
-- **What changed:** the salt crystal ball no longer drags a trail mesh (it moved and blocked the player). It sets shader globals, and TerrainSurface presses a dark furrow into the ground behind it, like the sandworm mounds. Glowing cave plants are skipped inside bat folk chambers. Pygmy villages had none to remove.
+- **What changed:** the salt crystal ball no longer drags a trail mesh (it moved and blocked the player). It sets shader globals, and TerrainSurface presses a dark furrow into the ground behind it, like the sandworm mounds. Glowing cave plants are skipped inside bat folk chambers, which are also where the pygmies live.
 - **Walk:** across the trail from (3711,-893) to (3718,-874): arrived, pushed out 0.0 m.
 - **Shots:** Assets/Temp/shots/w113-salt-dents-800.png, w113-batfolk-nomush-800.png (world tree).
 - **Risks:** the dent is visual only. The collider stays flat, so feet float up to 0.6 m over the deepest groove.
