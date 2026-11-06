@@ -1254,4 +1254,160 @@ namespace Punchy.Debugging
                 GUI.Label(new Rect(18, 36 + r * 20, 410, 20), (r == row ? "> " : "   ") + Rows[r] + ": " + vals[r]);
         }
     }
+
+    /// <summary>
+    /// "-benchprobe [ms]" (default 150): a frame-time probe that works in release (Bench) builds, where there's no profiler.
+    /// Times every second-level player loop system (Update.ScriptRunBehaviourUpdate, PostLateUpdate.FinishFrameRendering...)
+    /// with a stopwatch, and on any frame longer than the threshold logs that frame's slowest systems, GC collections
+    /// and where SurfaceGlow's far scan stood (it lands on the main thread when the camera has moved 24 m).
+    /// Also logs every far scan landing (frame, scan ms, texture upload size).
+    /// </summary>
+    public static class BenchProbe
+    {
+        static float thresholdMs = 150f;
+        static string[] names;
+        static long[] marks;
+        static double[] cur, last;
+        static long frameStart;
+        static int lastGc0;
+        static int farLandedFrame = -1000;
+        static bool farWasRunning;
+        static object glow;
+        static FieldInfo farRunningField, farScanMsField, plantsField, windowsField;
+        static float nextGlowLook;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        static void Boot()
+        {
+            var args = System.Environment.GetCommandLineArgs();
+            var i = System.Array.IndexOf(args, "-benchprobe");
+            if (i < 0)
+                return;
+            if (i + 1 < args.Length && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var ms))
+                thresholdMs = ms;
+            var loop = UnityEngine.LowLevel.PlayerLoop.GetCurrentPlayerLoop();
+            var list = new List<string>();
+            var top = loop.subSystemList;
+            var begun = false;
+            for (int t = 0; t < top.Length; t++)
+            {
+                var subs = top[t].subSystemList;
+                if (subs == null || subs.Length == 0)
+                    continue;
+                var wrapped = new List<UnityEngine.LowLevel.PlayerLoopSystem>();
+                for (int s = 0; s < subs.Length; s++)
+                {
+                    var index = list.Count;
+                    list.Add(top[t].type.Name + "." + (subs[s].type != null ? subs[s].type.Name : "?"));
+                    var first = !begun;
+                    begun = true;
+                    wrapped.Add(new UnityEngine.LowLevel.PlayerLoopSystem
+                    {
+                        type = typeof(BenchProbe),
+                        updateDelegate = first ? (UnityEngine.LowLevel.PlayerLoopSystem.UpdateFunction)FrameBegin : () => Mark(index)
+                    });
+                    wrapped.Add(subs[s]);
+                }
+                var end = list.Count;
+                list.Add(top[t].type.Name + ".(end)");
+                wrapped.Add(new UnityEngine.LowLevel.PlayerLoopSystem { type = typeof(BenchProbe), updateDelegate = () => Mark(end) });
+                top[t].subSystemList = wrapped.ToArray();
+            }
+            loop.subSystemList = top;
+            names = list.ToArray();
+            marks = new long[names.Length];
+            cur = new double[names.Length];
+            last = new double[names.Length];
+            UnityEngine.LowLevel.PlayerLoop.SetPlayerLoop(loop);
+            Debug.Log($"BenchProbe: on, {names.Length} player loop marks (first {names[0]}), slow frame over {thresholdMs} ms");
+        }
+
+        static void Mark(int index)
+        {
+            var now = System.Diagnostics.Stopwatch.GetTimestamp();
+            marks[index] = now;
+        }
+
+        /// <summary>The first system of the frame: closes the last frame (each system's time = the gap to the next mark),
+        /// checks it against the threshold, and looks at SurfaceGlow.</summary>
+        static void FrameBegin()
+        {
+            var now = System.Diagnostics.Stopwatch.GetTimestamp();
+            var f = System.Diagnostics.Stopwatch.Frequency / 1000.0;
+            WatchGlow();
+            if (frameStart != 0)
+            {
+                // marks[0] is unused (FrameBegin itself); a system's time runs from its mark to the next set mark.
+                marks[0] = frameStart;
+                for (int i = 0; i < names.Length; i++)
+                {
+                    long a = marks[i], b = 0;
+                    for (int j = i + 1; j < names.Length && b == 0; j++)
+                        if (marks[j] >= a) b = marks[j];
+                    if (b == 0) b = now;
+                    cur[i] = a >= frameStart && b >= a ? (b - a) / f : 0;
+                }
+                var total = (now - frameStart) / f;
+                var gc0 = System.GC.CollectionCount(0);
+                if (total > thresholdMs)
+                {
+                    var order = new List<int>();
+                    for (int i = 0; i < names.Length; i++) order.Add(i);
+                    order.Sort((x, y) => cur[y].CompareTo(cur[x]));
+                    var sb = new StringBuilder($"BenchProbe: slow frame {Time.frameCount - 1}, {total:F0} ms:");
+                    for (int k = 0; k < 8; k++)
+                        sb.Append($" {names[order[k]]} {cur[order[k]]:F1}");
+                    sb.Append($" | GC gen0 +{gc0 - lastGc0} | far scan landed {Time.frameCount - 1 - farLandedFrame} frames ago, running {farWasRunning}");
+                    Debug.Log(sb.ToString());
+                }
+                lastGc0 = gc0;
+                var tmp = last; last = cur; cur = tmp;
+            }
+            System.Array.Clear(marks, 0, marks.Length);
+            frameStart = now;
+        }
+
+        /// <summary>CaveSystem's SurfaceGlow (private), by reflection: logs each far scan landing.</summary>
+        static void WatchGlow()
+        {
+            if (glow == null)
+            {
+                if (Time.realtimeSinceStartup < nextGlowLook)
+                    return;
+                nextGlowLook = Time.realtimeSinceStartup + 2f;
+                var caves = UnityEngine.Object.FindAnyObjectByType<CaveSystem>();
+                var field = caves != null ? typeof(CaveSystem).GetField("surfaceGlow", BindingFlags.NonPublic | BindingFlags.Instance) : null;
+                glow = field?.GetValue(caves);
+                if (glow == null)
+                    return;
+                var t = glow.GetType();
+                farRunningField = t.GetField("farRunning", BindingFlags.NonPublic | BindingFlags.Instance);
+                farScanMsField = t.GetField("FarScanMs");
+                plantsField = t.GetField("MapPlants");
+                windowsField = t.GetField("MapWindows");
+                Debug.Log($"BenchProbe: watching SurfaceGlow (farRunning field {(farRunningField != null ? "found" : "missing")})");
+            }
+            if (farRunningField == null)
+                return;
+            var running = (bool)farRunningField.GetValue(glow);
+            // farRunning goes false in UpdateFar on the frame the scan lands (textures uploaded that frame).
+            if (farWasRunning && !running)
+            {
+                farLandedFrame = Time.frameCount - 1;
+                var p = plantsField?.GetValue(glow) as Texture2D;
+                var w = windowsField?.GetValue(glow) as Texture2D;
+                long bytes = 0;
+                string Size(Texture2D x)
+                {
+                    if (x == null) return "none";
+                    var n = (long)UnityEngine.Experimental.Rendering.GraphicsFormatUtility.ComputeMipmapSize(x.width, x.height, x.graphicsFormat);
+                    bytes += n;
+                    return $"{x.width}x{x.height} {x.graphicsFormat}";
+                }
+                var sizes = $"{Size(p)} + {Size(w)}";
+                Debug.Log($"BenchProbe: far scan landed frame {farLandedFrame}, scan {(float)farScanMsField.GetValue(glow):F1} ms, upload {sizes} = {bytes / 1024} KB");
+            }
+            farWasRunning = running;
+        }
+    }
 }
