@@ -189,7 +189,8 @@ FloraVertex FloraTransform(FloraAttributes input)
     if ((int)round(input.data.y) == 10)
     {
         bool taut = input.data.y < 10;
-        float free = saturate(abs(input.data.y - 10) / 0.4);
+        // Hide (Cloth + 0.45, W-113) is held still: past free cloth's 0.4, so it never shares a triangle with free cloth.
+        float free = input.data.y > 10.42 ? 0 : saturate(abs(input.data.y - 10) / 0.4);
         float3 at = plant.position + p;
         // W-43: one gust per banner (read at its root, so the cloth can't tear between vertices), scrolled at a fixed
         // rate and heading. The grass's scroll (clock x wind x direction) jumps by whole noise cells whenever the wind's

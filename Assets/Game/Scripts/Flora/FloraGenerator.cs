@@ -3751,6 +3751,10 @@ namespace Punchy.Flora
                 var decor = p.Piece == Punchy.Terrain.KitPiece.Moss || p.Piece == Punchy.Terrain.KitPiece.Trim ||
                             p.Piece == Punchy.Terrain.KitPiece.Window || p.Material == Punchy.Terrain.KitMaterial.Lamp ||
                             p.Material == Punchy.Terrain.KitMaterial.Rune || p.Material == Punchy.Terrain.KitMaterial.Moss;
+                // W-113 (item 10): a ruin's plinth course (trim, but a 0.5 m slab under the whole floor) is solid too, so a
+                // body walks up onto the platform rather than sinking to the ground through it.
+                if (ruined && p.Piece == Punchy.Terrain.KitPiece.Trim && p.Centre.y - p.Size.y * 0.5f < 0.05f && p.Size.x * p.Size.z > 4f)
+                    decor = false;
                 if (g.Lod == 0 && !decor)
                     g.Boxes.Add(new KitBox { Centre = p.Centre, Half = p.Size * 0.5f, Rotation = p.Rotation, Reach = p.Size.magnitude * 0.5f });
                 if (p.Solid)
@@ -4098,6 +4102,11 @@ namespace Punchy.Flora
             // Poles lean in to meet near the top, then poke out past it, a little crooked.
             var poles = Mathf.Max(3, g.Count(s.Branches));
             var apex = new Vector3(g.Range(-0.1f, 0.1f), height * 0.88f, g.Range(-0.1f, 0.1f));
+            var rows = g.Sides(5, 3, 2);
+            // Each edge sags towards the axis under the apex, not along its own panel's middle (W-43): a pole's edge is
+            // shared by two panels, so both put it in the same place and no slit opens at the corner.
+            Vector3 Inward(Vector3 p) => -new Vector3(p.x - apex.x, 0f, p.z - apex.z).normalized;
+            float Sag(float t) => Mathf.Sin(t * Mathf.PI) * radius * 0.06f;
             var feet = new List<Vector3>();
             for (int k = 0; k < poles; k++)
             {
@@ -4105,13 +4114,30 @@ namespace Punchy.Flora
                 var foot = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * radius * g.Range(0.9f, 1.05f);
                 feet.Add(foot);
                 var through = apex + (apex - foot).normalized * height * g.Range(0.12f, 0.22f);
-                b.Tube(new List<Vector3> { foot + Vector3.down * 0.1f, apex, through }, new List<float> { radius * 0.04f, radius * 0.035f, radius * 0.025f },
-                       g.Sides(5, 4, 3), g.Bark, FloraPart.Bark);
+                // W-113 (item 9): the pole bows with the hide's sag and stands just inside it, so the hide covers it from
+                // the ground up and only its tip shows past the apex (a straight pole stood outside the sagging hide its
+                // whole length and poked out at the foot).
+                // Deep enough that even a three- or four-pole tent's flat panels cover a pole's faceted sides; it closes
+                // only just under the apex, where the poles cross.
+                var inset = radius * 0.12f;
+                var path = new List<Vector3>();
+                var radii = new List<float>();
+                for (int r = 0; r < rows; r++)
+                {
+                    var t = r / (float)rows;
+                    var p = Vector3.Lerp(foot, apex, t);
+                    path.Add(p + Inward(p) * (Sag(t) + inset * (1f - t * t)) + (r == 0 ? Vector3.down * 0.1f : Vector3.zero));
+                    radii.Add(radius * Mathf.Lerp(0.04f, 0.035f, t));
+                }
+                path.Add(apex);
+                radii.Add(radius * 0.035f);
+                path.Add(through);
+                radii.Add(radius * 0.025f);
+                b.Tube(path, radii, g.Sides(5, 4, 3), g.Bark, FloraPart.Bark);
             }
 
             // Hide panels between neighbouring poles, each a slightly different hide, sagging inwards.
             var first = b.VertexCount;
-            var rows = g.Sides(5, 3, 2);
             for (int k = 0; k < poles; k++)
             {
                 var a = feet[k];
@@ -4124,12 +4150,9 @@ namespace Punchy.Flora
                 for (int r = 0; r <= rows; r++)
                 {
                     var t = r / (float)rows;
-                    var sag = Mathf.Sin(t * Mathf.PI) * radius * 0.06f;
+                    var sag = Sag(t);
                     var p0 = Vector3.Lerp(a, apex, t);
                     var p1 = Vector3.Lerp(c, apex, t);
-                    // Each edge sags towards the axis under the apex, not along its own panel's middle (W-43): a pole's
-                    // edge is shared by two panels, so both put it in the same place and no slit opens at the corner.
-                    Vector3 Inward(Vector3 p) => -new Vector3(p.x - apex.x, 0f, p.z - apex.z).normalized;
                     var ao = Mathf.Lerp(0.7f, 1f, t);
                     var cut = open && t < 0.55f;
                     var n = Vector3.Cross(p1 - p0, apex - p0).normalized;
@@ -4144,8 +4167,9 @@ namespace Punchy.Flora
                     b.Triangle(i0 + 1, i0 + 2, i0 + 3);
                 }
             }
-            // The panels are cloth (W-99): the linen weave and the snow that settles on cloth, but held still on the poles.
-            b.Cloth(first, p => 0f);
+            // The panels are hide (W-113): cloth's snow, held still on the poles, but leather's mottle and stitched seams
+            // instead of W-99's linen weave (the tents read as linen).
+            b.Hide(first);
             b.Occlude(first, (p, n) => GroundOcclusion(p, height * 0.3f));
             DoorMat(g, radius, radius * 0.7f);
 

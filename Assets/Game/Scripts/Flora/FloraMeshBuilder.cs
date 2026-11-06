@@ -856,6 +856,21 @@ namespace Punchy.Flora
             }
         }
 
+        /// <summary>
+        /// Makes the vertices from <paramref name="firstVertex"/> hide (W-113): cloth held still (snow settles on it), but
+        /// drawn as leather, not linen. Carried as Cloth + 0.45, past any free cloth's fraction (Flora.hlsl, Flora.shader).
+        /// </summary>
+        public void Hide(int firstVertex)
+        {
+            for (int v = firstVertex; v < data.Count; v++)
+            {
+                var d = data[v];
+                d.y = (float)FloraPart.Cloth + 0.45f;
+                d.z = 0f;
+                data[v] = d;
+            }
+        }
+
         /// <summary>Bounding sphere around (0, centreY, 0).</summary>
         public void Bounds(out float centreY, out float radius)
         {
