@@ -2735,3 +2735,21 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
   RestoreSceneBackups). That's an engine crash, not our code. A restart was fine.
 - An editor that loads after a player build can open an untitled scene. Play then never gets an island. Open
   Assets/Scenes/SampleScene.unity first.
+
+### W-111 row 1 - continuous roads (#39) - done (verified), commit 892b428
+- Cause: not a decal or flora rule. W-100's TooSteep skip in RoadBaking.Emit dropped any stretch steeper than grade 0.45 (sampled every 1 m), which left the gaps at cliffs.
+- Fix: each run of stretches gets a grade-limited height profile (the mean of the upper and lower slope envelopes at MaxGrade). Streets take their heights from that profile. Graded streets carry Road = 2, and Height() widens their bank blend to StreetBlend + 1.5 x depth, capped at 14 m, so the terrain is cut or filled to the road. Stretches already within the grade come out bit-identical.
+- Road gaps: 57 steep stretches dropped before, 0 after. All 57 are graded now, 91 graded stretches in total, out of 2424 road stretches.
+- Deepest cut: 6.4 m at (-1696,164,406). Deepest fill: 6.1 m at (-1694,156,388).
+- Crossings: 8 bridge spans and 0 unbridged deep crossings. A new counter tracks unbridged crossings. Fords are unchanged: the road surface stops at the water's edge.
+- Switchbacks were not built: the worst grading is only about 6 m deep, so cutting and filling covers every gap without them. They can be added if Zach wants hairpins on purpose.
+- Landmarks_V3: 110 09EAC0FE (unchanged). Fauna_Fingerprint: F4E66093 (unchanged). Play-mode landmark hash: CE5EB4D9 (unchanged). No landmarks moved.
+- Island-ready time:
+  - Warm play: v3 ready at 38.6 s, against 38.7 s before.
+  - Cold suite: 85.0 s, against 66.4 s last time. The bake took 5309 ms against 5207 to 6261 ms on earlier runs, so I read the cold-suite difference as machine load.
+- Shots:
+  - Assets/Temp/shots/w111-cutting.png: the road runs unbroken through the graded saddle.
+  - Assets/Temp/shots/w111-cutting-along.png
+  - Assets/Temp/shots/w111-crossing.png: the road runs onto the bridge over the river and continues on the far bank.
+- Suite: `unity test` ran the play-mode suite, but it wrote no results XML, so I took the hashes from the [measure] lines in Logs/playmode-tests.log. I'll rerun the full suite for pass/fail counts before the final hand-back.
+- Risk: graded banks reach up to 14 m from the road, so props or plots sitting right next to a steep road may now stand on a slightly re-shaped slope.
