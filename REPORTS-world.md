@@ -3000,3 +3000,22 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
 - Note for fauna: FaunaDirector den visitors and AnchorBaking loop over every cave, so they also see tunnels.
   To exclude tunnels, filter on `CaveData.Tunnel != 0` (fauna-lane files, not touched).
 - Shot: Assets/Temp/shots/w110-tunnel-framed-inside.png (cave 26, lit and framed, daylight at the far portal).
+
+## W-110 row 2: tunnel portal kit (#39), done (verified), 7781a5f9
+
+- Both mouths of all 3 road tunnels (6 portals, caves 25-27) get a seeded stone portal: plinths, jambs, imposts,
+  9-19 voussoirs with a keystone (plain, cracked, or carved with a ring, chevron, cross or tally), an ashlar headwall
+  cut into setts at the opening, and a coping. Each portal also gets its own moss amount, an ivy fringe on about 40%,
+  1-3 fallen stones, and a rockfall on about 40%. Each kit has 188-274 parts and 8-13 collision solids. All 6 build in 12 ms in total, once, when the camera first comes in range.
+- Render at portal 26 (looking in, editor, vsync 60): main thread 7.9 ms, render thread 2.8 ms, 4 draws per portal.
+- Pins unchanged:
+  - Landmarks_V3: 111 3BDF705F (the card's 110 09EAC0FE is the pin before W-113 and W-114).
+  - Fauna_Fingerprint: 8A1979F1.
+  - Cave hash: C65CDFB8DDB8D0C1 (28 caves, 384 nodes). The kit is drawn at runtime only, so no bake changed.
+- World ready: 33.5 s to 40.5 s across 4 plays (pin 39.7 s). The high readings came with the PC under 6 GB free.
+- Fixed during verification: the coping loop compared against a recomputed `halfW + 0.12f`. Under Mono float precision it never ended and ran the editor out of memory. The end is now held in one local and the loop exits within a 5 cm margin.
+- Shots:
+  - Assets/Temp/shots/w110r2_portal26b.png (cave 26, mossy, ivy, carved cross, rockfall)
+  - Assets/Temp/shots/w110r2_portal26b_far.png
+  - Assets/Temp/shots/w110r2_portal25a_far.png (cave 25, desert, bare stone, chevron)
+- Risk: the moss patches are flat slabs, not the textured sheet from the 11-03 feedback. A follow-up could move them to the moss sheet.
