@@ -24,6 +24,8 @@ namespace Punchy.Terrain
         public float TowerHeight;
         /// <summary>W-32: 1 for the one-per-island sunken temple (SunkenTempleShape).</summary>
         public byte Temple;
+        /// <summary>W-114: 1 for the Ashlands ribcage (RibcageShape: its ash drifts are ground).</summary>
+        public byte Ribcage;
     }
 
     public struct LandmarkPoolData
@@ -283,6 +285,10 @@ namespace Punchy.Terrain
                         h = math.lerp(h, SmoothMax(h, target, 3f), 1f - math.smoothstep(0.75f, 1f, t));
                     }
                 }
+
+                // W-114: the ribcage's ash drifts (banked at the rib feet, round the skull and the fallen ribs) are ground.
+                if (type.Ribcage != 0)
+                    h = RibcageShape.Ground(inst, hit.Local, h);
 
                 // Pools: a raised lip keeps the water in on sloping ground, then the bowl is dug out of it.
                 for (int p = 0; p < type.PoolCount; p++)

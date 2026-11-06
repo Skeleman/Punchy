@@ -35,6 +35,8 @@ namespace Punchy.Terrain
         public const string Glade = "glade";
         /// <summary>Open meadow grassland (the debug meadow finder's grassland-only search).</summary>
         public const string Meadow = "meadow";
+        /// <summary>W-114: where the Ashlands ribcage lies (the largest patch of the first biome with the tag).</summary>
+        public const string Ribcage = "ribcage";
 
         /// <summary>Palette index of the first biome with the tag, or -1.</summary>
         public static int First(IReadOnlyList<BiomeDefinition> palette, string tag)

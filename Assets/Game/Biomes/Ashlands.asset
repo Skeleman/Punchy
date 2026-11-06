@@ -18,6 +18,7 @@ MonoBehaviour:
   FamilyOrder: 0
   Tags:
   - ridge-volcano
+  - ribcage
   Altitude: {x: 0, y: 1}
   Temperature: {x: 0, y: 1}
   Humidity: {x: 0, y: 1}

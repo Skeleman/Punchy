@@ -652,7 +652,8 @@ namespace Punchy.Terrain
                     GroundRadius = math.max(type.GroundRadius, 0.05f),
                     ClearRadius = type.ClearRadius,
                     TowerHeight = type.OnePerIsland ? type.TowerHeight : 0f,
-                    Temple = (byte)(type.OnePerIsland && type.Temple ? 1 : 0)
+                    Temple = (byte)(type.OnePerIsland && type.Temple ? 1 : 0),
+                    Ribcage = (byte)(type.Ribcage ? 1 : 0)
                 };
             }
             var poolArray = builder.Allocate(ref root.Pools, pools.Count);
