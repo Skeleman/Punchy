@@ -2939,3 +2939,18 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
   the dungeon entity whose DungeonInfo.Type is SunkenTemple instead of calling GetSingletonEntity.
 - Play-mode check: one run to world ready, no InvalidOperationException in the log since play started (the last one
   was from the run before the fix). The temple lists 13 chest sockets and TryChest opens the first (socket 15).
+
+## W-115 row 2 — tile-built cave rooms: done (verified)
+- Commit 19c8817 on world-features (pushed). Rooms are boxes with a door, a porch and a two-sided ramp down to the
+  passage floor (slope capped at 0.7). Fixes: the grotto doorway had a 2.2 m rise (now a ramp, Approach 2.63 m); the
+  dark sheets in the lake, roost and ruin doorways came from the mesh snap pulling doorway vertices onto room faces
+  (the field was air there). Room kit boxes join the flora collider list.
+- Counts: v3 12 planned / 9 kept (grotto 4, lake 2, roost 2, ruin 1); v2 9 / 7. World ready 39.5 s (was 40.1).
+- Doorway walks (flood fill from the room middle out through the door, max step 0.45): grotto 1778 cells, lake 1067,
+  roost 1432 (max step 0.43), ruin 1324 (0.44; 55 cells stopped by kit boxes). All four reach local z -10.2, past the
+  porch mouth at -2.8.
+- Render ms (vsync 60), URP main camera / render thread / main thread: grotto 2.80 / 1.75 / 6.97, lake 1.62 / 1.23 /
+  5.79, roost 3.92 / 2.64 / 8.25, ruin 2.71 / 1.77 / 8.31.
+- Pins: Landmarks_V3 111 3BDF705F and Fauna_Fingerprint 8A1979F1 both pass, unchanged. Cave hash now
+  9A3D3E91E47A0F21 (editor CaveBench, baked = fresh); it changes because rooms carve new rock.
+- Shots: Assets/Temp/shots/w115-{grotto,lake,roost,ruin}-{inside,back,approach,door}.png.
