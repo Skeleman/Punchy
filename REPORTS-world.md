@@ -2903,7 +2903,7 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
 
 ## W-114 — Ashlands ribcage: done (verified)
 - Commits fac588e (W-116 blob guard: the chunk build is cancelled on Application.quitting; 0 blob errors on two play exits) and 2107640 (W-114) on world-features, after merging origin/main (#171/#172) as 92fec20. Ready to merge.
-- New landmark type AshRibcage (Ashlands only, own spot) at (-480, -2320), facing 162 deg: spine, 9 weathered rib arches, a skull with horns, fallen broken ribs, ash drifts, BoneRemains, a few GiantRibs and cinder/obsidian rocks round it. Box and capsule collision; you walk under and between the ribs. Horns, spikes and teeth have no collision. No FarShadow.
+- New landmark type AshRibcage (Ashlands only, own spot) at (-480, -2320), facing 162 deg: spine, 11 pairs of weathered rib arches, a skull with horns, fallen broken ribs, ash drifts, BoneRemains, a few GiantRibs and cinder/obsidian rocks round it. Box and capsule collision; you walk under and between the ribs. Horns, spikes and teeth have no collision. No FarShadow.
 - Meshes: LOD0 15573 tris, LOD1 4892, LOD2 1552. Bake: ribcage 10 ms.
 - Render (mid view, vsync 60): 16.87 ms/frame, gpu 0.25 ms, 2.34M tris with it; 16.69 ms, gpu 0.13 ms, 2.29M tris without.
 - Landmarks_V3 111 3BDF705F (was 110 09EAC0FE). Hashed without the ribcage the other 110 still read 09EAC0FE: no other landmark moved. Fauna_Fingerprint 8A1979F1 (was 90AC5F60): changed, from the ribcage's props and colliders. Both repinned in WorldTests.
