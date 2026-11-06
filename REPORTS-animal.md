@@ -2807,3 +2807,10 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
   - Not exercised: WorldsReplacing (a host or join world swap). It is the same DropSurvey handler.
 - **Suite:** 14 passed, 0 failed in 203 s. Landmarks 111 3BDF705F, fingerprint 8A1979F1.
 - My editor (PID 27836) exited cleanly on EditorApplication.Exit. A-83 is done on the animal side; #62's world-owned items were left alone.
+
+## A-84 row 1: StoneColossi Place spread over frames (#40), done (verified)
+- Commit 4a363758 on animal-behaviours. Place only picks slots (34.3 ms on the pick frame); BuildNext builds one colossus root per frame and makes it solid (collision register) the next frame. No GC.Collect call in StoneColossi.
+- **Frames:** before, a single Place frame was ~450 ms (slot builds alone 60-107 ms each). After, every StoneColossi frame is under 50 ms: largest are lizard build 45.3, plant build 42.2, plant solid 38.3, saguaro 37.1/38.6 ms. Warm builder costs 19-38 ms; the first run adds JIT, and a stray GC can push one build higher (one warm run read 79 ms), so a slow machine could still see a frame near 50.
+- **Positions:** all 14 "placed at" lines identical to A-83 (e.g. DunesColossus 3730, 9.7, 877). Fingerprint 8A1979F1. No exceptions.
+- **GC:** PlayerLoop 8713 B/frame over 121 frames (limit 9594). perf frame 7.26 ms, cpu main 6.32.
+- **Shot:** none asked (number check). Suite runs once at card end, after the editor closes.
