@@ -88,6 +88,13 @@ feature code, and it never edits files in another session's checkout.
    It starts the program minimized without focus, and for the life of the process it hands focus back if the program
    grabs it on its own (load finished, play mode entered). In each editor, also set the Game view's play-mode
    dropdown to Play Unfocused before the first play-mode test. Batch-mode runs (`-batchmode`) don't need this.
+18. **Every process must end on its own (Zach, 2026-11-07):** on Windows, when a Monitor, background task or agent stops, only
+   its top shell dies. Children such as `tail -f`, `grep --line-buffered`, `while true` loops, sleep and Punchy.exe keep running. On
+   11-06, 180 orphaned watchers and their greps had piled up this way. So: wrap every Monitor/background command in `timeout <s>`
+   (for example `timeout 1800 tail -f log | grep --line-buffered X`, which stops tail and lets grep exit), and give every loop an
+   end time (`end=$((SECONDS+1700)); while [ $SECONDS -lt $end ]`). Run one watcher at a time, and stop the old one before
+   starting a new one. Launch every Unity/Punchy run with `timeout` and kill it by its own PID, never by name: other lanes'
+   games and benches share the machine. After a test, check `tasklist | grep -c bash` has not grown.
 
 ## Sessions and lanes
 

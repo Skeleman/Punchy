@@ -83,3 +83,11 @@ Main e31291e, laptop player build, island v3. Two processes: host + client joini
 
 ## Job 22 (2026-11-04): cave FPS at the bat folk cave (#81)
 Main 0ec7a8d, laptop player build, uncapped. A-53 found editor main-thread CPU fine at the v2 bat folk cave (530, 958): 8.1 ms (v3's cave at -2674, -608: 5.2 ms). So measure the build: at both caves, frame ms, main vs render thread vs GPU ms, draw calls/batches, shadow casters, and the top GPU passes (cave fog, glow, particles, white pools). Compare with a surface spot nearby. Say which lane owns the biggest cost. Read-only.
+
+## Job 23 (2026-11-07): process cleanup in shared scripts (profiler self-fix, b/fix-proc-cleanup)
+Zach found hundreds of leftover bash/grep processes (rule 18 in COORDINATION.md). Small fixes to the shared scripts:
+1. `scripts/run-playmode-tests.sh`: Unity runs without a timeout, so a hung test editor lives forever. Wrap it in `timeout 3600` and report exit 124 as "timed out".
+2. `Tools/bench/smoke.sh`: `Stop-Process -Name Punchy` kills every Punchy.exe on the machine, including Zach's game and other lanes' runs. Keep `$!` from the `&` launch and kill only that PID (and its children).
+3. `Tools/bench/lib.sh` `strays()`: kills every batch-mode Unity.exe and every bench Punchy.exe, so one lane's bench can kill another lane's batch build or test. Limit it to processes whose command line holds this tree's project path or its Builds folder.
+4. `lib.sh` mp client loop (`( ... ) &` then `wait`): make sure the background client loop also ends when the host run times out, for example by wrapping it in `timeout 1000`.
+Commit on b/fix-proc-cleanup and post the SHA here; the supervisor reviews and merges.
