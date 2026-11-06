@@ -3,3 +3,4 @@
 Oldest first. Add yourself at the bottom; only the first line may open an editor (and only with >= 6 GB free RAM). Delete your line once your editor is open.
 
 - player P-20 (rebuild, stopped by low memory) since 23:11
+- animal A-79 (row 2 near/far) since 23:17
