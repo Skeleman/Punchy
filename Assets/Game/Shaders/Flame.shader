@@ -34,6 +34,8 @@ Shader "Punchy/Flame"
     #define QUAD_SPARK 1
     #define QUAD_GLOW 2
     #define QUAD_SMOKE 3
+    // W-112 (FireSystem.AddFarFlame): a far flame's broad glow card, standing in for the light it would throw.
+    #define QUAD_FAR_GLOW 5
 
     struct Attributes
     {
@@ -64,7 +66,7 @@ Shader "Punchy/Flame"
     {
         Varyings o = (Varyings)0;
         int quad = (int)floor((input.uv0.w + 0.5) / 10.0);
-        bool smoke = quad >= QUAD_SMOKE;
+        bool smoke = quad == QUAD_SMOKE || quad == QUAD_SMOKE + 1;
         if (smoke != smokePass)
         {
             o.positionCS = float4(0, 0, -2, 1);
@@ -101,6 +103,15 @@ Shader "Punchy/Flame"
             width = size * _PunchyFireGlow.x;
             centre += normalize(GetCameraPositionWS() - centre) * width * 0.5;
             o.fade = _PunchyFireGlow.y * (0.8 + 0.2 * flick);
+        }
+        else if (quad == QUAD_FAR_GLOW)
+        {
+            // Far off (W-112): a soft card round the crown fire, bright enough to read across a valley and bloom,
+            // pulled towards the camera so the canopy round it doesn't cut it.
+            centre = basePos + axis * h * 0.35;
+            width = size * 1.0;
+            centre += normalize(GetCameraPositionWS() - centre) * width * 0.6;
+            o.fade = 0.3 * (0.85 + 0.15 * flick);
         }
         else if (smoke)
         {

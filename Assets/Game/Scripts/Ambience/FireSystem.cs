@@ -24,6 +24,8 @@ namespace Punchy.Ambience
 
         /// <summary>Quads per flame: the flame, its spark, its glow and two smoke puffs (Corner.w = colour + 10 x quad).</summary>
         const int Quads = 5;
+        /// <summary>A far flame's second quad (W-112): a broad, bright glow card standing in for its light.</summary>
+        const int FarGlowQuad = 5;
 
         static FireEffect effect;
         static readonly Vector4[] colourTable = new Vector4[FireEffect.MaxColours * 3];
@@ -63,6 +65,7 @@ namespace Punchy.Ambience
             public Vector3 Position, Lean;
             public float Size;
             public int Seed, Palette;
+            public bool Far;
         }
 
         struct FlameVertex
@@ -97,8 +100,36 @@ namespace Punchy.Ambience
         /// velocity × -0.05, clamped to about 0.3. Eased between frames.</param>
         public static void AddFlame(Vector3 position, float size, int seed, int palette, Vector3 lean)
         {
-            if (flames.Count < 4096)
+            if (flames.Count < MaxFlames)
                 flames.Add(new Flame { Position = position, Size = size, Seed = seed, Palette = Colour(palette), Lean = lean });
+        }
+
+        const int MaxFlames = 8192;
+
+        /// <summary>
+        /// W-112: a far flame this frame, the level of detail for fire seen from far off (a burning forest across a
+        /// valley): only the flame itself, no sparks or smoke, and a broad glow card round it that stands in for the
+        /// light it would throw (no real light). Two quads instead of five, and never eased.
+        /// </summary>
+        public static void AddFarFlame(Vector3 position, float size, int seed, int palette = Wood)
+        {
+            if (flames.Count < MaxFlames)
+                flames.Add(new Flame { Position = position, Size = size, Seed = seed, Palette = Colour(palette), Far = true });
+        }
+
+        /// <summary>
+        /// The colour embers glow in a fire of <paramref name="colour"/> (W-112: the Ember Forest's bark seams and
+        /// leaf slivers take its night's colour): the standard wood-fire ember for wood, otherwise the fire's middle
+        /// colour. w is 1 so the shaders know it has been set.
+        /// </summary>
+        public static Vector4 EmberTint(int colour)
+        {
+            var e = Effect;
+            var c = Colour(colour);
+            if (c == Wood || e == null || e.Colours.Length == 0)
+                return new Vector4(1f, 0.36f, 0.08f, 1f);
+            var mid = e.Colours[c].Mid;
+            return new Vector4(mid.r, mid.g, mid.b, 1f);
         }
 
         /// <summary>Draws this frame's flames and clears the list (LandmarkEffectSystem, once a frame).</summary>
@@ -120,12 +151,17 @@ namespace Punchy.Ambience
             var max = new float3(float.MinValue);
             foreach (var f in flames)
             {
-                var lean = eased.TryGetValue(f.Seed, out var was) ? Vector3.Lerp(was, f.Lean, follow) : f.Lean;
-                easedNext[f.Seed] = lean;
-                var seed01 = (math.hash(new int2(f.Seed, 0x5EED)) & 0xFFFF) / 65535f;
-                // The flame, its spark, its glow and its two smoke puffs.
-                for (int quad = 0; quad < Quads; quad++)
+                var lean = Vector3.zero;
+                if (!f.Far)
                 {
+                    lean = eased.TryGetValue(f.Seed, out var was) ? Vector3.Lerp(was, f.Lean, follow) : f.Lean;
+                    easedNext[f.Seed] = lean;
+                }
+                var seed01 = (math.hash(new int2(f.Seed, 0x5EED)) & 0xFFFF) / 65535f;
+                // The flame, its spark, its glow and its two smoke puffs; a far flame only the flame and its glow card.
+                for (int q = 0; q < (f.Far ? 2 : Quads); q++)
+                {
+                    var quad = f.Far && q == 1 ? FarGlowQuad : q;
                     var first = vertices.Count;
                     for (int k = 0; k < 4; k++)
                         vertices.Add(new FlameVertex

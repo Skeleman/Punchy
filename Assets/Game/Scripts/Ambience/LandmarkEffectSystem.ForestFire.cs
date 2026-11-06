@@ -12,6 +12,10 @@ namespace Punchy.Ambience
     /// fire is its own. Cosmetic only: it doesn't spread, burn or hurt anything. It catches as the light goes and dies
     /// down at dawn with the landmarks' night fires. Only trees within ForestFireRange are gathered (twice a second, or
     /// as the camera moves), and only the nearest few throw light.
+    /// W-112: past that, out to ForestFarRange, each burning tree keeps one far flame in its crown (FireSystem's far
+    /// level of detail: the flame and a broad glow card standing in for its light, no real light), so the forest
+    /// glows across the island instead of lighting up only round the player. The trees' ember seams and leaf slivers
+    /// glow in the night's fire colour too (FireSystem.EmberTint).
     /// </summary>
     public partial class LandmarkEffectSystem
     {
@@ -20,6 +24,9 @@ namespace Punchy.Ambience
         /// <summary>At most this many flames a frame from the forest, and this many of the nearest throw light.</summary>
         const int MaxForestFlames = 320, ForestLights = 6;
         const int ForestSeedBase = 0x6F000000;
+        /// <summary>W-112: burning trees keep a far flame out to this distance (GraphicsSettings.ViewRange scales it), at most MaxFarFlames.</summary>
+        const float ForestFarRange = 600f;
+        const int MaxFarFlames = 3000;
 
         Punchy.Flora.FloraSystem flora;
         readonly HashSet<Punchy.Flora.FloraSpecies> burningSpecies = new HashSet<Punchy.Flora.FloraSpecies>();
@@ -30,6 +37,13 @@ namespace Punchy.Ambience
         readonly List<(Vector3 at, float size, int seed)> forestFlames = new List<(Vector3, float, int)>();
         float3 forestGatheredAt = new float3(float.MaxValue);
         float nextForestGather;
+        /// <summary>W-112: the far flames (crown position, size, seed), gathered less often than the near ones.</summary>
+        readonly List<(Vector3 at, float size, int seed)> farFlames = new List<(Vector3, float, int)>();
+        readonly List<(float3 foot, float3 top, float height, float crown, int seed)> farTrees =
+            new List<(float3, float3, float, float, int)>();
+        float3 farGatheredAt = new float3(float.MaxValue);
+        float nextFarGather;
+        static readonly int EmberTintId = Shader.PropertyToID("_PunchyEmberTint");
         Punchy.Weather.DayNightCycle cycle;
 
         /// <summary>Last forest gather, for the world probe: "trees, flames, colour".</summary>
@@ -37,6 +51,9 @@ namespace Punchy.Ambience
 
         /// <summary>Debug: false hides the forest fires (render A/B).</summary>
         public static bool ForestFiresOn = true;
+
+        /// <summary>Debug (W-112 A/B): false drops the far flames and keeps the embers wood-coloured, as before W-112.</summary>
+        public static bool FarForestFiresOn = true;
 
         /// <summary>The colour the forest burns in tonight: from the world seed and the night (evening and the morning after count as one).</summary>
         public static int ForestColour(uint worldSeed, int day, float timeOfDay)
@@ -54,9 +71,14 @@ namespace Punchy.Ambience
 
         void ForestFires(in TerrainSource source, BiomePalette palette, Vector3 eye, float lit)
         {
+            if (cycle == null)
+                cycle = FindAnyObjectByType<Punchy.Weather.DayNightCycle>();
+            var colour = cycle != null ? ForestColour((uint)source.World.Seed, cycle.Day, cycle.TimeOfDay) : FireSystem.Wood;
+            // Off (the A/B switch) is the old look: wood-coloured embers whatever the fire burns, even under the override.
+            Shader.SetGlobalVector(EmberTintId, FarForestFiresOn ? FireSystem.EmberTint(colour) : new Vector4(1f, 0.36f, 0.08f, 1f));
             if (!ForestFiresOn || lit <= 0.01f)
             {
-                forestGatheredAt = new float3(float.MaxValue);
+                forestGatheredAt = farGatheredAt = new float3(float.MaxValue);
                 return;
             }
             if (burningFrom != palette)
@@ -73,8 +95,6 @@ namespace Punchy.Ambience
                 return;
             if (flora == null)
                 flora = FindAnyObjectByType<Punchy.Flora.FloraSystem>();
-            if (cycle == null)
-                cycle = FindAnyObjectByType<Punchy.Weather.DayNightCycle>();
             if (flora == null)
                 return;
 
@@ -85,10 +105,11 @@ namespace Punchy.Ambience
                 forestGatheredAt = eye;
                 GatherForest(source, eye, range);
             }
+            if (FarForestFiresOn)
+                FarForestFires(eye, range, colour, lit);
             if (forestFlames.Count == 0)
                 return;
 
-            var colour = cycle != null ? ForestColour((uint)source.World.Seed, cycle.Day, cycle.TimeOfDay) : FireSystem.Wood;
             for (int i = 0; i < forestFlames.Count; i++)
             {
                 var f = forestFlames[i];
@@ -110,6 +131,53 @@ namespace Punchy.Ambience
                 light.w *= 2.4f;
                 CaveSystem.MovingLights.Add((f.seed, f.at, light));
                 lights++;
+            }
+        }
+
+        /// <summary>
+        /// W-112: one far flame in each burning tree's crown from where the near flames thin out to ForestFarRange,
+        /// fading in over the band where the near ones shrink away, so nothing pops. Gathered every two seconds or
+        /// every 25 m the camera moves (a main-thread walk over the tree tiles in range).
+        /// </summary>
+        /// <summary>How many far flames the last gather placed (for probes and the profiler).</summary>
+        public static int LastFarFlames;
+
+        void FarForestFires(Vector3 eye, float range, int colour, float lit)
+        {
+            var far = Punchy.Settings.GraphicsSettings.ViewRange(ForestFarRange);
+            if (far <= range)
+                return;
+            if (Time.unscaledTime >= nextFarGather || math.distancesq(farGatheredAt, (float3)eye) > 625f)
+            {
+                nextFarGather = Time.unscaledTime + 2f;
+                farGatheredAt = eye;
+                farTrees.Clear();
+                farFlames.Clear();
+                flora.TreesNear(((float3)eye).xz, far, burningSpecies, farTrees);
+                foreach (var t in farTrees)
+                {
+                    var d = math.distance(t.foot.xz, ((float3)eye).xz);
+                    if (d < range * 0.7f)
+                        continue;
+                    var at = t.top - new float3(0f, t.height * 0.12f, 0f);
+                    farFlames.Add((at, math.clamp(t.height * 0.3f, 2f, 5f), ForestSeedBase + 0x800000 + (int)((uint)t.seed & 0x7FFFFF)));
+                }
+                if (farFlames.Count > MaxFarFlames)
+                {
+                    var e = eye;
+                    farFlames.Sort((a, b) => (a.at - e).sqrMagnitude.CompareTo((b.at - e).sqrMagnitude));
+                    farFlames.RemoveRange(MaxFarFlames, farFlames.Count - MaxFarFlames);
+                }
+                LastFarFlames = farFlames.Count;
+            }
+            for (int i = 0; i < farFlames.Count; i++)
+            {
+                var f = farFlames[i];
+                var d = Vector3.Distance(f.at, eye);
+                // In as the near flames shrink away (the last quarter of their range), out at the far edge.
+                var size = f.size * lit * math.saturate((d - range * 0.75f) / (range * 0.25f)) * math.saturate((far - d) / (far * 0.15f));
+                if (size > 0.05f)
+                    FireSystem.AddFarFlame(f.at, size, f.seed, colour);
             }
         }
 
