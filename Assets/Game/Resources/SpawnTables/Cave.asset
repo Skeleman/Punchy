@@ -382,6 +382,10 @@ MonoBehaviour:
     Landmark: {fileID: 0}
     Biomes: 
     - {fileID: 11400000, guid: 277e2018d3d2abb46be2568301b07cab, type: 2}
+    - {fileID: 11400000, guid: b6dbd4f6350cf6743b5cf90b12731cfe, type: 2}
+    - {fileID: 11400000, guid: b8464ff24e973e14bbdaf441e0f45b14, type: 2}
+    - {fileID: 11400000, guid: 68e89c7ddec9ab245918187f5662a6c2, type: 2}
+    - {fileID: 11400000, guid: 796e3aff2526932459f9855a9d99abee, type: 2}
     Families: 0
     Times: 15
     Seasons: 15
