@@ -5,6 +5,7 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 
 | Issue | What to check | Where | Shipped |
 |---|---|---|---|
+| #40 mire walker | A mangrove-rooted giant with fog eyes and a lantern looms out of the marsh mist and walks a slow loop | FoggyMarsh, v3 near -1804,145 | PR #169, 2026-11-06 |
 | #40 snail | A huge cinder snail creeps a slow loop through the Ember Forest; its eyes and shell seams glow from far off | EmberForest | PR #168, 2026-11-05 |
 | Cave folk | `-incave` lands you in the bat folk chamber on v3; pygmies and bat folk live in their caves | v3 caves, `-incave` | PR #168, 2026-11-05 |
 | Cave mouths | No rim where a cave mouth meets the hillside; the ground round it has the cave's rock grain | Any cave mouth | PR #167, 2026-11-05 |
