@@ -5,6 +5,8 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 
 | Issue | What to check | Where | Shipped |
 |---|---|---|---|
+| Colossi | The poison plant is twice as tall and sways; the heron's crystals stay on the ground; the saguaro stands on roots; the golem is dark basalt | v3: plant at -goto -53,34,516 | PR #166, 2026-11-05 |
+| Colossus paths | Animals walk round colossi instead of into their legs | Golem ring, v3 -goto 729,-335 | PR #166, 2026-11-05 |
 | v3 default | New builds start on the v3 island with no flags (`-island v2` still works) | Any launch | PR #165, 2026-11-05 |
 | #39 roads | Roads run unbroken up steep slopes now, cut into or banked up on the hillside | Hilly roads | PR #165, 2026-11-05 |
 | Waterfalls | Falls show falling white and grey sheets, not flat glowing white. Try fall 74: -goto -2167,3,3691 | v3 at noon | PR #165, 2026-11-05 |
