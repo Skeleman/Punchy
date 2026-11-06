@@ -115,6 +115,8 @@ namespace Punchy.Fauna
 
         void Update()
         {
+            if (building)
+                BuildNext();
             if (!placed)
             {
                 if (surveyPending)
@@ -280,10 +282,19 @@ namespace Punchy.Fauna
             surveyWorld = null;
         }
 
+        // A-84 row 1: the build in progress. Place picks every slot; BuildNext builds one slot a frame and makes it
+        // solid on the next, so the 14 builds (JIT, meshes, particle setup, collision sampling, and the garbage
+        // collection they set off) no longer land in one 450 ms frame. Each slot still draws only from its own salt,
+        // so the spots are the same.
+        bool building;
+        bool solidNext;
+        int nextSlot;
+        TerrainSource buildSource;
+        Unity.Entities.World buildWorld;
+        readonly System.Diagnostics.Stopwatch buildWatch = new System.Diagnostics.Stopwatch();
+
         void Place(TerrainSource source, BiomePalette palette, int[] biomes)
         {
-            var half = source.World.WorldSize * 0.5f;
-            var n = (int)(half * 2f / Step) + 1;
             placed = true;
             Lanterns.Clear();
             LoadDefinitions();
@@ -304,44 +315,119 @@ namespace Punchy.Fauna
                 Placed[slot] = defs[slot].Kind;
                 Positions[slot] = Spots[slot] = new float3(float.NaN);
             }
+            pickSpot = new float2[slots];
+            pickYaw = new float[slots];
+            pickCells = new int[slots];
+            buildWatch.Restart();
             for (int slot = 0; slot < slots; slot++)
+                PickSlot(slot, source, palette, biomes);
+            Debug.Log($"[colossi] picked {slots} slots in {buildWatch.Elapsed.TotalMilliseconds:F1} ms on frame {Time.frameCount}");
+            buildSource = source;
+            buildWorld = Unity.Entities.World.DefaultGameObjectInjectionWorld;
+            nextSlot = 0;
+            solidNext = false;
+            building = slots > 0;
+        }
+
+        /// <summary>
+        /// A-84 row 1: builds the next picked slot's colossus on one frame and makes it solid on the next (the two
+        /// halves cost about the same for the big ones). If the world or its terrain changed
+        /// since <see cref="Place"/>, the build stops and placing starts over (Place clears what was built).
+        /// </summary>
+        void BuildNext()
+        {
+            var world = Unity.Entities.World.DefaultGameObjectInjectionWorld;
+            if (world == null || !world.IsCreated || world != buildWorld || !terrainStill(world))
             {
-                var def = defs[slot];
-                ColossusCollision.Clear(slot);
-                var wanted = new HashSet<int>();
-                for (int b = 0; b < palette.Biomes.Length; b++)
-                    if (palette.Biomes[b] != null)
-                        foreach (var name in def.Biomes)
-                            if (palette.Biomes[b].name.StartsWith(name, System.StringComparison.OrdinalIgnoreCase))
-                                wanted.Add(b);
-                if (!Pick(source, biomes, n, half, wanted, def.Salt, def.KeepRadius * 0.7f, out var spot, out var yaw, out var cells))
-                {
-                    Debug.Log($"StoneColossi: no room for a {def.Kind} in this world, none placed");
-                    continue;
-                }
-                if (builders == null || !builders.TryGetValue(def.Kind, out var build))
-                {
-                    Debug.LogWarning($"StoneColossi: no builder registered for {def.Kind}, none placed");
-                    continue;
-                }
-                var ground = source.SampleHeight(spot);
-                Positions[slot] = new float3(spot.x, ground, spot.y);
-                Spots[slot] = Positions[slot];
-                // Keep flora out of a circle round it and re-place the streamed tiles, so no tree grows through it (#40).
-                // The head's circle is wide enough (W-59d) to leave a clear sight line from about 40 m away.
-                if (def.FloraKeepOut)
-                {
-                    FloraPlacement.SetKeepOut(slot, new float4(spot.x, spot.y, def.KeepRadius, 1f));
-                    FloraSystem.Replant = true;
-                }
-                roots[slot] = build(source, Positions[slot], yaw, (uint)source.World.Seed ^ def.Salt);
-                // W-101 row 4 (#40): solid to the player and the creatures. A part named in the definition can follow
-                // the colossus as it moves (the salt ball's roll) or be left out (crumbs, the heron's shard litter).
-                var follow = string.IsNullOrEmpty(def.CollisionFollow) ? null : roots[slot].Find(def.CollisionFollow);
-                var leave = string.IsNullOrEmpty(def.CollisionLeave) ? new string[0] : new[] { def.CollisionLeave };
-                ColossusCollision.Register(slot, roots[slot], def.Kind.ToString(), follow, def.CollisionFollowRadius, leave);
-                Debug.Log($"StoneColossi: {def.Kind} placed at ({spot.x:F0}, {ground:F1}, {spot.y:F0}), facing {yaw:F0} degrees, region {cells} cells, relief {Relief(source, spot, def.KeepRadius * 0.7f):F1} m");
+                building = false;
+                placed = false;
+                return;
             }
+            buildWatch.Restart();
+            var slot = solidNext ? nextSlot - 1 : nextSlot++;
+            if (solidNext)
+                SolidSlot(slot, buildSource);
+            else
+                BuildSlot(slot, buildSource);
+            Debug.Log($"[colossi] slot {slot} ({defs[slot].Kind}) {(solidNext ? "made solid" : "built")} in {buildWatch.Elapsed.TotalMilliseconds:F1} ms on frame {Time.frameCount}");
+            solidNext = !solidNext;
+            if (!solidNext && nextSlot >= defs.Length)
+                building = false;
+
+            bool terrainStill(Unity.Entities.World w)
+            {
+                using var q = w.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
+                return q.TryGetSingleton(out TerrainSource now) && now.Equals(buildSource);
+            }
+        }
+
+        // A-84 row 1: each slot's pick, made in Place (so the flora keep-outs and their one replant come at once, as
+        // before), and built later by BuildNext.
+        float2[] pickSpot = new float2[0];
+        float[] pickYaw = new float[0];
+        int[] pickCells = new int[0];
+
+        /// <summary>Picks a slot's spot and sets its keep-out (false when there is no room or no builder).</summary>
+        bool PickSlot(int slot, in TerrainSource source, BiomePalette palette, int[] biomes)
+        {
+            var half = source.World.WorldSize * 0.5f;
+            var n = (int)(half * 2f / Step) + 1;
+            var def = defs[slot];
+            ColossusCollision.Clear(slot);
+            var wanted = new HashSet<int>();
+            for (int b = 0; b < palette.Biomes.Length; b++)
+                if (palette.Biomes[b] != null)
+                    foreach (var name in def.Biomes)
+                        if (palette.Biomes[b].name.StartsWith(name, System.StringComparison.OrdinalIgnoreCase))
+                            wanted.Add(b);
+            if (!Pick(source, biomes, n, half, wanted, def.Salt, def.KeepRadius * 0.7f, out var spot, out var yaw, out var cells))
+            {
+                Debug.Log($"StoneColossi: no room for a {def.Kind} in this world, none placed");
+                return false;
+            }
+            if (builders == null || !builders.ContainsKey(def.Kind))
+            {
+                Debug.LogWarning($"StoneColossi: no builder registered for {def.Kind}, none placed");
+                return false;
+            }
+            pickSpot[slot] = spot;
+            pickYaw[slot] = yaw;
+            pickCells[slot] = cells;
+            var ground = source.SampleHeight(spot);
+            Positions[slot] = new float3(spot.x, ground, spot.y);
+            Spots[slot] = Positions[slot];
+            // Keep flora out of a circle round it and re-place the streamed tiles, so no tree grows through it (#40).
+            // The head's circle is wide enough (W-59d) to leave a clear sight line from about 40 m away.
+            if (def.FloraKeepOut)
+            {
+                FloraPlacement.SetKeepOut(slot, new float4(spot.x, spot.y, def.KeepRadius, 1f));
+                FloraSystem.Replant = true;
+            }
+            return true;
+        }
+
+        /// <summary>Builds a picked slot's colossus.</summary>
+        void BuildSlot(int slot, in TerrainSource source)
+        {
+            if (math.any(math.isnan(Spots[slot])))
+                return;
+            var def = defs[slot];
+            roots[slot] = builders[def.Kind](source, Positions[slot], pickYaw[slot], (uint)source.World.Seed ^ def.Salt);
+        }
+
+        /// <summary>Makes a built slot's colossus solid, the frame after its build.</summary>
+        void SolidSlot(int slot, in TerrainSource source)
+        {
+            if (math.any(math.isnan(Spots[slot])) || roots[slot] == null)
+                return;
+            var def = defs[slot];
+            var spot = pickSpot[slot];
+            // W-101 row 4 (#40): solid to the player and the creatures. A part named in the definition can follow
+            // the colossus as it moves (the salt ball's roll) or be left out (crumbs, the heron's shard litter).
+            var follow = string.IsNullOrEmpty(def.CollisionFollow) ? null : roots[slot].Find(def.CollisionFollow);
+            var leave = string.IsNullOrEmpty(def.CollisionLeave) ? new string[0] : new[] { def.CollisionLeave };
+            ColossusCollision.Register(slot, roots[slot], def.Kind.ToString(), follow, def.CollisionFollowRadius, leave);
+            Debug.Log($"StoneColossi: {def.Kind} placed at ({spot.x:F0}, {Positions[slot].y:F1}, {spot.y:F0}), facing {pickYaw[slot]:F0} degrees, region {pickCells[slot]} cells, relief {Relief(source, spot, def.KeepRadius * 0.7f):F1} m");
         }
 
         /// <summary>
