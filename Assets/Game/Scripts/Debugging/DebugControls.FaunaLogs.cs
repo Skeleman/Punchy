@@ -187,14 +187,14 @@ namespace Punchy.Debugging
                 Debug.Log($"[comfort] at player ({me.Position.x:F0},{me.Position.z:F0}) hour {(Cycle != null ? Cycle.TimeOfDay : -1f):F1}: " +
                           $"heat {here.Heat:F2} felt {Comfort.FeltHeat(here, night, underground):F2} humid {here.Humidity:F2} rain {here.Rain:F2} " +
                           $"snow {here.Snow:F2} wind {here.Wind:F2} storm {here.Storm:F2} sun {here.Sunlight:F2}");
-                var seen = new HashSet<ComfortRace>();
+                var seen = new HashSet<byte>();
                 for (int sp = 0; sp < director.SpeciesCount; sp++)
                 {
                     var blob = director.BlobAt(sp);
                     if (!blob.IsCreated)
                         continue;
                     ref var profile = ref blob.Value.Comfort;
-                    if (profile.Race == ComfortRace.None || !profile.Minds || !seen.Add(profile.Race))
+                    if (!FolkRaces.Has(profile.Race, RaceTrait.Folk) || !profile.Minds || !seen.Add(profile.Race))
                         continue;
                     var sum = 0f;
                     var kinds = new int[9];
@@ -207,7 +207,7 @@ namespace Punchy.Debugging
                     for (int k = 1; k < kinds.Length; k++)
                         if (kinds[k] > 0 && (worst == 0 || kinds[k] > kinds[worst]))
                             worst = k;
-                    Debug.Log($"[comfort] race {profile.Race} ({director.SpeciesAt(sp).name}): pressure {sum / 5f:F2} kind {(ComfortKind)worst} " +
+                    Debug.Log($"[comfort] race {FolkRaces.ById(profile.Race)?.name} ({director.SpeciesAt(sp).name}): pressure {sum / 5f:F2} kind {(ComfortKind)worst} " +
                               $"likes {profile.Heat.x:F2}-{profile.Heat.y:F2} tol {profile.Tolerance:F2}");
                 }
             }

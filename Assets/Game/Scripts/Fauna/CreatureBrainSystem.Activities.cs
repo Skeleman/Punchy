@@ -104,7 +104,7 @@ namespace Punchy.Fauna
                     var seek = new Random(math.hash(new uint2(s.Individual, (uint)(Now * 10f))) | 1u);
                     // (A-75 row 1: in the midday heat only some folk give in; the hardy half fan themselves and carry on.)
                     var hardy = new Random(math.hash(new uint2(s.Individual, 0x4EA7u)) | 1u);
-                    if (b.Comfort.Race != ComfortRace.None && M.DiscomfortKind is ComfortKind.Hot or ComfortKind.Dry or ComfortKind.Bright &&
+                    if (FolkRaces.Has(b.Comfort.Race, RaceTrait.Folk) && M.DiscomfortKind is ComfortKind.Hot or ComfortKind.Dry or ComfortKind.Bright &&
                         hardy.NextFloat() < 0.5f)
                     {
                         M.ShelterRetry = seek.NextFloat(40f, 80f);
@@ -160,7 +160,7 @@ namespace Punchy.Fauna
             {
                 if (s.Mode == CreatureMode.Rest || Flying(in s) || !Free(s.Mode) && s.Mode != CreatureMode.Work && s.Mode != CreatureMode.Sit)
                     return;
-                var folk = b.Comfort.Race != ComfortRace.None && b.Upright;
+                var folk = FolkRaces.Has(b.Comfort.Race, RaceTrait.Folk) && b.Upright;
                 var pose = M.DiscomfortKind switch
                 {
                     ComfortKind.Hot or ComfortKind.Dry => IdleAction.Pant,
@@ -442,7 +442,7 @@ namespace Punchy.Fauna
                 if (b.Blind && below)
                 {
                     var chore = rng.NextFloat();
-                    if (chore < 0.25f && FindCaveWater(ref s, ref b, ref rng, out var shore, out var water))
+                    if (chore < 0.25f && FolkRaces.Has(b.Comfort.Race, RaceTrait.Fishing) && FindCaveWater(ref s, ref b, ref rng, out var shore, out var water))
                         return StartChore(ref s, ref rng, CreatureTask.Fish, FolkJob.PoolFisher, shore, water);
                     if (chore < 0.45f)
                     {
@@ -515,9 +515,10 @@ namespace Punchy.Fauna
                     case Weighted.Work:
                         SetMode(ref s, CreatureMode.Work);
                         s.Timer = s.Task == CreatureTask.Fish ? rng.NextFloat(120f, 300f) : rng.NextFloat(40f, 120f);
-                        // (A-73: a village fisher works on its wharf when it has one, else on its own bit of shore.)
+                        // (A-73: a village fisher works on its wharf when it has one, else on its own bit of shore. A-81: the
+                        // wharf is for a fishing race, the trait, not any one race.)
                         s.PierSpot = 0;
-                        if (s.Task == CreatureTask.Fish)
+                        if (s.Task == CreatureTask.Fish && FolkRaces.Has(b.Comfort.Race, RaceTrait.Fishing))
                             FindWharf(ref s, ref rng);
                         return true;
                     case Weighted.Home:

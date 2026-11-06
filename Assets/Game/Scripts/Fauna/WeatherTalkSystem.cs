@@ -86,7 +86,7 @@ namespace Punchy.Fauna
             {
                 var s = states[i];
                 ref var b = ref bodies[i].Blob.Value;
-                if (b.Comfort.Race == ComfortRace.None || !b.Comfort.Minds || !b.Upright || !b.Hands || b.Haunts)
+                if (!FolkRaces.Has(b.Comfort.Race, RaceTrait.Folk) || !b.Comfort.Minds || !b.Upright || !b.Hands || b.Haunts)
                     continue;
                 if (math.distancesq(s.Position, player) > Reach * Reach)
                 {
@@ -154,7 +154,7 @@ namespace Punchy.Fauna
                     continue;
 
                 var demeanor = WeatherLines.Demeanor(s.Individual);
-                var text = lines.Pick(kind, b.Comfort.Race, demeanor, ref rng);
+                var text = lines.Pick(kind, FolkRaces.ById(b.Comfort.Race)?.name, demeanor, ref rng);
                 if (string.IsNullOrEmpty(text))
                     continue;
                 nextSpeak[entities[i]] = now + Again * rng.NextFloat(0.8f, 1.4f);

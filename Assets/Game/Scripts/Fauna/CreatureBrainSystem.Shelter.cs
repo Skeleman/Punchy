@@ -51,7 +51,7 @@ namespace Punchy.Fauna
                 var rockShelter = false;
 
                 // A door: in, or under its eaves facing out (eaves shade too).
-                if ((wanted & (ShelterNeed.Roof | ShelterNeed.Shade)) != 0 && b.Comfort.Race != ComfortRace.None)
+                if ((wanted & (ShelterNeed.Roof | ShelterNeed.Shade)) != 0 && FolkRaces.Has(b.Comfort.Race, RaceTrait.Folk))
                 {
                     var anchor = s.Anchor;
                     var anchorYaw = s.AnchorYaw;
@@ -297,7 +297,7 @@ namespace Punchy.Fauna
                 var wantedYaw = WrapAngle(math.atan2(toFace.x, toFace.y) - s.Yaw);
                 s.Yaw = WrapAngle(s.Yaw + math.clamp(wantedYaw, -b.TurnRate * dt, b.TurnRate * dt));
                 // (Animals settle down to wait it out; folk stand under it, looking about.)
-                if (b.Comfort.Race == ComfortRace.None && s.StageTime > 3f)
+                if (!FolkRaces.Has(b.Comfort.Race, RaceTrait.Folk) && s.StageTime > 3f)
                     lie = 1f;
                 desiredLook = idleLook;
                 if (s.Timer <= 0f)
