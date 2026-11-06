@@ -2,6 +2,40 @@
 
 Newest first.
 
+## 2026-11-06 q49: q46 rerun in full on main 2049f8c (quit-crash fix PR #175): no crash, hitches gone; four 0.5 s present waits in Profile captures
+
+**Short answer:**
+- **No crash** in 9 quits: 2 route sessions, 4 join/leave processes and 3 Profile runs all closed cleanly. The SurfaceGlow quit crash did not return. It was 1 in about 10 quits in q46, so 9 clean quits is encouraging, not proof.
+- **Hitches are gone on this main:**
+
+  | | job 28 | q40 | q46 (781fa5a) | **q49 (2049f8c)** |
+  |---|---|---|---|---|
+  | join/leave host: frames over 33 ms | 2 | 60 | 3 / 2 | **0 / 0** |
+  | join/leave host: 1% low fps | 55.5 | 31.1 | 63.1 / 54.3 | **63.0 / 51.6** |
+  | join/leave client: frames over 33 ms | 0 | 26 | 0 / 0 | **0 / 0** |
+  | townwalk: worst ms (1% low fps) | 26.2 | 331 | 418 / 29.8 | **25.1 (65.0) / 22.6 (69.1)** |
+  | run: frames over 33 ms (avg fps) | 3 (100) | 24 (88) | 0 / 0 (121 / 118) | **0 / 0 (130.5 / 128.5)** |
+  | glide: frames over 33 ms (avg fps) | 64 (59) | 23 (77) | 0 / 1 (98 / 87) | **0 / 2 (102 / 74)** |
+
+  - The townwalk's saguaro skin frame (q48, A-82 row 4, not merged yet) fell outside the measured window in both sessions, as in q48. It isn't fixed yet; it just wasn't counted.
+- **FaunaDirector is out of the spike frames** in all 3 Profile captures.
+  - Its inclusive mean is 0.39-0.50 ms against a median of 0.07, because of its time-sliced Comfort steps, which top out at 4-7 ms (q40: 10-28 ms spikes).
+  - The Comfort slices still reach 4-5 ms on some frames. If the frame budget gets tight, a smaller slice would help.
+- **New: four frames of 0.5 s, all in Profile captures, all the main thread waiting on the GPU present:**
+  - run: 509 and 520 ms, 8 s apart; salt walk-up: 502 and 521 ms, 25 s apart; fishing village: none.
+  - In each one, main spends **474-498 ms in DXGI.WaitOnSwapChain** (inside WaitForLastPresentation). The rest of the frame is normal script and ECS work (under 10 ms each). The render thread is idle (Semaphore.WaitForSignal).
+  - **So the GPU, or the driver's present, took about 0.5 s; the game's CPU code didn't.**
+  - None in the 4 Bench sessions (no frame over 44 ms in run or glide). None in q40's or q47's Profile captures on older mains.
+  - **First suspect: the animal lane's Unity editor**, open on this laptop for this run (the supervisor's note). It shares the one GPU, and an editor repaint, shader compile or bake can hold it for that long. W-114, W-115 and W-116 in #175 are the other new factor.
+  - To tell them apart: rerun the run + salt captures with the editor closed. If the waits stay, it's in #175. About 25 minutes whenever the editor is shut.
+
+**Method:**
+- q46.sh retargeted (q49.sh): Bench + Profile builds of 2049f8c, each started only with 6 GB or more free (21 GB was free both times).
+- Bench, uncapped, frames over 33 ms: v2 townwalk, run, glide, and the host + client join/leave at the v2 cave, 2 sessions each.
+- Profile captures (-fpscap 60, last 2000 frames) of run, the v2 fishing village and the salt walk-up, through BigFrame (call trees of the 0.5 s frames) and BProfileTools.
+- Logs: results/q49logs.
+- Cost: 10 calls, peak 275k context, $1.2
+
 ## 2026-11-06 q48: Millfield big frame traced (most likely) to the WalkingSaguaro colossus skinning on the main thread, main 781fa5a
 
 **Short answer:**
