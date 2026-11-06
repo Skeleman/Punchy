@@ -326,6 +326,25 @@ namespace Punchy.Fauna
     }
 
     /// <summary>
+    /// A-77: the colossi's columns (as ColossusCollision.Snapshot) handed from ColossusPushSystem to the next frame's
+    /// CreatureBrainSystem, whose Burst update can't take the snapshot itself: the brain takes them (leaving this empty)
+    /// and frees them after its job; a set it never took is freed when the next one is made.
+    /// </summary>
+    public struct ColossusSnapshot : IComponentData
+    {
+        public NativeArray<ColossusCylinder> Columns;
+        public NativeArray<float3> Circles;
+        public NativeArray<int2> Ranges;
+
+        public void Dispose()
+        {
+            if (Columns.IsCreated) Columns.Dispose();
+            if (Circles.IsCreated) Circles.Dispose();
+            if (Ranges.IsCreated) Ranges.Dispose();
+        }
+    }
+
+    /// <summary>
     /// W-101 row 4 (#40): pushes creatures back out of the colossi's columns after their brains move them, sideways to
     /// the nearest edge, so a walker slides along a colossus's flank and never through it. A body whose feet are above a
     /// column's top less a step, or whose head is under its foot, is left alone (a bird overhead, a beast under an arm).
@@ -342,11 +361,36 @@ namespace Punchy.Fauna
         static double nextPlayerLog;
         static string lastAgainst;
 
-        public void OnCreate(ref SystemState state) => state.RequireForUpdate<CreatureState>();
+        public void OnCreate(ref SystemState state)
+        {
+            state.RequireForUpdate<CreatureState>();
+            state.EntityManager.CreateSingleton(new ColossusSnapshot());
+        }
+
+        public void OnDestroy(ref SystemState state)
+        {
+            if (SystemAPI.TryGetSingletonRW<ColossusSnapshot>(out var snap))
+            {
+                snap.ValueRW.Dispose();
+                snap.ValueRW = default;
+            }
+        }
 
         public void OnUpdate(ref SystemState state)
         {
             ColossusCollision.Snapshot(out var columns, out var circles, out var ranges, Allocator.TempJob);
+            // A-77: a copy for the next frame's brain (CreatureBrainSystem steers round them); last frame's, if it went
+            // untaken, is freed first.
+            if (SystemAPI.TryGetSingletonRW<ColossusSnapshot>(out var snap))
+            {
+                snap.ValueRW.Dispose();
+                snap.ValueRW = circles.Length == 0 ? default : new ColossusSnapshot
+                {
+                    Columns = new NativeArray<ColossusCylinder>(columns, Allocator.TempJob),
+                    Circles = new NativeArray<float3>(circles, Allocator.TempJob),
+                    Ranges = new NativeArray<int2>(ranges, Allocator.TempJob)
+                };
+            }
             if (circles.Length == 0)
             {
                 columns.Dispose(); circles.Dispose(); ranges.Dispose();

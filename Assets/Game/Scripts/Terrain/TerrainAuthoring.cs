@@ -231,6 +231,12 @@ namespace Punchy.Terrain
             Stage("batfolk");
             source.Anchors = AnchorBaking.Build(source, landmarkTypes, allocator);
             Stage("anchors");
+            // W-28: icebergs on their own stream, so nothing above (or any hash) sees them. W-111: before the water
+            // surface pass, which they don't read (sea coasts only), so that pass is the bake's last step.
+            source.Icebergs = IcebergBaking.Build(source, palette, allocator);
+            UnityEngine.Debug.Log(IcebergBaking.LastLog);
+            Stage("icebergs");
+            // W-111: the water surface pass runs last; riverbeds and channels were cut at the start (rivers stage).
             // W-43c: rough riverbanks (width, slope and shoreline wobble) only now, so no landmark or cave moves.
             source.RiverRoughOn = true;
             source.PondsOn = true;
@@ -239,10 +245,6 @@ namespace Punchy.Terrain
             source.PondMask = source.BuildPondMask(allocator, out var dropped, out var pondReport);
             Stage("pondmask");
             UnityEngine.Debug.Log($"[ponds] {pondReport}. Dropped {dropped} cells.");
-            // W-28: icebergs last, on their own stream, so nothing above (or any hash) sees them.
-            source.Icebergs = IcebergBaking.Build(source, palette, allocator);
-            UnityEngine.Debug.Log(IcebergBaking.LastLog);
-            Stage("icebergs");
             UnityEngine.Debug.Log(stages.ToString());
         }
 

@@ -548,13 +548,66 @@ namespace Punchy.Flora
         static float FacingYaw(float2 facing) => math.atan2(-facing.x, facing.y);
 
         /// <summary>
+        /// W-113 (item 11): where an igloo stands: its ring spot if it seats there (PorchSeat leaves no step at the mouth
+        /// or ground in the tunnel, and the dome sinks until its foundation skirt reaches the lowest ground round its
+        /// foot, which showed as an open bottom), else the first that does of a few spots up to 4.5 m round it, nearer
+        /// the settlement's centre first. Returns 0 in place, 1 moved, -1 none fits (the igloo is left out). No draws.
+        /// </summary>
+        public static int IglooSpot(in TerrainSource source, float2 spot, float2 centre, float porch, ref float yaw, out float3 at)
+        {
+            var inward = math.normalizesafe(centre - spot, new float2(0f, 1f));
+            var side = new float2(-inward.y, inward.x);
+            var dome = math.max(1.5f, porch - 2.2f);   // FloraRule.Porch is the dome's radius plus 2.2 m of tunnel and path
+            at = default;
+            for (int k = 0; k < 9; k++)
+            {
+                var off = k == 0 ? float2.zero
+                        : k <= 2 ? inward * (k * 2f)
+                        : k <= 4 ? side * (k == 3 ? 2.5f : -2.5f)
+                        : k <= 6 ? inward * 2.5f + side * (k == 5 ? 2.5f : -2.5f)
+                        : inward * 4.5f + side * (k == 7 ? 1.5f : -1.5f);
+                var s = spot + off;
+                var y = source.SampleHeight(s);
+                var a = math.lengthsq(off) > 0f ? math.atan2(-(centre - s).x, (centre - s).y) + (yaw - math.atan2(-inward.x, inward.y)) : yaw;
+                PorchSeat(source, s, porch, ref a, ref y, out var miss);
+                if (miss > 0.05f)
+                    continue;
+                // The lowest ground under the dome's foot; the foundation skirt must reach it. If it doesn't, sink the
+                // igloo into the slope until it does, as long as the tunnel and mouth stay under 2 m of ground (the same
+                // bury limit PorchSeat uses), else try the next spot.
+                var low = float.MaxValue;
+                for (int r = 0; r < 12; r++)
+                {
+                    var t = r * math.PI / 6f;
+                    low = math.min(low, source.SampleHeight(s + new float2(math.cos(t), math.sin(t)) * dome * 0.95f));
+                }
+                var reach = low + FloraGenerator.FoundationDepth - 0.2f;
+                if (y > reach)
+                {
+                    var fwd = new float2(-math.sin(a), math.cos(a));
+                    var cover = math.max(source.SampleHeight(s + fwd * porch),
+                                         math.max(source.SampleHeight(s + fwd * (porch - 1.5f)), source.SampleHeight(s + fwd * (porch - 3f))));
+                    if (cover - reach > 2f)
+                        continue;
+                    y = reach;
+                }
+                yaw = a;
+                at = new float3(s.x, y, s.y);
+                return k == 0 ? 0 : 1;
+            }
+            return -1;
+        }
+
+        /// <summary>
         /// W-61b (#38): an igloo facing its settlement's centre, turned up to 30 degrees either way (W-65b; was 60) to the heading whose
         /// porch mouth (<paramref name="porch"/> m out) is nearest its centre's height (straight on wins near-ties), then
         /// lowered (up to 3.5 m since W-65d, was 1.4; the dome sinking into the slope) or raised (up to 0.5 m, within its foundation skirt) so
         /// the porch floor meets the ground at the mouth, not a ledge over a dip. No random draws, so nothing else moves.
+        /// <paramref name="miss"/> is how far the best heading still misses (m of step or buried tunnel; 0 seats it).
         /// </summary>
-        static void PorchSeat(in TerrainSource source, float2 spot, float porch, ref float yaw, ref float y)
+        static void PorchSeat(in TerrainSource source, float2 spot, float porch, ref float yaw, ref float y, out float miss)
         {
+            miss = 0f;
             var best = yaw;
             var bestCost = float.MaxValue;
             var bestY = y;
@@ -573,13 +626,14 @@ namespace Punchy.Flora
                 var mouth = source.SampleHeight(spot + fwd * porch);
                 var tunnel = math.max(source.SampleHeight(spot + fwd * (porch - 1.5f)), source.SampleHeight(spot + fwd * (porch - 3f)));
                 var seat = math.clamp(mouth, y - 3.5f, y + 0.5f);
-                var miss = math.max(0f, seat - 0.3f - mouth) + math.max(0f, math.max(mouth, tunnel) - seat - 2f);
-                var cost = miss * 10f + (k < 3 ? 0.25f * math.abs(turn) : 3f) + 0.05f * math.abs(seat - y);
+                var off = math.max(0f, seat - 0.3f - mouth) + math.max(0f, math.max(mouth, tunnel) - seat - 2f);
+                var cost = off * 10f + (k < 3 ? 0.25f * math.abs(turn) : 3f) + 0.05f * math.abs(seat - y);
                 if (cost < bestCost)
                 {
                     bestCost = cost;
                     best = a;
                     bestY = seat;
+                    miss = off;
                 }
             }
             yaw = best;
@@ -1363,6 +1417,9 @@ namespace Punchy.Flora
         /// <summary>Four more circles for colossi past the eighth (W-106 mesa tortoise).</summary>
         public static readonly SharedStatic<float4x4> KeepOutLast = SharedStatic<float4x4>.GetOrCreate<KeepOutCirclesLast>();
         class KeepOutCirclesLast { }
+        /// <summary>Four more circles for colossi past the twelfth (A-79 mire walker).</summary>
+        public static readonly SharedStatic<float4x4> KeepOutFinal = SharedStatic<float4x4>.GetOrCreate<KeepOutCirclesFinal>();
+        class KeepOutCirclesFinal { }
         /// <summary>#132: 1 turns Blocked's wall-reach skip off (DebugControls "-oldwalls"), for A/B timing.</summary>
         public static readonly SharedStatic<int> OldWalls = SharedStatic<int>.GetOrCreate<OldWallsKey>();
         class OldWallsKey { }
@@ -1385,6 +1442,10 @@ namespace Punchy.Flora
             var keepLast = KeepOutLast.Data;
             for (int k = 0; k < 4; k++)
                 if (keepLast[k].w > 0f && math.distancesq(xz, keepLast[k].xy) < keepLast[k].z * keepLast[k].z)
+                    return none;
+            var keepFinal = KeepOutFinal.Data;
+            for (int k = 0; k < 4; k++)
+                if (keepFinal[k].w > 0f && math.distancesq(xz, keepFinal[k].xy) < keepFinal[k].z * keepFinal[k].z)
                     return none;
             var roll = rng.NextFloat();
             var area = cellSize * cellSize / 100f;
@@ -1502,8 +1563,17 @@ namespace Punchy.Flora
                                 if (placedRule.FaceLandmark != 0)
                                     placedYaw = FacingYaw(set.Instances[landmark.Instance].Facing);
                                 var at = new float3(spot.x, footprint ? 0f : source.SampleHeight(spot), spot.y);
-                                if (placedRule.Porch > 0f && !footprint)
-                                    PorchSeat(source, spot, placedRule.Porch, ref placedYaw, ref at.y);
+                                // W-113 (item 11): an igloo only where it seats with its door clear and no open bottom;
+                                // else a few metres over, else none (no draws moved). Footprints follow it, so the
+                                // residents' map matches.
+                                if (placedRule.Porch > 0f)
+                                {
+                                    var seat = IglooSpot(source, spot, set.Instances[landmark.Instance].Position, placedRule.Porch, ref placedYaw, out var seated);
+                                    if (seat < 0)
+                                        return none;
+                                    spot = seated.xz;
+                                    at = footprint ? new float3(seated.x, 0f, seated.z) : seated;
+                                }
                                 if (placedRule.FaceLandmark == 2 && !footprint)
                                     at = DockShore(source, spot, set.Instances[landmark.Instance].Facing);
                                 var placedScale = rng.NextFloat(prop.Scale.x, math.max(prop.Scale.x, prop.Scale.y));

@@ -77,9 +77,9 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
 
 ## Island version and waterfalls (W-22)
 
-- v2 is the default island: no flag runs v2 (landmarks 125 / AFA9CC63, cave hash D531293D622E785A since the W-21
-  biome-blend fix). `-island v1` or PUNCHY_ISLAND=v1 runs v1 (101 / E128CB1D). The island isn't synced over the
-  network: host and client each read their own launch, so start both the same way.
+- v3 is the default island since W-111: no flag runs v3 (Landmarks_V3). `-island v2` or PUNCHY_ISLAND=v2 runs v2
+  (landmarks 125 / AFA9CC63, cave hash D531293D622E785A since the W-21 biome-blend fix); `-island v1` runs v1
+  (101 / E128CB1D). A joined client bakes the host's version (P-2, IslandVersionRpc).
 - BiomeData.SampleMapBlurred sums every biome id's weight and keeps the top 4 minus the 5th. Keeping only the first 4
   ids it met made weights jump where a fifth biome came in, which raised vertical walls and pits.
 - v2 map Mountains pixels cover only ridge crests, but the ridge height and blurred shape lift the ground well past

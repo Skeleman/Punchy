@@ -39,7 +39,7 @@ namespace Punchy.Terrain
         Matrix4x4 matrix;
         Bounds bounds;
         SunkenTempleLayout layout;
-        Material stone, sand, innerStone, innerSand, glow, innerFloor;
+        Material stone, sand, innerStone, innerSand, glow;
         float3[] torches;
         FarShadow farShadow;
         bool warned;
@@ -66,7 +66,10 @@ namespace Punchy.Terrain
             var d = Vector3.Distance(cp, bounds.ClosestPoint(cp));
             var lod = d < Lod0Distance ? 0 : d < Lod1Distance ? 1 : 2;
             var q = SunkenTempleShape.Local(layout, cp);
-            var inside = lod == 0 && q.x > -40f && q.x < 36f && math.abs(q.z) < 20f && q.y < 20f;
+            // W-113 (item 12): the interior shows from well outside the door (30 m round the ruin), so the plugs that
+            // close the door while it's hidden never stand between a chase camera and the player walking in (they
+            // read as a plane splitting the temple that the player passed through).
+            var inside = lod == 0 && q.x > -70f && q.x < 66f && math.abs(q.z) < 50f && q.y < 40f;
             InteriorShown = inside;
 
             Draw(lods[lod], 0, stone, ShadowCastingMode.TwoSided);
@@ -76,7 +79,6 @@ namespace Punchy.Terrain
                 Draw(interior, 0, innerStone, ShadowCastingMode.Off);
                 Draw(interior, 1, innerSand, ShadowCastingMode.Off);
                 Draw(interior, 2, glow, ShadowCastingMode.Off);
-                Draw(interior, 3, innerFloor, ShadowCastingMode.Off);
                 Torches();
             }
             else if (lod == 0)
@@ -116,7 +118,11 @@ namespace Punchy.Terrain
                 return true;
             // W-77: tinted copies of the Colossus material (vertex colour x tint, terrain haze), so the ruins fade into
             // the fog from high up like the ground around them.
-            var basalt = Resources.Load<Material>("Colossus");
+            // W-113 (item 12): the temple's own material (Punchy/SunkenTemple: the same haze, plus sandstone blocks or
+            // sand ripples and the torches' glow light); the plain Colossus one if it's missing.
+            var basalt = Resources.Load<Material>("SunkenTemple");
+            if (basalt == null)
+                basalt = Resources.Load<Material>("Colossus");
             if (basalt == null)
             {
                 if (!warned)
@@ -125,21 +131,20 @@ namespace Punchy.Terrain
                 return false;
             }
             stone = Tint(basalt, new Color(0.72f, 0.58f, 0.40f), "SunkenTempleStone");
-            sand = Tint(basalt, new Color(0.80f, 0.67f, 0.46f), "SunkenTempleSand");
-            // P-19 (#24): the rooms' walls in warm sandstone blocks, their floors in grey-brown flagstones (the pattern is
-            // the interior mesh's vertex colour: Builder.Pattern).
-            innerStone = Tint(basalt, new Color(0.50f, 0.39f, 0.26f), "SunkenTempleInnerStone");
-            innerFloor = Tint(basalt, new Color(0.40f, 0.37f, 0.33f), "SunkenTempleInnerFloor");
-            innerSand = Tint(basalt, new Color(0.55f, 0.45f, 0.30f), "SunkenTempleInnerSand");
+            sand = Tint(basalt, new Color(0.80f, 0.67f, 0.46f), "SunkenTempleSand", false);
+            innerStone = Tint(basalt, new Color(0.42f, 0.33f, 0.23f), "SunkenTempleInnerStone");
+            innerSand = Tint(basalt, new Color(0.55f, 0.45f, 0.30f), "SunkenTempleInnerSand", false);
             var g = Resources.Load<Material>("TempleGlow");
             glow = g != null ? g : Tint(basalt, new Color(1f, 0.8f, 0.5f), "SunkenTempleGlow");
             return true;
         }
 
-        static Material Tint(Material from, Color c, string name)
+        static Material Tint(Material from, Color c, string name, bool blocks = true)
         {
             var m = new Material(from) { name = name };
             m.SetColor("_BaseColor", c);
+            if (m.HasProperty("_Blocks"))
+                m.SetFloat("_Blocks", blocks ? 1f : 0f);
             if (m.HasProperty("_Smoothness"))
                 m.SetFloat("_Smoothness", 0.08f);
             return m;
@@ -200,7 +205,7 @@ namespace Punchy.Terrain
                     lods[lod] = b.ToMesh($"SunkenTemple LOD{lod}");
                     LodTris[lod] = b.Tris;
                 }
-                var ib = new Builder(4) { Pattern = true };
+                var ib = new Builder(3);
                 ruin.Interior(ib);
                 interior = ib.ToMesh("SunkenTemple interior");
                 LodTris[3] = ib.Tris;
@@ -387,7 +392,7 @@ namespace Punchy.Terrain
                     var r = Rooms[i];
                     if (r.Kind != 0)
                         continue;
-                    b.Panel(3, 2, r.Floor, r.U0, r.U1, r.V0, r.V1, Vector3.up);   // (submesh 3: the flagstone floor)
+                    b.Panel(0, 2, r.Floor, r.U0, r.U1, r.V0, r.V1, Vector3.up);
                     b.Panel(0, 2, r.Ceil, r.U0, r.U1, r.V0, r.V1, Vector3.down);
                     Edges(i, (e, s0, s1, n) =>
                     {
@@ -465,17 +470,8 @@ namespace Punchy.Terrain
         class Builder
         {
             readonly List<Vector3> v = new List<Vector3>(), n = new List<Vector3>();
-            readonly List<Color> col = new List<Color>();
             readonly List<int>[] sub;
             public int Tris;
-            /// <summary>
-            /// P-19 (#24): stone in the vertex colour, for the interior. Floors (flat, facing up) are cut into ~0.7 m
-            /// flagstones and walls into 0.45 m courses of staggered 0.9 m blocks, each a little lighter or darker; and
-            /// within ~0.4 m of where a wall meets the floor (a wall's foot, a floor's edges) the colour darkens. Only
-            /// what's drawn: nothing that collides or is hashed changes.
-            /// </summary>
-            public bool Pattern;
-            const float Flag = 0.7f, Course = 0.45f, Seam = 0.4f;
 
             public Builder(int submeshes)
             {
@@ -484,21 +480,12 @@ namespace Punchy.Terrain
                     sub[i] = new List<int>();
             }
 
-            int Vert(Vector3 p, Vector3 normal) => Vert(p, normal, Color.white);
-
-            int Vert(Vector3 p, Vector3 normal, Color c)
+            int Vert(Vector3 p, Vector3 normal)
             {
                 v.Add(p);
                 n.Add(normal);
-                col.Add(c);
                 return v.Count - 1;
             }
-
-            /// <summary>A stone's shade from its cell (the same on every machine): 0.74 to 1.14.</summary>
-            static float Shade(int a, int b, int c) => 0.74f + 0.4f * (math.hash(new int3(a, b, c)) & 1023) / 1023f;
-
-            /// <summary>How dark the seam makes a corner: 0.4 at the seam, 1 from Seam away.</summary>
-            static float SeamDark(float d) => math.lerp(0.4f, 1f, math.saturate(d / Seam));
 
             void Index(int s, int a, int b, int c, Vector3 normal)
             {
@@ -537,28 +524,8 @@ namespace Punchy.Terrain
                         if (h.z > t0 && h.z < t1) ts.Add(h.z);
                         if (h.w > t0 && h.w < t1) ts.Add(h.w);
                     }
-                var floor = Pattern && axis == 2 && normal.y > 0.5f;
-                var wall = Pattern && axis != 2;
-                if (floor || wall)
-                {
-                    // (Stone joints on a world grid, so neighbouring panels line up; plus a line Seam from the edges.)
-                    var ds = floor ? Flag : Course;
-                    for (var x = math.ceil(s0 / ds) * ds; x < s1; x += ds) ss.Add(x);
-                    for (var y = math.ceil(t0 / (floor ? Flag : Course)) * (floor ? Flag : Course); y < t1; y += floor ? Flag : Course) ts.Add(y);
-                    if (t0 + Seam < t1) ts.Add(t0 + Seam);
-                    if (floor)
-                    {
-                        if (s0 + Seam < s1) ss.Add(s0 + Seam);
-                        if (s1 - Seam > s0) ss.Add(s1 - Seam);
-                        if (t1 - Seam > t0) ts.Add(t1 - Seam);
-                    }
-                }
                 ss.Sort();
                 ts.Sort();
-                for (int i = ss.Count - 1; i > 0; i--)
-                    if (ss[i] - ss[i - 1] < 1e-4f) ss.RemoveAt(i);
-                for (int i = ts.Count - 1; i > 0; i--)
-                    if (ts[i] - ts[i - 1] < 1e-4f) ts.RemoveAt(i);
                 for (int i = 0; i + 1 < ss.Count; i++)
                     for (int j = 0; j + 1 < ts.Count; j++)
                     {
@@ -570,33 +537,8 @@ namespace Punchy.Terrain
                         if (holes != null)
                             foreach (var h in holes)
                                 cut |= ms > h.x && ms < h.y && mt > h.z && mt < h.w;
-                        if (cut)
-                            continue;
-                        if (!floor && !wall)
-                        {
+                        if (!cut)
                             Quad(sm, P(axis, c, a, e), P(axis, c, b, e), P(axis, c, b, f), P(axis, c, a, f), normal);
-                            continue;
-                        }
-                        // The stone this cell belongs to: a flagstone's grid cell, or a block in its course (odd courses
-                        // shifted half a block, so the joints stagger).
-                        float shade;
-                        if (floor)
-                            shade = Shade((int)math.floor(ms / Flag), (int)math.floor(mt / Flag), (int)math.round(c * 4f));
-                        else
-                        {
-                            var course = (int)math.floor(mt / Course);
-                            shade = Shade((int)math.floor((ms + (course % 2 != 0 ? Course : 0f)) / (2f * Course)), course, (int)math.round(c * 4f) + axis * 7919);
-                        }
-                        Color Corner(float x, float y)
-                        {
-                            var d = floor ? math.min(math.min(x - s0, s1 - x), math.min(y - t0, t1 - y)) : y - t0;
-                            var k = shade * SeamDark(d);
-                            return new Color(k, k, k, 1f);
-                        }
-                        int ia = Vert(P(axis, c, a, e), normal, Corner(a, e)), ib = Vert(P(axis, c, b, e), normal, Corner(b, e));
-                        int ic = Vert(P(axis, c, b, f), normal, Corner(b, f)), id = Vert(P(axis, c, a, f), normal, Corner(a, f));
-                        Index(sm, ia, ib, ic, normal);
-                        Index(sm, ia, ic, id, normal);
                     }
             }
 
@@ -665,7 +607,7 @@ namespace Punchy.Terrain
                 var m = new Mesh { name = name, indexFormat = IndexFormat.UInt32 };
                 m.SetVertices(v);
                 m.SetNormals(n);
-                m.SetColors(col);
+                m.SetColors(System.Linq.Enumerable.ToList(System.Linq.Enumerable.Repeat(Color.white, v.Count)));
                 m.subMeshCount = sub.Length;
                 for (int i = 0; i < sub.Length; i++)
                     m.SetTriangles(sub[i], i);

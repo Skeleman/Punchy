@@ -67,6 +67,10 @@ namespace Punchy.Fauna
             // A-76: the glass heron wades a small loop with long still rests (it stabs at the sand while resting); the lantern stag roams wider.
             new Gait { Kind = StoneColossi.Kind.GlassHeron, Slot = 9, Radius = 45f, Speed = 0.8f, Walk = 70f, Rest = 60f, Stride = 4f, Bob = 0.2f, Shake = 0.05f, Body = 10f, Height = 32f, Salt = 0xA76Eu },
             new Gait { Kind = StoneColossi.Kind.LanternStag, Slot = 10, Radius = 65f, Speed = 1.3f, Walk = 90f, Rest = 50f, Stride = 5f, Bob = 0.3f, Shake = 0.07f, Body = 14f, Height = 34f, Salt = 0xA757u },
+            // A-78: the cinder snail glides (no legs, no rig), slowest of all with barely a bob, and rests long to graze.
+            new Gait { Kind = StoneColossi.Kind.CinderSnail, Slot = 11, Radius = 40f, Speed = 0.35f, Walk = 120f, Rest = 60f, Stride = 8f, Bob = 0.04f, Shake = 0.03f, Body = 24f, Height = 34f, Salt = 0xA7C5u },
+            // A-79: the mire walker creeps on its root skirt (no rig), slow with a heavy sway, pausing long in the fog.
+            new Gait { Kind = StoneColossi.Kind.MireWalker, Slot = 12, Radius = 36f, Speed = 0.6f, Walk = 90f, Rest = 45f, Stride = 10f, Bob = 0.12f, Shake = 0.05f, Body = 20f, Height = 40f, Salt = 0xA7F1u },
         };
 
         const float Ramp = 5f, AwakeRange = 600f, FarPeriod = 0.5f, ShakeRange = 120f, ShakeTime = 0.35f, DustRange = 300f;
@@ -81,6 +85,7 @@ namespace Punchy.Fauna
         {
             public Gait G;
             public Transform Root;
+            public Transform Litter;   // A-77: the heron's litter, unparented so it stays put (shown, hidden and destroyed with its colossus here)
             public float3 Spot;
             /// <summary>The loop's centre: the spot itself, or nudged off it when the ground round the spot is too steep.</summary>
             public float2 Centre;
@@ -139,6 +144,9 @@ namespace Punchy.Fauna
         void OnDestroy()
         {
             CreatureBrainSystem.ColossusZones.Data = float4x4.zero;
+            foreach (var w in walkers)
+                if (w != null && w.Litter != null)
+                    Destroy(w.Litter.gameObject);
             if (Instance == this)
                 Instance = null;
         }
@@ -150,6 +158,7 @@ namespace Punchy.Fauna
             if (shakeApplied != Vector3.zero && cam != null)
                 cam.transform.position -= shakeApplied;
             shakeApplied = Vector3.zero;
+            TendLitter();
 
             if (!TryGetSource(out var source))
                 return;
@@ -278,9 +287,39 @@ namespace Punchy.Fauna
             }
         }
 
+        /// <summary>
+        /// A-77: unparented litter follows its colossus by hand: hidden with -nocolossus, and destroyed (the walker
+        /// dropped, so it is laid again) once the colossus root is gone, as when the colossi are rebuilt.
+        /// </summary>
+        void TendLitter()
+        {
+            for (int i = 0; i < walkers.Length; i++)
+            {
+                var w = walkers[i];
+                if (w == null || w.Litter == null)
+                    continue;
+                if (w.Root == null)
+                {
+                    Destroy(w.Litter.gameObject);
+                    walkers[i] = null;
+                    continue;
+                }
+                if (w.Litter.gameObject.activeSelf == DunesColossus.Hidden)
+                    w.Litter.gameObject.SetActive(!DunesColossus.Hidden);
+            }
+        }
+
         static Walker Lay(in TerrainSource source, Gait g, Transform root, float3 spot)
         {
             var w = new Walker { G = g, Root = root, Spot = spot, Sink = root.position.y - source.SampleHeight(spot.xz) };
+            // A-77 (item 22): the glass heron's shard litter and fulgurite are where its lightning struck, not part of it:
+            // left on the ground where they were laid instead of swivelling round with it.
+            var litter = g.Kind == StoneColossi.Kind.GlassHeron ? root.Find("Litter") : null;
+            if (litter != null)
+            {
+                litter.SetParent(null, true);
+                w.Litter = litter;
+            }
             var rng = Unity.Mathematics.Random.CreateFromIndex((uint)source.World.Seed ^ g.Salt);
             w.P1 = rng.NextFloat(0f, 2f * math.PI);
             w.P2 = rng.NextFloat(0f, 2f * math.PI);
@@ -348,6 +387,12 @@ namespace Punchy.Fauna
                 var keep = FloraPlacement.KeepOut.Data;
                 keep[g.Slot] = circle;
                 FloraPlacement.KeepOut.Data = keep;
+            }
+            else if (g.Slot >= 12)
+            {
+                var keep = FloraPlacement.KeepOutFinal.Data;
+                keep[g.Slot - 12] = circle;
+                FloraPlacement.KeepOutFinal.Data = keep;
             }
             else if (g.Slot >= 8)
             {

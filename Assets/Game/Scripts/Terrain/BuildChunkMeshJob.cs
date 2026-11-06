@@ -258,6 +258,8 @@ namespace Punchy.Terrain
         const float StillReach = 8f;
         /// <summary>Extended still water never gets deeper than this over its vertex (a real basin is claimed already).</summary>
         const float StillReachDepth = 1.5f;
+        /// <summary>W-111: how far below a neighbour's surface a dry vertex may lie and still get a tucked sheet edge.</summary>
+        const float TuckDrop = 1.5f;
 
         /// <summary>
         /// Shallow beaches: the ground's water claim (SampleGround) is decided per coarse cell, so on a beach that dips
@@ -432,6 +434,32 @@ namespace Punchy.Terrain
                         flow[i] = n.yz;
                     }
                 }
+                // W-111: a dry vertex a little below a neighbour's surface (outside a pond's thin rim, which the mesh
+                // can't resolve) used to get nothing, so the quad between dropped and the sheet ended in a staircase
+                // of whole quads short of the shore. It now takes a surface tucked just under its own ground: the
+                // quad is drawn and the sheet meets the ground along a smooth line inside it. Not past TuckDrop (a
+                // cliff below a raised pool keeps its edge rather than a steep sloping sheet).
+                if (best <= GroundSample.NoWater * 0.5f)
+                {
+                    var top = GroundSample.NoWater;
+                    for (int dz = -1; dz <= 1; dz++)
+                    for (int dx = -1; dx <= 1; dx++)
+                    {
+                        var nx = x + dx;
+                        var nz = z + dz;
+                        var inside = nx >= 0 && nz >= 0 && nx < v && nz < v;
+                        if (!inside && !edge)
+                            continue;
+                        var n = inside ? water[nz * v + nx] : WaterAt(origin + new float2(nx, nz) * step);
+                        if (n.x > top && n.x > n.w + 0.02f && water[i].w >= n.x - TuckDrop)
+                        {
+                            top = n.x;
+                            flow[i] = n.yz;
+                        }
+                    }
+                    if (top > GroundSample.NoWater * 0.5f)
+                        best = water[i].w - 0.05f;
+                }
                 // Under a bank the sheet is hidden in the ground, unless a cave runs through the bank: there it would
                 // hang in the cave's air as a flat face across the passage.
                 if (best > GroundSample.NoWater * 0.5f && Source.Caves.IsCreated)
@@ -539,8 +567,8 @@ namespace Punchy.Terrain
         }
 
         /// <summary>Cave field distance beyond which MouthCut is settled at its rock value (the smooth min's blend is
-        /// spent: MouthCutDepth - 0.1 + MouthBlend), with half a metre to spare.</summary>
-        const float SettledCave = TerrainSource.MouthCutDepth - 0.1f + CaveSampling.MouthBlend + 0.5f;
+        /// spent: MouthCutDepth - SkinGap + MouthBlend), with half a metre to spare.</summary>
+        const float SettledCave = TerrainSource.MouthCutDepth - CaveSampling.SkinGap + CaveSampling.MouthBlend + 0.5f;
         /// <summary>A safe bound on how fast the cave field changes per metre (it's a smoothed, noise-moved distance
         /// that can overstate by up to 1.8 times, so not a true 1-per-metre distance).</summary>
         const float FieldSlope = 2f;
@@ -551,6 +579,15 @@ namespace Punchy.Terrain
         /// </summary>
         float SkirtOverCave(float2 xz, float top, float depth)
         {
+            // W-113 (item 12): over the sunken temple a 6-24 m skirt hangs through its rooms as a flat, untextured
+            // sand-coloured wall the player walks through. Stop it 0.3 m above the first room air below the surface.
+            if (Source.Landmarks.IsCreated && Source.TempleCut(xz) < 99f)  // 100 away from any temple
+                for (float d = 0.25f; d <= depth; d += 0.25f)
+                    if (Source.TempleAir(new float3(xz.x, top - d, xz.y)))
+                    {
+                        depth = math.max(d - 0.3f, 0.05f);
+                        break;
+                    }
             if (!Source.Caves.IsCreated || !CaveSampling.NearColumn(ref Source.Caves.Value, xz))
                 return depth;
             // Round a mouth, none at all: a skirt there hangs into the opening as a long flat ribbon (seen from inside the

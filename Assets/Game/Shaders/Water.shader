@@ -247,6 +247,13 @@ Shader "Punchy/Water"
                 return saturate((s - 0.5) * (1.7 + 0.9 * (1 - abs(2 * w0 - 1))) + 0.5);
             }
 
+            // A waterfall's falling sheets along one horizontal axis u: broad white bands, finer ropes and flecks.
+            half FallSheet(float u, float fallV)
+            {
+                return PunchyValueNoise(float2(u * 2.3, fallV * 0.35)) * 0.5 + PunchyValueNoise(float2(u * 6.1 + 3.1, fallV * 0.9)) * 0.3
+                     + PunchyValueNoise(float2(u * 15.0 + 7.7, fallV * 2.4)) * 0.2;
+            }
+
             // Raindrop rings: each cell of a jittered grid spawns a ring that expands and fades, at a random phase.
             float2 RainRipples(float2 p, float t)
             {
@@ -373,6 +380,15 @@ Shader "Punchy/Water"
                 // Very murky water is thick, like oil or sludge.
                 float viscous = smoothstep(0.55, 0.9, murk) * (1 - lava);
                 float distanceFade = saturate(1 - distance(input.positionWS, GetCameraPositionWS()) / 350);
+                // W-111: how steep the mesh face is (a waterfall's drop), from the mesh, not the ripples. Everything laid
+                // out on the flat (xz) water (streaks, carried foam, flecks, fine detail, caustics, glitter, the sky
+                // mirror) smears or runs upward on a near-vertical face and made falls glow, so it fades out there and
+                // only the falling sheets below are left. The wide ramp keeps neighbouring triangles (each flat) from
+                // showing a hard step in shade where they tilt past the threshold.
+                float3 face = cross(ddy(input.positionWS), ddx(input.positionWS));
+                face *= face.y < 0 ? -1 : 1;
+                face = normalize(face);
+                half steep = smoothstep(0.85, 0.35, face.y);
 
                 // Rivers run faster in the deep middle than at the banks, and much faster down steep rapids.
                 float riverSpeed = _FlowSpeed * (1 + 2.5 * rapids) * lerp(0.45, 1.25, saturate(depth / 1.6));
@@ -422,8 +438,9 @@ Shader "Punchy/Water"
                 float fadeA = lerp(1, 2 * (1 - abs(1 - 2 * phaseA)), flowAmount);
                 float fadeB = lerp(1, 2 * (1 - abs(1 - 2 * phaseB)), flowAmount);
                 float2 fine = (fine0.rg - 0.5) * fadeA + (fine1.rg - 0.5) * fadeB;
-                float fineStrength = _DetailStrength * _PunchyCaveDetailReady * (0.35 + _PunchyWind + rapids) * distanceFade * (1 - 0.8 * murk) * (1 - lava);
-                float3 n = normalize(float3(-slope.x * strength - fine.x * fineStrength - wakeSlope.x, 1, -slope.y * strength - fine.y * fineStrength - wakeSlope.y));
+                float fineStrength = _DetailStrength * _PunchyCaveDetailReady * (0.35 + _PunchyWind + rapids) * distanceFade * (1 - 0.8 * murk) * (1 - lava) * (1 - steep);
+                strength *= 1 - 0.8 * steep;
+                float3 n =normalize(float3(-slope.x * strength - fine.x * fineStrength - wakeSlope.x, 1, -slope.y * strength - fine.y * fineStrength - wakeSlope.y));
                 // Reflections use a calmer normal for the broad waves, so they don't break into noise, but the fine
                 // ripples do move them: mirrored trees and clouds wobble and break up near the camera. Faded out with
                 // distance (and so the screen-space march's ray, the sky lookup and the Fresnel stay steady far off).
@@ -463,7 +480,7 @@ Shader "Punchy/Water"
                 half3 waterColor = lerp(deepColor, shallowColor, exp(-thickness * _Absorption * (1 + murk * 8)));
                 waterColor *= 1 - 0.7 * whiteMiddle;
                 // River streaks: lighter and darker bands drifting downstream.
-                waterColor *= lerp(1, 0.88 + 0.24 * streaks, flowAmount * (1 - murk));
+                waterColor *= lerp(1, 0.88 + 0.24 * streaks, flowAmount * (1 - murk) * (1 - steep));
                 half3 body = waterColor * (ambient + light.color * saturate(dot(n, light.direction)) * shadow * 0.6);
                 // The player's lantern (it's lit underground): it lights the water's body and foam, with a highlight, so
                 // cave pools and streams read as water rather than holes.
@@ -480,7 +497,7 @@ Shader "Punchy/Water"
                 body += waterColor * lanternLit * 0.8;
                 // Shallows: light focused by the fine ripples dances over the bed where the water is thin.
                 half shallow = exp(-thickness * 0.9) * (1 - murk) * (1 - lava);
-                half caustic = smoothstep(0.55, 0.85, fine0.b * 0.5 + fine1.b * 0.5) * shallow;
+                half caustic = smoothstep(0.55, 0.85, fine0.b * 0.5 + fine1.b * 0.5) * shallow * (1 - steep);
                 body += waterColor * caustic * (light.color * shadow * 0.8 + lanternLit);
                 // Ripple faces turned to the light read a touch lighter, those turned away a touch darker.
                 body *= 1 + clamp(dot(fine, light.direction.xz), -1, 1) * fineReflect * 0.6;
@@ -508,11 +525,14 @@ Shader "Punchy/Water"
 
                 fresnel *= 1 - 0.5 * murk * (1 - viscous);
                 fresnel *= 1 - 0.6 * caveRun;
+                // (A fall's face, seen side on, would mirror the whole bright sky through its flat-water normal.)
+                fresnel *= 1 - 0.85 * steep;
+                glint *= 1 - steep;
                 half3 color = lerp(body, reflection, fresnel) + light.color * glint * 4 * (1 - 0.6 * murk * (1 - viscous));
                 color += _PunchyLanternColor.rgb * lanternGlint * 0.8;
                 // Glitter: where both fine reads sparkle at once and the ripple catches the sun just so.
                 half glitter = smoothstep(0.55, 0.9, fine0.a * fine1.a * 1.6) * _PunchyCaveDetailReady * pow(saturate(dot(n, h)), 300) * shadow
-                               * _Sparkle * distanceFade * (1 - murk) * (1 - lava);
+                               * _Sparkle * distanceFade * (1 - murk) * (1 - lava) * (1 - steep);
                 color += light.color * glitter * 10;
                 // Toxic pools glow from within, pulsing slowly in patches.
                 // (White pools: a band of pale glow just inside the soft rim, faint in the middle.)
@@ -551,6 +571,10 @@ Shader "Punchy/Water"
                 foam *= smoothstep(0.02, 0.12, thickness) * (0.55 + 0.45 * smoothstep(0.3, 0.7, PunchyValueNoise(p * 1.6 + t * 0.3)));
                 foam *= lerp(1, 0.2, _PunchyUnderground);
                 foam *= 1 - viscous * 0.7;
+                // W-113 item 15: on a steep face the water lies a hair over its bed, so the thickness (from the depth buffer)
+                // flickers pixel to pixel and this line came out as fine static all down steep cave creeks. The falling
+                // sheets below carry the white there instead.
+                foam *= 1 - steep;
                 // White water: the churned (steepest) parts of the flowing ripples turn to foam on rapids, broken into
                 // flecks, never a flat sheet (G-28; not gated by the streaks, whose direction turns sharply at the river
                 // mesh's corners and drew zigzags), and flecks ride the streaks downstream on any river.
@@ -565,32 +589,41 @@ Shader "Punchy/Water"
                     // (From 0.1: cave brooks carry a floor of 0.12 down the middle and should stay clear there.)
                     whiteWater = cover * smoothstep(0.1, 0.6, rapids) * (0.55 + 0.45 * churn) * distanceFade;
                 }
-                half3 foamParts = half3(foam, min(max(whiteWater * 0.85, rapids * rapids * churn * 0.35), 0.85),
+                half3 foamParts = half3(foam, min(max(whiteWater * 0.85, rapids * rapids * churn * 0.35), 0.85) * (1 - steep),
                                         flowAmount * smoothstep(0.9 - 0.06 * rapids, 0.98, streaks) * (0.2 + 0.4 * rapids) * distanceFade * (1 - viscous)
                                         // (Fewer in white water, where they scratched thin lines over the carried foam.)
                                         * (1 - 0.75 * smoothstep(0.3, 0.8, rapids))
                                         // Not on running cave water: there the flecks came out as thin lines across the
                                         // flow (Z-34, seen with -waterprobe 4), striping every cave stream.
-                                        * (1 - caveRun));
+                                        * (1 - caveRun) * (1 - steep));
                 foam = max(foam, max(foamParts.y, foamParts.z));
                 // W-98: a waterfall is the river's own surface where it tips over a drop (no curtain over it any more):
                 // where the face is steep (from the mesh, not the ripples), it turns to falling water, white sheets and
                 // darker gaps streaming straight down across its width.
-                float3 face = cross(ddy(input.positionWS), ddx(input.positionWS));
-                face *= face.y < 0 ? -1 : 1;
-                face = normalize(face);
-                half falling = smoothstep(0.8, 0.45, face.y) * smoothstep(0.0, 0.1, flowAmount) * (1 - viscous) * (1 - lava);
+                // (W-111: the face and its steepness come from the top of the pass.)
+                half falling = steep * smoothstep(0.0, 0.1, flowAmount) * (1 - viscous) * (1 - lava);
+                // A fall is a thick sheet: its darker gaps are still water, not windows onto the rock behind (a short
+                // drop has little water behind its face, so the body alone left a see-through shelf).
+                alpha = max(alpha, falling * 0.85);
                 [branch] if (falling > 0.01)
                 {
+                    // W-113 item 15: the sheets were read along the face's own across direction, dot(p, across); that
+                    // direction comes from screen derivatives and wobbles a hair pixel to pixel, and times a world position
+                    // over a kilometre out it turned the sheets to static on every steep cave creek. Read along the fixed
+                    // x and z axes instead and blend by how the face is turned (as triplanar mapping does).
                     float2 across = normalize(float2(-face.z, face.x) + 1e-5);
-                    float u = dot(p, across);
+                    float2 axisWeight = across * across;
                     float fallV = input.positionWS.y + t * 5.5;
-                    half sheet = PunchyValueNoise(float2(u * 2.3, fallV * 0.35)) * 0.6 + PunchyValueNoise(float2(u * 6.1 + 3.1, fallV * 0.9)) * 0.4;
-                    falling *= lerp(0.4, 1, smoothstep(0.35, 0.75, sheet));
+                    // (A third, finer octave breaks the slow sheets into ropes and flecks.)
+                    half sheet = FallSheet(p.x, fallV) * axisWeight.x + FallSheet(p.y + 11.3, fallV) * axisWeight.y;
+                    falling *= lerp(0.2, 1, smoothstep(0.32, 0.78, sheet));
                     foam = max(foam, falling * 0.9);
                 }
                 foam = max(foam, wakeFoam * (1 - viscous));
-                half3 foamLit = _FoamColor.rgb * (ambient + light.color * shadow * saturate(light.direction.y) + lanternLit);
+                // (On a fall the sun lights the face as it is turned, not as flat water: lit flat, a fall's face in shade
+                // still glowed white at noon.)
+                half sunFacing = lerp(saturate(light.direction.y), 0.4 + 0.5 * saturate(dot(face, light.direction)), steep);
+                half3 foamLit = _FoamColor.rgb * (ambient + light.color * shadow * sunFacing + lanternLit);
                 color = lerp(color, foamLit, foam * (1 - lava));
                 alpha = max(alpha, foam * (1 - lava));
 

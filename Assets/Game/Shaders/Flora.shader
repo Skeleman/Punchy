@@ -44,6 +44,14 @@ Shader "Punchy/Flora"
                 return smoothstep(3, 8, period / max(footprint, 1e-4));
             }
 
+            // W-112: the colour the Ember Forest's embers glow in, its night's fire colour (FireSystem.EmberTint, set by
+            // LandmarkEffectSystem); the wood-fire ember until it has been set (w 0).
+            float4 _PunchyEmberTint;
+            half3 EmberTint()
+            {
+                return _PunchyEmberTint.w > 0.5 ? (half3)_PunchyEmberTint.rgb : half3(1.0, 0.36, 0.08);
+            }
+
             /// Weathering on built things that holds up at any range: the procedural equivalent of mipmapping. Courses
             /// of blocks (stone rows, planks, thatch layers: 0.3 m rows of 0.6 m blocks, and 1.2 m bands that outlast
             /// them), mottling at 0.7, 2.5 and 9 m, and rain streaks down the walls. Each octave drops out as it gets
@@ -150,6 +158,26 @@ Shader "Punchy/Flora"
                 half mid = (panel - seam) * PunchyOctave(0.12, footprint);
                 half coarse = (PunchyValueNoise(uv * 3.1) - 0.5) * 0.22 * PunchyOctave(0.3, footprint);
                 return 1 + fine + mid + coarse;
+            }
+
+            /// W-113: a tent's hide, as leather, not linen: blotchy tanning, fine creases and pores, and hides sewn
+            /// together along wandering seams about 80 cm apart with a row of stitches, so it reads at a few metres.
+            half PunchyHide(float3 p, float3 nOS, float footprint)
+            {
+                float3 a = abs(nOS);
+                float2 uv = a.x > a.y && a.x > a.z ? p.zy : a.y > a.z ? p.xz : p.xy;
+                half blotch = (PunchyValueNoise(uv * 1.4) - 0.5) * 0.34 + (PunchyValueNoise(uv * 4.3 + 5.1) - 0.5) * 0.16;
+                half crease = (PunchyValueNoise(uv * float2(9, 26)) - 0.5) * 0.12 + (PunchyValueNoise(uv * 55) - 0.5) * 0.08;
+                // Seams between hides: wavy lines, a darker welt with stitches along it.
+                float2 w = uv / 0.8 + (float2(PunchyValueNoise(uv * 0.9 + 3.7), PunchyValueNoise(uv * 0.9 + 8.2)) - 0.5) * 0.35;
+                float2 e = abs(frac(w) - 0.5);
+                half along = e.x > e.y ? uv.y : uv.x;
+                half d = 0.5 - max(e.x, e.y);
+                half welt = (1 - smoothstep(0.0, 0.03, d)) * 0.2;
+                half stitch = (1 - smoothstep(0.035, 0.05, d)) * smoothstep(0.02, 0.03, d) * step(0.5, frac(along / 0.045)) * 0.25;
+                half hides = (frac(sin(dot(floor(w), float2(12.9898, 78.233))) * 43758.55) - 0.5) * 0.14;
+                return 1 + blotch * PunchyOctave(0.4, footprint) + crease * PunchyOctave(0.03, footprint)
+                         + (hides - welt) * PunchyOctave(0.1, footprint) - stitch * PunchyOctave(0.02, footprint);
             }
 
             half3 PunchyWeathering(float3 p, half3 n, float footprint, half r)
@@ -266,8 +294,10 @@ Shader "Punchy/Flora"
                                         : look == 5 ? PunchyLogEnd(input.grainPos, footprint)
                                         : PunchySurface(look, input.grainPos, facetOS, footprint, input.color.rgb);
                 // Cloth: a linen weave (W-99).
+                // Hide (Cloth + 0.45, W-113): leather instead.
                 if (part == 10)
-                    albedo *= PunchyLinen(input.grainPos, facetOS, footprint);
+                    albedo *= input.extra.x > 10.42 ? PunchyHide(input.grainPos, facetOS, footprint)
+                                                    : PunchyLinen(input.grainPos, facetOS, footprint);
                 // Banded rock (FloraSpecies.RockStrata): exactly the terrain's strata (TerrainSurface.shader), same
                 // world heights and colours, so a rock prop's layers line up with the cliff beside it.
                 if (strata)
@@ -442,7 +472,7 @@ Shader "Punchy/Flora"
                     float vein = abs(PunchyValueNoise(q.xz + q.y * 1.7 + r * 13.0) - 0.5) + abs(PunchyValueNoise(q.zy * 1.3 + 4.1) - 0.5) * 0.6;
                     half crack = 1 - smoothstep(0.02, 0.07, vein);
                     half pulse = 0.65 + 0.35 * sin(_PunchyClock * 1.3 - input.positionWS.y * 0.8 + r * 20);
-                    color = color * (1 - crack * 0.6) + half3(1.0, 0.36, 0.08) * crack * pulse * 2.4;
+                    color = color * (1 - crack * 0.6) + EmberTint() * crack * pulse * 2.4;
                 }
                 // Ember leaves and needles (the same species, marked as Foliage + 0.25): thin glowing slivers through the
                 // crown, hot at their middle, pulsing slowly out of step (G-33/F-47).
@@ -457,7 +487,7 @@ Shader "Punchy/Flora"
                     half sliver = (1 - smoothstep(0.015, 0.05, vein)) * dash;
                     half patch = smoothstep(0.45, 0.7, PunchyValueNoise(input.positionWS.xz * 0.35 + r * 11.0));
                     half pulse = 0.6 + 0.4 * sin(_PunchyClock * 1.1 - input.positionWS.y * 0.6 + r * 23);
-                    color += half3(1.0, 0.4, 0.1) * sliver * patch * pulse * 1.8;
+                    color += EmberTint() * half3(1.0, 1.1, 1.25) * sliver * patch * pulse * 1.8;
                 }
 
                 // A bark face's eyes (part 9): a faint glow in its colour that blinks shut for a moment every few seconds.

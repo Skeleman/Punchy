@@ -76,6 +76,15 @@ MonoBehaviour:
     Count: 1
     Angle: 140
     Clearance: 2
+  - Species: {fileID: 11400000, guid: 14f2d380081349c39afabc54098edf98, type: 2}
+    Density: 0
+    Ring: {x: 0.78, y: 0.78}
+    Scale: {x: 0.8, y: 0.8}
+    Centrepiece: 0
+    FaceCentre: 1
+    Count: 1
+    Angle: 320
+    Clearance: 2
   Effects:
   - Kind: 2
     Offset: {x: 0, y: 0}

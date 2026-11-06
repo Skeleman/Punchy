@@ -240,7 +240,7 @@ namespace Punchy.Flora
             m.SetTexture(CacheTexId, cacheFront);
             m.SetMatrix(CacheMatrixId, cacheFrontUv);
             m.SetVector(ReceiveSunId, cacheFrontSun);
-            m.SetVector(CacheParamsId, new Vector4(eye.x, eye.z, 0f, 0.42f * sun.shadowStrength * up));
+            m.SetVector(CacheParamsId, new Vector4(eye.x, eye.z, 0f, FloraShadowOptions.CacheDarkness * sun.shadowStrength * up));
             // In from half the near range (the real-time shadows keep it from doubling), out over the cache's last 8 m.
             m.SetVector(CacheFadeId, new Vector4(near * 0.5f, near * 0.8f, far - 8f, far));
             var rp = new RenderParams(m)

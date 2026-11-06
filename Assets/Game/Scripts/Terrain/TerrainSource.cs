@@ -923,7 +923,7 @@ namespace Punchy.Terrain
             // faces, where straight down is somewhere else entirely.
             var normal = SampleNormal(xz, 0.5f);
             cave = CaveDistance(new float3(xz.x, h, xz.y) - normal * MouthCutDepth);
-            return math.min(CaveSampling.SmoothMin(MouthCutDepth - 0.1f, cave, CaveSampling.MouthBlend), 100f);
+            return math.min(CaveSampling.SmoothMin(MouthCutDepth - CaveSampling.SkinGap, cave, CaveSampling.MouthBlend), 100f);
         }
 
         /// <summary>How far into the ground MouthCut samples the cave field.</summary>

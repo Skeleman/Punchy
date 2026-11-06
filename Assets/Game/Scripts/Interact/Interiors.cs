@@ -117,6 +117,11 @@ namespace Punchy.Interact
             Cull();
 
             FindTarget();
+            // Only the room the local player stands in is drawn: the rest float off the island's edge and showed from
+            // the sea as blocks in the sky (W-113 item 14). Their InteriorCells boxes stay solid either way.
+            for (int r = 0; r < rooms.Count; r++)
+                if (rooms[r].Root != null && rooms[r].Root.activeSelf != (r == inRoom))
+                    rooms[r].Root.SetActive(r == inRoom);
             if (target != 0 && UseKey.WasPressed())
             {
                 if (target == 1) Leave();
