@@ -74,7 +74,7 @@ Shader "Punchy/FloraShadowCache"
                 if (any(c < 0) || any(c > 1))
                     return 1;
 
-                // Four taps a texel apart soften the edge (the cache's texels are about 13 cm).
+                // Four taps a texel apart soften the edge (the cache's texels are about 26 cm at the 120 m range).
                 float along = dot(positionWS, _FloraReceiveSun.xyz) - 0.4;
                 float t = _FloraCacheTex_TexelSize.x * 0.75;
                 float shade = (Cached(c + float2(-t, -t)) < along ? 0.25 : 0) + (Cached(c + float2(t, -t)) < along ? 0.25 : 0)
