@@ -3,7 +3,7 @@
  "_readme": [
   "Weather lines (A-71): what folk say when the weather gets to them (WeatherTalkSystem, read by WeatherLines).",
   "lines[kind][key]: kind is a ComfortKind name (Hot, Dry, Cold, Rain, Snow, Storm, Bright, Wind) or Relief (on reaching shelter).",
-  "key is a ComfortRace name (Ogre, Goblin, BatFolk, FishFolk, Dwarf, Elf, ...), a demeanor (Cheerful, Grumpy, Timid, Proud, Dramatic) or Any.",
+  "key is a folk race's asset name in Resources/Races (Ogre, Goblin, BatFolk, FishFolk, Dwarf, Elf, ...), a demeanor (Cheerful, Grumpy, Timid, Proud, Dramatic) or Any.",
   "A race in ownVoice speaks only its own lines; other races mix their own pool (if any), their demeanor's and Any.",
   "alias: a race with no pool of its own borrows another pool as its own (lines recycled across races).",
   "Read again whenever the file changes, in Play mode too."

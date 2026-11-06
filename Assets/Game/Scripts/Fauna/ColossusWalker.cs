@@ -59,18 +59,18 @@ namespace Punchy.Fauna
 
         static readonly Gait[] Gaits =
         {
-            new Gait { Kind = StoneColossi.Kind.GiantTortoise, Slot = 2, Radius = 40f, Speed = 0.6f, Walk = 80f, Rest = 70f, Stride = 3.5f, Bob = 0.25f, Shake = 0.08f, Body = 30f, Height = 26f, Salt = 0xA72Du },
-            new Gait { Kind = StoneColossi.Kind.RockGolem, Slot = 3, Radius = 60f, Speed = 1.5f, Walk = 120f, Rest = 45f, Stride = 4.5f, Bob = 0.4f, Shake = 0.12f, Body = 20f, Height = 56f, Salt = 0xA72Bu },
-            new Gait { Kind = StoneColossi.Kind.WalkingSaguaro, Slot = 6, Radius = 70f, Speed = 1.1f, Walk = 100f, Rest = 50f, Stride = 4f, Bob = 0.3f, Shake = 0.06f, Body = 16f, Height = 50f, Salt = 0xA725u },
+            new Gait { Kind = StoneColossi.Kind.GiantTortoise, Radius = 40f, Speed = 0.6f, Walk = 80f, Rest = 70f, Stride = 3.5f, Bob = 0.25f, Shake = 0.08f, Body = 30f, Height = 26f, Salt = 0xA72Du },
+            new Gait { Kind = StoneColossi.Kind.RockGolem, Radius = 60f, Speed = 1.5f, Walk = 120f, Rest = 45f, Stride = 4.5f, Bob = 0.4f, Shake = 0.12f, Body = 20f, Height = 56f, Salt = 0xA72Bu },
+            new Gait { Kind = StoneColossi.Kind.WalkingSaguaro, Radius = 70f, Speed = 1.1f, Walk = 100f, Rest = 50f, Stride = 4f, Bob = 0.3f, Shake = 0.06f, Body = 16f, Height = 50f, Salt = 0xA725u },
             // A-75 row 2: the mesa tortoise, the slowest of them (a walking hill), on a short loop with long rests.
-            new Gait { Kind = StoneColossi.Kind.MesaTortoise, Slot = 8, Radius = 45f, Speed = 0.45f, Walk = 90f, Rest = 80f, Stride = 3.5f, Bob = 0.25f, Shake = 0.1f, Body = 26f, Height = 30f, Salt = 0xA75Du },
+            new Gait { Kind = StoneColossi.Kind.MesaTortoise, Radius = 45f, Speed = 0.45f, Walk = 90f, Rest = 80f, Stride = 3.5f, Bob = 0.25f, Shake = 0.1f, Body = 26f, Height = 30f, Salt = 0xA75Du },
             // A-76: the glass heron wades a small loop with long still rests (it stabs at the sand while resting); the lantern stag roams wider.
-            new Gait { Kind = StoneColossi.Kind.GlassHeron, Slot = 9, Radius = 45f, Speed = 0.8f, Walk = 70f, Rest = 60f, Stride = 4f, Bob = 0.2f, Shake = 0.05f, Body = 10f, Height = 32f, Salt = 0xA76Eu },
-            new Gait { Kind = StoneColossi.Kind.LanternStag, Slot = 10, Radius = 65f, Speed = 1.3f, Walk = 90f, Rest = 50f, Stride = 5f, Bob = 0.3f, Shake = 0.07f, Body = 14f, Height = 34f, Salt = 0xA757u },
+            new Gait { Kind = StoneColossi.Kind.GlassHeron, Radius = 45f, Speed = 0.8f, Walk = 70f, Rest = 60f, Stride = 4f, Bob = 0.2f, Shake = 0.05f, Body = 10f, Height = 32f, Salt = 0xA76Eu },
+            new Gait { Kind = StoneColossi.Kind.LanternStag, Radius = 65f, Speed = 1.3f, Walk = 90f, Rest = 50f, Stride = 5f, Bob = 0.3f, Shake = 0.07f, Body = 14f, Height = 34f, Salt = 0xA757u },
             // A-78: the cinder snail glides (no legs, no rig), slowest of all with barely a bob, and rests long to graze.
-            new Gait { Kind = StoneColossi.Kind.CinderSnail, Slot = 11, Radius = 40f, Speed = 0.35f, Walk = 120f, Rest = 60f, Stride = 8f, Bob = 0.04f, Shake = 0.03f, Body = 24f, Height = 34f, Salt = 0xA7C5u },
+            new Gait { Kind = StoneColossi.Kind.CinderSnail, Radius = 40f, Speed = 0.35f, Walk = 120f, Rest = 60f, Stride = 8f, Bob = 0.04f, Shake = 0.03f, Body = 24f, Height = 34f, Salt = 0xA7C5u },
             // A-79: the mire walker creeps on its root skirt (no rig), slow with a heavy sway, pausing long in the fog.
-            new Gait { Kind = StoneColossi.Kind.MireWalker, Slot = 12, Radius = 36f, Speed = 0.6f, Walk = 90f, Rest = 45f, Stride = 10f, Bob = 0.12f, Shake = 0.05f, Body = 20f, Height = 40f, Salt = 0xA7F1u },
+            new Gait { Kind = StoneColossi.Kind.MireWalker, Radius = 36f, Speed = 0.6f, Walk = 90f, Rest = 45f, Stride = 10f, Bob = 0.12f, Shake = 0.05f, Body = 20f, Height = 40f, Salt = 0xA7F1u },
         };
 
         const float Ramp = 5f, AwakeRange = 600f, FarPeriod = 0.5f, ShakeRange = 120f, ShakeTime = 0.35f, DustRange = 300f;
@@ -276,9 +276,11 @@ namespace Punchy.Fauna
                 return;
             for (int i = 0; i < Gaits.Length; i++)
             {
+                // A-81: its slot is wherever StoneColossi placed its kind ("-colossus" can swap another kind into
+                // that slot: then it isn't placed and nothing walks there).
+                Gaits[i].Slot = System.Array.IndexOf(StoneColossi.Placed, Gaits[i].Kind);
                 var g = Gaits[i];
-                // ("-colossus" can swap another kind into a slot: then that slot stands still.)
-                if (walkers[i] != null || StoneColossi.Placed[g.Slot] != g.Kind || colossi.Root(g.Slot) == null)
+                if (walkers[i] != null || g.Slot < 0 || colossi.Root(g.Slot) == null)
                     continue;
                 var spot = StoneColossi.Spots[g.Slot];
                 if (math.any(math.isnan(spot)))
@@ -382,30 +384,7 @@ namespace Punchy.Fauna
             // Flora: widen the keep circle once to take in the whole loop, so it never walks through trees. (Moving the
             // circle with it would replant every streamed tile each time, far too heavy; this is a trampled clearing.)
             var circle = new float4(w.Centre, w.Radius * 1.15f + g.Body, 1f);
-            if (g.Slot < 4)
-            {
-                var keep = FloraPlacement.KeepOut.Data;
-                keep[g.Slot] = circle;
-                FloraPlacement.KeepOut.Data = keep;
-            }
-            else if (g.Slot >= 12)
-            {
-                var keep = FloraPlacement.KeepOutFinal.Data;
-                keep[g.Slot - 12] = circle;
-                FloraPlacement.KeepOutFinal.Data = keep;
-            }
-            else if (g.Slot >= 8)
-            {
-                var keep = FloraPlacement.KeepOutLast.Data;
-                keep[g.Slot - 8] = circle;
-                FloraPlacement.KeepOutLast.Data = keep;
-            }
-            else
-            {
-                var keep = FloraPlacement.KeepOutMore.Data;
-                keep[g.Slot - 4] = circle;
-                FloraPlacement.KeepOutMore.Data = keep;
-            }
+            FloraPlacement.SetKeepOut(g.Slot, circle);
             FloraSystem.Replant = true;
             Debug.Log($"ColossusWalker: {g.Kind} walks a {w.Length:F0} m loop (radius {w.Radius:F0} m, {tries} shrinks) round ({w.Centre.x:F0}, {w.Centre.y:F0}), " +
                       $"{g.Speed:F1} m/s, {g.Walk:F0} s walking then {g.Rest:F0} s resting; flora kept {circle.z:F0} m out");
@@ -487,7 +466,7 @@ namespace Punchy.Fauna
             if (!w.Rigged)
             {
                 w.Rigged = true;
-                w.Rig = ColossusRig.For(w.G.Kind, w.Root);
+                w.Rig = ColossusRig.For(StoneColossi.RigOf(w.G.Slot), w.Root);
             }
             if (w.Rig == null)
                 return;
