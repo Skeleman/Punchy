@@ -136,6 +136,7 @@ namespace Punchy.Ambience
             var cam = Camera.main;
             var camXZ = cam != null ? new float2(cam.transform.position.x, cam.transform.position.z) : player.Position.xz;
             UpdateHeatMap(source, camXZ);
+            Climate.Refresh(source, player.Position.xz, Weather, Cycle);
             UpdateConditions(source, player.Position);
             UpdatePuffs(source, player, grounded);
             UpdateOthers(source, cam != null ? (float3)cam.transform.position : player.Position);
@@ -286,7 +287,8 @@ namespace Punchy.Ambience
             var ground = self.Ground;
             var biome = AmbienceAt(ground.Biomes);
 
-            var w = Weather != null ? Weather.Local : default;
+            // W-116 row 3: the air comes through Climate (the exact weather at the camera, as WeatherSystem.Local was).
+            var w = Weather != null ? Climate.Camera : default;
             var night = Cycle != null ? Cycle.Night : 0f;
             weatherHere = w;
             nightHere = night;
@@ -390,7 +392,7 @@ namespace Punchy.Ambience
             var breathe = math.smoothstep(BreathThreshold, BreathThreshold + 0.3f, Cold);
             if (puffs == null || breathe <= 0f || UnityEngine.Random.value >= Time.deltaTime * 30f)
                 return;
-            var wind = Weather != null ? (Vector3)new float3(Weather.WindDirection.x, 0f, Weather.WindDirection.y) * Weather.Local.Wind * 1.5f : Vector3.zero;
+            var wind = Weather != null ? (Vector3)new float3(Climate.CameraWind.x, 0f, Climate.CameraWind.y) * 1.5f : Vector3.zero;
             puffs.Emit(new ParticleSystem.EmitParams
             {
                 position = mouth,
@@ -413,7 +415,7 @@ namespace Punchy.Ambience
             b.LastPosition = position;
             b.HasLast = true;
             var speed = math.length(velocity.xz);
-            var wind = Weather != null ? (Vector3)new float3(Weather.WindDirection.x, 0f, Weather.WindDirection.y) * Weather.Local.Wind * 1.5f : Vector3.zero;
+            var wind = Weather != null ? (Vector3)new float3(Climate.CameraWind.x, 0f, Climate.CameraWind.y) * 1.5f : Vector3.zero;
             var forward = math.mul(player.Rotation, new float3(0f, 0f, 1f));
 
             // Breath: an exhale every few seconds (quicker when running), as a short stream of vapour.
