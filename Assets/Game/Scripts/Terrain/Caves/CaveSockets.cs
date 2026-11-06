@@ -294,7 +294,8 @@ namespace Punchy.Terrain
                     Size = (byte)x.Size,
                     Tags = (uint)x.Tags,
                     Seed = DungeonSocket.MakeSeed(worldSeed, c.Key, (uint)j),
-                    DungeonType = DungeonTypes.Cave,
+                    // A buried ruin room's spots borrow the ruin's tables; the rest of the cave keeps the Cave rows.
+                    DungeonType = (x.Tags & SocketTags.RuinRoom) != 0 ? DungeonTypes.Ruin : DungeonTypes.Cave,
                     Biome = (byte)Dominant(biomes),
                 });
             }

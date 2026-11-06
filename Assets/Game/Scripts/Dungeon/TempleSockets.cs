@@ -12,6 +12,8 @@ namespace Punchy.Dungeon
         /// <summary>A natural cave (W-115): sockets from its chambers, passages and pools (CaveSockets). 0 is the spawner's Cave row.</summary>
         public const ushort Cave = 0;
         public const ushort SunkenTemple = 1;
+        /// <summary>A buried ruin room in a cave (W-115 row 3): its sockets borrow the spawner's Ruin rows.</summary>
+        public const ushort Ruin = 3;
     }
 
     /// <summary>On a dungeon's entity, next to its DungeonSocket buffer: which dungeon, and the sockets' count and hash.</summary>
