@@ -35,3 +35,9 @@ Those two agents ran as subagents of the old supervisor session; if they stop, r
 - PLAYTEST rows still owed: ribcage (W-114), GiantSpider in deep caves, cave dungeon sockets, A-82.
 - Card pins changed after the ribcage: Fauna_Fingerprint 8A1979F1, Landmarks 111 3BDF705F.
 - Untracked GameAudio.cs in the coordination tree: not the supervisor's; check whose.
+
+## Player-lane session, 2026-11-06 late (stood in briefly, then back to the player lane at Zach's word)
+- Merged PR #178 (world-features: W-115 rows 2-3, W-110 rows 1-2, W-117 GC row; all verified in REPORTS-world) and PR #179 (player-client: P-20 incl. the GC row). merge-tree was clean for both.
+- PLAYTEST.md: #39 road tunnels row added (#39 was already closed).
+- Job 23 (b/fix-proc-cleanup): no SHA pushed yet, nothing to review.
+- World and animal agents are offline (all peer sessions show offline). Not relaunched: Zach will decide later.
