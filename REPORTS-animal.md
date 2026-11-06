@@ -2603,3 +2603,18 @@ Commits 3560d7e (r1) and 246f7a1 (r2) on animal-behaviours.
   - Fauna_Fingerprint: F4E66093, unchanged, 117 species.
   - Spawn ms: the build species stage took 3 ms (it was 3-9 ms before). cpu main was 6.72 ms by day and 6.84 ms at night (player at spawn). A pick scans 47 rows and makes no extra rng draws.
 - **Risk:** commit r1 alone does not compile, because the old table deletions went into it. r1 and r2 together do compile. Rewriting the pushed commits was blocked, so they stay as they are.
+
+## A-80 row 3 (2026-11-06): caves fill from their own table, done (verified)
+
+Commit 59f4082 on animal-behaviours.
+
+- **Cave.asset** (Resources/SpawnTables, 24 rows): rows per chamber type (Chamber, PoolChamber, DeepChamber), den visitors in passages, and moths by glow. W-115's socket biome and chamber tags are not on main, so the rows key on the cave graph's own node kinds.
+- **Time-of-day example:** bats roost in chambers by day only (Times = Dawn|Day).
+- Chambers fill first, so a full cave cap (100/100) no longer starves them.
+- **Counts per table on v3:** Overworld 47 rows, Dungeon 36, Cave 24.
+  - Cave picks by day: Chamber Bat 16, CaveSalamander 15, empty 23. DeepChamber Bat 10, CaveSalamander 11. PoolChamber CaveSalamander 8.
+  - Cave picks by night: no bats. Chamber CaveSalamander 17, empty 37. DeepChamber CaveSalamander 19, Tarantula 2.
+  - Cave 5, filled live at noon: Chamber node 44 CaveSalamander 2/2, PoolChamber node 22 CaveSalamander 3/3, Chamber node 33 Bat 3/4, and 6 more chambers.
+- **Shots:** `a80h-ch44` (chamber 44 floor with its salamanders) and `a80h-pool22` (pool chamber), both in Assets/Temp/shots. The creatures are small in frame; the fill log names what each chamber got. "E sit" is HUD noise.
+- Fauna_Fingerprint is still F4E66093.
+- **Note:** GiantSpider (DeepChamber, Temperate only) never got picked on v3.
