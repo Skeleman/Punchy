@@ -46,111 +46,46 @@ namespace Punchy.Fauna
         /// <summary>Every type the tables know, for the log's type comparison.</summary>
         public static readonly ushort[] Types = { Cave, Temple, Crypt, Ruin, Mine };
 
-        const ushort AnyType = 0xFFFF;
-        const ulong AnyBiome = ulong.MaxValue;
-
         /// <summary>
-        /// One weighted table row: content that may fill a socket of this kind, from MinSize to MaxSize, in the dungeon
-        /// types of TypeMask (bit per type) and biomes of BiomeMask (bit per biome index; 64 and up count as bit 63).
+        /// The tables (A-80): Resources/SpawnTables/Dungeon, a <see cref="SpawnTable"/> whose rows name a
+        /// <see cref="DungeonContent"/>, take a <see cref="SocketKind"/> as their kind and a bit per type above as their
+        /// types. Tuning is weights only; row order is part of the seed (moved from code rows in the same order, so
+        /// every pick is unchanged).
         /// </summary>
-        public struct Row
+        public static SpawnTable Table => table != null ? table : table = SpawnTable.Load("Dungeon");
+        static SpawnTable table;
+        static DungeonContent[] contentOf;
+
+        /// <summary>The content each table row names (parsed once; an unknown name is Empty and logged).</summary>
+        static DungeonContent ContentOf(int row)
         {
-            public SocketKind Kind;
-            public byte MinSize, MaxSize;
-            public ushort TypeMask;
-            public ulong BiomeMask;
-            public ushort Weight;
-            public DungeonContent Content;
+            if (contentOf == null || contentOf.Length != Table.Rows.Count)
+            {
+                contentOf = new DungeonContent[Table.Rows.Count];
+                for (int i = 0; i < contentOf.Length; i++)
+                    if (!System.Enum.TryParse(Table.Rows[i].Content, out contentOf[i]))
+                        Debug.LogError($"[dungeon] spawn table row {i}: no content '{Table.Rows[i].Content}'");
+            }
+            return contentOf[row];
         }
 
-        static Row R(SocketKind kind, DungeonContent content, ushort weight, ushort types = AnyType, byte min = 0, byte max = 2,
-                     ulong biomes = AnyBiome) =>
-            new Row { Kind = kind, Content = content, Weight = weight, TypeMask = types, MinSize = min, MaxSize = max, BiomeMask = biomes };
-
-        static ushort T(params ushort[] types)
-        {
-            ushort m = 0;
-            foreach (var t in types)
-                m |= (ushort)(1 << t);
-            return m;
-        }
-
-        /// <summary>The tables, all kinds in one list (each pick filters by its socket). Tuning is weights only.</summary>
-        public static readonly Row[] Rows =
-        {
-            // Creatures: cave life everywhere, the dead in crypts, goblins in ruins and mines, big animals in big sockets.
-            R(SocketKind.Creature, DungeonContent.Empty, 30),
-            // The sunken temple is a damp ruin: salamanders and moths, spiders, ghosts, a few goblin squatters.
-            R(SocketKind.Creature, DungeonContent.CaveSalamander, 30, T(Cave, Temple, Mine)),
-            R(SocketKind.Creature, DungeonContent.Bat, 25, T(Cave, Temple, Ruin, Mine)),
-            R(SocketKind.Creature, DungeonContent.GlowMoth, 15, T(Cave, Temple, Ruin)),
-            R(SocketKind.Creature, DungeonContent.SilverFish, 15, T(Temple, Crypt, Ruin, Mine), max: 0),
-            R(SocketKind.Creature, DungeonContent.Tarantula, 15, T(Cave, Temple, Ruin), max: 1),
-            R(SocketKind.Creature, DungeonContent.GiantSpider, 12, T(Cave, Temple, Crypt), 1),
-            R(SocketKind.Creature, DungeonContent.BoneLizard, 20, T(Crypt)),
-            R(SocketKind.Creature, DungeonContent.BoneHound, 15, T(Crypt), 1),
-            R(SocketKind.Creature, DungeonContent.Ghost, 20, T(Temple, Crypt, Ruin), 1),
-            R(SocketKind.Creature, DungeonContent.Goblin, 25, T(Ruin, Mine), 1),
-            R(SocketKind.Creature, DungeonContent.Goblin, 10, T(Temple), 1),
-            R(SocketKind.Creature, DungeonContent.Wolf, 10, T(Cave, Ruin), 1),
-            R(SocketKind.Creature, DungeonContent.BlackBear, 8, T(Cave), 2),
-            // Chests: big chests need a big socket; crypts and temples hold coffers.
-            R(SocketKind.Chest, DungeonContent.Empty, 15),
-            R(SocketKind.Chest, DungeonContent.ChestSmall, 40),
-            R(SocketKind.Chest, DungeonContent.ChestLarge, 20, AnyType, 1),
-            R(SocketKind.Chest, DungeonContent.Coffer, 35, T(Temple, Crypt, Ruin)),
-            // Wall decoration
-            R(SocketKind.WallDecor, DungeonContent.Empty, 20),
-            R(SocketKind.WallDecor, DungeonContent.Sconce, 30, T(Crypt, Ruin)),
-            R(SocketKind.WallDecor, DungeonContent.Banner, 20, T(Temple, Ruin), 1),
-            R(SocketKind.WallDecor, DungeonContent.SkullNiche, 30, T(Temple, Crypt)),
-            R(SocketKind.WallDecor, DungeonContent.MineLamp, 35, T(Mine)),
-            R(SocketKind.WallDecor, DungeonContent.Cobweb, 25, T(Cave, Temple, Crypt, Ruin)),
-            // Interactables (the temple's own torches are interactable sockets too: they keep their sconce)
-            R(SocketKind.Interactable, DungeonContent.Empty, 10),
-            R(SocketKind.Interactable, DungeonContent.Lever, 30, T(Temple, Crypt, Ruin, Mine)),
-            R(SocketKind.Interactable, DungeonContent.Altar, 25, T(Temple, Crypt, Ruin), 1),
-            R(SocketKind.Interactable, DungeonContent.OreCart, 35, T(Mine), 1),
-            R(SocketKind.Interactable, DungeonContent.Well, 15, T(Cave, Ruin), 1),
-            // Clutter
-            R(SocketKind.Clutter, DungeonContent.Empty, 25),
-            R(SocketKind.Clutter, DungeonContent.Bones, 25, T(Cave, Temple, Crypt)),
-            R(SocketKind.Clutter, DungeonContent.Urn, 25, T(Temple, Crypt, Ruin)),
-            R(SocketKind.Clutter, DungeonContent.Barrel, 20, T(Ruin, Mine)),
-            R(SocketKind.Clutter, DungeonContent.Crate, 20, T(Mine, Ruin)),
-            R(SocketKind.Clutter, DungeonContent.RockPile, 30, T(Cave, Temple, Mine)),
-            R(SocketKind.Clutter, DungeonContent.Cobweb, 15, T(Cave, Temple, Crypt), max: 1),
-        };
+        /// <summary>A dungeon socket as the table's question (dungeons are timeless and seeded: every time fits).</summary>
+        public static SpawnSocket AsSpawnSocket(in DungeonSocket s) =>
+            SpawnSocket.Of((int)s.Kind, s.Seed, s.Size, s.DungeonType, s.Tags, s.Biome);
 
         /// <summary>
         /// Avalanches a seed (math.hash on a lone uint does not, so neighbouring socket seeds would draw alike).
         /// </summary>
-        public static uint Scramble(uint x)
-        {
-            x ^= x >> 16; x *= 0x7feb352d; x ^= x >> 15; x *= 0x846ca68b; x ^= x >> 16;
-            return x;
-        }
+        public static uint Scramble(uint x) => SpawnTable.Scramble(x);
 
-        /// <summary>The one seeded pick for a socket: a weighted draw over the rows that fit it.</summary>
+        /// <summary>The one seeded pick for a socket: a weighted draw over the table rows that fit it.</summary>
         public static DungeonContent Pick(in DungeonSocket s)
         {
-            var typeBit = s.DungeonType < 16 ? (ushort)(1 << s.DungeonType) : (ushort)0;
-            var biomeBit = 1ul << math.min((int)s.Biome, 63);
-            int total = 0;
-            for (int i = 0; i < Rows.Length; i++)
-                if (Fits(Rows[i], s, typeBit, biomeBit))
-                    total += Rows[i].Weight;
-            if (total == 0)
+            if (Table == null)
                 return DungeonContent.Empty;
-            var roll = (int)(Scramble(s.Seed ^ 0x5bd1e995u) % (uint)total);
-            for (int i = 0; i < Rows.Length; i++)
-                if (Fits(Rows[i], s, typeBit, biomeBit) && (roll -= Rows[i].Weight) < 0)
-                    return Rows[i].Content;
-            return DungeonContent.Empty;
+            var row = Table.PickRow(AsSpawnSocket(s));
+            return row < 0 ? DungeonContent.Empty : ContentOf(row);
         }
-
-        static bool Fits(in Row r, in DungeonSocket s, ushort typeBit, ulong biomeBit) =>
-            r.Kind == s.Kind && s.Size >= r.MinSize && s.Size <= r.MaxSize && (r.TypeMask & typeBit) != 0 && (r.BiomeMask & biomeBit) != 0;
 
         public static bool IsCreature(DungeonContent c) => c >= DungeonContent.CaveSalamander && c <= DungeonContent.Wolf;
 

@@ -24,17 +24,17 @@ namespace Punchy.Fauna
 
         protected ColossusRig(Transform root) => this.root = root;
 
-        /// <summary>The rig for this kind, or null if it has none (or its parts aren't where StoneColossi puts them).</summary>
-        public static ColossusRig For(StoneColossi.Kind kind, Transform root)
+        /// <summary>The rig of this type (from the colossus's definition), or null if none (or its parts aren't where StoneColossi puts them).</summary>
+        public static ColossusRig For(ColossusRigType type, Transform root)
         {
-            ColossusRig rig = kind switch
+            ColossusRig rig = type switch
             {
-                StoneColossi.Kind.WalkingSaguaro => new SaguaroRig(root),
-                StoneColossi.Kind.RockGolem => new GolemRig(root),
-                StoneColossi.Kind.GiantTortoise => new TortoiseRig(root),
-                StoneColossi.Kind.MesaTortoise => new MesaTortoiseRig(root),
-                StoneColossi.Kind.GlassHeron => new HeronRig(root),
-                StoneColossi.Kind.LanternStag => new StagRig(root),
+                ColossusRigType.Saguaro => new SaguaroRig(root),
+                ColossusRigType.Golem => new GolemRig(root),
+                ColossusRigType.Tortoise => new TortoiseRig(root),
+                ColossusRigType.MesaTortoise => new MesaTortoiseRig(root),
+                ColossusRigType.Heron => new HeronRig(root),
+                ColossusRigType.Stag => new StagRig(root),
                 _ => null,
             };
             return rig != null && rig.Ready ? rig : null;

@@ -10,7 +10,7 @@ namespace Punchy.Fauna
     /// <summary>
     /// What folk say when the weather gets to them (A-71 row 4), read from StreamingAssets/weather-lines.json (edited by
     /// hand, read again whenever the file changes, like DialogueArchive). Lines are keyed by complaint (a ComfortKind
-    /// name, or Relief on reaching shelter), then by race (a ComfortRace name), demeanor (Cheerful, Grumpy, Timid, Proud,
+    /// name, or Relief on reaching shelter), then by race (a FolkRace asset name), demeanor (Cheerful, Grumpy, Timid, Proud,
     /// Dramatic) or Any. A race with its own strong voice (ownVoice) says only its own lines; the rest mix their race's
     /// pool, their demeanor's and the generic one. Local only: each machine picks its own lines, nothing is sent.
     /// </summary>
@@ -135,15 +135,15 @@ namespace Punchy.Fauna
         /// there's none. A strong voice keeps to its race's pool; others take their race's pool half the time (if it has
         /// one), their demeanor's a third of the time, else the generic pool.
         /// </summary>
-        public string Pick(string kind, ComfortRace race, string demeanor, ref Unity.Mathematics.Random rng)
+        public string Pick(string kind, string race, string demeanor, ref Unity.Mathematics.Random rng)
         {
             if (!Lines.TryGetValue(kind, out var pools))
                 return null;
-            var raceKey = race.ToString();
+            var raceKey = race ?? "";
             if (!pools.ContainsKey(raceKey) && Alias.TryGetValue(raceKey, out var alias))
                 raceKey = alias;
             pools.TryGetValue(raceKey, out var own);
-            if (own != null && OwnVoice.Contains(race.ToString()))
+            if (own != null && race != null && OwnVoice.Contains(race))
                 return own[rng.NextInt(own.Length)];
             var roll = rng.NextFloat();
             string[] pool = null;
