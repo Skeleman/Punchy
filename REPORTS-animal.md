@@ -2677,3 +2677,25 @@ Commit 975a496 on animal-behaviours. Only code moved. A line-multiset check show
 - **Size:** every file is under 60 KB.
 - **Run:** compiles clean, Fauna_Fingerprint 90AC5F60. Shot `a81c-fishing` in Assets/Temp/shots matches a81b-fishing.
 - **A-81 suite:** WorldTests 9 passed, 0 failed in 190 s. Landmarks 110 09EAC0FE, fingerprint 90AC5F60.
+
+## A-81 row 5 (2026-11-06): FaunaDirector.Update spikes, done (verified); GiantSpider in v3 caves, done
+
+Commit c94a99e on animal-behaviours. origin/main is merged in.
+
+- **Cause:** the spike was Comfort.Refresh. Once a second it took 225 managed weather and ground samples for the 15x15 comfort grid in one frame, about 40 us each. Measured before (fishing village, v3): 8.3-9.3 ms every second, up to 23.5 ms. The director's other passes were about 0 ms.
+- **Fix:** the refresh is time-sliced.
+  - It fills one grid row a frame into a back grid, then publishes the whole grid when the row sweep ends. Readers never see a half-filled grid.
+  - A new sweep still starts once a second.
+  - There is a guard so it does only one row per frame, even with two callers.
+  - A joined client (WeatherTalkSystem) now calls it every frame for the same reason.
+  - The new marker FaunaDirector.Comfort sits inside FaunaDirector.Update.
+- **After** (ProfilerRecorder on the markers, 2391 frames at 60 fps, fishing village):
+  - FaunaDirector.Update: mean 0.18-0.27 ms. Only one frame went over 2 ms: 2.27 ms, the one-off resident peopling on arrival.
+  - FaunaDirector.Comfort: at most 1.07 ms.
+  - Not part of this row: the first frame after a teleport still costs more (warm-up for crossing and resident spawns).
+- **GiantSpider:**
+  - **Cause:** its deep-chamber row in SpawnTables/Cave keyed only on Temperate. On v3, no cave mouth opens in Temperate. Mouths by biome (from the new spawn-tables log line): Mountains 5, SparklingForest 4, Tundra 4, Ashlands 3, FungalForest 3, ElectricWastelands 2, and 1 each in FoggyMarsh, GlassDesert, MesaCanyonlands and Sonoran.
+  - **Fix:** the row now also takes Mountains, FungalForest, SparklingForest and FoggyMarsh. This is a table-only change.
+  - **Result:** on v3, GiantSpider is picked in 1 deep chamber by day and 4 at night, out of 21.
+- **Suite:** WorldTests 9 passed, 0 failed in 167 s. Landmarks 110 09EAC0FE, fingerprint 90AC5F60.
+- **Not mine, for the world lane:** one earlier cave-shot run logged 4 "BlobAssetReference is not valid" errors in the Burst BuildChunkMeshJob, via TerrainSource.PondDig/SampleHeight. They came after the shot list ended, which looks like play-mode-exit teardown. The run before and the suite logged none.
