@@ -223,6 +223,7 @@ namespace Punchy.Fauna
         static readonly Unity.Profiling.ProfilerMarker ResidentsMarker = new Unity.Profiling.ProfilerMarker("FaunaDirector.Residents");
         static readonly Unity.Profiling.ProfilerMarker CrittersMarker = new Unity.Profiling.ProfilerMarker("FaunaDirector.Critters");
         static readonly Unity.Profiling.ProfilerMarker WildMarker = new Unity.Profiling.ProfilerMarker("FaunaDirector.Wild");
+        static readonly Unity.Profiling.ProfilerMarker ComfortMarker = new Unity.Profiling.ProfilerMarker("FaunaDirector.Comfort");
 
         void Update()
         {
@@ -276,7 +277,8 @@ namespace Punchy.Fauna
                 simWorld.EntityManager.SetComponentData(simClockEntity, clock);
 
             GatherPlayers();
-            Comfort.Refresh(players, source);
+            using (ComfortMarker.Auto())
+                Comfort.Refresh(players, source);
             if (Time.time >= nextDespawn)
             {
                 nextDespawn = Time.time + 0.25f;
