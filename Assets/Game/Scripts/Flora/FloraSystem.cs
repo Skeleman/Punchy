@@ -528,6 +528,16 @@ namespace Punchy.Flora
 
         float2 TileCentre(Layer l, int2 c) => ((float2)c + 0.5f) * l.Settings.TileSize;
 
+        /// <summary>Orders tiles nearest the eye first (as TileCentre). One reused comparer: a capturing lambda allocated every frame (W-117 GC).</summary>
+        sealed class TileOrder : IComparer<int2>
+        {
+            public float TileSize;
+            public float2 Eye;
+            public int Compare(int2 a, int2 b) =>
+                math.distancesq(((float2)a + 0.5f) * TileSize, Eye).CompareTo(math.distancesq(((float2)b + 0.5f) * TileSize, Eye));
+        }
+        readonly TileOrder tileOrder = new TileOrder();
+
         /// <summary>
         /// Each layer's draw radius and LOD distances at the graphics settings: the ground layer's at its Detail distance,
         /// shrubs' and trees' at its View distance. A layer never streams in closer than SupportRange and a tile and a
@@ -563,7 +573,10 @@ namespace Punchy.Flora
                 {
                     l.Tiles[key].Dispose();
                     l.Tiles.Remove(key);
-                    basins.RemoveAll(b => b.Layer == l.Index && b.Tile.Equals(key));
+                    // (A plain loop, not RemoveAll with a lambda: capturing l and key cost a closure per layer every frame.)
+                    for (int b = basins.Count - 1; b >= 0; b--)
+                        if (basins[b].Layer == l.Index && basins[b].Tile.Equals(key))
+                            basins.RemoveAt(b);
                 }
                 if (scratch.Count > 0)
                 {
@@ -605,7 +618,9 @@ namespace Punchy.Flora
                 }
                 if (scratch.Count == 0)
                     continue;
-                scratch.Sort((a, b) => math.distancesq(TileCentre(l, a), camXZ).CompareTo(math.distancesq(TileCentre(l, b), camXZ)));
+                tileOrder.TileSize = l.Settings.TileSize;
+                tileOrder.Eye = camXZ;
+                scratch.Sort(tileOrder);
                 var count = math.min(scratch.Count, math.max(1, budget / perTile));
                 budget -= count * perTile;
 
@@ -1001,6 +1016,7 @@ namespace Punchy.Flora
             }
             // W-96 (#35): the blind pygmies' wall niches in the bat folk chambers are solid too.
             BatFolkHomes.AddKitBoxes(lastSource, centres, kitBoxes);
+            CaveRoomKit.AddKitBoxes(lastSource, centres, kitBoxes);
         }
 
         // ------------------------------------------------------------------------------------------- bolts

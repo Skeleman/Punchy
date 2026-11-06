@@ -190,10 +190,12 @@ namespace Punchy.Terrain
                 if (len < 1f) continue;
                 var dir = along / len;
                 var side = new float2(-dir.y, dir.x);
-                // Skip the stretch inside a chamber at either end.
-                float t0 = kinds[a] == CaveNodeKind.Chamber ? na.Radius * c.Profile.x : 2f;
-                float t1 = len - (kinds[b] == CaveNodeKind.Chamber ? nb.Radius * c.Profile.x : 2f);
-                if (kinds[b] == CaveNodeKind.Chamber && t1 > t0 + 1f)
+                // Skip the stretch inside a chamber at either end (W-115 row 2: or the doorway and wall of a room).
+                float End(CaveNodeKind kind, CaveNode node) =>
+                    kind == CaveNodeKind.Chamber ? node.Radius * c.Profile.x : kind == CaveNodeKind.Room ? CaveRoom.Wall + 1.5f : 2f;
+                float t0 = End(kinds[a], na);
+                float t1 = len - End(kinds[b], nb);
+                if ((kinds[b] == CaveNodeKind.Chamber || kinds[b] == CaveNodeKind.Room) && t1 > t0 + 1f)
                 {
                     var p = math.lerp(na.Position, nb.Position, t1 / len);
                     if (FloorAt(p.x, p.y, p.z, nb.Radius * c.Profile.y * 1.8f) is float f && math.distance(p, c.Mouth) > 6f)
@@ -228,7 +230,7 @@ namespace Punchy.Terrain
             for (int k = 0; k < pools.Length; k++)
             {
                 var pool = pools[k];
-                if (pool.Lava > 0.5f) continue;
+                if (pool.Lava > 0.5f || RoomPool(ref set, c, c.FirstPool + k)) continue;
                 var rng = Unity.Mathematics.Random.CreateFromIndex(c.Key ^ (uint)(k * 104729 + 17));
                 var a0 = rng.NextFloat(math.PI * 2f);
                 for (int j = 0; j < 3; j++)
@@ -264,6 +266,21 @@ namespace Punchy.Terrain
                 kept[j] = x;
             }
 
+            // W-115 row 2: the destination chambers' own spots (CaveRoomKit), after the thinning so every room keeps
+            // its set: each tagged as a chamber at a dead end, with its room type (and dark beyond the mouth's light).
+            for (int i = c.FirstRoom; i < c.FirstRoom + c.RoomCount; i++)
+            {
+                var room = set.Rooms[i];
+                var type = RoomTag(room.Type);
+                foreach (var spot in CaveRoomKit.Get(room).Spots)
+                {
+                    var up = (spot.Tags & SocketTags.Ceiling) != 0 ? -0.3f : spot.Kind == SocketKind.WallDecor ? 0f : 0.5f;
+                    if (source.CaveDistance(spot.At + new float3(0f, up, 0f)) > -0.1f) continue;
+                    var tags = spot.Tags | SocketTags.Chamber | SocketTags.DeadEnd | type | (Dark(spot.At) ? SocketTags.Dark : SocketTags.None);
+                    kept.Add(new Candidate { P = spot.At, Face = spot.Face, Kind = spot.Kind, Size = spot.Size, Tags = tags });
+                }
+            }
+
             var result = new List<DungeonSocket>(kept.Count);
             for (int j = 0; j < kept.Count; j++)
             {
@@ -277,11 +294,29 @@ namespace Punchy.Terrain
                     Size = (byte)x.Size,
                     Tags = (uint)x.Tags,
                     Seed = DungeonSocket.MakeSeed(worldSeed, c.Key, (uint)j),
-                    DungeonType = DungeonTypes.Cave,
+                    // A buried ruin room's spots borrow the ruin's tables; the rest of the cave keeps the Cave rows.
+                    DungeonType = (x.Tags & SocketTags.RuinRoom) != 0 ? DungeonTypes.Ruin : DungeonTypes.Cave,
                     Biome = (byte)Dominant(biomes),
                 });
             }
             return result;
+        }
+
+        /// <summary>The socket tag for a <see cref="CaveRoomType"/>.</summary>
+        static SocketTags RoomTag(int type) => (CaveRoomType)type switch
+        {
+            CaveRoomType.Lake => SocketTags.Lake,
+            CaveRoomType.Roost => SocketTags.Roost,
+            CaveRoomType.Ruin => SocketTags.RuinRoom,
+            _ => SocketTags.Grotto,
+        };
+
+        /// <summary>Whether a pool (index into the set's pools) is a lake room's: the room's kit sets its own spots round it.</summary>
+        static bool RoomPool(ref CaveSetBlob set, in CaveData c, int pool)
+        {
+            for (int i = c.FirstRoom; i < c.FirstRoom + c.RoomCount; i++)
+                if (set.Rooms[i].Pool == pool) return true;
+            return false;
         }
 
         /// <summary>How far out from p (horizontally along dir) the cave's rock starts, up to max.</summary>
@@ -342,6 +377,9 @@ namespace Punchy.Terrain
             var end = math.min(set.Caves.Length, next + CavesPerFrame);
             for (int cave = next; cave < end; cave++)
             {
+                // A road tunnel is a passage, not a dungeon: nothing waits in it.
+                if (set.Caves[cave].Tunnel != 0)
+                    continue;
                 var sockets = CaveSockets.Build(source, cave, source.World.Seed, out var chambers, out var deadEnds);
                 var hash = TempleSockets.Hash(sockets);
                 var key = set.Caves[cave].Key;

@@ -31,6 +31,15 @@ namespace Punchy.Dungeon
         DeadEnd = 1u << 8,
         /// <summary>Along a cave passage, between chambers.</summary>
         Passage = 1u << 9,
+        // W-115 row 2: the destination chamber a cave socket is in (its kit's room type; caves only).
+        /// <summary>In a crystal grotto.</summary>
+        Grotto = 1u << 10,
+        /// <summary>In an underground lake room.</summary>
+        Lake = 1u << 11,
+        /// <summary>In a bat roost.</summary>
+        Roost = 1u << 12,
+        /// <summary>In a buried ruin room.</summary>
+        RuinRoom = 1u << 13,
     }
 
     /// <summary>

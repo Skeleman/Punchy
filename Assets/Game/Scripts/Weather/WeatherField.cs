@@ -570,25 +570,30 @@ namespace Punchy.Weather
         /// <summary>Whether precipitation here falls as rain (1) or snow (0), from height and snow cover.</summary>
         public float RainFraction(Vector2 xz) => Ready ? Bilinear(rainFraction, xz) : 1f;
 
-        float Bilinear(float[] data, Vector2 xz) => BilinearAt(i => data[i], xz);
+        float Bilinear(float[] data, Vector2 xz)
+        {
+            var i = BilinearCell(xz, out var fx, out var fy);
+            return Mathf.Lerp(Mathf.Lerp(data[i], data[i + 1], fx), Mathf.Lerp(data[i + Resolution], data[i + Resolution + 1], fx), fy);
+        }
 
         float Allowed(Cell c, Vector2 xz) => c.Forced ? 1f : BilinearAllowed(c.Preset, xz);
 
         float BilinearAllowed(int preset, Vector2 xz)
         {
-            var offset = preset * Resolution * Resolution;
-            return BilinearAt(i => allowed[offset + i], xz);
+            var i = preset * Resolution * Resolution + BilinearCell(xz, out var fx, out var fy);
+            return Mathf.Lerp(Mathf.Lerp(allowed[i], allowed[i + 1], fx), Mathf.Lerp(allowed[i + Resolution], allowed[i + Resolution + 1], fx), fy);
         }
 
-        float BilinearAt(System.Func<int, float> value, Vector2 xz)
+        /// <summary>The bilinear cell's first texel and weights at xz. The samplers read their arrays directly (W-117:
+        /// the old Func&lt;int, float&gt; closures allocated on every call).</summary>
+        int BilinearCell(Vector2 xz, out float fx, out float fy)
         {
             var uv = (xz - origin) / texel - Vector2.one * 0.5f;
             var x0 = Mathf.Clamp(Mathf.FloorToInt(uv.x), 0, Resolution - 2);
             var y0 = Mathf.Clamp(Mathf.FloorToInt(uv.y), 0, Resolution - 2);
-            var fx = Mathf.Clamp01(uv.x - x0);
-            var fy = Mathf.Clamp01(uv.y - y0);
-            var i = y0 * Resolution + x0;
-            return Mathf.Lerp(Mathf.Lerp(value(i), value(i + 1), fx), Mathf.Lerp(value(i + Resolution), value(i + Resolution + 1), fx), fy);
+            fx = Mathf.Clamp01(uv.x - x0);
+            fy = Mathf.Clamp01(uv.y - y0);
+            return y0 * Resolution + x0;
         }
 
         // ---------------------------------------------------------------- maps

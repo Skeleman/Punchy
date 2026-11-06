@@ -662,6 +662,87 @@ namespace Punchy.Terrain
                 start = end;
             }
 
+            // W-110: a crest the grade cuts through (TunnelCrest deep or more) may be bored instead. The bore runs at a
+            // straight grade between the road profile's levels at two stretch ends either side of the crest (under a
+            // crest that's lower than the profile, so the hill over it is thicker), the pair chosen within TunnelReach
+            // for the thickest hill over the line while the ground stays above it all the way. Deep enough
+            // (TunnelCover over the line, TunnelRoofed metres of it roofed), some (seeded by the bore's middle) are
+            // bored: the hill stays, the stretches become tunnel roads (Road 3) and CaveBaking bores their passage. The
+            // cuttings either side lead into its portals.
+            var tunnel = new bool[stretches.Count];
+            for (int c = 0; c < stretches.Count; c++)
+            {
+                if (skip[c] || DeepestCut(ground[c], profile[c]) < TunnelCrest)
+                    continue;
+                int bestStart = -1, bestEnd = -1;
+                float bestPeak = 0f, bestRoofed = 0f;
+                for (int s = c; s >= 0 && s > c - TunnelReach && !skip[s] && !tunnel[s]; s--)
+                    for (int e = c + 1; e <= stretches.Count && e <= c + TunnelReach && !skip[e - 1]; e++)
+                    {
+                        // A portal opens on a cutting, never straight onto a bridge or other skipped stretch.
+                        if (SkipNear(skip, s - TunnelLead, s) || SkipNear(skip, e, e + TunnelLead))
+                            continue;
+                        var peak = BoreCover(stretches, ground, profile, s, e, out var roofed);
+                        if (peak > bestPeak)
+                        {
+                            bestPeak = peak;
+                            bestRoofed = roofed;
+                            bestStart = s;
+                            bestEnd = e;
+                        }
+                    }
+                if (bestStart < 0)
+                    continue;
+                var middle = math.lerp(stretches[bestStart].p0, stretches[bestEnd - 1].p1, 0.5f);
+                var cell = (int2)math.floor(middle / 8f);
+                var roll = BiomeSampling.Scramble(math.hash(cell) ^ 0x7B0E0110u) / (float)uint.MaxValue;
+                if (bestPeak >= TunnelCover && bestRoofed >= TunnelRoofed && roll < TunnelChance)
+                {
+                    var length = 0f;
+                    for (int i = bestStart; i < bestEnd; i++)
+                        length += math.distance(stretches[i].p0, stretches[i].p1);
+                    var y0 = profile[bestStart][0];
+                    var y1 = profile[bestEnd - 1][profile[bestEnd - 1].Length - 1];
+                    // The whole bore takes the straight grade; only the stretches the hill roofs all along (the core
+                    // round its thickest stretch) are tunnel, and the rest are cuttings at that grade up to its portals.
+                    var along = 0f;
+                    var seed = bestStart;
+                    var thinnest = new float[bestEnd - bestStart];
+                    for (int i = bestStart; i < bestEnd; i++)
+                    {
+                        var span = math.distance(stretches[i].p0, stretches[i].p1);
+                        var y = profile[i];
+                        var least = float.MaxValue;
+                        for (int k = 0; k < y.Length; k++)
+                        {
+                            y[k] = math.lerp(y0, y1, (along + span * k / (float)(y.Length - 1)) / length);
+                            least = math.min(least, ground[i][k] - y[k]);
+                        }
+                        thinnest[i - bestStart] = least;
+                        if (least > thinnest[seed - bestStart])
+                            seed = i;
+                        along += span;
+                    }
+                    int first = seed, last = seed;
+                    while (first > bestStart && thinnest[first - 1 - bestStart] >= TunnelPortal)
+                        first--;
+                    while (last < bestEnd - 1 && thinnest[last + 1 - bestStart] >= TunnelPortal)
+                        last++;
+                    var bored = 0f;
+                    for (int i = first; i <= last; i++)
+                        bored += math.distance(stretches[i].p0, stretches[i].p1);
+                    if (thinnest[seed - bestStart] >= TunnelPortal && bored >= TunnelRoofed)
+                    {
+                        for (int i = first; i <= last; i++)
+                            tunnel[i] = true;
+                        var centre = math.lerp(stretches[first].p0, stretches[last].p1, 0.5f);
+                        Stats.Tunnels.Add(new float4(centre.x, math.max(profile[first][0], profile[last][profile[last].Length - 1]), centre.y, bored));
+                    }
+                }
+                // The crest is settled either way (one roll per crest).
+                c = math.max(c, bestEnd - 1);
+            }
+
             var reach = width * 0.5f + SettlementSampling.StreetBlend;
             for (int i = 0; i < stretches.Count; i++)
             {
@@ -696,7 +777,7 @@ namespace Punchy.Terrain
                     B = to,
                     Width = width,
                     Settlement = settlement,
-                    Road = graded ? 2 : 1,
+                    Road = tunnel[i] ? SettlementSampling.TunnelRoad : graded ? 2 : 1,
                     Min = math.min(from.xz, to.xz) - r,
                     Max = math.max(from.xz, to.xz) + r
                 });
@@ -709,7 +790,75 @@ namespace Punchy.Terrain
             public static int SteepStretches, GradedStretches, Unbridged;
             public static float DeepestCut, DeepestFill;
             public static float3 CutAt, FillAt;
-            public static void Reset() { SteepStretches = GradedStretches = Unbridged = 0; DeepestCut = DeepestFill = 0f; }
+            /// <summary>W-110: each tunnel bored, its middle (xz), its west/first portal's road level (y) and length (w).</summary>
+            public static readonly List<float4> Tunnels = new();
+            public static void Reset() { SteepStretches = GradedStretches = Unbridged = 0; DeepestCut = DeepestFill = 0f; Tunnels.Clear(); }
+        }
+
+        /// <summary>W-110: how deep the grade must cut through a crest for a bore to be tried there.</summary>
+        const float TunnelCrest = 0.75f;
+        /// <summary>W-110: the most stretches either side of a crest a bore may reach to its portals.</summary>
+        const int TunnelReach = 16;
+        /// <summary>W-110: the thickest the hill over a bore's road must be (metres) to bore it.</summary>
+        const float TunnelCover = 5.5f;
+        /// <summary>W-110: the hill over a bore's road that roofs its passage (its arch and a metre of rock), and how many metres of the bore must be roofed.</summary>
+        const float TunnelRoof = 4.5f, TunnelRoofed = 10f;
+        /// <summary>W-110: the share of deep enough crests that are bored (the rest stay cuttings).</summary>
+        const float TunnelChance = 0.75f;
+        /// <summary>W-110: the least hill over every metre of a tunnel stretch's road (its arch and a little rock); thinner, it's a cutting into the portal.</summary>
+        const float TunnelPortal = 4f;
+        /// <summary>W-110: the fewest ordinary stretches between a bore's portal and a skipped one (a bridge's deck sits above the grade).</summary>
+        const int TunnelLead = 2;
+
+        /// <summary>Whether any stretch from first up to (not including) last is skipped.</summary>
+        static bool SkipNear(bool[] skip, int first, int last)
+        {
+            for (int i = math.max(first, 0); i < math.min(last, skip.Length); i++)
+                if (skip[i])
+                    return true;
+            return false;
+        }
+
+        /// <summary>
+        /// The thickest hill over a straight-grade road from stretch start's level to stretch end - 1's (0 when the
+        /// ground dips under that line anywhere, the road coming out in the air), and how many metres of it are roofed.
+        /// </summary>
+        static float BoreCover(List<(float2 p0, float2 p1)> stretches, float[][] ground, float[][] profile, int start, int end, out float roofed)
+        {
+            roofed = 0f;
+            var length = 0f;
+            for (int i = start; i < end; i++)
+                length += math.distance(stretches[i].p0, stretches[i].p1);
+            var y0 = profile[start][0];
+            var y1 = profile[end - 1][profile[end - 1].Length - 1];
+            var peak = 0f;
+            var along = 0f;
+            for (int i = start; i < end; i++)
+            {
+                var span = math.distance(stretches[i].p0, stretches[i].p1);
+                var h = ground[i];
+                var step = span / (h.Length - 1);
+                for (int k = 0; k < h.Length; k++)
+                {
+                    var cover = h[k] - math.lerp(y0, y1, (along + step * k) / length);
+                    if (cover < -0.25f)
+                        return 0f;
+                    peak = math.max(peak, cover);
+                    if (k > 0 && cover >= TunnelRoof)
+                        roofed += step;
+                }
+                along += span;
+            }
+            return peak;
+        }
+
+        /// <summary>The deepest cut under a stretch: its ground less the road's straight line, the most over every metre.</summary>
+        static float DeepestCut(float[] h, float[] y)
+        {
+            var most = float.MinValue;
+            for (int k = 0; k < y.Length; k++)
+                most = math.max(most, h[k] - math.lerp(y[0], y[y.Length - 1], k / (float)(y.Length - 1)));
+            return most;
         }
 
         /// <summary>

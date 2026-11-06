@@ -47,6 +47,10 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
   logs each step. `-whitepools` draws every cave water pool as white pool water (`CaveSystem.WhitePoolWater`,
   #35); murk above about 0.3 makes the pool a hard-edged opaque slab that reads as snow. White pools set `_SoftRim`:
   the rim fades, the middle darkens and stays see-through (body alpha x0.55), and the glow is a band inside the rim.
+- **Road tunnels (W-110):** RoadBaking marks the roofed core of steep crest stretches as `TunnelRoad`
+  (`Stats.Tunnels`); `CaveBaking.Tunnels` appends one cave per bore after the natural caves (`CaveData.Tunnel` 1 dark,
+  2 lamps, 3 lamps + frames), with no chambers, so cave sockets and bat folk skip them. Any code that loops
+  every cave (fauna den visitors, anchors) also sees tunnels: filter on `Tunnel != 0` there.
 - **Bat folk (#35, W-18):** `BatFolkBaking` runs after CaveBaking, reads the caves only and writes its own blob
 - **Bat folk kit (#35, W-61):** wall/ceiling houses are kit `StructureKit.House` in `FolkCulture.BatFolk` trim, rebuilt in `BatFolkMeshes` from a hash of the spot (no extra blob data; Lamp/Rune parts skipped, never add lights). Details come from the weighted `BatFolkBaking.Details` table, jittered per site. Pools of bat sites use `CaveSystem.WhitePoolWater`.
   (`TerrainSource.BatFolk`), so landmark and cave hashes never see it. A cave qualifies with a chamber >= 9 m

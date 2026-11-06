@@ -706,10 +706,14 @@ namespace Punchy.Weather
             // Tinted and glowing precipitation (falling ash, sparks).
             var tint = Local.PrecipitationColor;
             var glow = Local.PrecipitationGlow;
-            foreach (var ps in new[] { rain, snow })
+            // Two calls rather than a foreach over new[] { rain, snow }, which allocated every frame (W-117 GC row).
+            Tint(rain, new Color(tint.x * 0.85f, tint.y * 0.9f, tint.z, 0.4f), glow);
+            Tint(snow, new Color(tint.x, tint.y, tint.z, 0.9f), glow);
+
+            static void Tint(ParticleSystem ps, Color colour, float glow)
             {
                 var m = ps.main;
-                m.startColor = ps == rain ? new Color(tint.x * 0.85f, tint.y * 0.9f, tint.z, 0.4f) : new Color(tint.x, tint.y, tint.z, 0.9f);
+                m.startColor = colour;
                 ps.GetComponent<ParticleSystemRenderer>().sharedMaterial.SetFloat(GlowId, glow);
             }
         }

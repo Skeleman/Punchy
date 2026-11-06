@@ -27,7 +27,7 @@ namespace Punchy.Terrain
     /// Underground (camera in a cave, well below the surface) fades from 0 to 1: weather stops, and a lantern on the
     /// player lights the way.
     /// </summary>
-    public class CaveSystem : MonoBehaviour
+    public partial class CaveSystem : MonoBehaviour
     {
         public Material Material;
         [Tooltip("Caves within this distance of the camera are built and drawn.")]
@@ -297,6 +297,7 @@ namespace Punchy.Terrain
                 Destroy(caveWater);
             caveWater = null;
             ReleaseBatFolk();
+            ReleaseRooms();
             Shader.SetGlobalVector(LanternId, Vector4.zero);
         }
 
@@ -1376,6 +1377,10 @@ namespace Punchy.Terrain
             landmarkPoolsFrom = default;
         }
 
+        // The frame timer and its section marks, reused so Update allocates nothing (W-117 GC).
+        readonly System.Diagnostics.Stopwatch frameClock = new System.Diagnostics.Stopwatch();
+        readonly double[] frameMarks = new double[8];
+
         void Update()
         {
             var cam = Camera.main;
@@ -1390,7 +1395,8 @@ namespace Punchy.Terrain
                 lastSource = source;
             }
             var camPos = (float3)cam.transform.position;
-            var clock = System.Diagnostics.Stopwatch.StartNew();
+            var clock = frameClock;
+            clock.Restart();
             DrawLandmarkPools(source, camPos);
             GatherSurfaceGlow(source, camPos);
             if (!source.Caves.IsCreated)
@@ -1399,7 +1405,7 @@ namespace Punchy.Terrain
                 return;
             }
 
-            var marks = new double[8];
+            var marks = frameMarks;
             marks[0] = clock.Elapsed.TotalMilliseconds;
             UploadStyles();
             marks[1] = clock.Elapsed.TotalMilliseconds;
@@ -1410,6 +1416,7 @@ namespace Punchy.Terrain
             DrawPools(source, camPos);
             marks[3] = clock.Elapsed.TotalMilliseconds;
             DrawBatFolk(source, camPos);
+            DrawRooms(source, camPos);
             marks[4] = clock.Elapsed.TotalMilliseconds;
             DrawPlants(source, camPos);
             marks[5] = clock.Elapsed.TotalMilliseconds;
@@ -1918,6 +1925,8 @@ namespace Punchy.Terrain
                         crossings++;
                     }
                     var p = ((float3)(Origin + new int3(x, y, z)) + sum / crossings) * Voxel;
+                    // Room corners kept square, so the destination chambers' tiles cover the rock (W-115).
+                    p = CaveSampling.OutOfRooms(ref Source.Caves.Value, p);
                     cellVertex[Cell(x, y, z)] = Positions.Length;
                     Positions.Add(p);
                     Normals.Add(Gradient(p));
@@ -1979,6 +1988,27 @@ namespace Punchy.Terrain
             /// underground), y a slight brightness tint for the cave rock, z the cave's style slot, w how much darker
             /// (negative: lighter) ribs make it here.
             /// </summary>
+            /// <summary>A road tunnel's floor (its road's level) under p: along the nearest of its passages.</summary>
+            static float TunnelFloor(ref CaveSetBlob set, in CaveData c, float3 p)
+            {
+                var best = 1e9f;
+                var floor = p.y;
+                for (int s = c.FirstSegment; s < c.FirstSegment + c.SegmentCount; s++)
+                {
+                    var a = set.Nodes[set.Segments[s].A];
+                    var b = set.Nodes[set.Segments[s].B];
+                    var ab = b.Position.xz - a.Position.xz;
+                    var t = math.saturate(math.dot(p.xz - a.Position.xz, ab) / math.max(math.lengthsq(ab), 1e-6f));
+                    var d = math.distancesq(p.xz, a.Position.xz + ab * t);
+                    if (d < best)
+                    {
+                        best = d;
+                        floor = math.lerp(a.Position.y, b.Position.y, t) - math.lerp(a.Radius, b.Radius, t) * c.Profile.y * 0.45f;
+                    }
+                }
+                return floor;
+            }
+
             float4 Look(float3 p, out float4 data)
             {
                 var surface = Source.SampleHeight(p.xz);
@@ -1986,6 +2016,12 @@ namespace Punchy.Terrain
                 ref var set = ref Source.Caves.Value;
                 CaveSampling.Distance(ref set, p, out var cave);
                 var fromMouth = cave >= 0 ? math.saturate(1f - (math.distance(p, set.Caves[cave].Mouth) - 3f) / 14f) : 0f;
+                // A road tunnel (W-110) has a portal at each end: daylight comes in at both.
+                if (cave >= 0 && set.Caves[cave].Tunnel != 0)
+                {
+                    var far = set.Nodes[set.Caves[cave].FirstNode + set.Caves[cave].NodeCount - 1].Position;
+                    fromMouth = math.max(fromMouth, math.saturate(1f - (math.distance(p, far) - 3f) / 14f));
+                }
                 var nearSurface = math.saturate(1f - (surface - p.y - 1f) / 3f);
                 // Open to the sky (the terrain is cut away above: a trench or crater at a mouth): it's outside ground,
                 // so it takes the land's look and daylight however far below the uncut surface height it lies. Generous
@@ -1994,6 +2030,15 @@ namespace Punchy.Terrain
                 var open = math.saturate((2f - Source.CaveClearance(p.xz, surface)) / 1.5f);
                 var ground = Source.SampleGround(p.xz);
                 var albedo = Source.SampleSurface(p.xz, ground, Source.SampleNormal(p.xz, 1f)).Albedo;
+                // A road tunnel's floor carries its road through (W-110): the road's own surface, painted as outside,
+                // and taken as the terrain look so it reads as the same road from portal to portal.
+                var road = 0f;
+                if (cave >= 0 && set.Caves[cave].Tunnel != 0 && p.y < TunnelFloor(ref set, set.Caves[cave], p) + 0.35f)
+                {
+                    var props = new SurfaceProps { Albedo = albedo };
+                    road = Source.TunnelRoadSurface(p.xz, ref props);
+                    albedo = props.Albedo;
+                }
                 // Ribbed caves: how much darker the hollow between two ribs is (crests a touch lighter), applied to
                 // every look the wall takes, so the ribs read even in the flat light of a shallow ice cave; none where
                 // the cave opens to the sky, so mouths still match the terrain.
@@ -2003,7 +2048,7 @@ namespace Punchy.Terrain
                     var rib = CaveSampling.Rib(set.Caves[cave], p);
                     ribShade = (0.55f - 0.75f * rib * rib) * set.Caves[cave].Wall.z * (1f - open);
                 }
-                data = new float4(math.max(math.saturate(1f - (surface - p.y - 0.3f) / 2.5f), open),
+                data = new float4(math.max(math.max(math.saturate(1f - (surface - p.y - 0.3f) / 2.5f), open), road),
                                   0.85f + 0.3f * (noise.snoise(p * 0.15f) * 0.5f + 0.5f), cave >= 0 ? set.Caves[cave].Style : 0, ribShade);
                 if (ShardProbe && cave < 0)
                 {
