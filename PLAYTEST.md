@@ -5,6 +5,7 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 
 | Issue | What to check | Where | Shipped |
 |---|---|---|---|
+| #39 tunnels | Roads go through tunnels under steep crests, with a stone portal at each end | Hilly roads between towns | PR #178, 2026-11-06 |
 | Camps, igloos, temple | Leather tents and ramadas in camps; igloos sit into slopes; the sunken temple has sandstone blocks and torch glow, with no plane through the rooms | Camps, igloo villages, sunken temple | PR #170, 2026-11-06 |
 | #40 mire walker | A mangrove-rooted giant with fog eyes and a lantern looms out of the marsh mist and walks a slow loop | FoggyMarsh, v3 near -1804,145 | PR #169, 2026-11-06 |
 | #40 snail | A huge cinder snail creeps a slow loop through the Ember Forest; its eyes and shell seams glow from far off | EmberForest | PR #168, 2026-11-05 |
