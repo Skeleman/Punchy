@@ -31,3 +31,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 | #70 | You can't run through the flat rock chunks, and you can stand on the low ones | Electric Wastelands | PR #158, 2026-11-05 |
 | #8 | Folk greet, eye or avoid you depending on your race | Any village, try 2 races | PR #157, 2026-11-05 |
 | #131 | Fire look (you plan to tweak it later) | Ember Forest at night | PRs #152, #153 |
+| #62 | Mantrap bite still shoves you back; colossi and mantraps appear as before after world load | Dunes, Stone colossus area | PR #177, 2026-11-06 |
