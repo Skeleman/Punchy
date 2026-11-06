@@ -666,12 +666,6 @@ namespace Punchy.Terrain
         static readonly int FloraInstancesId = Shader.PropertyToID("_FloraInstances");
         static readonly int FloraVisibleId = Shader.PropertyToID("_FloraVisible");
 
-        /// <summary>
-        /// Draws the cave plants near the camera with the flora system's own material, shader and procedural meshes
-        /// (grown once per species and variant), so they match the plants above ground and add no materials. Each
-        /// species variant and LOD is one instanced draw over this system's own small instance list, rebuilt when the
-        /// camera has moved a few metres; the flora shader reads it exactly as it reads the flora system's.
-        /// </summary>
         /// <summary>Whether p is in a bat folk settlement's chamber (its radius and a margin, a little above and below).</summary>
         static bool InBatFolkChamber(in TerrainSource source, float3 p)
         {
@@ -687,6 +681,12 @@ namespace Punchy.Terrain
             return false;
         }
 
+        /// <summary>
+        /// Draws the cave plants near the camera with the flora system's own material, shader and procedural meshes
+        /// (grown once per species and variant), so they match the plants above ground and add no materials. Each
+        /// species variant and LOD is one instanced draw over this system's own small instance list, rebuilt when the
+        /// camera has moved a few metres; the flora shader reads it exactly as it reads the flora system's.
+        /// </summary>
         void DrawPlants(in TerrainSource source, float3 camPos)
         {
             ref var set = ref source.Caves.Value;
