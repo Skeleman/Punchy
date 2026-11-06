@@ -2835,3 +2835,13 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
 - **Walk:** across the trail from (3711,-893) to (3718,-874): arrived, pushed out 0.0 m.
 - **Shots:** Assets/Temp/shots/w113-salt-dents-800.png, w113-batfolk-nomush-800.png (world tree).
 - **Risks:** the dent is visual only. The collider stays flat, so feet float up to 0.6 m over the deepest groove.
+
+## W-113 row 1: leather tents, town shade - done (verified)
+- **Commit:** e35d9b6 on world-features. It also carries row 2's ruin plinth collision in FloraGenerator.
+- **What changed:**
+  - Tent panels are hide: leather mottle, creases and stitched seams instead of the linen weave. Goblin and chief tents now blend to a leather brown instead of olive.
+  - Poles bow with the hide's sag and stand 0.12 r inside it, so only the crossed tips past the apex show.
+  - Towns no longer take slab shelters. Harsh-biome plots get a ramada in the town's style (TownRamada, DwarfRamada, ElfRamada), and the slab shelters went to the hermit huts.
+- **Numbers:** town slab shelters 0. Ramadas on the island: 2 (both dwarf). The town and elf ramadas only appear where their layouts land in a harsh biome.
+- **Shots:** Assets/Temp/shots/w113-tent3-800.png (before: olive, a pole showing down the ridge), w113-tent-after-800.png, w113-town-ramada2-800.png (world tree).
+- **Risks:** hermit huts gained a slab shelter. That changes landmark contents; the suite will report it.
