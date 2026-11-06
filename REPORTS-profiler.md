@@ -2,6 +2,51 @@
 
 Newest first.
 
+## 2026-11-06 creature render breakdown at the v3 forest spot, main adb11e0
+
+**Short answer:**
+- **Creature rendering is cheap on the GPU here: about 0.15 ms** (Profile build: 6.35 -> 6.2 ms with creatures off). q41's 0.85 ms came from the Bench build's GPU timer, which the water test (q43) already showed is unreliable. With shadows off the creature share is about 0.05 ms; at a quarter of the pixels, about 0.25 ms. All three are within noise of each other.
+- **CPU: 0.80 ms per frame across threads, 0.22 ms of it on main.**
+  - The game's pass log puts the main-thread part at 0.21 ms: extras 0.07, cull 0.04, anchors 0.04, upload + draw 0.03.
+  - The rest (about 0.6 ms) is the Burst pose job on workers.
+  - Creatures off saves about 0.3 ms of frame (main 9.7 -> 9.4 and 8.2 -> 8.0; about 3 fps).
+- **Counts:** about 90 creatures loaded; 29-38 kept after the behind and frustum cull; 1,100-1,450 body segments drawn (1,190-1,660 with extras).
+- **Draws:** 4 instanced draws (near, mid and far bands, plus a no-shadow band for colonies and traces), each submitted in every pass that takes them.
+  - The counters show **7,078 instances and 1.17 M triangles a frame from creatures** (instanced draws 7,108 vs 30 and triangles 2.21 M vs 1.04 M, plain vs creatures off).
+  - That's about 5 draws of every segment: the depth prepass, the main pass, and **all 3 shadow cascades**.
+- **Far creatures do not draw at full detail.** There are three detail bands by distance:
+  - near, under 40 m: 336 triangles a segment;
+  - mid, 40-100 m: 112;
+  - far, over 100 m: 48.
+- **What far creatures still do:**
+  1. **No distance cutoff**: any creature in front of the camera is drawn, however far.
+  2. **Every band casts shadows**, including far creatures well past the 50 m shadow distance. Each band is one instanced draw with 2 km bounds, so Unity can't cull single instances out of cascades. Every segment goes into every cascade. That's where the about 5 draws a segment come from.
+- **Optional small fix (animal lane, CreatureRenderSystem.Passes.cs, not a free file):** draw the far band with ShadowCastingMode.Off, the way colonies already are. Past 100 m it is beyond the 50 m shadow distance anyway. This removes up to 3 of every far segment's 5 draws.
+  - At today's cost (0.15 ms GPU) it isn't worth a card on its own. It matters if creature counts or segment counts grow, so it fits the roadmap's bigger crowds.
+- **Not over 0.5 ms on the GPU.** The q41 flag for creature render stands only for CPU (0.8 ms, mostly worker pose time).
+
+**Method:**
+- Profile build adb11e0p2, v3, 150 m east of the CinderSnail (2349,-2575), uncapped, 20 s.
+- Creatures off (-benchnocreatures: neither posed nor drawn) against plain, alone, with camera shadows off, and at render scale 0.5.
+- 2 rounds, order reversed; -renderpasslog on every run. Round 1 plain and creatures off were captured through SysMs, which costs a few fps in round 1.
+- Band triangle counts are from FaunaDirector.BuildCapsule(12,6,4 / 8,3,2 / 6,2,1); band distances are PoseNear 40 and PoseFar 100.
+- Script: q45.sh. Logs: results/q45logs.
+
+| variant | GPU ms with creatures (r1 / r2) | GPU ms creatures off (r1 / r2) | creature share |
+|---|---|---|---|
+| plain | 6.4 / 6.3 | 6.3 / 6.1 | 0.15 |
+| camera shadows off | 6.3 / 6.3 | 6.3 / 6.2 | 0.05 |
+| render scale 0.5 | 5.1 / 5.1 | 4.8 / 4.9 | 0.25 |
+
+| counter (per frame) | plain | creatures off |
+|---|---|---|
+| instanced draws | 7,108 | 30 |
+| triangles | 2.21 M | 1.04 M |
+| shadow casters | 109 | 100 |
+| SetPass | 436 | 420 |
+
+- Cost: 10 calls, peak 225k context, $1.0
+
 ## 2026-11-06 flora breakdown at the v3 cave approach: passes, and vertex vs pixel bound, main adb11e0
 
 **Short answer:**
