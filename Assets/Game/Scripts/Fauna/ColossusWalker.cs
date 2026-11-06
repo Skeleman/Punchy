@@ -69,6 +69,8 @@ namespace Punchy.Fauna
             new Gait { Kind = StoneColossi.Kind.LanternStag, Slot = 10, Radius = 65f, Speed = 1.3f, Walk = 90f, Rest = 50f, Stride = 5f, Bob = 0.3f, Shake = 0.07f, Body = 14f, Height = 34f, Salt = 0xA757u },
             // A-78: the cinder snail glides (no legs, no rig), slowest of all with barely a bob, and rests long to graze.
             new Gait { Kind = StoneColossi.Kind.CinderSnail, Slot = 11, Radius = 40f, Speed = 0.35f, Walk = 120f, Rest = 60f, Stride = 8f, Bob = 0.04f, Shake = 0.03f, Body = 24f, Height = 34f, Salt = 0xA7C5u },
+            // A-79: the mire walker creeps on its root skirt (no rig), slow with a heavy sway, pausing long in the fog.
+            new Gait { Kind = StoneColossi.Kind.MireWalker, Slot = 12, Radius = 36f, Speed = 0.6f, Walk = 90f, Rest = 45f, Stride = 10f, Bob = 0.12f, Shake = 0.05f, Body = 20f, Height = 40f, Salt = 0xA7F1u },
         };
 
         const float Ramp = 5f, AwakeRange = 600f, FarPeriod = 0.5f, ShakeRange = 120f, ShakeTime = 0.35f, DustRange = 300f;
@@ -385,6 +387,12 @@ namespace Punchy.Fauna
                 var keep = FloraPlacement.KeepOut.Data;
                 keep[g.Slot] = circle;
                 FloraPlacement.KeepOut.Data = keep;
+            }
+            else if (g.Slot >= 12)
+            {
+                var keep = FloraPlacement.KeepOutFinal.Data;
+                keep[g.Slot - 12] = circle;
+                FloraPlacement.KeepOutFinal.Data = keep;
             }
             else if (g.Slot >= 8)
             {
