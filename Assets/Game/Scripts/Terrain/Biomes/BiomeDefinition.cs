@@ -50,6 +50,18 @@ namespace Punchy.Terrain
         [Tooltip("Relative chance of this biome being picked for a region when biomes come from noise.")]
         [Min(0f)] public float Frequency = 1f;
 
+        [Header("Tags")]
+        [Tooltip("The climate family this biome belongs to. Island v2/v3 realms take their biomes from a family; None " +
+                 "keeps a biome out of every realm (the ocean, the volcano).")]
+        public BiomeFamily Family = BiomeFamily.None;
+        [Tooltip("Order among the family's biomes when a realm picks one. Changing it reshuffles which biome lands where.")]
+        public int FamilyOrder;
+        [Tooltip("Free tags that game code looks biomes up by (see BiomeTags), instead of by asset name.")]
+        public List<string> Tags = new List<string>();
+
+        /// <summary>Whether this biome carries the tag (see <see cref="BiomeTags"/> for the ones code uses).</summary>
+        public bool HasTag(string tag) => Tags != null && Tags.Contains(tag);
+
         [Header("Climate (noise biomes)")]
         [Tooltip("Regions get a climate from slowly varying fields (each 0..1); a biome is picked mostly where the " +
                  "region's climate is inside all its ranges, so biomes that like the same climate end up together.\n" +

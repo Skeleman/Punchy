@@ -26,7 +26,8 @@ namespace Punchy.Tests
             yield return null;
         }
 
-        /// <summary>Target: 110 landmarks, probe hash 09EAC0FE since W-105 row 3 (stilt houses out over the shallows; village
+        /// <summary>Target: 111 landmarks, probe hash 3BDF705F since W-114 (the Ashlands ribcage on its own spot; the other 110
+        /// unmoved). 110 / 09EAC0FE since W-105 row 3 (stilt houses out over the shallows; village
         /// placement asks for a stilt house spot). Before that, on main after PR #148 (W-104 row 1 repinned it): 109 / C96F266F
         /// (was 107 / 14D92F64 after W-98 row 3).</summary>
         [UnityTest, Order(1)]
@@ -34,12 +35,13 @@ namespace Punchy.Tests
         {
             var hash = Game.Hook<string>("LandmarkHash");
             LogWatch.Measure($"landmarks {hash}; game line: {LogWatch.Last("[island]")}");
-            Assert.AreEqual("110 09EAC0FE", hash);
+            Assert.AreEqual("111 3BDF705F", hash);
             yield return null;
         }
 
         /// <summary>
-        /// Target: 90AC5F60 since W-113 (rows 1-3 changed tent, ruin plinth and roof flora, whose colliders and perches go into
+        /// Target: 8A1979F1 since W-114 (the ribcage's bones and its BoneRemains, GiantRibs and rock props go into the flora
+        /// blob; no species change). 90AC5F60 since W-113 (rows 1-3 changed tent, ruin plinth and roof flora, whose colliders and perches go into
         /// the flora blob this hashes; landmarks unchanged). F4E66093 since the A-73 merge (W-105 stilt houses plus A-73 Gull and Mackerel in the critter table;
         /// A-73 alone read 773CA7F6). 61459BF0 since W-105 row 3 (stilt house Home and Door anchors only where the house fits, doors at the
         /// walkway end). 1202B8ED since W-104 row 4 (fishing villages got Home and Door anchors). Before that, on main after PR #148
@@ -52,7 +54,7 @@ namespace Punchy.Tests
         {
             var line = LogWatch.Last("fingerprint") ?? "no fingerprint line";
             LogWatch.Measure("fauna " + line);
-            StringAssert.Contains("fingerprint 90AC5F60", line);
+            StringAssert.Contains("fingerprint 8A1979F1", line);
             yield return null;
         }
 

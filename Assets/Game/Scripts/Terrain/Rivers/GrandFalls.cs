@@ -192,14 +192,15 @@ namespace Punchy.Terrain
             // desert. Each ray's land score: temperate or grassland behind it (forest half), desert a penalty, plus the
             // land rising towards the peaks. It outweighs the bay shape, so a plainer bay on the right side wins.
             string NameOf(int id) => biomes != null && id >= 0 && id < biomes.Count && biomes[id] != null ? biomes[id].name : "?";
+            // W-116: by family and tag (temperate family; the mountain-ridge biome; forests outside the volcanic family; arid family).
             float LandOf(int id)
             {
-                var n = NameOf(id);
-                if (n.StartsWith("Temperate") || n.StartsWith("Grassland")) return 1f;
-                if (n.StartsWith("Mountains")) return 0.6f;
-                if (n.Contains("Forest") && !n.StartsWith("Ember")) return 0.5f;
-                foreach (var arid in new[] { "Dunes", "SaltFlat", "Sonoran", "GlassDesert", "MesaCanyonlands" })
-                    if (n.StartsWith(arid)) return -1f;
+                var b = biomes != null && id >= 0 && id < biomes.Count ? biomes[id] : null;
+                if (b == null) return 0f;
+                if (b.Family == BiomeFamily.Temperate) return 1f;
+                if (b.HasTag(BiomeTags.RidgeMountain)) return 0.6f;
+                if (b.HasTag(BiomeTags.Forest) && b.Family != BiomeFamily.Volcanic) return 0.5f;
+                if (b.Family == BiomeFamily.Arid) return -1f;
                 return 0f;
             }
             // W-84 (#88): a stretch spans about the same shore length on any lake (ShelfArc either side, 4-12 rays), not a

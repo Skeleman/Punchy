@@ -14,6 +14,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.BiomeDefinition
   MapColor: {r: 0.55, g: 0.85, b: 1, a: 1}
   Frequency: 1.2
+  Family: 3
+  FamilyOrder: 0
+  Tags:
+  - icy
   Altitude: {x: 0.72, y: 1}
   Temperature: {x: 0, y: 0.12}
   Humidity: {x: 0.3, y: 1}

@@ -319,12 +319,12 @@ namespace Punchy.Terrain
             var coldNames = new List<string>();
             var cold = new NativeArray<byte>(math.max(1, palette.Count), Allocator.TempJob);
             for (int i = 0; i < palette.Count; i++)
-                if (palette[i] != null && (palette[i].name == "Tundra" || palette[i].name == "Glacier"))
+                if (palette[i] != null && palette[i].HasTag(BiomeTags.Icy))   // W-116: by tag, was by name
                 {
                     cold[i] = 1;
                     coldNames.Add(palette[i].name);
                 }
-                else if (palette[i] != null && (palette[i].name == "Ocean" || palette[i].name == "Beach"))
+                else if (palette[i] != null && palette[i].HasTag(BiomeTags.Sea))
                     cold[i] = 2;
             var size = (int)(2f * Extent / Cell) + 1;
             var n = size * size;

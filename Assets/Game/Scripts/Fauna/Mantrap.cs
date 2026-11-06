@@ -50,8 +50,9 @@ namespace Punchy.Fauna
         const float Step = 90f;
         const float MinSeparation = 45f;
 
-        static readonly string[] BiomeNames = { "FoggyMarsh", "PoisonSwamp", "FungalForest" };
+        // W-116: the biomes tagged "mantrap" in FamilyOrder each get a cap, by their place in that order (was a name list).
         static readonly int[] BiomeCaps = { 10, 8, 8 };
+        static int CapOf(int k) => BiomeCaps[math.min(k, BiomeCaps.Length - 1)];
 
         static readonly Color Green = new Color(0.20f, 0.42f, 0.16f);
         static readonly Color DarkGreen = new Color(0.12f, 0.30f, 0.12f);
@@ -485,14 +486,10 @@ namespace Punchy.Fauna
                 return;
             sourceWorld = w;
             var palette = em.GetComponentObject<BiomePalette>(paletteQuery.GetSingletonEntity());
+            var tagged = BiomeTags.Tagged(palette.Biomes, BiomeTags.Mantrap);
             var which = new NativeArray<int>(palette.Biomes.Length, Allocator.TempJob);
             for (int b = 0; b < palette.Biomes.Length; b++)
-            {
-                which[b] = -1;
-                for (int k = 0; k < BiomeNames.Length; k++)
-                    if (palette.Biomes[b] != null && palette.Biomes[b].name == BiomeNames[k])
-                        which[b] = k;
-            }
+                which[b] = tagged.IndexOf(b);
             var half = source.World.WorldSize * 0.5f;
             var n = (int)(half * 2f / Step) + 1;
             var spots = new NativeArray<float2>(n * n, Allocator.TempJob);
@@ -500,7 +497,7 @@ namespace Punchy.Fauna
             new SurveyJob { Source = source, Which = which, Origin = -half, Step = Step, Size = n, Seed = source.World.Seed, Spot = spots, Kind = kinds }
                 .Schedule(n * n, 64).Complete();
 
-            var perBiome = new List<(float key, float2 spot)>[BiomeNames.Length];
+            var perBiome = new List<(float key, float2 spot)>[tagged.Count];
             for (int k = 0; k < perBiome.Length; k++) perBiome[k] = new List<(float, float2)>();
             var rejectedTown = 0;
             for (int i = 0; i < kinds.Length; i++)
@@ -515,7 +512,7 @@ namespace Punchy.Fauna
                 var rng = Unity.Mathematics.Random.CreateFromIndex((uint)i * 2654435761u ^ (uint)source.World.Seed ^ 0x3A47F1u);
                 perBiome[kinds[i]].Add((rng.NextFloat(), spots[i]));
             }
-            var counts = new int[BiomeNames.Length];
+            var counts = new int[tagged.Count];
             var chosen = new List<float2>();
             var chosenBiome = new List<int>();
             for (int k = 0; k < perBiome.Length; k++)
@@ -523,7 +520,7 @@ namespace Punchy.Fauna
                 perBiome[k].Sort((a, b) => a.key.CompareTo(b.key));
                 foreach (var c in perBiome[k])
                 {
-                    if (counts[k] >= BiomeCaps[k])
+                    if (counts[k] >= CapOf(k))
                         break;
                     var apart = true;
                     foreach (var o in chosen)
@@ -541,8 +538,14 @@ namespace Punchy.Fauna
                 BuildPlant(chosen[i], i);
             havePlace = true;
             Placed = true;
-            Debug.Log($"Mantrap: placed {chosen.Count}: {BiomeNames[0]} {counts[0]}, {BiomeNames[1]} {counts[1]}, {BiomeNames[2]} {counts[2]} " +
-                      $"(candidates {perBiome[0].Count}/{perBiome[1].Count}/{perBiome[2].Count}, {rejectedTown} rejected for a settlement or landmark)");
+            var perName = new System.Text.StringBuilder();
+            var perCount = new System.Text.StringBuilder();
+            for (int k = 0; k < tagged.Count; k++)
+            {
+                perName.Append(k == 0 ? "" : ", ").Append(palette.Biomes[tagged[k]].name).Append(' ').Append(counts[k]);
+                perCount.Append(k == 0 ? "" : "/").Append(perBiome[k].Count);
+            }
+            Debug.Log($"Mantrap: placed {chosen.Count}: {perName} (candidates {perCount}, {rejectedTown} rejected for a settlement or landmark)");
             foreach (var s in Spots)
                 Debug.Log($"Mantrap: plant at ({s.x:F0}, {s.y:F1}, {s.z:F0})");
         }

@@ -50,11 +50,8 @@ namespace Punchy.Ambience
             ["AncientTree"] = (12f, true), ["FairyRing"] = (4f, false), ["Oasis"] = (3f, false),
         };
 
-        /// <summary>Biomes (by asset name) with more butterflies than their density alone gives: the mystic glades.</summary>
-        static readonly Dictionary<string, float> BiomeButterflies = new Dictionary<string, float>
-        {
-            ["SparklingForest"] = 4f,
-        };
+        /// <summary>How many times more butterflies the mystic glades (biomes tagged <c>glade</c>) get than their density alone gives.</summary>
+        const float GladeButterflies = 4f;
 
         const int FireflyVertices = 6;
         const int ButterflyVertices = 12;
@@ -139,7 +136,7 @@ namespace Punchy.Ambience
                 for (int i = 0; i < palette.Biomes.Length; i++)
                     if (palette.Biomes[i] != null)
                         densities[i] = new float2(palette.Biomes[i].Fireflies, palette.Biomes[i].Butterflies * ButterflyScale *
-                            (BiomeButterflies.TryGetValue(palette.Biomes[i].name, out var bm) ? bm : 1f));
+                            (palette.Biomes[i].HasTag(BiomeTags.Glade) ? GladeButterflies : 1f));
                 var types = palette.Landmarks;
                 landmarkButterflies = new NativeArray<float>(types?.Length ?? 0, Allocator.Persistent);
                 for (int i = 0; i < landmarkButterflies.Length; i++)
