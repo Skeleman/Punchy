@@ -5,6 +5,9 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 
 | Issue | What to check | Where | Shipped |
 |---|---|---|---|
+| v3 default | New builds start on the v3 island with no flags (`-island v2` still works) | Any launch | PR #165, 2026-11-05 |
+| #39 roads | Roads run unbroken up steep slopes now, cut into or banked up on the hillside | Hilly roads | PR #165, 2026-11-05 |
+| Waterfalls | Falls show falling white and grey sheets, not flat glowing white. Try fall 74: -goto -2167,3,3691 | v3 at noon | PR #165, 2026-11-05 |
 | Wharf | Fishing village 1 now has its wharf by the river mouth (not in the 11-05 playtest build) | Fishing village 1 | PR #164, 2026-11-05 |
 | #40 heron | A glass heron wades the dunes, rests, and stabs at the sand; it turns to look at you | GlassDesert | PR #163, 2026-11-05 |
 | #40 stag | A huge stag grazes between the trees; its antler lanterns glow brighter at night | SparklingForest | PR #163, 2026-11-05 |
