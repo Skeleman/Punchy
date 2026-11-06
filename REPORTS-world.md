@@ -2816,3 +2816,15 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
 - **Check:** at a forest edge over a lake, 25% of the ground band is darker with the new settings, by 0.09 brightness on average.
 - **Shots:** Assets/Temp/shots/w112-shadow-{before,after}.png (aerial), w112-shadowlow-{old,new}.png (low, same frame A/B).
 - **Risks:** it still reads soft in the shots, because the weather keeps the sun's shadow strength at 0.64 even with Clear forced. Under the crowns the floor is mostly canopy shade already. If Zach wants it stronger, try `-shadowcachedark 0.8` before any code change.
+
+## W-112 row 3: far lights, fire LOD, ember colour - done (verified)
+- **Commit:** 68f998d on world-features.
+- **What changed:** past the near fires, out to 600 m (cap 3000), each burning tree gets a far flame: one soft glow card round the crown in the burn palette, with no light and no particles. This is the fire's far LOD; `FarForestFiresOn` is the A/B switch. Tree bark seams and leaf slivers now take the forest's burn colour (blue tonight). Wood fire keeps the old orange.
+- **Numbers (editor, vsync-capped, far pose at night):** off: GPU 0.16 ms, frame 16.70 ms, 3.79M tris, 2852 batches. On: GPU 0.14 ms, frame 16.71 ms, 3.80M tris, 2854 batches, 835 far flames.
+- **Shots:** Assets/Temp/shots/w112-ember-far-{before,off,on}.png, w112-ember-near-{before,after}.png (world tree).
+
+## W-112 suite
+- PlayMode 13/13 with the editor closed. Landmarks_V3 110 09EAC0FE, Fauna_Fingerprint F4E66093: unchanged.
+
+## W-112 row 4 (follow-up, not fixed)
+- From W-111: fall 74 has a pale flat shelf near the lip, and the water sheet's noise zigzags where its triangles turn. Both are BuildWater geometry, left for a later card.
