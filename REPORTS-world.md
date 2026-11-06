@@ -2890,3 +2890,13 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
 - New test BiomeLiteralTests: fails on any biome asset name quoted in non-Editor game code. Allow-list is StoneColossi.cs and DunesColossus.cs, left for A-81 (colossus work). `git grep` shows literals only there.
 - Suite 14 passed, 0 failed. Landmarks_V3 110 09EAC0FE, Fauna_Fingerprint 90AC5F60, both unchanged.
 - Risk: Mantrap.cs (Fauna folder) and CritterSystem.cs are edited on the world branch; other lanes touching them will conflict.
+
+## W-116 row 3 — ClimateField: done (verified)
+- Commit b185498 on world-features. Ready to merge.
+- Design: Weather/ClimateField.cs. Climate.Exact(p) gives elevation, heat, humidity, air, wind, sun, temperature, rain, snow, storm from the same formulas Comfort and Ambience used; Climate.At/HeatAt read a coarse grid, filled lazily on first use. The first fill runs at once; later refreshes (about 24 ms in all) are spread over frames at 0.4 ms each and swapped in whole. Weather publishes its local state; Ambience reads Climate.Camera. Season is a stub (0).
+- Values (noon / midnight temp): Temperate (1050,1050) elev 39, heat 0.16, humid 0.65, temp 0.26 / 0.09. Dunes (3418,-358) 10 m, 0.45, 0.44, 0.57 / 0.37. Glacier (410,-38) 148 m, 0.24, 0.42, 0.28 / 0.06. PoisonSwamp (-2022,154) 148 m, 0.27, 0.71, 0.28 / 0.12. Ashlands (-230,-3686) 15 m, 0.53, 0.53, 0.65 / 0.46. Rain, snow and storm 0 everywhere at test time. Grid vs Exact at (0,0) agree (temp 0.522, heat 0.411).
+- Frame ms: before 16.77 ms/frame (2679 frames); after with the grid kept live 16.77 ms/frame (2892 frames), 48 refreshes, worst slice 0.90 ms. An unsliced first try spiked 23 ms once a second, so the fill is sliced.
+- Oddity (not from this row): Glacier heat comes out above Temperate, from the copied Comfort formula. Worth a look by whoever owns Comfort.
+- A-81 can now switch CreatureComfort, WeatherTalkSystem and SkunkGas to Climate.At/HeatAt.
+- Suite 14 passed, 0 failed. Landmarks_V3 110 09EAC0FE, Fauna_Fingerprint 90AC5F60, both unchanged.
+- Risk: WeatherSystem.cs and AmbienceSystem.cs are touched (one line in, a few reads swapped).
