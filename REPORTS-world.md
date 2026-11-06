@@ -3048,3 +3048,17 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
   | SRPBatcher.Flush | 0.23 | 0.14 |
 
   In total, water costs about 1.1 ms of render CPU, and about 0.17-0.27 M of the 2.2-2.3 M triangles.
+
+## W-117 rows 2-5: NOT DONE (stopped for memory and budget), plan for the next pass
+
+- Why: my editor was at 12 GB with 1.4 GB free on the PC, and other editors were open. I closed it to run the suite.
+- Row 2 (water draws), plan:
+  - Water.shader reads only the vertex position through GetVertexPositionInputs and works from world position, so merging meshes should not change the look. Still verify against a shot from the same spot.
+  - In TerrainStreamingSystem, keep near chunks (within about 256 m) as single entities. Beyond that, build one combined water mesh per 4x4-chunk region, rebuilt when a member chunk streams in or out.
+  - About 486 transparent draws should drop to about 60-80, worth an estimated 0.6-0.8 of the ~1.1 ms render CPU.
+  - Risk: transparent sort order between regions, where far water overlaps nearer water. It should be minor, because water is a single height layer.
+- Row 3 (shader): the main per-pixel cost is the SSR march at Water.shader ScreenReflection (28 + 5 steps).
+  - Gate it by distance and fresnel weight, where it fades anyway.
+  - Drop the second detail-texture read past rippleNear (110 m).
+  - Measure with a GPU frame time A/B from the village spot.
+- Rows 4-5 (flora LOD and shadow casters): not started.
