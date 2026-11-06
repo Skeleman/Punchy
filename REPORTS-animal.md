@@ -2631,3 +2631,19 @@ Commit c98e94e on animal-behaviours.
 - Fauna_Fingerprint is still F4E66093 (this branch is from before PR #170).
 - **Shared file:** this row is not additive in Flora/FloraPlacement.cs, as the card asked. The four fixed keep-out statics are replaced by one `ColossusKeepOut` SharedStatic list (room for 31), filled through `FloraPlacement.SetKeepOut(slot, circle)`. ColossusWalker now finds its slot from `StoneColossi.Placed`, and ColossusRig picks the rig from the definition's rig type.
 - **Shots:** `a81a-saguaro` and `a81a-crystal` in Assets/Temp/shots; both colossi are built and in place.
+
+## A-81 row 2 (2026-11-06): race tags, done (verified)
+
+Commit faf907f on animal-behaviours (after merging origin/main with PR #170, merge b4e6443).
+
+- **FolkRace assets** (Resources/Races, 10 races) replace the ComfortRace enum. Each asset holds the race's id (the old enum number, unchanged), species, comfort numbers and traits: Folk, ColdAdapted, HeatAdapted, Aquatic, Fishing, CaveDweller, Spirit.
+- **Burst access:** jobs ask `FolkRaces.Has(id, trait)`, which reads a SharedStatic trait table.
+- **No ComfortRace is left** in Assets or docs. Folk checks use the Folk trait. The Fishing trait (not the race) picks who takes a wharf for the Fish task and who takes the cave-pool chore. Weather talk keys its lines by the race asset name.
+- Fauna_Fingerprint is **90AC5F60**, the same as main after PR #170: the baked comfort bytes are identical.
+- **Folk check:** FishingVillage, HumanVillage and SeaFolkVillage load; `[comfort] race Human` is printed by name.
+- **Shots:** `a81b-fishing`, `a81b-human` and `a81b-seafolk` in Assets/Temp/shots.
+- **Risk:** Fishing is on Human, Elf, Dwarf, Goblin, FishFolk and Pygmy, which are all the races that fish today. Ogre, BatFolk, Hermit and Ghost don't have it. A future table that gives one of those races the Fish task will not send it to a wharf until the trait is added to that race's asset.
+
+## A-81 row 3: climate readers, skipped
+
+`Climate.At` is not on main, even after the PR #170 merge, so there is nothing to route the readers through yet. This can be picked up once the world lane lands it.
