@@ -27,6 +27,8 @@ namespace Punchy.Debugging
     ///  ] / [        force the next weather over the player / clear it (WeatherSystem);
     ///  F1           show / hide this readout (off by default since A-51: about 0.5 ms of IMGUI a frame; "-hud" starts
     ///               with it on). "-nohud" hides the interaction prompt too, for screenshots.
+    ///  -shotcam x,y,z,tx,ty,tz  (shot lists / PlayArgs) pins the camera at x,y,z looking at tx,ty,tz for every frame of
+    ///               every later shot until "-shotcam off", so a movement strip keeps its subject in frame (A-79).
     /// The player-facing panels (multiplayer, graphics, quit) are in the main menu on Esc or Start (UI.MainMenu).
     /// </summary>
     public class DebugControls : MonoBehaviour
@@ -54,6 +56,9 @@ namespace Punchy.Debugging
         /// </summary>
         string landmarkPlacePending;
         float3 landmarkPlaceKey;
+        /// <summary>A-78: the landmarks key "-place batfolk" last placed on, and whether it found a chamber at all.</summary>
+        float3 batFolkPlaceKey;
+        bool batFolkPlaced;
         float landmarkPlaceUntil;
         bool landmarkPlaced;
         string speciesPickPending;
@@ -272,12 +277,7 @@ namespace Punchy.Debugging
             PlacePropPending();
             PlaceAtLandmarkPending();
             PickSpeciesPending();
-            // (A-69: "-place batfolk" again until the bat folk homes are baked; they come after the island.)
-            if (batFolkPlaceUntil > 0f && Time.unscaledTime < batFolkPlaceUntil && EnsureLocations(out var batRetry) && PlaceAtBatFolk(batRetry))
-            {
-                batFolkPlaceUntil = 0f;
-                rockWatchSince = -1f; // (-rockwatch counts from there.)
-            }
+            PlaceAtBatFolkPending();
             RockWatch();
             Pose();
             Interact();
@@ -353,6 +353,18 @@ namespace Punchy.Debugging
             WalkerShot();
             MantrapShot();
             MimicShot();
+            ShotCam();
+        }
+
+        /// <summary>A-79: "-shotcam": a fixed camera that holds across shot-list lines (set in ApplyOptions, never in normal play).</summary>
+        bool shotCamOn;
+        Vector3 shotCamFrom, shotCamTo;
+
+        /// <summary>Poses the camera at the pinned "-shotcam" point every frame, after every other shot helper, so it wins.</summary>
+        void ShotCam()
+        {
+            if (shotCamOn)
+                PoseCamera(shotCamFrom, Quaternion.LookRotation(shotCamTo - shotCamFrom));
         }
 
         // ---------------------------------------------------------------- A-09 shots
@@ -2010,7 +2022,13 @@ namespace Punchy.Debugging
                 if (args[i] == "-flycave" && EnsureLocations(out var flySource))
                     StartFlyCave(flySource, args[i + 1]);
                 if (args[i] == "-place" && args[i + 1].StartsWith("batfolk", System.StringComparison.OrdinalIgnoreCase))
-                    batFolkPlaceUntil = EnsureLocations(out var batSource) && PlaceAtBatFolk(batSource) ? 0f : Time.unscaledTime + 60f;
+                {
+                    // (Kept trying until v3 is up, ~90 s in: see PlaceAtBatFolkPending.)
+                    batFolkPlaceUntil = Time.unscaledTime + 180f;
+                    batFolkPlaceKey = new float3(-1f);
+                    batFolkPlaced = false;
+                    PlaceAtBatFolkPending();
+                }
                 else if (args[i] == "-place" && args[i + 1].StartsWith("tree:", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var treeSource))
                     PlaceByTree(treeSource, args[i + 1].Substring(5));
                 else if (args[i] == "-place" && args[i + 1].StartsWith("prop:", System.StringComparison.OrdinalIgnoreCase))
@@ -2194,6 +2212,20 @@ namespace Punchy.Debugging
                 Shader.SetGlobalFloat("_PunchyWaterProbe", probe);
             // "-camrel dx,dy,dz,tx,ty,tz": like -camlook, but both points relative to where the player ends up (after any
             // -place), for framing a place whose coordinates aren't known.
+            // A-79: "-shotcam x,y,z,tx,ty,tz" pins the camera from this line on (held by ShotCam); "-shotcam off" frees it.
+            var shotCamArg = System.Array.IndexOf(args, "-shotcam");
+            if (shotCamArg >= 0 && shotCamArg + 1 < args.Length)
+            {
+                if (ParseFloats(args[shotCamArg + 1]) is float[] sc && sc.Length >= 6)
+                {
+                    shotCamFrom = new Vector3(sc[0], sc[1], sc[2]);
+                    shotCamTo = new Vector3(sc[3], sc[4], sc[5]);
+                    shotCamOn = (shotCamTo - shotCamFrom).sqrMagnitude > 0.01f;
+                    Debug.Log($"DebugControls: shotcam {shotCamFrom} looking at {shotCamTo}");
+                }
+                else
+                    shotCamOn = false;
+            }
             var camRel = System.Array.IndexOf(args, "-camrel");
             if (camRel >= 0 && camRel + 1 < args.Length && ParseFloats(args[camRel + 1]) is float[] rel && rel.Length >= 6 &&
                 QueriesLive() && playerQuery.TryGetSingleton<LocalTransform>(out var origin))
@@ -3784,10 +3816,32 @@ namespace Punchy.Debugging
                 Debug.Log($"DebugControls: at bat folk chamber {i}, pod door at ({at.x:F0}, {at.y:F0}, {at.z:F0}), pod floor at y {pod.Stand.y:F1}");
                 return true;
             }
-            // (Said once, when the retries give up.)
-            if (batFolkPlaceUntil > 0f && Time.unscaledTime + 0.1f >= batFolkPlaceUntil)
-                Debug.LogWarning("DebugControls: no bat folk chamber with a pod");
             return false;
+        }
+
+        /// <summary>
+        /// A-78: "-place batfolk" again whenever the island's landmarks change, until it times out. The baked first
+        /// island's chambers came first, and the v3 pass replaces its caves and bat folk homes, so a placement made on the
+        /// first island left the player on v3's open ground (spawning 0 cave folk). Like PlaceAtLandmarkPending (A-74).
+        /// </summary>
+        void PlaceAtBatFolkPending()
+        {
+            if (batFolkPlaceUntil <= 0f)
+                return;
+            if (Time.unscaledTime > batFolkPlaceUntil)
+            {
+                if (!batFolkPlaced)
+                    Debug.LogWarning("DebugControls: no bat folk chamber with a pod");
+                batFolkPlaceUntil = 0f;
+                return;
+            }
+            // (No key change: placed on this island already. A failed try keeps the old key, to retry next frame while
+            // the homes are still baking.)
+            if (!EnsureLocations(out var source) || math.all(locationsKey == batFolkPlaceKey) || !PlaceAtBatFolk(source))
+                return;
+            batFolkPlaceKey = locationsKey;
+            batFolkPlaced = true;
+            rockWatchSince = -1f; // (-rockwatch counts from there.)
         }
 
         /// <summary>
