@@ -2647,3 +2647,33 @@ Commit faf907f on animal-behaviours (after merging origin/main with PR #170, mer
 ## A-81 row 3: climate readers, skipped
 
 `Climate.At` is not on main, even after the PR #170 merge, so there is nothing to route the readers through yet. This can be picked up once the world lane lands it.
+
+## A-81 row 4 (2026-11-06): FaunaDirector and CreatureRenderSystem split, done (verified)
+
+Commit 975a496 on animal-behaviours. Only code moved. A line-multiset check shows no line was removed or changed; the only line added beyond the file wrappers is `partial` on PoseJob.
+
+- **FaunaDirector.cs** went from 117.6 KB to a 34.7 KB core, plus these partials:
+
+  | Partial | Size |
+  |---|---|
+  | Build | 22.5 KB |
+  | Avatar | 9.6 KB |
+  | Folk | 22.8 KB |
+  | Visitors | 10.2 KB |
+  | Critters | 13.0 KB |
+  | Caves | 7.7 KB |
+
+- **CreatureRenderSystem.cs** went from 187.6 KB to a 39.4 KB core, plus these partials:
+
+  | Partial | Size |
+  |---|---|
+  | Extras | 22.9 KB |
+  | Passes | 23.7 KB |
+  | PoseGear (PoseJob) | 44.8 KB |
+  | PoseGuard (PoseJob) | 35.1 KB |
+  | PoseHomes (PoseJob) | 24.1 KB |
+
+  PoseJob is now a `partial struct`.
+- **Size:** every file is under 60 KB.
+- **Run:** compiles clean, Fauna_Fingerprint 90AC5F60. Shot `a81c-fishing` in Assets/Temp/shots matches a81b-fishing.
+- **A-81 suite:** WorldTests 9 passed, 0 failed in 190 s. Landmarks 110 09EAC0FE, fingerprint 90AC5F60.
