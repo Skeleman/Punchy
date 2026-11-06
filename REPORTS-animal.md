@@ -2787,3 +2787,23 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - **Note on pins:** the card says 90AC5F60 / 110 09EAC0FE, but the ribcage (W-114, 2107640c) is already on this branch and moved both pins: WorldTests now pins 8A1979F1 and 111 3BDF705F. Both match.
 - **Not measured:** the `-perflog` CreatureSnapshotSystem.WaitTicks proof from my row 1 plan. I'll do it in row 3's editor session if the run is cheap.
 - **Editor:** my editor didn't quit on EditorApplication.Exit and was killed by its PID (30904). Nothing else was touched.
+
+### A-83 row 3 (#62): placement surveys over frames (commit 4a1c8f42 on animal-behaviours, pushed)
+
+- StoneColossi, DunesColossus and Mantrap now schedule the placement SurveyJob (Persistent arrays), keep the handle, and place in `FinishSurvey` once `IsCompleted`. This replaces `Schedule(...).Complete()` in the same frame, following A-82 row 4.
+- `DropSurvey` completes the job and frees the arrays. It runs on Application.quitting, GameBootstrap.WorldsReplacing and OnDestroy, and also when the world or TerrainSource changed under the survey (then placing retries). Same pattern as CaveSystem 156e7df.
+- **Checks** (editor play mode, SampleScene, island v3, HumanVillage 13 h):
+  - Compiles clean. Each script logs "survey took 1 frames".
+  - Placements match row 2 exactly: all 14 colossus "placed at" lines are the same as row 2's test run, and Mantrap still logs "placed 26: FoggyMarsh 10, PoisonSwamp 8, FungalForest 8".
+  - Fingerprint 8A1979F1. GC **9594 B/frame** (an earlier window, while the world was still settling, read 12013, mostly FaunaDirector.Comfort, not survey code).
+  - No exceptions.
+- **Placement-frame spike:**
+  - Profiled the reload run. On the schedule frame (f8) the Updates cost DunesColossus 1.20 ms, Mantrap 0.82 ms and StoneColossi 0.57 ms, with no job wait.
+  - On the finish frame (f9), StoneColossi.Update is 450 ms. That is Place building the 13 colossi (Mono.JIT, GC.Collect, ParticleSystem setup, CopyChannels), with no WaitForJobGroup or Complete sample, and it falls inside world startup (f8 itself was 29 s). The survey no longer costs main-thread time. If the Place build hitch matters, it could get its own row.
+- **Quit with surveys in flight:**
+  - In play I called TryPlace on all three through reflection (each reported surveyPending=True), then left play mode in the same call.
+  - No exception, and no leak or dispose warning after a forced domain reload.
+  - The next play placed everything again (the reload run above).
+  - Not exercised: WorldsReplacing (a host or join world swap). It is the same DropSurvey handler.
+- **Suite:** 14 passed, 0 failed in 203 s. Landmarks 111 3BDF705F, fingerprint 8A1979F1.
+- My editor (PID 27836) exited cleanly on EditorApplication.Exit. A-83 is done on the animal side; #62's world-owned items were left alone.
