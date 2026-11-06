@@ -1,5 +1,8 @@
 # Supervisor handoff, 2026-11-06 (to the player-lane session)
 
+CANCELLED 11-06 late: Zach asked the main-account supervisor to continue. Player session: go back to the
+player lane only; do not merge or review other lanes. This file stays as the handoff if the budget runs out.
+
 Zach asked the supervisor (main account) to hand off to you when its token budget ran out. You now also
 supervise. Read COORDINATION.md first (rules 1-18; rule 18 = every process ends on its own, kill by PID).
 
