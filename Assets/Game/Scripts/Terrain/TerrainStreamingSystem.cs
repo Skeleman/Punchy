@@ -129,6 +129,7 @@ namespace Punchy.Terrain
                 Object.Destroy(chunk.Mesh);
                 Object.Destroy(chunk.WaterMesh);
             }
+            ClearWaterRegions(true);
             foreach (var pooled in meshPool)
                 Object.Destroy(pooled.mesh);
             loaded.Clear();
@@ -171,6 +172,7 @@ namespace Punchy.Terrain
             // The terrain shader geomorphs vertices by their distance from this same point.
             Shader.SetGlobalVector(TerrainFocusId, new Vector4(focus.x, focus.y, 0f, 0f));
             Shader.SetGlobalFloat(DetailFarId, Punchy.Settings.GraphicsSettings.DetailRange(DetailFar));
+            RefreshWaterRegions(focus, config.ChunkSize);
 
             // The focus's speed since the last batch started (batches can be frames apart), smoothed over about half a
             // second (a teleport reads as briefly fast).
@@ -466,6 +468,8 @@ namespace Punchy.Terrain
 
                 // Water entities come and go as a chunk's water appears or disappears.
                 var canDrawWater = hasWater && waterMaterialId != BatchMaterialID.Null;
+                if (canDrawWater || chunk.WaterEntity != Entity.Null)
+                    MarkWaterRegion(item.Coord);
                 if (canDrawWater && chunk.WaterEntity == Entity.Null)
                     chunk.WaterEntity = Place(waterEntities[newWater++], origin, waterMaterialId, chunk.WaterMeshId, waterBounds, "WaterChunk");
                 else if (canDrawWater)
@@ -552,8 +556,18 @@ namespace Punchy.Terrain
                 var centre = ((float2)kv.Key + 0.5f) * chunkSize;
                 var far = math.distance(centre, eye) > HiddenKeep + chunkSize * 0.71f;
                 Sort(kv.Value.Entity, far);
-                Sort(kv.Value.WaterEntity, far);
+                // Water in a merged far region stays hidden either way; the region's own entity draws it.
+                if (kv.Value.WaterEntity != Entity.Null && RegionMerged(kv.Key))
+                {
+                    if (!EntityManager.HasComponent<DisableRendering>(kv.Value.WaterEntity))
+                        toHide.Add(kv.Value.WaterEntity);
+                }
+                else
+                    Sort(kv.Value.WaterEntity, far);
             }
+            foreach (var region in regions.Values)
+                if (region.Entity != Entity.Null && region.Merged)
+                    Sort(region.Entity, true);
             EntityManager.AddComponent<DisableRendering>(toHide.AsArray());
             EntityManager.RemoveComponent<DisableRendering>(toShow.AsArray());
             toHide.Dispose();
@@ -600,7 +614,10 @@ namespace Punchy.Terrain
             var chunk = loaded[coord];
             dead.Add(chunk.Entity);
             if (chunk.WaterEntity != Entity.Null)
+            {
                 dead.Add(chunk.WaterEntity);
+                MarkWaterRegion(coord);
+            }
             meshPool.Push((chunk.Mesh, chunk.MeshId));
             meshPool.Push((chunk.WaterMesh, chunk.WaterMeshId));
             loaded.Remove(coord);
@@ -608,6 +625,7 @@ namespace Punchy.Terrain
 
         void UnloadAll()
         {
+            ClearWaterRegions(false);
             scratchCoords.Clear();
             scratchCoords.AddRange(loaded.Keys);
             UnloadCoords();
