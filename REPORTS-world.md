@@ -2873,3 +2873,11 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
 - First run: 10 passed, 3 failed, because the editor island preference was still v2 from the playtest shots. Punchy/Island is an EditorPrefs value shared by every editor on this account, so it overrode the suite's v3. I cleared it (back to Default = v3) and reran.
 - Rerun: 12 passed, 1 failed. **Landmarks_V3 110 09EAC0FE (unchanged).** **Fauna_Fingerprint 90AC5F60 (was F4E66093).** The fingerprint hashes the flora blob (colliders, perches), which rows 1-3 changed through tents, the ruin plinth and roofs. I repinned it in 3bd9c9a.
 - **Watch:** any lane that runs play.sh with Punchy/Island v1 or v2 should set it back to Default afterwards, or the next suite on this account fails Harness_WorldUp.
+
+## W-116 row 1 — file splits: done (verified)
+- Commit 45f4349 on world-features (after merging origin/main as b267195). Ready to merge.
+- DebugControls.cs 335 KB -> partial class in 11 files (largest Places 47 KB, Flight 45 KB, Flags 41 KB; core 27 KB): FaunaShots, FaunaLogs, Options, Flags, Goto, Flight, Shots, Places, Tests, Locations.
+- FloraGenerator.cs 320 KB -> partial static class in 11 files (largest Houses/Village 37 KB; core 29 KB): Trees, Plants, Props, Rocks, Crystals, Houses, Kit, Village, Town, Waterside.
+- Move-only: a line multiset diff against HEAD shows only the class declaration changed (added `partial`); every other added line is a using, namespace, brace, part comment or partial declaration. Line endings kept per original (DebugControls LF, FloraGenerator CRLF), no static initializers that depend on each other across files.
+- Suite 13 passed, 0 failed. Landmarks_V3 110 09EAC0FE, Fauna_Fingerprint 90AC5F60, both unchanged.
+- Risk: lanes with open edits to either file will conflict; rebasing means moving the hunk into the matching part file.
