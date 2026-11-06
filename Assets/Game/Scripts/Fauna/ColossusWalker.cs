@@ -261,14 +261,22 @@ namespace Punchy.Fauna
             return playerQuery.CalculateEntityCount() == 1 ? playerQuery.GetSingleton<Unity.Transforms.LocalTransform>().Position : eye;
         }
 
+        // (A-83 #62: the terrain query, made once per world rather than made and disposed every frame.)
+        static World sourceQueryWorld;
+        static EntityQuery sourceQuery;
+
         static bool TryGetSource(out TerrainSource source)
         {
             source = default;
             var world = World.DefaultGameObjectInjectionWorld;
             if (world == null || !world.IsCreated)
                 return false;
-            using var query = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
-            return query.TryGetSingleton(out source) && source.Settlements.IsCreated;
+            if (sourceQueryWorld != world)
+            {
+                sourceQueryWorld = world;
+                sourceQuery = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
+            }
+            return sourceQuery.TryGetSingleton(out source) && source.Settlements.IsCreated;
         }
 
         /// <summary>Picks up each walking kind's root once StoneColossi has built it, and lays out its loop.</summary>

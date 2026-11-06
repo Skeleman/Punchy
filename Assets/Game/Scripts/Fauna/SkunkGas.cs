@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine;
@@ -27,7 +26,8 @@ namespace Punchy.Fauna
         ParticleSystem gas;
         Punchy.Ambience.AmbienceSystem ambience;
         Material gasMaterial;
-        readonly List<Entity> gassers = new List<Entity>();
+        readonly HashSet<Entity> gassers = new HashSet<Entity>();
+        readonly Dictionary<Entity, int> found = new Dictionary<Entity, int>();
         readonly Dictionary<Entity, CreatureMode> lastMode = new Dictionary<Entity, CreatureMode>();
         readonly Dictionary<Entity, float> lastPuff = new Dictionary<Entity, float>();
         readonly List<Trail> trails = new List<Trail>();
@@ -59,75 +59,14 @@ namespace Punchy.Fauna
             }
             var busy = gassers.Count > 0 || trails.Count > 0;
             var started = busy ? System.Diagnostics.Stopwatch.GetTimestamp() : 0L;
-            var em = world.EntityManager;
             var camera = Camera.main;
             if (camera == null)
                 return;
             var eye = (float3)camera.transform.position;
-
-            // Every couple of seconds: which FleeGas creatures are near enough to see.
-            if (Time.time >= nextFind)
-            {
-                nextFind = Time.time + FindEvery;
-                gassers.Clear();
-                var all = bodies.ToComponentDataArray<CreatureBody>(Allocator.Temp);
-                var states = bodies.ToComponentDataArray<CreatureState>(Allocator.Temp);
-                var entities = bodies.ToEntityArray(Allocator.Temp);
-                for (int i = 0; i < all.Length; i++)
-                    if (all[i].Blob.IsCreated && all[i].Blob.Value.FleeGas && math.distancesq(states[i].Position, eye) < Range * Range)
-                    {
-                        gassers.Add(entities[i]);
-                        if (!lastMode.ContainsKey(entities[i]))
-                            lastMode[entities[i]] = states[i].Mode;
-                    }
-                all.Dispose();
-                states.Dispose();
-                entities.Dispose();
-            }
-
-            // A few times a second: has one just turned to run?
-            if (gassers.Count > 0 && Time.time >= nextCheck)
-            {
-                nextCheck = Time.time + CheckEvery;
-                foreach (var e in gassers)
-                {
-                    if (!em.Exists(e))
-                        continue;
-                    var s = em.GetComponentData<CreatureState>(e);
-                    var was = lastMode.TryGetValue(e, out var m) ? m : s.Mode;
-                    lastMode[e] = s.Mode;
-                    if (s.Mode != CreatureMode.Flee || was == CreatureMode.Flee)
-                        continue;
-                    if (lastPuff.TryGetValue(e, out var when) && Time.time - when < Cooldown)
-                        continue;
-                    lastPuff[e] = Time.time;
-                    puffs++;
-                    Emit(em, e, s, BurstCount, 1f);
-                    trails.Add(new Trail { Creature = e, Start = Time.time });
-                    Debug.Log($"SkunkGas: puff {puffs} (entity {e.Index}) at {s.Position.x:0.0},{s.Position.y:0.0},{s.Position.z:0.0}");
-                }
-                if (lastPuff.Count > 64)
-                    lastPuff.Clear();
-            }
-
-            // The trail: thinning over TrailTime, following the creature as it runs.
-            for (int i = trails.Count - 1; i >= 0; i--)
-            {
-                var t = trails[i];
-                var age = Time.time - t.Start;
-                if (age > TrailTime || !em.Exists(t.Creature))
-                {
-                    trails.RemoveAt(i);
-                    continue;
-                }
-                var thin = 1f - age / TrailTime;
-                t.Owed += Time.deltaTime * 50f * thin * thin;
-                var n = (int)t.Owed;
-                t.Owed -= n;
-                trails[i] = t;
-                if (n > 0)
-                    Emit(em, t.Creature, em.GetComponentData<CreatureState>(t.Creature), n, 0.55f + 0.45f * thin);
-            }
+            var find = Time.time >= nextFind;
+            var check = gassers.Count > 0 && Time.time >= nextCheck;
+            if (find || check || trails.Count > 0)
+                Look(world, eye, find, check);
 
             if (gas != null && gas.particleCount > 0)
                 peak = math.max(peak, gas.particleCount);
@@ -150,12 +89,94 @@ namespace Punchy.Fauna
 
         void Log() => Debug.Log($"SkunkGas: {puffs} puffs, peak {peak} particles, cost {costTotal / math.max(costFrames, 1):0.000} ms/frame avg, {costMax:0.000} ms max over {costFrames} frames");
 
-        /// <summary>Puffs n particles from the creature's rear, blown back and drifting with the wind.</summary>
-        void Emit(EntityManager em, Entity e, in CreatureState s, int n, float strength)
+        /// <summary>Finds the gassers, puffs for the ones that just turned to run, and feeds the trails.</summary>
+        void Look(World world, float3 eye, bool find, bool check)
         {
-            if (gas == null && !CreateGas())
+            // A-83 (#62): the creatures as the shared snapshot last had them (a frame behind at most), not read from
+            // the entities, which waited on the brain whenever it was still running.
+            CreatureSnapshotSystem.Get(world, bodies, out var states, out var all, out var entities);
+
+            // Every couple of seconds: which FleeGas creatures are near enough to see.
+            if (find)
+            {
+                nextFind = Time.time + FindEvery;
+                gassers.Clear();
+                for (int i = 0; i < all.Length; i++)
+                    if (all[i].Blob.IsCreated && all[i].Blob.Value.FleeGas && math.distancesq(states[i].Position, eye) < Range * Range)
+                    {
+                        gassers.Add(entities[i]);
+                        if (!lastMode.ContainsKey(entities[i]))
+                            lastMode[entities[i]] = states[i].Mode;
+                    }
+            }
+
+            // Where in the snapshot the gassers and the trailing ones are (gone since, if missing).
+            found.Clear();
+            if (check || trails.Count > 0)
+                for (int i = 0; i < entities.Length; i++)
+                    if (gassers.Contains(entities[i]) || Trailing(entities[i]))
+                        found[entities[i]] = i;
+
+            // A few times a second: has one just turned to run?
+            if (check)
+            {
+                nextCheck = Time.time + CheckEvery;
+                foreach (var e in gassers)
+                {
+                    if (!found.TryGetValue(e, out var i))
+                        continue;
+                    var s = states[i];
+                    var was = lastMode.TryGetValue(e, out var m) ? m : s.Mode;
+                    lastMode[e] = s.Mode;
+                    if (s.Mode != CreatureMode.Flee || was == CreatureMode.Flee)
+                        continue;
+                    if (lastPuff.TryGetValue(e, out var when) && Time.time - when < Cooldown)
+                        continue;
+                    lastPuff[e] = Time.time;
+                    puffs++;
+                    Emit(s, all[i], BurstCount, 1f);
+                    trails.Add(new Trail { Creature = e, Start = Time.time });
+                    Debug.Log($"SkunkGas: puff {puffs} (entity {e.Index}) at {s.Position.x:0.0},{s.Position.y:0.0},{s.Position.z:0.0}");
+                }
+                if (lastPuff.Count > 64)
+                    lastPuff.Clear();
+            }
+
+            // The trail: thinning over TrailTime, following the creature as it runs.
+            for (int k = trails.Count - 1; k >= 0; k--)
+            {
+                var t = trails[k];
+                var age = Time.time - t.Start;
+                if (age > TrailTime || !found.TryGetValue(t.Creature, out var i))
+                {
+                    trails.RemoveAt(k);
+                    continue;
+                }
+                var thin = 1f - age / TrailTime;
+                t.Owed += Time.deltaTime * 50f * thin * thin;
+                var n = (int)t.Owed;
+                t.Owed -= n;
+                trails[k] = t;
+                if (n > 0)
+                    Emit(states[i], all[i], n, 0.55f + 0.45f * thin);
+            }
+            CreatureSnapshotSystem.Release(world, states, all, entities);
+        }
+
+        bool Trailing(Entity e)
+        {
+            foreach (var t in trails)
+                if (t.Creature == e)
+                    return true;
+            return false;
+        }
+
+        /// <summary>Puffs n particles from the creature's rear, blown back and drifting with the wind.</summary>
+        void Emit(in CreatureState s, in CreatureBody body, int n, float strength)
+        {
+            if ((gas == null && !CreateGas()) || !body.Blob.IsCreated)
                 return;
-            ref var b = ref em.GetComponentData<CreatureBody>(e).Blob.Value;
+            ref var b = ref body.Blob.Value;
             var size = math.max(s.Scale, 0.6f);
             var forward = new float3(math.sin(s.Yaw), 0f, math.cos(s.Yaw));
             var rear = s.Position + new float3(0f, (b.StandHeight + b.RearRadius * b.BodyFlatten) * size, 0f) - forward * b.BodyLength * 0.55f * size;

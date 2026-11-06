@@ -128,10 +128,6 @@ namespace Punchy.Fauna
         float nextRefresh;
         Entity playerEntity;
 
-        // Shoves in progress (the player: pushed over 0.25 s).
-        float3 shoveDir;
-        float shoveLeft;
-
         // Totals and the scripted test.
         int totalLunges, lungesPlayer, lungesAnimal, trackFrames;
         float testStart = -1f;
@@ -160,14 +156,6 @@ namespace Punchy.Fauna
                 return;
             Refresh();
             var dt = Mathf.Min(Time.deltaTime, 0.1f);
-            if (shoveLeft > 0f && world != null && world.IsCreated && playerEntity != Entity.Null && world.EntityManager.Exists(playerEntity))
-            {
-                var step = Mathf.Min(dt, shoveLeft);
-                shoveLeft -= step;
-                var t = world.EntityManager.GetComponentData<LocalTransform>(playerEntity);
-                t.Position += shoveDir * (step * 6f);
-                world.EntityManager.SetComponentData(playerEntity, t);
-            }
             foreach (var p in plants)
                 Tick(p, dt);
             if (TestRequested)
@@ -405,15 +393,8 @@ namespace Punchy.Fauna
                 if (InReach(p, tip, pos))
                 {
                     var away = new float3(pos.x - from.x, 0f, pos.z - from.z);
-                    shoveDir = math.lengthsq(away) > 1e-4f ? math.normalize(away) : new float3(0f, 0f, 1f);
-                    shoveLeft = 0.25f;
-                    if (world.EntityManager.HasComponent<PlayerMotion>(playerEntity))
-                    {
-                        var m = world.EntityManager.GetComponentData<PlayerMotion>(playerEntity);
-                        m.VerticalVelocity = 4.5f;
-                        m.Grounded = false;
-                        world.EntityManager.SetComponentData(playerEntity, m);
-                    }
+                    // (The hop and push run in MantrapShoveSystem, before the player's movement, A-83 #62.)
+                    MantrapShoveSystem.Request(world, playerEntity, math.lengthsq(away) > 1e-4f ? math.normalize(away) : new float3(0f, 0f, 1f));
                     hitKind = 0;
                     lungesPlayer++;
                 }
