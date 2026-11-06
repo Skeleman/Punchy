@@ -3031,3 +3031,20 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
   - CaveSystem.Update 176 -> 40. The frame Stopwatch and marks array are now reused.
 - Remaining top allocators are outside the world lane: Items.Update 3.4 KB, IMGUI BeginGUI 2.6 KB, LiveConversion (editor only) 380 B, DunesColossus 252 B, InteractionPrompt 136 B.
 - No look change. Landmarks_V3 111 3BDF705F. World ready 38.8 s.
+
+## W-117 row 1: water draws at v3 fishing village 1, done (verified), no code change
+
+- At (-2151, 3731), player camera looking north, 25 s after arriving, the scene had 1196 water entities. 486 of them were in the camera frustum, at 1 m to 1504 m.
+- There is one water entity per 64 m terrain chunk that has any water. Sea, river and lake water share that chunk's single mesh (TerrainStreamingSystem: WaterChunk entities, Entities Graphics, transparent queue).
+- The 486 visible entities draw as 486 separate transparent draws, sorted back to front: about 119k vertices, about 245 per draw. That fits the profiler's sort and SRP-batcher flush markers.
+- Editor A/B, with all water entities hidden versus shown (main and render threads, ms per frame, vsync 60):
+
+  | Marker | Water shown | Water hidden |
+  |---|---|---|
+  | DrawTransparentObjects | 0.38 | 0.02 |
+  | RenderLoop.DrawSRPBatcher | 0.93 | 0.57 |
+  | DrawBuffersBatchMode | 0.57 | 0.36 |
+  | RenderLoop.Sort | 0.29 | 0.20 |
+  | SRPBatcher.Flush | 0.23 | 0.14 |
+
+  In total, water costs about 1.1 ms of render CPU, and about 0.17-0.27 M of the 2.2-2.3 M triangles.
