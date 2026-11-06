@@ -2533,3 +2533,9 @@ Perf with each one awake (180-frame -perflog):
 - Risk: the strip is weak. `-walkershot` only frames the first shot, so after that the camera falls back to the player. cs-s1 has the whole snail; cs-s2 has only its edge.
 - Fix in the reshoot: the shell first floated about 3.5 m above the foot. I lowered the coil axis from 17 to 13.5 and added a mantle under the shell.
 - Suite: WorldTests 9 passed, 0 failed (199 s); landmarks 110 09EAC0FE (unchanged).
+
+## A-79 row 1: fixed-camera shot flag (done)
+- Commit 4235ec4 (DebugControls.cs).
+- New flag `-shotcam x,y,z,tx,ty,tz` (shot lists / PlayArgs). It pins the camera at x,y,z, looking at tx,ty,tz, for every frame of every later shot until `-shotcam off`. It runs after the other shot helpers, so it wins over `-walkershot`. `-walkershot` can still sit on the same lines to keep the player (and the streamed ground) near the subject. The usage line is in the DebugControls help comment.
+- Normal play is unchanged: the flag is set only in ApplyOptions, and ShotCam does nothing while it is off.
+- Snail strip retake: `-shotcam 2199,48,-2715,2199,22,-2575`, 30 s apart, walking. Shots a79-cs-s1, a79-cs-s2 and a79-cs-s3 (Assets/Temp/shots) have the whole snail in every frame, creeping slowly across the frame at 0.4 m/s.
