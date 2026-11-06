@@ -2845,3 +2845,14 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
 - **Numbers:** town slab shelters 0. Ramadas on the island: 2 (both dwarf). The town and elf ramadas only appear where their layouts land in a harsh biome.
 - **Shots:** Assets/Temp/shots/w113-tent3-800.png (before: olive, a pole showing down the ridge), w113-tent-after-800.png, w113-town-ramada2-800.png (world tree).
 - **Risks:** hermit huts gained a slab shelter. That changes landmark contents; the suite will report it.
+
+## W-113 row 2: ruin base, igloo seating, sunken temple - done (verified)
+- **Commit:** 5e53174 on world-features.
+- **Item 10 (ruin base):** the door step is now 0.25 m (half the 0.5 m plinth) and solid. Walk from (-2242,2326) east: the player stops at (-2230.2,120.3,2326.0), standing on the plinth (top about 120.4, ground 119.9) without sinking, blocked by fallen beams.
+- **Item 11 (igloos):** an igloo whose foundation skirt can't reach the lowest ground round the dome now sinks into the slope, as long as its tunnel and mouth stay under 2 m of ground. If that's not possible it moves up to 4.5 m, and if no spot fits it's left out. **Count: 15 igloos, 15 seated in place, 0 moved, 0 left out.** In village 2 the open-bottom check alone would have moved 1 and dropped 4; sinking keeps all 5.
+- **Item 12 (sunken temple):**
+  - New Punchy/SunkenTemple shader: ashlar sandstone blocks or sand ripples, plus the torches' glow light (the old Colossus shader was flat vertex colour with no glow).
+  - The interior now shows from 30 m round the ruin, so the door plugs can't stand in front of the camera.
+  - The pass-through plane was a terrain chunk skirt (6-24 m) hanging through the rooms at a chunk edge. Skirts now stop 0.3 m above temple air.
+- **Shots:** Assets/Temp/shots/w113-ruin-step-800.png, w113-igloo-v2-800.png (before), w113-igloo-v2-after-800.png, w113-temple-out-800.png and w113-temple-in-800.png (before), w113-temple-out-after-800.png, w113-temple-in-after.png (world tree).
+- **Risks:** sunk igloos sit up to about 2 m deeper on slopes. Igloo footprints follow their seat, so the TurtleVillage contents change; the suite will show it.
