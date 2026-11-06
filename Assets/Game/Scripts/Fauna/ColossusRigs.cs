@@ -1,4 +1,7 @@
 using System.Collections.Generic;
+using Unity.Burst;
+using Unity.Collections;
+using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 
@@ -19,6 +22,11 @@ namespace Punchy.Fauna
     {
         protected readonly Transform root;
         bool awake;
+        JobHandle weighing;
+        bool pending;
+        int awaited;
+        /// <summary>Its walker went away while the weighing job ran: Finish only frees the job's arrays.</summary>
+        protected bool Discarded { get; private set; }
         /// <summary>A-74: how far (degrees, + to its right) the head turns toward the player, set by ColossusWalker each frame.</summary>
         public float Look;
 
@@ -48,7 +56,7 @@ namespace Punchy.Fauna
         /// </summary>
         public void Animate(float pace, float stride, float settle, float t)
         {
-            if (root == null)
+            if (!Weighed() || root == null)
                 return;
             if (!awake)
             {
@@ -65,6 +73,54 @@ namespace Punchy.Fauna
                 return;
             awake = false;
             Show(false);
+        }
+
+        /// <summary>
+        /// A-82 row 4: the skinned rigs weigh their vertices on a Burst job instead of on the main thread (the saguaro's 179k
+        /// cost a 460 ms frame). Until the job is done the walker keeps its baked pose; then <see cref="Finish"/> runs once.
+        /// </summary>
+        protected void Await(JobHandle job)
+        {
+            weighing = job;
+            pending = true;
+            awaited = Time.frameCount;
+        }
+
+        /// <summary>The weighing job is done (or the root has gone): make the skinned copy if the root is still there, and free the job's arrays.</summary>
+        protected virtual void Finish() { }
+
+        bool Weighed()
+        {
+            if (!pending)
+                return true;
+            if (!weighing.IsCompleted && root != null)
+                return false;
+            weighing.Complete();
+            pending = false;
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            Finish();
+            Debug.Log($"ColossusRig: weighed over {Time.frameCount - awaited} frames, finished in {watch.Elapsed.TotalMilliseconds:F1} ms at frame {Time.frameCount}");
+            return true;
+        }
+
+        /// <summary>Its walker is going away: wait out a weighing job still running and free its arrays (they're Persistent, so they would leak).</summary>
+        public void Dispose()
+        {
+            if (!pending)
+                return;
+            weighing.Complete();
+            pending = false;
+            Discarded = true;
+            Finish();
+        }
+
+        /// <summary>A copy of a readable mesh's vertices for a job, without the managed array <c>mesh.vertices</c> makes.</summary>
+        protected static NativeArray<Vector3> Vertices(Mesh mesh)
+        {
+            var verts = new NativeArray<Vector3>(mesh.vertexCount, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+            using (var data = Mesh.AcquireReadOnlyMeshData(mesh))
+                data[0].GetVertices(verts);
+            return verts;
         }
 
         protected abstract void Show(bool animated);
@@ -144,88 +200,75 @@ namespace Punchy.Fauna
         const float TrunkBase = 9f;
         static readonly float[] LegAngles = { 180f, -60f, 60f };   // StoneColossi.BuildSaguaro: lifted one trailing behind (A-77), two planted
 
+        const int Bins = 72, FirstArm = 6;
+
         readonly MeshRenderer baked;
-        readonly SkinnedMeshRenderer skinned;
-        readonly Transform trunk, prints;
+        SkinnedMeshRenderer skinned;
+        Transform trunk, prints;
         readonly Transform[] legs = new Transform[3];
         readonly Vector3[] legAxis = new Vector3[3];
         readonly List<Transform> arms = new List<Transform>();
         readonly List<Vector3> armAxis = new List<Vector3>();
-        readonly Vector3 printsAt;
-        readonly ParticleSystem dust;
-        readonly float dustRate;
+        readonly Vector3 printsAt = new Vector3(0f, -3f, -40f);
+        ParticleSystem dust;
+        float dustRate;
 
-        protected override bool Ready => skinned != null;
+        // The weighing job's input and results, freed in Finish.
+        readonly Transform body;
+        readonly Mesh mesh;
+        NativeArray<Vector3> verts;
+        NativeArray<int> scores, cluster, shoulderN, found;
+        NativeArray<float> fit, shoulderY;
+        NativeArray<float3> dir;
+        NativeArray<BoneWeight> weights;
+
+        protected override bool Ready => baked != null;
 
         public SaguaroRig(Transform root) : base(root)
         {
-            var body = root.Find("Body");
+            body = root.Find("Body");
             var filter = body != null ? body.GetComponent<MeshFilter>() : null;
             if (filter == null || filter.sharedMesh == null || !filter.sharedMesh.isReadable)
                 return;
             baked = body.GetComponent<MeshRenderer>();
-            var mesh = filter.sharedMesh;
-            var v = mesh.vertices;
-
-            // The trunk's bend isn't kept, so fit it: the height and lean that put the most vertices on the trunk's skin.
-            float height = 50f, lean = 6f, best = -1f;
-            for (var h = 44f; h <= 54.01f; h += 1f)
-                for (var l = 4f; l <= 9.01f; l += 0.5f)
-                {
-                    var score = 0;
-                    for (int i = 0; i < v.Length; i += 5)
-                    {
-                        if (v[i].y < 12f || v[i].y > 40f)
-                            continue;
-                        var d = math.length(new float2(v[i].x, v[i].z - Axis(v[i].y, h, l)));
-                        if (d > 3.4f && d < 5.2f)
-                            score++;
-                    }
-                    if (score > best)
-                    {
-                        best = score;
-                        height = h;
-                        lean = l;
-                    }
-                }
-
-            // Arms: vertices well off the trunk, gathered by their bearing from it (each arm keeps one bearing).
-            const int Bins = 72;
-            var count = new int[Bins];
-            for (int i = 0; i < v.Length; i++)
-                if (v[i].y > 14f && Off(v[i], height, lean, out var bearing) > 7f)
-                    count[Bin(bearing, Bins)]++;
-            var cluster = new int[Bins];
-            for (int b = 0; b < Bins; b++)
-                cluster[b] = -1;
-            var clusters = 0;
-            var start = System.Array.IndexOf(count, 0);
-            if (start >= 0)
-                for (int s = 1; s <= Bins; s++)
-                {
-                    int b = (start + s) % Bins, prev = (start + s - 1) % Bins;
-                    if (count[b] < 20)
-                        continue;
-                    cluster[b] = count[prev] >= 20 && cluster[prev] >= 0 ? cluster[prev] : clusters++;
-                }
-            var dir = new Vector3[clusters];
-            var shoulderY = new float[clusters];
-            var shoulderN = new int[clusters];
-            for (int i = 0; i < v.Length; i++)
+            mesh = filter.sharedMesh;
+            verts = Vertices(mesh);
+            scores = new NativeArray<int>(FitCells, Allocator.Persistent);
+            fit = new NativeArray<float>(2, Allocator.Persistent);
+            cluster = new NativeArray<int>(Bins, Allocator.Persistent);
+            found = new NativeArray<int>(1, Allocator.Persistent);
+            dir = new NativeArray<float3>(Bins, Allocator.Persistent);
+            shoulderY = new NativeArray<float>(Bins, Allocator.Persistent);
+            shoulderN = new NativeArray<int>(Bins, Allocator.Persistent);
+            weights = new NativeArray<BoneWeight>(verts.Length, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+            var fitted = new FitJob { V = verts, Scores = scores }.Schedule(FitCells, 1);
+            Await(new WeighJob
             {
-                if (v[i].y <= 14f)
-                    continue;
-                var off = Off(v[i], height, lean, out var bearing);
-                var c = off > 6f ? cluster[Bin(bearing, Bins)] : -1;
-                if (c < 0)
-                    continue;
-                dir[c] += new Vector3(math.sin(bearing), 0f, math.cos(bearing));
-                if (off < 8f)
-                {
-                    shoulderY[c] += v[i].y;
-                    shoulderN[c]++;
-                }
-            }
+                V = verts, Scores = scores, Fit = fit, Cluster = cluster, Clusters = found, Dir = dir,
+                ShoulderY = shoulderY, ShoulderN = shoulderN, Weights = weights,
+            }.Schedule(fitted));
+        }
+
+        protected override void Finish()
+        {
+            if (root != null && !Discarded)
+                Build();
+            verts.Dispose();
+            scores.Dispose();
+            fit.Dispose();
+            cluster.Dispose();
+            found.Dispose();
+            dir.Dispose();
+            shoulderY.Dispose();
+            shoulderN.Dispose();
+            weights.Dispose();
+        }
+
+        /// <summary>The bones and the skinned copy, from what the weighing job found.</summary>
+        void Build()
+        {
+            float height = fit[0], lean = fit[1];
+            var clusters = found[0];
 
             // Bones: the base (the root itself), the trunk, the footprints and three legs on the base, the arms on the trunk.
             var bones = new List<Transform>();
@@ -233,7 +276,6 @@ namespace Punchy.Fauna
             bones.Add(rig);
             trunk = Bone("Trunk", rig, new Vector3(0f, TrunkBase, 0f));
             bones.Add(trunk);
-            printsAt = new Vector3(0f, -3f, -40f);
             prints = Bone("Footprints", rig, printsAt);
             bones.Add(prints);
             for (int k = 0; k < 3; k++)
@@ -244,10 +286,9 @@ namespace Punchy.Fauna
                 legAxis[k] = LiftAxis(d * 10f + Vector3.down * 8.5f);
                 bones.Add(legs[k]);
             }
-            const int FirstArm = 6;
             for (int c = 0; c < clusters; c++)
             {
-                var d = dir[c].normalized;
+                var d = ((Vector3)dir[c]).normalized;
                 var y = shoulderN[c] > 0 ? shoulderY[c] / shoulderN[c] : 30f;
                 var pivot = new Vector3(0f, y, Axis(y, height, lean)) + d * 4.6f;
                 var arm = Bone("Arm" + c, trunk, pivot - trunk.localPosition);
@@ -255,38 +296,142 @@ namespace Punchy.Fauna
                 armAxis.Add(Vector3.Cross(Vector3.up, d).normalized);
                 bones.Add(arm);
             }
-
-            // Weights: arms by how far off the trunk, legs by height under the trunk, the old footprints whole.
-            var weights = new BoneWeight[v.Length];
-            for (int i = 0; i < v.Length; i++)
-            {
-                var p = v[i];
-                if (p.z < -15f && p.y < 1.5f)
-                {
-                    weights[i] = Weigh(2, 2, 0f);
-                    continue;
-                }
-                if (p.y < 10.5f)
-                {
-                    var bearing = math.degrees(math.atan2(p.x, p.z));
-                    int leg = 0;
-                    for (int k = 1; k < 3; k++)
-                        if (math.abs(Mathf.DeltaAngle(bearing, LegAngles[k])) < math.abs(Mathf.DeltaAngle(bearing, LegAngles[leg])))
-                            leg = k;
-                    weights[i] = Weigh(1, 3 + leg, 1f - math.smoothstep(7f, 10.5f, p.y));
-                    continue;
-                }
-                var off = Off(p, height, lean, out var b2);
-                var c = p.y > 14f && off > 6f ? cluster[Bin(b2, Bins)] : -1;
-                weights[i] = c >= 0 ? Weigh(1, FirstArm + c, math.smoothstep(6f, 8.5f, off)) : Weigh(1, 1, 0f);
-            }
-            skinned = Skin(body, mesh, bones.ToArray(), weights);
+            skinned = Skin(body, mesh, bones.ToArray(), weights.ToArray());
 
             var puffs = root.Find("Dust");
             dust = puffs != null ? puffs.GetComponent<ParticleSystem>() : null;
             if (dust != null)
                 dustRate = dust.emission.rateOverTimeMultiplier;
-            Debug.Log($"ColossusRig: saguaro skinned ({v.Length} verts, trunk fit {height:F0} m tall leaning {lean:F1} m, {clusters} arms)");
+            Debug.Log($"ColossusRig: saguaro skinned ({verts.Length} verts, trunk fit {height:F0} m tall leaning {lean:F1} m, {clusters} arms)");
+        }
+
+        // The trunk fit's grid: heights 44 to 54 m by 1, leans 4 to 9 m by 0.5, the height the outer step.
+        const int FitLeans = 11, FitCells = 11 * FitLeans;
+        static float FitHeight(int cell) => 44f + cell / FitLeans;
+        static float FitLean(int cell) => 4f + 0.5f * (cell % FitLeans);
+
+        /// <summary>
+        /// The trunk's bend isn't kept, so fit it: each cell scores one height and lean by how many vertices (every fifth)
+        /// sit on the trunk's skin.
+        /// </summary>
+        [BurstCompile]
+        struct FitJob : IJobParallelFor
+        {
+            [ReadOnly] public NativeArray<Vector3> V;
+            [WriteOnly] public NativeArray<int> Scores;
+
+            public void Execute(int cell)
+            {
+                float h = FitHeight(cell), l = FitLean(cell);
+                var score = 0;
+                for (int i = 0; i < V.Length; i += 5)
+                {
+                    if (V[i].y < 12f || V[i].y > 40f)
+                        continue;
+                    var d = math.length(new float2(V[i].x, V[i].z - Axis(V[i].y, h, l)));
+                    if (d > 3.4f && d < 5.2f)
+                        score++;
+                }
+                Scores[cell] = score;
+            }
+        }
+
+        /// <summary>The best fit (the first highest score, in the grid's order), the arms, then every vertex's weights.</summary>
+        [BurstCompile]
+        struct WeighJob : IJob
+        {
+            [ReadOnly] public NativeArray<Vector3> V;
+            [ReadOnly] public NativeArray<int> Scores;
+            public NativeArray<float> Fit, ShoulderY;
+            public NativeArray<int> Cluster, Clusters, ShoulderN;
+            public NativeArray<float3> Dir;
+            [WriteOnly] public NativeArray<BoneWeight> Weights;
+
+            public void Execute()
+            {
+                float height = 50f, lean = 6f, best = -1f;
+                for (int cell = 0; cell < FitCells; cell++)
+                    if (Scores[cell] > best)
+                    {
+                        best = Scores[cell];
+                        height = FitHeight(cell);
+                        lean = FitLean(cell);
+                    }
+                Fit[0] = height;
+                Fit[1] = lean;
+
+                // Arms: vertices well off the trunk, gathered by their bearing from it (each arm keeps one bearing).
+                var count = new NativeArray<int>(Bins, Allocator.Temp);
+                for (int i = 0; i < V.Length; i++)
+                    if (V[i].y > 14f && Off(V[i], height, lean, out var bearing) > 7f)
+                        count[Bin(bearing, Bins)]++;
+                for (int b = 0; b < Bins; b++)
+                    Cluster[b] = -1;
+                var clusters = 0;
+                var start = -1;
+                for (int b = 0; b < Bins && start < 0; b++)
+                    if (count[b] == 0)
+                        start = b;
+                if (start >= 0)
+                    for (int s = 1; s <= Bins; s++)
+                    {
+                        int b = (start + s) % Bins, prev = (start + s - 1) % Bins;
+                        if (count[b] < 20)
+                            continue;
+                        Cluster[b] = count[prev] >= 20 && Cluster[prev] >= 0 ? Cluster[prev] : clusters++;
+                    }
+                Clusters[0] = clusters;
+                for (int i = 0; i < V.Length; i++)
+                {
+                    if (V[i].y <= 14f)
+                        continue;
+                    var off = Off(V[i], height, lean, out var bearing);
+                    var c = off > 6f ? Cluster[Bin(bearing, Bins)] : -1;
+                    if (c < 0)
+                        continue;
+                    Dir[c] += new float3(math.sin(bearing), 0f, math.cos(bearing));
+                    if (off < 8f)
+                    {
+                        ShoulderY[c] += V[i].y;
+                        ShoulderN[c]++;
+                    }
+                }
+
+                // Weights: arms by how far off the trunk, legs by height under the trunk, the old footprints whole.
+                for (int i = 0; i < V.Length; i++)
+                {
+                    var p = V[i];
+                    if (p.z < -15f && p.y < 1.5f)
+                    {
+                        Weights[i] = Weigh(2, 2, 0f);
+                        continue;
+                    }
+                    if (p.y < 10.5f)
+                    {
+                        var bearing = math.degrees(math.atan2(p.x, p.z));
+                        int leg = 0;
+                        for (int k = 1; k < 3; k++)
+                            if (math.abs(DeltaAngle(bearing, LegAngle(k))) < math.abs(DeltaAngle(bearing, LegAngle(leg))))
+                                leg = k;
+                        Weights[i] = Weigh(1, 3 + leg, 1f - math.smoothstep(7f, 10.5f, p.y));
+                        continue;
+                    }
+                    var off = Off(p, height, lean, out var b2);
+                    var c = p.y > 14f && off > 6f ? Cluster[Bin(b2, Bins)] : -1;
+                    Weights[i] = c >= 0 ? Weigh(1, FirstArm + c, math.smoothstep(6f, 8.5f, off)) : Weigh(1, 1, 0f);
+                }
+            }
+
+            /// <summary><see cref="LegAngles"/> without the managed array.</summary>
+            static float LegAngle(int k) => k == 0 ? 180f : k == 1 ? -60f : 60f;
+
+            /// <summary>Mathf.DeltaAngle, which Burst can't call.</summary>
+            static float DeltaAngle(float current, float target)
+            {
+                var t = target - current;
+                var d = math.clamp(t - math.floor(t / 360f) * 360f, 0f, 360f);
+                return d > 180f ? d - 360f : d;
+            }
         }
 
         /// <summary>BuildSaguaro's trunk: how far forward its centre is at this height.</summary>
@@ -434,49 +579,74 @@ namespace Punchy.Fauna
         static readonly Vector3 ShellAt = new Vector3(0f, 7f, 0f), NeckAt = new Vector3(0f, 8f, 22f);
 
         readonly MeshRenderer baked;
-        readonly SkinnedMeshRenderer skinned;
+        SkinnedMeshRenderer skinned;
         readonly Transform shell, head, mushrooms;
         readonly Transform[] legs = new Transform[4];
         readonly Vector3 mushroomsAt;
 
-        protected override bool Ready => skinned != null;
+        readonly Transform body;
+        readonly Mesh mesh;
+        readonly Transform[] bones;
+        NativeArray<Vector3> verts;
+        NativeArray<BoneWeight> weights;
+
+        protected override bool Ready => baked != null;
 
         public TortoiseRig(Transform root) : base(root)
         {
-            var body = root.Find("Body");
+            body = root.Find("Body");
             var filter = body != null ? body.GetComponent<MeshFilter>() : null;
             if (filter == null || filter.sharedMesh == null || !filter.sharedMesh.isReadable)
                 return;
             baked = body.GetComponent<MeshRenderer>();
-            var mesh = filter.sharedMesh;
-            var v = mesh.vertices;
+            mesh = filter.sharedMesh;
             var rig = Bone("Rig", root, Vector3.zero);
             shell = Bone("Shell", rig, ShellAt);
             head = Bone("Neck", shell, NeckAt - ShellAt);
-            var bones = new List<Transform> { rig, shell, head };
+            var list = new List<Transform> { rig, shell, head };
             for (int k = 0; k < 4; k++)
             {
                 float sx = k % 2 == 0 ? -1f : 1f, sz = k < 2 ? 1f : -1f;   // as BuildTortoise: 0 front left .. 3 back right
                 legs[k] = Bone("Leg" + k, rig, new Vector3(sx * 16f, 5f, sz * 16f));
-                bones.Add(legs[k]);
+                list.Add(legs[k]);
             }
-            var weights = new BoneWeight[v.Length];
-            for (int i = 0; i < v.Length; i++)
-            {
-                var p = v[i];
-                var outside = (p.x / 21f) * (p.x / 21f) + (p.z / 25f) * (p.z / 25f) > 1.1f;
-                if (math.abs(p.x) > 24f || (outside && p.y < 3.5f && (math.abs(p.x) < 8f || math.abs(p.z) < 8f)))
-                    weights[i] = Weigh(0, 0, 0f);                                                       // the eggs and the plate stay on the ground
-                else if (math.abs(p.x) > 8f && math.abs(p.z) > 8f && p.y < 5.5f)
-                    weights[i] = Weigh(1, 3 + (p.x < 0f ? 0 : 1) + (p.z > 0f ? 0 : 2), 1f - math.smoothstep(3.5f, 5.5f, p.y));
-                else
-                    weights[i] = Weigh(1, 2, p.y > 2f ? math.smoothstep(22f, 26f, p.z) : 0f);
-            }
-            skinned = Skin(body, mesh, bones.ToArray(), weights);
+            bones = list.ToArray();
+            verts = Vertices(mesh);
+            weights = new NativeArray<BoneWeight>(verts.Length, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+            Await(new WeighJob { V = verts, Weights = weights }.Schedule(verts.Length, 4096));
             mushrooms = root.Find("Mushrooms");
             if (mushrooms != null)
                 mushroomsAt = mushrooms.localPosition;
-            Debug.Log($"ColossusRig: tortoise skinned ({v.Length} verts)");
+        }
+
+        protected override void Finish()
+        {
+            if (root != null && !Discarded)
+            {
+                skinned = Skin(body, mesh, bones, weights.ToArray());
+                Debug.Log($"ColossusRig: tortoise skinned ({verts.Length} verts)");
+            }
+            verts.Dispose();
+            weights.Dispose();
+        }
+
+        [BurstCompile]
+        struct WeighJob : IJobParallelFor
+        {
+            [ReadOnly] public NativeArray<Vector3> V;
+            [WriteOnly] public NativeArray<BoneWeight> Weights;
+
+            public void Execute(int i)
+            {
+                var p = V[i];
+                var outside = (p.x / 21f) * (p.x / 21f) + (p.z / 25f) * (p.z / 25f) > 1.1f;
+                if (math.abs(p.x) > 24f || (outside && p.y < 3.5f && (math.abs(p.x) < 8f || math.abs(p.z) < 8f)))
+                    Weights[i] = Weigh(0, 0, 0f);                                                       // the eggs and the plate stay on the ground
+                else if (math.abs(p.x) > 8f && math.abs(p.z) > 8f && p.y < 5.5f)
+                    Weights[i] = Weigh(1, 3 + (p.x < 0f ? 0 : 1) + (p.z > 0f ? 0 : 2), 1f - math.smoothstep(3.5f, 5.5f, p.y));
+                else
+                    Weights[i] = Weigh(1, 2, p.y > 2f ? math.smoothstep(22f, 26f, p.z) : 0f);
+            }
         }
 
         protected override void Show(bool animated)
@@ -526,59 +696,84 @@ namespace Punchy.Fauna
         static readonly Vector3 ShellAt = new Vector3(0f, 6.5f, 0f), NeckAt = new Vector3(0f, 6f, 17f);
 
         readonly MeshRenderer baked;
-        readonly SkinnedMeshRenderer skinned;
+        SkinnedMeshRenderer skinned;
         readonly Transform shell, head, talus, scrub;
         readonly Transform[] legs = new Transform[4];
         readonly Vector3 scrubAt;
 
-        protected override bool Ready => skinned != null;
+        readonly Transform body;
+        readonly Mesh mesh;
+        readonly Transform[] bones;
+        NativeArray<Vector3> verts;
+        NativeArray<BoneWeight> weights;
+
+        protected override bool Ready => baked != null;
 
         public MesaTortoiseRig(Transform root) : base(root)
         {
-            var body = root.Find("Body");
+            body = root.Find("Body");
             var filter = body != null ? body.GetComponent<MeshFilter>() : null;
             if (filter == null || filter.sharedMesh == null || !filter.sharedMesh.isReadable)
                 return;
             baked = body.GetComponent<MeshRenderer>();
-            var mesh = filter.sharedMesh;
-            var v = mesh.vertices;
+            mesh = filter.sharedMesh;
             var rig = Bone("Rig", root, Vector3.zero);
             shell = Bone("Shell", rig, ShellAt);
             head = Bone("Neck", shell, NeckAt - ShellAt);
             talus = Bone("Talus", rig, Vector3.zero);
-            var bones = new List<Transform> { rig, shell, head, talus };
+            var list = new List<Transform> { rig, shell, head, talus };
             for (int k = 0; k < 4; k++)
             {
                 float sx = k % 2 == 0 ? -1f : 1f, sz = k < 2 ? 1f : -1f;   // as BuildMesaTortoise: 0 front left .. 3 back right
                 legs[k] = Bone("Leg" + k, rig, new Vector3(sx * 11f, 6.5f, sz * 11f));
-                bones.Add(legs[k]);
+                list.Add(legs[k]);
             }
-            var weights = new BoneWeight[v.Length];
-            for (int i = 0; i < v.Length; i++)
-            {
-                var p = v[i];
-                var ring = (p.x / 18f) * (p.x / 18f) + (p.z / 21f) * (p.z / 21f);
-                // The nearest foot (as built: front right a step forward) and how far from it.
-                var k = (p.x < 0f ? 0 : 1) + (p.z > 0f ? 0 : 2);
-                var footAt = new Vector2(k % 2 == 0 ? -14.5f : 14.5f, k < 2 ? 14f + (k == 1 ? 2.5f : 0f) : -14f);
-                var nearFoot = Vector2.Distance(new Vector2(p.x, p.z), footAt) < 7.5f;
-                var neck = p.z > 23f || (p.z > 19.5f && p.y < 6.5f && math.abs(p.x) < 7f);
-                if (p.x < -17f && p.z < -8f && p.z > -19f && p.y < 7.5f && !nearFoot)
-                    weights[i] = Weigh(6, 6, 0f);                                                       // the fallen slab leans on the back left foot
-                else if (neck)
-                    weights[i] = Weigh(1, 2, p.z > 23f ? 1f : math.smoothstep(19.5f, 23f, p.z));
-                else if (nearFoot && p.y < 5.2f)
-                    weights[i] = Weigh(1, 4 + k, 1f - math.smoothstep(4f, 5.2f, p.y));
-                else if (ring > 1.08f && p.y < 3f)
-                    weights[i] = Weigh(3, 3, 0f);                                                       // talus
-                else
-                    weights[i] = Weigh(1, 1, 0f);
-            }
-            skinned = Skin(body, mesh, bones.ToArray(), weights);
+            bones = list.ToArray();
+            verts = Vertices(mesh);
+            weights = new NativeArray<BoneWeight>(verts.Length, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+            Await(new WeighJob { V = verts, Weights = weights }.Schedule(verts.Length, 4096));
             scrub = root.Find("Scrub");
             if (scrub != null)
                 scrubAt = scrub.localPosition;
-            Debug.Log($"ColossusRig: mesa tortoise skinned ({v.Length} verts)");
+        }
+
+        protected override void Finish()
+        {
+            if (root != null && !Discarded)
+            {
+                skinned = Skin(body, mesh, bones, weights.ToArray());
+                Debug.Log($"ColossusRig: mesa tortoise skinned ({verts.Length} verts)");
+            }
+            verts.Dispose();
+            weights.Dispose();
+        }
+
+        [BurstCompile]
+        struct WeighJob : IJobParallelFor
+        {
+            [ReadOnly] public NativeArray<Vector3> V;
+            [WriteOnly] public NativeArray<BoneWeight> Weights;
+
+            public void Execute(int i)
+            {
+                var p = V[i];
+                var ring = (p.x / 18f) * (p.x / 18f) + (p.z / 21f) * (p.z / 21f);
+                // The nearest foot (as built: front right a step forward) and how far from it.
+                var k = (p.x < 0f ? 0 : 1) + (p.z > 0f ? 0 : 2);
+                var footAt = new float2(k % 2 == 0 ? -14.5f : 14.5f, k < 2 ? 14f + (k == 1 ? 2.5f : 0f) : -14f);
+                var nearFoot = math.distance(new float2(p.x, p.z), footAt) < 7.5f;
+                var neck = p.z > 23f || (p.z > 19.5f && p.y < 6.5f && math.abs(p.x) < 7f);
+                if (p.x < -17f && p.z < -8f && p.z > -19f && p.y < 7.5f && !nearFoot)
+                    Weights[i] = Weigh(6, 6, 0f);                                                       // the fallen slab leans on the back left foot
+                else if (neck)
+                    Weights[i] = Weigh(1, 2, p.z > 23f ? 1f : math.smoothstep(19.5f, 23f, p.z));
+                else if (nearFoot && p.y < 5.2f)
+                    Weights[i] = Weigh(1, 4 + k, 1f - math.smoothstep(4f, 5.2f, p.y));
+                else if (ring > 1.08f && p.y < 3f)
+                    Weights[i] = Weigh(3, 3, 0f);                                                       // talus
+                else
+                    Weights[i] = Weigh(1, 1, 0f);
+            }
         }
 
         protected override void Show(bool animated)

@@ -185,8 +185,8 @@ namespace Punchy.Fauna
             prevPosed = p;
             havePrev = true;
 
-            // Two draws from the one buffer: the creatures, casting shadows; then the colonies and traces after them,
-            // which don't (sleeping bats under a cave ceiling and prints on the ground gain nothing from a shadow pass).
+            // Draws from the one buffer: the creatures, the near and middle bands casting shadows; then the colonies and
+            // traces after them, which don't (sleeping bats under a cave ceiling and prints on the ground gain nothing from a shadow pass).
             props ??= new MaterialPropertyBlock();
             props.SetBuffer(SegmentsId, buffer);
             props.SetInteger(SegmentOffsetId, 0);
@@ -217,6 +217,9 @@ namespace Punchy.Fauna
                 farProps.SetBuffer(SegmentsId, buffer);
                 farProps.SetInteger(SegmentOffsetId, farStart);
                 rp.matProps = farProps;
+                // (Past PoseFar no shadow, as the colonies (A-82 row 3): a creature 100 m off adds a shadow-pass draw
+                // for a shadow a few pixels wide, in the far cascade where it barely shows.)
+                rp.shadowCastingMode = ShadowCastingMode.Off;
                 Graphics.RenderMeshPrimitives(rp, settings.CapsuleFar, 0, colonyStart - farStart);
             }
             if (total > colonyStart)

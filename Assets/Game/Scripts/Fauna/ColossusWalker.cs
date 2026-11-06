@@ -145,8 +145,11 @@ namespace Punchy.Fauna
         {
             CreatureBrainSystem.ColossusZones.Data = float4x4.zero;
             foreach (var w in walkers)
+            {
+                w?.Rig?.Dispose();   // A-82: a rig still weighing frees its job's arrays
                 if (w != null && w.Litter != null)
                     Destroy(w.Litter.gameObject);
+            }
             if (Instance == this)
                 Instance = null;
         }
@@ -303,6 +306,7 @@ namespace Punchy.Fauna
                 if (w.Root == null)
                 {
                     Destroy(w.Litter.gameObject);
+                    w.Rig?.Dispose();
                     walkers[i] = null;
                     continue;
                 }

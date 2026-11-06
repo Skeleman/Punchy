@@ -125,7 +125,12 @@ namespace Punchy.Fauna
             var cam = Camera.main;
             var count = 0;
             var now = UnityEngine.Time.time;
-            ripples.RemoveAll(r => now - r.Born >= RippleTime);
+            // (Kept in order by hand, not RemoveAll: its lambda caught now, a closure and a delegate every frame.)
+            var kept = 0;
+            for (int i = 0; i < ripples.Count; i++)
+                if (now - ripples[i].Born < RippleTime)
+                    ripples[kept++] = ripples[i];
+            ripples.RemoveRange(kept, ripples.Count - kept);
             if (cam != null && SystemAPI.TryGetSingleton<TerrainSource>(out var terrain))
             {
                 float3 camAt = cam.transform.position;
