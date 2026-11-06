@@ -823,7 +823,8 @@ namespace Punchy.Items
             const float cell = 74f, gap = 6f;
             var w = 4 * cell + 5 * gap;
             var area = new Rect(Screen.width - w - 20f, Screen.height * 0.25f - 28f, w, 4 * (cell + gap) + gap + 28f);
-            GUI.Box(area, $"Inventory   ({UseKey.Name} / A: drop one)");
+            // (P-20: the button for the device in use: the Use key, or A on a pad.)
+            GUI.Box(area, $"Inventory   ({(InputGlyphs.Gamepad ? InputGlyphs.Path("<Gamepad>/buttonSouth") ?? "A" : UseKey.Current.ToString())}: drop one)");
             var colour = GUI.color;
             nav.Begin();
             GUILayout.BeginArea(new Rect(area.x + gap, area.y + 28f, w - 2 * gap, area.height - 28f));

@@ -252,7 +252,10 @@ namespace Punchy.Player
                 if (tops && body.Climbs && !swimming && pressing && (input.JumpPressed || !m.Grounded && blocked) &&
                     PropSupport.Ledge(ref grids.Set.Value, props, from, math.normalize(input.MoveDirection),
                                       m.OnWall ? math.max(0.9f * size, WallLedgeReach) : 0.9f * size, stepUp,
-                                      MantleReach * size, out var ledge))
+                                      MantleReach * size, out var ledge) &&
+                    LandingClear(terrain, tops, grids, props, hasKit, kitBoxes, from,
+                                 new float3(ledge.Edge.x - ledge.EdgeNormal.x * (settings.Radius + 0.15f), ledge.Height, ledge.Edge.z - ledge.EdgeNormal.y * (settings.Radius + 0.15f)),
+                                 settings.Radius, size))
                 {
                     m.Mantle = 1e-4f;
                     m.MantleFrom = from;
@@ -302,7 +305,8 @@ namespace Punchy.Player
                     var overAt = position.xz + wallInto * (settings.Radius + 0.15f);
                     if ((tops || hasKit) && wasOnWall && rising > 0f &&
                         TopUnder(tops, grids, props, hasKit, kitBoxes, new float3(overAt.x, from.y, overAt.y), 0f, TopOutReach * math.max(size, 0.5f), out var over) &&
-                        over.Height > from.y - stepUp)
+                        over.Height > from.y - stepUp &&
+                        LandingClear(terrain, tops, grids, props, hasKit, kitBoxes, from, new float3(overAt.x, over.Height, overAt.y), settings.Radius, size))
                     {
                         m.OnWall = false;
                         m.Mantle = 1e-4f;
@@ -864,6 +868,30 @@ namespace Punchy.Player
         /// <summary>
         /// W-67 (#79): the highest top under the feet within a step up: non-kit props' grids and kit boxes together.
         /// </summary>
+        /// <summary>
+        /// P-20 (item 27): a climb onto a ledge only ends where a body can stand. Climbing a house wall used to carry the
+        /// player over the wall's top and drop it inside the house (through the colliders). So: a floor under the landing
+        /// at the rim's height (a wall's top too thin to stand on leaves only the room's floor far below), no kit box in
+        /// the way over the rim or where the body would stand, and nothing solid (rock, a temple wall, a room box) there.
+        /// </summary>
+        static bool LandingClear(in TerrainSource terrain, bool tops, SupportGrids grids, in DynamicBuffer<FloraSupport> props, bool hasKit,
+                                 in DynamicBuffer<KitBox> kit, float3 from, float3 to, float radius, float size)
+        {
+            var head = 1.7f * math.max(size, 0.3f);
+            if (SolidDistance(terrain, to + new float3(0f, math.max(head * 0.5f, radius), 0f)) < radius * 0.5f)
+                return false;
+            if (hasKit)
+            {
+                if (KitCollision.Wall(kit, to, radius * 0.8f, KitStep, head))
+                    return false;
+                var over = new float3(0f, 0.35f * math.max(size, 0.3f), 0f);
+                if (KitCollision.Blocks(kit, new float3(from.x, to.y, from.z) + over, to + over))
+                    return false;
+            }
+            return TopUnder(tops, grids, props, hasKit, kit, to + new float3(0f, 0.05f, 0f), radius * 0.5f, 0.3f, out var floor) &&
+                   floor.Height >= to.y - 0.3f;
+        }
+
         static bool TopUnder(bool tops, SupportGrids grids, in DynamicBuffer<FloraSupport> props, bool hasKit, in DynamicBuffer<KitBox> kit,
                              float3 feet, float radius, float stepUp, out SupportHit hit)
         {

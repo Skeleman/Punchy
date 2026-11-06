@@ -2021,6 +2021,8 @@ namespace Punchy.Debugging
                     if (EnsureLocations(out var propSource) && PlaceByProp(propSource, propPending))
                         propPending = null;
                 }
+                else if (args[i] == "-place" && args[i + 1].StartsWith("cavepool", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var poolSource))
+                    PlaceInCavePool(poolSource, args[i + 1].Substring(8));
                 else if (args[i] == "-place" && args[i + 1].StartsWith("cavestream", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var streamSource))
                     PlaceByCaveStream(streamSource, args[i + 1].Substring(10));
                 else if (args[i] == "-place" && args[i + 1].StartsWith("riverfall", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var fallSource))
@@ -3903,6 +3905,43 @@ namespace Punchy.Debugging
             var eye = (Vector3)(back + new float3(0f, 2.5f, 0f));
             PoseCamera(eye, Quaternion.LookRotation((Vector3)last - eye));
             Debug.Log($"DebugControls: by cave stream end ({last.x:F1}, {last.y:F1}, {last.z:F1}), camera {eye.x:F1},{eye.y:F1},{eye.z:F1}");
+        }
+
+        /// <summary>
+        /// "-place cavepool" ("#2" the second deepest; P-20, #22): standing in the middle of the deepest water pool in the
+        /// caves, on its bed, for shots with the camera under cave water. Logs the 5 deepest water pools.
+        /// </summary>
+        void PlaceInCavePool(in TerrainSource source, string spec)
+        {
+            if (!source.Caves.IsCreated || !playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
+                return;
+            var pick = 1;
+            if (spec.StartsWith("#"))
+                int.TryParse(spec.Substring(1), out pick);
+            ref var set = ref source.Caves.Value;
+            var pools = new List<int>();
+            for (int k = 0; k < set.Pools.Length; k++)
+                if (set.Pools[k].Lava < 0.5f)
+                    pools.Add(k);
+            if (pools.Count == 0)
+            {
+                Debug.LogWarning("DebugControls: no cave water pools");
+                return;
+            }
+            var all = set.Pools.ToArray();
+            pools.Sort((a, b) => all[b].Depth.CompareTo(all[a].Depth));
+            for (int k = 0; k < math.min(5, pools.Count); k++)
+            {
+                var pool = all[pools[k]];
+                Debug.Log($"DebugControls: cave pool {pools[k]}: surface ({pool.Centre.x:F1}, {pool.Centre.y:F1}, {pool.Centre.z:F1}), radius {pool.Radius:F1} m, depth {pool.Depth:F1} m");
+            }
+            var chosen = all[pools[math.clamp(pick - 1, 0, pools.Count - 1)]];
+            var floor = source.FloorUnder(chosen.Centre - new float3(0f, 0.1f, 0f), out _);
+            var em = queryWorld.EntityManager;
+            var t = em.GetComponentData<LocalTransform>(player);
+            t.Position = new float3(chosen.Centre.x, floor + 0.05f, chosen.Centre.z);
+            em.SetComponentData(player, t);
+            Debug.Log($"DebugControls: in cave pool at ({chosen.Centre.x:F1}, {floor:F1}, {chosen.Centre.z:F1}), {chosen.Centre.y - floor:F1} m under its surface");
         }
 
         /// <summary>

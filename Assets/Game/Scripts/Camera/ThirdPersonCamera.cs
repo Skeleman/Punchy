@@ -44,6 +44,14 @@ namespace Punchy.CameraRig
         public float UndergroundMaxPitch = 85f;
         [Tooltip("Keep the camera at least this far above the ground.")]
         public float GroundClearance = 0.5f;
+        /// <summary>
+        /// P-20 (#85, item 26): above ground, how far the view can look up: the camera slides along the ground in towards
+        /// the character instead of stopping (MinPitch, -20 in the scene, was the old limit).
+        /// </summary>
+        const float LookUpMinPitch = -65f;
+        /// <summary>Sliding in along the ground, the arm gets no shorter than this; past it the camera rises instead (m).</summary>
+        const float MinSlideArm = 0.9f;
+        float OpenMinPitch => Mathf.Min(MinPitch, LookUpMinPitch);
 
         float yaw;
         float pitch = 20f;
@@ -98,7 +106,7 @@ namespace Punchy.CameraRig
                 if (Gamepad.current != null)
                     look += Gamepad.current.rightStick.ReadValue() * (StickSensitivity * Time.deltaTime);
                 yaw += look.x;
-                pitch = Mathf.Clamp(pitch + (InvertY ? look.y : -look.y), underground ? UndergroundMinPitch : MinPitch, underground ? UndergroundMaxPitch : MaxPitch);
+                pitch = Mathf.Clamp(pitch + (InvertY ? look.y : -look.y), underground ? UndergroundMinPitch : OpenMinPitch, underground ? UndergroundMaxPitch : MaxPitch);
 
                 if (Mouse.current != null)
                     Distance = Mathf.Clamp(Distance - Mouse.current.scroll.ReadValue().y * ZoomSensitivity * Distance,
@@ -107,7 +115,7 @@ namespace Punchy.CameraRig
 
             // #85: back above ground, a look from the wider underground range eases into the normal one.
             if (!underground)
-                pitch = Mathf.MoveTowards(pitch, Mathf.Clamp(pitch, MinPitch, MaxPitch), Time.deltaTime * 90f);
+                pitch = Mathf.MoveTowards(pitch, Mathf.Clamp(pitch, OpenMinPitch, MaxPitch), Time.deltaTime * 90f);
             var target = playerPosition + Vector3.up * PivotHeight;
             // #85 (P-7): a small body looking up underground. Circling the camera under a low pivot puts it on the floor
             // beside the body, which then drops out of the bottom of the frame; instead the camera circles no lower
@@ -197,6 +205,7 @@ namespace Punchy.CameraRig
                 // (P-19: the ground only, not water: the lens may go under a lake, a river or the sea now, and Underwater
                 // draws it. It used to stay above every water surface.)
                 var minY = ground.Height + GroundClearance;
+                var groundMinY = minY;
                 // Roofs, rocks and rims (PropSupport): stay above one the camera has sunk into, not ones overhead.
                 if (!supportQuery.IsEmpty)
                 {
@@ -209,8 +218,38 @@ namespace Punchy.CameraRig
                 }
                 if (position.y < minY)
                 {
-                    position.y = minY;
-                    rotation = Quaternion.LookRotation(target - position);
+                    // P-20 (#85, item 26): looking up, the camera slides along the ground in towards the character with its
+                    // view still pitched up, so the player can look further up (the sky, a tree, a cliff). The point on
+                    // the arm where it meets the ground (+ clearance) is found by halving; only when that leaves less than
+                    // MinSlideArm (a small body, a steep bank) does the camera rise and look down at the head as before.
+                    var slid = false;
+                    // (Only against bare ground: over a roof, rock or rim the ground height says nothing about the prop.)
+                    if (orbitPitch < 0f && target.y > minY && minY <= groundMinY + 0.01f)
+                    {
+                        var arm = position - target;
+                        float lo = 0f, hi = 1f;
+                        for (var i = 0; i < 10; i++)
+                        {
+                            var mid = (lo + hi) * 0.5f;
+                            var p = target + arm * mid;
+                            if (p.y >= terrain.SampleGround(new Unity.Mathematics.float2(p.x, p.z)).Height + GroundClearance)
+                                lo = mid;
+                            else
+                                hi = mid;
+                        }
+                        var slide = target + arm * lo;
+                        var under = terrain.SampleGround(new Unity.Mathematics.float2(slide.x, slide.z)).Height + GroundClearance;
+                        if (lo * arm.magnitude >= MinSlideArm && slide.y >= under - 0.01f)
+                        {
+                            position = slide;
+                            slid = true;
+                        }
+                    }
+                    if (!slid)
+                    {
+                        position.y = minY;
+                        rotation = Quaternion.LookRotation(target - position);
+                    }
                 }
                 // Out in the open, a hill between the player and the camera (a steep slope, A-37): the camera comes in
                 // along its line to just before the ground, so the view isn't from inside the hill. Not near caves,
