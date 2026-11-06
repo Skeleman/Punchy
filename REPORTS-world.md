@@ -2753,3 +2753,23 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
   - Assets/Temp/shots/w111-crossing.png: the road runs onto the bridge over the river and continues on the far bank.
 - Suite: `unity test` ran the play-mode suite, but it wrote no results XML, so I took the hashes from the [measure] lines in Logs/playmode-tests.log. I'll rerun the full suite for pass/fail counts before the final hand-back.
 - Risk: graded banks reach up to 14 m from the road, so props or plots sitting right next to a steep road may now stand on a slightly re-shaped slope.
+
+### W-111 row 2 - pond water by the poison plant colossus - done (verified), commit c8ab5d7
+- Where: the carnivorous plant stands at StoneColossi slot 4, at (-53.2, 34.3, 516.1). Next to it is a PoisonSwamp paddy plateau, with water at about 38.4 m and 0.5 m deep, centred near (-25, 490).
+- What breaks: none of the plant's own pieces. It is not standing over water, its collision and far shadow aren't involved, and there is no river cut or ford ending nearby. The fault is the pond's water sheet. A dry mesh vertex just outside a paddy's thin rim lies below the pool level. BuildWater's border pass skipped such vertices, so whole quads dropped and the pool edges came out as cell-aligned staircases of bare ground. A 2 m probe found 30 such low dry points round 183 wet ones.
+- Fix: all in world files, nothing for the animal lane. In BuildChunkMeshJob.BuildWater, a dry vertex up to 1.5 m (TuckDrop) below a neighbour's surface now gets a surface tucked 5 cm under its own ground. The quad is drawn and the sheet meets the ground along a smooth line. It is mesh only: ground, hashes and gameplay water are unchanged. Drops of more than 1.5 m keep their edge, so the water doesn't slope down a cliff face.
+- Bake order:
+  - Before: rivers (beds and channels) > landmarks > settlements and roads > salt tower > caves > fishing, turtles, seafolk > batfolk > anchors > water surface (rough banks + ponds + pond mask) > icebergs.
+  - After: the same, but icebergs now bake right after anchors, so the water surface pass is the last step. Icebergs read sea coasts only, and their log line is identical to before.
+- Shots (Assets/Temp/shots):
+  - w111-plant-top (before) and w111-plant-top-after: from (-35,85,465) looking at (-30,30,498). The staircase pool edges are now smooth shorelines.
+  - w111-plant-edge (before) and w111-plant-edge-after: the plateau's cliff from below. No sheet hangs off the edge.
+- Regression check (after shots, taken at noon):
+  - w111-reg-lakeA-after: the lake shore at (-1005,-269) is clean.
+  - w111-reg-river-after: the river at (188,-778) has clean banks.
+  - w111-reg-lakeB-after: the view at (670,-1160) is open lake only, with no shore in frame, so it checks nothing about edges.
+- Suite at c8ab5d7: 13 passed, 0 failed, results XML written. Landmarks_V3: 110 09EAC0FE (unchanged). Fauna_Fingerprint: F4E66093 (unchanged). No repin.
+- Island-ready time:
+  - Warm play: 39.2 s, against 38.6 s for row 1. The change is mesh only, so I read the difference as noise.
+  - Cold suite: 89.2 s, against 85.0 s, with the machine busy.
+- Note for the animal lane: nothing in StoneColossi needs to change. The 2x-taller plant stands on dry ground at 34.3 m, about 30 m west of the paddies.
