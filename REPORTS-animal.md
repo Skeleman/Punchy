@@ -2576,3 +2576,19 @@ Brain is about 1.0 to 1.3 ms. Fauna_Fingerprint is F4E66093 (unchanged). No comp
 **Risks:**
 - The fog is weak in daylight, so it reads as mist round the roots, not as the giant looming out of fog.
 - The marsh spot is at 134 m height. The giant is clear of the water mesh.
+
+**A-79 row 2 retake, and the suite:**
+- **New shots.** `a79-mw-far`, `a79-mw-near` and `a79-mw-night` replace the canopy-blocked far and near shots.
+  - Both new views were pinned with `-shotcam`, from the clearing.
+  - Far: the giant looms out of grey rain and fog across the marsh.
+  - Near: shows the whole body, the roots with mist, the heron, the antlers and the shrine.
+  - Night: the eyes and lantern glow.
+  - Rain happened to be on, which helped the fog read.
+  - An "E sit" prompt shows in each frame. It is HUD noise from a seat near the player, not part of the colossus.
+- **Perf (retake):**
+  - far: render 1.85 ms (frame 16.81, cpu main 6.72, gpu 0.20)
+  - near: render 2.06 ms (frame 17.05, cpu main 7.09, gpu 0.21)
+  - brain 0.9 to 1.3 ms
+- **WorldTests:** 9 passed, 0 failed in 183 s.
+  - Landmarks are still 110 09EAC0FE.
+  - Fauna fingerprint is still F4E66093.
