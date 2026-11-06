@@ -2712,3 +2712,26 @@ own (PR #161).
 - Suite at 301ca93 (editor closed): 13 passed, 0 failed. Landmarks_V3 110 09EAC0FE and Fauna_Fingerprint F4E66093,
   both unchanged, so no repin. World up in 37 s. The place-prop test also finds only 3 FishWharf on v3, which fits
   village 1 having none.
+
+## W-109 row 1: missing wharves (1eaf980 on world-features)
+
+Cause: the W-91 river rule in FloraPlacement. A dock or wharf is checked for river water 30 m out along its
+facing from its ring spot. At village 1 (wharf spot -2172,3743) the river channel starts 25-30 m out. The island
+bake (FishingVillageBaking.Fits) checks the same 30 m clean, because it runs before the rough riverbanks are
+switched on (TerrainAuthoring); once they are on, the mouth is wider and flora drops the wharf. No plot, road or
+other prop clashes (diagnostic: 0 plots and 0 roads within 6 m of any wharf spot). Side note:
+TerrainSource.OceanFactor is the old radial coast, so on v3 it doesn't really tell sea from river.
+
+Fix: a dock or wharf the 30 m test flags is still built when its real deck stays off the river. The deck runs
+from DockShore's start out to the longest deck plus the end walk, 23.5 m. This only adds props: every dock and
+wharf the old test kept stays where it was. Village 1 fits a full wharf, so no shorter jetty was needed.
+
+- v3 fishing villages: 4. Wharves in game: 3 before, 4 after. The place-prop test now says "4 FishWharf found
+  in all". Docks: 4 before and after (the river rule flagged 1 of the 8 dock and wharf spots, village 1's wharf).
+- Shot: w109-v1-wharf. Village 1's wharf with three stilt houses, beside the river mouth, with its dock in front.
+- Suite at 1eaf980: 13 passed, 0 failed. Landmarks_V3 110 09EAC0FE and Fauna_Fingerprint F4E66093, both
+  unchanged (flora only), so no repin. World up in 37 s, the same as before. Wharf spots 48.
+- The editor crashed once on ExitPlaymode, inside Unity's audio cleanup (SoundManager::UnloadClip under
+  RestoreSceneBackups). That's an engine crash, not our code. A restart was fine.
+- An editor that loads after a player build can open an untitled scene. Play then never gets an island. Open
+  Assets/Scenes/SampleScene.unity first.
