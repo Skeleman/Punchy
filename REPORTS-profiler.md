@@ -2,6 +2,35 @@
 
 Newest first.
 
+## 2026-11-06 q50: the 0.5 s present waits come from the 60 fps frame cap on this laptop since this morning, not from any code change
+
+**Short answer:**
+- **The animal editor is not on this laptop.** The only Unity process here is a 14 MB windowless console unity.exe, running since Nov 1. Memory is fine too: 22 of 32 GB free, paged pool 1 GB, so the paged-pool leak isn't here either. The "editor closed" comparison can't be done here, so I bisected instead.
+- **The trigger is `-fpscap 60`** (FrameRateCap: vSyncCount 0, Application.targetFrameRate 60). Same Bench build of 2049f8c, run stop, back to back:
+  - **capped at 60: 6 of 6 sessions have 1-3 frames of 494-533 ms**, Profile and Bench builds alike, with or without a capture;
+  - **uncapped: 0 of 3** (worst 14-16 ms).
+- **It is not code.** The 781fa5a Profile build made at 06:27 was clean in q46 (06:36) and once at 10:16. At 11:05 the same build had 8 waits in 6 captures. A fresh 781fa5a build, a ba97b20 build, a 2049f8c build and a 2049f8c build with the bench probe's boot removed all show them. The bench probe is cleared as well.
+- **It started on this laptop between about 07:00 and 09:45 today.** Capped Profile captures were clean before that (q40; q46 06:36; q47 07:00, 4 sessions). From q49 at 09:45 on, nearly every capped capture had them.
+- **Every one has the same shape:** main sits 474-498 ms in DXGI.WaitOnSwapChain (WaitForLastPresentation), the render thread idles, and game code is normal. A present that isn't retired for about 0.5 s looks like a display or compositor stall: this is an Optimus laptop (GTX 1060 Max-Q renders, Intel HD 630 drives a 3840-wide 60 Hz display).
+  - Uncapped, the game never waits on the frame-latency object, so it doesn't see it.
+  - The keep-awake helper holds ES_DISPLAY_REQUIRED, and the System log shows no display or GPU driver events today.
+- **What changed at about 08:00-09:45 is unknown.** It's environment, not code. A display setup change (an external 4K monitor, resolution or scaling) is my first guess, and only Zach can say.
+- **Effects:**
+  1. **Profiler-lane method:** my Profile captures use -fpscap 60 (so 2000 frames cover a stop). Until this is cleared they'll carry false 0.5 s frames. I'll treat any 0.5 s DXGI.WaitOnSwapChain frame in a capped run as this, and capture uncapped where possible.
+  2. **q49's 4 waits** were this too, not #175. q49's Bench results (uncapped) stand.
+  3. **Possible player issue:** a player with the 60 cap on a laptop in the same state would see it. Worth one check on the main PC (cap 60, an Optimus or iGPU display) before calling it laptop-only.
+
+**Method:**
+- run and salt walk-up captures (q50.sh) on:
+  - 2049f8c: 3 x 2, 20 waits;
+  - ba97b20: 2 x 2, 5;
+  - 2049f8c with no probe boot: 2 x 2, 6;
+  - a fresh 781fa5a build: 1, crashed on quit (known, fixed in #175);
+  - the old 781fa5a build: 3 x 2, 8.
+- No-capture checks, run stop: q50c.sh (Profile + Bench at -fpscap 60) and q50d.sh (Bench uncapped).
+- Logs: results/q50logs.
+- Cost: 22 calls, peak 290k context, $2.6
+
 ## 2026-11-06 q49: q46 rerun in full on main 2049f8c (quit-crash fix PR #175): no crash, hitches gone; four 0.5 s present waits in Profile captures
 
 **Short answer:**
