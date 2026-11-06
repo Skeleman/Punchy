@@ -32,8 +32,11 @@ namespace Punchy.Net
 
         void OnDisable() => Punchy.UI.MainMenu.RemoveTab("Multiplayer");
 
+        // P-20 (profiler finding 11): drawn through a GuiHook, on only while there is something to draw, so this
+        // script stays out of Unity's IMGUI pass (and its per-frame garbage) the rest of the time.
         void Start()
         {
+            Punchy.UI.GuiHook.Add(gameObject, DrawGui, () => notice != null && Time.unscaledTime < noticeUntil, false);
             // "-joincode ABC123" on the command line joins that online game straight away; "-hostonline" hosts one.
             // (In the editor, also from the test flags in Temp/PlayArgs.txt.)
             var args = Punchy.Debugging.DebugControls.LaunchArgs;
@@ -211,7 +214,7 @@ namespace Punchy.Net
             WatchForHostLeaving();
         }
 
-        void OnGUI()
+        void DrawGui()
         {
             if (notice != null && Time.unscaledTime < noticeUntil)
             {

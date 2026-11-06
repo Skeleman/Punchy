@@ -145,6 +145,27 @@ namespace Punchy.Items
             instance.CheckArgs(args);
         }
 
+        // P-20 (profiler finding 11): Items made 30-35 allocations a frame. Entity queries are now built once per world and
+        // kept (CreateEntityQuery allocates every call); the Receive handlers are cached delegates; the chest sockets, the
+        // item meshes' sets and the Use prompt are reused from frame to frame.
+        readonly Dictionary<(World, ComponentType, ComponentType, ComponentType), EntityQuery> queries =
+            new Dictionary<(World, ComponentType, ComponentType, ComponentType), EntityQuery>();
+
+        EntityQuery Q(EntityManager em, ComponentType a) => Q(em, a, default, default);
+        EntityQuery Q(EntityManager em, ComponentType a, ComponentType b) => Q(em, a, b, default);
+
+        /// <summary>A query on em's world for these components, made the first time and kept (callers don't dispose it).</summary>
+        EntityQuery Q(EntityManager em, ComponentType a, ComponentType b, ComponentType c)
+        {
+            var key = (em.World, a, b, c);
+            if (!queries.TryGetValue(key, out var q))
+            {
+                q = c.TypeIndex != default ? em.CreateEntityQuery(a, b, c) : b.TypeIndex != default ? em.CreateEntityQuery(a, b) : em.CreateEntityQuery(a);
+                queries[key] = q;
+            }
+            return q;
+        }
+
         bool Hosting => server != null && server.IsCreated && server.IsServer();
         bool Joined => !Hosting && client != null && client.IsCreated && client.IsClient();
 
@@ -154,6 +175,13 @@ namespace Punchy.Items
             {
                 (server, client) = (NetWorlds.Server, NetWorlds.Client);
                 sentTo.Clear();
+                // (A world that went away takes its queries with it.)
+                var stale = new List<(World, ComponentType, ComponentType, ComponentType)>();
+                foreach (var key in queries.Keys)
+                    if (key.Item1 == null || !key.Item1.IsCreated)
+                        stale.Add(key);
+                foreach (var key in stale)
+                    queries.Remove(key);
                 if (Joined)
                 {
                     // A joining client takes the host's world: back to the seeded items, then what the host sends.
@@ -197,7 +225,7 @@ namespace Punchy.Items
             var w = World.DefaultGameObjectInjectionWorld;
             if (w == null || !w.IsCreated)
                 return false;
-            using var q = w.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
+            var q = Q(w.EntityManager, ComponentType.ReadOnly<TerrainSource>());
             if (!q.TryGetSingleton(out terrain) || !terrain.Anchors.IsCreated || Punchy.Terrain.IslandV2.ActiveVersion == 0)
                 return false;
             if (!seededFor.Equals(terrain.Anchors))
@@ -240,9 +268,12 @@ namespace Punchy.Items
         {
             player = default;
             var w = World.DefaultGameObjectInjectionWorld;
-            using var q = w.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadOnly<LocalTransform>());
+            var q = Q(w.EntityManager, ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadOnly<LocalTransform>());
             return q.TryGetSingleton(out player);
         }
+
+        string promptCache;
+        (string, int, int, int, byte, byte) promptCacheFor;
 
         void FindTarget()
         {
@@ -276,39 +307,50 @@ namespace Punchy.Items
                 targetContainer = -1;
             if (TargetDistance > Doors.FacingDistance)
                 return;
-            if (targetContainer >= 0)
-                prompt = $"{UseKey.Name}  look in the {containers[targetContainer].Name}";
-            else if (target >= 0)
+            var key = UseKey.Name;
+            var item = target >= 0 ? world[target] : default;
+            var promptKey = (key, targetContainer, target, targetChest, item.Item, item.Count);
+            if (promptCache != null && promptCacheFor.Equals(promptKey))
             {
-                var it = world[target];
-                prompt = $"{UseKey.Name}  pick up {ItemTable.Items[it.Item].Name.ToLowerInvariant()}{(it.Count > 1 ? $" x{it.Count}" : "")}";
+                prompt = promptCache;
+                return;
             }
+            if (targetContainer >= 0)
+                prompt = $"{key}  look in the {containers[targetContainer].Name}";
+            else if (target >= 0)
+                prompt = $"{key}  pick up {ItemTable.Items[item.Item].Name.ToLowerInvariant()}{(item.Count > 1 ? $" x{item.Count}" : "")}";
             else if (targetChest >= 0)
-                prompt = $"{UseKey.Name}  open the chest";
+                prompt = $"{key}  open the chest";
+            (promptCache, promptCacheFor) = (prompt, promptKey);
         }
 
-        /// <summary>The temple's chest sockets: (index in its DungeonSocket buffer, position).</summary>
-        IEnumerable<(int, float3)> ChestSockets()
+        /// <summary>The temple's chest sockets: (index in its DungeonSocket buffer, position). Filled once a frame and reused.</summary>
+        List<(int, float3)> ChestSockets()
         {
+            if (chestSocketsFrame == Time.frameCount)
+                return chestSockets;
+            chestSocketsFrame = Time.frameCount;
+            chestSockets.Clear();
             var w = World.DefaultGameObjectInjectionWorld;
-            using var q = w.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<DungeonInfo>(), ComponentType.ReadOnly<DungeonSocket>());
+            var q = Q(w.EntityManager, ComponentType.ReadOnly<DungeonInfo>(), ComponentType.ReadOnly<DungeonSocket>());
             var temple = Temple(q);
             if (temple == Entity.Null)
-                yield break;
+                return chestSockets;
             var buffer = w.EntityManager.GetBuffer<DungeonSocket>(temple, true);
-            var list = new List<(int, float3)>();
             for (int i = 0; i < buffer.Length; i++)
                 if (buffer[i].Kind == SocketKind.Chest)
-                    list.Add((i, buffer[i].Pos));
-            foreach (var c in list)
-                yield return c;
+                    chestSockets.Add((i, buffer[i].Pos));
+            return chestSockets;
         }
+
+        readonly List<(int, float3)> chestSockets = new List<(int, float3)>();
+        int chestSocketsFrame = -1;
 
         bool TryChest(int socket, out DungeonSocket s)
         {
             s = default;
             var w = World.DefaultGameObjectInjectionWorld;
-            using var q = w.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<DungeonInfo>(), ComponentType.ReadOnly<DungeonSocket>());
+            var q = Q(w.EntityManager, ComponentType.ReadOnly<DungeonInfo>(), ComponentType.ReadOnly<DungeonSocket>());
             var temple = Temple(q);
             if (temple == Entity.Null)
                 return false;
@@ -403,7 +445,7 @@ namespace Punchy.Items
         void SendToHost<T>(T rpc) where T : unmanaged, IRpcCommand
         {
             var em = client.EntityManager;
-            using var q = em.CreateEntityQuery(typeof(NetworkId));
+            var q = Q(em, ComponentType.ReadWrite<NetworkId>());
             if (q.IsEmpty)
                 return;
             var e = em.CreateEntity(typeof(T), typeof(SendRpcCommandRequest));
@@ -470,8 +512,7 @@ namespace Punchy.Items
         void Serve()
         {
             var em = server.EntityManager;
-            using (var q = em.CreateEntityQuery(typeof(PickupRpc), typeof(ReceiveRpcCommandRequest)))
-            using (var rs = q.ToEntityArray(Allocator.Temp))
+            using (var rs = Q(em, ComponentType.ReadWrite<PickupRpc>(), ComponentType.ReadWrite<ReceiveRpcCommandRequest>()).ToEntityArray(Allocator.Temp))
                 foreach (var r in rs)
                 {
                     var uid = em.GetComponentData<PickupRpc>(r).Uid;
@@ -483,8 +524,7 @@ namespace Punchy.Items
                     }
                     em.DestroyEntity(r);
                 }
-            using (var q = em.CreateEntityQuery(typeof(DropRpc), typeof(ReceiveRpcCommandRequest)))
-            using (var rs = q.ToEntityArray(Allocator.Temp))
+            using (var rs = Q(em, ComponentType.ReadWrite<DropRpc>(), ComponentType.ReadWrite<ReceiveRpcCommandRequest>()).ToEntityArray(Allocator.Temp))
                 foreach (var r in rs)
                 {
                     var d = em.GetComponentData<DropRpc>(r);
@@ -492,8 +532,7 @@ namespace Punchy.Items
                     Spawn(d.Item, d.Count, d.Pos);
                     em.DestroyEntity(r);
                 }
-            using (var q = em.CreateEntityQuery(typeof(OpenChestRpc), typeof(ReceiveRpcCommandRequest)))
-            using (var rs = q.ToEntityArray(Allocator.Temp))
+            using (var rs = Q(em, ComponentType.ReadWrite<OpenChestRpc>(), ComponentType.ReadWrite<ReceiveRpcCommandRequest>()).ToEntityArray(Allocator.Temp))
                 foreach (var r in rs)
                 {
                     HostOpenChest(em.GetComponentData<OpenChestRpc>(r).Socket);
@@ -502,8 +541,7 @@ namespace Punchy.Items
             ServeContainers(em);
             ServeQuests(em);
             // A player who has just joined: what's been taken, added and opened so far.
-            using (var q = em.CreateEntityQuery(typeof(NetworkId), typeof(NetworkStreamInGame)))
-            using (var cs = q.ToEntityArray(Allocator.Temp))
+            using (var cs = Q(em, ComponentType.ReadWrite<NetworkId>(), ComponentType.ReadWrite<NetworkStreamInGame>()).ToEntityArray(Allocator.Temp))
                 foreach (var c in cs)
                 {
                     if (!sentTo.Add(c))
@@ -518,7 +556,7 @@ namespace Punchy.Items
         void Broadcast<T>(T rpc) where T : unmanaged, IRpcCommand
         {
             var em = server.EntityManager;
-            using var q = em.CreateEntityQuery(typeof(NetworkId), typeof(NetworkStreamInGame));
+            var q = Q(em, ComponentType.ReadWrite<NetworkId>(), ComponentType.ReadWrite<NetworkStreamInGame>());
             using var cs = q.ToEntityArray(Allocator.Temp);
             foreach (var c in cs)
                 Send(em, c, rpc);
@@ -536,38 +574,54 @@ namespace Punchy.Items
         {
             var em = client.EntityManager;
             var joined = Joined;
-            void Each<T>(System.Action<T> act) where T : unmanaged, IRpcCommand
+            Each(em, joined, onItemGone ??= OnItemGone);
+            Each(em, joined, onItemSpawn ??= OnItemSpawn);
+            Each(em, joined, onGrant ??= OnGrant);
+            Each(em, joined, onContainerSlot ??= ReceiveContainer);
+            Each(em, joined, onQuestState ??= ReceiveQuestState);
+            Each(em, joined, onChestOpened ??= OnChestOpened);
+        }
+
+        System.Action<ItemGoneRpc> onItemGone;
+        System.Action<ItemSpawnRpc> onItemSpawn;
+        System.Action<GrantRpc> onGrant;
+        System.Action<ContainerSlotRpc> onContainerSlot;
+        System.Action<QuestStateRpc> onQuestState;
+        System.Action<ChestOpenedRpc> onChestOpened;
+
+        /// <summary>Each RPC of type T that has come in: handled (on a joined client only) and used up.</summary>
+        void Each<T>(EntityManager em, bool joined, System.Action<T> act) where T : unmanaged, IRpcCommand
+        {
+            using var rs = Q(em, ComponentType.ReadWrite<T>(), ComponentType.ReadWrite<ReceiveRpcCommandRequest>()).ToEntityArray(Allocator.Temp);
+            foreach (var r in rs)
             {
-                using var q = em.CreateEntityQuery(typeof(T), typeof(ReceiveRpcCommandRequest));
-                using var rs = q.ToEntityArray(Allocator.Temp);
-                foreach (var r in rs)
-                {
-                    if (joined)
-                        act(em.GetComponentData<T>(r));
-                    em.DestroyEntity(r);
-                }
+                if (joined)
+                    act(em.GetComponentData<T>(r));
+                em.DestroyEntity(r);
             }
-            Each<ItemGoneRpc>(m =>
-            {
-                if (world.Remove(m.Uid))
-                    Debug.Log($"Items: item {m.Uid} gone (from the host)");
-                if (!added.Remove(m.Uid)) gone.Add(m.Uid);
-            });
-            Each<ItemSpawnRpc>(m =>
-            {
-                var w = new WorldItem { Item = m.Item, Count = m.Count, Pos = m.Pos };
-                world[m.Uid] = w;
-                added[m.Uid] = w;
-                Debug.Log($"Items: item {m.Uid} ({ItemTable.Items[m.Item].Name} x{m.Count}) appeared (from the host)");
-            });
-            Each<GrantRpc>(m => Grant(m.Item, m.Count));
-            Each<ContainerSlotRpc>(ReceiveContainer);
-            Each<QuestStateRpc>(ReceiveQuestState);
-            Each<ChestOpenedRpc>(m =>
-            {
-                if (openedChests.Add(m.Socket))
-                    Debug.Log($"Items: chest {m.Socket} opened (from the host)");
-            });
+        }
+
+        void OnItemGone(ItemGoneRpc m)
+        {
+            if (world.Remove(m.Uid))
+                Debug.Log($"Items: item {m.Uid} gone (from the host)");
+            if (!added.Remove(m.Uid)) gone.Add(m.Uid);
+        }
+
+        void OnItemSpawn(ItemSpawnRpc m)
+        {
+            var w = new WorldItem { Item = m.Item, Count = m.Count, Pos = m.Pos };
+            world[m.Uid] = w;
+            added[m.Uid] = w;
+            Debug.Log($"Items: item {m.Uid} ({ItemTable.Items[m.Item].Name} x{m.Count}) appeared (from the host)");
+        }
+
+        void OnGrant(GrantRpc m) => Grant(m.Item, m.Count);
+
+        void OnChestOpened(ChestOpenedRpc m)
+        {
+            if (openedChests.Add(m.Socket))
+                Debug.Log($"Items: chest {m.Socket} opened (from the host)");
         }
 
         // ------------------------------------------------------------------ tests, keys, drawing
@@ -581,7 +635,7 @@ namespace Punchy.Items
                 return;
             if (Joined)
             {
-                using var q = client.EntityManager.CreateEntityQuery(typeof(NetworkStreamInGame));
+                var q = Q(client.EntityManager, ComponentType.ReadWrite<NetworkStreamInGame>());
                 if (q.IsEmpty)
                     return;
             }
@@ -714,7 +768,7 @@ namespace Punchy.Items
         /// </summary>
         void DrawChests()
         {
-            var list = new List<(int, float3)>(ChestSockets());
+            var list = ChestSockets();
             if (list.Count == 0)
                 return;
             foreach (var (socket, pos) in list)
@@ -773,16 +827,21 @@ namespace Punchy.Items
         }
 
         /// <summary>Small coloured blocks for the items within DrawRange of the camera (a pool of primitives).</summary>
+        readonly HashSet<int> drawNear = new HashSet<int>();
+        readonly List<int> drawDrop = new List<int>();
+
         void Draw()
         {
             var cam = Camera.main;
             if (cam == null)
                 return;
-            var near = new HashSet<int>();
+            var near = drawNear;
+            near.Clear();
             foreach (var kv in world)
                 if (math.distancesq(kv.Value.Pos, (float3)cam.transform.position) < DrawRange * DrawRange)
                     near.Add(kv.Key);
-            var drop = new List<int>();
+            var drop = drawDrop;
+            drop.Clear();
             foreach (var kv in shown)
                 if (!near.Contains(kv.Key) || !world.ContainsKey(kv.Key))
                     drop.Add(kv.Key);
@@ -817,7 +876,14 @@ namespace Punchy.Items
             }
         }
 
-        void OnGUI()
+        // P-20 (profiler finding 11): drawn through a GuiHook, on only while there is something to draw, so this
+        // script stays out of Unity's IMGUI pass (and its per-frame garbage) the rest of the time.
+        void Start()
+        {
+            Punchy.UI.GuiHook.Add(gameObject, DrawGui, () => !Punchy.UI.Overlay.AnyOpen && (prompt != null || panel), true);
+        }
+
+        void DrawGui()
         {
             if (Punchy.UI.Overlay.AnyOpen)
                 return;
@@ -836,7 +902,8 @@ namespace Punchy.Items
             const float cell = 74f, gap = 6f;
             var w = 4 * cell + 5 * gap;
             var area = new Rect(Screen.width - w - 20f, Screen.height * 0.25f - 28f, w, 4 * (cell + gap) + gap + 28f);
-            GUI.Box(area, $"Inventory   ({UseKey.Name} / A: drop one)");
+            // (P-20: the button for the device in use: the Use key, or A on a pad.)
+            GUI.Box(area, $"Inventory   ({(InputGlyphs.Gamepad ? InputGlyphs.Path("<Gamepad>/buttonSouth") ?? "A" : UseKey.Current.ToString())}: drop one)");
             var colour = GUI.color;
             nav.Begin();
             GUILayout.BeginArea(new Rect(area.x + gap, area.y + 28f, w - 2 * gap, area.height - 28f));

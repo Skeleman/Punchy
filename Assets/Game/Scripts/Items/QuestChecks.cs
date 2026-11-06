@@ -25,7 +25,7 @@ namespace Punchy.Items
         /// <summary>The host's tally of what each player carries: NetworkId (0: the host's own player) → item → count.</summary>
         readonly Dictionary<int, Dictionary<byte, int>> carried = new Dictionary<int, Dictionary<byte, int>>();
         /// <summary>Clear quests in progress on the host: (player, board, slot) → seconds the area has been empty, and the last count logged.</summary>
-        readonly Dictionary<(int, int, int), (float empty, int last)> clearing = new Dictionary<(int, int, int), (float, int)>();
+        readonly Dictionary<(int, int, int), (float empty, int last, bool seen)> clearing = new Dictionary<(int, int, int), (float, int, bool)>();
         bool spawnStonesArg, fakeHandInArg, clearQuestArg, chaseArg;
         float chaseAt;
         FaunaDirector director;
@@ -84,7 +84,7 @@ namespace Punchy.Items
             var world = Hosting ? server : World.DefaultGameObjectInjectionWorld;
             if (world == null || !world.IsCreated || species < 0)
                 return -1;
-            using var q = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<CreatureBody>(), ComponentType.ReadOnly<CreatureState>());
+            var q = Q(world.EntityManager, ComponentType.ReadOnly<CreatureBody>(), ComponentType.ReadOnly<CreatureState>());
             using var bodies = q.ToComponentDataArray<CreatureBody>(Allocator.Temp);
             using var states = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
             var n = 0;
@@ -117,14 +117,20 @@ namespace Punchy.Items
                 var q = Def(board, slot);
                 if (q.type != "clear")
                     continue;
+                // P-19: creatures only live round players, so the area counts only while the player who took it is
+                // within radius + 30 m; and it must have held at least one before it can be cleared (an area far from
+                // everyone reads 0, and a despawn with nobody near isn't a clearing).
+                if (!PlayerPosition(player, out var who) || math.distance(who.xz, boards[board].Pos.xz) > q.radius + 30f)
+                    continue;
                 var count = CountInside(SpeciesIndex(q.creature), boards[board].Pos, q.radius, out _);
                 if (count < 0)
                     continue;
                 if (!clearing.TryGetValue(kv.Key, out var c))
-                    c = (0f, -1);   // (so the first count is logged too)
+                    c = (0f, -1, false);   // (so the first count is logged too)
                 if (count != c.last)
-                    Debug.Log($"Quests: {q.id} for player {player} at board {board}: {count} {q.creature} within {q.radius:F0} m");
-                c = (count == 0 ? c.empty + Time.deltaTime : 0f, count);
+                    Debug.Log($"Quests: {q.id} for player {player} at board {board}: {count} {q.creature} within {q.radius:F0} m{(c.seen || count > 0 ? "" : " (none seen yet: can't be cleared)")}");
+                var seen = c.seen || count > 0;
+                c = (count == 0 && seen ? c.empty + Time.deltaTime : 0f, count, seen);
                 clearing[kv.Key] = c;
                 if (c.empty >= ClearHold)
                     done.Add(kv.Key);
@@ -142,10 +148,44 @@ namespace Punchy.Items
             }
         }
 
+        /// <summary>A player's position on the host: 0 is the host's own (or solo's), others by their connection's id.</summary>
+        bool PlayerPosition(int player, out float3 pos)
+        {
+            pos = default;
+            if (player == 0 || !Hosting)
+            {
+                if (!TryPlayer(out var me))
+                    return false;
+                pos = me.Position;
+                return true;
+            }
+            var em = server.EntityManager;
+            var q = Q(em, ComponentType.ReadOnly<Punchy.Player.PlayerTag>(), ComponentType.ReadOnly<GhostOwner>(), ComponentType.ReadOnly<LocalTransform>());
+            using var owners = q.ToComponentDataArray<GhostOwner>(Allocator.Temp);
+            using var places = q.ToComponentDataArray<LocalTransform>(Allocator.Temp);
+            for (int i = 0; i < owners.Length; i++)
+                if (owners[i].NetworkId == player)
+                {
+                    pos = places[i].Position;
+                    return true;
+                }
+            // (A remote player's body may not carry PlayerTag on the server: any ghost it owns with a position.)
+            var q2 = Q(em, ComponentType.ReadOnly<GhostOwner>(), ComponentType.ReadOnly<LocalTransform>());
+            using var owners2 = q2.ToComponentDataArray<GhostOwner>(Allocator.Temp);
+            using var places2 = q2.ToComponentDataArray<LocalTransform>(Allocator.Temp);
+            for (int i = 0; i < owners2.Length; i++)
+                if (owners2[i].NetworkId == player)
+                {
+                    pos = places2[i].Position;
+                    return true;
+                }
+            return false;
+        }
+
         void SendToPlayer<T>(int player, T rpc) where T : unmanaged, IRpcCommand
         {
             var em = server.EntityManager;
-            using var q = em.CreateEntityQuery(typeof(NetworkId), typeof(NetworkStreamInGame));
+            var q = Q(em, ComponentType.ReadWrite<NetworkId>(), ComponentType.ReadWrite<NetworkStreamInGame>());
             using var cs = q.ToEntityArray(Allocator.Temp);
             foreach (var c in cs)
                 if (em.GetComponentData<NetworkId>(c).Value == player)
@@ -158,7 +198,7 @@ namespace Punchy.Items
         {
             if (Joined)
             {
-                using var iq = client.EntityManager.CreateEntityQuery(typeof(NetworkStreamInGame));
+                var iq = Q(client.EntityManager, ComponentType.ReadWrite<NetworkStreamInGame>());
                 if (iq.IsEmpty)
                     return;
             }
@@ -200,29 +240,54 @@ namespace Punchy.Items
                     TakeQuest(bestBoard, bestSlot);
                 }
             }
-            if (chaseArg && Time.realtimeSinceStartup >= chaseAt)
+            if (chaseArg)
+                WalkChase(player);
+        }
+
+        UnityEngine.InputSystem.Gamepad chasePad;
+
+        /// <summary>
+        /// "-chase" (P-19): walks the player at the nearest counted creature of a taken clear quest with a virtual
+        /// gamepad's left stick, through the game's own input (no teleports), so whatever reacts to a player walking up
+        /// reacts to this. Camera-relative, as a stick is.
+        /// </summary>
+        void WalkChase(LocalTransform player)
+        {
+            var stick = Vector2.zero;
+            foreach (var kv in myQuests)
             {
-                chaseAt = Time.realtimeSinceStartup + 2f;
-                foreach (var kv in myQuests)
+                if (kv.Value != 1 || Def(kv.Key.Item1, kv.Key.Item2).type != "clear")
+                    continue;
+                var q = Def(kv.Key.Item1, kv.Key.Item2);
+                if (CountInside(SpeciesIndex(q.creature), boards[kv.Key.Item1].Pos, q.radius + 5f, out var at) <= 0)
+                    continue;
+                var cam = Camera.main;
+                if (cam == null)
+                    break;
+                var to = math.normalizesafe(at.xz - player.Position.xz);
+                var f = math.normalizesafe(new float2(cam.transform.forward.x, cam.transform.forward.z));
+                var r = new float2(f.y, -f.x);
+                stick = new Vector2(math.dot(to, r), math.dot(to, f));
+                if (Time.realtimeSinceStartup >= chaseAt)
                 {
-                    if (kv.Value != 1 || Def(kv.Key.Item1, kv.Key.Item2).type != "clear")
-                        continue;
-                    var q = Def(kv.Key.Item1, kv.Key.Item2);
-                    // (On a client the creatures it sees are the host's, copied: close enough to run at.)
-                    var count = CountInside(SpeciesIndex(q.creature), boards[kv.Key.Item1].Pos, q.radius + 5f, out var at);
-                    if (count > 0)
-                    {
-                        var away = math.normalizesafe(at.xz - boards[kv.Key.Item1].Pos.xz);
-                        StandAt(at - new float3(away.x, 0f, away.y) * 2.5f);
-                    }
+                    chaseAt = Time.realtimeSinceStartup + 3f;
+                    Debug.Log($"Quests: -chase: walking at a {q.creature} {math.distance(at.xz, player.Position.xz):F1} m away");
                 }
+                break;
             }
+            if (chasePad == null)
+            {
+                UnityEngine.InputSystem.InputSystem.settings.backgroundBehavior = UnityEngine.InputSystem.InputSettings.BackgroundBehavior.IgnoreFocus;
+                chasePad = UnityEngine.InputSystem.InputSystem.AddDevice<UnityEngine.InputSystem.Gamepad>("ChasePad");
+                UnityEngine.InputSystem.InputSystem.EnableDevice(chasePad);
+            }
+            UnityEngine.InputSystem.InputSystem.QueueStateEvent(chasePad, new UnityEngine.InputSystem.LowLevel.GamepadState { leftStick = stick });
         }
 
         void StandAt(float3 pos)
         {
             var e = World.DefaultGameObjectInjectionWorld.EntityManager;
-            using var pq = e.CreateEntityQuery(ComponentType.ReadWrite<Punchy.Player.PlayerTag>(), ComponentType.ReadWrite<LocalTransform>());
+            var pq = Q(e, ComponentType.ReadWrite<Punchy.Player.PlayerTag>(), ComponentType.ReadWrite<LocalTransform>());
             if (!pq.TryGetSingletonEntity<LocalTransform>(out var pe) || !TryTerrain(out var terrain))
                 return;
             var t = e.GetComponentData<LocalTransform>(pe);

@@ -114,6 +114,7 @@ namespace Punchy.Interact
             for (int r = 0; r < rooms.Count; r++)
                 if (rooms[r].Lamp != null)
                     rooms[r].Lamp.enabled = lampsOn.Contains(r);
+            Cull();
 
             FindTarget();
             // Only the room the local player stands in is drawn: the rest float off the island's edge and showed from
@@ -127,6 +128,58 @@ namespace Punchy.Interact
                 else SwitchLamp(inRoom);
             }
             Tests();
+        }
+
+        /// <summary>How close to a house (one of its doors) a room is drawn (m); P-20, item 30.</summary>
+        const float CullNear = 40f;
+        float cullAt;
+        bool[] shown = System.Array.Empty<bool>();
+        static bool noCull = System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-nointeriorcull") >= 0;
+
+        /// <summary>
+        /// P-20 (item 30): a room's meshes and lamp are drawn only while the local player is in it or within CullNear of a
+        /// house that leads into it; otherwise its root is off (four times a second). Its InteriorCells boxes stay, so
+        /// standing in and bumping into it never depends on this. "-nointeriorcull": every room always drawn (to price it).
+        /// </summary>
+        void Cull()
+        {
+            if (Time.realtimeSinceStartup < cullAt || rooms.Count == 0)
+                return;
+            cullAt = Time.realtimeSinceStartup + 0.25f;
+            if (shown.Length != rooms.Count)
+            {
+                shown = new bool[rooms.Count];
+                for (int r = 0; r < rooms.Count; r++)
+                    shown[r] = rooms[r].Root == null || rooms[r].Root.activeSelf;
+            }
+            var world = World.DefaultGameObjectInjectionWorld;
+            using var q = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadOnly<LocalTransform>());
+            if (!q.TryGetSingleton<LocalTransform>(out var player))
+                return;
+            var near = new bool[rooms.Count];
+            if (inRoom >= 0 && inRoom < near.Length)
+                near[inRoom] = true;
+            for (int d = 0; d < doorRoom.Length; d++)
+                if (doorRoom[d] >= 0 && !near[doorRoom[d]] && Doors.TryGetDoor(d, out var at, out _) &&
+                    math.distancesq(at.xz, player.Position.xz) < CullNear * CullNear)
+                    near[doorRoom[d]] = true;
+            for (int r = 0; r < rooms.Count; r++)
+            {
+                var show = noCull || near[r];
+                if (show == shown[r] || rooms[r].Root == null)
+                    continue;
+                shown[r] = show;
+                rooms[r].Root.SetActive(show);
+                Debug.Log($"Interiors: room {r} ({rooms[r].Type.name}) {(show ? "drawn: the player is near its house" : "culled")}; {CountShown()} of {rooms.Count} drawn");
+            }
+        }
+
+        int CountShown()
+        {
+            var n = 0;
+            foreach (var s in shown)
+                n += s ? 1 : 0;
+            return n;
         }
 
         /// <summary>The rooms, once the island and its settlements are in: one per house type with an inside.</summary>
@@ -548,7 +601,14 @@ namespace Punchy.Interact
             RenderSettings.ambientGroundColor = Color.Lerp(RenderSettings.ambientGroundColor, warm * 0.7f, indoors);
         }
 
-        void OnGUI()
+        // P-20 (profiler finding 11): drawn through a GuiHook, on only while there is something to draw, so this
+        // script stays out of Unity's IMGUI pass (and its per-frame garbage) the rest of the time.
+        void Start()
+        {
+            Punchy.UI.GuiHook.Add(gameObject, DrawGui, () => prompt != null && !Punchy.UI.Overlay.AnyOpen, false);
+        }
+
+        void DrawGui()
         {
             if (prompt == null || Punchy.UI.Overlay.AnyOpen)
                 return;

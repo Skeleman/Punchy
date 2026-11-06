@@ -31,7 +31,27 @@ namespace Punchy.Interact
             Punchy.UI.MainMenu.AddTab("Keys", 50, DrawKeys);
         }
 
-        public static string Name => Current.ToString();
+        /// <summary>
+        /// The Use button's name for prompts, on the device in use (P-20, item 28): the key, or the pad's RB (in the pad's
+        /// own name: R1 on a PlayStation pad).
+        /// </summary>
+        public static string Name
+        {
+            get
+            {
+                InputGlyphs.Update();
+                // (Kept until the device, the pad or the key changes: asked for every frame by the prompts.)
+                var key = (InputGlyphs.Version, InputGlyphs.Gamepad, Current);
+                if (name == null || !nameFor.Equals(key))
+                    (name, nameFor) = (InputGlyphs.Gamepad ? InputGlyphs.Path(PadPath) ?? "RB" : Current.ToString(), key);
+                return name;
+            }
+        }
+
+        static string name;
+        static (int, bool, Key) nameFor;
+
+        public const string PadPath = "<Gamepad>/rightShoulder";
 
         /// <summary>Pressed this frame (the key, or RB), and no menu open.</summary>
         public static bool WasPressed()
@@ -54,11 +74,60 @@ namespace Punchy.Interact
         static void DrawKeys(Punchy.UI.MenuNav nav)
         {
             GUILayout.Label("<b>Keys</b>", new GUIStyle(GUI.skin.label) { richText = true });
-            if (nav.Button($"Use (doors, items, chests): {Name}  /  pad RB"))
+            if (nav.Button($"Use key: {Current}  /  pad {Pad(PadPath)}   (press to change the key)"))
                 Next();
-            GUILayout.Label($"Interact (pet, pick up, sit): {InputGlyphs.ActionToken("Player/Interact") ?? "E"}");
-            GUILayout.Label("Move: WASD / left stick     Look: mouse / right stick     Jump: Space");
-            GUILayout.Label("Menu: Esc / Start     Frame cap: F4 / View");
+            // P-20 (item 28): every command with its keyboard and pad binding, in three columns. Actions are read from
+            // their own bindings; pad buttons are named for the pad in use (A / Cross, LB / L1).
+            var bold = new GUIStyle(GUI.skin.label) { richText = true };
+            Row("<b>Command</b>", "<b>Keyboard / mouse</b>", "<b>Pad</b>", bold);
+            foreach (var (what, keys, pad) in Table())
+                Row(what, keys, pad, GUI.skin.label);
+        }
+
+        static void Row(string what, string keys, string pad, GUIStyle style)
+        {
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(what, style, GUILayout.Width(210f));
+            GUILayout.Label(keys, style, GUILayout.Width(110f));
+            GUILayout.Label(pad, style);
+            GUILayout.EndHorizontal();
+        }
+
+        /// <summary>A pad button's name for the pad in use (or the one forced with -forcepad).</summary>
+        static string Pad(string path) => InputGlyphs.Path(path) ?? path;
+
+        /// <summary>The binding table (P-20, item 28): command, keyboard, pad.</summary>
+        public static System.Collections.Generic.IEnumerable<(string what, string keys, string pad)> Table()
+        {
+            yield return ("Move", "WASD / arrows", "left stick");
+            yield return ("Look", "mouse", "right stick");
+            yield return ("Jump, climb onto a ledge", Bound("Player/Jump", false, "Space"), Bound("Player/Jump", true, "A"));
+            yield return ("Sprint", Bound("Player/Sprint", false, "Left Shift"), Bound("Player/Sprint", true, "left stick press"));
+            yield return ("Walk", Bound("Player/Walk", false, "Left Ctrl"), Bound("Player/Walk", true, "right stick press"));
+            yield return ("Roll", Bound("Player/Crouch", false, "C"), Bound("Player/Crouch", true, "B"));
+            yield return ("Interact (pet, sit)", Bound("Player/Interact", false, "E"), Bound("Player/Interact", true, "Y"));
+            yield return ("Use: doors, lamps, pick up, chests", Current.ToString(), Pad(PadPath));
+            yield return ("Inventory and quest log", "Tab / I", Pad("<Gamepad>/leftShoulder"));
+            yield return ("Inventory: drop / move an item", $"{Current} / click", $"{Pad("<Gamepad>/buttonSouth")} / {Pad(PadPath)}");
+            yield return ("Inventory: close", "Tab / I / Esc", $"{Pad("<Gamepad>/leftShoulder")} / {Pad("<Gamepad>/buttonEast")}");
+            yield return ("Creature actions 1-4", "1 2 3 4", "d-pad");
+            yield return ("Cycle the weather", Punchy.Settings.WeatherKey.KeyboardName, Pad(Punchy.Settings.WeatherKey.PadPath));
+            yield return ("Menu", "Esc", Pad("<Gamepad>/start"));
+            yield return ("Menu tabs", "Q / E", $"{Pad("<Gamepad>/leftShoulder")} / {Pad(PadPath)}");
+            yield return ("Options", Bound("Player/Options", false, "F4"), Bound("Player/Options", true, "View"));
+        }
+
+        /// <summary>An action's control on the keyboard and mouse or on a pad, by name, from the actions' own bindings.</summary>
+        static string Bound(string action, bool gamepad, string fallback)
+        {
+            var a = InputSystem.actions?.FindAction(action);
+            if (a == null)
+                return fallback;
+            var group = gamepad ? "Gamepad" : "Keyboard&Mouse";
+            foreach (var b in a.bindings)
+                if (!b.isComposite && !b.isPartOfComposite && b.groups != null && b.groups.Contains(group))
+                    return gamepad ? Pad(b.effectivePath) : InputControlPath.ToHumanReadableString(b.effectivePath, InputControlPath.HumanReadableStringOptions.OmitDevice);
+            return fallback;
         }
     }
 
@@ -119,6 +188,13 @@ namespace Punchy.Interact
             at = System.Array.IndexOf(args, "-atdoor");
             if (at >= 0 && at + 1 < args.Length && int.TryParse(args[at + 1], out var stand))
                 instance.atDoorArg = stand;
+            at = System.Array.IndexOf(args, "-climbhouse");
+            if (at >= 0 && at + 1 < args.Length && int.TryParse(args[at + 1], out var climb))
+            {
+                instance.climbArg = climb;
+                if (at + 2 < args.Length && float.TryParse(args[at + 2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var side))
+                    instance.climbSide = side;
+            }
         }
 
         /// <summary>Door anchor <paramref name="door"/>'s position and facing (out of the house), if the world has it.</summary>
@@ -203,9 +279,93 @@ namespace Punchy.Interact
                     useDoorArg = -1;
                 }
             }
+            if (climbArg >= 0)
+                ClimbTest(ref terrain);
             foreach (var d in open)
                 if (d < doorAnchors.Count)
                     Punchy.Flora.FloraDoors.SetOpen(terrain.Anchors.Value.Anchors[doorAnchors[d]].Position, 1f);
+        }
+
+        int climbArg = -1, climbMantles;
+        float climbSide = 1.4f, climbStart, climbEnd;
+        bool climbPlaced, climbWasMantle;
+        float3 climbDoor;
+        float2 climbFacing;
+        float3 climbSpot;
+        float climbPushAt;
+
+        /// <summary>
+        /// "-climbhouse N [side]" (P-20, item 27): the player stands 0.9 m out from house N's wall, <c>side</c> m (1.4 by
+        /// default) along it from the door, and pushes into the wall with jump pressed every third of a second for 8 s, as
+        /// a player trying to climb in would. Logs each climb onto a ledge (from, to) and where it ends: in front of the
+        /// wall, up on top, or inside the house (behind the wall's face, below its eaves).
+        /// </summary>
+        void ClimbTest(ref TerrainSource terrain)
+        {
+            var now = Time.realtimeSinceStartup;
+            if (climbStart == 0f)
+                climbStart = now + 12f;
+            if (now < climbStart)
+                return;
+            var em = World.DefaultGameObjectInjectionWorld.EntityManager;
+            using var q = em.CreateEntityQuery(ComponentType.ReadWrite<PlayerTag>(), ComponentType.ReadWrite<LocalTransform>(), ComponentType.ReadOnly<PlayerMotion>());
+            if (!q.TryGetSingletonEntity<LocalTransform>(out var player))
+                return;
+            var t = em.GetComponentData<LocalTransform>(player);
+            if (!climbPlaced)
+            {
+                if (!TryGetDoor(climbArg, out climbDoor, out climbFacing))
+                {
+                    Debug.LogWarning($"Doors: -climbhouse: no door {climbArg}");
+                    climbArg = -1;
+                    return;
+                }
+                climbFacing = math.normalizesafe(climbFacing);
+                var along = new float2(climbFacing.y, -climbFacing.x);
+                var xz = climbDoor.xz + climbFacing * 0.9f + along * climbSide;
+                t.Position = new float3(xz.x, terrain.SampleHeight(xz) + 0.05f, xz.y);
+                t.Rotation = quaternion.RotateY(math.atan2(-climbFacing.x, -climbFacing.y));
+                em.SetComponentData(player, t);
+                var cam = Object.FindAnyObjectByType<Punchy.CameraRig.ThirdPersonCamera>();
+                if (cam != null)
+                    cam.SetView(math.degrees(math.atan2(-climbFacing.x, -climbFacing.y)) + 35f, 15f);
+                climbPlaced = true;
+                climbSpot = t.Position;
+                // (Held at the wall for 6 s first: the houses' collision boxes load round the player after a teleport.)
+                climbPushAt = now + 6f;
+                climbEnd = climbPushAt + 8f;
+                Debug.Log($"Doors: -climbhouse {climbArg}: at the wall {climbSide:F1} m along from door ({climbDoor.x:F1}, {climbDoor.y:F1}, {climbDoor.z:F1}), player ({t.Position.x:F1}, {t.Position.y:F1}, {t.Position.z:F1}), waiting 6 s for the walls to load");
+                return;
+            }
+            if (now < climbPushAt)
+            {
+                t.Position = climbSpot;
+                em.SetComponentData(player, t);
+                return;
+            }
+            var m = em.GetComponentData<PlayerMotion>(player);
+            if (m.Mantle > 0f && !climbWasMantle)
+            {
+                climbMantles++;
+                Debug.Log($"Doors: -climbhouse: climbing a ledge from ({m.MantleFrom.x:F1}, {m.MantleFrom.y:F1}, {m.MantleFrom.z:F1}) to ({m.MantleTo.x:F1}, {m.MantleTo.y:F1}, {m.MantleTo.z:F1})");
+            }
+            climbWasMantle = m.Mantle > 0f;
+            if (now < climbEnd)
+            {
+                PlayerInputSystem.TestMove = -climbFacing;
+                PlayerInputSystem.TestJump = Time.frameCount % 20 == 0;
+                return;
+            }
+            PlayerInputSystem.TestMove = null;
+            // (Out from the door's plane: the door sits in the wall's face, so behind it and below the eaves is inside.)
+            // (Further than a house's depth behind it, or off to the side, the player went round the house, not in.)
+            var outFrom = math.dot(t.Position.xz - climbDoor.xz, climbFacing);
+            var sideways = math.abs(math.dot(t.Position.xz - climbDoor.xz, new float2(climbFacing.y, -climbFacing.x)));
+            var up = t.Position.y - climbDoor.y;
+            var where = up >= 2.4f ? "up on top" : outFrom >= -0.3f ? "outside, in front of the wall" :
+                        outFrom > -8f && sideways < 5f ? "INSIDE the house" : "past the house (went round it)";
+            Debug.Log($"Doors: -climbhouse {climbArg}: ended at ({t.Position.x:F1}, {t.Position.y:F1}, {t.Position.z:F1}), {outFrom:F2} m out from the wall, {up:F1} m above the door: {where}; {climbMantles} ledge climbs");
+            climbArg = -1;
         }
 
         /// <summary>"-atdoor N": the player 1.8 m out from door N, facing it.</summary>
@@ -352,7 +512,14 @@ namespace Punchy.Interact
             }
         }
 
-        void OnGUI()
+        // P-20 (profiler finding 11): drawn through a GuiHook, on only while there is something to draw, so this
+        // script stays out of Unity's IMGUI pass (and its per-frame garbage) the rest of the time.
+        void Start()
+        {
+            Punchy.UI.GuiHook.Add(gameObject, DrawGui, () => prompt != null && !Punchy.UI.Overlay.AnyOpen, false);
+        }
+
+        void DrawGui()
         {
             if (prompt == null || Punchy.UI.Overlay.AnyOpen)
                 return;

@@ -184,7 +184,7 @@ namespace Punchy.Items
             if (!terrain.Settlements.IsCreated || !terrain.Landmarks.IsCreated)
                 return;
             var w = World.DefaultGameObjectInjectionWorld;
-            using var pq = w.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<BiomePalette>());
+            var pq = Q(w.EntityManager, ComponentType.ReadOnly<BiomePalette>());
             if (pq.CalculateEntityCount() != 1)
                 return;
             var palette = w.EntityManager.GetComponentObject<BiomePalette>(pq.GetSingletonEntity());
@@ -305,8 +305,7 @@ namespace Punchy.Items
         /// <summary>The host's side (from Serve): quests taken and handed in by clients.</summary>
         void ServeQuests(EntityManager em)
         {
-            using (var q = em.CreateEntityQuery(typeof(TakeQuestRpc), typeof(ReceiveRpcCommandRequest)))
-            using (var rs = q.ToEntityArray(Allocator.Temp))
+            using (var rs = Q(em, ComponentType.ReadWrite<TakeQuestRpc>(), ComponentType.ReadWrite<ReceiveRpcCommandRequest>()).ToEntityArray(Allocator.Temp))
                 foreach (var r in rs)
                 {
                     var m = em.GetComponentData<TakeQuestRpc>(r);
@@ -316,8 +315,7 @@ namespace Punchy.Items
                     if (em.Exists(from)) Send(em, from, new QuestStateRpc { Board = m.Board, Slot = m.Slot, State = 1 });
                     em.DestroyEntity(r);
                 }
-            using (var q = em.CreateEntityQuery(typeof(TurnInRpc), typeof(ReceiveRpcCommandRequest)))
-            using (var rs = q.ToEntityArray(Allocator.Temp))
+            using (var rs = Q(em, ComponentType.ReadWrite<TurnInRpc>(), ComponentType.ReadWrite<ReceiveRpcCommandRequest>()).ToEntityArray(Allocator.Temp))
                 foreach (var r in rs)
                 {
                     var m = em.GetComponentData<TurnInRpc>(r);
@@ -356,7 +354,7 @@ namespace Punchy.Items
             }
             if (Joined)
             {
-                using var q = client.EntityManager.CreateEntityQuery(typeof(NetworkStreamInGame));
+                var q = Q(client.EntityManager, ComponentType.ReadWrite<NetworkStreamInGame>());
                 if (q.IsEmpty)
                     return;
             }
@@ -369,7 +367,7 @@ namespace Punchy.Items
             {
                 atBoardArg = false;
                 var e = World.DefaultGameObjectInjectionWorld.EntityManager;
-                using var pq = e.CreateEntityQuery(ComponentType.ReadWrite<Punchy.Player.PlayerTag>(), ComponentType.ReadWrite<LocalTransform>());
+                var pq = Q(e, ComponentType.ReadWrite<Punchy.Player.PlayerTag>(), ComponentType.ReadWrite<LocalTransform>());
                 if (pq.TryGetSingletonEntity<LocalTransform>(out var pe))
                 {
                     var t = e.GetComponentData<LocalTransform>(pe);

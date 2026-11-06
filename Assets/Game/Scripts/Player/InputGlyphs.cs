@@ -182,6 +182,9 @@ namespace Punchy.Player
             InputDevice device = path.StartsWith("<Gamepad>") ? UnityEngine.InputSystem.Gamepad.current :
                                  path.StartsWith("<Keyboard>") ? Keyboard.current : path.StartsWith("<Mouse>") ? Mouse.current : null;
             var control = device != null ? InputControlPath.TryFindControl(device, path) : null;
+            // (No pad plugged in, as with -forcepad: name the button by the pad kind, not "Button South".)
+            if (control == null && path.StartsWith("<Gamepad>/"))
+                return PadKind == "generic" ? Generic(path) : Named(path, PadKind == "playstation");
             if (control == null)
                 return InputControlPath.ToHumanReadableString(path, InputControlPath.HumanReadableStringOptions.OmitDevice);
             if (device is Keyboard && control is UnityEngine.InputSystem.Controls.KeyControl key && !string.IsNullOrEmpty(key.displayName))
@@ -190,6 +193,24 @@ namespace Punchy.Player
                 return Generic(path);
             return !string.IsNullOrEmpty(control.shortDisplayName) ? control.shortDisplayName : control.displayName;
         }
+
+        /// <summary>An Xbox or PlayStation pad's buttons by their printed names (when no such pad is plugged in to ask).</summary>
+        static string Named(string path, bool playstation) => path.Substring("<Gamepad>/".Length) switch
+        {
+            "buttonSouth" => playstation ? "Cross" : "A",
+            "buttonEast" => playstation ? "Circle" : "B",
+            "buttonWest" => playstation ? "Square" : "X",
+            "buttonNorth" => playstation ? "Triangle" : "Y",
+            "leftShoulder" => playstation ? "L1" : "LB",
+            "rightShoulder" => playstation ? "R1" : "RB",
+            "leftTrigger" => playstation ? "L2" : "LT",
+            "rightTrigger" => playstation ? "R2" : "RT",
+            "leftStickPress" => playstation ? "L3" : "LS",
+            "rightStickPress" => playstation ? "R3" : "RS",
+            "start" => playstation ? "Options" : "Menu",
+            "select" => playstation ? "Share" : "View",
+            var other => Generic(path)
+        };
 
         /// <summary>A generic gamepad's buttons by where they are.</summary>
         static string Generic(string path) => path.Substring("<Gamepad>/".Length) switch

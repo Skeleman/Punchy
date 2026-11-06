@@ -84,8 +84,11 @@ namespace Punchy.UI
                 MenuNav.TextEntry = null;
         }
 
+        // P-20 (profiler finding 11): drawn through a GuiHook, on only while there is something to draw, so this
+        // script stays out of Unity's IMGUI pass (and its per-frame garbage) the rest of the time.
         void Start()
         {
+            Punchy.UI.GuiHook.Add(gameObject, DrawGui, () => Open, true);
             var args = Punchy.Debugging.DebugControls.LaunchArgs;
             var at = Array.IndexOf(args, "-menu");
             if (at >= 0)
@@ -196,7 +199,7 @@ namespace Punchy.UI
             nav.Reset();
         }
 
-        void OnGUI()
+        void DrawGui()
         {
             if (!Open)
                 return;
