@@ -2,5 +2,4 @@
 
 Oldest first. Add yourself at the bottom; only the first line may open an editor (and only with >= 6 GB free RAM). Delete your line once your editor is open.
 
-- animal A-81 (row 5 cave biomes) since 05:04
 - player P-20 (GC row compile, stopped by low memory) since 05:05
