@@ -3752,8 +3752,9 @@ namespace Punchy.Flora
                             p.Piece == Punchy.Terrain.KitPiece.Window || p.Material == Punchy.Terrain.KitMaterial.Lamp ||
                             p.Material == Punchy.Terrain.KitMaterial.Rune || p.Material == Punchy.Terrain.KitMaterial.Moss;
                 // W-113 (item 10): a ruin's plinth course (trim, but a 0.5 m slab under the whole floor) is solid too, so a
-                // body walks up onto the platform rather than sinking to the ground through it.
-                if (ruined && p.Piece == Punchy.Terrain.KitPiece.Trim && p.Centre.y - p.Size.y * 0.5f < 0.05f && p.Size.x * p.Size.z > 4f)
+                // body walks up onto the platform rather than sinking to the ground through it. The door step (a low, small
+                // ground trim) is solid with it, so the climb is two rises under KitStep.
+                if (ruined && p.Piece == Punchy.Terrain.KitPiece.Trim && p.Centre.y - p.Size.y * 0.5f < 0.05f && (p.Size.x * p.Size.z > 4f || p.Size.y < 0.3f))
                     decor = false;
                 if (g.Lod == 0 && !decor)
                     g.Boxes.Add(new KitBox { Centre = p.Centre, Half = p.Size * 0.5f, Rotation = p.Rotation, Reach = p.Size.magnitude * 0.5f });
