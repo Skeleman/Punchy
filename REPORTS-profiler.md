@@ -2,6 +2,43 @@
 
 Newest first.
 
+## 2026-11-06 FaunaDirector recheck after PR #172 (time-sliced comfort refresh), main 781fa5a: fixed; plus a shutdown crash
+
+**Short answer:**
+- **PR #172 fixed the FaunaDirector hitches.** Join/leave and running are back to job 28 levels or better:
+
+  | | job 28 (6f139d0) | q40 (adb11e0) | now (781fa5a, 2 sessions) |
+  |---|---|---|---|
+  | join/leave host: frames over 33 ms | 2 | 60 | **3 / 2** |
+  | join/leave host: 1% low fps | 55.5 | 31.1 | **63.1 / 54.3** |
+  | join/leave host: worst ms | 34.9 | 43.3 | 33.6 / 33.4 |
+  | join/leave client: frames over 33 ms | 0 | 26 | **0 / 0** (1% low 81-82 fps) |
+  | run: frames over 33 ms | 3 | 24 | **0 / 0** |
+  | run: avg fps / 1% low / worst ms | 100.1 / 36.5 / 34.7 | 88.4 / 22.2 / 76.3 | **121.0 / 54.0 / 25.4** and 118.1 / 56.7 / 29.7 |
+  | glide: frames over 33 ms | 64 | 23 | **0 / 1** (avg 97.5 / 86.6 fps) |
+
+- **The townwalk big frame is real and tied to a place.** Session 1 had a **418 ms** frame at exactly the same spot as q40's 331 ms one: Millfield, (3253,10,-857), on the v2 townwalk. Session 2 didn't hit it, at 29.8 ms worst, so it doesn't happen every time. Something there loads or builds once, probably a building, interior or door near that point. That is the next thing to capture. **World lane, once captured.**
+- **CRASH, stopped per the crash rule.** It came in the first Profile run (the run stop) **after the stop had finished ("BenchRoute: done")**, so during quit. It's a native crash in a Burst job:
+
+  ```
+  TerrainSource.PondDig            (Terrain/TerrainSource.cs:417)
+  TerrainSource.SampleHeight       (Terrain/TerrainSource.cs:674)
+  FloraPlacement.Place             (Flora/FloraPlacement.cs:1690)
+  SurfaceGlow.FarScanJob.Execute   (IJob, worker thread)
+  ```
+
+  - Line 417 reads the biome blob (`ref var biome = ref set.Biomes[core.Ids[i]]`). So the likely cause is SurfaceGlow's far scan job (W-101 row 1, 43747a5d) still running at quit after the TerrainSource blobs were freed.
+  - SurfaceGlow.Release() completes the job, but only when Release runs. If the terrain's blobs are disposed first, the job reads freed memory.
+  - **First time seen** in any bench log on this laptop (q27-q46). It's a shutdown crash, so players would see a crash on quit, not mid-game.
+  - Suggested owner: world lane (SurfaceGlow / terrain teardown order). The fix: complete the far job before the terrain blobs are disposed, or have the job's owner dispose them.
+- **Not run because of the stop:** the 3 Profile captures (run, v2 fishing village, salt walk-up) that would have confirmed FaunaDirector is gone from the spike frames. The Bench numbers above already show the hitches gone. I can rerun the captures when you say.
+
+**Method:**
+- Bench build of 781fa5a (#172 + #173), uncapped, frames over 33 ms logged.
+- The v2 route stops townwalk, run and glide; the host + client join/leave at the v2 cave (210 animals). 2 sessions each.
+- Script: q46.sh. Logs, including the crash log prof46-run.log: results/q46logs.
+- Cost: 12 calls, peak 240k context, $1.1
+
 ## 2026-11-06 creature render breakdown at the v3 forest spot, main adb11e0
 
 **Short answer:**
