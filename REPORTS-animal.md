@@ -2825,3 +2825,25 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - **Checks:** fingerprint 8A1979F1, the other 13 positions unchanged, 0 exceptions. Build 23.4 ms and solid 18.6 ms (own frames). GC 8713 B/frame was measured with the worm in (row 1 run, before the sound); the sound is a one-shot every ~20 s.
 - **Shots:** D:\PunchyMilestones\A-84\worm-side.png, worm-front.png, worm-back.png, worm-side-2.png (daylight 13 h; side shows the three arcs and reared head, front shows the gaping maw). It doesn't glow, so no night shot.
 - Risk: the trail is subtle from far away; the sound wasn't heard by a person, only the trigger checked.
+
+## A-84 row 3: Temperate walking oak colossus (#40), done (verified)
+- Commit 8f8943bb. New StoneColossi.WalkingOak.cs plus a WalkingOak.asset (Kind 17, Order 14, Temperate, Salt 41851) and a ColossusWalker gait (50 m radius, 0.7 m/s, walk 80 s and rest 70 s).
+- **WalkingOak:** placed at (874, 42.1, 3415), facing 141, Temperate. It walks a 319 m loop round (901, 3401).
+  - Body: a ridged trunk with a bark face, 6 boughs, a leafy crown and 4 root legs carrying sod.
+  - Details: a rope swing, a nest, an owl hollow, a beehive, shelf fungi, ivy, acorns, and footprints that sprout saplings.
+  - Particles: falling leaves, bees and soil dropping off the feet.
+  - Sound: a timber creak, plus birdsong and a bee buzz by day.
+  - Motion: the crown and the swing sway.
+- **Checks:** fingerprint 8A1979F1, the other 14 positions unchanged, 0 exceptions. Build 38.6 ms and solid 41.6 ms, each on its own frame; 227 collision columns. The sway code allocates nothing apart from the audio one-shots.
+- **Shots:** D:\PunchyMilestones\A-84\oak-front.png, oak-back.png, oak-close.png. The front shows the face, the swing, the root legs and the crown (it was raining in that run). The close shot shows the ridges, fungi and swing. It doesn't glow, so no night shot.
+- Risk: GC B/frame wasn't measured again after rows 3 and 4 (it was 8713 in row 1).
+
+## A-84 row 4: Mire walker fog that reads in daylight (#40), done (verified)
+- Commit 17ef9a0e. The Mist puff is greyer and thicker (alpha 0.50/0.58, rate 9), and a new low MistBank puff sits round the feet.
+- **Shots:** D:\PunchyMilestones\A-84\mire-day.png, mire-day-high.png, mire-night.png, mire-night-high.png. By day the mist reads as grey banks round the legs. At night the silhouette stays visible above the fog.
+- **Checks:** fingerprint 8A1979F1, positions unchanged, 0 exceptions.
+
+## A-84 suite and risks
+- **Suite:** 14 passed, 0 failed in 235 s (Unity exit 0). Landmarks 111 3BDF705F, fingerprint 8A1979F1, so both pins are unchanged.
+- Risk: the SkeletalLizard build frame (code I didn't touch) varied from 21 to 76.5 ms over repeated plays without a domain reload. The last runs read 76.3, 48.8, 53.8 and 76.5 ms. It's probably GC or editor noise, but in the editor it breaks row 1's 50 ms bar. Worth splitting its build in two if a player build shows the same.
+- My editor is closed.
