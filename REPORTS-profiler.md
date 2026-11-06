@@ -2,6 +2,47 @@
 
 Newest first.
 
+## 2026-11-06 flora breakdown at the v3 cave approach: passes, and vertex vs pixel bound, main adb11e0
+
+**Short answer:**
+- **Flora costs 2.4 ms GPU here** (8.1 -> 5.7 ms with flora shaders off; q41 saw 2.0 in the Bench build).
+  - **About 1.0 ms is the shadow casters.** Shadows cost 1.2 ms with flora and 0.2 ms without. Flora is 307 of the 334 shadow casters.
+  - **About 1.4 ms is the depth prepass plus the main pass.** The PC renderer is Forward+ with **depth priming forced**, so flora is drawn in three passes: depth prepass, main (depth-equal) and shadows.
+- **With depth priming on, flora is vertex/draw bound, not pixel bound.** At a quarter of the pixels (render scale 0.5), flora still costs 2.65 ms (6.7 vs 4.05), while the rest of the scene drops from 5.7 to 4.05 ms.
+- **Depth priming is what keeps flora's pixel cost down.** With priming off, the GPU frame goes to **22.0 ms** (39 fps) with flora and 6.8 ms without, so flora's cost becomes about 15 ms. Its fragment shading has heavy overdraw (alpha-tested leaves), which priming culls to one shaded pixel. **Don't turn priming off.**
+- **Triangles: the counter doesn't see flora.** It reads 4.45 M with flora and 4.27 M without, because FloraSystem draws through Graphics.RenderMeshIndirect and indirect draws aren't counted. Instanced draws (9.6k / 10.5k) and SetPass (231 / 224) barely change. Flora's real vertex count would need FloraSystem's own instance x mesh counts. The render-scale result already says it's vertex/draw bound.
+- **Where to cut (world lane):**
+  1. **Flora vertex work, all passes:** fewer vertices per instance at distance (mesh LODs or impostors past some range). Every vertex is processed 3 times (prepass, main, up to 3 shadow cascades).
+  2. **Shadow casters:** about 1 ms. Cut by limiting flora to the near cascades, or by a cheaper shadow mesh. The cheap far caster (PR #158) already helps; this spot still pays 1 ms.
+  3. **Main pass:** with priming the main pass shades only visible pixels. Splitting prepass from main would need a GPU-pass timer this D3D11 build doesn't give.
+- **No self-fix:** flora is in the world lane's files. The runner gained two switches for this job (bench tooling only), pushed as b/bench-noprime-scale (one commit on main) for review:
+  - `-benchnoprime`: depth priming off on every URP renderer.
+  - `-benchrenderscale <x>`: URP render scale.
+
+**Method:**
+- Profile build of adb11e0 with the new switches, v3 route stop caveapproach (a walk from 400 m to 100 m from the biggest cave), uncapped.
+- Each pass was switched off with and without flora (-benchnoshader Flora). 2 rounds, order reversed; tables give the mean.
+- Round 1 plain and flora-off were also captured through SysMs for the render counters. Round 1 plain read 8.4 ms GPU with the capture running, against 7.8 uncaptured.
+- Script: q44.sh. Logs: results/q44logs.
+
+| variant | fps | median ms | GPU ms (with flora) | GPU ms (flora off) | flora's share |
+|---|---|---|---|---|---|
+| plain | 85.4 | 11.4 | 8.1 | 5.7 | **2.4** |
+| camera shadows off | 92.6 | 10.7 | 6.9 | 5.5 | 1.4 (so shadows hold 1.0) |
+| depth priming off | 39.5 | 25.2 | **22.0** | 6.8 | **15.2** |
+| render scale 0.5 | 103.5 | 9.4 | 6.7 | 4.05 | 2.65 |
+
+- Round-to-round GPU spread: 0.2 ms or less, except plain (8.4 captured vs 7.8).
+
+| counter (per frame) | with flora | flora off |
+|---|---|---|
+| triangles (indirect draws not counted) | 4.45 M | 4.27 M |
+| instanced draws | 9572 | 10511 |
+| SetPass | 231 | 224 |
+| shadow casters | 334 | 27 |
+
+- Cost: 9 calls, peak 210k context, $0.9
+
 ## 2026-11-06 finding 11 follow-up 2: where the village water's frame time goes, main adb11e0
 
 **Short answer:**
