@@ -1,0 +1,125 @@
+// Profiler-only editor script (never committed to the game): per-system ms, GC alloc and render counters over a .raw.
+// Unity -batchmode -executeMethod SysMs.Dump -raw <file> -out <txt>
+// A system's ms = inclusive time of its outermost matching sample, summed per frame over all threads (main and render
+// listed apart from workers), then averaged over the frames. GC = bytes of GC.Alloc samples per frame.
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using UnityEditor.Profiling;
+using UnityEditorInternal;
+
+public static class SysMs
+{
+    static string Arg(string n, string d) { var a = Environment.GetCommandLineArgs(); var i = Array.IndexOf(a, n); return i >= 0 && i + 1 < a.Length ? a[i + 1] : d; }
+    static readonly (string group, string[] keys)[] Groups =
+    {
+        ("ambient life", new[] { "AmbientParticleSystem", "AmbientSounds", "AmbientLife" }),
+        ("critters", new[] { "CritterSystem" }),
+        ("colossi", new[] { "StoneColossi", "ColossusWalker", "DunesColossus", "ColossusRig", "ColossusCollision" }),
+        ("far shadows", new[] { "FarShadow" }),
+        ("landmarks (salt tower, temple)", new[] { "SaltTowerSystem", "SunkenTempleSystem" }),
+        ("flora", new[] { "FloraSystem", "FloraGenerator" }),
+        ("ground detail", new[] { "GroundDetailSystem" }),
+        ("creature render", new[] { "CreatureRenderSystem" }),
+        ("creature brain", new[] { "CreatureBrainSystem", "BrainJob" }),
+        ("fauna director", new[] { "FaunaDirector" }),
+        ("creature audio", new[] { "CreatureAudioSystem" }),
+        ("water / rivers", new[] { "Water", "River", "Ocean" }),
+        ("shadows (URP)", new[] { "Shadows.Draw", "MainLightShadow" }),
+    };
+    static readonly string[] Counters = { "SetPass Calls Count", "Draw Calls Count", "Batches Count", "Instanced Batched Draw Calls Count",
+        "Shadow Casters Count", "Triangles Count", "GC Allocated In Frame", "GC Allocation In Frame Count" };
+
+    public static void Dump()
+    {
+        var sb = new StringBuilder();
+        ProfilerDriver.ClearAllFrames();
+        var ok = ProfilerDriver.LoadProfile(Arg("-raw", ""), false);
+        int first = ProfilerDriver.firstFrameIndex, last = ProfilerDriver.lastFrameIndex;
+        var groupMs = new Dictionary<string, double>(); var groupMain = new Dictionary<string, double>();
+        var markerMs = new Dictionary<string, double>(); // main thread, outermost occurrences, script-ish names
+        var cSum = new Dictionary<string, double>(); var cN = new Dictionary<string, int>();
+        double gcBytes = 0, gcCount = 0, frameMs = 0; int frames = 0;
+        for (int f = first; f <= last; f++)
+        {
+            bool any = false;
+            for (int t = 0; ; t++)
+                using (var v = ProfilerDriver.GetRawFrameDataView(f, t))
+                {
+                    if (v == null || !v.valid) break;
+                    any = true;
+                    var tn = v.threadGroupName + "|" + v.threadName;
+                    bool main = v.threadName == "Main Thread";
+                    if (main)
+                    {
+                        frameMs += v.frameTimeMs;
+                        foreach (var c in Counters)
+                        {
+                            var id = v.GetMarkerId(c);
+                            if (id == FrameDataView.invalidMarkerId || !v.HasCounterValue(id)) continue;
+                            cSum[c] = (cSum.TryGetValue(c, out var s) ? s : 0) + v.GetCounterValueAsDouble(id);
+                            cN[c] = (cN.TryGetValue(c, out var n) ? n : 0) + 1;
+                        }
+                    }
+                    var names = new Dictionary<int, string>();
+                    string Name(int id) => names.TryGetValue(id, out var s) ? s : names[id] = v.GetMarkerName(id);
+                    var hit = new HashSet<string>(); // groups open on the current ancestor path
+                    var open = new Stack<(int end, string group, string marker)>();
+                    int count = v.sampleCount;
+                    var ends = new int[count];
+                    // sample i spans [i, end): children follow it depth-first.
+                    for (int i = count - 1; i >= 0; i--)
+                    {
+                        int e = i + 1;
+                        for (int c = v.GetSampleChildrenCount(i); c > 0; c--) e = ends[e];
+                        ends[i] = e;
+                    }
+                    var path = new List<(int end, string group, bool marker)>();
+                    for (int i = 0; i < count; i++)
+                    {
+                        while (path.Count > 0 && path[path.Count - 1].end <= i) path.RemoveAt(path.Count - 1);
+                        var name = Name(v.GetSampleMarkerId(i));
+                        if (name == "GC.Alloc")
+                        {
+                            gcCount++;
+                            if (v.GetSampleMetadataCount(i) > 0) gcBytes += v.GetSampleMetadataAsLong(i, 0);
+                        }
+                        string g = null;
+                        foreach (var (group, keys) in Groups)
+                            if (keys.Any(k => name.Contains(k))) { g = group; break; }
+                        bool scriptish = main && (name.Contains("System") || name.Contains("Director") || name.Contains(".Update") || name.Contains("Colossi") || name.Contains("Job"));
+                        bool markerOpen = path.Any(p => p.marker);
+                        if (g != null && !path.Any(p => p.group == g))
+                        {
+                            var ms = v.GetSampleTimeMs(i);
+                            groupMs[g] = (groupMs.TryGetValue(g, out var x) ? x : 0) + ms;
+                            if (main) groupMain[g] = (groupMain.TryGetValue(g, out var y) ? y : 0) + ms;
+                        }
+                        if (scriptish && !markerOpen)
+                            markerMs[name] = (markerMs.TryGetValue(name, out var z) ? z : 0) + v.GetSampleTimeMs(i);
+                        path.Add((ends[i], g, scriptish));
+                    }
+                }
+            if (any) frames++;
+        }
+        sb.AppendLine($"loaded={ok} frames {frames}, frame ms mean {frameMs / Math.Max(1, frames):F2}");
+        sb.AppendLine($"GC alloc per frame: {gcBytes / Math.Max(1, frames) / 1024:F1} KB in {gcCount / Math.Max(1, frames):F1} allocations");
+        sb.AppendLine("== systems (ms per frame: all threads / main thread)");
+        foreach (var (group, _) in Groups)
+        {
+            var a = groupMs.TryGetValue(group, out var x) ? x / frames : 0;
+            var m = groupMain.TryGetValue(group, out var y) ? y / frames : 0;
+            sb.AppendLine($"{group}\t{a:F3}\t{m:F3}{(a > 0.5 ? "\tFLAG" : "")}");
+        }
+        sb.AppendLine("== counters (per frame)");
+        foreach (var c in Counters)
+            sb.AppendLine(cN.TryGetValue(c, out var n) ? $"{c}\t{cSum[c] / n:F0}" : $"{c}\tnot recorded");
+        sb.AppendLine("== main-thread script-ish markers over 0.05 ms (outermost)");
+        foreach (var kv in markerMs.OrderByDescending(k => k.Value).Where(k => k.Value / frames > 0.05).Take(40))
+            sb.AppendLine($"{kv.Key}\t{kv.Value / frames:F3}{(kv.Value / frames > 0.5 ? "\tFLAG" : "")}");
+        File.WriteAllText(Arg("-out", "sysms.txt"), sb.ToString());
+        UnityEditor.EditorApplication.Exit(0);
+    }
+}

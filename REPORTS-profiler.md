@@ -2,6 +2,123 @@
 
 Newest first.
 
+## 2026-11-06 audit finding 11: v3 per-system sweep (ms per system, GC, draw counters), main adb11e0
+
+**Short answer (flags over 0.5 ms):**
+- **Flora is the biggest single cost.**
+  - Cave approach: GPU 2.0 ms (fps 86 -> 114 with flora shaders off), CPU 1.24 ms (FloraSystem.LateUpdate 0.78 ms on main).
+  - Forest: GPU 1.15 ms, CPU 0.50 ms.
+  - Village: GPU 0.45 ms, CPU 0.56 ms.
+- **Creature brain: 0.8-1.7 ms** of job time per frame (1.7 at the fishing village). Almost all of it is on workers (main thread 0.05 ms), so it costs frame time only when the workers are full.
+- **Creature render: 0.8-1.5 ms CPU** (0.26-0.42 ms of that on main), plus GPU 0.85 ms in the forest, 0.4 at the village and 0.25 at the cave.
+- **URP shadows: 0.8-1.7 ms CPU**, on the render thread and workers. GPU 0.3 ms (forest), 0.5 (village), 1.35 (cave approach).
+- **Colossi: 0.54 ms at the cave approach**, mostly ColossusWalker.Update at 0.43 ms on main (a walker near the biggest cave). It's 0.28 ms 150 m from the CinderSnail and 0.15 at the village. Colossus GPU is 0 within noise everywhere.
+- **Water at the fishing village: frame 9.8 -> 8.3 ms (100 -> 117 fps) with water shaders off**, but measured GPU drops only 0.4 ms and the main thread doesn't move. Something about water costs about 1.5 ms that the GPU timer doesn't show (the opaque/depth copies are the first suspect; not tested). Water is 0 at the other two spots, and water's CPU is 0.015 ms. **World lane.**
+- **Under 0.5 ms everywhere:**
+  - Ambient life 0.15-0.32 ms (AmbientParticleSystem; GPU about 0.1).
+  - Critters 0.04-0.11 ms.
+  - Far shadows 0.02 ms CPU (land frame 0.07 ms; GPU inside the colossus figure, 0).
+  - FaunaDirector 0.18-0.27 ms on average (but see the 1-2 s spikes in the q40 entry).
+  - Creature audio 0.1-0.18 ms. Landmarks 0.05 ms.
+- **GC: 10-13 KB and 132-151 allocations every frame**, at all three spots. That's about 1 MB/s at 100 fps (1-9 collections per stop). Not flagged by ms, but steady per-frame allocation is worth finding. SysMs doesn't attribute it yet.
+- **Draw calls:** "Draw Calls Count" and "Batches Count" aren't recorded on this D3D11 build. What is recorded, per frame:
+
+  | spot | SetPass | instanced draws | shadow casters | triangles |
+  |---|---|---|---|---|
+  | forest | 438 | 6.3-7.3k | 109 | 2.2-2.4 M |
+  | village | 139 | 5.2-6.6k | 262 | 2.4-2.8 M |
+  | cave approach | 230 | 8.8-9.6k | 334 | 4.1-4.3 M |
+
+- **Frame:** forest 118 fps, village 101 fps, cave approach 86 fps (Bench build). All three are main-thread or present bound except the cave approach, where flora's GPU cost shows. No frames over 50 ms in 42 Bench runs and 6 Profile runs.
+
+**Method:**
+- v3 island, uncapped, main adb11e0. Spots:
+  - Forest: 150 m east of the Ember Forest CinderSnail (2349,-2575).
+  - Village: v3 fishing village 1 (-2151,3731).
+  - Cave approach: the route stop caveapproach, a walk from 400 m to 100 m from the biggest cave.
+- **CPU:** Profile build, the whole stop captured, 2 rounds. Each capture went through a new editor tool, SysMs.cs.txt (lanes/profiler/scripts). A system's ms is the inclusive time of its outermost samples per frame, summed over all threads; the main-thread share is shown separately. GC is the GC.Alloc samples. Counters are averaged over every frame.
+- **GPU:** Bench build. Each system's shaders were switched off in turn (water; flora; creatures; colossus + far shadow; particles, ambient and critters; camera shadows), and its cost is that run's gpu ms against a plain run. 2 rounds, order reversed. The tables use the mean of both rounds; round-to-round GPU spread was 0.1-0.2 ms.
+- **Limits:** AmbientLife and FarShadow aren't profiler markers, so their CPU cost sits inside their callers. Creature brain includes BrainJob, which runs on workers.
+- Script: q41.sh. Logs and SysMs outputs: results/q41logs.
+
+**CPU, ms per frame (all threads / main), mean of 2 captures:**
+
+| system | forest | village | cave approach |
+|---|---|---|---|
+| flora | 0.50 / 0.50 | 0.56 / 0.56 | **1.24 / 0.78** |
+| creature render | **0.78** / 0.26 | **0.99** / 0.31 | **1.45** / 0.42 |
+| creature brain | **0.78** / 0.05 | **1.74** / 0.05 | **1.55** / 0.05 |
+| URP shadows | **0.77** / 0.07 | **1.53** / 0.08 | **1.69** / 0.07 |
+| colossi | 0.28 | 0.15 | **0.54** |
+| ambient life | 0.25 | 0.15 | 0.32 / 0.27 |
+| fauna director | 0.18 | 0.26 | 0.25 |
+| ground detail | 0.10 | 0.09 | 0.32 / 0.12 |
+| creature audio | 0.09 | 0.17 | 0.12 |
+| critters | 0.04 | 0.05 | 0.11 |
+| landmarks | 0.05 | 0.05 | 0.05 |
+| far shadows | 0.02 | 0.02 | 0.02 |
+| water / rivers | 0.02 | 0.01 | 0.01 |
+| GC per frame | 10.2 KB, 136 allocs | 11.2 KB, 147 | 12.4 KB, 147 |
+
+- Other main-thread scripts at 0.1-0.4 ms on every spot: WeatherSystem.Update 0.25-0.35, CaveSystem.Update 0.17-0.41, Items.Update 0.19, Mantrap.Update 0.16. Mantrap ticks every plant each frame, even far from any; that's small and not flagged.
+- The ECS groups (SimulationSystemGroup 1.1-1.3 ms, PresentationSystemGroup 0.8-1.2 ms) contain the creature render and brain scheduling above.
+
+**GPU, ms saved with the system's shaders off (plain gpu: forest 6.2, village 5.35, cave approach 7.5):**
+
+| switched off | forest | village | cave approach |
+|---|---|---|---|
+| flora | **1.15** | 0.45 | **2.0** |
+| creatures | **0.85** | 0.4 | 0.25 |
+| camera shadows | 0.3 | 0.5 | **1.35** |
+| water | 0.3 | 0.4 (**frame -1.5 ms**) | 0 |
+| colossus + far shadow | 0 | 0 | 0 |
+| particles / ambient / critters | 0.1 | 0.1 | 0 |
+
+**Follow-ups I'd suggest (not done; measure-only job):**
+1. Village water: rerun with -benchnocopies to see whether the opaque/depth copies are the hidden 1.5 ms. Profiler lane, can run next.
+2. Per-frame GC: attribute the 140 allocations a frame to callers (BigFrame-style call stacks on GC.Alloc). Profiler lane.
+3. ColossusWalker 0.43 ms near the cave: check which walker and why. Animal lane.
+
+- Cost (both 11-06 sweeps, q40 + q41): 48 calls, peak 161k context, $4.0
+
+## 2026-11-06 idle sweep (Zach): frames over 33 ms on main adb11e0
+
+**Short answer:**
+- **No frames of 0.5 s or more, no hangs, no crashes, no exceptions** across the v2 route, 6 village spots, the salt colossus walk-up and a host + client join/leave.
+- **One 331 ms frame**: v2 townwalk in Millfield (3253,-857), 89 s into the route. It wasn't repeated in the townwalk capture (worst 37 ms), and the log shows nothing around it. Cause unknown; I'll watch for a repeat.
+- **FaunaDirector.Update is in the slow frames of all 4 captures**: 10-28 ms on those frames against 0.25-0.35 ms normally. It looks periodic, every 1-2 s (fishing village: 1.0, 2.0, 15.1, 17.1 s; salt walk-up: 28.2, 30.2, 32.2 s). This is the biggest main-thread spike in the sweep. **Animal lane** (FaunaDirector is too big and busy for a self-fix).
+- **Join/leave got worse than job 28** (main 6f139d0): the host now logs 60 frames over 33 ms (was 2), worst 43 ms, 1% low 31 fps (was 56). The client logs 26 (was 0). They come about once a second, which fits the FaunaDirector tick (224 animals at the cave).
+- **Fast movement:**
+  - Run: 24 frames of 36-76 ms (job 28: 3); worst 76 ms (was 35), 1% low 22 fps (was 37).
+  - Glide: better than job 28: 23 frames of 34-65 ms (was 64), avg 77 fps (was 59).
+  - Glide slow frames: BuildChunkMeshJob 45 ms on a worker (normally 13), FloraSystem PlaceJob 11 ms, SurfaceGlow ScanJob 8 ms, FaunaDirector 10 ms. Streaming while moving fast is still the open item.
+- **Villages are fine:** v3 fishing villages 1-4 at 92-106 fps with 0-3 frames over 33 ms (worst 40 ms). v2 fishing village 73 fps, desert village 112 fps, salt walk-up 114 fps.
+
+**Method:** q28's sweep, retargeted (q40.sh). Bench build, uncapped, frames over 33 ms logged:
+- the v2 route stops;
+- every v2/v3 fishing village and the v2 desert village, 30 s each;
+- the v3 salt crystal colossus walk-up;
+- a host + client join/leave at the v2 cave.
+
+Then Profile captures (60 fps cap so 2000 frames cover the stop) of townwalk, glide, the v2 fishing village and the salt walk-up, through BigFrame and BProfileTools. The fish wharf run was dropped because -place prop: is broken (#137). Logs: results/q40logs.
+
+| stop | avg fps | 1% low | median ms | worst ms | frames over 33 ms (job 28) |
+|---|---|---|---|---|---|
+| town | 100.0 | 53.1 | 9.9 | 21.9 | 0 |
+| townwalk | 96.4 | 28.0 | 10.0 | 331.1 | 6 (0) |
+| forest | 91.6 | 36.4 | 10.7 | 37.0 | 1 (0) |
+| cave | 171.0 | 44.3 | 5.5 | 30.5 | 0 |
+| lake | 92.6 | 32.5 | 10.6 | 33.5 | 1 (0) |
+| river | 89.8 | 36.7 | 11.0 | 31.0 | 0 |
+| run | 88.4 | 22.2 | 9.8 | 76.3 | 24 (3) |
+| glide | 77.0 | 22.8 | 11.6 | 65.3 | 23 (64) |
+| dash | 89.0 | 40.6 | 11.1 | 29.9 | 0 (1) |
+| join/leave host | 114.1 | 31.1 | 8.5 | 43.3 | 60 (2) |
+| join/leave client | 123.7 | 32.3 | 7.6 | 39.3 | 26 (0) |
+
+- Colossus placements on v3 this build: 12, including the new CinderSnail at (2199,-2575).
+- Cost: included in the audit finding 11 entry above.
+
 ## 2026-11-05 job 34: new shadow defaults (PR #158) vs the old default, main c19e799
 
 **Short answer:**
