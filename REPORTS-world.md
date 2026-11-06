@@ -2808,3 +2808,11 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
 - **Normal detail:** the terrain has no normal map to raise: its relief is procedural. Instead, round a mouth (cut field under 8 m, within 60 m of the camera) the terrain takes the walls' own detail texture at the walls' scale. GPU (editor, vsync-capped) is 0.18 ms off vs 0.13 ms on, which is noise. Frame time 16.76 vs 16.67 ms. Memory: +0, since it reuses the 683 KB cave detail texture that is already loaded.
 - **Shots:** Assets/Temp/shots/w112-mouth{0,4}-{before,after}.png (world tree).
 - **Risks:** the grain round a mouth reads quite strong on a steep rock face. It can be tuned (the `mouth * 0.7` weight in TerrainSurface.shader).
+
+## W-112 row 2: far shadows - done (verified, effect soft)
+- **Commit:** see `git log` on world-features ("W-112 row 2").
+- **Cause:** the cached far shadows (#156/#158) stopped at 50 m, so trees past that cast nothing at all. They also darkened by only 0.42 x the sun's shadow strength. Now: CacheRange is 120 m, and a new `CacheDarkness` option (0.62, `-shadowcachedark`) is about what a real-time shadow takes at midday. Both can be flipped at runtime for A/B.
+- **Numbers (editor, vsync-capped):** GPU 0.11 ms old vs 0.16 ms new (noise level). Frame time 16.81 vs 16.82 ms. Instances 12667 vs 14243: more trees cast into the cache, which redraws only on sun or camera moves. Cache memory is unchanged (1024 square).
+- **Check:** at a forest edge over a lake, 25% of the ground band is darker with the new settings, by 0.09 brightness on average.
+- **Shots:** Assets/Temp/shots/w112-shadow-{before,after}.png (aerial), w112-shadowlow-{old,new}.png (low, same frame A/B).
+- **Risks:** it still reads soft in the shots, because the weather keeps the sun's shadow strength at 0.64 even with Clear forced. Under the crowns the floor is mostly canopy shade already. If Zach wants it stronger, try `-shadowcachedark 0.8` before any code change.
