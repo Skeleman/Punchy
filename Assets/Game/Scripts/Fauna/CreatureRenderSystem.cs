@@ -1584,7 +1584,10 @@ namespace Punchy.Fauna
                     k++;
 
                 // A hat: a straw hat, wide-brimmed, for outdoor work; a fisher's floppy one. (Under it, the hair stays.)
-                if (head >= 0 && baker)
+                // (A-77: never on cave folk, pygmies and bat folk, who go bareheaded.)
+                if (b.CaveDweller)
+                    k += 2;
+                else if (head >= 0 && baker)
                 {
                     // A baker's cap: a soft white crown, no brim.
                     var h = Output[offset + head];
@@ -2288,7 +2291,8 @@ namespace Punchy.Fauna
 
                 // The helmet, its folk's shape (the hair under it hidden: whatever grows from the top of the head, not
                 // beards and moustaches below).
-                if (head >= 0 && k + 4 <= GuardParts)
+                // (A-77: cave folk, pygmies and bat folk, go bareheaded, ears and all.)
+                if (head >= 0 && k + 4 <= GuardParts && !b.CaveDweller)
                 {
                     for (int i = 0; i < b.Parts.Length; i++)
                     {

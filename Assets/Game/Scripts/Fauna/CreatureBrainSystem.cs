@@ -50,6 +50,9 @@ namespace Punchy.Fauna
         /// <summary>#12 A/B switch ("-oldwander"): unhurried walkers ease their speed down while turning, as before A-46.</summary>
         public static readonly Unity.Burst.SharedStatic<int> OldWander = Unity.Burst.SharedStatic<int>.GetOrCreate<OldWanderKey>();
         struct OldWanderKey { }
+        /// <summary>A-77 A/B switch (eval only): 1 walks straight into colossi as before (ColossusPushSystem still pushes out).</summary>
+        public static readonly Unity.Burst.SharedStatic<int> ColossusSteerOff = Unity.Burst.SharedStatic<int>.GetOrCreate<ColossusSteerOffKey>();
+        struct ColossusSteerOffKey { }
         /// <summary>#12 A/B switch ("-oldplay"): a playing runner re-aims freely every frame, as before A-46b.</summary>
         public static readonly Unity.Burst.SharedStatic<int> OldPlay = Unity.Burst.SharedStatic<int>.GetOrCreate<OldPlayKey>();
         struct OldPlayKey { }
@@ -372,11 +375,25 @@ namespace Punchy.Fauna
             // holds over a hundred, so a few busy chunks left most workers idle while one or two ran on).
             var thinking = thinkers.ToEntityArray(Allocator.TempJob);
             Shelters.Data.ThisFrame = 0;   // (A-71: the shelter search cap is per frame)
+            // A-77: last frame's colossus columns (ColossusPushSystem hands them over), taken here and freed after the job.
+            var colossi = SystemAPI.TryGetSingletonRW<ColossusSnapshot>(out var colossusSnap) ? colossusSnap.ValueRO : default;
+            if (colossi.Circles.IsCreated)
+                colossusSnap.ValueRW = default;
+            else
+                colossi = new ColossusSnapshot
+                {
+                    Columns = new NativeArray<ColossusCylinder>(0, Allocator.TempJob),
+                    Circles = new NativeArray<float3>(0, Allocator.TempJob),
+                    Ranges = new NativeArray<int2>(0, Allocator.TempJob)
+                };
 
             state.Dependency = new BrainJob
             {
                 Terrain = terrain,
                 Footprints = footprints,
+                ColossusColumns = colossi.Columns,
+                ColossusCircles = colossi.Circles,
+                ColossusRanges = colossi.Ranges,
                 SpreadTicks = spreadTicks,
                 Timed = SpreadOn.Data != 0,
                 Flora = hasFlora ? flora.Blob : default,
@@ -408,6 +425,9 @@ namespace Punchy.Fauna
                 BodyRO = SystemAPI.GetComponentLookup<CreatureBody>(true)
             }.Schedule(thinking.Length, BrainBatch, state.Dependency);
             thinking.Dispose(state.Dependency);
+            colossi.Columns.Dispose(state.Dependency);
+            colossi.Circles.Dispose(state.Dependency);
+            colossi.Ranges.Dispose(state.Dependency);
             hunters.Dispose(state.Dependency);
             entities.Dispose(state.Dependency);
             states.Dispose(state.Dependency);
@@ -460,6 +480,11 @@ namespace Punchy.Fauna
             public TerrainSource Terrain;
             /// <summary>A-70: buildings' and landmark props' walls, placed once (Walled and BuildingSink ask it).</summary>
             public BuildingFootprints Footprints;
+            /// <summary>A-77: the colossi's columns, each colossus's circle (xy centre, z reach) and its run of columns
+            /// (ColossusCollision.Snapshot, a frame old): Steer bends a ground walker's way round them.</summary>
+            [ReadOnly] public NativeArray<ColossusCylinder> ColossusColumns;
+            [ReadOnly] public NativeArray<float3> ColossusCircles;
+            [ReadOnly] public NativeArray<int2> ColossusRanges;
             /// <summary>A-70 row 2 (-perflog): each worker's busy ticks, first start and last end (ThreadIndex * 3).</summary>
             [NativeDisableParallelForRestriction] public NativeArray<long> SpreadTicks;
             public bool Timed;
@@ -1463,6 +1488,79 @@ namespace Punchy.Fauna
                 }
             }
 
+            /// <summary>
+            /// A-77 (#19): the way to the target ("to") bent round a colossus's columns in it, so a walker goes round a
+            /// colossus rather than pressing into it (ColossusPushSystem only pushes it back out, and it walked in again
+            /// for ever). From outside a colossus's circle it aims along the circle's tangent, one smooth bend round the
+            /// whole thing; inside it, it slides past the nearest column in the way, on the side away from it. A wanderer
+            /// whose spot is inside the colossus settles where it is instead of circling a column for it.
+            /// </summary>
+            float2 AroundColossi(ref CreatureState s, ref CreatureBlob b, float2 to)
+            {
+                var dist = math.length(to);
+                if (dist < 0.1f)
+                    return to;
+                var dir = to / dist;
+                var xz = s.Position.xz;
+                var radius = 0.4f * s.Scale + 0.25f;   // (ColossusPushSystem's body, and a little room)
+                var look = math.min(dist + radius, math.max(3f, s.Speed * 1.5f) + radius);
+                var hitGroup = -1;
+                var hitAlong = float.MaxValue;
+                var hitSide = 0f;
+                var hitOff = float2.zero;
+                var hitMin = 0f;
+                for (int g = 0; g < ColossusCircles.Length; g++)
+                {
+                    var c = ColossusCircles[g];
+                    var near = c.z + radius + look + 4f;
+                    if (math.distancesq(xz, c.xy) > near * near)
+                        continue;
+                    for (int k = ColossusRanges[g].x; k < ColossusRanges[g].x + ColossusRanges[g].y; k++)
+                    {
+                        var col = ColossusColumns[k];
+                        // (As the push: a column under its feet less a step, or above its head, isn't in its way.)
+                        if (s.Position.y + 0.5f * s.Scale > col.Base.y + col.Height || s.Position.y + 1.6f * s.Scale < col.Base.y)
+                            continue;
+                        var off = col.Base.xz - xz;
+                        var min = col.Radius + radius;
+                        var along = math.dot(off, dir);
+                        if (along < -min * 0.5f || along > look + min)
+                            continue;
+                        var side = dir.x * off.y - dir.y * off.x;   // (> 0: the column is to the left of the way)
+                        if (math.abs(side) >= min || along >= hitAlong)
+                            continue;
+                        hitGroup = g; hitAlong = along; hitSide = side; hitOff = off; hitMin = min;
+                    }
+                }
+                if (hitGroup < 0)
+                    return to;
+
+                var circle = ColossusCircles[hitGroup];
+                var fromCentre = xz - circle.xy;
+                var centreDist = math.length(fromCentre);
+                var round = circle.z + radius + 1f;
+                var targetInside = math.distance(s.Target, circle.xy) < round;
+                // A wanderer's spot in the colossus, or behind the very column it's at: settle here.
+                if (s.Mode == CreatureMode.Wander && (targetInside || math.distance(s.Target, xz + hitOff) < hitMin + 0.3f) && hitAlong < hitMin + 1.5f)
+                {
+                    s.Target = xz;
+                    return float2.zero;
+                }
+                // Outside the circle, bound beyond it: along the tangent on the target's side.
+                if (centreDist > round + 0.5f && !targetInside)
+                {
+                    var toCentre = -fromCentre / centreDist;
+                    var turn = math.asin(math.saturate(round / centreDist)) * (toCentre.x * dir.y - toCentre.y * dir.x >= 0f ? 1f : -1f);
+                    math.sincos(turn, out var sin, out var cos);
+                    var tangent = new float2(toCentre.x * cos - toCentre.y * sin, toCentre.x * sin + toCentre.y * cos);
+                    return tangent * dist;
+                }
+                // Close in: slide past the column, to the side away from it (head-on, the creature's own side).
+                var away = math.abs(hitSide) > 0.05f ? math.sign(hitSide) : (s.Seed & 1u) == 0u ? 1f : -1f;
+                var slide = math.normalize(away > 0f ? new float2(hitOff.y, -hitOff.x) : new float2(-hitOff.y, hitOff.x));
+                return slide * dist;
+            }
+
             /// <summary>Turning and moving by itself (not climbing, flying or the like): turn to the target, keep off water, cliffs and solids, then Advance.</summary>
             void Steer(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, bool moving, bool urgent, float targetSpeed, bool flier, bool perched, float walk, float run)
             {
@@ -1475,6 +1573,10 @@ namespace Punchy.Fauna
                 // the spot at its full turn rate, Z-07.)
                 // (A cave walker under the rock goes by its passage, node by node, not straight through the rock: A-69.)
                 var to = (moving && b.CaveDweller && !b.Crawls && Below(s, ref b) ? PassageWay(s.Position, s.Target) : s.Target) - s.Position.xz;
+                // (A-77: a ground walker's way bent round any colossus in it, standing or walking.)
+                if (moving && ColossusCircles.Length > 0 && ColossusSteerOff.Data == 0 && s.Fly < 0.5f && !b.Tunnels &&
+                    !(b.CaveDweller && Below(s, ref b)))
+                    to = AroundColossi(ref s, ref b, to);
                 if (moving && math.lengthsq(to) > 0.01f)
                 {
                     var wanted = WrapAngle(math.atan2(to.x, to.y) - s.Yaw);
