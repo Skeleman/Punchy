@@ -132,7 +132,8 @@ namespace Punchy.Ambience
         readonly Dictionary<float3, int> fallLoops = new Dictionary<float3, int>();
         readonly List<float3> fallGone = new List<float3>();
         readonly List<(float3 at, float d, float volume, float reach)> fallHeard = new List<(float3, float, float, float)>();
-        string lastFallLog;
+        // The last logged (sources, falls drawn, max distance): the log string is only built when one changes (W-117 GC).
+        int3 lastFallLog = new int3(-1);
 
         /// <summary>
         /// A fall's loudness and reach from its drop: 0.45 at 2 m up to 1.0 at 14 m and over; heard 40 m out, 60 m at 14 m,
@@ -188,11 +189,11 @@ namespace Punchy.Ambience
                 else
                     Punchy.Audio.GameAudio.MoveLoop(handle, h.at, h.volume);
             }
-            var log = $"[falls] sound sources {fallHeard.Count} (of {falls.Count} falls drawn), max distance {maxReach:F0} m";
-            if (fallHeard.Count > 0 && log != lastFallLog)
+            var logged = new int3(fallHeard.Count, falls.Count, (int)math.round(maxReach));
+            if (fallHeard.Count > 0 && !logged.Equals(lastFallLog))
             {
-                lastFallLog = log;
-                Debug.Log(log);
+                lastFallLog = logged;
+                Debug.Log($"[falls] sound sources {fallHeard.Count} (of {falls.Count} falls drawn), max distance {maxReach:F0} m");
             }
         }
 

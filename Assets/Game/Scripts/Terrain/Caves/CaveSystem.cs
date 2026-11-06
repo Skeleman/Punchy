@@ -1377,6 +1377,10 @@ namespace Punchy.Terrain
             landmarkPoolsFrom = default;
         }
 
+        // The frame timer and its section marks, reused so Update allocates nothing (W-117 GC).
+        readonly System.Diagnostics.Stopwatch frameClock = new System.Diagnostics.Stopwatch();
+        readonly double[] frameMarks = new double[8];
+
         void Update()
         {
             var cam = Camera.main;
@@ -1391,7 +1395,8 @@ namespace Punchy.Terrain
                 lastSource = source;
             }
             var camPos = (float3)cam.transform.position;
-            var clock = System.Diagnostics.Stopwatch.StartNew();
+            var clock = frameClock;
+            clock.Restart();
             DrawLandmarkPools(source, camPos);
             GatherSurfaceGlow(source, camPos);
             if (!source.Caves.IsCreated)
@@ -1400,7 +1405,7 @@ namespace Punchy.Terrain
                 return;
             }
 
-            var marks = new double[8];
+            var marks = frameMarks;
             marks[0] = clock.Elapsed.TotalMilliseconds;
             UploadStyles();
             marks[1] = clock.Elapsed.TotalMilliseconds;
