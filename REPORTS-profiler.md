@@ -2,6 +2,26 @@
 
 Newest first.
 
+## 2026-11-06 Millfield townwalk big frame: not reproduced in the Profile build, main 781fa5a
+
+**Short answer:**
+- **4 Profile sessions of the v2 townwalk, none over 36 ms** (worst 33.4-35.8 ms). So there is no capture of the big frame.
+- Over all runs so far, the frame shows **only in the Bench (release) build**: 2 of 3 Bench sessions (q40 331 ms, q46 418 ms), 0 of 5 Profile sessions (q40's townwalk capture plus these 4).
+- **Both hits were at exactly the same spot: (3253,10,-857), on the east side of Millfield.** The route times differed (89.3 s and 59.9 s), so the trigger is the camera position, not time.
+- **The log shows nothing loading at that moment.** Around the 418 ms frame there are only FolkChat lines and routine [farshadow] timings. No [stream] batch, bake, dungeon or rig line.
+- It fits **something that runs once when the camera crosses a threshold near there and finishes faster in the Profile build's timing, or overlaps a background job differently.**
+  - One candidate is position based: SurfaceGlow's far map, the same system as the quit crash. It rescans when the camera has moved MoveBeforeFarRescan from the last scan, and uploads two textures on the main thread when the scan lands.
+  - That's a guess, not shown.
+- **Quit crash:** not seen in these 4 Profile runs (q46 hit it once).
+
+**Next options (your call):**
+1. **Bench timing probe:** a few more Bench sessions with the runner logging, on any frame over 200 ms, which known per-frame systems ran long. The bench runner can read the game's own stopwatch fields (CaveSystem's slow-frame marks, SurfaceGlow.FarScanMs, the stream batch timings) without a profiler. That's runner-only tooling, my lane.
+2. Ask the world lane what sits or streams in at (3253,-857) on v2 (east Millfield).
+3. Park it: it's once per walk, at one spot, and only in release timing.
+
+**Method:** Profile build of 781fa5a, v2 route stop townwalk alone, uncapped, the last 2000 frames of each stop captured. The route log's worst frame covers the whole stop. BigFrame listed frames over 100 ms (none). Script: q47.sh. Logs: results/q47logs.
+- Cost: 6 calls, peak 250k context, $0.6
+
 ## 2026-11-06 FaunaDirector recheck after PR #172 (time-sliced comfort refresh), main 781fa5a: fixed; plus a shutdown crash
 
 **Short answer:**
