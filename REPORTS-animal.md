@@ -2619,3 +2619,15 @@ Commit 59f4082 on animal-behaviours.
 - Fauna_Fingerprint is still F4E66093.
 - **Note:** GiantSpider (DeepChamber, Temperate only) never got picked on v3.
 - **A-80 suite:** WorldTests 9 passed, 0 failed in 172 s. Landmarks 110 09EAC0FE, fingerprint F4E66093.
+
+## A-81 row 1 (2026-11-06): colossus definitions and the StoneColossi split, done (verified)
+
+Commit c98e94e on animal-behaviours.
+
+- **ColossusDefinition assets** (Resources/Colossi, 16 assets: 13 primaries in placement order plus the 3 `-colossus` swaps) replace the parallel Kinds/Biomes/Salts/KeepRadius/Casts arrays. Every salt is copied unchanged.
+- **Split:** one `StoneColossi.<Kind>.cs` partial per builder (16). The core StoneColossi.cs is 27.9 KB (the limit was 40 KB).
+- **Design note** (StoneColossi.cs remarks): to add a 14th colossus, append a Kind enum word (never reorder: assets store the number), add a `StoneColossi.<Kind>.cs` builder that registers itself, and add a definition asset with its own salt (plus a Gait line in ColossusWalker if it walks). The enum word is the one code edit left.
+- **Positions:** all 13 are the same before and after: KneelingTitan (-1990,177.9,1321), HalfBuriedHead (1716,23.0,2493), GiantTortoise (-1502,2.8,-2769), RockGolem (707,48.8,-329), CarnivorousPlant (-53,34.3,516), SkeletalLizard (-515,26.3,-2477), WalkingSaguaro (2925,14.6,-1710), SaltCrystal (3702,7.3,-917), MesaTortoise (2026,141.8,1344), GlassHeron (2629,10.6,2034), LanternStag (-2637,110.1,-320), CinderSnail (2199,14.2,-2575), MireWalker (-1846,133.9,135). The 8 walkers walk the same loops.
+- Fauna_Fingerprint is still F4E66093 (this branch is from before PR #170).
+- **Shared file:** this row is not additive in Flora/FloraPlacement.cs, as the card asked. The four fixed keep-out statics are replaced by one `ColossusKeepOut` SharedStatic list (room for 31), filled through `FloraPlacement.SetKeepOut(slot, circle)`. ColossusWalker now finds its slot from `StoneColossi.Placed`, and ColossusRig picks the rig from the definition's rig type.
+- **Shots:** `a81a-saguaro` and `a81a-crystal` in Assets/Temp/shots; both colossi are built and in place.
