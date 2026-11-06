@@ -2971,3 +2971,32 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
   `-goto 1558,8,-2691`, ruin `-goto -238,9,-3204`.
 - Pins: Landmarks_V3 111 3BDF705F and Fauna_Fingerprint 8A1979F1 pass, unchanged. Cave hash 9A3D3E91E47A0F21 (as row 2).
 - Shot: Assets/Temp/shots/w115r3-ruin-inside.png (the ruin room in play, its chest placeholder in the middle).
+
+## W-110 row 1 — road tunnels: done (verified)
+- Commit 32aa839 on world-features (pushed). RoadBaking looks for the steepest crest stretches of existing roads
+  and bores them at a straight grade. Roads don't move. Only the roofed core (at least 4 m of cover, at least 10 m long)
+  becomes a `TunnelRoad`; the rest stays a cutting. A portal opens only onto a cutting, never straight onto a bridge.
+  CaveBaking.Tunnels then adds one cave per bore after all the natural caves. The road surface carries through,
+  with 1.5 m of passage past each portal so the mouth stays full width. Short bores (under 25 m) are always dark.
+  The others roll for lamps every 7-13 m (30% hung in pairs), and some also get timber frames.
+- 3 tunnels on v3:
+  - cave 25 at (2053, 7, -1535): 19 m, dark.
+  - cave 26 at (-1870, 129, 118): 44 m, lamps and frames.
+  - cave 27 at (-2023, 265, 713): 30 m, lamps.
+- Walk check, portal to portal plus 6 m past each end:
+  - largest step 0.23 m (limit 0.45);
+  - least head room 1.9 m (cave 27), 2.1 m (cave 25) and 2.2 m (cave 26).
+- Render inside the framed tunnel: URP camera 3.75 ms, render thread 2.5 ms, main thread 8.2 ms, at the 16.7 ms
+  vsync frame.
+- Cave hash:
+  - before: 9A3D3E91E47A0F21 (25 caves, 358 nodes);
+  - after: C65CDFB8DDB8D0C1 (28 caves, 384 nodes). The 3 tunnels are added; natural caves, pools (13) and
+    speleothems (443) are unchanged.
+- Unchanged:
+  - cave socket hash 567CEA4C (tunnels have no sockets);
+  - bat folk pick: cave 5, chamber r 15.3 (tunnels have no chambers);
+  - pins Landmarks_V3 111 3BDF705F and Fauna_Fingerprint 8A1979F1 both pass, so no landmark moved;
+  - world ready 39.7 s (39.5 before).
+- Note for fauna: FaunaDirector den visitors and AnchorBaking loop over every cave, so they also see tunnels.
+  To exclude tunnels, filter on `CaveData.Tunnel != 0` (fauna-lane files, not touched).
+- Shot: Assets/Temp/shots/w110-tunnel-framed-inside.png (cave 26, lit and framed, daylight at the far portal).
