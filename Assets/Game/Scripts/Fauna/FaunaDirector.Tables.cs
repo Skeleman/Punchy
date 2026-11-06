@@ -131,6 +131,20 @@ namespace Punchy.Fauna
             var dungeon = SpawnTable.Load("Dungeon");
             UnityEngine.Debug.Log($"[spawn tables] rows: Overworld {(overworld != null ? overworld.Rows.Count : 0)}, " +
                                   $"Dungeon {(dungeon != null ? dungeon.Rows.Count : 0)}, Cave {caveTable.Rows.Count}");
+            // (The biomes the caves open in, which the cave rows' Biomes key on.)
+            var mouths = new SortedDictionary<string, int>();
+            for (int c = 0; c < set.Caves.Length; c++)
+            {
+                if (set.Caves[c].NodeCount < 2)
+                    continue;
+                var id = source.SampleGround(set.Caves[c].Mouth.xz).Biomes.Dominant();
+                var biomeName = id >= 0 && id < biomes.Length && biomes[id] != null ? biomes[id].name : "none";
+                mouths[biomeName] = (mouths.TryGetValue(biomeName, out var count) ? count : 0) + 1;
+            }
+            var mouthList = new System.Text.StringBuilder();
+            foreach (var kv in mouths)
+                mouthList.Append($" {kv.Key} {kv.Value}");
+            UnityEngine.Debug.Log($"[spawn tables] cave mouths by biome:{mouthList}");
             foreach (var time in new[] { DayPhase.Day, DayPhase.Night })
             {
                 var spots = new int[5];
