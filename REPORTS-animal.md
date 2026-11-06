@@ -2493,3 +2493,43 @@ Perf with each one awake (180-frame -perflog):
 - Rock golem: black basalt colours. It reads dark brown-black next to the white lightning.
 - Render ms: 1.47 to 2.15 (gpu 0.17 to 0.24) across the shots.
 - WorldTests suite after fdfa58a: 9 passed, 0 failed. Landmarks 110 09EAC0FE, unchanged. Fauna_Fingerprint F4E66093, unchanged. Editor closed.
+
+## A-78 (animal), rows 1-2
+
+### Row 1: cave folk on v3, done (verified)
+- Fix 7a9d026: `-incave` / `-place batfolk` now re-place the player each time v3 locations change (180 s window), so the player lands in the bat folk chamber instead of the open.
+- Natural v3 spawns from the log: CavePygmy 3 in all (1 homed at a wall niche); BatFolk 1 chamber band, 6 in all (chamber 0, cave 5, r 15). With `-spawn CavePygmy:4 -spawn BatFolk:4` the framing probe finds CavePygmy n 7 and BatFolk n 9 in the chamber.
+- Shots (Assets/Temp/shots): folk-p is a bareheaded grey cave pygmy with a spear, from about 6 m. folk-a is a bareheaded bat folk at about 7 m, saying "Too bright... too bright...". folk-bf is blocked by a hide door panel, so use folk-a for bat folk.
+- Risk: the framing camera comes in from above and behind. These are not face portraits.
+
+### Row 2: next colossus (#40), CinderSnail in EmberForest, done (verified)
+- Commit ff9e4d6 (StoneColossi.cs, ColossusWalker.cs).
+- Biome list, % of land, then colossus:
+  - Temperate 11.3: head
+  - Ashlands 12.2: lizard
+  - Mountains 10.5: titan
+  - SparklingForest 8.0: stag
+  - FungalForest 7.8: tortoise
+  - EmberForest 6.9: none, so the CinderSnail goes here (new)
+  - MesaCanyonlands 6.9: mesa tortoise
+  - Tundra 6.4: titan
+  - ElectricWastelands 6.4: golem
+  - Glacier 4.0: titan
+  - Dunes 3.9: DunesColossus
+  - Grassland 3.6: head
+  - Sonoran 3.6: saguaro
+  - FoggyMarsh 2.2: none
+  - SaltFlat 1.9: crystal
+  - GlassDesert 1.8: heron
+  - PoisonSwamp 1.5: plant
+  - Ocean 1.1: none
+  - Volcano 0.0: none
+- EmberForest was the largest biome without a colossus (Ashlands left out).
+- The giant: a snail with a coiled cooled-lava shell (2.6 turns), ember seams and crust lumps, a flared lip with fire mushrooms, ember eyes on tall stalks, and an ember-glinting skirt. Details: a smoking vent with a crow, a charred tree with roots and ember leaves, a baby snail, and a rope ladder with one slat missing. The eyes and seams glow within 450 m.
+- Placed at (2199, 14.2, -2575), facing 32 degrees. It walks a 255 m loop at 0.4 m/s using A-77 steering: 120 s walking, then 60 s resting. Flora is kept 70 m out. Default box collision, far shadow cast (36, 16).
+- Render: cs-far 1.64 ms (frame 16.78, cpu main 7.05, gpu 0.23); cs-near 1.57 ms (frame 16.67, cpu main 6.09).
+- Fauna_Fingerprint F4E66093 (unchanged).
+- Shots (Assets/Temp/shots): cs-far (250 m, the shell over the red pines, with smoke), cs-near (48 m), and a strip of cs-near, cs-s1 and cs-s2.
+- Risk: the strip is weak. `-walkershot` only frames the first shot, so after that the camera falls back to the player. cs-s1 has the whole snail; cs-s2 has only its edge.
+- Fix in the reshoot: the shell first floated about 3.5 m above the foot. I lowered the coil axis from 17 to 13.5 and added a mantle under the shell.
+- Suite: WorldTests 9 passed, 0 failed (199 s); landmarks 110 09EAC0FE (unchanged).
