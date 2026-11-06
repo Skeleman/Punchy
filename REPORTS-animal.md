@@ -2539,3 +2539,40 @@ Perf with each one awake (180-frame -perflog):
 - New flag `-shotcam x,y,z,tx,ty,tz` (shot lists / PlayArgs). It pins the camera at x,y,z, looking at tx,ty,tz, for every frame of every later shot until `-shotcam off`. It runs after the other shot helpers, so it wins over `-walkershot`. `-walkershot` can still sit on the same lines to keep the player (and the streamed ground) near the subject. The usage line is in the DebugControls help comment.
 - Normal play is unchanged: the flag is set only in ApplyOptions, and ShotCam does nothing while it is off.
 - Snail strip retake: `-shotcam 2199,48,-2715,2199,22,-2575`, 30 s apart, walking. Shots a79-cs-s1, a79-cs-s2 and a79-cs-s3 (Assets/Temp/shots) have the whole snail in every frame, creeping slowly across the frame at 0.4 m/s.
+
+## A-79 row 2 - FoggyMarsh colossus: the mire walker (#40) - commit d55718a
+
+**Design:** the thirteenth colossus, a hunched marsh giant built in the existing colossus style. It has:
+- 22 mangrove prop roots, each with a mud mound and rootlets
+- a body and hump covered in a moss sheet, 34 strands of beard moss, and shelf fungi
+- a long mossy skull on a neck, with an open jaw and two glowing fog eyes
+- dead-branch antlers draped in beard moss, with a rusty lantern hanging from the right one (glows)
+- a heron standing on the hump, and a reed shrine with a candle (glows)
+- a snagged fishing net with a fish in it
+- mist puffs and firefly puffs round the roots
+
+**Placement and movement:**
+- It is placed in FoggyMarsh only, at about (-1846, 134, 135), facing 350 degrees (region 21 cells, relief 7.2).
+- It walks a 230 m loop round (-1804, 145) at 0.6 m/s using A-77 steering (radius 36, 5 shrinks). It has no rig: it glides on its root skirt with a small bob and a camera shake.
+- It has box collision and a far shadow (44 x 18).
+- Flora is kept 61 m clear of it.
+
+**Shared file (additive only):** the existing 12 keep-out slots were full, so I added a fourth static, `KeepOutFinal` (slots 12-15), and a matching loop in `Flora/FloraPlacement.cs` Place. It is wired into StoneColossi and ColossusWalker. **The world feature manager needs to be told**, since they own that file.
+
+**Perf:**
+
+| Shot | Render | Frame | CPU main | GPU |
+|---|---|---|---|---|
+| far | 2.34 ms | 16.87 ms | 7.50 ms | 0.26 ms |
+| near | 2.13 ms | 16.84 ms | 7.05 ms | 0.26 ms |
+
+Brain is about 1.0 to 1.3 ms. Fauna_Fingerprint is F4E66093 (unchanged). No compile errors.
+
+**Shots (in Assets/Temp/shots):**
+- `a79-mw-s1..s3`: the 3-frame strip, taken with `-shotcam -1804,192,30,-1804,150,145`. The whole giant is in every frame, moving left across its clearing, with mist at the roots.
+- `a79-mw-face`: a close, low view of the roots and neck.
+- `a79-mw-far` and `a79-mw-near`: tree canopy blocks the view, because the walker-shot camera sits inside the forest. A retake from a `-shotcam` vantage is queued. Until then, use s1 as the far shot and face as the near one.
+
+**Risks:**
+- The fog is weak in daylight, so it reads as mist round the roots, not as the giant looming out of fog.
+- The marsh spot is at 134 m height. The giant is clear of the water mesh.
