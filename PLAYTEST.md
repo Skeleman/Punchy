@@ -33,3 +33,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 | #8 | Folk greet, eye or avoid you depending on your race | Any village, try 2 races | PR #157, 2026-11-05 |
 | #131 | Fire look (you plan to tweak it later) | Ember Forest at night | PRs #152, #153 |
 | #62 | Mantrap bite still shoves you back; colossi and mantraps appear as before after world load | Dunes, Stone colossus area | PR #177, 2026-11-06 |
+| #40 | New colossi: Tundra snow worm, Temperate walking oak (rope swing, owl, saplings in its footprints); mire walker fog visible by day | Tundra, Temperate, Foggy marsh | PR #180, 2026-11-06 |
