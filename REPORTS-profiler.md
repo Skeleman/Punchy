@@ -2,6 +2,13 @@
 
 Newest first.
 
+## 2026-11-06 q50e: after Zach's reboot (13:29) the capped 0.5 s present waits are gone
+
+- Bench build of 2049f8c, run stop, back to back (q50e.sh): **capped at 60, 3 of 3 sessions clean** (avg 59.0-59.2 fps, worst 29.7-34.3 ms, no hitch over 100 ms); uncapped 2 of 2 clean (avg 119-120 fps, worst 22-32 ms). Before the reboot the same build stalled 494-533 ms in 6 of 6 capped sessions.
+- So it was machine state on this laptop since about 08:00-09:45 that a restart cleared (Zach found nothing unusual on screen). Not code. Cause still unknown; if 0.5 s DXGI.WaitOnSwapChain frames come back in capped runs, try an uncapped run and a restart before bisecting.
+- q49's four waits were this too; no player-side action unless it is seen on another machine.
+- Cost: 8 calls, peak 60k context, $0.4
+
 ## 2026-11-06 q50: the 0.5 s present waits come from the 60 fps frame cap on this laptop since this morning, not from any code change
 
 **Short answer:**
