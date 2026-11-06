@@ -2426,3 +2426,48 @@ Runner-up: give the DrownedKnight its own slot in FoggyMarsh, rising slowly from
 - Shot: g-mast2, a gull on a buoy mast at (408.6, 1.2, -605.2).
 - Risk for the world lane: in that shot the buoy floats right beside a stilt house's piles. The buoys "off the far end" can land under neighbouring stilt houses.
 - Suite: 13 passed, 0 failed. Fauna_Fingerprint F4E66093, unchanged: the A-75 changes are behaviour, a walker and spot code, with no species or creature data. Landmarks 110 09EAC0FE, unchanged.
+
+## A-76 rows 1 and 2 (glass heron, lantern stag) - done (verified)
+
+- Commit 295681a on animal-behaviours. Merged origin/main afterwards as bfb1393 (brings #162), then pushed. Only three files changed: StoneColossi.cs, ColossusWalker.cs and ColossusRigs.cs, all LF.
+- New StoneColossi slots: 9 GlassHeron (salt 0x6E70) and 10 LanternStag (salt 0x57A6). The nine existing colossi are at the same positions before and after.
+
+| Slot | Position | Facing | Region | Relief | Nearest town |
+|---|---|---|---|---|---|
+| GlassHeron | (2629, 10.6, 2034) | 68 | 24 cells | 3.8 m | settlement 1 (type 3), 2940 m |
+| LanternStag | (-2637, 110.1, -320) | 51 | 138 cells | 5.3 m | settlement 5 (type 20), 1180 m |
+
+- Walkers use the ColossusWalker spot and root hooks, walker collision, look-at-player and in-range dust.
+
+| Walker | Loop | Radius | Flora kept out |
+|---|---|---|---|
+| Heron | 287 m | 45 m | 62 m |
+| Stag | 415 m | 65 m | 89 m |
+
+- ColossusZones now hold the four nearest moving walkers, not the first four.
+- HeronRig (10830 verts): wades with long rests and stabs at the sand every 9 s while resting. A new walker phase, "stab", holds the stab for shots.
+- StagRig (19440 verts): grazes while resting. The antler lanterns are FireSystem flames plus CaveSystem moving lights, faint by day and brighter at night (DayNightCycle.Night). They are cosmetic and local.
+
+Perf with each one awake (180-frame -perflog):
+
+| Shot | Brain ms | Frame ms | Main ms | Render ms | GPU ms | Creatures |
+|---|---|---|---|---|---|---|
+| h-far | 0.218 | 16.79 | 6.64 | 2.46 | 0.21 | 47 |
+| h-look | 0.231 | 17.03 | 6.48 | 1.75 | 0.23 | 54 |
+| s-day | 1.303 | 16.77 | 6.52 | 1.90 | 0.18 | 134 |
+| s-night | 1.450 | 16.77 | 6.72 | 1.83 | 0.19 | 131 |
+
+- Shots: h-0/h-1/h-2 (walk strip), h-stab, h-look, h-far; s-0/s-1/s-2 (walk strip), s-day, s-night, s-look. Contact sheet: sheet.png.
+- Weak points:
+  - Both walk strips are 1.5 s apart, so the motion is subtle; the stag's legs barely change between frames.
+  - At night the lanterns read as small warm points from that shot's distance (about 60 m). A brighter flame or a closer night shot would sell it better.
+- WorldTests suite: 9 passed, 0 failed.
+  - Landmarks 110 09EAC0FE, unchanged.
+  - Fauna_Fingerprint F4E66093, unchanged. The colossi are StoneColossi slots, not fauna species, so no species or creature data changed.
+- The landmark bake log's own hash (CE5EB4D9) is the same as in earlier logs. It is a different measure from the test's probe hash.
+## A-77 row 1 (items 19, 20) - 419554b on animal-behaviours - PARTLY VERIFIED
+- Code: creatures steer round colossi, both static and walking. ColossusPushSystem fills a ColossusSnapshot singleton that the Burst brain job reads, one frame late. Steer has a new AroundColossi step: tangent round a walker's circle, slide off a static column, and wanderers pick a new goal. A SharedStatic switch (ColossusSteerOff) gives a before/after toggle. Pygmies and bat folk (CaveDweller) get no hat and no guard kit. Compiles clean.
+- Brain ms: 0.357 (60 creatures), 0.607 (104), 0.687 (105). Same range as before.
+- Stuck-at-colossus count: NOT MEASURED. The 2 min probe at the golem and saguaro read 0 near / 0 stuck both off and on, because no creatures were near the walkers. A rerun needs creatures spawned inside the walk loop (-spawn ... -spawnradius 30).
+- Bareheaded shot: FAILED. folk-a framed a boulder at a cave mouth with no folk in view. Needs a retake with the folk spawned in front of the camera.
+- Row 2 (plant, heron, saguaro, golem) not started. Out of call budget. The plan is in the hand-back.
