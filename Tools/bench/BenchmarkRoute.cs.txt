@@ -24,7 +24,18 @@ namespace Punchy.Debugging
     /// </summary>
     public class BenchmarkRoute : MonoBehaviour
     {
-        const float Settle = 10f, Measure = 20f;
+        // b/fix-stall-hang: one FrameTimingManager capture per frame at most. The route and BenchTune (and its sweep)
+        // each called it, up to 3 times a frame; only sessions doing that showed recurring ~0.5 s frames and hangs.
+        static int timingsFrame = -1;
+        public static void CaptureTimingsOnce()
+        {
+            if (Time.frameCount == timingsFrame)
+                return;
+            timingsFrame = Time.frameCount;
+            FrameTimingManager.CaptureFrameTimings();
+        }
+
+        const float Settle = 10f, Measure = 20f, MaxCaveSettle = 30f;
         // Approach walks: start this far out, at walking pace, so settling plus measuring ends about 100 m short.
         const float ApproachFrom = 400f, ApproachSpeed = 6f, ApproachMeasure = 40f;
         // The direction Stop carries the player in.
@@ -33,14 +44,25 @@ namespace Punchy.Debugging
         bool hereSet;
 
         readonly List<float> frameMs = new List<float>();
-        readonly List<double> cpuMs = new List<double>(), gpuMs = new List<double>();
+        readonly List<double> cpuMs = new List<double>(), gpuMs = new List<double>(), mainMs = new List<double>(), renderMs = new List<double>();
         readonly FrameTiming[] timing = new FrameTiming[1];
         readonly StringBuilder summary = new StringBuilder();
         bool measuring;
         int gcAtStart;
         // Graphics and process memory at the end of each stop (does streaming fill video memory over a route?).
         ProfilerRecorder gfxUsed, gfxReserved, systemUsed, drawCalls;
-        long drawTotal;
+        int hitchLines;
+        /// <summary>-hitchms N: log every frame over N ms while measuring (default 50).</summary>
+        static readonly float HitchSec = HitchArg();
+        static float HitchArg()
+        {
+            var args = System.Environment.GetCommandLineArgs();
+            var i = System.Array.IndexOf(args, "-hitchms");
+            return i >= 0 && i + 1 < args.Length && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var ms) ? ms / 1000f : 0.05f;
+        }
+        static string phase = "";
+        long drawTotal, batchTotal, setPassTotal, shadowTotal, triTotal;
+        ProfilerRecorder batches, setPass, shadowCasters, tris;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Boot()
@@ -57,7 +79,7 @@ namespace Punchy.Debugging
             gfxUsed.Dispose();
             gfxReserved.Dispose();
             systemUsed.Dispose();
-            drawCalls.Dispose();
+            drawCalls.Dispose(); batches.Dispose(); setPass.Dispose(); shadowCasters.Dispose(); tris.Dispose();
         }
 
         IEnumerator Start()
@@ -66,6 +88,10 @@ namespace Punchy.Debugging
             gfxReserved = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "Gfx Reserved Memory");
             systemUsed = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "System Used Memory");
             drawCalls = ProfilerRecorder.StartNew(ProfilerCategory.Render, "Draw Calls Count");
+            batches = ProfilerRecorder.StartNew(ProfilerCategory.Render, "Batches Count");
+            setPass = ProfilerRecorder.StartNew(ProfilerCategory.Render, "SetPass Calls Count");
+            shadowCasters = ProfilerRecorder.StartNew(ProfilerCategory.Render, "Shadow Casters Count");
+            tris = ProfilerRecorder.StartNew(ProfilerCategory.Render, "Triangles Count");
             StartCoroutine(SampleLights());
             // -fpscap <30|40|60|120|0>: same flag as the game's frame-cap option (0 = uncapped), for builds without it.
             var capArg = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-fpscap");
@@ -92,16 +118,33 @@ namespace Punchy.Debugging
             // -benchstops here: measure where the game's own -place put the player (a mine, a camp, any new place).
             var stopsArg = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-benchstops");
             if (stopsArg >= 0 && stopsArg + 1 < System.Environment.GetCommandLineArgs().Length && System.Environment.GetCommandLineArgs()[stopsArg + 1].Contains("here"))
+            {
+                // -benchstops herewarm,here: a throwaway stop in the same place first (-benchgpupasses reads nothing on the
+                // first stop it runs).
+                yield return Stop("herewarm", () => (hereSet = TryGetPlayerPosition(out hereAt)) && SetWeather("Partly cloudy", 10));
                 yield return Stop("here", () => (hereSet = TryGetPlayerPosition(out hereAt)) && SetWeather("Partly cloudy", 10));
+            }
+            // -benchstops hereentry / hereentryfast: from 250 m out on the surface to the mouth of the cave the -goto point
+            // is in, then along its passages (segment graph) to that point: walking (6 m/s) or flying fast (18 m/s), so
+            // streaming, the cave chunks meshing and the surface going hidden are all measured on the way in (job 22).
+            yield return Stop("hereentry", () => hereSet && StartEntry(hereAt) && SetWeather("Partly cloudy", 10),
+                              measure: 600f, drive: t => DriveEntry(t, 6f));
+            yield return Stop("hereentryfast", () => hereSet && StartEntry(hereAt) && SetWeather("Partly cloudy", 10),
+                              measure: 600f, drive: t => DriveEntry(t, 18f));
+            // -benchstops hereclose -close x,z,yaw: walk on the surface at 6 m/s from 300 m out (along yaw) to 20 m
+            // from x,z, facing it, e.g. up to a colossus (job 24). Waits 10 s at the start first.
+            yield return Stop("hereclose", () => StartClose() && SetWeather("Partly cloudy", 10),
+                              measure: 600f, drive: DriveClose);
             // -benchstops hereapproach: walk on the surface from 400 m out to 100 m from where -place put the player (what
             // a cave or mine costs before you're in it).
             yield return Stop("hereapproach", () => hereSet && PlaceAt(new float3(hereAt.x, float.NaN, hereAt.z) - ApproachDirection * ApproachFrom, 0f) &&
                                                     SetWeather("Partly cloudy", 10), ApproachSpeed, 0.1f, ApproachMeasure);
-            yield return Stop("town", () => JumpTo(controls, "HumanVillage") && SetWeather("Partly cloudy", 11));
+            yield return Stop("town", () => JumpToVillage(controls) && SetWeather("Partly cloudy", 11));
             // Walking through the village (streets, plots, roads leading out), at walking pace.
-            yield return Stop("townwalk", () => JumpTo(controls, "HumanVillage") && SetWeather("Partly cloudy", 24), 6f, 0.1f, 30f);
+            yield return Stop("townwalk", () => JumpToVillage(controls) && SetWeather("Partly cloudy", 24), 6f, 0.1f, 30f);
             yield return Stop("forest", () => JumpTo(controls, "OakGrove") && SetWeather("Partly cloudy", 12));
-            yield return Stop("cave", () => PlaceInBiggestCave() && SetWeather("Partly cloudy", 13));
+            // Settles until the cave chunks are all built (CaveSystem.Settled), 30 s at most, so the bake isn't measured (item 13).
+            yield return Stop("cave", () => PlaceInBiggestCave() && SetWeather("Partly cloudy", 13), waitCaves: true);
             // -benchmouth x,y,z,yaw: deep in the biggest cave, then halfway through out to that point at its mouth, so the
             // hitch as the surface comes back (terrain, flora) is measured.
             var mouthArg = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-benchmouth");
@@ -123,7 +166,10 @@ namespace Punchy.Debugging
             // Water filling much of the view: a lake shore, a river (often rapids), and the shore again in a storm.
             // The lake is a fixed spot (the auto-found "Lake shore" ended on dry glacier shore): a Mountains lake from
             // world-features 807ee9f, ground 117.0, lake 116.8, looking west over the water.
-            yield return Stop("lake", () => PlaceAt(new float3(1328f, float.NaN, 1730f), -90f) && SetWeather("Partly cloudy", 19));
+            // On another island (v2) that spot is dry land, so the stop falls back to the auto-found shore.
+            yield return Stop("lake", () => (HasWater(new float2(1288f, 1730f)) ? PlaceAt(new float3(1328f, float.NaN, 1730f), -90f)
+                                                                                  : JumpTo(controls, "Lake shore", true)) &&
+                                            SetWeather("Partly cloudy", 19));
             yield return Stop("river", () => JumpTo(controls, "River") && SetWeather("Partly cloudy", 20));
             yield return Stop("stormshore", () => JumpTo(controls, "Lake shore") && SetWeather("Stormy", 21));
             // Travel across terrain chunks: a sprint and a glide at play speeds (spikes here matter), then an 80 m/s
@@ -159,7 +205,7 @@ namespace Punchy.Debugging
         /// measured part is already at speed.
         /// </summary>
         IEnumerator Stop(string name, System.Func<bool> arrive, float speed = 0f, float height = 0f, float measure = Measure, float hour = 12f,
-                         System.Action midway = null)
+                         System.Action midway = null, bool waitCaves = false, System.Func<float, string> drive = null)
         {
             // -benchstops run,glide runs only the listed stops (to profile one of them on its own).
             var args = System.Environment.GetCommandLineArgs();
@@ -191,16 +237,41 @@ namespace Punchy.Debugging
             var profile = System.Array.IndexOf(args, "-profilestop");
             var profiling = profile >= 0 && profile + 2 < args.Length && args[profile + 1] == name;
             var t = 0f;
-            frameMs.Clear(); cpuMs.Clear(); gpuMs.Clear();
+            frameMs.Clear(); cpuMs.Clear(); gpuMs.Clear(); mainMs.Clear(); renderMs.Clear(); hitchLines = 0; phase = name;
             TurnOff();
-            lightsMax = 0; lightsTotal = 0; drawTotal = 0;
-            while (t < Settle + measure)
+            PassesOff();
+            // The render counters only exist once something has rendered: made in Start they stayed invalid, so (re)made here.
+            if (!drawCalls.Valid)
+            {
+                drawCalls.Dispose(); batches.Dispose(); setPass.Dispose(); shadowCasters.Dispose(); tris.Dispose();
+                drawCalls = ProfilerRecorder.StartNew(ProfilerCategory.Render, "Draw Calls Count");
+                batches = ProfilerRecorder.StartNew(ProfilerCategory.Render, "Batches Count");
+                setPass = ProfilerRecorder.StartNew(ProfilerCategory.Render, "SetPass Calls Count");
+                shadowCasters = ProfilerRecorder.StartNew(ProfilerCategory.Render, "Shadow Casters Count");
+                tris = ProfilerRecorder.StartNew(ProfilerCategory.Render, "Triangles Count");
+                Debug.Log($"BenchRoute: render counters remade, valid {drawCalls.Valid}");
+            }
+            lightsMax = 0; lightsTotal = 0; drawTotal = 0; batchTotal = 0; setPassTotal = 0; shadowTotal = 0; triTotal = 0;
+            var settle = Settle;   // waitCaves: pushed on while cave chunks are queued or building, up to MaxCaveSettle
+            var caves = waitCaves ? FindAnyObjectByType<CaveSystem>() : null;
+            var settledProp = caves != null ? typeof(CaveSystem).GetProperty("Settled", BindingFlags.Public | BindingFlags.Instance) : null;
+            while (t < settle + measure)
             {
                 t += Time.unscaledDeltaTime;
-                if (speed > 0f)
-                    Carry(start + ApproachDirection * speed * t, height);
-                if (!measuring && t > Settle)
+                if (!measuring && settledProp != null && t > settle && t < MaxCaveSettle && !(bool)settledProp.GetValue(caves))
+                    settle = t;
+                if (drive != null)
                 {
+                    phase = drive(t);
+                    if (phase == "done")
+                        break;
+                }
+                else if (speed > 0f)
+                    Carry(start + ApproachDirection * speed * t, height);
+                if (!measuring && t > settle)
+                {
+                    if (waitCaves)
+                        Debug.Log($"BenchRoute: {name}: settled {t:F1} s (caves {(settledProp == null ? "n/a" : (bool)settledProp.GetValue(caves) ? "built" : "still building at the cap")})");
                     gcAtStart = System.GC.CollectionCount(0);   // garbage collections during the measured part
                     StartGpuPasses();
                     if (profiling)
@@ -211,9 +282,9 @@ namespace Punchy.Debugging
                         UnityEngine.Profiling.Profiler.enabled = true;
                     }
                 }
-                measuring = t > Settle;
+                measuring = t > settle;
                 // Something to happen halfway through the measured part (a move whose hitch should be caught).
-                if (midway != null && t > Settle + measure * 0.5f)
+                if (midway != null && t > settle + measure * 0.5f)
                 {
                     midway();
                     midway = null;
@@ -266,6 +337,70 @@ namespace Punchy.Debugging
                 Debug.Log("BenchRoute: off " + string.Join(",", off));
         }
 
+        /// <summary>-benchnoshadows / -benchnopost: the main camera drawn without shadows / post-processing, to split the
+        /// GPU frame by pass where the GPU recorders read nothing (D3D11): the stop's gpu ms against a plain run.</summary>
+        static void PassesOff()
+        {
+            var args = System.Environment.GetCommandLineArgs();
+            var cam = Camera.main;
+            var data = cam != null ? cam.GetComponent<UnityEngine.Rendering.Universal.UniversalAdditionalCameraData>() : null;
+            if (data == null)
+                return;
+            if (System.Array.IndexOf(args, "-benchnoshadows") >= 0 && data.renderShadows)
+            {
+                data.renderShadows = false;
+                Debug.Log("BenchRoute: off camera shadows");
+            }
+            if (System.Array.IndexOf(args, "-benchnopost") >= 0 && data.renderPostProcessing)
+            {
+                data.renderPostProcessing = false;
+                Debug.Log("BenchRoute: off camera post-processing");
+            }
+            // -benchnocopies: no opaque colour / depth texture copies for this camera (what the water and soft particles read).
+            if (System.Array.IndexOf(args, "-benchnocopies") >= 0)
+            {
+                data.requiresColorOption = UnityEngine.Rendering.Universal.CameraOverrideOption.Off;
+                data.requiresDepthOption = UnityEngine.Rendering.Universal.CameraOverrideOption.Off;
+                Debug.Log("BenchRoute: off camera opaque and depth textures");
+            }
+            // -benchnolights: every light but the directional ones off (lamps, torches, fires: what distance lights would cull).
+            if (System.Array.IndexOf(args, "-benchnolights") >= 0)
+            {
+                var n = 0;
+                foreach (var light in FindObjectsByType<Light>(FindObjectsSortMode.None))
+                    if (light.enabled && light.type != LightType.Directional)
+                    {
+                        light.enabled = false;
+                        n++;
+                    }
+                Debug.Log($"BenchRoute: off {n} non-directional lights");
+            }
+            // -benchnoshader Water,Grass: every loaded material whose shader name contains one of these drawn with no
+            // forward pass (nor shadow caster), so its share of the GPU frame shows against a plain run.
+            var shaderArg = System.Array.IndexOf(args, "-benchnoshader");
+            if (shaderArg >= 0 && shaderArg + 1 < args.Length)
+            {
+                var parts = args[shaderArg + 1].Split(',');
+                var hit = new List<string>();
+                foreach (var m in Resources.FindObjectsOfTypeAll<Material>())
+                {
+                    if (m == null || m.shader == null)
+                        continue;
+                    foreach (var part in parts)
+                        if (part.Length > 0 && m.shader.name.Contains(part))
+                        {
+                            m.SetShaderPassEnabled("UniversalForward", false);
+                            m.SetShaderPassEnabled("UniversalForwardOnly", false);
+                            m.SetShaderPassEnabled("SRPDefaultUnlit", false);
+                            m.SetShaderPassEnabled("ShadowCaster", false);
+                            hit.Add(m.name);
+                            break;
+                        }
+                }
+                Debug.Log($"BenchRoute: off shaders {args[shaderArg + 1]}: {hit.Count} materials ({string.Join(",", hit)})");
+            }
+        }
+
         // -benchgpupasses (Development builds): GPU time of every marker that samples the GPU (the render passes),
         // reported per stop as the biggest few, so a GPU regression names its pass.
         static readonly bool GpuPassesOn = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-benchgpupasses") >= 0;
@@ -313,7 +448,7 @@ namespace Punchy.Debugging
 
         void Update()
         {
-            FrameTimingManager.CaptureFrameTimings();
+            BenchmarkRoute.CaptureTimingsOnce();
             // -benchnocreatures: creatures neither posed nor drawn, to split their share of the frame (CPU and GPU).
             if (NoCreatures && World.DefaultGameObjectInjectionWorld != null)
             {
@@ -324,14 +459,23 @@ namespace Punchy.Debugging
             if (!measuring)
                 return;
             frameMs.Add(Time.unscaledDeltaTime * 1000f);
+            // Every frame over 50 ms while measuring: when, where and in which part of a driven stop (job 22).
+            if (Time.unscaledDeltaTime > HitchSec && hitchLines++ < 300 && TryGetPlayerPosition(out var hp))
+                Debug.Log($"BenchRoute: hitch {Time.unscaledDeltaTime * 1000f:F0} ms at {Time.realtimeSinceStartup:F1} s, frame {Time.frameCount}, player {hp.x:F0},{hp.y:F0},{hp.z:F0}, {phase}");
             if (drawCalls.Valid)
                 drawTotal += drawCalls.LastValue;
+            if (batches.Valid) batchTotal += batches.LastValue;
+            if (setPass.Valid) setPassTotal += setPass.LastValue;
+            if (shadowCasters.Valid) shadowTotal += shadowCasters.LastValue;
+            if (tris.Valid) triTotal += tris.LastValue;
             for (int i = 0; i < gpuPasses.Count; i++)
                 gpuPassNs[i] += gpuPasses[i].LastValue;
             if (FrameTimingManager.GetLatestTimings(1, timing) > 0)
             {
                 cpuMs.Add(timing[0].cpuFrameTime);
                 gpuMs.Add(timing[0].gpuFrameTime);
+                mainMs.Add(timing[0].cpuMainThreadFrameTime);
+                renderMs.Add(timing[0].cpuRenderThreadFrameTime);
             }
         }
 
@@ -402,7 +546,8 @@ namespace Punchy.Debugging
             if (movingLights != null)
                 line += $", moving lights max {lightsMax} avg {(float)lightsTotal / frameMs.Count:F1}";
             if (drawCalls.Valid)
-                line += $", draw calls avg {drawTotal / frameMs.Count}";
+                line += $", draw calls avg {drawTotal / frameMs.Count}, batches {batchTotal / frameMs.Count}, setpass {setPassTotal / frameMs.Count}, shadow casters {shadowTotal / frameMs.Count}, rendered tris {triTotal / frameMs.Count / 1000}k";
+            line += $", main thread {Average(mainMs)} ms, render thread {Average(renderMs)} ms";
             // CaveSystem.SurfaceHidden at the end of the stop (1 deep in a cave: the surface isn't drawn), where it exists.
             var hidden = typeof(CaveSystem).GetProperty("SurfaceHidden", BindingFlags.Public | BindingFlags.Static);
             if (hidden != null)
@@ -459,8 +604,30 @@ namespace Punchy.Debugging
             return true;
         }
 
-        /// <summary>Jumps to the first of DebugControls' places whose name contains the text (as -place does).</summary>
-        static bool JumpTo(DebugControls controls, string place)
+        /// <summary>
+        /// The human village nearest the start: "Nearest settlement (HumanVillage)" when the nearest settlement is one (v1),
+        /// else the HumanVillage landmark entry. A plain "contains" match would take a biome's entry first ("Sonoran:
+        /// HumanVillage", in the desert on v2).
+        /// </summary>
+        static bool JumpToVillage(DebugControls controls) =>
+            JumpTo(controls, "Nearest settlement (HumanVillage)") || JumpTo(controls, "HumanVillage", true);
+
+        /// <summary>Whether a point is under water (the fixed lake spot looks 40 m west over it).</summary>
+        static bool HasWater(float2 xz)
+        {
+            if (!TryGetWorld(out var em, out _))
+                return false;
+            using var terrainQuery = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
+            if (terrainQuery.IsEmpty)
+                return false;
+            var ground = terrainQuery.GetSingleton<TerrainSource>().SampleGround(xz);
+            return ground.HasWater && ground.WaterDepth > 0f;
+        }
+
+        /// <summary>
+        /// Jumps to the first of DebugControls' places whose name contains the text (as -place does), or is exactly it.
+        /// </summary>
+        static bool JumpTo(DebugControls controls, string place, bool exact = false)
         {
             var type = typeof(DebugControls);
             const BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance;
@@ -472,7 +639,8 @@ namespace Punchy.Debugging
             for (int i = 0; i < list.Count; i++)
             {
                 var name = list[i].GetType().GetField("Name")?.GetValue(list[i]) as string;
-                if (name == null || name.IndexOf(place, System.StringComparison.OrdinalIgnoreCase) < 0)
+                if (name == null || (exact ? !string.Equals(name, place, System.StringComparison.OrdinalIgnoreCase)
+                                           : name.IndexOf(place, System.StringComparison.OrdinalIgnoreCase) < 0))
                     continue;
                 current.SetValue(controls, i - 1);
                 controls.Jump(1);
@@ -482,6 +650,162 @@ namespace Punchy.Debugging
         }
 
         /// <summary>Puts the player on the floor of the widest spot in the cave with the most nodes.</summary>
+        static readonly List<float3> entryPath = new List<float3>();
+        static readonly List<bool> entryUnder = new List<bool>();
+        static float entryLength;
+        const float EntryOut = 250f, EntrySettle = 10f;
+
+        /// <summary>The path into the cave holding the target: surface start, mouth, passage nodes, target. The player
+        /// waits at the start for the stop's settle time (10 s, the same as EntrySettle).</summary>
+        static bool StartEntry(float3 target)
+        {
+            entryPath.Clear(); entryUnder.Clear(); entryLength = 0f;
+            if (!TryGetWorld(out var em, out _))
+                return false;
+            using var terrainQuery = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
+            if (terrainQuery.IsEmpty)
+                return false;
+            var source = terrainQuery.GetSingleton<TerrainSource>();
+            if (!source.Caves.IsCreated)
+                return false;
+            ref var set = ref source.Caves.Value;
+            int best = -1;
+            for (int n = 0; n < set.Nodes.Length; n++)
+                if (best < 0 || math.distance(set.Nodes[n].Position, target) < math.distance(set.Nodes[best].Position, target))
+                    best = n;
+            if (best < 0)
+                return false;
+            int cave = -1;
+            for (int c = 0; c < set.Caves.Length; c++)
+                if (best >= set.Caves[c].FirstNode && best < set.Caves[c].FirstNode + set.Caves[c].NodeCount)
+                    cave = c;
+            if (cave < 0)
+                return false;
+            ref var cv = ref set.Caves[cave];
+            int first = cv.FirstNode, count = cv.NodeCount;
+            var mouth = cv.Mouth;
+            int from = first;
+            for (int n = first; n < first + count; n++)
+                if (math.distance(set.Nodes[n].Position, mouth) < math.distance(set.Nodes[from].Position, mouth))
+                    from = n;
+            // Breadth-first over the cave's segments from the node at the mouth to the node at the target.
+            var prev = new int[count];
+            for (int i = 0; i < count; i++) prev[i] = -2;
+            var queue = new Queue<int>();
+            queue.Enqueue(from); prev[from - first] = -1;
+            while (queue.Count > 0)
+            {
+                var n = queue.Dequeue();
+                if (n == best) break;
+                for (int k = cv.FirstSegment; k < cv.FirstSegment + cv.SegmentCount; k++)
+                {
+                    var sg = set.Segments[k];
+                    var o = sg.A == n ? sg.B : sg.B == n ? sg.A : -1;
+                    if (o < first || o >= first + count || prev[o - first] != -2) continue;
+                    prev[o - first] = n; queue.Enqueue(o);
+                }
+            }
+            var chain = new List<int>();
+            if (prev[best - first] != -2)
+                for (var n = best; n >= 0; n = prev[n - first]) chain.Add(n);
+            chain.Reverse();
+            var outward = math.normalizesafe(mouth.xz - target.xz, new float2(1f, 0f));
+            if (chain.Count > 1) outward = math.normalizesafe(mouth.xz - set.Nodes[chain[1]].Position.xz, outward);
+            var startXZ = mouth.xz + outward * EntryOut;
+            entryPath.Add(new float3(startXZ.x, 0f, startXZ.y)); entryUnder.Add(false);
+            entryPath.Add(mouth); entryUnder.Add(false);
+            foreach (var n in chain) { entryPath.Add(set.Nodes[n].Position); entryUnder.Add(true); }
+            entryPath.Add(target); entryUnder.Add(true);
+            for (int i = 1; i < entryPath.Count; i++)
+                entryLength += math.distance(entryPath[i - 1].xz, entryPath[i].xz) + (entryUnder[i] ? math.abs(entryPath[i].y - entryPath[i - 1].y) : 0f);
+            Debug.Log($"BenchRoute: entry path into cave {cave} ({count} nodes): start {startXZ.x:F0},{startXZ.y:F0}, mouth {mouth.x:F0},{mouth.y:F0},{mouth.z:F0}, " +
+                      $"{chain.Count} passage nodes{(chain.Count == 0 ? " (no route through the segments: straight in)" : "")}, {entryLength:F0} m");
+            return PlaceAt(new float3(startXZ.x, float.NaN, startXZ.y), math.degrees(math.atan2(-outward.x, -outward.y)));
+        }
+
+        static float2 closeTarget, closeDir;
+        const float CloseOut = 300f, CloseNear = 20f, CloseWalk = 6f;
+
+        /// <summary>Reads -close x,z,yaw and puts the player 300 m out from x,z along yaw, facing x,z.</summary>
+        static bool StartClose()
+        {
+            var args = System.Environment.GetCommandLineArgs();
+            var i = System.Array.IndexOf(args, "-close");
+            if (i < 0 || i + 1 >= args.Length)
+                return false;
+            var v = args[i + 1].Split(',');
+            if (v.Length < 3)
+                return false;
+            var ci = System.Globalization.CultureInfo.InvariantCulture;
+            closeTarget = new float2(float.Parse(v[0], ci), float.Parse(v[1], ci));
+            var yaw = math.radians(float.Parse(v[2], ci));
+            closeDir = new float2(math.sin(yaw), math.cos(yaw));
+            var start = closeTarget + closeDir * CloseOut;
+            if (TryGetWorld(out var em, out _))
+            {
+                using var terrainQuery = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
+                if (!terrainQuery.IsEmpty)
+                {
+                    var source = terrainQuery.GetSingleton<TerrainSource>();
+                    var hs = new System.Text.StringBuilder();
+                    for (float d = CloseOut; d >= CloseNear - 0.1f; d -= 40f)
+                        hs.Append($" {source.SampleHeight(closeTarget + closeDir * d):F0}");
+                    Debug.Log($"BenchRoute: approach from {start.x:F0},{start.y:F0} to {CloseNear:F0} m from {closeTarget.x:F0},{closeTarget.y:F0}, ground every 40 m:{hs}");
+                }
+            }
+            return PlaceAt(new float3(start.x, float.NaN, start.y), math.degrees(math.atan2(-closeDir.x, -closeDir.y)));
+        }
+
+        /// <summary>Still for 10 s, then walks in at 6 m/s; the phase says how far out it is (10 m steps).</summary>
+        static string DriveClose(float t)
+        {
+            if (!TryGetWorld(out var em, out var player))
+                return "no world";
+            var d = CloseOut - math.max(0f, t - EntrySettle) * CloseWalk;
+            if (d < CloseNear)
+                return "done";
+            using var terrainQuery = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
+            var source = terrainQuery.GetSingleton<TerrainSource>();
+            var p = closeTarget + closeDir * d;
+            var tr = em.GetComponentData<LocalTransform>(player);
+            tr.Position = new float3(p.x, source.SampleHeight(p) + 0.1f, p.y);
+            tr.Rotation = quaternion.RotateY(math.atan2(-closeDir.x, -closeDir.y));
+            em.SetComponentData(player, tr);
+            em.SetComponentData(player, new PlayerMotion { Grounded = true });
+            return t < EntrySettle ? "waiting at the start" : $"{math.round(d / 10f) * 10f:F0} m out";
+        }
+
+        /// <summary>Carries the player along the entry path: still for the settle time, then at speed. Returns the phase.</summary>
+        static string DriveEntry(float t, float speed)
+        {
+            if (entryPath.Count < 2 || !TryGetWorld(out var em, out var player))
+                return "no path";
+            var d = math.max(0f, t - EntrySettle) * speed;
+            if (d > entryLength + 3f * speed)
+                return "done";
+            for (int i = 1; i < entryPath.Count; i++)
+            {
+                var a = entryPath[i - 1]; var b = entryPath[i];
+                var len = math.distance(a.xz, b.xz) + (entryUnder[i] ? math.abs(b.y - a.y) : 0f);
+                if (d > len && i < entryPath.Count - 1) { d -= len; continue; }
+                var f = len > 0f ? math.saturate(d / len) : 1f;
+                using var terrainQuery = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
+                var source = terrainQuery.GetSingleton<TerrainSource>();
+                var p = math.lerp(a, b, f);
+                var y = entryUnder[i] ? source.FloorUnder(p + new float3(0f, 1f, 0f), out _) : source.SampleHeight(p.xz);
+                var tr = em.GetComponentData<LocalTransform>(player);
+                var dir = math.normalizesafe(b.xz - a.xz, new float2(0f, 1f));
+                tr.Position = new float3(p.x, y + 0.1f, p.z);
+                tr.Rotation = quaternion.RotateY(math.atan2(dir.x, dir.y));
+                em.SetComponentData(player, tr);
+                em.SetComponentData(player, new PlayerMotion { Grounded = true });
+                if (t < EntrySettle) return "waiting at the start";
+                if (!entryUnder[i]) return "surface walk to the mouth";
+                return i == entryPath.Count - 1 && f >= 1f ? "in the chamber" : "in the passages";
+            }
+            return "done";
+        }
+
         /// <summary>
         /// Puts the player at a point facing yaw degrees: on the ground when y is NaN, else on the floor under (x, y, z),
         /// which may be a cave's.
@@ -662,6 +986,249 @@ namespace Punchy.Debugging
                 return false;
             player = local.GetSingletonEntity();
             return true;
+        }
+    }
+
+    /// <summary>
+    /// Bench builds only (copied in by the bench scripts, never committed to the game): live shadow tuning to compare
+    /// options under any conditions. "-benchtune" (optionally "-benchtune shadows=0.5,cascades=2,trees=120,shrubs=40")
+    /// starts it. F9 shows or hides the panel, F10 picks a row, F11 steps its value, F12 saves a screenshot named by the
+    /// settings (next to the log, or in -benchshots' folder). The panel shows fps, GPU and main-thread ms (1 s averages).
+    /// Rows: sun shadow distance (x the pipeline's own), cascades, tree and shrub shadow cast distance (m), flora
+    /// shadows on/off, and W-107's FloraShadowOptions (cheap far caster, still far shadows, cached far shadows, near
+    /// range, still-from distance; their own launch flags -cheapfarcaster etc. set them at start).
+    /// </summary>
+    public class BenchTune : MonoBehaviour
+    {
+        static readonly float[] Dists = { 0.25f, 0.5f, 0.75f, 1f, 1.5f };
+        static readonly int[] CascadeSteps = { 1, 2, 3, 4 };
+        static readonly float[] Casts = { 0f, 20f, 40f, 60f, 90f, 120f, 250f, 1000f };
+        static readonly float[] Nears = { 15f, 25f, 40f, 60f };
+        static readonly float[] StillFroms = { 20f, 40f, 60f, 90f };
+        static readonly string[] Rows = { "Shadow distance", "Cascades", "Tree cast m", "Shrub cast m", "Flora shadows",
+            "Cheap far caster", "Still far shadows", "Cached far shadows", "Near range m", "Still from m" };
+        // W-107's switches by name: field, row. Missing on builds before PR #153 (the rows then show "n/a").
+        static readonly string[] OptionFields = { "CheapFarCaster", "StillFarShadows", "CachedFarShadows", "NearRange", "StillFrom" };
+        static System.Type options;
+        static object Opt(string f) => options?.GetField(f, BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
+        static void SetOpt(string f, object v) => options?.GetField(f, BindingFlags.Public | BindingFlags.Static)?.SetValue(null, v);
+        static string OptText(string f) { var v = Opt(f); return v == null ? "n/a" : v is bool b ? (b ? "on" : "off") : $"{v:0.#}"; }
+        float baseDist; int row; bool show = true; bool ready;
+        float dist = 1f; int cascades = -1; float trees = -1f, shrubs = -1f; bool floraShadows = true;
+        readonly FrameTiming[] timing = new FrameTiming[1];
+        float acc; int frames; double gpuAcc, mainAcc; int gpuN;
+        string stats = "";
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        static void Boot()
+        {
+            if (System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-benchtune") < 0)
+                return;
+            var go = new GameObject("BenchTune");
+            DontDestroyOnLoad(go);
+            go.AddComponent<BenchTune>();
+        }
+
+        static UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset Urp =>
+            UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline as UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset;
+
+        void Start()
+        {
+            foreach (var asm in System.AppDomain.CurrentDomain.GetAssemblies())
+                if ((options = asm.GetType("Punchy.Rendering.FloraShadowOptions")) != null) break;
+            var args = System.Environment.GetCommandLineArgs();
+            var i = System.Array.IndexOf(args, "-benchtune");
+            if (i + 1 < args.Length && !args[i + 1].StartsWith("-"))
+                Parse(args[i + 1]);
+            StartCoroutine(ApplyWhenReady());
+        }
+
+        void Parse(string set)
+        {
+                foreach (var kv in set.Split(','))
+                {
+                    var p = kv.Split('=');
+                    if (p.Length != 2 || !float.TryParse(p[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v)) continue;
+                    switch (p[0])
+                    {
+                        case "shadows": dist = v; break;
+                        case "cascades": cascades = (int)v; break;
+                        case "trees": trees = v; break;
+                        case "shrubs": shrubs = v; break;
+                        case "flora": floraShadows = v > 0.5f; break;
+                        case "panel": show = v > 0.5f; break;
+                        case "cheap": SetOpt("CheapFarCaster", v > 0.5f); break;
+                        case "still": SetOpt("StillFarShadows", v > 0.5f); break;
+                        case "cached": SetOpt("CachedFarShadows", v > 0.5f); break;
+                        case "near": SetOpt("NearRange", v); break;
+                        case "stillfrom": SetOpt("StillFrom", v); break;
+                    }
+                }
+        }
+
+        IEnumerator ApplyWhenReady()
+        {
+            // The flora exists only once the island is baked.
+            for (int n = 0; n < 600 && FindAnyObjectByType<Punchy.Flora.FloraSystem>() == null; n++)
+                yield return new WaitForSecondsRealtime(0.5f);
+            var flora = FindAnyObjectByType<Punchy.Flora.FloraSystem>();
+            if (flora != null)
+            {
+                if (trees < 0f) trees = flora.Trees.ShadowCastDistance;
+                if (shrubs < 0f) shrubs = flora.Shrubs.ShadowCastDistance;
+            }
+            // The game's Shadows setting has already scaled the pipeline: x1 here is the pipeline's value at that point.
+            var urp = Urp;
+            baseDist = urp != null ? urp.shadowDistance : QualitySettings.shadowDistance;
+            if (cascades < 0) cascades = urp != null ? urp.shadowCascadeCount : 4;
+            ready = true;
+            Apply();
+            // -benchtunesweep "name:k=v,...;name:k=v,...": in this one session (same weather, light and camera), each
+            // set in turn: settle 4 s, measure 8 s, screenshot "<name>.png", one "BenchTune: sweep" line. Every set
+            // starts from the launch values. Keep the stop alive with -benchlong.
+            var args = System.Environment.GetCommandLineArgs();
+            var w = System.Array.IndexOf(args, "-benchtunesweep");
+            if (w >= 0 && w + 1 < args.Length)
+            {
+                for (int n = 0; n < 40 && !BenchmarkRouteMeasuring(); n++)
+                    yield return new WaitForSecondsRealtime(1f);
+                yield return new WaitForSecondsRealtime(3f);
+                float d0 = dist, t0 = trees, s0 = shrubs; int c0 = cascades; bool f0 = floraShadows;
+                var o0 = new object[OptionFields.Length];
+                for (int k = 0; k < o0.Length; k++) o0[k] = Opt(OptionFields[k]);
+                foreach (var entry in args[w + 1].Split(';'))
+                {
+                    var colon = entry.IndexOf(':');
+                    var name = colon > 0 ? entry.Substring(0, colon) : entry;
+                    dist = d0; trees = t0; shrubs = s0; cascades = c0; floraShadows = f0;
+                    for (int k = 0; k < o0.Length; k++) if (o0[k] != null) SetOpt(OptionFields[k], o0[k]);
+                    if (colon > 0) Parse(entry.Substring(colon + 1));
+                    show = false;
+                    Apply();
+                    yield return new WaitForSecondsRealtime(4f);
+                    int fr = 0; float t = 0f; double g = 0, m = 0; int gn = 0;
+                    while (t < 8f)
+                    {
+                        yield return null;
+                        t += Time.unscaledDeltaTime; fr++;
+                        BenchmarkRoute.CaptureTimingsOnce();
+                        if (FrameTimingManager.GetLatestTimings(1, timing) > 0 && timing[0].gpuFrameTime > 0) { g += timing[0].gpuFrameTime; m += timing[0].cpuMainThreadFrameTime; gn++; }
+                    }
+                    var line = $"{fr / t:F1} fps, gpu {(gn > 0 ? g / gn : 0):F2} ms, main {(gn > 0 ? m / gn : 0):F2} ms";
+                    Shot(name);
+                    yield return new WaitForSecondsRealtime(1.5f);
+                    Debug.Log($"BenchTune: sweep {name}: {line}; {Describe()}");
+                }
+                Debug.Log("BenchTune: sweep done");
+            }
+        }
+
+        // The route is in a stop's measured part (so the world is settled): BenchmarkRoute's private flag, by reflection.
+        static bool BenchmarkRouteMeasuring()
+        {
+            var route = FindAnyObjectByType<BenchmarkRoute>();
+            var f = typeof(BenchmarkRoute).GetField("measuring", BindingFlags.NonPublic | BindingFlags.Instance);
+            return route == null || f == null || (bool)f.GetValue(route);
+        }
+
+        void Apply()
+        {
+            if (!ready) return;
+            var urp = Urp;
+            if (urp != null)
+            {
+                urp.shadowDistance = baseDist * dist;
+                urp.shadowCascadeCount = Mathf.Clamp(cascades, 1, 4);
+            }
+            var flora = FindAnyObjectByType<Punchy.Flora.FloraSystem>();
+            if (flora != null)
+            {
+                flora.Trees.ShadowCastDistance = trees; flora.Shrubs.ShadowCastDistance = shrubs;
+                flora.Trees.CastShadows = floraShadows; flora.Shrubs.CastShadows = floraShadows;
+            }
+            Debug.Log("BenchTune: " + Describe());
+        }
+
+        string Describe() => $"shadows x{dist:0.##} ({baseDist * dist:F0} m), cascades {cascades}, trees {trees:F0} m, shrubs {shrubs:F0} m, flora shadows {(floraShadows ? "on" : "off")}" +
+            (options == null ? "" : $", cheap far {OptText("CheapFarCaster")}, still far {OptText("StillFarShadows")}, cached far {OptText("CachedFarShadows")}, near {OptText("NearRange")} m, still from {OptText("StillFrom")} m");
+        string FileTag() => $"sh{dist:0.##}-c{cascades}-t{trees:F0}-s{shrubs:F0}{(floraShadows ? "" : "-nofs")}" +
+            (options == null ? "" : $"{(Opt("CheapFarCaster") is true ? "-cheap" : "")}{(Opt("StillFarShadows") is true ? "-still" : "")}{(Opt("CachedFarShadows") is true ? "-cached" : "")}-n{OptText("NearRange")}");
+
+        void Step()
+        {
+            switch (row)
+            {
+                case 0: dist = Next(Dists, dist); break;
+                case 1: cascades = CascadeSteps[(System.Array.IndexOf(CascadeSteps, cascades) + 1) % CascadeSteps.Length]; break;
+                case 2: trees = Next(Casts, trees); break;
+                case 3: shrubs = Next(Casts, shrubs); break;
+                case 4: floraShadows = !floraShadows; break;
+                case 5: case 6: case 7: if (Opt(OptionFields[row - 5]) is bool on) SetOpt(OptionFields[row - 5], !on); break;
+                case 8: if (Opt("NearRange") is float n) SetOpt("NearRange", Next(Nears, n)); break;
+                case 9: if (Opt("StillFrom") is float f) SetOpt("StillFrom", Next(StillFroms, f)); break;
+            }
+            Apply();
+        }
+
+        static float Next(float[] steps, float v)
+        {
+            for (int i = 0; i < steps.Length; i++)
+                if (steps[i] > v + 1e-3f) return steps[i];
+            return steps[0];
+        }
+
+        void Update()
+        {
+            var kb = UnityEngine.InputSystem.Keyboard.current;
+            if (kb != null)
+            {
+                if (kb.f9Key.wasPressedThisFrame) show = !show;
+                if (kb.f10Key.wasPressedThisFrame) row = (row + 1) % Rows.Length;
+                if (kb.f11Key.wasPressedThisFrame) Step();
+                if (kb.f12Key.wasPressedThisFrame) Shot(FileTag() + "-" + System.DateTime.Now.ToString("HHmmss"));
+            }
+            BenchmarkRoute.CaptureTimingsOnce();
+            if (FrameTimingManager.GetLatestTimings(1, timing) > 0 && timing[0].gpuFrameTime > 0)
+            {
+                gpuAcc += timing[0].gpuFrameTime; mainAcc += timing[0].cpuMainThreadFrameTime; gpuN++;
+            }
+            acc += Time.unscaledDeltaTime; frames++;
+            if (acc >= 1f)
+            {
+                stats = $"{frames / acc:F0} fps, gpu {(gpuN > 0 ? gpuAcc / gpuN : 0):F1} ms, main {(gpuN > 0 ? mainAcc / gpuN : 0):F1} ms";
+                acc = 0; frames = 0; gpuAcc = mainAcc = 0; gpuN = 0;
+            }
+        }
+
+        /// <summary>A screenshot (panel hidden) named by tag; the log gets the settings and the last second's stats.</summary>
+        public void Shot(string tag)
+        {
+            var args = System.Environment.GetCommandLineArgs();
+            var i = System.Array.IndexOf(args, "-benchshots");
+            var dir = i >= 0 && i + 1 < args.Length ? args[i + 1] : System.IO.Path.GetDirectoryName(Application.consoleLogPath) ?? ".";
+            StartCoroutine(Capture(System.IO.Path.Combine(dir, tag + ".png")));
+        }
+
+        IEnumerator Capture(string path)
+        {
+            var was = show; show = false;
+            yield return null;
+            yield return new WaitForEndOfFrame();
+            ScreenCapture.CaptureScreenshot(path);
+            yield return null;
+            show = was;
+            Debug.Log($"BenchTune: shot {System.IO.Path.GetFileName(path)}: {Describe()}; {stats}");
+        }
+
+        void OnGUI()
+        {
+            if (!show) return;
+            GUI.Box(new Rect(10, 10, 420, 40 + Rows.Length * 20), "");
+            GUI.Label(new Rect(18, 14, 410, 20), "BenchTune  " + stats + "   (F9 hide, F10 row, F11 change, F12 shot)");
+            string[] vals = { $"x{dist:0.##} ({baseDist * dist:F0} m)", cascades.ToString(), $"{trees:F0}", $"{shrubs:F0}", floraShadows ? "on" : "off",
+                OptText("CheapFarCaster"), OptText("StillFarShadows"), OptText("CachedFarShadows") + " (row 3 pending)", OptText("NearRange"), OptText("StillFrom") };
+            for (int r = 0; r < Rows.Length; r++)
+                GUI.Label(new Rect(18, 36 + r * 20, 410, 20), (r == row ? "> " : "   ") + Rows[r] + ": " + vals[r]);
         }
     }
 }

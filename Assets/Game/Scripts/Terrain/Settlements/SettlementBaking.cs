@@ -170,6 +170,16 @@ namespace Punchy.Terrain
                 var water = centre;
                 var palisade = 0f;
                 var infill = float2.zero;   // (inner, outer) ring to fill with scattered plots after the street-side ones
+                // W-108 (#39): where the lanes come into the square (world angles, up to four; 99 = none), for the
+                // paved square's worn paths. Only recorded, no draws, so layouts don't move.
+                var mouths = new float4(99f);
+                var mouthCount = 0;
+                void Mouth(float a)
+                {
+                    var d = Dir(a);
+                    if (mouthCount < 4)
+                        mouths[mouthCount++] = math.atan2(d.y, d.x);
+                }
 
                 // The open space in the middle, then the Seat facing it from the side away from the road.
                 Open(centre, square);
@@ -186,6 +196,7 @@ namespace Punchy.Terrain
                             var to = centre + Dir(a + rng.NextFloat(-0.15f, 0.15f)) * radius * 0.95f;
                             Street(from, to, k == 0 ? street : lane);
                             spokes.Add((from, to));
+                            Mouth(a);
                         }
                         if (layout.PerimeterLane && layout.Lanes >= 2)
                         {
@@ -263,6 +274,7 @@ namespace Punchy.Terrain
                         {
                             var a = road + (k + 0.5f) * math.PI * 2f / layout.Lanes;
                             Street(centre + Dir(a) * square * 0.5f, centre + Dir(a) * ring, lane * 0.75f);
+                            Mouth(a);
                         }
                         Street(centre + Dir(road) * ring, centre + Dir(road) * radius * 0.95f, street);
                         Seat(centre, road + math.PI, square * 0.5f + setback);
@@ -305,6 +317,10 @@ namespace Punchy.Terrain
                 }
 
                 AssignRoles();
+                // W-108 (#39): big villages and towns with a well or fountain (a grown Square or a Ring round its green)
+                // pave their square; small hamlets, grids (dwarf holds) and camps don't.
+                var paved = layout.WaterFeature != null && radius >= 70f * scale
+                            && (layout.Pattern == SettlementPattern.Square || layout.Pattern == SettlementPattern.Ring);
                 settlements.Add(new SettlementData
                 {
                     Centre = centre,
@@ -319,7 +335,9 @@ namespace Punchy.Terrain
                     PlotCount = plots.Count - firstPlot,
                     Water = new float3(water.x, source.SampleHeight(water), water.y),
                     Road = Dir(road),
-                    Palisade = palisade
+                    Palisade = palisade,
+                    Square = paved ? square : 0f,
+                    Mouths = mouths
                 });
             }
 
@@ -347,8 +365,9 @@ namespace Punchy.Terrain
             void Street(float2 a, float2 b, float width) => Street(new List<float2> { a, b }, width);
 
             /// <summary>
-            /// A street through the given points, cut into stretches; it stops where it would run into water or over a
-            /// cave hole. The line it actually takes is kept, so plots can follow its whole length.
+            /// A street through the given points, cut into stretches; it stops where it would run into water, over a
+            /// cave hole or off a cliff (steeper than the roads' MaxGrade, W-100 #39: a main street ran off a plateau's
+            /// edge). The line it actually takes is kept, so plots can follow its whole length.
             /// </summary>
             void Street(List<float2> points, float width)
             {
@@ -363,7 +382,7 @@ namespace Punchy.Terrain
                     {
                         var p = math.lerp(a, b, k / (float)n);
                         var mid = math.lerp(from.xz, p, 0.5f);
-                        if (Wet(mid) || source.IsCaveHole(mid))
+                        if (Wet(mid) || source.IsCaveHole(mid) || RoadBaking.TooSteep(source, from.xz, p))
                         {
                             lines.Add((line, width));
                             return;

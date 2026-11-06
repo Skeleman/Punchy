@@ -39,7 +39,7 @@ namespace Punchy.Flora
         public int FaceLandmark;
         /// <summary>1 for fishing villages' shore clutter (#36, W-59d): kept off the walk lane up each of the village's docks.</summary>
         public int ShoreKit;
-        /// <summary>W-63 (#36): 1 for a kit house or stilt house: a placed one never stands on a dock's walk lane.</summary>
+        /// <summary>W-63 (#36): 1 for a kit house, 2 for a stilt house: a placed one never stands on a dock's walk lane.</summary>
         public int House;
         /// <summary>W-62c (#37): for a landing pier, its deck length (m, the species' Height); 0 for everything else.</summary>
         public float PierReach;
@@ -48,6 +48,9 @@ namespace Punchy.Flora
         public int PierClear;
         /// <summary>W-65b (#36): 1 for a fishing village's wharf: its variant follows the village, so no two villages share a layout.</summary>
         public int PerVillage;
+        /// <summary>W-101: a runed spire's colour patterns (FloraSpecies.RunePatterns, 0 for everything else): the
+        /// variants split into that many runs, and one landmark's stones all come from the same run.</summary>
+        public int Patterns;
         /// <summary>
         /// W-61b (#38): for igloos, how far out the porch mouth is (0 for everything else). On a settlement's slope an
         /// igloo set at its centre's ground had its porch floor up to 1 m over a dip at the mouth, or buried in a knoll;
@@ -273,10 +276,11 @@ namespace Punchy.Flora
                     // A sea folk pier (#37) faces its landing's way too, but sits on its bank as placed: DockShore seats on the sea.
                     FaceLandmark = s.Form == FloraForm.HiveTree || s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Pier ? 1 : s.Form == FloraForm.KitBuilding && (s.KitShape == Punchy.Terrain.KitShape.Dock || s.KitShape == Punchy.Terrain.KitShape.Wharf) ? 2 : 0,
                     ShoreKit = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Shore ? 1 : 0,
-                    House = s.Form == FloraForm.KitBuilding && Punchy.Terrain.StructureKit.HouseLike(s.KitShape) ? 1 : 0,
+                    House = s.Form == FloraForm.KitBuilding && Punchy.Terrain.StructureKit.HouseLike(s.KitShape) ? (s.KitShape == Punchy.Terrain.KitShape.StiltHouse ? 2 : 1) : 0,
                     PierReach = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Pier ? s.Height.y : 0f,
                     PierClear = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Spire ? 1 : 0,
                     PerVillage = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Wharf ? 1 : 0,
+                    Patterns = s.Form == FloraForm.Spire && s.RunePatterns > 0 ? math.min(s.RunePatterns, s.Variants) : 0,
                     // StructureKit.Igloo (W-64): the tunnel ends 1-1.8 m past the dome's foot (the radius), plus the 0.8 m path out.
                     Porch = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Igloo ? (s.Height.x + s.Height.y) * 0.5f * s.Spread * 0.5f + 2.2f : 0f,
                     Footprint = Footprint(s),
@@ -821,6 +825,20 @@ namespace Punchy.Flora
         /// village's rank among the landmarks of its type, plus a scrambled offset from the type. Ranks differ, so up to
         /// <paramref name="variants"/> villages all get different layouts (the cell's own draw gave v0 and v2 the same one).
         /// </summary>
+        /// <summary>
+        /// W-101: a runed spire's model: the shape the draw picked, within the run of variants for the landmark's own
+        /// colour pattern (a scrambled hash of the instance, so every stone of one circle glows alike). Unchanged for a
+        /// species without patterns.
+        /// </summary>
+        static int PatternModel(in FloraRules rule, int instance, int model)
+        {
+            if (rule.Patterns <= 0)
+                return model;
+            var shapes = math.max(1, rule.Variants / rule.Patterns);
+            var pattern = (int)(BiomeSampling.Scramble((uint)instance * 0x9E3779B9u ^ 0x51ED270Bu) % (uint)rule.Patterns);
+            return rule.FirstModel + pattern * shapes + (model - rule.FirstModel) % shapes;
+        }
+
         static int VillageVariant(ref LandmarkSetBlob set, int instance, int variants)
         {
             var type = set.Instances[instance].Type;
@@ -878,6 +896,8 @@ namespace Punchy.Flora
         /// <summary>W-91 (#36): how far out from its ring spot a dock is checked for river water (it slides up to 14 m
         /// out to the waterline, then its deck runs up to ~19 m further).</summary>
         const float RiverDockReach = 30f;
+        /// <summary>W-109: a dock's or wharf's real run from its DockShore start: the longest deck plus a wharf's end walk.</summary>
+        const float DockDeckReach = DockMaxLength + 3.5f;
 
         /// <summary>
         /// The floor a plot's building stands at: the average ground over its footprint (the middle and four points
@@ -1260,6 +1280,13 @@ namespace Punchy.Flora
             return reach;
         }
 
+        /// <summary>A-70: WallReach for callers that cache placed walls (Fauna's BuildingFootprints).</summary>
+        public static float WallReachOf(ref FloraBlob f, int species) => WallReach(ref f, species);
+
+        /// <summary>A-70: Inside for callers that cache placed walls (Fauna's BuildingFootprints).</summary>
+        public static bool InsideWalls(ref FloraBlob f, in FloraSystem.FloraInstance plant, float2 xz, float radius) =>
+            Inside(ref f, plant, xz, radius);
+
         /// <summary>Inside one placed plant's walls (turned and scaled as FloraSystem turns them for the player).</summary>
         static bool Inside(ref FloraBlob f, in FloraSystem.FloraInstance plant, float2 xz, float radius)
         {
@@ -1333,6 +1360,9 @@ namespace Punchy.Flora
         /// <summary>Four more circles for colossi past the fourth (W-85 drowned knight).</summary>
         public static readonly SharedStatic<float4x4> KeepOutMore = SharedStatic<float4x4>.GetOrCreate<KeepOutCirclesMore>();
         class KeepOutCirclesMore { }
+        /// <summary>Four more circles for colossi past the eighth (W-106 mesa tortoise).</summary>
+        public static readonly SharedStatic<float4x4> KeepOutLast = SharedStatic<float4x4>.GetOrCreate<KeepOutCirclesLast>();
+        class KeepOutCirclesLast { }
         /// <summary>#132: 1 turns Blocked's wall-reach skip off (DebugControls "-oldwalls"), for A/B timing.</summary>
         public static readonly SharedStatic<int> OldWalls = SharedStatic<int>.GetOrCreate<OldWallsKey>();
         class OldWallsKey { }
@@ -1351,6 +1381,10 @@ namespace Punchy.Flora
             var keepMore = KeepOutMore.Data;
             for (int k = 0; k < 4; k++)
                 if (keepMore[k].w > 0f && math.distancesq(xz, keepMore[k].xy) < keepMore[k].z * keepMore[k].z)
+                    return none;
+            var keepLast = KeepOutLast.Data;
+            for (int k = 0; k < 4; k++)
+                if (keepLast[k].w > 0f && math.distancesq(xz, keepLast[k].xy) < keepLast[k].z * keepLast[k].z)
                     return none;
             var roll = rng.NextFloat();
             var area = cellSize * cellSize / 100f;
@@ -1403,9 +1437,11 @@ namespace Punchy.Flora
             // towards the middle, and its props join the candidates.
             var keep = 1f;
             var towardsCentre = float2.zero;
+            var landmarkInstance = -1;
             if (source.Landmarks.IsCreated && LandmarkSampling.Find(ref source.Landmarks.Value, xz, out var landmark) && landmark.Type < f.LandmarkTypeCount)
             {
                 ref var set = ref source.Landmarks.Value;
+                landmarkInstance = landmark.Instance;
                 var clear = set.Types[landmark.Type].ClearRadius;
                 keep = clear > 0f ? math.smoothstep(clear * 0.8f, clear, landmark.Distance) : 1f;
                 towardsCentre = set.Instances[landmark.Instance].Position - xz;
@@ -1439,10 +1475,24 @@ namespace Punchy.Flora
                                 var houseClear = placedRule.Footprint * prop.Scale.y + 1.5f;
                                 if (placedRule.House != 0 && math.min(DockLaneDistance(ref f, source, landmark, spot, houseClear), WharfDistance(ref f, source, landmark, spot, houseClear)) < houseClear)
                                     return none;
+                                // W-105: a stilt house stands out over the shallows from its plot: none where the bank or
+                                // the water doesn't suit it (LandmarkSampling.StiltHouseFits), nor with the house on a dock's
+                                // or wharf's lane (no draws moved: the cell just stays empty).
+                                if (placedRule.House == 2 && !footprint &&
+                                    (!LandmarkSampling.StiltHouseFits(source, set.Instances[landmark.Instance].Position, spot, out var stilt) ||
+                                     math.min(DockLaneDistance(ref f, source, landmark, stilt, houseClear), WharfDistance(ref f, source, landmark, stilt, houseClear)) < houseClear))
+                                    return none;
                                 // W-91 (#36): houses, stilt houses, docks and wharfs stand by the sea or a lake, never in a
                                 // river: a plot on river water (a dock along its whole run out) stays empty (no draws moved).
+                                // W-109: the 30 m reach from the ring spot is a cautious bound; a dock or wharf it flags
+                                // is still built when its real deck (from DockShore's start out to the longest deck plus
+                                // the wharf's end walk) stays off the river. The island bake checks before the rough
+                                // riverbanks are on (TerrainAuthoring), so a mouth that widens later took village 1's
+                                // wharf at -2172,3743. Only adds: every dock or wharf the old test kept stays put.
                                 if (!footprint && (placedRule.House != 0 || placedRule.FaceLandmark == 2) &&
-                                    LandmarkSampling.OnRiver(source, spot, set.Instances[landmark.Instance].Facing, placedRule.FaceLandmark == 2 ? RiverDockReach : 0f))
+                                    LandmarkSampling.OnRiver(source, spot, set.Instances[landmark.Instance].Facing, placedRule.FaceLandmark == 2 ? RiverDockReach : 0f) &&
+                                    (placedRule.FaceLandmark != 2 ||
+                                     LandmarkSampling.OnRiver(source, DockShore(source, spot, set.Instances[landmark.Instance].Facing).xz, set.Instances[landmark.Instance].Facing, DockDeckReach)))
                                     return none;
                                 // W-62c: no spire near a landing pier's far end (no draws moved: the cell just stays empty).
                                 if (placedRule.PierClear != 0 && PierEndDistance(ref f, source, spot) < PierEndClear * prop.Scale.y)
@@ -1460,6 +1510,8 @@ namespace Punchy.Flora
                                 var placedModel = placedRule.FirstModel + rng.NextInt(placedRule.Variants);
                                 if (placedRule.PerVillage != 0)
                                     placedModel = placedRule.FirstModel + VillageVariant(ref set, landmark.Instance, placedRule.Variants);
+                                if (placedRule.Patterns > 0)
+                                    placedModel = PatternModel(placedRule, landmark.Instance, placedModel);
                                 return new FloraSystem.FloraInstance
                                 {
                                     Position = at,
@@ -1502,7 +1554,7 @@ namespace Punchy.Flora
                                 Position = new float3(centre.x, footprint ? 0f : source.SampleHeight(centre), centre.y),
                                 Yaw = centreYaw,
                                 Scale = rng.NextFloat(prop.Scale.x, math.max(prop.Scale.x, prop.Scale.y)),
-                                Model = centreRule.FirstModel + rng.NextInt(centreRule.Variants),
+                                Model = PatternModel(centreRule, landmark.Instance, centreRule.FirstModel + rng.NextInt(centreRule.Variants)),
                                 Random = rng.NextFloat(),
                                 Snow = footprint ? 0f : source.SampleBiomeSnow(centre),   // #82: the camp's big tent
                                 Ground = footprint ? 0u : GroundFor(source, centreRule, centre, 2f, 0.5f)
@@ -1663,6 +1715,7 @@ namespace Punchy.Flora
             var rule = f.Rules[picked];
             if (OnBuiltPlot(ref f, source, xz, rule.Footprint * scale))
                 return none;
+            var fromProp = picked != candidates[pick];   // a landmark prop's density ring (its runed stones share a pattern)
             if (rule.RiverSpot == (int)RiverSpot.LogNarrows)
             {
                 // W-63: a fallen log lies across the river (its X across the flow), both ends on dry bank no more than
@@ -1764,7 +1817,8 @@ namespace Punchy.Flora
                 Yaw = yaw,
                 // Plants grow smaller towards the top of their range (a tree line).
                 Scale = scale * (0.55f + 0.45f * shrink[pick]),
-                Model = rule.FirstModel + rng.NextInt(rule.Variants),
+                Model = fromProp && landmarkInstance >= 0 ? PatternModel(rule, landmarkInstance, rule.FirstModel + rng.NextInt(rule.Variants))
+                                                          : rule.FirstModel + rng.NextInt(rule.Variants),
                 Random = rng.NextFloat(),
                 Snow = surface.Snow,
                 // Rocks lie over onto the slope they stand on.

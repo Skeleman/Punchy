@@ -106,6 +106,8 @@ namespace Punchy.Fauna
         public bool Rooted;
         /// <summary>Sits still as a plant until startled (see CreatureSpecies.Disguised).</summary>
         public bool Disguised;
+        /// <summary>Its taste in weather (A-71): what makes it uncomfortable and what shelter it seeks.</summary>
+        public ComfortProfile Comfort;
 
         public BlobArray<CreaturePart> Parts;
         public BlobArray<CreatureSegment> Segments;
@@ -387,7 +389,13 @@ namespace Punchy.Fauna
         /// on the ground facing Focus (1: by the well, on the green), or lying back in the grass (3). (2 is kept for
         /// sitting on a seat, once there are seats to sit on.)
         /// </summary>
-        Sit
+        Sit,
+        /// <summary>
+        /// A-71 row 2: out of the weather. To the shelter it chose (Target, stage 0; walking, or hurrying when the
+        /// weather is bad), then waiting there facing Focus (1) till the weather lets up or its time runs out. What the
+        /// shelter is (a ShelterNeed bit) rides in TargetHeight.
+        /// </summary>
+        Shelter
     }
 
     /// <summary>What a worker does at its post (posed by CreatureAnimator).</summary>
@@ -644,6 +652,13 @@ namespace Punchy.Fauna
         /// had here); the web's facing and side.</summary>
         public float AnchorSize, AnchorYaw;
         public byte AnchorSide;
+        /// <summary>
+        /// A-73: a fishing folk's wharf spot (WharfSpotSet.Spots index + 1; 0 = none), and where that wharf stands
+        /// (its base, turn and size), for the walk out along its deck.
+        /// </summary>
+        public short PierSpot;
+        public float3 PierOrigin;
+        public float PierYaw, PierScale;
         /// <summary>Where a flight or a climb ends up, height-wise (absolute).</summary>
         public float TargetHeight;
         /// <summary>Caught (by a diving bird of prey): FaunaDirector removes it.</summary>
@@ -693,6 +708,18 @@ namespace Punchy.Fauna
         // activity that meets them; what it decides to do next is weighted by them. Only the brain reads them (#58:
         // moved here from CreatureState); what others see is CreatureState.Cue.
         public float Hunger, Thirst, Tired, Lonely;
+        /// <summary>A-71: how uncomfortable the weather has made it (0..1: builds while out of its comfort, fades in
+        /// comfort or shelter), why (the worst reason last seen), and how hard the weather pressed at the last check.</summary>
+        public float Discomfort, ComfortPressure;
+        public ComfortKind DiscomfortKind;
+        /// <summary>A-71 row 2: the shelter it is standing in now (none out in the open), and how long before it
+        /// looks for shelter again after a search that found none (s).</summary>
+        public ShelterNeed Cover;
+        public float ShelterRetry;
+        /// <summary>A-71 row 6: the player it's following on a lead quest (their Holder id, Interactions.HolderId; 0 for
+        /// none) and how long before it gives up (s). Set by Follow.Start and Follow.Stop on the host.</summary>
+        public int FollowHolder;
+        public float FollowTime;
     }
 
     /// <summary>The need cue a creature shows (CreatureState.Cue), strongest need first.</summary>
@@ -736,6 +763,8 @@ namespace Punchy.Fauna
     {
         public Material Material;
         public Mesh Capsule;
+        /// <summary>Fewer sides and rows, for creatures in the middle and far pose bands (A-70 row 4).</summary>
+        public Mesh CapsuleMid, CapsuleFar;
     }
 
     public static class CreatureBlobBuilder
@@ -756,7 +785,8 @@ namespace Punchy.Fauna
         /// <param name="hunted">Whether any species hunts it.</param>
         /// <param name="regard">Folk only: its regard for each species (by index), and its kinship (FolkKin).</param>
         public static BlobAssetReference<CreatureBlob> Build(CreatureSpecies variant, IReadOnlyList<int> prey = null, bool hunted = false,
-                                                             IReadOnlyList<float> regard = null, IReadOnlyList<byte> kinship = null)
+                                                             IReadOnlyList<float> regard = null, IReadOnlyList<byte> kinship = null,
+                                                             Vector2? home = null)
         {
             var species = variant.Body;
             // Expand slots: mirrored slots become left and right copies; children follow every copy of their parent.
@@ -867,6 +897,7 @@ namespace Punchy.Fauna
             root.SeenFrom = species.SeenFrom * sizeScale;
             root.Rooted = species.Rooted;
             root.Disguised = species.Disguised;
+            root.Comfort = ComfortProfiles.For(variant, home ?? new Vector2(-1f, -1f));
             root.Nests = species.Nests;
             root.WebSize = species.WebSize * sizeScale;
             root.FlightHeight = new float2(species.FlightHeight.x, math.max(species.FlightHeight.x, species.FlightHeight.y));

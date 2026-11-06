@@ -15,8 +15,8 @@ namespace Punchy.Fauna
     /// The blind cave pygmies share each chamber with the bat folk (#35, Zach 11-04): a small band of their own, homed in
     /// the chamber's wall niches once the world lane places them (else round its middle), who tend the pool and forage
     /// the floor while the bat folk bring goods down from the surface (CreatureBrainSystem.DecideChamberChores).
-    /// Homes are found by prop kind name (HomeKind), so this builds before and after W-96 adds them: "Pod" (a bat folk
-    /// ceiling pod, its keeper standing under it, ahead of the hammocks) and "Niche" (a pygmy wall niche).
+    /// Homes are the world's BatFolkHomes anchors (W-96): a bat folk ceiling pod (its keeper at its door on the floor
+    /// under it, ahead of the hammocks) and a pygmy wall niche (its sleeper at its door, facing in).
     /// </summary>
     public partial class FaunaDirector
     {
@@ -91,18 +91,32 @@ namespace Punchy.Fauna
                     }
                 }
             }
-            // The props by job, in their baked order: homes (ceiling pods, when the world has them, then hammocks) and goggle
-            // pegs first, so each has a keeper. (A pod's keeper stands under it, like a hut's.)
-            var kinds = PodKind >= 0
-                ? new[] { (BatFolkPropKind)PodKind, BatFolkPropKind.Hammock, BatFolkPropKind.GogglePeg, BatFolkPropKind.Hut, BatFolkPropKind.Rack, BatFolkPropKind.Basket }
-                : new[] { BatFolkPropKind.Hammock, BatFolkPropKind.GogglePeg, BatFolkPropKind.Hut, BatFolkPropKind.Rack, BatFolkPropKind.Basket };
+            // The homes (BatFolkHomes' ceiling pods, W-96) first, then the props by job in their baked order (hammocks
+            // and goggle pegs ahead of the rest), so each has a keeper. A pod's keeper stands at its door, on the floor
+            // under it, facing the way it opens.
+            var kinds = new[] { BatFolkPropKind.Pod, BatFolkPropKind.Hammock, BatFolkPropKind.GogglePeg, BatFolkPropKind.Hut, BatFolkPropKind.Rack, BatFolkPropKind.Basket };
             var next = new int[kinds.Length];
+            var pods = BatFolkHomes.Count(source, BatFolkHomeKind.BatFolkPod, site);
             var any = true;
             while (chamberPosts.Count < band && any)
             {
                 any = false;
                 for (int k = 0; k < kinds.Length && chamberPosts.Count < band; k++)
                 {
+                    if (kinds[k] == BatFolkPropKind.Pod)
+                    {
+                        for (; next[k] < pods; next[k]++)
+                        {
+                            BatFolkHomes.Get(source, BatFolkHomeKind.BatFolkPod, site, next[k], out var pod);
+                            if (!ChamberFloor(source, pod.Door + new float3(0f, 0.4f, 0f), out var door))
+                                continue;
+                            next[k]++;
+                            chamberPosts.Add(new ChamberPost { Stand = door, Face = door.xz + pod.Face, Job = FolkJob.RoostKeeper });
+                            any = true;
+                            break;
+                        }
+                        continue;
+                    }
                     for (; next[k] < bats.Props.Length; next[k]++)
                     {
                         ref var p = ref bats.Props[next[k]];
@@ -111,12 +125,12 @@ namespace Punchy.Fauna
                         // A hut hangs from the roof: its keeper stands on the floor under it. A rack or basket's worker
                         // stands a little off it, on the side toward the chamber's middle.
                         var inward = math.normalizesafe(s.Centre.xz - p.Position.xz);
-                        var hung = p.Kind == BatFolkPropKind.Hut || (int)p.Kind == PodKind;
+                        var hung = p.Kind == BatFolkPropKind.Hut;
                         var at = hung ? p.Position : p.Position + new float3(inward.x * 0.7f, 0.4f, inward.y * 0.7f);
                         next[k]++;
                         var stand = float3.zero;
                         var found = false;
-                        // (Under a hut or pod: a few drops below its anchor, clear of the pod and short of the floor.)
+                        // (Under a hut: a few drops below its anchor, clear of the hut and short of the floor.)
                         for (int d = 0; d < 4 && !found; d++)
                             found = ChamberFloor(source, at - new float3(0f, hung ? 0.6f + d * 1.5f : d * 0.3f, 0f), out stand);
                         if (!found)
@@ -126,7 +140,7 @@ namespace Punchy.Fauna
                             Stand = stand,
                             Face = hung ? s.Centre.xz : p.Position.xz,
                             // (A home's keeper is its sleeper: the roost keeper's job, at home.)
-                            Job = p.Kind == BatFolkPropKind.Hammock || (int)p.Kind == PodKind ? FolkJob.RoostKeeper : FolkJobs.BatJob(p.Kind)
+                            Job = p.Kind == BatFolkPropKind.Hammock ? FolkJob.RoostKeeper : FolkJobs.BatJob(p.Kind)
                         });
                         any = true;
                         break;
@@ -198,11 +212,8 @@ namespace Punchy.Fauna
             }
         }
 
-        // The home kinds the world lane adds in W-96 (bat folk ceiling pods, pygmy wall niches), by name, so this builds
-        // with or without them: -1 while the enum has no such kind.
-        static readonly int PodKind = HomeKind("Pod"), NicheKind = HomeKind("Niche");
 
-        static int HomeKind(string name) => System.Enum.TryParse<BatFolkPropKind>(name, out var k) ? (int)k : -1;
+
 
         /// <summary>
         /// The pygmies' share of a chamber: 2 or 3 of them (seeded by the chamber, apart from the bat folk's draws), each
@@ -215,19 +226,13 @@ namespace Punchy.Fauna
             var s = bats.Sites[site];
             var band = 2 + (int)((BiomeSampling.Scramble(s.Key ^ 0x51ED270Bu) >> 5) % 2u);
             chamberPosts.Clear();
-            if (NicheKind < 0)
-                return band;
-            for (int i = 0; i < bats.Props.Length && chamberPosts.Count < band; i++)
+            // (BatFolkHomes' niches, W-96: home is the niche's door, on the cave floor in front of it, facing in.)
+            var niches = BatFolkHomes.Count(source, BatFolkHomeKind.PygmyNiche, site);
+            for (int i = 0; i < niches && chamberPosts.Count < band; i++)
             {
-                ref var p = ref bats.Props[i];
-                if (p.Site != site || (int)p.Kind != NicheKind)
-                    continue;
-                // (A niche's opening faces +Z by its yaw: its sleeper stands just out of the mouth, on the floor below
-                // any ledge.)
-                var mouth = new float2(math.sin(p.Yaw), math.cos(p.Yaw));
-                var at = p.Position + new float3(mouth.x, 0f, mouth.y) * (p.Size.y + 0.5f) + new float3(0f, 0.4f, 0f);
-                if (ChamberFloor(source, at, out var stand) || ChamberFloor(source, at - new float3(0f, p.Size.z, 0f), out stand))
-                    chamberPosts.Add(new ChamberPost { Stand = stand, Face = p.Position.xz, Job = FolkJob.None });
+                BatFolkHomes.Get(source, BatFolkHomeKind.PygmyNiche, site, i, out var niche);
+                if (ChamberFloor(source, niche.Door + new float3(0f, 0.4f, 0f), out var stand))
+                    chamberPosts.Add(new ChamberPost { Stand = stand, Face = niche.Stand.xz, Job = FolkJob.None });
             }
             return band;
         }
@@ -294,17 +299,17 @@ namespace Punchy.Fauna
             }
             if (shared)
                 Debug.Log($"[cavefolk] {species[pyg].name} share the chambers: {bats.Sites.Length} bands, {pygmies} in all, {niched} homed at wall niches " +
-                          $"(home kinds: Pod {(PodKind >= 0 ? "yes" : "not yet")}, Niche {(NicheKind >= 0 ? "yes" : "not yet")})");
+                          $"({bats.Homes.Length} homes baked)");
             var text = new System.Text.StringBuilder();
             foreach (var kv in jobs)
                 text.Append($" {kv.Key} {kv.Value}");
             Debug.Log($"[cavefolk] {species[sp].name}: {bats.Sites.Length} chamber bands, {members} in all; posts{text}");
             if (species[sp].Body.ShunsLight)
                 Debug.Log($"[batfolk] chambers with bat folk {bats.Sites.Length}, bat folk total {members}");
-            // (Where each chamber's first hammock is, to frame shots by.)
-            for (int i = 0; i < bats.Props.Length; i++)
-                if (bats.Props[i].Kind == BatFolkPropKind.Hammock && (i == 0 || bats.Props[i - 1].Site != bats.Props[i].Site || bats.Props[i - 1].Kind != BatFolkPropKind.Hammock))
-                    Debug.Log($"[batfolk] hammock in chamber {bats.Props[i].Site} at {bats.Props[i].Position}");
+            // (Where each chamber's first pod door is, to frame shots by.)
+            for (int i = 0; i < bats.Sites.Length; i++)
+                if (BatFolkHomes.Count(source, BatFolkHomeKind.BatFolkPod, i) > 0 && BatFolkHomes.Get(source, BatFolkHomeKind.BatFolkPod, i, 0, out var pod))
+                    Debug.Log($"[batfolk] pod in chamber {i}, door at {pod.Door}");
             LogFishFolk(source);
         }
 

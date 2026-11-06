@@ -128,7 +128,7 @@ namespace Punchy.Fauna
     public static class AmbientLife
     {
         public const float Range = 40f;
-        const float CellSize = 16f;
+        public const float CellSize = 16f;
 
         /// <summary>What a cell holds, worked out once: each one's kind, home spot and a seed for how it moves.</summary>
         struct Resident
@@ -398,7 +398,7 @@ namespace Punchy.Fauna
         // ------------------------------------------------------------------------------- critter spots
 
         /// <summary>Which real creature a critter spot is for (CritterTable names the species).</summary>
-        public enum CritterKind : byte { Songbird, Woodpecker, Owl, Frog, Mouse }
+        public enum CritterKind : byte { Songbird, Woodpecker, Owl, Frog, Mouse, Gull, Fish }
 
         /// <summary>
         /// A place for one of the critter tier's real creatures, from the seed: its kind, an id for the spot (so the
@@ -499,6 +499,11 @@ namespace Punchy.Fauna
             {
                 var spot = into[i];
                 if ((AmbientSounds.At(terrain, spot.Position.xz) & AmbientSounds.Of(spot.Kind)) != AmbientSounds.Of(spot.Kind))
+                    continue;
+                // (A-70: nor a mouse or frog on the ground inside a building's walls. It sits still at its spot, so one
+                // drawn there spent the whole visit 0.3 m into the wall, at fishing village 3.)
+                if ((spot.Kind == CritterKind.Mouse || spot.Kind == CritterKind.Frog) &&
+                    FloraPlacement.Blocked(ref flora, terrain, spot.Position.xz, 0.3f))
                     continue;
                 into[kept++] = spot;
             }

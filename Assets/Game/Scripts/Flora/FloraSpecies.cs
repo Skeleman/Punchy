@@ -221,6 +221,10 @@ namespace Punchy.Flora
         public FoliageFinish Finish = FoliageFinish.Matte;
         [Tooltip("Flowers, berries and fruit glow by themselves.")]
         public bool GlowingAccents;
+        [Tooltip("W-101: Spire only. Above 0, the stones carry glowing carved glyphs in this many colour patterns; the " +
+                 "variants split evenly between them, and every stone of one landmark takes the same pattern (seeded per " +
+                 "landmark). 0 = plain stone.")]
+        [Range(0, 8)] public int RunePatterns;
         [Tooltip("How much the glowing parts shimmer (± share of their brightness, slowly, out of step plant to plant). " +
                  "0 = a steady glow (crystals).")]
         [Range(0f, 1f)] public float GlowPulse = 0.12f;

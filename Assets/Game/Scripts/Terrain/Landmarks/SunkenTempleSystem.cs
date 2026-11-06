@@ -25,7 +25,6 @@ namespace Punchy.Terrain
     public partial class SunkenTempleSystem : SystemBase
     {
         const float Lod0Distance = 120f, Lod1Distance = 1200f;
-        static readonly Vector4 TorchLight = new Vector4(1.7f, 0.95f, 0.4f, 9f);
 
         /// <summary>The last build's triangle counts: exterior LOD0-2, then the interior.</summary>
         public static int[] LodTris = new int[4];
@@ -99,8 +98,7 @@ namespace Punchy.Terrain
                 var p = (Vector3)torches[k];
                 FireSystem.AddFlame(p, 0.3f, 0x7E00 + k, FireSystem.Wood);
                 var flicker = 0.85f + 0.1f * math.sin(t * 9.1f + k * 2.3f) + 0.05f * math.sin(t * 23.7f + k * 5.1f);
-                var c = TorchLight;
-                CaveSystem.MovingLights.Add((0x7E0000 + k, p + Vector3.up * 0.25f, new Vector4(c.x * flicker, c.y * flicker, c.z * flicker, c.w)));
+                CaveSystem.MovingLights.Add((0x7E0000 + k, p + Vector3.up * 0.25f, FireSystem.Light(FireSystem.Wood, flicker)));
             }
             TorchesLit = torches.Length;
         }

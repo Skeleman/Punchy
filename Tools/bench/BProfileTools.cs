@@ -34,6 +34,17 @@ public static class BProfileTools
         EditorApplication.Exit(r.summary.result == UnityEditor.Build.Reporting.BuildResult.Succeeded ? 0 : 1);
     }
 
+    // Development build with deep profiling support: launched with -deepprofiling, every managed call is a marker
+    // (job 32: the island-ready frame's unmarked bake code).
+    public static void BuildDeep()
+    {
+        BenchIdentity();
+        var scenes = EditorBuildSettings.scenes.Where(s => s.enabled).Select(s => s.path).ToArray();
+        var r = BuildPipeline.BuildPlayer(scenes, Arg("-out", "Builds/Profile/Punchy.exe"), BuildTarget.StandaloneWindows64, BuildOptions.Development | BuildOptions.EnableDeepProfilingSupport);
+        Debug.Log("BProfile build: " + r.summary.result);
+        EditorApplication.Exit(r.summary.result == UnityEditor.Build.Reporting.BuildResult.Succeeded ? 0 : 1);
+    }
+
     static string Arg(string name, string def)
     {
         var a = Environment.GetCommandLineArgs();
@@ -47,6 +58,7 @@ public static class BProfileTools
     {
         var inputs = Arg("-raws", "").Split(';');
         var outPath = Arg("-out", "analysis.txt");
+        var keep = Arg("-keep", "");   // markers containing this always listed, however small (e.g. NetMenu)
         float skipSec = float.Parse(Arg("-skip", "0"), System.Globalization.CultureInfo.InvariantCulture);
         var sb = new StringBuilder();
         foreach (var raw in inputs)
@@ -119,7 +131,7 @@ public static class BProfileTools
                 var a = kv.Value;
                 double ms = a.self.Average();
                 // Brain.* marks always show: some are empty counters (Brain.Moving), read by their calls a frame.
-                if (ms < 0.03 && a.incl.Average() < 0.3 && !kv.Key.Contains("|Brain.")) continue;
+                if (ms < 0.03 && a.incl.Average() < 0.3 && !kv.Key.Contains("|Brain.") && (keep.Length == 0 || !kv.Key.Contains(keep))) continue;
                 sb.AppendLine($"{kv.Key}\t{Med(a.incl):F3}\t{a.incl.Average():F3}\t{Med(a.self):F3}\t{ms:F3}\t{(double)a.calls / Math.Max(1, used):F1}\t{a.maxCall:F2}\t{a.maxFrame:F2}");
             }
         }

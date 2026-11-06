@@ -85,11 +85,14 @@ namespace Punchy.Fauna
         BlobAssetReference<CarryBlob> carryBlob;
         /// <summary>Where trees are, for climbing, perching and webs (the same tables the plants are drawn from).</summary>
         BlobAssetReference<Punchy.Flora.FloraBlob> floraBlob;
+        BlobAssetReference<WharfSpotSet> wharfBlob;
+        /// <summary>A-73: the gull spots on the wharves' rail posts, by critter cell (WharfSpots.GullSpots).</summary>
+        readonly Dictionary<int2, List<AmbientLife.CritterSpot>> gullCells = new Dictionary<int2, List<AmbientLife.CritterSpot>>();
         readonly List<Punchy.Flora.FloraSpecies> floraSpecies = new List<Punchy.Flora.FloraSpecies>();
         /// <summary>The plant placement animals use (where a machine simulates them), and its species in rule order (tests).</summary>
         public BlobAssetReference<Punchy.Flora.FloraBlob> FloraPlacementBlob => floraBlob;
         public IReadOnlyList<Punchy.Flora.FloraSpecies> FloraSpeciesList => floraSpecies;
-        Mesh capsule;
+        Mesh capsule, capsuleMid, capsuleFar;
         float spawnBudget;
         bool built;
         // (The flora lookup's shape-only grows, started on workers before Build, #102.)
@@ -179,6 +182,10 @@ namespace Punchy.Fauna
             if (floraBlob.IsCreated)
                 floraBlob.Dispose();
             floraBlob = default;
+            if (wharfBlob.IsCreated)
+                wharfBlob.Dispose();
+            wharfBlob = default;
+            gullCells.Clear();
             if (carryBlob.IsCreated)
                 carryBlob.Dispose();
             carryBlob = default;
@@ -195,6 +202,7 @@ namespace Punchy.Fauna
                     em.DestroyEntity(settingsEntity);
             }
             settingsEntity = simClockEntity = floraEntity = Entity.Null;
+            CreatureSnapshotSystem.Forget();
             foreach (var b in blobs)
                 if (b.IsCreated) b.Dispose();
             blobs.Clear();
@@ -205,7 +213,9 @@ namespace Punchy.Fauna
             occupiedChambers.Clear();
             Caught = 0;
             if (capsule != null) Destroy(capsule);
-            capsule = null;
+            if (capsuleMid != null) Destroy(capsuleMid);
+            if (capsuleFar != null) Destroy(capsuleFar);
+            capsule = capsuleMid = capsuleFar = null;
             built = false;
             pendingShapes = null;
         }
@@ -262,12 +272,14 @@ namespace Punchy.Fauna
 
             var clock = new FaunaClock { Night = Cycle != null ? Cycle.Night : 0f, Hour = Cycle != null ? Cycle.TimeOfDay : 12f };
             queryWorld.EntityManager.SetComponentData(settingsEntity, clock);
+            Comfort.Hour.Data = new float2(clock.Hour, Cycle != null ? 1f : 0f);
             if (simWorld == null)
                 return;
             if (simWorld != queryWorld)
                 simWorld.EntityManager.SetComponentData(simClockEntity, clock);
 
             GatherPlayers();
+            Comfort.Refresh(players, source);
             if (Time.time >= nextDespawn)
             {
                 nextDespawn = Time.time + 0.25f;
@@ -453,19 +465,42 @@ namespace Punchy.Fauna
                     }
             }
             Stage("prey");
+            // A-71: each species' home climate, the middle of the temperature and humidity of the biomes that list it
+            // (weighted by how narrow each biome's ranges are: a biome that spans every climate says nothing).
+            var homes = new Dictionary<string, Vector3>();
+            foreach (var biome in biomes)
+            {
+                if (biome == null)
+                    continue;
+                var w = Mathf.Clamp01(1f - (biome.Temperature.y - biome.Temperature.x));
+                if (w < 0.05f)
+                    continue;
+                var t = (biome.Temperature.x + biome.Temperature.y) * 0.5f;
+                var h = (biome.Humidity.x + biome.Humidity.y) * 0.5f;
+                foreach (var f in biome.Fauna)
+                    if (f.Species != null)
+                    {
+                        homes.TryGetValue(f.Species.name, out var sum);
+                        homes[f.Species.name] = sum + new Vector3(t * w, h * w, w);
+                    }
+            }
             for (int i = 0; i < species.Count; i++)
             {
                 Regards(i, out var regard, out var kinship);
-                blobs.Add(CreatureBlobBuilder.Build(species[i], preyLists[i], hunted[i], regard, kinship));
+                Vector2? home = homes.TryGetValue(species[i].name, out var sum) ? new Vector2(sum.x / sum.z, sum.y / sum.z) : null;
+                blobs.Add(CreatureBlobBuilder.Build(species[i], preyLists[i], hunted[i], regard, kinship, home));
             }
             Stage("blobs");
 
             capsule = BuildCapsule(12, 6, 4);
+            // (Fewer sides and rows for the middle and far pose bands, A-70 row 4: 336 triangles, then 112, then 48.)
+            capsuleMid = BuildCapsule(8, 3, 2);
+            capsuleFar = BuildCapsule(6, 2, 1);
             Stage("capsule");
             var em = queryWorld.EntityManager;
             settingsEntity = em.CreateEntity();
             em.SetName(settingsEntity, "Fauna Render Settings");
-            em.AddComponentObject(settingsEntity, new FaunaRenderSettings { Material = Material, Capsule = capsule });
+            em.AddComponentObject(settingsEntity, new FaunaRenderSettings { Material = Material, Capsule = capsule, CapsuleMid = capsuleMid, CapsuleFar = capsuleFar });
             em.AddComponentData(settingsEntity, new FaunaClock());
             carryBlob = BuildCarryTable();
             Stage("carry");
@@ -486,12 +521,21 @@ namespace Punchy.Fauna
                                  Punchy.Flora.FloraPlacement.CellSize(flora.Trees.TileSize, flora.Trees.CellSize))
                     : new float3(0.7f, 2f, 4.5f);
                 floraBlob = Punchy.Flora.FloraPlacement.Build(palette, cells, floraSpecies, obstacles: true, grownShapes: pendingShapes);
+                // (A-73: where fishing folk stand on the wharves, from the same grown shapes.)
+                wharfBlob = WharfSpots.Build(floraSpecies, floraBlob, pendingShapes);
+                stages.Append(' ').Append(WharfSpots.LastLog);
+                WharfSpots.GullSpots(ref floraBlob.Value, source, ref wharfBlob.Value, gullCells);
+                var gulls = 0;
+                foreach (var list in gullCells.Values)
+                    gulls += list.Count;
+                stages.Append(" gulls ").Append(gulls).Append(" (").Append(WharfSpots.MastGulls.Count).Append(" on buoy masts)");
                 if (pendingShapes != null)
                     stages.Append(" (shapes waited ").Append(shapeFrames).Append(" frames)");
                 pendingShapes = null;
                 floraEntity = simWorld.EntityManager.CreateEntity();
                 simWorld.EntityManager.SetName(floraEntity, "Flora Lookup");
                 simWorld.EntityManager.AddComponentData(floraEntity, new Punchy.Flora.FloraLookup { Blob = floraBlob });
+                simWorld.EntityManager.AddComponentData(floraEntity, new WharfSpotLookup { Blob = wharfBlob });
                 Stage("flora");
             }
             Debug.Log($"[fauna build] {species.Count} species, ms:{stages} fingerprint {BuildFingerprint():X8}");
@@ -800,6 +844,8 @@ namespace Punchy.Fauna
         {
             if (queryWorld != null && queryWorld.IsCreated)
                 queryWorld.EntityManager.DestroyEntity(avatarQuery);
+            // (The creature snapshot still holds this body's blob: dropped first, A-70 row 5.)
+            CreatureSnapshotSystem.Forget();
             if (avatarBlob.IsCreated)
                 avatarBlob.Dispose();
             avatarBlob = default;
@@ -1793,6 +1839,9 @@ namespace Punchy.Fauna
                     // (Cells not worked out yet are settled a few a frame by SettleCritterCells.)
                     if (critterCells.TryGetValue(key, out var spots))
                         critterSpots.AddRange(spots);
+                    // (And the gulls on any wharf's posts there.)
+                    if (gullCells.TryGetValue(key, out var gulls))
+                        critterSpots.AddRange(gulls);
                 }
                 critterSpots.Sort((a, b) => math.distancesq(a.Position.xz, player.xz).CompareTo(math.distancesq(b.Position.xz, player.xz)));
                 foreach (var spot in critterSpots)
@@ -1803,9 +1852,10 @@ namespace Punchy.Fauna
                     if (d > CritterRadius || d < 6f || critters.ContainsKey(spot.Id) || pendingCritterSpots.Contains(spot.Id))
                         continue;
                     var kind = spot.Kind;
-                    // (Owls and frogs come out at night; songbirds and woodpeckers by day; mice either.)
+                    // (Owls and frogs come out at night; songbirds, woodpeckers and gulls by day; mice and the wharves' fish either.)
                     var day = night < 0.4f;
-                    if ((kind == AmbientLife.CritterKind.Owl || kind == AmbientLife.CritterKind.Frog) == day && kind != AmbientLife.CritterKind.Mouse)
+                    if ((kind == AmbientLife.CritterKind.Owl || kind == AmbientLife.CritterKind.Frog) == day && kind != AmbientLife.CritterKind.Mouse &&
+                        kind != AmbientLife.CritterKind.Fish)
                         continue;
                     var sp = kind switch
                     {
@@ -1813,6 +1863,8 @@ namespace Punchy.Fauna
                         AmbientLife.CritterKind.Woodpecker => critterTable.Woodpecker,
                         AmbientLife.CritterKind.Owl => critterTable.Owl,
                         AmbientLife.CritterKind.Frog => critterTable.Frog,
+                        AmbientLife.CritterKind.Gull => critterTable.Gull,
+                        AmbientLife.CritterKind.Fish => critterTable.WharfFish,
                         _ => critterTable.Mouse
                     };
                     var index = SpeciesIndex(sp);
@@ -1820,7 +1872,7 @@ namespace Punchy.Fauna
                         continue;
                     var at = spot.Position;
                     var id = spot.Id;
-                    var leash = kind == AmbientLife.CritterKind.Songbird ? 18f : 8f;
+                    var leash = kind == AmbientLife.CritterKind.Songbird || kind == AmbientLife.CritterKind.Gull ? 18f : 8f;
                     var timer = rng.NextFloat(4f, 15f);
                     pendingCritterSpots.Add(id);
                     Enqueue(index, at, SpawnTier.Critter, e =>

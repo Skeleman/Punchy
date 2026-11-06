@@ -2397,6 +2397,8 @@ namespace Punchy.Flora
             var first = b.VertexCount;
             var y = -radius * 0.2f;
             var offset = Vector3.zero;
+            Vector3 runeCentre = default, runeRadii = default;
+            var runeTurn = Quaternion.identity;
             for (int i = 0; i < blocks; i++)
             {
                 var t = blocks > 1 ? i / (blocks - 1f) : 0f;
@@ -2415,6 +2417,12 @@ namespace Punchy.Flora
                 var rotation = yaw * Quaternion.Euler(g.Range(-5f, 5f), g.Range(-25f, 25f), g.Range(-5f, 5f));
                 var color = Color.Lerp(g.Bark, bands, g.R());
                 b.Blob(centre, radii, rotation, detail, cap ? 0.1f : 0.16f, g.R() * 100f, color, FloraPart.Bark);
+                if (i == 0)
+                {
+                    runeCentre = centre;
+                    runeRadii = radii;
+                    runeTurn = rotation;
+                }
                 y += blockHeight * 0.88f;
                 offset += g.Flat(g.R() * 6.28f) * r * g.Range(0f, 0.12f);
             }
@@ -2422,7 +2430,95 @@ namespace Punchy.Flora
             g.Width = radius * 2f * Mathf.Max(capScale, 1.35f);
             g.TrunkRadius = radius * (blocks > 1 ? 1.2f : Mathf.Lerp(s.Spread, 1f, 0.5f));
             b.Occlude(first, (p, n) => GroundOcclusion(p, radius * 2f) * Mathf.Lerp(0.7f, 1f, Mathf.Clamp01(n.y + 0.7f)));
+            if (s.RunePatterns > 0 && g.Lod < 2)
+                SpireRunes(g, runeCentre, runeRadii, runeTurn);
             Moss(g, first);
+        }
+
+        // W-101: the glyph colours of a runed spire's patterns (FloraSpecies.RunePatterns), bright enough to read as
+        // light at dusk without washing out to white at noon (the shader adds 1.6x albedo on top of the lit colour):
+        // cyan, amber, violet, green, rose, ice, gold, teal.
+        static readonly Color[] RuneColours =
+        {
+            new Color(0.04f, 0.55f, 0.75f), new Color(0.8f, 0.36f, 0.03f), new Color(0.42f, 0.12f, 0.8f), new Color(0.18f, 0.72f, 0.1f),
+            new Color(0.8f, 0.12f, 0.35f), new Color(0.45f, 0.6f, 0.8f), new Color(0.75f, 0.6f, 0.05f), new Color(0.05f, 0.7f, 0.5f),
+        };
+
+        /// <summary>
+        /// W-101: glowing glyphs carved into a runed spire's lowest block, on both broad faces. The variant's pattern
+        /// (its run of FloraSpecies.Variants / RunePatterns, matching FloraPlacement.PatternModel) picks the colour and
+        /// the glyph family, so a whole stone circle glows alike; the variant itself only nudges where the glyphs sit.
+        /// Uses its own random so the stone's shape and moss draws stay as they were.
+        /// </summary>
+        static void SpireRunes(Grower g, Vector3 centre, Vector3 radii, Quaternion turn)
+        {
+            var s = g.S;
+            var patterns = Mathf.Min(s.RunePatterns, Mathf.Max(1, s.Variants));
+            var shapes = Mathf.Max(1, s.Variants / patterns);
+            var pattern = Mathf.Min(g.Variant / shapes, patterns - 1);
+            var glow = RuneColours[pattern % RuneColours.Length];
+            var rng = new System.Random(s.Seed * 7919 + g.Variant * 104729 + 31);
+            var w = 0.085f;
+            for (int face = -1; face <= 1; face += 2)
+            {
+                var count = 2 + rng.Next(0, 2);
+                for (int k = 0; k < count; k++)
+                {
+                    // Stacked down the face's middle, glyph squares about half the stone's width.
+                    var gy = Mathf.Lerp(0.35f, -0.4f, count > 1 ? k / (count - 1f) : 0.5f) + (float)(rng.NextDouble() - 0.5) * 0.06f;
+                    var gx = (float)(rng.NextDouble() - 0.5) * 0.15f;
+                    var size = radii.x * 0.78f;
+                    var cx = gx * radii.x;
+                    var cy = gy * radii.y;
+                    void Stroke(float a0, float b0, float a1, float b1)
+                    {
+                        var px = cx + (a0 + a1) * 0.5f * size;
+                        var py = cy + (b0 + b1) * 0.5f * size;
+                        var ex = px / radii.x;
+                        var ey = py / radii.y;
+                        var depth = radii.z * Mathf.Sqrt(Mathf.Max(0.05f, 1f - ex * ex - ey * ey));
+                        var d = new Vector2(a1 - a0, b1 - b0);
+                        var ang = Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg;
+                        var at = new Vector3(px, py, face * depth);
+                        g.B.Box(centre + turn * at, new Vector3((d.magnitude + w) * size, w * size, radii.z * 0.36f),
+                                turn * Quaternion.Euler(0f, 0f, ang), glow, FloraPart.Glow);
+                    }
+                    switch ((pattern + k) % 4)
+                    {
+                        case 0:   // a ringed cross
+                            Stroke(-0.28f, 0f, 0.28f, 0f);
+                            Stroke(0f, -0.28f, 0f, 0.28f);
+                            for (int r = 0; r < 6; r++)
+                            {
+                                float t0 = r * Mathf.PI / 3f, t1 = (r + 1) * Mathf.PI / 3f;
+                                Stroke(Mathf.Cos(t0) * 0.42f, Mathf.Sin(t0) * 0.42f, Mathf.Cos(t1) * 0.42f, Mathf.Sin(t1) * 0.42f);
+                            }
+                            break;
+                        case 1:   // two stacked chevrons
+                            for (int r = 0; r < 2; r++)
+                            {
+                                var vy = -0.25f + r * 0.32f;
+                                Stroke(-0.36f, vy, 0f, vy + 0.22f);
+                                Stroke(0f, vy + 0.22f, 0.36f, vy);
+                            }
+                            break;
+                        case 2:   // a stave with branches, like a tree rune
+                            Stroke(0f, -0.42f, 0f, 0.42f);
+                            Stroke(0f, 0.12f, -0.3f, 0.38f);
+                            Stroke(0f, 0.12f, 0.3f, 0.38f);
+                            Stroke(0f, -0.18f, -0.26f, 0.02f);
+                            Stroke(0f, -0.18f, 0.26f, 0.02f);
+                            break;
+                        default:  // an eye: a diamond with a dot
+                            Stroke(-0.4f, 0f, 0f, 0.26f);
+                            Stroke(0f, 0.26f, 0.4f, 0f);
+                            Stroke(0.4f, 0f, 0f, -0.26f);
+                            Stroke(0f, -0.26f, -0.4f, 0f);
+                            Stroke(-0.06f, 0f, 0.06f, 0f);
+                            break;
+                    }
+                }
+            }
         }
 
         static void Crystal(Grower g)
@@ -2587,8 +2683,8 @@ namespace Punchy.Flora
             // The cracked base mound: a low core, so the player can't slip in between the prongs' feet.
             g.Colliders.Add(new Vector4(0f, 0f, baseRadius * 0.6f, baseRadius * 0.5f));
             g.ColliderBase.Add(0f);
-            if (g.Lod == 2)
-                return;
+            // Far off (LOD2) the arcs stay as three-point, thicker strokes, so a wasteland still crackles from afar (W-101).
+            var arcRadius = g.Lod == 2 ? 0.09f : 0.03f;
             var arc = g.HasAccent ? AccentAt(g, 0) : new Color(0.65f, 0.85f, 1f);
             for (int k = 0; k < tips.Count; k++)
             {
@@ -2602,7 +2698,7 @@ namespace Punchy.Flora
                     var t = j / (points - 1f);
                     var zig = j == 0 || j == points - 1 ? Vector3.zero : (new Vector3(g.R(), g.R(), g.R()) - Vector3.one * 0.5f) * Vector3.Distance(a, c) * 0.18f;
                     path.Add(Vector3.Lerp(a, c, t) + Vector3.down * Mathf.Sin(t * Mathf.PI) * Vector3.Distance(a, c) * 0.12f + zig);
-                    radii.Add(0.03f);
+                    radii.Add(arcRadius);
                 }
                 b.Tube(path, radii, 3, arc, FloraPart.Arc);
             }
@@ -2646,9 +2742,26 @@ namespace Punchy.Flora
                 var turn = Quaternion.Euler(g.R() * 360f, g.R() * 360f, g.R() * 360f);
                 var seed = g.R() * 100f;
                 var color = Color.Lerp(g.Bark, g.Bark * 1.4f, g.R());
-                if (at.y - size >= DebrisHeadroom)
+                if (at.y - size >= DebrisHoldAbove)
                 {
                     high.Add((at, radii, turn, seed, color));
+                    continue;
+                }
+                if (at.y - size >= DebrisHeadroom)
+                {
+                    // W-106 (#70): a piece that would orbit within a jumping head's reach is held still instead, low
+                    // over the ground: a flat stepping stone hovering at knee to hip height, solid (a kit box, so its
+                    // top is a floor and its underside a ceiling), that the player can jump onto. No new draws from
+                    // the rng (its height comes from the piece's seed), so the pieces after it keep their shapes.
+                    var stoneTop = DebrisStoneTop.x + (DebrisStoneTop.y - DebrisStoneTop.x) * Mathf.Repeat(seed * 7.31f, 1f);
+                    var stoneRadii = new Vector3(Mathf.Max(radii.x, 0.45f), Mathf.Min(radii.y, 0.22f), Mathf.Max(radii.z, 0.4f));
+                    var stoneAt = new Vector3(at.x, stoneTop - stoneRadii.y, at.z);
+                    var stoneTurn = Quaternion.Euler(0f, turn.eulerAngles.y, 0f);
+                    b.Blob(stoneAt, stoneRadii, stoneTurn, g.Sides(1, 1, 0), 0.25f, seed, color, FloraPart.Metal, 1f, 0.5f);
+                    // A small grain of rock held under it, as if pinned there by the field.
+                    b.Blob(stoneAt + Vector3.down * (stoneRadii.y + 0.25f), stoneRadii * 0.22f, turn, 1, 0.3f, seed + 3f, color * 0.9f, FloraPart.Metal, 1f, 0.5f);
+                    var half = new Vector3(stoneRadii.x * 0.75f, stoneRadii.y, stoneRadii.z * 0.75f);
+                    g.Boxes.Add(new KitBox { Centre = stoneAt, Half = half, Rotation = stoneTurn, Reach = half.magnitude });
                     continue;
                 }
                 var flat = new Vector2(at.x, at.z);
@@ -2673,6 +2786,12 @@ namespace Punchy.Flora
 
         /// <summary>How high (m, before scaling) a Debris piece's bottom must float to stay in the air: above a head.</summary>
         const float DebrisHeadroom = 2.2f;
+
+        /// <summary>W-106 (#70): a piece whose bottom floats under this (m) is in reach of a jumping head, so it's held still as a stepping stone.</summary>
+        const float DebrisHoldAbove = 3.4f;
+
+        /// <summary>W-106 (#70): a held stepping stone's top height range (m): under the 1.28 m a jump clears.</summary>
+        static readonly Vector2 DebrisStoneTop = new Vector2(0.75f, 1.1f);
 
         /// <summary>W-93 (#70): a wasteland chunk topping out under this (m, before scaling) is walked over, so it gets no boxes.</summary>
         const float ChunkStep = 0.45f;
@@ -2853,10 +2972,10 @@ namespace Punchy.Flora
                 shards.Add(at);
             }
             // Arcs from the rock to some of its shards (they crackle: FloraPart.Arc).
-            if (g.Lod < 2)
+            // Far off (LOD2) half as many, thicker and three points each (W-101).
             {
                 var arcColor = s.Foliage.linear;
-                for (int k = 0; k < shards.Count; k += 2)
+                for (int k = 0; k < shards.Count; k += g.Lod == 2 ? 4 : 2)
                 {
                     var from = centre + (shards[k] - centre).normalized * Mathf.Min(dims.x, dims.z) * 0.9f;
                     var to = shards[k];
@@ -2868,7 +2987,7 @@ namespace Punchy.Flora
                         var t = j / (points - 1f);
                         var zig = j == 0 || j == points - 1 ? Vector3.zero : (new Vector3(g.R(), g.R(), g.R()) - Vector3.one * 0.5f) * Vector3.Distance(from, to) * 0.2f;
                         path.Add(Vector3.Lerp(from, to, t) + zig);
-                        radii.Add(size * 0.006f);
+                        radii.Add(size * (g.Lod == 2 ? 0.016f : 0.006f));
                     }
                     b.Tube(path, radii, 3, arcColor, FloraPart.Arc);
                 }
@@ -2981,7 +3100,9 @@ namespace Punchy.Flora
             var overhang = radius * 1.3f;
             var roofColor = g.FoliageColor();
             // A thick lip at the rim (#32): a lower ring just inside the edge, so the eave has a visible thickness.
+            b.Surface = (int)Punchy.Terrain.KitSurface.Thatch;   // W-99: drawn as thatch
             RoofTube(b, wall - 0.3f, overhang, sides, roofColor, FloraPart.Bark, height, 0.05f, wall + (height - wall) * 0.45f, overhang * 0.55f);
+            b.Surface = 0;
             b.Occlude(roof, (p, n) => Mathf.Lerp(0.55f, 1f, Mathf.Clamp01(n.y + 0.2f)));
             g.Perches.Add(Vector3.up * height);
 
@@ -3225,6 +3346,67 @@ namespace Punchy.Flora
         }
 
         /// <summary>
+        /// W-104 (#80): wind-blown sand round a kit ruin. Drifts lean on the feet of the standing wall bays (mostly on one
+        /// windward side), one low natural mound lies against the ruin where a wall came down, and dry grass tufts poke
+        /// out of the sand up close. Drawing only, from its own random stream: the kit parts, boxes and colliders are the
+        /// same as before. W-104 3b: the house stands on a 0.5 m plinth, so outside drifts and the mound start at the
+        /// ground beside it and rise past the plinth's top (the mound to about 0.8 m), and inside drifts sit on the floor.
+        /// </summary>
+        static void RuinSand(Grower g, System.Collections.Generic.List<Punchy.Terrain.KitPart> parts, float width, float depth, uint seed)
+        {
+            var b = g.B;
+            const float FloorTop = 0.5f;   // StructureKit.House's plinth course is 0.5 m tall
+            var rng = new System.Random((int)(seed * 0x27D4EB2Du ^ 0x5A17u));
+            float R() => (float)rng.NextDouble();
+            var sand = new Color(0.58f, 0.52f, 0.4f);
+            var grass = new Color(0.52f, 0.55f, 0.3f);
+            var wind = Quaternion.Euler(0f, R() * 360f, 0f) * Vector3.forward;   // the side the sand piles up on
+            var tufts = new System.Collections.Generic.List<Vector3>();
+            var first = b.VertexCount;
+            for (int i = 0; i < parts.Count; i++)
+            {
+                var p = parts[i];
+                if (p.Piece != Punchy.Terrain.KitPiece.Wall || p.Centre.y - p.Size.y * 0.5f > 0.3f || p.Size.y < 0.6f)
+                    continue;                                              // only bays standing on the ground
+                var along = p.Size.x >= p.Size.z ? p.Rotation * Vector3.right : p.Rotation * Vector3.forward;
+                var normal = p.Size.x >= p.Size.z ? p.Rotation * Vector3.forward : p.Rotation * Vector3.right;
+                var len = Mathf.Max(p.Size.x, p.Size.z);
+                var thick = Mathf.Min(p.Size.x, p.Size.z);
+                var side = Vector3.Dot(normal, wind) < 0f ? 1f : -1f;      // windward face first
+                if (R() > 0.75f)
+                    side = -side;
+                if (R() < 0.2f)
+                    continue;                                              // a few bare feet
+                var outside = Vector3.Dot(normal * side, new Vector3(p.Centre.x, 0f, p.Centre.z)) > 0f;
+                var r = outside
+                    ? new Vector3(Mathf.Min(len * 0.35f, 1.4f) + R() * 0.6f, 0.45f + R() * 0.35f, 0.7f + R() * 0.5f)   // from the ground, past the plinth
+                    : new Vector3(Mathf.Min(len * 0.3f, 1.1f) + R() * 0.5f, Mathf.Min(0.16f + R() * 0.24f, p.Size.y * 0.4f), 0.45f + R() * 0.4f);
+                var at = new Vector3(p.Centre.x, (outside ? 0f : FloorTop) - r.y * 0.3f, p.Centre.z) + along * (R() - 0.5f) * len * 0.4f +
+                         normal * side * (thick * 0.5f + (outside ? 0.1f : 0f) + r.z * 0.35f);
+                var rot = Quaternion.LookRotation(normal, Vector3.up) * Quaternion.Euler(0f, 90f, 0f);
+                b.Blob(at, r, rot, 2, 0.2f, i * 1.7f + (seed & 255), Color.Lerp(sand, sand * 0.88f, R()), FloraPart.Bark, 1f, 0f, 0.6f);
+                if (R() < 0.4f)
+                    tufts.Add(at + Vector3.up * r.y * 0.55f + along * (R() - 0.5f) * r.x);
+            }
+            // The mound: a long low swell lapping one side of the ruin, its gentle flank to windward, with a smaller
+            // drift running off its end.
+            var reach = Mathf.Max(width, depth) * 0.5f;
+            var edge = Mathf.Abs(wind.x) * width * 0.5f + Mathf.Abs(wind.z) * depth * 0.5f + 0.1f;   // the plinth's edge on the windward side
+            var mr = new Vector3(reach * (0.95f + R() * 0.3f), 1.05f + R() * 0.3f, 2.6f + R() * 1f);
+            var centre = -wind * (edge + mr.z * 0.4f) + Vector3.Cross(Vector3.up, wind) * (R() - 0.5f) * reach * 0.5f;
+            var face = Quaternion.LookRotation(wind, Vector3.up) * Quaternion.Euler(0f, 90f + (R() - 0.5f) * 25f, 0f);
+            b.Blob(centre + Vector3.down * mr.y * 0.4f, mr, face, g.Lod == 0 ? 2 : 1, 0.14f, seed & 1023, sand, FloraPart.Bark, 1f, 0f, 0.6f);
+            var tail = centre + face * new Vector3(mr.x * (0.8f + R() * 0.3f), 0f, 0.4f);
+            b.Blob(tail + Vector3.down * mr.y * 0.3f, new Vector3(mr.x * 0.5f, mr.y * 0.55f, mr.z * 0.6f), face, 1, 0.12f, (seed & 1023) + 5f, sand * 0.95f, FloraPart.Bark, 1f, 0f, 0.6f);
+            for (int k = 0; k < 3; k++)
+                tufts.Add(centre + face * new Vector3((R() - 0.5f) * mr.x * 1.2f, mr.y * 0.45f, (R() - 0.5f) * mr.z * 0.6f));
+            b.Occlude(first, (p, n) => GroundOcclusion(p, 0.5f));
+            if (g.Lod == 0)
+                foreach (var t in tufts)
+                    b.Leaves(t + Vector3.up * 0.15f, new Vector3(0.3f, 0.22f, 0.3f), 10, 0.16f, rng, grass, grass * 1.25f);
+        }
+
+        /// <summary>
         /// W-94 (#80): a ruin's wall bay drawn as old coursed stone blocks instead of one slab: a darker mortar core a
         /// little inside the face, then courses about 0.32 m high of blocks 0.55-0.95 m long, every other course half a
         /// block over, each block worn smaller at its edges, proud or sunk a little, tipped a degree or two and shaded
@@ -3232,13 +3414,16 @@ namespace Punchy.Flora
         /// foot. Drawing only: the bay's collision box is still the part's own (KitStructure adds it), so walks are unchanged.
         /// </summary>
         static void RuinBricks(FloraMeshBuilder b, in Punchy.Terrain.KitPart p, Color c, uint seed)
+
         {
             var rng = new System.Random((int)(seed & 0x7FFFFFFF));
             float R() => (float)rng.NextDouble();
             var alongX = p.Size.x >= p.Size.z;
             float length = alongX ? p.Size.x : p.Size.z, thick = alongX ? p.Size.z : p.Size.x, height = p.Size.y;
             Vector3 Local(float a, float y, float t) => alongX ? new Vector3(a, y, t) : new Vector3(t, y, a);
-            b.Box(p.Centre, Local(length - 0.04f, height - 0.02f, Mathf.Max(0.05f, thick - 0.1f)), p.Rotation, c * 0.6f, FloraPart.Bark);
+            // W-101 (#80): the mortar core darker (was 0.6), so the joints between blocks read as lines from further off.
+            b.Box(p.Centre, Local(length - 0.04f, height - 0.02f, Mathf.Max(0.05f, thick - 0.1f)), p.Rotation, c * 0.38f, FloraPart.Bark);
+            var glyphs = new System.Random((int)((seed * 2654435761u ^ 0x5bd1e995u) & 0x7FFFFFFF));
             var courses = Mathf.Max(1, Mathf.RoundToInt(height / 0.32f));
             var ch = height / courses;
             for (int row = 0; row < courses; row++)
@@ -3266,7 +3451,12 @@ namespace Punchy.Flora
                     if (!gone)
                     {
                         var size = Local(Mathf.Max(0.1f, l - wear), bh, thick + 0.02f - R() * 0.06f);
-                        b.Box(p.Centre + p.Rotation * Local(a, y, (R() - 0.5f) * 0.03f), size, p.Rotation * tip, shade, FloraPart.Bark);
+                        var at = p.Centre + p.Rotation * Local(a, y, (R() - 0.5f) * 0.03f);
+                        b.Box(at, size, p.Rotation * tip, shade, FloraPart.Bark);
+                        // W-101 (#80): now and then an old carving on one face of a whole block (its own draws, so the
+                        // courses above are laid exactly as before).
+                        if (!top && l > 0.45f && glyphs.NextDouble() < 0.1)
+                            RuinGlyph(b, at, p.Rotation * tip, alongX, l - wear, bh, (alongX ? size.z : size.x) * 0.5f, shade, glyphs);
                     }
                     else if (row > 0 && R() < 0.6f && p.Centre.y - height * 0.5f < 0.3f)   // only from a bay standing on the ground
                     {
@@ -3277,6 +3467,154 @@ namespace Punchy.Flora
                         b.Box(p.Centre + p.Rotation * at, Local(Mathf.Max(0.2f, l - wear), bh, thick * 0.8f), p.Rotation * fall, shade * 0.95f, FloraPart.Bark);
                     }
                 }
+            }
+        }
+
+        /// <summary>
+        /// W-101 (#80): a worn carving on one face of a ruin block: a frame line or none, then one of a few simple glyphs
+        /// (a ringed cross, a chevron stack, a stepped spiral) cut as dark grooves a few millimetres proud of the face.
+        /// </summary>
+        static void RuinGlyph(FloraMeshBuilder b, Vector3 centre, Quaternion rot, bool alongX, float len, float high, float face, Color shade, System.Random rng)
+        {
+            var side = rng.NextDouble() < 0.5 ? -1f : 1f;
+            var groove = shade * 0.3f;
+            var w = 0.06f;
+            var s = Mathf.Min(len * 0.8f, high * 0.95f);   // the glyph's square
+            void Stroke(float a0, float y0, float a1, float y1)
+            {
+                var d = new Vector2(a1 - a0, y1 - y0);
+                var l = d.magnitude + w;
+                var ang = Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg;
+                var local = new Vector3((a0 + a1) * 0.5f * s, (y0 + y1) * 0.5f * s, side * (face + 0.004f));
+                var at = alongX ? local : new Vector3(local.z, local.y, local.x);
+                var turn = alongX ? Quaternion.Euler(0f, 0f, ang) : Quaternion.Euler(0f, -90f, 0f) * Quaternion.Euler(0f, 0f, ang);
+                b.Box(centre + rot * at, new Vector3(l * s, w * s, 0.012f), rot * turn, groove, FloraPart.Bark);
+            }
+            switch (rng.Next(0, 3))
+            {
+                case 0:   // a cross in a ring of eight strokes
+                    Stroke(-0.3f, 0f, 0.3f, 0f);
+                    Stroke(0f, -0.3f, 0f, 0.3f);
+                    for (int k = 0; k < 8; k++)
+                    {
+                        float t0 = k * Mathf.PI / 4f, t1 = (k + 1) * Mathf.PI / 4f;
+                        Stroke(Mathf.Cos(t0) * 0.42f, Mathf.Sin(t0) * 0.42f, Mathf.Cos(t1) * 0.42f, Mathf.Sin(t1) * 0.42f);
+                    }
+                    break;
+                case 1:   // three stacked chevrons
+                    for (int k = 0; k < 3; k++)
+                    {
+                        var y = -0.3f + k * 0.28f;
+                        Stroke(-0.35f, y, 0f, y + 0.18f);
+                        Stroke(0f, y + 0.18f, 0.35f, y);
+                    }
+                    break;
+                default:  // a squared spiral
+                    float x = -0.05f, yy = -0.05f, step = 0.1f;
+                    for (int k = 0; k < 6; k++, step += 0.1f)
+                    {
+                        float nx = x, ny = yy;
+                        switch (k % 4) { case 0: nx += step; break; case 1: ny += step; break; case 2: nx -= step; break; default: ny -= step; break; }
+                        Stroke(x, yy, nx, ny);
+                        x = nx;
+                        yy = ny;
+                    }
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// A pitched kit roof slab up close (W-99): the slab itself (the collision), then overlapping courses laid on it
+        /// from the eave up, each tipped so its lower edge stands proud (shingle rows, or thicker thatch layers), and on
+        /// thatch a ragged fringe hanging over the eave, each tuft its own length. Flat tiers keep only the shader's
+        /// courses. Drawing only, like RuinBricks; the caller sets the builder's Surface so the courses get the look too.
+        /// </summary>
+        /// <summary>
+        /// Where the upright part <paramref name="index"/> (a wall, post, pile or chimney, turned about Y only) meets a
+        /// floor, deck plank or plinth (W-99: contact shading): heights local to its centre, into
+        /// <paramref name="into"/>. A slab's top counts where the upright stands on it or passes up through it, its
+        /// underside where the upright holds it up or passes down through it. False when nothing meets it.
+        /// </summary>
+        static bool Contacts(System.Collections.Generic.List<Punchy.Terrain.KitPart> parts, int index, List<float> into)
+        {
+            into.Clear();
+            var u = parts[index];
+            if (u.Piece != Punchy.Terrain.KitPiece.Wall && u.Piece != Punchy.Terrain.KitPiece.Column && u.Piece != Punchy.Terrain.KitPiece.Chimney ||
+                (u.Rotation * Vector3.up).y < 0.995f || u.Size.y < 0.4f)
+                return false;
+            var bottom = u.Centre.y - u.Size.y * 0.5f;
+            var topY = u.Centre.y + u.Size.y * 0.5f;
+            for (int j = 0; j < parts.Count && into.Count < 4; j++)
+            {
+                var f = parts[j];
+                if (j == index || (f.Rotation * Vector3.up).y < 0.995f || f.Size.y > 0.6f)
+                    continue;
+                var slab = f.Piece == Punchy.Terrain.KitPiece.Floor || f.Piece == Punchy.Terrain.KitPiece.Platform || f.Piece == Punchy.Terrain.KitPiece.Balcony ||
+                           f.Piece == Punchy.Terrain.KitPiece.Trim && f.Size.x > 1f && f.Size.z > 1f;   // a plinth round a house's foot
+                if (!slab)
+                    continue;
+                // The upright's middle, in the slab's frame, must lie over the slab (give or take the upright's own half).
+                var local = Quaternion.Inverse(f.Rotation) * (u.Centre - f.Centre);
+                var reach = Mathf.Max(u.Size.x, u.Size.z) * 0.5f;
+                if (Mathf.Abs(local.x) > f.Size.x * 0.5f + reach || Mathf.Abs(local.z) > f.Size.z * 0.5f + reach)
+                    continue;
+                var fTop = f.Centre.y + f.Size.y * 0.5f;
+                var fBottom = f.Centre.y - f.Size.y * 0.5f;
+                if (fTop > bottom - 0.15f && fTop < topY - 0.1f)
+                    Add(into, Mathf.Max(fTop, bottom) - u.Centre.y);
+                if (fBottom > bottom + 0.1f && fBottom < topY + 0.15f)
+                    Add(into, Mathf.Min(fBottom, topY) - u.Centre.y);
+            }
+            return into.Count > 0;
+
+            static void Add(List<float> list, float y)
+            {
+                foreach (var v in list)
+                    if (Mathf.Abs(v - y) < 0.15f)   // a deck's planks and the bed under them: one join
+                        return;
+                list.Add(y);
+            }
+        }
+
+        static void RoofCourses(FloraMeshBuilder b, in Punchy.Terrain.KitPart p, Color c, bool thatch, uint seed)
+        {
+            b.Box(p.Centre, p.Size, p.Rotation, c, FloraPart.Bark);
+            var up = p.Rotation * Vector3.up;
+            if (up.y < 0.2f || up.y > 0.97f)
+                return;
+            var rng = new System.Random((int)(seed & 0x7FFFFFFF));
+            float R() => (float)rng.NextDouble();
+            // The slab's local z runs down the slope one way or the other: the eave is its lower end.
+            var downhill = (p.Rotation * Vector3.forward).y > 0f ? -1f : 1f;
+            float course = thatch ? 0.42f : 0.26f, thick = thatch ? 0.09f : 0.035f, proud = thatch ? 0.05f : 0.022f;
+            var length = p.Size.z;
+            var rows = Mathf.Max(2, Mathf.FloorToInt(length / course));
+            course = length / rows;
+            var tip = Quaternion.Euler(-downhill * Mathf.Atan2(proud, course) * Mathf.Rad2Deg, 0f, 0f);
+            var lift = p.Size.y * 0.5f + thick * 0.5f + proud * 0.5f;
+            var look = b.Surface;
+            if (!thatch)
+                b.Surface = 4;   // the rows are geometry: the shader adds only the tiles (FloraMeshBuilder.Surface)
+            for (int k = 0; k < rows; k++)
+            {
+                var z = downhill * (length * 0.5f - (k + 0.5f) * course);
+                var shade = Color.Lerp(c * 0.9f, c * 1.07f, R());
+                b.Box(p.Centre + p.Rotation * new Vector3((R() - 0.5f) * 0.06f, lift, z), new Vector3(p.Size.x - R() * 0.06f, thick, course * 1.18f),
+                      p.Rotation * tip, shade, FloraPart.Bark);
+            }
+            b.Surface = look;
+            if (!thatch)
+                return;
+            // The fringe: tufts along the eave, hanging a little lower and further out, each its own length and shade.
+            var tufts = Mathf.Max(3, Mathf.RoundToInt(p.Size.x / 0.26f));
+            var droop = Quaternion.Euler(-downhill * (8f + R() * 6f), 0f, 0f);
+            for (int j = 0; j < tufts; j++)
+            {
+                var hang = 0.22f + R() * 0.22f;
+                var x = -p.Size.x * 0.5f + (j + 0.5f) * p.Size.x / tufts + (R() - 0.5f) * 0.08f;
+                var at = new Vector3(x, lift + thick * 0.2f, downhill * (length * 0.5f + hang * 0.25f));
+                b.Box(p.Centre + p.Rotation * at, new Vector3(p.Size.x / tufts * (1.05f + R() * 0.3f), thick * (1.1f + R() * 0.5f), hang),
+                      p.Rotation * droop, Color.Lerp(c * 0.78f, c * 0.96f, R()), FloraPart.Bark);
             }
         }
 
@@ -3365,6 +3703,8 @@ namespace Punchy.Flora
             var house = Punchy.Terrain.StructureKit.HouseLike(shape) && shape != Punchy.Terrain.KitShape.SlabShelter ||   // a slab shelter is walked into
                         shape == Punchy.Terrain.KitShape.Igloo || shape == Punchy.Terrain.KitShape.ShellDome;
 
+            var looks = Punchy.Terrain.StructureKit.Surfaces(s.KitCulture, seed);
+            var contacts = new List<float>();
             var first = b.VertexCount;
             var top = 0f;
             var perch = Vector3.zero;
@@ -3386,11 +3726,24 @@ namespace Punchy.Flora
                     b.MossSheet(p.Centre, p.Size, p.Rotation, c, (uint)i * 2654435761u ^ seed);
                     continue;
                 }
+                // W-99: planks, shingles or thatch on the folk's timber walls and roofs, fine grain on bare timber.
+                var look = ruined ? Punchy.Terrain.KitSurface.Plain : p.Material == Punchy.Terrain.KitMaterial.Wall ? looks.Wall :
+                           p.Material == Punchy.Terrain.KitMaterial.Roof ? looks.Roof : Punchy.Terrain.KitSurface.Plain;
+                b.Surface = (int)look;
+                b.Wood = p.Material == Punchy.Terrain.KitMaterial.Wood;
+                b.Unfounded = p.Afloat;
                 if (ruined && g.Lod == 0 && p.Piece == Punchy.Terrain.KitPiece.Wall && p.Material == Punchy.Terrain.KitMaterial.Wall)
                     RuinBricks(b, p, c, seed ^ (uint)i * 0x9E3779B9u);   // W-94 (#80): old coursed blocks up close
+                else if (g.Lod == 0 && p.Piece == Punchy.Terrain.KitPiece.Roof && (look == Punchy.Terrain.KitSurface.Shingles || look == Punchy.Terrain.KitSurface.Thatch))
+                    RoofCourses(b, p, c, look == Punchy.Terrain.KitSurface.Thatch, seed ^ (uint)i * 0x85EBCA77u);
+                else if (g.Lod < 2 && Contacts(parts, i, contacts))
+                    b.BandedBox(p.Centre, p.Size, p.Rotation, c, FloraPart.Bark, contacts, Mathf.Min(0.5f, p.Size.y * 0.3f), 0.7f);
                 else
                     b.Box(p.Centre, p.Size, p.Rotation, c, p.Material == Punchy.Terrain.KitMaterial.Moss ? FloraPart.Foliage :
                                                            p.Material == Punchy.Terrain.KitMaterial.Lamp || p.Material == Punchy.Terrain.KitMaterial.Rune ? FloraPart.Window : FloraPart.Bark);
+                b.Surface = 0;
+                b.Wood = false;
+                b.Unfounded = false;
                 var high = p.Centre.y + p.Size.y * 0.5f;
                 top = Mathf.Max(top, high);
                 // W-67 (#79): every part is a solid box unless it's decor (moss, trim, windows, lamps and runes): the
@@ -3456,6 +3809,8 @@ namespace Punchy.Flora
             if (perch.y > 1f)
                 g.Perches.Add(perch);
             b.Recolor(first, (p, c) => p.y < 0.5f ? c * 0.82f : c);   // darker footing
+            if (ruined && g.Lod < 2)
+                RuinSand(g, parts, width, depth, seed);
             b.Occlude(first, (p, n) => GroundOcclusion(p, Mathf.Min(top, 4f) * 0.5f));
             g.Height = top;
             g.Width = shape == Punchy.Terrain.KitShape.Wharf ? 30f : Mathf.Max(width, depth) * 1.4f;
@@ -3538,7 +3893,9 @@ namespace Punchy.Flora
         /// <summary>
         /// A ruined stone house: four walls of stone piers, each wall's tops sloping down towards one end (the way walls
         /// fall, from a corner) with a ragged edge, one wall nearly gone, a gap for the door at +Z, a window hole in a
-        /// tall side wall, moss on some broken tops and fallen stones round the foot. No roof.
+        /// tall side wall, moss on some broken tops and fallen stones round the foot. No roof. W-106 (#80): up close each
+        /// pier is old coursed stone brick (StructureKit's ruin blocks, RuinBricks, seeded per pier so no two walls
+        /// match), with a few blocks fallen at its foot and sand drifted against some walls.
         /// </summary>
         static void Ruin(Grower g)
         {
@@ -3553,6 +3910,18 @@ namespace Punchy.Flora
             var pier = g.Sides(1, 2, 4) * 0.55f;      // finer piers up close, so the broken edge reads as stones
             var doorHalf = Mathf.Min(half * 0.3f, 0.7f);
             var gone = g.Variant % 4;                   // the wall that has nearly all fallen
+
+            // W-106 (#80): a pier up close is laid as brick courses (a kit wall part through RuinBricks); its seed comes
+            // from the species, variant, wall and pier, never from g.R(), so every ruin keeps its layout and collision.
+            var brickSeed = (uint)s.Seed * 0x9E3779B9u ^ (uint)g.Variant * 0x85EBCA77u;
+            void Pier(Vector3 centre, Vector3 size, Quaternion facing, Color colour, uint pierSeed)
+            {
+                if (g.Lod == 0)
+                    RuinBricks(b, new Punchy.Terrain.KitPart { Piece = Punchy.Terrain.KitPiece.Wall, Material = Punchy.Terrain.KitMaterial.Wall,
+                                                               Centre = centre, Size = size, Rotation = facing }, colour, pierSeed);
+                else
+                    b.Box(centre, size, facing, colour, FloraPart.Bark);
+            }
 
             var first = b.VertexCount;
             for (int w = 0; w < 4; w++)
@@ -3572,16 +3941,18 @@ namespace Punchy.Flora
                     var u = (i + 0.5f) / n;
                     var top = Mathf.Max(0.25f, height * keep * Mathf.Lerp(0.3f, 1f, fromLeft ? u : 1f - u) * g.Range(0.75f, 1.05f));
                     var colour = Color.Lerp(g.Bark, g.Bark * 1.15f, g.R());
+                    var pierSeed = brickSeed ^ (uint)(w * 64 + i + 1) * 0xC2B2AE35u;
                     // A window hole: a pier in the middle of a tall side wall, split round the opening.
                     if (w != 0 && i == n / 2 && top > 2.3f && g.Lod < 2)
                     {
-                        b.Box(facing * new Vector3(x, 0.4f, half), new Vector3(step * 1.02f, 1.1f, thick), facing, colour, FloraPart.Bark);
-                        b.Box(facing * new Vector3(x, (1.85f + top) * 0.5f, half), new Vector3(step * 1.02f, top - 1.85f, thick), facing, colour, FloraPart.Bark);
+                        Pier(facing * new Vector3(x, 0.4f, half), new Vector3(step * 1.02f, 1.1f, thick), facing, colour, pierSeed);
+                        Pier(facing * new Vector3(x, (1.85f + top) * 0.5f, half), new Vector3(step * 1.02f, top - 1.85f, thick), facing, colour, pierSeed ^ 0x27D4EB2Fu);
                     }
                     else
-                        b.Box(facing * new Vector3(x, top * 0.5f - 0.15f, half), new Vector3(step * 1.02f, top + 0.3f, thick), facing, colour, FloraPart.Bark);
+                        Pier(facing * new Vector3(x, top * 0.5f - 0.15f, half), new Vector3(step * 1.02f, top + 0.3f, thick), facing, colour, pierSeed);
+                    // Moss on the broken top: up close it sits down among the ragged top course, not on a slab over it.
                     if (g.HasAccent && g.Lod < 2 && g.R() < s.AccentAmount)
-                        b.Box(facing * new Vector3(x, top + 0.03f, half), new Vector3(step * 0.95f, 0.07f, thick * 1.06f), facing, g.Accent, FloraPart.Foliage);
+                        b.Box(facing * new Vector3(x, top + (g.Lod == 0 ? -0.07f : 0.03f), half), new Vector3(step * 0.95f, 0.07f, thick * 1.06f), facing, g.Accent, FloraPart.Foliage);
                     if (top > 0.7f)
                     {
                         var c = facing * new Vector3(x, 0f, half);
@@ -3613,6 +3984,30 @@ namespace Punchy.Flora
                           Quaternion.Euler(g.Range(-15f, 15f), g.R() * 360f, g.Range(-15f, 15f)), Color.Lerp(g.Bark * 0.85f, g.Bark * 1.1f, g.R()), FloraPart.Bark);
                 }
                 b.Occlude(rubble, (p, n) => GroundOcclusion(p, 0.5f));
+
+                // W-106 (#80): sand drifted against the foot of one or two walls, banked higher in the middle of the wall
+                // and thinning out to its ends (its own rng, so the ruin's other draws are unchanged).
+                var drifts = new System.Random((int)(brickSeed & 0x7FFFFFFF));
+                var sand = new Color(0.76f, 0.66f, 0.48f);
+                var drift = b.VertexCount;
+                for (int w = 0; w < 4; w++)
+                {
+                    if (w == gone || drifts.NextDouble() < 0.55)
+                        continue;
+                    var facing = Quaternion.Euler(0f, w * 90f, 0f);
+                    var side = drifts.NextDouble() < 0.6 ? 1f : -1f;       // outside the wall, or banked up inside it
+                    var lumps = 2 + drifts.Next(3);
+                    for (int k = 0; k < lumps; k++)
+                    {
+                        var x = ((k + 0.5f) / lumps - 0.5f) * half * 1.7f + (float)(drifts.NextDouble() - 0.5) * 0.6f;
+                        var bank = 0.35f + (float)drifts.NextDouble() * 0.4f * (1f - Mathf.Abs(x) / half);
+                        var reach = 0.8f + (float)drifts.NextDouble() * 0.7f;
+                        var at = facing * new Vector3(x, 0f, half + side * (thick * 0.5f + reach * 0.35f));
+                        b.Blob(at, new Vector3(half * 0.55f, bank, reach), facing * Quaternion.Euler(0f, (float)(drifts.NextDouble() - 0.5) * 20f, 0f),
+                               1, 0.35f, (float)drifts.NextDouble() * 100f, Color.Lerp(sand, g.Bark, 0.2f + (float)drifts.NextDouble() * 0.15f), FloraPart.Bark);
+                    }
+                }
+                b.Occlude(drift, (p, n) => GroundOcclusion(p, 0.4f));
             }
         }
 
@@ -3749,6 +4144,8 @@ namespace Punchy.Flora
                     b.Triangle(i0 + 1, i0 + 2, i0 + 3);
                 }
             }
+            // The panels are cloth (W-99): the linen weave and the snow that settles on cloth, but held still on the poles.
+            b.Cloth(first, p => 0f);
             b.Occlude(first, (p, n) => GroundOcclusion(p, height * 0.3f));
             DoorMat(g, radius, radius * 0.7f);
 
@@ -4040,15 +4437,17 @@ namespace Punchy.Flora
             b.Wood = true;   // the porch deck and its posts (Z-30)
             b.Box(new Vector3(0f, 0.15f, front + porch * 0.5f), new Vector3(half * 1.8f, 0.3f, porch), Quaternion.identity, g.Bark * 0.75f, FloraPart.Bark);
             b.Wood = false;
-            b.Beam(new Vector3(0f, wall * 0.48f, front), new Vector3(0f, wall * 0.4f, front + porch + 0.3f), half * 1.9f, 0.12f, roof, FloraPart.Bark);
+            // W-100: the porch roof half as high again at its front edge (it hung at head height), and only as steep as
+            // still clears the upper windows' sills where it meets the wall.
+            b.Beam(new Vector3(0f, wall * 0.66f, front), new Vector3(0f, wall * 0.6f, front + porch + 0.3f), half * 1.9f, 0.12f, roof, FloraPart.Bark);
             b.Wood = true;
             foreach (var x in new[] { -0.85f, 0.85f })
-                b.Tube(new List<Vector3> { new Vector3(x * half, 0.3f, front + porch - 0.1f), new Vector3(x * half, wall * 0.41f, front + porch - 0.1f) },
+                b.Tube(new List<Vector3> { new Vector3(x * half, 0.3f, front + porch - 0.1f), new Vector3(x * half, wall * 0.61f, front + porch - 0.1f) },
                        new List<float> { 0.1f, 0.1f }, g.Sides(6, 4, 3), timber, FloraPart.Bark);
             b.Wood = false;
             // A sign hanging from the porch roof.
             if (g.Lod < 2)
-                b.Box(new Vector3(half * 0.55f, wall * 0.3f, front + porch + 0.2f), new Vector3(0.9f, 0.55f, 0.06f), Quaternion.identity, AccentAt(g, 1), FloraPart.Bark);
+                b.Box(new Vector3(half * 0.55f, wall * 0.45f, front + porch + 0.2f), new Vector3(0.9f, 0.55f, 0.06f), Quaternion.identity, AccentAt(g, 1), FloraPart.Bark);
         }
 
         /// <summary>
@@ -4614,6 +5013,65 @@ namespace Punchy.Flora
         }
 
 
+        /// <summary>Pale cut wood, for log ends and stripped logs (W-99).</summary>
+        static readonly Color LogSapwood = new Color(0.74f, 0.58f, 0.37f);
+
+        /// <summary>
+        /// A sawn log end (W-99): a flat disc facing along X (side -1 or +1) instead of a rounded cap, its rings laid
+        /// out as concentric vertex rings in alternating sapwood shades round a slightly off-centre heart, inside a
+        /// thin bark rim. Marked as Surface 5 so the flora shader adds only fine end-grain noise, no lengthwise grain.
+        /// </summary>
+        static void LogEnd(Grower g, Vector3 centre, float side, float radius, int sides, Color bark)
+        {
+            var b = g.B;
+            var sap = Color.Lerp(LogSapwood, bark, 0.12f) * g.Range(0.92f, 1.06f);
+            var heart = Color.Lerp(sap, new Color(0.55f, 0.34f, 0.2f), 0.45f);
+            var n = new Vector3(side, 0f, 0f);
+            centre += n * 0.002f;
+            // Radius fractions and shades, outside in: bark rim, sapwood, then rings darkening to the heart.
+            var lod = g.Lod;
+            var fractions = lod >= 2 ? new[] { 1f, 0f } : new[] { 1f, 0.9f, 0.78f, 0.62f, 0.47f, 0.3f, 0.14f, 0f };
+            var heartShift = new Vector3(0f, g.Range(-0.15f, 0.15f), g.Range(-0.15f, 0.15f)) * radius;
+            b.Surface = 5;
+            var first = b.VertexCount;
+            for (int i = 0; i < fractions.Length; i++)
+            {
+                var f = fractions[i];
+                Color c;
+                if (lod >= 2) c = Color.Lerp(sap, bark, 0.3f);
+                else if (i == 0) c = bark;
+                else if (i == fractions.Length - 1) c = heart * 0.9f;
+                else c = Color.Lerp(sap, heart, (1f - f) * 0.8f) * (i % 2 == 0 ? 0.86f : 1.04f);
+                // Rings drift towards the off-centre heart as they shrink, and wobble a little.
+                var ringCentre = centre + heartShift * (1f - f);
+                var count = f == 0f ? 1 : sides;
+                for (int s = 0; s < count; s++)
+                {
+                    var angle = s / (float)sides * Mathf.PI * 2f;
+                    var dir = new Vector3(0f, -Mathf.Sin(angle), Mathf.Cos(angle));
+                    var wobble = i == 0 ? 1f : 1f + g.Range(-0.05f, 0.05f);
+                    b.Vertex(ringCentre + dir * radius * f * wobble, n, c, FloraPart.Bark, 1f);
+                }
+            }
+            for (int i = 0; i < fractions.Length - 1; i++)
+            {
+                var outer = first + i * sides;
+                var inner = outer + sides;
+                var last = i == fractions.Length - 2;
+                for (int s = 0; s < sides; s++)
+                {
+                    int o0 = outer + s, o1 = outer + (s + 1) % sides;
+                    int i0 = last ? inner : inner + s, i1 = last ? inner : inner + (s + 1) % sides;
+                    if (side > 0f) b.Triangle(o0, o1, i0); else b.Triangle(o1, o0, i0);
+                    if (!last)
+                    {
+                        if (side > 0f) b.Triangle(o1, i1, i0); else b.Triangle(i1, o1, i0);
+                    }
+                }
+            }
+            b.Surface = 0;
+        }
+
         static void Woodpile(Grower g)
         {
             var s = g.S;
@@ -4635,9 +5093,20 @@ namespace Punchy.Flora
                     var z = (k - (count - 1) * 0.5f) * log * 2.05f;
                     var y = log + r * log * 1.75f;
                     var ends = g.Range(-0.15f, 0.15f);
-                    b.Tube(new List<Vector3> { new Vector3(-length * 0.5f + ends, y, z), new Vector3(length * 0.5f + ends, y, z) },
-                           new List<float> { log * g.Range(0.85f, 1.05f), log * g.Range(0.85f, 1.05f) }, g.Sides(7, 5, 4),
-                           Color.Lerp(g.Bark, g.Bark * 1.25f, g.R()), FloraPart.Bark, cap: g.Lod < 2);
+                    var r0 = log * g.Range(0.85f, 1.05f);
+                    var r1 = log * g.Range(0.85f, 1.05f);
+                    var bark = Color.Lerp(g.Bark, g.Bark * 1.25f, g.R());
+                    var sides = g.Sides(9, 6, 4);
+                    // Most logs keep their bark; now and then one is split or stripped, its grain showing (W-99).
+                    var stripped = g.R() < 0.2f;
+                    var a = new Vector3(-length * 0.5f + ends, y, z);
+                    var e = new Vector3(length * 0.5f + ends, y, z);
+                    b.Wood = stripped;
+                    b.Tube(new List<Vector3> { a, e }, new List<float> { r0, r1 }, sides,
+                           stripped ? Color.Lerp(bark, LogSapwood, 0.55f) : bark, FloraPart.Bark);
+                    b.Wood = false;
+                    LogEnd(g, a, -1f, r0, sides, stripped ? Color.Lerp(bark, LogSapwood, 0.55f) : bark);
+                    LogEnd(g, e, 1f, r1, sides, stripped ? Color.Lerp(bark, LogSapwood, 0.55f) : bark);
                 }
             }
             // The chopping block in front, with an axe in it.

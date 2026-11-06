@@ -213,7 +213,12 @@ namespace Punchy.Terrain
                 along += islets.Count == 0 ? radius : prev + gap + radius;
                 if (along > length)
                     break;
-                var c = Spine(along, out var side) + side * rng.NextFloat(-0.5f, 0.5f) * (60f + radius);
+                var swing = rng.NextFloat(-0.5f, 0.5f);
+                // W-101: the first few islands off the coast zigzag well off the spine (same draw, wider and on
+                // alternating sides), so the chain's head reads as a scatter rather than a line out to sea.
+                if (main.Count < 4)
+                    swing = (main.Count % 2 == 0 ? 1f : -1f) * (0.55f + 1.1f * (swing + 0.5f));
+                var c = Spine(along, out var side) + side * swing * (60f + radius);
                 if (!Fits(c, radius, shelf, 40f + 0.3f * radius))
                     continue;
                 if (radius > 50f) big++;

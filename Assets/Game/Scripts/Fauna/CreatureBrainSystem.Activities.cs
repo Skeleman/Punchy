@@ -61,6 +61,122 @@ namespace Punchy.Fauna
                     if (M.Lonely > strongest) cue = NeedCue.Lonely;
                 }
                 s.Cue = (byte)cue;
+                ComfortCheck(ref s, ref b);
+            }
+
+            /// <summary>
+            /// A-71: the weather's pressure on it, checked every 1-3 s (its own period and phase, so checks spread over
+            /// the frames): its discomfort builds while the pressure lasts (about half a minute to full at its worst) and
+            /// fades out of it. In a cave or under rock the sky can't reach it.
+            /// </summary>
+            void ComfortCheck(ref CreatureState s, ref CreatureBlob b)
+            {
+                if (!b.Comfort.Minds || s.Holder != 0 || Comfort.Off.Data != 0)
+                {
+                    M.Discomfort = 0f;
+                    M.ComfortPressure = 0f;
+                    return;
+                }
+                var h = math.hash(new uint2(s.Individual, 0xC0F0u));
+                var period = 1f + 2f * ((h & 0xFFFFu) / 65536f);
+                var phase = (h >> 16) / 65536f * period;
+                if (math.floor((Now + phase) / period) == math.floor((Now - Step + phase) / period) && SearchEveryFrame.Data == 0)
+                    return;
+                var dt = SearchEveryFrame.Data != 0 ? Step : period;
+                var w = Comfort.WeatherAt(s.Position.xz);
+                var underground = underRock || s.Position.y < Terrain.SampleHeight(s.Position.xz) - 2f;
+                var cover = CoverNow(in s, ref b);
+                M.Cover = cover;
+                var pressure = Comfort.Pressure(in b.Comfort, s.Individual, in w, Night, underground, cover, out var kind);
+                M.ComfortPressure = pressure;
+                M.ShelterRetry -= dt;
+                // Row 2: sheltering, it goes on its way once the weather out in the open lets up.
+                if (s.Mode == CreatureMode.Shelter && s.Stage >= 1 && s.StageTime > 8f &&
+                    Comfort.Pressure(in b.Comfort, s.Individual, in w, Night, underground, ShelterNeed.None, out _) < 0.05f)
+                {
+                    var rested = new Random(math.hash(new uint2(s.Individual, (uint)(Now * 10f))) | 1u);
+                    Pause(ref s, ref b, ref rested);
+                }
+                // Out in it and bothered enough, it looks for shelter (a few searches a frame, over everyone).
+                else if (M.Discomfort > 0.3f && pressure > 0.02f && M.ShelterRetry <= 0f && MaySeekShelter(in s, ref b) &&
+                         System.Threading.Interlocked.Increment(ref Shelters.Data.ThisFrame) <= ShelterSearchesPerFrame)
+                {
+                    var seek = new Random(math.hash(new uint2(s.Individual, (uint)(Now * 10f))) | 1u);
+                    // (A-75 row 1: in the midday heat only some folk give in; the hardy half fan themselves and carry on.)
+                    var hardy = new Random(math.hash(new uint2(s.Individual, 0x4EA7u)) | 1u);
+                    if (b.Comfort.Race != ComfortRace.None && M.DiscomfortKind is ComfortKind.Hot or ComfortKind.Dry or ComfortKind.Bright &&
+                        hardy.NextFloat() < 0.5f)
+                    {
+                        M.ShelterRetry = seek.NextFloat(40f, 80f);
+                        DecideWeatherPose(ref s, ref b, ref seek);
+                    }
+                    else if (!StartShelter(ref s, ref b, ref seek))
+                    {
+                        System.Threading.Interlocked.Increment(ref Shelters.Data.NotFound);
+                        M.ShelterRetry = seek.NextFloat(20f, 40f);
+                        // Row 3: nowhere to go, it puts up with it where it stands.
+                        DecideWeatherPose(ref s, ref b, ref seek);
+                    }
+                }
+                // Row 3: waiting out the retry in the open, now and then it pants, shivers or hunches again.
+                else if (M.Discomfort > 0.4f && pressure > 0.02f && M.ShelterRetry > 0f && s.Action == IdleAction.None &&
+                         s.Mode != CreatureMode.Shelter && MaySeekShelter(in s, ref b))
+                {
+                    var again = new Random(math.hash(new uint2(s.Individual, (uint)(Now * 10f) ^ 0x5E5Eu)) | 1u);
+                    if (again.NextFloat() < 0.2f)
+                        DecideWeatherPose(ref s, ref b, ref again);
+                }
+                // Row 3: out of the rain at last, it shakes the water off (once: the meter drops below the line).
+                else if (pressure <= 0.02f && M.DiscomfortKind == ComfortKind.Rain && M.Discomfort > 0.3f && s.Action == IdleAction.None &&
+                         MaySeekShelter(in s, ref b) && s.Mode != CreatureMode.Rest && !Flying(in s))
+                {
+                    SetMode(ref s, CreatureMode.Idle);
+                    s.Action = IdleAction.Shake;
+                    s.ActionLength = 1.2f;
+                    s.Timer = 1.4f;
+                    M.Discomfort = 0.29f;
+                    System.Threading.Interlocked.Increment(ref Shelters.Data.Posed);
+                }
+                if (pressure > 0.02f)
+                {
+                    M.Discomfort = math.min(M.Discomfort + pressure * dt / 30f, 1f);
+                    M.DiscomfortKind = kind;
+                }
+                else
+                {
+                    M.Discomfort = math.max(M.Discomfort - dt / 20f, 0f);
+                    if (M.Discomfort <= 0f)
+                        M.DiscomfortKind = ComfortKind.None;
+                }
+            }
+
+            /// <summary>
+            /// A-71 row 3: with no shelter in reach, it stands and shows the weather it's bearing: panting in the heat or
+            /// the dry, shivering with arms hugged in the cold or snow, hunched against a storm or the wind (or the rain,
+            /// shaking it off now and then), and folk shading their eyes from a glare (animals pant). A few seconds, then
+            /// on with its business. Not lying down, nor a flier in the air.
+            /// </summary>
+            void DecideWeatherPose(ref CreatureState s, ref CreatureBlob b, ref Random rng)
+            {
+                if (s.Mode == CreatureMode.Rest || Flying(in s) || !Free(s.Mode) && s.Mode != CreatureMode.Work && s.Mode != CreatureMode.Sit)
+                    return;
+                var folk = b.Comfort.Race != ComfortRace.None && b.Upright;
+                var pose = M.DiscomfortKind switch
+                {
+                    ComfortKind.Hot or ComfortKind.Dry => IdleAction.Pant,
+                    ComfortKind.Cold or ComfortKind.Snow => rng.NextFloat() < 0.7f ? IdleAction.Shiver : IdleAction.Hunch,
+                    ComfortKind.Bright => folk ? IdleAction.ShieldEyes : IdleAction.Pant,
+                    ComfortKind.Rain => rng.NextFloat() < 0.4f ? IdleAction.Shake : IdleAction.Hunch,
+                    ComfortKind.Storm or ComfortKind.Wind => IdleAction.Hunch,
+                    _ => IdleAction.None
+                };
+                if (pose == IdleAction.None)
+                    return;
+                SetMode(ref s, CreatureMode.Idle);
+                s.Action = pose;
+                s.ActionLength = pose == IdleAction.Shake ? 1.2f : rng.NextFloat(3f, 6f);
+                s.Timer = s.ActionLength + 0.3f;
+                System.Threading.Interlocked.Increment(ref Shelters.Data.Posed);
             }
 
             /// <summary>How much a need pushes an activity: a little even when met, a lot when pressing.</summary>
@@ -361,7 +477,7 @@ namespace Punchy.Fauna
 
             /// <summary>
             /// Weighted Surface (#35): off up its cave to the mouth (the cave whose passage is nearest), for a look
-            /// outside; false if it isn't in a cave. (A straight walk to the mouth, not along the passage.)
+            /// outside; false if it isn't in a cave. (Steer takes it along the passage node by node: PassageWay, A-69.)
             /// </summary>
             bool StartSurface(ref CreatureState s, ref Random rng)
             {
@@ -399,6 +515,10 @@ namespace Punchy.Fauna
                     case Weighted.Work:
                         SetMode(ref s, CreatureMode.Work);
                         s.Timer = s.Task == CreatureTask.Fish ? rng.NextFloat(120f, 300f) : rng.NextFloat(40f, 120f);
+                        // (A-73: a village fisher works on its wharf when it has one, else on its own bit of shore.)
+                        s.PierSpot = 0;
+                        if (s.Task == CreatureTask.Fish)
+                            FindWharf(ref s, ref rng);
                         return true;
                     case Weighted.Home:
                         SetMode(ref s, CreatureMode.Home);

@@ -177,6 +177,20 @@ namespace Punchy.Terrain
         /// </summary>
         internal static void PickRealms(out Vector2[] sites, out Family[] fam, out uint seed, out int bestBad)
         {
+            // W-103: the layout only depends on constants, and v3 asks for it twice per bake: picked once per process,
+            // callers get their own copies of the arrays.
+            if (pickedSites == null)
+            {
+                PickRealmsOnce(out var s, out var f, out pickedSeed, out pickedBad);
+                pickedFam = f; pickedSites = s;
+            }
+            sites = (Vector2[])pickedSites.Clone(); fam = (Family[])pickedFam.Clone(); seed = pickedSeed; bestBad = pickedBad;
+        }
+
+        static Vector2[] pickedSites; static Family[] pickedFam; static uint pickedSeed; static int pickedBad;
+
+        static void PickRealmsOnce(out Vector2[] sites, out Family[] fam, out uint seed, out int bestBad)
+        {
             const int realms = Realms; const uint baseSeed = 202;
             seed = baseSeed; sites = null; fam = null; bestBad = int.MaxValue;
             for (uint attempt = 0; attempt < 80 && bestBad > 0; attempt++)
@@ -201,6 +215,17 @@ namespace Punchy.Terrain
                 }
                 if (bad < bestBad) { bestBad = bad; sites = sx; fam = fm; seed = s; }
             }
+        }
+
+        /// <summary>The report's layout part: version, seed, realms and forbidden borders (W-103: v3 prints it without the v2 pass).</summary>
+        internal static string Layout()
+        {
+            PickRealms(out var sites, out var fam, out uint seed, out int bestBad);
+            var sb = new System.Text.StringBuilder();
+            sb.Append($"generator version {Version}, layout B seed {seed}; realms:");
+            for (int i = 0; i < Realms; i++) sb.Append($" {fam[i]}({sites[i].x:F2},{sites[i].y:F2})");
+            sb.Append($"; forbidden borders {bestBad}");
+            return sb.ToString();
         }
 
         /// <summary>Builds the biome map and the height offsets (layout B: five realms, seed 202). Palette is the game's biome palette.</summary>
@@ -228,9 +253,14 @@ namespace Punchy.Terrain
             var offset = new float[N * N];
             float cx0 = PX * 0.5f + LakeShiftM / WorldSizeM * PX + (H01(seed, 8, 8) - 0.5f) * 40f, cy0 = PX * 0.5f + (H01(seed, 9, 9) - 0.5f) * 40f;
             float lakeR = lakeRadius * PX;
-            int ridgeCells = 0, lakeCells = 0, landCells = 0;
-            var lineHeights = new List<float>();
-            for (int y = 0; y < N; y++)
+            // W-103: rows run in parallel (every cell reads only the seed and the realms); counts and border heights are
+            // kept per row and summed in row order, so the result is identical to the old single-thread loop.
+            var rowRidge = new int[N]; var rowLake = new int[N]; var rowLand = new int[N];
+            var rowLines = new List<float>[N];
+            BakeParallel.For(N, y =>
+            {
+                int ridgeCells = 0, lakeCells = 0, landCells = 0;
+                var lineHeights = rowLines[y] = new List<float>();
                 for (int x = 0; x < N; x++)
                 {
                     float px = (x + 0.5f) / N * PX, py = (y + 0.5f) / N * PX;
@@ -272,14 +302,22 @@ namespace Punchy.Terrain
                     if (rl < lakeR) lakeCells++;
                     biomeIds[i] = (byte)id; offset[i] = h;
                 }
+                rowRidge[y] = ridgeCells; rowLake[y] = lakeCells; rowLand[y] = landCells;
+            });
+            int ridgeCells = 0, lakeCells = 0, landCells = 0;
+            var lineHeights = new List<float>();
+            for (int y = 0; y < N; y++)
+            {
+                ridgeCells += rowRidge[y]; lakeCells += rowLake[y]; landCells += rowLand[y];
+                lineHeights.AddRange(rowLines[y]);
+            }
 
             // Blobs. The map's row 0 is the south edge (z = origin), like the biome map images.
             var origin = new float2(-WorldSizeM * 0.5f);
             var b1 = new BlobBuilder(Allocator.Temp);
             ref var map1 = ref b1.ConstructRoot<BiomeMapBlob>();
             map1.Resolution = N; map1.Origin = origin; map1.WorldSize = WorldSizeM;
-            var arr = b1.Allocate(ref map1.Ids, N * N);
-            for (int i = 0; i < N * N; i++) arr[i] = biomeIds[i];
+            b1.Construct(ref map1.Ids, biomeIds);
             var mapBlob = b1.CreateBlobAssetReference<BiomeMapBlob>(allocator); b1.Dispose();
 
             var b2 = new BlobBuilder(Allocator.Temp);
@@ -289,10 +327,8 @@ namespace Punchy.Terrain
             for (int i = 0; i < N * N; i++) harr[i] = (ushort)Mathf.Clamp(Mathf.RoundToInt((offset[i] + 60f) / hm.HeightStep), 0, 65535);
             var islandBlob = b2.CreateBlobAssetReference<HeightmapBlob>(allocator); b2.Dispose();
 
-            var sb = new System.Text.StringBuilder();
-            sb.Append($"generator version {Version}, layout B seed {seed}; realms:");
-            for (int i = 0; i < realms; i++) sb.Append($" {fam[i]}({sites[i].x:F2},{sites[i].y:F2})");
-            sb.Append($"; forbidden borders {bestBad}; land {landCells} cells, ridge {ridgeCells}, lake {lakeCells} (cell {WorldSizeM / N:F0} m)");
+            var sb = new System.Text.StringBuilder(Layout());
+            sb.Append($"; land {landCells} cells, ridge {ridgeCells}, lake {lakeCells} (cell {WorldSizeM / N:F0} m)");
             if (lineHeights.Count > 0) { lineHeights.Sort(); sb.Append($"; border line cells {lineHeights.Count}, ridge height min {lineHeights[0]:F0} p10 {lineHeights[lineHeights.Count / 10]:F0} median {lineHeights[lineHeights.Count / 2]:F0} max {lineHeights[lineHeights.Count - 1]:F0} m"); }
             if (missing.Count > 0) sb.Append("; biomes not in palette: " + string.Join(",", missing));
             return new Result { Map = mapBlob, Island = islandBlob, Report = sb.ToString() };

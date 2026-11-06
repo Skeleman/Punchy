@@ -54,6 +54,7 @@ Shader "Punchy/Terrain Surface"
             int _PunchyBurrowerCount;
             // How far out the marks are drawn (GraphicsSettings: DetailRange(BurrowRange), the feeder's range too).
             float _PunchyBurrowRange;
+            float _PunchyTerrainDetailFar;   // where the fine relief has faded out (TerrainStreamingSystem, by Detail distance)
             // Where the marks are, coarsely (CreatureBurrowSystem's MarkMask): a cell 1 where some mark reaches into it,
             // and (x, z of the map's corner, cells per metre, cells across).
             TEXTURE2D(_PunchyBurrowMask);
@@ -118,7 +119,8 @@ Shader "Punchy/Terrain Surface"
                 half   bump       : TEXCOORD6;
                 float  cave       : TEXCOORD7;
                 half   strata     : TEXCOORD8;
-                half   paving     : TEXCOORD9;
+                half2  paving     : TEXCOORD9;   // paving amount, flagstones (W-108)
+                half   hollow     : TEXCOORD10;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -183,7 +185,9 @@ Shader "Punchy/Terrain Surface"
 
             // The paving at p: x = the stone's shade (-0.5..0.5), y = gap share (1 = gap), zw = slope (dh/dx, dh/dz).
             // hue: a warm/cool tint per stone (-0.5..0.5); dome: 0 at a stone's rim to 1 on top (dark rims).
-            float4 Cobbles(float2 p, out half hue, out half dome)
+            // W-108 (#39): about one stone in thirty is missing (its hole shows the gap's earth and grass) and one in
+            // fifteen has sunk (flatter, darker, a puddle of shade); sunk = 1 for those.
+            float4 Cobbles(float2 p, out half hue, out half dome, out half sunk)
             {
                 uint id; float edge;
                 const float e = 0.015;
@@ -196,7 +200,16 @@ Shader "Punchy/Terrain Surface"
                 dome = saturate(h / 0.03);
                 float shade = ((tone >> 8) & 255u) / 255.0 - 0.5;
                 float mortar = 1 - smoothstep(-0.004, 0.006, edge);
-                return float4(shade, mortar, (hx - h) / e, (hz - h) / e);
+                uint fate = (tone >> 16) & 63u;
+                float2 slope = float2(hx - h, hz - h) / e;
+                sunk = fate >= 2u && fate < 6u ? 1 : 0;
+                if (fate < 2u)
+                {
+                    mortar = 1;
+                    slope *= 0.2;
+                }
+                slope *= 1 - 0.65 * sunk;
+                return float4(shade, mortar, slope);
             }
 
             // -0.5..0.5 per cell of p (an integer hash: far from the origin a sin hash breaks up).
@@ -253,7 +266,8 @@ Shader "Punchy/Terrain Surface"
                 o.bump = input.morph.z;
                 o.cave = input.morph.w;
                 o.strata = input.strata.x;
-                o.paving = input.strata.y;
+                o.paving = input.strata.yw;
+                o.hollow = input.strata.z;
                 return o;
             }
 
@@ -274,8 +288,10 @@ Shader "Punchy/Terrain Surface"
                     normalWS = normalize(normalWS + half3(burrowTilt.x, 0, burrowTilt.y));
                 }
 
-                // Fine relief up close (fades out before it could shimmer), skipped on skirts.
-                half detailFade = (1 - smoothstep(25, 70, distance)) * input.bump * (input.extra.w <= 0.01);
+                // Fine relief up close (fades out before it could shimmer), skipped on skirts. How far it reaches
+                // follows the Detail distance setting (W-101: 110 m at Detail 1, was a fixed 70 m).
+                float detailFar = _PunchyTerrainDetailFar > 0 ? _PunchyTerrainDetailFar : 70;
+                half detailFade = (1 - smoothstep(detailFar * 0.36, detailFar, distance)) * input.bump * (input.extra.w <= 0.01);
                 float3 micro = detailFade > 0.001 ? MicroDetail(p) : float3(0, 0, 0.5);
 
                 // Rain: flat ground collects puddles (dark, mirror-smooth, no relief); elsewhere wet ground just
@@ -290,21 +306,34 @@ Shader "Punchy/Terrain Surface"
                     shore = smoothstep(0.2, 0.75, saturate(-input.extra.w) + (PunchyValueNoise(p * 0.8) - 0.5) * 0.35
                                                 + (PunchyValueNoise(p * 0.13 + 2.9) - 0.5) * 0.5)
                           * (1 - saturate(input.extra.z * 2));
-                half flatness = smoothstep(0.96, 0.995, normalWS.y);
+                half flatness = smoothstep(0.8, 0.93, normalWS.y);
                 half puddleNoise = PunchyValueNoise(p / 2.3) * 0.65 + PunchyValueNoise(p / 0.9 + 5.1) * 0.35;
-                half puddle = smoothstep(0.62, 0.7, puddleNoise + wet * 0.35 - 0.25) * flatness * smoothstep(0.2, 0.5, wet)
-                            * (1 - input.extra.y);
+                // W-98: puddles gather in the dips (the mesh's hollow depth: how far below the ground round it), the
+                // noise cutting them into separate pools with crisp edges (a dip that glazes over whole reads as dark
+                // ground, not water), spreading as the rain goes on; none on open flats.
+                half dip = smoothstep(0.0, 0.08, input.hollow);
+                half puddle = smoothstep(0.82, 0.9, dip * 0.4 + puddleNoise * 0.6 + wet * 0.15) * flatness * smoothstep(0.1, 0.3, wet)
+                            * (1 - 0.6 * input.extra.y);   // grass pokes through, but meadow dips still pool
                 half sheen = max(wet, shore * 0.6) * (1 - 0.8 * input.extra.y) * (1 - smoothstep(120, 450, distance));
 
                 half relief = detailFade * 0.45 * (1 - puddle);
                 normalWS = normalize(normalWS - half3(micro.x, 0, micro.y) * relief);
-                half cobbleFade = smoothstep(0.25, 0.6, input.paving) * (1 - smoothstep(30, 80, distance));
+                half cobbleFade = smoothstep(0.3, 0.55, input.paving.x) * (1 - smoothstep(30, 80, distance));
+                // W-108: paving above 1 is wear (SettlementSampling.Ground: the ruts down a cobbled road), and paving
+                // a little under 1 (a road's verge, the fade at a town's edge) lets the grass in between the stones.
+                half wear = saturate(input.paving.x - 1);
+                half sparse = 1 - smoothstep(0.6, 1, input.paving.x);
+                // W-108 (#39): a town's square is laid with big flagstones (the same stones at twice the size, flatter),
+                // with a hard line where they meet the kerb.
+                half slab = step(0.5, input.paving.y);
                 float4 cb = float4(0, 0, 0, 0);
-                half cbHue = 0, cbDome = 1;
+                half cbHue = 0, cbDome = 1, cbSunk = 0;
                 [branch] if (cobbleFade > 0.001)
                 {
-                    cb = Cobbles(p, cbHue, cbDome);
-                    normalWS = normalize(normalWS - half3(cb.z, 0, cb.w) * cobbleFade * (1 - puddle * 0.7));
+                    cb = Cobbles(p * (1 - 0.5 * slab), cbHue, cbDome, cbSunk);
+                    cb.zw *= 1 - 0.4 * slab;
+                    cbDome = lerp(cbDome, sqrt(cbDome), slab);   // broad flat tops, only their edges darken
+                    normalWS = normalize(normalWS - half3(cb.z, 0, cb.w) * cobbleFade * (1 - puddle * 0.7) * (1 - 0.6 * wear));
                 }
                 // Rock faces (steep ground) up close: the caves' shared grain and fine relief, read three ways, so cliffs
                 // carry the same detail as cave walls.
@@ -357,8 +386,15 @@ Shader "Punchy/Terrain Surface"
                     half patch = PunchyValueNoise(p * 0.21 + 4.7) - 0.5;
                     half3 stone = lerp(albedo, grey.xxx, 0.45) * (1.2 + cb.x * 0.55 + patch * 0.25)
                                 * half3(1 + cbHue * 0.16, 1 + cbHue * 0.03, 1 - cbHue * 0.16) * lerp(0.6, 1, cbDome);
-                    half tuft = smoothstep(0.5, 0.72, PunchyValueNoise(p * 2.6 + 12.1) * 0.7 + PunchyValueNoise(p * 9.3) * 0.3);
+                    // W-108: worn stones in the ruts are rubbed flat and smooth: greyer, a touch darker, their rims
+                    // less dark; sunk stones sit in shade with dirt washed over them.
+                    stone = lerp(stone, grey.xxx * half3(0.86, 0.84, 0.8) * (0.9 + cb.x * 0.2) * lerp(0.9, 1, cbDome), wear);
+                    stone *= lerp(1, half3(0.62, 0.58, 0.52), cbSunk);
+                    half tuft = smoothstep(0.5 - sparse * 0.3, 0.72 - sparse * 0.2,
+                                           PunchyValueNoise(p * 2.6 + 12.1) * 0.7 + PunchyValueNoise(p * 9.3) * 0.3)
+                              * (1 - wear);   // nothing grows where the wheels run
                     half3 gap = lerp(albedo * half3(0.34, 0.29, 0.22), half3(0.10, 0.16, 0.05), tuft);
+                    gap = lerp(gap, albedo * half3(0.62, 0.52, 0.4), wear);   // packed dust tamped into the joints
                     albedo = lerp(albedo, lerp(stone, gap, cb.y), cobbleFade);
                 }
                 // Rock strata (mesa cliffs, canyon walls): bands of darker red and paler cream rock by height, a thick
@@ -408,7 +444,9 @@ Shader "Punchy/Terrain Surface"
                     float3 n = normalize(float3(-ripple.x, 1, -ripple.y));
                     float3 r = reflect(-v, n);
                     r.y = max(r.y, 0.03);
-                    half fresnel = 0.02 + 0.98 * pow(1 - saturate(dot(n, v)), 5);
+                    // (A shallow sheet mirrors more than deep water seen from above, so the floor is well over
+                    // water's 2%: puddles must read as sky even when looked down on.)
+                    half fresnel = 0.35 + 0.65 * pow(1 - saturate(dot(n, v)), 5);
                     half3 body = color.rgb * half3(0.42, 0.47, 0.5);
                     Light sun = GetMainLight(inputData.shadowCoord);
                     half glint = pow(saturate(dot(r, sun.direction)), 600) * sun.shadowAttenuation * 3;

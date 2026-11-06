@@ -20,6 +20,12 @@ namespace Punchy.Terrain
         const float Inland = 24f;
         /// <summary>The longest dock (m, StructureKit.Dock at the biggest species size): its far end must be over water.</summary>
         const float DockReach = 19f;
+        /// <summary>How far a dock's run out is checked for river water (FloraPlacement.RiverDockReach).</summary>
+        const float RiverDockReach = 30f;
+        /// <summary>Shore angles tried in turn (degrees off straight out to sea) until the docks clear the river.</summary>
+        static readonly float[] Turns = { 0f, 30f, -30f, 60f, -60f };
+        /// <summary>W-105: stilt house spots a village needs out over the shallows (the type offers more; flora drops the rest).</summary>
+        const int StiltHousesAtLeast = 1;
 
         public static string LastLog = "";
 
@@ -97,21 +103,34 @@ namespace Punchy.Terrain
                     var bank = mouth + new float2(-dir.y, dir.x) * side * (rivers.Width[m] * 0.5f + 36f);
                     if (!Shore(source, bank, dir, sea, out var waterline))
                         continue;
-                    var centre = waterline - dir * Inland;
-                    if (!Fits(source, ref set, types, type, placed, centre, dir, sea))
+                    // W-105 (#36): if the straight-out layout puts a dock on river water, try the shore angle turned by
+                    // 30 then 60 degrees each way, so the village keeps its wharf. The straight-out try comes first, so a
+                    // village that fitted before stays where it was.
+                    var fits = false;
+                    var facing = dir;
+                    var centre = waterline;
+                    foreach (var turn in Turns)
+                    {
+                        math.sincos(math.radians(turn), out var sn, out var cs);
+                        facing = new float2(dir.x * cs - dir.y * sn, dir.x * sn + dir.y * cs);
+                        centre = waterline - facing * Inland;
+                        if (fits = Fits(source, ref set, types, type, placed, centre, facing, sea))
+                            break;
+                    }
+                    if (!fits)
                         continue;
                     var key = math.hash(new uint3(math.asuint(centre.x), math.asuint(centre.y), 0xF15Au)) | 1u;
                     placed.Add(new LandmarkInstance
                     {
                         Position = centre,
-                        Facing = dir,
+                        Facing = facing,
                         Scale = 1f,
                         Type = t,
                         BaseHeight = source.SampleHeight(centre),
                         Seed = (BiomeSampling.Scramble(key) >> 8) * (1f / 16777216f),
                         Key = key
                     });
-                    LastLog += (LastLog.Length > 0 ? "\n" : "") + $"[villages] fishing village {placed.Count} at {centre.x:F0},{centre.y:F0} facing {math.degrees(math.atan2(dir.y, dir.x)):F0} deg, mouth width {rivers.Width[m]:F1}";
+                    LastLog += (LastLog.Length > 0 ? "\n" : "") + $"[villages] fishing village {placed.Count} at {centre.x:F0},{centre.y:F0} facing {math.degrees(math.atan2(facing.y, facing.x)):F0} deg, mouth width {rivers.Width[m]:F1}";
                     break;
                 }
             }
@@ -161,7 +180,10 @@ namespace Punchy.Terrain
             return false;
         }
 
-        /// <summary>Dry, gentle ground for the middle and every house spot, out of the river and clear of every landmark and village.</summary>
+        /// <summary>
+        /// Dry, gentle ground for the middle, a low bank with shallows out past it for every stilt house (W-105), out of
+        /// the river and clear of every landmark and village.
+        /// </summary>
         static bool Fits(in TerrainSource source, ref LandmarkSetBlob set, IReadOnlyList<LandmarkType> types, LandmarkType type,
                          List<LandmarkInstance> placed, float2 centre, float2 dir, float sea)
         {
@@ -178,15 +200,20 @@ namespace Punchy.Terrain
             var mid = source.SampleHeight(centre);
             if (mid < sea + 0.8f || InRiver(source, centre))
                 return false;
-            // The house ring (0.35 radius at 45, 135, 225 and 315 degrees from the facing): dry and within 6 m of the middle.
+            // W-105: the type offers more stilt house spots than it needs; enough of them must have a low bank for the
+            // plot and shallows out past it for the house (LandmarkSampling.StiltHouseFits). Flora leaves the rest empty.
             var inst = new LandmarkInstance { Position = centre, Facing = dir, Scale = 1f };
-            for (int k = 0; k < 4; k++)
+            var stilts = 0;
+            foreach (var prop in type.Props)
             {
-                var spot = LandmarkSampling.ToWorld(inst, LandmarkLayout.Spot(0.35f, 45f + k * 90f), type.Radius);
-                var h = source.SampleHeight(spot);
-                if (h < sea + 0.5f || math.abs(h - mid) > 6f || InRiver(source, spot))
-                    return false;
+                if (prop.Species == null || prop.Species.KitShape != KitShape.StiltHouse)
+                    continue;
+                for (int k = 0; k < math.max(1, prop.Count); k++)
+                    if (LandmarkSampling.StiltHouseFits(source, centre, LandmarkSampling.ToWorld(inst, LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / math.max(1, prop.Count)), type.Radius), out _))
+                        stilts++;
             }
+            if (stilts < StiltHousesAtLeast)
+                return false;
             // Every dock runs out along the facing (FloraRule.FaceLandmark): its far end must stand in water, not on a flat beach.
             foreach (var prop in type.Props)
             {
@@ -195,7 +222,9 @@ namespace Punchy.Terrain
                 for (int k = 0; k < math.max(1, prop.Count); k++)
                 {
                     var spot = LandmarkSampling.ToWorld(inst, LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / math.max(1, prop.Count)), type.Radius);
-                    if (source.SampleHeight(spot + dir * DockReach) > sea - 0.6f)
+                    // W-105 (#36): nor on river water along its run out, where flora leaves the plot empty (W-91): the
+                    // village at -3144,-1596 lost its wharf that way. The other bank or the next mouth gets it instead.
+                    if (source.SampleHeight(spot + dir * DockReach) > sea - 0.6f || LandmarkSampling.OnRiver(source, spot, dir, RiverDockReach))
                         return false;
                 }
             }

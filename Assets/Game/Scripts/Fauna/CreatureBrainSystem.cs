@@ -5,6 +5,7 @@ using Punchy.Terrain;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Transforms;
 
@@ -68,6 +69,15 @@ namespace Punchy.Fauna
         // (Key renamed when the struct grew in A-47: a SharedStatic keeps its first size until the editor restarts.)
         struct SearchCountsKey2 { }
         public struct SearchCounts { public long Predator, Alarm, Chat, PredatorFlee, AlarmFlee, PlayerFlee, Thinks, LodSkips; }
+        /// <summary>
+        /// A-72: the walking colossi (<see cref="ColossusWalker"/>), one column each: (x, z, radius m, heading radians);
+        /// radius 0 is an empty column. Creatures inside a circle get out of the way (A-72 row 2).
+        /// </summary>
+        public static readonly Unity.Burst.SharedStatic<float4x4> ColossusZones = Unity.Burst.SharedStatic<float4x4>.GetOrCreate<ColossusZonesKey>();
+        struct ColossusZonesKey { }
+        /// <summary>A-72 counter for -walkerlog: flees started by a walking colossus.</summary>
+        public static readonly Unity.Burst.SharedStatic<long> ColossusFlees = Unity.Burst.SharedStatic<long>.GetOrCreate<ColossusFleesKey>();
+        struct ColossusFleesKey { }
         /// <summary>#59 A/B switch ("-nobrainlod"): every creature thinks every frame, however far from a player.</summary>
         public static readonly Unity.Burst.SharedStatic<int> BrainLodOff = Unity.Burst.SharedStatic<int>.GetOrCreate<BrainLodOffKey>();
         struct BrainLodOffKey { }
@@ -120,18 +130,53 @@ namespace Punchy.Fauna
         /// <summary>The whole of one creature's tick (#59: DebugControls' -perflog sums it per frame as "brain ms").</summary>
         public static readonly Unity.Profiling.ProfilerMarker TickMarker = new Unity.Profiling.ProfilerMarker("Brain.Tick");
         EntityQuery creatures;
+        /// <summary>A-70 row 2: the creatures the brain runs (BrainJob's own set: not players' bodies or test specimens).</summary>
+        EntityQuery thinkers;
         /// <summary>Where each player was last frame (by Holder id), for how fast they're going.</summary>
         NativeHashMap<int, float3> lastPlayerPositions;
         /// <summary>Frames run, for the brain LOD's turns (#59).</summary>
         uint frame;
+        // A-70: the walls of settlements and landmarks near a player, placed once (BuildingFootprints), which ones were
+        // asked for, and the blobs they were placed from (a re-bake starts them again).
+        NativeHashMap<int, FloraSystem.FloraInstance> footprintPlots;
+        NativeHashMap<int, int2> footprintLandmarks;
+        NativeList<BuildingFootprints.BakedProp> footprintProps;
+        NativeHashSet<int> footprintTowns, footprintLandmarkSet;
+        BlobAssetReference<SettlementSetBlob> footprintTownBlob;
+        BlobAssetReference<LandmarkSetBlob> footprintLandmarkBlob;
+        BlobAssetReference<FloraBlob> footprintFloraBlob;
+        /// <summary>
+        /// A-70 row 2: how the brain's work lies over the job workers, for -perflog ("-perflog" sets SpreadOn): per frame,
+        /// its wall time (first creature started to last one done), the busiest worker's and the mean worker's summed
+        /// ticks, and how many workers took part; summed here over frames (Stopwatch ticks).
+        /// </summary>
+        public struct BrainSpread { public long Frames, WallTicks, WorstWallTicks, MaxBusyTicks, SumBusyTicks, Workers; }
+        public static readonly SharedStatic<BrainSpread> Spread = SharedStatic<BrainSpread>.GetOrCreate<BrainSpreadKey>();
+        struct BrainSpreadKey { }
+        public static readonly SharedStatic<int> SpreadOn = SharedStatic<int>.GetOrCreate<SpreadOnKey>();
+        struct SpreadOnKey { }
+        /// <summary>Per job worker (ThreadIndex): busy ticks, first start, last end, of the last brain job.</summary>
+        NativeArray<long> spreadTicks;
+        /// <summary>A-70: settlements and landmarks are baked once a player is within this (m) of their edge: past the
+        /// brain LOD's range, so a creature that thinks every frame near a player always finds its walls baked.</summary>
+        const float FootprintRange = 200f;
 
         [BurstCompile]
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<TerrainSource>();
             state.RequireForUpdate<CreatureState>();
+            Shelters.Data = default;   // (A-71: the shelter totals count from this play's start; statics outlive plays)
             creatures = SystemAPI.QueryBuilder().WithAll<CreatureState, CreatureBody>().Build();
+            thinkers = SystemAPI.QueryBuilder().WithAllRW<CreatureState, CreatureMind>().WithAll<CreatureBody>()
+                .WithNone<PlayerAvatar, RemoteAvatar, PosedForTest>().Build();
             lastPlayerPositions = new NativeHashMap<int, float3>(8, Allocator.Persistent);
+            footprintPlots = new NativeHashMap<int, FloraSystem.FloraInstance>(256, Allocator.Persistent);
+            footprintLandmarks = new NativeHashMap<int, int2>(64, Allocator.Persistent);
+            footprintProps = new NativeList<BuildingFootprints.BakedProp>(256, Allocator.Persistent);
+            footprintTowns = new NativeHashSet<int>(16, Allocator.Persistent);
+            footprintLandmarkSet = new NativeHashSet<int>(64, Allocator.Persistent);
+            spreadTicks = new NativeArray<long>(Unity.Jobs.LowLevel.Unsafe.JobsUtility.ThreadIndexCount * 3, Allocator.Persistent);
         }
 
         [BurstCompile]
@@ -139,6 +184,125 @@ namespace Punchy.Fauna
         {
             if (lastPlayerPositions.IsCreated)
                 lastPlayerPositions.Dispose();
+            state.Dependency.Complete();
+            if (footprintPlots.IsCreated)
+                footprintPlots.Dispose();
+            if (footprintLandmarks.IsCreated)
+                footprintLandmarks.Dispose();
+            if (footprintProps.IsCreated)
+                footprintProps.Dispose();
+            if (footprintTowns.IsCreated)
+                footprintTowns.Dispose();
+            if (footprintLandmarkSet.IsCreated)
+                footprintLandmarkSet.Dispose();
+            if (spreadTicks.IsCreated)
+                spreadTicks.Dispose();
+        }
+
+        /// <summary>A-70 row 2: adds the last brain job's spread over the workers to Spread, and clears it for this one.</summary>
+        void FoldSpread()
+        {
+            long first = long.MaxValue, last = 0, max = 0, sum = 0, workers = 0;
+            for (int t = 0; t < spreadTicks.Length; t += 3)
+            {
+                if (spreadTicks[t] == 0)
+                    continue;
+                workers++;
+                sum += spreadTicks[t];
+                max = math.max(max, spreadTicks[t]);
+                first = math.min(first, spreadTicks[t + 1]);
+                last = math.max(last, spreadTicks[t + 2]);
+                spreadTicks[t] = spreadTicks[t + 1] = spreadTicks[t + 2] = 0;
+            }
+            if (workers == 0)
+                return;
+            ref var spread = ref Spread.Data;
+            spread.Frames++;
+            spread.WallTicks += last - first;
+            spread.WorstWallTicks = math.max(spread.WorstWallTicks, last - first);
+            spread.MaxBusyTicks += max;
+            spread.SumBusyTicks += sum;
+            spread.Workers += workers;
+        }
+
+        /// <summary>
+        /// A-70: asks FootprintBakeJob for the walls of any settlement or landmark a player has come within FootprintRange
+        /// of and that isn't baked yet (scheduled before the brain, which reads them), and hands the brain the cache.
+        /// </summary>
+        BuildingFootprints FootprintsFor(ref SystemState state, in TerrainSource terrain, BlobAssetReference<FloraBlob> flora, bool hasFlora,
+                                      NativeArray<float3> players)
+        {
+            // (Off, the brain still gets the containers: a job can't carry unmade ones.)
+            if (!hasFlora || BuildingFootprints.Off.Data != 0)
+                return new BuildingFootprints { Plots = footprintPlots, Landmarks = footprintLandmarks, Props = footprintProps, On = false };
+            if (terrain.Settlements != footprintTownBlob || terrain.Landmarks != footprintLandmarkBlob || flora != footprintFloraBlob)
+            {
+                // (A re-bake or a new flora table: what was placed is stale. Rare, so waiting on the brain here is fine.)
+                state.Dependency.Complete();
+                footprintPlots.Clear();
+                footprintLandmarks.Clear();
+                footprintProps.Clear();
+                footprintTowns.Clear();
+                footprintLandmarkSet.Clear();
+                footprintTownBlob = terrain.Settlements;
+                footprintLandmarkBlob = terrain.Landmarks;
+                footprintFloraBlob = flora;
+            }
+            var towns = new NativeList<int>(Allocator.TempJob);
+            var landmarks = new NativeList<int>(Allocator.TempJob);
+            if (terrain.Settlements.IsCreated && flora.Value.SettlementSpecies.Length > 0)
+            {
+                ref var set = ref terrain.Settlements.Value;
+                for (int t = 0; t < set.Settlements.Length; t++)
+                {
+                    if (footprintTowns.Contains(t))
+                        continue;
+                    ref var town = ref set.Settlements[t];
+                    for (int p = 0; p < players.Length; p++)
+                        if (math.distance(players[p].xz, town.Centre) < town.Radius + FootprintRange)
+                        {
+                            footprintTowns.Add(t);
+                            towns.Add(t);
+                            break;
+                        }
+                }
+            }
+            if (terrain.Landmarks.IsCreated)
+            {
+                ref var set = ref terrain.Landmarks.Value;
+                for (int i = 0; i < set.Instances.Length; i++)
+                {
+                    if (footprintLandmarkSet.Contains(i))
+                        continue;
+                    ref var inst = ref set.Instances[i];
+                    var radius = set.Types[inst.Type].Radius * inst.Scale;
+                    for (int p = 0; p < players.Length; p++)
+                        if (math.distance(players[p].xz, inst.Position) < radius + 15f + FootprintRange)
+                        {
+                            footprintLandmarkSet.Add(i);
+                            landmarks.Add(i);
+                            break;
+                        }
+                }
+            }
+            if (towns.Length > 0 || landmarks.Length > 0)
+            {
+                state.Dependency = new FootprintBakeJob
+                {
+                    Terrain = terrain,
+                    Flora = flora,
+                    Settlements = towns.AsArray(),
+                    LandmarkInstances = landmarks.AsArray(),
+                    Plots = footprintPlots,
+                    Landmarks = footprintLandmarks,
+                    Props = footprintProps
+                }.Schedule(state.Dependency);
+            }
+            towns.Dispose(state.Dependency);
+            landmarks.Dispose(state.Dependency);
+            BuildingFootprints.Stats.Data.x = footprintTowns.Count;
+            BuildingFootprints.Stats.Data.y = footprintLandmarkSet.Count;
+            return new BuildingFootprints { Plots = footprintPlots, Landmarks = footprintLandmarks, Props = footprintProps, On = true };
         }
 
         [BurstCompile]
@@ -198,12 +362,27 @@ namespace Punchy.Fauna
                     hunters.Add(i);
             }
             var hasFlora = SystemAPI.TryGetSingleton<FloraLookup>(out var flora) && flora.Blob.IsCreated;
+            var wharves = default(WharfSpotLookup);
+            var hasWharves = hasFlora && SystemAPI.TryGetSingleton(out wharves) && wharves.Blob.IsCreated;
+            // (The last brain job is done: the snapshot above waited for its CreatureState.)
+            FoldSpread();
+            var terrain = SystemAPI.GetSingleton<TerrainSource>();
+            var footprints = FootprintsFor(ref state, terrain, hasFlora ? flora.Blob : default, hasFlora, players.AsArray());
+            // A-70 row 2: one creature per index, handed out to the workers 8 at a time, in place of whole chunks (a chunk
+            // holds over a hundred, so a few busy chunks left most workers idle while one or two ran on).
+            var thinking = thinkers.ToEntityArray(Allocator.TempJob);
+            Shelters.Data.ThisFrame = 0;   // (A-71: the shelter search cap is per frame)
 
             state.Dependency = new BrainJob
             {
-                Terrain = SystemAPI.GetSingleton<TerrainSource>(),
+                Terrain = terrain,
+                Footprints = footprints,
+                SpreadTicks = spreadTicks,
+                Timed = SpreadOn.Data != 0,
                 Flora = hasFlora ? flora.Blob : default,
                 HasFlora = hasFlora,
+                Wharves = hasWharves ? wharves.Blob : default,
+                HasWharves = hasWharves,
                 Players = players.AsArray(),
                 PlayerIds = playerIds.AsArray(),
                 PlayerYaws = playerYaws.AsArray(),
@@ -222,8 +401,13 @@ namespace Punchy.Fauna
                 Bodies = bodies,
                 Lookup = lookup,
                 Grid = grid,
-                Hunters = hunters.AsArray()
-            }.ScheduleParallel(state.Dependency);
+                Hunters = hunters.AsArray(),
+                Thinking = thinking,
+                StateRW = SystemAPI.GetComponentLookup<CreatureState>(false),
+                MindRW = SystemAPI.GetComponentLookup<CreatureMind>(false),
+                BodyRO = SystemAPI.GetComponentLookup<CreatureBody>(true)
+            }.Schedule(thinking.Length, BrainBatch, state.Dependency);
+            thinking.Dispose(state.Dependency);
             hunters.Dispose(state.Dependency);
             entities.Dispose(state.Dependency);
             states.Dispose(state.Dependency);
@@ -250,14 +434,40 @@ namespace Punchy.Fauna
 
         static int2 Cell(float2 xz) => (int2)math.floor(xz / CellSize);
 
-        /// <summary>Every creature but players' bodies (PlayerAvatarSystem moves those) and test specimens.</summary>
+        /// <summary>A-70 row 2: creatures per batch a worker takes from the brain at a time.</summary>
+        const int BrainBatch = 8;
+
+        /// <summary>Every creature but players' bodies (PlayerAvatarSystem moves those) and test specimens (thinkers).</summary>
         [BurstCompile]
-        [WithNone(typeof(PlayerAvatar), typeof(RemoteAvatar), typeof(PosedForTest))]
-        partial struct BrainJob : IJobEntity
+        partial struct BrainJob : IJobParallelFor
         {
+            /// <summary>A-70 row 2: the creatures to run, one per index, and their state, mind and body (each index
+            /// writes only its own creature).</summary>
+            [ReadOnly] public NativeArray<Entity> Thinking;
+            [NativeDisableParallelForRestriction] public ComponentLookup<CreatureState> StateRW;
+            [NativeDisableParallelForRestriction] public ComponentLookup<CreatureMind> MindRW;
+            [ReadOnly] public ComponentLookup<CreatureBody> BodyRO;
+
+            public void Execute(int index)
+            {
+                var self = Thinking[index];
+                var s = StateRW[self];
+                var mind = MindRW[self];
+                Run(self, ref s, ref mind, BodyRO[self]);
+                StateRW[self] = s;
+                MindRW[self] = mind;
+            }
             public TerrainSource Terrain;
+            /// <summary>A-70: buildings' and landmark props' walls, placed once (Walled and BuildingSink ask it).</summary>
+            public BuildingFootprints Footprints;
+            /// <summary>A-70 row 2 (-perflog): each worker's busy ticks, first start and last end (ThreadIndex * 3).</summary>
+            [NativeDisableParallelForRestriction] public NativeArray<long> SpreadTicks;
+            public bool Timed;
             public BlobAssetReference<FloraBlob> Flora;
             public bool HasFlora;
+            /// <summary>A-73: where fishing folk stand on the wharves (WharfSpots).</summary>
+            public BlobAssetReference<WharfSpotSet> Wharves;
+            public bool HasWharves;
             [ReadOnly] public NativeArray<float3> Players;
             [ReadOnly] public NativeArray<int> PlayerIds;
             [ReadOnly] public NativeArray<float> PlayerYaws;
@@ -293,11 +503,22 @@ namespace Punchy.Fauna
             /// reaches it without passing it along; the job struct is each worker's own, as with Dt and Step).</summary>
             CreatureMind M;
 
-            void Execute(Entity self, ref CreatureState s, ref CreatureMind mind, in CreatureBody body)
+            void Run(Entity self, ref CreatureState s, ref CreatureMind mind, in CreatureBody body)
             {
+                var started = Timed ? Unity.Profiling.LowLevel.Unsafe.ProfilerUnsafeUtility.Timestamp : 0L;
                 M = mind;
                 Tick(self, ref s, in body);
                 mind = M;
+                if (Timed)
+                {
+                    // (Each worker writes only its own three slots.)
+                    var done = Unity.Profiling.LowLevel.Unsafe.ProfilerUnsafeUtility.Timestamp;
+                    var slot = Unity.Jobs.LowLevel.Unsafe.JobsUtility.ThreadIndex * 3;
+                    SpreadTicks[slot] += math.max(done - started, 1L);
+                    if (SpreadTicks[slot + 1] == 0 || started < SpreadTicks[slot + 1])
+                        SpreadTicks[slot + 1] = started;
+                    SpreadTicks[slot + 2] = math.max(SpreadTicks[slot + 2], done);
+                }
             }
 
             void Tick(Entity self, ref CreatureState s, in CreatureBody body)
@@ -444,6 +665,9 @@ namespace Punchy.Fauna
                 // Danger (Sense), what else is going on round it (React), and running from it.
                 var threatened = Sense(self, ref s, ref b, body.Species, player, playerSpeed, emote, away, ownKind, aloft, perched, flier, tame, out var threat);
                 React(self, ref s, ref b, body.Species, ref rng, player, emote, flier, perched, ref threatened, threat);
+                // (One following a player on a quest keeps with them rather than bolting: A-71 row 6.)
+                if (M.FollowHolder != 0)
+                    threatened = false;
                 if (threatened)
                     StartFleeing(ref s, ref b, ref rng, threat, flier);
                 // How one of the folk takes the nearest player's body (Z-52): kin, a rival, wary, annoyed, warm or neither.
@@ -476,6 +700,8 @@ namespace Punchy.Fauna
                 var lookAtPlayer = math.clamp(WrapAngle(math.atan2(-away.x, -away.y) - s.Yaw), -1.2f, 1.2f);
                 var idleLook = watchPlayer ? lookAtPlayer : math.sin(s.Clock * 0.7f + s.Seed % 7) * 0.5f;
 
+                // Following a player (Follow.Start) takes the place of its own mode while it lasts.
+                if (!Following(ref s, ref b, ref rng, dt, walk, run, ref targetSpeed, ref moving, ref desiredLook))
                 switch (s.Mode)
                 {
                     case CreatureMode.Idle:
@@ -629,6 +855,10 @@ namespace Punchy.Fauna
                     case CreatureMode.Home:
                         GoIndoors(ref s, ref b, ref rng, dt, walk, ref targetSpeed, ref moving, ref custom);
                         break;
+
+                    case CreatureMode.Shelter:
+                        Sheltering(ref s, ref b, ref rng, dt, walk, run, idleLook, ref targetSpeed, ref moving, ref lie, ref desiredLook);
+                        break;
                 }
 
                 Needs(ref s, ref b, dt);
@@ -723,6 +953,14 @@ namespace Punchy.Fauna
                         threat = s.Position.xz - math.normalizesafe(outward + veer * 0.6f, outward) * 5f;
                     }
                 }
+                // A walking colossus coming through (A-72): the skittish bolt from further off, the rest step aside.
+                if (!threatened && !aloft && !perched && !b.Rooted && NearColossus(s.Position.xz, b.FleeDistance > 0f ? 1.6f : 1f, out var giant))
+                {
+                    threatened = true;
+                    threat = giant;
+                    if (s.Mode != CreatureMode.Flee)
+                        System.Threading.Interlocked.Increment(ref ColossusFlees.Data);
+                }
                 // One bolts, they all bolt: a herd (or a flock) runs when any of it close by does, from the same thing.
                 if (!threatened && !aloft && b.FleeDistance > 0f && s.Mode != CreatureMode.Flee && searchDue && FindAlarm(self, ref s, species, out var alarm))
                 {
@@ -731,6 +969,35 @@ namespace Punchy.Fauna
                     System.Threading.Interlocked.Increment(ref Searches.Data.AlarmFlee);
                 }
                 return threatened;
+            }
+
+            /// <summary>
+            /// A-72: whether a walking colossus is within its circle (times reach) of here, and the point to run from.
+            /// One in front of the giant runs from the giant's path beside it, so it steps off the path to the side
+            /// rather than running on ahead; one behind or beside runs from the giant itself.
+            /// </summary>
+            static bool NearColossus(float2 at, float reach, out float2 from)
+            {
+                var zones = ColossusZones.Data;
+                for (int i = 0; i < 4; i++)
+                {
+                    var z = zones[i];
+                    if (z.z <= 0f)
+                        continue;
+                    var off = at - z.xy;
+                    var r = z.z * reach;
+                    if (math.lengthsq(off) > r * r)
+                        continue;
+                    var heading = new float2(math.sin(z.w), math.cos(z.w));
+                    var ahead = math.dot(off, heading);
+                    from = ahead > 0f ? z.xy + heading * ahead : z.xy;
+                    // Right on the path line: pick a side so "away" is never zero.
+                    if (math.lengthsq(at - from) < 0.25f)
+                        from = at - new float2(heading.y, -heading.x);
+                    return true;
+                }
+                from = default;
+                return false;
             }
 
             /// <summary>What else it heeds round it: a flock taking off, a game of chase, its burrow, a startled roost, snapping, a town it is driven from.</summary>
@@ -844,7 +1111,7 @@ namespace Punchy.Fauna
             void Errands(Entity self, ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, bool threatened)
             {
                 // Swimming with nowhere to go (it stopped, or wanted to graze or rest): it makes for the nearest shore.
-                if (b.CrossesWater && !threatened && s.Mode != CreatureMode.Wander && s.Mode != CreatureMode.Flee &&
+                if (b.CrossesWater && !threatened && !OnPier(in s) && s.Mode != CreatureMode.Wander && s.Mode != CreatureMode.Flee &&
                     s.Mode != CreatureMode.Hunt && s.Mode != CreatureMode.Play && s.Mode != CreatureMode.Greet && s.Mode != CreatureMode.Held &&
                     WaterDepth(s.Position.xz) > b.StandHeight * s.Scale * 0.8f && NearestShore(s.Position.xz, out var ashore))
                 {
@@ -861,7 +1128,7 @@ namespace Punchy.Fauna
                     StartChat(self, ref s, ref b, ref rng, dt);
 
                 // A messenger bird coming to this one: it stops what it's doing to meet it.
-                if (b.Upright && b.Hands && s.Leash > 0f && (Free(s.Mode) || s.Mode == CreatureMode.Greet) && !(s.Mode == CreatureMode.Idle && s.Stage >= MessageWait) &&
+                if (M.FollowHolder == 0 && b.Upright && b.Hands && s.Leash > 0f && (Free(s.Mode) || s.Mode == CreatureMode.Greet) && !(s.Mode == CreatureMode.Idle && s.Stage >= MessageWait) &&
                     rng.NextFloat() < 0.25f && FindMessenger(self, in s, out var messenger))
                 {
                     SetMode(ref s, CreatureMode.Idle);
@@ -1113,6 +1380,10 @@ namespace Punchy.Fauna
                     Messenger(ref s, ref b, ref rng, dt, ref vertical);
                     return;
                 }
+                // (A-73: out along a wharf's deck, off the terrain's floor: PierWork walks it.)
+                if (s.Task == CreatureTask.Fish && s.PierSpot > 0 &&
+                    PierWork(ref s, ref b, ref rng, dt, walk, ref targetSpeed, ref moving, ref custom, ref desiredLook))
+                    return;
                 if (s.Stage >= CreatureAnimator.RaidWalk && s.Stage <= CreatureAnimator.RaidLick)
                 {
                     Raiding(ref s, ref b, ref rng, dt, walk, run, ref targetSpeed, ref moving, ref sit, ref vertical, ref desiredLook, ref headDown, ref bow);
@@ -1179,7 +1450,9 @@ namespace Punchy.Fauna
                 // Animals with a home never head out of range of it (penned animals stay in their pen, even fleeing).
                 // Going indoors is going home: a door beyond the leash would otherwise be cut short to a spot it stands
                 // on for a minute, turning on it (Z-07, an elf by the ElfGrove fountain).
-                if (s.Leash > 0f && moving && s.Mode != CreatureMode.Patrol && s.Mode != CreatureMode.Swim && s.Mode != CreatureMode.Home)
+                // (One following a player goes where they go: A-71 row 6.)
+                if (s.Leash > 0f && moving && s.Mode != CreatureMode.Patrol && s.Mode != CreatureMode.Swim && s.Mode != CreatureMode.Home &&
+                    M.FollowHolder == 0)
                 {
                     var fromHome = s.Target - s.Home;
                     var far = math.length(fromHome);
@@ -1200,7 +1473,8 @@ namespace Punchy.Fauna
                 var turn = 0f;
                 // (Not within 10 cm of the target: the way to it there is noise, and following it spins the body on
                 // the spot at its full turn rate, Z-07.)
-                var to = s.Target - s.Position.xz;
+                // (A cave walker under the rock goes by its passage, node by node, not straight through the rock: A-69.)
+                var to = (moving && b.CaveDweller && !b.Crawls && Below(s, ref b) ? PassageWay(s.Position, s.Target) : s.Target) - s.Position.xz;
                 if (moving && math.lengthsq(to) > 0.01f)
                 {
                     var wanted = WrapAngle(math.atan2(to.x, to.y) - s.Yaw);
@@ -1340,7 +1614,7 @@ namespace Punchy.Fauna
                 if (s.Task == CreatureTask.Patrol && s.Mode == CreatureMode.Patrol)
                     s.Held = Night > 0.5f ? HeldItem.Torch : s.Held == HeldItem.SpearDrawn ? HeldItem.SpearDrawn : HeldItem.Spear;
                 else if (s.Task == CreatureTask.Fish && s.Mode == CreatureMode.Work && s.Stage >= 1)
-                    s.Held = HeldItem.Rod;
+                    s.Held = !OnPier(in s) ? HeldItem.Rod : s.Stage == PierCarry ? HeldItem.OreSack : s.Stage == PierNets || s.Stage == PierSetDown ? HeldItem.None : HeldItem.Rod;
                 // A traveller has its staff by day, a lantern after dark.
                 else if (s.Task == CreatureTask.Travel && s.Mode == CreatureMode.Work)
                     s.Held = Night > 0.5f ? HeldItem.Lantern : HeldItem.Staff;

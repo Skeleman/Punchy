@@ -71,6 +71,87 @@ Shader "Punchy/Flora"
                 return 1 - grain;
             }
 
+            /// W-99: a sawn log end (look 5; the rings are in its vertex colours): fine end-grain speckle and saw marks only.
+            half PunchyLogEnd(float3 p, float footprint)
+            {
+                half fineFade = 1 - smoothstep(0.004, 0.012, footprint);
+                half speckle = PunchyValueNoise(p.yz * 160) * 0.6 + PunchyValueNoise(p.yz * 61 + 3.7) * 0.4;
+                half saw = PunchyValueNoise(float2(p.y * 7 + p.z * 2, 1.3) * 9);
+                return 1 + ((speckle - 0.5) * 0.22 + (saw - 0.5) * 0.08) * fineFade;
+            }
+
+            /// W-99: a built surface's look (FloraMeshBuilder.Surface): 1 planks, 2 shingles, 3 thatch, 4 a shingle course
+            /// laid as geometry (only its tiles here; key: the course's own colour, which staggers its joints). Worked out in
+            /// the plant's own frame: rows climb the face (on a slope measured along it, so a course keeps its size on any
+            /// pitch) and "across" runs level along it. Each scale drops out as it gets too fine for the pixels.
+            half PunchySurface(int look, float3 p, float3 nOS, float footprint, half3 key)
+            {
+                float slope = sqrt(saturate(1 - nOS.y * nOS.y));
+                float across = slope < 0.3 ? p.x : dot(p.xz, normalize(float2(-nOS.z, nOS.x) + float2(1e-4, 0)));
+                float row = slope < 0.3 ? p.z : p.y / max(slope, 0.35);
+                if (look == 1)
+                {
+                    // Lapped boards about 21 cm high, each its own length and shade, a shadow under each lap, butt joints.
+                    float r = row / 0.21;
+                    int board = (int)floor(r);
+                    half fr = frac(r);
+                    half h = PunchyCellHash(int2(board, 31));
+                    float len = 2.2 + h * 1.6;
+                    float a = across / len + h * 7.3;
+                    half piece = PunchyCellHash(int2(board, (int)floor(a) + 977));
+                    half joint = 1 - smoothstep(0.004, 0.014, min(frac(a), 1 - frac(a)) * len);
+                    half lap = smoothstep(0.78, 1.0, fr) * 0.4 + (1 - smoothstep(0.0, 0.05, fr)) * 0.2;
+                    half o = PunchyOctave(0.21, footprint);
+                    half grain = PunchyWoodGrain(float3(across, row + board * 0.37, 0), 0.25, footprint);
+                    return grain * lerp(1, lerp(0.84, 1.12, piece) * (1 - lap - joint * 0.4), o);
+                }
+                if (look == 2 || look == 4)
+                {
+                    // Shingles about 30 cm wide, joints staggered course to course, a shadow under the course above
+                    // (geometric courses cast their own), and a fine grain down each.
+                    float r = row / 0.24;
+                    half fr = frac(r);
+                    float course = look == 4 ? floor(frac(dot(key, half3(97.31, 61.17, 13.73))) * 64) : floor(r);
+                    float t = across / 0.3 + frac(course * 0.618);
+                    half ft = frac(t);
+                    half h = PunchyCellHash(int2((int)course, (int)floor(t)));
+                    half joint = 1 - smoothstep(0.02, 0.07, min(ft, 1 - ft));
+                    half under = look == 4 ? 0 : smoothstep(0.7, 1.0, fr) * 0.4;
+                    half lip = look == 4 ? 0 : (1 - smoothstep(0.0, 0.08, fr)) * 0.12;
+                    half fine = (PunchyValueNoise(float2(t * 9, row * 1.5 + h * 10)) - 0.5) * 0.3 * PunchyOctave(0.03, footprint);
+                    half m = lerp(0.8, 1.14, h) * (1 - under - joint * 0.45 * (1 - under)) * (1 + lip);
+                    return lerp(1, m, PunchyOctave(0.24, footprint)) * (1 + fine);
+                }
+                // Thatch: straw strands down the slope in ragged layers, clumps lighter and darker, shadow under each layer.
+                float rr = row / 0.42 + (PunchyValueNoise(float2(across * 1.3, 3.7)) - 0.5) * 0.4;
+                half strand = PunchyValueNoise(float2(across * 38, row * 1.2)) * 0.6 + PunchyValueNoise(float2(across * 90 + 3.1, row * 2.5)) * 0.4;
+                half clump = PunchyValueNoise(float2(across * 4.0, row * 1.5 + 11.1));
+                half layer = smoothstep(0.62, 1.0, frac(rr)) * 0.32 * PunchyOctave(0.42, footprint);
+                return (1 + (strand - 0.5) * 0.6 * PunchyOctave(0.02, footprint) + (clump - 0.5) * 0.3 * PunchyOctave(0.25, footprint)) * (1 - layer);
+            }
+
+            /// W-99: cloth's linen weave, on the facet's plane in the plant's own frame: 3 cm threads over and under in a
+            /// check, a little uneven along each thread (slubs), and broad soft blotches; fading out with the pixels.
+            half PunchyLinen(float3 p, float3 nOS, float footprint)
+            {
+                float3 a = abs(nOS);
+                float2 uv = a.x > a.y && a.x > a.z ? p.zy : a.y > a.z ? p.xz : p.xy;
+                float2 t = uv / 0.03;
+                float2 f = frac(t);
+                int2 c = (int2)floor(t);
+                bool warp = ((c.x + c.y) & 1) == 0;
+                half thread = warp ? sin(f.x * 3.14159) : sin(f.y * 3.14159);
+                half slub = PunchyValueNoise(warp ? float2(c.x * 1.7, t.y * 0.15) : float2(t.x * 0.15, c.y * 1.7 + 9.3));
+                half fine = (thread * 0.7 + slub * 0.3 - 0.55) * 0.6 * PunchyOctave(0.03, footprint);
+                // Sewn panels: a dark seam every ~55 cm with a slight tone change per panel, so it reads at a few metres.
+                float pv = uv.y / 0.55;
+                half seam = (1 - smoothstep(0.0, 0.035, abs(frac(pv) - 0.5) - 0.465)) * 0.22;
+                half panel = (frac(sin(floor(pv) * 12.9898) * 43758.55) - 0.5) * 0.12;
+                half mid = (panel - seam) * PunchyOctave(0.12, footprint);
+                half coarse = (PunchyValueNoise(uv * 3.1) - 0.5) * 0.22 * PunchyOctave(0.3, footprint);
+                return 1 + fine + mid + coarse;
+            }
+
             half3 PunchyWeathering(float3 p, half3 n, float footprint, half r)
             {
                 p += r * 37;
@@ -169,14 +250,24 @@ Shader "Punchy/Flora"
                 // Cloth: lit by the surface the wind has waved (its folds catch the light), facing the viewer.
                 if (part == 10)
                     n = dot(facet, v) < 0 ? -facet : facet;
+                // The facet in the plant's own frame (W-99's surfaces and weave are laid out there).
+                float3 facetOS = normalize(cross(ddy(input.grainPos), ddx(input.grainPos)) + 1e-9);
+                // Timber (marked Bark + 0.02) and its look (W-99: FloraMeshBuilder.Surface, riding on the grain code).
+                bool wood = part == 0 && frac(input.extra.x) > 0.01 && frac(input.extra.x) < 0.035;
+                int look = wood ? (int)round((input.grainAxis - round(input.grainAxis * 4) * 0.25) / 0.02) : 0;
                 // Built things (those with a dirt band) and banded rock: weathering that stays at every range
-                // (PunchyWeathering).
+                // (PunchyWeathering). Timber takes only a little of it: its stone-like courses read as plaster (W-99).
                 bool strata = part == 0 && frac(input.extra.x) > 0.04 && frac(input.extra.x) < 0.15;
                 if (part == 0 && built || strata)
-                    albedo *= PunchyWeathering(input.positionWS, n, footprint, r);
-                // Timber (marked Bark + 0.02): grain along each piece (Z-30: wood read as leather or plaster).
-                if (part == 0 && frac(input.extra.x) > 0.01 && frac(input.extra.x) < 0.035)
-                    albedo *= PunchyWoodGrain(input.grainPos, input.grainAxis, footprint);
+                    albedo *= lerp(1, PunchyWeathering(input.positionWS, n, footprint, r), wood ? 0.4 : 1);
+                // Timber: grain along each piece (Z-30: wood read as leather or plaster), or its planks, shingles or thatch.
+                if (wood)
+                    albedo *= look == 0 ? PunchyWoodGrain(input.grainPos, input.grainAxis, footprint)
+                                        : look == 5 ? PunchyLogEnd(input.grainPos, footprint)
+                                        : PunchySurface(look, input.grainPos, facetOS, footprint, input.color.rgb);
+                // Cloth: a linen weave (W-99).
+                if (part == 10)
+                    albedo *= PunchyLinen(input.grainPos, facetOS, footprint);
                 // Banded rock (FloraSpecies.RockStrata): exactly the terrain's strata (TerrainSurface.shader), same
                 // world heights and colours, so a rock prop's layers line up with the cliff beside it.
                 if (strata)
@@ -193,6 +284,8 @@ Shader "Punchy/Flora"
                 // mips keep the far relief from shimmering.
                 float detailFade = distance(input.positionWS, GetCameraPositionWS());
                 float near = built ? 1 - smoothstep(60, 140, detailFade) : 1 - smoothstep(18, 45, detailFade);
+                // Timber keeps only a trace of the rock's relief (W-99: it gave the fishing huts' boards a plaster's depth).
+                near *= wood ? (look == 3 ? 0.35 : 0.15) : 1;
                 if (part == 0 && near > 0.01 && _PunchyCaveDetailReady > 0)
                 {
                     float3 q = input.positionWS * 0.9;
@@ -223,6 +316,10 @@ Shader "Punchy/Flora"
                     half fine = FloraMossNoise(input.moss.yzw * 80);
                     albedo *= lerp(half3(0.42, 0.56, 0.36), half3(1.0, 0.98, 0.62), clump) * (0.8 + 0.4 * fine);
                     albedo *= lerp(0.75, 1, saturate(input.moss.x * 2));
+                    // W-101 (#80): tiny cushions, each with a bright crown and a dark seam round it, so the sheet reads
+                    // as a mat of tufts rather than a smooth green cloth.
+                    half tuft = FloraMossNoise(input.moss.yzw * 26 + 9.7);
+                    albedo *= lerp(0.5, 1.15, smoothstep(0.25, 0.75, tuft));
                 }
                 // Windows: dark glass by day (their colour is the light they give at night, below).
                 half3 windowLight = albedo;
@@ -230,8 +327,15 @@ Shader "Punchy/Flora"
                     albedo = half3(0.05, 0.06, 0.07) + albedo * 0.06;
 
                 // Snow settles on upward faces where the ground under the plant is snowy.
-                half snow = saturate(input.extra.z * 1.5) * smoothstep(0.15, 0.6, n.y);
-                albedo = lerp(albedo, half3(0.86, 0.88, 0.92), snow);
+                // W-99: cloth goes by its own facet turned up (n faces the viewer there, which from below would keep a
+                // tent's roof bare), and other parts by the steeper of normal and facet so faceted stake tips catch it.
+                // Only clearly upward faces fully whiten, the cover is capped and broken up so it sits with the
+                // terrain snow nearby instead of glowing.
+                half3 fA = dot(facet, n) < 0 ? -facet : facet;
+                half up = part == 10 ? abs(facet.y) : max(n.y, fA.y);
+                half breakup = PunchyValueNoise(input.positionWS.xz * 1.7) * 0.6 + PunchyValueNoise(input.positionWS.xz * 7.3) * 0.4;
+                half snow = min(saturate(input.extra.z * 1.5) * smoothstep(0.3, 0.7, up) * lerp(0.6, 1.1, breakup), 0.7);
+                albedo = lerp(albedo, half3(0.78, 0.8, 0.85), snow);
 
                 half wet = PunchyWetnessAt(input.positionWS.xz).r * (1 - snow);
                 // Rocks on dry ground take the biome's own rock colour (FloraPlacement.RockTint: the ground's alpha at its
@@ -439,6 +543,7 @@ Shader "Punchy/Flora"
             #pragma vertex Vert
             #pragma fragment Frag
             #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
+            #define FLORA_SHADOW_PASS
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
@@ -446,13 +551,37 @@ Shader "Punchy/Flora"
 
             float3 _LightDirection;
             float3 _LightPosition;
+            // W-107's cheap far caster: xyz the camera, w the near range (0: off). Past it the far level of detail
+            // casts as a solid card, so world-space noise cuts holes in it for a dappled canopy shadow.
+            float4 _FloraCheapHoles;
 
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
                 float fade : TEXCOORD0;
                 float4 moss : TEXCOORD1;
+                float3 positionWS : TEXCOORD2;
             };
+
+            float HoleHash(float3 p)
+            {
+                p = frac(p * 0.1031);
+                p += dot(p, p.yzx + 33.33);
+                return frac((p.x + p.y) * p.z);
+            }
+
+            // Value noise on 1.3 m cells: blotches about the size of the gaps between a crown's leaf clumps.
+            float HoleNoise(float3 p)
+            {
+                p /= 1.3;
+                float3 i = floor(p);
+                float3 f = p - i;
+                f = f * f * (3 - 2 * f);
+                return lerp(lerp(lerp(HoleHash(i), HoleHash(i + float3(1, 0, 0)), f.x),
+                                 lerp(HoleHash(i + float3(0, 1, 0)), HoleHash(i + float3(1, 1, 0)), f.x), f.y),
+                            lerp(lerp(HoleHash(i + float3(0, 0, 1)), HoleHash(i + float3(1, 0, 1)), f.x),
+                                 lerp(HoleHash(i + float3(0, 1, 1)), HoleHash(i + float3(1, 1, 1)), f.x), f.y), f.z);
+            }
 
             Varyings Vert(FloraAttributes input)
             {
@@ -466,6 +595,7 @@ Shader "Punchy/Flora"
                 o.positionCS = ApplyShadowClamping(TransformWorldToHClip(ApplyShadowBias(v.positionWS, v.normalWS, lightDirectionWS)));
                 o.fade = v.fade;
                 o.moss = FloraMossData(input);
+                o.positionWS = v.positionWS;
                 return o;
             }
 
@@ -475,7 +605,59 @@ Shader "Punchy/Flora"
                 // LOD keeps casting with its outgoing level until the change is complete.
                 clip(input.fade >= 0 && input.fade < 1 ? -1 : 1);
                 FloraMossClip(input.moss);
+                if (_FloraCheapHoles.w > 0 && distance(input.positionWS.xz, _FloraCheapHoles.xz) > _FloraCheapHoles.w)
+                    clip(HoleNoise(input.positionWS) - 0.45);
                 return 0;
+            }
+            ENDHLSL
+        }
+
+        Pass
+        {
+            // W-107: FloraSystem's far shadow cache (FloraSystem.ShadowCache.cs) draws trees from the sun into a float
+            // texture: each texel keeps how far along the sun's direction the nearest caster is. Never a URP pass.
+            Name "FloraCache"
+            Tags { "LightMode" = "FloraCache" }
+            ZWrite On
+            ZTest LEqual
+            Cull Off
+
+            HLSLPROGRAM
+            #pragma target 4.5
+            #pragma vertex Vert
+            #pragma fragment Frag
+            #define FLORA_CACHE_PASS
+
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Flora.hlsl"
+
+            float4 _FloraCacheSun;   // xyz the way the sunlight travels
+            float4x4 _FloraCacheVP;  // the cache's view from the sun (orthographic), ready for the GPU
+
+            struct Varyings
+            {
+                float4 positionCS : SV_POSITION;
+                float fade : TEXCOORD0;
+                float along : TEXCOORD1;
+                float4 moss : TEXCOORD2;
+            };
+
+            Varyings Vert(FloraAttributes input)
+            {
+                FloraVertex v = FloraTransform(input);
+                Varyings o;
+                o.positionCS = mul(_FloraCacheVP, float4(v.positionWS, 1));
+                o.fade = v.fade;
+                o.along = dot(v.positionWS, _FloraCacheSun.xyz);
+                o.moss = FloraMossData(input);
+                return o;
+            }
+
+            float Frag(Varyings input) : SV_Target
+            {
+                clip(input.fade >= 0 && input.fade < 1 ? -1 : 1);
+                FloraMossClip(input.moss);
+                return input.along;
             }
             ENDHLSL
         }

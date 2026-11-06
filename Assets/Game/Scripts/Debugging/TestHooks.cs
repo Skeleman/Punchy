@@ -49,6 +49,9 @@ namespace Punchy.Debugging
             return q.CalculateEntityCount() == 1 && director != null && director.SpeciesCount > 0;
         }
 
+        /// <summary>A "-place prop:" request is still waiting for the flora lookup (#137).</summary>
+        public static bool PropPlacePending() => DebugControls.PropPlacePending;
+
         public static Vector3 PlayerPosition()
         {
             using var q = EM.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadOnly<LocalTransform>());
@@ -264,6 +267,104 @@ namespace Punchy.Debugging
 
         public static string WorstAnyCulture;
 
+        /// <summary>
+        /// A-69: dry land where a biome is the dominant one, sampled every 32 m over the island: [km², cells, then the
+        /// x,z of up to 8 cells spread through it (every n-th)]. Empty if the world isn't up or the biome isn't there.
+        /// </summary>
+        public static float[] BiomeArea(string name)
+        {
+            if (!Source(out var s))
+                return new float[0];
+            using var q = EM.CreateEntityQuery(ComponentType.ReadOnly<BiomePalette>());
+            if (q.CalculateEntityCount() == 0)
+                return new float[0];
+            var palette = q.GetSingleton<BiomePalette>();
+            var id = System.Array.FindIndex(palette.Biomes, b => b != null && b.name == name);
+            if (id < 0)
+                return new float[0];
+            const float step = 32f;
+            var half = s.World.WorldSize * 0.5f;
+            var cells = new List<float2>();
+            for (var x = -half; x < half; x += step)
+                for (var z = -half; z < half; z += step)
+                {
+                    var g = s.SampleGround(new float2(x, z));
+                    if (!g.HasWater && g.Biomes.Dominant() == id)
+                        cells.Add(new float2(x, z));
+                }
+            var result = new List<float> { cells.Count * step * step / 1e6f, cells.Count };
+            for (int i = 0, every = math.max(1, cells.Count / 8); i < cells.Count && result.Count < 18; i += every)
+            {
+                result.Add(cells[i].x);
+                result.Add(cells[i].y);
+            }
+            return result.ToArray();
+        }
+
+        /// <summary>A-69: creatures of one species (asset name) within radius of the player: [count, nearest distance (or -1), its x, y, z].</summary>
+        public static float[] SpeciesNear(string name, float radius)
+        {
+            var director = Object.FindAnyObjectByType<FaunaDirector>();
+            var index = director != null ? director.SpeciesIndex(name) : -1;
+            var result = new float[] { 0f, -1f, 0f, 0f, 0f };
+            if (index < 0)
+                return result;
+            using var q = EM.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
+            using var states = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
+            using var bodies = q.ToComponentDataArray<CreatureBody>(Allocator.Temp);
+            var player = (float3)PlayerPosition();
+            for (int i = 0; i < states.Length; i++)
+            {
+                var d = math.distance(states[i].Position.xz, player.xz);
+                if (bodies[i].Species != index || states[i].Mode == CreatureMode.Puppet || d > radius)
+                    continue;
+                result[0]++;
+                if (result[1] < 0f || d < result[1])
+                {
+                    result[1] = d;
+                    result[2] = states[i].Position.x;
+                    result[3] = states[i].Position.y;
+                    result[4] = states[i].Position.z;
+                }
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// A-69: switches the player's body to a playable species by asset name, as the Character tab does, and returns
+        /// the body it had ("" for none). A switch mid-session is saved as next session's body: put the old one back
+        /// with SetBody, then the saved pick with PutBodyPref(BodyPref() read before).
+        /// </summary>
+        public static string SetBody(string name)
+        {
+            var avatars = Object.FindAnyObjectByType<Punchy.Net.NetAvatars>();
+            var director = Object.FindAnyObjectByType<FaunaDirector>();
+            var was = director != null && director.PlayerSpecies != null ? director.PlayerSpecies.name : "";
+            if (avatars != null)
+                avatars.SetLocalSpecies(avatars.PlayableSpecies.FindIndex(s => s != null && s.name == name));
+            return was;
+        }
+
+        const string BodyPrefKey = "Punchy.Character.Body";
+
+        public static string BodyPref() => PlayerPrefs.GetString(BodyPrefKey, "");
+
+        public static void PutBodyPref(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+                PlayerPrefs.DeleteKey(BodyPrefKey);
+            else
+                PlayerPrefs.SetString(BodyPrefKey, name);
+            PlayerPrefs.Save();
+        }
+
+        /// <summary>The player's body flies (PlayerBody.Flies).</summary>
+        public static bool BodyFlies()
+        {
+            using var q = EM.CreateEntityQuery(ComponentType.ReadOnly<PlayerBody>());
+            return q.TryGetSingleton<PlayerBody>(out var body) && body.Flies;
+        }
+
         static List<Regex> Templates(DialogueArchive.Culture c)
         {
             var list = new List<Regex>();
@@ -280,6 +381,99 @@ namespace Punchy.Debugging
                 if (t.IsMatch(text))
                     return true;
             return false;
+        }
+
+        // ------------------------------------------------------------------------------- A-71 row 6: following
+
+        static Entity followed;
+
+        /// <summary>A-71 row 6: the nearest creature of this species (asset name) within radius of the player set
+        /// following them (Follow.Start, solo network id 0); its distance from them, or -1 if there's none.</summary>
+        public static float FollowStart(string species, float radius)
+        {
+            var player = (float3)PlayerPosition();
+            followed = Follow.Find(species, player, radius);
+            if (followed == Entity.Null || !Follow.Start(followed, 0))
+            {
+                var server = Punchy.Net.NetWorlds.Server;
+                var director = Object.FindAnyObjectByType<FaunaDirector>();
+                Debug.Log($"FollowStart: no {species} to follow within {radius} m of {player} (found {followed}, world {server?.Name ?? "none"}, " +
+                          $"species index {(director != null ? director.SpeciesIndex(species) : -2)})");
+                return -1f;
+            }
+            return math.distance(EM.GetComponentData<CreatureState>(followed).Position.xz, player.xz);
+        }
+
+        /// <summary>A-71 row 6: Follow.Stop on the one FollowStart set going.</summary>
+        public static bool FollowStop()
+        {
+            Follow.Stop(followed);
+            return followed != Entity.Null;
+        }
+
+        /// <summary>A-71 row 6: the follower now: [following (1/0), its distance from the player (m), still in its
+        /// follow stage (1/0), its speed (m/s)].</summary>
+        public static float[] FollowStatus()
+        {
+            if (followed == Entity.Null || !EM.Exists(followed))
+                return new float[] { 0f, -1f, 0f, 0f };
+            var s = EM.GetComponentData<CreatureState>(followed);
+            return new float[]
+            {
+                Follow.IsFollowing(followed) ? 1f : 0f,
+                math.distance(s.Position.xz, ((float3)PlayerPosition()).xz),
+                s.Mode == CreatureMode.Greet && s.Stage == 2 ? 1f : 0f,
+                s.Speed
+            };
+        }
+
+        /// <summary>A-71 row 6: of 16 ways out from the player, the one whose steepest 2 m step over `length` metres is
+        /// gentlest and dry (a unit [x, z]), so a test walk isn't up a slope too steep for an animal to keep up on.</summary>
+        public static float[] FlatWay(float length)
+        {
+            if (!Source(out var source))
+                return new float[] { 1f, 0f };
+            var from = ((float3)PlayerPosition()).xz;
+            var best = new float2(1f, 0f);
+            var bestSteep = float.MaxValue;
+            for (int k = 0; k < 16; k++)
+            {
+                var angle = k * math.PI / 8f;
+                var dir = new float2(math.sin(angle), math.cos(angle));
+                var steep = 0f;
+                var last = source.SampleHeight(from);
+                for (float d = 2f; d <= length + 4f; d += 2f)
+                {
+                    var xz = from + dir * d;
+                    var g = source.SampleGround(xz);
+                    if (g.HasWater && g.WaterSurface - g.Height > 0f)
+                        steep = float.MaxValue;
+                    var h = source.SampleHeight(xz);
+                    steep = math.max(steep, math.abs(h - last) / 2f);
+                    last = h;
+                }
+                if (steep < bestSteep)
+                {
+                    bestSteep = steep;
+                    best = dir;
+                }
+            }
+            return new float[] { best.x, best.y };
+        }
+
+        /// <summary>A-71 row 6: the player moved by dx, dz on the ground (a test's walk, a step at a time).</summary>
+        public static bool MovePlayer(float dx, float dz)
+        {
+            if (!Source(out var source))
+                return false;
+            using var pq = EM.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadWrite<LocalTransform>());
+            if (!pq.TryGetSingletonEntity<LocalTransform>(out var e))
+                return false;
+            var t = EM.GetComponentData<LocalTransform>(e);
+            var xz = t.Position.xz + new float2(dx, dz);
+            t.Position = new float3(xz.x, source.SampleHeight(xz), xz.y);
+            EM.SetComponentData(e, t);
+            return true;
         }
     }
 }

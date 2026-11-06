@@ -32,9 +32,27 @@ namespace Punchy.Fauna
             looks = state.GetComponentLookup<NetPlayerLook>(true);
         }
 
+        /// <summary>A-70 row 3: whether anything was held, or a carrier's arms open, in CreatureSnapshotSystem's last copy
+        /// (1 when there is none to go by).</summary>
+        public static readonly SharedStatic<int> Needed = SharedStatic<int>.GetOrCreate<NeededKey>();
+        struct NeededKey { }
+        /// <summary>A-70 row 3: set by a pickup (Interactions) since this last ran.</summary>
+        public static readonly SharedStatic<int> Pending = SharedStatic<int>.GetOrCreate<PendingKey>();
+        struct PendingKey { }
+        /// <summary>A-70 row 3: set when this ran (and may have moved creatures) this frame; CreatureRenderSystem then
+        /// copies the creatures itself rather than pose from the snapshot taken before it.</summary>
+        public static readonly SharedStatic<int> Ran = SharedStatic<int>.GetOrCreate<RanKey>();
+        struct RanKey { }
+
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
+            // A-70 row 3: with nothing held and no arms open there is nothing to do (every CarryWidth is already 0), and
+            // going through the creatures would wait for the brain on the main thread.
+            if (Needed.Data == 0 && Pending.Data == 0)
+                return;
+            Pending.Data = 0;
+            Ran.Data = 1;
             owners.Update(ref state);
             looks.Update(ref state);
             var table = SystemAPI.TryGetSingleton<CarryTable>(out var carryTable) ? carryTable : default;

@@ -113,6 +113,26 @@ namespace Punchy.Terrain
             return false;
         }
 
+        /// <summary>W-105: a stilt house's plot (its walkway's stair foot) stands this high over the sea (m).</summary>
+        public const float StiltBankLow = 0.2f, StiltBankHigh = 3.5f;
+        /// <summary>W-105: the sea bed under a stilt house lies this far under the sea (m): in water, within its piles' reach.</summary>
+        public const float StiltShallowsLow = 0.3f, StiltShallowsDeep = 6f;
+
+        /// <summary>
+        /// W-105 (#36): whether a stilt house fits at a plot of a landmark centred at <paramref name="centre"/>: the plot
+        /// on a low bank, and the house (<paramref name="house"/>, StructureKit.StiltReach m on, away from the centre)
+        /// over shallows, neither on river water. Village placement, flora and the Home/Door anchors all ask this.
+        /// </summary>
+        public static bool StiltHouseFits(in TerrainSource source, float2 centre, float2 spot, out float2 house)
+        {
+            house = spot + math.normalizesafe(spot - centre) * StructureKit.StiltReach;
+            var sea = source.World.SeaLevel;
+            var bank = source.SampleHeight(spot) - sea;
+            var under = source.SampleHeight(house) - sea;
+            return bank >= StiltBankLow && bank <= StiltBankHigh && under <= -StiltShallowsLow && under >= -StiltShallowsDeep &&
+                   !OnRiver(source, spot, float2.zero, 0f) && !OnRiver(source, house, float2.zero, 0f);
+        }
+
         /// <summary>The range of grid items (indices into Items) for the cell containing a point.</summary>
         public static int2 CellRange(ref LandmarkSetBlob set, float2 xz)
         {
@@ -277,6 +297,21 @@ namespace Punchy.Terrain
                     // The bank rises gently out of the water (0.6 m per metre), so the shore line falls across the terrain
                     // grid smoothly instead of a near-vertical step between two vertices (ragged shards of water).
                     var bowl = level - 0.1f - pool.Depth * math.smoothstep(r, r * 0.35f, dp) + math.max(dp - r, 0f) * 0.6f;
+                    // W-98: stepped pools: a lower pool's bowl never cuts into a higher pool's rim (it did when the higher
+                    // came first, and that water spilled out over the lower one), so each pool stays contained.
+                    for (int o = 0; o < type.PoolCount; o++)
+                    {
+                        if (o == p)
+                            continue;
+                        ref var other = ref set.Pools[type.FirstPool + o];
+                        var ro = other.Radius * hit.Radius;
+                        var dpo = math.distance(hit.Local, other.Offset * hit.Radius);
+                        if (dpo > ro * 1.4f)
+                            continue;
+                        var levelO = PoolLevel(ref inst, ref type, ref other, hit.Radius);
+                        if (levelO > level)
+                            bowl = math.lerp(math.max(bowl, levelO + 0.25f), bowl, math.smoothstep(ro * 1.15f, ro * 1.4f, dpo));
+                    }
                     h = math.min(h, bowl);
                 }
             }

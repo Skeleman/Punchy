@@ -606,8 +606,12 @@ namespace Punchy.Terrain
         /// <summary>PlantRadius at the graphics settings' Detail distance.</summary>
         float PlantRange => Punchy.Settings.GraphicsSettings.DetailRange(PlantRadius);
         float nextFloraLookup;
-        /// <summary>Variants grown per species (as the flora system does).</summary>
-        public const int PlantVariants = 3;
+        /// <summary>
+        /// Variants grown per species, and the stride between species' models. It must cover every variant baking
+        /// stores: mine frames use one per MineFrameHeights entry, and with a stride of 3 their tall variants 3 and 4
+        /// drew the next species' models instead, a frame-sized wall torch standing mid-passage (W-100).
+        /// </summary>
+        public static readonly int PlantVariants = math.max(3, Punchy.Flora.FloraGenerator.MineFrameHeights.Length);
         /// <summary>Cave plants nearer than this use the finest mesh, the rest the middle one.</summary>
         const float PlantLod0 = 20f;
 
@@ -656,8 +660,6 @@ namespace Punchy.Terrain
         readonly List<float> speciesTorch = new List<float>();
         /// <summary>Torches near the camera: where the flame sits and the plant's index (its seed).</summary>
         readonly List<(float3 flame, int plant)> nearTorches = new List<(float3, int)>();
-        /// <summary>A wall torch's light on the rock round it (warm, about 9 m).</summary>
-        static readonly Vector4 TorchLight = new Vector4(1.7f, 0.95f, 0.4f, 9f);
         /// <summary>How far a glowing plant lights the floor and walls round it (m).</summary>
         const float PlantGlowReach = 5f;
         float3 plantsAround = new float3(float.MaxValue);
@@ -814,7 +816,7 @@ namespace Punchy.Terrain
             {
                 Punchy.Ambience.FireSystem.AddFlame(flame, 0.3f, plant, Punchy.Ambience.FireSystem.Wood);
                 var at = new Vector4(flame.x, flame.y + 0.15f, flame.z, 0f);
-                glowing.Add((math.distance(flame, camPos), at, at, TorchLight));
+                glowing.Add((math.distance(flame, camPos), at, at, Punchy.Ambience.FireSystem.Light(Punchy.Ambience.FireSystem.Wood)));
             }
 
             var bounds = new Bounds(camPos, new Vector3(PlantRange * 2f, PlantRange * 2f, PlantRange * 2f));
@@ -903,7 +905,14 @@ namespace Punchy.Terrain
                 var taper = math.lerp(0.15f, 1f, math.saturate(math.min(k, fromEnd) / 2f));
                 // A little past where the banks rise out of the water (the edges tuck under them), so it fills the channel.
                 var side = new float2(-along.y, along.x) * p.Width * 0.58f * taper;
-                var drop = (prev.y - next.y) / math.max(math.distance(prev.xz, next.xz), 0.1f);
+                // The drop is measured over five points (about 6 m), not one step either side, so the water quickens into
+                // a steep step and slows after it rather than switching to white at one point (W-98).
+                var k0 = math.max(k - 2, 0);
+                var k1 = math.min(k + 2, count - 1);
+                var run = 0f;
+                for (int j = k0; j < k1; j++)
+                    run += math.distance(points[j].Position.xz, points[j + 1].Position.xz);
+                var drop = (points[k0].Position.y - points[k1].Position.y) / math.max(run, 0.1f);
                 // Cave streams run steep all the way, so only the steepest steps churn white; but a brook is never still.
                 var rapids = math.max(math.saturate(drop * 1.5f - 0.15f), 0.2f);
                 foreach (var edge in new[] { -1f, 0f, 1f })
@@ -1273,6 +1282,7 @@ namespace Punchy.Terrain
         /// </summary>
         void GatherSurfaceGlow(in TerrainSource source, float3 camPos)
         {
+            Shader.SetGlobalVector(GlowMapParamsId, Vector4.zero);
             if (paletteQuery.IsEmpty || Underground > 0.9f)
                 return;
             var palette = queryWorld.EntityManager.GetComponentObject<BiomePalette>(paletteQuery.GetSingletonEntity());
@@ -1283,15 +1293,33 @@ namespace Punchy.Terrain
             }
             surfaceGlow.Update(source, palette, flora, camPos);
             var night = Shader.GetGlobalFloat(NightId);
+            var windowsOn = night < 0.25f ? 0f : math.smoothstep(0.25f, 0.55f, night);
+            // The far tier (Glow.hlsl): every glowing plant and lit window within about 300 m, baked into a light map,
+            // fading in over the distance the near lights fade out over.
+            if (surfaceGlow.MapReady && (GlowTiers & 2) != 0)
+            {
+                Shader.SetGlobalTexture(GlowMapId, surfaceGlow.MapPlants);
+                Shader.SetGlobalTexture(GlowMapNightId, surfaceGlow.MapWindows);
+                Shader.SetGlobalVector(GlowMapRectId, new Vector4(surfaceGlow.MapCorner.x, surfaceGlow.MapCorner.y,
+                                                                  1f / (SurfaceGlow.MapSize * SurfaceGlow.MapTexel), 0f));
+                Shader.SetGlobalVector(GlowMapParamsId, new Vector4((1f - Underground) * FarGlowStrength, windowsOn, NearGlowFade.x * 0.7f, NearGlowFade.y));
+            }
+            if ((GlowTiers & 1) == 0)
+                return;
             foreach (var (position, light) in surfaceGlow.Found)
             {
-                var l = light;
+                // Near lights fade out by distance (the far map takes over), rather than popping at the scan's edge.
+                var near = 1f - math.smoothstep(NearGlowFade.x, NearGlowFade.y, math.distance(position.xz, camPos.xz));
+                if (near <= 0f)
+                    continue;
+                var l = light * near;
+                l.w = light.w;
                 if (l.w < 0f)
                 {
                     // Lit windows: only after dark.
                     if (night < 0.25f)
                         continue;
-                    l = new Vector4(l.x, l.y, l.z, 0f) * math.smoothstep(0.25f, 0.55f, night);
+                    l = new Vector4(l.x, l.y, l.z, 0f) * windowsOn;
                     l.w = -light.w;
                 }
                 var at = new Vector4(position.x, position.y, position.z, 0f);
@@ -1300,6 +1328,20 @@ namespace Punchy.Terrain
         }
 
         static readonly int NightId = Shader.PropertyToID("_PunchyNight");
+        static readonly int GlowMapId = Shader.PropertyToID("_PunchyGlowMap");
+        static readonly int GlowMapNightId = Shader.PropertyToID("_PunchyGlowMapNight");
+        static readonly int GlowMapRectId = Shader.PropertyToID("_PunchyGlowMapRect");
+        static readonly int GlowMapParamsId = Shader.PropertyToID("_PunchyGlowMapParams");
+        /// <summary>Camera distance over which surface glow's near lights fade out (m); the far map fades in from 70%
+        /// of the start to the end, so the hand-over adds up to about the same light.</summary>
+        static readonly Vector2 NearGlowFade = new Vector2(18f, 30f);
+        /// <summary>Which surface glow tiers are on (1 near lights, 2 far map): both, bar a frame-cost measurement.</summary>
+        public static int GlowTiers = 3;
+        /// <summary>The far map's brightness: a little under the near lights', so a cluster reads as a soft wash from
+        /// afar rather than a floodlit floor.</summary>
+        public static float FarGlowStrength = 1f;
+        /// <summary>The far map's last scan time (ms, start to pick-up), for the frame-cost report.</summary>
+        public float FarGlowScanMs => surfaceGlow.FarScanMs;
 
         Punchy.Flora.FloraSystem flora;
 

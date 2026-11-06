@@ -227,6 +227,26 @@ Shader "Punchy/Water"
                         WaveSlope(p - offset * phase1 + 7.3, t * 0.3) * (1 - w0)) * rsqrt(w0 * w0 + (1 - w0) * (1 - w0));
             }
 
+            // Whitewater foam carried by the current (W-98): the foam pattern itself drifts downstream at the river's
+            // speed, in two reads half a short cycle apart that cross-fade, like the flowing ripples. (A pattern fixed in
+            // place under moving ripples read as a white decal sliding over the water.)
+            half FlowFoam(float2 p, float2 flow, float speed, float t)
+            {
+                const float cycle = 1.6;
+                float jitter = PunchyValueNoise(p * 0.05 + 9.7) * 2;
+                float phase0 = frac(t / cycle + jitter);
+                float phase1 = frac(t / cycle + jitter + 0.5);
+                float w0 = 1 - abs(1 - 2 * phase0);
+                float2 offset = flow * speed * cycle;
+                float2 q0 = p - offset * phase0;
+                float2 q1 = p - offset * phase1 + 4.7;
+                float n0 = PunchyValueNoise(q0 * 3.1) * 0.55 + PunchyValueNoise(q0 * 1.3 + 2.9) * 0.45;
+                float n1 = PunchyValueNoise(q1 * 3.1) * 0.55 + PunchyValueNoise(q1 * 1.3 + 2.9) * 0.45;
+                float s = n0 * w0 + n1 * (1 - w0);
+                // Cross-fading flattens the contrast mid-way; stretch it back out.
+                return saturate((s - 0.5) * (1.7 + 0.9 * (1 - abs(2 * w0 - 1))) + 0.5);
+            }
+
             // Raindrop rings: each cell of a jittered grid spawns a ring that expands and fades, at a random phase.
             float2 RainRipples(float2 p, float t)
             {
@@ -356,7 +376,8 @@ Shader "Punchy/Water"
 
                 // Rivers run faster in the deep middle than at the banks, and much faster down steep rapids.
                 float riverSpeed = _FlowSpeed * (1 + 2.5 * rapids) * lerp(0.45, 1.25, saturate(depth / 1.6));
-                float2 flowingSlope = FlowingSlope(p, flowDir, riverSpeed, t) * (1 + 0.7 * rapids);
+                // (The flow-mapped ripples grow choppier with speed, so faster water reads rougher, not just whiter.)
+                float2 flowingSlope = FlowingSlope(p, flowDir, riverSpeed, t) * (1 + 1.3 * rapids);
                 float streaks = FlowStreaks(p, flowDir, riverSpeed, t);
                 float2 slope = lerp(WaveSlope(p, t), flowingSlope, flowAmount);
                 // Rain rings only where it's actually raining (from the world weather map).
@@ -534,13 +555,40 @@ Shader "Punchy/Water"
                 // flecks, never a flat sheet (G-28; not gated by the streaks, whose direction turns sharply at the river
                 // mesh's corners and drew zigzags), and flecks ride the streaks downstream on any river.
                 half churn = smoothstep(0.35, 0.75, length(flowingSlope));
-                half flecks = 0.45 + 0.55 * smoothstep(0.35, 0.65, PunchyValueNoise(p * 4.3) * 0.6 + PunchyValueNoise(p * 1.7 + 3.1) * 0.4);
-                half3 foamParts = half3(foam, min(rapids * rapids * churn * flecks, 0.6),
+                // W-98: the foam rides the current (FlowFoam) instead of sitting still under it, and covers more of the
+                // water the faster it runs: a few drifting patches as the river quickens, most of the surface in a rapid.
+                half whiteWater = 0;
+                [branch] if (rapids > 0.02 && flowAmount > 0.02)
+                {
+                    half carried = FlowFoam(p, flowDir * flowAmount, riverSpeed, t);
+                    half cover = smoothstep(0.7 - 0.26 * rapids, 0.88 - 0.16 * rapids, carried);
+                    // (From 0.1: cave brooks carry a floor of 0.12 down the middle and should stay clear there.)
+                    whiteWater = cover * smoothstep(0.1, 0.6, rapids) * (0.55 + 0.45 * churn) * distanceFade;
+                }
+                half3 foamParts = half3(foam, min(max(whiteWater * 0.85, rapids * rapids * churn * 0.35), 0.85),
                                         flowAmount * smoothstep(0.9 - 0.06 * rapids, 0.98, streaks) * (0.2 + 0.4 * rapids) * distanceFade * (1 - viscous)
+                                        // (Fewer in white water, where they scratched thin lines over the carried foam.)
+                                        * (1 - 0.75 * smoothstep(0.3, 0.8, rapids))
                                         // Not on running cave water: there the flecks came out as thin lines across the
                                         // flow (Z-34, seen with -waterprobe 4), striping every cave stream.
                                         * (1 - caveRun));
                 foam = max(foam, max(foamParts.y, foamParts.z));
+                // W-98: a waterfall is the river's own surface where it tips over a drop (no curtain over it any more):
+                // where the face is steep (from the mesh, not the ripples), it turns to falling water, white sheets and
+                // darker gaps streaming straight down across its width.
+                float3 face = cross(ddy(input.positionWS), ddx(input.positionWS));
+                face *= face.y < 0 ? -1 : 1;
+                face = normalize(face);
+                half falling = smoothstep(0.8, 0.45, face.y) * smoothstep(0.0, 0.1, flowAmount) * (1 - viscous) * (1 - lava);
+                [branch] if (falling > 0.01)
+                {
+                    float2 across = normalize(float2(-face.z, face.x) + 1e-5);
+                    float u = dot(p, across);
+                    float fallV = input.positionWS.y + t * 5.5;
+                    half sheet = PunchyValueNoise(float2(u * 2.3, fallV * 0.35)) * 0.6 + PunchyValueNoise(float2(u * 6.1 + 3.1, fallV * 0.9)) * 0.4;
+                    falling *= lerp(0.4, 1, smoothstep(0.35, 0.75, sheet));
+                    foam = max(foam, falling * 0.9);
+                }
                 foam = max(foam, wakeFoam * (1 - viscous));
                 half3 foamLit = _FoamColor.rgb * (ambient + light.color * shadow * saturate(light.direction.y) + lanternLit);
                 color = lerp(color, foamLit, foam * (1 - lava));

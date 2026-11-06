@@ -171,10 +171,16 @@ namespace Punchy.Fauna
             {
                 var s = states[i];
                 ref var b = ref bodies[i].Blob.Value;
-                // Lines already up follow their speaker.
-                for (int k = 0; k < Shown.Count; k++)
+                // Lines already up follow their speaker, and drop once a kit wall comes between (A-71: folk now step
+                // indoors out of rain and cold mid-line).
+                for (int k = Shown.Count - 1; k >= 0; k--)
                     if (Shown[k].Who == entities[i])
                     {
+                        if (hasKit && Walled(kit, s, ref b, player))
+                        {
+                            Shown.RemoveAt(k);
+                            continue;
+                        }
                         var said = Shown[k];
                         said.Head = Head(s, ref b);
                         Shown[k] = said;
@@ -239,6 +245,7 @@ namespace Punchy.Fauna
                                           $"{(answering ? " answering " + emoted : "")}: {text}");
                 Shown.Add(new Said { Who = entities[i], Text = text, Head = Head(s, ref b), Start = now, Until = now + 3.5f + text.Length * 0.05f });
             }
+            CreatureSnapshotSystem.Release(World, states, bodies, entities);
             FolkTalkLabels.Ensure();
             FolkTalkLabels.Show(Shown.Count > 0 || Bubbles.Count > 0);
         }

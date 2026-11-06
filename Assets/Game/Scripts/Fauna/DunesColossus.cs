@@ -208,6 +208,7 @@ namespace Punchy.Fauna
 
             Build(spot, yaw);
             Placed = true;
+            ColossusCollision.Register(8, root, "DunesColossus");   // W-101 row 4 (#40): solid (slot 8, after StoneColossi's eight).
             Debug.Log($"DunesColossus: placed at ({Position.x:F0}, {Position.y:F1}, {Position.z:F0}), facing {yaw:F0} degrees, about 67 m tall");
         }
 

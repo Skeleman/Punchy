@@ -93,7 +93,7 @@ namespace Punchy.Player
                 if (m.Flying)
                 {
                     var hasFlora = SystemAPI.TryGetSingleton<Punchy.Flora.FloraLookup>(out var flora) && flora.Blob.IsCreated;
-                    Fly(ref t, ref m, body, input, terrain, settings, inCave, dt, obstacles, hasFlora ? flora.Blob : default);
+                    Fly(ref t, ref m, body, input, terrain, settings, inCave, dt, obstacles, hasFlora ? flora.Blob : default, hasKit, kitBoxes);
                     continue;
                 }
                 // Up a tree trunk: climbing it, round it, or letting go.
@@ -230,7 +230,7 @@ namespace Punchy.Player
                 if (tops)
                     position.xz = KeepOutOfPropWalls(ref grids.Set.Value, props, from, position.xz, stepUp, wallHead, out blocked);
                 if (hasKit)   // W-67 (#79): kit walls, slid along the same way.
-                    position.xz = KitCollision.KeepOut(kitBoxes, from, position.xz, settings.Radius, stepUp, wallHead, ref blocked);
+                    position.xz = KitCollision.KeepOut(kitBoxes, from, position.xz, settings.Radius, math.max(stepUp, KitStep), wallHead, ref blocked);
                 // The salt tower's body and its steps from below (W-27): slid along the same way.
                 position.xz = KeepOutOfTower(terrain, from, position.xz, stepUp, 1.7f * size, ref blocked);
                 // (#33 probe, -place wall only: every term of the wall latch below, and what stopped the move first.)
@@ -436,7 +436,7 @@ namespace Punchy.Player
                 position.y = under + HoverCeiling;
                 m.VerticalVelocity = math.min(m.VerticalVelocity, 0f);
             }
-            if (inCave && terrain.CaveDistance(position + new float3(0f, 0.8f, 0f)) > -0.4f)
+            if (inCave && Solid(terrain, position + new float3(0f, 0.8f, 0f)) > -0.4f)
             {
                 position.y = t.Position.y;
                 m.VerticalVelocity = math.min(m.VerticalVelocity, 0f);
@@ -564,7 +564,7 @@ namespace Punchy.Player
         /// </summary>
         static void Fly(ref LocalTransform t, ref PlayerMotion m, in PlayerBody body, in PlayerInput input, in TerrainSource terrain,
                         in PlayerMotor settings, bool inCave, float dt, in DynamicBuffer<FloraObstacle> obstacles,
-                        BlobAssetReference<Punchy.Flora.FloraBlob> flora)
+                        BlobAssetReference<Punchy.Flora.FloraBlob> flora, bool hasKit, in DynamicBuffer<KitBox> kit)
         {
             var forward3 = math.mul(t.Rotation, new float3(0f, 0f, 1f));
             var yaw = math.atan2(forward3.x, forward3.z);
@@ -572,7 +572,9 @@ namespace Punchy.Player
             var wanted = steering ? math.atan2(input.MoveDirection.x, input.MoveDirection.y)
                                   : math.atan2(input.CameraForward.x, input.CameraForward.y);
             var turn = math.atan2(math.sin(wanted - yaw), math.cos(wanted - yaw));
-            yaw += math.clamp(turn, -2.2f * dt, 2.2f * dt);
+            // In a cave it turns tighter (A-69): at the open-air rate its turn is wider than most passages.
+            var turnRate = inCave ? 4f : 2.2f;
+            yaw += math.clamp(turn, -turnRate * dt, turnRate * dt);
 
             var dive = input.DiveHeld;
             var climb = input.JumpHeld && !dive;
@@ -631,23 +633,63 @@ namespace Punchy.Player
                     return;
                 }
             }
-            // Under rock (a cave's ceiling or walls): no further that way, and the nose goes down. It slides along level if
-            // that's clear (under a ceiling), else sinks (at a wall) until it's down, rather than hanging in the air
-            // where it met the rock.
+            // Into rock (a cave's ceiling, walls or floor): A-69 slides it along the rock instead: the part of the step
+            // into the rock is taken off (along the rock's normal), so it skims a wall or ceiling and keeps going. Only
+            // a ceiling noses it level and only a floor stops a dive. Failing that, level, then sinking, then backing
+            // out the way the air is; never held still where it met the rock (it used to be, and at the mouth, where
+            // the open sky read as rock, it hung there).
             if (inCave && UnderRock(terrain, position, settings.Radius))
             {
+                var normal = RockNormal(terrain, position, settings.Radius);
+                var step = position - t.Position;
+                var slide = t.Position + step - normal * math.min(math.dot(step, normal), 0f) + normal * 0.02f;
                 var level = new float3(position.x, t.Position.y, position.z);
                 var sink = t.Position - new float3(0f, math.max(m.Airspeed * 0.5f, 1f) * dt, 0f);
-                position = !UnderRock(terrain, level, settings.Radius) ? level : !UnderRock(terrain, sink, settings.Radius) ? sink : t.Position;
-                m.Pitch = math.min(m.Pitch, -0.2f);
+                if (!UnderRock(terrain, slide, settings.Radius))
+                    position = slide;
+                else if (!UnderRock(terrain, level, settings.Radius))
+                    position = level;
+                else if (!UnderRock(terrain, sink, settings.Radius))
+                    position = sink;
+                else
+                {
+                    position = t.Position + normal * math.max(m.Airspeed * 0.5f, 1f) * dt;
+                    FlyBlocked.Data++;
+                }
+                if (normal.y < -0.5f)
+                    m.Pitch = math.min(m.Pitch, 0f);
+                else if (normal.y > 0.5f)
+                    m.Pitch = math.max(m.Pitch, 0f);
+            }
+            // W-100: kit buildings (walls, stairs, balconies, roofs) are solid on the wing too: it slides along a wall
+            // rather than flying through it, and comes down on a stair tread or a deck as it would on the ground.
+            var onKit = false;
+            if (hasKit)
+            {
+                var size = body.Size > 0f ? body.Size : 1f;
+                var blocked = false;
+                position.xz = KitCollision.KeepOut(kit, t.Position, position.xz, settings.Radius, 0.05f, 0.6f * size, ref blocked);
             }
             Floor(terrain, position, settings.SwimDepth, out ground, out _);
-            if (position.y <= ground)
+            if (hasKit && KitCollision.TopAt(kit, position.xz, position.y + 0.25f, 0.5f * (body.Size > 0f ? body.Size : 1f), out var kitTop) && kitTop > ground)
+            {
+                onKit = true;
+                ground = kitTop;
+            }
+            if (position.y <= ground && inCave && steering && !descend && !dive)
+            {
+                // A-69: brushing a cave's floor while flying on, it skims it rather than landing (landing there
+                // and taking off again, nose up, kept lifting it out of low passages and the mouth).
+                position.y = ground;
+                m.Pitch = math.max(m.Pitch, 0f);
+            }
+            else if (position.y <= ground)
             {
                 // Down: on its feet (or swimming), walking again.
                 position.y = ground;
                 m.Flying = false;
                 m.Grounded = true;
+                m.OnProp = onKit;
                 m.VerticalVelocity = 0f;
                 m.Pitch = 0f;
             }
@@ -658,7 +700,28 @@ namespace Punchy.Player
         /// <summary>In a cave, a flying body at this point would be in the rock (its ceiling or walls).</summary>
         static bool UnderRock(in TerrainSource terrain, float3 position, float radius)
         {
-            return terrain.CaveDistance(position + new float3(0f, radius, 0f)) > -radius;
+            return Solid(terrain, position + new float3(0f, radius, 0f)) > -radius;
+        }
+
+        /// <summary>
+        /// A-69: how far into rock a point is (negative in the air). Rock is what's neither cave air nor above the
+        /// ground: the cave field alone reads the open sky as rock too, so a bird leaving by the mouth was held there.
+        /// </summary>
+        static float Solid(in TerrainSource terrain, float3 p)
+        {
+            return math.min(terrain.CaveDistance(p), terrain.SampleHeight(p.xz) - p.y);
+        }
+
+        /// <summary>A-69: the way out of the rock at a flying body's top (unit, pointing into the air), from the field's slope.</summary>
+        static float3 RockNormal(in TerrainSource terrain, float3 position, float radius)
+        {
+            const float h = 0.1f;
+            var p = position + new float3(0f, radius, 0f);
+            var slope = new float3(
+                Solid(terrain, p + new float3(h, 0f, 0f)) - Solid(terrain, p - new float3(h, 0f, 0f)),
+                Solid(terrain, p + new float3(0f, h, 0f)) - Solid(terrain, p - new float3(0f, h, 0f)),
+                Solid(terrain, p + new float3(0f, 0f, h)) - Solid(terrain, p - new float3(0f, 0f, h)));
+            return math.normalizesafe(-slope, new float3(0f, -1f, 0f));
         }
 
         /// <summary>
@@ -784,6 +847,11 @@ namespace Punchy.Player
 
         /// <summary>The highest a body of human size steps up onto without a climb (m).</summary>
         const float StepUp = 0.4f;
+        /// <summary>
+        /// W-100: the least step up onto kit boxes, whatever the body's size: a stair tread (0.28 m or less), so a bird
+        /// or a cat hops up a stair rather than meeting each tread as a wall.
+        /// </summary>
+        const float KitStep = 0.32f;
         /// <summary>The highest ledge (above the feet) a body of human size climbs onto, and how long it takes (s).</summary>
         const float MantleReach = 1.8f, MantleTime = 0.8f;
         /// <summary>Steeper than this (a surface normal's up part: 45°) a top slides you off, at this speed (m/s).</summary>
@@ -802,7 +870,7 @@ namespace Punchy.Player
             hit = default;
             hit.Height = float.MinValue;
             var found = tops && PropSupport.Sample(ref grids.Set.Value, props, feet, radius, stepUp, out hit, true);
-            if (hasKit && KitCollision.Floor(kit, feet, radius, stepUp, out var height) && (!found || height > hit.Height))
+            if (hasKit && KitCollision.Floor(kit, feet, radius, math.max(stepUp, KitStep), out var height) && (!found || height > hit.Height))
             {
                 hit = default;
                 hit.Height = height;
@@ -883,6 +951,9 @@ namespace Punchy.Player
         /// <summary>Tests (-walk probe): metres the cave push-out has moved the player in all, so a run can say how much it acted.</summary>
         public static readonly SharedStatic<float> PushedTotal = SharedStatic<float>.GetOrCreate<PlayerMovementSystem, PushedTotalKey>();
         struct PushedTotalKey { }
+        /// <summary>Tests (A-69 -flycave): frames a flying body found no way on past cave rock and had to back out of it.</summary>
+        public static readonly SharedStatic<int> FlyBlocked = SharedStatic<int>.GetOrCreate<PlayerMovementSystem, FlyBlockedKey>();
+        struct FlyBlockedKey { }
         /// <summary>A cave floor rising more than this per metre (60°) over <see cref="SlopeSpan"/> the way the body walks can't
         /// be walked up: the body slides back. Real cave slopes run to about 57° over that span (seg 245 on v2, A-37).</summary>
         public const float SteepRise = 1.73f;
