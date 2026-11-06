@@ -1,0 +1,82 @@
+// Profiler-only editor script (never committed to the game): who allocates GC memory, from a .raw capture.
+// Unity -batchmode -executeMethod GcCallers.Dump -raw <file> -out <txt> [-top 10]
+// Each GC.Alloc sample's bytes go to its sample path (up to 4 ancestors, outermost first) and to its nearest named
+// ancestor; both lists are ranked by bytes per frame, with allocations per frame.
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using UnityEditor.Profiling;
+using UnityEditorInternal;
+
+public static class GcCallers
+{
+    static string Arg(string n, string d) { var a = Environment.GetCommandLineArgs(); var i = Array.IndexOf(a, n); return i >= 0 && i + 1 < a.Length ? a[i + 1] : d; }
+
+    public static void Dump()
+    {
+        var top = int.Parse(Arg("-top", "10"));
+        ProfilerDriver.ClearAllFrames();
+        var ok = ProfilerDriver.LoadProfile(Arg("-raw", ""), false);
+        int first = ProfilerDriver.firstFrameIndex, last = ProfilerDriver.lastFrameIndex, frames = 0;
+        var pathBytes = new Dictionary<string, double>(); var pathCount = new Dictionary<string, double>();
+        var parentBytes = new Dictionary<string, double>(); var parentCount = new Dictionary<string, double>();
+        double total = 0, totalCount = 0;
+        for (int f = first; f <= last; f++)
+        {
+            bool any = false;
+            for (int t = 0; ; t++)
+                using (var v = ProfilerDriver.GetRawFrameDataView(f, t))
+                {
+                    if (v == null || !v.valid) break;
+                    any = true;
+                    var thread = v.threadName;
+                    int count = v.sampleCount;
+                    var ends = new int[count];
+                    for (int i = count - 1; i >= 0; i--)
+                    {
+                        int e = i + 1;
+                        for (int c = v.GetSampleChildrenCount(i); c > 0; c--) e = ends[e];
+                        ends[i] = e;
+                    }
+                    var names = new Dictionary<int, string>();
+                    string Name(int id) => names.TryGetValue(id, out var s) ? s : names[id] = v.GetMarkerName(id);
+                    var path = new List<(int end, string name)>();
+                    for (int i = 0; i < count; i++)
+                    {
+                        while (path.Count > 0 && path[path.Count - 1].end <= i) path.RemoveAt(path.Count - 1);
+                        var name = Name(v.GetSampleMarkerId(i));
+                        if (name == "GC.Alloc")
+                        {
+                            double bytes = v.GetSampleMetadataCount(i) > 0 ? v.GetSampleMetadataAsLong(i, 0) : 0;
+                            total += bytes; totalCount++;
+                            var tail = path.Skip(Math.Max(0, path.Count - 4)).Select(p => p.name);
+                            var key = thread + ": " + string.Join(" > ", tail);
+                            pathBytes[key] = (pathBytes.TryGetValue(key, out var a) ? a : 0) + bytes;
+                            pathCount[key] = (pathCount.TryGetValue(key, out var b) ? b : 0) + 1;
+                            var parent = path.Count > 0 ? path[path.Count - 1].name : "(top level)";
+                            parentBytes[parent] = (parentBytes.TryGetValue(parent, out var c2) ? c2 : 0) + bytes;
+                            parentCount[parent] = (parentCount.TryGetValue(parent, out var d) ? d : 0) + 1;
+                        }
+                        path.Add((ends[i], name));
+                    }
+                }
+            if (any) frames++;
+        }
+        var sb = new StringBuilder();
+        frames = Math.Max(1, frames);
+        sb.AppendLine($"loaded={ok} frames {frames}, GC per frame {total / frames / 1024:F2} KB in {totalCount / frames:F1} allocations");
+        sb.AppendLine($"== top {top} immediate callers (bytes per frame, allocations per frame, share of bytes)");
+        foreach (var kv in parentBytes.OrderByDescending(k => k.Value).Take(top))
+            sb.AppendLine($"{kv.Value / frames:F0}\t{parentCount[kv.Key] / frames:F2}\t{100 * kv.Value / Math.Max(1, total):F1}%\t{kv.Key}");
+        sb.AppendLine($"== top {top} paths (last 4 samples above GC.Alloc)");
+        foreach (var kv in pathBytes.OrderByDescending(k => k.Value).Take(top))
+            sb.AppendLine($"{kv.Value / frames:F0}\t{pathCount[kv.Key] / frames:F2}\t{100 * kv.Value / Math.Max(1, total):F1}%\t{kv.Key}");
+        sb.AppendLine($"== top {top} immediate callers by count");
+        foreach (var kv in parentCount.OrderByDescending(k => k.Value).Take(top))
+            sb.AppendLine($"{kv.Value / frames:F2}\t{parentBytes[kv.Key] / frames:F0} B\t{kv.Key}");
+        File.WriteAllText(Arg("-out", "gccallers.txt"), sb.ToString());
+        UnityEditor.EditorApplication.Exit(0);
+    }
+}

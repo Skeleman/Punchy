@@ -2,6 +2,59 @@
 
 Newest first.
 
+## 2026-11-06 finding 11 follow-ups: village water and GC.Alloc callers, main adb11e0
+
+**Short answer:**
+- **The opaque/depth copies are not the water cost.** At v3 fishing village 1, copies off changes nothing (101 fps, 9.8 ms). Water off gives 116.7 fps, 8.3 ms, and copies off on top adds nothing.
+- With water off the frame falls 1.5 ms, but GPU only 0.3 ms (5.3 -> 5.0), the render thread 0.5 ms (2.7 -> 2.2), and the main thread not at all (8.5).
+  - With water on, the frame (9.8 ms) is longer than the main thread (8.5 ms). With water off they match (8.3 / 8.4).
+  - So water adds a wait the timers don't attribute: likely a GPU or present sync rather than work.
+  - Next step: Profile captures, plain vs water off, comparing the main-thread wait markers. About 20 minutes; I can run it.
+- **GC: two callers make about 60% of the 10-12 KB a frame, at all three spots:**
+  - **IMGUI (GUIUtility.BeginGUI): 3.3 KB, 36 allocations a frame.** Unity's OnGUI pass allocates every frame while any MonoBehaviour has an OnGUI, even one that draws nothing. 11 game scripts have OnGUI, among them Items, Doors, Interiors, FolkTalkSystem, InteractionInputSystem, TempleSockets, FrameRateCap, NetMenu, MainMenu and DebugControls (and the bench runner in bench builds).
+  - **Items.Update: 3.1-3.4 KB, 30-35 allocations a frame.** It runs about 12 steps a frame (chests, net serve/receive, target search, quests, tests, inventory keys, draw). The capture can't say which one allocates. The deep-profiling run that would have shown it timed out (see below).
+- Smaller, all under 1.5 KB a frame:
+  - FaunaDirector.Update 0.8-1.4 KB (10-19 allocations; most at the village).
+  - FloraSystem.LateUpdate 0.2-0.9 KB (0.9 at the cave approach).
+  - AmbientParticleSystem 0.7 KB (cave approach only, 1.7 allocations, so a few big ones).
+  - WeatherSystem 0.35-0.67 KB, CaveSystem 0.3-0.45 KB, FolkTalkSystem about 0.3 KB, CreatureBurrowSystem 0.3 KB.
+  - InteractionPrompt.OnGUI 0.2 KB, LandmarkEffectSystem 0.2 KB.
+- **No self-fix:** Items.cs and the OnGUI scripts are other lanes' files and busy. The fix for both is clear enough for a card:
+  1. Items: find and cache the per-frame allocation.
+  2. OnGUI: disable the component, or set useGUILayout = false, when a script has nothing to draw. Every frame they all pay the IMGUI layout pass.
+
+**Water test:** Bench build, v3 fishing village 1 (-2151,3731), uncapped, 20 s, 3 rounds, order rotated. Means of 3:
+
+| variant | fps | median ms | GPU ms | main ms | render thread ms |
+|---|---|---|---|---|---|
+| plain | 100.6 | 9.8 | 5.4 | 8.5 | 2.7 |
+| copies off (-benchnocopies) | 100.8 | 9.8 | 5.3 | 8.5 | 2.7 |
+| water off | 116.7 | 8.3 | 5.0 | 8.4 | 2.2 |
+| water + copies off | 116.2 | 8.4 | 5.0 | 8.4 | 2.2 |
+
+- Spread across rounds: 1.2 fps or less, so this is solid.
+
+**GC callers, bytes / allocations per frame (Profile build, whole stop captured; parent = the nearest profiler sample above each GC.Alloc):**
+
+| caller | forest | village | cave approach |
+|---|---|---|---|
+| IMGUI GUIUtility.BeginGUI | 3310 / 36 | 3310 / 36 | 3310 / 36 |
+| Items.Update | 3144 / 30 | 3442 / 35 | 3182 / 31 |
+| FaunaDirector.Update | 793 / 10 | 1447 / 19 | 787 / 10 |
+| WeatherSystem.Update | 352 / 5 | 672 / 9 | 352 / 5 |
+| FloraSystem.LateUpdate | 203 / 7 | 204 / 7 | 919 / 8 |
+| AmbientParticleSystem.Update | - | - | 738 / 1.7 |
+| CaveSystem.Update | 304 / 4 | 304 / 4 | 446 / 5 |
+| FolkTalkSystem (ECS) | 343 / 9 | 280 / 7 | 283 / 7 |
+| CreatureBurrowSystem (ECS) | 293 / 4 | 293 / 4 | 293 / 4 |
+| LandmarkEffectSystem.Update | 212 / 4 | 213 / 4 | about 228 / 4 |
+| InteractionPrompt.OnGUI | 204 / 6 | 204 / 6 | 235 / 6 |
+| **total** | **9.7 KB / 132** | **10.8 KB / 146** | **12.1 KB / 139** |
+
+- **Deep profiling didn't work here.** The BuildDeep build with -deepprofiling never reached its stop in 900 s (load is too slow under deep profiling), so there are no exact call sites. A dedicated attempt would need a much longer timeout, or deep profiling switched on only for the stop.
+- Script: q42.sh. Tool: GcCallers.cs.txt (lanes/profiler/scripts). Logs: results/q42logs.
+- Cost: 17 calls, peak 191k context, $1.2
+
 ## 2026-11-06 audit finding 11: v3 per-system sweep (ms per system, GC, draw counters), main adb11e0
 
 **Short answer (flags over 0.5 ms):**
