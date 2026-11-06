@@ -115,10 +115,14 @@ namespace Punchy.Terrain
             RequireForUpdate<TerrainConfig>();
             RequireForUpdate<TerrainSource>();
             focusQuery = GetEntityQuery(ComponentType.ReadOnly<TerrainFocus>(), ComponentType.ReadOnly<LocalTransform>());
+            // A batch still meshing when play mode ends (or the game quits) reads the terrain blobs, which the scene
+            // teardown frees before this system is destroyed: finish it first, so it never reads a freed blob.
+            Application.quitting += CancelBuild;
         }
 
         protected override void OnDestroy()
         {
+            Application.quitting -= CancelBuild;
             CancelBuild();
             foreach (var chunk in loaded.Values)
             {
