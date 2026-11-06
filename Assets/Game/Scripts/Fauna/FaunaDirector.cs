@@ -214,6 +214,8 @@ namespace Punchy.Fauna
             if (capsuleFar != null) Destroy(capsuleFar);
             capsule = capsuleMid = capsuleFar = null;
             built = false;
+            populationDue = false;
+            populationDeltaTime = 0f;
             pendingShapes = null;
         }
 
@@ -273,8 +275,42 @@ namespace Punchy.Fauna
             Comfort.Hour.Data = new float2(clock.Hour, Cycle != null ? 1f : 0f);
             if (simWorld == null)
                 return;
+            // A-83 (#62): the rest writes the simulation world (its clock, spawns and despawns), so it runs in
+            // FaunaPopulationSystem, first in that world's simulation group and so before the brain, not in Update.
+            populationDue = true;
+            populationClock = clock;
+            populationSource = source;
+            populationDeltaTime += Time.deltaTime;
+        }
+
+        /// <summary>A-83 (#62): Update has run this frame and the population work is waiting for its system.</summary>
+        bool populationDue;
+        FaunaClock populationClock;
+        TerrainSource populationSource;
+        /// <summary>The frame time since the population work last ran (more than one frame when a server tick is skipped).</summary>
+        float populationDeltaTime;
+
+        /// <summary>
+        /// A-83 (#62): this frame's work on the simulation world: its clock, where the players are, letting the far ones
+        /// go and spawning. Called by <see cref="FaunaPopulationSystem"/> from that world's simulation group, ahead of
+        /// the player's input and the brain, once per frame that Update asked for it.
+        /// </summary>
+        internal void UpdatePopulation(World world)
+        {
+            if (!populationDue || world != simWorld || simWorld == null || !simWorld.IsCreated || !built)
+                return;
+            populationDue = false;
+            var dt = populationDeltaTime;
+            populationDeltaTime = 0f;
+            var source = populationSource;
+            using (UpdateMarker.Auto())
+                UpdatePopulation(source, dt);
+        }
+
+        void UpdatePopulation(in TerrainSource source, float dt)
+        {
             if (simWorld != queryWorld)
-                simWorld.EntityManager.SetComponentData(simClockEntity, clock);
+                simWorld.EntityManager.SetComponentData(simClockEntity, populationClock);
 
             GatherPlayers();
             using (ComfortMarker.Auto())
@@ -324,7 +360,7 @@ namespace Punchy.Fauna
                 nextHoneyThief = Time.time + rng.NextFloat(90f, 180f);
                 SpawnHoneyThief(source);
             }
-            spawnBudget = math.min(spawnBudget + SpawnRate * players.Count * Time.deltaTime, 3f * players.Count);
+            spawnBudget = math.min(spawnBudget + SpawnRate * players.Count * dt, 3f * players.Count);
             using (WildMarker.Auto())
                 while (spawnBudget >= 1f)
                 {

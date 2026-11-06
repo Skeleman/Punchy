@@ -68,7 +68,9 @@ namespace Punchy.Fauna
         {
             if (!Placed)
             {
-                if (Time.realtimeSinceStartup >= nextTry)
+                if (surveyPending)
+                    FinishSurvey();
+                else if (Time.realtimeSinceStartup >= nextTry)
                 {
                     nextTry = Time.realtimeSinceStartup + 1f;
                     TryPlace();
@@ -133,10 +135,79 @@ namespace Punchy.Fauna
                 return;
             }
 
+            // A-83 row 3: the biome survey runs on workers and the colossus is placed once it is done, a frame or more
+            // later (FinishSurvey), not in this frame.
             var half = source.World.WorldSize * 0.5f;
             var n = (int)(half * 2f / Step) + 1;
-            var grid = new NativeArray<int>(n * n, Allocator.TempJob);
-            new SurveyJob { Source = source, Origin = -half, Step = Step, Size = n, Biome = grid }.Schedule(n * n, 64).Complete();
+            surveyGrid = new NativeArray<int>(n * n, Allocator.Persistent);
+            surveying = new SurveyJob { Source = source, Origin = -half, Step = Step, Size = n, Biome = surveyGrid }.Schedule(n * n, 64);
+            surveySource = source;
+            surveyDunes = dunes;
+            surveyWorld = world;
+            surveyFrame = Time.frameCount;
+            surveyPending = true;
+            // The job reads the TerrainSource blobs, which quitting, leaving play mode or a world swap frees before
+            // OnDestroy: finish it first, while they are intact (as CaveSystem does since 156e7df).
+            Application.quitting += DropSurvey;
+            Punchy.Net.GameBootstrap.WorldsReplacing += DropSurvey;
+        }
+
+        // A-83 row 3: the placement survey in flight, the world and terrain it reads and the Dunes biome index it
+        // looks for.
+        JobHandle surveying;
+        NativeArray<int> surveyGrid;
+        TerrainSource surveySource;
+        Unity.Entities.World surveyWorld;
+        bool surveyPending;
+        int surveyDunes, surveyFrame;
+
+        /// <summary>Once the survey is done, places the colossus from it. If the terrain is gone or changed while it
+        /// runs, the survey is finished and dropped at once and placing tries again.</summary>
+        void FinishSurvey()
+        {
+            var world = Unity.Entities.World.DefaultGameObjectInjectionWorld;
+            if (world == null || !world.IsCreated || world != surveyWorld)
+            {
+                DropSurvey();
+                return;
+            }
+            using var terrainQuery = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
+            if (!terrainQuery.TryGetSingleton(out TerrainSource current) || !current.Equals(surveySource))
+            {
+                DropSurvey();
+                return;
+            }
+            if (!surveying.IsCompleted)
+                return;
+            surveying.Complete();
+            var grid = surveyGrid.ToArray();
+            DropSurvey();
+            source = surveySource;
+            sourceWorld = world;
+            Debug.Log($"DunesColossus: survey took {Time.frameCount - surveyFrame} frames");
+            Place(grid, surveyDunes);
+        }
+
+        /// <summary>Waits for a survey still in flight and frees its grid (finished, stale, quitting, world swap or
+        /// teardown).</summary>
+        void DropSurvey()
+        {
+            Application.quitting -= DropSurvey;
+            Punchy.Net.GameBootstrap.WorldsReplacing -= DropSurvey;
+            if (!surveyPending)
+                return;
+            surveying.Complete();
+            surveyGrid.Dispose();
+            surveyPending = false;
+            surveyWorld = null;
+        }
+
+        void OnDestroy() => DropSurvey();
+
+        void Place(int[] grid, int dunes)
+        {
+            var half = source.World.WorldSize * 0.5f;
+            var n = (int)(half * 2f / Step) + 1;
 
             // The biggest 4-connected region of Dunes cells.
             var region = new int[n * n];
@@ -165,7 +236,6 @@ namespace Punchy.Fauna
                     }
                 }
             }
-            grid.Dispose();
             var biggest = 0;
             for (int id = 1; id < sizes.Count; id++)
                 if (sizes[id] > sizes[biggest]) biggest = id;

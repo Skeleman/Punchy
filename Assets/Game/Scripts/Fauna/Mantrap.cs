@@ -128,10 +128,6 @@ namespace Punchy.Fauna
         float nextRefresh;
         Entity playerEntity;
 
-        // Shoves in progress (the player: pushed over 0.25 s).
-        float3 shoveDir;
-        float shoveLeft;
-
         // Totals and the scripted test.
         int totalLunges, lungesPlayer, lungesAnimal, trackFrames;
         float testStart = -1f;
@@ -143,7 +139,9 @@ namespace Punchy.Fauna
         {
             if (!Placed)
             {
-                if (!havePlace && Time.realtimeSinceStartup >= nextTry)
+                if (surveyPending)
+                    FinishSurvey();
+                else if (!havePlace && Time.realtimeSinceStartup >= nextTry)
                 {
                     nextTry = Time.realtimeSinceStartup + 1f;
                     TryPlace();
@@ -160,14 +158,6 @@ namespace Punchy.Fauna
                 return;
             Refresh();
             var dt = Mathf.Min(Time.deltaTime, 0.1f);
-            if (shoveLeft > 0f && world != null && world.IsCreated && playerEntity != Entity.Null && world.EntityManager.Exists(playerEntity))
-            {
-                var step = Mathf.Min(dt, shoveLeft);
-                shoveLeft -= step;
-                var t = world.EntityManager.GetComponentData<LocalTransform>(playerEntity);
-                t.Position += shoveDir * (step * 6f);
-                world.EntityManager.SetComponentData(playerEntity, t);
-            }
             foreach (var p in plants)
                 Tick(p, dt);
             if (TestRequested)
@@ -405,15 +395,8 @@ namespace Punchy.Fauna
                 if (InReach(p, tip, pos))
                 {
                     var away = new float3(pos.x - from.x, 0f, pos.z - from.z);
-                    shoveDir = math.lengthsq(away) > 1e-4f ? math.normalize(away) : new float3(0f, 0f, 1f);
-                    shoveLeft = 0.25f;
-                    if (world.EntityManager.HasComponent<PlayerMotion>(playerEntity))
-                    {
-                        var m = world.EntityManager.GetComponentData<PlayerMotion>(playerEntity);
-                        m.VerticalVelocity = 4.5f;
-                        m.Grounded = false;
-                        world.EntityManager.SetComponentData(playerEntity, m);
-                    }
+                    // (The hop and push run in MantrapShoveSystem, before the player's movement, A-83 #62.)
+                    MantrapShoveSystem.Request(world, playerEntity, math.lengthsq(away) > 1e-4f ? math.normalize(away) : new float3(0f, 0f, 1f));
                     hitKind = 0;
                     lungesPlayer++;
                 }
@@ -487,16 +470,87 @@ namespace Punchy.Fauna
             sourceWorld = w;
             var palette = em.GetComponentObject<BiomePalette>(paletteQuery.GetSingletonEntity());
             var tagged = BiomeTags.Tagged(palette.Biomes, BiomeTags.Mantrap);
-            var which = new NativeArray<int>(palette.Biomes.Length, Allocator.TempJob);
+            // A-83 row 3: the survey runs on workers and the plants are placed once it is done, a frame or more later
+            // (FinishSurvey), not in this frame.
+            surveyWhich = new NativeArray<int>(palette.Biomes.Length, Allocator.Persistent);
             for (int b = 0; b < palette.Biomes.Length; b++)
-                which[b] = tagged.IndexOf(b);
+                surveyWhich[b] = tagged.IndexOf(b);
             var half = source.World.WorldSize * 0.5f;
             var n = (int)(half * 2f / Step) + 1;
-            var spots = new NativeArray<float2>(n * n, Allocator.TempJob);
-            var kinds = new NativeArray<int>(n * n, Allocator.TempJob);
-            new SurveyJob { Source = source, Which = which, Origin = -half, Step = Step, Size = n, Seed = source.World.Seed, Spot = spots, Kind = kinds }
-                .Schedule(n * n, 64).Complete();
+            surveySpots = new NativeArray<float2>(n * n, Allocator.Persistent);
+            surveyKinds = new NativeArray<int>(n * n, Allocator.Persistent);
+            surveying = new SurveyJob { Source = source, Which = surveyWhich, Origin = -half, Step = Step, Size = n, Seed = source.World.Seed, Spot = surveySpots, Kind = surveyKinds }
+                .Schedule(n * n, 64);
+            surveySource = source;
+            surveyWorld = w;
+            surveyFrame = Time.frameCount;
+            surveyPending = true;
+            // The job reads the TerrainSource blobs, which quitting, leaving play mode or a world swap frees before
+            // OnDestroy: finish it first, while they are intact (as CaveSystem does since 156e7df).
+            Application.quitting += DropSurvey;
+            Punchy.Net.GameBootstrap.WorldsReplacing += DropSurvey;
+        }
 
+        // A-83 row 3: the placement survey in flight, and the world and terrain it reads.
+        JobHandle surveying;
+        NativeArray<int> surveyWhich, surveyKinds;
+        NativeArray<float2> surveySpots;
+        TerrainSource surveySource;
+        World surveyWorld;
+        bool surveyPending;
+        int surveyFrame;
+
+        /// <summary>Once the survey is done, places the plants from it. If the terrain is gone or changed while it
+        /// runs, the survey is finished and dropped at once and placing tries again.</summary>
+        void FinishSurvey()
+        {
+            var w = Unity.Entities.World.DefaultGameObjectInjectionWorld;
+            if (w == null || !w.IsCreated || w != surveyWorld)
+            {
+                DropSurvey();
+                return;
+            }
+            var em = w.EntityManager;
+            using var terrainQuery = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
+            if (!terrainQuery.TryGetSingleton(out TerrainSource current) || !current.Equals(surveySource))
+            {
+                DropSurvey();
+                return;
+            }
+            if (!surveying.IsCompleted)
+                return;
+            surveying.Complete();
+            var spots = surveySpots.ToArray();
+            var kinds = surveyKinds.ToArray();
+            DropSurvey();
+            using var paletteQuery = em.CreateEntityQuery(ComponentType.ReadOnly<BiomePalette>());
+            if (paletteQuery.CalculateEntityCount() != 1)
+                return;
+            source = surveySource;
+            sourceWorld = w;
+            Debug.Log($"Mantrap: survey took {Time.frameCount - surveyFrame} frames");
+            Place(em.GetComponentObject<BiomePalette>(paletteQuery.GetSingletonEntity()), spots, kinds);
+        }
+
+        /// <summary>Waits for a survey still in flight and frees its arrays (finished, stale, quitting, world swap or
+        /// teardown).</summary>
+        void DropSurvey()
+        {
+            Application.quitting -= DropSurvey;
+            Punchy.Net.GameBootstrap.WorldsReplacing -= DropSurvey;
+            if (!surveyPending)
+                return;
+            surveying.Complete();
+            surveyWhich.Dispose(); surveySpots.Dispose(); surveyKinds.Dispose();
+            surveyPending = false;
+            surveyWorld = null;
+        }
+
+        void OnDestroy() => DropSurvey();
+
+        void Place(BiomePalette palette, float2[] spots, int[] kinds)
+        {
+            var tagged = BiomeTags.Tagged(palette.Biomes, BiomeTags.Mantrap);
             var perBiome = new List<(float key, float2 spot)>[tagged.Count];
             for (int k = 0; k < perBiome.Length; k++) perBiome[k] = new List<(float, float2)>();
             var rejectedTown = 0;
@@ -532,7 +586,6 @@ namespace Punchy.Fauna
                     counts[k]++;
                 }
             }
-            which.Dispose(); spots.Dispose(); kinds.Dispose();
             BuildMeshes();
             for (int i = 0; i < chosen.Count; i++)
                 BuildPlant(chosen[i], i);
