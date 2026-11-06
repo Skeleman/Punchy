@@ -2933,3 +2933,9 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
   DungeonInfo+DungeonSocket, but since W-115 row 1 there is one dungeon entity per cave as well as the temple, so it
   throws every frame (10k+ InvalidOperationException in one play). It should filter by DungeonInfo.Type ==
   DungeonTypes.SunkenTemple (or by Id).
+
+## Fix: Items finds the temple's dungeon entity by type (approved cross-lane exception) - done (verified)
+- Commit cfd07d0 on world-features, its own commit (Items.cs only, CRLF kept). ChestSockets and TryChest now pick
+  the dungeon entity whose DungeonInfo.Type is SunkenTemple instead of calling GetSingletonEntity.
+- Play-mode check: one run to world ready, no InvalidOperationException in the log since play started (the last one
+  was from the run before the fix). The temple lists 13 chest sockets and TryChest opens the first (socket 15).
