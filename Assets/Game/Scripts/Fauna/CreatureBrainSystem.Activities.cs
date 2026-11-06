@@ -198,6 +198,7 @@ namespace Punchy.Fauna
             /// <summary>
             /// Chooses what to do next (#60). Every activity, its condition, and what decides it, in priority order: the
             /// first of the forced, then the urgent, that applies starts and ends the choice; otherwise the weighted roll.
+            /// The forced and urgent rows run in DecideStep's order (TakeStep), the weighted ones in Weighted's (StartWeighted).
             /// <code>
             /// tier     activity     condition                                                  weight / chance      start
             /// forced   Shield       light shunner, no goggles, a light near (LightNear)        always               Idle + ShieldEyes
@@ -240,89 +241,128 @@ namespace Punchy.Fauna
             /// drawn after the hearth and before the greet, as it always was, so every creature's random draws (and so its
             /// choices) are the same as before the table.
             /// </summary>
+            /// <summary>
+            /// The forced and urgent activities, and the steps between them, in the order Decide takes them (#60): the
+            /// order here is the priority. Each is one case in TakeStep: its condition, and its start. The first that
+            /// starts ends the choice; the plain steps (FisherSpot, Senses, Roll) only prepare what later ones read and
+            /// never end it. A new forced or urgent activity is a new name here, where it ranks, and a case in TakeStep;
+            /// a new weighted one is a name in Weighted, its weight in Weights and its start in StartWeighted.
+            /// </summary>
+            enum DecideStep : byte
+            {
+                // forced, before the senses
+                Shield, Flit, Breach, Patrol, Hermit, Camper, FisherSpot, Rooted, Disguised,
+                // the senses and the weights
+                Senses,
+                // forced, after the senses
+                Nest,
+                // urgent: the roll is drawn between Hearth and Greet, as it always was, so every draw stays where it was
+                HuntGame, Raid, PlayRing, Hearth, Roll, Greet, Roost, Burrow, Chores,
+                Count
+            }
+
+            /// <summary>What one Decide has worked out so far, for the steps after: the time of day, the senses, the weights and the roll.</summary>
+            struct Choice
+            {
+                public float Sleepy, Awake, Wander, Roll;
+                public bool Flier, Perched, AwayFromNest;
+                public float3 Player;
+                public Entity Playmate, Prey;
+                public FixedList64Bytes<float> W;
+            }
+
             void Decide(Entity self, ref CreatureState s, ref CreatureBlob b, int species, ref Random rng, bool perched, float3 player)
             {
                 using var profiled = DecideMarker.Auto();
-                var sleepy = SleepTime(ref b);
-                var awake = 1f - sleepy * 0.8f;
-                var flier = b.Habitat == Habitat.Flies;
+                var c = new Choice { Perched = perched, Player = player, Flier = b.Habitat == Habitat.Flies };
+                c.Sleepy = SleepTime(ref b);
+                c.Awake = 1f - c.Sleepy * 0.8f;
 
-                // ---- forced (before the senses)
-                if (DecideShield(ref s, ref b, ref rng))
-                    return;
-                if (DecideFlit(ref s, ref b, ref rng) || DecideBreach(ref s, ref b, ref rng, sleepy) || DecidePatrol(ref s, ref rng))
-                    return;
-                if (s.Task == CreatureTask.Hermit && HermitDay(ref s, ref b, ref rng, sleepy))
-                    return;
-                if (s.Task == CreatureTask.Camper && CamperNight(ref s, ref rng))
-                    return;
-                // (A fisher finds its spot the first time: none within reach, and it's just one of the townsfolk.)
-                if (s.Task == CreatureTask.Fish && sleepy < 0.5f && math.all(s.WorkSpot == float2.zero) && !FindFishingSpot(ref s))
-                    s.Task = CreatureTask.None;
-                if (DecideRooted(ref s, ref b, ref rng, sleepy) || DecideDisguised(ref s, ref b, ref rng, sleepy))
-                    return;
-
-                // ---- senses, and the weights
-                var playmate = Entity.Null;
-                // (A critter runs light: no company to look for.)
-                if (b.Playfulness > 0f && sleepy < 0.5f && !perched && s.Task != CreatureTask.Critter)
-                    FindKin(self, ref s, species, 15f, out playmate);
-                var prey = Entity.Null;
-                // (Only the fierce ones of a species with a hunting threshold: a dog chases hares if it's aggressive, #50.)
-                if (b.Prey.Length > 0 && b.Hunger > 0f && sleepy < 0.5f && CreaturePersonality.WillHunt(ref b, s.Individual))
-                    FindPrey(self, ref s, ref b, flier ? 60f : 35f, out prey);
-                // (A pygmy's chore is one stint, not a post: done with it, it isn't drawn back to the spot or kept up at night.)
-                if (b.Blind && b.CaveDweller && b.Hands && s.Mode != CreatureMode.Work)
-                    s.Task = CreatureTask.None;
-                var w = new FixedList64Bytes<float>();
-                w.Length = (int)Weighted.Count;
-                var wander = Weights(ref s, ref b, ref w, sleepy, awake, flier, perched, playmate, prey, out var awayFromNest);
-
-                // ---- forced (after the senses)
-                if (!flier && awayFromNest && sleepy > 0.5f)
-                {
-                    SetMode(ref s, CreatureMode.Wander);
-                    s.Target = s.Anchor.xz;
-                    return;
-                }
-
-                // ---- urgent
-                if (s.Task == CreatureTask.Hunt && sleepy < 0.5f && rng.NextFloat() < 0.6f && FindGame(self, ref s, 100f, out var game))
-                {
-                    SetMode(ref s, CreatureMode.Hunt);
-                    s.Partner = game;
-                    s.Stage = FolkHunting.Stalk;
-                    s.Timer = rng.NextFloat(60f, 100f);
-                    return;
-                }
-                // A bear by day, now and then, goes after a wild hive's honey (rarely: after a raid it leaves hives be a
-                // long while).
-                if (b.RaidsHives && sleepy < 0.3f && M.ChaseCooldown <= 0f && rng.NextFloat() < 0.08f && StartRaid(ref s, ref rng))
-                    return;
-                // Children by day now and then sit down in a ring on a green to play with their sticks and stones.
-                if (b.Child && sleepy < 0.3f && Night < 0.4f && s.Leash > 0f && rng.NextFloat() < 0.3f && StartPlayRing(self, ref s, ref rng))
-                    return;
-                // Townsfolk gather round the town's fire at dusk, as many as it has room for (the rest go in as usual).
-                if (Gathering(in s, ref b) && rng.NextFloat() < 0.8f && StartHearth(self, ref s, ref rng))
-                    return;
-                // (The sum in its old order, so the roll lands on the same activity for the same draw.)
-                var roll = rng.NextFloat(wander + w[(int)Weighted.Graze] + w[(int)Weighted.Rest] + w[(int)Weighted.Sleep] + w[(int)Weighted.Drink] +
-                                         w[(int)Weighted.Play] + w[(int)Weighted.Hunt] + w[(int)Weighted.Work] + w[(int)Weighted.Climb] +
-                                         w[(int)Weighted.Web] + w[(int)Weighted.Fly] + w[(int)Weighted.Home] + w[(int)Weighted.Swim] +
-                                         w[(int)Weighted.Lounge] + w[(int)Weighted.Surface]);
-                if (DecideGreet(ref s, ref b, ref rng, sleepy, player) || DecideRoost(ref s, ref b, ref rng, sleepy) ||
-                    DecideBurrow(ref s, ref b, ref rng, sleepy, w[(int)Weighted.Sleep]) || DecideChamberChores(ref s, ref b, ref rng, sleepy))
-                    return;
+                // ---- forced, then urgent, in DecideStep's order
+                for (var step = (DecideStep)0; step < DecideStep.Count; step++)
+                    if (TakeStep(step, self, ref s, ref b, species, ref rng, ref c))
+                        return;
 
                 // ---- weighted
                 for (int i = 0; i < (int)Weighted.Count; i++)
                 {
-                    if (w[i] <= 0f || (roll -= w[i]) >= 0f)
+                    if (c.W[i] <= 0f || (c.Roll -= c.W[i]) >= 0f)
                         continue;
-                    if (StartWeighted((Weighted)i, self, ref s, ref b, ref rng, sleepy, flier, playmate, prey))
+                    if (StartWeighted((Weighted)i, self, ref s, ref b, ref rng, c.Sleepy, c.Flier, c.Playmate, c.Prey))
                         return;
                 }
-                WanderOff(ref s, ref b, ref rng, flier, !perched);
+                WanderOff(ref s, ref b, ref rng, c.Flier, !perched);
+            }
+
+            /// <summary>One step of Decide (DecideStep): true if it started an activity, which ends the choice.</summary>
+            bool TakeStep(DecideStep step, Entity self, ref CreatureState s, ref CreatureBlob b, int species, ref Random rng, ref Choice c)
+            {
+                var sleepy = c.Sleepy;
+                switch (step)
+                {
+                    case DecideStep.Shield: return DecideShield(ref s, ref b, ref rng);
+                    case DecideStep.Flit: return DecideFlit(ref s, ref b, ref rng);
+                    case DecideStep.Breach: return DecideBreach(ref s, ref b, ref rng, sleepy);
+                    case DecideStep.Patrol: return DecidePatrol(ref s, ref rng);
+                    case DecideStep.Hermit: return s.Task == CreatureTask.Hermit && HermitDay(ref s, ref b, ref rng, sleepy);
+                    case DecideStep.Camper: return s.Task == CreatureTask.Camper && CamperNight(ref s, ref rng);
+                    case DecideStep.FisherSpot:
+                        // (A fisher finds its spot the first time: none within reach, and it's just one of the townsfolk.)
+                        if (s.Task == CreatureTask.Fish && sleepy < 0.5f && math.all(s.WorkSpot == float2.zero) && !FindFishingSpot(ref s))
+                            s.Task = CreatureTask.None;
+                        return false;
+                    case DecideStep.Rooted: return DecideRooted(ref s, ref b, ref rng, sleepy);
+                    case DecideStep.Disguised: return DecideDisguised(ref s, ref b, ref rng, sleepy);
+                    case DecideStep.Senses:
+                        // (A critter runs light: no company to look for.)
+                        if (b.Playfulness > 0f && sleepy < 0.5f && !c.Perched && s.Task != CreatureTask.Critter)
+                            FindKin(self, ref s, species, 15f, out c.Playmate);
+                        // (Only the fierce ones of a species with a hunting threshold: a dog chases hares if it's aggressive, #50.)
+                        if (b.Prey.Length > 0 && b.Hunger > 0f && sleepy < 0.5f && CreaturePersonality.WillHunt(ref b, s.Individual))
+                            FindPrey(self, ref s, ref b, c.Flier ? 60f : 35f, out c.Prey);
+                        // (A pygmy's chore is one stint, not a post: done with it, it isn't drawn back to the spot or kept up at night.)
+                        if (b.Blind && b.CaveDweller && b.Hands && s.Mode != CreatureMode.Work)
+                            s.Task = CreatureTask.None;
+                        c.W.Length = (int)Weighted.Count;
+                        c.Wander = Weights(ref s, ref b, ref c.W, sleepy, c.Awake, c.Flier, c.Perched, c.Playmate, c.Prey, out c.AwayFromNest);
+                        return false;
+                    case DecideStep.Nest:
+                        if (c.Flier || !c.AwayFromNest || sleepy <= 0.5f)
+                            return false;
+                        SetMode(ref s, CreatureMode.Wander);
+                        s.Target = s.Anchor.xz;
+                        return true;
+                    case DecideStep.HuntGame:
+                        if (s.Task != CreatureTask.Hunt || sleepy >= 0.5f || rng.NextFloat() >= 0.6f || !FindGame(self, ref s, 100f, out var game))
+                            return false;
+                        SetMode(ref s, CreatureMode.Hunt);
+                        s.Partner = game;
+                        s.Stage = FolkHunting.Stalk;
+                        s.Timer = rng.NextFloat(60f, 100f);
+                        return true;
+                    case DecideStep.Raid:
+                        // A bear by day, now and then, goes after a wild hive's honey (rarely: after a raid it leaves hives be a
+                        // long while).
+                        return b.RaidsHives && sleepy < 0.3f && M.ChaseCooldown <= 0f && rng.NextFloat() < 0.08f && StartRaid(ref s, ref rng);
+                    case DecideStep.PlayRing:
+                        // Children by day now and then sit down in a ring on a green to play with their sticks and stones.
+                        return b.Child && sleepy < 0.3f && Night < 0.4f && s.Leash > 0f && rng.NextFloat() < 0.3f && StartPlayRing(self, ref s, ref rng);
+                    case DecideStep.Hearth:
+                        // Townsfolk gather round the town's fire at dusk, as many as it has room for (the rest go in as usual).
+                        return Gathering(in s, ref b) && rng.NextFloat() < 0.8f && StartHearth(self, ref s, ref rng);
+                    case DecideStep.Roll:
+                        // (The sum in its old order, so the roll lands on the same activity for the same draw.)
+                        c.Roll = rng.NextFloat(c.Wander + c.W[(int)Weighted.Graze] + c.W[(int)Weighted.Rest] + c.W[(int)Weighted.Sleep] +
+                                               c.W[(int)Weighted.Drink] + c.W[(int)Weighted.Play] + c.W[(int)Weighted.Hunt] + c.W[(int)Weighted.Work] +
+                                               c.W[(int)Weighted.Climb] + c.W[(int)Weighted.Web] + c.W[(int)Weighted.Fly] + c.W[(int)Weighted.Home] +
+                                               c.W[(int)Weighted.Swim] + c.W[(int)Weighted.Lounge] + c.W[(int)Weighted.Surface]);
+                        return false;
+                    case DecideStep.Greet: return DecideGreet(ref s, ref b, ref rng, sleepy, c.Player);
+                    case DecideStep.Roost: return DecideRoost(ref s, ref b, ref rng, sleepy);
+                    case DecideStep.Burrow: return DecideBurrow(ref s, ref b, ref rng, sleepy, c.W[(int)Weighted.Sleep]);
+                    case DecideStep.Chores: return DecideChamberChores(ref s, ref b, ref rng, sleepy);
+                    default: return false;
+                }
             }
 
             /// <summary>
