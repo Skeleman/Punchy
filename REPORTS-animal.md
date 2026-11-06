@@ -2699,3 +2699,29 @@ Commit c94a99e on animal-behaviours. origin/main is merged in.
   - **Result:** on v3, GiantSpider is picked in 1 deep chamber by day and 4 at night, out of 21.
 - **Suite:** WorldTests 9 passed, 0 failed in 167 s. Landmarks 110 09EAC0FE, fingerprint 90AC5F60.
 - **Not mine, for the world lane:** one earlier cave-shot run logged 4 "BlobAssetReference is not valid" errors in the Burst BuildChunkMeshJob, via TerrainSource.PondDig/SampleHeight. They came after the shot list ended, which looks like play-mode-exit teardown. The run before and the suite logged none.
+
+## A-82 rows 1-4 (2026-11-06): #60 table, GC, far-band shadows, colossus rig hitch: done (verified)
+
+Commits on animal-behaviours: row 1 de458d0, row 2 eb5f0d7, row 3 929e8e9, row 4 65e2ce7. origin/main is merged in. Fauna_Fingerprint 90AC5F60 in every run.
+
+- **Row 1 (#60): Decide is a table.**
+  - Shape: `enum DecideStep` lists the forced and urgent steps in priority order (Shield, Flit, Breach, Patrol, Hermit, Camper, FisherSpot, Rooted, Disguised, Senses, Nest, HuntGame, Raid, PlayRing, Hearth, Roll, Greet, Roost, Burrow, Chores). `TakeStep` has one case per step, holding its original condition and start; returning true ends the choice. A `Choice` struct carries sleepy, the senses, the weights and the roll between steps. The weighted tier is unchanged (Weighted, Weights, StartWeighted).
+  - Adding a forced or urgent activity means one DecideStep entry where it ranks plus one TakeStep case. A weighted activity is still one Weighted name, one weight and one StartWeighted case.
+  - The random draws are unchanged and in the same order; the roll is still drawn between Hearth and Greet. The negated guards (HuntGame, Nest) keep the same short-circuit order.
+  - FolkChat mixes at HumanVillage, FishingVillage and SeaFolkVillage, at 8 h and 13 h: the same activity families as the baseline run. The counts drift within a run, and the after run shows Sit (bench and fire seats, set in Places/Folk) and Shelter (comfort). Both are set outside Decide, and the folk sim depends on frame timing. SeaFolkVillage has 0 folk within 80 m in both runs.
+  - I commented on #60 with the commit and did not close it.
+- **Row 2: GC per frame** (HumanVillage 13 h, 120 frames, editor play mode):
+  - Total before: 11432 B in 150.5 allocations. After: 10093 B in 142.1.
+  - Mine, before to after: CreatureBurrowSystem 293 to 17 B. FolkTalkSystem 286 to 40 B. CreatureWakeSystem 165 to 17 B. InteractionPrompt.OnGUI 204 to 136 B. DebugControls.Update 121 to 88 B. StoneColossi about 150 B (0.2 allocations a frame) in both runs.
+  - DebugControls.LateUpdate showed 508 B in the after run. That is the -comfort debug logger (shot-list flag only), not game code.
+  - OnGUI scripts. Mine: FolkTalkLabels, InteractionPrompt, DebugControls (all now useGUILayout=false). Others': Dungeon/TempleSockets, Interact/Doors, Interact/Interiors, Items/Items, Net/NetMenu, Settings/FrameRateCap, UI/MainMenu.
+  - **For the player lane:** Items.Update about 3600 B a frame, Doors 88 B, Interiors 48 B. Shared IMGUI GUIUtility.BeginGUI went from 3312 to 2576 B, and the rest of it comes from the other OnGUI scripts that still use GUILayout. UI/Prompts.cs allocates a RectOffset on every `style.padding` call.
+  - **For the world lane:** FaunaDirector.Comfort about 1140 B (WeatherField closures), WeatherSystem 352 B, LandmarkEffectSystem 219 B, FloraSystem.LateUpdate 206 B, CaveSystem 176 B, GroundDetail and AmbientParticle 32 B each.
+- **Row 3:** the far creature band (>100 m) draws with ShadowCastingMode.Off, like colonies. I didn't take a separate shot because nothing else changes.
+- **Row 4: colossus rig hitch.**
+  - Saguaro, Tortoise and MesaTortoise weights (and the saguaro trunk fit) now run in Burst jobs. They are scheduled when the rig is built and finished on a later frame. Pending jobs are completed and their arrays disposed on ColossusWalker OnDestroy and when a walker's root is dropped, so nothing leaks. Heron and stag rigs are unchanged.
+  - The fit matches the earlier log exactly: "saguaro skinned (178950 verts, trunk fit 47 m tall leaning 6.5 m, 2 arms)". The tortoise has 7356 verts and the mesa tortoise 16248 verts.
+  - Before: a 460 ms frame at the saguaro build. After: main-thread finish (bones and skin) takes 12.9-17.4 ms over 4 runs. The tortoise takes 1.1 ms and the mesa tortoise 4.0 ms.
+  - Frame times from a ProfilerRecorder on Main Thread, saguaro walkershot, uncapped: the rig frame (896) was 24.5 ms, under 33 ms. The frames either side were 15.9 and 17.6 ms. The 221 ms frame at 893 is the walkershot teleport itself.
+  - Shots: a82-saguaro, a82-tortoise and a82-mesa in the scratch shot folder. The first try framed nothing, because walkershot matches by prefix ("Walking", "Giant").
+- **Suite:** WorldTests 9 passed, 0 failed in 193 s. Landmarks 110 09EAC0FE, fingerprint 90AC5F60.
