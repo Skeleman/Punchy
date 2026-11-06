@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -23,6 +24,7 @@ namespace Punchy.Terrain
         {
             if (!source.Caves.IsCreated)
                 return;
+            DrawPortals(source, camPos);
             ref var set = ref source.Caves.Value;
             if (set.Rooms.Length == 0)
                 return;
@@ -89,6 +91,73 @@ namespace Punchy.Terrain
                         Destroy(mat);
             roomMaterials = null;
             CaveRoomKit.ClearCache();
+            foreach (var meshes in portalMeshes.Values)
+                foreach (var mesh in meshes)
+                    if (mesh != null)
+                        Destroy(mesh);
+            portalMeshes.Clear();
+            if (portalMaterials != null)
+                foreach (var mat in portalMaterials)
+                    if (mat != null)
+                        Destroy(mat);
+            portalMaterials = null;
+            portals.Clear();
+            TunnelPortalKit.ClearCache();
+        }
+
+        // ------------------------------------------------------------------------------------------- tunnel portals
+
+        /// <summary>The road tunnels' portals (W-110 row 2), listed once per cave set.</summary>
+        readonly List<TunnelPortalKit.Portal> portals = new List<TunnelPortalKit.Portal>();
+        BlobAssetReference<CaveSetBlob> portalSet;
+        /// <summary>Per portal (index into portals): its meshes by group, built the first time it is in range.</summary>
+        readonly Dictionary<int, Mesh[]> portalMeshes = new Dictionary<int, Mesh[]>();
+        /// <summary>Per group, a copy of the cave material in the portal's colours (open to daylight, casting shadows).</summary>
+        Material[] portalMaterials;
+
+        void DrawPortals(in TerrainSource source, float3 camPos)
+        {
+            if (!portalSet.Equals(source.Caves))
+            {
+                portalSet = source.Caves;
+                TunnelPortalKit.Portals(ref source.Caves.Value, portals);
+            }
+            if (portals.Count == 0)
+                return;
+            if (portalMaterials == null)
+            {
+                portalMaterials = new Material[TunnelPortalKit.Groups];
+                for (int g = 0; g < TunnelPortalKit.Groups; g++)
+                {
+                    TunnelPortalKit.Colours(g, out var rock, out var dark);
+                    var mat = new Material(Material) { name = "Tunnel portal " + g };
+                    mat.SetColor(RockColorId, rock);
+                    mat.SetColor(DarkColorId, dark);
+                    portalMaterials[g] = mat;
+                }
+            }
+            for (int i = 0; i < portals.Count; i++)
+            {
+                var portal = portals[i];
+                if (math.distancesq(portal.Floor, camPos) > LoadRadius * LoadRadius)
+                    continue;
+                if (!portalMeshes.TryGetValue(i, out var meshes))
+                {
+                    meshes = CaveRoomKit.BuildMeshes(TunnelPortalKit.Get(source, portal), 1f);
+                    portalMeshes[i] = meshes;
+                }
+                for (int g = 0; g < meshes.Length; g++)
+                {
+                    var mesh = meshes[g];
+                    if (mesh == null)
+                        continue;
+                    var rp = new RenderParams(portalMaterials[g])
+                    {
+                        worldBounds = mesh.bounds, shadowCastingMode = ShadowCastingMode.On, receiveShadows = true
+                    };
+                    Graphics.RenderMesh(rp, mesh, 0, Matrix4x4.identity);
+                }
+            }
         }
     }
 }

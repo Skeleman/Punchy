@@ -834,12 +834,15 @@ namespace Punchy.Terrain
                 foreach (var s in Get(room).Solids)
                     boxes.Add(new KitBox { Centre = s.Centre, Half = s.Half, Rotation = s.Rotation, Reach = math.length(s.Half) });
             }
+            // W-110 row 2: the road tunnels' portals (jambs, headwall feet, fallen stones) ride along with the rooms.
+            TunnelPortalKit.AddKitBoxes(source, centres, boxes, range);
         }
 
         // ------------------------------------------------------------------------------------------- meshes
 
-        /// <summary>One mesh per material group (null where the room has none), in the cave walls' vertex layout.</summary>
-        public static Mesh[] BuildMeshes(Kit kit)
+        /// <summary>One mesh per material group (null where the room has none), in the cave walls' vertex layout.
+        /// Openness is the vertex colour alpha: 0 deep in the cave (rooms), 1 out in daylight (tunnel portals).</summary>
+        public static Mesh[] BuildMeshes(Kit kit, float openness = 0f)
         {
             var builders = new Builder[Groups];
             foreach (var p in kit.Parts)
@@ -854,7 +857,7 @@ namespace Punchy.Terrain
             }
             var meshes = new Mesh[Groups];
             for (int g = 0; g < Groups; g++)
-                meshes[g] = builders[g]?.ToMesh("Cave room " + g);
+                meshes[g] = builders[g]?.ToMesh("Cave room " + g, openness);
             return meshes;
         }
 
@@ -953,17 +956,17 @@ namespace Punchy.Terrain
                 }
             }
 
-            public Mesh ToMesh(string name)
+            public Mesh ToMesh(string name, float openness)
             {
                 if (positions.Count == 0)
                     return null;
                 var mesh = new Mesh { name = name, indexFormat = IndexFormat.UInt32 };
                 mesh.SetVertices(positions);
                 mesh.SetNormals(normals);
-                // Colour alpha is the walls' openness: 0, deep in the cave (no daylight, no fog).
+                // Colour alpha is the walls' openness: 0 deep in the cave (no daylight, no fog), 1 in the open.
                 var colors = new Color[positions.Count];
                 for (int i = 0; i < colors.Length; i++)
-                    colors[i] = new Color(0.5f, 0.5f, 0.5f, 0f);
+                    colors[i] = new Color(0.5f, 0.5f, 0.5f, openness);
                 mesh.SetColors(colors);
                 mesh.SetUVs(0, data);
                 mesh.SetIndices(indices, MeshTopology.Triangles, 0);
