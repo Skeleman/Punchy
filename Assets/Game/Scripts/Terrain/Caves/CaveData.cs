@@ -103,6 +103,11 @@ namespace Punchy.Terrain
         public int FirstStream, StreamCount;
         /// <summary>W-115: its destination chambers (in Rooms).</summary>
         public int FirstRoom, RoomCount;
+        /// <summary>
+        /// W-110: 0 for a natural cave; otherwise a road tunnel bored under a crest (its nodes follow the road, its floor
+        /// is the road's level, flat): 1 dark, 2 lit by lamps, 3 lamps and timber frames.
+        /// </summary>
+        public int Tunnel;
     }
 
     /// <summary>
@@ -335,6 +340,8 @@ namespace Punchy.Terrain
         /// </summary>
         static float FloorShape(ref CaveSetBlob set, in CaveData c, float2 xz)
         {
+            if (c.Tunnel != 0)
+                return 0f;   // a road tunnel's floor is its road: no undulation for the road to snag on
             var s = c.Seed;
             var shape = noise.snoise(xz * 0.07f + s) * 0.18f;
             if (c.Rock.z > 0f)

@@ -46,7 +46,9 @@ namespace Punchy.Terrain
         public float Width;
         public int Settlement;
         /// <summary>1 for a road between settlements (darker, rutted), 2 for a road stretch graded through a cutting or
-        /// over an embankment (W-111: its banks blend wider), 0 for a town's own street or square.</summary>
+        /// over an embankment (W-111: its banks blend wider), 3 for a road stretch bored through a tunnel (W-110: the
+        /// hill stays over it, so it neither levels nor paints the ground; CaveBaking bores the passage and the cave
+        /// walls carry its surface), 0 for a town's own street or square.</summary>
         public int Road;
         public float2 Min, Max;
     }
@@ -96,6 +98,9 @@ namespace Punchy.Terrain
         /// <summary>The furthest a pad far off the ground's height blends out (m); plot bounds reach this far.</summary>
         public const float PadBlendMax = 6f;
 
+        /// <summary>SettlementStreet.Road for a stretch bored through a tunnel (W-110).</summary>
+        public const int TunnelRoad = 3;
+
         /// <summary>The grid cell holding a point, or -1 outside the grid.</summary>
         public static int Cell(ref SettlementSetBlob set, float2 xz)
         {
@@ -131,7 +136,7 @@ namespace Punchy.Terrain
             for (int k = range.x; k < range.x + range.y; k++)
             {
                 ref var s = ref set.Streets[set.StreetItems[k]];
-                if (math.any(xz < s.Min) || math.any(xz > s.Max))
+                if (s.Road == TunnelRoad || math.any(xz < s.Min) || math.any(xz > s.Max))
                     continue;
                 var across = Across(s, xz, out var t);
                 var level = math.lerp(s.A.y, s.B.y, t);
@@ -184,18 +189,22 @@ namespace Punchy.Terrain
         static float Cobbled(float radius, float d, float edgeNoise)
             => 1f - math.smoothstep(radius - 2f, radius + 12f, d + edgeNoise * 4f);
 
-        /// <summary>Paints the streets' surface over the ground, with a ragged edge.</summary>
-        public static void Ground(ref SettlementSetBlob set, float2 xz, float edgeNoise, float colorNoise, ref SurfaceProps props)
+        /// <summary>
+        /// Paints the streets' surface (tunnel roads only, or every other street) over props, with a ragged edge. Returns
+        /// how much xz is on a town's own street (for the squares' kerbs); covered: how much on any street painted.
+        /// </summary>
+        static float Paint(ref SettlementSetBlob set, float2 xz, float edgeNoise, float colorNoise, bool tunnels, ref SurfaceProps props, out float covered)
         {
+            covered = 0f;
             var cell = Cell(ref set, xz);
             if (cell < 0)
-                return;
+                return 0f;
             var lane = 0f;   // how much xz is on a town's own street (not a road or square): no kerb across a lane's mouth
             var range = set.StreetCells[cell];
             for (int k = range.x; k < range.x + range.y; k++)
             {
                 ref var s = ref set.Streets[set.StreetItems[k]];
-                if (math.any(xz < s.Min) || math.any(xz > s.Max))
+                if ((s.Road == TunnelRoad) != tunnels || math.any(xz < s.Min) || math.any(xz > s.Max))
                     continue;
                 ref var layout = ref set.Layouts[set.Settlements[s.Settlement].Layout];
                 if (layout.HasStreetSurface == 0)
@@ -261,10 +270,29 @@ namespace Punchy.Terrain
                 if (s.Road == 0 && !s.A.xz.Equals(s.B.xz))
                     lane = math.max(lane, w);
                 props = SurfaceProps.Lerp(props, street, w);
+                covered = math.max(covered, w);
             }
+            return lane;
+        }
+
+        /// <summary>Paints the streets' surface over the ground, with a ragged edge.</summary>
+        public static void Ground(ref SettlementSetBlob set, float2 xz, float edgeNoise, float colorNoise, ref SurfaceProps props)
+        {
+            var lane = Paint(ref set, xz, edgeNoise, colorNoise, false, ref props, out _);
             for (int i = 0; i < set.Settlements.Length; i++)
                 if (set.Settlements[i].Square > 0f)
                     Square(ref set, i, xz, edgeNoise, colorNoise, lane, ref props);
+        }
+
+        /// <summary>
+        /// W-110: a tunnel road's surface at a spot (for the tunnel floor, which CaveSystem shades), and how much of the
+        /// spot it covers (0 off every tunnel road). The ground's own paint (Ground) leaves tunnel roads out, as the hill
+        /// stays over them.
+        /// </summary>
+        public static float TunnelGround(ref SettlementSetBlob set, float2 xz, float edgeNoise, float colorNoise, ref SurfaceProps props)
+        {
+            Paint(ref set, xz, edgeNoise, colorNoise, true, ref props, out var covered);
+            return covered;
         }
 
         /// <summary>One of a town's square draws (0..1): five bits of its hash.</summary>

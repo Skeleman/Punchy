@@ -1237,6 +1237,19 @@ namespace Punchy.Terrain
         }
 
         /// <summary>
+        /// W-110: a tunnel road's surface painted over props at a spot (the same ruts and edge as the road outside, as
+        /// SampleSurface paints it), and how much of the spot it covers: 0 off every tunnel road. For tunnel floors.
+        /// </summary>
+        public float TunnelRoadSurface(float2 xz, ref SurfaceProps props)
+        {
+            if (!Settlements.IsCreated)
+                return 0f;
+            var edge = noise.snoise(xz * 0.045f) * 0.7f + noise.snoise(xz * 0.17f) * 0.3f;
+            var color = noise.snoise(xz * 0.021f + 113.5f) * 0.6f + noise.snoise(xz * 0.11f - 57.1f) * 0.4f;
+            return SettlementSampling.TunnelGround(ref Settlements.Value, xz, edge, color, ref props);
+        }
+
+        /// <summary>
         /// Island v3 (B4): slope in degrees of the island height offsets alone (the range field), over 12 m. Far LODs
         /// smooth the mesh slope; this keeps their cliffs in rock. 0 without island offsets.
         /// </summary>

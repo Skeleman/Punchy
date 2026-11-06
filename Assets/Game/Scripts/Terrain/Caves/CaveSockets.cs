@@ -377,6 +377,9 @@ namespace Punchy.Terrain
             var end = math.min(set.Caves.Length, next + CavesPerFrame);
             for (int cave = next; cave < end; cave++)
             {
+                // A road tunnel is a passage, not a dungeon: nothing waits in it.
+                if (set.Caves[cave].Tunnel != 0)
+                    continue;
                 var sockets = CaveSockets.Build(source, cave, source.World.Seed, out var chambers, out var deadEnds);
                 var hash = TempleSockets.Hash(sockets);
                 var key = set.Caves[cave].Key;

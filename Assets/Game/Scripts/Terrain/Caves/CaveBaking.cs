@@ -209,7 +209,8 @@ namespace Punchy.Terrain
                 });
             }
 
-            if (caves.Count == 0)
+            var tunnelRuns = TunnelRuns(source);
+            if (caves.Count == 0 && tunnelRuns.Count == 0)
                 return default;
             // Pools, streams and speleothems sit on the finished floors and hang from the finished ceilings, so each is
             // placed against the caves as built so far, then everything is built again with them: water first (basins
@@ -247,6 +248,17 @@ namespace Punchy.Terrain
             Step("fittings");
             FinishRooms(caves, extras);
             withWater.Dispose();
+            // W-110: road tunnels last, appended after the landmarks' caves (whose indices, seeds and extras stay as
+            // they were), then their lamps and frames against the caves with them.
+            if (tunnelRuns.Count > 0)
+            {
+                AddTunnels(source, palette, styles, tunnelRuns, caves, nodes, kinds, segments);
+                var withTunnels = BuildBlob(caves, nodes, kinds, segments, extras, Allocator.Persistent);
+                withCaves.Caves = withTunnels;
+                PlaceTunnelFittings(withCaves, caves, nodes, segments, styles, CaveFloraTable.Collect(types), extras);
+                withTunnels.Dispose();
+                Step("tunnels");
+            }
             var result = BuildBlob(caves, nodes, kinds, segments, extras, allocator);
             Step("blob");
             UnityEngine.Debug.Log(timing.ToString());

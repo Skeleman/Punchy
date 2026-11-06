@@ -536,7 +536,8 @@ namespace Punchy.Flora
             for (int k = range.x; k < range.x + range.y; k++)
             {
                 ref var street = ref towns.Streets[towns.StreetItems[k]];
-                if (street.Road == 0 || math.any(xz < street.Min - radius) || math.any(xz > street.Max + radius))
+                // A tunnel road runs under the hill, whose plants stay.
+                if (street.Road == 0 || street.Road == SettlementSampling.TunnelRoad || math.any(xz < street.Min - radius) || math.any(xz > street.Max + radius))
                     continue;
                 if (SettlementSampling.Across(street, xz, out _) < street.Width * 0.5f + radius)
                     return true;
