@@ -2618,3 +2618,4 @@ Commit 59f4082 on animal-behaviours.
 - **Shots:** `a80h-ch44` (chamber 44 floor with its salamanders) and `a80h-pool22` (pool chamber), both in Assets/Temp/shots. The creatures are small in frame; the fill log names what each chamber got. "E sit" is HUD noise.
 - Fauna_Fingerprint is still F4E66093.
 - **Note:** GiantSpider (DeepChamber, Temperate only) never got picked on v3.
+- **A-80 suite:** WorldTests 9 passed, 0 failed in 172 s. Landmarks 110 09EAC0FE, fingerprint F4E66093.
