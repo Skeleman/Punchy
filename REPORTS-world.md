@@ -2773,3 +2773,20 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
   - Warm play: 39.2 s, against 38.6 s for row 1. The change is mesh only, so I read the difference as noise.
   - Cold suite: 89.2 s, against 85.0 s, with the machine busy.
 - Note for the animal lane: nothing in StoneColossi needs to change. The 2x-taller plant stands on dry ground at 34.3 m, about 30 m west of the paddies.
+
+## W-111 row 3 (waterfalls): partial, not fixed yet (budget ran out)
+
+- **The spots are on the v2 island, not v3.** Zach's build (main 763edbc) loads the Default island, which is still v2: "v2 ready ... 66 waterfalls". On v3 there is no water within 150 m of 78,-319 or 445,1273, and the y values don't match the ground there. On Default/v2 every spot sits next to a river step. Rows 1 and 2 were measured on v3, so they should be rechecked on v2 too.
+- **Steepest water step within 60 m of each spot (v2):**
+  - 78,-319: 3.7 m at 72,32.8,-327.
+  - -2430,-980: 4.7 m at -2412,16.7,-962.
+  - 445,1273: 7.8 m at 451,36.7,1251.
+  - -1509,-38: no step within 60 m. The steepest within 150 m is 6.9 m at -1659,26.7,-138, and the shelf is not located yet.
+- **Before shots** from Zach's -goto positions at noon: Assets/Temp/shots/w111-fall1..4-before(-800).png in the world tree.
+  - Fall 3 is a W-98 river-mesh fall.
+  - The fall 2 shot is framed too close and comes out dark blue. It needs re-framing.
+- **Leads in Water.shader:**
+  - The fine detail reads (`_PunchyCaveDetail`) use xz `p`, so they smear vertically on steep faces. This is the likely "glowing" two-step at -2430. Fix idea: fade `fineStrength` and the glitter/caustics by the steep-face factor, which needs `face` computed before the detail reads.
+  - The rapids/streak foam is driven by xz flowDir, which can read as upward motion on a near-vertical face (445,1273). Fix idea: suppress FlowFoam and the streaks where `falling` is high, so only the downward `fallV` sheets show.
+  - The gradient breaks at 78,-319 and the see-through shelf at -1509 still need geometry checks: the BuildWater quad rule and the back-face/alpha on the shelf.
+- **No code changes in this row.** Hashes are unchanged from row 2 (110 09EAC0FE, F4E66093). The suite after row 2: 13 passed, 0 failed.
