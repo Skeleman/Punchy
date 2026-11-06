@@ -2856,3 +2856,20 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
   - The pass-through plane was a terrain chunk skirt (6-24 m) hanging through the rooms at a chunk edge. Skirts now stop 0.3 m above temple air.
 - **Shots:** Assets/Temp/shots/w113-ruin-step-800.png, w113-igloo-v2-800.png (before), w113-igloo-v2-after-800.png, w113-temple-out-800.png and w113-temple-in-800.png (before), w113-temple-out-after-800.png, w113-temple-in-after.png (world tree).
 - **Risks:** sunk igloos sit up to about 2 m deeper on slopes. Igloo footprints follow their seat, so the TurtleVillage contents change; the suite will show it.
+
+## W-113 row 3: eave lips, sky blocks, creek static - done (verified)
+- **Commit:** 8fb8df5 on world-features (fingerprint repin 3bd9c9a).
+- **Item 13 (black eaves):** roof tube normals now tilt upward at the rim, and the stone house roof's occlusion floor went from 0.6 to 0.8. Its stone grey is a little lighter. The black lips and corner tips are gone.
+- **Item 14 (blocks in the sky):** these were the Interiors rooms: 223 cubes at y about 40, built off the island's east edge (x 4589-4960). Only the room the player stands in is drawn now. Outside, 0 room cubes are drawn; inside door 11, 22 (that room). The room colliders stay solid either way.
+- **Item 15 (creek static):** the noisy layer was the falling white sheets, plus the shore foam line flickering on the depth-buffer thickness. They were static because of a precision bug: the sheet's along-flow position took the pixel-to-pixel wobble of a derivative-based direction times a world position about 1.7 km out. The sheet now reads along fixed x/z axes, blended by the face's turn (like triplanar). It has three octaves, so it shows slow streaks, and the shore line fades out on steep faces.
+- **Shots:** Assets/Temp/shots/w113-eave-ba.png, w113-sky-ba.png (before/after at x 800), w113-creek-ba.png (before, after, probe) (world tree).
+- **Idea for ROADMAP-IDEAS.md (I can't write it):** "Floating archipelago: the sky blocks looked good from the sea. Hang a few real floating rock islets with waterfalls off their edges in one high biome, reached by a colossus or a grapple."
+- **Risks:**
+  - Interiors.cs is a player-lane (P-13) file edited on the world branch.
+  - The roof normal lift changes every RoofTube user: hut, stone house, shrine and smithy.
+  - The waterfall sheet change also applies to surface waterfalls.
+
+## W-113 suite - 13 passed after repin
+- First run: 10 passed, 3 failed, because the editor island preference was still v2 from the playtest shots. Punchy/Island is an EditorPrefs value shared by every editor on this account, so it overrode the suite's v3. I cleared it (back to Default = v3) and reran.
+- Rerun: 12 passed, 1 failed. **Landmarks_V3 110 09EAC0FE (unchanged).** **Fauna_Fingerprint 90AC5F60 (was F4E66093).** The fingerprint hashes the flora blob (colliders, perches), which rows 1-3 changed through tents, the ruin plinth and roofs. I repinned it in 3bd9c9a.
+- **Watch:** any lane that runs play.sh with Punchy/Island v1 or v2 should set it back to Default afterwards, or the next suite on this account fails Harness_WorldUp.
