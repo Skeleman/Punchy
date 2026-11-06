@@ -363,6 +363,29 @@ namespace Punchy.Debugging
                 data.requiresDepthOption = UnityEngine.Rendering.Universal.CameraOverrideOption.Off;
                 Debug.Log("BenchRoute: off camera opaque and depth textures");
             }
+            // -benchrenderscale <x>: URP render scale (fewer pixels, same vertices), to tell pixel-bound from vertex-bound.
+            var rsArg = System.Array.IndexOf(args, "-benchrenderscale");
+            var rsUrp = UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline as UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset;
+            if (rsUrp != null && rsArg >= 0 && rsArg + 1 < args.Length &&
+                float.TryParse(args[rsArg + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var rsScale))
+            {
+                rsUrp.renderScale = rsScale;
+                Debug.Log($"BenchRoute: render scale {rsUrp.renderScale}");
+            }
+            // -benchnoprime: depth priming off on every URP renderer (no depth prepass for opaques), to split it off.
+            if (rsUrp != null && System.Array.IndexOf(args, "-benchnoprime") >= 0)
+            {
+                var primeList = typeof(UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset).GetField("m_RendererDataList", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(rsUrp) as UnityEngine.Rendering.Universal.ScriptableRendererData[];
+                var primed = 0;
+                if (primeList != null)
+                    foreach (var rd in primeList)
+                        if (rd is UnityEngine.Rendering.Universal.UniversalRendererData urd && urd.depthPrimingMode != UnityEngine.Rendering.Universal.DepthPrimingMode.Disabled)
+                        {
+                            urd.depthPrimingMode = UnityEngine.Rendering.Universal.DepthPrimingMode.Disabled;
+                            primed++;
+                        }
+                Debug.Log($"BenchRoute: depth priming off on {primed} renderers (list {(primeList == null ? "missing" : primeList.Length.ToString())})");
+            }
             // -benchnolights: every light but the directional ones off (lamps, torches, fires: what distance lights would cull).
             if (System.Array.IndexOf(args, "-benchnolights") >= 0)
             {
