@@ -1,5 +1,22 @@
 # Player lane reports
 
+## 2026-11-06 batch P-20 GC row: Items and the player's OnGUI scripts allocate far less (profiler finding 11, A-82 notes)
+- VERIFIED (player-client 354b12c). Measured in Development builds with the new `-gclog` (Unity's GC Allocated In Frame counter, 5 s windows), one run per spot: start, Millfield (`-place HumanVillage`) and a meadow, 30 s each, averaging the last 15 s. The baseline was the same tree without the GC changes (pushed P-20 plus today's main), built in the same editor session.
+
+| Spot | Before (KB / allocs a frame) | After, run 1 | After, run 2 |
+|---|---|---|---|
+| Start | 13.0 / 149 | 11.4 / 101 | 3.9 / 70 |
+| Millfield | 14.1 / 147 | 7.2 / 102 | 3.7 / 68 |
+| Meadow | 13.4 / 152 | 7.6 / 72 | 3.8 / 72 |
+
+- Runs vary a lot (weather, creatures), so take the allocation counts, which are steadier: about 150 down to 70-100 a frame. One baseline run only; the editor was needed next by animal.
+- Items: every entity query (26 call sites across Items, Containers, Quests, QuestChecks) is made once per world and kept. The six Receive handlers are cached delegates, not lambdas and a closure every frame. The temple chest sockets are one reused list a frame, not an iterator plus two lists. Draw's sets are reused. The Use prompt string is rebuilt only when its text changes, and UseKey.Name too. Kept main's temple pick by type (cfd07d0) in ChestSockets/TryChest
+- OnGUI: Underwater, Doors, Interiors, Items, NetMenu, FrameRateCap and MainMenu now draw through a GuiHook (new UI/GuiHook.cs and GuiHooks.cs). It is on only while its owner has something to draw, and useGUILayout is off where no GUILayout is used. Checked on the new build: the Keys menu, the underwater tint (sea) and "F open door" (door 90, same as the baseline) still draw
+- UI/Prompts.cs: the style cache is checked first, so each style's padding (a new RectOffset per read) is read once
+- Still paid: Unity's IMGUI pass runs as long as any enabled script has an OnGUI, and other lanes' scripts keep it alive: DebugControls, FolkTalkSystem, InteractionInputSystem/InteractionPrompt, TempleSockets. GuiHook is in UI/ for them if wanted. Doors.FindFacing still makes an entity query and a prompt string each frame (small; not in the profiler's list)
+- Also: my long-running scripts now end by themselves (time limit and parent check), and I sweep my leftover bash and console-helper processes after each task (Zach saw many left running)
+- NEXT: nothing for this row
+
 ## 2026-11-06 batch P-20: camera under all water and sliding in to look up; Keys table with pad bindings; weather key; interior culling (no measurable gain); house walls let the player walk through
 - Row 1 VERIFIED (player-client 07e9fc3): under cave water (new `-place cavepool`, deepest pool, 1.1 m: "Underwater: in the water (cave water, lens -3.98, surface -3.86)", lens to -4.7 at -55°) and under sea water (`-goto 4600,0`, lens -4.6). The cave-water clamp was already gone since P-19; the stream ends are only 0.4-0.5 m deep, too shallow for the lens. Looking up: the open-air pitch limit is -65 (scene MinPitch -20), and the camera slides along the ground toward the character: arm 5.4 m at -20°, 2.7 at -45°, 2.2 at -61°, lens 0.5 m above the ground the whole way. Shots p20-cavepool-under30/-under55, p20-sea-under, p20-ground-up20/45/65
 - Row 2 VERIFIED, bindings: the Keys tab lists 16 commands with keyboard and pad bindings in columns (actions read from their own bindings): Move, Look, Jump A, Sprint LS, Walk RS, Roll B, Interact Y, Use (doors, lamps, pick-up, chests, boards) RB, inventory LB, drop A/RB, close LB/B, creature actions d-pad, weather RT, menu Start, tabs LB/RB, options View. Use prompts and the inventory label switch to the pad's buttons when a pad is in use (Y sit with `-forcepad xbox`). A PlayStation pad was plugged in here, so the table names its buttons (Cross, R1); `-forcepad xbox` doesn't override a connected pad's own names (cosmetic). Shot p20-keys2-both.png. Test gotcha: `-menu` and `-perflog` are re-read on every shot line, so put them on the line itself
