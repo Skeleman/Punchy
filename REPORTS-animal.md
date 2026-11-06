@@ -2770,3 +2770,20 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 2. Then MantrapShoveSystem, then the SkunkGas snapshot and the walker query cache.
 3. Checks: WorldTests 9/9, Fauna_Fingerprint 90AC5F60, Landmarks 110 09EAC0FE, GC per frame <= 10093 B, and no new console errors.
 4. Risk: on a host, FaunaPopulationSystem must run only in the server world, which LocalSimulation and ServerSimulation give. On a joined client it doesn't run, the same as the director's sim work today.
+
+### A-83 row 2 (#62): animal fixes done (commit cb38e9bc on animal-behaviours, pushed)
+
+- **FaunaPopulationSystem** (new, Fauna/FaunaPopulationSystem.cs): FaunaSpawnGroup is OrderFirst in SimulationSystemGroup, before PlayerInputSystem, in LocalSimulation and ServerSimulation worlds. FaunaDirector.Update now only notes the frame. The population pass (`UpdatePopulation(World)`) runs in the system with the frame time it built up. The profiler shows FaunaDirector.Update nested under FaunaSpawnGroup/FaunaPopulationSystem.
+- **MantrapShoveSystem** (new): after PlayerInputSystem, before PlayerMovementSystem, in a Burst job. The bite calls `MantrapShoveSystem.Request(world, player, dir)` instead of Mantrap writing the player's transform and motion from Update. Same numbers as before: a 4.5 m/s hop and 6 m/s for 0.25 s.
+- **SkunkGas** reads `CreatureSnapshotSystem.Get/Release` and no longer reads the entities (which waited on the brain).
+- **ColossusWalker** caches its terrain query per world instead of creating and disposing one every frame.
+- **Checks** (editor play mode, SampleScene, `-island v3 -place HumanVillage -time 13 -fpscap 0`):
+  - Compiles clean.
+  - `[fauna build]` 117 species, fingerprint **8A1979F1**.
+  - GC: PlayerLoop **8607 B/frame** over 97 frames (limit 10093). Top is Items.Update at 3376 (player); FaunaPopulationSystem is 751 (FaunaDirector.Comfort 705, as before).
+  - Shove: `Request` through eval moved the player +1.50 m on x (6 × 0.25 s), with the hop.
+  - No exceptions. The stack traces in the log are world landmark-baking info logs.
+  - Suite: `scripts/run-playmode-tests.sh` gives **14 passed, 0 failed in 272 s**, Landmarks **111 3BDF705F**, fingerprint 8A1979F1.
+- **Note on pins:** the card says 90AC5F60 / 110 09EAC0FE, but the ribcage (W-114, 2107640c) is already on this branch and moved both pins: WorldTests now pins 8A1979F1 and 111 3BDF705F. Both match.
+- **Not measured:** the `-perflog` CreatureSnapshotSystem.WaitTicks proof from my row 1 plan. I'll do it in row 3's editor session if the run is cheap.
+- **Editor:** my editor didn't quit on EditorApplication.Exit and was killed by its PID (30904). Nothing else was touched.
