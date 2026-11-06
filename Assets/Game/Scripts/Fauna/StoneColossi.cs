@@ -117,7 +117,9 @@ namespace Punchy.Fauna
         {
             if (!placed)
             {
-                if (Time.realtimeSinceStartup >= nextTry)
+                if (surveyPending)
+                    FinishSurvey();
+                else if (Time.realtimeSinceStartup >= nextTry)
                 {
                     nextTry = Time.realtimeSinceStartup + 1f;
                     TryPlace();
@@ -190,6 +192,7 @@ namespace Punchy.Fauna
 
         void OnDestroy()
         {
+            DropSurvey();
             foreach (var s in shadows)
                 s?.Dispose();
         }
@@ -209,14 +212,78 @@ namespace Punchy.Fauna
             // editor's colossi on other spots (the head 26 m under the v2 ground). The player only ever saw v2.
             if (IslandV2.Requested() && !source.Island.IsCreated)
                 return;
-            var palette = em.GetComponentObject<BiomePalette>(paletteQuery.GetSingletonEntity());
 
+            // A-83 row 3: the biome survey runs on workers and the colossi are placed once it is done, a frame or
+            // more later (FinishSurvey), not in this frame.
             var half = source.World.WorldSize * 0.5f;
             var n = (int)(half * 2f / Step) + 1;
-            var grid = new NativeArray<int>(n * n, Allocator.TempJob);
-            new SurveyJob { Source = source, Origin = -half, Step = Step, Size = n, Biome = grid }.Schedule(n * n, 64).Complete();
-            var biomes = grid.ToArray();
-            grid.Dispose();
+            surveyGrid = new NativeArray<int>(n * n, Allocator.Persistent);
+            surveying = new SurveyJob { Source = source, Origin = -half, Step = Step, Size = n, Biome = surveyGrid }.Schedule(n * n, 64);
+            surveySource = source;
+            surveyWorld = world;
+            surveyFrame = Time.frameCount;
+            surveyPending = true;
+            // The job reads the TerrainSource blobs, which quitting, leaving play mode or a world swap frees before
+            // OnDestroy: finish it first, while they are intact (as CaveSystem does since 156e7df).
+            Application.quitting += DropSurvey;
+            Punchy.Net.GameBootstrap.WorldsReplacing += DropSurvey;
+        }
+
+        // A-83 row 3: the placement survey in flight, and the world and terrain it reads.
+        JobHandle surveying;
+        NativeArray<int> surveyGrid;
+        TerrainSource surveySource;
+        Unity.Entities.World surveyWorld;
+        bool surveyPending;
+        int surveyFrame;
+
+        /// <summary>Once the survey is done, places the colossi from it. If the terrain is gone or changed while it
+        /// runs, the survey is finished and dropped at once and placing tries again.</summary>
+        void FinishSurvey()
+        {
+            var world = Unity.Entities.World.DefaultGameObjectInjectionWorld;
+            if (world == null || !world.IsCreated || world != surveyWorld)
+            {
+                DropSurvey();
+                return;
+            }
+            var em = world.EntityManager;
+            using var terrainQuery = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
+            if (!terrainQuery.TryGetSingleton(out TerrainSource source) || !source.Equals(surveySource))
+            {
+                DropSurvey();
+                return;
+            }
+            if (!surveying.IsCompleted)
+                return;
+            surveying.Complete();
+            var biomes = surveyGrid.ToArray();
+            DropSurvey();
+            using var paletteQuery = em.CreateEntityQuery(ComponentType.ReadOnly<BiomePalette>());
+            if (paletteQuery.CalculateEntityCount() != 1)
+                return;
+            Debug.Log($"StoneColossi: survey took {Time.frameCount - surveyFrame} frames");
+            Place(source, em.GetComponentObject<BiomePalette>(paletteQuery.GetSingletonEntity()), biomes);
+        }
+
+        /// <summary>Waits for a survey still in flight and frees its grid (finished, stale, quitting, world swap or
+        /// teardown).</summary>
+        void DropSurvey()
+        {
+            Application.quitting -= DropSurvey;
+            Punchy.Net.GameBootstrap.WorldsReplacing -= DropSurvey;
+            if (!surveyPending)
+                return;
+            surveying.Complete();
+            surveyGrid.Dispose();
+            surveyPending = false;
+            surveyWorld = null;
+        }
+
+        void Place(TerrainSource source, BiomePalette palette, int[] biomes)
+        {
+            var half = source.World.WorldSize * 0.5f;
+            var n = (int)(half * 2f / Step) + 1;
             placed = true;
             Lanterns.Clear();
             LoadDefinitions();
