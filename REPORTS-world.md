@@ -2790,3 +2790,14 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
   - The rapids/streak foam is driven by xz flowDir, which can read as upward motion on a near-vertical face (445,1273). Fix idea: suppress FlowFoam and the streaks where `falling` is high, so only the downward `fallV` sheets show.
   - The gradient breaks at 78,-319 and the see-through shelf at -1509 still need geometry checks: the BuildWater quad rule and the back-face/alpha on the shelf.
 - **No code changes in this row.** Hashes are unchanged from row 2 (110 09EAC0FE, F4E66093). The suite after row 2: 13 passed, 0 failed.
+
+## W-111 row 3: v3 default + waterfalls (done, verified) - world-features ffe0c0a
+- **v3 is the default island** (code, IslandV2.RequestedVersion; no ProjectSettings change). A fresh Dev build with no flags logs "v3 ready at 9.0 s", world ready 13.1 s. `-island v2` / `-island v1` still work.
+- **Water.shader:** a per-face `steep` term fades the flat-water layers on a fall's face (streaks, carried foam, flecks, fine detail, caustics, glitter, Fresnel sky). Falling sheets are lit by the face's turn to the sun, and the sheet's gaps stay opaque (alpha 0.85). Result: falls no longer glow flat white at noon, upward streaks are gone, and white/grey sheets stream down.
+- **Falls (v3, noon), eye -> target:**
+  - fall 74 (drop 18 m, w 38): -goto -2167,3,3691 looking at -2181,12,3647
+  - fall 67 (drop 27 m): -goto -3273,7,3094 looking at -3231,18,3114
+  - fall 61 (drop 25 m): -goto -263,92,2618 looking at -302,101,2592
+- **Shots:** Assets/Temp/shots/w111-v3fall{74,67,61}-{before,after}.png (world tree).
+- **Hashes:** Landmarks_V3 110 09EAC0FE, Fauna_Fingerprint F4E66093: unchanged (pinned tests pass). Suite 13/13.
+- **Risks / left over:** fall 74 still shows a paler flat pane near the lip on the right (a flatter mesh piece; it looks like the shelf). Sheet noise can zigzag where the triangles turn. Both are geometry follow-ups (BuildWater). The v2 shots and the v2 recheck were skipped as asked.
