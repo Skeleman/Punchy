@@ -9,6 +9,8 @@ namespace Punchy.Dungeon
     /// <summary>Dungeon types, for <see cref="DungeonSocket.DungeonType"/> (the spawner's tables key on it).</summary>
     public static class DungeonTypes
     {
+        /// <summary>A natural cave (W-115): sockets from its chambers, passages and pools (CaveSockets). 0 is the spawner's Cave row.</summary>
+        public const ushort Cave = 0;
         public const ushort SunkenTemple = 1;
     }
 
