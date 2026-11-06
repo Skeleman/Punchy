@@ -54,8 +54,6 @@ namespace Punchy.Fauna
         public float CritterRadius = 50f, CritterLetGo = 65f;
 
         readonly List<CreatureSpecies> species = new List<CreatureSpecies>();
-        /// <summary>Settlements' dogs, cats, chickens and pigeons (from Resources).</summary>
-        DomesticTable domestics;
         readonly List<BlobAssetReference<CreatureBlob>> blobs = new List<BlobAssetReference<CreatureBlob>>();
         BiomeDefinition[] biomes;
         LandmarkType[] landmarks;
@@ -127,8 +125,7 @@ namespace Punchy.Fauna
         /// <summary>Critter spots with an animal on its way.</summary>
         readonly HashSet<uint> pendingCritterSpots = new HashSet<uint>();
         EntityArchetype plainArchetype;
-        /// <summary>The critter species (Resources/Critters), and which critter spots are taken, by whom.</summary>
-        CritterTable critterTable;
+        /// <summary>Which critter spots are taken, by whom (the species come from the overworld spawn table).</summary>
         readonly Dictionary<uint, Entity> critters = new Dictionary<uint, Entity>();
         readonly List<AmbientLife.CritterSpot> critterSpots = new List<AmbientLife.CritterSpot>();
         /// <summary>
@@ -416,20 +413,12 @@ namespace Punchy.Fauna
                 if (landmark != null)
                     foreach (var r in landmark.Residents)
                         AddSpecies(r.Species);
-            critterTable = Resources.Load<CritterTable>("Critters");
-            if (critterTable != null)
-                foreach (var c in critterTable.All())
-                    AddSpecies(c);
-            domestics = Resources.Load<DomesticTable>("Domestics");
-            Debug.Log($"FaunaDirector: domestic animals table {(domestics != null ? domestics.Entries.Count + " entries" : "missing")}");
-            if (domestics != null)
-            {
-                foreach (var d in domestics.Entries)
-                    AddSpecies(d.Species);
-                if (domestics.CaveFolk != null)
-                    foreach (var c in domestics.CaveFolk)
-                        AddSpecies(c);
-            }
+            // A-80: critters, wild folk, messengers, settlement animals and cave folk all come from the overworld table.
+            overworld = OverworldTable;
+            SpawnTable.Palette = biomes;
+            Debug.Log($"FaunaDirector: overworld spawn table {(overworld != null ? overworld.Rows.Count + " rows" : "missing")}");
+            foreach (var s in OverworldSpecies(overworld))
+                AddSpecies(s);
             // The index is how the network names a species, so it must mean the same animal on every machine: sort by
             // asset name, and refuse to network if two share one.
             species.Sort((a, b) => string.CompareOrdinal(a.name, b.name));
@@ -1093,8 +1082,8 @@ namespace Punchy.Fauna
             if (!source.Anchors.IsCreated || simWorld == null)
                 return;
             var em = simWorld.EntityManager;
-            var human = RoleIndex(DirectorRole.Folk);
-            var hermit = RoleIndex(DirectorRole.Hermit);
+            var human = TableSpecies(OverworldSlot.Camper, 0);
+            var hermit = TableSpecies(OverworldSlot.Hermit, 0);
             if (hermit < 0)
                 hermit = human;
             if (human < 0)
@@ -1210,7 +1199,7 @@ namespace Punchy.Fauna
                 var village = NearestSettlement(ref set, c.Spot, out var gap);
                 var index = village >= 0 ? CrossingFolk(set.Settlements[village].Type) : -1;
                 if (index < 0)
-                    index = RoleIndex(DirectorRole.Folk);
+                    index = TableSpecies(OverworldSlot.CrossingFisher, (uint)i);
                 if (index < 0)
                     return;
                 var yaw = math.atan2(c.Face.x, c.Face.y);
@@ -1524,7 +1513,7 @@ namespace Punchy.Fauna
             var em = simWorld.EntityManager;
             if (honeyThief != Entity.Null && em.Exists(honeyThief))
                 return;
-            var human = RoleIndex(DirectorRole.Folk);
+            var human = TableSpecies(OverworldSlot.HoneyThief, 0);
             if (human < 0)
                 return;
             var player = players[rng.NextInt(players.Count)];
@@ -1584,7 +1573,7 @@ namespace Punchy.Fauna
                 if (flying)
                     return;
             }
-            var pigeon = RoleIndex(DirectorRole.Messenger);
+            var pigeon = TableSpecies(OverworldSlot.Messenger, 0);
             ref var set = ref source.Settlements.Value;
             if (pigeon < 0 || set.Settlements.Length < 2)
                 return;
@@ -1635,7 +1624,7 @@ namespace Punchy.Fauna
                 if (travelling >= 2)
                     return;
             }
-            var human = RoleIndex(DirectorRole.Folk);
+            var human = TableSpecies(OverworldSlot.Traveller, 0);
             if (human < 0)
                 return;
             ref var set = ref source.Settlements.Value;
@@ -1730,7 +1719,7 @@ namespace Punchy.Fauna
                 }
                 EndSettling();
             }
-            if (critterTable == null || simWorld == null || players.Count == 0)
+            if (overworld == null || simWorld == null || players.Count == 0)
                 return;
             if (!critterSource.Equals(source))
             {
@@ -1784,7 +1773,7 @@ namespace Punchy.Fauna
 
         void SpawnCritters(in TerrainSource source)
         {
-            if (critterTable == null || simWorld == null || species.Count == 0)
+            if (overworld == null || simWorld == null || species.Count == 0)
                 return;
             var em = simWorld.EntityManager;
             if (floraQuery.IsEmpty)
@@ -1852,22 +1841,10 @@ namespace Punchy.Fauna
                     if (d > CritterRadius || d < 6f || critters.ContainsKey(spot.Id) || pendingCritterSpots.Contains(spot.Id))
                         continue;
                     var kind = spot.Kind;
-                    // (Owls and frogs come out at night; songbirds, woodpeckers and gulls by day; mice and the wharves' fish either.)
-                    var day = night < 0.4f;
-                    if ((kind == AmbientLife.CritterKind.Owl || kind == AmbientLife.CritterKind.Frog) == day && kind != AmbientLife.CritterKind.Mouse &&
-                        kind != AmbientLife.CritterKind.Fish)
-                        continue;
-                    var sp = kind switch
-                    {
-                        AmbientLife.CritterKind.Songbird => critterTable.Songbird,
-                        AmbientLife.CritterKind.Woodpecker => critterTable.Woodpecker,
-                        AmbientLife.CritterKind.Owl => critterTable.Owl,
-                        AmbientLife.CritterKind.Frog => critterTable.Frog,
-                        AmbientLife.CritterKind.Gull => critterTable.Gull,
-                        AmbientLife.CritterKind.Fish => critterTable.WharfFish,
-                        _ => critterTable.Mouse
-                    };
-                    var index = SpeciesIndex(sp);
+                    // (The table's rows say when: owls and frogs at night; songbirds, woodpeckers and gulls by day; mice
+                    // and the wharves' fish either.)
+                    var phase = night < 0.4f ? DayPhase.Day : DayPhase.Night;
+                    var index = TableSpecies(CritterSlot(kind), spot.Id, phase);
                     if (index < 0)
                         continue;
                     var at = spot.Position;
@@ -1898,12 +1875,13 @@ namespace Punchy.Fauna
         /// <summary>The settlement's domestic animals, about its middle, homed on it and leashed to it.</summary>
         void SpawnDomestics(in TerrainSource source, LandmarkType settlement, float2 centre, float radius)
         {
-            if (domestics == null)
+            if (overworld == null)
                 return;
-            foreach (var d in domestics.Entries)
+            // (Every Domestic row for this kind of settlement, in table order; the table matches the landmark by name.)
+            foreach (var ri in TableRows(OverworldSlot.Domestic, settlement).ToArray())
             {
-                // By name: the palette's landmark types (baked into the world subscene) aren't the same objects as the table's.
-                if (d.Settlement == null || d.Species == null || d.Settlement.name != settlement.name)
+                var d = overworld.Rows[ri];
+                if (d.Species == null)
                     continue;
                 var index = SpeciesIndex(d.Species);
                 if (index < 0)

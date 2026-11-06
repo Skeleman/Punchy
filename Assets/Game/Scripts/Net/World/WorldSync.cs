@@ -461,10 +461,11 @@ namespace Punchy.Net
             }
             // (The settlements' animals and hunters too: FaunaDirector's table is exactly these names, sorted, so this
             // fixes every creature index the network sends.)
-            var domestics = Resources.Load<Punchy.Fauna.DomesticTable>("Domestics");
-            if (domestics != null)
-                foreach (var d in domestics.Entries)
-                    if (d.Species != null) species.Add(d.Species.name);
+            // (A-80: they're the overworld spawn table's Domestic rows now.)
+            var table = Punchy.Fauna.FaunaDirector.OverworldTable;
+            if (table != null)
+                foreach (var d in table.Rows)
+                    if (d.Species != null && d.Kind == (int)Punchy.Fauna.OverworldSlot.Domestic) species.Add(d.Species.name);
             foreach (var s in species)
                 Add(s);
             if (Avatars != null)
