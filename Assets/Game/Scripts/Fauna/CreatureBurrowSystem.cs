@@ -57,6 +57,17 @@ namespace Punchy.Fauna
         Dictionary<Entity, bool> wasOut = new Dictionary<Entity, bool>();
         Dictionary<Entity, bool> nowOut = new Dictionary<Entity, bool>();
         readonly Dictionary<Entity, float2> lastBump = new Dictionary<Entity, float2>();
+        readonly List<Entity> stale = new List<Entity>();
+
+        /// <summary>Drops the marks at least life old, keeping the rest in order.</summary>
+        static void Expire(List<Mark> marks, float now, float life)
+        {
+            var kept = 0;
+            for (int i = 0; i < marks.Count; i++)
+                if (now - marks[i].Born < life)
+                    marks[kept++] = marks[i];
+            marks.RemoveRange(kept, marks.Count - kept);
+        }
 
         protected override void OnCreate()
         {
@@ -69,8 +80,9 @@ namespace Punchy.Fauna
             var cam = Camera.main;
             var now = UnityEngine.Time.time;
             count = 0;
-            bumps.RemoveAll(m => now - m.Born >= TrailTime);
-            craters.RemoveAll(m => now - m.Born >= CraterTime);
+            // (Kept in order by hand, not RemoveAll: its lambda caught now, a closure and a delegate every frame.)
+            Expire(bumps, now, TrailTime);
+            Expire(craters, now, CraterTime);
             if (cam != null && SystemAPI.TryGetSingleton<TerrainSource>(out var terrain))
             {
                 float3 camAt = cam.transform.position;
@@ -110,7 +122,7 @@ namespace Punchy.Fauna
                 // (Worms gone from view: forget them, keeping their marks.)
                 if (lastBump.Count > wasOut.Count)
                 {
-                    var stale = new List<Entity>();
+                    stale.Clear();
                     foreach (var kv in lastBump)
                         if (!wasOut.ContainsKey(kv.Key))
                             stale.Add(kv.Key);

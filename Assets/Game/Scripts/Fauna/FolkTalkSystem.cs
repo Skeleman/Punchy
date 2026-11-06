@@ -79,6 +79,14 @@ namespace Punchy.Fauna
         public static bool LogStances;
         int stanceTableFor = -1;
 
+        /// <summary>A species' body kind's name (for the ghost check), cached per species index.</summary>
+        string BodyName(int species)
+        {
+            if (!bodyNames.TryGetValue(species, out var name))
+                bodyNames[species] = name = director.SpeciesAt(species)?.Body.name;
+            return name;
+        }
+
         void LogStanceTable(int playerIndex)
         {
             stanceTableFor = playerIndex;
@@ -109,6 +117,11 @@ namespace Punchy.Fauna
         IdleAction emoted;
         float emotedAt = -100f;
         readonly List<Entity> stale = new List<Entity>();
+        /// <summary>The player's body names for the species index namedPlayer (-1: none yet), and each species' body
+        /// kind's name: Object.name allocates, so these are read once, not every frame.</summary>
+        int namedPlayer = -1;
+        string namedSpecies, namedKind;
+        readonly Dictionary<int, string> bodyNames = new Dictionary<int, string>();
         float nextAny;
         Unity.Mathematics.Random rng = new Unity.Mathematics.Random(0x7A1C);
         /// <summary>Each settlement's name (null for none), worked out once per archive.</summary>
@@ -151,10 +164,17 @@ namespace Punchy.Fauna
                 if (states[i].Mode == CreatureMode.Puppet && math.distancesq(states[i].Position, player) < nearestPuppet)
                 {
                     nearestPuppet = math.distancesq(states[i].Position, player);
-                    var body = director.SpeciesAt(bodies[i].Species);
-                    playerSpecies = DialogueArchive.Spoken(body?.name);
-                    playerKind = body?.Body.name;
                     playerIndex = bodies[i].Species;
+                    if (playerIndex != namedPlayer)
+                    {
+                        // (Object.name allocates a string each read: worked out once per body the player takes.)
+                        var body = director.SpeciesAt(playerIndex);
+                        namedPlayer = playerIndex;
+                        namedSpecies = DialogueArchive.Spoken(body?.name);
+                        namedKind = body?.Body.name;
+                    }
+                    playerSpecies = namedSpecies;
+                    playerKind = namedKind;
                     if (states[i].Action >= IdleAction.Wave && states[i].Action <= IdleAction.Dance)
                     {
                         emoted = states[i].Action;
@@ -186,7 +206,7 @@ namespace Punchy.Fauna
                         Shown[k] = said;
                     }
                 // (A ghost speaks only to a ghost: a player in a ghost's body.)
-                var spirit = b.Haunts && playerKind != null && playerKind == director.SpeciesAt(bodies[i].Species)?.Body.name;
+                var spirit = b.Haunts && playerKind != null && playerKind == BodyName(bodies[i].Species);
                 // Starting to answer the player's emote just now (one of theirs, a moment ago, nearby): a line for it.
                 var answering = false;
                 if ((b.Upright && b.Hands || spirit) && s.Mode != CreatureMode.Puppet && math.distancesq(s.Position, player) < AnswerReach * AnswerReach)
@@ -525,6 +545,8 @@ namespace Punchy.Fauna
     {
         static FolkTalkLabels instance;
         GUIStyle style, shadow, bubble;
+        /// <summary>One content reused for measuring each line (a new GUIContent per line was garbage every frame).</summary>
+        readonly GUIContent measure = new GUIContent();
         /// <summary>Draw the talk bubbles even with the HUD hidden ("-nohud" sets InteractionPrompt.Hidden): "-chatshot"
         /// turns it on, since the bubble is what that shot is for (A-32: A-31's talk shots had none for this reason).</summary>
         public static bool BubblesWithoutHud;
@@ -536,6 +558,7 @@ namespace Punchy.Fauna
             var go = new GameObject("FolkTalkLabels");
             DontDestroyOnLoad(go);
             instance = go.AddComponent<FolkTalkLabels>();
+            instance.useGUILayout = false; // (no GUILayout here: skips IMGUI's layout pass and its garbage, A-82)
             instance.enabled = false;
         }
 
@@ -586,7 +609,8 @@ namespace Punchy.Fauna
                 var size = Mathf.RoundToInt(Screen.height / 42f * Mathf.Clamp(6f / screen.z, 0.6f, 1.2f));
                 style.fontSize = shadow.fontSize = size;
                 var width = Mathf.Min(Screen.width * 0.3f, size * 18f);
-                var height = style.CalcHeight(new GUIContent(said.Text), width);
+                measure.text = said.Text;
+                var height = style.CalcHeight(measure, width);
                 var rect = new Rect(screen.x - width / 2f, Screen.height - screen.y - height, width, height);
                 style.normal.textColor = new Color(1f, 0.97f, 0.88f, fade);
                 shadow.normal.textColor = new Color(0f, 0f, 0f, 0.75f * fade);
@@ -610,7 +634,8 @@ namespace Punchy.Fauna
                 var dots = text == "...";
                 var size = Mathf.RoundToInt(Screen.height / (dots ? 34f : 48f) * Mathf.Clamp(5f / screen.z, 0.5f, 1.3f));
                 bubble.fontSize = size;
-                var width = dots ? size * 2.2f : bubble.CalcSize(new GUIContent(text)).x + size * 1.4f;
+                measure.text = text;
+                var width = dots ? size * 2.2f : bubble.CalcSize(measure).x + size * 1.4f;
                 var rect = new Rect(screen.x - width * 0.5f, Screen.height - screen.y - size * 1.6f, width, size * (dots ? 1.2f : 1.6f));
                 GUI.Label(rect, text, bubble);
             }

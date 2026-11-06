@@ -130,7 +130,7 @@ namespace Punchy.Fauna
             // W-90 (#84): time the frames that schedule a re-lay and the frame after (which lands it), to show the
             // stall is gone. Logged for the first few re-lays only.
             int before = FarShadow.LaysScheduled;
-            var watch = System.Diagnostics.Stopwatch.StartNew();
+            watch.Restart();
             DrawFarShadows();
             bool laid = FarShadow.LaysScheduled != before;
             if ((laid || landing) && relayLogs < 12)
@@ -145,6 +145,10 @@ namespace Punchy.Fauna
 
         bool landing;
         int relayLogs;
+        // (Reused: a new Stopwatch, and a new terrain query, every frame were garbage, A-82.)
+        readonly System.Diagnostics.Stopwatch watch = new System.Diagnostics.Stopwatch();
+        Unity.Entities.World terrainWorld;
+        EntityQuery terrainQuery;
 
         /// <summary>
         /// Past the real shadow distance every colossus (these and the Dunes one) still casts, through a far shadow
@@ -157,7 +161,11 @@ namespace Punchy.Fauna
             var world = Unity.Entities.World.DefaultGameObjectInjectionWorld;
             if (world == null || !world.IsCreated)
                 return;
-            using var terrainQuery = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
+            if (terrainWorld != world)
+            {
+                terrainWorld = world;
+                terrainQuery = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
+            }
             if (!terrainQuery.TryGetSingleton(out TerrainSource source))
                 return;
             int slots = roots.Length;
