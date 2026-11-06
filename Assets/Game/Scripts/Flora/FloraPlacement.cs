@@ -896,6 +896,8 @@ namespace Punchy.Flora
         /// <summary>W-91 (#36): how far out from its ring spot a dock is checked for river water (it slides up to 14 m
         /// out to the waterline, then its deck runs up to ~19 m further).</summary>
         const float RiverDockReach = 30f;
+        /// <summary>W-109: a dock's or wharf's real run from its DockShore start: the longest deck plus a wharf's end walk.</summary>
+        const float DockDeckReach = DockMaxLength + 3.5f;
 
         /// <summary>
         /// The floor a plot's building stands at: the average ground over its footprint (the middle and four points
@@ -1482,8 +1484,15 @@ namespace Punchy.Flora
                                     return none;
                                 // W-91 (#36): houses, stilt houses, docks and wharfs stand by the sea or a lake, never in a
                                 // river: a plot on river water (a dock along its whole run out) stays empty (no draws moved).
+                                // W-109: the 30 m reach from the ring spot is a cautious bound; a dock or wharf it flags
+                                // is still built when its real deck (from DockShore's start out to the longest deck plus
+                                // the wharf's end walk) stays off the river. The island bake checks before the rough
+                                // riverbanks are on (TerrainAuthoring), so a mouth that widens later took village 1's
+                                // wharf at -2172,3743. Only adds: every dock or wharf the old test kept stays put.
                                 if (!footprint && (placedRule.House != 0 || placedRule.FaceLandmark == 2) &&
-                                    LandmarkSampling.OnRiver(source, spot, set.Instances[landmark.Instance].Facing, placedRule.FaceLandmark == 2 ? RiverDockReach : 0f))
+                                    LandmarkSampling.OnRiver(source, spot, set.Instances[landmark.Instance].Facing, placedRule.FaceLandmark == 2 ? RiverDockReach : 0f) &&
+                                    (placedRule.FaceLandmark != 2 ||
+                                     LandmarkSampling.OnRiver(source, DockShore(source, spot, set.Instances[landmark.Instance].Facing).xz, set.Instances[landmark.Instance].Facing, DockDeckReach)))
                                     return none;
                                 // W-62c: no spire near a landing pier's far end (no draws moved: the cell just stays empty).
                                 if (placedRule.PierClear != 0 && PierEndDistance(ref f, source, spot) < PierEndClear * prop.Scale.y)
