@@ -2881,3 +2881,12 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
 - Move-only: a line multiset diff against HEAD shows only the class declaration changed (added `partial`); every other added line is a using, namespace, brace, part comment or partial declaration. Line endings kept per original (DebugControls LF, FloraGenerator CRLF), no static initializers that depend on each other across files.
 - Suite 13 passed, 0 failed. Landmarks_V3 110 09EAC0FE, Fauna_Fingerprint 90AC5F60, both unchanged.
 - Risk: lanes with open edits to either file will conflict; rebasing means moving the hunk into the matching part file.
+
+## W-116 row 2 — biome tags: done (verified)
+- Commit 6d04d55 on world-features. Ready to merge.
+- BiomeDefinition now has Family (Arid, Wet, Cold, Volcanic, Temperate), FamilyOrder and free Tags; constants and lookups in BiomeTags.cs (First, InFamily, Tagged). All 19 biome assets tagged.
+- Switched to tags: IslandV2 realm picks, ridge biomes and the archipelago coast (and V3Ground), GrandFalls, Iceberg, Mantrap, the Ember Forest fire, glade butterflies, the meadow debug place.
+- FamilyOrder reproduces each family's old name-list order, so realm picks are identical. **A new biome must set Family and FamilyOrder** or it never joins a realm.
+- New test BiomeLiteralTests: fails on any biome asset name quoted in non-Editor game code. Allow-list is StoneColossi.cs and DunesColossus.cs, left for A-81 (colossus work). `git grep` shows literals only there.
+- Suite 14 passed, 0 failed. Landmarks_V3 110 09EAC0FE, Fauna_Fingerprint 90AC5F60, both unchanged.
+- Risk: Mantrap.cs (Fauna folder) and CritterSystem.cs are edited on the world branch; other lanes touching them will conflict.
