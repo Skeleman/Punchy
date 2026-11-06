@@ -2954,3 +2954,20 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
 - Pins: Landmarks_V3 111 3BDF705F and Fauna_Fingerprint 8A1979F1 both pass, unchanged. Cave hash now
   9A3D3E91E47A0F21 (editor CaveBench, baked = fresh); it changes because rooms carve new rock.
 - Shots: Assets/Temp/shots/w115-{grotto,lake,roost,ruin}-{inside,back,approach,door}.png.
+
+## W-115 row 3 — destination chambers placed per cave: done (verified)
+- Commit dcdd87d on world-features (pushed). Placement was built in row 2 (CaveBaking.Rooms.PlaceRooms): each cave
+  rolls from its own key whether its main passage's end chamber becomes a room (style RoomChance 0.45-0.6), and big
+  networks (2+ free dead ends) roll for one side chamber at half that chance. The type comes from the style's
+  RoomWeights (Ice and Crystal favour grottos, Sandstone and Mine ruin rooms, LavaTube never lakes, Ice never roosts).
+  Bat folk chambers (wide) and stream ends stay as they are. A room is kept only where it fits in rock.
+- New in row 3: buried ruin room sockets carry DungeonTypes.Ruin (3), so the spawner fills them from the ruin rows
+  (v3: 5 sockets -> Bat, ChestLarge, Cobweb, Sconce, Lever). All other cave sockets keep the Cave rows (0), which
+  A-80 already gave the table. Each socket has its biome and chamber/room tags (Grotto, Lake, Roost, RuinRoom added
+  at the end of SocketTags in row 2). DungeonSpawner and the tables are untouched.
+- Counts on v3: 12 planned, 9 kept in 8 of 25 caves: grotto 4, lake 2, roost 2, ruin 1. v2: 9 planned, 7 kept:
+  grotto 2, lake 1, roost 2, ruin 2. Cave sockets on v3: 503 (459 before rooms), hash 567CEA4C, the same on two runs.
+- -goto spots (v3), one per type: grotto `-goto -1931,95,2329`, lake `-goto -2181,31,3229`, roost
+  `-goto 1558,8,-2691`, ruin `-goto -238,9,-3204`.
+- Pins: Landmarks_V3 111 3BDF705F and Fauna_Fingerprint 8A1979F1 pass, unchanged. Cave hash 9A3D3E91E47A0F21 (as row 2).
+- Shot: Assets/Temp/shots/w115r3-ruin-inside.png (the ruin room in play, its chest placeholder in the middle).
