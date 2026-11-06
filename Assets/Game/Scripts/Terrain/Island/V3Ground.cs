@@ -52,17 +52,8 @@ namespace Punchy.Terrain
         {
             const int N = V2.N; const float PX = V2.PX, W = V2.WorldSizeM, coastWobble = 0.14f;
             V2.PickRealms(out var sites, out var fam, out uint seed, out _);
-            var ids = new Dictionary<string, int>();
-            for (int i = 0; i < palette.Count; i++) if (palette[i] != null) ids[palette[i].name] = i;
             int oceanId = hasOcean ? palette.Count - 1 : 0;
-            var pick = new Dictionary<V2.Family, int[]>();
-            foreach (var kv in V2.BiomeNames)
-            {
-                var list = new List<int>();
-                foreach (var n in kv.Value) if (ids.TryGetValue(n, out var id) && id != oceanId) list.Add(id);
-                if (list.Count == 0) list.Add(0);
-                pick[kv.Key] = list.ToArray();
-            }
+            var pick = V2.FamilyPicks(palette, oceanId);
 
             var passes = V3Ranges.Passes; var spines = V3Ranges.Spines;
             var biomeIds = new byte[N * N]; var blend = new byte[N * N]; var family = new byte[N * N]; var corridor = new byte[N * N]; var zone = new byte[N * N];

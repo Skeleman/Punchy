@@ -162,6 +162,9 @@ namespace Punchy.Terrain
         void OnEnable()
         {
             Punchy.Net.GameBootstrap.WorldsReplacing += ReleaseWorld;
+            // Quitting (or leaving play mode) frees the TerrainSource blobs before this is disabled, and the surface
+            // glow's far scan job may still be reading them: finish every job first, while they are intact.
+            Application.quitting += ReleaseWorld;
             if (detail == null)
                 detail = MakeDetail();
             Shader.SetGlobalTexture(DetailId, detail);
@@ -242,6 +245,7 @@ namespace Punchy.Terrain
         void OnDisable()
         {
             Punchy.Net.GameBootstrap.WorldsReplacing -= ReleaseWorld;
+            Application.quitting -= ReleaseWorld;
             Release();
         }
 

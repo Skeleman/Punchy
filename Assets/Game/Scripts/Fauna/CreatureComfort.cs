@@ -10,9 +10,6 @@ namespace Punchy.Fauna
     /// <summary>What is making a creature uncomfortable (A-71), worst first in CreatureMind.DiscomfortKind.</summary>
     public enum ComfortKind : byte { None, Hot, Dry, Cold, Rain, Snow, Storm, Bright, Wind }
 
-    /// <summary>Which folk a comfort profile and its lines belong to (A-71); None for animals.</summary>
-    public enum ComfortRace : byte { None, Human, Elf, Dwarf, Goblin, Ogre, BatFolk, FishFolk, Pygmy, Hermit, Ghost }
-
     /// <summary>The kinds of shelter a creature looks for when uncomfortable (A-71 row 2).</summary>
     [System.Flags]
     public enum ShelterNeed : byte { None = 0, Roof = 1, Tree = 2, Water = 4, Fire = 8, Shade = 16, Cave = 32 }
@@ -29,7 +26,8 @@ namespace Punchy.Fauna
         public float Rain, Snow, Storm, Bright, Wind, Dry;
         public float Tolerance;
         public ShelterNeed Seeks;
-        public ComfortRace Race;
+        /// <summary>The folk race's id (FolkRace.Id, A-81 row 2), 0 for animals; behaviour asks FolkRaces.Has for its traits.</summary>
+        public byte Race;
         /// <summary>False for anything that never minds the weather (fish, ghosts, rooted plants).</summary>
         public bool Minds;
     }
@@ -83,52 +81,74 @@ namespace Punchy.Fauna
 
         static Punchy.Weather.WeatherSystem weather;
         static float nextRefresh;
+        // (A-81 row 5: the sweep in progress, filled a row a frame and published whole when done; row -1 = none.)
+        static ComfortGrid next;
+        static int nextRow = -1, lastFrame = -1;
+
+        /// <summary>Whether a sweep is being filled (the first grid isn't Ready until it's done).</summary>
+        public static bool Sweeping => nextRow >= 0;
 
         /// <summary>
         /// Samples the grid round the players' middle once a second (FaunaDirector.Update). Without weather (none in
-        /// the scene yet) the sky stays clear; climate still comes from the terrain.
+        /// the scene yet) the sky stays clear; climate still comes from the terrain. The 225 samples (WeatherField and
+        /// the climate are managed, about 40 us each) are spread over the frames, one row of the grid a frame, into a
+        /// second grid that replaces the live one once complete, so the brain never reads a half-filled grid and no
+        /// frame pays more than a row (A-81 row 5: it was 8-25 ms in one frame every second). Called from two places
+        /// (FaunaDirector, and WeatherTalkSystem on a joined client); only one row is done per frame either way.
         /// </summary>
         public static void Refresh(List<float3> players, in TerrainSource terrain)
         {
             if (nextRefresh > Time.time + 1f)
+            {
                 nextRefresh = 0f; // (a new play: the clock went back, and statics outlive a play with domain reload off)
-            if (players.Count == 0 || Time.time < nextRefresh)
+                nextRow = -1;
+            }
+            if (players.Count == 0 || Time.frameCount == lastFrame)
                 return;
-            nextRefresh = Time.time + 1f;
+            if (nextRow < 0)
+            {
+                if (Time.time < nextRefresh)
+                    return;
+                nextRefresh = Time.time + 1f;
+                var centre = float2.zero;
+                foreach (var p in players)
+                    centre += p.xz;
+                centre /= players.Count;
+                next.Sky.Clear();
+                next.Ground.Clear();
+                next.Origin = centre - (Size - 1) * 0.5f * ComfortGrid.Spacing;
+                nextRow = 0;
+            }
+            lastFrame = Time.frameCount;
             if (weather == null)
                 weather = Object.FindFirstObjectByType<Punchy.Weather.WeatherSystem>();
             var field = weather != null ? weather.Field : null;
             var ready = field != null && field.Ready;
-            var centre = float2.zero;
-            foreach (var p in players)
-                centre += p.xz;
-            centre /= players.Count;
-            var origin = centre - (Size - 1) * 0.5f * ComfortGrid.Spacing;
-            ref var g = ref Grid.Data;
-            g.Sky.Clear();
-            g.Ground.Clear();
-            g.Origin = origin;
-            for (int z = 0; z < Size; z++)
-                for (int x = 0; x < Size; x++)
+            var z = nextRow;
+            for (int x = 0; x < Size; x++)
+            {
+                var xz = next.Origin + new float2(x, z) * ComfortGrid.Spacing;
+                var climate = HeatAt(terrain, xz);
+                var sky = float4.zero;
+                var sun = 1f;
+                if (ready)
                 {
-                    var xz = origin + new float2(x, z) * ComfortGrid.Spacing;
-                    var climate = HeatAt(terrain, xz);
-                    var sky = float4.zero;
-                    var sun = 1f;
-                    if (ready)
-                    {
-                        var v = field.Sample(xz);
-                        var rain = field.RainFraction(xz) * (1f - v.AlwaysSnow);
-                        sky = new float4(v.Precipitation * rain, v.Precipitation * (1f - rain), math.saturate(v.Wind),
-                                         math.saturate(math.max(v.Lightning / 3f, v.Hail)));
-                        sun = math.saturate(v.Sunlight * (1f - v.Overcast * 0.6f));
-                    }
-                    g.Sky.Add(sky);
-                    g.Ground.Add(new float4(math.saturate(climate.x + HeatShift.Data), climate.y, sun, 0f));
+                    var v = field.Sample(xz);
+                    var rain = field.RainFraction(xz) * (1f - v.AlwaysSnow);
+                    sky = new float4(v.Precipitation * rain, v.Precipitation * (1f - rain), math.saturate(v.Wind),
+                                     math.saturate(math.max(v.Lightning / 3f, v.Hail)));
+                    sun = math.saturate(v.Sunlight * (1f - v.Overcast * 0.6f));
                 }
+                next.Sky.Add(sky);
+                next.Ground.Add(new float4(math.saturate(climate.x + HeatShift.Data), climate.y, sun, 0f));
+            }
+            if (++nextRow < Size)
+                return;
+            nextRow = -1;
             var wind = weather != null ? (Vector2)weather.WindDirection : Vector2.right;
-            g.WindDirection = new float2(wind.x, wind.y);
-            g.Ready = 1;
+            next.WindDirection = new float2(wind.x, wind.y);
+            next.Ready = 1;
+            Grid.Data = next;
         }
 
         const int Size = ComfortGrid.Size;
@@ -330,51 +350,20 @@ namespace Punchy.Fauna
                 p.Rain = -0.5f;
                 p.Dry = 0.7f;
             }
-            // Folk races.
-            // (Hermit first: its body is the Human's.)
-            if (Is("Hermit"))
-                Folk(ref p, ComfortRace.Hermit, new float2(0.2f, 0.78f), rain: 0.3f, snow: 0.3f, storm: 0.5f, bright: 0f, wind: 0.15f, dry: 0.1f,
-                     ShelterNeed.Roof | ShelterNeed.Tree | ShelterNeed.Fire);
-            else if (Is("Human") || Is("HumanChild"))
-                Folk(ref p, ComfortRace.Human, new float2(0.28f, 0.72f), rain: 0.55f, snow: 0.5f, storm: 0.8f, bright: 0f, wind: 0.25f, dry: 0.1f,
-                     ShelterNeed.Roof | ShelterNeed.Tree | ShelterNeed.Fire);
-            else if (Is("Elf"))
-                Folk(ref p, ComfortRace.Elf, new float2(0.3f, 0.68f), rain: 0.25f, snow: 0.4f, storm: 0.6f, bright: 0f, wind: 0.2f, dry: 0.35f,
-                     ShelterNeed.Tree | ShelterNeed.Roof | ShelterNeed.Shade);
-            else if (Is("Dwarf"))
-                Folk(ref p, ComfortRace.Dwarf, new float2(0.2f, 0.62f), rain: 0.35f, snow: 0.2f, storm: 0.5f, bright: 0.3f, wind: 0.2f, dry: 0.1f,
-                     ShelterNeed.Roof | ShelterNeed.Cave | ShelterNeed.Fire);
-            else if (Is("Goblin"))
-                Folk(ref p, ComfortRace.Goblin, new float2(0.3f, 0.78f), rain: 0.45f, snow: 0.6f, storm: 0.7f, bright: 0.35f, wind: 0.3f, dry: 0f,
-                     ShelterNeed.Roof | ShelterNeed.Cave | ShelterNeed.Shade);
-            else if (Is("Ogre"))
-                Folk(ref p, ComfortRace.Ogre, new float2(0.42f, 0.9f), rain: 0.3f, snow: 0.7f, storm: 0.4f, bright: 0f, wind: 0.35f, dry: 0f,
-                     ShelterNeed.Fire | ShelterNeed.Roof);
-            else if (Is("BatFolk"))
-                Folk(ref p, ComfortRace.BatFolk, new float2(0.2f, 0.7f), rain: 0.3f, snow: 0.4f, storm: 0.5f, bright: 1f, wind: 0.2f, dry: 0.2f,
-                     ShelterNeed.Shade | ShelterNeed.Cave | ShelterNeed.Tree | ShelterNeed.Roof);
-            else if (Is("FishFolk"))
-                Folk(ref p, ComfortRace.FishFolk, new float2(0.15f, 0.7f), rain: -0.5f, snow: 0.3f, storm: 0.3f, bright: 0.2f, wind: 0.15f, dry: 1f,
-                     ShelterNeed.Water | ShelterNeed.Shade);
-            else if (Is("CavePygmy"))
-                Folk(ref p, ComfortRace.Pygmy, new float2(0.3f, 0.7f), rain: 0.35f, snow: 0.5f, storm: 1f, bright: 0.4f, wind: 0.3f, dry: 0.1f,
-                     ShelterNeed.Cave | ShelterNeed.Roof | ShelterNeed.Tree);
-            else if (Is("Ghost"))
-                p = new ComfortProfile { Race = ComfortRace.Ghost };
+            // Folk races (A-81 row 2: their tastes are data, in Resources/Races).
+            var race = FolkRaces.Of(name, body);
+            if (race != null && !race.Minds)
+                p = new ComfortProfile { Race = race.Id };
+            else if (race != null)
+                p = new ComfortProfile
+                {
+                    Race = race.Id, Heat = new float2(race.Heat.x, race.Heat.y), Rain = race.Rain, Snow = race.Snow, Storm = race.Storm,
+                    Bright = race.Bright, Wind = race.Wind, Dry = race.Dry, Tolerance = 0.08f, Seeks = race.Seeks, Minds = true
+                };
             // Nothing that swims, never moves or is a ghost minds the weather.
             if (s.Habitat == Habitat.Swims || s.Rooted || s.Disguised || s.Haunts || s.Tunnels || s.LavaDweller)
                 p.Minds = false;
             return p;
-        }
-
-        static void Folk(ref ComfortProfile p, ComfortRace race, float2 heat, float rain, float snow, float storm, float bright, float wind,
-                         float dry, ShelterNeed seeks)
-        {
-            p = new ComfortProfile
-            {
-                Race = race, Heat = heat, Rain = rain, Snow = snow, Storm = storm, Bright = bright, Wind = wind, Dry = dry,
-                Tolerance = 0.08f, Seeks = seeks, Minds = true
-            };
         }
     }
 }

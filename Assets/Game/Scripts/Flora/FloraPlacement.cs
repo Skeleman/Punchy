@@ -1402,28 +1402,32 @@ namespace Punchy.Flora
         public static float CellSize(float tileSize, float cellSize) => tileSize / math.round(tileSize / cellSize);
 
         /// <summary>
+        /// A-81 row 1: circles (x, z, radius, on) where no flora is placed, one per stone colossus slot (#40), set at
+        /// runtime by StoneColossi and moved by ColossusWalker. Room for 31, so a new colossus needs no new static.
+        /// </summary>
+        public static readonly SharedStatic<FixedList512Bytes<float4>> ColossusKeepOut = SharedStatic<FixedList512Bytes<float4>>.GetOrCreate<ColossusKeepOutKey>();
+        // Keyed apart from the old fixed four-circle statics: a live editor can't resize a SharedStatic it already made.
+        class ColossusKeepOutKey { }
+
+        /// <summary>Sets one colossus slot's keep-out circle (z radius, w on), growing the list to reach it.</summary>
+        public static void SetKeepOut(int slot, float4 circle)
+        {
+            ref var list = ref ColossusKeepOut.Data;
+            while (list.Length <= slot)
+                list.Add(default);
+            list[slot] = circle;
+        }
+
+        /// <summary>#132: 1 turns Blocked's wall-reach skip off (DebugControls "-oldwalls"), for A/B timing.</summary>
+        public static readonly SharedStatic<int> OldWalls = SharedStatic<int>.GetOrCreate<OldWallsKey>();
+        class OldWallsKey { }
+
+        /// <summary>
         /// The plant growing in one cell of a layer's grid (Model -1 if none). With <paramref name="footprint"/>, a town's
         /// building or a landmark's placed prop comes back with only what its walls need (Position.xz, Yaw, Scale, Model,
         /// exactly as without), leaving out its floor height and ground colour, which sample the ground round it and cost
         /// most of the call (Blocked asks on every step of every animal in town). Other plants are placed in full.
         /// </summary>
-        /// <summary>Up to four circles (x, z, radius, on) where no flora is placed: the stone colossi (#40), set at runtime.</summary>
-        public static readonly SharedStatic<float4x4> KeepOut = SharedStatic<float4x4>.GetOrCreate<KeepOutCircles>();
-        // Keyed apart from the old two-circle static: a live editor can't resize a SharedStatic it already made.
-        class KeepOutCircles { }
-        /// <summary>Four more circles for colossi past the fourth (W-85 drowned knight).</summary>
-        public static readonly SharedStatic<float4x4> KeepOutMore = SharedStatic<float4x4>.GetOrCreate<KeepOutCirclesMore>();
-        class KeepOutCirclesMore { }
-        /// <summary>Four more circles for colossi past the eighth (W-106 mesa tortoise).</summary>
-        public static readonly SharedStatic<float4x4> KeepOutLast = SharedStatic<float4x4>.GetOrCreate<KeepOutCirclesLast>();
-        class KeepOutCirclesLast { }
-        /// <summary>Four more circles for colossi past the twelfth (A-79 mire walker).</summary>
-        public static readonly SharedStatic<float4x4> KeepOutFinal = SharedStatic<float4x4>.GetOrCreate<KeepOutCirclesFinal>();
-        class KeepOutCirclesFinal { }
-        /// <summary>#132: 1 turns Blocked's wall-reach skip off (DebugControls "-oldwalls"), for A/B timing.</summary>
-        public static readonly SharedStatic<int> OldWalls = SharedStatic<int>.GetOrCreate<OldWallsKey>();
-        class OldWallsKey { }
-
         public static FloraSystem.FloraInstance Place(ref FloraBlob f, in TerrainSource source, int2 cell, int layer, bool footprint = false)
         {
             var none = new FloraSystem.FloraInstance { Model = -1 };
@@ -1431,22 +1435,13 @@ namespace Punchy.Flora
             var rng = new Random(math.hash(new int3(cell, layer * 7919 + 13)) | 1u);
             var xz = ((float2)cell + rng.NextFloat2()) * cellSize;
             // Nothing grows through a stone colossus (#40): each one keeps a clear circle round it.
-            var keepOut = KeepOut.Data;
-            for (int k = 0; k < 4; k++)
-                if (keepOut[k].w > 0f && math.distancesq(xz, keepOut[k].xy) < keepOut[k].z * keepOut[k].z)
+            ref var keepOut = ref ColossusKeepOut.Data;
+            for (int k = 0; k < keepOut.Length; k++)
+            {
+                var c = keepOut[k];
+                if (c.w > 0f && math.distancesq(xz, c.xy) < c.z * c.z)
                     return none;
-            var keepMore = KeepOutMore.Data;
-            for (int k = 0; k < 4; k++)
-                if (keepMore[k].w > 0f && math.distancesq(xz, keepMore[k].xy) < keepMore[k].z * keepMore[k].z)
-                    return none;
-            var keepLast = KeepOutLast.Data;
-            for (int k = 0; k < 4; k++)
-                if (keepLast[k].w > 0f && math.distancesq(xz, keepLast[k].xy) < keepLast[k].z * keepLast[k].z)
-                    return none;
-            var keepFinal = KeepOutFinal.Data;
-            for (int k = 0; k < 4; k++)
-                if (keepFinal[k].w > 0f && math.distancesq(xz, keepFinal[k].xy) < keepFinal[k].z * keepFinal[k].z)
-                    return none;
+            }
             var roll = rng.NextFloat();
             var area = cellSize * cellSize / 100f;
             // Room for 31 (a four-biome border plus a landmark's props; a fuller list would silently drop species).

@@ -171,6 +171,9 @@ namespace Punchy.Terrain
         [Min(0f)] public float TowerHeight;
         [Tooltip("W-32: a one-per-island sunken temple (SunkenTempleShape) instead of a tower")]
         public bool Temple;
+        [Tooltip("W-114: the colossal skeletal ribcage (RibcageShape): drawn bones you walk under and between, ash drifts at the rib feet. " +
+                 "Placed by RibcageBaking (not OnePerIsland), in the largest patch of the biome tagged ribcage.")]
+        public bool Ribcage;
 
         [Header("Water")]
         public List<LandmarkPool> Pools = new List<LandmarkPool>();

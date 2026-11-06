@@ -991,9 +991,31 @@ namespace Punchy.Terrain
             return false;
         }
 
+        /// <summary>The Ashlands ribcage (W-114, RibcageShape) whose bones reach a point, if any.</summary>
+        public bool Ribcage(float2 xz, out RibcageLayout ribcage)
+        {
+            ribcage = default;
+            if (!Landmarks.IsCreated)
+                return false;
+            ref var set = ref Landmarks.Value;
+            var range = LandmarkSampling.CellRange(ref set, xz);
+            for (int k = range.x; k < range.x + range.y; k++)
+            {
+                var inst = set.Instances[set.Items[k]];
+                if (set.Types[inst.Type].Ribcage != 0 && math.distancesq(inst.Position, xz) < RibcageShape.Reach * RibcageShape.Reach)
+                {
+                    ribcage = RibcageShape.Layout(inst);
+                    return true;
+                }
+            }
+            return false;
+        }
+
         /// <summary>Whether the tower's body or a step too high to step onto stands where a body at p would be (W-27).</summary>
         public bool TowerWall(float3 p, float stepUp, float head) =>
             Tower(p.xz, out var tower, out var height) && SaltTowerShape.Wall(SaltTowerShape.Layout(tower, height), p, stepUp, head)
+            // W-114: the ribcage's bones (ribs, spine, skull, fallen ribs).
+            || Ribcage(p.xz, out var ribcage) && RibcageShape.Wall(ribcage, p, stepUp, head)
             || Temple(p.xz, out var temple) && SunkenTempleShape.Wall(ref Landmarks.Value, temple, p, stepUp, head, SampleHeight(p.xz) - temple.Base)
             || Icebergs.IsCreated && IcebergShape.Wall(ref Icebergs.Value, World.SeaLevel, p, stepUp, head)
             // #25 (W-83): an interior cell's walls (empty list: nothing).
@@ -1023,6 +1045,12 @@ namespace Punchy.Terrain
                 templeFloor > SampleHeight(p.xz) - 0.05f && (!onDeck || templeFloor > deck))
             {
                 deck = templeFloor;
+                onDeck = true;
+            }
+            // W-114: the tops of the ribcage's fallen ribs and its half-buried skull stand bodies too.
+            if (Ribcage(p.xz, out var ribcage) && RibcageShape.Floor(ribcage, p, out var bone) && (!onDeck || bone > deck))
+            {
+                deck = bone;
                 onDeck = true;
             }
             // #25 (W-83): an interior cell's floor (or any box top) stands bodies too (empty list: nothing).

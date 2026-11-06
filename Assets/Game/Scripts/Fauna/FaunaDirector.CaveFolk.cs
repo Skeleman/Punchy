@@ -39,11 +39,12 @@ namespace Punchy.Fauna
         /// <summary>The first chamber folk species that does (or doesn't) shun light, else the first chamber folk, or -1.</summary>
         int ChamberFolkIndex(bool shunsLight)
         {
-            if (domestics == null || domestics.CaveFolk == null)
+            if (overworld == null)
                 return -1;
             CreatureSpecies first = null;
-            foreach (var c in domestics.CaveFolk)
-                if (c != null && c.Body.ChamberFolk)
+            // (The overworld table's CaveFolk rows, in order.)
+            foreach (var ri in TableRows(OverworldSlot.CaveFolk))
+                if (overworld.Rows[ri].Species is { } c && c.Body.ChamberFolk)
                 {
                     if (c.Body.ShunsLight == shunsLight)
                         return SpeciesIndex(c);
@@ -316,7 +317,7 @@ namespace Punchy.Fauna
         /// <summary>For the log: how many settlements have fish folk residents (the FishingVillage kit's), and how many.</summary>
         void LogFishFolk(in TerrainSource source)
         {
-            if (domestics == null || !source.Landmarks.IsCreated)
+            if (overworld == null || !source.Landmarks.IsCreated)
                 return;
             ref var set = ref source.Landmarks.Value;
             int villages = 0, lo = 0, hi = 0;
@@ -326,8 +327,8 @@ namespace Punchy.Fauna
                 if (type >= landmarks.Length || landmarks[type] == null)
                     continue;
                 var any = false;
-                foreach (var d in domestics.Entries)
-                    if (d.Settlement != null && d.Species != null && d.Species.name == "FishFolk" && d.Settlement.name == landmarks[type].name)
+                foreach (var ri in TableRows(OverworldSlot.Domestic, landmarks[type]))
+                    if (overworld.Rows[ri] is { Species: { name: "FishFolk" } } d)
                     {
                         any = true;
                         lo += math.max(0, d.Count.x);

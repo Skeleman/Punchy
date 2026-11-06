@@ -333,9 +333,10 @@ namespace Punchy.Items
             chestSockets.Clear();
             var w = World.DefaultGameObjectInjectionWorld;
             var q = Q(w.EntityManager, ComponentType.ReadOnly<DungeonInfo>(), ComponentType.ReadOnly<DungeonSocket>());
-            if (q.IsEmpty)
+            var temple = Temple(q);
+            if (temple == Entity.Null)
                 return chestSockets;
-            var buffer = w.EntityManager.GetBuffer<DungeonSocket>(q.GetSingletonEntity(), true);
+            var buffer = w.EntityManager.GetBuffer<DungeonSocket>(temple, true);
             for (int i = 0; i < buffer.Length; i++)
                 if (buffer[i].Kind == SocketKind.Chest)
                     chestSockets.Add((i, buffer[i].Pos));
@@ -350,13 +351,25 @@ namespace Punchy.Items
             s = default;
             var w = World.DefaultGameObjectInjectionWorld;
             var q = Q(w.EntityManager, ComponentType.ReadOnly<DungeonInfo>(), ComponentType.ReadOnly<DungeonSocket>());
-            if (q.IsEmpty)
+            var temple = Temple(q);
+            if (temple == Entity.Null)
                 return false;
-            var buffer = w.EntityManager.GetBuffer<DungeonSocket>(q.GetSingletonEntity(), true);
+            var buffer = w.EntityManager.GetBuffer<DungeonSocket>(temple, true);
             if (socket < 0 || socket >= buffer.Length || buffer[socket].Kind != SocketKind.Chest)
                 return false;
             s = buffer[socket];
             return true;
+        }
+
+        /// <summary>The sunken temple's dungeon entity (caves have dungeon entities too, W-115), or Entity.Null.</summary>
+        static Entity Temple(EntityQuery q)
+        {
+            using var infos = q.ToComponentDataArray<DungeonInfo>(Allocator.Temp);
+            using var entities = q.ToEntityArray(Allocator.Temp);
+            for (int i = 0; i < infos.Length; i++)
+                if (infos[i].Type == DungeonTypes.SunkenTemple)
+                    return entities[i];
+            return Entity.Null;
         }
 
         void Pickup(int uid)

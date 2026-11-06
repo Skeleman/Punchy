@@ -248,12 +248,68 @@ namespace Punchy.Terrain
         {
             inst = default;
             var type = types[t];
-            var size = (int)(2f * Extent / Cell) + 1;
-            var count = size * size;
-            var listed = new NativeArray<byte>(palette.Count, Allocator.TempJob);
-            var any = false;
+            var listed = new byte[palette.Count];
             for (int b = 0; b < palette.Count; b++)
                 if (palette[b] != null && palette[b].Landmarks.Exists(l => l.Type == type))
+                    listed[b] = 1;
+            if (!FindSpot(source, types, listed, type.name, type.Radius, MaxRelief, 3.3f, placedSoFar, out var at, out var chosenRelief, out var chosenBase,
+                          out var bestSize, out var inFromEdge, out var why))
+            {
+                if (why != null)
+                {
+                    LastLog += (LastLog.Length > 0 ? "\n" : "") + why;
+                    UnityEngine.Debug.Log(LastLog);
+                }
+                return false;
+            }
+
+            var key = math.hash(new uint3(math.asuint(at.x), math.asuint(at.y), type.Temple ? 0x5E7Au : 0x7A3Bu)) | 1u;
+            var spin = BiomeSampling.Scramble(key);
+            var facing = (spin & 0xFFFF) * (2f * math.PI / 65536f);
+            inst = new LandmarkInstance
+            {
+                Position = at,
+                Facing = new float2(math.cos(facing), math.sin(facing)),
+                Scale = 1f,
+                Type = t,
+                BaseHeight = type.Temple ? TempleBase(source, at, new float2(math.cos(facing), math.sin(facing))) : chosenBase,
+                Seed = (BiomeSampling.Scramble(spin) >> 8) * (1f / 16777216f),
+                Key = key
+            };
+            if (type.Temple)
+            {
+                LastLog += (LastLog.Length > 0 ? "\n" : "") + $"[landmarks] {type.name} at {at.x:F1},{at.y:F1}: facing {math.degrees(facing):F0} deg, base {inst.BaseHeight:F1} " +
+                           $"(spot top {chosenBase:F1}), relief {chosenRelief:F2} m, patch {bestSize} cells, {inFromEdge:F0} m in from its edge";
+                UnityEngine.Debug.Log(LastLog);
+                return true;
+            }
+            var layout = SaltTowerShape.Layout(inst, type.TowerHeight);
+            LastLog += (LastLog.Length > 0 ? "\n" : "") + $"[landmarks] {type.name} at {at.x:F1},{at.y:F1}: height {layout.Height:F1} m above base {chosenBase:F1}, " +
+                      $"relief {chosenRelief:F2} m, {layout.Steps} steps of {layout.Rise:F3} m, patch {bestSize} cells " +
+                      $"({bestSize * Cell * Cell / 1e6f:F1} km2), {inFromEdge:F0} m in from its edge";
+            UnityEngine.Debug.Log(LastLog);
+            return true;
+        }
+
+        /// <summary>
+        /// The spot a one-off landmark takes (W-114: shared by the salt tower, the temple and the ribcage): the deepest
+        /// level, clear cell of the largest dry patch of the listed biomes (a 1 per biome id). Relief is sampled on three
+        /// rings reliefStep apart. Logs and returns false when there's no patch or no clear spot.
+        /// </summary>
+        internal static bool FindSpot(in TerrainSource source, IReadOnlyList<LandmarkType> types, byte[] listedBiomes, string name, float footprint,
+                                      float maxRelief, float reliefStep, List<LandmarkInstance> placedSoFar,
+                                      out float2 at, out float chosenRelief, out float chosenBase, out int bestSize, out float inFromEdge, out string why)
+        {
+            at = default;
+            why = null;
+            chosenRelief = chosenBase = inFromEdge = 0f;
+            bestSize = 0;
+            var size = (int)(2f * Extent / Cell) + 1;
+            var count = size * size;
+            var listed = new NativeArray<byte>(listedBiomes.Length, Allocator.TempJob);
+            var any = false;
+            for (int b = 0; b < listedBiomes.Length; b++)
+                if (listedBiomes[b] != 0)
                 {
                     listed[b] = 1;
                     any = true;
@@ -269,7 +325,7 @@ namespace Punchy.Terrain
 
             // Label the patches (4-connected) and keep the largest.
             var label = new int[count];
-            int best = 0, bestSize = 0, next = 0;
+            int best = 0, next = 0;
             var queue = new Queue<int>();
             for (int i = 0; i < count; i++)
             {
@@ -298,8 +354,7 @@ namespace Punchy.Terrain
             }
             if (bestSize == 0)
             {
-                LastLog += (LastLog.Length > 0 ? "\n" : "") + $"[landmarks] {type.name}: no patch of its biome";
-                UnityEngine.Debug.Log(LastLog);
+                why = $"[landmarks] {name}: no patch of its biome";
                 return false;
             }
 
@@ -336,17 +391,16 @@ namespace Punchy.Terrain
 
             // The deepest spot that's level and clear; failing that, the most level clear spot of the deepest few hundred.
             ref var set = ref source.Landmarks.Value;
-            var footprint = type.Radius;
             int chosen = -1, fallback = -1;
-            float chosenRelief = 0f, chosenBase = 0f, fallbackRelief = float.MaxValue, fallbackBase = 0f;
+            float fallbackRelief = float.MaxValue, fallbackBase = 0f;
             for (int o = 0; o < order.Count && o < 600 && chosen < 0; o++)
             {
                 var c = order[o];
                 var p = new float2(c % size, c / size) * Cell - Extent;
                 if (!Clear(ref set, types, p, footprint) || !ClearOf(placedSoFar, types, p, footprint))
                     continue;
-                Relief(source, p, out var relief, out var top);
-                if (relief <= MaxRelief)
+                Relief(source, p, reliefStep, out var relief, out var top);
+                if (relief <= maxRelief)
                 {
                     chosen = c;
                     chosenRelief = relief;
@@ -367,37 +421,11 @@ namespace Punchy.Terrain
             }
             if (chosen < 0)
             {
-                LastLog += (LastLog.Length > 0 ? "\n" : "") + $"[landmarks] {type.name}: no clear spot in its largest patch ({bestSize} cells)";
-                UnityEngine.Debug.Log(LastLog);
+                why = $"[landmarks] {name}: no clear spot in its largest patch ({bestSize} cells)";
                 return false;
             }
-
-            var at = new float2(chosen % size, chosen / size) * Cell - Extent;
-            var key = math.hash(new uint3(math.asuint(at.x), math.asuint(at.y), type.Temple ? 0x5E7Au : 0x7A3Bu)) | 1u;
-            var spin = BiomeSampling.Scramble(key);
-            var facing = (spin & 0xFFFF) * (2f * math.PI / 65536f);
-            inst = new LandmarkInstance
-            {
-                Position = at,
-                Facing = new float2(math.cos(facing), math.sin(facing)),
-                Scale = 1f,
-                Type = t,
-                BaseHeight = type.Temple ? TempleBase(source, at, new float2(math.cos(facing), math.sin(facing))) : chosenBase,
-                Seed = (BiomeSampling.Scramble(spin) >> 8) * (1f / 16777216f),
-                Key = key
-            };
-            if (type.Temple)
-            {
-                LastLog += (LastLog.Length > 0 ? "\n" : "") + $"[landmarks] {type.name} at {at.x:F1},{at.y:F1}: facing {math.degrees(facing):F0} deg, base {inst.BaseHeight:F1} " +
-                           $"(spot top {chosenBase:F1}), relief {chosenRelief:F2} m, patch {bestSize} cells, {depth[chosen] * Cell:F0} m in from its edge";
-                UnityEngine.Debug.Log(LastLog);
-                return true;
-            }
-            var layout = SaltTowerShape.Layout(inst, type.TowerHeight);
-            LastLog += (LastLog.Length > 0 ? "\n" : "") + $"[landmarks] {type.name} at {at.x:F1},{at.y:F1}: height {layout.Height:F1} m above base {chosenBase:F1}, " +
-                      $"relief {chosenRelief:F2} m, {layout.Steps} steps of {layout.Rise:F3} m, patch {bestSize} cells " +
-                      $"({bestSize * Cell * Cell / 1e6f:F1} km2), {depth[chosen] * Cell:F0} m in from its edge";
-            UnityEngine.Debug.Log(LastLog);
+            at = new float2(chosen % size, chosen / size) * Cell - Extent;
+            inFromEdge = depth[chosen] * Cell;
             return true;
         }
 
@@ -445,14 +473,14 @@ namespace Punchy.Terrain
         }
 
         /// <summary>How uneven the ground is under the tower and its steps (max - min) and its highest point.</summary>
-        static void Relief(in TerrainSource source, float2 p, out float relief, out float top)
+        static void Relief(in TerrainSource source, float2 p, float step, out float relief, out float top)
         {
             float lo = source.SampleHeight(p), hi = lo;
             for (int ring = 1; ring <= 3; ring++)
                 for (int k = 0; k < 12; k++)
                 {
                     var a = k * math.PI / 6f + ring * 0.3f;
-                    var h = source.SampleHeight(p + ring * 3.3f * new float2(math.cos(a), math.sin(a)));
+                    var h = source.SampleHeight(p + ring * step * new float2(math.cos(a), math.sin(a)));
                     lo = math.min(lo, h);
                     hi = math.max(hi, h);
                 }

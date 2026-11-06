@@ -96,6 +96,10 @@ namespace Punchy.Terrain
             foreach (var sea in new[] { SeaFolkBaking.LoadVillage(), SeaFolkBaking.LoadLanding() })
                 if (sea != null && !types.Contains(sea))
                     types.Add(sea);
+            // W-114: the ribcage last of all.
+            var ribcage = RibcageBaking.LoadType();
+            if (ribcage != null && !types.Contains(ribcage))
+                types.Add(ribcage);
             return types;
         }
 
@@ -222,6 +226,15 @@ namespace Punchy.Terrain
                 {
                     var before = source.Landmarks;
                     source.Landmarks = LandmarkBaking.Append(before, landmarkTypes, lake, allocator);
+                    before.Dispose();
+                }
+                // W-114: the Ashlands ribcage on its own spot, after everything else, so no other landmark moves.
+                var bones = RibcageBaking.Place(source, palette, landmarkTypes);
+                Stage("ribcage");
+                if (bones.Count > 0)
+                {
+                    var before = source.Landmarks;
+                    source.Landmarks = LandmarkBaking.Append(before, landmarkTypes, bones, allocator);
                     before.Dispose();
                 }
             }

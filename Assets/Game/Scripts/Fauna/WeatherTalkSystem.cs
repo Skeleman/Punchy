@@ -58,6 +58,15 @@ namespace Punchy.Fauna
         protected override void OnUpdate()
         {
             var now = UnityEngine.Time.time;
+            // A joined client has no sim world to fill the comfort grid (FaunaDirector does that on the host): fill it
+            // here around the local player, once we see nobody else does. Every frame, as it fills a row a frame
+            // (A-81 row 5); it starts a new sweep only once a second.
+            if (refreshGrid && playerQuery.CalculateEntityCount() == 1 && SystemAPI.TryGetSingleton<TerrainSource>(out var gridTerrain))
+            {
+                players.Clear();
+                players.Add(playerQuery.GetSingleton<LocalTransform>().Position);
+                Comfort.Refresh(players, gridTerrain);
+            }
             if (now < nextLook)
                 return;
             nextLook = now + Every;
@@ -68,16 +77,9 @@ namespace Punchy.Fauna
             if (director == null || UnityEngine.Time.frameCount % 120 == 0)
                 director = Object.FindAnyObjectByType<FaunaDirector>();
             var player = playerQuery.GetSingleton<LocalTransform>().Position;
-            // A joined client has no sim world to fill the comfort grid (FaunaDirector does that on the host): fill it
-            // here around the local player (rate-limited inside), once we see nobody else does.
-            if (Comfort.Grid.Data.Ready == 0)
+            // (Nobody filled it yet: we do, from the next frame on, above.)
+            if (Comfort.Grid.Data.Ready == 0 && !Comfort.Sweeping)
                 refreshGrid = true;
-            if (refreshGrid)
-            {
-                players.Clear();
-                players.Add(player);
-                Comfort.Refresh(players, terrain);
-            }
             var night = SystemAPI.TryGetSingleton<FaunaClock>(out var clock) ? clock.Night : 0f;
             var hasKit = SystemAPI.TryGetSingletonBuffer<Punchy.Flora.KitBox>(out var kit, true) && kit.Length > 0;
 
@@ -86,7 +88,7 @@ namespace Punchy.Fauna
             {
                 var s = states[i];
                 ref var b = ref bodies[i].Blob.Value;
-                if (b.Comfort.Race == ComfortRace.None || !b.Comfort.Minds || !b.Upright || !b.Hands || b.Haunts)
+                if (!FolkRaces.Has(b.Comfort.Race, RaceTrait.Folk) || !b.Comfort.Minds || !b.Upright || !b.Hands || b.Haunts)
                     continue;
                 if (math.distancesq(s.Position, player) > Reach * Reach)
                 {
@@ -154,7 +156,7 @@ namespace Punchy.Fauna
                     continue;
 
                 var demeanor = WeatherLines.Demeanor(s.Individual);
-                var text = lines.Pick(kind, b.Comfort.Race, demeanor, ref rng);
+                var text = lines.Pick(kind, FolkRaces.ById(b.Comfort.Race)?.name, demeanor, ref rng);
                 if (string.IsNullOrEmpty(text))
                     continue;
                 nextSpeak[entities[i]] = now + Again * rng.NextFloat(0.8f, 1.4f);

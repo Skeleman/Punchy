@@ -24,6 +24,13 @@ namespace Punchy.Dungeon
         Ledge = 1u << 4,
         Doorway = 1u << 5,
         Ceiling = 1u << 6,
+        // W-115: where in a cave a socket is (the cave's chamber type; caves only).
+        /// <summary>In a cave chamber (a room of the network).</summary>
+        Chamber = 1u << 7,
+        /// <summary>In a chamber at the end of a passage that goes nowhere else.</summary>
+        DeadEnd = 1u << 8,
+        /// <summary>Along a cave passage, between chambers.</summary>
+        Passage = 1u << 9,
     }
 
     /// <summary>

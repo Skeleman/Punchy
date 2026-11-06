@@ -339,6 +339,7 @@ namespace Punchy.Fauna
             var go = new GameObject("InteractionPrompt");
             DontDestroyOnLoad(go);
             instance = go.AddComponent<InteractionPrompt>();
+            instance.useGUILayout = false; // (Prompts.Draw is no GUILayout: skips IMGUI's layout pass and its garbage, A-82)
             instance.enabled = false;
         }
 

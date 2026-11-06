@@ -238,6 +238,7 @@ namespace Punchy.Weather
             if (heldWeather >= 0)
                 field.ClearUnforced(heldAt, 2500f);   // a reseed (new day type) brings fresh cells: fade them again
             Local = field.Ready ? field.Sample(cameraXZ) : WeatherValues.From(Presets[0]);
+            Climate.Publish(Local, WindDirection);   // W-116: camera-side readers go through Climate
 
             if (field.Ready)
             {

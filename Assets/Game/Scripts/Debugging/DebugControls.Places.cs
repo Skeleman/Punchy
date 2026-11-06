@@ -664,7 +664,7 @@ namespace Punchy.Debugging
             var g = source.SampleGround(at);
             if (g.HasWater)
                 return false;
-            if (grassland && palette.Biomes[g.Biomes.Dominant()].name != "Grassland")
+            if (grassland && !palette.Biomes[g.Biomes.Dominant()].HasTag(BiomeTags.Meadow))
                 return false;
             var n = source.SampleNormal(at, 1f);
             return n.y >= flatness && source.SampleSurface(at, g, n).Grass >= grass;

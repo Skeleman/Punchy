@@ -86,7 +86,7 @@ namespace Punchy.Ambience
                 burningFrom = palette;
                 burningSpecies.Clear();
                 foreach (var biome in palette.Biomes)
-                    if (biome != null && biome.name == "EmberForest")
+                    if (biome != null && biome.HasTag(BiomeTags.Burning))   // W-116: by tag, was by name
                         foreach (var f in biome.Flora)
                             if (f.Species != null)
                                 burningSpecies.Add(f.Species);

@@ -131,13 +131,12 @@ namespace Punchy.UI
 
         static GUIStyle Left(GUIStyle style)
         {
-            if (style.alignment == TextAnchor.MiddleLeft && style.padding.horizontal == 0)
-                return style;
-            if (!lefts.TryGetValue(style, out var left))
-            {
-                left = new GUIStyle(style) { alignment = TextAnchor.MiddleLeft, padding = new RectOffset(0, 0, 0, 0), wordWrap = false };
-                lefts[style] = left;
-            }
+            // (P-20: looked up first. GUIStyle.padding makes a new RectOffset on every read, so it's read once per style.)
+            if (lefts.TryGetValue(style, out var left))
+                return left;
+            left = style.alignment == TextAnchor.MiddleLeft && style.padding.horizontal == 0 ? style
+                 : new GUIStyle(style) { alignment = TextAnchor.MiddleLeft, padding = new RectOffset(0, 0, 0, 0), wordWrap = false };
+            lefts[style] = left;
             return left;
         }
     }

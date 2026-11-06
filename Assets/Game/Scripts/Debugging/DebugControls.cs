@@ -240,6 +240,9 @@ namespace Punchy.Debugging
             }
         }
 
+        // (No GUILayout in OnGUI: skips IMGUI's layout pass and its garbage every frame, A-82.)
+        void Awake() => useGUILayout = false;
+
         void Update()
         {
             // A client's world is replaced when it loses the host: rebuild the cached queries before anything reads them

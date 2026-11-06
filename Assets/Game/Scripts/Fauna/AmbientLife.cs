@@ -397,7 +397,7 @@ namespace Punchy.Fauna
 
         // ------------------------------------------------------------------------------- critter spots
 
-        /// <summary>Which real creature a critter spot is for (CritterTable names the species).</summary>
+        /// <summary>Which real creature a critter spot is for (the overworld spawn table, Resources/SpawnTables/Overworld, names the species).</summary>
         public enum CritterKind : byte { Songbird, Woodpecker, Owl, Frog, Mouse, Gull, Fish }
 
         /// <summary>
