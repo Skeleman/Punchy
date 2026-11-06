@@ -3062,3 +3062,29 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
   - Drop the second detail-texture read past rippleNear (110 m).
   - Measure with a GPU frame time A/B from the village spot.
 - Rows 4-5 (flora LOD and shadow casters): not started.
+
+## W-117 row 2: far water merged per 4x4-chunk region, done (verified), d06081b0
+
+- New TerrainStreamingSystem.WaterRegions.cs. When a 4x4-chunk region's nearest edge is more than 256 m from the focus (with 16 m hysteresis), its water chunks hide and one combined "WaterRegion" entity draws them instead. Water.shader uses world position only, so the look is the same. The combined mesh is rebuilt when a member chunk streams in or out.
+- `TerrainStreamingSystem.MergeFarWater` (or `PUNCHY_WATERMERGE=0`) turns it off for A/B.
+- At v3 fishing village 1 (-2151, 3731), player camera looking north:
+  - Water entities drawn: 1196 -> 93 chunks plus 110 regions (203).
+  - Batches: 1908 -> 1503.
+  - Editor markers, ms per frame, off/on, two runs each:
+
+    | Marker | Off | On |
+    |---|---|---|
+    | RenderLoop.DrawSRPBatcher | 0.93 / 0.86 | 0.64 / 0.58 |
+    | DrawTransparentObjects | 0.37 / 0.36 | 0.10 / 0.10 |
+    | DrawBuffersBatchMode | 0.55 / 0.52 | 0.37 / 0.35 |
+    | RenderLoop.Sort | 0.29 / 0.27 | 0.20 / 0.20 |
+    | SRPBatcher.Flush | 0.24 / 0.23 | 0.16 / 0.15 |
+
+    About 0.9 ms of render CPU saved.
+- Look:
+  - Shots `D:\PunchyMilestones\W-117\w117r2_off.png` and `w117r2_on.png` are 2560 wide, taken from 30 m above the village looking north over the sea.
+  - They are identical to the eye. The pixel diff averages 1.3/255 (wave animation between frames), and 0.006% of pixels differ by more than 16/255.
+- I teleported 500 m away and back: no chunk drew under a merged region (0 overlaps), and no new exceptions.
+- Landmarks_V3: 111 3BDF705F (unchanged).
+- Risk: transparent sort between overlapping far regions. None was seen, since water is a single height layer.
+- Found, not mine: Camera/Underwater.cs:76 `GetComponent<AudioLowPassFilter>() ?? AddComponent` never adds the filter in the editor (Unity fake null), so it throws a MissingComponentException every frame (13k in one session). Editor only.
