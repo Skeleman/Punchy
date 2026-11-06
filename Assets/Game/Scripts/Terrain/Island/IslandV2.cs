@@ -36,14 +36,13 @@ namespace Punchy.Terrain
         };
 
         /// <summary>
-        /// W-22: version 2 is the default island. Only <c>-island v1</c> (or PUNCHY_ISLAND=v1) asks for version 1; the
-        /// command line wins over the environment. Host and client each decide from their own launch, so both must be
-        /// started the same way (no flag on either = both v2).
+        /// W-22: whether this launch bakes through IslandV2System (versions 2 and 3; v3 is the default since W-111). Only
+        /// <c>-island v1</c> (or PUNCHY_ISLAND=v1) asks for version 1; the command line wins over the environment.
         /// </summary>
         public static bool Requested() => RequestedVersion() != 1;
 
         /// <summary>
-        /// W-68 (v3 B1): the island version this launch asks for: 1, 3, or 2 (the default, and any other value). Read
+        /// W-68 (v3 B1): the island version this launch asks for: 1, 2, or 3 (the default since W-111, and any other value). Read
         /// the same way as above: <c>-island v1|v2|v3</c> wins over PUNCHY_ISLAND (which the editor menu
         /// Punchy/Island sets inside the editor). Versions 2 and 3 both bake through <see cref="IslandV2System"/>.
         /// </summary>
@@ -57,7 +56,8 @@ namespace Punchy.Terrain
                 if (args[i] == "-island")
                     v = args[i + 1];
             v = (v ?? Environment.GetEnvironmentVariable("PUNCHY_ISLAND"))?.ToLowerInvariant();
-            return v == "v1" ? 1 : v == "v3" ? IslandV3.Version : Version;
+            // W-111: v3 is the default island now; v1 and v2 stay reachable by name.
+            return v == "v1" ? 1 : v == "v2" ? Version : IslandV3.Version;
         }
 
         /// <summary>
