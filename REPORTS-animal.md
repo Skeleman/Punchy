@@ -2725,3 +2725,48 @@ Commits on animal-behaviours: row 1 de458d0, row 2 eb5f0d7, row 3 929e8e9, row 4
   - Frame times from a ProfilerRecorder on Main Thread, saguaro walkershot, uncapped: the rig frame (896) was 24.5 ms, under 33 ms. The frames either side were 15.9 and 17.6 ms. The 221 ms frame at 893 is the walkershot teleport itself.
   - Shots: a82-saguaro, a82-tortoise and a82-mesa in the scratch shot folder. The first try framed nothing, because walkershot matches by prefix ("Walking", "Giant").
 - **Suite:** WorldTests 9 passed, 0 failed in 193 s. Landmarks 110 09EAC0FE, fingerprint 90AC5F60.
+
+## A-83 row 1 (#62): animal MonoBehaviours that drive ECS, design note (no code yet)
+
+Read on animal-behaviours at main 8128804. No editor used. Row 2 waits for the supervisor.
+
+**When things run each frame (player loop, Entities 6.5).** All MonoBehaviour `Update`s, ordered by
+`[DefaultExecutionOrder]`: WorldSync -20, DayNightCycle -10, most scripts 0, ColossusWalker 60, AmbienceSystem 900,
+FloraSystem and Interiors 1000. Then **SimulationSystemGroup**: PlayerInput, then PlayerMovement and InteractionInput,
+then CreatureBrain schedules its job. Then all `LateUpdate`s (camera, walker shake). Then **PresentationSystemGroup**:
+CreatureSnapshot (first, a copy job behind the brain), CreatureRender, FolkTalk and the other snapshot readers. Then `OnGUI`.
+So an animal MonoBehaviour's `Update` always runs *before* this frame's brain and *after* last frame's presentation. By
+then the brain job should already be finished, but nothing in the code says so.
+
+**Animal-owned MonoBehaviours**
+
+| Script | When | ECS it touches | Verdict | Proposed fix (row 2) |
+|---|---|---|---|---|
+| FaunaDirector (+ partials) | Update, order 0 | Writes FaunaClock in both worlds each frame. GatherPlayers copies LocalTransform (`ToComponentDataArray`). Despawn (every 0.25 s) copies CreatureState, CreatureBody and the entities, then `DestroyEntity`. Spawns use `Instantiate`/`CreateEntity`. Visitors copies CreatureState. Replica bodies are added. | **Completes jobs on the main thread.** Each structural change is a sync point. The brain must see this frame's spawns and clock, which works only because of where Update falls in the player loop. | Move only the per-frame ECS work into **FaunaPopulationSystem** (SystemBase, managed). It lives in a new **FaunaSpawnGroup** that goes OrderFirst in SimulationSystemGroup, `[UpdateBefore(CreatureBrainSystem)]`, LocalSimulation and ServerSimulation. Its OnUpdate calls the director's existing clock/gather/despawn/spawn code unchanged. The MonoBehaviour keeps Build, Teardown, the tables, the avatar meshes and the scene setup. Same frame, same draw order, so Fauna_Fingerprint should hold. Comfort.Refresh stays where it is (world lane's code). |
+| Mantrap | Update, order 0 | Every 0.1 s: player LocalTransform, plus creatures from `CreatureSnapshotSystem.Get` (last frame's, no wait). Every frame: the shove *writes* the player's LocalTransform, and the strike writes PlayerMotion, through EntityManager. | **Races a system.** These are main-thread writes to the player before PlayerMovementSystem. It works only because of player-loop order, and it completes any job that touches the player. | Mantrap puts the shove and the strike into a **PlayerShove** request singleton. A small **MantrapShoveSystem** (LocalSimulation and ClientSimulation, SimulationSystemGroup, `[UpdateAfter(PlayerInputSystem)]` `[UpdateBefore(PlayerMovementSystem)]`) applies it. The plants, their animation and the tests stay in the MonoBehaviour. |
+| SkunkGas | Update, order 0 | Every FindEvery s it copies CreatureBody, CreatureState and the entities from the default world. Every frame it calls `GetComponentData` on each gasser. | **Completes jobs on the main thread.** Read-only and cosmetic, so it should not wait on the brain, but it makes its own copies. | Read `CreatureSnapshotSystem.Get` (last frame, as Mantrap does) instead of copying. It stays a MonoBehaviour (particles), so no group is needed. |
+| ColossusWalker | `[DefaultExecutionOrder(60)]` Update; LateUpdate (camera only) | Each Update it reads the TerrainSource singleton through a query it **creates and disposes every frame**. Viewer reads the player's LocalTransform singleton. LogWalkers (debug flag) reads NetworkTime. Positions reach the brain through ColossusSnapshot (ColossusCollision system). | **Safe.** Nothing per frame writes these. | Cache the terrain query, as StoneColossi does. Don't move it. |
+| StoneColossi, DunesColossus | Update, order 0 | A cached terrain query (`TryGetSingleton`) each frame. On placement (a 1 s retry until placed): the survey job does `Schedule(...).Complete()`. | **Safe per frame.** Placement completes a job on the main thread once (a placement hitch, against the CLAUDE.md rule). | Leave the order alone. The placement hitch could get its own row (split over frames, like A-82 row 4); it is not part of #62. |
+| Mantrap placement | Update, until placed | The same survey `Schedule(...).Complete()` once. | Same as above. | Same as above. |
+| CritterSystem (butterflies, fireflies) | Update, order 0 | Only the TerrainSource and BiomePalette singletons. Its own tile jobs are collected the next frame via `IsCompleted`. | **Safe.** | None. |
+| DebugControls (shared test flags) | Update, LateUpdate | Copies CreatureState and CreatureBody for logs and shots. Flight and goto write the player. | **Completes jobs**, but only while a debug flag is on. | Leave it. These are test tools. |
+| FolkTalkLabels, InteractionPrompt | OnGUI | No ECS reads. They draw what their systems left. | **Safe.** | None. |
+| WeatherSystem, Sun part | Update | No ECS in the Sun code. | **Safe.** | None. |
+
+Already systems with an explicit order (no change): FolkTalkSystem (Presentation, reads the snapshot), InteractionInputSystem
+(Simulation, after PlayerInput; it completes *its own* previous frame's reach scan), CreatureSnapshotSystem and CreatureRenderSystem.
+
+**World and player owned scripts I saw (not touching):**
+- World: AmbienceSystem [900] (4 copies or `Complete()` calls), CaveSystem (4), FloraSystem [1000] (3), GroundDetailSystem (2), WeatherSystem moon, hail and ground (singletons and the player), LandmarkEffectSystem, AmbientParticleSystem, DriftwoodSystem, TempleSockets.
+- Player: ThirdPersonCamera, Items (1), Doors, Interiors [1000].
+- Net: GameBootstrap, NetAvatars, NetMenu, WorldSync [-20], CachedQueries.
+
+**Order after row 2 (to write into docs/agents/performance.md):** MonoBehaviour Updates (scene and visuals only, for the
+animal ones). Then SimulationSystemGroup: FaunaSpawnGroup (FaunaPopulationSystem), PlayerInput, MantrapShove, PlayerMovement
+and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Snapshot, Render, readers.
+
+**Row 2 plan and checks:**
+1. FaunaPopulationSystem first; this is where the done-when check is measured. Proof: `-perflog` shows CreatureSnapshotSystem.WaitTicks plus a profiler timeline with no main-thread wait on the brain.
+2. Then MantrapShoveSystem, then the SkunkGas snapshot and the walker query cache.
+3. Checks: WorldTests 9/9, Fauna_Fingerprint 90AC5F60, Landmarks 110 09EAC0FE, GC per frame <= 10093 B, and no new console errors.
+4. Risk: on a host, FaunaPopulationSystem must run only in the server world, which LocalSimulation and ServerSimulation give. On a joined client it doesn't run, the same as the director's sim work today.
