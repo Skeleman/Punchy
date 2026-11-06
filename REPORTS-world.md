@@ -2910,3 +2910,13 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
 - Shots: Assets/Temp/shots/w114-far.png (an arch on the horizon through the ash haze), w114-mid.png, w114-inside.png, w114-skull.png.
 - Suite before repin: 12 passed, 2 failed (only the two pins above).
 - Risk: SaltTower.Relief gained a step parameter (shared relief helper); TerrainSource/TerrainAuthoring/LandmarkData touched.
+
+## W-115 row 1 — cave dungeon sockets: done (verified)
+- Commit d2ed5e2 on world-features (it also carries the origin/main merge c030507). Ready to merge after the rest of W-115.
+- New CaveSockets.cs (Terrain/Caves): each cave's chambers get a centre creature (plus one on the ceiling when it's at least 4 m tall), clutter and wall decor round the walls, and a chest against the far wall in dead ends and the main end. Passages get a guard where they open into a chamber, plus clutter, decor and creatures along alternate sides. Water pools get NearWater spots. Spots deep in, away from the mouth, shafts and lava, are Dark. Each socket carries its chamber type (new SocketTags Chamber, DeadEnd, Passage, added at the end; the struct is unchanged) and the dominant surface biome above it. Bat folk chambers are skipped. No biome or race literals.
+- DungeonTypes.Cave = 0 added (the spawner's Cave row) in TempleSockets.cs (a player-lane file, one line). The spawner's tables are untouched: DungeonSpawnSystem fills all 25 cave dungeons as they are.
+- v3: 25 caves, 459 sockets (creature 94, chest 54, wall decor 137, interactable 5, clutter 169). 10 to 28 per cave: 2-chamber caves have 10 to 18, the 6- and 7-chamber networks 27 or 28. Cave socket hash 42581E93, the same on two play runs. Per-cave hashes are in the "[dungeon] cave N" log lines.
+- Cost: 194-227 ms in total, spread over 13 frames (two caves a frame, about 17 ms each), once at island-ready.
+- Shot: Assets/Temp/shots/w115-cave-chamber.png (cave 16's chamber with a spawned creature, loot and rock-pile clutter).
+- Risk (animal lane): the spawner keeps cave creatures permanently, about 2-5 per cave, so roughly 60 more live creatures island-wide. Cave interactables pick only Empty. Most spots read Dark (the caves are long).
+- Landmarks and fingerprint: no landmark or flora change in this row (confirmed in the final suite).
