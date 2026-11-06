@@ -7,8 +7,8 @@ using UnityEngine;
 namespace Punchy.Terrain
 {
     /// <summary>
-    /// Generator version 3, water first (brief v3-island-design.md). Opt-in: <c>-island v3</c>, PUNCHY_ISLAND=v3, or the
-    /// editor menu Punchy/Island/v3. <see cref="IslandV2System"/> runs it in place of version 2 and ends every v3 bake
+    /// Generator version 3, water first (brief v3-island-design.md). The default island since W-111 (no flag); <c>-island v2</c>
+    /// or the editor menu Punchy/Island/v2 asks for version 2. <see cref="IslandV2System"/> runs it in place of version 2 and ends every v3 bake
     /// with <see cref="V3Audit"/> and the range checks.
     /// Steps are replaced one card at a time, in bake order: ranges (B2, done), biome field, water sources, rivers, the
     /// hydrology table, carve, surfaces and flora, places, audit. No step changes anything version 2 does.
