@@ -81,6 +81,7 @@ namespace Punchy.Fauna
         {
             public Gait G;
             public Transform Root;
+            public Transform Litter;   // A-77: the heron's litter, unparented so it stays put (shown, hidden and destroyed with its colossus here)
             public float3 Spot;
             /// <summary>The loop's centre: the spot itself, or nudged off it when the ground round the spot is too steep.</summary>
             public float2 Centre;
@@ -139,6 +140,9 @@ namespace Punchy.Fauna
         void OnDestroy()
         {
             CreatureBrainSystem.ColossusZones.Data = float4x4.zero;
+            foreach (var w in walkers)
+                if (w != null && w.Litter != null)
+                    Destroy(w.Litter.gameObject);
             if (Instance == this)
                 Instance = null;
         }
@@ -150,6 +154,7 @@ namespace Punchy.Fauna
             if (shakeApplied != Vector3.zero && cam != null)
                 cam.transform.position -= shakeApplied;
             shakeApplied = Vector3.zero;
+            TendLitter();
 
             if (!TryGetSource(out var source))
                 return;
@@ -278,9 +283,39 @@ namespace Punchy.Fauna
             }
         }
 
+        /// <summary>
+        /// A-77: unparented litter follows its colossus by hand: hidden with -nocolossus, and destroyed (the walker
+        /// dropped, so it is laid again) once the colossus root is gone, as when the colossi are rebuilt.
+        /// </summary>
+        void TendLitter()
+        {
+            for (int i = 0; i < walkers.Length; i++)
+            {
+                var w = walkers[i];
+                if (w == null || w.Litter == null)
+                    continue;
+                if (w.Root == null)
+                {
+                    Destroy(w.Litter.gameObject);
+                    walkers[i] = null;
+                    continue;
+                }
+                if (w.Litter.gameObject.activeSelf == DunesColossus.Hidden)
+                    w.Litter.gameObject.SetActive(!DunesColossus.Hidden);
+            }
+        }
+
         static Walker Lay(in TerrainSource source, Gait g, Transform root, float3 spot)
         {
             var w = new Walker { G = g, Root = root, Spot = spot, Sink = root.position.y - source.SampleHeight(spot.xz) };
+            // A-77 (item 22): the glass heron's shard litter and fulgurite are where its lightning struck, not part of it:
+            // left on the ground where they were laid instead of swivelling round with it.
+            var litter = g.Kind == StoneColossi.Kind.GlassHeron ? root.Find("Litter") : null;
+            if (litter != null)
+            {
+                litter.SetParent(null, true);
+                w.Litter = litter;
+            }
             var rng = Unity.Mathematics.Random.CreateFromIndex((uint)source.World.Seed ^ g.Salt);
             w.P1 = rng.NextFloat(0f, 2f * math.PI);
             w.P2 = rng.NextFloat(0f, 2f * math.PI);

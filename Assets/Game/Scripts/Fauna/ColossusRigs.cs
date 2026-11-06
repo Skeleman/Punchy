@@ -142,7 +142,7 @@ namespace Punchy.Fauna
     sealed class SaguaroRig : ColossusRig
     {
         const float TrunkBase = 9f;
-        static readonly float[] LegAngles = { 0f, -60f, 60f };   // StoneColossi.BuildSaguaro: lifted one ahead, two planted
+        static readonly float[] LegAngles = { 180f, -60f, 60f };   // StoneColossi.BuildSaguaro: lifted one trailing behind (A-77), two planted
 
         readonly MeshRenderer baked;
         readonly SkinnedMeshRenderer skinned;
