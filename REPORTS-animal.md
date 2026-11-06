@@ -2592,3 +2592,14 @@ Brain is about 1.0 to 1.3 ms. Fauna_Fingerprint is F4E66093 (unchanged). No comp
 - **WorldTests:** 9 passed, 0 failed in 183 s.
   - Landmarks are still 110 09EAC0FE.
   - Fauna fingerprint is still F4E66093.
+
+## A-80 rows 1-2 (2026-11-06): one spawn-table system, done (verified by numbers)
+
+Commits 3560d7e (r1) and 246f7a1 (r2) on animal-behaviours.
+
+- **Row 1:** `SpawnTable` asset (design note at the top of Scripts/Fauna/SpawnTable.cs). DungeonSpawner picks from Resources/SpawnTables/Dungeon.asset (36 rows).
+  - Dungeon 89 type 1: 73 sockets, hash 0x558a105b (again 0x558a105b, same). The second editor run comes with the row 3 run.
+- **Row 2:** CritterTable, DomesticTable and their assets are removed. Critters, domestics, wild folk, the traveller, the messenger, the honey thief, crossing fishers and cave folk now pick from Resources/SpawnTables/Overworld.asset (47 rows, Kind = OverworldSlot).
+  - Fauna_Fingerprint: F4E66093, unchanged, 117 species.
+  - Spawn ms: the build species stage took 3 ms (it was 3-9 ms before). cpu main was 6.72 ms by day and 6.84 ms at night (player at spawn). A pick scans 47 rows and makes no extra rng draws.
+- **Risk:** commit r1 alone does not compile, because the old table deletions went into it. r1 and r2 together do compile. Rewriting the pushed commits was blocked, so they stay as they are.
