@@ -4,8 +4,10 @@ Zach asked the supervisor (main account) to hand off to you when its token budge
 supervise. Read COORDINATION.md first (rules 1-18; rule 18 = every process ends on its own, kill by PID).
 
 ## Lanes right now
-- World (D:\Unity\Punchy-world, world-features): agent working W-110 row 2 (road tunnels), then W-115 rows 2-3,
-  rest of W-110, W-117 (incl. GC row). Last pushed 32aa839. Reports in REPORTS-world.md.
+- World (D:\Unity\Punchy-world, world-features, head 11248778 pushed, main merged in): agent finished W-110
+  (#39 road tunnels, complete), W-117 GC row and W-117 row 1 (water draw measurement). NOT reviewed or merged
+  yet: review + PR. Next for world: W-117 rows 2-5 (plan in REPORTS-world.md 135a6bc1: merge far water chunks
+  per 4x4 region, gate SSR by distance, flora LOD, shadow casters). Then burst-prune Punchy-world.
 - Animal (D:\Unity\Punchy, animal-behaviours): agent working A-84 (Place spike, next colossi for #40, mire fog).
   A-83 merged as PR #177; #62 closed and logged in PLAYTEST.md.
 - Player: you (P-20).
