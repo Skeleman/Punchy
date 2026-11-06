@@ -2471,3 +2471,25 @@ Perf with each one awake (180-frame -perflog):
 - Stuck-at-colossus count: NOT MEASURED. The 2 min probe at the golem and saguaro read 0 near / 0 stuck both off and on, because no creatures were near the walkers. A rerun needs creatures spawned inside the walk loop (-spawn ... -spawnradius 30).
 - Bareheaded shot: FAILED. folk-a framed a boulder at a cave mouth with no folk in view. Needs a retake with the folk spawned in front of the camera.
 - Row 2 (plant, heron, saguaro, golem) not started. Out of call budget. The plan is in the hand-back.
+## A-77 row 1 (items 19, 20) - 419554b on animal-behaviours - retest on v3 - STUCK COUNT MEASURED, FOLK SHOT STILL MISSING
+- Retest on the v3 island (`-island v3` in the shot list), at 13:00, with deer, rabbits and dogs spawned on each walker's loop ring.
+- Stuck-at-colossus count, 2 min each (12 samples 10 s apart):
+  - Rock golem, steering off: 88 creatures, 2 within 10 m, 1 touching, 0 stuck 30 s+.
+  - Rock golem, steering on: 113 creatures, 11 within 10 m, 8 touching, 0 stuck.
+  - Walking saguaro, steering off: 93 creatures, 2 within 10 m, 1 touching, 0 stuck.
+  - Walking saguaro, steering on: 97 creatures, 5 within 10 m, 1 touching, 0 stuck.
+- Why 0 with steering off: creatures do reach the ring, but very few, and none stays. The walker moves on, and the existing push (ColossusPushSystem) shoves them clear before 30 s. So the count can't show a before/after on this island. The steering is a quality fix (no walking into the legs), not a fix for a measured stuck count.
+- Brain ms: 0.15 to 0.83 with 88 to 113 creatures. Same range as before.
+- Bareheaded shot: NOT OBTAINED after 3 tries.
+  - `-goto 0,0 -incave` left the player on the snow surface.
+  - `-place batfolk` logs "at bat folk chamber 0, pod door at (66, 34, 3436), pod floor at y 37.1". But the shot shows open forest, and the spawns log "spawned 0 CavePygmy / 0 BatFolk on the cave floor".
+  - On v3, either the player isn't kept in the chamber, or that chamber has no floor within 2 m. This needs a look from the world lane or a fixed cave spot. The code change (CaveDweller races skip the hat and guard kit) compiles and is unchanged.
+## A-77 row 2 (items 21-24) - fdfa58a on animal-behaviours - VERIFIED (shots on v3)
+- Poison plant colossus (CarnivorousPlant at (-53, 34, 516)): 2x tall and animated. The head, jaws and tendrils sway on PlantRig/SwayPlant. In plant-1 and plant-3 (5 s apart) the head tilts and the jaws and tendrils sit in different places.
+- Glass heron: the crystal litter is laid unparented, so it no longer swivels with the bird. qlit at t 610.8 s and t 650.8 s: litter at (2629.0, 10.2, 2034.3), no parent, both times.
+  - New this round: ColossusWalker hides the litter whenever DunesColossus.Hidden is set, and destroys it when the colossi are rebuilt. Capture then lays it again.
+  - Caveat: the heron stood at the same spot at both samples, so this run doesn't show the bird moving away from the litter. The a77r2 run had already shown the litter staying put.
+- Walking saguaro: the legs splay at 180/-60/60 with root parts, and from the side they read as a root flare.
+- Rock golem: black basalt colours. It reads dark brown-black next to the white lightning.
+- Render ms: 1.47 to 2.15 (gpu 0.17 to 0.24) across the shots.
+- WorldTests suite after fdfa58a: 9 passed, 0 failed. Landmarks 110 09EAC0FE, unchanged. Fauna_Fingerprint F4E66093, unchanged. Editor closed.
