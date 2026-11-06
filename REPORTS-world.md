@@ -3019,3 +3019,15 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
   - Assets/Temp/shots/w110r2_portal26b_far.png
   - Assets/Temp/shots/w110r2_portal25a_far.png (cave 25, desert, bare stone, chevron)
 - Risk: the moss patches are flat slabs, not the textured sheet from the 11-03 feedback. A follow-up could move them to the moss sheet.
+
+## W-117 GC row: per-frame allocations, done (verified), 2890fe18
+
+- Measured with the editor profiler (GC self-alloc per marker), 120 frames, v3 start spot, fresh play each time.
+- Before -> after (B/frame):
+  - WeatherField.Bilinear closures 1410 -> 0. Bilinear and BilinearAllowed now share a closure-free cell lookup.
+  - WeatherSystem 352 -> 0. The tint no longer allocates a `new[]` array.
+  - LandmarkEffectSystem 223 -> 17. The falls log string is only built when its numbers change.
+  - FloraSystem.LateUpdate 220 -> 0. Stream's capturing lambdas were costing a display class per layer every frame. The tile sort now uses one reused comparer, and basin removal is a plain loop.
+  - CaveSystem.Update 176 -> 40. The frame Stopwatch and marks array are now reused.
+- Remaining top allocators are outside the world lane: Items.Update 3.4 KB, IMGUI BeginGUI 2.6 KB, LiveConversion (editor only) 380 B, DunesColossus 252 B, InteractionPrompt 136 B.
+- No look change. Landmarks_V3 111 3BDF705F. World ready 38.8 s.
