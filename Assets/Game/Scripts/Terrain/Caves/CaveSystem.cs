@@ -19,7 +19,7 @@ namespace Punchy.Terrain
     /// cubes (chunks), built only where a cave reaches and streamed by distance, so a big cave network costs no more
     /// to load than the part of it near the camera. Each chunk samples a one-voxel apron round itself and only joins
     /// the edges that start inside it, so neighbouring chunks share their boundary vertices exactly.
-    /// Only the boundary close to the cave is kept: the cave walls, which end 10 cm under the terrain surface
+    /// Only the boundary close to the cave is kept: the cave walls, which end 2 cm under the terrain surface
     /// (measured across the slope). The terrain cuts its own opening just inside the cave's edge, overhanging the
     /// walls' top edge, so there's no seam. Near the surface the walls take the terrain's colour and blend into cave
     /// rock as they go underground.
@@ -1804,7 +1804,7 @@ namespace Punchy.Terrain
                     // Air is above the surface or in the cave; a smooth union, so a lip of rock thinner than about half
                     // a metre between them (a thin roof at a mouth) opens up instead of hanging as a floating slab. The
                     // terrain cuts its own surface from this same field (TerrainSource.MouthCut), so the two agree.
-                    Field[i] = -CaveSampling.SmoothMin(-((p.y - Surface[column]) * SurfaceScale[column] + 0.1f), cave, CaveSampling.MouthBlend);
+                    Field[i] = -CaveSampling.SmoothMin(-((p.y - Surface[column]) * SurfaceScale[column] + CaveSampling.SkinGap), cave, CaveSampling.MouthBlend);
                 }
             }
         }
@@ -1938,7 +1938,7 @@ namespace Punchy.Terrain
                 }
             }
 
-            float RockAt(float3 p) => math.max(p.y - Source.SampleHeight(p.xz) + 0.1f, -CaveSampling.Distance(ref Source.Caves.Value, p, out _));
+            float RockAt(float3 p) => math.max(p.y - Source.SampleHeight(p.xz) + CaveSampling.SkinGap, -CaveSampling.Distance(ref Source.Caves.Value, p, out _));
 
             /// <summary>Points out of the rock, into the air.</summary>
             float3 Gradient(float3 p)

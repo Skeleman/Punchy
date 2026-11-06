@@ -339,9 +339,14 @@ Shader "Punchy/Terrain Surface"
                 // carry the same detail as cave walls.
                 half rockShade = 1;
                 half steep = (1 - smoothstep(0.55, 0.8, normalWS.y)) * (1 - smoothstep(40, 90, distance)) * (input.extra.w <= 0.01);
+                // W-112: round a cave mouth (its cut field under 8 m) any ground takes the walls' grain at the walls' own
+                // scale, so the terrain doesn't turn smooth where it meets the finer cave rock. Only there: the rest of
+                // the ground pays nothing.
+                half mouth = (1 - smoothstep(1.5, 8, input.cave)) * (1 - smoothstep(30, 60, distance));
+                steep = max(steep, mouth * 0.7);
                 if (steep > 0.01 && _PunchyCaveDetailReady > 0)
                 {
-                    float3 q = input.positionWS * 0.6;
+                    float3 q = input.positionWS * lerp(0.6, 1.0, mouth);
                     float3 tw = pow(abs(normalWS), 4);
                     tw /= tw.x + tw.y + tw.z;
                     half4 rd = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, q.zy) * tw.x
