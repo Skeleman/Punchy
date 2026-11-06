@@ -2,6 +2,40 @@
 
 Newest first.
 
+## 2026-11-06 q48: Millfield big frame traced (most likely) to the WalkingSaguaro colossus skinning on the main thread, main 781fa5a
+
+**Short answer:**
+- **Every session has one 459-465 ms frame in MonoBehaviour Update** (Update.ScriptRunBehaviourUpdate 436-441 ms). It comes **right after "ColossusRig: saguaro skinned (178950 verts...)"** in all 4 probe sessions.
+  - That's the WalkingSaguaro colossus (2925,-1710) building its skin weights in managed loops over 179k vertices: Fauna/ColossusRigs.cs, the saguaro builder, about lines 200-290.
+  - It runs **once, when the camera first comes in range**, which on the v2 townwalk happens near its start in east Millfield.
+- **That fits the Millfield frame:**
+  1. Same size (331 / 418 ms then, 460 now).
+  2. It runs once per session, and the saguaro line sits just before the hitch in both hit sessions (q40, q46 route 1).
+  3. The "skinned" line appears in every session, including the ones without a logged hitch (q46 route 2, q47, q48).
+- **Why it looked Bench-only and random:** the skin lands within a second or two of the townwalk stop starting. The runner only logs hitches in the measured window, so whether it was counted depended on that timing. In q48's 8 sessions it always fell just before the window: the runner's worst was 23-27 ms while the probe saw 460 ms. The q47 Profile runs were the same (skin line present, stop clean). **It is not release-only; the earlier tallies were timing luck.**
+- **SurfaceGlow's far scan is cleared:**
+  - 11 landings a session, none lined up with a slow frame in the walk.
+  - Upload is 2 x 160x160 RGBA32F = 800 KB per landing.
+  - The scan itself runs 460-790 ms but on a worker. The 780 ms first scan is during load.
+- **Not proven:** the probe times player loop phases, not single scripts. The saguaro is the only thing logged in that frame and the timing matches every session, but a profiler capture of that exact frame would settle it. A Profile run with -profilestop on herewarm (where the skin lands) can do that if wanted.
+- **Suggested fix (animal lane, ColossusRigs.cs):** move the skin build off the main thread (Burst job, or spread over frames), or bake it ahead. The tortoise and mesa tortoise rigs use the same pattern ("tortoise skinned", "mesa tortoise skinned"), so they probably hitch the same way when first approached.
+
+**Also seen at load (expected, for the record):**
+- The 12 s island bake frame: InitializationSystemGroup 9.6 s plus MonoBehaviour Update 1.9 s.
+- Then 1.4 s, 0.8 s and 0.35 s frames in PresentationSystemGroup (first creature and flora uploads) before "world ready".
+
+**Method:**
+- New runner switch `-benchprobe [ms]` (branch b/bench-probe, one commit on main, Tools/bench only; for review). It times every second-level player loop system with a stopwatch, works in release builds, and on any frame over the threshold logs:
+  - the 8 slowest systems;
+  - GC gen0 collections;
+  - SurfaceGlow far-scan state.
+
+  It also logs each far-scan landing with its texture upload size.
+- The first probe build never hooked the frame start (the first top-level loop phase has no sub-systems in Unity 6). That's fixed. Those 4 sessions (q48logs) are only a count: no runner hitch over 100 ms.
+- Bench build of 781fa5a with the probe, v2 townwalk, uncapped, 4 sessions.
+- Script: q48.sh. Logs: results/q48blogs.
+- Cost: 14 calls, peak 265k context, $1.5
+
 ## 2026-11-06 Millfield townwalk big frame: not reproduced in the Profile build, main 781fa5a
 
 **Short answer:**
