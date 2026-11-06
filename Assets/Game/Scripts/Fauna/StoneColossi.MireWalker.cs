@@ -128,8 +128,12 @@ namespace Punchy.Fauna
             m.Ellipsoid(snag + new Vector3(0f, -2f, 0f), new Vector3(0.35f, 0.9f, 0.25f), Quaternion.Euler(0f, 0f, 20f), new Color(0.55f, 0.62f, 0.60f), 6, 3);
             AddPart("Body", root, m.ToMesh("MireWalker"));
 
-            // Mist pouring off the roots, low and slow, and a few fireflies in the moss beards.
-            Puffs(root, "Mist", new Vector3(0f, 1.5f, 0f), new Vector3(34f, 2f, 34f), new Color(0.78f, 0.80f, 0.80f, 0.30f), new Color(0.86f, 0.88f, 0.88f, 0.36f), 6f, 14f, 6f, 0.3f, 14f);
+            // Mist pouring off the roots, low and slow, and a few fireflies in the moss beards. A-84 row 4: the mist was
+            // pale and thin enough to vanish against the sunlit marsh, so it is a touch greyer and thicker, and a dense
+            // bank hugs the water round the feet under it. Both stay below the moss beards, so at night they never cover
+            // the glow points or the fireflies.
+            Puffs(root, "Mist", new Vector3(0f, 1.5f, 0f), new Vector3(34f, 2f, 34f), new Color(0.70f, 0.73f, 0.74f, 0.50f), new Color(0.80f, 0.83f, 0.84f, 0.58f), 7f, 15f, 9f, 0.3f, 14f);
+            Puffs(root, "MistBank", new Vector3(0f, 0.6f, 0f), new Vector3(26f, 0.6f, 26f), new Color(0.66f, 0.70f, 0.72f, 0.62f), new Color(0.76f, 0.80f, 0.82f, 0.70f), 9f, 16f, 6f, 0.06f, 16f);
             Puffs(root, "Fireflies", body + new Vector3(0f, -7f, 0f), new Vector3(18f, 6f, 22f), new Color(0.80f, 1f, 0.45f, 0.9f), new Color(0.95f, 1f, 0.60f, 0.8f), 0.12f, 0.25f, 3f, 0.2f, 6f);
 
             for (int k = 0; k < glow.Count; k++)

@@ -71,6 +71,8 @@ namespace Punchy.Fauna
             new Gait { Kind = StoneColossi.Kind.CinderSnail, Radius = 40f, Speed = 0.35f, Walk = 120f, Rest = 60f, Stride = 8f, Bob = 0.04f, Shake = 0.03f, Body = 24f, Height = 34f, Salt = 0xA7C5u },
             // A-79: the mire walker creeps on its root skirt (no rig), slow with a heavy sway, pausing long in the fog.
             new Gait { Kind = StoneColossi.Kind.MireWalker, Radius = 36f, Speed = 0.6f, Walk = 90f, Rest = 45f, Stride = 10f, Bob = 0.12f, Shake = 0.05f, Body = 20f, Height = 40f, Salt = 0xA7F1u },
+            // A-84 row 3: the walking oak heaves along on its root legs, a slow rolling gait with a big bob, resting long.
+            new Gait { Kind = StoneColossi.Kind.WalkingOak, Radius = 50f, Speed = 0.7f, Walk = 80f, Rest = 70f, Stride = 6f, Bob = 0.25f, Shake = 0.08f, Body = 16f, Height = 46f, Salt = 0xA70Au },
         };
 
         const float Ramp = 5f, AwakeRange = 600f, FarPeriod = 0.5f, ShakeRange = 120f, ShakeTime = 0.35f, DustRange = 300f;
