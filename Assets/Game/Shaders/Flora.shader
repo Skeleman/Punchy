@@ -44,6 +44,14 @@ Shader "Punchy/Flora"
                 return smoothstep(3, 8, period / max(footprint, 1e-4));
             }
 
+            // W-112: the colour the Ember Forest's embers glow in, its night's fire colour (FireSystem.EmberTint, set by
+            // LandmarkEffectSystem); the wood-fire ember until it has been set (w 0).
+            float4 _PunchyEmberTint;
+            half3 EmberTint()
+            {
+                return _PunchyEmberTint.w > 0.5 ? (half3)_PunchyEmberTint.rgb : half3(1.0, 0.36, 0.08);
+            }
+
             /// Weathering on built things that holds up at any range: the procedural equivalent of mipmapping. Courses
             /// of blocks (stone rows, planks, thatch layers: 0.3 m rows of 0.6 m blocks, and 1.2 m bands that outlast
             /// them), mottling at 0.7, 2.5 and 9 m, and rain streaks down the walls. Each octave drops out as it gets
@@ -442,7 +450,7 @@ Shader "Punchy/Flora"
                     float vein = abs(PunchyValueNoise(q.xz + q.y * 1.7 + r * 13.0) - 0.5) + abs(PunchyValueNoise(q.zy * 1.3 + 4.1) - 0.5) * 0.6;
                     half crack = 1 - smoothstep(0.02, 0.07, vein);
                     half pulse = 0.65 + 0.35 * sin(_PunchyClock * 1.3 - input.positionWS.y * 0.8 + r * 20);
-                    color = color * (1 - crack * 0.6) + half3(1.0, 0.36, 0.08) * crack * pulse * 2.4;
+                    color = color * (1 - crack * 0.6) + EmberTint() * crack * pulse * 2.4;
                 }
                 // Ember leaves and needles (the same species, marked as Foliage + 0.25): thin glowing slivers through the
                 // crown, hot at their middle, pulsing slowly out of step (G-33/F-47).
@@ -457,7 +465,7 @@ Shader "Punchy/Flora"
                     half sliver = (1 - smoothstep(0.015, 0.05, vein)) * dash;
                     half patch = smoothstep(0.45, 0.7, PunchyValueNoise(input.positionWS.xz * 0.35 + r * 11.0));
                     half pulse = 0.6 + 0.4 * sin(_PunchyClock * 1.1 - input.positionWS.y * 0.6 + r * 23);
-                    color += half3(1.0, 0.4, 0.1) * sliver * patch * pulse * 1.8;
+                    color += EmberTint() * half3(1.0, 1.1, 1.25) * sliver * patch * pulse * 1.8;
                 }
 
                 // A bark face's eyes (part 9): a faint glow in its colour that blinks shut for a moment every few seconds.

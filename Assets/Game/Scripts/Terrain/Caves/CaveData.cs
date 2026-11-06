@@ -180,6 +180,10 @@ namespace Punchy.Terrain
         /// <summary>How softly surface air and cave air merge at a mouth (m): rock thinner than about half this opens.
         /// Shared by the walls (CaveSystem.FieldJob) and the terrain's cut (TerrainSource.MouthCut), so they agree.</summary>
         public const float MouthBlend = 1.2f;
+        /// <summary>How far under the terrain surface the cave walls end (m, measured across the slope). W-112: was 10 cm,
+        /// which showed as a lip round every mouth where the terrain's cut (wider by up to half a quad) exposed the
+        /// walls' skin; at 2 cm the skin sits flush with the surface and still stays under it.</summary>
+        public const float SkinGap = 0.02f;
         /// <summary>Most the wall noise moves a wall at Roughness 1 (both octaves at full strength).</summary>
         public const float NoiseReach = 0.75f;
         /// <summary>Most the ceiling's ridges, fractures and blocks move it at Jaggedness 1.</summary>

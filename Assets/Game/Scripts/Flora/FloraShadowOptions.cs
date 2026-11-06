@@ -40,8 +40,13 @@ namespace Punchy.Rendering
         /// <summary>Where far shadows stop swaying (m, -stillfrom, 30-50): the sway fades out over 5 m either side.</summary>
         public static float StillFrom = Number("-stillfrom", 40f);
 
-        /// <summary>How far the cached shadows reach (m, -shadowcachefar).</summary>
-        public static float CacheRange = Number("-shadowcachefar", 50f);
+        /// <summary>How far the cached shadows reach (m, -shadowcachefar). W-112: 120 (was 50, past which trees cast
+        /// nothing at all, so a forest seen from afar had no shadows).</summary>
+        public static float CacheRange = Number("-shadowcachefar", 120f);
+
+        /// <summary>How much a cached shadow darkens what it falls on (0-1, -shadowcachedark, times the sun's shadow
+        /// strength). W-112: 0.62, about what a real-time shadow takes away at midday (was 0.42, far shadows read pale).</summary>
+        public static float CacheDarkness = Number("-shadowcachedark", 0.62f);
 
         /// <summary>The cache is redrawn when the sun has turned this far (degrees) or the camera moved this far (m).</summary>
         public static float CacheSunDegrees = 0.5f, CacheMove = 10f;
