@@ -26,14 +26,22 @@ namespace Punchy.Terrain
         internal enum Family { Arid, Wet, Cold, Volcanic, Temperate }
         internal enum Ridge { None, Mesas, Mountains, Volcano }
 
-        internal static readonly Dictionary<Family, string[]> BiomeNames = new Dictionary<Family, string[]>
+        /// <summary>
+        /// Each realm family's palette ids, from the biomes' Family tag in FamilyOrder (W-116; was a list of names). The
+        /// ocean is left out; a family with no biome falls back to biome 0 and is added to <paramref name="missing"/>.
+        /// </summary>
+        internal static Dictionary<Family, int[]> FamilyPicks(IReadOnlyList<BiomeDefinition> palette, int oceanId, List<string> missing = null)
         {
-            { Family.Arid, new[] { "Dunes", "SaltFlat", "Sonoran", "GlassDesert", "MesaCanyonlands" } },
-            { Family.Wet, new[] { "FoggyMarsh", "PoisonSwamp", "FungalForest", "SparklingForest" } },
-            { Family.Cold, new[] { "Glacier", "Tundra", "Mountains" } },
-            { Family.Volcanic, new[] { "Ashlands", "EmberForest", "ElectricWastelands" } },
-            { Family.Temperate, new[] { "Temperate", "Grassland" } },
-        };
+            var pick = new Dictionary<Family, int[]>();
+            foreach (Family f in System.Enum.GetValues(typeof(Family)))
+            {
+                var list = BiomeTags.InFamily(palette, (BiomeFamily)((int)f + 1));
+                list.Remove(oceanId);
+                if (list.Count == 0) { list.Add(0); missing?.Add(f.ToString()); }
+                pick[f] = list.ToArray();
+            }
+            return pick;
+        }
 
         /// <summary>
         /// W-22: whether this launch bakes through IslandV2System (versions 2 and 3; v3 is the default since W-111). Only
@@ -234,20 +242,13 @@ namespace Punchy.Terrain
             const int realms = Realms; const float lakeRadius = 0.13f, ridgeWidth = 0.016f, coastWobble = 0.14f;
             PickRealms(out var sites, out var fam, out uint seed, out int bestBad);
 
-            // Palette ids by name; a family biome the palette lacks is skipped (a family with none falls back to biome 0).
-            var ids = new Dictionary<string, int>();
-            for (int i = 0; i < palette.Count; i++) if (palette[i] != null) ids[palette[i].name] = i;
+            // Palette ids by family tag (a family with none falls back to biome 0); ridges by their ridge tag.
             int oceanId = hasOcean ? palette.Count - 1 : 0;
-            var pick = new Dictionary<Family, int[]>();
             var missing = new List<string>();
-            foreach (var kv in BiomeNames)
-            {
-                var list = new List<int>();
-                foreach (var n in kv.Value) { if (ids.TryGetValue(n, out var id) && id != oceanId) list.Add(id); else missing.Add(n); }
-                if (list.Count == 0) list.Add(0);
-                pick[kv.Key] = list.ToArray();
-            }
-            int Named(string n, int fallback) => ids.TryGetValue(n, out var id) ? id : fallback;
+            var pick = FamilyPicks(palette, oceanId, missing);
+            int ridgeVolcano = BiomeTags.First(palette, BiomeTags.RidgeVolcano), ridgeMesa = BiomeTags.First(palette, BiomeTags.RidgeMesa),
+                ridgeMountain = BiomeTags.First(palette, BiomeTags.RidgeMountain);
+            int Tagged(int tagged, int fallback) => tagged >= 0 ? tagged : fallback;
 
             var biomeIds = new byte[N * N];
             var offset = new float[N * N];
@@ -290,7 +291,7 @@ namespace Punchy.Terrain
                         h += peak * (0.5f + 0.5f * ridged * ridged) * Smooth(amt) * Mathf.Clamp01(coast / 0.12f);
                         if (amt > 0.45f)
                         {
-                            id = kind == Ridge.Volcano ? Named("Ashlands", id) : kind == Ridge.Mesas ? Named("MesaCanyonlands", id) : Named("Mountains", id);
+                            id = kind == Ridge.Volcano ? Tagged(ridgeVolcano, id) : kind == Ridge.Mesas ? Tagged(ridgeMesa, id) : Tagged(ridgeMountain, id);
                             ridgeCells++;
                         }
                     }
@@ -567,7 +568,7 @@ namespace Punchy.Terrain
             Debug.Log(GrandFalls.LastLog);
             long fallsMs = watch.ElapsedMilliseconds - fallsAt;
             // W-30: the archipelago too, off the dune coast; it only raises sea floor.
-            source.Archipelago = Archipelago.Build(source, biomes.FindIndex(b => b != null && b.name == "Dunes"), Allocator.Persistent);
+            source.Archipelago = Archipelago.Build(source, BiomeTags.First(biomes, BiomeTags.ArchipelagoCoast), Allocator.Persistent);
             Debug.Log(Archipelago.LastLog);
             long archMs = watch.ElapsedMilliseconds - fallsAt - fallsMs;
             EntityManager.SetComponentData(entity, source);

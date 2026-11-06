@@ -14,6 +14,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.BiomeDefinition
   MapColor: {r: 0.7, g: 0.3, b: 0.16, a: 1}
   Frequency: 0.8
+  Family: 1
+  FamilyOrder: 4
+  Tags:
+  - ridge-mesa
   Altitude: {x: 0.4, y: 0.8}
   Temperature: {x: 0.5, y: 1}
   Humidity: {x: 0.12, y: 0.38}
