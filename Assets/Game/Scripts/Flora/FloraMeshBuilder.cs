@@ -166,6 +166,13 @@ namespace Punchy.Flora
             }
         }
 
+        /// <summary>Tilts the normals of a vertex range towards straight up (an amount of 1 points them all up).</summary>
+        public void LiftNormals(int firstVertex, int count, float amount)
+        {
+            for (int v = firstVertex; v < Mathf.Min(firstVertex + count, positions.Count); v++)
+                normals[v] = Vector3.Lerp(normals[v], Vector3.up, amount).normalized;
+        }
+
         /// <summary>Applies ambient occlusion since a vertex: ao(position, normal) multiplies what's there.</summary>
         public void Occlude(int firstVertex, Func<Vector3, Vector3, float> ao)
         {

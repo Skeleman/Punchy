@@ -3066,7 +3066,11 @@ namespace Punchy.Flora
             if (midY > eaveY + lip)
                 Add(midY, midR);
             Add(apexY, apexR);
+            var first = b.VertexCount;
             b.Tube(path, radii, sides, color, part, cap: true);
+            // The lip's underside faces down and went black against the sky, worst at the far-reaching corners of
+            // square roofs (W-113 item 13): tilt its four rings' normals up so the lip reads as lit stone.
+            b.LiftNormals(first, 4 * sides, 0.75f);
         }
 
         static void Hut(Grower g)
@@ -3870,7 +3874,7 @@ namespace Punchy.Flora
             var roof = b.VertexCount;
             RoofTube(b, wall - 0.24f, corner * 1.2f, 4, g.FoliageColor(), FloraPart.Bark, height, 0.05f, 0f, 0f);   // rounded lip, not a knife edge (#32)
             RotateFrom(b, roof, square);
-            b.Occlude(roof, (p, n) => Mathf.Lerp(0.6f, 1f, Mathf.Clamp01(n.y + 0.3f)));
+            b.Occlude(roof, (p, n) => Mathf.Lerp(0.8f, 1f, Mathf.Clamp01(n.y + 0.3f)));
             var chimney = new Vector3(half * 0.55f, 0f, -half * 0.4f);
             var stack = b.VertexCount;
             b.Tube(new List<Vector3> { chimney + Vector3.up * (wall * 0.8f), chimney + Vector3.up * (height + 0.5f) },
