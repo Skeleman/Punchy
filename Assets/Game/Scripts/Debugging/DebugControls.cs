@@ -54,6 +54,9 @@ namespace Punchy.Debugging
         /// </summary>
         string landmarkPlacePending;
         float3 landmarkPlaceKey;
+        /// <summary>A-78: the landmarks key "-place batfolk" last placed on, and whether it found a chamber at all.</summary>
+        float3 batFolkPlaceKey;
+        bool batFolkPlaced;
         float landmarkPlaceUntil;
         bool landmarkPlaced;
         string speciesPickPending;
@@ -272,12 +275,7 @@ namespace Punchy.Debugging
             PlacePropPending();
             PlaceAtLandmarkPending();
             PickSpeciesPending();
-            // (A-69: "-place batfolk" again until the bat folk homes are baked; they come after the island.)
-            if (batFolkPlaceUntil > 0f && Time.unscaledTime < batFolkPlaceUntil && EnsureLocations(out var batRetry) && PlaceAtBatFolk(batRetry))
-            {
-                batFolkPlaceUntil = 0f;
-                rockWatchSince = -1f; // (-rockwatch counts from there.)
-            }
+            PlaceAtBatFolkPending();
             RockWatch();
             Pose();
             Interact();
@@ -2010,7 +2008,13 @@ namespace Punchy.Debugging
                 if (args[i] == "-flycave" && EnsureLocations(out var flySource))
                     StartFlyCave(flySource, args[i + 1]);
                 if (args[i] == "-place" && args[i + 1].StartsWith("batfolk", System.StringComparison.OrdinalIgnoreCase))
-                    batFolkPlaceUntil = EnsureLocations(out var batSource) && PlaceAtBatFolk(batSource) ? 0f : Time.unscaledTime + 60f;
+                {
+                    // (Kept trying until v3 is up, ~90 s in: see PlaceAtBatFolkPending.)
+                    batFolkPlaceUntil = Time.unscaledTime + 180f;
+                    batFolkPlaceKey = new float3(-1f);
+                    batFolkPlaced = false;
+                    PlaceAtBatFolkPending();
+                }
                 else if (args[i] == "-place" && args[i + 1].StartsWith("tree:", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var treeSource))
                     PlaceByTree(treeSource, args[i + 1].Substring(5));
                 else if (args[i] == "-place" && args[i + 1].StartsWith("prop:", System.StringComparison.OrdinalIgnoreCase))
@@ -3784,10 +3788,32 @@ namespace Punchy.Debugging
                 Debug.Log($"DebugControls: at bat folk chamber {i}, pod door at ({at.x:F0}, {at.y:F0}, {at.z:F0}), pod floor at y {pod.Stand.y:F1}");
                 return true;
             }
-            // (Said once, when the retries give up.)
-            if (batFolkPlaceUntil > 0f && Time.unscaledTime + 0.1f >= batFolkPlaceUntil)
-                Debug.LogWarning("DebugControls: no bat folk chamber with a pod");
             return false;
+        }
+
+        /// <summary>
+        /// A-78: "-place batfolk" again whenever the island's landmarks change, until it times out. The baked first
+        /// island's chambers came first, and the v3 pass replaces its caves and bat folk homes, so a placement made on the
+        /// first island left the player on v3's open ground (spawning 0 cave folk). Like PlaceAtLandmarkPending (A-74).
+        /// </summary>
+        void PlaceAtBatFolkPending()
+        {
+            if (batFolkPlaceUntil <= 0f)
+                return;
+            if (Time.unscaledTime > batFolkPlaceUntil)
+            {
+                if (!batFolkPlaced)
+                    Debug.LogWarning("DebugControls: no bat folk chamber with a pod");
+                batFolkPlaceUntil = 0f;
+                return;
+            }
+            // (No key change: placed on this island already. A failed try keeps the old key, to retry next frame while
+            // the homes are still baking.)
+            if (!EnsureLocations(out var source) || math.all(locationsKey == batFolkPlaceKey) || !PlaceAtBatFolk(source))
+                return;
+            batFolkPlaceKey = locationsKey;
+            batFolkPlaced = true;
+            rockWatchSince = -1f; // (-rockwatch counts from there.)
         }
 
         /// <summary>
