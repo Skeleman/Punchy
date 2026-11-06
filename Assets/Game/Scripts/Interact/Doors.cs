@@ -40,9 +40,16 @@ namespace Punchy.Interact
             get
             {
                 InputGlyphs.Update();
-                return InputGlyphs.Gamepad ? InputGlyphs.Path(PadPath) ?? "RB" : Current.ToString();
+                // (Kept until the device, the pad or the key changes: asked for every frame by the prompts.)
+                var key = (InputGlyphs.Version, InputGlyphs.Gamepad, Current);
+                if (name == null || !nameFor.Equals(key))
+                    (name, nameFor) = (InputGlyphs.Gamepad ? InputGlyphs.Path(PadPath) ?? "RB" : Current.ToString(), key);
+                return name;
             }
         }
+
+        static string name;
+        static (int, bool, Key) nameFor;
 
         public const string PadPath = "<Gamepad>/rightShoulder";
 
@@ -505,7 +512,14 @@ namespace Punchy.Interact
             }
         }
 
-        void OnGUI()
+        // P-20 (profiler finding 11): drawn through a GuiHook, on only while there is something to draw, so this
+        // script stays out of Unity's IMGUI pass (and its per-frame garbage) the rest of the time.
+        void Start()
+        {
+            Punchy.UI.GuiHook.Add(gameObject, DrawGui, () => prompt != null && !Punchy.UI.Overlay.AnyOpen, false);
+        }
+
+        void DrawGui()
         {
             if (prompt == null || Punchy.UI.Overlay.AnyOpen)
                 return;

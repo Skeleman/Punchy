@@ -179,8 +179,7 @@ namespace Punchy.Items
         /// <summary>The host's side of containers, and the drop cap (called from Serve).</summary>
         void ServeContainers(EntityManager em)
         {
-            using (var q = em.CreateEntityQuery(typeof(PutRpc), typeof(ReceiveRpcCommandRequest)))
-            using (var rs = q.ToEntityArray(Allocator.Temp))
+            using (var rs = Q(em, ComponentType.ReadWrite<PutRpc>(), ComponentType.ReadWrite<ReceiveRpcCommandRequest>()).ToEntityArray(Allocator.Temp))
                 foreach (var r in rs)
                 {
                     var m = em.GetComponentData<PutRpc>(r);
@@ -193,8 +192,7 @@ namespace Punchy.Items
                     }
                     em.DestroyEntity(r);
                 }
-            using (var q = em.CreateEntityQuery(typeof(TakeRpc), typeof(ReceiveRpcCommandRequest)))
-            using (var rs = q.ToEntityArray(Allocator.Temp))
+            using (var rs = Q(em, ComponentType.ReadWrite<TakeRpc>(), ComponentType.ReadWrite<ReceiveRpcCommandRequest>()).ToEntityArray(Allocator.Temp))
                 foreach (var r in rs)
                 {
                     var m = em.GetComponentData<TakeRpc>(r);
@@ -254,7 +252,7 @@ namespace Punchy.Items
                 return;
             if (Joined)
             {
-                using var q = client.EntityManager.CreateEntityQuery(typeof(NetworkStreamInGame));
+                var q = Q(client.EntityManager, ComponentType.ReadWrite<NetworkStreamInGame>());
                 if (q.IsEmpty)
                     return;
             }

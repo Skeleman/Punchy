@@ -601,7 +601,14 @@ namespace Punchy.Interact
             RenderSettings.ambientGroundColor = Color.Lerp(RenderSettings.ambientGroundColor, warm * 0.7f, indoors);
         }
 
-        void OnGUI()
+        // P-20 (profiler finding 11): drawn through a GuiHook, on only while there is something to draw, so this
+        // script stays out of Unity's IMGUI pass (and its per-frame garbage) the rest of the time.
+        void Start()
+        {
+            Punchy.UI.GuiHook.Add(gameObject, DrawGui, () => prompt != null && !Punchy.UI.Overlay.AnyOpen, false);
+        }
+
+        void DrawGui()
         {
             if (prompt == null || Punchy.UI.Overlay.AnyOpen)
                 return;

@@ -84,7 +84,7 @@ namespace Punchy.Items
             var world = Hosting ? server : World.DefaultGameObjectInjectionWorld;
             if (world == null || !world.IsCreated || species < 0)
                 return -1;
-            using var q = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<CreatureBody>(), ComponentType.ReadOnly<CreatureState>());
+            var q = Q(world.EntityManager, ComponentType.ReadOnly<CreatureBody>(), ComponentType.ReadOnly<CreatureState>());
             using var bodies = q.ToComponentDataArray<CreatureBody>(Allocator.Temp);
             using var states = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
             var n = 0;
@@ -160,7 +160,7 @@ namespace Punchy.Items
                 return true;
             }
             var em = server.EntityManager;
-            using var q = em.CreateEntityQuery(ComponentType.ReadOnly<Punchy.Player.PlayerTag>(), ComponentType.ReadOnly<GhostOwner>(), ComponentType.ReadOnly<LocalTransform>());
+            var q = Q(em, ComponentType.ReadOnly<Punchy.Player.PlayerTag>(), ComponentType.ReadOnly<GhostOwner>(), ComponentType.ReadOnly<LocalTransform>());
             using var owners = q.ToComponentDataArray<GhostOwner>(Allocator.Temp);
             using var places = q.ToComponentDataArray<LocalTransform>(Allocator.Temp);
             for (int i = 0; i < owners.Length; i++)
@@ -170,7 +170,7 @@ namespace Punchy.Items
                     return true;
                 }
             // (A remote player's body may not carry PlayerTag on the server: any ghost it owns with a position.)
-            using var q2 = em.CreateEntityQuery(ComponentType.ReadOnly<GhostOwner>(), ComponentType.ReadOnly<LocalTransform>());
+            var q2 = Q(em, ComponentType.ReadOnly<GhostOwner>(), ComponentType.ReadOnly<LocalTransform>());
             using var owners2 = q2.ToComponentDataArray<GhostOwner>(Allocator.Temp);
             using var places2 = q2.ToComponentDataArray<LocalTransform>(Allocator.Temp);
             for (int i = 0; i < owners2.Length; i++)
@@ -185,7 +185,7 @@ namespace Punchy.Items
         void SendToPlayer<T>(int player, T rpc) where T : unmanaged, IRpcCommand
         {
             var em = server.EntityManager;
-            using var q = em.CreateEntityQuery(typeof(NetworkId), typeof(NetworkStreamInGame));
+            var q = Q(em, ComponentType.ReadWrite<NetworkId>(), ComponentType.ReadWrite<NetworkStreamInGame>());
             using var cs = q.ToEntityArray(Allocator.Temp);
             foreach (var c in cs)
                 if (em.GetComponentData<NetworkId>(c).Value == player)
@@ -198,7 +198,7 @@ namespace Punchy.Items
         {
             if (Joined)
             {
-                using var iq = client.EntityManager.CreateEntityQuery(typeof(NetworkStreamInGame));
+                var iq = Q(client.EntityManager, ComponentType.ReadWrite<NetworkStreamInGame>());
                 if (iq.IsEmpty)
                     return;
             }
@@ -287,7 +287,7 @@ namespace Punchy.Items
         void StandAt(float3 pos)
         {
             var e = World.DefaultGameObjectInjectionWorld.EntityManager;
-            using var pq = e.CreateEntityQuery(ComponentType.ReadWrite<Punchy.Player.PlayerTag>(), ComponentType.ReadWrite<LocalTransform>());
+            var pq = Q(e, ComponentType.ReadWrite<Punchy.Player.PlayerTag>(), ComponentType.ReadWrite<LocalTransform>());
             if (!pq.TryGetSingletonEntity<LocalTransform>(out var pe) || !TryTerrain(out var terrain))
                 return;
             var t = e.GetComponentData<LocalTransform>(pe);

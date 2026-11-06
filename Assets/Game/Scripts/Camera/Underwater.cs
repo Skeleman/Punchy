@@ -113,7 +113,14 @@ namespace Punchy.CameraRig
             return float.MinValue;
         }
 
-        void OnGUI()
+        // P-20 (profiler finding 11): drawn through a GuiHook, on only while there is something to draw, so this
+        // script stays out of Unity's IMGUI pass (and its per-frame garbage) the rest of the time.
+        void Start()
+        {
+            Punchy.UI.GuiHook.Add(gameObject, DrawGui, () => amount > 0f, false);
+        }
+
+        void DrawGui()
         {
             if (amount <= 0f || Event.current.type != EventType.Repaint)
                 return;
