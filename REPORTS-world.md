@@ -2920,3 +2920,16 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
 - Shot: Assets/Temp/shots/w115-cave-chamber.png (cave 16's chamber with a spawned creature, loot and rock-pile clutter).
 - Risk (animal lane): the spawner keeps cave creatures permanently, about 2-5 per cave, so roughly 60 more live creatures island-wide. Cave interactables pick only Empty. Most spots read Dark (the caves are long).
 - Landmarks and fingerprint: no landmark or flora change in this row (confirmed in the final suite).
+
+## Fix: crash on quit in the surface glow far scan (profiler q46) - done (verified in editor)
+- Commit 156e7df on world-features, its own commit (CaveSystem.cs only, CRLF kept).
+- Cause: SurfaceGlow.FarScanJob reads the TerrainSource blobs; quitting (or leaving play mode) frees them before
+  CaveSystem.OnDisable runs SurfaceGlow.Release, so the job could still be reading freed blobs.
+- Fix: CaveSystem also releases on Application.quitting (as TerrainStreamingSystem.CancelBuild does), which
+  finishes the near and far scan jobs and every chunk job while the blobs are intact.
+- Check: play mode to world ready, wait 10 s (far scan running), exit play mode: no "not valid", exception or
+  error lines in Editor.log. Not re-checked in a player build quit; the profiler's q46 repro is the real test.
+- Risk found, not mine to fix: Items.ChestSockets/TryChest (Items.cs:294/310, player lane) call GetSingletonEntity on
+  DungeonInfo+DungeonSocket, but since W-115 row 1 there is one dungeon entity per cave as well as the temple, so it
+  throws every frame (10k+ InvalidOperationException in one play). It should filter by DungeonInfo.Type ==
+  DungeonTypes.SunkenTemple (or by Id).
