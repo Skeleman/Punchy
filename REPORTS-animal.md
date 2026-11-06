@@ -2814,3 +2814,14 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - **Positions:** all 14 "placed at" lines identical to A-83 (e.g. DunesColossus 3730, 9.7, 877). Fingerprint 8A1979F1. No exceptions.
 - **GC:** PlayerLoop 8713 B/frame over 121 frames (limit 9594). perf frame 7.26 ms, cpu main 6.32.
 - **Shot:** none asked (number check). Suite runs once at card end, after the editor closes.
+
+## A-84 row 2: Tundra snow worm colossus (#40), done (verified)
+- Commit 68fb6161. Biomes with no colossus of their own before this row (island v3 sample of each placed colossus): Tundra (only the kneeling titan's edge), Mountains, Glacier, Temperate, Volcano, Ocean.
+- **SnowWorm:** placed at (-2303, 279.8, 1154), facing 137, Tundra 1.00, ~355 m from the titan. Ringed frosted body breaching in three arcs, blind head reared ~44 m with peeled lips and tooth rings.
+  - Details: frost plates, icicles under the arcs, settled snow, a ploughed furrow trail behind the tail, a harpoon roped to a broken sled, a flattened pine.
+  - Particles: steaming breath, snow spray off two breach mounds, powder sifting from the back arc.
+  - Sound: a growl pitched far down from the maw every 14-26 s plus a snow hiss at the mounds (GameAudio one-shots, reach 320/120 m). Checked the timer fires in play.
+  - Neck sways a few degrees (skipped past 600 m). Collision: 200 columns of 3 m.
+- **Checks:** fingerprint 8A1979F1, the other 13 positions unchanged, 0 exceptions. Build 23.4 ms and solid 18.6 ms (own frames). GC 8713 B/frame was measured with the worm in (row 1 run, before the sound); the sound is a one-shot every ~20 s.
+- **Shots:** D:\PunchyMilestones\A-84\worm-side.png, worm-front.png, worm-back.png, worm-side-2.png (daylight 13 h; side shows the three arcs and reared head, front shows the gaping maw). It doesn't glow, so no night shot.
+- Risk: the trail is subtle from far away; the sound wasn't heard by a person, only the trigger checked.
