@@ -67,6 +67,7 @@ namespace Punchy.Terrain
         static void Roads(in TerrainSource source, List<SettlementLayout> layouts, List<int> firstBuilding, List<SettlementData> settlements,
                           List<SettlementStreet> streets, List<SettlementPlot> plots, List<RoadsideBaking.RoadPath> roads)
         {
+            Stats.Reset();
             var ends = new List<End>();
             foreach (var s in settlements)
                 ends.Add(new End { At = s.Centre + s.Road * s.Radius * 0.95f, Out = s.Road, Settlement = ends.Count, Radius = s.Radius });
@@ -396,6 +397,8 @@ namespace Punchy.Terrain
                 var a = points[start];
                 var b = points[math.min(i, points.Count - 1)];
                 var length = math.distance(a, b);
+                if (deepest > FordDepth && length > LongestBridge)
+                    Stats.Unbridged++;   // too deep to ford, too long to bridge: a gap in the road (W-111)
                 if (deepest <= FordDepth || length > LongestBridge || length < 1f)
                     continue;
                 var along = (b - a) / length;
@@ -616,36 +619,139 @@ namespace Punchy.Terrain
         static void Emit(in TerrainSource source, List<float2> path, float width, int settlement, List<SettlementData> settlements,
                          List<SettlementStreet> streets)
         {
-            // Every stretch first (ends and a skip flag), sampled in parallel, then added in order (W-16).
+            // Every stretch first (skip flag and ground samples), sampled in parallel, then graded and added in order (W-16).
             var stretches = Stretches(path);
-            var laid = new (bool skip, float3 from, float3 to)[stretches.Count];
+            var skip = new bool[stretches.Count];
+            var steep = new bool[stretches.Count];
+            var ground = new float[stretches.Count][];
             var src = source;
             System.Threading.Tasks.Parallel.For(0, stretches.Count, i =>
             {
                 var (p0, p1) = stretches[i];
-                // (W-100: a stretch too steep for MaxGrade isn't laid, so the road ends rather than running off a cliff.)
-                if (Unlaid(src, p0, p1, settlements) || TooSteep(src, p0, p1))
-                    laid[i] = (true, default, default);
-                else
-                    laid[i] = (false, new float3(p0.x, src.SampleHeight(p0), p0.y), new float3(p1.x, src.SampleHeight(p1), p1.y));
+                skip[i] = Unlaid(src, p0, p1, settlements);
+                if (skip[i])
+                    return;
+                // The ground every metre along the stretch, at TooSteep's very points.
+                var n = math.max(1, (int)math.ceil(math.distance(p0, p1)));
+                var h = new float[n + 1];
+                for (int k = 0; k <= n; k++)
+                    h[k] = src.SampleHeight(math.lerp(p0, p1, k / (float)n));
+                ground[i] = h;
+                steep[i] = TooSteep(src, p0, p1);
             });
+
+            // W-111 (#39): no stretch is left out for being steep any more (W-100 left a gap there, the road ending at
+            // the top of a rise and picking up at its foot). Each run of laid stretches gets a road profile no steeper
+            // than MaxGrade: the mean of the ground's upper envelope (hills cut down, min over j of h_j + g|i-j|) and its
+            // lower one (hollows filled, max of h_j - g|i-j|). Where the ground is already within the grade both equal it
+            // exactly, so a road that never was too steep is laid just as before; elsewhere the street's levelling digs a
+            // cutting through the crest and banks an embankment below it (Road 2: SettlementSampling.Height blends those
+            // wider, by their depth).
+            var profile = new float[stretches.Count][];
+            for (int start = 0; start < stretches.Count;)
             {
-                foreach (var (skip, from, to) in laid)
+                if (skip[start])
                 {
-                    if (skip)
-                        continue;
-                    var reach = width * 0.5f + SettlementSampling.StreetBlend;
-                    streets.Add(new SettlementStreet
-                    {
-                        A = from,
-                        B = to,
-                        Width = width,
-                        Settlement = settlement,
-                        Road = 1,
-                        Min = math.min(from.xz, to.xz) - reach,
-                        Max = math.max(from.xz, to.xz) + reach
-                    });
+                    start++;
+                    continue;
                 }
+                var end = start;
+                while (end < stretches.Count && !skip[end])
+                    end++;
+                Grade(stretches, ground, profile, start, end);
+                start = end;
+            }
+
+            var reach = width * 0.5f + SettlementSampling.StreetBlend;
+            for (int i = 0; i < stretches.Count; i++)
+            {
+                if (skip[i])
+                    continue;
+                var (p0, p1) = stretches[i];
+                var y = profile[i];
+                var h = ground[i];
+                var depth = 0f;
+                for (int k = 0; k < y.Length; k++)
+                {
+                    var linear = math.lerp(y[0], y[y.Length - 1], k / (float)(y.Length - 1));
+                    depth = math.max(depth, math.abs(linear - h[k]));
+                    // (The stats: deepest cutting and embankment under the road's own line.)
+                    var spot = math.lerp(p0, p1, k / (float)(y.Length - 1));
+                    if (h[k] - linear > Stats.DeepestCut) { Stats.DeepestCut = h[k] - linear; Stats.CutAt = new float3(spot.x, linear, spot.y); }
+                    if (linear - h[k] > Stats.DeepestFill) { Stats.DeepestFill = linear - h[k]; Stats.FillAt = new float3(spot.x, linear, spot.y); }
+                }
+                var graded = y[0] != h[0] || y[y.Length - 1] != h[h.Length - 1] || steep[i];
+                if (steep[i])
+                    Stats.SteepStretches++;
+                if (graded)
+                    Stats.GradedStretches++;
+                var from = new float3(p0.x, y[0], p0.y);
+                var to = new float3(p1.x, y[y.Length - 1], p1.y);
+                // A graded stretch's levelling reaches out over its banks, a metre and a half per metre of depth (the
+                // ground beside the road may be deeper than under it, so its bounds take the widest bank).
+                var r = graded ? width * 0.5f + SettlementSampling.GradeBlendMax : reach;
+                streets.Add(new SettlementStreet
+                {
+                    A = from,
+                    B = to,
+                    Width = width,
+                    Settlement = settlement,
+                    Road = graded ? 2 : 1,
+                    Min = math.min(from.xz, to.xz) - r,
+                    Max = math.max(from.xz, to.xz) + r
+                });
+            }
+        }
+
+        /// <summary>Road bake numbers for the last island baked (W-111): stretches graded, deepest cut and fill.</summary>
+        public static class Stats
+        {
+            public static int SteepStretches, GradedStretches, Unbridged;
+            public static float DeepestCut, DeepestFill;
+            public static float3 CutAt, FillAt;
+            public static void Reset() { SteepStretches = GradedStretches = Unbridged = 0; DeepestCut = DeepestFill = 0f; }
+        }
+
+        /// <summary>
+        /// The road profile over stretches [start, end): the mean of the ground's upper and lower MaxGrade envelopes,
+        /// each found in two passes (forward, then back) over the metre samples, which share each stretch's end point.
+        /// </summary>
+        static void Grade(List<(float2 p0, float2 p1)> stretches, float[][] ground, float[][] profile, int start, int end)
+        {
+            var heights = new List<float>();
+            var steps = new List<float>();   // the run before each sample (0 for the first)
+            for (int i = start; i < end; i++)
+            {
+                var h = ground[i];
+                var step = math.distance(stretches[i].p0, stretches[i].p1) / (h.Length - 1);
+                for (int k = i == start ? 0 : 1; k < h.Length; k++)
+                {
+                    heights.Add(h[k]);
+                    steps.Add(k == 0 ? 0f : step);
+                }
+            }
+            var n = heights.Count;
+            var upper = heights.ToArray();
+            var lower = heights.ToArray();
+            for (int k = 1; k < n; k++)
+            {
+                upper[k] = math.min(upper[k], upper[k - 1] + MaxGrade * steps[k]);
+                lower[k] = math.max(lower[k], lower[k - 1] - MaxGrade * steps[k]);
+            }
+            for (int k = n - 2; k >= 0; k--)
+            {
+                upper[k] = math.min(upper[k], upper[k + 1] + MaxGrade * steps[k + 1]);
+                lower[k] = math.max(lower[k], lower[k + 1] - MaxGrade * steps[k + 1]);
+            }
+            var at = 0;
+            for (int i = start; i < end; i++)
+            {
+                var y = new float[ground[i].Length];
+                if (i > start)
+                    at--;   // the shared end point
+                for (int k = 0; k < y.Length; k++, at++)
+                    y[k] = upper[at] == lower[at] ? upper[at] : (upper[at] + lower[at]) * 0.5f;
+                profile[i] = y;
             }
         }
 

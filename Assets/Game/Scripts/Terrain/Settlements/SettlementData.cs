@@ -45,7 +45,8 @@ namespace Punchy.Terrain
         public float3 A, B;
         public float Width;
         public int Settlement;
-        /// <summary>1 for a road between settlements (darker, rutted), 0 for a town's own street or square.</summary>
+        /// <summary>1 for a road between settlements (darker, rutted), 2 for a road stretch graded through a cutting or
+        /// over an embankment (W-111: its banks blend wider), 0 for a town's own street or square.</summary>
         public int Road;
         public float2 Min, Max;
     }
@@ -88,6 +89,8 @@ namespace Punchy.Terrain
     {
         /// <summary>How far a street's levelling and paving blend into the ground beside it (m).</summary>
         public const float StreetBlend = 2.5f;
+        /// <summary>W-111: how far a graded road's banks reach per metre of cutting or embankment, and at most (m).</summary>
+        public const float GradeBank = 1.5f, GradeBlendMax = 14f;
         /// <summary>How far a plot's pad blends into the ground round it (m).</summary>
         public const float PadBlend = 3f;
         /// <summary>The furthest a pad far off the ground's height blends out (m); plot bounds reach this far.</summary>
@@ -131,9 +134,12 @@ namespace Punchy.Terrain
                 if (math.any(xz < s.Min) || math.any(xz > s.Max))
                     continue;
                 var across = Across(s, xz, out var t);
-                var w = 1f - math.smoothstep(s.Width * 0.5f, s.Width * 0.5f + StreetBlend, across);
+                var level = math.lerp(s.A.y, s.B.y, t);
+                // W-111: a graded road stretch (Road 2: a cutting or embankment) banks out further the deeper it is.
+                var blend = s.Road == 2 ? math.min(StreetBlend + math.abs(h - level) * GradeBank, GradeBlendMax) : StreetBlend;
+                var w = 1f - math.smoothstep(s.Width * 0.5f, s.Width * 0.5f + blend, across);
                 if (w > 0f)
-                    h = math.lerp(h, math.lerp(s.A.y, s.B.y, t), w);
+                    h = math.lerp(h, level, w);
             }
             // W-74 (#87): plots no longer level one after another (a later neighbour's blend fringe tilted an earlier
             // plot's pad and left house corners buried or floating). The pads mix weighted by w^8, so a plot's own
