@@ -2,6 +2,83 @@
 
 Newest first.
 
+## 2026-11-07 Job 25 (refactor 1.2): stress scenes on e5c88fb4, uncapped (q53.sh; b/bench-stress 472b629d for review)
+
+- **Build:** Profile build of 01cb543, the same game code as job 24.
+- **Runs:**
+  - The window is 1920x1080, at render scale 1 (1080p) and 1.333 (1440p pixel count; the laptop desktop clamps bigger windows).
+  - Order ABBA over 2 rounds.
+  - 12 timed sessions plus 5 capture sessions, read by SysMs at scale 1.
+  - 0 crashes, 0 exceptions.
+- **New runner switches** (on b/bench-stress, for review):
+  - `-benchpitch <deg>`: the camera's pitch on arrival. It is needed for the underwater view at render scale, because only the route applies render scale and it resets the pitch to 12.
+  - `-benchflora`: reads each flora layer's cull counts back from the GPU and logs instances and tris in view, split into plants and rocks/kit buildings (FloraForm.Bones onward).
+- **How to read the numbers:**
+  - Frame = median. GPU is the Profile timer. Main and render thread are means from the runner.
+  - Draw counts, tris and top 5 come from the scale-1 capture. Draw Calls and Batches are still not recorded, so the table shows SetPass calls and instanced batched draws.
+
+### Results (1080p | 1440p pixels)
+
+| Scene | Frame ms | GPU ms | Main ms | Render thr ms | Worst ms | Bound | SetPass / instanced draws / shadow casters | Tris |
+|---|---|---|---|---|---|---|---|---|
+| Big settlement (46 buildings of 152 on 6 settlements, at 2972,-885) | 19.1 \| 24.6 | 16.9 \| 24.5 | 9.3 \| 9.2 | 5.5 \| 5.2 | 30 \| 29 | GPU \| GPU | 361 / 10.8k / 556 | 3.1M |
+| Dense forest (under the OakGrove canopy, 1740,3355) | 14.6 \| 18.3 | 12.9 \| 16.6 | 9.1 \| 9.8 | 4.5 \| 4.3 | 26 \| 27 | GPU \| GPU | 344 / 8.9k / 239 | 3.5M |
+| Fires base (start spot, no flames) | 15.7 \| 24.4 | 14.7 \| 24.3 | 9.6 \| 9.2 | 3.6 \| 3.4 | 41 \| 40 | GPU \| GPU | not captured | |
+| 500 fires (same spot, `-benchfires 500`) | 16.9 \| 26.4 | 15.7 \| 25.8 | 11.1 \| 10.6 | 3.8 \| 3.5 | 40 \| 34 | GPU \| GPU | 293 / 3.2k / 219 | 1.7M |
+| Lake at noon (-1624,-488, yaw 0) | 25.2 \| 44.8 | 25.1 \| 45.8 | 10.6 \| 11.9 | 4.1 \| 4.2 | 43 \| 66 | GPU \| GPU | 249 / 4.2k / 336 | 2.0M |
+| Lake, camera under water (`-benchpitch -35`) | 38.2 \| 66.5 | 37.8 \| 64.3 | 10.9 \| 16.6 | 2.9 \| 3.5 | 50 \| 83 | GPU \| GPU | 151 / 3.0k / 294 | 1.2M |
+
+### Top 5 systems (SysMs, scale 1; ms per frame, all threads / main)
+
+| Scene | Top 5 |
+|---|---|
+| Big settlement | shadows (URP) 2.62/0.07, creature render 1.93/0.30, creature brain 1.49/0.06, flora 0.84/0.84, colossi 0.38/0.38 |
+| Dense forest | creature render 2.57/0.51, creature brain 1.86/0.07, shadows (URP) 1.24/0.07, flora 0.61/0.61, colossi 0.33/0.33 |
+| 500 fires | LandmarkEffectSystem.Update (FireSystem.Draw) 1.31 main, creature brain 1.37/0.06, shadows (URP) 1.18/0.08, creature render 1.12/0.34, flora 0.69/0.69 |
+| Lake | creature render 1.73/0.28, shadows (URP) 1.60/0.07, creature brain 1.36/0.06, flora 0.72/0.72, fauna director 0.70/0.70 |
+| Under water | shadows (URP) 1.35/0.06, creature brain 1.28/0.05, fauna director 1.07/1.07, creature render 0.82/0.25, flora 0.75/0.75 |
+
+### Flora in view (`-benchflora`, end of each stop)
+
+| Scene | Plants in view | Rocks/kit in view | Plant share of in-view flora tris |
+|---|---|---|---|
+| Dense forest | 10,932 (2.27M tris) | 1,008 (139k tris) | 94% |
+| Big settlement | 4,522 (927k tris) | 1,156 (227k tris) | 80% |
+| Fires spot | 2,959 (642k tris) | 744 (86k tris) | 88% |
+| Lake (the far shore) | 7,936 (1.33M tris) | 1,000 (174k tris) | 88% |
+| Under water | 3,861 (539k tris) | 257 (53k tris) | 91% |
+
+- **Shadow lists:** the flora shadow lists read nearly empty (0-121 instances).
+  - Most flora shadows are probably drawn from FloraSystem.ShadowCache, which keeps its own counts that this switch does not read.
+  - So take the in-view numbers as the main view only.
+
+### Notes
+
+- **Every scene is GPU-bound at both sizes.** The main thread stays at 9-12 ms everywhere, except under water at 1440p (16.6).
+- **The lake is the worst scene by a wide margin:**
+  - Noon: 25 ms GPU at 1080p, rising to 46 ms at 1440p pixels (+83%).
+  - Under water: 38 ms, rising to 64 ms (+70%).
+  - Both are pixel-bound, consistent with q43 (water is GPU and fill).
+- **Pixel scaling elsewhere:**
+
+  | Scene | GPU from 1080p to 1440p pixels |
+  |---|---|
+  | Fires spot | +65% |
+  | Big settlement | +45% |
+  | Dense forest | +29% (vertex-bound, as in q51) |
+
+- **500 fires**, laid in a 4 m grid by `-benchfires 500` (FireSystem.AddFlame every frame):
+  - +1.0 ms GPU at 1080p and +1.5 ms at 1440p.
+  - +1.5 ms main thread, nearly all of it LandmarkEffectSystem.Update (1.31 ms, which includes the per-frame mesh rebuild that refactor 3.2 removes).
+  - The Ember Forest at night is left to job 27, whose branch counts flames.
+- **The big settlement has the most URP shadow work:** 556 shadow casters and 2.6 ms of shadow CPU across all threads.
+  - The 46 kit buildings are 1,156 rocks/kit instances (227k tris) against 4,522 plants (927k tris) in view.
+  - So flora vertex work there is mostly plants. Job 26 will measure the static variant directly.
+- **The lake spot puts the player inside a sea-folk pillar standing in the water.** It stays mid-frame at yaw 0 and 180, and the water fills about two-thirds of the screen.
+  - Yaw 180 measured the same GPU (24.7 ms in the dry run), so I kept the card's spot.
+- **The 1440p lake runs have many slow frames** (215-379 over 33 ms per stop), which follows from their 45-66 ms medians.
+- Logs: `results/q53logs` on the laptop. Shots of each stop: `results/q53-dry-*`.
+
 ## 2026-11-07 Job 24 (refactor 1.1): population sweep on e5c88fb4, uncapped (q52.sh)
 
 - Build: Profile from main 01cb543. That is e5c88fb4 plus PR #197 only, which touches bench scripts and no game code, so it is the baseline.

@@ -123,7 +123,7 @@ release baseline.
   2. Mostly far: the same N with most creatures outside the active-thinking LOD (brain LOD skips). Say how you arranged that if it needs a flag; ask in the report if none fits.
 - **What the supervisor needs back:** the main-thread brain prep (snapshot arrays, lookup and grid build) as a share of the frame at each N, and which cost grows fastest (brain, pose/render, readers, snapshot). That decides the order of refactor items 2.2-2.5. Numbers only, in REPORTS-profiler.md.
 
-## Job 25 (2026-11-07): stress scenes, refactor baseline (REFACTOR-ROADMAP.md 1.2)
+## Job 25 (2026-11-07, REPORTED in REPORTS-profiler.md; q53.sh, runner switches on b/bench-stress 472b629d for review): stress scenes, refactor baseline (REFACTOR-ROADMAP.md 1.2)
 Same build as job 24. For each scene, say whether it is CPU-bound or GPU-bound at 1080p and 1440p. Give frame ms, main
 thread ms, GPU ms, draw calls and tris, and the top 5 systems by ms (SysMs).
 1. **Big settlement:** the largest town you can find on v3 (`-place HumanVillage`, or whichever town logs the most kit buildings), standing in its middle.
