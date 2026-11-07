@@ -94,7 +94,7 @@ Commit on b/fix-proc-cleanup and post the SHA here; the supervisor reviews and m
 **Pushed 2026-11-07: b/fix-proc-cleanup 9ef5867e, for review. Report in REPORTS-profiler.md.**
 **Reviewed and merged 2026-11-07 by the stand-in supervisor (PR #197). Done.**
 
-## Refactor 1.2 (2026-11-07, in progress; started by the profiler with Zach's OK): stress stops on v0.13.0 (4fea789)
+## Refactor 1.2 (2026-11-07, REPORTED in REPORTS-profiler.md, b/bench-stress dd1d4738 for review; started by the profiler with Zach's OK): stress stops on v0.13.0 (4fea789)
 New runner stops on b/bench-stress, used only when named: bigtown (the settlement with the most buildings), firesbase/fires (-benchfires N, default 500), plus forest, an under-canopy -benchspot and lake. These are measured at 1080p, with 1440p pixels from render scale 1.333 (the laptop desktop is 1920x1080, so bigger windows clamp). Results will go in REPORTS-profiler.md. Supervisor: queue new refactor jobs below this one, numbered from 24.
 
 ## Job 24 (2026-11-07): population sweep, refactor baseline (REFACTOR-ROADMAP.md 1.1)

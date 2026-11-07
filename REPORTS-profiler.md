@@ -2,6 +2,53 @@
 
 Newest first.
 
+## 2026-11-07 refactor 1.2: stress stops on v0.13.0 (4fea789), uncapped (b/bench-stress dd1d4738 for review; q51.sh, q51b.sh)
+
+- DONE: new runner stops, used only when named in `-benchstops`:
+  - `bigtown`: the settlement with the most buildings.
+  - `firesbase` / `fires`: the same spot without and with `-benchfires N` flames (default 500).
+  - Also measured: `forest`, `lake`, and an under-canopy spot (`-benchspot 1740,3355,180`; `forest` only looks at OakGrove from a meadow).
+  - `lib.sh` run() takes BENCHW/BENCHH for the window size.
+- Builds: Bench and Profile, 2 rounds each in reversed order. 0 crashes, 0 exceptions.
+- Gotcha: the laptop's logical desktop is 1920x1080, so 2560x1440 windows silently stayed at 1080p (checked with a screenshot). q51's "2560" rows are extra 1080p rounds. The 1440p pixel count was measured as 1080p at render scale 1.333 (post and UI excepted, q51b, Profile, A B B A).
+
+Means. Frame and GPU ms are from Profile builds (Bench under-reads GPU). Main thread ms is from the 4 Bench sessions.
+| Stop | GPU 1080p | GPU 1440p pixels | Main thread (Bench) | Render thread | avg fps 1080p (Bench) |
+|---|---|---|---|---|---|
+| lake | 10.6 | 17.9 (+69%) | 8.6 | 2.2 | 72.9 |
+| forest (edge) | 13.7 | 19.8 (+45%) | 8.2 | 2.7 | 67.9 |
+| spot (under canopy) | 14.4 | 17.4 (+21%) | 15.1 | 7.7 | 56.5 |
+| bigtown (46 buildings) | 17.3 | 25.3 (+46%) | 8.6 | 5.0 | 56.7 |
+| firesbase | 14.8 | 24.6 | 9.1 | 3.4 | 61.8 |
+| fires (500) | 16.1 | 25.4 | 14.1 | 5.1 | 52.6 |
+
+- CPU or GPU bound:
+  - At 1080p on the GTX 1060 Max-Q, every calm stop is GPU-bound: GPU 10.6-17.3 ms vs main thread 8-9 ms.
+  - At 1440p pixels the GPU rises 45-69%, so it is pixel-bound. The exception is under the canopy (+21%): flora there is vertex/draw bound, matching q44.
+  - `fires` and `spot` are the CPU-limited cases: main thread at or above the GPU frame.
+- Fires:
+  - 500 flames add about 5 ms main thread and 1.7 ms render thread on Bench (9.1 -> 14.1 / 3.4 -> 5.1). GPU adds only about 1.3 ms at 1080p.
+  - The cost is the per-frame mesh rebuild and upload, as roadmap 3.2 expects.
+  - Spread is wide: avg fps per session 47-58, and the first check run measured only +1.2 ms main thread. Treat 5 ms as an upper-middle figure.
+- bigtown:
+  - The biggest settlement on v3 has **46 buildings** (152 across all 6 settlements), so the roadmap's "100 kit buildings" scene doesn't exist.
+  - It is the heaviest GPU stop at 1080p (17.3 ms), with render thread 5.0 ms.
+  - A 100-building case needs a test layout (world lane) or a different island.
+- spot:
+  - Main thread 15 ms, render thread 7.7 ms, and many slow frames (up to 114 in a session; 1% low 20-33 fps).
+  - Confound: it runs right after a 3.8 km jump from `fires`, with a 10 s settle, so streaming may be in it. The `forest` stop next to it (arriving at boot) is clean.
+  - Next: run it first in its own session with a capture.
+- lake: water fills about half the screen. It is the most pixel-bound stop (+69%), which matches q43 (water GPU 2.1 ms).
+- Shots of each stop: results/q51-dry/*.png on the laptop (not committed).
+- NOT DONE:
+  - True 1440p: needs a bigger desktop or an exclusive-fullscreen run, and fullscreen on this machine is Zach's call.
+  - Draw-call counts: none on these builds.
+  - The 100-building settlement.
+- NEXT:
+  - The canopy spot in its own session with a Profile capture.
+  - Phase 1.1 population sweep, once the animal lane has a spawn-count flag.
+- Cost: not logged (usage_log run after this entry).
+
 ## 2026-11-07 job 23: shared scripts end on their own and touch only their own processes (b/fix-proc-cleanup 9ef5867e, for review)
 
 - DONE: `run-playmode-tests.sh` runs Unity under `timeout 3600` and reports a timeout.
