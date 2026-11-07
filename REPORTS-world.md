@@ -3303,3 +3303,10 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
 - Fix in FloraPlacement: landmark ring props with Floats now sit on the water surface over their spot (they sat on the lake bed); a dry spot returns none, so no draws move.
 - Landmarks_V3 111 3BDF705F unchanged. Fauna: checked at card end.
 - Shots: D:/PunchyMilestones/W-121/w121-r2-raft.png, w121-r2-buoy.png, w121-r2-wreck.png.
+
+## W-121 row 3 (#21) - plant fidelity: Bush, Daisy, Buttercup: done (verified)
+- Commit 316a8796 on world-features (FloraGenerator.Trees.cs, FloraGenerator.Plants.cs, Buttercup.asset). Picked from close shots of 7 meadow plants at (800, 800): Bush read as lumpy blobs, Daisy as a tiny thin star, Buttercup flowers were invisible.
+- Shrubs (LOD0): 3-5 twig sprigs poke out of the clump, each a bark tube with paired pointed leaves and a paler tip leaf. This applies to every Shrub-form species, not only Bush.
+- Flowers (LOD0, all heads except Spike): 1-2 stem leaves, a green calyx, sometimes 1-2 nodding buds. Daisy heads (and AlpineFlower) get an inner raised petal ring and a domed disc. Cup heads (Buttercup, Poppy, DesertPoppy, Glowbell) get a stamen ring and a knob. Buttercup is now a taller (0.22-0.38) yellow cup with a green-gold heart.
+- New detail draws only from the per-model Detail stream, so plant layout does not move. Landmarks_V3 111 3BDF705F unchanged.
+- Shots: D:/PunchyMilestones/W-121/w121-r3-before.png and w121-r3-after.png (Bush | Daisy | Buttercup, same camera).
