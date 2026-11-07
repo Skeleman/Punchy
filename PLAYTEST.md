@@ -35,3 +35,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 | #62 | Mantrap bite still shoves you back; colossi and mantraps appear as before after world load | Dunes, Stone colossus area | PR #177, 2026-11-06 |
 | #40 | New colossi: Tundra snow worm, Temperate walking oak (rope swing, owl, saplings in its footprints); mire walker fog visible by day | Tundra, Temperate, Foggy marsh | PR #180, 2026-11-06 |
 | #40 | New colossi: fungal puffball (glowing spores), charred treant (ember trail), ice mammoth (sheds ice chunks) | Fungal forest, Ember forest, Glacier | PR #183, 2026-11-07 |
+| #40 #69 #70 | Round dented salt crystal ball; biome hazard houses (ash, snow, storm, sand) in harsh-biome towns; magnetic drift mounds no longer hang over steep slopes | Salt flats, Ashlands OgreCamp, Tundra dwarf towns, Electric wastelands | PR #184, 2026-11-07 |
