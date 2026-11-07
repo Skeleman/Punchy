@@ -96,6 +96,21 @@ Checked against main on 11-07:
 | 3.3 | Flora: density LOD (fewer, larger clusters far away), a shadow distance separate from draw distance, wind detail by distance, hysteresis at LOD edges; later, projected-size LOD in the cull compute | world (Flora) | W-117 did the vertex reduction; the rest is new |
 | 3.4 | Water: reflection steps by distance, and a reflection-quality setting (high / medium = fewer steps / low = sky and Fresnel only) in the Graphics menu | world (shader) + player (menu) | Most of W-117's cut is done; this adds the tiers |
 
+### 3.5 Flora by behaviour: static objects skip vertex animation (Zach, 11-07; `docs/Chat recommendations for dividing flora.md`)
+"Flora" now draws rocks, logs, debris, ruins and whole kit buildings as well as plants. Checked on main:
+- Every vertex of every flora model runs the full deformation in Flora.hlsl. There is no static variant.
+- The full deformation is the gust sines, the sway bend with its length renormalisation, the flutter sine, and the branches for breath, twitch, vine swing, floating debris and cloth.
+- Rocks and buildings carry zero sway, so all of that work changes nothing they show.
+
+| # | Item | Owner | Notes |
+|---|---|---|---|
+| 3.5a | Classify every flora model by what moves: animated vegetation (wind), static vegetation (dead trees, stumps, roots), static props (rocks, logs, sticks, debris), structures (kit buildings, fences, bridges, ruins), and moving parts (door leaves, part 12; cloth awnings and banners, part 10; vines; floating debris; breathing caps). Log the vertex counts per class at a town and a rock field | world (Flora) | **Classify by parts, not by type:** a kit house with an awning or a door is not fully static. Either split its moving parts into their own small model, or keep it animated |
+| 3.5b | A `FLORA_STATIC` shader keyword (or variant) that skips everything after the tilt: no wind, flutter, motions or cloth. Static models draw with that material; culling and indirect draws stay shared | world (Flora.shader, FloraSystem) | Measure the vertex-stage GPU ms in a town, a dense forest and a rock field, before and after. This is where the "massive savings" claim gets tested; expect the biggest win in towns |
+| 3.5c | Per-class LOD and shadow rules (with 3.3): vegetation thins with distance; rocks switch mesh LOD; small debris culls early; structures keep their silhouette far away | world | Same cull compute, different parameters per class |
+| 3.5d | A slimmer instance layout for static objects (no wind phase or flutter data) | world | Only if 3.5b's numbers show instance bandwidth matters. A second buffer means a second cull path |
+
+**Not now:** renaming Flora to WorldObjects in code. It touches namespaces, files, assets, docs, GLOSSARY and every lane's code for no runtime gain, and lanes would collide over it. Use "world objects (flora system)" in docs and cards now. Do the code rename, if ever, together with the assembly-definition pass (4.1).
+
 ## Phase 4: modularity (after Phase 2 is under way)
 | # | Item | Owner | Notes |
 |---|---|---|---|
