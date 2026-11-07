@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Flora.FloraSpecies
   Form: 56
   Layer: 2
-  Height: {x: 7, y: 9}
+  Height: {x: 11, y: 15}
   Spread: 1
   TrunkFraction: 0.35
   Thickness: 0.035
@@ -61,6 +61,6 @@ MonoBehaviour:
   ShelterStyle: 0
   KitCulture: 64
   KitShape: 18
-  SizeRange: {x: 0.85, y: 1.15}
+  SizeRange: {x: 0.75, y: 1.3}
   Variants: 8
   Seed: 3706

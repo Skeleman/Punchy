@@ -380,6 +380,7 @@ namespace Punchy.Flora
                     if (g.Lod == 0)
                     {
                         b.Leaves(c.centre, radii, (int)(10 + 16 * s.Fullness), c.radius * 0.35f, g.Detail, c.color, c.color * 1.15f);
+                        Sprigs(g, c.centre, radii, c.color, height * s.Thickness);
                         if (g.HasAccent)
                             for (int k = 0; k < Mathf.RoundToInt(s.AccentAmount * 10f); k++)
                             {
@@ -403,6 +404,54 @@ namespace Punchy.Flora
                 });
             }
             b.Occlude(firstLeaf, (p, n) => CrownOcclusion(p, domeCentre, domeRadii) * GroundOcclusion(p, height * 0.25f));
+        }
+
+        /// <summary>
+        /// W-121 (#21): leafy sprigs poking out past a clump's outline up close: a thin twig with pointed leaves in
+        /// pairs along it and a paler, fresher leaf at its tip, so a shrub reads as twigs and leaves rather than a
+        /// lumpy ball. Draws only from the detail stream, so the shrub's shape and placement do not move.
+        /// </summary>
+        static void Sprigs(Grower g, Vector3 centre, Vector3 radii, Color color, float twigRadius)
+        {
+            var b = g.B;
+            var rng = g.Detail;
+            float R() => (float)rng.NextDouble();
+            var fresh = Color.Lerp(color, new Color(0.75f, 0.85f, 0.25f).linear, 0.3f) * 1.15f;
+            for (int k = 0, n = 3 + rng.Next(3); k < n; k++)
+            {
+                var u = FloraMeshBuilder.RandomDirection(rng);
+                u.y = Mathf.Lerp(-0.1f, 1f, Mathf.Abs(u.y));
+                u.Normalize();
+                var from = centre + Vector3.Scale(u, radii) * 0.65f;
+                var tip = centre + Vector3.Scale(u, radii) * (1.2f + R() * 0.3f) + Vector3.up * radii.y * 0.1f;
+                var dir = (tip - from).normalized;
+                var radius = Mathf.Max(twigRadius * 0.4f, 0.004f);
+                b.Tube(new List<Vector3> { from, tip }, new List<float> { radius, radius * 0.5f }, 3, g.Bark, FloraPart.Bark, ao: 0.8f);
+                var side = Vector3.Cross(dir, Vector3.up);
+                if (side.sqrMagnitude < 0.01f)
+                    side = Vector3.right;
+                side.Normalize();
+                var leaf = radii.x * (0.28f + R() * 0.1f);
+                for (int j = 0; j < 4; j++)
+                {
+                    var t = 0.4f + j * 0.18f;
+                    var at = Vector3.Lerp(from, tip, t);
+                    var flip = j % 2 == 0 ? 1f : -1f;
+                    var sz = leaf * (j == 3 ? 1.1f : 0.8f + R() * 0.3f);
+                    var go = j == 3 ? dir : (dir * 0.55f + side * flip + Vector3.up * 0.35f).normalized;
+                    var across = Vector3.Cross(go, Vector3.up);
+                    if (across.sqrMagnitude < 0.01f)
+                        across = side;
+                    across.Normalize();
+                    var normal = Vector3.Cross(across, go).normalized;
+                    if (normal.y < 0f)
+                        normal = -normal;
+                    var droop = Vector3.down * sz * 0.15f;
+                    var tint = j == 3 ? fresh : Color.Lerp(color, fresh, R() * 0.4f) * (0.9f + R() * 0.15f);
+                    b.Strip(new List<Vector3> { at, at + go * sz * 0.35f, at + go * sz * 0.75f + droop * 0.5f, at + go * sz + droop },
+                            new List<float> { sz * 0.06f, sz * 0.36f, sz * 0.26f, 0f }, across, tint, FloraPart.Foliage, 0.85f, normal);
+                }
+            }
         }
 
         static void DryBush(Grower g)
