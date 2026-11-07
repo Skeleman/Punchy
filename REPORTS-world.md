@@ -3274,3 +3274,10 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
 - **Landmarks_V3:** 111 3BDF705F, unchanged.
 - **Shots:** in D:\PunchyMilestones\W-119 (8 files).
 - **Cleanup:** my editor and editor task are closed, and no world-tree Unity processes remain.
+
+## W-120 row 1 - boardwalk steps (done, verified)
+- FloraPlacement.BoardwalkAt: pieces pitch end to end (instance Tilt); inner points lift up to 2 m (BoardwalkMaxLift) so no piece pitches over 0.3 (BoardwalkMaxPitch, ~17 deg). Link ends keep their ground, so links still meet.
+- v3 west dune piece heights before 0.2 / 1.3 / 2.7 / 3.8-4.3 (flat steps up to 1.6 m); after 0.3 / 0.9 / 1.9 / 2.9 / 3.8 / 4.3, ramped with no lips.
+- Landmarks_V3 111 3BDF705F unchanged. Fauna not rechecked until the card-end suite.
+- Shots: D:\PunchyMilestones\W-120\w120-r1-before.png, w120-r1-after.png
+- Risk: a lip is left only where a 2 m lift can't reach (a bank steeper than about 1:1 over a whole link). Collision isn't affected: the boardwalk has no footprint.
