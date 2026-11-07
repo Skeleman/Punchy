@@ -3107,3 +3107,28 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
 - Look: `D:\PunchyMilestones\W-117\w117r3_old_sea.png` / `w117r3_new_sea.png` and `w117r3_old_shore.png` / `w117r3_new_shore.png`, 2560 wide, both rendered in the same frame. Sea: 0 pixels differ. Shore: 2 of 3.7M pixels differ by more than 16/255 (hit edges).
 - Landmarks_V3: 111 3BDF705F.
 - Gotcha (editor, not shipped): reimporting a shader during play sometimes re-bakes the island as a different world (106 landmarks, BADC2E70). Restart play and check the hash before benching after any shader import.
+
+## W-117 row 4: fewer flora vertices at distance, done (verified), 0dbc1d58
+
+- FloraGenerator.Props.cs (shared flora file, additive edit; animal session: no API change): wispy hanging strands (SilverTree, Bogwood) draw their threads at LOD0 only. Threads are 3-14 mm thick, so past 55 m they are well under a pixel, yet they were most of a wispy tree's LOD1.
+  - SilverTree LOD1 drops from 3604 to 868 tris.
+  - LOD1 still makes every random draw, so the rest of the plant grows the same.
+  - `PUNCHY_WISPLOD=0` or `FloraGenerator.WispsLodZeroOnly = false` brings the old LOD1 back.
+- Why this lever: trees' LOD1 band (55-220 m, ~630 instances at the cave approach) was 1180k of the camera's flora triangles, and wisps were about half of it. Trees at LOD2 are already a single 112-tri crown blob. Pulling the LOD distances in bought little (Lod2 220 -> 150: 0.15 ms) and would show pop.
+  - I tried and dropped dropping the giant rule's extra clump step at LOD1: the trees here are 10-16 m, so it never applied.
+- Camera triangles for trees LOD1: 1180k -> 596k (-49%) at the cave approach.
+- GPU cost: offscreen 4K, toggled in the same session (flora rebuilt each way), median of 16 rounds.
+
+  | Measure | Before | After |
+  |---|---|---|
+  | Trees LOD1 band, cave approach | 0.16 / 0.15 ms | 0.13 / 0.12 ms |
+  | Trees LOD1 band, forest from above | 0.23 / 0.12 ms (noisy) | 0.21 / 0.08 ms |
+  | Whole 4K frame (both poses) | ~7.1-8.4 ms | same within noise |
+
+  So about 0.03 ms on this GPU. The 4K frame isn't vertex-bound here; the halved vertex count matters more on weaker GPUs.
+  - An earlier long-running session read the band at 0.50 ms; fresh sessions read ~0.15. Bench fresh.
+- Look: `D:\PunchyMilestones\W-117\w117r4_cave_before.png` / `w117r4_cave_after.png` (cave approach, eye height, looking north into the SilverTree wood) and `w117r4_hill_before.png` / `w117r4_hill_after.png` (70 m up, looking over the forest). All 2560 wide, same session, time pinned at 10:00.
+  - They look the same at a glance; near wisps are still there.
+  - Pixel diff after vs before is within the before-vs-before repeat (wind and clouds). Cave: 448k vs 427k pixels over 8/255. Hill: 173k vs 282k.
+- Landmarks_V3: 111 3BDF705F. Fauna fingerprint: the generator's shape-only grow (LOD0) is unchanged; the suite runs at card end.
+- Bench note (editor): RenderBench.AB from eval can't A/B flora settings, because the draws were queued in the previous LateUpdate. Use a frame-based bench.
