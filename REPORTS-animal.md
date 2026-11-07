@@ -2954,3 +2954,10 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - The A-86 shot broke rule 12, because it had no clear weather. Re-shot with `-weather Clear -time 12`: the patch is gone.
 - Shots: D:/PunchyMilestones/A-87/a87-r2-before.png (repro), a87-r2-after.png (clear noon, same framing), a87-r2-haze-on.png / a87-r2-haze-off.png (same frame with the haze table on and off).
 - Not mine to fix (Sky shader and weather, other lanes). Any camera high above low ground near a rain or snow cell, for example a player on a peak, can show the same hard haze edge. A possible fix for the owner is to apply the table by height too, or march it per pixel from the camera along the true ray when the camera is far above the ground.
+
+## A-87 row 3 - MireWalker wades its marsh loop: done (verified)
+- Commit 8e0ef390 on animal-behaviours (ColossusWalker.cs only). New `Gait.Wade`, the deepest water a colossus may wade through (0 means it avoids water, as before). MireWalker gets Wade 8 m. Unfit allows water up to that depth.
+- Footfalls in water over 0.2 m deep play Splash instead of StepRock, and the dust becomes a pale water spray at the surface.
+- Before: "no loop fits round (-953, -82) (water at (-944, -91))", so it stood still. After: a 118 m loop (radius 18, 3 shrinks), pace 1.00 in play.
+- Only MireWalker has Wade set, so the other colossi keep their old loops.
+- Shot: D:/PunchyMilestones/A-87/a87-r3-front.png (mid-wade, legs in the marsh water, spray and mist round them). The side shot was dropped because its camera ended up inside geometry and came out black.
