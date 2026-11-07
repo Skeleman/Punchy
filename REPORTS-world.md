@@ -3132,3 +3132,25 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
   - Pixel diff after vs before is within the before-vs-before repeat (wind and clouds). Cave: 448k vs 427k pixels over 8/255. Hill: 173k vs 282k.
 - Landmarks_V3: 111 3BDF705F. Fauna fingerprint: the generator's shape-only grow (LOD0) is unchanged; the suite runs at card end.
 - Bench note (editor): RenderBench.AB from eval can't A/B flora settings, because the draws were queued in the previous LateUpdate. Use a frame-based bench.
+
+## W-117 row 5: flora shadow casters, done (verified), no code change
+
+- W-107 and W-112 already do what this row asks, so I changed nothing:
+  - Trees cast full-mesh real-time shadows only inside 25 m (`-shadownear`).
+  - Past that they cast with the 112-tri LOD2 blob (cheap far caster), into a cached sun texture out to 120 m that is redrawn only when the sun or camera moves.
+  - Shrubs cast to 40 m, ground cover casts none.
+- Measured: offscreen 4K, same session, 12 rounds, median per-frame difference. Each row turns one caster off, then on.
+
+  | Turned on | Cave approach | Forest from 70 m up |
+  |---|---|---|
+  | Shrub shadows | +0.02 ms | +0.03 ms |
+  | Tree shadows (near + cheap) | -0.11 ms | -0.12 ms |
+  | Whole sun shadow pass (control) | +0.40 ms | +0.76 ms |
+
+  - The tree and shrub figures are noise: flora is at most ~0.03 ms of a shadow pass costing 0.4-0.8 ms. The rest is terrain, rocks and buildings, not flora.
+  - The bench is static, so the cache's redraw while moving isn't in these numbers (W-107 measured it).
+  - Moving shrubs to the cheap caster or cutting their range would save under 0.03 ms, too little to measure, and would cost near-shrub shadow detail, so I left it.
+- Far shadows read: `D:\PunchyMilestones\W-117\w117r5_far_trees_on.png` vs `w117r5_far_trees_off.png`, 30 m up looking over the SilverTree wood 30-150 m away, tree shadows on vs off, 10:00, hazy light.
+  - 100k pixels differ by more than 8/255, mostly in the lower two thirds, where the cached far shadows fall.
+  - The light is soft today, so they read softly.
+- Landmarks_V3 111 3BDF705F (no world change).
