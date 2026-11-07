@@ -11,7 +11,9 @@ namespace Punchy.Fauna
     public enum OverworldSlot
     {
         Songbird, Woodpecker, Owl, Frog, Mouse, Gull, WharfFish,
-        Hermit, Camper, Traveller, Messenger, HoneyThief, Domestic, CaveFolk, CrossingFisher
+        Hermit, Camper, Traveller, Messenger, HoneyThief, Domestic, CaveFolk, CrossingFisher,
+        /// <summary>A-88 row 2 (#37): the sea folk lake's dome schools and its big fish near the bed.</summary>
+        LakeSchool, LakeBed
     }
 
     /// <summary>

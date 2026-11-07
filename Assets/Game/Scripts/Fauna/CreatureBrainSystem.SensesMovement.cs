@@ -401,6 +401,8 @@ namespace Punchy.Fauna
                     // (A lava dweller basks at the surface, its back and head out: lava hides anything below it.)
                     var y = b.Habitat == Habitat.Floats ? surface + b.StandHeight * 0.35f * s.Scale
                           : b.LavaDweller ? surface + b.FrontRadius * s.Scale * 0.4f
+                          // (A-88 row 2: a lake school or bed fish keeps its own height over the bed, under the surface.)
+                          : s.SwimAbove > 0f && g.HasWater ? math.max(g.Height + 0.3f, math.min(g.Height + s.SwimAbove, surface - 0.6f))
                           : surface - math.clamp((surface - g.Height) * 0.45f, 0.25f, b.SwimDepth);
                     if (s.Air > 0f)
                     {

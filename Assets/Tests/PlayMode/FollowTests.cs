@@ -38,13 +38,15 @@ namespace Punchy.Tests
             {
                 Game.Hook<bool>("MovePlayer", way[0] * 0.3f, way[1] * 0.3f);
                 yield return TestSceneSetup.Seconds(0.1f);
+                if (step % 10 == 9)
+                    Debug.Log("follow: walking " + Describe(Game.Hook<float[]>("FollowStatus")));
             }
             var walked = Game.Hook<float[]>("FollowStatus");
             for (int second = 0; second < 6; second++)
             {
                 yield return TestSceneSetup.Seconds(1f);
                 var now = Game.Hook<float[]>("FollowStatus");
-                Debug.Log($"follow: {second + 1} s after the walk, {now[1]:F1} m off, speed {now[3]:F1}, following {now[0] > 0f}");
+                Debug.Log($"follow: {second + 1} s after the walk, " + Describe(now));
             }
             var arrived = Game.Hook<float[]>("FollowStatus");
             Game.Hook<bool>("FollowStop");
@@ -57,5 +59,10 @@ namespace Punchy.Tests
             Assert.AreEqual(0f, stopped[0], "still following after Stop");
             Assert.AreEqual(0f, stopped[2], "still in its follow stage after Stop");
         }
+
+        /// <summary>A-88 row 1: one FollowStatus as a log line (distance, speed, mode/stage, frame time, both positions).</summary>
+        static string Describe(float[] f) =>
+            $"{f[1]:F1} m off, speed {f[3]:F1}, following {f[0] > 0f}, mode {(int)f[4]}/{(int)f[5]}, frame {f[6] * 1000f:F0} ms, " +
+            $"dog ({f[7]:F1}, {f[8]:F1}) player ({f[9]:F1}, {f[10]:F1})";
     }
 }

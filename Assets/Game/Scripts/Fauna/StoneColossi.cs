@@ -38,7 +38,7 @@ namespace Punchy.Fauna
         // W-89 (#40, Zach's designs): a golem of floating rocks held together by arcs takes the ElectricWastelands slot
         // (the crystal serpent comes back with "-colossus CrystalSerpent"), and a seventh slot holds a walking saguaro in
         // the Sonoran.
-        public enum Kind { KneelingTitan, HalfBuriedHead, GiantTortoise, CrystalSerpent, DrownedKnight, AshSmith, CarnivorousPlant, SkeletalLizard, RockGolem, WalkingSaguaro, SaltCrystal, MesaTortoise, GlassHeron, LanternStag, CinderSnail, MireWalker, SnowWorm, WalkingOak, Puffball, CharredTreant, IceMammoth, SkyWhale, HermitCrab }
+        public enum Kind { KneelingTitan, HalfBuriedHead, GiantTortoise, CrystalSerpent, DrownedKnight, AshSmith, CarnivorousPlant, SkeletalLizard, RockGolem, WalkingSaguaro, SaltCrystal, MesaTortoise, GlassHeron, LanternStag, CinderSnail, MireWalker, SnowWorm, WalkingOak, Puffball, CharredTreant, IceMammoth, SkyWhale, HermitCrab, MagmaSerpent }
         // W-92 (#40, Zach's SaltFlat design): an eighth slot holds a giant rounded salt crystal rolling in slow circles.
         // W-106 row 2 (#40): a ninth slot holds a rock tortoise in the MesaCanyonlands that reads as a small mesa.
         // A-76 (#40): a tenth holds a glass heron wading the GlassDesert, an eleventh a lantern stag in the SparklingForest.
@@ -152,6 +152,7 @@ namespace Punchy.Fauna
             SwayTreant();
             SwayMammoth();
             SwaySkyWhale();
+            SwayMagmaSerpent();
         }
 
         bool landing;
@@ -407,7 +408,14 @@ namespace Punchy.Fauna
             for (int s = 0; s < slot && def.KeepApart > 0f; s++)
                 if (!math.any(math.isnan(Spots[s])))
                     others.Add(Spots[s].xz);
-            if (!Pick(source, biomes, n, half, wanted, def.Salt, def.KeepRadius * 0.7f, def.KeepApart, others, out var spot, out var yaw, out var cells))
+            float2 spot;
+            float yaw;
+            int cells;
+            // A-88 row 3: a kind that lives on a landmark (the magma serpent in a volcano's crater) stands on the middle of
+            // one of that landmark's instances, picked by its salt; with none in this world it falls back to its biomes.
+            if (!string.IsNullOrEmpty(def.Landmark) && PickLandmark(source, palette, def, out spot, out yaw))
+                cells = 0;
+            else if (!Pick(source, biomes, n, half, wanted, def.Salt, def.KeepRadius * 0.7f, def.KeepApart, others, out spot, out yaw, out cells))
             {
                 Debug.Log($"StoneColossi: no room for a {def.Kind} in this world, none placed");
                 return false;
@@ -433,6 +441,29 @@ namespace Punchy.Fauna
             return true;
         }
 
+        /// <summary>A-88 row 3: picks one instance of the definition's landmark (by its salt) and stands on its middle.</summary>
+        static bool PickLandmark(in TerrainSource source, BiomePalette palette, ColossusDefinition def, out float2 spot, out float yaw)
+        {
+            spot = default;
+            yaw = 0f;
+            if (!source.Landmarks.IsCreated || palette.Landmarks == null)
+                return false;
+            ref var set = ref source.Landmarks.Value;
+            var found = new List<int>();
+            for (int i = 0; i < set.Instances.Length; i++)
+            {
+                var t = set.Instances[i].Type;
+                if (t >= 0 && t < palette.Landmarks.Length && palette.Landmarks[t] != null && palette.Landmarks[t].name == def.Landmark)
+                    found.Add(i);
+            }
+            if (found.Count == 0)
+                return false;
+            var rng = Unity.Mathematics.Random.CreateFromIndex((uint)source.World.Seed ^ def.Salt);
+            spot = set.Instances[found[rng.NextInt(found.Count)]].Position;
+            yaw = rng.NextFloat(360f);
+            return true;
+        }
+
         /// <summary>Builds a picked slot's colossus.</summary>
         void BuildSlot(int slot, in TerrainSource source)
         {
@@ -452,7 +483,7 @@ namespace Punchy.Fauna
             // W-101 row 4 (#40): solid to the player and the creatures. A part named in the definition can follow
             // the colossus as it moves (the salt ball's roll) or be left out (crumbs, the heron's shard litter).
             var follow = string.IsNullOrEmpty(def.CollisionFollow) ? null : roots[slot].Find(def.CollisionFollow);
-            var leave = string.IsNullOrEmpty(def.CollisionLeave) ? new string[0] : new[] { def.CollisionLeave };
+            var leave = string.IsNullOrEmpty(def.CollisionLeave) ? new string[0] : def.CollisionLeave.Split(',');
             ColossusCollision.Register(slot, roots[slot], def.Kind.ToString(), follow, def.CollisionFollowRadius, leave);
             Debug.Log($"StoneColossi: {def.Kind} placed at ({spot.x:F0}, {Positions[slot].y:F1}, {spot.y:F0}), facing {pickYaw[slot]:F0} degrees, region {pickCells[slot]} cells, relief {Relief(source, spot, def.KeepRadius * 0.7f):F1} m");
         }

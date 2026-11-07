@@ -412,18 +412,21 @@ namespace Punchy.Debugging
         }
 
         /// <summary>A-71 row 6: the follower now: [following (1/0), its distance from the player (m), still in its
-        /// follow stage (1/0), its speed (m/s)].</summary>
+        /// follow stage (1/0), its speed (m/s)]. A-88 row 1: then its mode and stage, the smoothed frame time (s), its
+        /// position (x, z) and the player's (x, z), so a lagging run shows why.</summary>
         public static float[] FollowStatus()
         {
             if (followed == Entity.Null || !EM.Exists(followed))
-                return new float[] { 0f, -1f, 0f, 0f };
+                return new float[] { 0f, -1f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f };
             var s = EM.GetComponentData<CreatureState>(followed);
             return new float[]
             {
                 Follow.IsFollowing(followed) ? 1f : 0f,
                 math.distance(s.Position.xz, ((float3)PlayerPosition()).xz),
                 s.Mode == CreatureMode.Greet && s.Stage == 2 ? 1f : 0f,
-                s.Speed
+                s.Speed,
+                (float)s.Mode, s.Stage, Time.smoothDeltaTime,
+                s.Position.x, s.Position.z, PlayerPosition().x, PlayerPosition().z
             };
         }
 

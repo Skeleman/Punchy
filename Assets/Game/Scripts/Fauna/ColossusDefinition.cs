@@ -39,9 +39,11 @@ namespace Punchy.Fauna
         public string CollisionFollow = "";
         [Tooltip("Collision: the following sphere's radius (m).")]
         public float CollisionFollowRadius;
-        [Tooltip("Collision: a child (by name) left out of its solid shape, empty for none.")]
+        [Tooltip("Collision: children (by name, comma-separated) left out of its solid shape, empty for none.")]
         public string CollisionLeave = "";
         [Tooltip("A-85: keep this far (m) from the colossi placed before it (a biome another kind already stands in); 0 for none.")]
         public float KeepApart;
+        [Tooltip("A-88: the name of a landmark it lives on (its middle); its biomes are the fallback when the world has none. Empty for none.")]
+        public string Landmark = "";
     }
 }

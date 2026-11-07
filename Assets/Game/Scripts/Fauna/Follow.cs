@@ -36,6 +36,7 @@ namespace Punchy.Fauna
             var mind = em.GetComponentData<CreatureMind>(entity);
             mind.FollowHolder = Interactions.HolderId(playerNetworkId);
             mind.FollowTime = seconds > 0f ? seconds : DefaultSeconds;
+            mind.FollowDetourTime = 0f;
             em.SetComponentData(entity, mind);
             return true;
         }
@@ -51,6 +52,7 @@ namespace Punchy.Fauna
             var mind = em.GetComponentData<CreatureMind>(entity);
             mind.FollowHolder = 0;
             mind.FollowTime = 0f;
+            mind.FollowDetourTime = 0f;
             em.SetComponentData(entity, mind);
         }
 

@@ -247,6 +247,7 @@ namespace Punchy.Fauna
                 var place = inst;
                 var radius = set.Types[inst.Type].Radius * inst.Scale;
                 SpawnDomestics(source, landmarks[inst.Type], inst.Position, radius);
+                SpawnLakeLife(source, landmarks[inst.Type], inst, i, radius);   // (A-88 row 2: the sea folk lake's fish)
                 // Village jobs (A-29): free grown townsfolk take the posts this landmark's anchors offer (a baker at the
                 // hearth, a herder by the yard, a fisher at the nearest water...), more the bigger the village, at least
                 // one left free. Sized from the residents' smallest counts and no rng drawn, so every spawn draw stays.
