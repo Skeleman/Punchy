@@ -362,6 +362,7 @@ namespace Punchy.Fauna
                 nextHoneyThief = Time.time + rng.NextFloat(90f, 180f);
                 SpawnHoneyThief(source);
             }
+            ApplyWildCap();
             spawnBudget = math.min(spawnBudget + SpawnRate * players.Count * dt, 3f * players.Count);
             using (WildMarker.Auto())
                 while (spawnBudget >= 1f)
@@ -464,6 +465,33 @@ namespace Punchy.Fauna
             entities.Dispose();
         }
 
+        /// <summary>
+        /// "-wildcap N" (refactor roadmap 1.1, population sweeps): the wild cap becomes N, and the spawn rate and every
+        /// species' density scale by N / the cap, so the ring round the player actually fills to about N. A test knob
+        /// only; nothing else changes.
+        /// </summary>
+        static readonly int WildCapArg = ParseWildCap();
+        float densityScale = 1f;
+        bool wildCapApplied;
+
+        static int ParseWildCap()
+        {
+            var args = Punchy.Debugging.DebugControls.LaunchArgs;
+            var at = System.Array.IndexOf(args, "-wildcap");
+            return at >= 0 && at + 1 < args.Length && int.TryParse(args[at + 1], out var n) && n > 0 ? n : 0;
+        }
+
+        void ApplyWildCap()
+        {
+            if (wildCapApplied || WildCapArg <= 0)
+                return;
+            wildCapApplied = true;
+            densityScale = WildCapArg / (float)math.max(MaxWild, 1);
+            SpawnRate *= densityScale;
+            Debug.Log($"FaunaDirector: -wildcap {WildCapArg}: wild cap {MaxWild} -> {WildCapArg}, spawn rate and densities x{densityScale:F2}");
+            MaxWild = WildCapArg;
+        }
+
         void TrySpawn(in TerrainSource source, int playerIndex)
         {
             if (wildCount >= MaxWild || species.Count == 0)
@@ -509,7 +537,7 @@ namespace Punchy.Fauna
                 if (index < 0 || f.Species.Body.NearWater && !nearWater || !Suits(f.Species.Body.Habitat, depth) || f.Species.Body.DrawnToLight ||
                     f.Species.Body.DrivenOff && InTown(source, at))
                     continue;
-                var shortfall = f.Density * areaHectares - counts[offset + index];
+                var shortfall = f.Density * densityScale * areaHectares - counts[offset + index];
                 if (shortfall > bestShortfall)
                 {
                     bestShortfall = shortfall;
