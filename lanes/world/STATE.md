@@ -30,11 +30,9 @@ Branch world-features, head 772ed5f (W-95 rows 1, 2, 4, pushed). Worktree D:/Uni
 
 ## Open
 
-- W-95 row 3 (#40 salt ball round body with fine dents) not started.
-- Tundra SnowSlabShelter not seen in shots although baked onto plots (DwarfHold, DwarfMiningCamp); check placement.
+- W-118 done (rows 1-4): salt ball dents, kit hazard houses in harsh towns, drift mounds off slopes over ~16 deg.
+- Open question: SnowSlabShelter appears only with the HermitHutSnow look (W-113 gave towns ramadas); v3's one hermit is plain, so none on v3.
 
-- #69 row 2 of W-93 (kit-built hazard houses per harsh biome) not started: W-57b HazardShelter domes + PlaceShelters swap already exist; needs a kit shelter shape.
-- #70 caveat: on slopes a drift mound's lowest tier edge reads as a wall from the downhill side.
 
 - #88 shelf still faces salt flat on v3: no non-arid bay with 10 m high ground behind exists (Zach: move or terraform the shelf?).
 - #40 eye check of w91-plant-fog-*.png.

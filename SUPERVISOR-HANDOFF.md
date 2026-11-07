@@ -9,8 +9,8 @@ supervise. Read COORDINATION.md first (rules 1-18; rule 18 = every process ends 
 ## Lanes right now
 - World: W-117 merged (PR #182). Agent now on W-118 (salt ball, snow shelters, kit hazard houses #69, drift
   mound edge #70).
-- Animal: A-84 merged (PR #180: snow worm, walking oak, mire fog). Agent now on A-85 (lizard build split,
-  puffball, ember treant, glacier mammoth, sky whale).
+- Animal: A-85 merged (PR #183: lizard build split, puffball, charred treant, ice mammoth; whale skipped).
+  Agent now on A-86 (suite on main + landmark hash 5A85AACA vs 3BDF705F, mammoth slope limit, sky whale).
 - Main hotfix PR #181: Underwater.cs ?? on Unity fake null broke the suite (13/14); fixed and noted on P-20.
 - Player: you (P-20).
 - Profiler (laptop): job 23 queued in BENCH-QUEUE.md (b/fix-proc-cleanup: timeouts, kill by PID). Review + merge.
