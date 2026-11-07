@@ -293,45 +293,52 @@ namespace Punchy.Fauna
             m.Limb(gear + new Vector3(2.4f, 1f, 1.8f), gear + new Vector3(2.9f, 0.6f, 2.3f), 0.05f, 0.03f, Rust, 4);
             m.Limb(gear + new Vector3(2.25f, 0.85f, 1.55f), gear + new Vector3(2.55f, 1.05f, 1.95f), 0.12f, 0.12f, SledWood, 4);   // its grip, charred
 
-            AddPart("Floor", root, m.ToMesh("MagmaSerpentFloor"));
-            var coilPivot = new GameObject("Coil turn").transform;
-            coilPivot.SetParent(root, false);
-            var coilMesh = coil.ToMesh("MagmaSerpentCoil");
-            Weather(coilMesh, Ash, 0.6f, 0.95f);
-            AddPart("Coil", coilPivot, coilMesh);
-            var neckPivot = new GameObject("Neck").transform;
-            neckPivot.SetParent(root, false);
-            neckPivot.localPosition = neckBase;
-            var headMesh = h2.ToMesh("MagmaSerpentHead");
-            Weather(headMesh, Ash, 0.7f, 0.97f);
-            AddPart("Head", neckPivot, headMesh);
-            neckPivot.GetChild(0).localPosition = -neckBase;
-            MagmaRig.Coil = coilPivot;
-            MagmaRig.Neck = neckPivot;
-            MagmaRig.Maw = maw;
-
-            // Glow: the maw and eyes, and each breach mound (those turn with the loop).
-            var headPart = neckPivot.GetChild(0);
-            Glow(headPart, "Maw glow", maw + fwd * 0.5f, 3.4f);
-            for (int sd = -1; sd <= 1; sd += 2)
-                Glow(headPart, "Eye glow", head + hSide * sd * s0 * 0.85f + hUp * s0 * 0.45f + fwd * s0 * 0.5f, 0.8f);
-            for (int k = 0; k < coilLights.Count; k++)
-                Glow(coilPivot, "Breach glow", coilLights[k], 2.2f);
-
-            if (ownCrater)
-            {
-                Glow(root, "Pool glow", OnGround(0f, 0f, 1f), 4.5f);
-                Glow(root, "Pool glow", OnGround(9f, 0f, 1f), 3f);
-                Glow(root, "Pool glow", OnGround(-6f, -7f, 1f), 3f);
-                Glow(root, "Stream glow", OnGround(Mathf.Cos(streamAt) * 24f, Mathf.Sin(streamAt) * 24f, 0.6f), 2f);
-                Glow(root, "Stream glow", OnGround(Mathf.Cos(streamAt) * 38f, Mathf.Sin(streamAt) * 38f, 0.6f), 1.6f);
-            }
-            // Smoke off the pool, sparks off the breaches, and heat shimmer of smoke from the maw.
-            Puffs(root, "Pool smoke", new Vector3(0f, lava + 1f, 0f), new Vector3(loop * 0.8f, 1f, loop * 0.8f), new Color(0.30f, 0.28f, 0.27f, 0.45f), new Color(0.45f, 0.40f, 0.36f, 0.35f), 3f, 7f, 2.5f, 1.4f, 9f);
-            Puffs(headPart, "Maw smoke", maw + fwd * 2f, new Vector3(2f, 1.5f, 2f), new Color(0.35f, 0.32f, 0.30f, 0.45f), new Color(0.55f, 0.45f, 0.38f, 0.35f), 1.5f, 3.5f, 2f, 1.2f, 6f);
-            foreach (var b in breaches)
-                Puffs(coilPivot, "Sparks", b + Vector3.up * 1.5f, new Vector3(thick * 2f, 1f, thick * 2f), new Color(1f, 0.6f, 0.15f, 0.95f), new Color(1f, 0.35f, 0.08f, 0.9f), 0.12f, 0.28f, 3f, 2.2f, 2.5f);
+            // A-89 row 2: the build cost 47-82 ms on one frame. This frame: the crater, loop and head shapes; the next
+            // (BuildRest): their meshes, the pivots, glows and puffs. No draws in the second half, so the shape is unchanged.
+            BuildRest = () => { if (root != null) MagmaRest(); };
             return root;
+
+            void MagmaRest()
+            {
+                AddPart("Floor", root, m.ToMesh("MagmaSerpentFloor"));
+                var coilPivot = new GameObject("Coil turn").transform;
+                coilPivot.SetParent(root, false);
+                var coilMesh = coil.ToMesh("MagmaSerpentCoil");
+                Weather(coilMesh, Ash, 0.6f, 0.95f);
+                AddPart("Coil", coilPivot, coilMesh);
+                var neckPivot = new GameObject("Neck").transform;
+                neckPivot.SetParent(root, false);
+                neckPivot.localPosition = neckBase;
+                var headMesh = h2.ToMesh("MagmaSerpentHead");
+                Weather(headMesh, Ash, 0.7f, 0.97f);
+                AddPart("Head", neckPivot, headMesh);
+                neckPivot.GetChild(0).localPosition = -neckBase;
+                MagmaRig.Coil = coilPivot;
+                MagmaRig.Neck = neckPivot;
+                MagmaRig.Maw = maw;
+
+                // Glow: the maw and eyes, and each breach mound (those turn with the loop).
+                var headPart = neckPivot.GetChild(0);
+                Glow(headPart, "Maw glow", maw + fwd * 0.5f, 3.4f);
+                for (int sd = -1; sd <= 1; sd += 2)
+                    Glow(headPart, "Eye glow", head + hSide * sd * s0 * 0.85f + hUp * s0 * 0.45f + fwd * s0 * 0.5f, 0.8f);
+                for (int k = 0; k < coilLights.Count; k++)
+                    Glow(coilPivot, "Breach glow", coilLights[k], 2.2f);
+
+                if (ownCrater)
+                {
+                    Glow(root, "Pool glow", OnGround(0f, 0f, 1f), 4.5f);
+                    Glow(root, "Pool glow", OnGround(9f, 0f, 1f), 3f);
+                    Glow(root, "Pool glow", OnGround(-6f, -7f, 1f), 3f);
+                    Glow(root, "Stream glow", OnGround(Mathf.Cos(streamAt) * 24f, Mathf.Sin(streamAt) * 24f, 0.6f), 2f);
+                    Glow(root, "Stream glow", OnGround(Mathf.Cos(streamAt) * 38f, Mathf.Sin(streamAt) * 38f, 0.6f), 1.6f);
+                }
+                // Smoke off the pool, sparks off the breaches, and heat shimmer of smoke from the maw.
+                Puffs(root, "Pool smoke", new Vector3(0f, lava + 1f, 0f), new Vector3(loop * 0.8f, 1f, loop * 0.8f), new Color(0.30f, 0.28f, 0.27f, 0.45f), new Color(0.45f, 0.40f, 0.36f, 0.35f), 3f, 7f, 2.5f, 1.4f, 9f);
+                Puffs(headPart, "Maw smoke", maw + fwd * 2f, new Vector3(2f, 1.5f, 2f), new Color(0.35f, 0.32f, 0.30f, 0.45f), new Color(0.55f, 0.45f, 0.38f, 0.35f), 1.5f, 3.5f, 2f, 1.2f, 6f);
+                foreach (var b in breaches)
+                    Puffs(coilPivot, "Sparks", b + Vector3.up * 1.5f, new Vector3(thick * 2f, 1f, thick * 2f), new Color(1f, 0.6f, 0.15f, 0.95f), new Color(1f, 0.35f, 0.08f, 0.9f), 0.12f, 0.28f, 3f, 2.2f, 2.5f);
+            }
 
             static void Glow(Transform parent, string name, Vector3 local, float size)
             {
