@@ -135,6 +135,40 @@ namespace Punchy.Terrain
                    !OnRiver(source, spot, float2.zero, 0f) && !OnRiver(source, house, float2.zero, 0f);
         }
 
+        /// <summary>W-119: how far a stilt house plot may slide along its ray from the landmark's middle: out, and back in (m).</summary>
+        public const float StiltSlideOut = 16f, StiltSlideBack = 6f;
+
+        /// <summary>
+        /// W-119 (#36): where a stilt house stands for a ring spot: the spot itself if the house fits there
+        /// (<see cref="StiltHouseFits"/>), else the nearest point along its ray from <paramref name="centre"/>, every metre
+        /// up to <see cref="StiltSlideOut"/> out and <see cref="StiltSlideBack"/> back, where the bank is low and the
+        /// shallows deep enough. A ring spot up a high bank or with its house over dry land used to stay empty (v3 kept
+        /// 1-3 of 6 per village); now its house walks down the ray to the water and stands on posts in the shallows.
+        /// Flora, the Home/Door anchors and the village log all ask this, so the house and its anchors agree.
+        /// </summary>
+        public static bool StiltHouseSpot(in TerrainSource source, float2 centre, float2 spot, out float2 plot, out float2 house)
+        {
+            plot = spot;
+            if (StiltHouseFits(source, centre, spot, out house))
+                return true;
+            var dir = math.normalizesafe(spot - centre);
+            for (int d = 1; d <= (int)StiltSlideOut; d++)
+            {
+                plot = spot + dir * d;
+                if (StiltHouseFits(source, centre, plot, out house))
+                    return true;
+                if (d <= (int)StiltSlideBack)
+                {
+                    plot = spot - dir * d;
+                    if (StiltHouseFits(source, centre, plot, out house))
+                        return true;
+                }
+            }
+            plot = spot;
+            house = spot + dir * StructureKit.StiltReach;
+            return false;
+        }
+
         /// <summary>The range of grid items (indices into Items) for the cell containing a point.</summary>
         public static int2 CellRange(ref LandmarkSetBlob set, float2 xz)
         {

@@ -1519,6 +1519,11 @@ namespace Punchy.Flora
                             if (l == layer && math.all((int2)math.floor(spot / cellSize) == cell))
                             {
                                 var placedRule = f.Rules[prop.Species];
+                                // W-119 (#36): a stilt house whose ring spot sits up a high bank or has its house over dry
+                                // land slides along its ray to the water (LandmarkSampling.StiltHouseSpot) and stands on
+                                // posts in the shallows, instead of leaving its plot empty (no draws moved).
+                                if (placedRule.House == 2 && LandmarkSampling.StiltHouseSpot(source, set.Instances[landmark.Instance].Position, spot, out var stiltPlot, out _))
+                                    spot = stiltPlot;
                                 if (OnBuiltPlot(ref f, source, spot, placedRule.Footprint * prop.Scale.y) ||
                                     OnRoad(source, spot, placedRule.Footprint * prop.Scale.y))
                                     return none;
@@ -1589,6 +1594,10 @@ namespace Punchy.Flora
                                     Ground = footprint ? 0u : GroundFor(source, placedRule, spot, 1f, 0.25f)
                                 };
                             }
+                            // W-119: a stilt house keeps the plants clear round the plot it slid to, not its ring spot.
+                            if (f.Rules[prop.Species].House == 2 && math.distance(xz, spot) < prop.Clearance + LandmarkSampling.StiltSlideOut &&
+                                LandmarkSampling.StiltHouseSpot(source, set.Instances[landmark.Instance].Position, spot, out var clearPlot, out _))
+                                spot = clearPlot;
                             blocked |= math.distance(xz, spot) < prop.Clearance;
                         }
                     }
