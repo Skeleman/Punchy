@@ -3054,3 +3054,6 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - UNVERIFIED: host/client run not done (pads are built in the director's build path on every machine; frogs/heron/flies are normal
   ghosts). Pads read paler than the world lane's kit lily pads under the Colossus shader. A Hawks flier never flees or sleeps.
   Its idle stays awake at night (Active Always).
+- Note (feature freeze, Zach 11-07): the stand-in supervisor's "do not start row 3" message arrived after row 3 was already
+  committed and pushed (2bb2aed7). I did not revert it. It sits on animal-behaviours only, unmerged; supervisor decides whether
+  it ships or is dropped. No further feature work started.
