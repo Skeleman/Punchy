@@ -2989,3 +2989,19 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - Fingerprint: this tree (based on #188) reads 355E924F with the new species (pin was 65C95060). I'll re-pin after merging #189 (main 706B915E) before the card-end suite.
 - Shots: D:/PunchyMilestones/A-88/a88-r2-under.png (the dome ring from the bed, schools overhead), a88-r2-school.png (a school over a dome, close), a88-r2-bed.png (a sturgeon on the bed by a dome), a88-r2-scatter.png (the player treading water with the school spread out).
 - Risks: SilverFish are small, so from far off the schools read as specks; the close shots show them better. Fish spawn only when the village is peopled (same radius as its folk).
+
+## A-88 row 3 (#40): volcano colossus (magma serpent) - done (verified)
+- Commit 23d8d924 on animal-behaviours. New kind MagmaSerpent (slot 20, Order 20, salt 58831). New
+  ColossusDefinition.Landmark field: stand on the middle of a named landmark (VolcanoCone); v3 has no VolcanoCone
+  instance, so it falls back to its biome Ashlands (AshSmith's biome; AshSmith itself is a non-primary swap-in).
+  KeepApart 250. CollisionLeave now splits on commas ("Coil,Head" stay non-solid as they move).
+- Placed at (-211, 19.0, -2129), region 212 cells. Build 47-82 ms on frame 52 (in range of SnowWorm 69,
+  CarnivorousPlant 102, SaltCrystal 188), solid 25 ms, 933 collision columns.
+- With no crater under it, it builds its own: cinder/basalt berm (r 36 m, ~8 m high) round a lava pool, notched
+  for a lava stream. Loop breaches in four arcs and turns ~2 deg/s; neck rears from the pool, head turns.
+  Details: magma seams, basalt plates, glowing wall cracks, shed skin, obsidian shards, sulphur crust, melted
+  shield and sword, crust plates on the pool, smoke, sparks, rumble every 16-28 s.
+- Shots: D:\PunchyMilestones\A-88\a88-r3-day.png, a88-r3-night.png, a88-r3-night-close.png.
+- Risks: the night glow comes from lanterns only (flames + moving lights), because the Colossus shader has no emissive
+  input. Magma vertex colour reads dull at night; an emissive channel would be a rendering-lane change. No
+  terrain/landmark change. Colossi do not feed Fauna_Fingerprint.
