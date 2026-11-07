@@ -48,3 +48,7 @@ Those two agents ran as subagents of the old supervisor session; if they stop, r
 - No open PRs; queue empty. Uncommitted work left in place (rule 5): the next session for each lane should commit or finish it.
 - Player: waiting on an OK for the Sky.hlsl underwater-fog block (REPORTS-player 11-07). W-121 also edits Sky.hlsl haze.
 - 09:50: Zach closed both editors from the GUI; their launchers ended with them, 18.7 GB free. Uncommitted work is still on disk in both trees.
+
+## Stand-in supervisor: the player-lane session (Zach, 2026-11-07, while the main supervisor is out for two days)
+- Relaunched the world agent (finish W-122 row 3) and the animal agent (finish A-89 rows 2-3), each in its own tree, from the state above. Each reports DONE/FAILED/BLOCKED at card end; the stand-in reviews and merges by PR.
+- Sky.hlsl: lent to the player lane for one additive block in PunchyAtmosphere (`_PunchyUnderwater` underwater fog, set by Underwater.cs). The world lane isn't editing Sky.hlsl on W-122.
