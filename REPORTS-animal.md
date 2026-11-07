@@ -3032,3 +3032,25 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - The card's 188 ms SaltCrystal did not show up here (39 ms cold); it was likely a one-off cold JIT. The remaining first
   halves are the shape work itself (salt: 72x50 rock against ~130 dents; magma: ground sampling), not mesh upload.
 - Not changed: WalkingOak (75.8 cold / 42.6 warm) and WalkingSaguaro (48.6 / 38.5) are now the slowest single builds.
+
+## A-89 row 3: marsh wildlife at the marsh folk village - done (verified) - 2bb2aed7
+- Merged origin/main (#192, W-122) first as bc8b0a6a. No world code edited; spots taken from REPORTS-world W-122 row 2 (centre
+  (-1240, 320), huts on the 20 m ring, walks, open water between them) and the row 3 hatchery raft (pads kept 9 m+ from centre).
+- FaunaDirector.Marsh.cs, keyed on the landmark type named MarshFolkVillage. v3 log: "[marsh life] village 111: 8 frog pads,
+  26 more pads and lilies" / "peopled: 8 frogs on pads, 1 heron, 5 dragonflies".
+  - Frogs: new PadFrog (Frog copy, Habitat Floats, leash 0.4 m) each on its own lily pad in open water 2.4 m+ clear of walks/huts.
+    Pads + a few water lilies are seed-derived scenery built with the island on every machine (Colossus material), so clients see them.
+    After 60 s all 8 frogs were still on their pads (probe: position = home).
+  - Heron: existing Heron, homed on the pool rim where water is 8-15 cm (the deepest a Land creature walks), beat 3.5 m.
+  - Dragonflies: new Dragonfly (Moth body reshaped: long thin abdomen, flat wing pairs, big eyes; Azure/Emerald/Scarlet coats).
+    New species flag Hawks: darts 1.5-5 m point to point within its leash, 0.4-1.4 m over the water, never lands. Before the flag
+    they flew off ~90 m (fliers' flights ignore the leash); after, all 5 within 4 m of home after 60 s, ~1.2 m over the water.
+  - New overworld kinds MarshFrog/MarshHeron/MarshDragonfly (rows with no Landmark set: the type check is by name). Own rng per village.
+- Pins (re-pinned in WorldTests, reason): Landmarks_V3 111 3BDF705F -> 112 A955AFE0 (W-122's appended MarshFolkVillage entry, from
+  main). Fauna_Fingerprint AD7E7781 -> 83902658: main's marsh flora (world measured AEA50DCE) plus PadFrog, Dragonfly and the marsh rows
+  (120 species). Suite: 12/14 before the re-pin (only those two failed), WorldTests 9/9 after.
+- Shots: D:/PunchyMilestones/A-89/r3-frog2-800.png (frog on its pad by the walk), r3-heron2-800.png (heron in the rim shallows),
+  r3-dragonfly-800.png (dragonfly over the water by a hut). Extras in gallery/.
+- UNVERIFIED: host/client run not done (pads are built in the director's build path on every machine; frogs/heron/flies are normal
+  ghosts). Pads read paler than the world lane's kit lily pads under the Colossus shader. A Hawks flier never flees or sleeps.
+  Its idle stays awake at night (Active Always).
