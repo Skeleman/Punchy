@@ -44,8 +44,11 @@ namespace Punchy.Flora
                 case Punchy.Terrain.KitShape.Dock:
                     parts = Punchy.Terrain.StructureKit.Dock(seed, trim, width * 2.4f, 2.6f, 0.8f);
                     break;
+                case Punchy.Terrain.KitShape.Boardwalk: // W-119 (#36): a shore boardwalk piece, its length from the variant
+                    parts = Punchy.Terrain.StructureKit.Boardwalk(seed, trim, Punchy.Terrain.StructureKit.BoardwalkLength(g.Variant), Punchy.Terrain.StructureKit.BoardwalkDeck(g.Variant), g.Variant / 16);   // W-119 row 3: deck details by the run of 16
+                    break;
                 case Punchy.Terrain.KitShape.Shore:
-                    parts = Punchy.Terrain.StructureKit.Shore(seed, trim, 2.5f);
+                    parts = Punchy.Terrain.StructureKit.Shore(seed, trim, 2.5f, g.Variant % Punchy.Terrain.StructureKit.FishTrades);   // W-119: the variant's trade
                     break;
                 case Punchy.Terrain.KitShape.Igloo:     // #38: a turtle folk's dome, one tall storey
                     storeys = 1;
@@ -66,6 +69,24 @@ namespace Punchy.Flora
                     break;
                 case Punchy.Terrain.KitShape.Reef:      // #37: lake-bed details
                     parts = Punchy.Terrain.StructureKit.Reef(seed, trim, 3f);
+                    break;
+                case Punchy.Terrain.KitShape.GlowStone: // W-120 (#37): Height is the stone's height
+                    parts = Punchy.Terrain.StructureKit.GlowStone(seed, trim, width);
+                    break;
+                case Punchy.Terrain.KitShape.Wreck:     // W-120 (#37): Height is the boat's length
+                    parts = Punchy.Terrain.StructureKit.Wreck(seed, trim, width);
+                    break;
+                case Punchy.Terrain.KitShape.ClamBed:   // W-120 (#37): Height is the bed's spread
+                    parts = Punchy.Terrain.StructureKit.ClamBed(seed, trim, width);
+                    break;
+                case Punchy.Terrain.KitShape.VentField: // W-120 (#37): Height is the field's spread
+                    parts = Punchy.Terrain.StructureKit.VentField(seed, trim, width);
+                    break;
+                case Punchy.Terrain.KitShape.ShellBuoy: // W-121 (#37): Height is the float's width; it rides the lake surface (Floats)
+                    parts = Punchy.Terrain.StructureKit.ShellBuoy(seed, trim, width);
+                    break;
+                case Punchy.Terrain.KitShape.SeaRaft:   // W-121 (#37): Height is the raft's length; it floats by the landing (Floats)
+                    parts = Punchy.Terrain.StructureKit.SeaRaft(seed, trim, width);
                     break;
                 case Punchy.Terrain.KitShape.Wharf:     // W-65: walkways and houses over the water, laid out by the seed
                     storeys = 1;

@@ -17,6 +17,14 @@ namespace Punchy.Flora
 
             var head = g.Accent;
             var centreColor = s.FlowerHead == FlowerHead.Cup ? new Color(0.08f, 0.06f, 0.04f).linear : new Color(1f, 0.78f, 0.15f).linear;
+            // W-121 (#21): a yellow cup (buttercup) has a green-gold heart, not a poppy's dark one.
+            if (s.FlowerHead == FlowerHead.Cup && head.r > 0.5f && head.g > 0.45f && head.b < 0.2f)
+                centreColor = new Color(0.62f, 0.66f, 0.12f).linear;
+            // W-121 (#21): close-up detail (stem leaves, calyx, stamens or a domed disc, buds) on the nearest LOD. It
+            // draws only from the detail stream, so the flowers' layout does not move.
+            var rich = g.Lod == 0 && s.FlowerHead != FlowerHead.Spike;
+            var dr = g.Detail;
+            float D() => (float)dr.NextDouble();
             var stemColor = s.Foliage.linear;
             var stemRadius = Mathf.Clamp(height * 0.018f, 0.003f, 0.012f);
 
@@ -43,6 +51,24 @@ namespace Punchy.Flora
                 // Head, in a frame facing up-ish.
                 var right = Vector3.Cross(facing, Vector3.forward).normalized;
                 var forward = Vector3.Cross(right, facing);
+
+                if (rich)
+                {
+                    // W-121 (#21): one or two narrow leaves partway up the stem, and a green calyx cupping the head.
+                    for (int k = 0, n = 1 + (D() < 0.5f ? 1 : 0); k < n; k++)
+                    {
+                        var at = Vector3.Lerp(stem[0], top, 0.25f + k * 0.22f + D() * 0.1f);
+                        var go = (g.Flat(D() * 6.28f) + Vector3.up * (0.6f + D() * 0.5f)).normalized;
+                        var len = h * (0.22f + D() * 0.1f);
+                        var across = Vector3.Cross(Vector3.up, go).normalized;
+                        var sag = Vector3.down * len * 0.25f;
+                        b.Strip(new List<Vector3> { at, at + go * len * 0.4f, at + go * len * 0.8f + sag * 0.5f, at + go * len + sag },
+                                new List<float> { len * 0.04f, len * 0.2f, len * 0.14f, 0f }, across, stemColor * (0.95f + D() * 0.15f),
+                                FloraPart.Foliage, 0.8f, Vector3.Cross(across, go).normalized);
+                    }
+                    b.Blob(top - facing * size * 0.06f, new Vector3(size * 0.17f, size * 0.12f, size * 0.17f), Quaternion.FromToRotation(Vector3.up, facing),
+                           0, 0.25f, D() * 50f, stemColor * 0.85f, FloraPart.Foliage, 0.8f);
+                }
                 Vector3 Head(float angle, float radius, float up) =>
                     top + (right * Mathf.Cos(angle + twist) + forward * Mathf.Sin(angle + twist)) * radius + facing * up;
 
@@ -67,6 +93,16 @@ namespace Punchy.Flora
                                 int c0 = b.Vertex(Head(a, size * 0.22f, 0.08f * size), facing, centreColor, FloraPart.Petal, 1f);
                                 int c1 = b.Vertex(Head(a + Mathf.PI * 2f / petalCount, size * 0.22f, 0.08f * size), facing, centreColor, FloraPart.Petal, 1f);
                                 b.Triangle(centre, c0, c1);
+                                if (rich)
+                                {
+                                    // W-121 (#21): an inner ring of shorter petals between the outer ones, a little raised.
+                                    var a2 = a + Mathf.PI / petalCount;
+                                    var inner = tint * 0.93f;
+                                    int i0 = b.Vertex(Head(a2 - w * 0.4f, size * 0.2f, 0.08f * size), normal, inner, FloraPart.Petal, 0.85f);
+                                    int i1 = b.Vertex(Head(a2 + w * 0.4f, size * 0.2f, 0.08f * size), normal, inner, FloraPart.Petal, 0.85f);
+                                    int i2 = b.Vertex(Head(a2, size * 0.72f, 0.24f * size), normal, inner, FloraPart.Petal, 1f);
+                                    b.Triangle(i0, i2, i1);
+                                }
                             }
                             else if (p % 2 == 0)
                             {
@@ -80,6 +116,14 @@ namespace Punchy.Flora
                     }
                     case FlowerHead.Cup:
                     {
+                        if (rich)
+                        {
+                            // W-121 (#21): a ring of stamens standing round a small knob in the cup's heart.
+                            for (int k = 0, n = 6 + (int)(D() * 3f); k < n; k++)
+                                b.Diamond(Head(k * Mathf.PI * 2f / n, size * 0.14f, size * 0.32f), size * 0.045f, Color.Lerp(centreColor, head, 0.25f) * 1.3f, FloraPart.Petal);
+                            b.Blob(top + facing * size * 0.12f, new Vector3(size * 0.11f, size * 0.14f, size * 0.11f), Quaternion.FromToRotation(Vector3.up, facing),
+                                   0, 0.2f, D() * 50f, centreColor, FloraPart.Petal);
+                        }
                         for (int p = 0; p < petalCount; p++)
                         {
                             var a = p / (float)petalCount * Mathf.PI * 2f;
@@ -121,7 +165,26 @@ namespace Punchy.Flora
                         break;
                     }
                 }
+                if (rich && s.FlowerHead == FlowerHead.Daisy)   // W-121 (#21): a domed, bumpy disc in the middle
+                    b.Blob(top + facing * size * 0.13f, new Vector3(size * 0.23f, size * 0.12f, size * 0.23f), Quaternion.FromToRotation(Vector3.up, facing),
+                           1, 0.35f, D() * 50f, centreColor, FloraPart.Petal);
             }
+
+            // W-121 (#21): now and then an unopened bud on its own short, nodding stem.
+            if (rich)
+                for (int k = 0, n = D() < 0.6f ? 1 + (D() < 0.3f ? 1 : 0) : 0; k < n; k++)
+                {
+                    var foot = g.Flat(D() * 6.28f) * height * s.Spread * (0.1f + D() * 0.3f);
+                    var bh = height * (0.45f + D() * 0.3f);
+                    var nod = g.Flat(D() * 6.28f) * bh * 0.18f;
+                    var bud = foot + Vector3.up * bh + nod;
+                    b.Tube(new List<Vector3> { foot + Vector3.down * 0.02f, foot + Vector3.up * bh * 0.6f + nod * 0.3f, bud },
+                           new List<float> { stemRadius, stemRadius * 0.85f, stemRadius * 0.7f }, 3, stemColor, FloraPart.Foliage, ao: 0.8f);
+                    var bs = height * 0.07f;
+                    var up = (Vector3.up + nod.normalized * 0.6f).normalized;
+                    b.Blob(bud + up * bs * 0.7f, new Vector3(bs * 0.55f, bs, bs * 0.55f), Quaternion.FromToRotation(Vector3.up, up), 0, 0.2f, D() * 50f,
+                           Color.Lerp(stemColor, head, 0.35f), FloraPart.Petal);
+                }
 
             // Leaves at the base.
             var leafCount = 2 + (int)(g.R() * 3f);

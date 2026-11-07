@@ -55,6 +55,15 @@ namespace Punchy.Fauna
             /// <summary>Half its footprint (m) and its height (m), for the ground fit, the zone creatures avoid and shots.</summary>
             public float Body, Height;
             public uint Salt;
+            /// <summary>A-85: it drifts above the ground (the puffball): no footfalls, thuds, dust or shake.</summary>
+            public bool Floats;
+            /// <summary>A-86 (#40): the steepest ground (rise over run) it walks, 0 for the default MaxSlope; and the span (m)
+            /// that slope is read across, 0 for the default 4 m. A heavy walker reads it across its footprint, so it steps
+            /// over bumps a smaller one could not, and may climb steeper.</summary>
+            public float Climb, SlopeSpan;
+            /// <summary>A-87 row 3: the deepest water (m) it wades through, 0 for none. The mire walker strides its loop
+            /// through the marsh pools instead of standing still because the loop crossed water.</summary>
+            public float Wade;
         }
 
         static readonly Gait[] Gaits =
@@ -70,9 +79,23 @@ namespace Punchy.Fauna
             // A-78: the cinder snail glides (no legs, no rig), slowest of all with barely a bob, and rests long to graze.
             new Gait { Kind = StoneColossi.Kind.CinderSnail, Radius = 40f, Speed = 0.35f, Walk = 120f, Rest = 60f, Stride = 8f, Bob = 0.04f, Shake = 0.03f, Body = 24f, Height = 34f, Salt = 0xA7C5u },
             // A-79: the mire walker creeps on its root skirt (no rig), slow with a heavy sway, pausing long in the fog.
-            new Gait { Kind = StoneColossi.Kind.MireWalker, Radius = 36f, Speed = 0.6f, Walk = 90f, Rest = 45f, Stride = 10f, Bob = 0.12f, Shake = 0.05f, Body = 20f, Height = 40f, Salt = 0xA7F1u },
+            new Gait { Kind = StoneColossi.Kind.MireWalker, Radius = 36f, Speed = 0.6f, Walk = 90f, Rest = 45f, Stride = 10f, Bob = 0.12f, Shake = 0.05f, Body = 20f, Height = 40f, Salt = 0xA7F1u, Wade = 8f },
             // A-84 row 3: the walking oak heaves along on its root legs, a slow rolling gait with a big bob, resting long.
             new Gait { Kind = StoneColossi.Kind.WalkingOak, Radius = 50f, Speed = 0.7f, Walk = 80f, Rest = 70f, Stride = 6f, Bob = 0.25f, Shake = 0.08f, Body = 16f, Height = 46f, Salt = 0xA70Au },
+            // A-85 row 2: the puffball drifts on the air (it bobs on its own, StoneColossi.SwayPuffball), slow and wide, hanging still a while.
+            new Gait { Kind = StoneColossi.Kind.Puffball, Radius = 70f, Speed = 0.5f, Walk = 110f, Rest = 50f, Stride = 10f, Bob = 0f, Shake = 0f, Body = 26f, Height = 44f, Salt = 0xA7B5u, Floats = true },
+            // A-85 row 3: the charred treant plods its burnt forest, short strides, groaning, dropping embers behind it (StoneColossi.SwayTreant).
+            new Gait { Kind = StoneColossi.Kind.CharredTreant, Radius = 55f, Speed = 0.55f, Walk = 90f, Rest = 60f, Stride = 6f, Bob = 0.2f, Shake = 0.07f, Body = 16f, Height = 40f, Salt = 0xA7D3u },
+            // A-86 row 2 (#40): the mammoth reads slope across its 20 m footprint and climbs to 0.5, so the glacier's bumps no longer pin it.
+            new Gait { Kind = StoneColossi.Kind.IceMammoth, Radius = 60f, Speed = 0.6f, Walk = 100f, Rest = 60f, Stride = 7f, Bob = 0.3f, Shake = 0.1f, Body = 20f, Height = 34f, Salt = 0xA7E3u,
+                Climb = 0.5f, SlopeSpan = 20f },
+            // A-86 row 3 (#40): the sky whale swims a wide loop high over the peaks (it holds its own height, StoneColossi.SwaySkyWhale).
+            // It floats, so the ground's slope never pins it: Climb 99 lets any slope through; water and other biomes still do.
+            new Gait { Kind = StoneColossi.Kind.SkyWhale, Radius = 90f, Speed = 1.4f, Walk = 150f, Rest = 40f, Stride = 12f, Bob = 0f, Shake = 0f, Body = 28f, Height = 120f, Salt = 0xA7A9u,
+                Floats = true, Climb = 99f },
+            // A-87 row 4 (#40): the hermit crab scuttles sideways round the Ocean shore, wading up to 5 m out.
+            new Gait { Kind = StoneColossi.Kind.HermitCrab, Radius = 45f, Speed = 0.7f, Walk = 80f, Rest = 55f, Stride = 4f, Bob = 0.25f, Shake = 0.06f, Body = 18f, Height = 30f, Salt = 0xA7C2u,
+                Wade = 5f },
         };
 
         const float Ramp = 5f, AwakeRange = 600f, FarPeriod = 0.5f, ShakeRange = 120f, ShakeTime = 0.35f, DustRange = 300f;
@@ -412,13 +435,12 @@ namespace Punchy.Fauna
             {
                 var p = LoopPoint(w, k * Table / Checks);
                 var g = source.SampleGround(p);
-                if (g.WaterDepth >= -1f)
+                if (g.WaterDepth >= -1f && !(w.G.Wade > 0f && g.WaterDepth <= w.G.Wade))
                     return $"water at ({p.x:F0}, {p.y:F0})";
                 if (g.Biomes.Dominant() != biome)
                     return $"another biome at ({p.x:F0}, {p.y:F0})";
-                var h = g.Height;
-                var slope = math.max(math.abs(source.SampleHeight(p + new float2(4f, 0f)) - h), math.abs(source.SampleHeight(p + new float2(0f, 4f)) - h)) / 4f;
-                if (slope > MaxSlope)
+                var slope = Slope(source, p, g.Height, w.G.SlopeSpan > 0f ? w.G.SlopeSpan : 4f);
+                if (slope > (w.G.Climb > 0f ? w.G.Climb : MaxSlope))
                     return $"slope {slope:F2} at ({p.x:F0}, {p.y:F0})";
                 ref var towns = ref source.Settlements.Value.Settlements;
                 for (int s = 0; s < towns.Length; s++)
@@ -426,6 +448,12 @@ namespace Punchy.Fauna
                         return $"a settlement near ({p.x:F0}, {p.y:F0})";
             }
             return null;
+        }
+
+        /// <summary>The ground's rise over run at p (height h there), read span metres east and north (the steeper of the two).</summary>
+        static float Slope(in TerrainSource source, float2 p, float h, float span)
+        {
+            return math.max(math.abs(source.SampleHeight(p + new float2(span, 0f)) - h), math.abs(source.SampleHeight(p + new float2(0f, span)) - h)) / span;
         }
 
         /// <summary>The loop at step k of Table: a seeded wobble on a circle, so no two loops look drawn by compass.</summary>
@@ -562,16 +590,27 @@ namespace Punchy.Fauna
             var step = (long)math.floor(w.Distance / w.G.Stride);
             var was = w.Step;
             w.Step = step;
-            if (was == long.MinValue || step == was || w.Pace < 0.15f)
+            if (was == long.MinValue || step == was || w.Pace < 0.15f || w.G.Floats)
                 return;
             var fwd = new float2(math.sin(w.Heading), math.cos(w.Heading));
             var side = new float2(fwd.y, -fwd.x) * ((step & 1) == 0 ? 1f : -1f);
             var foot2 = w.Position.xz + fwd * (w.G.Body * 0.4f) + side * (w.G.Body * 0.45f);
             var foot = new Vector3(foot2.x, StoneColossi.Positions[w.G.Slot].y + 0.5f, foot2.y);
-            GameAudio.PlayOneShot(SoundId.StepRock, foot, 0.3f, w.Pace, 160f, SoundGroup.World);
+            // A-87 row 3: a wading foot comes down in the water: a splash and a spray of pale water at the surface, no dust.
+            var wet = false;
+            if (w.G.Wade > 0f && TryGetSource(out var source))
+            {
+                var g = source.SampleGround(foot2);
+                if (g.WaterDepth > 0.2f && g.WaterSurface > g.Height)
+                {
+                    wet = true;
+                    foot.y = g.WaterSurface + 0.1f;
+                }
+            }
+            GameAudio.PlayOneShot(wet ? SoundId.Splash : SoundId.StepRock, foot, wet ? 0.6f : 0.3f, wet ? 0.45f + 0.2f * w.Pace : w.Pace, 160f, SoundGroup.World);
             var d = math.distance(eye, (float3)foot);
             if (d < DustRange)
-                Dust(foot, w.G.Body * 0.25f);
+                Dust(foot, w.G.Body * 0.25f, wet);
             if (d < ShakeRange)
             {
                 var amp = w.G.Shake * (1f - d / ShakeRange) * (1f - d / ShakeRange) * w.Pace;
@@ -583,7 +622,7 @@ namespace Punchy.Fauna
             }
         }
 
-        void Dust(Vector3 at, float spread)
+        void Dust(Vector3 at, float spread, bool wet = false)
         {
             if (dust == null)
                 dust = MakeDust();
@@ -596,6 +635,16 @@ namespace Punchy.Fauna
                 e.velocity = dir * UnityEngine.Random.Range(1.5f, 3.5f) + Vector3.up * UnityEngine.Random.Range(0.4f, 1.2f);
                 e.startSize = UnityEngine.Random.Range(2.5f, 5f);
                 e.startLifetime = UnityEngine.Random.Range(2.5f, 4f);
+                if (wet)
+                {
+                    // Spray thrown up and out of the pool, pale and quick; a few drops kick higher than the rest.
+                    e.velocity = dir * UnityEngine.Random.Range(2f, 4.5f) + Vector3.up * UnityEngine.Random.Range(2.5f, i % 3 == 0 ? 7f : 4f);
+                    e.startSize = UnityEngine.Random.Range(1.5f, 3.5f);
+                    e.startLifetime = UnityEngine.Random.Range(1.2f, 2f);
+                    e.startColor = new Color(0.80f, 0.86f, 0.84f, UnityEngine.Random.Range(0.35f, 0.55f));
+                }
+                else
+                    e.ResetStartColor();
                 dust.Emit(e, 1);
             }
         }

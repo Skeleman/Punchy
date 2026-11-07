@@ -38,12 +38,13 @@ namespace Punchy.Fauna
         // W-89 (#40, Zach's designs): a golem of floating rocks held together by arcs takes the ElectricWastelands slot
         // (the crystal serpent comes back with "-colossus CrystalSerpent"), and a seventh slot holds a walking saguaro in
         // the Sonoran.
-        public enum Kind { KneelingTitan, HalfBuriedHead, GiantTortoise, CrystalSerpent, DrownedKnight, AshSmith, CarnivorousPlant, SkeletalLizard, RockGolem, WalkingSaguaro, SaltCrystal, MesaTortoise, GlassHeron, LanternStag, CinderSnail, MireWalker, SnowWorm, WalkingOak }
+        public enum Kind { KneelingTitan, HalfBuriedHead, GiantTortoise, CrystalSerpent, DrownedKnight, AshSmith, CarnivorousPlant, SkeletalLizard, RockGolem, WalkingSaguaro, SaltCrystal, MesaTortoise, GlassHeron, LanternStag, CinderSnail, MireWalker, SnowWorm, WalkingOak, Puffball, CharredTreant, IceMammoth, SkyWhale, HermitCrab, MagmaSerpent }
         // W-92 (#40, Zach's SaltFlat design): an eighth slot holds a giant rounded salt crystal rolling in slow circles.
         // W-106 row 2 (#40): a ninth slot holds a rock tortoise in the MesaCanyonlands that reads as a small mesa.
         // A-76 (#40): a tenth holds a glass heron wading the GlassDesert, an eleventh a lantern stag in the SparklingForest.
         // A-78 (#40): a twelfth holds a cinder snail grazing the EmberForest, the biggest biome that had none.
         // A-79 (#40): a thirteenth holds a mire walker creeping through the FoggyMarsh on its prop roots.
+        // A-87 row 4 (#40): a hermit crab carrying an islet on its shell scuttles the Ocean shallows, the last biome without one.
         /// <summary>What stands in each slot (one per primary <see cref="ColossusDefinition"/>, by its Order). A "-colossus"
         /// flag swaps a kept kind into the slot of the kind it replaces. Sized when the colossi are placed.</summary>
         public static Kind[] Placed = new Kind[0];
@@ -147,6 +148,11 @@ namespace Punchy.Fauna
             SwayPlant();
             SwayWorm();
             SwayOak();
+            SwayPuffball();
+            SwayTreant();
+            SwayMammoth();
+            SwaySkyWhale();
+            SwayMagmaSerpent();
         }
 
         bool landing;
@@ -294,10 +300,14 @@ namespace Punchy.Fauna
         TerrainSource buildSource;
         Unity.Entities.World buildWorld;
         readonly System.Diagnostics.Stopwatch buildWatch = new System.Diagnostics.Stopwatch();
+        /// <summary>A-85 row 1: the second half of the colossus just built, if its builder split itself in two
+        /// (BuildNext runs it on the next frame, before the solid frame). Cleared when placing starts over.</summary>
+        static System.Action BuildRest;
 
         void Place(TerrainSource source, BiomePalette palette, int[] biomes)
         {
             placed = true;
+            BuildRest = null;
             Lanterns.Clear();
             LoadDefinitions();
             int slots = defs.Length;
@@ -343,9 +353,20 @@ namespace Punchy.Fauna
             {
                 building = false;
                 placed = false;
+                BuildRest = null;
                 return;
             }
             buildWatch.Restart();
+            // A-85 row 1: a builder too big for one frame leaves its second half in BuildRest, run on a frame of
+            // its own between the build and the solid frame.
+            if (BuildRest != null)
+            {
+                var rest = BuildRest;
+                BuildRest = null;
+                rest();
+                Debug.Log($"[colossi] slot {nextSlot - 1} ({defs[nextSlot - 1].Kind}) finished in {buildWatch.Elapsed.TotalMilliseconds:F1} ms on frame {Time.frameCount}");
+                return;
+            }
             var slot = solidNext ? nextSlot - 1 : nextSlot++;
             if (solidNext)
                 SolidSlot(slot, buildSource);
@@ -382,7 +403,19 @@ namespace Punchy.Fauna
                     foreach (var name in def.Biomes)
                         if (palette.Biomes[b].name.StartsWith(name, System.StringComparison.OrdinalIgnoreCase))
                             wanted.Add(b);
-            if (!Pick(source, biomes, n, half, wanted, def.Salt, def.KeepRadius * 0.7f, out var spot, out var yaw, out var cells))
+            // A-85: a kind that shares its biome with an earlier one (KeepApart > 0) keeps clear of the colossi already placed.
+            var others = new List<float2>();
+            for (int s = 0; s < slot && def.KeepApart > 0f; s++)
+                if (!math.any(math.isnan(Spots[s])))
+                    others.Add(Spots[s].xz);
+            float2 spot;
+            float yaw;
+            int cells;
+            // A-88 row 3: a kind that lives on a landmark (the magma serpent in a volcano's crater) stands on the middle of
+            // one of that landmark's instances, picked by its salt; with none in this world it falls back to its biomes.
+            if (!string.IsNullOrEmpty(def.Landmark) && PickLandmark(source, palette, def, out spot, out yaw))
+                cells = 0;
+            else if (!Pick(source, biomes, n, half, wanted, def.Salt, def.KeepRadius * 0.7f, def.KeepApart, others, out spot, out yaw, out cells))
             {
                 Debug.Log($"StoneColossi: no room for a {def.Kind} in this world, none placed");
                 return false;
@@ -408,6 +441,29 @@ namespace Punchy.Fauna
             return true;
         }
 
+        /// <summary>A-88 row 3: picks one instance of the definition's landmark (by its salt) and stands on its middle.</summary>
+        static bool PickLandmark(in TerrainSource source, BiomePalette palette, ColossusDefinition def, out float2 spot, out float yaw)
+        {
+            spot = default;
+            yaw = 0f;
+            if (!source.Landmarks.IsCreated || palette.Landmarks == null)
+                return false;
+            ref var set = ref source.Landmarks.Value;
+            var found = new List<int>();
+            for (int i = 0; i < set.Instances.Length; i++)
+            {
+                var t = set.Instances[i].Type;
+                if (t >= 0 && t < palette.Landmarks.Length && palette.Landmarks[t] != null && palette.Landmarks[t].name == def.Landmark)
+                    found.Add(i);
+            }
+            if (found.Count == 0)
+                return false;
+            var rng = Unity.Mathematics.Random.CreateFromIndex((uint)source.World.Seed ^ def.Salt);
+            spot = set.Instances[found[rng.NextInt(found.Count)]].Position;
+            yaw = rng.NextFloat(360f);
+            return true;
+        }
+
         /// <summary>Builds a picked slot's colossus.</summary>
         void BuildSlot(int slot, in TerrainSource source)
         {
@@ -427,7 +483,7 @@ namespace Punchy.Fauna
             // W-101 row 4 (#40): solid to the player and the creatures. A part named in the definition can follow
             // the colossus as it moves (the salt ball's roll) or be left out (crumbs, the heron's shard litter).
             var follow = string.IsNullOrEmpty(def.CollisionFollow) ? null : roots[slot].Find(def.CollisionFollow);
-            var leave = string.IsNullOrEmpty(def.CollisionLeave) ? new string[0] : new[] { def.CollisionLeave };
+            var leave = string.IsNullOrEmpty(def.CollisionLeave) ? new string[0] : def.CollisionLeave.Split(',');
             ColossusCollision.Register(slot, roots[slot], def.Kind.ToString(), follow, def.CollisionFollowRadius, leave);
             Debug.Log($"StoneColossi: {def.Kind} placed at ({spot.x:F0}, {Positions[slot].y:F1}, {spot.y:F0}), facing {pickYaw[slot]:F0} degrees, region {pickCells[slot]} cells, relief {Relief(source, spot, def.KeepRadius * 0.7f):F1} m");
         }
@@ -456,7 +512,7 @@ namespace Punchy.Fauna
         }
 
         /// <summary>The biggest 4-connected region of <paramref name="wanted"/> cells, then a seeded pick among its most inland cells clear of settlements.</summary>
-        static bool Pick(in TerrainSource source, int[] grid, int n, float half, HashSet<int> wanted, uint salt, float radius, out float2 spot, out float yaw, out int cells)
+        static bool Pick(in TerrainSource source, int[] grid, int n, float half, HashSet<int> wanted, uint salt, float radius, float keepApart, List<float2> others, out float2 spot, out float yaw, out int cells)
         {
             spot = default; yaw = 0f; cells = 0;
             var region = new int[n * n];
@@ -527,6 +583,28 @@ namespace Punchy.Fauna
             for (int i = 0; i < scores.Length; i++)
                 if (At(i % n, i / n) == biggest && scores[i] >= best - 1)
                     candidates.Add(i);
+            // A-85 (KeepApart): drop the cells near an earlier colossus, reaching further from the inland core until some
+            // remain (none: the plain candidates stand). 0 for the kinds placed before it, so their spots never move.
+            for (int floor = best - 1; keepApart > 0f && others.Count > 0 && floor >= 0; floor--)
+            {
+                var apart = new List<int>();
+                for (int i = 0; i < scores.Length; i++)
+                {
+                    if (At(i % n, i / n) != biggest || scores[i] < floor)
+                        continue;
+                    var p = new float2(-half + i % n * Step, -half + i / n * Step);
+                    var clear = true;
+                    foreach (var o in others)
+                        clear &= math.distance(p, o) > keepApart;
+                    if (clear)
+                        apart.Add(i);
+                }
+                if (apart.Count > 0)
+                {
+                    candidates = apart;
+                    break;
+                }
+            }
             var rng = Unity.Mathematics.Random.CreateFromIndex((uint)source.World.Seed ^ salt);
             // The first draw is the pre-W-89 spot; only a steep one draws again (MaxRelief).
             var flattest = float.MaxValue;
@@ -599,8 +677,10 @@ namespace Punchy.Fauna
                 if (point == null || !point.gameObject.activeInHierarchy || (point.position - eye).sqrMagnitude > LanternRange * LanternRange)
                     continue;
                 var flicker = 0.9f + 0.1f * Mathf.Sin(Time.time * 7f + k * 1.7f);
-                Punchy.Ambience.FireSystem.AddFlame(point.position, 0.3f + 0.25f * night, 0x57A60 + k, Punchy.Ambience.FireSystem.Wood);
-                var light = Punchy.Ambience.FireSystem.Light(Punchy.Ambience.FireSystem.Wood, flicker * (0.35f + 1.4f * night));
+                // A-87 row 4: a point's scale sizes its flame and light (1 for a lantern; the hermit crab's lighthouse is a beacon).
+                var scale = point.localScale.x;
+                Punchy.Ambience.FireSystem.AddFlame(point.position, (0.3f + 0.25f * night) * scale, 0x57A60 + k, Punchy.Ambience.FireSystem.Wood);
+                var light = Punchy.Ambience.FireSystem.Light(Punchy.Ambience.FireSystem.Wood, flicker * (0.35f + 1.4f * night) * scale);
                 light.w *= 0.6f + 0.8f * night;
                 Punchy.Terrain.CaveSystem.MovingLights.Add((0x57A60 + k, point.position, light));
             }

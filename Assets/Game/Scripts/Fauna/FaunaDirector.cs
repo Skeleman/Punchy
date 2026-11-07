@@ -104,7 +104,7 @@ namespace Punchy.Fauna
         int wildCount, settledCount, caveCount, critterCount;
 
         /// <summary>Which count a waiting animal goes towards (Despawn's tally).</summary>
-        enum SpawnTier : byte { Wild, Settled, Cave, Critter }
+        enum SpawnTier : byte { Wild, Settled, Cave, Critter, Lake }
 
         /// <summary>An animal waiting to be made: where, and what to set up on it once it exists.</summary>
         struct PendingSpawn
@@ -121,7 +121,7 @@ namespace Punchy.Fauna
         public int SpawnsPerFrame = 8;
         readonly Queue<PendingSpawn> pendingSpawns = new Queue<PendingSpawn>();
         /// <summary>How many are waiting, of each tier (counted with those already made, so the caps hold).</summary>
-        readonly int[] pendingTiers = new int[4];
+        readonly int[] pendingTiers = new int[5];
         /// <summary>Critter spots with an animal on its way.</summary>
         readonly HashSet<uint> pendingCritterSpots = new HashSet<uint>();
         EntityArchetype plainArchetype;
@@ -409,7 +409,7 @@ namespace Punchy.Fauna
                 counts = new int[size];
             System.Array.Clear(counts, 0, counts.Length);
             var far = new NativeList<Entity>(Allocator.Temp);
-            wildCount = settledCount = caveCount = critterCount = 0;
+            wildCount = settledCount = caveCount = critterCount = lakeCount = 0;
             for (int i = 0; i < entities.Length; i++)
             {
                 var xz = states[i].Position.xz;
@@ -432,8 +432,10 @@ namespace Punchy.Fauna
                     far.Add(entities[i]);
                     continue;
                 }
-                // (Of its kind: settled ones are leashed to a home, cave dwellers live in the dark.)
-                if (states[i].Leash > 0f)
+                // (Of its kind: lake fish their own (A-88 row 2), settled ones are leashed to a home, cave dwellers live in the dark.)
+                if (states[i].SwimAbove > 0f)
+                    lakeCount++;
+                else if (states[i].Leash > 0f)
                     settledCount++;
                 else if (bodies[i].Blob.Value.CaveDweller)
                     caveCount++;
@@ -451,6 +453,7 @@ namespace Punchy.Fauna
             settledCount += pendingTiers[(int)SpawnTier.Settled];
             caveCount += pendingTiers[(int)SpawnTier.Cave];
             critterCount += pendingTiers[(int)SpawnTier.Critter];
+            lakeCount += pendingTiers[(int)SpawnTier.Lake];
             if (far.Length > 0)
                 em.DestroyEntity(far.AsArray());
             far.Dispose();
@@ -585,6 +588,7 @@ namespace Punchy.Fauna
                 case SpawnTier.Settled: settledCount++; break;
                 case SpawnTier.Cave: caveCount++; break;
                 case SpawnTier.Critter: critterCount++; break;
+                case SpawnTier.Lake: lakeCount++; break;
                 default: wildCount++; break;
             }
         }

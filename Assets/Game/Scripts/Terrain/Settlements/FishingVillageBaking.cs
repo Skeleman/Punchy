@@ -137,7 +137,7 @@ namespace Punchy.Terrain
             // W-91 (#36): count each village's building plots on river water (flora leaves those plots empty).
             for (int v = 0; v < placed.Count; v++)
             {
-                int plots = 0, river = 0;
+                int plots = 0, river = 0, stilts = 0, atRing = 0, slid = 0;
                 foreach (var prop in type.Props)
                 {
                     if (prop.Species == null || prop.Species.Form != Punchy.Flora.FloraForm.KitBuilding)
@@ -152,9 +152,17 @@ namespace Punchy.Terrain
                         plots++;
                         if (LandmarkSampling.OnRiver(source, spot, placed[v].Facing, dock ? 30f : 0f))
                             river++;
+                        if (shape != KitShape.StiltHouse)
+                            continue;
+                        // W-119: stilt houses that fit at their ring spot, and those that do once slid along their ray.
+                        stilts++;
+                        if (LandmarkSampling.StiltHouseFits(source, placed[v].Position, spot, out _))
+                            atRing++;
+                        else if (LandmarkSampling.StiltHouseSpot(source, placed[v].Position, spot, out _, out _))
+                            slid++;
                     }
                 }
-                LastLog += $"\n[villages] village {v + 1}: {river} of {plots} building plots on river water, dropped";
+                LastLog += $"\n[villages] village {v + 1}: {river} of {plots} building plots on river water, dropped; stilt houses {atRing} of {stilts} fit at their ring spot, {atRing + slid} with the slide to the water";
             }
             LastLog = $"[villages] {placed.Count} fishing villages from {mouths.Count} mouth cells ({tried} tried)" + (LastLog.Length > 0 ? "\n" + LastLog : "");
             UnityEngine.Debug.Log(LastLog);

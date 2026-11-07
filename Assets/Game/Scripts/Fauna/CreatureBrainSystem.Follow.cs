@@ -51,7 +51,19 @@ namespace Punchy.Fauna
                 // (On the move it keeps going until it's close; standing, it waits until they're a few metres off.)
                 var gap = Punchy.Fauna.Follow.Near + 0.5f + b.BodyLength * s.Scale * 0.5f;
                 var going = s.Speed > 0.2f ? distance > gap + 0.3f : distance > Punchy.Fauna.Follow.Far;
-                if (going)
+                if (M.FollowDetourTime > 0f)
+                {
+                    // A-88 row 1: going round whatever stopped it (Steer set the spot), at a run, before heading for
+                    // them again. (Straight at them, a dog behind a trunk or a rock only crawled, halved each frame.)
+                    M.FollowDetourTime -= dt;
+                    s.Target = M.FollowDetour;
+                    targetSpeed = run;
+                    moving = true;
+                    desiredLook = lookAt * 0.4f;
+                    if (math.distance(s.Position.xz, M.FollowDetour) < 0.6f)
+                        M.FollowDetourTime = 0f;
+                }
+                else if (going)
                 {
                     // (Aimed a little short of the gap: walking stops a step before its target.)
                     s.Target = leader.xz - dir * (gap - 1f);

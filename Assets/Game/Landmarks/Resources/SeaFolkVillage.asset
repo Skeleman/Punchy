@@ -48,11 +48,11 @@ MonoBehaviour:
     Trodden: 0
   - Species: {fileID: 11400000, guid: 6752791ad670f0b3a7d6a5e6cbca4dcb, type: 2}
     Density: 5
-    Ring: {x: 0.3, y: 0.3}
+    Ring: {x: 0, y: 0}
     Scale: {x: 1, y: 1}
     Centrepiece: 0
     FaceCentre: 0
-    Count: 3
+    Count: 1
     Angle: 0
     Clearance: 3
     Trodden: 0
@@ -66,14 +66,54 @@ MonoBehaviour:
     Angle: 22
     Clearance: 2
     Trodden: 0
-  - Species: {fileID: 11400000, guid: 4a8efb0e554e275d1765ea12b5bc0784, type: 2}
+  - Species: {fileID: 11400000, guid: 2d39c9ccd7c9467ba52b53a48a9380ce, type: 2}
     Density: 5
-    Ring: {x: 0, y: 0}
+    Ring: {x: 0.2, y: 0.2}
     Scale: {x: 1, y: 1}
     Centrepiece: 0
     FaceCentre: 0
-    Count: 1
+    Count: 6
     Angle: 0
+    Clearance: 1.5
+    Trodden: 0
+  - Species: {fileID: 11400000, guid: 15d323e5d328494681f9e1f8a61b995c, type: 2}
+    Density: 5
+    Ring: {x: 0.78, y: 0.78}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+    FaceCentre: 0
+    Count: 2
+    Angle: 0
+    Clearance: 4
+    Trodden: 0
+  - Species: {fileID: 11400000, guid: 3bb21d52270148519bc4d424cf444686, type: 2}
+    Density: 5
+    Ring: {x: 0.45, y: 0.45}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+    FaceCentre: 0
+    Count: 3
+    Angle: 60
+    Clearance: 2
+    Trodden: 0
+  - Species: {fileID: 11400000, guid: 41756bd7104a4d748e61c10108542711, type: 2}
+    Density: 5
+    Ring: {x: 0.45, y: 0.45}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+    FaceCentre: 0
+    Count: 3
+    Angle: 0
+    Clearance: 2
+    Trodden: 0
+  - Species: {fileID: 11400000, guid: 2a155b1c9c1c4a43b10477df80b47c79, type: 2}
+    Density: 5
+    Ring: {x: 0.95, y: 0.95}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+    FaceCentre: 0
+    Count: 4
+    Angle: 45
     Clearance: 2
     Trodden: 0
   Effects: []

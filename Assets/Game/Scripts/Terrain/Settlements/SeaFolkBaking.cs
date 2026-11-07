@@ -5,12 +5,12 @@ namespace Punchy.Terrain
 {
     /// <summary>
     /// The sea folk settlement (#37): one settlement on the bed of the island's largest deep lake. It is two landmarks:
-    /// the village (Resources/SeaFolkVillage), whose placed props are shell domes, spiral spires tall enough to break
-    /// the surface and lake-bed details (kelp gardens, shell mosaics, bubble vents, sunken trade goods, coral arches,
+    /// the village (Resources/SeaFolkVillage), whose placed props are shell domes, a spiral spire tall enough to break
+    /// the surface, glow stones and lake-bed details (kelp gardens, shell mosaics, bubble vents, sunken trade goods, coral arches,
     /// glowing anemones), all StructureKit in the sea folk's trim; and its landing (Resources/SeaFolkLanding) on the
     /// nearest bank, a pier running out towards the village so it reads from the shore. Both go in after every other
     /// place (turtle settlements included), each on its own new spot, so nothing placed before moves. Neither stamps
-    /// the ground or the water. Island v2 only.
+    /// the ground or the water. Island v2 and v3.
     /// </summary>
     public static class SeaFolkBaking
     {
