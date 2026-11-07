@@ -90,15 +90,15 @@ namespace Punchy.Flora
                     break;
                 case Punchy.Terrain.KitShape.MarshHut:  // W-122: a marsh folk hut on stilts, its walk out to the smoke hut
                     storeys = 1;
-                    parts = Punchy.Terrain.StructureKit.MarshHut(seed, trim, width, depth, Punchy.Terrain.StructureKit.MarshRing);
+                    parts = Punchy.Terrain.StructureKit.MarshHut(seed, trim, width, depth, Punchy.Terrain.StructureKit.MarshRing, g.Variant % 3);
                     break;
                 case Punchy.Terrain.KitShape.SmokeHut:  // W-122: the marsh folk's smoke hut on its deck
                     storeys = 1;
-                    parts = Punchy.Terrain.StructureKit.SmokeHut(seed, trim, width);
+                    parts = Punchy.Terrain.StructureKit.SmokeHut(seed, trim, width, g.Variant % 3);
                     break;
                 case Punchy.Terrain.KitShape.MarshCross: // W-122: Height is the walk's length
                 case Punchy.Terrain.KitShape.MarshWalk:
-                    parts = Punchy.Terrain.StructureKit.MarshCross(seed, trim, width, shape == Punchy.Terrain.KitShape.MarshCross);
+                    parts = Punchy.Terrain.StructureKit.MarshCross(seed, trim, width, shape == Punchy.Terrain.KitShape.MarshCross, g.Variant % 3);
                     break;
                 case Punchy.Terrain.KitShape.Wharf:     // W-65: walkways and houses over the water, laid out by the seed
                     storeys = 1;

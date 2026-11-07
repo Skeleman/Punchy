@@ -62,5 +62,5 @@ MonoBehaviour:
   KitCulture: 1024
   KitShape: 25
   SizeRange: {x: 1, y: 1}
-  Variants: 4
+  Variants: 3
   Seed: 1223
