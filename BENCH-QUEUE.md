@@ -143,7 +143,7 @@ logs, ruins, kit buildings) draw with a FLORA_STATIC variant that skips all vert
 - **Also report** anything that looks different between the two. The player lane saw no difference at a town, the tors and an oak grove.
 
 ## Job 27 (2026-11-07): fire instance buffer A/B (REFACTOR-ROADMAP.md 3.2), after jobs 24-26
-Branch `refactor/fire-instances` (03783ca9, not merged: merge waits on this job). FireSystem no longer rebuilds and
+Branch `refactor/fire-budgets` (on top of `refactor/fire-instances` 03783ca9: also the Ember Forest near/far hand-off fix; not merged, merge waits on this job). FireSystem no longer rebuilds and
 uploads a mesh every frame: one 48-byte instance per flame, and two procedural draws (near, far).
 - **A/B:** a Profile build of the branch against one of main e5c88fb4, same spot, uncapped (`-fpscap 0`), explicit resolution, ABBA.
 - **Scenes:**

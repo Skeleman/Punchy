@@ -63,3 +63,4 @@ Those two agents ran as subagents of the old supervisor session; if they stop, r
 - 11-07: refactor 1.1 needs numbers before 2.2-2.5: -wildcap test flag merged (PR #196, main e5c88fb4). Population sweep and stress scenes queued for the profiler as BENCH-QUEUE jobs 24-25 (Zach coordinates the profiler account). Profiler job 23 (b/fix-proc-cleanup, rule 18) reviewed and merged as PR #197. 2.2 (brain prep) waits on job 24: it already runs in Burst and brain wait is about 0.02 ms at today's population.
 - 11-07: refactor 3.5a/b (static flora variant) on refactor/flora-static 5febffdb, unmerged until profiler job 26 (A/B) so jobs 24-25 keep the e5c88fb4 baseline.
 - 11-07: refactor 3.2 (fire instance buffer) on refactor/fire-instances 03783ca9, unmerged until profiler job 27 (A/B).
+- 11-07: Ember Forest flame gap fixed on refactor/fire-budgets (on top of fire-instances); job 27 now A/Bs that branch.
