@@ -73,6 +73,15 @@ namespace Punchy.Flora
                 case Punchy.Terrain.KitShape.GlowStone: // W-120 (#37): Height is the stone's height
                     parts = Punchy.Terrain.StructureKit.GlowStone(seed, trim, width);
                     break;
+                case Punchy.Terrain.KitShape.Wreck:     // W-120 (#37): Height is the boat's length
+                    parts = Punchy.Terrain.StructureKit.Wreck(seed, trim, width);
+                    break;
+                case Punchy.Terrain.KitShape.ClamBed:   // W-120 (#37): Height is the bed's spread
+                    parts = Punchy.Terrain.StructureKit.ClamBed(seed, trim, width);
+                    break;
+                case Punchy.Terrain.KitShape.VentField: // W-120 (#37): Height is the field's spread
+                    parts = Punchy.Terrain.StructureKit.VentField(seed, trim, width);
+                    break;
                 case Punchy.Terrain.KitShape.Wharf:     // W-65: walkways and houses over the water, laid out by the seed
                     storeys = 1;
                     parts = Punchy.Terrain.StructureKit.Wharf(seed, trim, 1.0f, wharfHouses);

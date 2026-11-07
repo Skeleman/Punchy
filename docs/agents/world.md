@@ -180,7 +180,8 @@ neither stamps the ground or the water.
   deep, clear of every landmark, with its whole ring (8 points at 0.85 x radius) more than 3 m under water and a
   bank for the landing. Its props (StructureKit, `FolkCulture.SeaFolk` trim) are 6 shell domes on the bed, one central
   spiral spire tall enough to break the surface (so the village reads from the shore) ringed by 6 glow stones
-  (`KitShape.GlowStone`, W-120), reefs and lake-bed details (kelp, shell mosaics, bubble vents, sunken trade goods,
+  (`KitShape.GlowStone`, W-120), sunken boats (`Wreck`, fish folk wood, shell growth), pearl clam beds (`ClamBed`),
+  bubble vent fields (`VentField`), reefs and lake-bed details (kelp, shell mosaics, bubble vents, sunken trade goods,
   coral arches, glowing anemones), all as data in the landmark's layout. Seed 8121 v2: village at -1480,-24, bed
   13.1 m down. v3 (W-120): lake 70.9 ha, 31.2 m deep; village at -1624,-488, bed 16.0 m down.
 - **Landing (`Resources/SeaFolkLanding`).** On the nearest bank, a `StructureKit.Pier` (species `SeaFolkPier`,
