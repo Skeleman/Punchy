@@ -40,3 +40,10 @@ Those two agents ran as subagents of the old supervisor session; if they stop, r
 - PLAYTEST.md: #39 road tunnels row added (#39 was already closed).
 - Job 23 (b/fix-proc-cleanup): no SHA pushed yet, nothing to review.
 - World and animal agents are offline (all peer sessions show offline). Not relaunched: Zach will decide later.
+
+## State when the supervisor stopped (spend limit, no handoff), checked 2026-11-07 09:40 by the player-lane session
+- Both lane agents stopped with it, mid-row. Nothing committed after 07:52 (world) and 07:57 (animal); their editors were left open in Play mode (world 7.3 GB, animal 5.7 GB, 3.5 GB free). Not closed: other lanes' editors (rule 14), waiting on Zach.
+- World (D:\Unity\Punchy-world, world-features 05da2ec9): W-122 rows 1-2 done and verified, pushed, not merged. Row 3 (one surprising marsh folk touch) in progress: uncommitted, +59 lines in Terrain/Landmarks/StructureKit.cs; untracked Assets/Temp.
+- Animal (D:\Unity\Punchy, animal-behaviours ba09c891): A-89 row 1 (colossus emissive) done and verified, pushed, not merged. Row 2 (split slow colossus builds) in progress: uncommitted StoneColossi.SaltCrystal.cs and StoneColossi.CarnivorousPlant.cs, TempleGlow.mat. Also uncommitted edits to shared files: CLAUDE.md (+3), ProjectSettings/Packages/com.unity.pipeline/EditorPipelineConfig.json, docs/agents/editor-and-assets.md, docs/agents/rendering.md. Row 3 (marsh wildlife) not started. Untracked Assets/Temp, Assets/_Recovery, Assets/Resources.meta.
+- No open PRs; queue empty. Uncommitted work left in place (rule 5): the next session for each lane should commit or finish it.
+- Player: waiting on an OK for the Sky.hlsl underwater-fog block (REPORTS-player 11-07). W-121 also edits Sky.hlsl haze.
