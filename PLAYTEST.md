@@ -37,3 +37,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 | #40 | New colossi: fungal puffball (glowing spores), charred treant (ember trail), ice mammoth (sheds ice chunks) | Fungal forest, Ember forest, Glacier | PR #183, 2026-11-07 |
 | #40 #69 #70 | Round dented salt crystal ball; biome hazard houses (ash, snow, storm, sand) in harsh-biome towns; magnetic drift mounds no longer hang over steep slopes | Salt flats, Ashlands OgreCamp, Tundra dwarf towns, Electric wastelands | PR #184, 2026-11-07 |
 | #40 | Ice mammoth now walks Glacier slopes; new sky whale floats over the Mountains (spouts on updrafts, sings) | Glacier, Mountains | PR #185, 2026-11-07 |
+| #36 | Fishing villages: stilt houses and docks on the water, boardwalk pier networks, per-village trades (crab pots, nets, drying racks), rope coils, gulls | River mouth villages | PR #186, 2026-11-07 |

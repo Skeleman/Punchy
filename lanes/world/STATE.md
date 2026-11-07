@@ -36,7 +36,7 @@ Branch world-features, head 772ed5f (W-95 rows 1, 2, 4, pushed). Worktree D:/Uni
 
 - #88 shelf still faces salt flat on v3: no non-arid bay with 10 m high ground behind exists (Zach: move or terraform the shelf?).
 - #40 eye check of w91-plant-fog-*.png.
-- Lake backwater over low banks; unexplained v2 water steps.
+- Unexplained v2 water steps (v3 lake backwater checked in W-119 row 4: none).
 
 ## Tools and gotchas
 
