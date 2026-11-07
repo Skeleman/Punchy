@@ -2947,3 +2947,10 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 ## A-87 row 1 - suite on merged main (W-118 + A-86): done (verified)
 - animal-behaviours fast-forwarded to origin/main f302372b. The batch PlayMode suite passed 14 of 14 in 233 s, Unity exit 0.
 - Pins hold: Fauna_Fingerprint 027CC3FD, Landmarks_V3 111 3BDF705F. No code change.
+
+## A-87 row 2 - pale rectangle at the ice mammoth's feet: done (verified, no code change)
+- Not the colossus. It is not the collision box or a cleared flora patch. It is weather haze from a snow cell over the mammoth. I ruled the mammoth out by turning things off in play: ambient mist, its puffs and the far-water merge. With all of those off the patch stayed. With the weather haze table off (WeatherSystem off, `_PunchyHazeLut` set to black) it went away.
+- Cause: the haze table (Sky.hlsl PunchyHazeFromLut, HazeLut.shader) is marched along near-level rays from the camera's height and indexed only by direction and distance. The A-86 front shot lifts the camera 50 m (eye at y 156, ground at 106), close to the snow cell's cloud base. So the low ground is hazed by what the air at camera height holds, and where that changes sharply between directions the haze shows a vertical edge on screen. The "rectangle" is that edge.
+- The A-86 shot broke rule 12, because it had no clear weather. Re-shot with `-weather Clear -time 12`: the patch is gone.
+- Shots: D:/PunchyMilestones/A-87/a87-r2-before.png (repro), a87-r2-after.png (clear noon, same framing), a87-r2-haze-on.png / a87-r2-haze-off.png (same frame with the haze table on and off).
+- Not mine to fix (Sky shader and weather, other lanes). Any camera high above low ground near a rain or snow cell, for example a player on a peak, can show the same hard haze edge. A possible fix for the owner is to apply the table by height too, or march it per pixel from the camera along the true ray when the camera is far above the ground.
