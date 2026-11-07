@@ -43,9 +43,16 @@ if [ $# -gt 0 ]; then args+=(-testFilter "$1"); fi
 
 echo "Unity $version: running play-mode tests (log: Logs/playmode-tests.log)..."
 start=$(date +%s)
-"$unity" "${args[@]}"
+# (A hung test editor must not live forever: on Windows nothing else ever ends it.)
+limit=3600
+timeout "$limit" "$unity" "${args[@]}"
 code=$?
 elapsed=$(( $(date +%s) - start ))
+
+if [ "$code" -eq 124 ]; then
+  echo "Timed out: Unity was stopped after ${limit}s. See Logs/playmode-tests.log." >&2
+  exit 1
+fi
 
 if [ ! -f "$results" ]; then
   echo "No results written (Unity exit $code). Is an editor open on this project? See Logs/playmode-tests.log:" >&2

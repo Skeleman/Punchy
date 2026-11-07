@@ -7,14 +7,20 @@ drv() { powershell -NoProfile -File "$D" "$@" >/dev/null 2>&1; }
 w() { timeout $1 tail -f /dev/null 2>/dev/null; }
 for cap in default 0 30; do
   extra=""; [ $cap != default ] && extra="-fpscap $cap"
-  cd $G; ./Punchy.exe -logFile "$W/smoke-$cap.log" -place HumanVillage -time 12 $extra >/dev/null 2>&1 &
+  cd $G; timeout 400 ./Punchy.exe -logFile "$W/smoke-$cap.log" -place HumanVillage -time 12 $extra >/dev/null 2>&1 &
+  game=$!
   w 45
   drv key 87 -ms 8000; drv look 600; drv key 16 -ms 100; drv key 87 -ms 10000; drv key 32 -ms 100; drv key 87 -ms 6000
   drv look -600; drv key 16 -ms 100; drv key 87 -ms 15000; drv wshot "$(cygpath -w $S/smoke-$cap.png)"
   drv key 112 -ms 100; w 2; drv wshot "$(cygpath -w $S/smoke-$cap-f1.png)"; drv key 112 -ms 100
   drv key 87 -ms 20000; w 30
-  powershell -NoProfile -Command "Get-Process Punchy -ErrorAction SilentlyContinue | ForEach-Object { \$_.CloseMainWindow() | Out-Null }"; w 10
-  powershell -NoProfile -Command "Stop-Process -Name Punchy -Force -ErrorAction SilentlyContinue"; w 3
+  # Only this run's game, found by its own log file: the machine may also be running Zach's game or another lane's bench.
+  win=$(powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \"Name='Punchy.exe'\" | Where-Object { \$_.CommandLine -like '*$W/smoke-$cap.log*' } | ForEach-Object { \$_.ProcessId }" | tr -d '\r')
+  if [ -n "$win" ]; then
+    powershell -NoProfile -Command "Get-Process -Id $win -ErrorAction SilentlyContinue | ForEach-Object { \$_.CloseMainWindow() | Out-Null }"; w 10
+    taskkill //PID $win //T //F >/dev/null 2>&1; w 3
+  fi
+  wait $game 2>/dev/null
   L=$S/smoke-$cap.log
   echo "== cap $cap: lines $(wc -l < $L), exceptions $(grep -c 'Exception' $L), errors $(grep -ciE '^error|error:' $L), batch warnings $(grep -c 'Server Tick Batching' $L), batch debug $(grep -c 'tick batching has occured' $L), crash $(grep -ciE 'crash|fatal' $L)"
   grep -E "Exception" $L | sort | uniq -c | sort -rn | head -5 | cut -c1-200

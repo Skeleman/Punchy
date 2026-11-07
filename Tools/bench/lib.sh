@@ -22,8 +22,8 @@ keepawake() { # the helper ends by itself when no bench script or game is left
     (nohup powershell -NoProfile -File "$(cygpath -w $B/keepawake.ps1)" >/dev/null 2>&1 &)
 }
 
-strays() { # batchmode Unity, bench games and orphaned bee_backend only; never an interactive editor or a game the user started
-  powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { (\$_.Name -eq 'Unity.exe' -and \$_.CommandLine -match 'batchmode') -or (\$_.Name -eq 'Punchy.exe' -and \$_.CommandLine -match 'benchroute|benchclient') -or (\$_.Name -eq 'bee_backend.exe' -and -not (Get-CimInstance Win32_Process | Where-Object { \$_.Name -eq 'Unity.exe' -and \$_.CommandLine -notmatch 'batchmode' })) } | ForEach-Object { Write-Output ('killing stray ' + \$_.Name + ' ' + \$_.ProcessId); Stop-Process -Id \$_.ProcessId -Force -ErrorAction SilentlyContinue }"
+strays() { # what a dead run left in this tree only: other trees' builds and tests, and the user's editor and games, are safe (strays.ps1)
+  powershell -NoProfile -File "$(cygpath -w "$B/strays.ps1")" -Tree "$(cygpath -m "$P")"
 }
 
 dialogs() { # windows that can stall a run (Defender, firewall): listed in the report, never clicked
@@ -234,8 +234,10 @@ mpsmoke() { # outdir commit: the host's numbers alone vs with a client on this m
         fi
         wait_s 1
       done ) &
+    local client=$!
     runcsv $out mp-$c-joined joined 60 $r -host -benchwait 45 -benchstops town,townwalk -fpscap 60
-    strays >/dev/null; wait
+    # The host is done, even if it timed out before its world was up: stop waiting for it, then end the client game.
+    kill $client 2>/dev/null; strays >/dev/null; wait $client 2>/dev/null
   }
   for r in 1 2; do   # ABBA, as in bench.sh smoke
     if [ $r -eq 1 ]; then solo; joined; else joined; solo; fi
