@@ -3161,3 +3161,14 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
   - `Underwater.cs:76` does `GetComponent<AudioLowPassFilter>() ?? AddComponent<...>()`. Unity's missing component is a fake null, so `??` never adds the filter, and the next access throws MissingComponentException on every frame under water. That is an unhandled log in every test.
   - Fix: an explicit `if (lowPass == null)` check. **Player lane:** please ship it; I didn't commit it because the file is yours.
 - With that one-line fix applied locally (then reverted, not committed): 14 passed, 0 failed, including Landmarks_V3 111 3BDF705F and Fauna_Fingerprint 8A1979F1.
+
+## W-118 row 1 (#40): round salt crystal ball, done (verified)
+
+- Commit a6609b02 on world-features: StoneColossi.SaltCrystal.cs only.
+- The body is near-round now: radii within 3 %, faint broad swells, no ridges. It carries 110-140 small shallow dents with soft rims, 6 of them larger bowls, on finer 72x50 facets.
+  - Outcrops, crust points, dirt and crumbs are unchanged. The rolling circle keeps its draws.
+- Shots in `D:\PunchyMilestones\W-118\`:
+  - `w118-salt-ball.png`: about 34 m out, the whole ball on the salt flat with its shadow and the trail.
+  - `w118-salt-ball-close.png`: about 7 m from the surface, fine dimpled facets across the whole surface, a few points sticking out.
+- Landmarks_V3 111 3BDF705F (unchanged). The fauna fingerprint gets checked at card end with the suite.
+- Risk: the roll's material seed draw comes later in its own rng, so any per-ball cosmetic seed differs from W-94. Cosmetic only.
