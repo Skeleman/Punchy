@@ -3296,3 +3296,10 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
 - Repro: forced SnowShowers + Blizzard cells at (-115, 1560) r 350 (cloud base about 705 inside, 1300 outside), main camera at (-115, 740, 1560), just above the base, looking north and down.
 - Shots: D:/PunchyMilestones/W-121/w121-r1-before.png (hard arched edge where the ground snaps to white), w121-r1-after.png (same spot and cells, ground fades smoothly). Inside a cell, low ground now reads a bit hazier from above, as it should under the shaft.
 - No pin impact (shader only).
+
+## W-121 row 2 (#37) - sea folk polish: wrecks, shell buoys, moored raft: done (verified)
+- Commit 5e880ec1 on world-features. Wrecks: Height 9-ish -> 11-15 with a 0.75-1.3 size spread; planks, keel and barnacles scale with hull length so big hulls do not look spindly.
+- New KitShape.ShellBuoy (ribbed shell float, lashing, pole with glowing pearl, barnacles, kelp streamer, cord down) and KitShape.SeaRaft (lashed logs on cross beams, shell-scale sail, baskets, pearl pot, paddle, bow mooring line), species SeaFolkBuoy / SeaFolkRaft. Village rings 4 buoys (Ring 0.95); 3 sit on water in v3, the 4th spot is dry and stays empty. Landing moors 1 raft at Ring 0.95 / Angle 60, beside the pier (not under it).
+- Fix in FloraPlacement: landmark ring props with Floats now sit on the water surface over their spot (they sat on the lake bed); a dry spot returns none, so no draws move.
+- Landmarks_V3 111 3BDF705F unchanged. Fauna: checked at card end.
+- Shots: D:/PunchyMilestones/W-121/w121-r2-raft.png, w121-r2-buoy.png, w121-r2-wreck.png.
