@@ -2970,3 +2970,12 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - Suite on 324d92e1: 13 of 14. Pins hold: Fauna_Fingerprint 2998FA9A, Landmarks_V3 111 3BDF705F. The failure was FollowTests (the dog lost the player: 27.2 m behind after the walk). That test runs in a meadow far from the crab. Rerun alone twice, it passed both times (2.7 m after 6 s), so it is a flake rather than this row.
 - Shots: D:/PunchyMilestones/A-87/a87-r4-crab-day.png (front, noon: crab, shell, islet, palm and lighthouse on the Ocean shore), a87-r4-crab-side.png (from the dune top with the sea behind), a87-r4-crab-night.png (23:00, warm beacon in the lamp room).
 - Risks: FollowTests flaked once in a full run (it passed 14 of 14 in row 1). The day shot catches the crab on dry shore sand. It does wade, but only up to 5 m out.
+
+## A-88 row 1: FollowTests flake (done, verified by test runs; no shot)
+- Commit cbeb2224 on animal-behaviours (merged origin/main through 1fd7d0db first).
+- No repro: 10 of 10 full-suite runs passed before the fix (in suite order, with the dog at 2.6-2.8 m after 6 s every time).
+- The cause comes from the A-87 failure log, not a repro. The dog was 27.2 m behind as the walk ended and 19.4 m after 6 s, so it was moving but slowly (about 1.3 m/s). In CreatureBrainSystem.Steer, a blocked creature (a solid near the player, a rock taller than it, water ahead, or slope > 0.8) has its speed halved every frame. Only Flee and Play stage 1 veered round. A follower (Greet stage 2) kept pressing straight at its leader and crawled. It was not spawn timing or a NavMesh issue (the brain doesn't use the NavMesh). It was not stale state either: following stayed True.
+- Fix: a blocked follower now takes a short side detour (CreatureMind.FollowDetour/FollowDetourTime, about 1.2 s at a run, cleared on arrival and on Follow.Start/Stop), then makes for the leader again. Following() runs the detour before its usual going/arrived logic.
+- Test: FollowTests logs distance, speed, mode/stage, frame time and dog/player positions every 10 walk steps and every second after, so any future failure shows how it went. TestHooks.FollowStatus now returns 11 floats.
+- After the fix: 3 of 3 full-suite runs at 14 passed (dog 4.8-4.9 m behind as the walk ended, 2.6-2.7 m after 6 s).
+- Risks: because there was no repro, the fix targets the logged symptom. Detours touch only creatures that are following, so fauna placement and the fingerprint are unchanged.
