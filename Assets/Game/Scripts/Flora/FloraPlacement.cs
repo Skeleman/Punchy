@@ -1792,6 +1792,15 @@ namespace Punchy.Flora
                                 if (placedRule.FaceLandmark != 0)
                                     placedYaw = FacingYaw(set.Instances[landmark.Instance].Facing);
                                 var at = new float3(spot.x, footprint ? 0f : source.SampleHeight(spot), spot.y);
+                                // W-121 (#37): a floating prop (a sea folk buoy or raft) rides the water over its spot, and a spot on dry
+                                // ground stays empty (no draws moved).
+                                if (placedRule.Floats != 0 && !footprint)
+                                {
+                                    var wet = source.SampleGround(spot);
+                                    if (!wet.HasWater || wet.WaterSurface < wet.Height + 0.3f)
+                                        return none;
+                                    at.y = wet.WaterSurface + 0.01f;
+                                }
                                 // W-113 (item 11): an igloo only where it seats with its door clear and no open bottom;
                                 // else a few metres over, else none (no draws moved). Footprints follow it, so the
                                 // residents' map matches.
