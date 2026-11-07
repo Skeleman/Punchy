@@ -315,10 +315,12 @@ namespace Punchy.Terrain
                         for (int k = 0; k < prop.Count; k++)
                         {
                             var spot = LandmarkSampling.ToWorld(inst, LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / prop.Count), radius);
+                            // Nor a stilt house where the bank or water doesn't suit it (W-105); W-119: its plot slides
+                            // along its ray to the water first, as flora builds it (LandmarkSampling.StiltHouseSpot).
+                            if (species.KitShape == KitShape.StiltHouse && !LandmarkSampling.StiltHouseSpot(src, centre, spot, out spot, out _))
+                                continue;
                             if (LandmarkSampling.OnRiver(src, spot, facing, 0f))
                                 continue;   // flora leaves a plot on river water empty (W-91)
-                            if (species.KitShape == KitShape.StiltHouse && !LandmarkSampling.StiltHouseFits(src, centre, spot, out _))
-                                continue;   // nor a stilt house where the bank or water doesn't suit it (W-105)
                             var toCentre = math.normalizesafe(centre - spot);
                             // A stilt house's door is up on its porch out over the water (W-105): the folk's way in is
                             // the walkway's end, where its stair comes down at the plot (StructureKit.StiltHouse).

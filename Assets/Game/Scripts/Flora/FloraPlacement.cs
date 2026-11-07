@@ -48,6 +48,9 @@ namespace Punchy.Flora
         public int PierClear;
         /// <summary>W-65b (#36): 1 for a fishing village's wharf: its variant follows the village, so no two villages share a layout.</summary>
         public int PerVillage;
+        /// <summary>W-119 (#36): 1 for a fishing village's shore boardwalk pieces: laid along the path between the village's
+        /// docks and stilt houses (BoardwalkAt), not at the prop's ring spot.</summary>
+        public int Boardwalk;
         /// <summary>W-101: a runed spire's colour patterns (FloraSpecies.RunePatterns, 0 for everything else): the
         /// variants split into that many runs, and one landmark's stones all come from the same run.</summary>
         public int Patterns;
@@ -280,6 +283,7 @@ namespace Punchy.Flora
                     PierReach = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Pier ? s.Height.y : 0f,
                     PierClear = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Spire ? 1 : 0,
                     PerVillage = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Wharf ? 1 : 0,
+                    Boardwalk = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Boardwalk ? 1 : 0,
                     Patterns = s.Form == FloraForm.Spire && s.RunePatterns > 0 ? math.min(s.RunePatterns, s.Variants) : 0,
                     // StructureKit.Igloo (W-64): the tunnel ends 1-1.8 m past the dome's foot (the radius), plus the 0.8 m path out.
                     Porch = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Igloo ? (s.Height.x + s.Height.y) * 0.5f * s.Spread * 0.5f + 2.2f : 0f,
@@ -894,6 +898,187 @@ namespace Punchy.Flora
             return rule.FirstModel + pattern * shapes + (model - rule.FirstModel) % shapes;
         }
 
+        /// <summary>W-119: plants stay this far from a boardwalk's middle line, shore clutter this far (m).</summary>
+        const float BoardwalkClear = 1.6f, BoardwalkShoreClear = 3.6f;
+        /// <summary>W-119: path nodes nearer than the min share a junction; further than the max, no boardwalk joins them (m).</summary>
+        const float BoardwalkMinLink = 2.5f, BoardwalkMaxLink = 40f;
+        /// <summary>W-119: how far a boardwalk point may slide along the village's facing to keep to its contour (m).</summary>
+        const float BoardwalkSlide = 4f;
+
+        /// <summary>W-119: the prop entry of a landmark type's boardwalk (its index into Props), or -1 if it has none.</summary>
+        static int BoardwalkProp(ref FloraBlob f, int type, out int layer)
+        {
+            for (layer = 0; layer < 3; layer++)
+            {
+                var placed = f.PropRanges[type * 3 + layer];
+                for (int e = placed.x; e < placed.x + placed.y; e++)
+                    if (f.Rules[f.Props[e].Species].Boardwalk != 0)
+                        return e;
+            }
+            layer = -1;
+            return -1;
+        }
+
+        /// <summary>
+        /// W-119 (#36): whether a cell at <paramref name="xz"/> could be on or by this village's boardwalk at all: low
+        /// ground near the sea on the village's seaward half. One height sample, so the path itself (dozens of samples)
+        /// is only worked out along the shore.
+        /// </summary>
+        static bool BoardwalkBand(in TerrainSource source, in LandmarkHit landmark, float2 xz)
+        {
+            ref var set = ref source.Landmarks.Value;
+            var instance = set.Instances[landmark.Instance];
+            var h = source.SampleHeight(xz) - source.World.SeaLevel;
+            return h > -3f && h < 5f && math.dot(xz - instance.Position, instance.Facing) > -0.25f * landmark.Radius;
+        }
+
+        /// <summary>
+        /// W-119 (#36): the nodes a fishing village's boardwalk joins, in order along its shore: just inland of each dock's
+        /// and the wharf's ramp foot, and of each built stilt house's stair foot (its plot), with the same checks that
+        /// decide those are built (a river, a dock lane, a road). Returns how many.
+        /// </summary>
+        static int BoardwalkNodes(ref FloraBlob f, in TerrainSource source, in LandmarkHit landmark, ref FixedList512Bytes<float2> nodes)
+        {
+            ref var set = ref source.Landmarks.Value;
+            var instance = set.Instances[landmark.Instance];
+            var dir = math.normalizesafe(instance.Facing, new float2(1f, 0f));
+            for (int l = 0; l < 3; l++)
+            {
+                var placed = f.PropRanges[landmark.Type * 3 + l];
+                for (int e = placed.x; e < placed.x + placed.y; e++)
+                {
+                    var prop = f.Props[e];
+                    var rule = f.Rules[prop.Species];
+                    if (rule.FaceLandmark != 2 && rule.House != 2)
+                        continue;
+                    for (int k = 0; k < prop.Count && nodes.Length < nodes.Capacity; k++)
+                    {
+                        var spot = LandmarkSampling.ToWorld(instance, LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / prop.Count), landmark.Radius);
+                        if (rule.FaceLandmark == 2)
+                        {
+                            // A dock or the wharf: the boardwalk passes across its ramp foot, its edge at the ramp.
+                            var start = DockShore(source, spot, instance.Facing).xz;
+                            if (LandmarkSampling.OnRiver(source, spot, instance.Facing, RiverDockReach) &&
+                                LandmarkSampling.OnRiver(source, start, instance.Facing, DockDeckReach))
+                                continue;
+                            nodes.Add(start - dir * (DockRampRun + 0.9f));
+                            continue;
+                        }
+                        // A stilt house: just inland of its stair foot, if it is built (as the placement decides).
+                        if (!LandmarkSampling.StiltHouseSpot(source, instance.Position, spot, out var plot, out var house))
+                            continue;
+                        var reach = rule.Footprint * prop.Scale.y;
+                        var houseClear = reach + 1.5f;
+                        if (OnBuiltPlot(ref f, source, plot, reach) || OnRoad(source, plot, reach) ||
+                            math.min(DockLaneDistance(ref f, source, landmark, plot, houseClear), WharfDistance(ref f, source, landmark, plot, houseClear)) < houseClear ||
+                            math.min(DockLaneDistance(ref f, source, landmark, house, houseClear), WharfDistance(ref f, source, landmark, house, houseClear)) < houseClear ||
+                            LandmarkSampling.OnRiver(source, plot, instance.Facing, 0f))
+                            continue;
+                        nodes.Add(plot - math.normalizesafe(plot - instance.Position) * 1.2f);
+                    }
+                }
+            }
+            // In order along the shore (the facing turned a quarter), so the boardwalk runs from one end to the other.
+            var tangent = new float2(dir.y, -dir.x);
+            for (int i = 1; i < nodes.Length; i++)
+                for (int j = i; j > 0 && math.dot(nodes[j] - nodes[j - 1], tangent) < 0f; j--)
+                {
+                    var swap = nodes[j];
+                    nodes[j] = nodes[j - 1];
+                    nodes[j - 1] = swap;
+                }
+            return nodes.Length;
+        }
+
+        /// <summary>
+        /// W-119 (#36): a fishing village's shore boardwalk. Its path runs node to node along the shore (BoardwalkNodes),
+        /// every link in pieces about StructureKit.BoardwalkStep long; each inner point slides up to BoardwalkSlide m along
+        /// the facing, a metre at most from its neighbour, to keep to the contour between its ends' ground, so the walk
+        /// bends with the bank instead of climbing over it or wading out. Each piece sits on the highest ground under its
+        /// ends and middle (never under the sea), turned along its run, its variant the shortest length that overlaps its
+        /// neighbours, the parity alternating so overlapping planks never fight.
+        /// Returns how far <paramref name="xz"/> is from the path's middle line (float.MaxValue with no path), and in
+        /// <paramref name="piece"/> the piece whose middle falls in <paramref name="cell"/> (xyz, yaw in w; variant -1 if none).
+        /// </summary>
+        static float BoardwalkAt(ref FloraBlob f, in TerrainSource source, in LandmarkHit landmark, float2 xz, int2 cell, float cellSize,
+                                 out float4 piece, out int variant)
+        {
+            piece = float4.zero;
+            variant = -1;
+            var nodes = new FixedList512Bytes<float2>();
+            if (BoardwalkNodes(ref f, source, landmark, ref nodes) < 2)
+                return float.MaxValue;
+            ref var set = ref source.Landmarks.Value;
+            var dir = math.normalizesafe(set.Instances[landmark.Instance].Facing, new float2(1f, 0f));
+            var sea = source.World.SeaLevel;
+            var best = float.MaxValue;
+            var parity = 0;
+            for (int n = 0; n + 1 < nodes.Length; n++)
+            {
+                float2 a = nodes[n], b = nodes[n + 1];
+                var span = math.distance(a, b);
+                if (span < BoardwalkMinLink || span > BoardwalkMaxLink)
+                    continue;
+                var steps = (int)math.ceil(span / StructureKit.BoardwalkStep);
+                // Far from this link and all its slide: it can't be the nearest, nor hold the cell's piece.
+                var t0 = math.saturate(math.dot(xz - a, b - a) / (span * span));
+                if (math.distance(xz, math.lerp(a, b, t0)) > BoardwalkSlide + BoardwalkShoreClear + cellSize * 1.5f + StructureKit.BoardwalkStep)
+                {
+                    parity += steps;
+                    continue;
+                }
+                float ha = source.SampleHeight(a), hb = source.SampleHeight(b);
+                var prev = a;
+                var slid = 0f;
+                for (int i = 1; i <= steps; i++)
+                {
+                    var t = (float)i / steps;
+                    var next = math.lerp(a, b, t);
+                    if (i < steps)
+                    {
+                        // Keep to the contour between the ends' ground: the slide nearest the target height, within a
+                        // metre of the last one and never further out than the steps left can bring back to the end.
+                        var target = math.lerp(ha, hb, t);
+                        var reach = math.min(BoardwalkSlide, steps - i);
+                        var bestSlide = math.clamp(slid, -reach, reach);
+                        var bestMiss = float.MaxValue;
+                        for (var d = slid - 1f; d <= slid + 1.001f; d += 0.5f)
+                        {
+                            if (math.abs(d) > reach)
+                                continue;
+                            var miss = math.abs(source.SampleHeight(next + dir * d) - target);
+                            if (miss < bestMiss)
+                            {
+                                bestMiss = miss;
+                                bestSlide = d;
+                            }
+                        }
+                        slid = bestSlide;
+                        next += dir * slid;
+                    }
+                    var run = next - prev;
+                    var length = math.length(run);
+                    var mid = (prev + next) * 0.5f;
+                    var t1 = math.saturate(math.dot(xz - prev, run) / math.max(length * length, 1e-4f));
+                    best = math.min(best, math.distance(xz, prev + run * t1));
+                    if (length > 0.5f && math.all((int2)math.floor(mid / cellSize) == cell))
+                    {
+                        var y = math.max(math.max(source.SampleHeight(prev), source.SampleHeight(next)), math.max(source.SampleHeight(mid), sea + 0.1f));
+                        var size = math.clamp((int)math.ceil((length + 0.3f - 3.2f) / 0.2f - 0.001f), 0, 7);
+                        piece = new float4(mid.x, y, mid.y, FacingYaw(run));
+                        variant = size * 2 + (parity & 1);
+                        // W-119 row 3: about half the pieces (by a scrambled hash of the piece's number along the walk)
+                        // carry deck details: flagged with 16, which the caller turns into the village trade's run.
+                        if (BiomeSampling.Scramble((uint)parity * 0x9E3779B1u ^ (uint)landmark.Instance * 0x85EBCA6Bu ^ 0xDEC4u) % 100u < 50u)
+                            variant += 16;
+                    }
+                    parity++;
+                    prev = next;
+                }
+            }
+            return best;
+        }
+
         static int VillageVariant(ref LandmarkSetBlob set, int instance, int variants)
         {
             var type = set.Instances[instance].Type;
@@ -1506,12 +1691,18 @@ namespace Punchy.Flora
                 // Placed props (an inn, a pen): each takes the cell holding its spot, in its own layer, and keeps
                 // everything else in every layer clear of it.
                 var blocked = false;
+                var boardwalkProp = BoardwalkProp(ref f, landmark.Type, out var boardwalkLayer);
+                if (footprint)
+                    boardwalkProp = -1;
                 for (int l = 0; l < 3; l++)
                 {
                     var placed = f.PropRanges[landmark.Type * 3 + l];
                     for (int e = placed.x; e < placed.x + placed.y; e++)
                     {
                         var prop = f.Props[e];
+                        // W-119: a boardwalk lies along its own path (below), not at a ring spot.
+                        if (f.Rules[prop.Species].Boardwalk != 0)
+                            continue;
                         for (int k = 0; k < prop.Count; k++)
                         {
                             var spot = LandmarkSampling.ToWorld(set.Instances[landmark.Instance],
@@ -1519,12 +1710,21 @@ namespace Punchy.Flora
                             if (l == layer && math.all((int2)math.floor(spot / cellSize) == cell))
                             {
                                 var placedRule = f.Rules[prop.Species];
+                                // W-119 (#36): a stilt house whose ring spot sits up a high bank or has its house over dry
+                                // land slides along its ray to the water (LandmarkSampling.StiltHouseSpot) and stands on
+                                // posts in the shallows, instead of leaving its plot empty (no draws moved).
+                                if (placedRule.House == 2 && LandmarkSampling.StiltHouseSpot(source, set.Instances[landmark.Instance].Position, spot, out var stiltPlot, out _))
+                                    spot = stiltPlot;
                                 if (OnBuiltPlot(ref f, source, spot, placedRule.Footprint * prop.Scale.y) ||
                                     OnRoad(source, spot, placedRule.Footprint * prop.Scale.y))
                                     return none;
                                 // W-59d: a shore cluster reaches about 5 m (2.5 m spread plus half a pulled-up boat):
                                 // none within that of a dock's walk lane, so nothing stands on the ramp or deck.
                                 if (placedRule.ShoreKit != 0 && DockLaneDistance(ref f, source, landmark, spot, ShoreReach * prop.Scale.y) < ShoreReach * prop.Scale.y)
+                                    return none;
+                                // W-119: nor on the village's boardwalk.
+                                if (placedRule.ShoreKit != 0 && boardwalkProp >= 0 && BoardwalkBand(source, landmark, spot) &&
+                                    BoardwalkAt(ref f, source, landmark, spot, cell, cellSize, out _, out _) < BoardwalkShoreClear * prop.Scale.y)
                                     return none;
                                 // W-63 (#36): nor a house. A stilt house at -3294.1,-1653.6 stood across a dock's deck and
                                 // the walker met a 0.9-1.6 m wall there (no draws moved: the cell just stays empty).
@@ -1576,6 +1776,10 @@ namespace Punchy.Flora
                                 var placedModel = placedRule.FirstModel + rng.NextInt(placedRule.Variants);
                                 if (placedRule.PerVillage != 0)
                                     placedModel = placedRule.FirstModel + VillageVariant(ref set, landmark.Instance, placedRule.Variants);
+                                // W-119 row 3: shore kit takes a variant of its village's trade (variant % FishTrades).
+                                if (placedRule.ShoreKit != 0 && placedRule.Variants >= Punchy.Terrain.StructureKit.FishTrades)
+                                    placedModel = placedRule.FirstModel + rng.NextInt(placedRule.Variants / Punchy.Terrain.StructureKit.FishTrades) * Punchy.Terrain.StructureKit.FishTrades
+                                                  + VillageVariant(ref set, landmark.Instance, Punchy.Terrain.StructureKit.FishTrades);
                                 if (placedRule.Patterns > 0)
                                     placedModel = PatternModel(placedRule, landmark.Instance, placedModel);
                                 return new FloraSystem.FloraInstance
@@ -1589,9 +1793,43 @@ namespace Punchy.Flora
                                     Ground = footprint ? 0u : GroundFor(source, placedRule, spot, 1f, 0.25f)
                                 };
                             }
+                            // W-119: a stilt house keeps the plants clear round the plot it slid to, not its ring spot.
+                            if (f.Rules[prop.Species].House == 2 && math.distance(xz, spot) < prop.Clearance + LandmarkSampling.StiltSlideOut &&
+                                LandmarkSampling.StiltHouseSpot(source, set.Instances[landmark.Instance].Position, spot, out var clearPlot, out _))
+                                spot = clearPlot;
                             blocked |= math.distance(xz, spot) < prop.Clearance;
                         }
                     }
+                }
+                // W-119 (#36): the boardwalk piece whose middle is in this cell (in the boardwalk's own layer), decided
+                // before the props' clearances, which would otherwise keep it off the stilt house plots it runs to;
+                // everything else here keeps BoardwalkClear off its line. Worked out only for cells by the shore, and
+                // never for the ground cover's small cells (the path costs dozens of samples; grass may edge the planks).
+                // Not in footprint passes: it is a walk, not a wall.
+                if (boardwalkProp >= 0 && layer > 0 && BoardwalkBand(source, landmark, xz))
+                {
+                    var boardwalk = BoardwalkAt(ref f, source, landmark, xz, cell, cellSize, out var piece, out var walkVariant);
+                    if (walkVariant >= 0 && layer == boardwalkLayer)
+                    {
+                        var walkRule = f.Rules[f.Props[boardwalkProp].Species];
+                        // W-119 row 3: a piece flagged for deck details takes its village trade's run of 16 variants.
+                        if (walkVariant >= 16)
+                            walkVariant = walkRule.Variants >= 16 * (1 + Punchy.Terrain.StructureKit.FishTrades)
+                                ? (walkVariant & 15) + 16 * (1 + VillageVariant(ref set, landmark.Instance, Punchy.Terrain.StructureKit.FishTrades))
+                                : walkVariant & 15;
+                        return new FloraSystem.FloraInstance
+                        {
+                            Position = piece.xyz,
+                            Yaw = piece.w,
+                            Scale = 1f,
+                            Model = walkRule.FirstModel + math.min(walkVariant, walkRule.Variants - 1),
+                            Random = rng.NextFloat(),
+                            Snow = source.SampleBiomeSnow(piece.xz),
+                            Ground = GroundFor(source, walkRule, piece.xz, 1f, 0.25f)
+                        };
+                    }
+                    if (boardwalk < BoardwalkClear)
+                        return none;
                 }
                 if (blocked)
                     return none;
