@@ -3088,3 +3088,22 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
 - Landmarks_V3: 111 3BDF705F (unchanged).
 - Risk: transparent sort between overlapping far regions. None was seen, since water is a single height layer.
 - Found, not mine: Camera/Underwater.cs:76 `GetComponent<AudioLowPassFilter>() ?? AddComponent` never adds the filter in the editor (Unity fake null), so it throws a MissingComponentException every frame (13k in one session). Editor only.
+
+## W-117 row 3: water shader per-pixel cost, done (verified), 51ed65c1
+
+- Water.shader (shared, additive edit; animal session: no property or keyword changes):
+  - The screen-space reflection march steps in screen space. The ray's clip/screen position is linear in the world position, so it is worked out once and each of the up-to-33 steps is a multiply-add instead of a matrix transform. It finds the same hits.
+  - The march is skipped where the final Fresnel leaves the reflection under 2.5% (murky water, cave runs, fall faces). On clear sea this almost never triggers.
+  - The fine detail texture reads are skipped past 350 m, where everything using them is already faded out (worth at most 0.09 ms).
+- GPU cost: offscreen 4K renders at v3 fishing village 1, interleaved old/new medians (the animal editor shares the GPU, so absolute ms drift):
+
+  | View | Frame | Old -> new | SSR's whole cost |
+  |---|---|---|---|
+  | 30 m up, looking north over the sea | ~10 ms | -0.35 ms | 1.41 ms |
+  | 8 m up, looking north | ~7.8 ms | -0.17 ms | 0.54 ms |
+  | 8 m up, looking south at the shore | ~5.8 ms | -0.01 ms | 0.22 ms |
+
+  Tried and dropped: a stricter Fresnel gate (6%: 0.00 ms) and a 300 m distance cutoff (-0.21 ms, but it loses far reflections).
+- Look: `D:\PunchyMilestones\W-117\w117r3_old_sea.png` / `w117r3_new_sea.png` and `w117r3_old_shore.png` / `w117r3_new_shore.png`, 2560 wide, both rendered in the same frame. Sea: 0 pixels differ. Shore: 2 of 3.7M pixels differ by more than 16/255 (hit edges).
+- Landmarks_V3: 111 3BDF705F.
+- Gotcha (editor, not shipped): reimporting a shader during play sometimes re-bakes the island as a different world (106 landmarks, BADC2E70). Restart play and check the hash before benching after any shader import.
