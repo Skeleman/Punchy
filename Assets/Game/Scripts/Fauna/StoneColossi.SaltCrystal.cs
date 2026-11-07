@@ -44,30 +44,35 @@ namespace Punchy.Fauna
                 heights[i] = source.SampleHeight(new float2(at.x + Mathf.Cos(a) * radius, at.z + Mathf.Sin(a) * radius)) - at.y;
             }
             var m = new DunesColossus.MeshBuilder();
-            // W-94 (#40, Zach): a meteoroid, not a lumpy sphere. One fine-faceted (32x22), slightly elongated body whose
-            // surface is pushed in and out by seeded noise: broad swells, sharp ridges (folded noise) and round pits with
-            // low rims. The crystals on it are small and low, so it can plausibly roll over them. Its own random, so the
-            // circle, the crust and the crumbs below keep their draws.
+            // W-94 (#40, Zach): a meteoroid body pushed in and out by seeded noise. W-118 (#40, Zach): round, since it
+            // rolls: near-equal radii, the broad swells kept faint, no ridges, and the surface peppered with many small,
+            // shallow dents with soft rims (pocks where crystals broke off as it rolled). Finer facets (72x50) so the
+            // dents, about 0.6-1.6 m across, read. Its own random, so the circle, the crust and the crumbs below keep
+            // their draws.
             var lrng = Unity.Mathematics.Random.CreateFromIndex(seed ^ 0xBA11u);
-            var radii = new Vector3(CrystalBall * lrng.NextFloat(1.08f, 1.18f), CrystalBall * lrng.NextFloat(0.86f, 0.94f), CrystalBall * lrng.NextFloat(0.92f, 1f));
+            var radii = new Vector3(CrystalBall * lrng.NextFloat(1f, 1.03f), CrystalBall * lrng.NextFloat(0.98f, 1.01f), CrystalBall * lrng.NextFloat(0.99f, 1.02f));
             var turn = Quaternion.Euler(lrng.NextFloat(0f, 360f), lrng.NextFloat(0f, 360f), 0f);
-            var o1 = lrng.NextFloat3(-50f, 50f); var o2 = lrng.NextFloat3(-50f, 50f); var o3 = lrng.NextFloat3(-50f, 50f);
-            var pits = new float4[lrng.NextInt(8, 12)];
-            for (int k = 0; k < pits.Length; k++)
-                pits[k] = new float4(lrng.NextFloat3Direction(), lrng.NextFloat(0.16f, 0.42f));
-            var pitDepth = lrng.NextFloat(0.045f, 0.07f);
+            var o1 = lrng.NextFloat3(-50f, 50f); var o2 = lrng.NextFloat3(-50f, 50f);
+            var dents = new float4[lrng.NextInt(110, 140)];
+            for (int k = 0; k < dents.Length; k++)
+                dents[k] = new float4(lrng.NextFloat3Direction(), lrng.NextFloat(0.025f, 0.065f));
+            // A few larger, still shallow bowls, so the dents aren't all one size.
+            for (int k = 0; k < 6; k++)
+                dents[k].w = lrng.NextFloat(0.09f, 0.14f);
+            const float DentRim = 1.5f;
             float Shape(Vector3 u)
             {
                 var p = (float3)u;
-                var f = 1f + 0.075f * noise.snoise(p * 1.3f + o1) + 0.03f * noise.snoise(p * 3.2f + o2);
-                var ridge = 1f - math.abs(noise.snoise(p * 2.3f + o3));
-                f += 0.05f * ridge * ridge * ridge - 0.015f;
-                for (int k = 0; k < pits.Length; k++)
+                var f = 1f + 0.012f * noise.snoise(p * 1.4f + o1) + 0.004f * noise.snoise(p * 5f + o2);
+                for (int k = 0; k < dents.Length; k++)
                 {
-                    var x = math.acos(math.clamp(math.dot(p, pits[k].xyz), -1f, 1f)) / pits[k].w;
-                    var depth = pitDepth * (0.5f + pits[k].w);
+                    var cos = math.dot(p, dents[k].xyz);
+                    if (cos < math.cos(dents[k].w * DentRim)) continue;
+                    var x = math.acos(math.min(cos, 1f)) / dents[k].w;
+                    // Depth grows with size but stays fine: 1-2.5 % of the radius (13-33 cm).
+                    var depth = 0.006f + 0.14f * dents[k].w;
                     if (x < 1f) f -= depth * (1f - x * x);
-                    else if (x < 1.45f) f += depth * 0.3f * math.sin((x - 1f) / 0.45f * math.PI);
+                    else f += depth * 0.25f * math.sin((x - 1f) / (DentRim - 1f) * math.PI);
                 }
                 return f;
             }
@@ -77,7 +82,7 @@ namespace Punchy.Fauna
                 var u = Vector3.Scale(Quaternion.Inverse(turn) * d, new Vector3(1f / radii.x, 1f / radii.y, 1f / radii.z)).normalized;
                 return turn * Vector3.Scale(u, radii) * Shape(u);
             }
-            m.Rock(Vector3.zero, radii, turn, SaltWhite, 32, 22, Shape);
+            m.Rock(Vector3.zero, radii, turn, SaltWhite, 72, 50, Shape);
             int outcrops = lrng.NextInt(2, 4);
             for (int k = 0; k < outcrops; k++)
             {
