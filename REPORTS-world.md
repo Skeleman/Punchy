@@ -3259,3 +3259,11 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
   - w119-r3-nets.png (v3)
   - w119-r3-crabpots.png (v2)
   - w119-r3-shore1.png
+
+## W-119 row 4: lake backwater over low banks. Done (verified: does not reproduce on v3, no code change)
+- **Cause (from W-36, v2):** a river cell held at the level of the lake or sea downstream backs its water up. Where the river's carve or a neighbouring carve left the banks lower than that level, the water stood over dry ground. v2 had 22 such open ends.
+- **v3 probe** (river cells whose water sits at the first lake or sea level downstream):
+  - 64 cells. 0 of them have dry ground under the water level at +1, +3 or +6 m past the edge.
+  - 1 cell shows it at +10 m: 263,3343. Its bed (36.78) is above its water level (36.19), so no water stands there. Not a real case.
+  - WorldProbe.Floating: 11 cells, 9 of them cascades. The 2 left (-2046,139 and -626,801) have drops of 0.0 and 0.2 m and are not backwater.
+- **Change:** none. W-36's FillRiverPits, the v3 water-first respin and W-37's ExtendStillWater together already cover it. lanes/world/STATE.md line 39 can drop "lake backwater" (I left STATE alone; it is the supervisor's file).
