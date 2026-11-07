@@ -70,7 +70,13 @@ namespace Punchy.Terrain
         /// W-95 (#69): a harsh-biome slab shelter, a crooked ramada of three leaning rock slabs under a fourth laid across
         /// as the roof, dug into the ground with a dirt ramp up out of its open front (+Z). No shell, no inside cylinder.
         /// </summary>
-        SlabShelter
+        SlabShelter,
+        /// <summary>
+        /// W-119 (#36): one short piece of a fishing village's shore boardwalk, a plank deck on posts along +Z about its
+        /// middle. FloraPlacement lays the pieces end to end between the village's dock and wharf ramps and its stilt
+        /// house stairs; each variant is its own length (<see cref="StructureKit.BoardwalkLength"/>).
+        /// </summary>
+        Boardwalk
     }
 
     /// <summary>The small things a sea folk settlement leaves on the lake bed (#37), picked by weight from SeaDetails.</summary>
@@ -354,6 +360,43 @@ namespace Punchy.Terrain
             return parts;
         }
 
+        /// <summary>W-119: how far apart FloraPlacement sets a boardwalk's pieces along its run (m).</summary>
+        public const float BoardwalkStep = 3f;
+        /// <summary>W-119: a boardwalk piece's length for a variant: 3.2 to 4.6 m in 0.2 m steps, two variants per
+        /// length, so the pieces overlap their neighbours a little round bends.</summary>
+        public static float BoardwalkLength(int variant) => 3.2f + (variant / 2 % 8) * 0.2f;
+        /// <summary>W-119: a boardwalk piece's deck height; odd variants 2 cm higher, so where neighbours overlap the
+        /// planks never fight.</summary>
+        public static float BoardwalkDeck(int variant) => 0.4f + (variant & 1) * 0.02f;
+
+        /// <summary>
+        /// W-119 (#36): a piece of a fishing village's shore boardwalk, along +Z about the origin: planks across a
+        /// 1.8 m deck with a solid bed under them (W-62c, so walkers never drop through a gap), posts at its ends and
+        /// middle running 2.5 m down so the deck stands clear where the bank dips, and now and then a mooring post
+        /// with a coil of rope on top, all from the seed.
+        /// </summary>
+        public static List<KitPart> Boardwalk(uint seed, CultureTrim t, float length, float deck)
+        {
+            const float W = 1.8f;
+            var parts = new List<KitPart>();
+            var rng = new System.Random((int)(Scramble(seed ^ 0xB0A2Du) & 0x7FFFFFFF));
+            Platform(parts, Vector3.zero, 0f, W, length, deck, false);
+            Add(parts, KitPiece.Platform, KitMaterial.Wood, new Vector3(0f, deck - 0.17f, 0f), new Vector3(W * 0.94f, 0.1f, length), 0f, false);
+            foreach (var z in new[] { -0.5f, 0f, 0.5f })
+                foreach (var side in new[] { -1f, 1f })
+                    Add(parts, KitPiece.Column, KitMaterial.Wood, new Vector3(side * W * 0.42f, (deck - 2.5f) * 0.5f, z * (length - 0.3f)), new Vector3(0.22f, deck + 2.5f, 0.22f), 0f, false);
+            if (rng.NextDouble() < 0.35)
+            {
+                // A mooring post on one edge, a little proud of the deck, rope wound round its head.
+                var x = (rng.Next(2) == 0 ? -1f : 1f) * (W * 0.5f + 0.1f);
+                var z = ((float)rng.NextDouble() - 0.5f) * (length - 0.8f);
+                Add(parts, KitPiece.Column, KitMaterial.Wood, new Vector3(x, (deck + 0.7f - 2.5f) * 0.5f, z), new Vector3(0.26f, deck + 0.7f + 2.5f, 0.26f), 0f, false);
+                for (int k = 0; k < 3; k++)
+                    Add(parts, KitPiece.Trim, KitMaterial.Net, new Vector3(x, deck + 0.45f + k * 0.07f, z), new Vector3(0.34f, 0.06f, 0.34f), k * 30f, false);
+            }
+            return parts;
+        }
+
         /// <summary>W-105: a stilt house's walkway is this long, plus up to <see cref="StiltWalkSpread"/> more (m, unscaled).</summary>
         public const float StiltWalkMin = 4f, StiltWalkSpread = 2.5f;
         /// <summary>How far past the ground a stilt house's posts run down into the sea bed (m, before the skirt).</summary>
@@ -373,7 +416,7 @@ namespace Punchy.Terrain
         }
 
         /// <summary>Whether a kit shape is a walled house with a door and an inside (House, StiltHouse and the #69 hazard houses).</summary>
-        public static bool HouseLike(KitShape s) => s == KitShape.House || s == KitShape.StiltHouse || s >= KitShape.AshHouse;
+        public static bool HouseLike(KitShape s) => s == KitShape.House || s == KitShape.StiltHouse || s >= KitShape.AshHouse && s <= KitShape.SlabShelter;   // W-119: Boardwalk comes after them
 
         // ------------------------------------------------------------------------------------------- hazard houses (#69)
 

@@ -44,6 +44,9 @@ namespace Punchy.Flora
                 case Punchy.Terrain.KitShape.Dock:
                     parts = Punchy.Terrain.StructureKit.Dock(seed, trim, width * 2.4f, 2.6f, 0.8f);
                     break;
+                case Punchy.Terrain.KitShape.Boardwalk: // W-119 (#36): a shore boardwalk piece, its length from the variant
+                    parts = Punchy.Terrain.StructureKit.Boardwalk(seed, trim, Punchy.Terrain.StructureKit.BoardwalkLength(g.Variant), Punchy.Terrain.StructureKit.BoardwalkDeck(g.Variant));
+                    break;
                 case Punchy.Terrain.KitShape.Shore:
                     parts = Punchy.Terrain.StructureKit.Shore(seed, trim, 2.5f);
                     break;

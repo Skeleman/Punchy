@@ -126,6 +126,16 @@ MonoBehaviour:
     Angle: 15
     Clearance: 2
     Trodden: 0
+  - Species: {fileID: 11400000, guid: 45cb2dc52f204ff59ce16bb952ce122c, type: 2}
+    Density: 5
+    Ring: {x: 0, y: 0}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+    FaceCentre: 0
+    Count: 1
+    Angle: 0
+    Clearance: 0
+    Trodden: 0
   Effects: []
   Cave: 0
   CaveLength: 40
