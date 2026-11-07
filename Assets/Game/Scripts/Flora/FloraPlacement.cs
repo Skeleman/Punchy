@@ -1067,6 +1067,10 @@ namespace Punchy.Flora
                         var size = math.clamp((int)math.ceil((length + 0.3f - 3.2f) / 0.2f - 0.001f), 0, 7);
                         piece = new float4(mid.x, y, mid.y, FacingYaw(run));
                         variant = size * 2 + (parity & 1);
+                        // W-119 row 3: about half the pieces (by a scrambled hash of the piece's number along the walk)
+                        // carry deck details: flagged with 16, which the caller turns into the village trade's run.
+                        if (BiomeSampling.Scramble((uint)parity * 0x9E3779B1u ^ (uint)landmark.Instance * 0x85EBCA6Bu ^ 0xDEC4u) % 100u < 50u)
+                            variant += 16;
                     }
                     parity++;
                     prev = next;
@@ -1772,6 +1776,10 @@ namespace Punchy.Flora
                                 var placedModel = placedRule.FirstModel + rng.NextInt(placedRule.Variants);
                                 if (placedRule.PerVillage != 0)
                                     placedModel = placedRule.FirstModel + VillageVariant(ref set, landmark.Instance, placedRule.Variants);
+                                // W-119 row 3: shore kit takes a variant of its village's trade (variant % FishTrades).
+                                if (placedRule.ShoreKit != 0 && placedRule.Variants >= Punchy.Terrain.StructureKit.FishTrades)
+                                    placedModel = placedRule.FirstModel + rng.NextInt(placedRule.Variants / Punchy.Terrain.StructureKit.FishTrades) * Punchy.Terrain.StructureKit.FishTrades
+                                                  + VillageVariant(ref set, landmark.Instance, Punchy.Terrain.StructureKit.FishTrades);
                                 if (placedRule.Patterns > 0)
                                     placedModel = PatternModel(placedRule, landmark.Instance, placedModel);
                                 return new FloraSystem.FloraInstance
@@ -1804,6 +1812,11 @@ namespace Punchy.Flora
                     if (walkVariant >= 0 && layer == boardwalkLayer)
                     {
                         var walkRule = f.Rules[f.Props[boardwalkProp].Species];
+                        // W-119 row 3: a piece flagged for deck details takes its village trade's run of 16 variants.
+                        if (walkVariant >= 16)
+                            walkVariant = walkRule.Variants >= 16 * (1 + Punchy.Terrain.StructureKit.FishTrades)
+                                ? (walkVariant & 15) + 16 * (1 + VillageVariant(ref set, landmark.Instance, Punchy.Terrain.StructureKit.FishTrades))
+                                : walkVariant & 15;
                         return new FloraSystem.FloraInstance
                         {
                             Position = piece.xyz,

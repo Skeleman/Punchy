@@ -45,10 +45,10 @@ namespace Punchy.Flora
                     parts = Punchy.Terrain.StructureKit.Dock(seed, trim, width * 2.4f, 2.6f, 0.8f);
                     break;
                 case Punchy.Terrain.KitShape.Boardwalk: // W-119 (#36): a shore boardwalk piece, its length from the variant
-                    parts = Punchy.Terrain.StructureKit.Boardwalk(seed, trim, Punchy.Terrain.StructureKit.BoardwalkLength(g.Variant), Punchy.Terrain.StructureKit.BoardwalkDeck(g.Variant));
+                    parts = Punchy.Terrain.StructureKit.Boardwalk(seed, trim, Punchy.Terrain.StructureKit.BoardwalkLength(g.Variant), Punchy.Terrain.StructureKit.BoardwalkDeck(g.Variant), g.Variant / 16);   // W-119 row 3: deck details by the run of 16
                     break;
                 case Punchy.Terrain.KitShape.Shore:
-                    parts = Punchy.Terrain.StructureKit.Shore(seed, trim, 2.5f);
+                    parts = Punchy.Terrain.StructureKit.Shore(seed, trim, 2.5f, g.Variant % Punchy.Terrain.StructureKit.FishTrades);   // W-119: the variant's trade
                     break;
                 case Punchy.Terrain.KitShape.Igloo:     // #38: a turtle folk's dome, one tall storey
                     storeys = 1;
