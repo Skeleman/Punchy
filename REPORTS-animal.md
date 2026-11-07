@@ -2935,3 +2935,11 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
   - `a86-r2-mammoth-side.png`: it crosses behind a snowy ridge, side-on.
   - `a86-r2-warm.png`: the warmup frame.
 - **Risk:** in the front shot there is a pale rectangular patch on the snow at its feet. It looks like the colossus collision box or the flora clearing showing through, and it predates this row. Worth a look.
+
+## A-86 row 3 (#40) - Mountains sky whale: done (verified)
+- Commit 608ad328 on animal-behaviours. New colossus SkyWhale (kind 21, Mountains): floats 48-56 m up, thermals every 20-35 s lift it 7 m and fire a spout, fin beat, tail sweep, low song every 30-50 s. No glow, so no night shot.
+- Unfit cannot pin it: the gait has Floats + Climb 99 (slope check always passes). Unfit's logic is unchanged, so the puffball is not affected.
+- v3: placed at (-1525, 57, 1410), region 186 cells. 574 m loop (radius 90, 5 shrinks), pace 1.00 when awake at about y 135-148. Non-solid by design (0 collision columns).
+- The other 20 colossi have the same placements and loops as before (puffball 447 m, mammoth 196 m). 0 exceptions. GC 2674 B/frame (limit 9594).
+- Shots: D:/PunchyMilestones/A-86/a86-r3-whale-side.png (main, whale over snowy peaks), a86-r3-whale-below.png (from the ground, mostly blocked by pines), a86-r3-gc.png.
+- Risk: the whale is non-solid, so the player can fly through it.
