@@ -720,6 +720,10 @@ namespace Punchy.Fauna
         /// none) and how long before it gives up (s). Set by Follow.Start and Follow.Stop on the host.</summary>
         public int FollowHolder;
         public float FollowTime;
+        /// <summary>A-88 row 1: a following creature's way round something in its way (a trunk, a rock, a steep bank):
+        /// the spot to the side it heads for, and how long it keeps to it (s) before making for the player again.</summary>
+        public float2 FollowDetour;
+        public float FollowDetourTime;
     }
 
     /// <summary>The need cue a creature shows (CreatureState.Cue), strongest need first.</summary>

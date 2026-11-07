@@ -1647,7 +1647,9 @@ namespace Punchy.Fauna
                 if (!followsWall && (blocked || landBound && s.Speed > 0.05f && SlopeAhead(s.Position.xz, ahead) > 0.8f))
                 {
                     s.Speed *= 0.5f;
-                    if (s.Mode == CreatureMode.Flee || s.Mode == CreatureMode.Play && s.Stage == 1)
+                    // (A-88 row 1: one following a player veers too, for a moment, rather than crawl into it.)
+                    var following = M.FollowHolder != 0 && M.FollowDetourTime <= 0f;
+                    if (s.Mode == CreatureMode.Flee || s.Mode == CreatureMode.Play && s.Stage == 1 || following)
                     {
                         // Running, it veers along whatever's in the way: to the side its run leans to (head-on, its
                         // own side), the other side if that's blocked too, or back the way it came if both are.
@@ -1663,7 +1665,13 @@ namespace Punchy.Fauna
                              nearSolids && SolidAt(s, ref b, s.Position.xz + way * reach, way, out _)))
                             way = Open(s.Position.xz, s.Position.xz - way * reach, b.Habitat, landBound) &&
                                   !(nearSolids && SolidAt(s, ref b, s.Position.xz - way * reach, -way, out _)) ? -way : -forward;
-                        s.Target = s.Position.xz + way * 20f;
+                        if (following)
+                        {
+                            M.FollowDetour = s.Position.xz + (way * 0.8f + forward * 0.2f) * (2.5f * s.Scale + 1f);
+                            M.FollowDetourTime = 1.2f;
+                        }
+                        else
+                            s.Target = s.Position.xz + way * 20f;
                     }
                     else if (s.Mode == CreatureMode.Wander || s.Mode == CreatureMode.Drink && s.Stage == 0 ||
                              s.Mode == CreatureMode.Climb && s.Stage == 0 || s.Mode == CreatureMode.Web && s.Stage == 0)
