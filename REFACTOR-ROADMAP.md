@@ -99,6 +99,8 @@ Checked against main on 11-07:
 - **3.2, Ember Forest flames (playtest 11-07):** distant flames disappear as you approach, then come back up close. That is a gap between the far flame tier and the near tier. Fold it into 3.2's near / mid / far budgets: one hand-off distance with overlap and hysteresis, and lights from 3.1. Zach still wants to iterate on fire lighting.
 - **3.4, water stripes (playtest 11-07):** crossing stripes at `-goto -41,54.2,41` and `-goto -1182,12.3,-3020`, probably stepped-pool related. Zach finds it a cool effect, maybe worth making deliberate later as biome detail; for now treat it as a bug.
 
+**3.2 status 11-07:** the instance buffer is done on `refactor/fire-instances` (03783ca9, not merged). Ember Forest looks the same; suite 14/14. Dropped flames are now counted. The timing A/B is BENCH-QUEUE job 27; merge after it. Still to do in 3.2: near/mid/far budgets with one overlapping hand-off (which also fixes the Ember Forest middle-distance gap), and moving the eased-lean dictionaries into native storage.
+
 ### 3.5 Flora by behaviour: static objects skip vertex animation (Zach, 11-07; `docs/Chat recommendations for dividing flora.md`)
 "Flora" now draws rocks, logs, debris, ruins and whole kit buildings as well as plants. Checked on main:
 - Every vertex of every flora model runs the full deformation in Flora.hlsl. There is no static variant.

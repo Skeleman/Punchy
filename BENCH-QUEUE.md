@@ -141,3 +141,17 @@ logs, ruins, kit buildings) draw with a FLORA_STATIC variant that skips all vert
 - **Scenes:** the job 25 big settlement (expect the biggest win: kit buildings), the dense forest (mostly plants: little change expected), and a rock-heavy spot (`-place Tors`).
 - **Per scene:** run ABBA with and without `-nostaticflora`, uncapped, at 1440p. Report GPU frame ms, and the shadow pass and main opaque pass ms if SysMs or a GPU capture can split them.
 - **Also report** anything that looks different between the two. The player lane saw no difference at a town, the tors and an oak grove.
+
+## Job 27 (2026-11-07): fire instance buffer A/B (REFACTOR-ROADMAP.md 3.2), after jobs 24-26
+Branch `refactor/fire-instances` (03783ca9, not merged: merge waits on this job). FireSystem no longer rebuilds and
+uploads a mesh every frame: one 48-byte instance per flame, and two procedural draws (near, far).
+- **A/B:** a Profile build of the branch against one of main e5c88fb4, same spot, uncapped (`-fpscap 0`), explicit resolution, ABBA.
+- **Scenes:**
+  - The Ember Forest burning at night: `-place EmberForest: -time 22`, then `-view 120,5`. That has both near and far flames.
+  - Job 25's 500-fire scene, if you found one.
+- **Report:**
+  - main-thread ms of LandmarkEffectSystem (FireSystem.Draw runs inside it)
+  - GPU ms for the flame passes
+  - frame ms
+  - the flame count, and `FireSystem.Dropped` (the cap is 8192)
+  - anything that looks different. The player lane saw none at the Ember Forest.
