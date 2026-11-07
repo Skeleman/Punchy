@@ -177,6 +177,19 @@ namespace Punchy.Debugging
             yield return Stop("run", () => JumpTo(controls, "Start") && SetWeather("Partly cloudy", 15), 12f, 0.1f, 40f);
             yield return Stop("glide", () => JumpTo(controls, "Start") && SetWeather("Partly cloudy", 16), 25f, 15f, 40f);
             yield return Stop("dash", () => JumpTo(controls, "Start") && SetWeather("Partly cloudy", 17), 80f, 3f);
+            // Stress stops (refactor roadmap 1.2): only when named in -benchstops, so the usual route and its baselines
+            // don't change. bigtown stands in the settlement with the most buildings; fires adds -benchfires flames
+            // (default 500) in view of the spot firesbase measures without them.
+            if (Named("bigtown"))
+                yield return Stop("bigtown", () => PlaceInBiggestTown() && SetWeather("Partly cloudy", 11));
+            if (Named("firesbase"))
+                yield return Stop("firesbase", () => JumpTo(controls, "Start") && SetWeather("Partly cloudy", 15));
+            if (Named("fires"))
+            {
+                StartCoroutine(BurnFires());
+                yield return Stop("fires", () => JumpTo(controls, "Start") && SetWeather("Partly cloudy", 15) && LayFires());
+                fireSpots = null;
+            }
             // -benchspot x,z,yaw (on the ground) or x,y,z,yaw (on the floor under that point, e.g. in a cave): also
             // measure one spot, with a screenshot of it when -benchshot <file> is given.
             var args = System.Environment.GetCommandLineArgs();
@@ -632,6 +645,97 @@ namespace Punchy.Debugging
         /// else the HumanVillage landmark entry. A plain "contains" match would take a biome's entry first ("Sonoran:
         /// HumanVillage", in the desert on v2).
         /// </summary>
+        /// <summary>Whether -benchstops lists this stop by name (the stress stops never run otherwise).</summary>
+        static bool Named(string stop)
+        {
+            var args = System.Environment.GetCommandLineArgs();
+            var at = System.Array.IndexOf(args, "-benchstops");
+            return at >= 0 && at + 1 < args.Length && System.Array.IndexOf(args[at + 1].Split(','), stop) >= 0;
+        }
+
+        /// <summary>Puts the player in the middle of the settlement with the most buildings, and logs how many.</summary>
+        static bool PlaceInBiggestTown()
+        {
+            if (!TryGetWorld(out var em, out _))
+                return false;
+            using var terrainQuery = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
+            if (terrainQuery.IsEmpty)
+                return false;
+            var source = terrainQuery.GetSingleton<TerrainSource>();
+            if (!source.Settlements.IsCreated)
+                return false;
+            ref var towns = ref source.Settlements.Value;
+            int best = -1, bestBuildings = -1, total = 0;
+            for (int s = 0; s < towns.Settlements.Length; s++)
+            {
+                ref var town = ref towns.Settlements[s];
+                var buildings = 0;
+                for (int p = town.FirstPlot; p < town.FirstPlot + town.PlotCount; p++)
+                    if (towns.Plots[p].Building >= 0)
+                        buildings++;
+                total += buildings;
+                if (buildings > bestBuildings)
+                {
+                    best = s;
+                    bestBuildings = buildings;
+                }
+            }
+            if (best < 0)
+                return false;
+            var centre = towns.Settlements[best].Centre;
+            Debug.Log($"BenchRoute stress: biggest of {towns.Settlements.Length} settlements has {bestBuildings} buildings ({total} in all), at {centre.x:F0},{centre.y:F0}");
+            return PlaceAt(new float3(centre.x, float.NaN, centre.y), 0f);
+        }
+
+        static Vector3[] fireSpots;
+
+        /// <summary>Lays -benchfires flames out on the ground ahead of the player, 4 m apart.</summary>
+        static bool LayFires()
+        {
+            var args = System.Environment.GetCommandLineArgs();
+            var at = System.Array.IndexOf(args, "-benchfires");
+            var count = at >= 0 && at + 1 < args.Length ? int.Parse(args[at + 1]) : 500;
+            if (!TryGetWorld(out var em, out _) || !TryGetPlayerPosition(out var player))
+                return false;
+            using var terrainQuery = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
+            if (terrainQuery.IsEmpty)
+                return false;
+            var source = terrainQuery.GetSingleton<TerrainSource>();
+            var spots = new Vector3[count];
+            var perRow = Mathf.Max(1, Mathf.CeilToInt(Mathf.Sqrt(count)));
+            for (int i = 0; i < count; i++)
+            {
+                var x = player.x + (i % perRow - perRow * 0.5f) * 4f;
+                var z = player.z + 10f + i / perRow * 4f;
+                spots[i] = new Vector3(x, source.SampleHeight(new float2(x, z)), z);
+            }
+            fireSpots = spots;
+            Debug.Log($"BenchRoute stress: {count} flames");
+            return true;
+        }
+
+        /// <summary>Adds the laid-out flames every frame until the fires stop ends. By reflection, so the runner still
+        /// compiles against commits from before FireSystem.</summary>
+        IEnumerator BurnFires()
+        {
+            var method = typeof(CaveSystem).Assembly.GetType("Punchy.Ambience.FireSystem")?.GetMethod("AddFlame",
+                new[] { typeof(Vector3), typeof(float), typeof(int), typeof(int) });
+            if (method == null)
+            {
+                Debug.Log("BenchRoute stress: this build has no FireSystem.AddFlame");
+                yield break;
+            }
+            var add = (System.Action<Vector3, float, int, int>)System.Delegate.CreateDelegate(typeof(System.Action<Vector3, float, int, int>), method);
+            while (fireSpots == null)
+                yield return null;
+            while (fireSpots != null)
+            {
+                for (int i = 0; i < fireSpots.Length; i++)
+                    add(fireSpots[i], 1f, i, 0);
+                yield return null;
+            }
+        }
+
         static bool JumpToVillage(DebugControls controls) =>
             JumpTo(controls, "Nearest settlement (HumanVillage)") || JumpTo(controls, "HumanVillage", true);
 
