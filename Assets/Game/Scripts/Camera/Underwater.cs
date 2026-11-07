@@ -21,6 +21,17 @@ namespace Punchy.CameraRig
         static readonly Color FogColour = new Color(0.04f, 0.22f, 0.25f);
         static readonly Color Tint = new Color(0.08f, 0.32f, 0.36f, 0.32f);
         const float FogDensity = 0.11f;
+        /// <summary>
+        /// P-20: the fog terrain and flora get under water (Sky.hlsl PunchyAtmosphere reads _PunchyUnderwater: rgb colour,
+        /// w density per metre). RenderSettings fog only reaches the shaders that use Unity's own fog (water, rain, fire).
+        /// </summary>
+        const float WaterFogDensity = 0.07f;
+        static readonly int UnderwaterId = Shader.PropertyToID("_PunchyUnderwater");
+        // The scene's own fog, kept while under water and put back on surfacing (it used to stay on afterwards).
+        bool fogSaved, savedFog;
+        FogMode savedMode;
+        Color savedColour;
+        float savedDensity;
 
         bool under;
         float amount;
@@ -57,11 +68,23 @@ namespace Punchy.CameraRig
             amount = Mathf.MoveTowards(amount, under ? 1f : 0f, Time.deltaTime / Blend);
             if (amount > 0f)
             {
+                if (!fogSaved)
+                    (fogSaved, savedFog, savedMode, savedColour, savedDensity) =
+                        (true, RenderSettings.fog, RenderSettings.fogMode, RenderSettings.fogColor, RenderSettings.fogDensity);
                 RenderSettings.fog = true;
                 RenderSettings.fogMode = FogMode.ExponentialSquared;
-                RenderSettings.fogColor = Color.Lerp(RenderSettings.fogColor, FogColour, amount);
-                RenderSettings.fogDensity = Mathf.Lerp(RenderSettings.fogDensity, FogDensity, amount);
+                RenderSettings.fogColor = Color.Lerp(savedColour, FogColour, amount);
+                RenderSettings.fogDensity = Mathf.Lerp(savedFog ? savedDensity : 0f, FogDensity, amount);
             }
+            else if (fogSaved)
+            {
+                (RenderSettings.fog, RenderSettings.fogMode, RenderSettings.fogColor, RenderSettings.fogDensity) =
+                    (savedFog, savedMode, savedColour, savedDensity);
+                fogSaved = false;
+            }
+            // (Shaders work in linear colour; the density blends with the rest, so the fog thins in as the lens sinks.)
+            var water = FogColour.linear;
+            Shader.SetGlobalVector(UnderwaterId, amount > 0f ? new Vector4(water.r, water.g, water.b, WaterFogDensity * amount) : Vector4.zero);
             Muffle();
         }
 
