@@ -41,3 +41,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 | #40 | Mire walker now wades its marsh loop with splashes; new hermit crab colossus with an islet and lighthouse on its shell (lamp lit at night) | Foggy marsh, Ocean shore | PR #187, 2026-11-07 |
 | #37 | Sea folk lake village: central spire, glowing rune stones, snaking kelp, sunken boats, giant clams with pearls, bubble vents; boardwalks now ramp on steep banks | Sea folk lake (dive), fishing villages | PR #188, 2026-11-07 |
 | #21 #37 | No haze edge from peaks near snow; sea folk buoys, moored raft, bigger wrecks; leafier shrubs and richer flowers (daisy, buttercup, poppy) up close | Peaks in snow weather, sea folk lake, meadows | PR #189, 2026-11-07 |
+| #40 #37 | Magma serpent colossus in its own crater (Ashlands); fish schools round the sea folk domes that scatter from you, sturgeon on the lake bed | Ashlands, sea folk lake | PR #190, 2026-11-07 |
