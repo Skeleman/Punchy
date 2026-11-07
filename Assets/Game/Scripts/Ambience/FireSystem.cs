@@ -13,6 +13,9 @@ namespace Punchy.Ambience
     /// snap it about. Every flame is the standard fire (#131, Resources/StandardFire, a FireEffect): its flame, a spark
     /// now and then (the embers), a soft glow round its base and two puffs of smoke, in one of the effect's colours.
     /// The light it throws is the caller's to add (CaveSystem.MovingLights), coloured by Light(colour).
+    /// Refactor 3.2: drawn from a buffer of flame instances (48 bytes each) with a fixed index buffer, two procedural
+    /// draws (near flames' five quads, far flames' two); the Flame shader builds each corner from the vertex id. It used
+    /// to rebuild and upload a 20-vertex, 30-index mesh piece per flame every frame on the main thread.
     /// </summary>
     public static class FireSystem
     {
@@ -68,25 +71,27 @@ namespace Punchy.Ambience
             public bool Far;
         }
 
-        struct FlameVertex
+        /// <summary>One flame for the Flame shader (FlameInstance there): base and height, lean and seed, colour.</summary>
+        struct FlameInstance
         {
-            public float3 Position;
-            public float4 Corner;   // x -1..1, y 0..1, seed 0..1, palette (+10 for a spark)
-            public float4 Shape;    // lean xyz, size
+            public float4 PositionSize;   // xyz base (world), w height (m)
+            public float4 LeanSeed;       // xyz lean at the tip (world m), w seed 0..1
+            public float4 Palette;        // x colour index
 
-            public static readonly VertexAttributeDescriptor[] Layout =
-            {
-                new VertexAttributeDescriptor(VertexAttribute.Position, VertexAttributeFormat.Float32, 3),
-                new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float32, 4),
-                new VertexAttributeDescriptor(VertexAttribute.TexCoord1, VertexAttributeFormat.Float32, 4)
-            };
+            public const int Stride = 48;
         }
 
         static readonly List<Flame> flames = new List<Flame>();
         static Dictionary<int, Vector3> eased = new Dictionary<int, Vector3>(), easedNext = new Dictionary<int, Vector3>();
-        static readonly List<FlameVertex> vertices = new List<FlameVertex>();
-        static readonly List<int> indices = new List<int>();
-        static Mesh mesh;
+        // This frame's instances: near flames from the front, far ones from the back, uploaded in one SetData.
+        static readonly FlameInstance[] instanceData = new FlameInstance[MaxFlames];
+        static GraphicsBuffer instances, quadIndices;
+        static MaterialPropertyBlock nearProps, farProps;
+        static readonly int InstancesId = Shader.PropertyToID("_FlameInstances");
+        static readonly int BaseId = Shader.PropertyToID("_FlameBase");
+        static readonly int FarId = Shader.PropertyToID("_FlameFar");
+        /// <summary>Flames dropped because the cap was full, since the start (refactor 3.2: they used to go silently).</summary>
+        public static int Dropped;
 
         /// <summary>A flame this frame. Main thread only; add it again every frame it burns.</summary>
         /// <param name="position">The base of the flame (a torch head, the logs of a fire).</param>
@@ -102,6 +107,8 @@ namespace Punchy.Ambience
         {
             if (flames.Count < MaxFlames)
                 flames.Add(new Flame { Position = position, Size = size, Seed = seed, Palette = Colour(palette), Lean = lean });
+            else
+                Dropped++;
         }
 
         const int MaxFlames = 8192;
@@ -115,6 +122,8 @@ namespace Punchy.Ambience
         {
             if (flames.Count < MaxFlames)
                 flames.Add(new Flame { Position = position, Size = size, Seed = seed, Palette = Colour(palette), Far = true });
+            else
+                Dropped++;
         }
 
         /// <summary>
@@ -142,13 +151,14 @@ namespace Punchy.Ambience
                 return;
             }
             Upload();
+            Buffers();
             var dt = math.min(Time.deltaTime, 0.1f);
             var follow = 1f - math.exp(-dt / 0.12f);
-            vertices.Clear();
-            indices.Clear();
             easedNext.Clear();
             var min = new float3(float.MaxValue);
             var max = new float3(float.MinValue);
+            // Near flames from the front of the array, far ones from the back, so each draw reads one run.
+            int near = 0, far = flames.Count;
             foreach (var f in flames)
             {
                 var lean = Vector3.zero;
@@ -158,44 +168,67 @@ namespace Punchy.Ambience
                     easedNext[f.Seed] = lean;
                 }
                 var seed01 = (math.hash(new int2(f.Seed, 0x5EED)) & 0xFFFF) / 65535f;
-                // The flame, its spark, its glow and its two smoke puffs; a far flame only the flame and its glow card.
-                for (int q = 0; q < (f.Far ? 2 : Quads); q++)
+                var instance = new FlameInstance
                 {
-                    var quad = f.Far && q == 1 ? FarGlowQuad : q;
-                    var first = vertices.Count;
-                    for (int k = 0; k < 4; k++)
-                        vertices.Add(new FlameVertex
-                        {
-                            Position = f.Position,
-                            Corner = new float4(k == 0 || k == 3 ? -1f : 1f, k < 2 ? 0f : 1f, seed01, f.Palette + quad * 10),
-                            Shape = new float4(lean.x, lean.y, lean.z, f.Size)
-                        });
-                    indices.Add(first); indices.Add(first + 1); indices.Add(first + 2);
-                    indices.Add(first); indices.Add(first + 2); indices.Add(first + 3);
-                }
+                    PositionSize = new float4(f.Position.x, f.Position.y, f.Position.z, f.Size),
+                    LeanSeed = new float4(lean.x, lean.y, lean.z, seed01),
+                    Palette = new float4(f.Palette, 0f, 0f, 0f)
+                };
+                instanceData[f.Far ? --far : near++] = instance;
                 min = math.min(min, (float3)f.Position);
                 max = math.max(max, (float3)f.Position);
             }
             (eased, easedNext) = (easedNext, eased);
+            var count = flames.Count;
             flames.Clear();
+            instances.SetData(instanceData, 0, 0, count);
 
-            if (mesh == null)
-            {
-                mesh = new Mesh { name = "Flames" };
-                mesh.MarkDynamic();
-            }
-            mesh.Clear();
-            mesh.SetVertexBufferParams(vertices.Count, FlameVertex.Layout);
-            mesh.SetVertexBufferData(vertices, 0, 0, vertices.Count);
-            mesh.SetIndexBufferParams(indices.Count, IndexFormat.UInt32);
-            mesh.SetIndexBufferData(indices, 0, 0, indices.Count);
-            mesh.subMeshCount = 1;
             // Bounds round every base, with room for the tallest flame, its sparks and its smoke.
             var bounds = new Bounds((Vector3)((min + max) * 0.5f), (Vector3)(max - min + 12f));
-            mesh.SetSubMesh(0, new SubMeshDescriptor(0, indices.Count), MeshUpdateFlags.DontRecalculateBounds);
-            mesh.bounds = bounds;
-            Graphics.RenderMesh(new RenderParams(material) { worldBounds = bounds, shadowCastingMode = ShadowCastingMode.Off, receiveShadows = false },
-                                mesh, 0, Matrix4x4.identity);
+            if (near > 0)
+            {
+                nearProps.SetInt(BaseId, 0);
+                nearProps.SetFloat(FarId, 0f);
+                Graphics.RenderPrimitivesIndexed(Params(material, bounds, nearProps), MeshTopology.Triangles, quadIndices, Quads * 6, 0, near);
+            }
+            if (far < count)
+            {
+                farProps.SetInt(BaseId, far);
+                farProps.SetFloat(FarId, 1f);
+                Graphics.RenderPrimitivesIndexed(Params(material, bounds, farProps), MeshTopology.Triangles, quadIndices, 2 * 6, 0, count - far);
+            }
+        }
+
+        static RenderParams Params(Material material, Bounds bounds, MaterialPropertyBlock props) =>
+            new RenderParams(material) { worldBounds = bounds, matProps = props, shadowCastingMode = ShadowCastingMode.Off, receiveShadows = false };
+
+        /// <summary>The instance buffer (room for every flame) and the fixed index buffer (five quads), made once.</summary>
+        static void Buffers()
+        {
+            if (instances != null && instances.IsValid())
+                return;
+            instances = new GraphicsBuffer(GraphicsBuffer.Target.Structured, MaxFlames, FlameInstance.Stride);
+            quadIndices = new GraphicsBuffer(GraphicsBuffer.Target.Index, Quads * 6, sizeof(int));
+            var idx = new int[Quads * 6];
+            for (int q = 0; q < Quads; q++)
+            {
+                var first = q * 4;
+                idx[q * 6] = first; idx[q * 6 + 1] = first + 1; idx[q * 6 + 2] = first + 2;
+                idx[q * 6 + 3] = first; idx[q * 6 + 4] = first + 2; idx[q * 6 + 5] = first + 3;
+            }
+            quadIndices.SetData(idx);
+            nearProps = new MaterialPropertyBlock();
+            farProps = new MaterialPropertyBlock();
+            nearProps.SetBuffer(InstancesId, instances);
+            farProps.SetBuffer(InstancesId, instances);
+            Application.quitting += Release;
+        }
+
+        static void Release()
+        {
+            instances?.Release();
+            quadIndices?.Release();
+            instances = quadIndices = null;
         }
 
         /// <summary>The standard fire's colours and settings, for the Flame shader (globals: a few floats a frame).</summary>
