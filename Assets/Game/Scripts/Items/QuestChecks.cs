@@ -73,7 +73,7 @@ namespace Punchy.Items
 
         int SpeciesIndex(string name)
         {
-            director ??= Object.FindAnyObjectByType<FaunaDirector>();
+            if (director == null) director = Object.FindAnyObjectByType<FaunaDirector>();   // (not ??=: it misses a destroyed Unity object)
             return director != null ? director.SpeciesIndex(name) : -1;
         }
 

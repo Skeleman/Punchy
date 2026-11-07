@@ -26,6 +26,7 @@ TEXTURE3D(_PunchyCloudNoise);  SAMPLER(sampler_PunchyCloudNoise);
 float4 _PunchyWeatherRect;     // xy world origin of the maps, zw 1 / world size
 half3  _PunchyDustColor;
 float  _PunchyHazeDensity;     // base exponential-squared haze per metre (hides the edge of the streamed terrain)
+float4 _PunchyUnderwater;       // P-20: under water, rgb the water's fog colour and w its density per metre; 0 when dry (Underwater.cs)
 
 float3 _PunchySunDirection;    // towards the sun
 float3 _PunchyMoonDirection;   // towards the moon
@@ -875,6 +876,10 @@ half3 PunchyAtmosphere(half3 color, float3 positionWS)
     float3 toPoint = positionWS - camera;
     float distance = length(toPoint);
     float3 dir = toPoint / max(distance, 1e-3);
+    // Under water (P-20, Underwater.cs): the water's own fog by distance instead of the sky's haze, which can't be
+    // seen from down here. Everything drawn through PunchyAtmosphere (terrain, flora, rocks) fades alike.
+    if (_PunchyUnderwater.w > 0)
+        return lerp(color, (half3)_PunchyUnderwater.rgb, 1 - exp(-pow(distance * _PunchyUnderwater.w, 2)));
     color = PunchyHazeFromLut(color, positionWS.xz - _PunchyHazeOrigin.xz, distance);
     float haze = 1 - exp(-pow(distance * _PunchyHazeDensity, 2));
     if (haze < 0.01)

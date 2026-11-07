@@ -353,7 +353,7 @@ namespace Punchy.Interact
             go.transform.position = centre;
             go.transform.localScale = size;
             var r = go.GetComponent<Renderer>();
-            material ??= Resources.Load<Material>("ItemMaterial");
+            if (material == null) material = Resources.Load<Material>("ItemMaterial");   // (not ??=: it misses a destroyed Unity object)
             if (material != null)
                 r.sharedMaterial = material;
             var block = new MaterialPropertyBlock();
