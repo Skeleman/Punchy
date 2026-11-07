@@ -3324,3 +3324,11 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
 - Landmarks_V3 112 A955AFE0, unchanged by this row.
 - Hut spots for A-89 (wildlife): the village centre is (-1240, 320), ground about 111, water at the deck foot. The smoke hut sits on a 10x10 deck at the centre, 1 m up. 6 reed huts stand on stilts on a 20 m ring round it (village facing 291 deg) with doors in. Plank walks run from each hut to the centre, plus 3 cross walks between hut pairs and 1 landing walk to the bank. The pool's radius is 40 m. Open water for wildlife lies between the walks, 8-18 m from the centre and 22-38 m out.
 - Shots: D:/PunchyMilestones/W-122/r2-hub.png, r2-above.png, r2-totem.png, r2-roofmoss.png, r2-smokehut.png.
+
+## W-122 row 3 - marsh folk hatchery raft: done (verified)
+- Commit fb83c0c7 on world-features (StructureKit.cs only). The surprise: the village's hatchery. A round reed nest raft is moored by a cord off the back of the smoke hut deck, where the fire keeps it warm. It holds 5-7 cream eggs with dark speckles, and one has cracked open with a green hatchling's head looking out over the broken shell. It has its own random stream, so the row 2 details keep their places. It sits in the open gap between the hub's walks (checked from above).
+- Landmarks_V3 112 A955AFE0, unchanged by this row. WorldTests in batch mode: Landmarks_V3 fails against the card pin 111 3BDF705F, because row 1 added the MarshFolkVillage entry (already reported).
+- Fauna_Fingerprint: measured AEA50DCE, not the pin 706B915E. It reads AEA50DCE with the hatchery switched off too (editor play mode), so row 3 doesn't move it. The change came in rows 1-2, most likely from the new marsh folk flora species in the fauna build's flora lookup blob. Supervisor: confirm that reason and re-pin, or ask me to find the cause. I left the test pins alone.
+- Not verified: the hatchling's eyes use the lamp material, but in a dusk shot (20:20) they don't glow visibly, so I don't count on that.
+- Shots: D:/PunchyMilestones/W-122/r3-hatchery.png, r3-hatchling.png, r3-above.png.
+- W-122 is complete (rows 1-3). Editor closed.
