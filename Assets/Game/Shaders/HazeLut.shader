@@ -39,7 +39,8 @@ Shader "Hidden/Punchy/HazeLut"
                 float transmit;
                 // Many more steps than the old per-pixel march (8): it's cheap at this size, and neighbouring
                 // rows then agree closely enough not to band.
-                PunchyWeatherVolumesAlong(_PunchyHazeOrigin, PunchyHazeLutDirection(uv.x), PunchyHazeLutDistance(uv.y), 32, scatter, transmit);
+                PunchyWeatherVolumesAlong(_PunchyHazeOrigin, PunchyHazeLutDirection(uv.x), PunchyHazeLutDistance(uv.y), 32,
+                                          PunchyHazeLutHeight, scatter, transmit);
                 return half4(scatter, 1 - transmit);
             }
             ENDHLSL

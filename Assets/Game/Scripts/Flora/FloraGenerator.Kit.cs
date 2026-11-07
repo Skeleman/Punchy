@@ -82,6 +82,12 @@ namespace Punchy.Flora
                 case Punchy.Terrain.KitShape.VentField: // W-120 (#37): Height is the field's spread
                     parts = Punchy.Terrain.StructureKit.VentField(seed, trim, width);
                     break;
+                case Punchy.Terrain.KitShape.ShellBuoy: // W-121 (#37): Height is the float's width; it rides the lake surface (Floats)
+                    parts = Punchy.Terrain.StructureKit.ShellBuoy(seed, trim, width);
+                    break;
+                case Punchy.Terrain.KitShape.SeaRaft:   // W-121 (#37): Height is the raft's length; it floats by the landing (Floats)
+                    parts = Punchy.Terrain.StructureKit.SeaRaft(seed, trim, width);
+                    break;
                 case Punchy.Terrain.KitShape.Wharf:     // W-65: walkways and houses over the water, laid out by the seed
                     storeys = 1;
                     parts = Punchy.Terrain.StructureKit.Wharf(seed, trim, 1.0f, wharfHouses);
