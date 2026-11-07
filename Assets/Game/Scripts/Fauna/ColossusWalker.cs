@@ -57,6 +57,10 @@ namespace Punchy.Fauna
             public uint Salt;
             /// <summary>A-85: it drifts above the ground (the puffball): no footfalls, thuds, dust or shake.</summary>
             public bool Floats;
+            /// <summary>A-86 (#40): the steepest ground (rise over run) it walks, 0 for the default MaxSlope; and the span (m)
+            /// that slope is read across, 0 for the default 4 m. A heavy walker reads it across its footprint, so it steps
+            /// over bumps a smaller one could not, and may climb steeper.</summary>
+            public float Climb, SlopeSpan;
         }
 
         static readonly Gait[] Gaits =
@@ -79,7 +83,9 @@ namespace Punchy.Fauna
             new Gait { Kind = StoneColossi.Kind.Puffball, Radius = 70f, Speed = 0.5f, Walk = 110f, Rest = 50f, Stride = 10f, Bob = 0f, Shake = 0f, Body = 26f, Height = 44f, Salt = 0xA7B5u, Floats = true },
             // A-85 row 3: the charred treant plods its burnt forest, short strides, groaning, dropping embers behind it (StoneColossi.SwayTreant).
             new Gait { Kind = StoneColossi.Kind.CharredTreant, Radius = 55f, Speed = 0.55f, Walk = 90f, Rest = 60f, Stride = 6f, Bob = 0.2f, Shake = 0.07f, Body = 16f, Height = 40f, Salt = 0xA7D3u },
-            new Gait { Kind = StoneColossi.Kind.IceMammoth, Radius = 60f, Speed = 0.6f, Walk = 100f, Rest = 60f, Stride = 7f, Bob = 0.3f, Shake = 0.1f, Body = 20f, Height = 34f, Salt = 0xA7E3u },
+            // A-86 row 2 (#40): the mammoth reads slope across its 20 m footprint and climbs to 0.5, so the glacier's bumps no longer pin it.
+            new Gait { Kind = StoneColossi.Kind.IceMammoth, Radius = 60f, Speed = 0.6f, Walk = 100f, Rest = 60f, Stride = 7f, Bob = 0.3f, Shake = 0.1f, Body = 20f, Height = 34f, Salt = 0xA7E3u,
+                Climb = 0.5f, SlopeSpan = 20f },
         };
 
         const float Ramp = 5f, AwakeRange = 600f, FarPeriod = 0.5f, ShakeRange = 120f, ShakeTime = 0.35f, DustRange = 300f;
@@ -423,9 +429,8 @@ namespace Punchy.Fauna
                     return $"water at ({p.x:F0}, {p.y:F0})";
                 if (g.Biomes.Dominant() != biome)
                     return $"another biome at ({p.x:F0}, {p.y:F0})";
-                var h = g.Height;
-                var slope = math.max(math.abs(source.SampleHeight(p + new float2(4f, 0f)) - h), math.abs(source.SampleHeight(p + new float2(0f, 4f)) - h)) / 4f;
-                if (slope > MaxSlope)
+                var slope = Slope(source, p, g.Height, w.G.SlopeSpan > 0f ? w.G.SlopeSpan : 4f);
+                if (slope > (w.G.Climb > 0f ? w.G.Climb : MaxSlope))
                     return $"slope {slope:F2} at ({p.x:F0}, {p.y:F0})";
                 ref var towns = ref source.Settlements.Value.Settlements;
                 for (int s = 0; s < towns.Length; s++)
@@ -433,6 +438,12 @@ namespace Punchy.Fauna
                         return $"a settlement near ({p.x:F0}, {p.y:F0})";
             }
             return null;
+        }
+
+        /// <summary>The ground's rise over run at p (height h there), read span metres east and north (the steeper of the two).</summary>
+        static float Slope(in TerrainSource source, float2 p, float h, float span)
+        {
+            return math.max(math.abs(source.SampleHeight(p + new float2(span, 0f)) - h), math.abs(source.SampleHeight(p + new float2(0f, span)) - h)) / span;
         }
 
         /// <summary>The loop at step k of Table: a seeded wobble on a circle, so no two loops look drawn by compass.</summary>
