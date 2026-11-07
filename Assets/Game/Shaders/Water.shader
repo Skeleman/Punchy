@@ -322,37 +322,39 @@ Shader "Punchy/Water"
             // (rgb, a = how sure: 0 where the ray left the screen or found nothing, so the sky shows instead).
             half4 ScreenReflection(float3 origin, float3 dir)
             {
+                // Clip and screen positions are linear in the world position, so the ray's are worked out once at its
+                // origin and along its direction, and each step is a multiply-add instead of a matrix transform (W-117).
+                float4 screen0 = ComputeScreenPos(TransformWorldToHClip(origin));
+                float4 screenDir = ComputeScreenPos(mul(GetWorldToHClipMatrix(), float4(dir, 0)));
                 float stepLength = 0.3;
-                float3 previous = origin;
+                float travelled = 0, previous = 0;
                 [loop] for (int i = 0; i < 28; i++)
                 {
-                    float3 pos = previous + dir * stepLength;
-                    float4 clip = TransformWorldToHClip(pos);
-                    if (clip.w <= 0.01)
+                    travelled += stepLength;
+                    float4 screen = screen0 + screenDir * travelled;
+                    if (screen.w <= 0.01)
                         return 0;
-                    float4 screen = ComputeScreenPos(clip);
                     float2 uv = screen.xy / screen.w;
                     if (any(uv < 0) || any(uv > 1))
                         return 0;
-                    float gap = clip.w - LinearEyeDepth(SampleSceneDepth(uv), _ZBufferParams);
+                    float gap = screen.w - LinearEyeDepth(SampleSceneDepth(uv), _ZBufferParams);
                     if (gap > 0 && gap < stepLength * 1.5 + 0.4)
                     {
                         // Narrow it down between the last point in front and this one behind.
-                        float3 a = previous, b = pos;
+                        float a = previous, b = travelled;
                         [unroll] for (int k = 0; k < 5; k++)
                         {
-                            float3 m = (a + b) * 0.5;
-                            float4 mc = TransformWorldToHClip(m);
-                            float4 ms = ComputeScreenPos(mc);
-                            if (mc.w - LinearEyeDepth(SampleSceneDepth(ms.xy / ms.w), _ZBufferParams) > 0) b = m; else a = m;
+                            float m = (a + b) * 0.5;
+                            float4 ms = screen0 + screenDir * m;
+                            if (ms.w - LinearEyeDepth(SampleSceneDepth(ms.xy / ms.w), _ZBufferParams) > 0) b = m; else a = m;
                         }
-                        float4 hs = ComputeScreenPos(TransformWorldToHClip(b));
+                        float4 hs = screen0 + screenDir * b;
                         uv = hs.xy / hs.w;
                         float2 edge = min(uv, 1 - uv);
                         half fade = smoothstep(0, 0.06, min(edge.x, edge.y)) * (1 - smoothstep(20, 28, i));
                         return half4(SAMPLE_TEXTURE2D_X_LOD(_CameraOpaqueTexture, sampler_CameraOpaqueTexture, UnityStereoTransformScreenSpaceTex(uv), 0).rgb, fade);
                     }
-                    previous = pos;
+                    previous = travelled;
                     stepLength *= 1.22;
                 }
                 return 0;
@@ -424,11 +426,13 @@ Shader "Punchy/Water"
                 float phaseA = frac(t / detailCycle), phaseB = frac(t / detailCycle + 0.5);
                 float2 driftStep = flowDir * flowAmount * riverSpeed * detailCycle;
                 // With the detail off (-waterdetail 0, for profiling), the reads are skipped and the flat values below
-                // leave no ripples, caustics or glitter.
+                // leave no ripples, caustics or glitter. Past 350 m (distanceFade 0) the ripples and glitter are faded
+                // out anyway, so the reads are skipped there too (W-117): only caustics in far shallows would use them,
+                // and at that distance the mipmapped height averages out below their threshold.
                 half4 fine0 = half4(0.5, 0.5, 0, 0);
                 half4 fine1 = fine0;
                 UNITY_BRANCH
-                if (_PunchyWaterDetail > 0.5)
+                if (_PunchyWaterDetail > 0.5 && distanceFade > 0)
                 {
                     fine0 = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, p * _DetailScale + float2(t * 0.031, t * 0.017) - driftStep * phaseA * _DetailScale * 0.6);
                     fine1 = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, p * _DetailScale * 1.7 + float2(-t * 0.022, t * 0.029) - driftStep * phaseB * _DetailScale * 1.1);
@@ -512,8 +516,16 @@ Shader "Punchy/Water"
                 // Cave water is under rock even near a mouth, where the camera isn't counted as underground yet.
                 half underRock = max(_PunchyUnderground, _UnderRock);
                 half3 reflection = PunchySkyColor(r, false, true) * lerp(1, 0.04, underRock);
-                // ...and the scene where the reflected ray finds it (the far bank, trees, rocks, creatures).
-                if (frontFace && _ScreenReflection > 0 && lava < 0.99)
+                fresnel *= 1 - 0.5 * murk * (1 - viscous);
+                fresnel *= 1 - 0.6 * caveRun;
+                // (A fall's face, seen side on, would mirror the whole bright sky through its flat-water normal.)
+                fresnel *= 1 - 0.85 * steep;
+                // ...and the scene where the reflected ray finds it (the far bank, trees, rocks, creatures). The march is
+                // the water's dearest step; where the final Fresnel leaves the reflection under SsrMinWeight of the
+                // colour (looking steeply down, murky water, fall faces), what it would find barely shows, so it's
+                // skipped (W-117).
+                const half SsrMinWeight = 0.025;
+                if (frontFace && _ScreenReflection > 0 && lava < 0.99 && fresnel * _ScreenReflection > SsrMinWeight)
                 {
                     half4 scene = ScreenReflection(input.positionWS + float3(0, 0.02, 0), r);
                     reflection = lerp(reflection, scene.rgb, scene.a * _ScreenReflection);
@@ -522,11 +534,6 @@ Shader "Punchy/Water"
                 // Thick water has a broad, soft sheen rather than a sharp glint.
                 half glint = pow(saturate(dot(n, h)), exp2(lerp(10 * _Smoothness + 1, 6, viscous))) * shadow * (1 - 0.6 * viscous)
                              * (1 - underRock);
-
-                fresnel *= 1 - 0.5 * murk * (1 - viscous);
-                fresnel *= 1 - 0.6 * caveRun;
-                // (A fall's face, seen side on, would mirror the whole bright sky through its flat-water normal.)
-                fresnel *= 1 - 0.85 * steep;
                 glint *= 1 - steep;
                 half3 color = lerp(body, reflection, fresnel) + light.color * glint * 4 * (1 - 0.6 * murk * (1 - viscous));
                 color += _PunchyLanternColor.rgb * lanternGlint * 0.8;
