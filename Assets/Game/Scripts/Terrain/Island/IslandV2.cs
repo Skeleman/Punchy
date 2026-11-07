@@ -492,7 +492,7 @@ namespace Punchy.Terrain
         {
             var types = new List<LandmarkType>(palette.Landmarks);
             LandmarkBaking.AddLooks(types);
-            foreach (var extra in new[] { FishingVillageBaking.LoadType(), TurtleVillageBaking.LoadType(), SeaFolkBaking.LoadVillage(), SeaFolkBaking.LoadLanding(), RibcageBaking.LoadType() })
+            foreach (var extra in new[] { FishingVillageBaking.LoadType(), TurtleVillageBaking.LoadType(), SeaFolkBaking.LoadVillage(), SeaFolkBaking.LoadLanding(), RibcageBaking.LoadType(), MarshFolkBaking.LoadType() })
                 if (extra != null && !types.Contains(extra))
                 {
                     types.Add(extra);

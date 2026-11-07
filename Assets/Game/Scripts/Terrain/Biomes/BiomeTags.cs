@@ -37,6 +37,8 @@ namespace Punchy.Terrain
         public const string Meadow = "meadow";
         /// <summary>W-114: where the Ashlands ribcage lies (the largest patch of the first biome with the tag).</summary>
         public const string Ribcage = "ribcage";
+        /// <summary>W-122: where the marsh folk build their stilt villages (the largest patch of the first biome with the tag).</summary>
+        public const string MarshFolk = "marshfolk";
 
         /// <summary>Palette index of the first biome with the tag, or -1.</summary>
         public static int First(IReadOnlyList<BiomeDefinition> palette, string tag)

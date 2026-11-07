@@ -88,7 +88,15 @@ namespace Punchy.Terrain
         /// <summary>W-121 (#37): a floating shell buoy on a sea folk village's lake surface, a glowing pearl on a short pole, its cord running down.</summary>
         ShellBuoy,
         /// <summary>W-121 (#37): a sea folk's log raft moored by a landing, with a shell-scale sail, baskets and a mooring line.</summary>
-        SeaRaft
+        SeaRaft,
+        /// <summary>W-122: a marsh folk reed hut on stilts over a pool, its plank walk running +Z to the smoke hut's deck.</summary>
+        MarshHut,
+        /// <summary>W-122: the marsh folk's central smoke hut on a wide plank deck over the pool, smoke rising from its roof.</summary>
+        SmokeHut,
+        /// <summary>W-122: a plank walk across from hut to hut (along X), or out to the bank (along -Z), of boardwalk pieces.</summary>
+        MarshCross,
+        /// <summary>W-122: the marsh folk's walk from the huts out to the bank (along -Z), ending in a step down.</summary>
+        MarshWalk
     }
 
     /// <summary>The small things a sea folk settlement leaves on the lake bed (#37), picked by weight from SeaDetails.</summary>
@@ -245,6 +253,16 @@ namespace Punchy.Terrain
                         Roof = KitRoof.Flat, Storey = 3.2f, Bay = 2.4f, Pitch = 0f, Quoins = false, Crenels = false, Shutters = false,
                         TowerChance = 0f, BalconyChance = 0f, StairChance = 0f
                     };
+                case FolkCulture.MarshFolk:
+                    // W-122: the marsh folk's trim: reed-ochre walls, dark bog-oak wood, pale straw thatch on steep roofs,
+                    // green-brown moss; low storeys, no towers, balconies or stairs (walks and stilts come from the shapes).
+                    return new CultureTrim
+                    {
+                        Wall = new Color(0.44f, 0.37f, 0.24f), Trim = new Color(0.30f, 0.24f, 0.14f), RoofColour = new Color(0.66f, 0.55f, 0.30f),
+                        Wood = new Color(0.27f, 0.21f, 0.14f), Opening = new Color(0.06f, 0.06f, 0.04f), Moss = new Color(0.30f, 0.38f, 0.16f),
+                        Roof = KitRoof.Steep, Storey = 2.4f, Bay = 2.0f, Pitch = 52f, Quoins = false, Crenels = false, Shutters = false,
+                        TowerChance = 0f, BalconyChance = 0f, StairChance = 0f
+                    };
                 default:
                     return new CultureTrim
                     {
@@ -267,6 +285,7 @@ namespace Punchy.Terrain
             switch (culture)
             {
                 case FolkCulture.FishFolk:
+                case FolkCulture.MarshFolk:
                 case FolkCulture.Goblin:
                 case FolkCulture.Ogre:
                 case FolkCulture.SnowFolk:
@@ -2368,6 +2387,139 @@ namespace Punchy.Terrain
                 var size = 0.2f + 0.35f * (float)rng.NextDouble();
                 var p = at + new Vector3(((float)rng.NextDouble() - 0.5f) * spread * 2f, size * 0.35f, ((float)rng.NextDouble() - 0.5f) * spread * 2f);
                 Add(parts, KitPiece.Rubble, KitMaterial.Stone, p, new Vector3(size * 1.3f, size * 0.8f, size), (float)rng.NextDouble() * 360f, false, ((float)rng.NextDouble() - 0.5f) * 30f);
+            }
+        }
+
+        // --------------------------------------------------------------------------------------- marsh folk (W-122)
+
+        /// <summary>W-122: a marsh folk hut's deck height over the pool (m); the walks sit a little under it.</summary>
+        public const float MarshDeck = 1.0f;
+        /// <summary>W-122: how far the huts stand from the village's middle (ring 0.5 of a 40 m village).</summary>
+        public const float MarshRing = 20f;
+        /// <summary>W-122: half the side of the smoke hut's square deck (m).</summary>
+        public const float MarshHub = 5f;
+        /// <summary>W-122: how far past the water line a marsh folk post runs down into the mud (m).</summary>
+        public const float MarshPile = 3f;
+
+        /// <summary>
+        /// W-122: a marsh folk reed hut, one low storey of House under a steep thatch, on a plank deck
+        /// <see cref="MarshDeck"/> over the water (the origin is the water line), its posts run on down as piles. From the
+        /// door (+Z) a walk of boardwalk pieces (the fishing villages' W-119 piece) runs on to the smoke hut's deck, which
+        /// starts <paramref name="reach"/> - <see cref="MarshHub"/> m in front of the hut's middle.
+        /// </summary>
+        public static List<KitPart> MarshHut(uint seed, CultureTrim t, float width, float depth, float reach)
+        {
+            var parts = House(seed, t, width, depth, 1, 0f);
+            // Reed huts keep their fire in the smoke hut: no stone chimney.
+            parts.RemoveAll(p => p.Piece == KitPiece.Chimney);
+            for (int i = 0; i < parts.Count; i++)
+            {
+                var p = parts[i];
+                p.Centre.y += MarshDeck;
+                parts[i] = p;
+            }
+            Platform(parts, Vector3.zero, 0f, width + 1.6f, depth + 1.6f, MarshDeck, false);
+            var doorX = DoorX(t, width);
+            var start = depth * 0.5f + 0.8f - 0.3f;
+            MarshPlanks(parts, seed ^ 0x3A2Fu, t, new Vector3(doorX, 0f, start), 0f, reach - MarshHub + 0.5f - start, 0.9f);
+            Piles(parts);
+            return parts;
+        }
+
+        /// <summary>
+        /// W-122: the marsh folk's smoke hut: a squat House under a tall steep thatch on a square plank deck
+        /// 2 x <see cref="MarshHub"/> across, its door +Z, a clay smoke stack through the ridge (FloraGenerator puts the
+        /// chimney's smoke on it).
+        /// </summary>
+        public static List<KitPart> SmokeHut(uint seed, CultureTrim t, float width)
+        {
+            t.Pitch = 58f;
+            var parts = House(seed, t, width, width, 1, 0f);
+            var ridge = 0f;
+            for (int i = 0; i < parts.Count; i++)
+            {
+                var p = parts[i];
+                p.Centre.y += MarshDeck;
+                parts[i] = p;
+                if (p.Piece == KitPiece.Trim)
+                    ridge = Mathf.Max(ridge, p.Centre.y);
+            }
+            // The steep roof's own chimney runs far past this tall ridge: move it to the ridge's middle (over the village's
+            // centre, where its landmark plume rises) and cut it to stand 1 m clear of the ridge, with a cap.
+            for (int i = 0; i < parts.Count; i++)
+            {
+                var p = parts[i];
+                if (p.Piece != KitPiece.Chimney)
+                    continue;
+                var bottom = p.Centre.y - p.Size.y * 0.5f;
+                var stackTop = ridge + 1f;
+                p.Size.y = stackTop - bottom;
+                p.Centre = new Vector3(0f, (bottom + stackTop) * 0.5f, 0f);
+                parts[i] = p;
+                Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(p.Centre.x, stackTop + 0.06f, p.Centre.z), new Vector3(0.9f, 0.12f, 0.9f), 0f, false);
+                break;
+            }
+            Platform(parts, Vector3.zero, 0f, MarshHub * 2f, MarshHub * 2f, MarshDeck, false);
+            Piles(parts);
+            return parts;
+        }
+
+        /// <summary>
+        /// W-122: a plank walk of <paramref name="length"/> m centred on the origin, along X when <paramref name="across"/>
+        /// (hut to hut, the prop facing the middle), else along -Z from z = 2.8 out to the bank, where it ends in a step
+        /// down onto the mud.
+        /// </summary>
+        public static List<KitPart> MarshCross(uint seed, CultureTrim t, float length, bool across)
+        {
+            var parts = new List<KitPart>();
+            if (across)
+                MarshPlanks(parts, seed, t, new Vector3(-length * 0.5f, 0f, 0f), 90f, length, 0.86f);
+            else
+            {
+                MarshPlanks(parts, seed, t, new Vector3(0f, 0f, 2.8f), 180f, length, 0.82f);
+                Stair(parts, new Vector3(0f, 0f, 2.8f - length - 0.65f - Mathf.CeilToInt(0.82f / 0.28f) * 0.15f), 0f, 0.82f, 1.4f);
+            }
+            Piles(parts);
+            return parts;
+        }
+
+        /// <summary>
+        /// W-122: boardwalk pieces (the fishing villages' W-119 piece, <see cref="Boardwalk"/>) end to end from
+        /// <paramref name="from"/> along <paramref name="yaw"/> for <paramref name="length"/> m, every other piece 2 cm
+        /// higher so their overlaps never fight.
+        /// </summary>
+        static void MarshPlanks(List<KitPart> parts, uint seed, CultureTrim t, Vector3 from, float yaw, float length, float deck)
+        {
+            const float piece = 3.8f;
+            var n = Mathf.Max(1, Mathf.CeilToInt((length - 0.4f) / (piece - 0.4f)));
+            var step = n > 1 ? (length - piece) / (n - 1) : 0f;
+            var size = n > 1 ? piece : length;
+            for (int k = 0; k < n; k++)
+            {
+                var along = size * 0.5f + k * step;
+                var turn = Quaternion.Euler(0f, yaw, 0f);
+                foreach (var p0 in Boardwalk(seed ^ (uint)k * 0x9E3779B9u, t, size, deck + (k & 1) * 0.02f))
+                {
+                    var p = p0;
+                    p.Centre = from + turn * (p.Centre + new Vector3(0f, 0f, along));
+                    p.Rotation = turn * p.Rotation;
+                    parts.Add(p);
+                }
+            }
+        }
+
+        /// <summary>W-122: posts standing on the water line run on down <see cref="MarshPile"/> m into the mud.</summary>
+        static void Piles(List<KitPart> parts)
+        {
+            for (int i = 0; i < parts.Count; i++)
+            {
+                var p = parts[i];
+                if (p.Piece == KitPiece.Column && p.Centre.y - p.Size.y * 0.5f < 0.1f && p.Centre.y - p.Size.y * 0.5f > -0.1f)
+                {
+                    p.Centre.y -= MarshPile * 0.5f;
+                    p.Size.y += MarshPile;
+                }
+                parts[i] = p;
             }
         }
 
