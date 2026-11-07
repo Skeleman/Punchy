@@ -3206,3 +3206,22 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
   - Tundra: `w118-dwarfhold-close.png` (row 2).
 - Landmarks_V3 111 3BDF705F (unchanged). The fauna fingerprint gets checked at card end.
 - Risk: SettlementSpecies indices grow and shift for layouts after the first one. Any saved index from an earlier build is off, but these are seed-derived and rebuilt at bake.
+
+## W-118 row 4 (#70 caveat): drift mound edge on slopes. Done (verified)
+
+- Commit d110f32d (world-features): MagneticDrift MaxSlope goes from 60 to 16. It fades out from 12 deg.
+- Why: a drift mound is a flat lens about 8 m across. On a 27-41 deg slope its downhill rim hung 3.5-6.4 m over the ground and read as a wall. Collision was already fine: a walk up from downhill stepped up the tiers.
+  - Tilting the mound like rocks was ruled out because it would tilt the floating rock, and the colliders don't tilt.
+  - A mesh skirt was ruled out because the player would clip through it.
+- Measured over the 355 drifts loaded round the wastelands:
+  - Before: 29 sat on slopes over 15 deg, and 12 had more than 2.5 m of drop under the rim.
+  - After: 320 drifts, none over 15 deg, and 1 left with 2.5 m of drop (13 deg).
+- Shots in `D:\PunchyMilestones\W-118\`:
+  - `w118-drift-downhill.png` (before): a dark mound slab with a vertical front over the slope.
+  - `w118-drift-downhill-after.png`: the same view. The slope in front is clear, and mounds remain only on the flat crest behind.
+  - `w118-drift-steep-after.png`: the 41 deg slope at (1581,-3285), with no mound, only spires.
+- Card-end suite: 13 of 14 pass. Landmarks_V3 111 3BDF705F is unchanged.
+- **Fauna_Fingerprint 027CC3FD (pin 8A1979F1): changed, with a reason.** The fingerprint hashes the flora placement blob, which holds every species rule and the settlement species, so flora data changes move it:
+  - Row 3 (the 7 layouts get hazard house entries) gives 3EA2B0C0. Measured with the row 4 change reverted.
+  - Row 4 (MaxSlope) then gives 027CC3FD.
+  - No fauna code changed. Suggest re-pinning 027CC3FD after merge.
