@@ -91,3 +91,4 @@ Zach found hundreds of leftover bash/grep processes (rule 18 in COORDINATION.md)
 3. `Tools/bench/lib.sh` `strays()`: kills every batch-mode Unity.exe and every bench Punchy.exe, so one lane's bench can kill another lane's batch build or test. Limit it to processes whose command line holds this tree's project path or its Builds folder.
 4. `lib.sh` mp client loop (`( ... ) &` then `wait`): make sure the background client loop also ends when the host run times out, for example by wrapping it in `timeout 1000`.
 Commit on b/fix-proc-cleanup and post the SHA here; the supervisor reviews and merges.
+**Pushed 2026-11-07: b/fix-proc-cleanup 9ef5867e, for review. Report in REPORTS-profiler.md.**

@@ -2,6 +2,26 @@
 
 Newest first.
 
+## 2026-11-07 job 23: shared scripts end on their own and touch only their own processes (b/fix-proc-cleanup 9ef5867e, for review)
+
+- DONE: `run-playmode-tests.sh` runs Unity under `timeout 3600` and reports a timeout.
+- DONE: `smoke.sh` runs the game under `timeout 400` and closes it by its own PID, found from its log path. It no longer uses `Stop-Process -Name Punchy`.
+- DONE: `strays()` moved to `Tools/bench/strays.ps1` with a `-Tree` argument. It kills batch Unity and bench games of this tree, and bee_backend whose parent is gone or being killed.
+- DONE: `mpsmoke` stops the client loop as soon as the host run ends. This differs from the card's `timeout 1000` wrapper because that would still leave `wait` hanging for up to 1000 s.
+- Checks, using decoy processes in fake trees (old vs new):
+  - `strays`, other tree's bench game and batch editor: old killed both, new keeps both.
+  - `strays`, this tree's bench game and batch editor: new kills both.
+  - `strays`, user's game and interactive editor: both versions keep them.
+  - `strays`, bee_backend: new kills a true orphan and the child of a killed editor, and keeps the child of the other tree's editor. Old kept every bee_backend while the decoy interactive editor was alive, so this is not a like-for-like comparison.
+  - `mpsmoke` with the host ending before its world is up: old still waiting at 25 s (loop allows 900 s), new returned after 8 s (stubbed 2 s host runs, 2 rounds).
+  - `run-playmode-tests.sh` with a fake editor and the limit lowered to 3 s: stopped, printed "Timed out", exit 1.
+  - `smoke.sh` on a real Bench build (2049f8c), 3 caps, keyboard and mouse driving stubbed out, decoy Punchy.exe running: 0 exceptions, 0 games left, decoy survived.
+- NOT tested: a real hung Unity editor, a real two-game `mpsmoke`, or `smoke.sh` with live input. bee_backend with a process between it and Unity would not be caught until that process exits.
+- Found, not fixed: `Tools/bench/drive.ps1` picks its target with `Get-Process Punchy | Select-Object -First 1` and sends real keystrokes and focus changes. With another Punchy.exe running it can drive the wrong game. Fix suggestion: pass a PID.
+- Numbers: this is script hygiene, so there are no frame-time numbers (the perf-fix before/after rule doesn't apply).
+- Learned: Git Bash `( exe & )` keeps a stub bash as the exe's parent, so it does not make an orphan in tests. Use `Start-Process`.
+- NEXT: refactor Phase 1.2 stress scenes.
+
 ## 2026-11-06 q50e: after Zach's reboot (13:29) the capped 0.5 s present waits are gone
 
 - Bench build of 2049f8c, run stop, back to back (q50e.sh): **capped at 60, 3 of 3 sessions clean** (avg 59.0-59.2 fps, worst 29.7-34.3 ms, no hitch over 100 ms); uncapped 2 of 2 clean (avg 119-120 fps, worst 22-32 ms). Before the reboot the same build stalled 494-533 ms in 6 of 6 capped sessions.
