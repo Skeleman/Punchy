@@ -750,7 +750,11 @@ namespace Punchy.Fauna
             {
                 var t = Mathf.InverseLerp(from, full, normals[i].y);
                 if (t > 0f)
+                {
+                    var glow = colors[i].a;   // (A-89: keep the glow mark; cover is opaque)
                     colors[i] = Color.Lerp(colors[i], cover * (0.94f + 0.06f * (i % 3)), Mathf.Min(1f, t * 1.6f));
+                    colors[i].a = Mathf.Lerp(glow, 1f, Mathf.Min(1f, t * 1.6f));
+                }
             }
             mesh.SetColors(colors);
         }
@@ -760,7 +764,26 @@ namespace Punchy.Fauna
             var go = new GameObject(name);
             go.transform.SetParent(parent, false);
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
-            go.AddComponent<MeshRenderer>().sharedMaterial = Resources.Load<Material>("Colossus");
+            go.AddComponent<MeshRenderer>().sharedMaterial = GlowMaterial;
+        }
+
+        static Material glowMaterial;
+
+        /// <summary>A-89: the Colossus material with vertex glow on (alpha below 1 lights up, see MeshBuilder.Glowing).
+        /// A copy, so the ruins and driftwood that share Colossus keep their alpha for other things.</summary>
+        internal static Material GlowMaterial
+        {
+            get
+            {
+                if (glowMaterial != null)
+                    return glowMaterial;
+                var colossus = Resources.Load<Material>("Colossus");
+                if (colossus == null)
+                    return null;
+                glowMaterial = new Material(colossus) { name = "ColossusGlow" };
+                glowMaterial.SetFloat("_VertexGlow", 1f);
+                return glowMaterial;
+            }
         }
     }
 }

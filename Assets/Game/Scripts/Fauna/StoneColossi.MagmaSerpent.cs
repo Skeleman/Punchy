@@ -13,7 +13,7 @@ namespace Punchy.Fauna
 
         static readonly Color MagmaCrust = new Color(0.20f, 0.17f, 0.16f);
         static readonly Color MagmaBelly = new Color(0.34f, 0.18f, 0.12f);
-        static readonly Color Magma = new Color(1.00f, 0.55f, 0.12f);
+        static readonly Color Magma = DunesColossus.MeshBuilder.Glowing(new Color(1.00f, 0.30f, 0.05f));   // (A-89: lit at night; warmer, it read yellow-green)
         static readonly Color Obsidian = new Color(0.06f, 0.06f, 0.09f);
         static readonly Color Sulphur = new Color(0.82f, 0.74f, 0.26f);
         static readonly Color ShedSkin = new Color(0.55f, 0.52f, 0.50f);
