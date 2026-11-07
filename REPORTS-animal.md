@@ -3017,3 +3017,18 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - Glowing: Magma (warmed to 1/.30/.05, it read yellow-green), Ember (ash smith, cinder snail, lizard, treant), treant Coal 0.6, puffball SporeGlow 0.8 (slick 0.1). Strength 2.5/1.8 clipped to yellow under tonemapping; 1.2 keeps orange.
 - Shots (night 22.5h, before/after): D:\PunchyMilestones\A-89\r1-serpent-before/after.png, r1-treant-before/after.png, r1-puff-before/after.png, r1-serpent-day.png. Puffball/treant walk, so before/after angles differ a bit.
 - Risk: shader edit touches a shared shader; ruins draw it with _VertexGlow 0 (no change). Fingerprint not affected (render only).
+
+## A-89 row 2: split the slow colossus builds - done (verified) - 067b9ea0
+- Like the lizard (A-85), each builder leaves its second half in BuildRest (run on its own frame, before the solid frame):
+  CarnivorousPlant (body / then stem, jaw, arms, sprouts, bones, spores), SaltCrystal (body shape / then crust, mesh,
+  crumbs, roll; dent rim cosines worked out once, not per vertex), MagmaSerpent (crater, loop, head shapes / then meshes,
+  pivots, glows, puffs). Draws keep their order.
+- Same meshes: vertex count and a position sum per colossus match HEAD exactly (Salt 27798 verts, Plant 164304, Magma
+  116724); placement log lines identical.
+- ms per frame in editor play, -island v3 (worst frame of the slot; cold run / warm run):
+  - CarnivorousPlant: before 101.1 / 33.0 (build) -> after 34.5+12.9 / 23.9+8.4. Its solid frame stays ~33 ms.
+  - SaltCrystal: before 39.3 / 34.1 (38.9 a third time) -> after 28.7+5.1 / 27.6+2.5.
+  - MagmaSerpent: before 89.1 / 42.0 (48.5) -> after 45.1+7.4 / 35.4+6.0. Solid frame ~26 ms.
+- The card's 188 ms SaltCrystal did not show up here (39 ms cold); it was likely a one-off cold JIT. The remaining first
+  halves are the shape work itself (salt: 72x50 rock against ~130 dents; magma: ground sampling), not mesh upload.
+- Not changed: WalkingOak (75.8 cold / 42.6 warm) and WalkingSaguaro (48.6 / 38.5) are now the slowest single builds.
