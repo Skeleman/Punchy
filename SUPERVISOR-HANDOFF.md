@@ -9,7 +9,7 @@ supervise. Read COORDINATION.md first (rules 1-18; rule 18 = every process ends 
 ## Lanes right now
 - World: W-117 merged (PR #182). Agent now on W-118 (salt ball, snow shelters, kit hazard houses #69, drift
   mound edge #70).
-- Animal: A-86 merged (PR #185: mammoth walks, sky whale). W-118 merged (PR #184, Fauna 027CC3FD). W-119 merged (PR #186, Fauna 2998FA9A).
+- Animal: A-86 merged (PR #185: mammoth walks, sky whale). W-118 merged (PR #184, Fauna 027CC3FD). W-119 merged (PR #186, Fauna 2998FA9A); A-87 merged (PR #187). World on W-120, animal on A-88.
   Agent now on A-86 (suite on main + landmark hash 5A85AACA vs 3BDF705F, mammoth slope limit, sky whale).
 - Main hotfix PR #181: Underwater.cs ?? on Unity fake null broke the suite (13/14); fixed and noted on P-20.
 - Player: you (P-20).
