@@ -86,6 +86,10 @@ namespace Punchy.Fauna
             // A-86 row 2 (#40): the mammoth reads slope across its 20 m footprint and climbs to 0.5, so the glacier's bumps no longer pin it.
             new Gait { Kind = StoneColossi.Kind.IceMammoth, Radius = 60f, Speed = 0.6f, Walk = 100f, Rest = 60f, Stride = 7f, Bob = 0.3f, Shake = 0.1f, Body = 20f, Height = 34f, Salt = 0xA7E3u,
                 Climb = 0.5f, SlopeSpan = 20f },
+            // A-86 row 3 (#40): the sky whale swims a wide loop high over the peaks (it holds its own height, StoneColossi.SwaySkyWhale).
+            // It floats, so the ground's slope never pins it: Climb 99 lets any slope through; water and other biomes still do.
+            new Gait { Kind = StoneColossi.Kind.SkyWhale, Radius = 90f, Speed = 1.4f, Walk = 150f, Rest = 40f, Stride = 12f, Bob = 0f, Shake = 0f, Body = 28f, Height = 120f, Salt = 0xA7A9u,
+                Floats = true, Climb = 99f },
         };
 
         const float Ramp = 5f, AwakeRange = 600f, FarPeriod = 0.5f, ShakeRange = 120f, ShakeTime = 0.35f, DustRange = 300f;
