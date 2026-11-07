@@ -3267,3 +3267,10 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
   - 1 cell shows it at +10 m: 263,3343. Its bed (36.78) is above its water level (36.19), so no water stands there. Not a real case.
   - WorldProbe.Floating: 11 cells, 9 of them cascades. The 2 left (-2046,139 and -626,801) have drops of 0.0 and 0.2 m and are not backwater.
 - **Change:** none. W-36's FillRiverPits, the v3 water-first respin and W-52's ExtendStillWater together already cover it. lanes/world/STATE.md line 39 can drop "lake backwater" (I left STATE alone; it is the supervisor's file).
+
+## W-119 card end
+- **PlayMode suite** (editor closed): 13 passed, 1 failed. The failure is Fauna_Fingerprint.
+- **Fingerprint:** 027CC3FD -> 2998FA9A. That is expected: the flora blob now holds the FishBoardwalk species (row 2) and new variant counts for FishShore 8 -> 24 and FishBoardwalk 16 -> 64 (row 3), and the stilt house placements changed (row 1). It needs a re-pin at merge.
+- **Landmarks_V3:** 111 3BDF705F, unchanged.
+- **Shots:** in D:\PunchyMilestones\W-119 (8 files).
+- **Cleanup:** my editor and editor task are closed, and no world-tree Unity processes remain.
