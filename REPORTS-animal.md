@@ -2914,3 +2914,12 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
   - mammoth-day.png: wide shot. It stands on a snowy slope with drifts and loose chunks round it, mountains behind.
   - mammoth-close.png: from the front quarter. Brown fur between snow-capped ice plates, long curled tusks hung with icicles.
   - mammoth-chunks.png: low at its feet. Several shed ice chunks lie in the snow by its legs.
+
+## A-86 row 1: merge main, suite, the landmark hash question, done (verified)
+- **Merge:** origin/main 213d5ea8 (PR #183, with #181 Underwater fix, A-85, W-117) fast-forwarded animal-behaviours; pushed. No conflicts, no code change.
+- **Suite (batch mode):** `scripts/run-playmode-tests.sh` gives 14 passed, 0 failed in 280 s (Unity exit 0). Landmarks_V3 **111 3BDF705F**, Fauna_Fingerprint **8A1979F1**; both pins unchanged.
+- **5A85AACA vs 3BDF705F:** both are right, and both come from the same bake. The suite's own log shows "[island] ... 111 landmarks, hash 5A85AACA" (line 1798) and the test reading 111 3BDF705F in that same run.
+  - The two hash different strings. IslandV2.LandmarkHash (the game's [island] line) names each instance by its own type, biome looks included (e.g. a look asset name). TestHooks.LandmarkHash (the pin) folds every biome look back to its base type (all but GreatMushroom) before hashing.
+  - So any world with biome looks gives two different numbers. The pin is not changed.
+  - Small trap for the world lane: Landmarks_V3's measure line means to print the game's hash, but LogWatch.Last("[island]") picks the last [island] line ("reports 21420 ms ..."), so the game hash never shows there. Searching for "landmarks, hash" would fix that. It's a test file, so I left it alone.
+- **Next:** row 2, a slope limit per gait so the ice mammoth walks.
