@@ -904,6 +904,10 @@ namespace Punchy.Flora
         const float BoardwalkMinLink = 2.5f, BoardwalkMaxLink = 40f;
         /// <summary>W-119: how far a boardwalk point may slide along the village's facing to keep to its contour (m).</summary>
         const float BoardwalkSlide = 4f;
+        /// <summary>W-120 row 1: the steepest a boardwalk piece ramps (rise over run, about 17 degrees).</summary>
+        const float BoardwalkMaxPitch = 0.3f;
+        /// <summary>W-120 row 1: the most a boardwalk point lifts over its ground to ease a ramp (its posts reach 2.5 m down).</summary>
+        const float BoardwalkMaxLift = 2f;
 
         /// <summary>W-119: the prop entry of a landmark type's boardwalk (its index into Props), or -1 if it has none.</summary>
         static int BoardwalkProp(ref FloraBlob f, int type, out int layer)
@@ -994,17 +998,18 @@ namespace Punchy.Flora
         /// W-119 (#36): a fishing village's shore boardwalk. Its path runs node to node along the shore (BoardwalkNodes),
         /// every link in pieces about StructureKit.BoardwalkStep long; each inner point slides up to BoardwalkSlide m along
         /// the facing, a metre at most from its neighbour, to keep to the contour between its ends' ground, so the walk
-        /// bends with the bank instead of climbing over it or wading out. Each piece sits on the highest ground under its
-        /// ends and middle (never under the sea), turned along its run, its variant the shortest length that overlaps its
-        /// neighbours, the parity alternating so overlapping planks never fight.
+        /// bends with the bank instead of climbing over it or wading out. Each piece ramps from its one end's height to the
+        /// other's (their ground, never under the sea, lifted to ease a steep bank; pitched in <paramref name="tilt"/>, W-120), turned along its run, its variant the
+        /// shortest length that overlaps its neighbours, the parity alternating so overlapping planks never fight.
         /// Returns how far <paramref name="xz"/> is from the path's middle line (float.MaxValue with no path), and in
         /// <paramref name="piece"/> the piece whose middle falls in <paramref name="cell"/> (xyz, yaw in w; variant -1 if none).
         /// </summary>
         static float BoardwalkAt(ref FloraBlob f, in TerrainSource source, in LandmarkHit landmark, float2 xz, int2 cell, float cellSize,
-                                 out float4 piece, out int variant)
+                                 out float4 piece, out int variant, out float2 tilt)
         {
             piece = float4.zero;
             variant = -1;
+            tilt = float2.zero;
             var nodes = new FixedList512Bytes<float2>();
             if (BoardwalkNodes(ref f, source, landmark, ref nodes) < 2)
                 return float.MaxValue;
@@ -1027,8 +1032,12 @@ namespace Punchy.Flora
                     parity += steps;
                     continue;
                 }
+                // The path's points first (a, the slid inner points, b), each with the ground under it (never under the sea).
                 float ha = source.SampleHeight(a), hb = source.SampleHeight(b);
-                var prev = a;
+                var points = new FixedList512Bytes<float2>();
+                var heights = new FixedList128Bytes<float>();
+                points.Add(a);
+                heights.Add(math.max(ha, sea + 0.1f));
                 var slid = 0f;
                 for (int i = 1; i <= steps; i++)
                 {
@@ -1056,6 +1065,25 @@ namespace Punchy.Flora
                         slid = bestSlide;
                         next += dir * slid;
                     }
+                    points.Add(next);
+                    heights.Add(math.max(source.SampleHeight(next), sea + 0.1f));
+                }
+                // W-120 row 1: a ramp, not a stair. Up a steep bank the inner points lift (never sink), both ways along
+                // the link, until no piece pitches more than BoardwalkMaxPitch, so the walk starts climbing early on taller
+                // posts; a lift stops BoardwalkMaxLift over the ground, where its posts would leave the ground, and only
+                // there does a small lip stay. The ends, shared with the next link, keep their ground.
+                for (int pass = 0; pass < 2; pass++)
+                    for (int k = 1; k < steps; k++)
+                    {
+                        var i = pass == 0 ? k : steps - k;
+                        var j = pass == 0 ? i - 1 : i + 1;
+                        var need = heights[j] - BoardwalkMaxPitch * math.distance(points[i], points[j]);
+                        if (need > heights[i])
+                            heights[i] = math.min(need, math.max(heights[i], math.max(source.SampleHeight(points[i]), sea) + BoardwalkMaxLift));
+                    }
+                for (int i = 1; i <= steps; i++)
+                {
+                    float2 prev = points[i - 1], next = points[i];
                     var run = next - prev;
                     var length = math.length(run);
                     var mid = (prev + next) * 0.5f;
@@ -1063,8 +1091,14 @@ namespace Punchy.Flora
                     best = math.min(best, math.distance(xz, prev + run * t1));
                     if (length > 0.5f && math.all((int2)math.floor(mid / cellSize) == cell))
                     {
-                        var y = math.max(math.max(source.SampleHeight(prev), source.SampleHeight(next)), math.max(source.SampleHeight(mid), sea + 0.1f));
-                        var size = math.clamp((int)math.ceil((length + 0.3f - 3.2f) / 0.2f - 0.001f), 0, 7);
+                        // Each end at its point's height, which the neighbour sharing it sees too, so the walk runs on
+                        // unbroken; the middle lifts clear of a hump between them.
+                        float ya = heights[i - 1], yb = heights[i];
+                        var rise = math.clamp(yb - ya, -BoardwalkMaxPitch * length, BoardwalkMaxPitch * length);
+                        var y = math.max(math.max(ya + rise * 0.5f, yb - rise * 0.5f), math.max(source.SampleHeight(mid), sea + 0.1f));
+                        var slope = rise / length;
+                        tilt = -run / length * (slope * math.rsqrt(1f + slope * slope));
+                        var size = math.clamp((int)math.ceil((length * math.sqrt(1f + slope * slope) + 0.3f - 3.2f) / 0.2f - 0.001f), 0, 7);
                         piece = new float4(mid.x, y, mid.y, FacingYaw(run));
                         variant = size * 2 + (parity & 1);
                         // W-119 row 3: about half the pieces (by a scrambled hash of the piece's number along the walk)
@@ -1073,7 +1107,6 @@ namespace Punchy.Flora
                             variant += 16;
                     }
                     parity++;
-                    prev = next;
                 }
             }
             return best;
@@ -1724,7 +1757,7 @@ namespace Punchy.Flora
                                     return none;
                                 // W-119: nor on the village's boardwalk.
                                 if (placedRule.ShoreKit != 0 && boardwalkProp >= 0 && BoardwalkBand(source, landmark, spot) &&
-                                    BoardwalkAt(ref f, source, landmark, spot, cell, cellSize, out _, out _) < BoardwalkShoreClear * prop.Scale.y)
+                                    BoardwalkAt(ref f, source, landmark, spot, cell, cellSize, out _, out _, out _) < BoardwalkShoreClear * prop.Scale.y)
                                     return none;
                                 // W-63 (#36): nor a house. A stilt house at -3294.1,-1653.6 stood across a dock's deck and
                                 // the walker met a 0.9-1.6 m wall there (no draws moved: the cell just stays empty).
@@ -1808,7 +1841,7 @@ namespace Punchy.Flora
                 // Not in footprint passes: it is a walk, not a wall.
                 if (boardwalkProp >= 0 && layer > 0 && BoardwalkBand(source, landmark, xz))
                 {
-                    var boardwalk = BoardwalkAt(ref f, source, landmark, xz, cell, cellSize, out var piece, out var walkVariant);
+                    var boardwalk = BoardwalkAt(ref f, source, landmark, xz, cell, cellSize, out var piece, out var walkVariant, out var walkTilt);
                     if (walkVariant >= 0 && layer == boardwalkLayer)
                     {
                         var walkRule = f.Rules[f.Props[boardwalkProp].Species];
@@ -1825,6 +1858,7 @@ namespace Punchy.Flora
                             Model = walkRule.FirstModel + math.min(walkVariant, walkRule.Variants - 1),
                             Random = rng.NextFloat(),
                             Snow = source.SampleBiomeSnow(piece.xz),
+                            Tilt = walkTilt,
                             Ground = GroundFor(source, walkRule, piece.xz, 1f, 0.25f)
                         };
                     }
