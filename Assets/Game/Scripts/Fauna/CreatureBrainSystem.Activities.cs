@@ -657,6 +657,11 @@ namespace Punchy.Fauna
 
             bool DecideFlit(ref CreatureState s, ref CreatureBlob b, ref Random rng)
             {
+                if (b.Hawks)
+                {
+                    Hawk(ref s, ref b, ref rng);
+                    return true;
+                }
                 if (!b.DrawnToLight)
                     return false;
                 Flit(ref s, ref rng);

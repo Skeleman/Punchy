@@ -700,6 +700,21 @@ namespace Punchy.Fauna
             }
 
             /// <summary>
+            /// A-89: a dragonfly's next dart: 1.5-5 m from where it is, kept within its leash of home, low over the
+            /// water or ground there (its own share of its flight height, a little up or down each time).
+            /// </summary>
+            void Hawk(ref CreatureState s, ref CreatureBlob b, ref Random rng)
+            {
+                SetMode(ref s, CreatureMode.Wander);
+                s.Stage = 1;
+                var to = s.Position.xz + rng.NextFloat2Direction() * rng.NextFloat(1.5f, 5f);
+                if (s.Leash > 0f && math.distance(to, s.Home) > s.Leash)
+                    to = s.Home + rng.NextFloat2Direction() * s.Leash * rng.NextFloat(0.1f, 0.8f);
+                s.Target = to;
+                s.TargetHeight = Cruise(s, ref b, to) + rng.NextFloat(-0.15f, 0.3f);
+            }
+
+            /// <summary>
             /// A moth's flight: straight at its point in three dimensions at its own pace, fluttering (no glide, no
             /// cruising height, no landing), turning to face the way it goes. True once it's there.
             /// </summary>

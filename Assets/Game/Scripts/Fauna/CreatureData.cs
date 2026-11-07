@@ -53,6 +53,8 @@ namespace Punchy.Fauna
         public IdleActions Idles;
         public float Fidgets, Climbing;
         public bool SpinsWebs, Burrows, CaveDweller, Roosts, Friendly, CrossesWater, Haunts, LavaDweller, DrawnToLight, DrivenOff;
+        /// <summary>A-89: darts low over the water round its home, never landing (dragonflies; see CreatureSpecies.Hawks).</summary>
+        public bool Hawks;
         /// <summary>No eyes: notices by sound and nearness (Sense). Wades: water folk's taste for the shallows (Decide, StartSwim).</summary>
         public bool Blind;
         public float Wades;
@@ -891,6 +893,7 @@ namespace Punchy.Fauna
             root.CaveAffinity = variant.CaveAffinity;
             root.Crawls = species.Crawls;
             root.DrawnToLight = species.DrawnToLight;
+            root.Hawks = species.Hawks;
             root.DrivenOff = species.DrivenOff;
             root.GuardKit = species.GuardKit;
             // (Alpha 0: a segment colour's alpha is how much it glows, and armour doesn't.)

@@ -206,6 +206,7 @@ namespace Punchy.Fauna
             species.Clear();
             speciesByName.Clear();
             occupied.Clear();
+            ClearMarshPads();
             occupiedCaves.Clear();
             occupiedChambers.Clear();
             Caught = 0;
@@ -266,6 +267,7 @@ namespace Punchy.Fauna
                             return;
                 }
                 Build(source, palette);
+                BuildMarshPads(source, palette);   // (A-89 row 3: seed-derived scenery, on every machine)
             }
             KeepAvatar();
             GiveReplicasBodies();

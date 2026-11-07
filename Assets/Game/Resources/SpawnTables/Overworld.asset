@@ -846,3 +846,54 @@ MonoBehaviour:
     WorldState: 
     Range: 10
     Task: 0
+  - Content: Empty
+    Species: {fileID: 11400000, guid: 6c8bc2596b574e45aaa4aaee24cd93ce, type: 2}
+    Weight: 10
+    Count: {x: 6, y: 8}
+    Seeded: 1
+    Kind: 17
+    Size: {x: 0, y: 2}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.4
+    Task: 0
+  - Content: Empty
+    Species: {fileID: 11400000, guid: 73b85c54c6d8fa9438f9a447d2f1c400, type: 2}
+    Weight: 10
+    Count: {x: 1, y: 1}
+    Seeded: 1
+    Kind: 18
+    Size: {x: 0, y: 2}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 3.5
+    Task: 0
+  - Content: Empty
+    Species: {fileID: 11400000, guid: 76e8a013e4cb48faa173fb1289aa6116, type: 2}
+    Weight: 10
+    Count: {x: 5, y: 7}
+    Seeded: 1
+    Kind: 19
+    Size: {x: 0, y: 2}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 9
+    Task: 0
