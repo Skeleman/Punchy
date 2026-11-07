@@ -7,12 +7,11 @@ Zach asked the supervisor (main account) to hand off to you when its token budge
 supervise. Read COORDINATION.md first (rules 1-18; rule 18 = every process ends on its own, kill by PID).
 
 ## Lanes right now
-- World (D:\Unity\Punchy-world, world-features, head 11248778 pushed, main merged in): agent finished W-110
-  (#39 road tunnels, complete), W-117 GC row and W-117 row 1 (water draw measurement). NOT reviewed or merged
-  yet: review + PR. Next for world: W-117 rows 2-5 (plan in REPORTS-world.md 135a6bc1: merge far water chunks
-  per 4x4 region, gate SSR by distance, flora LOD, shadow casters). Then burst-prune Punchy-world.
-- Animal (D:\Unity\Punchy, animal-behaviours): agent working A-84 (Place spike, next colossi for #40, mire fog).
-  A-83 merged as PR #177; #62 closed and logged in PLAYTEST.md.
+- World: W-117 merged (PR #182). Agent now on W-118 (salt ball, snow shelters, kit hazard houses #69, drift
+  mound edge #70).
+- Animal: A-84 merged (PR #180: snow worm, walking oak, mire fog). Agent now on A-85 (lizard build split,
+  puffball, ember treant, glacier mammoth, sky whale).
+- Main hotfix PR #181: Underwater.cs ?? on Unity fake null broke the suite (13/14); fixed and noted on P-20.
 - Player: you (P-20).
 - Profiler (laptop): job 23 queued in BENCH-QUEUE.md (b/fix-proc-cleanup: timeouts, kill by PID). Review + merge.
 Those two agents ran as subagents of the old supervisor session; if they stop, relaunch them from their cards.
