@@ -54,3 +54,4 @@ Those two agents ran as subagents of the old supervisor session; if they stop, r
 - Sky.hlsl: lent to the player lane for one additive block in PunchyAtmosphere (`_PunchyUnderwater` underwater fog, set by Underwater.cs). The world lane isn't editing Sky.hlsl on W-122.
 - 11-07: W-122 done (rows 1-3, last fb83c0c7), reviewed and merged as PR #192. Pins after it: Landmarks_V3 112 A955AFE0 (new MarshFolkVillage entry), Fauna_Fingerprint AEA50DCE on world-features (four new marsh flora assets; accepted). Hatchling eye glow at dusk not visible (unverified, cosmetic). World agent finished, no next card given.
 - 11-07: player PR #191 (underwater fog, ??= null checks) open: the stand-in may not merge its own lane's PR; Zach to review.
+- 11-07: FEATURE FREEZE (Zach). Refactor roadmap from the ChatGPT reviews in REFACTOR-ROADMAP.md; cards come from it. Animal agent told to finish A-89 row 2 and pause row 3.
