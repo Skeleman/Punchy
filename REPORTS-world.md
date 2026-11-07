@@ -3243,3 +3243,19 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
 - **Pins:** Landmarks_V3 111 3BDF705F is unchanged. Fauna_Fingerprint will move again (a new species in the flora blob); it is measured at card end.
 - **Risk:** where a link climbs a steep bank (v3 west dune), neighbouring pieces step up to about 1.5 m. They read as stairs on posts, not a ramp.
 - **Shots:** Assets/Temp/shots/w119-r2-above.png and w119-r2-boardwalk.png.
+
+## W-119 row 3: fishing details, varied per village. Done (verified)
+- Commit 12440968 on world-features.
+- **Trades:** each village takes one of 3 trades from its landmark rank: crabbers, net fishers, or fish driers. The trade weights its shore kit (FishShore variants 8 -> 24) and picks its boardwalk deck details (FishBoardwalk variants 16 -> 64).
+  - Crabbers: stacked slatted crab-pot cages.
+  - Net fishers: nets on a rail, hung in cord-grid panels of uneven fall with floats.
+  - Fish driers: drying racks.
+- **New coast details:** rope coils and gull posts. Gulls also sit on about 40% of mooring posts.
+- **Coverage:** about half of each boardwalk's pieces carry a deck detail (v1 5 of 10).
+- **Pins:** Landmarks_V3 111 3BDF705F is unchanged. Fauna_Fingerprint moves (variant counts in the flora blob); it is measured at card end.
+- **Risk:** the trade weighting also changes how the shore kits that already exist look (accepted).
+- **Shots:**
+  - Assets/Temp/shots/w119-r3-driers.png (v1 racks)
+  - w119-r3-nets.png (v3)
+  - w119-r3-crabpots.png (v2)
+  - w119-r3-shore1.png
