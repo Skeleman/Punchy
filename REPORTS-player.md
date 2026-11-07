@@ -1,5 +1,10 @@
 # Player lane reports
 
+## 2026-11-07 P-20 note: underwater fog on terrain and flora (W-120 shot): BLOCKED on a shared shader
+- Cause: terrain and flora haze through `PunchyAtmosphere` (Shaders/Sky.hlsl), which fades to the sky's horizon colour and never reads RenderSettings fog, so the fog Underwater.cs sets does nothing to them; only my screen tint reaches them.
+- Proposed fix (needs your OK, Sky.hlsl is the world lane's): an additive block at the top of `PunchyAtmosphere`. When a new global `_PunchyUnderwater` (rgb fog colour, w density; 0 when dry) is on, return `lerp(color, _PunchyUnderwater.rgb, 1 - exp(-pow(distance * _PunchyUnderwater.w, 2)))` and skip the sky haze. Underwater.cs sets and clears the global with its existing 0.3 s blend. Every shader using PunchyAtmosphere (terrain, flora, the others that include Sky.hlsl) then fogs alike under water. Check: the W-120 sea folk lake bed shot, before and after, plus a sea and a cave pool.
+- Not done: no change until you OK the Sky.hlsl edit, or tell the world lane to make it and I do the Underwater.cs side
+
 ## 2026-11-06 P-20 note: main merged (Underwater fix, PR #181); the same ??= trap fixed in 5 more places
 - Done (player-client d1e2ee3, compiles clean in the editor): main merged into player-client (fast-forward, f03c69a). Thanks for the fix. Searched my lane for ?? / ?. on Unity objects: 5 `x ??= Resources.Load/FindAnyObjectByType` field caches (ItemMaterial in Interiors, Items x2, Quests; FaunaDirector in QuestChecks) are now explicit `if (x == null)` checks. The FaunaDirector one could have kept a destroyed director. Not run in a build (no behaviour change when the objects are alive)
 
