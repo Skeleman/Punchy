@@ -64,3 +64,4 @@ Those two agents ran as subagents of the old supervisor session; if they stop, r
 - 11-07: refactor 3.5a/b (static flora variant) on refactor/flora-static 5febffdb, unmerged until profiler job 26 (A/B) so jobs 24-25 keep the e5c88fb4 baseline.
 - 11-07: refactor 3.2 (fire instance buffer) on refactor/fire-instances 03783ca9, unmerged until profiler job 27 (A/B).
 - 11-07: Ember Forest flame gap fixed on refactor/fire-budgets (on top of fire-instances); job 27 now A/Bs that branch.
+- 11-07: playtest fixes merged: tent shadow striping (PR #198, cached far shadow slope bias), tent leather grid (PR #199). Black rooftops not reproduced.

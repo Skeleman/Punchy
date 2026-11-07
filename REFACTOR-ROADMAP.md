@@ -118,6 +118,10 @@ Playtest 11-07 bugs that live in the same shader and LOD code (fix them as part 
 - **Black rooftops:** at `-goto -3329,126.9,1599`, parts of the rooftops are pitch black, and that moves with the camera's pitch. Likely normals or the back-face lighting in Flora.shader.
 - **Tents:** the mid-distance LOD has striping artifacts at `-goto 972,12.0,-3845`, and up close the leather shows a grid texture.
 - **Contact darkening:** vertex or texture darkening where a structure's vertical face meets the ground (Zach, again). It suits the structures class in 3.5c.
+- **Status 11-07:**
+  - **Tent mid-range stripes:** fixed, PR #198. Cause: shadow acne in W-107's cached far shadows (a fixed 0.4 m bias); now a slope-scaled bias.
+  - **Tent grid up close:** fixed, PR #199. The hide's lattice seams were removed.
+  - **Black rooftops:** not reproduced at `-goto -3329,126.9,1599` (about 15 views: High and Ultra, noon and evening, pitch -20 to 40). Needs a screenshot or the exact view from Zach.
 
 ### 3.6 One surface model across renderers (playtest 11-07)
 - **The electric golem colossus still doesn't match its rocks.** Colossi (and creatures) draw through their own shader, without the material properties flora rocks get. Give colossi and creatures the same surface inputs as flora (rock grain, triplanar, the biome surface colours) instead of tuning each renderer by hand. Owners: animal (Colossus shader) and world (flora rocks).
