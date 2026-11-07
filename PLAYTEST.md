@@ -39,3 +39,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 | #40 | Ice mammoth now walks Glacier slopes; new sky whale floats over the Mountains (spouts on updrafts, sings) | Glacier, Mountains | PR #185, 2026-11-07 |
 | #36 | Fishing villages: stilt houses and docks on the water, boardwalk pier networks, per-village trades (crab pots, nets, drying racks), rope coils, gulls | River mouth villages | PR #186, 2026-11-07 |
 | #40 | Mire walker now wades its marsh loop with splashes; new hermit crab colossus with an islet and lighthouse on its shell (lamp lit at night) | Foggy marsh, Ocean shore | PR #187, 2026-11-07 |
+| #37 | Sea folk lake village: central spire, glowing rune stones, snaking kelp, sunken boats, giant clams with pearls, bubble vents; boardwalks now ramp on steep banks | Sea folk lake (dive), fishing villages | PR #188, 2026-11-07 |
