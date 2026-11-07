@@ -14,6 +14,9 @@ namespace Punchy.Fauna
     /// CreatureRenderSystem takes (Current) and poses from behind its handle, and last frame's, long finished, which the
     /// readers that can be a frame behind get from Get without waiting for anything. "-syncsnapshot" copies on the main
     /// thread at once as before (and the renderer copies its own) for an A/B.
+    /// Refactor 2.1: the two copies live in two kept buffer sets that take turns (this frame's is written into the set
+    /// last frame's freed), grown only when the population outgrows them; readers get views of this frame's count. It
+    /// used to allocate and dispose three Persistent arrays and a NativeReference every frame.
     /// </summary>
     [UpdateInGroup(typeof(PresentationSystemGroup), OrderFirst = true)]
     public partial class CreatureSnapshotSystem : SystemBase
@@ -26,7 +29,10 @@ namespace Punchy.Fauna
         /// main thread, and the time the main thread spent waiting for the creature jobs (the brain) before presenting.</summary>
         public static long Copies, CopyTicks, WaitTicks;
 
-        /// <summary>One frame's copy, and the job making it.</summary>
+        /// <summary>
+        /// One frame's copy, and the job making it. Normally views into one of the kept buffer sets (<see cref="Set"/>
+        /// >= 0), which Free hands back; under "-syncsnapshot" arrays of its own (Set -1), which Free disposes.
+        /// </summary>
         struct Snap
         {
             public NativeArray<CreatureState> States;
@@ -36,10 +42,47 @@ namespace Punchy.Fauna
             public NativeReference<int> Holding;
             public JobHandle Done;
             public int Frame;
+            public int Set;
 
             public void Free()
             {
                 Done.Complete();
+                if (Set < 0)
+                {
+                    if (States.IsCreated) States.Dispose();
+                    if (Bodies.IsCreated) Bodies.Dispose();
+                    if (Entities.IsCreated) Entities.Dispose();
+                    if (Holding.IsCreated) Holding.Dispose();
+                }
+                this = default;
+                Set = -1;
+            }
+        }
+
+        /// <summary>A kept set of arrays a copy is written into, Capacity long (the copy uses the first count).</summary>
+        struct Buffers
+        {
+            public NativeArray<CreatureState> States;
+            public NativeArray<CreatureBody> Bodies;
+            public NativeArray<Entity> Entities;
+            public NativeReference<int> Holding;
+            public int Capacity;
+
+            /// <summary>Room for at least <paramref name="count"/>: kept as is if it fits, else made again with a quarter to spare.</summary>
+            public void Ensure(int count)
+            {
+                if (Holding.IsCreated && count <= Capacity)
+                    return;
+                Dispose();
+                Capacity = count + count / 4 + 16;
+                States = new NativeArray<CreatureState>(Capacity, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+                Bodies = new NativeArray<CreatureBody>(Capacity, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+                Entities = new NativeArray<Entity>(Capacity, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+                Holding = new NativeReference<int>(Allocator.Persistent);
+            }
+
+            public void Dispose()
+            {
                 if (States.IsCreated) States.Dispose();
                 if (Bodies.IsCreated) Bodies.Dispose();
                 if (Entities.IsCreated) Entities.Dispose();
@@ -48,8 +91,12 @@ namespace Punchy.Fauna
             }
         }
 
+        /// <summary>For -perflog: how often the kept buffers had to grow (refactor 2.1; flat once the population settles).</summary>
+        public static long Grows;
+
         EntityQuery query;
-        Snap current, last;
+        Snap current = new Snap { Set = -1 }, last = new Snap { Set = -1 };
+        Buffers set0, set1;
 
         protected override void OnCreate()
         {
@@ -60,6 +107,8 @@ namespace Punchy.Fauna
         {
             current.Free();
             last.Free();
+            set0.Dispose();
+            set1.Dispose();
         }
 
         protected override void OnUpdate()
@@ -68,7 +117,7 @@ namespace Punchy.Fauna
             last.Free();
             current.Done.Complete();
             last = current;
-            current = default;
+            current = new Snap { Set = -1 };
             // Whether HeldPoseSystem has anything to do: someone held or arms still open in the last copy (or every
             // frame, if there is none to go by); a pickup since then tells it itself (HeldPoseSystem.Pending).
             HeldPoseSystem.Needed.Data = Off || Sync || !last.Holding.IsCreated || last.Holding.Value > 0 ? 1 : 0;
@@ -90,10 +139,22 @@ namespace Punchy.Fauna
                 return;
             }
             var count = query.CalculateEntityCount();
-            current.States = new NativeArray<CreatureState>(count, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-            current.Bodies = new NativeArray<CreatureBody>(count, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-            current.Entities = new NativeArray<Entity>(count, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-            current.Holding = new NativeReference<int>(Allocator.Persistent);
+            // (The set last frame's copy isn't using: freed above, its job long finished.)
+            var use = last.Set == 0 ? 1 : 0;
+            var before = use == 0 ? set0.Capacity : set1.Capacity;
+            if (use == 0) set0.Ensure(count); else set1.Ensure(count);
+            var buffers = use == 0 ? set0 : set1;
+            if (buffers.Capacity != before)
+            {
+                Grows++;
+                UnityEngine.Debug.Log($"CreatureSnapshotSystem: snapshot buffers {use} grown to {buffers.Capacity} for {count} creatures ({Grows} grows so far)");
+            }
+            buffers.Holding.Value = 0;
+            current.Set = use;
+            current.States = buffers.States.GetSubArray(0, count);
+            current.Bodies = buffers.Bodies.GetSubArray(0, count);
+            current.Entities = buffers.Entities.GetSubArray(0, count);
+            current.Holding = buffers.Holding;
             Dependency = new CopyJob
             {
                 States = current.States,
@@ -118,6 +179,7 @@ namespace Punchy.Fauna
                 var shared = world.IsCreated ? world.GetExistingSystemManaged<CreatureSnapshotSystem>() : null;
                 if (shared == null)
                     continue;
+                // (The copies go; the kept buffers stay for the next one.)
                 shared.current.Free();
                 shared.last.Free();
             }
