@@ -95,3 +95,38 @@ Commit on b/fix-proc-cleanup and post the SHA here; the supervisor reviews and m
 
 ## Refactor 1.2 (2026-11-07, in progress; started by the profiler with Zach's OK): stress stops on v0.13.0 (4fea789)
 New runner stops on b/bench-stress, used only when named: bigtown (the settlement with the most buildings), firesbase/fires (-benchfires N, default 500), plus forest, an under-canopy -benchspot and lake. These are measured at 1080p, with 1440p pixels from render scale 1.333 (the laptop desktop is 1920x1080, so bigger windows clamp). Results will go in REPORTS-profiler.md. Supervisor: queue new refactor jobs below this one, numbered from 24.
+
+## Job 24 (2026-11-07): population sweep, refactor baseline (REFACTOR-ROADMAP.md 1.1)
+The refactor needs to know how the creature pipeline scales before 2.2-2.5 are carded. Build main at e5c88fb4 or later
+(it has the new `-wildcap N` test flag, PR #196), a Profile or Development build, at your fixed path. v0.13.0 is the
+release baseline.
+- **Runs:**
+  - Wild cap N = 180 (today's default), 500, 1000 and 2000.
+  - `-wildcap N` raises the cap and scales the spawn rate and the species densities. The log says `FaunaDirector: -wildcap ...`. Expect most of N alive within the 170 m despawn ring.
+  - Same spot and settings every run: `-place meadow -time 12`, uncapped, `-gfx Low`.
+  - Let the population fill for about 70 s, then sample about 20 s. Take two samples per N, or ABBA order if you see drift.
+- **Report per N:**
+  - live creatures
+  - frame ms (mean and worst)
+  - main-thread ms
+  - brain job wall ms, and its worker spread
+  - `brain wait` on the main thread
+  - pose job ms
+  - CreatureRenderSystem CPU ms, and GPU ms for creatures
+  - the snapshot and the main-thread readers (audio, trace, mantrap, wake)
+  - GC KB a frame (`-gclog`)
+  - native memory
+- **Where the numbers come from:** `-perflog` on a shot line prints most of them (perf / perf2 lines). Use SysMs for per-system ms and the render CPU/GPU split.
+- **Then split it two ways:**
+  1. Everything near: the default, everything inside the ring.
+  2. Mostly far: the same N with most creatures outside the active-thinking LOD (brain LOD skips). Say how you arranged that if it needs a flag; ask in the report if none fits.
+- **What the supervisor needs back:** the main-thread brain prep (snapshot arrays, lookup and grid build) as a share of the frame at each N, and which cost grows fastest (brain, pose/render, readers, snapshot). That decides the order of refactor items 2.2-2.5. Numbers only, in REPORTS-profiler.md.
+
+## Job 25 (2026-11-07): stress scenes, refactor baseline (REFACTOR-ROADMAP.md 1.2)
+Same build as job 24. For each scene, say whether it is CPU-bound or GPU-bound at 1080p and 1440p. Give frame ms, main
+thread ms, GPU ms, draw calls and tris, and the top 5 systems by ms (SysMs).
+1. **Big settlement:** the largest town you can find on v3 (`-place HumanVillage`, or whichever town logs the most kit buildings), standing in its middle.
+2. **Dense forest:** a dense-forest spot (your pick; log the plant instance count in view).
+3. **Fires:** about 500 fires at once. The Ember Forest's burning forest at night is the nearest thing. Say what count you reached and how (FireSystem caps flames at 8192).
+4. **Lake:** a lake filling most of the screen. For example the W-120 sea folk lake at `-goto -1624,-488`, looking across it at noon; repeat with the camera under the water (`-view 0,-35`).
+These feed refactor phase 3 (3.1 lights, 3.2 fire, 3.4 water, 3.5 flora by behaviour). For 3.5, also log the flora vertex count split into plants vs rocks/kit buildings in scene 1, if SysMs or a render counter can.
