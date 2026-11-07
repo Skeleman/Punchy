@@ -94,7 +94,10 @@ Checked against main on 11-07:
 | 3.1 | Central local-light manager: fires, lamps, torches, interior lamps and forest-fire lights register requests; a budget enables the top N by importance, and the rest stay emissive | player (interiors, lamps) + animal (Ambience) + world (landmark effects) | Highest GPU return. Also fixes "distant lights only switch on near you" (playtest item 6) |
 | 3.2 | FireSystem: a static mesh plus a GraphicsBuffer of flame instances (SV_InstanceID); no per-frame vertex and index rebuild; near / mid / far flame budgets with dropped-flame counts in perf logs | animal (Ambience) | Replaces the eased dictionaries too |
 | 3.3 | Flora: density LOD (fewer, larger clusters far away), a shadow distance separate from draw distance, wind detail by distance, hysteresis at LOD edges; later, projected-size LOD in the cull compute | world (Flora) | W-117 did the vertex reduction; the rest is new |
-| 3.4 | Water: reflection steps by distance, and a reflection-quality setting (high / medium = fewer steps / low = sky and Fresnel only) in the Graphics menu | world (shader) + player (menu) | Most of W-117's cut is done; this adds the tiers |
+| 3.4 | **Water overhaul (Zach plans one in this refactor).** Reflection steps by distance, and a reflection-quality setting (high / medium = fewer steps / low = sky and Fresnel only) in the Graphics menu. Plus the 11-07 playtest's water bugs: the crossing stripe pattern (see the note under this table) and the edge problems on the falls series at `-goto -118,32.1,324`, whose large-scale shape is great | world (shader) + player (menu) | Most of W-117's cut is done; this adds the tiers. Keep the river flow maps and the stepped pools (a good proof of concept) |
+
+- **3.2, Ember Forest flames (playtest 11-07):** distant flames disappear as you approach, then come back up close. That is a gap between the far flame tier and the near tier. Fold it into 3.2's near / mid / far budgets: one hand-off distance with overlap and hysteresis, and lights from 3.1. Zach still wants to iterate on fire lighting.
+- **3.4, water stripes (playtest 11-07):** crossing stripes at `-goto -41,54.2,41` and `-goto -1182,12.3,-3020`, probably stepped-pool related. Zach finds it a cool effect, maybe worth making deliberate later as biome detail; for now treat it as a bug.
 
 ### 3.5 Flora by behaviour: static objects skip vertex animation (Zach, 11-07; `docs/Chat recommendations for dividing flora.md`)
 "Flora" now draws rocks, logs, debris, ruins and whole kit buildings as well as plants. Checked on main:
@@ -108,6 +111,15 @@ Checked against main on 11-07:
 | 3.5b | A `FLORA_STATIC` shader keyword (or variant) that skips everything after the tilt: no wind, flutter, motions or cloth. Static models draw with that material; culling and indirect draws stay shared | world (Flora.shader, FloraSystem) | Measure the vertex-stage GPU ms in a town, a dense forest and a rock field, before and after. This is where the "massive savings" claim gets tested; expect the biggest win in towns |
 | 3.5c | Per-class LOD and shadow rules (with 3.3): vegetation thins with distance; rocks switch mesh LOD; small debris culls early; structures keep their silhouette far away | world | Same cull compute, different parameters per class |
 | 3.5d | A slimmer instance layout for static objects (no wind phase or flutter data) | world | Only if 3.5b's numbers show instance bandwidth matters. A second buffer means a second cull path |
+
+Playtest 11-07 bugs that live in the same shader and LOD code (fix them as part of 3.5):
+- **Black rooftops:** at `-goto -3329,126.9,1599`, parts of the rooftops are pitch black, and that moves with the camera's pitch. Likely normals or the back-face lighting in Flora.shader.
+- **Tents:** the mid-distance LOD has striping artifacts at `-goto 972,12.0,-3845`, and up close the leather shows a grid texture.
+- **Contact darkening:** vertex or texture darkening where a structure's vertical face meets the ground (Zach, again). It suits the structures class in 3.5c.
+
+### 3.6 One surface model across renderers (playtest 11-07)
+- **The electric golem colossus still doesn't match its rocks.** Colossi (and creatures) draw through their own shader, without the material properties flora rocks get. Give colossi and creatures the same surface inputs as flora (rock grain, triplanar, the biome surface colours) instead of tuning each renderer by hand. Owners: animal (Colossus shader) and world (flora rocks).
+- **The mesa arches no longer match the new desert colours.** Objects placed in a biome should take their colours from the biome's land values, as data, so a biome colour change carries over. Owner: world. Find where the placed-object colours are set, and link them to the biome palette.
 
 **Not now:** renaming Flora to WorldObjects in code. It touches namespaces, files, assets, docs, GLOSSARY and every lane's code for no runtime gain, and lanes would collide over it. Use "world objects (flora system)" in docs and cards now. Do the code rename, if ever, together with the assembly-definition pass (4.1).
 
@@ -136,3 +148,30 @@ approach (a single draw).
 4. **FFT oceans and shallow-water simulation:** ChatGPT rules them out too.
 5. **An adaptive, frame-time-driven work scheduler:** high design risk; the quota registry (Phase 5) gets most of the value.
 6. **Fire propagation and fuel simulation:** no gameplay needs it yet, and it would be a feature during the freeze.
+
+## Playtest feedback, 2026-11-07 (tabled until after the refactor; on v0.13.0)
+Items not folded into the phases above. Each becomes a card row for its lane when features unfreeze. The coordinates
+are `-goto` arguments.
+
+| Lane | Item | Where |
+|---|---|---|
+| world | A cave chamber entrance looks great but you can't walk through the opening | `-goto -1134,62.2,1193` |
+| world | The cave entrance mesh and the overworld mesh still don't line up | `-goto 1597,109.9,1060` |
+| world | Puddles: none in dunes or very sandy ground (the sand darkens instead), and they should form in recesses so they read as puddles | dunes, sandy biomes |
+| world | Desert tomb: column texture on the columns (not brick); a stone-tile floor without grout | desert tombs |
+| world | Giant ribcage: walkable bones, and an enemy settlement underneath | ribcage landmark |
+| world | Ruin pieces look great: make this kind of landmark reusable in varied forms, some with underground chambers like dungeons | `-goto -2219,120.0,2334` |
+| world | The heat haze has a harsh upper cutoff, jarring from the Sonoran desert toward the basalt tower in the flats | Sonoran desert |
+| world | Electric Wastelands flat rocks: the collision doesn't follow their pointed edges; approximate the shape better | Electric Wastelands |
+| world | Additional forest fire colours: silver, gold, black, deep red | forest fires (palette data; easy once 3.2's instance data has a palette field) |
+| world | The inn looks less designed than the modular pieces: flatter textures, less contrast, and its banner didn't rise with the raised overhang. Rework it heavily into the modular kit | inns |
+| world | Branch paths leave the main roads only a few metres from their landmarks. Vary their lengths so branches feel like real choices, not roads that run past everything | roads |
+| world | Fishing village boats should sit on the water, and they have gaps | fishing villages |
+| world | Fishing villages need a large lake, the sea or a river; this one seems to have made its own little lake | `-goto -1238,113.5,315` |
+| animal | The giant bone lizard colossus should walk around | bone lizard colossus |
+| animal | This colossus looks great: can it swim through the dirt like the snow worms? | `-goto -2271,276.0,1084` |
+| animal | Lantern stag: a little faster, and it looks around sometimes, even while walking | lantern stag |
+| animal | Snow worms should avoid towns and large obstacles | snow worms |
+| animal + player | Many animals show a "pet" prompt but can't be pet: make every animal pettable | everywhere |
+| player | Swim underwater as humanoids (and maybe some animals) | water |
+| player | Menus: 2D navigation on a controller (up moves to the item above, not the previous one in the list; left and right stop at the UI's edge) | all menus |
