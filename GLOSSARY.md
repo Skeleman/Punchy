@@ -137,12 +137,13 @@ it real. To add or change a term, edit this file in the same commit as the code 
   `-nohud`, `-host`, `-join`, `-hostonline`, `-joincode`, `-body`, `-weatherseed`. In the
   editor, Play mode also reads the DebugControls flags from `Temp/PlayArgs.txt`, so tests need no build.
 
-## Sessions
+## Lanes
 
-- **Animal session** ("animal behaviour manager", claude-41 [635c9b], this PC): branch `animal-behaviours`. Owns
-  `Fauna/**`, the brain, creature assets, FloraPlacement.
-- **World session** ("world feature manager", formerly claude-01): branch `world-features`, worktree
-  D:\Unity\Punchy-world. Owns caves, landmarks, settlements and their geometry. See WORLD.md.
-- **Perf session** (B: "windows-7l945c9-kind-possum", the other, weaker PC): profiling and performance; currently
-  the weather haze (`Weather/`).
-- **Supervisor** (claude-41 [21fe18]): coordinates the sessions and relays the user's direction.
+Work is split into lanes, each on its own branch; who owns which files, and how lanes hand off, is kept on the
+`coordination` branch (COORDINATION.md), not here.
+
+- **Animal lane** (`animal-behaviours`): creatures, their behaviour and assets (`Fauna/**`), the brain.
+- **World lane** (`world-features`): caves, landmarks, settlements and their geometry. See WORLD.md.
+- **Player lane** (`player-client`): camera, settings, UI, interiors, doors, items.
+- **Profiler lane** (`b/*`): profiling and performance.
+- **Supervisor:** hands out work, reviews and merges, and relays the user's direction.
