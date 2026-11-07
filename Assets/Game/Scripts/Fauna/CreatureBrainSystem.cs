@@ -1250,11 +1250,17 @@ namespace Punchy.Fauna
             void Wandering(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, float walk, bool flier, ref float targetSpeed, ref bool moving, ref bool custom, ref float vertical)
             {
                 // A moth round its light: from point to point (in a cave, under the rock: no cruising height).
-                if (b.DrawnToLight)
+                if (b.DrawnToLight || b.Hawks)
                 {
                     custom = true;
                     if (FlitTo(ref s, ref b, dt, ref vertical))
-                        Flit(ref s, ref rng);
+                    {
+                        // (A-89: a dragonfly darts on to its next point over the water.)
+                        if (b.Hawks)
+                            Hawk(ref s, ref b, ref rng);
+                        else
+                            Flit(ref s, ref rng);
+                    }
                     return;
                 }
                 if ((flier || b.Breaches) && s.Stage >= 1)

@@ -6,6 +6,10 @@ Shader "Punchy/Colossus"
     Properties
     {
         _BaseColor ("Tint", Color) = (1, 1, 1, 1)
+        // A-89: 1 makes vertex alpha below 1 glow (emission = albedo x (1 - alpha) x _GlowStrength), so lava, embers and
+        // spores light up at night. 0 (the default) ignores alpha: the ruins and driftwood keep other data there.
+        _VertexGlow ("Vertex alpha glows", Float) = 0
+        _GlowStrength ("Glow strength", Float) = 1.2
     }
     SubShader
     {
@@ -14,6 +18,8 @@ Shader "Punchy/Colossus"
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
         CBUFFER_START(UnityPerMaterial)
         half4 _BaseColor;
+        half _VertexGlow;
+        half _GlowStrength;
         CBUFFER_END
         ENDHLSL
 
@@ -47,6 +53,7 @@ Shader "Punchy/Colossus"
                 float3 positionWS : TEXCOORD0;
                 half3 normalWS : TEXCOORD1;
                 half3 albedo : TEXCOORD2;
+                half glow : TEXCOORD3;
             };
 
             Varyings Vert(Attributes input)
@@ -56,6 +63,7 @@ Shader "Punchy/Colossus"
                 o.positionCS = TransformWorldToHClip(o.positionWS);
                 o.normalWS = TransformObjectToWorldNormal(input.normalOS);
                 o.albedo = input.color.rgb * _BaseColor.rgb;
+                o.glow = saturate(1 - input.color.a) * _VertexGlow;
                 return o;
             }
 
@@ -76,6 +84,7 @@ Shader "Punchy/Colossus"
                 surface.alpha = 1;
                 half3 color = UniversalFragmentPBR(inputData, surface).rgb;
                 color *= 1 - 0.6 * PunchyCloudShadow(input.positionWS);
+                color += input.albedo * (input.glow * _GlowStrength); // self-lit: no shadow, still hazed below
                 return half4(PunchyAtmosphere(color, input.positionWS), 1);
             }
             ENDHLSL

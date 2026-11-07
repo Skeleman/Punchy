@@ -13,7 +13,7 @@ namespace Punchy.Fauna
         static readonly Color Char = new Color(0.055f, 0.048f, 0.045f);
         static readonly Color CharGrey = new Color(0.15f, 0.14f, 0.13f);
         static readonly Color CharBark = new Color(0.09f, 0.075f, 0.065f);
-        static readonly Color Coal = new Color(0.62f, 0.16f, 0.05f);
+        static readonly Color Coal = DunesColossus.MeshBuilder.Glowing(new Color(0.62f, 0.16f, 0.05f), 0.6f);   // (A-89: dull red glow)
         static readonly Color Sprout = new Color(0.42f, 0.66f, 0.22f);
 
         /// <summary>

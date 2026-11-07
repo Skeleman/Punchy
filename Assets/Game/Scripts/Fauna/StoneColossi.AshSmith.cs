@@ -18,7 +18,7 @@ namespace Punchy.Fauna
 
         static readonly Color Basalt = new Color(0.17f, 0.16f, 0.16f);
         static readonly Color Soot = new Color(0.10f, 0.09f, 0.09f);
-        static readonly Color Ember = new Color(1.00f, 0.42f, 0.10f);
+        static readonly Color Ember = DunesColossus.MeshBuilder.Glowing(new Color(1.00f, 0.42f, 0.10f));   // (A-89: lit at night)
         static readonly Color Ash = new Color(0.42f, 0.40f, 0.39f);
 
         /// <summary>

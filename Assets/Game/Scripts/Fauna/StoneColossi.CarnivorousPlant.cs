@@ -185,6 +185,17 @@ namespace Punchy.Fauna
             AddPart("Body", root, m.ToMesh("CarnivorousPlant"));
             var body = root.Find("Body");
             body.localScale = Vector3.one * PlantScale;
+            // A-89 row 2: the plant cost about 32 ms warm (over 100 ms cold) on one frame. The body above is this frame;
+            // the moving parts, the sprouts and bones and the spores are the next (BuildRest), with the same draws.
+            BuildRest = () => { if (root != null) BuildPlantRest(root, body, rng, stemMesh, jawMesh, armMesh, armFrom, hinge, face); };
+            return root;
+        }
+
+        /// <summary>A-89 row 2: the carnivorous plant's second frame: its pivoted parts, the sprouts and bones, the spores.</summary>
+        static void BuildPlantRest(Transform root, Transform body, Unity.Mathematics.Random rng, DunesColossus.MeshBuilder stemMesh,
+                                   DunesColossus.MeshBuilder jawMesh, DunesColossus.MeshBuilder[] armMesh, Vector3[] armFrom, Vector3 hinge, Quaternion face)
+        {
+            const float PlantScale = 0.5f, HeadScale = 1.7f;
             var stemPivot = new Vector3(0f, 18f, 0f);
             PlantRig.Stem = PlantPart("Stem", body, stemPivot, Vector3.zero, stemMesh);
             PlantRig.Jaw = PlantPart("Jaw", PlantRig.Stem, hinge, stemPivot, jawMesh);
@@ -192,7 +203,7 @@ namespace Punchy.Fauna
             for (int k = 0; k < 8; k++)
                 PlantRig.Arms[k] = PlantPart("Arm" + k, body, armFrom[k], Vector3.zero, armMesh[k]);
             // Three young sprouts, man-high, with shut traps (life size, round the shrunk plant).
-            m = new DunesColossus.MeshBuilder();
+            var m = new DunesColossus.MeshBuilder();
             for (int k = 0; k < 3; k++)
             {
                 var a = rng.NextFloat(0f, Mathf.PI * 2f);
@@ -212,7 +223,6 @@ namespace Punchy.Fauna
             AddPart("Sprouts", root, m.ToMesh("CarnivorousPlantSprouts"));
             Puffs(root, "Spores", (hinge + face * new Vector3(0f, 0f, 9f * HeadScale) + Vector3.up * 4f) * PlantScale, new Vector3(4f, 1.5f, 4f),
                   new Color(0.80f, 0.86f, 0.55f, 0.22f), new Color(0.70f, 0.80f, 0.45f, 0.30f), 1.5f, 4f, 3f, 0.6f, 12f);
-            return root;
         }
 
         /// <summary>A pivot named <paramref name="name"/> at <paramref name="at"/> (body units) under <paramref name="parent"/> (itself at <paramref name="parentAt"/>), holding <paramref name="m"/>'s mesh drawn in body units.</summary>

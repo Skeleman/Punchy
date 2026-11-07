@@ -16,7 +16,7 @@ namespace Punchy.Fauna
         static readonly Color PuffGill = new Color(0.60f, 0.50f, 0.66f);
         static readonly Color PuffGillDark = new Color(0.40f, 0.32f, 0.46f);
         static readonly Color PuffTendril = new Color(0.80f, 0.74f, 0.72f);
-        static readonly Color SporeGlow = new Color(0.55f, 1.00f, 0.82f);
+        static readonly Color SporeGlow = DunesColossus.MeshBuilder.Glowing(new Color(0.55f, 1.00f, 0.82f), 0.8f);   // (A-89: lit at night)
         static readonly Color Wicker = new Color(0.58f, 0.44f, 0.26f);
 
         /// <summary>
@@ -153,7 +153,7 @@ namespace Punchy.Fauna
             Tentacle(loose, rootFrom, rootFrom + new Vector3(2f, -lift * 0.4f, -3f), rootEnd + new Vector3(-2f, 6f, 6f), rootEnd, 0.7f, 0.25f, PuffTendril, PuffCrack, 14);
             for (int k = 0; k < 5; k++)
                 loose.Limb(rootEnd, rootEnd + new Vector3(rng.NextFloat(-2.5f, 2.5f), -0.3f, rng.NextFloat(-3f, 1f)), 0.2f, 0.04f, PuffTendril, 4);
-            loose.Ellipsoid(rootEnd + Vector3.down * 0.35f, new Vector3(3.5f, 0.12f, 5f), Quaternion.identity, Color.Lerp(SporeGlow, PuffGill, 0.5f), 10, 2);
+            loose.Ellipsoid(rootEnd + Vector3.down * 0.35f, new Vector3(3.5f, 0.12f, 5f), Quaternion.identity, DunesColossus.MeshBuilder.Glowing(Color.Lerp(SporeGlow, PuffGill, 0.5f), 0.1f), 10, 2);
 
             var body = m.ToMesh("Puffball");
             Weather(body, PuffShade, 0.86f, 1f);

@@ -13,7 +13,9 @@ namespace Punchy.Fauna
         Songbird, Woodpecker, Owl, Frog, Mouse, Gull, WharfFish,
         Hermit, Camper, Traveller, Messenger, HoneyThief, Domestic, CaveFolk, CrossingFisher,
         /// <summary>A-88 row 2 (#37): the sea folk lake's dome schools and its big fish near the bed.</summary>
-        LakeSchool, LakeBed
+        LakeSchool, LakeBed,
+        /// <summary>A-89 row 3: the marsh folk village's frogs on lily pads, its heron in the shallows, its dragonflies.</summary>
+        MarshFrog, MarshHeron, MarshDragonfly
     }
 
     /// <summary>

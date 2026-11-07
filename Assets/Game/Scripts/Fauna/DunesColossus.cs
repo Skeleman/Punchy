@@ -556,6 +556,10 @@ namespace Punchy.Fauna
         /// <summary>Flat-shaded triangles with a little per-facet brightness variation (so the stone reads as cut).</summary>
         internal sealed class MeshBuilder
         {
+            /// <summary><paramref name="color"/> marked to glow (0..1) on the glow material (StoneColossi.GlowMaterial):
+            /// lava, embers, spores. Lerps and tints keep the mark as long as the alpha stays negative.</summary>
+            public static Color Glowing(Color color, float glow = 1f) => new Color(color.r, color.g, color.b, -glow);
+
             readonly List<Vector3> verts = new List<Vector3>();
             readonly List<Vector3> normals = new List<Vector3>();
             readonly List<Color> colors = new List<Color>();
@@ -570,7 +574,9 @@ namespace Punchy.Fauna
                 var n = (Vector3)math.normalizesafe(math.cross((float3)(b - a), (float3)(c - a)), new float3(0f, 1f, 0f));
                 var hash = math.frac(math.sin(math.dot((float3)(a + b + c), new float3(12.9898f, 78.233f, 37.719f))) * 43758.547f);
                 var tint = color * (0.93f + 0.14f * hash);
-                tint.a = 1f;
+                // A-89: a negative alpha marks a glowing colour (see Glowing); the mesh stores 1 - glow, so every other
+                // part keeps alpha 1 and the glow material leaves it alone.
+                tint.a = color.a < 0f ? 1f - math.saturate(-color.a) : 1f;
                 verts.Add(a); verts.Add(b); verts.Add(c);
                 normals.Add(n); normals.Add(n); normals.Add(n);
                 colors.Add(tint); colors.Add(tint); colors.Add(tint);
