@@ -2847,3 +2847,14 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - **Suite:** 14 passed, 0 failed in 235 s (Unity exit 0). Landmarks 111 3BDF705F, fingerprint 8A1979F1, so both pins are unchanged.
 - Risk: the SkeletalLizard build frame (code I didn't touch) varied from 21 to 76.5 ms over repeated plays without a domain reload. The last runs read 76.3, 48.8, 53.8 and 76.5 ms. It's probably GC or editor noise, but in the editor it breaks row 1's 50 ms bar. Worth splitting its build in two if a player build shows the same.
 - My editor is closed.
+
+## A-85 row 1: SkeletalLizard build split over two frames (#40), done (verified)
+- Commit 472d63ea. BuildNext now runs a builder's second half (BuildRest) on the next frame, before the solid frame. The lizard builds its spine, ribs, hips and legs first, then the neck, skull, heart, fallen bones and puffs.
+- **Frames, 3 plays (no domain reload between plays):** lizard build 15.5 / 34.7 / 32.9 ms, its second half 7.7 / 6.1 / 6.0 ms, solid 20.2 / 20.3 / 20.1 ms. In A-84 the lizard build ran 21-76 ms.
+  - Every colossus frame stayed under 50 ms in all 3 plays. The largest were the WalkingOak build at 48.6 ms (play 1, cold; 38.5 and 39.3 ms after), the CarnivorousPlant solid at 44.2 ms and the WalkingOak solid at 42.5 ms. The pick frame was about 35 ms.
+- **Checks:** fingerprint 8A1979F1. All 15 "placed at" lines match across the plays and A-84, except GiantTortoise's height, which read 2.5 m once and 2.8 m twice (x and z unchanged; it stands in shallows).
+- **GC:** PlayerLoop 1752 B/frame over 121 frames, measured with the profiler hierarchy the same way as A-84's 8713 (limit 9594). The drop probably comes from the P-20 GC fixes merged from main.
+- **Exceptions:** none from this lane. Main's Underwater.cs (player lane, P-19) throws a MissingComponentException every frame in the editor: `GetComponent<AudioLowPassFilter>() ?? AddComponent(...)` never adds the filter, because the editor's fake null defeats `??`.
+  - It appeared after the main merge. Fix: `if (lowPass == null) lowPass = AddComponent...`, not `??`.
+  - For the GC measurement I added the filter by eval so the throw stopped.
+- **Shot:** none asked (number check).
