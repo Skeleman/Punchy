@@ -2503,6 +2503,7 @@ namespace Punchy.Terrain
             Gourds(parts, rng, width, width, 2 + rng.Next(3));
             for (int k = 0; k < 4; k++)
                 LilyPads(parts, rng, Turn(k * 90f + R() * 60f, new Vector3(0f, 0f, MarshHub + 1f + R() * 1.5f)));
+            Hatchery(parts, seed);
             Piles(parts);
             return parts;
         }
@@ -2672,6 +2673,65 @@ namespace Punchy.Terrain
                     Piece = KitPiece.MossCap, Material = KitMaterial.Moss, Rotation = s.Rotation,
                     Centre = s.Centre + s.Rotation * new Vector3(x, s.Size.y * 0.5f + 0.22f, z), Size = new Vector3(w, 0.1f, l)
                 });
+            }
+        }
+
+        /// <summary>
+        /// W-122 row 3: the village's hatchery, a round reed nest raft moored off the back of the smoke hut deck, kept warm
+        /// by its fire. A clutch of speckled eggs sits in it, and one has cracked open with a hatchling's head peeking out.
+        /// It draws from its own stream, so the deck's other details keep their places.
+        /// </summary>
+        static void Hatchery(List<KitPart> parts, uint seed)
+        {
+            var rng = new System.Random((int)(Scramble(seed ^ 0xE66Fu) & 0x7FFFFFFF));
+            float R() => (float)rng.NextDouble();
+            // Straight off the back edge: the hut walks meet the deck 30 deg either side of it, so this gap stays open.
+            var at = new Vector3((R() - 0.5f) * 0.8f, 0f, -(MarshHub + 1.7f));
+            const float ring = 0.95f;
+            // The raft: a woven mat of reed and a bound reed rim, riding a hand above the water.
+            Add(parts, KitPiece.Trim, KitMaterial.Wood, at + new Vector3(0f, 0.08f, 0f), new Vector3(2.1f, 0.1f, 2.1f), 0f, false);
+            Add(parts, KitPiece.Trim, KitMaterial.Roof, at + new Vector3(0f, 0.15f, 0f), new Vector3(1.9f, 0.06f, 1.9f), 45f, false);
+            for (int k = 0; k < 10; k++)
+            {
+                var yaw = k * 36f;
+                Add(parts, KitPiece.Trim, KitMaterial.Roof, at + Turn(yaw, new Vector3(0f, 0.3f, ring)), new Vector3(0.66f, 0.26f, 0.2f), yaw, false, 0f, (R() - 0.5f) * 10f);
+            }
+            // Mooring cord to the deck's edge.
+            var cordFrom = at + new Vector3(0f, 0.3f, ring);
+            var cordTo = new Vector3(at.x, MarshDeck - 0.1f, -MarshHub);
+            var mid = (cordFrom + cordTo) * 0.5f;
+            var run = cordTo - cordFrom;
+            Add(parts, KitPiece.Trim, KitMaterial.Net, mid, new Vector3(0.03f, 0.03f, run.magnitude), 0f, false, -Mathf.Atan2(run.y, new Vector2(run.x, run.z).magnitude) * Mathf.Rad2Deg);
+            // The clutch: each egg three stacked blocks tapering up, cream with dark speckles.
+            var eggs = 5 + rng.Next(3);
+            var cracked = rng.Next(eggs);
+            for (int k = 0; k < eggs; k++)
+            {
+                var spot = at + Turn(k * (360f / eggs) + R() * 20f, new Vector3(0f, 0.18f, k == 0 ? 0f : 0.45f + R() * 0.12f));
+                if (k == 0)
+                    spot = at + new Vector3(0f, 0.18f, 0f);
+                var yaw = R() * 90f;
+                var size = 0.85f + R() * 0.3f;
+                var tilt = (R() - 0.5f) * 30f;
+                if (k == cracked)
+                {
+                    // The lower half of the shell with a jagged rim, and a small green head looking out over it.
+                    Add(parts, KitPiece.Trim, KitMaterial.Net, spot + new Vector3(0f, 0.08f * size, 0f), new Vector3(0.2f, 0.16f, 0.2f) * size, yaw, false);
+                    for (int j = 0; j < 4; j++)
+                        Add(parts, KitPiece.Trim, KitMaterial.Net, spot + Turn(yaw + j * 90f, new Vector3(0f, 0.19f * size, 0.08f * size)), new Vector3(0.09f, 0.08f + (j % 2) * 0.05f, 0.025f) * size, yaw + j * 90f, false, 0f, 12f);
+                    // Head a touch big for the shell, as hatchlings are, so it reads from the deck above.
+                    var head = spot + Turn(yaw, new Vector3(0f, 0.3f * size, 0.02f));
+                    Add(parts, KitPiece.Trim, KitMaterial.Moss, head, new Vector3(0.15f, 0.12f, 0.17f), yaw, false, -20f);
+                    Add(parts, KitPiece.Trim, KitMaterial.Moss, head + Turn(yaw, new Vector3(0f, -0.015f, 0.13f)), new Vector3(0.1f, 0.07f, 0.13f), yaw, false, -20f);
+                    foreach (var ex in new[] { -1f, 1f })
+                        Add(parts, KitPiece.Trim, KitMaterial.Lamp, head + Turn(yaw, new Vector3(ex * 0.075f, 0.035f, 0.05f)), new Vector3(0.025f, 0.035f, 0.035f), yaw, false);
+                    continue;
+                }
+                Add(parts, KitPiece.Trim, KitMaterial.Net, spot + new Vector3(0f, 0.08f, 0f) * size, new Vector3(0.2f, 0.16f, 0.2f) * size, yaw, false, tilt, 0f);
+                Add(parts, KitPiece.Trim, KitMaterial.Net, spot + new Vector3(0f, 0.15f, 0f) * size, new Vector3(0.24f, 0.12f, 0.24f) * size, yaw + 45f, false, tilt, 0f);
+                Add(parts, KitPiece.Trim, KitMaterial.Net, spot + new Vector3(0f, 0.25f, 0f) * size, new Vector3(0.16f, 0.12f, 0.16f) * size, yaw, false, tilt, 0f);
+                for (int j = 0; j < 3; j++)
+                    Add(parts, KitPiece.Trim, KitMaterial.Wood, spot + Turn(yaw + j * 120f + 20f, new Vector3(0f, (0.12f + j * 0.05f) * size, 0.125f * size)), new Vector3(0.035f, 0.03f, 0.01f), yaw + j * 120f + 20f, false);
             }
         }
 
