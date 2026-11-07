@@ -170,7 +170,7 @@ front (the door side), y = 0 is the ground, metres.
 ## Sea folk (W-62, W-62b, issue #37)
 
 `Terrain/Settlements/SeaFolkBaking.cs` puts one underwater settlement in the island's biggest deep lake (island v2
-only). It is two landmarks, placed after every other place on their own new spots, so nothing placed earlier moves;
+and v3). It is two landmarks, placed after every other place on their own new spots, so nothing placed earlier moves;
 neither stamps the ground or the water.
 
 - **Lake pick.** Connected lake cells on the river map (`LakeDepth > 0.3`, 4-neighbour). The biggest lake that is at
@@ -178,10 +178,11 @@ neither stamps the ground or the water.
   for a seed. No lake that deep: no sea folk (logged as `[sea folk] none: ...`).
 - **Village (`Resources/SeaFolkVillage`).** Its middle is the lake cell nearest the lake's centroid that is 9-16 m
   deep, clear of every landmark, with its whole ring (8 points at 0.85 x radius) more than 3 m under water and a
-  bank for the landing. Its props (StructureKit, `FolkCulture.SeaFolk` trim) are 6 shell domes on the bed, 3 spiral
-  spires tall enough to break the surface (so the village reads from the shore), reefs and lake-bed details (kelp,
-  shell mosaics, bubble vents, sunken trade goods, coral arches, glowing anemones), all as data in the landmark's
-  layout. Seed 8121: village at -1480,-24, bed 13.1 m down.
+  bank for the landing. Its props (StructureKit, `FolkCulture.SeaFolk` trim) are 6 shell domes on the bed, one central
+  spiral spire tall enough to break the surface (so the village reads from the shore) ringed by 6 glow stones
+  (`KitShape.GlowStone`, W-120), reefs and lake-bed details (kelp, shell mosaics, bubble vents, sunken trade goods,
+  coral arches, glowing anemones), all as data in the landmark's layout. Seed 8121 v2: village at -1480,-24, bed
+  13.1 m down. v3 (W-120): lake 70.9 ha, 31.2 m deep; village at -1624,-488, bed 16.0 m down.
 - **Landing (`Resources/SeaFolkLanding`).** On the nearest bank, a `StructureKit.Pier` (species `SeaFolkPier`,
   `FaceLandmark` 1) runs out towards the village, seated on the bank's ground. Like the fishing docks (W-59c), its
   land end is a ramp that starts 0.4 m in the ground; on a pier it is 8 m long (about 10 degrees), because a long

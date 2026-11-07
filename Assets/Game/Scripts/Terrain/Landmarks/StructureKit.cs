@@ -76,7 +76,9 @@ namespace Punchy.Terrain
         /// middle. FloraPlacement lays the pieces end to end between the village's dock and wharf ramps and its stilt
         /// house stairs; each variant is its own length (<see cref="StructureKit.BoardwalkLength"/>).
         /// </summary>
-        Boardwalk
+        Boardwalk,
+        /// <summary>W-120 (#37): a sea folk glow stone, a standing lake-bed stone banded with glowing rune shell, ringing the spire.</summary>
+        GlowStone
     }
 
     /// <summary>The small things a sea folk settlement leaves on the lake bed (#37), picked by weight from SeaDetails.</summary>
@@ -1463,6 +1465,40 @@ namespace Punchy.Terrain
             return parts;
         }
 
+        /// <summary>
+        /// W-120 (#37): a sea folk glow stone, <paramref name="height"/> tall: a rough standing stone of stacked, leaning
+        /// blocks, two or three glowing rune bands round it, a glowing pearl on top, a shell or two at its foot and,
+        /// now and then, an anemone or a curl of kelp. A ring of them lights the spire's square at dusk.
+        /// </summary>
+        public static List<KitPart> GlowStone(uint seed, CultureTrim t, float height)
+        {
+            var parts = new List<KitPart>();
+            var rng = new System.Random((int)(Scramble(seed ^ 0x6105Eu) & 0x7FFFFFFF));
+            float R() => (float)rng.NextDouble();
+            var blocks = 3 + rng.Next(2);
+            var step = height / blocks;
+            var lean = (R() - 0.5f) * 10f;
+            var x = 0f;
+            for (int k = 0; k < blocks; k++)
+            {
+                var w = 1.1f - k * 0.16f + R() * 0.2f;
+                Add(parts, KitPiece.Rubble, KitMaterial.Stone, new Vector3(x, (k + 0.5f) * step, 0f), new Vector3(w, step * 1.04f, w * 0.8f), R() * 360f, k == 0, lean, (R() - 0.5f) * 6f);
+                x += Mathf.Sin(lean * Mathf.Deg2Rad) * step;
+                if (k > 0 && (k < blocks - 1 || blocks == 3))
+                    Add(parts, KitPiece.Trim, KitMaterial.Rune, new Vector3(x, k * step, 0f), new Vector3(w * 1.08f, 0.16f, w * 0.88f), R() * 360f, false, lean);
+            }
+            Add(parts, KitPiece.Chimney, KitMaterial.Rune, new Vector3(x, height + 0.25f, 0f), new Vector3(0.5f, 0.5f, 0.5f), 45f, false, 45f);
+            for (int k = 0, n = 1 + rng.Next(2); k < n; k++)
+            {
+                var a = R() * 360f;
+                Add(parts, KitPiece.Trim, KitMaterial.Trim, Turn(a, new Vector3(0f, 0.1f, 0.9f + R() * 0.3f)), new Vector3(0.36f, 0.16f, 0.3f), a, false, 0f, 20f);
+            }
+            var extra = R();
+            if (extra < 0.3f) Sea(parts, SeaDetail.Anemone, Turn(R() * 360f, new Vector3(0f, 0f, 1.4f)), R() * 360f, rng, t);
+            else if (extra < 0.55f) Sea(parts, SeaDetail.KelpGarden, Turn(R() * 360f, new Vector3(0f, 0f, 1.6f)), R() * 360f, rng, t);
+            return parts;
+        }
+
         /// <summary>One lake-bed detail standing at <paramref name="at"/> (its base), turned by <paramref name="yaw"/> degrees.</summary>
         public static void Sea(List<KitPart> parts, SeaDetail kind, Vector3 at, float yaw, System.Random rng, CultureTrim t)
         {
@@ -1470,14 +1506,32 @@ namespace Punchy.Terrain
             switch (kind)
             {
                 case SeaDetail.KelpGarden:
-                    // Tall swaying strands in a loose clump, each a stack of leaning ribbons.
+                    // Tall swaying strands in a loose clump. W-120: each strand is a chain of short ribbons that snakes from
+                    // side to side as it climbs (each segment starts where the last one ended), narrowing to the tip, with a
+                    // leaf blade off every other joint, so a strand reads as kelp rather than a flat green board.
                     for (int k = 0, n = 5 + rng.Next(5); k < n; k++)
                     {
                         var p = at + Turn(yaw + k * 137f, new Vector3(0f, 0f, R() * 1.4f));
                         var tall = 2.5f + R() * 4.5f;
-                        var lean = (R() - 0.5f) * 16f;
-                        for (int s = 0, segs = 3; s < segs; s++)
-                            Add(parts, KitPiece.Moss, KitMaterial.Moss, p + new Vector3(0f, (s + 0.5f) * tall / segs, 0f), new Vector3(0.32f, tall / segs + 0.05f, 0.06f), yaw + k * 53f + s * 20f, false, lean * (s + 1) * 0.5f);
+                        var face = yaw + k * 53f;
+                        var sway = 14f + R() * 14f;
+                        var phase = R() * 6.28f;
+                        var segs = 6;
+                        var seg = tall / segs;
+                        var foot = p;
+                        for (int s = 0; s < segs; s++)
+                        {
+                            var lean = sway * Mathf.Sin(phase + s * 1.3f);
+                            var dir = Quaternion.Euler(lean, face, 0f) * Vector3.up;
+                            var w = 0.34f * (1f - s * 0.1f);
+                            Add(parts, KitPiece.Moss, KitMaterial.Moss, foot + dir * (seg * 0.5f), new Vector3(w, seg + 0.06f, 0.05f), face, false, lean);
+                            if (s % 2 == 1 && s < segs - 1)
+                            {
+                                var side = s % 4 == 1 ? 1f : -1f;
+                                Add(parts, KitPiece.Moss, KitMaterial.Moss, foot + dir * seg + Turn(face, new Vector3(side * 0.22f, 0f, 0f)), new Vector3(0.14f, seg * 0.7f, 0.04f), face, false, lean, side * 40f);
+                            }
+                            foot += dir * seg;
+                        }
                     }
                     break;
                 case SeaDetail.ShellMosaic:
