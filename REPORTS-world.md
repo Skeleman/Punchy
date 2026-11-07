@@ -3235,3 +3235,11 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
 - **Pins:** Landmarks_V3 111 3BDF705F is unchanged. Fauna_Fingerprint will be measured in the card-end suite; it will likely move, because stilt house positions are in the flora placement blob.
 - **Remaining loss:** dock and wharf lane clearance. Village 2 has 4 fitting houses but builds 0, because its houses run parallel to the wharf and the dock. Row 2's boardwalk/side-pier layout takes that on.
 - **Shots:** Assets/Temp/shots/w119-r1-village1.png and w119-r1-village3.png show stilt houses on posts in the shallows next to the dock and the wharf.
+
+## W-119 row 2 (Zach 11-03): pier networks. Done (verified)
+- Commit e94282a6 on world-features. New kit piece FishBoardwalk (KitShape.Boardwalk 16; species asset added to FishingVillage props).
+- **Layout:** FloraPlacement joins each village's dock and wharf landings and its stilt house plots into one shore boardwalk. The nodes are sorted along the shore, and each link is laid as 3 m plank pieces on piles. Inner pieces slide along the facing to hold the ground line. Shore kit stays 3.6 m clear.
+- **Pieces per village:** v1 10, v2 7, v3 15, v4 9. In v3 the walk runs about 40 m, from the stilt house on the west dune past the dock and pier to the east stilt house.
+- **Pins:** Landmarks_V3 111 3BDF705F is unchanged. Fauna_Fingerprint will move again (a new species in the flora blob); it is measured at card end.
+- **Risk:** where a link climbs a steep bank (v3 west dune), neighbouring pieces step up to about 1.5 m. They read as stairs on posts, not a ramp.
+- **Shots:** Assets/Temp/shots/w119-r2-above.png and w119-r2-boardwalk.png.
