@@ -2943,3 +2943,7 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - The other 20 colossi have the same placements and loops as before (puffball 447 m, mammoth 196 m). 0 exceptions. GC 2674 B/frame (limit 9594).
 - Shots: D:/PunchyMilestones/A-86/a86-r3-whale-side.png (main, whale over snowy peaks), a86-r3-whale-below.png (from the ground, mostly blocked by pines), a86-r3-gc.png.
 - Risk: the whale is non-solid, so the player can fly through it.
+
+## A-87 row 1 - suite on merged main (W-118 + A-86): done (verified)
+- animal-behaviours fast-forwarded to origin/main f302372b. The batch PlayMode suite passed 14 of 14 in 233 s, Unity exit 0.
+- Pins hold: Fauna_Fingerprint 027CC3FD, Landmarks_V3 111 3BDF705F. No code change.
