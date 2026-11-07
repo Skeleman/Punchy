@@ -3225,3 +3225,13 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
   - Row 3 (the 7 layouts get hazard house entries) gives 3EA2B0C0. Measured with the row 4 change reverted.
   - Row 4 (MaxSlope) then gives 027CC3FD.
   - No fauna code changed. Suggest re-pinning 027CC3FD after merge.
+
+## W-119 row 1 (#36): village plots on river water. Done (verified)
+- Commit 40295300 on world-features (merged origin/main 3933acb5 first).
+- **River water:** v3 now has 0 of 8 dock/wharf plots on river water in the 4 villages (card's old log: 0/6, 2/6, 0/6). Water plots are kept.
+- **Stilt houses:** a plot that misses the bank/shallows window now slides along its ring ray, up to 16 m out or 6 m back, to the waterline (LandmarkSampling.StiltHouseSpot). Flora and anchors use the same code.
+  - Bake log: 6 of 24 fit at the ring spot. With the slide, 14 of 24 fit.
+  - Built in play: about 2 before, 5 after (v1 2, v2 0, v3 2, v4 1).
+- **Pins:** Landmarks_V3 111 3BDF705F is unchanged. Fauna_Fingerprint will be measured in the card-end suite; it will likely move, because stilt house positions are in the flora placement blob.
+- **Remaining loss:** dock and wharf lane clearance. Village 2 has 4 fitting houses but builds 0, because its houses run parallel to the wharf and the dock. Row 2's boardwalk/side-pier layout takes that on.
+- **Shots:** Assets/Temp/shots/w119-r1-village1.png and w119-r1-village3.png show stilt houses on posts in the shallows next to the dock and the wharf.
