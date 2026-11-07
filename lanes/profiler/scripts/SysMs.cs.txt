@@ -30,7 +30,8 @@ public static class SysMs
         ("shadows (URP)", new[] { "Shadows.Draw", "MainLightShadow" }),
     };
     static readonly string[] Counters = { "SetPass Calls Count", "Draw Calls Count", "Batches Count", "Instanced Batched Draw Calls Count",
-        "Shadow Casters Count", "Triangles Count", "GC Allocated In Frame", "GC Allocation In Frame Count" };
+        "Shadow Casters Count", "Triangles Count", "GC Allocated In Frame", "GC Allocation In Frame Count",
+        "System Used Memory", "Total Used Memory", "GC Used Memory", "Gfx Used Memory" };
 
     public static void Dump()
     {

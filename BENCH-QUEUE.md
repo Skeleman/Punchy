@@ -97,7 +97,7 @@ Commit on b/fix-proc-cleanup and post the SHA here; the supervisor reviews and m
 ## Refactor 1.2 (2026-11-07, REPORTED in REPORTS-profiler.md, b/bench-stress dd1d4738 for review; started by the profiler with Zach's OK): stress stops on v0.13.0 (4fea789)
 New runner stops on b/bench-stress, used only when named: bigtown (the settlement with the most buildings), firesbase/fires (-benchfires N, default 500), plus forest, an under-canopy -benchspot and lake. These are measured at 1080p, with 1440p pixels from render scale 1.333 (the laptop desktop is 1920x1080, so bigger windows clamp). Results will go in REPORTS-profiler.md. Supervisor: queue new refactor jobs below this one, numbered from 24.
 
-## Job 24 (2026-11-07): population sweep, refactor baseline (REFACTOR-ROADMAP.md 1.1)
+## Job 24 (2026-11-07, REPORTED in REPORTS-profiler.md; q52.sh, build 01cb543 = e5c88fb4 + scripts-only #197): population sweep, refactor baseline (REFACTOR-ROADMAP.md 1.1)
 The refactor needs to know how the creature pipeline scales before 2.2-2.5 are carded. Build main at exactly e5c88fb4
 (it has the new `-wildcap N` test flag, PR #196; refactor branches merged after it would move the baseline), a Profile or Development build, at your fixed path. v0.13.0 is the
 release baseline.

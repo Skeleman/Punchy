@@ -2,6 +2,100 @@
 
 Newest first.
 
+## 2026-11-07 Job 24 (refactor 1.1): population sweep on e5c88fb4, uncapped (q52.sh)
+
+- Build: Profile from main 01cb543. That is e5c88fb4 plus PR #197 only, which touches bench scripts and no game code, so it is the baseline.
+- Settings: `-place meadow -time 12 -gfx Low -fpscap 0`, 1920x1080, `-wildcap N`.
+  - The population fills for 70 s, then 7 samples of 3 s each, every one with `-perflog`.
+  - 2 rounds, the second in reverse order.
+  - 24 sessions, 0 exceptions, 0 crashes.
+- Profiler captures: one SysMs capture per N (2000 frames) in mode `def`, round 1.
+  - The capture adds 1.2-2.4 ms of main thread. So the `def` rows below use round 2 only, and the SysMs numbers are for shares and per-system ms only.
+- `creatures` counts every live CreatureState, not just wild creatures. At cap 180 it reads about 265.
+  - Cap 2000 levels off at about 1350 live after 70 s.
+- Modes:
+  - `near` = `-nobrainlod`: every creature thinks every frame.
+  - `def` = the default LOD (80 m, every 4th frame beyond it). This already skips about half the creatures at the meadow.
+  - `far` = `-brainlod 20,4`: only creatures within 20 m think every frame. This is "mostly far" and needs no new flag.
+
+### Per N (default LOD; mean of 7 x 3 s samples; worst = max over samples)
+
+| N cap | live | frame ms (worst) | main | render thr | GPU | brain wall (worst) | worker spread | brain summed | brain wait | pose median (worst) | posed/frame | advance | audio | trace | mantrap | wake |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 180 | 264 | 12.3 (34) | 11.0 | 2.99 | 7.0 | 0.77 (3) | 1.31x | 3.9 | 0.063 | 1.72 (3) | 27 | 1.0 | 0.19 | 0.12 | 0.03 | 0.03 |
+| 500 | 431 | 12.6 (33) | 11.3 | 2.95 | 7.2 | 1.05 (5) | 1.17x | 6.0 | 0.073 | 3.24 (9) | 53 | 1.7 | 0.20 | 0.10 | 0.04 | 0.06 |
+| 1000 | 718 | 12.8 (35) | 11.5 | 2.89 | 7.4 | 1.82 (8) | 1.11x | 11.1 | 0.075 | 3.67 (15) | 76 | 3.1 | 0.22 | 0.06 | 0.06 | 0.09 |
+| 2000 | 1330 | 13.1 (35) | 12.3 | 2.94 | 7.9 | 2.88 (9) | 1.05x | 18.5 | 0.115 | 7.94 (15) | 161 | 5.0 | 0.27 | 0.29 | 0.09 | 0.14 |
+
+### SysMs per N (def, round-1 captures; ms per frame, all threads / main thread)
+
+| N cap | capture frame ms | creature brain | creature render | fauna director | creature audio | PresentationSystemGroup (main) | SimulationSystemGroup (main) | instanced draws | tris | GC KB/frame (allocs) | total used / gfx / GC heap MB |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 180 | 13.64 | 4.00 / 0.071 | 2.35 / 0.34 | 0.40 | 0.20 | 1.17 | 1.13 | 7.2k | 2.0M | 2.7 (42) | 1293 / 558 / 38 |
+| 500 | 13.93 | 7.05 / 0.076 | 3.28 / 0.37 | 0.45 | 0.22 | 1.31 | 1.18 | 10.3k | 2.2M | 4.9 (43) | 1291 / 558 / 34 |
+| 1000 | 13.75 | 11.26 / 0.086 | 5.55 / 0.48 | 0.45 | 0.23 | 1.60 | 1.18 | 22.5k | 3.5M | 2.1 (41) | 1296 / 558 / 39 |
+| 2000 | 15.34 | 20.83 / 0.129 | 9.58 / 0.67 | 0.59 | 0.34 | 2.99 | 1.45 | 36.9k | 5.6M | 2.5 (51) | 1299 / 558 / 40 |
+
+- SetPass calls stay at 159-166 and shadow casters at about 203 at every N. Draw Calls and Batches counters are still not recorded.
+- `-gclog` printed nothing on this build, so the GC numbers come from SysMs. They show no trend with N.
+- Native memory: Total Used rises 6 MB from 180 to 2000, and Gfx stays at 558 MB. System Used reads 1.89-2.05 GB with no trend.
+- GPU ms for creatures alone: SysMs has no per-system GPU split. The whole-frame GPU rises 7.0 to 7.9 ms (def) and 7.1 to 9.1 ms (near) as tris go from 2.0M to 5.6M. q45 put the creature GPU at about 0.15 ms at 265 creatures.
+
+### Near / default / far split (main ms, brain wall, brain summed over workers, advance ms, brain wait)
+
+| N cap | near (-nobrainlod) | def (80 m) | far (-brainlod 20,4) |
+|---|---|---|---|
+| 180 | 11.1 / 1.01 / 5.9 / 2.1 / 0.07 | 11.0 / 0.77 / 3.9 / 1.0 / 0.06 | 11.1 / 0.58 / 2.8 / 0.6 / 0.07 |
+| 500 | 11.6 / 1.72 / 10.0 / 3.7 / 0.07 | 11.3 / 1.05 / 6.0 / 1.7 / 0.07 | 11.4 / 0.82 / 4.5 / 0.9 / 0.08 |
+| 1000 | 11.8 / 2.48 / 15.9 / 5.7 / 0.08 | 11.5 / 1.82 / 11.1 / 3.1 / 0.08 | 11.8 / 1.28 / 7.6 / 1.5 / 0.08 |
+| 2000 | 13.6 / 4.36 / 28.7 / 10.0 / **0.85** | 12.3 / 2.88 / 18.5 / 5.0 / 0.12 | 12.3 / 2.18 / 13.7 / 2.6 / 0.11 |
+
+- Thinks per frame at 2000: near 1320, def 656, far 341.
+- Pose does not change with the brain LOD: median 7.9-8.4 ms at 2000 in all three modes.
+
+### What the supervisor asked for
+
+- **Main-thread brain prep as a share of the frame:**
+
+  | N cap | brain prep (main) | share of frame |
+  |---|---|---|
+  | 180 | 0.071 ms | 0.5% |
+  | 500 | 0.076 ms | 0.5% |
+  | 1000 | 0.086 ms | 0.6% |
+  | 2000 | 0.129 ms | 0.8% |
+
+  - Brain prep here is SysMs CreatureBrainSystem + BrainJob on the main thread: snapshot arrays, lookup and grid build.
+  - The snapshot copy itself is a scheduled CopyJob. Its 0.000 ms on the main thread is real: CopyTicks only times the Sync and fallback paths, so the job's own time is not measured.
+  - `brain wait` stays at 0.06-0.12 ms, except at 2000 near, where it reaches 0.85 ms. That is the first point where the brain job lands on the main thread's critical path.
+- **Growth from cap 180 to 2000 (live 264 to 1330, x5.0):**
+
+  | Cost | 180 → 2000 | Growth | Thread |
+  |---|---|---|---|
+  | Brain, summed over workers | 4.0 → 20.8 ms | x5.2 | Workers. Wall 0.77 → 2.88 ms (x3.7) |
+  | Pose job median | 1.72 → 7.94 ms | x4.6 | Workers. Worst 15 ms |
+  | Creature render | 2.35 → 9.58 ms | x4.1 | All threads |
+  | Creature render, main thread | 0.34 → 0.67 ms | x2.0 | Main |
+  | Readers (audio + trace + mantrap + wake) | 0.37 → 0.79 ms | x2.1 | Main |
+  | Brain prep | 0.07 → 0.13 ms | x1.8 | Main |
+  | Snapshot | ≈ 0 | — | Main |
+
+  - Brain grows linearly with thinks, at about 14 µs of worker time per creature-think.
+  - Pose grows with creatures posed per frame (27 → 161).
+  - Trace is noisy (0.06-0.47 ms between samples).
+  - Brain prep and the snapshot are the cheapest items.
+- **On the main thread:**
+  - The frame grows 1.3 ms (def) to 2.5 ms (near) from 180 to 2000.
+  - The largest main-thread grower is PresentationSystemGroup, +1.8 ms in the captures. It holds creature render's main part (+0.33) and the pose/render job waits.
+  - Next come the readers (+0.4), fauna director (+0.19) and brain prep (+0.06).
+- **Bound:** CPU-bound (main thread) at every N. Main is 11-13.6 ms against GPU 7-9 ms.
+  - The creature pipeline is a small part of that main thread: the meadow frame's main thread is mostly other systems (colossi 1.0, flora 0.6, weather, caves).
+- **Suggested order (from the numbers only):**
+  1. Pose and render (2.3-2.5): grows almost as fast as brain, and is the part that reaches the main thread.
+  2. Brain worker time: the largest absolute number, but off the main thread until about 1300 near.
+  3. Readers.
+  4. Brain prep and snapshot: under 1% of the frame at every N.
+- Logs: `results/q52logs` on the laptop (not pushed). Script: `lanes/profiler/scripts/q52.sh`.
+
 ## 2026-11-07 refactor 1.2: stress stops on v0.13.0 (4fea789), uncapped (b/bench-stress dd1d4738 for review; q51.sh, q51b.sh)
 
 - DONE: new runner stops, used only when named in `-benchstops`:
