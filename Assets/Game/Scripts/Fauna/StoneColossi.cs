@@ -38,7 +38,7 @@ namespace Punchy.Fauna
         // W-89 (#40, Zach's designs): a golem of floating rocks held together by arcs takes the ElectricWastelands slot
         // (the crystal serpent comes back with "-colossus CrystalSerpent"), and a seventh slot holds a walking saguaro in
         // the Sonoran.
-        public enum Kind { KneelingTitan, HalfBuriedHead, GiantTortoise, CrystalSerpent, DrownedKnight, AshSmith, CarnivorousPlant, SkeletalLizard, RockGolem, WalkingSaguaro, SaltCrystal, MesaTortoise, GlassHeron, LanternStag, CinderSnail, MireWalker, SnowWorm, WalkingOak, Puffball, CharredTreant, IceMammoth }
+        public enum Kind { KneelingTitan, HalfBuriedHead, GiantTortoise, CrystalSerpent, DrownedKnight, AshSmith, CarnivorousPlant, SkeletalLizard, RockGolem, WalkingSaguaro, SaltCrystal, MesaTortoise, GlassHeron, LanternStag, CinderSnail, MireWalker, SnowWorm, WalkingOak, Puffball, CharredTreant, IceMammoth, SkyWhale }
         // W-92 (#40, Zach's SaltFlat design): an eighth slot holds a giant rounded salt crystal rolling in slow circles.
         // W-106 row 2 (#40): a ninth slot holds a rock tortoise in the MesaCanyonlands that reads as a small mesa.
         // A-76 (#40): a tenth holds a glass heron wading the GlassDesert, an eleventh a lantern stag in the SparklingForest.
@@ -150,6 +150,7 @@ namespace Punchy.Fauna
             SwayPuffball();
             SwayTreant();
             SwayMammoth();
+            SwaySkyWhale();
         }
 
         bool landing;
