@@ -121,6 +121,12 @@ Playtest 11-07 bugs that live in the same shader and LOD code (fix them as part 
 - **The electric golem colossus still doesn't match its rocks.** Colossi (and creatures) draw through their own shader, without the material properties flora rocks get. Give colossi and creatures the same surface inputs as flora (rock grain, triplanar, the biome surface colours) instead of tuning each renderer by hand. Owners: animal (Colossus shader) and world (flora rocks).
 - **The mesa arches no longer match the new desert colours.** Objects placed in a biome should take their colours from the biome's land values, as data, so a biome colour change carries over. Owner: world. Find where the placed-object colours are set, and link them to the biome palette.
 
+**Status 11-07:**
+- 3.5a and 3.5b are done on `refactor/flora-static` (5febffdb, not merged).
+- Measured split on v3: 563 of 1088 variants never move, 30% of LOD0 vertices.
+- Looks the same with and without `-nostaticflora`.
+- The GPU A/B is BENCH-QUEUE job 26; merge after it.
+
 **Not now:** renaming Flora to WorldObjects in code. It touches namespaces, files, assets, docs, GLOSSARY and every lane's code for no runtime gain, and lanes would collide over it. Use "world objects (flora system)" in docs and cards now. Do the code rename, if ever, together with the assembly-definition pass (4.1).
 
 ## Phase 4: modularity (after Phase 2 is under way)

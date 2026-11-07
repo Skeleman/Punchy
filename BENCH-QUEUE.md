@@ -131,3 +131,13 @@ thread ms, GPU ms, draw calls and tris, and the top 5 systems by ms (SysMs).
 3. **Fires:** about 500 fires at once. The Ember Forest's burning forest at night is the nearest thing. Say what count you reached and how (FireSystem caps flames at 8192).
 4. **Lake:** a lake filling most of the screen. For example the W-120 sea folk lake at `-goto -1624,-488`, looking across it at noon; repeat with the camera under the water (`-view 0,-35`).
 These feed refactor phase 3 (3.1 lights, 3.2 fire, 3.4 water, 3.5 flora by behaviour). For 3.5, also log the flora vertex count split into plants vs rocks/kit buildings in scene 1, if SysMs or a render counter can.
+
+## Job 26 (2026-11-07): static flora variant A/B (REFACTOR-ROADMAP.md 3.5b), after jobs 24-25
+Branch `refactor/flora-static` (5febffdb, not merged: merge waits on this job). Flora models that never move (rocks,
+logs, ruins, kit buildings) draw with a FLORA_STATIC variant that skips all vertex wind and motion. The build log says
+`[flora] static (refactor 3.5): 563 of 1088 variants never move, 694018 LOD0 vertices static vs 1622264 moving`.
+`-nostaticflora` draws everything animated, as before, in the same build. That is the A/B.
+- **Build:** a Profile build of the branch. Set the resolution explicitly every run: two runs here came out at 1080p and 4K from a saved screen pref, so set it per run (see build-release.md on the Screenmanager values).
+- **Scenes:** the job 25 big settlement (expect the biggest win: kit buildings), the dense forest (mostly plants: little change expected), and a rock-heavy spot (`-place Tors`).
+- **Per scene:** run ABBA with and without `-nostaticflora`, uncapped, at 1440p. Report GPU frame ms, and the shadow pass and main opaque pass ms if SysMs or a GPU capture can split them.
+- **Also report** anything that looks different between the two. The player lane saw no difference at a town, the tors and an oak grove.
