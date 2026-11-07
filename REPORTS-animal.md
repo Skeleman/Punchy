@@ -2894,3 +2894,23 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
   - treant-trail-night.png: the trail. About five small flames dot the ash behind its root feet.
   - treant-trail-day.png: the same view by day. There the embers show only as faint flecks near the feet.
 - **Risk:** the trail is local and cosmetic, so each player sees their own.
+
+## A-85 row 4: Glacier mammoth sealed in ice, shedding chunks (#40), done (verified)
+
+- **Commit:** 45792e56 on animal-behaviours, pushed.
+- **Files:** new StoneColossi.IceMammoth.cs and Resources/Colossi/IceMammoth.asset. StoneColossi.cs gains the enum entry and the SwayMammoth() call; ColossusWalker.cs gains its gait (salt 0xA7E3).
+- **Where:** (-91, 158.8, 1420), facing 53, on island v3. It uses its own salt 19387, Order 17, and KeepApart 250 from the KneelingTitan.
+- **Look:** a woolly mammoth about 30 m tall at the hump.
+  - Plates of pale and deep-blue ice cover it, with its red-brown coat showing between them and hanging in strands under the belly. Snow lies on top.
+  - Curled tusks are crusted with ice lumps and icicles. Icicles also hang along the belly. It has a swaying trunk with frost rings, ice boots, ivory toenails, and its front left foot is raised mid-step.
+  - Details: a raven frozen mid-flight in a block on its hump with one wing out, an old hunter's spear in its left flank with a frayed binding, frosted brows, and snow drifts and old chunks round its feet.
+- **Shedding:** chunks of ice break off a flank or tusk, tumble down, land on the terrain height with a low crack and a puff of powder, lie for 110 s and melt away (up to 18 at once). They are drawn with Graphics.DrawMesh: no GameObjects, no garbage. Its breath steams from the trunk tip every 5-9 s, glitter falls off it, and it rumbles every 14-26 s, with icicle drips.
+- **Risk, it never walks:** every Glacier spot I scanned (20 salts) slopes more than 1.0 within 60 m, and the walker's MaxSlope is 0.35, so the walker logs "stays still". It therefore sheds on a timer (every 7-13 s) as well as every 5 m walked. If the Glacier ever gets flatter ground, it will walk and shed as it goes, with no code change.
+- **Checks:** fingerprint 8A1979F1. Build 25-26 ms and solid 24 ms, each on its own frame. All 17 other placements are unchanged.
+  - 0 exceptions from this lane. A drifting-quaternion TRS error was found and fixed before commit.
+  - Main's Underwater.cs AudioLowPassFilter throw continues, see row 1.
+- **GC:** 1935 B/frame next to the mammoth with chunks falling (limit 9594; row 3 was 1972).
+- **Shots** in D:\PunchyMilestones\A-85 (2560x1440). It does not glow, so there is no night shot.
+  - mammoth-day.png: wide shot. It stands on a snowy slope with drifts and loose chunks round it, mountains behind.
+  - mammoth-close.png: from the front quarter. Brown fur between snow-capped ice plates, long curled tusks hung with icicles.
+  - mammoth-chunks.png: low at its feet. Several shed ice chunks lie in the snow by its legs.
