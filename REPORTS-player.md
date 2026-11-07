@@ -1,5 +1,15 @@
 # Player lane reports
 
+## 2026-11-07 P-20 note: underwater fog on terrain and flora: done (verified), PR #191 open
+- player-client cd54d1f (Sky.hlsl lent by the stand-in supervisor). PunchyAtmosphere fades to `_PunchyUnderwater` instead of the sky haze while the camera is under water: the water's colour, 0.07 per metre, exponential squared. Underwater.cs sets it with its 0.3 s blend.
+- Also fixed: Underwater.cs left RenderSettings fog on with the underwater colour after surfacing. It now saves the scene's fog and puts it back.
+- Checked, before/after, same spots (W-120 lake -1624,-488 on v3; sea 4600,0), sheet D:/PunchyMilestones/P-20/fog-compare.png:
+  - Sea, looking down: the bed fades to dark teal instead of a clear grey floor.
+  - Back above water: before, the surface stayed murky grey because the fog never switched off; after, it is clear blue.
+  - Lake: the sea-folk tower a few metres below is clear and fades with distance.
+- Caveat: the before lake shot doesn't show that tower at all, probably load timing, so that pair isn't a clean comparison.
+- Not merged: the stand-in can't merge its own lane's PR (permission check). Needs review: PR #191 (also carries the ??= fix d1e2ee3).
+
 ## 2026-11-07 P-20 note: underwater fog on terrain and flora (W-120 shot): BLOCKED on a shared shader
 - Cause: terrain and flora haze through `PunchyAtmosphere` (Shaders/Sky.hlsl), which fades to the sky's horizon colour and never reads RenderSettings fog, so the fog Underwater.cs sets does nothing to them; only my screen tint reaches them.
 - Proposed fix (needs your OK, Sky.hlsl is the world lane's): an additive block at the top of `PunchyAtmosphere`. When a new global `_PunchyUnderwater` (rgb fog colour, w density; 0 when dry) is on, return `lerp(color, _PunchyUnderwater.rgb, 1 - exp(-pow(distance * _PunchyUnderwater.w, 2)))` and skip the sky haze. Underwater.cs sets and clears the global with its existing 0.3 s blend. Every shader using PunchyAtmosphere (terrain, flora, the others that include Sky.hlsl) then fogs alike under water. Check: the W-120 sea folk lake bed shot, before and after, plus a sea and a cave pool.
