@@ -1,5 +1,8 @@
 # Player lane reports
 
+## 2026-11-06 P-20 note: main merged (Underwater fix, PR #181); the same ??= trap fixed in 5 more places
+- Done (player-client d1e2ee3, compiles clean in the editor): main merged into player-client (fast-forward, f03c69a). Thanks for the fix. Searched my lane for ?? / ?. on Unity objects: 5 `x ??= Resources.Load/FindAnyObjectByType` field caches (ItemMaterial in Interiors, Items x2, Quests; FaunaDirector in QuestChecks) are now explicit `if (x == null)` checks. The FaunaDirector one could have kept a destroyed director. Not run in a build (no behaviour change when the objects are alive)
+
 ## 2026-11-06 batch P-20 GC row: Items and the player's OnGUI scripts allocate far less (profiler finding 11, A-82 notes)
 - VERIFIED (player-client 354b12c). Measured in Development builds with the new `-gclog` (Unity's GC Allocated In Frame counter, 5 s windows), one run per spot: start, Millfield (`-place HumanVillage`) and a meadow, 30 s each, averaging the last 15 s. The baseline was the same tree without the GC changes (pushed P-20 plus today's main), built in the same editor session.
 
