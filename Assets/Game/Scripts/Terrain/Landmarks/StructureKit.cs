@@ -70,7 +70,13 @@ namespace Punchy.Terrain
         /// W-95 (#69): a harsh-biome slab shelter, a crooked ramada of three leaning rock slabs under a fourth laid across
         /// as the roof, dug into the ground with a dirt ramp up out of its open front (+Z). No shell, no inside cylinder.
         /// </summary>
-        SlabShelter
+        SlabShelter,
+        /// <summary>
+        /// W-119 (#36): one short piece of a fishing village's shore boardwalk, a plank deck on posts along +Z about its
+        /// middle. FloraPlacement lays the pieces end to end between the village's dock and wharf ramps and its stilt
+        /// house stairs; each variant is its own length (<see cref="StructureKit.BoardwalkLength"/>).
+        /// </summary>
+        Boardwalk
     }
 
     /// <summary>The small things a sea folk settlement leaves on the lake bed (#37), picked by weight from SeaDetails.</summary>
@@ -88,7 +94,11 @@ namespace Punchy.Terrain
     /// <summary>The small things a fishing village leaves about (#36), picked by weight from CoastDetails.</summary>
     public enum CoastDetail : byte
     {
-        Boat, NetFrame, FishRack, CrabPots, Driftwood, Lantern
+        Boat, NetFrame, FishRack, CrabPots, Driftwood, Lantern,
+        /// <summary>W-119: a coil of rope lying on the ground or a deck.</summary>
+        RopeCoil,
+        /// <summary>W-119: an old post or two standing up out of the sand, a gull on one.</summary>
+        GullPost
     }
 
     /// <summary>How a culture roofs its buildings.</summary>
@@ -287,17 +297,33 @@ namespace Punchy.Terrain
         public static readonly (CoastDetail Kind, float Weight)[] CoastDetails =
         {
             (CoastDetail.Boat, 3f), (CoastDetail.NetFrame, 2f), (CoastDetail.FishRack, 2f),
-            (CoastDetail.CrabPots, 2f), (CoastDetail.Driftwood, 1.5f), (CoastDetail.Lantern, 1f)
+            (CoastDetail.CrabPots, 2f), (CoastDetail.Driftwood, 1.5f), (CoastDetail.Lantern, 1f),
+            (CoastDetail.RopeCoil, 1f), (CoastDetail.GullPost, 1f)
         };
 
-        /// <summary>A seeded pick from CoastDetails by weight.</summary>
-        public static CoastDetail PickDetail(System.Random rng)
+        /// <summary>
+        /// W-119: how many fishing trades a village can follow (FloraPlacement gives each village one): 0 crabbers,
+        /// 1 net fishers, 2 fish driers. The trade weights the shore details and picks the boardwalk's deck details.
+        /// </summary>
+        public const int FishTrades = 3;
+
+        /// <summary>W-119: how much more often a trade's own details turn up on its shore.</summary>
+        static float TradeWeight(CoastDetail kind, int trade) => trade switch
+        {
+            0 => kind == CoastDetail.CrabPots ? 4f : kind == CoastDetail.Boat ? 1.5f : 1f,
+            1 => kind == CoastDetail.NetFrame ? 4f : kind == CoastDetail.RopeCoil ? 2f : 1f,
+            2 => kind == CoastDetail.FishRack ? 4f : kind == CoastDetail.GullPost ? 2.5f : 1f,
+            _ => 1f
+        };
+
+        /// <summary>A seeded pick from CoastDetails by weight (W-119: leaning to a village's trade, or none for -1).</summary>
+        public static CoastDetail PickDetail(System.Random rng, int trade = -1)
         {
             var total = 0f;
-            foreach (var d in CoastDetails) total += d.Weight;
+            foreach (var d in CoastDetails) total += d.Weight * TradeWeight(d.Kind, trade);
             var roll = (float)rng.NextDouble() * total;
             foreach (var d in CoastDetails)
-                if ((roll -= d.Weight) < 0f)
+                if ((roll -= d.Weight * TradeWeight(d.Kind, trade)) < 0f)
                     return d.Kind;
             return CoastDetails[0].Kind;
         }
@@ -354,6 +380,89 @@ namespace Punchy.Terrain
             return parts;
         }
 
+        /// <summary>W-119: how far apart FloraPlacement sets a boardwalk's pieces along its run (m).</summary>
+        public const float BoardwalkStep = 3f;
+        /// <summary>W-119: a boardwalk piece's length for a variant: 3.2 to 4.6 m in 0.2 m steps, two variants per
+        /// length, so the pieces overlap their neighbours a little round bends.</summary>
+        public static float BoardwalkLength(int variant) => 3.2f + (variant / 2 % 8) * 0.2f;
+        /// <summary>W-119: a boardwalk piece's deck height; odd variants 2 cm higher, so where neighbours overlap the
+        /// planks never fight.</summary>
+        public static float BoardwalkDeck(int variant) => 0.4f + (variant & 1) * 0.02f;
+
+        /// <summary>
+        /// W-119 (#36): a piece of a fishing village's shore boardwalk, along +Z about the origin: planks across a
+        /// 1.8 m deck with a solid bed under them (W-62c, so walkers never drop through a gap), posts at its ends and
+        /// middle running 2.5 m down so the deck stands clear where the bank dips, and now and then a mooring post
+        /// with a coil of rope on top, all from the seed.
+        /// </summary>
+        /// <remarks>
+        /// W-119 row 3: <paramref name="detail"/> above 0 adds the deck details of trade detail - 1 (see FishTrades) on
+        /// one edge: crabbers stack pots, net fishers hang a net over a short rail, driers rack fish; a rope coil or a
+        /// gull may join them. FloraPlacement picks which pieces carry them.
+        /// </remarks>
+        public static List<KitPart> Boardwalk(uint seed, CultureTrim t, float length, float deck, int detail = 0)
+        {
+            const float W = 1.8f;
+            var parts = new List<KitPart>();
+            var rng = new System.Random((int)(Scramble(seed ^ 0xB0A2Du) & 0x7FFFFFFF));
+            Platform(parts, Vector3.zero, 0f, W, length, deck, false);
+            Add(parts, KitPiece.Platform, KitMaterial.Wood, new Vector3(0f, deck - 0.17f, 0f), new Vector3(W * 0.94f, 0.1f, length), 0f, false);
+            foreach (var z in new[] { -0.5f, 0f, 0.5f })
+                foreach (var side in new[] { -1f, 1f })
+                    Add(parts, KitPiece.Column, KitMaterial.Wood, new Vector3(side * W * 0.42f, (deck - 2.5f) * 0.5f, z * (length - 0.3f)), new Vector3(0.22f, deck + 2.5f, 0.22f), 0f, false);
+            if (rng.NextDouble() < 0.35)
+            {
+                // A mooring post on one edge, a little proud of the deck, rope wound round its head.
+                var x = (rng.Next(2) == 0 ? -1f : 1f) * (W * 0.5f + 0.1f);
+                var z = ((float)rng.NextDouble() - 0.5f) * (length - 0.8f);
+                Add(parts, KitPiece.Column, KitMaterial.Wood, new Vector3(x, (deck + 0.7f - 2.5f) * 0.5f, z), new Vector3(0.26f, deck + 0.7f + 2.5f, 0.26f), 0f, false);
+                for (int k = 0; k < 3; k++)
+                    Add(parts, KitPiece.Trim, KitMaterial.Net, new Vector3(x, deck + 0.45f + k * 0.07f, z), new Vector3(0.34f, 0.06f, 0.34f), k * 30f, false);
+                if (rng.NextDouble() < 0.4)
+                    Gull(parts, new Vector3(x, deck + 0.7f, z), (float)rng.NextDouble() * 360f);
+            }
+            if (detail > 0)
+            {
+                // The trade's deck details on one edge (the other edge stays clear to walk), the far side of any post.
+                var side = rng.Next(2) == 0 ? -1f : 1f;
+                var edge = side * (W * 0.5f - 0.35f);
+                var z = ((float)rng.NextDouble() - 0.5f) * (length - 2.6f);
+                float R() => (float)rng.NextDouble();
+                switch ((detail - 1) % FishTrades)
+                {
+                    case 0:
+                        Detail(parts, CoastDetail.CrabPots, new Vector3(edge, deck, z), side > 0f ? 180f : 0f, rng, t);   // the buoy on top inboard
+                        break;
+                    case 1:
+                    {
+                        // A short rail on two posts at the edge, a net hung over it: a long fall outside down towards
+                        // the water, a short one inside, a few floats along its edge.
+                        var x = side * (W * 0.5f - 0.08f);
+                        var run = 1.6f + R() * 0.6f;
+                        foreach (var e in new[] { -0.5f, 0.5f })
+                            Add(parts, KitPiece.Column, KitMaterial.Wood, new Vector3(x, deck + 0.5f, z + e * run), new Vector3(0.1f, 1f, 0.1f), 0f, false);
+                        Add(parts, KitPiece.Beam, KitMaterial.Wood, new Vector3(x, deck + 0.98f, z), new Vector3(0.08f, 0.08f, run + 0.2f), 0f, false);
+                        // Hung in panels of uneven fall (the net bunches between them), each swung out a little.
+                        for (int k = 0, panels = 3 + rng.Next(2); k < panels; k++)
+                        {
+                            var fall = 0.9f + R() * 0.9f;
+                            var pz = z + ((k + 0.5f) / panels - 0.5f) * run;
+                            var foot = NetHang(parts, x + side * 0.06f, deck + 1f, pz, run / panels * 0.9f, fall, side, 4f + R() * 8f);
+                            Add(parts, KitPiece.Trim, KitMaterial.Roof, foot + new Vector3(side * 0.04f, 0.02f, 0f), new Vector3(0.11f, 0.11f, 0.11f), 0f, false);
+                        }
+                        NetHang(parts, x - side * 0.05f, deck + 1f, z + (R() - 0.5f) * 0.3f, run * 0.6f, 0.5f, -side, 5f);
+                        break;
+                    }
+                    default:
+                        Detail(parts, CoastDetail.FishRack, new Vector3(edge, deck, z), 90f, rng, t);
+                        break;
+                }
+                if (R() < 0.5f)
+                    Detail(parts, CoastDetail.RopeCoil, new Vector3(-edge * 0.6f, deck, z + (R() < 0.5f ? -1f : 1f) * (length * 0.5f - 0.6f)), R() * 360f, rng, t);
+            }
+            return parts;
+        }
+
         /// <summary>W-105: a stilt house's walkway is this long, plus up to <see cref="StiltWalkSpread"/> more (m, unscaled).</summary>
         public const float StiltWalkMin = 4f, StiltWalkSpread = 2.5f;
         /// <summary>How far past the ground a stilt house's posts run down into the sea bed (m, before the skirt).</summary>
@@ -373,7 +482,7 @@ namespace Punchy.Terrain
         }
 
         /// <summary>Whether a kit shape is a walled house with a door and an inside (House, StiltHouse and the #69 hazard houses).</summary>
-        public static bool HouseLike(KitShape s) => s == KitShape.House || s == KitShape.StiltHouse || s >= KitShape.AshHouse;
+        public static bool HouseLike(KitShape s) => s == KitShape.House || s == KitShape.StiltHouse || s >= KitShape.AshHouse && s <= KitShape.SlabShelter;   // W-119: Boardwalk comes after them
 
         // ------------------------------------------------------------------------------------------- hazard houses (#69)
 
@@ -930,7 +1039,7 @@ namespace Punchy.Terrain
         }
 
         /// <summary>A cluster of two to four shore details round the origin (#36), each picked from CoastDetails by the seed.</summary>
-        public static List<KitPart> Shore(uint seed, CultureTrim t, float spread)
+        public static List<KitPart> Shore(uint seed, CultureTrim t, float spread, int trade = -1)
         {
             var parts = new List<KitPart>();
             var rng = new System.Random((int)(Scramble(seed ^ 0x5408Eu) & 0x7FFFFFFF));
@@ -938,7 +1047,7 @@ namespace Punchy.Terrain
             {
                 var a = (k + (float)rng.NextDouble() * 0.6f) * Mathf.PI * 2f / n;
                 var at = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * (k == 0 ? 0f : spread * (0.6f + 0.4f * (float)rng.NextDouble()));
-                Detail(parts, PickDetail(rng), at, (float)rng.NextDouble() * 360f, rng, t);
+                Detail(parts, PickDetail(rng, trade), at, (float)rng.NextDouble() * 360f, rng, t);
             }
             return parts;
         }
@@ -1011,8 +1120,13 @@ namespace Punchy.Terrain
                     for (int k = 0, pots = 2 + rng.Next(4); k < pots; k++)
                     {
                         var p = new Vector3((k % 2 - 0.5f) * 0.7f, 0.25f + (k / 2) * 0.48f, (R() - 0.5f) * 0.2f);
-                        Add(parts, KitPiece.Trim, KitMaterial.Wood, at + Turn(yaw, p), new Vector3(0.62f, 0.46f, 0.62f), yaw + (R() - 0.5f) * 20f, false);
-                        Add(parts, KitPiece.Trim, KitMaterial.Net, at + Turn(yaw, p + new Vector3(0f, 0f, 0.32f)), new Vector3(0.5f, 0.34f, 0.02f), yaw, false);
+                        // W-119: a cage, not a crate: a slatted base and lid, four corner sticks, the net body set in.
+                        var py = yaw + (R() - 0.5f) * 20f;
+                        foreach (var y in new[] { -0.2f, 0.2f })
+                            Add(parts, KitPiece.Trim, KitMaterial.Wood, at + Turn(yaw, p + new Vector3(0f, y, 0f)), new Vector3(0.62f, 0.05f, 0.62f), py, false);
+                        foreach (var c in new[] { new Vector3(-0.28f, 0f, -0.28f), new Vector3(0.28f, 0f, -0.28f), new Vector3(-0.28f, 0f, 0.28f), new Vector3(0.28f, 0f, 0.28f) })
+                            Add(parts, KitPiece.Trim, KitMaterial.Wood, at + Turn(yaw, p) + Quaternion.Euler(0f, py, 0f) * c, new Vector3(0.05f, 0.4f, 0.05f), py, false);
+                        Add(parts, KitPiece.Trim, KitMaterial.Net, at + Turn(yaw, p), new Vector3(0.5f, 0.36f, 0.5f), py, false);
                     }
                     Add(parts, KitPiece.Trim, KitMaterial.Roof, at + Turn(yaw, new Vector3(0.6f, 0.15f, 0.5f)), new Vector3(0.3f, 0.3f, 0.3f), yaw, false);
                     break;
@@ -1028,7 +1142,66 @@ namespace Punchy.Terrain
                     Add(parts, KitPiece.Beam, KitMaterial.Wood, at + Turn(yaw, new Vector3(0.3f, 2.12f, 0f)), new Vector3(0.6f, 0.08f, 0.08f), yaw, false);
                     Add(parts, KitPiece.Window, KitMaterial.Lamp, at + Turn(yaw, new Vector3(0.52f, 1.86f, 0f)), new Vector3(0.24f, 0.32f, 0.24f), yaw, false);
                     break;
+                case CoastDetail.RopeCoil:
+                {
+                    // W-119: rope coiled flat in two or three turns (three squares a turn, turned 30 degrees apart, read
+                    // as a round coil), its loose end trailing off.
+                    var r = 0.5f + R() * 0.2f;
+                    for (int k = 0, turns = 2 + rng.Next(2); k < turns; k++)
+                        for (int s = 0; s < 3; s++)
+                            Add(parts, KitPiece.Trim, KitMaterial.Net, at + new Vector3(0f, 0.03f + k * 0.055f, 0f), new Vector3(r - k * 0.08f, 0.05f, r - k * 0.08f), yaw + s * 30f + k * 15f, false);
+                    Add(parts, KitPiece.Trim, KitMaterial.Net, at + Turn(yaw, new Vector3(r * 0.5f + 0.35f, 0.03f, 0.1f)), new Vector3(0.7f, 0.04f, 0.05f), yaw + 20f, false);
+                    break;
+                }
+                case CoastDetail.GullPost:
+                {
+                    // W-119: one to three old weathered posts leaning out of the sand, a gull standing on the tallest.
+                    var posts = 1 + rng.Next(3);
+                    var top = Vector3.zero;
+                    for (int k = 0; k < posts; k++)
+                    {
+                        var h = (k == 0 ? 1.5f : 0.6f + R() * 0.7f);
+                        var p = at + Turn(yaw, new Vector3(k * 0.7f, h * 0.5f - 0.3f, (R() - 0.5f) * 0.4f));
+                        Add(parts, KitPiece.Column, KitMaterial.Trim, p, new Vector3(0.24f, h + 0.6f, 0.24f), yaw + R() * 40f, false, (R() - 0.5f) * 8f);
+                        if (k == 0)
+                            top = p + new Vector3(0f, (h + 0.6f) * 0.5f, 0f);
+                    }
+                    Gull(parts, top, yaw + R() * 360f);
+                    break;
+                }
             }
+        }
+
+        /// <summary>
+        /// W-119: a net hung from a rail along Z at (<paramref name="x"/>, <paramref name="top"/>): a grid of thin cords
+        /// (three falls, three rows narrowing as the net bunches) swung <paramref name="tilt"/> degrees out towards
+        /// <paramref name="side"/>, so it reads as mesh rather than a board. Returns the middle of its bottom edge.
+        /// </summary>
+        static Vector3 NetHang(List<KitPart> parts, float x, float top, float z, float width, float fall, float side, float tilt)
+        {
+            float sin = Mathf.Sin(tilt * Mathf.Deg2Rad), cos = Mathf.Cos(tilt * Mathf.Deg2Rad);
+            Vector3 At(float depth, float dz) => new Vector3(x + side * depth * sin, top - depth * cos, z + dz);
+            for (int i = 0; i < 3; i++)
+                Add(parts, KitPiece.Trim, KitMaterial.Net, At(fall * 0.5f, (i * 0.5f - 0.5f) * width * 0.9f), new Vector3(0.025f, fall, 0.025f), 0f, false, 0f, side * tilt);
+            for (int r = 0; r < 3; r++)
+                Add(parts, KitPiece.Trim, KitMaterial.Net, At(fall * (0.32f + r * 0.32f), 0f), new Vector3(0.025f, 0.025f, width * (1f - r * 0.12f)), 0f, false, 0f, side * tilt);
+            return At(fall, 0f);
+        }
+
+        /// <summary>
+        /// W-119: a gull standing at <paramref name="at"/> (its feet), facing <paramref name="yaw"/>: a white body and
+        /// head, grey wings folded along its back, a dark tail, an orange bill and legs. A carved-still bird for posts
+        /// and decks; the live gulls (WharfSpots) keep to the wharves.
+        /// </summary>
+        public static void Gull(List<KitPart> parts, Vector3 at, float yaw)
+        {
+            Add(parts, KitPiece.Trim, KitMaterial.Copper, at + Turn(yaw, new Vector3(0f, 0.05f, 0f)), new Vector3(0.1f, 0.1f, 0.03f), yaw, false);
+            Add(parts, KitPiece.Trim, KitMaterial.Wall, at + Turn(yaw, new Vector3(0f, 0.17f, 0f)), new Vector3(0.16f, 0.15f, 0.34f), yaw, false, -8f);
+            Add(parts, KitPiece.Trim, KitMaterial.Wall, at + Turn(yaw, new Vector3(0f, 0.3f, 0.16f)), new Vector3(0.12f, 0.12f, 0.13f), yaw, false);
+            Add(parts, KitPiece.Trim, KitMaterial.Copper, at + Turn(yaw, new Vector3(0f, 0.29f, 0.26f)), new Vector3(0.035f, 0.035f, 0.09f), yaw, false);
+            foreach (var side in new[] { -1f, 1f })
+                Add(parts, KitPiece.Trim, KitMaterial.Ash, at + Turn(yaw, new Vector3(side * 0.085f, 0.2f, -0.04f)), new Vector3(0.04f, 0.09f, 0.32f), yaw, false, -6f);
+            Add(parts, KitPiece.Trim, KitMaterial.Ash, at + Turn(yaw, new Vector3(0f, 0.19f, -0.23f)), new Vector3(0.12f, 0.03f, 0.12f), yaw, false, -12f);
         }
 
         // ------------------------------------------------------------------------------------- mountaintops (#38)
