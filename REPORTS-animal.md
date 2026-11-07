@@ -3005,3 +3005,8 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - Risks: the night glow comes from lanterns only (flames + moving lights), because the Colossus shader has no emissive
   input. Magma vertex colour reads dull at night; an emissive channel would be a rendering-lane change. No
   terrain/landmark change. Colossi do not feed Fauna_Fingerprint.
+
+## A-88 card end
+- Merged origin/main (#189) as 4d5b9f0c. Fauna_Fingerprint is now AD7E7781 (main 706B915E plus row 2's LakeSturgeon
+  species and lake fish rows, 118 species). Re-pinned in WorldTests, then the full suite passed: 14 passed, 0 failed, 200 s.
+  Landmarks 111 3BDF705F unchanged. Follow: dog 4.9 m behind at the end of the walk.
