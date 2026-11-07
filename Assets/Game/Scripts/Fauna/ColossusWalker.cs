@@ -93,6 +93,9 @@ namespace Punchy.Fauna
             // It floats, so the ground's slope never pins it: Climb 99 lets any slope through; water and other biomes still do.
             new Gait { Kind = StoneColossi.Kind.SkyWhale, Radius = 90f, Speed = 1.4f, Walk = 150f, Rest = 40f, Stride = 12f, Bob = 0f, Shake = 0f, Body = 28f, Height = 120f, Salt = 0xA7A9u,
                 Floats = true, Climb = 99f },
+            // A-87 row 4 (#40): the hermit crab scuttles sideways round the Ocean shore, wading up to 5 m out.
+            new Gait { Kind = StoneColossi.Kind.HermitCrab, Radius = 45f, Speed = 0.7f, Walk = 80f, Rest = 55f, Stride = 4f, Bob = 0.25f, Shake = 0.06f, Body = 18f, Height = 30f, Salt = 0xA7C2u,
+                Wade = 5f },
         };
 
         const float Ramp = 5f, AwakeRange = 600f, FarPeriod = 0.5f, ShakeRange = 120f, ShakeTime = 0.35f, DustRange = 300f;
