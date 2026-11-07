@@ -3290,3 +3290,9 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
 - Commit a6b39a48 (world-features). Docs/SeaFolkBaking comment no longer say "v2 only".
 - Risk/observation (camera lane, not edited): underwater fog is set (ExpSquared 0.11) but flora/terrain shaders ignore it, so the bed reads clear at 30 m+.
 - ASK animal lane (row 3): a hook for fish schools near the sea folk domes, e.g. spawn existing Koi/SilverFish/Carp schools around a landmark's centre when its type is SeaFolkVillage (centre -1624,-488 on v3, bed ~19.6, water 35.6). World lane will not edit fauna code.
+
+## W-121 row 1 - haze LUT edge near rain/snow cells: done (verified)
+- Commit 54929358 on world-features (Sky.hlsl, HazeLut.shader). The haze table judged the rain/dust height fades at the camera's own height, so a high camera near a cell hazed the ground by its eye level; near the cloud base that flipped across directions and distances and drew hard edges (A-87 row 2). The table now judges the fades at ground level (PunchyHazeLutHeight 0); the sky's per-pixel march keeps the true ray.
+- Repro: forced SnowShowers + Blizzard cells at (-115, 1560) r 350 (cloud base about 705 inside, 1300 outside), main camera at (-115, 740, 1560), just above the base, looking north and down.
+- Shots: D:/PunchyMilestones/W-121/w121-r1-before.png (hard arched edge where the ground snaps to white), w121-r1-after.png (same spot and cells, ground fades smoothly). Inside a cell, low ground now reads a bit hazier from above, as it should under the shaft.
+- No pin impact (shader only).
