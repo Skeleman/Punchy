@@ -2875,3 +2875,22 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
   - puffball-close.png: warts, buds, frill and beaded tendrils.
   - puffball-night.png and puffball-night-close.png: the dark silhouette with green pore glows, bead tips and falling green motes. The glow is modest rather than bright.
 - **Landmark hash note:** this editor's log prints "111 landmarks, hash 5A85AACA" in every bake, including runs before any A-85 change, while the pin is 3BDF705F. Row 2 touches no landmark code. The suite at card end will give the real number.
+
+## A-85 row 3: EmberForest smouldering charred treant (#40), done (verified)
+- Commit 24eb0275. New colossus Kind.CharredTreant (19), asset Colossi/CharredTreant (Order 16, own salt 47213, KeepApart 250 from the CinderSnail).
+  - Placement: (2386, 25.7, -1881), facing 3, region 71 cells. It walks on a new heavy gait (Radius 55, Speed 0.55, Stride 6).
+- **Body:** about 40 m tall. A trunk of irregular charred bark plates with orange seams, ember eyes, a glowing mouth and a chest stove.
+  - Seven boughs: two snapped stumps and bare spars with twigs, two smouldering at the tips. One carries a chain and a melted lantern that swings; another holds a scorched nest.
+  - The crown has a jagged rim, a coal heart and one green sprout. Four legs of three root strands each, with an axe stuck in one leg; a lifted foot spills coals. Ash pads lie under the feet.
+- **Motion and sound:** smoke off the crown, ash and embers falling off it, and a low wooden groan every 9-18 s.
+  - Every 7 m it walks, it drops an ember beside a foot, on the terrain height (TerrainSource). The ember crackles and puffs smoke, then burns as a small flame that shrinks and goes out over 2 min (up to 24 at once). The newest two light the ground. A jump guard skips the trail when the walker relocates it more than 30 m.
+- **Glow:** flames lick out of the trunk seams (bigger at night) and from the eyes, mouth and stove.
+- **Checks:** fingerprint 8A1979F1. Build 26-29 ms and solid 19-21 ms, each on its own frame. All other placements are unchanged. 0 exceptions from this lane (main's Underwater.cs throw continues, see row 1).
+- **GC:** 1972 B/frame near the treant at night (limit 9594). That figure was measured before the final trail fix; the fix adds no per-frame allocation.
+- **Shots** in D:\PunchyMilestones\A-85 (2560x1440):
+  - treant-day.png: wide shot. Red pines and pale ash ground, the treant walking with a smoke plume.
+  - treant-close.png: day, from the front. Ember eyes, glowing mouth, orange seams, bare spars, root legs.
+  - treant-night.png and treant-night-trail.png: amber eyes and seams glowing among the blue biome wisps.
+  - treant-trail-night.png: the trail. About five small flames dot the ash behind its root feet.
+  - treant-trail-day.png: the same view by day. There the embers show only as faint flecks near the feet.
+- **Risk:** the trail is local and cosmetic, so each player sees their own.
