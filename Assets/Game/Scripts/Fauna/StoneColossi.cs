@@ -38,12 +38,13 @@ namespace Punchy.Fauna
         // W-89 (#40, Zach's designs): a golem of floating rocks held together by arcs takes the ElectricWastelands slot
         // (the crystal serpent comes back with "-colossus CrystalSerpent"), and a seventh slot holds a walking saguaro in
         // the Sonoran.
-        public enum Kind { KneelingTitan, HalfBuriedHead, GiantTortoise, CrystalSerpent, DrownedKnight, AshSmith, CarnivorousPlant, SkeletalLizard, RockGolem, WalkingSaguaro, SaltCrystal, MesaTortoise, GlassHeron, LanternStag, CinderSnail, MireWalker, SnowWorm, WalkingOak, Puffball, CharredTreant, IceMammoth, SkyWhale }
+        public enum Kind { KneelingTitan, HalfBuriedHead, GiantTortoise, CrystalSerpent, DrownedKnight, AshSmith, CarnivorousPlant, SkeletalLizard, RockGolem, WalkingSaguaro, SaltCrystal, MesaTortoise, GlassHeron, LanternStag, CinderSnail, MireWalker, SnowWorm, WalkingOak, Puffball, CharredTreant, IceMammoth, SkyWhale, HermitCrab }
         // W-92 (#40, Zach's SaltFlat design): an eighth slot holds a giant rounded salt crystal rolling in slow circles.
         // W-106 row 2 (#40): a ninth slot holds a rock tortoise in the MesaCanyonlands that reads as a small mesa.
         // A-76 (#40): a tenth holds a glass heron wading the GlassDesert, an eleventh a lantern stag in the SparklingForest.
         // A-78 (#40): a twelfth holds a cinder snail grazing the EmberForest, the biggest biome that had none.
         // A-79 (#40): a thirteenth holds a mire walker creeping through the FoggyMarsh on its prop roots.
+        // A-87 row 4 (#40): a hermit crab carrying an islet on its shell scuttles the Ocean shallows, the last biome without one.
         /// <summary>What stands in each slot (one per primary <see cref="ColossusDefinition"/>, by its Order). A "-colossus"
         /// flag swaps a kept kind into the slot of the kind it replaces. Sized when the colossi are placed.</summary>
         public static Kind[] Placed = new Kind[0];
@@ -645,8 +646,10 @@ namespace Punchy.Fauna
                 if (point == null || !point.gameObject.activeInHierarchy || (point.position - eye).sqrMagnitude > LanternRange * LanternRange)
                     continue;
                 var flicker = 0.9f + 0.1f * Mathf.Sin(Time.time * 7f + k * 1.7f);
-                Punchy.Ambience.FireSystem.AddFlame(point.position, 0.3f + 0.25f * night, 0x57A60 + k, Punchy.Ambience.FireSystem.Wood);
-                var light = Punchy.Ambience.FireSystem.Light(Punchy.Ambience.FireSystem.Wood, flicker * (0.35f + 1.4f * night));
+                // A-87 row 4: a point's scale sizes its flame and light (1 for a lantern; the hermit crab's lighthouse is a beacon).
+                var scale = point.localScale.x;
+                Punchy.Ambience.FireSystem.AddFlame(point.position, (0.3f + 0.25f * night) * scale, 0x57A60 + k, Punchy.Ambience.FireSystem.Wood);
+                var light = Punchy.Ambience.FireSystem.Light(Punchy.Ambience.FireSystem.Wood, flicker * (0.35f + 1.4f * night) * scale);
                 light.w *= 0.6f + 0.8f * night;
                 Punchy.Terrain.CaveSystem.MovingLights.Add((0x57A60 + k, point.position, light));
             }
