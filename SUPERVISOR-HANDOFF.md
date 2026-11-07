@@ -7,10 +7,10 @@ Zach asked the supervisor (main account) to hand off to you when its token budge
 supervise. Read COORDINATION.md first (rules 1-18; rule 18 = every process ends on its own, kill by PID).
 
 ## Lanes right now
-- World: W-117 merged (PR #182). Agent now on W-118 (salt ball, snow shelters, kit hazard houses #69, drift
-  mound edge #70).
-- Animal: A-86 merged (PR #185: mammoth walks, sky whale). W-118 merged (PR #184, Fauna 027CC3FD). W-119 merged (PR #186, Fauna 2998FA9A); A-87 merged (PR #187). World on W-120, animal on A-88.
-  Agent now on A-86 (suite on main + landmark hash 5A85AACA vs 3BDF705F, mammoth slope limit, sky whale).
+- 11-07: merged #184 (W-118), #185 (A-86), #186 (W-119), #187 (A-87), #188 (W-120), #189 (W-121), #190 (A-88).
+  Pins on main: Landmarks_V3 111 3BDF705F, Fauna_Fingerprint AD7E7781. #40 closed (every biome has a colossus).
+- World agent (a39709da2c1966bd8): on W-122 (marsh folk stilt village, new race).
+- Animal agent (a1b9928d0d0855997): on A-89 (colossus emissive, build hitch splits, marsh wildlife).
 - Main hotfix PR #181: Underwater.cs ?? on Unity fake null broke the suite (13/14); fixed and noted on P-20.
 - Player: you (P-20).
 - Profiler (laptop): job 23 queued in BENCH-QUEUE.md (b/fix-proc-cleanup: timeouts, kill by PID). Review + merge.
