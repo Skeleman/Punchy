@@ -24,6 +24,7 @@ Shader "Punchy/Flora"
             HLSLPROGRAM
             #pragma target 4.5
             #pragma vertex Vert
+            #pragma multi_compile_local_vertex _ FLORA_STATIC   // refactor 3.5: models that never move skip the wind
             #pragma fragment Frag
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
@@ -571,6 +572,7 @@ Shader "Punchy/Flora"
             HLSLPROGRAM
             #pragma target 4.5
             #pragma vertex Vert
+            #pragma multi_compile_local_vertex _ FLORA_STATIC   // refactor 3.5: models that never move skip the wind
             #pragma fragment Frag
             #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
             #define FLORA_SHADOW_PASS
@@ -702,6 +704,7 @@ Shader "Punchy/Flora"
             HLSLPROGRAM
             #pragma target 4.5
             #pragma vertex Vert
+            #pragma multi_compile_local_vertex _ FLORA_STATIC   // refactor 3.5: models that never move skip the wind
             #pragma fragment Frag
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Flora.hlsl"
@@ -745,6 +748,7 @@ Shader "Punchy/Flora"
             HLSLPROGRAM
             #pragma target 4.5
             #pragma vertex Vert
+            #pragma multi_compile_local_vertex _ FLORA_STATIC   // refactor 3.5: models that never move skip the wind
             #pragma fragment Frag
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/RenderingLayers.hlsl"

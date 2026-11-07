@@ -126,6 +126,8 @@ FloraVertex FloraTransform(FloraAttributes input)
         n = n * cosA + cross(axis, n) * sinA + axis * dot(axis, n) * (1 - cosA);
     }
 
+#ifndef FLORA_STATIC
+    // (Refactor 3.5: none of this for a model that never moves, FLORA_STATIC: rocks, logs, ruins, kit buildings.)
     // Wind: the whole plant leans and sways with gusts that travel across the land; leaves also flutter.
     float3 windDir = float3(_PunchyWindDirection.x, 0, _PunchyWindDirection.y);
     float phase = _Time.y * (0.7 + _PunchyWind * 1.1) - dot(plant.position.xz, _PunchyWindDirection) * 0.04 + plant.random * 6.28;
@@ -231,6 +233,7 @@ FloraVertex FloraTransform(FloraAttributes input)
         p += (h - 0.5) * 0.18 * plant.scale;
     }
 
+#endif
     FloraVertex o;
     o.positionWS = plant.position + p;
     o.normalWS = n;

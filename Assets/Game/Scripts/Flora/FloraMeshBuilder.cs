@@ -589,6 +589,26 @@ namespace Punchy.Flora
             }
         }
 
+        /// <summary>
+        /// Refactor 3.5: whether anything in it moves in the vertex shader. That is a sway or a flutter, breath, twitch,
+        /// vine or debris motion (x, or z, except on a door leaf, whose x and z are its hinge distance and facing), cloth
+        /// (part 10) or an arc (part 11). A model with none draws with the static variant (no wind maths at all); door
+        /// leaves still swing there.
+        /// </summary>
+        public bool Moves()
+        {
+            for (int v = 0; v < data.Count; v++)
+            {
+                var d = data[v];
+                var part = Mathf.RoundToInt(d.y);
+                if (part == (int)FloraPart.Door)
+                    continue;
+                if (part == 10 || part == 11 || d.x != 0f || d.z != 0f)
+                    return true;
+            }
+            return false;
+        }
+
         /// <summary>The mesh of what's been built (main thread).</summary>
         public Mesh MakeMesh(string name)
         {
