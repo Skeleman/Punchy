@@ -3154,3 +3154,10 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
   - 100k pixels differ by more than 8/255, mostly in the lower two thirds, where the cached far shadows fall.
   - The light is soft today, so they read softly.
 - Landmarks_V3 111 3BDF705F (no world change).
+
+## W-117 card end: suite
+
+- PlayMode suite as merged on world-features: 13 of 14 fail. The cause is a pre-existing bug from P-19 (2c63be37, merged via PR #179), not from W-117.
+  - `Underwater.cs:76` does `GetComponent<AudioLowPassFilter>() ?? AddComponent<...>()`. Unity's missing component is a fake null, so `??` never adds the filter, and the next access throws MissingComponentException on every frame under water. That is an unhandled log in every test.
+  - Fix: an explicit `if (lowPass == null)` check. **Player lane:** please ship it; I didn't commit it because the file is yours.
+- With that one-line fix applied locally (then reverted, not committed): 14 passed, 0 failed, including Landmarks_V3 111 3BDF705F and Fauna_Fingerprint 8A1979F1.
