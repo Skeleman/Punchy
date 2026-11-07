@@ -88,6 +88,18 @@ namespace Punchy.Flora
                 case Punchy.Terrain.KitShape.SeaRaft:   // W-121 (#37): Height is the raft's length; it floats by the landing (Floats)
                     parts = Punchy.Terrain.StructureKit.SeaRaft(seed, trim, width);
                     break;
+                case Punchy.Terrain.KitShape.MarshHut:  // W-122: a marsh folk hut on stilts, its walk out to the smoke hut
+                    storeys = 1;
+                    parts = Punchy.Terrain.StructureKit.MarshHut(seed, trim, width, depth, Punchy.Terrain.StructureKit.MarshRing, g.Variant % 3);
+                    break;
+                case Punchy.Terrain.KitShape.SmokeHut:  // W-122: the marsh folk's smoke hut on its deck
+                    storeys = 1;
+                    parts = Punchy.Terrain.StructureKit.SmokeHut(seed, trim, width, g.Variant % 3);
+                    break;
+                case Punchy.Terrain.KitShape.MarshCross: // W-122: Height is the walk's length
+                case Punchy.Terrain.KitShape.MarshWalk:
+                    parts = Punchy.Terrain.StructureKit.MarshCross(seed, trim, width, shape == Punchy.Terrain.KitShape.MarshCross, g.Variant % 3);
+                    break;
                 case Punchy.Terrain.KitShape.Wharf:     // W-65: walkways and houses over the water, laid out by the seed
                     storeys = 1;
                     parts = Punchy.Terrain.StructureKit.Wharf(seed, trim, 1.0f, wharfHouses);
@@ -222,12 +234,23 @@ namespace Punchy.Flora
                 g.Colliders.Add(new Vector4(h.x, h.y, Mathf.Min(h.z, h.w) * 0.45f, 1.0f + trim.Storey));
             if (perch.y > 1f)
                 g.Perches.Add(perch);
+            if (shape == Punchy.Terrain.KitShape.SmokeHut)   // W-122: smoke from the smoke hut's stack
+                foreach (var p in parts)
+                    if (p.Piece == Punchy.Terrain.KitPiece.Chimney)
+                        g.Chimneys.Add(p.Centre + Vector3.up * (p.Size.y * 0.5f + 0.1f));
             b.Recolor(first, (p, c) => p.y < 0.5f ? c * 0.82f : c);   // darker footing
             if (ruined && g.Lod < 2)
                 RuinSand(g, parts, width, depth, seed);
             b.Occlude(first, (p, n) => GroundOcclusion(p, Mathf.Min(top, 4f) * 0.5f));
             g.Height = top;
             g.Width = shape == Punchy.Terrain.KitShape.Wharf ? 30f : Mathf.Max(width, depth) * 1.4f;
+            if (shape >= Punchy.Terrain.KitShape.MarshHut)   // W-122: a marsh hut's walk reaches well past the hut
+            {
+                var reach = 0f;
+                foreach (var p in parts)
+                    reach = Mathf.Max(reach, Mathf.Abs(p.Centre.x) + p.Size.magnitude * 0.5f, Mathf.Abs(p.Centre.z) + p.Size.magnitude * 0.5f);
+                g.Width = Mathf.Max(g.Width, reach * 2f);
+            }
             // (A dock or a shore cluster is walked on and round, not a trunk to bump into.)
             g.TrunkRadius = house ? Mathf.Max(width, depth) * 0.55f : 0f;
         }

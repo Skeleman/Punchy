@@ -282,7 +282,10 @@ namespace Punchy.Flora
                     House = s.Form == FloraForm.KitBuilding && Punchy.Terrain.StructureKit.HouseLike(s.KitShape) ? (s.KitShape == Punchy.Terrain.KitShape.StiltHouse ? 2 : 1) : 0,
                     PierReach = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Pier ? s.Height.y : 0f,
                     PierClear = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Spire ? 1 : 0,
-                    PerVillage = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Wharf ? 1 : 0,
+                    PerVillage = s.Form == FloraForm.KitBuilding && (s.KitShape == Punchy.Terrain.KitShape.Wharf ||
+                                  // W-122 row 2: the marsh folk's smoke hut and walks share their village's theme
+                                  s.KitShape == Punchy.Terrain.KitShape.SmokeHut || s.KitShape == Punchy.Terrain.KitShape.MarshCross ||
+                                  s.KitShape == Punchy.Terrain.KitShape.MarshWalk) ? 1 : 0,
                     Boardwalk = s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Boardwalk ? 1 : 0,
                     Patterns = s.Form == FloraForm.Spire && s.RunePatterns > 0 ? math.min(s.RunePatterns, s.Variants) : 0,
                     // StructureKit.Igloo (W-64): the tunnel ends 1-1.8 m past the dome's foot (the radius), plus the 0.8 m path out.

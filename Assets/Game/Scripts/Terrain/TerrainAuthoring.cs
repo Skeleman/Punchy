@@ -100,6 +100,10 @@ namespace Punchy.Terrain
             var ribcage = RibcageBaking.LoadType();
             if (ribcage != null && !types.Contains(ribcage))
                 types.Add(ribcage);
+            // W-122: the marsh folk village after it.
+            var marshFolk = MarshFolkBaking.LoadType();
+            if (marshFolk != null && !types.Contains(marshFolk))
+                types.Add(marshFolk);
             return types;
         }
 
@@ -235,6 +239,15 @@ namespace Punchy.Terrain
                 {
                     var before = source.Landmarks;
                     source.Landmarks = LandmarkBaking.Append(before, landmarkTypes, bones, allocator);
+                    before.Dispose();
+                }
+                // W-122: the marsh folk villages on their own spots, after the ribcage, so no other landmark moves.
+                var marsh = MarshFolkBaking.Place(source, palette, landmarkTypes);
+                Stage("marshfolk");
+                if (marsh.Count > 0)
+                {
+                    var before = source.Landmarks;
+                    source.Landmarks = LandmarkBaking.Append(before, landmarkTypes, marsh, allocator);
                     before.Dispose();
                 }
             }
