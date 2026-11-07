@@ -311,6 +311,9 @@ namespace Punchy.Debugging
                 UnityEngine.Profiling.Profiler.logFile = "";
             }
             Report(name);
+            // -benchflora: the flora instances the GPU cull kept at the stop's end, plants vs rocks and kit buildings.
+            if (System.Array.IndexOf(args, "-benchflora") >= 0)
+                yield return FloraInView(name);
             // -benchshots <folder>: a screenshot of every stop as it ends, to compare looks between builds.
             var shots = System.Array.IndexOf(args, "-benchshots");
             if (shots >= 0 && shots + 1 < args.Length)
@@ -318,6 +321,70 @@ namespace Punchy.Debugging
                 ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(args[shots + 1], name + ".png"));
                 yield return null;
             }
+        }
+
+        /// <summary>
+        /// -benchflora: reads each flora layer's cull counts back from the GPU (the main view's LODs 0-2 and the two
+        /// shadow lists, as last culled) and logs instances and triangles, split into plants and the rest (bones, rocks,
+        /// kit buildings: FloraForm.Bones onward). By reflection, as FloraSystem keeps its layers private.
+        /// </summary>
+        IEnumerator FloraInView(string name)
+        {
+            const BindingFlags Any = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+            var flora = FindAnyObjectByType<Punchy.Flora.FloraSystem>();
+            var layers = flora != null ? typeof(Punchy.Flora.FloraSystem).GetField("layers", Any)?.GetValue(flora) as System.Array : null;
+            var models = flora != null ? typeof(Punchy.Flora.FloraSystem).GetField("models", Any)?.GetValue(flora) as System.Collections.IList : null;
+            if (layers == null || models == null)
+            {
+                Debug.Log($"BenchRoute flora: {name}: counts unavailable");
+                yield break;
+            }
+            // [0 plants, 1 the rest][0 main view, 1 shadow lists]
+            var instances = new long[2, 2];
+            var triangles = new long[2, 2];
+            var perLayer = new StringBuilder();
+            foreach (var layer in layers)
+            {
+                if (layer == null)
+                    continue;
+                var type = layer.GetType();
+                var counts = type.GetField("Counts", Any)?.GetValue(layer) as GraphicsBuffer;
+                var modelBase = (int)type.GetField("ModelBase", Any).GetValue(layer);
+                var modelCount = (int)type.GetField("ModelCount", Any).GetValue(layer);
+                var index = type.GetField("Index", Any).GetValue(layer);
+                if (counts == null || modelCount == 0)
+                    continue;
+                var request = UnityEngine.Rendering.AsyncGPUReadback.Request(counts);
+                while (!request.done)
+                    yield return null;
+                if (request.hasError)
+                {
+                    perLayer.Append($" layer {index} readback failed;");
+                    continue;
+                }
+                // IndirectDrawIndexedArgs: index count per instance, instance count, start index, base vertex, start instance.
+                var data = request.GetData<uint>();
+                const int Stride = 5;
+                var draws = data.Length / Stride / modelCount;
+                long layerMain = 0, layerShadow = 0;
+                for (int m = 0; m < modelCount; m++)
+                {
+                    var model = models[modelBase + m] as Punchy.Flora.FloraModel;
+                    var rest = model != null && model.Species != null && model.Species.Form >= Punchy.Flora.FloraForm.Bones ? 1 : 0;
+                    for (int d = 0; d < draws; d++)
+                    {
+                        var at = (m * draws + d) * Stride;
+                        var shadow = d >= 3 ? 1 : 0;
+                        instances[rest, shadow] += data[at + 1];
+                        triangles[rest, shadow] += (long)data[at + 1] * data[at] / 3;
+                        if (shadow == 0) layerMain += data[at + 1]; else layerShadow += data[at + 1];
+                    }
+                }
+                perLayer.Append($" layer {index} {layerMain} in view, {layerShadow} casting;");
+            }
+            Debug.Log($"BenchRoute flora: {name}: in view plants {instances[0, 0]} ({triangles[0, 0] / 1000} k tris), rocks/kit {instances[1, 0]} " +
+                      $"({triangles[1, 0] / 1000} k tris); shadow lists plants {instances[0, 1]} ({triangles[0, 1] / 1000} k tris), rocks/kit " +
+                      $"{instances[1, 1]} ({triangles[1, 1] / 1000} k tris);{perLayer}");
         }
 
         static readonly bool NoCreatures = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-benchnocreatures") >= 0;
@@ -949,8 +1016,12 @@ namespace Punchy.Debugging
             em.SetComponentData(player, new LocalTransform { Position = new float3(at.x, floor + 0.1f, at.z), Rotation = quaternion.RotateY(math.radians(yaw)), Scale = 1f });
             em.SetComponentData(player, new PlayerMotion { Grounded = true });
             var cam = FindAnyObjectByType<ThirdPersonCamera>();
+            // -benchpitch <deg>: the camera's pitch on arrival (12 unless asked; e.g. -35 dips it under a lake's surface).
+            var args = System.Environment.GetCommandLineArgs();
+            var pitchArg = System.Array.IndexOf(args, "-benchpitch");
+            var pitch = pitchArg >= 0 && pitchArg + 1 < args.Length ? float.Parse(args[pitchArg + 1], System.Globalization.CultureInfo.InvariantCulture) : 12f;
             if (cam != null)
-                cam.SetView(yaw, 12f);
+                cam.SetView(yaw, pitch);
             return true;
         }
 
