@@ -73,7 +73,10 @@ namespace Punchy.CameraRig
                 var listener = FindAnyObjectByType<AudioListener>();
                 if (listener == null)
                     return;
-                lowPass = listener.GetComponent<AudioLowPassFilter>() ?? listener.gameObject.AddComponent<AudioLowPassFilter>();
+                // Unity's missing component is a fake null, so ?? would never add the filter.
+                lowPass = listener.GetComponent<AudioLowPassFilter>();
+                if (lowPass == null)
+                    lowPass = listener.gameObject.AddComponent<AudioLowPassFilter>();
             }
             lowPass.enabled = amount > 0f;
             lowPass.cutoffFrequency = Mathf.Lerp(22000f, Cutoff, amount * amount);
