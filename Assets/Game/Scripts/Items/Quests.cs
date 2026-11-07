@@ -220,7 +220,7 @@ namespace Punchy.Items
                 go.transform.localPosition = at;
                 go.transform.localScale = size;
                 var r = go.GetComponent<Renderer>();
-                itemMaterial ??= Resources.Load<Material>("ItemMaterial");
+                if (itemMaterial == null) itemMaterial = Resources.Load<Material>("ItemMaterial");   // (not ??=: it misses a destroyed Unity object)
                 if (itemMaterial != null) r.sharedMaterial = itemMaterial;
                 var b = new MaterialPropertyBlock();
                 b.SetColor(BaseColorId, c);

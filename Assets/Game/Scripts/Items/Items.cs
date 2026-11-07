@@ -818,7 +818,7 @@ namespace Punchy.Items
             go.transform.localPosition = at;
             go.transform.localScale = size;
             var r = go.GetComponent<Renderer>();
-            itemMaterial ??= Resources.Load<Material>("ItemMaterial");
+            if (itemMaterial == null) itemMaterial = Resources.Load<Material>("ItemMaterial");   // (not ??=: it misses a destroyed Unity object)
             if (itemMaterial != null)
                 r.sharedMaterial = itemMaterial;
             var b = new MaterialPropertyBlock();
@@ -866,7 +866,7 @@ namespace Punchy.Items
                 // (Items/Resources/ItemMaterial: the pipeline's own lit material. A primitive's default material has no URP
                 // shader in a player build, and drew magenta.)
                 var r = go.GetComponent<Renderer>();
-                itemMaterial ??= Resources.Load<Material>("ItemMaterial");
+                if (itemMaterial == null) itemMaterial = Resources.Load<Material>("ItemMaterial");   // (not ??=: it misses a destroyed Unity object)
                 if (itemMaterial != null)
                     r.sharedMaterial = itemMaterial;
                 block ??= new MaterialPropertyBlock();
