@@ -775,8 +775,10 @@ half3 PunchySkyColor(float3 dir, bool withDiscs, bool approximateClouds)
 
 // Dust and rain haze along a ray, read from the weather map: a distant sandstorm is a tan wall, rain hangs in
 // grey curtains below the local cloud base. Steps are packed towards the camera, where detail matters most.
-// Gives the light scattered in and the fraction of what's behind that still shows through.
-void PunchyWeatherVolumesAlong(float3 start, float3 dir, float rayLength, int steps, out half3 scatter, out float transmit)
+// Gives the light scattered in and the fraction of what's behind that still shows through. The volumes thin out
+// with height (dust above its billowing top, rain above the cloud base), judged at min(ray height, heightCap):
+// the haze table caps it at ground level (see PunchyHazeLutHeight), a true ray passes a huge cap.
+void PunchyWeatherVolumesAlong(float3 start, float3 dir, float rayLength, int steps, float heightCap, out half3 scatter, out float transmit)
 {
     half brightness = dot(_PunchySkyHorizon, half3(0.3, 0.5, 0.2));
     scatter = 0;
@@ -790,6 +792,7 @@ void PunchyWeatherVolumesAlong(float3 start, float3 dir, float rayLength, int st
         float segment = t - previous;
         float3 p = start + dir * (previous + segment * 0.5);
         previous = t;
+        float height = min(p.y, heightCap);
 
         half4 w = PunchyWeatherAt(p.xz);
         if (w.a + w.b <= 0.004)
@@ -799,11 +802,11 @@ void PunchyWeatherVolumesAlong(float3 start, float3 dir, float rayLength, int st
         float2 drift = _PunchyCloudOffset * PUNCHY_CLOUD_FEATURE;
         float billow = PunchyValueNoise((p.xz - drift) / 260) * 0.65 + PunchyValueNoise((p.xz - drift * 1.6) / 90) * 0.35;
         float dustTop = PUNCHY_DUST_TOP * (0.45 + billow);
-        float dust = w.a * PUNCHY_DUST_DENSITY * saturate((dustTop - p.y) / 180) * (0.4 + billow);
+        float dust = w.a * PUNCHY_DUST_DENSITY * saturate((dustTop - height) / 180) * (0.4 + billow);
         float streaks = PunchyValueNoise((p.xz - drift) / 110);
         float cloudBase = PunchyCloudShapeAt(p.xz).x;
         // The shaft is densest in the middle of the cell and frays at its edges.
-        float rain = w.b * w.b * PUNCHY_RAIN_DENSITY * 1.4 * saturate((cloudBase - p.y) / 120) * (0.3 + 1.4 * streaks);
+        float rain = w.b * w.b * PUNCHY_RAIN_DENSITY * 1.4 * saturate((cloudBase - height) / 120) * (0.3 + 1.4 * streaks);
         float density = dust + rain;
         if (density <= 1e-6)
             continue;
@@ -819,7 +822,7 @@ half3 PunchyWeatherVolumes(half3 color, float3 start, float3 dir, float rayLengt
 {
     half3 scatter;
     float transmit;
-    PunchyWeatherVolumesAlong(start, dir, rayLength, steps, scatter, transmit);
+    PunchyWeatherVolumesAlong(start, dir, rayLength, steps, 1e7, scatter, transmit);
     return color * transmit + scatter;
 }
 
@@ -827,10 +830,16 @@ half3 PunchyWeatherVolumes(half3 color, float3 start, float3 dir, float rayLengt
 // WeatherSystem) instead of per pixel in every surface shader, which cost weak GPUs nearly half their frame rate
 // in stormy weather. Columns are directions round the horizon, rows distances out to PUNCHY_HAZE_RANGE (square-root
 // spaced, so near distances get more rows). Rays run almost level from the camera, like the horizon haze target.
+// The table is indexed by direction and distance only, but the surfaces it hazes are mostly the ground, below the
+// camera. Marching the air at the camera's own height made a camera high near a rain or snow cell (a player on a
+// peak) haze the low ground by whatever its eye level held, which flips between directions near the cloud base and
+// drew hard vertical edges on screen (A-87 row 2). So the volumes are judged at ground level instead: the full
+// shaft below the cloud base, the dust below its top, whatever the camera's height.
 // rgb = scattered light, a = 1 - transmittance, so an unset (black) table means no weather haze rather than black.
 #define PUNCHY_HAZE_RANGE 8000.0
 #define PUNCHY_HAZE_ELEVATION 0.02
 #define PUNCHY_HAZE_ROWS 32.0
+#define PunchyHazeLutHeight 0.0   // the height the table judges the volumes at (sea level: under every cloud base)
 TEXTURE2D(_PunchyHazeLut);     SAMPLER(sampler_PunchyHazeLut);
 float3 _PunchyHazeOrigin;      // where the table was marched from
 
