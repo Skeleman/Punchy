@@ -27,7 +27,6 @@ namespace Punchy.Fauna
             var root = new GameObject("SkeletalLizard").transform;
             root.SetPositionAndRotation(new Vector3(at.x, at.y - 1f, at.z), Quaternion.Euler(0f, yaw, 0f));
             var m = new DunesColossus.MeshBuilder();
-            var rng = Unity.Mathematics.Random.CreateFromIndex(0xA54Eu);
             // The spine from the tail tip (s = 0) to the neck (s = 1): the tail trails on the ground, the back arches.
             Vector3 Spine(float s) => new Vector3(5f * Mathf.Sin(s * Mathf.PI * 1.6f + 0.6f),
                                                   s < 0.35f ? Mathf.Lerp(1.6f, 10f, s / 0.35f) : 10f + 3f * Mathf.Sin((s - 0.35f) / 0.65f * Mathf.PI),
@@ -81,6 +80,20 @@ namespace Punchy.Fauna
                     }
                 }
             }
+            // A-85 row 1: the build is split in two frames (it swung 21-76 ms as one). This frame: the spine, ribs,
+            // hips and legs. The next (BuildRest): the neck, skull, heart, what lies in the ash, and the puffs.
+            var body = m.ToMesh("SkeletalLizard");
+            Weather(body, Ash, 0.82f, 1f);
+            AddPart("Bones", root, body);
+            BuildRest = () => { if (root != null) BuildLizardHead(root, Spine); };
+            return root;
+        }
+
+        /// <summary>A-85 row 1: the lizard's second half, built the frame after its body.</summary>
+        static void BuildLizardHead(Transform root, System.Func<float, Vector3> Spine)
+        {
+            var m = new DunesColossus.MeshBuilder();
+            var rng = Unity.Mathematics.Random.CreateFromIndex(0xA54Eu);
             // Neck bones down to the skull, held low; the jaw hangs open, a frill of horns at the back.
             var neckBase = Spine(1f);
             var skull = new Vector3(neckBase.x + 1f, 8f, neckBase.z + 13f);
@@ -131,13 +144,12 @@ namespace Punchy.Fauna
                 p.y = 0.7f;
                 m.Limb(p, p + new Vector3(rng.NextFloat(-0.6f, 0.6f), 0.3f, rng.NextFloat(-1.2f, 1.2f)), 0.25f, 0.04f, Fang, 4);
             }
-            var mesh = m.ToMesh("SkeletalLizard");
+            var mesh = m.ToMesh("SkeletalLizard head");
             Weather(mesh, Ash, 0.82f, 1f);
-            AddPart("Bones", root, mesh);
+            AddPart("Skull", root, mesh);
             // Ash shed from the ribcage, and dust round the feet.
             Puffs(root, "Ash", Spine(0.62f), new Vector3(14f, 8f, 30f), new Color(0.34f, 0.32f, 0.31f, 0.35f), new Color(0.48f, 0.46f, 0.44f, 0.40f), 2.5f, 7f, 10f, 1.4f, 10f);
             Puffs(root, "Dust", Spine(0.6f) * 0f + new Vector3(0f, 1.5f, 0f), new Vector3(46f, 1f, 70f), new Color(0.55f, 0.50f, 0.45f, 0.20f), new Color(0.62f, 0.58f, 0.52f, 0.28f), 6f, 14f, 5f, 0.5f, 12f);
-            return root;
         }
     }
 }
