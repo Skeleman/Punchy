@@ -369,6 +369,9 @@ namespace Punchy.Flora
             return Vector3.Lerp(limb[i], limb[i + 1], t * (limb.Count - 1) - i);
         }
 
+        /// <summary>When off, LOD1 keeps its wisp threads (for before/after; PUNCHY_WISPLOD=0).</summary>
+        public static bool WispsLodZeroOnly = System.Environment.GetEnvironmentVariable("PUNCHY_WISPLOD") != "0";
+
         /// <summary>One vine (see Hanging): the rope, leaves in twos and threes every half metre or so (a metre at LOD1),
         /// flat and tilted every way off the rope so they read as leaves rather than beads, and the sway. Wispy species
         /// (FloraSpecies.HangingWisps) get a few fine threads fanning a little apart instead, with no leaves.</summary>
@@ -392,7 +395,12 @@ namespace Punchy.Flora
                         thread.Add(path[0] + (path[j] - path[0]) * cut + fan * t);
                         fine.Add(Mathf.Lerp(0.014f, 0.003f, t));
                     }
-                    b.Tube(thread, fine, 3, leaf * g.Range(0.8f, 1.2f), FloraPart.Foliage);
+                    var shade = leaf * g.Range(0.8f, 1.2f);
+                    // A thread is 3-14 mm thick: past LOD0 (55 m on for trees) it's well under a pixel, so LOD1 skips
+                    // the tubes (W-117: they were most of a wispy tree's LOD1 triangles). The draws above still run,
+                    // so whatever follows grows the same.
+                    if (g.Lod == 0 || !WispsLodZeroOnly)
+                        b.Tube(thread, fine, 3, shade, FloraPart.Foliage);
                 }
                 b.Sway(first, swing);
                 return;
