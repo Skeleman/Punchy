@@ -5,6 +5,7 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 
 | Issue | What to check | Where | Shipped |
 |---|---|---|---|
+| Marsh wildlife, colossi | Frogs on lily pads, a heron in the shallows, dragonflies darting low at marsh folk villages; magma, ember and spore colossi glow at night; fewer hitches when the plant, salt and magma colossi appear. New pins Landmarks_V3 112 A955AFE0, Fauna 83902658 | Foggy marsh villages; colossi at night | PR #193, 2026-11-07 |
 | Marsh folk | Stilt villages over the water: reed huts, plank walks, a smoke hut; drying frames, eel traps, totems; a nest raft of eggs with a hatchling behind the smoke hut | Foggy marsh villages | PR #192, 2026-11-07 |
 | #39 tunnels | Roads go through tunnels under steep crests, with a stone portal at each end | Hilly roads between towns | PR #178, 2026-11-06 |
 | Camps, igloos, temple | Leather tents and ramadas in camps; igloos sit into slopes; the sunken temple has sandstone blocks and torch glow, with no plane through the rooms | Camps, igloo villages, sunken temple | PR #170, 2026-11-06 |
