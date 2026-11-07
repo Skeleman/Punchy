@@ -294,10 +294,14 @@ namespace Punchy.Fauna
         TerrainSource buildSource;
         Unity.Entities.World buildWorld;
         readonly System.Diagnostics.Stopwatch buildWatch = new System.Diagnostics.Stopwatch();
+        /// <summary>A-85 row 1: the second half of the colossus just built, if its builder split itself in two
+        /// (BuildNext runs it on the next frame, before the solid frame). Cleared when placing starts over.</summary>
+        static System.Action BuildRest;
 
         void Place(TerrainSource source, BiomePalette palette, int[] biomes)
         {
             placed = true;
+            BuildRest = null;
             Lanterns.Clear();
             LoadDefinitions();
             int slots = defs.Length;
@@ -343,9 +347,20 @@ namespace Punchy.Fauna
             {
                 building = false;
                 placed = false;
+                BuildRest = null;
                 return;
             }
             buildWatch.Restart();
+            // A-85 row 1: a builder too big for one frame leaves its second half in BuildRest, run on a frame of
+            // its own between the build and the solid frame.
+            if (BuildRest != null)
+            {
+                var rest = BuildRest;
+                BuildRest = null;
+                rest();
+                Debug.Log($"[colossi] slot {nextSlot - 1} ({defs[nextSlot - 1].Kind}) finished in {buildWatch.Elapsed.TotalMilliseconds:F1} ms on frame {Time.frameCount}");
+                return;
+            }
             var slot = solidNext ? nextSlot - 1 : nextSlot++;
             if (solidNext)
                 SolidSlot(slot, buildSource);
