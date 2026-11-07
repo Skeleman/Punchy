@@ -41,5 +41,7 @@ namespace Punchy.Fauna
         public float CollisionFollowRadius;
         [Tooltip("Collision: a child (by name) left out of its solid shape, empty for none.")]
         public string CollisionLeave = "";
+        [Tooltip("A-85: keep this far (m) from the colossi placed before it (a biome another kind already stands in); 0 for none.")]
+        public float KeepApart;
     }
 }
