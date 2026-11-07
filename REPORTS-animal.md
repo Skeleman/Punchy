@@ -2858,3 +2858,20 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
   - It appeared after the main merge. Fix: `if (lowPass == null) lowPass = AddComponent...`, not `??`.
   - For the GC measurement I added the filter by eval so the throw stopped.
 - **Shot:** none asked (number check).
+
+## A-85 row 2: FungalForest drifting colossal puffball (#40), done (verified)
+- Commit 50f72420. New colossus Kind.Puffball (18), asset Colossi/Puffball (Order 15, own salt 33529, KeepApart 250).
+  - Placement: (-1530, 3.9, -2430), facing 329, region 160 cells. That's about 340 m from the GiantTortoise, which also takes the Fungal Forest.
+  - It drifts on a new floating gait (no footfalls, dust or shake) over the marsh water there.
+- **Body:** a cream, warty cap 22-26 m up with three lobes, cracks peeling into curls, 12 glowing pores, 2 budding young puffballs, a lilac frill and gills.
+  - Beaded tendrils hang below. A basket is snagged on a snapped rope, and a rootlet trails behind, dragging through a spore slick.
+- **Motion and sound:** bobs, slowly turns and tilts, and swells. Every 9-16 s it breathes out a burst of 40 spores from its crown vent with a low hiss and squashes. A tendril drips every 4-8 s.
+- **Glow:** green flames at the pores and bead tips, with a moving light on every third pore. 14 glowing spore motes slip off its flanks and drift to the ground. It's faint by day and bright at night. There are also particle spores, moths and rootlet spores.
+- **New field `ColossusDefinition.KeepApart`:** drops candidate cells within that distance of earlier colossi. At 0 the pick is unchanged, so all 15 earlier positions match row 1 (GiantTortoise y 2.5/2.8 as before).
+- **Checks:** fingerprint 8A1979F1. Build 23.6-25.9 ms and solid 12.4 ms, each on its own frame. 0 exceptions from this lane.
+- **GC:** 2112 B/frame over 121 frames, camera parked 60 m from the puffball (limit 9594).
+- **Shots** in D:\PunchyMilestones\A-85 (2560x1440):
+  - puffball-day.png: the puffball over bright marsh water, with fungal trees on the right and the rootlet trailing to its slick.
+  - puffball-close.png: warts, buds, frill and beaded tendrils.
+  - puffball-night.png and puffball-night-close.png: the dark silhouette with green pore glows, bead tips and falling green motes. The glow is modest rather than bright.
+- **Landmark hash note:** this editor's log prints "111 landmarks, hash 5A85AACA" in every bake, including runs before any A-85 change, while the pin is 3BDF705F. Row 2 touches no landmark code. The suite at card end will give the real number.
