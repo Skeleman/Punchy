@@ -3172,3 +3172,37 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
   - `w118-salt-ball-close.png`: about 7 m from the surface, fine dimpled facets across the whole surface, a few points sticking out.
 - Landmarks_V3 111 3BDF705F (unchanged). The fauna fingerprint gets checked at card end with the suite.
 - Risk: the roll's material seed draw comes later in its own rng, so any per-ball cosmetic seed differs from W-94. Cosmetic only.
+
+## W-118 row 2: Tundra SnowSlabShelter not seen, done (verified; cause found, no code change)
+
+- Cause: the premise is out of date. W-113 row 1 (e35d9b6a) swapped the town slab shelters for ramadas.
+  - DwarfHold (-3273,1594) and DwarfMiningCamp (-1962,665) each bake a DwarfRamada on their most central plot. Both render.
+  - SnowSlabShelter is now used only by the HermitHutSnow look. v3's only hermit hut (140,-545) isn't in snow, so it takes the plain look, and SnowSlabShelter appears nowhere on v3. That is expected, not a placement bug.
+- Row 3 now gives both dwarf towns Tundra kit SnowShelterHouses beside the ramada:
+  - DwarfHold gets 2, at (-3263,1594) and (-3294,1593).
+  - DwarfMiningCamp gets 1, at (-1969,631). It has only one free house plot.
+- Shots in `D:\PunchyMilestones\W-118\`:
+  - `w118-dwarfhold.png`: high wide view of the hold, snowy hills behind.
+  - `w118-dwarfhold-close.png`: the cobbled square with the well. Cream snow shelter houses with drift skirts stand left and right, and the open post ramada is in the middle.
+  - `w118-dwarfminingcamp.png`: the frosty-roofed snow house with its drift on the right, the StoneHall in the centre, and the striped ramada on the left.
+- Open question for the supervisor: if Zach wants the slab shelter itself visible on v3, it needs a snow hermit spot or a tundra layout entry. I didn't do that because it would move landmarks or plots.
+
+## W-118 row 3 (#69): kit hazard houses per harsh biome, done (verified)
+
+- Commit 07b2c6cd: the 7 settlement layouts, data only, LF kept.
+  - Each layout ends with 2 OnlyIn entries per harsh group:
+    - AshShelterHouse: Ashlands, Volcano
+    - SnowShelterHouse: Tundra, Glacier, Mountains
+    - StormShelterHouse: ElectricWastelands
+    - SandShelterHouse: Dunes, SaltFlat, GlassDesert
+  - PlaceShelters puts them on the next central house plots after the culture's ramada. Temperate towns are unchanged.
+  - OnlyIn entries draw no rng, so landmarks and plots stay put.
+- On v3, harsh towns exist only in Ashlands and Tundra.
+  - Ashlands: OgreCamp (912,-3837) has AshShelterHouses at (887,-3811) and (931,-3803).
+  - Tundra: the two dwarf towns (row 2).
+  - The Human Frontier-style town near (2930,-870) already had mixed hazard houses from W-95.
+- Shots in `D:\PunchyMilestones\W-118\`:
+  - `w118-ashlands-ogrecamp.png`: two white crenellated ash shelter houses, one with a tower, inside the camp's palisade on dark ash ground, with the bone arch between them.
+  - Tundra: `w118-dwarfhold-close.png` (row 2).
+- Landmarks_V3 111 3BDF705F (unchanged). The fauna fingerprint gets checked at card end.
+- Risk: SettlementSpecies indices grow and shift for layouts after the first one. Any saved index from an earlier build is off, but these are seed-derived and rebuilt at bake.
