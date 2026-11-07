@@ -3310,3 +3310,9 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
 - Flowers (LOD0, all heads except Spike): 1-2 stem leaves, a green calyx, sometimes 1-2 nodding buds. Daisy heads (and AlpineFlower) get an inner raised petal ring and a domed disc. Cup heads (Buttercup, Poppy, DesertPoppy, Glowbell) get a stamen ring and a knob. Buttercup is now a taller (0.22-0.38) yellow cup with a green-gold heart.
 - New detail draws only from the per-model Detail stream, so plant layout does not move. Landmarks_V3 111 3BDF705F unchanged.
 - Shots: D:/PunchyMilestones/W-121/w121-r3-before.png and w121-r3-after.png (Bush | Daisy | Buttercup, same camera).
+
+## W-122 row 1 - marsh folk stilt village in the Foggy marsh: done (verified)
+- Commit 22c24ab9 on world-features. New landmark MarshFolkVillage (MarshFolkBaking, MarshFolk.cs), baked last on its own spot in the biome tagged marshfolk (FoggyMarsh). v3 pick: (-1240, 320), base 112.9, relief 7.4 m (fallback; the marsh has no 4 m spot), 80 m in from the patch edge. A 2nd village is only placed if relief <= 10 m; the best v3 spot left has 16.3 m, so v3 has one village.
+- Layout: murky flattened pool (Radius 40), smoke hut (kit SmokeHut, squat house under a 58 deg thatch, stone stack + grey landmark plume) on a 10x10 deck at the centre; 6 reed huts (kit MarshHut) on stilts at 20 m, doors in, each with its own plank walk (FishBoardwalk pieces) to the smoke hut deck; 3 cross walks between hut pairs; 1 landing walk to the bank ending in a step. New kit culture MarshFolk (ochre reed walls, bog-oak wood, straw thatch); new KitShapes MarshHut, SmokeHut, MarshCross, MarshWalk; species MarshHut, MarshSmokeHut, MarshCross, MarshWalk.
+- Landmarks_V3: 111 3BDF705F -> 112 A955AFE0. Only the appended MarshFolkVillage entry is new; the other 111 hash to 3BDF705F unchanged. Fauna: checked at card end.
+- Shots: D:/PunchyMilestones/W-122/r1-above.png, r1-walkway.png.
