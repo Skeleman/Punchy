@@ -79,6 +79,7 @@ namespace Punchy.Fauna
             new Gait { Kind = StoneColossi.Kind.Puffball, Radius = 70f, Speed = 0.5f, Walk = 110f, Rest = 50f, Stride = 10f, Bob = 0f, Shake = 0f, Body = 26f, Height = 44f, Salt = 0xA7B5u, Floats = true },
             // A-85 row 3: the charred treant plods its burnt forest, short strides, groaning, dropping embers behind it (StoneColossi.SwayTreant).
             new Gait { Kind = StoneColossi.Kind.CharredTreant, Radius = 55f, Speed = 0.55f, Walk = 90f, Rest = 60f, Stride = 6f, Bob = 0.2f, Shake = 0.07f, Body = 16f, Height = 40f, Salt = 0xA7D3u },
+            new Gait { Kind = StoneColossi.Kind.IceMammoth, Radius = 60f, Speed = 0.6f, Walk = 100f, Rest = 60f, Stride = 7f, Bob = 0.3f, Shake = 0.1f, Body = 20f, Height = 34f, Salt = 0xA7E3u },
         };
 
         const float Ramp = 5f, AwakeRange = 600f, FarPeriod = 0.5f, ShakeRange = 120f, ShakeTime = 0.35f, DustRange = 300f;
