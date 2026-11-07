@@ -2979,3 +2979,13 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - Test: FollowTests logs distance, speed, mode/stage, frame time and dog/player positions every 10 walk steps and every second after, so any future failure shows how it went. TestHooks.FollowStatus now returns 11 floats.
 - After the fix: 3 of 3 full-suite runs at 14 passed (dog 4.8-4.9 m behind as the walk ended, 2.6-2.7 m after 6 s).
 - Risks: because there was no repro, the fix targets the logged symptom. Detours touch only creatures that are following, so fauna placement and the fingerprint are unchanged.
+
+## A-88 row 2 (#37) - Sea folk lake fish: done (verified)
+- Commit 866e27de on animal-behaviours (fauna code plus assets only; no world code touched). This answers the world lane's fish-hook ask (REPORTS-world.md ~3292): the hook is FaunaDirector.SpawnLakeLife, called beside SpawnDomestics when a SeaFolkVillage is peopled.
+- Schools: each SeaFolkDome prop (6 on v3) gets its own school from the overworld table's new LakeSchool rows (kind 15; SilverFish 4-6, leash 8 m). They swim 12-14 m over the bed, just clear of the dome tops, capped 0.6 m under the surface. They flee a swimming player (no leash pull while fleeing), then drift back to their dome.
+- Bed fish: new LakeBed rows (kind 16), the new LakeSturgeon (a 3.8x Trout variant, slow at 0.6/3 m/s, olive, slate or rare pale coats, no leaps), 2-3 per village. They cruise 1.2-2 m over the bed in water at least 6 m deep, at 1.15-1.5x the village radius.
+- Lake fish are their own spawn tier with their own cap (MaxLake 48) and their own rng per village, so no other spawn draw moves. The new field CreatureState.SwimAbove holds the height. The brain keeps the fish there and skips the tame/leap paths for them.
+- Play at -place SeaFolkVillage: 32 lake fish (30 in schools round the domes, 2 sturgeon at y 12.6-14.9 on the bed). With the player moved over a school, 6 fish (that dome's school) went to Flee within 3 s.
+- Fingerprint: this tree (based on #188) reads 355E924F with the new species (pin was 65C95060). I'll re-pin after merging #189 (main 706B915E) before the card-end suite.
+- Shots: D:/PunchyMilestones/A-88/a88-r2-under.png (the dome ring from the bed, schools overhead), a88-r2-school.png (a school over a dome, close), a88-r2-bed.png (a sturgeon on the bed by a dome), a88-r2-scatter.png (the player treading water with the school spread out).
+- Risks: SilverFish are small, so from far off the schools read as specks; the close shots show them better. Fish spawn only when the village is peopled (same radius as its folk).
