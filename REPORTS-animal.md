@@ -3010,3 +3010,10 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - Merged origin/main (#189) as 4d5b9f0c. Fauna_Fingerprint is now AD7E7781 (main 706B915E plus row 2's LakeSturgeon
   species and lake fish rows, 118 species). Re-pinned in WorldTests, then the full suite passed: 14 passed, 0 failed, 200 s.
   Landmarks 111 3BDF705F unchanged. Follow: dog 4.9 m behind at the end of the walk.
+
+## A-89 row 1: colossus emissive - done (verified) - ba09c891
+- Colossus.shader: `_VertexGlow` (default 0) + `_GlowStrength` (1.2). With glow on, vertex alpha below 1 adds albedo x (1 - a) x strength after lighting/cloud shadow, before haze. Default material unchanged, so ruins (W lane), salt tower, driftwood (alpha = grain code) do not glow.
+- StoneColossi.AddPart now uses a runtime copy `ColossusGlow` (glow on). `DunesColossus.MeshBuilder.Glowing(color, k)` marks a colour with negative alpha; Tri writes 1 - k, everything else stays alpha 1. Weather keeps the mark.
+- Glowing: Magma (warmed to 1/.30/.05, it read yellow-green), Ember (ash smith, cinder snail, lizard, treant), treant Coal 0.6, puffball SporeGlow 0.8 (slick 0.1). Strength 2.5/1.8 clipped to yellow under tonemapping; 1.2 keeps orange.
+- Shots (night 22.5h, before/after): D:\PunchyMilestones\A-89\r1-serpent-before/after.png, r1-treant-before/after.png, r1-puff-before/after.png, r1-serpent-day.png. Puffball/treant walk, so before/after angles differ a bit.
+- Risk: shader edit touches a shared shader; ruins draw it with _VertexGlow 0 (no change). Fingerprint not affected (render only).
