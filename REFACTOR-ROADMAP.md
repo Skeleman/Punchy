@@ -1,5 +1,47 @@
 # Refactor roadmap (from the ChatGPT reviews, 2026-11-07)
 
+## Picking this up (for a new session or account)
+- **Where things are:**
+  - Repo Skeleman/Punchy (public).
+  - Coordination files live on the `coordination` branch, checked out at D:\Unity\Punchy-coordination.
+  - Lane trees on the main PC:
+
+    | Lane | Tree | Branch |
+    |---|---|---|
+    | Animal | D:\Unity\Punchy | animal-behaviours |
+    | World | D:\Unity\Punchy-world | world-features |
+    | Player | D:\Unity\Punchy-player | player-client |
+
+  - The profiler lane runs on the laptop, on `b/*` branches, with its queue in BENCH-QUEUE.md.
+- **Read first:**
+  - COORDINATION.md: rules 1-18, the lanes and file ownership. In particular: rule 15 editor queue, 17 start-quiet, 18 every process ends on its own.
+  - SUPERVISOR-HANDOFF.md: latest state.
+  - The game's CLAUDE.md and the docs/agents/ file for each area you touch.
+  - The three ChatGPT reviews this roadmap comes from (paths below).
+- **State on 2026-11-07:**
+  - Feature freeze.
+  - main at 4fea789d holds every finished card: W-122, A-89, P-20.
+  - No lane agents are running. The supervisor is out until about 11-09.
+  - Release v0.13.0 is the planned baseline for Phase 1 numbers (see SUPERVISOR-HANDOFF.md for whether it shipped).
+  - Uncommitted, unexplained edits sit in the animal tree; SUPERVISOR-HANDOFF.md lists them. Don't commit them blind.
+- **How work is handed out:**
+  - One card per lane in `batches/<lane letter>-<n>.md`: rows with a "done when" check, pins, and rules. See the last cards (W-122.md, A-89.md, P-20.md) for the format.
+  - A lane works only in its own files (the ownership table in COORDINATION.md). Shared files go through the supervisor.
+  - Each finished row is committed, pushed and appended to REPORTS-<lane>.md.
+  - The supervisor reviews and merges a lane's branch by PR when `git merge-tree --write-tree origin/main origin/<branch>` is clean, then adds a PLAYTEST.md row.
+- **Measuring tools that already exist:**
+  - `-perflog` on a shot line: frame ms and per-system costs.
+  - `-gclog`: garbage a frame, Development builds only.
+  - `-camlog`.
+  - Shot lists (`-shotlist`, `-shotdir`).
+  - BenchmarkRoute and the bench scripts (profiler lane).
+  - The profiler lane's SysMs, GcCallers and BigFrame capture tools (lanes/profiler/scripts).
+  - Deterministic pins in WorldTests: Landmarks_V3, Fauna_Fingerprint.
+- **Suggested first cards:**
+  - Phase 0, in one supervisor commit plus one animal row (GLOSSARY).
+  - Phase 1.1 and 1.2 for the profiler lane, with a spawn-count flag from the animal lane.
+  - Then 2.1 (snapshot double-buffering), the smallest high-value refactor.
+
 Sources: `docs/Chat audit of game code.md`, `docs/Chat audit of light, shadows, water, and fire.md` and
 `docs/Chat recommendations for scalability.md`, all in the animal tree (D:\Unity\Punchy\docs). This file turns them into
 phases with owners. ChatGPT read the source but never ran the game, so every performance item starts by measuring.
