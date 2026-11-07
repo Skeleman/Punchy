@@ -606,6 +606,9 @@ namespace Punchy.Fauna
         /// <summary>Where it lives (a settlement, a den); with Leash &gt; 0 it wanders no further than that from it.</summary>
         public float2 Home;
         public float Leash;
+        /// <summary>A-88 row 2 (#37): a lake fish that keeps this far over the bed (a sea folk dome school, the big bed fish), 0 for
+        /// the usual swim just under the surface. Set at spawn (FaunaDirector.SpawnLakeFish).</summary>
+        public float SwimAbove;
         /// <summary>
         /// Two folk stopped to talk (CreatureBrainSystem.Chatting; local, host only, not sent): seconds before this one
         /// starts or joins another talk; its part in one (1 started it, 2 the one it stopped, 3 a child standing by);
