@@ -88,7 +88,15 @@ namespace Punchy.Terrain
         /// <summary>W-121 (#37): a floating shell buoy on a sea folk village's lake surface, a glowing pearl on a short pole, its cord running down.</summary>
         ShellBuoy,
         /// <summary>W-121 (#37): a sea folk's log raft moored by a landing, with a shell-scale sail, baskets and a mooring line.</summary>
-        SeaRaft
+        SeaRaft,
+        /// <summary>W-122: a marsh folk reed hut on stilts over a pool, its plank walk running +Z to the smoke hut's deck.</summary>
+        MarshHut,
+        /// <summary>W-122: the marsh folk's central smoke hut on a wide plank deck over the pool, smoke rising from its roof.</summary>
+        SmokeHut,
+        /// <summary>W-122: a plank walk across from hut to hut (along X), or out to the bank (along -Z), of boardwalk pieces.</summary>
+        MarshCross,
+        /// <summary>W-122: the marsh folk's walk from the huts out to the bank (along -Z), ending in a step down.</summary>
+        MarshWalk
     }
 
     /// <summary>The small things a sea folk settlement leaves on the lake bed (#37), picked by weight from SeaDetails.</summary>
@@ -245,6 +253,16 @@ namespace Punchy.Terrain
                         Roof = KitRoof.Flat, Storey = 3.2f, Bay = 2.4f, Pitch = 0f, Quoins = false, Crenels = false, Shutters = false,
                         TowerChance = 0f, BalconyChance = 0f, StairChance = 0f
                     };
+                case FolkCulture.MarshFolk:
+                    // W-122: the marsh folk's trim: reed-ochre walls, dark bog-oak wood, pale straw thatch on steep roofs,
+                    // green-brown moss; low storeys, no towers, balconies or stairs (walks and stilts come from the shapes).
+                    return new CultureTrim
+                    {
+                        Wall = new Color(0.44f, 0.37f, 0.24f), Trim = new Color(0.30f, 0.24f, 0.14f), RoofColour = new Color(0.66f, 0.55f, 0.30f),
+                        Wood = new Color(0.27f, 0.21f, 0.14f), Opening = new Color(0.06f, 0.06f, 0.04f), Moss = new Color(0.30f, 0.38f, 0.16f),
+                        Roof = KitRoof.Steep, Storey = 2.4f, Bay = 2.0f, Pitch = 52f, Quoins = false, Crenels = false, Shutters = false,
+                        TowerChance = 0f, BalconyChance = 0f, StairChance = 0f
+                    };
                 default:
                     return new CultureTrim
                     {
@@ -267,6 +285,7 @@ namespace Punchy.Terrain
             switch (culture)
             {
                 case FolkCulture.FishFolk:
+                case FolkCulture.MarshFolk:
                 case FolkCulture.Goblin:
                 case FolkCulture.Ogre:
                 case FolkCulture.SnowFolk:
@@ -2368,6 +2387,410 @@ namespace Punchy.Terrain
                 var size = 0.2f + 0.35f * (float)rng.NextDouble();
                 var p = at + new Vector3(((float)rng.NextDouble() - 0.5f) * spread * 2f, size * 0.35f, ((float)rng.NextDouble() - 0.5f) * spread * 2f);
                 Add(parts, KitPiece.Rubble, KitMaterial.Stone, p, new Vector3(size * 1.3f, size * 0.8f, size), (float)rng.NextDouble() * 360f, false, ((float)rng.NextDouble() - 0.5f) * 30f);
+            }
+        }
+
+        // --------------------------------------------------------------------------------------- marsh folk (W-122)
+
+        /// <summary>W-122: a marsh folk hut's deck height over the pool (m); the walks sit a little under it.</summary>
+        public const float MarshDeck = 1.0f;
+        /// <summary>W-122: how far the huts stand from the village's middle (ring 0.5 of a 40 m village).</summary>
+        public const float MarshRing = 20f;
+        /// <summary>W-122: half the side of the smoke hut's square deck (m).</summary>
+        public const float MarshHub = 5f;
+        /// <summary>W-122: how far past the water line a marsh folk post runs down into the mud (m).</summary>
+        public const float MarshPile = 3f;
+
+        /// <summary>
+        /// W-122: a marsh folk reed hut, one low storey of House under a steep thatch, on a plank deck
+        /// <see cref="MarshDeck"/> over the water (the origin is the water line), its posts run on down as piles. From the
+        /// door (+Z) a walk of boardwalk pieces (the fishing villages' W-119 piece) runs on to the smoke hut's deck, which
+        /// starts <paramref name="reach"/> - <see cref="MarshHub"/> m in front of the hut's middle.
+        /// </summary>
+        public static List<KitPart> MarshHut(uint seed, CultureTrim t, float width, float depth, float reach, int theme = 0)
+        {
+            var parts = House(seed, t, width, depth, 1, 0f);
+            // Reed huts keep their fire in the smoke hut: no stone chimney.
+            parts.RemoveAll(p => p.Piece == KitPiece.Chimney);
+            for (int i = 0; i < parts.Count; i++)
+            {
+                var p = parts[i];
+                p.Centre.y += MarshDeck;
+                parts[i] = p;
+            }
+            Platform(parts, Vector3.zero, 0f, width + 1.6f, depth + 1.6f, MarshDeck, false);
+            var doorX = DoorX(t, width);
+            var start = depth * 0.5f + 0.8f - 0.3f;
+            var walk = reach - MarshHub + 0.5f - start;
+            MarshPlanks(parts, seed ^ 0x3A2Fu, t, new Vector3(doorX, 0f, start), 0f, walk, 0.9f);
+            // W-122 row 2: each hut dressed a little differently: moss on the thatch, gourds under the eaves, lily pads
+            // round its piles, and its trade (eel traps, a reed frame or a carved post) by its variant.
+            var rng = new System.Random((int)(Scramble(seed ^ 0x6A11u) & 0x7FFFFFFF));
+            float R() => (float)rng.NextDouble();
+            RoofMoss(parts, rng, 1 + rng.Next(2));
+            Gourds(parts, rng, width, depth, 1 + rng.Next(3));
+            for (int k = 0, n = 2 + rng.Next(2); k < n; k++)
+            {
+                var side = R() < 0.5f ? -1f : 1f;
+                LilyPads(parts, rng, new Vector3(side * (width * 0.5f + 1.2f + R()), 0f, (R() - 0.5f) * depth));
+            }
+            var trapSide = R() < 0.5f ? -1f : 1f;
+            if (theme == 0 || R() < 0.3f)
+                EelTrap(parts, new Vector3(doorX + trapSide * 0.95f, 0f, start + walk * (0.3f + 0.4f * R())), trapSide * 90f, 0.9f);
+            if (theme == 1 || R() < 0.3f)
+                DryingFrame(parts, rng, new Vector3(-trapSide * (width * 0.5f + 0.4f), 0f, 0f), 90f, MarshDeck, Mathf.Min(depth - 0.4f, 2f));
+            if (theme == 2)
+                Totem(parts, rng, new Vector3(trapSide * (width * 0.5f + 0.6f), 0f, depth * 0.5f + 0.6f), 0f, 2.6f + R() * 0.6f, MarshPaint(theme));
+            Piles(parts);
+            return parts;
+        }
+
+        /// <summary>
+        /// W-122: the marsh folk's smoke hut: a squat House under a tall steep thatch on a square plank deck
+        /// 2 x <see cref="MarshHub"/> across, its door +Z, a clay smoke stack through the ridge (FloraGenerator puts the
+        /// chimney's smoke on it).
+        /// </summary>
+        public static List<KitPart> SmokeHut(uint seed, CultureTrim t, float width, int theme = 0)
+        {
+            t.Pitch = 58f;
+            var parts = House(seed, t, width, width, 1, 0f);
+            var ridge = 0f;
+            for (int i = 0; i < parts.Count; i++)
+            {
+                var p = parts[i];
+                p.Centre.y += MarshDeck;
+                parts[i] = p;
+                if (p.Piece == KitPiece.Trim)
+                    ridge = Mathf.Max(ridge, p.Centre.y);
+            }
+            // The steep roof's own chimney runs far past this tall ridge: move it to the ridge's middle (over the village's
+            // centre, where its landmark plume rises) and cut it to stand 1 m clear of the ridge, with a cap.
+            for (int i = 0; i < parts.Count; i++)
+            {
+                var p = parts[i];
+                if (p.Piece != KitPiece.Chimney)
+                    continue;
+                var bottom = p.Centre.y - p.Size.y * 0.5f;
+                var stackTop = ridge + 1f;
+                p.Size.y = stackTop - bottom;
+                p.Centre = new Vector3(0f, (bottom + stackTop) * 0.5f, 0f);
+                parts[i] = p;
+                Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(p.Centre.x, stackTop + 0.06f, p.Centre.z), new Vector3(0.9f, 0.12f, 0.9f), 0f, false);
+                break;
+            }
+            Platform(parts, Vector3.zero, 0f, MarshHub * 2f, MarshHub * 2f, MarshDeck, false);
+            // W-122 row 2: the village's theme (one per village, PerVillage) paints the carved posts flanking the door and
+            // picks what crowds the deck: eel traps off its edges, reed frames along its sides, or more posts.
+            var rng = new System.Random((int)(Scramble(seed ^ 0x5A0Bu) & 0x7FFFFFFF));
+            float R() => (float)rng.NextDouble();
+            var paint = MarshPaint(theme);
+            var near = width * 0.5f + 0.9f;
+            foreach (var sx in new[] { -1f, 1f })
+                Totem(parts, rng, new Vector3(sx * 1.6f, 0f, near), 0f, 3f + R() * 0.5f, paint);
+            if (theme == 2)
+                foreach (var sx in new[] { -1f, 1f })
+                    Totem(parts, rng, new Vector3(sx * (near - 0.3f), 0f, -(near - 0.3f)), sx * 135f, 2.5f + R() * 0.6f, paint);
+            if (theme == 1)
+                foreach (var sx in new[] { -1f, 1f })
+                    DryingFrame(parts, rng, new Vector3(sx * (width * 0.5f + 1.3f), 0f, -0.4f), 90f, MarshDeck, 2.2f);
+            for (int k = 0, n = theme == 0 ? 4 : 1; k < n; k++)
+            {
+                // Square to a deck edge (a corner yaw put the trap back under the planks), at a random spot along it.
+                var yaw = k * 90f + rng.Next(4) * 90f;
+                EelTrap(parts, Turn(yaw, new Vector3((R() - 0.5f) * 6f, 0f, MarshHub + 0.05f)), yaw, MarshDeck);
+            }
+            RoofMoss(parts, rng, 1 + rng.Next(2));
+            Gourds(parts, rng, width, width, 2 + rng.Next(3));
+            for (int k = 0; k < 4; k++)
+                LilyPads(parts, rng, Turn(k * 90f + R() * 60f, new Vector3(0f, 0f, MarshHub + 1f + R() * 1.5f)));
+            Hatchery(parts, seed);
+            Piles(parts);
+            return parts;
+        }
+
+        /// <summary>
+        /// W-122: a plank walk of <paramref name="length"/> m centred on the origin, along X when <paramref name="across"/>
+        /// (hut to hut, the prop facing the middle), else along -Z from z = 2.8 out to the bank, where it ends in a step
+        /// down onto the mud.
+        /// </summary>
+        public static List<KitPart> MarshCross(uint seed, CultureTrim t, float length, bool across, int theme = 0)
+        {
+            var parts = new List<KitPart>();
+            // W-122 row 2: dressed by the village's theme (PerVillage): eel traps, reed frames standing in the shallows, or
+            // carved posts beside the planks; lily pads either side and a welcome post where the walk meets the bank.
+            var rng = new System.Random((int)(Scramble(seed ^ 0x7C05u) & 0x7FFFFFFF));
+            float R() => (float)rng.NextDouble();
+            var paint = MarshPaint(theme);
+            if (across)
+            {
+                MarshPlanks(parts, seed, t, new Vector3(-length * 0.5f, 0f, 0f), 90f, length, 0.86f);
+                for (int k = 0; k < 2; k++)
+                {
+                    var side = k == 0 ? -1f : 1f;
+                    var x = (R() - 0.5f) * length * 0.6f;
+                    if (theme == 0)
+                        EelTrap(parts, new Vector3(x, 0f, side * 0.95f), side < 0f ? 180f : 0f, 0.86f);
+                    else if (theme == 1)
+                        DryingFrame(parts, rng, new Vector3(x, 0f, side * 1.6f), 0f, -0.2f, 2f);
+                    else if (k == 0)
+                        Totem(parts, rng, new Vector3(x, 0f, side * 1.15f), side < 0f ? 0f : 180f, 2.8f + R() * 0.6f, paint);
+                    LilyPads(parts, rng, new Vector3((R() - 0.5f) * length * 0.8f, 0f, side * (1.6f + R())));
+                }
+            }
+            else
+            {
+                MarshPlanks(parts, seed, t, new Vector3(0f, 0f, 2.8f), 180f, length, 0.82f);
+                var end = 2.8f - length - 0.65f - Mathf.CeilToInt(0.82f / 0.28f) * 0.15f;
+                Stair(parts, new Vector3(0f, 0f, end), 0f, 0.82f, 1.4f);
+                Totem(parts, rng, new Vector3(1.25f, 0f, 2.8f - length + 0.4f), 180f, 3.2f + R() * 0.4f, paint);
+                if (theme == 2)
+                    Totem(parts, rng, new Vector3(-1.25f, 0f, 2.8f - length + 0.4f), 180f, 3f + R() * 0.4f, paint);
+                for (int k = 0; k < 3; k++)
+                    LilyPads(parts, rng, new Vector3((k == 1 ? 1f : -1f) * (1.6f + R()), 0f, 2.8f - length * (0.2f + 0.3f * k)));
+            }
+            Piles(parts);
+            return parts;
+        }
+
+        /// <summary>W-122 row 2: the paint a village's carved posts take by its theme: ochre, bone or lichen green.</summary>
+        static KitMaterial MarshPaint(int theme) => theme == 0 ? KitMaterial.Copper : theme == 1 ? KitMaterial.Net : KitMaterial.Moss;
+
+        /// <summary>
+        /// W-122 row 2: a wicker eel trap, a tapering cone hung mouth up off a deck's edge at <paramref name="at"/> to
+        /// drain (one floating at the water line was lost in the murk), on a short cord from the planks at
+        /// <paramref name="deck"/>; <paramref name="yaw"/> turns it so its rim hoops face along the edge.
+        /// </summary>
+        static void EelTrap(List<KitPart> parts, Vector3 at, float yaw, float deck)
+        {
+            var top = deck - 0.2f;
+            for (int k = 0; k < 3; k++)
+            {
+                var s = 0.36f - k * 0.1f;
+                var y = top - 0.17f - k * 0.3f;
+                Add(parts, KitPiece.Trim, KitMaterial.Roof, at + Turn(yaw, new Vector3(0f, y, 0.25f)), new Vector3(s, s, 0.34f), yaw, false, 90f, 45f);
+                Add(parts, KitPiece.Trim, KitMaterial.Wood, at + Turn(yaw, new Vector3(0f, y + 0.15f, 0.25f)), new Vector3(s + 0.04f, s + 0.04f, 0.04f), yaw, false, 90f, 45f);
+            }
+            Add(parts, KitPiece.Trim, KitMaterial.Opening, at + Turn(yaw, new Vector3(0f, top + 0.01f, 0.25f)), new Vector3(0.3f, 0.3f, 0.02f), yaw, false, 90f, 45f);
+            Add(parts, KitPiece.Trim, KitMaterial.Net, at + Turn(yaw, new Vector3(0f, top + 0.1f, 0.25f)), new Vector3(0.025f, 0.2f, 0.025f), yaw, false);
+        }
+
+        /// <summary>
+        /// W-122 row 2: a reed drying frame, A-legs and a crossbar <paramref name="length"/> m long along local X, standing
+        /// at <paramref name="baseY"/> (a deck, or a little under the water line in the shallows), bundles of reeds tied
+        /// head down from the bar.
+        /// </summary>
+        static void DryingFrame(List<KitPart> parts, System.Random rng, Vector3 at, float yaw, float baseY, float length)
+        {
+            float R() => (float)rng.NextDouble();
+            var bar = baseY + 1.75f;
+            foreach (var sx in new[] { -0.5f, 0.5f })
+                foreach (var lean in new[] { -11f, 11f })
+                    Add(parts, KitPiece.Trim, KitMaterial.Wood, at + Turn(yaw, new Vector3(sx * length, (baseY + bar) * 0.5f, lean * 0.017f)),
+                        new Vector3(0.07f, 1.8f, 0.07f), yaw, false, lean);
+            Add(parts, KitPiece.Trim, KitMaterial.Wood, at + Turn(yaw, new Vector3(0f, bar, 0f)), new Vector3(length + 0.3f, 0.07f, 0.07f), yaw, false);
+            for (int k = 0, n = Mathf.Max(3, Mathf.RoundToInt(length * 2.5f)); k < n; k++)
+            {
+                var x = (k + 0.5f) / n * (length - 0.3f) - (length - 0.3f) * 0.5f;
+                var hang = 0.7f + R() * 0.45f;
+                Add(parts, KitPiece.Trim, KitMaterial.Roof, at + Turn(yaw, new Vector3(x, bar - 0.05f - hang * 0.5f, 0f)), new Vector3(0.15f, hang, 0.12f), yaw, false, (R() - 0.5f) * 8f, (R() - 0.5f) * 8f);
+                Add(parts, KitPiece.Trim, KitMaterial.Net, at + Turn(yaw, new Vector3(x, bar - 0.12f, 0f)), new Vector3(0.18f, 0.05f, 0.15f), yaw, false);
+            }
+        }
+
+        /// <summary>
+        /// W-122 row 2: a carved post <paramref name="height"/> m from the water line (Piles runs it on into the mud),
+        /// stacked with two or three lizard heads facing <paramref name="yaw"/>, bare wood alternating with the village's
+        /// <paramref name="paint"/>: dark eyes, a long snout, a painted crest on top.
+        /// </summary>
+        static void Totem(List<KitPart> parts, System.Random rng, Vector3 at, float yaw, float height, KitMaterial paint)
+        {
+            Add(parts, KitPiece.Column, KitMaterial.Wood, at + new Vector3(0f, height * 0.5f, 0f), new Vector3(0.3f, height, 0.3f), yaw, false);
+            var heads = 2 + rng.Next(2);
+            for (int k = 0; k < heads; k++)
+            {
+                var y = height - 0.3f - k * 0.62f;
+                var m = (k & 1) == 0 ? paint : KitMaterial.Wood;
+                Add(parts, KitPiece.Trim, m, at + new Vector3(0f, y, 0f), new Vector3(0.48f, 0.52f, 0.48f), yaw, false);
+                Add(parts, KitPiece.Trim, m, at + Turn(yaw, new Vector3(0f, y - 0.1f, 0.38f)), new Vector3(0.26f, 0.16f, 0.36f), yaw, false);
+                Add(parts, KitPiece.Trim, KitMaterial.Trim, at + Turn(yaw, new Vector3(0f, y - 0.19f, 0.36f)), new Vector3(0.24f, 0.03f, 0.34f), yaw, false);
+                foreach (var sx in new[] { -0.13f, 0.13f })
+                    Add(parts, KitPiece.Trim, KitMaterial.Opening, at + Turn(yaw, new Vector3(sx, y + 0.09f, 0.245f)), new Vector3(0.09f, 0.07f, 0.02f), yaw, false);
+            }
+            Add(parts, KitPiece.Trim, paint, at + new Vector3(0f, height + 0.12f, 0f) + Turn(yaw, new Vector3(0f, 0f, -0.05f)), new Vector3(0.07f, 0.4f, 0.46f), yaw, false, -12f);
+        }
+
+        /// <summary>W-122 row 2: <paramref name="count"/> hanging gourds on cords from the eave corners of a hut.</summary>
+        static void Gourds(List<KitPart> parts, System.Random rng, float width, float depth, int count)
+        {
+            float R() => (float)rng.NextDouble();
+            // Hang from the underside of the thatch slab over each corner (the slab's outer edge is local z = side * half).
+            var slabs = new List<KitPart>();
+            foreach (var p in parts)
+                if (p.Piece == KitPiece.Roof && p.Size.y < 0.3f && p.Size.z > 1f && Quaternion.Angle(p.Rotation, Quaternion.identity) > 5f)
+                    slabs.Add(p);
+            if (slabs.Count == 0)
+                return;
+            var start = rng.Next(4);
+            for (int k = 0; k < count && k < 4; k++)
+            {
+                var c = (start + k) & 3;
+                var sx = (c & 1) == 0 ? -1f : 1f;
+                var slab = slabs[(c >> 1) % slabs.Count];
+                var outward = slab.Centre.z >= 0f ? 1f : -1f;
+                var local = new Vector3(sx * (width * 0.5f + 0.15f), -slab.Size.y * 0.5f, 0f);
+                // The slab's local z that sits 0.3 m outside the wall: walk along it from the centre.
+                var flat = slab.Rotation * Vector3.forward;
+                var along = Mathf.Abs(flat.z) > 0.1f ? (outward * (depth * 0.5f + 0.3f) - slab.Centre.z) / flat.z : 0f;
+                local.z = Mathf.Clamp(along, -slab.Size.z * 0.5f, slab.Size.z * 0.5f);
+                var top = slab.Centre + slab.Rotation * local;
+                var cord = 0.35f + R() * 0.45f;
+                var m = R() < 0.5f ? KitMaterial.Copper : KitMaterial.Sand;
+                Add(parts, KitPiece.Trim, KitMaterial.Net, top + new Vector3(0f, -cord * 0.5f, 0f), new Vector3(0.025f, cord, 0.025f), 0f, false);
+                Add(parts, KitPiece.Trim, KitMaterial.Wood, top + new Vector3(0f, -cord - 0.04f, 0f), new Vector3(0.07f, 0.1f, 0.07f), 0f, false);
+                Add(parts, KitPiece.Trim, m, top + new Vector3(0f, -cord - 0.17f, 0f), new Vector3(0.17f, 0.17f, 0.17f), 45f, false);
+                Add(parts, KitPiece.Trim, m, top + new Vector3(0f, -cord - 0.4f, 0f), new Vector3(0.3f, 0.32f, 0.3f), R() * 90f, false);
+            }
+        }
+
+        /// <summary>W-122 row 2: <paramref name="count"/> ragged moss patches (MossCap sheets) lying on the thatch's slabs.</summary>
+        static void RoofMoss(List<KitPart> parts, System.Random rng, int count)
+        {
+            float R() => (float)rng.NextDouble();
+            var slabs = new List<KitPart>();
+            foreach (var p in parts)
+                if (p.Piece == KitPiece.Roof && p.Size.y < 0.3f && p.Size.z > 1f && Quaternion.Angle(p.Rotation, Quaternion.identity) > 5f)
+                    slabs.Add(p);
+            for (int k = 0; k < count && slabs.Count > 0; k++)
+            {
+                var s = slabs[rng.Next(slabs.Count)];
+                var w = Mathf.Min(s.Size.x - 0.4f, 1.2f + R() * 1.4f);
+                var l = Mathf.Min(s.Size.z - 0.3f, 1f + R() * 1.2f);
+                var x = (R() - 0.5f) * (s.Size.x - w);
+                var z = (R() - 0.5f) * (s.Size.z - l);
+                // Sat clear of the thatch courses (up to ~0.2 m proud of the slab), or they swallow the sheet.
+                parts.Add(new KitPart
+                {
+                    Piece = KitPiece.MossCap, Material = KitMaterial.Moss, Rotation = s.Rotation,
+                    Centre = s.Centre + s.Rotation * new Vector3(x, s.Size.y * 0.5f + 0.22f, z), Size = new Vector3(w, 0.1f, l)
+                });
+            }
+        }
+
+        /// <summary>
+        /// W-122 row 3: the village's hatchery, a round reed nest raft moored off the back of the smoke hut deck, kept warm
+        /// by its fire. A clutch of speckled eggs sits in it, and one has cracked open with a hatchling's head peeking out.
+        /// It draws from its own stream, so the deck's other details keep their places.
+        /// </summary>
+        static void Hatchery(List<KitPart> parts, uint seed)
+        {
+            var rng = new System.Random((int)(Scramble(seed ^ 0xE66Fu) & 0x7FFFFFFF));
+            float R() => (float)rng.NextDouble();
+            // Straight off the back edge: the hut walks meet the deck 30 deg either side of it, so this gap stays open.
+            var at = new Vector3((R() - 0.5f) * 0.8f, 0f, -(MarshHub + 1.7f));
+            const float ring = 0.95f;
+            // The raft: a woven mat of reed and a bound reed rim, riding a hand above the water.
+            Add(parts, KitPiece.Trim, KitMaterial.Wood, at + new Vector3(0f, 0.08f, 0f), new Vector3(2.1f, 0.1f, 2.1f), 0f, false);
+            Add(parts, KitPiece.Trim, KitMaterial.Roof, at + new Vector3(0f, 0.15f, 0f), new Vector3(1.9f, 0.06f, 1.9f), 45f, false);
+            for (int k = 0; k < 10; k++)
+            {
+                var yaw = k * 36f;
+                Add(parts, KitPiece.Trim, KitMaterial.Roof, at + Turn(yaw, new Vector3(0f, 0.3f, ring)), new Vector3(0.66f, 0.26f, 0.2f), yaw, false, 0f, (R() - 0.5f) * 10f);
+            }
+            // Mooring cord to the deck's edge.
+            var cordFrom = at + new Vector3(0f, 0.3f, ring);
+            var cordTo = new Vector3(at.x, MarshDeck - 0.1f, -MarshHub);
+            var mid = (cordFrom + cordTo) * 0.5f;
+            var run = cordTo - cordFrom;
+            Add(parts, KitPiece.Trim, KitMaterial.Net, mid, new Vector3(0.03f, 0.03f, run.magnitude), 0f, false, -Mathf.Atan2(run.y, new Vector2(run.x, run.z).magnitude) * Mathf.Rad2Deg);
+            // The clutch: each egg three stacked blocks tapering up, cream with dark speckles.
+            var eggs = 5 + rng.Next(3);
+            var cracked = rng.Next(eggs);
+            for (int k = 0; k < eggs; k++)
+            {
+                var spot = at + Turn(k * (360f / eggs) + R() * 20f, new Vector3(0f, 0.18f, k == 0 ? 0f : 0.45f + R() * 0.12f));
+                if (k == 0)
+                    spot = at + new Vector3(0f, 0.18f, 0f);
+                var yaw = R() * 90f;
+                var size = 0.85f + R() * 0.3f;
+                var tilt = (R() - 0.5f) * 30f;
+                if (k == cracked)
+                {
+                    // The lower half of the shell with a jagged rim, and a small green head looking out over it.
+                    Add(parts, KitPiece.Trim, KitMaterial.Net, spot + new Vector3(0f, 0.08f * size, 0f), new Vector3(0.2f, 0.16f, 0.2f) * size, yaw, false);
+                    for (int j = 0; j < 4; j++)
+                        Add(parts, KitPiece.Trim, KitMaterial.Net, spot + Turn(yaw + j * 90f, new Vector3(0f, 0.19f * size, 0.08f * size)), new Vector3(0.09f, 0.08f + (j % 2) * 0.05f, 0.025f) * size, yaw + j * 90f, false, 0f, 12f);
+                    // Head a touch big for the shell, as hatchlings are, so it reads from the deck above.
+                    var head = spot + Turn(yaw, new Vector3(0f, 0.3f * size, 0.02f));
+                    Add(parts, KitPiece.Trim, KitMaterial.Moss, head, new Vector3(0.15f, 0.12f, 0.17f), yaw, false, -20f);
+                    Add(parts, KitPiece.Trim, KitMaterial.Moss, head + Turn(yaw, new Vector3(0f, -0.015f, 0.13f)), new Vector3(0.1f, 0.07f, 0.13f), yaw, false, -20f);
+                    foreach (var ex in new[] { -1f, 1f })
+                        Add(parts, KitPiece.Trim, KitMaterial.Lamp, head + Turn(yaw, new Vector3(ex * 0.075f, 0.035f, 0.05f)), new Vector3(0.025f, 0.035f, 0.035f), yaw, false);
+                    continue;
+                }
+                Add(parts, KitPiece.Trim, KitMaterial.Net, spot + new Vector3(0f, 0.08f, 0f) * size, new Vector3(0.2f, 0.16f, 0.2f) * size, yaw, false, tilt, 0f);
+                Add(parts, KitPiece.Trim, KitMaterial.Net, spot + new Vector3(0f, 0.15f, 0f) * size, new Vector3(0.24f, 0.12f, 0.24f) * size, yaw + 45f, false, tilt, 0f);
+                Add(parts, KitPiece.Trim, KitMaterial.Net, spot + new Vector3(0f, 0.25f, 0f) * size, new Vector3(0.16f, 0.12f, 0.16f) * size, yaw, false, tilt, 0f);
+                for (int j = 0; j < 3; j++)
+                    Add(parts, KitPiece.Trim, KitMaterial.Wood, spot + Turn(yaw + j * 120f + 20f, new Vector3(0f, (0.12f + j * 0.05f) * size, 0.125f * size)), new Vector3(0.035f, 0.03f, 0.01f), yaw + j * 120f + 20f, false);
+            }
+        }
+
+        /// <summary>W-122 row 2: a clump of three to five lily pads on the water near <paramref name="at"/>, one sometimes in flower.</summary>
+        static void LilyPads(List<KitPart> parts, System.Random rng, Vector3 at)
+        {
+            float R() => (float)rng.NextDouble();
+            for (int k = 0, n = 3 + rng.Next(3); k < n; k++)
+            {
+                var spot = at + new Vector3((R() - 0.5f) * 1.6f, 0.03f + k * 0.004f, (R() - 0.5f) * 1.6f);
+                var r = 0.22f + R() * 0.2f;
+                var yaw = R() * 90f;
+                Add(parts, KitPiece.Trim, KitMaterial.Moss, spot, new Vector3(r * 2f, 0.02f, r * 2f), yaw, false);
+                Add(parts, KitPiece.Trim, KitMaterial.Moss, spot + new Vector3(0f, 0.002f, 0f), new Vector3(r * 2f, 0.02f, r * 2f), yaw + 45f, false);
+                if (R() < 0.25f)
+                {
+                    Add(parts, KitPiece.Trim, KitMaterial.Net, spot + new Vector3(0f, 0.07f, 0f), new Vector3(0.16f, 0.1f, 0.16f), yaw + 22f, false);
+                    Add(parts, KitPiece.Trim, KitMaterial.Sand, spot + new Vector3(0f, 0.12f, 0f), new Vector3(0.07f, 0.05f, 0.07f), yaw, false);
+                }
+            }
+        }
+
+        /// <summary>
+        /// W-122: boardwalk pieces (the fishing villages' W-119 piece, <see cref="Boardwalk"/>) end to end from
+        /// <paramref name="from"/> along <paramref name="yaw"/> for <paramref name="length"/> m, every other piece 2 cm
+        /// higher so their overlaps never fight.
+        /// </summary>
+        static void MarshPlanks(List<KitPart> parts, uint seed, CultureTrim t, Vector3 from, float yaw, float length, float deck)
+        {
+            const float piece = 3.8f;
+            var n = Mathf.Max(1, Mathf.CeilToInt((length - 0.4f) / (piece - 0.4f)));
+            var step = n > 1 ? (length - piece) / (n - 1) : 0f;
+            var size = n > 1 ? piece : length;
+            for (int k = 0; k < n; k++)
+            {
+                var along = size * 0.5f + k * step;
+                var turn = Quaternion.Euler(0f, yaw, 0f);
+                foreach (var p0 in Boardwalk(seed ^ (uint)k * 0x9E3779B9u, t, size, deck + (k & 1) * 0.02f))
+                {
+                    var p = p0;
+                    p.Centre = from + turn * (p.Centre + new Vector3(0f, 0f, along));
+                    p.Rotation = turn * p.Rotation;
+                    parts.Add(p);
+                }
+            }
+        }
+
+        /// <summary>W-122: posts standing on the water line run on down <see cref="MarshPile"/> m into the mud.</summary>
+        static void Piles(List<KitPart> parts)
+        {
+            for (int i = 0; i < parts.Count; i++)
+            {
+                var p = parts[i];
+                if (p.Piece == KitPiece.Column && p.Centre.y - p.Size.y * 0.5f < 0.1f && p.Centre.y - p.Size.y * 0.5f > -0.1f)
+                {
+                    p.Centre.y -= MarshPile * 0.5f;
+                    p.Size.y += MarshPile;
+                }
+                parts[i] = p;
             }
         }
 

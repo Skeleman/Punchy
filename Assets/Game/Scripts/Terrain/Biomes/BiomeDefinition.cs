@@ -35,7 +35,9 @@ namespace Punchy.Terrain
         /// <summary>The bat folk of the deep caves (#35): houses hung from cave walls and ceilings, no lights at all.</summary>
         BatFolk = 256,
         /// <summary>The sea folk of the central lake (#37): shell domes on the lake bed, spires and a pier above it.</summary>
-        SeaFolk = 512
+        SeaFolk = 512,
+        /// <summary>W-122: the marsh folk (lizardfolk) of the Foggy marsh: reed huts on stilts round a smoke hut, over a pool.</summary>
+        MarshFolk = 1024
     }
 
     /// <summary>
