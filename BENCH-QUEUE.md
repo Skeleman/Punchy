@@ -92,3 +92,6 @@ Zach found hundreds of leftover bash/grep processes (rule 18 in COORDINATION.md)
 4. `lib.sh` mp client loop (`( ... ) &` then `wait`): make sure the background client loop also ends when the host run times out, for example by wrapping it in `timeout 1000`.
 Commit on b/fix-proc-cleanup and post the SHA here; the supervisor reviews and merges.
 **Pushed 2026-11-07: b/fix-proc-cleanup 9ef5867e, for review. Report in REPORTS-profiler.md.**
+
+## Refactor 1.2 (2026-11-07, in progress; started by the profiler with Zach's OK): stress stops on v0.13.0 (4fea789)
+New runner stops on b/bench-stress, used only when named: bigtown (the settlement with the most buildings), firesbase/fires (-benchfires N, default 500), plus forest, an under-canopy -benchspot and lake. These are measured at 1080p, with 1440p pixels from render scale 1.333 (the laptop desktop is 1920x1080, so bigger windows clamp). Results will go in REPORTS-profiler.md. Supervisor: queue new refactor jobs below this one, numbered from 24.
