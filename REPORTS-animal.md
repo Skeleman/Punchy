@@ -2923,3 +2923,15 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
   - So any world with biome looks gives two different numbers. The pin is not changed.
   - Small trap for the world lane: Landmarks_V3's measure line means to print the game's hash, but LogWatch.Last("[island]") picks the last [island] line ("reports 21420 ms ..."), so the game hash never shows there. Searching for "landmarks, hash" would fix that. It's a test file, so I left it alone.
 - **Next:** row 2, a slope limit per gait so the ice mammoth walks.
+
+## A-86 row 2: per-gait slope limit, the ice mammoth walks (#40), done (verified)
+- Commit 18bda679 (animal-behaviours). Gait has two new fields, `Climb` (the steepest rise over run it walks; 0 means MaxSlope 0.35) and `SlopeSpan` (how many metres the slope is measured across; 0 means 4 m). Unfit now reads the slope through a `Slope()` helper that uses those defaults, so walkers without the fields read exactly as before.
+- **Why it was stuck:** I scanned 392 dry Glacier loops round the mammoth's spot. Measured over 4 m, the best loop's steepest point was 0.49; over 20 m it was 0.32. The glacier is bumpy over short distances, not steep over long ones. The mammoth gets `SlopeSpan 20` (its footprint) and `Climb 0.5`.
+- **Result:** "IceMammoth walks a 196 m loop (radius 31 m, 8 shrinks) round (-115, 1489)". The -walkerlog shows it moving at pace 1.00, 6 m every 10 s (0.6 m/s).
+- **Other walkers:** the "walks a ... loop" lines of all 12 other walkers are identical to the run before the change. MireWalker still "stays still", blocked by water at (-944, -91), not by slope, so it is outside this row; it could be a follow-up.
+- **Checks:** 0 exceptions. GC: PlayerLoop 2439 B/frame over 121 frames with the camera 110 m from the walking mammoth (limit 9594). Perf: frame 7.31 ms, cpu main 6.41. The suite run comes at the end of the card (it needs my editor closed).
+- **Shots** (D:\PunchyMilestones\A-86, daylight):
+  - `a86-r2-mammoth-front.png`: the snow-dusted mammoth walking head-on toward the camera across the glacier, tusks forward, with a lone pine at left.
+  - `a86-r2-mammoth-side.png`: it crosses behind a snowy ridge, side-on.
+  - `a86-r2-warm.png`: the warmup frame.
+- **Risk:** in the front shot there is a pale rectangular patch on the snow at its feet. It looks like the colossus collision box or the flora clearing showing through, and it predates this row. Worth a look.
