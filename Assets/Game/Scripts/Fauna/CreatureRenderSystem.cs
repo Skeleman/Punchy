@@ -527,6 +527,7 @@ namespace Punchy.Fauna
                 if (!reused)
                     CreatureAnimator.Evaluate(ref body.Blob.Value, state, body.Coat, Terrain, Output, offset,
                                               Unity.Mathematics.math.distancesq(state.Position, CameraPosition) < FootDetail * FootDetail);
+                RideSwell(state, body, offset);
                 Rest(index, state, body, entity, offset);
                 var slot = threadIndex * StatStride;
                 Stats[slot] += Unity.Profiling.LowLevel.Unsafe.ProfilerUnsafeUtility.Timestamp - start;
@@ -537,7 +538,9 @@ namespace Punchy.Fauna
             bool Reuse(in CreatureState state, in CreatureBody body, Entity entity, int offset, byte decision)
             {
                 var rate = new Punchy.Settings.DetailPolicy.Decision { Packed = decision }.Animation;
-                if (rate == 0 || body.Blob.Value.Haunts || body.Blob.Value.LavaDweller)
+                // (Nor swimmers and floaters: their pose rides the swell afresh each frame, RideSwell.)
+                if (rate == 0 || body.Blob.Value.Haunts || body.Blob.Value.LavaDweller ||
+                    body.Blob.Value.Habitat == Habitat.Swims || body.Blob.Value.Habitat == Habitat.Floats)
                     return false;
                 var period = rate == 1 ? 2 : 4;
                 if (((Frame + entity.Index) & (period - 1)) == 0)
@@ -556,6 +559,30 @@ namespace Punchy.Fauna
                     Output[offset + i] = seg;
                 }
                 return true;
+            }
+
+            /// <summary>
+            /// Playtest 11-08 item 20: a swimmer or floater rides the sea's swell (WaterSwells.SwellAt, the drawn water's
+            /// own numbers), fully at the surface and less the deeper it swims, gone 3 m down. Drawn only: its simulated
+            /// position stays on the flat surface, so nothing networked changes.
+            /// </summary>
+            void RideSwell(in CreatureState state, in CreatureBody body, int offset)
+            {
+                if (body.Blob.Value.Habitat != Habitat.Swims && body.Blob.Value.Habitat != Habitat.Floats)
+                    return;
+                var g = Terrain.SampleGround(state.Position.xz);
+                if (!g.HasWater)
+                    return;
+                var rise = WaterSwells.Height(state.Position.xz, g.WaterSurface, g.Height)
+                           * Unity.Mathematics.math.saturate(1f - (g.WaterSurface - state.Position.y) / 3f);
+                if (rise == 0f)
+                    return;
+                for (int i = 0; i < body.SegmentCount; i++)
+                {
+                    var seg = Output[offset + i];
+                    seg.Position.y += rise;
+                    Output[offset + i] = seg;
+                }
             }
 
             /// <summary>Everything after the body's own segments: grounding, fades, marks, lairs and what it holds.</summary>

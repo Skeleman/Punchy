@@ -24,8 +24,10 @@ namespace Punchy.Terrain
     /// uploads them as shader globals, so the drawn sea and the swimmer can't drift apart (refactor 3.4, audit
     /// section 2). WaterSwell.hlsl keeps only the maths, which must stay the same as <see cref="Height"/>.
     /// The state (on, sea level, wind, clock) is set once a frame on the main thread (Underwater.cs) and read from Burst.
-    /// Limits: creatures, buoys, driftwood and boats still float at the flat level; the wind is the camera's, so in
-    /// multiplayer each player's swell height follows their own wind.
+    /// What floats rides it too (playtest 11-08 item 20): <see cref="SwellAt"/> here and PunchySwellFloat in the shader
+    /// (swimming and floating creatures in CreatureRenderSystem, floating flora and kit in Flora.hlsl). Limits: the wind
+    /// is the camera's, so in multiplayer each player's swell height follows their own wind (everything that rides it is
+    /// drawn from the same machine's numbers, so it agrees on each screen).
     /// </summary>
     public static class WaterSwells
     {
@@ -385,6 +387,16 @@ namespace Punchy.Terrain
             var h = f.Headings;
             return math.lerp(math.lerp(h[a.y * f.Size + a.x], h[a.y * f.Size + b.x], t.x),
                              math.lerp(h[b.y * f.Size + a.x], h[b.y * f.Size + b.x], t.x), t.y);
+        }
+
+        /// <summary>How far the swell lifts the water surface at xz (m; 0 off the sea, out of the water or with -noswells),
+        /// from the ground there: the one helper for anything that floats or swims at the surface (item 20).</summary>
+        public static float SwellAt(in TerrainSource terrain, float2 xz)
+        {
+            if (Shared.State.Data.x <= 0f)
+                return 0f;
+            var g = terrain.SampleGround(xz);
+            return g.HasWater ? Height(xz, g.WaterSurface, g.Height) : 0f;
         }
 
         /// <summary>

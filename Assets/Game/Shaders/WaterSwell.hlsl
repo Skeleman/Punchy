@@ -154,6 +154,19 @@ PunchySwellResult PunchySwell(float2 xz, float t, float amount, float depth, flo
     return r;
 }
 
+// What floats on the sea rides its swell (playtest 11-08 item 20): at a floating thing's centre (on the surface), over
+// water this deep, the lift (y, m) and the surface's slope (xz), summing the waves the water there is drawn with. The
+// shader twin of WaterSwells.SwellAt. 0 off the sea.
+float3 PunchySwellFloat(float3 positionWS, float depth)
+{
+    float amount = PunchySwellAmount(positionWS.y, depth);
+    [branch] if (amount <= 0)
+        return 0;
+    float waves = PunchySwellWaveCount(PunchyWaterPixelsPerMetre(distance(positionWS, GetCameraPositionWS())));
+    PunchySwellResult r = PunchySwell(positionWS.xz, _PunchyClock, amount, depth, waves);
+    return float3(r.slope.x, r.offset.y, r.slope.y);
+}
+
 // A water vertex moved by the swell (world space), for both of Water.shader's passes, so their depths match exactly.
 // swell: how strongly it swells (PunchySwellAmount), from the surface's height and the water's depth there.
 float3 PunchySwellVertex(float3 positionWS, float depth, float t, out float swell)

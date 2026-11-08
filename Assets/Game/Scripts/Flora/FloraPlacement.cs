@@ -1800,12 +1800,14 @@ namespace Punchy.Flora
                                 var at = new float3(spot.x, footprint ? 0f : source.SampleHeight(spot), spot.y);
                                 // W-121 (#37): a floating prop (a sea folk buoy or raft) rides the water over its spot, and a spot on dry
                                 // ground stays empty (no draws moved).
+                                var floatDepth = 0f;
                                 if (placedRule.Floats != 0 && !footprint)
                                 {
                                     var wet = source.SampleGround(spot);
                                     if (!wet.HasWater || wet.WaterSurface < wet.Height + 0.3f)
                                         return none;
                                     at.y = wet.WaterSurface + 0.01f;
+                                    floatDepth = wet.WaterSurface - wet.Height;
                                 }
                                 // W-113 (item 11): an igloo only where it seats with its door clear and no open bottom;
                                 // else a few metres over, else none (no draws moved). Footprints follow it, so the
@@ -1837,7 +1839,7 @@ namespace Punchy.Flora
                                     Scale = placedScale,
                                     Model = placedModel,
                                     Random = rng.NextFloat(),
-                                    Snow = footprint ? 0f : source.SampleBiomeSnow(spot),   // #82: stalls on a snowy square
+                                    Snow = footprint ? 0f : floatDepth > 0f ? -floatDepth : source.SampleBiomeSnow(spot),   // #82: stalls on a snowy square; item 20, floats
                                     Ground = footprint ? 0u : GroundFor(source, placedRule, spot, 1f, 0.25f)
                                 };
                             }
@@ -2173,7 +2175,9 @@ namespace Punchy.Flora
                 Model = fromProp && landmarkInstance >= 0 ? PatternModel(rule, landmarkInstance, rule.FirstModel + rng.NextInt(rule.Variants))
                                                           : rule.FirstModel + rng.NextInt(rule.Variants),
                 Random = rng.NextFloat(),
-                Snow = surface.Snow,
+                // (Playtest 11-08 item 20: a floating plant carries its water's depth as a negative snow, so Flora.hlsl
+                // can lift it with the sea's swell; nothing floats under snow.)
+                Snow = rule.Floats != 0 && ground.HasWater ? -math.max(ground.WaterSurface - ground.Height, 0.01f) : surface.Snow,
                 // Rocks lie over onto the slope they stand on.
                 Tilt = normal.xz * rule.Tilt,
                 Ground = GroundFor(source, rule, xz, 1f, 0.25f)
