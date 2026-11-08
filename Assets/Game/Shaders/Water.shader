@@ -675,7 +675,7 @@ Shader "Punchy/Water"
                 color = lerp(color, foamLit, foam * (1 - lava));
                 alpha = max(alpha, foam * (1 - lava));
 
-                // Lava (Zach, 11-08: the old swirl read as jelly): a crust of cooled, rock-like plates, a couple of metres
+                // Lava (Zach, 11-08: the old swirl read as jelly): a crust of cooled, rock-like plates, about a metre
                 // across, drifting slowly on the melt, split by glowing seams, with here and there an open pool of melt.
                 // The melt glows hard (past white-point, for any bloom); the plates are dull, rough basalt, each tilted
                 // its own way and lit with its own flat face, never the water's ripples, and nothing on it reflects.
@@ -683,7 +683,7 @@ Shader "Punchy/Water"
                 {
                     // Carried by any flow, and drifting a little, slowly: the plates creep rather than slosh.
                     float2 drift = flowDir * flowAmount * t * 0.12 + float2(t * 0.012, t * 0.008);
-                    float2 q = (p - drift) * 0.45;
+                    float2 q = (p - drift) * 0.85;
                     // A gentle warp, so the plates aren't perfect polygons.
                     float2 warp = float2(PunchyValueNoise(q * 0.7 + 3.1), PunchyValueNoise(q * 0.7 - 5.3)) - 0.5;
                     float2 plateId;
@@ -702,7 +702,7 @@ Shader "Punchy/Water"
                     half3 ramp = heat < 0.5 ? lerp(half3(0.35, 0.03, 0.005), half3(1.0, 0.22, 0.02), heat * 2)
                                             : lerp(half3(1.0, 0.22, 0.02), half3(1.0, 0.78, 0.3), heat * 2 - 1);
                     half pulse = 0.93 + 0.07 * sin(t * 0.5 + plateRandom * 6.28);
-                    half3 hot = ramp * (1.2 + 2.2 * heat) * pulse;
+                    half3 hot = ramp * (1.0 + 1.3 * heat) * pulse;
                     // The plates: dark basalt, each its own tone and tilt, lit by the sun on that flat face, with a dull red
                     // glow round its rim where it is still hot underneath.
                     float2 tilt = float2(PunchyHash(plateId + 2.1), PunchyHash(plateId + 7.7)) - 0.5;
