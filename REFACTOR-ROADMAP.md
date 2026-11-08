@@ -126,6 +126,7 @@ Playtest 11-07 bugs that live in the same shader and LOD code (fix them as part 
 ### 3.6 One surface model across renderers (playtest 11-07)
 - **The electric golem colossus still doesn't match its rocks.** Colossi (and creatures) draw through their own shader, without the material properties flora rocks get. Give colossi and creatures the same surface inputs as flora (rock grain, triplanar, the biome surface colours) instead of tuning each renderer by hand. Owners: animal (Colossus shader) and world (flora rocks).
 - **The mesa arches no longer match the new desert colours.** Objects placed in a biome should take their colours from the biome's land values, as data, so a biome colour change carries over. Owner: world. Find where the placed-object colours are set, and link them to the biome palette.
+  **Done 11-07 (PR #200):** FloraSpecies.TakeBiomeRock puts upright rock forms on the boulders' biome-rock colour (G-36). On for SandstoneArch; the hoodoos kept their own banding by choice. Fauna_Fingerprint re-pinned F0EF4BD5 (the new rules field; no placement change).
 
 **Status 11-07:**
 - 3.5a and 3.5b are done on `refactor/flora-static` (5febffdb, not merged).
