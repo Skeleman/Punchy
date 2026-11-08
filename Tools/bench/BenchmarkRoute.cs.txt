@@ -208,6 +208,14 @@ namespace Punchy.Debugging
                 }
             }
 
+            // -benchplace <name>: also measure the place -place would jump to by that name (e.g. Tors), as stop "place".
+            var placeArg = System.Array.IndexOf(args, "-benchplace");
+            if (placeArg >= 0 && placeArg + 1 < args.Length)
+            {
+                var placeName = args[placeArg + 1];
+                yield return Stop("place", () => JumpTo(controls, placeName) && SetWeather("Partly cloudy", 18));
+            }
+
             Debug.Log("BenchRoute: done\n" + summary);
             Application.Quit();
         }
