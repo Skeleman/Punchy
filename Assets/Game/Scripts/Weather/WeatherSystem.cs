@@ -67,6 +67,8 @@ namespace Punchy.Weather
         static readonly int SunDirectionId = Shader.PropertyToID("_PunchySunDirection");
         static readonly int MoonDirectionId = Shader.PropertyToID("_PunchyMoonDirection");
         static readonly int MoonPhaseId = Shader.PropertyToID("_PunchyMoonPhase");
+        /// <summary>The night sky's glow at new moon, as a share of a full moon's (1: phase doesn't matter).</summary>
+        const float MoonSkyFloor = 0.4f;
         static readonly int BlueMoonId = Shader.PropertyToID("_PunchyBlueMoon");
         static readonly int SunColorId = Shader.PropertyToID("_PunchySunColor");
         static readonly int ZenithId = Shader.PropertyToID("_PunchySkyZenith");
@@ -468,8 +470,12 @@ namespace Punchy.Weather
                                                               : new Vector4(0.5f, 1f, 0f, 0f));
             Shader.SetGlobalVector(BlueMoonId, Cycle != null ? (Vector4)Cycle.BlueMoonDirection : new Vector4(0f, -1f, 0f, 0f));
             Shader.SetGlobalColor(SunColorId, discColor * (1f - 0.8f * s.Dust));
-            Shader.SetGlobalColor(ZenithId, sky.Zenith);
-            Shader.SetGlobalColor(HorizonId, sky.Horizon);
+            // The night sky's glow follows the big moon's phase (Zach, 11-08): at new moon the sky (and the haze and
+            // cloud shading that take its colours) fall to 40% of a full moon's, so the night reads dark overhead too.
+            // Only what the sky shaders draw: the ground's ambient (below) keeps its own floor.
+            var skyGlow = Cycle != null ? Mathf.Lerp(1f, Mathf.Lerp(MoonSkyFloor, 1f, Cycle.MoonLit), Cycle.Night) : 1f;
+            Shader.SetGlobalColor(ZenithId, sky.Zenith * skyGlow);
+            Shader.SetGlobalColor(HorizonId, sky.Horizon * skyGlow);
             Shader.SetGlobalColor(GroundId, sky.Ground);
             Shader.SetGlobalColor(DustColorId, DustColor());
             Shader.SetGlobalFloat(HazeDensityId, hazeDensity);
