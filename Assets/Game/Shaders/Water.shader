@@ -663,7 +663,7 @@ Shader "Punchy/Water"
                 // The line laps: it creeps up the shore and draws back, unevenly along it. The sea's surge is a long swash
                 // (about 9 s, reaching well up the beach and back); a river's laps as before; a lake's hardly moves.
                 half swash = 0.5 + 0.5 * sin(t * 0.7 + dot(p, float2(0.031, 0.022)) + foamNoise * 1.5);
-                half lap = seaShore * lerp(0.45, 2.6, swash)
+                half lap = seaShore
                          + riverShore * (0.75 + 0.25 * sin(t * 1.4 + foamNoise * 5))
                          + lakeShore * (0.5 + 0.06 * sin(t * 0.4 + foamNoise * 3));
                 // Where the water itself is deep, thin water in front of the bed can only be something standing in it (a
@@ -671,8 +671,15 @@ Shader "Punchy/Water"
                 half inDeep = smoothstep(0.5, 1.3, depth);
                 half foam = smoothstep(foamNoise * 0.7, 1, saturate(1 - thickness / (_FoamDistance * lap * (1 + rapids) * lerp(1, 0.3, inDeep))));
                 foam *= lerp(1, 0.55, inDeep);
-                // A lake's line is faint; the sea's is brightest as a surge spreads, fading as it sinks into the sand.
-                foam *= lerp(1, 0.45, lakeShore) * lerp(1, 0.55 + 0.6 * swash, seaShore);
+                // A lake's line is faint.
+                foam *= lerp(1, 0.45, lakeShore);
+                // The sea: not a sheet of foam but a thin surf line at the surge's front, running up the beach and back
+                // (about 9 s), with a faint wash behind it as it sinks into the sand.
+                float surgeReach = _FoamDistance * lerp(0.25, 1.4, swash);
+                half surfLine = 1 - smoothstep(0.0, 0.08 + 0.1 * _FoamDistance, abs(thickness - surgeReach));
+                half wash = (1 - saturate(thickness / max(surgeReach, 1e-3))) * 0.25;
+                half seaFoam = saturate(max(surfLine * smoothstep(0.25, 0.7, foamNoise + 0.2), wash)) * (1 - inDeep);
+                foam = lerp(foam, seaFoam, seaShore);
                 // Not a solid white strip: clear right at the edge (a wet line, where the bed shows through), and broken
                 // into patches along it. Underground, still shallow water barely foams (a shallow stream would otherwise
                 // count as shore all over).
