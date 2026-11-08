@@ -2,6 +2,56 @@
 
 Newest first.
 
+## 2026-11-07 Job 27 (refactor 3.2): fire instance buffer A/B (q55.sh, q55b.sh; b/bench-stress 87412ee1 for review)
+
+- **Builds:**
+  - A = main 01cb543 (e5c88fb4 game code).
+  - B = refactor/fire-budgets 96573009 (fire-instances 03783ca9 plus the Ember Forest near/far hand-off fix).
+  - Both are Profile builds.
+- **Runs:**
+  - 1920x1080 set explicitly, render scale 1, uncapped.
+  - A B B A per scene, then each build once with `-benchoff LandmarkEffectSystem`.
+  - Then one Profiler capture per build and scene (`-profilestop`), read by SysMs.
+  - 16 sessions, 0 crashes, 0 exceptions.
+- **Scenes:**
+  - Ember Forest burning at night: `-benchplace EmberForest: -benchhour 22 -benchview 120,5`.
+  - Job 25's 500-fire scene (`-benchfires 500`) and the same spot without flames (`firesbase`), at noon.
+- **New on the runner:**
+  - A flame counter: flames handed to FireSystem each frame, read just before LandmarkEffectSystem draws them.
+  - `FireSystem.Dropped` where the build has it.
+  - `-benchview yaw,pitch` at the place stop.
+
+### Results (means of the A B B A rounds; LandmarkEffectSystem from the captures)
+
+| Scene | Build | Frame median ms | Main ms | GPU ms | LandmarkEffectSystem.Update main ms | Flames a frame | Dropped |
+|---|---|---|---|---|---|---|---|
+| Ember Forest, night | A main | 15.1 | 12.6 | 10.5 | **4.23** | 3152 | n/a (no counter on main) |
+| Ember Forest, night | B branch | 14.1 | 9.85 | 12.1 | **1.54** | 3152 | 0 |
+| 500 fires | A main | 16.65 | 10.75 | 15.3 | **1.36** | 500 | n/a |
+| 500 fires | B branch | 16.1 | 10.0 | 15.1 | **0.19** | 500 | 0 |
+| No flames (firesbase) | A / B | 15.45 / 15.5 | 9.2 / 9.4 | 15.15 / 14.9 | | | |
+
+- **Main thread:** the branch cuts LandmarkEffectSystem by 2.7 ms in the Ember Forest (−64%) and by 1.2 ms with 500 fires (−86%).
+  - At the Ember Forest that takes the frame from main-bound (main 12.6 ms against GPU 10.5) to GPU-bound.
+  - Frame median: −1.0 ms in the Ember Forest, −0.55 ms with 500 fires.
+- **Flame count:** the same in both builds (3152 Ember Forest, 500 benchfires), and B drops none.
+- **GPU for the flame passes: not measurable cleanly on this laptop.**
+  - With 500 fires, flames add only +0.15 ms (A) and +0.2 ms (B) of GPU over the same spot without them, which is within noise.
+  - In the Ember Forest, A reads less GPU than B (10.5 vs 12.1). But A with LandmarkEffectSystem off reads more (12.0) than A with it on, which flames cannot cause.
+  - A is main-bound there, and the laptop GPU most likely clocks down while it waits. So the Ember Forest GPU numbers are not comparable between A and B, and I'd not read the +1.6 as a flame cost.
+  - The off runs are only a GPU baseline. With LandmarkEffectSystem off nothing clears the flame list, so it sits at the 8192 cap and B counts drops; those flames are never drawn.
+- **Draw counts (captures):**
+
+  | Scene | Build | SetPass calls | Instanced draws | Tris |
+  |---|---|---|---|---|
+  | Ember Forest | A | 136 | 3.7k | 1.27M |
+  | Ember Forest | B | 138 | 3.1k | 1.33M |
+  | 500 fires | A | 293 | 2.6k | 1.56M |
+  | 500 fires | B | 294 | 3.4k | 1.78M |
+
+- **Looks:** the Ember Forest screenshots from A and B look the same by eye at yaw 120, pitch 5 (near and far flames, the same glow). The 500-fire shots also match. This is a by-eye check, not a pixel comparison.
+- Logs: `results/q55logs` on the laptop. Shots: `results/q55-shots-a`, `results/q55-shots-b`.
+
 ## 2026-11-07 Job 26 (refactor 3.5b): static flora variant A/B on refactor/flora-static 5febffdb (q54.sh; b/bench-stress 7aa25cf0 for review)
 
 - **Build:** Profile build of 5febffdb. The build log says `[flora] static (refactor 3.5): 563 of 1088 variants never move, 694018 LOD0 vertices static vs 1622264 moving`.
