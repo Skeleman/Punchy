@@ -210,7 +210,7 @@ clock). Same setup as job 29: Profile build, 1920x1080, `-gfx High`, `-weatherse
   - The same view with the camera a few metres from the sea-folk pillar.
   - Say what's left.
 
-## Job 31 (2026-11-08): close-up shadow range, 25 / 50 / 75 m, static vs animated (REFACTOR-ROADMAP.md 3.5c)
+## Job 31 (2026-11-08, REPORTED in REPORTS-profiler.md; q59.sh, q59r.sh): close-up shadow range, 25 / 50 / 75 m, static vs animated (REFACTOR-ROADMAP.md 3.5c)
 Zach finds the hand-off from real-time to cached shadows unsatisfying and is weighing a wider close-up range. This
 sizes what that costs and how much the static flora variant wins back once more casters are drawn every frame.
 Branch `refactor/flora-static` (job 28's build is fine), Profile build, 1920x1080, `-gfx High`, `-weatherseed 4`,

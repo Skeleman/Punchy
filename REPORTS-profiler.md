@@ -2,6 +2,91 @@
 
 Newest first.
 
+## 2026-11-08 Job 31 (refactor 3.5c): close-up shadow range 25 / 50 / 75 m, static vs animated (q59.sh; b/bench-stress 4b721ea4 for review)
+
+- **Build:** Profile build of refactor/flora-static 5fa346f3 (rebuilt so the bigtown stop takes `-benchview`).
+- **Runs:**
+  - 1920x1080 set explicitly, render scale 1, `-gfx High` (view 1.3, detail 1.5, shadows 1.4, 4 cascades), `-weatherseed 4`, uncapped, noon.
+  - Spots: bigtown (2972,-885) and job 25's dense forest (spot 1740,3355).
+  - `-shadownear 25 / 50 / 75`, each static and animated (`-nostaticflora`), 2 rounds, the second in reverse order.
+  - Each round also has one `-benchnoshadows` run per variant. The shadow pass = GPU minus GPU without shadows.
+  - Then one Profiler capture per range, variant and spot (SysMs).
+  - 32 sessions (16 runs, 12 captures, 4 view runs whose shots were lost to a missing folder), 0 crashes, 0 exceptions.
+
+### What `-shadownear` actually changes at High
+
+- Trees cast real-time shadows to `min(Trees.ShadowCastDistance 60, URP shadow distance 50 x 1.4 = 70, NearRange)`. Shrubs stop at their own 40 m.
+- **So `-shadownear 75` is really 60 m for trees.** 50 → 75 adds only the trees from 50 to 60 m.
+- **A gap at 75:** the far cache starts at NearRange − 12 m = 63 m, but real-time tree shadows end at 60 m. Trees 60-63 m out would cast no shadow at all.
+- **To widen past ~60 m** (and past 70 m at High), `Trees.ShadowCastDistance` and the URP shadow distance have to rise with it.
+
+### Results (GPU ms, Profile timer; mean of 2 rounds)
+
+| Spot | Range | GPU static | GPU animated | Shadow pass static / animated | Frame median | Render thread | Main |
+|---|---|---|---|---|---|---|---|
+| Big settlement | 25 | 17.25 | 17.5 | 0.65 / 0.6 | 20.3 / 20.25 | 6.7 / 6.7 | 11.25 / 10.9 |
+| Big settlement | 50 | 17.75 | 17.8 | 1.15 / 0.9 | 20.45 / 20.5 | 6.6 / 6.7 | 10.85 / 11.1 |
+| Big settlement | 75 (= 60) | 17.55 | 17.5 | 0.95 / 0.6 | 20.5 / 20.5 | 6.85 / 6.95 | 11.15 / 11.3 |
+| Big settlement | no shadows | 16.6 | 16.9 | | 19.5 / 19.55 | 5.55 / 5.5 | |
+| Dense forest | 25 | 14.9 | 14.7 | 2.7 / 2.45 | 17.05 / 17.1 | 5.45 / 5.45 | 10.95 / 10.9 |
+| Dense forest | 50 | 15.45 | 15.35 | 3.25 / 3.1 | 17.75 / 17.8 | 5.35 / 5.3 | 10.95 / 10.95 |
+| Dense forest | 75 (= 60) | 15.05 | 15.15 | 2.85 / 2.9 | 17.8 / 17.8 | 5.3 / 5.35 | 11.2 / 11.2 |
+| Dense forest | no shadows | 12.2 | 12.25 | | 15.6 / 15.5 | 5.3 / 5.25 | |
+
+- **25 → 50 m costs about +0.5 ms GPU** at both spots, static or animated. That's +0.3-0.5 ms on the shadow pass and +0.15-0.7 ms frame median.
+- **50 → 75 m (really 60) measures nothing further:** GPU at 75 is at or below 50 at both spots (0.2-0.4 ms lower), inside the round-to-round spread.
+- **The static variant doesn't win back shadow cost:** static and animated are within 0.25 ms of each other at every range.
+- **Whole shadow cost (25 m):** 0.6 ms GPU in the town and 2.5-2.7 ms in the forest, plus 1.1-1.2 ms on the render thread in the town (6.7 vs 5.5).
+
+### From the captures (one per range and variant)
+
+| Spot | Range | Shadow casters (Unity counter) | URP shadows CPU ms, all threads / main | SetPass static / animated |
+|---|---|---|---|---|
+| Big settlement | 25 | 746 | 3.54 / 0.10 (animated 3.42) | 470 / 447 |
+| Big settlement | 50 | 786 | 3.76 / 0.10 (3.59) | 468 / 451 |
+| Big settlement | 75 | 802 | 3.74 / 0.10 (3.66) | 468 / 451 |
+| Dense forest | 25 / 50 / 75 | 327 | 1.65-1.70 / 0.09 | 447 / 434 |
+
+- Unity's shadow caster counter doesn't see the flora's indirect shadow draws (the forest stays at 327 at every range). The town's +40 / +56 casters are the kit and props that come inside the wider shadow range.
+- URP's shadow work is on the render and worker threads: +0.2 ms in the town at 50 m, flat in the forest.
+- Static adds 13-23 SetPass calls (as job 28 found).
+
+### Shots (bigtown, 17:00, static, `-benchview <yaw>,8`, one per yaw and range: `results/q59-shots/y<yaw>-near<n>/`)
+
+- **The street view is yaw 180:** it looks down the road that leaves the square, with houses on both sides and towers on the left. Yaw 0 and yaw 90 face across the square to the houses; yaw 270 faces into the sun.
+- **At this view, 25 and 75 m look the same.** The near shadows of houses and props at 20-60 m are already drawn by the far shadow cache at 25 m, and nothing in frame changes between ranges. What the wider range adds isn't visible from the square at 17:00. A view down a tree-lined path, or the forest spot, would be the place to judge it.
+
+### Per-pass GPU split from RenderDoc (q59r.sh, rdpasses.py)
+
+- **Captures:** 7 frames.
+  - Town: bigtown, 25 m, ×3.
+  - Forest: spot 1740,3355, 25 m, ×3.
+  - Under and shore: job 29's lake view, on 346cf4d, ×1 each.
+- **Method:** each event's GPU duration (`EventGPUDuration`, median of 3 replays), summed under Unity's pass markers.
+- **Replay inflates every draw.** Totals read 44.6 ms (forest), 53.0 (town), 69.8 (shore) and 63.7 (under), against 13.9 / 16.5 / 23.2 / 32.9 ms in the runs: about 3x, and 1.9x under water, where there are few draws. So the table gives each pass's share of the replay frame. The 3 captures per spot agree within 1%.
+
+| Pass | Forest | Town | Shore | Under water |
+|---|---|---|---|---|
+| Opaque (`DrawOpaqueObjects`) | 46% (flora indirect 23%, SRP-batched terrain/props 23%) | 52% (batched 37%, indirect 15%) | 37% | 12% |
+| Depth-normal prepass | **33%** | 22% | 16% | 7% |
+| Main light shadow map | 8% (326 draws, 296 indirect) | 4% (747 draws, 688 indirect) | 2% | 1% |
+| Skybox (1 draw) | 3% | **13%** | 6% | **48%** (30.8 ms in replay) |
+| Transparent (water etc.) | 2% | 2% | **34%** | 29% |
+| SSAO, bloom, the rest | under 2% | under 2% | under 2% | under 2% |
+
+- **The depth-normal prepass costs two-thirds as much as the opaque pass itself** in the forest (33% against 46%), and 22% in the town. Everything opaque is drawn twice, the second time for its normals (SSAO, SSR). That's the biggest single target these captures show, bigger than shadows. A depth-only prepass (no normals), or dropping it where SSAO/SSR aren't needed, would be worth a job.
+- **The shadow map is 4-8%** in these captures. That agrees with the 25 m shadow pass from subtraction above (0.6 ms town, 2.5-2.7 ms forest), allowing for replay inflating the many small indirect shadow draws differently.
+- **The sky is one draw, and pixel-heavy.**
+  - 13% of the town frame (wide open sky at bigtown).
+  - **48% of the underwater frame:** the camera looks up through the surface and the sky shader runs behind the water on every pixel.
+  - This answers job 30's open question (the underwater view still read 27 ms with water, terrain, flora and grass off): it's the sky. Job 32's rerun measures it properly with `-benchnosky` (a removed skybox: `-benchnoshader Sky` turned out not to remove it, see Job 32).
+- Top single draws (in `results/q59r-passes.txt`):
+  - Forest: indirect flora draws at 0.25 ms each (4833 indices x 109-113 instances).
+  - Shore: the water surface.
+  - Under water: the skybox.
+
+**Cost:** laptop session 0a48ccdb, 2026-11-07 and 08: $35 equivalent so far across jobs 28-33 (`COSTS/laptop.csv`).
+
 ## 2026-11-08 Freeze, update: runner, uncommitted edits, or the laptop? An A/B is queued (q62.sh)
 
 On the suspicion that it's the bench runner or uncommitted edits on this laptop:
