@@ -19,13 +19,15 @@ def log(line=""):
     out.flush()
 
 
-def walk(actions, path, sf, dur, totals, draws, indirect, depth):
+def walk(actions, path, sf, dur, totals, draws, indirect, depth, each):
     for a in actions:
         name = a.GetName(sf)
         if a.children:
-            walk(a.children, path + [name], sf, dur, totals, draws, indirect, depth)
+            walk(a.children, path + [name], sf, dur, totals, draws, indirect, depth, each)
             continue
         ms = dur.get(a.eventId, 0.0) * 1000.0
+        if a.flags & rd.ActionFlags.Drawcall:
+            each.append((ms, a.eventId, a.numIndices, a.numInstances, name, " / ".join(path[-3:])))
         is_draw = bool(a.flags & rd.ActionFlags.Drawcall)
         ind = bool(a.flags & rd.ActionFlags.Indirect)
         for d in range(0, min(len(path), maxdepth) + 1):
@@ -60,10 +62,16 @@ for path in caps:
     totals = collections.defaultdict(float)
     draws = collections.Counter()
     indirect = collections.Counter()
-    walk(ctrl.GetRootActions(), [], ctrl.GetStructuredFile(), dur, totals, draws, indirect, 0)
+    each = []
+    walk(ctrl.GetRootActions(), [], ctrl.GetStructuredFile(), dur, totals, draws, indirect, 0, each)
     for key in sorted(totals, key=lambda k: (k.count(" / "), -totals[k])):
         if totals[key] >= 0.05 or draws[key]:
             log("  %8.3f ms  %5d draws (%4d indirect)  %s" % (totals[key], draws[key], indirect[key], key))
+    # The most expensive single draws (RD_TOPDRAWS, default 15): event, indices, instances (indirect args are in the
+    # name), and the last markers above it, to tell e.g. the grass draws apart.
+    log("  -- top draws")
+    for ms, eid, ni, inst, name, where in sorted(each, reverse=True)[: int(os.environ.get("RD_TOPDRAWS", "15"))]:
+        log("  %8.3f ms  event %6d  %8d idx x %6d inst  %s  [%s]" % (ms, eid, ni, inst, name[:80], where))
     ctrl.Shutdown()
     cap.Shutdown()
 
