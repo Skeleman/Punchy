@@ -580,7 +580,7 @@ half3 PunchyBlueMoonStreaks(float3 dir)
         float len = lerp(0.35, 0.7, PunchyHash1(s + 7.7));
         float3 v = dir - a * dot(dir, a);
         float2 q = float2(dot(v, right), dot(v, up));
-        float along = dot(q, way) - 0.06;   // from just off the disc
+        float along = dot(q, way) - sin(PunchyBlueMoonRadius) - 0.01;   // from just outside the disc's rim
         float across = abs(q.x * way.y - q.y * way.x);
         float head = len * min(t, 1);
         float tail = max(len * 0.5 * (1 - smoothstep(1, 1.5, t)), 0.001);
