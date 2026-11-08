@@ -157,3 +157,23 @@ uploads a mesh every frame: one 48-byte instance per flame, and two procedural d
   - anything that looks different. The player lane saw none at the Ember Forest.
 
 **Supervisor review 2026-11-07 (stand-in):** jobs 24-27 read. Job 27's branch merged (PR #201); job 26's branch not merged (no gain). b/bench-stress merged (PR #202). Queue empty until the next refactor A/B.
+
+## Job 28 (2026-11-07): static flora for bigger cities: grouping, bake ceiling, first-approach hitch, cache redraws (REFACTOR-ROADMAP.md 3.5)
+Zach plans much bigger cities, so the stand-in is reconsidering the static variant (job 26 found no gain at today's
+size). Branch `refactor/flora-static` (head pushed 11-07; main merged in), a Profile build, 1920x1080 set explicitly,
+uncapped, ABBA.
+- **A. Static variant with grouped draws:** draws are now grouped by material.
+  - Big settlement and Tors, with and without `-nostaticflora`.
+  - Report GPU ms, the shadow pass, SetPass calls, and the render-thread ms.
+  - Has the grouping changed anything against job 26?
+- **B. Bake ceiling:** the same spots, with and without `-nofloradetail`.
+  - It skips the flora shader's procedural weathering, wood, cloth and strata detail.
+  - The GPU difference is the most baking that detail could save.
+  - Also run the rock-heavy Tors, where strata rocks use it. Plot buildings in towns don't run weathering at all (the player lane checked).
+- **C. First-approach hitch:** start well outside a town, then walk or `-goto` into its middle.
+  - Report the worst frame and any frame over 50 ms in the first seconds after arriving, with and without `-nostaticflora`.
+  - Is there a first-use stall when the static variant is first drawn? If there is, the stand-in adds a shader warm-up.
+- **D. Far shadow cache redraws while walking:**
+  - In the big settlement, walk 100 m through it, using a route or repeated `-goto` steps.
+  - Report the main thread and GPU ms of the frames that redraw the cache (FloraSystem.ShadowCache, every 10 m of movement, spread over CacheFrames), against frames that don't.
+  - This sizes "scroll the cache instead of redrawing it".

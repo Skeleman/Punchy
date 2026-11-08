@@ -67,3 +67,4 @@ Those two agents ran as subagents of the old supervisor session; if they stop, r
 - 11-07: playtest fixes merged: tent shadow striping (PR #198, cached far shadow slope bias), tent leather grid (PR #199). Black rooftops not reproduced.
 - 11-07: 3.6 mesa arches match the desert (PR #200); Fauna_Fingerprint pin now F0EF4BD5 (new flora rules field, no placement change).
 - 11-07: profiler jobs 24-27 reviewed. Fire (3.2) merged #201, bench runner #202; static flora (3.5b) NOT merged (no measurable gain). New order in REFACTOR-ROADMAP.md: 3.4 water, 2.3 pose rate, 3.1 lights, 3.5c, 3.3.
+- 11-07: static flora reconsidered for bigger cities (Zach): grouping done; bake held (plot buildings don't run weathering); job 28 queued (grouping A/B, bake ceiling, first-approach hitch, cache redraw cost).
