@@ -185,10 +185,10 @@ namespace Punchy.Debugging
             yield return Stop("glide", () => JumpTo(controls, "Start") && SetWeather("Partly cloudy", 16), 25f, 15f, 40f);
             yield return Stop("dash", () => JumpTo(controls, "Start") && SetWeather("Partly cloudy", 17), 80f, 3f);
             // Stress stops (refactor roadmap 1.2): only when named in -benchstops, so the usual route and its baselines
-            // don't change. bigtown stands in the settlement with the most buildings; fires adds -benchfires flames
+            // don't change. bigtown stands in the settlement with the most buildings (turned by -benchview, job 31); fires adds -benchfires flames
             // (default 500) in view of the spot firesbase measures without them.
             if (Named("bigtown"))
-                yield return Stop("bigtown", () => PlaceInBiggestTown() && SetWeather("Partly cloudy", 11));
+                yield return Stop("bigtown", () => PlaceInBiggestTown() && SetWeather("Partly cloudy", 11) && View());
             if (Named("firesbase"))
                 yield return Stop("firesbase", () => JumpTo(controls, "Start") && SetWeather("Partly cloudy", 15));
             if (Named("fires"))
