@@ -228,3 +228,20 @@ there).
   (and how many draws), opaque terrain, opaque flora, creatures, skybox, opaque/depth copies, transparents (water,
   particles), post. Also one capture at job 29's lake spot under water. This is the first full split of the GPU
   frame; the D3D11 recorders can't give it.
+
+## Job 32 (2026-11-08): what the sky costs, by weather; and Snell's window under water (REFACTOR-ROADMAP.md 3.4)
+Job 30 left ~27 ms of the underwater frame on what looks like the sky. The sky shader ray-marches the volumetric
+clouds per pixel (up to 160 steps, 4 light samples per step inside a cloud, an early out only once a cloud turns
+opaque). Zach also wants clearer weather more often and asks whether fewer clouds would be cheaper. Profile builds,
+1920x1080, `-gfx High`, `-weatherseed 4`, uncapped, ABBA.
+- **A. Sky cost by weather** (main 46012623): an open view with lots of sky, e.g. the bench route's hill or mesa top
+  facing the horizon at noon (`-benchpitch -10` or so, the sky over half the screen). Runs:
+  - Plain.
+  - `-weather Clear`, `-weather Overcast`, `-weather Storm` (each forced over the player; the clouds overhead and
+    out to ~15-20 km are what count).
+  - `-benchnoshader Sky` (sky off).
+  - Report GPU ms per run, and the difference from sky off. One RenderDoc capture each (plain, Clear, Overcast) with
+    the skybox draw's GPU time.
+- **B. Under water, Snell's window + sky skip** (`water/snells-window` head, against main 46012623): job 29's lake
+  spot under water (`-benchpitch -35`) and 12 m east of the pillar. GPU and frame ms. The branch draws the surface's
+  underside as Snell's window (no above-water lighting there) and returns the fog colour for sky pixels under water.
