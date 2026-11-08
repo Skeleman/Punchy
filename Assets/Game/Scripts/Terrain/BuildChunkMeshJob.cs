@@ -88,6 +88,11 @@ namespace Punchy.Terrain
         public NativeArray<float2> HeightRanges;
         /// <summary>Output: (min, max) Y of the water mesh; x &gt; y when the chunk has no water.</summary>
         public NativeArray<float2> WaterRanges;
+        /// <summary>
+        /// The nearest chunks (LOD 0) build their water sheet on a grid twice as fine as their terrain (0.5 m at 64
+        /// quads), so shores, pool rims and the lips of falls step in half the size (Zach, 11-08). Off with -coarsewater.
+        /// </summary>
+        public bool FineWater;
 
         public static int VertexCount(int quads) => (quads + 1) * (quads + 1) + 4 * (quads + 1);
         public static int IndexCount(int quads) => quads * quads * 6 + 4 * quads * 12;
@@ -152,15 +157,8 @@ namespace Punchy.Terrain
                 verts[z * v + x] = vertex;
                 // Landmark pools are left out of the sheet: CaveSystem draws each as a smooth disc (a small pool spans
                 // only a few quads of this grid, which gave it a ragged edge).
-                var sheet = ground.WaterSurface;
-                if (Source.Landmarks.IsCreated)
-                {
-                    var pool = LandmarkSampling.PoolWater(ref Source.Landmarks.Value, world, out var claim);
-                    if (claim > 0f && pool >= ground.WaterSurface - 0.001f)
-                        sheet = GroundSample.NoWater;
-                    pooled[z * v + x] = claim > 0f;
-                }
-                water[z * v + x] = new float4(sheet, ground.Flow, h);
+                water[z * v + x] = WaterSample(world, ground, out var isPooled);
+                pooled[z * v + x] = isPooled;
                 rapids[z * v + x] = ground.Rapids;
                 looks[z * v + x] = Source.WaterLook(world, ground.Biomes, out var glow);
 
@@ -216,7 +214,9 @@ namespace Punchy.Terrain
             }
 
             HeightRanges[index] = new float2(minY - depth, maxY);
-            WaterRanges[index] = BuildWater(Meshes[Requests.Length + index], water, rapids, looks, glows, q, step, request.Origin);
+            WaterRanges[index] = request.Lod == 0 && FineWater
+                ? BuildFineWater(Meshes[Requests.Length + index], q * 2, step * 0.5f, request.Origin)
+                : BuildWater(Meshes[Requests.Length + index], water, rapids, looks, glows, q, step, request.Origin);
             water.Dispose();
             rapids.Dispose();
             looks.Dispose();
@@ -382,7 +382,8 @@ namespace Punchy.Terrain
                 }
 
                 // Wet band from the nearest still water, fading out with distance so it never ends on a cell line.
-                if (near > GroundSample.NoWater * 0.5f)
+                // (Not for a water-only pass, BuildFineWater, which has no terrain vertices.)
+                if (near > GroundSample.NoWater * 0.5f && verts.IsCreated)
                 {
                     var wet = (1f - math.smoothstep(0.1f, 1.4f, h - near)) * (1f - math.smoothstep(StillReach * 0.5f, StillReach, nearDist));
                     var vertex = verts[i];
@@ -391,6 +392,60 @@ namespace Punchy.Terrain
                 }
             }
             apron.Dispose();
+        }
+
+        /// <summary>
+        /// The water a mesh vertex at this point stores: (surface, flow xz, ground height). Landmark pools are left out
+        /// of the sheet (CaveSystem draws each as a smooth disc: a small pool spans only a few quads of this grid, which
+        /// gave it a ragged edge); pooled says the point is in one.
+        /// </summary>
+        float4 WaterSample(float2 world, in GroundSample ground, out bool pooled)
+        {
+            var sheet = ground.WaterSurface;
+            pooled = false;
+            if (Source.Landmarks.IsCreated)
+            {
+                var pool = LandmarkSampling.PoolWater(ref Source.Landmarks.Value, world, out var claim);
+                if (claim > 0f && pool >= ground.WaterSurface - 0.001f)
+                    sheet = GroundSample.NoWater;
+                pooled = claim > 0f;
+            }
+            return new float4(sheet, ground.Flow, ground.Height);
+        }
+
+        /// <summary>
+        /// FineWater: samples the water afresh on a grid of q quads of this step (finer than the terrain's) and builds
+        /// the sheet from it, exactly as BuildWater does from the terrain's own samples (the shallow-beach extension
+        /// included, without touching the terrain's wet band, which the terrain's own pass already laid).
+        /// </summary>
+        float2 BuildFineWater(Mesh.MeshData mesh, int q, float step, float2 origin)
+        {
+            int v = q + 1;
+            var water = new NativeArray<float4>(v * v, Allocator.Temp);
+            var rapids = new NativeArray<float>(v * v, Allocator.Temp);
+            var looks = new NativeArray<float4>(v * v, Allocator.Temp);
+            var glows = new NativeArray<float2>(v * v, Allocator.Temp);
+            var pooled = new NativeArray<bool>(v * v, Allocator.Temp);
+            for (int z = 0; z < v; z++)
+            for (int x = 0; x < v; x++)
+            {
+                var world = origin + new float2(x, z) * step;
+                var ground = Source.SampleGround(world);
+                var i = z * v + x;
+                water[i] = WaterSample(world, ground, out var isPooled);
+                pooled[i] = isPooled;
+                rapids[i] = ground.Rapids;
+                looks[i] = Source.WaterLook(world, ground.Biomes, out var glow);
+                glows[i] = glow;
+            }
+            ExtendStillWater(default, water, pooled, q, step, origin);
+            var range = BuildWater(mesh, water, rapids, looks, glows, q, step, origin);
+            water.Dispose();
+            rapids.Dispose();
+            looks.Dispose();
+            glows.Dispose();
+            pooled.Dispose();
+            return range;
         }
 
         /// <summary>Builds the water sheet; returns its (min, max) height, or (1, 0) when the chunk is dry.</summary>

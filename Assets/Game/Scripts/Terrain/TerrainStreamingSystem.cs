@@ -25,6 +25,10 @@ namespace Punchy.Terrain
     [UpdateBefore(typeof(TransformSystemGroup))]
     public partial class TerrainStreamingSystem : SystemBase
     {
+        /// <summary>The nearest chunks' water on a grid twice as fine as their terrain (BuildChunkMeshJob.FineWater);
+        /// -coarsewater turns it off, to compare.</summary>
+        static readonly bool FineWater = !System.Environment.CommandLine.Contains("-coarsewater");
+
         struct LoadedChunk
         {
             public Entity Entity;
@@ -390,7 +394,8 @@ namespace Punchy.Terrain
                 NormalEpsilon = config.ChunkSize / config.Lod0Quads,
                 SkirtDepth = config.SkirtDepth,
                 HeightRanges = buildRanges,
-                WaterRanges = buildWaterRanges
+                WaterRanges = buildWaterRanges,
+                FineWater = FineWater
             };
             buildHandle = IJobParallelForExtensions.Schedule(job, count, 1);
             buildFrames = 0;
