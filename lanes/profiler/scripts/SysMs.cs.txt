@@ -123,4 +123,42 @@ public static class SysMs
         File.WriteAllText(Arg("-out", "sysms.txt"), sb.ToString());
         UnityEditor.EditorApplication.Exit(0);
     }
+
+    // Unity -batchmode -executeMethod SysMs.Worst -raw <file> -out <txt> [-minms 50]: the longest main-thread frames
+    // (top 5 by frame ms), each with every main-thread sample over -minms, indented by depth: what ran in a freeze.
+    public static void Worst()
+    {
+        var sb = new StringBuilder();
+        ProfilerDriver.ClearAllFrames();
+        var ok = ProfilerDriver.LoadProfile(Arg("-raw", ""), false);
+        double minMs = double.Parse(Arg("-minms", "50"), System.Globalization.CultureInfo.InvariantCulture);
+        var frames = new List<(int f, double ms)>();
+        for (int f = ProfilerDriver.firstFrameIndex; f <= ProfilerDriver.lastFrameIndex; f++)
+            using (var v = ProfilerDriver.GetRawFrameDataView(f, 0))
+                if (v != null && v.valid) frames.Add((f, v.frameTimeMs));
+        sb.AppendLine($"loaded={ok} frames {frames.Count} ({ProfilerDriver.firstFrameIndex}-{ProfilerDriver.lastFrameIndex})");
+        foreach (var (f, ms) in frames.OrderByDescending(x => x.ms).Take(5))
+            using (var v = ProfilerDriver.GetRawFrameDataView(f, 0))
+            {
+                sb.AppendLine($"== frame {f}: {ms:F1} ms (main thread samples over {minMs} ms)");
+                var ends = new int[v.sampleCount];
+                for (int i = v.sampleCount - 1; i >= 0; i--)
+                {
+                    int e = i + 1;
+                    for (int c = v.GetSampleChildrenCount(i); c > 0; c--) e = ends[e];
+                    ends[i] = e;
+                }
+                var stack = new Stack<int>();
+                for (int i = 0; i < v.sampleCount; i++)
+                {
+                    while (stack.Count > 0 && stack.Peek() <= i) stack.Pop();
+                    var t = v.GetSampleTimeMs(i);
+                    if (t >= minMs)
+                        sb.AppendLine($"{new string(' ', 2 * stack.Count)}{t,10:F1}  {v.GetMarkerName(v.GetSampleMarkerId(i))}");
+                    stack.Push(ends[i]);
+                }
+            }
+        File.WriteAllText(Arg("-out", "worst.txt"), sb.ToString());
+        UnityEditor.EditorApplication.Exit(0);
+    }
 }

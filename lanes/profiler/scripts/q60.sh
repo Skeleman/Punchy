@@ -9,7 +9,8 @@
 #   grass (addendum): main at the Meadow place (its own yaw, pitch 12), -grassdensity 1 / 2 / 4 and grass off
 #       (-benchnoshader Grass), order 1 2 4 N N 4 2 1; then a RenderDoc capture at density 1 and 4 (top draws).
 #       Withdrawn (Zach: clumps, not density), so it runs only as "q60.sh grass".
-# "q60.sh a|ard|b|grass"; no argument runs a, ard and b.
+#   freeze: plain Summit sessions with a Profiler capture from the jump, until one freezes; SysMs.Worst names the code.
+# "q60.sh a|ard|b|freeze|grass"; no argument runs a, ard and b.
 # Rerun 2026-11-08: the first try froze for 6-13+ min on the first frame at the Summit (7 of 13 sessions; 1-frame
 # stops or timeouts), so main is the m2 build (its runner caps settling at 0.25 s a frame and logs frames over 5 s)
 # and Summit sessions get 1800 s.
@@ -71,6 +72,29 @@ if part b; then
     go $spot snell 2 $OS $KS $A
     go $spot main 2 $OM $KM $A
     for f in "$R"/$Q-$spot-*.csv; do echo "== $(basename $f .csv)"; table "$f"; done
+  done
+fi
+if [ "$ONLY" = freeze ]; then   # the Summit freeze's code: plain Summit sessions with a Profiler capture from just
+  # before the jump (-profilearrive), up to 4 tries until one logs a frame over 5 s; then SysMs.Worst on that capture
+  # (the longest frames, each with every main-thread sample over 50 ms, indented by depth).
+  for i in 1 2 3 4; do
+    tag=$Q-freeze-$i; rm -f "$R/q-$tag.raw"
+    RUNTIMEOUT=1800 BENCHW=1920 BENCHH=1080 run $OM $tag $COMMON $SUMMIT -profilestop place "$W/q-$tag.raw" -profilearrive
+    check "$R/q-$tag.log"
+    grep -h 'profiling from arrival\| s frame at ' "$R/q-$tag.log" | cut -c1-200
+    grep -q ' s frame at ' "$R/q-$tag.log" || { echo "$tag: no freeze"; rm -f "$R/q-$tag.raw"; continue; }
+    ls -la "$R/q-$tag.raw"
+    strays >/dev/null
+    git -C "$P" checkout -q --detach $KM
+    cp "$P/Library/LastSceneManagerSetup.txt" "$R/LastSceneManagerSetup.bak" 2>/dev/null
+    cp "$S/SysMs.cs.txt" "$P/Assets/Game/Scripts/Editor/SysMs.cs"
+    ( cd "$P" && timeout 2400 "$UNITY" -batchmode -projectPath "$(cygpath -m $P)" -executeMethod SysMs.Worst -raw "$WW\q-$tag.raw" -out "$W/$tag-worst.txt" -logFile "$W/sysms.log" )
+    rm -f "$P/Assets/Game/Scripts/Editor/SysMs.cs" "$P/Assets/Game/Scripts/Editor/SysMs.cs.meta"
+    cp "$R/LastSceneManagerSetup.bak" "$P/Library/LastSceneManagerSetup.txt" 2>/dev/null
+    git -C "$P" checkout -q $HOME_BRANCH
+    strays >/dev/null
+    cp "$R/$tag-worst.txt" "$L/" 2>/dev/null; head -80 "$R/$tag-worst.txt"
+    break
   done
 fi
 if [ "$ONLY" = grass ]; then   # the addendum was withdrawn (clumps instead): only when asked
