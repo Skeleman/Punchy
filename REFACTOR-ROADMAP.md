@@ -63,6 +63,49 @@ Checked against main on 11-07:
   - The forest fire already caps real lights at 6.
   - The P-20 and W-117 garbage rows removed most per-frame GC.
 
+## Measured 2026-11-07 (profiler jobs 24-27, REPORTS-profiler.md): what the numbers changed
+
+**Every stress scene is GPU-bound** at 1080p and 1440p pixels. The main thread sits at 9-12 ms.
+
+**Water is the worst GPU cost by far:**
+
+| Lake view | GPU at 1080p | GPU at 1440p pixels |
+|---|---|---|
+| From the shore | 25 ms | 46 ms |
+| Camera under the water | 38 ms | 64 ms |
+
+For comparison, the big town is 17 ms and the dense forest 13 ms at 1080p. Water is pixel-bound, so **3.4 (water overhaul) is now the top GPU item.**
+
+**CPU, creatures (from cap 180 to 2000; live creatures 264 -> 1330):**
+
+| Cost | Growth | Thread |
+|---|---|---|
+| Brain | x5.2 | workers |
+| Posing | x4.6 | workers; doesn't drop with the brain LOD |
+| Creature render | x4.1 | all threads |
+| Main-thread brain prep | 0.5-0.8% of the frame | main |
+
+So:
+- **2.2 is dropped** (not worth it).
+- **2.3 (animate less often by distance) is the next CPU item.**
+- 2.4 (cached ground samples) goes with 2.3.
+
+**Results:**
+- **3.2 fire instance buffer: merged (PR #201).** LandmarkEffectSystem main thread fell from 4.23 to 1.54 ms in the Ember Forest at night, and from 1.36 to 0.19 ms with 500 fires. It also brings the Ember Forest near/far hand-off fix.
+- **3.5b static flora variant: not merged.**
+  - It measured within noise: -0.1 ms at the Tors, about 0.5%.
+  - Rocks and kit buildings are only 6-21% of the flora triangles in view, and the wind maths is cheap.
+  - Branch `refactor/flora-static` kept for reference.
+  - 3.5c (per-class LOD and shadow rules) still stands: the big town has 556 shadow casters and the most URP shadow work.
+  - 3.5d (a slimmer instance layout) is dropped.
+
+**New priority order:**
+1. 3.4 water.
+2. 2.3 creature pose rate by distance.
+3. 3.1 light manager.
+4. 3.5c shadow and LOD rules per class.
+5. 3.3 flora density LOD.
+
 ## Phase 0: hygiene (small, do first)
 | # | Item | Owner | Notes |
 |---|---|---|---|

@@ -155,3 +155,5 @@ uploads a mesh every frame: one 48-byte instance per flame, and two procedural d
   - frame ms
   - the flame count, and `FireSystem.Dropped` (the cap is 8192)
   - anything that looks different. The player lane saw none at the Ember Forest.
+
+**Supervisor review 2026-11-07 (stand-in):** jobs 24-27 read. Job 27's branch merged (PR #201); job 26's branch not merged (no gain). b/bench-stress merged (PR #202). Queue empty until the next refactor A/B.
