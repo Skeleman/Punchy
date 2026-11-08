@@ -186,6 +186,51 @@ Playtest 11-07 bugs that live in the same shader and LOD code (fix them as part 
 
 **Not now:** renaming Flora to WorldObjects in code. It touches namespaces, files, assets, docs, GLOSSARY and every lane's code for no runtime gain, and lanes would collide over it. Use "world objects (flora system)" in docs and cards now. Do the code rename, if ever, together with the assembly-definition pass (4.1).
 
+## 3.7 One detail rule by on-screen size (Zach, 2026-11-08)
+
+**The idea:** every "how much detail" decision uses the same measure: how big the thing looks on screen. That's its
+size (max of height and width, or its bounding radius) over its distance, scaled for the field of view and the screen
+height. A 30 m colossus at 600 m looks as big as a 1.5 m bush at 30 m, so it should get the same treatment. This
+replaces bespoke cases (the colossus and salt tower far-shadow strips, per-layer distances) with one rule.
+
+**What decides detail today (all by distance alone):**
+
+| System | Today | Problem |
+|---|---|---|
+| Flora mesh LOD | per layer: ground 18 m, shrubs 30/110 m, trees 55/220 m (x quality) | a 2 m rock and a 20 m building in the tree layer switch at the same distance |
+| Flora real-time shadows | inside 25 m (`-shadownear`), then the far cache to CacheRange, then nothing | big buildings lose sharp shadows as early as small props |
+| Far tree shadows | cheap far caster: crowns drawn as cards with ~1.3 m noise holes | the holes are about one shadow texel far out, so they shimmer ("glitter", playtest 11-08) |
+| URP shadow distance | 50 m, 4 cascades | one number for everything |
+| Colossi and towers past 50 m | FarShadow: a hand-laid dark strip on the ground, re-laid when the sun turns 1 degree or the body moves 10 m | bespoke; crude from a height; it was laid from the salt colossus's root, not the ball (fixed on `fix/salt-ball-far-shadow` as a stopgap) |
+| Creature posing | every frame inside 40 m, every 2nd to 100 m, every 4th beyond | a sea serpent at 100 m is huge on screen, and its stepped motion shows (playtest 11-08) |
+| Creature capsule detail | same 40/100 m bands | same |
+| Lights | (3.1, not built) | should fade and drop by on-screen size and brightness too |
+
+**The rule:**
+- One shared Burst helper: `ScreenSize(size, distance)` = size / distance x (screen height / (2 tan(fov/2))), in pixels.
+  Tiers are pixel thresholds, scaled by the quality preset. Equivalent to "switch at distance = size x k", so it's cheap.
+- Everything that picks a tier uses it: flora LOD (by each variant's own size, not its layer), flora shadow tier,
+  creature pose rate and capsule detail, creature shadows, fire flames, light fade and drop (3.1).
+- **Shadows get size-based tiers too:**
+  1. Real-time cascades: anything whose shadow is still big on screen, up to the URP distance.
+  2. The cached sun-shadow map (today's far cache, 1024): things big enough to matter, out to a few hundred metres,
+     redrawn when the sun turns or the camera moves.
+  3. A new wide, low-resolution cached map for the very big (colossi, towers, landmarks, large buildings) out to
+     1-2 km, redrawn rarely. This replaces the FarShadow strips, so colossi get real shapes from afar, and anything
+     big enough qualifies without a bespoke case.
+- The leaf-gap holes go: tree crowns past the close range cast through a proper low-detail crown shape or a soft
+  density, not per-texel holes, and only species with open crowns get gaps at all.
+
+**Order (each step measurable on its own):**
+1. The helper, plus creature pose tiers by on-screen size (smallest change; fixes the sea serpents).
+2. Flora LOD by variant size.
+3. Shadow tiers by size, with the wide far map replacing FarShadow, and the hole fix.
+4. Lights (3.1) built on the same helper.
+
+**Open, needs a repro:** from the basalt tower the salt ball's shadow looked like it added white rather than
+darkening. FarShadow multiplies (it can only darken), so this is something else, maybe the real-time shadow's edge
+on bright salt. A screenshot from the tower would settle it.
+
 ## Phase 4: modularity (after Phase 2 is under way)
 | # | Item | Owner | Notes |
 |---|---|---|---|
