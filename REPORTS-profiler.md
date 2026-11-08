@@ -2,6 +2,39 @@
 
 Newest first.
 
+## 2026-11-08 Job 32 (refactor 3.4): the sky costs 15-19 ms GPU at the Summit; Snell's window saves 23-29 ms under water (q60.sh, third try)
+
+- **Builds:** Profile builds of main 46012623 (m3: today's runner, with `-benchnosky`) and water/snells-window 31b890be.
+- **Runs:** 1920x1080, render scale 1, `-gfx High`, `-weatherseed 4`, uncapped, noon, a fresh game per run, 12:40-14:30. 2 rounds each, the second in reverse order. 0 freezes, 0 crashes, 0 exceptions.
+- **Why a third try:** `-benchnoshader Sky` never removed the sky (it's the scene's skybox material, not a renderer), so the earlier "no sky" runs were void. `-benchnosky` sets the skybox to none and clears to a flat colour; the log confirms "off skybox Sky (Punchy/Sky)" and the shot shows a flat blue with no clouds. The second try's native crash (dungeon generation, overcast round 2) didn't recur.
+
+### A. Sky by weather: the Summit, facing out, camera pitched up 10° (sky ~2/3 of the screen)
+
+| Weather | GPU ms | Sky cost (− no sky) | CPU ms | fps | 1% low |
+|---|---|---|---|---|---|
+| No sky (`-benchnosky`) | 6.8 | 0 | 10.8 | 92.3 | 70.0 |
+| Clear (forced) | 21.5 | **14.7** | 23.1 | 43.4 | 29.9 |
+| Plain (seed 4's own: partly cloudy) | 23.1 | **16.3** | 24.1 | 41.5 | 30.9 |
+| Overcast (forced) | 23.2 | **16.4** | 24.8 | 40.5 | 28.5 |
+| Storm (forced) | 25.6 | **18.8** | 26.8 | 37.3 | 25.2 |
+
+- **The sky is ~70% of this frame's GPU time, and most of it is there even in clear weather.** Clouds add only 1.6-4.1 ms on top of a clear sky's 14.7 ms. So fewer clouds (Zach's question) is a bit cheaper, but clearer weather alone won't fix it: the base per-pixel cost of the sky shader is the problem, not the cloud count.
+- **RenderDoc** (one capture each, replay times ~3x inflated): the skybox draw is one full-screen draw of 22.0 ms (Clear), 23.5 ms (plain), 24.1 ms (Overcast) of 51-53 ms frames: 43-45%. The same order as the live runs.
+- CPU ms rises with the GPU because the main thread waits on the GPU; it's not CPU work in the sky.
+- **Ways to cut it** (for the rendering lane): render the sky at half or quarter resolution and upsample (the clouds are soft); stop the march early on a clear ray (the early out only fires once a cloud turns opaque); fewer steps toward the horizon; or cache the sky into a cubemap and refresh it a few faces a frame, since it changes slowly.
+
+### B. Under water: Snell's window + the sky skip
+
+| Spot | Main GPU | Snell GPU | Δ GPU | Main fps / 1% low | Snell fps / 1% low |
+|---|---|---|---|---|---|
+| Job 29's lake spot, under water (pitch −35, looking up) | 34.5 | 11.5 | **−23.0** | 26.2 / 14.7 | 62.2 / 25.1 |
+| 12 m east of the pillar | 39.5 | 10.8 | **−28.7** | 23.5 / 12.6 | 64.8 / 26.2 |
+
+- **This is the leftover underwater cost from jobs 29-31: it was the sky, drawn behind the water's underside.** The branch returns the fog colour for sky pixels under water, and the frame drops to ~11 ms. Slow frames (>33 ms) go from ~340 to ~6 per run.
+- **It looks different too:** main shows a fogged, flat ceiling; the branch shows the rippled surface from below with the bright window above (shots `results/q60-shots/under-main` and `under-snell`). Whether that's the intended look is for Zach; the cost says merge.
+
+Cost: laptop CSV total $653.
+
 ## 2026-11-08 Freeze A/B (q62.sh) and Job 33 part 2: clumps, glitter, swells at the lake (q61.sh)
 
 ### The freeze: not the runner, not main's code; it hasn't come back since ~09:00

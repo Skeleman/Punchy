@@ -229,7 +229,7 @@ there).
   particles), post. Also one capture at job 29's lake spot under water. This is the first full split of the GPU
   frame; the D3D11 recorders can't give it.
 
-## Job 32 (2026-11-08): what the sky costs, by weather; and Snell's window under water (REFACTOR-ROADMAP.md 3.4)
+## Job 32 (2026-11-08, REPORTED in REPORTS-profiler.md; q60.sh): what the sky costs, by weather; and Snell's window under water (REFACTOR-ROADMAP.md 3.4)
 Job 30 left ~27 ms of the underwater frame on what looks like the sky. The sky shader ray-marches the volumetric
 clouds per pixel (up to 160 steps, 4 light samples per step inside a cloud, an early out only once a cloud turns
 opaque). Zach also wants clearer weather more often and asks whether fewer clouds would be cheaper. Profile builds,
