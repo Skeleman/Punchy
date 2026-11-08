@@ -598,6 +598,21 @@ Shader "Punchy/Water"
                     // Just inside the rim the mirrored water and the sky mix, brightest at the edge.
                     half3 under = lerp(below, sky, window) + sky * window * (1 - window) * 0.6;
                     under = lerp(PunchyAtmosphere(under, input.positionWS), under, _PunchyUnderground);
+                    // Near the top (playtest 11-08 item 8): within the last metre or so the window gives way to the real
+                    // view above, read from the screen behind the surface and wobbled by the ripples, so the shore and
+                    // trees show before the lens breaks through (and surfacing doesn't pop). Where nothing is behind the
+                    // surface (the sky: the skybox draws plain water colour down here), the window's sky stands in.
+                    half nearTop = (1 - smoothstep(0.2, 1.4, _PunchyUnderwaterSurface.y)) * step(1e-4, _PunchyUnderwater.w) * (1 - _UnderRock);
+                    [branch] if (nearTop > 0)
+                    {
+                        float2 aboveUV = saturate(GetNormalizedScreenSpaceUV(input.positionCS) + n.xz * 0.04);
+                        float aboveEye = LinearEyeDepth(SampleSceneDepth(aboveUV), _ZBufferParams);
+                        float surfaceEye = LinearEyeDepth(input.positionCS.z, _ZBufferParams);
+                        half3 above = SAMPLE_TEXTURE2D_X_LOD(_CameraOpaqueTexture, sampler_CameraOpaqueTexture, UnityStereoTransformScreenSpaceTex(aboveUV), 0).rgb;
+                        half isSky = step(_ProjectionParams.z * 0.95, aboveEye) + step(aboveEye, surfaceEye);
+                        above = lerp(above, sky, saturate(isSky));
+                        under = lerp(under, above, nearTop * 0.85);
+                    }
                     return half4(under, rim);
                 }
                 half3 ambient = SampleSH(n);
