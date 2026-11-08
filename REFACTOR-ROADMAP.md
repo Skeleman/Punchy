@@ -335,6 +335,7 @@ Each is its own branch off main, pushed, built and screenshot-checked; timing fo
 | `refactor/pose-by-size` | creature pose bands scale with size (roc, sky serpent smooth further out; 3.7 step 1) | compiles and runs; job 33 times it |
 | `fix/salt-ball-far-shadow` | far shadow follows the rolling salt ball | compiles; nothing left at the spawn point in shots |
 | `grass/clumps` | each grass instance a tuft of 5 blades fanned from one root (half as many roots, ~2.5x blades); `-grassclumps 0` for the old grass | meadow shots: reads as tufts, fuller; tuft size, count and height are one number each to tune |
+| `grass/far-gusts` | past the blades' 60 m range, grassy ground keeps the same gusts as broad rolling light/dark bands (same noise and drift as the blades) | built; subtle in stills, judge in motion |
 | `water/fine-grid` | experiment: LOD 0 water on a 0.5 m grid | **not worth merging**: under 1% of pixels change |
 
 **Findings:**
