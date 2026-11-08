@@ -28,12 +28,16 @@ case $1 in
 swells)
   # (First try: the beach camera looked down at the sand, no sea in frame: now -benchview place,8, the Beach place's
   # own yaw, out to sea.)
+  # (Second try: the Beach place faces inland, at a dune. Third: m4 builds, whose runner takes -benchview place+180,8;
+  # SETS="beach-clear beach-storm" reruns only the beach.)
+  OM=Profile-${KM}m4; OW=Profile-${KW}m4
+  build $KM BuildDev $OM || { echo "build $OM failed"; exit 1; }
   build $KW BuildDev $OW || { echo "build $OW failed"; exit 1; }
   keepawake
-  for set in beach-clear beach-storm lake; do
+  for set in ${SETS:-beach-clear beach-storm lake}; do
     case $set in
-      beach-clear) A="-benchstops place -benchplace Beach -benchweather Clear -benchview place,8" ;;
-      beach-storm) A="-benchstops place -benchplace Beach -benchweather Storm -benchview place,8" ;;
+      beach-clear) A="-benchstops place -benchplace Beach -benchweather Clear -benchview place+180,8" ;;
+      beach-storm) A="-benchstops place -benchplace Beach -benchweather Storm -benchview place+180,8" ;;
       lake) A="-benchstops spot -benchspot -1624,-488,0" ;;
     esac
     rm -f "$R"/$Q-$set-*.csv "$L"/q-$Q-$set-*.log
@@ -66,7 +70,9 @@ lava)      # water/lava-plates 53582b9b against main, looking down into the Volc
   keepawake
   # (Second try skipped too: VolcanoCone isn't a DebugControls place at all on this island. Instead job 33 stands 45 m
   # south of the MagmaSerpent, which lives on the crater floor at -211,-2129, facing it and looking down.)
-  A="-benchstops spot -benchspot -211,-2174,0 -benchpitch ${PITCH:-35}"
+  # (Third: that spot was among the rim boulders. q63.sh scout picked 7 m north-east of the serpent, facing north-east,
+  # pitch 75: about 2/3 of the screen lava.)
+  A="-benchstops spot -benchspot -206,-2124,45 -benchpitch ${PITCH:-75}"
   rm -f "$R"/$Q-lava-*.csv "$L"/q-$Q-lava-*.log
   go lava main 1 $OM $KM $A -benchshots "$W/$Q-shots/lava-main"
   go lava plates 1 $OL $KL $A -benchshots "$W/$Q-shots/lava-plates"
