@@ -67,6 +67,7 @@ namespace Punchy.Terrain
         static readonly int ShapeId = Shader.PropertyToID("_PunchySwellShape");
         static readonly int MixId = Shader.PropertyToID("_PunchySwellMix");
         static readonly int DepthsId = Shader.PropertyToID("_PunchySwellDepths");
+        static readonly int LimitsId = Shader.PropertyToID("_PunchySwellLimits");
         static readonly int GroupsId = Shader.PropertyToID("_PunchySwellGroups");
         static readonly int ShoreId = Shader.PropertyToID("_PunchySwellShore");
         static readonly int ShoreAtId = Shader.PropertyToID("_PunchySwellShoreAt");
@@ -107,6 +108,9 @@ namespace Punchy.Terrain
         /// <summary>The wave groups: two slow, broad patterns (heading x z, wavelength m, speed m/s) whose sum raises and
         /// lowers the waves' height, so big sets roll through between quieter spells.</summary>
         static readonly float4 GroupA = new float4(0.8f, 0.6f, 260f, 4.0f), GroupB = new float4(-0.45f, 0.89f, 410f, 3.3f);
+        /// <summary>The swell's height is held under this share of the water's depth, so a trough never bares the bed
+        /// (over the shelf, shoaled troughs dipped below sand bars and showed ragged patches of bed).</summary>
+        const float DepthShare = 0.3f;
         /// <summary>Extra room (m) round the furthest the swell can reach, for the render bounds.</summary>
         const float BoundsMargin = 0.5f;
 
@@ -150,6 +154,7 @@ namespace Punchy.Terrain
             Shader.SetGlobalVector(ShapeId, shape.c0);
             Shader.SetGlobalVector(MixId, shape.c1);
             Shader.SetGlobalVector(DepthsId, shape.c2);
+            Shader.SetGlobalVector(LimitsId, shape.c3);
             Shader.SetGlobalVectorArray(GroupsId, groupsUpload);
             UpdateShore(terrain);
             Shader.SetGlobalVector(ShoreAtId, shoreReady ? new Vector4(shore.Origin.x, shore.Origin.y, shore.CellsPerMetre, shore.Size) : Vector4.zero);
@@ -180,7 +185,7 @@ namespace Punchy.Terrain
                 new float4(CalmHeight, WindHeight, Along, Table.Length),
                 new float4(Sectors, GroupDepth, ShoalHeight, ShoalSteep),
                 new float4(FadeFrom, FadeTo, ShoalFull, ShoalNone),
-                float4.zero);
+                new float4(DepthShare, 0f, 0f, 0f));
             Shared.Groups.Data = new float4x2(Group(GroupA), Group(GroupB));
             groupsUpload[0] = Shared.Groups.Data.c0;
             groupsUpload[1] = Shared.Groups.Data.c1;
@@ -403,6 +408,7 @@ namespace Punchy.Terrain
                                    + math.sin(math.dot(groups.c1.xy, xz) * groups.c1.z - groups.c1.w * s.w));
             var height = (shape.c0.x + shape.c0.y * math.saturate(s.z)) * amount * (1f + shape.c1.z * shoal)
                          * (1f + shape.c1.y * (2f * e - 1f));
+            height = math.min(height, shape.c3.x * depth);
             var on = Onshore(xz);
             var sectors = shape.c1.x;
             var f = math.atan2(on.y, on.x) * sectors / (2f * math.PI);

@@ -588,11 +588,12 @@ Shader "Punchy/Water"
                     // crests as the waves run), more of them the harder it blows, broken into patches.
                     half wind = saturate(_PunchySwell.z);
                     half shoal = 1 - smoothstep(_PunchySwellDepths.z, _PunchySwellDepths.w, depth);
-                    half capsFrom = lerp(0.2, 0.11, saturate((wind - 0.3) / 0.6));
+                    half capsFrom = lerp(0.2, 0.14, saturate((wind - 0.3) / 0.6));
                     capsFrom = lerp(capsFrom, min(capsFrom, 0.16), shoal);
                     half caps = smoothstep(capsFrom, capsFrom + 0.06, sw.squeeze) * max(smoothstep(0.25, 0.5, wind), shoal);
-                    half breakUp = PunchyValueNoise(p * 1.3 + float2(t * 0.21, -t * 0.13)) * 0.6 + PunchyValueNoise(p * 3.7 - t * 0.3) * 0.4;
-                    swellFoam = saturate(caps * smoothstep(0.4, 0.65, breakUp) * 1.6) * distanceFade;
+                    // (Finer and sparser than the old crest foam: a storm's caps came out as broad white blobs.)
+                    half breakUp = PunchyValueNoise(p * 2.3 + float2(t * 0.21, -t * 0.13)) * 0.6 + PunchyValueNoise(p * 6.1 - t * 0.3) * 0.4;
+                    swellFoam = saturate(caps * smoothstep(0.5, 0.72, breakUp) * 1.6) * distanceFade;
                 }
                 if (!frontFace)
                 {
@@ -792,7 +793,7 @@ Shader "Punchy/Water"
                 half surgeCycle = 0;
                 [branch] if (seaShore > 0 && thickness < _FoamDistance * 2)
                 {
-                    PunchySwellResult arriving = PunchySwell(p, t, 1, depth, 2);
+                    PunchySwellResult arriving = PunchySwell(p, t, 1, 10, 2);   // (only its phase is used: deep, so not held down)
                     // (theta falls with time: this rises 0..1 over each swell, from 0 as a crest passes.)
                     surgeCycle = frac(0.25 - atan2(arriving.phasor.x, arriving.phasor.y) / 6.2831853);
                 }

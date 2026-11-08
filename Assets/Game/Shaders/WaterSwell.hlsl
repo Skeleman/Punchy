@@ -20,6 +20,8 @@ float4 _PunchySwellShape;
 float4 _PunchySwellMix;
 // x, y the swell fades in between these depths (m); z, w it shoals fully at z, not at all from w.
 float4 _PunchySwellDepths;
+// x the swell's height is held under this share of the water's depth (a trough never bares the bed).
+float4 _PunchySwellLimits;
 // The two wave groups: heading x z, wavenumber, angular speed.
 float4 _PunchySwellGroups[2];
 // The room for waves: WaterSwells.MaxWaves (the array's size only; unused entries have no height).
@@ -111,6 +113,7 @@ PunchySwellResult PunchySwell(float2 xz, float t, float amount, float depth, flo
     [unroll] for (int g = 0; g < 2; g++)
         group += 0.25 * sin(dot(_PunchySwellGroups[g].xy, xz) * _PunchySwellGroups[g].z - _PunchySwellGroups[g].w * t);
     float height = PunchySwellHeight() * amount * (1 + _PunchySwellMix.z * shoal) * (1 + _PunchySwellMix.y * (2 * group - 1));
+    height = min(height, _PunchySwellLimits.x * depth);
     float q = _PunchySwellShape.z * (1 + _PunchySwellMix.w * shoal);
     float2 on = PunchySwellOnshore(xz);
     float sectors = _PunchySwellMix.x;
