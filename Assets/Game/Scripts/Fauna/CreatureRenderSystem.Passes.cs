@@ -278,13 +278,26 @@ namespace Punchy.Fauna
         const int StatStride = 8;
 
         /// <summary>Which pose band a creature is in: 0 near (and players' bodies, and the carried), 1 middle, 2 far.</summary>
-        static int Band(in CreatureState state, float3 camera)
+        static int Band(in CreatureState state, in CreatureBody body, float3 camera)
         {
             if (state.Mode == CreatureMode.Puppet || state.Mode == CreatureMode.Held)
                 return 0;
+            // By how big it looks, not just how far (refactor 3.7, step 1): the bands reach out in proportion to the
+            // creature's size, so a sky serpent or a roc stays smooth (and keeps its shadow) as far out as it looks as
+            // big as a deer does at 40 / 100 m (playtest 11-08: the big serpents' stepped motion showed from afar).
+            var reach = BandReach(body.Blob.Value.BodyLength * math.max(state.Scale, 0.01f), body.Blob.Value.SeenFrom);
             var d = math.distancesq(state.Position, camera);
-            return d < PoseNear * PoseNear ? 0 : d < PoseFar * PoseFar ? 1 : 2;
+            return d < PoseNear * PoseNear * reach * reach ? 0 : d < PoseFar * PoseFar * reach * reach ? 1 : 2;
         }
+
+        /// <summary>The body length the pose bands are set for (m): about a deer's.</summary>
+        const float BandBodyLength = 1.5f;
+        /// <summary>How far out a creature's pose bands reach, as a multiple of PoseNear / PoseFar: its body length over a
+        /// deer's, or for the huge (CreatureSpecies.SeenFrom) how much further than others it is seen from; never less.</summary>
+        static float BandReach(float bodyLength, float seenFrom)
+            => math.max(1f, math.max(bodyLength / BandBodyLength, seenFrom / VisibleFrom));
+        /// <summary>The distance most creatures are drawn out to (CreatureRenderSystem's FadeFar).</summary>
+        const float VisibleFrom = 165f;
 
         /// <summary>Where each creature is in last frame's posing, by entity, for PoseJob.Reuse.</summary>
         [BurstCompile]
@@ -431,7 +444,7 @@ namespace Punchy.Fauna
                 var keep = 0;
                 for (int band = 0; band < (Tiers ? 3 : 1); band++)
                     for (int i = 0; i < AllBodies.Length; i++)
-                        if (Keep[i] && (!Tiers || Band(AllStates[i], CameraPosition) == band))
+                        if (Keep[i] && (!Tiers || Band(AllStates[i], AllBodies[i], CameraPosition) == band))
                         {
                             Bodies[keep] = AllBodies[i];
                             States[keep] = AllStates[i];
@@ -446,7 +459,7 @@ namespace Punchy.Fauna
                     var body = Bodies[i];
                     if (Tiers)
                     {
-                        var band = Band(state, CameraPosition);
+                        var band = Band(state, body, CameraPosition);
                         if (band >= 1 && midStart < 0)
                             midStart = total;
                         if (band >= 2 && farStart < 0)
