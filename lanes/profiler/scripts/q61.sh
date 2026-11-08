@@ -30,14 +30,16 @@ swells)
   # own yaw, out to sea.)
   # (Second try: the Beach place faces inland, at a dune. Third: m4 builds, whose runner takes -benchview place+180,8;
   # SETS="beach-clear beach-storm" reruns only the beach.)
+  # (Fourth: the Beach place (400,300) is a sandy canyon with an inlet at every yaw (q63.sh beachscout). The beach sets
+  # stand at FishingVillage instead, in the sea at sea level, facing south over open water.)
   OM=Profile-${KM}m4; OW=Profile-${KW}m4
   build $KM BuildDev $OM || { echo "build $OM failed"; exit 1; }
   build $KW BuildDev $OW || { echo "build $OW failed"; exit 1; }
   keepawake
   for set in ${SETS:-beach-clear beach-storm lake}; do
     case $set in
-      beach-clear) A="-benchstops place -benchplace Beach -benchweather Clear -benchview place+180,8" ;;
-      beach-storm) A="-benchstops place -benchplace Beach -benchweather Storm -benchview place+180,8" ;;
+      beach-clear) A="-benchstops place -benchplace FishingVillage -benchweather Clear -benchview 180,5" ;;
+      beach-storm) A="-benchstops place -benchplace FishingVillage -benchweather Storm -benchview 180,5" ;;
       lake) A="-benchstops spot -benchspot -1624,-488,0" ;;
     esac
     rm -f "$R"/$Q-$set-*.csv "$L"/q-$Q-$set-*.log
