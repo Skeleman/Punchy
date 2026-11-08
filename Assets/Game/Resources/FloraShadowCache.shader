@@ -74,8 +74,20 @@ Shader "Punchy/FloraShadowCache"
                 if (any(c < 0) || any(c > 1))
                     return 1;
 
-                // Four taps a texel apart soften the edge (the cache's texels are about 26 cm at the 120 m range).
-                float along = dot(positionWS, _FloraReceiveSun.xyz) - 0.4;
+                // Playtest 11-07 (tents striped at mid range): a fixed bias let steep faces, nearly edge-on to the sun,
+                // shade themselves in bands (shadow acne): within a texel and the taps' spread the cached depth changes by
+                // more than 0.4 m there. The surface's normal, rebuilt from the depth across neighbouring pixels, scales the
+                // bias by the slope against the sun; a face turned away from the sun is dark from its own lighting already.
+                float3 normalWS = normalize(cross(ddy(positionWS), ddx(positionWS)));
+                if (dot(normalWS, GetCameraPositionWS() - positionWS) < 0)
+                    normalWS = -normalWS;
+                float facing = dot(normalWS, -_FloraReceiveSun.xyz);
+                if (facing < 0.05)
+                    return 1;
+                float slope = min(sqrt(saturate(1 - facing * facing)) / facing, 8);
+                // Four taps a texel apart soften the edge (the cache's texels are about 26 cm at the 120 m range): the
+                // farthest a tap reads from the pixel is about a third of a metre sideways, hence 0.35 m per unit of slope.
+                float along = dot(positionWS, _FloraReceiveSun.xyz) - (0.4 + 0.35 * slope);
                 float t = _FloraCacheTex_TexelSize.x * 0.75;
                 float shade = (Cached(c + float2(-t, -t)) < along ? 0.25 : 0) + (Cached(c + float2(t, -t)) < along ? 0.25 : 0)
                             + (Cached(c + float2(-t, t)) < along ? 0.25 : 0) + (Cached(c + float2(t, t)) < along ? 0.25 : 0);

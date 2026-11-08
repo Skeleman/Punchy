@@ -161,24 +161,21 @@ Shader "Punchy/Flora"
                 return 1 + fine + mid + coarse;
             }
 
-            /// W-113: a tent's hide, as leather, not linen: blotchy tanning, fine creases and pores, and hides sewn
-            /// together along wandering seams about 80 cm apart with a row of stitches, so it reads at a few metres.
+            /// W-113: a tent's hide, as leather, not linen: blotchy tanning, fine creases and pores, so it reads at a few
+            /// metres. Playtest 11-07: the seams and stitches it had, on a square lattice about 80 cm apart, read as a grid
+            /// up close, not leather; the panels' own edges between the poles are the seams now, and each hide's tone
+            /// drifts softly over a metre or two instead of changing square by square.
             half PunchyHide(float3 p, float3 nOS, float footprint)
             {
                 float3 a = abs(nOS);
                 float2 uv = a.x > a.y && a.x > a.z ? p.zy : a.y > a.z ? p.xz : p.xy;
                 half blotch = (PunchyValueNoise(uv * 1.4) - 0.5) * 0.34 + (PunchyValueNoise(uv * 4.3 + 5.1) - 0.5) * 0.16;
                 half crease = (PunchyValueNoise(uv * float2(9, 26)) - 0.5) * 0.12 + (PunchyValueNoise(uv * 55) - 0.5) * 0.08;
-                // Seams between hides: wavy lines, a darker welt with stitches along it.
-                float2 w = uv / 0.8 + (float2(PunchyValueNoise(uv * 0.9 + 3.7), PunchyValueNoise(uv * 0.9 + 8.2)) - 0.5) * 0.35;
-                float2 e = abs(frac(w) - 0.5);
-                half along = e.x > e.y ? uv.y : uv.x;
-                half d = 0.5 - max(e.x, e.y);
-                half welt = (1 - smoothstep(0.0, 0.03, d)) * 0.2;
-                half stitch = (1 - smoothstep(0.035, 0.05, d)) * smoothstep(0.02, 0.03, d) * step(0.5, frac(along / 0.045)) * 0.25;
-                half hides = (frac(sin(dot(floor(w), float2(12.9898, 78.233))) * 43758.55) - 0.5) * 0.14;
+                // Tanned unevenly: a slow drift in tone across the hide, and darker worn patches here and there.
+                half hides = (PunchyValueNoise(uv * 0.55 + 11.3) - 0.5) * 0.16;
+                half worn = smoothstep(0.62, 0.8, PunchyValueNoise(uv * 2.2 + 31.7)) * 0.1;
                 return 1 + blotch * PunchyOctave(0.4, footprint) + crease * PunchyOctave(0.03, footprint)
-                         + (hides - welt) * PunchyOctave(0.1, footprint) - stitch * PunchyOctave(0.02, footprint);
+                         + (hides - worn) * PunchyOctave(0.1, footprint);
             }
 
             half3 PunchyWeathering(float3 p, half3 n, float footprint, half r)
