@@ -52,6 +52,9 @@ namespace Punchy.Weather
         [Range(0f, 40f)] public float BlueMoonTilt = 18f;
         [Tooltip("The blue moon's faint light at night (added to the ambient when it's up and full).")]
         public Color BlueMoonLight = new Color(0.012f, 0.022f, 0.05f);
+        [Tooltip("The blue moon's own light when it's up and full (linear, x its glow): a second moonlight from its " +
+                 "direction, added on top of the big moon's, much stronger and strongly blue (feedback 11-08 item 10).")]
+        public Color BlueMoonLamp = new Color(0.1f, 0.3f, 1.2f);
         [Tooltip("Whole days since the start (counted as midnight passes). With the time of day it gives the moon's phase.")]
         public int Day;
 

@@ -70,6 +70,8 @@ namespace Punchy.Weather
         /// <summary>The night sky's glow at new moon, as a share of a full moon's (1: phase doesn't matter).</summary>
         const float MoonSkyFloor = 0.4f;
         static readonly int BlueMoonId = Shader.PropertyToID("_PunchyBlueMoon");
+        static readonly int BlueLightDirectionId = Shader.PropertyToID("_PunchyBlueLightDirection");
+        static readonly int BlueLightColorId = Shader.PropertyToID("_PunchyBlueLightColor");
         static readonly int SunColorId = Shader.PropertyToID("_PunchySunColor");
         static readonly int ZenithId = Shader.PropertyToID("_PunchySkyZenith");
         static readonly int HorizonId = Shader.PropertyToID("_PunchySkyHorizon");
@@ -539,6 +541,16 @@ namespace Punchy.Weather
                 ambientZenith = Color.Lerp(ambientZenith, new Color(0.18f, 0.32f, 0.85f) * ambientZenith.grayscale * 1.6f, 0.6f * blue);
                 ambientHorizon = Color.Lerp(ambientHorizon, new Color(0.2f, 0.35f, 0.8f) * ambientHorizon.grayscale * 1.5f, 0.5f * blue);
             }
+            // The blue moon's own light (feedback 11-08 item 10): a second directional moonlight from its direction,
+            // added on top of the big moon's main light rather than only tinting the ambient, so the two add up and a
+            // full blue moon lights the land strongly blue. Every custom shader takes it through Glow.hlsl (no shadow).
+            // Cloud cover hides it and it doesn't reach into caves. Ordinary nights are unchanged (Zach 11-08).
+            var blueLight = Color.black;
+            if (Cycle != null && Cycle.BlueMoonGlow > 0f)
+                blueLight = Cycle.BlueMoonLamp * (Cycle.BlueMoonGlow * Cycle.Night * (1f - 0.8f * s.Coverage)
+                                                  * (1f - Punchy.Terrain.CaveSystem.Underground));
+            Shader.SetGlobalVector(BlueLightDirectionId, Cycle != null ? (Vector4)Cycle.BlueMoonDirection : Vector4.zero);
+            Shader.SetGlobalVector(BlueLightColorId, (Vector4)blueLight);
             RenderSettings.ambientSkyColor = ambientZenith * ambientScale + moonFloor;
             // At sunrise and sunset the side light warms with the sky's twilight band (Sky.hlsl), so the land matches it.
             var equator = ambientHorizon;
