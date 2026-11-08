@@ -2,6 +2,39 @@
 
 Newest first.
 
+## 2026-11-08 Job 33 (part 1): blue moon and pose-by-size; swells voided (q61.sh)
+
+Profile builds, 1920x1080, render scale 1, `-gfx High`, `-weatherseed 4`, uncapped, a fresh game per run.
+
+### Blue moon (night/blue-moon 7be628b2 against main 46012623, M B B M)
+
+- **Setup:** the Summit at hour 0, Clear forced, `-bluemoondays 0`. The camera is aimed at the blue moon from `DayNightCycle.BlueMoonDirection` and re-aimed once the hour is set.
+  - The shot (`results/q61-shots/bluemoon-blue/place.png`) has the moon large in frame, its glow and the small white moon beside it. The player is partly in front.
+- **Cost:** GPU main 21.9 / 21.5 ms, blue 21.9 / 21.8. Frame median 22.4 / 22.1 against 22.4 / 22.4. 1% low 34.8 / 34.1 fps against 34.5 / 34.9.
+  - **So the blue moon costs at most +0.2 ms GPU, inside the round-to-round spread.**
+- These 4 Summit runs (m2 builds) didn't freeze. No frame over 5 s was logged.
+
+### Pose by size (refactor/pose-by-size dcd0318d against main, `-perflog` shot-list sessions, A B B A)
+
+Pose job median ms (median of the 5 perflog lines) and creatures posed per frame:
+
+| Spot | main r1 | size r1 | size r2 | main r2 |
+|---|---|---|---|---|
+| Meadow (`-wildcap 2000`) | 7.67 ms, 140 posed | 7.73 ms, 133 | 8.90 ms, 157 | 7.71 ms, 136 |
+| Mountains | 2.33 ms, 31 posed | 2.68 ms, 41 | 2.91 ms, 44 | 2.63 ms, 38 |
+
+- **Pose by size is not cheaper.**
+  - Mountains: +0.3 ms on the median, posing 41-44 creatures a frame against 31-38.
+  - Meadow: about level in round 1, +1.2 ms in round 2 (157 posed against 136).
+- Pose job worst frames are about the same: 4-11 ms on both.
+- It poses more creatures per frame, not fewer, so whatever it skips by size, it re-poses more often elsewhere. The "moved on" count drops slightly (mountains 40-46 against 41-52).
+
+### Void, being rerun
+
+- **Swells (beach clear and storm):** the Beach place's camera looked down at a sand slope with no sea in frame, so the swells numbers don't measure the water. They're rerunning with `-benchview place,8` (the place's own yaw, out to sea).
+- **Lake swells and glitter:** frozen runs (see the freeze addendum). Rerunning on m2 builds.
+- **Lava and clumps:** the place names weren't found (fixed in the runner). Rerunning.
+
 ## 2026-11-08 Freeze addendum: not just the Summit; Job 33 lava rerun (q61.sh)
 
 - **The freeze also hits job 29's lake spot** (-1624,-488) in the bench route. It isn't specific to the Summit or to main.
