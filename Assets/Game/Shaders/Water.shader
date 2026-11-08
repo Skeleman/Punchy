@@ -6,9 +6,9 @@ Shader "Punchy/Water"
     // The sun glints, ripples are sums of directional waves, rivers carry their ripples and streaks downstream
     // (faster in the deep middle), and foam lines the shore and the rapids.
     // Two other liquids share the sheet: very murky water (swamps) turns thick and oily, slowly heaving and bubbling,
-    // with drifting scum; lava (the lava amount in the vertex) is bright molten orange flowing in slow warped swirls,
-    // with thin, sparse crust riding on it and thickening at the edges, barely reflective. (Cave pools use the same
-    // path, drawn by CaveSystem.)
+    // with drifting scum; lava (the lava amount in the vertex) is a dark crust churning slowly in flow-noise swirls, hot
+    // veins glowing through it, closing up at the edges, never reflective. (Cave pools use the same path, drawn by
+    // CaveSystem.)
     Properties
     {
         _ShallowColor("Shallow Color", Color) = (0.10, 0.42, 0.45, 1)
@@ -370,26 +370,48 @@ Shader "Punchy/Water"
                 return saturate((s - 0.5) * (1.6 + 0.8 * (1 - abs(2 * w0 - 1))) + 0.5);
             }
 
-            // Slow bubbles in thick water: here and there a dome swells up, then pops (xy slope, z = bubble mask).
-            // Lava plates: a cellular pattern (each point's nearest and second-nearest jittered cell centre), returning
-            // those two distances and the nearest cell's id. The seams between plates are where the two are close.
-            float2 LavaCells(float2 x, out float2 cellId)
+            // Lava (playtest 11-08 item 21; the technique is inspired by nimitz's "Noise animation - Lava", shadertoy
+            // lslXRS, written here from its description): flow noise. Each octave reads the noise's gradient, turns it
+            // round over time (rotating gradients) and pushes the domain along it, so the next octave is carried by the
+            // last one's flow, then eases the pushed domain back towards a plainly drifting one so it never tears; the
+            // octaves are sine-ridged, so where they line up thin ridges run through, which the colour turns to hot veins.
+            float LavaNoise(float2 x)
             {
-                float2 n = floor(x), f = frac(x);
-                float f1 = 8, f2 = 8;
-                cellId = n;
-                [unroll] for (int j = -1; j <= 1; j++)
-                [unroll] for (int i = -1; i <= 1; i++)
-                {
-                    float2 g = float2(i, j);
-                    float2 r = g + float2(PunchyHash(n + g + 1.7), PunchyHash(n + g + 9.3)) * 0.8 + 0.1 - f;
-                    float d = dot(r, r);
-                    if (d < f1) { f2 = f1; f1 = d; cellId = n + g; }
-                    else if (d < f2) f2 = d;
-                }
-                return float2(sqrt(f1), sqrt(f2));
+                return PunchyValueNoise(x * 1.6);
             }
 
+            float2 LavaGradient(float2 x)
+            {
+                const float e = 0.09;
+                return float2(LavaNoise(x + float2(e, 0)) - LavaNoise(x - float2(e, 0)),
+                              LavaNoise(x + float2(0, e)) - LavaNoise(x - float2(0, e))) / (2 * e);
+            }
+
+            // How much crust over the melt at p (small: a hot vein; large: dark crust), on a clock that runs slowly.
+            float LavaFlow(float2 p, float time, int octaves)
+            {
+                float2 bp = p;
+                float z = 2, crust = 0;
+                [loop] for (int i = 1; i <= octaves; i++)
+                {
+                    p += time * 0.6;
+                    bp += time * 1.9;
+                    float2 g = LavaGradient(i * p * 0.34 + time);
+                    // (Turned with time, and against a gentle slope of position, so the swirls don't all turn alike.)
+                    float turn = time * 6 - (0.05 * p.x + 0.03 * p.y) * 40;
+                    float c = cos(turn), s = sin(turn);
+                    g = float2(g.x * c - g.y * s, g.x * s + g.y * c);
+                    p += g * 0.5;
+                    crust += (sin(LavaNoise(p) * 7) * 0.5 + 0.5) / z;
+                    p = lerp(bp, p, 0.77);
+                    z *= 1.4;
+                    p *= 2;
+                    bp *= 1.9;
+                }
+                return crust;
+            }
+
+            // Slow bubbles in thick water: here and there a dome swells up, then pops (xy slope, z = bubble mask).
             float3 Bubbles(float2 p, float t)
             {
                 float2 q = p * 0.9;
@@ -872,44 +894,24 @@ Shader "Punchy/Water"
                 color = lerp(color, foamLit, foam * (1 - lava));
                 alpha = max(alpha, foam * (1 - lava));
 
-                // Lava (Zach, 11-08: the old swirl read as jelly): a crust of cooled, rock-like plates, about a metre
-                // across, drifting slowly on the melt, split by glowing seams, with here and there an open pool of melt.
-                // The melt glows hard (past white-point, for any bloom); the plates are dull, rough basalt, each tilted
-                // its own way and lit with its own flat face, never the water's ripples, and nothing on it reflects.
+                // Lava (playtest 11-08 item 21: the cellular plates read as cartoon lava): flow noise churning slowly,
+                // thin bright-hot veins glowing through a dark crust (LavaFlow), the colour going as the inverse of the
+                // crust, so the thinnest crust burns brightest. It glows (past white-point, for any bloom, about as bright
+                // as the old melt) and nothing on it reflects or ripples. Fewer octaves as it shrinks on screen (the water's
+                // quality policy). The crust closes up where it cools against the rock at the edges.
                 if (lava > 0)
                 {
-                    // Carried by any flow, and drifting a little, slowly: the plates creep rather than slosh.
-                    float2 drift = flowDir * flowAmount * t * 0.12 + float2(t * 0.012, t * 0.008);
-                    float2 q = (p - drift) * 0.85;
-                    // A gentle warp, so the plates aren't perfect polygons.
-                    float2 warp = float2(PunchyValueNoise(q * 0.7 + 3.1), PunchyValueNoise(q * 0.7 - 5.3)) - 0.5;
-                    float2 plateId;
-                    float2 cells = LavaCells(q + warp * 0.6, plateId);
-                    half seam = cells.y - cells.x;   // 0 on a seam between plates
-                    half plateRandom = PunchyHash(plateId + 4.4);
-                    // About one cell in four is open melt; the rest carry a plate, held back from the seams by a hot margin.
-                    // Towards the edges it cools against the rock and the crust closes up.
-                    half open = step(plateRandom, 0.25);
-                    half plate = (1 - open) * smoothstep(0.05, 0.11, seam);
-                    plate = max(plate, 1 - saturate(thickness / 0.2));
-                    // Heat: hottest down the seams and in the open pools, churning slowly.
-                    float2 m = p - drift;
-                    half churn = PunchyValueNoise(m * 0.8 + float2(t * 0.03, -t * 0.02)) * 0.6 + PunchyValueNoise(m * 2.3 - t * 0.05) * 0.4;
-                    half heat = saturate(open * (0.45 + 0.45 * churn) + (1 - smoothstep(0.0, 0.09, seam)) * (0.65 + 0.35 * churn) + 0.25 * churn);
-                    half3 ramp = heat < 0.5 ? lerp(half3(0.35, 0.03, 0.005), half3(1.0, 0.22, 0.02), heat * 2)
-                                            : lerp(half3(1.0, 0.22, 0.02), half3(1.0, 0.78, 0.3), heat * 2 - 1);
-                    half pulse = 0.93 + 0.07 * sin(t * 0.5 + plateRandom * 6.28);
-                    half3 hot = ramp * (1.0 + 1.3 * heat) * pulse;
-                    // The plates: dark basalt, each its own tone and tilt, lit by the sun on that flat face, with a dull red
-                    // glow round its rim where it is still hot underneath.
-                    float2 tilt = float2(PunchyHash(plateId + 2.1), PunchyHash(plateId + 7.7)) - 0.5;
-                    float3 plateNormal = normalize(float3(tilt.x * 0.35, 1, tilt.y * 0.35));
-                    half grain = PunchyValueNoise(p * 3.1) * 0.5 + 0.5;
-                    half3 basalt = half3(0.045, 0.038, 0.036) * (0.75 + 0.5 * plateRandom) * (0.8 + 0.4 * grain);
-                    half3 crustLit = basalt * (SampleSH(plateNormal) + light.color * saturate(dot(plateNormal, light.direction)) * shadow);
-                    half plateRim = 1 - smoothstep(0.05, 0.2, seam);
-                    crustLit += half3(0.5, 0.06, 0.01) * plateRim * 0.6 * (1 - open);
-                    half3 lavaColor = lerp(hot, crustLit, plate);
+                    // (World position wrapped every km, so the noise stays precise far out; carried by any flow. The
+                    // clock wraps too, every ~80 minutes, a jump nobody stands watching for.)
+                    float2 home = p - floor(p / 1024) * 1024 - flowDir * flowAmount * frac(t / 4096) * 4096 * 0.12;
+                    float lavaTime = frac(t * 0.1 / 500) * 500;
+                    int octaves = pixelsPerMetre > _PunchyWaterTiers.y ? 6 : pixelsPerMetre > _PunchyWaterTiers.z ? 5 : 4;
+                    float crust = LavaFlow(home * 0.45, lavaTime, octaves);
+                    crust += 1.5 * (1 - saturate(thickness / 0.2));
+                    // (A little darker and harder than the plain inverse, so most of a pool is crust and only the veins burn.)
+                    half3 lavaColor = pow(half3(0.2, 0.07, 0.01) / max(crust * 1.35, 0.05), 1.7);
+                    // (Held to the old melt's brightest, so the glow stays in the lava light's budget.)
+                    lavaColor = min(lavaColor, half3(2.3, 1.2, 0.5));
                     color = lerp(color, lavaColor, lava);
                     alpha = lerp(alpha, 1, lava);
                 }
