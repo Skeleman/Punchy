@@ -324,6 +324,8 @@ before it ships.
 
 Each is its own branch off main, pushed, built and screenshot-checked; timing for the shader ones is BENCH-QUEUE job 33.
 
+Play-mode suite on a local merge of snells-window, swells, lava-plates, river-flow, glitter-grid, pose-by-size, salt-ball and moon-sky: **14 passed, 0 failed** (fingerprints unchanged). Grass and blue-moon branches are shader/flag-only beyond that and weren't in the merge.
+
 | Branch | What | Checked |
 |---|---|---|
 | `water/snells-window` | Snell's window from under water; sky returns fog colour under water (skips clouds) | shots; job 32 B times it |
