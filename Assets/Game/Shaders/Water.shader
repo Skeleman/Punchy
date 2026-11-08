@@ -159,7 +159,9 @@ Shader "Punchy/Water"
                 o.sea = step(abs(pos.positionWS.y - _PunchySwell.y), 0.05);
                 [branch] if (o.swell > 0)
                 {
-                    pos.positionWS += PunchySwell(pos.positionWS.xz, _PunchyClock, o.swell, input.data.z, PunchySwellMaxWaves).offset;
+                    // (Far off, the short waves are dropped as they shrink on screen: the water's quality policy.)
+                    float swellWaves = PunchySwellWaveCount(PunchyWaterPixelsPerMetre(distance(pos.positionWS, GetCameraPositionWS())));
+                    pos.positionWS += PunchySwell(pos.positionWS.xz, _PunchyClock, o.swell, input.data.z, swellWaves).offset;
                     pos.positionCS = TransformWorldToHClip(pos.positionWS);
                 }
                 o.positionCS = pos.positionCS;
@@ -367,15 +369,17 @@ Shader "Punchy/Water"
 
             // The scene reflected in the water, found by marching the reflected ray through the camera depth texture
             // (rgb, a = how sure: 0 where the ray left the screen or found nothing, so the sky shows instead).
-            half4 ScreenReflection(float3 origin, float3 dir)
+            // (Refactor 3.4: steps, their growth and the refinement steps come from the water's quality policy, by tier;
+            // 28 growing 1.22x and 5 is the march as tuned, which High keeps near the camera.)
+            half4 ScreenReflection(float3 origin, float3 dir, int steps, float growth, int refine)
             {
                 // Clip and screen positions are linear in the world position, so the ray's are worked out once at its
                 // origin and along its direction, and each step is a multiply-add instead of a matrix transform (W-117).
                 float4 screen0 = ComputeScreenPos(TransformWorldToHClip(origin));
                 float4 screenDir = ComputeScreenPos(mul(GetWorldToHClipMatrix(), float4(dir, 0)));
-                float stepLength = 0.3;
+                float stepLength = _PunchyWaterSsrGrowth.w;
                 float travelled = 0, previous = 0;
-                [loop] for (int i = 0; i < 28; i++)
+                [loop] for (int i = 0; i < steps; i++)
                 {
                     travelled += stepLength;
                     float4 screen = screen0 + screenDir * travelled;
@@ -389,7 +393,7 @@ Shader "Punchy/Water"
                     {
                         // Narrow it down between the last point in front and this one behind.
                         float a = previous, b = travelled;
-                        [unroll] for (int k = 0; k < 5; k++)
+                        [loop] for (int k = 0; k < refine; k++)
                         {
                             float m = (a + b) * 0.5;
                             float4 ms = screen0 + screenDir * m;
@@ -398,11 +402,11 @@ Shader "Punchy/Water"
                         float4 hs = screen0 + screenDir * b;
                         uv = hs.xy / hs.w;
                         float2 edge = min(uv, 1 - uv);
-                        half fade = smoothstep(0, 0.06, min(edge.x, edge.y)) * (1 - smoothstep(20, 28, i));
+                        half fade = smoothstep(0, 0.06, min(edge.x, edge.y)) * (1 - smoothstep(steps * 0.71, steps, i));
                         return half4(SAMPLE_TEXTURE2D_X_LOD(_CameraOpaqueTexture, sampler_CameraOpaqueTexture, UnityStereoTransformScreenSpaceTex(uv), 0).rgb, fade);
                     }
                     previous = travelled;
-                    stepLength *= 1.22;
+                    stepLength *= growth;
                 }
                 return 0;
             }
@@ -428,7 +432,11 @@ Shader "Punchy/Water"
                 half whiteMiddle = _SoftRim * smoothstep(0.25, 1.0, depth);
                 // Very murky water is thick, like oil or sludge.
                 float viscous = smoothstep(0.55, 0.9, murk) * (1 - lava);
-                float distanceFade = saturate(1 - distance(input.positionWS, GetCameraPositionWS()) / 350);
+                // The water's quality policy (refactor 3.4, WaterQuality.cs): how big a metre of water looks here decides
+                // the reflection march's tier, refraction, how many swell waves are summed and the fine detail's fade
+                // (distanceFade: 350 m at the reference view, as tuned).
+                float pixelsPerMetre = PunchyWaterPixelsPerMetre(distance(input.positionWS, GetCameraPositionWS()));
+                float distanceFade = saturate(1 - _PunchyWaterDetailAt.y / pixelsPerMetre);
                 // W-111: how steep the mesh face is (a waterfall's drop), from the mesh, not the ripples. Everything laid
                 // out on the flat (xz) water (streaks, carried foam, flecks, fine detail, caustics, glitter, the sky
                 // mirror) smears or runs upward on a near-vertical face and made falls glow, so it fades out there and
@@ -528,7 +536,7 @@ Shader "Punchy/Water"
                 half swellFoam = 0;
                 [branch] if (input.swell > 0)
                 {
-                    PunchySwellResult sw = PunchySwell(input.positionWS.xz, t, input.swell, depth, PunchySwellMaxWaves);
+                    PunchySwellResult sw = PunchySwell(input.positionWS.xz, t, input.swell, depth, PunchySwellWaveCount(pixelsPerMetre));
                     n = normalize(float3(n.x / n.y - sw.slope.x, 1, n.z / n.y - sw.slope.y));
                     nReflect = normalize(float3(nReflect.x / nReflect.y - sw.slope.x, 1, nReflect.z / nReflect.y - sw.slope.y));
                     // Whitecaps (playtest 11-08 item 6: none were seen, gated to a strong wind and the very crests): from a
@@ -651,10 +659,17 @@ Shader "Punchy/Water"
                 // colour (looking steeply down, murky water, fall faces), what it would find barely shows, so it's
                 // skipped (W-117).
                 const half SsrMinWeight = 0.025;
-                if (frontFace && _PunchyWaterNoSsr < 0.5 && _ScreenReflection > 0 && lava < 0.99 && fresnel * _ScreenReflection > SsrMinWeight)
+                // (Refactor 3.4: the march's tier by how big the water looks; it fades out over the far tier's last third,
+                // so no ring shows where it stops, and Low reflections skip it everywhere.)
+                float4 tiers = _PunchyWaterTiers;
+                int ssrTier = pixelsPerMetre > tiers.y ? 0 : pixelsPerMetre > tiers.z ? 1 : pixelsPerMetre > tiers.w ? 2 : 3;
+                int ssrSteps = ssrTier == 0 ? (int)_PunchyWaterSsr.x : ssrTier == 1 ? (int)_PunchyWaterSsr.y : ssrTier == 2 ? (int)_PunchyWaterSsr.z : 0;
+                half ssrReach = saturate((pixelsPerMetre - tiers.w) / (0.5 * tiers.w));
+                if (frontFace && ssrSteps > 0 && _PunchyWaterNoSsr < 0.5 && _ScreenReflection > 0 && lava < 0.99 && fresnel * _ScreenReflection * ssrReach > SsrMinWeight)
                 {
-                    half4 scene = ScreenReflection(input.positionWS + float3(0, 0.02, 0), r);
-                    reflection = lerp(reflection, scene.rgb, scene.a * _ScreenReflection);
+                    float ssrGrowth = ssrTier == 0 ? _PunchyWaterSsrGrowth.x : ssrTier == 1 ? _PunchyWaterSsrGrowth.y : _PunchyWaterSsrGrowth.z;
+                    half4 scene = ScreenReflection(input.positionWS + float3(0, 0.02, 0), r, ssrSteps, ssrGrowth, (int)_PunchyWaterSsr.w);
+                    reflection = lerp(reflection, scene.rgb, scene.a * _ScreenReflection * ssrReach);
                 }
                 float3 h = normalize(light.direction + v);
                 // Thick water has a broad, soft sheen rather than a sharp glint.
@@ -846,9 +861,11 @@ Shader "Punchy/Water"
                 // river, slide with the current. Read from the screen behind, nudged by the ripple normal, more through
                 // thicker water and near the camera, none at the water's edge (where alpha goes to 0 anyway); the nudge is
                 // dropped where it would land on something in front of the water. The water is then composited here.
-                [branch] if (frontFace && _PunchyRefraction > 0 && alpha < 0.995 && distanceFade > 0)
+                // (Refactor 3.4: in the near and mid tiers only, fading out from mid to far.)
+                half refractionTier = saturate((pixelsPerMetre - _PunchyWaterTiers.w) / max(_PunchyWaterTiers.z - _PunchyWaterTiers.w, 1e-3));
+                [branch] if (frontFace && _PunchyRefraction > 0 && alpha < 0.995 && distanceFade * refractionTier > 0)
                 {
-                    float2 bend = n.xz * _PunchyRefraction * saturate(thickness * 0.8) * distanceFade * (1 + flowAmount);
+                    float2 bend = n.xz * _PunchyRefraction * saturate(thickness * 0.8) * distanceFade * refractionTier * (1 + flowAmount);
                     float2 bentUV = saturate(screenUV + bend);
                     float bentEye = LinearEyeDepth(SampleSceneDepth(bentUV), _ZBufferParams);
                     bentUV = bentEye > surfaceEye ? bentUV : screenUV;

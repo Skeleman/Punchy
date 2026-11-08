@@ -30,6 +30,36 @@ float4 _PunchySwellWaves[PunchySwellMaxWaves];
 TEXTURE2D(_PunchySwellShore);
 float4 _PunchySwellShoreAt;
 
+// The water's quality policy (refactor 3.4, WaterQuality.cs): tiers by how big a metre of water looks on screen.
+// x reference pixels a metre spans 1 m from the camera (0 until set: everything at full), yzw the near, mid and far tier
+// boundaries (pixels a metre spans).
+float4 _PunchyWaterTiers;
+// The reflection march: xyz its steps in the near, mid and far tiers (none past far, none at all on Low), w the
+// refinement steps once it hits.
+float4 _PunchyWaterSsr;
+// xyz how much each step grows in those tiers (so every tier reaches as far), w the first step (m).
+float4 _PunchyWaterSsrGrowth;
+// x the least a swell wave's length may look (reference pixels) to be summed, y the pixels a metre spans where the fine
+// detail has faded out.
+float4 _PunchyWaterDetailAt;
+
+// How many reference pixels a metre of water spans this far from the camera.
+float PunchyWaterPixelsPerMetre(float distance)
+{
+    return _PunchyWaterTiers.x > 0 ? _PunchyWaterTiers.x / max(distance, 0.01) : 1e6;
+}
+
+// How many swell waves to sum where a metre spans this many pixels: each wave while its length looks at least
+// _PunchyWaterDetailAt.x pixels, fading in over half as many again (the table runs longest first).
+float PunchySwellWaveCount(float pixelsPerMetre)
+{
+    float least = max(_PunchyWaterDetailAt.x, 1e-3);
+    float count = 0;
+    [loop] for (int i = 0; i < (int)_PunchySwellShape.w; i++)
+        count += saturate((_PunchySwellWaves[i].x * pixelsPerMetre - least) / (0.5 * least));
+    return count;
+}
+
 // How strongly a water vertex swells: only the sea (its surface at sea level), fading out as it shallows to the shore.
 float PunchySwellAmount(float surfaceY, float depth)
 {

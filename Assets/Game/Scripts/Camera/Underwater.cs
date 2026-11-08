@@ -57,8 +57,17 @@ namespace Punchy.CameraRig
                 rig.gameObject.AddComponent<Underwater>();
         }
 
+        Camera cam;
+
         void LateUpdate()
         {
+            // The water's quality policy for this frame (refactor 3.4), from the camera that draws it.
+            // (Unity's missing component is a fake null, so not ??.)
+            if (cam == null)
+                cam = GetComponentInChildren<Camera>();
+            if (cam == null)
+                cam = Camera.main;
+            Punchy.Settings.WaterQuality.Publish(cam);
             var surface = SurfaceAt(transform.position, out var kind);
             var y = transform.position.y;
             var was = under;
