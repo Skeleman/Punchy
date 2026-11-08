@@ -244,6 +244,53 @@ on bright salt. A screenshot from the tower would settle it.
 - **Shared workload budget:** start as a small registry of per-frame quotas (structures, flora cells, collider activations, NPC decisions) that terrain, flora, structures and fauna all read. Not an adaptive scheduler.
 - **Fire as simulation plus presentation:** FireState with tiers and elapsed-time catch-up, and propagation through the spatial grid. Only once fire becomes gameplay.
 
+## World feel: Zach's ideas, 2026-11-08 (after the refactor, or as prototypes to judge in playtest)
+
+These change how the world looks, so they wait for the freeze to lift unless marked as a prototype. Each is measured
+before it ships.
+
+### W1. Water that moves (prototype: branch `water/swells`)
+- The sea really rises and falls: four long Gerstner swells from fixed directions (stable when the wind veers, the same
+  for every player), as tall as the wind makes them (about 0.2 m calm, 1.1 m in a storm), fading out in the shallows.
+  Foam where they break 0.4-4 m off the beach, whitecaps in strong wind. Swimmers ride the swell; the camera's
+  underwater check follows it. `-noswells` gives the flat sea to compare.
+- Prototype limits: creatures, buoys, driftwood and boats still float at the flat level; no blending yet where water
+  meshes of different detail meet (cracks may show); lakes and rivers unchanged.
+- Next if Zach likes it: per-biome water feel (height, wavelength, speed, damping: marsh and toxic water slow and
+  heavy, mountain lakes crisp), chop from the weather, and standing waves in rapids. Waves don't fix the river stripes
+  or the falls edges (mesh and flow-map problems, 3.4).
+
+### W2. Fuller grass fields
+- Today: 3D blades (5 triangles each), 28 per m^2 at full density within 20 m, thinned out to 60 m, gusts already
+  rolling across fields from a scrolling noise. Only 5 surfaces have grass at all; most biomes are bare.
+- The three Godot examples are the same family (opaque 3D blades or alpha-tested cards). Per blade, ours is mid-range:
+  cheaper than the "customable" one (4 vertex texture reads, lit), dearer than gdquest's (unshaded, no shadows).
+  Alpha-tested cards give the most grass per triangle but cost the most per pixel (overdraw, no early depth reject).
+- What makes fields feel full, cheapest first: grass on more surfaces; a "meadow" surface with tall grass; clumps of
+  3-5 blades per instance instead of one; the terrain under and beyond the grass painted grass-coloured, with the same
+  gust noise darkening it in rolling waves out to the horizon (so the field doesn't end at 60 m).
+- Cost: job 32 addendum measures `-grassdensity 1/2/4`. Thin blades cost GPUs more than their triangle count suggests
+  (small triangles shade in 2x2 blocks), so this needs numbers before choosing.
+
+### W3. Clouds and clear weather
+- The sky ray-marches volumetric clouds per pixel, every frame (up to 160 steps). Fewer clouds save some (clear patches
+  still march; scattered cloud is the dearest), but the real saving is drawing the clouds once into a sky texture round
+  the player, refreshed a slice at a time, or at reduced resolution with reuse. Job 32 sizes the sky's share.
+- The weather leans heavily cloudy: rebalance so truly clear days, thin high cloud and full overcast all happen.
+
+### W4. Flora that clusters by habitat, with clearings
+- Today each species already has optional noise patches (PatchSize / PatchCoverage), but about 70% leave them off
+  (coverage 1), and the patches ignore the land. So sparse biomes read as an even, uniform scatter.
+- Add to placement (seed-derived, in the same Burst jobs), each a per-species weight:
+  - **Aspect:** slopes facing the morning or midday sun (saguaros on the sunny hillside), or facing away (ferns, moss).
+  - **Shelter:** valleys and hollows out of the wind (big trees), from the height against its local average.
+  - **Exposure:** ridges and crests (wind-bent pines, bare rock).
+  - **Moisture:** distance to water (exists as NearWater; widen its use).
+  - **Clearings:** a biome-wide low-frequency mask that thins everything, with shrubs and flowers along the edges.
+  - **Groves:** seeded attractor points that pull one species into dense stands, with stragglers around them.
+- Changing placement reshuffles flora, so the fingerprint pins move once (re-pin with the reason). Cost: a few more
+  height samples per placement cell; small.
+
 ## Keep as is (ChatGPT agrees)
 GPU-driven flora, TerrainSource as the single ground contract, deterministic generation, terrain streaming budgets,
 BlobAssets for static world data, procedural creature animation, the river flow-map water, the fire draw-batching
