@@ -222,3 +222,9 @@ there).
   and shadow-caster draw counts if a capture gives them.
 - **Shots:** one per range at the big settlement, looking along a street at a low sun (`-time 17`), so the hand-off
   line can be compared by eye.
+- **Job 31 addendum (2026-11-08): RenderDoc is installed on the profiler laptop.** At each spot (big settlement and
+  dense forest, `-shadownear 25`, static on), take 3 frame captures with RenderDoc (Launch Application on the Profile
+  build, F12). For each, give GPU time per pass from the Event Browser's timings: depth prepass, main-light shadows
+  (and how many draws), opaque terrain, opaque flora, creatures, skybox, opaque/depth copies, transparents (water,
+  particles), post. Also one capture at job 29's lake spot under water. This is the first full split of the GPU
+  frame; the D3D11 recorders can't give it.
