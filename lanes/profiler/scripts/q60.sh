@@ -11,12 +11,13 @@
 #       Withdrawn (Zach: clumps, not density), so it runs only as "q60.sh grass".
 #   freeze: plain Summit sessions with a Profiler capture from the jump, until one freezes; SysMs.Worst names the code.
 # "q60.sh a|ard|b|freeze|grass"; no argument runs a, ard and b.
+# Third try (m3): -benchnoshader Sky left the sky drawn (it's the skybox); -benchnosky removes it.
 # Rerun 2026-11-08: the first try froze for 6-13+ min on the first frame at the Summit (7 of 13 sessions; 1-frame
 # stops or timeouts), so main is the m2 build (its runner caps settling at 0.25 s a frame and logs frames over 5 s)
 # and Summit sessions get 1800 s.
 B=$HOME/Projects/Punchy-wt/Tools/bench
 . "$B/lib.sh"
-KM=4601262; OM=Profile-${KM}m2; KS=31b890b; OS=Profile-${KS}m; Q=q60
+KM=4601262; OM=Profile-${KM}m3; KS=31b890b; OS=Profile-${KS}m; Q=q60
 S=$HOME/Projects/Punchy-coordination/lanes/profiler/scripts
 RDC="/c/Program Files/RenderDoc/renderdoccmd.exe"; QRD="/c/Program Files/RenderDoc/qrenderdoc.exe"
 mkdir "$R/.lock" 2>/dev/null || { echo "lock held: $(cat $R/.lock/job)"; exit 2; }
@@ -37,7 +38,7 @@ go() { # set variant round build commit extra...
   BENCHW=1920 BENCHH=1080 runcsv $out $Q-$set-$v $c s100 $r $COMMON "$@"
   check "$R/q-$Q-$set-$v-cs100-$r.log"
 }
-wx() { case $1 in clear) echo -benchweather Clear ;; overcast) echo -benchweather Overcast ;; storm) echo -benchweather Storm ;; nosky) echo -benchnoshader Sky ;; esac; }
+wx() { case $1 in clear) echo -benchweather Clear ;; overcast) echo -benchweather Overcast ;; storm) echo -benchweather Storm ;; nosky) echo -benchnosky ;; esac; }
 if part a; then
   rm -f "$R"/$Q-sky-*.csv "$L"/q-$Q-sky-*.log
   for v in plain clear overcast storm nosky nosky storm overcast clear plain; do
