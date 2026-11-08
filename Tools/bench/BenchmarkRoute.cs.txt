@@ -72,6 +72,7 @@ namespace Punchy.Debugging
             var go = new GameObject("BenchmarkRoute");
             DontDestroyOnLoad(go);
             go.AddComponent<BenchmarkRoute>();
+            go.AddComponent<FlameCounter>();
         }
 
         void OnDestroy()
@@ -213,7 +214,7 @@ namespace Punchy.Debugging
             if (placeArg >= 0 && placeArg + 1 < args.Length)
             {
                 var placeName = args[placeArg + 1];
-                yield return Stop("place", () => JumpTo(controls, placeName) && SetWeather("Partly cloudy", 18));
+                yield return Stop("place", () => JumpTo(controls, placeName) && SetWeather("Partly cloudy", 18) && View());
             }
 
             Debug.Log("BenchRoute: done\n" + summary);
@@ -294,6 +295,7 @@ namespace Punchy.Debugging
                     if (waitCaves)
                         Debug.Log($"BenchRoute: {name}: settled {t:F1} s (caves {(settledProp == null ? "n/a" : (bool)settledProp.GetValue(caves) ? "built" : "still building at the cap")})");
                     gcAtStart = System.GC.CollectionCount(0);   // garbage collections during the measured part
+                    FlameCounter.Begin();
                     StartGpuPasses();
                     if (profiling)
                     {
@@ -319,6 +321,9 @@ namespace Punchy.Debugging
                 UnityEngine.Profiling.Profiler.logFile = "";
             }
             Report(name);
+            if (FlameCounter.Frames > 0 && FlameCounter.Max > 0)
+                Debug.Log($"BenchRoute flames: {name}: {FlameCounter.Mean:F0} a frame (max {FlameCounter.Max}), dropped " +
+                          (FlameCounter.DroppedNow < 0 ? "n/a (no FireSystem.Dropped in this build)" : $"{FlameCounter.DroppedNow - FlameCounter.DroppedAtBegin}"));
             // -benchflora: the flora instances the GPU cull kept at the stop's end, plants vs rocks and kit buildings.
             if (System.Array.IndexOf(args, "-benchflora") >= 0)
                 yield return FloraInView(name);
@@ -829,6 +834,20 @@ namespace Punchy.Debugging
         /// <summary>
         /// Jumps to the first of DebugControls' places whose name contains the text (as -place does), or is exactly it.
         /// </summary>
+        /// <summary>-benchview yaw,pitch: the camera turned that way on arriving at the place stop (as -view does).</summary>
+        static bool View()
+        {
+            var args = System.Environment.GetCommandLineArgs();
+            var at = System.Array.IndexOf(args, "-benchview");
+            if (at < 0 || at + 1 >= args.Length)
+                return true;
+            var v = System.Array.ConvertAll(args[at + 1].Split(','), s => float.Parse(s, System.Globalization.CultureInfo.InvariantCulture));
+            var cam = FindAnyObjectByType<ThirdPersonCamera>();
+            if (cam != null && v.Length >= 2)
+                cam.SetView(v[0], v[1]);
+            return true;
+        }
+
         static bool JumpTo(DebugControls controls, string place, bool exact = false)
         {
             var type = typeof(DebugControls);
@@ -1591,6 +1610,42 @@ namespace Punchy.Debugging
                 Debug.Log($"BenchProbe: far scan landed frame {farLandedFrame}, scan {(float)farScanMsField.GetValue(glow):F1} ms, upload {sizes} = {bytes / 1024} KB");
             }
             farWasRunning = running;
+        }
+    }
+
+    /// <summary>
+    /// The bench route's flame count: how many flames FireSystem is handed each frame, read before LandmarkEffectSystem's
+    /// Update draws them (ECS systems have added theirs by then; it runs first of the MonoBehaviours), and
+    /// FireSystem.Dropped where the build has it (refactor 3.2). By reflection, as the flame list is private.
+    /// </summary>
+    [DefaultExecutionOrder(-30000)]
+    public class FlameCounter : MonoBehaviour
+    {
+        static readonly System.Collections.IList Flames = typeof(Punchy.Ambience.FireSystem)
+            .GetField("flames", BindingFlags.NonPublic | BindingFlags.Static)?.GetValue(null) as System.Collections.IList;
+        static readonly FieldInfo DroppedField = typeof(Punchy.Ambience.FireSystem).GetField("Dropped", BindingFlags.Public | BindingFlags.Static);
+        public static long Frames, Sum;
+        public static int Max, DroppedAtBegin;
+        public static double Mean => Frames > 0 ? (double)Sum / Frames : 0;
+        /// <summary>FireSystem.Dropped since the start, or -1 when the build doesn't count them.</summary>
+        public static int DroppedNow => DroppedField != null ? (int)DroppedField.GetValue(null) : -1;
+
+        /// <summary>Starts a stop's count (its measured part).</summary>
+        public static void Begin()
+        {
+            Frames = 0; Sum = 0; Max = 0;
+            DroppedAtBegin = DroppedNow;
+        }
+
+        void Update()
+        {
+            if (Flames == null)
+                return;
+            var n = Flames.Count;
+            Frames++;
+            Sum += n;
+            if (n > Max)
+                Max = n;
         }
     }
 }
