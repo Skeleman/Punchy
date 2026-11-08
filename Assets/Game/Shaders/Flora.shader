@@ -40,6 +40,8 @@ Shader "Punchy/Flora"
 
             /// How much of a detail octave of this period (m) to keep, given how many metres one pixel covers: all of it
             /// while a period spans eight pixels or more, none once it's down to three (where it would shimmer).
+            float _PunchyFloraDetailOff;
+
             half PunchyOctave(float period, float footprint)
             {
                 return smoothstep(3, 8, period / max(footprint, 1e-4));
@@ -284,21 +286,24 @@ Shader "Punchy/Flora"
                 // Built things (those with a dirt band) and banded rock: weathering that stays at every range
                 // (PunchyWeathering). Timber takes only a little of it: its stone-like courses read as plaster (W-99).
                 bool strata = part == 0 && frac(input.extra.x) > 0.04 && frac(input.extra.x) < 0.15;
-                if (part == 0 && built || strata)
+                // (Refactor 3.5, measuring a bake: "-nofloradetail" sets _PunchyFloraDetailOff and skips the procedural
+                // surface detail below, weathering, wood, cloth and strata, so a profiler A/B shows the most a bake could save.)
+                bool detail = _PunchyFloraDetailOff < 0.5;
+                if (detail && (part == 0 && built || strata))
                     albedo *= lerp(1, PunchyWeathering(input.positionWS, n, footprint, r), wood ? 0.4 : 1);
                 // Timber: grain along each piece (Z-30: wood read as leather or plaster), or its planks, shingles or thatch.
-                if (wood)
+                if (detail && wood)
                     albedo *= look == 0 ? PunchyWoodGrain(input.grainPos, input.grainAxis, footprint)
                                         : look == 5 ? PunchyLogEnd(input.grainPos, footprint)
                                         : PunchySurface(look, input.grainPos, facetOS, footprint, input.color.rgb);
                 // Cloth: a linen weave (W-99).
                 // Hide (Cloth + 0.45, W-113): leather instead.
-                if (part == 10)
+                if (detail && part == 10)
                     albedo *= input.extra.x > 10.42 ? PunchyHide(input.grainPos, facetOS, footprint)
                                                     : PunchyLinen(input.grainPos, facetOS, footprint);
                 // Banded rock (FloraSpecies.RockStrata): exactly the terrain's strata (TerrainSurface.shader), same
                 // world heights and colours, so a rock prop's layers line up with the cliff beside it.
-                if (strata)
+                if (detail && strata)
                 {
                     float2 sp = input.positionWS.xz;
                     float sy = input.positionWS.y + (PunchyValueNoise(sp * 0.02) - 0.5) * 6 + (PunchyValueNoise(sp * 0.11) - 0.5) * 1.2;
