@@ -53,6 +53,31 @@ Shader "Punchy/Flame"
         half   fogFactor  : TEXCOORD3;
     };
 
+    // Refactor 3.2: FireSystem's flames (FlameInstance there), read by instance id; _FlameBase is where this draw's run
+    // starts (far flames sit at the back) and _FlameFar picks the far layout (the flame and its glow card).
+    struct FlameInstance
+    {
+        float4 positionSize;   // xyz base (world), w height
+        float4 leanSeed;       // xyz lean at the tip, w seed 0..1
+        float4 palette;        // x colour
+    };
+    StructuredBuffer<FlameInstance> _FlameInstances;
+    uint _FlameBase;
+    float _FlameFar;
+
+    // The same inputs the old per-frame mesh carried, from the vertex id (four corners a quad) and the flame.
+    Attributes FlameAttributes(uint vertexID, uint instanceID)
+    {
+        FlameInstance f = _FlameInstances[_FlameBase + instanceID];
+        uint q = vertexID / 4, k = vertexID % 4;
+        uint quad = _FlameFar > 0.5 ? (q == 1 ? QUAD_FAR_GLOW : QUAD_FLAME) : q;
+        Attributes a;
+        a.positionOS = f.positionSize.xyz;
+        a.uv0 = float4(k == 0 || k == 3 ? -1.0 : 1.0, k < 2 ? 0.0 : 1.0, f.leanSeed.w, f.palette.x + quad * 10.0);
+        a.uv1 = float4(f.leanSeed.xyz, f.positionSize.w);
+        return a;
+    }
+
     void FireColours(int index, out half3 outer, out half3 mid, out half3 core)
     {
         outer = (half3)_PunchyFireColours[index * 3].rgb;
@@ -165,7 +190,7 @@ Shader "Punchy/Flame"
             #pragma fragment Frag
             #pragma multi_compile_fog
 
-            Varyings Vert(Attributes input) { return FireVert(input, false); }
+            Varyings Vert(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID) { return FireVert(FlameAttributes(vertexID, instanceID), false); }
 
             half4 Frag(Varyings input) : SV_Target
             {
@@ -225,7 +250,7 @@ Shader "Punchy/Flame"
             #pragma fragment Frag
             #pragma multi_compile_fog
 
-            Varyings Vert(Attributes input) { return FireVert(input, true); }
+            Varyings Vert(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID) { return FireVert(FlameAttributes(vertexID, instanceID), true); }
 
             half4 Frag(Varyings input) : SV_Target
             {
