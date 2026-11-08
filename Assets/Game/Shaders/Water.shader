@@ -488,6 +488,41 @@ Shader "Punchy/Water"
                 float3 v = GetWorldSpaceNormalizeViewDir(input.positionWS);
                 Light light = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
                 half shadow = light.shadowAttenuation * (1 - PunchyCloudShadow(input.positionWS));
+
+                // Looking up from under the water: Snell's window (Zach, 11-08). Light from above reaches the eye only
+                // through a cone of about 48.6 degrees round the surface normal (asin(1 / 1.333)), so the whole sky shows
+                // squeezed into a disc overhead, bent and broken by the ripples. Outside the cone the surface is a mirror
+                // of the water below (total internal reflection) and reads as the water's own colour. The sky is read along
+                // the refracted ray, which does the squeezing; the scene behind isn't read from the screen, because it is
+                // already fogged by its full distance under water. This replaces the above-water shading on the underside,
+                // so it skips the lighting, sky reflection, foam and glints there (job 29: the underside cost ~9.7 ms).
+                [branch] if (!frontFace && GetCameraPositionWS().y < input.positionWS.y)
+                {
+                    // Ripples bend the window hard near the camera and less far off, where the same slope reads smaller.
+                    const float SnellBend = 2.2;
+                    float3 nWindow = normalize(float3(n.x * SnellBend, n.y, n.z * SnellBend));
+                    float3 up = -nWindow;                 // the face's normal turned up, into the air
+                    float3 look = -v;                     // from the eye towards the surface
+                    float cosI = saturate(dot(look, up));
+                    float sinI = sqrt(1 - cosI * cosI);
+                    // Per channel, with slightly different indices, so the rim splits into a faint rainbow; transmission
+                    // fades over the last few degrees before the critical angle, as the Fresnel term from below does.
+                    half3 window = 1 - smoothstep(0.86, 1.0, sinI * half3(1.326, 1.333, 1.342));
+                    // (refract wants the normal on the incoming side, facing the eye: the face's own, pointing down.)
+                    float3 r = refract(look, nWindow, 1.333);
+                    if (dot(r, r) < 1e-4)
+                        r = up;
+                    half3 sky = PunchySkyColor(r, true, true) * lerp(1, 0.04, max(_PunchyUnderground, _UnderRock));
+                    // The sun through the window: a bright, broken spot that dances with the ripples.
+                    sky += light.color * pow(saturate(dot(r, light.direction)), 900) * 6 * shadow;
+                    // Outside the window: the water below, mirrored. The underwater fog colour is what that looks like.
+                    half3 below = _PunchyUnderwater.w > 0 ? (half3)_PunchyUnderwater.rgb : _DeepColor.rgb;
+                    below *= 0.75 + 0.25 * saturate(cosI * 2);
+                    // Just inside the rim the mirrored water and the sky mix, brightest at the edge.
+                    half3 under = lerp(below, sky, window) + sky * window * (1 - window) * 0.6;
+                    under = lerp(PunchyAtmosphere(under, input.positionWS), under, _PunchyUnderground);
+                    return half4(under, rim);
+                }
                 half3 ambient = SampleSH(n);
                 // Underground the sun and sky don't reach (cave rock deep down casts no sun shadow, so it's done here).
                 shadow *= 1 - _PunchyUnderground;
