@@ -334,6 +334,7 @@ Each is its own branch off main, pushed, built and screenshot-checked; timing fo
 | `night/moon-sky` | night sky glow to 40% and cloud moonlight to 15% at new moon; ground ambient unchanged | shots: sky 32% darker at new moon (was 10%) |
 | `refactor/pose-by-size` | creature pose bands scale with size (roc, sky serpent smooth further out; 3.7 step 1) | compiles and runs; job 33 times it |
 | `fix/salt-ball-far-shadow` | far shadow follows the rolling salt ball | compiles; nothing left at the spawn point in shots |
+| `grass/clumps` | each grass instance a tuft of 5 blades fanned from one root (half as many roots, ~2.5x blades); `-grassclumps 0` for the old grass | meadow shots: reads as tufts, fuller; tuft size, count and height are one number each to tune |
 | `water/fine-grid` | experiment: LOD 0 water on a 0.5 m grid | **not worth merging**: under 1% of pixels change |
 
 **Findings:**

@@ -265,3 +265,6 @@ over +0.5 ms GPU.
   - `water/river-flow`: the job 30 river stop and job 29's lake shore view, plain against `-waterrefraction 0` on the
     same build (the refraction adds a screen and a depth read per water pixel), and against main.
   - `water/glitter-grid`: job 29's lake shore view against main (expected no change: one read's UVs are turned).
+- **Job 33 addendum 2:** `grass/clumps` (each grass instance a tuft of 5 blades, half as many roots, so ~2.5x the
+  blades): `-place meadow` at noon looking across the field, against `-grassclumps 0` on the same build. GPU ms and,
+  if a RenderDoc capture is handy, the grass draws' time.
