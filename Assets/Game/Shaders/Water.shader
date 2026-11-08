@@ -117,6 +117,8 @@ Shader "Punchy/Water"
             float _PunchyCaveDetailReady;
             // 1 to draw the fine detail at all, 0 to skip it (CaveSystem, from -waterdetail).
             float _PunchyWaterDetail;
+            // 1 to skip the screen-space reflection march (CaveSystem, from -waterssr 0, for profiling only).
+            float _PunchyWaterNoSsr;
             SAMPLER(sampler_PunchyCaveDetail);
 
             // Must match WaterVertex in BuildChunkMeshJob.cs.
@@ -395,11 +397,21 @@ Shader "Punchy/Water"
                 // Rivers run faster in the deep middle than at the banks, and much faster down steep rapids.
                 float riverSpeed = _FlowSpeed * (1 + 2.5 * rapids) * lerp(0.45, 1.25, saturate(depth / 1.6));
                 // (The flow-mapped ripples grow choppier with speed, so faster water reads rougher, not just whiter.)
-                float2 flowingSlope = FlowingSlope(p, flowDir, riverSpeed, t) * (1 + 1.3 * rapids);
-                float streaks = FlowStreaks(p, flowDir, riverSpeed, t);
+                // (Refactor 3.4, job 29: water was a third of the lake's GPU frame. Each layer below is skipped where its
+                // weight is zero, so the picture is unchanged: flow on still water, rain in dry weather, thick-water swells
+                // and murky rings on clear water, the toxic swirl on plain water.)
+                float2 flowingSlope = 0;
+                float streaks = 0.5;
+                [branch] if (flowAmount > 0 || rapids > 0)
+                {
+                    flowingSlope = FlowingSlope(p, flowDir, riverSpeed, t) * (1 + 1.3 * rapids);
+                    streaks = FlowStreaks(p, flowDir, riverSpeed, t);
+                }
                 float2 slope = lerp(WaveSlope(p, t), flowingSlope, flowAmount);
                 // Rain rings only where it's actually raining (from the world weather map).
-                slope += RainRipples(p, t) * PunchyWetnessAt(p).g * distanceFade * 0.8;
+                float rain = PunchyWetnessAt(p).g * distanceFade;
+                [branch] if (rain > 0)
+                    slope += RainRipples(p, t) * rain * 0.8;
                 // (Wakes keep their own strength: the ripples' follows the wind, and a swimmer stirs calm water too.)
                 // (Only out to 45 m, a little past the 40 m the feeder sends ripples from, and only in the mask's cells a
                 // ripple reaches into: the rest of the water skips the loop.)
@@ -409,9 +421,16 @@ Shader "Punchy/Water"
                     wakeSlope = SwimmerWakes(p, t, wakeFoam) * 0.6 * distanceFade;
                 // Murky water barely ripples; thick water instead heaves in slow, broad swells and bubbles.
                 slope *= 1 - 0.75 * murk;
-                float3 bubbles = Bubbles(p, t) * distanceFade;
-                slope += lerp(RainRipples(p * 0.45 + 13.7, t * 0.25) * murk * distanceFade * 0.6,
-                              WaveSlope(p * 0.3, t * 0.12) * 0.5 + bubbles.xy, viscous);
+                float3 bubbles = 0;
+                float2 murkRings = 0, swells = 0;
+                [branch] if (murk > 0)
+                    murkRings = RainRipples(p * 0.45 + 13.7, t * 0.25) * murk * distanceFade * 0.6;
+                [branch] if (viscous > 0)
+                {
+                    bubbles = Bubbles(p, t) * distanceFade;
+                    swells = WaveSlope(p * 0.3, t * 0.12) * 0.5 + bubbles.xy;
+                }
+                slope += lerp(murkRings, swells, viscous);
                 float strength = _WaveStrength * (0.5 + _PunchyWind) * (0.25 + 0.75 * distanceFade);
                 // Streaks along a river are bands of rougher and smoother water.
                 strength *= lerp(1, 0.55 + 0.9 * streaks, flowAmount);
@@ -477,8 +496,11 @@ Shader "Punchy/Water"
                 // Glowing (toxic) water swirls between its colour and a shifted hue in slow-moving patches, a few metres
                 // across so a small pool shows both, and never wholly the shifted hue (a toxic pool read as one flat
                 // purple, G-27).
-                half swirl = smoothstep(0.35, 0.65, PunchyValueNoise(p * 0.3 + float2(t * 0.05, -t * 0.065)) * 0.7 + PunchyValueNoise(p * 1.05) * 0.3);
-                input.look.rgb = lerp(input.look.rgb, input.look.rbg, swirl * 0.6 * saturate(glow * 3) * (1 - lava));
+                [branch] if (glow > 0 && lava < 1)
+                {
+                    half swirl = smoothstep(0.35, 0.65, PunchyValueNoise(p * 0.3 + float2(t * 0.05, -t * 0.065)) * 0.7 + PunchyValueNoise(p * 1.05) * 0.3);
+                    input.look.rgb = lerp(input.look.rgb, input.look.rbg, swirl * 0.6 * saturate(glow * 3) * (1 - lava));
+                }
                 half3 shallowColor = lerp(_ShallowColor.rgb, input.look.rgb, saturate(murk * 1.5));
                 half3 deepColor = lerp(_DeepColor.rgb, input.look.rgb * 0.2, saturate(murk * 1.5));
                 half3 waterColor = lerp(deepColor, shallowColor, exp(-thickness * _Absorption * (1 + murk * 8)));
@@ -525,7 +547,7 @@ Shader "Punchy/Water"
                 // colour (looking steeply down, murky water, fall faces), what it would find barely shows, so it's
                 // skipped (W-117).
                 const half SsrMinWeight = 0.025;
-                if (frontFace && _ScreenReflection > 0 && lava < 0.99 && fresnel * _ScreenReflection > SsrMinWeight)
+                if (frontFace && _PunchyWaterNoSsr < 0.5 && _ScreenReflection > 0 && lava < 0.99 && fresnel * _ScreenReflection > SsrMinWeight)
                 {
                     half4 scene = ScreenReflection(input.positionWS + float3(0, 0.02, 0), r);
                     reflection = lerp(reflection, scene.rgb, scene.a * _ScreenReflection);
