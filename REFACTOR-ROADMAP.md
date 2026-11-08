@@ -332,6 +332,7 @@ Each is its own branch off main, pushed, built and screenshot-checked; timing fo
 | `water/river-flow` | flow ripples stretched across the current and stronger as it quickens; the bed seen bent by the ripples (screen refraction, `-waterrefraction 0`) | built; needs a moving look in playtest |
 | `water/glitter-grid` | second fine-detail read turned 34 degrees: the glints no longer line up in rows and columns (likely the playtest's crossing stripes) | shots: grid gone |
 | `night/moon-sky` | night sky glow to 40% and cloud moonlight to 15% at new moon; ground ambient unchanged | shots: sky 32% darker at new moon (was 10%) |
+| `night/blue-moon` | blue-moon nights: pale blue streaks leave the blue moon's rim and run down towards the island (several a minute when it is up and full; shared clock), and the night's ambient turns strongly blue | burst shots: streaks show (test with `-bluemoondays 0 -time 0`) |
 | `refactor/pose-by-size` | creature pose bands scale with size (roc, sky serpent smooth further out; 3.7 step 1) | compiles and runs; job 33 times it |
 | `fix/salt-ball-far-shadow` | far shadow follows the rolling salt ball | compiles; nothing left at the spawn point in shots |
 | `grass/clumps` | each grass instance a tuft of 5 blades fanned from one root (half as many roots, ~2.5x blades); `-grassclumps 0` for the old grass | meadow shots: reads as tufts, fuller; tuft size, count and height are one number each to tune |

@@ -268,3 +268,6 @@ over +0.5 ms GPU.
 - **Job 33 addendum 2:** `grass/clumps` (each grass instance a tuft of 5 blades, half as many roots, so ~2.5x the
   blades): `-place meadow` at noon looking across the field, against `-grassclumps 0` on the same build. GPU ms and,
   if a RenderDoc capture is handy, the grass draws' time.
+- **Job 33 addendum 3:** `night/blue-moon` (blue streaks in the sky shader on blue-moon nights, a loop of 3 for sky
+  pixels near the blue moon): `-bluemoondays 0 -time 0 -weather Clear`, camera on the blue moon, against main. Expected
+  near zero; flag it if not.
