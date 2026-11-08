@@ -177,3 +177,21 @@ uncapped, ABBA.
   - In the big settlement, walk 100 m through it, using a route or repeated `-goto` steps.
   - Report the main thread and GPU ms of the frames that redraw the cache (FloraSystem.ShadowCache, every 10 m of movement, spread over CacheFrames), against frames that don't.
   - This sizes "scroll the cache instead of redrawing it".
+
+## Job 29 (2026-11-07): where the lake's GPU time goes (REFACTOR-ROADMAP.md 3.4 water)
+Job 25 measured the lake at 25 ms GPU from the shore and 38 ms with the camera under the water (1080p), the worst
+scenes on the island. But earlier work at fishing village 1 found water itself cost about 0-2 ms there. Before any
+water rewrite, split the lake's cost. Branch `refactor/water-costs` (head a21cb739; main plus one switch), a Profile
+build, 1920x1080 set explicitly, `-gfx High`, `-weatherseed` fixed, uncapped, ABBA. Spots: the job 25 lake stop
+(-1624,-488, noon) from the shore and under the water (`-benchpitch -35`).
+- **Runs at each spot:**
+  - Plain.
+  - `-benchnoshader Water` (water off entirely; your bench switch).
+  - `-waterssr 0` (new: skips the screen-space reflection march only).
+  - `-waterdetail 0` (skips the two fine-ripple texture reads, caustics and glitter).
+  - `-waterssr 0 -waterdetail 0` together.
+- **Report** GPU ms, frame ms and render-thread ms for each, and the difference from plain.
+- **If water off saves little:** say what fills the frame instead. The spot stands inside a sea-folk pillar (job 25
+  note); a few metres away is fine if the pillar is the cost. A GPU capture of the shore view's biggest passes
+  would help (opaque, transparent, shadows, post).
+- **Under water:** also try `-benchnoshader` for the underwater fog/post if your bench has a switch for it.
