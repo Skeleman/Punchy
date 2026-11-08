@@ -119,6 +119,8 @@ namespace Punchy.Flora
             /// <summary>This layer's copy of the flora material, holding its buffers. Every draw in the layer shares it,
             /// so consecutive draws don't re-apply the shader (a property block per draw made each one a state change).</summary>
             public Material Material;
+            /// <summary>Refactor 3.5: the same, with FLORA_STATIC on, for models that never move (FloraModel.Static).</summary>
+            public Material StaticMaterial;
 
             // Tiles being placed by jobs in the background (one batch at a time).
             public JobHandle Placing;
@@ -143,7 +145,9 @@ namespace Punchy.Flora
                 Instances = Visible = Args = Counts = Regions = Bounds = null;
                 if (Material != null)
                     UnityEngine.Object.Destroy(Material);
-                Material = null;
+                if (StaticMaterial != null)
+                    UnityEngine.Object.Destroy(StaticMaterial);
+                Material = StaticMaterial = null;
             }
         }
 
@@ -318,6 +322,7 @@ namespace Punchy.Flora
         void LateUpdate()
         {
             var cam = Camera.main;
+            Shader.SetGlobalFloat(DetailOffId, NoDetail ? 1f : 0f);
             if (cam == null || Material == null || Culling == null || !TryGetWorld(out var source, out var palette))
                 return;
 
@@ -426,6 +431,12 @@ namespace Punchy.Flora
 
         /// <summary>When off, Build grows every variant on the main thread (for before/after timing).</summary>
         public static bool PregrowOn = true;
+        /// <summary>Refactor 3.5 A/B ("-nostaticflora"): every model draws animated, as before the static variant.</summary>
+        public static readonly bool NoStatic = System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-nostaticflora") >= 0;
+        /// <summary>Refactor 3.5 measurement ("-nofloradetail"): the flora shader skips its procedural surface detail (weathering, wood,
+        /// cloth, strata), to bound what baking it could save. Set as a global once (Flora.shader _PunchyFloraDetailOff).</summary>
+        public static readonly bool NoDetail = System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-nofloradetail") >= 0;
+        static readonly int DetailOffId = Shader.PropertyToID("_PunchyFloraDetailOff");
 
         /// <summary>
         /// Starts growing every flora and cave plant variant the palette uses on worker threads, so the bake can run
@@ -468,6 +479,14 @@ namespace Punchy.Flora
                 foreach (var lod in m.Lods)
                     vertices += lod != null ? lod.vertexCount : 0;
             Debug.Log($"[flora] build {clock.Elapsed.TotalMilliseconds:F0} ms (placement {placed:F0}, grow {grown - placed:F0}, support grids {clock.Elapsed.TotalMilliseconds - grown:F0}); {models.Count} variants, {vertices} vertices");
+            // Refactor 3.5a: how much is static (no vertex motion but door leaves) and how much moves, by variants and LOD 0 vertices.
+            int staticModels = 0, staticVerts = 0, movingVerts = 0;
+            foreach (var m in models)
+            {
+                var v0 = m.Lods[0] != null ? m.Lods[0].vertexCount : 0;
+                if (m.Static) { staticModels++; staticVerts += v0; } else movingVerts += v0;
+            }
+            Debug.Log($"[flora] static (refactor 3.5): {staticModels} of {models.Count} variants never move, {staticVerts} LOD0 vertices static vs {movingVerts} moving{(NoStatic ? "; -nostaticflora: all drawn animated" : "")}");
             ref var rules = ref placement.Value.Rules;
 
             var settings = new[] { Ground, Shrubs, Trees };
@@ -499,6 +518,11 @@ namespace Punchy.Flora
             var bounds = new float3[math.max(1, layer.ModelCount)];
             if (layer.Material == null)
                 layer.Material = new Material(Material) { name = $"Flora layer {layer.Index}" };
+            if (layer.StaticMaterial == null)
+            {
+                layer.StaticMaterial = new Material(Material) { name = $"Flora layer {layer.Index} (static)" };
+                layer.StaticMaterial.EnableKeyword("FLORA_STATIC");
+            }
             for (int m = 0; m < layer.ModelCount; m++)
             {
                 var model = models[layer.ModelBase + m];
@@ -738,6 +762,8 @@ namespace Punchy.Flora
             l.Counts.SetData(l.ArgsData);
             l.Material.SetBuffer(InstancesId, l.Instances);
             l.Material.SetBuffer(VisibleId, l.Visible);
+            l.StaticMaterial.SetBuffer(InstancesId, l.Instances);
+            l.StaticMaterial.SetBuffer(VisibleId, l.Visible);
         }
 
         [BurstCompile]
@@ -844,11 +870,16 @@ namespace Punchy.Flora
                 // crossfades) isn't drawn at all: a draw costs a pass even when the GPU cull leaves it no plants.
                 float3 eye = camPos;
                 float Near(float d) => d * 1.1f + 5f;
-                for (int m = 0; m < l.ModelCount; m++)
+                // (Refactor 3.5: the animated models first, then the static ones, so each material's draws come together
+                // and the two don't alternate draw by draw.)
+                for (int k = 0; k < l.ModelCount * 2; k++)
                 {
+                    var m = k % l.ModelCount;
                     if (l.ModelCounts[m] == 0)
                         continue;
                     var model = models[l.ModelBase + m];
+                    if ((model.Static && !NoStatic) != (k >= l.ModelCount))
+                        continue;
                     var reach = (model.Radius + math.abs(model.CentreY)) * l.ModelMaxScale[m];
                     var min = l.ModelMin[m] - reach;
                     var max = l.ModelMax[m] + reach;
@@ -857,6 +888,8 @@ namespace Punchy.Flora
                     if (nearest > Near(l.Radius))
                         continue;
                     var bounds = new Bounds((Vector3)((min + max) * 0.5f), (Vector3)(max - min));
+                    // (Refactor 3.5: a model that never moves skips the wind maths; "-nostaticflora" draws all as before.)
+                    var material = k >= l.ModelCount ? l.StaticMaterial : l.Material;
                     for (int lod = 0; lod < 3; lod++)
                     {
                         if (lod == 2 && l.Lod2Distance >= l.Radius)
@@ -865,7 +898,7 @@ namespace Punchy.Flora
                         var lodFar = lod == 0 ? l.Lod1Distance : lod == 1 && l.Lod2Distance < l.Radius ? l.Lod2Distance : l.Radius;
                         if (nearest > Near(lodFar) || farthest < lodNear * 0.9f - 5f)
                             continue;
-                        var rp = new RenderParams(l.Material)
+                        var rp = new RenderParams(material)
                         {
                             worldBounds = bounds,
                             shadowCastingMode = ShadowCastingMode.Off,
@@ -887,7 +920,7 @@ namespace Punchy.Flora
                     {
                         if (nearest > Near(cast) || lod == 0 && nearest > Near(lod0Until))
                             continue;
-                        var rp = new RenderParams(l.Material)
+                        var rp = new RenderParams(material)
                         {
                             worldBounds = shadowBounds,
                             shadowCastingMode = ShadowCastingMode.ShadowsOnly,

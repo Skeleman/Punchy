@@ -67,6 +67,9 @@ namespace Punchy.Flora
         /// <summary>Height of its door at scale 1 (0 if it has none): doors are sized for human folk, about 1.3 times a
         /// person's height, and each settlement scales its buildings by its folk's size (SettlementLayout.BuildingScale).</summary>
         public float DoorHeight;
+        /// <summary>Refactor 3.5: nothing in it moves but door leaves (FloraMeshBuilder.Moves), so it draws with the static
+        /// shader variant, which skips the wind and the other vertex motions.</summary>
+        public bool Static;
 
         /// <summary>Forms that cast no shadow (see CastsShadows).</summary>
         public static bool Shadowless(FloraForm form) =>
@@ -82,6 +85,10 @@ namespace Punchy.Flora
         {
             if (Pending == null)
                 return;
+            Static = true;
+            foreach (var b in Pending)
+                if (b != null && b.Moves())
+                    Static = false;
             for (int lod = 0; lod < Pending.Length; lod++)
                 Lods[lod] = Pending[lod].MakeMesh($"{MeshName} LOD{lod}");
             Pending = null;
