@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: SandstoneArch
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Flora.FloraSpecies
   Form: 47
+  TakeBiomeRock: 1
   Layer: 2
   Height: {x: 9, y: 16}
   Spread: 1.6
