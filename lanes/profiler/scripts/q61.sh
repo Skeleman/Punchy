@@ -6,7 +6,7 @@
 #             beach-clear / beach-storm: -benchplace Beach (facing out to sea), -benchweather Clear / Storm;
 #             lake: job 29's lake shore view.
 #   glitter, lava, pose: see each case below. river-flow follows when its branch is pushed.
-# "q61.sh swells|glitter|lava|pose|clumps".
+# "q61.sh swells|glitter|lava|pose|clumps|bluemoon".
 B=$HOME/Projects/Punchy-wt/Tools/bench
 . "$B/lib.sh"
 KM=4601262; OM=Profile-${KM}m; KW=098ddff; OW=Profile-${KW}m; Q=q61
@@ -115,6 +115,20 @@ clumps)    # grass/clumps d6fee299 (5-blade tufts, half the roots) against -gras
   CAPS=$(ls "$R/rd61c"/*.rdc | xargs -n1 cygpath -w | tr '\n' ';')
   RD_CAPS="$CAPS" RD_OUT="$WW\\$Q-clumps-passes.txt" RD_TOPDRAWS=25 timeout 3600 "$QRD" --python "$(cygpath -w "$S/rdpasses.py")" >/dev/null 2>&1
   echo "qrenderdoc rc=$?"; strays >/dev/null ;;
-*) echo "usage: q61.sh swells|glitter|lava|pose|clumps"; exit 2 ;;
+bluemoon)  # night/blue-moon 7be628b2 against main: the Summit at midnight, Clear forced, -bluemoondays 0, the camera on the
+           # blue moon (-benchview bluemoon, re-aimed once the hour is set), M B B M.
+  KB=7be628b; OB=Profile-${KB}m
+  build $KB BuildDev $OB || { echo "build $OB failed"; exit 1; }
+  build $KM BuildDev ${OM}2 || { echo "build ${OM}2 failed"; exit 1; }   # main again with the runner's -benchview bluemoon
+  keepawake
+  A="-benchstops place -benchplace Summit -benchview bluemoon -benchhour 0 -benchweather Clear -bluemoondays 0"
+  rm -f "$R"/$Q-bluemoon-*.csv "$L"/q-$Q-bluemoon-*.log
+  go bluemoon main 1 ${OM}2 $KM $A -benchshots "$W/$Q-shots/bluemoon-main"
+  go bluemoon blue 1 $OB $KB $A -benchshots "$W/$Q-shots/bluemoon-blue"
+  go bluemoon blue 2 $OB $KB $A
+  go bluemoon main 2 ${OM}2 $KM $A
+  for f in "$R"/$Q-bluemoon-*.csv; do echo "== $(basename $f .csv)"; table "$f"; done
+  grep -h 'view on the blue moon\|weather Clear forced' "$L"/q-$Q-bluemoon-*-1.log | sort | uniq -c | cut -c1-160 ;;
+*) echo "usage: q61.sh swells|glitter|lava|pose|clumps|bluemoon"; exit 2 ;;
 esac
 echo $Q $1 done

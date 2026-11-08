@@ -6,8 +6,8 @@
 #          shadow pass = GPU minus GPU without shadows; the range doesn't matter with shadows off).
 #   caps:  one Profiler capture per range and variant at each spot (shadow casters, URP shadow CPU ms; SysMs).
 #   yaws:  bigtown at 17:00, static, 25 m, shots at yaw 0/90/180/270 (to find a view along a street).
-#   shots: bigtown at 17:00, static, a shot per range at YAW (q59.sh shots <yaw>).
-# "q59.sh runs|caps|yaws|shots <yaw>".
+#   shots: bigtown at 17:00, static, a shot per range at each of the 4 yaws (pick the street view from them).
+# "q59.sh runs|caps|yaws|shots".
 B=$HOME/Projects/Punchy-wt/Tools/bench
 . "$B/lib.sh"
 K=5fa346f; OUT=Profile-${K}k; Q=q59; S=$HOME/Projects/Punchy-coordination/lanes/profiler/scripts
@@ -64,10 +64,14 @@ yaws)
     BENCHW=1920 BENCHH=1080 run $OUT $Q-yaw$y -benchstops bigtown $COMMON -benchhour 17 -benchview $y,8 -benchshots "$W/$Q-shots/yaw$y"
     check "$R/q-$Q-yaw$y.log"
   done ;;
-shots)
-  for n in 25 50 75; do
-    BENCHW=1920 BENCHH=1080 run $OUT $Q-shot$n -benchstops bigtown $COMMON -benchhour 17 -benchview $2,8 -shadownear $n -benchshots "$W/$Q-shots/near$n"
-    check "$R/q-$Q-shot$n.log"
-  done ;;
+shots)   # every yaw and range (the yaw step's shots were lost: -benchshots needs its folder made first)
+  for y in 0 90 180 270; do
+    for n in 25 50 75; do
+      mkdir -p "$R/$Q-shots/y$y-near$n"
+      BENCHW=1920 BENCHH=1080 run $OUT $Q-shot-y$y-$n -benchstops bigtown $COMMON -benchhour 17 -benchview $y,8 -shadownear $n -benchshots "$W/$Q-shots/y$y-near$n"
+      check "$R/q-$Q-shot-y$y-$n.log"
+    done
+  done
+  ls -R "$R/$Q-shots" | head -30 ;;
 esac
 echo $Q $1 done
