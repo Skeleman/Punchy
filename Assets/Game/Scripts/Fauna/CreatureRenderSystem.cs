@@ -29,7 +29,7 @@ namespace Punchy.Fauna
 
         EntityQuery query;
         GraphicsBuffer buffer;
-        MaterialPropertyBlock props, flatProps, midProps, farProps;
+        MaterialPropertyBlock flatProps;
         static readonly int SegmentsId = Shader.PropertyToID("_Segments");
         static readonly int SegmentOffsetId = Shader.PropertyToID("_SegmentOffset");
         const int MarkCount = 3;
@@ -132,6 +132,7 @@ namespace Punchy.Fauna
             noStates = new NativeArray<CreatureState>(0, Allocator.Persistent);
             noBodies = new NativeArray<CreatureBody>(0, Allocator.Persistent);
             noEntities = new NativeArray<Entity>(0, Allocator.Persistent);
+            noDecisions = new NativeArray<byte>(0, Allocator.Persistent);
         }
 
         protected override void OnDestroy()
@@ -143,6 +144,7 @@ namespace Punchy.Fauna
             noStates.Dispose();
             noBodies.Dispose();
             noEntities.Dispose();
+            noDecisions.Dispose();
             if (roosts.IsCreated) roosts.Dispose();
             if (hives.IsCreated) hives.Dispose();
             buffer?.Release();
@@ -211,7 +213,11 @@ namespace Punchy.Fauna
             var counted = new NativeReference<int2>(Allocator.TempJob);
             var culling = default(JobHandle);
             var tiers = !OldPoseRate;
-            var bandStarts = new NativeReference<int2>(Allocator.TempJob);
+            // Each kept creature's detail (refactor 3.7: capsule, pose rate and shadow, by how big it looks), and where
+            // each draw group starts among the parts.
+            Punchy.Settings.DetailPolicy.SetView(cam);
+            var decisions = new NativeArray<byte>(bodies.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+            var groupStarts = new NativeArray<int>(GroupCount + 1, Allocator.TempJob);
             UnityEngine.GeometryUtility.CalculateFrustumPlanes(cam, frustumPlanes);
             static float4 PlaneOf(UnityEngine.Plane plane) => new float4(plane.normal, plane.distance);
             if (OldCull)
@@ -244,6 +250,10 @@ namespace Punchy.Fauna
                     Top = PlaneOf(frustumPlanes[3]),
                     Keep = keepFlags
                 }.Schedule(bodies.Length, 16, copied);
+            // (Where each creature was in last frame's posing, by entity: for its last decision here, and for those
+            // moved on from their last pose in PoseJob, A-70 row 4.)
+            var usePrev = tiers && havePrev;
+            var indexing = new IndexJob { Entities = usePrev ? prevPosed.Entities : noEntities, Index = prevIndex }.Schedule();
             culling = new CompactJob
             {
                 AllBodies = allBodies,
@@ -258,12 +268,12 @@ namespace Punchy.Fauna
                 Emoting = emoting,
                 Counted = counted,
                 Tiers = tiers,
-                CameraPosition = camPos,
-                BandStarts = bandStarts
-            }.Schedule(culling);
-            // (Where each creature was in last frame's posing, by entity, for those moved on from it: A-70 row 4.)
-            var usePrev = tiers && havePrev;
-            var indexing = new IndexJob { Entities = usePrev ? prevPosed.Entities : noEntities, Index = prevIndex }.Schedule();
+                View = Punchy.Settings.DetailPolicy.Current.Data,
+                PrevIndex = prevIndex,
+                PrevDecisions = usePrev ? prevPosed.Decisions : noDecisions,
+                Decisions = decisions,
+                GroupStarts = groupStarts
+            }.Schedule(JobHandle.CombineDependencies(culling, indexing));
 
             var terrain = SystemAPI.GetSingleton<TerrainSource>();
             float3 camAt0 = cam.transform.position;
@@ -294,22 +304,24 @@ namespace Punchy.Fauna
             var keep = counted.Value.x;
             var total = counted.Value.y;
             counted.Dispose();
-            var bands = bandStarts.Value;
-            bandStarts.Dispose();
             if (keep < bodies.Length)
             {
                 var b2 = new NativeArray<CreatureBody>(keep, Allocator.TempJob);
                 var s2 = new NativeArray<CreatureState>(keep, Allocator.TempJob);
                 var e2 = new NativeArray<Entity>(keep, Allocator.TempJob);
+                var d2 = new NativeArray<byte>(keep, Allocator.TempJob);
                 NativeArray<CreatureBody>.Copy(bodies, b2, keep);
                 NativeArray<CreatureState>.Copy(states, s2, keep);
                 NativeArray<Entity>.Copy(entities, e2, keep);
+                NativeArray<byte>.Copy(decisions, d2, keep);
                 bodies.Dispose();
                 states.Dispose();
                 entities.Dispose();
+                decisions.Dispose();
                 bodies = b2;
                 states = s2;
                 entities = e2;
+                decisions = d2;
             }
             Pass(1);
             SwingDoors(states);
@@ -411,6 +423,7 @@ namespace Punchy.Fauna
                 PrevBodies = usePrev ? prevPosed.Bodies : noBodies,
                 PrevIndex = prevIndex,
                 Tiers = tiers,
+                Decisions = decisions,
                 Frame = poseFrame++,
                 Stats = stats
             }.Schedule(bodies.Length, 8, indexing);
@@ -458,8 +471,8 @@ namespace Punchy.Fauna
                 ColonyStart = colonyStart,
                 Total = total,
                 Stats = stats,
-                MidStart = bands.x,
-                FarStart = bands.y
+                Decisions = decisions,
+                GroupStarts = groupStarts
             };
             havePosed = true;
             PassEnd(bodies.Length, colonyStart, total, hidden);
@@ -492,6 +505,8 @@ namespace Punchy.Fauna
             [ReadOnly] public NativeArray<CreatureBody> PrevBodies;
             [ReadOnly] public NativeParallelHashMap<Entity, int> PrevIndex;
             public bool Tiers;
+            /// <summary>Each creature's detail decision (DetailPolicy.Decision, packed), from CompactJob.</summary>
+            [ReadOnly] public NativeArray<byte> Decisions;
             public int Frame;
             /// <summary>Per worker, StatStride apart: ticks, posed afresh, moved on (for -perflog).</summary>
             [NativeDisableParallelForRestriction] public NativeArray<long> Stats;
@@ -505,9 +520,10 @@ namespace Punchy.Fauna
                 var entity = Entities[index];
                 var offset = Offsets[index];
                 // (Feet fitted to the ground only near the camera: past 40 m nobody can tell, and it's most of the cost.)
-                // Past 40 m a body is posed afresh only every 2nd frame, past 100 m every 4th (staggered by entity), and
-                // between those its last pose is carried along to where it is now and turned as it turns (A-70 row 4).
-                var reused = Tiers && Reuse(state, body, entity, offset);
+                // As it looks smaller (Decisions, refactor 3.7) a body is posed afresh only every 2nd frame, then every 4th
+                // (staggered by entity), and between those its last pose is carried along to where it is now and turned as
+                // it turns (A-70 row 4).
+                var reused = Tiers && Reuse(state, body, entity, offset, Decisions[index]);
                 if (!reused)
                     CreatureAnimator.Evaluate(ref body.Blob.Value, state, body.Coat, Terrain, Output, offset,
                                               Unity.Mathematics.math.distancesq(state.Position, CameraPosition) < FootDetail * FootDetail);
@@ -518,12 +534,12 @@ namespace Punchy.Fauna
             }
 
             /// <summary>Last frame's pose of this body moved on to where it is now, when it isn't due a fresh one.</summary>
-            bool Reuse(in CreatureState state, in CreatureBody body, Entity entity, int offset)
+            bool Reuse(in CreatureState state, in CreatureBody body, Entity entity, int offset, byte decision)
             {
-                var band = Band(state, CameraPosition);
-                if (band == 0 || body.Blob.Value.Haunts || body.Blob.Value.LavaDweller)
+                var rate = new Punchy.Settings.DetailPolicy.Decision { Packed = decision }.Animation;
+                if (rate == 0 || body.Blob.Value.Haunts || body.Blob.Value.LavaDweller)
                     return false;
-                var period = band == 1 ? 2 : 4;
+                var period = rate == 1 ? 2 : 4;
                 if (((Frame + entity.Index) & (period - 1)) == 0)
                     return false;
                 if (!PrevIndex.TryGetValue(entity, out var was) || PrevBodies[was].SegmentCount != body.SegmentCount)

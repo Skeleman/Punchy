@@ -550,13 +550,20 @@ namespace Punchy.Fauna
             {
                 using var ticked = TickMarker.Auto();
                 // #59 brain LOD: far from every player it thinks only on its turn, for the time since its last think; on
-                // the frames between, a walker on open ground coasts along its heading (taken back before it next thinks,
-                // so the think moves it the whole way) and anything else holds still.
+                // the frames between, anything moving coasts along its heading (taken back before it next thinks, so the
+                // think moves it the whole way): a walker on open ground follows the ground, a flier or swimmer keeps its
+                // height. (Refactor 3.7, playtest 11-08: fliers and swimmers held still between thinks, so far serpents
+                // moved in steps.) Anything else holds still.
                 var frameDt = Dt;
                 var frameStep = Step;
                 var far = BrainLodOff.Data == 0 && !s.Gone && s.Mode != CreatureMode.Held && s.Mode != CreatureMode.Puppet;
+                // (Refactor 3.7: the range grows with the creature's size, as its pose detail does, so a sky serpent seen
+                // from far off thinks every frame as far out as it looks as big as a deer does at BrainLodRange. Sizes and
+                // a fixed reference view only, so every machine would agree.)
+                var lodRange = BrainLodRange * math.max(1f, Punchy.Settings.DetailPolicy.SimulationReach(
+                    CreatureMotion.ApparentSize(s, ref body.Blob.Value), Punchy.Settings.DetailPolicy.CreatureThinkPixels) / BrainLodDefault.x);
                 for (int p = 0; p < Players.Length && far; p++)
-                    far = math.distancesq(Players[p].xz, s.Position.xz) > BrainLodRange * BrainLodRange;
+                    far = math.distancesq(Players[p].xz, s.Position.xz) > lodRange * lodRange;
                 // (The phase is mixed first: math.hash alone doesn't spread its low bits well, and only those pick the frame.)
                 var phase = math.hash(new uint2(s.Individual, 0x59u));
                 phase ^= phase >> 16;
@@ -566,13 +573,14 @@ namespace Punchy.Fauna
                 if (!thinks)
                 {
                     M.LodDebt += frameStep;
-                    if (body.Blob.Value.Habitat == Habitat.Land && s.Speed > 0f && s.Fly < 0.01f &&
-                        math.abs(s.Position.y - Terrain.SampleHeight(s.Position.xz)) < 0.3f)
+                    var walker = body.Blob.Value.Habitat == Habitat.Land && s.Fly < 0.01f;
+                    if (s.Speed > 0f && (walker ? math.abs(s.Position.y - Terrain.SampleHeight(s.Position.xz)) < 0.3f : s.Fly > 0.5f || body.Blob.Value.Habitat != Habitat.Land))
                     {
                         var coast = new float2(math.sin(s.Yaw), math.cos(s.Yaw)) * s.Speed * frameDt;
                         M.LodCoast += coast;
                         s.Position.xz += coast;
-                        s.Position.y = CreatureMotion.Ground(Terrain, s.Position.xz, s.Position.y);
+                        if (walker)
+                            s.Position.y = CreatureMotion.Ground(Terrain, s.Position.xz, s.Position.y);
                     }
                     System.Threading.Interlocked.Increment(ref Searches.Data.LodSkips);
                     return;
