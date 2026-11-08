@@ -103,7 +103,17 @@ namespace Punchy.Terrain
         EntityQuery othersQuery;
 
         int GridSamples => (int)TileSize + 1;
-        int MaxGrass => (int)(TileSize * TileSize * GrassPerSquareMetre * DensityScale);
+        int MaxGrass => (int)(TileSize * TileSize * GrassPerSquareMetre * DensityScale * (ClumpBlades > 1 ? ClumpDensity : 1f));
+
+        /// <summary>
+        /// Blades per grass instance: a tuft fanned from one root (GroundDetail.hlsl ClumpMember), 1 for lone blades as
+        /// before (-grassclumps 0). Prototype (Zach, 11-08): clumps sell a continuous field where even stubble didn't.
+        /// </summary>
+        static readonly int ClumpBlades = System.Environment.CommandLine.Contains("-grassclumps 0") ? 1 : 5;
+        /// <summary>Instances per square metre with clumps, as a share of GrassPerSquareMetre: half as many roots, five
+        /// blades each, so about 2.5 times the blades, gathered in tufts.</summary>
+        const float ClumpDensity = 0.5f;
+        static readonly int ClumpId = Shader.PropertyToID("_GrassClump");
 
         /// <summary>The density scale in use: the command line's -grassdensity if given, else the field.</summary>
         float DensityScale
@@ -147,6 +157,7 @@ namespace Punchy.Terrain
             }
 
             Shader.SetGlobalFloat(FullId, FullDensityRange);
+            Shader.SetGlobalFloat(ClumpId, ClumpBlades);
             Shader.SetGlobalVector(GrassTintId, new Vector4(GroundTint, GrassRange, 0f, 0f));
 
             if (playerQuery.TryGetSingleton<LocalTransform>(out var player))
@@ -337,7 +348,7 @@ namespace Punchy.Terrain
                 if (!GeometryUtility.TestPlanesAABB(frustum, tile.Bounds))
                     continue;
                 var nearest = math.distance(camXZ, math.clamp(camXZ, (float2)kv.Key * TileSize, ((float2)kv.Key + 1f) * TileSize));
-                DrawSet(tile.Grass, tile.GrassCount, tile.GrassProps, GrassMaterial, GrassVertices, nearest, GrassRange, tile.Bounds);
+                DrawSet(tile.Grass, tile.GrassCount, tile.GrassProps, GrassMaterial, GrassVertices * ClumpBlades, nearest, GrassRange, tile.Bounds);
                 DrawSet(tile.Pebbles, tile.PebbleCount, tile.PebbleProps, PebbleMaterial, PebbleVertices, nearest, PebbleRange, tile.Bounds);
             }
         }
