@@ -31,6 +31,11 @@ Shader "Punchy/Sky"
             {
                 // Distant sandstorms and rain curtains show against the sky too.
                 float3 dir = normalize(input.direction);
+                // Under water the sky is endlessly far through the water's fog, and the surface's underside (Snell's
+                // window, Water.shader) covers it anyway: skip the clouds and weather marches (job 30: with the water off,
+                // the underwater frame was still 27-29 ms, mostly sky).
+                [branch] if (_PunchyUnderwater.w > 0)
+                    return half4(_PunchyUnderwater.rgb, 1);
                 half3 sky = PunchySkyColor(dir, true, false);
                 sky = PunchyVolumetricClouds(sky, dir, input.positionCS.xy);
                 // (Same step count as the terrain haze target, so distant land and sky converge exactly.)
