@@ -209,3 +209,16 @@ clock). Same setup as job 29: Profile build, 1920x1080, `-gfx High`, `-weatherse
   - `-benchnoshader` on the terrain shader, then the flora shader (water off in both).
   - The same view with the camera a few metres from the sea-folk pillar.
   - Say what's left.
+
+## Job 31 (2026-11-08): close-up shadow range, 25 / 50 / 75 m, static vs animated (REFACTOR-ROADMAP.md 3.5c)
+Zach finds the hand-off from real-time to cached shadows unsatisfying and is weighing a wider close-up range. This
+sizes what that costs and how much the static flora variant wins back once more casters are drawn every frame.
+Branch `refactor/flora-static` (job 28's build is fine), Profile build, 1920x1080, `-gfx High`, `-weatherseed 4`,
+uncapped, noon. `-shadownear <m>` already exists (FloraShadowOptions.NearRange, default 25; the far cache starts
+there).
+- **Spots:** the big settlement (job 28's bigtown) and a dense forest (job 25's).
+- **Runs:** `-shadownear 25`, `50`, `75`, each with and without `-nostaticflora`. 2 rounds, order reversed.
+- **Report:** GPU ms, the URP shadow pass ms (from a capture if the route can't split it), main and render thread ms,
+  and shadow-caster draw counts if a capture gives them.
+- **Shots:** one per range at the big settlement, looking along a street at a low sun (`-time 17`), so the hand-off
+  line can be compared by eye.
