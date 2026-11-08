@@ -2,6 +2,44 @@
 
 Newest first.
 
+## 2026-11-08 Freeze A/B (q62.sh) and Job 33 part 2: clumps, glitter, swells at the lake (q61.sh)
+
+### The freeze: not the runner, not main's code; it hasn't come back since ~09:00
+
+- **Runs (10:49-11:15):** job 29's lake spot (-1624,-488), where main froze 2 of 2 overnight. Profile builds, 1920x1080, `-gfx High`, `-weatherseed 4`, uncapped, noon, a fresh game each.
+  - `m`: main 46012623 built 04:18 with the runner of then (the build that froze overnight).
+  - `m2`: the same main built 10:11 with today's runner.
+  - `j30`: job 30's 346cf4d9 with the same runner as `m`.
+  - Each with the bench route's spot stop and (m, m2) without the route at all: `-goto -1624,-488` and a 90 s shot list, as the player lane tried. Order m/m2/j30 route, m/m2 goto, then reversed.
+- **Result: 0 freezes in 10 sessions.** The longest gap between the game's own "Net status" lines (logged every ~10 s) is 17-18 s, at load, in every session; none of the runner's ">5 s frame" lines. The spot stop reads the same in all 6 route runs: 34.6-36.2 fps, GPU 26.5-27.1 ms, worst frame 46-82 ms.
+- With the 15 clean Summit sessions since 09:00 (m2, m3 rerun of job 32, the freeze hunt), **nothing has frozen since ~09:00 on any build, the 04:18 build included.** Every freeze was between ~04:20 and ~08:40.
+- **So it's the laptop in those hours, not main's code, not the bench runner and not an edit on this machine** (the build checkout is clean; the runner is committed, 8cb2b066; the `m` build froze then and runs clean now). Windows' System, Application and Defender logs show nothing in those windows; something scheduled overnight (an update scan, indexing, a driver) stalling the GPU or the disk is the best guess. Matches the other computer's main not freezing.
+- **What I'll do:** the bench runner keeps logging any frame over 5 s and caps settling at 0.25 s a frame, so a freeze can't eat a stop silently again. If one shows up tonight I'll note the time and look again at the event logs (read only).
+
+### Job 33 part 2
+
+GPU and CPU ms from the Profile timer, mean of 2 rounds (ABBA); main / render thread ms from the runner.
+
+| Branch | Where | Main | Branch | Δ GPU | Δ main thread |
+|---|---|---|---|---|---|
+| `grass/clumps` d6fee299 (vs `-grassclumps 0`, same build) | Meadow, `-place meadow`'s own finder | GPU 11.3, CPU 17.4, 57.8 fps | GPU 12.4, CPU 18.4, 54.4 fps | **+1.1 ms** | +0.55 (13.65 → 14.2) |
+| `water/glitter-grid` 17c1b431 | job 29's lake shore | GPU 26.9, 35.6 fps | GPU 26.5, 35.8 fps | −0.4 (noise) | 0 |
+| `water/swells` 098ddffd | job 29's lake shore | GPU 26.8, 35.9 fps | GPU 26.9 (−noswells 27.0), 35.5 fps | +0.1 (noise) | +0.4 |
+
+- **Clumps cost +1.1 ms GPU** in a full-screen meadow (over the +0.5 ms flag) and slightly lower 1% lows (20.9 vs 25.1 fps). RenderDoc, one capture each: opaque pass 19.8 vs 19.3 ms, depth-normal prepass 12.2 vs 11.7 ms (replay times, ~3x inflated), so the extra cost is split about evenly between the two passes that draw the grass; the draw counts are the same (941 vs 974). Shot: `results/q61-shots/clumps-clumps/place.png` looks right (field and the deer in frame).
+  - A cheaper clump would skip the depth-normal prepass for grass (it draws everything opaque twice, see job 31) or use fewer blades per tuft at range.
+- **Glitter grid: no cost**, as expected.
+- **Swells at the lake: no cost** (lakes get only the new still shore line).
+
+### Still void, rerunning
+
+- **Swells at the beach:** void again. The Beach place faces inland: the shot is a sand dune face with the sea only at the bottom-left corner, so Clear and Storm read the same (76.5-77.2 fps, GPU 10.6-10.9 ms, all variants). Next try turns the camera 180° from the place's yaw (runner: `-benchview place+180,8`) and checks the shot before the timed runs.
+- **Lava plates:** void. The spot 45 m south of the MagmaSerpent lands among the rim boulders; the shot is rocks with a sliver of lava in one corner (main 101 fps / GPU 4.7 ms, plates 96.7 / 5.0 ms: +0.3 ms on almost no lava pixels). Next try picks the spot from a few candidates by their shots first.
+- **`water/river-flow`:** not pushed yet; I'll add it when it is.
+- **Job 32's third run (sky by weather with `-benchnosky`, Snell's window)** starts now.
+
+Cost: laptop CSV total $652.
+
 ## 2026-11-08 Job 31 (refactor 3.5c): close-up shadow range 25 / 50 / 75 m, static vs animated (q59.sh; b/bench-stress 4b721ea4 for review)
 
 - **Build:** Profile build of refactor/flora-static 5fa346f3 (rebuilt so the bigtown stop takes `-benchview`).
