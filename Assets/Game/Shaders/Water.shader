@@ -39,6 +39,75 @@ Shader "Punchy/Water"
         // and in one queue a big water chunk, sorted by its middle, could be drawn after mist in front of it (Z-10).
         Tags { "RenderType" = "Transparent" "Queue" = "Transparent-10" "RenderPipeline" = "UniversalPipeline" }
 
+        // (Both passes share the material's constants: the SRP batcher wants them laid out the same in every pass.)
+        HLSLINCLUDE
+        #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+        CBUFFER_START(UnityPerMaterial)
+            half4 _ShallowColor;
+            half4 _DeepColor;
+            half _Absorption;
+            half _Opacity;
+            half4 _FoamColor;
+            half _FoamDistance;
+            float _WaveScale;
+            half _WaveStrength;
+            float _WaveSpeed;
+            float _FlowSpeed;
+            half _Smoothness;
+            half _ScreenReflection;
+            half _DetailStrength;
+            float _DetailScale;
+            half _Sparkle;
+            half _UnderRock;
+            half _SoftRim;
+        CBUFFER_END
+        ENDHLSL
+
+        // The water's depth first (playtest 11-08 item 4): the swell lifts the sea into waves that hide each other at low
+        // angles, and see-through water drawn without depth layered the hidden faces over the near ones in mesh order
+        // (and the far side of a crest over its face). This pass lays down only the nearest surface's depth, so the
+        // colour pass below shades just that layer per pixel (and skips the hidden ones). It writes the depth buffer
+        // only: the camera depth texture the colour pass reads (reflections, refraction, thickness) was copied before.
+        Pass
+        {
+            Name "WaterDepth"
+            Tags { "LightMode" = "SRPDefaultUnlit" }
+            ZWrite On
+            ColorMask 0
+            Cull Off
+            // (A hair further than the colour pass's own depth, so that pass always passes its own test.)
+            Offset 1, 1
+
+            HLSLPROGRAM
+            #pragma target 4.5
+            #pragma vertex DepthVert
+            #pragma fragment DepthFrag
+            #pragma multi_compile_instancing
+            #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DOTS.hlsl"
+            #include "SharedClock.hlsl"
+            #include "WaterSwell.hlsl"
+
+            struct DepthAttributes
+            {
+                float3 positionOS : POSITION;
+                float4 data       : TEXCOORD0;   // as WaterAttributes: z the depth below the surface
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+            };
+
+            float4 DepthVert(DepthAttributes input) : SV_POSITION
+            {
+                UNITY_SETUP_INSTANCE_ID(input);
+                float swell;
+                return TransformWorldToHClip(PunchySwellVertex(TransformObjectToWorld(input.positionOS), input.data.z, _PunchyClock, swell));
+            }
+
+            half4 DepthFrag() : SV_Target
+            {
+                return 0;
+            }
+            ENDHLSL
+        }
+
         Pass
         {
             Name "ForwardLit"
@@ -70,25 +139,6 @@ Shader "Punchy/Water"
             // Weather global (WeatherSystem): 0..1 wind strength at the camera.
             half _PunchyWind;
 
-            CBUFFER_START(UnityPerMaterial)
-                half4 _ShallowColor;
-                half4 _DeepColor;
-                half _Absorption;
-                half _Opacity;
-                half4 _FoamColor;
-                half _FoamDistance;
-                float _WaveScale;
-                half _WaveStrength;
-                float _WaveSpeed;
-                float _FlowSpeed;
-                half _Smoothness;
-                half _ScreenReflection;
-                half _DetailStrength;
-                float _DetailScale;
-                half _Sparkle;
-                half _UnderRock;
-                half _SoftRim;
-            CBUFFER_END
             // 0 above ground, 1 with the camera deep in a cave (CaveSystem).
             float _PunchyUnderground;
             // Test only (DebugControls "-waterprobe n"): 1 shows the foam, 2 the water's thickness over the bed, 3 the alpha, 4 the foam's parts (shore, churn, streaks).
@@ -154,16 +204,10 @@ Shader "Punchy/Water"
                 UNITY_SETUP_INSTANCE_ID(input);
                 UNITY_TRANSFER_INSTANCE_ID(input, o);
                 VertexPositionInputs pos = GetVertexPositionInputs(input.positionOS);
-                // The sea rises and falls in long swells (prototype; -noswells for the flat sea).
-                o.swell = PunchySwellAmount(pos.positionWS.y, input.data.z);
                 o.sea = step(abs(pos.positionWS.y - _PunchySwell.y), 0.05);
-                [branch] if (o.swell > 0)
-                {
-                    // (Far off, the short waves are dropped as they shrink on screen: the water's quality policy.)
-                    float swellWaves = PunchySwellWaveCount(PunchyWaterPixelsPerMetre(distance(pos.positionWS, GetCameraPositionWS())));
-                    pos.positionWS += PunchySwell(pos.positionWS.xz, _PunchyClock, o.swell, input.data.z, swellWaves).offset;
-                    pos.positionCS = TransformWorldToHClip(pos.positionWS);
-                }
+                // The sea rises and falls in swells (-noswells for the flat sea); the same move as the depth pass's.
+                pos.positionWS = PunchySwellVertex(pos.positionWS, input.data.z, _PunchyClock, o.swell);
+                pos.positionCS = TransformWorldToHClip(pos.positionWS);
                 o.positionCS = pos.positionCS;
                 o.positionWS = pos.positionWS;
                 o.data = input.data;

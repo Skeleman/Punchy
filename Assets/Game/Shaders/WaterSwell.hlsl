@@ -151,4 +151,18 @@ PunchySwellResult PunchySwell(float2 xz, float t, float amount, float depth, flo
     return r;
 }
 
+// A water vertex moved by the swell (world space), for both of Water.shader's passes, so their depths match exactly.
+// swell: how strongly it swells (PunchySwellAmount), from the surface's height and the water's depth there.
+float3 PunchySwellVertex(float3 positionWS, float depth, float t, out float swell)
+{
+    swell = PunchySwellAmount(positionWS.y, depth);
+    [branch] if (swell > 0)
+    {
+        // (Far off, the short waves are dropped as they shrink on screen: the water's quality policy.)
+        float waves = PunchySwellWaveCount(PunchyWaterPixelsPerMetre(distance(positionWS, GetCameraPositionWS())));
+        positionWS += PunchySwell(positionWS.xz, t, swell, depth, waves).offset;
+    }
+    return positionWS;
+}
+
 #endif
