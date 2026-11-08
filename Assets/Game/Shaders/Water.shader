@@ -581,15 +581,19 @@ Shader "Punchy/Water"
                 [branch] if (input.swell > 0)
                 {
                     PunchySwellResult sw = PunchySwell(input.positionWS.xz, t, input.swell, depth, PunchySwellWaveCount(pixelsPerMetre));
-                    n = normalize(float3(n.x / n.y - sw.slope.x, 1, n.z / n.y - sw.slope.y));
-                    nReflect = normalize(float3(nReflect.x / nReflect.y - sw.slope.x, 1, nReflect.z / nReflect.y - sw.slope.y));
+                    // (Item 19, waves too round: the slope as the displaced surface has it, steeper where the waves bunch
+                    // towards a crest and gentler in the stretched troughs, so crests read peaked even between vertices.)
+                    float2 swellSlope = sw.slope / max(1 - sw.squeeze, 0.3);
+                    n = normalize(float3(n.x / n.y - swellSlope.x, 1, n.z / n.y - swellSlope.y));
+                    nReflect = normalize(float3(nReflect.x / nReflect.y - swellSlope.x, 1, nReflect.z / nReflect.y - swellSlope.y));
                     // Whitecaps (playtest 11-08 item 6: none were seen, gated to a strong wind and the very crests): from a
                     // moderate wind up, on the fronts the waves squeeze together (the Gerstner bunching, so they ride the
                     // crests as the waves run), more of them the harder it blows, broken into patches.
                     half wind = saturate(_PunchySwell.z);
                     half shoal = 1 - smoothstep(_PunchySwellDepths.z, _PunchySwellDepths.w, depth);
-                    half capsFrom = lerp(0.2, 0.14, saturate((wind - 0.3) / 0.6));
-                    capsFrom = lerp(capsFrom, min(capsFrom, 0.16), shoal);
+                    // (Thresholds raised with the choppier short waves, item 19, which bunch the surface harder.)
+                    half capsFrom = lerp(0.25, 0.18, saturate((wind - 0.3) / 0.6));
+                    capsFrom = lerp(capsFrom, min(capsFrom, 0.2), shoal);
                     half caps = smoothstep(capsFrom, capsFrom + 0.06, sw.squeeze) * max(smoothstep(0.25, 0.5, wind), shoal);
                     // (Finer and sparser than the old crest foam: a storm's caps came out as broad white blobs.)
                     half breakUp = PunchyValueNoise(p * 2.3 + float2(t * 0.21, -t * 0.13)) * 0.6 + PunchyValueNoise(p * 6.1 - t * 0.3) * 0.4;

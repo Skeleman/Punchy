@@ -20,8 +20,12 @@ float4 _PunchySwellShape;
 float4 _PunchySwellMix;
 // x, y the swell fades in between these depths (m); z, w it shoals fully at z, not at all from w.
 float4 _PunchySwellDepths;
-// x the swell's height is held under this share of the water's depth (a trough never bares the bed).
+// x the swell's height is held under this share of the water's depth (a trough never bares the bed), y how much
+// choppier (steeper) the shortest wave is than the longest, z the phase warp's strength.
 float4 _PunchySwellLimits;
+// The phase warp (item 19): two very long, slow-turning patterns (wavevectors xy and zw, rad/m) that shift each wave's
+// phase across the sea, so the waves' interference never repeats where you can see it.
+float4 _PunchySwellWarp;
 // The two wave groups: heading x z, wavenumber, angular speed.
 float4 _PunchySwellGroups[2];
 // The room for waves: WaterSwells.MaxWaves (the array's size only; unused entries have no height).
@@ -122,6 +126,8 @@ PunchySwellResult PunchySwell(float2 xz, float t, float amount, float depth, flo
     float blend = smoothstep(0, 1, f - s0);
     float norm = rsqrt(blend * blend + (1 - blend) * (1 - blend));
     int count = min((int)ceil(waves), (int)_PunchySwellShape.w);
+    float warp = (sin(dot(_PunchySwellWarp.xy, xz)) + sin(dot(_PunchySwellWarp.zw, xz) + 1.3)) * _PunchySwellLimits.z;
+    float chop = _PunchySwellLimits.y / max(_PunchySwellShape.w - 1, 1);
     float most = 0;
     [unroll] for (int set = 0; set < 2; set++)
     {
@@ -137,14 +143,16 @@ PunchySwellResult PunchySwell(float2 xz, float t, float amount, float depth, flo
                 float4 w = _PunchySwellWaves[i];
                 float k = 6.2831853 / w.x;
                 float2 dir = float2(cos(heading + w.y), sin(heading + w.y));
-                float theta = k * dot(dir, xz) - sqrt(9.81 * k) * t + w.w + sector * 2.39996 * (i + 1);
+                float theta = k * dot(dir, xz) - sqrt(9.81 * k) * t + w.w + sector * 2.39996 * (i + 1) + warp * (i + 1);
                 float a = height * w.z * weight * saturate(waves - i);
+                // (Shorter waves are choppier, item 19: their crests peak and the troughs between flatten.)
+                float qi = q * (1 + chop * i);
                 float s, c;
                 sincos(theta, s, c);
                 r.offset.y += a * s;
-                r.offset.xz += q * a * dir * c;
+                r.offset.xz += qi * a * dir * c;
                 r.slope += a * k * dir * c;
-                r.squeeze += q * a * k * s;
+                r.squeeze += qi * a * k * s;
                 r.phasor += a * float2(s, c);
                 most += a;
             }

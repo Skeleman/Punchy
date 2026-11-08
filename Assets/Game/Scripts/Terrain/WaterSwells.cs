@@ -52,6 +52,7 @@ namespace Punchy.Terrain
             struct ShapeKey { }
             struct GroupsKey { }
             struct ShoreKey { }
+            struct WarpKey { }
             /// <summary>x 1 on / 0 off, y the sea level, z the wind 0..1, w the shared clock (s).</summary>
             public static readonly SharedStatic<float4> State = SharedStatic<float4>.GetOrCreate<StateKey>();
             /// <summary>The wave table, as in Table.</summary>
@@ -59,6 +60,7 @@ namespace Punchy.Terrain
             /// <summary>Shape, Mix, Depths, GroupA, GroupB: as the shader's globals of those names.</summary>
             public static readonly SharedStatic<float4x4> Shape = SharedStatic<float4x4>.GetOrCreate<ShapeKey>();
             public static readonly SharedStatic<float4x2> Groups = SharedStatic<float4x2>.GetOrCreate<GroupsKey>();
+            public static readonly SharedStatic<float4> Warp = SharedStatic<float4>.GetOrCreate<WarpKey>();
             public static readonly SharedStatic<ShoreField> Shore = SharedStatic<ShoreField>.GetOrCreate<ShoreKey>();
         }
 
@@ -70,6 +72,7 @@ namespace Punchy.Terrain
         static readonly int MixId = Shader.PropertyToID("_PunchySwellMix");
         static readonly int DepthsId = Shader.PropertyToID("_PunchySwellDepths");
         static readonly int LimitsId = Shader.PropertyToID("_PunchySwellLimits");
+        static readonly int WarpId = Shader.PropertyToID("_PunchySwellWarp");
         static readonly int GroupsId = Shader.PropertyToID("_PunchySwellGroups");
         static readonly int ShoreId = Shader.PropertyToID("_PunchySwellShore");
         static readonly int ShoreAtId = Shader.PropertyToID("_PunchySwellShoreAt");
@@ -113,6 +116,14 @@ namespace Punchy.Terrain
         /// <summary>The swell's height is held under this share of the water's depth, so a trough never bares the bed
         /// (over the shelf, shoaled troughs dipped below sand bars and showed ragged patches of bed).</summary>
         const float DepthShare = 0.3f;
+        /// <summary>Item 19 (waves too round): the shortest wave carries points along it this much more than the longest
+        /// (the rest in between), so the short waves' crests peak and the troughs flatten.</summary>
+        const float Chop = 0.7f;
+        /// <summary>Item 19 (patterns from far off): each wave's phase is shifted across the sea by two very long patterns
+        /// (wavevectors, rad/m; about 3.2 and 2.9 km), this strong times the wave's place in the table, so the sets'
+        /// interference never repeats within sight. Gentle enough (under 4% of any wave's own wavenumber) not to bend it.</summary>
+        static readonly float4 Warp = new float4(0.0016f, 0.0011f, -0.0009f, 0.0019f);
+        const float WarpGain = 1.1f;
         /// <summary>Extra room (m) round the furthest the swell can reach, for the render bounds.</summary>
         const float BoundsMargin = 0.5f;
 
@@ -136,7 +147,7 @@ namespace Punchy.Terrain
                 total += w.z;
             // (Two sets cross-faded and renormalised add up to at most sqrt 2 of one.)
             var height = (CalmHeight + WindHeight) * total * math.SQRT2 * (1f + GroupDepth) * (1f + ShoalHeight);
-            var along = Along * (1f + ShoalSteep) * height;
+            var along = Along * (1f + ShoalSteep) * (1f + Chop) * height;
             return new float3(along, height, along) + BoundsMargin;
         }
 
@@ -157,6 +168,7 @@ namespace Punchy.Terrain
             Shader.SetGlobalVector(MixId, shape.c1);
             Shader.SetGlobalVector(DepthsId, shape.c2);
             Shader.SetGlobalVector(LimitsId, shape.c3);
+            Shader.SetGlobalVector(WarpId, Shared.Warp.Data);
             Shader.SetGlobalVectorArray(GroupsId, groupsUpload);
             UpdateShore(terrain);
             Shader.SetGlobalVector(ShoreAtId, shoreReady ? new Vector4(shore.Origin.x, shore.Origin.y, shore.CellsPerMetre, shore.Size) : Vector4.zero);
@@ -187,7 +199,8 @@ namespace Punchy.Terrain
                 new float4(CalmHeight, WindHeight, Along, Table.Length),
                 new float4(Sectors, GroupDepth, ShoalHeight, ShoalSteep),
                 new float4(FadeFrom, FadeTo, ShoalFull, ShoalNone),
-                new float4(DepthShare, 0f, 0f, 0f));
+                new float4(DepthShare, Chop, WarpGain, 0f));
+            Shared.Warp.Data = Warp;
             Shared.Groups.Data = new float4x2(Group(GroupA), Group(GroupB));
             groupsUpload[0] = Shared.Groups.Data.c0;
             groupsUpload[1] = Shared.Groups.Data.c1;
@@ -428,6 +441,8 @@ namespace Punchy.Terrain
             var blend = math.smoothstep(0f, 1f, f - s0);
             var norm = math.rsqrt(blend * blend + (1f - blend) * (1f - blend));
             var table = Shared.Table.Data;
+            var wv = Shared.Warp.Data;
+            var warp = (math.sin(math.dot(wv.xy, xz)) + math.sin(math.dot(wv.zw, xz) + 1.3f)) * shape.c3.z;
             var y = 0f;
             for (int set = 0; set < 2; set++)
             {
@@ -442,7 +457,7 @@ namespace Punchy.Terrain
                     var w = table[i];
                     var k = 2f * math.PI / w.x;
                     var dir = new float2(math.cos(heading + w.y), math.sin(heading + w.y));
-                    var theta = k * math.dot(dir, xz) - math.sqrt(9.81f * k) * s.w + w.w + sector * 2.39996f * (i + 1);
+                    var theta = k * math.dot(dir, xz) - math.sqrt(9.81f * k) * s.w + w.w + sector * 2.39996f * (i + 1) + warp * (i + 1);
                     y += height * w.z * weight * math.sin(theta);
                 }
             }
