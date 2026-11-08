@@ -551,17 +551,19 @@ half PunchyBlueMoonHold()
 
 // The blue moon's pull (Zach, 11-08: it should feel like an insidious influence): on its nights blue streaks leave the
 // moon and run outwards and down towards the island, several a minute when it's up and full, none when it's dark or
-// down. Like the shooting stars, each comes from a hash of its 6 s slot on the shared clock, so every player sees the
+// down. Like the shooting stars, each comes from a hash of its 12 s slot on the shared clock, so every player sees the
 // same ones; each starts just off the moon's disc and runs away from it, longer and slower than a meteor.
 // Feedback 11-08 item 9 (they ended abruptly): a streak thins and dims over the outer part of its run, its head has a
 // soft front, and it breaks up into twinkling sparkles as it tapers out and again as it fades, the sparkles lingering
 // a little past where the line ended. _PunchySkyTest (-meteors) sends all three every slot, for shots.
+// Round 2 (item 23): much fainter, in the disc's own deep blue, and half as fast (2.4-4.4 s a run, so 12 s slots, which
+// also lets every streak finish its fade inside its slot rather than being cut off at the slot's end).
 half3 PunchyBlueMoonStreaks(float3 dir)
 {
     half hold = PunchyBlueMoonHold();
     if (hold < 0.35 || dot(dir, _PunchyBlueMoon) < 0.2)
         return 0;
-    const float slotLength = 6;
+    const float slotLength = 12;
     const float sparkCell = 0.014;   // spacing of the sparkles along a streak (sky units, about 0.8 degrees)
     float slot = floor(_PunchyClock / slotLength);
     float local = _PunchyClock - slot * slotLength;
@@ -569,10 +571,10 @@ half3 PunchyBlueMoonStreaks(float3 dir)
     [loop] for (int k = 0; k < 3; k++)
     {
         float s = fmod(slot, 4096) * 5.31 + k * 23.9 + 911.0;
-        if (PunchyHash1(s) > (_PunchySkyTest > 0.5 ? 1.0 : 0.3 * smoothstep(0.35, 0.8, hold)))
+        if (PunchyHash1(s) > (_PunchySkyTest > 0.5 ? 1.0 : 0.5 * smoothstep(0.35, 0.8, hold)))
             continue;
-        float start = PunchyHash1(s + 1.1) * (slotLength - 3.0);
-        float life = lerp(1.2, 2.2, PunchyHash1(s + 2.3));
+        float life = lerp(2.4, 4.4, PunchyHash1(s + 2.3));
+        float start = PunchyHash1(s + 1.1) * (slotLength - 1.7 * 4.4);
         float t = (local - start) / life;
         // t 0..1 the run; 1..1.7 the fade (the tail draws in and the sparkles twinkle out)
         if (t < 0 || t > 1.7)
@@ -613,8 +615,8 @@ half3 PunchyBlueMoonStreaks(float3 dir)
         half sparkTrail = saturate(1 - (head - along) / (tail * 1.4)) * step(head - tail * 1.4, along) * step(along, head + 0.03)
                         * step(0, along) * (1 - smoothstep(0.85, 1.1, run));
         half beam = trail * trail * streak * front * taper * (1 - breakUp);
-        sum += half3(0.25, 0.55, 1.6) * (beam + sparkTrail * dots * breakUp * 2.5)
-             * smoothstep(0, 0.1, t) * (1 - smoothstep(0.6, 1.7, t)) * 4;
+        sum += half3(0.03, 0.12, 1.5) * (beam + sparkTrail * dots * breakUp * 2.5)
+             * smoothstep(0, 0.1, t) * (1 - smoothstep(0.6, 1.7, t)) * 1.4;
     }
     return sum * hold;
 }
