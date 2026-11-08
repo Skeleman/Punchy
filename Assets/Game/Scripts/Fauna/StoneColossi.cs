@@ -186,8 +186,17 @@ namespace Punchy.Fauna
                 var at = k < slots ? Positions[k] : DunesColossus.Position;
                 if (k < slots ? roots[k] == null : math.all(at == 0f))
                     continue;
-                // A-72 hook: the strip only re-lays when the sun moves, so one left 10 m behind a walker is laid anew.
-                if (shadows[k] != null && math.distancesq(laidAt[k].xz, ((float3)at).xz) > 100f)
+                // The salt crystal's root stays at its circle's centre while the ball rolls round it: its shadow is the
+                // ball's, so it starts under the ball and is laid anew after 4 m rather than 10 (playtest 11-07: a shadow
+                // sat still at the spawn point).
+                var moveLimit = 100f;
+                if (k < slots && roots[k].TryGetComponent<SaltCrystalRoll>(out var roll))
+                {
+                    at = roll.BallFoot;
+                    moveLimit = 16f;
+                }
+                // A-72 hook: the strip only re-lays when the sun moves, so one left behind a walker is laid anew.
+                if (shadows[k] != null && math.distancesq(laidAt[k].xz, ((float3)at).xz) > moveLimit)
                 {
                     shadows[k].Dispose();
                     shadows[k] = null;

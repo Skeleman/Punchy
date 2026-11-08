@@ -26,6 +26,10 @@ namespace Punchy.Fauna
         /// <summary>Seconds per lap on a circle of this radius.</summary>
         public static float LapSeconds(float radius) => Mathf.PI * 2f * radius / Speed;
 
+        /// <summary>The ground under the ball, where its far shadow starts (StoneColossi.DrawFarShadows; the root sits at
+        /// the circle's centre, so a shadow laid from the root stood still while the ball rolled, playtest 11-07).</summary>
+        public Vector3 BallFoot => ball == null ? transform.position : ball.position - Vector3.up * (ballRadius * Sink);
+
         Transform ball;
         float radius, ballRadius, start, dir;
         float[] heights;
