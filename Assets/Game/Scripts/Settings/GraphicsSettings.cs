@@ -211,6 +211,8 @@ namespace Punchy.Settings
             var shadows = Slider(nav, "Shadows", Shadows);
             if (GUI.changed)
                 Set(view, detail, shadows);
+            // (Refactor 3.1: the real-light budget follows Detail, and so do the glow lights' on-screen thresholds.)
+            GUILayout.Label($"Real lights: {RealLights}{(lightBudgetArg >= 0 ? " (from the command line)" : "")}");
             GUILayout.Space(6);
             if (nav.Button("Reset (Medium)"))
                 Set(GraphicsPreset.Medium);
