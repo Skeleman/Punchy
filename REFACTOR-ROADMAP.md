@@ -269,8 +269,11 @@ before it ships.
 - What makes fields feel full, cheapest first: grass on more surfaces; a "meadow" surface with tall grass; clumps of
   3-5 blades per instance instead of one; the terrain under and beyond the grass painted grass-coloured, with the same
   gust noise darkening it in rolling waves out to the horizon (so the field doesn't end at 60 m).
-- Cost: job 32 addendum measures `-grassdensity 1/2/4`. Thin blades cost GPUs more than their triangle count suggests
-  (small triangles shade in 2x2 blocks), so this needs numbers before choosing.
+- **Clumps, not density (Zach, 11-08):** an earlier test of `-grassdensity` showed more evenly scattered blades don't
+  read as fuller. The linked shaders draw tufts, and tufts are what sell continuity. Prototype next: each instance a
+  clump of several blades fanned from one base (blade count, spread, lean and height varied per clump from its hash),
+  fewer instances per m^2, base colour taken from the ground. Then the far-field grass colour and gust shading on the
+  terrain. Timed against today's grass at the same spot once built.
 
 ### W3. Clouds and clear weather
 - The sky ray-marches volumetric clouds per pixel, every frame (up to 160 steps). Fewer clouds save some (clear patches
