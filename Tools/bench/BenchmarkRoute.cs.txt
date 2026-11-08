@@ -557,6 +557,15 @@ namespace Punchy.Debugging
                     }
                 Debug.Log($"BenchRoute: off {n} non-directional lights");
             }
+            // -benchnosky: no skybox (the sky is RenderSettings.skybox, Punchy/Sky: a pass switched off by -benchnoshader
+            // still draws there), the camera cleared to a flat colour instead (job 32's sky cost).
+            if (System.Array.IndexOf(args, "-benchnosky") >= 0 && RenderSettings.skybox != null)
+            {
+                Debug.Log($"BenchRoute: off skybox {RenderSettings.skybox.name} ({RenderSettings.skybox.shader.name})");
+                RenderSettings.skybox = null;
+                cam.clearFlags = CameraClearFlags.SolidColor;
+                cam.backgroundColor = new Color(0.5f, 0.6f, 0.75f);
+            }
             // -benchnoshader Water,Grass: every loaded material whose shader name contains one of these drawn with no
             // forward pass (nor shadow caster), so its share of the GPU frame shows against a plain run.
             var shaderArg = System.Array.IndexOf(args, "-benchnoshader");
@@ -1025,9 +1034,15 @@ namespace Punchy.Debugging
                 return true;
             }
             // "place" for the yaw keeps the yaw the place faces (e.g. -benchview place,-10: the Summit, out to sea, looking up).
-            var v = System.Array.ConvertAll(args[at + 1].Split(','), s => s == "place" ? placeYaw : float.Parse(s, System.Globalization.CultureInfo.InvariantCulture));
+            // "place+180" turns from it (the Beach place faces inland; job 33's swells look out to sea).
+            var v = System.Array.ConvertAll(args[at + 1].Split(','), s => s.StartsWith("place")
+                ? placeYaw + (s.Length > 5 ? float.Parse(s.Substring(5), System.Globalization.CultureInfo.InvariantCulture) : 0f)
+                : float.Parse(s, System.Globalization.CultureInfo.InvariantCulture));
             if (cam != null && v.Length >= 2)
+            {
                 cam.SetView(v[0], v[1]);
+                Debug.Log($"BenchRoute: view yaw {v[0]:F0} pitch {v[1]:F0} (place yaw {placeYaw:F0})");
+            }
             return true;
         }
 
