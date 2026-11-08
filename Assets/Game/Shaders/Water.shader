@@ -65,6 +65,7 @@ Shader "Punchy/Water"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareOpaqueTexture.hlsl"
             #include "Sky.hlsl"
             #include "SharedClock.hlsl"
+            #include "WaterSwell.hlsl"
 
             // Weather global (WeatherSystem): 0..1 wind strength at the camera.
             half _PunchyWind;
@@ -139,6 +140,8 @@ Shader "Punchy/Water"
                 half   fogFactor  : TEXCOORD2;
                 float4 look       : TEXCOORD3;
                 float2 glow       : TEXCOORD4;
+                float  swell      : TEXCOORD5;   // how strongly the sea swells here (WaterSwell.hlsl), 0 elsewhere
+                float  sea        : TEXCOORD6;   // 1 on the sea (its surface at sea level), 0 on lakes and rivers
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -148,6 +151,16 @@ Shader "Punchy/Water"
                 UNITY_SETUP_INSTANCE_ID(input);
                 UNITY_TRANSFER_INSTANCE_ID(input, o);
                 VertexPositionInputs pos = GetVertexPositionInputs(input.positionOS);
+                // The sea rises and falls in long swells (prototype; -noswells for the flat sea).
+                o.swell = PunchySwellAmount(pos.positionWS.y, input.data.z);
+                o.sea = step(abs(pos.positionWS.y - _PunchySwell.y), 0.05);
+                [branch] if (o.swell > 0)
+                {
+                    float2 swellSlope;
+                    float swellCrest;
+                    pos.positionWS += PunchySwell(pos.positionWS.xz, _PunchyClock, o.swell, swellSlope, swellCrest);
+                    pos.positionCS = TransformWorldToHClip(pos.positionWS);
+                }
                 o.positionCS = pos.positionCS;
                 o.positionWS = pos.positionWS;
                 o.data = input.data;
@@ -473,6 +486,23 @@ Shader "Punchy/Water"
                 // Running water underground has no calm sky to mirror: its reflection breaks up with the flow and fades.
                 float caveRun = _PunchyUnderground * flowAmount;
                 nReflect = normalize(lerp(nReflect, n, caveRun));
+                // Sea swell: tilt both normals by the swell's own slope (worked out per pixel, as the swells are only a few
+                // vertices long far off), and foam where waves break in the shallows or a strong wind tops the crests.
+                half swellFoam = 0;
+                [branch] if (input.swell > 0)
+                {
+                    float2 swellSlope;
+                    float swellCrest;
+                    PunchySwell(input.positionWS.xz, t, input.swell, swellSlope, swellCrest);
+                    n = normalize(float3(n.x / n.y - swellSlope.x, 1, n.z / n.y - swellSlope.y));
+                    nReflect = normalize(float3(nReflect.x / nReflect.y - swellSlope.x, 1, nReflect.z / nReflect.y - swellSlope.y));
+                    // Whitecaps: only in a strong wind, on the very tops of the crests, out where it's deep, in small
+                    // patches. (Breaking at the beach is the shore's surf line; foam over whole crests here read as a
+                    // white sheet, the swells being tens of metres long.)
+                    half breakUp = PunchyValueNoise(p * 1.3 + float2(t * 0.21, -t * 0.13)) * 0.6 + PunchyValueNoise(p * 3.7 - t * 0.3) * 0.4;
+                    half whitecaps = smoothstep(0.6, 0.95, _PunchySwell.z) * smoothstep(0.85, 0.97, swellCrest) * smoothstep(3.0, 6.0, depth);
+                    swellFoam = saturate(whitecaps * smoothstep(0.6, 0.8, breakUp) * 1.5) * distanceFade;
+                }
                 if (!frontFace)
                 {
                     n = -n;
@@ -621,14 +651,35 @@ Shader "Punchy/Water"
                 }
 
                 // Broken foam line where the water thins out against the shore (and around rocks in the stream).
-                half foamNoise = PunchyValueNoise(p * 0.9 + float2(t * 0.25, -t * 0.18)) * 0.6 + PunchyValueNoise(p * 2.7 - t * 0.4) * 0.4;
-                // The line laps: it creeps up the shore and draws back, unevenly along it.
-                half lap = 0.75 + 0.25 * sin(t * 1.4 + foamNoise * 5);
+                // Shore contact by kind (Zach, 11-08): the sea washes up the beach and draws back in long, slow surges;
+                // a river's edge foam is carried downstream with the current; a lake lies nearly still against its shore,
+                // with only a thin, faint line that barely moves.
+                half seaShore = input.sea;
+                half riverShore = saturate(flowAmount * 4) * (1 - seaShore);
+                half lakeShore = (1 - seaShore) * (1 - riverShore);
+                float2 carried = p - flowDir * flowAmount * riverSpeed * t * riverShore;
+                float2 still = float2(t * 0.25, -t * 0.18) * (1 - riverShore) * lerp(1, 0.25, lakeShore);
+                half foamNoise = PunchyValueNoise(carried * 0.9 + still) * 0.6 + PunchyValueNoise(carried * 2.7 - t * 0.4 * (1 - riverShore) * lerp(1, 0.25, lakeShore)) * 0.4;
+                // The line laps: it creeps up the shore and draws back, unevenly along it. The sea's surge is a long swash
+                // (about 9 s, reaching well up the beach and back); a river's laps as before; a lake's hardly moves.
+                half swash = 0.5 + 0.5 * sin(t * 0.7 + dot(p, float2(0.031, 0.022)) + foamNoise * 1.5);
+                half lap = seaShore
+                         + riverShore * (0.75 + 0.25 * sin(t * 1.4 + foamNoise * 5))
+                         + lakeShore * (0.5 + 0.06 * sin(t * 0.4 + foamNoise * 3));
                 // Where the water itself is deep, thin water in front of the bed can only be something standing in it (a
                 // swimmer, a rock): a much narrower, fainter line there.
                 half inDeep = smoothstep(0.5, 1.3, depth);
                 half foam = smoothstep(foamNoise * 0.7, 1, saturate(1 - thickness / (_FoamDistance * lap * (1 + rapids) * lerp(1, 0.3, inDeep))));
                 foam *= lerp(1, 0.55, inDeep);
+                // A lake's line is faint.
+                foam *= lerp(1, 0.45, lakeShore);
+                // The sea: not a sheet of foam but a thin surf line at the surge's front, running up the beach and back
+                // (about 9 s), with a faint wash behind it as it sinks into the sand.
+                float surgeReach = _FoamDistance * lerp(0.25, 1.4, swash);
+                half surfLine = 1 - smoothstep(0.0, 0.08 + 0.1 * _FoamDistance, abs(thickness - surgeReach));
+                half wash = (1 - saturate(thickness / max(surgeReach, 1e-3))) * 0.25;
+                half seaFoam = saturate(max(surfLine * smoothstep(0.25, 0.7, foamNoise + 0.2), wash)) * (1 - inDeep);
+                foam = lerp(foam, seaFoam, seaShore);
                 // Not a solid white strip: clear right at the edge (a wet line, where the bed shows through), and broken
                 // into patches along it. Underground, still shallow water barely foams (a shallow stream would otherwise
                 // count as shore all over).
@@ -661,6 +712,7 @@ Shader "Punchy/Water"
                                         // flow (Z-34, seen with -waterprobe 4), striping every cave stream.
                                         * (1 - caveRun) * (1 - steep));
                 foam = max(foam, max(foamParts.y, foamParts.z));
+                foam = max(foam, swellFoam);
                 // W-98: a waterfall is the river's own surface where it tips over a drop (no curtain over it any more):
                 // where the face is steep (from the mesh, not the ripples), it turns to falling water, white sheets and
                 // darker gaps streaming straight down across its width.
