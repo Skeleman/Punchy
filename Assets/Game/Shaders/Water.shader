@@ -120,6 +120,9 @@ Shader "Punchy/Water"
             float _PunchyWaterDetail;
             // 1 to skip the screen-space reflection march (CaveSystem, from -waterssr 0, for profiling only).
             float _PunchyWaterNoSsr;
+            // How far the ripples bend the view of what's under the water, in screen units (0: off, -waterrefraction 0).
+            // CaveSystem sets it with the other water globals; a global so the profiler can compare.
+            float _PunchyRefraction;
             SAMPLER(sampler_PunchyCaveDetail);
 
             // Must match WaterVertex in BuildChunkMeshJob.cs.
@@ -238,8 +241,16 @@ Shader "Punchy/Water"
                 float phase1 = frac(t / cycle + jitter + 0.5);
                 float w0 = 1 - abs(1 - 2 * phase0);
                 float2 offset = flow * speed * cycle;
-                return (WaveSlope(p - offset * phase0, t * 0.3) * w0 +
-                        WaveSlope(p - offset * phase1 + 7.3, t * 0.3) * (1 - w0)) * rsqrt(w0 * w0 + (1 - w0) * (1 - w0));
+                // (Zach, 11-08: rivers should read as moving water, not only by their foam.) The ripples are stretched
+                // across the current, about twice as long across it as along it, so they lie as ridges the water
+                // carries downstream; the slope comes back through the same stretch (the chain rule).
+                float2 along = flow / max(length(flow), 1e-3);
+                float2 across = float2(-along.y, along.x);
+                const float AcrossStretch = 0.45;
+                float2 q = along * dot(p, along) + across * dot(p, across) * AcrossStretch;
+                float2 g = (WaveSlope(q - offset * phase0, t * 0.3) * w0 +
+                            WaveSlope(q - offset * phase1 + 7.3, t * 0.3) * (1 - w0)) * rsqrt(w0 * w0 + (1 - w0) * (1 - w0));
+                return along * dot(g, along) + across * dot(g, across) * AcrossStretch;
             }
 
             // Whitewater foam carried by the current (W-98): the foam pattern itself drifts downstream at the river's
@@ -436,7 +447,8 @@ Shader "Punchy/Water"
                 float streaks = 0.5;
                 [branch] if (flowAmount > 0 || rapids > 0)
                 {
-                    flowingSlope = FlowingSlope(p, flowDir, riverSpeed, t) * (1 + 1.3 * rapids);
+                    // (Stronger as the river quickens, so the current shows in the surface itself.)
+                    flowingSlope = FlowingSlope(p, flowDir, riverSpeed, t) * (1 + 1.3 * rapids) * (1 + 0.5 * saturate(riverSpeed));
                     streaks = FlowStreaks(p, flowDir, riverSpeed, t);
                 }
                 float2 slope = lerp(WaveSlope(p, t), flowingSlope, flowAmount);
@@ -813,6 +825,20 @@ Shader "Punchy/Water"
                 // The atmosphere (fog and weather) only above ground; a cave pool is right in front of you.
                 if (_PunchyUnderground < 0.999)
                     color = lerp(PunchyAtmosphere(color, input.positionWS), color, _PunchyUnderground);
+                // What lies under the water is seen bent by the ripples (Zach, 11-08): the bed and stones shimmer and, on a
+                // river, slide with the current. Read from the screen behind, nudged by the ripple normal, more through
+                // thicker water and near the camera, none at the water's edge (where alpha goes to 0 anyway); the nudge is
+                // dropped where it would land on something in front of the water. The water is then composited here.
+                [branch] if (frontFace && _PunchyRefraction > 0 && alpha < 0.995 && distanceFade > 0)
+                {
+                    float2 bend = n.xz * _PunchyRefraction * saturate(thickness * 0.8) * distanceFade * (1 + flowAmount);
+                    float2 bentUV = saturate(screenUV + bend);
+                    float bentEye = LinearEyeDepth(SampleSceneDepth(bentUV), _ZBufferParams);
+                    bentUV = bentEye > surfaceEye ? bentUV : screenUV;
+                    half3 behind = SAMPLE_TEXTURE2D_X_LOD(_CameraOpaqueTexture, sampler_CameraOpaqueTexture, UnityStereoTransformScreenSpaceTex(bentUV), 0).rgb;
+                    color = lerp(behind, color, alpha);
+                    alpha = 1;
+                }
                 return half4(color, alpha);
             }
             ENDHLSL
