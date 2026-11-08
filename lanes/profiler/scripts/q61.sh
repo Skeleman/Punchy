@@ -6,7 +6,7 @@
 #             beach-clear / beach-storm: -benchplace Beach (facing out to sea), -benchweather Clear / Storm;
 #             lake: job 29's lake shore view.
 #   glitter, lava, pose: see each case below. river-flow follows when its branch is pushed.
-# "q61.sh swells|glitter|lava|pose".
+# "q61.sh swells|glitter|lava|pose|clumps".
 B=$HOME/Projects/Punchy-wt/Tools/bench
 . "$B/lib.sh"
 KM=4601262; OM=Profile-${KM}m; KW=098ddff; OW=Profile-${KW}m; Q=q61
@@ -89,6 +89,32 @@ pose)      # refactor/pose-by-size dcd0318d against main: -perflog's pose job ms
     one $spot $OM $KM main 1; one $spot $OP $KP size 1; one $spot $OP $KP size 2; one $spot $OM $KM main 2
   done
   grep -ohi 'roc\b[^,]*\|sky serpent[^,]*\|SkySerpent[^,]*' "$L"/q-$Q-pose-mountains-*.log | sort | uniq -c | head ;;
-*) echo "usage: q61.sh swells|glitter|lava|pose"; exit 2 ;;
+clumps)    # grass/clumps d6fee299 (5-blade tufts, half the roots) against -grassclumps 0 on the same build, the Meadow place
+           # looking across the field, C O O C; then one RenderDoc capture of each (rdpasses.py top draws: the grass).
+  KC=d6fee29; OC=Profile-${KC}m
+  RDC="/c/Program Files/RenderDoc/renderdoccmd.exe"; QRD="/c/Program Files/RenderDoc/qrenderdoc.exe"
+  S=$HOME/Projects/Punchy-coordination/lanes/profiler/scripts
+  build $KC BuildDev $OC || { echo "build $OC failed"; exit 1; }
+  keepawake
+  A="-benchstops place -benchplace Meadow -benchview place,12"
+  rm -f "$R"/$Q-clumps-*.csv "$L"/q-$Q-clumps-*.log
+  go clumps clumps 1 $OC $KC $A -benchshots "$W/$Q-shots/clumps-clumps"
+  go clumps old 1 $OC $KC $A -grassclumps 0 -benchshots "$W/$Q-shots/clumps-old"
+  go clumps old 2 $OC $KC $A -grassclumps 0
+  go clumps clumps 2 $OC $KC $A
+  for f in "$R"/$Q-clumps-*.csv; do echo "== $(basename $f .csv)"; table "$f"; done
+  mkdir -p "$R/rd61c"; rm -f "$R/rd61c"/*.rdc
+  for v in clumps old; do
+    x=; [ $v = old ] && x="-grassclumps 0"
+    fixed $OC || exit 1; cool
+    ( cd "$P/Builds/Bench" && timeout 900 "$RDC" capture -w -d "$(cygpath -w "$P/Builds/Bench")" -c "$WW\\rd61c\\$v" \
+        "$(cygpath -w "$P/Builds/Bench/Punchy.exe")" -logFile "$W/q-$Q-rdc-$v.log" -benchroute -weatherseed 4 -time 12 \
+        $(screen Bench 1920 1080) $COMMON $A $x -renderdocstop place 1 >/dev/null 2>&1 )
+    strays >/dev/null; check "$R/q-$Q-rdc-$v.log"
+  done
+  CAPS=$(ls "$R/rd61c"/*.rdc | xargs -n1 cygpath -w | tr '\n' ';')
+  RD_CAPS="$CAPS" RD_OUT="$WW\\$Q-clumps-passes.txt" RD_TOPDRAWS=25 timeout 3600 "$QRD" --python "$(cygpath -w "$S/rdpasses.py")" >/dev/null 2>&1
+  echo "qrenderdoc rc=$?"; strays >/dev/null ;;
+*) echo "usage: q61.sh swells|glitter|lava|pose|clumps"; exit 2 ;;
 esac
 echo $Q $1 done
