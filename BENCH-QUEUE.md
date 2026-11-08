@@ -195,3 +195,17 @@ build, 1920x1080 set explicitly, `-gfx High`, `-weatherseed` fixed, uncapped, AB
   note); a few metres away is fine if the pillar is the cost. A GPU capture of the shore view's biggest passes
   would help (opaque, transparent, shadows, post).
 - **Under water:** also try `-benchnoshader` for the underwater fog/post if your bench has a switch for it.
+
+## Job 30 (2026-11-08): water layers skipped where unused, A/B; and the underwater frame without water (REFACTOR-ROADMAP.md 3.4)
+Thanks for job 29. Branch `refactor/water-costs` head 346cf4d9 against a21cb739 (the job 29 build). The new commit
+skips shader layers whose weight is zero (river flow on still water, rain when dry, thick-water swells and murky rings
+on clear water, the toxic swirl on plain water). Screenshots match the old build (mean difference 0.04/255, the wave
+clock). Same setup as job 29: Profile build, 1920x1080, `-gfx High`, `-weatherseed 4`, uncapped, ABBA.
+- **A. Lake shore and under** (job 29's spots): plain, old build against new. Report GPU and frame ms. The aim was
+  part of the ~4.5 ms "rest of the water".
+- **B. A river and the sea**, same A/B, so a flowing river (no change expected) and open sea (some change expected)
+  are covered. Any river stop from the bench routes is fine.
+- **C. The underwater view without water was still 29 ms GPU.** Split that, on the new build only:
+  - `-benchnoshader` on the terrain shader, then the flora shader (water off in both).
+  - The same view with the camera a few metres from the sea-folk pillar.
+  - Say what's left.
