@@ -2,6 +2,42 @@
 
 Newest first.
 
+## 2026-11-07 Job 26 (refactor 3.5b): static flora variant A/B on refactor/flora-static 5febffdb (q54.sh; b/bench-stress 7aa25cf0 for review)
+
+- **Build:** Profile build of 5febffdb. The build log says `[flora] static (refactor 3.5): 563 of 1088 variants never move, 694018 LOD0 vertices static vs 1622264 moving`.
+- **Runs:**
+  - The window is 1920x1080 at render scale 1.333 (1440p pixels).
+  - The window size is set explicitly every run, and every shot came out 1920x1080.
+  - Uncapped, in order A B B A, where A = static variant and B = `-nostaticflora`.
+  - Then one A and one B with `-benchnoshadows`, so the shadow pass = GPU minus GPU without shadows.
+  - 12 sessions, 0 crashes, 0 exceptions.
+- **Scenes:** the job 25 big settlement, the dense forest (under the OakGrove canopy), and the Tors.
+  - The Tors used new route stop `-benchplace Tors`, at 2081,2445. Its first run left it out of `-benchstops`, so it was rerun alone with the same order.
+
+### Results (GPU ms, Profile timer; rounds 1 / 2)
+
+| Scene | Static (A) | Animated (B) | A − B | Shadow pass, static / animated | Main ms A / B |
+|---|---|---|---|---|---|
+| Big settlement | 24.1 / 24.4 | 24.5 / 24.4 | −0.2 (noise) | 0.4 / 0.6 | 9.2 / 9.1 |
+| Dense forest | 16.4 / 16.1 | 16.2 / 16.0 | +0.15 (noise) | 0.8 / 0.7 | 9.7 / 9.7 |
+| Tors | 22.2 / 22.2 | 22.3 / 22.3 | −0.1 | 1.8 / 1.6 | 8.9 / 9.1 |
+
+- **The static variant makes no measurable difference** at the settlement or the forest. Their round-to-round spread (0.2-0.3 ms) is bigger than the A−B gap.
+  - The Tors shows a steady −0.1 ms, which is about 0.5% of its GPU time.
+  - So vertex wind is not what limits these scenes.
+- **What the flora in view is** (`-benchflora`, plants vs rocks/kit):
+
+  | Scene | Plants in view | Rocks/kit in view |
+  |---|---|---|
+  | Big settlement | 4,522 (927k tris) | 1,156 (227k tris) |
+  | Forest | 10,932 (2.27M tris) | 1,008 (139k tris) |
+  | Tors | 7,152 (1.21M tris) | 894 (321k tris) |
+
+  - Even at the Tors only about 21% of flora tris in view are rocks/kit. So the static variant touches a fifth of the vertices at best, and the wind maths it removes is cheap.
+- **Main opaque pass:** cannot be split on this build. The GPU recorders read nothing on D3D11, so only the shadow pass is split, by subtraction.
+- **Looks:** I compared only the A screenshots by eye (big settlement, forest, Tors). They look normal. There are no B shots, so this is not a pixel comparison; the player lane's same-scene check stands.
+- Logs: `results/q54logs` on the laptop. Shots: `results/q54-shots`, `results/q54t-shots`.
+
 ## 2026-11-07 Job 25 (refactor 1.2): stress scenes on e5c88fb4, uncapped (q53.sh; b/bench-stress 472b629d for review)
 
 - **Build:** Profile build of 01cb543, the same game code as job 24.

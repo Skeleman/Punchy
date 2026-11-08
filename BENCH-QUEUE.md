@@ -132,7 +132,7 @@ thread ms, GPU ms, draw calls and tris, and the top 5 systems by ms (SysMs).
 4. **Lake:** a lake filling most of the screen. For example the W-120 sea folk lake at `-goto -1624,-488`, looking across it at noon; repeat with the camera under the water (`-view 0,-35`).
 These feed refactor phase 3 (3.1 lights, 3.2 fire, 3.4 water, 3.5 flora by behaviour). For 3.5, also log the flora vertex count split into plants vs rocks/kit buildings in scene 1, if SysMs or a render counter can.
 
-## Job 26 (2026-11-07): static flora variant A/B (REFACTOR-ROADMAP.md 3.5b), after jobs 24-25
+## Job 26 (2026-11-07, REPORTED in REPORTS-profiler.md; q54.sh): static flora variant A/B (REFACTOR-ROADMAP.md 3.5b), after jobs 24-25
 Branch `refactor/flora-static` (5febffdb, not merged: merge waits on this job). Flora models that never move (rocks,
 logs, ruins, kit buildings) draw with a FLORA_STATIC variant that skips all vertex wind and motion. The build log says
 `[flora] static (refactor 3.5): 563 of 1088 variants never move, 694018 LOD0 vertices static vs 1622264 moving`.
