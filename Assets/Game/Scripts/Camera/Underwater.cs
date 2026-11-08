@@ -42,6 +42,8 @@ namespace Punchy.CameraRig
 
         bool under;
         float amount;
+        /// <summary>Whether the camera's lens is in the water now (WeatherSystem hides its precipitation then, item 18).</summary>
+        public static bool LensUnder { get; private set; }
         AudioLowPassFilter lowPass;
         EntityQuery terrainQuery;
         World queryWorld;
@@ -76,7 +78,11 @@ namespace Punchy.CameraRig
             RenderPipelineManager.beginContextRendering += BeforeRender;
         }
 
-        void OnDestroy() => RenderPipelineManager.beginContextRendering -= BeforeRender;
+        void OnDestroy()
+        {
+            RenderPipelineManager.beginContextRendering -= BeforeRender;
+            LensUnder = false;
+        }
 
         void BeforeRender(ScriptableRenderContext context, List<Camera> cameras)
         {
@@ -99,6 +105,7 @@ namespace Punchy.CameraRig
             var y = transform.position.y;
             var was = under;
             under = surface > float.MinValue && (under ? y < surface + Margin : y < surface - Margin);
+            LensUnder = under;
             if (under != was)
                 Debug.Log($"Underwater: {(under ? "in" : "out of")} the water ({kind}, lens {y:F2}, surface {(surface > float.MinValue ? surface.ToString("F2") : "-")}); low-pass {(under ? $"on ({Cutoff:F0} Hz)" : "off")}");
             amount = Mathf.MoveTowards(amount, under ? 1f : 0f, Time.deltaTime / (under ? BlendIn : BlendOut));
