@@ -294,6 +294,25 @@ before it ships.
 - Changing placement reshuffles flora, so the fingerprint pins move once (re-pin with the reason). Cost: a few more
   height samples per placement cell; small.
 
+### W5. Moon nights: dark new moons, and the blue moon's insidious pull
+- Today: the moon's direct light already scales with its phase (8% at new moon), but the night ambient only drops to
+  45% (WeatherSystem: `Lerp(0.45, 1, MoonLit)`), so a new-moon night is never really dark. The blue moon adds a faint
+  blue ambient (DayNightCycle.BlueMoonLight x BlueMoonGlow).
+- **Dark new moons:** lower the ambient floor to about 10%, so new-moon nights are properly dark (stars, lanterns and
+  glowing plants carry them). Free (a constant).
+- **Blue-moon nights:** when the blue moon is up and full, the ambient and moonlight turn strongly blue; fog and water
+  tint with it. Free.
+- **Its influence, in order of cost:**
+  1. Blue shooting stars, far more often, all streaking from the blue moon towards the island (the sky shader already
+     draws shooting stars procedurally in 6 s slots; this changes their colour, rate and direction). Near free.
+  2. Shimmering specks drifting through the sky from the moon towards the island in slow streams, now and then
+     (a procedural sparkle field in the sky shader). About 0.1-0.3 ms.
+  3. Wavy beams reaching from the moon to the island: faked with a few large soft ribbons of scrolling noise (no
+     ray-march), fading where they meet the ground. About 0.2-0.6 ms, by how much of the screen they cover. True
+     volumetric beams would cost as much as the clouds (several ms); not worth it.
+  4. Other tells, cheap: a low blue mist that gathers in hollows; glowing plants and toxic water pulse in time with the
+     moon; a slow ripple of blue light running across the land now and then; creatures restless (fauna lane).
+
 ## Keep as is (ChatGPT agrees)
 GPU-driven flora, TerrainSource as the single ground contract, deterministic generation, terrain streaming budgets,
 BlobAssets for static world data, procedural creature animation, the river flow-map water, the fire draw-batching
