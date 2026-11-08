@@ -42,7 +42,7 @@ lava)   # lava timed as the scout saw it: the runner's spot stop put the camera 
     for i in 1 2 3 4; do echo "-goto -206,-2124 -view 45,75 -wait 6 -perflog -shot s$i"; done; } > "$R/$Q-lava.txt"
   one() { # tag build round
     local tag=$Q-lava-$1-$3
-    fixed $2 || exit 1; cool
+    mkdir -p "$R/$Q-lavashots/$tag"; fixed $2 || exit 1; cool
     ( cd "$P/Builds/Bench" && timeout 900 ./Punchy.exe -logFile "$W/q-$tag.log" $(screen Bench 1920 1080) -gfx High -fpscap 0         -weatherseed 4 -shotlist "$W/$Q-lava.txt" -shotdir "$W/$Q-lavashots/$tag" -quit >/dev/null 2>&1 )
     [ $? -eq 124 ] && echo "$tag: TIMED OUT"
     strays >/dev/null; cp "$R/q-$tag.log" "$L/"
