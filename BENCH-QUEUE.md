@@ -261,3 +261,7 @@ over +0.5 ms GPU.
   out): CPU, not GPU. A spot with a roc or sky serpent in view (any wild stop where one shows) and the busy wild stop
   from job 25 (`-wildcap 2000`): CreatureRenderSystem pose ms and the posed/reused counts, against main.
 - **`night/moon-sky`**: no cost expected (two scaled colours); skip unless convenient.
+- **Job 33 addendum (overnight):** also time
+  - `water/river-flow`: the job 30 river stop and job 29's lake shore view, plain against `-waterrefraction 0` on the
+    same build (the refraction adds a screen and a depth read per water pixel), and against main.
+  - `water/glitter-grid`: job 29's lake shore view against main (expected no change: one read's UVs are turned).
