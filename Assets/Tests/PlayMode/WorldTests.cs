@@ -41,7 +41,8 @@ namespace Punchy.Tests
         }
 
         /// <summary>
-        /// Target: 83902658 since A-89 row 3 (main's W-122 marsh folk flora species, AEA50DCE on main, plus the PadFrog and
+        /// Target: F0EF4BD5 since refactor 3.6 (a new field in the flora placement rules, BiomeRock: the blob's bytes moved,
+        /// no placement changed). 83902658 since A-89 row 3 (main's W-122 marsh folk flora species, AEA50DCE on main, plus the PadFrog and
         /// Dragonfly species and the marsh life rows: 120 species). AD7E7781 since A-88 row 2 (the LakeSturgeon species and the sea folk lake fish rows). 706B915E since W-121 (sea folk buoy and raft species; gull perches on buoy masts). 65C95060 since W-120 (4 new sea folk flora species: glow stone, wreck, clam bed, vent field). 2998FA9A since W-119 (FishBoardwalk species, more fishing variants, moved stilt houses). 027CC3FD since W-118 (hazard house layout entries and the drift slope limit change flora data). 8A1979F1 since W-114 (the ribcage's bones and its BoneRemains, GiantRibs and rock props go into the flora
         /// blob; no species change). 90AC5F60 since W-113 (rows 1-3 changed tent, ruin plinth and roof flora, whose colliders and perches go into
         /// the flora blob this hashes; landmarks unchanged). F4E66093 since the A-73 merge (W-105 stilt houses plus A-73 Gull and Mackerel in the critter table;
@@ -56,7 +57,7 @@ namespace Punchy.Tests
         {
             var line = LogWatch.Last("fingerprint") ?? "no fingerprint line";
             LogWatch.Measure("fauna " + line);
-            StringAssert.Contains("fingerprint 83902658", line);
+            StringAssert.Contains("fingerprint F0EF4BD5", line);
             yield return null;
         }
 

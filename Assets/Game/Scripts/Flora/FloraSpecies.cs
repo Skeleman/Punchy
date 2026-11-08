@@ -258,6 +258,9 @@ namespace Punchy.Flora
         public bool StoneSeat;
         [Tooltip("Rocks: keep their own colour wherever they lie (ice), instead of taking the biome's rock on dry ground.")]
         public bool KeepOwnColour;
+        [Tooltip("Upright rock forms (arches, hoodoos): take the biome's own rock colour where they stand, as boulders do, so " +
+                 "they keep matching the land when its colours change (refactor 3.6; playtest 11-07: the mesa arches no longer matched).")]
+        public bool TakeBiomeRock;
 
         [Header("Placement")]
         [Tooltip("Steepest ground it grows on, in degrees.")]

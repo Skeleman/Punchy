@@ -32,6 +32,8 @@ namespace Punchy.Flora
         public float Tilt;
         /// <summary>1 for rocks that keep their own colour wherever they lie (ice), not the biome's rock (RockTint).</summary>
         public int OwnColour;
+        /// <summary>1 for upright rock forms that take the biome's rock all the same (FloraSpecies.TakeBiomeRock).</summary>
+        public int BiomeRock;
         /// <summary>1 for built things (FloraGenerator.Founded): their bases take a band of the ground's colour.</summary>
         public int Dirt;
         /// <summary>1 for hive trees, 2 for docks: placed in a landmark, they face its way (comb on a known side, docks out to
@@ -274,6 +276,7 @@ namespace Punchy.Flora
                     RiverSpot = (int)s.RiverSpot,
                     Tilt = s.Form == FloraForm.Boulder ? 0.85f : 0f,
                     OwnColour = s.KeepOwnColour ? 1 : 0,
+                    BiomeRock = s.TakeBiomeRock ? 1 : 0,
                     Dirt = FloraGenerator.Founded(s.Form) ? 1 : 0,
                     // Docks (#36) face the landmark's way too: a fishing village faces open water, so they run out to sea.
                     // A sea folk pier (#37) faces its landing's way too, but sits on its bank as placed: DockShore seats on the sea.
@@ -441,7 +444,7 @@ namespace Punchy.Flora
 
         /// <summary>The ground colour a placed plant carries (FloraInstance.Ground): a rock's tint, or a built thing's dirt.</summary>
         static uint GroundFor(in TerrainSource source, in FloraRules rule, float2 at, float reach, float band) =>
-            rule.Tilt > 0f && rule.OwnColour == 0 ? RockTint(source, at) : DirtColor(source, rule, at, reach, band);
+            (rule.Tilt > 0f || rule.BiomeRock != 0) && rule.OwnColour == 0 ? RockTint(source, at) : DirtColor(source, rule, at, reach, band);
 
         /// <summary>
         /// A rock's colour where it lies (G-36): on dry ground, the biome's own rock (the surface its cliffs take, so a rock
