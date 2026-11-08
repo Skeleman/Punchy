@@ -171,9 +171,21 @@ namespace Punchy.Terrain
             // Water reads it too, for fine ripples; it keeps them off until this is set.
             Shader.SetGlobalFloat(DetailReadyId, 1f);
             Shader.SetGlobalFloat(WaterDetailId, WaterDetail ? 1f : 0f);
+            Shader.SetGlobalFloat(WaterNoSsrId, ArgIs("-waterssr", "0") ? 1f : 0f);
         }
 
         static readonly int WaterDetailId = Shader.PropertyToID("_PunchyWaterDetail");
+        static readonly int WaterNoSsrId = Shader.PropertyToID("_PunchyWaterNoSsr");
+
+        /// <summary>Whether the command line has <paramref name="flag"/> followed by <paramref name="value"/>.</summary>
+        static bool ArgIs(string flag, string value)
+        {
+            var args = System.Environment.GetCommandLineArgs();
+            for (int i = 0; i < args.Length - 1; i++)
+                if (args[i] == flag)
+                    return args[i + 1] == value;
+            return false;
+        }
 
         /// <summary>
         /// Whether water draws its fine detail (ripples, caustics, glitter): on unless the command line says

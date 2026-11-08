@@ -117,6 +117,8 @@ Shader "Punchy/Water"
             float _PunchyCaveDetailReady;
             // 1 to draw the fine detail at all, 0 to skip it (CaveSystem, from -waterdetail).
             float _PunchyWaterDetail;
+            // 1 to skip the screen-space reflection march (CaveSystem, from -waterssr 0, for profiling only).
+            float _PunchyWaterNoSsr;
             SAMPLER(sampler_PunchyCaveDetail);
 
             // Must match WaterVertex in BuildChunkMeshJob.cs.
@@ -525,7 +527,7 @@ Shader "Punchy/Water"
                 // colour (looking steeply down, murky water, fall faces), what it would find barely shows, so it's
                 // skipped (W-117).
                 const half SsrMinWeight = 0.025;
-                if (frontFace && _ScreenReflection > 0 && lava < 0.99 && fresnel * _ScreenReflection > SsrMinWeight)
+                if (frontFace && _PunchyWaterNoSsr < 0.5 && _ScreenReflection > 0 && lava < 0.99 && fresnel * _ScreenReflection > SsrMinWeight)
                 {
                     half4 scene = ScreenReflection(input.positionWS + float3(0, 0.02, 0), r);
                     reflection = lerp(reflection, scene.rgb, scene.a * _ScreenReflection);
