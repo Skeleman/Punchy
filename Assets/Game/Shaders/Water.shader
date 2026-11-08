@@ -312,6 +312,25 @@ Shader "Punchy/Water"
             }
 
             // Slow bubbles in thick water: here and there a dome swells up, then pops (xy slope, z = bubble mask).
+            // Lava plates: a cellular pattern (each point's nearest and second-nearest jittered cell centre), returning
+            // those two distances and the nearest cell's id. The seams between plates are where the two are close.
+            float2 LavaCells(float2 x, out float2 cellId)
+            {
+                float2 n = floor(x), f = frac(x);
+                float f1 = 8, f2 = 8;
+                cellId = n;
+                [unroll] for (int j = -1; j <= 1; j++)
+                [unroll] for (int i = -1; i <= 1; i++)
+                {
+                    float2 g = float2(i, j);
+                    float2 r = g + float2(PunchyHash(n + g + 1.7), PunchyHash(n + g + 9.3)) * 0.8 + 0.1 - f;
+                    float d = dot(r, r);
+                    if (d < f1) { f2 = f1; f1 = d; cellId = n + g; }
+                    else if (d < f2) f2 = d;
+                }
+                return float2(sqrt(f1), sqrt(f2));
+            }
+
             float3 Bubbles(float2 p, float t)
             {
                 float2 q = p * 0.9;
@@ -736,43 +755,44 @@ Shader "Punchy/Water"
                 color = lerp(color, foamLit, foam * (1 - lava));
                 alpha = max(alpha, foam * (1 - lava));
 
-                // Lava: mostly bright molten orange and yellow, flowing in slow, domain-warped swirls (noise warped by
-                // noise, each layer drifting its own way, so nothing looks like cells), with thin, sparse islands of
-                // dark crust riding on it; they gather and thicken towards the edges, where it cools against the rock.
-                // It hardly reflects anything.
+                // Lava (Zach, 11-08: the old swirl read as jelly): a crust of cooled, rock-like plates, a couple of metres
+                // across, drifting slowly on the melt, split by glowing seams, with here and there an open pool of melt.
+                // The melt glows hard (past white-point, for any bloom); the plates are dull, rough basalt, each tilted
+                // its own way and lit with its own flat face, never the water's ripples, and nothing on it reflects.
                 if (lava > 0)
                 {
-                    // Carried by any flow, and always drifting a little, so even a still pool visibly moves.
-                    float2 q = (p - flowDir * flowAmount * t * 0.15 + float2(t * 0.04, t * 0.025)) * 0.28;
-                    float2 w1 = float2(PunchyValueNoise(q * 1.3 + float2(t * 0.021, 0)), PunchyValueNoise(q * 1.3 + float2(5.2, -t * 0.017)));
-                    float2 w2 = float2(PunchyValueNoise((q + w1 * 1.6) * 2.1 + float2(-t * 0.013, 1.7)),
-                                       PunchyValueNoise((q + w1 * 1.6) * 2.1 + float2(8.3, t * 0.019)));
-                    float swirl = PunchyValueNoise(q + w1 * 1.4 + w2 * 0.8 + t * 0.006) * 0.6 + PunchyValueNoise((q + w2) * 3.3 - t * 0.01) * 0.4;
-                    // Black plates of cooled crust over about a third of it, riding the swirl, plus a thin rim where the
-                    // melt meets the rock; the plates are split by thin cracks that still glow.
-                    half crust = smoothstep(0.55, 0.6, swirl);
-                    half crack = 1 - smoothstep(0.0, 0.035, abs(PunchyValueNoise((q + w2 * 0.5) * 7.0) - 0.5));
-                    crust *= 1 - crack * 0.85;
-                    crust = max(crust, 1 - saturate(thickness / 0.2));
-                    // Crust edges glow hotter, as if the melt is just closing over them.
-                    half edge = smoothstep(0.49, 0.55, swirl) * (1 - crust);
-                    half band = PunchyValueNoise((q + w1 * 2.0) * 4.0 + t * 0.03);
-                    // Red melt; orange on the warmer bands, yellow only on the hottest ones, the crust edges and the
-                    // cracks.
-                    half3 red = lerp(half3(0.9, 0.1, 0.015), input.look.rgb, 0.15);
-                    half3 molten = lerp(red, half3(1.0, 0.3, 0.03), smoothstep(0.6, 0.85, band));
-                    molten = lerp(molten, half3(1.0, 0.75, 0.22), saturate(smoothstep(0.86, 0.97, band) + edge * 0.6 + crack * 0.5));
-                    // Slow bubbles rise through the open melt and pop, brighter where they break the surface.
-                    half bubble = Bubbles(p * 1.4, t * 0.8).z * (1 - crust);
-                    molten = lerp(molten, half3(1.0, 0.6, 0.15), bubble * 0.7);
-                    half pulse = 0.9 + 0.1 * sin(t * 0.7 + swirl * 6.28);
-                    // Bright enough to glow, not so bright the tonemapper washes the colour out to white.
-                    half3 hot = molten * (0.55 + 0.3 * band + 0.3 * edge + 0.4 * bubble) * pulse;
-                    half3 rock = half3(0.03, 0.025, 0.025);
-                    half3 rockLit = rock * (ambient + light.color * saturate(dot(n, light.direction)) * shadow) + red * 0.04;
-                    half3 lavaColor = lerp(hot, rockLit, crust);
-                    // A faint, rough sheen on the crust only.
-                    lavaColor += reflection * fresnel * 0.06 * crust;
+                    // Carried by any flow, and drifting a little, slowly: the plates creep rather than slosh.
+                    float2 drift = flowDir * flowAmount * t * 0.12 + float2(t * 0.012, t * 0.008);
+                    float2 q = (p - drift) * 0.45;
+                    // A gentle warp, so the plates aren't perfect polygons.
+                    float2 warp = float2(PunchyValueNoise(q * 0.7 + 3.1), PunchyValueNoise(q * 0.7 - 5.3)) - 0.5;
+                    float2 plateId;
+                    float2 cells = LavaCells(q + warp * 0.6, plateId);
+                    half seam = cells.y - cells.x;   // 0 on a seam between plates
+                    half plateRandom = PunchyHash(plateId + 4.4);
+                    // About one cell in four is open melt; the rest carry a plate, held back from the seams by a hot margin.
+                    // Towards the edges it cools against the rock and the crust closes up.
+                    half open = step(plateRandom, 0.25);
+                    half plate = (1 - open) * smoothstep(0.05, 0.11, seam);
+                    plate = max(plate, 1 - saturate(thickness / 0.2));
+                    // Heat: hottest down the seams and in the open pools, churning slowly.
+                    float2 m = p - drift;
+                    half churn = PunchyValueNoise(m * 0.8 + float2(t * 0.03, -t * 0.02)) * 0.6 + PunchyValueNoise(m * 2.3 - t * 0.05) * 0.4;
+                    half heat = saturate(open * (0.45 + 0.45 * churn) + (1 - smoothstep(0.0, 0.09, seam)) * (0.65 + 0.35 * churn) + 0.25 * churn);
+                    half3 ramp = heat < 0.5 ? lerp(half3(0.35, 0.03, 0.005), half3(1.0, 0.22, 0.02), heat * 2)
+                                            : lerp(half3(1.0, 0.22, 0.02), half3(1.0, 0.78, 0.3), heat * 2 - 1);
+                    half pulse = 0.93 + 0.07 * sin(t * 0.5 + plateRandom * 6.28);
+                    half3 hot = ramp * (1.2 + 2.2 * heat) * pulse;
+                    // The plates: dark basalt, each its own tone and tilt, lit by the sun on that flat face, with a dull red
+                    // glow round its rim where it is still hot underneath.
+                    float2 tilt = float2(PunchyHash(plateId + 2.1), PunchyHash(plateId + 7.7)) - 0.5;
+                    float3 plateNormal = normalize(float3(tilt.x * 0.35, 1, tilt.y * 0.35));
+                    half grain = PunchyValueNoise(p * 3.1) * 0.5 + 0.5;
+                    half3 basalt = half3(0.045, 0.038, 0.036) * (0.75 + 0.5 * plateRandom) * (0.8 + 0.4 * grain);
+                    half3 crustLit = basalt * (SampleSH(plateNormal) + light.color * saturate(dot(plateNormal, light.direction)) * shadow);
+                    half plateRim = 1 - smoothstep(0.05, 0.2, seam);
+                    crustLit += half3(0.5, 0.06, 0.01) * plateRim * 0.6 * (1 - open);
+                    half3 lavaColor = lerp(hot, crustLit, plate);
                     color = lerp(color, lavaColor, lava);
                     alpha = lerp(alpha, 1, lava);
                 }
