@@ -119,6 +119,8 @@ namespace Punchy.CameraRig
             }
             if (!terrainQuery.TryGetSingleton<TerrainSource>(out var terrain))
                 return float.MinValue;
+            // The sea swell's state for this frame, for the water shader and the swimmer (prototype, WaterSwells).
+            WaterSwells.Publish(terrain.World.SeaLevel);
             var at = new float3(p.x, p.y, p.z);
             if (terrain.Caves.IsCreated)
             {
@@ -131,10 +133,11 @@ namespace Punchy.CameraRig
             }
             var ground = terrain.SampleGround(at.xz);
             // (In the water column: above its bed, and not deep in rock under it, a cave under a lake.)
-            if (ground.HasWater && p.y > ground.Height - 0.5f && p.y < ground.WaterSurface + 1f)
+            // (Up to 2.5 m over the flat surface: a swell's crest can close over the lens.)
+            if (ground.HasWater && p.y > ground.Height - 0.5f && p.y < ground.WaterSurface + 2.5f)
             {
                 kind = math.abs(ground.WaterSurface - terrain.World.SeaLevel) < 0.05f ? "the sea" : "a lake or river";
-                return ground.WaterSurface;
+                return ground.WaterSurface + WaterSwells.Height(at.xz, ground.WaterSurface, ground.Height);
             }
             return float.MinValue;
         }
