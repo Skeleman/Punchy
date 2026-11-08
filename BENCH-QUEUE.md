@@ -245,3 +245,9 @@ opaque). Zach also wants clearer weather more often and asks whether fewer cloud
 - **B. Under water, Snell's window + sky skip** (`water/snells-window` head, against main 46012623): job 29's lake
   spot under water (`-benchpitch -35`) and 12 m east of the pillar. GPU and frame ms. The branch draws the surface's
   underside as Snell's window (no above-water lighting there) and returns the fog colour for sky pixels under water.
+- **Job 32 addendum (2026-11-08): grass density cost.** Zach wants fuller, contiguous grassy fields. On main, at a
+  spot on the `Grass` surface (a meadow with grass over most of the screen; any bench stop or `-place` that lands in
+  open grassland), noon, looking across the field: `-grassdensity 1`, `2`, `4` (GroundDetailSystem's scale; 1 is
+  today's 28 blades/m² at full density), plus `-benchnoshader` on the grass shader ("Punchy/Grass Blades"). Report GPU
+  ms per run, and one RenderDoc capture at density 1 and 4 with the grass draws' GPU time and blade count. This sizes
+  "4x the grass" before anyone builds it.
