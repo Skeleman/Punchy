@@ -247,3 +247,17 @@ opaque). Zach also wants clearer weather more often and asks whether fewer cloud
   underside as Snell's window (no above-water lighting there) and returns the fog colour for sky pixels under water.
 - **Job 32 addendum (grass density cost): withdrawn.** Zach tried `-grassdensity` before: more evenly scattered
   blades don't read as fuller. The player lane is prototyping blade clumps instead; that will get its own A/B.
+
+## Job 33 (2026-11-08): what the overnight prototypes cost (Zach: "if any of the shaders wind up costly, let me know")
+Each branch below is pushed separately; time each against main 46012623 (or say which main you used). Profile builds,
+1920x1080, `-gfx High`, `-weatherseed 4`, uncapped, ABBA. GPU ms, frame ms, main and render thread ms; flag anything
+over +0.5 ms GPU.
+- **`water/swells`** (sea swells, breakers, whitecaps, shore contact by kind; includes Snell's window): a beach looking
+  out to open sea (the bench's Beach stop) in `-weather Clear` and `-weather Storm`, and with `-noswells` on the same
+  build. Also job 29's lake shore view (lakes get the new still shore line only).
+- **`water/lava-plates`** (lava drawn as cooled plates on a glowing melt, cellular pattern): `-place VolcanoCone`
+  looking into the crater, lava filling as much of the screen as possible.
+- **`refactor/pose-by-size`** (creature pose bands scale with body size, so huge animals are posed every frame further
+  out): CPU, not GPU. A spot with a roc or sky serpent in view (any wild stop where one shows) and the busy wild stop
+  from job 25 (`-wildcap 2000`): CreatureRenderSystem pose ms and the posed/reused counts, against main.
+- **`night/moon-sky`**: no cost expected (two scaled colours); skip unless convenient.
