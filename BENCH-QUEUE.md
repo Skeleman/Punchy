@@ -271,3 +271,11 @@ over +0.5 ms GPU.
 - **Job 33 addendum 3:** `night/blue-moon` (blue streaks in the sky shader on blue-moon nights, a loop of 3 for sky
   pixels near the blue moon): `-bluemoondays 0 -time 0 -weather Clear`, camera on the blue moon, against main. Expected
   near zero; flag it if not.
+- **Note for the Job 32 Summit freeze (player lane, 2026-11-08 ~07:15):** not reproduced outside the bench route. A
+  Development build of main 46012623, `-goto -2446,1154 -time 12 -weatherseed 4`, 13 shots 5 s apart, twice (once
+  `-fpscap 0` looking up at `-view 0,-10`): no stall, colossi built frames 40-56, every shot on time. So it needs
+  something the route or the Profile build adds (the `-benchplace` jump and settle, `-benchweather`, the profiler
+  connection, or BenchmarkRoute/BProfileTools themselves). To find the code: when it freezes, attach Visual Studio (or
+  `procdump -ma <pid>`) and break, or run the same route on a Development build with "Script Debugging" so the main
+  thread's managed stack can be read; a stack from inside the freeze will name it. The last log lines (MagmaSerpent made
+  solid, `Weather: forced`, a JobTempAlloc leak warning) are just the last things that happened before it, not the cause.
