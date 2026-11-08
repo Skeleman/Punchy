@@ -281,10 +281,12 @@ void PunchyCloudLight(out float3 direction, out half3 color)
     // The sun by day, the moon by night; through twilight (down to -8°) the sun still lights the high clouds.
     bool sunUp = _PunchySunDirection.y > -0.14;
     direction = sunUp ? _PunchySunDirection : _PunchyMoonDirection;
-    color = sunUp ? _PunchySunColor : half3(0.16, 0.19, 0.27) * _PunchyNight;
+    // The moon lights the clouds by its phase: a new moon leaves them a dim grey (Zach, 11-08).
+    half3 moonlight = half3(0.16, 0.19, 0.27) * _PunchyNight * lerp(0.15, 1, _PunchyMoonPhase.y);
+    color = sunUp ? _PunchySunColor : moonlight;
     // Moonlight takes over gradually through blue hour, so the switch at -8° doesn't pop.
     if (sunUp)
-        color += half3(0.16, 0.19, 0.27) * _PunchyNight * (1 - smoothstep(-0.14, -0.05, _PunchySunDirection.y));
+        color += moonlight * (1 - smoothstep(-0.14, -0.05, _PunchySunDirection.y));
 }
 
 #define PUNCHY_FAR_START 15000.0
