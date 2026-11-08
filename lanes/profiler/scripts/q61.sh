@@ -9,7 +9,9 @@
 # "q61.sh swells|glitter|lava|pose|clumps|bluemoon".
 B=$HOME/Projects/Punchy-wt/Tools/bench
 . "$B/lib.sh"
-KM=4601262; OM=Profile-${KM}m; KW=098ddff; OW=Profile-${KW}m; Q=q61
+# (From the second try on, every build is an m2 build: its runner keeps a freeze from using up a stop, knows
+# DebugControls' centres and -place finders.)
+KM=4601262; OM=Profile-${KM}m2; KW=098ddff; OW=Profile-${KW}m2; Q=q61
 mkdir "$R/.lock" 2>/dev/null || { echo "lock held: $(cat $R/.lock/job)"; exit 2; }
 echo $$ > "$R/.lock/pid"; echo "$Q prototypes $1 (since $(date +%T))" > "$R/.lock/job"
 trap 'rm -rf "$R/.lock"; git -C "$P" checkout -q $HOME_BRANCH 2>/dev/null' EXIT
@@ -24,12 +26,14 @@ go() { # set variant round build commit extra...
 }
 case $1 in
 swells)
+  # (First try: the beach camera looked down at the sand, no sea in frame: now -benchview place,8, the Beach place's
+  # own yaw, out to sea.)
   build $KW BuildDev $OW || { echo "build $OW failed"; exit 1; }
   keepawake
   for set in beach-clear beach-storm lake; do
     case $set in
-      beach-clear) A="-benchstops place -benchplace Beach -benchweather Clear" ;;
-      beach-storm) A="-benchstops place -benchplace Beach -benchweather Storm" ;;
+      beach-clear) A="-benchstops place -benchplace Beach -benchweather Clear -benchview place,8" ;;
+      beach-storm) A="-benchstops place -benchplace Beach -benchweather Storm -benchview place,8" ;;
       lake) A="-benchstops spot -benchspot -1624,-488,0" ;;
     esac
     rm -f "$R"/$Q-$set-*.csv "$L"/q-$Q-$set-*.log
@@ -58,14 +62,14 @@ lava)      # water/lava-plates 53582b9b against main, looking down into the Volc
   # carry the fix.)
   KL=53582b9; OL=Profile-${KL}m2
   build $KL BuildDev $OL || { echo "build $OL failed"; exit 1; }
-  build $KM BuildDev ${OM}2 || { echo "build ${OM}2 failed"; exit 1; }
+  build $KM BuildDev $OM || { echo "build $OM failed"; exit 1; }
   keepawake
   A="-benchstops place -benchplace VolcanoCone:centre -benchview place,${PITCH:-55}"
   rm -f "$R"/$Q-lava-*.csv "$L"/q-$Q-lava-*.log
-  go lava main 1 ${OM}2 $KM $A -benchshots "$W/$Q-shots/lava-main"
+  go lava main 1 $OM $KM $A -benchshots "$W/$Q-shots/lava-main"
   go lava plates 1 $OL $KL $A -benchshots "$W/$Q-shots/lava-plates"
   go lava plates 2 $OL $KL $A
-  go lava main 2 ${OM}2 $KM $A
+  go lava main 2 $OM $KM $A
   for f in "$R"/$Q-lava-*.csv; do echo "== $(basename $f .csv)"; table "$f"; done
   grep -h 'BenchRoute: place: avg' "$L"/q-$Q-lava-*-1.log | sed 's/ fps.*, at / ... at /' | cut -c1-120 ;;
 pose)      # refactor/pose-by-size dcd0318d against main: -perflog's pose job ms and posed/reused counts (CPU), in
@@ -125,14 +129,14 @@ bluemoon)  # night/blue-moon 7be628b2 against main: the Summit at midnight, Clea
            # blue moon (-benchview bluemoon, re-aimed once the hour is set), M B B M.
   KB=7be628b; OB=Profile-${KB}m
   build $KB BuildDev $OB || { echo "build $OB failed"; exit 1; }
-  build $KM BuildDev ${OM}2 || { echo "build ${OM}2 failed"; exit 1; }   # main again with the runner's -benchview bluemoon
+  build $KM BuildDev $OM || { echo "build $OM failed"; exit 1; }   # main again with the runner's -benchview bluemoon
   keepawake
   A="-benchstops place -benchplace Summit -benchview bluemoon -benchhour 0 -benchweather Clear -bluemoondays 0"
   rm -f "$R"/$Q-bluemoon-*.csv "$L"/q-$Q-bluemoon-*.log
-  go bluemoon main 1 ${OM}2 $KM $A -benchshots "$W/$Q-shots/bluemoon-main"
+  go bluemoon main 1 $OM $KM $A -benchshots "$W/$Q-shots/bluemoon-main"
   go bluemoon blue 1 $OB $KB $A -benchshots "$W/$Q-shots/bluemoon-blue"
   go bluemoon blue 2 $OB $KB $A
-  go bluemoon main 2 ${OM}2 $KM $A
+  go bluemoon main 2 $OM $KM $A
   for f in "$R"/$Q-bluemoon-*.csv; do echo "== $(basename $f .csv)"; table "$f"; done
   grep -h 'view on the blue moon\|weather Clear forced' "$L"/q-$Q-bluemoon-*-1.log | sort | uniq -c | cut -c1-160 ;;
 *) echo "usage: q61.sh swells|glitter|lava|pose|clumps|bluemoon"; exit 2 ;;
