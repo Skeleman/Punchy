@@ -98,6 +98,13 @@ So:
   - Branch `refactor/flora-static` kept for reference.
   - 3.5c (per-class LOD and shadow rules) still stands: the big town has 556 shadow casters and the most URP shadow work.
   - 3.5d (a slimmer instance layout) is dropped.
+- **Job 28 (2026-11-08, static flora for bigger cities, grouped draws):**
+  - Static vs animated: -0.3 ms GPU at the big settlement, -0.2 at the Tors; render thread -0.2 ms at the town. Inside the round-to-round spread, and the split adds about 12-16 SetPass calls.
+  - Shader warm-up: not needed. Both variants show the same slow frames 2.5-3.5 s after jumping into a town (streaming, not shader compile).
+  - Baked detail: the ceiling (`-nofloradetail`, all procedural detail off) is 0.2-0.3 ms GPU. Not worth building at today's town size.
+  - Far shadow cache redraws while walking: +0.4-1.2 ms GPU on 4 frames every 10 m. Scrolling the cache would save under 1 ms on 4% of frames; not worth it yet.
+  - Open: one 371 ms frame walking into the big town (1 of 4 runs), cause unknown; needs a capture.
+  - Decision for Zach: merge the static variant now (small, grows with city size) or keep it on the branch until the bigger cities exist.
 
 **New priority order:**
 1. 3.4 water.
