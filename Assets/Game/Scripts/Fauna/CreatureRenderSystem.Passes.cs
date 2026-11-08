@@ -25,8 +25,11 @@ namespace Punchy.Fauna
             public NativeArray<Entity> Entities;
             /// <summary>Per worker (StatStride apart): the pose job's ticks, creatures posed afresh, moved on (A-70 row 4).</summary>
             public NativeArray<long> Stats;
-            /// <summary>Where the middle and far pose bands start among the creatures' capsules (A-70 row 4).</summary>
-            public int MidStart, FarStart;
+            /// <summary>Each creature's detail decision (DetailPolicy.Decision, packed): next frame's tiers start from it.</summary>
+            public NativeArray<byte> Decisions;
+            /// <summary>Where each draw group (DrawGroup: capsule detail x shadow) starts among the creatures' parts,
+            /// and where the last ends (GroupCount + 1).</summary>
+            public NativeArray<int> GroupStarts;
             public int ColonyStart, Total;
 
             public void Dispose()
@@ -39,6 +42,8 @@ namespace Punchy.Fauna
                 States.Dispose();
                 Entities.Dispose();
                 Stats.Dispose();
+                Decisions.Dispose();
+                GroupStarts.Dispose();
             }
         }
 
@@ -185,42 +190,31 @@ namespace Punchy.Fauna
             prevPosed = p;
             havePrev = true;
 
-            // Draws from the one buffer: the creatures, the near and middle bands casting shadows; then the colonies and
-            // traces after them, which don't (sleeping bats under a cave ceiling and prints on the ground gain nothing from a shadow pass).
-            props ??= new MaterialPropertyBlock();
-            props.SetBuffer(SegmentsId, buffer);
-            props.SetInteger(SegmentOffsetId, 0);
+            // Draws from the one buffer: the creatures in their draw groups (refactor 3.7: capsule detail and shadow each
+            // by how big the creature looks, decided apart, A-70 row 4 and A-82 row 3 before it); then the colonies and
+            // traces after them, which cast no shadow (sleeping bats under a cave ceiling and prints on the ground gain
+            // nothing from a shadow pass).
             var rp = new RenderParams(settings.Material)
             {
                 worldBounds = new Bounds(cam.transform.position, Vector3.one * 2000f),
-                matProps = props,
-                shadowCastingMode = ShadowCastingMode.On,
                 receiveShadows = true
             };
-            // (The creatures in three pose bands, A-70 row 4: the near with the full capsule, further ones with fewer sides
-            // and rows, each band from where it starts in the buffer.)
-            var midStart = settings.CapsuleMid != null ? p.MidStart : colonyStart;
-            var farStart = settings.CapsuleFar != null ? math.max(p.FarStart, midStart) : colonyStart;
-            if (midStart > 0)
-                Graphics.RenderMeshPrimitives(rp, settings.Capsule, 0, midStart);
-            if (farStart > midStart)
+            groupProps ??= new MaterialPropertyBlock[GroupCount];
+            for (int g = 0; g < GroupCount; g++)
             {
-                midProps ??= new MaterialPropertyBlock();
-                midProps.SetBuffer(SegmentsId, buffer);
-                midProps.SetInteger(SegmentOffsetId, midStart);
-                rp.matProps = midProps;
-                Graphics.RenderMeshPrimitives(rp, settings.CapsuleMid, 0, farStart - midStart);
-            }
-            if (colonyStart > farStart)
-            {
-                farProps ??= new MaterialPropertyBlock();
-                farProps.SetBuffer(SegmentsId, buffer);
-                farProps.SetInteger(SegmentOffsetId, farStart);
-                rp.matProps = farProps;
-                // (Past PoseFar no shadow, as the colonies (A-82 row 3): a creature 100 m off adds a shadow-pass draw
-                // for a shadow a few pixels wide, in the far cascade where it barely shows.)
-                rp.shadowCastingMode = ShadowCastingMode.Off;
-                Graphics.RenderMeshPrimitives(rp, settings.CapsuleFar, 0, colonyStart - farStart);
+                int from = p.GroupStarts[g], to = p.GroupStarts[g + 1];
+                if (to <= from)
+                    continue;
+                // (A capsule detail the settings leave out falls back to the next finer one.)
+                var detail = g / 2;
+                var mesh = detail == 2 && settings.CapsuleFar != null ? settings.CapsuleFar
+                         : detail >= 1 && settings.CapsuleMid != null ? settings.CapsuleMid : settings.Capsule;
+                var block = groupProps[g] ??= new MaterialPropertyBlock();
+                block.SetBuffer(SegmentsId, buffer);
+                block.SetInteger(SegmentOffsetId, from);
+                rp.matProps = block;
+                rp.shadowCastingMode = (g & 1) == 0 ? ShadowCastingMode.On : ShadowCastingMode.Off;
+                Graphics.RenderMeshPrimitives(rp, mesh, 0, to - from);
             }
             if (total > colonyStart)
             {
@@ -251,12 +245,22 @@ namespace Punchy.Fauna
         // ------------------------------------------------------------------------------- pose rate (A-70 row 4)
 
         /// <summary>
-        /// Pose tiers by distance from the camera: nearer than PoseNear posed every frame, out to PoseFar every second
-        /// frame, beyond that every fourth (staggered by entity, so each frame takes an even share). On the frames
-        /// between, a creature's last pose is moved and turned with it (PoseJob.Reuse). The same bands pick the capsule
-        /// it's drawn with: fewer sides and rows further off (FaunaRenderSettings.CapsuleMid, CapsuleFar).
+        /// Detail by how big a creature looks (refactor 3.7, DetailPolicy.Creature; distance bands of 40 / 100 m before,
+        /// A-70 row 4), three answers decided apart:
+        /// - Pose rate: posed every frame, every 2nd or every 4th (staggered by entity, so each frame takes an even
+        ///   share). On the frames between, its last pose is moved and turned with it (PoseJob.Reuse).
+        /// - Capsule: full, or fewer sides and rows (FaunaRenderSettings.CapsuleMid, CapsuleFar).
+        /// - Shadow: cast while it looks big enough for one to show.
+        /// A deer keeps today's 40 / 100 m at 60 degrees; a sky serpent stays smooth, detailed and shadowed as far out
+        /// as it looks as big as a deer does there.
+        /// The creatures are drawn in GroupCount groups: capsule detail (0-2) x shadow (on, off), group = detail x 2 +
+        /// (shadow ? 0 : 1).
         /// </summary>
-        const float PoseNear = 40f, PoseFar = 100f;
+        const int GroupCount = 6;
+        MaterialPropertyBlock[] groupProps;
+        NativeArray<byte> noDecisions;
+        /// <summary>The draw group for a decision.</summary>
+        static int DrawGroup(Punchy.Settings.DetailPolicy.Decision d) => math.min(d.Geometry, 2) * 2 + (d.Shadow ? 0 : 1);
         /// <summary>Creatures nearer than this to the camera are never frustum culled (their shadows can fall in view, as
         /// with BehindCullRange); further ones are when wholly outside it by FrustumMargin and more for the huge.</summary>
         const float FrustumMargin = 6f;
@@ -277,13 +281,20 @@ namespace Punchy.Fauna
         /// <summary>Per worker, longs apart so they don't share a cache line: pose ticks, posed afresh, moved on.</summary>
         const int StatStride = 8;
 
-        /// <summary>Which pose band a creature is in: 0 near (and players' bodies, and the carried), 1 middle, 2 far.</summary>
-        static int Band(in CreatureState state, float3 camera)
+        /// <summary>
+        /// A creature's detail under this view, from its last decision: players' bodies and the carried always in full.
+        /// Its size is CreatureMotion.ApparentSize; how active: crossing up to three body lengths a second, or flying.
+        /// </summary>
+        static Punchy.Settings.DetailPolicy.Decision Decide(in CreatureState state, in CreatureBody body,
+                                                            in Punchy.Settings.DetailPolicy.View view,
+                                                            Punchy.Settings.DetailPolicy.Decision previous)
         {
             if (state.Mode == CreatureMode.Puppet || state.Mode == CreatureMode.Held)
-                return 0;
-            var d = math.distancesq(state.Position, camera);
-            return d < PoseNear * PoseNear ? 0 : d < PoseFar * PoseFar ? 1 : 2;
+                return Punchy.Settings.DetailPolicy.Decision.Of(0, 0, true);
+            var size = CreatureMotion.ApparentSize(state, ref body.Blob.Value);
+            var activity = math.max(math.saturate(state.Speed / math.max(size, 0.3f) / 3f), state.Fly > 0.5f ? 0.5f : 0f);
+            return Punchy.Settings.DetailPolicy.Decide(Punchy.Settings.DetailPolicy.Creature, size,
+                                                       math.distance(state.Position, view.Camera), activity, view, previous);
         }
 
         /// <summary>Where each creature is in last frame's posing, by entity, for PoseJob.Reuse.</summary>
@@ -420,38 +431,50 @@ namespace Punchy.Fauna
             public NativeList<float3> Hanging, Emoting;
             /// <summary>How many were kept, and the parts they take.</summary>
             public NativeReference<int2> Counted;
-            /// <summary>A-70 row 4: packed by pose band (near, middle, far: Band) when Tiers, and where the middle and far
-            /// bands start among the parts.</summary>
+            /// <summary>Refactor 3.7: when Tiers, each kept creature's detail decided (Decide, from its last decision:
+            /// PrevIndex into PrevDecisions), and the kept packed by draw group (DrawGroup), with where each group starts
+            /// among the parts. Without Tiers ("-oldposerate") all in full, posed every frame, with shadows.</summary>
             public bool Tiers;
-            public float3 CameraPosition;
-            public NativeReference<int2> BandStarts;
+            public Punchy.Settings.DetailPolicy.View View;
+            [ReadOnly] public NativeParallelHashMap<Entity, int> PrevIndex;
+            [ReadOnly] public NativeArray<byte> PrevDecisions;
+            public NativeArray<byte> Decisions;
+            public NativeArray<int> GroupStarts;
 
             public void Execute()
             {
+                var decided = new NativeArray<byte>(AllBodies.Length, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+                var full = Punchy.Settings.DetailPolicy.Decision.Of(0, 0, true);
+                for (int i = 0; i < AllBodies.Length; i++)
+                {
+                    if (!Keep[i])
+                        continue;
+                    var previous = Punchy.Settings.DetailPolicy.Decision.First;
+                    if (PrevIndex.TryGetValue(AllEntities[i], out var was) && was < PrevDecisions.Length)
+                        previous.Packed = PrevDecisions[was];
+                    decided[i] = (Tiers ? Decide(AllStates[i], AllBodies[i], View, previous) : full).Packed;
+                }
                 var keep = 0;
-                for (int band = 0; band < (Tiers ? 3 : 1); band++)
+                for (int group = 0; group < (Tiers ? GroupCount : 1); group++)
                     for (int i = 0; i < AllBodies.Length; i++)
-                        if (Keep[i] && (!Tiers || Band(AllStates[i], CameraPosition) == band))
+                        if (Keep[i] && (!Tiers || DrawGroup(new Punchy.Settings.DetailPolicy.Decision { Packed = decided[i] }) == group))
                         {
                             Bodies[keep] = AllBodies[i];
                             States[keep] = AllStates[i];
                             Entities[keep] = AllEntities[i];
+                            Decisions[keep] = decided[i];
                             keep++;
                         }
                 var total = 0;
-                int midStart = -1, farStart = -1;
+                var nextGroup = 0;
                 for (int i = 0; i < keep; i++)
                 {
                     var state = States[i];
                     var body = Bodies[i];
-                    if (Tiers)
-                    {
-                        var band = Band(state, CameraPosition);
-                        if (band >= 1 && midStart < 0)
-                            midStart = total;
-                        if (band >= 2 && farStart < 0)
-                            farStart = total;
-                    }
+                    // (Each group from where its first creature's parts start; empty ones start where the next does.)
+                    var group = DrawGroup(new Punchy.Settings.DetailPolicy.Decision { Packed = Decisions[i] });
+                    while (nextGroup <= group)
+                        GroupStarts[nextGroup++] = total;
                     Offsets[i] = total;
                     total += body.SegmentCount + MarkCount + (InWeb(state) ? WebCount : 0) + LairCount(ref body.Blob.Value) +
                              (state.Task == CreatureTask.Hunt ? 1 : 0) + HeldCount(state.Held, state.Task) + GearCount(state.Task);
@@ -462,7 +485,8 @@ namespace Punchy.Fauna
                         Emoting.Add(state.Position);
                 }
                 Counted.Value = new int2(keep, total);
-                BandStarts.Value = new int2(midStart < 0 ? total : midStart, farStart < 0 ? total : farStart);
+                while (nextGroup <= GroupCount)
+                    GroupStarts[nextGroup++] = total;
             }
         }
     }

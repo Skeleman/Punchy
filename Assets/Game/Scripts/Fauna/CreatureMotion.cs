@@ -21,6 +21,23 @@ namespace Punchy.Fauna
         /// <summary>Distance from the landing spot at which a bird flares (slows, pitches up, legs forward).</summary>
         public const float FlareDistance = 1.5f;
 
+        /// <summary>A deer's body length (m), the size the creature detail rules are tuned to.</summary>
+        public const float DeerLength = 1.5f;
+        /// <summary>The distance most creatures are drawn out to (CreatureRenderSystem's FadeFar).</summary>
+        public const float VisibleFrom = 165f;
+
+        /// <summary>
+        /// How big a creature is for the detail rules (refactor 3.7, Settings.DetailPolicy), rendering and simulation
+        /// alike: its largest extent (body length or girth, by its scale), and for the huge at least what its SeenFrom
+        /// implies (seen from that far as a deer is from VisibleFrom: tall, thin or winged bodies whose length
+        /// undersells them).
+        /// </summary>
+        public static float ApparentSize(in CreatureState s, ref CreatureBlob b)
+        {
+            var size = math.max(b.BodyLength, 2f * math.max(b.RearRadius, b.FrontRadius)) * math.max(s.Scale, 0.01f);
+            return math.max(size, DeerLength * b.SeenFrom / VisibleFrom);
+        }
+
         /// <summary>
         /// Whether a flying bird is beating its wings rather than gliding: always for small birds; soaring birds flap
         /// while climbing and in short bursts between glides.
