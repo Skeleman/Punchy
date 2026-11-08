@@ -2,6 +2,15 @@
 
 Newest first.
 
+## 2026-11-08 Correction to the freeze verdict: it froze in daylight, and the likely cause is the display turning off (bench fix pushed)
+
+- **This morning's verdict ("the laptop overnight") was wrong.** Job 33's FishingVillage beach runs froze at 16:00 (a 35 s frame) and from 16:01:33 to 16:27:48 (**one 1573 s frame**, nothing logged in between). Builds: water/swells 098ddffd built with today's runner (m4). So it's not that runner's age, not main's code, and not the hour.
+- **What the freezes have in common: nobody was using the laptop.** Overnight, and 16:00-16:27 this afternoon. The clean runs (q62 at 10:49-11:15, the 15 Summit sessions) were while someone was.
+- **The bench's keepawake helper didn't hold the display for the q-scripts.** It sets `ES_DISPLAY_REQUIRED`, but it only stays alive while a Punchy game runs or bash runs `florabatch|benchrun|bench.sh`. The queue scripts (q5x/q6x.sh) never matched, so the helper quit at the first 30 s check between two games. After that, the display turned off at its 15 min idle timeout (read with powercfg, not changed) and the game's frame blocked until someone came back. Windows' event logs show nothing either way.
+- **Fix** (b/bench-stress ebd22ef5): keepawake also holds while the bench lock (`results/.lock`) exists, which is the whole of any queue script. No power settings changed.
+- **Not proven yet:** I haven't turned the display off on purpose to reproduce it (that's a power setting). The next unattended runs are the test. If a frame over 5 s shows up again, this is wrong and I'll say so.
+- **Data affected:** the beach Clear round 2 runs (rerunning now). Every frozen run so far was either rerun or flagged as void.
+
 ## 2026-11-08 Job 32 (refactor 3.4): the sky costs 15-19 ms GPU at the Summit; Snell's window saves 23-29 ms under water (q60.sh, third try)
 
 - **Builds:** Profile builds of main 46012623 (m3: today's runner, with `-benchnosky`) and water/snells-window 31b890be.
