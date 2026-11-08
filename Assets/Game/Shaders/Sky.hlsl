@@ -553,24 +553,29 @@ half PunchyBlueMoonHold()
 // moon and run outwards and down towards the island, several a minute when it's up and full, none when it's dark or
 // down. Like the shooting stars, each comes from a hash of its 6 s slot on the shared clock, so every player sees the
 // same ones; each starts just off the moon's disc and runs away from it, longer and slower than a meteor.
+// Feedback 11-08 item 9 (they ended abruptly): a streak thins and dims over the outer part of its run, its head has a
+// soft front, and it breaks up into twinkling sparkles as it tapers out and again as it fades, the sparkles lingering
+// a little past where the line ended. _PunchySkyTest (-meteors) sends all three every slot, for shots.
 half3 PunchyBlueMoonStreaks(float3 dir)
 {
     half hold = PunchyBlueMoonHold();
     if (hold < 0.35 || dot(dir, _PunchyBlueMoon) < 0.2)
         return 0;
     const float slotLength = 6;
+    const float sparkCell = 0.014;   // spacing of the sparkles along a streak (sky units, about 0.8 degrees)
     float slot = floor(_PunchyClock / slotLength);
     float local = _PunchyClock - slot * slotLength;
     half3 sum = 0;
     [loop] for (int k = 0; k < 3; k++)
     {
         float s = fmod(slot, 4096) * 5.31 + k * 23.9 + 911.0;
-        if (PunchyHash1(s) > 0.3 * smoothstep(0.35, 0.8, hold))
+        if (PunchyHash1(s) > (_PunchySkyTest > 0.5 ? 1.0 : 0.3 * smoothstep(0.35, 0.8, hold)))
             continue;
         float start = PunchyHash1(s + 1.1) * (slotLength - 3.0);
         float life = lerp(1.2, 2.2, PunchyHash1(s + 2.3));
         float t = (local - start) / life;
-        if (t < 0 || t > 1.5)
+        // t 0..1 the run; 1..1.7 the fade (the tail draws in and the sparkles twinkle out)
+        if (t < 0 || t > 1.7)
             continue;
         // Out from the moon: the anchor is the moon itself; the streak's way is a random direction round it, but
         // turned towards the ground (the island lies below).
@@ -579,18 +584,37 @@ half3 PunchyBlueMoonStreaks(float3 dir)
         float3 up = cross(a, right);
         float heading = PunchyHash1(s + 6.1) * 6.2832;
         float2 way = normalize(float2(cos(heading), sin(heading) - 0.9));
-        float len = lerp(0.35, 0.7, PunchyHash1(s + 7.7));
+        // (At most 0.7 past the rim, so the whole run stays inside the early-out's cone: no cut at its edge.)
+        float len = lerp(0.4, 0.7, PunchyHash1(s + 7.7));
         float3 v = dir - a * dot(dir, a);
         float2 q = float2(dot(v, right), dot(v, up));
         float along = dot(q, way) - sin(PunchyBlueMoonRadius) - 0.01;   // from just outside the disc's rim
-        float across = abs(q.x * way.y - q.y * way.x);
-        float head = len * min(t, 1);
-        float tail = max(len * 0.5 * (1 - smoothstep(1, 1.5, t)), 0.001);
-        half trail = saturate(1 - (head - along) / tail) * step(along, head) * step(head - tail, along) * step(0, along);
+        float side = q.x * way.y - q.y * way.x;
         // A soft, slightly wavering glow rather than a hard meteor line.
         float wobble = sin(along * 40 + _PunchyClock * 3 + PunchyHash1(s + 9.1) * 6.28) * 0.002;
-        half streak = 1 - smoothstep(0.001, 0.004, abs(across + wobble));
-        sum += half3(0.25, 0.55, 1.6) * trail * trail * streak * smoothstep(0, 0.1, t) * (1 - smoothstep(0.6, 1.5, t)) * 4;
+        float across = abs(side + wobble);
+        float head = len * min(t, 1);
+        float tail = max(len * 0.6 * (1 - smoothstep(1, 1.6, t)), 0.001);
+        half trail = saturate(1 - (head - along) / tail) * step(along, head) * step(head - tail, along) * step(0, along);
+        // The taper: over the outer 70% of its run it thins and dims to nothing, and the head's front is soft.
+        float run = saturate(along / len);
+        half taper = 1 - smoothstep(0.3, 1.0, run);
+        half front = smoothstep(0, 0.025, head - along);
+        half streak = 1 - smoothstep(0.0006, 0.0012 + 0.003 * taper, across);
+        // The break-up: from about a third of the way out, and as the whole streak fades, the line gives way to
+        // sparkles: one dot in most cells along it, a little off the line, each twinkling at its own pace.
+        half breakUp = saturate(smoothstep(0.3, 0.85, run) + smoothstep(0.85, 1.4, t));
+        float cell = floor(along / sparkCell);
+        float h = PunchyHash1(s * 0.37 + cell * 1.731);
+        float2 spark = float2(along - (cell + 0.5) * sparkCell, side + wobble - (PunchyHash1(h * 97.3) - 0.5) * 0.008);
+        half twinkle = pow(0.5 + 0.5 * sin(_PunchyClock * (4 + 7 * h) + h * 40), 3);
+        half dots = (1 - smoothstep(0.0007, 0.0024, length(spark))) * step(h, 0.65) * twinkle;
+        // Sparkles linger a little behind the tail and past the head, and die out at the very end of the run.
+        half sparkTrail = saturate(1 - (head - along) / (tail * 1.4)) * step(head - tail * 1.4, along) * step(along, head + 0.03)
+                        * step(0, along) * (1 - smoothstep(0.85, 1.1, run));
+        half beam = trail * trail * streak * front * taper * (1 - breakUp);
+        sum += half3(0.25, 0.55, 1.6) * (beam + sparkTrail * dots * breakUp * 2.5)
+             * smoothstep(0, 0.1, t) * (1 - smoothstep(0.6, 1.7, t)) * 4;
     }
     return sum * hold;
 }
