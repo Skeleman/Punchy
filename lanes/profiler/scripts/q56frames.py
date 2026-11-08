@@ -1,7 +1,8 @@
 """Job 28 D: the far shadow cache redraw's cost per frame, from the runner's -benchframes CSVs.
 
-FrameTiming lags a few frames, so each timing (its frameStartTimestamp) is matched to the frame that began then: frame f
-began at the end-of-frame stamp of frame f-1. Each matched frame then has its own main thread, render thread and GPU ms.
+FrameTiming lags a few frames, so each row's timing is moved back to the frame it timed: the lag is the one whose timed
+frame lengths (gaps between frameStartTimestamps) best match the frames' own lengths (QPC stamps at each frame's end).
+Each matched frame then has its own main thread, render thread and GPU ms.
 Frames that drew a cache slice are compared with the frames within 15 of them that didn't (the same stretch of the walk,
 so streaming and the view are about the same), and with all other frames.
     python q56frames.py <stop.csv>...   (e.g. results/q56frames/enter-*/towncross.csv)

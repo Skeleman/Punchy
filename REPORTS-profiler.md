@@ -2,6 +2,77 @@
 
 Newest first.
 
+## 2026-11-08 Job 28 (refactor 3.5): static flora for bigger cities (q56.sh, q56b.sh, q56frames.py; b/bench-stress 5c97ef08 for review)
+
+- **Build:** Profile build of refactor/flora-static 5fa346f3 (draws grouped by material; `-nofloradetail`). The build log says `563 of 1088 variants never move, 694018 LOD0 vertices static vs 1622264 moving`.
+- **Runs:**
+  - 1920x1080 set explicitly, render scale 1, uncapped, `-weatherseed 4`.
+  - A/B (part A, B): bigtown + Tors in one game, order static, animated (`-nostaticflora`), no detail (`-nofloradetail`), no detail, animated, static; then static and animated once each with `-benchnoshadows`.
+  - C/D: a fresh game per run, order static, animated, animated, static.
+  - Then one Profiler capture per variant and stop (q56b), for SetPass and draws: the Profile build's render counters read invalid in the route.
+  - 20 sessions, 0 crashes, 0 exceptions.
+- **New on the runner (b/bench-stress 5c97ef08):**
+  - Stops `townjump`, `townenter` and `towncross` in the biggest settlement (2972,-885, 0 water on the way in along 0.88,-0.47).
+  - `-benchframes <folder>`: every measured frame to a CSV, with whether the frame drew a far shadow cache slice (FloraSystem's private `cacheStep`/`CacheRedraws`, by reflection).
+  - FrameTiming lags 3 frames here. Its stamps run on another clock base, so q56frames.py matches them to frames by lining up frame lengths (correlation 0.56-0.70 in all 4 runs).
+
+### A. Grouped draws: static vs animated
+
+| Scene | Variant | GPU ms (rounds) | Render thread ms | Main ms | Shadow pass ms | SetPass (capture) | Instanced draws (capture) |
+|---|---|---|---|---|---|---|---|
+| Big settlement | static | 16.45 (16.3 / 16.6) | 5.35 | 9.25 | 1.15 | 381 | 9,043 |
+| Big settlement | animated | 16.75 (16.8 / 16.7) | 5.55 | 9.4 | 1.35 | 365 | 8,393 |
+| Tors | static | 14.05 (14.3 / 13.8) | 3.35 | 9.4 | not measurable | 243 | 9,310 |
+| Tors | animated | 14.25 (14.2 / 14.3) | 3.4 | 9.35 | not measurable | 231 | 8,184 |
+
+- **Against job 26:** static now reads 0.2-0.3 ms less GPU than animated (job 26: −0.2 noise at the town, −0.1 at the Tors, at 1440p pixels).
+  - The town's render thread is 0.2 ms lower with static. That is the only gain larger than its round-to-round spread, and it's small.
+  - The GPU gap is the same size as the spread between rounds (up to 0.5 ms at the Tors), so I'd still call it within noise.
+- **The split still costs passes:** with the static variant on, SetPass is +16 at the town and +12 at the Tors, and instanced draws are +650 / +1,126. One capture each, so these are indicative.
+- **Shadow pass:** at the Tors the no-shadow runs read higher GPU than with shadows (14.3 / 14.6 vs 14.05 / 14.25), so the pass can't be split there on this laptop.
+
+### B. Bake ceiling (`-nofloradetail`)
+
+| Scene | Static | No detail | Saved |
+|---|---|---|---|
+| Big settlement | 16.45 | 16.25 (16.3 / 16.2) | 0.2 |
+| Tors | 14.05 | 13.75 (13.5 / 14.0) | 0.3 |
+
+- Baking the procedural weathering, wood, cloth and strata detail could save at most 0.2-0.3 ms GPU here, even at the rock-heavy Tors.
+
+### C. First approach
+
+- **townjump** (800 m out, jumped into the middle 15 s before the end):
+
+  | Run | Frames over 50 ms after the jump | Worst | Frames over 33 ms in the 5 s after |
+  |---|---|---|---|
+  | static 1 | 53, 63, 55 (2.6-3.3 s after) | 63 | 10 |
+  | animated 1 | 68, 66 (2.6-2.8 s after) | 68 | 9 |
+  | animated 2 | 62 (2.7 s after) | 62 | 11 |
+  | static 2 | none | 50 | 10 |
+
+  - There is no first-use stall from the static variant: both variants show the same ~10 slow frames 2.5-3.5 s after arriving, so the cost is streaming the town in, not a shader warm-up.
+- **townenter** (walked in at 6 m/s from 400 m out):
+  - 3 of 4 runs had no frame over 37 ms.
+  - Static run 1 had one 371 ms frame at 2807,-797, about 190 m from the middle, 66 s into the session. The other static run didn't. Cause not found: the next step would be a capture of that walk (`-profilestop townenter`).
+
+### D. Far shadow cache redraws while walking (towncross, 100 m at 6 m/s)
+
+- Each run redrew the cache 10 times (every 10 m), each over 4 frames: 40 slice frames of about 1,000.
+- Matched per frame, against frames within 15 of a slice that drew none:
+
+  | Variant | Slice frames | Frame ms | Main ms | Render ms | GPU ms |
+  |---|---|---|---|---|---|
+  | static | 80 | 16.92 vs 16.55 | 10.15 vs 9.93 (+0.2) | 4.33 vs 4.26 | 14.94 vs 13.72 (+1.2) |
+  | animated | 80 | 16.42 vs 16.41 | 10.27 vs 9.74 (+0.5) | 4.25 vs 4.27 | 14.19 vs 13.76 (+0.4) |
+
+- A redraw costs about +0.2-0.5 ms main and +0.4-1.2 ms GPU, on 4 frames every 10 m (4% of frames while walking).
+- Scrolling the cache instead of redrawing it would save under 1 ms on those frames. Neither variant had a frame over 35 ms while crossing.
+
+- Logs: `results/q56logs`, frames: `results/q56frames`, shots: `results/q56-shots` on the laptop.
+- **Public repo:** `Tools/bench/lib.sh` line 3 defaults `P` to a path with a Windows user name in it. It's already on main; it should use `$HOME/Projects/Punchy`.
+- Cost: this session so far (jobs 28-29): 232 calls, peak 260k context, $17.0 (usage_log with ~/.claude-pro-2 added).
+
 ## 2026-11-07 Job 29 (refactor 3.4): where the lake's GPU time goes (q57.sh)
 
 - **Build:** Profile build of refactor/water-costs a21cb739.
