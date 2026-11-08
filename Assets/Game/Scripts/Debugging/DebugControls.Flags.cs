@@ -319,6 +319,8 @@ namespace Punchy.Debugging
                     if (EnsureLocations(out var propSource) && PlaceByProp(propSource, propPending))
                         propPending = null;
                 }
+                else if (args[i] == "-place" && args[i + 1].StartsWith("cavelava", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var lavaSource))
+                    PlaceInCavePool(lavaSource, args[i + 1].Substring(8), lava: true);
                 else if (args[i] == "-place" && args[i + 1].StartsWith("cavepool", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var poolSource))
                     PlaceInCavePool(poolSource, args[i + 1].Substring(8));
                 else if (args[i] == "-place" && args[i + 1].StartsWith("cavestream", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var streamSource))
