@@ -21,8 +21,8 @@ namespace Punchy.Ambience
     {
         /// <summary>Trees within this distance of the camera burn (at full detail; GraphicsSettings.DetailRange scales it).</summary>
         const float ForestFireRange = 70f;
-        /// <summary>At most this many flames a frame from the forest, and this many of the nearest throw light.</summary>
-        const int MaxForestFlames = 320, ForestLights = 6;
+        /// <summary>At most this many flames a frame from the forest (their light is LightBudget's to pick).</summary>
+        const int MaxForestFlames = 320;
         const int ForestSeedBase = 0x6F000000;
         /// <summary>W-112: burning trees keep a far flame out to this distance (GraphicsSettings.ViewRange scales it), at most MaxFarFlames.</summary>
         const float ForestFarRange = 600f;
@@ -132,9 +132,11 @@ namespace Punchy.Ambience
                 if (size > 0.02f)
                     FireSystem.AddFlame(f.at, size, f.seed, colour);
             }
-            // The nearest few crowns throw light round them (CaveSystem.MovingLights lights the surface too).
-            var lights = 0;
-            for (int i = 0; i < forestFlames.Count && lights < ForestLights; i++)
+            // Every big burning crown requests a fire light; LightBudget lights the ones that matter most on screen
+            // (refactor 3.1: it was the nearest 6 here).
+            if (lit <= 0f)
+                return;
+            for (int i = 0; i < forestFlames.Count; i++)
             {
                 var f = forestFlames[i];
                 if (f.size < 1.6f)
@@ -142,8 +144,7 @@ namespace Punchy.Ambience
                 var flicker = 0.8f + 0.2f * Mathf.Sin(Time.time * 9f + (f.seed & 255));
                 var light = FireSystem.Light(colour, flicker * lit * 2.5f);
                 light.w *= 2.4f;
-                CaveSystem.MovingLights.Add((f.seed, f.at, light));
-                lights++;
+                Punchy.Settings.LightBudget.Add(Punchy.Settings.LightKind.Fire, f.seed, f.at, light);
             }
         }
 

@@ -89,7 +89,7 @@ namespace Punchy.Terrain
             farShadow.Draw(source, foot, math.max(4f, bounds.max.y - foot.y), math.min(bounds.extents.x, bounds.extents.z));
         }
 
-        /// <summary>The wall torches: a wood flame each (FireSystem) and a flickering pooled light (CaveSystem.MovingLights).</summary>
+        /// <summary>The wall torches: a wood flame each (FireSystem) and a flickering fixture light (LightBudget, refactor 3.1).</summary>
         void Torches()
         {
             if (torches == null)
@@ -100,7 +100,7 @@ namespace Punchy.Terrain
                 var p = (Vector3)torches[k];
                 FireSystem.AddFlame(p, 0.3f, 0x7E00 + k, FireSystem.Wood);
                 var flicker = 0.85f + 0.1f * math.sin(t * 9.1f + k * 2.3f) + 0.05f * math.sin(t * 23.7f + k * 5.1f);
-                CaveSystem.MovingLights.Add((0x7E0000 + k, p + Vector3.up * 0.25f, FireSystem.Light(FireSystem.Wood, flicker)));
+                Punchy.Settings.LightBudget.Add(Punchy.Settings.LightKind.Fixture, 0x7E0000 + k, p + Vector3.up * 0.25f, FireSystem.Light(FireSystem.Wood, flicker));
             }
             TorchesLit = torches.Length;
         }

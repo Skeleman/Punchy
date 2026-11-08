@@ -3,7 +3,7 @@
 
 // Light from glowing things (molten pools, glowing plants on the surface and in caves, lit windows), with no real
 // lights, in two tiers (W-101):
-// - Near: the nearest 16, uploaded by CaveSystem. Each falls off over its reach (squared), brightest on faces turned
+// - Near: the 16 that matter most on screen, picked and uploaded by LightBudget (refactor 3.1; it was the nearest 16). Each falls off over its reach (squared), brightest on faces turned
 //   to it. Out of reach, a light costs only its distance test. Surface ones fade out by their distance from the camera.
 // - Far: every surface glow source within about 320 m, baked by SurfaceGlow into a camera-centred light map (the light
 //   each casts on the ground, softened; rgb, a the light-weighted height of its sources) with lit windows in a second

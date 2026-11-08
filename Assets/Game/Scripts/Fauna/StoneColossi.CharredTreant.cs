@@ -366,7 +366,7 @@ namespace Punchy.Fauna
                 }
             }
             // The trail's embers: flames shrinking as they age, and a warm light round the newest two.
-            if ((eye - at).sqrMagnitude > LanternRange * LanternRange)
+            if ((eye - at).sqrMagnitude > LanternFlameRange * LanternFlameRange)
                 return;
             if (cycle == null)
                 cycle = FindAnyObjectByType<Punchy.Weather.DayNightCycle>();
@@ -389,7 +389,7 @@ namespace Punchy.Fauna
                 {
                     var light = Punchy.Ambience.FireSystem.Light(wood, (0.9f + 0.1f * Mathf.Sin(t * 6f + i)) * life * (0.3f + 1.1f * night));
                     light.w *= 0.5f + 0.6f * night;
-                    Punchy.Terrain.CaveSystem.MovingLights.Add((0x7EE00 + i, p, light));
+                    Punchy.Settings.LightBudget.Add(Punchy.Settings.LightKind.Creature, 0x7EE00 + i, p, light);
                 }
             }
         }

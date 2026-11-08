@@ -127,17 +127,17 @@ namespace Punchy.Fauna
             // (Nothing else to draw, some frames: then there's nothing to copy, and no room after the creatures to copy to.)
             if (p.Extras.Length > 0)
                 NativeArray<SegmentInstance>.Copy(p.Extras, 0, instances, colonyStart, p.Extras.Length);
-            // Lanterns and torches near the camera light the ground round them: each joins the glow list as a moving
-            // light (by its carrier, so its fade-in carries on as it moves), at the middle of a lantern's glass as just
-            // posed, or a torch's flame. A torch's flame itself is the world's (FireSystem), lit each frame at the top
-            // of its handle, streaming back as its bearer goes, and further off than its light reaches.
+            // Lanterns and torches light the ground round them: each requests a carried light from LightBudget (by its
+            // carrier, so its fade-in carries on as it moves), which decides by its on-screen reach whether it gets a
+            // glow slot (refactor 3.1), at the middle of a lantern's glass as just posed, or a torch's flame. A torch's
+            // flame itself is the world's (FireSystem), lit each frame at the top of its handle, streaming back as its
+            // bearer goes, within TorchFlameRange.
             float3 camAt = cam.transform.position;
             for (int i = 0; i < bodies.Length; i++)
             {
                 var lightPart = LightPart(states[i].Held);
                 var torch = states[i].Held == HeldItem.Torch;
-                var far = math.distancesq(states[i].Position, camAt);
-                if (lightPart < 0 || far > (torch ? TorchFlameRange * TorchFlameRange : LanternLightRange * LanternLightRange))
+                if (lightPart < 0)
                     continue;
                 var part = instances[offsets[i] + bodies[i].SegmentCount + MarkCount + (InWeb(states[i]) ? WebCount : 0) +
                                      LairCount(ref bodies[i].Blob.Value) + (states[i].Task == CreatureTask.Hunt ? 1 : 0) + lightPart];
@@ -153,13 +153,13 @@ namespace Punchy.Fauna
                     if (leanLength > TorchFlameMaxLean)
                         lean *= TorchFlameMaxLean / leanLength;
                     var size = TorchFlameSize * math.max(states[i].Scale, 0.3f);
-                    Punchy.Ambience.FireSystem.AddFlame(top, size, entities[i].Index, Punchy.Ambience.FireSystem.Wood, lean);
+                    if (math.distancesq(states[i].Position, camAt) <= TorchFlameRange * TorchFlameRange)
+                        Punchy.Ambience.FireSystem.AddFlame(top, size, entities[i].Index, Punchy.Ambience.FireSystem.Wood, lean);
                     centre = top + new float3(0f, size * 0.4f, 0f);
                 }
                 else
                     centre = part.Position + math.mul(part.Rotation, new float3(0f, 0f, part.Length * 0.5f));
-                if (far <= LanternLightRange * LanternLightRange)
-                    Punchy.Terrain.CaveSystem.MovingLights.Add((entities[i].Index, centre, torch ? TorchLight : LanternLight));
+                Punchy.Settings.LightBudget.Add(Punchy.Settings.LightKind.Carried, entities[i].Index, centre, torch ? TorchLight : LanternLight);
             }
             Pass(8);
             if (ForceNeedCues)

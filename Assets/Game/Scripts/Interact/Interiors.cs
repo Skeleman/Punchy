@@ -111,9 +111,7 @@ namespace Punchy.Interact
                 Serve();
             if (client != null && client.IsCreated && client.IsClient())
                 Receive();
-            for (int r = 0; r < rooms.Count; r++)
-                if (rooms[r].Lamp != null)
-                    rooms[r].Lamp.enabled = lampsOn.Contains(r);
+            LampLights();
             Cull();
 
             FindTarget();
@@ -128,6 +126,35 @@ namespace Punchy.Interact
                 else SwitchLamp(inRoom);
             }
             Tests();
+        }
+
+        /// <summary>Each room's lamp as a LightBudget id (fixture kind).</summary>
+        const int LampIdBase = 0x1A3F00;
+        /// <summary>The lamp's Unity light at full.</summary>
+        const float LampIntensity = 2.5f;
+
+        /// <summary>
+        /// Refactor 3.1: a lit lamp in a drawn room (only the one the local player is in) asks LightBudget for a real
+        /// light, and is lit as far as the budget grants (fading); without one, the same light goes in a glow slot.
+        /// Which lamps are on stays the host's (lampsOn); the light itself is local.
+        /// </summary>
+        void LampLights()
+        {
+            for (int r = 0; r < rooms.Count; r++)
+            {
+                var lamp = rooms[r].Lamp;
+                if (lamp == null)
+                    continue;
+                if (lampsOn.Contains(r) && r == inRoom)
+                {
+                    var glow = (Vector4)lamp.color * (LampIntensity * 0.3f);
+                    glow.w = lamp.range * 0.8f;
+                    Punchy.Settings.LightBudget.AddReal(Punchy.Settings.LightKind.Fixture, LampIdBase + r, rooms[r].LampAt, glow);
+                }
+                var level = Punchy.Settings.LightBudget.RealLevel(Punchy.Settings.LightKind.Fixture, LampIdBase + r);
+                lamp.enabled = level > 0.01f;
+                lamp.intensity = LampIntensity * level;
+            }
         }
 
         /// <summary>How close to a house (one of its doors) a room is drawn (m); P-20, item 30.</summary>
@@ -329,7 +356,7 @@ namespace Punchy.Interact
             lamp.type = LightType.Point;
             lamp.color = new Color(1f, 0.82f, 0.55f);
             lamp.range = math.max(size.x, size.z) * 1.4f;
-            lamp.intensity = 2.5f;
+            lamp.intensity = LampIntensity;
             lamp.enabled = false;
             Block(root.transform, lampAt + new float3(0f, 0.12f, 0f), new float3(0.25f, 0.2f, 0.25f), new Color(0.9f, 0.8f, 0.5f));
             var switchAt = new float3(centre.x + 1.0f, min.y + 1.2f, max.z - 0.05f);
