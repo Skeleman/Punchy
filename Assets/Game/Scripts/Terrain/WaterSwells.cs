@@ -41,6 +41,30 @@ namespace Punchy.Terrain
             new float4(9f, 1.40f, 0.18f, 2.6f),
         };
 
+        /// <summary>The swell's height (m) at full wind, before each wave's relative height (PunchySwellHeight).</summary>
+        const float CalmHeight = 0.18f, WindHeight = 0.9f;
+        /// <summary>How far each wave carries a point along it, as a fraction of its height (the Gerstner 0.6).</summary>
+        const float Along = 0.6f;
+        /// <summary>Extra room (m) round the furthest the swell can reach, for the render bounds.</summary>
+        const float BoundsMargin = 0.5f;
+
+        /// <summary>
+        /// The furthest the swell can move a point of the sea's surface (m: x and z sideways, y up or down), with a
+        /// margin, worked out from the wave table (refactor 3.4, audit section 2: the bounds were the flat mesh's, so a
+        /// heaving chunk at a frustum edge could be culled while still in view). TerrainStreamingSystem pads every water
+        /// chunk's and region's render bounds by it.
+        /// </summary>
+        public static readonly float3 BoundsPad = ComputeBoundsPad();
+
+        static float3 ComputeBoundsPad()
+        {
+            var total = 0f;
+            foreach (var w in Table)
+                total += w.z;
+            var height = (CalmHeight + WindHeight) * total;
+            return new float3(Along * height, height, Along * height) + BoundsMargin;
+        }
+
         /// <summary>Sets this frame's state for the shader and for Burst code (main thread, once a frame).</summary>
         public static void Publish(float seaLevel)
         {
@@ -63,7 +87,7 @@ namespace Punchy.Terrain
             var amount = math.smoothstep(0.1f, 2.5f, surface - bed);
             if (amount <= 0f)
                 return 0f;
-            var height = (0.18f + 0.9f * math.saturate(s.z)) * amount;
+            var height = (CalmHeight + WindHeight * math.saturate(s.z)) * amount;
             var table = Shared.Table.Data;
             var y = 0f;
             for (int i = 0; i < 4; i++)
