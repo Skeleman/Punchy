@@ -73,7 +73,7 @@ run() { # outdir tag args...: one bench game; its log is results/q-<tag>.log
   [ -f "$P/Builds/$out/Punchy.exe" ] || { log "$tag: no build $out"; return 1; }
   fixed $out || { log "$tag: copy to Builds/Bench failed"; return 1; }
   cool
-  ( cd "$P/Builds/Bench" && timeout 900 ./Punchy.exe -logFile "$W/q-$tag.log" -benchroute -weatherseed 4 -time 12 $(screen Bench ${BENCHW:-1280} ${BENCHH:-720}) "$@" >/dev/null 2>&1 )
+  ( cd "$P/Builds/Bench" && timeout ${RUNTIMEOUT:-900} ./Punchy.exe -logFile "$W/q-$tag.log" -benchroute -weatherseed 4 -time 12 $(screen Bench ${BENCHW:-1280} ${BENCHH:-720}) "$@" >/dev/null 2>&1 )
   [ $? -eq 124 ] && log "$tag: TIMED OUT (dialogs: $(dialogs))"
   strays >/dev/null
   return 0

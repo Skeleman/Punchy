@@ -265,6 +265,17 @@ namespace Punchy.Debugging
             var longArg = System.Array.IndexOf(args, "-benchlong");
             if (longArg >= 0 && longArg + 2 < args.Length && args[longArg + 1] == name)
                 measure = float.Parse(args[longArg + 2], System.Globalization.CultureInfo.InvariantCulture);
+            // -profilearrive: that capture starts just before the jump instead, settling included (job 32: to catch the Summit
+            // freeze on the first frames after the jump; SysMs -worst names what ran in the longest frame).
+            var pa = System.Array.IndexOf(args, "-profilestop");
+            if (pa >= 0 && pa + 2 < args.Length && args[pa + 1] == name && System.Array.IndexOf(args, "-profilearrive") >= 0)
+            {
+                UnityEngine.Profiling.Profiler.logFile = args[pa + 2];
+                UnityEngine.Profiling.Profiler.enableBinaryLog = true;
+                UnityEngine.Profiling.Profiler.maxUsedMemory = 256 * 1024 * 1024;
+                UnityEngine.Profiling.Profiler.enabled = true;
+                Debug.Log($"BenchRoute: {name}: profiling from arrival, frame {Time.frameCount}");
+            }
             if (!arrive())
             {
                 Debug.LogWarning($"BenchRoute: {name}: couldn't get there, skipped");
@@ -285,7 +296,13 @@ namespace Punchy.Debugging
             // builds only), so a long route doesn't fill the disk.
             var profile = System.Array.IndexOf(args, "-profilestop");
             var profiling = profile >= 0 && profile + 2 < args.Length && args[profile + 1] == name;
+            // -renderdocstop <stop> <n>: n RenderDoc frame captures, 2 s apart from 3 s into that stop's measured part
+            // (the game launched under renderdoccmd capture; nothing happens without RenderDoc).
+            var rdArg = System.Array.IndexOf(args, "-renderdocstop");
+            var rdCaptures = rdArg >= 0 && rdArg + 2 < args.Length && args[rdArg + 1] == name ? int.Parse(args[rdArg + 2]) : 0;
+            var rdNext = 3f;
             var t = 0f;
+            var reaimed = false;
             frameMs.Clear(); cpuMs.Clear(); gpuMs.Clear(); mainMs.Clear(); renderMs.Clear(); hitchLines = 0; phase = name;
             frameRows.Clear();
             TurnOff();
@@ -307,9 +324,19 @@ namespace Punchy.Debugging
             var settledProp = caves != null ? typeof(CaveSystem).GetProperty("Settled", BindingFlags.Public | BindingFlags.Instance) : null;
             while (t < settle + measure)
             {
-                t += Time.unscaledDeltaTime;
+                // A freeze while settling (job 32: minutes-long first frames at the Summit) must not use up the
+                // measured part, so settling counts at most 0.25 s a frame. Frames over 5 s are logged either way.
+                var dt = Time.unscaledDeltaTime;
+                if (dt > 5f)
+                    Debug.LogWarning($"BenchRoute: {name}: a {dt:F1} s frame at {t:F1} s into the stop, frame {Time.frameCount} ({(measuring ? "measuring" : "settling")})");
+                t += measuring ? dt : Mathf.Min(dt, 0.25f);
                 if (!measuring && settledProp != null && t > settle && t < MaxCaveSettle && !(bool)settledProp.GetValue(caves))
                     settle = t;
+                if (!reaimed && t > 1f && BlueMoonView)
+                {
+                    reaimed = true;
+                    View();
+                }
                 if (drive != null)
                 {
                     phase = drive(t);
@@ -334,6 +361,13 @@ namespace Punchy.Debugging
                     }
                 }
                 measuring = t > settle;
+                if (measuring && rdCaptures > 0 && t > settle + rdNext)
+                {
+                    rdCaptures--;
+                    rdNext += 2f;
+                    Debug.Log($"BenchRoute: {name}: RenderDoc capture at {t - settle:F1} s: " +
+                              (RenderDocCapture.Trigger() ? $"triggered ({RenderDocCapture.Count} so far)" : "RenderDoc not attached"));
+                }
                 // Something to happen halfway through the measured part (a move whose hitch should be caught).
                 if (midway != null && t > settle + measure * 0.5f)
                 {
@@ -360,7 +394,10 @@ namespace Punchy.Debugging
             var shots = System.Array.IndexOf(args, "-benchshots");
             if (shots >= 0 && shots + 1 < args.Length)
             {
+                // The folder is made first: CaptureScreenshot writes nothing, silently, into one that doesn't exist (job 31).
+                System.IO.Directory.CreateDirectory(args[shots + 1]);
                 ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(args[shots + 1], name + ".png"));
+                Debug.Log($"BenchRoute: shot {name}.png");
                 yield return null;
             }
         }
@@ -801,6 +838,13 @@ namespace Punchy.Debugging
                 return false;
             UnityEngine.Random.InitState(seed);
             weather.SetDayType(index, true);
+            // -benchweather Clear|Overcast|Storm|...: that weather preset forced over the stop (WeatherSystem.ForceAt, as
+            // -weather does at the start spot; job 32), held for the rest of the run. By reflection: older builds lack it.
+            var forceArg = System.Array.IndexOf(args, "-benchweather");
+            var force = typeof(WeatherSystem).GetMethod("ForceAt", BindingFlags.Public | BindingFlags.Instance);
+            if (forceArg >= 0 && forceArg + 1 < args.Length && TryGetPlayerPosition(out var at))
+                Debug.Log($"BenchRoute: weather {args[forceArg + 1]} forced: " +
+                          (force != null && (bool)force.Invoke(weather, new object[] { args[forceArg + 1], new Vector2(at.x, at.z) })));
             return true;
         }
 
@@ -952,6 +996,12 @@ namespace Punchy.Debugging
         /// <summary>
         /// Jumps to the first of DebugControls' places whose name contains the text (as -place does), or is exactly it.
         /// </summary>
+        static readonly bool BlueMoonView = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "bluemoon") > 0 &&
+                                            System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-benchview") >= 0;
+
+        /// <summary>The yaw of the place JumpTo last jumped to.</summary>
+        static float placeYaw;
+
         /// <summary>-benchview yaw,pitch: the camera turned that way on arriving at the place stop (as -view does).</summary>
         static bool View()
         {
@@ -959,8 +1009,23 @@ namespace Punchy.Debugging
             var at = System.Array.IndexOf(args, "-benchview");
             if (at < 0 || at + 1 >= args.Length)
                 return true;
-            var v = System.Array.ConvertAll(args[at + 1].Split(','), s => float.Parse(s, System.Globalization.CultureInfo.InvariantCulture));
             var cam = FindAnyObjectByType<ThirdPersonCamera>();
+            // "bluemoon": facing the blue moon (DayNightCycle.BlueMoonDirection, by reflection: older builds lack it), the
+            // pitch the negative of its elevation (the camera dips to look up; job 33). Stop re-aims 1 s into settling,
+            // once the stop's hour has moved the moon.
+            if (args[at + 1] == "bluemoon")
+            {
+                var cycle = FindAnyObjectByType<DayNightCycle>();
+                var dir = cycle != null ? typeof(DayNightCycle).GetProperty("BlueMoonDirection")?.GetValue(cycle) : null;
+                if (cam != null && dir is Vector3 d && d.sqrMagnitude > 0f)
+                {
+                    cam.SetView(Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg, -Mathf.Asin(Mathf.Clamp(d.normalized.y, -1f, 1f)) * Mathf.Rad2Deg);
+                    Debug.Log($"BenchRoute: view on the blue moon, direction {d.x:F2},{d.y:F2},{d.z:F2}");
+                }
+                return true;
+            }
+            // "place" for the yaw keeps the yaw the place faces (e.g. -benchview place,-10: the Summit, out to sea, looking up).
+            var v = System.Array.ConvertAll(args[at + 1].Split(','), s => s == "place" ? placeYaw : float.Parse(s, System.Globalization.CultureInfo.InvariantCulture));
             if (cam != null && v.Length >= 2)
                 cam.SetView(v[0], v[1]);
             return true;
@@ -975,6 +1040,19 @@ namespace Punchy.Debugging
             var current = type.GetField("current", flags);
             if (ensure == null || list == null || current == null || !(bool)ensure.Invoke(controls, new object[] { null }))
                 return false;
+            // "VolcanoCone:centre": a landmark's middle lives in DebugControls.centres, added to the list on demand (as
+            // -place does; job 33's lava view).
+            if (place.Contains(":") && type.GetField("centres", flags)?.GetValue(controls) is IList centres)
+                for (int i = 0; i < centres.Count; i++)
+                    if (string.Equals(centres[i].GetType().GetField("Name")?.GetValue(centres[i]) as string, place, System.StringComparison.OrdinalIgnoreCase))
+                    {
+                        var known = false;
+                        foreach (var l in list)
+                            known |= string.Equals(l.GetType().GetField("Name")?.GetValue(l) as string, place, System.StringComparison.OrdinalIgnoreCase);
+                        if (!known)
+                            list.Add(centres[i]);
+                        break;
+                    }
             for (int i = 0; i < list.Count; i++)
             {
                 var name = list[i].GetType().GetField("Name")?.GetValue(list[i]) as string;
@@ -983,8 +1061,22 @@ namespace Punchy.Debugging
                     continue;
                 current.SetValue(controls, i - 1);
                 controls.Jump(1);
+                placeYaw = list[i].GetType().GetField("Yaw")?.GetValue(list[i]) is float y ? y : 0f;
                 return true;
             }
+            // Not a listed place: -place's own finders, "meadow" (PlaceInMeadow), "crossing", "clearlake" (PlaceBy...),
+            // which pose the camera themselves (so no -benchview; job 33's grass clumps).
+            var args = new object[] { null };
+            if (ensure.Invoke(controls, args) is bool ok && ok)
+                foreach (var prefix in new[] { "PlaceIn", "PlaceBy" })
+                {
+                    var finder = type.GetMethod(prefix + place, flags | BindingFlags.IgnoreCase);
+                    if (finder == null || finder.GetParameters().Length != 1)
+                        continue;
+                    finder.Invoke(controls, new[] { args[0] });
+                    Debug.Log($"BenchRoute: place {place} by DebugControls.{finder.Name}");
+                    return true;
+                }
             return false;
         }
 
@@ -1729,6 +1821,61 @@ namespace Punchy.Debugging
             }
             farWasRunning = running;
         }
+    }
+
+    /// <summary>
+    /// RenderDoc's in-application API, for -renderdocstop: when the game was launched under RenderDoc (renderdoccmd
+    /// capture), renderdoc.dll is loaded and RENDERDOC_GetAPI hands back its function table; TriggerCapture (slot 15 of
+    /// RENDERDOC_API_1_7_0, the header shipped with RenderDoc 1.47) captures the next frame, GetNumCaptures (slot 13) counts.
+    /// </summary>
+    public static class RenderDocCapture
+    {
+        [System.Runtime.InteropServices.DllImport("kernel32", CharSet = System.Runtime.InteropServices.CharSet.Ansi)]
+        static extern System.IntPtr GetModuleHandleA(string name);
+        [System.Runtime.InteropServices.DllImport("kernel32", CharSet = System.Runtime.InteropServices.CharSet.Ansi)]
+        static extern System.IntPtr GetProcAddress(System.IntPtr module, string name);
+        [System.Runtime.InteropServices.UnmanagedFunctionPointer(System.Runtime.InteropServices.CallingConvention.Cdecl)]
+        delegate int GetApi(int version, out System.IntPtr api);
+        [System.Runtime.InteropServices.UnmanagedFunctionPointer(System.Runtime.InteropServices.CallingConvention.Cdecl)]
+        delegate void VoidCall();
+        [System.Runtime.InteropServices.UnmanagedFunctionPointer(System.Runtime.InteropServices.CallingConvention.Cdecl)]
+        delegate uint UintCall();
+
+        static bool looked;
+        static VoidCall trigger;
+        static UintCall count;
+
+        static bool Init()
+        {
+            if (looked)
+                return trigger != null;
+            looked = true;
+            var module = GetModuleHandleA("renderdoc.dll");
+            if (module == System.IntPtr.Zero)
+                return false;
+            var proc = GetProcAddress(module, "RENDERDOC_GetAPI");
+            if (proc == System.IntPtr.Zero)
+                return false;
+            var getApi = System.Runtime.InteropServices.Marshal.GetDelegateForFunctionPointer<GetApi>(proc);
+            if (getApi(10700, out var api) != 1 || api == System.IntPtr.Zero)
+                return false;
+            var size = System.IntPtr.Size;
+            trigger = System.Runtime.InteropServices.Marshal.GetDelegateForFunctionPointer<VoidCall>(System.Runtime.InteropServices.Marshal.ReadIntPtr(api, 15 * size));
+            count = System.Runtime.InteropServices.Marshal.GetDelegateForFunctionPointer<UintCall>(System.Runtime.InteropServices.Marshal.ReadIntPtr(api, 13 * size));
+            return true;
+        }
+
+        /// <summary>Captures the next frame; false when RenderDoc isn't attached.</summary>
+        public static bool Trigger()
+        {
+            if (!Init())
+                return false;
+            trigger();
+            return true;
+        }
+
+        /// <summary>Captures made so far (the one just triggered is written at the end of its frame).</summary>
+        public static uint Count => Init() ? count() : 0;
     }
 
     /// <summary>
