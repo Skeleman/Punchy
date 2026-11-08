@@ -94,6 +94,12 @@ namespace Punchy.Debugging
             shadowCasters = ProfilerRecorder.StartNew(ProfilerCategory.Render, "Shadow Casters Count");
             tris = ProfilerRecorder.StartNew(ProfilerCategory.Render, "Triangles Count");
             StartCoroutine(SampleLights());
+            var framesArg = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-benchframes");
+            if (framesArg >= 0 && framesArg + 1 < System.Environment.GetCommandLineArgs().Length)
+            {
+                framesDir = System.Environment.GetCommandLineArgs()[framesArg + 1];
+                StartCoroutine(LogFrames());
+            }
             // -fpscap <30|40|60|120|0>: same flag as the game's frame-cap option (0 = uncapped), for builds without it.
             var capArg = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-fpscap");
             if (capArg >= 0 && capArg + 1 < System.Environment.GetCommandLineArgs().Length)
@@ -191,6 +197,27 @@ namespace Punchy.Debugging
                 yield return Stop("fires", () => JumpTo(controls, "Start") && SetWeather("Partly cloudy", 15) && LayFires());
                 fireSpots = null;
             }
+            // Job 28 (refactor 3.5), in the biggest settlement, along the first of 8 directions with land at 100-800 m out.
+            // townjump: 800 m out, then jumped into its middle halfway through (30 s measured, 15 s after the jump), so
+            // the first frames that draw the town (its kit, materials and the static flora variant) are measured.
+            // townenter: walked in at 6 m/s from 400 m out to 25 m past the middle. towncross: walked 100 m through
+            // the middle at 6 m/s (the far tree shadow cache redraws every 10 m). -benchframes logs every frame.
+            if ((Named("townjump") || Named("townenter") || Named("towncross")) && BiggestTown(out var town))
+            {
+                var c = new float3(town.x, float.NaN, town.y);
+                var d = LandDirection(town);
+                yield return Stop("townjump", () => PlaceAt(c - d * 800f, Yaw(d)) && SetWeather("Partly cloudy", 11), measure: 30f,
+                                  midway: () =>
+                                  {
+                                      PlaceAt(c, Yaw(d));
+                                      Debug.Log($"BenchRoute: townjump: jumped in at {Time.realtimeSinceStartup:F1} s, frame {Time.frameCount}");
+                                  });
+                float3 from = default;
+                yield return Stop("townenter", () => PlaceAt(from = c - d * 400f, Yaw(d)) && SetWeather("Partly cloudy", 11), measure: 425f / 6f - Settle,
+                                  drive: t => Walk(from, d, t));
+                yield return Stop("towncross", () => PlaceAt(from = c - d * (50f + 6f * Settle), Yaw(d)) && SetWeather("Partly cloudy", 11),
+                                  measure: 100f / 6f, drive: t => Walk(from, d, t));
+            }
             // -benchspot x,z,yaw (on the ground) or x,y,z,yaw (on the floor under that point, e.g. in a cave): also
             // measure one spot, with a screenshot of it when -benchshot <file> is given.
             var args = System.Environment.GetCommandLineArgs();
@@ -260,6 +287,7 @@ namespace Punchy.Debugging
             var profiling = profile >= 0 && profile + 2 < args.Length && args[profile + 1] == name;
             var t = 0f;
             frameMs.Clear(); cpuMs.Clear(); gpuMs.Clear(); mainMs.Clear(); renderMs.Clear(); hitchLines = 0; phase = name;
+            frameRows.Clear();
             TurnOff();
             PassesOff();
             // The render counters only exist once something has rendered: made in Start they stayed invalid, so (re)made here.
@@ -321,6 +349,7 @@ namespace Punchy.Debugging
                 UnityEngine.Profiling.Profiler.logFile = "";
             }
             Report(name);
+            WriteFrames(name);
             if (FlameCounter.Frames > 0 && FlameCounter.Max > 0)
                 Debug.Log($"BenchRoute flames: {name}: {FlameCounter.Mean:F0} a frame (max {FlameCounter.Max}), dropped " +
                           (FlameCounter.DroppedNow < 0 ? "n/a (no FireSystem.Dropped in this build)" : $"{FlameCounter.DroppedNow - FlameCounter.DroppedAtBegin}"));
@@ -595,6 +624,61 @@ namespace Punchy.Debugging
             }
         }
 
+        /// <summary>-benchframes <folder>: every measured frame of each stop, to <folder>/<stop>.csv (job 28).</summary>
+        string framesDir;
+        readonly StringBuilder frameRows = new StringBuilder();
+
+        /// <summary>
+        /// One row per measured frame, at its end (after FloraSystem's LateUpdate): the frame time, whether it drew a far
+        /// shadow cache slice (FloraSystem's private cacheStep or CacheRedraws changed, read by reflection; -2 where the
+        /// build has no cache), the player, and the latest FrameTiming. FrameTiming lags a few frames, so each row also
+        /// has a QPC stamp to match against the timing's frameStartTimestamp (the same clock on Windows) afterwards.
+        /// </summary>
+        IEnumerator LogFrames()
+        {
+            var flora = typeof(Punchy.Flora.FloraSystem);
+            var stepField = flora.GetField("cacheStep", BindingFlags.NonPublic | BindingFlags.Instance);
+            var redrawsField = flora.GetField("CacheRedraws", BindingFlags.Public | BindingFlags.Static);
+            Object system = null;
+            int lastStep = -1, lastRedraws = 0;
+            var end = new WaitForEndOfFrame();
+            Debug.Log($"BenchRoute frames: timer frequency {FrameTimingManager.GetCpuTimerFrequency()}, QPC {System.Diagnostics.Stopwatch.Frequency}");
+            while (true)
+            {
+                yield return end;
+                if (system == null && stepField != null)
+                    system = FindAnyObjectByType(flora);
+                var step = system != null ? (int)stepField.GetValue(system) : -2;
+                var redraws = redrawsField != null ? (int)redrawsField.GetValue(null) : -1;
+                var slice = step != lastStep || redraws != lastRedraws;
+                lastStep = step;
+                lastRedraws = redraws;
+                if (!measuring)
+                    continue;
+                TryGetPlayerPosition(out var p);
+                var f = timing[0];
+                frameRows.Append(Time.frameCount).Append(',').Append((Time.unscaledDeltaTime * 1000f).ToString("F2", System.Globalization.CultureInfo.InvariantCulture))
+                         .Append(',').Append(slice ? 1 : 0).Append(',').Append(step).Append(',').Append(redraws)
+                         .Append(',').Append(System.Diagnostics.Stopwatch.GetTimestamp()).Append(',').Append(f.frameStartTimestamp)
+                         .Append(',').Append(f.cpuMainThreadFrameTime.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))
+                         .Append(',').Append(f.cpuRenderThreadFrameTime.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))
+                         .Append(',').Append(f.gpuFrameTime.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))
+                         .Append(',').Append(p.x.ToString("F0", System.Globalization.CultureInfo.InvariantCulture))
+                         .Append(',').Append(p.z.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)).Append('\n');
+            }
+        }
+
+        /// <summary>Writes the stop's frame rows (-benchframes) and starts afresh.</summary>
+        void WriteFrames(string name)
+        {
+            if (framesDir == null)
+                return;
+            System.IO.Directory.CreateDirectory(framesDir);
+            System.IO.File.WriteAllText(System.IO.Path.Combine(framesDir, name + ".csv"),
+                "frame,ms,slice,step,redraws,qpc,timingstart,main,render,gpu,x,z\n" + frameRows);
+            frameRows.Clear();
+        }
+
         // Lantern carriers near the camera: CaveSystem.MovingLights, found by reflection so builds without it compile.
         static System.Collections.IList movingLights;
         static bool movingLightsLooked;
@@ -734,8 +818,41 @@ namespace Punchy.Debugging
         }
 
         /// <summary>Puts the player in the middle of the settlement with the most buildings, and logs how many.</summary>
-        static bool PlaceInBiggestTown()
+        static bool PlaceInBiggestTown() => BiggestTown(out var centre) && PlaceAt(new float3(centre.x, float.NaN, centre.y), 0f);
+
+        /// <summary>The first of 8 directions (from ApproachDirection) with no water 100-800 m out from xz, walking in.</summary>
+        static float3 LandDirection(float2 xz)
         {
+            for (int k = 0; k < 8; k++)
+            {
+                var d = math.mul(quaternion.RotateY(math.radians(45f * k)), ApproachDirection);
+                var dry = true;
+                for (float r = 100f; r <= 800f && dry; r += 50f)
+                    dry = !HasWater(xz - d.xz * r);
+                if (dry)
+                {
+                    Debug.Log($"BenchRoute: walking in along {d.x:F2},{d.z:F2} (direction {k})");
+                    return d;
+                }
+            }
+            Debug.LogWarning("BenchRoute: no dry direction 100-800 m out; using the default");
+            return ApproachDirection;
+        }
+
+        /// <summary>The yaw that faces along d.</summary>
+        static float Yaw(float3 d) => math.degrees(math.atan2(d.x, d.z));
+
+        /// <summary>A drive: carried from 'from' along d at 6 m/s (from t = 0, so settling is already walking).</summary>
+        static string Walk(float3 from, float3 d, float t)
+        {
+            Carry(new float3(from.x, 0f, from.z) + d * 6f * t, 0.1f);
+            return phase;
+        }
+
+        /// <summary>The middle of the settlement with the most buildings (logged with how many).</summary>
+        static bool BiggestTown(out float2 centreOut)
+        {
+            centreOut = default;
             if (!TryGetWorld(out var em, out _))
                 return false;
             using var terrainQuery = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
@@ -764,7 +881,8 @@ namespace Punchy.Debugging
                 return false;
             var centre = towns.Settlements[best].Centre;
             Debug.Log($"BenchRoute stress: biggest of {towns.Settlements.Length} settlements has {bestBuildings} buildings ({total} in all), at {centre.x:F0},{centre.y:F0}");
-            return PlaceAt(new float3(centre.x, float.NaN, centre.y), 0f);
+            centreOut = new float2(centre.x, centre.y);
+            return true;
         }
 
         static Vector3[] fireSpots;
