@@ -13,8 +13,8 @@ RDC="/c/Program Files/RenderDoc/renderdoccmd.exe"; QRD="/c/Program Files/RenderD
 mkdir "$R/.lock" 2>/dev/null || { echo "lock held: $(cat $R/.lock/job)"; exit 2; }
 echo $$ > "$R/.lock/pid"; echo "$Q RenderDoc captures (since $(date +%T))" > "$R/.lock/job"
 trap 'rm -rf "$R/.lock"; git -C "$P" checkout -q $HOME_BRANCH 2>/dev/null' EXIT
-build $K BuildDev $OUT || { echo "build $OUT failed"; exit 1; }
-build $KW BuildDev $OUTW || { echo "build $OUTW failed"; exit 1; }
+[ "$1" = passes ] || build $K BuildDev $OUT || { echo "build $OUT failed"; exit 1; }
+[ "$1" = passes ] || build $KW BuildDev $OUTW || { echo "build $OUTW failed"; exit 1; }
 keepawake
 L="$R/${Q}logs"; RD="$R/rd"; mkdir -p "$L" "$RD"
 cap() { # build tag args...: one game under RenderDoc; its captures are rd/<tag>_frame<N>.rdc
@@ -32,10 +32,12 @@ cap() { # build tag args...: one game under RenderDoc; its captures are rd/<tag>
   grep -h 'RenderDoc capture\|BenchRoute: [a-z]*: avg' "$R/q-$tag.log" | cut -c1-160
   ls "$RD/$tag"_*.rdc 2>/dev/null
 }
+if [ "$1" != passes ]; then   # "q59r.sh passes": only the analysis of the captures already in rd/
 cap $OUT town -benchstops bigtown -shadownear 25 -renderdocstop bigtown 3
 cap $OUT forest -benchstops spot -benchspot 1740,3355,180 -shadownear 25 -renderdocstop spot 3
 cap $OUTW under -benchstops spot -benchspot -1624,-488,0 -benchpitch -35 -renderdocstop spot 1
 cap $OUTW shore -benchstops spot -benchspot -1624,-488,0 -renderdocstop spot 1
+fi
 CAPS=$(ls "$RD"/*.rdc | xargs -n1 cygpath -w | tr '\n' ';')
 RD_CAPS="$CAPS" RD_OUT="$WW\\$Q-passes.txt" RD_MAXDEPTH=5 timeout 3600 "$QRD" --python "$(cygpath -w "$S/rdpasses.py")" >/dev/null 2>&1
 echo "qrenderdoc rc=$?"
