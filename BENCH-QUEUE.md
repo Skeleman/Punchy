@@ -196,7 +196,7 @@ build, 1920x1080 set explicitly, `-gfx High`, `-weatherseed` fixed, uncapped, AB
   would help (opaque, transparent, shadows, post).
 - **Under water:** also try `-benchnoshader` for the underwater fog/post if your bench has a switch for it.
 
-## Job 30 (2026-11-08): water layers skipped where unused, A/B; and the underwater frame without water (REFACTOR-ROADMAP.md 3.4)
+## Job 30 (2026-11-08, REPORTED in REPORTS-profiler.md; q58.sh; sky follow-up queued): water layers skipped where unused, A/B; and the underwater frame without water (REFACTOR-ROADMAP.md 3.4)
 Thanks for job 29. Branch `refactor/water-costs` head 346cf4d9 against a21cb739 (the job 29 build). The new commit
 skips shader layers whose weight is zero (river flow on still water, rain when dry, thick-water swells and murky rings
 on clear water, the toxic swirl on plain water). Screenshots match the old build (mean difference 0.04/255, the wave

@@ -2,6 +2,49 @@
 
 Newest first.
 
+## 2026-11-08 Job 30 (refactor 3.4): water layer skip A/B, and the underwater frame without water (q58.sh)
+
+- **Builds:** A = refactor/water-costs a21cb739 (the job 29 build), B = 346cf4d9 (skips zero-weight layers). Profile builds.
+- **Runs:** 1920x1080 set explicitly, render scale 1, `-gfx High`, `-weatherseed 4`, uncapped, a fresh game per run, A B B A. 24 sessions, 0 crashes, 0 exceptions.
+- **Spots:**
+  - Job 29's lake spot (-1624,-488), from the shore and under the water.
+  - The route's river stop (-168,392), and `-benchplace Beach` for the sea (400,300, facing out to sea).
+
+### A and B: old against new (GPU ms, Profile timer; rounds 1 / 2)
+
+| Spot | A (a21cb739) | B (346cf4d9) | B − A | Frame median A → B |
+|---|---|---|---|---|
+| Lake, shore | 28.75 (28.6 / 28.9) | 26.7 (26.9 / 26.5) | **−2.05** | 27.85 → 25.75 |
+| Lake, under | 39.35 (39.9 / 38.8) | 35.4 (35.7 / 35.1) | **−3.95** | 40.15 → 35.35 |
+| Sea (Beach) | 11.05 | 10.95 | −0.1 (noise) | 13.4 → 13.15 |
+| River | 14.7 | 14.75 | 0 | 18.5 → 18.35 |
+
+- **The layer skip is a real win at the lake:** −2.05 ms GPU from the shore (about 45% of job 29's ~4.5 ms "rest of the water") and −3.95 ms under.
+  - The rounds don't overlap.
+  - Main thread (13.6-15.1 ms) and render thread (3.7-5.5 ms) don't change.
+- **River:** no change, as expected.
+- **Sea:** no measurable change from the Beach view. Water covers less of the screen there, and the frame is 11 ms GPU.
+
+### C. The underwater view without water (B only; rounds 1 / 2)
+
+| Variant (all with water off) | GPU ms | vs water off |
+|---|---|---|
+| water off | 28.95 (29.0 / 28.9) | |
+| + terrain off (`-benchnoshader Water,Terrain`) | 28.55 | −0.4 |
+| + flora off (`Water,Flora`) | 27.55 | −1.4 |
+| + terrain, flora and grass off | 26.9 | −2.05 |
+| 12 m east of the pillar, plain | 39.6 (39.3 / 39.9) | (plain at the pillar: 35.4) |
+| 12 m east of the pillar, water off | 32.4 (33.1 / 31.7) | |
+
+- **Terrain, flora and grass together are only ~2 ms of the 29 ms.**
+- **The pillar isn't the cost:** away from it the frame is higher, not lower.
+- **What's left at 27 ms:**
+  - With water, terrain, flora and grass off, the screen is almost all sky and clouds seen through the underwater fog, plus the pillar and the player (shot `q58-shots/c-wall.png`).
+  - So the most likely cost is the sky shader (clouds) and the full-screen passes after it. Job 29 measured fog and tint as ~0 ms.
+  - Not yet proven: `q58.sh sky` (sky off, post off, shadows off, all with water off) is queued after job 31's RenderDoc captures. The job 31 under-water RenderDoc capture also splits this frame by pass.
+- Shots: `results/q58-shots`. Logs: `results/q58logs` on the laptop.
+- Cost: this session so far (jobs 28-30): 264 calls, peak 260k context, $19.4 (usage_log with ~/.claude-pro-2 added).
+
 ## 2026-11-08 Job 28 (refactor 3.5): static flora for bigger cities (q56.sh, q56b.sh, q56frames.py; b/bench-stress 5c97ef08 for review)
 
 - **Build:** Profile build of refactor/flora-static 5fa346f3 (draws grouped by material; `-nofloradetail`). The build log says `563 of 1088 variants never move, 694018 LOD0 vertices static vs 1622264 moving`.
