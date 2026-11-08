@@ -47,6 +47,9 @@ Shader "Punchy/Terrain Surface"
             TEXTURE2D(_PunchyCaveDetail);
             SAMPLER(sampler_PunchyCaveDetail);
             float _PunchyCaveDetailReady;
+            // Weather globals (WeatherSystem), for the far grass's gusts: wind direction (xz) and strength 0..1.
+            float2 _PunchyWindDirection;
+            half _PunchyWind;
             // Worms under the sand and snow (the animal session's CreatureBurrowSystem): x, y its age (0..1 over its
             // life), z, w the radius (m) of the worm that made it: positive a bump (the mound over a worm's head, or one
             // it left in its trail), negative a crater where one broke out of the ground or dived back in.
@@ -473,6 +476,16 @@ Shader "Punchy/Terrain Surface"
                 // gaps between blades read as more grass rather than bare soil (GroundDetailSystem.GroundTint).
                 half underGrass = input.extra.y * _PunchyGrassTint.x * (1 - smoothstep(_PunchyGrassTint.y * 0.7, _PunchyGrassTint.y, distance));
                 albedo = lerp(albedo, albedo * half3(1.05, 1.16, 0.85), underGrass * 0.8);
+                // Far grass (Zach, 11-08: a field shouldn't stop moving where the blades stop): past where the blades are
+                // drawn, grassy ground carries the same gusts they show (the same noise, scrolled downwind at the same
+                // rate, GroundDetail.hlsl), lighter where a gust bows the grass and darker between, in broad rolling bands.
+                half farGrass = input.extra.y * smoothstep(_PunchyGrassTint.y * 0.6, _PunchyGrassTint.y, distance);
+                [branch] if (farGrass > 0.01 && _PunchyCaveDetailReady > 0)
+                {
+                    float2 gustUV = p * 0.011 - _PunchyWindDirection * _PunchyClock * (0.025 + 0.06 * _PunchyWind);
+                    half gust = smoothstep(0.3, 0.75, SAMPLE_TEXTURE2D_LOD(_PunchyCaveDetail, sampler_PunchyCaveDetail, gustUV, 0).b);
+                    albedo *= 1 + (gust - 0.5) * 0.3 * farGrass * (0.4 + _PunchyWind);
+                }
                 albedo *= lerp(1, 0.72, wet);
                 // The wet band is patchy (W-43b): dark mud in some stretches, grey shingle and stones in others, so the
                 // bank reads as worn earth rather than a painted stripe.
