@@ -178,7 +178,7 @@ uncapped, ABBA.
   - Report the main thread and GPU ms of the frames that redraw the cache (FloraSystem.ShadowCache, every 10 m of movement, spread over CacheFrames), against frames that don't.
   - This sizes "scroll the cache instead of redrawing it".
 
-## Job 29 (2026-11-07): where the lake's GPU time goes (REFACTOR-ROADMAP.md 3.4 water)
+## Job 29 (2026-11-07, REPORTED in REPORTS-profiler.md; q57.sh): where the lake's GPU time goes (REFACTOR-ROADMAP.md 3.4 water)
 Job 25 measured the lake at 25 ms GPU from the shore and 38 ms with the camera under the water (1080p), the worst
 scenes on the island. But earlier work at fishing village 1 found water itself cost about 0-2 ms there. Before any
 water rewrite, split the lake's cost. Branch `refactor/water-costs` (head a21cb739; main plus one switch), a Profile

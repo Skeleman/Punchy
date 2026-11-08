@@ -2,6 +2,51 @@
 
 Newest first.
 
+## 2026-11-07 Job 29 (refactor 3.4): where the lake's GPU time goes (q57.sh)
+
+- **Build:** Profile build of refactor/water-costs a21cb739.
+- **Runs:**
+  - 1920x1080 set explicitly, render scale 1, `-gfx High`, `-weatherseed 4`, uncapped, a fresh game every run.
+  - Order P W S D X X D S W P per spot (2 rounds of each variant).
+  - Then once each: shore `-benchnopost` and `-benchnoshadows`, and under `-benchoff Underwater`.
+  - 23 sessions, 0 crashes, 0 exceptions. Every run stood at -1624,-488.
+- **Spots:** job 25's lake stop at noon.
+  - Shore: the player stands in the lake beside the sea-folk pillar, with water over the lower two thirds of the screen.
+  - Under (`-benchpitch -35`): the camera is under water looking up, so the water surface's underside fills the whole screen.
+- **Switches:** `-benchnoshader Water` turned off 3 materials (Cave water, Water, LandmarkWaterfall). `-benchoff Underwater` disabled the camera's underwater component before the camera dipped, so no fog or tint came on.
+
+### Results (Profile GPU timer; mean of 2 rounds unless marked)
+
+| Spot | Variant | GPU ms | vs plain | Frame median ms | vs plain | Render thread ms |
+|---|---|---|---|---|---|---|
+| Shore | plain | **28.9** (28.9 / 28.9) | | 27.5 | | 5.55 |
+| Shore | water off | 19.05 | **−9.85** | 20.75 | −6.75 | 5.45 |
+| Shore | `-waterssr 0` | 26.2 | **−2.7** | 25.6 | −1.9 | 5.6 |
+| Shore | `-waterdetail 0` | 26.0 | **−2.9** | 24.85 | −2.65 | 5.45 |
+| Shore | both | 23.6 | **−5.3** | 23.05 | −4.45 | 5.55 |
+| Shore | no post (1 run) | 28.3 | −0.6 | 27.2 | −0.3 | 5.5 |
+| Shore | no shadows (1 run) | 27.7 | −1.2 | 27.1 | −0.4 | 4.7 |
+| Under | plain | **38.8** (37.8 / 39.8) | | 39.4 | | 3.85 |
+| Under | water off | 29.1 | **−9.7** | 30.9 | −8.5 | 3.65 |
+| Under | `-waterssr 0` | 38.55 | −0.25 (noise) | 39.65 | | 3.85 |
+| Under | `-waterdetail 0` | 34.6 | **−4.2** | 35.5 | −3.9 | 3.7 |
+| Under | both | 35.05 | −3.75 | 35.4 | −4.0 | 3.85 |
+| Under | underwater fog/tint off (1 run) | 39.7 | +0.9 (inside plain's spread) | 39.5 | | 4.0 |
+
+- **Water is about a third of the lake's GPU frame:** 9.85 ms from the shore, 9.7 ms under. That is far more than the 0-2 ms at fishing village 1, because here water covers most of the screen (the shore view) or all of it (under).
+- **From the shore, the two switches split it about evenly and add up:**
+  - The reflection march is 2.7 ms and the fine detail (ripple reads, caustics, glitter) is 2.9 ms; together they are 5.3 ms.
+  - The other ~4.5 ms is the rest of the water shader and its draws.
+- **Under water, the reflection march costs nothing measurable** (−0.25 ms), and the fine detail is the whole of what the switches save (4.2 ms).
+  - The underwater fog and tint cost nothing measurable either.
+  - So under water: ~4 ms detail, ~5.5 ms the rest of the water, ~0 reflections, ~0 fog.
+- **The main thread is ~14-15 ms in every variant**, so the GPU is what limits this spot. The render thread barely moves (0.1-0.2 ms) with water off.
+- **What else fills the frame:**
+  - With water off, the shore view is still 19 ms GPU and the underwater view 29 ms. Post is 0.6 ms and shadows 1.2 ms of the shore frame.
+  - The rest (opaque terrain, flora, the pillar) isn't split here: the GPU recorders read nothing on D3D11. The underwater 29 ms with no water drawn is high for what is on screen, and is worth a follow-up (`-benchnoshader` on the terrain and flora shaders, or the same view a few metres from the pillar) if the supervisor wants it.
+- Shots: `results/q57-shots` (shore-plain, under-plain, under-nofog). Logs: `results/q57logs` on the laptop.
+- Cost: this session so far (jobs 28-29, watch-queue.sh): 227 calls, peak 260k context, $16.7. `tools/usage_log.py` reads only `~/.claude/projects`; this laptop session runs from a second Claude config folder (`~/.claude-pro-2`), so the CSV in this commit was made with that folder added (49 rows, $633). Jobs 24-27 had missed it.
+
 ## 2026-11-07 Job 27 (refactor 3.2): fire instance buffer A/B (q55.sh, q55b.sh; b/bench-stress 87412ee1 for review)
 
 - **Builds:**
