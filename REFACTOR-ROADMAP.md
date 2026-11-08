@@ -304,6 +304,9 @@ before it ships.
   moon, and the sky and moonlit clouds look the same in both, so the night still reads as bright. Light and dark are
   meant to matter in play (torches, lanterns, light spells, biomes that glow, races or spells that see in the dark):
   the sky glow and the cloud lighting should follow the phase too, not just the ambient. Judge from lantern-free spots.
+- **Decision (Zach, 11-08): today's darkness is enough for now.** Don't darken nights further until the game has
+  ways to counter it (carried lights, light spells, glowing biomes, dark sight); then revisit the floor and the sky/cloud
+  phase together. The blue-moon light and its influence effects are unaffected.
 - **Blue-moon nights:** when the blue moon is up and full, the ambient and moonlight turn strongly blue; fog and water
   tint with it. Free.
 - **Its influence, in order of cost:**
