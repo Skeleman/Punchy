@@ -233,6 +233,10 @@ Shader "Punchy/Water"
             // pattern never stretches indefinitely (the standard flow-map technique). The cycle's phase drifts slowly
             // across the water and the blend keeps its contrast, so a whole river's ripples and white water don't
             // fade and swell together every few seconds (F-24).
+            // The turn for the second fine-detail read (cos, sin of about 34 degrees), so its texel grid never lines up
+            // with the first's.
+            static const float2x2 DetailTurn = float2x2(0.829, -0.559, 0.559, 0.829);
+
             float2 FlowingSlope(float2 p, float2 flow, float speed, float t)
             {
                 const float cycle = 3.0;
@@ -479,13 +483,16 @@ Shader "Punchy/Water"
                 if (_PunchyWaterDetail > 0.5 && distanceFade > 0)
                 {
                     fine0 = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, p * _DetailScale + float2(t * 0.031, t * 0.017) - driftStep * phaseA * _DetailScale * 0.6);
-                    fine1 = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, p * _DetailScale * 1.7 + float2(-t * 0.022, t * 0.029) - driftStep * phaseB * _DetailScale * 1.1);
+                    // (The second read is turned about 34 degrees: with both reads square to the texture, their texel grids
+                    // lined up and the glitter, which needs both to sparkle at once, came out in rows and columns, crossing
+                    // stripes of glints on open water (playtest 11-07, 11-08). Its normal is turned back below.)
+                    fine1 = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, mul(DetailTurn, p * _DetailScale * 1.7 - driftStep * phaseB * _DetailScale * 1.1) + float2(-t * 0.022, t * 0.029));
                 }
                 // On still water both reads count fully; on flowing water each fades in and out with its cycle.
                 // (A triangle 0..1..0 over the cycle, doubled, averages 1, like a still read.)
                 float fadeA = lerp(1, 2 * (1 - abs(1 - 2 * phaseA)), flowAmount);
                 float fadeB = lerp(1, 2 * (1 - abs(1 - 2 * phaseB)), flowAmount);
-                float2 fine = (fine0.rg - 0.5) * fadeA + (fine1.rg - 0.5) * fadeB;
+                float2 fine = (fine0.rg - 0.5) * fadeA + mul(transpose(DetailTurn), fine1.rg - 0.5) * fadeB;
                 float fineStrength = _DetailStrength * _PunchyCaveDetailReady * (0.35 + _PunchyWind + rapids) * distanceFade * (1 - 0.8 * murk) * (1 - lava) * (1 - steep);
                 strength *= 1 - 0.8 * steep;
                 float3 n =normalize(float3(-slope.x * strength - fine.x * fineStrength - wakeSlope.x, 1, -slope.y * strength - fine.y * fineStrength - wakeSlope.y));
