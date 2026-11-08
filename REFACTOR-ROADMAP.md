@@ -300,6 +300,10 @@ before it ships.
   blue ambient (DayNightCycle.BlueMoonLight x BlueMoonGlow).
 - **Dark new moons:** lower the ambient floor to about 10%, so new-moon nights are properly dark (stars, lanterns and
   glowing plants carry them). Free (a constant).
+- **Seen 11-08 (lake, 1 a.m., no lanterns, `-moonphase 0` vs `0.5`):** the land differs only a little between new and full
+  moon, and the sky and moonlit clouds look the same in both, so the night still reads as bright. Light and dark are
+  meant to matter in play (torches, lanterns, light spells, biomes that glow, races or spells that see in the dark):
+  the sky glow and the cloud lighting should follow the phase too, not just the ambient. Judge from lantern-free spots.
 - **Blue-moon nights:** when the blue moon is up and full, the ambient and moonlight turn strongly blue; fog and water
   tint with it. Free.
 - **Its influence, in order of cost:**
