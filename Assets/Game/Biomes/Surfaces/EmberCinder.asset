@@ -21,3 +21,4 @@ MonoBehaviour:
   GrassDensity: 0
   Pebbles: 0.3
   SnowDepth: 0
+  Porosity: 0.5
