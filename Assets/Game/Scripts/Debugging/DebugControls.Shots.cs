@@ -541,6 +541,31 @@ namespace Punchy.Debugging
         }
 
         bool cameraPosed;
+
+        /// <summary>
+        /// Item 24: a camera posed by a test flag (-place, -cam, -camrel...) is handed back to the player as soon as
+        /// they look round (mouse or right stick) or move, unless a shot list is running. Called every frame.
+        /// </summary>
+        void FreePosedCameraOnInput()
+        {
+            if (!cameraPosed || shotIndex >= 0)
+                return;
+            var mouse = Mouse.current;
+            var pad = Gamepad.current;
+            var keyboard = Keyboard.current;
+            var looked = mouse != null && mouse.delta.ReadValue().sqrMagnitude > 4f
+                      || pad != null && (pad.rightStick.ReadValue().sqrMagnitude > 0.1f || pad.leftStick.ReadValue().sqrMagnitude > 0.1f)
+                      || keyboard != null && (keyboard.wKey.isPressed || keyboard.aKey.isPressed || keyboard.sKey.isPressed || keyboard.dKey.isPressed);
+            if (!looked)
+                return;
+            // (Only the camera: spawns and the rest of a shot's set-up stay.)
+            if (Camera.main != null)
+                foreach (var b in Camera.main.GetComponents<MonoBehaviour>())
+                    b.enabled = true;
+            cameraPosed = false;
+            Debug.Log("DebugControls: posed camera released (look or move input)");
+        }
+
         /// <summary>The camera's field of view before the wall shot narrowed it (0: not narrowed).</summary>
         float wallFovWas;
     }
