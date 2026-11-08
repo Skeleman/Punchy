@@ -320,6 +320,32 @@ before it ships.
   4. Other tells, cheap: a low blue mist that gathers in hollows; glowing plants and toxic water pulse in time with the
      moon; a slow ripple of blue light running across the land now and then; creatures restless (fauna lane).
 
+## Overnight 2026-11-08 (player lane, Zach asleep): branches to judge, nothing merged
+
+Each is its own branch off main, pushed, built and screenshot-checked; timing for the shader ones is BENCH-QUEUE job 33.
+
+| Branch | What | Checked |
+|---|---|---|
+| `water/snells-window` | Snell's window from under water; sky returns fog colour under water (skips clouds) | shots; job 32 B times it |
+| `water/swells` (on Snell's) | sea swells (Gerstner, wind sets height, `-noswells`), swimmers ride them; whitecaps only in strong wind offshore; shore contact by kind: sea = thin surf line surging up the beach and back (~9 s), river = edge foam carried downstream, lake = faint, nearly still line | shots: the surf line reads well; first tries put foam sheets over the shallows, fixed |
+| `water/lava-plates` | lava as ~1 m cooled basalt plates on glowing melt, hot seams, open pools, no reflection; `-place cavelava` test hook | shots in a cave lava pool: plates read clearly |
+| `water/river-flow` | flow ripples stretched across the current and stronger as it quickens; the bed seen bent by the ripples (screen refraction, `-waterrefraction 0`) | built; needs a moving look in playtest |
+| `water/glitter-grid` | second fine-detail read turned 34 degrees: the glints no longer line up in rows and columns (likely the playtest's crossing stripes) | shots: grid gone |
+| `night/moon-sky` | night sky glow to 40% and cloud moonlight to 15% at new moon; ground ambient unchanged | shots: sky 32% darker at new moon (was 10%) |
+| `refactor/pose-by-size` | creature pose bands scale with size (roc, sky serpent smooth further out; 3.7 step 1) | compiles and runs; job 33 times it |
+| `fix/salt-ball-far-shadow` | far shadow follows the rolling salt ball | compiles; nothing left at the spawn point in shots |
+| `water/fine-grid` | experiment: LOD 0 water on a 0.5 m grid | **not worth merging**: under 1% of pixels change |
+
+**Findings:**
+- The boxy pools at the falls series (`-goto -118,32.1,324`) are **paddy cells** (TerrainSource W-25: level pools on a warped
+  cell grid with banks between). Their straight edges and flat walls come from the cell shapes, not the water mesh; a finer
+  grid doesn't help. The fix is in paddy shaping (rounder cells, sloped banks). World lane; Zach to decide.
+- River waterfalls exist as data (Rivers.Falls: lip, drop, width), so a dedicated curtain mesh per fall is practical. W-98
+  removed the old curtains, so Zach should decide before it's built.
+- Shadertoy refuses automated fetches: the poison-swamp (Xljyz3), batfolk-cave fluid (lt2yRc) and river (MsSGWK) references
+  couldn't be read. A screenshot or pasted code would let them be matched.
+- No `VolcanoCone` on today's island, so surface lava was checked in a cave lava pool.
+
 ## Keep as is (ChatGPT agrees)
 GPU-driven flora, TerrainSource as the single ground contract, deterministic generation, terrain streaming budgets,
 BlobAssets for static world data, procedural creature animation, the river flow-map water, the fire draw-batching
