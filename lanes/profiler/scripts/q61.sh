@@ -54,15 +54,18 @@ glitter)   # water/glitter-grid 17c1b431 against main at job 29's lake shore vie
   go glitter main 2 $OM $KM $A
   for f in "$R"/$Q-glitter-*.csv; do echo "== $(basename $f .csv)"; table "$f"; done ;;
 lava)      # water/lava-plates 53582b9b against main, looking down into the VolcanoCone crater, A B B A
-  KL=53582b9; OL=Profile-${KL}m
+  # (The first try skipped every run: the runner only knew DebugControls.locations, not the ":centre" names. m2 builds
+  # carry the fix.)
+  KL=53582b9; OL=Profile-${KL}m2
   build $KL BuildDev $OL || { echo "build $OL failed"; exit 1; }
+  build $KM BuildDev ${OM}2 || { echo "build ${OM}2 failed"; exit 1; }
   keepawake
   A="-benchstops place -benchplace VolcanoCone:centre -benchview place,${PITCH:-55}"
   rm -f "$R"/$Q-lava-*.csv "$L"/q-$Q-lava-*.log
-  go lava main 1 $OM $KM $A -benchshots "$W/$Q-shots/lava-main"
+  go lava main 1 ${OM}2 $KM $A -benchshots "$W/$Q-shots/lava-main"
   go lava plates 1 $OL $KL $A -benchshots "$W/$Q-shots/lava-plates"
   go lava plates 2 $OL $KL $A
-  go lava main 2 $OM $KM $A
+  go lava main 2 ${OM}2 $KM $A
   for f in "$R"/$Q-lava-*.csv; do echo "== $(basename $f .csv)"; table "$f"; done
   grep -h 'BenchRoute: place: avg' "$L"/q-$Q-lava-*-1.log | sed 's/ fps.*, at / ... at /' | cut -c1-120 ;;
 pose)      # refactor/pose-by-size dcd0318d against main: -perflog's pose job ms and posed/reused counts (CPU), in

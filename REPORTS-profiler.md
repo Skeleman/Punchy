@@ -2,6 +2,18 @@
 
 Newest first.
 
+## 2026-11-08 Freeze addendum: not just the Summit; Job 33 lava rerun (q61.sh)
+
+- **The freeze also hits job 29's lake spot** (-1624,-488) in the bench route. It isn't specific to the Summit or to main.
+  - Lake: main 2 of 2 runs, water/swells 098ddff 2 of 2 (one past the 900 s timeout), water/glitter-grid 17c1b43 2 of 2 (a 447 s frame inside the measured part, and one timeout).
+  - The same build with `-noswells` did not freeze in 2 runs.
+  - The beach runs, and the pose shot-list sessions (`-shotlist`, not the route), did not freeze.
+  - It fits the player lane's note: something in the bench route plus a jump. Job 29 and 30 builds (a21cb739, 346cf4d9) ran this lake spot cleanly, so the trigger arrived on main since then.
+- **Freeze hunt next:** `q60.sh freeze` takes a Profiler capture from just before the jump (`-profilestop place <raw> -profilearrive`), and `SysMs.Worst` lists the longest frame's main-thread samples. That names the system or script.
+- **Job 33 lava:** every run was skipped ("couldn't get there"). The runner only searched `DebugControls.locations`, and `VolcanoCone:centre` lives in `centres`. Fixed in the runner; rerunning on fresh m2 builds.
+- **Job 33 still usable:** swells at the beach (clear and storm), and the pose shot lists. Glitter and lake swells get rerun after the freeze is found.
+- **Laptop order:** clumps (running), Job 31 shots, blue moon, Job 31 RenderDoc passes, freeze hunt, lava, Job 32 rerun.
+
 ## 2026-11-08 Job 32 interim: main 46012623 freezes at the Summit place; Job 32 rerunning (q60.sh)
 
 - **Main freezes at the Summit.** In 7 of 13 sessions at `-benchplace Summit` (-2446,1154), main 46012623 froze on the first frame after the jump, as streaming finished (frame ~110, about 33 s in).
