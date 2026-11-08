@@ -498,10 +498,12 @@ Shader "Punchy/Water"
                     nReflect = normalize(float3(nReflect.x / nReflect.y - swellSlope.x, 1, nReflect.z / nReflect.y - swellSlope.y));
                     half breakUp = 0.45 + 0.55 * PunchyValueNoise(p * 0.7 + float2(t * 0.21, -t * 0.13));
                     // Breakers: the crests spill into foam over a 0.4-4 m deep band off the beach.
-                    half breakers = smoothstep(0.25, 0.8, swellCrest) * smoothstep(0.4, 1.0, depth) * (1 - smoothstep(2.5, 4.0, depth));
+                    // (A thin band just short of each crest, broken up below, not the whole crest: a sheet otherwise.)
+                    half breakers = smoothstep(0.35, 0.55, swellCrest) * (1 - smoothstep(0.6, 0.8, swellCrest))
+                                  * smoothstep(0.4, 1.0, depth) * (1 - smoothstep(2.5, 4.0, depth));
                     // Whitecaps: only in a strong wind, on the highest crests, in patches.
                     half whitecaps = smoothstep(0.55, 0.95, _PunchySwell.z) * smoothstep(0.7, 0.95, swellCrest);
-                    swellFoam = saturate(max(breakers, whitecaps * 0.8) * breakUp * 1.4) * distanceFade;
+                    swellFoam = saturate(max(breakers, whitecaps * 0.8) * smoothstep(0.45, 0.8, breakUp) * 1.2) * distanceFade;
                 }
                 if (!frontFace)
                 {
