@@ -94,12 +94,14 @@ pose)      # refactor/pose-by-size dcd0318d against main: -perflog's pose job ms
   grep -ohi 'roc\b[^,]*\|sky serpent[^,]*\|SkySerpent[^,]*' "$L"/q-$Q-pose-mountains-*.log | sort | uniq -c | head ;;
 clumps)    # grass/clumps d6fee299 (5-blade tufts, half the roots) against -grassclumps 0 on the same build, the Meadow place
            # looking across the field, C O O C; then one RenderDoc capture of each (rdpasses.py top draws: the grass).
-  KC=d6fee29; OC=Profile-${KC}m
+  # (First try: every run skipped, "Meadow" isn't a listed place. The m2 runner falls back to -place's own finders:
+  # PlaceInMeadow, which poses the camera looking across the field.)
+  KC=d6fee29; OC=Profile-${KC}m2
   RDC="/c/Program Files/RenderDoc/renderdoccmd.exe"; QRD="/c/Program Files/RenderDoc/qrenderdoc.exe"
   S=$HOME/Projects/Punchy-coordination/lanes/profiler/scripts
   build $KC BuildDev $OC || { echo "build $OC failed"; exit 1; }
   keepawake
-  A="-benchstops place -benchplace Meadow -benchview place,12"
+  A="-benchstops place -benchplace meadow"
   rm -f "$R"/$Q-clumps-*.csv "$L"/q-$Q-clumps-*.log
   go clumps clumps 1 $OC $KC $A -benchshots "$W/$Q-shots/clumps-clumps"
   go clumps old 1 $OC $KC $A -grassclumps 0 -benchshots "$W/$Q-shots/clumps-old"
@@ -115,6 +117,7 @@ clumps)    # grass/clumps d6fee299 (5-blade tufts, half the roots) against -gras
         $(screen Bench 1920 1080) $COMMON $A $x -renderdocstop place 1 >/dev/null 2>&1 )
     strays >/dev/null; check "$R/q-$Q-rdc-$v.log"
   done
+  ls "$R/rd61c"/*.rdc >/dev/null 2>&1 || { echo "no RenderDoc captures"; exit 1; }
   CAPS=$(ls "$R/rd61c"/*.rdc | xargs -n1 cygpath -w | tr '\n' ';')
   RD_CAPS="$CAPS" RD_OUT="$WW\\$Q-clumps-passes.txt" RD_TOPDRAWS=25 timeout 3600 "$QRD" --python "$(cygpath -w "$S/rdpasses.py")" >/dev/null 2>&1
   echo "qrenderdoc rc=$?"; strays >/dev/null ;;
