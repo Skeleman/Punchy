@@ -119,8 +119,8 @@ namespace Punchy.CameraRig
             }
             if (!terrainQuery.TryGetSingleton<TerrainSource>(out var terrain))
                 return float.MinValue;
-            // The sea swell's state for this frame, for the water shader and the swimmer (prototype, WaterSwells).
-            WaterSwells.Publish(terrain.World.SeaLevel);
+            // The sea swell's state for this frame, for the water shader and the swimmer (WaterSwells).
+            WaterSwells.Publish(terrain);
             var at = new float3(p.x, p.y, p.z);
             if (terrain.Caves.IsCreated)
             {

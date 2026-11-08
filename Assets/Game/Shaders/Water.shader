@@ -159,9 +159,7 @@ Shader "Punchy/Water"
                 o.sea = step(abs(pos.positionWS.y - _PunchySwell.y), 0.05);
                 [branch] if (o.swell > 0)
                 {
-                    float2 swellSlope;
-                    float swellCrest;
-                    pos.positionWS += PunchySwell(pos.positionWS.xz, _PunchyClock, o.swell, swellSlope, swellCrest);
+                    pos.positionWS += PunchySwell(pos.positionWS.xz, _PunchyClock, o.swell, input.data.z, PunchySwellMaxWaves).offset;
                     pos.positionCS = TransformWorldToHClip(pos.positionWS);
                 }
                 o.positionCS = pos.positionCS;
@@ -525,21 +523,24 @@ Shader "Punchy/Water"
                 float caveRun = _PunchyUnderground * flowAmount;
                 nReflect = normalize(lerp(nReflect, n, caveRun));
                 // Sea swell: tilt both normals by the swell's own slope (worked out per pixel, as the swells are only a few
-                // vertices long far off), and foam where waves break in the shallows or a strong wind tops the crests.
+                // vertices long far off), and foam where the waves bunch the surface hardest: whitecaps in the wind, and
+                // over the shelf, where they shoal and steepen, breakers whatever the wind.
                 half swellFoam = 0;
                 [branch] if (input.swell > 0)
                 {
-                    float2 swellSlope;
-                    float swellCrest;
-                    PunchySwell(input.positionWS.xz, t, input.swell, swellSlope, swellCrest);
-                    n = normalize(float3(n.x / n.y - swellSlope.x, 1, n.z / n.y - swellSlope.y));
-                    nReflect = normalize(float3(nReflect.x / nReflect.y - swellSlope.x, 1, nReflect.z / nReflect.y - swellSlope.y));
-                    // Whitecaps: only in a strong wind, on the very tops of the crests, out where it's deep, in small
-                    // patches. (Breaking at the beach is the shore's surf line; foam over whole crests here read as a
-                    // white sheet, the swells being tens of metres long.)
+                    PunchySwellResult sw = PunchySwell(input.positionWS.xz, t, input.swell, depth, PunchySwellMaxWaves);
+                    n = normalize(float3(n.x / n.y - sw.slope.x, 1, n.z / n.y - sw.slope.y));
+                    nReflect = normalize(float3(nReflect.x / nReflect.y - sw.slope.x, 1, nReflect.z / nReflect.y - sw.slope.y));
+                    // Whitecaps (playtest 11-08 item 6: none were seen, gated to a strong wind and the very crests): from a
+                    // moderate wind up, on the fronts the waves squeeze together (the Gerstner bunching, so they ride the
+                    // crests as the waves run), more of them the harder it blows, broken into patches.
+                    half wind = saturate(_PunchySwell.z);
+                    half shoal = 1 - smoothstep(_PunchySwellDepths.z, _PunchySwellDepths.w, depth);
+                    half capsFrom = lerp(0.2, 0.11, saturate((wind - 0.3) / 0.6));
+                    capsFrom = lerp(capsFrom, min(capsFrom, 0.16), shoal);
+                    half caps = smoothstep(capsFrom, capsFrom + 0.06, sw.squeeze) * max(smoothstep(0.25, 0.5, wind), shoal);
                     half breakUp = PunchyValueNoise(p * 1.3 + float2(t * 0.21, -t * 0.13)) * 0.6 + PunchyValueNoise(p * 3.7 - t * 0.3) * 0.4;
-                    half whitecaps = smoothstep(0.6, 0.95, _PunchySwell.z) * smoothstep(0.85, 0.97, swellCrest) * smoothstep(3.0, 6.0, depth);
-                    swellFoam = saturate(whitecaps * smoothstep(0.6, 0.8, breakUp) * 1.5) * distanceFade;
+                    swellFoam = saturate(caps * smoothstep(0.4, 0.65, breakUp) * 1.6) * distanceFade;
                 }
                 if (!frontFace)
                 {
@@ -698,9 +699,8 @@ Shader "Punchy/Water"
                 float2 carried = p - flowDir * flowAmount * riverSpeed * t * riverShore;
                 float2 still = float2(t * 0.25, -t * 0.18) * (1 - riverShore) * lerp(1, 0.25, lakeShore);
                 half foamNoise = PunchyValueNoise(carried * 0.9 + still) * 0.6 + PunchyValueNoise(carried * 2.7 - t * 0.4 * (1 - riverShore) * lerp(1, 0.25, lakeShore)) * 0.4;
-                // The line laps: it creeps up the shore and draws back, unevenly along it. The sea's surge is a long swash
-                // (about 9 s, reaching well up the beach and back); a river's laps as before; a lake's hardly moves.
-                half swash = 0.5 + 0.5 * sin(t * 0.7 + dot(p, float2(0.031, 0.022)) + foamNoise * 1.5);
+                // The line laps: it creeps up the shore and draws back, unevenly along it. A river's laps as before; a lake's
+                // hardly moves; the sea's is the surf, below.
                 half lap = seaShore
                          + riverShore * (0.75 + 0.25 * sin(t * 1.4 + foamNoise * 5))
                          + lakeShore * (0.5 + 0.06 * sin(t * 0.4 + foamNoise * 3));
@@ -711,12 +711,24 @@ Shader "Punchy/Water"
                 foam *= lerp(1, 0.55, inDeep);
                 // A lake's line is faint.
                 foam *= lerp(1, 0.45, lakeShore);
-                // The sea: not a sheet of foam but a thin surf line at the surge's front, running up the beach and back
-                // (about 9 s), with a faint wash behind it as it sinks into the sand.
-                float surgeReach = _FoamDistance * lerp(0.25, 1.4, swash);
-                half surfLine = 1 - smoothstep(0.0, 0.08 + 0.1 * _FoamDistance, abs(thickness - surgeReach));
-                half wash = (1 - saturate(thickness / max(surgeReach, 1e-3))) * 0.25;
-                half seaFoam = saturate(max(surfLine * smoothstep(0.25, 0.7, foamNoise + 0.2), wash)) * (1 - inDeep);
+                // The sea's surf (playtest 11-08 items 2 and 5: too soft, and it ran against the waves): a bore runs in to
+                // the waterline once per swell, timed by the swell arriving where it is (the cycle of each set's two longest
+                // waves), so it moves the way the waves do. A crisp front, churned foam trailing behind it, fading as it
+                // reaches the sand, and a faint wash shoreward of it.
+                half surgeCycle = 0;
+                [branch] if (seaShore > 0 && thickness < _FoamDistance * 2)
+                {
+                    PunchySwellResult arriving = PunchySwell(p, t, 1, depth, 2);
+                    // (theta falls with time: this rises 0..1 over each swell, from 0 as a crest passes.)
+                    surgeCycle = frac(0.25 - atan2(arriving.phasor.x, arriving.phasor.y) / 6.2831853);
+                }
+                float surgeReach = _FoamDistance * lerp(1.5, 0.05, surgeCycle);
+                float fromFront = thickness - surgeReach;
+                half surfLine = (fromFront < 0 ? 1 - smoothstep(0, 0.03 + 0.03 * _FoamDistance, -fromFront)
+                                               : exp(-fromFront / (0.12 + 0.25 * _FoamDistance)))
+                              * smoothstep(0, 0.06, surgeCycle) * (1 - smoothstep(0.75, 1, surgeCycle));
+                half wash = (1 - saturate(thickness / max(surgeReach, 1e-3))) * 0.15;
+                half seaFoam = saturate(max(surfLine * smoothstep(0.3, 0.45, foamNoise + 0.2), wash)) * (1 - inDeep);
                 foam = lerp(foam, seaFoam, seaShore);
                 // Not a solid white strip: clear right at the edge (a wet line, where the bed shows through), and broken
                 // into patches along it. Underground, still shallow water barely foams (a shallow stream would otherwise
