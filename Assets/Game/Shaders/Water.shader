@@ -141,6 +141,7 @@ Shader "Punchy/Water"
                 float4 look       : TEXCOORD3;
                 float2 glow       : TEXCOORD4;
                 float  swell      : TEXCOORD5;   // how strongly the sea swells here (WaterSwell.hlsl), 0 elsewhere
+                float  sea        : TEXCOORD6;   // 1 on the sea (its surface at sea level), 0 on lakes and rivers
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -152,6 +153,7 @@ Shader "Punchy/Water"
                 VertexPositionInputs pos = GetVertexPositionInputs(input.positionOS);
                 // The sea rises and falls in long swells (prototype; -noswells for the flat sea).
                 o.swell = PunchySwellAmount(pos.positionWS.y, input.data.z);
+                o.sea = step(abs(pos.positionWS.y - _PunchySwell.y), 0.05);
                 [branch] if (o.swell > 0)
                 {
                     float2 swellSlope;
@@ -649,14 +651,28 @@ Shader "Punchy/Water"
                 }
 
                 // Broken foam line where the water thins out against the shore (and around rocks in the stream).
-                half foamNoise = PunchyValueNoise(p * 0.9 + float2(t * 0.25, -t * 0.18)) * 0.6 + PunchyValueNoise(p * 2.7 - t * 0.4) * 0.4;
-                // The line laps: it creeps up the shore and draws back, unevenly along it.
-                half lap = 0.75 + 0.25 * sin(t * 1.4 + foamNoise * 5);
+                // Shore contact by kind (Zach, 11-08): the sea washes up the beach and draws back in long, slow surges;
+                // a river's edge foam is carried downstream with the current; a lake lies nearly still against its shore,
+                // with only a thin, faint line that barely moves.
+                half seaShore = input.sea;
+                half riverShore = saturate(flowAmount * 4) * (1 - seaShore);
+                half lakeShore = (1 - seaShore) * (1 - riverShore);
+                float2 carried = p - flowDir * flowAmount * riverSpeed * t * riverShore;
+                float2 still = float2(t * 0.25, -t * 0.18) * (1 - riverShore) * lerp(1, 0.25, lakeShore);
+                half foamNoise = PunchyValueNoise(carried * 0.9 + still) * 0.6 + PunchyValueNoise(carried * 2.7 - t * 0.4 * (1 - riverShore) * lerp(1, 0.25, lakeShore)) * 0.4;
+                // The line laps: it creeps up the shore and draws back, unevenly along it. The sea's surge is a long swash
+                // (about 9 s, reaching well up the beach and back); a river's laps as before; a lake's hardly moves.
+                half swash = 0.5 + 0.5 * sin(t * 0.7 + dot(p, float2(0.031, 0.022)) + foamNoise * 1.5);
+                half lap = seaShore * lerp(0.45, 2.6, swash)
+                         + riverShore * (0.75 + 0.25 * sin(t * 1.4 + foamNoise * 5))
+                         + lakeShore * (0.5 + 0.06 * sin(t * 0.4 + foamNoise * 3));
                 // Where the water itself is deep, thin water in front of the bed can only be something standing in it (a
                 // swimmer, a rock): a much narrower, fainter line there.
                 half inDeep = smoothstep(0.5, 1.3, depth);
                 half foam = smoothstep(foamNoise * 0.7, 1, saturate(1 - thickness / (_FoamDistance * lap * (1 + rapids) * lerp(1, 0.3, inDeep))));
                 foam *= lerp(1, 0.55, inDeep);
+                // A lake's line is faint; the sea's is brightest as a surge spreads, fading as it sinks into the sand.
+                foam *= lerp(1, 0.45, lakeShore) * lerp(1, 0.55 + 0.6 * swash, seaShore);
                 // Not a solid white strip: clear right at the edge (a wet line, where the bed shows through), and broken
                 // into patches along it. Underground, still shallow water barely foams (a shallow stream would otherwise
                 // count as shore all over).
