@@ -540,6 +540,59 @@ half3 PunchyShootingStars(float3 dir)
     return sum;
 }
 
+// How strongly the blue moon holds the night: its lit share (from where it stands against the sun) while it's up.
+half PunchyBlueMoonHold()
+{
+    half lit = 0.5 - 0.5 * dot(_PunchyBlueMoon, _PunchySunDirection);
+    return lit * smoothstep(0.0, 0.15, _PunchyBlueMoon.y);
+}
+
+// The blue moon's pull (Zach, 11-08: it should feel like an insidious influence): on its nights blue streaks leave the
+// moon and run outwards and down towards the island, several a minute when it's up and full, none when it's dark or
+// down. Like the shooting stars, each comes from a hash of its 6 s slot on the shared clock, so every player sees the
+// same ones; each starts just off the moon's disc and runs away from it, longer and slower than a meteor.
+half3 PunchyBlueMoonStreaks(float3 dir)
+{
+    half hold = PunchyBlueMoonHold();
+    if (hold < 0.35 || dot(dir, _PunchyBlueMoon) < 0.2)
+        return 0;
+    const float slotLength = 6;
+    float slot = floor(_PunchyClock / slotLength);
+    float local = _PunchyClock - slot * slotLength;
+    half3 sum = 0;
+    [loop] for (int k = 0; k < 3; k++)
+    {
+        float s = fmod(slot, 4096) * 5.31 + k * 23.9 + 911.0;
+        if (PunchyHash1(s) > 0.3 * smoothstep(0.35, 0.8, hold))
+            continue;
+        float start = PunchyHash1(s + 1.1) * (slotLength - 3.0);
+        float life = lerp(1.2, 2.2, PunchyHash1(s + 2.3));
+        float t = (local - start) / life;
+        if (t < 0 || t > 1.5)
+            continue;
+        // Out from the moon: the anchor is the moon itself; the streak's way is a random direction round it, but
+        // turned towards the ground (the island lies below).
+        float3 a = _PunchyBlueMoon;
+        float3 right = normalize(cross(float3(0, 1, 0), a) + float3(1e-4, 0, 0));
+        float3 up = cross(a, right);
+        float heading = PunchyHash1(s + 6.1) * 6.2832;
+        float2 way = normalize(float2(cos(heading), sin(heading) - 0.9));
+        float len = lerp(0.35, 0.7, PunchyHash1(s + 7.7));
+        float3 v = dir - a * dot(dir, a);
+        float2 q = float2(dot(v, right), dot(v, up));
+        float along = dot(q, way) - 0.06;   // from just off the disc
+        float across = abs(q.x * way.y - q.y * way.x);
+        float head = len * min(t, 1);
+        float tail = max(len * 0.5 * (1 - smoothstep(1, 1.5, t)), 0.001);
+        half trail = saturate(1 - (head - along) / tail) * step(along, head) * step(head - tail, along) * step(0, along);
+        // A soft, slightly wavering glow rather than a hard meteor line.
+        float wobble = sin(along * 40 + _PunchyClock * 3 + PunchyHash1(s + 9.1) * 6.28) * 0.002;
+        half streak = 1 - smoothstep(0.001, 0.004, abs(across + wobble));
+        sum += half3(0.25, 0.55, 1.6) * trail * trail * streak * smoothstep(0, 0.1, t) * (1 - smoothstep(0.6, 1.5, t)) * 4;
+    }
+    return sum * hold;
+}
+
 // Auroras over the cold lands at night (_PunchyAurora): curtains hanging from the sky round the horizon in some
 // directions, brightest along a wavering hem low down and fading upwards, green below and violet at their tops,
 // folded and shot through with fine vertical rays, all rippling slowly on the shared clock. Worked out round the
@@ -725,7 +778,7 @@ half3 PunchySkyColor(float3 dir, bool withDiscs, bool approximateClouds)
         half3 night = PunchyStars(dir) * _PunchyNight;
         // Shooting stars and auroras show through clear skies only: dimmed by the cloud cover overall, and by the
         // clouds along this very direction (they're bright enough to show through a thin cloud's last light, Z-09).
-        half3 events = (PunchyShootingStars(dir) + PunchyAurora(dir)) * _PunchyNight * (1 - _PunchyClouds.x);
+        half3 events = (PunchyShootingStars(dir) + PunchyAurora(dir) + PunchyBlueMoonStreaks(dir)) * _PunchyNight * (1 - _PunchyClouds.x);
         [branch] if (any(events > 0))
         {
             half eventsDarkness;

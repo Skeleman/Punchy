@@ -522,9 +522,20 @@ namespace Punchy.Weather
             var moonFloor = Cycle != null
                 ? (new Color(0.025f, 0.03f, 0.05f) * Mathf.Lerp(0.45f, 1f, Cycle.MoonLit) + Cycle.BlueMoonLight * Cycle.BlueMoonGlow) * Cycle.Night
                 : Color.black;
-            RenderSettings.ambientSkyColor = sky.Zenith * ambientScale + moonFloor;
+            // Blue-moon nights (Zach, 11-08): when the blue moon is up and full the night's light turns strongly blue,
+            // its own glow three times what it was, and the rest of the ambient drawn towards a cold blue.
+            var ambientZenith = sky.Zenith;
+            var ambientHorizon = sky.Horizon;
+            if (Cycle != null && Cycle.BlueMoonGlow > 0f)
+            {
+                var blue = Cycle.BlueMoonGlow * Cycle.Night;
+                moonFloor += Cycle.BlueMoonLight * (2f * blue);
+                ambientZenith = Color.Lerp(ambientZenith, new Color(0.18f, 0.32f, 0.85f) * ambientZenith.grayscale * 1.6f, 0.6f * blue);
+                ambientHorizon = Color.Lerp(ambientHorizon, new Color(0.2f, 0.35f, 0.8f) * ambientHorizon.grayscale * 1.5f, 0.5f * blue);
+            }
+            RenderSettings.ambientSkyColor = ambientZenith * ambientScale + moonFloor;
             // At sunrise and sunset the side light warms with the sky's twilight band (Sky.hlsl), so the land matches it.
-            var equator = sky.Horizon;
+            var equator = ambientHorizon;
             if (Cycle != null)
             {
                 var twilight = TwilightAmount(Cycle.SunDirection.y) * (1f - 0.8f * TwilightDull(s));
