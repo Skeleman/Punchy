@@ -2,7 +2,7 @@
 # Release smoke test: solo free play on the clean build at Builds/Play (rule 14), default cap / uncapped / 30; logs and screenshots in results/ (or $SMOKEOUT).
 S=${SMOKEOUT:-$(cd "$(dirname "$0")" && pwd)/results}; mkdir -p $S
 W=$(cygpath -m $S); D="$(cygpath -w $(dirname "$0")/drive.ps1)"
-G=${PLAYDIR:-/c/Users/zache/Projects/Punchy/Builds/Play}
+G=${PLAYDIR:-$HOME/Projects/Punchy/Builds/Play}
 drv() { powershell -NoProfile -File "$D" "$@" >/dev/null 2>&1; }
 w() { timeout $1 tail -f /dev/null 2>/dev/null; }
 for cap in default 0 30; do

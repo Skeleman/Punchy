@@ -1,6 +1,6 @@
 # Shared parts of bench.sh. B is this folder; it holds BenchmarkRoute.cs.txt (+ .meta.txt) and BProfileTools.cs, which
 # are copied into the project only for the length of a build.
-P=${PUNCHY:-/c/Users/zache/Projects/Punchy}
+P=${PUNCHY:-$HOME/Projects/Punchy}
 R=$B/results; BASE=$B/baselines
 W=$(cygpath -m "$R"); WW=$(cygpath -w "$R")
 UNITY=${UNITY:-"/c/Program Files/Unity/Hub/Editor/6000.5.8f1/Editor/Unity.exe"}

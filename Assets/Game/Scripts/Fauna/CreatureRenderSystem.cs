@@ -520,7 +520,7 @@ namespace Punchy.Fauna
             /// <summary>Last frame's pose of this body moved on to where it is now, when it isn't due a fresh one.</summary>
             bool Reuse(in CreatureState state, in CreatureBody body, Entity entity, int offset)
             {
-                var band = Band(state, CameraPosition);
+                var band = Band(state, body, CameraPosition);
                 if (band == 0 || body.Blob.Value.Haunts || body.Blob.Value.LavaDweller)
                     return false;
                 var period = band == 1 ? 2 : 4;
