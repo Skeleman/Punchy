@@ -1,4 +1,5 @@
 using Unity.Burst;
+using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
 
@@ -9,6 +10,9 @@ namespace Punchy.Terrain
     /// the swell the sea is drawn with, and the camera knows when a crest has closed over it. Height only: the drawn
     /// surface also slides a little along each wave, which this leaves out (a swimmer's bob is the part that shows).
     /// The state (on, sea level, wind, clock) is set once a frame on the main thread (Underwater.cs) and read from Burst.
+    /// This class is the one source of the wave table and the swell's shape: <see cref="Publish"/> uploads them as
+    /// shader globals (_PunchySwellWaves, _PunchySwellShape), so the drawn sea and the swimmer can't drift apart
+    /// (refactor 3.4, audit section 2). WaterSwell.hlsl keeps only the maths.
     /// Prototype limits: creatures, buoys, driftwood and boats still float at the flat level; the wind is the camera's,
     /// so in multiplayer each player's swell height follows their own wind.
     /// </summary>
@@ -24,15 +28,21 @@ namespace Punchy.Terrain
             struct TableKey { }
             /// <summary>x 1 on / 0 off, y the sea level, z the wind 0..1, w the shared clock (s).</summary>
             public static readonly SharedStatic<float4> State = SharedStatic<float4>.GetOrCreate<StateKey>();
-            /// <summary>The wave table (columns), as in Table.</summary>
-            public static readonly SharedStatic<float4x4> Table = SharedStatic<float4x4>.GetOrCreate<TableKey>();
+            /// <summary>The wave table, as in Table.</summary>
+            public static readonly SharedStatic<FixedList4096Bytes<float4>> Table = SharedStatic<FixedList4096Bytes<float4>>.GetOrCreate<TableKey>();
         }
 
         static readonly int SwellId = Shader.PropertyToID("_PunchySwell");
         static readonly int WindId = Shader.PropertyToID("_PunchyWind");
         static readonly int ClockId = Shader.PropertyToID("_PunchyClock");
+        static readonly int WavesId = Shader.PropertyToID("_PunchySwellWaves");
+        static readonly int ShapeId = Shader.PropertyToID("_PunchySwellShape");
 
-        // Must match PunchySwellTable in WaterSwell.hlsl: wavelength (m), direction (radians), relative height, phase.
+        /// <summary>The shader's room for waves (PunchySwellMaxWaves in WaterSwell.hlsl: the global array's size only).
+        /// Unity fixes a global array's length the first time it's set, so the upload is always this long.</summary>
+        public const int MaxWaves = 12;
+
+        // The waves: wavelength (m), direction (radians), relative height, phase.
         static readonly float4[] Table =
         {
             new float4(38f, 0.60f, 1.00f, 0.0f),
@@ -71,8 +81,31 @@ namespace Punchy.Terrain
             var clock = Shader.GetGlobalFloat(ClockId);
             var state = new float4(Enabled ? 1f : 0f, seaLevel, Shader.GetGlobalFloat(WindId), clock > 0f ? clock : Time.time);
             Shared.State.Data = state;
-            Shared.Table.Data = new float4x4(Table[0], Table[1], Table[2], Table[3]);
             Shader.SetGlobalVector(SwellId, new Vector4(state.x, state.y, state.z, 0f));
+            if (!built)
+                Build();
+            // (Every frame, cheap: nothing else may have set them since, but globals are easily lost in the editor.)
+            Shader.SetGlobalVectorArray(WavesId, upload);
+            Shader.SetGlobalVector(ShapeId, new Vector4(CalmHeight, WindHeight, Along, Table.Length));
+        }
+
+        static bool built;
+        static readonly Vector4[] upload = new Vector4[MaxWaves];
+
+        /// <summary>The wave table for Burst and for the shader upload (once: it never changes in a run). Padding
+        /// entries have no height, so the shader can loop over all of them.</summary>
+        static void Build()
+        {
+            built = true;
+            Debug.Assert(Table.Length <= MaxWaves, "WaterSwells: more waves than the shader has room for");
+            var list = new FixedList4096Bytes<float4>();
+            for (int i = 0; i < MaxWaves; i++)
+            {
+                var w = i < Table.Length ? Table[i] : new float4(10f, 0f, 0f, 0f);
+                list.Add(w);
+                upload[i] = new Vector4(w.x, w.y, w.z, w.w);
+            }
+            Shared.Table.Data = list;
         }
 
         /// <summary>
@@ -90,7 +123,7 @@ namespace Punchy.Terrain
             var height = (CalmHeight + WindHeight * math.saturate(s.z)) * amount;
             var table = Shared.Table.Data;
             var y = 0f;
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < table.Length; i++)
             {
                 var w = table[i];
                 var k = 2f * math.PI / w.x;
