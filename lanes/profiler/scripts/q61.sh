@@ -64,7 +64,9 @@ lava)      # water/lava-plates 53582b9b against main, looking down into the Volc
   build $KL BuildDev $OL || { echo "build $OL failed"; exit 1; }
   build $KM BuildDev $OM || { echo "build $OM failed"; exit 1; }
   keepawake
-  A="-benchstops place -benchplace VolcanoCone:centre -benchview place,${PITCH:-55}"
+  # (Second try skipped too: VolcanoCone isn't a DebugControls place at all on this island. Instead job 33 stands 45 m
+  # south of the MagmaSerpent, which lives on the crater floor at -211,-2129, facing it and looking down.)
+  A="-benchstops spot -benchspot -211,-2174,0 -benchpitch ${PITCH:-35}"
   rm -f "$R"/$Q-lava-*.csv "$L"/q-$Q-lava-*.log
   go lava main 1 $OM $KM $A -benchshots "$W/$Q-shots/lava-main"
   go lava plates 1 $OL $KL $A -benchshots "$W/$Q-shots/lava-plates"

@@ -2,6 +2,27 @@
 
 Newest first.
 
+## 2026-11-08 Freeze, update: runner, uncommitted edits, or the laptop? An A/B is queued (q62.sh)
+
+On the suspicion that it's the bench runner or uncommitted edits on this laptop:
+
+- **The build checkout is clean.** `~/Projects/Punchy` has only two untracked files, `.vsconfig` and `Assets/Resources.meta` (dated Oct 27 and 29).
+  - A build adds exactly `BenchmarkRoute.cs` and `BProfileTools.cs` from `b/bench-stress` and removes them afterwards. `BProfileTools.BuildDev` is a plain `BuildOptions.Development` build with no profiler autoconnect.
+  - So the runner, which does carry uncommitted edits, is the only thing these builds add to main.
+- **Which runner each build carries** (fingerprinted from the log strings in its `Assembly-CSharp.dll`):
+  - main `m` (04:18) and job 30's `346cf4dl` (03:06) carry the same runner.
+  - `346cf4dl` ran the lake spot cleanly at 03:15. `m` froze there and at the Summit.
+  - `m2` (10:11, today's runner) has run 8 Summit sessions since 10:15 without a freeze, including the 4 tries meant to catch it with a Profiler capture.
+- **Freezes aren't tied to the jump.** The glitter build logged a 135 s frame while settling and a 447 s frame 19 s into the measured part (frame 622).
+- **Freezes so far all fell between about 04:20 and 08:40.** Nothing froze from about 09:00 on (pose, blue moon, freeze hunt), on any build.
+  - The Windows System, Application and Defender logs show nothing for those windows: no power or display events and no scans.
+- **The A/B (q62.sh, next after the Job 32 rerun):** at the lake spot, a fresh game per run, two rounds:
+  - main `m` (the build that froze) and `m2`, each with the bench route and without it (`-goto -1624,-488` plus a 90 s shot list);
+  - `346cf4dl` with the route.
+  - A freeze reads from gaps between the game's own "Net status" lines, so it's measured the same way with or without the runner.
+  - If nothing freezes in daylight, it's the laptop overnight, not the code. If only `m` freezes, it's the runner of 04:18, and today's runner has already fixed it.
+- **Lava, third try:** VolcanoCone isn't a DebugControls place on this island at all. It now uses a spot 45 m south of the MagmaSerpent on the crater floor (-211,-2129), looking down.
+
 ## 2026-11-08 Job 33 (part 1): blue moon and pose-by-size; swells voided (q61.sh)
 
 Profile builds, 1920x1080, render scale 1, `-gfx High`, `-weatherseed 4`, uncapped, a fresh game per run.
