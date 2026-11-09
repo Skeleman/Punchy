@@ -35,7 +35,10 @@ half3 PunchyGlowFar(float3 p, half3 n)
     [branch] if (fade > 0)
     {
         float4 a = SAMPLE_TEXTURE2D_LOD(_PunchyGlowMap, sampler_PunchyGlowMap, uv, 0);
-        float4 b = SAMPLE_TEXTURE2D_LOD(_PunchyGlowMapNight, sampler_PunchyGlowMap, uv, 0) * _PunchyGlowMapParams.y;
+        // (Lit windows' layer: off since their light is indoor, P-21 item 31; CaveSystem sends y = 0.)
+        float4 b = 0;
+        [branch] if (_PunchyGlowMapParams.y > 0)
+            b = SAMPLE_TEXTURE2D_LOD(_PunchyGlowMapNight, sampler_PunchyGlowMap, uv, 0) * _PunchyGlowMapParams.y;
         float3 rgb = a.rgb + b.rgb;
         float weight = rgb.r + rgb.g + rgb.b;
         // Its sources' height, weighted by their light (interpolates cleanly where lit and dark texels meet): a cliff

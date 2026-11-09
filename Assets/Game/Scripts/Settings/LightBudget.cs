@@ -118,6 +118,23 @@ namespace Punchy.Settings
         public static void AddReal(LightKind kind, int id, Vector3 position, Vector4 glow)
             => Push(kind, MovingKey(id, kind), position, glow, true);
 
+        /// <summary>
+        /// A light inside a building (LightPolicy.IndoorLightsOutdoors): it lights only that building's inside. Every
+        /// building on the island is a solid shell (Interiors builds the enterable rooms off the island, each with its
+        /// own lamp, which asks through <see cref="AddReal"/>), so there's nothing inside for it to light and it takes
+        /// no slot: lights at a house's middle lit its outer walls and the ground round it through the walls (P-21,
+        /// item 31). Counted for "-lightlog" only.
+        /// </summary>
+        public static void AddIndoor(LightKind kind, Vector3 position, Vector4 light)
+        {
+            if (math.max(light.x, math.max(light.y, light.z)) > 0f && light.w != 0f)
+                indoorCount++;
+        }
+
+        static int indoorCount;
+        /// <summary>Last frame's indoor lights (<see cref="AddIndoor"/>), which light nothing outdoors.</summary>
+        public static int Indoor;
+
         /// <summary>How lit a source's own Unity light should be (0..1, fading as it gains or loses the budget).</summary>
         public static float RealLevel(LightKind kind, int id)
             => realLevel.TryGetValue(MovingKey(id, kind), out var level) ? level : 0f;
@@ -174,6 +191,7 @@ namespace Punchy.Settings
             float3 camPos = cam.transform.position;
             var dt = math.min(Time.unscaledDeltaTime, 0.1f);
             var log = LogOn && Time.unscaledTime >= nextLog;
+            (Indoor, indoorCount) = (indoorCount, 0);
             if (log)
             {
                 System.Array.Clear(logRequests, 0, Kinds);
@@ -335,7 +353,7 @@ namespace Punchy.Settings
             var text = logText;
             text.Clear();
             text.Append("[lights] requests ").Append(Requested).Append(", glow slots ").Append(SlotsUsed).Append('/').Append(GlowSlots)
-                .Append(", real ").Append(RealUsed).Append('/').Append(budget).Append(", dropped ").Append(Dropped)
+                .Append(", real ").Append(RealUsed).Append('/').Append(budget).Append(", dropped ").Append(Dropped).Append(", indoor ").Append(Indoor)
                 .Append(" (detail ").Append(GraphicsSettings.Detail.ToString("0.0#", System.Globalization.CultureInfo.InvariantCulture)).Append(')');
             for (int k = 0; k < Kinds; k++)
             {
