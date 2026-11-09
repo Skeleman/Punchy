@@ -95,6 +95,13 @@ feature code, and it never edits files in another session's checkout.
    end time (`end=$((SECONDS+1700)); while [ $SECONDS -lt $end ]`). Run one watcher at a time, and stop the old one before
    starting a new one. Launch every Unity/Punchy run with `timeout` and kill it by its own PID, never by name: other lanes'
    games and benches share the machine. After a test, check `tasklist | grep -c bash` has not grown.
+19. **Lean suite, no rework (supervisor, 2026-11-09):** every card assumes these; a report that misses one goes back.
+   (a) Shot, plan-map and look tests are `[Explicit]` (the runner prints SKIP); the default suite holds only fast checks with
+   numbers, and a new default test runs under about 30 s. (b) Re-run the full suite after your last code change, before the
+   report, and quote its line (passed / failed / skipped, seconds). (c) Cost limits in a card are measured on the same spot
+   before and after, and quoted as numbers. (d) Shots: use the shared screenshot tool (T-1, once merged; see docs/agents) and
+   quote its written checks. If a shot can't be made to show the change, say UNVERIFIED with the reason and move on: don't
+   loop on retakes; Zach judges the look in the playtest.
 
 ## Sessions and lanes
 
