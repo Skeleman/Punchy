@@ -73,6 +73,8 @@ MonoBehaviour:
   Fireflies: 0
   Butterflies: 0
   Particles: []
+  ClearingAmount: 0.35
+  ClearingSize: 200
   Flora:
   - Species: {fileID: 11400000, guid: 90e4d6538ba5cd247827ce6479ed4075, type: 2}
     Density: 0.02
