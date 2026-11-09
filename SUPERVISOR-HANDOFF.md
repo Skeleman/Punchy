@@ -142,3 +142,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-09: merged #220 shadow/tiers (R-3 rows 1,3,4) -> main 5558f89a. Row 2 is card R-5 (after R-4). Bench job 39 (depth priming on the laptop). R-4 started.
 - 11-09: merged #221 sky/look (R-4) -> main 0e964452. Skybox full-res march compiled out under PUNCHY_CLOUDS_LOW_RES; laptop check is bench job 40. Unverified: overcast look, cirrus amount, leaf-edge leak. Added COORDINATION rule 19 (lean suite, no rework). Next in the rendering lane: T-1 screenshot tool, then R-5. W-127 town lights running in Punchy-release.
 11-09: merged #222 town lights (W-127) -> main ff1e881d; Fauna_Fingerprint now B15790ED, Landmarks_V3 unchanged. W-128 started in Punchy-release. T-1 rows 3-4 in tests.
+11-09: merged #223 T-1 shot tool -> main 2ba4ec56. R-5 started in Punchy-world. Next: job 41 result -> card a stall fix; W-128 report.
