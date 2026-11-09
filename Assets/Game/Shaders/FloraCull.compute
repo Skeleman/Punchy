@@ -33,7 +33,8 @@ StructuredBuffer<uint> _Regions;         // output offset per variant × draw (3
 // Per variant: how far (m per reference pixel-per-metre, at scale 1) it keeps x LOD 0, y LOD 1, z being drawn, w casting.
 StructuredBuffer<float4> _ModelReach;
 // Per variant (3.7 step 3, DetailPolicy.SharpShadow): x how far it keeps a real-time shadow where a cached map takes over
-// (m per reference pixel-per-metre at scale 1; 0: just the floor), y 1 if its crown may cast through holes (trees).
+// (m per reference pixel-per-metre at scale 1; 0: just the floor), y 0 a solid caster, 1 a tree with a full crown, 2 a
+// tree with an open crown, which alone casts through holes (FloraSystem.ModelShadow).
 StructuredBuffer<float2> _ModelShadow;
 // Per plant: 1 if it cast last frame. Left alone across uploads: a plant only reads it inside the hysteresis band.
 RWStructuredBuffer<uint> _FloraCastState;
@@ -157,8 +158,11 @@ void Cull(uint id : SV_DispatchThreadID)
     if (casts)
     {
         // (_Shadow.z from 1e5: the shadow cache, whose trees all stay on the first list.) A solid caster's fade is
-        // negative (the shadow pass reads its stillness from the size and leaves it whole).
+        // negative and a full crown's 2 higher (3 to 4): the shadow pass reads its stillness from either and cuts
+        // holes only in an open crown's (1 to 2).
         float fade = 1 + (_ShadowStill > 0 ? smoothstep(_ShadowStill - 5, _ShadowStill + 5, d) : 0);
+        if (_Reach.x > 0 && tierInfo.y == 1)
+            fade += 2;
         Append(id, local, _Shadow.z >= 1e5 || d < (_Shadow.z > 0 && !solid ? min(_Shadow.z, lod1 * 1.075) : lod1 * 1.075) ? 3 : 4,
                solid ? -fade : fade);
     }

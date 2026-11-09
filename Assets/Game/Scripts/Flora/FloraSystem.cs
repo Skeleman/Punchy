@@ -599,15 +599,21 @@ namespace Punchy.Flora
         /// <summary>
         /// 3.7 step 3: a model's shadow tier data at scale 1. x how far it keeps a real-time shadow, per reference
         /// pixel-per-metre, where the trees layer's cache takes over past the cascades (DetailPolicy.SharpReach; 0: only
-        /// the floor, NearRange); y 1 if it's a tree, whose crown may cast with the cheap far caster's mesh and holes.
+        /// the floor, NearRange); y 0 for a solid caster, else a tree, whose crown casts with the cheap far caster's mesh:
+        /// 1 a full crown, cast whole like its near levels, 2 an open crown (OpenCrown), which also casts through holes.
         /// </summary>
         static float2 ModelShadow(FloraModel model)
         {
             var kind = model.DetailClass();
             var rule = Punchy.Settings.DetailPolicy.FloraRule(kind);
+            var tree = kind == Punchy.Settings.DetailPolicy.FloraClass.Tree;
             return new float2(Punchy.Settings.DetailPolicy.SharpReach(rule, model.Radius * 2f),
-                kind == Punchy.Settings.DetailPolicy.FloraClass.Tree ? 1f : 0f);
+                !tree ? 0f : model.Species != null && model.Species.Fullness < OpenCrown ? 2f : 1f);
         }
+
+        /// <summary>R-3 row 3: below this Fullness a crown is open (birch-like, bare, desert trees) and its far shadow
+        /// gets gaps; fuller crowns cast whole (their holes made the far shadows glitter and swim with the sway).</summary>
+        const float OpenCrown = 0.6f;
 
         // ------------------------------------------------------------------------------------------- streaming
 
