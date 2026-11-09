@@ -326,27 +326,26 @@ half3 PunchyFarClouds(half3 background, float3 dir)
     return lerp(background, color, cover);
 }
 
-// Marches the view ray through the cloud volume and composites the clouds over `background`.
-half3 PunchyVolumetricClouds(half3 background, float3 dir, float2 screenPos)
+// Marches the view ray through the cloud volume: the light scattered towards the camera, and the fraction of what's behind that
+// still shows through. framePhase (0..1, per frame) varies the start jitter between frames for the low-resolution buffer.
+void PunchyCloudMarch(float3 dir, float2 screenPos, float framePhase, out half3 scatterOut, out float transmitOut)
 {
+    scatterOut = 0;
+    transmitOut = 1;
     const float bottom = 300, top = 9500;
     float3 camera = _WorldSpaceCameraPos;
     if (dir.y <= 0.003)
-        return background;
+        return;
     float t0 = max(0, (bottom - camera.y) / dir.y);
-    // Beyond ~15–22 km the clouds hand over to a generic flat layer with the map-wide average weather: far cheaper,
-    // and local weather that far away is invisible detail anyway.
-    if (((uint)_PunchySkyOff & 2u) == 0)
-        background = PunchyFarClouds(background, dir);
     float t1 = min((top - camera.y) / dir.y, PUNCHY_FAR_END);
     if (t0 >= t1)
-        return background;
+        return;
 
     // Steps grow with distance (~3% of it): fine near the camera, coarse far away where clouds are small on screen.
     // A little per-pixel jitter hides the remaining banding.
     const int maxSteps = 160;
     // (A sine hash: decorrelated on whole-number pixel coordinates, where PunchyHash would show a grid.)
-    float jitter = frac(sin(dot(screenPos, float2(12.9898, 78.233))) * 43758.5453);
+    float jitter = frac(frac(sin(dot(screenPos, float2(12.9898, 78.233))) * 43758.5453) + framePhase);
     float t = t0 + clamp(t0 * 0.02, 30, 500) * jitter;
 
     float3 lightDir;
@@ -481,15 +480,33 @@ half3 PunchyVolumetricClouds(half3 background, float3 dir, float2 screenPos)
     // (Test only, -skyoff 32: steps per pixel in colour bands, which survive tonemapping: blue under 20, green under 40,
     // yellow under 80, orange under 120, red above.)
     if (((uint)_PunchySkyOff & 32u) != 0)
-        return stepsTaken < 20 ? half3(0, 0, 1) : stepsTaken < 40 ? half3(0, 1, 0) : stepsTaken < 80 ? half3(1, 1, 0) : stepsTaken < 120 ? half3(1, 0.4, 0) : half3(1, 0, 0);
+    {
+        scatterOut = stepsTaken < 20 ? half3(0, 0, 1) : stepsTaken < 40 ? half3(0, 1, 0) : stepsTaken < 80 ? half3(1, 1, 0) : stepsTaken < 120 ? half3(1, 0.4, 0) : half3(1, 0, 0);
+        transmitOut = 0;
+        return;
+    }
 
     // Distant clouds fade into the horizon haze, and right at the horizon (where rays skim through kilometres of
     // cloud layer and alias) they thin out entirely.
     if (firstHit > 0)
         scatter = lerp(scatter, cloudHorizon * (1 - transmit), 1 - exp(-firstHit / 14000));
     float horizonFade = smoothstep(0.003, 0.05, dir.y);
-    transmit = lerp(1, transmit, horizonFade);
-    scatter *= horizonFade;
+    transmitOut = lerp(1, transmit, horizonFade);
+    scatterOut = scatter * horizonFade;
+}
+
+// Marches the view ray through the cloud volume and composites the clouds over `background` (with the far layer under them).
+half3 PunchyVolumetricClouds(half3 background, float3 dir, float2 screenPos)
+{
+    if (dir.y <= 0.003)
+        return background;
+    // Beyond ~15–22 km the clouds hand over to a generic flat layer with the map-wide average weather: far cheaper,
+    // and local weather that far away is invisible detail anyway.
+    if (((uint)_PunchySkyOff & 2u) == 0)
+        background = PunchyFarClouds(background, dir);
+    half3 scatter;
+    float transmit;
+    PunchyCloudMarch(dir, screenPos, 0, scatter, transmit);
     return background * transmit + scatter;
 }
 
