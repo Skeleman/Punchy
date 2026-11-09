@@ -225,6 +225,8 @@ Shader "Punchy/Flora"
                 float3 grainPos : TEXCOORD7;
                 nointerpolation half grainAxis : TEXCOORD8;
                 float4 moss : TEXCOORD9;   // FloraMossData: cover (2: not moss), point in the plant's frame
+                // Items 27-28: 1 on a model that moves (a living plant: its Bark is bark), 0 on FLORA_STATIC ones (rocks, logs).
+                nointerpolation half living : TEXCOORD10;
             };
 
             Varyings Vert(FloraAttributes input)
@@ -243,6 +245,11 @@ Shader "Punchy/Flora"
                 o.grainPos = input.positionOS;
                 o.grainAxis = input.color.a;
                 o.moss = FloraMossData(input);
+#ifdef FLORA_STATIC
+                o.living = 0;
+#else
+                o.living = 1;
+#endif
                 // Keyed on the pane (each has a slightly different colour) and the building.
                 float3 key = round(input.color.rgb * 255);
                 o.windowHour = frac(sin(dot(key, float3(0.917, 0.473, 0.131)) * 10 + v.plant.random * 61.7) * 43758.5453);
@@ -321,6 +328,10 @@ Shader "Punchy/Flora"
                 float near = built ? 1 - smoothstep(60, 140, detailFade) : 1 - smoothstep(18, 45, detailFade);
                 // Timber keeps only a trace of the rock's relief (W-99: it gave the fishing huts' boards a plaster's depth).
                 near *= wood ? (look == 3 ? 0.35 : 0.15) : 1;
+                // A living plant's bark (items 27-28): the rock relief read as lumpy wet clay on trunks. Only a trace of
+                // it stays; the bark's own grain (below) does the work.
+                bool bark = part == 0 && !built && !rockTint && !wood && !strata && input.living > 0.5;
+                near *= bark ? 0.35 : 1;
                 if (part == 0 && near > 0.01 && _PunchyCaveDetailReady > 0)
                 {
                     float3 q = input.positionWS * 0.9;
@@ -333,6 +344,28 @@ Shader "Punchy/Flora"
                     albedo *= 1 + (detail.b - 0.5) * 0.5 * near;
                     half2 bump = (detail.rg - 0.5) * 0.9 * near;
                     n = normalize(n + float3(0, bump.x, bump.y) * w.x + float3(bump.x, 0, bump.y) * w.y + float3(bump.x, bump.y, 0) * w.z);
+                }
+                // Bark grain (item 28): furrows running up the trunk between raised plates, with fine fibres along them,
+                // laid out round the plant's own upright axis (its frame: the angle round it, and the height). Whole
+                // numbers of furrows round, so no seam; their path wanders with height. Fades out once a furrow would
+                // be under a few pixels wide, and by 60 m.
+                if (detail && bark)
+                {
+                    float3 gp = input.grainPos;
+                    float ang = atan2(gp.z, gp.x);
+                    float2 ring = float2(cos(ang), sin(ang));
+                    float furrows = 5 + floor(r * 4);
+                    half wander = PunchyValueNoise(ring * 1.7 + float2(gp.y * 0.8, r * 17.0)) - 0.5;
+                    float phase = ang * furrows + wander * 3.0 + gp.y * 0.12;
+                    half furrow = 1 - smoothstep(0.0, 0.5, abs(sin(phase)));
+                    half fibre = 0.5 + 0.5 * sin(phase * 4 + PunchyValueNoise(float2(gp.y * 6.0, ang * 0.5 + r * 9.0)) * 4.0);
+                    // Plates break across now and then, so the ridges aren't endless rails.
+                    half crack = smoothstep(0.78, 0.92, PunchyValueNoise(ring * 3.1 + float2(gp.y * 3.3, 4.7)));
+                    half grainFade = (1 - smoothstep(0.35, 0.9, length(fwidth(ring)) * furrows)) * (1 - smoothstep(30, 60, detailFade));
+                    albedo *= lerp(1, (1 - max(furrow, crack) * 0.5) * (0.92 + 0.16 * fibre), grainFade);
+                    // The furrows' sides catch the light: lean the normal round the trunk with the ridge's slope.
+                    float3 around = normalize(float3(-n.z, 0, n.x) + 1e-5);
+                    n = normalize(n + around * cos(phase) * sign(sin(phase)) * 0.35 * grainFade);
                 }
                 if (part == 1)
                 {
@@ -393,7 +426,8 @@ Shader "Punchy/Flora"
                     half groundLum = max(dot(input.ground.rgb, half3(0.3, 0.59, 0.11)), 0.02);
                     albedo = lerp(albedo, input.ground.rgb * clamp(lum / groundLum, 0.2, 1.6), 0.6 * green);
                 }
-                albedo *= lerp(1, part == 0 ? 0.62 : 0.82, wet);
+                // Wet darkens. Bark and leaves (items 27-28) soak it up, so they darken more and shine far less (below).
+                albedo *= lerp(1, bark ? 0.5 : part == 0 ? 0.62 : leafy ? 0.7 : 0.82, wet);
 
                 Light light = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
                 half shadow = light.shadowAttenuation * (1 - PunchyCloudShadow(input.positionWS));
@@ -554,11 +588,14 @@ Shader "Punchy/Flora"
                     half cellNear = 1 - smoothstep(4, 10, distance(input.positionWS, GetCameraPositionWS()));
                     color *= 1 - smoothstep(0.38, 0.47, rim) * 0.35 * cellNear;
                 }
-                half gloss = part == 3 ? 0.35 : part == 8 ? 0.55 : wet * 0.5;
+                // Items 27-28: wet bark and leaves are rough and absorbent: a faint, broad damp sheen, not the sharp
+                // highlight of wet stone or planks (on them it read as shiny plastic and showed up the evergreens' facets).
+                bool damp = bark || leafy;
+                half gloss = part == 3 ? 0.35 : part == 8 ? 0.55 : wet * (damp ? 0.07 : 0.5);
                 if (gloss > 0)
                 {
                     half3 h = normalize(light.direction + v);
-                    color += light.color * shadow * pow(saturate(dot(n, h)), part == 3 ? 24 : part == 8 ? 40 : 60) * gloss * 0.3 * ao;
+                    color += light.color * shadow * pow(saturate(dot(n, h)), part == 3 ? 24 : part == 8 ? 40 : damp ? 10 : 60) * gloss * 0.3 * ao;
                     if (_PunchyLantern.w > 0)
                     {
                         float3 toLantern = _PunchyLantern.xyz - input.positionWS;
