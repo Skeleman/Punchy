@@ -2657,6 +2657,84 @@ namespace Punchy.Terrain
             }
         }
 
+        /// <summary>
+        /// W-128: the inn, built from the kit (it was a flat box with a hand-made roof): a two-storey House whose walls
+        /// stand exactly on the old box (faces at x = ±<paramref name="half"/>, z = ±<paramref name="front"/>, eaves at
+        /// <paramref name="wall"/>), five bays wide so the door bay sits in the middle of the front, in the folk's trim.
+        /// Out front: a plank porch <paramref name="porch"/> deep under a lean-to roof that starts just under the upper
+        /// windows' sills, on two posts, with a lantern by the door, barrels and a bench. The kit's own door leaf, lintel
+        /// and step are left out (the caller draws the hinged door the folk use); <paramref name="sign"/> is the centre of
+        /// the inn sign, hung on rods just under the porch roof's front edge so it rises with the roof.
+        /// </summary>
+        public static List<KitPart> Inn(uint seed, CultureTrim t, float half, float front, float wall, float porch, out Vector3 sign)
+        {
+            t.Storey = wall * 0.5f;
+            t.Bay = (half * 2f - Thick) / 5f;
+            t.TowerChance = t.BalconyChance = t.StairChance = 0f;
+            var width = half * 2f - Thick;
+            var depth = front * 2f - Thick;
+            var parts = House(seed, t, width, depth, 2, 0f);
+            var h = t.Storey;
+            var out_ = depth * 0.5f;
+            // The door bay's leaf, lintel and step: the caller's door (hinged, with its own frame and step) takes their place.
+            parts.RemoveAll(p => p.Centre.z > out_ - 0.2f && Mathf.Abs(p.Centre.x) < 0.3f && p.Centre.y < h * 0.9f &&
+                                 (p.Piece == KitPiece.Door || p.Piece == KitPiece.Trim && p.Size.x < 2.5f));
+            // A flat or tiered roof has no chimney of its own: one stack at the back for the hearth.
+            if (!parts.Exists(p => p.Piece == KitPiece.Chimney))
+                Add(parts, KitPiece.Chimney, KitMaterial.Stone, new Vector3(half * 0.55f, wall + 0.6f, -front * 0.35f), new Vector3(0.7f, 2f, 0.7f), 0f, false);
+
+            // Porch deck, flush with the plinth, a little narrower than the front, with a nosing along its edge.
+            Add(parts, KitPiece.Platform, KitMaterial.Wood, new Vector3(0f, 0.15f, front + porch * 0.5f), new Vector3(half * 1.8f, 0.3f, porch), 0f, false);
+            Add(parts, KitPiece.Trim, KitMaterial.Wood, new Vector3(0f, 0.27f, front + porch - 0.06f), new Vector3(half * 1.8f + 0.04f, 0.08f, 0.14f), 0f, false);
+            // Lean-to roof: its top meets the wall under the upper sills' trim (sill at 1.34 h) and falls 0.5 m to the front.
+            const float slab = 0.16f, drop = 0.5f;
+            var y0 = h * 1.28f;
+            var run = porch + 0.3f;
+            var length = Mathf.Sqrt(run * run + drop * drop);
+            var pitch = Mathf.Atan2(drop, run) * Mathf.Rad2Deg;
+            var roofW = half * 1.9f;
+            Add(parts, KitPiece.Roof, KitMaterial.Roof, new Vector3(0f, y0 - slab * 0.5f - drop * 0.5f, front + run * 0.5f), new Vector3(roofW, slab, length), 0f, false, pitch);
+            var edge = y0 - drop - slab;   // the roof's underside at its front edge
+            var edgeZ = front + run;
+            // A fascia board along the front edge, a ledger strip where the roof meets the wall.
+            Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(0f, edge + 0.02f, edgeZ - 0.02f), new Vector3(roofW + 0.06f, 0.22f, 0.08f), 0f, false);
+            Add(parts, KitPiece.Trim, KitMaterial.Wood, new Vector3(0f, y0 - 0.3f, front + 0.06f), new Vector3(roofW, 0.16f, 0.12f), 0f, false);
+            // Two posts at the front corners on stone pads, a beam across under the roof, a knee brace from each post.
+            var postZ = front + porch - 0.14f;
+            var beamY = edge + (edgeZ - postZ) / run * drop - 0.1f;
+            foreach (var x in new[] { -0.85f * half, 0.85f * half })
+            {
+                var inward = -Mathf.Sign(x);
+                Add(parts, KitPiece.Column, KitMaterial.Wood, new Vector3(x, (0.3f + beamY) * 0.5f, postZ), new Vector3(0.22f, beamY - 0.3f, 0.22f), 0f, false);
+                Add(parts, KitPiece.Trim, KitMaterial.Stone, new Vector3(x, 0.36f, postZ), new Vector3(0.34f, 0.12f, 0.34f), 0f, false);
+                Add(parts, KitPiece.Beam, KitMaterial.Wood, new Vector3(x + inward * 0.28f, beamY - 0.36f, postZ), new Vector3(0.1f, 0.75f, 0.1f), 0f, false, 0f, inward * 45f);
+                // A short rail from the post in toward the door, leaving the middle open.
+                Add(parts, KitPiece.Rail, KitMaterial.Wood, new Vector3(x + inward * half * 0.22f, 1.0f, postZ), new Vector3(half * 0.44f, 0.08f, 0.08f), 0f, false);
+                Add(parts, KitPiece.Rail, KitMaterial.Wood, new Vector3(x + inward * half * 0.22f, 0.65f, postZ), new Vector3(half * 0.44f, 0.06f, 0.06f), 0f, false);
+            }
+            Add(parts, KitPiece.Beam, KitMaterial.Wood, new Vector3(0f, beamY + 0.08f, postZ), new Vector3(half * 1.75f, 0.18f, 0.18f), 0f, false);
+            // A lantern on a bracket beside the door.
+            Add(parts, KitPiece.Trim, KitMaterial.Wood, new Vector3(1.05f, 2.25f, front + 0.2f), new Vector3(0.06f, 0.06f, 0.4f), 0f, false);
+            Add(parts, KitPiece.Window, KitMaterial.Lamp, new Vector3(1.05f, 2.02f, front + 0.36f), new Vector3(0.22f, 0.3f, 0.22f), 0f, false);
+            // Barrels on one side of the door, a bench on the other (their own rng, so the house's draws are untouched).
+            var rng = new System.Random((int)(Scramble(seed ^ 0x1A2B3C4Du) & 0x7FFFFFFF));
+            for (int k = 0; k < 2; k++)
+                Add(parts, KitPiece.Column, KitMaterial.Wood, new Vector3(-half * (0.42f + k * 0.17f), 0.3f + 0.42f, front + 0.45f + (float)rng.NextDouble() * 0.2f),
+                    new Vector3(0.6f, 0.84f, 0.6f), (float)rng.NextDouble() * 90f, false);
+            Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(-half * 0.42f, 0.3f + 0.6f, front + 0.5f), new Vector3(0.64f, 0.06f, 0.64f), 20f, false);   // a hoop
+            Add(parts, KitPiece.Platform, KitMaterial.Wood, new Vector3(half * 0.45f, 0.3f + 0.45f, front + 0.4f), new Vector3(1.6f, 0.08f, 0.42f), 0f, false);
+            foreach (var e in new[] { -0.7f, 0.7f })
+                Add(parts, KitPiece.Column, KitMaterial.Wood, new Vector3(half * 0.45f + e, 0.3f + 0.21f, front + 0.4f), new Vector3(0.08f, 0.42f, 0.36f), 0f, false);
+
+            // The sign: hung on two rods from the roof's front edge, its top 0.25 m under the fascia, so it rises with the roof.
+            const float signH = 0.55f;
+            sign = new Vector3(half * 0.55f, edge - 0.25f - signH * 0.5f, edgeZ + 0.06f);
+            foreach (var e in new[] { -0.32f, 0.32f })
+                Add(parts, KitPiece.Rail, KitMaterial.Wood, new Vector3(sign.x + e, (edge + sign.y + signH * 0.5f) * 0.5f, sign.z), new Vector3(0.03f, edge - sign.y - signH * 0.5f + 0.04f, 0.03f), 0f, false);
+            Add(parts, KitPiece.Rail, KitMaterial.Wood, new Vector3(sign.x, sign.y + signH * 0.5f + 0.03f, sign.z), new Vector3(1.0f, 0.05f, 0.05f), 0f, false);
+            return parts;
+        }
+
         // --------------------------------------------------------------------------------------- marsh folk (W-122)
 
         /// <summary>W-122: a marsh folk hut's deck height over the pool (m); the walks sit a little under it.</summary>
