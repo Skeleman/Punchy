@@ -27,10 +27,14 @@ namespace Punchy.Debugging
         /// "-shot name" (the file, .png added) and optionally "-wait 3" (seconds after the line before the shot; default
         /// 2, plus the world's first build for the first line). Before each line the previous one's specimen, spawns
         /// and camera are cleared. Lines starting # are notes. In the editor, Play mode ends when the list is done.
+        /// T-1: the shot itself goes through <see cref="ShotTool"/> (its ready gate, then the camera's own frame), except
+        /// lines that show a menu or the HUD ("-menu", "-hud"), which still capture the screen with its overlay.
+        /// "-shottimeout 60": the gate's limit, after which the line is logged as a FAIL and has no file.
         /// </summary>
         static readonly List<string[]> shotLines = new List<string[]>();
         static int shotIndex = -1;
         float shotStarted, shotWait, listStarted;
+        bool shotPending;
 
         void LoadShotList(string path)
         {
@@ -86,6 +90,15 @@ namespace Punchy.Debugging
                 shotStarted = Time.realtimeSinceStartup;
                 return;
             }
+            // T-1: the shot tool is at its gate, or shooting; the line ends when it is done or has failed.
+            if (shotPending)
+            {
+                if (ShotTool.Busy)
+                    return;
+                shotPending = false;
+                ShotTaken(line, Arg("-shot"));
+                return;
+            }
             // (A-14 #33: a `-place wall` or ledge still being found (its props loading, or the search moving to another
             // settlement): the wait starts once the player is placed, so the shot lands mid-climb on the side camera.)
             if (ledgeRequest)
@@ -138,7 +151,31 @@ namespace Punchy.Debugging
                     return;
                 Debug.Log($"DebugControls: walk FAIL timeout after {limit:F0} s, shot '{Arg("-shot")}' taken anyway");
             }
-            Shot((Arg("-shot") ?? $"shot-{shotIndex}") + ".png");
+            var file = (Arg("-shot") ?? $"shot-{shotIndex}") + ".png";
+            if (Arg("-menu") != null || System.Array.IndexOf(line, "-hud") >= 0)
+                Shot(file);
+            else
+            {
+                // (A creature being watched, or a walk, keeps the camera moving: the gate then doesn't wait for it to stop.)
+                var w = Mathf.Max(1280, Screen.width);
+                var h = Mathf.Max(1, Mathf.RoundToInt(w * (float)Screen.height / Mathf.Max(Screen.width, 1)));
+                var timeout = float.TryParse(Arg("-shottimeout"), System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var st) ? st : ShotTool.DefaultTimeout;
+                ShotTool.Take(System.IO.Path.Combine(shotDir, file), w, h, timeout, still: watched == Entity.Null && Arg("-walk") == null);
+                shotPending = true;
+                return;
+            }
+            ShotTaken(line, Arg("-shot"));
+        }
+
+        /// <summary>The log lines after a shot-list line's shot (or its failure), then on to the next line.</summary>
+        void ShotTaken(string[] line, string name)
+        {
+            string Arg(string flag)
+            {
+                var i = System.Array.IndexOf(line, flag);
+                return i >= 0 && i + 1 < line.Length ? line[i + 1] : null;
+            }
             var at = QueriesLive() && playerQuery.TryGetSingleton<LocalTransform>(out var shooter) ? shooter.Position : float3.zero;
             Debug.Log($"DebugControls: shot {shotIndex + 1}/{shotLines.Count} '{Arg("-shot")}' after {Time.realtimeSinceStartup - shotStarted:F1} s" +
                       (drawCalls.Valid ? $", {drawCalls.LastValue} draw calls, {batches.LastValue} batches, {tris.LastValue / 1000} k tris" : "") +
