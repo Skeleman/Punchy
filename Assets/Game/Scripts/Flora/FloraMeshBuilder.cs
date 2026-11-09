@@ -565,26 +565,25 @@ namespace Punchy.Flora
         /// Fills in wind sway (none at the base, rising with height and with distance from the stem) and returns a
         /// mesh. Rigid plants pass flexibility 0.
         /// </summary>
-        public Mesh ToMesh(string name, float height, float width, float flexibility, bool bendByHeight = false)
+        public Mesh ToMesh(string name, float height, float flexibility)
         {
-            Sway(height, width, flexibility, bendByHeight);
+            Sway(height, flexibility);
             return MakeMesh(name);
         }
 
         /// <summary>Fills in the wind sway (ToMesh's first half; pure code, safe on a worker thread).</summary>
-        public void Sway(float height, float width, float flexibility, bool bendByHeight = false)
+        public void Sway(float height, float flexibility)
         {
             for (int v = 0; v < positions.Count; v++)
             {
                 var p = positions[v];
                 var up = Mathf.Clamp01(p.y / Mathf.Max(height, 0.01f));
-                var outward = new Vector2(p.x, p.z).magnitude / Mathf.Max(width * 0.5f, 0.01f);
                 var d = data[v];
                 if (Mathf.RoundToInt(d.y) == (int)FloraPart.Door)
                     continue;   // a door leaf's x is its distance from the hinge (Hinge), and it doesn't sway
-                // Flowers bend by height alone: scaling by distance from the axis made a head's far petals swing
-                // further than its near ones, so the head swelled and swivelled (#30).
-                d.x = flexibility * Mathf.Pow(up, 1.6f) * (bendByHeight ? 1f : 1f + 0.6f * outward);
+                // By height alone: scaling by distance from the axis made a flower head's far petals (#30) and a crown's
+                // outer leaves (item 12) swing further than the near ones, so they swelled and swivelled.
+                d.x = flexibility * Mathf.Pow(up, 1.6f);
                 data[v] = d;
             }
         }

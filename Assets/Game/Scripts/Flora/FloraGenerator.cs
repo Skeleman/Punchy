@@ -337,7 +337,7 @@ namespace Punchy.Flora
                 if (shapeOnly)
                     break;
                 var flexibility = Founded(species.Form) && species.Form != FloraForm.Garden ? 0f : species.Flexibility;
-                builder.Sway(g.Height, g.Width, flexibility, species.Form == FloraForm.Flowers);
+                builder.Sway(g.Height, flexibility);
                 model.Pending[lod] = builder;
             }
             return model;

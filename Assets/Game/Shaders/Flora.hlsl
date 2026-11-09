@@ -128,10 +128,14 @@ FloraVertex FloraTransform(FloraAttributes input)
 
 #ifndef FLORA_STATIC
     // (Refactor 3.5: none of this for a model that never moves, FLORA_STATIC: rocks, logs, ruins, kit buildings.)
-    // Wind: the whole plant leans and sways with gusts that travel across the land; leaves also flutter.
+    // Wind (items 11-12): the whole plant bends from its base with the grass's own gusts (the same noise and scroll as
+    // GroundDetail.hlsl, read once at the plant's foot so it moves as one); a slow sway of its own rides on top, and
+    // leaves flutter.
     float3 windDir = float3(_PunchyWindDirection.x, 0, _PunchyWindDirection.y);
-    float phase = _Time.y * (0.7 + _PunchyWind * 1.1) - dot(plant.position.xz, _PunchyWindDirection) * 0.04 + plant.random * 6.28;
-    float gust = (0.6 + 0.4 * sin(phase) * sin(phase * 0.37 + 1.3)) * (0.08 + 0.92 * _PunchyWind);
+    float2 plantGustUV = plant.position.xz * 0.011 - _PunchyWindDirection * _PunchyClock * (0.025 + 0.06 * _PunchyWind);
+    half plantGust = lerp(0.5, smoothstep(0.3, 0.75, SAMPLE_TEXTURE2D_LOD(_PunchyCaveDetail, sampler_PunchyCaveDetail, plantGustUV, 0).b), _PunchyCaveDetailReady);
+    float phase = _PunchyClock * 1.2 - dot(plant.position.xz, _PunchyWindDirection) * 0.04 + plant.random * 6.28;
+    float gust = (0.62 + 0.38 * sin(phase) * sin(phase * 0.37 + 1.3)) * (0.08 + 0.92 * _PunchyWind) * (0.35 + 0.8 * plantGust);
     // W-107: far shadows can stand still (the cache always). The cull works out how still each shadow-list plant is,
     // once per plant, and hands it over as its fade above 1 (FloraCull.compute), so no vertex measures a distance.
     float still = 0;
@@ -142,14 +146,16 @@ FloraVertex FloraTransform(FloraAttributes input)
 #endif
     gust *= 1 - still;
     // (A door leaf's x is its distance from the hinge, not how much it bends.)
-    float sway = ((int)round(input.data.y) == 12 ? 0 : input.data.x) * (0.05 + 0.045 * p.y);
-    // A bend, not a shear (#30): the vertex swings on a sphere round the plant's base, so a stem keeps its length
-    // instead of stretching as it leans.
-    float bendLen = length(p);
-    p += windDir * sway * gust * 2.2;
-    p *= bendLen / max(length(p), 1e-4);
+    float sway = (int)round(input.data.y) == 12 ? 0 : input.data.x;
+    // A rotation about the base, by an angle set by height alone (short plants bend further): vertices at one height
+    // turn together, so a crown tips as a whole and a stem keeps its length. Moving each vertex and rescaling it to its
+    // old length pulled a crown in and out, which read as inflating (item 12).
+    float bend = sway * gust * (0.16 + 0.18 / max(abs(p.y), 0.5));
+    float3 bendAxis = float3(windDir.z, 0, -windDir.x);
+    p = p * cos(bend) + cross(bendAxis, p) * sin(bend) + bendAxis * dot(bendAxis, p) * (1 - cos(bend));
+    // Flutter along one direction, not the normal: along the normal a round leaf clump swelled and shrank.
     float flutter = ((int)round(input.data.y) == 12 ? 0 : max(input.data.z, 0)) * (0.15 + _PunchyWind) * 0.022 * plant.scale * (1 - still);
-    p += n * sin(_Time.y * 7.3 + dot(input.positionOS, float3(3.1, 2.3, 4.7)) + plant.random * 20) * flutter;
+    p += float3(-windDir.z * 0.82, 0.57, windDir.x * 0.82) * sin(_Time.y * 7.3 + dot(input.positionOS, float3(3.1, 2.3, 4.7)) + plant.random * 20) * flutter;
     // Motions carried in the flutter channel as negatives (FloraMeshBuilder.Motion, Sway), on the shared clock: a slow
     // breath along the normal (mushroom caps), below -2 a sudden small jerk now and then (cocoons), and below -10 a
     // slow pendulum sway (vines), stronger in wind.
