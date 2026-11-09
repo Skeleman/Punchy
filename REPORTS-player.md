@@ -302,3 +302,9 @@
 - Not checked: Exclusive full screen / borderless on screen (kept test windows windowed so they didn't take over the display); editor Game view ignores the rows by design
 - Cost: ~38 calls, 2 builds (1 over the card: the one-fix allowance)
 - NEXT: Zach to try full screen and borderless by hand; then #85 camera or the next P card
+
+## P-22 row 1: roof undersides (2026-11-09, branch player/p22)
+DONE. Cause: three darkenings multiplied on downward faces of built things (albedo x0.6, sky ambient swapped for a dim ground bounce, grounding down term x0.5), about 7% of a shaded wall by the shader's values, which is why raising one 0.18 factor (the earlier try) showed nothing. SSAO is not involved: Flora's forward pass doesn't sample it, and its normals pass already handles back faces.
+Fix (Flora.shader, Grounding.hlsl): one underside rule from the ambient a shaded wall gets; the sheet flip no longer tests the normal against the view. It is in the shader, so it covers every kit drawn as a built thing.
+Checked at -goto -3277,129.9,1549, noon, High: 8 fixed cameras before and after (undersides now read like the walls below; roof tops unchanged), and an 8-camera arc through the eave's plane and along it (no colour change). No exceptions or shader errors in the log.
+Not checked: night and interior ceilings, which are lit by the same rule; other town styles' eaves up close; continuous motion (stills only). The arc was shot only on the new build.
