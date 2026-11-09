@@ -276,6 +276,7 @@ namespace Punchy.Debugging
             ActionTest();
             Watch();
             SettleGoto();
+            FrameUpdate();
             WalkTo();
             FlyCave();
             PlacePropPending();

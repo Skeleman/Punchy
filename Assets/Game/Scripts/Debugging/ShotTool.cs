@@ -43,6 +43,9 @@ namespace Punchy.Debugging
         /// <summary>Default gate timeout, real seconds.</summary>
         public const float DefaultTimeout = 60f;
 
+        /// <summary>Something else the gate waits on (a "-frame" still placing the camera): its reason, or null.</summary>
+        public static System.Func<string> ExtraWait;
+
         static ShotTool runner;
         Camera lateRender;
 
@@ -91,6 +94,11 @@ namespace Punchy.Debugging
             if (world == null || !world.IsCreated)
             {
                 waiting = "no world";
+                return false;
+            }
+            if (ExtraWait?.Invoke() is string extra)
+            {
+                waiting = extra;
                 return false;
             }
             var terrain = world.GetExistingSystemManaged<TerrainStreamingSystem>();

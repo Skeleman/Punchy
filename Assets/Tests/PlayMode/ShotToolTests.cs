@@ -55,5 +55,46 @@ namespace Punchy.Tests.PlayMode
             File.WriteAllLines(Path.Combine(Shots.Folder, "t1-shotlist.txt"), lines);
             LogWatch.Measure("t1 shot list:\n" + string.Join("\n", lines));
         }
+
+        /// <summary>
+        /// T-1 row 2: "-frame" on the subjects that came out badly framed before (W-126's saguaro slope and clearings, a
+        /// cave mouth, an inn roof, a village from the water). Each case is one -frame line, then a settled shot; the
+        /// "[frame]" line (heading, distance, rays hidden) goes into the summary. Fails if a subject can't be framed.
+        /// </summary>
+        [UnityTest, Explicit("shots, run on demand"), Timeout(900000)]
+        public IEnumerator Framing_BySubject()
+        {
+            LogWatch.Start();
+            IEnumerator Frame(string name, string line)
+            {
+                var before = LogWatch.Last("[frame]");
+                Game.RunOptions("-time 12 -weather Clear -nohud " + line);
+                var until = Time.realtimeSinceStartup + 40f;
+                string got;
+                while ((got = LogWatch.Last("[frame]")) == before && Time.realtimeSinceStartup < until)
+                    yield return null;
+                Assert.AreNotEqual(before, got, $"{name}: no [frame] line for '{line}'");
+                Assert.IsFalse(got.Contains("FAIL"), $"{name}: {got}");
+                LogWatch.Measure($"{name}: {got}");
+                yield return Shots.Settled(name, 1280, 720);
+            }
+
+            var sonoran = Game.Hook<float[]>("FloraViewSpot", "Sonoran");
+            Assume.That(sonoran.Length > 0, "no Sonoran view spot");
+            yield return TestSceneSetup.GoTo(sonoran[0], sonoran[2], 4f);
+            yield return Frame("t1-frame-saguaro", $"-frame flora:Saguaro@{sonoran[0].ToString("F0", C)},{sonoran[2].ToString("F0", C)} -framing mid");
+
+            // A clearing: the tool's own finder ("clearing"), from the Temperate view spot (W-126's FramedShots subject).
+            var spot = Game.Hook<float[]>("FloraViewSpot", "Temperate");
+            Assume.That(spot.Length > 0, "no Temperate view spot");
+            var at = $"{spot[0].ToString("F0", C)},{spot[2].ToString("F0", C)}";
+            yield return TestSceneSetup.GoTo(spot[0], spot[2], 4f);
+            yield return Frame("t1-frame-clearing-air", $"-frame clearing@{at} -framing aerial");
+            yield return Frame("t1-frame-clearing-ground", $"-frame clearing@{at} -framing ground");
+
+            yield return Frame("t1-frame-cave", "-frame CaveEntrance -framing close");
+            yield return Frame("t1-frame-inn", "-frame flora:Inn -framing aerial");
+            yield return Frame("t1-frame-village", "-frame flora:FishStiltHouse -framing mid -from water");
+        }
     }
 }

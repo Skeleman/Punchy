@@ -231,6 +231,7 @@ namespace Punchy.Debugging
             }
             for (int i = 0; i < args.Length - 1; i++)
             {
+                FrameFlag(args, i);
                 if (args[i] == "-time" && Cycle != null && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var hours))
                     Cycle.TimeOfDay = Mathf.Repeat(hours, 24f);
                 if (args[i] == "-watch")
