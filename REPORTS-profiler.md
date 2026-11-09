@@ -2,6 +2,45 @@
 
 Newest first.
 
+## Job 37: R-2 on the laptop (main acd0cad5 vs 13cdbcdc), 2026-11-09 (q67.sh)
+Profile builds, 1920x1080, `-gfx High`, `-weatherseed 4`, uncapped, a fresh game per run, ABBA (two rounds each,
+within 0.6 ms). The runner's cpu column is the main thread's frame time.
+
+**(1) World glow bake: 11.8-12.4 s on the laptop** (11754, 11819, 11924, 11955, 12426 ms; 2.9x the main PC's 4.1 s).
+Same counts each game: 6366 burning trees, 2816 glowing plants, 2 MB, 9216 m. A sixth game logged 729311 ms: that
+game stalled for 728 s mid-bake (see the freeze below), so it's not the bake's own time.
+`-worldglow 0` still runs the bake (it zeroes the strength only).
+
+**(2) Fire test** (job 27's spots: firesbase, then the same with `-benchfires 500`, noon; 500 flames drawn, 0 dropped):
+
+| | GPU firesbase | GPU fires | main thread firesbase | main thread fires |
+|---|---|---|---|---|
+| 13cdbcdc (before R-2) | 15.85 | 16.15 | 18.45 | 18.7 |
+| acd0cad5 (R-2) | **13.8** | **14.1** | **17.05** | **17.15** |
+
+- The 500 flames cost 0.3 ms GPU on both builds (0.1-0.25 ms main thread). R-2 doesn't change the flames' cost.
+- R-2 is 2.05 ms GPU and 1.4 ms main thread cheaper at this spot, **with or without the flames**. That's the rest of
+  R-2 (the detail rules), not the fires.
+
+**(3) Ember Forest at night** (job 27's view: `-benchview 120,5 -benchhour 22`; 3296 flames a frame), acd0cad5:
+default 10.25 ms GPU / 13.2 main thread, `-worldglow 0` 10.1 / 13.15. **The world glow is free at draw time** (0.15 ms,
+within noise).
+
+**Freeze: caught one with the sampler, and the game was idle, not busy.** The first acd0cad5 game (fires r2, round 1)
+stopped logging at 08:45:44 for 728 s. Every 6 s through the stall:
+- the game's CPU time rose 0.03 s;
+- GPU load was 0% at idle clocks (1063 MHz);
+- its working set shrank (Windows trimming an idle process).
+
+So it isn't a CPU loop and isn't the GPU: **something blocked the game** (a lock, a wait, or I/O). No events in the
+System, Application or Defender logs from 08:40 to 09:00. It then carried on and measured normally.
+The sampler now snapshots a stall: its threads by state and wait reason, which threads used CPU, the game's I/O, and
+disk and CPU load (`freezestall.ps1`; results/freezestall.txt). The next stall should name the wait.
+Since job 32 the stalls have hit just after the jump (settling), on main and branches alike, Summit, lake and now job
+25's start spot; job 36's 34 games had none.
+
+Cost: this job about $2 (laptop session 0a48ccdb); laptop total $667.
+
 ## Job 36: clouds on the low-resolution buffer (sky/lowres ccd74cc1 vs main 13cdbcdc), 2026-11-09 (q66.sh)
 Job 34's setup: Profile builds, the Summit facing out, pitched up 10, 1920x1080, `-gfx High`, `-weatherseed 4`,
 uncapped, noon, a fresh game per run, weather forced over the stop. ABBA, two rounds each. Rounds agreed within 0.9 ms.
