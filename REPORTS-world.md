@@ -3520,3 +3520,20 @@ Built in the player tree, not the one the card names (the world tree's gitignore
   - Inn: aerial from 40 m. The roof is centred among the town houses.
   - Stilt village: from the water, 26 m. Stilt houses and piers.
   The first attempt was BAD on the clearing (a bare slope) and the cave (a rock mound with no mouth). The clearing finder and the cave mouth aim fixed both. None of the 6 subjects had kit boxes, so no test checked the kit-box rays.
+- Row 3 (self-check and budget, 84184d1d): DONE. Each shot now logs a written check after the image is read: mean brightness, near-black share (luminance < 0.04), near-white share (all channels > 245), sky share (16x9 camera rays that meet no ground within 3 km), lens under the ground, and for `-frame` shots whether the subject is on-screen and not hidden (by terrain, a building or plants). It is BAD when: lens under the ground; black (by day mean < 0.06 or near-black > 0.6; at night or in a cave only if almost all black); blown out (near-white > 0.4); target off-screen or hidden; all sky (> 0.9, framed shots only). A bad shot retries once: `-frame` takes the next-best heading at least 59 deg round; a posed camera is lifted over the ground and turned 90 deg; a live camera is not moved. After that it is kept and marked `BAD <reason>`. With `PUNCHY_GALLERY` set, full-res copies go to that folder. Each run writes one contact sheet: 320x180 tiles, 4 to a row, green or red label bars, JPG. Shot lists write `contact-sheet.jpg`; tests use the `ShotRunStart`/`ShotRunSheet` hooks.
+  **Proof:** `ShotToolTests.SelfCheck_TenShots` [Explicit] PASS in 174 s. 10 framed shots over 5 biomes (Temperate, Sonoran, Tundra, FungalForest, Mountains), noon and dusk (18:10). 10 of 10 good:
+  - temperate clearing day: mean 0.56, near-black 0.00, near-white 0.00, sky 0.00, target on-screen and clear.
+  - temperate clearing dusk: mean 0.23, near-black 0.09, sky 0.22, target clear, night.
+  - sonoran saguaro day: mean 0.59, near-black 0.00, sky 0.11, target clear.
+  - sonoran saguaro dusk: mean 0.24, near-black 0.01, sky 0.32, target clear, night.
+  - tundra spruce day: mean 0.55, near-black 0.00, sky 0.17, target clear.
+  - tundra spruce dusk: mean 0.19, near-black 0.32, sky 0.35, target clear, night.
+  - fungal oak day: mean 0.47, near-black 0.00, sky 0.22, target clear.
+  - fungal oak dusk: mean 0.22, near-black 0.07, sky 0.22, target clear, night.
+  - mountain pine day: mean 0.53, near-black 0.00, sky 0.00, target clear.
+  - mountain pine dusk: good after retry. It was first "target hidden by plants" and was re-framed 120 deg round (looking 60 deg from 74 m): mean 0.13, near-black 0.17, sky 0.04, target clear, night.
+  **Seeded failure:** a camera posed 6 m under the ground. Caught as "inside geometry (lens under the ground)", lifted and turned to heading 180, then good (mean 0.50, sky 0.06).
+  **Contact sheet:** 11 shots, 1280x582, 116 KB (limit 300). I looked only at the sheet; it matches the checks. Full res is in the T-1 gallery folder (world/T-1/gallery).
+  **Real failures fixed on the way:**
+  - FungalGlowCap: `-frame` gives "FAIL no FungalGlowCap within reach" from the Fungal view spot, so the test now uses FungalOak.
+  - The same subject and framing twice log the same `[frame]` line, so the test now writes a marker before each frame.
