@@ -30,6 +30,8 @@ namespace Punchy.Debugging
         /// T-1: the shot itself goes through <see cref="ShotTool"/> (its ready gate, then the camera's own frame), except
         /// lines that show a menu or the HUD ("-menu", "-hud"), which still capture the screen with its overlay.
         /// "-shottimeout 60": the gate's limit, after which the line is logged as a FAIL and has no file.
+        /// Each shot's written check (and BAD reason, after one retry) is in its "[shot]" line; the list ends with
+        /// contact-sheet.jpg in the shot folder.
         /// </summary>
         static readonly List<string[]> shotLines = new List<string[]>();
         static int shotIndex = -1;
@@ -50,6 +52,7 @@ namespace Punchy.Debugging
             shotIndex = 0;
             shotStarted = -1f;
             listStarted = Time.realtimeSinceStartup;
+            ShotTool.ClearTaken();
             Debug.Log($"DebugControls: shot list of {shotLines.Count}");
         }
 
@@ -61,6 +64,9 @@ namespace Punchy.Debugging
             {
                 Debug.Log($"DebugControls: shot list done, {shotLines.Count} shots in {Time.realtimeSinceStartup - listStarted:F1} s");
                 shotIndex = -1;
+                // T-1 row 3: one small labelled contact sheet of the list's shots, beside them (the picture an agent opens).
+                if (ShotTool.Written.Count > 0)
+                    ShotSheet.Write(System.IO.Path.Combine(shotDir, "contact-sheet.jpg"), ShotTool.Written);
                 // "-quit" on the launch line: the player closes itself when the list is done (agents can't kill it).
                 if (System.Array.IndexOf(LaunchArgs, "-quit") >= 0)
                     Application.Quit();

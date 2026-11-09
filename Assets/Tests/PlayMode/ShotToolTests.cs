@@ -96,5 +96,61 @@ namespace Punchy.Tests.PlayMode
             yield return Frame("t1-frame-inn", "-frame flora:Inn -framing aerial");
             yield return Frame("t1-frame-village", "-frame flora:FishStiltHouse -framing mid -from water");
         }
+
+        /// <summary>
+        /// T-1 row 3: ten framed shots across five biomes, day (12:00) and dusk (18:10), each with its written check, then
+        /// one seeded failure (a camera posed under the ground) to show a bad shot retried. Writes one small contact sheet
+        /// (t1-selfcheck-sheet.jpg beside the shots) and measures every check. Fails if the sheet is 300 KB or more.
+        /// </summary>
+        [UnityTest, Explicit("shots, run on demand"), Timeout(1200000)]
+        public IEnumerator SelfCheck_TenShots()
+        {
+            LogWatch.Start();
+            Game.Hook<bool>("ShotRunStart");
+            var labels = new List<string>();
+            IEnumerator Framed(string label, string biome, string subject, string framing, float hour)
+            {
+                var spot = Game.Hook<float[]>("FloraViewSpot", biome);
+                Assume.That(spot.Length > 0, $"no {biome} view spot");
+                var at = $"{spot[0].ToString("F0", C)},{spot[2].ToString("F0", C)}";
+                yield return TestSceneSetup.GoTo(spot[0], spot[2], 4f);
+                // (A marker first: the same subject and framing twice logs the same [frame] line.)
+                Debug.Log($"[frame] next: {label}");
+                var before = LogWatch.Last("[frame]");
+                Game.RunOptions($"-time {hour.ToString(C)} -weather Clear -nohud -frame {subject}@{at} -framing {framing}");
+                var until = Time.realtimeSinceStartup + 40f;
+                string got;
+                while ((got = LogWatch.Last("[frame]")) == before && Time.realtimeSinceStartup < until)
+                    yield return null;
+                Assert.AreNotEqual(before, got, $"{label}: no [frame] line");
+                Assert.IsFalse(got.Contains("FAIL"), $"{label}: {got}");
+                labels.Add(label);
+                yield return Shots.Settled("t1-check-" + label.Replace(' ', '-'), 1280, 720);
+            }
+
+            yield return Framed("temperate clearing day", "Temperate", "clearing", "aerial", 12f);
+            yield return Framed("temperate clearing dusk", "Temperate", "clearing", "ground", 18.17f);
+            yield return Framed("sonoran saguaro day", "Sonoran", "flora:Saguaro", "mid", 12f);
+            yield return Framed("sonoran saguaro dusk", "Sonoran", "flora:Saguaro", "close", 18.17f);
+            yield return Framed("tundra spruce day", "Tundra", "flora:Spruce", "mid", 12f);
+            yield return Framed("tundra spruce dusk", "Tundra", "flora:Spruce", "ground", 18.17f);
+            yield return Framed("fungal oak day", "FungalForest", "flora:FungalOak", "mid", 12f);
+            yield return Framed("fungal oak dusk", "FungalForest", "flora:FungalOak", "mid", 18.17f);
+            yield return Framed("mountain pine day", "Mountains", "flora:Pine", "aerial", 12f);
+            yield return Framed("mountain pine dusk", "Mountains", "flora:Pine", "mid", 18.17f);
+
+            // The seeded failure: a camera posed 6 m under the ground. Its check must say so and retry (lifted and turned).
+            var p = Game.Hook<Vector3>("PlayerPosition");
+            Game.RunOptions($"-time 12 -camlook {p.x.ToString("F1", C)},{(p.y - 6f).ToString("F1", C)},{p.z.ToString("F1", C)},{(p.x + 30f).ToString("F1", C)},{(p.y - 6f).ToString("F1", C)},{p.z.ToString("F1", C)}");
+            yield return TestSceneSetup.Seconds(1f);
+            labels.Add("seeded under ground");
+            yield return Shots.Settled("t1-check-seeded-buried", 1280, 720);
+            var seeded = LogWatch.Last("[shot] 't1-check-seeded-buried-");
+            Assert.IsTrue(seeded != null && seeded.Contains("first inside geometry"), "the buried camera wasn't caught: " + seeded);
+
+            var lines = Game.Hook<string[]>("ShotRunSheet", Path.Combine(Shots.Folder, "t1-selfcheck-sheet.jpg"), labels.ToArray());
+            LogWatch.Measure("t1 self-check, sheet " + string.Join("\n", lines));
+            Assert.Less(int.Parse(lines[0].Split(' ')[0]), 300, "contact sheet too big");
+        }
     }
 }

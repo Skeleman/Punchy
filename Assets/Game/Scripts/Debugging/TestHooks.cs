@@ -455,6 +455,29 @@ namespace Punchy.Debugging
             return grid;
         }
 
+        /// <summary>T-1 row 3: starts a new run for the contact sheet (forgets the shots written so far).</summary>
+        public static bool ShotRunStart()
+        {
+            ShotTool.ClearTaken();
+            return true;
+        }
+
+        /// <summary>
+        /// T-1 row 3: the contact sheet of the run's shots at path (labels[i] names the i-th shot), and each shot's written
+        /// check: "label: check; good" or "label: check; BAD reason". The sheet's size in KB is the first line.
+        /// </summary>
+        public static string[] ShotRunSheet(string path, string[] labels)
+        {
+            var bytes = ShotSheet.Write(path, ShotTool.Written, labels);
+            var lines = new List<string> { $"{bytes / 1024} KB" };
+            for (int i = 0; i < ShotTool.Written.Count; i++)
+            {
+                var t = ShotTool.Written[i];
+                lines.Add($"{(i < labels.Length ? labels[i] : System.IO.Path.GetFileName(t.Path))}: {t.Check}; {(t.Bad == null ? "good" : "BAD " + t.Bad)}");
+            }
+            return lines.ToArray();
+        }
+
         /// <summary>
         /// W-126: the liveliest ground inside a biome for habitat shots: the dry spot (64 m grid, the biome dominant at it and round
         /// it) with the widest spread of heights over a 90 m ring. [x, y, z, spread], empty if none. A same-world pick, so old and new shots frame alike.

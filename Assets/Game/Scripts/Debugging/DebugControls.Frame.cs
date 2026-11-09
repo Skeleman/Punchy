@@ -44,6 +44,11 @@ namespace Punchy.Debugging
         string frameLabel;
         bool frameWantKit;       // a building or landmark: wait a little longer for its kit boxes
         bool frameInside;        // a clearing: a ground shot stands inside the subject, not outside it
+        // T-1 row 3: the placed shot, for the shot tool's subject check and its one retry at another heading.
+        readonly List<(float3 eye, float heading, float score)> frameRanked = new List<(float3, float, float)>();
+        float3 frameShotAim;
+        float frameShotSize, frameShotHeading;
+        bool frameShotGround;
 
         /// <summary>Called from the option loop: "-frame" with its preset and "-from" read from the same line.</summary>
         void FrameFlag(string[] args, int i)
@@ -498,6 +503,7 @@ namespace Punchy.Debugging
             var bestHeading = 0f;
             var bestFactor = 1f;
             var tried = 0;
+            frameRanked.Clear();
             for (int h = 0; h < 12; h++)
             {
                 var angle = startAngle + h * math.PI / 6f;
@@ -520,6 +526,7 @@ namespace Punchy.Debugging
                     if (frameFromWater && !(water.HasWater && water.WaterDepth > 0.5f))
                         score += 1f;
                     tried++;
+                    frameRanked.Add((eye, angle, score));
                     if (score < bestScore)
                     {
                         bestScore = score;
@@ -530,19 +537,85 @@ namespace Punchy.Debugging
                     }
                 }
             }
+            frameShotAim = aim;
+            frameShotSize = frameSize;
+            frameShotGround = ground;
+            var compass = FramePose(source, em, player, bestEye, bestHeading);
+            frameRanked.Sort((a, b) => a.score.CompareTo(b.score));
+            var owner = this;
+            ShotTool.TargetCheck = cam => owner.FrameTargetCheck(cam);
+            ShotTool.Retry = () => owner.FrameRetry();
             var lens = (Vector3)bestEye;
-            var look = Quaternion.LookRotation((Vector3)aim - lens);
-            PoseCamera(lens, look);
-            // The player: under the lens (out of a downward shot), or two metres behind it for a ground-eye shot.
-            var back = new float2(math.cos(bestHeading), math.sin(bestHeading));
-            var park = bestEye.xz + (ground ? back * 2f : float2.zero);
-            var t = em.GetComponentData<LocalTransform>(player);
-            t.Position = new float3(park.x, source.FloorUnder(new float3(park.x, bestEye.y, park.y), out _) + 0.1f, park.y);
-            em.SetComponentData(player, t);
-            var compass = (math.degrees(math.atan2(-back.x, -back.y)) + 360f) % 360f;   // the direction the camera looks, 0 = +z
             Debug.Log(System.FormattableString.Invariant(
                 $"[frame] '{frameTarget}' {frameLabel}, aim ({aim.x:F1}, {aim.y:F1}, {aim.z:F1}) size {frameSize:F0} m, {framePreset}{(frameFromWater ? " from water" : "")}: ") +
                 System.FormattableString.Invariant($"looking {compass:F0} deg from {math.distance(bestEye, aim):F0} m (x{bestFactor:F1}), hidden {bestHidden:F2} (best of {tried}), lens ({lens.x:F1}, {lens.y:F1}, {lens.z:F1}){(hasKit ? "" : ", no kit boxes")}"));
+        }
+
+        /// <summary>Poses the camera at eye looking at the framed aim and parks the player out of shot; returns the compass heading.</summary>
+        float FramePose(in TerrainSource source, EntityManager em, Entity player, float3 eye, float heading)
+        {
+            var lens = (Vector3)eye;
+            PoseCamera(lens, Quaternion.LookRotation((Vector3)frameShotAim - lens));
+            // The player: under the lens (out of a downward shot), or two metres behind it for a ground-eye shot.
+            var back = new float2(math.cos(heading), math.sin(heading));
+            var park = eye.xz + (frameShotGround ? back * 2f : float2.zero);
+            var t = em.GetComponentData<LocalTransform>(player);
+            t.Position = new float3(park.x, source.FloorUnder(new float3(park.x, eye.y, park.y), out _) + 0.1f, park.y);
+            em.SetComponentData(player, t);
+            frameShotHeading = heading;
+            return (math.degrees(math.atan2(-back.x, -back.y)) + 360f) % 360f;   // the direction the camera looks, 0 = +z
+        }
+
+        /// <summary>
+        /// T-1 row 3, the shot tool's subject check: null when the framed aim is on-screen and the ray from the lens to it
+        /// is clear (terrain, kit boxes, tree trunks and crowns), else the reason.
+        /// </summary>
+        string FrameTargetCheck(Camera cam)
+        {
+            var vp = cam.WorldToViewportPoint((Vector3)frameShotAim);
+            if (vp.z <= 0f || vp.x < 0.02f || vp.x > 0.98f || vp.y < 0.02f || vp.y > 0.98f)
+                return "target off-screen";
+            if (!EnsureLocations(out var source))
+                return null;
+            var em = queryWorld.EntityManager;
+            using var kitQuery = em.CreateEntityQuery(ComponentType.ReadOnly<KitBox>());
+            var hasKit = kitQuery.TryGetSingletonBuffer<KitBox>(out var kit, true);
+            var blob = FindAnyObjectByType<FaunaDirector>() is FaunaDirector director && director.FloraPlacementBlob.IsCreated
+                ? director.FloraPlacementBlob : default;
+            var by = FrameBlocker(source, kit, hasKit, blob, new Dictionary<int3, FloraSystem.FloraInstance>(), cam.transform.position, frameShotAim, frameShotSize);
+            return by != null ? "target hidden by " + by : null;
+        }
+
+        /// <summary>T-1 row 3, the shot tool's retry: the best-scored placement at least 60 degrees round from the one shot, or null.</summary>
+        string FrameRetry()
+        {
+            if (!EnsureLocations(out var source) || !playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
+                return null;
+            foreach (var c in frameRanked)
+            {
+                var turn = math.degrees(math.abs(math.atan2(math.sin(c.heading - frameShotHeading), math.cos(c.heading - frameShotHeading))));
+                if (turn < 59f)
+                    continue;
+                var compass = FramePose(source, queryWorld.EntityManager, player, c.eye, c.heading);
+                return System.FormattableString.Invariant($"re-framed {turn:F0} deg round: looking {compass:F0} deg from {math.distance(c.eye, frameShotAim):F0} m");
+            }
+            return null;
+        }
+
+        /// <summary>What blocks the line from eye to p (stopping short of the subject's middle): "terrain", "a building", "plants", or null.</summary>
+        static string FrameBlocker(in TerrainSource source, DynamicBuffer<KitBox> kit, bool hasKit, BlobAssetReference<FloraBlob> blob,
+                                   Dictionary<int3, FloraSystem.FloraInstance> cells, float3 eye, float3 p, float size)
+        {
+            var length = math.distance(eye, p);
+            var stop = math.min(size * 0.45f, length * 0.8f);
+            var end = eye + (p - eye) * ((length - stop) / math.max(length, 1e-3f));
+            if (TerrainBlocks(source, eye, end))
+                return "terrain";
+            if (hasKit && KitCollision.Blocks(kit, eye, end))
+                return "a building";
+            if (blob.IsCreated && PlantsBlock(ref blob.Value, source, cells, eye, end))
+                return "plants";
+            return null;
         }
 
         /// <summary>The share of five rays (centre, top, left, right, base of the subject) that something blocks.</summary>
@@ -559,13 +632,8 @@ namespace Punchy.Debugging
             };
             var blocked = 0;
             foreach (var p in points)
-            {
-                var length = math.distance(eye, p);
-                var stop = math.min(size * 0.45f, length * 0.8f);
-                var end = eye + (p - eye) * ((length - stop) / math.max(length, 1e-3f));
-                if (TerrainBlocks(source, eye, end) || hasKit && KitCollision.Blocks(kit, eye, end) || blob.IsCreated && PlantsBlock(ref blob.Value, source, cells, eye, end))
+                if (FrameBlocker(source, kit, hasKit, blob, cells, eye, p, size) != null)
                     blocked++;
-            }
             return blocked / 5f;
         }
 
