@@ -3351,3 +3351,10 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
 
 ## W-123 row 3 - V3 colour sync: not started
 - Stopped at row 2. Likely the same conflict: the biome tint path (GroundFor, RockTint) is in FloraPlacement.cs, which #209 also changes.
+
+## W-123 row 2 - flora wind: done (unblocked by the supervisor; motion needs Zach's eye)
+- Flora.hlsl: plants read the grass's gust noise and scroll at their foot (identical UV to GroundDetail.hlsl). The sway is a rotation about the base by height, replacing offset plus rescale. Flutter runs along one fixed direction, not the normal. FloraMeshBuilder.Sway lost the outward factor. All inside `#ifndef FLORA_STATIC`, so static flora is unchanged by construction (no separate static-model shot).
+- GPU, new against row 1, 4 alternating runs: forest 2.08/2.07/2.08/2.08 against 2.09/2.06/2.10/2.04; meadow 2.49/2.55/2.42/2.44 against 2.48/2.48/2.47/2.44. No worse. The 4th run of each is on the final bend constant; the first 3 are on the constant before it.
+- 15 s frame series on one shrub, 31 frames: centroid x sd 0.67 px new against 1.68 px before, so visibly calmer, about 40% of the old movement. Crown area varies 0.66% against 0.48%, so area can't show the swelling at this wind either way. Whether "inflating and twisting" is gone is a judgement for a playtest; if it now looks too still, raise the 0.16 / 0.18 in the bend.
+- Known, not fixed here (as instructed): the shared gust scroll is clock x wind direction, so it jumps when the wind veers late in a session. Grass already had it and trees now share it; fix once for both.
+- Shots: PunchyMilestones/W-123/r2 (motion-forest.png, motion-meadow.png, shrub-strip.png, lnew2 and lbase series).
