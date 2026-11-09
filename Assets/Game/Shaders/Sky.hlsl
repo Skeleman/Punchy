@@ -31,7 +31,7 @@ float4 _PunchyUnderwaterSurface; // under water, x the surface over the lens (m)
 
 float3 _PunchySunDirection;    // towards the sun
 float3 _PunchyMoonDirection;   // towards the moon
-float _PunchySkyOff;           // test only (-skyoff n, to price the sky's parts): 1 no cloud march, 2 no far clouds, 4 no sky colour, 8 no weather volumes, 16 old even steps, 32 steps-per-pixel overlay, 64 always four sun samples
+float _PunchySkyOff;           // test only (-skyoff n, to price the sky's parts): 1 no cloud march, 2 no far clouds, 4 no sky colour, 8 no weather volumes, 16 old even steps, 32 steps-per-pixel overlay, 64 always four sun samples, 128 cloud edges before R-4
 float4 _PunchyMoonPhase;       // phase (0 new, 0.5 full), lit share
 float3 _PunchyBlueMoon;        // towards the second, blue moon
 static const float PunchyBlueMoonRadius = 0.22;    // radians (about 25 degrees across): 6.5x its v0.11.0 size, a sister planet (Zach, #34)
@@ -143,8 +143,8 @@ float PunchyRemap(float v, float a, float b) { return saturate((v - a) / max(b -
 
 // Cloud density at a point, given the weather and cloud shape there. detail (0..1) scales the edge-eroding detail
 // noise: 0 for lighting and shadows (only the broad mass matters) and for distant clouds, where fine detail would
-// only shimmer.
-float PunchyCloudDensity(float3 p, half4 weather, float4 shape, float detail)
+// only shimmer. fine (0..1) adds a second, smaller octave of it, for clouds near the camera only.
+float PunchyCloudDensityFine(float3 p, half4 weather, float4 shape, float detail, float fine)
 {
     if (!PunchyInCloudLayer(p.y, shape))
         return 0;
@@ -185,12 +185,40 @@ float PunchyCloudDensity(float3 p, half4 weather, float4 shape, float detail)
         return 0;
     if (detail > 0.01)
     {
-        // Erode the edges into cauliflower-like billows; thin, sparse cloud is eroded less so it doesn't break into specks.
-        float erosion = SAMPLE_TEXTURE3D_LOD(_PunchyCloudNoise, sampler_PunchyCloudNoise, uvw * 3.7, 0).g;
-        density = PunchyRemap(density, erosion * lerp(0.15, 0.45, coverage) * detail, 1);
+        float4 erosion = SAMPLE_TEXTURE3D_LOD(_PunchyCloudNoise, sampler_PunchyCloudNoise, uvw * 3.7, 0);
+        [branch] if (((uint)_PunchySkyOff & 128u) != 0)
+        {
+            // (Test only, -skyoff 128: the edges before R-4, one billow noise everywhere.)
+            density = PunchyRemap(density, erosion.g * lerp(0.15, 0.45, coverage) * detail, 1);
+        }
+        else
+        {
+            // Erode the edges (R-4): cauliflower billows (Worley) on the tops, frayed wisps (Perlin) on the bases and on
+            // thin veils. Near the camera a second, smaller octave joins in; it fades out by 6 km, where it would only
+            // shimmer on the half-resolution buffer.
+            float billowy = saturate(h * 2.5 + 0.2) * saturate(0.4 + coverage);
+            float carve = lerp(erosion.b, erosion.g, billowy);
+            [branch] if (fine > 0.01)
+            {
+                float3 uvwFine = float3(uvw.x * 0.6 - uvw.z * 0.8, uvw.y * 1.3, uvw.x * 0.8 + uvw.z * 0.6) * 11.3 + 0.21;
+                float2 small = SAMPLE_TEXTURE3D_LOD(_PunchyCloudNoise, sampler_PunchyCloudNoise, uvwFine, 0).gb;
+                carve = lerp(carve, carve * 0.6 + lerp(small.y, small.x, billowy) * 0.4, fine);
+            }
+            // Strongest at the edges, where the body is thin; a dense core keeps its mass. Thin, sparse cloud is eroded
+            // less overall so it doesn't break into specks, and so is the flat base (holes there would show the sunlit
+            // inside as bright specks).
+            float edge = 1 - saturate(density * 1.4);
+            carve = saturate((carve - 0.3) * 2.2);   // the summed octaves sit mid-grey: stretch them so the edge really breaks up
+            density = PunchyRemap(density, carve * lerp(0.25, 0.6, coverage) * lerp(0.45, 1.25, edge) * lerp(0.4, 1, saturate(h * 5)) * detail, 1);
+        }
     }
     // Storm clouds are denser (and therefore darker underneath).
     return density * (1.0 + 1.5 * weather.g);
+}
+
+float PunchyCloudDensity(float3 p, half4 weather, float4 shape, float detail)
+{
+    return PunchyCloudDensityFine(p, weather, shape, detail, 0);
 }
 
 float PunchyCloudDensityAt(float3 p, float detail)
@@ -424,9 +452,13 @@ void PunchyCloudMarch(float3 dir, float2 screenPos, float framePhase, out half3 
                 continue;
             }
         }
-        float detail = saturate(1.2 - t / 20000);
+        // Edge detail fades with distance (R-4: full to 3.5 km, gone by 17.5 km; the smaller octave from 2.5 to 6 km),
+        // so far clouds don't shimmer.
+        bool oldEdges = ((uint)_PunchySkyOff & 128u) != 0;
+        float detail = oldEdges ? saturate(1.2 - t / 20000) : saturate(1.25 - t / 14000);
+        float fine = oldEdges ? 0 : 1 - smoothstep(2500, 6000, t);
         float density = ((weather.r > 0.03 || shape.z > 0.02) && PunchyInCloudLayer(p.y, shape))
-            ? PunchyCloudDensity(p, weather, shape, detail) * (1 - smoothstep(PUNCHY_FAR_START, PUNCHY_FAR_END, t)) : 0;
+            ? PunchyCloudDensityFine(p, weather, shape, detail, fine) * (1 - smoothstep(PUNCHY_FAR_START, PUNCHY_FAR_END, t)) : 0;
 
         [branch] if (stride && density <= 0.004)
         {

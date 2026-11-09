@@ -9,7 +9,8 @@ namespace Punchy.Weather
     /// <summary>
     /// Generates the tiling 3D noise the volumetric clouds are carved from (the usual real-time cloud recipe):
     ///  r = "Perlin-Worley" shape noise: billowy Perlin shaped by inverted Worley cells, for puffy cloud masses;
-    ///  g = higher-frequency Worley detail, used to erode cloud edges into cauliflower-like wisps.
+    ///  g = higher-frequency Worley detail, used to erode cloud edges into cauliflower-like billows;
+    ///  b = higher-frequency Perlin fBm, used to fray thin edges and cloud bases into wisps (R-4).
     /// Every component repeats exactly across the texture, so it tiles seamlessly over the sky.
     /// </summary>
     public static class CloudNoise
@@ -53,7 +54,18 @@ namespace Punchy.Weather
                 var shape = math.saturate(Remap(perlin, worleyLow - 1f, 1f, 0f, 1f));
                 var detail = Worley(p, 8) * 0.625f + Worley(p, 16) * 0.25f + Worley(p, 32) * 0.125f;
 
-                Voxels[i] = new Color32((byte)(shape * 255f), (byte)(detail * 255f), 0, 255);
+                float wisp = 0f;
+                amp = 0.5f;
+                freq = 8f;
+                for (int o = 0; o < 3; o++)
+                {
+                    wisp += amp * noise.pnoise(p * freq + 17.3f, new float3(freq));
+                    amp *= 0.55f;
+                    freq *= 2f;
+                }
+                wisp = math.saturate(wisp * 0.9f + 0.5f);
+
+                Voxels[i] = new Color32((byte)(shape * 255f), (byte)(detail * 255f), (byte)(wisp * 255f), 255);
             }
 
             static float Remap(float v, float a, float b, float c, float d) => c + (v - a) / (b - a) * (d - c);
