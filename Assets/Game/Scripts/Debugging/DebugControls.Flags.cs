@@ -428,6 +428,18 @@ namespace Punchy.Debugging
             var lowResArg = System.Array.IndexOf(args, "-lowres");
             if (lowResArg >= 0 && lowResArg + 1 < args.Length && System.Enum.TryParse<Punchy.Rendering.LowResMode>(args[lowResArg + 1], true, out var lowResMode))
                 Punchy.Rendering.LowResEffectFeature.SetMode("Clouds", lowResMode);
+            // R-3 A/B: "-depthpriming off|auto|forced", the PC renderer's depth priming from this shot line on (the asset's
+            // is Forced; on desktop Auto behaves the same). Set on the live renderer, so the asset never changes.
+            var primingArg = System.Array.IndexOf(args, "-depthpriming");
+            if (primingArg >= 0 && primingArg + 1 < args.Length &&
+                UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline is UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset urp &&
+                urp.GetRenderer(0) is UnityEngine.Rendering.Universal.UniversalRenderer renderer)
+            {
+                var priming = args[primingArg + 1].ToLowerInvariant();
+                renderer.depthPrimingMode = priming == "off" ? UnityEngine.Rendering.Universal.DepthPrimingMode.Disabled
+                    : priming == "auto" ? UnityEngine.Rendering.Universal.DepthPrimingMode.Auto : UnityEngine.Rendering.Universal.DepthPrimingMode.Forced;
+                Debug.Log($"DebugControls: -depthpriming {renderer.depthPrimingMode}");
+            }
             // A-45 A/B toggles: "-oldsearch" (#57, every brain search every frame), "-oldsnapshot" (#56, each reader copies
             // the creatures itself), "-oldtrace" (#55, the ground sampled for every creature in trace range).
             // (-oldsearch also holds from the command line or PlayArgs through every shot-list line: A-55's A/B lost it
