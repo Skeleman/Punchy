@@ -368,7 +368,7 @@ half3 PunchyVolumetricClouds(half3 background, float3 dir, float2 screenPos)
     // to MaxEmptyStride metres, straight towards the layer when it's under the cloud base; inside the layer, where the
     // samples keep coming back empty, it lengthens its step more cautiously (MaxThinStride, so a small cloud can't be
     // stepped over). Either way, on reaching cloud it backs up and walks in at the fine step.
-    const float MaxEmptyStride = 800, MaxThinStride = 240;
+    const float MaxEmptyStride = 800, MaxThinStride = 240, MaxThinScale = 2.5;
     float lastEmpty = t;
     int emptyRun = 0;
     bool strode = false, farStrode = false;   // the last step was a thin (in the layer) or an empty-air stride
@@ -390,7 +390,8 @@ half3 PunchyVolumetricClouds(half3 background, float3 dir, float2 screenPos)
             lastEmpty = t;
             emptyRun++;
             farStrode = true;
-            t += clamp(max(toBase, stepLength * emptyRun), stepLength, MaxEmptyStride);
+            // (Varied per pixel by the same jitter as the start, or neighbouring rows land alike and streak the cloud edges.)
+            t += max(stepLength, clamp(max(toBase, stepLength * emptyRun), stepLength, MaxEmptyStride) * (0.75 + 0.5 * jitter));
             continue;
         }
         [branch] if (stride && farStrode)
@@ -414,7 +415,7 @@ half3 PunchyVolumetricClouds(half3 background, float3 dir, float2 screenPos)
             lastEmpty = t;
             emptyRun++;
             strode = emptyRun > 3;
-            t += strode ? clamp(stepLength * (emptyRun - 2) * 0.5, stepLength, max(stepLength, MaxThinStride)) : stepLength;
+            t += strode ? max(stepLength, min(stepLength * min((emptyRun - 2) * 0.5, MaxThinScale), MaxThinStride) * (0.75 + 0.5 * jitter)) : stepLength;
             continue;
         }
         if (density > 0.004)
