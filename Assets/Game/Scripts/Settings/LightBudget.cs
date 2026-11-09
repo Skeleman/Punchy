@@ -291,8 +291,8 @@ namespace Punchy.Settings
                 if (r.Kind == LightKind.AmbientGlow)
                     nearestCut = math.min(nearestCut, Vector3.Distance(r.Position, eyeAt));
             }
-            var was = ambientCutAt > 4000f ? 4000f : ambientCutAt;
-            ambientCutAt = math.lerp(was, nearestCut, 1f - math.exp(-dt * 2f));
+            var cutBefore = ambientCutAt > 4000f ? 4000f : ambientCutAt;
+            ambientCutAt = math.lerp(cutBefore, nearestCut, 1f - math.exp(-dt * 2f));
 
             heatNextAge.Clear();
             for (int k = 0; k < count; k++)
