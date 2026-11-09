@@ -235,20 +235,33 @@ half PunchySunSide(float3 dir)
     return saturate(dot(d, s) * rsqrt(max(dot(d, d) * dot(s, s), 1e-8)) * 0.5 + 0.5);
 }
 
+// The blue moon's light as the sky sees it (WeatherSystem; linear, 0 when it's down, new or by day): feedback 11-08
+// item 35, so the haze and the clouds read as lit by it, not only the ground.
+half3 _PunchyBlueMoonGlow;
+
+// The blue moon's light scattered in the low air towards `dir`: a little all round, much more on its side of the sky.
+half3 PunchyBlueMoonHaze(float3 dir)
+{
+    half toward = saturate(dot(normalize(dir), _PunchyBlueMoon) * 0.5 + 0.5);
+    toward *= toward;
+    return _PunchyBlueMoonGlow * (0.007 + 0.04 * toward * toward);
+}
+
 // The horizon colour in direction `dir` with twilight: warm on the sun's side, grey-violet on the far side. Also
-// the haze colour, so land and sea fade into the same band.
+// the haze colour, so land and sea fade into the same band. Under a blue moon it glows blue towards it.
 half3 PunchyTwilightHorizon(float3 dir)
 {
+    half3 horizon = _PunchySkyHorizon + PunchyBlueMoonHaze(dir);
     float e = PunchySunElevation();
     half amount = PunchyTwilightAmount(e);
     if (amount <= 0)
-        return _PunchySkyHorizon;
+        return horizon;
     half toward = PunchySunSide(dir);
     toward *= toward;
-    half lum = dot(_PunchySkyHorizon, half3(0.3, 0.5, 0.2));
+    half lum = dot(horizon, half3(0.3, 0.5, 0.2));
     half3 warm = PunchyTwilightColor(e) * PunchyTwilightLight(e) * 1.05;
     half3 cool = half3(0.62, 0.55, 0.9) * lum;
-    return lerp(_PunchySkyHorizon, lerp(cool, warm, toward), amount * lerp(0.65, 1, toward));
+    return lerp(horizon, lerp(cool, warm, toward), amount * lerp(0.65, 1, toward));
 }
 
 // The zenith with twilight: a deeper blue with a touch of purple.
@@ -287,6 +300,9 @@ void PunchyCloudLight(out float3 direction, out half3 color)
     // Moonlight takes over gradually through blue hour, so the switch at -8° doesn't pop.
     if (sunUp)
         color += moonlight * (1 - smoothstep(-0.14, -0.05, _PunchySunDirection.y));
+    // The blue moon lights the clouds too (item 35), shaded along the main light's path (its own would cost a second
+    // march): its glow is zero by day, so this only shows at night.
+    color += _PunchyBlueMoonGlow * 0.09;
 }
 
 #define PUNCHY_FAR_START 15000.0

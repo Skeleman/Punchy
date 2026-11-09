@@ -72,6 +72,7 @@ namespace Punchy.Weather
         static readonly int BlueMoonId = Shader.PropertyToID("_PunchyBlueMoon");
         static readonly int BlueLightDirectionId = Shader.PropertyToID("_PunchyBlueLightDirection");
         static readonly int BlueLightColorId = Shader.PropertyToID("_PunchyBlueLightColor");
+        static readonly int BlueMoonGlowId = Shader.PropertyToID("_PunchyBlueMoonGlow");
         static readonly int SunColorId = Shader.PropertyToID("_PunchySunColor");
         static readonly int ZenithId = Shader.PropertyToID("_PunchySkyZenith");
         static readonly int HorizonId = Shader.PropertyToID("_PunchySkyHorizon");
@@ -413,6 +414,15 @@ namespace Punchy.Weather
             var zenith = Color.Lerp(clearZenith, greyHorizon * 0.78f, s.Overcast) * (1f - 0.45f * s.Darkness);
             var horizon = Color.Lerp(clearHorizon, greyHorizon, s.Overcast) * (1f - 0.35f * s.Darkness);
 
+            // Blue-moon nights (feedback 11-08 item 35): the sky's own colours lean to the blue moon's deep blue, so the
+            // haze, fog and cloud shading that take them read as lit by it too (Sky.hlsl adds its glow on top).
+            if (Cycle != null && Cycle.BlueMoonGlow > 0f)
+            {
+                var blue = 0.6f * Cycle.BlueMoonGlow * Cycle.Night;
+                zenith = Color.Lerp(zenith, BlueMoonTint(zenith), blue);
+                horizon = Color.Lerp(horizon, BlueMoonTint(horizon), blue);
+            }
+
             var daylight = math.saturate(brightness / 0.8f);
             return new Sky
             {
@@ -471,6 +481,9 @@ namespace Punchy.Weather
             Shader.SetGlobalVector(MoonPhaseId, Cycle != null ? new Vector4(Cycle.MoonPhase, Cycle.MoonLit, 0f, 0f)
                                                               : new Vector4(0.5f, 1f, 0f, 0f));
             Shader.SetGlobalVector(BlueMoonId, Cycle != null ? (Vector4)Cycle.BlueMoonDirection : new Vector4(0f, -1f, 0f, 0f));
+            // The blue moon's light as the sky sees it (item 35): Sky.hlsl brightens the haze towards it and lights the
+            // clouds with it. Not dimmed by cloud: it lights the clouds themselves.
+            Shader.SetGlobalColor(BlueMoonGlowId, Cycle != null ? Cycle.BlueMoonLamp * (Cycle.BlueMoonGlow * Cycle.Night) : Color.black);
             Shader.SetGlobalColor(SunColorId, discColor * (1f - 0.8f * s.Dust));
             // The night sky's glow follows the big moon's phase (Zach, 11-08): at new moon the sky (and the haze and
             // cloud shading that take its colours) fall to 40% of a full moon's, so the night reads dark overhead too.
@@ -489,6 +502,14 @@ namespace Punchy.Weather
             Shader.SetGlobalVector(LightningPosId, new Vector4(strikePosition.x, strikePosition.y, strikePosition.z, FlashBrightness()));
             Shader.SetGlobalFloat(WindId, s.Wind);
             Shader.SetGlobalVector(WindDirectionId, WindDirection);
+        }
+
+        /// <summary>A colour turned to the blue moon's hue (its lamp's, deep blue near 0x0000FF), at about the same
+        /// apparent brightness: a saturated blue looks brighter than its luminance says, so it keeps half of it.</summary>
+        Color BlueMoonTint(Color c)
+        {
+            var hue = Cycle != null ? Cycle.BlueMoonLamp : new Color(0.017f, 0.057f, 1.9f);
+            return hue * (0.5f * c.grayscale / Mathf.Max(hue.grayscale, 1e-4f));
         }
 
         /// <summary>How much the weather mutes sunrise and sunset colours: 0 clear … 1 overcast or storm.</summary>
@@ -538,8 +559,8 @@ namespace Punchy.Weather
             {
                 var blue = Cycle.BlueMoonGlow * Cycle.Night;
                 moonFloor += Cycle.BlueMoonLight * (2f * blue);
-                ambientZenith = Color.Lerp(ambientZenith, new Color(0.18f, 0.32f, 0.85f) * ambientZenith.grayscale * 1.6f, 0.6f * blue);
-                ambientHorizon = Color.Lerp(ambientHorizon, new Color(0.2f, 0.35f, 0.8f) * ambientHorizon.grayscale * 1.5f, 0.5f * blue);
+                ambientZenith = Color.Lerp(ambientZenith, BlueMoonTint(ambientZenith) * 1.1f, 0.6f * blue);
+                ambientHorizon = Color.Lerp(ambientHorizon, BlueMoonTint(ambientHorizon) * 0.95f, 0.5f * blue);
             }
             // The blue moon's own light (feedback 11-08 item 10): a second directional moonlight from its direction,
             // added on top of the big moon's main light rather than only tinting the ambient, so the two add up and a
