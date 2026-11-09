@@ -61,6 +61,9 @@ namespace Punchy.Ambience
         float3 farGatheredAt = new float3(float.MaxValue);
         float nextFarGather;
         static readonly int EmberTintId = Shader.PropertyToID("_PunchyEmberTint");
+        static readonly int WorldFireId = Shader.PropertyToID("_PunchyGlowWorldFire");
+        /// <summary>How bright the world glow map's fire is, against the light of one near flame.</summary>
+        public static float WorldFireBrightness = 1.2f;
         Punchy.Weather.DayNightCycle cycle;
 
         /// <summary>Last forest gather, for the world probe: "trees, flames, colour".</summary>
@@ -93,6 +96,11 @@ namespace Punchy.Ambience
             var colour = cycle != null ? ForestColour((uint)source.World.Seed, cycle.Day, cycle.TimeOfDay) : FireSystem.Wood;
             // Off (the A/B switch) is the old look: wood-coloured embers whatever the fire burns, even under the override.
             Shader.SetGlobalVector(EmberTintId, FarForestFiresOn ? FireSystem.EmberTint(colour) : new Vector4(1f, 0.36f, 0.08f, 1f));
+            // The ground far from the near flames glows from the world map, in tonight's colour; it starts where the
+            // near flames' own light ends.
+            var fireLight = ForestFiresOn && FarForestFiresOn ? FireSystem.Light(colour, lit * WorldFireBrightness) : Vector4.zero;
+            fireLight.w = math.min(Punchy.Settings.GraphicsSettings.DetailRange(ForestFireRange), shownReach) * 0.5f;
+            Shader.SetGlobalVector(WorldFireId, fireLight);
             if (!ForestFiresOn || lit <= 0.01f)
             {
                 forestGatheredAt = farGatheredAt = new float3(float.MaxValue);
