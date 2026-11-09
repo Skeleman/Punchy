@@ -49,3 +49,24 @@
   schools (a boids GPU instancer like the butterflies, fleeing the swimmer), rays gliding over sand, crabs on the bed,
   sunken wreck props near SeaFolkLanding, drifting jellyfish glowing at night, sea-floor rocks with barnacles.
 - Next: row 5 (light shafts).
+
+### Row 5, item 38: light shafts under water, darker with depth (2026-11-08) PARKED: committed locally, NOT pushed
+- Commit 696e7ee0 on water/round3 in the release tree (local only; origin/water/round3 is at a982f73e). Wrap-up
+  order arrived before the suite could run, so it isn't pushed (the card wants 14/14 before the last push).
+- Sky.hlsl PunchyUnderwaterShafts: a few steps along the view ray (first 40 m), each traced up to the surface along the
+  refracted sun (moon at night) ray, two drifting noise layers there, sharpened into shafts, fading with depth under the
+  surface and with the fog. Used in PunchyAtmosphere's under-water branch and Sky.shader's under-water early-out.
+  Steps by Water reflections setting: High 6, Medium 4, Low 0. Fluid table columns Shafts/ShaftFade (water 1, 0.06/m;
+  swamp 0.3, 0.2/m; lava 0). Depth darkening was already in row 2. `-noshafts` to A/B.
+- Shots verified (480 px check): sea just under the top (camera 1100,-1.2,196), mid (1186,-6,209), deep 23 m
+  (1460,-18,257), and the top at 09:00 (shafts slant with the sun). Shafts clear near the top, fainter and darker deeper.
+  Sheet PunchyMilestones\water\W-125\r5-light-shafts.png.
+- Left: GPU cost per quality level not measured (method ready: the render-timing eval used for row 4, ABAB with
+  `-noshafts` and `-waterquality low|medium|high`); play-mode suite not run; then push.
+
+### W-125 state at wrap-up
+- Rows 1-4 DONE and pushed (8bf99541, 2960a93d, 59a06aef, a982f73e); row 5 committed locally (696e7ee0), unpushed.
+- merge-tree (with row 5): origin/lights/manager clean; origin/sky/cost conflicts in Sky.shader only, the same conflict
+  water/overhaul already has with sky/cost (the under-water early-out next to the sky test mask).
+- Suite NOT run this card. Pins not checked (no placement or landmark changes in any row).
+- Editor closed.
