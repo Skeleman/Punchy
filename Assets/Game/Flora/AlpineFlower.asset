@@ -39,6 +39,7 @@ MonoBehaviour:
   PatchCoverage: 0.4
   NearWater: 1
   OnlyNearWater: 0
+  EdgeAffinity: 0.6
   SunSlope: 0.5
   Solid: 0
   Variants: 4

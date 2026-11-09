@@ -390,6 +390,43 @@ namespace Punchy.Debugging
         }
 
         /// <summary>
+        /// W-126: every plant in a square as a plan view, [x, z, layer, species index] per plant, for clearing and grove maps.
+        /// Plants too small to read at plan scale (layer 0) are thinned to one in four.
+        /// </summary>
+        public static float[] FloraPlan(float cx, float cz, float half)
+        {
+            var director = Object.FindAnyObjectByType<FaunaDirector>();
+            if (!Source(out var s) || director == null || !director.FloraPlacementBlob.IsCreated)
+                return new float[0];
+            ref var f = ref director.FloraPlacementBlob.Value;
+            var list = new List<float>();
+            for (int layer = 0; layer < 3; layer++)
+            {
+                var size = f.CellSizes[layer];
+                var lo = (int2)math.floor(new float2(cx - half, cz - half) / size);
+                var hi = (int2)math.floor(new float2(cx + half, cz + half) / size);
+                for (int x = lo.x; x <= hi.x; x++)
+                    for (int y = lo.y; y <= hi.y; y++)
+                    {
+                        if (layer == 0 && ((x + 2 * y) & 3) != 0)
+                            continue;
+                        var plant = FloraPlacement.Place(ref f, s, new int2(x, y), layer);
+                        if (plant.Model < 0)
+                            continue;
+                        list.Add(plant.Position.x);
+                        list.Add(plant.Position.z);
+                        list.Add(layer);
+                        var sp = 0;
+                        for (int i = 0; i < f.Rules.Length; i++)
+                            if (plant.Model >= f.Rules[i].FirstModel && plant.Model < f.Rules[i].FirstModel + f.Rules[i].Variants)
+                                sp = i;
+                        list.Add(sp);
+                    }
+            }
+            return list.ToArray();
+        }
+
+        /// <summary>
         /// W-126: the liveliest ground inside a biome for habitat shots: the dry spot (64 m grid, the biome dominant at it and round
         /// it) with the widest spread of heights over a 90 m ring. [x, y, z, spread], empty if none. A same-world pick, so old and new shots frame alike.
         /// </summary>

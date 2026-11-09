@@ -36,6 +36,10 @@ MonoBehaviour:
   PatchCoverage: 0.6
   NearWater: 1
   OnlyNearWater: 0
+  GroveStraggle: 0.3
+  GroveGain: 3.5
+  GroveRadius: 26
+  GroveSpacing: 80
   Exposure: 0.7
   Solid: 1
   Variants: 4

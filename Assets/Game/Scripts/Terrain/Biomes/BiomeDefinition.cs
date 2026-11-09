@@ -136,6 +136,10 @@ namespace Punchy.Terrain
         [Header("Flora")]
         [Tooltip("Plants that grow here (drawn by the flora system). Changing these doesn't re-bake the terrain.")]
         public List<Punchy.Flora.BiomeFlora> Flora = new List<Punchy.Flora.BiomeFlora>();
+        [Tooltip("W-126: how empty its clearings are (0 = no clearings, 1 = bare). A low-frequency mask thins every plant, sparing shrubs and flowers (their Edge Affinity).")]
+        [Range(0f, 1f)] public float ClearingAmount;
+        [Tooltip("W-126: how far apart the clearings are (m).")]
+        [Min(20f)] public float ClearingSize = 140f;
 
         [Header("Landmarks")]
         [Tooltip("Who may settle here. A settlement only goes where the biome under its centre allows its folk " +

@@ -288,6 +288,17 @@ namespace Punchy.Flora
         [Range(0f, 1f)] public float Exposure;
         [Tooltip("How far from water NearWater reaches, as a multiple of the usual 8 m (2 = damp ground 16 m out).")]
         [Min(0.25f)] public float WetReach = 1f;
+        [Header("Groves and clearings (W-126)")]
+        [Tooltip("Groves: about one stand of this species every this many metres (0 = no groves, it spreads evenly).")]
+        [Min(0f)] public float GroveSpacing;
+        [Tooltip("Groves: radius of a stand (m).")]
+        [Min(1f)] public float GroveRadius = 20f;
+        [Tooltip("Groves: how many times denser than usual it grows in the middle of a stand.")]
+        [Min(1f)] public float GroveGain = 4f;
+        [Tooltip("Groves: how much of its usual density is left between stands (the stragglers).")]
+        [Range(0f, 1f)] public float GroveStraggle = 0.3f;
+        [Tooltip("Clearings: favoured along a clearing's edge and spared inside it (shrubs, flowers). 0 = thinned like everything else, 1 = fully.")]
+        [Range(0f, 1f)] public float EdgeAffinity;
         [Tooltip("Grows in water instead of on land, where it's between Water Depth's two depths (m).")]
         public bool Aquatic;
         public Vector2 WaterDepth = new Vector2(0.1f, 1.5f);
