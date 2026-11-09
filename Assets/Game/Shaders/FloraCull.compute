@@ -14,6 +14,7 @@
 
 #pragma kernel Clear
 #pragma kernel Cull
+#pragma kernel WideCull
 
 struct FloraInstance
 {
@@ -198,4 +199,31 @@ void Cull(uint id : SV_DispatchThreadID)
     }
     else
         Append(id, local, 2, keep);
+}
+
+// R-5: the wide sun-shadow map's cull (Rendering.WideShadow, FloraSystem.Wide.cs), run once per map redraw. A plant
+// casts into the wide map while it's bigger on screen than its rule's WideShadow (DetailPolicy.WideReach), with the
+// same hysteresis as the camera's casters (_FloraWideState), inside the map's circle and past the reach the near
+// caches already cover (_Wide.y: the trees layer's cache range). Each goes once into its variant's coarsest list.
+StructuredBuffer<float> _ModelWide;      // per variant: DetailPolicy.WideReach at scale 1 (0: never in the wide map)
+RWStructuredBuffer<uint> _FloraWideState; // per plant: 1 if it was in the last wide map
+float4 _Wide;     // x the shadows' reference pixels per metre, y skip plants nearer than this, z the map's reach (m)
+
+[numthreads(64, 1, 1)]
+void WideCull(uint id : SV_DispatchThreadID)
+{
+    if (id >= _Count)
+        return;
+    FloraInstance plant = _FloraInstances[id];
+    uint local = (uint)(plant.model - _ModelBase);
+    float reach = _ModelWide[local] * plant.scale * _Wide.x;
+    float2 off = plant.position.xz - _CameraPosition.xz;
+    float d = length(off);
+    bool was = _FloraWideState[id] != 0;
+    bool casts = reach > 0 && (d < reach || was && d < reach * 1.176);
+    if (was != casts)
+        _FloraWideState[id] = casts ? 1 : 0;
+    if (!casts || d < _Wide.y || d > _Wide.z)
+        return;
+    Append(id, local, 2, 1);
 }

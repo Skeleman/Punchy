@@ -113,6 +113,8 @@ namespace Punchy.Flora
             /// may cast through holes (see ModelShadow; FloraCull.compute's _ModelShadow).</summary>
             public float2[] Sharp;
             public GraphicsBuffer SharpBuffer;
+            /// <summary>R-5: how many times its plants were uploaded (the wide shadow map's cull goes stale with each).</summary>
+            public int Uploads;
             /// <summary>
             /// The draw arguments the culling shader counts instances into (structured, so D3D11 can write it: an
             /// IndirectArguments buffer can't also be Raw there), copied into Args for the draws once culled.
@@ -310,6 +312,7 @@ namespace Punchy.Flora
         void Teardown()
         {
             ReleaseShadowCache();
+            ReleaseWide();
             foreach (var l in layers)
                 l?.Release();
             Array.Clear(layers, 0, layers.Length);
@@ -823,6 +826,7 @@ namespace Punchy.Flora
             l.Instances.SetData(all, 0, 0, total);
             all.Dispose();
             l.Count = total;
+            l.Uploads++;
 
             // Each variant gets room for all its plants in each draw (a plant appears at most once per draw).
             var regions = new uint[l.ModelCount * Draws];

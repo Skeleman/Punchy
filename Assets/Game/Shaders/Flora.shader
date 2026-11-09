@@ -32,6 +32,7 @@ Shader "Punchy/Flora"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Sky.hlsl"
+            #include "WideShadow.hlsl"
             #include "Flora.hlsl"
             #include "Grounding.hlsl"
             #include "Metal.hlsl"
@@ -399,7 +400,8 @@ Shader "Punchy/Flora"
                 albedo *= lerp(1, part == 0 ? 0.62 : 0.82, wet);
 
                 Light light = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
-                half shadow = light.shadowAttenuation * (1 - PunchyCloudShadow(input.positionWS));
+                // Past the real shadows the wide cached ones of the huge things (R-5) take over, never doubling them.
+                half shadow = min(light.shadowAttenuation, 1 - PunchyWideShadow(input.positionWS, half3(0, 1, 0))) * (1 - PunchyCloudShadow(input.positionWS));
                 // Underground (cave plants, seen from a cave) the sun and sky don't reach; the player's lantern does.
                 // Cave plants are underground whatever the camera's depth: no direct sun (nor light through leaves, nor
                 // sheen, which made roots flare against the sun from near a mouth), and only a little of the sky's
@@ -708,6 +710,54 @@ Shader "Punchy/Flora"
                 clip(input.fade >= 0 && input.fade < 1 ? -1 : 1);
                 FloraMossClip(input.moss);
                 return input.along;
+            }
+            ENDHLSL
+        }
+
+        Pass
+        {
+            // R-5: the wide sun-shadow map (Rendering.WideShadow; FloraSystem.Wide.cs) lays the big trees and built
+            // things far out with this, as Punchy/WideShadow's caster pass: a min blend keeps, per texel, how far along
+            // the sunlight (0-1 over the view's depth) the nearest caster is. Never a URP pass.
+            Name "FloraWide"
+            Tags { "LightMode" = "FloraWide" }
+            BlendOp Min
+            Blend One One
+            ZWrite Off
+            ZTest Always
+            Cull Off
+
+            HLSLPROGRAM
+            #pragma target 4.5
+            #pragma vertex Vert
+            #pragma fragment Frag
+            #define FLORA_CACHE_PASS
+
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Flora.hlsl"
+
+            float4x4 _WideShadowVP;   // world to the wide map's clip space
+            float4 _WideShadowEye;    // xyz its near plane centre, w one over its depth
+            float4 _WideShadowSun;    // xyz the way the sunlight travels
+
+            struct Varyings
+            {
+                float4 positionCS : SV_POSITION;
+                float along : TEXCOORD0;
+            };
+
+            Varyings Vert(FloraAttributes input)
+            {
+                FloraVertex v = FloraTransform(input);
+                Varyings o;
+                o.positionCS = mul(_WideShadowVP, float4(v.positionWS, 1));
+                o.along = dot(v.positionWS - _WideShadowEye.xyz, _WideShadowSun.xyz) * _WideShadowEye.w;
+                return o;
+            }
+
+            float4 Frag(Varyings input) : SV_Target
+            {
+                return saturate(input.along).xxxx;
             }
             ENDHLSL
         }

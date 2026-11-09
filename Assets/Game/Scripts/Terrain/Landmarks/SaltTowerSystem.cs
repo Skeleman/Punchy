@@ -70,6 +70,7 @@ namespace Punchy.Terrain
             // Past the real shadow distance the tower still casts, through its far shadow proxy.
             farShadow ??= new FarShadow("SaltTower far shadow");
             farShadow.Draw(source, origin, towerHeight, SaltTowerShape.BodyRadius + 1.5f);
+            Punchy.Rendering.WideShadow.Cast(lods[2], Matrix4x4.Translate(origin));   // R-5: and into the wide shadow map
         }
 
         protected override void OnDestroy()
