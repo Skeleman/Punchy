@@ -333,3 +333,19 @@ ABBA, 300 frames each.
 - `-weather Overcast` and `-weather Rain` at half, both builds (the new stratus sheets).
 - One RenderDoc capture of R-4 at half: DrawSkybox ms against job 38's 3.68.
 - Pass: R-4 within +1 ms of main at each spot. Say whether DrawSkybox dropped. Report in REPORTS-profiler.md as usual.
+
+## Job 41 (2026-11-09, after job 40; queued by the main-account supervisor): what the Summit stall waits on (jobs 37-38)
+A read-only code review (supervisor, 11-09) found no unbounded shader loop and no main-thread GPU readback during settle.
+`-skyoff` only sets a float; in q68 the -skyoff 2/4 games all sat at positions 5-8 of each round, so the link is likely timing,
+not the flag. Ranked suspects: (1) the main thread blocked in the render thread or the Intel D3D12 driver (Present, swapchain or
+fence wait), which fits 0% GPU, idle clocks, and stalls that end on their own; (2) thread-pool starvation behind
+FloraGenerator.TakePregrown's `task.Result` on the main thread (hundreds of Task.Run grow jobs plus Parallel.For bakes); (3) the
+runner (unlikely since b/fix-stall-hang).
+- Main 0e964452 (or later), Profile build, job 38's Summit setup, `-lowres half`, plain weather. 24 games, each a fresh start with
+  the Summit jump, game order shuffled per round. Half the games `-force-d3d11`, half default D3D12 (interleaved).
+- On each stall: log the main thread's wait reason and the slow-polling thread's wait reason, plus each one's start address as a
+  module + offset (UnityPlayer, d3d12, igd*, mono or coreclr), from the process's thread list. If you have a dump tool already,
+  one minidump of a stalled game is welcome; don't install anything new without Zach's OK.
+- Report: stalls per API (D3D11 vs D3D12), and for each stall which module the two threads sit in. If the main thread waits in
+  Present or a fence: driver/render-thread side (I'll card a frame-latency or swapchain change). If it waits in a managed Monitor
+  or Task wait: TakePregrown (I'll card the timeout fix). If too few stalls happen to tell, say so and stop at 24 games.
