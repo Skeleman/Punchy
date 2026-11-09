@@ -305,6 +305,9 @@ namespace Punchy.Ambience
             Fireflies = night * dry * calm * (1f - math.smoothstep(0.4f, 0.7f, Cold));
             Butterflies = math.smoothstep(0.1f, 0.4f, sunHeight) * dry * calm * math.lerp(1f, 0.35f, w.Coverage) * (1f - math.smoothstep(0.4f, 0.7f, Cold));
 
+            // Under water (playtest 11-08 item 33) no heat shimmer: the air's weather stops like the clouds.
+            if (Punchy.CameraRig.Underwater.LensUnder)
+                Heat = 0f;
             var heatVisible = Heat * (hasHeatMap ? heatMapMax : 0f);
             Shader.SetGlobalFloat(HeatId, Heat);
             Shader.SetGlobalVector(CrittersId, new Vector4(Fireflies, Butterflies, 0f, 0f));

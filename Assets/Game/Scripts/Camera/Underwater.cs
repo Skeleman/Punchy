@@ -17,20 +17,57 @@ namespace Punchy.CameraRig
     /// surfacing was slow, the sky stayed teal and the world popped in as the fog thinned). A few centimetres between
     /// going in and coming out, so a lens bobbing at the waterline doesn't flicker. Water surfaces are only read; the
     /// surface over the lens goes to the shaders (_PunchyUnderwaterSurface) for Snell's window near the top (item 8).
+    /// The look follows the fluid the lens is in (playtest 11-08 item 36), from one table, <see cref="Fluids"/>: water,
+    /// a poison swamp mostly green, lava orange; the more opaque the fluid, the heavier and shorter its fog.
     /// Runs after WeatherSystem sets the fog each frame and after the camera has moved.
     /// </summary>
     [DefaultExecutionOrder(1100)]
     public class Underwater : MonoBehaviour
     {
-        const float BlendIn = 0.25f, BlendOut = 0.15f, Margin = 0.04f, Cutoff = 700f;
-        static readonly Color FogColour = new Color(0.04f, 0.22f, 0.25f);
-        static readonly Color Tint = new Color(0.08f, 0.32f, 0.36f, 0.32f);
-        const float FogDensity = 0.11f;
+        const float BlendIn = 0.25f, BlendOut = 0.15f, Margin = 0.04f;
+
+        /// <summary>How the view looks from inside one fluid.</summary>
+        struct FluidLook
+        {
+            /// <summary>The fog's colour (sRGB) and the tint laid over the screen (alpha: how strongly).</summary>
+            public Color Fog, Tint;
+            /// <summary>
+            /// Fog per metre: Unity's own (water, rain and fire shaders) and the shaders' through PunchyAtmosphere
+            /// (Sky.hlsl reads _PunchyUnderwater: rgb colour, w density per metre; P-20: terrain, flora, rocks).
+            /// </summary>
+            public float UnityFog, ShaderFog;
+            /// <summary>The listener's low-pass cutoff (Hz).</summary>
+            public float Cutoff;
+            /// <summary>How fast the fog darkens with the lens's depth under the surface (per metre; light from above fades).</summary>
+            public float Darken;
+
+            public static FluidLook Lerp(FluidLook a, FluidLook b, float t) => new FluidLook
+            {
+                Fog = Color.Lerp(a.Fog, b.Fog, t), Tint = Color.Lerp(a.Tint, b.Tint, t),
+                UnityFog = Mathf.Lerp(a.UnityFog, b.UnityFog, t), ShaderFog = Mathf.Lerp(a.ShaderFog, b.ShaderFog, t),
+                Cutoff = Mathf.Lerp(a.Cutoff, b.Cutoff, t), Darken = Mathf.Lerp(a.Darken, b.Darken, t)
+            };
+        }
+
+        enum Fluid { Water, Swamp, Lava }
+
         /// <summary>
-        /// P-20: the fog terrain and flora get under water (Sky.hlsl PunchyAtmosphere reads _PunchyUnderwater: rgb colour,
-        /// w density per metre). RenderSettings fog only reaches the shaders that use Unity's own fog (water, rain, fire).
+        /// One row per fluid (item 36), the more opaque the heavier the fog and the shorter the view: water a blue-green
+        /// murk (as before), a poison swamp mostly green, lava orange and nearly blind. Mixed fluids blend their rows.
         /// </summary>
-        const float WaterFogDensity = 0.07f;
+        static readonly FluidLook[] Fluids =
+        {
+            new FluidLook { Fog = new Color(0.04f, 0.22f, 0.25f), Tint = new Color(0.08f, 0.32f, 0.36f, 0.32f), UnityFog = 0.11f, ShaderFog = 0.07f, Cutoff = 700f, Darken = 0.035f },
+            new FluidLook { Fog = new Color(0.09f, 0.19f, 0.03f), Tint = new Color(0.16f, 0.30f, 0.05f, 0.5f), UnityFog = 0.3f, ShaderFog = 0.2f, Cutoff = 450f, Darken = 0.08f },
+            new FluidLook { Fog = new Color(0.95f, 0.32f, 0.04f), Tint = new Color(0.9f, 0.3f, 0.03f, 0.75f), UnityFog = 1.6f, ShaderFog = 1.1f, Cutoff = 250f, Darken = 0f },
+        };
+
+        /// <summary>The look for the fluid the lens is in: swamp and lava shares blended over water.</summary>
+        static FluidLook LookFor(float swamp, float lava) =>
+            FluidLook.Lerp(FluidLook.Lerp(Fluids[(int)Fluid.Water], Fluids[(int)Fluid.Swamp], swamp), Fluids[(int)Fluid.Lava], lava);
+
+        // The fluid last seen (kept while surfacing, so the tint fades in its own colour).
+        FluidLook look = Fluids[(int)Fluid.Water];
         static readonly int UnderwaterId = Shader.PropertyToID("_PunchyUnderwater");
         /// <summary>Item 8: x the water surface over the lens (m, with the swell), y how deep the lens is under it; 0 when dry.</summary>
         static readonly int SurfaceId = Shader.PropertyToID("_PunchyUnderwaterSurface");
@@ -101,17 +138,22 @@ namespace Punchy.CameraRig
             if (cam == null)
                 cam = Camera.main;
             Punchy.Settings.WaterQuality.Publish(cam);
-            var surface = SurfaceAt(transform.position, out var kind);
+            var surface = SurfaceAt(transform.position, out var kind, out var swamp, out var lava);
             var y = transform.position.y;
             var was = under;
             under = surface > float.MinValue && (under ? y < surface + Margin : y < surface - Margin);
             LensUnder = under;
             if (under != was)
-                Debug.Log($"Underwater: {(under ? "in" : "out of")} the water ({kind}, lens {y:F2}, surface {(surface > float.MinValue ? surface.ToString("F2") : "-")}); low-pass {(under ? $"on ({Cutoff:F0} Hz)" : "off")}");
+                Debug.Log($"Underwater: {(under ? "in" : "out of")} the water ({kind}, lens {y:F2}, surface {(surface > float.MinValue ? surface.ToString("F2") : "-")}); low-pass {(under ? $"on ({LookFor(swamp, lava).Cutoff:F0} Hz)" : "off")}");
             amount = Mathf.MoveTowards(amount, under ? 1f : 0f, Time.deltaTime / (under ? BlendIn : BlendOut));
+            if (under)
+                look = LookFor(swamp, lava);
             // The water's fog and teal sky only while the lens is in the water: out of it, nothing is between the eye and
             // the world any more, so they go at once (item 7); the tint (water running off the lens) and muffling fade.
             var fog = under ? amount : 0f;
+            // Deeper is darker (item 38): the fog's colour falls off with the lens's depth under the surface, to a floor.
+            var fogColour = look.Fog * Mathf.Max(Mathf.Exp(-look.Darken * (under ? Mathf.Max(surface - y, 0f) : 0f)), 0.15f);
+            fogColour.a = 1f;
             if (fog > 0f)
             {
                 if (!fogSaved)
@@ -119,8 +161,8 @@ namespace Punchy.CameraRig
                         (true, RenderSettings.fog, RenderSettings.fogMode, RenderSettings.fogColor, RenderSettings.fogDensity);
                 RenderSettings.fog = true;
                 RenderSettings.fogMode = FogMode.ExponentialSquared;
-                RenderSettings.fogColor = Color.Lerp(savedColour, FogColour, fog);
-                RenderSettings.fogDensity = Mathf.Lerp(savedFog ? savedDensity : 0f, FogDensity, fog);
+                RenderSettings.fogColor = Color.Lerp(savedColour, fogColour, fog);
+                RenderSettings.fogDensity = Mathf.Lerp(savedFog ? savedDensity : 0f, look.UnityFog, fog);
             }
             else if (fogSaved)
             {
@@ -129,8 +171,8 @@ namespace Punchy.CameraRig
                 fogSaved = false;
             }
             // (Shaders work in linear colour; the density blends with the rest, so the fog thins in as the lens sinks.)
-            var water = FogColour.linear;
-            Shader.SetGlobalVector(UnderwaterId, fog > 0f ? new Vector4(water.r, water.g, water.b, WaterFogDensity * fog) : Vector4.zero);
+            var water = fogColour.linear;
+            Shader.SetGlobalVector(UnderwaterId, fog > 0f ? new Vector4(water.r, water.g, water.b, look.ShaderFog * fog) : Vector4.zero);
             Shader.SetGlobalVector(SurfaceId, under ? new Vector4(surface, Mathf.Max(surface - y, 0f), 0f, 0f) : Vector4.zero);
             Muffle();
         }
@@ -149,13 +191,17 @@ namespace Punchy.CameraRig
                     lowPass = listener.gameObject.AddComponent<AudioLowPassFilter>();
             }
             lowPass.enabled = amount > 0f;
-            lowPass.cutoffFrequency = Mathf.Lerp(22000f, Cutoff, amount * amount);
+            lowPass.cutoffFrequency = Mathf.Lerp(22000f, look.Cutoff, amount * amount);
         }
 
-        /// <summary>The surface of the water the point is in (float.MinValue: not in water), and what kind it is.</summary>
-        float SurfaceAt(Vector3 p, out string kind)
+        /// <summary>
+        /// The surface of the water the point is in (float.MinValue: not in water), what kind it is, and how much of it
+        /// is swamp (thick, from the water's murk, as Water.shader turns oily) and lava (0..1 each).
+        /// </summary>
+        float SurfaceAt(Vector3 p, out string kind, out float swamp, out float lava)
         {
             kind = "none";
+            swamp = lava = 0f;
             var world = World.DefaultGameObjectInjectionWorld;
             if (world == null || !world.IsCreated)
                 return float.MinValue;
@@ -177,6 +223,18 @@ namespace Punchy.CameraRig
                     kind = "cave water";
                     return cave;
                 }
+                // (A cave's lava pool, which the camera's water test leaves out.)
+                ref var pools = ref terrain.Caves.Value.Pools;
+                for (int i = 0; i < pools.Length; i++)
+                {
+                    var pool = pools[i];
+                    if (pool.Lava > 0.5f && math.distance(at.xz, pool.Centre.xz) < pool.Radius && at.y < pool.Centre.y && at.y > pool.Centre.y - pool.Depth - 1.5f)
+                    {
+                        kind = "cave lava";
+                        lava = 1f;
+                        return pool.Centre.y;
+                    }
+                }
             }
             var ground = terrain.SampleGround(at.xz);
             // (In the water column: above its bed, and not deep in rock under it, a cave under a lake.)
@@ -184,6 +242,11 @@ namespace Punchy.CameraRig
             if (ground.HasWater && p.y > ground.Height - 0.5f && p.y < ground.WaterSurface + 2.5f)
             {
                 kind = math.abs(ground.WaterSurface - terrain.World.SeaLevel) < 0.05f ? "the sea" : "a lake or river";
+                var waterLook = terrain.WaterLook(at.xz, ground.Biomes, out var glow);
+                lava = math.saturate(glow.y);
+                swamp = math.smoothstep(0.55f, 0.9f, waterLook.w);
+                if (lava > 0.5f || swamp > 0.5f)
+                    kind = lava > 0.5f ? "lava" : "a swamp";
                 return ground.WaterSurface + WaterSwells.Height(at.xz, ground.WaterSurface, ground.Height);
             }
             return float.MinValue;
@@ -201,7 +264,7 @@ namespace Punchy.CameraRig
             if (amount <= 0f || Event.current.type != EventType.Repaint)
                 return;
             var c = GUI.color;
-            GUI.color = new Color(Tint.r, Tint.g, Tint.b, Tint.a * amount);
+            GUI.color = new Color(look.Tint.r, look.Tint.g, look.Tint.b, look.Tint.a * amount);
             GUI.DrawTexture(new Rect(0f, 0f, Screen.width, Screen.height), Texture2D.whiteTexture);
             GUI.color = c;
         }
