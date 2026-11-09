@@ -2,6 +2,61 @@
 
 Newest first.
 
+## Job 38: why quarter-resolution sky isn't cheaper than half (main acd0cad5), 2026-11-09 (q68.sh)
+Job 34's setup: Profile build, the Summit facing out, pitched up 10, 1920x1080, `-gfx High`, `-weatherseed 4`,
+uncapped, noon, plain weather, a fresh game per run. Two rounds (round 2 in reverse order), within 0.6 ms.
+
+**(1) GPU ms at the Summit** (mean of 2 rounds; main thread in brackets):
+
+| | default | `-skyoff 1` (no march) | `2` (no far clouds) | `4` (no sky colour) | `8` (no weather volumes) | `-benchnosky` |
+|---|---|---|---|---|---|---|
+| `-lowres half` | 10.9 (14.1) | 9.7 (11.9) | 10.7 | 10.9 | 10.9 | 7.0 (11.1) |
+| `-lowres quarter` | 10.3 (12.4) | 9.6 (11.8) | 10.4 | 10.4 | 10.4 | 7.0 (10.9) |
+
+- The whole sky costs 3.9 ms at half and 3.3 ms at quarter (default minus `-benchnosky`).
+- The march is the only part that shrinks with size: 1.2 ms at half, 0.7 ms at quarter (default minus `-skyoff 1`).
+- **Without the march, 2.6 ms of sky is left at both sizes.** Bits 2, 4 and 8 each change it by 0.2 ms or less.
+
+**(2) RenderDoc, one frame each** (RenderDoc's timings read about 3.5x the bench's on this iGPU, so compare them with
+each other, not with the table):
+
+| pass | half | quarter |
+|---|---|---|
+| Low-res effect (the march, 1 full-screen triangle) | 4.38 | 1.56 |
+| **DrawSkybox (Camera.RenderSkybox, 1 draw, 5040 indices, full resolution)** | **3.68** | **3.70** |
+| Low-res depth | 0.05 | 0.06 |
+| Low-res resolve (upsample) | 0.11 | 0.03 |
+| DrawOpaqueObjects / DrawDepthNormalPrepass | 14.54 / 9.57 | 14.55 / 9.57 |
+| whole frame | 37.98 | 35.13 |
+
+- At quarter, the march is a quarter of half's cost, as it should be. Low-res depth and resolve are under 0.12 ms.
+- **The biggest pass that doesn't scale is DrawSkybox: 3.7 ms at both sizes**, more than the march even at half.
+  It's one full-resolution draw of the skybox mesh. Neither skipping the sky colour (`-skyoff 4`) nor skipping the far
+  clouds (`2`) makes it cheaper; only `-benchnosky` removes it. So it's the skybox shader's own per-pixel work
+  across the whole screen (looking up 10 at the Summit, most of the screen is sky).
+- No cloud-shadow pass shows at this depth. The sky's cost is the march plus this one skybox draw.
+- So quarter can only save the march's share. To go further, the skybox draw itself needs to be cheaper or moved
+  into the low-res buffer.
+
+Captures in `results/rd68`, all passes in `results/q68-passes.txt`, shots in `results/q68-shots` (laptop).
+
+**Freeze: 4 of these 24 games stalled, and the game is not responding during a stall.** All four stalled just after
+the jump to the Summit (settling): 527 s (half-off2 r1), 1624 s (half-off4 r1), 112 s (quarter-off4 r1) and 490 s
+(half-off4 r2). The 83 snapshots in `results/freezestall.txt` all look the same:
+- Windows reports the game as not responding (its window isn't pumping messages).
+- About 40 threads wait on UserRequest (an object or event wait) and about 30 on an unknown wait.
+- One thread uses about 0.9-1.1 s of CPU per 30-40 s (about 3%), the same thread through each stall; nothing else runs.
+- I/O is flat, the disk is 0% busy, the CPU is about 5% overall and Defender shows no CPU.
+
+So **the game is blocked in a wait, with one thread polling slowly**. It isn't busy, isn't loading from disk, and
+isn't stopped by Defender. Each snapshot now also names the main thread's state (b7224267), so the next one will
+say whether it's the main thread that waits and whether the polling thread is the main thread.
+Odd: all four stalled games had `-skyoff 2` or `4` (8 of the 24 games did; 0 of the other 16 stalled). By chance
+alone that's under 1%. But job 37's 728 s stall had no `-skyoff` at all, so these flags don't cause it. They may make it
+more likely. Every game here jumps to the Summit, so this job says nothing about the place.
+
+Cost: this job about $3 (laptop session 0a48ccdb); laptop total $668.
+
 ## Job 37: R-2 on the laptop (main acd0cad5 vs 13cdbcdc), 2026-11-09 (q67.sh)
 Profile builds, 1920x1080, `-gfx High`, `-weatherseed 4`, uncapped, a fresh game per run, ABBA (two rounds each,
 within 0.6 ms). The runner's cpu column is the main thread's frame time.

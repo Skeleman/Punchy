@@ -306,7 +306,7 @@ This PC's numbers disagree between rounds, so the laptop gives the real one. Job
 ## Job 37 (2026-11-09, REPORTED in REPORTS-profiler.md; q67.sh): R-2 on the laptop (main acd0cad5)
 Build main acd0cad5 (R-2 merged as #218). (1) World glow bake time on the laptop (the `[glow]` bake line in the log; 4.1 s on the main PC). (2) The 3.2 fire test (Ember Forest, `-benchfires` 500 fires, as job 27): main thread and GPU ms, against 13cdbcdc (before R-2). (3) Ember Forest at night, `-worldglow 0` against default, GPU ms. ABBA, uncapped, 1920x1080, `-gfx High`. Report numbers in REPORTS-profiler.md.
 
-## Job 38 (2026-11-09, RUNNING on the laptop; q68.sh): why isn't quarter-resolution sky cheaper than half? (main acd0cad5)
+## Job 38 (2026-11-09, REPORTED in REPORTS-profiler.md; q68.sh): why isn't quarter-resolution sky cheaper than half? (main acd0cad5)
 Job 36: Summit 22.25 ms full, 9.0 half, 9.0 quarter. Quarter has 1/4 of half's pixels, so what's left must be a cost that
 doesn't scale with resolution. Main acd0cad5 Profile build, job 34's setup (Summit, pitched up 10, 1920x1080, `-gfx High`,
 `-weatherseed 4`, uncapped, noon, ABBA), plain weather.
