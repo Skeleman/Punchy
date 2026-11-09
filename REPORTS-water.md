@@ -40,7 +40,7 @@
   Caveat: the floaters shot at SeaFolkLanding framed no water; floaters checked by code path only (same Heading).
 
 ### Row 4, item 34 (cheap part): bubbles and specks under water (2026-11-08) DONE, verified
-- Commit 3b... (see branch log). Two particle systems on the precipitation shader: ~220 specks tinted by the fluid,
+- Commit a982f73e. Two particle systems on the precipitation shader: ~220 specks tinted by the fluid,
   bubble clusters every ~3.5 s; water and swamp only; hidden on surfacing. `-nodrift` to A/B.
 - Cost: full 1280x720 render under water 2.55 ms without vs 2.68 ms with (ABAB x4, noise +-0.2 ms): about 0.1 ms.
   (The editor's -perflog GPU number is not usable: 0.07-0.28 ms.) Frame series PunchyMilestones\water\W-125\r4-drift-series.png.
