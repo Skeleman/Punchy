@@ -102,8 +102,12 @@ namespace Punchy.Settings
         static void ReadCommandLine(string[] args)
         {
             lightBudgetArg = -1;
+            skyFullArg = System.Array.IndexOf(args, "-skyfull") >= 0;
+            lowResArg = Punchy.Rendering.LowResMode.Off;
             for (int i = 0; i < args.Length - 1; i++)
             {
+                if (args[i] == "-lowres" && System.Enum.TryParse<Punchy.Rendering.LowResMode>(args[i + 1], true, out var lowRes))
+                    lowResArg = lowRes;
                 if (args[i] == "-lightbudget" && int.TryParse(args[i + 1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var lights))
                     lightBudgetArg = Mathf.Clamp(lights, 0, 64);
                 if (args[i] == "-gfx" && System.Enum.TryParse<GraphicsPreset>(args[i + 1], true, out var preset) && preset != GraphicsPreset.Custom)
@@ -172,11 +176,22 @@ namespace Punchy.Settings
         static void Apply()
         {
             Shader.SetGlobalFloat(BurrowRangeId, DetailRange(BurrowRange));
+            Punchy.Rendering.LowResEffectFeature.SetMode("Clouds", CloudBuffer);
             if (pipeline == null)
                 return;
             pipeline.shadowDistance = baseShadowDistance * Shadows;
             pipeline.shadowCascadeCount = Cascades;
         }
+
+        /// <summary>
+        /// The clouds' low-resolution buffer by Detail (refactor 3.4): half size at High and Ultra, quarter below them.
+        /// "-skyfull" turns it off (today's full-resolution sky), "-lowres half|quarter" forces a size, for comparing.
+        /// </summary>
+        static Punchy.Rendering.LowResMode CloudBuffer => skyFullArg ? Punchy.Rendering.LowResMode.Off
+            : lowResArg != Punchy.Rendering.LowResMode.Off ? lowResArg
+            : Detail >= 1.25f ? Punchy.Rendering.LowResMode.Half : Punchy.Rendering.LowResMode.Quarter;
+        static bool skyFullArg;
+        static Punchy.Rendering.LowResMode lowResArg = Punchy.Rendering.LowResMode.Off;
 
         /// <summary>How many shadow cascades the sun casts at the current Shadows setting.</summary>
         public static int Cascades => Shadows < TwoCascadesBelow ? 2 : Shadows < ThreeCascadesBelow ? 3 : 4;
