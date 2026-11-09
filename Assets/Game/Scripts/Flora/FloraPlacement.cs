@@ -22,6 +22,10 @@ namespace Punchy.Flora
         public float2 PatchOffset;
         public float NearWater;
         public int OnlyNearWater;
+        /// <summary>W-126 habitat (FloraSpecies): sun-facing slopes (-1..1), shelter and exposure (0..1) of the local relief, and the wet reach multiple.</summary>
+        public float SunSlope, Shelter, Exposure, WetReach;
+        /// <summary>W-126: the density gain a habitat rule's species gets where its habitat is (1 = no rule): what the rule takes from the rest of the land it gives back here, so the species keeps about its overall density.</summary>
+        public float HabitatGain;
         public float2 SizeRange;
         public int Aquatic, Floats;
         public float2 WaterDepth;
@@ -268,6 +272,11 @@ namespace Punchy.Flora
                     PatchOffset = new float2(h & 0xFFFF, h >> 16) / 65535f * 300f,
                     NearWater = s.NearWater,
                     OnlyNearWater = s.OnlyNearWater ? 1 : 0,
+                    SunSlope = s.SunSlope,
+                    Shelter = s.Shelter,
+                    Exposure = s.Exposure,
+                    WetReach = s.WetReach,
+                    HabitatGain = 1f + 0.4f * math.max(math.abs(s.SunSlope), math.max(s.Shelter, s.Exposure)),
                     SizeRange = s.SizeRange,
                     Aquatic = s.Aquatic ? 1 : 0,
                     Floats = s.Floats ? 1 : 0,
@@ -1679,14 +1688,16 @@ namespace Punchy.Flora
 
         /// <summary>
         /// W-126: the ground against its local average, -1 (hollow, valley floor) to +1 (crest, ridge): its height minus the mean
-        /// of four points 18 m out, over 3 m. Four extra height samples, taken once per placement attempt that needs them.
+        /// of four points 18 m out, over 3 m. Four extra height samples (the fifth is the ground's own), taken once per placement attempt that needs them.
         /// </summary>
-        public static float Relief(in TerrainSource source, float2 xz)
+        public static float Relief(in TerrainSource source, float2 xz) => Relief(source, xz, source.SampleHeight(xz));
+
+        public static float Relief(in TerrainSource source, float2 xz, float height)
         {
             const float ring = 18f;
             var around = source.SampleHeight(xz + new float2(ring, 0f)) + source.SampleHeight(xz - new float2(ring, 0f)) +
                          source.SampleHeight(xz + new float2(0f, ring)) + source.SampleHeight(xz - new float2(0f, ring));
-            return math.clamp((source.SampleHeight(xz) - around * 0.25f) / 3f, -1f, 1f);
+            return math.clamp((height - around * 0.25f) / 3f, -1f, 1f);
         }
 
         /// <summary>
@@ -2005,7 +2016,7 @@ namespace Punchy.Flora
                     }
                     else
                         weights[at] += d;
-                    bound += d * math.max(1f, f.Rules[entry.Species].NearWater);
+                    bound += d * math.max(1f, f.Rules[entry.Species].NearWater) * f.Rules[entry.Species].HabitatGain;
                 }
             }
             if (roll >= bound)
@@ -2025,6 +2036,9 @@ namespace Punchy.Flora
             var elevation = ground.Height - source.World.SeaLevel;
             var nearWater = 1f - math.smoothstep(1.5f, 8f, -ground.WaterDepth);
             var dry = 1f - math.saturate(ground.River * 1.5f);
+            var aspect = SunFacing(normal);
+            var relief = 0f;
+            var reliefKnown = false;
 
             var total = 0f;
             var shrink = new FixedList128Bytes<float>();
@@ -2084,9 +2098,29 @@ namespace Punchy.Flora
                     var n = noise.snoise(xz * r.PatchFrequency + r.PatchOffset) * 0.5f + 0.5f;
                     fl *= math.smoothstep(1f - r.PatchCoverage - 0.12f, 1f - r.PatchCoverage + 0.12f, n);
                 }
-                fl *= math.lerp(1f, r.NearWater, nearWater);
+                // W-126 moisture: a species' own reach widens the damp strip (WetReach 1 is the shared nearWater).
+                var wet = r.WetReach == 1f ? nearWater : 1f - math.smoothstep(1.5f, 8f * r.WetReach, -ground.WaterDepth);
+                fl *= math.lerp(1f, r.NearWater, wet);
                 if (r.OnlyNearWater != 0)
-                    fl *= nearWater;
+                    fl *= wet;
+                fl *= r.HabitatGain;
+                // W-126 habitat: sun-facing or shaded slopes, hollows out of the wind, crests. Each is a factor in 0..1, and HabitatGain
+                // (counted in the cheap bound above) pays the thinning back where the habitat is; the relief's four height samples are taken once, on first need.
+                if (r.SunSlope != 0f)
+                {
+                    var toward = aspect.x * (r.SunSlope > 0f ? 1f : -1f);
+                    fl *= 1f - aspect.y * math.abs(r.SunSlope) * (1f - math.smoothstep(-0.45f, 0.45f, toward));
+                }
+                if ((r.Shelter > 0f || r.Exposure > 0f) && fl > 0f)
+                {
+                    if (!reliefKnown)
+                    {
+                        relief = Relief(source, xz, ground.Height);
+                        reliefKnown = true;
+                    }
+                    fl *= math.lerp(1f, math.smoothstep(0.35f, -0.35f, relief), r.Shelter);
+                    fl *= math.lerp(1f, math.smoothstep(-0.35f, 0.35f, relief), r.Exposure);
+                }
                 weights[c] = fl;
                 shrink.Add(upper);
                 total += fl;

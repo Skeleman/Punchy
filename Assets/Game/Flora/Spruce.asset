@@ -36,6 +36,7 @@ MonoBehaviour:
   PatchCoverage: 0.4
   NearWater: 2
   OnlyNearWater: 0
+  Shelter: 0.6
   Solid: 1
   Variants: 4
   Seed: 34

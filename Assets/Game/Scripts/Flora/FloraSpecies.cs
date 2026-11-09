@@ -279,6 +279,15 @@ namespace Punchy.Flora
         [Min(0f)] public float NearWater = 1f;
         [Tooltip("Grows only close to water (oasis palms, willows).")]
         public bool OnlyNearWater;
+        [Header("Habitat (W-126)")]
+        [Tooltip("Which slopes it grows on: +1 only slopes facing the sun, -1 only slopes facing away (flat ground suits both). 0 = either.")]
+        [Range(-1f, 1f)] public float SunSlope;
+        [Tooltip("Favours hollows and valley floors out of the wind (big trees): 0 = no preference, 1 = nearly none on ridges.")]
+        [Range(0f, 1f)] public float Shelter;
+        [Tooltip("Favours ridges and crests (wind-bent pines, bare rock): 0 = no preference, 1 = nearly none in hollows.")]
+        [Range(0f, 1f)] public float Exposure;
+        [Tooltip("How far from water NearWater reaches, as a multiple of the usual 8 m (2 = damp ground 16 m out).")]
+        [Min(0.25f)] public float WetReach = 1f;
         [Tooltip("Grows in water instead of on land, where it's between Water Depth's two depths (m).")]
         public bool Aquatic;
         public Vector2 WaterDepth = new Vector2(0.1f, 1.5f);

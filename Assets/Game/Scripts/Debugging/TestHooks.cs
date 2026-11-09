@@ -389,6 +389,42 @@ namespace Punchy.Debugging
                            n / (4f * half * half / 100f), nonEmpty };
         }
 
+        /// <summary>
+        /// W-126: the liveliest ground inside a biome for habitat shots: the dry spot (64 m grid, the biome dominant at it and round
+        /// it) with the widest spread of heights over a 90 m ring. [x, y, z, spread], empty if none. A same-world pick, so old and new shots frame alike.
+        /// </summary>
+        public static float[] FloraViewSpot(string biome)
+        {
+            var palette = Palette();
+            if (!Source(out var s) || palette == null)
+                return new float[0];
+            var id = System.Array.FindIndex(palette.Biomes, b => b != null && b.name == biome);
+            if (id < 0)
+                return new float[0];
+            var half = s.World.WorldSize * 0.5f;
+            var best = new float[0];
+            for (var x = -half + 200f; x < half - 200f; x += 64f)
+                for (var z = -half + 200f; z < half - 200f; z += 64f)
+                {
+                    var at = new float2(x, z);
+                    var g = s.SampleGround(at);
+                    if (g.HasWater || g.Biomes.Dominant() != id || s.SampleGround(at + new float2(90f, 0f)).Biomes.Dominant() != id ||
+                        s.SampleGround(at - new float2(90f, 0f)).Biomes.Dominant() != id)
+                        continue;
+                    float lo = g.Height, hi = g.Height;
+                    for (int k = 0; k < 8; k++)
+                    {
+                        var a = k * math.PI / 4f;
+                        var h = s.SampleHeight(at + 90f * new float2(math.cos(a), math.sin(a)));
+                        lo = math.min(lo, h);
+                        hi = math.max(hi, h);
+                    }
+                    if (best.Length == 0 || hi - lo > best[3])
+                        best = new[] { x, g.Height, z, hi - lo };
+                }
+            return best;
+        }
+
         /// <summary>A-69: creatures of one species (asset name) within radius of the player: [count, nearest distance (or -1), its x, y, z].</summary>
         public static float[] SpeciesNear(string name, float radius)
         {

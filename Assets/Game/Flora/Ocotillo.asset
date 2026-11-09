@@ -37,6 +37,8 @@ MonoBehaviour:
   PatchCoverage: 0.6
   NearWater: 1
   OnlyNearWater: 0
+  Exposure: 0.3
+  SunSlope: 0.6
   Solid: 1
   Variants: 4
   Seed: 38
