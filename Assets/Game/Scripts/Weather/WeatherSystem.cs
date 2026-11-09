@@ -94,6 +94,7 @@ namespace Punchy.Weather
         static readonly int DustColorId = Shader.PropertyToID("_PunchyDustColor");
         static readonly int GlowId = Shader.PropertyToID("_Glow");
         static readonly int HazeDensityId = Shader.PropertyToID("_PunchyHazeDensity");
+        static readonly int HazeClearId = Shader.PropertyToID("_PunchyHazeClear");
         static readonly int HazeLutId = Shader.PropertyToID("_PunchyHazeLut");
         static readonly int HazeOriginId = Shader.PropertyToID("_PunchyHazeOrigin");
         static readonly int HazeLutSizeId = Shader.PropertyToID("_HazeLutSize");
@@ -494,6 +495,7 @@ namespace Punchy.Weather
             Shader.SetGlobalColor(GroundId, sky.Ground);
             Shader.SetGlobalColor(DustColorId, DustColor());
             Shader.SetGlobalFloat(HazeDensityId, hazeDensity);
+            Shader.SetGlobalFloat(HazeClearId, ClearDay(s));
             Shader.SetGlobalVector(CloudsId, new Vector4(s.Coverage, 0f, 1f, 0f));
             Shader.SetGlobalFloat(TwilightDullId, TwilightDull(s));
             Shader.SetGlobalVector(CloudOffsetId, cloudOffset);
@@ -510,6 +512,16 @@ namespace Punchy.Weather
         {
             var hue = Cycle != null ? Cycle.BlueMoonLamp : new Color(0.017f, 0.057f, 1.9f);
             return hue * (0.5f * c.grayscale / Mathf.Max(hue.grayscale, 1e-4f));
+        }
+
+        /// <summary>How fully clear and sunny it is at the camera, 0..1 (feedback 11-08 item 30): the sun well up, little
+        /// cloud (the Clear preset's 0.2 is clear, PartlyCloudy's 0.45 is not), no overcast, rain haze or dust. Sky.hlsl
+        /// thins the base haze by it (and not in cold lands).</summary>
+        float ClearDay(in WeatherValues s)
+        {
+            var sun = Cycle != null ? math.smoothstep(0.1f, 0.35f, Cycle.SunDirection.y) : 1f;
+            return sun * (1f - math.smoothstep(0.25f, 0.4f, s.Coverage)) * math.saturate(1f - 2f * s.Overcast)
+                 * math.saturate(1f - 3f * s.Haze) * math.saturate(1f - 3f * s.Dust);
         }
 
         /// <summary>How much the weather mutes sunrise and sunset colours: 0 clear … 1 overcast or storm.</summary>
