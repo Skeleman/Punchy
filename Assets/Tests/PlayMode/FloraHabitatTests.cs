@@ -79,7 +79,7 @@ namespace Punchy.Tests.PlayMode
         [UnityTest, Timeout(900000)]
         public IEnumerator Clearings_PlanMaps()
         {
-            foreach (var biome in new[] { "Temperate", "Grassland", "Mountains", "FungalForest", "Tundra", "Sonoran", "MesaCanyonlands", "Dunes", "SaltFlat", "GlassDesert", "Glacier", "Ashlands", "Volcano", "EmberForest", "ElectricWastelands", "SparklingForest", "FoggyMarsh", "PoisonSwamp" })
+            foreach (var biome in (System.Environment.GetEnvironmentVariable("PUNCHY_PLAN_BIOMES") ?? "Temperate,Grassland,Mountains,FungalForest,Tundra,Sonoran,MesaCanyonlands,Dunes,SaltFlat,GlassDesert,Glacier,Ashlands,Volcano,EmberForest,ElectricWastelands,SparklingForest,FoggyMarsh,PoisonSwamp").Split(','))
             {
                 var spot = Game.Hook<float[]>("FloraViewSpot", biome);
                 if (spot.Length == 0)
@@ -90,6 +90,23 @@ namespace Punchy.Tests.PlayMode
                 var px = new Color32[512 * 512];
                 for (int i = 0; i < px.Length; i++)
                     px[i] = new Color32(214, 204, 176, 255);
+                var mask = Game.Hook<float[]>("FloraGroundMask", spot[0], spot[2], half, 128f);
+                if (mask.Length == 128 * 128)
+                    for (int i = 0; i < px.Length; i++)
+                        if (((int)mask[(i / 512 / 4) * 128 + (i % 512) / 4] & 1) == 1)
+                            px[i] = new Color32(150, 190, 225, 255);   // water
+                if (mask.Length == 128 * 128)
+                {
+                    var west = new System.Collections.Generic.SortedDictionary<int, int>();
+                    var east = new System.Collections.Generic.SortedDictionary<int, int>();
+                    for (int i = 0; i < mask.Length; i++)
+                    {
+                        var d = west; if (i % 128 >= 64) d = east;
+                        var id = (int)mask[i] >> 1;
+                        d[id] = (d.TryGetValue(id, out var c0) ? c0 : 0) + 1;
+                    }
+                    LogWatch.Measure($"mask {biome} west biomes {string.Join(",", west)} east {string.Join(",", east)}");
+                }
                 var counts = new int[3];
                 for (int i = 0; i + 3 < plan.Length; i += 4)
                 {

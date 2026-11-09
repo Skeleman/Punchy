@@ -426,6 +426,22 @@ namespace Punchy.Debugging
             return list.ToArray();
         }
 
+        /// <summary>W-126: ground over a square as an n by n grid (row-major from the south-west corner): 0 dry, 1 water, plus 2 x the dominant biome index.</summary>
+        public static float[] FloraGroundMask(float cx, float cz, float half, float n)
+        {
+            if (!Source(out var s))
+                return new float[0];
+            var count = (int)n;
+            var grid = new float[count * count];
+            for (int y = 0; y < count; y++)
+                for (int x = 0; x < count; x++)
+                {
+                    var g = s.SampleGround(new float2(cx - half + (x + 0.5f) * 2f * half / count, cz - half + (y + 0.5f) * 2f * half / count));
+                    grid[y * count + x] = (g.HasWater ? 1f : 0f) + 2f * g.Biomes.Dominant();
+                }
+            return grid;
+        }
+
         /// <summary>
         /// W-126: the liveliest ground inside a biome for habitat shots: the dry spot (64 m grid, the biome dominant at it and round
         /// it) with the widest spread of heights over a 90 m ring. [x, y, z, spread], empty if none. A same-world pick, so old and new shots frame alike.

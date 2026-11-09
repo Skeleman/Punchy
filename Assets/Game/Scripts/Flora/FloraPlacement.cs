@@ -2028,6 +2028,25 @@ namespace Punchy.Flora
 
             // Cheap first pass: which species could grow here, at most how likely.
             source.SampleBiomes(xz, out var biomes, out _);
+            // W-126 clearings: the biome that holds most of this spot sets how empty its clearings are (asked before the early-out, so the bound can count it exactly).
+            var clearCover = 0f;
+            var clearEdge = 0f;
+            {
+                var top = 0;
+                for (int b = 1; b < 4; b++)
+                    if (biomes.Weights[b] > biomes.Weights[top])
+                        top = b;
+                if (biomes.Ids[top] < f.BiomeCount)
+                {
+                    var cp = f.Clearing[biomes.Ids[top]];
+                    if (cp.x > 0f)
+                    {
+                        var cn = noise.snoise(xz / cp.y + new float2(91.3f, 17.7f)) * 0.5f + 0.5f;
+                        clearCover = cp.x * math.smoothstep(0.58f, 0.74f, cn);
+                        clearEdge = math.smoothstep(0.44f, 0.58f, cn) * (1f - math.smoothstep(0.66f, 0.80f, cn));
+                    }
+                }
+            }
             // Realms meet with a hard edge: a biome's plants only grow where its realm has most of the ground (its
             // biomes' summed weight, from the same sample). Inside a realm, biomes still blend.
             var realmOf = int4.zero - 1;
@@ -2058,7 +2077,11 @@ namespace Punchy.Flora
                     }
                     else
                         weights[at] += d;
-                    bound += d * math.max(1f, f.Rules[entry.Species].NearWater) * f.Rules[entry.Species].HabitatGain * f.Rules[entry.Species].ExtraGain;
+                    var br = f.Rules[entry.Species];
+                    var extra = (1f - clearCover * (1f - 0.8f * br.EdgeAffinity)) * (1f + br.EdgeAffinity * clearEdge);
+                    if (br.GroveSpacing > 0f)
+                        extra *= math.lerp(br.GroveStraggle, br.GroveGain, GroveShare(xz, br));
+                    bound += d * math.max(1f, br.NearWater) * br.HabitatGain * math.max(extra, 0f);
                 }
             }
             if (roll >= bound)
@@ -2079,25 +2102,6 @@ namespace Punchy.Flora
             var nearWater = 1f - math.smoothstep(1.5f, 8f, -ground.WaterDepth);
             var dry = 1f - math.saturate(ground.River * 1.5f);
             var aspect = SunFacing(normal);
-            // W-126 clearings: the biome that holds most of this spot sets how empty its clearings are.
-            var clearCover = 0f;
-            var clearEdge = 0f;
-            {
-                var top = 0;
-                for (int b = 1; b < 4; b++)
-                    if (biomes.Weights[b] > biomes.Weights[top])
-                        top = b;
-                if (biomes.Ids[top] < f.BiomeCount)
-                {
-                    var cp = f.Clearing[biomes.Ids[top]];
-                    if (cp.x > 0f)
-                    {
-                        var cn = noise.snoise(xz / cp.y + new float2(91.3f, 17.7f)) * 0.5f + 0.5f;
-                        clearCover = cp.x * math.smoothstep(0.58f, 0.74f, cn);
-                        clearEdge = math.smoothstep(0.44f, 0.58f, cn) * (1f - math.smoothstep(0.66f, 0.80f, cn));
-                    }
-                }
-            }
             var relief = 0f;
             var reliefKnown = false;
 
