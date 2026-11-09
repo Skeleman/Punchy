@@ -108,3 +108,12 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - Roof: #211 as merged still has the camera-dependent underside. wip/roof-silhouette-2 (flip by the sheet alone, underside sky 0.32) showed no visible change in a side-by-side at -goto -3277,129.9,1549 (undersides still near black at low camera heights), so it needs more work, not just merging. Zach's report: a face changes colour with the camera; undersides quite dark.
 - Meadow (item 25): closed. Zach: his misreading of medium-range shadow aliasing on the grass.
 - Job 34: sky/cost saves 3.4 ms GPU at the Summit against main, no PR yet; Sky.shader needs the merge resolved as in test/playtest-1108d. Job 35: the prepass is forced depth priming, not SSAO's.
+
+## Handoff to the main account, 2026-11-08 ~23:30 (other account out of tokens; it becomes one lane when Zach says)
+- Round-3 lanes told to wrap up: finish or park the row in hand, write their REPORTS row, close their editor, stop. They're subagents of the other account and won't resume; relaunch from the card (rows left) if needed. Check each tree for uncommitted parked work (rule 5) and that no editor is left open.
+- Progress when told to stop (pushed branches; see REPORTS-world / -water / -player for the latest):
+  - W-124 flora (Punchy-world, flora/round3 on #210): row 1 (item 25) CLOSED, not a bug: mid-range shadow aliasing Zach misread. Row 2 (26, stems rooted) done 17bd5157. Rows 3 (29, cull ignores height) and 4 (27-28, wet gloss, bark) in progress or not started.
+  - W-125 water (Punchy-release, water/round3 on #209): row 1 lava orange/black 30% speed (gold kept as a variant) 8bf99541; row 2 per-fluid under-water look 2960a93d. Rows 3 (32 storm wind drives swell), 4 (34 bubbles/motes; fish/coral ideas only), 5 (38 light shafts, fog darker with depth, added by Zach) left.
+  - P-21 lights (Punchy-player, lights/round3 on #208): row 1 blue moon deep blue + fog/clouds a9ad8fdf; row 2 clear-day fog 884a4673. Row 3 (31 interior light leaking outside) left.
+- Not assigned: mid-range shadow aliasing/shimmer (Zach, item 25 follow-up; related to the far tree shadow "glitter" in the roadmap).
+- Still open for Zach: #208-#211; roof WIP on local branch wip/roof-silhouette-2 45f5f492 (player tree, unpushed, unverified). No PRs or Playtest5 yet for round 3: next supervisor reviews, opens PRs (stacked on #208/#209/#210), builds Playtest5.
