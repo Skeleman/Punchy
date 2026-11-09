@@ -75,7 +75,10 @@ namespace Punchy.Terrain
         /// <summary>At the start of a town street, on one side or the other.</summary>
         Post,
         /// <summary>Beside a fishing village dock's land end (LandmarkType.Fixtures).</summary>
-        Pier
+        Pier,
+        /// <summary>One on a paved square, at its edge in the widest gap between its lanes, clear of the well, benches,
+        /// plots and streets (a beacon tower: big towns only, see Min Plots).</summary>
+        Beacon
     }
 
     /// <summary>
@@ -93,6 +96,8 @@ namespace Punchy.Terrain
         [Range(0f, 1f)] public float Chance = 0.5f;
         [Tooltip("If set, only where the ground's main biome is one of these. Empty = anywhere.")]
         public List<BiomeDefinition> OnlyIn = new List<BiomeDefinition>();
+        [Tooltip("Only in settlements with at least this many plots (0 = any): a beacon tower in the biggest towns.")]
+        [Min(0)] public int MinPlots;
     }
 
     /// <summary>

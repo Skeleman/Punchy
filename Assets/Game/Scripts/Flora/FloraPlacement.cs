@@ -646,6 +646,8 @@ namespace Punchy.Flora
             public int Species, Spot;
             public float Chance;
             public ulong Biomes;
+            /// <summary>Only in settlements with at least this many plots (0 = any).</summary>
+            public int MinPlots;
         }
 
         /// <summary>A street light's reach marker in the glow table: w = -(FixtureGlowBase + reach), night only like lit
@@ -673,7 +675,7 @@ namespace Punchy.Flora
                             if (bi >= 0 && bi < 64)
                                 mask |= 1ul << bi;
                         }
-                    into.Add(new FloraFixture { Species = i, Spot = (int)row.Spot, Chance = row.Chance, Biomes = mask });
+                    into.Add(new FloraFixture { Species = i, Spot = (int)row.Spot, Chance = row.Chance, Biomes = mask, MinPlots = row.MinPlots });
                 }
             return new int2(start, into.Count - start);
         }
@@ -771,6 +773,145 @@ namespace Punchy.Flora
         }
 
         /// <summary>
+        /// W-127: where a settlement's beacon tower stands, if it has one: a paved square in a town of at least the row's
+        /// MinPlots, at the square's rim in the widest gap between its lane mouths (so it faces no lane), clear of the
+        /// well, the plots, the lanes and the landmark's own props (benches, the well, its trees). Pure: from the town's
+        /// own data and hash, so the flora, LandmarkEffectSystem (its fire) and the world glow all find the same spot.
+        /// Scale is the tower's (a fixture's 0.92 to 1.08; its stair's rise stays under KitStep at the top of it).
+        /// </summary>
+        public static bool BeaconSpot(ref FloraBlob f, in TerrainSource source, int settlement, out float2 spot, out int species, out float yaw,
+                                      out float scale, out uint h)
+        {
+            spot = default; species = -1; yaw = 0f; scale = 1f; h = 0u;
+            if (!source.Settlements.IsCreated || f.Fixtures.Length == 0)
+                return false;
+            ref var towns = ref source.Settlements.Value;
+            if (settlement < 0 || settlement >= towns.Settlements.Length)
+                return false;
+            ref var town = ref towns.Settlements[settlement];
+            if (town.Square <= 0f || town.Layout < 0 || town.Layout >= f.LayoutFixtures.Length)
+                return false;
+            var range = f.LayoutFixtures[town.Layout];
+            h = FixtureHash(town.Centre, 0xBEACu);
+            var biome = BiomeAt(source, town.Centre);
+            var u = (h >> 8) / 16777216f;
+            for (int i = range.x; i < range.x + range.y && species < 0; i++)
+            {
+                var row = f.Fixtures[i];
+                if (row.Spot == (int)Punchy.Terrain.FixtureSpot.Beacon && town.PlotCount >= row.MinPlots && u < row.Chance &&
+                    (row.Biomes == 0 || (biome >= 0 && biome < 64 && (row.Biomes & (1ul << biome)) != 0)))
+                    species = row.Species;
+            }
+            if (species < 0)
+                return false;
+            // The lane mouths, in order round the square; the gaps between them, widest first.
+            var m = town.Mouths;
+            var angles = new float4(99f);
+            var count = 0;
+            for (int i = 0; i < 4; i++)
+                if (m[i] < 90f)
+                    angles[count++] = m[i];
+            for (int a = 0; a < count; a++)
+                for (int b = a + 1; b < count; b++)
+                    if (angles[b] < angles[a])
+                    {
+                        var t = angles[a]; angles[a] = angles[b]; angles[b] = t;
+                    }
+            var mids = new float4(0f, math.PI * 0.5f, math.PI, math.PI * 1.5f);
+            var widths = new float4(1f, 0.9f, 0.8f, 0.7f);
+            for (int i = 0; i < count; i++)
+            {
+                var next = i + 1 < count ? angles[i + 1] : angles[0] + 2f * math.PI;
+                mids[i] = (angles[i] + next) * 0.5f;
+                widths[i] = next - angles[i];
+            }
+            if (count > 0)
+                for (int i = count; i < 4; i++)
+                    widths[i] = -1f;
+            var hit = default(LandmarkHit);
+            var hasLandmark = source.Landmarks.IsCreated && LandmarkSampling.Find(ref source.Landmarks.Value, town.Centre, out hit) && hit.Type < f.LandmarkTypeCount;
+            var cellSize = f.CellSizes[TreeLayer];
+            scale = 0.92f + (h & 0xFF) / 255f * 0.16f;
+            var half = Punchy.Terrain.StructureKit.BeaconHalf * scale;
+            for (int pass = 0; pass < 4; pass++)
+            {
+                // The next widest gap.
+                var g = 0;
+                for (int i = 1; i < 4; i++)
+                    if (widths[i] > widths[g])
+                        g = i;
+                if (widths[g] < 0f)
+                    break;
+                widths[g] = -1f;
+                for (int o = 0; o < 9; o++)
+                {
+                    var angle = mids[g] + (o % 3 - 1) * 0.22f;
+                    var radius = town.Square * 0.5f - half - 0.4f + (o / 3) * 2.2f;
+                    var at = town.Centre + new float2(math.cos(angle), math.sin(angle)) * radius;
+                    if (math.distance(at, town.Water.xz) < half + 3.5f || !BeaconClear(ref towns, ref town, at, half))
+                        continue;
+                    if (hasLandmark && (LandmarkTreeInCell(ref f, source, (int2)math.floor(at / cellSize), cellSize) ||
+                                        LandmarkPropNear(ref f, ref source.Landmarks.Value, hit, at, half + 1.5f)))
+                        continue;
+                    spot = at;
+                    // The stair's foot (the model's +Z face) towards the square's middle.
+                    yaw = FacingYaw(math.normalizesafe(town.Centre - at, new float2(0f, 1f)));
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>The beacon's fire, in the world (see BeaconSpot), and whether the settlement has one.</summary>
+        public static bool BeaconFire(ref FloraBlob f, in TerrainSource source, int settlement, out float3 fire)
+        {
+            fire = default;
+            if (!BeaconSpot(ref f, source, settlement, out var spot, out _, out _, out var scale, out _))
+                return false;
+            fire = new float3(spot.x, source.SampleHeight(spot) + Punchy.Terrain.StructureKit.BeaconFire * scale, spot.y);
+            return true;
+        }
+
+        static bool BeaconClear(ref SettlementSetBlob towns, ref SettlementData town, float2 at, float half)
+        {
+            var corner = half * 1.42f;
+            for (int k = town.FirstPlot; k < town.FirstPlot + town.PlotCount; k++)
+                if (SettlementSampling.Outside(towns.Plots[k], at) < corner + 1f)
+                    return false;
+            for (int k = town.FirstStreet; k < town.FirstStreet + town.StreetCount; k++)
+            {
+                var street = towns.Streets[k];
+                if (math.all(street.A.xz == street.B.xz))
+                    continue;   // the square itself (or a green): the tower stands on it
+                if (SettlementSampling.Across(street, at, out _) < street.Width * 0.5f + corner + 0.8f)
+                    return false;
+            }
+            return true;
+        }
+
+        static bool LandmarkPropNear(ref FloraBlob f, ref LandmarkSetBlob set, in LandmarkHit hit, float2 at, float clear)
+        {
+            var instance = set.Instances[hit.Instance];
+            for (int l = 0; l < 3; l++)
+            {
+                var placed = f.PropRanges[hit.Type * 3 + l];
+                for (int e = placed.x; e < placed.x + placed.y; e++)
+                {
+                    var prop = f.Props[e];
+                    if (prop.Centrepiece != 0 && math.distance(instance.Position, at) < clear)
+                        return true;
+                    for (int k = 0; k < prop.Count; k++)
+                    {
+                        var p = LandmarkSampling.ToWorld(instance, LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / prop.Count), hit.Radius);
+                        if (math.distance(p, at) < clear)
+                            return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
         /// W-127: a settlement's street light in this tree cell, if one of its spots falls here: beside a building's
         /// door, out on its street side (Door), or at the start of a town street (Post), from the layout's fixture table.
         /// Pure, from the spot's own hash: no cell draws are taken, so every other plant stays where it was.
@@ -779,6 +920,20 @@ namespace Punchy.Flora
                                 bool footprint, out FloraSystem.FloraInstance lamp)
         {
             lamp = default;
+            // The beacon tower first, from the town's square (an open space: A and B coincide).
+            var squares = towns.StreetCells[townCell];
+            for (int k = squares.x; k < squares.x + squares.y; k++)
+            {
+                var square = towns.Streets[towns.StreetItems[k]];
+                if (square.Road != 0 || math.any(square.A.xz != square.B.xz) || square.Settlement < 0 ||
+                    !BeaconSpot(ref f, source, square.Settlement, out var spot, out var species, out var yaw, out var scale, out var h) ||
+                    math.any((int2)math.floor(spot / cellSize) != cell))
+                    continue;
+                var tower = FixtureInstance(ref f, source, species, spot, yaw, 1f, h, footprint);
+                tower.Scale = scale;
+                lamp = tower;
+                return true;
+            }
             var plots = towns.PlotCells[townCell];
             for (int k = plots.x; k < plots.x + plots.y; k++)
             {

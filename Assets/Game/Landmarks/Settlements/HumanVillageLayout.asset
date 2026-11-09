@@ -216,3 +216,8 @@ MonoBehaviour:
     Spot: 0
     Chance: 0.2
     OnlyIn: []
+  - Species: {fileID: 11400000, guid: bf083284aa6a4ecf8331df3e559dcd9b, type: 2}
+    Spot: 3
+    Chance: 1
+    OnlyIn: []
+    MinPlots: 30

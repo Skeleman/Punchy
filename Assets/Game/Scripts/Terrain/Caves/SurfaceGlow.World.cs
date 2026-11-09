@@ -27,6 +27,8 @@ namespace Punchy.Terrain
         public const int WorldMapSize = 512;
         /// <summary>Plants' and lava's soft reach, at least this (m): over two texels, so none slips between them.</summary>
         const float WorldMinReach = 40f;
+        /// <summary>W-127: a beacon's fire in the world map's fire channel, and how far it reaches (m).</summary>
+        const float BeaconFireLight = 12f, BeaconReach = 60f;
         /// <summary>Layers are sampled every this many cells (ground, shrubs, trees), a skipped cell's light made up by
         /// those taken: about one sample per 16 m for small plants, every second tree.</summary>
         static readonly int3 WorldStride = new int3(24, 8, 2);
@@ -94,6 +96,10 @@ namespace Punchy.Terrain
                 for (int v = 0; v < f.Rules[s].Variants; v++)
                     modelFire[f.Rules[s].FirstModel + v] = 1f;
             }
+            // W-127: a beacon tower's fire lights its square in the fire channel too.
+            for (int i = 0; i < f.Fixtures.Length; i++)
+                if (f.Fixtures[i].Spot == (int)FixtureSpot.Beacon)
+                    anyFire = true;
         }
 
         /// <summary>Starts the bake once per world, and picks it up when it's done.</summary>
@@ -239,6 +245,14 @@ namespace Punchy.Terrain
                     Counts[2]++;
                     Splat(sums, texel, at, new float4(0f, LavaLight * look.y), LavaReach);
                 }
+                // W-127: each beacon tower's fire, as a burning grove's worth of fire light round its square.
+                if (Source.Settlements.IsCreated)
+                    for (int s = 0; s < Source.Settlements.Value.Settlements.Length; s++)
+                        if (FloraPlacement.BeaconSpot(ref f, Source, s, out var beacon, out _, out _, out _, out _))
+                        {
+                            Counts[0]++;
+                            Splat(sums, texel, beacon, new float4(BeaconFireLight, 0f, 0f, 0f), BeaconReach);
+                        }
                 for (int i = 0; i < Extra.Length; i++)
                     Splat(sums, texel, Extra[i].Position.xz, new float4(0f, Extra[i].Light), math.max(Extra[i].Reach, WorldMinReach));
                 for (int i = 0; i < sums.Length; i++)
