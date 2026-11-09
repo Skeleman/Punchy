@@ -267,10 +267,10 @@ Shader "Punchy/Flora"
                 // The facet's own normal (outside any branch, so the derivatives are good).
                 float3 facet = normalize(cross(ddy(input.positionWS), ddx(input.positionWS)) + 1e-9);
                 // Built things are drawn double-sided too, and a roof is one sheet: seen from below it's the sheet's
-                // back, whose normal still points up. Light the side you see. Only if the facet agrees that it's the back:
-                // near a roof's silhouette the smoothed normal already leans away on faces that do face you, and flipping
-                // those drew black shapes at the eaves when looking up (playtest 11-07, 11-08).
-                if (part == 0 && built && dot(n, v) < 0 && dot(n, dot(facet, v) < 0 ? -facet : facet) < 0)
+                // back, whose normal still points up. Light the side you see, deciding by the sheet alone: is the normal behind
+                // the facet you're looking at? Testing it against the view (dot(n, v)) made a face change colour as the camera
+                // moved, and near a silhouette, where the smoothed normal leans away, drew black shapes (playtest 11-07, 11-08).
+                if (part == 0 && built && dot(n, dot(facet, v) < 0 ? -facet : facet) < 0)
                     n = -n;
 
                 // Per-plant tint: brightness, and leaves a little yellower or bluer.
@@ -410,7 +410,7 @@ Shader "Punchy/Flora"
                 half under = part == 0 && built ? PunchyUnderside(n.y) : 0;
                 if (under > 0)
                 {
-                    sky = PunchyUndersideAmbient(sky, input.ground.rgb, SampleSH(half3(0, 1, 0)) * lerp(1, 0.06, _PunchyUnderground), under);
+                    sky = PunchyUndersideAmbient(sky, input.ground.rgb, SampleSH(half3(0, 0, 0)) * lerp(1, 0.06, max(_PunchyUnderground, _FloraInCave * 0.75)), under);
                     albedo *= lerp(1, PunchyUndersideAlbedo, under);
                 }
                 // Glowing plants and molten pools nearby (their own glow included, softly).
@@ -427,7 +427,7 @@ Shader "Punchy/Flora"
                 // Darker towards the ground and on downward faces (leaves and petals: towards the ground only), per pixel:
                 // worked out at the vertices it smeared the tight band at the ground over a whole face, so a building's
                 // foundation exposed on a slope (a metre or two of skirt) showed it stretched down its length (Z-12, G-22).
-                half ao = input.color.a * PunchyGrounding(input.baseHeight.x, n.y, part == 1 || part == 2 || part == 5 ? 0 : 1);
+                half ao = input.color.a * PunchyGrounding(input.baseHeight.x, n.y, part == 1 || part == 2 || part == 5 ? 0 : 1 - under);
 
                 // Metal leaves: dim diffuse, the colour mostly comes from tinted reflections.
                 half3 color = albedo * (light.color * shadow * (diffuse + through) * lerp(0.6, 1, ao) + sky * ao) * (metal ? 0.45 : 1);
