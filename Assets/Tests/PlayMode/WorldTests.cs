@@ -199,6 +199,36 @@ namespace Punchy.Tests
             yield return TestSceneSetup.Seconds(1f);
         }
 
+        /// <summary>
+        /// W-126: flora placement cost, measured only (no limit): the managed Place over 3 squares of 160 m round biome spots, best
+        /// of three. Baseline on main acd0cad5 is in the W-126 report; row 1 must stay within +10%.
+        /// </summary>
+        [UnityTest, Order(40)]
+        public IEnumerator Flora_PlacementCost()
+        {
+            var total = 0f;
+            var line = "";
+            foreach (var biome in new[] { "Sonoran", "Grassland", "Mountains" })
+            {
+                var area = Game.Hook<float[]>("BiomeArea", biome);
+                if (area.Length < 4)
+                    continue;
+                Game.Hook<float[]>("FloraPlaceCost", area[2], area[3], 80f);
+                var r = Game.Hook<float[]>("FloraPlaceCost", area[2], area[3], 80f);
+                for (int pass = 0; pass < 2; pass++)   // best of three: the managed path jitters
+                {
+                    var again = Game.Hook<float[]>("FloraPlaceCost", area[2], area[3], 80f);
+                    if (again[0] < r[0])
+                        r = again;
+                }
+                total += r[0];
+                line += $"{biome} {r[0]:F0} ms ({r[1]:F0} of {r[2]:F0}); ";
+            }
+            LogWatch.Measure("flora placement cost: " + line + $"total {total:F0} ms");
+            Assert.Greater(total, 0f);
+            yield return null;
+        }
+
         /// <summary>The "(x, y, z)" after " at " in a DebugControls line.</summary>
         static Vector3 ParseAt(string line)
         {

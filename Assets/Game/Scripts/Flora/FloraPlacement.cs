@@ -1664,6 +1664,31 @@ namespace Punchy.Flora
         public static readonly SharedStatic<int> OldWalls = SharedStatic<int>.GetOrCreate<OldWallsKey>();
         class OldWallsKey { }
 
+        /// <summary>W-126: the way the sun's slopes face on the map (xz, unit): a fixed south-south-east, so "sunny" is the same everywhere.</summary>
+        static readonly float2 SunDirection = new float2(0.36f, -0.93f);
+
+        /// <summary>
+        /// W-126: how a slope faces the sun: x = +1 facing it, -1 facing away; y = how much of a slope it is (0 flat, 1 from 12 degrees),
+        /// so flat ground has no aspect. Pass the ground's normal.
+        /// </summary>
+        public static float2 SunFacing(float3 normal)
+        {
+            var slope = math.degrees(math.acos(math.saturate(normal.y)));
+            return new float2(math.dot(math.normalizesafe(normal.xz), SunDirection), math.smoothstep(2f, 12f, slope));
+        }
+
+        /// <summary>
+        /// W-126: the ground against its local average, -1 (hollow, valley floor) to +1 (crest, ridge): its height minus the mean
+        /// of four points 18 m out, over 3 m. Four extra height samples, taken once per placement attempt that needs them.
+        /// </summary>
+        public static float Relief(in TerrainSource source, float2 xz)
+        {
+            const float ring = 18f;
+            var around = source.SampleHeight(xz + new float2(ring, 0f)) + source.SampleHeight(xz - new float2(ring, 0f)) +
+                         source.SampleHeight(xz + new float2(0f, ring)) + source.SampleHeight(xz - new float2(0f, ring));
+            return math.clamp((source.SampleHeight(xz) - around * 0.25f) / 3f, -1f, 1f);
+        }
+
         /// <summary>
         /// The plant growing in one cell of a layer's grid (Model -1 if none). With <paramref name="footprint"/>, a town's
         /// building or a landmark's placed prop comes back with only what its walls need (Position.xz, Yaw, Scale, Model,
