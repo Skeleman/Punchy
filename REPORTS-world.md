@@ -3550,3 +3550,17 @@ Built in the player tree, not the one the card names (the world tree's gitignore
   **Cost:** redraw 7-47 casters + terrain, CPU 0.84-1.47 ms total over 4 frames (worst frame 0.19-0.41 ms), GPU 0.03-0.04 ms (own timer; a few 2.5-5 ms readings look like timer stalls). Same-spot A/B (tower 300 m, 300 frames each, twice): editor GPU frame time none 0.11/0.06, old 0.07/0.09, new 0.06/0.09 ms: noise-level, so no measurable cost. **Memory 16 MB** (2 x 2048^2 x 2 B, double-buffered so receivers never read a half-drawn map), not the card's ~8 MB.
   **Allocation:** 0 B over 600 WideShadow.LateUpdate calls, including one redraw (GC.GetAllocatedBytesForCurrentThread round each call). Only the redraw log string allocates, once per redraw.
   **Risks / to decide:** shared shader edits (TerrainSurface, Flora, Water: include + receiver line each); two landmark Cast lines (SaltTower, SunkenTemple) that W-128 will merge around; large buildings not cast (town code is W-128's); 16 MB vs 8 MB.
+
+## W-128 (playtest fixes: caves, fishing villages, inn, landmark polish; tree Punchy-release, branch world/fixes-1107)
+
+- **Row 1 DONE (verified)** (cdc3e2e9, world/fixes-1107):
+  - **Chamber door (-goto -1134,62.2,1193):** the door box and flare left a lip in the doorway. Before `walk STOPPED ... 8.1 m to go`; after `DebugControls: walk ARRIVED at (-1133.8, 62.3, 1188.2), 0.3 m to go, 0 legs left` (re-run after the seam change: same). All 7 rooms of that cave ARRIVED.
+  - **Mouth seam, all entrances:** the walls' skin now follows the terrain mesh's own LOD0 height (`TerrainSource.MeshHeight`), and the mesh cut samples `MeshCutDepth` 0.15 m instead of 0.35 (placement and creatures keep `MouthCutDepth`, so baking is unchanged). `CaveSystem.WallReach` 2.5 -> 3.5: the skin was culled under part of cave 22's cut, which showed sky through a hole above the mouth (the cut needs 2.73 m reach even at the old depth, 3.29 m at the new; measured over all 28 mouths). Cost: +10% cave-chunk triangles at cave 22 (18284 -> 20168 over 6 chunks).
+  - **Seam gap, before -> after** (edge = terrain edge height over the skin where the cut ends, mean |gap| / max; poke = skin showing through kept terrain, from a probe that rebuilds both fields):
+    - cave 22 (card spot 1597,109.9,1060): edge 0.237 / 0.684 m -> 0.071 / 0.384 m; poke 588 pts, max 0.329 m -> 0.
+    - cave 9 (-1323,98,1395): 0.144 / 0.724 -> 0.058 / 0.556 m; poke 684 pts, max 0.385 -> 0.
+    - cave 17 (-1360,83,1091): 0.306 / 1.087 -> 0.093 / 0.663 m; poke 610 pts, max 0.361 -> 0.
+    - cave 19 (-1120,77,1229): 0.119 / 0.714 -> 0.035 / 0.164 m; poke 694 pts, max 0.357 -> 0.
+  - **Shots (T-1 tool, cave 22, noon):** before `seam22-front ... mean 0.52, near-black 0.00, near-white 0.00, sky 0.18 ... good`, `seam22-side ... mean 0.43 ... sky 0.10 ... good`; after `seam22-front mean 0.41 ... good`, `seam22-side mean 0.35 ... good`, `speck-close mean 0.37, near-black 0.03 ... good`, `speck-mid mean 0.48 ... good`. Grey skin patches on the ground are gone; no sky hole above the mouth. Contact sheets in the W-128 agent's scratchpad (shots/w128/seam-before, seam-after2).
+  - **Pins:** Landmarks_V3 112 A955AFE0, Fauna_Fingerprint B15790ED (unchanged).
+  - **Risks:** the remaining max edge steps (0.4-0.66 m) are single points on steep cliff faces; WallReach grows every cave chunk's skin a little (hidden under the terrain).
