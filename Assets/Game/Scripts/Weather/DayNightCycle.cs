@@ -51,10 +51,12 @@ namespace Punchy.Weather
         [Tooltip("How far the blue moon's path tilts from the sun's (degrees), so it rides higher or lower than the big moon.")]
         [Range(0f, 40f)] public float BlueMoonTilt = 18f;
         [Tooltip("The blue moon's faint light at night (added to the ambient when it's up and full).")]
-        public Color BlueMoonLight = new Color(0.012f, 0.022f, 0.05f);
+        public Color BlueMoonLight = new Color(0.004f, 0.011f, 0.06f);
         [Tooltip("The blue moon's own light when it's up and full (linear, x its glow): a second moonlight from its " +
-                 "direction, added on top of the big moon's, much stronger and strongly blue (feedback 11-08 item 10).")]
-        public Color BlueMoonLamp = new Color(0.1f, 0.3f, 1.2f);
+                 "direction, added on top of the big moon's, much stronger and strongly blue (feedback 11-08 item 10). " +
+                 "Deep blue near 0x0000FF (item 35), with a trace of green so it isn't a flat primary, and brighter than " +
+                 "the old sky blue's blue channel to keep about the same apparent strength.")]
+        public Color BlueMoonLamp = new Color(0.017f, 0.057f, 1.9f);
         [Tooltip("Whole days since the start (counted as midnight passes). With the time of day it gives the moon's phase.")]
         public int Day;
 

@@ -244,7 +244,7 @@ namespace Punchy.Ambience
             if (cut)
                 forestFlames.RemoveRange(MaxForestFlames, forestFlames.Count - MaxForestFlames);
             // Where the near flames really end: the last one kept when the cap cut the list, else the whole range.
-            nearReach = cut ? math.max(Vector3.Distance(forestFlames[forestFlames.Count - 1].at, eye), 10f) : float.MaxValue;
+            nearReach = Punchy.Settings.LightBudget.CappedReach(float.MaxValue, cut ? Vector3.Distance(forestFlames[forestFlames.Count - 1].at, eye) : float.MaxValue);
             LastForestLog = $"{burningTrees.Count} trees, {forestFlames.Count} flames, near reach {(cut ? nearReach : range):F0} of {range:F0} m{(cut ? " (capped)" : "")}";
             // (Logged when the cap starts or stops cutting, or the hand-off moves by 10 m: where near meets far.)
             var shown = cut ? nearReach : range;
