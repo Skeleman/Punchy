@@ -210,6 +210,25 @@ namespace Punchy.Settings
         /// inside 80 m of a player (A-54), something 10x its size inside 800 m.</summary>
         public const float CreatureThinkPixels = 17.5f;
 
+        /// <summary>
+        /// Ground detail (R-2, GroundDetailSystem): how far grass and pebbles draw and where grass starts thinning, by
+        /// how big one looks rather than by fixed distances. Sizes in m, boundaries in reference pixels at Detail 1, tuned
+        /// so the 60 degree view gets the old ranges (grass 60 m, thinning from 20 m, pebbles 45 m, x Detail).
+        /// </summary>
+        public const float GrassSize = 0.6f, PebbleSize = 0.2f, GrassEndPixels = 9.353f, GrassFullPixels = 28.06f, PebbleEndPixels = 4.157f;
+        /// <summary>The most a narrow view may stretch ground detail: tiles are built round the camera, so a zoom
+        /// mustn't ask for a much bigger area.</summary>
+        const float GroundMaxStretch = 1.5f;
+
+        /// <summary>How far something this small keeps this many reference pixels at the current view (Detail included),
+        /// for detail that fades continuously, with no tiers to hold (<see cref="SetView"/> first).</summary>
+        public static float GroundReach(float size, float pixels)
+        {
+            var view = Current.Data;
+            var perMetre = math.min(view.PixelsPerMetre, PixelsPerMetreAt(ReferenceFov) * GroundMaxStretch);
+            return Reach(size, pixels / math.max(view.Detail, 0.1f), perMetre);
+        }
+
         /// <summary>What a flora model is, for its rule (refactor 3.5c, from FloraModel.Static and the form).</summary>
         public enum FloraClass : byte { Tree, Plant, Rock, Debris, Structure }
 
