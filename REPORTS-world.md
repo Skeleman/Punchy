@@ -3386,3 +3386,6 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
 - Climb over the forest at (1740, 3355), straight down, camera 60 / 120 / 200 / 310 m above the ground. Before: the grove under the camera was gone at 310 m while the trees round it showed. After: the grove is there at every height.
 - GPU, alternating new/old, 3 runs each, windowed 1920x1080, High, uncapped. Mean new minus old (ms): town-near -0.11, town-near2 -0.45, town-far -0.07, forest-near -0.01, forest-near2 +0.29, forest-far +0.27. These are inside the spread (single runs vary by up to 1.3 ms; the other two lanes' editors were running on the machine), so no worse that I can measure.
 - Shots: PunchyMilestones/W-124/r3/climb-310m.png (left before, right after), full series in climbbase/climbnew, A/B logs in abnew1-3/abold1-3.
+
+## W-124 row 1 - item 25: closed, not a bug (mid-range shadow aliasing, per Zach)
+- Zach (through the supervisor): what he saw was aliasing in the mid-range shadows, which he took for a missing mesh. No change, no commit. This replaces the BLOCKED entry above.
