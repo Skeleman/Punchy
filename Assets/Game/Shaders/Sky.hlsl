@@ -31,7 +31,7 @@ float4 _PunchyUnderwaterSurface; // under water, x the surface over the lens (m)
 
 float3 _PunchySunDirection;    // towards the sun
 float3 _PunchyMoonDirection;   // towards the moon
-float _PunchySkyOff;           // test only (-skyoff n, to price the sky's parts): 1 no cloud march, 2 no far clouds, 4 no sky colour, 8 no weather volumes, 16 old even steps, 32 steps-per-pixel overlay
+float _PunchySkyOff;           // test only (-skyoff n, to price the sky's parts): 1 no cloud march, 2 no far clouds, 4 no sky colour, 8 no weather volumes, 16 old even steps, 32 steps-per-pixel overlay, 64 always four sun samples
 float4 _PunchyMoonPhase;       // phase (0 new, 0.5 full), lit share
 float3 _PunchyBlueMoon;        // towards the second, blue moon
 static const float PunchyBlueMoonRadius = 0.22;    // radians (about 25 degrees across): 6.5x its v0.11.0 size, a sister planet (Zach, #34)
@@ -376,6 +376,7 @@ half3 PunchyVolumetricClouds(half3 background, float3 dir, float2 screenPos)
     int emptyRun = 0;
     bool strode = false, farStrode = false;   // the last step was a thin (in the layer) or an empty-air stride
     bool stride = ((uint)_PunchySkyOff & 16u) == 0;
+    bool allSunSamples = ((uint)_PunchySkyOff & 64u) != 0;
     int stepsTaken = 0;
     [loop]
     for (int i = 0; i < maxSteps && t < t1; i++)
@@ -437,13 +438,17 @@ half3 PunchyVolumetricClouds(half3 background, float3 dir, float2 screenPos)
                 firstHit = t;
 
             // Light reaching this point: how much cloud lies between it and the sun (or moon).
-            float opticalDepth = 0;
-            [unroll]
-            for (int j = 1; j <= 4; j++)
-            {
-                float3 q = p + lightDir * (j * j * 90.0);
-                opticalDepth += PunchyCloudDensityAt(q, 0) * (2 * j - 1) * 90.0;
-            }
+            // Four samples up to 3 km, three by 6 km, two past 11 km: far away a step is a few pixels of soft shading, and the
+            // nearest sample's and the third's weights merge into their neighbours (fading, so no line shows where the count
+            // changes). The weights always sum to 1440 m. (-skyoff 64: always four.)
+            float mergeFirst = allSunSamples ? 0 : smoothstep(3000, 6000, t);
+            float mergeThird = allSunSamples ? 0 : smoothstep(7000, 11000, t);
+            float opticalDepth = PunchyCloudDensityAt(p + lightDir * 360.0, 0) * (270.0 + 90.0 * mergeFirst + 225.0 * mergeThird)
+                               + PunchyCloudDensityAt(p + lightDir * 1440.0, 0) * (630.0 + 225.0 * mergeThird);
+            [branch] if (mergeFirst < 1)
+                opticalDepth += PunchyCloudDensityAt(p + lightDir * 90.0, 0) * 90.0 * (1 - mergeFirst);
+            [branch] if (mergeThird < 1)
+                opticalDepth += PunchyCloudDensityAt(p + lightDir * 810.0, 0) * 450.0 * (1 - mergeThird);
             float beer = exp(-opticalDepth * PUNCHY_CLOUD_SIGMA);
             float powder = 1 - exp(-density * 6);   // edges facing the light stay a touch darker
             // Sunlight is far brighter than skylight: sunlit tops glare white, shaded bellies go grey.
