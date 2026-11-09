@@ -121,3 +121,9 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - W-125 final: rows 1-4 pushed (water/round3 a982f73e: lava with gold kept behind _GoldLiquid, per-fluid look, swell from weather wind, bubbles/specks). Row 5 (item 38 light shafts, fog darker with depth) committed LOCAL ONLY in the release tree, 696e7ee0: measure GPU per quality, run the suite (not run for any row), then push. Merge-tree: clean vs lights/manager; one Sky.shader conflict vs sky/cost (same early-out one as #209). Details in REPORTS-water.
 - W-124 final: row 1 closed (not a bug); rows 2-3 pushed (flora/round3 7a78a5ad: stems rooted via flutter by height; cull uses 3D distance, no hole under a high camera). Row 4 (items 27-28: bark grain, less wet gloss) PARKED uncommitted in the world tree's Flora.shader, unverified: re-shoot rain in sun and a trunk close-up, A/B GPU, commit, push. Suite not run this card. Details in REPORTS-world.
 - All three round-3 lanes stopped; no editors left open. Owed by the next supervisor: the suite on each branch, the parked work above, then PRs and Playtest5.
+
+## Main account supervises again, 2026-11-09 (Zach)
+- Zach: this session supervises and merges; feature freeze lifted; profiler only through BENCH-QUEUE.md (other account). Zach will ask the previous supervisor for its handoff.
+- Playtest9 (player tree Builds/Playtest9, local test/playtest-1110 821a9752) holds every pending branch.
+- Merging now (suite on candidate main+5 = 2103139f): lights/round3, detail/four-rules (R-2), sky/lowres (R-1; job 36 laptop numbers still to come), fix/bloom-clamp, grass/fields.
+- Held for Zach's Playtest9 notes: water/round3 (last commit, shafts, unbuilt by the lane; Sky.hlsl/Sky.shader conflict with sky/lowres, resolved in test/playtest-1110) and flora/round3 (bark row parked unverified).
