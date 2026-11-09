@@ -3389,3 +3389,14 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
 
 ## W-124 row 1 - item 25: closed, not a bug (mid-range shadow aliasing, per Zach)
 - Zach (through the supervisor): what he saw was aliasing in the mid-range shadows, which he took for a missing mesh. No change, no commit. This replaces the BLOCKED entry above.
+
+## W-124 row 4 - items 27-28, wet bark and leaves, bark grain: PARKED, UNVERIFIED (uncommitted in the world tree)
+- Stopped on the supervisor's wrap-up call. The change is uncommitted in the world tree on flora/round3 (Flora.shader only, +40/-3; it builds with no shader errors). Nothing of it is pushed.
+- What it does:
+  - A `living` flag goes from vertex to fragment: 1 on animated models, 0 under FLORA_STATIC. Bark is part 0 on a living plant that isn't built, rock-tinted, timber or strata, so rocks, logs and buildings are unchanged.
+  - On bark the rock relief texture drops to 35%, which was the "lumpy clay" look.
+  - New procedural bark grain: 10-16 furrows round the plant's own up axis, with no seam, wandering with height. Plates crack across now and then and there are fine fibres. The normal leans with the furrow slope. It fades out by size on screen and by 60 m.
+  - Wet: bark darkens to 0.5 (was 0.62), leaves to 0.7 (was 0.82). Wet gloss on bark and leaves goes from 0.5 to 0.07 and from a sharp highlight (power 60) to a broad sheen (power 10). Wet stone and planks keep their old gloss.
+- Check so far: dry/rain shots of an oak, a pine and a trunk on the new build and the row 2 build (PunchyMilestones/W-124/r4/new, old; sheet-old-top-new-bottom.png). Rain came in overcast, so the sun highlight the fix targets isn't lit in them. Grain is faintly visible on the dry trunk. The trunk close-up framed from 5 m, not 2.5 m. Not judged done.
+- Left to do: re-shoot rain with sun breaks (or with -time chosen for a lit rain cell), a true 2-3 m trunk close-up (Oak #1 at 1737.4, 20.6, 3354.6), and an A/B for GPU cost. Then commit, push, and run the suite (scripts/run-playmode-tests.sh, 14/14 with pins Landmarks_V3 112 A955AFE0 and Fauna_Fingerprint F0EF4BD5). The suite was not run this card.
+- No editor was opened this card (batch-mode builds only, all exited). Untracked probes are back in Assets/Temp/Editor.
