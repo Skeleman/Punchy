@@ -67,6 +67,34 @@ namespace Punchy.Terrain
         public string Style = "";
     }
 
+    /// <summary>W-127: where a settlement's street light stands.</summary>
+    public enum FixtureSpot : byte
+    {
+        /// <summary>Beside a building's door, out on its street side.</summary>
+        Door,
+        /// <summary>At the start of a town street, on one side or the other.</summary>
+        Post,
+        /// <summary>Beside a fishing village dock's land end (LandmarkType.Fixtures).</summary>
+        Pier
+    }
+
+    /// <summary>
+    /// W-127: one row of a folk's street-light table (SettlementLayout.Fixtures, LandmarkType.Fixtures): which light
+    /// stands at which kind of spot, how often, and in which biomes. Each spot rolls once and takes the first row (by
+    /// summed chance) that matches it, so a table reads as "lanterns at most doors, braziers in the cold".
+    /// </summary>
+    [System.Serializable]
+    public class SettlementFixture
+    {
+        [Tooltip("The light (a Kit Building species with Kit Shape Fixture, in the Tree layer).")]
+        public Punchy.Flora.FloraSpecies Species;
+        public FixtureSpot Spot;
+        [Tooltip("Of the spots of this kind, how many take this light.")]
+        [Range(0f, 1f)] public float Chance = 0.5f;
+        [Tooltip("If set, only where the ground's main biome is one of these. Empty = anywhere.")]
+        public List<BiomeDefinition> OnlyIn = new List<BiomeDefinition>();
+    }
+
     /// <summary>
     /// The plan of a settlement landmark: its street pattern, plot sizes for its folk, and what goes on the plots.
     /// SettlementBaking lays it out from the landmark's seed; TerrainSource levels plots and streets and paints the
@@ -135,5 +163,7 @@ namespace Punchy.Terrain
                  "seeded per settlement after its plots are laid out, so plots and landmarks never move (W-95, #69).")]
         [Range(0f, 1f)] public float HouseStyleChance;
         public List<SettlementBuilding> Buildings = new List<SettlementBuilding>();
+        [Tooltip("W-127: the street lights this folk puts by doors and along streets (Door and Post rows), lit after dark.")]
+        public List<SettlementFixture> Fixtures = new List<SettlementFixture>();
     }
 }

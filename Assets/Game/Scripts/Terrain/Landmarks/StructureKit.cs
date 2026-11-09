@@ -96,7 +96,30 @@ namespace Punchy.Terrain
         /// <summary>W-122: a plank walk across from hut to hut (along X), or out to the bank (along -Z), of boardwalk pieces.</summary>
         MarshCross,
         /// <summary>W-122: the marsh folk's walk from the huts out to the bank (along -Z), ending in a step down.</summary>
-        MarshWalk
+        MarshWalk,
+        /// <summary>W-127: a street light (the species' Fixture Style) that a settlement puts by doors, along streets and
+        /// at piers (SettlementLayout.Fixtures, LandmarkType.Fixtures), lit after dark.</summary>
+        Fixture
+    }
+
+    /// <summary>
+    /// W-127: what a Fixture kit species builds. Its light's colour and reach follow from it (FloraPlacement.GlowLight);
+    /// which folk and biomes use which is data (the fixture tables). A byte, append only.
+    /// </summary>
+    public enum FixtureStyle : byte
+    {
+        /// <summary>A post with an arm and a hanging lantern.</summary>
+        Lantern,
+        /// <summary>A waist-high stub of wall by a path with a lamp on a bracket.</summary>
+        Sconce,
+        /// <summary>An iron fire bowl on three legs, its coals glowing.</summary>
+        Brazier,
+        /// <summary>A tall stand with a ring of candles.</summary>
+        Candelabra,
+        /// <summary>A standing stone with a glowing rune cut in it.</summary>
+        Rune,
+        /// <summary>A pier post hung with a fish-oil lamp, a net and a float.</summary>
+        PierLamp
     }
 
     /// <summary>The small things a sea folk settlement leaves on the lake bed (#37), picked by weight from SeaDetails.</summary>
@@ -1502,6 +1525,107 @@ namespace Punchy.Terrain
         /// blocks, two or three glowing rune bands round it, a glowing pearl on top, a shell or two at its foot and,
         /// now and then, an anemone or a curl of kelp. A ring of them lights the spire's square at dusk.
         /// </summary>
+        /// <summary>
+        /// W-127: a street light of <paramref name="style"/>, standing at the origin, its lit part about
+        /// <see cref="FixtureLightHeight"/> up (where its glow comes from). Every choice comes from the seed.
+        /// </summary>
+        public static List<KitPart> Fixture(uint seed, CultureTrim t, FixtureStyle style)
+        {
+            var parts = new List<KitPart>();
+            var rng = new System.Random((int)(Scramble(seed ^ 0xF1C7u) & 0x7FFFFFFF));
+            float R() => (float)rng.NextDouble();
+            var lean = (R() - 0.5f) * 3f;
+            switch (style)
+            {
+                case FixtureStyle.Lantern:
+                {
+                    var h = 2.3f + R() * 0.4f;
+                    Add(parts, KitPiece.Trim, KitMaterial.Stone, new Vector3(0f, 0.12f, 0f), new Vector3(0.4f, 0.24f, 0.4f), R() * 90f, false);
+                    Add(parts, KitPiece.Column, KitMaterial.Wood, new Vector3(0f, h * 0.5f, 0f), new Vector3(0.14f, h, 0.14f), 0f, true, lean);
+                    Add(parts, KitPiece.Beam, KitMaterial.Wood, new Vector3(0.28f, h - 0.1f, 0f), new Vector3(0.6f, 0.08f, 0.08f), 0f, false);
+                    Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(0.5f, h - 0.24f, 0f), new Vector3(0.3f, 0.06f, 0.3f), 45f, false);
+                    Add(parts, KitPiece.Window, KitMaterial.Lamp, new Vector3(0.5f, h - 0.44f, 0f), new Vector3(0.24f, 0.32f, 0.24f), 0f, false);
+                    break;
+                }
+                case FixtureStyle.Sconce:
+                {
+                    var h = 1.5f + R() * 0.3f;
+                    Add(parts, KitPiece.Wall, KitMaterial.Wall, new Vector3(0f, h * 0.5f, 0f), new Vector3(0.7f, h, 0.35f), 0f, true);
+                    Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(0f, h + 0.05f, 0f), new Vector3(0.8f, 0.1f, 0.45f), 0f, false);
+                    Add(parts, KitPiece.Beam, KitMaterial.Trim, new Vector3(0f, h - 0.15f, 0.3f), new Vector3(0.05f, 0.05f, 0.3f), 0f, false);
+                    Add(parts, KitPiece.Window, KitMaterial.Lamp, new Vector3(0f, h - 0.32f, 0.42f), new Vector3(0.2f, 0.28f, 0.2f), 0f, false);
+                    break;
+                }
+                case FixtureStyle.Brazier:
+                {
+                    for (int k = 0; k < 3; k++)
+                    {
+                        var a = k * 120f + R() * 10f;
+                        Add(parts, KitPiece.Column, KitMaterial.Trim, Turn(a, new Vector3(0f, 0.5f, 0.28f)), new Vector3(0.06f, 1.05f, 0.06f), a, false, -14f);
+                    }
+                    Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(0f, 1.02f, 0f), new Vector3(0.8f, 0.22f, 0.8f), R() * 90f, true);
+                    Add(parts, KitPiece.Window, KitMaterial.Lamp, new Vector3(0f, 1.16f, 0f), new Vector3(0.62f, 0.14f, 0.62f), R() * 90f, false);
+                    for (int k = 0, n = 2 + rng.Next(2); k < n; k++)
+                        Add(parts, KitPiece.Trim, KitMaterial.Wood, new Vector3((R() - 0.5f) * 0.3f, 1.24f, (R() - 0.5f) * 0.3f), new Vector3(0.08f, 0.08f, 0.5f), R() * 180f, false, (R() - 0.5f) * 30f);
+                    break;
+                }
+                case FixtureStyle.Candelabra:
+                {
+                    var h = 1.9f + R() * 0.3f;
+                    Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(0f, 0.06f, 0f), new Vector3(0.5f, 0.12f, 0.5f), 45f, false);
+                    Add(parts, KitPiece.Column, KitMaterial.Trim, new Vector3(0f, h * 0.5f, 0f), new Vector3(0.08f, h, 0.08f), 0f, true);
+                    var arms = 3 + rng.Next(3);
+                    for (int k = 0; k < arms; k++)
+                    {
+                        var a = k * 360f / arms + R() * 8f;
+                        Add(parts, KitPiece.Beam, KitMaterial.Trim, Turn(a, new Vector3(0f, h - 0.1f, 0.2f)), new Vector3(0.04f, 0.04f, 0.4f), a, false);
+                        Add(parts, KitPiece.Window, KitMaterial.Lamp, Turn(a, new Vector3(0f, h + 0.02f, 0.38f)), new Vector3(0.07f, 0.2f, 0.07f), a, false);
+                    }
+                    Add(parts, KitPiece.Window, KitMaterial.Lamp, new Vector3(0f, h + 0.12f, 0f), new Vector3(0.08f, 0.24f, 0.08f), 0f, false);
+                    break;
+                }
+                case FixtureStyle.Rune:
+                {
+                    var h = 1.3f + R() * 0.5f;
+                    Add(parts, KitPiece.Rubble, KitMaterial.Stone, new Vector3(0f, h * 0.5f, 0f), new Vector3(0.6f, h, 0.4f), R() * 360f, true, lean);
+                    Add(parts, KitPiece.Window, KitMaterial.Rune, new Vector3(0f, h * 0.62f, 0.19f), new Vector3(0.22f, 0.4f, 0.06f), 0f, false, lean);
+                    Add(parts, KitPiece.Window, KitMaterial.Rune, new Vector3(0f, h * 0.62f, -0.19f), new Vector3(0.22f, 0.4f, 0.06f), 0f, false, lean);
+                    break;
+                }
+                case FixtureStyle.PierLamp:
+                {
+                    // A tarred pier post, a crossbar with the oil lamp off it, a net and a float hung to dry.
+                    var h = 2.6f + R() * 0.4f;
+                    Add(parts, KitPiece.Column, KitMaterial.Wood, new Vector3(0f, h * 0.5f, 0f), new Vector3(0.2f, h, 0.2f), 0f, true, lean);
+                    Add(parts, KitPiece.Beam, KitMaterial.Wood, new Vector3(0f, h - 0.15f, 0f), new Vector3(1.1f, 0.1f, 0.1f), 0f, false);
+                    Add(parts, KitPiece.Trim, KitMaterial.Net, new Vector3(0.45f, h - 0.3f, 0f), new Vector3(0.02f, 0.2f, 0.02f), 0f, false);
+                    Add(parts, KitPiece.Window, KitMaterial.Lamp, new Vector3(0.45f, h - 0.55f, 0f), new Vector3(0.22f, 0.3f, 0.22f), 0f, false, 0f, (R() - 0.5f) * 8f);
+                    Add(parts, KitPiece.Trim, KitMaterial.Net, new Vector3(-0.4f, h - 0.7f, 0f), new Vector3(0.5f, 0.9f, 0.04f), 0f, false, 0f, 6f);
+                    Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(-0.4f, h - 1.2f, 0.05f), new Vector3(0.16f, 0.16f, 0.16f), 45f, false, 45f);
+                    break;
+                }
+            }
+            return parts;
+        }
+
+        /// <summary>W-127: about where a fixture's light comes from, at scale 1 (m above its foot).</summary>
+        public const float FixtureLightHeight = 1.9f;
+
+        /// <summary>W-127: a fixture style's light (linear rgb, strength folded in) and reach (m).</summary>
+        public static Vector4 FixtureLight(FixtureStyle style)
+        {
+            var lamp = LampLight.linear;
+            switch (style)
+            {
+                case FixtureStyle.Brazier: return new Vector4(1.6f, 0.62f, 0.22f, 12f);
+                case FixtureStyle.Rune: return new Vector4(0.32f, 0.95f, 0.85f, 8f);
+                case FixtureStyle.Sconce: return new Vector4(lamp.r * 1.1f, lamp.g * 1.1f, lamp.b * 1.1f, 7f);
+                case FixtureStyle.Candelabra: return new Vector4(lamp.r * 1.2f, lamp.g * 1.2f, lamp.b * 1.2f, 8f);
+                case FixtureStyle.PierLamp: return new Vector4(lamp.r * 1.3f, lamp.g * 1.17f, lamp.b * 0.91f, 10f);
+                default: return new Vector4(lamp.r * 1.3f, lamp.g * 1.3f, lamp.b * 1.3f, 9f);
+            }
+        }
+
         public static List<KitPart> GlowStone(uint seed, CultureTrim t, float height)
         {
             var parts = new List<KitPart>();

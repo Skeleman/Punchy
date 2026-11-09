@@ -258,7 +258,8 @@ namespace Punchy.Terrain
                         var glow = ModelGlow[plant.Model];
                         if (glow.w == 0f)
                             continue;
-                        if (glow.w < 0f)
+                        var fixture = FloraPlacement.IsFixtureGlow(glow.w);
+                        if (glow.w < 0f && !fixture)
                         {
                             SpillAt.Add(new float4(plant.Position, plant.Yaw));
                             SpillModel.Add(new float2(plant.Model, plant.Scale));
@@ -267,6 +268,13 @@ namespace Punchy.Terrain
                             continue;
                         // Lit from about the middle of the plant; a bigger one reaches further.
                         var scale = math.max(plant.Scale, 0.3f);
+                        if (fixture)
+                        {
+                            // W-127: a street light, lit from its lamp, out in the street (night only, still marked).
+                            Positions.Add(new float4(plant.Position + new float3(0f, StructureKit.FixtureLightHeight * scale, 0f), 0f));
+                            Colors.Add(new float4(glow.xyz, -(FloraPlacement.FixtureGlowBase + FloraPlacement.GlowReach(glow.w) * math.sqrt(scale))));
+                            continue;
+                        }
                         Positions.Add(new float4(plant.Position + new float3(0f, 0.4f * scale, 0f), 0f));
                         Colors.Add(new float4(glow.xyz, glow.w * math.sqrt(scale)));   // negative: night only (lit windows)
                     }
@@ -316,11 +324,17 @@ namespace Punchy.Terrain
                         var glow = ModelGlow[plant.Model];
                         if (glow.w == 0f)
                             continue;
+                        // W-127: the night map holds street lights only; a lit window's lamp is indoors (its spill
+                        // panes light the street), so it no longer lights the ground through its walls from afar.
+                        var fixture = FloraPlacement.IsFixtureGlow(glow.w);
+                        if (glow.w < 0f && !fixture)
+                            continue;
                         var scale = math.max(plant.Scale, 0.3f);
-                        var reach = math.abs(glow.w) * math.sqrt(scale);
+                        var reach = FloraPlacement.GlowReach(glow.w) * math.sqrt(scale);
                         var wide = math.max(reach * 1.6f, 12f);
                         var light = glow.xyz * (reach * reach / (wide * wide) * step * step);
-                        Splat(glow.w < 0f ? Windows : Plants, plant.Position + new float3(0f, 0.4f * scale, 0f), light, wide);
+                        var lift = fixture ? StructureKit.FixtureLightHeight : 0.4f;
+                        Splat(fixture ? Windows : Plants, plant.Position + new float3(0f, lift * scale, 0f), light, wide);
                     }
                 }
             }

@@ -82,6 +82,9 @@ namespace Punchy.Flora
                 case Punchy.Terrain.KitShape.VentField: // W-120 (#37): Height is the field's spread
                     parts = Punchy.Terrain.StructureKit.VentField(seed, trim, width);
                     break;
+                case Punchy.Terrain.KitShape.Fixture:   // W-127: a street light, its look from the species' Fixture Style
+                    parts = Punchy.Terrain.StructureKit.Fixture(seed, trim, s.FixtureStyle);
+                    break;
                 case Punchy.Terrain.KitShape.ShellBuoy: // W-121 (#37): Height is the float's width; it rides the lake surface (Floats)
                     parts = Punchy.Terrain.StructureKit.ShellBuoy(seed, trim, width);
                     break;
