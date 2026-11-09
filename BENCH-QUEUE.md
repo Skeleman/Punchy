@@ -291,7 +291,7 @@ Profile builds, job 32's setup (Summit, pitch up 10, 1920x1080, `-gfx High`, `-w
   volumes). They say what's left once the march is cheaper.
 - A sunset view at the same spot, old against new, for banding at low light.
 
-## Job 35 (2026-11-08, RUNNING on the laptop; q65.sh): can the depth-normal prepass go? (render/ssao-source)
+## Job 35 (2026-11-08, REPORTED in REPORTS-profiler.md; q65.sh): can the depth-normal prepass go? (render/ssao-source)
 Job 31: the prepass was 33% of a forest frame and 22% of a town frame. Only SSAO uses it. Branch `render/ssao-source` adds
 `-ssao normals|depth|after|off` (per shot line; `normals` is today's). The desktop is CPU-limited and can't tell them
 apart. Profile build, job 31's forest and bigtown spots, 1920x1080, `-gfx High`, `-weatherseed 4`, uncapped, noon, ABBA.

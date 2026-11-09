@@ -2,6 +2,51 @@
 
 Newest first.
 
+## Job 35: can the depth-normal prepass go? (render/ssao-source 75df5e08), 2026-11-08 (q65.sh)
+Profile build, job 31's bigtown stop and dense forest spot (1740,3355,180) in one game per run, 1920x1080, `-gfx High`,
+`-weatherseed 4`, uncapped, noon. Order normals depth after off off after depth normals; the log confirms each mode
+("SsaoTest: <mode> on PC_Renderer"). GPU ms, mean of 2 rounds (rounds within 0.4 ms):
+
+| `-ssao` | bigtown | forest |
+|---|---|---|
+| normals (today) | 17.2 | 14.35 |
+| depth | 17.45 | 14.4 |
+| after | 17.4 | 14.1 |
+| off | **15.85** | **11.85** |
+
+**`depth` and `after` save nothing. Only `off` does: 1.35 ms at bigtown, 2.5 ms in the forest.**
+
+**Why: the prepass isn't SSAO's.** RenderDoc, one capture per mode at the forest (RenderDoc's serialized timings run
+about 3x the real frame; shares are what count):
+
+| mode | prepass | its time | SSAO | frame |
+|---|---|---|---|---|
+| normals | DrawDepthNormalPrepass | 14.56 | 1.82 | 44.07 |
+| depth | Draw Depth Only | 13.54 | 1.81 | 43.06 |
+| after | Draw Depth Only | 13.50 | 1.84 | 43.05 |
+| off | Draw Depth Only | 13.52 | none | 41.52 |
+
+- With SSAO off a depth-only prepass still draws the same 1255 draws at 13.5 ms (33% of the frame). `after` didn't
+  remove it either.
+- What keeps it alive: **`PC_Renderer.asset` has `m_DepthPrimingMode: 2` (Forced)**, with Forward+
+  (`m_RenderingMode: 2`). Forced depth priming lays depth down first every frame, and the opaque pass then shades only
+  the front surface. SSAO's normals ride on that prepass for 1.0 ms extra (14.56 vs 13.54). Job 31's "only SSAO uses
+  it" was wrong: I read the pass name, not the renderer setting.
+- So SSAO's real cost is about 1.8 ms (its pass) plus 1.0 ms (normals in the prepass) in RenderDoc terms, which is the
+  1.35-2.5 ms `off` saves in the timed runs.
+- **The open question is the prepass itself:** priming Forced vs Disabled. Without the prepass the opaque pass shades
+  overdraw (the forest is mostly overlapping leaves), so it could cost more than it saves. Job 31 showed DrawOpaqueObjects
+  at about 20 ms here *with* priming. Suggest a `-depthpriming off|auto|forced` test flag; then the same two spots, and
+  RenderDoc at the forest.
+
+**Look:** shots of each mode at both spots are in the laptop's `results/q65-shots/<mode>/`. At a glance `off` is a bit
+flatter under the trees and around the cobbles; normals, depth and after are hard to tell apart at a glance.
+
+Freeze watch: none in these 8 games plus 4 captures (bigtown and forest; the stalls have been at the Summit and the
+lake). The new sampler (`freezesample.sh`, every 5 s: the game's CPU time, GPU load, log growth) ran throughout.
+
+Cost: this job about $1 (laptop session 0a48ccdb); laptop total $661.
+
 ## Job 34: the cloud march's empty-air strides (sky/cost 79ffa7c9 vs main 4669aabc), 2026-11-08 (q64.sh)
 Profile builds, the Summit place facing out, pitched up 10, 1920x1080, `-gfx High`, `-weatherseed 4`, uncapped, noon,
 a fresh game per run, weather forced over the stop by the runner. Two rounds each (ABBA) unless marked x1; GPU ms:
