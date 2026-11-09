@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
@@ -74,6 +75,118 @@ namespace Punchy.Tests.PlayMode
                 Shots.Take($"clear-{view[0]}-ground", 1280, 720);
             }
             yield return null;
+        }
+
+        /// <summary>
+        /// W-126: two framed real-render shots. A forest clearing ringed by trees (found from the plan: no tree within 18 m, most within 60 m)
+        /// and a Sonoran slope facing the sun, shot from the sunny side. Spots are picked from the placement and the heights, so old and new
+        /// builds frame alike. Shots only; nothing asserted beyond the files existing.
+        /// </summary>
+        [UnityTest, Timeout(900000)]
+        public IEnumerator Habitat_FramedShots()
+        {
+            var c = System.Globalization.CultureInfo.InvariantCulture;
+            var tag = System.Environment.GetEnvironmentVariable("PUNCHY_SHOT_TAG") ?? "new";
+            const float half = 150f;
+            const int n = 75;
+            foreach (var biome in new[] { "Mountains", "FungalForest", "Temperate" })
+            {
+                var spot = Game.Hook<float[]>("FloraViewSpot", biome);
+                if (spot.Length == 0)
+                    continue;
+                var plan = Game.Hook<float[]>("FloraPlan", spot[0], spot[2], half);
+                var heights = Game.Hook<float[]>("FloraHeights", spot[0], spot[2], half, (float)n);
+                var water = Game.Hook<float[]>("FloraGroundMask", spot[0], spot[2], half, (float)n);
+                int Cell(float x, float z) => Mathf.Clamp((int)((z - (spot[2] - half)) / (2f * half) * n), 0, n - 1) * n + Mathf.Clamp((int)((x - (spot[0] - half)) / (2f * half) * n), 0, n - 1);
+                var trees = new List<Vector2>();
+                for (int i = 0; i + 3 < plan.Length; i += 4)
+                    if ((int)plan[i + 2] == 2)
+                        trees.Add(new Vector2(plan[i], plan[i + 1]));
+                var bestAt = Vector2.zero;
+                var bestRing = 0;
+                for (var x = spot[0] - 90f; x <= spot[0] + 90f; x += 10f)
+                    for (var z = spot[2] - 90f; z <= spot[2] + 90f; z += 10f)
+                    {
+                        int near = 0, ring = 0;
+                        foreach (var t in trees)
+                        {
+                            var d = Vector2.Distance(t, new Vector2(x, z));
+                            if (d < 18f) near++;
+                            if (d < 60f) ring++;
+                        }
+                        if (near == 0 && ring > bestRing && ((int)water[Cell(x, z)] & 1) == 0)
+                        {
+                            bestRing = ring;
+                            bestAt = new Vector2(x, z);
+                        }
+                    }
+                LogWatch.Measure($"clearing {biome}: best open spot at {bestAt.x:F0},{bestAt.y:F0} with {bestRing} trees within 60 m of {trees.Count}");
+                if (bestRing < 40)
+                    continue;
+                var cy = heights[Cell(bestAt.x, bestAt.y)];
+                var camAt = Vector2.zero;
+                var bestDiff = float.MaxValue;
+                for (int k = 0; k < 8; k++)
+                {
+                    var a = k * Mathf.PI / 4f;
+                    var p = bestAt + 38f * new Vector2(Mathf.Cos(a), Mathf.Sin(a));
+                    var diff = Mathf.Abs(heights[Cell(p.x, p.y)] - cy) + (((int)water[Cell(p.x, p.y)] & 1) == 1 ? 50f : 0f);
+                    if (diff < bestDiff)
+                    {
+                        bestDiff = diff;
+                        camAt = p;
+                    }
+                }
+                yield return TestSceneSetup.GoTo(bestAt.x, bestAt.y, 10f);
+                Game.RunOptions($"-camlook {camAt.x.ToString(c)},{(heights[Cell(camAt.x, camAt.y)] + 3.5f).ToString(c)},{camAt.y.ToString(c)},{bestAt.x.ToString(c)},{(cy + 6f).ToString(c)},{bestAt.y.ToString(c)}");
+                yield return TestSceneSetup.Seconds(14f);
+                Shots.Take($"framed-clearing-{biome}-{tag}", 1280, 720);
+                break;
+            }
+            {
+                var spot = Game.Hook<float[]>("FloraViewSpot", "Sonoran");
+                if (spot.Length == 0)
+                    yield break;
+                var heights = Game.Hook<float[]>("FloraHeights", spot[0], spot[2], half, (float)n);
+                var cell = 2f * half / n;
+                // A cell is a sunny face if it is 12-30 degrees and its downhill points south (toward the sun, SunDirection z < 0).
+                bool Sunny(int x, int y)
+                {
+                    if (x < 1 || y < 1 || x >= n - 1 || y >= n - 1)
+                        return false;
+                    var dx = (heights[y * n + x + 1] - heights[y * n + x - 1]) / (2f * cell);
+                    var dz = (heights[(y + 1) * n + x] - heights[(y - 1) * n + x]) / (2f * cell);
+                    var slope = Mathf.Atan(Mathf.Sqrt(dx * dx + dz * dz)) * Mathf.Rad2Deg;
+                    return slope > 12f && slope < 30f && -dz > 0.6f * Mathf.Sqrt(dx * dx + dz * dz);
+                }
+                int bx = n / 2, by = n / 2, best = -1;
+                for (int y = 8; y < n - 8; y++)
+                    for (int x = 8; x < n - 8; x++)
+                    {
+                        int count = 0;
+                        for (int dy = -6; dy <= 6; dy++)
+                            for (int dx = -6; dx <= 6; dx++)
+                                if (Sunny(x + dx, y + dy))
+                                    count++;
+                        if (count > best)
+                        {
+                            best = count;
+                            bx = x;
+                            by = y;
+                        }
+                    }
+                var tx = spot[0] - half + (bx + 0.5f) * cell;
+                var tz = spot[2] - half + (by + 0.5f) * cell;
+                var ty = heights[by * n + bx];
+                LogWatch.Measure($"slope Sonoran: sunny face at {tx:F0},{tz:F0}, {best} of 169 cells sunny");
+                var camZ = tz - 60f;
+                var camRow = Mathf.Clamp((int)((camZ - (spot[2] - half)) / (2f * half) * n), 0, n - 1);
+                var camY = Mathf.Max(ty + 25f, heights[camRow * n + bx] + 10f);
+                yield return TestSceneSetup.GoTo(tx, tz, 10f);
+                Game.RunOptions($"-camlook {tx.ToString(c)},{camY.ToString(c)},{camZ.ToString(c)},{tx.ToString(c)},{(ty + 3f).ToString(c)},{tz.ToString(c)}");
+                yield return TestSceneSetup.Seconds(14f);
+                Shots.Take($"framed-slope-Sonoran-{tag}", 1280, 720);
+            }
         }
 
         [UnityTest, Timeout(900000)]

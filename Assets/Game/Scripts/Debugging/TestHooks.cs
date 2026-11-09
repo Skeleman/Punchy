@@ -426,6 +426,19 @@ namespace Punchy.Debugging
             return list.ToArray();
         }
 
+        /// <summary>W-126: ground heights over a square as an n by n grid (row-major from the south-west corner), for framing shots.</summary>
+        public static float[] FloraHeights(float cx, float cz, float half, float n)
+        {
+            if (!Source(out var s))
+                return new float[0];
+            var count = (int)n;
+            var grid = new float[count * count];
+            for (int y = 0; y < count; y++)
+                for (int x = 0; x < count; x++)
+                    grid[y * count + x] = s.SampleHeight(new float2(cx - half + (x + 0.5f) * 2f * half / count, cz - half + (y + 0.5f) * 2f * half / count));
+            return grid;
+        }
+
         /// <summary>W-126: ground over a square as an n by n grid (row-major from the south-west corner): 0 dry, 1 water, plus 2 x the dominant biome index.</summary>
         public static float[] FloraGroundMask(float cx, float cz, float half, float n)
         {
