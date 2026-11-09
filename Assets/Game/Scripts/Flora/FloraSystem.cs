@@ -109,6 +109,10 @@ namespace Punchy.Flora
             /// <summary>Refactor 3.5c: each model's reaches (see ModelReach) and, per plant, whether it cast last frame.</summary>
             public GraphicsBuffer ReachBuffer, CastState;
             public float4[] Reach;
+            /// <summary>3.7 step 3: each model's real-time shadow reach where the cache takes over, and whether its crown
+            /// may cast through holes (see ModelShadow; FloraCull.compute's _ModelShadow).</summary>
+            public float2[] Sharp;
+            public GraphicsBuffer SharpBuffer;
             /// <summary>
             /// The draw arguments the culling shader counts instances into (structured, so D3D11 can write it: an
             /// IndirectArguments buffer can't also be Raw there), copied into Args for the draws once culled.
@@ -147,7 +151,8 @@ namespace Punchy.Flora
                 Bounds?.Release();
                 ReachBuffer?.Release();
                 CastState?.Release();
-                ReachBuffer = CastState = null;
+                SharpBuffer?.Release();
+                ReachBuffer = CastState = SharpBuffer = null;
                 Instances = Visible = Args = Counts = Regions = Bounds = null;
                 if (Material != null)
                     UnityEngine.Object.Destroy(Material);
@@ -207,6 +212,8 @@ namespace Punchy.Flora
         static readonly int CheapHolesId = Shader.PropertyToID("_FloraCheapHoles");
         static readonly int ThinId = Shader.PropertyToID("_Thin");
         static readonly int ModelReachId = Shader.PropertyToID("_ModelReach");
+        static readonly int ModelShadowId = Shader.PropertyToID("_ModelShadow");
+        static readonly int SharpId = Shader.PropertyToID("_Sharp");
         static readonly int CastStateId = Shader.PropertyToID("_FloraCastState");
         static readonly int ReachId = Shader.PropertyToID("_Reach");
         static readonly int CastHoldId = Shader.PropertyToID("_CastHold");
@@ -562,6 +569,11 @@ namespace Punchy.Flora
                 layer.Reach[m] = ModelReach(models[layer.ModelBase + m], layer);
             layer.ReachBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, bounds.Length, sizeof(float) * 4);
             layer.ReachBuffer.SetData(layer.Reach);
+            layer.Sharp = new float2[bounds.Length];
+            for (int m = 0; m < layer.ModelCount; m++)
+                layer.Sharp[m] = ModelShadow(models[layer.ModelBase + m]);
+            layer.SharpBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, bounds.Length, sizeof(float) * 2);
+            layer.SharpBuffer.SetData(layer.Sharp);
             layer.Regions = new GraphicsBuffer(GraphicsBuffer.Target.Structured, draws, sizeof(uint));
         }
 
@@ -583,6 +595,25 @@ namespace Punchy.Flora
                 rule.Geometry.Far > 0f ? size / rule.Geometry.Far : Never,
                 size / rule.Shadow);
         }
+
+        /// <summary>
+        /// 3.7 step 3: a model's shadow tier data at scale 1. x how far it keeps a real-time shadow, per reference
+        /// pixel-per-metre, where the trees layer's cache takes over past the cascades (DetailPolicy.SharpReach; 0: only
+        /// the floor, NearRange); y 0 for a solid caster, else a tree, whose crown casts with the cheap far caster's mesh:
+        /// 1 a full crown, cast whole like its near levels, 2 an open crown (OpenCrown), which also casts through holes.
+        /// </summary>
+        static float2 ModelShadow(FloraModel model)
+        {
+            var kind = model.DetailClass();
+            var rule = Punchy.Settings.DetailPolicy.FloraRule(kind);
+            var tree = kind == Punchy.Settings.DetailPolicy.FloraClass.Tree;
+            return new float2(Punchy.Settings.DetailPolicy.SharpReach(rule, model.Radius * 2f),
+                !tree ? 0f : model.Species != null && model.Species.Fullness < OpenCrown ? 2f : 1f);
+        }
+
+        /// <summary>R-3 row 3: below this Fullness a crown is open (birch-like, bare, desert trees) and its far shadow
+        /// gets gaps; fuller crowns cast whole (their holes made the far shadows glitter and swim with the sway).</summary>
+        const float OpenCrown = 0.6f;
 
         // ------------------------------------------------------------------------------------------- streaming
 
@@ -848,7 +879,7 @@ namespace Punchy.Flora
         {
             for (int m = 0; m < l.ModelCount; m++)
             {
-                var mesh = models[l.ModelBase + m].Lods[cheap ? 2 : 1];
+                var mesh = models[l.ModelBase + m].Lods[CheapModel(l, m, cheap) ? 2 : 1];
                 ref var a = ref l.ArgsData[m * Draws + 4];
                 a.indexCountPerInstance = mesh.GetIndexCount(0);
                 a.startIndex = mesh.GetIndexStart(0);
@@ -858,6 +889,10 @@ namespace Punchy.Flora
             l.Counts.SetData(l.ArgsData);
             l.CheapArgs = cheap;
         }
+
+        /// <summary>Whether this model casts with the cheap far caster's mesh: trees only since 3.7 step 3 (built things
+        /// and rocks now cast in real time further out, with their own reduced mesh); the whole layer under -oldfloralod.</summary>
+        bool CheapModel(Layer l, int m, bool cheap) => cheap && (OldLod || l.Sharp == null || l.Sharp[m].y > 0f);
 
         void Draw(Camera cam)
         {
@@ -900,9 +935,13 @@ namespace Punchy.Flora
                 Culling.SetVector(LodId, new Vector4(l.Lod1Distance, l.Lod2Distance, l.Radius, 0f));
                 // (By rule a variant's size says how far it casts, up to the sun's shadow distance; the layer's value is the old rule.)
                 var cast = s.CastShadows ? (OldLod ? math.min(s.ShadowCastDistance, shadowDistance) : shadowDistance) : 0f;
-                // W-107's shadow cache: past the near range, trees cast into the cache instead (ShadowCache.cs).
-                if (FloraShadowOptions.CachedFarShadows && l.Index == CacheLayer)
+                // W-107's shadow cache: past the real-time tier, trees cast into the cache instead (ShadowCache.cs). 3.7
+                // step 3: that tier ends by each variant's size on screen (DetailPolicy.ShadowTier), never inside the near
+                // range; under -oldfloralod at the near range, as before.
+                var tiered = FloraShadowOptions.CachedFarShadows && l.Index == CacheLayer;
+                if (tiered && OldLod)
                     cast = math.min(cast, FloraShadowOptions.NearRange);
+                Culling.SetVector(SharpId, tiered ? SharpTier(shadowDistance, 0f) : Vector4.zero);
                 // W-107's cheap far caster: past the near range, trees cast with their far level of detail.
                 var cheap = FloraShadowOptions.CheapFarCaster && l.Index == 2 && cast > 0f;
                 if (cheap != l.CheapArgs)
@@ -916,6 +955,7 @@ namespace Punchy.Flora
                 Culling.SetBuffer(cull, RegionsId, l.Regions);
                 Culling.SetBuffer(cull, BoundsId, l.Bounds);
                 Culling.SetBuffer(cull, ModelReachId, l.ReachBuffer);
+                Culling.SetBuffer(cull, ModelShadowId, l.SharpBuffer);
                 Culling.SetBuffer(cull, CastStateId, l.CastState);
                 Culling.Dispatch(cull, (l.Count + 63) / 64, 1, 1);
                 Graphics.CopyBuffer(l.Counts, l.Args);
@@ -975,7 +1015,11 @@ namespace Punchy.Flora
                     // Small props (fences, palisades, signposts...) cast none: the shadow pass's cost is per draw.
                     // (The rule's cast reach, with its hysteresis; the shadow list's change to its second level likewise.)
                     var modelCast = OldLod ? cast : math.min(cast, reachShadow * l.Reach[m].w * l.ModelMaxScale[m] * 1.18f);
-                    var modelLod0Until = OldLod ? lod0Until : cheap ? math.min(FloraShadowOptions.NearRange, modelLod1Far * 1.075f) : modelLod1Far * 1.075f;
+                    if (tiered && !OldLod)
+                        modelCast = math.min(modelCast, math.clamp(reachShadow * l.Sharp[m].x * l.ModelMaxScale[m],
+                            FloraShadowOptions.NearRange, math.max(shadowDistance, FloraShadowOptions.NearRange)) * 1.18f);
+                    var cheapModel = CheapModel(l, m, cheap);
+                    var modelLod0Until = OldLod ? lod0Until : cheapModel ? math.min(FloraShadowOptions.NearRange, modelLod1Far * 1.075f) : modelLod1Far * 1.075f;
                     if (modelCast <= 0f || !model.CastsShadows)
                         continue;
                     var castReach = modelCast + reach + ShadowMargin;
@@ -994,7 +1038,7 @@ namespace Punchy.Flora
                             shadowCastingMode = ShadowCastingMode.ShadowsOnly,
                             receiveShadows = false
                         };
-                        Graphics.RenderMeshIndirect(rp, model.Lods[lod == 1 && cheap ? 2 : lod], l.Args, 1, m * Draws + 3 + lod);
+                        Graphics.RenderMeshIndirect(rp, model.Lods[lod == 1 && cheapModel ? 2 : lod], l.Args, 1, m * Draws + 3 + lod);
                     }
                 }
             }

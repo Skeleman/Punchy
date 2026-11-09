@@ -55,6 +55,15 @@ namespace Punchy.Flora
         GraphicsBuffer cacheFor;
         int cacheForCount;
 
+        /// <summary>FloraCull.compute's _Sharp (3.7 step 3): the real-time tier's floor and ceiling, and for the cache's
+        /// cull how far inside a tree's real-time reach the cache starts (0: the camera's cull).</summary>
+        static Vector4 SharpTier(float shadowDistance, float cacheInside)
+            => new Vector4(FloraShadowOptions.NearRange, math.max(shadowDistance, FloraShadowOptions.NearRange), cacheInside, 0f);
+
+        static float SunShadowDistance()
+            => GraphicsSettings.currentRenderPipeline is UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset urp
+                ? urp.shadowDistance : QualitySettings.shadowDistance;
+
         void DrawShadowCache(Camera cam, float3 eye)
         {
             if (!FloraShadowOptions.CachedFarShadows)
@@ -181,14 +190,17 @@ namespace Punchy.Flora
             // shadows end, less the CacheMove the camera can drift before the next redraw and 2 m of overlap: otherwise
             // the trees between the near range round the laid spot and round the camera cast nowhere (a gap that grows
             // as the near range shrinks). The overlap can't double a shadow: the receiver leaves real-time shade alone.
-            var cacheFrom = math.max(0f, FloraShadowOptions.NearRange - FloraShadowOptions.CacheMove - 2f);
-            Culling.SetVector(ShadowId, new Vector4(FloraShadowOptions.CacheRange, 0f, 1e6f, cacheFrom));
+            // (3.7 step 3: each tree from its own real-time reach, by its size on screen, as in the camera's cull; under
+            // -oldfloralod every tree's is the near range.)
+            Culling.SetVector(ShadowId, new Vector4(FloraShadowOptions.CacheRange, 0f, 1e6f, 0f));
+            Culling.SetVector(SharpId, SharpTier(SunShadowDistance(), FloraShadowOptions.CacheMove + 2f));
             Culling.SetBuffer(cull, InstancesId, l.Instances);
             Culling.SetBuffer(cull, VisibleId, cacheVisible);
             Culling.SetBuffer(cull, ArgsId, cacheCounts);
             Culling.SetBuffer(cull, RegionsId, l.Regions);
             Culling.SetBuffer(cull, BoundsId, l.Bounds);
             Culling.SetBuffer(cull, ModelReachId, l.ReachBuffer);
+            Culling.SetBuffer(cull, ModelShadowId, l.SharpBuffer);
             Culling.SetBuffer(cull, CastStateId, l.CastState);
             Culling.SetFloat(CastHoldId, 0f);   // the cache is laid now and then: no last frame to hold to
             Culling.Dispatch(cull, (l.Count + 63) / 64, 1, 1);

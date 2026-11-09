@@ -599,8 +599,9 @@ Shader "Punchy/Flora"
 
             float3 _LightDirection;
             float3 _LightPosition;
-            // W-107's cheap far caster: xyz the camera, w the near range (0: off). Past it the far level of detail
-            // casts as a solid card, so world-space noise cuts holes in it for a dappled canopy shadow.
+            // W-107's cheap far caster: xyz the camera, w the near range (0: off). Past it an open crown's far level of
+            // detail gets holes for a dappled shadow (R-3: in the plant's own frame, so they ride the sway instead of
+            // swimming through it, and only open crowns: full ones cast whole, as their near levels do).
             float4 _FloraCheapHoles;
 
             struct Varyings
@@ -653,8 +654,9 @@ Shader "Punchy/Flora"
                 // LOD keeps casting with its outgoing level until the change is complete.
                 clip(input.fade >= 0 && input.fade < 1 ? -1 : 1);
                 FloraMossClip(input.moss);
-                if (_FloraCheapHoles.w > 0 && distance(input.positionWS.xz, _FloraCheapHoles.xz) > _FloraCheapHoles.w)
-                    clip(HoleNoise(input.positionWS) - 0.45);
+                // (Only open crowns: solid casters come with a negative fade, 3.7 step 3, full crowns with 3 to 4.)
+                if (input.fade > 0 && input.fade < 2.5 && _FloraCheapHoles.w > 0 && distance(input.positionWS.xz, _FloraCheapHoles.xz) > _FloraCheapHoles.w)
+                    clip(HoleNoise(input.moss.yzw) - 0.45);
                 return 0;
             }
             ENDHLSL

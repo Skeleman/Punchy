@@ -152,12 +152,37 @@ namespace Punchy.Settings
         public struct Rule
         {
             public Thresholds Geometry, Animation;
-            /// <summary>Casts a real-time shadow while bigger than this (reference pixels).</summary>
+            /// <summary>Casts a shadow while bigger than this (reference pixels); below it, none.</summary>
             public float Shadow;
+            /// <summary>
+            /// Shadow tiers (3.7 step 3): where a cached sun-shadow map stands in past the real-time cascades (the trees
+            /// layer's far cache), the real-time tier holds only while bigger than this; between it and Shadow the cached
+            /// map. float.MaxValue: never past the cascades' own floor (FloraShadowOptions.NearRange). Without a cached
+            /// map (creatures, small flora), Shadow alone decides.
+            /// </summary>
+            public float SharpShadow;
             /// <summary>How much a fast mover counts as bigger for Animation only (its motion shows before its shape
             /// does): pixels x (1 + Activity x how active, 0..1).</summary>
             public float Activity;
         }
+
+        /// <summary>
+        /// The one shadow tier decision (3.7 step 3): 0 the real-time cascades, 1 the cached map, 2 none, with hysteresis
+        /// (previous -1 when first seen). Pixels as <see cref="ScreenSize"/>; shadows is the Shadows setting.
+        /// FloraCull.compute does the same per plant through <see cref="SharpReach"/>.
+        /// </summary>
+        public static int ShadowTier(float pixels, in Rule rule, float shadows, int previous)
+        {
+            var q = math.max(shadows, 0.1f);
+            // (Tier's four tiers with Far = Mid: its tier 2 can't happen, and its tier 3 is "none".)
+            var t = new Thresholds(rule.SharpShadow, rule.Shadow, rule.Shadow).Scaled(q);
+            var tier = Tier(pixels, t, previous == 2 ? 3 : previous);
+            return math.min(tier, 2);
+        }
+
+        /// <summary>A size's real-time shadow reach per reference pixel-per-metre (0: the rule has no size-based one, so
+        /// only the cascades' floor applies).</summary>
+        public static float SharpReach(in Rule rule, float size) => rule.SharpShadow >= float.MaxValue ? 0f : size / rule.SharpShadow;
 
         /// <summary>The four answers for one object, packed in a byte (geometry 2 bits, animation 2, shadow 1).</summary>
         public struct Decision
@@ -203,6 +228,7 @@ namespace Punchy.Settings
             Geometry = new Thresholds(35f, 14f, 0f),
             Animation = new Thresholds(35f, 14f, 0f),
             Shadow = 14f,
+            SharpShadow = 14f,
             Activity = 0.5f
         };
 
@@ -251,14 +277,17 @@ namespace Punchy.Settings
         {
             switch (c)
             {
-                case FloraClass.Tree: return new Rule { Geometry = new Thresholds(395f, 98f, 0f), Shadow = 14f };
-                case FloraClass.Plant: return new Rule { Geometry = new Thresholds(46f, 13f, 0f), Shadow = 45f };
+                // (SharpShadow, 3.7 step 3: a 20 m tree keeps the old 25 m real-time range at High, so a forest casts no
+                // more; only giants reach past it. Built things and big rocks reach out with their size: at High a 12 m
+                // hall casts sharp to about 40 m, past where a bush stops, and a 20 m one to the cascades' end.)
+                case FloraClass.Tree: return new Rule { Geometry = new Thresholds(395f, 98f, 0f), Shadow = 14f, SharpShadow = 1050f };
+                case FloraClass.Plant: return new Rule { Geometry = new Thresholds(46f, 13f, 0f), Shadow = 45f, SharpShadow = float.MaxValue };
                 // Rocks only change mesh, and stay to the layer's edge.
-                case FloraClass.Rock: return new Rule { Geometry = new Thresholds(120f, 32f, 0f), Shadow = 45f };
+                case FloraClass.Rock: return new Rule { Geometry = new Thresholds(120f, 32f, 0f), Shadow = 45f, SharpShadow = 400f };
                 // Logs, stumps, benches, eggs: gone once they're a few pixels.
-                case FloraClass.Debris: return new Rule { Geometry = new Thresholds(70f, 18f, 12f), Shadow = 55f };
+                case FloraClass.Debris: return new Rule { Geometry = new Thresholds(70f, 18f, 12f), Shadow = 55f, SharpShadow = float.MaxValue };
                 // Built things hold their reduced mesh far out: their outline is what shows.
-                default: return new Rule { Geometry = new Thresholds(295f, 75f, 0f), Shadow = 14f };
+                default: return new Rule { Geometry = new Thresholds(295f, 75f, 0f), Shadow = 14f, SharpShadow = 400f };
             }
         }
     }

@@ -32,6 +32,10 @@ StructuredBuffer<float3> _ModelBounds;   // radius, centre height (unscaled), th
 StructuredBuffer<uint> _Regions;         // output offset per variant × draw (3 LODs, then 2 shadow lists)
 // Per variant: how far (m per reference pixel-per-metre, at scale 1) it keeps x LOD 0, y LOD 1, z being drawn, w casting.
 StructuredBuffer<float4> _ModelReach;
+// Per variant (3.7 step 3, DetailPolicy.SharpShadow): x how far it keeps a real-time shadow where a cached map takes over
+// (m per reference pixel-per-metre at scale 1; 0: just the floor), y 0 a solid caster, 1 a tree with a full crown, 2 a
+// tree with an open crown, which alone casts through holes (FloraSystem.ModelShadow).
+StructuredBuffer<float2> _ModelShadow;
 // Per plant: 1 if it cast last frame. Left alone across uploads: a plant only reads it inside the hysteresis band.
 RWStructuredBuffer<uint> _FloraCastState;
 RWStructuredBuffer<uint2> _FloraVisible; // instance index, asuint(fade)
@@ -63,6 +67,11 @@ float _ShadowStill;
 float4 _Thin;     // x distance natural plants start thinning, y share of them left at the radius
 float4 _Reach;    // x geometry's, y shadows' reference pixels per metre at the graphics settings (x 0: the layer's distances, "-oldfloralod")
 float _CastHold;  // 1: use and update _FloraCastState (the camera's cull; not the shadow cache's)
+// 3.7 step 3, shadow tiers by on-screen size, for a layer with a cached far shadow map: x the real-time tier's floor
+// (m, FloraShadowOptions.NearRange; 0: no cached tier, _ModelShadow unused), y its ceiling (the sun's shadow distance),
+// z 0 for the camera's cull (real-time casting stops at a plant's own reach), or for the cache's cull how far inside
+// that reach the cache starts (the camera's drift before a redraw, plus overlap).
+float4 _Sharp;
 
 [numthreads(64, 1, 1)]
 void Clear(uint id : SV_DispatchThreadID)
@@ -104,6 +113,24 @@ void Cull(uint id : SV_DispatchThreadID)
         drawn = min(drawn, reach.z * _Reach.x);
         castTo = min(castTo, reach.w * _Reach.y);
     }
+    float2 tierInfo = _ModelShadow[local];
+    // Solid casters (rocks, built things, small plants) never get the far crown's holes nor its cheap mesh.
+    bool solid = _Reach.x > 0 && tierInfo.y == 0;
+    // Distance to the plant's base on the ground plane suits LOD better than to its centre (tall trees).
+    float d = length(plant.position.xz - _CameraPosition.xz);
+    if (_Sharp.x > 0)
+    {
+        // The real-time tier ends where the plant stops being big on screen (never inside the floor); past it the
+        // cached map takes over (DetailPolicy.ShadowTier).
+        float sharp = clamp(_Reach.x > 0 ? tierInfo.x * plant.scale * _Reach.y : 0, _Sharp.x, _Sharp.y);
+        if (_Sharp.z > 0)
+        {
+            if (d < sharp - _Sharp.z)
+                return;
+        }
+        else
+            castTo = min(castTo, sharp);
+    }
 
     // Plants a little off-screen still cast into the view; the camera's own lists take only the visible ones.
     bool casts = distance - radius < castTo;
@@ -126,14 +153,19 @@ void Cull(uint id : SV_DispatchThreadID)
         seen = seen && side >= -radius;
     }
 
-    // Distance to the plant's base on the ground plane suits LOD better than to its centre (tall trees).
-    float d = length(plant.position.xz - _CameraPosition.xz);
     if (d < _Shadow.w)
         return;
     if (casts)
-        // (_Shadow.z from 1e5: the shadow cache, whose trees all stay on the first list.)
-        Append(id, local, _Shadow.z >= 1e5 || d < (_Shadow.z > 0 ? min(_Shadow.z, lod1 * 1.075) : lod1 * 1.075) ? 3 : 4,
-               1 + (_ShadowStill > 0 ? smoothstep(_ShadowStill - 5, _ShadowStill + 5, d) : 0));
+    {
+        // (_Shadow.z from 1e5: the shadow cache, whose trees all stay on the first list.) A solid caster's fade is
+        // negative and a full crown's 2 higher (3 to 4): the shadow pass reads its stillness from either and cuts
+        // holes only in an open crown's (1 to 2).
+        float fade = 1 + (_ShadowStill > 0 ? smoothstep(_ShadowStill - 5, _ShadowStill + 5, d) : 0);
+        if (_Reach.x > 0 && tierInfo.y == 1)
+            fade += 2;
+        Append(id, local, _Shadow.z >= 1e5 || d < (_Shadow.z > 0 && !solid ? min(_Shadow.z, lod1 * 1.075) : lod1 * 1.075) ? 3 : 4,
+               solid ? -fade : fade);
+    }
     if (!seen)
         return;
     float keep = 1 - smoothstep(drawn * 0.88, drawn, d);
