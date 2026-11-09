@@ -170,5 +170,38 @@ namespace Punchy.Settings
         /// <summary>The simulation's (brain LOD) boundary for creatures, reference pixels: a deer thinks every frame
         /// inside 80 m of a player (A-54), something 10x its size inside 800 m.</summary>
         public const float CreatureThinkPixels = 17.5f;
+
+        /// <summary>What a flora model is, for its rule (refactor 3.5c, from FloraModel.Static and the form).</summary>
+        public enum FloraClass : byte { Tree, Plant, Rock, Debris, Structure }
+
+        /// <summary>
+        /// Flora by class (refactor 3.5c / 3.3), the size being the bounding sphere's diameter times the plant's scale.
+        /// Geometry picks the mesh (0, 1, 2) and tier 3 means not drawn at all (Far 0: always drawn); FloraCull.compute
+        /// turns these into distances per plant. Tuned at the High preset (Detail 1.5, Shadows 1.4), against the old layer
+        /// distances there (x View 1.3), on what fills a view: a 20 m conifer changes at 71 m and 286 m as it did and a
+        /// 1.3 m shrub at 39 m and 143 m; bigger and smaller ones move out and in with their size. A first pass tuned on
+        /// a 15 m tree ran about 0.5 ms slower on the GPU in a forest. See <see cref="FloraFloor"/> for small trees.
+        /// </summary>
+        /// <summary>
+        /// The nearest a class may change mesh (m at the reference view and Detail 1: x off LOD 0, y off LOD 1), whatever
+        /// its size. Trees only: a 7 m tree's reduced and far meshes are made for a distance, and by size alone it reached
+        /// them at 25 m and 100 m, where its crown read as angular blobs and then flat discs.
+        /// </summary>
+        public static float2 FloraFloor(FloraClass c) => c == FloraClass.Tree ? new float2(47f, 190f) : float2.zero;
+
+        public static Rule FloraRule(FloraClass c)
+        {
+            switch (c)
+            {
+                case FloraClass.Tree: return new Rule { Geometry = new Thresholds(395f, 98f, 0f), Shadow = 14f };
+                case FloraClass.Plant: return new Rule { Geometry = new Thresholds(46f, 13f, 0f), Shadow = 45f };
+                // Rocks only change mesh, and stay to the layer's edge.
+                case FloraClass.Rock: return new Rule { Geometry = new Thresholds(120f, 32f, 0f), Shadow = 45f };
+                // Logs, stumps, benches, eggs: gone once they're a few pixels.
+                case FloraClass.Debris: return new Rule { Geometry = new Thresholds(70f, 18f, 12f), Shadow = 55f };
+                // Built things hold their reduced mesh far out: their outline is what shows.
+                default: return new Rule { Geometry = new Thresholds(295f, 75f, 0f), Shadow = 14f };
+            }
+        }
     }
 }

@@ -444,7 +444,8 @@ namespace Punchy.Flora
 
         /// <summary>The ground colour a placed plant carries (FloraInstance.Ground): a rock's tint, or a built thing's dirt.</summary>
         static uint GroundFor(in TerrainSource source, in FloraRules rule, float2 at, float reach, float band) =>
-            (rule.Tilt > 0f || rule.BiomeRock != 0) && rule.OwnColour == 0 ? RockTint(source, at) : DirtColor(source, rule, at, reach, band);
+            (rule.Tilt > 0f || rule.BiomeRock != 0) && rule.OwnColour == 0 ? RockTint(source, at)
+            : rule.Dirt != 0 ? DirtColor(source, rule, at, reach, band) : GreenTint(source, at);
 
         /// <summary>
         /// A rock's colour where it lies (G-36): on dry ground, the biome's own rock (the surface its cliffs take, so a rock
@@ -461,6 +462,22 @@ namespace Punchy.Flora
             var cliff = source.SampleSurface(at, ground, math.normalize(new float3(1f, 0.2f, 0f)));
             var c = (uint3)math.round(math.saturate(math.lerp(cliff.Albedo, new float3(0.62f, 0.64f, 0.68f), math.saturate(flat.Snow))) * 255f);
             return c.x | (c.y << 8) | (c.z << 16) | (RockTintMark << 24);
+        }
+
+        /// <summary>
+        /// Item 13: the green a plant's leaves lean towards where it grows: the ground's own colour (V3 recolours it through
+        /// SampleSurface), with the alpha at GreenTintMark, the shader's sign for it; 0 off grassy ground. Colour only:
+        /// nothing here draws from a plant's random stream.
+        /// </summary>
+        public const uint GreenTintMark = 254u;
+        static uint GreenTint(in TerrainSource source, float2 at)
+        {
+            var ground = source.SampleGround(at);
+            var flat = source.SampleSurface(at, ground, new float3(0f, 1f, 0f));
+            if (flat.Grass <= 0.3f)
+                return 0u;
+            var c = (uint3)math.round(math.saturate(flat.Albedo) * 255f);
+            return c.x | (c.y << 8) | (c.z << 16) | (GreenTintMark << 24);
         }
 
         /// <summary>FloraRules.Footprint for a species (from its settings, without growing it).</summary>

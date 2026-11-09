@@ -104,8 +104,11 @@ namespace Punchy.Flora
             public int[] ModelCounts;
             /// <summary>Per model, the box its placed plants' bases span and their largest scale (for draw bounds).</summary>
             public float3[] ModelMin, ModelMax;
-            public float[] ModelMaxScale;
+            public float[] ModelMaxScale, ModelMinScale;
             public GraphicsBuffer Instances, Visible, Args, Regions, Bounds;
+            /// <summary>Refactor 3.5c: each model's reaches (see ModelReach) and, per plant, whether it cast last frame.</summary>
+            public GraphicsBuffer ReachBuffer, CastState;
+            public float4[] Reach;
             /// <summary>
             /// The draw arguments the culling shader counts instances into (structured, so D3D11 can write it: an
             /// IndirectArguments buffer can't also be Raw there), copied into Args for the draws once culled.
@@ -142,6 +145,9 @@ namespace Punchy.Flora
                 Counts?.Release();
                 Regions?.Release();
                 Bounds?.Release();
+                ReachBuffer?.Release();
+                CastState?.Release();
+                ReachBuffer = CastState = null;
                 Instances = Visible = Args = Counts = Regions = Bounds = null;
                 if (Material != null)
                     UnityEngine.Object.Destroy(Material);
@@ -200,6 +206,10 @@ namespace Punchy.Flora
         static readonly int ShadowStillId = Shader.PropertyToID("_ShadowStill");
         static readonly int CheapHolesId = Shader.PropertyToID("_FloraCheapHoles");
         static readonly int ThinId = Shader.PropertyToID("_Thin");
+        static readonly int ModelReachId = Shader.PropertyToID("_ModelReach");
+        static readonly int CastStateId = Shader.PropertyToID("_FloraCastState");
+        static readonly int ReachId = Shader.PropertyToID("_Reach");
+        static readonly int CastHoldId = Shader.PropertyToID("_CastHold");
 
         public int PlantCount
         {
@@ -433,6 +443,8 @@ namespace Punchy.Flora
         public static bool PregrowOn = true;
         /// <summary>Refactor 3.5 A/B ("-nostaticflora"): every model draws animated, as before the static variant.</summary>
         public static readonly bool NoStatic = System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-nostaticflora") >= 0;
+        /// <summary>Refactor 3.5c A/B ("-oldfloralod"): mesh changes, draw range and shadows by layer distance, as before the class rules.</summary>
+        public static readonly bool OldLod = System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-oldfloralod") >= 0;
         /// <summary>Refactor 3.5 measurement ("-nofloradetail"): the flora shader skips its procedural surface detail (weathering, wood,
         /// cloth, strata), to bound what baking it could save. Set as a global once (Flora.shader _PunchyFloraDetailOff).</summary>
         public static readonly bool NoDetail = System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-nofloradetail") >= 0;
@@ -545,7 +557,31 @@ namespace Punchy.Flora
             layer.Counts.SetData(args);
             layer.Bounds = new GraphicsBuffer(GraphicsBuffer.Target.Structured, bounds.Length, sizeof(float) * 3);
             layer.Bounds.SetData(bounds);
+            layer.Reach = new float4[bounds.Length];
+            for (int m = 0; m < layer.ModelCount; m++)
+                layer.Reach[m] = ModelReach(models[layer.ModelBase + m], layer);
+            layer.ReachBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, bounds.Length, sizeof(float) * 4);
+            layer.ReachBuffer.SetData(layer.Reach);
             layer.Regions = new GraphicsBuffer(GraphicsBuffer.Target.Structured, draws, sizeof(uint));
+        }
+
+        /// <summary>
+        /// A model's reaches at scale 1, per reference pixel-per-metre: x LOD 0 ends, y LOD 1 ends, z it stops being drawn,
+        /// w it stops casting (DetailPolicy.FloraRule; FloraCull.compute multiplies by the view and the plant's scale).
+        /// A layer without a coarsest level (Lod2Distance past Radius: the ground layer) never gets one.
+        /// </summary>
+        static float4 ModelReach(FloraModel model, Layer layer)
+        {
+            const float Never = 1e8f;
+            var kind = model.DetailClass();
+            var rule = Punchy.Settings.DetailPolicy.FloraRule(kind);
+            // (A floor in metres, as a reach at the reference view, so it scales with the view and Detail like the rest.)
+            var floor = Punchy.Settings.DetailPolicy.FloraFloor(kind) / Punchy.Settings.DetailPolicy.PixelsPerMetreAt(Punchy.Settings.DetailPolicy.ReferenceFov);
+            var size = model.Radius * 2f;
+            return new float4(math.max(size / rule.Geometry.Near, floor.x),
+                layer.Settings.Lod2Distance >= layer.Settings.Radius ? Never : math.max(size / rule.Geometry.Mid, floor.y),
+                rule.Geometry.Far > 0f ? size / rule.Geometry.Far : Never,
+                size / rule.Shadow);
         }
 
         // ------------------------------------------------------------------------------------------- streaming
@@ -719,17 +755,21 @@ namespace Punchy.Flora
             var mins = new NativeArray<float3>(l.ModelCount, Allocator.TempJob);
             var maxs = new NativeArray<float3>(l.ModelCount, Allocator.TempJob);
             var scales = new NativeArray<float>(l.ModelCount, Allocator.TempJob);
-            new CountModelsJob { Plants = all, ModelBase = l.ModelBase, Counts = counts, Min = mins, Max = maxs, MaxScale = scales }.Run();
+            var minScales = new NativeArray<float>(l.ModelCount, Allocator.TempJob);
+            new CountModelsJob { Plants = all, ModelBase = l.ModelBase, Counts = counts, Min = mins, Max = maxs, MaxScale = scales, MinScale = minScales }.Run();
             counts.CopyTo(l.ModelCounts);
             if (l.ModelMin == null || l.ModelMin.Length != l.ModelCount)
             {
                 l.ModelMin = new float3[l.ModelCount];
                 l.ModelMax = new float3[l.ModelCount];
                 l.ModelMaxScale = new float[l.ModelCount];
+                l.ModelMinScale = new float[l.ModelCount];
             }
             mins.CopyTo(l.ModelMin);
             maxs.CopyTo(l.ModelMax);
             scales.CopyTo(l.ModelMaxScale);
+            minScales.CopyTo(l.ModelMinScale);
+            minScales.Dispose();
             counts.Dispose();
             mins.Dispose();
             maxs.Dispose();
@@ -742,6 +782,9 @@ namespace Punchy.Flora
                 var capacity = math.ceilpow2(total);
                 l.Instances = new GraphicsBuffer(GraphicsBuffer.Target.Structured, capacity, Marshal.SizeOf<FloraInstance>());
                 l.Visible = new GraphicsBuffer(GraphicsBuffer.Target.Structured, capacity * Draws, sizeof(uint) * 2);
+                l.CastState?.Release();
+                l.CastState = new GraphicsBuffer(GraphicsBuffer.Target.Structured, capacity, sizeof(uint));
+                l.CastState.SetData(new uint[capacity]);
             }
             l.Instances.SetData(all, 0, 0, total);
             all.Dispose();
@@ -773,7 +816,7 @@ namespace Punchy.Flora
             public int ModelBase;
             public NativeArray<int> Counts;
             public NativeArray<float3> Min, Max;
-            public NativeArray<float> MaxScale;
+            public NativeArray<float> MaxScale, MinScale;
 
             public void Execute()
             {
@@ -781,6 +824,7 @@ namespace Punchy.Flora
                 {
                     Min[m] = new float3(float.MaxValue);
                     Max[m] = new float3(float.MinValue);
+                    MinScale[m] = float.MaxValue;
                 }
                 for (int i = 0; i < Plants.Length; i++)
                 {
@@ -789,6 +833,7 @@ namespace Punchy.Flora
                     Min[m] = math.min(Min[m], Plants[i].Position);
                     Max[m] = math.max(Max[m], Plants[i].Position);
                     MaxScale[m] = math.max(MaxScale[m], Plants[i].Scale);
+                    MinScale[m] = math.min(MinScale[m], Plants[i].Scale);
                 }
             }
         }
@@ -822,6 +867,13 @@ namespace Punchy.Flora
             var camPos = cam.transform.position;
             var clear = Culling.FindKernel("Clear");
             var cull = Culling.FindKernel("Cull");
+            Punchy.Settings.DetailPolicy.SetView(cam);
+            ref readonly var view = ref Punchy.Settings.DetailPolicy.Current.Data;
+            // Refactor 3.5c: reference pixels per metre at the graphics settings (DetailPolicy.Decide's scaling; 0: the layers' distances).
+            var reachGeometry = OldLod ? 0f : view.PixelsPerMetre * math.max(view.Detail, 0.1f);
+            var reachShadow = view.PixelsPerMetre * math.max(view.Shadows, 0.1f);
+            Culling.SetVector(ReachId, new Vector4(reachGeometry, reachShadow, 0f, 0f));
+            Culling.SetFloat(CastHoldId, OldLod ? 0f : 1f);
             var shadowDistance = QualitySettings.shadowDistance;
             if (GraphicsSettings.currentRenderPipeline is UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset urp)
                 shadowDistance = urp.shadowDistance;
@@ -846,7 +898,8 @@ namespace Punchy.Flora
                 Culling.SetVectorArray(PlanesId, planeVectors);
                 Culling.SetVector(CameraId, camPos);
                 Culling.SetVector(LodId, new Vector4(l.Lod1Distance, l.Lod2Distance, l.Radius, 0f));
-                var cast = s.CastShadows ? math.min(s.ShadowCastDistance, shadowDistance) : 0f;
+                // (By rule a variant's size says how far it casts, up to the sun's shadow distance; the layer's value is the old rule.)
+                var cast = s.CastShadows ? (OldLod ? math.min(s.ShadowCastDistance, shadowDistance) : shadowDistance) : 0f;
                 // W-107's shadow cache: past the near range, trees cast into the cache instead (ShadowCache.cs).
                 if (FloraShadowOptions.CachedFarShadows && l.Index == CacheLayer)
                     cast = math.min(cast, FloraShadowOptions.NearRange);
@@ -862,6 +915,8 @@ namespace Punchy.Flora
                 Culling.SetBuffer(cull, ArgsId, l.Counts);
                 Culling.SetBuffer(cull, RegionsId, l.Regions);
                 Culling.SetBuffer(cull, BoundsId, l.Bounds);
+                Culling.SetBuffer(cull, ModelReachId, l.ReachBuffer);
+                Culling.SetBuffer(cull, CastStateId, l.CastState);
                 Culling.Dispatch(cull, (l.Count + 63) / 64, 1, 1);
                 Graphics.CopyBuffer(l.Counts, l.Args);
 
@@ -890,12 +945,22 @@ namespace Punchy.Flora
                     var bounds = new Bounds((Vector3)((min + max) * 0.5f), (Vector3)(max - min));
                     // (Refactor 3.5: a model that never moves skips the wind maths; "-nostaticflora" draws all as before.)
                     var material = k >= l.ModelCount ? l.StaticMaterial : l.Material;
+                    // The range this model's own plants can be at each level (largest and smallest scale): the layer's
+                    // distances under the old rule. Past modelDrawn the cull leaves nothing, so nothing is drawn.
+                    var lodScale = reachGeometry * l.Reach[m];
+                    var modelLod1Near = OldLod ? l.Lod1Distance : lodScale.x * l.ModelMinScale[m];
+                    var modelLod1Far = OldLod ? l.Lod1Distance : lodScale.x * l.ModelMaxScale[m];
+                    var modelLod2Near = OldLod ? l.Lod2Distance : lodScale.y * l.ModelMinScale[m];
+                    var modelLod2Far = OldLod ? l.Lod2Distance : lodScale.y * l.ModelMaxScale[m];
+                    var modelDrawn = OldLod ? l.Radius : math.min(l.Radius, lodScale.z * l.ModelMaxScale[m]);
+                    if (nearest > Near(modelDrawn))
+                        continue;
                     for (int lod = 0; lod < 3; lod++)
                     {
-                        if (lod == 2 && l.Lod2Distance >= l.Radius)
+                        if (lod == 2 && modelLod2Near >= modelDrawn)
                             continue;
-                        var lodNear = lod == 0 ? 0f : lod == 1 ? l.Lod1Distance : l.Lod2Distance;
-                        var lodFar = lod == 0 ? l.Lod1Distance : lod == 1 && l.Lod2Distance < l.Radius ? l.Lod2Distance : l.Radius;
+                        var lodNear = lod == 0 ? 0f : lod == 1 ? modelLod1Near : modelLod2Near;
+                        var lodFar = lod == 0 ? modelLod1Far : lod == 1 && modelLod2Far < modelDrawn ? modelLod2Far : modelDrawn;
                         if (nearest > Near(lodFar) || farthest < lodNear * 0.9f - 5f)
                             continue;
                         var rp = new RenderParams(material)
@@ -908,9 +973,12 @@ namespace Punchy.Flora
                     }
                     // The shadow lists (W-102), bounded to the cast distance so cascades they can't reach skip them.
                     // Small props (fences, palisades, signposts...) cast none: the shadow pass's cost is per draw.
-                    if (cast <= 0f || !model.CastsShadows)
+                    // (The rule's cast reach, with its hysteresis; the shadow list's change to its second level likewise.)
+                    var modelCast = OldLod ? cast : math.min(cast, reachShadow * l.Reach[m].w * l.ModelMaxScale[m] * 1.18f);
+                    var modelLod0Until = OldLod ? lod0Until : cheap ? math.min(FloraShadowOptions.NearRange, modelLod1Far * 1.075f) : modelLod1Far * 1.075f;
+                    if (modelCast <= 0f || !model.CastsShadows)
                         continue;
-                    var castReach = cast + reach + ShadowMargin;
+                    var castReach = modelCast + reach + ShadowMargin;
                     var smin = math.max(min, eye - castReach);
                     var smax = math.min(max, eye + castReach);
                     if (math.any(smin > smax))
@@ -918,7 +986,7 @@ namespace Punchy.Flora
                     var shadowBounds = new Bounds((Vector3)((smin + smax) * 0.5f), (Vector3)(smax - smin));
                     for (int lod = 0; lod < 2; lod++)
                     {
-                        if (nearest > Near(cast) || lod == 0 && nearest > Near(lod0Until))
+                        if (nearest > Near(modelCast) || lod == 0 && nearest > Near(modelLod0Until))
                             continue;
                         var rp = new RenderParams(material)
                         {
