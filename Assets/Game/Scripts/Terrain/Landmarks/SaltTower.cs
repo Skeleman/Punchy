@@ -450,7 +450,7 @@ namespace Punchy.Terrain
         }
 
         /// <summary>Clear of every landmark's footprint (plus 40 m) and SettlementClearance from any settlement.</summary>
-        static bool Clear(ref LandmarkSetBlob set, IReadOnlyList<LandmarkType> types, float2 p, float footprint)
+        internal static bool Clear(ref LandmarkSetBlob set, IReadOnlyList<LandmarkType> types, float2 p, float footprint)
         {
             for (int i = 0; i < set.Instances.Length; i++)
             {
@@ -464,7 +464,7 @@ namespace Punchy.Terrain
             return true;
         }
 
-        static bool ClearOf(List<LandmarkInstance> placed, IReadOnlyList<LandmarkType> types, float2 p, float footprint)
+        internal static bool ClearOf(List<LandmarkInstance> placed, IReadOnlyList<LandmarkType> types, float2 p, float footprint)
         {
             foreach (var other in placed)
                 if (math.distance(other.Position, p) < types[other.Type].Radius + footprint + 40f)
