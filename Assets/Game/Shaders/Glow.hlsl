@@ -3,12 +3,15 @@
 
 // Light from glowing things (molten pools, glowing plants on the surface and in caves, lit windows), with no real
 // lights, in two tiers (W-101):
-// - Near: the nearest 16, uploaded by CaveSystem. Each falls off over its reach (squared), brightest on faces turned
-//   to it. Out of reach, a light costs only its distance test. Surface ones fade out by their distance from the camera.
+// - Near: the 16 that matter most on screen, picked and uploaded by LightBudget (refactor 3.1; it was the nearest 16).
+//   Each falls off over its reach (squared), brightest on faces turned to it. Out of reach, a light costs only its
+//   distance test. Each fades out as it shrinks on screen.
 // - Far: every surface glow source within about 320 m, baked by SurfaceGlow into a camera-centred light map (the light
 //   each casts on the ground, softened; rgb, a the light-weighted height of its sources) with lit windows in a second
 //   map for night. One or two texture reads a pixel, however many lights; it fades in as the near tier fades out, so
 //   towns and glowing woods glow from afar and sharpen into single lights as you come close.
+// Also the blue moon's own light (feedback 11-08 item 10): a second, unshadowed moonlight from the blue moon's
+// direction, added on top of the big moon's (the main light), set by WeatherSystem (black when it's down, new or by day).
 float4 _PunchyCaveHeat[16];        // xyz position
 float4 _PunchyCaveHeatColor[16];   // rgb light (linear), w reach (m)
 int _PunchyCaveHeatCount;
@@ -18,6 +21,8 @@ SAMPLER(sampler_PunchyGlowMap);
 TEXTURE2D(_PunchyGlowMapNight);    // rgb light of lit windows, a as above
 float4 _PunchyGlowMapRect;         // xy the map's corner (m), z 1 / its width (1/m)
 float4 _PunchyGlowMapParams;       // x strength (0: off), y lit windows on, zw camera distance the far tier fades in over (m)
+float4 _PunchyBlueLightDirection;  // xyz towards the blue moon
+float4 _PunchyBlueLightColor;      // rgb its light (linear; 0 when it gives none)
 
 // The far tier's light on a surface at p with normal n.
 half3 PunchyGlowFar(float3 p, half3 n)
@@ -64,6 +69,9 @@ half3 PunchyGlowLight(float3 p, half3 n)
     }
     [branch] if (_PunchyGlowMapParams.x > 0)
         light += PunchyGlowFar(p, n);
+    // The blue moon: a little wrap, so faces turned just past it aren't cut off hard.
+    [branch] if (_PunchyBlueLightColor.b > 0)
+        light += _PunchyBlueLightColor.rgb * saturate(dot(n, _PunchyBlueLightDirection.xyz) * 0.85 + 0.15);
     return light;
 }
 

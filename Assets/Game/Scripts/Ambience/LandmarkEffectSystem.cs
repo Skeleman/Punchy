@@ -64,6 +64,9 @@ namespace Punchy.Ambience
         readonly List<Emitter> heardFalls = new List<Emitter>();
         /// <summary>Nearby landmarks' flames (position, size; seed, palette), handed to FireSystem every frame.</summary>
         readonly List<(Vector3 at, float size, int seed, int palette, bool night)> fires = new List<(Vector3, float, int, int, bool)>();
+        /// <summary>One light per landmark fire (campfires, braziers, sconces): where it sits, its width (m), seed,
+        /// palette and night-only; requested from LightBudget every frame as a fire light (refactor 3.1: they had none).</summary>
+        readonly List<(Vector3 at, float width, int seed, int palette, bool night)> fireLights = new List<(Vector3, float, int, int, bool)>();
         static readonly int NightId = Shader.PropertyToID("_PunchyNight");
         readonly List<int> nearby = new List<int>(), lastNearby = new List<int>();
         GraphicsBuffer plumeBuffer, fallBuffer;
@@ -121,6 +124,20 @@ namespace Punchy.Ambience
                 var size = f.night ? f.size * lit : f.size;
                 if (size > 0.02f && (f.at - eye).sqrMagnitude < flameRange * flameRange)
                     FireSystem.AddFlame(f.at, size, f.seed, f.palette);
+            }
+            // Each fire's light: brighter and further for a wider fire, flickering; LightBudget decides by its
+            // on-screen reach whether it lights (a glow slot) or only its flames show (refactor 3.1).
+            var t = Time.time;
+            foreach (var f in fireLights)
+            {
+                var strength = f.night ? lit : 1f;
+                if (strength <= 0.02f)
+                    continue;
+                var flicker = 0.85f + 0.1f * Mathf.Sin(t * 8.3f + (f.seed & 255)) + 0.05f * Mathf.Sin(t * 21.1f + (f.seed & 63));
+                var wide = math.clamp(f.width, 0.3f, 4f);
+                var light = FireSystem.Light(f.palette, flicker * strength * math.clamp(0.6f + 0.4f * wide, 0.7f, 1.8f));
+                light.w *= math.clamp(0.6f + 0.5f * wide, 0.8f, 2.2f);
+                Punchy.Settings.LightBudget.Add(Punchy.Settings.LightKind.Fire, f.seed, f.at, light);
             }
             ForestFires(source, palette, eye, lit);
             Draw();
@@ -324,6 +341,7 @@ namespace Punchy.Ambience
             falls.Clear();
             heardFalls.Clear();
             fires.Clear();
+            fireLights.Clear();
             maxParticles = 1;
             float3 min = float.MaxValue, max = float.MinValue;
             foreach (var i in nearby)
@@ -456,6 +474,8 @@ namespace Punchy.Ambience
                             var size = effect.Size * inst.Scale * (k == 0 ? 1.3f : 1f - 0.3f * spread / math.max(reach, 0.01f));
                             fires.Add((p, size, (int)(math.abs(inst.Seed) * 31 + e * 7 + k), (int)effect.Flame, effect.NightOnly));
                         }
+                        fireLights.Add((new Vector3(at.x, y + 0.05f + effect.Size * inst.Scale * 0.6f, at.y), effect.Width * inst.Scale,
+                                        (int)(math.abs(inst.Seed) * 31 + e * 7), (int)effect.Flame, effect.NightOnly));
                         e++;
                         continue;
                     }

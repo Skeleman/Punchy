@@ -31,5 +31,10 @@ namespace Punchy.Terrain
         [Range(0f, 1f)] public float Paving;
         [Tooltip("Depth of deformable snow here (read by the snow-trail system).")]
         [Range(0f, 1f)] public float SnowDepth;
+
+        [Header("Rain")]
+        [Tooltip("How much rain soaks in (feedback 11-08 item 22): 0 hard ground that glazes and pools, 1 loose sand that " +
+                 "only darkens, with far fewer, smaller puddles and little sheen (read by the terrain shader).")]
+        [Range(0f, 1f)] public float Porosity;
     }
 }

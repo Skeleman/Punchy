@@ -34,6 +34,7 @@ namespace Punchy.Settings
     /// lantern lighting 4.5 m at 30 m. Each kind says which tiers it may use and at what size, and how important it
     /// is when the budget is full (<see cref="Score"/>: importance x on-screen size x brightness).
     /// Global lights (Celestial, SkyFlash) are never budgeted or tiered: they're always on.
+    /// LightBudget applies it to every local light once a frame (refactor 3.1).
     /// </summary>
     public static class LightPolicy
     {
@@ -71,8 +72,10 @@ namespace Punchy.Settings
                 case LightKind.Creature:
                     return new Rule { Best = LightTier.Glow, Size = new DetailPolicy.Thresholds(20f, 4f, 1f), Worst = LightTier.Emissive, Importance = 1.5f };
                 // Many and soft: never real lights, a near glow and the far glow map, then just the glowing thing.
+                // (3.1: Near 200 hands an 8 m plant glow to the far map at about 37 m at Detail 1, near the 18-30 m it
+                // used before, so glowing woods keep their slots for the close lights.)
                 default:
-                    return new Rule { Best = LightTier.Glow, Size = new DetailPolicy.Thresholds(25f, 5f, 1f), Worst = LightTier.Emissive, Importance = 1f };
+                    return new Rule { Best = LightTier.Glow, Size = new DetailPolicy.Thresholds(200f, 12f, 1f), Worst = LightTier.Emissive, Importance = 1f };
             }
         }
 

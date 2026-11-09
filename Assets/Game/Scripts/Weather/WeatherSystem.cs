@@ -67,7 +67,11 @@ namespace Punchy.Weather
         static readonly int SunDirectionId = Shader.PropertyToID("_PunchySunDirection");
         static readonly int MoonDirectionId = Shader.PropertyToID("_PunchyMoonDirection");
         static readonly int MoonPhaseId = Shader.PropertyToID("_PunchyMoonPhase");
+        /// <summary>The night sky's glow at new moon, as a share of a full moon's (1: phase doesn't matter).</summary>
+        const float MoonSkyFloor = 0.4f;
         static readonly int BlueMoonId = Shader.PropertyToID("_PunchyBlueMoon");
+        static readonly int BlueLightDirectionId = Shader.PropertyToID("_PunchyBlueLightDirection");
+        static readonly int BlueLightColorId = Shader.PropertyToID("_PunchyBlueLightColor");
         static readonly int SunColorId = Shader.PropertyToID("_PunchySunColor");
         static readonly int ZenithId = Shader.PropertyToID("_PunchySkyZenith");
         static readonly int HorizonId = Shader.PropertyToID("_PunchySkyHorizon");
@@ -468,8 +472,12 @@ namespace Punchy.Weather
                                                               : new Vector4(0.5f, 1f, 0f, 0f));
             Shader.SetGlobalVector(BlueMoonId, Cycle != null ? (Vector4)Cycle.BlueMoonDirection : new Vector4(0f, -1f, 0f, 0f));
             Shader.SetGlobalColor(SunColorId, discColor * (1f - 0.8f * s.Dust));
-            Shader.SetGlobalColor(ZenithId, sky.Zenith);
-            Shader.SetGlobalColor(HorizonId, sky.Horizon);
+            // The night sky's glow follows the big moon's phase (Zach, 11-08): at new moon the sky (and the haze and
+            // cloud shading that take its colours) fall to 40% of a full moon's, so the night reads dark overhead too.
+            // Only what the sky shaders draw: the ground's ambient (below) keeps its own floor.
+            var skyGlow = Cycle != null ? Mathf.Lerp(1f, Mathf.Lerp(MoonSkyFloor, 1f, Cycle.MoonLit), Cycle.Night) : 1f;
+            Shader.SetGlobalColor(ZenithId, sky.Zenith * skyGlow);
+            Shader.SetGlobalColor(HorizonId, sky.Horizon * skyGlow);
             Shader.SetGlobalColor(GroundId, sky.Ground);
             Shader.SetGlobalColor(DustColorId, DustColor());
             Shader.SetGlobalFloat(HazeDensityId, hazeDensity);
@@ -522,9 +530,30 @@ namespace Punchy.Weather
             var moonFloor = Cycle != null
                 ? (new Color(0.025f, 0.03f, 0.05f) * Mathf.Lerp(0.45f, 1f, Cycle.MoonLit) + Cycle.BlueMoonLight * Cycle.BlueMoonGlow) * Cycle.Night
                 : Color.black;
-            RenderSettings.ambientSkyColor = sky.Zenith * ambientScale + moonFloor;
+            // Blue-moon nights (Zach, 11-08): when the blue moon is up and full the night's light turns strongly blue,
+            // its own glow three times what it was, and the rest of the ambient drawn towards a cold blue.
+            var ambientZenith = sky.Zenith;
+            var ambientHorizon = sky.Horizon;
+            if (Cycle != null && Cycle.BlueMoonGlow > 0f)
+            {
+                var blue = Cycle.BlueMoonGlow * Cycle.Night;
+                moonFloor += Cycle.BlueMoonLight * (2f * blue);
+                ambientZenith = Color.Lerp(ambientZenith, new Color(0.18f, 0.32f, 0.85f) * ambientZenith.grayscale * 1.6f, 0.6f * blue);
+                ambientHorizon = Color.Lerp(ambientHorizon, new Color(0.2f, 0.35f, 0.8f) * ambientHorizon.grayscale * 1.5f, 0.5f * blue);
+            }
+            // The blue moon's own light (feedback 11-08 item 10): a second directional moonlight from its direction,
+            // added on top of the big moon's main light rather than only tinting the ambient, so the two add up and a
+            // full blue moon lights the land strongly blue. Every custom shader takes it through Glow.hlsl (no shadow).
+            // Cloud cover hides it and it doesn't reach into caves. Ordinary nights are unchanged (Zach 11-08).
+            var blueLight = Color.black;
+            if (Cycle != null && Cycle.BlueMoonGlow > 0f)
+                blueLight = Cycle.BlueMoonLamp * (Cycle.BlueMoonGlow * Cycle.Night * (1f - 0.8f * s.Coverage)
+                                                  * (1f - Punchy.Terrain.CaveSystem.Underground));
+            Shader.SetGlobalVector(BlueLightDirectionId, Cycle != null ? (Vector4)Cycle.BlueMoonDirection : Vector4.zero);
+            Shader.SetGlobalVector(BlueLightColorId, (Vector4)blueLight);
+            RenderSettings.ambientSkyColor = ambientZenith * ambientScale + moonFloor;
             // At sunrise and sunset the side light warms with the sky's twilight band (Sky.hlsl), so the land matches it.
-            var equator = sky.Horizon;
+            var equator = ambientHorizon;
             if (Cycle != null)
             {
                 var twilight = TwilightAmount(Cycle.SunDirection.y) * (1f - 0.8f * TwilightDull(s));

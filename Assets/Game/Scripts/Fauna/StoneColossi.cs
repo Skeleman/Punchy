@@ -652,12 +652,14 @@ namespace Punchy.Fauna
         // ---------------------------------------------------------------- building
 
 
-        /// <summary>Lanterns glow within this far of the camera (m).</summary>
-        const float LanternRange = 450f;
+        /// <summary>Lanterns' flames are drawn within this far of the camera (m); their light is LightBudget's to decide
+        /// (refactor 3.1: it was cut at this distance too). The charred treant's embers and the puffball's pores skip
+        /// their whole glow past it, flames and light together.</summary>
+        const float LanternFlameRange = 450f;
 
         /// <summary>
         /// A-76 row 2: each frame the stag's lanterns burn as small standard-fire flames and throw a warm light round them
-        /// (CaveSystem.MovingLights lights the ground and trees too), faint by day and brightening into the night
+        /// (a creature light request to LightBudget, which lights the ground and trees too), faint by day and brightening into the night
         /// (DayNightCycle.Night). Cosmetic and local.
         /// </summary>
         void GlowLanterns()
@@ -674,15 +676,16 @@ namespace Punchy.Fauna
             for (int k = 0; k < Lanterns.Count; k++)
             {
                 var point = Lanterns[k];
-                if (point == null || !point.gameObject.activeInHierarchy || (point.position - eye).sqrMagnitude > LanternRange * LanternRange)
+                if (point == null || !point.gameObject.activeInHierarchy)
                     continue;
                 var flicker = 0.9f + 0.1f * Mathf.Sin(Time.time * 7f + k * 1.7f);
                 // A-87 row 4: a point's scale sizes its flame and light (1 for a lantern; the hermit crab's lighthouse is a beacon).
                 var scale = point.localScale.x;
-                Punchy.Ambience.FireSystem.AddFlame(point.position, (0.3f + 0.25f * night) * scale, 0x57A60 + k, Punchy.Ambience.FireSystem.Wood);
+                if ((point.position - eye).sqrMagnitude <= LanternFlameRange * LanternFlameRange)
+                    Punchy.Ambience.FireSystem.AddFlame(point.position, (0.3f + 0.25f * night) * scale, 0x57A60 + k, Punchy.Ambience.FireSystem.Wood);
                 var light = Punchy.Ambience.FireSystem.Light(Punchy.Ambience.FireSystem.Wood, flicker * (0.35f + 1.4f * night) * scale);
                 light.w *= 0.6f + 0.8f * night;
-                Punchy.Terrain.CaveSystem.MovingLights.Add((0x57A60 + k, point.position, light));
+                Punchy.Settings.LightBudget.Add(Punchy.Settings.LightKind.Creature, 0x57A60 + k, point.position, light);
             }
         }
 

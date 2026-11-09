@@ -240,7 +240,7 @@ namespace Punchy.Fauna
                 Punchy.Audio.GameAudio.PlayOneShot(Punchy.Audio.SoundId.CaveDrip, tip, UnityEngine.Random.Range(0.7f, 0.9f), 0.6f, 40f, Punchy.Audio.SoundGroup.World);
             }
             // The glow: green flames at the pores and beads, and a green light round every third pore.
-            if ((cam.transform.position - PuffRig.Cap.position).sqrMagnitude > LanternRange * LanternRange)
+            if ((cam.transform.position - PuffRig.Cap.position).sqrMagnitude > LanternFlameRange * LanternFlameRange)
                 return;
             if (cycle == null)
                 cycle = FindAnyObjectByType<Punchy.Weather.DayNightCycle>();
@@ -254,7 +254,7 @@ namespace Punchy.Fauna
                 {
                     var light = Punchy.Ambience.FireSystem.Light(green, (0.9f + 0.1f * Mathf.Sin(t * 2f + k)) * (0.3f + 1.3f * night));
                     light.w *= 0.6f + 0.8f * night;
-                    Punchy.Terrain.CaveSystem.MovingLights.Add((0x9FF00 + k, p, light));
+                    Punchy.Settings.LightBudget.Add(Punchy.Settings.LightKind.Creature, 0x9FF00 + k, p, light);
                 }
             }
             if (PuffRig.Tendrils != null)

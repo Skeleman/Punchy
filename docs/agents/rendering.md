@@ -36,3 +36,11 @@ Read before changing any shader, material or render setting.
   43 degrees up in the east, `-time 19` low in the east (compute with DayNightCycle.Evaluate).
 - Flora bark relief (the cave detail texture, albedo and normal bump) fades by distance, not by LOD: 18-45 m for plants, 60-140 m for built things (W-23). Faded by 45 m, hut roofs turned into plain cones whose facets showed at 30-55 m, which read as an LOD bug.
 - Tree shadows (FloraShadowOptions, W-107): the cheap far caster and the cached far shadows are on by default, near range 25 m; still far shadows are off. Turn one off with `-cheapfarcaster 0`, `-cachedfarshadows 0` (`-stillfarshadows` turns that one on). The cache starts at the near range less CacheMove and 2 m, so a drifted camera never leaves a gap.
+- Local lights go through `LightBudget` (refactor 3.1): request one each frame (`Add`, `AddStill`, or `AddReal` for a
+  source that owns a Unity light and reads `RealLevel` back) with its `LightKind`; never pick a range or the nearest N
+  yourself. `-lightlog` logs requests, tiers, slots, real lights and drops per kind every 5 s; `-lightbudget N` sets
+  the real-light cap (default 4/6/8 by Detail).
+- Rain puddles (TerrainSurface.shader) need level ground (vertex normal y > ~0.975) and a true hollow: the mesh's
+  hollow depth (BuildChunkMeshJob, Strata.z) is capped by twice the lowest rise round the point, so slopes and
+  downhill gullies get none. `TerrainSurface.Porosity` (vertex TEXCOORD4.x) makes sand soak rain up: it darkens,
+  barely glazes, and pools only in its deepest spots.

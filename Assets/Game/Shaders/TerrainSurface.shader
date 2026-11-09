@@ -167,7 +167,7 @@ Shader "Punchy/Terrain Surface"
                 float  cave       : TEXCOORD7;
                 half   strata     : TEXCOORD8;
                 half2  paving     : TEXCOORD9;   // paving amount, flagstones (W-108)
-                half   hollow     : TEXCOORD10;
+                half2  hollow     : TEXCOORD10;  // hollow depth (m), porosity (item 22)
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -314,7 +314,7 @@ Shader "Punchy/Terrain Surface"
                 o.cave = input.morph.w;
                 o.strata = input.strata.x;
                 o.paving = input.strata.yw;
-                o.hollow = input.strata.z;
+                o.hollow = half2(input.strata.z, input.soak.x);
                 return o;
             }
 
@@ -360,15 +360,21 @@ Shader "Punchy/Terrain Surface"
                     shore = smoothstep(0.2, 0.75, saturate(-input.extra.w) + (PunchyValueNoise(p * 0.8) - 0.5) * 0.35
                                                 + (PunchyValueNoise(p * 0.13 + 2.9) - 0.5) * 0.5)
                           * (1 - saturate(input.extra.z * 2));
-                half flatness = smoothstep(0.8, 0.93, normalWS.y);
+                // Item 22: only level ground pools (under about 10 degrees; the vertex normal, so fine relief can't
+                // tilt a flat into a slope or a slope into a flat).
+                half flatness = smoothstep(0.975, 0.99, normalize(input.normalWS).y);
                 half puddleNoise = PunchyValueNoise(p / 2.3) * 0.65 + PunchyValueNoise(p / 0.9 + 5.1) * 0.35;
-                // W-98: puddles gather in the dips (the mesh's hollow depth: how far below the ground round it), the
-                // noise cutting them into separate pools with crisp edges (a dip that glazes over whole reads as dark
-                // ground, not water), spreading as the rain goes on; none on open flats.
-                half dip = smoothstep(0.0, 0.08, input.hollow);
+                // W-98: puddles gather in the dips (the mesh's hollow depth: how far below the ground round it, and
+                // only where it rises on every side), the noise cutting them into separate pools with crisp edges (a
+                // dip that glazes over whole reads as dark ground, not water), spreading as the rain goes on; none on
+                // open flats. Item 22: porous ground (sand) soaks the rain up: its dips need far more to pool (only
+                // the deepest, wettest spots, looking as anywhere else when they do), and it barely glazes, just
+                // darkening (below).
+                half porosity = input.hollow.y;
+                half dip = smoothstep(0.0, 0.08, input.hollow.x) * (1 - 0.65 * porosity);
                 half puddle = smoothstep(0.82, 0.9, dip * 0.4 + puddleNoise * 0.6 + wet * 0.15) * flatness * smoothstep(0.1, 0.3, wet)
                             * (1 - 0.6 * input.extra.y);   // grass pokes through, but meadow dips still pool
-                half sheen = max(wet, shore * 0.6) * (1 - 0.8 * input.extra.y) * (1 - smoothstep(120, 450, distance));
+                half sheen = max(wet * (1 - 0.85 * porosity), shore * 0.6) * (1 - 0.8 * input.extra.y) * (1 - smoothstep(120, 450, distance));
 
                 half relief = detailFade * 0.45 * (1 - puddle);
                 normalWS = normalize(normalWS - half3(micro.x, 0, micro.y) * relief);
@@ -473,7 +479,7 @@ Shader "Punchy/Terrain Surface"
                 // gaps between blades read as more grass rather than bare soil (GroundDetailSystem.GroundTint).
                 half underGrass = input.extra.y * _PunchyGrassTint.x * (1 - smoothstep(_PunchyGrassTint.y * 0.7, _PunchyGrassTint.y, distance));
                 albedo = lerp(albedo, albedo * half3(1.05, 1.16, 0.85), underGrass * 0.8);
-                albedo *= lerp(1, 0.72, wet);
+                albedo *= lerp(1, 0.72 - 0.12 * porosity, wet);   // (sand drinks it in: darker, not shinier)
                 // The wet band is patchy (W-43b): dark mud in some stretches, grey shingle and stones in others, so the
                 // bank reads as worn earth rather than a painted stripe.
                 [branch] if (shore > 0.01)
