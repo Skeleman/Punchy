@@ -175,6 +175,125 @@ namespace Punchy.CameraRig
             Shader.SetGlobalVector(UnderwaterId, fog > 0f ? new Vector4(water.r, water.g, water.b, look.ShaderFog * fog) : Vector4.zero);
             Shader.SetGlobalVector(SurfaceId, under ? new Vector4(surface, Mathf.Max(surface - y, 0f), 0f, 0f) : Vector4.zero);
             Muffle();
+            Drift(under, lava);
+        }
+
+        // ---------------------------------------------------------------- bubbles and motes (item 34)
+
+        ParticleSystem motes, bubbles;
+        bool driftShown;
+        /// <summary>"-nodrift": no bubbles or specks, to price them (read once, in Start).</summary>
+        bool NoDrift;
+
+        /// <summary>
+        /// Item 34 (the cheap part): specks drifting in the water round the lens and now and then a few bubbles rising
+        /// past it, while the lens is in water or a swamp (not lava). Two small particle systems on the weather's
+        /// precipitation shader (its soft dots, in Unity's fog, so they fade into the fluid's own): at most ~200 tiny
+        /// billboards, drawn only under water; out of it they stop and hide at once, like the rain.
+        /// </summary>
+        void Drift(bool under, float lava)
+        {
+            var on = under && lava < 0.5f && !NoDrift;
+            if (on && motes == null && !MakeDrift())
+                return;
+            if (motes == null)
+                return;
+            if (on != driftShown)
+            {
+                driftShown = on;
+                motes.GetComponent<ParticleSystemRenderer>().enabled = on;
+                bubbles.GetComponent<ParticleSystemRenderer>().enabled = on;
+                if (!on)
+                {
+                    motes.Clear();
+                    bubbles.Clear();
+                }
+            }
+            var position = transform.position;
+            motes.transform.position = position;
+            // (Bubbles start a little below and ahead of the lens, so they rise through the view.)
+            bubbles.transform.position = position + transform.forward * 2.5f - Vector3.up * 1.5f;
+            var m = motes.emission;
+            m.rateOverTime = on ? 40f : 0f;
+            var b = bubbles.emission;
+            b.enabled = on;
+            // (Specks take the fluid's colour, lightened: blue-green flecks in the sea, green ones in a swamp.)
+            var main = motes.main;
+            var fleck = Color.Lerp(look.Fog, Color.white, 0.55f);
+            fleck.a = 0.55f;
+            main.startColor = fleck;
+        }
+
+        /// <summary>Makes the two systems on first use (false: no weather system to borrow the shader from yet).</summary>
+        bool MakeDrift()
+        {
+            var weather = FindAnyObjectByType<Punchy.Weather.WeatherSystem>();
+            if (weather == null || weather.PrecipitationShader == null)
+                return false;
+            var material = new Material(weather.PrecipitationShader) { name = "Underwater drift" };
+            material.SetFloat("_Shape", 0f);   // soft dots
+            motes = MakeSystem("UnderwaterMotes", material, 260, new Vector3(14f, 8f, 14f));
+            var main = motes.main;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(4f, 7f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.012f, 0.035f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(0f, 0.08f);
+            var wander = motes.noise;
+            wander.enabled = true;
+            wander.strength = 0.08f;
+            wander.frequency = 0.3f;
+            var fade = motes.colorOverLifetime;
+            fade.enabled = true;
+            var gradient = new Gradient();
+            gradient.SetKeys(new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+                             new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 0.2f), new GradientAlphaKey(1f, 0.8f), new GradientAlphaKey(0f, 1f) });
+            fade.color = gradient;
+
+            // Bubbles: now and then (every 2-5 s) a little cluster of 3-8 rising and wobbling, gone at the surface or after 4 s.
+            bubbles = MakeSystem("UnderwaterBubbles", material, 40, new Vector3(3f, 0.5f, 3f));
+            var bm = bubbles.main;
+            bm.startLifetime = 4f;
+            bm.startSize = new ParticleSystem.MinMaxCurve(0.02f, 0.06f);
+            bm.startSpeed = 0f;
+            bm.startColor = new Color(0.85f, 0.95f, 1f, 0.7f);
+            var rise = bubbles.velocityOverLifetime;
+            rise.enabled = true;
+            rise.space = ParticleSystemSimulationSpace.World;
+            rise.x = new ParticleSystem.MinMaxCurve(-0.05f, 0.05f);
+            rise.y = new ParticleSystem.MinMaxCurve(0.5f, 0.9f);
+            rise.z = new ParticleSystem.MinMaxCurve(-0.05f, 0.05f);
+            var wobble = bubbles.noise;
+            wobble.enabled = true;
+            wobble.strength = 0.25f;
+            wobble.frequency = 1.5f;
+            var be = bubbles.emission;
+            be.rateOverTime = 0f;
+            be.SetBursts(new[] { new ParticleSystem.Burst(0f, 3, 8, 0, 3.5f) { probability = 0.8f } });
+            driftShown = true;
+            return true;
+        }
+
+        ParticleSystem MakeSystem(string name, Material material, int max, Vector3 box)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(transform.parent, false);
+            var ps = go.AddComponent<ParticleSystem>();
+            ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            var main = ps.main;
+            main.loop = true;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            main.maxParticles = max;
+            var shape = ps.shape;
+            shape.shapeType = ParticleSystemShapeType.Box;
+            shape.scale = box;
+            var emission = ps.emission;
+            emission.rateOverTime = 0f;
+            var renderer = go.GetComponent<ParticleSystemRenderer>();
+            renderer.renderMode = ParticleSystemRenderMode.Billboard;
+            renderer.shadowCastingMode = ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            renderer.sharedMaterial = material;
+            ps.Play();
+            return ps;
         }
 
         /// <summary>A low-pass filter on the listener, its cutoff blended with the rest (off when dry).</summary>
@@ -257,6 +376,7 @@ namespace Punchy.CameraRig
         void Start()
         {
             Punchy.UI.GuiHook.Add(gameObject, DrawGui, () => amount > 0f, false);
+            NoDrift = System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-nodrift") >= 0;
         }
 
         void DrawGui()
