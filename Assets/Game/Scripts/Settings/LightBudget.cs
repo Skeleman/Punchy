@@ -168,9 +168,20 @@ namespace Punchy.Settings
         {
             var view = DetailPolicy.Current.Data;
             var end = GlowEnd(LightPolicy.For(kind), view);
-            return new Vector2(DetailPolicy.Reach(reach, end * SizeFadeTo, view.PixelsPerMetre),
-                               DetailPolicy.Reach(reach, end, view.PixelsPerMetre));
+            var to = DetailPolicy.Reach(reach, end, view.PixelsPerMetre);
+            var capped = CappedReach(to, ambientCutAt);
+            return new Vector2(math.min(DetailPolicy.Reach(reach, end * SizeFadeTo, view.PixelsPerMetre), capped), capped);
         }
+
+        /// <summary>
+        /// The hand-off rule for every capped tier (playtest 11-09): a near tier with a cap ends at the nearest thing the cap
+        /// cut, not at a fixed distance, so the tier after it takes over from there and nothing falls between the two. (Lights
+        /// seen from afar went out as you came in and came back up close.) With nothing cut, the normal reach stands.
+        /// </summary>
+        public static float CappedReach(float normalReach, float nearestCut) => math.min(normalReach, math.max(nearestCut, 10f));
+
+        /// <summary>How near the closest ambient glow the 16 slots had no room for is (eased, so the hand-off doesn't jump).</summary>
+        static float ambientCutAt = float.MaxValue;
 
         /// <summary>The on-screen size (reference pixels) below which a kind leaves the glow tier, at this view.</summary>
         static float GlowEnd(in LightPolicy.Rule rule, in DetailPolicy.View view)
@@ -270,6 +281,18 @@ namespace Punchy.Settings
             }
             ranked.Sort(ByScore);
             var count = math.min(ranked.Count, GlowSlots);
+
+            // The far glow map takes over from the nearest ambient glow the cap cut (CappedReach).
+            var nearestCut = 4000f;
+            Vector3 eyeAt = cam.transform.position;
+            for (int k = count; k < ranked.Count; k++)
+            {
+                var r = requests[ranked[k].index];
+                if (r.Kind == LightKind.AmbientGlow)
+                    nearestCut = math.min(nearestCut, Vector3.Distance(r.Position, eyeAt));
+            }
+            var was = ambientCutAt > 4000f ? 4000f : ambientCutAt;
+            ambientCutAt = math.lerp(was, nearestCut, 1f - math.exp(-dt * 2f));
 
             heatNextAge.Clear();
             for (int k = 0; k < count; k++)
