@@ -109,6 +109,45 @@ namespace Punchy.Settings
             return math.max(held, previous);
         }
 
+        // ------------------------------------------------------------------------------- the shared rules (3.7 addendum)
+        // (1) on-screen size picks the tier: ScreenSize / Tier above. (2) hysteresis, (3) a capped tier's hand-off and
+        // (4) a shared crossfade: below, for code that picks by reach or fades between tiers. All plain maths: no state,
+        // no allocation, safe in Burst.
+
+        /// <summary>Rule 2 for one boundary: above it counts as in, and something that was in stays in until it's
+        /// Hysteresis below it.</summary>
+        public static bool Holds(float value, float boundary, bool was)
+            => value > boundary || was && value > boundary * (1f - Hysteresis);
+
+        /// <summary>A step towards a target, the same whatever the frame rate.</summary>
+        public static float Ease(float current, float target, float dt, float perSecond)
+            => math.lerp(current, target, 1f - math.exp(-dt * perSecond));
+
+        /// <summary>
+        /// Rule 2 for a reach (a boundary that moves): a target within half of Hysteresis is ignored, so the answer
+        /// doesn't swim as what it's worked out from wobbles, and past that it eases: quickly inwards, slowly outwards.
+        /// Quick inwards because the reach is where the next tier takes over, and it mustn't stay past what this tier
+        /// actually covers (see <see cref="CappedReach"/>).
+        /// </summary>
+        public static float EasedReach(float current, float target, float dt)
+        {
+            if (current <= 0f || current >= float.MaxValue || math.abs(target - current) <= current * Hysteresis * 0.5f)
+                return current <= 0f || current >= float.MaxValue ? target : current;
+            return Ease(current, target, dt, target < current ? 6f : 1.5f);
+        }
+
+        /// <summary>
+        /// Rule 3, the hand-off for every capped tier (playtest 11-09): a near tier with a cap ends at the nearest thing
+        /// the cap cut, not at a fixed distance, so the tier after it takes over from there and nothing falls between the
+        /// two. (Lights seen from afar went out as you came in and came back up close.) With nothing cut, the normal reach
+        /// stands.
+        /// </summary>
+        public static float CappedReach(float normalReach, float nearestCut) => math.min(normalReach, math.max(nearestCut, 10f));
+
+        /// <summary>Rule 4, the one crossfade between tiers: 0 at <paramref name="from"/>, 1 at <paramref name="to"/>,
+        /// eased. The tier leaving takes 1 minus it, so the two add up to one over the same band, measured the same way.</summary>
+        public static float Crossfade(float value, float from, float to) => math.smoothstep(from, to, value);
+
         /// <summary>A kind of object's rule: the boundaries for each answer.</summary>
         public struct Rule
         {
@@ -147,7 +186,7 @@ namespace Punchy.Settings
             var animation = Tier(pixels * (1f + rule.Activity * math.saturate(activity)), rule.Animation.Scaled(detail),
                                  first ? -1 : previous.Animation);
             var shadowAt = rule.Shadow / math.max(view.Shadows, 0.1f);
-            var shadow = pixels > shadowAt || !first && previous.Shadow && pixels > shadowAt * (1f - Hysteresis);
+            var shadow = Holds(pixels, shadowAt, !first && previous.Shadow);
             return Decision.Of(geometry, animation, shadow);
         }
 

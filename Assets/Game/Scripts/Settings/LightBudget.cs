@@ -169,16 +169,9 @@ namespace Punchy.Settings
             var view = DetailPolicy.Current.Data;
             var end = GlowEnd(LightPolicy.For(kind), view);
             var to = DetailPolicy.Reach(reach, end, view.PixelsPerMetre);
-            var capped = CappedReach(to, ambientCutAt);
+            var capped = DetailPolicy.CappedReach(to, ambientCutAt);
             return new Vector2(math.min(DetailPolicy.Reach(reach, end * SizeFadeTo, view.PixelsPerMetre), capped), capped);
         }
-
-        /// <summary>
-        /// The hand-off rule for every capped tier (playtest 11-09): a near tier with a cap ends at the nearest thing the cap
-        /// cut, not at a fixed distance, so the tier after it takes over from there and nothing falls between the two. (Lights
-        /// seen from afar went out as you came in and came back up close.) With nothing cut, the normal reach stands.
-        /// </summary>
-        public static float CappedReach(float normalReach, float nearestCut) => math.min(normalReach, math.max(nearestCut, 10f));
 
         /// <summary>How near the closest ambient glow the 16 slots had no room for is (eased, so the hand-off doesn't jump).</summary>
         static float ambientCutAt = float.MaxValue;
@@ -229,7 +222,7 @@ namespace Punchy.Settings
                 r.Score = LightPolicy.Score(r.Kind, reach, distance, intensity, view);
                 var end = GlowEnd(rule, view);
                 var pixels = DetailPolicy.ScreenSize(reach, distance, view.PixelsPerMetre);
-                r.SizeFade = math.smoothstep(end * (1f - DetailPolicy.Hysteresis), end * SizeFadeTo, pixels);
+                r.SizeFade = DetailPolicy.Crossfade(pixels, end * (1f - DetailPolicy.Hysteresis), end * SizeFadeTo);
                 requests[i] = r;
                 if (log)
                 {
@@ -292,7 +285,7 @@ namespace Punchy.Settings
                     nearestCut = math.min(nearestCut, Vector3.Distance(r.Position, eyeAt));
             }
             var cutBefore = ambientCutAt > 4000f ? 4000f : ambientCutAt;
-            ambientCutAt = math.lerp(cutBefore, nearestCut, 1f - math.exp(-dt * 2f));
+            ambientCutAt = DetailPolicy.Ease(cutBefore, nearestCut, dt, 2f);
 
             heatNextAge.Clear();
             for (int k = 0; k < count; k++)
