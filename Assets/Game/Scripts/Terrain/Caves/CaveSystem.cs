@@ -1230,22 +1230,27 @@ namespace Punchy.Terrain
                 Shader.SetGlobalTexture(GlowMapNightId, surfaceGlow.MapWindows);
                 Shader.SetGlobalVector(GlowMapRectId, new Vector4(surfaceGlow.MapCorner.x, surfaceGlow.MapCorner.y,
                                                                   1f / (SurfaceGlow.MapSize * SurfaceGlow.MapTexel), 0f));
-                Shader.SetGlobalVector(GlowMapParamsId, new Vector4((1f - Underground) * FarGlowStrength, windowsOn, handOff.x * 0.7f, handOff.y));
+                // (y, lit windows: off. Their light is indoor (P-21, item 31): see the near tier below.)
+                Shader.SetGlobalVector(GlowMapParamsId, new Vector4((1f - Underground) * FarGlowStrength, 0f, handOff.x * 0.7f, handOff.y));
             }
             if ((GlowTiers & 1) == 0)
                 return;
             // The near tier: each a request; LightBudget fades them out by on-screen size as the far map takes over.
-            // Lit windows go as ambient glow too, so they hand over to the far map's night layer with the plants.
             foreach (var (position, light) in surfaceGlow.Found)
             {
                 var l = light;
                 if (l.w < 0f)
                 {
-                    // Lit windows: only after dark.
+                    // Lit windows (only after dark) are the light inside a house: an indoor fixture (P-21, playtest 11-08
+                    // item 31), which lights only its building's inside. It used to go out as a glow from the house's
+                    // middle and lit its outer walls and the ground all round through the walls. The panes keep their
+                    // own night glow (Flora shader).
                     if (night < 0.25f)
                         continue;
                     l = new Vector4(l.x, l.y, l.z, 0f) * windowsOn;
                     l.w = -light.w;
+                    Punchy.Settings.LightBudget.AddIndoor(Punchy.Settings.LightKind.Fixture, position, l);
+                    continue;
                 }
                 Punchy.Settings.LightBudget.AddStill(Punchy.Settings.LightKind.AmbientGlow, position, l);
             }

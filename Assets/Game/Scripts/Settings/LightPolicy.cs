@@ -11,7 +11,8 @@ namespace Punchy.Settings
     /// - Carried: lanterns and torches someone holds: the player's and other players' cave lanterns (real lights,
     ///   CaveSystem), folk's lanterns and torches (glow list, CreatureRenderSystem).
     /// - Fixture: placed, man-made lights: interior room lamps (real, Interiors), wall and post torches and sconces in
-    ///   cave rooms and the sunken temple, lit windows (SurfaceGlow), the iceberg cave light (real).
+    ///   cave rooms and the sunken temple, lit windows (SurfaceGlow: a house's inside light, indoor, see
+    ///   <see cref="LightPolicy.IndoorLightsOutdoors"/>), the iceberg cave light (real).
     /// - Fire: open fires that light their surroundings: landmark campfires and braziers (flames only, no light
     ///   yet), forest fires (the 6 nearest crowns light; FireSystem.Light).
     /// - Creature: lights carried by or grown on animals: colossus lanterns (lantern stag, mire walker, hermit crab,
@@ -52,6 +53,16 @@ namespace Punchy.Settings
             /// <summary>Global: always on, never budgeted.</summary>
             public bool Global;
         }
+
+        /// <summary>
+        /// Whether a light inside a building lights anything outside it (P-21, playtest 11-08 item 31): no. An indoor
+        /// light (LightBudget.AddIndoor) lights only its building's inside surfaces; walls stop it, so it never reaches
+        /// the outer faces of the walls or the ground round the house. Chosen over switching it off while doors and
+        /// windows are shut: that ties a cosmetic light to door state on every machine, and a light at the house's
+        /// middle would still leak through every wall whenever a door stood open. Light spilling out of an open door
+        /// would be its own small fixture at the doorway.
+        /// </summary>
+        public const bool IndoorLightsOutdoors = false;
 
         /// <summary>The rule for each kind (indexed by LightKind).</summary>
         public static Rule For(LightKind kind)

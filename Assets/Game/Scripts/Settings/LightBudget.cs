@@ -118,6 +118,23 @@ namespace Punchy.Settings
         public static void AddReal(LightKind kind, int id, Vector3 position, Vector4 glow)
             => Push(kind, MovingKey(id, kind), position, glow, true);
 
+        /// <summary>
+        /// A light inside a building (LightPolicy.IndoorLightsOutdoors): it lights only that building's inside. Every
+        /// building on the island is a solid shell (Interiors builds the enterable rooms off the island, each with its
+        /// own lamp, which asks through <see cref="AddReal"/>), so there's nothing inside for it to light and it takes
+        /// no slot: lights at a house's middle lit its outer walls and the ground round it through the walls (P-21,
+        /// item 31). Counted for "-lightlog" only.
+        /// </summary>
+        public static void AddIndoor(LightKind kind, Vector3 position, Vector4 light)
+        {
+            if (math.max(light.x, math.max(light.y, light.z)) > 0f && light.w != 0f)
+                indoorCount++;
+        }
+
+        static int indoorCount;
+        /// <summary>Last frame's indoor lights (<see cref="AddIndoor"/>), which light nothing outdoors.</summary>
+        public static int Indoor;
+
         /// <summary>How lit a source's own Unity light should be (0..1, fading as it gains or loses the budget).</summary>
         public static float RealLevel(LightKind kind, int id)
             => realLevel.TryGetValue(MovingKey(id, kind), out var level) ? level : 0f;
@@ -151,9 +168,20 @@ namespace Punchy.Settings
         {
             var view = DetailPolicy.Current.Data;
             var end = GlowEnd(LightPolicy.For(kind), view);
-            return new Vector2(DetailPolicy.Reach(reach, end * SizeFadeTo, view.PixelsPerMetre),
-                               DetailPolicy.Reach(reach, end, view.PixelsPerMetre));
+            var to = DetailPolicy.Reach(reach, end, view.PixelsPerMetre);
+            var capped = CappedReach(to, ambientCutAt);
+            return new Vector2(math.min(DetailPolicy.Reach(reach, end * SizeFadeTo, view.PixelsPerMetre), capped), capped);
         }
+
+        /// <summary>
+        /// The hand-off rule for every capped tier (playtest 11-09): a near tier with a cap ends at the nearest thing the cap
+        /// cut, not at a fixed distance, so the tier after it takes over from there and nothing falls between the two. (Lights
+        /// seen from afar went out as you came in and came back up close.) With nothing cut, the normal reach stands.
+        /// </summary>
+        public static float CappedReach(float normalReach, float nearestCut) => math.min(normalReach, math.max(nearestCut, 10f));
+
+        /// <summary>How near the closest ambient glow the 16 slots had no room for is (eased, so the hand-off doesn't jump).</summary>
+        static float ambientCutAt = float.MaxValue;
 
         /// <summary>The on-screen size (reference pixels) below which a kind leaves the glow tier, at this view.</summary>
         static float GlowEnd(in LightPolicy.Rule rule, in DetailPolicy.View view)
@@ -174,6 +202,7 @@ namespace Punchy.Settings
             float3 camPos = cam.transform.position;
             var dt = math.min(Time.unscaledDeltaTime, 0.1f);
             var log = LogOn && Time.unscaledTime >= nextLog;
+            (Indoor, indoorCount) = (indoorCount, 0);
             if (log)
             {
                 System.Array.Clear(logRequests, 0, Kinds);
@@ -252,6 +281,18 @@ namespace Punchy.Settings
             }
             ranked.Sort(ByScore);
             var count = math.min(ranked.Count, GlowSlots);
+
+            // The far glow map takes over from the nearest ambient glow the cap cut (CappedReach).
+            var nearestCut = 4000f;
+            Vector3 eyeAt = cam.transform.position;
+            for (int k = count; k < ranked.Count; k++)
+            {
+                var r = requests[ranked[k].index];
+                if (r.Kind == LightKind.AmbientGlow)
+                    nearestCut = math.min(nearestCut, Vector3.Distance(r.Position, eyeAt));
+            }
+            var cutBefore = ambientCutAt > 4000f ? 4000f : ambientCutAt;
+            ambientCutAt = math.lerp(cutBefore, nearestCut, 1f - math.exp(-dt * 2f));
 
             heatNextAge.Clear();
             for (int k = 0; k < count; k++)
@@ -335,7 +376,7 @@ namespace Punchy.Settings
             var text = logText;
             text.Clear();
             text.Append("[lights] requests ").Append(Requested).Append(", glow slots ").Append(SlotsUsed).Append('/').Append(GlowSlots)
-                .Append(", real ").Append(RealUsed).Append('/').Append(budget).Append(", dropped ").Append(Dropped)
+                .Append(", real ").Append(RealUsed).Append('/').Append(budget).Append(", dropped ").Append(Dropped).Append(", indoor ").Append(Indoor)
                 .Append(" (detail ").Append(GraphicsSettings.Detail.ToString("0.0#", System.Globalization.CultureInfo.InvariantCulture)).Append(')');
             for (int k = 0; k < Kinds; k++)
             {
