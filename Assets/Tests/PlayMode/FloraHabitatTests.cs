@@ -25,7 +25,7 @@ namespace Punchy.Tests.PlayMode
             new[] { "FungalForest", "FungalGlowCap" },
         };
 
-        [UnityTest]
+        [UnityTest, Explicit("shots, run on demand")]
         public IEnumerator Habitat_StatsAndShots()
         {
             var tag = System.Environment.GetEnvironmentVariable("PUNCHY_SHOT_TAG") ?? "new";
@@ -54,7 +54,7 @@ namespace Punchy.Tests.PlayMode
             yield return null;
         }
 
-        [UnityTest]
+        [UnityTest, Explicit("shots, run on demand")]
         public IEnumerator Clearings_AerialAndGroundShots()
         {
             var c = System.Globalization.CultureInfo.InvariantCulture;
@@ -82,7 +82,7 @@ namespace Punchy.Tests.PlayMode
         /// and a Sonoran slope facing the sun, shot from the sunny side. Spots are picked from the placement and the heights, so old and new
         /// builds frame alike. Shots only; nothing asserted beyond the files existing.
         /// </summary>
-        [UnityTest, Timeout(900000)]
+        [UnityTest, Explicit("shots, run on demand"), Timeout(900000)]
         public IEnumerator Habitat_FramedShots()
         {
             var c = System.Globalization.CultureInfo.InvariantCulture;
@@ -137,8 +137,22 @@ namespace Punchy.Tests.PlayMode
                         camAt = p;
                     }
                 }
+                // The player stands in the clearing and the camera is set relative to it, so the live ground sets the height. It looks
+                // at the centre of the nearby trees, level, 3 m up.
+                var cen = Vector2.zero;
+                var cnt = 0;
+                foreach (var t in trees)
+                    if (Vector2.Distance(t, bestAt) < 60f)
+                    {
+                        cen += t;
+                        cnt++;
+                    }
+                var dir = cnt > 0 ? (cen / cnt - bestAt) : Vector2.up;
+                if (dir.magnitude < 8f)
+                    dir = dir.sqrMagnitude < 0.01f ? Vector2.up * 30f : dir.normalized * 30f;
                 yield return TestSceneSetup.GoTo(bestAt.x, bestAt.y, 10f);
-                Game.RunOptions($"-camlook {camAt.x.ToString(c)},{(heights[Cell(camAt.x, camAt.y)] + 3.5f).ToString(c)},{camAt.y.ToString(c)},{bestAt.x.ToString(c)},{(cy + 6f).ToString(c)},{bestAt.y.ToString(c)}");
+                yield return TestSceneSetup.Seconds(10f);
+                Game.RunOptions($"-camrel 0,3,0,{dir.x.ToString(c)},3,{dir.y.ToString(c)}");
                 yield return TestSceneSetup.Seconds(14f);
                 Shots.Take($"framed-clearing-{biome}-{tag}", 1280, 720);
                 break;
@@ -181,15 +195,15 @@ namespace Punchy.Tests.PlayMode
                 LogWatch.Measure($"slope Sonoran: sunny face at {tx:F0},{tz:F0}, {best} of 169 cells sunny");
                 var camZ = tz - 60f;
                 var camRow = Mathf.Clamp((int)((camZ - (spot[2] - half)) / (2f * half) * n), 0, n - 1);
-                var camY = Mathf.Max(ty + 25f, heights[camRow * n + bx] + 10f);
-                yield return TestSceneSetup.GoTo(tx, tz, 10f);
-                Game.RunOptions($"-camlook {tx.ToString(c)},{camY.ToString(c)},{camZ.ToString(c)},{tx.ToString(c)},{(ty + 3f).ToString(c)},{tz.ToString(c)}");
+                                yield return TestSceneSetup.GoTo(tx, tz - 35f, 10f);
+                yield return TestSceneSetup.Seconds(10f);
+                Game.RunOptions($"-camrel 0,6,0,0,{(ty + 2f - heights[Mathf.Clamp((int)((tz - 35f - (spot[2] - half)) / (2f * half) * n), 0, n - 1) * n + bx]).ToString(c)},35");
                 yield return TestSceneSetup.Seconds(14f);
                 Shots.Take($"framed-slope-Sonoran-{tag}", 1280, 720);
             }
         }
 
-        [UnityTest, Timeout(900000)]
+        [UnityTest, Explicit("shots, run on demand"), Timeout(900000)]
         public IEnumerator Clearings_PlanMaps()
         {
             foreach (var biome in (System.Environment.GetEnvironmentVariable("PUNCHY_PLAN_BIOMES") ?? "Temperate,Grassland,Mountains,FungalForest,Tundra,Sonoran,MesaCanyonlands,Dunes,SaltFlat,GlassDesert,Glacier,Ashlands,Volcano,EmberForest,ElectricWastelands,SparklingForest,FoggyMarsh,PoisonSwamp").Split(','))
