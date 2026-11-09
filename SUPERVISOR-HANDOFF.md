@@ -101,3 +101,10 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - Round 3 (FEEDBACK items 25-37) given to three lanes, subagents of this session: W-124 flora (Punchy-world, flora/round3 on #210), W-125 water (Punchy-release, water/round3 on #209), P-21 lights/sky (Punchy-player, lights/round3 on #208). Item 34's fish, coral and shells are new content (freeze): ideas only.
 - The main account left uncommitted roof edits on top of #211 (normal flip by the sheet alone, underside sky 0.18 -> 0.32), unverified: saved as local branch wip/roof-silhouette-2 45f5f492 in the player tree, not pushed. Include in the next playtest build for Zach to judge.
 - Open for Zach: #208, #209, #210, #211 (all merge-tree clean on main 4669aabc); sky/cost and render/ssao-source have no PRs.
+
+## Main account, 2026-11-08 ~23:45 (for whichever session builds next)
+- Zach merged #208-#211 by way of the main account: main 13cdbcdc. **The suite hasn't run on this main** (every tree free of a lane was in use); run it first chance. The closest check is test/playtest-1108d (#208+#209+#210+sky/cost, 14/14).
+- **Zach wants the tufts and gusts in the next playtest build:** merge `grass/fields` cee1cc04 (main + grass/clumps + grass/far-gusts, the one conflict resolved; not compiled, no PR). Not to be left out again.
+- Roof: #211 as merged still has the camera-dependent underside. wip/roof-silhouette-2 (flip by the sheet alone, underside sky 0.32) showed no visible change in a side-by-side at -goto -3277,129.9,1549 (undersides still near black at low camera heights), so it needs more work, not just merging. Zach's report: a face changes colour with the camera; undersides quite dark.
+- Meadow (item 25): closed. Zach: his misreading of medium-range shadow aliasing on the grass.
+- Job 34: sky/cost saves 3.4 ms GPU at the Summit against main, no PR yet; Sky.shader needs the merge resolved as in test/playtest-1108d. Job 35: the prepass is forced depth priming, not SSAO's.
