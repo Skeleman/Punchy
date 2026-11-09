@@ -3332,3 +3332,22 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
 - Not verified: the hatchling's eyes use the lamp material, but in a dusk shot (20:20) they don't glow visibly, so I don't count on that.
 - Shots: D:/PunchyMilestones/W-122/r3-hatchery.png, r3-hatchling.png, r3-above.png.
 - W-122 is complete (rows 1-3). Editor closed.
+
+## W-123 row 1 - flora LOD by class and on-screen size: done (verified, with the limits below)
+- Commit 9ca9d11c on flora/class-rules. Suite 14/14; Landmarks_V3 112 A955AFE0 and Fauna_Fingerprint F0EF4BD5 unchanged.
+- Each variant's size and class (DetailPolicy.FloraRule: tree, plant, rock, debris, structure) set its LOD changes, draw range and real-time shadow range in the existing cull. Layer radius and the sun's shadow distance stay as ceilings. `-oldfloralod` gives the old rule.
+- Hysteresis: shadows have a per-plant state buffer. Mesh changes keep the existing dithered crossfade.
+- Trees have a minimum change distance (DetailPolicy.FloraFloor), or 7-9 m trees went angular at 25 m and to flat discs at 100-250 m. So trees under about 20 m change where they always did.
+- A/B, same build, windowed 1920x1080, -fpscap 0, High, 3 rounds alternating. Mean GPU new minus old (ms): town-near +0.03, town-near2 +0.02, town-far -0.02, forest-near -0.02, forest-near2 -0.05, forest-far +0.02. Frame: +0.03, -0.02, +0.01, -0.12, +0.03, +0.01. No worse and no better: all inside the run-to-run spread (about 0.1 ms).
+- Discarded: the first old-rule run fell back from exclusive fullscreen to 4K (all shots 3840x2160), a false GPU win of up to 1.7 ms. The first tuning was 0.25-0.7 ms slower at far views (High scales the rule by Detail 1.5; the old layers used View 1.3).
+- UNVERIFIED: popping judged from still shots, not a moving camera; shadow hysteresis not exercised directly; only High measured; the town's shadow-caster cost not measured separately.
+- Seen: two rocks about 100 m south of the town square sit in a crossfade band on the new rule and show dither stipple from that camera spot. All present in all runs.
+- Shots: PunchyMilestones/W-123/r1 (new1-3, old1-3, crop-street.png).
+
+## W-123 row 2 - flora wind: BLOCKED, not started (needs a supervisor call)
+- The row reworks Flora.hlsl, but the card says not to touch anything open in #208 and #209, and #209 changes Flora.hlsl. Not edited. Supervisor: allow it, or merge #209 first.
+- Cause found: FloraMeshBuilder.Sway multiplies the weight by (1 + 0.6 x outward), so a crown's outer vertices swing further than its inner ones; Flora.hlsl then rescales each vertex to its length from the base, pulling the crown in and out; flutter along the normal swells round clumps. Plan: height-only weights, a rotation about the base, flutter along a fixed direction.
+- To decide: the grass's gust scroll (clock x wind direction) jumps when the wind veers late in a session (W-43 gave the banners a fixed-rate scroll instead). Matching the grass exactly brings that jump to the trees.
+
+## W-123 row 3 - V3 colour sync: not started
+- Stopped at row 2. Likely the same conflict: the biome tint path (GroundFor, RockTint) is in FloraPlacement.cs, which #209 also changes.
