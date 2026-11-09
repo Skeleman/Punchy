@@ -3400,3 +3400,10 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
 - Check so far: dry/rain shots of an oak, a pine and a trunk on the new build and the row 2 build (PunchyMilestones/W-124/r4/new, old; sheet-old-top-new-bottom.png). Rain came in overcast, so the sun highlight the fix targets isn't lit in them. Grain is faintly visible on the dry trunk. The trunk close-up framed from 5 m, not 2.5 m. Not judged done.
 - Left to do: re-shoot rain with sun breaks (or with -time chosen for a lit rain cell), a true 2-3 m trunk close-up (Oak #1 at 1737.4, 20.6, 3354.6), and an A/B for GPU cost. Then commit, push, and run the suite (scripts/run-playmode-tests.sh, 14/14 with pins Landmarks_V3 112 A955AFE0 and Fauna_Fingerprint F0EF4BD5). The suite was not run this card.
 - No editor was opened this card (batch-mode builds only, all exited). Untracked probes are back in Assets/Temp/Editor.
+
+## R-1: clouds on a low-resolution buffer (sky/lowres), 2026-11-09
+Row 1 (fbc78198): cheaper sun samples with distance. Per in-cloud step: four up to 3 km, three by 6 km, two past 11 km
+(the nearest and third samples' weights merge into their neighbours, fading, so no line shows). `-skyoff 64` keeps all four.
+Verified: full-resolution crops noon and sunset (Summit, -gfx High, seed 4) against `-skyoff 64`: no visible change; the
+differences are the cloud drift between the two shots. Merged origin/sky/cost first (underwater early-out kept, then the test mask).
+Next: row 2.
