@@ -262,9 +262,13 @@ Shader "Punchy/Flora"
                 // Thin tapered strands (roots, stems) can end in a degenerate normal; a NaN there blooms into a bright fleck.
                 half3 n = SafeNormalize(input.normalWS);
                 float3 v = GetWorldSpaceNormalizeViewDir(input.positionWS);
+                // The facet's own normal (outside any branch, so the derivatives are good).
+                float3 facet = normalize(cross(ddy(input.positionWS), ddx(input.positionWS)) + 1e-9);
                 // Built things are drawn double-sided too, and a roof is one sheet: seen from below it's the sheet's
-                // back, whose normal still points up. Light the side you see.
-                if (part == 0 && built && dot(n, v) < 0)
+                // back, whose normal still points up. Light the side you see. Only if the facet agrees that it's the back:
+                // near a roof's silhouette the smoothed normal already leans away on faces that do face you, and flipping
+                // those drew black shapes at the eaves when looking up (playtest 11-07, 11-08).
+                if (part == 0 && built && dot(n, v) < 0 && dot(n, dot(facet, v) < 0 ? -facet : facet) < 0)
                     n = -n;
 
                 // Per-plant tint: brightness, and leaves a little yellower or bluer.
@@ -274,7 +278,6 @@ Shader "Punchy/Flora"
                 // How many metres one pixel covers here, and the facet's own normal (outside any branch, so the
                 // derivatives are good).
                 float footprint = length(fwidth(input.positionWS));
-                float3 facet = normalize(cross(ddy(input.positionWS), ddx(input.positionWS)) + 1e-9);
                 // Cloth: lit by the surface the wind has waved (its folds catch the light), facing the viewer.
                 if (part == 10)
                     n = dot(facet, v) < 0 ? -facet : facet;
