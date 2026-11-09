@@ -126,8 +126,13 @@ void Cull(uint id : SV_DispatchThreadID)
         seen = seen && side >= -radius;
     }
 
-    // Distance to the plant's base on the ground plane suits LOD better than to its centre (tall trees).
-    float d = length(plant.position.xz - _CameraPosition.xz);
+    // LOD distance: to the nearest point of the plant's upright span (base to top), which suits tall trees better than
+    // its centre. Item 29: this was the distance on the ground plane alone, so from high above the plants straight below
+    // counted as near and went to LOD 0, whose draw FloraSystem skips by the 3D distance: they vanished, and their
+    // shadows with them, while plants off to the side still showed.
+    float top = plant.position.y + 2 * bounds.y * plant.scale;
+    float gap = max(0, max(plant.position.y - _CameraPosition.y, _CameraPosition.y - top));
+    float d = length(float3(plant.position.xz - _CameraPosition.xz, gap));
     if (d < _Shadow.w)
         return;
     if (casts)

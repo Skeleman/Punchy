@@ -650,7 +650,8 @@ Shader "Punchy/Flora"
                 // LOD keeps casting with its outgoing level until the change is complete.
                 clip(input.fade >= 0 && input.fade < 1 ? -1 : 1);
                 FloraMossClip(input.moss);
-                if (_FloraCheapHoles.w > 0 && distance(input.positionWS.xz, _FloraCheapHoles.xz) > _FloraCheapHoles.w)
+                // (3D, as the cull picks the cheap list since item 29: from high up the trees below are far, too.)
+                if (_FloraCheapHoles.w > 0 && distance(input.positionWS, _FloraCheapHoles.xyz) > _FloraCheapHoles.w)
                     clip(HoleNoise(input.positionWS) - 0.45);
                 return 0;
             }
