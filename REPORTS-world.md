@@ -3537,3 +3537,7 @@ Built in the player tree, not the one the card names (the world tree's gitignore
   **Real failures fixed on the way:**
   - FungalGlowCap: `-frame` gives "FAIL no FungalGlowCap within reach" from the Fungal view spot, so the test now uses FungalOak.
   - The same subject and framing twice log the same `[frame]` line, so the test now writes a marker before each frame.
+- **Row 4 DONE** (18f75d7d, tools/shots): docs/agents/testing.md gains "How to take shots" (Settled with -camlook, -frame subjects/framings, -shotlist/-shotdir, ShotRunStart/ShotRunSheet hooks, PUNCHY_GALLERY env var, check line and BAD rules) and the card checklist line: `Shots: T-1 tool (Shots.Settled, -frame or -shotlist); quote each [shot] check line; look only at the contact sheet; full res to PUNCHY_GALLERY; any BAD shot is retaken or reported with its reason.` Shots.Take, DebugControls.Shot and CaveTools.PreviewShot now point at the tool; no behaviour change (WorldTests rain-deer still on Take).
+  **W-126 Explicit tests on Settled, all PASS:** Clearings_AerialAndGroundShots 124.3 s, Clearings_PlanMaps 311.8 s, Habitat_FramedShots 76.5 s, Habitat_StatsAndShots 107.5 s.
+  **Suite (final code):** 15 passed, 0 failed, 7 skipped in 211s. Pins hold: Landmarks_V3 112 A955AFE0, Fauna_Fingerprint 7D75BB04.
+  **NEXT:** supervisor review and merge of tools/shots (rows 1-4: 6781e65e, 451cfbb8, 84184d1d, 18f75d7d).
