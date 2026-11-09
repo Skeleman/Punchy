@@ -445,7 +445,8 @@ namespace Punchy.Terrain
                 var origin = buildRequests[i].Origin;
                 var terrainBounds = SetBounds(buildMeshes[i], buildRanges[i], config.ChunkSize);
                 var hasWater = buildWaterRanges[i].x <= buildWaterRanges[i].y;
-                var waterBounds = hasWater ? SetBounds(buildMeshes[count + i], buildWaterRanges[i], config.ChunkSize) : default;
+                // (Padded by the swell's reach: the shader moves the sea's vertices, refactor 3.4.)
+                var waterBounds = hasWater ? SetBounds(buildMeshes[count + i], buildWaterRanges[i], config.ChunkSize, WaterSwells.BoundsPad) : default;
 
                 if (!loaded.TryGetValue(item.Coord, out var chunk))
                 {
@@ -507,12 +508,14 @@ namespace Punchy.Terrain
             buildWaterLayout.Dispose();
         }
 
-        static AABB SetBounds(Mesh mesh, float2 heightRange, float size)
+        /// <summary>A chunk mesh's bounds from its height range, grown by <paramref name="pad"/> on every side (m; the
+        /// water's swell reach, zero for the ground).</summary>
+        static AABB SetBounds(Mesh mesh, float2 heightRange, float size, float3 pad = default)
         {
             var aabb = new AABB
             {
                 Center = new float3(size * 0.5f, (heightRange.x + heightRange.y) * 0.5f, size * 0.5f),
-                Extents = new float3(size * 0.5f, math.max((heightRange.y - heightRange.x) * 0.5f, 0.5f), size * 0.5f)
+                Extents = new float3(size * 0.5f, math.max((heightRange.y - heightRange.x) * 0.5f, 0.5f), size * 0.5f) + pad
             };
             mesh.bounds = new Bounds(aabb.Center, aabb.Extents * 2f);
             return aabb;

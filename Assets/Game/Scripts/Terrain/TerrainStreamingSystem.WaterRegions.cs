@@ -214,7 +214,8 @@ namespace Punchy.Terrain
             Mesh.ApplyAndDisposeWritableMeshData(target, r.Mesh, MeshFlags);
             if (indexCount == 0)
                 lo = hi = float3.zero;
-            r.Mesh.bounds = new Bounds((lo + hi) * 0.5f, math.max(hi - lo, 1f));
+            // (Grown by the swell's reach on every side: the shader moves the sea's vertices, refactor 3.4.)
+            r.Mesh.bounds = new Bounds((lo + hi) * 0.5f, math.max(hi - lo, 1f) + 2f * WaterSwells.BoundsPad);
             return regionMembers.Count;
         }
 

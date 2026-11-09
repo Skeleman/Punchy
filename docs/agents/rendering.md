@@ -21,6 +21,11 @@ Read before changing any shader, material or render setting.
   - Reflections march screen space through the depth texture and sample the opaque texture, so the RP assets
     must keep Opaque Texture on.
   - Inside the march, sample with explicit LOD: implicit derivatives in a loop give a compile warning.
+  - Water quality tiers (march steps, refraction, swell waves, fine-detail fade) come from `Settings/WaterQuality.cs`
+    by how big a metre of water looks (reference pixels); add new costly water terms to that policy, not as a new
+    distance check. Swell numbers live only in `WaterSwells.cs` (uploaded as globals); `WaterSwell.hlsl` is maths only.
+  - The water has a depth-only prepass (`WaterDepth`, SRPDefaultUnlit) so displaced waves hide each other properly;
+    transparents drawn after the water are depth-tested against its surface.
 - `MaterialPropertyBlock.SetInt` stores a float; use `SetInteger` for `int`/`uint` shader properties.
 
 ## Learned in October 2026 (from the lane handoffs)

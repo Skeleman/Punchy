@@ -190,8 +190,9 @@ namespace Punchy.Settings
         }
 
         /// <summary>
-        /// The main menu's Graphics tab: the presets, the three sliders and Reset, applied as they move, and the frame
-        /// cap (also on the Options button), and the resolution and window mode (DisplaySettings). Quit is in the menu's foot, for every tab.
+        /// The main menu's Graphics tab: the presets, the three sliders and Reset, applied as they move, the water's
+        /// reflections (WaterQuality), the frame cap (also on the Options button), and the resolution and window mode
+        /// (DisplaySettings). Quit is in the menu's foot, for every tab.
         /// </summary>
         static void DrawTab(Punchy.UI.MenuNav nav)
         {
@@ -216,6 +217,9 @@ namespace Punchy.Settings
             GUILayout.Space(6);
             if (nav.Button("Reset (Medium)"))
                 Set(GraphicsPreset.Medium);
+            // The water's reflections (refactor 3.4, WaterQuality): High as tuned, Medium fewer march steps, Low sky only.
+            if (nav.Button($"Water reflections: {WaterQuality.Reflection}"))
+                WaterQuality.Next();
             GUILayout.Space(6);
             DisplaySettings.DrawRows(nav);
             GUILayout.Space(6);

@@ -716,6 +716,17 @@ namespace Punchy.Weather
         {
             if (cam == null || rain == null)
                 return;
+            // Under water (playtest 11-08 item 18) nothing falls or blows past the lens: the emitters stop and what's
+            // already in the air is hidden until the lens is out again.
+            var dry = !Punchy.CameraRig.Underwater.LensUnder;
+            if (dry != particlesShown)
+            {
+                particlesShown = dry;
+                foreach (var ps in new[] { rain, snow, hail, dust })
+                    ps.GetComponent<ParticleSystemRenderer>().enabled = dry;
+            }
+            if (!dry)
+                rainAmount = snowAmount = hailAmount = dustAmount = 0f;
             var position = cam.transform.position;
             var drift = WindDirection * wind * 6f;
             UpdateEmitter(rain, rainAmount * RainParticlesPerSecond, position + Vector3.up * 14f, new Vector3(drift.x, -17f, drift.y));
@@ -782,6 +793,8 @@ namespace Punchy.Weather
             grow.enabled = true;
             grow.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0f, 0.7f, 1f, 1.3f));
         }
+
+        bool particlesShown = true;
 
         static void UpdateEmitter(ParticleSystem ps, float rate, Vector3 position, Vector3 velocity)
         {

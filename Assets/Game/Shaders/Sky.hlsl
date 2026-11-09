@@ -27,6 +27,7 @@ float4 _PunchyWeatherRect;     // xy world origin of the maps, zw 1 / world size
 half3  _PunchyDustColor;
 float  _PunchyHazeDensity;     // base exponential-squared haze per metre (hides the edge of the streamed terrain)
 float4 _PunchyUnderwater;       // P-20: under water, rgb the water's fog colour and w its density per metre; 0 when dry (Underwater.cs)
+float4 _PunchyUnderwaterSurface; // under water, x the surface over the lens (m) and y the lens's depth under it; 0 when dry (Underwater.cs)
 
 float3 _PunchySunDirection;    // towards the sun
 float3 _PunchyMoonDirection;   // towards the moon
@@ -958,9 +959,17 @@ half3 PunchyAtmosphere(half3 color, float3 positionWS)
     float distance = length(toPoint);
     float3 dir = toPoint / max(distance, 1e-3);
     // Under water (P-20, Underwater.cs): the water's own fog by distance instead of the sky's haze, which can't be
-    // seen from down here. Everything drawn through PunchyAtmosphere (terrain, flora, rocks) fades alike.
+    // seen from down here. Everything drawn through PunchyAtmosphere (terrain, flora, rocks) fades alike. Only the part
+    // of the path under the surface counts (playtest 11-08 item 8): the shore above water stays clear enough to show
+    // through Snell's window as the lens nears the top (Water.shader).
     if (_PunchyUnderwater.w > 0)
-        return lerp(color, (half3)_PunchyUnderwater.rgb, 1 - exp(-pow(distance * _PunchyUnderwater.w, 2)));
+    {
+        float wet = distance;
+        float rise = positionWS.y - camera.y;
+        if (positionWS.y > _PunchyUnderwaterSurface.x && rise > 1e-3)
+            wet *= saturate(_PunchyUnderwaterSurface.y / rise);
+        return lerp(color, (half3)_PunchyUnderwater.rgb, 1 - exp(-pow(wet * _PunchyUnderwater.w, 2)));
+    }
     color = PunchyHazeFromLut(color, positionWS.xz - _PunchyHazeOrigin.xz, distance);
     float haze = 1 - exp(-pow(distance * _PunchyHazeDensity, 2));
     if (haze < 0.01)

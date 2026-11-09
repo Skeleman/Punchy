@@ -172,10 +172,12 @@ namespace Punchy.Terrain
             Shader.SetGlobalFloat(DetailReadyId, 1f);
             Shader.SetGlobalFloat(WaterDetailId, WaterDetail ? 1f : 0f);
             Shader.SetGlobalFloat(WaterNoSsrId, ArgIs("-waterssr", "0") ? 1f : 0f);
+            Shader.SetGlobalFloat(RefractionId, ArgIs("-waterrefraction", "0") ? 0f : 0.035f);
         }
 
         static readonly int WaterDetailId = Shader.PropertyToID("_PunchyWaterDetail");
         static readonly int WaterNoSsrId = Shader.PropertyToID("_PunchyWaterNoSsr");
+        static readonly int RefractionId = Shader.PropertyToID("_PunchyRefraction");
 
         /// <summary>Whether the command line has <paramref name="flag"/> followed by <paramref name="value"/>.</summary>
         static bool ArgIs(string flag, string value)

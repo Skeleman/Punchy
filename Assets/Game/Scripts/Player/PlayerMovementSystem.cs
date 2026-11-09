@@ -1295,7 +1295,8 @@ namespace Punchy.Player
             floor = ground.Height;
             if (!ground.HasWater || ground.WaterSurface - swimDepth <= ground.Height)
                 return false;
-            floor = ground.WaterSurface - swimDepth;
+            // (On the sea, the swimmer rides the swell the water is drawn with: prototype, WaterSwells.)
+            floor = ground.WaterSurface + WaterSwells.Height(position.xz, ground.WaterSurface, ground.Height) - swimDepth;
             return true;
         }
     }
