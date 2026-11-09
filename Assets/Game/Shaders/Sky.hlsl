@@ -28,6 +28,7 @@ half3  _PunchyDustColor;
 float  _PunchyHazeDensity;     // base exponential-squared haze per metre (hides the edge of the streamed terrain)
 float4 _PunchyUnderwater;       // P-20: under water, rgb the water's fog colour and w its density per metre; 0 when dry (Underwater.cs)
 float4 _PunchyUnderwaterSurface; // under water, x the surface over the lens (m) and y the lens's depth under it; 0 when dry (Underwater.cs)
+float4 _PunchyUnderwaterShafts;  // under water, x light shaft march steps (0 off), y brightness, z fade per metre under the surface (Underwater.cs)
 
 float3 _PunchySunDirection;    // towards the sun
 float3 _PunchyMoonDirection;   // towards the moon
@@ -869,6 +870,43 @@ half3 PunchyHazeFromLut(half3 color, float2 offsetXZ, float distance)
     return color * (1 - haze.a) + haze.rgb;
 }
 
+// Under water (playtest 11-08 item 38): light streaming down through the surface in shafts. A few steps along the view
+// ray, the first 40 m; each step's point is traced back up to the surface along the sun's (or moon's) refracted ray,
+// and two drifting noise layers there say whether light got through (the ripples focusing it), sharpened into
+// shafts. Each fades with the point's depth under the surface and with the water's fog towards the eye. Steps come
+// from the water quality setting (WaterQuality.UnderwaterShaftSteps); none on Low.
+half3 PunchyUnderwaterShafts(float3 camera, float3 dir, float distance)
+{
+    int steps = (int)_PunchyUnderwaterShafts.x;
+    if (steps <= 0)
+        return 0;
+    bool day = _PunchySunDirection.y > 0;
+    float3 toLight = day ? _PunchySunDirection : _PunchyMoonDirection;
+    half3 light = day ? _PunchySunColor : half3(0.16, 0.19, 0.27) * 0.4 * _PunchyNight * saturate(_PunchyMoonDirection.y * 4);
+    // (Into water the light bends towards the vertical; held a little off flat so the trace back stays short.)
+    float3 down = refract(-toLight, float3(0, 1, 0), 0.75);
+    down.y = min(down.y, -0.3);
+    float2 back = down.xz / down.y;
+    float reach = min(distance, 40);
+    float stepLength = reach / steps;
+    float t = _PunchyClock;
+    float sum = 0;
+    [loop] for (int i = 0; i < steps; i++)
+    {
+        float s = (i + 0.5) * stepLength;
+        float3 q = camera + dir * s;
+        float below = _PunchyUnderwaterSurface.x - q.y;
+        if (below <= 0)
+            continue;
+        float2 at = q.xz + back * below;
+        float a = PunchyValueNoise(at * 0.42 + float2(t * 0.11, t * 0.05));
+        float b = PunchyValueNoise(at * 0.71 - float2(t * 0.07, -t * 0.09) + 5.3);
+        float shaft = smoothstep(0.3, 0.62, a * b * 2);
+        sum += shaft * exp(-below * _PunchyUnderwaterShafts.z) * exp(-s * _PunchyUnderwater.w);
+    }
+    return light * ((half3)_PunchyUnderwater.rgb * 1.5 + 0.08) * sum * stepLength * _PunchyUnderwaterShafts.y * 0.06;
+}
+
 // Everything between the camera and a surface point: weather volumes, then the base haze (fog coloured like the
 // horizon, thick enough at the edge of the streamed terrain to hide it).
 half3 PunchyAtmosphere(half3 color, float3 positionWS)
@@ -887,7 +925,8 @@ half3 PunchyAtmosphere(half3 color, float3 positionWS)
         float rise = positionWS.y - camera.y;
         if (positionWS.y > _PunchyUnderwaterSurface.x && rise > 1e-3)
             wet *= saturate(_PunchyUnderwaterSurface.y / rise);
-        return lerp(color, (half3)_PunchyUnderwater.rgb, 1 - exp(-pow(wet * _PunchyUnderwater.w, 2)));
+        color = lerp(color, (half3)_PunchyUnderwater.rgb, 1 - exp(-pow(wet * _PunchyUnderwater.w, 2)));
+        return color + PunchyUnderwaterShafts(camera, dir, distance);
     }
     color = PunchyHazeFromLut(color, positionWS.xz - _PunchyHazeOrigin.xz, distance);
     float haze = 1 - exp(-pow(distance * _PunchyHazeDensity, 2));

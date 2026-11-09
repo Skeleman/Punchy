@@ -18,7 +18,8 @@ namespace Punchy.CameraRig
     /// going in and coming out, so a lens bobbing at the waterline doesn't flicker. Water surfaces are only read; the
     /// surface over the lens goes to the shaders (_PunchyUnderwaterSurface) for Snell's window near the top (item 8).
     /// The look follows the fluid the lens is in (playtest 11-08 item 36), from one table, <see cref="Fluids"/>: water,
-    /// a poison swamp mostly green, lava orange; the more opaque the fluid, the heavier and shorter its fog.
+    /// a poison swamp mostly green, lava orange; the more opaque the fluid, the heavier and shorter its fog; deeper is
+    /// darker, and light shafts stream down from the surface (item 38, Sky.hlsl PunchyUnderwaterShafts).
     /// Runs after WeatherSystem sets the fog each frame and after the camera has moved.
     /// </summary>
     [DefaultExecutionOrder(1100)]
@@ -40,12 +41,16 @@ namespace Punchy.CameraRig
             public float Cutoff;
             /// <summary>How fast the fog darkens with the lens's depth under the surface (per metre; light from above fades).</summary>
             public float Darken;
+            /// <summary>Item 38: how bright the light shafts from the surface are (0 none), and how fast they fade with
+            /// depth under the surface (per metre).</summary>
+            public float Shafts, ShaftFade;
 
             public static FluidLook Lerp(FluidLook a, FluidLook b, float t) => new FluidLook
             {
                 Fog = Color.Lerp(a.Fog, b.Fog, t), Tint = Color.Lerp(a.Tint, b.Tint, t),
                 UnityFog = Mathf.Lerp(a.UnityFog, b.UnityFog, t), ShaderFog = Mathf.Lerp(a.ShaderFog, b.ShaderFog, t),
-                Cutoff = Mathf.Lerp(a.Cutoff, b.Cutoff, t), Darken = Mathf.Lerp(a.Darken, b.Darken, t)
+                Cutoff = Mathf.Lerp(a.Cutoff, b.Cutoff, t), Darken = Mathf.Lerp(a.Darken, b.Darken, t),
+                Shafts = Mathf.Lerp(a.Shafts, b.Shafts, t), ShaftFade = Mathf.Lerp(a.ShaftFade, b.ShaftFade, t)
             };
         }
 
@@ -57,9 +62,9 @@ namespace Punchy.CameraRig
         /// </summary>
         static readonly FluidLook[] Fluids =
         {
-            new FluidLook { Fog = new Color(0.04f, 0.22f, 0.25f), Tint = new Color(0.08f, 0.32f, 0.36f, 0.32f), UnityFog = 0.11f, ShaderFog = 0.07f, Cutoff = 700f, Darken = 0.035f },
-            new FluidLook { Fog = new Color(0.09f, 0.19f, 0.03f), Tint = new Color(0.16f, 0.30f, 0.05f, 0.5f), UnityFog = 0.3f, ShaderFog = 0.2f, Cutoff = 450f, Darken = 0.08f },
-            new FluidLook { Fog = new Color(0.95f, 0.32f, 0.04f), Tint = new Color(0.9f, 0.3f, 0.03f, 0.75f), UnityFog = 1.6f, ShaderFog = 1.1f, Cutoff = 250f, Darken = 0f },
+            new FluidLook { Fog = new Color(0.04f, 0.22f, 0.25f), Tint = new Color(0.08f, 0.32f, 0.36f, 0.32f), UnityFog = 0.11f, ShaderFog = 0.07f, Cutoff = 700f, Darken = 0.035f, Shafts = 1f, ShaftFade = 0.06f },
+            new FluidLook { Fog = new Color(0.09f, 0.19f, 0.03f), Tint = new Color(0.16f, 0.30f, 0.05f, 0.5f), UnityFog = 0.3f, ShaderFog = 0.2f, Cutoff = 450f, Darken = 0.08f, Shafts = 0.3f, ShaftFade = 0.2f },
+            new FluidLook { Fog = new Color(0.95f, 0.32f, 0.04f), Tint = new Color(0.9f, 0.3f, 0.03f, 0.75f), UnityFog = 1.6f, ShaderFog = 1.1f, Cutoff = 250f, Darken = 0f, Shafts = 0f, ShaftFade = 1f },
         };
 
         /// <summary>The look for the fluid the lens is in: swamp and lava shares blended over water.</summary>
@@ -71,6 +76,9 @@ namespace Punchy.CameraRig
         static readonly int UnderwaterId = Shader.PropertyToID("_PunchyUnderwater");
         /// <summary>Item 8: x the water surface over the lens (m, with the swell), y how deep the lens is under it; 0 when dry.</summary>
         static readonly int SurfaceId = Shader.PropertyToID("_PunchyUnderwaterSurface");
+        /// <summary>Item 38: the light shafts under water, x march steps (the water quality setting; 0 off), y brightness,
+        /// z fade with depth under the surface (per metre); 0 when dry (Sky.hlsl PunchyUnderwaterShafts).</summary>
+        static readonly int ShaftsId = Shader.PropertyToID("_PunchyUnderwaterShafts");
         // The scene's own fog, kept while under water and put back on surfacing (it used to stay on afterwards).
         bool fogSaved, savedFog;
         FogMode savedMode;
@@ -174,6 +182,9 @@ namespace Punchy.CameraRig
             var water = fogColour.linear;
             Shader.SetGlobalVector(UnderwaterId, fog > 0f ? new Vector4(water.r, water.g, water.b, look.ShaderFog * fog) : Vector4.zero);
             Shader.SetGlobalVector(SurfaceId, under ? new Vector4(surface, Mathf.Max(surface - y, 0f), 0f, 0f) : Vector4.zero);
+            var steps = Punchy.Settings.WaterQuality.UnderwaterShaftSteps;
+            Shader.SetGlobalVector(ShaftsId, fog > 0f && steps > 0 && look.Shafts > 0f && !NoShafts
+                ? new Vector4(steps, look.Shafts * fog, look.ShaftFade, 0f) : Vector4.zero);
             Muffle();
             Drift(under, lava);
         }
@@ -182,8 +193,8 @@ namespace Punchy.CameraRig
 
         ParticleSystem motes, bubbles;
         bool driftShown;
-        /// <summary>"-nodrift": no bubbles or specks, to price them (read once, in Start).</summary>
-        bool NoDrift;
+        /// <summary>"-nodrift": no bubbles or specks; "-noshafts": no light shafts; to price them (read once, in Start).</summary>
+        bool NoDrift, NoShafts;
 
         /// <summary>
         /// Item 34 (the cheap part): specks drifting in the water round the lens and now and then a few bubbles rising
@@ -377,6 +388,7 @@ namespace Punchy.CameraRig
         {
             Punchy.UI.GuiHook.Add(gameObject, DrawGui, () => amount > 0f, false);
             NoDrift = System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-nodrift") >= 0;
+            NoShafts = System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-noshafts") >= 0;
         }
 
         void DrawGui()

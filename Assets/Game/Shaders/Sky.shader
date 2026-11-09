@@ -34,8 +34,9 @@ Shader "Punchy/Sky"
                 // Under water the sky is endlessly far through the water's fog, and the surface's underside (Snell's
                 // window, Water.shader) covers it anyway: skip the clouds and weather marches (job 30: with the water off,
                 // the underwater frame was still 27-29 ms, mostly sky).
+                // (Item 38: with the light shafts through the water in front.)
                 [branch] if (_PunchyUnderwater.w > 0)
-                    return half4(_PunchyUnderwater.rgb, 1);
+                    return half4(_PunchyUnderwater.rgb + PunchyUnderwaterShafts(_WorldSpaceCameraPos, dir, 1000), 1);
                 half3 sky = PunchySkyColor(dir, true, false);
                 sky = PunchyVolumetricClouds(sky, dir, input.positionCS.xy);
                 // (Same step count as the terrain haze target, so distant land and sky converge exactly.)
