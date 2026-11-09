@@ -290,3 +290,12 @@ Profile builds, job 32's setup (Summit, pitch up 10, 1920x1080, `-gfx High`, `-w
 - Then the parts, in plain weather: `-skyoff 1` (no march), `2` (no far clouds), `4` (no sky colour), `8` (no weather
   volumes). They say what's left once the march is cheaper.
 - A sunset view at the same spot, old against new, for banding at low light.
+
+## Job 35 (2026-11-08): can the depth-normal prepass go? (render/ssao-source)
+Job 31: the prepass was 33% of a forest frame and 22% of a town frame. Only SSAO uses it. Branch `render/ssao-source` adds
+`-ssao normals|depth|after|off` (per shot line; `normals` is today's). The desktop is CPU-limited and can't tell them
+apart. Profile build, job 31's forest and bigtown spots, 1920x1080, `-gfx High`, `-weatherseed 4`, uncapped, noon, ABBA.
+- GPU ms for each mode at each spot.
+- One RenderDoc capture per mode at the forest: **does the depth-normal pass disappear** (`depth`: a depth-only prepass?
+  `after` and `off`: none?), or does something else keep it alive? Say which pass remains and its share.
+- A shot per mode at both spots, so the look can be judged (the player lane will compare them for Zach).
