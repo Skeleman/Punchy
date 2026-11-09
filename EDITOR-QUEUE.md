@@ -4,3 +4,4 @@ Oldest first. Add yourself at the bottom; only the first line may open an editor
 
 - world lane W-128: editor in Punchy-release since 13:29
 - rendering R-5: editor in Punchy-world since 13:36
+- player lane P-22: editor in Punchy-player
