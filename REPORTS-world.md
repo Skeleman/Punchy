@@ -3458,3 +3458,8 @@ Built in the player tree, not the one the card names (the world tree's gitignore
   **Verified (editor, dense forest (1740,3355), clear, in-place toggle):** frozen stills old/new mean luminance 74.72/74.19, 39.37/39.16, 109.08/109.07 (no darker than 0.7%, not blockier: `Assets/Temp/shots/r3c-still-ab.png`, `-floor-ab.png`, `-far-ab.png`, world tree, untracked). Wind series, 12 frames, time running: floor view changed px/frame 4591 old vs 3689 new; mid view sign-flip flicker 1113 vs 1321 (`pan/wm-ab.png`): the remaining flicker in both is leaf-tip silhouette sway and thin trunks (geometry), not shadow holes.
   **UNVERIFIED:** wind runs differ by sway phase, so the counts are noisy; no build pan; Low/Medium presets not looked at.
   **Next:** row 4 (depth priming), row 2 plan.
+
+## W-126 follow-up (flora/habitat)
+- verified: Flora_PlacementCost 1697 -> 1424 ms (+5% over 1355 baseline) by counting clearing and grove in the early-out bound. Temperate bare patch is the Glacier biome (sparse by design), not a clearing or grove, so no cap needed. Tests added: 4 (Flora_PlacementCost, Habitat_StatsAndShots, Clearings_AerialAndGroundShots, Clearings_PlanMaps) to measure cost and show habitat/clearing results. Full suite: all pass, Butterflies_MeadowDensity failed once in suite and passes alone; Landmarks_V3 112 A955AFE0, Fauna_Fingerprint 7D75BB04.
+- UNVERIFIED: the two framed real-render shots. Habitat_FramedShots runs, but the camera ends up skimming terrain (hook heights do not match rendered ground), so no clearing or saguaro slope is visible.
+- next: fix framing (probably sample the live terrain height, or use a free-fly camera offset) and retake.
