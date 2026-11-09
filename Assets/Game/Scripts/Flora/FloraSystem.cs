@@ -231,6 +231,9 @@ namespace Punchy.Flora
 
         void OnDisable() => Teardown();
 
+        /// <summary>W-127: a model's lit window panes (FloraModel.Windows; model index as placement gives it), or null.</summary>
+        public List<Vector4> ModelWindows(int model) => model >= 0 && model < models.Count ? models[model].Windows : null;
+
         // ------------------------------------------------------------------------------------------- fountains' water
 
         /// <summary>A basin of water in a plant in a loaded tile (FloraModel.Pools: a fountain's), in the world.</summary>

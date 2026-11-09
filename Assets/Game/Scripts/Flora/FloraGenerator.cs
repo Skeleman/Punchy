@@ -61,6 +61,9 @@ namespace Punchy.Flora
         public readonly List<Vector3> Perches = new List<Vector3>();
         /// <summary>Its chimneys' flue tops (W-43c, where smoke rises), before the plant's own rotation and scale.</summary>
         public readonly List<Vector3> Chimneys = new List<Vector3>();
+        /// <summary>W-127: its lit window panes (xyz the pane's middle, w the yaw (radians) it faces out along), before
+        /// the plant's own rotation and scale, for the light they spill outside at night (WindowSpill).</summary>
+        public readonly List<Vector4> Windows = new List<Vector4>();
         /// <summary>Whether it casts shadows. Small props (fences, palisades, signposts, garden rows, woodpiles,
         /// stalls, flowers) don't: towns have hundreds of them, and every shadow-casting draw costs a shadow pass.</summary>
         public bool CastsShadows = true;
@@ -323,6 +326,7 @@ namespace Punchy.Flora
                     model.ColliderBase.AddRange(g.ColliderBase);
                     model.Perches.AddRange(g.Perches);
                     model.Chimneys.AddRange(g.Chimneys);
+                    model.Windows.AddRange(g.Windows);
                     model.Pools.AddRange(g.Pools);
                     model.DoorHeight = g.DoorHeight;
                     model.Height = g.Height;
@@ -410,6 +414,7 @@ namespace Punchy.Flora
             public readonly List<float> ColliderBase = new List<float>();
             public readonly List<Vector3> Perches = new List<Vector3>();
             public readonly List<Vector3> Chimneys = new List<Vector3>();
+            public readonly List<Vector4> Windows = new List<Vector4>();
             public readonly List<Vector4> Pools = new List<Vector4>();
 
             /// <summary>

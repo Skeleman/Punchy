@@ -302,6 +302,9 @@ namespace Punchy.Terrain
             }
         }
 
+        /// <summary>W-127: lamplight's colour (lamps, and a lived-in house's lit windows).</summary>
+        public static readonly Color LampLight = new Color(1f, 0.72f, 0.38f);
+
         /// <summary>A culture's trim colour for a material.</summary>
         public static Color Colour(in CultureTrim t, KitMaterial m) => m switch
         {
@@ -311,7 +314,7 @@ namespace Punchy.Terrain
             KitMaterial.Opening => t.Opening,
             KitMaterial.Moss => t.Moss,
             KitMaterial.Stone => Color.Lerp(t.Wall, t.Trim, 0.5f) * 0.85f,
-            KitMaterial.Lamp => new Color(1f, 0.72f, 0.38f),
+            KitMaterial.Lamp => LampLight,
             KitMaterial.Net => new Color(0.70f, 0.66f, 0.55f),
             KitMaterial.Rune => new Color(0.55f, 0.95f, 1f),
             KitMaterial.Ice => Color.Lerp(t.Wall, t.Trim, 0.25f),

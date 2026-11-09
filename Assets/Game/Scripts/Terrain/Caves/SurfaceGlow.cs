@@ -78,12 +78,15 @@ namespace Punchy.Terrain
                 Found.Clear();
                 for (int i = 0; i < positions.Length; i++)
                     Found.Add((positions[i].xyz, colors[i]));
+                GatherSpill(flora);
             }
             if (!running && math.distancesq(camPos, scannedAt) > MoveBeforeRescan * MoveBeforeRescan)
             {
                 scannedAt = camPos;
                 positions.Clear();
                 colors.Clear();
+                spillAt.Clear();
+                spillModel.Clear();
                 job = new ScanJob
                 {
                     Flora = blob,
@@ -92,7 +95,9 @@ namespace Punchy.Terrain
                     Centre = camPos.xz,
                     CellSizes = cellSizes,
                     Positions = positions,
-                    Colors = colors
+                    Colors = colors,
+                    SpillAt = spillAt,
+                    SpillModel = spillModel
                 }.Schedule();
                 running = true;
             }
@@ -160,6 +165,8 @@ namespace Punchy.Terrain
             BuildWorldMask(palette, species, ref f);
             positions = new NativeList<float4>(256, Allocator.Persistent);
             colors = new NativeList<float4>(256, Allocator.Persistent);
+            spillAt = new NativeList<float4>(64, Allocator.Persistent);
+            spillModel = new NativeList<float2>(64, Allocator.Persistent);
             scannedAt = new float3(float.MaxValue);
             if (!anyGlow)
                 return;
@@ -191,6 +198,7 @@ namespace Punchy.Terrain
                 farRunning = false;
             }
             ReleaseWorld();
+            ReleaseSpill();
             if (farPlants.IsCreated)
                 farPlants.Dispose();
             if (farWindows.IsCreated)
@@ -223,6 +231,10 @@ namespace Punchy.Terrain
             public float2 Centre;
             public float3 CellSizes;
             public NativeList<float4> Positions, Colors;
+            /// <summary>W-127: lit-window plants within SpillRadius (the tree layer's houses): xyz position, w yaw;
+            /// x its model, y its scale.</summary>
+            public NativeList<float4> SpillAt;
+            public NativeList<float2> SpillModel;
 
             public void Execute()
             {
@@ -230,7 +242,8 @@ namespace Punchy.Terrain
                 for (int layer = 0; layer < 3; layer++)
                 {
                     var size = CellSizes[layer];
-                    var r = Radius[layer];
+                    var near = Radius[layer];
+                    var r = layer == 2 ? math.max(near, SpillRadius) : near;
                     var lo = (int2)math.floor((Centre - r) / size);
                     var hi = (int2)math.floor((Centre + r) / size);
                     for (int y = lo.y; y <= hi.y; y++)
@@ -244,6 +257,13 @@ namespace Punchy.Terrain
                             continue;
                         var glow = ModelGlow[plant.Model];
                         if (glow.w == 0f)
+                            continue;
+                        if (glow.w < 0f)
+                        {
+                            SpillAt.Add(new float4(plant.Position, plant.Yaw));
+                            SpillModel.Add(new float2(plant.Model, plant.Scale));
+                        }
+                        if (math.distancesq(((float2)cell + 0.5f) * size, Centre) > near * near)
                             continue;
                         // Lit from about the middle of the plant; a bigger one reaches further.
                         var scale = math.max(plant.Scale, 0.3f);

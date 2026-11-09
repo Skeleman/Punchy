@@ -1636,6 +1636,15 @@ namespace Punchy.Flora
         {
             Color c;
             float share;
+            // W-127: a lived-in kit house has lit windows (FloraGenerator.Kit), so its light is a lamp inside it: indoor,
+            // night only (negative), like a hut's. Its glowing accents are lamps in it too, which used to light the
+            // street through its walls.
+            if (s.Form == FloraForm.KitBuilding && (Punchy.Terrain.StructureKit.HouseLike(s.KitShape) && s.KitShape != Punchy.Terrain.KitShape.SlabShelter ||
+                                                    s.KitShape == Punchy.Terrain.KitShape.Igloo || s.KitShape == Punchy.Terrain.KitShape.ShellDome))
+            {
+                var lamp = Punchy.Terrain.StructureKit.LampLight.linear;
+                return new float4(lamp.r * 0.6f, lamp.g * 0.6f, lamp.b * 0.6f, -9f);
+            }
             if (s.Finish == FoliageFinish.Glowing)
             {
                 c = s.Foliage;

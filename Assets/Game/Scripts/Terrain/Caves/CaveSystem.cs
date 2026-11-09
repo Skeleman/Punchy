@@ -1222,6 +1222,7 @@ namespace Punchy.Terrain
             surfaceGlow.Update(source, palette, flora, camPos);
             var night = Shader.GetGlobalFloat(NightId);
             var windowsOn = night < 0.25f ? 0f : math.smoothstep(0.25f, 0.55f, night);
+            surfaceGlow.DrawSpill(windowsOn * (1f - Underground), camPos);   // W-127: lit windows' pools outside
             // The whole island's static glow (R-2, Glow.hlsl), past the far map and fading into it.
             if (surfaceGlow.WorldReady)
             {
