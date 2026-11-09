@@ -653,7 +653,8 @@ Shader "Punchy/Flora"
                 // LOD keeps casting with its outgoing level until the change is complete.
                 clip(input.fade >= 0 && input.fade < 1 ? -1 : 1);
                 FloraMossClip(input.moss);
-                if (_FloraCheapHoles.w > 0 && distance(input.positionWS.xz, _FloraCheapHoles.xz) > _FloraCheapHoles.w)
+                // (Only crowns: solid casters come with a negative fade, 3.7 step 3.)
+                if (input.fade > 0 && _FloraCheapHoles.w > 0 && distance(input.positionWS.xz, _FloraCheapHoles.xz) > _FloraCheapHoles.w)
                     clip(HoleNoise(input.positionWS) - 0.45);
                 return 0;
             }

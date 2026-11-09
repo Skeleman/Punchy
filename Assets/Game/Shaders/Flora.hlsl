@@ -143,7 +143,7 @@ FloraVertex FloraTransform(FloraAttributes input)
 #if defined(FLORA_CACHE_PASS)
     still = 1;
 #elif defined(FLORA_SHADOW_PASS)
-    still = saturate(asfloat(visible.y) - 1);
+    still = saturate(abs(asfloat(visible.y)) - 1);   // (negative: a solid caster, 3.7 step 3)
 #endif
     gust *= 1 - still;
     // (A door leaf's x is its distance from the hinge, not how much it bends.)
