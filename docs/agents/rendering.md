@@ -41,6 +41,7 @@ Read before changing any shader, material or render setting.
   43 degrees up in the east, `-time 19` low in the east (compute with DayNightCycle.Evaluate).
 - Flora bark relief (the cave detail texture, albedo and normal bump) fades by distance, not by LOD: 18-45 m for plants, 60-140 m for built things (W-23). Faded by 45 m, hut roofs turned into plain cones whose facets showed at 30-55 m, which read as an LOD bug.
 - Tree shadows (FloraShadowOptions, W-107): the cheap far caster and the cached far shadows are on by default, near range 25 m; still far shadows are off. Turn one off with `-cheapfarcaster 0`, `-cachedfarshadows 0` (`-stillfarshadows` turns that one on). The cache starts at the near range less CacheMove and 2 m, so a drifted camera never leaves a gap.
+- Expensive full-screen effects can draw through `LowResEffectFeature` (refactor 3.4): a half- or quarter-size target, blended with the last frame by reprojection, read back depth-aware. Add an entry to Effects on the PC renderer asset and a shader following the header of `LowResEffect.hlsl`; `SetMode` picks the size. The clouds are its first user (`-skyfull` is today's full-resolution sky).
 - Local lights go through `LightBudget` (refactor 3.1): request one each frame (`Add`, `AddStill`, or `AddReal` for a
   source that owns a Unity light and reads `RealLevel` back) with its `LightKind`; never pick a range or the nearest N
   yourself. `-lightlog` logs requests, tiers, slots, real lights and drops per kind every 5 s; `-lightbudget N` sets
