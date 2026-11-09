@@ -36,6 +36,13 @@ $rows | ForEach-Object { $_ | Add-Member Delta ($_.Cpu - $(if ($prev.ContainsKey
 # Every named thread's state, grouped by name with digits dropped (Job.Worker 0..n as one), e.g. "Job.Worker # x7 Wait/UserRequest".
 "  named: " + (($p.Threads | ForEach-Object { $n = TName $_.Id; if ($n -ne '-' -and $n -ne '?') { "$($n -replace '\d+', '#') $($_.ThreadState)/$(if ($_.ThreadState -eq 'Wait') { $_.WaitReason } else { '-' })" } } |
   Group-Object | ForEach-Object { if ($_.Count -gt 1) { "$($_.Name) x$($_.Count)" } else { $_.Name } }) -join '; ')
+# Stacks: on a game's second snapshot (stalled 45 s or more), once per game, freezestacks.ps1 in its own process.
+$seen = Join-Path $env:TEMP "freezestall-seen-$($p.Id).txt"
+$n = if (Test-Path $seen) { [int](Get-Content $seen) + 1 } else { 1 }; Set-Content $seen $n
+if ($n -eq 2) {
+  Start-Process powershell -ArgumentList '-NoProfile', '-File', "`"$(Join-Path $PSScriptRoot 'freezestacks.ps1')`"", '-Id', $p.Id -WindowStyle Hidden
+  "  stacks: cdb attached (non-invasive), to freezestacks-$($p.Id).txt"
+}
 $w = Get-CimInstance Win32_Process -Filter "ProcessId=$($p.Id)"
 "  io: read $([math]::Round($w.ReadTransferCount/1MB)) MB in $($w.ReadOperationCount) ops, write $([math]::Round($w.WriteTransferCount/1MB)) MB, other $($w.OtherOperationCount) ops"
 $d = Get-Process MsMpEng -ErrorAction SilentlyContinue; if ($d) { "  MsMpEng cpu $([math]::Round($d.TotalProcessorTime.TotalSeconds,1)) s" }
