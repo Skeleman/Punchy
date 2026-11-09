@@ -459,7 +459,7 @@ namespace Punchy.Terrain
                     var shape = rng.NextFloat4();
                     if (underwater || keep >= density)
                         continue;
-                    var tint = (0.8f + shape.w * 0.4f) * math.lerp(new float3(1f, 1f, 1f), new float3(1.25f, 1.08f, 0.6f), rng.NextFloat() * 0.45f);
+                    var tint = (0.8f + shape.w * 0.4f) * math.lerp(new float3(1f, 1f, 1f), new float3(1.25f, 1.08f, 0.6f), rng.NextFloat() * 0.25f);
                     Blades[tile * MaxGrass + grass++] = new Blade
                     {
                         Position = new float3(origin.x + local.x, p.Height - 0.03f, origin.y + local.y),
@@ -470,7 +470,7 @@ namespace Punchy.Terrain
                         Random = rng.NextFloat(),
                         // A touch brighter and more saturated than the ground colour, which already averages
                         // grass with the soil showing between blades; some blades yellower.
-                        Color = new float4(p.Albedo * tint * new float3(1.0f, 1.12f, 0.9f), 1f)
+                        Color = new float4(p.Albedo * tint * new float3(0.97f, 1.18f, 0.88f), 1f)
                     };
                 }
 
