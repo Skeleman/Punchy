@@ -61,6 +61,9 @@ namespace Punchy.Flora
         public readonly List<Vector3> Perches = new List<Vector3>();
         /// <summary>Its chimneys' flue tops (W-43c, where smoke rises), before the plant's own rotation and scale.</summary>
         public readonly List<Vector3> Chimneys = new List<Vector3>();
+        /// <summary>W-128: where its moored boats' undersides sit (a keel plank's middle), before the plant's own
+        /// rotation and scale, for the waterline check.</summary>
+        public readonly List<Vector3> Boats = new List<Vector3>();
         /// <summary>W-127: its lit window panes (xyz the pane's middle, w the yaw (radians) it faces out along), before
         /// the plant's own rotation and scale, for the light they spill outside at night (WindowSpill).</summary>
         public readonly List<Vector4> Windows = new List<Vector4>();
@@ -326,6 +329,7 @@ namespace Punchy.Flora
                     model.ColliderBase.AddRange(g.ColliderBase);
                     model.Perches.AddRange(g.Perches);
                     model.Chimneys.AddRange(g.Chimneys);
+                    model.Boats.AddRange(g.Boats);
                     model.Windows.AddRange(g.Windows);
                     model.Pools.AddRange(g.Pools);
                     model.DoorHeight = g.DoorHeight;
@@ -414,6 +418,7 @@ namespace Punchy.Flora
             public readonly List<float> ColliderBase = new List<float>();
             public readonly List<Vector3> Perches = new List<Vector3>();
             public readonly List<Vector3> Chimneys = new List<Vector3>();
+            public readonly List<Vector3> Boats = new List<Vector3>();
             public readonly List<Vector4> Windows = new List<Vector4>();
             public readonly List<Vector4> Pools = new List<Vector4>();
 

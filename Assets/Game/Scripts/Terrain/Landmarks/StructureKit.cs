@@ -177,6 +177,8 @@ namespace Punchy.Terrain
         public bool Solid;
         /// <summary>Not carried into the ground by the foundation skirt: boats keep their hulls (W-100).</summary>
         public bool Afloat;
+        /// <summary>W-128: a moored boat's bottom plank; FloraModel.Boats keeps where its underside sits (the waterline check).</summary>
+        public bool Keel;
     }
 
     /// <summary>
@@ -366,6 +368,11 @@ namespace Punchy.Terrain
         /// 1 net fishers, 2 fish driers. The trade weights the shore details and picks the boardwalk's deck details.
         /// </summary>
         public const int FishTrades = 3;
+
+        /// <summary>W-128: how far a dock's or wharf's base stands above the water (FloraPlacement.DockShore puts it there).</summary>
+        public const float DockWater = 0.25f;
+        /// <summary>W-128: how deep a moored boat's hull sits in the water, underside to waterline.</summary>
+        public const float BoatDraft = 0.18f;
 
         /// <summary>W-119: how much more often a trade's own details turn up on its shore.</summary>
         static float TradeWeight(CoastDetail kind, int trade) => trade switch
@@ -782,7 +789,7 @@ namespace Punchy.Terrain
             if (rng.NextDouble() < 0.6)
                 Detail(parts, CoastDetail.CrabPots, new Vector3(-width * 0.5f + 0.42f, deck, length * (0.4f + 0.4f * (float)rng.NextDouble())), 270f + ((float)rng.NextDouble() - 0.5f) * 8f, rng, t);
             if (rng.NextDouble() < 0.75)   // moored alongside, riding at the water
-                Detail(parts, CoastDetail.Boat, new Vector3((rng.Next(2) == 0 ? -1f : 1f) * (width * 0.5f + 1.1f), -0.6f, length * (0.45f + 0.35f * (float)rng.NextDouble())), 0f, rng, t);
+                Detail(parts, CoastDetail.Boat, new Vector3((rng.Next(2) == 0 ? -1f : 1f) * (width * 0.5f + 1.1f), -DockWater, length * (0.45f + 0.35f * (float)rng.NextDouble())), 0f, rng, t, true);
             return parts;
         }
 
@@ -1033,23 +1040,27 @@ namespace Punchy.Terrain
                     Detail(parts, CoastDetail.Lantern, tip, sx < 0f ? 0f : 180f, rng, t);
             }
 
-            // Skiffs tied alongside the branches' open edges, riding at the water, a bollard on the deck by each.
-            for (int bi = 1, tied = 0; bi < branchCount && tied < 2; bi++)
+            // Skiffs tied along the main walkway's +X edge towards its far end, riding at the water, a bollard on the deck by
+            // each. W-128: they used to tie off the branches, whose outer ends can reach the bank; the far end of the main
+            // walk always stands in water (the shore fit puts its base on the waterline).
+            var lastTied = 0f;
+            for (int ti = 0, tied = 0; ti < 2; ti++)
             {
                 if (R() < 0.3f)
                     continue;
-                var br = walks[bi];
-                var zb = (br.y + br.w) * 0.5f;
-                var sz = R() < 0.5f ? -1f : 1f;
-                var x = Mathf.Lerp(br.x + 2f, br.z - 2f, R());
-                var boat = new Vector3(x, -0.6f, zb + sz * (half + 1.1f));
-                var free = Mathf.Abs(x) > half + 1.6f;
+                var yaw = R() < 0.5f ? 0f : 180f;
+                var z = Mathf.Lerp(length * 0.5f, length - half - 3.3f, R());
+                var boat = new Vector3(half + 1.1f, -DockWater, z);
+                var free = tied == 0 || Mathf.Abs(z - lastTied) > 6f;
+                for (int bi = 1; bi < walks.Count; bi++)
+                    free &= !(walks[bi].z > half && z + 3.3f > walks[bi].y && z - 3.3f < walks[bi].w);
                 foreach (var hm in homes)
-                    free &= !(boat.x > hm.box.x - 2f && boat.x < hm.box.z + 2f && boat.z > hm.box.y - 1.5f && boat.z < hm.box.w + 1.5f);
-                if (!free || boat.z < 3f)
+                    free &= !(boat.x > hm.box.x - 2f && boat.x < hm.box.z + 2f && boat.z > hm.box.y - 3.3f && boat.z < hm.box.w + 3.3f);
+                if (!free)
                     continue;
-                Detail(parts, CoastDetail.Boat, boat, 90f, rng, t);
-                Add(parts, KitPiece.Trim, KitMaterial.Wood, new Vector3(x, deck + 0.2f, zb + sz * (half - 0.25f)), new Vector3(0.22f, 0.4f, 0.22f), 0f, false);
+                Detail(parts, CoastDetail.Boat, boat, yaw, rng, t, true);
+                Add(parts, KitPiece.Trim, KitMaterial.Wood, new Vector3(half - 0.25f, deck + 0.2f, z), new Vector3(0.22f, 0.4f, 0.22f), 0f, false);
+                lastTied = z;
                 tied++;
             }
             // Crab pots stacked at the far end of the main walkway's left edge, clear of the walk lane.
@@ -1112,35 +1123,78 @@ namespace Punchy.Terrain
             return parts;
         }
 
-        /// <summary>One coast detail standing at <paramref name="at"/> (its base), turned by <paramref name="yaw"/> degrees.</summary>
-        public static void Detail(List<KitPart> parts, CoastDetail kind, Vector3 at, float yaw, System.Random rng, CultureTrim t)
+        /// <summary>
+        /// One coast detail standing at <paramref name="at"/> (its base), turned by <paramref name="yaw"/> degrees. A
+        /// <paramref name="moored"/> boat floats: <paramref name="at"/> is the water surface, its hull sits BoatDraft deep
+        /// and it is never upturned.
+        /// </summary>
+        public static void Detail(List<KitPart> parts, CoastDetail kind, Vector3 at, float yaw, System.Random rng, CultureTrim t, bool moored = false)
         {
             float R() => (float)rng.NextDouble();
             switch (kind)
             {
                 case CoastDetail.Boat:
                 {
-                    // A rowing boat: keel, two sides flaring out, a transom, a bow, thwarts; now and then upturned.
+                    // A rowing boat: a flat bottom, sides flaring out that close in from the waist to a stem post, a
+                    // transom, thwarts; now and then upturned on the shore. W-128: the planks meet (the old keel stopped
+                    // 0.27 m short of the sides and the bow was open, so the hull showed gaps), and a moored boat floats.
                     var boatFirst = parts.Count;
                     var len = 3.6f + R() * 1.6f;
-                    var flip = R() < 0.3f;
-                    var y = flip ? 0.55f : 0.2f;
-                    var keel = flip ? 0.5f : 0.06f;
-                    Add(parts, KitPiece.Trim, KitMaterial.Wood, at + Turn(yaw, new Vector3(0f, keel, 0f)), new Vector3(0.7f, 0.12f, len * 0.9f), yaw, false);
+                    var flip = R() < 0.3f && !moored;   // (drawn either way, so the draws after it stay the same)
+                    if (moored)
+                        at.y -= BoatDraft;
+                    // In the boat's frame, y up from the underside, bow to +Z: (material, centre, size, yaw, roll).
+                    var hull = new List<(KitMaterial m, Vector3 c, Vector3 s, float yaw, float roll)>();
+                    const float bottomHalf = 0.4f, sideH = 0.5f, flare = 18f, plank = 0.07f, foreFlare = flare * 0.6f;
+                    var fl = Mathf.Sin(flare * Mathf.Deg2Rad) * sideH * 0.5f;
+                    var sideX = bottomHalf - 0.02f + fl;   // side centre, its lower edge just inside the bottom's
+                    var sideY = 0.05f + Mathf.Cos(flare * Mathf.Deg2Rad) * sideH * 0.5f;
+                    float aft = -len * 0.4f, waist = len * 0.2f, bow = len * 0.48f;
+                    hull.Add((KitMaterial.Wood, new Vector3(0f, 0.05f, (aft + waist) * 0.5f), new Vector3(bottomHalf * 2f, 0.1f, waist - aft + 0.02f), 0f, 0f));
+                    // The fore bottom in strips, each as wide as the closing sides at its middle.
+                    var foreLow = sideX - Mathf.Sin(foreFlare * Mathf.Deg2Rad) * sideH * 0.5f;   // the fore side's lower edge at the waist
+                    const int strips = 6;
+                    for (int k = 0; k < strips; k++)
+                    {
+                        var u = (k + 0.5f) / strips;
+                        var half = Mathf.Lerp(foreLow, 0.02f, u) + 0.02f;
+                        hull.Add((KitMaterial.Wood, new Vector3(0f, 0.05f, Mathf.Lerp(waist, bow, u)), new Vector3(half * 2f, 0.1f, (bow - waist) / strips + 0.01f), 0f, 0f));
+                    }
                     foreach (var side in new[] { -1f, 1f })
-                        Add(parts, KitPiece.Trim, KitMaterial.Trim, at + Turn(yaw, new Vector3(side * 0.55f, y, 0f)), new Vector3(0.08f, 0.45f, len * 0.85f), yaw, false, 0f, side * (flip ? -18f : 18f));
-                    Add(parts, KitPiece.Trim, KitMaterial.Wood, at + Turn(yaw, new Vector3(0f, y, -len * 0.43f)), new Vector3(1.1f, 0.45f, 0.08f), yaw, false);
-                    Add(parts, KitPiece.Trim, KitMaterial.Wood, at + Turn(yaw, new Vector3(0f, y + 0.08f, len * 0.46f)), new Vector3(0.18f, 0.6f, 0.3f), yaw, false);
+                    {
+                        hull.Add((KitMaterial.Trim, new Vector3(side * sideX, sideY, (aft + waist) * 0.5f), new Vector3(plank, sideH, waist - aft + 0.04f), 0f, -side * flare));
+                        // the fore side, turned in from the waist to the stem post
+                        float dx = sideX - 0.06f, dz = bow - waist;
+                        var turn = Mathf.Atan2(dx, dz) * Mathf.Rad2Deg;
+                        hull.Add((KitMaterial.Trim, new Vector3(side * (sideX + 0.06f) * 0.5f, sideY, (waist + bow) * 0.5f), new Vector3(plank, sideH, Mathf.Sqrt(dx * dx + dz * dz) + 0.06f), -side * turn, -side * foreFlare));
+                    }
+                    hull.Add((KitMaterial.Wood, new Vector3(0f, sideY, aft), new Vector3(sideX * 2f + 0.08f, sideH, 0.08f), 0f, 0f));          // transom
+                    hull.Add((KitMaterial.Wood, new Vector3(0f, sideY + 0.06f, bow), new Vector3(0.16f, sideH + 0.12f, 0.2f), 0f, 0f));      // stem post
                     if (!flip)
                     {
-                        Add(parts, KitPiece.Trim, KitMaterial.Wood, at + Turn(yaw, new Vector3(0f, 0.3f, 0.1f)), new Vector3(1.05f, 0.06f, 0.25f), yaw, false);
-                        Add(parts, KitPiece.Trim, KitMaterial.Wood, at + Turn(yaw, new Vector3(0.35f, 0.4f, -0.4f)), new Vector3(0.06f, 0.06f, 2.4f), yaw, false, 8f);
+                        hull.Add((KitMaterial.Wood, new Vector3(0f, 0.36f, 0.1f), new Vector3((sideX + fl * 0.4f) * 2f, 0.06f, 0.25f), 0f, 0f));   // thwarts
+                        hull.Add((KitMaterial.Wood, new Vector3(0f, 0.36f, aft + 0.45f), new Vector3((sideX + fl * 0.4f) * 2f, 0.06f, 0.22f), 0f, 0f));
                     }
+                    var height = sideY + sideH * 0.5f + 0.06f;
+                    foreach (var (m, c, sz, py, pr) in hull)
+                    {
+                        var cc = c;
+                        var roll = pr;
+                        if (flip)   // upturned: mirrored top to bottom, resting on its gunwales
+                        {
+                            cc.y = height - c.y;
+                            roll = -pr;
+                        }
+                        Add(parts, KitPiece.Trim, m, at + Turn(yaw, cc), sz, yaw + py, false, 0f, roll);
+                    }
+                    if (!flip)   // an oar across the thwarts
+                        Add(parts, KitPiece.Trim, KitMaterial.Wood, at + Turn(yaw, new Vector3(0.3f, 0.42f, -0.4f)), new Vector3(0.06f, 0.06f, 2.4f), yaw, false, 8f);
                     // W-100: boats are exempt from the foundation skirt; on a beach it showed the hull stretched into the sand.
                     for (int b = boatFirst; b < parts.Count; b++)
                     {
                         var bp = parts[b];
                         bp.Afloat = true;
+                        bp.Keel = b == boatFirst && moored;
                         parts[b] = bp;
                     }
                     break;

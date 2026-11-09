@@ -1179,7 +1179,12 @@ namespace Punchy.Flora
                         break;
                 }
             }
-            return new float3(best.x, math.max(source.SampleHeight(best), sea + 0.1f), best.y);
+            // W-128: a base found at the waterline stands exactly StructureKit.DockWater above the sea, so the moored boats
+            // the kit hangs DockWater below it ride on the water (it stood 0.25-0.57 m up, and the boats were sunk).
+            var h = source.SampleHeight(best);
+            if (h > sea + above && h < sea + above + 1f)
+                return new float3(best.x, sea + StructureKit.DockWater, best.y);
+            return new float3(best.x, math.max(h, sea + 0.1f), best.y);
         }
 
         /// <summary>

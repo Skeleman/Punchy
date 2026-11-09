@@ -252,6 +252,9 @@ namespace Punchy.Flora
                 foreach (var p in parts)
                     if (p.Piece == Punchy.Terrain.KitPiece.Chimney)
                         g.Chimneys.Add(p.Centre + Vector3.up * (p.Size.y * 0.5f + 0.1f));
+            foreach (var p in parts)   // W-128: each moored boat's underside, for the waterline check
+                if (p.Keel)
+                    g.Boats.Add(p.Centre - Vector3.up * (p.Size.y * 0.5f));
             b.Recolor(first, (p, c) => p.y < 0.5f ? c * 0.82f : c);   // darker footing
             if (ruined && g.Lod < 2)
                 RuinSand(g, parts, width, depth, seed);
