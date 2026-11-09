@@ -143,7 +143,10 @@ namespace Punchy.EditorTools
             return Log($"PreviewAt: player at {t.Position} (in cave {inCave}), camera parked; wait a few seconds, then PreviewShot");
         }
 
-        /// <summary>Cave preview, step 2: renders the parked main camera (16:9) to a PNG at `path`.</summary>
+        /// <summary>
+        /// Cave preview, step 2: renders the parked main camera (16:9) to a PNG at `path`. An immediate render with no ready
+        /// gate; shots for reports go through the shot tool instead (Punchy.Debugging.ShotTool, docs/agents/testing.md).
+        /// </summary>
         public static string PreviewShot(string path, int width = 1280)
         {
             var cam = Camera.main;

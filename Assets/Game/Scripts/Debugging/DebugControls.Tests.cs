@@ -444,7 +444,10 @@ namespace Punchy.Debugging
             ThirdPersonCamera.WatchSpin = 12f;
         }
 
-        /// <summary>A test's own screenshot into -shotdir, at least 1280 wide (a small Game view is rendered larger).</summary>
+        /// <summary>
+        /// A test's own screenshot into -shotdir, at least 1280 wide (a small Game view is rendered larger). It captures the
+        /// screen with its overlay; a plain world shot goes through <see cref="ShotTool"/> (docs/agents/testing.md).
+        /// </summary>
         static void Shot(string name) =>
             ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(shotDir, name), Mathf.Max(1, Mathf.CeilToInt(1280f / Mathf.Max(Screen.width, 1))));
     }
