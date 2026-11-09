@@ -76,8 +76,6 @@ namespace Punchy.Fauna
 
         /// <summary>The definition standing in each slot (a kept one when a "-colossus" flag swapped it in).</summary>
         static ColossusDefinition[] defs = new ColossusDefinition[0];
-        /// <summary>The Dunes colossus's far-shadow height and half-width (it is not a definition: DunesColossus places it).</summary>
-        static readonly float2 DunesCast = new float2(58f, 20f);
 
         const float Step = 150f;
         /// <summary>
@@ -107,10 +105,6 @@ namespace Punchy.Fauna
         static void OnSceneLoaded(UnityEngine.SceneManagement.Scene scene, UnityEngine.SceneManagement.LoadSceneMode mode) => Create();
 
         Transform[] roots = new Transform[0];
-        // One per slot plus the Dunes colossus's (the last).
-        FarShadow[] shadows = new FarShadow[1];
-        // A-72 hook: where each far shadow was last laid, so a walking colossus gets a fresh strip once it has moved.
-        float3[] laidAt = new float3[1];
         bool placed;
         float nextTry;
 
@@ -132,18 +126,6 @@ namespace Punchy.Fauna
             foreach (var r in roots)
                 if (r != null && r.gameObject.activeSelf == DunesColossus.Hidden)
                     r.gameObject.SetActive(!DunesColossus.Hidden);
-            // W-90 (#84): time the frames that schedule a re-lay and the frame after (which lands it), to show the
-            // stall is gone. Logged for the first few re-lays only.
-            int before = FarShadow.LaysScheduled;
-            watch.Restart();
-            DrawFarShadows();
-            bool laid = FarShadow.LaysScheduled != before;
-            if ((laid || landing) && relayLogs < 12)
-            {
-                relayLogs++;
-                Debug.Log($"[farshadow] {(laid ? "schedule" : "land")} frame: StoneColossi far shadows {watch.Elapsed.TotalMilliseconds:F2} ms");
-            }
-            landing = laid;
             GlowLanterns();
             SwayPlant();
             SwayWorm();
@@ -155,56 +137,9 @@ namespace Punchy.Fauna
             SwayMagmaSerpent();
         }
 
-        bool landing;
-        int relayLogs;
-        // (Reused: a new Stopwatch, and a new terrain query, every frame were garbage, A-82.)
-        readonly System.Diagnostics.Stopwatch watch = new System.Diagnostics.Stopwatch();
-        Unity.Entities.World terrainWorld;
-        EntityQuery terrainQuery;
-
-        /// <summary>
-        /// Past the real shadow distance every colossus (these and the Dunes one) still casts, through a far shadow
-        /// proxy (#84, as the salt tower). The terrain is fetched each frame so a rebaked island is never sampled stale.
-        /// </summary>
-        void DrawFarShadows()
-        {
-            if (DunesColossus.Hidden)
-                return;
-            var world = Unity.Entities.World.DefaultGameObjectInjectionWorld;
-            if (world == null || !world.IsCreated)
-                return;
-            if (terrainWorld != world)
-            {
-                terrainWorld = world;
-                terrainQuery = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
-            }
-            if (!terrainQuery.TryGetSingleton(out TerrainSource source))
-                return;
-            int slots = roots.Length;
-            for (int k = 0; k <= slots; k++)
-            {
-                var at = k < slots ? Positions[k] : DunesColossus.Position;
-                if (k < slots ? roots[k] == null : math.all(at == 0f))
-                    continue;
-                // A-72 hook: the strip only re-lays when the sun moves, so one left 10 m behind a walker is laid anew.
-                if (shadows[k] != null && math.distancesq(laidAt[k].xz, ((float3)at).xz) > 100f)
-                {
-                    shadows[k].Dispose();
-                    shadows[k] = null;
-                }
-                if (shadows[k] == null)
-                    laidAt[k] = at;
-                shadows[k] ??= new FarShadow(k < slots ? $"{Placed[k]} far shadow" : "DunesColossus far shadow");
-                var cast = k < slots ? (float2)defs[k].Cast : DunesCast;
-                shadows[k].Draw(source, at, cast.x, cast.y);
-            }
-        }
-
         void OnDestroy()
         {
             DropSurvey();
-            foreach (var s in shadows)
-                s?.Dispose();
         }
 
         void TryPlace()
@@ -314,11 +249,7 @@ namespace Punchy.Fauna
             foreach (var r in roots)
                 if (r != null)
                     Destroy(r.gameObject);
-            foreach (var s in shadows)
-                s?.Dispose();
             roots = new Transform[slots];
-            shadows = new FarShadow[slots + 1];
-            laidAt = new float3[slots + 1];
             Placed = new Kind[slots];
             Positions = new float3[slots];
             Spots = new float3[slots];

@@ -27,8 +27,6 @@ namespace Punchy.Terrain
         Bounds bounds;
         Material material;
         bool warned;
-        float towerHeight;
-        FarShadow farShadow;
 
         protected override void OnCreate() => RequireForUpdate<TerrainSource>();
 
@@ -67,16 +65,12 @@ namespace Punchy.Terrain
             var lod = d < Lod0Distance ? 0 : d < Lod1Distance ? 1 : 2;
             var rp = new RenderParams(material) { worldBounds = bounds, shadowCastingMode = ShadowCastingMode.On, receiveShadows = true };
             Graphics.RenderMesh(rp, lods[lod], 0, Matrix4x4.Translate(origin));
-            // Past the real shadow distance the tower still casts, through its far shadow proxy.
-            farShadow ??= new FarShadow("SaltTower far shadow");
-            farShadow.Draw(source, origin, towerHeight, SaltTowerShape.BodyRadius + 1.5f);
-            Punchy.Rendering.WideShadow.Cast(lods[2], Matrix4x4.Translate(origin));   // R-5: and into the wide shadow map
+            Punchy.Rendering.WideShadow.Cast(lods[2], Matrix4x4.Translate(origin));   // R-5: past the real shadows it casts through the wide shadow map
         }
 
         protected override void OnDestroy()
         {
             Clear();
-            farShadow?.Dispose();
             if (material != null)
                 Object.Destroy(material);
         }
@@ -103,7 +97,6 @@ namespace Punchy.Terrain
                     continue;
                 var l = SaltTowerShape.Layout(inst, h);
                 origin = new Vector3(l.Centre.x, l.Base, l.Centre.y);
-                towerHeight = l.Height;
                 lods = new Mesh[3];
                 for (int lod = 0; lod < 3; lod++)
                 {

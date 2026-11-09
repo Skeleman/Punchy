@@ -17,7 +17,7 @@ namespace Punchy.Rendering
     /// <summary>
     /// R-5: one wide cached sun-shadow map for the huge things. Real shadows stop at the pipeline's shadow distance
     /// and the flora cache at 120 m, so from afar the colossi, the salt tower and the sunken temple stood shadowless,
-    /// patched by one strip each (FarShadow). This lays one orthographic sun view about Reach round the player (3.2 km
+    /// patched by one ground strip each (the old FarShadow, retired by R-5 row 2). This lays one orthographic sun view about Reach round the player (3.2 km
     /// across by default), texel-snapped, into a 2048x2048 R16 texture that keeps, per texel, how far along the
     /// sunlight the nearest caster is.
     /// Which things cast is the DetailPolicy size-on-screen rule, never a list of types: every shadow-casting mesh in
