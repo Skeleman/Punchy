@@ -15,3 +15,16 @@
   PunchyMilestones\water\W-125\r1-lava-before-after.png; gallery in PunchyMilestones\water\W-125\gallery.
 - Gotcha for editor shots: async shader compile draws the water cyan for 10+ s after a shader edit; run the list twice.
 - Next: row 2 (under-fluid look table, weather off under water).
+
+### Row 2, items 33 and 36 (+ row 5's depth darkening): under-fluid look, weather off under water (2026-11-08) DONE, verified
+- Commit 2960a93d. Underwater.cs: one table `Fluids` (fog colour, screen tint, Unity and shader fog per metre, low-pass
+  cutoff, depth darkening), blended by the fluid at the lens: swamp from the water's murk (0.55-0.9, the shader's oily
+  threshold), lava from the lava amount, cave lava pools as lava. Water keeps its old values; swamp green, fog x2.7;
+  lava orange, fog x15 (a few metres of view). Fog colour darkens with depth (water 0.035/m, swamp 0.08/m, floor 15%).
+- Under water: ambient mist/dust puffs (non-glow ambient particles) don't draw, Fog/Dust-conditioned particles go to
+  0, heat haze off (AmbientParticleSystem, AmbienceSystem; weather precipitation and the dust emitter were already off).
+- Shots (camera posed): sea `-goto 400,-160` camera 360,-2.5,-160 (teal, as before); swamp camera 420,-3,-72 (the sea
+  inside the PoisonSwamp, murk 0.89: green, wall 5 m off barely visible); lava `-place cavelava` camera -183.1,5.9,-2760.1
+  (orange, near-blind); Sandstorm above water at 360,1.5,-160 (sand haze) then at -2.5 m (none). Sheet
+  PunchyMilestones\water\W-125\r2-under-fluids.png. Caveat: no before shot of the dust under water (the old build).
+- Next: row 3 (swell from the weather's wind).
