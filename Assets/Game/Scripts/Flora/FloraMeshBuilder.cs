@@ -584,6 +584,11 @@ namespace Punchy.Flora
                 // By height alone: scaling by distance from the axis made a flower head's far petals (#30) and a crown's
                 // outer leaves (item 12) swing further than the near ones, so they swelled and swivelled.
                 d.x = flexibility * Mathf.Pow(up, 1.6f);
+                // Flutter fades to nothing at the foot too (item 26): leaf-part stems (a flower's, a reed's) fluttered
+                // as much at the ground as at the tip, each vertex on its own beat, so the whole stem jiggled and the
+                // plant looked unrooted. (Negative z carries the other motions: left alone.)
+                if (d.z > 0f)
+                    d.z *= Mathf.Pow(up, 1.2f);
                 data[v] = d;
             }
         }
