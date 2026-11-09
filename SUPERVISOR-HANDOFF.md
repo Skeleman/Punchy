@@ -96,3 +96,8 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 ## Main account, 2026-11-08 night
 - Open for Zach: #208, #209, #210 (flora by class, plant wind, V3 greens; W-123). `sky/cost` (cloud march strides, job 34 timing) and `render/ssao-source` (`-ssao` test flag, job 35) have no PRs yet.
 - Playtest build of all four: Builds/Playtest4 in the player tree = local branch test/playtest-1108d e09eb33d (suite 14/14; smoke-run clean). Never to merge. Sky.shader needs both the underwater early-out (#209) and the test mask (sky/cost): that merge had one conflict.
+
+## Other account again, 2026-11-08 late (main account out of tokens)
+- Round 3 (FEEDBACK items 25-37) given to three lanes, subagents of this session: W-124 flora (Punchy-world, flora/round3 on #210), W-125 water (Punchy-release, water/round3 on #209), P-21 lights/sky (Punchy-player, lights/round3 on #208). Item 34's fish, coral and shells are new content (freeze): ideas only.
+- The main account left uncommitted roof edits on top of #211 (normal flip by the sheet alone, underside sky 0.18 -> 0.32), unverified: saved as local branch wip/roof-silhouette-2 45f5f492 in the player tree, not pushed. Include in the next playtest build for Zach to judge.
+- Open for Zach: #208, #209, #210, #211 (all merge-tree clean on main 4669aabc); sky/cost and render/ssao-source have no PRs.
