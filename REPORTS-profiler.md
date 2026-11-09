@@ -2,6 +2,52 @@
 
 Newest first.
 
+## Job 39: depth priming on the laptop (main 5558f89a, R-3 #220), 2026-11-09 (q69.sh)
+Profile build, 1920x1080, `-weatherseed 4`, noon (`-benchhour 12`), Clear forced over each stop, uncapped, a fresh
+game per run, ABBA `-depthpriming forced` / `off` (the log confirms Forced / Disabled each game). One `-benchspot` fits
+in a game, so each run is two games: big town (the bigtown stop, which lands on 2972,-885), dense forest (spot
+1740,3355, facing 180) and Summit (place, -2446,1154); then the lake (spot -1624,-488, facing 0; the card gave no facing).
+The laptop's GPU is a GTX 1060 Max-Q on D3D11, not an iGPU.
+
+**Whole-frame GPU ms (mean of 2 rounds; rounds within 0.8 ms except where noted):**
+
+| spot | High forced | High off | off costs | Low forced | Low off | off costs |
+|---|---|---|---|---|---|---|
+| big town | 16.4 | 23.8 | **+7.4** | 11.65 | 14.0 | **+2.35** |
+| dense forest | 15.8 | 28.15 | **+12.35** | 9.05 | 17.45 | **+8.4** |
+| Summit | 11.05 | 15.3 (1 round) | **+4.25** | 4.45 | 9.75 | **+5.3** |
+| lake | 22.4 (20.5 / 24.3) | 39.35 (44.5 / 34.2) | **+17** | 16.6 | 24.2 | **+7.6** |
+
+- **Forced wins at every spot and both presets, by far more than on the desktop.** `off` is never close: 2.35 ms
+  worse at best (Low, big town), 8.4 ms worse in the forest at Low.
+- **So keep Forced at Low too; don't turn priming off on the Low renderer.**
+- `off` also brings hitches at High: 81-115 slow frames per stop in the town and forest (forced: 1-3), 242-572 at
+  the lake (forced: 14-139).
+- The lake at High is noisy in both modes (rounds 4-10 ms apart), but every round of `off` is worse than every round of
+  `forced`.
+- Missing: High `off` round 2 timed out (1800 s) before its Summit stop, after a 150 s stall in the town (see below),
+  so High `off` at the Summit is one round.
+
+**Prepass and opaque pass ms:** all 16 RenderDoc captures are saved (`results/rd69`). The pass replay didn't run: a
+path bug in q69.sh saved the captures under a broken name (fixed, d4dfcf55). It runs after job 41 (the replay mustn't
+share the GPU with a bench game) and goes in as an addendum here.
+
+**Stalls:** 5 of the 16 games stalled after a jump: 985, 837, 496, 317 and 150 s (98 + 42 + 9 in one game). Four
+stalls were settling; one (837 s, lake, High forced, round 1) was 28 s into the measured part. That round's GPU mean
+(20.5) is the lower of the two, so the stall didn't inflate it. In every snapshot the game's main thread waits
+(UserRequest) and the window doesn't respond. The thread using a little CPU is priority 13, which matches Unity's
+audio mixer thread.
+
+**Tools (Zach OK'd them, 11-09):**
+- cdb (from WinDbg; it won't run from WindowsApps, so it's copied to `~/Tools/cdb`) and ProcDump (`~/Tools/procdump`).
+- A stall of 45 s or more now gets a non-invasive cdb attach: every thread's stack, with Microsoft and Unity symbols,
+  in `results/freezestacks-<pid>.txt` (`freezestacks.ps1`).
+- Snapshots now show thread names and start modules.
+- `pgrep` doesn't exist in this Git Bash, so each q-script started a second sampler. Fixed with a `ps` check, and the
+  duplicate is stopped.
+
+Cost: this job about $5 (laptop session 0a48ccdb, including the stall tooling); laptop total $673.
+
 ## Job 38: why quarter-resolution sky isn't cheaper than half (main acd0cad5), 2026-11-09 (q68.sh)
 Job 34's setup: Profile build, the Summit facing out, pitched up 10, 1920x1080, `-gfx High`, `-weatherseed 4`,
 uncapped, noon, plain weather, a fresh game per run. Two rounds (round 2 in reverse order), within 0.6 ms.
