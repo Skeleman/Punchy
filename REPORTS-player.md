@@ -1,5 +1,11 @@
 # Player lane reports
 
+## 2026-11-08 batch P-21 row 1 (lights/sky lane): blue moon deep blue, fog and clouds lit by it (item 35): VERIFIED
+- lights/round3 a9ad8fdf (from lights/manager 6f6ae2ad). Lamp (0.1,0.3,1.2) -> (0.017,0.057,1.9) and ambient to the same deep blue; on blue-moon nights the sky zenith/horizon lean to that hue (brightness kept), and Sky.hlsl adds the moon's light scattered in the low air (stronger on its side) to the horizon/haze colour and to the cloud light (new global _PunchyBlueMoonGlow). Sky.hlsl edits are in the twilight/cloud-light functions only
+- Checked at Millfield, 21:00, `-bluemoondays 0 -moonphase 0.5` vs the blue moon pinned away: with it, terrain, distant fog and cloud undersides go deep blue (before: light blue land, grey fog, grey clouds); without it the night is the old grey (unchanged). Sheet D:/Unity/PunchyMilestones/light/P-21/r1-sheet.png (before, after, after without blue moon, after looking away from it); gallery D:/Unity/PunchyMilestones/light/P-21/gallery/
+- Caveat: the clouds are lit along the big moon's path (no second light march), so their bright side faces the big moon
+- NEXT: row 2 (clear-day fog)
+
 ## 2026-11-07 P-20 note: underwater fog on terrain and flora: done (verified), PR #191 open
 - player-client cd54d1f (Sky.hlsl lent by the stand-in supervisor). PunchyAtmosphere fades to `_PunchyUnderwater` instead of the sky haze while the camera is under water: the water's colour, 0.07 per metre, exponential squared. Underwater.cs sets it with its 0.3 s blend.
 - Also fixed: Underwater.cs left RenderSettings fog on with the underwater colour after surfacing. It now saves the scene's fog and puts it back.
