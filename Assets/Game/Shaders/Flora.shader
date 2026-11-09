@@ -32,6 +32,7 @@ Shader "Punchy/Flora"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Sky.hlsl"
+            #include "WideShadow.hlsl"
             #include "Flora.hlsl"
             #include "Grounding.hlsl"
             #include "Metal.hlsl"
@@ -399,7 +400,8 @@ Shader "Punchy/Flora"
                 albedo *= lerp(1, part == 0 ? 0.62 : 0.82, wet);
 
                 Light light = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
-                half shadow = light.shadowAttenuation * (1 - PunchyCloudShadow(input.positionWS));
+                // Past the real shadows the wide cached ones of the huge things (R-5) take over, never doubling them.
+                half shadow = min(light.shadowAttenuation, 1 - PunchyWideShadow(input.positionWS, half3(0, 1, 0))) * (1 - PunchyCloudShadow(input.positionWS));
                 // Underground (cave plants, seen from a cave) the sun and sky don't reach; the player's lantern does.
                 // Cave plants are underground whatever the camera's depth: no direct sun (nor light through leaves, nor
                 // sheen, which made roots flare against the sun from near a mouth), and only a little of the sky's
