@@ -57,7 +57,7 @@ namespace Punchy.Tests
         {
             var line = LogWatch.Last("fingerprint") ?? "no fingerprint line";
             LogWatch.Measure("fauna " + line);
-            StringAssert.Contains("fingerprint F0EF4BD5", line);
+            StringAssert.Contains("fingerprint 7D75BB04", line);   // W-126 re-pin (was F0EF4BD5): flora habitat/clearing/grove rules change where plants stand, which the fauna build bakes (obstacles)
             yield return null;
         }
 

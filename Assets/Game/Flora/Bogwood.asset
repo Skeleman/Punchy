@@ -49,6 +49,10 @@ MonoBehaviour:
   PatchCoverage: 0.55
   NearWater: 1.5
   OnlyNearWater: 0
+  GroveStraggle: 0.25
+  GroveGain: 4
+  GroveRadius: 18
+  GroveSpacing: 70
   Shelter: 0.4
   Aquatic: 0
   WaterDepth: {x: 0.1, y: 1.5}

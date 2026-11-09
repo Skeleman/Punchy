@@ -76,10 +76,10 @@ namespace Punchy.Tests.PlayMode
             yield return null;
         }
 
-        [UnityTest]
+        [UnityTest, Timeout(900000)]
         public IEnumerator Clearings_PlanMaps()
         {
-            foreach (var biome in new[] { "Temperate", "Grassland", "Mountains", "FungalForest" })
+            foreach (var biome in new[] { "Temperate", "Grassland", "Mountains", "FungalForest", "Tundra", "Sonoran", "MesaCanyonlands", "Dunes", "SaltFlat", "GlassDesert", "Glacier", "Ashlands", "Volcano", "EmberForest", "ElectricWastelands", "SparklingForest", "FoggyMarsh", "PoisonSwamp" })
             {
                 var spot = Game.Hook<float[]>("FloraViewSpot", biome);
                 if (spot.Length == 0)
