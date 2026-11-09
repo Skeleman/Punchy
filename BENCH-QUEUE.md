@@ -279,3 +279,14 @@ over +0.5 ms GPU.
   `procdump -ma <pid>`) and break, or run the same route on a Development build with "Script Debugging" so the main
   thread's managed stack can be read; a stack from inside the freeze will name it. The last log lines (MagmaSerpent made
   solid, `Weather: forced`, a JobTempAlloc leak warning) are just the last things that happened before it, not the cause.
+
+## Job 34 (2026-11-08): the cloud march's empty-air strides (sky/cost)
+Job 32's sky was 14.7-18.8 ms GPU at the Summit. On this branch the march strides through air that can't hold cloud:
+steps per pixel fall from 140+ to about 55 (`-skyoff 32` draws the step bands), and shots match. The desktop's GPU is too
+fast to show it (2.9 -> 2.7 ms), so the laptop gives the real number. Branch `sky/cost` head against main 4669aabc,
+Profile builds, job 32's setup (Summit, pitch up 10, 1920x1080, `-gfx High`, `-weatherseed 4`, uncapped, noon, ABBA).
+- `-skyoff 16` is the old even stepping on the same build; `-skyoff 0` the new. Plain, `-weather Clear`, Overcast,
+  Storm, plus `-benchnosky` once for the baseline.
+- Then the parts, in plain weather: `-skyoff 1` (no march), `2` (no far clouds), `4` (no sky colour), `8` (no weather
+  volumes). They say what's left once the march is cheaper.
+- A sunset view at the same spot, old against new, for banding at low light.
