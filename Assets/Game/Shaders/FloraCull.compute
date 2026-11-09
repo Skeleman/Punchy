@@ -8,6 +8,9 @@
 // each, into a shadow list per variant at LOD 0 or 1 (the outgoing level through a change, as shadows don't
 // crossfade), so the shadow cascades never draw the far plants the camera sees. Far natural plants also thin out
 // (see _Thin); rocks and built things never do.
+// Refactor 3.5c / 3.3 (DetailPolicy.FloraRule): each variant's own class and size set its mesh changes, how far it's drawn
+// and how far it casts, from _ModelReach, not its layer's distances; the layer's values stay as ceilings. A plant's
+// real-time shadow has hysteresis (_FloraCastState), so one hovering at its limit doesn't flicker.
 
 #pragma kernel Clear
 #pragma kernel Cull
@@ -27,6 +30,10 @@ struct FloraInstance
 StructuredBuffer<FloraInstance> _FloraInstances;
 StructuredBuffer<float3> _ModelBounds;   // radius, centre height (unscaled), thins (1: a natural plant), per variant
 StructuredBuffer<uint> _Regions;         // output offset per variant × draw (3 LODs, then 2 shadow lists)
+// Per variant: how far (m per reference pixel-per-metre, at scale 1) it keeps x LOD 0, y LOD 1, z being drawn, w casting.
+StructuredBuffer<float4> _ModelReach;
+// Per plant: 1 if it cast last frame. Left alone across uploads: a plant only reads it inside the hysteresis band.
+RWStructuredBuffer<uint> _FloraCastState;
 RWStructuredBuffer<uint2> _FloraVisible; // instance index, asuint(fade)
 // IndirectDrawIndexedArgs, one per variant x LOD. Structured, not raw: D3D11 can't write an IndirectArguments buffer as
 // raw, so FloraSystem counts into this and copies it into the draws' arguments.
@@ -54,6 +61,8 @@ float4 _Shadow;
 // how still it is (the shadow pass reads it; fades of 1 and above all cast).
 float _ShadowStill;
 float4 _Thin;     // x distance natural plants start thinning, y share of them left at the radius
+float4 _Reach;    // x geometry's, y shadows' reference pixels per metre at the graphics settings (x 0: the layer's distances, "-oldfloralod")
+float _CastHold;  // 1: use and update _FloraCastState (the camera's cull; not the shadow cache's)
 
 [numthreads(64, 1, 1)]
 void Clear(uint id : SV_DispatchThreadID)
@@ -86,8 +95,26 @@ void Cull(uint id : SV_DispatchThreadID)
     if (distance - radius > _Lod.z)
         return;
 
+    float lod1 = _Lod.x, lod2 = _Lod.y, drawn = _Lod.z, castTo = _Shadow.x;
+    if (_Reach.x > 0)
+    {
+        float4 reach = _ModelReach[local] * plant.scale;
+        lod1 = reach.x * _Reach.x;
+        lod2 = reach.y * _Reach.x;
+        drawn = min(drawn, reach.z * _Reach.x);
+        castTo = min(castTo, reach.w * _Reach.y);
+    }
+
     // Plants a little off-screen still cast into the view; the camera's own lists take only the visible ones.
-    bool casts = distance - radius < _Shadow.x;
+    bool casts = distance - radius < castTo;
+    if (_CastHold > 0)
+    {
+        // Past the limit a caster goes on casting a little further (as DetailPolicy.Hysteresis: 1 / 0.85).
+        bool was = _FloraCastState[id] != 0;
+        casts = casts || (was && distance - radius < castTo * 1.176);
+        if (was != casts)
+            _FloraCastState[id] = casts ? 1 : 0;
+    }
     float margin = casts ? _Shadow.y : 0;
     bool seen = true;
     [unroll]
@@ -104,11 +131,12 @@ void Cull(uint id : SV_DispatchThreadID)
     if (d < _Shadow.w)
         return;
     if (casts)
-        Append(id, local, d < (_Shadow.z > 0 ? _Shadow.z : _Lod.x * 1.075) ? 3 : 4,
+        // (_Shadow.z from 1e5: the shadow cache, whose trees all stay on the first list.)
+        Append(id, local, _Shadow.z >= 1e5 || d < (_Shadow.z > 0 ? min(_Shadow.z, lod1 * 1.075) : lod1 * 1.075) ? 3 : 4,
                1 + (_ShadowStill > 0 ? smoothstep(_ShadowStill - 5, _ShadowStill + 5, d) : 0));
     if (!seen)
         return;
-    float keep = 1 - smoothstep(_Lod.z * 0.88, _Lod.z, d);
+    float keep = 1 - smoothstep(drawn * 0.88, drawn, d);
     // W-102: natural plants thin out past _Thin.x. Each has its own threshold in the falling share, and dithers away
     // over a tenth of it, so the thinning has no line: plants drop out one by one, scattered over the distance.
     if (bounds.z > 0)
@@ -119,9 +147,9 @@ void Cull(uint id : SV_DispatchThreadID)
     if (keep <= 0)
         return;
 
-    float band1 = _Lod.x * 0.15, band2 = _Lod.y * 0.15;
-    float t1 = saturate((d - (_Lod.x - band1 * 0.5)) / band1);
-    float t2 = saturate((d - (_Lod.y - band2 * 0.5)) / band2);
+    float band1 = lod1 * 0.15, band2 = lod2 * 0.15;
+    float t1 = saturate((d - (lod1 - band1 * 0.5)) / band1);
+    float t2 = saturate((d - (lod2 - band2 * 0.5)) / band2);
     if (t1 <= 0)
         Append(id, local, 0, keep);
     else if (t1 < 1)

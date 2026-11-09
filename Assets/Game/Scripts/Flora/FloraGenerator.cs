@@ -76,6 +76,34 @@ namespace Punchy.Flora
             form is FloraForm.Pen or FloraForm.Palisade or FloraForm.Signpost or FloraForm.Garden or FloraForm.Woodpile
                  or FloraForm.Stall or FloraForm.Flowers or FloraForm.Bedroll or FloraForm.RailFence;
 
+        /// <summary>
+        /// Refactor 3.5c: its detail rule's class (DetailPolicy.FloraRule). By form, then for growing things by whether it
+        /// moves (3.5a) and how big it is: 4 m and up counts as a tree whichever layer it's on (a giant mushroom, a big dead bush).
+        /// </summary>
+        public Punchy.Settings.DetailPolicy.FloraClass DetailClass()
+        {
+            switch (Species.Form)
+            {
+                case FloraForm.Hut: case FloraForm.StoneHouse: case FloraForm.Tent: case FloraForm.Tower: case FloraForm.Pen:
+                case FloraForm.Stall: case FloraForm.Inn: case FloraForm.Smithy: case FloraForm.Forum: case FloraForm.Fountain:
+                case FloraForm.Well: case FloraForm.Hall: case FloraForm.Shrine: case FloraForm.Garden: case FloraForm.Lodge:
+                case FloraForm.Signpost: case FloraForm.Bridge: case FloraForm.Palisade: case FloraForm.RailFence:
+                case FloraForm.MineFrame: case FloraForm.HazardShelter: case FloraForm.KitBuilding: case FloraForm.KitRuin:
+                case FloraForm.Ruin:
+                    return Punchy.Settings.DetailPolicy.FloraClass.Structure;
+                case FloraForm.Boulder: case FloraForm.Spire: case FloraForm.Crystal: case FloraForm.Den: case FloraForm.Columns:
+                case FloraForm.IceArch: case FloraForm.Fulgurite: case FloraForm.ArcSpire: case FloraForm.FloatingRock:
+                case FloraForm.Bones:
+                    return Punchy.Settings.DetailPolicy.FloraClass.Rock;
+                case FloraForm.Woodpile: case FloraForm.Eggs: case FloraForm.Bench: case FloraForm.Log: case FloraForm.Stump:
+                case FloraForm.FirePit: case FloraForm.Torch: case FloraForm.Debris: case FloraForm.Bedroll: case FloraForm.Driftwood:
+                    return Punchy.Settings.DetailPolicy.FloraClass.Debris;
+            }
+            if (Radius * 2f >= 4f)
+                return Punchy.Settings.DetailPolicy.FloraClass.Tree;
+            return Static ? Punchy.Settings.DetailPolicy.FloraClass.Debris : Punchy.Settings.DetailPolicy.FloraClass.Plant;
+        }
+
         /// <summary>W-79: each level's geometry until Finish makes its mesh (FloraGenerator grows it on a worker), and their name.</summary>
         internal FloraMeshBuilder[] Pending;
         internal string MeshName;
