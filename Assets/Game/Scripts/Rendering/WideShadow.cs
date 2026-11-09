@@ -1,5 +1,6 @@
 using System.Collections.Generic;
-using Punchy.Fauna;
+using Punchy.Flora;
+using Punchy.Settings;
 using Punchy.Terrain;
 using Unity.Burst;
 using Unity.Collections;
@@ -9,6 +10,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Profiling;
 using UnityEngine.Rendering;
+using UnityEngine.SceneManagement;
 
 namespace Punchy.Rendering
 {
@@ -17,15 +19,20 @@ namespace Punchy.Rendering
     /// and the flora cache at 120 m, so from afar the colossi, the salt tower and the sunken temple stood shadowless,
     /// patched by one strip each (FarShadow). This lays one orthographic sun view about Reach round the player (3.2 km
     /// across by default), texel-snapped, into a 2048x2048 R16 texture that keeps, per texel, how far along the
-    /// sunlight the nearest caster is. Casters: the landmarks that register a mesh each frame (<see cref="Cast"/>), the
-    /// colossi (their renderers, found from StoneColossi and DunesColossus) and a coarse terrain heightfield (25 m
-    /// cells, lowered a little so the ground never shades itself), so mountains shade valleys at a low sun too.
-    /// The map is redrawn only when the sun turns RedrawDegrees, the player moves RedrawMove, or a caster moves or
-    /// comes and goes; a redraw is spread over RedrawFrames frames into a second texture, swapped in when done. Every
-    /// frame the map is handed to the terrain and flora shaders as globals (Shaders/WideShadow.hlsl), which take the
-    /// direct sunlight from what a cached caster stands between and the sun, past the real-time shadows; the haze
-    /// over it thins it as it did the old strips. Cosmetic and local: each client
-    /// lays its own. "-wideshadow 0" turns it off; "-wideshadowdark" sets how dark it is.
+    /// sunlight the nearest caster is.
+    /// Which things cast is the DetailPolicy size-on-screen rule, never a list of types: every shadow-casting mesh in
+    /// the loaded scenes and every mesh a landmark offers (<see cref="Cast"/>) is given its shadow tier by
+    /// DetailPolicy.Huge, and those in tiers 0-2 (still WideShadow reference pixels big, with the usual hysteresis)
+    /// cast; the flora picks its big trees and built things the same way on the GPU (FloraSystem.Wide.cs). A coarse
+    /// terrain heightfield (25 m cells, lowered a little so the ground never shades itself) lets mountains shade
+    /// valleys at a low sun too.
+    /// The map is redrawn only when the sun turns RedrawDegrees, the player moves RedrawMove, a caster comes or goes,
+    /// or the flora re-streams (at most every FloraWait seconds); a redraw is spread over RedrawFrames frames into a
+    /// second texture, swapped in when done. A caster that moves (a walking colossus) only has the part of the map it
+    /// left and the part it entered wiped and drawn again, under a scissor rect, in one frame. Every frame the map is
+    /// handed to the terrain and flora shaders as globals (Shaders/WideShadow.hlsl), which take the direct sunlight
+    /// from what a cached caster stands between and the sun, past the real-time shadows. Cosmetic and local: each
+    /// client lays its own. "-wideshadow 0" turns it off; "-wideshadowdark" sets how dark it is.
     /// </summary>
     public class WideShadow : MonoBehaviour
     {
@@ -33,26 +40,36 @@ namespace Punchy.Rendering
         public static bool Enabled = Switch("-wideshadow", true);
         /// <summary>How much of the direct sunlight a wide shadow takes (0-1, times the sun's shadow strength), as a real shadow's 1.</summary>
         public static float Darkness = Number("-wideshadowdark", 1f);
+        /// <summary>Whether the flora's big trees and built things cast into it too ("-wideshadowflora 0" leaves them out).</summary>
+        public static bool Flora = Switch("-wideshadowflora", true);
         /// <summary>Half the map's width (m, "-widereach"): it covers 2 x Reach round the player.</summary>
         public static float Reach = Number("-widereach", 1600f);
         /// <summary>Redrawn when the sun has turned this far (degrees) or the player moved this far (m).</summary>
         public static float RedrawDegrees = 1f, RedrawMove = 300f;
+        /// <summary>A flora re-stream asks for a redraw at most this often (s).</summary>
+        public static float FloraWait = 5f;
         public const int Size = 2048, RedrawFrames = 4;
 
-        /// <summary>GPU memory the map holds (both textures), in bytes.</summary>
+        /// <summary>GPU memory the map holds (both textures and the flora's wide cull), in bytes.</summary>
         public static long Bytes;
-        /// <summary>Redraws finished this session.</summary>
-        public static int Redraws;
+        /// <summary>Redraws and dirty rects finished this session.</summary>
+        public static int Redraws, DirtyRects;
         /// <summary>Last finished redraw: casters, CPU and GPU time, centre, sun.</summary>
         public static string LastLog = "";
+        /// <summary>Last dirty rect: its size in texels and its CPU and GPU time.</summary>
+        public static string LastDirtyLog = "";
+        /// <summary>Debug: the next redraws count their casters by kind into <see cref="KindsLog"/> (the flora's count is a GPU sync).</summary>
+        public static bool LogKinds;
+        /// <summary>The casters of the last redraw started with LogKinds set, by kind (the root's name; the flora by its DetailPolicy class).</summary>
+        public static string KindsLog = "";
 
         // Terrain heightfield: Cells x Cells quads of Cell metres round the player, lowered by Drop below the lowest of
         // each point's 3x3 neighbourhood (between grid points the real ground can sag under a straight line).
         const float Cell = 25f, Drop = 1.5f;
-        // Colossus roots are looked for again every RescanFrames frames; one that moved RootMove m or turned RootTurn
-        // degrees since the map was laid asks for a redraw (a walker gets a fresh shadow, as the old strips after 10 m).
+        // The scene's renderers are looked through again every RescanFrames frames. A caster in the map that moved
+        // MoveMetres or turned MoveDegrees since it was drawn has its dirty rect redrawn (a walker keeps its shadow).
         const int RescanFrames = 90;
-        const float RootMove = 10f, RootTurn = 5f;
+        const float MoveMetres = 10f, MoveDegrees = 5f;
 
         static readonly int VPId = Shader.PropertyToID("_WideShadowVP");
         static readonly int EyeId = Shader.PropertyToID("_WideShadowEye");
@@ -64,41 +81,62 @@ namespace Punchy.Rendering
         static readonly int ParamsId = Shader.PropertyToID("_WideShadowParams");
         static readonly int FadeId = Shader.PropertyToID("_WideShadowFade");
 
+        /// <summary>A mesh a landmark offers every frame it draws, with its tier from the last redraw (-1: none yet).</summary>
         struct Caster
         {
             public Mesh Mesh;
             public Matrix4x4 Matrix;
-            public int Seen;
+            public int Seen, Tier;
+            public string Kind;
+        }
+
+        /// <summary>One mesh a redraw draws; Source is the renderer it came from (null for an offered mesh).</summary>
+        struct Draw
+        {
+            public Mesh Mesh;
+            public Matrix4x4 Matrix;
+            public Renderer Source;
+            public Vector3 At;
+            public Quaternion Turn;
+            public Bounds Box;
         }
 
         // Landmark casters, registered every frame by their systems; dropped after a few frames unseen.
         static Caster[] casters = new Caster[8];
         static int casterCount;
         static bool castersChanged;
+        int floraHeld;
         static WideShadow instance;
 
         RenderTexture front, back;
         Material caster;
         CommandBuffer commands;
-        CustomSampler sampler;
-        Recorder recorder;
+        CustomSampler sampler, dirtySampler;
+        Recorder recorder, dirtyRecorder;
         bool ready;
         int step = -1;
-        Matrix4x4 backVP, backUv, frontUv;
+        Matrix4x4 backVP, frontVP, backUv, frontUv;
         Vector3 backSun, frontSun, laidSun, backEye, frontEye;
         float backInvRange, frontInvRange;
         float3 laidAt;
+        float laidTime;
 
-        // What a redraw draws, snapshotted when it starts (the slices then take a few frames).
-        readonly List<Caster> draws = new List<Caster>(64);
-        // Colossi: their roots and the mesh renderers under them.
-        readonly List<Transform> roots = new List<Transform>(16);
-        readonly List<Vector3> rootAt = new List<Vector3>(16);
-        readonly List<Quaternion> rootTurn = new List<Quaternion>(16);
-        readonly List<Renderer> filters = new List<Renderer>(256);
-        readonly List<Renderer> found = new List<Renderer>(64);
+        // What a redraw draws, snapshotted when it starts (the slices then take a few frames; the dirty rects keep the
+        // renderers' entries up to date afterwards).
+        readonly List<Draw> draws = new List<Draw>(64);
+        // The scene's renderers that could ever pass the rule (big enough at the real shadows' end), from the last scan.
+        List<Renderer> candidates = new List<Renderer>(64), scanned = new List<Renderer>(64);
+        readonly List<GameObject> rootObjects = new List<GameObject>(256);
+        readonly List<Renderer> found = new List<Renderer>(256);
+        // Each renderer's tier at the last redraw (the rule's hysteresis), swapped with the next redraw's.
+        Dictionary<Renderer, int> tiers = new Dictionary<Renderer, int>(64), nextTiers = new Dictionary<Renderer, int>(64);
+        // A kind per root (its name, read once), and the counts LogKinds gathers.
+        readonly Dictionary<Transform, string> kinds = new Dictionary<Transform, string>(64);
+        readonly Dictionary<string, int> kindCounts = new Dictionary<string, int>(16);
         int nextScan;
-        bool rootsChanged;
+        bool candidatesChanged;
+        FloraSystem flora;
+        int laidFloraVersion = -1;
 
         // Terrain.
         Unity.Entities.World terrainWorld;
@@ -113,10 +151,11 @@ namespace Punchy.Rendering
         float fieldMin, fieldMax;
         int fieldN;
 
-        // Timing of the redraw under way (CPU per slice, GPU read back a frame or more late).
+        // Timing of the redraw under way (CPU per slice, GPU read back a frame or more late), and of the last dirty rect.
         readonly System.Diagnostics.Stopwatch watch = new System.Diagnostics.Stopwatch();
-        double cpuSum, cpuMax, gpuSum, gpuMax;
-        int gpuFrames, logs;
+        double cpuSum, cpuMax, gpuSum, gpuMax, dirtyCpu, dirtyGpu;
+        int gpuFrames, dirtyFrames, logs, dirtyLogs;
+        RectInt dirtyRect;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Create()
@@ -129,8 +168,9 @@ namespace Punchy.Rendering
         }
 
         /// <summary>
-        /// A landmark too big for the real shadows registers its far mesh here every frame it draws (one entry per mesh).
-        /// A changed matrix, a new mesh or one not seen for a few frames asks for a redraw.
+        /// A landmark drawn without a renderer offers its far mesh here every frame it draws (one entry per mesh); the
+        /// rule then decides, at each redraw, whether it is big enough on screen to cast. A changed matrix, a new mesh
+        /// or one not seen for a few frames asks for a redraw.
         /// </summary>
         public static void Cast(Mesh mesh, Matrix4x4 matrix)
         {
@@ -150,7 +190,7 @@ namespace Punchy.Rendering
                 }
             if (casterCount == casters.Length)
                 System.Array.Resize(ref casters, casterCount * 2);
-            casters[casterCount++] = new Caster { Mesh = mesh, Matrix = matrix, Seen = frame };
+            casters[casterCount++] = new Caster { Mesh = mesh, Matrix = matrix, Seen = frame, Tier = -1, Kind = mesh.name };
             castersChanged = true;
         }
 
@@ -175,25 +215,33 @@ namespace Punchy.Rendering
             if (up <= 0f || !Create(out var source))
                 return;
             float3 eye = cam.transform.position;
+            DetailPolicy.SetView(cam);
+            var handOver = ShadowDistance() * 0.75f;
 
             UpdateField(source, eye);
             if (Time.frameCount >= nextScan)
             {
                 nextScan = Time.frameCount + RescanFrames;
-                ScanColossi();
+                Scan(handOver);
             }
-            CheckRoots();
 
+            var floraDue = FloraOn && flora.WideVersion != laidFloraVersion && Time.unscaledTime - laidTime > FloraWait;
             if (step < 0 && fieldReady && !fieldPending &&
-                (!ready || castersChanged || rootsChanged || Vector3.Angle(dir, laidSun) > RedrawDegrees ||
+                (!ready || castersChanged || candidatesChanged || floraDue || Vector3.Angle(dir, laidSun) > RedrawDegrees ||
                  math.distance(eye.xz, laidAt.xz) > RedrawMove))
-                StartRedraw(eye, dir);
+                StartRedraw(eye, dir, handOver);
             if (step >= 0)
                 DrawSlice();
+            else if (ready)
+                CheckMoves();
             ReadGpu();
             if (ready)
                 SetReceivers(sun, up);
         }
+
+        static float ShadowDistance()
+            => UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline is UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset urp
+                ? urp.shadowDistance : QualitySettings.shadowDistance;
 
         bool Create(out TerrainSource source)
         {
@@ -230,9 +278,10 @@ namespace Punchy.Rendering
                 sampler = CustomSampler.Create("WideShadow Redraw", true);
                 recorder = sampler.GetRecorder();
                 recorder.enabled = true;
+                dirtySampler = CustomSampler.Create("WideShadow Dirty", true);
+                dirtyRecorder = dirtySampler.GetRecorder();
+                dirtyRecorder.enabled = true;
             }
-            // Two 16-bit textures, no depth buffer (the caster pass keeps the nearest by a min blend).
-            Bytes = 2L * Size * Size * 2;
             return true;
         }
 
@@ -357,105 +406,134 @@ namespace Punchy.Rendering
             }
         }
 
-        // ---- Colossi ----
+        // ---- Picking the casters (the rule) ----
 
-        /// <summary>Finds the colossi's roots (StoneColossi's slots and the Dunes colossus) and the meshes under them.</summary>
-        void ScanColossi()
+        /// <summary>
+        /// Looks through the loaded scenes for shadow-casting meshes that could pass the rule at all: as big on screen
+        /// as the wide tier asks (less its hysteresis) at the distance the map takes over from the real shadows. Which of
+        /// them cast is decided per redraw (<see cref="Tier"/>); a candidate coming or going asks for a redraw.
+        /// </summary>
+        void Scan(float handOver)
         {
-            var stone = FindAnyObjectByType<StoneColossi>();
-            var dunes = FindAnyObjectByType<DunesColossus>();
-            int count = 0;
-            if (!DunesColossus.Hidden)
-            {
-                if (stone != null)
-                    for (int slot = 0; slot < StoneColossi.Placed.Length; slot++)
-                        AddRoot(stone.Root(slot), ref count);
-                if (dunes != null && DunesColossus.Placed)
-                    AddRoot(dunes.transform, ref count);
-            }
-            if (count != roots.Count)
-            {
-                roots.RemoveRange(count, roots.Count - count);
-                rootAt.RemoveRange(count, rootAt.Count - count);
-                rootTurn.RemoveRange(count, rootTurn.Count - count);
-                rootsChanged = true;
-            }
-        }
-
-        void AddRoot(Transform root, ref int count)
-        {
-            if (root == null || !root.gameObject.activeInHierarchy)
-                return;
-            if (count < roots.Count)
-            {
-                if (roots[count] != root)
-                {
-                    roots[count] = root;
-                    rootAt[count] = new Vector3(float.MaxValue, 0f, 0f);
-                    rootsChanged = true;
-                }
-            }
+            ref readonly var view = ref DetailPolicy.Current.Data;
+            var q = math.max(view.Shadows, 0.1f);
+            var least = DetailPolicy.Reach(1f, DetailPolicy.Huge.WideShadow * q * (1f - DetailPolicy.Hysteresis), view.PixelsPerMetre);
+            var smallest = handOver / math.max(least, 1e-3f);   // m: the size that is just big enough at handOver
+            scanned.Clear();
+            for (int s = 0; s < SceneManager.sceneCount; s++)
+                ScanScene(SceneManager.GetSceneAt(s), smallest);
+            ScanScene(gameObject.scene, smallest);   // DontDestroyOnLoad's scene
+            if (scanned.Count != candidates.Count)
+                candidatesChanged = true;
             else
-            {
-                roots.Add(root);
-                rootAt.Add(new Vector3(float.MaxValue, 0f, 0f));
-                rootTurn.Add(Quaternion.identity);
-                rootsChanged = true;
-            }
-            count++;
+                for (int i = 0; i < scanned.Count && !candidatesChanged; i++)
+                    candidatesChanged = scanned[i] != candidates[i];
+            (candidates, scanned) = (scanned, candidates);
+            if (flora == null)
+                flora = FindAnyObjectByType<FloraSystem>();
         }
 
-        void CheckRoots()
+        void ScanScene(Scene scene, float smallest)
         {
-            for (int i = 0; i < roots.Count; i++)
+            if (!scene.IsValid() || !scene.isLoaded)
+                return;
+            scene.GetRootGameObjects(rootObjects);
+            foreach (var root in rootObjects)
             {
-                var r = roots[i];
-                if (r == null)
-                {
-                    rootsChanged = true;
+                if (!root.activeInHierarchy)
                     continue;
-                }
-                if ((r.position - rootAt[i]).sqrMagnitude > RootMove * RootMove || Quaternion.Angle(r.rotation, rootTurn[i]) > RootTurn)
-                    rootsChanged = true;
+                root.GetComponentsInChildren(false, found);
+                foreach (var r in found)
+                    if (MeshOf(r) != null && Extent(r.bounds) >= smallest)
+                        scanned.Add(r);
             }
+        }
+
+        /// <summary>The mesh a shadow-casting mesh or skinned renderer draws (null for anything else: particles, lines, off).</summary>
+        static Mesh MeshOf(Renderer r)
+        {
+            if (r == null || !r.enabled || r.shadowCastingMode == ShadowCastingMode.Off || !r.gameObject.activeInHierarchy)
+                return null;
+            if (r is SkinnedMeshRenderer skin)
+                return skin.sharedMesh;
+            if (r is MeshRenderer && r.TryGetComponent<MeshFilter>(out var mf))
+                return mf.sharedMesh;
+            return null;
+        }
+
+        /// <summary>A box's largest extent (DetailPolicy's size).</summary>
+        static float Extent(Bounds b) => 2f * math.cmax((float3)b.extents);
+
+        /// <summary>
+        /// The rule for one caster: its shadow tier by DetailPolicy.Huge at its size and distance, though never nearer
+        /// than handOver (inside the real shadows its far shadow still counts from where the map takes over).
+        /// </summary>
+        static int Tier(Bounds box, float3 eye, float handOver, int previous)
+        {
+            ref readonly var view = ref DetailPolicy.Current.Data;
+            var d = math.max(math.distance((float3)box.center, eye), handOver);
+            return DetailPolicy.ShadowTier(DetailPolicy.ScreenSize(Extent(box), d, view.PixelsPerMetre), DetailPolicy.Huge, view.Shadows, previous);
+        }
+
+        string KindOf(Renderer r)
+        {
+            var root = r.transform.root;
+            if (!kinds.TryGetValue(root, out var kind))
+                kinds[root] = kind = root.name;
+            return kind;
+        }
+
+        void CountKind(string kind)
+        {
+            kindCounts.TryGetValue(kind, out var n);
+            kindCounts[kind] = n + 1;
         }
 
         // ---- Redraw ----
 
         /// <summary>Lays a new sun view round the player and snapshots what casts in it (the draws then take a few frames).</summary>
-        void StartRedraw(float3 eye, Vector3 dir)
+        void StartRedraw(float3 eye, Vector3 dir, float handOver)
         {
             watch.Restart();
             castersChanged = false;
-            rootsChanged = false;
+            candidatesChanged = false;
             draws.Clear();
+            if (LogKinds)
+                kindCounts.Clear();
             var centre = new float3(eye.x, 0f, eye.z);
             var reach2 = (Reach + 400f) * (Reach + 400f);
             var top = fieldMax;
-            var frame = Time.frameCount;
+            int picked = 0;
             for (int i = 0; i < casterCount; i++)
-                AddDraw(casters[i].Mesh, casters[i].Matrix, centre, reach2, ref top);
-            filters.Clear();
-            for (int i = 0; i < roots.Count; i++)
             {
-                var r = roots[i];
-                if (r == null)
-                    continue;
-                rootAt[i] = r.position;
-                rootTurn[i] = r.rotation;
-                r.GetComponentsInChildren(false, found);
-                filters.AddRange(found);
+                ref var c = ref casters[i];
+                var box = BoxOf(c.Mesh, c.Matrix);
+                c.Tier = Tier(box, eye, handOver, c.Tier);
+                if (c.Tier <= 2 && AddDraw(c.Mesh, c.Matrix, null, box, centre, reach2, ref top))
+                {
+                    picked++;
+                    if (LogKinds)
+                        CountKind(c.Kind);
+                }
             }
             // Skinned parts (the rigged colossi) cast in their bind pose: a far shadow 1.6 m a texel doesn't show the pose.
-            foreach (var f in filters)
+            nextTiers.Clear();
+            foreach (var r in candidates)
             {
-                if (!f.enabled || f.shadowCastingMode == ShadowCastingMode.Off)
+                var mesh = MeshOf(r);
+                if (mesh == null)
                     continue;
-                if (f is SkinnedMeshRenderer skin)
-                    AddDraw(skin.sharedMesh, skin.transform.localToWorldMatrix, centre, reach2, ref top);
-                else if (f is MeshRenderer && f.TryGetComponent<MeshFilter>(out var mf))
-                    AddDraw(mf.sharedMesh, f.transform.localToWorldMatrix, centre, reach2, ref top);
+                var box = r.bounds;
+                var tier = Tier(box, eye, handOver, tiers.TryGetValue(r, out var was) ? was : -1);
+                nextTiers[r] = tier;
+                if (tier <= 2 && AddDraw(mesh, r.transform.localToWorldMatrix, r, box, centre, reach2, ref top))
+                {
+                    picked++;
+                    if (LogKinds)
+                        CountKind(KindOf(r));
+                }
             }
+            (tiers, nextTiers) = (nextTiers, tiers);
 
             // The sun view: x across the sunlight, y up it, z along it. Its half height and depth hold the circle of Reach
             // round the player and the heights from the lowest ground to the tallest caster, so a low sun keeps them tight.
@@ -468,12 +546,12 @@ namespace Punchy.Rendering
             var depth = Reach * flat + half * sinE + 50f;
             var rot = Quaternion.LookRotation(dir, math.abs(dir.y) > 0.99f ? Vector3.forward : Vector3.up);
             // Texel snap: the centre's place across and up the sunlight is rounded to whole texels.
-            Vector3 c = new Vector3(eye.x, mid, eye.z), right = rot * Vector3.right, upv = rot * Vector3.up;
+            Vector3 c0 = new Vector3(eye.x, mid, eye.z), right = rot * Vector3.right, upv = rot * Vector3.up;
             float tx = 2f * hx / Size, ty = 2f * hy / Size;
-            var cx = math.round(Vector3.Dot(c, right) / tx) * tx;
-            var cy = math.round(Vector3.Dot(c, upv) / ty) * ty;
-            c = right * cx + upv * cy + dir * Vector3.Dot(c, dir);
-            var from = c - dir * depth;
+            var cx = math.round(Vector3.Dot(c0, right) / tx) * tx;
+            var cy = math.round(Vector3.Dot(c0, upv) / ty) * ty;
+            c0 = right * cx + upv * cy + dir * Vector3.Dot(c0, dir);
+            var from = c0 - dir * depth;
             var view = Matrix4x4.Scale(new Vector3(1f, 1f, -1f)) * Matrix4x4.TRS(from, rot, Vector3.one).inverse;
             var proj = Matrix4x4.Ortho(-hx, hx, -hy, hy, 0f, depth * 2f);
             backVP = GL.GetGPUProjectionMatrix(proj, true) * view;
@@ -483,6 +561,21 @@ namespace Punchy.Rendering
             backInvRange = 1f / (depth * 2f);
             laidSun = dir;
             laidAt = eye;
+            laidTime = Time.unscaledTime;
+
+            // The flora's big trees and built things, by the same rule on the GPU (all of them out to the map's corner:
+            // the player can walk RedrawMove before the next redraw, so none are left to the near shadows).
+            if (FloraOn)
+            {
+                FloraSystem.CountKinds = LogKinds;
+                flora.WideCull(eye, Reach * 1.415f, 0f);
+                FloraSystem.CountKinds = false;
+                laidFloraVersion = flora.WideVersion;
+            }
+            if (LogKinds)
+                KindsLog = KindsText(picked);
+            // Two 16-bit textures (no depth buffer: the caster pass keeps the nearest by a min blend) and the flora's cull.
+            Bytes = 2L * Size * Size * 2 + (FloraOn ? flora.WideBytes() : 0);
             step = 0;
             cpuSum = cpuMax = gpuSum = gpuMax = 0;
             gpuFrames = 0;
@@ -491,45 +584,75 @@ namespace Punchy.Rendering
             cpuMax = ms;
         }
 
-        void AddDraw(Mesh mesh, Matrix4x4 matrix, float3 centre, float reach2, ref float top)
+        bool FloraOn => Flora && flora != null && flora.isActiveAndEnabled;
+
+        string KindsText(int picked)
         {
-            if (mesh == null)
-                return;
+            var sb = new System.Text.StringBuilder();
+            sb.Append(picked).Append(" meshes (");
+            var first = true;
+            foreach (var kv in kindCounts)
+            {
+                sb.Append(first ? "" : ", ").Append(kv.Key).Append(' ').Append(kv.Value);
+                first = false;
+            }
+            sb.Append("); flora: ").Append(FloraSystem.WideKinds).Append("; of ").Append(candidates.Count).Append(" candidate renderers");
+            return sb.ToString();
+        }
+
+        static Bounds BoxOf(Mesh mesh, Matrix4x4 m)
+        {
             var b = mesh.bounds;
-            var at = matrix.MultiplyPoint3x4(b.center);
-            var size = matrix.lossyScale.x * b.extents.magnitude;
-            if (math.distancesq(new float2(at.x, at.z), centre.xz) > reach2 + size * size)
-                return;
-            top = math.max(top, at.y + size);
-            draws.Add(new Caster { Mesh = mesh, Matrix = matrix });
+            var c = m.MultiplyPoint3x4(b.center);
+            var e = b.extents;
+            // The box's extents through the matrix (its axes' absolute contributions).
+            var x = m.MultiplyVector(new Vector3(e.x, 0f, 0f));
+            var y = m.MultiplyVector(new Vector3(0f, e.y, 0f));
+            var z = m.MultiplyVector(new Vector3(0f, 0f, e.z));
+            var ext = new Vector3(math.abs(x.x) + math.abs(y.x) + math.abs(z.x),
+                math.abs(x.y) + math.abs(y.y) + math.abs(z.y),
+                math.abs(x.z) + math.abs(y.z) + math.abs(z.z));
+            return new Bounds(c, ext * 2f);
+        }
+
+        bool AddDraw(Mesh mesh, Matrix4x4 matrix, Renderer source, Bounds box, float3 centre, float reach2, ref float top)
+        {
+            var size = box.extents.magnitude;
+            if (math.distancesq(new float2(box.center.x, box.center.z), centre.xz) > reach2 + size * size)
+                return false;
+            top = math.max(top, box.max.y);
+            var t = source != null ? source.transform : null;
+            draws.Add(new Draw
+            {
+                Mesh = mesh, Matrix = matrix, Source = source, Box = box,
+                At = t != null ? t.position : Vector3.zero, Turn = t != null ? t.rotation : Quaternion.identity
+            });
+            return true;
         }
 
         /// <summary>Draws this frame's share: the terrain and the first casters on the first frame, the rest after; swaps after the last.</summary>
         void DrawSlice()
         {
+            // The flora draws in the slices after the first, once its cull's counts are back (a frame or two), so it
+            // skips the models the cull left empty; it waits at most a few frames for them.
+            if (step == 1 && FloraOn && !flora.WideReady() && floraHeld++ < 6)
+                return;
+            if (step == 1)
+                floraHeld = 0;
             watch.Restart();
             var cmd = commands;
             cmd.Clear();
             cmd.BeginSample(sampler);
             cmd.SetRenderTarget(back);
-            cmd.SetGlobalMatrix(VPId, backVP);
-            cmd.SetGlobalVector(EyeId, new Vector4(backEye.x, backEye.y, backEye.z, backInvRange));
-            cmd.SetGlobalVector(SunId, backSun);
+            SetView(cmd, backVP, backEye, backInvRange, backSun);
             if (step == 0)
             {
                 cmd.ClearRenderTarget(false, true, Color.white);
                 cmd.DrawMesh(field, Matrix4x4.identity, caster, 0, 0);
             }
-            var from = draws.Count * step / RedrawFrames;
-            var to = draws.Count * (step + 1) / RedrawFrames;
-            for (int i = from; i < to; i++)
-            {
-                var d = draws[i];
-                if (d.Mesh == null)
-                    continue;
-                for (int s = 0; s < d.Mesh.subMeshCount; s++)
-                    cmd.DrawMesh(d.Mesh, d.Matrix, caster, s, 0);
-            }
+            DrawMeshes(cmd, draws.Count * step / RedrawFrames, draws.Count * (step + 1) / RedrawFrames);
+            if (FloraOn && step > 0)
+                flora.WideDraw(cmd, step - 1, RedrawFrames - 1);
             cmd.EndSample(sampler);
             Graphics.ExecuteCommandBuffer(cmd);
             var ms = watch.Elapsed.TotalMilliseconds;
@@ -538,6 +661,7 @@ namespace Punchy.Rendering
             if (++step < RedrawFrames)
                 return;
             (front, back) = (back, front);
+            frontVP = backVP;
             frontUv = backUv;
             frontSun = backSun;
             frontEye = backEye;
@@ -548,8 +672,122 @@ namespace Punchy.Rendering
             gpuFrames = RedrawFrames + 3;   // keep reading the GPU timer for the frames the slices land on
         }
 
+        static void SetView(CommandBuffer cmd, Matrix4x4 vp, Vector3 eye, float invRange, Vector3 sun)
+        {
+            cmd.SetGlobalMatrix(VPId, vp);
+            cmd.SetGlobalVector(EyeId, new Vector4(eye.x, eye.y, eye.z, invRange));
+            cmd.SetGlobalVector(SunId, sun);
+        }
+
+        void DrawMeshes(CommandBuffer cmd, int from, int to)
+        {
+            for (int i = from; i < to; i++)
+            {
+                var d = draws[i];
+                if (d.Mesh == null)
+                    continue;
+                for (int s = 0; s < d.Mesh.subMeshCount; s++)
+                    cmd.DrawMesh(d.Mesh, d.Matrix, caster, s, 0);
+            }
+        }
+
+        // ---- Dirty rects (moving casters) ----
+
+        /// <summary>
+        /// A renderer in the map that moved or turned past the limits, or went away, has the map's part under where it
+        /// was and where it is now wiped and drawn again (the terrain, every mesh and the flora, under a scissor rect).
+        /// </summary>
+        void CheckMoves()
+        {
+            var any = false;
+            float2 lo = float.MaxValue, hi = float.MinValue;
+            for (int i = 0; i < draws.Count; i++)
+            {
+                var d = draws[i];
+                if (d.Mesh == null || ReferenceEquals(d.Source, null))
+                    continue;
+                var gone = MeshOf(d.Source) == null;
+                Transform t = gone ? null : d.Source.transform;
+                if (!gone && (t.position - d.At).sqrMagnitude <= MoveMetres * MoveMetres && Quaternion.Angle(t.rotation, d.Turn) <= MoveDegrees)
+                    continue;
+                Grow(d.Box, ref lo, ref hi);
+                if (gone)
+                    d.Mesh = null;
+                else
+                {
+                    d.Matrix = t.localToWorldMatrix;
+                    d.At = t.position;
+                    d.Turn = t.rotation;
+                    d.Box = d.Source.bounds;
+                    Grow(d.Box, ref lo, ref hi);
+                }
+                draws[i] = d;
+                any = true;
+            }
+            if (!any)
+                return;
+            // Texels, with two to spare for the receivers' taps; nothing when it's all off the map.
+            var a = (int2)math.floor(math.saturate(lo) * Size) - 2;
+            var b = (int2)math.ceil(math.saturate(hi) * Size) + 2;
+            a = math.max(a, 0);
+            b = math.min(b, Size);
+            if (math.any(b <= a))
+                return;
+            DrawDirty(new RectInt(a.x, a.y, b.x - a.x, b.y - a.y));
+        }
+
+        /// <summary>Grows a uv rect by a world box's eight corners through the front map's view.</summary>
+        void Grow(Bounds box, ref float2 lo, ref float2 hi)
+        {
+            var c = box.center;
+            var e = box.extents;
+            for (int k = 0; k < 8; k++)
+            {
+                var p = c + new Vector3((k & 1) != 0 ? e.x : -e.x, (k & 2) != 0 ? e.y : -e.y, (k & 4) != 0 ? e.z : -e.z);
+                var uv = frontUv.MultiplyPoint3x4(p);
+                lo = math.min(lo, new float2(uv.x, uv.y));
+                hi = math.max(hi, new float2(uv.x, uv.y));
+            }
+        }
+
+        void DrawDirty(RectInt r)
+        {
+            watch.Restart();
+            var cmd = commands;
+            cmd.Clear();
+            cmd.BeginSample(dirtySampler);
+            cmd.SetRenderTarget(front);
+            cmd.EnableScissorRect(new Rect(r.x, r.y, r.width, r.height));
+            cmd.DrawProcedural(Matrix4x4.identity, caster, 1, MeshTopology.Triangles, 3);
+            SetView(cmd, frontVP, frontEye, frontInvRange, frontSun);
+            cmd.DrawMesh(field, Matrix4x4.identity, caster, 0, 0);
+            DrawMeshes(cmd, 0, draws.Count);
+            if (FloraOn)
+                flora.WideDraw(cmd, 0, 1);
+            cmd.DisableScissorRect();
+            cmd.EndSample(dirtySampler);
+            Graphics.ExecuteCommandBuffer(cmd);
+            dirtyCpu = watch.Elapsed.TotalMilliseconds;
+            dirtyGpu = 0;
+            dirtyRect = r;
+            dirtyFrames = 3;
+            DirtyRects++;
+        }
+
         void ReadGpu()
         {
+            if (dirtyFrames > 0)
+            {
+                if (dirtyRecorder != null && dirtyRecorder.gpuSampleBlockCount > 0)
+                    dirtyGpu = math.max(dirtyGpu, dirtyRecorder.gpuElapsedNanoseconds / 1e6);
+                if (--dirtyFrames == 0)
+                {
+                    LastDirtyLog = System.FormattableString.Invariant(
+                        $"{dirtyRect.width}x{dirtyRect.height} texels at ({dirtyRect.x}, {dirtyRect.y}), CPU {dirtyCpu:F2} ms, GPU {dirtyGpu:F2} ms");
+                    if (dirtyLogs++ < 12)
+                        Debug.Log("[wideshadow] dirty rect " + DirtyRects + ": " + LastDirtyLog);
+                }
+            }
             if (gpuFrames <= 0)
                 return;
             if (recorder != null && recorder.gpuSampleBlockCount > 0)
@@ -561,7 +799,7 @@ namespace Punchy.Rendering
             if (--gpuFrames > 0)
                 return;
             LastLog = System.FormattableString.Invariant(
-                $"{draws.Count} casters + terrain {fieldN}x{fieldN}, CPU {cpuSum:F2} ms (worst frame {cpuMax:F2}), GPU {gpuSum:F2} ms (worst frame {gpuMax:F2}) over {RedrawFrames} frames, at ({laidAt.x:0}, {laidAt.z:0}), sun elevation {math.degrees(math.asin(math.saturate(-frontSun.y))):F1} deg, {Bytes / (1024 * 1024)} MB");
+                $"{draws.Count} meshes + flora + terrain {fieldN}x{fieldN}, CPU {cpuSum:F2} ms (worst frame {cpuMax:F2}), GPU {gpuSum:F2} ms (worst frame {gpuMax:F2}) over {RedrawFrames} frames, at ({laidAt.x:0}, {laidAt.z:0}), sun elevation {math.degrees(math.asin(math.saturate(-frontSun.y))):F1} deg, {Bytes / (1024 * 1024)} MB");
             if (logs++ < 12)
                 Debug.Log("[wideshadow] redraw " + Redraws + ": " + LastLog);
         }
@@ -569,8 +807,7 @@ namespace Punchy.Rendering
         /// <summary>Hands the laid map to the terrain and flora shaders (globals; Params.x 0 turns their read off).</summary>
         void SetReceivers(Light sun, float up)
         {
-            var shadowDistance = GraphicsSettings.currentRenderPipeline is UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset urp
-                ? urp.shadowDistance : QualitySettings.shadowDistance;
+            var shadowDistance = ShadowDistance();
             Shader.SetGlobalTexture(TexId, front);
             Shader.SetGlobalMatrix(MatrixId, frontUv);
             Shader.SetGlobalVector(FrontSunId, frontSun);

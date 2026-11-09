@@ -716,6 +716,54 @@ Shader "Punchy/Flora"
 
         Pass
         {
+            // R-5: the wide sun-shadow map (Rendering.WideShadow; FloraSystem.Wide.cs) lays the big trees and built
+            // things far out with this, as Punchy/WideShadow's caster pass: a min blend keeps, per texel, how far along
+            // the sunlight (0-1 over the view's depth) the nearest caster is. Never a URP pass.
+            Name "FloraWide"
+            Tags { "LightMode" = "FloraWide" }
+            BlendOp Min
+            Blend One One
+            ZWrite Off
+            ZTest Always
+            Cull Off
+
+            HLSLPROGRAM
+            #pragma target 4.5
+            #pragma vertex Vert
+            #pragma fragment Frag
+            #define FLORA_CACHE_PASS
+
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Flora.hlsl"
+
+            float4x4 _WideShadowVP;   // world to the wide map's clip space
+            float4 _WideShadowEye;    // xyz its near plane centre, w one over its depth
+            float4 _WideShadowSun;    // xyz the way the sunlight travels
+
+            struct Varyings
+            {
+                float4 positionCS : SV_POSITION;
+                float along : TEXCOORD0;
+            };
+
+            Varyings Vert(FloraAttributes input)
+            {
+                FloraVertex v = FloraTransform(input);
+                Varyings o;
+                o.positionCS = mul(_WideShadowVP, float4(v.positionWS, 1));
+                o.along = dot(v.positionWS - _WideShadowEye.xyz, _WideShadowSun.xyz) * _WideShadowEye.w;
+                return o;
+            }
+
+            float4 Frag(Varyings input) : SV_Target
+            {
+                return saturate(input.along).xxxx;
+            }
+            ENDHLSL
+        }
+
+        Pass
+        {
             Name "DepthOnly"
             Tags { "LightMode" = "DepthOnly" }
             ZWrite On

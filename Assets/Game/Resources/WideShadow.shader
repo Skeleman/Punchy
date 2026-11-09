@@ -56,5 +56,35 @@ Shader "Punchy/WideShadow"
             }
             ENDHLSL
         }
+
+        Pass
+        {
+            // A full-screen triangle that writes "nothing nearer than the far end": under a scissor rect it wipes the
+            // part of the map a moving caster left (WideShadow's dirty rect) before that part is drawn again.
+            Name "WideShadowClear"
+            Tags { "LightMode" = "WideShadowClear" }
+            Blend Off
+            ZWrite Off
+            ZTest Always
+            Cull Off
+
+            HLSLPROGRAM
+            #pragma target 4.5
+            #pragma vertex Vert
+            #pragma fragment Frag
+
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+
+            float4 Vert(uint id : SV_VertexID) : SV_POSITION
+            {
+                return GetFullScreenTriangleVertexPosition(id);
+            }
+
+            float4 Frag() : SV_Target
+            {
+                return 1;
+            }
+            ENDHLSL
+        }
     }
 }

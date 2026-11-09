@@ -161,24 +161,34 @@ namespace Punchy.Settings
             /// map (creatures, small flora), Shadow alone decides.
             /// </summary>
             public float SharpShadow;
+            /// <summary>
+            /// R-5: past the real-time cascades and the cached map, the wide sun-shadow map (Rendering.WideShadow, about
+            /// 1.6 km round the player) keeps a caster's shadow while it's bigger than this (reference pixels, at most
+            /// Shadow); below it, none. 0: no wide tier (Shadow alone ends it). Anything still big on screen from afar
+            /// qualifies by its size alone: a 50 m colossus to about 1.5 km at 30, a 10 m house to about 300 m.
+            /// </summary>
+            public float WideShadow;
             /// <summary>How much a fast mover counts as bigger for Animation only (its motion shows before its shape
             /// does): pixels x (1 + Activity x how active, 0..1).</summary>
             public float Activity;
         }
 
         /// <summary>
-        /// The one shadow tier decision (3.7 step 3): 0 the real-time cascades, 1 the cached map, 2 none, with hysteresis
-        /// (previous -1 when first seen). Pixels as <see cref="ScreenSize"/>; shadows is the Shadows setting.
-        /// FloraCull.compute does the same per plant through <see cref="SharpReach"/>.
+        /// The one shadow tier decision (3.7 step 3, R-5): 0 the real-time cascades, 1 the cached map, 2 the wide map,
+        /// 3 none, with hysteresis (previous -1 when first seen). Pixels as <see cref="ScreenSize"/>; shadows is the
+        /// Shadows setting. FloraCull.compute does the same per plant through <see cref="SharpReach"/> and
+        /// <see cref="WideReach"/>.
         /// </summary>
         public static int ShadowTier(float pixels, in Rule rule, float shadows, int previous)
         {
             var q = math.max(shadows, 0.1f);
-            // (Tier's four tiers with Far = Mid: its tier 2 can't happen, and its tier 3 is "none".)
-            var t = new Thresholds(rule.SharpShadow, rule.Shadow, rule.Shadow).Scaled(q);
-            var tier = Tier(pixels, t, previous == 2 ? 3 : previous);
-            return math.min(tier, 2);
+            // (Without a wide tier Far = Mid, so tier 2 can't happen and 3 is "none" as before.)
+            var wide = rule.WideShadow > 0f ? math.min(rule.WideShadow, rule.Shadow) : rule.Shadow;
+            return Tier(pixels, new Thresholds(rule.SharpShadow, rule.Shadow, wide).Scaled(q), previous);
         }
+
+        /// <summary>R-5: a size's wide-map shadow reach per reference pixel-per-metre (0: the rule has no wide tier).</summary>
+        public static float WideReach(in Rule rule, float size) => rule.WideShadow > 0f ? size / rule.WideShadow : 0f;
 
         /// <summary>A size's real-time shadow reach per reference pixel-per-metre (0: the rule has no size-based one, so
         /// only the cascades' floor applies).</summary>
@@ -232,6 +242,22 @@ namespace Punchy.Settings
             Activity = 0.5f
         };
 
+        /// <summary>
+        /// R-5: any shadow-casting mesh in the scene that isn't flora or a creature the fauna system draws (the colossi,
+        /// the big landmarks' meshes, props): only its shadow tier is read, by Rendering.WideShadow, which lays every
+        /// caster in tiers 0-2 into the wide map. These have no cached map of their own, so Shadow only has to sit above
+        /// WideShadow for the wide tier to exist; WideShadow is the one number that decides how far from the player a
+        /// huge thing keeps a shadow (trees and built flora share it, through WideReach on the GPU).
+        /// </summary>
+        public static readonly Rule Huge = new Rule
+        {
+            Geometry = new Thresholds(295f, 75f, 0f),
+            Animation = new Thresholds(295f, 75f, 0f),
+            Shadow = 60f,
+            SharpShadow = 400f,
+            WideShadow = 30f
+        };
+
         /// <summary>The simulation's (brain LOD) boundary for creatures, reference pixels: a deer thinks every frame
         /// inside 80 m of a player (A-54), something 10x its size inside 800 m.</summary>
         public const float CreatureThinkPixels = 17.5f;
@@ -280,14 +306,14 @@ namespace Punchy.Settings
                 // (SharpShadow, 3.7 step 3: a 20 m tree keeps the old 25 m real-time range at High, so a forest casts no
                 // more; only giants reach past it. Built things and big rocks reach out with their size: at High a 12 m
                 // hall casts sharp to about 40 m, past where a bush stops, and a 20 m one to the cascades' end.)
-                case FloraClass.Tree: return new Rule { Geometry = new Thresholds(395f, 98f, 0f), Shadow = 14f, SharpShadow = 1050f };
+                case FloraClass.Tree: return new Rule { Geometry = new Thresholds(395f, 98f, 0f), Shadow = 14f, SharpShadow = 1050f, WideShadow = Huge.WideShadow };
                 case FloraClass.Plant: return new Rule { Geometry = new Thresholds(46f, 13f, 0f), Shadow = 45f, SharpShadow = float.MaxValue };
                 // Rocks only change mesh, and stay to the layer's edge.
                 case FloraClass.Rock: return new Rule { Geometry = new Thresholds(120f, 32f, 0f), Shadow = 45f, SharpShadow = 400f };
                 // Logs, stumps, benches, eggs: gone once they're a few pixels.
                 case FloraClass.Debris: return new Rule { Geometry = new Thresholds(70f, 18f, 12f), Shadow = 55f, SharpShadow = float.MaxValue };
                 // Built things hold their reduced mesh far out: their outline is what shows.
-                default: return new Rule { Geometry = new Thresholds(295f, 75f, 0f), Shadow = 14f, SharpShadow = 400f };
+                default: return new Rule { Geometry = new Thresholds(295f, 75f, 0f), Shadow = 14f, SharpShadow = 400f, WideShadow = Huge.WideShadow };
             }
         }
     }
