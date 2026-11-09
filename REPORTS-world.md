@@ -3407,3 +3407,15 @@ Row 1 (fbc78198): cheaper sun samples with distance. Per in-cloud step: four up 
 Verified: full-resolution crops noon and sunset (Summit, -gfx High, seed 4) against `-skyoff 64`: no visible change; the
 differences are the cloud drift between the two shots. Merged origin/sky/cost first (underwater early-out kept, then the test mask).
 Next: row 2.
+Row 2 (9ba08caa): LowResEffectFeature (`Assets/Game/Scripts/Rendering`), RenderGraph, half or quarter size, reprojected history with a
+neighbourhood clamp, depth-aware `PunchyLowResUpsample` (`LowResEffect.hlsl`). No effect code inside; a user is an entry on the PC
+renderer asset plus a shader. Targets are made once per size and imported; per-frame allocation checked by reading the code only.
+Row 3 (ccd74cc1): clouds are its first user. Half at High and Ultra, quarter below (Low too: the card allowed leaving it, I did not).
+`-skyfull` is today's sky; `-lowres half|quarter` forces a size (both also per shot line). Discs, stars, far clouds and weather volumes stay full resolution.
+- Shots (1920x1080, full / half / quarter): noon, sunset, horizon, tree line, moon and a 9-frame turn series, kept locally under the milestones folder, R-1.
+  No halo at the tree line or horizon, discs and stars crisp, no ghosting in the turn series (coarse: 14 degrees per shot line). Clouds are softer and lose the grain;
+  very small far wisps may thin out at quarter. Cloud drift and player movement between shot lines limit how exact these comparisons are.
+- GPU ms, this PC, Summit noon, `-gfx Ultra`, two rounds: full 4.63 / 3.77, half 4.01 / 1.45, quarter 3.85 / 1.20. **The rounds disagree badly; do not quote these.** At High, one round: noon 3.62 / 2.96 / 2.85, sunset 3.44 / 2.45 / 2.08. `-screen-width 2560` did not take (shots came out 1920x1080), so no higher-resolution number.
+- Suite 14/14. The world and fauna pins were not checked separately.
+- UNVERIFIED: under water (read the code only: Sky.shader's early-out is unchanged and the buffer draws nothing there); weather volumes and storms were not shot; fast turns were only checked coarsely.
+- **Laptop job to queue (not added: this lane may only edit its report and EDITOR-QUEUE.md):** Profile build of sky/lowres, as job 34: the Summit, facing out, pitched up 10, 1920x1080, `-gfx High`, `-weatherseed 4`, uncapped, noon, ABBA: `-skyfull` against the default (half), and `-lowres quarter`; plain, Overcast and Storm; sunset too.
