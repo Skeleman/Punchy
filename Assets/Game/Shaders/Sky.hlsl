@@ -30,6 +30,7 @@ float4 _PunchyUnderwater;       // P-20: under water, rgb the water's fog colour
 
 float3 _PunchySunDirection;    // towards the sun
 float3 _PunchyMoonDirection;   // towards the moon
+float _PunchySkyOff;           // test only (-skyoff n, to price the sky's parts): 1 no cloud march, 2 no far clouds, 4 no sky colour, 8 no weather volumes, 16 old even steps, 32 steps-per-pixel overlay
 float4 _PunchyMoonPhase;       // phase (0 new, 0.5 full), lit share
 float3 _PunchyBlueMoon;        // towards the second, blue moon
 static const float PunchyBlueMoonRadius = 0.22;    // radians (about 25 degrees across): 6.5x its v0.11.0 size, a sister planet (Zach, #34)
@@ -332,7 +333,8 @@ half3 PunchyVolumetricClouds(half3 background, float3 dir, float2 screenPos)
     float t0 = max(0, (bottom - camera.y) / dir.y);
     // Beyond ~15–22 km the clouds hand over to a generic flat layer with the map-wide average weather: far cheaper,
     // and local weather that far away is invisible detail anyway.
-    background = PunchyFarClouds(background, dir);
+    if (((uint)_PunchySkyOff & 2u) == 0)
+        background = PunchyFarClouds(background, dir);
     float t1 = min((top - camera.y) / dir.y, PUNCHY_FAR_END);
     if (t0 >= t1)
         return background;
@@ -361,19 +363,72 @@ half3 PunchyVolumetricClouds(half3 background, float3 dir, float2 screenPos)
     float transmit = 1;
     half3 scatter = 0;
     float firstHit = -1;
+    // Empty air (job 32: the sky was 15 ms of the frame even in clear weather, nearly all of it steps through nothing):
+    // where a step can hold no cloud (no cover over this column, or outside its layer) the march takes long strides of up
+    // to MaxEmptyStride metres, straight towards the layer when it's under the cloud base; inside the layer, where the
+    // samples keep coming back empty, it lengthens its step more cautiously (MaxThinStride, so a small cloud can't be
+    // stepped over). Either way, on reaching cloud it backs up and walks in at the fine step.
+    const float MaxEmptyStride = 800, MaxThinStride = 240;
+    float lastEmpty = t;
+    int emptyRun = 0;
+    bool strode = false, farStrode = false;   // the last step was a thin (in the layer) or an empty-air stride
+    bool stride = ((uint)_PunchySkyOff & 16u) == 0;
+    int stepsTaken = 0;
     [loop]
     for (int i = 0; i < maxSteps && t < t1; i++)
     {
+        stepsTaken = i + 1;
         float stepLength = clamp(t * 0.02, 30, 500);
         float3 p = camera + dir * t;
         half4 weather = PunchyWeatherAt(p.xz);
         float4 shape = PunchyCloudShapeAt(p.xz);
+        bool canHold = (weather.r > 0.03 || shape.z > 0.02) && PunchyInCloudLayer(p.y, shape);
+        [branch] if (stride && !canHold)
+        {
+            // Under this column's base, aim for it (a little short: the base differs from column to column).
+            float toBase = p.y < shape.x && dir.y > 0 ? (shape.x - p.y) / dir.y * 0.8 : 0;
+            lastEmpty = t;
+            emptyRun++;
+            farStrode = true;
+            t += clamp(max(toBase, stepLength * emptyRun), stepLength, MaxEmptyStride);
+            continue;
+        }
+        [branch] if (stride && farStrode)
+        {
+            // Came out of empty air into a step that could hold cloud: back up and come in at the fine step.
+            farStrode = false;
+            emptyRun = 0;
+            if (t - lastEmpty > stepLength * 1.5)
+            {
+                t = lastEmpty + stepLength;
+                continue;
+            }
+        }
         float detail = saturate(1.2 - t / 20000);
         float density = ((weather.r > 0.03 || shape.z > 0.02) && PunchyInCloudLayer(p.y, shape))
             ? PunchyCloudDensity(p, weather, shape, detail) * (1 - smoothstep(PUNCHY_FAR_START, PUNCHY_FAR_END, t)) : 0;
 
+        [branch] if (stride && density <= 0.004)
+        {
+            // Inside the layer but nothing here: lengthen the step a little after a few empty samples.
+            lastEmpty = t;
+            emptyRun++;
+            strode = emptyRun > 3;
+            t += strode ? clamp(stepLength * (emptyRun - 2) * 0.5, stepLength, max(stepLength, MaxThinStride)) : stepLength;
+            continue;
+        }
         if (density > 0.004)
         {
+            // (A thin stride that landed in cloud backs up too, so a cloud's edge is found at the fine step.)
+            if (stride && strode && t - lastEmpty > stepLength * 1.5)
+            {
+                t = lastEmpty + stepLength;
+                strode = false;
+                emptyRun = 0;
+                continue;
+            }
+            emptyRun = 0;
+            strode = false;
             if (firstHit < 0)
                 firstHit = t;
 
@@ -413,6 +468,11 @@ half3 PunchyVolumetricClouds(half3 background, float3 dir, float2 screenPos)
         }
         t += stepLength;
     }
+
+    // (Test only, -skyoff 32: steps per pixel in colour bands, which survive tonemapping: blue under 20, green under 40,
+    // yellow under 80, orange under 120, red above.)
+    if (((uint)_PunchySkyOff & 32u) != 0)
+        return stepsTaken < 20 ? half3(0, 0, 1) : stepsTaken < 40 ? half3(0, 1, 0) : stepsTaken < 80 ? half3(1, 1, 0) : stepsTaken < 120 ? half3(1, 0.4, 0) : half3(1, 0, 0);
 
     // Distant clouds fade into the horizon haze, and right at the horizon (where rays skim through kilometres of
     // cloud layer and alias) they thin out entirely.

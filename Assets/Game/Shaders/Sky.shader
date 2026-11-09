@@ -31,10 +31,14 @@ Shader "Punchy/Sky"
             {
                 // Distant sandstorms and rain curtains show against the sky too.
                 float3 dir = normalize(input.direction);
-                half3 sky = PunchySkyColor(dir, true, false);
-                sky = PunchyVolumetricClouds(sky, dir, input.positionCS.xy);
+                uint off = (uint)_PunchySkyOff;   // (test only, -skyoff: see Sky.hlsl)
+                half3 sky = (off & 4u) == 0 ? PunchySkyColor(dir, true, false) : half3(0.3, 0.45, 0.7);
+                if ((off & 1u) == 0)
+                    sky = PunchyVolumetricClouds(sky, dir, input.positionCS.xy);
+                if ((off & 32u) != 0)
+                    return half4(sky, 1);
                 // (Same step count as the terrain haze target, so distant land and sky converge exactly.)
-                return half4(PunchyWeatherVolumes(sky, _WorldSpaceCameraPos, dir, 8000, 8), 1);
+                return half4((off & 8u) == 0 ? PunchyWeatherVolumes(sky, _WorldSpaceCameraPos, dir, 8000, 8) : sky, 1);
             }
             ENDHLSL
         }
