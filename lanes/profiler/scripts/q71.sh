@@ -13,7 +13,7 @@ echo $$ > "$R/.lock/pid"; echo "$Q Summit stall $1 (since $(date +%T))" > "$R/.l
 trap 'rm -rf "$R/.lock"; git -C "$P" checkout -q $HOME_BRANCH 2>/dev/null' EXIT
 build $K BuildDev $O || { echo "build $O failed"; exit 1; }
 keepawake
-pgrep -f freezesample.sh >/dev/null 2>&1 || (nohup bash "$S/freezesample.sh" >/dev/null 2>&1 &)
+ps -ef | grep -q '[f]reezesample.sh' || (nohup bash "$S/freezesample.sh" >/dev/null 2>&1 &)
 L="$R/${Q}logs"; mkdir -p "$L"
 SUMMIT="-benchstops place -benchplace Summit -benchview place,-10"
 COMMON="-gfx High -fpscap 0 -lowres half"

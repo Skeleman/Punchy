@@ -18,7 +18,7 @@ trap 'rm -rf "$R/.lock"; git -C "$P" checkout -q $HOME_BRANCH 2>/dev/null' EXIT
 build $KM BuildDev $OM || { echo "build $OM failed"; exit 1; }
 build $KN BuildDev $ON || { echo "build $ON failed"; exit 1; }
 keepawake
-pgrep -f freezesample.sh >/dev/null 2>&1 || (nohup bash "$S/freezesample.sh" >/dev/null 2>&1 &)
+ps -ef | grep -q '[f]reezesample.sh' || (nohup bash "$S/freezesample.sh" >/dev/null 2>&1 &)
 L="$R/${Q}logs"; mkdir -p "$L" "$R/$Q-shots"
 ONLY=$1; part() { [ -z "$ONLY" ] || [ "$ONLY" = "$1" ]; }
 COMMON="-gfx High -fpscap 0"

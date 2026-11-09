@@ -5,7 +5,7 @@
 # and the Summit (place); then the lake (spot -1624,-488,0).
 #   a:  -gfx High then -gfx Low: ABBA forced/off, both games each time; shots on round 1.
 #   rd: one RenderDoc capture per spot, preset and mode (16); rdpasses.py: the prepass and opaque pass ms.
-# "q69.sh a|rd"; no argument runs both.
+# "q69.sh a|rd|rdpass"; no argument runs a and rd. rdpass: only rdpasses.py over the captures already in rd69.
 B=$HOME/Projects/Punchy-wt/Tools/bench
 . "$B/lib.sh"
 K=5558f89; O=Profile-${K}m4; Q=q69
@@ -14,9 +14,9 @@ RDC="/c/Program Files/RenderDoc/renderdoccmd.exe"; QRD="/c/Program Files/RenderD
 mkdir "$R/.lock" 2>/dev/null || { echo "lock held: $(cat $R/.lock/job)"; exit 2; }
 echo $$ > "$R/.lock/pid"; echo "$Q depth priming $1 (since $(date +%T))" > "$R/.lock/job"
 trap 'rm -rf "$R/.lock"; git -C "$P" checkout -q $HOME_BRANCH 2>/dev/null' EXIT
-build $K BuildDev $O || { echo "build $O failed"; exit 1; }
+[ "$1" = rdpass ] || build $K BuildDev $O || { echo "build $O failed"; exit 1; }
 keepawake
-pgrep -f freezesample.sh >/dev/null 2>&1 || (nohup bash "$S/freezesample.sh" >/dev/null 2>&1 &)
+ps -ef | grep -q '[f]reezesample.sh' || (nohup bash "$S/freezesample.sh" >/dev/null 2>&1 &)
 L="$R/${Q}logs"; RD="$R/rd69"; mkdir -p "$L" "$RD" "$R/$Q-shots"
 ONLY=$1; part() { [ -z "$ONLY" ] || [ "$ONLY" = "$1" ]; }
 WX="-benchweather Clear -benchhour 12 -fpscap 0"
@@ -44,7 +44,7 @@ if part rd; then
     for s in bigtown:"$G1" spot:"$G1" place:"$G1" lake:"$G2"; do
       st=${s%%:*}; a=${s#*:}; rs=$st; [ $st = lake ] && rs=spot
       fixed $O || exit 1; cool
-      ( cd "$P/Builds/Bench" && timeout 1800 "$RDC" capture -w -d "$(cygpath -w "$P/Builds/Bench")" -c "$WW\rd69\$g-$m-$st" \
+      ( cd "$P/Builds/Bench" && timeout 1800 "$RDC" capture -w -d "$(cygpath -w "$P/Builds/Bench")" -c "$(cygpath -w "$RD/$g-$m-$st")" \
           "$(cygpath -w "$P/Builds/Bench/Punchy.exe")" -logFile "$W/q-$Q-rd-$g-$m-$st.log" -benchroute -weatherseed 4 -time 12 \
           $(screen Bench 1920 1080) -gfx $g $WX -depthpriming $m $a -renderdocstop $rs 1 >/dev/null 2>&1 )
       [ $? -eq 124 ] && echo "rd $g $m $st: TIMED OUT"
@@ -52,8 +52,10 @@ if part rd; then
       grep -h 'RenderDoc capture' "$R/q-$Q-rd-$g-$m-$st.log" | head -1
     done
   done; done
+fi
+if part rd || [ "$ONLY" = rdpass ]; then
   CAPS=$(ls "$RD"/*.rdc | xargs -n1 cygpath -w | tr '\n' ';')
-  RD_CAPS="$CAPS" RD_OUT="$WW\$Q-passes.txt" RD_MAXDEPTH=5 timeout 3600 "$QRD" --python "$(cygpath -w "$S/rdpasses.py")" >/dev/null 2>&1
+  RD_CAPS="$CAPS" RD_OUT="$(cygpath -w "$R/$Q-passes.txt")" RD_MAXDEPTH=5 timeout 3600 "$QRD" --python "$(cygpath -w "$S/rdpasses.py")" >/dev/null 2>&1
   echo "qrenderdoc rc=$?"; strays >/dev/null
   grep -i 'capture\|\.rdc\|prepass\|opaque\|frame' "$R/$Q-passes.txt" | head -120
 fi

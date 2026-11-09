@@ -15,7 +15,7 @@ echo $$ > "$R/.lock/pid"; echo "$Q quarter sky $1 (since $(date +%T))" > "$R/.lo
 trap 'rm -rf "$R/.lock"; git -C "$P" checkout -q $HOME_BRANCH 2>/dev/null' EXIT
 build $K BuildDev $O || { echo "build $O failed"; exit 1; }
 keepawake
-pgrep -f freezesample.sh >/dev/null 2>&1 || (nohup bash "$S/freezesample.sh" >/dev/null 2>&1 &)
+ps -ef | grep -q '[f]reezesample.sh' || (nohup bash "$S/freezesample.sh" >/dev/null 2>&1 &)
 L="$R/${Q}logs"; RD="$R/rd68"; mkdir -p "$L" "$RD" "$R/$Q-shots"
 ONLY=$1; part() { [ -z "$ONLY" ] || [ "$ONLY" = "$1" ]; }
 SUMMIT="-benchstops place -benchplace Summit -benchview place,-10"
