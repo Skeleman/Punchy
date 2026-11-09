@@ -322,3 +322,14 @@ iGPU may differ. Profile build of main 5558f89a, 1920x1080, `-gfx High` then `-g
 Clear`, uncapped (`-fpscap 0`). At `-goto 2972,-885` (big town), `1740,3355` (forest), `-1624,-488` (lake), `-2446,1154`
 (Summit): ABBA `-depthpriming forced` / `off`, 300 frames each. Report whole-frame GPU ms and the prepass and opaque pass ms
 per spot and preset. If `off` wins at Low, say by how much: the Low renderer can then turn priming off.
+
+## Job 40 (2026-11-09, QUEUED): R-4 sky cost on the laptop (sky/look 5880293c vs main 5558f89a)
+R-4 row 4 compiles the full-resolution cloud march out of the skybox while the low-res cloud buffer is on (job 38 named
+DrawSkybox at 3.7 ms, same at half and quarter). The main PC's GPU is too fast to resolve it. Profile builds of both, job 34's
+setup (Summit `-goto -2446,1154`, pitched up 10, 1920x1080, `-gfx High`, `-weatherseed 4`, `-time 12`, uncapped `-fpscap 0`),
+ABBA, 300 frames each.
+- Plain weather at `-lowres half` and `-lowres quarter`: whole-frame GPU ms for both builds, plus R-4 with `-skyoff 896`
+  (main's cloud look on R-4 code) and `-benchnosky` as the baseline.
+- `-weather Overcast` and `-weather Rain` at half, both builds (the new stratus sheets).
+- One RenderDoc capture of R-4 at half: DrawSkybox ms against job 38's 3.68.
+- Pass: R-4 within +1 ms of main at each spot. Say whether DrawSkybox dropped. Report in REPORTS-profiler.md as usual.
