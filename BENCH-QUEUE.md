@@ -323,7 +323,7 @@ Clear`, uncapped (`-fpscap 0`). At `-goto 2972,-885` (big town), `1740,3355` (fo
 (Summit): ABBA `-depthpriming forced` / `off`, 300 frames each. Report whole-frame GPU ms and the prepass and opaque pass ms
 per spot and preset. If `off` wins at Low, say by how much: the Low renderer can then turn priming off.
 
-## Job 40 (2026-11-09, RUNNING on the laptop after job 39; q70.sh): R-4 sky cost on the laptop (sky/look 5880293c vs main 5558f89a)
+## Job 40 (2026-11-09, REPORTED in REPORTS-profiler.md; q70.sh): R-4 sky cost on the laptop (sky/look 5880293c vs main 5558f89a)
 R-4 row 4 compiles the full-resolution cloud march out of the skybox while the low-res cloud buffer is on (job 38 named
 DrawSkybox at 3.7 ms, same at half and quarter). The main PC's GPU is too fast to resolve it. Profile builds of both, job 34's
 setup (Summit `-goto -2446,1154`, pitched up 10, 1920x1080, `-gfx High`, `-weatherseed 4`, `-time 12`, uncapped `-fpscap 0`),

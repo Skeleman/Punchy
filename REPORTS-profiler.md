@@ -2,6 +2,38 @@
 
 Newest first.
 
+## Job 40: R-4 sky cost on the laptop (sky/look 5880293c vs main 5558f89a), 2026-11-09 (q70.sh)
+Profile builds of both, job 34's Summit setup (place Summit, pitched up 10), 1920x1080, `-gfx High`, `-weatherseed 4`, noon,
+uncapped, a fresh game per run. Each list ran in order, then reversed. GTX 1060 Max-Q on D3D11.
+
+**Whole-frame GPU ms (mean of 2 rounds; rounds within 0.3 ms):**
+
+| | main | R-4 | R-4 `-skyoff 896` | R-4 `-benchnosky` | R-4 minus main |
+|---|---|---|---|---|---|
+| half, plain | 10.75 | 10.65 | 10.8 | 6.2 | **-0.1** |
+| quarter, plain | 9.9 | 9.9 | 9.9 | 6.4 | **0.0** |
+| half, Overcast | 10.75 | 10.55 | | | **-0.2** |
+| half, Rain | 11.9 | 11.85 | | | **-0.05** |
+
+Pass: R-4 is within +1 ms of main everywhere. It is no cheaper either: the sky costs about 4.5 ms over no sky at half and
+3.5 ms at quarter on both builds. CPU ms match within 0.3 ms. Rain costs 1.1 ms more than plain or Overcast on both builds.
+
+**RenderDoc (R-4, half), against job 38's half capture (main acd0cad5):**
+
+| pass | job 38 main | job 40 R-4 |
+|---|---|---|
+| DrawSkybox | 3.68 | **3.26** |
+| Low-res effect | 4.38 | 4.82 |
+| sum | 8.06 | 8.08 |
+
+DrawSkybox dropped 0.42 ms, but the low-res effect grew by 0.44 ms, so the total is unchanged. DrawSkybox is still a single
+full-resolution draw (5040 vertices) at 3.26 ms, and it is still the largest sky pass that doesn't scale with `-lowres`. It looks
+like R-4 moved the work into the low-res buffer at half without removing any. (The two captures come from different main commits;
+prepass and opaque were 8.9/13.6 ms here against 9.6/14.5 ms in job 38's half capture, and the whole frame was 36.5 against 38.0 ms.)
+
+No stalls in this job: freezestall.txt has no snapshots from q70's 25 games.
+Cost: this job about $1 (laptop session 0a48ccdb); laptop total $674.
+
 ## Job 39: depth priming on the laptop (main 5558f89a, R-3 #220), 2026-11-09 (q69.sh)
 Profile build, 1920x1080, `-weatherseed 4`, noon (`-benchhour 12`), Clear forced over each stop, uncapped, a fresh
 game per run, ABBA `-depthpriming forced` / `off` (the log confirms Forced / Disabled each game). One `-benchspot` fits
