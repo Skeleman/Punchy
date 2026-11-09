@@ -61,7 +61,7 @@ if [ ! -f "$results" ]; then
 fi
 
 # One line per test case: PASS/FAIL, name, seconds; then the first line of each failure's message.
-passed=0; failed=0
+passed=0; failed=0; skipped=0
 while IFS= read -r line; do
   name=$(printf '%s' "$line" | sed -E 's/.* fullname="([^"]*)".*/\1/')
   result=$(printf '%s' "$line" | sed -E 's/.* result="([^"]*)".*/\1/')
@@ -69,6 +69,9 @@ while IFS= read -r line; do
   name=${name#Punchy.Tests.}
   if [ "$result" = "Passed" ]; then
     passed=$((passed + 1)); printf '  PASS  %-48s %ss\n' "$name" "$seconds"
+  elif [ "$result" = "Skipped" ]; then
+    skipped=$((skipped + 1)); printf '  SKIP  %-48s (Explicit: run it by name)
+' "$name"
   else
     failed=$((failed + 1)); printf '  FAIL  %-48s %ss  (%s)\n' "$name" "$seconds" "$result"
   fi
@@ -80,6 +83,6 @@ grep -A1 '<message>' "$results" | grep -o 'CDATA\[[^]]*' | grep -v 'One or more 
 # The values tests measured along the way ("[measure]" lines).
 grep -h '^\[measure\]' "$log" | sed 's/^\[measure\]/  measured:/' | sort -u
 
-echo "$passed passed, $failed failed in ${elapsed}s (Unity exit $code)."
+echo "$passed passed, $failed failed, $skipped skipped in ${elapsed}s (Unity exit $code)."
 if [ "$failed" -gt 0 ] || [ "$passed" -eq 0 ] || [ "$code" -ne 0 ]; then exit 1; fi
 exit 0
