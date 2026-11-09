@@ -47,6 +47,10 @@ namespace Punchy.Tests
             LastPath = path;
         }
 
+        /// <summary>
+        /// The old immediate render (no ready gate, no written check), kept so existing tests behave as before. New shots
+        /// use <see cref="Settled"/>: see "How to take shots" in docs/agents/testing.md.
+        /// </summary>
         public static string Take(string name, int width = 960, int height = 540)
         {
             var called = DateTime.Now;

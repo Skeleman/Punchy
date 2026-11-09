@@ -48,7 +48,7 @@ namespace Punchy.Tests.PlayMode
                     var dz = side == "S" ? -110f : 110f;
                     Game.RunOptions($"-camlook {spot[0].ToString(c)},{(spot[1] + 45f).ToString(c)},{(spot[2] + dz).ToString(c)},{spot[0].ToString(c)},{spot[1].ToString(c)},{spot[2].ToString(c)}");
                     yield return TestSceneSetup.Seconds(3f);
-                    Shots.Take($"habitat-{view[0]}-{side}-{tag}", 1280, 720);
+                    yield return Shots.Settled($"habitat-{view[0]}-{side}-{tag}", 1280, 720);
                 }
             }
             yield return null;
@@ -69,10 +69,10 @@ namespace Punchy.Tests.PlayMode
                 yield return TestSceneSetup.GoTo(spot[0], spot[2], 10f);
                 Game.RunOptions($"-camlook {spot[0].ToString(c)},{(spot[1] + 220f).ToString(c)},{(spot[2] - 140f).ToString(c)},{spot[0].ToString(c)},{spot[1].ToString(c)},{spot[2].ToString(c)}");
                 yield return TestSceneSetup.Seconds(3f);
-                Shots.Take($"clear-{view[0]}-air", 1280, 720);
+                yield return Shots.Settled($"clear-{view[0]}-air", 1280, 720);
                 Game.RunOptions($"-camlook {spot[0].ToString(c)},{(spot[1] + 2.2f).ToString(c)},{(spot[2] - 30f).ToString(c)},{spot[0].ToString(c)},{(spot[1] + 6f).ToString(c)},{spot[2].ToString(c)}");
                 yield return TestSceneSetup.Seconds(3f);
-                Shots.Take($"clear-{view[0]}-ground", 1280, 720);
+                yield return Shots.Settled($"clear-{view[0]}-ground", 1280, 720);
             }
             yield return null;
         }
@@ -154,7 +154,7 @@ namespace Punchy.Tests.PlayMode
                 yield return TestSceneSetup.Seconds(10f);
                 Game.RunOptions($"-camrel 0,3,0,{dir.x.ToString(c)},3,{dir.y.ToString(c)}");
                 yield return TestSceneSetup.Seconds(14f);
-                Shots.Take($"framed-clearing-{biome}-{tag}", 1280, 720);
+                yield return Shots.Settled($"framed-clearing-{biome}-{tag}", 1280, 720);
                 break;
             }
             {
@@ -199,7 +199,7 @@ namespace Punchy.Tests.PlayMode
                 yield return TestSceneSetup.Seconds(10f);
                 Game.RunOptions($"-camrel 0,6,0,0,{(ty + 2f - heights[Mathf.Clamp((int)((tz - 35f - (spot[2] - half)) / (2f * half) * n), 0, n - 1) * n + bx]).ToString(c)},35");
                 yield return TestSceneSetup.Seconds(14f);
-                Shots.Take($"framed-slope-Sonoran-{tag}", 1280, 720);
+                yield return Shots.Settled($"framed-slope-Sonoran-{tag}", 1280, 720);
             }
         }
 
