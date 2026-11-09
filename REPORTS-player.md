@@ -1,5 +1,11 @@
 # Player lane reports
 
+## 2026-11-08 batch P-21 row 2: clear-day distant fog eased (item 30): VERIFIED (modest)
+- lights/round3 884a4673. The fog IS the draw-distance cover: its density is 1.98 / streamed distance (~98% at the edge). So the edge stays at the limit: on fully clear, sunny days (WeatherSystem `_PunchyHazeClear`: sun up, cover under 0.25-0.4, no overcast/rain/dust; not in cold lands via `_PunchyAurora`) the haze grows with distance cubed instead of squared, same ~98% at the edge. Mid-distance haze roughly 0.62 -> 0.40 at half the draw distance, 0.22 -> 0.06 at a quarter
+- Checked at Millfield noon, Sunny day type + `-weather Clear` (cover 0.04, clear 1.0), east and north from 60 m: mid-ground band goes from grey-tan (173,153,138) to (168,139,111), mesas sharper; the horizon band is unchanged. Partly cloudy (cover 0.43, clear 0) unchanged. From 250 m the far land still fades out, no edge seen. Gallery D:/Unity/PunchyMilestones/light/P-21/gallery/ (before-/after-r2-*)
+- For Zach: the far horizon itself is still the pale sky colour; going further would need a longer draw distance
+- NEXT: row 3 (interior lights)
+
 ## 2026-11-08 batch P-21 row 1 (lights/sky lane): blue moon deep blue, fog and clouds lit by it (item 35): VERIFIED
 - lights/round3 a9ad8fdf (from lights/manager 6f6ae2ad). Lamp (0.1,0.3,1.2) -> (0.017,0.057,1.9) and ambient to the same deep blue; on blue-moon nights the sky zenith/horizon lean to that hue (brightness kept), and Sky.hlsl adds the moon's light scattered in the low air (stronger on its side) to the horizon/haze colour and to the cloud light (new global _PunchyBlueMoonGlow). Sky.hlsl edits are in the twilight/cloud-light functions only
 - Checked at Millfield, 21:00, `-bluemoondays 0 -moonphase 0.5` vs the blue moon pinned away: with it, terrain, distant fog and cloud undersides go deep blue (before: light blue land, grey fog, grey clouds); without it the night is the old grey (unchanged). Sheet D:/Unity/PunchyMilestones/light/P-21/r1-sheet.png (before, after, after without blue moon, after looking away from it); gallery D:/Unity/PunchyMilestones/light/P-21/gallery/
