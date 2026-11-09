@@ -315,3 +315,10 @@ doesn't scale with resolution. Main acd0cad5 Profile build, job 34's setup (Summ
 - One RenderDoc capture at quarter: list the sky's passes (march, upsample, composite, cloud shadow map, any full-resolution
   pass) with their GPU ms. Name the biggest pass that doesn't scale with resolution.
 - Report the numbers in REPORTS-profiler.md as usual. The rendering lane uses this to decide what to cut.
+
+## Job 39 (2026-11-09, QUEUED after job 38): depth priming on the laptop (main 5558f89a, R-3 #220)
+R-3 row 4: on the desktop, forced depth priming beats off at every spot (forest prepass+opaques 1.61 vs 2.81 ms). The laptop's
+iGPU may differ. Profile build of main 5558f89a, 1920x1080, `-gfx High` then `-gfx Low`, `-weatherseed 4`, `-time 12 -weather
+Clear`, uncapped (`-fpscap 0`). At `-goto 2972,-885` (big town), `1740,3355` (forest), `-1624,-488` (lake), `-2446,1154`
+(Summit): ABBA `-depthpriming forced` / `off`, 300 frames each. Report whole-frame GPU ms and the prepass and opaque pass ms
+per spot and preset. If `off` wins at Low, say by how much: the Low renderer can then turn priming off.
