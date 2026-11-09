@@ -351,6 +351,18 @@ Play-mode suite on a local merge of snells-window, swells, lava-plates, river-fl
   couldn't be read. A screenshot or pasted code would let them be matched.
 - No `VolcanoCone` on today's island, so surface lava was checked in a cave lava pool.
 
+### 3.7 addendum (Zach, 11-09): one detail policy, four rules
+`DetailPolicy` should own all of: (1) on-screen size picks the tier; (2) hysteresis; (3) a capped tier hands off at the nearest thing it cut (`LightBudget.CappedReach`, to move here); (4) a shared crossfade. On it today: creatures, flora, lights. To move: grass and flames next, then shadows (3.7 step 3). Water has the same idea in its own code. Terrain stays on its distance rings (tied to streaming).
+
+### W6. Town lighting
+Soft directional spill from lit windows, baked as pools outside each window into the far glow map (check its resolution; else small projected quads near the camera). Fixtures by race and biome as data: lanterns, sconces, candelabras, runes. A climbable beacon tower as a city centrepiece, and a city landmark system sister to wild landmarks. New content.
+
+### W7. Cliffs and landforms from large meshes (study: batches/W-41-notes.md, 11-02; never carded)
+Large generated rock pieces (10-40 m slabs and columns) placed on steep ground by their own seeded pass, breaking the heightmap look. Stage 1: walls and walkable tops through `TowerWall`/`Deck` (no movement change). Stage 2: real overhangs (`SolidDistance`, movement lane). After the shadow tiers, so they get far shadows.
+
+### Next rendering targets (11-09)
+Sky: low-resolution buffer, R-1 in progress. Depth priming: job 35 found the prepass is forced depth priming, not SSAO's.
+
 ## Keep as is (ChatGPT agrees)
 GPU-driven flora, TerrainSource as the single ground contract, deterministic generation, terrain streaming budgets,
 BlobAssets for static world data, procedural creature animation, the river flow-map water, the fire draw-batching
