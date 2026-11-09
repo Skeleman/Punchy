@@ -302,3 +302,6 @@ apart. Profile build, job 31's forest and bigtown spots, 1920x1080, `-gfx High`,
 
 ## Job 36 (2026-11-09, RUNNING on the laptop; q66.sh): clouds on the low-resolution buffer (sky/lowres ccd74cc1)
 This PC's numbers disagree between rounds, so the laptop gives the real one. Job 34's setup (Summit, pitched up 10, 1920x1080, `-gfx High`, `-weatherseed 4`, uncapped, noon, ABBA). `-skyfull` is today's full-resolution sky; `-lowres half` and `-lowres quarter` force a size. Report GPU ms for each against main, plus plain, Clear, Overcast and Storm at the default size, and shots of a tree line and the horizon for halos, and one storm view (weather volumes weren't shot).
+
+## Job 37 (2026-11-09, QUEUED; after job 36): R-2 on the laptop (main acd0cad5)
+Build main acd0cad5 (R-2 merged as #218). (1) World glow bake time on the laptop (the `[glow]` bake line in the log; 4.1 s on the main PC). (2) The 3.2 fire test (Ember Forest, `-benchfires` 500 fires, as job 27): main thread and GPU ms, against 13cdbcdc (before R-2). (3) Ember Forest at night, `-worldglow 0` against default, GPU ms. ABBA, uncapped, 1920x1080, `-gfx High`. Report numbers in REPORTS-profiler.md.
