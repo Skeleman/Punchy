@@ -2,6 +2,58 @@
 
 Newest first.
 
+## Job 34: the cloud march's empty-air strides (sky/cost 79ffa7c9 vs main 4669aabc), 2026-11-08 (q64.sh)
+Profile builds, the Summit place facing out, pitched up 10, 1920x1080, `-gfx High`, `-weatherseed 4`, uncapped, noon,
+a fresh game per run, weather forced over the stop by the runner. Two rounds each (ABBA) unless marked x1; GPU ms:
+
+| Weather | main | branch `-skyoff 16` (old steps) | branch `-skyoff 0` (new) | new vs main | new vs old steps |
+|---|---|---|---|---|---|
+| plain | 23.5 | 25.9 | **20.1** | -3.4 | -5.8 |
+| Clear | | 24.5 | **18.55** | | -5.95 |
+| Overcast | | 26.1 | **20.35** | | -5.75 |
+| Storm | | 27.35 | **25.0** | | -2.35 |
+| no sky (`-benchnosky`, x1) | | 6.7 | | | |
+
+Rounds agreed within 0.5 ms except Storm old (28.3 / 26.4). Main was timed in plain weather only.
+- **The new path saves 3.4 ms GPU against main** at the Summit (23.5 to 20.1, 14%). The sky, taken as frame minus the
+  no-sky baseline, goes from about 16.8 to 13.4 ms.
+- **`-skyoff 16` is not main.** The branch's old even stepping is 2.4 ms slower than main itself (25.9 vs 23.5), so
+  the "-5.8 vs old steps" column overstates the win. Likely the old stepping without the 160-step cap (rays now go
+  further), but that's a guess. Main against the branch is the number to quote.
+- Storm gains least (-2.35): its sky is mostly weather volume and cloud, not empty air.
+
+**What's left once the march is cheaper** (plain, branch, new steps, GPU ms, against 20.1):
+
+| `-skyoff` | GPU | saves |
+|---|---|---|
+| 1 (no cloud march) | 8.6 | 11.5 |
+| 2 (no far clouds) | 19.75 | 0.35 |
+| 4 (no sky colour) | 18.9 | 1.2 (rounds 20.3 / 17.5, noisy) |
+| 8 (no weather volumes) | 19.35 | 0.75 |
+
+The cloud march is still 11.5 of the sky's 13.4 ms. Far clouds, sky colour and weather volumes are under 1.5 ms each.
+Next target is still inside the march (cost per step, or fewer steps inside cloud), not the other parts.
+
+**Sunset** (`-benchhour 17.6`, sun about 6 degrees up), same view: old steps 24.75, new 20.5 (x2 each). Facing west
+into the sun (yaw 270, pitch -5, x1 each): main 23.3, old steps 24.5, new 23.8. **Facing the low sun the new path is
+no faster than main** (one round each; worth a second look if sunsets matter). Full-resolution crops of the sunset sky
+show **no banding** on either path. The new path adds a faint grain at cloud edges (the per-pixel stride variation);
+easy to miss at 1:1.
+
+**Steps per pixel** (`-skyoff 32`, shots): old steps are red over the whole sky; new steps are yellow-green with green
+around cloud. Noon and sunset look the same. Shots are in the laptop's `results/q64-shots/` (no picture hosting).
+
+**Freeze: the display explanation is wrong.** 12 of 37 games here froze at the Summit, for 112 to 1586 s, on one
+frame 0.5-8.5 s into settling. The game's own Net status lines stop for the same span (947 s, 931 s, ...), so it's a
+real stall, not a timer glitch. Main, old steps and new steps all froze; the one no-sky run didn't (one sample). The
+keepawake helper was running (checked: it holds the display on while the bench lock is held), and the System log has
+no power, display or driver events in the whole 19:18-22:46 window. So 8078cce6's "display turning off" verdict is
+withdrawn too. The numbers above are unaffected (the runner measures after settling); the freezes cost hours.
+Next on the laptop: sample the game's CPU time and the GPU's load every few seconds during Summit runs, so a stall
+shows whether the game is busy (a CPU loop), waiting on the GPU, or idle. Still no stack: open to suggestions.
+
+Cost: this job about $3 (laptop session 0a48ccdb); laptop total $660.
+
 ## 2026-11-08 Job 33 part 3: lava plates and sea swells cost nothing measurable, but the plates may not be drawing (q63.sh lava, q61.sh swells)
 
 Profile builds, 1920x1080, `-gfx High`, `-weatherseed 4`, uncapped, noon, a fresh game per run, ABBA. **0 frames over 5 s in the last ~50 min of unattended runs (16:48-17:13), after the keepawake fix** (see the correction below).
