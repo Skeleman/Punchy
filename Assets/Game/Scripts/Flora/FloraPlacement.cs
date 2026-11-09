@@ -22,6 +22,15 @@ namespace Punchy.Flora
         public float2 PatchOffset;
         public float NearWater;
         public int OnlyNearWater;
+        /// <summary>W-126 habitat (FloraSpecies): sun-facing slopes (-1..1), shelter and exposure (0..1) of the local relief, and the wet reach multiple.</summary>
+        public float SunSlope, Shelter, Exposure, WetReach;
+        /// <summary>W-126: the density gain a habitat rule's species gets where its habitat is (1 = no rule): what the rule takes from the rest of the land it gives back here, so the species keeps about its overall density.</summary>
+        public float HabitatGain;
+        /// <summary>W-126: groves (spacing 0 = none), the radius, peak gain and straggler share, a seed, and the clearing-edge affinity.</summary>
+        public float GroveSpacing, GroveRadius, GroveGain, GroveStraggle, EdgeAffinity;
+        public uint GroveSeed;
+        /// <summary>The most a grove or clearing edge multiplies a weight (counted in the early-out bound; 1 = never).</summary>
+        public float ExtraGain;
         public float2 SizeRange;
         public int Aquatic, Floats;
         public float2 WaterDepth;
@@ -120,6 +129,8 @@ namespace Punchy.Flora
         public BlobArray<int2> Ranges;
         /// <summary>Per biome, its realm (BiomePalette.BiomeRealms), or -1 (no realms, or the ocean).</summary>
         public BlobArray<int> BiomeRealm;
+        /// <summary>Per biome: x = ClearingAmount, y = ClearingSize (W-126).</summary>
+        public BlobArray<float2> Clearing;
         public BlobArray<FloraPropEntry> Props;
         /// <summary>Per landmark type × layer.</summary>
         public BlobArray<int2> PropRanges;
@@ -268,6 +279,18 @@ namespace Punchy.Flora
                     PatchOffset = new float2(h & 0xFFFF, h >> 16) / 65535f * 300f,
                     NearWater = s.NearWater,
                     OnlyNearWater = s.OnlyNearWater ? 1 : 0,
+                    SunSlope = s.SunSlope,
+                    Shelter = s.Shelter,
+                    Exposure = s.Exposure,
+                    WetReach = s.WetReach,
+                    HabitatGain = 1f + 0.4f * math.max(math.abs(s.SunSlope), math.max(s.Shelter, s.Exposure)),
+                    GroveSpacing = s.GroveSpacing,
+                    GroveRadius = s.GroveRadius,
+                    GroveGain = s.GroveGain,
+                    GroveStraggle = s.GroveStraggle,
+                    EdgeAffinity = s.EdgeAffinity,
+                    GroveSeed = math.hash(new int2(s.Seed, i * 31 + 7)),
+                    ExtraGain = (s.GroveSpacing > 0f ? math.max(1f, s.GroveGain) : 1f) * (1f + s.EdgeAffinity),
                     SizeRange = s.SizeRange,
                     Aquatic = s.Aquatic ? 1 : 0,
                     Floats = s.Floats ? 1 : 0,
@@ -374,6 +397,10 @@ namespace Punchy.Flora
             var biomeRealm = builder.Allocate(ref root.BiomeRealm, root.BiomeCount);
             for (int b = 0; b < root.BiomeCount; b++)
                 biomeRealm[b] = palette.BiomeRealms != null && b < palette.BiomeRealms.Length ? palette.BiomeRealms[b] : -1;
+
+            var clearing = builder.Allocate(ref root.Clearing, root.BiomeCount);
+            for (int b = 0; b < root.BiomeCount; b++)
+                clearing[b] = palette.Biomes[b] != null ? new float2(palette.Biomes[b].ClearingAmount, palette.Biomes[b].ClearingSize) : float2.zero;
 
             root.LandmarkTypeCount = landmarks.Length;
             var propList = new List<FloraPropEntry>();
@@ -1664,6 +1691,57 @@ namespace Punchy.Flora
         public static readonly SharedStatic<int> OldWalls = SharedStatic<int>.GetOrCreate<OldWallsKey>();
         class OldWallsKey { }
 
+        /// <summary>W-126: the way the sun's slopes face on the map (xz, unit): a fixed south-south-east, so "sunny" is the same everywhere.</summary>
+        static readonly float2 SunDirection = new float2(0.36f, -0.93f);
+
+        /// <summary>
+        /// W-126: how much of a grove this spot is for a species with groves, 0 (between stands) to 1 (the heart of one): stand
+        /// centres sit one to a jittered grid cell (most cells), so the nearest of nine neighbours is the only one that matters.
+        /// </summary>
+        public static float GroveShare(float2 xz, in FloraRules r)
+        {
+            var g = xz / r.GroveSpacing;
+            var home = (int2)math.floor(g);
+            var best = 0f;
+            for (int dy = -1; dy <= 1; dy++)
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                var k = home + new int2(dx, dy);
+                var h = math.hash(new int3(k, (int)r.GroveSeed));
+                h ^= h >> 15; h *= 2246822519u; h ^= h >> 13; h *= 3266489917u; h ^= h >> 16;
+                if ((h & 0xFFu) >= 190u)   // about 3 cells in 4 hold a stand
+                    continue;
+                var centre = ((float2)k + new float2((h >> 8 & 0xFFFFu) / 65535f, (h >> 24 & 0xFFu) / 255f * 0.8f + 0.1f)) * r.GroveSpacing;
+                var d = math.distance(xz, centre) / r.GroveRadius;
+                best = math.max(best, 1f - math.smoothstep(0.35f, 1f, d));
+            }
+            return best;
+        }
+
+        /// <summary>
+        /// W-126: how a slope faces the sun: x = +1 facing it, -1 facing away; y = how much of a slope it is (0 flat, 1 from 12 degrees),
+        /// so flat ground has no aspect. Pass the ground's normal.
+        /// </summary>
+        public static float2 SunFacing(float3 normal)
+        {
+            var slope = math.degrees(math.acos(math.saturate(normal.y)));
+            return new float2(math.dot(math.normalizesafe(normal.xz), SunDirection), math.smoothstep(2f, 12f, slope));
+        }
+
+        /// <summary>
+        /// W-126: the ground against its local average, -1 (hollow, valley floor) to +1 (crest, ridge): its height minus the mean
+        /// of four points 18 m out, over 3 m. Four extra height samples (the fifth is the ground's own), taken once per placement attempt that needs them.
+        /// </summary>
+        public static float Relief(in TerrainSource source, float2 xz) => Relief(source, xz, source.SampleHeight(xz));
+
+        public static float Relief(in TerrainSource source, float2 xz, float height)
+        {
+            const float ring = 18f;
+            var around = source.SampleHeight(xz + new float2(ring, 0f)) + source.SampleHeight(xz - new float2(ring, 0f)) +
+                         source.SampleHeight(xz + new float2(0f, ring)) + source.SampleHeight(xz - new float2(0f, ring));
+            return math.clamp((height - around * 0.25f) / 3f, -1f, 1f);
+        }
+
         /// <summary>
         /// The plant growing in one cell of a layer's grid (Model -1 if none). With <paramref name="footprint"/>, a town's
         /// building or a landmark's placed prop comes back with only what its walls need (Position.xz, Yaw, Scale, Model,
@@ -1950,6 +2028,25 @@ namespace Punchy.Flora
 
             // Cheap first pass: which species could grow here, at most how likely.
             source.SampleBiomes(xz, out var biomes, out _);
+            // W-126 clearings: the biome that holds most of this spot sets how empty its clearings are (asked before the early-out, so the bound can count it exactly).
+            var clearCover = 0f;
+            var clearEdge = 0f;
+            {
+                var top = 0;
+                for (int b = 1; b < 4; b++)
+                    if (biomes.Weights[b] > biomes.Weights[top])
+                        top = b;
+                if (biomes.Ids[top] < f.BiomeCount)
+                {
+                    var cp = f.Clearing[biomes.Ids[top]];
+                    if (cp.x > 0f)
+                    {
+                        var cn = noise.snoise(xz / cp.y + new float2(91.3f, 17.7f)) * 0.5f + 0.5f;
+                        clearCover = cp.x * math.smoothstep(0.58f, 0.74f, cn);
+                        clearEdge = math.smoothstep(0.44f, 0.58f, cn) * (1f - math.smoothstep(0.66f, 0.80f, cn));
+                    }
+                }
+            }
             // Realms meet with a hard edge: a biome's plants only grow where its realm has most of the ground (its
             // biomes' summed weight, from the same sample). Inside a realm, biomes still blend.
             var realmOf = int4.zero - 1;
@@ -1980,7 +2077,11 @@ namespace Punchy.Flora
                     }
                     else
                         weights[at] += d;
-                    bound += d * math.max(1f, f.Rules[entry.Species].NearWater);
+                    var br = f.Rules[entry.Species];
+                    var extra = (1f - clearCover * (1f - 0.8f * br.EdgeAffinity)) * (1f + br.EdgeAffinity * clearEdge);
+                    if (br.GroveSpacing > 0f)
+                        extra *= math.lerp(br.GroveStraggle, br.GroveGain, GroveShare(xz, br));
+                    bound += d * math.max(1f, br.NearWater) * br.HabitatGain * math.max(extra, 0f);
                 }
             }
             if (roll >= bound)
@@ -2000,6 +2101,9 @@ namespace Punchy.Flora
             var elevation = ground.Height - source.World.SeaLevel;
             var nearWater = 1f - math.smoothstep(1.5f, 8f, -ground.WaterDepth);
             var dry = 1f - math.saturate(ground.River * 1.5f);
+            var aspect = SunFacing(normal);
+            var relief = 0f;
+            var reliefKnown = false;
 
             var total = 0f;
             var shrink = new FixedList128Bytes<float>();
@@ -2059,9 +2163,37 @@ namespace Punchy.Flora
                     var n = noise.snoise(xz * r.PatchFrequency + r.PatchOffset) * 0.5f + 0.5f;
                     fl *= math.smoothstep(1f - r.PatchCoverage - 0.12f, 1f - r.PatchCoverage + 0.12f, n);
                 }
-                fl *= math.lerp(1f, r.NearWater, nearWater);
+                // W-126 moisture: a species' own reach widens the damp strip (WetReach 1 is the shared nearWater).
+                var wet = r.WetReach == 1f ? nearWater : 1f - math.smoothstep(1.5f, 8f * r.WetReach, -ground.WaterDepth);
+                fl *= math.lerp(1f, r.NearWater, wet);
                 if (r.OnlyNearWater != 0)
-                    fl *= nearWater;
+                    fl *= wet;
+                fl *= r.HabitatGain;
+                // W-126 habitat: sun-facing or shaded slopes, hollows out of the wind, crests. Each is a factor in 0..1, and HabitatGain
+                // (counted in the cheap bound above) pays the thinning back where the habitat is; the relief's four height samples are taken once, on first need.
+                if (r.SunSlope != 0f)
+                {
+                    var toward = aspect.x * (r.SunSlope > 0f ? 1f : -1f);
+                    fl *= 1f - aspect.y * math.abs(r.SunSlope) * (1f - math.smoothstep(-0.45f, 0.45f, toward));
+                }
+                if ((r.Shelter > 0f || r.Exposure > 0f) && fl > 0f)
+                {
+                    if (!reliefKnown)
+                    {
+                        relief = Relief(source, xz, ground.Height);
+                        reliefKnown = true;
+                    }
+                    fl *= math.lerp(1f, math.smoothstep(0.35f, -0.35f, relief), r.Shelter);
+                    fl *= math.lerp(1f, math.smoothstep(-0.35f, 0.35f, relief), r.Exposure);
+                }
+                // W-126 clearings: thin everything inside, sparing and favouring the edge species; groves pull one species into stands.
+                if (clearCover > 0f || clearEdge > 0f)
+                {
+                    fl *= 1f - clearCover * (1f - 0.8f * r.EdgeAffinity);
+                    fl *= 1f + r.EdgeAffinity * clearEdge;
+                }
+                if (r.GroveSpacing > 0f && fl > 0f)
+                    fl *= math.lerp(r.GroveStraggle, r.GroveGain, GroveShare(xz, r));
                 weights[c] = fl;
                 shrink.Add(upper);
                 total += fl;

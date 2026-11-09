@@ -301,6 +301,196 @@ namespace Punchy.Debugging
             return result.ToArray();
         }
 
+        /// <summary>
+        /// W-126: times FloraPlacement.Place over a square of cells (half-width m) on the shrub and tree layers (the Burst-free
+        /// managed path, so only compare runs of the same build): [ms, plants placed, cells asked]. Run twice; read the second.
+        /// </summary>
+        public static float[] FloraPlaceCost(float cx, float cz, float half)
+        {
+            var director = Object.FindAnyObjectByType<FaunaDirector>();
+            if (!Source(out var s) || director == null || !director.FloraPlacementBlob.IsCreated)
+                return new float[0];
+            ref var f = ref director.FloraPlacementBlob.Value;
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            float placed = 0f, asked = 0f;
+            for (int layer = 1; layer < 3; layer++)
+            {
+                var size = f.CellSizes[layer];
+                var lo = (int2)math.floor(new float2(cx - half, cz - half) / size);
+                var hi = (int2)math.floor(new float2(cx + half, cz + half) / size);
+                for (int x = lo.x; x <= hi.x; x++)
+                    for (int y = lo.y; y <= hi.y; y++)
+                    {
+                        asked++;
+                        if (FloraPlacement.Place(ref f, s, new int2(x, y), layer).Model >= 0)
+                            placed++;
+                    }
+            }
+            return new[] { (float)clock.Elapsed.TotalMilliseconds, placed, asked };
+        }
+
+        /// <summary>
+        /// W-126: where one species stands in a square (every layer): [plants, mean sun-facing (+1 sunny slope, -1 shaded) over
+        /// the slopes it stands on, mean relief (+ crest, - hollow), the same two means over the whole square's ground (every 8 m),
+        /// plants per 100 m2, share of 32 m blocks holding at least one]. Empty if the species or world is missing.
+        /// </summary>
+        public static float[] FloraHabitat(string species, float cx, float cz, float half)
+        {
+            var director = Object.FindAnyObjectByType<FaunaDirector>();
+            if (!Source(out var s) || director == null || !director.FloraPlacementBlob.IsCreated)
+                return new float[0];
+            var index = -1;
+            for (int i = 0; i < director.FloraSpeciesList.Count; i++)
+                if (director.FloraSpeciesList[i] != null && director.FloraSpeciesList[i].name == species)
+                    index = i;
+            if (index < 0)
+                return new float[0];
+            ref var f = ref director.FloraPlacementBlob.Value;
+            var layer = (int)director.FloraSpeciesList[index].Layer;
+            var size = f.CellSizes[layer];
+            var lo = (int2)math.floor(new float2(cx - half, cz - half) / size);
+            var hi = (int2)math.floor(new float2(cx + half, cz + half) / size);
+            float n = 0f, sun = 0f, sunN = 0f, relief = 0f;
+            var blocks = new HashSet<int2>();
+            for (int x = lo.x; x <= hi.x; x++)
+                for (int y = lo.y; y <= hi.y; y++)
+                {
+                    var plant = FloraPlacement.Place(ref f, s, new int2(x, y), layer);
+                    if (plant.Model < f.Rules[index].FirstModel || plant.Model >= f.Rules[index].FirstModel + f.Rules[index].Variants)
+                        continue;
+                    var xz = plant.Position.xz;
+                    n++;
+                    relief += FloraPlacement.Relief(s, xz);
+                    var sf = FloraPlacement.SunFacing(s.SampleNormal(xz, 1f));
+                    if (sf.y > 0f)
+                    {
+                        sun += sf.x;
+                        sunN++;
+                    }
+                    blocks.Add((int2)math.floor(xz / 32f));
+                }
+            float gSun = 0f, gSunN = 0f, gRelief = 0f, gN = 0f, nonEmpty = 0f;
+            for (var x = cx - half; x < cx + half; x += 8f)
+                for (var z = cz - half; z < cz + half; z += 8f)
+                {
+                    var at = new float2(x, z);
+                    gN++;
+                    gRelief += FloraPlacement.Relief(s, at);
+                    var sf = FloraPlacement.SunFacing(s.SampleNormal(at, 1f));
+                    if (sf.y > 0f)
+                    {
+                        gSun += sf.x;
+                        gSunN++;
+                    }
+                }
+            var allBlocks = (int)(math.ceil(2f * half / 32f) * math.ceil(2f * half / 32f));
+            nonEmpty = blocks.Count / (float)math.max(1, allBlocks);
+            return new[] { n, sun / math.max(1f, sunN), relief / math.max(1f, n), gSun / math.max(1f, gSunN), gRelief / math.max(1f, gN),
+                           n / (4f * half * half / 100f), nonEmpty };
+        }
+
+        /// <summary>
+        /// W-126: every plant in a square as a plan view, [x, z, layer, species index] per plant, for clearing and grove maps.
+        /// Plants too small to read at plan scale (layer 0) are thinned to one in four.
+        /// </summary>
+        public static float[] FloraPlan(float cx, float cz, float half)
+        {
+            var director = Object.FindAnyObjectByType<FaunaDirector>();
+            if (!Source(out var s) || director == null || !director.FloraPlacementBlob.IsCreated)
+                return new float[0];
+            ref var f = ref director.FloraPlacementBlob.Value;
+            var list = new List<float>();
+            for (int layer = 0; layer < 3; layer++)
+            {
+                var size = f.CellSizes[layer];
+                var lo = (int2)math.floor(new float2(cx - half, cz - half) / size);
+                var hi = (int2)math.floor(new float2(cx + half, cz + half) / size);
+                for (int x = lo.x; x <= hi.x; x++)
+                    for (int y = lo.y; y <= hi.y; y++)
+                    {
+                        if (layer == 0 && ((x + 2 * y) & 3) != 0)
+                            continue;
+                        var plant = FloraPlacement.Place(ref f, s, new int2(x, y), layer);
+                        if (plant.Model < 0)
+                            continue;
+                        list.Add(plant.Position.x);
+                        list.Add(plant.Position.z);
+                        list.Add(layer);
+                        var sp = 0;
+                        for (int i = 0; i < f.Rules.Length; i++)
+                            if (plant.Model >= f.Rules[i].FirstModel && plant.Model < f.Rules[i].FirstModel + f.Rules[i].Variants)
+                                sp = i;
+                        list.Add(sp);
+                    }
+            }
+            return list.ToArray();
+        }
+
+        /// <summary>W-126: ground heights over a square as an n by n grid (row-major from the south-west corner), for framing shots.</summary>
+        public static float[] FloraHeights(float cx, float cz, float half, float n)
+        {
+            if (!Source(out var s))
+                return new float[0];
+            var count = (int)n;
+            var grid = new float[count * count];
+            for (int y = 0; y < count; y++)
+                for (int x = 0; x < count; x++)
+                    grid[y * count + x] = s.SampleHeight(new float2(cx - half + (x + 0.5f) * 2f * half / count, cz - half + (y + 0.5f) * 2f * half / count));
+            return grid;
+        }
+
+        /// <summary>W-126: ground over a square as an n by n grid (row-major from the south-west corner): 0 dry, 1 water, plus 2 x the dominant biome index.</summary>
+        public static float[] FloraGroundMask(float cx, float cz, float half, float n)
+        {
+            if (!Source(out var s))
+                return new float[0];
+            var count = (int)n;
+            var grid = new float[count * count];
+            for (int y = 0; y < count; y++)
+                for (int x = 0; x < count; x++)
+                {
+                    var g = s.SampleGround(new float2(cx - half + (x + 0.5f) * 2f * half / count, cz - half + (y + 0.5f) * 2f * half / count));
+                    grid[y * count + x] = (g.HasWater ? 1f : 0f) + 2f * g.Biomes.Dominant();
+                }
+            return grid;
+        }
+
+        /// <summary>
+        /// W-126: the liveliest ground inside a biome for habitat shots: the dry spot (64 m grid, the biome dominant at it and round
+        /// it) with the widest spread of heights over a 90 m ring. [x, y, z, spread], empty if none. A same-world pick, so old and new shots frame alike.
+        /// </summary>
+        public static float[] FloraViewSpot(string biome)
+        {
+            var palette = Palette();
+            if (!Source(out var s) || palette == null)
+                return new float[0];
+            var id = System.Array.FindIndex(palette.Biomes, b => b != null && b.name == biome);
+            if (id < 0)
+                return new float[0];
+            var half = s.World.WorldSize * 0.5f;
+            var best = new float[0];
+            for (var x = -half + 200f; x < half - 200f; x += 64f)
+                for (var z = -half + 200f; z < half - 200f; z += 64f)
+                {
+                    var at = new float2(x, z);
+                    var g = s.SampleGround(at);
+                    if (g.HasWater || g.Biomes.Dominant() != id || s.SampleGround(at + new float2(90f, 0f)).Biomes.Dominant() != id ||
+                        s.SampleGround(at - new float2(90f, 0f)).Biomes.Dominant() != id)
+                        continue;
+                    float lo = g.Height, hi = g.Height;
+                    for (int k = 0; k < 8; k++)
+                    {
+                        var a = k * math.PI / 4f;
+                        var h = s.SampleHeight(at + 90f * new float2(math.cos(a), math.sin(a)));
+                        lo = math.min(lo, h);
+                        hi = math.max(hi, h);
+                    }
+                    if (best.Length == 0 || hi - lo > best[3])
+                        best = new[] { x, g.Height, z, hi - lo };
+                }
+            return best;
+        }
+
         /// <summary>A-69: creatures of one species (asset name) within radius of the player: [count, nearest distance (or -1), its x, y, z].</summary>
         public static float[] SpeciesNear(string name, float radius)
         {
