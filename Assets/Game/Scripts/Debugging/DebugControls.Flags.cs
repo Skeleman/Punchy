@@ -418,6 +418,10 @@ namespace Punchy.Debugging
             // "-oldtrace" (#81): TraceSystem's managed per-creature ground lookups, as before W-66.
             Punchy.Fauna.TraceSystem.OldTrace = System.Array.IndexOf(args, "-oldtrace") >= 0;
             perfLog = System.Array.IndexOf(args, "-perflog") >= 0;
+            // "-skyoff n" (a bit mask, to price the sky's parts): see _PunchySkyOff in Sky.hlsl. Per shot line.
+            var skyOffArg = System.Array.IndexOf(args, "-skyoff");
+            if (skyOffArg >= 0 && skyOffArg + 1 < args.Length && float.TryParse(args[skyOffArg + 1], out var skyOff))
+                Shader.SetGlobalFloat("_PunchySkyOff", skyOff);
             // A-45 A/B toggles: "-oldsearch" (#57, every brain search every frame), "-oldsnapshot" (#56, each reader copies
             // the creatures itself), "-oldtrace" (#55, the ground sampled for every creature in trace range).
             // (-oldsearch also holds from the command line or PlayArgs through every shot-list line: A-55's A/B lost it
