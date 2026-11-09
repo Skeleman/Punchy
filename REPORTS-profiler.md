@@ -2,6 +2,49 @@
 
 Newest first.
 
+## Job 36: clouds on the low-resolution buffer (sky/lowres ccd74cc1 vs main 13cdbcdc), 2026-11-09 (q66.sh)
+Job 34's setup: Profile builds, the Summit facing out, pitched up 10, 1920x1080, `-gfx High`, `-weatherseed 4`,
+uncapped, noon, a fresh game per run, weather forced over the stop. ABBA, two rounds each. Rounds agreed within 0.9 ms.
+Main has neither sky/cost's strides nor the branch's fewer far sun samples, so "full" carries both.
+
+| plain weather | GPU ms | CPU ms | vs main |
+|---|---|---|---|
+| main | 22.25 | 24.45 | |
+| branch `-skyfull` | 18.85 | 21.3 | -3.4 (strides + far sun samples; job 34 said -3.4 for strides alone) |
+| `-lowres half` | 9.3 | 14.1 | -12.95 |
+| `-lowres quarter` | 9.1 | 12.9 | -13.15 |
+| default (High) | 9.25 | 14.15 | -13.0 (same as half: High picks half) |
+
+| weather, default size | main | default | saves |
+|---|---|---|---|
+| Clear | 20.8 | 9.1 | 11.7 |
+| Overcast | 21.9 | 9.5 | 12.4 |
+| Storm | 25.0 | 11.45 | 13.55 |
+
+- **Half resolution takes the Summit from 22.25 to 9.25 ms GPU (-58%).** Job 34's no-sky frame was 6.7 ms, so the sky
+  is now about 2.5 ms, down from about 15.5.
+- **Quarter buys almost nothing more** in plain weather (9.1 vs 9.3). It does in Storm: one run each gave half 12.1,
+  quarter 10.0 (weather volumes still cost at half). Full 24.2 and main 24.9 in that Storm view.
+- **CPU drops too** (24.45 to 14.15 ms). The runner's cpu column is frame time on the main thread, which waits on the GPU
+  here, so it follows the GPU; this isn't a CPU saving.
+
+**Look** (one shot each, main / full / half / quarter, in the laptop's `results/q66-shots/`):
+- Tree line (the dense forest spot, looking up 15): at full resolution **half shows no halo** at the leaf edges.
+  **Quarter has a bright cloud patch hugging the leaf silhouette** where main and half show thin wisps. It may be a
+  real cloud (each run is a fresh game, and the shots are a few seconds apart), or the low-resolution sky leaking past
+  the edge. Worth a look on the desktop before quarter is used below High.
+- Horizon (the Summit, level): no halo at either size; the small cloud is softer at quarter.
+- Storm: the four look the same at this size (snow and haze hide the clouds).
+- Timed in passing, one run each: tree line 14.2-14.7 ms in all four (little sky in view), horizon main 18.1 / full
+  15.3 / half 9.0 / quarter 9.0.
+
+**Freeze: none in these 34 games**, Summit included, on main 13cdbcdc and the branch. Job 34 had 12 in 37 on main
+4669aabc and sky/cost. Since then main gained the water overhaul, the lights manager and the flora class rules
+(#208-#211). The freeze sampler ran throughout (495 samples, no stall to see). Not proof, but if it stays clear the
+cause may be gone with one of those merges; I'll keep the sampler on for the next Summit and lake runs.
+
+Cost: this job about $4 (laptop session 0a48ccdb); laptop total $665.
+
 ## Job 35: can the depth-normal prepass go? (render/ssao-source 75df5e08), 2026-11-08 (q65.sh)
 Profile build, job 31's bigtown stop and dense forest spot (1740,3355,180) in one game per run, 1920x1080, `-gfx High`,
 `-weatherseed 4`, uncapped, noon. Order normals depth after off off after depth normals; the log confirms each mode
