@@ -248,7 +248,7 @@ opaque). Zach also wants clearer weather more often and asks whether fewer cloud
 - **Job 32 addendum (grass density cost): withdrawn.** Zach tried `-grassdensity` before: more evenly scattered
   blades don't read as fuller. The player lane is prototyping blade clumps instead; that will get its own A/B.
 
-## Job 33 (2026-11-08): what the overnight prototypes cost (Zach: "if any of the shaders wind up costly, let me know")
+## Job 33 (2026-11-08, REPORTED in REPORTS-profiler.md except water/river-flow, not pushed yet; q61.sh, q63.sh): what the overnight prototypes cost (Zach: "if any of the shaders wind up costly, let me know")
 Each branch below is pushed separately; time each against main 46012623 (or say which main you used). Profile builds,
 1920x1080, `-gfx High`, `-weatherseed 4`, uncapped, ABBA. GPU ms, frame ms, main and render thread ms; flag anything
 over +0.5 ms GPU.

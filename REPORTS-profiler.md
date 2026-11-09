@@ -2,6 +2,41 @@
 
 Newest first.
 
+## 2026-11-08 Job 33 part 3: lava plates and sea swells cost nothing measurable, but the plates may not be drawing (q63.sh lava, q61.sh swells)
+
+Profile builds, 1920x1080, `-gfx High`, `-weatherseed 4`, uncapped, noon, a fresh game per run, ABBA. **0 frames over 5 s in the last ~50 min of unattended runs (16:48-17:13), after the keepawake fix** (see the correction below).
+
+### Lava plates (water/lava-plates 53582b9b against main 46012623)
+
+- **The view:** a shot-list scout of 17 views (q63.sh scout) picked 7 m north-east of the MagmaSerpent (-206,-2124), facing north-east, pitch 75. Lava fills about half the frame. The runner's own spot stop there put the camera in a rock face, so these runs use shot-list sessions with `-perflog`: 40 s fill, then 4 lines of 6 s, the same view each line.
+- **GPU ms, mean of 4 lines:** main 6.33 / 6.27, plates 6.32 / 6.35 (two rounds each, second round 2 h after the first round's 6.39 / 6.40). **No cost.** Main thread 10.1-10.3 ms both.
+- **But the shots of main and plates look the same:** flat orange, no plates or glowing melt (`results/q63-lavashots/q63-lava-*-1/s4.png`). Either the plate pattern is too fine to show from ~15 m at High, or the branch's lava shader isn't on this crater's lava (e.g. only on lava rivers or another material). **Worth a look on the branch before reading "no cost" as the answer.**
+
+### Swells at sea (water/swells 098ddffd against main and `-noswells`)
+
+- **The view:** the bench's Beach place (400,300) turned out to be a sandy canyon with an inlet at every yaw (q63.sh beachscout), so every earlier "beach" number was measured with no open sea in view. These runs stand at FishingVillage (391,-663), wading at sea level, facing south (`-benchview 180,5`), with water over the lower half of the frame and the far shore beyond. The storm shot shows a breaker.
+- **GPU ms, mean of 2 rounds:**
+
+| Weather | Main | Swells | `-noswells` | Δ swells vs main |
+|---|---|---|---|---|
+| Clear | 21.95 | 22.15 | 21.8 | +0.2 (noise) |
+| Storm | 24.45 | 24.95 | 24.1 | +0.5 (noise-sized; rounds 23.8-25.1) |
+
+- **No measurable cost.** Main thread 13-15.9 ms, the same across variants. The Clear set was rerun at 17:00 after two runs froze at 16:00 (the display; see the correction).
+
+### Job 33 done, except `water/river-flow` (not pushed yet)
+
+| Branch | Cost |
+|---|---|
+| grass/clumps | **+1.1 ms GPU** (meadow, full screen) |
+| night/blue-moon | +0.2 (noise) |
+| refactor/pose-by-size | not cheaper (CPU; see part 1) |
+| water/glitter-grid | 0 |
+| water/swells | 0 at the lake, +0.2 / +0.5 at sea (noise) |
+| water/lava-plates | 0, but see above: the plates may not be drawing |
+
+Cost: laptop CSV total $657.
+
 ## 2026-11-08 Correction to the freeze verdict: it froze in daylight, and the likely cause is the display turning off (bench fix pushed)
 
 - **This morning's verdict ("the laptop overnight") was wrong.** Job 33's FishingVillage beach runs froze at 16:00 (a 35 s frame) and from 16:01:33 to 16:27:48 (**one 1573 s frame**, nothing logged in between). Builds: water/swells 098ddffd built with today's runner (m4). So it's not that runner's age, not main's code, and not the hour.
