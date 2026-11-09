@@ -3463,3 +3463,8 @@ Built in the player tree, not the one the card names (the world tree's gitignore
 - verified: Flora_PlacementCost 1697 -> 1424 ms (+5% over 1355 baseline) by counting clearing and grove in the early-out bound. Temperate bare patch is the Glacier biome (sparse by design), not a clearing or grove, so no cap needed. Tests added: 4 (Flora_PlacementCost, Habitat_StatsAndShots, Clearings_AerialAndGroundShots, Clearings_PlanMaps) to measure cost and show habitat/clearing results. Full suite: all pass, Butterflies_MeadowDensity failed once in suite and passes alone; Landmarks_V3 112 A955AFE0, Fauna_Fingerprint 7D75BB04.
 - UNVERIFIED: the two framed real-render shots. Habitat_FramedShots runs, but the camera ends up skimming terrain (hook heights do not match rendered ground), so no clearing or saguaro slope is visible.
 - next: fix framing (probably sample the live terrain height, or use a free-fly camera offset) and retake.
+
+## W-126 (lean suite)
+- verified: Habitat_StatsAndShots, Clearings_AerialAndGroundShots, Clearings_PlanMaps, Habitat_FramedShots are [Explicit]; runner now prints them as SKIP. Full suite after last commit: 15 passed, 0 failed, 4 skipped, 210 s. Flora_PlacementCost runs 11 s, stays in. Pins unchanged: Landmarks_V3 112 A955AFE0, Fauna_Fingerprint 7D75BB04; Butterflies passed.
+- UNVERIFIED: the two framed real-render shots. Player-relative -camrel framing works, but trees show as dark placeholder quads or are absent in batch renders, and the Sonoran slope shows no saguaros; no good shot yet.
+- next: someone with an interactive editor should frame the clearing and saguaro slope by eye (-goto plus -camrel).
