@@ -300,7 +300,7 @@ apart. Profile build, job 31's forest and bigtown spots, 1920x1080, `-gfx High`,
   `after` and `off`: none?), or does something else keep it alive? Say which pass remains and its share.
 - A shot per mode at both spots, so the look can be judged (the player lane will compare them for Zach).
 
-## Job 36 (2026-11-09, RUNNING on the laptop; q66.sh): clouds on the low-resolution buffer (sky/lowres ccd74cc1)
+## Job 36 (2026-11-09, REPORTED in REPORTS-profiler.md; q66.sh): clouds on the low-resolution buffer (sky/lowres ccd74cc1)
 This PC's numbers disagree between rounds, so the laptop gives the real one. Job 34's setup (Summit, pitched up 10, 1920x1080, `-gfx High`, `-weatherseed 4`, uncapped, noon, ABBA). `-skyfull` is today's full-resolution sky; `-lowres half` and `-lowres quarter` force a size. Report GPU ms for each against main, plus plain, Clear, Overcast and Storm at the default size, and shots of a tree line and the horizon for halos, and one storm view (weather volumes weren't shot).
 
 ## Job 37 (2026-11-09, QUEUED; after job 36): R-2 on the laptop (main acd0cad5)
