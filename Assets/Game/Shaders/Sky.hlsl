@@ -31,7 +31,7 @@ float4 _PunchyUnderwaterSurface; // under water, x the surface over the lens (m)
 
 float3 _PunchySunDirection;    // towards the sun
 float3 _PunchyMoonDirection;   // towards the moon
-float _PunchySkyOff;           // test only (-skyoff n, to price the sky's parts): 1 no cloud march, 2 no far clouds, 4 no sky colour, 8 no weather volumes, 16 old even steps, 32 steps-per-pixel overlay, 64 always four sun samples
+float _PunchySkyOff;           // test only (-skyoff n, to price the sky's parts): 1 no cloud march, 2 no far clouds, 4 no sky colour, 8 no weather volumes, 16 old even steps, 32 steps-per-pixel overlay, 64 always four sun samples, 128 cloud edges before R-4, 256 cloud light before R-4, 512 one cloud type everywhere (before R-4)
 float4 _PunchyMoonPhase;       // phase (0 new, 0.5 full), lit share
 float3 _PunchyBlueMoon;        // towards the second, blue moon
 static const float PunchyBlueMoonRadius = 0.22;    // radians (about 25 degrees across): 6.5x its v0.11.0 size, a sister planet (Zach, #34)
@@ -141,10 +141,25 @@ float PunchyRemap(float v, float a, float b) { return saturate((v - a) / max(b -
 
 // ------------------------------------------------------------------------------------------------ volumetric clouds
 
+// Cloud type (R-4, from data: each weather preset's layering and high cloud, nudged by the biomes' humidity; the
+// wetness map's b and a): x 0 heaped cumulus ... 1 a flat stratus sheet, y wispy high cloud. The density below reads
+// punchyCloudStyle; the march sets it once per step, so the light samples around a point share its type, and the other
+// callers set it themselves. _PunchySkyOff 512 shows one type everywhere, as before R-4.
+static float2 punchyCloudStyle = float2(0, 0.3);
+
+float2 PunchyCloudStyleAt(float2 xz)
+{
+    if (((uint)_PunchySkyOff & 512u) != 0)
+        return float2(0, 0.3);
+    float2 uv = PunchyMapUV(xz);
+    float2 local = SAMPLE_TEXTURE2D_LOD(_PunchyWetnessMap, sampler_PunchyWetnessMap, uv, 0).ba;
+    return lerp(float2(0, 0.3), local, PunchyMapInside(uv));
+}
+
 // Cloud density at a point, given the weather and cloud shape there. detail (0..1) scales the edge-eroding detail
 // noise: 0 for lighting and shadows (only the broad mass matters) and for distant clouds, where fine detail would
-// only shimmer.
-float PunchyCloudDensity(float3 p, half4 weather, float4 shape, float detail)
+// only shimmer. fine (0..1) adds a second, smaller octave of it, for clouds near the camera only.
+float PunchyCloudDensityFine(float3 p, half4 weather, float4 shape, float detail, float fine)
 {
     if (!PunchyInCloudLayer(p.y, shape))
         return 0;
@@ -157,9 +172,11 @@ float PunchyCloudDensity(float3 p, half4 weather, float4 shape, float detail)
     float3 uvw = float3(q.x * 0.8 - q.z * 0.6, q.y, q.x * 0.6 + q.z * 0.8) / PUNCHY_CLOUD_NOISE_SCALE;
     uvw.xz += h * 0.06;   // tops lean downwind a little
     float3 uvwLarge = float3(q.x * 0.28 + q.z * 0.96, q.y * 0.6, -q.x * 0.96 + q.z * 0.28) / (PUNCHY_CLOUD_NOISE_SCALE * 2.73) + 0.37;
+    float layering = punchyCloudStyle.x;
+    // Stratus leans on the large noise, so it spreads into broad, even sheets rather than separate heaps.
     float shapeNoise = lerp(SAMPLE_TEXTURE3D_LOD(_PunchyCloudNoise, sampler_PunchyCloudNoise, uvw, 0).r,
-                            SAMPLE_TEXTURE3D_LOD(_PunchyCloudNoise, sampler_PunchyCloudNoise, uvwLarge, 0).r, 0.4);
-    float coverage = saturate(weather.r * 1.05);
+                            SAMPLE_TEXTURE3D_LOD(_PunchyCloudNoise, sampler_PunchyCloudNoise, uvwLarge, 0).r, lerp(0.4, 0.8, layering));
+    float coverage = saturate(weather.r * 1.05 + 0.2 * layering);
 
     // The cloud body: flat-ish base, rounded top; tall cumulonimbus towers narrow slightly as they climb and are
     // much denser (a solid column rather than a veil).
@@ -169,7 +186,10 @@ float PunchyCloudDensity(float3 p, half4 weather, float4 shape, float detail)
         float tall = saturate((shape.y - 2500) / 3500);
         float profile = saturate(h * 8) * saturate((1 - h) * 3);
         profile = lerp(profile, profile * (1 - 0.3 * h), tall);
-        density = PunchyRemap(shapeNoise, 1 - coverage, 1) * profile * (1 + 2 * tall);
+        // Stratus: a thin, flat slab in the lower part of the layer, a little denser so the sheet reads grey and even.
+        float slabH = h / lerp(1, 0.35, layering);
+        profile = lerp(profile, saturate(slabH * 10) * saturate((1 - slabH) * 5), layering);
+        density = PunchyRemap(shapeNoise, 1 - coverage, 1) * profile * (1 + 2 * tall) * (1 + 0.3 * layering);
     }
 
     // Storm anvils: a flat, spreading layer just below the tower top, reaching well beyond the tower.
@@ -185,12 +205,40 @@ float PunchyCloudDensity(float3 p, half4 weather, float4 shape, float detail)
         return 0;
     if (detail > 0.01)
     {
-        // Erode the edges into cauliflower-like billows; thin, sparse cloud is eroded less so it doesn't break into specks.
-        float erosion = SAMPLE_TEXTURE3D_LOD(_PunchyCloudNoise, sampler_PunchyCloudNoise, uvw * 3.7, 0).g;
-        density = PunchyRemap(density, erosion * lerp(0.15, 0.45, coverage) * detail, 1);
+        float4 erosion = SAMPLE_TEXTURE3D_LOD(_PunchyCloudNoise, sampler_PunchyCloudNoise, uvw * 3.7, 0);
+        [branch] if (((uint)_PunchySkyOff & 128u) != 0)
+        {
+            // (Test only, -skyoff 128: the edges before R-4, one billow noise everywhere.)
+            density = PunchyRemap(density, erosion.g * lerp(0.15, 0.45, coverage) * detail, 1);
+        }
+        else
+        {
+            // Erode the edges (R-4): cauliflower billows (Worley) on the tops, frayed wisps (Perlin) on the bases and on
+            // thin veils. Near the camera a second, smaller octave joins in; it fades out by 6 km, where it would only
+            // shimmer on the half-resolution buffer.
+            float billowy = saturate(h * 2.5 + 0.2) * saturate(0.4 + coverage) * (1 - layering);   // stratus frays, never billows
+            float carve = lerp(erosion.b, erosion.g, billowy);
+            [branch] if (fine > 0.01)
+            {
+                float3 uvwFine = float3(uvw.x * 0.6 - uvw.z * 0.8, uvw.y * 1.3, uvw.x * 0.8 + uvw.z * 0.6) * 11.3 + 0.21;
+                float2 small = SAMPLE_TEXTURE3D_LOD(_PunchyCloudNoise, sampler_PunchyCloudNoise, uvwFine, 0).gb;
+                carve = lerp(carve, carve * 0.6 + lerp(small.y, small.x, billowy) * 0.4, fine);
+            }
+            // Strongest at the edges, where the body is thin; a dense core keeps its mass. Thin, sparse cloud is eroded
+            // less overall so it doesn't break into specks, and so is the flat base (holes there would show the sunlit
+            // inside as bright specks).
+            float edge = 1 - saturate(density * 1.4);
+            carve = saturate((carve - 0.3) * 2.2);   // the summed octaves sit mid-grey: stretch them so the edge really breaks up
+            density = PunchyRemap(density, carve * lerp(0.25, 0.6, coverage) * lerp(0.45, 1.25, edge) * lerp(0.4, 1, saturate(h * 5)) * detail, 1);
+        }
     }
     // Storm clouds are denser (and therefore darker underneath).
     return density * (1.0 + 1.5 * weather.g);
+}
+
+float PunchyCloudDensity(float3 p, half4 weather, float4 shape, float detail)
+{
+    return PunchyCloudDensityFine(p, weather, shape, detail, 0);
 }
 
 float PunchyCloudDensityAt(float3 p, float detail)
@@ -392,6 +440,7 @@ void PunchyCloudMarch(float3 dir, float2 screenPos, float framePhase, out half3 
     bool strode = false, farStrode = false;   // the last step was a thin (in the layer) or an empty-air stride
     bool stride = ((uint)_PunchySkyOff & 16u) == 0;
     bool allSunSamples = ((uint)_PunchySkyOff & 64u) != 0;
+    bool oldLight = ((uint)_PunchySkyOff & 256u) != 0;
     int stepsTaken = 0;
     [loop]
     for (int i = 0; i < maxSteps && t < t1; i++)
@@ -424,9 +473,15 @@ void PunchyCloudMarch(float3 dir, float2 screenPos, float framePhase, out half3 
                 continue;
             }
         }
-        float detail = saturate(1.2 - t / 20000);
+        // Edge detail fades with distance (R-4: full to 3.5 km, gone by 17.5 km; the smaller octave from 2.5 to 6 km),
+        // so far clouds don't shimmer.
+        bool oldEdges = ((uint)_PunchySkyOff & 128u) != 0;
+        float detail = oldEdges ? saturate(1.2 - t / 20000) : saturate(1.25 - t / 14000);
+        float fine = oldEdges ? 0 : 1 - smoothstep(2500, 6000, t);
+        [branch] if (canHold)
+            punchyCloudStyle = PunchyCloudStyleAt(p.xz);
         float density = ((weather.r > 0.03 || shape.z > 0.02) && PunchyInCloudLayer(p.y, shape))
-            ? PunchyCloudDensity(p, weather, shape, detail) * (1 - smoothstep(PUNCHY_FAR_START, PUNCHY_FAR_END, t)) : 0;
+            ? PunchyCloudDensityFine(p, weather, shape, detail, fine) * (1 - smoothstep(PUNCHY_FAR_START, PUNCHY_FAR_END, t)) : 0;
 
         [branch] if (stride && density <= 0.004)
         {
@@ -470,11 +525,31 @@ void PunchyCloudMarch(float3 dir, float2 screenPos, float framePhase, out half3 
             half3 light = lightColor;
             [branch] if (glow > 0)
                 light = lerp(light, PunchyTwilightCloudLight(sunElevation, p.y) * 0.9 * (1 - 0.4 * weather.g), glow);
-            half3 direct = light * beer * phase * (0.55 + 0.45 * powder) * 3.2 + lining * beer * (1 - powder);
-
             float height = saturate((p.y - shape.x) / max(shape.y, 1));
+            half3 direct;
             half3 ambient = lerp(_PunchySkyHorizon * 0.32, _PunchySkyZenith * 0.75 + _PunchySkyHorizon * 0.25, height)
                           * (1 - 0.6 * weather.g);
+            [branch] if (oldLight)
+            {
+                // (Test only, -skyoff 256: the light before R-4.)
+                direct = light * beer * phase * (0.55 + 0.45 * powder) * 3.2 + lining * beer * (1 - powder);
+            }
+            else
+            {
+                // Softer light through the body (R-4): light scattered many times inside a cloud gets deeper than a single
+                // Beer falloff allows, so a weaker, slower falloff is kept as a floor and bodies glow instead of going flat
+                // grey. Powder: thin edges facing the sun, seen from the sun's side, hold too little cloud to have scattered
+                // light back yet and stay darker; looking towards the sun that fades and a silver lining takes over, light
+                // pushed forward through the thin edges.
+                float soft = max(beer, exp(-opticalDepth * PUNCHY_CLOUD_SIGMA * 0.25) * 0.55);
+                float towardSun = saturate(cosTheta);
+                float powderNew = lerp(1 - exp(-density * 9), 1, towardSun * towardSun);
+                half3 silver = light * pow(towardSun, 8) * (1 - powder) * soft * 2.5;
+                direct = light * soft * phase * (0.35 + 0.65 * powderNew) * 3.4 + (lining + silver) * soft * (1 - powder);
+                // Darker bases: the underside sees little of the bright sky above and the sun's light has crossed the
+                // whole body to reach it.
+                ambient *= lerp(0.6, 1.1, height);
+            }
             ambient = lerp(ambient, dot(ambient, half3(0.3, 0.5, 0.2)) * half3(0.85, 0.75, 1.1), twilight * 0.6);
             half3 flash = half3(0.75, 0.82, 1.0) * _PunchyLightningPos.w * 2.5
                         * exp(-distance(p, _PunchyLightningPos.xyz) / 1200);
@@ -539,6 +614,7 @@ half PunchyCloudCoverAlong(float3 dir, out half darkness)
     float3 p = camera + dir * min((middle - camera.y) / dir.y, 40000);
     half4 weather = PunchyWeatherAt(p.xz);
     darkness = weather.g;
+    punchyCloudStyle = PunchyCloudStyleAt(p.xz);
     return saturate(PunchyCloudDensity(p, weather, PunchyCloudShapeAt(p.xz), 0) * 3) * smoothstep(0.02, 0.12, dir.y);
 }
 
@@ -553,6 +629,7 @@ half PunchyCloudShadow(float3 positionWS)
     float height = shape.x + shape.y * 0.3;
     float3 p = float3(positionWS.xz + toSun.xz * (height - positionWS.y) / toSun.y, height).xzy;
     half4 weather = PunchyWeatherAt(p.xz);
+    punchyCloudStyle = PunchyCloudStyleAt(p.xz);
     float density = PunchyCloudDensity(p, weather, PunchyCloudShapeAt(p.xz), 0);
     return saturate(density * 3) * lerp(0.5, 0.95, saturate(shape.y / 3000));
 }
@@ -569,9 +646,11 @@ half PunchyCirrus(float3 dir)
     float2 wind = normalize(_PunchyCloudOffset + 1e-4);
     float2 uv = (hit - _PunchyCloudOffset * PUNCHY_CLOUD_FEATURE * 2) / 9000;
     uv = float2(dot(uv, wind), dot(uv, float2(-wind.y, wind.x)) * 4);   // streaks along the wind
-    half amount = saturate(PunchyWeatherAt(hit).r * 0.6 + 0.2);
+    // How much there is comes with the cover and, since R-4, the weather's and biome's high cloud (0.3 = as before).
+    half high = PunchyCloudStyleAt(hit).y;
+    half amount = saturate(PunchyWeatherAt(hit).r * 0.6 + 0.2 + (high - 0.3) * 1.5);
     float n = PunchyFbm(uv, 4);
-    return smoothstep(1 - amount * 0.55, 1.05, n) * 0.55 * smoothstep(0.01, 0.15, dir.y);
+    return smoothstep(1 - amount * 0.55, 1.05, n) * 0.55 * (0.85 + 0.5 * high) * smoothstep(0.01, 0.15, dir.y);
 }
 
 #include "SharedClock.hlsl"

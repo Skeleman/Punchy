@@ -13,6 +13,10 @@ Shader "Punchy/Sky"
             HLSLPROGRAM
             #pragma vertex Vert
             #pragma fragment Frag
+            // On while this camera has the clouds' low-resolution buffer (LowResEffectFeature's ActiveKeyword). The
+            // full-resolution march fallback is compiled out of that variant: inlined, its registers lowered occupancy for
+            // every sky pixel even when the branch was never taken (job 38: DrawSkybox 3.7 ms at any buffer size).
+            #pragma multi_compile_fragment _ PUNCHY_CLOUDS_LOW_RES
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Sky.hlsl"
             #include "LowResEffect.hlsl"
@@ -21,7 +25,6 @@ Shader "Punchy/Sky"
             Texture2D<half4> _PunchyCloudLowRes;
             Texture2D<float> _PunchyCloudLowRes_Depth;
             float4 _PunchyCloudLowRes_Size;
-            float _PunchyCloudLowResOn;
 
             // The clouds from the buffer, over the sky and the far layer (both drawn here at full resolution, so the sun, the
             // moon and the stars stay crisp). The skybox only draws on sky, so a depth-aware read can't pick up a tree.
@@ -60,10 +63,11 @@ Shader "Punchy/Sky"
                 // (A real branch: a ternary would run both sides, and the point is not to march here.)
                 [branch] if ((off & 1u) == 0)
                 {
-                    [branch] if (_PunchyCloudLowResOn > 0.5)
-                        sky = PunchyCloudsFromBuffer(sky, dir, input.positionCS.xy);
-                    else
-                        sky = PunchyVolumetricClouds(sky, dir, input.positionCS.xy);
+                #if defined(PUNCHY_CLOUDS_LOW_RES)
+                    sky = PunchyCloudsFromBuffer(sky, dir, input.positionCS.xy);
+                #else
+                    sky = PunchyVolumetricClouds(sky, dir, input.positionCS.xy);
+                #endif
                 }
                 if ((off & 32u) != 0)
                     return half4(sky, 1);

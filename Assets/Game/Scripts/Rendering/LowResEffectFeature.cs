@@ -33,6 +33,9 @@ namespace Punchy.Rendering
             public string OutputGlobal;
             [Tooltip("A global float: 1 while this camera has the buffer, 0 when the effect should draw itself.")]
             public string ActiveGlobal;
+            [Tooltip("Optional global shader keyword, on while this camera has the buffer, so a shader can compile its own " +
+                     "fallback out of the common path (R-4: the skybox's full-resolution march cost registers on every sky pixel).")]
+            public string ActiveKeyword;
             [Tooltip("How much of last frame stays each frame, once it passes the neighbourhood clamp.")]
             [Range(0f, 0.98f)] public float HistoryWeight = 0.9f;
             [Tooltip("Reproject by the scene depth; off treats the effect as infinitely far away (sky).")]
@@ -80,6 +83,7 @@ namespace Punchy.Rendering
             public Effect Def;
             public Material Draw, Internal;
             public int OutputId, DepthId, SizeId, ActiveId;
+            public GlobalKeyword Keyword; public bool HasKeyword;
             public LowResMode Mode;
             public bool Running, HistoryValid;
             public int Width, Height, Write;
@@ -137,6 +141,9 @@ namespace Punchy.Rendering
                     runtime.DepthId = Shader.PropertyToID(effect.OutputGlobal + "_Depth");
                     runtime.SizeId = Shader.PropertyToID(effect.OutputGlobal + "_Size");
                     runtime.ActiveId = Shader.PropertyToID(effect.ActiveGlobal);
+                    runtime.HasKeyword = !string.IsNullOrEmpty(effect.ActiveKeyword);
+                    if (runtime.HasKeyword)
+                        runtime.Keyword = GlobalKeyword.Create(effect.ActiveKeyword);
                 }
             }
 
@@ -152,6 +159,8 @@ namespace Punchy.Rendering
                     runtime.Running = mainCamera && runtime.Mode != LowResMode.Off
                                       && (!runtime.Def.NeedsSkybox || RenderSettings.skybox != null);
                     Shader.SetGlobalFloat(runtime.ActiveId, runtime.Running ? 1f : 0f);
+                    if (runtime.HasKeyword)
+                        Shader.SetKeyword(runtime.Keyword, runtime.Running);
                     if (!runtime.Running)
                         runtime.HistoryValid = false;
                     any |= runtime.Running;

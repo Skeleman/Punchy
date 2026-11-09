@@ -23,6 +23,10 @@ namespace Punchy.Weather
         [Tooltip("Vertical extent of the clouds, in metres: a few hundred for flat cumulus/stratus, " +
                  "several thousand for towering cumulonimbus (which spread into anvils at the top).")]
         [Min(50f)] public float CloudThickness = 700f;
+        [Tooltip("Cloud type: 0 heaped cumulus with billowy tops, 1 a flat, even stratus sheet with frayed edges.")]
+        [Range(0f, 1f)] public float CloudLayering;
+        [Tooltip("Thin, wispy high cloud (cirrus) streaked along the wind above the main layer.")]
+        [Range(0f, 1f)] public float HighCloud = 0.3f;
 
         [Header("Air")]
         [Tooltip("Fog thickness relative to the draw-distance minimum (1 = just enough to hide the terrain's edge).")]

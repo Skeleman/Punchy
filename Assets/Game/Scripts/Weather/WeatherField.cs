@@ -69,7 +69,8 @@ namespace Punchy.Weather
     /// fade, and only exist where their preset is allowed (a sandstorm dissolves at the desert's edge). High ground
     /// keeps extra, lower cloud. The field is rendered into three world-covering textures each update:
     ///  weather map  rgba = cloud coverage, cloud darkness, rain/mist haze, dust;
-    ///  wetness map  rg   = ground wetness (accumulates where it rains, dries over time), precipitation;
+    ///  wetness map  rgba = ground wetness (accumulates where it rains, dries over time), precipitation,
+    ///                      cloud layering (0 heaped cumulus, 1 flat stratus), wispy high cloud (R-4);
     ///  cloud map    rgba = cloud base / MaxCloudBase, cloud thickness / MaxCloudThickness,
     ///                      anvil strength, anvil top / MaxAnvilTop (storm anvils spread beyond their cells).
     /// </summary>
@@ -106,6 +107,8 @@ namespace Punchy.Weather
         NativeArray<float4> presetLook;    // per preset: coverage, darkness, haze, dust
         NativeArray<float> presetPrecip;
         NativeArray<float2> presetCloud;   // per preset: cloud base, thickness (metres)
+        NativeArray<float2> presetStyle;   // per preset: cloud layering, high cloud
+        NativeArray<float2> biomeStyle;    // per texel: the biomes' nudge to layering and high cloud (from their humidity)
         NativeArray<Color32> cloudPixels;
         NativeArray<float> orographyNative, rainFractionNative, wetness;
         NativeArray<Color32> weatherPixels, wetnessPixels;
@@ -152,6 +155,7 @@ namespace Punchy.Weather
             for (int p = 0; p < presets.Count; p++)
                 chance[p] = new float[count];
             allowed = new NativeArray<float>(presets.Count * count, Allocator.Persistent);
+            biomeStyle = new NativeArray<float2>(count, Allocator.Persistent);
 
             // Each preset's chance in each biome, looked up once rather than per texel (the per-texel lookup walked every
             // biome's weather list and stalled the first frame for a good fraction of a second).
@@ -167,6 +171,17 @@ namespace Punchy.Weather
                 rainFraction[t] = 1f - math.max(math.saturate((elevation - snowLine) / 40f), math.saturate(snow[t] * 2f));
                 var weights = biomeWeights[t];
                 var ids = biomeIds[t];
+                // Humid biomes lean to low, layered cloud; arid ones to clear skies streaked with high wisps.
+                float humid = 0f, humidWeight = 0f;
+                for (int k = 0; k < 4; k++)
+                {
+                    var id = ids[k];
+                    if (weights[k] <= 0f || id >= palette.Length || palette[id] == null) continue;
+                    humid += weights[k] * (palette[id].Humidity.x + palette[id].Humidity.y) * 0.5f;
+                    humidWeight += weights[k];
+                }
+                humid = humidWeight > 0f ? humid / humidWeight : 0.5f;
+                biomeStyle[t] = new float2((humid - 0.5f) * 0.5f, (0.5f - humid) * 0.6f);
                 for (int p = 0; p < presets.Count; p++)
                 {
                     float c = 0f, a = 0f;
@@ -191,6 +206,7 @@ namespace Punchy.Weather
             presetLook = new NativeArray<float4>(presets.Count, Allocator.Persistent);
             presetPrecip = new NativeArray<float>(presets.Count, Allocator.Persistent);
             presetCloud = new NativeArray<float2>(presets.Count, Allocator.Persistent);
+            presetStyle = new NativeArray<float2>(presets.Count, Allocator.Persistent);
             for (int p = 0; p < presets.Count; p++)
             {
                 var v = WeatherValues.From(presets[p]);
@@ -198,6 +214,7 @@ namespace Punchy.Weather
                 // Dry precipitation (ash, sparks) never wets the ground.
                 presetPrecip[p] = presets[p].DryPrecipitation ? 0f : v.Precipitation;
                 presetCloud[p] = new float2(v.CloudBase, v.CloudThickness);
+                presetStyle[p] = new float2(presets[p].CloudLayering, presets[p].HighCloud);
             }
             orographyNative = new NativeArray<float>(orography, Allocator.Persistent);
             rainFractionNative = new NativeArray<float>(rainFraction, Allocator.Persistent);
@@ -251,6 +268,8 @@ namespace Punchy.Weather
             if (presetLook.IsCreated) presetLook.Dispose();
             if (presetPrecip.IsCreated) presetPrecip.Dispose();
             if (presetCloud.IsCreated) presetCloud.Dispose();
+            if (presetStyle.IsCreated) presetStyle.Dispose();
+            if (biomeStyle.IsCreated) biomeStyle.Dispose();
             if (cloudPixels.IsCreated) cloudPixels.Dispose();
             if (CloudMap != null) Object.Destroy(CloudMap);
             if (orographyNative.IsCreated) orographyNative.Dispose();
@@ -622,6 +641,8 @@ namespace Punchy.Weather
             mapJob = new MapJob
             {
                 Cells = mapCells, PresetLook = presetLook, PresetPrecip = presetPrecip, PresetCloud = presetCloud, Allowed = allowed,
+                PresetStyle = presetStyle, BiomeStyle = biomeStyle,
+                BackgroundStyle = new float2(presets[0].CloudLayering, presets[0].HighCloud),
                 Orography = orographyNative, RainFraction = rainFractionNative, Wetness = wetness, Lowness = lownessNative,
                 Background = new float4(background.Coverage, background.Darkness, background.Haze, background.Dust),
                 BackgroundCloud = new float2(background.CloudBase, background.CloudThickness),
@@ -696,6 +717,8 @@ namespace Punchy.Weather
             [ReadOnly] public NativeArray<float4> PresetLook;
             [ReadOnly] public NativeArray<float> PresetPrecip;
             [ReadOnly] public NativeArray<float2> PresetCloud;
+            [ReadOnly] public NativeArray<float2> PresetStyle;
+            [ReadOnly] public NativeArray<float2> BiomeStyle;
             [ReadOnly] public NativeArray<float> Allowed;
             [ReadOnly] public NativeArray<float> Orography;
             [ReadOnly] public NativeArray<float> RainFraction;
@@ -703,6 +726,7 @@ namespace Punchy.Weather
             public NativeArray<float> Wetness;
             public float4 Background;
             public float2 BackgroundCloud;
+            public float2 BackgroundStyle;
             public int Resolution;
             public float2 Origin;
             public float Texel;
@@ -717,7 +741,7 @@ namespace Punchy.Weather
                 var background = ApplyBackground(Background, BackgroundCloud, Orography[t], Lowness[t], out var backgroundCloud);
 
                 float4 look = 0f;
-                float2 cloud = 0f;
+                float2 cloud = 0f, style = 0f;
                 float precip = 0f, total = 0f;
                 float anvil = 0f, anvilTop = 0f;
                 var count = Resolution * Resolution;
@@ -744,6 +768,7 @@ namespace Punchy.Weather
                     look += PresetLook[c.Preset] * w;
                     precip += PresetPrecip[c.Preset] * w;
                     cloud += PresetCloud[c.Preset] * w;
+                    style += PresetStyle[c.Preset] * w;
                     total += w;
                 }
 
@@ -752,6 +777,7 @@ namespace Punchy.Weather
                 // Cells are strongest at their centres, so tall clouds build into domes rather than flat slabs.
                 var cloudShape = total > 0f ? math.lerp(backgroundCloud, cloud / total, k) : backgroundCloud;
                 var precipitation = total > 0f ? precip / total * k : 0f;
+                var cloudStyle = (total > 0f ? math.lerp(BackgroundStyle, style / total, k) : BackgroundStyle) + BiomeStyle[t];
 
                 // Ground soaks up rain (not snow) and dries out afterwards.
                 var rain = precipitation * RainFraction[t];
@@ -760,7 +786,7 @@ namespace Punchy.Weather
                 Wetness[t] = wet;
 
                 WeatherPixels[t] = new Color32(Byte(value.x), Byte(value.y), Byte(value.z), Byte(value.w));
-                WetnessPixels[t] = new Color32(Byte(wet), Byte(precipitation), 0, 255);
+                WetnessPixels[t] = new Color32(Byte(wet), Byte(precipitation), Byte(cloudStyle.x), Byte(cloudStyle.y));
                 CloudPixels[t] = new Color32(Byte(cloudShape.x / WeatherValues.MaxCloudBase), Byte(cloudShape.y / WeatherValues.MaxCloudThickness),
                                              Byte(anvil), Byte(anvilTop / WeatherValues.MaxAnvilTop));
             }
