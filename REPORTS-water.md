@@ -28,3 +28,24 @@
   (orange, near-blind); Sandstorm above water at 360,1.5,-160 (sand haze) then at -2.5 m (none). Sheet
   PunchyMilestones\water\W-125\r2-under-fluids.png. Caveat: no before shot of the dust under water (the old build).
 - Next: row 3 (swell from the weather's wind).
+
+### Row 3, item 32: swell from the weather's wind (2026-11-08) DONE, verified
+- Commit 59a06aef. WaterSwells keeps its own wind, following the weather's strength and direction with a 12 s time
+  constant (no jump on a weather change). Strength sets the height (as before, now eased); from wind 0.4 to 0.85 the
+  direction turns each point's heading from onshore towards downwind (85% at full). C# Heading (Height, SwellAt: swimmers
+  and floaters) and the shader's PunchySwellHeading do the same sum, so floaters ride the same sea.
+- Check (coast at 1029,182, camera 1031,9,182 looking out): calm vs Sandstorm shots, storm sea visibly higher with
+  whitecaps; 4 s after switching back to Clear still storm-high (eased). Measured after a Sandstorm starts: swell state
+  0.86 -> 0.94 -> 0.98 -> 1.00 over ~36 s; steer 0.85 towards (0.79, 0.61). Sheet PunchyMilestones\water\W-125\r3-calm-sandstorm.png.
+  Caveat: the floaters shot at SeaFolkLanding framed no water; floaters checked by code path only (same Heading).
+
+### Row 4, item 34 (cheap part): bubbles and specks under water (2026-11-08) DONE, verified
+- Commit 3b... (see branch log). Two particle systems on the precipitation shader: ~220 specks tinted by the fluid,
+  bubble clusters every ~3.5 s; water and swamp only; hidden on surfacing. `-nodrift` to A/B.
+- Cost: full 1280x720 render under water 2.55 ms without vs 2.68 ms with (ABAB x4, noise +-0.2 ms): about 0.1 ms.
+  (The editor's -perflog GPU number is not usable: 0.07-0.28 ms.) Frame series PunchyMilestones\water\W-125\r4-drift-series.png.
+- Content ideas for Zach (not built, feature freeze): kelp/seagrass beds on sandy shelves (a sway flora form), shells and
+  urchins on the bed near beaches (props), coral heads in warm shallow biomes (Sonoran, Dunes coasts), small fish
+  schools (a boids GPU instancer like the butterflies, fleeing the swimmer), rays gliding over sand, crabs on the bed,
+  sunken wreck props near SeaFolkLanding, drifting jellyfish glowing at night, sea-floor rocks with barnacles.
+- Next: row 5 (light shafts).
