@@ -3358,3 +3358,11 @@ wharf the old test kept stays where it was. Village 1 fits a full wharf, so no s
 - 15 s frame series on one shrub, 31 frames: centroid x sd 0.67 px new against 1.68 px before, so visibly calmer, about 40% of the old movement. Crown area varies 0.66% against 0.48%, so area can't show the swelling at this wind either way. Whether "inflating and twisting" is gone is a judgement for a playtest; if it now looks too still, raise the 0.16 / 0.18 in the bend.
 - Known, not fixed here (as instructed): the shared gust scroll is clock x wind direction, so it jumps when the wind veers late in a session. Grass already had it and trees now share it; fix once for both.
 - Shots: PunchyMilestones/W-123/r2 (motion-forest.png, motion-meadow.png, shrub-strip.png, lnew2 and lbase series).
+
+## W-123 row 3 - V3 colour sync: done (the look is Zach's call)
+- Suite 14/14 with this row in; Landmarks_V3 112 A955AFE0 and Fauna_Fingerprint F0EF4BD5 unchanged. No rule or blob field added (a new field would move the fingerprint); colour only.
+- Plants on grassy ground carry the ground's colour (FloraPlacement.GreenTint, from SampleSurface so V3 applies, alpha mark 254). In Flora.shader, leaves that are clearly green lean 60% to that hue and keep their own light and dark, so autumn, blossom and fungus colours stay. Grass blades (GroundDetailSystem) lost some of their yellow bias and gained some green.
+- Biggest visible shift: conifers go from blue-green toward olive. Marsh vines go a little duller. The result is subtle; to change it, the strength is the 0.6 in Flora.shader.
+- Not measured: GreenTint adds a surface sample per placed plant in the streaming job. Single-run GPU at the forest 2.90 / 2.53 against 2.87 / 2.55, frame max 7.7 against 7.2, standing still only.
+- Grassland here is the `-place meadow` spot (-644, 1299). Shots: PunchyMilestones/W-123/r3 (side-by-side.png: left before, right after; Grassland, Temperate x2, Foggy marsh).
+- W-123 complete. Editor closed.
