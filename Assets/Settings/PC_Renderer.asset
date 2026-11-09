@@ -121,6 +121,7 @@ MonoBehaviour:
     Shader: {fileID: 4800000, guid: 441fd0c5969a4b459323ae17e161e7a8, type: 3}
     OutputGlobal: _PunchyCloudLowRes
     ActiveGlobal: _PunchyCloudLowResOn
+    ActiveKeyword: PUNCHY_CLOUDS_LOW_RES
     HistoryWeight: 0.9
     HistoryAtDepth: 0
     NeedsSkybox: 1
