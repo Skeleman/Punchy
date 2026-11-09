@@ -140,6 +140,7 @@ namespace Punchy.Ambience
                 Punchy.Settings.LightBudget.Add(Punchy.Settings.LightKind.Fire, f.seed, f.at, light);
             }
             ForestFires(source, palette, eye, lit);
+            Beacons(source, eye, lit, flameRange);
             Draw();
         }
 

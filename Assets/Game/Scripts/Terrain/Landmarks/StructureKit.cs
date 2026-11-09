@@ -96,7 +96,33 @@ namespace Punchy.Terrain
         /// <summary>W-122: a plank walk across from hut to hut (along X), or out to the bank (along -Z), of boardwalk pieces.</summary>
         MarshCross,
         /// <summary>W-122: the marsh folk's walk from the huts out to the bank (along -Z), ending in a step down.</summary>
-        MarshWalk
+        MarshWalk,
+        /// <summary>W-127: a street light (the species' Fixture Style) that a settlement puts by doors, along streets and
+        /// at piers (SettlementLayout.Fixtures, LandmarkType.Fixtures), lit after dark.</summary>
+        Fixture
+    }
+
+    /// <summary>
+    /// W-127: what a Fixture kit species builds. Its light's colour and reach follow from it (FloraPlacement.GlowLight);
+    /// which folk and biomes use which is data (the fixture tables). A byte, append only.
+    /// </summary>
+    public enum FixtureStyle : byte
+    {
+        /// <summary>A post with an arm and a hanging lantern.</summary>
+        Lantern,
+        /// <summary>A waist-high stub of wall by a path with a lamp on a bracket.</summary>
+        Sconce,
+        /// <summary>An iron fire bowl on three legs, its coals glowing.</summary>
+        Brazier,
+        /// <summary>A tall stand with a ring of candles.</summary>
+        Candelabra,
+        /// <summary>A standing stone with a glowing rune cut in it.</summary>
+        Rune,
+        /// <summary>A pier post hung with a fish-oil lamp, a net and a float.</summary>
+        PierLamp,
+        /// <summary>A stone beacon tower on a town's square, a stair winding up its outside to a railed top where a
+        /// fire burns after dark (LandmarkEffectSystem lights it; seen from far off).</summary>
+        Beacon
     }
 
     /// <summary>The small things a sea folk settlement leaves on the lake bed (#37), picked by weight from SeaDetails.</summary>
@@ -302,6 +328,9 @@ namespace Punchy.Terrain
             }
         }
 
+        /// <summary>W-127: lamplight's colour (lamps, and a lived-in house's lit windows).</summary>
+        public static readonly Color LampLight = new Color(1f, 0.72f, 0.38f);
+
         /// <summary>A culture's trim colour for a material.</summary>
         public static Color Colour(in CultureTrim t, KitMaterial m) => m switch
         {
@@ -311,7 +340,7 @@ namespace Punchy.Terrain
             KitMaterial.Opening => t.Opening,
             KitMaterial.Moss => t.Moss,
             KitMaterial.Stone => Color.Lerp(t.Wall, t.Trim, 0.5f) * 0.85f,
-            KitMaterial.Lamp => new Color(1f, 0.72f, 0.38f),
+            KitMaterial.Lamp => LampLight,
             KitMaterial.Net => new Color(0.70f, 0.66f, 0.55f),
             KitMaterial.Rune => new Color(0.55f, 0.95f, 1f),
             KitMaterial.Ice => Color.Lerp(t.Wall, t.Trim, 0.25f),
@@ -1499,6 +1528,190 @@ namespace Punchy.Terrain
         /// blocks, two or three glowing rune bands round it, a glowing pearl on top, a shell or two at its foot and,
         /// now and then, an anemone or a curl of kelp. A ring of them lights the spire's square at dusk.
         /// </summary>
+        /// <summary>
+        /// W-127: a street light of <paramref name="style"/>, standing at the origin, its lit part about
+        /// <see cref="FixtureLightHeight"/> up (where its glow comes from). Every choice comes from the seed.
+        /// </summary>
+        public static List<KitPart> Fixture(uint seed, CultureTrim t, FixtureStyle style)
+        {
+            var parts = new List<KitPart>();
+            var rng = new System.Random((int)(Scramble(seed ^ 0xF1C7u) & 0x7FFFFFFF));
+            float R() => (float)rng.NextDouble();
+            var lean = (R() - 0.5f) * 3f;
+            switch (style)
+            {
+                case FixtureStyle.Lantern:
+                {
+                    var h = 2.3f + R() * 0.4f;
+                    Add(parts, KitPiece.Trim, KitMaterial.Stone, new Vector3(0f, 0.12f, 0f), new Vector3(0.4f, 0.24f, 0.4f), R() * 90f, false);
+                    Add(parts, KitPiece.Column, KitMaterial.Wood, new Vector3(0f, h * 0.5f, 0f), new Vector3(0.14f, h, 0.14f), 0f, true, lean);
+                    Add(parts, KitPiece.Beam, KitMaterial.Wood, new Vector3(0.28f, h - 0.1f, 0f), new Vector3(0.6f, 0.08f, 0.08f), 0f, false);
+                    Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(0.5f, h - 0.24f, 0f), new Vector3(0.3f, 0.06f, 0.3f), 45f, false);
+                    Add(parts, KitPiece.Window, KitMaterial.Lamp, new Vector3(0.5f, h - 0.44f, 0f), new Vector3(0.24f, 0.32f, 0.24f), 0f, false);
+                    break;
+                }
+                case FixtureStyle.Sconce:
+                {
+                    var h = 1.5f + R() * 0.3f;
+                    Add(parts, KitPiece.Wall, KitMaterial.Wall, new Vector3(0f, h * 0.5f, 0f), new Vector3(0.7f, h, 0.35f), 0f, true);
+                    Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(0f, h + 0.05f, 0f), new Vector3(0.8f, 0.1f, 0.45f), 0f, false);
+                    Add(parts, KitPiece.Beam, KitMaterial.Trim, new Vector3(0f, h - 0.15f, 0.3f), new Vector3(0.05f, 0.05f, 0.3f), 0f, false);
+                    Add(parts, KitPiece.Window, KitMaterial.Lamp, new Vector3(0f, h - 0.32f, 0.42f), new Vector3(0.2f, 0.28f, 0.2f), 0f, false);
+                    break;
+                }
+                case FixtureStyle.Brazier:
+                {
+                    for (int k = 0; k < 3; k++)
+                    {
+                        var a = k * 120f + R() * 10f;
+                        Add(parts, KitPiece.Column, KitMaterial.Trim, Turn(a, new Vector3(0f, 0.5f, 0.28f)), new Vector3(0.06f, 1.05f, 0.06f), a, false, -14f);
+                    }
+                    Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(0f, 1.02f, 0f), new Vector3(0.8f, 0.22f, 0.8f), R() * 90f, true);
+                    Add(parts, KitPiece.Window, KitMaterial.Lamp, new Vector3(0f, 1.16f, 0f), new Vector3(0.62f, 0.14f, 0.62f), R() * 90f, false);
+                    for (int k = 0, n = 2 + rng.Next(2); k < n; k++)
+                        Add(parts, KitPiece.Trim, KitMaterial.Wood, new Vector3((R() - 0.5f) * 0.3f, 1.24f, (R() - 0.5f) * 0.3f), new Vector3(0.08f, 0.08f, 0.5f), R() * 180f, false, (R() - 0.5f) * 30f);
+                    break;
+                }
+                case FixtureStyle.Candelabra:
+                {
+                    var h = 1.9f + R() * 0.3f;
+                    Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(0f, 0.06f, 0f), new Vector3(0.5f, 0.12f, 0.5f), 45f, false);
+                    Add(parts, KitPiece.Column, KitMaterial.Trim, new Vector3(0f, h * 0.5f, 0f), new Vector3(0.08f, h, 0.08f), 0f, true);
+                    var arms = 3 + rng.Next(3);
+                    for (int k = 0; k < arms; k++)
+                    {
+                        var a = k * 360f / arms + R() * 8f;
+                        Add(parts, KitPiece.Beam, KitMaterial.Trim, Turn(a, new Vector3(0f, h - 0.1f, 0.2f)), new Vector3(0.04f, 0.04f, 0.4f), a, false);
+                        Add(parts, KitPiece.Window, KitMaterial.Lamp, Turn(a, new Vector3(0f, h + 0.02f, 0.38f)), new Vector3(0.07f, 0.2f, 0.07f), a, false);
+                    }
+                    Add(parts, KitPiece.Window, KitMaterial.Lamp, new Vector3(0f, h + 0.12f, 0f), new Vector3(0.08f, 0.24f, 0.08f), 0f, false);
+                    break;
+                }
+                case FixtureStyle.Rune:
+                {
+                    var h = 1.3f + R() * 0.5f;
+                    Add(parts, KitPiece.Rubble, KitMaterial.Stone, new Vector3(0f, h * 0.5f, 0f), new Vector3(0.6f, h, 0.4f), R() * 360f, true, lean);
+                    Add(parts, KitPiece.Window, KitMaterial.Rune, new Vector3(0f, h * 0.62f, 0.19f), new Vector3(0.22f, 0.4f, 0.06f), 0f, false, lean);
+                    Add(parts, KitPiece.Window, KitMaterial.Rune, new Vector3(0f, h * 0.62f, -0.19f), new Vector3(0.22f, 0.4f, 0.06f), 0f, false, lean);
+                    break;
+                }
+                case FixtureStyle.PierLamp:
+                {
+                    // A tarred pier post, a crossbar with the oil lamp off it, a net and a float hung to dry.
+                    var h = 2.6f + R() * 0.4f;
+                    Add(parts, KitPiece.Column, KitMaterial.Wood, new Vector3(0f, h * 0.5f, 0f), new Vector3(0.2f, h, 0.2f), 0f, true, lean);
+                    Add(parts, KitPiece.Beam, KitMaterial.Wood, new Vector3(0f, h - 0.15f, 0f), new Vector3(1.1f, 0.1f, 0.1f), 0f, false);
+                    Add(parts, KitPiece.Trim, KitMaterial.Net, new Vector3(0.45f, h - 0.3f, 0f), new Vector3(0.02f, 0.2f, 0.02f), 0f, false);
+                    Add(parts, KitPiece.Window, KitMaterial.Lamp, new Vector3(0.45f, h - 0.55f, 0f), new Vector3(0.22f, 0.3f, 0.22f), 0f, false, 0f, (R() - 0.5f) * 8f);
+                    Add(parts, KitPiece.Trim, KitMaterial.Net, new Vector3(-0.4f, h - 0.7f, 0f), new Vector3(0.5f, 0.9f, 0.04f), 0f, false, 0f, 6f);
+                    Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(-0.4f, h - 1.2f, 0.05f), new Vector3(0.16f, 0.16f, 0.16f), 45f, false, 45f);
+                    break;
+                }
+                case FixtureStyle.Beacon:
+                    Beacon(parts, rng);
+                    break;
+            }
+            return parts;
+        }
+
+        /// <summary>
+        /// W-127: a beacon tower's deck height, the half width of its footprint (core and stair) and where its fire burns
+        /// (above its foot), at scale 1. Fixed, so LandmarkEffectSystem and the world glow find the fire without the model.
+        /// </summary>
+        public const float BeaconDeck = 10.4f, BeaconHalf = 2.5f, BeaconFire = BeaconDeck + 0.8f;
+        const float BeaconCore = 1.5f, BeaconStairWidth = 1f;
+
+        /// <summary>
+        /// W-127: a beacon tower: a square stone shaft, its stair of cantilevered treads winding up the outside (rises
+        /// under KitStep, a landing at each corner), a railed deck on top with an iron fire bowl on a plinth and a stack of
+        /// fuel, a door and slit windows in the shaft and a woodpile at the stair's foot. Every part but the decor is solid
+        /// (the collision is the art), so the stair is climbed like any other.
+        /// </summary>
+        static void Beacon(List<KitPart> parts, System.Random rng)
+        {
+            float R() => (float)rng.NextDouble();
+            const float c = BeaconCore, w = BeaconStairWidth, mid = c + w * 0.5f, run = 0.3f;
+            const int perSide = 10;   // perSide x run spans the shaft's face (2c) between corner landings
+            // The shaft on a plinth sunk into the ground (it squares up on a slope), a cornice band under the deck.
+            Add(parts, KitPiece.Wall, KitMaterial.Stone, new Vector3(0f, -0.45f, 0f), new Vector3(2f * c + 0.3f, 1.1f, 2f * c + 0.3f), 0f, true);
+            Add(parts, KitPiece.Wall, KitMaterial.Wall, new Vector3(0f, (BeaconDeck - 0.3f) * 0.5f, 0f), new Vector3(2f * c, BeaconDeck - 0.3f, 2f * c), 0f, true);
+            Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(0f, BeaconDeck - 0.45f, 0f), new Vector3(2f * c + 0.16f, 0.2f, 2f * c + 0.16f), 0f, false);
+            Add(parts, KitPiece.Platform, KitMaterial.Stone, new Vector3(0f, BeaconDeck - 0.15f, 0f), new Vector3(2f * c + 0.2f, 0.3f, 2f * c + 0.2f), 0f, false);
+            // The stair: along each face in turn (side s turns s x 90 degrees), rising the same at every tread to the deck.
+            var steps = Mathf.CeilToInt(BeaconDeck / 0.28f);
+            var rise = BeaconDeck / steps;
+            for (int k = 0; k < steps; k++)
+            {
+                var side = k / perSide;
+                var i = k % perSide;
+                var top = (k + 1) * rise;
+                var thick = top < 1.2f ? top + 0.4f : 0.42f;   // the low treads go down to the ground
+                Add(parts, KitPiece.Stair, KitMaterial.Stone, Turn(side * 90f, new Vector3(-c + (i + 0.5f) * run, top - thick * 0.5f, mid)),
+                    new Vector3(run + 0.02f, thick, w), side * 90f, false);
+                if (i == perSide - 1 && k < steps - 1)
+                    Add(parts, KitPiece.Stair, KitMaterial.Stone, Turn(side * 90f, new Vector3(mid, top - thick * 0.5f, mid)),
+                        new Vector3(w, thick, w), side * 90f, false);
+            }
+            // The deck's rail: all round but where the stair comes up (the last face, past its first third).
+            var last = (steps - 1) / perSide;
+            // A landing at the stair's head, level with the deck, so a climber can turn onto the deck (not only off a
+            // single tread's width) and doesn't walk off the end of the flight.
+            var head = -c + ((steps - 1) % perSide + 1) * run;
+            Add(parts, KitPiece.Stair, KitMaterial.Stone, Turn(last * 90f, new Vector3((head + mid + w * 0.5f) * 0.5f, BeaconDeck - 0.21f, mid)),
+                new Vector3(mid + w * 0.5f - head, 0.42f, w), last * 90f, false);
+            for (int s = 0; s < 4; s++)
+            {
+                var from = -c - 0.1f;
+                var to = s == last ? -0.3f : c + 0.1f;
+                Add(parts, KitPiece.Rail, KitMaterial.Wood, Turn(s * 90f, new Vector3((from + to) * 0.5f, BeaconDeck + 0.95f, c + 0.04f)), new Vector3(to - from, 0.1f, 0.1f), s * 90f, false);
+                for (var x = from + 0.05f; x <= to; x += 0.75f)
+                    Add(parts, KitPiece.Rail, KitMaterial.Wood, Turn(s * 90f, new Vector3(x, BeaconDeck + 0.47f, c + 0.04f)), new Vector3(0.1f, 0.95f, 0.1f), s * 90f, false);
+            }
+            // The fire: an iron bowl of glowing coals and split logs on a stone plinth.
+            Add(parts, KitPiece.Column, KitMaterial.Stone, new Vector3(0f, BeaconDeck + 0.25f, 0f), new Vector3(0.7f, 0.5f, 0.7f), 0f, true);
+            Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(0f, BeaconDeck + 0.6f, 0f), new Vector3(1.3f, 0.24f, 1.3f), 45f, false);
+            Add(parts, KitPiece.Window, KitMaterial.Lamp, new Vector3(0f, BeaconDeck + 0.72f, 0f), new Vector3(1.04f, 0.12f, 1.04f), 45f, false);
+            for (int k = 0; k < 4; k++)
+                Add(parts, KitPiece.Trim, KitMaterial.Wood, new Vector3((R() - 0.5f) * 0.4f, BeaconDeck + 0.82f, (R() - 0.5f) * 0.4f), new Vector3(0.1f, 0.1f, 0.7f), k * 45f + R() * 30f, false, (R() - 0.5f) * 24f);
+            // Fuel stacked in a deck corner, away from the stair's head.
+            var corner = Turn((last + 2) * 90f, new Vector3(-c + 0.45f, 0f, c - 0.35f));
+            for (int k = 0; k < 5; k++)
+                Add(parts, KitPiece.Trim, KitMaterial.Wood, corner + new Vector3(0f, BeaconDeck + 0.06f + (k < 3 ? 0f : 0.11f), 0f) + Turn((last + 2) * 90f, new Vector3(((k < 3 ? k : k - 3 + 0.5f) - 1f) * 0.12f, 0f, 0f)),
+                    new Vector3(0.11f, 0.11f, 0.6f), (last + 2) * 90f, false);
+            // A door at the foot (on the face the stair reaches last) and slit windows up the faces.
+            Add(parts, KitPiece.Window, KitMaterial.Opening, Turn(last * 90f, new Vector3(-c * 0.5f, 0.95f, c + 0.01f)), new Vector3(0.8f, 1.9f, 0.06f), last * 90f, false);
+            for (int s = 0; s < 4; s++)
+                for (var y = 2.2f + s * 0.9f + R() * 0.4f; y < BeaconDeck - 1.5f; y += 3.6f)
+                    Add(parts, KitPiece.Window, KitMaterial.Opening, Turn(s * 90f, new Vector3(c * (R() - 0.5f), y, c + 0.01f)), new Vector3(0.2f, 0.8f, 0.06f), s * 90f, false);
+            // A woodpile by the stair's foot: the fuel waiting to be carried up.
+            var pile = Turn(270f, new Vector3(-c + 0.6f, 0f, mid + 0.95f));
+            for (int k = 0; k < 6; k++)
+            {
+                var row = k < 3 ? 0 : k < 5 ? 1 : 2;
+                var x = (k < 3 ? k - 1f : k < 5 ? k - 3.5f : 0f) * 0.16f;
+                Add(parts, KitPiece.Trim, KitMaterial.Wood, pile + Turn(270f, new Vector3(x, 0.08f + row * 0.14f, 0f)), new Vector3(0.15f, 0.15f, 0.8f + R() * 0.15f), 270f, false);
+            }
+        }
+
+        /// <summary>W-127: about where a fixture's light comes from, at scale 1 (m above its foot).</summary>
+        public const float FixtureLightHeight = 1.9f;
+
+        /// <summary>W-127: a fixture style's light (linear rgb, strength folded in) and reach (m).</summary>
+        public static Vector4 FixtureLight(FixtureStyle style)
+        {
+            var lamp = LampLight.linear;
+            switch (style)
+            {
+                case FixtureStyle.Brazier: return new Vector4(1.6f, 0.62f, 0.22f, 12f);
+                case FixtureStyle.Rune: return new Vector4(0.32f, 0.95f, 0.85f, 8f);
+                case FixtureStyle.Sconce: return new Vector4(lamp.r * 1.1f, lamp.g * 1.1f, lamp.b * 1.1f, 7f);
+                case FixtureStyle.Candelabra: return new Vector4(lamp.r * 1.2f, lamp.g * 1.2f, lamp.b * 1.2f, 8f);
+                case FixtureStyle.PierLamp: return new Vector4(lamp.r * 1.3f, lamp.g * 1.17f, lamp.b * 0.91f, 10f);
+                case FixtureStyle.Beacon: return Vector4.zero;   // its fire is lit as a fire (LandmarkEffectSystem), not a lamp
+                default: return new Vector4(lamp.r * 1.3f, lamp.g * 1.3f, lamp.b * 1.3f, 9f);
+            }
+        }
+
         public static List<KitPart> GlowStone(uint seed, CultureTrim t, float height)
         {
             var parts = new List<KitPart>();

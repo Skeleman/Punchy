@@ -288,6 +288,8 @@ namespace Punchy.Flora
             var frame = g.Bark * 0.55f;
             // Each pane's colour a touch different: the shader keys its own lighting-up hour on it.
             b.Box(at, new Vector3(width, height, 0.06f), facing, (light ?? g.Accent) * g.Range(0.96f, 1.04f), FloraPart.Window);
+            var outward = facing * Vector3.forward;   // W-127: where its light spills out at night
+            g.Windows.Add(new Vector4(at.x, at.y, at.z, Mathf.Atan2(outward.z, outward.x)));
             if (g.Lod == 2)
                 return;
             var bar = Mathf.Clamp(width * 0.1f, 0.04f, 0.08f);

@@ -1222,6 +1222,7 @@ namespace Punchy.Terrain
             surfaceGlow.Update(source, palette, flora, camPos);
             var night = Shader.GetGlobalFloat(NightId);
             var windowsOn = night < 0.25f ? 0f : math.smoothstep(0.25f, 0.55f, night);
+            surfaceGlow.DrawSpill(windowsOn * (1f - Underground), camPos);   // W-127: lit windows' pools outside
             // The whole island's static glow (R-2, Glow.hlsl), past the far map and fading into it.
             if (surfaceGlow.WorldReady)
             {
@@ -1238,8 +1239,9 @@ namespace Punchy.Terrain
                 Shader.SetGlobalTexture(GlowMapNightId, surfaceGlow.MapWindows);
                 Shader.SetGlobalVector(GlowMapRectId, new Vector4(surfaceGlow.MapCorner.x, surfaceGlow.MapCorner.y,
                                                                   1f / (SurfaceGlow.MapSize * SurfaceGlow.MapTexel), 0f));
-                // (y, lit windows: off. Their light is indoor (P-21, item 31): see the near tier below.)
-                Shader.SetGlobalVector(GlowMapParamsId, new Vector4((1f - Underground) * FarGlowStrength, 0f, handOff.x * 0.7f, handOff.y));
+                // (y: the night map, street lights only (W-127). Lit windows' light is indoor (P-21, item 31), so
+                // SurfaceGlow leaves them out of it: see the near tier below.)
+                Shader.SetGlobalVector(GlowMapParamsId, new Vector4((1f - Underground) * FarGlowStrength, windowsOn * (1f - Underground), handOff.x * 0.7f, handOff.y));
             }
             if ((GlowTiers & 1) == 0)
                 return;
@@ -1247,6 +1249,17 @@ namespace Punchy.Terrain
             foreach (var (position, light) in surfaceGlow.Found)
             {
                 var l = light;
+                if (Punchy.Flora.FloraPlacement.IsFixtureGlow(l.w))
+                {
+                    // W-127: a street light (lantern, brazier, pier lamp), lit after dark like a window, but outdoors.
+                    // Past the hand-off the night map lights it in full, so it asks for no slot there.
+                    if (night < 0.25f || Vector3.Distance(position, camPos) > handOff.y)
+                        continue;
+                    l = new Vector4(l.x, l.y, l.z, 0f) * windowsOn;
+                    l.w = Punchy.Flora.FloraPlacement.GlowReach(light.w);
+                    Punchy.Settings.LightBudget.AddStill(Punchy.Settings.LightKind.Fixture, position, l);
+                    continue;
+                }
                 if (l.w < 0f)
                 {
                     // Lit windows (only after dark) are the light inside a house: an indoor fixture (P-21, playtest 11-08

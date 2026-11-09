@@ -82,6 +82,9 @@ namespace Punchy.Flora
                 case Punchy.Terrain.KitShape.VentField: // W-120 (#37): Height is the field's spread
                     parts = Punchy.Terrain.StructureKit.VentField(seed, trim, width);
                     break;
+                case Punchy.Terrain.KitShape.Fixture:   // W-127: a street light, its look from the species' Fixture Style
+                    parts = Punchy.Terrain.StructureKit.Fixture(seed, trim, s.FixtureStyle);
+                    break;
                 case Punchy.Terrain.KitShape.ShellBuoy: // W-121 (#37): Height is the float's width; it rides the lake surface (Floats)
                     parts = Punchy.Terrain.StructureKit.ShellBuoy(seed, trim, width);
                     break;
@@ -138,6 +141,7 @@ namespace Punchy.Flora
                             (p.Piece == Punchy.Terrain.KitPiece.Window && p.Material != Punchy.Terrain.KitMaterial.Opening);
                 if (small && g.Lod >= 2)
                     continue;
+                var lit = house && !ruined && p.Piece == Punchy.Terrain.KitPiece.Window && p.Material == Punchy.Terrain.KitMaterial.Opening;
                 var c = Punchy.Terrain.StructureKit.Colour(trim, p.Material);
                 var jitter = ((i * 2654435761u) >> 24) / 255f;                 // a little per-stone variety, the same at every LOD
                 c = Color.Lerp(c * 0.94f, c * 1.08f, jitter);
@@ -157,6 +161,16 @@ namespace Punchy.Flora
                     RuinBricks(b, p, c, seed ^ (uint)i * 0x9E3779B9u);   // W-94 (#80): old coursed blocks up close
                 else if (g.Lod == 0 && p.Piece == Punchy.Terrain.KitPiece.Roof && (look == Punchy.Terrain.KitSurface.Shingles || look == Punchy.Terrain.KitSurface.Thatch))
                     RoofCourses(b, p, c, look == Punchy.Terrain.KitSurface.Thatch, seed ^ (uint)i * 0x85EBCA77u);
+                else if (lit)
+                {
+                    // W-127: a lived-in house's window glass is a lit pane (dark glass by day, lamplight at night, each
+                    // pane its own hour: the colour keys it), and its light spills out onto the street (WindowSpill).
+                    b.Box(p.Centre, p.Size, p.Rotation, Punchy.Terrain.StructureKit.Colour(trim, Punchy.Terrain.KitMaterial.Lamp) * Mathf.Lerp(0.9f, 1.05f, jitter), FloraPart.Window);
+                    var outward = p.Rotation * Vector3.forward;
+                    if (outward.x * p.Centre.x + outward.z * p.Centre.z < 0f)
+                        outward = -outward;
+                    g.Windows.Add(new Vector4(p.Centre.x, p.Centre.y, p.Centre.z, Mathf.Atan2(outward.z, outward.x)));
+                }
                 else if (g.Lod < 2 && Contacts(parts, i, contacts))
                     b.BandedBox(p.Centre, p.Size, p.Rotation, c, FloraPart.Bark, contacts, Mathf.Min(0.5f, p.Size.y * 0.3f), 0.7f);
                 else
