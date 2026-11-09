@@ -1210,6 +1210,7 @@ namespace Punchy.Terrain
         void GatherSurfaceGlow(in TerrainSource source, float3 camPos)
         {
             Shader.SetGlobalVector(GlowMapParamsId, Vector4.zero);
+            Shader.SetGlobalVector(GlowWorldParamsId, Vector4.zero);
             if (paletteQuery.IsEmpty || Underground > 0.9f)
                 return;
             var palette = queryWorld.EntityManager.GetComponentObject<BiomePalette>(paletteQuery.GetSingletonEntity());
@@ -1221,6 +1222,13 @@ namespace Punchy.Terrain
             surfaceGlow.Update(source, palette, flora, camPos);
             var night = Shader.GetGlobalFloat(NightId);
             var windowsOn = night < 0.25f ? 0f : math.smoothstep(0.25f, 0.55f, night);
+            // The whole island's static glow (R-2, Glow.hlsl), past the far map and fading into it.
+            if (surfaceGlow.WorldReady)
+            {
+                Shader.SetGlobalTexture(GlowWorldId, surfaceGlow.WorldMap);
+                Shader.SetGlobalVector(GlowWorldRectId, new Vector4(surfaceGlow.WorldCorner.x, surfaceGlow.WorldCorner.y, 1f / surfaceGlow.WorldExtent, 0f));
+                Shader.SetGlobalVector(GlowWorldParamsId, new Vector4((1f - Underground) * WorldGlowStrength, night, WorldGlowFadeFrom, WorldGlowFadeTo));
+            }
             // The far tier (Glow.hlsl): every glowing plant and lit window within about 300 m, baked into a light map,
             // fading in where LightBudget hands a typical glow from its slots to the far tier (refactor 3.1).
             var handOff = Punchy.Settings.LightBudget.GlowHandOff(Punchy.Settings.LightKind.AmbientGlow, TypicalGlowReach);
@@ -1261,6 +1269,13 @@ namespace Punchy.Terrain
         static readonly int GlowMapNightId = Shader.PropertyToID("_PunchyGlowMapNight");
         static readonly int GlowMapRectId = Shader.PropertyToID("_PunchyGlowMapRect");
         static readonly int GlowMapParamsId = Shader.PropertyToID("_PunchyGlowMapParams");
+        static readonly int GlowWorldId = Shader.PropertyToID("_PunchyGlowWorld");
+        static readonly int GlowWorldRectId = Shader.PropertyToID("_PunchyGlowWorldRect");
+        static readonly int GlowWorldParamsId = Shader.PropertyToID("_PunchyGlowWorldParams");
+        /// <summary>The world glow's brightness, and the camera distance (m) its plants and lava fade in over: where the
+        /// 640 m far map fades out towards its edge.</summary>
+        public static float WorldGlowStrength = 1f;
+        const float WorldGlowFadeFrom = 240f, WorldGlowFadeTo = 320f;
         /// <summary>A typical surface glow's reach (m), for where the far map takes over (LightBudget.GlowHandOff): the
         /// far map fades in from 70% of where the near lights start fading to where they're gone, so the hand-over adds
         /// up to about the same light.</summary>

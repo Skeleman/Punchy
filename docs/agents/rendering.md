@@ -46,6 +46,8 @@ Read before changing any shader, material or render setting.
   source that owns a Unity light and reads `RealLevel` back) with its `LightKind`; never pick a range or the nearest N
   yourself. `-lightlog` logs requests, tiers, slots, real lights and drops per kind every 5 s; `-lightbudget N` sets
   the real-light cap (default 4/6/8 by Detail).
+- Terrain reads a whole-island glow map past the nearer glow tiers (`SurfaceGlow.World`, `PunchyGlowWorld`): fire in red, tinted
+  by the night's colour, plants and lava in gba. New static lights join through `AddWorldSource`. `-worldglow 0` turns it off to compare.
 - Rain puddles (TerrainSurface.shader) need level ground (vertex normal y > ~0.975) and a true hollow: the mesh's
   hollow depth (BuildChunkMeshJob, Strata.z) is capped by twice the lowest rise round the point, so slopes and
   downhill gullies get none. `TerrainSurface.Porosity` (vertex TEXCOORD4.x) makes sand soak rain up: it darkens,

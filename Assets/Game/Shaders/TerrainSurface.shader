@@ -430,7 +430,7 @@ Shader "Punchy/Terrain Surface"
                 inputData.fogCoord = InitializeInputDataFog(float4(input.positionWS, 1.0), input.fogFactor);
                 inputData.bakedGI = SampleSH(inputData.normalWS);
                 // Glowing plants and molten pools nearby light the ground round them.
-                inputData.bakedGI += PunchyGlowLight(input.positionWS, inputData.normalWS);
+                inputData.bakedGI += PunchyGlowLight(input.positionWS, inputData.normalWS) + PunchyGlowWorld(input.positionWS, inputData.normalWS);
                 inputData.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(input.positionCS);
                 inputData.shadowMask = half4(1, 1, 1, 1);
 

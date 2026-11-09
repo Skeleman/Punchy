@@ -24,19 +24,14 @@ namespace Punchy.Terrain
         public Material GrassMaterial;
         public Material PebbleMaterial;
         public float TileSize = 16f;
-        public float GrassRadius = 60f;
-        public float PebbleRadius = 45f;
         [Tooltip("Blades per square metre on full-density grass, up close.")]
         public float GrassPerSquareMetre = 28f;
         [Tooltip("Multiplies grass density (for comparing densities; -grassdensity <x> on the command line overrides it).")]
         [Min(0.1f)] public float GrassDensityScale = 1f;
-        [Tooltip("Within this distance every blade is kept; beyond it grass thins (fewer, wider blades) to the radius.")]
-        [Min(1f)] public float FullDensityRadius = 20f;
-
-        // At the graphics settings' Detail distance (GraphicsSettings: the fields above are the ranges at Detail 1).
-        float GrassRange => Punchy.Settings.GraphicsSettings.DetailRange(GrassRadius);
-        float PebbleRange => Punchy.Settings.GraphicsSettings.DetailRange(PebbleRadius);
-        float FullDensityRange => Punchy.Settings.GraphicsSettings.DetailRange(FullDensityRadius);
+        // By on-screen size (R-2, DetailPolicy): the same ranges as before at the default view, x Detail.
+        float GrassRange => Punchy.Settings.DetailPolicy.GroundReach(Punchy.Settings.DetailPolicy.GrassSize, Punchy.Settings.DetailPolicy.GrassEndPixels);
+        float PebbleRange => Punchy.Settings.DetailPolicy.GroundReach(Punchy.Settings.DetailPolicy.PebbleSize, Punchy.Settings.DetailPolicy.PebbleEndPixels);
+        float FullDensityRange => Punchy.Settings.DetailPolicy.GroundReach(Punchy.Settings.DetailPolicy.GrassSize, Punchy.Settings.DetailPolicy.GrassFullPixels);
         [Tooltip("How much the ground under grass takes the blades' colour near the camera, so gaps between blades don't read as bare soil.")]
         [Range(0f, 1f)] public float GroundTint = 1f;
         [Tooltip("Stones per square metre on full-density pebbly ground.")]
@@ -156,6 +151,7 @@ namespace Punchy.Terrain
                 hasSource = true;
             }
 
+            Punchy.Settings.DetailPolicy.SetView(cam);
             Shader.SetGlobalFloat(FullId, FullDensityRange);
             Shader.SetGlobalFloat(ClumpId, ClumpBlades);
             Shader.SetGlobalVector(GrassTintId, new Vector4(GroundTint, GrassRange, 0f, 0f));

@@ -16,7 +16,7 @@ namespace Punchy.Terrain
     /// (in a Burst job, picked up a frame later, redone each time the camera moves a few metres). Seed-derived, so
     /// every machine finds the same lights.
     /// </summary>
-    public class SurfaceGlow
+    public partial class SurfaceGlow
     {
         /// <summary>How far round the camera each layer is searched (ground, shrubs, trees), in metres.</summary>
         static readonly float3 Radius = new float3(30f, 32f, 50f);
@@ -68,6 +68,7 @@ namespace Punchy.Terrain
                 Build(palette, flora);
                 from = palette;
             }
+            UpdateWorld(source);
             if (!anyGlow)
                 return;
             if (running && job.IsCompleted)
@@ -156,6 +157,7 @@ namespace Punchy.Terrain
                 for (int v = 0; v < f.Rules[s].Variants; v++)
                     modelGlow[f.Rules[s].FirstModel + v] = g;
             }
+            BuildWorldMask(palette, species, ref f);
             positions = new NativeList<float4>(256, Allocator.Persistent);
             colors = new NativeList<float4>(256, Allocator.Persistent);
             scannedAt = new float3(float.MaxValue);
@@ -188,6 +190,7 @@ namespace Punchy.Terrain
                 farJob.Complete();
                 farRunning = false;
             }
+            ReleaseWorld();
             if (farPlants.IsCreated)
                 farPlants.Dispose();
             if (farWindows.IsCreated)
