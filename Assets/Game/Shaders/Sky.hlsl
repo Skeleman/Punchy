@@ -31,7 +31,7 @@ float4 _PunchyUnderwaterSurface; // under water, x the surface over the lens (m)
 
 float3 _PunchySunDirection;    // towards the sun
 float3 _PunchyMoonDirection;   // towards the moon
-float _PunchySkyOff;           // test only (-skyoff n, to price the sky's parts): 1 no cloud march, 2 no far clouds, 4 no sky colour, 8 no weather volumes, 16 old even steps, 32 steps-per-pixel overlay, 64 always four sun samples, 128 cloud edges before R-4
+float _PunchySkyOff;           // test only (-skyoff n, to price the sky's parts): 1 no cloud march, 2 no far clouds, 4 no sky colour, 8 no weather volumes, 16 old even steps, 32 steps-per-pixel overlay, 64 always four sun samples, 128 cloud edges before R-4, 256 cloud light before R-4
 float4 _PunchyMoonPhase;       // phase (0 new, 0.5 full), lit share
 float3 _PunchyBlueMoon;        // towards the second, blue moon
 static const float PunchyBlueMoonRadius = 0.22;    // radians (about 25 degrees across): 6.5x its v0.11.0 size, a sister planet (Zach, #34)
@@ -420,6 +420,7 @@ void PunchyCloudMarch(float3 dir, float2 screenPos, float framePhase, out half3 
     bool strode = false, farStrode = false;   // the last step was a thin (in the layer) or an empty-air stride
     bool stride = ((uint)_PunchySkyOff & 16u) == 0;
     bool allSunSamples = ((uint)_PunchySkyOff & 64u) != 0;
+    bool oldLight = ((uint)_PunchySkyOff & 256u) != 0;
     int stepsTaken = 0;
     [loop]
     for (int i = 0; i < maxSteps && t < t1; i++)
@@ -502,11 +503,31 @@ void PunchyCloudMarch(float3 dir, float2 screenPos, float framePhase, out half3 
             half3 light = lightColor;
             [branch] if (glow > 0)
                 light = lerp(light, PunchyTwilightCloudLight(sunElevation, p.y) * 0.9 * (1 - 0.4 * weather.g), glow);
-            half3 direct = light * beer * phase * (0.55 + 0.45 * powder) * 3.2 + lining * beer * (1 - powder);
-
             float height = saturate((p.y - shape.x) / max(shape.y, 1));
+            half3 direct;
             half3 ambient = lerp(_PunchySkyHorizon * 0.32, _PunchySkyZenith * 0.75 + _PunchySkyHorizon * 0.25, height)
                           * (1 - 0.6 * weather.g);
+            [branch] if (oldLight)
+            {
+                // (Test only, -skyoff 256: the light before R-4.)
+                direct = light * beer * phase * (0.55 + 0.45 * powder) * 3.2 + lining * beer * (1 - powder);
+            }
+            else
+            {
+                // Softer light through the body (R-4): light scattered many times inside a cloud gets deeper than a single
+                // Beer falloff allows, so a weaker, slower falloff is kept as a floor and bodies glow instead of going flat
+                // grey. Powder: thin edges facing the sun, seen from the sun's side, hold too little cloud to have scattered
+                // light back yet and stay darker; looking towards the sun that fades and a silver lining takes over, light
+                // pushed forward through the thin edges.
+                float soft = max(beer, exp(-opticalDepth * PUNCHY_CLOUD_SIGMA * 0.25) * 0.55);
+                float towardSun = saturate(cosTheta);
+                float powderNew = lerp(1 - exp(-density * 9), 1, towardSun * towardSun);
+                half3 silver = light * pow(towardSun, 8) * (1 - powder) * soft * 2.5;
+                direct = light * soft * phase * (0.35 + 0.65 * powderNew) * 3.4 + (lining + silver) * soft * (1 - powder);
+                // Darker bases: the underside sees little of the bright sky above and the sun's light has crossed the
+                // whole body to reach it.
+                ambient *= lerp(0.6, 1.1, height);
+            }
             ambient = lerp(ambient, dot(ambient, half3(0.3, 0.5, 0.2)) * half3(0.85, 0.75, 1.1), twilight * 0.6);
             half3 flash = half3(0.75, 0.82, 1.0) * _PunchyLightningPos.w * 2.5
                         * exp(-distance(p, _PunchyLightningPos.xyz) / 1200);
