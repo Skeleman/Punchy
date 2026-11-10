@@ -153,6 +153,7 @@ namespace Punchy.Audio
             }
             Echo();
             Water();
+            Hum();
             // Every playing voice follows the group levels as they change (master is on the listener) and the water.
             foreach (var voice in voices)
                 if (voice.Source.isPlaying)
