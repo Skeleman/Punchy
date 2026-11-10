@@ -3155,3 +3155,12 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - Measured on main's curve: songbird size 0.066 beat 0.82 s | fox 0.401, 2.03 s | deer 2.920, 5.47 s | horse 3.000, 6.40 s | colossus 3.000, 6.40 s (capped, same as horse); carry walk 0.85, fly 0.08; tiny body 0.08 shows False.
 - Flier carry was lifted into `CreatureBreathSystem.Carry(fly)` with the same numbers so the test can read it. Behaviour is unchanged.
 - Run: 1 passed, 0 failed, 0 skipped in 104s (Unity exit 0). Next: row 2 (flier shot).
+
+### Row 2 - flier shot - done (verified, fixed a trail)
+- Commit b4053ec6 on fauna/breath-check (pushed).
+- Shot list: Tundra, snowing, `-spawn Songbird:14 -spawn Condor:3`, 4 songbird frames and 4 condor frames, before and after. Before: D:/Unity/PunchyMilestones/A-94/row2/ (contact-sheet.jpg). After: D:/Unity/PunchyMilestones/A-94/row2-after/ (contact-sheet.jpg).
+- Before: songbirds' breath was too small to see at shot range (fine), but a flying condor left a dotted line of puffs along its flight (frame songbird-2 crop). Cause: a flier's wisps came out over the whole exhale (0.72 s for a condor-sized body) while it moved, and carry 0.08 kept each one where it was breathed.
+- Fix: `CreatureBreathSystem.ExhaleFor(exhale, fly)`. A flier's exhale shrinks to 0.06 s with the same wisps per exhale, so it breathes one faint dot. Walkers are unchanged (fly 0 gives the same exhale). `BreathCurveTests.Breath_SmallLessBigMore` now also checks that a flier's exhale is <= 0.1 s and a walker's is unchanged.
+- After: no trail in any frame. Condor-2 shows one faint pair of dots in the sky behind it. Landed condors and songbirds show nothing larger than before.
+- BreathCount (-breathlog, puffs alive across the scene every 5 s): before 100 / 67 / 83, after 127 / 58 / 45. Same order, no rise.
+- Next: row 3 (colossus breath).
