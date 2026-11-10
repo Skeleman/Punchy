@@ -221,6 +221,13 @@ namespace Punchy.Debugging
             Punchy.Player.PlayerMovementSystem.NoPushOut.Data = System.Array.IndexOf(args, "-nopushout") >= 0;
             // "-oldlie" (A-42): lying four-legged bodies' legs left where they fall, for before shots from the same build.
             CreatureAnimator.OldLie.Data = System.Array.IndexOf(args, "-oldlie") >= 0 ? 1 : 0;
+            // Creature surface detail (A-92, #230), on by default; each costs well under 0.3 ms on a 30-horse herd.
+            // "-noseams": limb segments not blended into the one they hang from at the joint.
+            CreatureAnimator.NoSeams.Data = System.Array.IndexOf(args, "-noseams") >= 0 ? 1 : 0;
+            // "-nofur": no fur strands or coat patches in the creature shader.
+            Shader.SetGlobalFloat("_PunchyNoFur", System.Array.IndexOf(args, "-nofur") >= 0 ? 1f : 0f);
+            // "-noshells": near bodies without their two fur shells.
+            CreatureRenderSystem.Shells = System.Array.IndexOf(args, "-noshells") < 0;
             // "-solidsoff" (A-44): wild animals ignore cave walls, towers and carved ground as before, for before numbers
             // from the same build. "-solidstats": log their contacts, sink and floating every 60 s (SolidStatsLog).
             CreatureMotion.SolidsOff.Data = System.Array.IndexOf(args, "-solidsoff") >= 0 ? 1 : 0;

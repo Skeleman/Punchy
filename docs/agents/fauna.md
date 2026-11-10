@@ -47,6 +47,10 @@ Read before changing creatures, behaviour, poses, the player's body, settlements
 
 ## Gotchas
 
+- **Lying down** (A-92, #231): a four-legged body's legs fold ahead of it coming down (fold `1-(1-Lie)^2`), and the
+  hip swing that lifts them clear (A-42) runs from Lie 0.01 at full weight, refined to the least clearing angle; foot
+  IK and sink fade with the fold. The player's body and AI hold still until Lie/Sit is under 0.25 (stand first).
+  `LyingTests` measures every species' leg clearance at Lie 0.3-1, flat and on a 1-in-3 slope.
 - Two-legged species set **Upright** so the body stays level on slopes (the legs take up the ground); others tilt
   with it. No body tilts to follow the ground while airborne.
 - Species have a **Habitat**: Land, Swims (fish, eels, dolphins) or Floats (ducks).
