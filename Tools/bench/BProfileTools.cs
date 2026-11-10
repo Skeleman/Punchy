@@ -120,6 +120,8 @@ public static class BProfileTools
                 }
                 used++;
                 foreach (var a in acc.Values) { a.ci = 0; a.cs = 0; }
+                string overLine = null;
+                var overWorkers = new Dictionary<string, double>();
                 for (int t = 0; ; t++)
                 {
                     using var v = ProfilerDriver.GetRawFrameDataView(f, t);
@@ -142,7 +144,14 @@ public static class BProfileTools
                         if (c > 0) stack.Push((i, c));
                     }
                     if (t == 0 && overMs > 0 && main_ms(f) > overMs)
-                        sb.AppendLine(OverLine(v, selfMs, f, first, main_ms(f), t0));
+                        overLine = OverLine(v, selfMs, f, first, main_ms(f), t0);
+                    if (overLine != null && group == "Workers")
+                        for (int i = 0; i < v.sampleCount; i++)
+                        {
+                            var n = v.GetSampleName(i);
+                            if (n == "Idle" || n == "Semaphore.WaitForSignal") continue;
+                            overWorkers[n] = (overWorkers.TryGetValue(n, out var w) ? w : 0) + selfMs[i];
+                        }
                     for (int i = 0; i < v.sampleCount; i++)
                     {
                         string key = group + "|" + v.GetSampleName(i);
@@ -153,6 +162,8 @@ public static class BProfileTools
                         a.calls++;
                     }
                 }
+                if (overLine != null)
+                    sb.AppendLine(overLine + " | workers self (all threads): " + string.Join("; ", overWorkers.OrderByDescending(k => k.Value).Take(6).Select(k => $"{k.Value:F1} {k.Key}")));
                 foreach (var a in acc.Values) { a.incl.Add(a.ci); a.self.Add(a.cs); a.maxFrame = Math.Max(a.maxFrame, a.ci); if (spike) { a.spikeSelf += a.cs; a.spikeIncl += a.ci; } else { a.normalSelf += a.cs; a.normalIncl += a.ci; } }
             }
             sb.AppendLine($"SPIKES (frames > 33.3 ms): {spikes} of {spikes + normals}. key, spike-frame self ms, normal-frame self ms, delta, spike incl, normal incl");
