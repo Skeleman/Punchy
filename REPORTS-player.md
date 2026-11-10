@@ -571,3 +571,29 @@ Next: nothing open. P-25 row 3 still needs the answer on the house kit.
 - Branches to merge, in order: player/integrate (row 0) <- player/weapons <- player/armour <- player/clothing (each on
   the one before). Builds still need main's DungeonWalk guard.
 - Next: P-29 (hairstyles) after P-28 merges per its card; P-30 may run first if P-28 waits on review.
+
+## P-30 (11-10): DONE as a prototype, `player/seamless` at 0c5e6b89 (from player/integrate, not main: it needs P-25's doors)
+Branched from player/integrate rather than origin/main as the card said: the prototype changes P-25's door and interior
+code, which isn't on main yet. Merge after player/integrate.
+- Behind `-seamless` (read once from the command line; off by default, teleport unchanged): the storm house
+  (StormShelterHouse, KitShape.StormHouse; 12 on v3) is walked into. World-lane files touched, behind the flag only:
+  StructureKit (the flag, WalkIn), FloraGenerator.Kit/FloraGenerator (door leaf hinged and its box kept apart in
+  DoorBoxes; no centre cylinder, no wall circles, no trunk circle for that type; plinth floor and step solid, step raised
+  0.16 -> 0.25 m), FloraSystem (door leaf box added only while FloraDoors says the door is shut), FloraDoors (IsOpen).
+  No shader edits, anchors and placement untouched; Landmarks_V3 and Fauna_Fingerprint pass (suite runs without the flag).
+- Interiors: that type's doors have no room (so Use opens/shuts them, no teleport); a per-house lookup (walk-in houses in
+  32 m cells: which house a point is in, then that house only) gives "inside, and how far past the door"; the ambient
+  follows that depth (sky's at the sill, the room's 1.5 m in) and IndoorArm gives the camera 2.6 m inside.
+- Measured (door 9, v3, noon, `-atdoor 9 -usedoor 9 -walkin 9`): door shut, the walk stops at the leaf; open, the player
+  climbs the step and the 0.51 m floor, reaches 2.8 m past the door marker (house 0, depth 0.98), is held by the side wall
+  when pushed at it (stops at 2.47 m across, still inside), and walks back out ("out of the walk-in house", back on the
+  ground). Light 0.02 -> 1.00 -> 0.74 -> out; ambient equator 0.53 (sky) -> 0.17 (room). Frame time at the same door,
+  standing, last 25 s: 3.75-3.89 ms plain, 3.77-4.35 ms with -seamless (noise; the first seamless lines include loading).
+- Shots (D:/Unity/shots-P30): outside (door open, dark room behind it), in the doorway (on the step, leaf swung in),
+  inside (floor, walls, roof's underside, the open leaf, dim warm light). `[shot]` lines ready after 0.3 s each.
+- Suite: 25 passed, 0 failed, 17 skipped in 335s (Unity exit 0).
+- Findings for the next step: (1) the door anchor isn't on the doorway's line for this kit house: the real doorway (a
+  bay to one side) is 1.66 m from the anchor, so the "F open door" prompt and folk door use aim 1.5 m off; the test walks
+  to the door's step first. (2) Without circles, creatures path through this type's walls (not checked, but nothing
+  stops them). (3) No furniture: the room is the kit shell. (4) Not run as a joined client (door state is host-owned and
+  FloraDoors is set on every machine, so the leaf box should follow).
