@@ -387,8 +387,24 @@ namespace Punchy.Items
             return Entity.Null;
         }
 
+        /// <summary>What the inventory weighs now (kg).</summary>
+        float CarriedWeight()
+        {
+            var total = 0f;
+            foreach (var slot in slots)
+                if (slot.item != 255)
+                    total += ItemTable.Items[slot.item].Weight * slot.count;
+            return total;
+        }
+
         void Pickup(int uid)
         {
+            // (P-27: only stops anything when stats.json sets enforceCarry.)
+            if (world.TryGetValue(uid, out var lying) && !Punchy.Player.PlayerStats.CanCarry(CarriedWeight() + ItemTable.Items[lying.Item].Weight * lying.Count))
+            {
+                Debug.Log($"Items: too heavy to pick up item {uid}");
+                return;
+            }
             if (Joined)
             {
                 SendToHost(new PickupRpc { Uid = uid });
