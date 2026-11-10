@@ -374,3 +374,15 @@ Today: using an open door teleports the player to one room per house type, built
 
 **Needed from the world lane:** a wall-with-opening in the house builders and kit, one type first; no inner cylinder on enterable types.
 **Order after the prototype:** the per-house lookup, then one type per culture, then retire the teleport.
+
+## P-27: player stats (rows 1 and 2 DONE together, df1bb275 on player/stats, from main; not on top of P-25)
+Taken before P-26 because A-93 row 1 isn't merged. Row 2 was small enough to verify with row 1 in one build.
+Row 1: StreamingAssets/stats.json (hand-edited, read again a second after it changes) holds the five stats, values for human, small, medium and big bodies, and derived values: carry limit, run bonus, talk bonus. PlayerStats has Value, Derived, Grant(stat, amount, reason) and CanCarry.
+Row 2: a Stats tab in the menu (values, descriptions, derived numbers). F2 grants a point to each stat in turn.
+Measured in builds, from the log: human strength 10, carry 70 kg; +2 earned gives 12 and 76 kg; after a restart as a rabbit: 5 (3 + 2), carry 55 kg; after a restart as a horse: 20 (18 + 2, held at the range's top), carry 100 kg; back as a human and -2: 10 and 70 kg. Editing the file while running took carry to 71 kg with no restart. The test's earned points were taken back afterwards.
+No change to play by default: nothing reads a stat except the carry limit, and enforceCarry is false. Run and talk bonuses are numbers only: the run bonus isn't wired to movement, and the talk bonus waits for A-93.
+No save file exists, so earned points are kept per machine with the settings (the card's "saved with the game"). They should move into their own section when a save file is built. Not sent to the host: the game doesn't sync player stats.
+No stamina exists, so no hook for it.
+UNVERIFIED: the Stats tab itself and the F2 key were not exercised (the shot tool draws only the 3D view; -statgrant goes through the same Grant), and enforceCarry true was not run.
+Suite: 15 passed, 0 failed, 7 skipped in 228 s.
+Next: P-26 once A-93 row 1 is merged. P-25 row 3's prototype waits for the supervisor's answer on the house kit. P-23 and P-24 are still drafts.
