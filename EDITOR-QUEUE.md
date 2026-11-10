@@ -2,6 +2,5 @@
 
 Oldest first. Add yourself at the bottom; only the first line may open an editor (and only with >= 6 GB free RAM). Delete your line once your editor is open.
 
-- player lane P-22: editor in Punchy-player
 - rendering R-6 row 6 since 22:22
 - animal A-90 since 22:25
