@@ -134,6 +134,16 @@ namespace Punchy.Flora
             // Tiles being placed by jobs in the background (one batch at a time).
             public JobHandle Placing;
             public NativeArray<int2> PlacingTiles;
+            /// <summary>R-6 row 4: where the eye was when the batch was started (its far tiles are trimmed by it).</summary>
+            public float2 PlacingEye;
+            /// <summary>
+            /// R-6 row 4: how far the layer streams: its Radius, or on to where its biggest always-drawn variant is still
+            /// DetailPolicy.FloraEdgePixels across, never past the terrain edge. Tiles past Radius ("far tiles") keep just
+            /// the plants big enough to be drawn from where they were placed (FarTiles: that distance; FarPpm: the
+            /// pixels per metre they were trimmed at), and are placed again whole once the eye comes much closer.
+            /// </summary>
+            public float FarRadius, FarPpm;
+            public readonly Dictionary<int2, float> FarTiles = new Dictionary<int2, float>();
             public NativeArray<FloraInstance> PlacingOutput;
             public int PlacingFrames;
 
@@ -598,9 +608,15 @@ namespace Punchy.Flora
             var size = model.Radius * 2f;
             return new float4(math.max(size / rule.Geometry.Near, floor.x),
                 layer.Settings.Lod2Distance >= layer.Settings.Radius ? Never : math.max(size / rule.Geometry.Mid, floor.y),
-                rule.Geometry.Far > 0f ? size / rule.Geometry.Far : Never,
+                rule.Geometry.Far > 0f ? size / rule.Geometry.Far
+                    // R-6 row 4: always drawn: to the layer's radius at least, and past it while big enough on screen
+                    // (negative, see FloraCull.compute). Not the ground layer: its grass would reach out past its radius.
+                    : layer.Index > 0 ? -size / Punchy.Settings.DetailPolicy.FloraEdgePixels : Never,
                 size / rule.Shadow);
         }
+
+        /// <summary>R-6 row 4: always-drawn variants reach past their layer's radius by size (false: cut at the radius, as before).</summary>
+        public static bool FarReach = System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-nofarflora") < 0;
 
         /// <summary>
         /// 3.7 step 3: a model's shadow tier data at scale 1. x how far it keeps a real-time shadow, per reference
@@ -625,6 +641,16 @@ namespace Punchy.Flora
 
         float2 TileCentre(Layer l, int2 c) => ((float2)c + 0.5f) * l.Settings.TileSize;
 
+        /// <summary>A tile's nearest ground distance from a point (0 inside it).</summary>
+        static float TileNearest(Layer l, int2 c, float2 eye)
+        {
+            var min = (float2)c * l.Settings.TileSize;
+            return math.distance(math.clamp(eye, min, min + l.Settings.TileSize), eye);
+        }
+
+        /// <summary>R-6 row 4: a far tile is trimmed for this share of its distance, and placed again inside it.</summary>
+        const float FarRetrim = 0.8f;
+
         /// <summary>Orders tiles nearest the eye first (as TileCentre). One reused comparer: a capturing lambda allocated every frame (W-117 GC).</summary>
         sealed class TileOrder : IComparer<int2>
         {
@@ -648,7 +674,35 @@ namespace Punchy.Flora
                 l.Radius = math.max(l.Settings.Radius * scale, SupportRange + l.Settings.TileSize * 1.5f);
                 l.Lod1Distance = l.Settings.Lod1Distance * scale;
                 l.Lod2Distance = l.Settings.Lod2Distance * scale;
+                l.FarRadius = l.Radius;
+                // R-6 row 4: on to the biggest always-drawn variant's size reach (at its largest scale, by last frame's
+                // view), within the terrain edge as TerrainStreamingSystem streams it.
+                var ppm = FarPpmNow();
+                if (ppm <= 0f || l.Reach == null || l.ModelMaxScale == null)
+                    continue;
+                var far = 0f;
+                for (int m = 0; m < l.ModelCount; m++)
+                    if (l.Reach[m].z < 0f)
+                        far = math.max(far, -l.Reach[m].z * math.max(l.ModelMaxScale[m], 1.15f));
+                l.FarRadius = math.max(l.Radius, math.min(far * ppm, TerrainEdge()));
             }
+        }
+
+        /// <summary>R-6 row 4: the reference pixels per metre far plants are trimmed by (0: no far plants).</summary>
+        static float FarPpmNow()
+        {
+            if (OldLod || !FarReach)
+                return 0f;
+            var view = Punchy.Settings.DetailPolicy.Current.Data;
+            return view.PixelsPerMetre * math.max(view.Detail, 0.1f);
+        }
+
+        /// <summary>R-6 row 4: how far the terrain streams (as WeatherSystem's haze), past which nothing is drawn.</summary>
+        float TerrainEdge()
+        {
+            if (queryWorld == null || !queryWorld.IsCreated || !configQuery.TryGetSingleton<TerrainConfig>(out var config))
+                return 1500f * Punchy.Settings.GraphicsSettings.View;
+            return math.max(2, math.round(config.ViewRadiusChunks * Punchy.Settings.GraphicsSettings.View)) * config.ChunkSize;
         }
 
         /// <summary>Set when a flora keep-out circle changes (a colossus placed): every streamed tile is dropped once and re-placed.</summary>
@@ -665,14 +719,27 @@ namespace Punchy.Flora
             foreach (var l in layers)
             {
                 scratch.Clear();
-                var keep = l.Radius + l.Settings.TileSize * 1.5f;
+                var keep = l.FarRadius + l.Settings.TileSize * 1.5f;
+                // R-6 row 4: far tiles go when the view's pixels per metre moved (they were trimmed by it), and each
+                // when the eye comes inside the radius or well inside where it was trimmed, to be placed again.
+                var ppm = FarPpmNow();
+                var refar = l.FarTiles.Count > 0 && (ppm > l.FarPpm * 1.1f || ppm < l.FarPpm * 0.8f);
                 foreach (var kv in l.Tiles)
-                    if (all || math.distance(TileCentre(l, kv.Key), camXZ) > keep)
+                {
+                    var gone = all || math.distance(TileCentre(l, kv.Key), camXZ) > keep;
+                    if (!gone && l.FarTiles.TryGetValue(kv.Key, out var from))
+                    {
+                        var d = TileNearest(l, kv.Key, camXZ);
+                        gone = refar || d < l.Radius || d < from * FarRetrim;
+                    }
+                    if (gone)
                         scratch.Add(kv.Key);
+                }
                 foreach (var key in scratch)
                 {
                     l.Tiles[key].Dispose();
                     l.Tiles.Remove(key);
+                    l.FarTiles.Remove(key);
                     // (A plain loop, not RemoveAll with a lambda: capturing l and key cost a closure per layer every frame.)
                     for (int b = basins.Count - 1; b >= 0; b--)
                         if (basins[b].Layer == l.Index && basins[b].Tile.Equals(key))
@@ -689,31 +756,37 @@ namespace Punchy.Flora
             // nearest missing tiles, within a shared per-frame budget (near layers first).
             // W-75: larger batches while the world first loads (no frame to protect before the player spawns).
             var budget = Punchy.Terrain.TerrainStreamingSystem.Loading ? CellsPerFrame * 4 : CellsPerFrame;
+            // (R-6 row 4: two passes, every layer's tiles inside its radius first, then the far tiles with what's left,
+            // so the shrubs' far ring never holds up the trees' near tiles.)
+            for (int pass = 0; pass < 2; pass++)
             foreach (var l in layers)
             {
                 if (l.ModelCount == 0)
                     continue;
                 var cellsPerSide = (int)math.round(l.Settings.TileSize / l.Settings.CellSize);
                 var perTile = cellsPerSide * cellsPerSide;
-                if (l.PlacingTiles.IsCreated)
+                if (pass == 0 && l.PlacingTiles.IsCreated)
                 {
                     // Don't let a batch run on for long: the tiles nearest the camera may be waiting on it.
                     if (!l.Placing.IsCompleted && ++l.PlacingFrames < 3)
                         continue;
                     Harvest(l, perTile);
                 }
-                if (budget <= 0)
+                if (budget <= 0 || l.PlacingTiles.IsCreated || pass == 1 && l.FarRadius <= l.Radius)
                     continue;
+                if (pass == 1 && l.FarTiles.Count == 0)
+                    l.FarPpm = FarPpmNow();
 
                 scratch.Clear();
-                var r = (int)math.ceil(l.Radius / l.Settings.TileSize) + 1;
+                var outer = pass == 0 ? l.Radius : l.FarRadius;
+                var r = (int)math.ceil(outer / l.Settings.TileSize) + 1;
                 var centre = (int2)math.floor(camXZ / l.Settings.TileSize);
                 for (int z = -r; z <= r; z++)
                 for (int x = -r; x <= r; x++)
                 {
                     var c = centre + new int2(x, z);
-                    var min = (float2)c * l.Settings.TileSize;
-                    if (!l.Tiles.ContainsKey(c) && math.distance(math.clamp(camXZ, min, min + l.Settings.TileSize), camXZ) < l.Radius)
+                    var d = TileNearest(l, c, camXZ);
+                    if (!l.Tiles.ContainsKey(c) && d < outer && (pass == 0 || d >= l.Radius))
                         scratch.Add(c);
                 }
                 if (scratch.Count == 0)
@@ -729,6 +802,7 @@ namespace Punchy.Flora
                     l.PlacingTiles[i] = scratch[i];
                 l.PlacingOutput = new NativeArray<FloraInstance>(count * perTile, Allocator.Persistent);
                 l.PlacingFrames = 0;
+                l.PlacingEye = camXZ;
                 l.Placing = new PlaceJob
                 {
                     Source = source,
@@ -752,6 +826,21 @@ namespace Punchy.Flora
                 if (l.Tiles.ContainsKey(tile))
                     continue;
                 var cells = l.PlacingOutput.GetSubArray(t * perTile, perTile);
+                // R-6 row 4: a tile past the radius keeps only the plants big enough on screen to be drawn from a bit
+                // closer than it is now (it's placed again whole before the eye gets nearer than that).
+                var from = TileNearest(l, tile, l.PlacingEye);
+                var trim = from >= l.Radius ? from * FarRetrim / math.max(l.FarPpm, 1e-3f) : -1f;
+                if (trim >= 0f)
+                    for (int i = 0; i < perTile; i++)
+                    {
+                        var m = cells[i].Model - l.ModelBase;
+                        if (cells[i].Model >= 0 && !(l.Reach[m].z < 0f && -l.Reach[m].z * cells[i].Scale > trim))
+                        {
+                            var c = cells[i];
+                            c.Model = -1;
+                            cells[i] = c;
+                        }
+                    }
                 var occupied = 0;
                 for (int i = 0; i < perTile; i++)
                     if (cells[i].Model >= 0)
@@ -762,6 +851,8 @@ namespace Punchy.Flora
                     if (cells[i].Model >= 0)
                         plants[n++] = cells[i];
                 l.Tiles[tile] = plants;
+                if (trim >= 0f)
+                    l.FarTiles[tile] = from;
                 AddBasins(l, tile, plants);
             }
             l.PlacingTiles.Dispose();
@@ -942,7 +1033,7 @@ namespace Punchy.Flora
                 Culling.SetInt(ModelBaseId, l.ModelBase);
                 Culling.SetVectorArray(PlanesId, planeVectors);
                 Culling.SetVector(CameraId, camPos);
-                Culling.SetVector(LodId, new Vector4(l.Lod1Distance, l.Lod2Distance, l.Radius, 0f));
+                Culling.SetVector(LodId, new Vector4(l.Lod1Distance, l.Lod2Distance, l.FarRadius, l.Radius));
                 // (By rule a variant's size says how far it casts, up to the sun's shadow distance; the layer's value is the old rule.)
                 var cast = s.CastShadows ? (OldLod ? math.min(s.ShadowCastDistance, shadowDistance) : shadowDistance) : 0f;
                 // W-107's shadow cache: past the real-time tier, trees cast into the cache instead (ShadowCache.cs). 3.7
@@ -990,7 +1081,7 @@ namespace Punchy.Flora
                     var max = l.ModelMax[m] + reach;
                     var nearest = math.distance(math.clamp(eye, min, max), eye);
                     var farthest = math.length(math.max(math.abs(eye - min), math.abs(eye - max)));
-                    if (nearest > Near(l.Radius))
+                    if (nearest > Near(l.FarRadius))
                         continue;
                     var bounds = new Bounds((Vector3)((min + max) * 0.5f), (Vector3)(max - min));
                     // (Refactor 3.5: a model that never moves skips the wind maths; "-nostaticflora" draws all as before.)
@@ -1002,7 +1093,10 @@ namespace Punchy.Flora
                     var modelLod1Far = OldLod ? l.Lod1Distance : lodScale.x * l.ModelMaxScale[m];
                     var modelLod2Near = OldLod ? l.Lod2Distance : lodScale.y * l.ModelMinScale[m];
                     var modelLod2Far = OldLod ? l.Lod2Distance : lodScale.y * l.ModelMaxScale[m];
-                    var modelDrawn = OldLod ? l.Radius : math.min(l.Radius, lodScale.z * l.ModelMaxScale[m]);
+                    // (R-6 row 4: an always-drawn variant from the radius on to its size reach, see FloraCull.compute.)
+                    var modelDrawn = OldLod ? l.Radius : l.Reach[m].z < 0f
+                        ? math.clamp(-lodScale.z * l.ModelMaxScale[m], l.Radius, l.FarRadius)
+                        : math.min(l.Radius, lodScale.z * l.ModelMaxScale[m]);
                     if (nearest > Near(modelDrawn))
                         continue;
                     for (int lod = 0; lod < 3; lod++)

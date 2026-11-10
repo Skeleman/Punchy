@@ -185,7 +185,7 @@ namespace Punchy.Flora
             Culling.SetInt(ModelBaseId, l.ModelBase);
             Culling.SetVectorArray(PlanesId, planeVectors);
             Culling.SetVector(CameraId, (Vector3)eye);
-            Culling.SetVector(LodId, new Vector4(l.Lod1Distance, l.Lod2Distance, l.Radius, 0f));
+            Culling.SetVector(LodId, new Vector4(l.Lod1Distance, l.Lod2Distance, l.Radius, l.Radius));
             // Every tree out to CacheRange goes to the first shadow list (full mesh). The cache starts where the real-time
             // shadows end, less the CacheMove the camera can drift before the next redraw and 2 m of overlap: otherwise
             // the trees between the near range round the laid spot and round the camera cast nowhere (a gap that grows

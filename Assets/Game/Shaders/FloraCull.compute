@@ -36,6 +36,8 @@ StructuredBuffer<FloraInstance> _FloraInstances;
 StructuredBuffer<float3> _ModelBounds;   // radius, centre height (unscaled), thins (1: a natural plant), per variant
 StructuredBuffer<uint> _Regions;         // output offset per variant × draw (3 LODs, then 2 shadow lists)
 // Per variant: how far (m per reference pixel-per-metre, at scale 1) it keeps x LOD 0, y LOD 1, z being drawn, w casting.
+// R-6 row 4: a negative z is a variant drawn to at least the layer's radius and on past it, to the far reach, while
+// its size keeps it on screen (DetailPolicy.FloraEdgePixels); a positive one is gone at its size, never past the radius.
 StructuredBuffer<float4> _ModelReach;
 // Per variant (3.7 step 3, DetailPolicy.SharpShadow): x how far it keeps a real-time shadow where a cached map takes over
 // (m per reference pixel-per-metre at scale 1; 0: just the floor), y 0 a solid caster, 1 a tree with a full crown, 2 a
@@ -61,7 +63,7 @@ uint _DrawCount;
 int _ModelBase;
 float4 _Planes[6];
 float3 _CameraPosition;
-float4 _Lod;      // x LOD1 distance, y LOD2 distance, z radius
+float4 _Lod;      // x LOD1 distance, y LOD2 distance, z farthest any plant is drawn (R-6 row 4: the far reach), w the layer's radius
 // x cast distance (0: the layer casts none), y margin off-screen, z where the shadow list changes to its second
 // level (0: the LOD 1 change; W-107's cheap far caster sets the near range), w skip plants nearer than this (W-107's
 // shadow cache: the near trees cast in real time)
@@ -124,13 +126,13 @@ void Cull(uint id : SV_DispatchThreadID)
         return;
     float d = PlantDistance(plant.position, bounds.y, plant.scale);
 
-    float lod1 = _Lod.x, lod2 = _Lod.y, drawn = _Lod.z, castTo = _Shadow.x;
+    float lod1 = _Lod.x, lod2 = _Lod.y, drawn = _Lod.w, castTo = _Shadow.x;
     if (_Reach.x > 0)
     {
         float4 reach = _ModelReach[local] * plant.scale;
         lod1 = reach.x * _Reach.x;
         lod2 = reach.y * _Reach.x;
-        drawn = min(drawn, reach.z * _Reach.x);
+        drawn = reach.z < 0 ? clamp(-reach.z * _Reach.x, _Lod.w, _Lod.z) : min(_Lod.w, reach.z * _Reach.x);
         castTo = min(castTo, reach.w * _Reach.y);
     }
     float2 tierInfo = _ModelShadow[local];
@@ -191,7 +193,7 @@ void Cull(uint id : SV_DispatchThreadID)
     // over a tenth of it, so the thinning has no line: plants drop out one by one, scattered over the distance.
     if (bounds.z > 0)
     {
-        float share = lerp(1, _Thin.y, smoothstep(_Thin.x, _Lod.z, d));
+        float share = lerp(1, _Thin.y, smoothstep(_Thin.x, _Lod.w, d));
         keep *= saturate((share * 1.1 - frac(plant.random * 61.7)) * 10);
     }
     if (keep <= 0)

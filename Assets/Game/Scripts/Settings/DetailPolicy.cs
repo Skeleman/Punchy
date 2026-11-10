@@ -319,6 +319,13 @@ namespace Punchy.Settings
         /// </summary>
         public static float2 FloraFloor(FloraClass c) => c == FloraClass.Tree ? new float2(47f, 190f) : float2.zero;
 
+        /// <summary>
+        /// R-6 row 4: a class drawn always (Far 0) is drawn past its layer's radius while it is at least this many pixels
+        /// across, out to the terrain edge: a layer's fixed radius no longer cuts a tall tree or a big building off before
+        /// its size says so (FloraSystem streams those far plants on their own).
+        /// </summary>
+        public const float FloraEdgePixels = 4f;
+
         public static Rule FloraRule(FloraClass c)
         {
             switch (c)
