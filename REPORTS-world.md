@@ -4284,3 +4284,19 @@ Built in the player tree, not the one the card names (the world tree's gitignore
 
   Frames given for the settled lines only; lines with streaming hitches (max 55-350 ms) show up in both builds. The branch costs no more than main (GPU about 0.5-0.9 ms lower in these runs, which may be noise).
 - Not ours, found on the way: (1) at the lone-oak spot near (1756, 17, ...) rain draws a grey wall over the bottom of the view on both builds (pine spot is fine). (2) Main's player build still fails on DungeonWalk TestHooks (see row 1); built with the same local stub, restored before the push.
+
+## W-133 row 3 - suites on both branches after the second main merge: done (verified)
+- Both branches re-merged with origin/main 93ea2439 (A-97 #245 creature surfaces, A-98 #246 underwater sound), as the supervisor asked:
+  - flora/round3 7eaf0a6a: clean merge, no conflicts. Net diff vs main still FloraMeshBuilder.cs + Flora.shader only.
+  - water/round3 239842b8 + 53271a24: one conflict, Underwater.cs (CRLF kept). Kept #213's per-fluid look (FluidLook/Fluids rows, per-fluid fog, darkening, shafts, bubbles/motes) and took A-98's audio change: listener low-pass, `Muffle()` and the per-fluid `Cutoff` field removed; GameAudioWater reads the public `LensDepth`/`LensWater`. `LensWater = kind` comes from #213's SurfaceAt, so it names the fluid ("the sea", "a lake or river", "a swamp", "lava", "cave water", "cave lava"). `_PunchySurface` y is now `LensDepth`. 53271a24 removes a stray closing brace the merge left (CS1022); 239842b8 alone does not compile, so use the branch tip.
+- Full PlayMode suite (pins: Landmarks_V3 112 A955AFE0, Fauna_Fingerprint AD723954):
+
+| Branch | Result | Landmarks | Fauna |
+|---|---|---|---|
+| flora 7eaf0a6a | 25 passed, 0 failed, 17 skipped (434 s) | 112 A955AFE0 | AD723954 |
+| water 53271a24 | 24 passed, 1 failed, 17 skipped; the failure passes alone | 112 A955AFE0 | AD723954 |
+
+  - Water's one failure: Setup_SpawnRainAndShot hit its 180 s timeout on a single 285 s stalled frame (the shot itself was saved), with four other editors running on the machine. Rerun alone: passed in 69 s. Same flake as in the first row 3 run.
+  - Before this merge (earlier today): main 30ed6629 24/1 (LiveFolk_BeastResponse 52.4 vs >52.7, passed on rerun), same pins.
+- Not re-shot after the second merge: the underwater visuals code is #213's, unchanged; only the audio lines changed. Row 1's under-sea/swamp/lava shots still stand for the look.
+- Both PRs (#212 flora/round3, #213 water/round3) are ready to merge.
