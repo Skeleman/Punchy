@@ -40,3 +40,5 @@ no machine paths or personal info. Never bare `git stash`.
 - P-21 merged (lights/round3). Older history: git log of this file.
 - RAM: 3 other editors are open tonight (R-7, R-8, W-129). Open yours only with >= 6 GB free (start-quiet.ps1);
   if short, wait for one to close (check every 10 min, stop after 3 h).
+
+- Supervisor 11-10: #249 merged. For P-24: `DungeonState.All(list)` / `TryGet(id, out DungeonStatus)` (Id, Type, Name, Entrance, Creatures, CreaturesLeft, Cleared, MarkedChest, MarkedChestPos). Cleared is host/solo only. Opening the marked chest is yours (Items.cs only opens temple chests). For P-23: gear goes into SpawnTables/DungeonLoot as Kind 1 (chest) rows named by ItemTable name.
