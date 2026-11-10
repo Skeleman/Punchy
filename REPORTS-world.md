@@ -3685,3 +3685,27 @@ Built in the player tree, not the one the card names (the world tree's gitignore
   - **Contact sheet** (3 models; albedo over grey on the left, packed normal on the right): PunchyMilestones/R-7/r1/atlas-sheet-32.png (BarrelCactus, DryBush, SwampShrub) and atlas-sheet-64.png (BarrelCactus, FishBoardwalk, SwampShrub). Written check at 480 px: every frame is filled and centred; the middle frame is the top-down view and the corners are horizon views; the outlines are clean, the normals vary smoothly from frame to frame, and the background is empty.
   - Note: the shrub layer also holds props such as FishBoardwalk. Row 3's size rule decides whether they get impostors.
   - Risks: memory scales with the shrub model count. No placement or ProjectSettings changes.
+
+## R-8 (skybox cost and adaptive cloud light; tree Punchy-release, branch sky/cost)
+
+- **R-8 row 1 DONE (measured, no look change)** (e58608ab, sky/cost; branch reset onto origin/main a984c4e4 first, since the old sky/cost was already in main). That commit only makes the `-skyoff` 4 (sky colour) and 8 (weather volumes) test bits real branches. They were ternaries, which run both sides, so job 38's "off" timings for bits 4 and 8 still paid for the work.
+  - **Method:** this PC, editor in play mode, Summit, noon, `-weatherseed 4`, `-gfx High`, `-lowres half`, camera pinned with `-shotcam` and pitched up 10 deg. The sky material is drawn alone 100 times per command buffer over a full-screen cube, synced by a GPU readback, median of 5 trials, empty-buffer baseline subtracted. The cube covers the whole screen, including the part below the horizon where the game draws terrain, so these are upper bounds. Stars, moon/sun discs and cirrus were split out with temporary bits (1024, 2048, 4096) that are not committed.
+  - **Per-full-res-pixel parts of the skybox fragment** (with the low-res buffer on): sky colour (gradient, twilight, sun glow, horizon haze), stars + shooting stars/aurora/blue-moon streaks, moon disc + sun disc + moon halo + blue corona, cirrus (noise), far clouds (above the horizon only), the low-res composite (depth-aware upsample, 2 loads), lightning glow, and the weather volumes (an 8-step march through the weather map with 3 value noises and a cloud-shape read per step that has weather).
+  - **Compiled fragment (D3D SM5, my own count of SHDR opcodes; Unity strips the STAT chunk):** Punchy/Sky low-res variant: 2568 instructions, 18 temps, 12 texture reads (10 samples + 2 loads), 39 ifs, 7 loops. Without the keyword: 3538 instructions, 30 temps, 33 reads. CloudsLowRes march: 1055 instructions, 29 temps, 24 reads. (R-4 gave 2489 / 3389 from Unity's counter; my count includes the test branches.)
+  - **GPU ms per full-screen sky draw** (this PC; the laptop's DrawSkybox is about 12x these):
+
+    | skyoff | removes | 1920x1080 | 2560x1440 |
+    |---|---|---|---|
+    | 0 | nothing | 0.305 (0.276 rerun) | 0.608 |
+    | 8 | weather volumes | 0.135 (0.117) | 0.271 |
+    | 4 | sky colour | 0.191 (0.174) | 0.385 |
+    | 1024 | stars + night events | 0.260 | 0.512 |
+    | 4096 | cirrus | 0.288 | 0.544 |
+    | 2048 | moon/sun discs, halo, corona | 0.282 | 0.567 |
+    | 1 | far clouds + low-res composite | 0.293 | 0.572 |
+    | 2 | far clouds | 0.305 | 0.588 |
+    | 15 | everything | 0.019 | 0.041 |
+
+  - **Most expensive part: the weather volumes, about 55% of the draw** (0.17 ms of 0.31 at 1080p, 0.34 of 0.61 at 1440p), even on a clear noon. The sky colour comes second at about 37% (0.11 / 0.22), and most of that is the stars (0.05 / 0.10). The stars are computed at noon even though `_PunchyNight` is 0. Cirrus costs 0.02 / 0.06, the discs and halo 0.02 / 0.04, and the composite plus far clouds 0.01 / 0.04. All of these are smooth except the discs, the stars and the cloud edges, so row 2 will move the weather volumes and the gradient into a per-frame table and skip the stars when there is no night.
+  - **Context:** low-res march (half) is 0.83 ms at 960x540 and 1.46 ms at 1280x720 (`-skyoff 64` 0.81 / 1.44). A whole synced frame takes 2.66 ms at 1080p and 3.75 ms at 1440p. `-lowres quarter` passed mid-session through RunOptions did not resize the buffer, so the quarter numbers come in row 3 from a fresh play session.
+  - Risks: none; e58608ab changes test flags only.
