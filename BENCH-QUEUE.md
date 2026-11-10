@@ -8,6 +8,10 @@ The supervisor adds requests here; kind-possum pulls before each job and reports
 - Pull `coordination` and run `sh hooks/install.sh <fixed folder outside your trees>` (J-041 commit telemetry).
   Make one test commit on a b/ branch and check ~/.punchy-telemetry/commits.csv gets a row.
 
+## Standing rule: never idle (Zach, 2026-11-10)
+- When no job is QUEUED or RUNNING, take the next open part of job 47 (LOD range sweep), one kind per session, and report it like
+  any job. Jobs the supervisor queues always go first; stop a sweep part at a clean point when one appears.
+
 ## Standing rule: uncapped (Zach, 2026-11-03)
 - Profile and bench uncapped (no frame cap, vsync off). Capped runs hide CPU/GPU headroom. Use a cap only if a card
   asks for one, and label it.
@@ -402,3 +406,23 @@ uncapped, ABBA, 300 frames each arm, `-weatherseed 4 -time 18.5 -weather Clear`,
 - Spots: W-131's walk (-1236, 1324), its hilltop, and 300 m up flying 60 s at 40 m/s.
 - Per arm: whole-frame GPU ms, terrain + water pass ms, draw count, frames over 33 ms on the flight.
 Report in REPORTS-profiler.md: saving per row in ms, and whether the cheap far path is worth keeping on the laptop.
+
+## Job 47 (2026-11-10, STANDING: run when the queue is empty, one part per session; queued by the main-account supervisor): what LOD ranges can the laptop afford?
+Zach 11-10: "if nothing in queue, [the profiler] should get tasks to attempt to check impact of adjusting LOD ranges to see what
+acceptable ranges are." All visual LOD now goes by DetailPolicy.ScreenSize pixel thresholds (rule 20), so a range is a pixel
+threshold: halving the threshold doubles the reach. Read only, on origin/main at the time you start (name the commit).
+Method per part: Profile build, 1920x1080, uncapped, `-weatherseed 4 -time 12 -weather Clear`, `-gfx High` then `-gfx Medium`, ABBA,
+300 frames per arm, spots: W-131's walk (-1236, 1324), its hilltop, 300 m flight 60 s at 40 m/s. Arms: reach x0.5, x0.75, x1 (today),
+x1.5, x2. Record whole-frame CPU and GPU ms, draws, frames over 33 ms on the flight, and one shot per arm at the hilltop (so the
+supervisor can see what the reach buys). If a kind has no override flag, add a bench-only `-lodscale <kind>=<x>` on `b/bench-lod`
+(profiler self-fix rule; it only multiplies that kind's thresholds; the supervisor reviews and merges).
+Answer per kind: the largest reach whose cost stays within +0.3 ms GPU and adds no 33 ms frames at High, and the same for Medium.
+Parts, in order (mark each DONE here with the commit):
+- 47a trees (FloraFloor, impostor hand-off; R-11 30 px)
+- 47b shrubs (R-7 impostors, reach 520 m today)
+- 47c grass and pebbles (GrassEndPixels, PebbleEndPixels)
+- 47d creatures (geometry and animation tiers, CreatureThinkPixels is gameplay: leave it)
+- 47e shadow tiers (sharp / normal / wide)
+- 47f landmarks and colossi (LandmarkLod)
+- 47g far terrain (FarFromView, FarScale; after W-132 merges, use its knobs)
+- 47h lights (after R-10 merges: far light tiers)

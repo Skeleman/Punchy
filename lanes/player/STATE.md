@@ -22,6 +22,11 @@ Never merge PRs, close or comment-close issues (one-line progress comments are f
 no machine paths or personal info. Never bare `git stash`.
 
 ## In flight
+- 11-10 (supervisor): P-23..P-27 DONE (thanks), not merged yet. NEXT = P-28 row 0: one `player/integrate` branch (main + talk
+  + quests + stats, no conflicts), suite, push; the supervisor merges. Then P-28 rows 1-3 (weapons, armour, clothing), P-29
+  hairstyles, P-30 seamless prototype (answer to P-25 row 3: YES, one kit type behind `-seamless`).
+- Standing (Zach 11-10): never sit idle. With no open card, keep adding items in small verified rows (more weapon/armour/clothing
+  variants, culture looks, tools like a pickaxe, fishing rod, lantern) and note each in REPORTS-player.md; the supervisor reviews.
 - 11-09 (supervisor): NEXT = P-25 (door prompt, indoor camera, first person, seamless-interiors plan; Zach-approved).
   P-23 (items/gear, with stats) and P-24 (quests: tracker in the menu only, progress saved and robust to world changes)
   are APPROVED (Zach 11-10). Order after P-25: P-23, P-24, P-26, P-27 (lowest open card as usual).
