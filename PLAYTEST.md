@@ -48,3 +48,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 2026-11-09: P-22 merged (#229): roof undersides lit like shaded walls; #85 small-body cave camera closed; #78 display modes closed (already in DisplaySettings).
 - 2026-11-10: R-7 merged (#233): far shrubs as octahedral impostors, shrub reach 260 -> 520 m (+0.0-0.34 ms); shrubs now visible from 300 m altitude. Atlas trim (140 -> ~39 MB) follow-up running.
 - 2026-11-10: R-7 row 5 merged (#234): impostors baked only for the 60 models that can become one; atlas 140 -> 39 MB, bake 14.9 -> 2.1 ms, no look or ms change.
+- 2026-11-10: R-8 merged (#235): cheaper sky. Skybox -54% at noon, -39% at night; storm clouds -7.5% (missed the 15% target, kept the clean version). No visible change.

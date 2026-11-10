@@ -161,3 +161,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-10: R-8 rows 1-2 pass (skybox -54% noon, -39% night); row 3 missed 15% (clean -7.5% storm); chose (a) commit clean, speckle rejected; (c) march savings elsewhere = possible later card. Merge sky/cost after its row 3 commit, then R-10 in Punchy-release.
 - 11-10: R-7 row 5 merged #234 (atlas 140 -> 39 MB). Punchy-world free -> R-9 water/deform started there.
   To check: magenta (missing-shader) props on the R-7 hilltop view (PunchyMilestones/R-7/r5/before/hilltop-imp.png), pre-date R-7; owner unknown.
+- 11-10: R-8 merged #235 (rows 1-3). R-10 started in Punchy-release (light/forwardplus): row 2 does Flora + built first; creature + water shaders wait for A-92 / R-9 merges (tell the R-10 agent when they land). W-130 (magenta slabs) is a side task of the R-9 agent.
