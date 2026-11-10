@@ -328,3 +328,8 @@ Suggested shape, so that changes to the game don't break saves:
 - Players need a stable id in place of NetworkId, which each client sends on joining. The `Punchy.PlayerIndividual` pref may be a start; not yet checked that it is unique enough.
 - Open choice: what to do when the seed differs (refuse, or keep only what isn't tied to a place). Moved or rebuilt worlds are likely while the island keeps changing.
 A first slice could be the file, the section mechanism and quests only.
+
+Zach's follow-up on the same drafts (2026-11-09):
+- Save file: no seed checks. A changing seed is a development side effect that won't exist in the final game, so the format carries no conditions for it. This replaces the "open choice" above.
+- P-23: the torch gives real light (through the light budget). Lighting in dark places and on dark nights will matter to the game. Other gear stays looks only.
+- P-25: taken by the player account, branch player/doors, starting row 1.
