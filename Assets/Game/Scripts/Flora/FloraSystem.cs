@@ -57,15 +57,17 @@ namespace Punchy.Flora
         public Material Material;
         public ComputeShader Culling;
         public LayerSettings Ground = new LayerSettings { CellSize = 0.7f, TileSize = 14f, Radius = 70f, Lod1Distance = 18f, Lod2Distance = 1000f, CastShadows = false, ThinFrom = 0.4f, ThinTo = 0.25f };
-        public LayerSettings Shrubs = new LayerSettings { CellSize = 2f, TileSize = 40f, Radius = 260f, Lod1Distance = 30f, Lod2Distance = 110f, ShadowCastDistance = 40f, ThinFrom = 0.5f, ThinTo = 0.25f };
+        public LayerSettings Shrubs = new LayerSettings { CellSize = 2f, TileSize = 40f, Radius = 520f, Lod1Distance = 30f, Lod2Distance = 110f, ShadowCastDistance = 40f, ThinFrom = 0.5f, ThinTo = 0.25f };
         public LayerSettings Trees = new LayerSettings { CellSize = 4.5f, TileSize = 108f, Radius = 1500f, Lod1Distance = 55f, Lod2Distance = 220f, ShadowCastDistance = 60f, ThinFrom = 0.25f, ThinTo = 0.5f };
         [Tooltip("Placement cells started per frame across all layers. Placement runs on worker threads in the " +
                  "background; too many at once crowds out the terrain's own jobs and causes hitches.")]
         public int CellsPerFrame = 6000;
         [Tooltip("Plants this far outside the view still draw into the shadow maps, so off-screen trees cast shadows.")]
         public float ShadowMargin = 30f;
-        /// <summary>Indirect draws per variant: its 3 LODs for the camera, then LOD 0 and 1 shadow lists (W-102).</summary>
-        const int Draws = 5;
+        /// <summary>Indirect draws per variant: its 3 LODs for the camera, then LOD 0 and 1 shadow lists (W-102), then its
+        /// impostor (R-7: one quad, FloraSystem.Impostors.cs; given no room in a layer without impostors).</summary>
+        const int Draws = 6;
+        const int ImpostorDraw = 5;
         static int DrawLod(int draw) => draw < 3 ? draw : draw - 3;
         [Tooltip("Solid plants within this distance of the player are given to player movement as obstacles.")]
         public float CollisionRange = 24f;
@@ -146,9 +148,16 @@ namespace Punchy.Flora
             public readonly Dictionary<int2, float> FarTiles = new Dictionary<int2, float>();
             public NativeArray<FloraInstance> PlacingOutput;
             public int PlacingFrames;
+            /// <summary>R-7: its models' impostor atlases (FloraSystem.Impostors.cs), or null for a layer without.</summary>
+            public ImpostorAtlas Impostors;
+            /// <summary>R-7: each model's impostor reach (FloraCull.compute's _ModelImpostor): all 0 until its bake is done.</summary>
+            public float[] ImpostorReach;
+            public GraphicsBuffer ImpostorBuffer;
 
             public void Release()
             {
+                Impostors?.Release();
+                Impostors = null;
                 Placing.Complete();
                 if (PlacingTiles.IsCreated) PlacingTiles.Dispose();
                 if (PlacingOutput.IsCreated) PlacingOutput.Dispose();
@@ -164,7 +173,8 @@ namespace Punchy.Flora
                 ReachBuffer?.Release();
                 CastState?.Release();
                 SharpBuffer?.Release();
-                ReachBuffer = CastState = SharpBuffer = null;
+                ImpostorBuffer?.Release();
+                ReachBuffer = CastState = SharpBuffer = ImpostorBuffer = null;
                 Instances = Visible = Args = Counts = Regions = Bounds = null;
                 if (Material != null)
                     UnityEngine.Object.Destroy(Material);
@@ -229,6 +239,7 @@ namespace Punchy.Flora
         static readonly int CastStateId = Shader.PropertyToID("_FloraCastState");
         static readonly int ReachId = Shader.PropertyToID("_Reach");
         static readonly int CastHoldId = Shader.PropertyToID("_CastHold");
+        static readonly int ModelImpostorId = Shader.PropertyToID("_ModelImpostor");
 
         public int PlantCount
         {
@@ -323,8 +334,10 @@ namespace Punchy.Flora
         {
             ReleaseShadowCache();
             ReleaseWide();
+            ReleaseImpostorBake();
             foreach (var l in layers)
                 l?.Release();
+            ReleaseImpostorQuad();
             Array.Clear(layers, 0, layers.Length);
             basins.Clear();
             foreach (var mesh in basinMeshes.Values)
@@ -373,6 +386,7 @@ namespace Punchy.Flora
                 lastSource = source;
                 configStamp = ConfigStamp(palette);
             }
+            BakeImpostors();
 
             ScaleRanges();
             // Deep in a cave the surface's plants are out of sight: no placing, no drawing (obstacles stay).
@@ -388,7 +402,8 @@ namespace Punchy.Flora
             FloraDoors.Upload();
             if (!hidden)
             {
-                Draw(cam);
+                using (DrawMarker.Auto())
+                    Draw(cam);
                 DrawBasins(cam.transform.position);
                 DrawBolts(source, camXZ);
             }
@@ -539,6 +554,7 @@ namespace Punchy.Flora
                 layer.ModelCounts = new int[layer.ModelCount];
                 CreateDrawBuffers(layer);
                 layers[i] = layer;
+                QueueImpostors(layer);
             }
             built = true;
             obstaclesDirty = true;
@@ -564,7 +580,7 @@ namespace Punchy.Flora
                 bounds[m] = new float3(model.Radius, model.CentreY, thins[layer.ModelBase + m] ? 1f : 0f);
                 for (int draw = 0; draw < Draws; draw++)
                 {
-                    var mesh = model.Lods[DrawLod(draw)];
+                    var mesh = draw == ImpostorDraw ? ImpostorQuad() : model.Lods[DrawLod(draw)];
                     var d = m * Draws + draw;
                     args[d] = new GraphicsBuffer.IndirectDrawIndexedArgs
                     {
@@ -590,6 +606,9 @@ namespace Punchy.Flora
                 layer.Sharp[m] = ModelShadow(models[layer.ModelBase + m]);
             layer.SharpBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, bounds.Length, sizeof(float) * 2);
             layer.SharpBuffer.SetData(layer.Sharp);
+            layer.ImpostorReach = new float[bounds.Length];
+            layer.ImpostorBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, bounds.Length, sizeof(float));
+            layer.ImpostorBuffer.SetData(layer.ImpostorReach);
             layer.Regions = new GraphicsBuffer(GraphicsBuffer.Target.Structured, draws, sizeof(uint));
         }
 
@@ -916,7 +935,7 @@ namespace Punchy.Flora
                 l.Visible?.Release();
                 var capacity = math.ceilpow2(total);
                 l.Instances = new GraphicsBuffer(GraphicsBuffer.Target.Structured, capacity, Marshal.SizeOf<FloraInstance>());
-                l.Visible = new GraphicsBuffer(GraphicsBuffer.Target.Structured, capacity * Draws, sizeof(uint) * 2);
+                l.Visible = new GraphicsBuffer(GraphicsBuffer.Target.Structured, capacity * (l.Impostors != null ? Draws : Draws - 1), sizeof(uint) * 2);
                 l.CastState?.Release();
                 l.CastState = new GraphicsBuffer(GraphicsBuffer.Target.Structured, capacity, sizeof(uint));
                 l.CastState.SetData(new uint[capacity]);
@@ -934,7 +953,8 @@ namespace Punchy.Flora
             {
                 regions[m * Draws + draw] = offset;
                 l.ArgsData[m * Draws + draw].startInstance = offset;
-                offset += (uint)l.ModelCounts[m];
+                if (draw != ImpostorDraw || l.Impostors != null)
+                    offset += (uint)l.ModelCounts[m];
             }
             l.Regions.SetData(regions);
             l.Args.SetData(l.ArgsData);
@@ -943,6 +963,7 @@ namespace Punchy.Flora
             l.Material.SetBuffer(VisibleId, l.Visible);
             l.StaticMaterial.SetBuffer(InstancesId, l.Instances);
             l.StaticMaterial.SetBuffer(VisibleId, l.Visible);
+            SetImpostorBuffers(l);
         }
 
         [BurstCompile]
@@ -998,6 +1019,9 @@ namespace Punchy.Flora
         /// <summary>Whether this model casts with the cheap far caster's mesh: trees only since 3.7 step 3 (built things
         /// and rocks now cast in real time further out, with their own reduced mesh); the whole layer under -oldfloralod.</summary>
         bool CheapModel(Layer l, int m, bool cheap) => cheap && (OldLod || l.Sharp == null || l.Sharp[m].y > 0f);
+
+        /// <summary>The CPU side of the per-frame cull and draw submission (R-7's flora ms; the GPU side shows in the frame).</summary>
+        static readonly Unity.Profiling.ProfilerMarker DrawMarker = new("FloraSystem.Draw");
 
         void Draw(Camera cam)
         {
@@ -1062,6 +1086,7 @@ namespace Punchy.Flora
                 Culling.SetBuffer(cull, ModelReachId, l.ReachBuffer);
                 Culling.SetBuffer(cull, ModelShadowId, l.SharpBuffer);
                 Culling.SetBuffer(cull, CastStateId, l.CastState);
+                Culling.SetBuffer(cull, ModelImpostorId, l.ImpostorBuffer);
                 Culling.Dispatch(cull, (l.Count + 63) / 64, 1, 1);
                 Graphics.CopyBuffer(l.Counts, l.Args);
 
@@ -1118,6 +1143,21 @@ namespace Punchy.Flora
                             receiveShadows = true
                         };
                         Graphics.RenderMeshIndirect(rp, model.Lods[lod], l.Args, 1, m * Draws + lod);
+                    }
+                    // R-7: its impostor, past its coarsest mesh (as the cull: never nearer than 1.2 x its start).
+                    if (!OldLod && l.ImpostorReach != null && l.ImpostorReach[m] > 0f && l.Impostors?.Material != null)
+                    {
+                        var impNear = math.max(reachGeometry * l.ImpostorReach[m], lodScale.y * 1.2f) * l.ModelMinScale[m] * 0.87f * 0.925f;
+                        if (impNear < modelDrawn && farthest >= impNear - 5f)
+                        {
+                            var rp = new RenderParams(l.Impostors.Material)
+                            {
+                                worldBounds = bounds,
+                                shadowCastingMode = ShadowCastingMode.Off,
+                                receiveShadows = true
+                            };
+                            Graphics.RenderMeshIndirect(rp, ImpostorQuad(), l.Args, 1, m * Draws + ImpostorDraw);
+                        }
                     }
                     // The shadow lists (W-102), bounded to the cast distance so cascades they can't reach skip them.
                     // Small props (fences, palisades, signposts...) cast none: the shadow pass's cost is per draw.

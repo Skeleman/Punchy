@@ -202,6 +202,7 @@ namespace Punchy.Flora
             Culling.SetBuffer(cull, ModelReachId, l.ReachBuffer);
             Culling.SetBuffer(cull, ModelShadowId, l.SharpBuffer);
             Culling.SetBuffer(cull, CastStateId, l.CastState);
+            Culling.SetBuffer(cull, ModelImpostorId, l.ImpostorBuffer);
             Culling.SetFloat(CastHoldId, 0f);   // the cache is laid now and then: no last frame to hold to
             Culling.Dispatch(cull, (l.Count + 63) / 64, 1, 1);
             Culling.SetFloat(CastHoldId, OldLod ? 0f : 1f);
