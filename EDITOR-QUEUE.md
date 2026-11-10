@@ -1,4 +1,1 @@
-# Editor queue (COORDINATION rule 15)
-
-Oldest first. Add yourself at the bottom; only the first line may open an editor (and only with >= 6 GB free RAM). Delete your line once your editor is open.
-
+# Editor queue: retired 2026-11-09 (COORDINATION rule 15). Check free RAM >= 6 GB and open; no lines here.

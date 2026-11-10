@@ -73,12 +73,11 @@ feature code, and it never edits files in another session's checkout.
 14. **Editors and RAM (Zach, 2026-11-03):** close your Unity editor at the end of a card unless your lane's next
    card is already queued. Before opening one, check free RAM is at least 6 GB; if not, wait. Never close or kill
    another lane's editor. Idle import workers are set to shut down (standby 0) as each lane merges main.
-15. **Editor queue (Zach, 2026-11-03):** the lane that has waited longest opens first. Before opening an editor,
-   `git pull` and read EDITOR-QUEUE.md. If free RAM is under 6 GB or anyone is listed above you, add one line
-   `- <lane> <card> since <HH:MM>` at the bottom (once), commit and push it, and re-check every ~10 min. Open only
-   when you are first in the list and free RAM is at least 6 GB; then delete your line, commit and push. While
-   anyone is listed, close your editor at card end even if your next card is queued. If you give up waiting
-   (~90 min), delete your line and report; the supervisor relaunches you at the top of the list.
+15. **Editors (Zach 2026-11-03, relaxed 2026-11-09 after the RAM upgrade to 64 GB):** no queue. Before opening an
+   editor, check free RAM: at least 6 GB, open it (through tools/start-quiet.ps1); under 6 GB, tell the supervisor
+   instead of waiting. Keep your editor open across rows and tests of the same card; don't restart it per test.
+   Close it (by your own PID) only when the suite needs it closed, when you hand the card back, or before you stop.
+   EDITOR-QUEUE.md is retired: don't write to it.
 16. **Handoff after every row (Zach, 2026-11-04):** as soon as a row is finished and verified, commit and push it,
    then append it to your REPORTS-<lane>.md and push that: verified, UNVERIFIED, and what's next. Do this before
    starting the next row, so a usage limit never loses work. On the main account the `handoff` skill does all of it.
