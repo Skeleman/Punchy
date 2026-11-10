@@ -171,6 +171,11 @@ namespace Punchy.Settings
             /// <summary>How much a fast mover counts as bigger for Animation only (its motion shows before its shape
             /// does): pixels x (1 + Activity x how active, 0..1).</summary>
             public float Activity;
+            /// <summary>
+            /// R-7: past its coarsest mesh, an object with an impostor (FloraSystem.Impostors.cs) is drawn as one while
+            /// smaller than this (reference pixels), with hysteresis. 0: no impostor tier.
+            /// </summary>
+            public float Impostor;
         }
 
         /// <summary>
@@ -193,6 +198,9 @@ namespace Punchy.Settings
         /// <summary>A size's real-time shadow reach per reference pixel-per-metre (0: the rule has no size-based one, so
         /// only the cascades' floor applies).</summary>
         public static float SharpReach(in Rule rule, float size) => rule.SharpShadow >= float.MaxValue ? 0f : size / rule.SharpShadow;
+
+        /// <summary>R-7: where a size hands over to its impostor, per reference pixel-per-metre (0: the rule has none).</summary>
+        public static float ImpostorReach(in Rule rule, float size) => rule.Impostor > 0f ? size / rule.Impostor : 0f;
 
         /// <summary>The four answers for one object, packed in a byte (geometry 2 bits, animation 2, shadow 1).</summary>
         public struct Decision
@@ -334,7 +342,7 @@ namespace Punchy.Settings
                 // more; only giants reach past it. Built things and big rocks reach out with their size: at High a 12 m
                 // hall casts sharp to about 40 m, past where a bush stops, and a 20 m one to the cascades' end.)
                 case FloraClass.Tree: return new Rule { Geometry = new Thresholds(395f, 98f, 0f), Shadow = 14f, SharpShadow = 1050f, WideShadow = Huge.WideShadow };
-                case FloraClass.Plant: return new Rule { Geometry = new Thresholds(46f, 13f, 0f), Shadow = 45f, SharpShadow = float.MaxValue };
+                case FloraClass.Plant: return new Rule { Geometry = new Thresholds(46f, 13f, 0f), Shadow = 45f, SharpShadow = float.MaxValue, Impostor = 9f };
                 // Rocks only change mesh, and stay to the layer's edge.
                 case FloraClass.Rock: return new Rule { Geometry = new Thresholds(120f, 32f, 0f), Shadow = 45f, SharpShadow = 400f };
                 // Logs, stumps, benches, eggs: gone once they're a few pixels.

@@ -14,6 +14,9 @@ namespace Punchy.Flora
     /// arrays: albedo and coverage, and the normal, depth and occlusion. Flying is in the game, so the views go all the
     /// way up, not round the horizon alone. The bake runs on the GPU a few models a frame (ImpostorBakesPerFrame) and
     /// logs each; the atlases live with their layer and are freed with it. Cosmetic and local: each client bakes its own.
+    /// Once a layer's bake is done, its models' impostor reaches (DetailPolicy.ImpostorReach) go to the cull, which hands
+    /// each plant past its coarsest mesh over to draw slot ImpostorDraw: one quad per plant through the same indirect
+    /// path (FloraImpostor.shader's ForwardLit), blending the three frames nearest its view (or one, ImpostorOneFrame).
     /// </summary>
     public partial class FloraSystem
     {
@@ -26,6 +29,9 @@ namespace Punchy.Flora
         public static bool ImpostorFull = Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-impostorfull") >= 0;
         /// <summary>No impostors at all ("-noimpostors"): nothing baked, for an A/B of the load.</summary>
         public static readonly bool NoImpostors = Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-noimpostors") >= 0;
+        /// <summary>Draw each impostor from its one nearest frame instead of blending three ("-impostoroneframe"; for the
+        /// cost comparison: cheaper, but the frames step as the view turns).</summary>
+        public static bool ImpostorOneFrame = Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-impostoroneframe") >= 0;
         /// <summary>Models baked per frame, so the load spreads over a few frames.</summary>
         public static int ImpostorBakesPerFrame = 12;
         /// <summary>The layers whose models get impostors (ground, shrub, tree).</summary>
@@ -41,6 +47,10 @@ namespace Punchy.Flora
         static readonly int ImpostorFramesId = Shader.PropertyToID("_ImpostorFrames");
         static readonly int ImpostorFullId = Shader.PropertyToID("_ImpostorFull");
         static readonly int ImpostorSphereId = Shader.PropertyToID("_ImpostorSphere");
+        static readonly int ImpostorAlbedoId = Shader.PropertyToID("_ImpostorAlbedo");
+        static readonly int ImpostorDataId = Shader.PropertyToID("_ImpostorData");
+        static readonly int ImpostorModelBaseId = Shader.PropertyToID("_ImpostorModelBase");
+        static readonly int ImpostorOneFrameId = Shader.PropertyToID("_PunchyImpostorOneFrame");
 
         /// <summary>A layer's impostors: its two atlases (one slice per model) and how far the bake has got.</summary>
         class ImpostorAtlas
@@ -54,9 +64,14 @@ namespace Punchy.Flora
             public double Ms, SlowestMs;
             public int Slowest;
             public long Bytes;
+            /// <summary>The layer's draw material (a copy of FloraImpostor holding its atlases and buffers), made when
+            /// the bake is done; null before.</summary>
+            public Material Material;
 
             public void Release()
             {
+                if (Material != null) UnityEngine.Object.Destroy(Material);
+                Material = null;
                 if (Albedo != null) { Albedo.Release(); UnityEngine.Object.Destroy(Albedo); }
                 if (Data != null) { Data.Release(); UnityEngine.Object.Destroy(Data); }
                 Albedo = Data = null;
@@ -66,6 +81,8 @@ namespace Punchy.Flora
         }
 
         Material impostorMaterial;
+        /// <summary>The one quad every impostor is drawn with (corners at -1..1; the shader places and sizes it).</summary>
+        Mesh impostorQuad;
         bool impostorLoaded;
         int impostorBakePass = -1;
         /// <summary>The bake's scratch targets (one model at a time, copied into its slice) and its command buffer.</summary>
@@ -139,6 +156,7 @@ namespace Punchy.Flora
         /// </summary>
         void BakeImpostors()
         {
+            Shader.SetGlobalFloat(ImpostorOneFrameId, ImpostorOneFrame ? 1f : 0f);
             Material material = null;
             var budget = ImpostorBakesPerFrame;
             foreach (var layer in layers)
@@ -206,11 +224,63 @@ namespace Punchy.Flora
                                       $"(mean {atlas.Ms / layer.ModelCount:F2} ms, slowest {atlas.SlowestMs:F2} ms {slowest.Species.name}), " +
                                       $"atlases {atlas.Bytes / (1024.0 * 1024.0):F1} MB, all impostors {ImpostorBytes / (1024.0 * 1024.0):F1} MB";
                     Debug.Log($"[flora] impostor bake done, {LastImpostorLog}");
+                    StartImpostors(layer);
                 }
             }
             // Nothing left to bake: the scratch targets go.
             if (budget == ImpostorBakesPerFrame && bakeAlbedo != null)
                 ReleaseImpostorBake();
+        }
+
+        /// <summary>A layer's bake is done: its draw material, and its models' reaches to the cull (until now all 0, so
+        /// the cull kept every plant on its meshes).</summary>
+        void StartImpostors(Layer layer)
+        {
+            var atlas = layer.Impostors;
+            atlas.Material = new Material(impostorMaterial) { name = $"Flora impostors {layer.Index}" };
+            atlas.Material.SetTexture(ImpostorAlbedoId, atlas.Albedo);
+            atlas.Material.SetTexture(ImpostorDataId, atlas.Data);
+            atlas.Material.SetFloat(ImpostorFramesId, atlas.Frames);
+            atlas.Material.SetFloat(ImpostorFullId, atlas.Full ? 1f : 0f);
+            atlas.Material.SetInteger(ImpostorModelBaseId, layer.ModelBase);
+            SetImpostorBuffers(layer);
+            for (int m = 0; m < layer.ModelCount; m++)
+            {
+                var model = models[layer.ModelBase + m];
+                layer.ImpostorReach[m] = Punchy.Settings.DetailPolicy.ImpostorReach(
+                    Punchy.Settings.DetailPolicy.FloraRule(model.DetailClass()), model.Radius * 2f);
+            }
+            layer.ImpostorBuffer.SetData(layer.ImpostorReach);
+        }
+
+        /// <summary>The layer's plant buffers onto its impostor material (again whenever they're made anew).</summary>
+        void SetImpostorBuffers(Layer layer)
+        {
+            var material = layer.Impostors?.Material;
+            if (material == null || layer.Instances == null)
+                return;
+            material.SetBuffer(InstancesId, layer.Instances);
+            material.SetBuffer(VisibleId, layer.Visible);
+            material.SetBuffer(BoundsId, layer.Bounds);
+        }
+
+        Mesh ImpostorQuad()
+        {
+            if (impostorQuad == null)
+            {
+                impostorQuad = new Mesh { name = "Flora impostor quad", hideFlags = HideFlags.DontSave };
+                impostorQuad.SetVertices(new[] { new Vector3(-1, -1, 0), new Vector3(1, -1, 0), new Vector3(1, 1, 0), new Vector3(-1, 1, 0) });
+                impostorQuad.SetIndices(new[] { 0, 1, 2, 0, 2, 3 }, MeshTopology.Triangles, 0);
+                impostorQuad.bounds = new Bounds(Vector3.zero, Vector3.one * 2f);
+            }
+            return impostorQuad;
+        }
+
+        void ReleaseImpostorQuad()
+        {
+            if (impostorQuad != null)
+                Destroy(impostorQuad);
+            impostorQuad = null;
         }
 
         void ReleaseImpostorBake()

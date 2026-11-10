@@ -15,6 +15,9 @@
 // nearest point of its base-to-top segment (the reject and cast tests keep the bounding sphere, 3D and never further).
 // A ground-plane distance disagreed with the 3D tests from high ground: trees popped instead of fading, and one could
 // fall between the cascades and the cache with no shadow.
+// R-7: past its coarsest mesh a variant with an impostor (_ModelImpostor > 0) hands over to it (draw slot 5: one quad,
+// FloraImpostor.shader) where it gets smaller on screen than its rule's Impostor pixels, with a dithered crossfade and
+// hysteresis (bit 1 of _FloraCastState), so one hovering at the hand-over doesn't flicker.
 
 #pragma kernel Clear
 #pragma kernel Cull
@@ -45,6 +48,8 @@ StructuredBuffer<float4> _ModelReach;
 StructuredBuffer<float2> _ModelShadow;
 // Per plant: 1 if it cast last frame. Left alone across uploads: a plant only reads it inside the hysteresis band.
 RWStructuredBuffer<uint> _FloraCastState;
+// R-7: per variant, where its impostor takes over, per reference pixel-per-metre at scale 1 (0: no impostor).
+StructuredBuffer<float> _ModelImpostor;
 RWStructuredBuffer<uint2> _FloraVisible; // instance index, asuint(fade)
 // IndirectDrawIndexedArgs, one per variant x LOD. Structured, not raw: D3D11 can't write an IndirectArguments buffer as
 // raw, so FloraSystem counts into this and copies it into the draws' arguments.
@@ -87,7 +92,7 @@ void Clear(uint id : SV_DispatchThreadID)
         _Args[id].instanceCount = 0;
 }
 
-#define DRAWS 5
+#define DRAWS 6
 
 // R-6 row 0: the one distance the cull uses: from the camera to the nearest point of the plant's base-to-top segment.
 // Its base rather than its centre suits a tall tree seen from beside its trunk (the reason the old ground-plane
@@ -157,10 +162,10 @@ void Cull(uint id : SV_DispatchThreadID)
     if (_CastHold > 0)
     {
         // Past the limit a caster goes on casting a little further (as DetailPolicy.Hysteresis: 1 / 0.85).
-        bool was = _FloraCastState[id] != 0;
+        bool was = (_FloraCastState[id] & 1u) != 0;
         casts = casts || (was && distance - radius < castTo * 1.176);
         if (was != casts)
-            _FloraCastState[id] = casts ? 1 : 0;
+            _FloraCastState[id] = (_FloraCastState[id] & ~1u) | (casts ? 1u : 0u);
     }
     float margin = casts ? _Shadow.y : 0;
     bool seen = true;
@@ -217,7 +222,36 @@ void Cull(uint id : SV_DispatchThreadID)
         Append(id, local, 2, t2);
     }
     else
-        Append(id, local, 2, keep);
+    {
+        // R-7: the impostor's hand-over, never nearer than a little past the coarsest mesh's own. Once over, it holds
+        // until the plant is a little bigger again (as DetailPolicy.Hysteresis: 0.87).
+        float t3 = 0;
+        float impostor = _Reach.x > 0 ? _ModelImpostor[local] : 0;
+        if (impostor > 0)
+        {
+            float imp = max(impostor * plant.scale * _Reach.x, lod2 * 1.2);
+            bool over = false;
+            if (_CastHold > 0)
+            {
+                over = (_FloraCastState[id] & 2u) != 0;
+                if (over)
+                    imp *= 0.87;
+            }
+            float band3 = imp * 0.15;
+            t3 = saturate((d - (imp - band3 * 0.5)) / band3);
+            if (_CastHold > 0 && (over ? t3 <= 0 : t3 >= 1))
+                _FloraCastState[id] ^= 2u;
+        }
+        if (t3 <= 0)
+            Append(id, local, 2, keep);
+        else if (t3 < 1)
+        {
+            Append(id, local, 2, -t3);
+            Append(id, local, 5, t3);
+        }
+        else
+            Append(id, local, 5, keep);
+    }
 }
 
 // R-5: the wide sun-shadow map's cull (Rendering.WideShadow, FloraSystem.Wide.cs), run once per map redraw. A plant
