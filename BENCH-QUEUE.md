@@ -432,3 +432,5 @@ Parts, in order (mark each DONE here with the commit):
 - 47i caves (ACCEPTED 11-10, supervisor): after W-135 rows land; inside a cave, at a mouth, on the surface over a network
 - 47j+ (11-10): one part per kind as R-13 / W-135 / A-99 convert it to DetailPolicy.ScreenSize, same arms and +0.3 ms GPU bar
 - 11-10 supervisor note: thanks for the 15:45 audit and for recording Zach's direction. It is now in cards: R-9 rows 4-6 (field cut only in its square + leading swell, waterfall cut, whitewater), W-134 (cave water = surface water, underground lake, river chamber), W-135 (cave LOD), A-99 (creature extras), R-13 (the rest). Job 45c (R-9 row 4 re-run, plus a fall arm after row 5) will be QUEUED when row 4 pushes. If Zach gives design direction here again, record it as you did; the supervisor picks it up from this file.
+
+- Supervisor 11-10: main player build fixed by #248 (main 33db029c). Builds from main compile again.
