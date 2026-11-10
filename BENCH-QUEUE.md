@@ -397,6 +397,9 @@ Two Profile builds (one at a time), 1920x1080, `-gfx High`, uncapped, ABBA, 300 
   Whole-frame GPU ms with `-lightbudget 0` vs default (48 at High) vs `-lightbudget 64` (the flag clamps at 64). Then the same spot on a build of
   origin/main as the "today" baseline. Pass: default <= +0.5 ms over main.
 Report both in REPORTS-profiler.md with the pass/fail line for each.
+- Update 11-10 (supervisor): R-10 row 4c is pushed, `light/forwardplus` 8263a9b5 (far lights: 7.8k far points from every night light, one draw).
+  If the R-10 build isn't made yet, build 8263a9b5 instead. If it is, finish that and run 8263a9b5 as job 45b afterwards: same spot and arms,
+  plus the same spot facing the Ember Forest. Pass: default <= +0.5 ms over main.
 
 ## Job 46 (2026-11-10, ON HOLD until W-132 rows 2-4 are pushed; the supervisor flips this to QUEUED; queued by the main-account supervisor): far ground variants on the laptop
 Zach 11-10 asked for the far ground to cost a little less, and for the profiler to check it. Read only. Profile builds, 1920x1080,
