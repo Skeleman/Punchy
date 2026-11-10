@@ -3294,6 +3294,59 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
   *The first perflog shot of a run sometimes reports render/gpu near 0 (a timer glitch). GPU stays within 0.4 ms of main. CPU main goes up 0.5-1.4 ms and drifts by about 0.9 ms between back-to-back runs, temple included. It is probably the extra prop objects (each prop is now 2-6 renderers instead of 1 cube) plus noise. This needs a same-spot A/B before anyone calls it a real cost; I am checking that during row 3.
 - [shot] D:/Unity/PunchyMilestones/A-91/after/contact-sheet.jpg (13 frames: entrance + deepest room per type, ruin props, 5 prop close-ups); before: D:/Unity/PunchyMilestones/A-91/before/contact-sheet.jpg
 
+### Fix: DungeonWalk compiles in player builds - done (verified)
+- Commit 753ee131 on fauna/dungeons2 (pushed), on its own. The TestHooks.BodyPref / SetBody / PutBodyPref calls in DebugControls.DungeonWalk.cs are now inside `#if UNITY_EDITOR`. In a player build, the walk keeps the current body.
+- Check: player scripts compiled through PlayerBuildInterface.CompilePlayerScripts (StandaloneWindows64, Development) gave 65 assemblies and no error CS.
+
+### Row 3: size and main paths - done (verified)
+- Commit db75defd on fauna/dungeons2 (pushed).
+- Caves are about 2x: main passages, chambers and side passages are each doubled at bake time. The landmark type numbers are unchanged.
+- Each cave has 1-3 main paths, graded at a capped 0.3 rise over run. A path steepens up to 0.6 only where thin rock ahead forces it down. Rooms under thin rock are lowered (to 3.2 m, roost 4.5 m) instead of dropped.
+- Ruin rooms are about 4x: twice as wide and deep, laid out as four rooms. Each room has its own creature, clutter and decor spots, so spawns scale with size. A ruin that doesn't fit shrinks to 3/4, then to half (the old size).
+- Two fixes from the walk:
+  - wall relief fades out near the floor, so low passages no longer grow knee-high fins;
+  - the lake basin is now a walkable bowl (1 down in 1.6 across) instead of a sheer 1.6 m drop.
+- `-dungeonwalk N:Bodies:cap:main` walks every cave's and ruin's main paths. It logs per-leg skips, stuck spots, falls and drops, plus MAINPATHS (max grade, max step).
+- Walk results (Human + Rabbit, every main path):
+
+| Pass | Legs walked / total | Skipped | Stuck | Falls | Timeouts | Drops |
+|---|---|---|---|---|---|---|
+| Cave Human | 715/715 | 0 | 0 | 0 | 0 | 0 |
+| Cave Rabbit | 712/715 | 2 | 1 | 0 | 0 | 0 |
+| Ruin Human | 394/395 | 1 | 0 | 0 | 0 | 0 |
+| Ruin Rabbit | 394/395 | 1 | 0 | 0 | 0 | 0 |
+
+- MAINPATHS: 32 paths. 26 have a steepest leg over 30 deg (25-38 deg is common). 7 have a step over 0.6 m (was 9 before the two fixes). The worst grade (50.3 deg) and worst step (1.1 m) are both at the mouth lip of cave B5049635, at (-1977.1, 226.5, 495.4).
+- Remaining risks (not fixed):
+  - Mouth steps: 9A7D76A7 0.8 m, 7E54C5E9 0.8 m at (2621.0, 16.6, 2079.9), 67FAE773 0.7 m / 41.9 deg.
+  - Ruin 0AB025B1 entrance ramp: smooth but 45.5 deg, climbing 8.5 to 17 m over about 13 m at (1445.6, 8.9, -2604.7). That is the single human skip ("step up 0.7 m").
+  - Rabbit stuck once at cave 3040191B leg 20, (-3013.5, 157.1, 1027.8): a straight leg cuts across the wall foot at a bend. It was there before the fixes.
+  - Two rabbit knee-check skips on the 72B561F9 lake bowl slope at about (-1388.8, 62.8, 1041.9).
+  - Tunnel falls are not smoothed. Camera clips through dungeon props.
+  - Socket-in-rock warnings: a ruin chest at (-2710.8, 19.4, -703.9) and cave clutter at (-2168.5, 35.4, -1108.8).
+- Entrances: none moved. All 28 mouth positions are identical to before (diffed).
+- Dungeon mix changed:
+  - Ruins went from 1 to 2: 0AB025B1 (row 2's "cave", which now gets a ruin room) and 876B823B.
+  - Main's only ruin, E81FE593 (row 2's "ruin" spot), no longer keeps a ruin room in the grown caves, so it is now a plain cave.
+  - Rooms: planned 15, kept 8 (grotto 3, lake 2, roost 1, ruin 2). Misses: door top 2, cover 9, air 3, overlap 2.
+- Pins, as measures:
+  - fauna fingerprint 66320C7C (unchanged);
+  - sunken temple: 73 sockets, hash 81129C52 (unchanged);
+  - cave sockets: 28 dungeons, 836 sockets (creature 208, chest 82, wall decor 285, interactable 11, clutter 250), hash EDEB7DB0 (changed, as expected);
+  - Landmarks_V3 (112 A955AFE0) is checked by the suite at the end of the card.
+- Frame times: deepest room, High, -fpscap 0, frame avg ms (max) / cpu main / gpu, two runs:
+
+| Spot | row 2 main | row 3 run 1 | row 3 run 2 |
+|---|---|---|---|
+| cave deep (now the 72B561F9 lake room) | 4.54 (7.2) / 3.79 / 1.08 | 8.09 (12.0) / 6.88 / 1.67 | 7.24 (19.7) / 6.20 / 1.48 |
+| ruin deep (now the 4-room ruin in 0AB025B1) | 8.55 (11.3) / 7.63 / 1.56 | 7.57 (10.7) / 6.33 / 2.17 | 6.10 (20.8) / 5.14 / 1.99 |
+| temple deep (same spot, unchanged dungeon: control) | 8.67 (12.1) / 7.74 / 2.14 | 12.75 (18.8) / 11.39 / 4.53 | 10.69 (23.8) / 9.56 / 3.18 |
+
+  - The temple control is unchanged but runs 2-4 ms slower than row 2, with 4 Unity editors on the machine. So the cave and ruin rooms are no slower than the control drift. The cave row compares a different room (row 2's room was in what is now a ruin).
+  - Row 2's exact spots now end up outside the grown caves, so there is no same-spot A/B. The row 2 CPU question stays open for the profiler.
+- D3D11 (editor): no magenta in any shot. Row 3 changed no material or shader.
+- [shot] D:/Unity/PunchyMilestones/A-91/row3/contact-sheet.jpg (11 frames: two cave mouths, both lake bowls, a grotto, the ruin mouth, three views of the 4-room ruin plus the second ruin, temple control). Single shots and list.txt / list2.txt are in row3/.
+
 ## A-97
 
 - **Row 1 (Tag): done (verified).** Branch fauna/surfaces, commit b5768261. LimbType segments have a Surface (Coat default; Hoof, Pad, Claw, Eye, Horn). Species have a coat kind (Fur/Feathers/Scales/Skin/Chitin) and a fur length. Both are baked into a CreatureLookBlob (not on CreatureBlob) and written to SegmentInstance.Material.w. In Creature.shader, shells grow only on the Fur coat. `-nosurfaces` gives the old look.
