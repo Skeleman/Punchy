@@ -1,7 +1,7 @@
 {
   "_readme": [
     "Quests for the notice boards (#27). Edit freely while the game runs: it is read again a second after you save (or press F10).",
-    "type: fetch (bring count of item to the board), find (a rare item is hidden within 40 m of the board: bring it back) or clear (drive every creature of a kind out of radius m round the board, and keep them out for 10 s; any way counts).",
+    "type: deliver (carry count of item to the board in the other town, {dest}), visit (go to {dest} and come back), fetch (bring count of item to the board), find (a rare item is hidden within 40 m of the board: bring it back) or clear (drive every creature of a kind out of radius m round the board, and keep them out for 10 s; any way counts).",
     "creature, radius: for clear quests, the species (as named in the game: Crow, Chicken, Pigeon...) and the radius in metres.",
     "item, reward: item names from the item table (Stick, Stone, Berry, Mushroom, Shell, Fish, Coin, Key, Torch, Staff, Hat, Pack). count: how many to bring. rewardCount: how many of reward are paid.",
     "text slots: {item}, {count}, {creature}, {town} (the settlement), {place} (the notice board in {town}).",
@@ -15,6 +15,12 @@
     { "id": "shell", "type": "find", "item": "Shell", "count": 1, "text": "A child in {town} dropped a lucky shell nearby. Find the shell and bring it to {place}.", "reward": "Mushroom", "rewardCount": 3 },
     { "id": "crows", "type": "clear", "creature": "Crow", "radius": 30, "text": "Crows are at the seed round {place}. Chase every {creature} off and keep them off a while.", "reward": "Coin", "rewardCount": 7 },
     { "id": "chickens", "type": "clear", "creature": "Chicken", "radius": 20, "text": "The {creature}s of {town} are all over the square. Shoo them away from {place}.", "reward": "Berry", "rewardCount": 6 },
-    { "id": "pigeons", "type": "clear", "creature": "Pigeon", "radius": 25, "text": "Pigeons have taken the roofs near {place}. Drive every {creature} off.", "reward": "Coin", "rewardCount": 5 }
+    { "id": "pigeons", "type": "clear", "creature": "Pigeon", "radius": 25, "text": "Pigeons have taken the roofs near {place}. Drive every {creature} off.", "reward": "Coin", "rewardCount": 5 },
+    { "id": "letter-sticks", "type": "deliver", "item": "Stick", "count": 2, "text": "{town} promised {dest} a bundle of {count} sticks. Carry them to the notice board in {dest}.", "reward": "Coin", "rewardCount": 10 },
+    { "id": "fish-run", "type": "deliver", "item": "Fish", "count": 1, "text": "A fresh fish from {town}, wanted in {dest}. Take it to their notice board while it's good.", "reward": "Staff", "rewardCount": 1 },
+    { "id": "shells-gift", "type": "deliver", "item": "Shell", "count": 3, "text": "{count} shells from {town} for a friend in {dest}. Leave them at the notice board there.", "reward": "Coin", "rewardCount": 9 },
+    { "id": "see-town", "type": "visit", "text": "Nobody in {town} has heard from {dest} in months. Go and see how they are, then come back to {place}.", "reward": "Coin", "rewardCount": 12 },
+    { "id": "far-news", "type": "visit", "text": "Take a walk to {dest} for {town} and bring back word to {place}.", "reward": "Hat", "rewardCount": 1 },
+    { "id": "scout", "type": "visit", "text": "{town} wants to know the road to {dest} is open. Get there, then report at {place}.", "reward": "Pack", "rewardCount": 1 }
   ]
 }

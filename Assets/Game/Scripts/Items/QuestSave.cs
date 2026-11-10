@@ -28,7 +28,7 @@ namespace Punchy.Items
         {
             public string id, town;
             public int state;
-            public bool tracked;
+            public bool tracked, visited;
         }
 
         [System.Serializable]
@@ -54,6 +54,8 @@ namespace Punchy.Items
             var at = System.Array.IndexOf(args, "-questsave");
             savePath = at >= 0 && at + 1 < args.Length ? args[at + 1] : Path.Combine(Application.persistentDataPath, SaveName);
             dropLostArg = System.Array.IndexOf(args, "-droplost") >= 0;
+            if (System.Array.IndexOf(args, "-questflow") >= 0)
+                StartCoroutine(QuestFlow());
         }
 
         string TownKey(int board) => $"{boards[board].Town}@{math.round(boards[board].Pos.x):F0},{math.round(boards[board].Pos.z):F0}";
@@ -130,6 +132,8 @@ namespace Punchy.Items
                 }
                 restored++;
                 myQuests[(board, slot)] = q.state;
+                if (q.visited)
+                    visited.Add((board, slot));
                 if (q.tracked)
                     tracked = (board, slot);
                 // (Taken: the host is told again. Done: only shown, so its reward isn't paid twice.)
@@ -182,7 +186,7 @@ namespace Punchy.Items
             saveDirty = false;
             var list = new List<SavedQuest>();
             foreach (var kv in myQuests)
-                list.Add(new SavedQuest { id = Def(kv.Key.Item1, kv.Key.Item2).id, town = TownKey(kv.Key.Item1), state = kv.Value, tracked = kv.Key == tracked });
+                list.Add(new SavedQuest { id = Def(kv.Key.Item1, kv.Key.Item2).id, town = TownKey(kv.Key.Item1), state = kv.Value, tracked = kv.Key == tracked, visited = visited.Contains(kv.Key) });
             foreach (var lost in lostQuests)
                 list.Add(lost.Saved);
             try
@@ -203,12 +207,91 @@ namespace Punchy.Items
             Debug.Log($"Quests: dropped \"{lost.Saved.id}\", {LostRefund} coins back; inventory: {DescribeInventory()}");
         }
 
+        /// <summary>The quests that send the player somewhere: reached (within this many m of the other town's board).</summary>
+        const float VisitReach = 15f;
+        readonly HashSet<(int, int)> visited = new HashSet<(int, int)>();
+
+        /// <summary>The other town of a deliver or visit quest: the same for every machine, never the board it came from.</summary>
+        int DestBoard(int board, int slot)
+        {
+            if (boards.Count < 2)
+                return board;
+            var h = math.hash(new uint2((uint)board, (uint)slot + 0x51u));
+            return (board + 1 + (int)(h % (uint)(boards.Count - 1))) % boards.Count;
+        }
+
+        void UpdateVisits(Unity.Transforms.LocalTransform player)
+        {
+            foreach (var kv in myQuests)
+                if (kv.Value == 1 && Def(kv.Key.Item1, kv.Key.Item2).type == "visit" && !visited.Contains(kv.Key) &&
+                    math.distance(boards[DestBoard(kv.Key.Item1, kv.Key.Item2)].Pos.xz, player.Position.xz) < VisitReach)
+                {
+                    visited.Add(kv.Key);
+                    saveDirty = true;
+                    Debug.Log($"Quests: reached {boards[DestBoard(kv.Key.Item1, kv.Key.Item2)].Town} for {Def(kv.Key.Item1, kv.Key.Item2).id}");
+                    break;
+                }
+        }
+
+        /// <summary>"-questflow": takes a deliver and a visit quest, goes where each says and hands them in, through the real calls.</summary>
+        System.Collections.IEnumerator QuestFlow()
+        {
+            yield return new WaitForSecondsRealtime(25f);
+            foreach (var type in new[] { "deliver", "visit" })
+            {
+                int board = -1, slot = -1;
+                for (int b = 0; b < boards.Count && board < 0; b++)
+                    for (int s = 0; s < boards[b].Offers.Length; s++)
+                        if (Def(b, s).type == type && !myQuests.ContainsKey((b, s)))
+                            (board, slot) = (b, s);
+                if (board < 0)
+                {
+                    Debug.Log($"Quests: -questflow: no board offers a {type}");
+                    continue;
+                }
+                var dest = DestBoard(board, slot);
+                MoveTo(boards[board].Pos);
+                yield return new WaitForSecondsRealtime(1f);
+                TakeQuest(board, slot);
+                Debug.Log($"Quests: -questflow {type}: {Def(board, slot).id} from {boards[board].Town} to {boards[dest].Town}; inventory: {DescribeInventory()}; progress: {QuestProgress(board, slot)}");
+                MoveTo(boards[dest].Pos);
+                yield return new WaitForSecondsRealtime(2f);
+                if (type == "visit")
+                {
+                    MoveTo(boards[board].Pos);
+                    yield return new WaitForSecondsRealtime(2f);
+                }
+                var there = type == "visit" ? board : dest;
+                var next = NextSlot(there, out var turnIn, out var from);
+                Debug.Log($"Quests: -questflow {type}: at {boards[there].Town} the board offers slot {next} (hand in: {turnIn}); progress: {QuestProgress(board, slot)}");
+                if (turnIn)
+                    TurnIn(from, next);
+                yield return new WaitForSecondsRealtime(1f);
+                Debug.Log($"Quests: -questflow {type}: state {myQuests[(board, slot)]}; inventory: {DescribeInventory()}");
+            }
+        }
+
+        void MoveTo(float3 at)
+        {
+            var em = Unity.Entities.World.DefaultGameObjectInjectionWorld.EntityManager;
+            var q = Q(em, Unity.Entities.ComponentType.ReadWrite<Punchy.Player.PlayerTag>(), Unity.Entities.ComponentType.ReadWrite<Unity.Transforms.LocalTransform>());
+            if (!q.TryGetSingletonEntity<Unity.Transforms.LocalTransform>(out var player))
+                return;
+            var t = em.GetComponentData<Unity.Transforms.LocalTransform>(player);
+            t.Position = at + new float3(2f, 1f, 2f);
+            em.SetComponentData(player, t);
+        }
+
         /// <summary>How a taken quest stands, for the log: "Berries 3/5", or where to hand it in.</summary>
         string QuestProgress(int board, int slot)
         {
             var q = Def(board, slot);
             if (q.type == "clear")
                 return "drive them all off, then wait";
+            if (q.type == "visit")
+                return visited.Contains((board, slot)) ? $"back to the board in {boards[board].Town}" : $"go to {boards[DestBoard(board, slot)].Town}";
+            if (q.type == "deliver")
+                return $"take it to the board in {boards[DestBoard(board, slot)].Town}";
             if (HasFor(board, slot))
                 return $"hand in at the board in {boards[board].Town}";
             var id = ItemId(q.item);

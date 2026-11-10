@@ -112,7 +112,8 @@ namespace Punchy.Items
         {
             var q = quests[boards[board].Offers[slot] % quests.Length];
             var place = $"the notice board in {boards[board].Town}";
-            return (q.text ?? "").Replace("{item}", q.item).Replace("{count}", q.count.ToString()).Replace("{town}", boards[board].Town).Replace("{place}", place).Replace("{creature}", q.creature ?? "");
+            // ({dest}: the other town of a deliver or visit quest.)
+            return (q.text ?? "").Replace("{dest}", boards[DestBoard(board, slot)].Town).Replace("{item}", q.item).Replace("{count}", q.count.ToString()).Replace("{town}", boards[board].Town).Replace("{place}", place).Replace("{creature}", q.creature ?? "");
         }
 
         /// <summary>Called from Update: reloading, the boards, the Use key at a board, the tests.</summary>
@@ -137,26 +138,35 @@ namespace Punchy.Items
                     targetBoard = b;
             if (targetBoard >= 0 && prompt == null)
             {
-                var slot = NextSlot(targetBoard, out var turnIn);
+                var slot = NextSlot(targetBoard, out var turnIn, out var from);
                 prompt = slot < 0 ? $"Notice board ({boards[targetBoard].Town}): nothing more for you"
-                       : turnIn ? $"{UseKey.Name}  hand in: {QuestText(targetBoard, slot)}" : $"{UseKey.Name}  take: {QuestText(targetBoard, slot)}";
+                       : turnIn ? $"{UseKey.Name}  hand in: {QuestText(from, slot)}" : $"{UseKey.Name}  take: {QuestText(from, slot)}";
                 if (slot >= 0 && UseKey.WasPressed() && target < 0 && targetChest < 0 && targetContainer < 0)
                 {
-                    if (turnIn) TurnIn(targetBoard, slot);
-                    else TakeQuest(targetBoard, slot);
+                    if (turnIn) TurnIn(from, slot);
+                    else TakeQuest(from, slot);
                 }
             }
+            UpdateVisits(player);
             QuestTests(player);
             CheckTests(player);
             UpdateClearing();
         }
 
         /// <summary>The slot to act on at a board: one taken and ready to hand in, else the first not yet taken (-1: none).</summary>
-        int NextSlot(int board, out bool turnIn)
+        int NextSlot(int board, out bool turnIn, out int from)
         {
             turnIn = false;
+            from = board;
+            // (A delivery is handed in where it's going, whichever board gave it.)
+            foreach (var kv in myQuests)
+                if (kv.Value == 1 && Def(kv.Key.Item1, kv.Key.Item2).type == "deliver" && DestBoard(kv.Key.Item1, kv.Key.Item2) == board && HasFor(kv.Key.Item1, kv.Key.Item2))
+                {
+                    (turnIn, from) = (true, kv.Key.Item1);
+                    return kv.Key.Item2;
+                }
             for (int s = 0; s < boards[board].Offers.Length; s++)
-                if (myQuests.TryGetValue((board, s), out var st) && st == 1 && HasFor(board, s))
+                if (myQuests.TryGetValue((board, s), out var st) && st == 1 && Def(board, s).type != "deliver" && HasFor(board, s))
                 {
                     turnIn = true;
                     return s;
@@ -172,6 +182,8 @@ namespace Punchy.Items
         bool HasFor(int board, int slot)
         {
             var q = Def(board, slot);
+            if (q.type == "visit")
+                return visited.Contains((board, slot));
             var id = ItemId(q.item);
             if (id < 0)
                 return false;
@@ -241,6 +253,9 @@ namespace Punchy.Items
             myQuests[(board, slot)] = 1;
             saveDirty = true;
             Debug.Log($"Quests: took \"{QuestText(board, slot)}\" (board {board} slot {slot})");
+            // (A delivery starts with the parcel in hand.)
+            if (Def(board, slot).type == "deliver" && ItemId(Def(board, slot).item) >= 0)
+                Grant((byte)ItemId(Def(board, slot).item), math.max(Def(board, slot).count, 1));
             if (Joined)
                 SendToHost(new TakeQuestRpc { Board = board, Slot = (byte)slot });
             else
@@ -295,12 +310,15 @@ namespace Punchy.Items
                 Spawn((byte)ItemId(q.item), 1, new float3(xz.x, y, xz.y));
                 Debug.Log($"Quests: hid the {q.item} for {q.id} at ({xz.x:F0}, {xz.y:F0})");
             }
+            if (state == 1 && q.type == "deliver" && ItemId(q.item) >= 0)
+                Carry(player, (byte)ItemId(q.item), math.max(q.count, 1));
             if (state == 2)
             {
                 var reward = ItemId(q.reward);
                 if (reward >= 0)
                 {
-                    Spawn((byte)reward, math.max(q.rewardCount, 1), boards[board].Pos + new float3(0f, 0f, -1.2f));
+                    // (A delivery is paid where it was delivered.)
+                    Spawn((byte)reward, math.max(q.rewardCount, 1), boards[q.type == "deliver" ? DestBoard(board, slot) : board].Pos + new float3(0f, 0f, -1.2f));
                     Debug.Log($"Quests: reward for {q.id}: {q.reward} x{q.rewardCount} by the board");
                 }
             }
@@ -385,14 +403,14 @@ namespace Punchy.Items
             if (takeQuestArg && age > 30f)
             {
                 takeQuestArg = false;
-                var slot = NextSlot(nearest, out _);
+                var slot = NextSlot(nearest, out _, out _);
                 Debug.Log($"Quests: -takequest: board {nearest} slot {slot}");
                 if (slot >= 0) TakeQuest(nearest, slot);
             }
             if (turnInArg && age > 45f)
             {
                 turnInArg = false;
-                var slot = NextSlot(nearest, out var ready);
+                var slot = NextSlot(nearest, out var ready, out _);
                 if (fakeHandInArg && !ready)
                 {
                     // (Test: hand in a taken quest without the items, to see the host refuse it.)
