@@ -515,3 +515,27 @@ Next: nothing open. P-25 row 3 still needs the answer on the house kit.
 - UNVERIFIED: a real mouse click and a real pad X (only the -swing path ran); weapons in chests/rewards not added (not in
   row 1); animals refusing a weapon goes through CanWearGear as before, not re-run.
 - Next: P-28 row 2 (armour), on top of player/weapons.
+
+## P-28 row 2 (11-10): DONE, `player/armour` at d6666a82 (on player/weapons)
+- GearSlot appends Legs, Feet (Body already existed, unused till now). Items appended (ids 17-22, after Arrow):
+  Cap (head, armour 1, 0.5 kg), Helm (head, 3, 2.5 kg), Jerkin (body, 2, 3 kg), Chainmail (body, 5, 9 kg), Greaves (legs,
+  2, 2.5 kg), Boots (feet, 1, 1.2 kg). ItemDef gains Armour, Look. Cap and helm keep a small Cover (0.1, 0.2).
+- Weight: worn gear now counts with the inventory in CarriedWeight (the carry limit's input; P-23 gear wasn't counted
+  before). Measured: Helm+Chainmail+Greaves+Boots worn 15.2 kg, armour total 11. Armour is a number only (nothing fights).
+- Drawn as shells a little larger than the body's own segment under them (head over the crown with a flat rim, the torso's
+  last two segments, each shin, each foot), so the size follows the body kind; in the worn pass in PoseGear.cs
+  (ArmourParts 8), skipped under 8 reference px. Linear colours (the first try read near-white). The straw-hat bit is now
+  the Hat item's only, so a cap or helm doesn't also draw the hat.
+- **Sync finding:** GearRpc/GearStateRpc grown from 3 to 6 bytes failed on both host and client in the Dev build:
+  "RpcSystem failed to deserialize RPC ... bits read (56 [7B]) did not match expected (80 [10B])", connection then closed.
+  Not proven why (stale generated or Burst serializer is my guess). Fixed by leaving those RPCs at their known shape and
+  sending armour in new ArmourRpc / ArmourStateRpc. After: host saw the client's cap+jerkin, the client saw the host's
+  helm+chainmail+greaves+boots, 0 deserialize errors either side. Worth knowing for anyone growing an existing RPC.
+- Shots (D:/Unity/shots-P28-armour, human at noon, front/side/back): set 1 cap+jerkin+boots, set 2 helm+chainmail+greaves
+  (+boots), set 3 straw hat+jerkin (+greaves, boots). 9 of 9 `[shot]` lines, contact sheet written.
+- Suite: 25 passed, 0 failed, 17 skipped in 325s (Unity exit 0). The run before it: 24/1 (FolkConversationTests
+  .Beast_ReactsInCharacter, "SetUp : world not up after 240 s", 584 s total with CPU ~50% busy from other work); unchanged
+  code passed on the re-run.
+- UNVERIFIED: real clicks on the six-button worn row (only -equip ran); a non-human upright body in armour (sizes follow
+  the segments, but only a human was shot).
+- Next: P-28 row 3 (clothing).
