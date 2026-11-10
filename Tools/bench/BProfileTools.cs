@@ -148,7 +148,7 @@ public static class BProfileTools
                     if (overLine != null && group == "Workers")
                         for (int i = 0; i < v.sampleCount; i++)
                         {
-                            var n = v.GetSampleName(i);
+                            var n = v.GetSampleName(i) ?? "?";
                             if (n == "Idle" || n == "Semaphore.WaitForSignal") continue;
                             overWorkers[n] = (overWorkers.TryGetValue(n, out var w) ? w : 0) + selfMs[i];
                         }
