@@ -76,3 +76,6 @@ Read before changing creatures, behaviour, poses, the player's body, settlements
   by adding its distance to SolidDistance with math.min. CaveDistance can overstate up to 1.8x, so trace at half steps.
 - A-32: the head-undo in PushOutOfSolids only counts rock overhead (surface normal y < -0.3); counting any rock
   wedged small bodies on steep floors. `-nohud` hides talk bubbles unless `-chatshot` sets FolkTalkLabels.BubblesWithoutHud.
+- A-90: creature breath is shaped by body size alone (CreatureBreathSystem.ShapeFor, StandHeight + BodyLength against
+  a person's 1.18 m); a player's body keeps the old breath. `-breathlog` logs the per-species table and live puff count,
+  `-breathsize old` brings back the one-size breath to compare. Shot-list lines reset flags, so repeat them per line.

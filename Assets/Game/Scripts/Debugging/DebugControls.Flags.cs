@@ -127,6 +127,11 @@ namespace Punchy.Debugging
             colossusShotDistance = colArg >= 0 && colArg + 1 < args.Length && float.TryParse(args[colArg + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var cd) ? cd : 0f;
             // "-huntlog": log land hunters' chases (Z-53).
             huntLog = System.Array.IndexOf(args, "-huntlog") >= 0;
+            // A-90: "-breathlog" logs the breath shape per species and the live puff count; "-breathsize old" brings back
+            // the one-size breath from before, to compare.
+            Punchy.Fauna.CreatureBreathSystem.Log = System.Array.IndexOf(args, "-breathlog") >= 0;
+            var bsArg = System.Array.IndexOf(args, "-breathsize");
+            Punchy.Fauna.CreatureBreathSystem.Legacy = bsArg >= 0 && bsArg + 1 < args.Length && args[bsArg + 1] == "old";
             // "-personalitylog Dog": list each of that species' personality a few seconds in (#50).
             var plArg = System.Array.IndexOf(args, "-personalitylog");
             personalitySpecies = plArg >= 0 && plArg + 1 < args.Length ? args[plArg + 1] : null;
