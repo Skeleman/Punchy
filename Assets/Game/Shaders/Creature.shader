@@ -26,6 +26,9 @@ Shader "Punchy/Creature"
             float4 material;   // x: what it's made of (SegmentMaterial: body, cloth, leather, metal, wood, bone); y: the
                                // height of the ground the creature stands on (for grounding: a body's segments only)
                                // z: seams only ("-noseams" leaves it 0), how many segments back the one this hangs from is (0: none)
+                               // w: the look (A-97, Punchy.Fauna.SurfaceLook): surface in the low 4 bits (0 fur, 1 feathers,
+                               // 2 scales, 3 skin, 4 chitin, 5 hoof, 6 claw, 7 pad, 8 eye, 9 horn, 10 paw), fur length x 16 (0 medium,
+                               // 1 short, 2 long; a paw's: the coat over its top); 0 = fur as every body was before
         };
 
         StructuredBuffer<Segment> _Segments;
@@ -104,28 +107,46 @@ Shader "Punchy/Creature"
                         lerp(lerp(Hash3(i + float3(0, 0, 1)), Hash3(i + float3(1, 0, 1)), f.x), lerp(Hash3(i + float3(0, 1, 1)), Hash3(i + float3(1, 1, 1)), f.x), f.y), f.z);
         }
 
+        // The look's surface and fur length (material.w, see Segment).
+        uint LookSurface(float look) { return (uint)(look + 0.5) & 15u; }
+        uint LookLength(float look) { return (uint)(look + 0.5) >> 4; }
+
         // Shells (A-92, #230; "-noshells" turns them off): a near body is drawn again as one or two shells a few millimetres out
         // (_Shell: the layer, 0 for the body itself), each kept only where a fur strand stands, thinner further out, so
-        // the outline goes soft. Gear, thin parts (eyes, ear tips) and bodies further than ShellRange collapse to a point
-        // (nothing drawn).
+        // the outline goes soft. Gear, thin parts (eyes, ear tips), anything that isn't fur (hooves, eyes, horns, scales,
+        // feathers: A-97) and short fur collapse to a point (nothing drawn). Only bodies whose fur looks big enough get
+        // shells at all (A-97: their own draw group, by DetailPolicy.CreatureFur, in place of a fixed 7 m here). Long
+        // fur (A-97) stands further out, droops a little and gathers into clumps towards the tips.
         float _Shell;
         static const float ShellStep = 0.0045;
-        static const float ShellRange = 7;
 
         void ShellVertex(inout float3 positionWS, float3 normalWS, Segment s)
         {
             if (_Shell <= 0)
                 return;
-            if (s.material.x > 0.5 || max(s.radiusStart, s.radiusEnd) * s.flatten < 0.03 || distance(s.position, _WorldSpaceCameraPos) > ShellRange)
+            if (s.material.x > 0.5 || LookSurface(s.material.w) != 0 || LookLength(s.material.w) == 1 ||
+                max(s.radiusStart, s.radiusEnd) * s.flatten < 0.03)
                 positionWS = s.position;
+            else if (LookLength(s.material.w) == 2)
+                positionWS += normalWS * (_Shell * ShellStep * 1.8) - float3(0, _Shell * _Shell * 0.0012, 0);
             else
                 positionWS += normalWS * (_Shell * ShellStep);
         }
 
-        void ShellClip(float3 surface)
+        void ShellClip(float3 surface, float look)
         {
             if (_Shell > 0)
-                clip(Noise3(float3(surface.xy * 170, surface.z * 20)) - (0.3 + 0.2 * _Shell));
+            {
+                if (LookLength(look) == 2)
+                {
+                    // Long: the body's long strands (Frag) gathered in clumps, more so further out.
+                    half clump = Noise3(float3(surface.xy * 45, surface.z * 6));
+                    half strand = Noise3(float3(surface.xy * 150, surface.z * 9)) * 0.6 + clump * 0.4;
+                    clip(lerp(strand, clump, 0.25 * _Shell) - (0.3 + 0.2 * _Shell));
+                }
+                else
+                    clip(Noise3(float3(surface.xy * 170, surface.z * 20)) - (0.3 + 0.2 * _Shell));
+            }
         }
 
         float SegmentFade(CreatureAttributes input) { return _Segments[input.instanceID + _SegmentOffset].pad; }
@@ -206,6 +227,9 @@ Shader "Punchy/Creature"
                 float along : TEXCOORD5;
                 nointerpolation float material : TEXCOORD6;
                 nointerpolation float ground : TEXCOORD7;
+                nointerpolation float look : TEXCOORD8;
+                nointerpolation float radius : TEXCOORD9; // (the segment's mean radius: feather and scale rows round it, A-97)
+                nointerpolation float flatten : TEXCOORD10; // (its cross-section's height over width: where a paw's sole is)
             };
 
             Varyings Vert(CreatureAttributes input)
@@ -219,6 +243,9 @@ Shader "Punchy/Creature"
                 o.normalWS = n;
                 o.color = c;
                 o.fade = SegmentFade(input);
+                o.look = _Segments[input.instanceID + _SegmentOffset].material.w;
+                o.radius = 0.5 * (_Segments[input.instanceID + _SegmentOffset].radiusStart + _Segments[input.instanceID + _SegmentOffset].radiusEnd);
+                o.flatten = _Segments[input.instanceID + _SegmentOffset].flatten;
                 return o;
             }
 
@@ -282,7 +309,7 @@ Shader "Punchy/Creature"
             half4 Frag(Varyings input) : SV_Target
             {
                 FadeClip(input.fade, input.positionCS.xy);
-                ShellClip(input.surface);
+                ShellClip(input.surface, input.look);
                 // (Probe steps, see _PunchySparkleProbe: 1 the vertex normal, 2 the normal, 4 after the fur bump, 8 the lit
                 // colour, 16 the final colour bad; 32 the final colour above the cap.)
                 uint probe = SparkleBad((float3)input.normalWS) ? 1u : 0u;
@@ -297,25 +324,179 @@ Shader "Punchy/Creature"
                 uint material = _PunchyPlainGear > 0.5 ? 0 : (uint)(input.material + 0.5);
                 if (material == 0)
                 {
+                    // A-97: what the body is covered in (Segment, material.w): fur as before, or feathers, scales, skin,
+                    // chitin, hoof, claw, pad, eye or horn. Each gives the albedo a pattern, a bump height h for the shared
+                    // bump below, and its own light: how far the diffuse wraps round, the rim, and a highlight.
+                    uint surf = LookSurface(input.look);
+                    uint len = LookLength(input.look);
+                    float3 sp = input.surface;
+                    float h = 0;
+                    half wrap = 0.25, rimK = 0.25, spec = 0, specPow = 8, sky = 0;
                     if (_PunchyNoFur < 0.5)
                     {
-                        // Fur: broad soft patches in the coat (both shades of it, a little), and up close fine strands
-                        // running along the segment, as a bump on the normal (screen-space derivatives: no tangents) and
-                        // a darker fleck between them. Patterns sit in the segment's own frame, so they move with it.
-                        float3 sp = input.surface;
+                        float dist = distance(input.positionWS, _WorldSpaceCameraPos);
                         half patch = Noise3(sp * 2.3 + albedo * 17) * 0.6 + Noise3(sp * 5.7 + 3.1) * 0.4;
-                        albedo *= lerp(0.84, 1.12, patch);
-                        float near = 1 - smoothstep(3, 9, distance(input.positionWS, _WorldSpaceCameraPos));
-                        float h = 0;
-                        if (near > 0)
+                        if (surf == 0)
                         {
-                            half strand = Noise3(float3(sp.xy * 170, sp.z * 20));
-                            albedo *= 1 - near * 0.14 * (1 - strand);
-                            h = strand * 0.0035 * near;
+                            // Fur: broad soft patches in the coat (both shades of it, a little), and up close fine strands
+                            // running along the segment, as a bump on the normal (screen-space derivatives: no tangents) and
+                            // a darker fleck between them. Patterns sit in the segment's own frame, so they move with it.
+                            // Short fur (len 1) has finer, flatter strands; long fur (2) longer ones gathered in clumps.
+                            albedo *= lerp(0.84, 1.12, patch);
+                            float near = 1 - smoothstep(3, 9, dist);
+                            if (near > 0)
+                            {
+                                half strand;
+                                if (len == 1)
+                                {
+                                    strand = Noise3(float3(sp.xy * 260, sp.z * 40));
+                                    albedo *= 1 - near * 0.09 * (1 - strand);
+                                    h = strand * 0.0018 * near;
+                                }
+                                else if (len == 2)
+                                {
+                                    half clump = Noise3(float3(sp.xy * 45, sp.z * 6));
+                                    strand = Noise3(float3(sp.xy * 150, sp.z * 9)) * 0.6 + clump * 0.4;
+                                    albedo *= 1 - near * 0.2 * (1 - strand);
+                                    h = strand * 0.005 * near;
+                                }
+                                else
+                                {
+                                    strand = Noise3(float3(sp.xy * 170, sp.z * 20));
+                                    albedo *= 1 - near * 0.14 * (1 - strand);
+                                    h = strand * 0.0035 * near;
+                                }
+                            }
                         }
-                        // (A-96: the derivatives are taken after the branch, where every pixel of the quad has its h; inside
-                        // it a neighbour that skipped the branch gave an undefined one. Where the screen derivatives are
-                        // parallel, as on the capsule's pinched ends, det is 0 and the normal is kept as it was.)
+                        else
+                        {
+                            // Round the segment and along it, in metres: u counts cells round (a whole number of them, so
+                            // the pattern closes up at the seam), v along. Detail too fine for the pixel fades out.
+                            float angle = atan2(sp.y, sp.x) * 0.15915494 + 0.5;
+                            float r = max(input.radius, 0.004);
+                            float near = 1 - smoothstep(4, 14, dist);
+                            if (surf <= 4)
+                                albedo *= lerp(0.92, 1.06, patch);
+                            if (surf == 1 || surf == 2)
+                            {
+                                // Feathers (1): overlapping rounded vanes in staggered rows, a darker edge where each
+                                // overlaps the next, a faint sheen. Scales (2): the same layout, smaller and tighter, each
+                                // a small dome with a dark groove round it, and a little gloss.
+                                float cell = surf == 1 ? 0.022 : 0.009;
+                                float around = max(3, round(6.2831853 * r / cell));
+                                float2 uv = float2(angle * around, sp.z / (cell * (surf == 1 ? 1.3 : 0.8)));
+                                float row = floor(uv.y);
+                                uv.x += frac(row * 0.5) * 1.0;
+                                float2 f = frac(uv) - float2(0.5, 0);
+                                float d = length(float2(f.x * 2, f.y));
+                                float fine = saturate(1.5 - max(fwidth(uv.x), fwidth(uv.y)) * 2.5);
+                                if (surf == 1)
+                                {
+                                    half edge = smoothstep(0.75, 1.0, d) * fine;
+                                    half shaft = (1 - smoothstep(0, 0.06, abs(f.x))) * (1 - f.y) * fine;
+                                    albedo *= (1 - 0.28 * edge) * (1 + 0.1 * shaft) * lerp(0.95, 1.05, Noise3(float3(row, floor(uv.x), 1.7)));
+                                    h = (1 - saturate(d)) * 0.0015 * near * fine;
+                                    rimK = 0.3; spec = 0.12; specPow = 12;
+                                }
+                                else
+                                {
+                                    half groove = smoothstep(0.7, 0.95, d) * fine;
+                                    albedo *= (1 - 0.35 * groove) * lerp(0.9, 1.08, Noise3(float3(row, floor(uv.x), 3.3)));
+                                    h = (1 - saturate(d * d)) * 0.0012 * near * fine;
+                                    wrap = 0.2; rimK = 0.15; spec = 0.35; specPow = 30;
+                                }
+                            }
+                            else if (surf == 3)
+                            {
+                                // Skin: fine pores and soft mottling, the light wrapping further round, a moist gloss.
+                                albedo *= lerp(0.88, 1.08, Noise3(sp * 9 + 1.3));
+                                half pore = Noise3(sp * 140);
+                                albedo *= 1 - 0.08 * (1 - pore) * near;
+                                h = pore * 0.0005 * near;
+                                wrap = 0.4; rimK = 0.12; spec = 0.25; specPow = 24;
+                            }
+                            else if (surf == 4)
+                            {
+                                // Chitin: hard plates in bands along the body, a sharp gloss and a bright edge.
+                                float band = frac(sp.z / 0.035);
+                                half seam = (1 - smoothstep(0.0, 0.08, band)) * saturate(1.5 - fwidth(sp.z / 0.035) * 2.5);
+                                albedo *= (1 - 0.3 * seam) * lerp(0.95, 1.05, Noise3(sp * 30));
+                                h = -seam * 0.0008 * near;
+                                wrap = 0.15; rimK = 0.1; spec = 0.6; specPow = 40; sky = 0.25;
+                            }
+                            else if (surf == 5 || surf == 6 || surf == 9)
+                            {
+                                // Hoof (5), claw (6), horn, antler, tusk, beak (9): matte keratin and bone, faint growth
+                                // rings round it and streaks along it, the light flatter (less contrast) than on fur.
+                                half rings = 0.94 + 0.06 * sin(sp.z * 380 + Noise3(sp * 20) * 3) * near;
+                                half streak = 0.92 + 0.08 * Noise3(float3(sp.xy * 120, sp.z * 6));
+                                albedo *= rings * streak;
+                                h = (streak - 0.92) * 0.004 * near;
+                                wrap = 0.4; rimK = 0.08; spec = 0.08; specPow = 10;
+                            }
+                            else if (surf == 7)
+                            {
+                                // Pad: dark, pebbled, a low sheen.
+                                half pebble = Noise3(sp * 260);
+                                albedo *= 0.8 - 0.1 * (1 - pebble);
+                                h = pebble * 0.0005 * near;
+                                wrap = 0.3; rimK = 0.05; spec = 0.1; specPow = 12;
+                            }
+                            else if (surf == 8)
+                            {
+                                // Eye: wet and hard, a sharp highlight from the sun, the sky mirrored at a glancing angle
+                                // and a small catchlight, so it reads alive from a few metres. No bump.
+                                wrap = 0.2; rimK = 0; spec = 2.2; specPow = 220; sky = 0.6;
+                            }
+                            else if (surf == 10)
+                            {
+                                // Paw (row 3): the coat over the top, short and fine (fur strands, or pores on a bare-skinned
+                                // coat; len holds the coat's surface), a dark leathery pad under the sole only (local -y is
+                                // down on a standing foot), grooves between four toes over the front half, and on big paws
+                                // (a mean radius of 2.4 cm and up) a small dark claw at the tip of each toe.
+                                float u = sp.x / r;
+                                float w = sp.y / (r * max(input.flatten, 0.05));
+                                float front = smoothstep(0.5, 0.75, input.along);
+                                half fine = saturate(1.5 - fwidth(u) * 6);
+                                albedo *= lerp(0.92, 1.06, patch);
+                                if (len == 0)
+                                {
+                                    half strand = Noise3(float3(sp.xy * 260, sp.z * 40));
+                                    albedo *= 1 - near * 0.09 * (1 - strand);
+                                    h = strand * 0.0015 * near;
+                                }
+                                else
+                                {
+                                    half pore = Noise3(sp * 140);
+                                    albedo *= 1 - 0.08 * (1 - pore) * near;
+                                    h = pore * 0.0005 * near;
+                                }
+                                // Toes: the distance to the nearest groove (u = 0 and +-0.45), within the paw's width.
+                                float g = abs(frac(u / 0.45 + 0.5) - 0.5) * 0.45;
+                                half groove = (1 - smoothstep(0.015, 0.06, g)) * front * (1 - smoothstep(0.6, 0.75, abs(u))) * fine;
+                                albedo *= 1 - 0.4 * groove;
+                                h -= groove * 0.08 * r * near;
+                                // The sole: the pad, pebbled and dark, with a low sheen.
+                                half sole = smoothstep(-0.25, -0.6, w);
+                                half pebble = Noise3(sp * 260);
+                                albedo = lerp(albedo, half3(0.03, 0.022, 0.018) * (1.1 - 0.25 * (1 - pebble)), sole);
+                                h = lerp(h, pebble * 0.0005 * near, sole);
+                                // Claws: at the front tip, on each toe's middle (u = +-0.225, +-0.675), just below mid-height.
+                                float tc = abs(frac((abs(u) - 0.225) / 0.45 + 0.5) - 0.5) * 0.45;
+                                half claw = smoothstep(0.024, 0.04, r) * smoothstep(0.88, 0.96, input.along) * (1 - smoothstep(0.05, 0.1, tc)) *
+                                            (1 - smoothstep(0.25, 0.55, abs(w + 0.15))) * (1 - smoothstep(0.75, 0.85, abs(u)));
+                                albedo = lerp(albedo, half3(0.035, 0.03, 0.026), claw);
+                                h += claw * 0.05 * r * near;
+                                wrap = lerp(0.25, 0.3, sole); rimK = lerp(0.2, 0.05, max(sole, claw));
+                                spec = 0.1 * sole + 0.25 * claw; specPow = lerp(12, 30, claw);
+                            }
+                        }
+                    }
+                    // (A-96: the derivatives are taken after the branch, where every pixel of the quad has its h; inside
+                    // it a neighbour that skipped the branch gave an undefined one. Where the screen derivatives are
+                    // parallel, as on the capsule's pinched ends, det is 0 and the normal is kept as it was.)
+                    if (_PunchyNoFur < 0.5)
+                    {
                         float3 dpdx = ddx(input.positionWS), dpdy = ddy(input.positionWS);
                         float3 r1 = cross(dpdy, n), r2 = cross(n, dpdx);
                         float det = dot(dpdx, r1);
@@ -323,14 +504,25 @@ Shader "Punchy/Creature"
                         n = SafeNormal(abs(det) * n - grad, n);
                     }
                     probe |= SparkleBad((float3)n) ? 4u : 0u;
-                    half diffuse = saturate(dot(n, light.direction) * 0.75 + 0.25);
+                    half diffuse = saturate(dot(n, light.direction) * (1 - wrap) + wrap);
                     // A little soft sheen at the silhouette, like fur or feathers catching the light.
-                    half rim = pow(1 - saturate(dot(n, v)), 3) * 0.25;
+                    half ndv = saturate(dot(n, v));
+                    half rim = pow(1 - ndv, 3) * rimK;
                     // (Plus the light of glowing plants and hot rock near it: W-18.)
                     // Grounded (Grounding.hlsl): darker underneath (belly, chin, the undersides of limbs) and where it
                     // meets the ground; the ambient light dimmed fully, the sun's in part.
                     half ground = _PunchyNoGrounding > 0.5 ? 1 : PunchyCreatureGrounding(input.positionWS.y - input.ground, n.y);
                     color = albedo * (light.color * shadow * diffuse * lerp(1, ground, 0.5) + SampleSH(n) * (1 + rim) * ground + PunchyGlowLight(input.positionWS, n));
+                    if (spec > 0)
+                    {
+                        // The highlight (A-97), white rather than the albedo's colour, kept within a few times the sun.
+                        float3 rv = reflect(-v, (float3)n);
+                        half hl = pow(saturate(dot(rv, light.direction)), specPow) * spec;
+                        half fresnel = 0.04 + 0.96 * pow(1 - ndv, 5);
+                        color += min(light.color * shadow * hl, 6) + SampleSH(rv) * sky * fresnel * ground;
+                        if (surf == 8)
+                            color += SampleSH(float3(0, 1, 0)) * pow(saturate(dot((float3)n, normalize(v + float3(0.25, 0.45, 0)))), 600) * 1.5;
+                    }
                 }
                 else
                     // (Gear is grounded by its downward faces only: it carries no ground height.)
@@ -416,6 +608,7 @@ Shader "Punchy/Creature"
                 float4 positionCS : SV_POSITION;
                 float fade : TEXCOORD0;
                 float3 surface : TEXCOORD1;
+                nointerpolation float look : TEXCOORD2;
             };
 
             Varyings Vert(CreatureAttributes input)
@@ -428,13 +621,14 @@ Shader "Punchy/Creature"
                 ShellVertex(p, n, _Segments[input.instanceID + _SegmentOffset]);
                 o.positionCS = TransformWorldToHClip(p);
                 o.fade = SegmentFade(input);
+                o.look = _Segments[input.instanceID + _SegmentOffset].material.w;
                 return o;
             }
 
             half Frag(Varyings input) : SV_Target
             {
                 FadeClip(input.fade, input.positionCS.xy);
-                ShellClip(input.surface);
+                ShellClip(input.surface, input.look);
                 return input.positionCS.z;
             }
             ENDHLSL
@@ -460,6 +654,7 @@ Shader "Punchy/Creature"
                 half3 normalWS : TEXCOORD0;
                 float fade : TEXCOORD1;
                 float3 surface : TEXCOORD2;
+                nointerpolation float look : TEXCOORD3;
             };
 
             Varyings Vert(CreatureAttributes input)
@@ -473,6 +668,7 @@ Shader "Punchy/Creature"
                 o.positionCS = TransformWorldToHClip(p);
                 o.normalWS = n;
                 o.fade = SegmentFade(input);
+                o.look = _Segments[input.instanceID + _SegmentOffset].material.w;
                 return o;
             }
 
@@ -483,7 +679,7 @@ Shader "Punchy/Creature"
             )
             {
                 FadeClip(input.fade, input.positionCS.xy);
-                ShellClip(input.surface);
+                ShellClip(input.surface, input.look);
                 outNormalWS = half4(SafeNormal(input.normalWS, float3(0, 1, 0)), 0);
             #ifdef _WRITE_RENDERING_LAYERS
                 outRenderingLayers = EncodeMeshRenderingLayer();

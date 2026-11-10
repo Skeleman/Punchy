@@ -18,6 +18,7 @@ MonoBehaviour:
   VariantThickness: 1
   VariantLegs: 1
   BodyLength: 1.55
+  Gallop: 0
   BodyRadius: 0.29
   BodyTaper: 0.92
   BodyFlatten: 1.2
@@ -56,6 +57,8 @@ MonoBehaviour:
   - {r: 0.08, g: 0.06, b: 0.05, a: 1}
   - {r: 0.3, g: 0.18, b: 0.1, a: 1}
   - {r: 0.85, g: 0.82, b: 0.75, a: 1}
+  Coat: 0
+  FurLength: 1
   Parts:
   - Limb: {fileID: 11400000, guid: 5754e7ae7bf05e44aa4156707c6e0336, type: 2}
     Parent: -1
@@ -67,6 +70,7 @@ MonoBehaviour:
     Scale: 1.4
     Thickness: 1.7
     StyleGroup: 0
+    FurLength: 0
   - Limb: {fileID: 11400000, guid: ca532975d0d08d14ba12a36051e875e1, type: 2}
     Parent: -1
     Socket: {x: 0.55, y: -0.45, z: 0.72}
@@ -77,6 +81,7 @@ MonoBehaviour:
     Scale: 1.4
     Thickness: 1.7
     StyleGroup: 0
+    FurLength: 0
   - Limb: {fileID: 11400000, guid: e29940a987e4100488d751804489b174, type: 2}
     Parent: -1
     Socket: {x: 0, y: 0.45, z: 0.85}
@@ -87,6 +92,7 @@ MonoBehaviour:
     Scale: 1.45
     Thickness: 2
     StyleGroup: 0
+    FurLength: 0
   - Limb: {fileID: 11400000, guid: 5a8a3871a65bb814f9ddf13ea0c45bbf, type: 2}
     Parent: 2
     Socket: {x: 0, y: 0, z: 0}
@@ -97,6 +103,7 @@ MonoBehaviour:
     Scale: 1.55
     Thickness: 1.25
     StyleGroup: 0
+    FurLength: 0
   - Limb: {fileID: 11400000, guid: e23719102dfcd524a93240730d28f2d8, type: 2}
     Parent: 3
     Socket: {x: 0.04, y: 0.06, z: -0.27}
@@ -107,6 +114,7 @@ MonoBehaviour:
     Scale: 0.6
     Thickness: 0.9
     StyleGroup: 0
+    FurLength: 0
   - Limb: {fileID: 11400000, guid: 8db8692701365314db1a0b5e9ab1cbd1, type: 2}
     Parent: 3
     Socket: {x: 0.084, y: 0.045, z: -0.16}
@@ -117,6 +125,7 @@ MonoBehaviour:
     Scale: 2.5
     Thickness: 1
     StyleGroup: 0
+    FurLength: 0
   - Limb: {fileID: 11400000, guid: b4e18c70a87f12945b2939ceae5889a9, type: 2}
     Parent: 2
     Socket: {x: 0, y: 0.05, z: 0.02}
@@ -127,6 +136,7 @@ MonoBehaviour:
     Scale: 3.4
     Thickness: 1.2
     StyleGroup: 0
+    FurLength: 3
   - Limb: {fileID: 11400000, guid: 69a4671c47d80fc478e19bcc62eae563, type: 2}
     Parent: -1
     Socket: {x: 0, y: 0.6, z: -1}
@@ -137,6 +147,7 @@ MonoBehaviour:
     Scale: 2.8
     Thickness: 1.5
     StyleGroup: 0
+    FurLength: 3
   - Limb: {fileID: 11400000, guid: ace0a2f60dc21a7469a0c017797aa157, type: 2}
     Parent: 3
     Socket: {x: 0.07694816, y: 0.04122223, z: -0.16239999}
@@ -147,6 +158,7 @@ MonoBehaviour:
     Scale: 2.8
     Thickness: 1
     StyleGroup: 0
+    FurLength: 0
   WalkSpeed: 1.6
   RunSpeed: 17
   Bob: {x: 0.015, y: 0.06}
@@ -157,6 +169,7 @@ MonoBehaviour:
   WanderRadius: 70
   IdleTime: {x: 3, y: 10}
   FleeDistance: 30
+  FleeGas: 0
   TurnRate: 95
   SeenFrom: 0
   GroupSize: {x: 6, y: 12}
@@ -173,6 +186,8 @@ MonoBehaviour:
   Hunts: []
   Hunger: 0.3
   ChaseTime: 10
+  Aggression: {x: 0.2, y: 0.5}
+  HuntAggression: 0
   Idles: 2345
   Fidgets: 0.6
   Climbing: 0
@@ -180,12 +195,18 @@ MonoBehaviour:
   WebSize: 0.6
   Burrows: 0
   CaveDweller: 0
+  ChamberFolk: 0
+  Blind: 0
+  Wades: 0
+  ShunsLight: 0
+  SurfaceTrips: 0
   Crawls: 0
   ColdBlooded: 0
   Role: 0
   Hooves: 1
   ClimbsAs: 0
   EmoteReaction: 2
+  Tunnels: 0
   Voice: 0
   CaveAffinity: 0
   Roosts: 0
@@ -195,6 +216,7 @@ MonoBehaviour:
   CrossesWater: 1
   Nests: 0
   DrawnToLight: 0
+  Hawks: 0
   DrivenOff: 0
   GuardKit: 0
   GuardArmour: {r: 0.55, g: 0.57, b: 0.6, a: 1}
@@ -204,12 +226,15 @@ MonoBehaviour:
   FlightHeight: {x: 8, y: 18}
   FlySpeed: 7
   PlayerFlySpeed: 0
+  PlayerJump: 0
   FlapRate: 6
   Glide: 0
   Perching: 0.6
   Soars: 0
   Breaches: 0
   RaidsHives: 0
+  Regard: []
+  RegardToAll: 0
   Calls:
   - Sound: 29
     Interval: {x: 15, y: 40}
