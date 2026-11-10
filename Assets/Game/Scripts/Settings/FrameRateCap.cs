@@ -10,6 +10,9 @@ namespace Punchy.Settings
     /// Temp/PlayArgs.txt) sets it for that run only, for benches and tests (0 = unlimited). Vsync stays off, so the cap
     /// is what decides. The network keeps its own tick rate whatever the frame rate (a host's server catches up in
     /// steps), so a cap changes how smooth it looks, not how fast the world runs.
+    /// Job 42 (the Summit stall: the main thread asleep in the swapchain's present wait): "-vsync &lt;n&gt;" sets
+    /// QualitySettings.vSyncCount for the run (default 0), and "-maxqueued &lt;n&gt;" QualitySettings.maxQueuedFrames
+    /// (default: Unity's own), both from script; nothing in ProjectSettings changes.
     /// </summary>
     public static class FrameRateCap
     {
@@ -22,6 +25,10 @@ namespace Punchy.Settings
         public static int Current { get; private set; } = Default;
         /// <summary>Set from the command line for this run (not saved).</summary>
         public static bool FromCommandLine { get; private set; }
+        /// <summary>QualitySettings.vSyncCount ("-vsync", default 0: the cap decides).</summary>
+        public static int VSync { get; private set; }
+        /// <summary>QualitySettings.maxQueuedFrames from "-maxqueued", or -1 to leave Unity's default.</summary>
+        public static int MaxQueued { get; private set; } = -1;
 
         public static string Describe(int cap) => cap > 0 ? $"{cap} fps" : "unlimited";
 
@@ -39,7 +46,17 @@ namespace Punchy.Settings
                     Current = cap;
                     FromCommandLine = true;
                 }
+            VSync = 0;
+            MaxQueued = -1;
+            for (int i = 0; i < args.Length - 1; i++)
+            {
+                if (args[i] == "-vsync" && int.TryParse(args[i + 1], out var v) && v >= 0 && v <= 4)
+                    VSync = v;
+                if (args[i] == "-maxqueued" && int.TryParse(args[i + 1], out var q) && q >= 0 && q <= 10)
+                    MaxQueued = q;
+            }
             Apply();
+            Debug.Log($"FrameRateCap: vSyncCount {QualitySettings.vSyncCount}, maxQueuedFrames {QualitySettings.maxQueuedFrames}");
             // (Something to watch the Options button each frame, kept across the scene reload a join does.)
             var watcher = new GameObject("FrameRateCap");
             Object.DontDestroyOnLoad(watcher);
@@ -49,7 +66,9 @@ namespace Punchy.Settings
 
         static void Apply()
         {
-            QualitySettings.vSyncCount = 0;
+            QualitySettings.vSyncCount = VSync;
+            if (MaxQueued >= 0)
+                QualitySettings.maxQueuedFrames = MaxQueued;
             Application.targetFrameRate = Current > 0 ? Current : -1;
         }
 
