@@ -4090,3 +4090,30 @@ Built in the player tree, not the one the card names (the world tree's gitignore
   - **Hitches over a fixed 60 s flight** (40 m/s, 300 m up, along the walk line): High 5884 frames, mean 10.20 ms, p99 14.52, max 43.7, 1 frame over 33 ms, 0 over 50; Medium 6862 frames, mean 8.75, p99 12.88, max 43.4, 4 over 33 ms, 0 over 50. No `[stream]` slow batches at either.
   - **Look:** from 150 m and 300 m the edge is not a hard line; the ground fades into haze before it ends (haze is tied to the edge). The cost of "more distance" is therefore also thinner haze near the player, which row 2 will report.
   - Shots: PunchyMilestones/W-131/r1-{Medium,High}-{150m,300m}.png, r1-contact-sheet.jpg. `[shot] 'r1-High-300m' ready after 0.9 s ... 1280x720, camera (-1236.0, 377.5, 1324.0); check: mean 0.69 ... good` (all four "good").
+
+## R-10 (continued, row 4: a glowing town at distance; tree Punchy-release, branch light/forwardplus)
+- **R-10 row 4 DONE (glowing town)**: light/forwardplus `95c93aef` (pushed; merges cleanly with origin/main 484c8f2c).
+  - **Changes:**
+    - **Town map:** the world bake now also sums every town's lit windows and street lights into its own 512² map, on the same rect as the world glow map (SurfaceGlow.World BakeTowns, 36 m soft fall-off). Bake log: 101 lit houses and 195 street lights in 6 towns. The whole world bake took 5.6-7.5 s on its worker thread, about the same as before.
+    - **Who reads it:** PunchyGlowWorld reads the map past the far glow map (fade 250-330 m from the camera). Terrain already read PunchyGlowWorld. Flora.shader and FloraImpostor.shader now read it too, which covers built things, plants, rocks and R-7's flora impostors. It is warm (1, 0.6, 0.28), follows the windows (off by day and when the lights go out), is off underground, and levels off in dense towns.
+    - **Light dome:** SurfaceGlow.Dome and TownDome.shader put a soft dome in the air over each lit town. It is cosmetic and seed-derived (nothing is sent). It is one box per town, drawn in a single RenderPrimitives call. Each pixel integrates the ray through a flattened half-ellipsoid against scene depth, so hills hide it and it shows against the sky. It is a little thicker in Overcast and Rain, takes only a twentieth of the land's haze, and fades out from about 1.5R to 0.5R as the camera nears the town, where the real lights take over.
+    - **Off switch:** `-townglow 0` turns off both the map and the domes.
+  - **Decisions:**
+    - **Own map, not AddWorldSource:** towns went into their own map rather than literal SurfaceGlow.World.AddWorldSource calls, so they can follow the windows' on/off and have their own fade without touching the static plant and lava map.
+    - **Impostors:** structures have no impostors (R-7's are flora only), so "lit windows at every LOD" means windows plus the town map on the ground and buildings past the far map. Lit windows were already emissive at every structure LOD.
+    - **Dome z clamp:** the dome's far faces are clamped onto the far plane (3000 m). Without that, a town 2-3 km away lost its dome.
+    - **Dome queue:** the dome draws at Transparent-5, after the water (Transparent-10), so a sea behind a town doesn't cut a dark band through it.
+    - **"Light fog" = Overcast:** the haze density doesn't change with weather (it's 1.98/drawDistance), so "light fog" shots use Overcast (fog 1.5). That brightens the dome only.
+    - **Glide fix:** the first glide had a dip at 410-540 m, where the dome had faded but the ground patch was still a thin line at a low angle. Bringing the dome's fade in to 0.5R-1.5R+100 fixed it.
+  - **Glide (High, 22:00, Clear, 3000 m to 110 m west of the big town, 20 stops, camera 60-155 m over the ground):** the glow shows at every stop. The dome carries it from 3 km to about 400 m, then hands over smoothly to the ground patch and lit windows. No visible step.
+  - **GPU ms (desktop editor, High, ABBA, town map + domes on vs off by `TownGlowEnabled`/`TownGlowStrength`, first warm-up block dropped):**
+    - 1.5 km facing the town: 5.91 on vs 5.77 off.
+    - 450 m: 4.44 on vs 4.62 off.
+    - Both within noise (about 0.3 ms). The laptop pass line is BENCH-QUEUE job 45, which should use `95c93aef` (or later) so row 4 is included.
+  - **Suite + pins (editor closed):** 24 passed, 0 failed, 17 skipped in 348 s. Landmarks_V3 112 A955AFE0, Fauna_Fingerprint 66320C7C. The LyingTests OcotilloMimic failure from row 2b did not recur this run (flaky, or fixed on main).
+  - **Shots (PunchyMilestones/R-10/4/):**
+    - distances_sheet.jpg: 500 m, 1.5 km, 3 km over the hills and 3 km from the sea, Clear and Overcast, 22:00.
+    - The single frames v_{Clear,Overcast}_{0500,1500,3000w,3000sea}.jpg.
+    - glide_sheet.jpg and glide/f00..f19.
+  - **Not mine:** pale lavender squares on the ground at about 1.5 km west of the big town. They stay with the world and town glow fully off (squares_glow_on.jpg vs squares_glow_off.jpg), so they came in from main (flat props or decals?). Worth a look by the world or flora lane.
+  - **Merge note:** R-11 (far trees and rocks as impostors) may also touch FloraImpostor.shader. My change there is one line (the PunchyGlowWorld read).
