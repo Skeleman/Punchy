@@ -3274,3 +3274,22 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - [shot] D:/Unity/PunchyMilestones/A-96/row2-fur-same-frame-old-vs-fixed.png - same frozen frame, old shader left, fixed right (identical).
 - [shot] D:/Unity/PunchyMilestones/A-96/row1-before-rabbit-dusk.png - before (the sparkle); after: no marked pixels in any r2 run, so the probe made no crop.
 - Probe stays in, off by default (`-sparkleprobe <label>`, `-sparklecap`, `-nobloom`).
+
+## A-91 (rows 2-4)
+
+### Row 2: texturing - done (verified, temple UNVERIFIED)
+- Commit 3cf43ad0 on fauna/dungeons2 (pushed). Touches world-lane files on purpose (only small edits): Cave.shader (_Dressed switch, CRLF kept), CaveRoomKit.cs (wood colours, `Dressing(group)`), CaveSystem.Rooms.cs (sets _Dressed on room/portal material copies).
+- Cave.shader, no new pass and no textures: bare rock gets damp patches, drip streaks and sparse calcite/rust veins; dressed stone gets mottling, pitting, worn pale floors, grime, moss clumps and pooled damp; wood gets grain, plank seams and knots; iron gets rust. Fine noise runs in each face's plane (the first try sheared into diagonal scratches on walls).
+- Props: the new DungeonProps.cs builds crates, barrels, urns, rock piles, bones, cobwebs, coffers, ore carts, wells, altars, levers, sconces, banners and skull niches from kit parts in stone/wood/iron/bone; the tinted cube is kept only as a fallback.
+- D3D11 (editor device): no magenta in any shot.
+- Temple uses SunkenTemple.shader, which is unchanged, so the temple shots can only show the new props: texturing there is UNVERIFIED. The prop-lever close-up is blocked by a plinth.
+- Deepest room, High, -fpscap 0, frame avg ms (max) / cpu main / gpu:
+
+| Spot | main (before) | after run 2 | after run 3 (final) |
+|---|---|---|---|
+| cave-deep | 4.54 (7.2) / 3.79 / 1.08 | 5.91 (9.8) / 4.91 / 1.05 | 7.32 (37.5) / 5.77 / 0.04* |
+| ruin-deep | 8.55 (11.3) / 7.63 / 1.56 | 9.07 (12.7) / 8.03 / 1.73 | 9.95 (13.5) / 8.74 / 1.72 |
+| temple-deep | 8.67 (12.1) / 7.74 / 2.14 | 9.45 (13.4) / 8.34 / 2.49 | 10.37 (17.2) / 9.10 / 2.53 |
+
+  *The first perflog shot of a run sometimes reports render/gpu near 0 (a timer glitch). GPU stays within 0.4 ms of main. CPU main goes up 0.5-1.4 ms and drifts by about 0.9 ms between back-to-back runs, temple included. It is probably the extra prop objects (each prop is now 2-6 renderers instead of 1 cube) plus noise. This needs a same-spot A/B before anyone calls it a real cost; I am checking that during row 3.
+- [shot] D:/Unity/PunchyMilestones/A-91/after/contact-sheet.jpg (13 frames: entrance + deepest room per type, ruin props, 5 prop close-ups); before: D:/Unity/PunchyMilestones/A-91/before/contact-sheet.jpg
