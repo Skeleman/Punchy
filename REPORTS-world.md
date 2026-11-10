@@ -3881,3 +3881,18 @@ Built in the player tree, not the one the card names (the world tree's gitignore
     patch but not for extra full-screen work. Laptop numbers will need a BENCH-QUEUE job (I can only measure this PC).
   - **Not mine:** CreatureWakeSystem.cs is in Scripts/Fauna (animal lane); Water.shader is shared-additive (animal session told first).
   - Next: W-130 side task (supervisor), then row 2 (prototype as (a) + field).
+
+## W-130 (magenta slabs; tree Punchy-world, branch fix/magenta-slabs from origin/main beabf98b)
+
+- **W-130 DONE (verified)**: commit 3e28a4d8 (shader fix) + 1b6168d2 (rendering.md gotcha), pushed to fix/magenta-slabs.
+  - **Object:** R-7's shrub impostors (FloraImpostor.shader, layer 1, 60 slices). With `-noimpostors` (meshes) there are 0 magenta pixels; with impostors there are 8498 at the R-7 hilltop pose. The time and weather don't change it.
+  - **Cause:** on D3D11 (this editor and the laptop) FXC rejects a pixel shader that reads SV_POSITION and writes conservative depth
+    (IMPOSTOR_DEPTH = SV_DepthLessEqual), error X8000, unless the position is `noperspective centroid`. Every impostor pass
+    fell back to the error shader, so each impostor drew as a bare magenta quad. Came in with R-7 (#233/#234). Vulkan/Metal unaffected.
+  - **Fix:** FloraImpostor.hlsl adds `noperspective centroid` to ImpostorVaryings.positionCS on SHADER_API_D3D11 only (it only moves the
+    MSAA sample point). Shader now compiles with 0 messages (it had 3 D3D errors). After: 0 magenta, and the imp shot matches the mesh shot by eye.
+  - **Numbers (hilltop, 1280x720, desktop High):** render 2.88 ms imp / 2.85 mesh; frame 15.8 / 15.4 ms; impostors drawn 1069 on L1.
+  - **Note:** re-importing the shader during Play wipes the runtime impostor material's properties, and the impostors then show as pale
+    quads. That's only an editor artefact: they're fine after re-entering Play. Logged in docs/agents/rendering.md.
+  - **Suite:** 15 passed, 0 failed, 7 skipped in 214 s (editor closed, on fix/magenta-slabs). Pins held: Landmarks_V3 112 A955AFE0, Fauna_Fingerprint 66320C7C.
+  - **Shots:** D:/Unity/PunchyMilestones/W-130/hilltop-imp-before.png, hilltop-imp-after.png
