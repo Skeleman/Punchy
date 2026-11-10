@@ -86,6 +86,7 @@ namespace Punchy.Items
             var g = System.Array.IndexOf(args, "-giveitem");
             if (g >= 0 && g + 1 < args.Length)
                 giveArg = args[g + 1];
+            QuestSaveArgs(args);
             LoadQuests("start");
         }
 
@@ -127,6 +128,7 @@ namespace Punchy.Items
                 LoadQuests("F10");
             if (!boardsBuilt)
                 BuildBoards(terrain);
+            UpdateQuestSave();
             if (quests.Length == 0 || boards.Count == 0 || !TryPlayer(out var player))
                 return;
             targetBoard = -1;
@@ -237,6 +239,7 @@ namespace Punchy.Items
         void TakeQuest(int board, int slot)
         {
             myQuests[(board, slot)] = 1;
+            saveDirty = true;
             Debug.Log($"Quests: took \"{QuestText(board, slot)}\" (board {board} slot {slot})");
             if (Joined)
                 SendToHost(new TakeQuestRpc { Board = board, Slot = (byte)slot });
@@ -266,6 +269,7 @@ namespace Punchy.Items
             else
             {
                 myQuests[(board, slot)] = 2;
+                saveDirty = true;
                 HostRecord(0, board, slot, 2, Hosting ? "host" : "solo");
             }
         }
@@ -334,6 +338,7 @@ namespace Punchy.Items
         {
             var was = myQuests.TryGetValue((m.Board, m.Slot), out var w) ? w : 0;
             myQuests[(m.Board, m.Slot)] = m.State;
+            saveDirty = true;
             Debug.Log($"Quests: board {m.Board} slot {m.Slot} {(m.State == 2 ? "done" : was == 1 && handingIn ? "hand-in refused by the host" : "taken")} (from the host)");
             handingIn = false;
         }
@@ -412,11 +417,25 @@ namespace Punchy.Items
         {
             questLineStyle ??= new GUIStyle(GUI.skin.label) { richText = true, wordWrap = true, fontSize = 13 };
             var lines = new List<string>();
+            // (What each row does when pressed: a quest to follow, a lost quest to drop, or nothing.)
+            var rowQuest = new List<(int, int)>();
+            var rowLost = new List<LostQuest>();
+            void Row(string text, (int, int) quest, LostQuest lost)
+            {
+                lines.Add(text);
+                rowQuest.Add(quest);
+                rowLost.Add(lost);
+            }
+            if (myQuests.ContainsKey(tracked))
+                Row($"<b>\u2605 {QuestText(tracked.Board, tracked.Slot)}</b>\n    {QuestProgress(tracked.Board, tracked.Slot)}", tracked, null);
             foreach (var kv in myQuests)
-                if (kv.Key.Item1 < boards.Count && quests.Length > 0)
-                    lines.Add($"{(kv.Value == 2 ? "<b>[done]</b> " : "\u2022 ")}{QuestText(kv.Key.Item1, kv.Key.Item2)}");
+                if (kv.Key.Item1 < boards.Count && quests.Length > 0 && kv.Key != tracked)
+                    Row(kv.Value == 2 ? $"<b>[done]</b> {QuestText(kv.Key.Item1, kv.Key.Item2)}"
+                                      : $"\u2022 {QuestText(kv.Key.Item1, kv.Key.Item2)}\n    {QuestProgress(kv.Key.Item1, kv.Key.Item2)}", kv.Value == 1 ? kv.Key : (-1, -1), null);
+            foreach (var lost in lostQuests)
+                Row($"<i>[lost to time] {lost.Saved.id}: {lost.Why}.</i>  (press to drop, {LostRefund} coins back)", (-1, -1), lost);
             if (lines.Count == 0)
-                lines.Add("No quests yet: notice boards stand in every town.");
+                Row("No quests yet: notice boards stand in every town.", (-1, -1), null);
             var inner = inventory.width - 16f;
             var heights = lines.ConvertAll(l => questLineStyle.CalcHeight(new GUIContent(l), inner - 16f) + 4f);
             var total = 0f;
@@ -427,13 +446,25 @@ namespace Punchy.Items
             var boxHeight = Mathf.Min(total + 30f, room);
             var area = new Rect(20f, top, inventory.width, boxHeight);
             GUI.Box(area, "");
-            GUI.Label(new Rect(area.x + 8f, area.y + 4f, inner, 22f), "<b>Quests</b>", questLineStyle);
+            GUI.Label(new Rect(area.x + 8f, area.y + 4f, inner, 22f), "<b>Quests</b>   (press one, or U: follow it)", questLineStyle);
             var view = new Rect(area.x + 8f, area.y + 26f, inner, boxHeight - 30f);
             questScroll = GUI.BeginScrollView(view, questScroll, new Rect(0f, 0f, inner - 16f, total));
             var y = 0f;
             for (int i = 0; i < lines.Count; i++)
             {
-                GUI.Label(new Rect(0f, y, inner - 16f, heights[i]), lines[i], questLineStyle);
+                var row = new Rect(0f, y, inner - 16f, heights[i]);
+                // (Pressing a quest follows it; U or Y moves on to the next.)
+                if ((rowQuest[i].Item1 >= 0 || rowLost[i] != null) && GUI.Button(row, GUIContent.none, GUIStyle.none))
+                {
+                    if (rowLost[i] != null)
+                        DropLost(rowLost[i]);
+                    else
+                    {
+                        tracked = rowQuest[i];
+                        saveDirty = true;
+                    }
+                }
+                GUI.Label(row, lines[i], questLineStyle);
                 y += heights[i];
             }
             GUI.EndScrollView();
