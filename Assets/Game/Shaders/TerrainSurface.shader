@@ -41,6 +41,7 @@ Shader "Punchy/Terrain Surface"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Sky.hlsl"
             #include "Glow.hlsl"
+            #include "WideShadow.hlsl"
             // x how much the ground under grass takes the blades' colour, y the grass radius (GroundDetailSystem).
             float4 _PunchyGrassTint;
             // The shared fine detail CaveSystem makes (rg a normal, b a height): grain on rock faces up close.
@@ -533,14 +534,20 @@ Shader "Punchy/Terrain Surface"
                     color.rgb = lerp(color.rgb, film, puddle);
                 }
 
-                // Cloud shadows: dim the share of the light that comes straight from the sun.
-                half cloudShadow = PunchyCloudShadow(input.positionWS + float3(0, max(input.extra.w, 0), 0));
-                if (cloudShadow > 0)
+                // Cloud shadows and, past the real shadows, the wide cached ones of the huge things (R-5): dim the share
+                // of the light that comes straight from the sun. The wide shadow takes the darker of itself and the real
+                // shadow where they overlap, so it never doubles.
+                float3 shadowAt = input.positionWS + float3(0, max(input.extra.w, 0), 0);
+                half cloudShadow = PunchyCloudShadow(shadowAt);
+                half wideShadow = PunchyWideShadow(shadowAt, inputData.normalWS);
+                if (cloudShadow > 0 || wideShadow > 0)
                 {
                     Light mainLight = GetMainLight(inputData.shadowCoord);
-                    half direct = Luminance(mainLight.color) * saturate(dot(inputData.normalWS, mainLight.direction)) * mainLight.shadowAttenuation;
+                    half sunlit = Luminance(mainLight.color) * saturate(dot(inputData.normalWS, mainLight.direction));
+                    half direct = sunlit * mainLight.shadowAttenuation;
+                    half kept = sunlit * min(mainLight.shadowAttenuation, 1 - wideShadow) * (1 - cloudShadow);
                     half ambient = Luminance(inputData.bakedGI);
-                    color.rgb *= 1 - cloudShadow * direct / max(direct + ambient, 1e-3);
+                    color.rgb *= 1 - (direct - kept) / max(direct + ambient, 1e-3);
                 }
 
                 color.rgb = PunchyAtmosphere(color.rgb, input.positionWS);

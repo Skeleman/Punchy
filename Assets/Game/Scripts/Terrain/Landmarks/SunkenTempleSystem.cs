@@ -87,6 +87,7 @@ namespace Punchy.Terrain
             var foot = new Vector3(bounds.center.x, source.SampleHeight(new float2(bounds.center.x, bounds.center.z)), bounds.center.z);
             farShadow ??= new FarShadow("SunkenTemple far shadow");
             farShadow.Draw(source, foot, math.max(4f, bounds.max.y - foot.y), math.min(bounds.extents.x, bounds.extents.z));
+            Punchy.Rendering.WideShadow.Cast(lods[2], matrix);   // R-5: and into the wide shadow map
         }
 
         /// <summary>The wall torches: a wood flame each (FireSystem) and a flickering fixture light (LightBudget, refactor 3.1).</summary>
