@@ -555,7 +555,7 @@ namespace Punchy.Terrain
         /// </summary>
         float MouthCut(float2 xz, float h, float step)
         {
-            var cut = Source.MouthCut(xz, h, out var cave);
+            var cut = Source.MouthCut(xz, h, TerrainSource.MeshCutDepth, out var cave);
             if (cut >= 100f)
                 return cut;
             var r = step * 0.5f;
@@ -570,7 +570,7 @@ namespace Punchy.Terrain
             if (cave > SettledCave + FieldSlope * reach)
                 return cut;
             for (int k = 0; k < 4; k++)
-                cut = math.min(cut, Source.MouthCut(at[k], heights[k]));
+                cut = math.min(cut, Source.MouthCut(at[k], heights[k], TerrainSource.MeshCutDepth, out _));
             return cut;
         }
 

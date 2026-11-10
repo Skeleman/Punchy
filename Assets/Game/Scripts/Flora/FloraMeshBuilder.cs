@@ -137,6 +137,8 @@ namespace Punchy.Flora
         }
 
         public Vector3 Position(int i) => positions[i];
+        /// <summary>The vertex index at a place in the triangle list (three per triangle).</summary>
+        public int Index(int i) => indices[i];
 
         /// <summary>Smooth normals from the triangles added since the given counts.</summary>
         public void SmoothNormals(int firstVertex, int firstIndex)

@@ -1426,8 +1426,10 @@ namespace Punchy.Terrain
         /// Walls are kept only where the cave's distance is under this at a cell corner (MeshJob's nearCave). Wide enough
         /// that round a mouth the walls' skin of the ground surface runs on under the terrain past wherever the terrain's
         /// per-vertex cut (TerrainSource.MouthCut) can end, so there's never a gap between them.
+        /// W-128: 2.5 left sky showing through a hole over one mouth (the cut there needs 2.7 m at MouthCutDepth, 3.3 m
+        /// at MeshCutDepth, measured over every mouth).
         /// </summary>
-        const float WallReach = 2.5f;
+        const float WallReach = 3.5f;
 
         /// <summary>
         /// Lists every chunk a cave's walls can reach, by column. Done once per baked world, in a Burst job picked up a
@@ -1701,7 +1703,9 @@ namespace Punchy.Terrain
                 Indices = new NativeList<int>(Allocator.Persistent),
                 Pending = true
             };
-            var columnJob = new ColumnJob { Source = source, Origin = origin, Points = points, Voxel = chunkVoxel, Surface = b.Surface, SurfaceScale = b.SurfaceScale }
+            // W-128: the skin follows the ground as the near terrain draws it (its LOD0 grid), so it meets the terrain's edge.
+            var gridStep = configQuery.IsEmpty ? 0f : configQuery.GetSingleton<TerrainConfig>().ChunkSize / configQuery.GetSingleton<TerrainConfig>().Lod0Quads;
+            var columnJob = new ColumnJob { Source = source, Origin = origin, Points = points, Voxel = chunkVoxel, GridStep = gridStep, Surface = b.Surface, SurfaceScale = b.SurfaceScale }
                 .Schedule(points.x * points.z, 64);
             var field = new FieldJob { Source = source, Origin = origin, Points = points, Voxel = chunkVoxel, Field = b.Field, CaveField = b.CaveField, Surface = b.Surface, SurfaceScale = b.SurfaceScale }
                 .Schedule(points.y * points.z, 4, columnJob);
@@ -1726,12 +1730,15 @@ namespace Punchy.Terrain
             public int3 Origin;
             public int3 Points;
             public float Voxel;
+            /// <summary>The near terrain mesh's grid step (W-128): the surface is the drawn one, not the exact height
+            /// between its corners, so the skin round a mouth stays under the drawn ground. 0: the exact height.</summary>
+            public float GridStep;
             [WriteOnly] public NativeArray<float> Surface, SurfaceScale;
 
             public void Execute(int i)
             {
                 var xz = (float2)(Origin.xz + new int2(i % Points.x, i / Points.x)) * Voxel;
-                var h = Source.SampleHeight(xz);
+                var h = GridStep > 0f ? Source.MeshHeight(xz, GridStep) : Source.SampleHeight(xz);
                 const float e = 0.5f;
                 var slope = new float2(Source.SampleHeight(xz + new float2(e, 0f)) - Source.SampleHeight(xz - new float2(e, 0f)),
                                        Source.SampleHeight(xz + new float2(0f, e)) - Source.SampleHeight(xz - new float2(0f, e))) / (2f * e);
