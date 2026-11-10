@@ -48,6 +48,8 @@ namespace Punchy.Terrain
 
         BlobAssetReference<FloraBlob> blob;
         NativeArray<float4> modelGlow;
+        /// <summary>R-10 row 4c: glass crystals' glow a model (left out of modelGlow), for their far lights only.</summary>
+        NativeArray<float4> modelCrystal;
         bool anyGlow;
         BiomePalette from;
         float3 cellSizes;
@@ -163,12 +165,18 @@ namespace Punchy.Terrain
             blob = FloraPlacement.Build(palette, cellSizes, species);
             ref var f = ref blob.Value;
             modelGlow = new NativeArray<float4>(math.max(f.Models.Length, 1), Allocator.Persistent);
+            if (modelCrystal.IsCreated)
+                modelCrystal.Dispose();
+            modelCrystal = new NativeArray<float4>(math.max(f.Models.Length, 1), Allocator.Persistent);
             anyGlow = false;
             for (int s = 0; s < f.Rules.Length; s++)
             {
                 var g = f.Glow[s];
                 // Glass crystals stay out: a cluster has many at the same distance, so they took turns in the nearest
                 // 16 as the camera moved and the crystals seemed to pulse (F-52). They still light caves' walls.
+                if (g.w > 0f && species[s].Finish == FoliageFinish.Glass)
+                    for (int v = 0; v < f.Rules[s].Variants; v++)
+                        modelCrystal[f.Rules[s].FirstModel + v] = g;
                 if (g.w == 0f || species[s].Finish == FoliageFinish.Glass)
                     continue;
                 anyGlow = true;
@@ -234,6 +242,8 @@ namespace Punchy.Terrain
                 blob.Dispose();
             if (modelGlow.IsCreated)
                 modelGlow.Dispose();
+            if (modelCrystal.IsCreated)
+                modelCrystal.Dispose();
             if (positions.IsCreated)
                 positions.Dispose();
             if (colors.IsCreated)

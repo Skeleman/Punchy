@@ -7,7 +7,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: TownLights
+  m_Name: FarLights
   m_Shader: {fileID: 4800000, guid: d908fd0093024b21962851e7907391e6, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Punchy.Flora;
+using Punchy.Settings;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
@@ -25,7 +26,8 @@ namespace Punchy.Terrain
     /// cell (no stride) and puts its lit windows and street lights into a second, one-channel map, <see cref="TownMap"/>.
     /// It has its own map because it follows the windows (on after dark, off by day) and fades in over a longer stretch
     /// than plants do. The bake also sums each town's light into <see cref="Towns"/>, and keeps every lit house and
-    /// street light as a point (<see cref="TownPoints"/>), for the town lights seen from afar (SurfaceGlow.TownLights.cs).
+    /// street light as a point (<see cref="FarPoints"/>), with every burning tree, beacon fire, lava texel, glowing plant
+    /// and crystal it samples, for the lights seen from afar (SurfaceGlow.FarLights.cs, R-10 row 4c).
     /// </summary>
     public partial class SurfaceGlow
     {
@@ -45,6 +47,11 @@ namespace Punchy.Terrain
         const float TownMargin = 30f, TownReach = 36f, TownWindowLight = 1f, TownFixtureLight = 0.8f;
         /// <summary>R-10 row 4b: how high over its foot a lit house's windows and a street light's lamp are (m, at scale 1).</summary>
         const float TownWindowHeight = 1.6f, TownLampHeight = 3.2f;
+        /// <summary>R-10 row 4c: how high over its foot each far light is seen (m, at scale 1: a burning crown, a glowing
+        /// plant's cap, a crystal's middle), and its light, before its tier (FarLightPolicy). A sampled plant's light is
+        /// times its stride, for the cells round it left out; a glowing plant's also by its reach against a typical one's.</summary>
+        const float FarCrownHeight = 5f, FarPlantHeight = 0.6f, FarCrystalHeight = 1f;
+        const float FarFireLight = 0.5f, FarBeaconLight = 1.5f, FarLavaLight = 1.5f, FarPlantLight = 0.12f, FarPlantReach = 6f;
 
         /// <summary>A town's light, for its dome: the light-weighted middle of its lit houses and street lights (y their
         /// height), how far they spread round it (m), and how much light they add up to (one lit house is about 1).</summary>
@@ -71,9 +78,9 @@ namespace Punchy.Terrain
         /// map), and each town's light, once the bake is done.</summary>
         public Texture2D TownMap;
         public readonly List<TownGlow> Towns = new List<TownGlow>();
-        /// <summary>R-10 row 4b: every lit house and street light, xyz where its light is seen from afar, w its light
-        /// (negative for a street light).</summary>
-        public readonly List<float4> TownPoints = new List<float4>();
+        /// <summary>R-10 rows 4b-4c: every static light seen from afar (lit houses, street lights, burning trees, beacon
+        /// fires, lava, glowing plants, crystals), for SurfaceGlow.FarLights.cs.</summary>
+        public readonly List<FarPoint> FarPoints = new List<FarPoint>();
 
         NativeArray<float> modelFire;
         bool anyFire;
@@ -81,7 +88,7 @@ namespace Punchy.Terrain
         NativeArray<half4> worldOut;
         NativeArray<half> townOut;
         NativeList<TownGlow> townList;
-        NativeList<float4> townPoints;
+        NativeList<FarPoint> farPoints;
         NativeArray<int> worldCounts;
         JobHandle worldJob;
         bool worldRunning, worldStarted;
@@ -162,19 +169,20 @@ namespace Punchy.Terrain
                 Towns.Clear();
                 for (int i = 0; i < townList.Length; i++)
                     Towns.Add(townList[i]);
-                TownPoints.Clear();
-                for (int i = 0; i < townPoints.Length; i++)
-                    TownPoints.Add(townPoints[i]);
+                FarPoints.Clear();
+                for (int i = 0; i < farPoints.Length; i++)
+                    FarPoints.Add(farPoints[i]);
                 domesDirty = true;
+                farLightsDirty = true;
                 WorldReady = true;
                 Debug.Log($"SurfaceGlow: world glow baked in {WorldBakeMs:F0} ms: {worldCounts[0]} burning trees, " +
                           $"{worldCounts[1]} glowing plants, {worldCounts[2]} lava texels, {worldCounts[3]} lit houses and " +
-                          $"{worldCounts[4]} street lights in {Towns.Count} towns, " +
+                          $"{worldCounts[4]} street lights in {Towns.Count} towns, {FarPoints.Count} far lights ({worldCounts[5]} crystals), " +
                           $"{WorldMapSize * WorldMapSize * 10 / (1024 * 1024)} MB, {WorldExtent:F0} m across");
                 worldOut.Dispose();
                 townOut.Dispose();
                 townList.Dispose();
-                townPoints.Dispose();
+                farPoints.Dispose();
                 worldCounts.Dispose();
             }
             if (worldStarted || (!anyGlow && !anyFire))
@@ -186,8 +194,8 @@ namespace Punchy.Terrain
             worldOut = new NativeArray<half4>(WorldMapSize * WorldMapSize, Allocator.Persistent);
             townOut = new NativeArray<half>(WorldMapSize * WorldMapSize, Allocator.Persistent);
             townList = new NativeList<TownGlow>(64, Allocator.Persistent);
-            townPoints = new NativeList<float4>(512, Allocator.Persistent);
-            worldCounts = new NativeArray<int>(5, Allocator.Persistent);
+            farPoints = new NativeList<FarPoint>(8192, Allocator.Persistent);
+            worldCounts = new NativeArray<int>(6, Allocator.Persistent);
             worldClock = System.Diagnostics.Stopwatch.StartNew();
             worldJob = new WorldBakeJob
             {
@@ -195,6 +203,7 @@ namespace Punchy.Terrain
                 Source = source,
                 ModelGlow = modelGlow,
                 ModelFire = modelFire,
+                ModelCrystal = modelCrystal,
                 Extra = worldExtra.AsArray(),
                 Corner = WorldCorner,
                 Extent = WorldExtent,
@@ -202,7 +211,7 @@ namespace Punchy.Terrain
                 Output = worldOut,
                 TownOutput = townOut,
                 Towns = townList,
-                TownPoints = townPoints,
+                FarPoints = farPoints,
                 Counts = worldCounts
             }.Schedule();
             worldRunning = true;
@@ -222,8 +231,8 @@ namespace Punchy.Terrain
                 townOut.Dispose();
             if (townList.IsCreated)
                 townList.Dispose();
-            if (townPoints.IsCreated)
-                townPoints.Dispose();
+            if (farPoints.IsCreated)
+                farPoints.Dispose();
             if (worldCounts.IsCreated)
                 worldCounts.Dispose();
             if (WorldMap != null)
@@ -233,8 +242,9 @@ namespace Punchy.Terrain
             WorldMap = null;
             TownMap = null;
             Towns.Clear();
-            TownPoints.Clear();
+            FarPoints.Clear();
             domesDirty = true;
+            farLightsDirty = true;
             WorldReady = false;
             worldStarted = false;
         }
@@ -256,6 +266,7 @@ namespace Punchy.Terrain
             public TerrainSource Source;
             [ReadOnly] public NativeArray<float4> ModelGlow;
             [ReadOnly] public NativeArray<float> ModelFire;
+            [ReadOnly] public NativeArray<float4> ModelCrystal;
             [ReadOnly] public NativeArray<WorldSource> Extra;
             public float2 Corner;
             public float Extent;
@@ -263,7 +274,7 @@ namespace Punchy.Terrain
             public NativeArray<half4> Output;
             public NativeArray<half> TownOutput;
             public NativeList<TownGlow> Towns;
-            public NativeList<float4> TownPoints;
+            public NativeList<FarPoint> FarPoints;
             public NativeArray<int> Counts;
 
             public void Execute()
@@ -290,6 +301,16 @@ namespace Punchy.Terrain
                             Counts[0]++;
                             // Each tree's light spread over a soft 40 m, so a lone tree is faint and a forest adds up.
                             Splat(sums, texel, plant.Position.xz, new float4(0.3f * step * step, 0f, 0f, 0f), WorldMinReach);
+                            // Seen from afar in its crown, standing in for the step x step cells round it.
+                            FarPoints.Add(NewFarPoint(plant.Position + new float3(0f, FarCrownHeight * plant.Scale, 0f),
+                                                      FarFireLight * step, default, FarLightKind.Fire));
+                        }
+                        var crystal = ModelCrystal[plant.Model];
+                        if (crystal.w > 0f)
+                        {
+                            Counts[5]++;
+                            FarPoints.Add(NewFarPoint(plant.Position + new float3(0f, FarCrystalHeight * plant.Scale, 0f),
+                                                      FarPlantLight * step, FarColor(crystal.xyz), FarLightKind.Crystal));
                         }
                         var glow = ModelGlow[plant.Model];
                         // (Lit windows, negative, stay out: their light is indoor. Spill joins as an extra source.)
@@ -300,6 +321,8 @@ namespace Punchy.Terrain
                         var wide = math.max(reach * 1.6f, WorldMinReach);
                         var light = glow.xyz * (reach * reach / (wide * wide) * step * step);
                         Splat(sums, texel, plant.Position.xz, new float4(0f, light), wide);
+                        FarPoints.Add(NewFarPoint(plant.Position + new float3(0f, FarPlantHeight * plant.Scale, 0f),
+                                                  FarPlantLight * step * math.sqrt(reach / FarPlantReach), FarColor(glow.xyz), FarLightKind.GlowPlant));
                     }
                 }
                 // Surface lava (lava biomes, volcano craters): one look at each texel's middle.
@@ -315,14 +338,16 @@ namespace Punchy.Terrain
                         continue;
                     Counts[2]++;
                     Splat(sums, texel, at, new float4(0f, LavaLight * look.y), LavaReach);
+                    FarPoints.Add(NewFarPoint(new float3(at.x, ground.WaterSurface + 1f, at.y), FarLavaLight * look.y, default, FarLightKind.Fire));
                 }
                 // W-127: each beacon tower's fire, as a burning grove's worth of fire light round its square.
                 if (Source.Settlements.IsCreated)
                     for (int s = 0; s < Source.Settlements.Value.Settlements.Length; s++)
-                        if (FloraPlacement.BeaconSpot(ref f, Source, s, out var beacon, out _, out _, out _, out _))
+                        if (FloraPlacement.BeaconFire(ref f, Source, s, out var beacon))
                         {
                             Counts[0]++;
-                            Splat(sums, texel, beacon, new float4(BeaconFireLight, 0f, 0f, 0f), BeaconReach);
+                            Splat(sums, texel, beacon.xz, new float4(BeaconFireLight, 0f, 0f, 0f), BeaconReach);
+                            FarPoints.Add(NewFarPoint(beacon, FarBeaconLight, default, FarLightKind.Fire));
                         }
                 for (int i = 0; i < Extra.Length; i++)
                     Splat(sums, texel, Extra[i].Position.xz, new float4(0f, Extra[i].Light), math.max(Extra[i].Reach, WorldMinReach));
@@ -368,7 +393,8 @@ namespace Punchy.Terrain
                                 var light = (fixture ? TownFixtureLight : TownWindowLight) * math.sqrt(math.max(plant.Scale, 0.3f));
                                 SplatTown(town, texel, plant.Position.xz, light);
                                 // Seen from afar at a window's or a lamp's height.
-                                TownPoints.Add(new float4(plant.Position + new float3(0f, (fixture ? TownLampHeight : TownWindowHeight) * plant.Scale, 0f), fixture ? -light : light));
+                                FarPoints.Add(NewFarPoint(plant.Position + new float3(0f, (fixture ? TownLampHeight : TownWindowHeight) * plant.Scale, 0f), light,
+                                                          fixture ? FarLampColor : FarWindowColor, fixture ? FarLightKind.StreetLight : FarLightKind.Window));
                                 sum += light;
                                 weighted += plant.Position * light;
                                 spread += math.lengthsq(plant.Position.xz) * light;

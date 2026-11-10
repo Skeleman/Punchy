@@ -1245,6 +1245,8 @@ namespace Punchy.Terrain
                     }
                     surfaceGlow.DrawDomes(windowsOn * (1f - Underground), weather != null ? weather.Local.Fog : 1f, camPos);
                 }
+                // R-10 row 4c: every static light seen from afar as a point, bright by its tier (FarLightPolicy).
+                surfaceGlow.DrawFarLights(windowsOn * (1f - Underground), camPos);
             }
             // The far tier (Glow.hlsl): every glowing plant and lit window within about 300 m, baked into a light map,
             // fading in where LightBudget hands a typical glow from its slots to the far tier (refactor 3.1).
@@ -1343,8 +1345,9 @@ namespace Punchy.Terrain
         static readonly int GlowTownColorId = Shader.PropertyToID("_PunchyGlowTownColor");
         /// <summary>R-10 row 4: the town map's brightness, how hard a dense town levels off, the camera distance (m) it
         /// fades in over (the far map's edge, where its street lights fade out) and its warm colour. Row 4b: about three
-        /// times as bright (was 0.12), so the glow sits on the town rather than in the sky.</summary>
-        public static float TownGlowStrength = 0.35f;
+        /// times as bright (was 0.12), so the glow sits on the town rather than in the sky. Row 4c: 0.22 (was 0.35; Zach:
+        /// the town a little less intense), so with the far lights a town reads 20-30% dimmer.</summary>
+        public static float TownGlowStrength = 0.22f;
         const float TownGlowLevelOff = 0.15f, TownGlowFadeFrom = 250f, TownGlowFadeTo = 330f;
         static readonly Vector4 TownGlowColor = new Vector4(1f, 0.6f, 0.28f, 0f);
         Punchy.Weather.WeatherSystem weather;

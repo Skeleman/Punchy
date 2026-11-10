@@ -17,7 +17,7 @@ namespace Punchy.Terrain
     /// lights and glow slots take over.
     ///
     /// R-10 row 4b (Zach 11-10: the dome lit too much of the sky): off by default ("-towndome 1" turns it on), and when on
-    /// a low, small halo just over the town, barely thicker in fog or rain. The town lights (SurfaceGlow.TownLights.cs)
+    /// a low, small halo just over the town, barely thicker in fog or rain. The far lights (SurfaceGlow.FarLights.cs)
     /// show a distant town instead.
     ///
     /// Static and cosmetic: no light, nothing sent.
@@ -65,7 +65,7 @@ namespace Punchy.Terrain
                 DomeEnabled = args[at + 1] == "1";
         }
 
-        /// <summary>Draws the town lights and (with "-towndome 1") the domes for this frame: <paramref name="on"/> the
+        /// <summary>Draws (with "-towndome 1") the domes for this frame: <paramref name="on"/> the
         /// windows' night light (0 by day), <paramref name="fog"/> the weather's fog at the camera (1 clear).</summary>
         public void DrawDomes(float on, float fog, Vector3 camPos)
         {
@@ -75,7 +75,6 @@ namespace Punchy.Terrain
             domesDirty = false;
             if (dirty)
                 domeShapesDirty = true;
-            DrawTownLights(on, camPos, dirty);
             if (!DomeEnabled || Towns.Count == 0)
                 return;
             if (domeMaterial == null)
@@ -134,7 +133,7 @@ namespace Punchy.Terrain
             domeBuffer = null;
             domes.Clear();
             domesDirty = true;
-            ReleaseTownLights();
+            ReleaseFarLights();
         }
     }
 }
