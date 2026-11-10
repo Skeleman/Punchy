@@ -203,3 +203,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-10: W-133 done; merged #212 (main 9c4360f5) and #213 (main 0479ee53). Opened issue for the rain grey wall at the lone-oak spot. Punchy-world free -> R-9 rows 4-6. R-12 told to merge main (Sky.hlsl from #213).
 - 11-10: #248 merged (cherry-pick of A-91 753ee131): main player build fixed. A-91 rows 2-4 pushed on fauna/dungeons2; waiting on its handoff before PR.
 - 11-10: Zach re-stressed rule 20 (caves slipped through). Rule 20 now covers old code in touched files; tools/lod-lint.sh runs on every branch before merge. Grep leftovers carded: AskFade->R-13, BehindCullRange/Wake->A-99, cave fades/spill->W-135.
+- 11-10: world order now R-9 -> W-135 (cave LOD) -> W-134 -> W-132.
