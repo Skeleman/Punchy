@@ -232,7 +232,9 @@ namespace Punchy.Debugging
                 dwProblems.Clear();
                 dwProblemIndex.Clear();
                 dwCounts.Clear();
+#if UNITY_EDITOR
                 dwPrefWas = TestHooks.BodyPref();
+#endif
                 dwBodyWas = null;
             }
             if (!dwOn || !EnsureLocations(out var source) || !playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
@@ -244,8 +246,11 @@ namespace Punchy.Debugging
             {
                 if (Time.time - dwPhaseSince < 0.1f)
                     return;
+                // TestHooks is editor only: a player build walks every body pass in the current body.
+#if UNITY_EDITOR
                 var was = TestHooks.SetBody(dwBodies[dwBody]);
                 dwBodyWas ??= was;
+#endif
                 dwPhase = 1;
                 dwPhaseSince = Time.time;
                 return;
@@ -504,8 +509,10 @@ namespace Punchy.Debugging
             if (dwBody < dwBodies.Count)
                 return;
             dwOn = false;
+#if UNITY_EDITOR
             TestHooks.SetBody(dwBodyWas ?? "");
             TestHooks.PutBodyPref(dwPrefWas);
+#endif
             WalkReport();
         }
 
