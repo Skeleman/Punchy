@@ -3104,3 +3104,24 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - Suite: 15 passed, 0 failed, 7 skipped in 235s (Unity exit 0). Landmarks_V3 and Fauna_Fingerprint pass (pins unchanged).
 - Risk: large-body puffs are capped at size 3, so a colossus breathes like a horse. An untracked Assets/Resources.meta in the
   tree is not mine and was left alone.
+
+## A-93 - Folk personas and conversation (branch fauna/persona)
+
+### Row 1 - persona + talk API: done (verified), READY TO MERGE (P-26 can start)
+- Commit 66234524 on fauna/persona (pushed).
+- API (Punchy.Fauna): `FolkPersona.Of(individual)` gives seven traits, each 0-1 (warmth, mood, trust, curiosity, courage,
+  pride, beasts), listed once in `PersonaTrait` + `FolkPersona.Traits`. The mood bands match FolkJobs.Mood. `FolkState`
+  covers tired/busy/hungry/thirsty/lonely/scared/hurt/weather/night. `FolkConversation.Topics(folk, playerBody = null)`
+  returns `Topic[] {Id, Label}`. `FolkConversation.Ask(folk, topicId, playerBody = null)` returns
+  `Answer {Text, Gesture, Action, Offer {Kind, Id}, Ends}`. Topics: who, how, work, town, news, favour, help, bye.
+  An animal player gets meet and bye only (row 3 fills these in). Answers are placeholder lines for now. Row 2 moves them
+  into dialogue.json `conversation`.
+- No placement or network change: everything is derived from the replicated Individual when a folk is spoken to.
+  Nothing runs per frame.
+- Tests: FolkConversationTests 3/3 passed (persona digest pin 37026953; each trait's bands get 30-41%; mood disagrees 0%).
+  The sweep gave 4560 answers over 10 cultures with 0 empty, 0 unfilled, 0 errors and 280 quest offers. To an animal
+  player it gave 3120 answers and 0 errors.
+- Pins: Landmarks_V3 and Fauna_Fingerprint pass (112 A955AFE0, 66320C7C unchanged).
+- Live sample (Millfield): `[help] "Well, if you're offering, you could drive off the crows." offer Quest:crows`;
+  `[favour] "The town's that way. Follow the road." offer Directions:Millfield`; `[bye] "Safe travels." <Wave> (ends)`.
+- Risk: the favour ledger is local to the asking machine (a 90 s fade), so a joined client's asks don't count on the host.
