@@ -3896,3 +3896,31 @@ Built in the player tree, not the one the card names (the world tree's gitignore
     quads. That's only an editor artefact: they're fine after re-entering Play. Logged in docs/agents/rendering.md.
   - **Suite:** 15 passed, 0 failed, 7 skipped in 214 s (editor closed, on fix/magenta-slabs). Pins held: Landmarks_V3 112 A955AFE0, Fauna_Fingerprint 66320C7C.
   - **Shots:** D:/Unity/PunchyMilestones/W-130/hilltop-imp-before.png, hilltop-imp-after.png
+
+## R-10 (lights at distance and a glowing town; tree Punchy-release, branch light/forwardplus)
+
+- **R-10 row 1 DONE (measured, no code)** (light/forwardplus = origin/main 2644b295, with #236 merged).
+  - **Forward+ cap in 6000.5.8f1 / URP 17.5:** 256 visible additional lights per camera on desktop (structured buffer), 32 on mobile, GL and WebGPU. PC_Renderer is Forward+ (`_CLUSTER_LIGHT_LOOP`), and prefiltering is SelectOnly, so a new `multi_compile _ _CLUSTER_LIGHT_LOOP` in our shaders adds no build variants. Today our own budget caps owned lights at `RealLights = clamp(round(2+4*Detail), 4, 8)` (6 at Medium), far below the cap.
+  - **Who reads Forward+ lights today:** TerrainSurface (URP PBR) and Cave.shader (explicit LIGHT_LOOP). **Flora.shader does not**: it covers plants AND built things (houses, tower, walls, benches, well, cave props), and it reads only the 16 glow slots, the far map and the lantern. Grass, Pebbles and SunkenTemple are the same, so a real light today lights the ground but not the houses next to it.
+  - **Cost of N unshadowed point lights** (this PC, editor play mode, Medium, 1920x1080, whole synced frames, ABBA x3, median; lights reach 8 m, scattered 5-45 m ahead in town and 4-30 m in the cave). Only terrain and cave shaders read them yet, so row 2 adds Flora's share:
+
+    | place | base | N=8 | N=32 | N=64 | N=128 |
+    |---|---|---|---|---|---|
+    | big town, 22:00 | 2.5 ms | -0.002 | +0.056 | +0.079 | +0.236 |
+    | Mine cave | 1.65 ms | +0.025 | +0.006 | +0.030 | +0.158 |
+
+    Up to 64 lights stays inside the noise on this PC. 128 costs about 0.2 ms. Laptop: BENCH-QUEUE line below.
+  - **Walk-away from one street light** (big town, 22:00 with the clock paused, lantern at (2988.8, 11.2, -889.9), camera walked straight back). Street lights (W-127) are `AddStill(Fixture)`, so they never own a Unity light: of the 6 real lights, 0 were in use in town. They live only in the glow slots (13 of 16 used). The tiers a viewer actually sees:
+
+    | camera distance | what draws the light | what changes on screen |
+    |---|---|---|
+    | 0-35 m | glow slot, colour (1.30, 0.62, 0.16), reach 9 | full warm pool on the ground and walls (walk_3...walk_27) |
+    | 16-37 m | slot + far night map fading in (map hand-off 16.4-37.4 m) | the coarse map adds warmth under the slot |
+    | **35-38 m** | **slot dropped** (between walk_27 at 34.6 m and walk_31 at 38.6 m) | **the visible step:** the sharp pool on the house wall by the pole fades over 0.8 s into the far map's softer, blockier wash; the map's texel steps show at the base of the next building (walk_31) |
+    | 38-290 m | far map, then world map | town reads as a warm wash; no single light is visible (walk_40...walk_280). Slot count falls 16, 9, 2, 1 at 108/188/288 m |
+
+    - **Why at 37 m:** CaveSystem.GatherSurfaceGlow skips a street light past `handOff.y`, and that hand-off is computed as `GlowHandOff(AmbientGlow, 8)` = (23.4, 37.4) m, not from the Fixture rule. The Fixture rule alone (Near/Mid/Far 60/20/4 px at 935 px/m) would keep a reach-9 light: Real to 140 m, Glow to 420 m (size fade from about 260 m), FarGlow to 2.1 km, then Emissive. So the one pop is a hand-off mismatch, not a tier boundary.
+    - For a light that does own a Unity light (Carried, Fire, interior Fixtures), Real to Glow is a 0.8 s cross-fade at the Near threshold. The Real and Glow falloffs differ (URP's inverse square vs Glow's (1-d/r)^2), so the brightness shifts during that fade. Row 3 removes both.
+  - **Shots:** D:/Unity/PunchyMilestones/R-10/1/: walk_{3,8,13,18,23,27,31,40,60,100,180,280}.jpg, where the number is metres walked back (camera distance is about +7.6). Also town0.jpg / town128b.jpg (128 lights), cave0.jpg / cave128.jpg.
+  - **BENCH-QUEUE line for the laptop:** `R-10 lights: Profile build of light/forwardplus, -gfx High, 1920x1080, uncapped, -time 22 -weather Clear, -goto 2988.8,-920 facing north, then a Mine cave (-cave Mine); whole-frame GPU ms with -lightbudget 6 vs 32 vs 64 vs 128 (ABBA, 300 frames each), plus the same after row 2 lands so Flora's share shows.` (`-lightbudget` only raises the cap; this spot has few owners until row 2, so rerun it after row 2.)
+  - **Decisions:** none yet. For row 2 I plan to give Flora/Grass/Pebbles/SunkenTemple one shared Forward+ loop with Glow's falloff, and to let street lights own pooled real lights up to a per-quality budget (16/48/96), since 64 lights cost about 0.08 ms here.
