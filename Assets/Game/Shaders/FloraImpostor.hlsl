@@ -101,9 +101,18 @@ struct ImpostorAttributes
     uint instanceID   : SV_InstanceID;
 };
 
+// D3D11's compiler rejects a pixel shader that reads SV_POSITION and writes conservative depth (IMPOSTOR_DEPTH)
+// unless the position is noperspective centroid (error X8000), and the pass fell back to the error shader: every
+// impostor drawn as a bare magenta quad (W-130). The modifiers only change where the position is sampled under MSAA.
+#if defined(SHADER_API_D3D11)
+#define IMPOSTOR_POSITION_MODIFIERS noperspective centroid
+#else
+#define IMPOSTOR_POSITION_MODIFIERS
+#endif
+
 struct ImpostorVaryings
 {
-    float4 positionCS : SV_POSITION;
+    IMPOSTOR_POSITION_MODIFIERS float4 positionCS : SV_POSITION;
     float3 ray : TEXCOORD0;                             // eye to this pixel, in the sphere's frame (see ImpostorVert)
     nointerpolation float3 eye : TEXCOORD1;             // the eye in the sphere's frame
     nointerpolation float3 dir0 : TEXCOORD2;            // the three frames' view directions
