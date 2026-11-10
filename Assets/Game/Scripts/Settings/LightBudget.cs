@@ -13,7 +13,9 @@ namespace Punchy.Settings
     /// - tiers each by its on-screen reach with hysteresis (LightPolicy.Tier);
     /// - gives the real-light budget (<see cref="GraphicsSettings.RealLights"/>, "-lightbudget N") to the best-scoring
     ///   requests at the Real tier that own a Unity light (lanterns, interior lamps, the iceberg light); the owner reads
-    ///   <see cref="RealLevel"/> back, which fades in and out. A still source with no Unity light of its own (a street
+    ///   <see cref="RealLevel"/> back, which fades in and out as it gains or loses the budget and, over a long stretch
+    ///   of on-screen size, as it nears the end of the Real tier (R-10: no pop where it hands over to its glow slot).
+    ///   A still source with no Unity light of its own (a street
     ///   light) asks through <see cref="AddPooled"/> and is lent one from a pool while it holds the budget. The custom
     ///   shaders read real lights through Forward+ with the glow's falloff (Glow.hlsl's PunchyRealLights, R-10), so a
     ///   real light and the glow it falls back to light alike;
@@ -51,9 +53,11 @@ namespace Punchy.Settings
         {
             public LightKind Kind;
             public LightTier Tier;
-            public bool OwnsLight;
+            public bool OwnsLight, Pooled;
             public Vector4 Key, Position, Light;
-            public float Score, SizeFade;
+            /// <summary>SizeFade: how far into its glow tier by size (0 at its end); RealFade: the same for its Real
+            /// tier, which caps its real light (1 for a light that isn't an owner).</summary>
+            public float Score, SizeFade, RealFade;
         }
 
         static readonly List<Request> requests = new List<Request>(256);
@@ -67,6 +71,8 @@ namespace Punchy.Settings
         // Real lights: each owner's level (0..1, faded) by key, and the keys granted this frame.
         static readonly Dictionary<Vector4, float> realLevel = new Dictionary<Vector4, float>();
         static readonly HashSet<Vector4> realGranted = new HashSet<Vector4>();
+        // This frame's RealFade of each granted key.
+        static readonly Dictionary<Vector4, float> grantedFade = new Dictionary<Vector4, float>();
         static readonly List<Vector4> keyScratch = new List<Vector4>();
 
         // Pooled real lights (AddPooled): each pooled key's last position and glow, the pool, and its hidden root.
@@ -137,8 +143,12 @@ namespace Punchy.Settings
         public static void AddPooled(LightKind kind, Vector3 position, Vector4 glow)
         {
             var key = new Vector4(position.x, position.y, position.z, 0f);
-            if (Push(kind, key, position, glow, true))
-                pooled[key] = (position, glow);
+            if (!Push(kind, key, position, glow, true))
+                return;
+            pooled[key] = (position, glow);
+            var r = requests[requests.Count - 1];
+            r.Pooled = true;
+            requests[requests.Count - 1] = r;
         }
 
         /// <summary>
@@ -205,11 +215,20 @@ namespace Punchy.Settings
         /// <summary>How near the closest ambient glow the 16 slots had no room for is (eased, so the hand-off doesn't jump).</summary>
         static float ambientCutAt = float.MaxValue;
 
+        /// <summary>How near the closest street light is that neither a real light nor a glow slot lights in full (m,
+        /// eased): the night map has to take over from there (CaveSystem), or the town goes dark between the last
+        /// light the budget covers and the Fixture hand-off.</summary>
+        public static float StreetLightGapAt => streetGapAt;
+        static float streetGapAt = float.MaxValue;
+
         /// <summary>The on-screen size (reference pixels) below which a kind leaves the glow tier, at this view.</summary>
-        static float GlowEnd(in LightPolicy.Rule rule, in DetailPolicy.View view)
+        static float GlowEnd(in LightPolicy.Rule rule, in DetailPolicy.View view) => TierEnd(rule, view, LightTier.Glow);
+
+        /// <summary>The on-screen size (reference pixels) below which a kind leaves <paramref name="tier"/>, at this view.</summary>
+        static float TierEnd(in LightPolicy.Rule rule, in DetailPolicy.View view, LightTier tier)
         {
             var size = rule.Size.Scaled(math.max(view.Detail, 0.1f));
-            var step = (int)LightTier.Glow - (int)rule.Best;
+            var step = (int)tier - (int)rule.Best;
             return step <= 0 ? size.Near : step == 1 ? size.Mid : size.Far;
         }
 
@@ -252,6 +271,11 @@ namespace Punchy.Settings
                 var end = GlowEnd(rule, view);
                 var pixels = DetailPolicy.ScreenSize(reach, distance, view.PixelsPerMetre);
                 r.SizeFade = DetailPolicy.Crossfade(pixels, end * (1f - DetailPolicy.Hysteresis), end * SizeFadeTo);
+                // An owner's real light dims over the same kind of stretch towards the end of its Real tier, and its
+                // glow slot takes the rest (both fall off alike, R-10), instead of a 0.8 s swap at the boundary.
+                var realEnd = TierEnd(rule, view, LightTier.Real);
+                r.RealFade = !r.OwnsLight || rule.Global ? 1f
+                    : DetailPolicy.Crossfade(pixels, realEnd * (1f - DetailPolicy.Hysteresis), realEnd * SizeFadeTo);
                 requests[i] = r;
                 if (log)
                 {
@@ -271,15 +295,17 @@ namespace Punchy.Settings
             }
             ranked.Sort(ByScore);
             realGranted.Clear();
+            grantedFade.Clear();
             // (Sources' own lights, which may cast shadows, stay few; pooled street lights fill the rest.)
             var budget = GraphicsSettings.RealLights;
             var ownBudget = GraphicsSettings.OwnRealLights;
             for (int k = 0, own = 0; k < ranked.Count && realGranted.Count < budget; k++)
             {
-                var key = requests[ranked[k].index].Key;
-                if (!pooled.ContainsKey(key) && own++ >= ownBudget)
+                var r = requests[ranked[k].index];
+                if (!r.Pooled && own++ >= ownBudget)
                     continue;
-                realGranted.Add(key);
+                realGranted.Add(r.Key);
+                grantedFade[r.Key] = grantedFade.TryGetValue(r.Key, out var f) ? math.max(f, r.RealFade) : r.RealFade;
             }
             keyScratch.Clear();
             foreach (var kv in realLevel)
@@ -290,7 +316,8 @@ namespace Punchy.Settings
             foreach (var key in keyScratch)
             {
                 var level = realLevel.TryGetValue(key, out var l) ? l : 0f;
-                level = realGranted.Contains(key) ? math.min(level + dt / FadeIn, 1f) : math.max(level - dt / FadeOut, 0f);
+                // Gaining or losing the budget fades over time; within it, the level follows on-screen size at once.
+                level = grantedFade.TryGetValue(key, out var fade) ? math.min(level + dt / FadeIn, fade) : math.max(level - dt / FadeOut, 0f);
                 if (level <= 0f && !realGranted.Contains(key))
                     realLevel.Remove(key);
                 else
@@ -335,7 +362,9 @@ namespace Punchy.Settings
             for (int k = 0; k < count; k++)
             {
                 var r = requests[ranked[k].index];
-                var age = (heatAge.TryGetValue(r.Key, out var a) ? a : 0f) + dt;
+                // (One handed down from its real light joins at full, with no swell: the real light dims as it brightens.)
+                var age = (heatAge.TryGetValue(r.Key, out var a) ? a
+                           : r.OwnsLight && realLevel.ContainsKey(r.Key) ? FadeIn * 1.2f : 0f) + dt;
                 heatNextAge[r.Key] = age;
                 heatLeaving.Remove(r.Key);
                 var scale = r.SizeFade * (r.OwnsLight && realLevel.TryGetValue(r.Key, out var real) ? 1f - real : 1f);
@@ -379,6 +408,18 @@ namespace Punchy.Settings
                 heatColor[count] = new Vector4(color.x * fade, color.y * fade, color.z * fade, color.w);
                 count++;
             }
+
+            // The nearest street light lit by neither a real light in full nor a slot: where the night map must start.
+            var nearestGap = 4000f;
+            for (int i = 0; i < requests.Count; i++)
+            {
+                var r = requests[i];
+                if (!r.Pooled || r.Tier > LightTier.Glow || heatNextAge.ContainsKey(r.Key)
+                    || (realLevel.TryGetValue(r.Key, out var lit) && lit >= 0.999f))
+                    continue;
+                nearestGap = math.min(nearestGap, Vector3.Distance(r.Position, eyeAt));
+            }
+            streetGapAt = DetailPolicy.Ease(streetGapAt > 4000f ? 4000f : streetGapAt, nearestGap, dt, 2f);
 
             Shader.SetGlobalVectorArray(HeatId, heat);
             Shader.SetGlobalVectorArray(HeatColorId, heatColor);

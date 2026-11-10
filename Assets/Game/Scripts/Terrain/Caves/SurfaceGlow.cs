@@ -34,6 +34,7 @@ namespace Punchy.Terrain
         JobHandle farJob;
         bool farRunning;
         NativeArray<float4> farPlants, farWindows;
+        NativeList<float4> farFixtureAt, farFixtureLight;
         float2 farCorner;
         float3 farScannedAt = new float3(float.MaxValue);
 
@@ -58,6 +59,13 @@ namespace Punchy.Terrain
 
         /// <summary>The glowing plants found by the last finished scan: position (xyz) and light (rgb, w reach).</summary>
         public readonly List<(float3 position, Vector4 light)> Found = new List<(float3, Vector4)>();
+
+        /// <summary>R-10: the street lights (tree layer) the last far scan found, as <see cref="Found"/> holds them, out to
+        /// about <see cref="FarFixtureReach"/> from the camera, so they can stay real lights and glow slots well past the
+        /// near scan's 50 m.</summary>
+        public readonly List<(float3 position, Vector4 light)> FarFixtures = new List<(float3, Vector4)>();
+        /// <summary>How far from the camera <see cref="FarFixtures"/> is sure to be complete (m).</summary>
+        public static float FarFixtureReach => FarRadius.z - MoveBeforeFarRescan;
 
         /// <summary>Call once a frame; picks up a finished scan and starts a new one when the camera has moved.</summary>
         public void Update(in TerrainSource source, BiomePalette palette, FloraSystem flora, float3 camPos)
@@ -117,6 +125,9 @@ namespace Punchy.Terrain
                 MapPlants.Apply(false, false);
                 MapWindows.SetPixelData(farWindows, 0);
                 MapWindows.Apply(false, false);
+                FarFixtures.Clear();
+                for (int i = 0; i < farFixtureAt.Length; i++)
+                    FarFixtures.Add((farFixtureAt[i].xyz, farFixtureLight[i]));
                 MapCorner = farCorner;
                 MapReady = true;
             }
@@ -132,7 +143,9 @@ namespace Punchy.Terrain
                     Corner = farCorner,
                     CellSizes = cellSizes,
                     Plants = farPlants,
-                    Windows = farWindows
+                    Windows = farWindows,
+                    FixtureAt = farFixtureAt,
+                    FixtureLight = farFixtureLight
                 }.Schedule();
                 farClock = System.Diagnostics.Stopwatch.StartNew();
                 farRunning = true;
@@ -172,6 +185,8 @@ namespace Punchy.Terrain
                 return;
             farPlants = new NativeArray<float4>(MapSize * MapSize, Allocator.Persistent);
             farWindows = new NativeArray<float4>(MapSize * MapSize, Allocator.Persistent);
+            farFixtureAt = new NativeList<float4>(256, Allocator.Persistent);
+            farFixtureLight = new NativeList<float4>(256, Allocator.Persistent);
             MapPlants = NewMap("Far glow (plants)");
             MapWindows = NewMap("Far glow (windows)");
             farScannedAt = new float3(float.MaxValue);
@@ -203,6 +218,11 @@ namespace Punchy.Terrain
                 farPlants.Dispose();
             if (farWindows.IsCreated)
                 farWindows.Dispose();
+            if (farFixtureAt.IsCreated)
+                farFixtureAt.Dispose();
+            if (farFixtureLight.IsCreated)
+                farFixtureLight.Dispose();
+            FarFixtures.Clear();
             if (MapPlants != null)
                 Object.Destroy(MapPlants);
             if (MapWindows != null)
@@ -284,8 +304,10 @@ namespace Punchy.Terrain
 
         /// <summary>
         /// Bakes the light every glowing plant and lit window within FarRadius casts on the ground into the far maps:
-        /// each spreads over a wider, softer reach than its near light (at least 12 m, so it can't slip between texels)
-        /// with the same total light. The alpha sums each source's height times its light, for the shader's height test.
+        /// a plant spreads over a wider, softer reach than its near light (at least 12 m, so it can't slip between texels)
+        /// with the same total light; a street light keeps its own reach and brightness (at least 2.5 texels), so where the
+        /// night map takes over from its glow slot it lights the same ground as brightly (R-10). The alpha sums each
+        /// source's height times its light, for the shader's height test.
         /// </summary>
         [BurstCompile]
         struct FarScanJob : IJob
@@ -296,11 +318,15 @@ namespace Punchy.Terrain
             public float2 Corner;
             public float3 CellSizes;
             public NativeArray<float4> Plants, Windows;
+            /// <summary>The tree layer's street lights (not strided), laid out as ScanJob's Positions and Colors.</summary>
+            public NativeList<float4> FixtureAt, FixtureLight;
 
             public void Execute()
             {
                 for (int i = 0; i < Plants.Length; i++)
                     Plants[i] = Windows[i] = float4.zero;
+                FixtureAt.Clear();
+                FixtureLight.Clear();
                 ref var f = ref Flora.Value;
                 var centre = Corner + MapSize * MapTexel * 0.5f;
                 for (int layer = 0; layer < 3; layer++)
@@ -331,9 +357,14 @@ namespace Punchy.Terrain
                             continue;
                         var scale = math.max(plant.Scale, 0.3f);
                         var reach = FloraPlacement.GlowReach(glow.w) * math.sqrt(scale);
-                        var wide = math.max(reach * 1.6f, 12f);
+                        var wide = fixture ? math.max(reach, MapTexel * 2.5f) : math.max(reach * 1.6f, 12f);
                         var light = glow.xyz * (reach * reach / (wide * wide) * step * step);
                         var lift = fixture ? StructureKit.FixtureLightHeight : 0.4f;
+                        if (fixture && step == 1)
+                        {
+                            FixtureAt.Add(new float4(plant.Position + new float3(0f, lift * scale, 0f), 0f));
+                            FixtureLight.Add(new float4(glow.xyz, -(FloraPlacement.FixtureGlowBase + reach)));
+                        }
                         Splat(fixture ? Windows : Plants, plant.Position + new float3(0f, lift * scale, 0f), light, wide);
                     }
                 }

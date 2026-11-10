@@ -1244,24 +1244,41 @@ namespace Punchy.Terrain
                 // (y: the night map, street lights only (W-127). Lit windows' light is indoor (P-21, item 31), so
                 // SurfaceGlow leaves them out of it: see the near tier below.)
                 Shader.SetGlobalVector(GlowMapParamsId, new Vector4((1f - Underground) * FarGlowStrength, windowsOn * (1f - Underground), handOff.x * 0.7f, handOff.y));
-                Shader.SetGlobalVector(GlowMapNightFadeId, new Vector4(fixtureHandOff.x * 0.7f, fixtureHandOff.y, 0f, 0f));
+                // (R-10: from the Fixture hand-off, or nearer where the budget ran out first: past the nearest street
+                // light that neither a real light nor a slot lights in full, the map must carry them, or the town
+                // goes dark in between.)
+                float nightFrom = fixtureHandOff.x * 0.85f, nightTo = fixtureHandOff.y;
+                var gap = Punchy.Settings.LightBudget.StreetLightGapAt;
+                // (And no further out than the far scan lists street lights for the budget.)
+                gap = math.min(gap, SurfaceGlow.FarFixtureReach * 0.75f);
+                if (gap < nightFrom)
+                    (nightFrom, nightTo) = (gap * 0.85f, math.max(gap + 15f, gap * 1.4f));
+                Shader.SetGlobalVector(GlowMapNightFadeId, new Vector4(nightFrom, nightTo, 0f, 0f));
             }
             if ((GlowTiers & 1) == 0)
                 return;
+            // W-127: street lights (lanterns, braziers, pier lamps), lit after dark like windows, but outdoors. Each is
+            // lent a pooled real light (R-10) or a glow slot; past the hand-off the night map lights it in full, so it
+            // asks for nothing there. The near scan reaches only about 50 m, so further out they come from the far
+            // scan's list (the tree layer's, where the kit's street lights grow), out to where it is sure to be whole.
+            var fixtureReach = math.min(fixtureHandOff.y, SurfaceGlow.FarFixtureReach);
+            var farFixtures = surfaceGlow.FarFixtures.Count > 0;
+            if (night >= 0.25f && farFixtures)
+                foreach (var (position, light) in surfaceGlow.FarFixtures)
+                {
+                    var d = Vector3.Distance(position, camPos);
+                    if (d > NearFixtures && d <= fixtureReach)
+                        AddStreetLight(position, light, windowsOn);
+                }
             // The near tier: each a request; LightBudget fades them out by on-screen size as the far map takes over.
             foreach (var (position, light) in surfaceGlow.Found)
             {
                 var l = light;
                 if (Punchy.Flora.FloraPlacement.IsFixtureGlow(l.w))
                 {
-                    // W-127: a street light (lantern, brazier, pier lamp), lit after dark like a window, but outdoors.
-                    // Near, it's lent a pooled real light (R-10); past the hand-off the night map lights it in full, so
-                    // it asks for nothing there.
-                    if (night < 0.25f || Vector3.Distance(position, camPos) > fixtureHandOff.y)
-                        continue;
-                    l = new Vector4(l.x, l.y, l.z, 0f) * windowsOn;
-                    l.w = Punchy.Flora.FloraPlacement.GlowReach(light.w);
-                    Punchy.Settings.LightBudget.AddPooled(Punchy.Settings.LightKind.Fixture, position, l);
+                    var d = Vector3.Distance(position, camPos);
+                    if (night >= 0.25f && d <= (farFixtures ? NearFixtures : fixtureHandOff.y))
+                        AddStreetLight(position, light, windowsOn);
                     continue;
                 }
                 if (l.w < 0f)
@@ -1279,6 +1296,17 @@ namespace Punchy.Terrain
                 }
                 Punchy.Settings.LightBudget.AddStill(Punchy.Settings.LightKind.AmbientGlow, position, l);
             }
+        }
+
+        /// <summary>Within this of the camera (m) street lights come from the near scan (every layer, fresh every 4 m);
+        /// past it, from the far scan's list.</summary>
+        const float NearFixtures = 40f;
+
+        static void AddStreetLight(Vector3 position, Vector4 light, float windowsOn)
+        {
+            var l = new Vector4(light.x, light.y, light.z, 0f) * windowsOn;
+            l.w = Punchy.Flora.FloraPlacement.GlowReach(light.w);
+            Punchy.Settings.LightBudget.AddPooled(Punchy.Settings.LightKind.Fixture, position, l);
         }
 
         static readonly int NightId = Shader.PropertyToID("_PunchyNight");

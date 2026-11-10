@@ -235,14 +235,22 @@ Shader "Punchy/Cave"
 
                 // Lanterns and other lights work everywhere: diffuse, highlights on polished, wet or crystal rock, and
                 // light soaking through ice.
+                // (R-10: with Forward+ they fall off the way every other shader lights them, Glow.hlsl's
+                // PunchyRealLight, so a lantern looks the same on cave rock, on the ground and as a glow slot.)
                 uint count = GetAdditionalLightsCount();
                 LIGHT_LOOP_BEGIN(count)
+                #if PUNCHY_REAL_LIGHTS
+                    half3 toLight;
+                    half3 lit = PunchyRealLight(lightIndex, p, toLight) * AdditionalLightRealtimeShadow(lightIndex, p, toLight);
+                #else
                     Light l = GetAdditionalLight(lightIndex, p, half4(1, 1, 1, 1));
+                    half3 toLight = l.direction;
                     half3 lit = l.color * l.distanceAttenuation * l.shadowAttenuation;
-                    light += lit * saturate(dot(n, l.direction) * 0.8 + 0.2);
-                    float3 h = normalize(l.direction + view);
+                #endif
+                    light += lit * saturate(dot(n, toLight) * 0.8 + 0.2);
+                    float3 h = normalize(toLight + view);
                     shine += lit * pow(saturate(dot(n, h)), shininess) * saturate(gloss + metallic * 0.6 + facets * 0.8) * glint;
-                    through += lit * (0.35 + 0.65 * saturate(0.5 - 0.5 * dot(n, l.direction)));
+                    through += lit * (0.35 + 0.65 * saturate(0.5 - 0.5 * dot(n, toLight)));
                 LIGHT_LOOP_END
 
                 // Glowing things nearby (molten pools, glowing plants): their light falling off over its reach, brightest

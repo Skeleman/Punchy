@@ -47,17 +47,18 @@ half3 PunchyGlowFar(float3 p, half3 n)
         float4 b = 0;
         [branch] if (nightFade > 0)
             b = SAMPLE_TEXTURE2D_LOD(_PunchyGlowMapNight, sampler_PunchyGlowMap, uv, 0) * _PunchyGlowMapParams.y;
-        float3 rgb = a.rgb * plantFade + b.rgb * nightFade;
-        float weight = a.r + a.g + a.b + b.r + b.g + b.b;
+        float wa = a.r + a.g + a.b, wb = b.r + b.g + b.b;
         // Its sources' height, weighted by their light (interpolates cleanly where lit and dark texels meet): a cliff
         // top or a cave floor well away from it gets none.
-        float height = (a.a + b.a) / max(weight, 1e-4);
+        float height = (a.a + b.a) / max(wa + wb, 1e-4);
         float vertical = saturate(1 - abs(p.y - height) / 14);
         // A slow, soft shimmer drifting across a cluster.
         float shimmer = 1 + 0.07 * sin(_Time.y * 0.7 + p.x * 0.05) * sin(_Time.y * 0.53 + p.z * 0.043 + 1.7);
-        // Soft cap: a dense cluster sums to far more than the 16 near lights ever show, so it levels off at about
-        // one near light's brightness instead of floodlighting the floor.
-        rgb /= 1 + weight * 2.5;
+        // Soft caps. Plants: a dense cluster sums to far more than the 16 near lights ever show, so it levels off at
+        // about one near light's brightness instead of floodlighting the floor. Street lights (R-10): one or two
+        // overlapping are left as bright as their glow slots, so the hand-over doesn't dim them; only a dense square
+        // levels off.
+        float3 rgb = a.rgb * (plantFade / (1 + wa * 2.5)) + b.rgb * (nightFade / (1 + max(wb - 2.5, 0) * 0.6));
         light = rgb * (fade * vertical * shimmer * _PunchyGlowMapParams.x * saturate(0.6 + 0.4 * n.y));
     }
     return light;
