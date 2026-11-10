@@ -37,9 +37,11 @@ $rows | ForEach-Object { $_ | Add-Member Delta ($_.Cpu - $(if ($prev.ContainsKey
 "  named: " + (($p.Threads | ForEach-Object { $n = TName $_.Id; if ($n -ne '-' -and $n -ne '?') { "$($n -replace '\d+', '#') $($_.ThreadState)/$(if ($_.ThreadState -eq 'Wait') { $_.WaitReason } else { '-' })" } } |
   Group-Object | ForEach-Object { if ($_.Count -gt 1) { "$($_.Name) x$($_.Count)" } else { $_.Name } }) -join '; ')
 # Stacks: on a game's second snapshot (stalled 45 s or more), once per game, freezestacks.ps1 in its own process.
+# Not while results\.nocdb exists: an attach ends the stall (job 41), so a job that times stalls runs cdb itself.
 $seen = Join-Path $env:TEMP "freezestall-seen-$($p.Id).txt"
 $n = if (Test-Path $seen) { [int](Get-Content $seen) + 1 } else { 1 }; Set-Content $seen $n
-if ($n -eq 2) {
+$nocdb = Test-Path (Join-Path $HOME 'Projects/Punchy-wt/Tools/bench/results/.nocdb')
+if ($n -eq 2 -and -not $nocdb) {
   Start-Process powershell -ArgumentList '-NoProfile', '-File', "`"$(Join-Path $PSScriptRoot 'freezestacks.ps1')`"", '-Id', $p.Id -WindowStyle Hidden
   "  stacks: cdb attached (non-invasive), to freezestacks-$($p.Id).txt"
 }
