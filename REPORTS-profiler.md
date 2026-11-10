@@ -107,6 +107,11 @@ Notes from the profiler:
 - **Fix the job 45 cost first.** On fd50ad58 the patch cuts the whole lake (13x triangles, +3.7 ms GPU on the laptop). Once
   only the needed quads are cut, a fall within LOD range should cost little. I'll measure it when there's a commit.
 
+**Zach (14:40): if the waterfall cut works, explore the same for whitewater.** Rapids get the same LOD-checked local cut, with
+their own turbulence: standing waves, broken surface and foam along the steep, fast stretches of a river. The waterfall comes
+first; whitewater is the follow-up if it works.
+
+
 
 ## Note, 2026-11-10 12:30: main doesn't build a player since #243 (06b2a72b)
 - **The failure:** a Profile (Development) player build of 06b2a72b fails to compile. ed0e68ef still has the same code, so
