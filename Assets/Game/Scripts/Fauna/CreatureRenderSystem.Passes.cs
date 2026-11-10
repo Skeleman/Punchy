@@ -398,6 +398,9 @@ namespace Punchy.Fauna
         {
             [ReadOnly] public NativeArray<CreatureState> States;
             [ReadOnly] public NativeArray<CreatureBody> Bodies;
+            [ReadOnly] public NativeArray<Entity> Entities;
+            /// <summary>P-25: the player's own body in first person (Entity.Null otherwise).</summary>
+            public Entity HideBody;
             public TerrainSource Terrain;
             public float3 CameraPosition, CameraForward;
             public float BehindCos;
@@ -411,6 +414,11 @@ namespace Punchy.Fauna
             public void Execute(int i)
             {
                 var state = States[i];
+                if (Entities[i] == HideBody)
+                {
+                    Keep[i] = false;
+                    return;
+                }
                 if (state.Mode == CreatureMode.Puppet)
                 {
                     Keep[i] = true;
