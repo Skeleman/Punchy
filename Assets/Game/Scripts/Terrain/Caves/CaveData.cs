@@ -108,6 +108,12 @@ namespace Punchy.Terrain
         /// is the road's level, flat): 1 dark, 2 lit by lamps, 3 lamps and timber frames.
         /// </summary>
         public int Tunnel;
+        /// <summary>
+        /// A-91 row 3: the far end of each of the cave's main paths (1 to 3), as a node index from FirstNode, -1 for none:
+        /// x the main passage's end, then the main side passages'. Every main path is graded gently (CaveBaking.MainGrade)
+        /// from the mouth to its end, so it can be walked both ways; the other side passages may be steep.
+        /// </summary>
+        public int3 MainEnds;
     }
 
     /// <summary>
@@ -283,23 +289,29 @@ namespace Punchy.Terrain
             var q = p - centre;
             var stretch = c.Profile.y / c.Profile.x;
             var flat = c.Rock.y;
-            q.y /= stretch;
-            if (q.y < 0f)
-                q.y *= math.lerp(1.8f, 1f, flat);   // a flatter underside, until the floor takes over
             var r = math.lerp(a.Radius, b.Radius, t) * c.Profile.x;
-            var d = (math.length(q) - r) * math.min(1f, stretch);
             height = r * stretch;
             // The floor: halfway down at full flatness, sinking below the capsule's bottom (no effect) as flatness goes.
             floorY = centre.y - height * (0.45f + (1f - flat) * 0.65f) + floorShape;
             // A stream's channel cuts the floor down to its own bed wherever it runs, and through the passage's
             // underside too where the floor climbs above the water (otherwise the water ran on hidden in the rock
-            // there and came out again further along, F-30): air from the bed up to the passage's middle, at most
-            // 2.5 m, inside the passage's width.
+            // there and came out again further along, F-30): the underside is drawn down by as much as the bed lies
+            // under the floor. A-91 row 3: this replaces an air slot cut inside the passage's width, whose sides made
+            // 0.6 m steps where a main path crossed them; drawn down, the underside follows the bed smoothly.
+            if (channel < floorY && q.y < 0f)
+                q.y = math.min(0f, q.y + (floorY - channel));
             floorY = math.min(floorY, channel);
-            if (channel < 1e8f && math.length(q.xz) < r)
-                d = math.min(d, math.max(channel - p.y, p.y - math.min(centre.y, channel + 2.5f)));
+            q.y /= stretch;
+            if (q.y < 0f)
+                q.y *= math.lerp(1.8f, 1f, flat);   // a flatter underside, until the floor takes over
+            var d = (math.length(q) - r) * math.min(1f, stretch);
             return math.max(d, floorY - p.y);
         }
+
+        /// <summary>A stream bank's horizontal run per metre of rise (A-91 row 3: about 31 degrees at its steepest).</summary>
+        public const float BankRun = 2.5f;
+        /// <summary>How far past the bank's edge the cut keeps rising (m of rise), to meet a floor high above the water.</summary>
+        public const float BankReach = 5f;
 
         /// <summary>
         /// The bed of a cave's streams at a spot (absolute height), or a large number away from them: a rounded channel
@@ -321,13 +333,18 @@ namespace Punchy.Terrain
                     var t = math.saturate(math.dot(xz - a.Position.xz, ab) / math.max(math.lengthsq(ab), 1e-6f));
                     var half = math.lerp(a.Width, b.Width, t) * 0.5f;
                     var across = math.distance(xz, a.Position.xz + ab * t);
-                    if (across >= half * 2f)
+                    var depth = math.lerp(a.Depth, b.Depth, t);
+                    // A-91 row 3: the bank runs out at least BankRun times its rise, so a walk across the stream (a
+                    // main path, a rabbit) wades down and up a gentle gully instead of meeting a 1 m slot.
+                    var run = math.max(half * 1.5f, (depth + 1.2f) * BankRun);
+                    var edge = half * 0.5f + run;
+                    if (across >= edge + BankReach * BankRun)
                         continue;
                     var surface = math.lerp(a.Position.y, b.Position.y, t);
-                    // The bank rises smoothly from the bed to well above the surface (past the floor), so the cut has
-                    // no step at its edge.
-                    var depth = math.lerp(a.Depth, b.Depth, t);
-                    depth -= (depth + 1.2f) * math.smoothstep(half * 0.5f, half * 2f, across);
+                    // The bank rises smoothly from the bed to above the surface, then keeps rising at 1 in BankRun for
+                    // BankReach more metres: where the floor climbs well above the water, the cut still meets it on a
+                    // slope instead of ending in a step at the bank's edge (A-91 row 3: 0.6 m steps on main paths).
+                    depth -= (depth + 1.2f) * math.smoothstep(half * 0.5f, edge, across) + math.max(0f, across - edge) / BankRun;
                     bed = math.min(bed, surface - depth + 0.05f);
                 }
             }
@@ -372,6 +389,9 @@ namespace Punchy.Terrain
             var g = c.Wall.y;
             // 0 at the floor (its own floor, ledges and all, so a ledge doesn't sprout ceiling noise), 1 at the top.
             var up = math.saturate((p.y - floorY) / math.max(height * 1.45f, 0.1f));
+            // A-91: the relief below fades by height above the floor in metres too, so a low or squashed passage
+            // doesn't grow a knee-high fin of rock across its floor (a main path must stay a walk).
+            var lift = math.smoothstep(0.35f, 1.1f, p.y - floorY);
             var n = (noise.snoise(p * 0.22f * g + s) * 0.55f + noise.snoise(p * 0.6f * g - s) * 0.2f) * c.Wall.x
                     * math.lerp(0.3f, 1f, math.smoothstep(0f, 0.35f, up));
             if (c.Rock.x > 0f && up > 0.2f)
@@ -380,7 +400,7 @@ namespace Punchy.Terrain
                 var crease = math.abs(noise.snoise(p * 0.5f * g - s * 1.3f));
                 var jag = (ridge * ridge - 0.45f) * 0.9f + (crease - 0.5f) * 0.35f;
                 var blocks = c.Rock.w > 0f ? math.min(0f, noise.snoise(math.floor(p * (1f / 1.7f)) * 0.37f + s)) * 0.6f * c.Rock.w * math.smoothstep(0.45f, 1f, up) : 0f;
-                n += (jag + blocks) * c.Rock.x * math.smoothstep(0.2f, 0.75f, up);
+                n += (jag + blocks) * c.Rock.x * math.smoothstep(0.2f, 0.75f, up) * lift;
             }
             // Angular faces: three sawtooth waves across directions set per cave add up to a relief that is flat
             // between creases, so the walls break into planes meeting at sharp edges. Continuous (the field stays
@@ -394,14 +414,14 @@ namespace Punchy.Terrain
                     var dir = math.normalize(new float3(math.sin(a), math.cos(a * 1.3f) * 0.8f, math.cos(a)));
                     tri += math.abs(math.frac(math.dot(p, dir) / c.Facet.y + i * 0.37f) - 0.5f);
                 }
-                n += (tri - 0.75f) * c.Facet.y * 0.85f * c.Facet.x * math.smoothstep(0.06f, 0.3f, up);
+                n += (tri - 0.75f) * c.Facet.y * 0.85f * c.Facet.x * math.smoothstep(0.06f, 0.3f, up) * lift;
             }
             // Ribs (melt-scalloped ice), with scooped hollows between (about 0.45 m deep at full Ribs). Off the floor, so
             // FloorUnder's march isn't affected.
             if (c.Wall.z > 0f && up > 0.06f)
             {
                 var rib = Rib(c, p);
-                n += (rib * rib - 0.4f) * 0.75f * c.Wall.z * math.smoothstep(0.06f, 0.3f, up);
+                n += (rib * rib - 0.4f) * 0.75f * c.Wall.z * math.smoothstep(0.06f, 0.3f, up) * lift;
             }
             return n;
         }
@@ -643,10 +663,12 @@ namespace Punchy.Terrain
             air = math.max(air, -fill);
             if (r.Type == (int)CaveRoomType.Lake)
             {
-                // A round basin in the middle of the floor, its rim a step down from the tiles.
+                // A round basin in the middle of the floor. A-91: a bowl, its sides sloping in (1 down in 1.6 across)
+                // rather than a sheer 1.6 m drop, so whoever walks in can walk back out (a main path may end here).
                 var radius = LakeRadius(r);
-                var q = new float2(math.length(l.xz - new float2(0f, r.HZ)) - radius, math.abs(l.y + LakeDepth * 0.5f - 0.25f) - (LakeDepth * 0.5f + 0.25f));
-                air = math.min(air, math.length(math.max(q, 0f)) + math.min(math.cmax(q), 0f));
+                var across = math.length(l.xz - new float2(0f, r.HZ));
+                var side = (across - math.max(radius + math.min(l.y, 0f) * 1.6f, 0.5f)) * 0.53f;
+                air = math.min(air, math.max(side, math.max(-l.y - LakeDepth, l.y - 0.5f)));
             }
             return air;
         }
