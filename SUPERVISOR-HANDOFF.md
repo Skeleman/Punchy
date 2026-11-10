@@ -159,3 +159,5 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-10: W-129 done, no code (editor stalls under host load, no repeatable streaming spike); bench job 44 queued to confirm in a player build. A-92 started in D:/Unity/Punchy (fauna/detail).
 - 11-10: R-7 merged #233; R-7 row 5 (atlas trim, lod/impostor-trim) sent to the same agent in Punchy-world.
 - 11-10: R-8 rows 1-2 pass (skybox -54% noon, -39% night); row 3 missed 15% (clean -7.5% storm); chose (a) commit clean, speckle rejected; (c) march savings elsewhere = possible later card. Merge sky/cost after its row 3 commit, then R-10 in Punchy-release.
+- 11-10: R-7 row 5 merged #234 (atlas 140 -> 39 MB). Punchy-world free -> R-9 water/deform started there.
+  To check: magenta (missing-shader) props on the R-7 hilltop view (PunchyMilestones/R-7/r5/before/hilltop-imp.png), pre-date R-7; owner unknown.
