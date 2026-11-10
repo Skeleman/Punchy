@@ -141,6 +141,23 @@ supervisor.
   - **Profiler cost note:** a big chamber means more cave mesh and more water on screen at once. Its LOD and occlusion matter
     more than for today's small pools.
   - I'd bench one such chamber, the way job 43 did the lake, once one exists.
+- **Zach (15:25): cave LOD, for the world lane and the supervisor.**
+  - **Today on main (CaveSystem):**
+    - Walls are one level, a 0.5 m surface-nets grid. Every chunk within LoadRadius 400 m is built and drawn at full detail.
+    - Inside, the room cull draws only the caves around the camera.
+    - On the surface every loaded chunk is submitted, with only the frustum test, even though terrain hides it.
+    - Cave plants switch mesh at 20 m and stop at 60 m.
+    - Pools, streams and waterfalls have a draw distance only.
+  - **Zach's direction:**
+    - Give cave walls coarser levels (for example 1 m and 2 m grids) chosen by screen space.
+    - Skip cave chunks when the camera is above ground and no mouth is in view (the mirror of the room cull).
+    - **Every LOD check should use estimated screen space,** from the object's size and its 3D distance to the camera, not
+      distance alone. That's rule 20's DetailPolicy.ScreenSize. It covers cave walls, cave plants (today 20 m / 60 m),
+      cave water and waterfalls, and the new waterfall and whitewater cuts above.
+  - **Proposal for job 47:** add a part **47i caves** (wall levels, the surface-side skip, cave plants and water by screen
+    size). Measure inside a cave, at a mouth, and on the surface over a cave network, with the same method as the other parts.
+    The supervisor to accept or reword.
+
 
 
 
