@@ -194,3 +194,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-10: A-96 merged #244 (ed0e68ef). A-97 started in Punchy-release. Non-creature horizon NaN (229 px wolf noon) = small card later (R lane, after R-12).
 - 11-10: Zach: cheaper far ground + thinner fog + sunset horizon oddity -> W-132 card (first free tree), BENCH-QUEUE job 46 ON HOLD until W-132 rows 2-4 push.
 - 11-10: Zach: M-05 approved as a Unity editor window (editor code only), creatures first; A-98 underwater sound (muffle + pitch + hum, closes #22) queued in the first free fauna tree; grass shimmer dropped. W-124 shots no longer on disk (only W-125's); sent W-125 sheets for #212/#213 reminder.
+- 11-10: Zach OK'd #212 and #213. Both conflict with main (Flora.shader/FloraCull.compute; Sky.hlsl/Sky.shader): W-133 merges main into each in the first free tree, ahead of W-132; I merge after its suite.
