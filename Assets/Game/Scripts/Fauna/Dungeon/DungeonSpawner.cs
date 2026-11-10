@@ -114,14 +114,73 @@ namespace Punchy.Fauna
             public float3 Pos;
         }
 
-        // ItemTable ids (player lane, Punchy.Items.ItemTable): Stone 1, Mushroom 3, Coin 6, Key 7.
-        static readonly (byte item, ushort weight, byte maxCount)[] LootRows = { (6, 45, 5), (3, 25, 3), (1, 25, 2), (7, 5, 1) };
+        /// <summary>
+        /// A-91 row 4 (the P-23 hook): what dungeons hand out, as data. Resources/SpawnTables/DungeonLoot, a
+        /// <see cref="SpawnTable"/> whose rows name an item by its ItemTable name (Coin, Key, and P-23's gear when it
+        /// lands) with a weight and a count range. A row with Kind -1 is loose loot on the floor (<see cref="PickLoot"/>);
+        /// a row with Kind 1 (SocketKind.Chest) is for chests (<see cref="PickChestLoot"/>). Types, tags and biomes filter
+        /// as in any table. A row naming an item the table doesn't have yet is skipped (so gear rows can go in first).
+        /// The first four rows (Coin 45, Mushroom 25, Stone 25, Key 5) draw exactly as the old code rows did.
+        /// </summary>
+        public static SpawnTable LootTable => lootTable != null ? lootTable : lootTable = SpawnTable.Load("DungeonLoot");
+        static SpawnTable lootTable;
+        static int[] lootItems;
+
+        /// <summary>The ItemTable id a loot row names, or -1 (looked up by name once; ids are append-only).</summary>
+        static int LootItem(int row)
+        {
+            var rows = LootTable.Rows;
+            if (lootItems == null || lootItems.Length != rows.Count)
+            {
+                lootItems = new int[rows.Count];
+                for (int i = 0; i < rows.Count; i++)
+                {
+                    lootItems[i] = -1;
+                    for (int k = 0; k < Punchy.Items.ItemTable.Items.Length; k++)
+                        if (string.Equals(Punchy.Items.ItemTable.Items[k].Name, rows[i].Content, System.StringComparison.OrdinalIgnoreCase))
+                            lootItems[i] = k;
+                    if (lootItems[i] < 0)
+                        Debug.Log($"[dungeon] loot table row {i}: no item '{rows[i].Content}' yet (skipped)");
+                }
+            }
+            return lootItems[row];
+        }
+
+        /// <summary>
+        /// One weighted draw over the loot rows that fit a socket (and name an item), from a roll: the item and how many
+        /// (from the row's count range and a second roll). False when no row fits.
+        /// </summary>
+        static bool DrawLoot(in DungeonSocket s, bool chest, uint roll, uint countRoll, out byte item, out byte count)
+        {
+            item = count = 0;
+            var table = LootTable;
+            if (table == null)
+                return false;
+            var q = AsSpawnSocket(s);
+            int total = 0;
+            for (int i = 0; i < table.Rows.Count; i++)
+                if ((table.Rows[i].Kind >= 0) == chest && SpawnTable.Fits(table.Rows[i], q) && LootItem(i) >= 0)
+                    total += table.Rows[i].Weight;
+            if (total <= 0)
+                return false;
+            var left = (int)(roll % (uint)total);
+            for (int i = 0; i < table.Rows.Count; i++)
+                if ((table.Rows[i].Kind >= 0) == chest && SpawnTable.Fits(table.Rows[i], q) && LootItem(i) >= 0 &&
+                    (left -= table.Rows[i].Weight) < 0)
+                {
+                    var c = table.Rows[i].Count;
+                    item = (byte)LootItem(i);
+                    count = (byte)(c.y <= c.x ? math.max(1, c.x) : c.x + countRoll % (uint)(c.y - c.x + 1));
+                    return count > 0;
+                }
+            return false;
+        }
 
         /// <summary>
         /// Loose items for a dungeon (#24): 3-6 of its empty floor sockets (Creature or Clutter sockets that picked
         /// nothing, so no prop or chest stands there), chosen and filled from the dungeon's seed (all its socket seeds
-        /// folded), so every machine gets the same list and no two dungeons lay theirs out alike. Coins most, then
-        /// mushrooms and stones, a key rarely. Returns the dungeon seed.
+        /// folded), so every machine gets the same list and no two dungeons lay theirs out alike. What lies there comes
+        /// from the loose rows of <see cref="LootTable"/>. Returns the dungeon seed.
         /// </summary>
         public static uint PickLoot(DynamicBuffer<DungeonSocket> sockets, List<DungeonContent> picks, List<Loot> into)
         {
@@ -135,32 +194,29 @@ namespace Punchy.Fauna
                     spots.Add((Scramble(sockets[i].Seed ^ seed ^ 0x10075EEDu), i));
             spots.Sort((a, b) => a.key.CompareTo(b.key));
             var n = math.min(spots.Count, 3 + (int)(seed % 4));
-            int total = 0;
-            foreach (var row in LootRows)
-                total += row.weight;
             for (int k = 0; k < n; k++)
             {
                 var r = Scramble(spots[k].key ^ 0xC0FFEEu);
-                var roll = (int)(r % (uint)total);
-                var pick = LootRows[0];
-                foreach (var row in LootRows)
-                    if ((roll -= row.weight) < 0)
-                    {
-                        pick = row;
-                        break;
-                    }
                 var r2 = Scramble(r);
+                if (!DrawLoot(sockets[spots[k].i], false, r, r2 >> 16, out var item, out var count))
+                    continue;
                 // (A little off the socket's centre, so the loot doesn't sit on a grid.)
                 var jitter = new float3(((r2 & 255) / 255f - 0.5f) * 0.7f, 0f, (((r2 >> 8) & 255) / 255f - 0.5f) * 0.7f);
-                into.Add(new Loot
-                {
-                    Item = pick.item,
-                    Count = (byte)(1 + (r2 >> 16) % pick.maxCount),
-                    Socket = spots[k].i,
-                    Pos = sockets[spots[k].i].Pos + jitter,
-                });
+                into.Add(new Loot { Item = item, Count = count, Socket = spots[k].i, Pos = sockets[spots[k].i].Pos + jitter });
             }
             return seed;
+        }
+
+        /// <summary>
+        /// A-91 row 4, the P-23 hook for chests: an extra item for a chest socket from the chest rows of
+        /// <see cref="LootTable"/> (P-23's gear goes there), seeded by the socket alone, so host and clients agree.
+        /// False while the table has no chest row that fits (today: none). Items (player lane) calls it when it fills a
+        /// chest; the spawner never opens chests.
+        /// </summary>
+        public static bool PickChestLoot(in DungeonSocket chest, out byte item, out byte count)
+        {
+            var r = Scramble(chest.Seed ^ 0xC4E57u);
+            return DrawLoot(chest, true, r, Scramble(r), out item, out count);
         }
 
         /// <summary>
@@ -423,6 +479,7 @@ namespace Punchy.Fauna
             var made = new List<(Entity e, DungeonPost post)>();
             // (A copy: spawning a creature is a structural change, which invalidates the buffer.)
             using var copy = EntityManager.GetBuffer<DungeonSocket>(d, true).ToNativeArray(Allocator.Temp);
+            var id = EntityManager.HasComponent<DungeonInfo>(d) ? EntityManager.GetComponentData<DungeonInfo>(d).Id : 0u;
             for (int i = 0; i < copy.Length; i++)
             {
                 var s = copy[i];
@@ -436,7 +493,9 @@ namespace Punchy.Fauna
                 var e = director.Spawn(species, s.Pos, math.atan2(fwd.x, fwd.z));
                 // (Every dungeon creature gets a post, even with nothing to do there: the post is what keeps the
                 // director from letting it go.)
-                made.Add((e, DungeonPost.From(s, c)));
+                var post = DungeonPost.From(s, c);
+                post.Dungeon = id;
+                made.Add((e, post));
             }
             // (After the loop: adding components moves entities.)
             foreach (var (e, post) in made)
@@ -462,11 +521,18 @@ namespace Punchy.Fauna
         {
             if (s.Kind == SocketKind.Chest)
                 return null;
+            // (A-95: placed as its collision box is, nudged off a chest or out of a wall; see DungeonSpawner.PropPlace.)
+            DungeonSpawner.PropPlace(s, all, terrain, out var centre, out var size, out var rot);
+            // A-91: the real prop, built from parts in the cave's dressed stone, wood and iron; the tinted box below
+            // only when there is no cave material to draw it with.
+            if (DungeonProps.Make(c, size) is { } built)
+            {
+                built.transform.SetPositionAndRotation(centre, rot);
+                return built;
+            }
             var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
             go.name = $"Dungeon {c}";
             Object.Destroy(go.GetComponent<Collider>());
-            // (A-95: placed as its collision box is, nudged off a chest or out of a wall; see DungeonSpawner.PropPlace.)
-            DungeonSpawner.PropPlace(s, all, terrain, out var centre, out var size, out var rot);
             go.transform.SetPositionAndRotation(centre, rot);
             go.transform.localScale = size;
             var h = DungeonSpawner.Scramble((uint)c * 0x9E3779B1u);
