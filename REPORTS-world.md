@@ -4090,6 +4090,29 @@ Built in the player tree, not the one the card names (the world tree's gitignore
   - **Hitches over a fixed 60 s flight** (40 m/s, 300 m up, along the walk line): High 5884 frames, mean 10.20 ms, p99 14.52, max 43.7, 1 frame over 33 ms, 0 over 50; Medium 6862 frames, mean 8.75, p99 12.88, max 43.4, 4 over 33 ms, 0 over 50. No `[stream]` slow batches at either.
   - **Look:** from 150 m and 300 m the edge is not a hard line; the ground fades into haze before it ends (haze is tied to the edge). The cost of "more distance" is therefore also thinner haze near the player, which row 2 will report.
   - Shots: PunchyMilestones/W-131/r1-{Medium,High}-{150m,300m}.png, r1-contact-sheet.jpg. `[shot] 'r1-High-300m' ready after 0.9 s ... 1280x720, camera (-1236.0, 377.5, 1324.0); check: mean 0.69 ... good` (all four "good").
+- **Row 2 (far ring at High): done (verified), kept.** world/far-ring `94548d6f` (pushed). Editor D3D11, play mode, console 0 game errors (only CLI transport lines).
+  - **What it is:** TerrainStreamingSystem.FarRing.cs (new partial). From View 1.29 up (High, Ultra), far tiles carry the ground from the disc's edge (1984 m) out to 1.5x its radius (about 2976 m). Near the disc they are 256 m tiles on the 16 m grid (the disc's last LOD, same sample points, so the overlap can't be seen). Past a 512 m band they use the 32 m grid, as 512 m tiles wherever a whole one lies past the band. They have no colliders, flora, props or shadows, and build in their own small background batches. A disc chunk past its unload margin waits for its far tile, so the ground never has a hole. The haze (WeatherSystem, via TerrainStreamingSystem.DrawDistance) reaches 98% at the new edge, and the far plane grows to edge + 768 m (3744 m at High). Medium and below: 0 far tiles, so the code path is main's. Off switch: env PUNCHY_FARRING=0 or the static `TerrainStreamingSystem.FarRing`.
+  - **Why 1.5x, not 2x:** at 2x (about 4 km) fly300 cost +0.64 ms (256 m tiles only, 652 tiles) and still +0.64 with 512 m outer tiles (316 tiles). Halving the draws didn't help, so the cost is pixels (ground and sea where sky was), not draws. 1.5x is the card's "e.g. 3 km".
+  - **Cost** (render ms, 6 interleaved rounds, same session; ring off = main's High; frame ms in brackets):
+
+    | View | Medium | High, ring off | High, ring on | High delta |
+    |---|---|---|---|---|
+    | walk | 4.32 (13.38) | 6.33 (18.82) | 6.33 (18.14) | +0.00 |
+    | hilltop | 3.78 (12.46) | 6.14 (17.69) | 6.23 (18.26) | +0.09 |
+    | 300 m up | 4.66 (14.60, noisy) | 4.26 (14.64) | 4.52 (15.31) | +0.26 |
+
+    An earlier 6-round run in a busier session gave +0.33 / +0.35 / +0.44. Both runs are inside the +0.5 ms gate.
+  - **Memory (far meshes, High):** 263 tiles (184 with water; 169 on the 16 m grid, 37 at 512 m): terrain 80.2k verts, 16.0 MB; water 44.9k verts, 5.4 MB. That is about +21 MB on top of the disc's 144 + 19 MB. Medium +0.
+  - **Hitches, fixed 60 s flight** (40 m/s, 300 m up, fresh play session, alternating):
+    - High ring on: 1, 1, 1, 2 frames over 33 ms; 0 over 50; max 33.6-49.4 ms.
+    - High ring off: 3, 1 frames over 33 ms; 0 over 50.
+    - Medium: 7417 frames, mean 8.09, p99 12.20, 2 over 33 ms, 0 over 50 (main row 1: 4 over 33).
+    - Main thread time in the far ring was never over 2 ms in any frame (temporary stopwatch, now removed).
+  - **Risk (seen once, not reproduced fresh):** after about 90 minutes in one play session with many preset and FarScale switches, the disc had grown to 2710 water chunks (972 when fresh) and 360-520 batches per flight (80-120 when fresh). In that state, ring-on flights hitched 22, 16, 0, 51 and 1 times over 33 ms (up to 224 ms), against 3, 0 and 1 with the ring off. The far ring's own work stayed under 2 ms. A fresh session was clean. The bench (BENCH-QUEUE) could fly High for 10+ minutes to rule it out.
+  - **Nearby is unchanged:** near-player chunks, LODs and colliders are the same (disc lods 45/115/426/1647/785 either way). Flora reach is unchanged. The one look change near the player is the haze: it is tied to the edge, so at High it is now about two-thirds as dense (98% at 2973 m instead of 1982 m). The card asks for this; the sheet shows it.
+  - **Not changed:** ProjectSettings, renderer assets, placement and shaders. When you drop from High to Medium in-session, the far plane keeps its larger value; it only grows, as on main. Nothing is drawn there at Medium.
+  - Shots: PunchyMilestones/W-131/r2-{Medium,High}-{150m,300m}.png, r2-contact-sheet.jpg (before: r1-*). `[shot] 'r2-High-150m' ready after 0.9 s ... 1280x720, camera (-1236.0, 227.5, 1324.0); check: mean 0.60 ... good`, `[shot] 'r2-High-300m' ready after 1.5 s ... camera (-1236.0, 377.5, 1324.0); check: mean 0.66 ... good`, `[shot] 'r2-Medium-150m' ... mean 0.65 ... good`, `[shot] 'r2-Medium-300m' ... mean 0.71 ... good`. At High, far ridges now stand out past the old edge and fade at the new one. There are no seams, pops or magenta. Medium matches r1.
+  - **Next:** row 3 (tree reach x1.5 at High).
 
 ## R-10 (continued, row 4: a glowing town at distance; tree Punchy-release, branch light/forwardplus)
 - **R-10 row 4 DONE (glowing town)**: light/forwardplus `95c93aef` (pushed; merges cleanly with origin/main 484c8f2c).
