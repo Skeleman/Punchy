@@ -73,9 +73,10 @@ Shader "Punchy/Sky"
                 }
                 if ((off & 32u) != 0)
                     return half4(sky, 1);
-                // (Same step count as the terrain haze target, so distant land and sky converge exactly.)
+                // The rain and dust volumes along this direction, marched once a frame into a direction table (R-8; it
+                // was over half this draw's cost per pixel).
                 [branch] if ((off & 8u) == 0)
-                    sky = PunchyWeatherVolumes(sky, _WorldSpaceCameraPos, dir, 8000, 8);
+                    sky = PunchySkyVolumesFromLut(sky, dir);
                 return half4(sky, 1);
             }
             ENDHLSL
