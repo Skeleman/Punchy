@@ -3347,6 +3347,19 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - D3D11 (editor): no magenta in any shot. Row 3 changed no material or shader.
 - [shot] D:/Unity/PunchyMilestones/A-91/row3/contact-sheet.jpg (11 frames: two cave mouths, both lake bowls, a grotto, the ruin mouth, three views of the 4-room ruin plus the second ruin, temple control). Single shots and list.txt / list2.txt are in row3/.
 
+
+### Row 4 (quest hooks for P-24 / P-23): done (verified), 4036e336 on fauna/dungeons2
+- API (animal lane, no UI): `DungeonState.All(list)` and `DungeonState.TryGet(id, out DungeonStatus)`. Each `DungeonStatus` has Id (dungeon id, the same as DungeonPosts.Dungeon), Type (DungeonSpawner type), Name, Entrance, Creatures, CreaturesLeft, Cleared, MarkedChest (socket index, -1 = none), MarkedChestPos. `DungeonState.NameOf(id, type)` and `Describe()` are for debugging. Names come from word lists in dialogue.json, so they are seed-derived and the same on every machine.
+- Cleared means every dungeon creature is dead or more than `DungeonState.DrivenOff` (30 m) outside the dungeon. A dungeon with no creatures counts as cleared.
+- Loot: dungeon loot now comes from the new SpawnTable asset `SpawnTables/DungeonLoot` (Coin 45, Mushroom 25, Stone 25, Key 5). Kind -1 rows are floor loot and Kind 1 rows are chest loot. P-23 gear goes in as Kind 1 rows named by ItemTable name, with no code change.
+- Verification in play mode:
+  - Describe: 26 dungeons, all names unique. Temple 00000064 "the Sunken Temple of Undermaw", 11/11 creatures, chest 27. Ruins: 876B823B "the Blackwell Ruins" (14/15, chest 79) and 0AB025B1 "the Gloamhold Crypts" (15/21, chest 63). All Cleared false at spawn.
+  - Loot A/B against the old hard-coded loot: 26 dungeons, 90 items, 0 differ, hash 250F5EDB.
+- Notes for the player lane:
+  - Opening the marked chest is the player lane's job: Items.cs opens only the temple's chests today.
+  - Cleared is valid only on the host or solo. It reads false on a joined client and during a director rebuild, so P-24 should read it on the host and sync the quest state.
+  - 67FAE773 has no chest socket (MarkedChest -1). Quests there should be "drive off" only.
+
 ## A-97
 
 - **Row 1 (Tag): done (verified).** Branch fauna/surfaces, commit b5768261. LimbType segments have a Surface (Coat default; Hoof, Pad, Claw, Eye, Horn). Species have a coat kind (Fur/Feathers/Scales/Skin/Chitin) and a fur length. Both are baked into a CreatureLookBlob (not on CreatureBlob) and written to SegmentInstance.Material.w. In Creature.shader, shells grow only on the Fur coat. `-nosurfaces` gives the old look.
