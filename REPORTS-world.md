@@ -3742,3 +3742,51 @@ Built in the player tree, not the one the card names (the world tree's gitignore
   - **Pixel diffs per pair:** mean 0.01-0.80 of 255, at most 2.5% of pixels over 4. The diff heatmap puts every difference on plant sway, rain streak particles, cloud-edge temporal jitter and the moon's twinkle, and none on the smooth sky where the volumes apply. A control pair (two identical shots, sea rain) differs more: mean 0.91, 2.3% over 4, against 0.46 for that pose's before/after.
   - Gallery (unviewed): PunchyMilestones/R-8/sky-cost/gallery (20 shots + 2 control).
   - Risks: one extra 1024x128 blit per frame (8 steps per texel, about 131k texels, versus about 2M sky pixels at 1080p). No ProjectSettings or placement changes.
+
+## W-129 (streaming spikes; tree Punchy, branch world/spikes)
+
+- **W-129 row 1 DONE (attribution only, no code change; verified by numbers).** Branch world/spikes = origin/main a984c4e4, no commits.
+  - **Method:** my editor in play mode, `-island v3 -time 12 -weather Clear -nohud`, uncapped, Profiler recording the main thread and all workers. A scratch probe (untracked, Assets/Temp) moves the camera on a fixed line and, for every frame over 50 ms, dumps the main-thread sample tree, the samples with the most self time, and the busiest jobs on the workers. Shrub walk: z=1324, x -1236 to 164 (1400 m) at 30 m/s on the ground. Glide: z=-1200, x -3000 to 3000 at 60 m/s, 40 m up. Each run is a fresh play session (the world streams in again from nothing).
+  - **Harness artefact found first:** every `unity command eval` compiles and loads an assembly in the editor. When I polled for the result once a second, a 100 s run standing still with nothing streaming gave 54 frames over 50 ms, max 341 ms. The same run without polling gave 1 frame over 50 ms, max 53 ms. All numbers below come from runs with no evals while the run was going.
+  - **Runs without polling:**
+
+    | run | frames | mean ms | p99 | max ms (at) | >50 | >100 |
+    |---|---|---|---|---|---|---|
+    | walk 1 | 1897 | 24.56 | 39.0 | 71.0 (522 m) | 4 | 0 |
+    | walk 2 | 4082 | 11.42 | 38.3 | 193.4 (902 m) | 17 | 3 |
+    | walk 3 | 3481 | 13.40 | 46.2 | 472.6 (1195 m) | 31 | 14 |
+    | glide 1 | 7664 | 13.04 | 25.0 | 217.4 (4409 m) | 46 | 18 |
+    | glide 2 (same line, next session) | 7370 | 13.56 | 19.0 | 66.4 (3888 m) | 1 | 0 |
+
+  - **Spike table (the frames over 100 ms; the "cause" is the sample with the most self time in that frame):**
+
+    | ms | place | main-thread self time | likely real? |
+    |---|---|---|---|
+    | 472.6 | walk 3, 1195 m (-41,1324) | "Main Thread" root 446 (no child) | no: stall |
+    | 331.7 | walk 3, 1228 m | Idle 208, ColossusWalker.Update 106 | no: stall |
+    | 325.7 | walk 3, 621 m | CreatureBurrowSystem 275 | no: stall |
+    | 261.2 | walk 3, 351 m | PhysicsCore2DLateUpdate 150 (game has no 2D physics) | no: stall |
+    | 217.4 | glide 1, 4409 m (1409,-1200) | EditorLoop 194 | no: editor |
+    | 205.9 | glide 1, 4233 m | InputUpdate 129, Idle 66 | no: stall |
+    | 205.4 | walk 3, 1211 m | CreatureRenderSystem 194 | no: stall |
+    | 202.8 | glide 1, 3812 m | ParticleSystem.Update 91, EditorLoop 69 | no: stall |
+    | 197.3 | walk 3, 1194 m | ColossusWalker.Update 186 | no: stall |
+    | 191.3 | glide 1, 3852 m | split over 5 unrelated samples of about 40 ms each | no: stall |
+    | 183.0 | walk 3, 568 m | BeginContextRendering 89, Idle 82 | no: stall |
+    | 175.2 | glide 1, 4433 m | TerrainStreamingSystem 159 | maybe: first-visit terrain tiles |
+    | 167.6 | glide 1, 5598 m | ComputeStats 155 | no: stall |
+    | 157.6 | glide 1, 5583 m | CustomRenderTextures.Update 113 | no: stall |
+    | 153.7 | glide 1, 5621 m | Semaphore.WaitForSignal 124 (main thread waiting on workers) | no: stall |
+    | 152.1 | walk 3, 373 m | CreatureBrainSystem 85, ColossusLod 48 | no: stall |
+    | 143.1 | glide 1, 5576 m | TerrainStreamingSystem 104 | maybe: first-visit terrain tiles |
+    | 138.6 | walk 3, 682 m | FloraSystem.LateUpdate 118 | maybe: first-visit flora build/upload |
+    | 135.7, 101.9 | glide 1, 4401 / 4392 m | Profiler.FlushMemoryCounters 90 / 70 | no: profiler |
+    | 132.4, 131.6 | walk 3, 339 / 545 m | IslandV2System 34 + EditorLoop 34 + AssetDatabase 23; EditorLoop 75 + HybridLightBaking 41 | no: editor |
+    | 100-127 (10 more) | walks 2-3, glide 1 | AmbientLife.Near 78, ColossusPush 91, FaunaDirector.Comfort 91, RibcageSystem 75, Mantrap 39 + ScheduleDraw 44, Idle 52-81 | no: stall |
+
+  - **What this says:**
+    1. **Most frames over 100 ms are stalls of the whole editor process, not streaming work.** The time lands on samples that normally cost under 1 ms (InputUpdate, ComputeStats, a 2D physics step the game doesn't use, the bare thread root, Idle). The workers sit idle for the whole frame (their time is all Semaphore.WaitForSignal). The spikes don't come back at the same places: walk 3 spiked at 300-680 m and 1195-1230 m, while walk 1 on the same line never went over 71 ms. Glide 2 streamed the same line from nothing, straight after glide 1, and peaked at 66 ms. The host was loaded throughout: three editors open, 57-59 UnityShaderCompiler processes from another lane's editor, CPU 54-91% (85% when the runs ended), 24-29 GB RAM free.
+    2. **Real streaming costs exist but stay under 100 ms when the host is quiet.** Seen on first visits: TerrainStreamingSystem 55-159 ms, FloraSystem.LateUpdate 33-160 ms, CaveSystem.Update 67-84 ms, StdRender/StdShadow.ApplyShader 84-143 ms (shader variants compiling in the editor), and incremental GC 20-48 ms (9 KB/frame allocated, 5.7 of it in FloraSystem.LateUpdate). None of them came back over 100 ms in glide 2 or walk 1. The R-6 row 6 frames at 1240-1330 m match walk 3's 1195-1228 m stall cluster, which has no streaming cause.
+    3. **No sign of systems competing for workers.** The workers are idle during the spikes, and nothing waits on another system's jobs. So the row 3 scheduler note is not needed.
+  - **Row 2 not started.** No cause repeats over 100 ms when the host is quiet, so a fix can't be measured against the card's pass condition here (no frame over 100 ms in 3 walks and 2 glides). On this PC the host stalls alone break that condition. Suggested next step for the supervisor: one profiler-lane bench of the shrub walk and glide in a dev player build, with the other editors closed. If TerrainStreamingSystem or FloraSystem.LateUpdate still go over 100 ms there, slice their first-visit work over frames (terrain tile uploads; flora build/upload), one commit each.
+  - Risks: none; no code change. The probe is a scratch file in Assets/Temp and is not committed.
