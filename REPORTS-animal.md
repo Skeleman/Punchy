@@ -3125,3 +3125,12 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - Live sample (Millfield): `[help] "Well, if you're offering, you could drive off the crows." offer Quest:crows`;
   `[favour] "The town's that way. Follow the road." offer Directions:Millfield`; `[bye] "Safe travels." <Wave> (ends)`.
 - Risk: the favour ledger is local to the asking machine (a 90 s fade), so a joined client's asks don't count on the host.
+
+### Row 2 - conversation lines, favours, 20-folk proof - done (verified by tests)
+- Commit 6e1d15c9 on fauna/persona (pushed).
+- dialogue.json `conversation`: topic labels, `_readme` (how to add a line, how to add a topic with data only: label + lines, it shows before goodbye), about 130 Any lines over who/how/work/town/news/favour/help/bye keyed by traits, state, weather, mood, trade, hour, need, willing, pestered; flavour for Human, HumanChild, Dwarf, Elf, Goblin, Ogre, Hermit.
+- How-are-you names the real state (tired, hungry, busy, scared, lonely, hurt, every weather kind).
+- Favours: berries, coin, fish, mushrooms, directions, rumour:cave, discount 10/20 (traders, smiths, bakers, tanners). Asked twice lately = "You again? No." until the 90 s ledger fades.
+- Town_TwentyFolkDistinct: 20 of 20 folk unique, 88 distinct lines, per topic 13/14/14/8/8/9/12/10. Sample: Guard (Tired) "Worn out. I could sleep standing up."; Smith "For you? A tenth off, if you buy today." Discount:10; cold Fisher (Lonely) "On my own too much. Not that I mind. Much."
+- FolkConversationTests 4/4. Pins: Fauna_Fingerprint 66320C7C pass, Landmarks_V3 pass, persona 37026953.
+- Next: row 3 (animal player beastTalk).
