@@ -167,3 +167,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-10: R-11 (far trees and rocks on impostors, R-7 row 4 never done) started in Punchy-world on lod/impostor-trees.
 - 11-10: A-92 merged #237 (main a975f71e); #230/#231 closed. Asked Zach on the detail defaults. R-10 row 2b may now hook up Creature (R-9 still pending). D:/Unity/Punchy tree free; burst-prune when editors close.
 - 11-10: A-93 (folk personas/conversation) started in D:/Unity/Punchy on fauna/persona; merge row 1 early so the player account can start P-26.
+- 11-10: A-93 merged #238 (main 18df736a). P-26 unblocked in lanes/player/STATE.md. D:/Unity/Punchy tree free.

@@ -25,8 +25,9 @@ no machine paths or personal info. Never bare `git stash`.
 - 11-09 (supervisor): NEXT = P-25 (door prompt, indoor camera, first person, seamless-interiors plan; Zach-approved).
   Skip cards marked DRAFT (P-23 items/gear, P-24 quests): they wait for Zach's review; the supervisor removes the
   DRAFT mark when they're approved. Then the lowest open card as usual.
-- Queued after P-25 (Zach 11-09): P-26 talking to folk (needs A-93 row 1 merged first: the animal lane writes the
-  personalities and answers; if it isn't merged yet, do P-27 first), then P-27 player stats.
+- Queued after P-25 (Zach 11-09): P-26 talking to folk, then P-27 player stats. A-93 is MERGED (PR #238, main 18df736a):
+  API FolkPersona.Of, FolkConversation.Topics/Ask/Respond, lines in dialogue.json `conversation`/`beastTalk`. Respond and the
+  favour cooldown are host/solo-local: a joined client needs an RPC to the host (part of P-26).
 - P-22 done and merged 11-09 (PR #229, main): roof undersides, small-body cave camera (#85), display modes (#78).
 - P-21 merged (lights/round3). Older history: git log of this file.
 - RAM: 3 other editors are open tonight (R-7, R-8, W-129). Open yours only with >= 6 GB free (start-quiet.ps1);
