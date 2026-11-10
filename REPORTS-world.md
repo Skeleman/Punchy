@@ -3742,6 +3742,23 @@ Built in the player tree, not the one the card names (the world tree's gitignore
   - **Pixel diffs per pair:** mean 0.01-0.80 of 255, at most 2.5% of pixels over 4. The diff heatmap puts every difference on plant sway, rain streak particles, cloud-edge temporal jitter and the moon's twinkle, and none on the smooth sky where the volumes apply. A control pair (two identical shots, sea rain) differs more: mean 0.91, 2.3% over 4, against 0.46 for that pose's before/after.
   - Gallery (unviewed): PunchyMilestones/R-8/sky-cost/gallery (20 shots + 2 control).
   - Risks: one extra 1024x128 blit per frame (8 steps per texel, about 131k texels, versus about 2M sky pixels at 1080p). No ProjectSettings or placement changes.
+- **R-8 row 3 NOT PASSED (needs a decision; nothing committed).** Adaptive light samples top out at about 7.5% cheaper in storm and 3% in Overcast with no visible change. The 15% target is only reached by reusing light between march steps, and that shows as dark speckle.
+  - **Method:** editor play mode at the Summit, weather forced, time scale 0. Low-res cloud march timed with synced GPU timers at half res (1280x800), old path (test bit 16384) and new path interleaved in the same eval, 4 runs each per weather. Storm intensity drifts between forces (old path 0.97-1.43 ms), so only same-eval pairs are compared. Light sampling is about 31% of the march (storm 0.97 ms with light vs 0.67 ms without), so it caps what this row can save. Quarter res was not measured: half res already missed the target.
+  - **Variants (saving storm / Overcast; shot diff mean vs control noise 1.61 storm / 0.66 Overcast):**
+
+    | variant | storm | Overcast | diff storm / Overcast | look |
+    |---|---|---|---|---|
+    | fewer light steps by density and transmittance (clean) | -7.5% | -3.3% | 1.61 / 0.55 (= noise) | no change |
+    | aggressive thresholds, no reuse | about -14% | - | 2.5-2.7 | not viewed |
+    | reuse light every 2.5 steps + aggressive | -16 to -19% | about -17% | 2.87 / 1.24 | visible dark speckle |
+    | far-only reuse | -6 to -10% | - | 1.75-2.28 | speckle in crops |
+    | light samples share the march point's maps | -12 to -15% | - | 4.5-10 | large change, rejected |
+
+    Clean variant, all weathers (old vs new ms): Clear 0.790 vs 0.763 (-3.3%), PartlyCloudy 0.779 vs 0.790 (+1.5%), Overcast 0.855 vs 0.827 (-3.3%), Storm 1.303 vs 1.206 (-7.5%). The 0.9 history blend doesn't hide the reuse speckle, because the speckle sits still in view space.
+  - **Ghosting (committed code, storm at the Summit, moving vs still frame, 1280x720; mean / max / % over 4):** control 0.10 / 18 / 0.09%; spin 3 deg/frame 0.21 / 21 / 0.52%; spin 10 deg/frame 0.21 / 24 / 0.47%; glide 0.7 m/frame 0.22 / 12 / 0.05%; glide 5 m/frame 0.32 / 20 / 0.39%. The contact sheet shows no trails. **0.9 history weight unchanged.**
+  - **Options:** (a) take the clean variant as is (-7.5% storm, no look change); (b) accept the reuse grain for -16 to -19%; (c) look for the saving elsewhere in the march (fewer noise octaves far away, a cheaper density function for light samples only, or quarter res in storm). The clean variant is kept as a scratch patch and can be committed in minutes on (a).
+  - Risks: none; Sky.hlsl is back at row 2's commit.
+  - **Suite (editor closed, sky/cost at row 2):** `15 passed, 0 failed, 7 skipped in 286s (Unity exit 0).` Pins: Landmarks_V3 `112 A955AFE0`, Fauna_Fingerprint `66320C7C`. My editor is closed.
 
 ## W-129 (streaming spikes; tree Punchy, branch world/spikes)
 
