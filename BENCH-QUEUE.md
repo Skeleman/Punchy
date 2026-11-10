@@ -364,7 +364,7 @@ per arm, shuffled, D3D11 default, until the first arm that is clearly better or 
   report the counts and stop: the next step would be a present-wait timeout card for the rendering lane.
 - Fix the runcsv `i` reuse bug from job 41 first, so per-game labels and logs are right.
 
-## Job 43 (2026-11-09, QUEUED by the main-account supervisor; after job 42): water, SSAO, glow slots and shadow distance on the laptop
+## Job 43 (2026-11-09, RUNNING on the laptop; q73.sh; queued by the main-account supervisor): water, SSAO, glow slots and shadow distance on the laptop
 From the 11-09 outside audit (docs/Chat audit 11-9.md, sections 3, 4, 5, 8). Read only, main at the time you start (after R-6
 #227), Profile build, 1920x1080, `-gfx High` then `-gfx Medium`, `-weatherseed 4`, `-time 12 -weather Clear`, uncapped, ABBA,
 300 frames each. If a flag below doesn't exist, say so and skip it; don't add code.
