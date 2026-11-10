@@ -65,6 +65,10 @@ namespace Punchy.Player
             var hasKit = SystemAPI.TryGetSingletonBuffer<KitBox>(out var kitBoxes, true) && kitBoxes.Length > 0;
             var size = body.Size > 0f ? body.Size : 1f;
             var stepUp = StepUp * size;
+            // How far the body (the local avatar) is still down, lying or sitting (A-92, #231).
+            var down = 0f;
+            foreach (var avatar in SystemAPI.Query<RefRO<Punchy.Fauna.CreatureState>>().WithAll<Punchy.Fauna.PlayerAvatar>())
+                down = math.max(avatar.ValueRO.Lie, avatar.ValueRO.Sit);
 
             foreach (var (transform, motor, motion) in
                      SystemAPI.Query<RefRW<LocalTransform>, RefRO<PlayerMotor>, RefRW<PlayerMotion>>().WithAll<PlayerTag>())
@@ -73,6 +77,15 @@ namespace Punchy.Player
                 ref var m = ref motion.ValueRW;
                 var settings = motor.ValueRO;
                 var input = rawInput;
+                // Getting up comes before going anywhere: lying or sitting, the body stands first (moving gets it up,
+                // InteractionInputSystem) rather than crawling off with its folded legs dragging under it. A jump
+                // pressed meanwhile only gets it up.
+                if (down > 0.25f && m.Grounded)
+                {
+                    input.MoveDirection = float2.zero;
+                    input.JumpPressed = false;
+                    input.CrouchPressed = false;
+                }
 
                 var position = t.Position;
                 // (Over deep water but up in the air, jumping across a river: not swimming yet, so neither slowed nor carried

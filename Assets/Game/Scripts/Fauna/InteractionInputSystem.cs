@@ -30,6 +30,8 @@ namespace Punchy.Fauna
         InputAction interact, attack, move, jump;
         /// <summary>Sitting or lying (IdleAction.SitDown or Lie) where they are or on a seat, until they move; or None.</summary>
         IdleAction rest;
+        /// <summary>Tests (A-92): sit or lie the local player down as the interact button would.</summary>
+        internal IdleAction Rest { get => rest; set => rest = value; }
         /// <summary>When the player last moved (for offering to sit only once they've stood still a moment).</summary>
         double movedAt;
         /// <summary>The emote the player is doing (an IdleAction, Wave to Dance), and when it ends.</summary>
@@ -128,9 +130,12 @@ namespace Punchy.Fauna
 
             var lunging = SystemAPI.Time.ElapsedTime < lungeUntil;
             UpdateEmote(held != Entity.Null || lunging || petting);
-            // Sitting and lying: up again on moving, jumping, leaving the ground, an emote or an animal in hand.
+            // Sitting and lying: up again on moving, jumping, leaving the ground, an emote or an animal in hand. Any push
+            // of the stick past its dead zone counts (A-92, #231: a gentle one used to crawl off still lying, legs
+            // dragging); PlayerMovementSystem then holds the player until the body has stood.
             var motion = EntityManager.HasComponent<PlayerMotion>(playerEntity) ? EntityManager.GetComponentData<PlayerMotion>(playerEntity) : default;
-            var moving = move != null && move.ReadValue<Vector2>().sqrMagnitude > 0.1f;
+            var moving = move != null && move.ReadValue<Vector2>().sqrMagnitude > 0.0025f ||
+                         PlayerInputSystem.TestMove.HasValue && math.lengthsq(PlayerInputSystem.TestMove.Value) > 0.0025f;
             var onGround = motion.Grounded && !motion.Flying && motion.Mantle <= 0f;
             if (moving || !onGround)
                 movedAt = SystemAPI.Time.ElapsedTime;
