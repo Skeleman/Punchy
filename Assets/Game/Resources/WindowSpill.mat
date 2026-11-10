@@ -7,8 +7,8 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: FarShadow
-  m_Shader: {fileID: 4800000, guid: 2008336567728cb41a42a1a934b0e516, type: 3}
+  m_Name: WindowSpill
+  m_Shader: {fileID: 4800000, guid: a59efd45a1f14d30aef99ed611db6e1a, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
@@ -24,9 +24,7 @@ Material:
     serializedVersion: 3
     m_TexEnvs: []
     m_Ints: []
-    m_Floats:
-    - _Near: 40
-    - _Strength: 0.6
+    m_Floats: []
     m_Colors: []
   m_BuildTextureStacks: []
   m_AllowLocking: 1

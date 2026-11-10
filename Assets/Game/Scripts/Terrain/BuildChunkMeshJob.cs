@@ -19,6 +19,7 @@ namespace Punchy.Terrain
         public half4 Emission;  // emission rgb (linear HDR), geomorph offset (coarse height − height)
         public float4 Morph;    // geomorph start / complete distance from the focus; z surface bumpiness; w distance to cave air
         public half4 Strata;    // rock strata amount, cobble paving amount, hollow depth (m, for puddles), flagstones (W-108)
+        public half2 Soak;      // porosity (how much rain soaks in, item 22), unused
 
         public static readonly VertexAttributeDescriptor[] Layout =
         {
@@ -28,7 +29,8 @@ namespace Punchy.Terrain
             new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 4),
             new VertexAttributeDescriptor(VertexAttribute.TexCoord1, VertexAttributeFormat.Float16, 4),
             new VertexAttributeDescriptor(VertexAttribute.TexCoord2, VertexAttributeFormat.Float32, 4),
-            new VertexAttributeDescriptor(VertexAttribute.TexCoord3, VertexAttributeFormat.Float16, 4)
+            new VertexAttributeDescriptor(VertexAttribute.TexCoord3, VertexAttributeFormat.Float16, 4),
+            new VertexAttributeDescriptor(VertexAttribute.TexCoord4, VertexAttributeFormat.Float16, 2)
         };
 
         public void SetSurface(in SurfaceProps s)
@@ -37,6 +39,7 @@ namespace Punchy.Terrain
             Extra = new half4(new float4(s.Metallic, s.Grass, s.Snow, 0f));
             Emission = new half4(new float4(s.Emission, 0f));
             Strata = new half4(new float4(s.Strata, s.Paving, 0f, s.Slabs));
+            Soak = new half2(new float2(s.Porosity, 0f));
         }
     }
 
@@ -139,15 +142,20 @@ namespace Punchy.Terrain
                 vertex.Morph = new float4(request.MorphRange, surface.Bump, cave);
                 // W-98: how far this point sits below the ground round it (rings at 2.5 m and 6 m), so rain puddles
                 // gather in the dips (TerrainSurface.shader) rather than anywhere flat. Only near (puddles fade far off).
+                // Item 22: only a true hollow, with the ground rising on every side: the depth is capped by the lowest
+                // rise (twice it), so a gully running downhill, or anywhere on a slope, has a side that falls away
+                // and gets none, however far it sits below its banks on average.
                 if (request.Lod <= 1)
                 {
-                    float ring = 0f;
+                    float ring = 0f, lowest = float.MaxValue;
                     for (int k = 0; k < 8; k++)
                     {
                         math.sincos(k * (math.PI / 4f) + (k & 1) * 0.3f, out var sn, out var cs);
-                        ring += Source.SampleHeight(world + new float2(cs, sn) * ((k & 1) == 0 ? 2.5f : 6f));
+                        var around = Source.SampleHeight(world + new float2(cs, sn) * ((k & 1) == 0 ? 2.5f : 6f));
+                        ring += around;
+                        lowest = math.min(lowest, around);
                     }
-                    vertex.Strata.z = (half)math.clamp(ring / 8f - h, -1f, 1f);
+                    vertex.Strata.z = (half)math.clamp(math.min(ring / 8f - h, 2f * (lowest - h)), -1f, 1f);
                 }
                 verts[z * v + x] = vertex;
                 // Landmark pools are left out of the sheet: CaveSystem draws each as a smooth disc (a small pool spans
@@ -547,7 +555,7 @@ namespace Punchy.Terrain
         /// </summary>
         float MouthCut(float2 xz, float h, float step)
         {
-            var cut = Source.MouthCut(xz, h, out var cave);
+            var cut = Source.MouthCut(xz, h, TerrainSource.MeshCutDepth, out var cave);
             if (cut >= 100f)
                 return cut;
             var r = step * 0.5f;
@@ -562,7 +570,7 @@ namespace Punchy.Terrain
             if (cave > SettledCave + FieldSlope * reach)
                 return cut;
             for (int k = 0; k < 4; k++)
-                cut = math.min(cut, Source.MouthCut(at[k], heights[k]));
+                cut = math.min(cut, Source.MouthCut(at[k], heights[k], TerrainSource.MeshCutDepth, out _));
             return cut;
         }
 

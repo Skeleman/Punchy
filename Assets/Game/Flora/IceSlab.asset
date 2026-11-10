@@ -41,6 +41,7 @@ MonoBehaviour:
   PatchCoverage: 1
   NearWater: 1
   OnlyNearWater: 0
+  SunSlope: -0.6
   Solid: 1
   SizeRange: {x: 0.5, y: 1.6}
   Variants: 8

@@ -32,6 +32,7 @@ Shader "Punchy/Flora"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Sky.hlsl"
+            #include "WideShadow.hlsl"
             #include "Flora.hlsl"
             #include "Grounding.hlsl"
             #include "Metal.hlsl"
@@ -271,9 +272,13 @@ Shader "Punchy/Flora"
                 // Thin tapered strands (roots, stems) can end in a degenerate normal; a NaN there blooms into a bright fleck.
                 half3 n = SafeNormalize(input.normalWS);
                 float3 v = GetWorldSpaceNormalizeViewDir(input.positionWS);
+                // The facet's own normal (outside any branch, so the derivatives are good).
+                float3 facet = normalize(cross(ddy(input.positionWS), ddx(input.positionWS)) + 1e-9);
                 // Built things are drawn double-sided too, and a roof is one sheet: seen from below it's the sheet's
-                // back, whose normal still points up. Light the side you see.
-                if (part == 0 && built && dot(n, v) < 0)
+                // back, whose normal still points up. Light the side you see, deciding by the sheet alone: is the normal behind
+                // the facet you're looking at? Testing it against the view (dot(n, v)) made a face change colour as the camera
+                // moved, and near a silhouette, where the smoothed normal leans away, drew black shapes (playtest 11-07, 11-08).
+                if (part == 0 && built && dot(n, dot(facet, v) < 0 ? -facet : facet) < 0)
                     n = -n;
 
                 // Per-plant tint: brightness, and leaves a little yellower or bluer.
@@ -283,7 +288,6 @@ Shader "Punchy/Flora"
                 // How many metres one pixel covers here, and the facet's own normal (outside any branch, so the
                 // derivatives are good).
                 float footprint = length(fwidth(input.positionWS));
-                float3 facet = normalize(cross(ddy(input.positionWS), ddx(input.positionWS)) + 1e-9);
                 // Cloth: lit by the surface the wind has waved (its folds catch the light), facing the viewer.
                 if (part == 10)
                     n = dot(facet, v) < 0 ? -facet : facet;
@@ -347,8 +351,8 @@ Shader "Punchy/Flora"
                 }
                 // Bark grain (item 28): furrows running up the trunk between raised plates, with fine fibres along them,
                 // laid out round the plant's own upright axis (its frame: the angle round it, and the height). Whole
-                // numbers of furrows round, so no seam; their path wanders with height. Fades out once a furrow would
-                // be under a few pixels wide, and by 60 m.
+                // numbers of furrows round, so no seam; their path wanders with height. Fades by screen size alone (rule 20):
+                // out once a furrow would be under a few pixels wide, from its own pixel footprint, so no fixed metres.
                 if (detail && bark)
                 {
                     float3 gp = input.grainPos;
@@ -361,7 +365,7 @@ Shader "Punchy/Flora"
                     half fibre = 0.5 + 0.5 * sin(phase * 4 + PunchyValueNoise(float2(gp.y * 6.0, ang * 0.5 + r * 9.0)) * 4.0);
                     // Plates break across now and then, so the ridges aren't endless rails.
                     half crack = smoothstep(0.78, 0.92, PunchyValueNoise(ring * 3.1 + float2(gp.y * 3.3, 4.7)));
-                    half grainFade = (1 - smoothstep(0.35, 0.9, length(fwidth(ring)) * furrows)) * (1 - smoothstep(30, 60, detailFade));
+                    half grainFade = (1 - smoothstep(0.35, 0.9, length(fwidth(ring)) * furrows));
                     albedo *= lerp(1, (1 - max(furrow, crack) * 0.5) * (0.92 + 0.16 * fibre), grainFade);
                     // The furrows' sides catch the light: lean the normal round the trunk with the ridge's slope.
                     float3 around = normalize(float3(-n.z, 0, n.x) + 1e-5);
@@ -430,7 +434,8 @@ Shader "Punchy/Flora"
                 albedo *= lerp(1, bark ? 0.5 : part == 0 ? 0.62 : leafy ? 0.7 : 0.82, wet);
 
                 Light light = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
-                half shadow = light.shadowAttenuation * (1 - PunchyCloudShadow(input.positionWS));
+                // Past the real shadows the wide cached ones of the huge things (R-5) take over, never doubling them.
+                half shadow = min(light.shadowAttenuation, 1 - PunchyWideShadow(input.positionWS, half3(0, 1, 0))) * (1 - PunchyCloudShadow(input.positionWS));
                 // Underground (cave plants, seen from a cave) the sun and sky don't reach; the player's lantern does.
                 // Cave plants are underground whatever the camera's depth: no direct sun (nor light through leaves, nor
                 // sheen, which made roots flare against the sun from near a mouth), and only a little of the sky's
@@ -441,7 +446,7 @@ Shader "Punchy/Flora"
                 half under = part == 0 && built ? PunchyUnderside(n.y) : 0;
                 if (under > 0)
                 {
-                    sky = PunchyUndersideAmbient(sky, input.ground.rgb, SampleSH(half3(0, 1, 0)) * lerp(1, 0.06, _PunchyUnderground), under);
+                    sky = PunchyUndersideAmbient(sky, input.ground.rgb, SampleSH(half3(0, 0, 0)) * lerp(1, 0.06, max(_PunchyUnderground, _FloraInCave * 0.75)), under);
                     albedo *= lerp(1, PunchyUndersideAlbedo, under);
                 }
                 // Glowing plants and molten pools nearby (their own glow included, softly).
@@ -458,7 +463,7 @@ Shader "Punchy/Flora"
                 // Darker towards the ground and on downward faces (leaves and petals: towards the ground only), per pixel:
                 // worked out at the vertices it smeared the tight band at the ground over a whole face, so a building's
                 // foundation exposed on a slope (a metre or two of skirt) showed it stretched down its length (Z-12, G-22).
-                half ao = input.color.a * PunchyGrounding(input.baseHeight.x, n.y, part == 1 || part == 2 || part == 5 ? 0 : 1);
+                half ao = input.color.a * PunchyGrounding(input.baseHeight.x, n.y, part == 1 || part == 2 || part == 5 ? 0 : 1 - under);
 
                 // Metal leaves: dim diffuse, the colour mostly comes from tinted reflections.
                 half3 color = albedo * (light.color * shadow * (diffuse + through) * lerp(0.6, 1, ao) + sky * ao) * (metal ? 0.45 : 1);
@@ -633,8 +638,9 @@ Shader "Punchy/Flora"
 
             float3 _LightDirection;
             float3 _LightPosition;
-            // W-107's cheap far caster: xyz the camera, w the near range (0: off). Past it the far level of detail
-            // casts as a solid card, so world-space noise cuts holes in it for a dappled canopy shadow.
+            // W-107's cheap far caster: xyz the camera, w the near range (0: off). Past it an open crown's far level of
+            // detail gets holes for a dappled shadow (R-3: in the plant's own frame, so they ride the sway instead of
+            // swimming through it, and only open crowns: full ones cast whole, as their near levels do).
             float4 _FloraCheapHoles;
 
             struct Varyings
@@ -687,9 +693,9 @@ Shader "Punchy/Flora"
                 // LOD keeps casting with its outgoing level until the change is complete.
                 clip(input.fade >= 0 && input.fade < 1 ? -1 : 1);
                 FloraMossClip(input.moss);
-                // (3D, as the cull picks the cheap list since item 29: from high up the trees below are far, too.)
-                if (_FloraCheapHoles.w > 0 && distance(input.positionWS, _FloraCheapHoles.xyz) > _FloraCheapHoles.w)
-                    clip(HoleNoise(input.positionWS) - 0.45);
+                // (Only open crowns: solid casters come with a negative fade, 3.7 step 3, full crowns with 3 to 4.)
+                if (input.fade > 0 && input.fade < 2.5 && _FloraCheapHoles.w > 0 && distance(input.positionWS, _FloraCheapHoles.xyz) > _FloraCheapHoles.w)
+                    clip(HoleNoise(input.moss.yzw) - 0.45);
                 return 0;
             }
             ENDHLSL
@@ -741,6 +747,54 @@ Shader "Punchy/Flora"
                 clip(input.fade >= 0 && input.fade < 1 ? -1 : 1);
                 FloraMossClip(input.moss);
                 return input.along;
+            }
+            ENDHLSL
+        }
+
+        Pass
+        {
+            // R-5: the wide sun-shadow map (Rendering.WideShadow; FloraSystem.Wide.cs) lays the big trees and built
+            // things far out with this, as Punchy/WideShadow's caster pass: a min blend keeps, per texel, how far along
+            // the sunlight (0-1 over the view's depth) the nearest caster is. Never a URP pass.
+            Name "FloraWide"
+            Tags { "LightMode" = "FloraWide" }
+            BlendOp Min
+            Blend One One
+            ZWrite Off
+            ZTest Always
+            Cull Off
+
+            HLSLPROGRAM
+            #pragma target 4.5
+            #pragma vertex Vert
+            #pragma fragment Frag
+            #define FLORA_CACHE_PASS
+
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Flora.hlsl"
+
+            float4x4 _WideShadowVP;   // world to the wide map's clip space
+            float4 _WideShadowEye;    // xyz its near plane centre, w one over its depth
+            float4 _WideShadowSun;    // xyz the way the sunlight travels
+
+            struct Varyings
+            {
+                float4 positionCS : SV_POSITION;
+                float along : TEXCOORD0;
+            };
+
+            Varyings Vert(FloraAttributes input)
+            {
+                FloraVertex v = FloraTransform(input);
+                Varyings o;
+                o.positionCS = mul(_WideShadowVP, float4(v.positionWS, 1));
+                o.along = dot(v.positionWS - _WideShadowEye.xyz, _WideShadowSun.xyz) * _WideShadowEye.w;
+                return o;
+            }
+
+            float4 Frag(Varyings input) : SV_Target
+            {
+                return saturate(input.along).xxxx;
             }
             ENDHLSL
         }

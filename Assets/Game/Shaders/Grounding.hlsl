@@ -38,14 +38,15 @@ half PunchyCreatureGrounding(float height, half normalY)
     return contact * down;
 }
 
-// The undersides of roofs, eaves and overhangs on built things: they see the ground, not the sky. Far darker than
-// PunchyGroundDown gives (towards ~0.25 of the albedo), most of the sky's ambient and its grazing reflection gone,
-// with a faint warm bounce of the ground's colour in their place so they never go pure black.
+// The undersides of roofs, eaves and overhangs on built things: they see the ground, not the sky, so no direct sun and
+// little of the sky's reflection, but they are lit about as a wall in shade is. One rule, in place of PunchyGroundDown
+// (pass `solid` 0 for them): three darkenings multiplied here used to leave about 7% of a shaded wall (playtest 11-08).
 static const half PunchyUndersideStart = 0.3;   // -normal.y where it begins
 static const half PunchyUndersideFull = 0.7;    // and where it's complete
-static const half PunchyUndersideAlbedo = 0.6; // albedo kept (with the lost sky light, about 0.25 of a lit wall)
-static const half PunchyUndersideSky = 0.18;    // sky ambient (and sky reflection) kept
-static const half PunchyUndersideBounce = 1.6;  // ground-coloured bounce, × the sky's light from above
+static const half PunchyUndersideAlbedo = 0.9;  // albedo kept
+static const half PunchyUndersideWall = 0.8;    // share of a shaded wall's ambient
+static const half PunchyUndersideBounce = 0.3;  // ground-coloured bounce, × a shaded wall's ambient
+static const half PunchyUndersideSky = 0.18;    // sky reflection kept
 
 /// How much a face on a built thing is an underside (0..1), from its world normal's up component.
 half PunchyUnderside(half normalY)
@@ -53,11 +54,11 @@ half PunchyUnderside(half normalY)
     return smoothstep(PunchyUndersideStart, PunchyUndersideFull, -normalY);
 }
 
-/// The ambient an underside gets in place of the sky's: a dim share of it plus the ground's colour bounced up,
-/// `skyAbove` being the sky's light on an upward face.
-half3 PunchyUndersideAmbient(half3 sky, half3 ground, half3 skyAbove, half under)
+/// The ambient an underside gets in place of the sky's: most of what a shaded wall gets, plus the ground's colour
+/// bounced up. `wallAmbient` is the ambient probe's average over all directions (SampleSH of a zero normal).
+half3 PunchyUndersideAmbient(half3 sky, half3 ground, half3 wallAmbient, half under)
 {
-    return lerp(sky, sky * PunchyUndersideSky + ground * skyAbove * PunchyUndersideBounce * 0.5, under);
+    return lerp(sky, wallAmbient * (PunchyUndersideWall + ground * PunchyUndersideBounce), under);
 }
 
 // The dirt band at a built thing's base: up to the height its instance carries (about 0.9 m on walls, 0.25 m on a

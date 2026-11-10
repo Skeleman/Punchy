@@ -302,6 +302,91 @@ namespace Punchy.Terrain
 
         static bool Overlap(float lo, float hi, float a, float b) => hi > a && lo < b;
 
+        /// <summary>W-128: bone steeper than this (sine of the slope, 45 degrees, along the bone or across its round) is no floor.</summary>
+        const float MaxWalkSin = 0.7071f;
+
+        /// <summary>
+        /// W-128: the top of rib (i, side)'s bone over local (u, v): each segment of the arc as a cylinder (where a
+        /// vertical line through (u, v) leaves it, if that's along the segment), plus a ball at each joint to close the
+        /// gaps on the arch's outer side. With <paramref name="walkable"/>, only where the bone is no steeper than
+        /// MaxWalkSin along it and across it (a floor); without, anywhere (whether a body is above that bone).
+        /// </summary>
+        static bool RibSurface(in RibcageLayout l, int i, int side, float u, float v, bool walkable, out float top)
+        {
+            top = float.MinValue;
+            var found = false;
+            float tb = RibEnd, tb2 = RibEnd;
+            if ((l.Broken & (1u << (i * 2 + side))) != 0)
+                Break(l.Key, i, side, out tb, out tb2);
+            for (int part = 0; part < 2; part++)
+            {
+                float t0 = part == 0 ? 0f : tb2, t1 = part == 0 ? tb : RibEnd;
+                if (t1 - t0 < 1e-3f)
+                    continue;
+                var steps = math.max(2, (int)math.ceil(RibSegments * (t1 - t0) / RibEnd));
+                var prev = Rib(i, side, t0);
+                for (int k = 1; k <= steps; k++)
+                {
+                    var t = math.lerp(t0, t1, k / (float)steps);
+                    var next = Rib(i, side, t);
+                    var r = RibR(math.lerp(t0, t1, (k - 0.5f) / steps));
+                    var d = next - prev;
+                    var len = math.length(d);
+                    var dir = d / math.max(len, 1e-6f);
+                    if (!walkable || math.abs(dir.y) <= MaxWalkSin)
+                    {
+                        var w0 = new float3(u - prev.x, -prev.y, v - prev.z);
+                        float a = 1f - dir.y * dir.y, wd = math.dot(w0, dir);
+                        float b = 2f * (w0.y - dir.y * wd), c = math.dot(w0, w0) - wd * wd - r * r;
+                        var disc = b * b - 4f * a * c;
+                        if (disc >= 0f)
+                        {
+                            var y = (-b + math.sqrt(disc)) / (2f * a);
+                            var s = wd + y * dir.y;
+                            // Up the round only as far as it's walkable (the surface normal's y is (y - axis y) / r).
+                            if (s >= 0f && s <= len && y > top && (!walkable || y - (prev.y + dir.y * s) >= MaxWalkSin * r))
+                            {
+                                top = y;
+                                found = true;
+                            }
+                        }
+                        // The joint ball at the segment's far end.
+                        var h2 = (u - next.x) * (u - next.x) + (v - next.z) * (v - next.z);
+                        if (h2 < (walkable ? 0.5f : 1f) * r * r && next.y + math.sqrt(r * r - h2) > top)
+                        {
+                            top = next.y + math.sqrt(r * r - h2);
+                            found = true;
+                        }
+                    }
+                    prev = next;
+                }
+            }
+            return found;
+        }
+
+        /// <summary>
+        /// W-128: the top of the spine over local (u, v), if it's over it (not the neck or tail: too steep to walk);
+        /// <paramref name="walkable"/> as for RibSurface (only the middle of its round).
+        /// </summary>
+        static bool SpineSurface(float u, float v, bool walkable, out float top)
+        {
+            top = float.MinValue;
+            if (u <= SpineStart || u >= SpineEnd)
+                return false;
+            var r = SpineR(u);
+            if (math.abs(v) >= (walkable ? MaxWalkSin : 1f) * r)
+                return false;
+            top = SpineY(u) + math.sqrt(r * r - v * v);
+            return true;
+        }
+
+        /// <summary>Whether rib i's sweep spans local u (the ribs worth testing there).</summary>
+        static bool RibNear(int i, float u)
+        {
+            var u0 = RibU(i);
+            return u >= u0 - 4f && u <= u0 + Sweep * 1.2f + 4f;
+        }
+
         /// <summary>
         /// Whether a body with its feet at p would stand in a bone (rib, spine, skull or fallen piece), counting only
         /// bone above stepUp over its feet and below its head, so it walks under the arches and between the ribs.
@@ -320,8 +405,10 @@ namespace Punchy.Terrain
             if (math.abs(q.z) < 90f)
                 for (int i = 0; i < Pairs; i++)
                 {
-                    var u0 = RibU(i);
-                    if (q.x < u0 - 4f || q.x > u0 + Sweep * 1.2f + 4f)
+                    if (!RibNear(i, q.x))
+                        continue;
+                    // W-128: a body on (or above) this rib's top doesn't meet it: it stands on it, or steps off and falls.
+                    if (RibSurface(l, i, side, q.x, q.z, false, out var on) && on <= q.y + stepUp)
                         continue;
                     if ((l.Broken & (1u << (i * 2 + side))) != 0)
                     {
@@ -334,7 +421,7 @@ namespace Punchy.Terrain
                 }
 
             // Spine, neck and tail (its slope ignored: a round section at this u).
-            if (q.x > NeckStart && q.x < TailEnd)
+            if (q.x > NeckStart && q.x < TailEnd && !(SpineSurface(q.x, q.z, false, out var onSpine) && onSpine <= q.y + stepUp))
             {
                 var r = SpineR(q.x) + Margin;
                 if (math.abs(q.z) < r)
@@ -367,7 +454,7 @@ namespace Punchy.Terrain
             return false;
         }
 
-        /// <summary>The highest fallen-piece or skull top under p that's no more than FloorReach above it, if any.</summary>
+        /// <summary>The highest rib, spine, fallen-piece or skull top under p that's no more than FloorReach above it, if any.</summary>
         public static bool Floor(in RibcageLayout l, float3 p, out float top)
         {
             top = float.MinValue;
@@ -379,6 +466,20 @@ namespace Punchy.Terrain
             if (Ellipsoid(Skull, SkullRadii, q.x, q.z, out _, out var shi) && shi <= limit)
             {
                 top = shi;
+                found = true;
+            }
+            // W-128: the ribs' and spine's tops, where they're no steeper than MaxWalkSin: the bones are walkable.
+            var side = q.z >= 0f ? 0 : 1;
+            if (math.abs(q.z) < 90f)
+                for (int i = 0; i < Pairs; i++)
+                    if (RibNear(i, q.x) && RibSurface(l, i, side, q.x, q.z, true, out var rt) && rt <= limit && rt > top)
+                    {
+                        top = rt;
+                        found = true;
+                    }
+            if (SpineSurface(q.x, q.z, true, out var st) && st <= limit && st > top)
+            {
+                top = st;
                 found = true;
             }
             var local = new float2(q.x, q.z);

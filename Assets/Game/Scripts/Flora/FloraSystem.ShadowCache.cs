@@ -55,6 +55,15 @@ namespace Punchy.Flora
         GraphicsBuffer cacheFor;
         int cacheForCount;
 
+        /// <summary>FloraCull.compute's _Sharp (3.7 step 3): the real-time tier's floor and ceiling, and for the cache's
+        /// cull how far inside a tree's real-time reach the cache starts (0: the camera's cull).</summary>
+        static Vector4 SharpTier(float shadowDistance, float cacheInside)
+            => new Vector4(FloraShadowOptions.NearRange, math.max(shadowDistance, FloraShadowOptions.NearRange), cacheInside, 0f);
+
+        static float SunShadowDistance()
+            => GraphicsSettings.currentRenderPipeline is UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset urp
+                ? urp.shadowDistance : QualitySettings.shadowDistance;
+
         void DrawShadowCache(Camera cam, float3 eye)
         {
             if (!FloraShadowOptions.CachedFarShadows)
@@ -176,20 +185,24 @@ namespace Punchy.Flora
             Culling.SetInt(ModelBaseId, l.ModelBase);
             Culling.SetVectorArray(PlanesId, planeVectors);
             Culling.SetVector(CameraId, (Vector3)eye);
-            Culling.SetVector(LodId, new Vector4(l.Lod1Distance, l.Lod2Distance, l.Radius, 0f));
+            Culling.SetVector(LodId, new Vector4(l.Lod1Distance, l.Lod2Distance, l.Radius, l.Radius));
             // Every tree out to CacheRange goes to the first shadow list (full mesh). The cache starts where the real-time
             // shadows end, less the CacheMove the camera can drift before the next redraw and 2 m of overlap: otherwise
             // the trees between the near range round the laid spot and round the camera cast nowhere (a gap that grows
             // as the near range shrinks). The overlap can't double a shadow: the receiver leaves real-time shade alone.
-            var cacheFrom = math.max(0f, FloraShadowOptions.NearRange - FloraShadowOptions.CacheMove - 2f);
-            Culling.SetVector(ShadowId, new Vector4(FloraShadowOptions.CacheRange, 0f, 1e6f, cacheFrom));
+            // (3.7 step 3: each tree from its own real-time reach, by its size on screen, as in the camera's cull; under
+            // -oldfloralod every tree's is the near range.)
+            Culling.SetVector(ShadowId, new Vector4(FloraShadowOptions.CacheRange, 0f, 1e6f, 0f));
+            Culling.SetVector(SharpId, SharpTier(SunShadowDistance(), FloraShadowOptions.CacheMove + 2f));
             Culling.SetBuffer(cull, InstancesId, l.Instances);
             Culling.SetBuffer(cull, VisibleId, cacheVisible);
             Culling.SetBuffer(cull, ArgsId, cacheCounts);
             Culling.SetBuffer(cull, RegionsId, l.Regions);
             Culling.SetBuffer(cull, BoundsId, l.Bounds);
             Culling.SetBuffer(cull, ModelReachId, l.ReachBuffer);
+            Culling.SetBuffer(cull, ModelShadowId, l.SharpBuffer);
             Culling.SetBuffer(cull, CastStateId, l.CastState);
+            Culling.SetBuffer(cull, ModelImpostorId, l.ImpostorBuffer);
             Culling.SetFloat(CastHoldId, 0f);   // the cache is laid now and then: no last frame to hold to
             Culling.Dispatch(cull, (l.Count + 63) / 64, 1, 1);
             Culling.SetFloat(CastHoldId, OldLod ? 0f : 1f);
@@ -244,8 +257,10 @@ namespace Punchy.Flora
             m.SetTexture(CacheTexId, cacheFront);
             m.SetMatrix(CacheMatrixId, cacheFrontUv);
             m.SetVector(ReceiveSunId, cacheFrontSun);
-            m.SetVector(CacheParamsId, new Vector4(eye.x, eye.z, 0f, FloraShadowOptions.CacheDarkness * sun.shadowStrength * up));
+            m.SetVector(CacheParamsId, new Vector4(eye.x, eye.y, eye.z, FloraShadowOptions.CacheDarkness * sun.shadowStrength * up));
             // In from half the near range (the real-time shadows keep it from doubling), out over the cache's last 8 m.
+            // (R-6 row 0: 3D distance from the camera, as the cull hands trees over by; on the ground plane a summit's
+            // view of the forest below faded the cache out where its trees had no real-time shadow.)
             m.SetVector(CacheFadeId, new Vector4(near * 0.5f, near * 0.8f, far - 8f, far));
             var rp = new RenderParams(m)
             {

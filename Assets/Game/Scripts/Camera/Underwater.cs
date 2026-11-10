@@ -1,7 +1,9 @@
 using Punchy.Terrain;
 using Unity.Entities;
 using Unity.Mathematics;
+using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 
 namespace Punchy.CameraRig
@@ -10,14 +12,17 @@ namespace Punchy.CameraRig
     /// The camera under water (#22, P-19, first slice): when the lens is in a body of water (the sea, a lake or a river:
     /// TerrainSource.SampleGround's water, between its bed and its surface; or a cave stream or pool:
     /// ThirdPersonCamera.CaveWaterAbove), a blue-green fog with short visibility, a tint over the screen, and the sound
-    /// muffled (a low-pass filter on the listener). Blended over <see cref="Blend"/> s, going in and coming out with a
-    /// few centimetres between (so a lens bobbing at the waterline doesn't flicker). Water surfaces are only read.
+    /// muffled (a low-pass filter on the listener). Going in blends over <see cref="BlendIn"/> s; coming out, the fog and
+    /// the teal sky go at once and only the tint and muffling fade, over <see cref="BlendOut"/> s (playtest 11-08 item 7:
+    /// surfacing was slow, the sky stayed teal and the world popped in as the fog thinned). A few centimetres between
+    /// going in and coming out, so a lens bobbing at the waterline doesn't flicker. Water surfaces are only read; the
+    /// surface over the lens goes to the shaders (_PunchyUnderwaterSurface) for Snell's window near the top (item 8).
     /// Runs after WeatherSystem sets the fog each frame and after the camera has moved.
     /// </summary>
     [DefaultExecutionOrder(1100)]
     public class Underwater : MonoBehaviour
     {
-        const float Blend = 0.3f, Margin = 0.04f, Cutoff = 700f;
+        const float BlendIn = 0.25f, BlendOut = 0.15f, Margin = 0.04f, Cutoff = 700f;
         static readonly Color FogColour = new Color(0.04f, 0.22f, 0.25f);
         static readonly Color Tint = new Color(0.08f, 0.32f, 0.36f, 0.32f);
         const float FogDensity = 0.11f;
@@ -27,6 +32,8 @@ namespace Punchy.CameraRig
         /// </summary>
         const float WaterFogDensity = 0.07f;
         static readonly int UnderwaterId = Shader.PropertyToID("_PunchyUnderwater");
+        /// <summary>Item 8: x the water surface over the lens (m, with the swell), y how deep the lens is under it; 0 when dry.</summary>
+        static readonly int SurfaceId = Shader.PropertyToID("_PunchyUnderwaterSurface");
         // The scene's own fog, kept while under water and put back on surfacing (it used to stay on afterwards).
         bool fogSaved, savedFog;
         FogMode savedMode;
@@ -35,6 +42,8 @@ namespace Punchy.CameraRig
 
         bool under;
         float amount;
+        /// <summary>Whether the camera's lens is in the water now (WeatherSystem hides its precipitation then, item 18).</summary>
+        public static bool LensUnder { get; private set; }
         AudioLowPassFilter lowPass;
         EntityQuery terrainQuery;
         World queryWorld;
@@ -57,24 +66,61 @@ namespace Punchy.CameraRig
                 rig.gameObject.AddComponent<Underwater>();
         }
 
-        void LateUpdate()
+        Camera cam;
+        int steppedFrame = -1;
+
+        // Driven from the render loop (once a frame, before the first camera draws), not LateUpdate: a posed shot
+        // camera (DebugControls.PoseCamera) disables the rig's behaviours, and the sea's swell, the water's quality
+        // policy and the underwater look must still follow it, or water shots show a flat, unreflecting sea.
+        void OnEnable()
         {
+            RenderPipelineManager.beginContextRendering -= BeforeRender;
+            RenderPipelineManager.beginContextRendering += BeforeRender;
+        }
+
+        void OnDestroy()
+        {
+            RenderPipelineManager.beginContextRendering -= BeforeRender;
+            LensUnder = false;
+        }
+
+        void BeforeRender(ScriptableRenderContext context, List<Camera> cameras)
+        {
+            if (this == null || steppedFrame == Time.frameCount)
+                return;
+            steppedFrame = Time.frameCount;
+            Step();
+        }
+
+        void Step()
+        {
+            // The water's quality policy for this frame (refactor 3.4), from the camera that draws it.
+            // (Unity's missing component is a fake null, so not ??.)
+            if (cam == null)
+                cam = GetComponentInChildren<Camera>();
+            if (cam == null)
+                cam = Camera.main;
+            Punchy.Settings.WaterQuality.Publish(cam);
             var surface = SurfaceAt(transform.position, out var kind);
             var y = transform.position.y;
             var was = under;
             under = surface > float.MinValue && (under ? y < surface + Margin : y < surface - Margin);
+            LensUnder = under;
             if (under != was)
                 Debug.Log($"Underwater: {(under ? "in" : "out of")} the water ({kind}, lens {y:F2}, surface {(surface > float.MinValue ? surface.ToString("F2") : "-")}); low-pass {(under ? $"on ({Cutoff:F0} Hz)" : "off")}");
-            amount = Mathf.MoveTowards(amount, under ? 1f : 0f, Time.deltaTime / Blend);
-            if (amount > 0f)
+            amount = Mathf.MoveTowards(amount, under ? 1f : 0f, Time.deltaTime / (under ? BlendIn : BlendOut));
+            // The water's fog and teal sky only while the lens is in the water: out of it, nothing is between the eye and
+            // the world any more, so they go at once (item 7); the tint (water running off the lens) and muffling fade.
+            var fog = under ? amount : 0f;
+            if (fog > 0f)
             {
                 if (!fogSaved)
                     (fogSaved, savedFog, savedMode, savedColour, savedDensity) =
                         (true, RenderSettings.fog, RenderSettings.fogMode, RenderSettings.fogColor, RenderSettings.fogDensity);
                 RenderSettings.fog = true;
                 RenderSettings.fogMode = FogMode.ExponentialSquared;
-                RenderSettings.fogColor = Color.Lerp(savedColour, FogColour, amount);
-                RenderSettings.fogDensity = Mathf.Lerp(savedFog ? savedDensity : 0f, FogDensity, amount);
+                RenderSettings.fogColor = Color.Lerp(savedColour, FogColour, fog);
+                RenderSettings.fogDensity = Mathf.Lerp(savedFog ? savedDensity : 0f, FogDensity, fog);
             }
             else if (fogSaved)
             {
@@ -84,7 +130,8 @@ namespace Punchy.CameraRig
             }
             // (Shaders work in linear colour; the density blends with the rest, so the fog thins in as the lens sinks.)
             var water = FogColour.linear;
-            Shader.SetGlobalVector(UnderwaterId, amount > 0f ? new Vector4(water.r, water.g, water.b, WaterFogDensity * amount) : Vector4.zero);
+            Shader.SetGlobalVector(UnderwaterId, fog > 0f ? new Vector4(water.r, water.g, water.b, WaterFogDensity * fog) : Vector4.zero);
+            Shader.SetGlobalVector(SurfaceId, under ? new Vector4(surface, Mathf.Max(surface - y, 0f), 0f, 0f) : Vector4.zero);
             Muffle();
         }
 
@@ -119,6 +166,8 @@ namespace Punchy.CameraRig
             }
             if (!terrainQuery.TryGetSingleton<TerrainSource>(out var terrain))
                 return float.MinValue;
+            // The sea swell's state for this frame, for the water shader and the swimmer (WaterSwells).
+            WaterSwells.Publish(terrain);
             var at = new float3(p.x, p.y, p.z);
             if (terrain.Caves.IsCreated)
             {
@@ -131,10 +180,11 @@ namespace Punchy.CameraRig
             }
             var ground = terrain.SampleGround(at.xz);
             // (In the water column: above its bed, and not deep in rock under it, a cave under a lake.)
-            if (ground.HasWater && p.y > ground.Height - 0.5f && p.y < ground.WaterSurface + 1f)
+            // (Up to 2.5 m over the flat surface: a swell's crest can close over the lens.)
+            if (ground.HasWater && p.y > ground.Height - 0.5f && p.y < ground.WaterSurface + 2.5f)
             {
                 kind = math.abs(ground.WaterSurface - terrain.World.SeaLevel) < 0.05f ? "the sea" : "a lake or river";
-                return ground.WaterSurface;
+                return ground.WaterSurface + WaterSwells.Height(at.xz, ground.WaterSurface, ground.Height);
             }
             return float.MinValue;
         }

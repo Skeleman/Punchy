@@ -3,6 +3,7 @@
 
 #include "PlayerReveal.hlsl"
 #include "SharedClock.hlsl"
+#include "WaterSwell.hlsl"
 
 // Plants drawn by FloraSystem with indirect instanced draws. Each draw is one variant at one LOD; its instances
 // are the plants FloraCull.compute found visible, stored from the draw's startInstance in _FloraVisible as (plant index, dither
@@ -142,7 +143,8 @@ FloraVertex FloraTransform(FloraAttributes input)
 #if defined(FLORA_CACHE_PASS)
     still = 1;
 #elif defined(FLORA_SHADOW_PASS)
-    still = saturate(asfloat(visible.y) - 1);
+    float fadeIn = abs(asfloat(visible.y));          // (negative: a solid caster, 3.7 step 3; 3 to 4: a full crown, R-3)
+    still = saturate(fadeIn - (fadeIn > 2.5 ? 3 : 1));
 #endif
     gust *= 1 - still;
     // (A door leaf's x is its distance from the hinge, not how much it bends.)
@@ -239,6 +241,16 @@ FloraVertex FloraTransform(FloraAttributes input)
         p += (h - 0.5) * 0.18 * plant.scale;
     }
 
+#endif
+#ifndef FLORA_CACHE_PASS
+    // Floating things (lily pads, sea folk buoys and rafts) ride the sea's swell, lifted and tipped with the surface
+    // under their middle (playtest 11-08 item 20). FloraPlacement marks them with their water's depth as a negative
+    // snow (nothing floats under snow). Not in the still shadow cache.
+    [branch] if (plant.snow < 0)
+    {
+        float3 ride = PunchySwellFloat(plant.position, -plant.snow);
+        p.y += ride.y + dot(ride.xz, p.xz);
+    }
 #endif
     FloraVertex o;
     o.positionWS = plant.position + p;

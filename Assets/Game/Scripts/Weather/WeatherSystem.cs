@@ -67,7 +67,12 @@ namespace Punchy.Weather
         static readonly int SunDirectionId = Shader.PropertyToID("_PunchySunDirection");
         static readonly int MoonDirectionId = Shader.PropertyToID("_PunchyMoonDirection");
         static readonly int MoonPhaseId = Shader.PropertyToID("_PunchyMoonPhase");
+        /// <summary>The night sky's glow at new moon, as a share of a full moon's (1: phase doesn't matter).</summary>
+        const float MoonSkyFloor = 0.4f;
         static readonly int BlueMoonId = Shader.PropertyToID("_PunchyBlueMoon");
+        static readonly int BlueLightDirectionId = Shader.PropertyToID("_PunchyBlueLightDirection");
+        static readonly int BlueLightColorId = Shader.PropertyToID("_PunchyBlueLightColor");
+        static readonly int BlueMoonGlowId = Shader.PropertyToID("_PunchyBlueMoonGlow");
         static readonly int SunColorId = Shader.PropertyToID("_PunchySunColor");
         static readonly int ZenithId = Shader.PropertyToID("_PunchySkyZenith");
         static readonly int HorizonId = Shader.PropertyToID("_PunchySkyHorizon");
@@ -89,12 +94,17 @@ namespace Punchy.Weather
         static readonly int DustColorId = Shader.PropertyToID("_PunchyDustColor");
         static readonly int GlowId = Shader.PropertyToID("_Glow");
         static readonly int HazeDensityId = Shader.PropertyToID("_PunchyHazeDensity");
+        static readonly int HazeClearId = Shader.PropertyToID("_PunchyHazeClear");
         static readonly int HazeLutId = Shader.PropertyToID("_PunchyHazeLut");
         static readonly int HazeOriginId = Shader.PropertyToID("_PunchyHazeOrigin");
         static readonly int HazeLutSizeId = Shader.PropertyToID("_HazeLutSize");
+        static readonly int SkyVolumesId = Shader.PropertyToID("_PunchySkyVolumes");
+        static readonly int SkyVolumesSizeId = Shader.PropertyToID("_SkyVolumesSize");
 
         // Haze table size: directions round the horizon × distances (rows must match PUNCHY_HAZE_ROWS in Sky.hlsl).
         const int HazeLutWidth = 1024, HazeLutHeight = 32;
+        // Sky volumes table (R-8): view directions round the horizon x up/down, 1/16 of a 1080p screen.
+        const int SkyVolumesWidth = 1024, SkyVolumesHeight = 128;
 
         /// <summary>Final sky colours for this frame, after time of day and the weather overhead.</summary>
         struct Sky
@@ -116,7 +126,7 @@ namespace Punchy.Weather
         Vector3 strikeDirection, strikePosition;
         Texture2D fallbackWeather, fallbackWetness, fallbackCloud;
         Texture3D cloudNoise;
-        RenderTexture hazeLut;
+        RenderTexture hazeLut, skyVolumes;
         Material hazeLutMaterial;
         EntityQuery playerQuery, terrainQuery, configQuery, paletteQuery;
         World queryWorld;
@@ -162,6 +172,11 @@ namespace Punchy.Weather
             {
                 hazeLut.Release();
                 DestroyImmediate(hazeLut);
+            }
+            if (skyVolumes != null)
+            {
+                skyVolumes.Release();
+                DestroyImmediate(skyVolumes);
             }
             if (hazeLutMaterial != null)
                 DestroyImmediate(hazeLutMaterial);
@@ -255,9 +270,10 @@ namespace Punchy.Weather
             cloudOffset += WindDirection * (4f + 18f * Local.Wind) * dt / 1800f;
 
             var drawDistance = 1500f;
-            if (EnsureQueries() && configQuery.TryGetSingleton<TerrainConfig>(out var config))
-                // At the graphics settings' View distance, as TerrainStreamingSystem streams it.
-                drawDistance = math.max(2, math.round(config.ViewRadiusChunks * Punchy.Settings.GraphicsSettings.View)) * config.ChunkSize;
+            if (EnsureQueries() && configQuery.TryGetSingleton<TerrainConfig>(out _))
+                // Where TerrainStreamingSystem's drawn ground ends at the graphics settings' View distance: the chunk
+                // disc, or the far ring past it from High up (W-131).
+                drawDistance = TerrainStreamingSystem.DrawDistance;
             // Exponential-squared haze reaching ~98% at the edge of the streamed terrain, so it's never visible.
             var hazeDensity = 1.98f / drawDistance;
 
@@ -409,6 +425,15 @@ namespace Punchy.Weather
             var zenith = Color.Lerp(clearZenith, greyHorizon * 0.78f, s.Overcast) * (1f - 0.45f * s.Darkness);
             var horizon = Color.Lerp(clearHorizon, greyHorizon, s.Overcast) * (1f - 0.35f * s.Darkness);
 
+            // Blue-moon nights (feedback 11-08 item 35): the sky's own colours lean to the blue moon's deep blue, so the
+            // haze, fog and cloud shading that take them read as lit by it too (Sky.hlsl adds its glow on top).
+            if (Cycle != null && Cycle.BlueMoonGlow > 0f)
+            {
+                var blue = 0.6f * Cycle.BlueMoonGlow * Cycle.Night;
+                zenith = Color.Lerp(zenith, BlueMoonTint(zenith), blue);
+                horizon = Color.Lerp(horizon, BlueMoonTint(horizon), blue);
+            }
+
             var daylight = math.saturate(brightness / 0.8f);
             return new Sky
             {
@@ -428,6 +453,7 @@ namespace Punchy.Weather
             {
                 // Without the table surfaces show no weather haze (black reads as none), rather than going black.
                 Shader.SetGlobalTexture(HazeLutId, Texture2D.blackTexture);
+                Shader.SetGlobalTexture(SkyVolumesId, Texture2D.blackTexture);
                 return;
             }
             if (hazeLutMaterial == null)
@@ -451,6 +477,26 @@ namespace Punchy.Weather
             hazeLutMaterial.SetVector(HazeLutSizeId, new Vector2(HazeLutWidth, HazeLutHeight));
             Graphics.Blit(null, hazeLut, hazeLutMaterial);
             Shader.SetGlobalTexture(HazeLutId, hazeLut);
+
+            // The same volumes against the sky, per view direction (R-8): the skybox reads this instead of marching
+            // them for every full-res pixel.
+            if (skyVolumes == null || !skyVolumes.IsCreated())
+            {
+                if (skyVolumes != null)
+                    DestroyImmediate(skyVolumes);
+                skyVolumes = new RenderTexture(SkyVolumesWidth, SkyVolumesHeight, 0, RenderTextureFormat.ARGBHalf)
+                {
+                    name = "SkyVolumes",
+                    hideFlags = HideFlags.HideAndDontSave,
+                    wrapModeU = TextureWrapMode.Repeat,   // round the horizon
+                    wrapModeV = TextureWrapMode.Clamp,
+                    filterMode = FilterMode.Bilinear
+                };
+                skyVolumes.Create();
+            }
+            hazeLutMaterial.SetVector(SkyVolumesSizeId, new Vector2(SkyVolumesWidth, SkyVolumesHeight));
+            Graphics.Blit(null, skyVolumes, hazeLutMaterial, 1);
+            Shader.SetGlobalTexture(SkyVolumesId, skyVolumes);
         }
 
         void ApplyShaderGlobals(in WeatherValues s, in Sky sky, float hazeDensity)
@@ -467,12 +513,20 @@ namespace Punchy.Weather
             Shader.SetGlobalVector(MoonPhaseId, Cycle != null ? new Vector4(Cycle.MoonPhase, Cycle.MoonLit, 0f, 0f)
                                                               : new Vector4(0.5f, 1f, 0f, 0f));
             Shader.SetGlobalVector(BlueMoonId, Cycle != null ? (Vector4)Cycle.BlueMoonDirection : new Vector4(0f, -1f, 0f, 0f));
+            // The blue moon's light as the sky sees it (item 35): Sky.hlsl brightens the haze towards it and lights the
+            // clouds with it. Not dimmed by cloud: it lights the clouds themselves.
+            Shader.SetGlobalColor(BlueMoonGlowId, Cycle != null ? Cycle.BlueMoonLamp * (Cycle.BlueMoonGlow * Cycle.Night) : Color.black);
             Shader.SetGlobalColor(SunColorId, discColor * (1f - 0.8f * s.Dust));
-            Shader.SetGlobalColor(ZenithId, sky.Zenith);
-            Shader.SetGlobalColor(HorizonId, sky.Horizon);
+            // The night sky's glow follows the big moon's phase (Zach, 11-08): at new moon the sky (and the haze and
+            // cloud shading that take its colours) fall to 40% of a full moon's, so the night reads dark overhead too.
+            // Only what the sky shaders draw: the ground's ambient (below) keeps its own floor.
+            var skyGlow = Cycle != null ? Mathf.Lerp(1f, Mathf.Lerp(MoonSkyFloor, 1f, Cycle.MoonLit), Cycle.Night) : 1f;
+            Shader.SetGlobalColor(ZenithId, sky.Zenith * skyGlow);
+            Shader.SetGlobalColor(HorizonId, sky.Horizon * skyGlow);
             Shader.SetGlobalColor(GroundId, sky.Ground);
             Shader.SetGlobalColor(DustColorId, DustColor());
             Shader.SetGlobalFloat(HazeDensityId, hazeDensity);
+            Shader.SetGlobalFloat(HazeClearId, ClearDay(s));
             Shader.SetGlobalVector(CloudsId, new Vector4(s.Coverage, 0f, 1f, 0f));
             Shader.SetGlobalFloat(TwilightDullId, TwilightDull(s));
             Shader.SetGlobalVector(CloudOffsetId, cloudOffset);
@@ -481,6 +535,24 @@ namespace Punchy.Weather
             Shader.SetGlobalVector(LightningPosId, new Vector4(strikePosition.x, strikePosition.y, strikePosition.z, FlashBrightness()));
             Shader.SetGlobalFloat(WindId, s.Wind);
             Shader.SetGlobalVector(WindDirectionId, WindDirection);
+        }
+
+        /// <summary>A colour turned to the blue moon's hue (its lamp's, deep blue near 0x0000FF), at about the same
+        /// apparent brightness: a saturated blue looks brighter than its luminance says, so it keeps half of it.</summary>
+        Color BlueMoonTint(Color c)
+        {
+            var hue = Cycle != null ? Cycle.BlueMoonLamp : new Color(0.017f, 0.057f, 1.9f);
+            return hue * (0.5f * c.grayscale / Mathf.Max(hue.grayscale, 1e-4f));
+        }
+
+        /// <summary>How fully clear and sunny it is at the camera, 0..1 (feedback 11-08 item 30): the sun well up, little
+        /// cloud (the Clear preset's 0.2 is clear, PartlyCloudy's 0.45 is not), no overcast, rain haze or dust. Sky.hlsl
+        /// thins the base haze by it (and not in cold lands).</summary>
+        float ClearDay(in WeatherValues s)
+        {
+            var sun = Cycle != null ? math.smoothstep(0.1f, 0.35f, Cycle.SunDirection.y) : 1f;
+            return sun * (1f - math.smoothstep(0.25f, 0.4f, s.Coverage)) * math.saturate(1f - 2f * s.Overcast)
+                 * math.saturate(1f - 3f * s.Haze) * math.saturate(1f - 3f * s.Dust);
         }
 
         /// <summary>How much the weather mutes sunrise and sunset colours: 0 clear … 1 overcast or storm.</summary>
@@ -522,9 +594,30 @@ namespace Punchy.Weather
             var moonFloor = Cycle != null
                 ? (new Color(0.025f, 0.03f, 0.05f) * Mathf.Lerp(0.45f, 1f, Cycle.MoonLit) + Cycle.BlueMoonLight * Cycle.BlueMoonGlow) * Cycle.Night
                 : Color.black;
-            RenderSettings.ambientSkyColor = sky.Zenith * ambientScale + moonFloor;
+            // Blue-moon nights (Zach, 11-08): when the blue moon is up and full the night's light turns strongly blue,
+            // its own glow three times what it was, and the rest of the ambient drawn towards a cold blue.
+            var ambientZenith = sky.Zenith;
+            var ambientHorizon = sky.Horizon;
+            if (Cycle != null && Cycle.BlueMoonGlow > 0f)
+            {
+                var blue = Cycle.BlueMoonGlow * Cycle.Night;
+                moonFloor += Cycle.BlueMoonLight * (2f * blue);
+                ambientZenith = Color.Lerp(ambientZenith, BlueMoonTint(ambientZenith) * 1.1f, 0.6f * blue);
+                ambientHorizon = Color.Lerp(ambientHorizon, BlueMoonTint(ambientHorizon) * 0.95f, 0.5f * blue);
+            }
+            // The blue moon's own light (feedback 11-08 item 10): a second directional moonlight from its direction,
+            // added on top of the big moon's main light rather than only tinting the ambient, so the two add up and a
+            // full blue moon lights the land strongly blue. Every custom shader takes it through Glow.hlsl (no shadow).
+            // Cloud cover hides it and it doesn't reach into caves. Ordinary nights are unchanged (Zach 11-08).
+            var blueLight = Color.black;
+            if (Cycle != null && Cycle.BlueMoonGlow > 0f)
+                blueLight = Cycle.BlueMoonLamp * (Cycle.BlueMoonGlow * Cycle.Night * (1f - 0.8f * s.Coverage)
+                                                  * (1f - Punchy.Terrain.CaveSystem.Underground));
+            Shader.SetGlobalVector(BlueLightDirectionId, Cycle != null ? (Vector4)Cycle.BlueMoonDirection : Vector4.zero);
+            Shader.SetGlobalVector(BlueLightColorId, (Vector4)blueLight);
+            RenderSettings.ambientSkyColor = ambientZenith * ambientScale + moonFloor;
             // At sunrise and sunset the side light warms with the sky's twilight band (Sky.hlsl), so the land matches it.
-            var equator = sky.Horizon;
+            var equator = ambientHorizon;
             if (Cycle != null)
             {
                 var twilight = TwilightAmount(Cycle.SunDirection.y) * (1f - 0.8f * TwilightDull(s));
@@ -687,6 +780,17 @@ namespace Punchy.Weather
         {
             if (cam == null || rain == null)
                 return;
+            // Under water (playtest 11-08 item 18) nothing falls or blows past the lens: the emitters stop and what's
+            // already in the air is hidden until the lens is out again.
+            var dry = !Punchy.CameraRig.Underwater.LensUnder;
+            if (dry != particlesShown)
+            {
+                particlesShown = dry;
+                foreach (var ps in new[] { rain, snow, hail, dust })
+                    ps.GetComponent<ParticleSystemRenderer>().enabled = dry;
+            }
+            if (!dry)
+                rainAmount = snowAmount = hailAmount = dustAmount = 0f;
             var position = cam.transform.position;
             var drift = WindDirection * wind * 6f;
             UpdateEmitter(rain, rainAmount * RainParticlesPerSecond, position + Vector3.up * 14f, new Vector3(drift.x, -17f, drift.y));
@@ -753,6 +857,8 @@ namespace Punchy.Weather
             grow.enabled = true;
             grow.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0f, 0.7f, 1f, 1.3f));
         }
+
+        bool particlesShown = true;
 
         static void UpdateEmitter(ParticleSystem ps, float rate, Vector3 position, Vector3 velocity)
         {

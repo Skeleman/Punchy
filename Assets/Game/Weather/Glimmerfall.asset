@@ -18,6 +18,8 @@ MonoBehaviour:
   Sunlight: 0.9
   CloudBase: 1400
   CloudThickness: 900
+  CloudLayering: 0.3
+  HighCloud: 0.5
   Fog: 1.3
   Wind: 0.1
   Precipitation: 0.45

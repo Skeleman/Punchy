@@ -23,6 +23,7 @@ MonoBehaviour:
     FixedColor: {r: 0.72, g: 0.65, b: 0.52, a: 1}
     Glow: 0
     Hair: 0
+    Surface: 5
   - Length: 0.28
     RadiusStart: 0.016
     RadiusEnd: 0.007
@@ -32,6 +33,7 @@ MonoBehaviour:
     FixedColor: {r: 0.72, g: 0.65, b: 0.52, a: 1}
     Glow: 0
     Hair: 0
+    Surface: 5
   Spring: 0
   JointPhaseStep: 0
   FollowGround: 0

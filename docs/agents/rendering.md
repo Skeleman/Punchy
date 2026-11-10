@@ -21,6 +21,11 @@ Read before changing any shader, material or render setting.
   - Reflections march screen space through the depth texture and sample the opaque texture, so the RP assets
     must keep Opaque Texture on.
   - Inside the march, sample with explicit LOD: implicit derivatives in a loop give a compile warning.
+  - Water quality tiers (march steps, refraction, swell waves, fine-detail fade) come from `Settings/WaterQuality.cs`
+    by how big a metre of water looks (reference pixels); add new costly water terms to that policy, not as a new
+    distance check. Swell numbers live only in `WaterSwells.cs` (uploaded as globals); `WaterSwell.hlsl` is maths only.
+  - The water has a depth-only prepass (`WaterDepth`, SRPDefaultUnlit) so displaced waves hide each other properly;
+    transparents drawn after the water are depth-tested against its surface.
 - `MaterialPropertyBlock.SetInt` stores a float; use `SetInteger` for `int`/`uint` shader properties.
 
 ## Learned in October 2026 (from the lane handoffs)
@@ -29,6 +34,8 @@ Read before changing any shader, material or render setting.
 - A shader compile error still lets the build report Succeeded: grep the build log for "Shader error" as well as "error CS".
 - `line` is an HLSL keyword (geometry shaders): a variable called `line` breaks the Flora shader.
 - HLSL `&&` doesn't short-circuit.
+- On D3D11 (the editor here and the laptop), a pixel shader that reads `SV_POSITION` and writes conservative depth (`SV_DepthLessEqual`/`GreaterEqual`) only compiles if the position is `noperspective centroid` (X8000); otherwise the pass silently falls back to the magenta error shader (W-130, FloraImpostor). Re-importing a shader in Play mode can also wipe a runtime `new Material(...)`'s properties: re-enter Play before judging a shot.
+- Flora impostors only pay where the mesh they replace is heavy (shrub clumps, trees): a rock's coarsest mesh beats the impostor quad, which writes depth and blends three frames (R-11). Each baked model costs about 0.66 MB of atlas (8x8 frames of 32 px, 3 mips, two targets), so trim what gets a slice.
 - Unity fixes a global array's length the first time it's set in a session; the editor needs a restart after a slot-count change.
 - A white bloom blob on a procedural mesh is usually a zero normal: `Vector3.normalized` returns zero below magnitude 1e-5 (tiny triangles, e.g. 4 mm tooth tips), the shader normalizes it to NaN and bloom spreads it. Use `math.normalizesafe` with a fallback (A-10c, #41).
 - Blue moon (Sky.hlsl PunchyBlueMoonFace): radius 0.13 rad, one thin wandering crack, maria + craters at two scales;
@@ -36,3 +43,14 @@ Read before changing any shader, material or render setting.
   43 degrees up in the east, `-time 19` low in the east (compute with DayNightCycle.Evaluate).
 - Flora bark relief (the cave detail texture, albedo and normal bump) fades by distance, not by LOD: 18-45 m for plants, 60-140 m for built things (W-23). Faded by 45 m, hut roofs turned into plain cones whose facets showed at 30-55 m, which read as an LOD bug.
 - Tree shadows (FloraShadowOptions, W-107): the cheap far caster and the cached far shadows are on by default, near range 25 m; still far shadows are off. Turn one off with `-cheapfarcaster 0`, `-cachedfarshadows 0` (`-stillfarshadows` turns that one on). The cache starts at the near range less CacheMove and 2 m, so a drifted camera never leaves a gap.
+- Expensive full-screen effects can draw through `LowResEffectFeature` (refactor 3.4): a half- or quarter-size target, blended with the last frame by reprojection, read back depth-aware. Add an entry to Effects on the PC renderer asset and a shader following the header of `LowResEffect.hlsl`; `SetMode` picks the size. The clouds are its first user (`-skyfull` is today's full-resolution sky).
+- Local lights go through `LightBudget` (refactor 3.1): request one each frame (`Add`, `AddStill`, or `AddReal` for a
+  source that owns a Unity light and reads `RealLevel` back) with its `LightKind`; never pick a range or the nearest N
+  yourself. `-lightlog` logs requests, tiers, slots, real lights and drops per kind every 5 s; `-lightbudget N` sets
+  the real-light cap (default 4/6/8 by Detail).
+- Terrain reads a whole-island glow map past the nearer glow tiers (`SurfaceGlow.World`, `PunchyGlowWorld`): fire in red, tinted
+  by the night's colour, plants and lava in gba. New static lights join through `AddWorldSource`. `-worldglow 0` turns it off to compare.
+- Rain puddles (TerrainSurface.shader) need level ground (vertex normal y > ~0.975) and a true hollow: the mesh's
+  hollow depth (BuildChunkMeshJob, Strata.z) is capped by twice the lowest rise round the point, so slopes and
+  downhill gullies get none. `TerrainSurface.Porosity` (vertex TEXCOORD4.x) makes sand soak rain up: it darkens,
+  barely glazes, and pools only in its deepest spots.

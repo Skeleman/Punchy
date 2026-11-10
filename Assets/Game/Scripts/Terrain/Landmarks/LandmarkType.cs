@@ -195,6 +195,8 @@ namespace Punchy.Terrain
         [Tooltip("The biome's own plants are cleared inside this share of the radius (fading out to it).")]
         [Range(0f, 1f)] public float ClearRadius = 0.7f;
         public List<LandmarkProp> Props = new List<LandmarkProp>();
+        [Tooltip("W-127: street lights at its docks' land ends (Pier rows; a settlement's Door and Post rows are on its layout).")]
+        public List<SettlementFixture> Fixtures = new List<SettlementFixture>();
 
         [Header("Effects")]
         public List<LandmarkEffect> Effects = new List<LandmarkEffect>();

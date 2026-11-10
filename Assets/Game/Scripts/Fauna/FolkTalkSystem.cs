@@ -501,6 +501,9 @@ namespace Punchy.Fauna
                 FolkTalkLabels.Show(false);
         }
 
+        /// <summary>The town a folk lives in, as its walk-by lines name it (the talk window, A-93), or null.</summary>
+        public string TownOf(in CreatureState s, in TerrainSource terrain) => HomeTown(s, terrain);
+
         /// <summary>The town a speaker lives in: the settlement round its home, or null.</summary>
         string HomeTown(in CreatureState s, in TerrainSource terrain)
         {

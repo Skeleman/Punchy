@@ -38,6 +38,14 @@ namespace Punchy.Settings
         public static float DetailRange(float baseline) => baseline * Detail;
 
         /// <summary>
+        /// How many real (Unity) local lights LightBudget may have on at once (refactor 3.1): 4 at Low, 6 at Medium, 8 at
+        /// High and Ultra, by Detail. "-lightbudget N" overrides it for the run (benches). Glow ranges follow Detail
+        /// through LightPolicy's thresholds.
+        /// </summary>
+        public static int RealLights => lightBudgetArg >= 0 ? lightBudgetArg : Mathf.Clamp(Mathf.RoundToInt(2f + 4f * Detail), 4, 8);
+        static int lightBudgetArg = -1;
+
+        /// <summary>
         /// How far worms' marks are drawn and fed, at Detail 1 (m). One source for both: CreatureBurrowSystem feeds
         /// marks within DetailRange(BurrowRange), and the terrain shader draws them within _PunchyBurrowRange.
         /// </summary>
@@ -93,8 +101,15 @@ namespace Punchy.Settings
         /// <summary>"-gfx Ultra" and "-gfxset view=1.3,detail=0.8,shadows=1" (applied over the saved settings).</summary>
         static void ReadCommandLine(string[] args)
         {
+            lightBudgetArg = -1;
+            skyFullArg = System.Array.IndexOf(args, "-skyfull") >= 0;
+            lowResArg = Punchy.Rendering.LowResMode.Off;
             for (int i = 0; i < args.Length - 1; i++)
             {
+                if (args[i] == "-lowres" && System.Enum.TryParse<Punchy.Rendering.LowResMode>(args[i + 1], true, out var lowRes))
+                    lowResArg = lowRes;
+                if (args[i] == "-lightbudget" && int.TryParse(args[i + 1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var lights))
+                    lightBudgetArg = Mathf.Clamp(lights, 0, 64);
                 if (args[i] == "-gfx" && System.Enum.TryParse<GraphicsPreset>(args[i + 1], true, out var preset) && preset != GraphicsPreset.Custom)
                 {
                     var p = Presets[(int)preset];
@@ -145,7 +160,7 @@ namespace Punchy.Settings
 
         /// <summary>"view 1.0 detail 1.0 shadows 1.0 (Medium)".</summary>
         public static string Describe() => string.Format(CultureInfo.InvariantCulture,
-            "view {0:0.0#} detail {1:0.0#} shadows {2:0.0#} ({3}, {4} cascades)", View, Detail, Shadows, Preset, Cascades);
+            "view {0:0.0#} detail {1:0.0#} shadows {2:0.0#} ({3}, {4} cascades, {5} real lights)", View, Detail, Shadows, Preset, Cascades, RealLights);
 
         static float Clamp(float value) => Mathf.Clamp(float.IsNaN(value) ? 1f : value, Min, Max);
 
@@ -161,11 +176,22 @@ namespace Punchy.Settings
         static void Apply()
         {
             Shader.SetGlobalFloat(BurrowRangeId, DetailRange(BurrowRange));
+            Punchy.Rendering.LowResEffectFeature.SetMode("Clouds", CloudBuffer);
             if (pipeline == null)
                 return;
             pipeline.shadowDistance = baseShadowDistance * Shadows;
             pipeline.shadowCascadeCount = Cascades;
         }
+
+        /// <summary>
+        /// The clouds' low-resolution buffer by Detail (refactor 3.4): half size at High and Ultra, quarter below them.
+        /// "-skyfull" turns it off (today's full-resolution sky), "-lowres half|quarter" forces a size, for comparing.
+        /// </summary>
+        static Punchy.Rendering.LowResMode CloudBuffer => skyFullArg ? Punchy.Rendering.LowResMode.Off
+            : lowResArg != Punchy.Rendering.LowResMode.Off ? lowResArg
+            : Detail >= 1.25f ? Punchy.Rendering.LowResMode.Half : Punchy.Rendering.LowResMode.Quarter;
+        static bool skyFullArg;
+        static Punchy.Rendering.LowResMode lowResArg = Punchy.Rendering.LowResMode.Off;
 
         /// <summary>How many shadow cascades the sun casts at the current Shadows setting.</summary>
         public static int Cascades => Shadows < TwoCascadesBelow ? 2 : Shadows < ThreeCascadesBelow ? 3 : 4;
@@ -179,8 +205,9 @@ namespace Punchy.Settings
         }
 
         /// <summary>
-        /// The main menu's Graphics tab: the presets, the three sliders and Reset, applied as they move, and the frame
-        /// cap (also on the Options button), and the resolution and window mode (DisplaySettings). Quit is in the menu's foot, for every tab.
+        /// The main menu's Graphics tab: the presets, the three sliders and Reset, applied as they move, the water's
+        /// reflections (WaterQuality), the frame cap (also on the Options button), and the resolution and window mode
+        /// (DisplaySettings). Quit is in the menu's foot, for every tab.
         /// </summary>
         static void DrawTab(Punchy.UI.MenuNav nav)
         {
@@ -200,9 +227,14 @@ namespace Punchy.Settings
             var shadows = Slider(nav, "Shadows", Shadows);
             if (GUI.changed)
                 Set(view, detail, shadows);
+            // (Refactor 3.1: the real-light budget follows Detail, and so do the glow lights' on-screen thresholds.)
+            GUILayout.Label($"Real lights: {RealLights}{(lightBudgetArg >= 0 ? " (from the command line)" : "")}");
             GUILayout.Space(6);
             if (nav.Button("Reset (Medium)"))
                 Set(GraphicsPreset.Medium);
+            // The water's reflections (refactor 3.4, WaterQuality): High as tuned, Medium fewer march steps, Low sky only.
+            if (nav.Button($"Water reflections: {WaterQuality.Reflection}"))
+                WaterQuality.Next();
             GUILayout.Space(6);
             DisplaySettings.DrawRows(nav);
             GUILayout.Space(6);

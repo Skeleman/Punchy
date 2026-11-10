@@ -234,7 +234,7 @@ namespace Punchy.Debugging
         /// "-place cavepool" ("#2" the second deepest; P-20, #22): standing in the middle of the deepest water pool in the
         /// caves, on its bed, for shots with the camera under cave water. Logs the 5 deepest water pools.
         /// </summary>
-        void PlaceInCavePool(in TerrainSource source, string spec)
+        void PlaceInCavePool(in TerrainSource source, string spec, bool lava = false)
         {
             if (!source.Caves.IsCreated || !playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
                 return;
@@ -244,7 +244,8 @@ namespace Punchy.Debugging
             ref var set = ref source.Caves.Value;
             var pools = new List<int>();
             for (int k = 0; k < set.Pools.Length; k++)
-                if (set.Pools[k].Lava < 0.5f)
+                // ("-place cavelava": the lava pools instead, for checking how lava looks.)
+                if (set.Pools[k].Lava < 0.5f != lava)
                     pools.Add(k);
             if (pools.Count == 0)
             {
@@ -259,6 +260,9 @@ namespace Punchy.Debugging
                 Debug.Log($"DebugControls: cave pool {pools[k]}: surface ({pool.Centre.x:F1}, {pool.Centre.y:F1}, {pool.Centre.z:F1}), radius {pool.Radius:F1} m, depth {pool.Depth:F1} m");
             }
             var chosen = all[pools[math.clamp(pick - 1, 0, pools.Count - 1)]];
+            // (A lava pool: on its rim, a step past its edge, looking in, not on its bed.)
+            if (lava)
+                chosen.Centre += new float3(chosen.Radius + 1.5f, 1.5f, 0f);
             var floor = source.FloorUnder(chosen.Centre - new float3(0f, 0.1f, 0f), out _);
             var em = queryWorld.EntityManager;
             var t = em.GetComponentData<LocalTransform>(player);
@@ -649,10 +653,14 @@ namespace Punchy.Debugging
                     if (!flat)
                         continue;
                     var height = source.SampleHeight(at);
-                    var park = at - new float2(0f, 30f);
+                    // For a shot list the player is parked 30 m off and the camera posed over the grass; played by
+                    // hand (item 24) the player stands in the meadow itself and the camera stays free to look round.
+                    var shooting = shotIndex >= 0;
+                    var park = shooting ? at - new float2(0f, 30f) : at;
                     t.Position = new float3(park.x, source.SampleHeight(park) + 0.05f, park.y);
                     em.SetComponentData(player, t);
-                    PoseCamera(new Vector3(at.x, height + 1.7f, at.y), Quaternion.LookRotation(new Vector3(0f, -0.25f, 1f)));
+                    if (shooting)
+                        PoseCamera(new Vector3(at.x, height + 1.7f, at.y), Quaternion.LookRotation(new Vector3(0f, -0.25f, 1f)));
                     Debug.Log($"DebugControls: in a meadow at ({at.x:F0}, {height:F0}, {at.y:F0})");
                     return;
                 }

@@ -224,12 +224,12 @@ namespace Punchy.Fauna
             }
             AddPart("Trail", root, trail.ToMesh("SnowWormTrail"));
 
-            // Breath steaming from the maw, snow spraying off the breach mounds, and powder sifting down from the arcs.
+            // Snow spraying off the breach mounds and powder sifting down from the arcs (its breath steams from the maw, A-94).
             WormRig.Maw = maw;
-            Puffs(neckPivot.GetChild(0), "Breath", maw + fwd * 2f, new Vector3(2.5f, 2.5f, 2f), new Color(0.92f, 0.95f, 1f, 0.35f), new Color(0.85f, 0.90f, 0.96f, 0.30f), 2f, 4.5f, 2.5f, 0.5f, 6f);
             Puffs(root, "Spray", OnGround(0f, 26f, 1f), new Vector3(16f, 2f, 14f), new Color(0.95f, 0.97f, 1f, 0.45f), new Color(0.88f, 0.92f, 0.98f, 0.40f), 1.5f, 3.5f, 3f, 0.7f, 7f);
             Puffs(root, "Spray2", OnGround(1f, -6f, 1f), new Vector3(14f, 2f, 12f), new Color(0.95f, 0.97f, 1f, 0.40f), new Color(0.88f, 0.92f, 0.98f, 0.35f), 1.2f, 3f, 2f, 0.6f, 7f);
             Puffs(root, "Sift", back(0.5f) + Vector3.up * 2f, new Vector3(6f, 2f, 18f), new Color(1f, 1f, 1f, 0.8f), new Color(0.92f, 0.95f, 1f, 0.7f), 0.12f, 0.3f, 6f, -1.4f, 9f);
+            WormRig.Breath = new ColdBreath(root, neckPivot.GetChild(0), maw + fwd * 2f, fwd, "Trail");
             return root;
         }
 
@@ -240,6 +240,8 @@ namespace Punchy.Fauna
             public static float NextGroan;
             /// <summary>The maw, in the head part's space (where the groan comes from).</summary>
             public static Vector3 Maw;
+            /// <summary>Its breath in the cold, from the maw (A-94).</summary>
+            public static ColdBreath Breath;
         }
 
         /// <summary>
@@ -256,6 +258,7 @@ namespace Punchy.Fauna
                 return;
             float t = Time.time;
             WormRig.Neck.localRotation = Quaternion.Euler(Mathf.Sin(t * 0.19f) * 2.2f, Mathf.Sin(t * 0.11f + 0.7f) * 5f, Mathf.Sin(t * 0.15f + 2f) * 1.8f);
+            WormRig.Breath?.Tick(cam != null ? cam.transform.position : WormRig.Neck.position);
             if (t >= WormRig.NextGroan)
             {
                 WormRig.NextGroan = t + UnityEngine.Random.Range(14f, 26f);

@@ -4,6 +4,8 @@ Shader "Punchy/SunkenTemple"
     // plus a world-space texture so the walls aren't flat colour: sandstone courses of staggered blocks with sunken
     // mortar joints, each block a little lighter or darker and pitted (_Blocks 1), or wind ripples and grain on sand
     // (_Blocks 0). The rooms are lit by their wall torches through the glow lights (Glow.hlsl), as caves are.
+    // W-128: vertex alpha picks the stone: 1 ashlar, 0.5 a column shaft (fluted drums; UV x runs across the flutes,
+    // one per face, UV y up the shaft in metres), 0 floor tiles laid tight with no grout.
     Properties
     {
         _BaseColor ("Tint", Color) = (1, 1, 1, 1)
@@ -67,7 +69,38 @@ Shader "Punchy/SunkenTemple"
                 return tone * lerp(1, 0.45, joint);
             }
 
-            half Pattern(float3 p, half3 n)
+            // Floor tiles on one plane (uv in metres): 0.8 m squares, rows staggered by half a tile, butted tight: each
+            // tile its own shade and wear, only a faint darker edge where two meet (no mortar).
+            half Tiles(float2 uv)
+            {
+                const float size = 0.8;
+                float row = floor(uv.y / size);
+                float x = uv.x + row * size * 0.5;
+                float2 cell = float2(floor(x / size), row);
+                float2 f = float2(frac(x / size), frac(uv.y / size)) * size;
+                float edge = min(min(f.x, size - f.x), min(f.y, size - f.y));
+                float id = TempleHash(cell);
+                half tone = 0.84 + 0.26 * id;
+                tone *= 0.92 + 0.08 * TempleNoise(uv * 6 + id * 17) + 0.04 * TempleNoise(uv * 27);
+                return tone * lerp(0.9, 1, smoothstep(0.004, 0.02, edge));
+            }
+
+            // A column shaft: drums 0.85 m tall, each its own shade with a thin seam between, cut by vertical flutes
+            // (a shaded groove across each face, a bright arris between flutes), weathered by noise.
+            half Shaft(float2 st, float3 p)
+            {
+                float drum = floor(st.y / 0.85);
+                float fy = frac(st.y / 0.85) * 0.85;
+                float seam = 1 - smoothstep(0.006, 0.022, min(fy, 0.85 - fy));
+                float f = frac(st.x);
+                half flute = lerp(0.74, 1.0, pow(abs(f * 2 - 1), 2));
+                flute *= lerp(1, 1.12, 1 - smoothstep(0.0, 0.08, min(f, 1 - f)));
+                half tone = 0.9 + 0.18 * TempleHash(float2(drum, 3.1));
+                tone *= 0.92 + 0.08 * TempleNoise(float2(st.x * 0.7, st.y * 3) + p.xz * 0.3) + 0.04 * TempleNoise(p.xz * 19 + p.y * 23);
+                return tone * flute * lerp(1, 0.62, seam);
+            }
+
+            half Pattern(float3 p, half3 n, half kind, float2 st)
             {
                 float3 w = abs(n);
                 if (_Blocks < 0.5)
@@ -75,6 +108,14 @@ Shader "Punchy/SunkenTemple"
                     // Sand: ripples across the wind and a fine grain.
                     float rip = sin(p.x * 2.1 + p.z * 0.7 + TempleNoise(p.xz * 0.6) * 4) * 0.5 + 0.5;
                     return 0.92 + 0.08 * rip * w.y + 0.06 * TempleNoise(p.xz * 23 + p.y * 7);
+                }
+                if (kind > 0.25 && kind < 0.75)
+                    return Shaft(st, p);
+                if (kind < 0.25)
+                {
+                    float3 t = pow(w, 4);
+                    t /= t.x + t.y + t.z;
+                    return Tiles(p.zy) * t.x + Tiles(p.xy) * t.z + Tiles(p.xz) * t.y;
                 }
                 float j0, j1, j2;
                 half a = Ashlar(p.zy, j0), b = Ashlar(p.xy, j1);
@@ -90,6 +131,7 @@ Shader "Punchy/SunkenTemple"
                 float4 positionOS : POSITION;
                 float3 normalOS : NORMAL;
                 float4 color : COLOR;
+                float2 uv : TEXCOORD0;
             };
 
             struct Varyings
@@ -98,6 +140,7 @@ Shader "Punchy/SunkenTemple"
                 float3 positionWS : TEXCOORD0;
                 half3 normalWS : TEXCOORD1;
                 half3 albedo : TEXCOORD2;
+                float3 surface : TEXCOORD3;   // kind (vertex alpha), shaft UV
             };
 
             Varyings Vert(Attributes input)
@@ -107,6 +150,7 @@ Shader "Punchy/SunkenTemple"
                 o.positionCS = TransformWorldToHClip(o.positionWS);
                 o.normalWS = TransformObjectToWorldNormal(input.normalOS);
                 o.albedo = input.color.rgb * _BaseColor.rgb;
+                o.surface = float3(input.color.a, input.uv);
                 return o;
             }
 
@@ -121,7 +165,7 @@ Shader "Punchy/SunkenTemple"
                 inputData.shadowMask = half4(1, 1, 1, 1);
 
                 SurfaceData surface = (SurfaceData)0;
-                surface.albedo = input.albedo * Pattern(input.positionWS, inputData.normalWS);
+                surface.albedo = input.albedo * Pattern(input.positionWS, inputData.normalWS, input.surface.x, input.surface.yz);
                 surface.smoothness = 0.08;
                 surface.occlusion = 1;
                 surface.alpha = 1;

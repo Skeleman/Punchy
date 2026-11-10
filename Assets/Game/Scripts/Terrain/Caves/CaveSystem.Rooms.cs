@@ -9,12 +9,13 @@ namespace Punchy.Terrain
     /// <summary>
     /// W-115 row 2: draws the destination chambers (CaveRoomKit) within LoadRadius, each room's meshes split by material
     /// group and drawn with copies of the cave material in the room type's colours (lit like the walls, no daylight),
-    /// and adds each nearby room's lights to the glow list and its flames to FireSystem every frame.
+    /// and requests each drawn room's lights from LightBudget (as fixtures, refactor 3.1) and adds its nearby flames to FireSystem
+    /// every frame.
     /// </summary>
     public partial class CaveSystem
     {
-        /// <summary>Within this of the camera a room's lights and flames are added (m).</summary>
-        const float RoomLightRange = 60f;
+        /// <summary>Within this of the camera a room's flames are drawn (m); its lights go to LightBudget, which decides.</summary>
+        const float RoomFlameRange = 60f;
         /// <summary>Per room (index into the cave set's Rooms): its meshes by group, built the first time it is in range.</summary>
         readonly Dictionary<int, Mesh[]> roomMeshes = new Dictionary<int, Mesh[]>();
         /// <summary>Per room type and group, a copy of the cave material in that group's colours.</summary>
@@ -64,16 +65,13 @@ namespace Punchy.Terrain
                     };
                     Graphics.RenderMesh(rp, mesh, 0, Matrix4x4.identity);
                 }
-                if (distance > RoomLightRange)
-                    continue;
                 var kit = CaveRoomKit.Get(room);
                 for (int k = 0; k < kit.Glows.Count; k++)
                 {
                     var glow = kit.Glows[k];
-                    var at = new Vector4(glow.At.x, glow.At.y, glow.At.z, 0f);
-                    if (glow.Flame)
+                    if (glow.Flame && distance <= RoomFlameRange)
                         Punchy.Ambience.FireSystem.AddFlame(glow.At, 0.32f, (int)(room.Seed + (uint)k), Punchy.Ambience.FireSystem.Wood);
-                    glowing.Add((math.distance(glow.At, camPos), at, at, (Vector4)glow.Light));
+                    Punchy.Settings.LightBudget.AddStill(Punchy.Settings.LightKind.Fixture, glow.At, glow.Light);
                 }
             }
         }

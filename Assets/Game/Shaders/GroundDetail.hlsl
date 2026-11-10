@@ -57,6 +57,31 @@ float DetailVisibility(uint instance, float distance, out float keep)
 
 // ------------------------------------------------------------------------------------------------ grass
 
+// Grass clumps (Zach, 11-08: single blades scattered evenly read as stubble, never a field): each instance is a tuft of
+// _GrassClump blades fanned out from one root, leaning outwards, of uneven heights (1: a lone blade, as before;
+// GroundDetailSystem sets it, -grassclumps 0 for the old grass). Each blade is 15 vertices; vertex / 15 picks the blade.
+float _GrassClump;   // (a float: Unity's global ints are floats)
+
+float ClumpHash(float x) { return frac(sin(x * 12.9898) * 43758.5453); }
+
+Blade ClumpMember(Blade blade, uint member)
+{
+    if (_GrassClump <= 1)
+        return blade;
+    float seed = blade.random * 97.3 + member * 7.13;
+    float angle = 6.2832 * (member + ClumpHash(seed)) / _GrassClump + blade.random * 6.2832;
+    float radius = (member == 0 ? 0.0 : 0.05 + 0.13 * ClumpHash(seed + 1.7)) * (0.6 + 0.6 * blade.height);
+    float2 out2 = float2(cos(angle), sin(angle));
+    blade.position.xz += out2 * radius;
+    // Lean away from the root: the blade's lean is its facing turned a quarter, so face across the outward line.
+    blade.facing = angle + 1.5708 + (ClumpHash(seed + 3.1) - 0.5) * 0.6;
+    blade.bend = abs(blade.bend) * 0.6 + 0.15 + 0.25 * ClumpHash(seed + 4.3) * (member == 0 ? 0.3 : 1.0);
+    blade.height *= 0.7 + 0.5 * ClumpHash(seed + 5.9);
+    blade.width *= 0.85 + 0.3 * ClumpHash(seed + 6.7);
+    blade.random = frac(blade.random + member * 0.618);
+    return blade;
+}
+
 static const uint BladeRow[15]  = { 0, 0, 1,  0, 1, 1,  1, 1, 2,  1, 2, 2,  2, 2, 3 };
 static const float BladeSide[15] = { -1, 1, -1,  1, 1, -1,  -1, 1, -1,  1, 1, -1,  -1, 1, 0 };
 static const float BladeT[4] = { 0, 0.4, 0.75, 1 };
@@ -65,6 +90,8 @@ static const float BladeWidth[4] = { 1, 0.8, 0.5, 0 };
 // World position, normal and height fraction of one blade vertex.
 void BuildBladeVertex(Blade blade, uint instance, uint vertex, out float3 positionWS, out float3 normalWS, out float t)
 {
+    blade = ClumpMember(blade, vertex / 15);
+    vertex %= 15;
     float distance = length(blade.position - GetCameraPositionWS());
     float keep;
     float visibility = DetailVisibility(instance, distance, keep);

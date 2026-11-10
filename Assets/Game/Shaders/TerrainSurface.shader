@@ -41,12 +41,16 @@ Shader "Punchy/Terrain Surface"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Sky.hlsl"
             #include "Glow.hlsl"
+            #include "WideShadow.hlsl"
             // x how much the ground under grass takes the blades' colour, y the grass radius (GroundDetailSystem).
             float4 _PunchyGrassTint;
             // The shared fine detail CaveSystem makes (rg a normal, b a height): grain on rock faces up close.
             TEXTURE2D(_PunchyCaveDetail);
             SAMPLER(sampler_PunchyCaveDetail);
             float _PunchyCaveDetailReady;
+            // Weather globals (WeatherSystem), for the far grass's gusts: wind direction (xz) and strength 0..1.
+            float2 _PunchyWindDirection;
+            half _PunchyWind;
             // Worms under the sand and snow (the animal session's CreatureBurrowSystem): x, y its age (0..1 over its
             // life), z, w the radius (m) of the worm that made it: positive a bump (the mound over a worm's head, or one
             // it left in its trail), negative a crater where one broke out of the ground or dived back in.
@@ -55,6 +59,9 @@ Shader "Punchy/Terrain Surface"
             // How far out the marks are drawn (GraphicsSettings: DetailRange(BurrowRange), the feeder's range too).
             float _PunchyBurrowRange;
             float _PunchyTerrainDetailFar;   // where the fine relief has faded out (TerrainStreamingSystem, by Detail distance)
+            // R-6: reference pixels a metre spans 1 m from the camera, times Detail (TerrainStreamingSystem). Each fine-relief
+            // octave fades by its own on-screen size from this. Negative: the old fixed fade at _PunchyTerrainDetailFar.
+            float _PunchyTerrainDetailPpm;
             // Where the marks are, coarsely (CreatureBurrowSystem's MarkMask): a cell 1 where some mark reaches into it,
             // and (x, z of the map's corner, cells per metre, cells across).
             TEXTURE2D(_PunchyBurrowMask);
@@ -167,14 +174,35 @@ Shader "Punchy/Terrain Surface"
                 float  cave       : TEXCOORD7;
                 half   strata     : TEXCOORD8;
                 half2  paving     : TEXCOORD9;   // paving amount, flagstones (W-108)
-                half   hollow     : TEXCOORD10;
+                half2  hollow     : TEXCOORD10;  // hollow depth (m), porosity (item 22)
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
-            // Fine relief: a two-octave height noise (clods ~0.7 m, grain ~0.2 m), returned with its slope.
-            float MicroHeight(float2 p)
+            // Fine relief: a three-octave height noise (swells ~3 m, clods ~0.7 m, grain ~0.2 m), each weighted by how much
+            // of it is left at this distance (w: x 3 m, y 0.7 m, z 0.21 m), centred on 0. An octave that has faded out
+            // costs nothing. The 3 m octave is taller in the slope (s) than in the colour, so far ground keeps its relief
+            // without blotching.
+            float2 MicroHeight(float2 p, float3 w)   // x for the slope, y for the colour
             {
-                return PunchyValueNoise(p / 0.7) * 0.6 + PunchyValueNoise(p / 0.21 + 17.3) * 0.4;
+                float h = 0, swell = 0;
+                [branch] if (w.x > 0.001) swell = (PunchyValueNoise(p / 3.0 + 41.7) - 0.5) * w.x;
+                [branch] if (w.y > 0.001) h += (PunchyValueNoise(p / 0.7) - 0.5) * 0.6 * w.y;
+                [branch] if (w.z > 0.001) h += (PunchyValueNoise(p / 0.21 + 17.3) - 0.5) * 0.4 * w.z;
+                return float2(h + swell * 1.6, h + swell * 0.4);
+            }
+
+            // How much of each fine-relief octave (x 3 m, y 0.7 m, z 0.21 m) is left at this distance: each fades from 4 to
+            // 2 reference pixels of its own wavelength (DetailPolicy.ScreenSize), before it could shimmer.
+            float3 MicroFades(float distance, float detailFar)
+            {
+                [branch] if (_PunchyTerrainDetailPpm < 0)
+                {
+                    half old = 1 - smoothstep(detailFar * 0.36, detailFar, distance);
+                    return float3(0, old, old);
+                }
+                float ppm = _PunchyTerrainDetailPpm > 0 ? _PunchyTerrainDetailPpm : 935 * detailFar / 110;
+                float3 pixels = float3(3.0, 0.7, 0.21) * ppm / max(distance, 0.01);
+                return saturate((pixels - 2) / 2);
             }
 
             // Cobbles (W-34; rows of rounded boxes in W-09/W-10): rugged field stones, no grid. A jittered Voronoi on a
@@ -289,11 +317,11 @@ Shader "Punchy/Terrain Surface"
                 return slope;
             }
 
-            float3 MicroDetail(float2 p)   // xy = slope (dh/dx, dh/dz), z = height
+            float3 MicroDetail(float2 p, float3 w)   // xy = slope (dh/dx, dh/dz), z = height (0.5 = level)
             {
                 const float e = 0.04;
-                float h = MicroHeight(p);
-                return float3((MicroHeight(p + float2(e, 0)) - h) / e, (MicroHeight(p + float2(0, e)) - h) / e, h);
+                float2 h = MicroHeight(p, w);
+                return float3((MicroHeight(p + float2(e, 0), w).x - h.x) / e, (MicroHeight(p + float2(0, e), w).x - h.x) / e, 0.5 + h.y);
             }
 
             Varyings Vert(TerrainAttributes input)
@@ -314,7 +342,7 @@ Shader "Punchy/Terrain Surface"
                 o.cave = input.morph.w;
                 o.strata = input.strata.x;
                 o.paving = input.strata.yw;
-                o.hollow = input.strata.z;
+                o.hollow = half2(input.strata.z, input.soak.x);
                 return o;
             }
 
@@ -342,11 +370,14 @@ Shader "Punchy/Terrain Surface"
                     normalWS = normalize(normalWS + half3(furrowTilt.x, 0, furrowTilt.y));
                 }
 
-                // Fine relief up close (fades out before it could shimmer), skipped on skirts. How far it reaches
-                // follows the Detail distance setting (W-101: 110 m at Detail 1, was a fixed 70 m).
+                // Fine relief, skipped on skirts. R-6: each octave fades by its own on-screen size (MicroFades), so the
+                // clods carry on to about 300 m and a 3 m swell to about 1.4 km at Detail 1; detailFade (the old fixed
+                // range, W-101: 110 m at Detail 1) still bounds the sand grains below.
                 float detailFar = _PunchyTerrainDetailFar > 0 ? _PunchyTerrainDetailFar : 70;
-                half detailFade = (1 - smoothstep(detailFar * 0.36, detailFar, distance)) * input.bump * (input.extra.w <= 0.01);
-                float3 micro = detailFade > 0.001 ? MicroDetail(p) : float3(0, 0, 0.5);
+                half detailMask = input.bump * (input.extra.w <= 0.01);
+                half detailFade = (1 - smoothstep(detailFar * 0.36, detailFar, distance)) * detailMask;
+                float3 octaves = MicroFades(distance, detailFar) * detailMask;
+                float3 micro = max(octaves.x, max(octaves.y, octaves.z)) > 0.001 ? MicroDetail(p, octaves) : float3(0, 0, 0.5);
 
                 // Rain: flat ground collects puddles (dark, mirror-smooth, no relief); elsewhere wet ground just
                 // darkens and gets a soft sheen. Grass and snow don't glaze. Far away the sheen fades, since at
@@ -360,17 +391,23 @@ Shader "Punchy/Terrain Surface"
                     shore = smoothstep(0.2, 0.75, saturate(-input.extra.w) + (PunchyValueNoise(p * 0.8) - 0.5) * 0.35
                                                 + (PunchyValueNoise(p * 0.13 + 2.9) - 0.5) * 0.5)
                           * (1 - saturate(input.extra.z * 2));
-                half flatness = smoothstep(0.8, 0.93, normalWS.y);
+                // Item 22: only level ground pools (under about 10 degrees; the vertex normal, so fine relief can't
+                // tilt a flat into a slope or a slope into a flat).
+                half flatness = smoothstep(0.975, 0.99, normalize(input.normalWS).y);
                 half puddleNoise = PunchyValueNoise(p / 2.3) * 0.65 + PunchyValueNoise(p / 0.9 + 5.1) * 0.35;
-                // W-98: puddles gather in the dips (the mesh's hollow depth: how far below the ground round it), the
-                // noise cutting them into separate pools with crisp edges (a dip that glazes over whole reads as dark
-                // ground, not water), spreading as the rain goes on; none on open flats.
-                half dip = smoothstep(0.0, 0.08, input.hollow);
+                // W-98: puddles gather in the dips (the mesh's hollow depth: how far below the ground round it, and
+                // only where it rises on every side), the noise cutting them into separate pools with crisp edges (a
+                // dip that glazes over whole reads as dark ground, not water), spreading as the rain goes on; none on
+                // open flats. Item 22: porous ground (sand) soaks the rain up: its dips need far more to pool (only
+                // the deepest, wettest spots, looking as anywhere else when they do), and it barely glazes, just
+                // darkening (below).
+                half porosity = input.hollow.y;
+                half dip = smoothstep(0.0, 0.08, input.hollow.x) * (1 - 0.65 * porosity);
                 half puddle = smoothstep(0.82, 0.9, dip * 0.4 + puddleNoise * 0.6 + wet * 0.15) * flatness * smoothstep(0.1, 0.3, wet)
                             * (1 - 0.6 * input.extra.y);   // grass pokes through, but meadow dips still pool
-                half sheen = max(wet, shore * 0.6) * (1 - 0.8 * input.extra.y) * (1 - smoothstep(120, 450, distance));
+                half sheen = max(wet * (1 - 0.85 * porosity), shore * 0.6) * (1 - 0.8 * input.extra.y) * (1 - smoothstep(120, 450, distance));
 
-                half relief = detailFade * 0.45 * (1 - puddle);
+                half relief = 0.45 * (1 - puddle);   // (the octaves' fades are already in micro)
                 normalWS = normalize(normalWS - half3(micro.x, 0, micro.y) * relief);
                 half cobbleFade = smoothstep(0.3, 0.55, input.paving.x) * (1 - smoothstep(30, 80, distance));
                 // W-108: paving above 1 is wear (SettlementSampling.Ground: the ruts down a cobbled road), and paving
@@ -421,12 +458,12 @@ Shader "Punchy/Terrain Surface"
                 inputData.fogCoord = InitializeInputDataFog(float4(input.positionWS, 1.0), input.fogFactor);
                 inputData.bakedGI = SampleSH(inputData.normalWS);
                 // Glowing plants and molten pools nearby light the ground round them.
-                inputData.bakedGI += PunchyGlowLight(input.positionWS, inputData.normalWS);
+                inputData.bakedGI += PunchyGlowLight(input.positionWS, inputData.normalWS) + PunchyGlowWorld(input.positionWS, inputData.normalWS);
                 inputData.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(input.positionCS);
                 inputData.shadowMask = half4(1, 1, 1, 1);
 
                 SurfaceData surface = (SurfaceData)0;
-                half3 albedo = input.surface.rgb * (1 + (micro.z - 0.5) * 0.5 * detailFade);   // grain in the colour too
+                half3 albedo = input.surface.rgb * (1 + (micro.z - 0.5) * 0.5);   // grain in the colour too (faded in micro)
                 // Up close, bare ground (sand, dirt, gravel) is grainy: single grains a shade lighter or darker, at two sizes
                 // (about 3 and 7 cm, hashed by cell so they hold still), gone before they could shimmer, and not under grass.
                 if (detailFade > 0.001)
@@ -473,7 +510,17 @@ Shader "Punchy/Terrain Surface"
                 // gaps between blades read as more grass rather than bare soil (GroundDetailSystem.GroundTint).
                 half underGrass = input.extra.y * _PunchyGrassTint.x * (1 - smoothstep(_PunchyGrassTint.y * 0.7, _PunchyGrassTint.y, distance));
                 albedo = lerp(albedo, albedo * half3(1.05, 1.16, 0.85), underGrass * 0.8);
-                albedo *= lerp(1, 0.72, wet);
+                // Far grass (Zach, 11-08: a field shouldn't stop moving where the blades stop): past where the blades are
+                // drawn, grassy ground carries the same gusts they show (the same noise, scrolled downwind at the same
+                // rate, GroundDetail.hlsl), lighter where a gust bows the grass and darker between, in broad rolling bands.
+                half farGrass = input.extra.y * smoothstep(_PunchyGrassTint.y * 0.6, _PunchyGrassTint.y, distance);
+                [branch] if (farGrass > 0.01 && _PunchyCaveDetailReady > 0)
+                {
+                    float2 gustUV = p * 0.011 - _PunchyWindDirection * _PunchyClock * (0.025 + 0.06 * _PunchyWind);
+                    half gust = smoothstep(0.3, 0.75, SAMPLE_TEXTURE2D_LOD(_PunchyCaveDetail, sampler_PunchyCaveDetail, gustUV, 0).b);
+                    albedo *= 1 + (gust - 0.5) * 0.3 * farGrass * (0.4 + _PunchyWind);
+                }
+                albedo *= lerp(1, 0.72 - 0.12 * porosity, wet);   // (sand drinks it in: darker, not shinier)
                 // The wet band is patchy (W-43b): dark mud in some stretches, grey shingle and stones in others, so the
                 // bank reads as worn earth rather than a painted stripe.
                 [branch] if (shore > 0.01)
@@ -514,14 +561,20 @@ Shader "Punchy/Terrain Surface"
                     color.rgb = lerp(color.rgb, film, puddle);
                 }
 
-                // Cloud shadows: dim the share of the light that comes straight from the sun.
-                half cloudShadow = PunchyCloudShadow(input.positionWS + float3(0, max(input.extra.w, 0), 0));
-                if (cloudShadow > 0)
+                // Cloud shadows and, past the real shadows, the wide cached ones of the huge things (R-5): dim the share
+                // of the light that comes straight from the sun. The wide shadow takes the darker of itself and the real
+                // shadow where they overlap, so it never doubles.
+                float3 shadowAt = input.positionWS + float3(0, max(input.extra.w, 0), 0);
+                half cloudShadow = PunchyCloudShadow(shadowAt);
+                half wideShadow = PunchyWideShadow(shadowAt, inputData.normalWS);
+                if (cloudShadow > 0 || wideShadow > 0)
                 {
                     Light mainLight = GetMainLight(inputData.shadowCoord);
-                    half direct = Luminance(mainLight.color) * saturate(dot(inputData.normalWS, mainLight.direction)) * mainLight.shadowAttenuation;
+                    half sunlit = Luminance(mainLight.color) * saturate(dot(inputData.normalWS, mainLight.direction));
+                    half direct = sunlit * mainLight.shadowAttenuation;
+                    half kept = sunlit * min(mainLight.shadowAttenuation, 1 - wideShadow) * (1 - cloudShadow);
                     half ambient = Luminance(inputData.bakedGI);
-                    color.rgb *= 1 - cloudShadow * direct / max(direct + ambient, 1e-3);
+                    color.rgb *= 1 - (direct - kept) / max(direct + ambient, 1e-3);
                 }
 
                 color.rgb = PunchyAtmosphere(color.rgb, input.positionWS);
