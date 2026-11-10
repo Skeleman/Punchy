@@ -170,6 +170,14 @@ Shader "Punchy/FloraImpostor"
                 half through = leafy ? pow(saturate(dot(-v, light.direction)), 4) * 0.55 : 0;
                 half ao = surface.occlusion * PunchyGrounding(positionWS.y - input.ground.x, n.y, leafy ? 0 : 1);
                 half3 color = albedo * (light.color * shadow * (diffuse + through) * lerp(0.6, 1, ao) + sky * ao);
+                // Bark and rock: the mesh's faint sky reflection at grazing angles (Flora.shader), at its far strength, so
+                // a far trunk or rock fades into the haze as the mesh beside it does and the hand-off keeps its tone (R-11).
+                if (!leafy)
+                {
+                    half fresnel = 0.04 + 0.96 * pow(1 - saturate(dot(n, v)), 5);
+                    half sheenFar = lerp(0.25, 1, smoothstep(30, 120, distance(positionWS, GetCameraPositionWS())));
+                    color += SampleSH(reflect(-v, n)) * fresnel * 0.35 * sheenFar * ao * lerp(1, 0.06, _PunchyUnderground);
+                }
                 color = PunchyAtmosphere(color, positionWS);
                 return half4(color, 1);
             }

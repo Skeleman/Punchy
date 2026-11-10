@@ -344,9 +344,10 @@ namespace Punchy.Settings
                 // (SharpShadow, 3.7 step 3: a 20 m tree keeps the old 25 m real-time range at High, so a forest casts no
                 // more; only giants reach past it. Built things and big rocks reach out with their size: at High a 12 m
                 // hall casts sharp to about 40 m, past where a bush stops, and a 20 m one to the cascades' end.)
-                case FloraClass.Tree: return new Rule { Geometry = new Thresholds(395f, 98f, 0f), Shadow = 14f, SharpShadow = 1050f, WideShadow = Huge.WideShadow };
+                case FloraClass.Tree: return new Rule { Geometry = new Thresholds(395f, 98f, 0f), Shadow = 14f, SharpShadow = 1050f, WideShadow = Huge.WideShadow, Impostor = 30f };
                 case FloraClass.Plant: return new Rule { Geometry = new Thresholds(46f, 13f, 0f), Shadow = 45f, SharpShadow = float.MaxValue, Impostor = 9f };
-                // Rocks only change mesh, and stay to the layer's edge.
+                // Rocks only change mesh, and stay to the layer's edge. No impostor: a rock's coarsest mesh is already
+                // cheaper than the impostor quad (R-11 measured +0.1-0.25 ms at High in a mesa, for 110 MB more atlas).
                 case FloraClass.Rock: return new Rule { Geometry = new Thresholds(120f, 32f, 0f), Shadow = 45f, SharpShadow = 400f };
                 // Logs, stumps, benches, eggs: gone once they're a few pixels.
                 case FloraClass.Debris: return new Rule { Geometry = new Thresholds(70f, 18f, 12f), Shadow = 55f, SharpShadow = float.MaxValue };
