@@ -87,6 +87,10 @@ namespace Punchy.Terrain
             new Color(0.55f, 0.6f, 0.68f), new Color(0.38f, 0.42f, 0.45f), new Color(0.34f, 0.29f, 0.23f), new Color(0.66f, 0.55f, 0.4f)
         };
 
+        /// <summary>A-91: what a group is made of, as Cave.shader's _Dressed: cut stone (1) for the ashlar and trim, wood
+        /// grain (2) for beams, boats and doors, and the crystals and pale pieces as they are (-1).</summary>
+        public static float Dressing(int group) => group <= Trim ? 1f : group == Wood ? 2f : -1f;
+
         /// <summary>The rock and dark tones a room type's group is drawn with.</summary>
         public static void Colours(int type, int group, out Color rock, out Color dark)
         {
@@ -95,7 +99,7 @@ namespace Punchy.Terrain
             {
                 case Stone: rock = StoneRock[type]; dark = StoneDark[type]; break;
                 case Trim: rock = TrimRock[type]; dark = TrimDark[type]; break;
-                case Wood: rock = BatFolkMeshes.DarkRock; dark = BatFolkMeshes.DarkDark; break;
+                case Wood: rock = new Color(0.46f, 0.31f, 0.19f); dark = new Color(0.2f, 0.12f, 0.07f); break;
                 case Cyan: rock = new Color(0.62f, 0.95f, 1f); dark = new Color(0.18f, 0.5f, 0.7f); break;
                 case Violet: rock = new Color(0.86f, 0.62f, 1f); dark = new Color(0.38f, 0.22f, 0.6f); break;
                 default: rock = BatFolkMeshes.PaleRock; dark = BatFolkMeshes.PaleDark; break;

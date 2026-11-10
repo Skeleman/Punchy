@@ -122,9 +122,98 @@ namespace Punchy.Debugging
             return true;
         }
 
+        static bool dsPending;
+        static float dsPendingSince;
+
+        /// <summary>
+        /// A-91 "-dungeonspots": once the dungeons are up, logs two camera spots per dungeon type (the first cave with a
+        /// room, the first buried ruin, the sunken temple): its entrance (from outside the mouth, looking in) and its
+        /// deepest room or chamber (from a corner, looking across), each as a ready shot-list line
+        /// ("-goto x,y,z -camlook ...") for before/after shots and frame times on any branch.
+        /// </summary>
+        void DungeonSpots(in TerrainSource source)
+        {
+            var em = queryWorld.EntityManager;
+            ref var set = ref source.Caves.Value;
+            foreach (var type in new[] { "Cave", "Ruin", "Temple" })
+            {
+                var found = false;
+                foreach (var d in dwDungeons)
+                {
+                    if (d.Type != type)
+                        continue;
+                    if (type == "Temple")
+                    {
+                        var sockets = em.GetBuffer<DungeonSocket>(d.Entity, true);
+                        if (sockets.Length == 0 || !source.Temple(sockets[0].Pos.xz, out var layout))
+                            continue;
+                        ref var rooms = ref source.Landmarks.Value.RuinRooms;
+                        int hi = 0, lo = 0;
+                        for (int i = 1; i < rooms.Length; i++)
+                        {
+                            if (rooms[i].Floor > rooms[hi].Floor) hi = i;
+                            if (rooms[i].Floor < rooms[lo].Floor) lo = i;
+                        }
+                        var tl = layout;
+                        var allRooms = source.Landmarks;
+                        float3 Corner(int i, bool far, float y)
+                        {
+                            var r = allRooms.Value.RuinRooms[i];
+                            var u = far ? r.U1 - 0.7f : r.U0 + 0.7f;
+                            var v = far ? r.V1 - 0.7f : r.V0 + 0.7f;
+                            return SunkenTempleShape.World(tl, new float3(u, r.FloorAt(u) + y, v));
+                        }
+                        SpotLine(type, d.Id, "entrance", Corner(hi, false, 0.2f), Corner(hi, false, 1.7f), Corner(hi, true, 0.6f));
+                        SpotLine(type, d.Id, "deep", Corner(lo, false, 0.2f), Corner(lo, false, 1.7f), Corner(lo, true, 0.6f));
+                        found = true;
+                        break;
+                    }
+                    var c = -1;
+                    for (int i = 0; i < set.Caves.Length && c < 0; i++)
+                        if (set.Caves[i].Key == d.Id)
+                            c = i;
+                    if (c < 0 || (type == "Cave" && set.Caves[c].RoomCount == 0))
+                        continue;
+                    ref var cave = ref set.Caves[c];
+                    var mouth = Feet(source, cave.Mouth);
+                    var inner = Feet(source, set.Nodes[cave.FirstNode + math.min(1, cave.NodeCount - 1)].Position);
+                    var outward = math.normalizesafe(mouth.xz - inner.xz, new float2(0f, 1f));
+                    var back = mouth.xz + outward * 6f;
+                    var eye = new float3(back.x, math.max(source.SampleHeight(back), mouth.y) + 2.2f, back.y);
+                    SpotLine(type, d.Id, "entrance", mouth, eye, inner + new float3(0f, 1f, 0f));
+                    // The deepest room (the ruin's own room for a ruin), else the deepest chamber.
+                    var best = -1;
+                    for (int r = cave.FirstRoom; r < cave.FirstRoom + cave.RoomCount; r++)
+                        if ((type != "Ruin" || set.Rooms[r].Type == (int)CaveRoomType.Ruin) && (best < 0 || set.Rooms[r].Origin.y < set.Rooms[best].Origin.y))
+                            best = r;
+                    if (best >= 0)
+                    {
+                        var room = set.Rooms[best];
+                        var feet = Feet(source, room.World(new float3(-room.HX + 0.8f, 0.3f, 0.9f)));
+                        SpotLine(type, d.Id, "deep", feet, room.World(new float3(-room.HX + 0.8f, 1.8f, 0.9f)),
+                                 room.World(new float3(room.HX * 0.4f, 0.8f, room.HZ * 2f - 0.6f)));
+                    }
+                    found = true;
+                    break;
+                }
+                if (!found)
+                    WalkLog($"DebugControls: dungeonspots {type}: none");
+            }
+            WalkLog("DebugControls: dungeonspots DONE");
+        }
+
+        static void SpotLine(string type, uint id, string what, float3 feet, float3 eye, float3 look) =>
+            WalkLog($"DebugControls: dungeonspots {type} {id} {what}: -goto {V(feet.x)},{V(feet.y)},{V(feet.z)} " +
+                    $"-camlook {V(eye.x)},{V(eye.y)},{V(eye.z)},{V(look.x)},{V(look.y)},{V(look.z)}");
+
         /// <summary>A-95: runs the walk, a frame at a time.</summary>
         void DungeonWalk()
         {
+            if (dsPending && Time.unscaledTime - dsPendingSince < 300f && EnsureLocations(out var spotSource) && GatherDungeons())
+            {
+                dsPending = false;
+                DungeonSpots(spotSource);
+            }
             if (dwPending != null)
             {
                 if (Time.unscaledTime - dwPendingSince > 300f)

@@ -381,6 +381,12 @@ namespace Punchy.Debugging
             }
             if (inCave && EnsureLocations(out var source))
                 GoIntoCave(source);
+            // "-dungeonspots" (A-91): logs an entrance and a deepest-room camera spot per dungeon type.
+            if (System.Array.IndexOf(args, "-dungeonspots") >= 0)
+            {
+                dsPending = true;
+                dsPendingSince = Time.unscaledTime;
+            }
             if (System.Array.IndexOf(args, "-goto") >= 0 || System.Array.IndexOf(args, "-at") >= 0
                 || System.Array.IndexOf(args, "-walkershot") >= 0)
                 landmarkPlacePending = null;

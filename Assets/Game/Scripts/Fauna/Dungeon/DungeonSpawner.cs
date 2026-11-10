@@ -462,11 +462,18 @@ namespace Punchy.Fauna
         {
             if (s.Kind == SocketKind.Chest)
                 return null;
+            // (A-95: placed as its collision box is, nudged off a chest or out of a wall; see DungeonSpawner.PropPlace.)
+            DungeonSpawner.PropPlace(s, all, terrain, out var centre, out var size, out var rot);
+            // A-91: the real prop, built from parts in the cave's dressed stone, wood and iron; the tinted box below
+            // only when there is no cave material to draw it with.
+            if (DungeonProps.Make(c, size) is { } built)
+            {
+                built.transform.SetPositionAndRotation(centre, rot);
+                return built;
+            }
             var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
             go.name = $"Dungeon {c}";
             Object.Destroy(go.GetComponent<Collider>());
-            // (A-95: placed as its collision box is, nudged off a chest or out of a wall; see DungeonSpawner.PropPlace.)
-            DungeonSpawner.PropPlace(s, all, terrain, out var centre, out var size, out var rot);
             go.transform.SetPositionAndRotation(centre, rot);
             go.transform.localScale = size;
             var h = DungeonSpawner.Scramble((uint)c * 0x9E3779B1u);
