@@ -63,6 +63,9 @@ namespace Punchy.Player
             // W-67 (#79): kit buildings' and ruins' boxes near the player (FloraSystem): floors, walls and ceilings that
             // match the art. Their old circles and support grids are skipped below (Kit flags); other props keep theirs.
             var hasKit = SystemAPI.TryGetSingletonBuffer<KitBox>(out var kitBoxes, true) && kitBoxes.Length > 0;
+            // A-95 (#24): dungeon chests and stand-ins (DungeonSpawnSystem), solid the same way as kit boxes.
+            var hasDungeon = SystemAPI.TryGetSingletonBuffer<Punchy.Fauna.DungeonPropBox>(out var dungeonRaw, true) && dungeonRaw.Length > 0;
+            var dungeonBoxes = hasDungeon ? dungeonRaw.Reinterpret<KitBox>() : default;
             var size = body.Size > 0f ? body.Size : 1f;
             var stepUp = StepUp * size;
             // How far the body (the local avatar) is still down, lying or sitting (A-92, #231).
@@ -106,7 +109,7 @@ namespace Punchy.Player
                 if (m.Flying)
                 {
                     var hasFlora = SystemAPI.TryGetSingleton<Punchy.Flora.FloraLookup>(out var flora) && flora.Blob.IsCreated;
-                    Fly(ref t, ref m, body, input, terrain, settings, inCave, dt, obstacles, hasFlora ? flora.Blob : default, hasKit, kitBoxes);
+                    Fly(ref t, ref m, body, input, terrain, settings, inCave, dt, obstacles, hasFlora ? flora.Blob : default, hasKit, kitBoxes, hasDungeon, dungeonBoxes);
                     continue;
                 }
                 // Up a tree trunk: climbing it, round it, or letting go.
@@ -244,6 +247,17 @@ namespace Punchy.Player
                     position.xz = KeepOutOfPropWalls(ref grids.Set.Value, props, from, position.xz, stepUp, wallHead, out blocked);
                 if (hasKit)   // W-67 (#79): kit walls, slid along the same way.
                     position.xz = KitCollision.KeepOut(kitBoxes, from, position.xz, settings.Radius, math.max(stepUp, KitStep), wallHead, ref blocked);
+                if (hasDungeon)   // A-95: dungeon chests and stand-ins too (a low one is stepped onto).
+                {
+                    var kept = KitCollision.KeepOut(dungeonBoxes, from, position.xz, settings.Radius, math.max(stepUp, KitStep), wallHead, ref blocked);
+                    // (Its slide along one axis is held to the kit walls too: they only checked the move it was given, and a
+                    // rabbit sliding along a chest went into the ruin pillar beside it, then walked free inside the pillar.)
+                    if (hasKit && math.any(kept != position.xz) &&
+                        KitCollision.Wall(kitBoxes, new float3(kept.x, from.y, kept.y), settings.Radius, math.max(stepUp, KitStep), wallHead) &&
+                        !KitCollision.Wall(kitBoxes, from, settings.Radius, math.max(stepUp, KitStep), wallHead))
+                        kept = from.xz;
+                    position.xz = kept;
+                }
                 // The salt tower's body and its steps from below (W-27): slid along the same way.
                 position.xz = KeepOutOfTower(terrain, from, position.xz, stepUp, 1.7f * size, ref blocked);
                 // (#33 probe, -place wall only: every term of the wall latch below, and what stopped the move first.)
@@ -363,6 +377,17 @@ namespace Punchy.Player
                     if (m.Grounded && top.Normal.y < SlideSlope && math.lengthsq(top.Normal.xz) > 1e-6f)
                         position.xz += math.normalize(top.Normal.xz) * SlideSpeed * dt;
                 }
+                // A-95: standing on a dungeon chest or stand-in. A body whose middle is already inside one (set down there,
+                // or slipped in off its top) is lifted onto it: walls let a body inside a box move freely, so a small one
+                // between a box and a step too high for it was pinned there.
+                var onDungeonProp = false;
+                if (hasDungeon && (KitCollision.Floor(dungeonBoxes, position, settings.Radius * 0.6f, math.max(stepUp, KitStep), out var propTop) ||
+                                   InsideBox(dungeonBoxes, position, out propTop)) && propTop > ground)
+                {
+                    ground = propTop;
+                    m.OnProp = true;
+                    onDungeonProp = true;
+                }
                 // A wall climber walking off a top's edge goes over onto the wall, turned to face it, and climbs down
                 // (#33: it used to let go and fall). Its feet start just below the rim, so the wall holds it.
                 if (body.ClimbsWalls && (tops || hasKit) && wasOnProp && !m.OnProp && m.Grounded && pressing && !input.JumpPressed && !swimming &&
@@ -405,6 +430,10 @@ namespace Punchy.Player
                 if ((inCave || caveHere) && !NoPushOut.Data)
                 {
                     var pushed = PushOutOfSolids(terrain, from, position, m.Grounded, settings.Radius, size, dt);
+                    // A-95: on a dungeon chest or stand-in, it stays on top: the push-out stands a body within 0.6 m of the
+                    // cave floor back on that floor, which sank one on a low box back into it.
+                    if (onDungeonProp && m.Grounded)
+                        pushed.y = math.max(pushed.y, position.y);
                     PushedTotal.Data += math.distance(pushed, position);
                     position = pushed;
                 }
@@ -581,7 +610,8 @@ namespace Punchy.Player
         /// </summary>
         static void Fly(ref LocalTransform t, ref PlayerMotion m, in PlayerBody body, in PlayerInput input, in TerrainSource terrain,
                         in PlayerMotor settings, bool inCave, float dt, in DynamicBuffer<FloraObstacle> obstacles,
-                        BlobAssetReference<Punchy.Flora.FloraBlob> flora, bool hasKit, in DynamicBuffer<KitBox> kit)
+                        BlobAssetReference<Punchy.Flora.FloraBlob> flora, bool hasKit, in DynamicBuffer<KitBox> kit,
+                        bool hasDungeon, in DynamicBuffer<KitBox> dungeon)
         {
             var forward3 = math.mul(t.Rotation, new float3(0f, 0f, 1f));
             var yaw = math.atan2(forward3.x, forward3.z);
@@ -687,11 +717,21 @@ namespace Punchy.Player
                 var blocked = false;
                 position.xz = KitCollision.KeepOut(kit, t.Position, position.xz, settings.Radius, 0.05f, 0.6f * size, ref blocked);
             }
+            if (hasDungeon)   // A-95: dungeon chests and stand-ins too, and perched on like a deck.
+            {
+                var blocked = false;
+                position.xz = KitCollision.KeepOut(dungeon, t.Position, position.xz, settings.Radius, 0.05f, 0.6f * (body.Size > 0f ? body.Size : 1f), ref blocked);
+            }
             Floor(terrain, position, settings.SwimDepth, out ground, out _);
             if (hasKit && KitCollision.TopAt(kit, position.xz, position.y + 0.25f, 0.5f * (body.Size > 0f ? body.Size : 1f), out var kitTop) && kitTop > ground)
             {
                 onKit = true;
                 ground = kitTop;
+            }
+            if (hasDungeon && KitCollision.TopAt(dungeon, position.xz, position.y + 0.25f, 0.5f * (body.Size > 0f ? body.Size : 1f), out var propTop) && propTop > ground)
+            {
+                onKit = true;
+                ground = propTop;
             }
             if (position.y <= ground && inCave && steering && !descend && !dive)
             {
@@ -864,6 +904,18 @@ namespace Punchy.Player
 
         /// <summary>The highest a body of human size steps up onto without a climb (m).</summary>
         const float StepUp = 0.4f;
+        /// <summary>A-95: how far a body whose middle is inside a dungeon box is lifted onto it (over the tallest chest or stand-in).</summary>
+        const float DungeonLift = 0.6f;
+
+        /// <summary>A-95: the top of a box the feet stand inside (from its bottom up to <see cref="DungeonLift"/> under its top), if any.</summary>
+        static bool InsideBox(in DynamicBuffer<KitBox> boxes, float3 feet, out float top)
+        {
+            top = float.MinValue;
+            for (int i = 0; i < boxes.Length; i++)
+                if (KitCollision.Span(boxes[i], feet.xz, out var bottom, out var t) && bottom <= feet.y + 0.05f && t > feet.y && t <= feet.y + DungeonLift)
+                    top = math.max(top, t);
+            return top > float.MinValue;
+        }
         /// <summary>
         /// W-100: the least step up onto kit boxes, whatever the body's size: a stair tread (0.28 m or less), so a bird
         /// or a cat hops up a stair rather than meeting each tread as a wall.

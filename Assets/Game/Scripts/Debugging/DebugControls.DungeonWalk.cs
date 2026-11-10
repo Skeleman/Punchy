@@ -53,8 +53,8 @@ namespace Punchy.Debugging
         static readonly List<(float3 c, quaternion r)> dwChests = new();
         static int dwBody, dwDungeon, dwLeg, dwPhase;
         static float dwPhaseSince, dwLegSince, dwStillSince, dwRockSince, dwFloorMin;
-        static float3 dwStillAt;
-        static bool dwJumped, dwFlier, dwSkipping;
+        static float3 dwStillAt, dwPrevAt;
+        static bool dwJumped, dwFlier, dwSkipping, dwHavePrev, dwCrossed;
         static float dwSize = 1f;
         static string dwBodyWas, dwPrefWas;
 
@@ -206,10 +206,21 @@ namespace Punchy.Debugging
             }
             // Fall-through: well under the leg's lowest floor, or in rock for half a second.
             var centre = at + new float3(0f, 0.6f * dwSize, 0f);
+            // A fall-through is the body passing down through a floor between two frames: from last frame's height, the
+            // floor under this frame's spot is over the body. (Probing from a fixed height above instead could start in
+            // the rock of a low shelf overhead and read that as a floor the body fell through.)
+            if (settled)
+            {
+                var from = new float3(at.x, dwPrevAt.y + 0.1f, at.z);
+                if (dwHavePrev && at.y < dwPrevAt.y && PlayerMovementSystem.SolidDistance(source, from) > 0.05f && source.FloorUnder(from, out _) > at.y + 0.05f)
+                    dwCrossed = true;
+                dwPrevAt = at;
+                dwHavePrev = true;
+            }
             if (settled && at.y < dwFloorMin - 2f)
             {
-                // (Under a floor is a fall-through; over a lower floor it only stepped off a ledge the line passed over.)
-                var through = source.FloorUnder(at + new float3(0f, 3f, 0f), out _) > at.y + 0.3f;
+                // (Through a floor is a fall-through; over a lower floor it only stepped off a ledge the line passed over.)
+                var through = dwCrossed;
                 Problem(d, through ? "fall" : "drop", at, $"{V(dwFloorMin - at.y)} m under the leg's floor, {UnderWhat(source, at)}");
                 if (through)
                     dwCounts[key][CFalls]++;
@@ -252,7 +263,7 @@ namespace Punchy.Debugging
             }
             else if (Time.time - dwStillSince > 3f)
             {
-                Problem(d, "stuck", at, $"{StuckOn(source, at, to)}");
+                Problem(d, "stuck", at, $"{StuckOn(source, at, to)}, going to {P(target)}");
                 dwCounts[key][CStuck]++;
                 NextLeg(source, player, true);
                 return;
@@ -270,6 +281,14 @@ namespace Punchy.Debugging
                 PlayerInputSystem.TestClimb = angle > 0.3f;
                 PlayerInputSystem.TestCrouch = angle < -0.3f;
                 PlayerInputSystem.TestPitch = math.clamp(angle, -0.3f, 0.3f) / 0.6f;
+                // Held off the point for 1.5 s (pressing into a wall it slides along): veer sideways and climb, as a
+                // player would, to find the way round.
+                if (Time.time - dwStillSince > 1.5f)
+                {
+                    PlayerInputSystem.TestMove = new float2(-dir.y, dir.x);
+                    PlayerInputSystem.TestClimb = true;
+                    PlayerInputSystem.TestCrouch = false;
+                }
             }
             else if (!dwJumped && Time.time - dwStillSince > 1.5f && motion.Grounded)
             {
@@ -338,6 +357,7 @@ namespace Punchy.Debugging
             dwStillAt = at;
             dwJumped = false;
             dwSkipping = false;
+            dwHavePrev = dwCrossed = false;
             dwRockSince = -1f;
             dwFlyBlocked0 = PlayerMovementSystem.FlyBlocked.Data;
             dwClosest = float.MaxValue;
@@ -568,10 +588,26 @@ namespace Punchy.Debugging
         }
 
         /// <summary>The temple's route: room by room through its doorways (depth first, back the way it came), out to each room's floor sockets and back to its middle.</summary>
-        // A route leg to socket i; when a box stands there, the leg counts as reached at the box's side.
+        // A route leg to socket i: to the thing as the spawner places it (nudged out of a wall or off a chest), and when
+        // that has a box, the leg counts as reached at the box's side.
         void SocketGoal(in TerrainSource source, NativeArray<DungeonSocket> sockets, int i)
         {
-            dwRoute.Add(Feet(source, sockets[i].Pos));
+            var goal = sockets[i].Pos;
+            if (sockets[i].Kind != SocketKind.Creature)
+            {
+                var boxed = Punchy.Fauna.DungeonSpawner.PropPlace(sockets[i], sockets, source, out var mid, out var size, out _);
+                goal = new float3(mid.x, sockets[i].Pos.y, mid.z);
+                if (boxed)
+                {
+                    // (The point is on the box's top, not in it: a body set down at the leg's point after a stuck or a
+                    // skip would otherwise start inside the box, where nothing holds it and the wall beyond pins it.)
+                    dwSlack[dwRoute.Count] = 0.5f * math.length(size.xz) + 0.35f;
+                    var feet = Feet(source, goal);
+                    dwRoute.Add(new float3(feet.x, math.max(feet.y, mid.y + size.y * 0.5f), feet.z));
+                    return;
+                }
+            }
+            dwRoute.Add(Feet(source, goal));
         }
 
         void TempleRoute(in TerrainSource source, NativeArray<DungeonSocket> sockets)
@@ -673,7 +709,8 @@ namespace Punchy.Debugging
                 var p = math.lerp(a, b, i / (float)steps);
                 if (dwFlier)
                 {
-                    if (source.IsRock(p) || hasKit && InKit(kit, p, out _) || source.TowerWall(p - new float3(0f, 0.3f, 0f), 0.05f, 0.6f * dwSize))
+                    // (A body's width clear of rock, not just the line: a bird whose wing grazes a wall slides along it and stalls.)
+                    if (PlayerMovementSystem.SolidDistance(source, p) < 0.25f * dwSize || hasKit && InKit(kit, p, out _) || source.TowerWall(p - new float3(0f, 0.3f, 0f), 0.05f, 0.6f * dwSize))
                     {
                         why = "rock or wall on the line";
                         return false;
@@ -814,7 +851,8 @@ namespace Punchy.Debugging
             {
                 if (!Walkable(s))
                     continue;
-                // (A-95: the thing's box standing on the socket; a creature's a body-sized box.)
+                // (A-95: the thing's box as the spawner places it, nudged off a chest or out of a wall; a creature's
+                // a body-sized box on the socket.)
                 float3 mid, size;
                 quaternion rot = s.Rot;
                 var placed = true;
@@ -824,12 +862,7 @@ namespace Punchy.Debugging
                     mid = s.Pos + new float3(0f, size.y * 0.5f, 0f);
                 }
                 else
-                {
-                    size = s.Kind == SocketKind.Chest ? new float3(0.82f, 0.56f, 0.52f)
-                        : s.Kind == SocketKind.WallDecor ? new float3(0.4f, 0.6f, 0.12f)
-                        : s.Kind == SocketKind.Interactable ? new float3(0.6f, 1f, 0.6f) : new float3(0.4f);
-                    mid = s.Pos + new float3(0f, size.y * 0.5f, 0f);
-                }
+                    placed = Punchy.Fauna.DungeonSpawner.PropPlace(s, sockets, source, out mid, out size, out rot);
                 // (Its own stand-in prop doesn't count.)
                 dwOwnProp = mid.xz;
                 dwOwnIsChest = s.Kind == SocketKind.Chest;
