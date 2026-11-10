@@ -15,11 +15,14 @@ namespace Punchy.Terrain
     /// <summary>
     /// R-9 (#232): the water visibly gives under what swims, wades or lands in it. The chunk water's quads are a metre
     /// across, too coarse to dent, so near the player (a <see cref="Span"/> m square, following in <see cref="Snap"/> m
-    /// steps) this copies the chunk water's wet quads and cuts each into 8 x 8 (12.5 cm), drawn in the same water
-    /// material with _WATER_FIELD on (WaterField.hlsl); the chunk water clips itself out of the cells it covers. Over the
+    /// steps) this copies the chunk water's wet quads and cuts each by how big it looks (R-9 row 4, rule 20:
+    /// <see cref="Punchy.Settings.DetailPolicy.WaterSheet"/>): 8 x 8 (12.5 cm) right round the player, 4 x 4 and 2 x 2
+    /// further out; the quads it would leave whole it leaves to the chunk water. Drawn in the same water material with
+    /// _WATER_FIELD on (WaterField.hlsl); the chunk water clips itself out of the cells it covers. Over the
     /// same square it steps a wave field (WaterField.compute, 256 x 256 texels, 60 steps a second): every creature at the
     /// surface there (CreatureWakeSystem's choice: swimmers, floaters, animals crossing, folk, players' bodies) presses a
-    /// dimple into it, deeper the faster it goes, so it pushes a bow wave and trails a wake, and anything dropping into
+    /// dimple into it, deeper the faster it goes, so it pushes a bow wave and trails a wake (and, moving, lifts a swell
+    /// just ahead of it: Zach's leading swell, row 4), and anything dropping into
     /// the water knocks out a splash ring. The fine sheet's vertices rise and fall by the field, and its normals follow.
     /// Outside the square, on Low water quality or with "-waterfield 0", the swimmer ripples carry on alone.
     /// Cosmetic and per machine, from state every machine already has (the creature snapshot); nothing is sent.
@@ -33,8 +36,14 @@ namespace Punchy.Terrain
         /// <summary>The square (m), the step it follows the player in (m), and the field's texels across it.</summary>
         public const int Span = 32, Snap = 4, Size = 256;
         const float TexelsPerMetre = Size / (float)Span;
-        /// <summary>Each chunk water quad is cut into Cuts x Cuts.</summary>
-        const int Cuts = 8, QuadVertices = (Cuts + 1) * (Cuts + 1), QuadIndices = Cuts * Cuts * 6;
+        /// <summary>The finest cut (a chunk water quad into Cuts x Cuts, tier 0; each tier further out halves it).</summary>
+        const int Cuts = 8;
+        /// <summary>How far (m) the player moves before the cut is redone round them, and how much the camera's distance
+        /// from them may change (as a ratio) before it is.</summary>
+        const int FineStep = 1;
+        const float CameraBand = 1.2f;
+        /// <summary>The most indices the sheet may have per unit of Detail (12,000 at High: half a lake chunk's water).</summary>
+        const int SheetBudget = 8000;
         /// <summary>The field's step (s), the most steps a frame catches up, and how fast its waves run (m/s): slower than
         /// a walk, so a wader trails a V rather than pushing a ring ahead of it.</summary>
         const float StepTime = 1f / 60f, WaveSpeed = 0.9f;
@@ -44,6 +53,7 @@ namespace Punchy.Terrain
         static readonly int FieldAtId = Shader.PropertyToID("_PunchyWaterFieldAt");
         static readonly int RectId = Shader.PropertyToID("_PunchyWaterPatchRect");
         static readonly int MaskId = Shader.PropertyToID("_PunchyWaterPatchMask");
+        static readonly int WeightId = Shader.PropertyToID("_PunchyWaterPatchWeight");
         static readonly int SrcId = Shader.PropertyToID("_Src");
         static readonly int DstId = Shader.PropertyToID("_Dst");
         static readonly int SourcesId = Shader.PropertyToID("_Sources");
@@ -55,7 +65,7 @@ namespace Punchy.Terrain
         static readonly int DecayId = Shader.PropertyToID("_Decay");
         static readonly Vector4 NoRect = new Vector4(1e9f, 1e9f, -1e9f, -1e9f);
 
-        /// <summary>A fine sheet vertex: the chunk water's (WaterVertex) plus where it sits on the square's edge.</summary>
+        /// <summary>A fine sheet vertex: the chunk water's (WaterVertex) plus where it sits on a coarser neighbour's edge.</summary>
         struct PatchVertex
         {
             public float3 Position;
@@ -111,13 +121,18 @@ namespace Punchy.Terrain
             }
         }
 
-        /// <summary>Cuts each quad into Cuts x Cuts, split along the same diagonal as the chunk water (B to C), so the fine
-        /// sheet lies where the chunk water did.</summary>
+        /// <summary>Cuts each quad into n x n (n its cell's cut in Grid), split along the same diagonal as the chunk water
+        /// (B to C), so the fine sheet lies where the chunk water did. A vertex on an edge it shares with a coarser
+        /// neighbour (a coarser cut quad, or the chunk water past the square's edge) is told that neighbour's segment, so
+        /// the shader puts it on that segment's straight line and the two leave no crack.</summary>
         [BurstCompile]
         struct CutJob : IJobParallelFor
         {
             [ReadOnly] public NativeArray<ParentQuad> Quads;
-            public int2 RectMin, RectMax;
+            /// <summary>Each of the square's cells' cut (0: no quad there), and each quad's first vertex and index.</summary>
+            [ReadOnly] public NativeArray<byte> Grid;
+            [ReadOnly] public NativeArray<int2> Starts;
+            public int2 RectMin;
             // (Both come from one MeshData, which the safety system takes for the same container twice.)
             [NativeDisableParallelForRestriction, NativeDisableContainerSafetyRestriction] public NativeArray<PatchVertex> Vertices;
             [NativeDisableParallelForRestriction, NativeDisableContainerSafetyRestriction] public NativeArray<uint> Indices;
@@ -125,26 +140,52 @@ namespace Punchy.Terrain
             static float4 Mix(float4 a, float4 b, float4 c, float4 d, float u, float v) =>
                 u + v <= 1f ? a + u * (b - a) + v * (c - a) : d + (1f - u) * (c - d) + (1f - v) * (b - d);
 
+            /// <summary>A cell's cut: the chunk water's 1 outside the square, 0 where it's dry.</summary>
+            int CutsAt(int2 cell)
+            {
+                var c = cell - RectMin;
+                return math.any(c < 0) || math.any(c >= Span) ? 1 : Grid[c.y * Span + c.x];
+            }
+
+            /// <summary>The k-th of n + 1 vertices along an edge (from the corner with depth dA to the one with dB), next to
+            /// a neighbour cut nc: if that's coarser and the vertex isn't one of its own, the depths at the ends of the
+            /// neighbour's segment it sits on, how far along that it is (m), and the segment's length, signed by which way
+            /// it runs (+ along z, - along x; WaterField.hlsl, PunchyWaterPatchVertex).</summary>
+            static float4 EdgeParent(float dA, float dB, int k, int n, int nc, float sign)
+            {
+                if (nc <= 0 || nc >= n)
+                    return float4.zero;
+                var r = n / nc;
+                if (k % r == 0)
+                    return float4.zero;
+                var s = k / r * r;
+                return new float4(math.lerp(dA, dB, s / (float)n), math.lerp(dA, dB, (s + r) / (float)n), (k - s) / (float)n, sign * r / n);
+            }
+
             public void Execute(int index)
             {
                 var q = Quads[index];
-                var first = index * QuadVertices;
-                bool west = q.Cell.x == RectMin.x, east = q.Cell.x + 1 == RectMax.x;
-                bool south = q.Cell.y == RectMin.y, north = q.Cell.y + 1 == RectMax.y;
-                for (int j = 0; j <= Cuts; j++)
-                for (int i = 0; i <= Cuts; i++)
+                var n = CutsAt(q.Cell);
+                var first = Starts[index].x;
+                int west = CutsAt(q.Cell - new int2(1, 0)), east = CutsAt(q.Cell + new int2(1, 0));
+                int south = CutsAt(q.Cell - new int2(0, 1)), north = CutsAt(q.Cell + new int2(0, 1));
+                for (int j = 0; j <= n; j++)
+                for (int i = 0; i <= n; i++)
                 {
-                    float u = i / (float)Cuts, v = j / (float)Cuts;
+                    float u = i / (float)n, v = j / (float)n;
                     var p = Mix(new float4(q.A.Position, 0), new float4(q.B.Position, 0), new float4(q.C.Position, 0), new float4(q.D.Position, 0), u, v);
                     var g = Mix(new float4(q.A.Glow, 0, 0), new float4(q.B.Glow, 0, 0), new float4(q.C.Glow, 0, 0), new float4(q.D.Glow, 0, 0), u, v);
-                    // On the square's edge (not at a chunk water corner, which is exact anyway): the edge's two corners'
-                    // depths, how far along it, and which way it runs (WaterField.hlsl, PunchyWaterPatchVertex).
+                    // (Not at a chunk water corner, which is exact anyway.)
                     var parent = float4.zero;
-                    if (j % Cuts != 0 && (i == 0 && west || i == Cuts && east))
-                        parent = i == 0 ? new float4(q.A.Data.z, q.C.Data.z, v, 1f) : new float4(q.B.Data.z, q.D.Data.z, v, 1f);
-                    else if (i % Cuts != 0 && (j == 0 && south || j == Cuts && north))
-                        parent = j == 0 ? new float4(q.A.Data.z, q.B.Data.z, u, 2f) : new float4(q.C.Data.z, q.D.Data.z, u, 2f);
-                    Vertices[first + j * (Cuts + 1) + i] = new PatchVertex
+                    if (j % n != 0 && i == 0)
+                        parent = EdgeParent(q.A.Data.z, q.C.Data.z, j, n, west, 1f);
+                    else if (j % n != 0 && i == n)
+                        parent = EdgeParent(q.B.Data.z, q.D.Data.z, j, n, east, 1f);
+                    else if (i % n != 0 && j == 0)
+                        parent = EdgeParent(q.A.Data.z, q.B.Data.z, i, n, south, -1f);
+                    else if (i % n != 0 && j == n)
+                        parent = EdgeParent(q.C.Data.z, q.D.Data.z, i, n, north, -1f);
+                    Vertices[first + j * (n + 1) + i] = new PatchVertex
                     {
                         Position = p.xyz,
                         Data = Mix(q.A.Data, q.B.Data, q.C.Data, q.D.Data, u, v),
@@ -153,12 +194,12 @@ namespace Punchy.Terrain
                         Parent = parent
                     };
                 }
-                var t = index * QuadIndices;
-                for (int j = 0; j < Cuts; j++)
-                for (int i = 0; i < Cuts; i++)
+                var t = Starts[index].y;
+                for (int j = 0; j < n; j++)
+                for (int i = 0; i < n; i++)
                 {
-                    var a = (uint)(first + j * (Cuts + 1) + i);
-                    uint b = a + 1, c = a + Cuts + 1, d = c + 1;
+                    var a = (uint)(first + j * (n + 1) + i);
+                    uint b = a + 1, c = a + (uint)n + 1, d = c + 1;
                     Indices[t++] = a; Indices[t++] = c; Indices[t++] = b;
                     Indices[t++] = b; Indices[t++] = c; Indices[t++] = d;
                 }
@@ -178,8 +219,8 @@ namespace Punchy.Terrain
             public float DeltaTime;
             /// <summary>Seconds since play began, now and when this last ran (wading strides keep time by it).</summary>
             public float Time, LastTime;
-            /// <summary>Each creature's height last frame (to see it drop through the surface).</summary>
-            public NativeHashMap<Entity, float> LastY;
+            /// <summary>Each creature's place when this last ran (to see it drop through the surface, and which way it goes).</summary>
+            public NativeHashMap<Entity, float3> LastAt;
             public NativeList<float4> Presses, Splashes;
 
             public void Execute()
@@ -195,8 +236,9 @@ namespace Punchy.Terrain
                     if (b.Habitat != Habitat.Swims && b.Habitat != Habitat.Floats && !upright)
                         continue;
                     var e = Entities[i];
-                    var hadY = LastY.TryGetValue(e, out var lastY);
-                    LastY[e] = s.Position.y;
+                    var hadY = LastAt.TryGetValue(e, out var lastAt);
+                    var lastY = lastAt.y;
+                    LastAt[e] = s.Position;
                     var g = Terrain.SampleGround(s.Position.xz);
                     if (!g.HasWater || g.WaterSurface - g.Height < 0.15f)
                         continue;
@@ -217,6 +259,14 @@ namespace Punchy.Terrain
                     var shove = 0.006f * math.min(s.Speed, 4f) * size * near;
                     if (shove > 0.0005f && Presses.Length < MaxSources)
                         Presses.Add(new float4(at, -radius, shove));
+                    // Zach's leading swell (13:05): moving, it heaps the water up just ahead of itself, a raised hump before
+                    // the V of its wake (a held press lifting the surface: a negative depth). Which way is ahead: the way
+                    // it actually went since last time, or where it faces when it has hardly moved.
+                    var went = hadY ? (s.Position.xz - lastAt.xz) / math.max(Time - LastTime, 1e-3f) : float2.zero;
+                    var ahead = math.lengthsq(went) > 0.04f ? math.normalize(went) : new float2(math.sin(s.Yaw), math.cos(s.Yaw));
+                    var hump = 0.03f * math.min(s.Speed, 3f) * size * near;
+                    if (s.Speed > 0.4f && hump > 0.002f && Presses.Length < MaxSources)
+                        Presses.Add(new float4(at + ahead * radius * 1.6f, radius * 1.2f, -hump));
                     // A wader's strides: a small knock a few times a second, each spreading as a ring, so a line of them
                     // trails it (each creature on its own beat).
                     var beat = 1.2f + 0.8f * math.min(s.Speed, 3f);
@@ -237,13 +287,18 @@ namespace Punchy.Terrain
         Material material;
         Texture2D mask;
         readonly byte[] maskBytes = new byte[Span * Span];
+        /// <summary>How much the field shows at each of the square's metre corners (bilinear between): 0 on the edge of
+        /// what the sheet covers, so it meets the chunk water there with no step, rising over the next metres in.</summary>
+        Texture2D weight;
+        readonly byte[] weightBytes = new byte[(Span + 1) * (Span + 1)];
+        readonly int[] weightSteps = new int[(Span + 1) * (Span + 1)];
         RenderTexture fieldA, fieldB;
         ComputeShader compute;
         int kernel = -1;
         ComputeBuffer sourceBuffer;
         readonly float4[] sourceArray = new float4[MaxSources];
         float lastSourceTime;
-        NativeHashMap<Entity, float> lastY;
+        NativeHashMap<Entity, float3> lastAt;
         NativeList<ParentQuad> quads;
         readonly List<Mesh> gatherMeshes = new List<Mesh>(4);
         readonly List<int2> gatherOrigins = new List<int2>(4);
@@ -253,13 +308,27 @@ namespace Punchy.Terrain
         int2 shownCorner = NoCorner;
         int shownBuilds;
         Bounds shownBounds;
-        /// <summary>A sheet being cut (applied next frame): its square, builds and bounds.</summary>
+        /// <summary>What the sheet on show was cut for: the player's cell, the camera's distance from them, the Detail.</summary>
+        int2 shownFocus;
+        float shownCamera, shownDetail;
+        /// <summary>A sheet being cut (applied next frame): its square, builds, bounds and what it was cut for.</summary>
         JobHandle cutting;
         bool cutPending;
         Mesh.MeshDataArray cutData;
         int2 cutCorner;
         int cutBuilds;
         Bounds cutBounds;
+        int2 cutFocus;
+        float cutCamera, cutDetail;
+        int cutIndexCount;
+        NativeArray<byte> cutGrid;
+        NativeArray<int2> cutStarts;
+        /// <summary>Each cell's cut tier last time (+1; 0 none), from the square at tierCorner: hysteresis keeps a cell from
+        /// flicking between two cuts as the player moves to and fro across a boundary.</summary>
+        readonly byte[] tiers = new byte[Span * Span], nextTiers = new byte[Span * Span];
+        int2 tierCorner = NoCorner;
+        /// <summary>Indices in the sheet on show (for probes and the R-9 bench).</summary>
+        public int SheetIndices { get; private set; }
         /// <summary>The field's corner (texels follow the square), texels it still has to move, and time not yet stepped.</summary>
         int2 fieldCorner = NoCorner;
         int2 pendingShift;
@@ -270,7 +339,7 @@ namespace Punchy.Terrain
         {
             focusQuery = GetEntityQuery(ComponentType.ReadOnly<TerrainFocus>(), ComponentType.ReadOnly<LocalTransform>());
             creatureQuery = GetEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
-            lastY = new NativeHashMap<Entity, float>(64, Allocator.Persistent);
+            lastAt = new NativeHashMap<Entity, float3>(64, Allocator.Persistent);
             quads = new NativeList<ParentQuad>(1024, Allocator.Persistent);
             var args = Punchy.Debugging.DebugControls.LaunchArgs;
             var at = System.Array.IndexOf(args, "-waterfield");
@@ -283,7 +352,7 @@ namespace Punchy.Terrain
         {
             FinishCut(false);
             Shader.SetGlobalVector(RectId, NoRect);
-            if (lastY.IsCreated) lastY.Dispose();
+            if (lastAt.IsCreated) lastAt.Dispose();
             if (quads.IsCreated) quads.Dispose();
             sourceBuffer?.Release();
             if (fieldA != null) fieldA.Release();
@@ -293,6 +362,7 @@ namespace Punchy.Terrain
             Object.Destroy(mesh);
             Object.Destroy(material);
             Object.Destroy(mask);
+            Object.Destroy(weight);
         }
 
         protected override void OnUpdate()
@@ -317,8 +387,17 @@ namespace Punchy.Terrain
                 Hide();
                 return;
             }
-            if (!cutPending && (!corner.Equals(shownCorner) || builds != shownBuilds))
-                StartCut(streaming, config, corner, builds);
+            // Recut when the square moves, a chunk under it is rebuilt, or the cut no longer fits the view: the player has
+            // moved a cell on, the camera has come much nearer or gone much further, or the Detail setting changed.
+            var cam = Camera.main;
+            Punchy.Settings.DetailPolicy.SetView(cam);
+            var view = Punchy.Settings.DetailPolicy.Current.Data;
+            var focusCell = (int2)math.floor(focus.xz / FineStep) * FineStep;
+            var camera = cam != null ? math.max(math.distance(view.Camera, focus), 1f) : 8f;
+            var refit = !focusCell.Equals(shownFocus) || camera > shownCamera * CameraBand || camera * CameraBand < shownCamera ||
+                        view.Detail != shownDetail;
+            if (!cutPending && (!corner.Equals(shownCorner) || builds != shownBuilds || refit))
+                StartCut(streaming, config, corner, builds, focus, focusCell, camera, view);
 
             if (shownCorner.Equals(NoCorner))
                 return;
@@ -362,6 +441,7 @@ namespace Punchy.Terrain
             mesh = new Mesh { name = "Water fine sheet" };
             mesh.MarkDynamic();
             mask = new Texture2D(Span, Span, TextureFormat.R8, false, true) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp, name = "Water fine sheet mask" };
+            weight = new Texture2D(Span + 1, Span + 1, TextureFormat.R8, false, true) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp, name = "Water fine sheet weight" };
             fieldA = MakeField("Water field A");
             fieldB = MakeField("Water field B");
             sourceBuffer = new ComputeBuffer(MaxSources, 16);
@@ -429,7 +509,8 @@ namespace Punchy.Terrain
 
         /// <summary>Copies the wet quads in the square (Burst, now; it's a scan of a few index lists) and starts cutting
         /// them into the fine sheet, applied next frame.</summary>
-        void StartCut(TerrainStreamingSystem streaming, TerrainConfig config, int2 corner, int builds)
+        void StartCut(TerrainStreamingSystem streaming, TerrainConfig config, int2 corner, int builds, float3 focus, int2 focusCell,
+            float camera, Punchy.Settings.DetailPolicy.View view)
         {
             var check = 17;
             Gather(streaming, config, corner, ref check, true);
@@ -445,14 +526,11 @@ namespace Punchy.Terrain
                     }.Run();
             }
             float lowY = float.MaxValue, highY = float.MinValue;
-            System.Array.Clear(maskBytes, 0, maskBytes.Length);
             for (int i = 0; i < quads.Length; i++)
             {
                 var q = quads[i];
                 lowY = math.min(lowY, math.min(math.min(q.A.Position.y, q.B.Position.y), math.min(q.C.Position.y, q.D.Position.y)));
                 highY = math.max(highY, math.max(math.max(q.A.Position.y, q.B.Position.y), math.max(q.C.Position.y, q.D.Position.y)));
-                var c = q.Cell - corner;
-                maskBytes[c.y * Span + c.x] = 255;
             }
             if (quads.Length == 0)
                 lowY = highY = 0f;
@@ -462,17 +540,114 @@ namespace Punchy.Terrain
             cutBounds = new Bounds((lo + hi) * 0.5f, hi - lo);
             cutCorner = corner;
             cutBuilds = builds;
+            cutFocus = focusCell;
+            cutCamera = camera;
+            cutDetail = view.Detail;
+
+            // Each quad's cut, by how big a metre of water looks there (rule 20): its distance taken as the camera's
+            // distance from the player and the quad's from the player together, so the cut doesn't change as the camera
+            // swings round. Tiers last time hold a cell back from coarsening until it is well past the boundary.
+            var thresholds = Punchy.Settings.DetailPolicy.WaterSheet.Scaled(math.max(view.Detail, 0.1f));
+            cutGrid = new NativeArray<byte>(Span * Span, Allocator.TempJob);
+            cutStarts = new NativeArray<int2>(quads.Length, Allocator.TempJob);
+            System.Array.Clear(maskBytes, 0, maskBytes.Length);
+            System.Array.Clear(nextTiers, 0, nextTiers.Length);
+            // (With the camera pulled in close, say swimming, everything near looks big enough for the finest cut: past
+            // the budget, the cut is redone as if the water looked smaller, a tenth at a time, until it fits; the finest
+            // cut shrinks in towards the player, where the dents are, but stays.)
+            var budget = (int)(SheetBudget * math.max(view.Detail, 0.1f));
+            var shrink = 1f;
+            for (int attempt = 0; attempt < 20; attempt++, shrink *= 0.9f)
+            {
+                var total = 0;
+                for (int i = 0; i < quads.Length; i++)
+                {
+                    var cell = quads[i].Cell;
+                    var reach = math.lengthsq((float2)cell + 0.5f - focus.xz);
+                    var pixels = Punchy.Settings.DetailPolicy.ScreenSize(Punchy.Settings.DetailPolicy.WaterSheetSize,
+                        math.sqrt(reach + camera * camera), view.PixelsPerMetre);
+                    var was = cell - tierCorner;
+                    var previous = tierCorner.Equals(NoCorner) || math.any(was < 0) || math.any(was >= Span) ? -1 : tiers[was.y * Span + was.x] - 1;
+                    var tier = Punchy.Settings.DetailPolicy.Tier(pixels * shrink, thresholds, previous);
+                    var c = cell - corner;
+                    nextTiers[c.y * Span + c.x] = (byte)(tier + 1);
+                    var n = Cuts >> tier;
+                    if (n > 1)
+                        total += n * n * 6;
+                }
+                if (total <= budget)
+                    break;
+            }
+            int vertexCount = 0, indexCount = 0, kept = 0;
+            for (int i = 0; i < quads.Length; i++)
+            {
+                var c = quads[i].Cell - corner;
+                var n = Cuts >> (nextTiers[c.y * Span + c.x] - 1);
+                cutGrid[c.y * Span + c.x] = (byte)n;
+                // (A quad left whole is the chunk water's own: the chunk water draws it, so the sheet covers only what it
+                // cuts, a few metres round the player, and adds a fraction of the lake's indices rather than all of them
+                // over again: job 45, R-9 row 4.)
+                if (n <= 1)
+                    continue;
+                maskBytes[c.y * Span + c.x] = 255;
+                quads[kept] = quads[i];
+                cutStarts[kept++] = new int2(vertexCount, indexCount);
+                vertexCount += (n + 1) * (n + 1);
+                indexCount += n * n * 6;
+            }
+            quads.Length = kept;
+            Weigh();
+            System.Array.Copy(nextTiers, tiers, tiers.Length);
+            tierCorner = corner;
+            cutIndexCount = indexCount;
 
             cutData = Mesh.AllocateWritableMeshData(1);
             var data = cutData[0];
-            data.SetVertexBufferParams(quads.Length * QuadVertices, Layout);
-            data.SetIndexBufferParams(quads.Length * QuadIndices, IndexFormat.UInt32);
+            data.SetVertexBufferParams(vertexCount, Layout);
+            data.SetIndexBufferParams(indexCount, IndexFormat.UInt32);
             cutting = new CutJob
             {
-                Quads = quads.AsArray(), RectMin = corner, RectMax = corner + Span,
+                Quads = quads.AsArray(), Grid = cutGrid, Starts = cutStarts, RectMin = corner,
                 Vertices = data.GetVertexData<PatchVertex>(), Indices = data.GetIndexData<uint>()
             }.Schedule(quads.Length, 16);
             cutPending = true;
+        }
+
+        /// <summary>The field's weight at each corner (weightBytes): 0 at a corner touching a cell the sheet doesn't
+        /// cover (the chunk water's, dry, or past the square), then up by 0.4 a step (8-way) further in.</summary>
+        void Weigh()
+        {
+            const int row = Span + 1, far = 3;
+            for (int z = 0; z < row; z++)
+            for (int x = 0; x < row; x++)
+            {
+                var edge = false;
+                for (int dz = -1; dz <= 0 && !edge; dz++)
+                for (int dx = -1; dx <= 0 && !edge; dx++)
+                {
+                    int cx = x + dx, cz = z + dz;
+                    edge = cx < 0 || cz < 0 || cx >= Span || cz >= Span || maskBytes[cz * Span + cx] == 0;
+                }
+                weightSteps[z * row + x] = edge ? 0 : far;
+            }
+            for (int pass = 0; pass < far - 1; pass++)
+            for (int z = 0; z < row; z++)
+            for (int x = 0; x < row; x++)
+            {
+                var d = weightSteps[z * row + x];
+                if (d == 0)
+                    continue;
+                for (int dz = -1; dz <= 1; dz++)
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    int nx = x + dx, nz = z + dz;
+                    if (nx >= 0 && nz >= 0 && nx < row && nz < row)
+                        d = math.min(d, weightSteps[nz * row + nx] + 1);
+                }
+                weightSteps[z * row + x] = d;
+            }
+            for (int i = 0; i < weightBytes.Length; i++)
+                weightBytes[i] = (byte)math.round(math.saturate(weightSteps[i] / 2.5f) * 255f);
         }
 
         /// <summary>Puts last frame's cut sheet on show (or, with <paramref name="apply"/> false, drops it), with its
@@ -483,22 +658,32 @@ namespace Punchy.Terrain
                 return;
             cutting.Complete();
             cutPending = false;
+            cutGrid.Dispose();
+            cutStarts.Dispose();
             if (!apply || mesh == null)
             {
                 cutData.Dispose();
+                tierCorner = NoCorner;
                 return;
             }
             var data = cutData[0];
             data.subMeshCount = 1;
-            data.SetSubMesh(0, new SubMeshDescriptor(0, quads.Length * QuadIndices), MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices);
+            data.SetSubMesh(0, new SubMeshDescriptor(0, cutIndexCount), MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices);
             Mesh.ApplyAndDisposeWritableMeshData(cutData, mesh, MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices);
             mesh.bounds = cutBounds;
             shownBounds = cutBounds;
             shownCorner = cutCorner;
             shownBuilds = cutBuilds;
+            shownFocus = cutFocus;
+            shownCamera = cutCamera;
+            shownDetail = cutDetail;
+            SheetIndices = cutIndexCount;
             mask.SetPixelData(maskBytes, 0);
             mask.Apply(false, false);
             Shader.SetGlobalTexture(MaskId, mask);
+            weight.SetPixelData(weightBytes, 0);
+            weight.Apply(false, false);
+            Shader.SetGlobalTexture(WeightId, weight);
             Shader.SetGlobalVector(RectId, new Vector4(cutCorner.x, cutCorner.y, cutCorner.x + Span, cutCorner.y + Span));
             // (The field's texels move with the square, whole texels at a time; the shader's corner moves with them.)
             if (!fieldCorner.Equals(NoCorner))
@@ -536,12 +721,12 @@ namespace Punchy.Terrain
                 new SourceJob
                 {
                     States = states, Bodies = bodies, Entities = entities, Terrain = SystemAPI.GetSingleton<TerrainSource>(),
-                    Corner = fieldCorner, DeltaTime = math.max(dt, StepTime), Time = now, LastTime = lastSourceTime, LastY = lastY, Presses = presses, Splashes = splashes
+                    Corner = fieldCorner, DeltaTime = math.max(dt, StepTime), Time = now, LastTime = lastSourceTime, LastAt = lastAt, Presses = presses, Splashes = splashes
                 }.Run();
                 CreatureSnapshotSystem.Release(World, states, bodies, entities);
                 lastSourceTime = now;
-                if (lastY.Count > 2000)
-                    lastY.Clear();
+                if (lastAt.Count > 2000)
+                    lastAt.Clear();
                 // (Dimples first, splashes after: later steps leave the splashes out, as they knock the surface once.)
                 var pressCount = presses.Length;
                 var count = math.min(MaxSources, pressCount + splashes.Length);

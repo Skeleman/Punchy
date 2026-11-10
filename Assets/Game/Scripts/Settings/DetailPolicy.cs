@@ -357,6 +357,15 @@ namespace Punchy.Settings
         /// </summary>
         public const float FloraEdgePixels = 4f;
 
+        /// <summary>
+        /// R-9 row 4: how finely the water's fine sheet (WaterPatchSystem) cuts each metre quad of the chunk water near the
+        /// player, by how big a metre (WaterSheetSize) looks there: bigger than Near cuts it 8 x 8, than Mid 4 x 4, than Far
+        /// 2 x 2, else it's left to the chunk water. Tuned so the sheet over a lake stays under half the lake's own indices at High
+        /// with the camera at its usual 8 m (the field's normals are per pixel, so only the outline coarsens).
+        /// </summary>
+        public static readonly Thresholds WaterSheet = new Thresholds(168f, 158f, 142f);
+        public const float WaterSheetSize = 1f;
+
         public static Rule FloraRule(FloraClass c)
         {
             switch (c)
