@@ -3359,6 +3359,7 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
   - Opening the marked chest is the player lane's job: Items.cs opens only the temple's chests today.
   - Cleared is valid only on the host or solo. It reads false on a joined client and during a director rebuild, so P-24 should read it on the host and sync the quest state.
   - 67FAE773 has no chest socket (MarkedChest -1). Quests there should be "drive off" only.
+- **Final check:** PlayMode suite on fauna/dungeons2 4036e336: `24 passed, 1 failed, 17 skipped in 401s`. Landmarks 112 A955AFE0 (pin holds), fauna fingerprint 66320C7C. The one failure is FolkConversationTests.LiveFolk_Answer: a rabbit body saved in the shared editor PlayerPrefs made folk answer a beast, so there was no [who] line. Main already fixes this test in f8da2466 (A-96 row 0), which this branch does not have yet, so it should pass once merged. A-91 rows 2-4 are done; fauna/dungeons2 is ready for review.
 
 ## A-97
 
