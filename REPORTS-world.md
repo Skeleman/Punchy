@@ -3655,3 +3655,13 @@ Built in the player tree, not the one the card names (the world tree's gitignore
   - **Risks:** a drawn rock edge taller than a step (0.4 m) is now a wall (the drift mound's rim is a ~0.6 m drawn ledge; the player jumps it; the old ellipse terraces let you walk up on air). The walk tool can't jump, so it stops at such rims.
   - **Suite (editor closed, after the last change):** `13 passed, 2 failed, 7 skipped in 278s (Unity exit 2).` The 2 failures are the pins, both from row 2's marsh move, not row 4: Landmarks_V3 `112 E46A5414` (expected A955AFE0), Fauna_Fingerprint `66320C7C` (expected B15790ED).
 - **Correction to row 2:** Fauna_Fingerprint is NOT unchanged. Bisected with the single test: cfe23161 (boats) `fingerprint B15790ED, 1 passed`; cce82b69 (after the marsh move) `fingerprint 66320C7C, failed`. The marsh village move (d68e1c6a) changes it B15790ED -> 66320C7C. Both pins need re-pinning only if Zach approves the move; test pins were not touched.
+
+## W-128 row 5
+
+- **Row 5 DONE (verified by numbers)** (f2b67f3a revert, 293ad9b9 merge, world/fixes-1107): the marsh folk village stays where it is.
+  - `git revert d68e1c6a` (clean; boats cfe23161 and rows 1, 3, 4 kept), then origin/main merged in (3 behind, no conflicts).
+  - **Landmarks_V3: `112 A955AFE0`** (editor hook and suite). Log: `[landmarks] MarshFolkVillage 1 at -1240.0,320.0: facing 291 deg, base 112.9, relief 7.38 m`.
+  - **Fishing-village site rule (check only, no moves): 1 breaker.** MarshFolkVillage #111 at -1240,320 (no sea/lake/river, 120 of 952 points in its own pool), kept on purpose per Zach. FishingVillage #101-#104 (river; #103 also sea) and SeaFolkVillage #108 (lake) pass.
+  - **Fauna_Fingerprint: `66320C7C`, NOT back to B15790ED.** Re-bisected with the single test: d68e1c6a (marsh move) `B15790ED, passed`; f2b67f3a (row 4 + marsh reverted) `66320C7C`. So row 3 (cce82b69, the inn in kit pieces) changes it, not the marsh move: my row-4 "correction" was wrong. Reaching B15790ED would mean reverting the inn; needs a re-pin to 66320C7C (supervisor's call; not re-pinned here).
+  - **Suite (editor closed, after the last change):** `13 passed, 2 failed, 7 skipped in 219s (Unity exit 2).` Fails: Fauna_Fingerprint (above) and FolkTalkTests.WalkBy_NeverThroughWall (`1 through a wall, 151 held back by walls`). WalkBy re-run alone at the same head: `3 passed, 0 failed, 0 skipped in 208s` (0 through a wall), and it passed at f2b67f3a too: flaky, not from this row.
+  - Next: supervisor decides the fingerprint re-pin; card W-128 rows done.
