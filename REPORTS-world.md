@@ -4058,3 +4058,11 @@ Built in the player tree, not the one the card names (the world tree's gitignore
   - **Decisions:** street lights within 40 m use the near scan, beyond that the far scan's tree layer out to 276 m. The night map starts where the real lights run out (~40-250 m), not at a fixed hand-off. The before and after runs differ a little in clouds (different time in the session); the lights are what to compare.
   - **Process note:** a fresh play came up at Medium (16 real lights) because the editor's saved graphics prefs are shared across worktrees; my scripts now force High for the run by reflection without saving prefs.
   - **Next:** merge origin/main (clean per merge-tree), then row 2b (Creature.shader), then row 4.
+- **R-10 row 2b DONE (creatures)**: light/forwardplus `cbf6e145` (pushed; the merge of origin/main with A-92 is `44945b71`).
+  - **Changes:** Creature.shader adds the `_CLUSTER_LIGHT_LOOP` multi_compile and runs PunchyRealLights in both its ambient and body paths, so creatures take the same real lights as terrain, flora and rocks (+8/-5, CRLF kept).
+  - **ms:** no measurable cost. It is the same cluster loop the other shaders already run, and creatures cover few pixels.
+  - **Shots (High, 22:00, town at 2988.8,-890):** PunchyMilestones/R-10/2b/creature_real_on.jpg and creature_real_off.jpg (`-lightbudget 0`). The figure's brightness is 55.8 vs 55.7: they look alike because the glow slots match real lights by design. The hook-up matters where more lights reach a creature than there are slots.
+  - **Suite + pins (editor closed):** 23 passed, **1 failed**, 17 skipped in 318 s. Landmarks_V3 112 A955AFE0, Fauna_Fingerprint 66320C7C.
+    - The failure is `LyingTests.Lying_LegsStayAboveGround_FlatAndSlope`, which came in from main with A-92 (#231). OcotilloMimic reads -0.051 m on the 0.33 slope (lie 0.85), and every other species is >= -0.005.
+    - This row only touches the shader, which has no part in leg placement. It looks like a main or animal-lane issue: OcotilloMimic was probably not in A-92's species list when it was measured. Over to the supervisor.
+  - **Next:** row 4 (glowing town at distance).
