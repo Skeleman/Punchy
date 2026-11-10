@@ -4250,3 +4250,19 @@ Built in the player tree, not the one the card names (the world tree's gitignore
   - **Suite + pins** (editor open, async PlayMode): 24/24 passed. Pins held: Landmarks_V3 112 A955AFE0, Fauna_Fingerprint 66320C7C. FolkConversationTests.LiveFolk_Answer passed in this run.
   - **Not done:** spores, campfires, colossus eyes and lanterns are not static bake sources, so they have no far points yet; Creature has a row in the table, unused. Vantages T1500, E0500 and E1500 frame close trees. Tonight's fire colour is cyan, so the Ember Forest points read cyan-white.
   - **Merge note:** CaveSystem.cs (CRLF kept) changes one constant and adds one call. The rename is git mv. No ProjectSettings or renderer-asset changes. Unity re-saved SmallBasalt.asset in the tree; I left it uncommitted.
+
+## W-133 row 1 - #213 water round 3 merged with main: done (verified)
+- Commit 7a5dd09e on water/round3 (pushed; merge of origin/main, no rebase). Still merges cleanly with today's main (30ed6629, checked with merge-tree).
+- Resolution: Sky.shader takes main's body (R-8 low-res clouds, sky volumes LUT, -skyoff bits) with one change, the underwater early-out returns the fog colour plus `PunchyUnderwaterShafts(...)`. Sky.hlsl keeps both: round 3's shafts function and main's R-8 additions (`_PunchySkyVolumes`, `PunchySkyVolumesFromLut`, `_PunchyHazeClear`). Cloud shape untouched. Against main the sky code differs only on the underwater paths.
+- Compiles clean: player build 0 C# errors, 0 shader errors, no magenta in any shot.
+- Shots (Ultra, `-weatherseed 4`): PunchyMilestones/W-133/seed4-DevW (this branch) and seed4-DevB (main): sky-noon, sky-sunset, lava-above, under-lava, under-sea, under-swamp, shafts-1m/6m/18m. All 10 ShotTool checks good. Side by side: seed4-water-left-main-right.jpg.
+- Sky unchanged vs main: mean abs diff of the top band, branch vs main noon 24.8/14.4/2.8, sunset 7.4/6.3/14.9. Main vs a second main run gives the same numbers (24.7/14.4/2.8, 7.4/6.3/14.8): one big cumulus differs run to run (shot timing), everything else matches. Boot view 1.2/0.9/0.5.
+- Shaft GPU ms (1920x1080 windowed, uncapped, `-perflog`, (1460, 257), 11:00 clear; second, warm pass of each line; on vs `-noshafts`):
+
+| Preset | 2 m on | 2 m off | 10 m on | 10 m off |
+|---|---|---|---|---|
+| Ultra | 5.09 | 4.98 | 5.16 | 4.88 |
+| High | 3.95 | 4.35 | 3.75 | 4.41 |
+
+  Ultra: shafts about +0.1 to +0.3 ms. High: inside the noise (off measured higher than on). First-pass lines vary by up to 0.9 ms.
+- **Main's player build is broken (not this merge):** DebugControls.DungeonWalk.cs (A-95) calls the editor-only TestHooks at lines 146, 158, 418, 419 (CS0103), so `BuildPlayer` fails on main as is. I built with a local, uncommitted stub and restored it after. Owner of A-95 should guard those calls with `#if UNITY_EDITOR`.
