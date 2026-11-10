@@ -162,3 +162,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-10: R-7 row 5 merged #234 (atlas 140 -> 39 MB). Punchy-world free -> R-9 water/deform started there.
   To check: magenta (missing-shader) props on the R-7 hilltop view (PunchyMilestones/R-7/r5/before/hilltop-imp.png), pre-date R-7; owner unknown.
 - 11-10: R-8 merged #235 (rows 1-3). R-10 started in Punchy-release (light/forwardplus): row 2 does Flora + built first; creature + water shaders wait for A-92 / R-9 merges (tell the R-10 agent when they land). W-130 (magenta slabs) is a side task of the R-9 agent.
+- 11-10: W-130 merged #236 (magenta slabs = R-7 impostors failing to compile on D3D11). Any build made from main between #233 and #236 has magenta far shrubs.
