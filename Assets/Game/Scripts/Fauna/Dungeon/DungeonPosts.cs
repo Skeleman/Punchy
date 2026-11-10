@@ -28,6 +28,8 @@ namespace Punchy.Fauna
         /// <summary>Set once a log line has been written, so each post logs once per drink or approach.</summary>
         public bool Logged;
         public FixedString32Bytes Name;
+        /// <summary>A-91 row 4: the dungeon it was spawned for (its DungeonInfo.Id), so DungeonState can tell when it's cleared.</summary>
+        public uint Dungeon;
 
         public static DungeonPost From(in DungeonSocket s, DungeonContent c)
         {
