@@ -9,7 +9,7 @@ namespace Punchy.Tests
     /// <summary>
     /// A-94 row 1: the cold-breath size curve (CreatureBreathSystem.ShapeFor, A-90 / #226) read straight off the code, no
     /// scene: small bodies breathe smaller puffs and less vapour per exhale on a quicker beat, fliers carry little of
-    /// their velocity (no trail), and bodies below the smallest size show none. Targets from A-90's card and its
+    /// their velocity and breathe each exhale out in one burst (no trail), and bodies below the smallest size show none. Targets from A-90's card and its
     /// REPORTS table. The bodies are the -breathlog sizes of a songbird, an arctic fox, a deer and a horse (StandHeight,
     /// BodyLength at the species' middle size, m) and A-90's colossus-sized body (8 m tall, 12 m long).
     /// </summary>
@@ -44,6 +44,7 @@ namespace Punchy.Tests
         }
 
         static float Carry(float fly) => (float)System.GetMethod("Carry", BindingFlags.Public | BindingFlags.Static).Invoke(null, new object[] { fly });
+        static float ExhaleFor(float exhale, float fly) => (float)System.GetMethod("ExhaleFor", BindingFlags.Public | BindingFlags.Static).Invoke(null, new object[] { exhale, fly });
 
         /// <summary>
         /// Target (A-90 row 1): along songbird &lt; fox &lt; deer &lt; horse, puff size and vapour per exhale rise and the
@@ -81,6 +82,10 @@ namespace Punchy.Tests
             Assert.That(person.Every / bird.Every, Is.GreaterThanOrEqualTo(3f), "a songbird's beat against a person's (A-90: about 4x)");
             Assert.That(Carry(1f), Is.LessThanOrEqualTo(0.1f), "a flier's wisps carry too much of its velocity (a trail)");
             Assert.That(Carry(0f), Is.EqualTo(0.85f).Within(1e-4f), "a walker's carry changed");
+            // (A-94 row 2: a flier's wisps come out in one burst, a dot where it breathed, not a dotted line along its flight.)
+            var horse = shapes[3];
+            Assert.That(ExhaleFor(horse.Exhale, 1f), Is.LessThanOrEqualTo(0.1f), "a flier's exhale is long enough to draw a dotted trail");
+            Assert.That(ExhaleFor(horse.Exhale, 0f), Is.EqualTo(horse.Exhale).Within(1e-5f), "a walker's exhale changed");
             Assert.IsTrue(bird.Shows, "a songbird's breath no longer shows");
             Assert.IsFalse(tiny.Shows, "a body under the smallest size still shows breath");
         }
