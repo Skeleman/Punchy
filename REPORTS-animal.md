@@ -3344,3 +3344,37 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
   - Magenta check: the editor runs D3D11. Creature.shader isSupported = true, with no errors (one existing warning, "potentially uninitialized Material", at line 256, outside this change). No magenta in any shot.
   - [shot] D:/Unity/PunchyMilestones/A-97/row2-sheet.png: 9 subjects x (noon before/after, dusk before/after). Before = -nosurfaces, at 12 h and 18 h. Subjects: horse hoof, wolf eye, caribou antler (deer have none), ogre tusk (no mammoth creature), lizard, garter snake, crow, cap beetle, frog. Single shots are in row2/.
   - Risk: the eye catchlight is a fixed view-relative glint, so it is visible at night too (lit by the SH ambient only).
+- **Row 2b (Fur length + cost): done (verified).** Branch fauna/surfaces, commit 44f7b582. Changed: Creature.shader, DetailPolicy.cs, CreatureRenderSystem(.Passes).cs, CreatureAnimator.cs, and the Horse/RedFox/Squirrel assets.
+  - Short fur has no shells. Medium is unchanged (same code path). Long has a 1.8x shell offset, droop and clumped shell clipping.
+  - Length is set per species, with an optional override per limb part. The order is part override, then segment, then species. Variants follow their base asset.
+    - Squirrel: Short body, Long tail. This also covers Dormouse, GlimmerSquirrel and VoltMouse.
+    - RedFox: Medium body, Long tail. This also covers ArcticFox and EmberFox.
+    - Horse: Short body, Long mane and tail.
+  - Saving the assets also wrote the default values of the Gallop and Coat fields into them.
+  - Inventory (rows that changed; the other 113 are as in row 1):
+
+| Species | Before | After |
+|---|---|---|
+| RedFox, ArcticFox, EmberFox | FurM 18 | FurM 15, FurL 3 |
+| Squirrel, Dormouse, GlimmerSquirrel, VoltMouse | FurM 17 | FurS 14, FurL 3 |
+| Horse | FurM 21 | FurS 18, FurL 3 |
+
+  - Cost (rule 20): the cut-offs now go through DetailPolicy.ScreenSize, scaled by view.Detail, with hysteresis. The fixed metre ranges are gone (FootDetail and ShellRange are removed).
+    - CreatureFur = Thresholds(187.1, 133.6, 0) px at a 1 m reference. That is Long fur within 5 m and shells within 7 m for a 1 m creature at 60 deg FOV. Long falls back to Medium, and Medium to Short.
+    - CreatureFeetPixels = 21.5 px. That is a wolf (0.92 m) at 40 m, the same as today's cut-off.
+    - Seams are drawn only at geometry level 0.
+    - Shells are drawn only for draw groups that are inside the threshold (8 groups, shells for groups < 2).
+  - ms (Frames 1920x1080, a herd of 11 specimens on a slope, median of 7x30 frames per round, 4 alternating rounds unless noted):
+
+| Scene | Off | On | Difference |
+|---|---|---|---|
+| Herd, camera 6 m, surfaces | -nosurfaces 5.56 / 6.33 / 7.19 / 5.32 | 5.50 / 5.82 / 6.13 / 7.66 | noise |
+| Herd, camera 6 m, shells | -noshells 5.20 / 5.10 / 4.74 / 5.12 | 5.09 / 4.70 / 4.75 / 4.87 | noise |
+| Herd, camera 20 m, surfaces | -nosurfaces 5.18 / 5.42 / 6.14 / 5.65 | 6.06 / 6.32 / 5.74 / 4.97 | noise |
+| Herd, camera 20 m, shells (none in range; 3 rounds) | -noshells 5.89 / 5.83 / 5.76 | 5.98 / 5.85 / 4.60 | noise |
+
+  - Surfaces stay on at Medium, because they cost less than the noise.
+  - Fauna_Fingerprint 66320C7C held on every replay. Landmarks_V3 will be checked by the PlayMode suite before the final handoff.
+  - [shot] D:/Unity/PunchyMilestones/A-97/row2b-sheet.png (noon): squirrel, fox, fox tail, horse, horse mane, bear, wolf, and the ogre as the mammoth stand-in (there is no mammoth creature). Single shots are in row2b/.
+  - The squirrel-tail close-up missed the tail; the squirrel body shot shows it. The wolf pair at 6.5 m and 7.5 m (60 deg FOV) is framed too far out to judge the shell edge.
+  - A stray folder, D:/d, holds a misplaced test shot from this card. Deleting it needs the user's approval.
