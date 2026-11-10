@@ -145,3 +145,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 11-09: merged #223 T-1 shot tool -> main 2ba4ec56. R-5 started in Punchy-world. Next: job 41 result -> card a stall fix; W-128 report.
 - 11-09: merged #224 shadow/wide (R-5 row 1) -> main f46a65f9. Row 2 (FarShadow retirement) on local Punchy-world branch r5-row2-wip ac1b326e: blocked by untracked WorldProbe.cs using FarShadow; asked Zach. R-6 (lod/big) started in Punchy-world; R-5 side notes folded into R-6.
 - 11-09: Zach OK'd trimming WorldProbe; removed its FarShadow probe (untracked, Punchy-world). R-6 agent cherry-picks ac1b326e onto lod/big as 'R-5 row 2'.
+- 11-09 evening: Zach will install more RAM. Pause after R-6 (WideShadow destroyed-mesh fix + shrub streaming numbers) finishes: no new agents or editors; make sure all Unity editors are closed. Queued for after: white-splotch card (pre-bloom NaN/overbright debug view), W-128 merge awaits Zach on the marsh village move.
