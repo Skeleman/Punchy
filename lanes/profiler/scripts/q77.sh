@@ -9,7 +9,7 @@
 # "q77.sh High|Medium"; no argument runs both.
 B=$HOME/Projects/Punchy-wt/Tools/bench
 . "$B/lib.sh"
-K=9bae987; O=Profile-${K}; Q=q77
+K=9bae987; O=Profile-${K}s; Q=q77   # the q78 build: same commit, runner b/bench-stress 34abe6ac (adds -benchnossao only)
 S=$HOME/Projects/Punchy-coordination/lanes/profiler/scripts
 mkdir "$R/.lock" 2>/dev/null || { echo "lock held: $(cat $R/.lock/job)"; exit 2; }
 echo $$ > "$R/.lock/pid"; echo "$Q 47a trees $1 (since $(date +%T))" > "$R/.lock/job"
