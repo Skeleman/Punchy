@@ -159,7 +159,11 @@ namespace Punchy.Fauna
                 }
                 else
                     centre = part.Position + math.mul(part.Rotation, new float3(0f, 0f, part.Length * 0.5f));
-                Punchy.Settings.LightBudget.Add(Punchy.Settings.LightKind.Carried, entities[i].Index, centre, torch ? TorchLight : LanternLight);
+                var carried = torch ? TorchLight : LanternLight;
+                // (A player's torch: its reach is the item's, ItemDef.Light.)
+                if (torch && states[i].Mode == CreatureMode.Puppet)
+                    carried.w = Punchy.Items.ItemTable.Items[Punchy.Items.ItemTable.Torch].Light;
+                Punchy.Settings.LightBudget.Add(Punchy.Settings.LightKind.Carried, entities[i].Index, centre, carried);
             }
             Pass(8);
             if (ForceNeedCues)
@@ -499,7 +503,7 @@ namespace Punchy.Fauna
                         GroupStarts[nextGroup++] = total;
                     Offsets[i] = total;
                     total += body.SegmentCount + MarkCount + (InWeb(state) ? WebCount : 0) + LairCount(ref body.Blob.Value) +
-                             (state.Task == CreatureTask.Hunt ? 1 : 0) + HeldCount(state.Held, state.Task) + GearCount(state.Task);
+                             (state.Task == CreatureTask.Hunt ? 1 : 0) + HeldCount(state.Held, state.Task) + GearCount(state.Task) + WornCount(state.Worn);
                     if (state.Mode == CreatureMode.Roost && state.Stage == 200)
                         Hanging.Add(state.Position);
                     // (Bodies of players emoting: their gestures scatter colonies.)

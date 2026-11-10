@@ -23,6 +23,11 @@ namespace Punchy.Items
         public Color Colour, Accent;
         public int Stack;
         public float Weight;
+        /// <summary>P-23: where it's worn (None: not gear), and what it gives: the reach of its light (m), of the wearer (m),
+        /// its cover from the weather (0..1), extra inventory slots.</summary>
+        public GearSlot Slot;
+        public float Light, Reach, Cover;
+        public int Slots;
     }
 
     /// <summary>The item table (#26, P-11). An item's id is its index here; never reorder, only append.</summary>
@@ -38,8 +43,12 @@ namespace Punchy.Items
             new ItemDef { Name = "Fish", Colour = new Color(0.4f, 0.6f, 0.75f), Accent = new Color(0.3f, 0.42f, 0.55f), Stack = 5, Weight = 0.8f },
             new ItemDef { Name = "Coin", Colour = new Color(1f, 0.8f, 0.2f), Stack = 99, Weight = 0.01f },
             new ItemDef { Name = "Key", Colour = new Color(0.8f, 0.7f, 0.3f), Stack = 5, Weight = 0.05f },
+            new ItemDef { Name = "Torch", Colour = new Color(0.42f, 0.28f, 0.15f), Accent = new Color(1f, 0.55f, 0.15f), Stack = 1, Weight = 0.6f, Slot = GearSlot.Hand, Light = 11f },
+            new ItemDef { Name = "Staff", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.72f, 0.66f, 0.5f), Stack = 1, Weight = 1.2f, Slot = GearSlot.Hand, Reach = 0.5f },
+            new ItemDef { Name = "Hat", Colour = new Color(0.62f, 0.5f, 0.3f), Accent = new Color(0.36f, 0.24f, 0.16f), Stack = 1, Weight = 0.2f, Slot = GearSlot.Head, Cover = 0.3f },
+            new ItemDef { Name = "Pack", Colour = new Color(0.42f, 0.33f, 0.2f), Accent = new Color(0.25f, 0.18f, 0.12f), Stack = 1, Weight = 1.5f, Slot = GearSlot.Back, Slots = 8 },
         };
-        public const byte Key = 7;
+        public const byte Key = 7, Torch = 8, Staff = 9;
     }
 
     /// <summary>Client → host: pick up world item Uid.</summary>
@@ -91,7 +100,7 @@ namespace Punchy.Items
         readonly HashSet<int> gone = new HashSet<int>();
         readonly Dictionary<int, WorldItem> added = new Dictionary<int, WorldItem>();
         readonly HashSet<int> openedChests = new HashSet<int>();
-        readonly (byte item, int count)[] slots = new (byte, int)[16];
+        readonly (byte item, int count)[] slots = new (byte, int)[BaseSlots + MaxExtraSlots];
         BlobAssetReference<AnchorSetBlob> seededFor;
         readonly HashSet<Entity> sentTo = new HashSet<Entity>();
         World server, client;
@@ -144,6 +153,7 @@ namespace Punchy.Items
             instance.putArg = System.Array.IndexOf(args, "-putitem") >= 0;
             instance.takeArg = System.Array.IndexOf(args, "-takeitem") >= 0;
             instance.QuestArgs(args);
+            instance.GearArgs(args);
             instance.CheckArgs(args);
         }
 
@@ -215,6 +225,9 @@ namespace Punchy.Items
             ContainerTests();
             UpdateQuests(terrain);
             Tests(terrain);
+            GearTest();
+            GearLootTest();
+            ApplyGear();
             PadTest();
             UpdateInventoryKeys();
             Draw();
@@ -401,14 +414,14 @@ namespace Punchy.Items
         void Grant(byte item, int count)
         {
             var stack = ItemTable.Items[item].Stack;
-            for (int i = 0; i < slots.Length && count > 0; i++)
+            for (int i = 0; i < Capacity && count > 0; i++)
                 if (slots[i].item == item && slots[i].count < stack)
                 {
                     var n = math.min(count, stack - slots[i].count);
                     slots[i].count += n;
                     count -= n;
                 }
-            for (int i = 0; i < slots.Length && count > 0; i++)
+            for (int i = 0; i < Capacity && count > 0; i++)
                 if (slots[i].item == 255)
                 {
                     var n = math.min(count, stack);
@@ -514,6 +527,7 @@ namespace Punchy.Items
         void Serve()
         {
             var em = server.EntityManager;
+            ServeGear(em);
             using (var rs = Q(em, ComponentType.ReadWrite<PickupRpc>(), ComponentType.ReadWrite<ReceiveRpcCommandRequest>()).ToEntityArray(Allocator.Temp))
                 foreach (var r in rs)
                 {
@@ -582,6 +596,7 @@ namespace Punchy.Items
             Each(em, joined, onContainerSlot ??= ReceiveContainer);
             Each(em, joined, onQuestState ??= ReceiveQuestState);
             Each(em, joined, onChestOpened ??= OnChestOpened);
+            Each(em, joined, onGearState ??= OnGearState);
         }
 
         System.Action<ItemGoneRpc> onItemGone;
@@ -590,6 +605,7 @@ namespace Punchy.Items
         System.Action<ContainerSlotRpc> onContainerSlot;
         System.Action<QuestStateRpc> onQuestState;
         System.Action<ChestOpenedRpc> onChestOpened;
+        System.Action<GearStateRpc> onGearState;
 
         /// <summary>Each RPC of type T that has come in: handled (on a joined client only) and used up.</summary>
         void Each<T>(EntityManager em, bool joined, System.Action<T> act) where T : unmanaged, IRpcCommand
@@ -739,16 +755,17 @@ namespace Punchy.Items
             if (nav.Active && nav.Focus != lastFocus)
             {
                 lastFocus = nav.Focus;
-                (byte item, int count) s = nav.Focus < slots.Length ? slots[nav.Focus] : ((byte)255, 0);
+                (byte item, int count) s = nav.Focus < Capacity ? slots[nav.Focus] : ((byte)255, 0);
                 Debug.Log($"Items: inventory slot {nav.Focus} ({(s.item == 255 ? "empty" : $"{ItemTable.Items[s.item].Name} x{s.count}")})");
             }
             selected = nav.Focus;
             if (target < 0 && targetChest < 0 && targetContainer < 0 && UseKey.WasPressed())
             {
-                if (openContainer >= 0 && selected >= slots.Length) TakeFromContainer(openContainer, selected - slots.Length);
+                if (openContainer >= 0 && selected >= Capacity) TakeFromContainer(openContainer, selected - Capacity);
                 else if (openContainer >= 0) Put(selected);
-                else Drop(selected);
+                else if (selected < Capacity) Drop(selected);
             }
+            EquipKeys();
         }
 
         /// <summary>
@@ -932,13 +949,14 @@ namespace Punchy.Items
             slotStyle ??= new GUIStyle(GUI.skin.button) { fontSize = 13, alignment = TextAnchor.LowerCenter, wordWrap = true };
             const float cell = 74f, gap = 6f;
             var w = 4 * cell + 5 * gap;
-            var area = new Rect(Screen.width - w - 20f, Screen.height * 0.25f - 28f, w, 4 * (cell + gap) + gap + 28f);
+            var rows = Capacity / 4;
+            var area = new Rect(Screen.width - w - 20f, Mathf.Max(8f, Screen.height * 0.25f - 28f - (rows - 4) * cell), w, rows * (cell + gap) + gap + 28f);
             // (P-20: the button for the device in use: the Use key, or A on a pad.)
             GUI.Box(area, $"Inventory   ({(InputGlyphs.Gamepad ? InputGlyphs.Path("<Gamepad>/buttonSouth") ?? "A" : UseKey.Current.ToString())}: drop one)");
             var colour = GUI.color;
             nav.Begin();
             GUILayout.BeginArea(new Rect(area.x + gap, area.y + 28f, w - 2 * gap, area.height - 28f));
-            for (int row = 0; row < 4; row++)
+            for (int row = 0; row < rows; row++)
             {
                 GUILayout.BeginHorizontal();
                 for (int col = 0; col < 4; col++)
@@ -951,6 +969,7 @@ namespace Punchy.Items
                         if (openContainer >= 0) Put(i);
                         else Drop(i);
                     }
+                    RightClickEquip(GUILayoutUtility.GetLastRect(), i);
                     if (s.item != 255 && Event.current.type == EventType.Repaint)
                     {
                         var rect = GUILayoutUtility.GetLastRect();
@@ -965,6 +984,7 @@ namespace Punchy.Items
             }
             GUILayout.EndArea();
             DrawContainerPane(cell, gap, area);
+            DrawWorn(area, cell, gap);
             DrawQuestLog(area);
             nav.End();
             GUI.color = colour;

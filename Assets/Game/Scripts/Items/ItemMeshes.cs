@@ -50,6 +50,10 @@ namespace Punchy.Items
                 case "Fish": Fish(k); break;
                 case "Coin": k.Tube(0, new Vector3(0f, 0.005f, 0f), new Vector3(0f, 0.03f, 0f), 0.09f, 0.09f, 12); break;
                 case "Key": Key(k); break;
+                case "Torch": k.Tube(0, new Vector3(0f, 0.03f, -0.3f), new Vector3(0f, 0.03f, 0.2f), 0.025f, 0.035f); k.Blob(1, new Vector3(0f, 0.04f, 0.26f), new Vector3(0.055f, 0.05f, 0.09f), 5u); break;
+                case "Staff": k.Tube(0, new Vector3(0f, 0.03f, -0.55f), new Vector3(0f, 0.03f, 0.5f), 0.02f, 0.028f); k.Blob(1, new Vector3(0f, 0.035f, 0.54f), new Vector3(0.05f, 0.05f, 0.05f), 7u); break;
+                case "Hat": k.Dome(1, new Vector3(0f, 0.02f, 0f), 0.22f, 0.02f); k.Dome(0, new Vector3(0f, 0.03f, 0f), 0.12f, 0.13f); break;
+                case "Pack": k.Blob(0, new Vector3(0f, 0.15f, 0f), new Vector3(0.17f, 0.15f, 0.11f), 0u, 5, 8); k.Blob(1, new Vector3(0f, 0.25f, 0.01f), new Vector3(0.16f, 0.05f, 0.11f), 0u, 4, 8); k.Tube(1, new Vector3(-0.12f, 0.02f, 0.1f), new Vector3(-0.12f, 0.25f, 0.1f), 0.018f, 0.018f, 4); k.Tube(1, new Vector3(0.12f, 0.02f, 0.1f), new Vector3(0.12f, 0.25f, 0.1f), 0.018f, 0.018f, 4); break;
                 default: k.Blob(0, new Vector3(0f, 0.1f, 0f), new Vector3(0.1f, 0.1f, 0.1f), 3u); break;
             }
             return k;

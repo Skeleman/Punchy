@@ -492,6 +492,12 @@ namespace Punchy.Fauna
         Ogre
     }
 
+    /// <summary>Bits of CreatureState.Worn.</summary>
+    public static class CreatureWorn
+    {
+        public const byte Hat = 1, Pack = 2;
+    }
+
     public enum HeldItem : byte
     {
         None,
@@ -674,6 +680,8 @@ namespace Punchy.Fauna
         public int Holder;
         /// <summary>What it has in hand (folk: a lantern at night). Replicated; each machine draws it.</summary>
         public HeldItem Held;
+        /// <summary>What a player's body has on besides (CreatureWorn bits, P-23). Not sent: each machine sets it (Items.ApplyGear).</summary>
+        public byte Worn;
 
         /// <summary>The need cue it shows (NeedCue: none, tired, hungry, thirsty, lonely): its strongest need past 0.6,
         /// set by the brain (CreatureBrainSystem.Needs) and replicated as one byte, so clients draw the same cue (#64).</summary>
