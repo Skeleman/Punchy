@@ -2,6 +2,76 @@
 
 Newest first.
 
+## Job 45b: R-10 row 4c (light/forwardplus 8263a9b5, far lights), 2026-11-10 (q76.sh)
+**Setup:**
+- Profile builds, 1920x1080, `-gfx High`, uncapped, `-weatherseed 4`, Clear, 22:00, D3D11, a fresh game per run, ABBA
+  (2 rounds per view).
+- Spot `-benchspot 2988.8,-920`, facing north (yaw 0) and yaw 201.
+- **Arms:**
+  - 8263a9b5: default, `-lightbudget 0`, `-lightbudget 64`, `-townglow 0`;
+  - **the branch's base 18df736a**, so R-10 is measured against its own base;
+  - main ef393625 (06b2a72b and later don't build a player).
+
+**The Ember Forest isn't in view from this spot,** so the second view is the town facing southwest, not the forest:
+- `-benchplace EmberForest:` puts the forest's BoneGraveyard at 2009,-2262, which is yaw 216 and 1.66 km away. I used
+  yaw 201.
+- A shot at yaw 216 shows only the town, cactus desert and the horizon. At ground level the buildings and terrain hide the
+  forest; at night it shows clearly up close, with blue flame tips on its trees.
+- Measuring its far lights needs a spot with a line of sight (see Next).
+
+**Bench, mean GPU ms (rounds in brackets):**
+| arm | north | southwest (yaw 201) |
+|---|---|---|
+| default | 16.0 (16.0, 16.0) | 15.05 (15.0, 15.1) |
+| `-lightbudget 0` | 15.85 | 15.05 |
+| `-lightbudget 64` | 16.05 | 15.1 |
+| `-townglow 0` | 15.95 | 15.1 |
+| base 18df736a | 15.7 (15.6, 15.8) | 14.0 (14.4, 13.6) |
+| main ef393625 | 15.2 (15.2, 15.2) | 15.35 (15.2, 15.5) |
+
+**Pass lines (default <= +0.5 ms):**
+- **Against main:** north +0.8, **FAIL**; southwest −0.3, pass.
+- **Against its own base:** north +0.3, pass; southwest +1.05, **FAIL**. The base's two rounds differ by 0.8 ms there, so
+  ±0.4 ms is the noise.
+- **The light flags:** lights 0, 48 and 64 and the town glow are again within 0.2 ms of each other in both views. Neither the
+  budget nor the town glow is what costs.
+- **Base against main:** the base is 0.5 ms slower than main facing north and 1.35 ms faster facing southwest. The three
+  merges between them (impostor trees, breath check, far ring) move the cost each way by view. So comparing a branch to
+  main mixes those merges in with the branch's own change.
+
+**RenderDoc (one frame each, RenderDoc ms):**
+| | north: base / R-10 / main | southwest: base / R-10 / main |
+|---|---|---|
+| frame | 47.1 / 47.7 / 48.3 | 46.7 / 47.9 / 48.6 |
+| DrawOpaqueObjects | 23.7 / 24.5 / 23.8 | 23.9 / 25.0 / 24.5 |
+| prepass | 13.0 / 13.0 / 13.4 | 12.6 / 12.6 / 13.5 |
+| transparent | 1.7 / 1.7 / 2.5 | 1.3 / 1.4 / 2.2 |
+| Wide shadow | 0 / 0 / 0 | 0.68 / 0.65 / 0 |
+
+**R-10's own cost:**
+- About +0.8 RenderDoc ms in the opaque pass facing north and +1.1 facing southwest. That's roughly +0.3 to +0.4 ms real,
+  probably the far light points (one draw).
+- Everything else matches the base.
+- Main's frame is the heaviest in RenderDoc both ways, though it's the fastest in the north bench. One RenderDoc frame
+  doesn't settle a 0.5 ms question; the bench rounds are the numbers to use.
+
+**Verdict:**
+- R-10 4c costs about +0.3–0.4 ms GPU at this spot against its own base, inside the +0.5 bar. Most of that is the opaque
+  pass, likely the far points.
+- The FAIL against main facing north is mostly the base, not R-10. **Rebasing light/forwardplus on today's main** would make
+  the main comparison meaningful.
+
+### Next
+- **45c (if the supervisor wants the forest itself):** a spot that sees the Ember Forest, such as 500 m and 1.5 km out on
+  open ground, or raised, which is R-10's own shot plan. Measure default against `-lightbudget 0` and the base there.
+- Then job 47a. Before that, a RenderDoc capture at the bench's cave stop to answer Zach's question of whether the sky
+  passes still run underground.
+
+Files (Punchy-wt results): q76.out, q76-*.csv, q76logs/, q76-shots/ (including emberfind/ and ember216/), rd76/*.rdc,
+q76-passes.txt.
+
+Cost: this job about $5 (laptop session 0a48ccdb; 2 builds, 26 games, 6 captures); laptop total $700.
+
 ## For the supervisor, 2026-11-10 15:45: systems still on raw distance (rule 20 not applied); Zach asks for a migration
 Zach has been giving direction in the profiler's session today. It's all recorded in the R-9 / cave notes below:
 - the wake's leading swell;
