@@ -386,3 +386,32 @@ No stamina exists, so no hook for it.
 UNVERIFIED: the Stats tab itself and the F2 key were not exercised (the shot tool draws only the 3D view; -statgrant goes through the same Grant), and enforceCarry true was not run.
 Suite: 15 passed, 0 failed, 7 skipped in 228 s.
 Next: P-26 once A-93 row 1 is merged. P-25 row 3's prototype waits for the supervisor's answer on the house kit. P-23 and P-24 are still drafts.
+
+## P-26: talking to folk (rows 1, 2 and 3 DONE together, b5343e03 on player/talk, from main with player/doors merged in)
+Branched from main and merged P-25's branch, because the card reuses its prompt rules (DoorPick). P-25 needs to merge first, or goes in with this.
+
+Measured in builds, from the log (Use pressed by the test, not a real key, except the pad row):
+- Pass line, 10 folk from the front: window open on 10 of 10, worst 9 ms. Folk stopped and faced the player 10 of 10 (Greet stage 2, speed under 0.2, facing dot 1.00).
+- Gesture: sent on 3 of 3 folk, and the folk's action read Wave half a second later. A folk still walking when the gesture arrives drops it (Fidget), so it only plays after the first half second or so.
+- Joined client against a host on this PC: opened 3 of 3, worst 11 ms; each folk stopped and took the gesture through FolkTalkRpc.
+- Rabbit: no window; the reaction goes up over the folk's head, 6 of 6, worst 10 ms. Reactions and responses came from A-93 (Pet, Wary, BackOff, Approach, Feed).
+- Offers: a quest and a gift each accepted. The quest went into the quest list (a board slot); the gift put 3 Berry in the inventory. A gift is once per folk per session.
+- Met again: greeting changes, and the first topic moves from "who" to "how".
+- Virtual pad: RB opens, d-pad down moves, A picks, B ends with no main menu, left stick walks away. Right stick held 1 s during a talk: camera 0.00 degrees, player 0.000 m.
+- Shots (whole screen, window included, new "-talkshot dir"): a human talk (8 topics, the card said 3 as an example), quest offered and accepted, gift accepted, a rabbit meeting a folk. The same individual wasn't guaranteed across the human and animal runs.
+
+Changes outside the talk code:
+- FolkTalkSystem: CanTalk and Head made public (animal lane's file, visibility only).
+- Overlay.AnyOpen is also true during a talk, so the camera, cursor, emote keys and prompts all hold.
+- Quest boards: Offers now holds every quest after the ones the board posts (Posted), so a folk's quest has a slot on the existing host path. Boards still show only the posted ones.
+
+Not what the card said:
+- "Greet you by name": the game has no player name, so the second greeting is "Oh, it's you again." Folk names are new: StreamingAssets/folk-names.json, picked by Individual, the same on every machine.
+- "Sized by the UI scale option": no such option exists, so text is sized by screen height, as the walk-by lines are. Not looked at on a laptop screen.
+- The card said a client sends nothing; A-93's Respond and the stop need the host, so what the folk does is sent (STATE said this). The words stay local. The favour cooldown stays per machine.
+- A folk's quest is handed in at the nearest notice board to where it was taken. The window names that town.
+- An animal offered a berry (Feed) gets the folk walking up and the line, not the berry.
+
+UNVERIFIED: real mouse clicks, keys 1-9, arrows, Enter, Esc and WASD (only the pad was driven, and only a virtual one); host playing as itself in a talk; laptop screen. On a freshly added virtual pad, the first RB press missed in 2 of 5 runs with the folk in reach and no door or item nearer; the next press worked. I didn't find why. The 10-folk pass line didn't go through the pad.
+Suite: 24 passed, 0 failed, 17 skipped in 330 s.
+Next: P-25 row 3's prototype waits for the answer on the house kit. P-23 and P-24 are still drafts.
