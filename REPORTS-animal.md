@@ -3212,6 +3212,33 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - Shots (800 px, noon, clear, avatar behind the camera): D:/Unity/PunchyMilestones/A-95/row1-temple.png (lever room: lever box, sconce box in the wall, the ledge), row1-cave.png (cave 1169493543 chest room), row1-ruin.png (pillar box 17 corner).
 - Next: row 2 (fix).
 
+### Row 2 - fix - done (verified)
+- Commit f31751d5 on fauna/dungeon-collision (pushed), on top of daadb490. Files: PlayerMovementSystem.cs, DungeonSpawner.cs, DebugControls.DungeonWalk.cs (all animal lane). Player-lane files touched: none. Kit boxes (CaveRoomKit, world lane) and shaders not touched.
+- Fixes:
+  1. Dungeon chests and stand-ins get box colliders (`DungeonPropBox` buffer, read as KitBox): walkers and fliers are kept out of them and stand on them. The socket never moves; only its box is nudged off a chest or out of a wall (`PropPlace`), so layouts, entrances and socket counts are unchanged.
+  2. A small body inside a dungeon box (set down there or slipped off its top) is lifted onto it, and the cave push-out no longer sinks a body on a low box back to the floor (the rabbit pinned between a rock pile and a temple step).
+  3. A slide along a dungeon box is also held to the kit walls (a rabbit slid into a ruin pillar beside a chest and walked free inside it).
+  4. Walk tool: a fall-through is now a floor crossed between two frames from open air (a crow swooping under a shelf read as a fall); a stuck flier sidesteps and climbs; socket goals on a box go to its top; flier line checks use the solid distance.
+- Same walk (`-dungeonwalk 5:Human,Rabbit,Crow:40`, Play Unfocused): 7 dungeons x 3 bodies, 46 problems (row 1: 66). Mid-fix walks had 1 fall + 1 stuck, then 0 + 1.
+
+| Type | falls | stuck | timeouts | ledge drops | body clips | cam clips | sockets in wall |
+|---|---|---|---|---|---|---|---|
+| Cave | 0 | 0 | 9 | 1 | 1 | 11 | 0 |
+| Ruin | 0 | 0 | 1 | 2 | 1 | 1 | 0 |
+| Temple | 0 | 0 | 7 | 0 | 1 | 1 | 1 |
+
+- Remaining, with why:
+  - Crow body through a Dungeon Cobweb (one cave, the ruin): cobwebs are non-solid decor by design.
+  - Crow body clip of temple solid at (3535.4, 22.8, 348.0), leg 18: a flier grazing a wall edge while circling; no stuck.
+  - Camera clips (mostly crow, 11 in caves): the camera passes rock behind the body; camera collision is outside this card.
+  - Temple Interactable socket at (3512.2, 17, 357): ~0.6 m headroom crawl space, too low for its box. The socket is player-lane data, left as is.
+  - Timeouts are route artifacts (stacked temple rooms at the same xz, flier legs circling: cave crow 9 circles); none is stuck. Ledge drops are a walker stepping off a ledge, not a fall-through.
+  - Socket boxes poking (box corner touching rock, middle clear): Human 36 cave / 3 ruin / 5 temple, same as row 1, cosmetic.
+- Frame time, deepest temple room (3534.6, 11.5, 351.1), High, -fpscap 0, `-perflog` (deep2 / deep3 avg ms, max): branch run 1 9.26 (11.3) / 9.57 (12.0), run 2 10.01 (13.6) / 17.23 (313.9 hitch); main run 1 9.18 (12.9) / 13.26 (154.6 hitch), run 2 10.12 (13.0) / 11.26 (14.7). Within noise; hitches on both sides.
+- Suite (scripts/run-playmode-tests.sh, after the last code change): "24 passed, 1 failed, 17 skipped in 359s". The one fail is LiveFolk_Answer ("Expected: String containing [who]"): the shared body pref was left on a beast body by the walk; that is the A-96 row 0 test fix (f8da2466 on fix/creature-sparkle), not yet in main, and unrelated to this branch.
+- Pins: Landmarks_V3 "112 A955AFE0" and Fauna_Fingerprint 66320C7C pass. Temple: 73 sockets, hash 81129C52, the same as before this branch (socket code untouched; 9C11B352 was the 68-socket hash before P-9 moved it, so the card's number is stale).
+- No shots (all 3 used by row 1).
+
 ## A-96
 
 ### Row 0 - LiveFolk_Answer ignores the saved body - done (verified)
