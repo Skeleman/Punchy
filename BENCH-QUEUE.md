@@ -349,3 +349,17 @@ runner (unlikely since b/fix-stall-hang).
 - Report: stalls per API (D3D11 vs D3D12), and for each stall which module the two threads sit in. If the main thread waits in
   Present or a fence: driver/render-thread side (I'll card a frame-latency or swapchain change). If it waits in a managed Monitor
   or Task wait: TakePregrown (I'll card the timeout fix). If too few stalls happen to tell, say so and stop at 24 games.
+
+## Job 42 (2026-11-09, QUEUED by the main-account supervisor): fix the Summit stall's swapchain wait (job 41)
+Job 41 caught the main thread in `WaitOnSwapChain` (WaitForLastPresentationAndGetTimestamp) on both D3D11 and D3D12, with the GPU
+idle, and any cdb attach wakes it: a missed wakeup on the waitable swapchain. Under the profiler self-fix rule, branch
+`b/fix-swapchain-stall` from main, and add start-up flags only (set from script at runtime; no ProjectSettings change):
+`-maxqueued N` (QualitySettings.maxQueuedFrames) and `-vsync N` (QualitySettings.vSyncCount). Then job 41's setup, 24 games
+per arm, shuffled, D3D11 default, until the first arm that is clearly better or all arms ran:
+- A: no flags (control). B: `-maxqueued 1`. C: `-maxqueued 3`. D: `-vsync 1`. E: `-force-d3d11-no-singlethreaded`.
+- Count stalls of 30 s or more per arm, and fps at the Summit stop when not stalled. Use cdb only to confirm a stall's stack, not
+  to end it: leave each stall up to 120 s, then kill the game by PID.
+- Pass: an arm with 0 stalls in 24 games that costs at most 3% fps. If one passes, make it the default in the branch (still from
+  script, behind a flag to turn it off), commit, push, and hand back on REPORTS-profiler.md; I review and merge. If none passes,
+  report the counts and stop: the next step would be a present-wait timeout card for the rendering lane.
+- Fix the runcsv `i` reuse bug from job 41 first, so per-game labels and logs are right.
