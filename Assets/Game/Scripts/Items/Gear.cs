@@ -10,7 +10,7 @@ using UnityEngine.InputSystem;
 namespace Punchy.Items
 {
     /// <summary>Where a piece of gear goes on the body (P-23); None for ordinary items.</summary>
-    public enum GearSlot : byte { None, Hand, Head, Body, Back }
+    public enum GearSlot : byte { None, Hand, Head, Body, Back, Legs, Feet }
 
     /// <summary>Client → host: what this player has on now (item ids; 255 for nothing).</summary>
     public struct GearRpc : IRpcCommand
@@ -18,11 +18,31 @@ namespace Punchy.Items
         public byte Hand, Head, Back;
     }
 
+    /// <summary>Client → host: the armour this player has on now (P-28 row 2; item ids, 255 for nothing). Apart from
+    /// GearRpc, which keeps its shape: a GearRpc grown to six places failed to read back in a Dev build.</summary>
+    public struct ArmourRpc : IRpcCommand
+    {
+        public byte Body, Legs, Feet;
+    }
+
     /// <summary>Host → everyone: what a player has on.</summary>
     public struct GearStateRpc : IRpcCommand
     {
         public int Player;
         public byte Hand, Head, Back;
+    }
+
+    /// <summary>Host → everyone: the armour a player has on.</summary>
+    public struct ArmourStateRpc : IRpcCommand
+    {
+        public int Player;
+        public byte Body, Legs, Feet;
+    }
+
+    /// <summary>What a player has on, place by place (item ids; 255 for nothing).</summary>
+    public struct GearSet
+    {
+        public byte Hand, Head, Back, Body, Legs, Feet;
     }
 
     /// <summary>Client → host → everyone: this player swung its weapon (P-28). From a client, Player is ignored (the host
@@ -38,7 +58,8 @@ namespace Punchy.Items
     /// its light, a pack's Slots are extra inventory rows; a staff's Reach and a hat's Cover are numbers for now, because
     /// the game has no use for them yet. Only an upright body with hands can wear gear. The body shows it through
     /// CreatureState.Held (torch, staff: drawn and lit as the folk's are, so a torch goes through LightBudget) and Worn
-    /// (hat, pack). A client tells the host, and the host tells everyone (GearRpc, GearStateRpc), so others see it.
+    /// (hat, pack). A client tells the host, and the host tells everyone (GearRpc, GearStateRpc; armour in ArmourRpc,
+    /// ArmourStateRpc), so others see it.
     /// Weapons (P-28 row 1) go in the hand too: their Damage, Reach and Speed are numbers, because the game has no
     /// fighting yet; the left mouse button (X on a pad, outside the inventory) swings one, a swing lasting 1/Speed s,
     /// drawn through CreatureState.Outfit and sent like the gear (SwingRpc).
@@ -51,9 +72,15 @@ namespace Punchy.Items
         const byte Nothing = 255;
         const int BaseSlots = 16, MaxExtraSlots = 8;
         /// <summary>What's on, by GearSlot.</summary>
-        readonly byte[] worn = { Nothing, Nothing, Nothing, Nothing, Nothing };
-        /// <summary>What each player has on (Hand, Head, Back), by network id: the host's word.</summary>
-        readonly Dictionary<int, (byte Hand, byte Head, byte Back)> gearOf = new Dictionary<int, (byte, byte, byte)>();
+        readonly byte[] worn = { Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing };
+        /// <summary>What each player has on, by network id: the host's word.</summary>
+        readonly Dictionary<int, GearSet> gearOf = new Dictionary<int, GearSet>();
+
+        GearSet Wearing => new GearSet
+        {
+            Hand = worn[(int)GearSlot.Hand], Head = worn[(int)GearSlot.Head], Back = worn[(int)GearSlot.Back],
+            Body = worn[(int)GearSlot.Body], Legs = worn[(int)GearSlot.Legs], Feet = worn[(int)GearSlot.Feet],
+        };
         readonly HashSet<Entity> gearSentTo = new HashSet<Entity>();
         string equipArg;
         bool gearLootArg, swingArg;
@@ -65,7 +92,10 @@ namespace Punchy.Items
 
         static HeldItem HeldFor(byte item) => item == ItemTable.Torch ? HeldItem.Torch : item == ItemTable.Staff ? HeldItem.Staff : HeldItem.None;
 
-        static byte WornBits(byte head, byte back) => (byte)((head != Nothing ? CreatureWorn.Hat : 0) | (back != Nothing ? CreatureWorn.Pack : 0));
+        static byte WornBits(byte head, byte back) => (byte)((head == ItemTable.Hat ? CreatureWorn.Hat : 0) | (back != Nothing ? CreatureWorn.Pack : 0));
+
+        /// <summary>How the body draws this piece of armour (ItemDef.Look; 0 for none or not armour).</summary>
+        static byte Look(byte item) => item == Nothing ? (byte)0 : ItemTable.Items[item].Look;
 
         bool CanWearGear()
         {
@@ -126,12 +156,15 @@ namespace Punchy.Items
 
         void GearChanged()
         {
-            byte hand = worn[(int)GearSlot.Hand], head = worn[(int)GearSlot.Head], back = worn[(int)GearSlot.Back];
-            Debug.Log($"Items: wearing hand {GearName(hand)}, head {GearName(head)}, back {GearName(back)}; {Capacity} slots; inventory: {DescribeInventory()}");
+            var g = Wearing;
+            Debug.Log($"Items: wearing hand {GearName(g.Hand)}, head {GearName(g.Head)}, back {GearName(g.Back)}, body {GearName(g.Body)}, legs {GearName(g.Legs)}, feet {GearName(g.Feet)}; armour {ArmourTotal():0}, worn {WornWeight():0.#} kg, carried {CarriedWeight():0.#} kg; {Capacity} slots; inventory: {DescribeInventory()}");
             if (Joined)
-                SendToHost(new GearRpc { Hand = hand, Head = head, Back = back });
+            {
+                SendToHost(new GearRpc { Hand = g.Hand, Head = g.Head, Back = g.Back });
+                SendToHost(new ArmourRpc { Body = g.Body, Legs = g.Legs, Feet = g.Feet });
+            }
             else if (Hosting)
-                HostSetGear(OwnNetworkId(), hand, head, back);
+                HostSetGear(OwnNetworkId(), g);
         }
 
         static string GearName(byte item) => item == Nothing ? "-" : ItemTable.Items[item].Name;
@@ -143,10 +176,31 @@ namespace Punchy.Items
             return q.IsEmpty ? 0 : q.GetSingleton<NetworkId>().Value;
         }
 
-        void HostSetGear(int player, byte hand, byte head, byte back)
+        void HostSetGear(int player, GearSet g)
         {
-            gearOf[player] = (hand, head, back);
-            Broadcast(new GearStateRpc { Player = player, Hand = hand, Head = head, Back = back });
+            gearOf[player] = g;
+            Broadcast(new GearStateRpc { Player = player, Hand = g.Hand, Head = g.Head, Back = g.Back });
+            Broadcast(new ArmourStateRpc { Player = player, Body = g.Body, Legs = g.Legs, Feet = g.Feet });
+        }
+
+        /// <summary>The armour numbers of everything on, added up (P-28 row 2: a number only, as nothing fights yet).</summary>
+        float ArmourTotal()
+        {
+            var total = 0f;
+            foreach (var item in worn)
+                if (item != Nothing)
+                    total += ItemTable.Items[item].Armour;
+            return total;
+        }
+
+        /// <summary>What everything on weighs (kg): counted with the inventory against the carry limit.</summary>
+        float WornWeight()
+        {
+            var total = 0f;
+            foreach (var item in worn)
+                if (item != Nothing)
+                    total += ItemTable.Items[item].Weight;
+            return total;
         }
 
         /// <summary>The host: clients' changes, and everything so far for whoever has just joined.</summary>
@@ -158,7 +212,12 @@ namespace Punchy.Items
                     var m = em.GetComponentData<GearRpc>(r);
                     var from = em.GetComponentData<ReceiveRpcCommandRequest>(r).SourceConnection;
                     if (em.Exists(from) && em.HasComponent<NetworkId>(from))
-                        HostSetGear(em.GetComponentData<NetworkId>(from).Value, m.Hand, m.Head, m.Back);
+                    {
+                        var id = em.GetComponentData<NetworkId>(from).Value;
+                        var g = gearOf.TryGetValue(id, out var was) ? was : Bare;
+                        (g.Hand, g.Head, g.Back) = (m.Hand, m.Head, m.Back);
+                        HostSetGear(id, g);
+                    }
                     em.DestroyEntity(r);
                 }
             using var connections = Q(em, ComponentType.ReadWrite<NetworkId>(), ComponentType.ReadWrite<NetworkStreamInGame>()).ToEntityArray(Allocator.Temp);
@@ -167,11 +226,48 @@ namespace Punchy.Items
                 if (!gearSentTo.Add(c))
                     continue;
                 foreach (var kv in gearOf)
+                {
                     Send(em, c, new GearStateRpc { Player = kv.Key, Hand = kv.Value.Hand, Head = kv.Value.Head, Back = kv.Value.Back });
+                    Send(em, c, new ArmourStateRpc { Player = kv.Key, Body = kv.Value.Body, Legs = kv.Value.Legs, Feet = kv.Value.Feet });
+                }
             }
         }
 
-        void OnGearState(GearStateRpc m) => gearOf[m.Player] = (m.Hand, m.Head, m.Back);
+        void OnGearState(GearStateRpc m)
+        {
+            var g = gearOf.TryGetValue(m.Player, out var was) ? was : Bare;
+            (g.Hand, g.Head, g.Back) = (m.Hand, m.Head, m.Back);
+            gearOf[m.Player] = g;
+        }
+
+        void OnArmourState(ArmourStateRpc m)
+        {
+            var g = gearOf.TryGetValue(m.Player, out var was) ? was : Bare;
+            (g.Body, g.Legs, g.Feet) = (m.Body, m.Legs, m.Feet);
+            gearOf[m.Player] = g;
+        }
+
+        /// <summary>Nothing on anywhere.</summary>
+        static GearSet Bare => new GearSet { Hand = Nothing, Head = Nothing, Back = Nothing, Body = Nothing, Legs = Nothing, Feet = Nothing };
+
+        /// <summary>The host: clients' armour (as ServeGear does their other gear).</summary>
+        void ServeArmour(EntityManager em)
+        {
+            using var rs = Q(em, ComponentType.ReadWrite<ArmourRpc>(), ComponentType.ReadWrite<ReceiveRpcCommandRequest>()).ToEntityArray(Allocator.Temp);
+            foreach (var r in rs)
+            {
+                var m = em.GetComponentData<ArmourRpc>(r);
+                var from = em.GetComponentData<ReceiveRpcCommandRequest>(r).SourceConnection;
+                if (em.Exists(from) && em.HasComponent<NetworkId>(from))
+                {
+                    var id = em.GetComponentData<NetworkId>(from).Value;
+                    var g = gearOf.TryGetValue(id, out var was) ? was : Bare;
+                    (g.Body, g.Legs, g.Feet) = (m.Body, m.Legs, m.Feet);
+                    HostSetGear(id, g);
+                }
+                em.DestroyEntity(r);
+            }
+        }
 
         /// <summary>Each frame: our own body and other players' wear what they have on (bodies are rebuilt without warning).</summary>
         void ApplyGear()
@@ -182,7 +278,7 @@ namespace Punchy.Items
             var em = world.EntityManager;
             var own = Q(em, ComponentType.ReadWrite<PlayerAvatar>(), ComponentType.ReadWrite<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
             if (own.TryGetSingletonEntity<PlayerAvatar>(out var avatar))
-                Dress(em, avatar, worn[(int)GearSlot.Hand], worn[(int)GearSlot.Head], worn[(int)GearSlot.Back], ownSwing);
+                Dress(em, avatar, Wearing, ownSwing);
             if (gearOf.Count == 0)
                 return;
             var remote = Q(em, ComponentType.ReadWrite<RemoteAvatar>(), ComponentType.ReadWrite<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
@@ -192,29 +288,33 @@ namespace Punchy.Items
                 var ghost = em.GetComponentData<RemoteAvatar>(e).Ghost;
                 if (!em.Exists(ghost) || !em.HasComponent<GhostOwner>(ghost) || !gearOf.TryGetValue(em.GetComponentData<GhostOwner>(ghost).NetworkId, out var g))
                     continue;
-                Dress(em, e, g.Hand, g.Head, g.Back, swungAt.TryGetValue(em.GetComponentData<GhostOwner>(ghost).NetworkId, out var at) ? at : -10f);
+                Dress(em, e, g, swungAt.TryGetValue(em.GetComponentData<GhostOwner>(ghost).NetworkId, out var at) ? at : -10f);
             }
         }
 
-        static void Dress(EntityManager em, Entity body, byte hand, byte head, byte back, float swung)
+        static void Dress(EntityManager em, Entity body, GearSet g, float swung)
         {
+            var hand = g.Hand;
             var s = em.GetComponentData<CreatureState>(body);
             ref var blob = ref em.GetComponentData<CreatureBody>(body).Blob.Value;
             var wears = blob.Upright && blob.Hands;
             var held = wears ? HeldFor(hand) : HeldItem.None;
-            var bits = wears ? WornBits(head, back) : (byte)0;
+            var bits = wears ? WornBits(g.Head, g.Back) : (byte)0;
+            var outfit = wears ? new CreatureOutfit { Head = Look(g.Head), Body = Look(g.Body), Legs = Look(g.Legs), Feet = Look(g.Feet) } : default;
             var weapon = wears && hand != Nothing ? ItemTable.Items[hand].Weapon : CreatureWeapon.None;
             var swing = weapon != CreatureWeapon.None ? SwingByte(swung, ItemTable.Items[hand].Speed) : (byte)0;
-            if (s.Held == held && s.Worn == bits && s.Outfit.Weapon == weapon && s.Outfit.Swing == swing)
+            outfit.Weapon = weapon;
+            outfit.Swing = swing;
+            if (s.Held == held && s.Worn == bits && s.Outfit.Equals(outfit))
                 return;
-            var changed = s.Held != held || s.Worn != bits || s.Outfit.Weapon != weapon;
+            var changed = s.Held != held || s.Worn != bits || s.Outfit.Weapon != weapon || s.Outfit.Head != outfit.Head ||
+                          s.Outfit.Body != outfit.Body || s.Outfit.Legs != outfit.Legs || s.Outfit.Feet != outfit.Feet;
             s.Held = held;
             s.Worn = bits;
-            s.Outfit.Weapon = weapon;
-            s.Outfit.Swing = swing;
+            s.Outfit = outfit;
             em.SetComponentData(body, s);
             if (changed)
-                Debug.Log($"[gear] {(em.HasComponent<RemoteAvatar>(body) ? "another player's" : "our")} body: held {held}, worn {bits}, weapon {weapon}");
+                Debug.Log($"[gear] {(em.HasComponent<RemoteAvatar>(body) ? "another player's" : "our")} body: held {held}, worn {bits}, weapon {weapon}, armour head {outfit.Head} body {outfit.Body} legs {outfit.Legs} feet {outfit.Feet}");
         }
 
         /// <summary>Where a swing that began at this time is: 0 at rest, 1..255 through it.</summary>
@@ -410,7 +510,10 @@ namespace Punchy.Items
             }
         }
 
-        static readonly (GearSlot Slot, string Label)[] WornRow = { (GearSlot.Hand, "Hand"), (GearSlot.Head, "Head"), (GearSlot.Back, "Back") };
+        static readonly (GearSlot Slot, string Label)[] WornRow =
+        {
+            (GearSlot.Hand, "Hand"), (GearSlot.Head, "Head"), (GearSlot.Body, "Body"), (GearSlot.Legs, "Legs"), (GearSlot.Feet, "Feet"), (GearSlot.Back, "Back"),
+        };
 
         /// <summary>The worn row under the slots: a button per place, showing what's on and what it does; press to take it off.</summary>
         void DrawWorn(Rect inventory, float cell, float gap)
@@ -425,7 +528,7 @@ namespace Punchy.Items
             {
                 var item = worn[(int)place];
                 var text = item == Nothing ? $"{label}\n-" : $"{label}\n{ItemTable.Items[item].Name}\n{GearEffect(item)}";
-                if (nav.Button(text, slotStyle, GUILayout.Width(cell * 1.3f), GUILayout.Height(cell - 4f)))
+                if (nav.Button(text, slotStyle, GUILayout.Width(cell * 0.92f), GUILayout.Height(cell - 4f)))
                     Unequip(place);
                 GUILayout.Space(gap);
             }
@@ -436,6 +539,8 @@ namespace Punchy.Items
         static string GearEffect(byte item)
         {
             var d = ItemTable.Items[item];
+            if (d.Armour > 0f)
+                return $"armour {d.Armour:0}, {d.Weight:0.#} kg";
             if (d.Weapon != CreatureWeapon.None)
                 return $"dmg {d.Damage:0}, reach {d.Reach:0.#} m{(d.TwoHanded ? ", 2 hands" : "")}";
             return d.Light > 0f ? $"light {d.Light:0} m" : d.Reach > 0f ? $"reach +{d.Reach:0.#} m" : d.Cover > 0f ? $"cover {d.Cover:P0}" : d.Slots > 0 ? $"+{d.Slots} slots" : "";

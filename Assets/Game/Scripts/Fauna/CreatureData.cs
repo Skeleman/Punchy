@@ -506,9 +506,25 @@ namespace Punchy.Fauna
 
     /// <summary>A player's body's gear beyond CreatureWorn (P-28): the weapon (CreatureWeapon) and its swing, 0 at rest,
     /// then 1..255 through one swing (raised, then brought down; a bow drawn, then loosed).</summary>
-    public struct CreatureOutfit
+    public struct CreatureOutfit : System.IEquatable<CreatureOutfit>
     {
         public byte Weapon, Swing;
+        /// <summary>P-28 row 2: the armour on, place by place (CreatureArmour; 0 for none).</summary>
+        public byte Head, Body, Legs, Feet;
+
+        public bool Armoured => (Head | Body | Legs | Feet) != 0;
+
+        public bool Equals(CreatureOutfit o) =>
+            Weapon == o.Weapon && Swing == o.Swing && Head == o.Head && Body == o.Body && Legs == o.Legs && Feet == o.Feet;
+    }
+
+    /// <summary>How the body draws a player's armour (P-28 row 2; the item table's ItemDef.Look), by place.</summary>
+    public static class CreatureArmour
+    {
+        public const byte Cap = 1, Helm = 2;
+        public const byte Jerkin = 1, Chain = 2;
+        public const byte Greaves = 1;
+        public const byte Boots = 1;
     }
 
     public enum HeldItem : byte

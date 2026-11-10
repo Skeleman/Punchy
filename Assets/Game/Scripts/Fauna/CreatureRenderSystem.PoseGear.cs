@@ -16,6 +16,9 @@ namespace Punchy.Fauna
     {
         /// <summary>A player's weapon (P-28): at most a haft, a head or blade, a guard and, for a bow, its string and arrow.</summary>
         const int WeaponParts = 7;
+        /// <summary>A player's armour (P-28 row 2): a helm or cap and its rim, two shells over the torso, a greave on each
+        /// shin and a boot on each foot.</summary>
+        const int ArmourParts = 8;
 
         partial struct PoseJob
         {
@@ -24,6 +27,109 @@ namespace Punchy.Fauna
             /// gives it, so it follows the arm through a swing (CreatureAnimator's weapon arm); a bow in the left hand,
             /// its string drawn back to the right as the swing goes. Too small on screen to tell apart, it isn't drawn.
             /// </summary>
+            /// <summary>
+            /// A player's armour (P-28 row 2; CreatureState.Outfit): each piece a shell a little larger than the body's own
+            /// segment under it (the head, the torso's, each shin and foot), so it fits whatever body wears it and moves as
+            /// that segment does. Too small on screen to tell apart, it isn't drawn.
+            /// </summary>
+            void Armour(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded)
+            {
+                var scale = Unity.Mathematics.math.max(state.Scale, 0.3f);
+                var view = Punchy.Settings.DetailPolicy.Current.Data;
+                if (view.PixelsPerMetre > 0f &&
+                    Punchy.Settings.DetailPolicy.ScreenSize(scale * 1.7f, Unity.Mathematics.math.distance(state.Position, CameraPosition), view.PixelsPerMetre) < 8f)
+                    return;
+                // (Linear colours, as the shader takes them: a mid brown leather, a darker one, grey iron, darker mail.)
+                var leather = new Unity.Mathematics.float4(0.17f, 0.065f, 0.02f, 0f);
+                var dark = new Unity.Mathematics.float4(0.07f, 0.027f, 0.01f, 0f);
+                var iron = new Unity.Mathematics.float4(0.21f, 0.22f, 0.24f, 0f);
+                var chain = new Unity.Mathematics.float4(0.13f, 0.14f, 0.15f, 0f);
+                var pad = 0.012f * scale;
+                int legs = 0;
+                bool head = false, torso = false;
+                for (int i = 0; i < b.Parts.Length; i++)
+                {
+                    ref var part = ref b.Parts[i];
+                    if (part.SegmentCount == 0)
+                        continue;
+                    var last = part.FirstSegment + part.SegmentCount - 1;
+                    if (part.Role == LimbRole.Head && state.Outfit.Head != 0 && !head)
+                    {
+                        head = true;
+                        var h = Output[offset + last];
+                        var ax = Unity.Mathematics.math.mul(h.Rotation, new Unity.Mathematics.float3(0f, 0f, 1f));
+                        var r = Unity.Mathematics.math.max(h.RadiusStart, h.RadiusEnd);
+                        var helm = state.Outfit.Head == CreatureArmour.Helm;
+                        // (Over the crown and down to the brow, a helm lower over the ears; then a rim round its edge.)
+                        // (A segment is drawn with round ends, so the shell's lower end starts its own radius above the brow.)
+                        var brow = h.Length * (helm ? 0.4f : 0.55f);
+                        var from = h.Position + ax * (brow + r * 0.9f);
+                        var over = Shell(h, from, Unity.Mathematics.math.max(h.Length + r * 0.2f - brow - r * 1.8f, 0f), 1.04f, pad, helm ? iron : leather, faded, helm ? SegmentMaterial.Metal : SegmentMaterial.Leather);
+                        Output[at] = over;
+                        // (The rim: a flat disc round the head at the brow, as the straw hat's brim is drawn.)
+                        var forward = new Unity.Mathematics.float3(Unity.Mathematics.math.sin(state.Yaw), 0f, Unity.Mathematics.math.cos(state.Yaw));
+                        var face = Unity.Mathematics.math.normalizesafe(forward - ax * Unity.Mathematics.math.dot(forward, ax), forward);
+                        var rimR = Unity.Mathematics.math.lerp(h.RadiusStart, h.RadiusEnd, brow / Unity.Mathematics.math.max(h.Length, 1e-4f)) * (helm ? 1.12f : 1.25f) + pad;
+                        var rim = Piece(h.Position + ax * brow, face, ax, 0f, rimR, rimR, 0.1f, helm ? new Unity.Mathematics.float4(0.12f, 0.125f, 0.14f, 0f) : dark, faded, helm ? SegmentMaterial.Metal : SegmentMaterial.Leather);
+                        Output[at + 1] = rim;
+                    }
+                    else if (part.Parent < 0 && part.Role != LimbRole.Leg && part.Role != LimbRole.Arm && part.Role != LimbRole.Head && part.Role != LimbRole.Tail &&
+                             state.Outfit.Body != 0 && !torso)
+                    {
+                        // (The torso's last two segments: the chest and the one under it, or one if that's all there is.)
+                        torso = true;
+                        var k = 2;
+                        var mail = state.Outfit.Body == CreatureArmour.Chain;
+                        for (int j = Unity.Mathematics.math.max(part.FirstSegment, last - 1); j <= last; j++)
+                        {
+                            var t = Output[offset + j];
+                            var ax = Unity.Mathematics.math.mul(t.Rotation, new Unity.Mathematics.float3(0f, 0f, 1f));
+                            Output[at + k++] = Shell(t, t.Position + ax * t.Length * 0.05f, t.Length * 0.85f, mail ? 1.08f : 1.05f, pad,
+                                                     mail ? chain : leather, faded, mail ? SegmentMaterial.Metal : SegmentMaterial.Leather);
+                        }
+                    }
+                    else if (part.Role == LimbRole.Leg && part.Parent < 0 && part.SegmentCount >= 2 && legs < 2)
+                    {
+                        // (The shin is the leg's second-to-last segment with a foot, its last without.)
+                        var shin = part.SegmentCount >= 3 ? last - 1 : last;
+                        if (state.Outfit.Legs != 0)
+                        {
+                            var s = Output[offset + shin];
+                            var ax = Unity.Mathematics.math.mul(s.Rotation, new Unity.Mathematics.float3(0f, 0f, 1f));
+                            Output[at + 4 + legs] = Shell(s, s.Position + ax * s.Length * 0.12f, s.Length * 0.72f, 1.15f, pad, iron, faded, SegmentMaterial.Metal);
+                        }
+                        if (state.Outfit.Feet != 0)
+                        {
+                            var f = Output[offset + last];
+                            var ax = Unity.Mathematics.math.mul(f.Rotation, new Unity.Mathematics.float3(0f, 0f, 1f));
+                            var r = Unity.Mathematics.math.max(f.RadiusStart, f.RadiusEnd);
+                            Output[at + 6 + legs] = part.SegmentCount >= 3
+                                ? Shell(f, f.Position - ax * r * 0.4f, f.Length + r * 0.5f, 1.2f, pad, dark, faded, SegmentMaterial.Leather)
+                                : Shell(f, f.Position + ax * f.Length * 0.7f, f.Length * 0.35f, 1.25f, pad, dark, faded, SegmentMaterial.Leather);
+                        }
+                        legs++;
+                    }
+                }
+            }
+
+            /// <summary>A shell round a segment: the same turn, flattening and taper (its radii where the shell starts and
+            /// ends along it, grown by this much and padded), from here along it, this long.</summary>
+            static SegmentInstance Shell(in SegmentInstance under, Unity.Mathematics.float3 from, float length, float grow, float pad,
+                                         Unity.Mathematics.float4 color, float faded, SegmentMaterial material)
+            {
+                var shell = under;
+                var start = Unity.Mathematics.math.saturate(Unity.Mathematics.math.dot(from - under.Position, Unity.Mathematics.math.mul(under.Rotation, new Unity.Mathematics.float3(0f, 0f, 1f))) / Unity.Mathematics.math.max(under.Length, 1e-4f));
+                var end = Unity.Mathematics.math.saturate(start + length / Unity.Mathematics.math.max(under.Length, 1e-4f));
+                shell.Position = from;
+                shell.Length = length;
+                shell.RadiusStart = Unity.Mathematics.math.lerp(under.RadiusStart, under.RadiusEnd, start) * grow + pad;
+                shell.RadiusEnd = Unity.Mathematics.math.lerp(under.RadiusStart, under.RadiusEnd, end) * grow + pad;
+                shell.Color = color;
+                shell.Pad = faded;
+                shell.Material = new Unity.Mathematics.float4((float)material, under.Material.y, 0f, 0f);
+                return shell;
+            }
+
             void Weapon(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded)
             {
                 var scale = Unity.Mathematics.math.max(state.Scale, 0.3f);
@@ -118,10 +224,12 @@ namespace Punchy.Fauna
             /// <summary>What a player's body has on (P-23): a hat on the crown of the head, a pack on the back.</summary>
             void Worn(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded)
             {
-                for (int i = 0; i < WornParts + WeaponParts; i++)
+                for (int i = 0; i < WornParts + WeaponParts + ArmourParts; i++)
                     Output[at + i] = default;
                 if (state.Outfit.Weapon != CreatureWeapon.None)
                     Weapon(in state, ref b, offset, at + WornParts, faded);
+                if (state.Outfit.Armoured)
+                    Armour(in state, ref b, offset, at + WornParts + WeaponParts, faded);
                 int head = -1, chest = -1;
                 for (int i = 0; i < b.Parts.Length; i++)
                 {
