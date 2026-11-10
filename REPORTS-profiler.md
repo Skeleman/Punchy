@@ -2,6 +2,33 @@
 
 Newest first.
 
+## Note, 2026-11-10 16:05: is the sky drawn in caves? (Zach's question; for W-135)
+**Answer: yes, but it costs almost nothing there.**
+
+**Setup:**
+- Main ef393625, Profile build, 1920x1080, `-gfx High`, noon, Clear.
+- One RenderDoc frame at the bench's cave stop, inside; the shot shows rock all round.
+- One frame at the town stop for comparison.
+
+| pass (RenderDoc ms) | cave | town |
+|---|---|---|
+| whole frame | 11.1 | 57.9 |
+| DrawSkybox | 0.01 | 0.43 |
+| Low-res effect (clouds/sky) | 0.06 | 2.46 |
+| Main light shadow map | 0 | 5.05 |
+| SSAO | 2.07 | 1.59 |
+| opaque / prepass | 5.6 / 1.7 | 28.9 / 15.0 |
+
+**What it shows:**
+- Nothing on main turns the skybox or the low-res effect off underground. They only check that a skybox material exists.
+- Both still run, but with rock over every pixel they do almost no work. Skipping them underground would save well under
+  0.1 ms.
+- **SSAO is the biggest single pass in the cave,** about 19% of the frame, the same full-screen cost as on the surface. A
+  cheaper SSAO underground, or one keyed to Underground, would save more there than anything sky-related.
+- Bench at the cave stop: 3.5 ms GPU, 9.5 ms median frame. It's CPU-bound there.
+
+Files: Punchy-wt results rdcave/*.rdc, rdcave-passes.txt, rdcave-shots/.
+
 ## Job 45b: R-10 row 4c (light/forwardplus 8263a9b5, far lights), 2026-11-10 (q76.sh)
 **Setup:**
 - Profile builds, 1920x1080, `-gfx High`, uncapped, `-weatherseed 4`, Clear, 22:00, D3D11, a fresh game per run, ABBA
