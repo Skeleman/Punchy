@@ -3759,6 +3759,9 @@ Built in the player tree, not the one the card names (the world tree's gitignore
   - **Options:** (a) take the clean variant as is (-7.5% storm, no look change); (b) accept the reuse grain for -16 to -19%; (c) look for the saving elsewhere in the march (fewer noise octaves far away, a cheaper density function for light samples only, or quarter res in storm). The clean variant is kept as a scratch patch and can be committed in minutes on (a).
   - Risks: none; Sky.hlsl is back at row 2's commit.
   - **Suite (editor closed, sky/cost at row 2):** `15 passed, 0 failed, 7 skipped in 286s (Unity exit 0).` Pins: Landmarks_V3 `112 A955AFE0`, Fauna_Fingerprint `66320C7C`. My editor is closed.
+- **R-8 row 3 COMMITTED at the supervisor's call, option (a)** (3c91d8ac, sky/cost): the clean variant above, debug test bit removed. **It misses the card's 15% target:** about -7.5% storm and -3.3% Overcast on this PC. The speckle version was not taken. Option (c), finding the saving elsewhere in the march, stays open as a suggestion.
+  - **Shots vs row 2** (Summit, forced weather, 1280x720, same frame state; diff mean / % over 4, two runs each): Overcast 1.52 / 11.6% and 1.13 / 6.9%, against control 0.93 / 4.8% and 0.79 / 3.4%. Storm 1.97 / 10.0% and 1.94 / 10.0%, against control 1.39 / 5.7% and 1.43 / 6.3%. The extra over control is a faint smooth darkening of the thick cloud bodies (signed mean -0.3 to -0.6 of 255 in the upper half). Edge and rain diffs match control. Side by side, the pairs look the same. With the debug bit removed, a pair is at control level (0.77 / 1.56), so the editor was running the committed shader.
+  - **Suite (editor closed, sky/cost at 3c91d8ac):** `15 passed, 0 failed, 7 skipped in 374s (Unity exit 0).` Pins: Landmarks_V3 `112 A955AFE0`, Fauna_Fingerprint `66320C7C`. My editor is closed.
 
 ## W-129 (streaming spikes; tree Punchy, branch world/spikes)
 
