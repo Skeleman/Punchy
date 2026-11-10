@@ -90,6 +90,24 @@ This is for the water lane; I haven't changed anything. Job 45's cost numbers wi
 
 **Zach's choice (13:05):** the first option, a raised hump ahead of the swimmer. He says a leading swell is important.
 
+**Zach's request (14:30): finer water at waterfalls, by LOD.** He wants to explore using the R-9 local subdivision at
+waterfalls, to show their turbulence more convincingly.
+- **Where to cut:** before the fall (the lip and the run-in), on the fall itself, and after it (the plunge pool and the
+  outflow).
+- **How it switches on:** an LOD distance check on the waterfall, not the player-following 32 m square. Per rule 20 that
+  means a DetailPolicy.ScreenSize pixel threshold, so the cut appears as a fall comes close and drops off with distance.
+
+Notes from the profiler:
+- **River falls** are the river's own water surface sloping down, so the same copy-and-cut could apply to those quads.
+  **Cave falls** are separate meshes (LandmarkEffectSystem) and would need their own cut.
+- **The wave field is a height field** (it only moves water up and down), so it won't move a near-vertical sheet. The fall
+  needs its own displacement and normals along the flow: the lip, a rippled curtain, churn at the foot.
+- **The cut on the fall should run along its length.** The 8x8 cut works in plan view, which leaves a tall drop coarse
+  vertically.
+- **Fix the job 45 cost first.** On fd50ad58 the patch cuts the whole lake (13x triangles, +3.7 ms GPU on the laptop). Once
+  only the needed quads are cut, a fall within LOD range should cost little. I'll measure it when there's a commit.
+
+
 ## Note, 2026-11-10 12:30: main doesn't build a player since #243 (06b2a72b)
 - **The failure:** a Profile (Development) player build of 06b2a72b fails to compile. ed0e68ef still has the same code, so
   latest main fails the same way.
