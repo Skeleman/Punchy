@@ -377,7 +377,7 @@ From the 11-09 outside audit (docs/Chat audit 11-9.md, sections 3, 4, 5, 8). Rea
 - One RenderDoc capture of the 90% water spot at High: list the water passes with GPU ms.
 Report in REPORTS-profiler.md as usual: which of these costs more than 1 ms, and by how much.
 
-## Job 44 (2026-11-10, QUEUED by the main-account supervisor; after job 43): W-129 streaming spikes in a player build
+## Job 44 (2026-11-10, RUNNING on the laptop; q74.sh; queued by the main-account supervisor): W-129 streaming spikes in a player build
 W-129 (REPORTS-world.md) saw frames over 100 ms in the editor but most were whole-editor stalls under host load (3 editors,
 shader compiles). Read only, main at the time you start, Profile build, 1920x1080, `-gfx High`, uncapped, other editors closed.
 - The shrub walk (z=1324, 1400 m at 30 m/s) 3 times and the glide (z=-1200, 6 km at 60 m/s) 2 times, each a fresh launch.
