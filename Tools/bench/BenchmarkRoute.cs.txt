@@ -566,6 +566,23 @@ namespace Punchy.Debugging
                         }
                 Debug.Log($"BenchRoute: depth priming off on {primed} renderers (list {(primeList == null ? "missing" : primeList.Length.ToString())})");
             }
+            // -benchnossao: every URP renderer's ambient occlusion feature (ScreenSpaceAmbientOcclusion) switched off, for an
+            // SSAO on/off look and cost (Zach 11-10: what it does in caves; main has no switch for it).
+            if (rsUrp != null && System.Array.IndexOf(args, "-benchnossao") >= 0)
+            {
+                var aoList = typeof(UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset).GetField("m_RendererDataList", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(rsUrp) as UnityEngine.Rendering.Universal.ScriptableRendererData[];
+                var aoOff = new List<string>();
+                if (aoList != null)
+                    foreach (var rd in aoList)
+                        if (rd != null)
+                            foreach (var feature in rd.rendererFeatures)
+                                if (feature != null && feature.isActive && (feature.GetType().Name.Contains("AmbientOcclusion") || feature.name.Contains("SSAO") || feature.name.Contains("Ambient Occlusion")))
+                                {
+                                    feature.SetActive(false);
+                                    aoOff.Add($"{rd.name}/{feature.name}");
+                                }
+                Debug.Log($"BenchRoute: off SSAO: {(aoOff.Count == 0 ? "none found" : string.Join(", ", aoOff))}");
+            }
             // -benchnolights: every light but the directional ones off (lamps, torches, fires: what distance lights would cull).
             if (System.Array.IndexOf(args, "-benchnolights") >= 0)
             {
