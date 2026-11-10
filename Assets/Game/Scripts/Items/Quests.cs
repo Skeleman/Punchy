@@ -57,7 +57,8 @@ namespace Punchy.Items
         System.DateTime questStamp;
         float questCheckAt;
 
-        struct Board { public float3 Pos; public string Town; public int[] Offers; }
+        // (Offers: the Posted ones the board shows, then every quest once, for folk to hand out in person: P-26.)
+        struct Board { public float3 Pos; public string Town; public int[] Offers; public int Posted; }
         readonly List<Board> boards = new List<Board>();
         bool boardsBuilt;
         readonly List<GameObject> boardModels = new List<GameObject>();
@@ -159,7 +160,7 @@ namespace Punchy.Items
                     turnIn = true;
                     return s;
                 }
-            for (int s = 0; s < boards[board].Offers.Length; s++)
+            for (int s = 0; s < boards[board].Posted; s++)
                 if (!myQuests.ContainsKey((board, s)))
                     return s;
             return -1;
@@ -200,7 +201,11 @@ namespace Punchy.Items
                 var xz = town.Centre + new float2(4f, 1.5f);
                 var h = math.hash(new uint2((uint)t, 0x0B0Au));
                 var offers = (h & 1) == 0 ? new[] { (int)(h >> 8 & 0xFF) } : new[] { (int)(h >> 8 & 0xFF), (int)(h >> 16 & 0xFF) };
-                boards.Add(new Board { Pos = new float3(xz.x, terrain.SampleHeight(xz), xz.y), Town = name, Offers = offers });
+                var all = new int[offers.Length + quests.Length];
+                offers.CopyTo(all, 0);
+                for (int q = 0; q < quests.Length; q++)
+                    all[offers.Length + q] = q;
+                boards.Add(new Board { Pos = new float3(xz.x, terrain.SampleHeight(xz), xz.y), Town = name, Offers = all, Posted = offers.Length });
                 boardModels.Add(MakeBoard(boards[t].Pos));
             }
             Debug.Log($"Quests: {boards.Count} notice boards: " + string.Join(", ", boards.ConvertAll(b => $"{b.Town} ({b.Offers.Length})")));
@@ -232,6 +237,65 @@ namespace Punchy.Items
             Part(new Vector3(-0.25f, 1.4f, -0.04f), new Vector3(0.35f, 0.45f, 0.01f), new Color(0.92f, 0.88f, 0.75f));
             Part(new Vector3(0.25f, 1.35f, -0.04f), new Vector3(0.35f, 0.4f, 0.01f), new Color(0.9f, 0.85f, 0.7f));
             return root;
+        }
+
+        /// <summary>The nearest board's slot for a quest a folk hands out, or false if there's no board or no such quest.</summary>
+        bool FolkQuestSlot(string id, out int board, out int slot)
+        {
+            (board, slot) = (-1, -1);
+            var best = float.MaxValue;
+            if (!TryPlayer(out var player))
+                return false;
+            for (int b = 0; b < boards.Count; b++)
+            {
+                var d = math.distance(boards[b].Pos.xz, player.Position.xz);
+                if (d < best)
+                    (best, board) = (d, b);
+            }
+            if (board < 0)
+                return false;
+            for (int s = boards[board].Posted; s < boards[board].Offers.Length; s++)
+                if (Def(board, s).id == id)
+                {
+                    slot = s;
+                    return true;
+                }
+            return false;
+        }
+
+        /// <summary>Whether the player already has this quest from a folk (taken or done, at any board).</summary>
+        public static bool HasFolkQuest(string id)
+        {
+            if (instance == null)
+                return false;
+            foreach (var kv in instance.myQuests)
+                if (kv.Key.Item2 >= instance.boards[kv.Key.Item1].Posted && instance.Def(kv.Key.Item1, kv.Key.Item2).id == id)
+                    return true;
+            return false;
+        }
+
+        /// <summary>Takes a quest a folk offered, through the same path as a board's; town: where it's handed in.</summary>
+        public static bool TakeFolkQuest(string id, out string town)
+        {
+            town = null;
+            if (instance == null || !instance.FolkQuestSlot(id, out var board, out var slot))
+                return false;
+            town = instance.boards[board].Town;
+            instance.TakeQuest(board, slot);
+            return true;
+        }
+
+        /// <summary>A gift from a folk, into the inventory; item: its name as the game shows it.</summary>
+        public static bool GiveFromFolk(string itemName, int count, out string item)
+        {
+            item = itemName;
+            var id = ItemId(itemName);
+            if (instance == null || id < 0)
+                return false;
+            item = ItemTable.Items[id].Name;
+            instance.Grant((byte)id, count);
+            Debug.Log($"Items: {count} {item} from a folk; inventory: {instance.DescribeInventory()}");
+            return true;
         }
 
         void TakeQuest(int board, int slot)
@@ -448,7 +512,7 @@ namespace Punchy.Items
             for (int b = 0; b < boards.Count; b++) order.Add(b);
             order.Sort((x, y) => math.distance(boards[x].Pos, player.Position).CompareTo(math.distance(boards[y].Pos, player.Position)));
             foreach (var b in order)
-                for (int slot = 0; slot < boards[b].Offers.Length && takeQuestsArg > 0; slot++)
+                for (int slot = 0; slot < boards[b].Posted && takeQuestsArg > 0; slot++)
                     if (!myQuests.ContainsKey((b, slot)))
                     {
                         TakeQuest(b, slot);

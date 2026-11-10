@@ -437,7 +437,7 @@ namespace Punchy.Interact
             walkPicked = facing;
             FacingDistance = facing >= 0 ? distance : float.MaxValue;
             // (An item or chest at least as near takes the Use key: Items.)
-            if (facing >= 0 && FacingDistance >= Punchy.Items.Items.TargetDistance)
+            if (facing >= 0 && (FacingDistance >= Punchy.Items.Items.TargetDistance || FacingDistance >= FolkTalk.TargetDistance))
                 facing = -1;
             if (facing < 0)
                 return;

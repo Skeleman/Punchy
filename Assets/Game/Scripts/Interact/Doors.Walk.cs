@@ -49,8 +49,18 @@ namespace Punchy.Interact
             distance = math.length(to);
             if (distance >= Reach || math.dot(-to, math.normalizesafe(facing)) < Behind)
                 return false;
-            var direction = math.normalizesafe(to);
+            return Aim(player.xz, forward, look, opening, distance, out score);
+        }
+
+        /// <summary>
+        /// The facing half of the rule, for anything the Use key can reach (P-26: folk): nearer than Close needs no facing,
+        /// else the target is within the cone of the body or the camera. Score: lower wins, near and in front.
+        /// </summary>
+        public static bool Aim(float2 player, float2 forward, float2 look, float2 target, float distance, out float score)
+        {
+            var direction = math.normalizesafe(target - player);
             var ahead = math.max(math.dot(direction, forward), math.dot(direction, look));
+            score = float.MaxValue;
             if (distance > Close && ahead < Cone)
                 return false;
             score = distance * (2f - ahead);

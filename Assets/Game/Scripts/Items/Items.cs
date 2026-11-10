@@ -201,7 +201,7 @@ namespace Punchy.Items
 
             FindTarget();
             // (The Use key goes to the nearer of a door and an item, judged on last frame's distances.)
-            if ((target >= 0 || targetChest >= 0 || targetContainer >= 0) && TargetDistance <= Doors.FacingDistance && UseKey.WasPressed())
+            if ((target >= 0 || targetChest >= 0 || targetContainer >= 0) && TargetDistance <= Doors.FacingDistance && TargetDistance <= FolkTalk.TargetDistance && UseKey.WasPressed())
             {
                 if (target >= 0) Pickup(target);
                 else if (targetChest >= 0) OpenChest(targetChest);
@@ -305,7 +305,7 @@ namespace Punchy.Items
                 (target, targetChest) = (-1, -1);
             else
                 targetContainer = -1;
-            if (TargetDistance > Doors.FacingDistance)
+            if (TargetDistance > Doors.FacingDistance || TargetDistance > FolkTalk.TargetDistance)
                 return;
             var key = UseKey.Name;
             var item = target >= 0 ? world[target] : default;

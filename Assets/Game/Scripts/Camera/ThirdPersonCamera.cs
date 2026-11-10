@@ -134,6 +134,10 @@ namespace Punchy.CameraRig
 
             // P-25: in a room the camera eases in to the room's distance (never out past the player's own setting), and back on leaving.
             var roomArm = Punchy.Interact.Interiors.IndoorArm;
+            // (P-26: a talk comes in the same way, to the nearer of the two.)
+            var talkArm = Punchy.Interact.FolkTalk.CameraArm;
+            if (talkArm > 0f && (roomArm <= 0f || talkArm < roomArm))
+                roomArm = talkArm;
             if (roomArm > 0f)
                 indoorArm = roomArm;
             indoor = Mathf.MoveTowards(indoor, roomArm > 0f ? 1f : 0f, Time.deltaTime / IndoorEase);
