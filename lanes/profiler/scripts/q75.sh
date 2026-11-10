@@ -5,11 +5,11 @@
 #         4 m/s (-benchline swim mode, Punchy b/bench-stress fa26214d), field on vs -waterfield 0, noon, 4 rounds (ABAB x2).
 #         Shots on round 1. Whole-frame GPU ms from the bench; the water pass ms from one RenderDoc capture per arm.
 #   r10:  light/forwardplus (0a4b3b50) at 2988.8,-920 facing north, 22:00: default (48 lights at High), -lightbudget 0,
-#         -lightbudget 64, -townglow 0; and origin/main (06b2a72b) default as today's baseline. 4 rounds.
+#         -lightbudget 64, -townglow 0; and main ef393625 default as today's baseline (06b2a72b and later don't build). 4 rounds.
 # "q75.sh r9|r10|rd"; no argument runs r9, r10, then rd.
 B=$HOME/Projects/Punchy-wt/Tools/bench
 . "$B/lib.sh"
-KW=fd50ad5; KL=0a4b3b5; KM=06b2a72; Q=q75
+KW=fd50ad5; KL=0a4b3b5; KM=ef39362; Q=q75   # main: ef393625, the last before #243 (06b2a72b+ fail a player build: DungeonWalk uses the editor-only TestHooks)
 OW=Profile-${KW}; OL=Profile-${KL}; OM=Profile-${KM}
 S=$HOME/Projects/Punchy-coordination/lanes/profiler/scripts
 RDC="/c/Program Files/RenderDoc/renderdoccmd.exe"; QRD="/c/Program Files/RenderDoc/qrenderdoc.exe"

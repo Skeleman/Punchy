@@ -2,6 +2,17 @@
 
 Newest first.
 
+## Note, 2026-11-10 12:30: main doesn't build a player since #243 (06b2a72b)
+- **The failure:** a Profile (Development) player build of 06b2a72b fails to compile. ed0e68ef still has the same code, so
+  latest main fails the same way.
+  - `Assets/Game/Scripts/Debugging/DebugControls.DungeonWalk.cs` lines 146, 158, 418 and 419 call `TestHooks.BodyPref`,
+    `SetBody` and `PutBodyPref`.
+  - TestHooks.cs is wrapped in `#if UNITY_EDITOR`, so players get CS0103.
+- **Cause:** it came in with A-95 row 1 (daadb490, `-dungeonwalk`).
+- **Fix:** those calls need `#if UNITY_EDITOR` around them, or the three helpers need to move out of the editor-only file.
+- **Impact on my jobs:** I can't build current main until then. Job 45's R-10 baseline uses ef393625, the main just before
+  #243. Job 47 needs a main that builds.
+
 ## Job 44: W-129 streaming spikes in a player build, 2026-11-10 (q74.sh)
 **Answer: no streaming system repeats over 100 ms outside the editor.** Of the frames over 100 ms that the bench logged:
 - About 9 in 10 are the ~500 ms swapchain wait, the one Job 43 hit at the lake.
