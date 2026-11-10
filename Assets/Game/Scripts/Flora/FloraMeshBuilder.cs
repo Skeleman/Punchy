@@ -364,6 +364,22 @@ namespace Punchy.Flora
             return firstVertex;
         }
 
+        /// <summary>
+        /// R-6 row 3: a whole house's far LOD is only its outer shell. While Shell is set, Box leaves out a face that
+        /// looks into ShellMin..ShellMax (the closed inside, below the eaves) or down onto the ground, so the far LOD keeps
+        /// the outer wall faces, roof and openings but none of the faces nobody outside can see.
+        /// </summary>
+        public bool Shell;
+        public Vector3 ShellMin, ShellMax;
+
+        bool Hidden(Vector3 face, Vector3 normal)
+        {
+            if (normal.y < -0.9f && face.y < 0.02f)
+                return true;   // its underside, on the ground
+            var q = face + normal * 0.05f;
+            return q.x > ShellMin.x && q.x < ShellMax.x && q.y > ShellMin.y && q.y < ShellMax.y && q.z > ShellMin.z && q.z < ShellMax.z;
+        }
+
         /// <summary>A flat-shaded box (planks, walls, roof slabs, counters), centred and rotated.</summary>
         public void Box(Vector3 centre, Vector3 size, Quaternion rotation, Color color, FloraPart part, float ao = 1f)
         {
@@ -373,6 +389,8 @@ namespace Punchy.Flora
             Vector3[] faces = { Vector3.right, Vector3.left, Vector3.up, Vector3.down, Vector3.forward, Vector3.back };
             foreach (var n in faces)
             {
+                if (Shell && Hidden(centre + rotation * Vector3.Scale(n, half), rotation * n))
+                    continue;
                 var u = Mathf.Abs(n.y) > 0.5f ? Vector3.right : Vector3.up;
                 var w = Vector3.Cross(n, u);
                 var first = positions.Count;
