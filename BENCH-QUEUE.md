@@ -389,7 +389,7 @@ shader compiles). Read only, main at the time you start, Profile build, 1920x108
 Two Profile builds (one at a time), 1920x1080, `-gfx High`, uncapped, ABBA, 300 frames each arm unless noted. Read only.
 - R-9: build branch `water/deform` (fd50ad58 or later). `-time 12 -weather Clear`, `-goto 488,-1144`, swim straight 10 s; then
   the same with `-waterfield 0`. Whole-frame GPU ms and the water pass ms, ABAB 2 runs each. Pass: on costs < +0.3 ms.
-- R-10: build branch `light/forwardplus` (e0c4123a or later). `-time 22 -weather Clear`, `-goto 2988.8,-920` facing north.
-  Whole-frame GPU ms with `-lightbudget 0` vs default (48 at High) vs `-lightbudget 96`. Then the same spot on a build of
+- R-10: build branch `light/forwardplus` (95c93aef or later: includes row 4 town glow; add `-townglow 0` as a fourth arm). `-time 22 -weather Clear`, `-goto 2988.8,-920` facing north.
+  Whole-frame GPU ms with `-lightbudget 0` vs default (48 at High) vs `-lightbudget 64` (the flag clamps at 64). Then the same spot on a build of
   origin/main as the "today" baseline. Pass: default <= +0.5 ms over main.
 Report both in REPORTS-profiler.md with the pass/fail line for each.
