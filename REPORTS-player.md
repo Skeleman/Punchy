@@ -539,3 +539,6 @@ Next: nothing open. P-25 row 3 still needs the answer on the house kit.
 - UNVERIFIED: real clicks on the six-button worn row (only -equip ran); a non-human upright body in armour (sizes follow
   the segments, but only a human was shot).
 - Next: P-28 row 3 (clothing).
+- Correction (row 2): the armour went in before Arrow in the table, moving Arrow from id 16 to 22. Fixed in 746ea888
+  on player/armour: Arrow back at 16, armour 17-22. A one-line data move, not yet covered by a suite run; row 3's
+  suite runs will include it.
