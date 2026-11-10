@@ -3790,3 +3790,23 @@ Built in the player tree, not the one the card names (the world tree's gitignore
     3. **No sign of systems competing for workers.** The workers are idle during the spikes, and nothing waits on another system's jobs. So the row 3 scheduler note is not needed.
   - **Row 2 not started.** No cause repeats over 100 ms when the host is quiet, so a fix can't be measured against the card's pass condition here (no frame over 100 ms in 3 walks and 2 glides). On this PC the host stalls alone break that condition. Suggested next step for the supervisor: one profiler-lane bench of the shrub walk and glide in a dev player build, with the other editors closed. If TerrainStreamingSystem or FloraSystem.LateUpdate still go over 100 ms there, slice their first-visit work over frames (terrain tile uploads; flora build/upload), one commit each.
   - Risks: none; no code change. The probe is a scratch file in Assets/Temp and is not committed.
+- **R-7 row 3 DONE (verified), (c) kept** (c47dd81e, lod/impostors): shrub reach is now 520 m (was 260), with the far part drawn as impostors. It is one value in FloraSystem.Shrubs plus the scene.
+  - **Method:** editor play mode, hour 15, clear weather, camera aspect pinned to 16:9. Modes are interleaved per view so drift hits them all alike. Each mean is over 10 samples of 150 frames (a and c, second pass); the first pass (3 rounds of a/b/c/c1) gives b and c1. Render ms is synced GPU time. Flora ms is the `FloraSystem.Draw` marker (CPU cull dispatch and submit).
+  - **Table (render ms / frame ms; drawn plants all layers, impostors in brackets):**
+
+    | view | (a) meshes, 260 m | (b) impostors, 260 m | (c) impostors, 520 m | c - a render / frame |
+    |---|---|---|---|---|
+    | dense forest, ground | 5.27 / 14.16; 4015 | 5.35 / 14.87; 4082 (264) | 5.40 / 14.53; 5604 (1356) | +0.13 / +0.37 |
+    | ridge | 4.76 / 13.78; 5862 | 5.11 / 14.40; 5901 (152) | 4.74 / 14.12; 7501 (1158) | -0.02 / +0.34 |
+    | flying ~100 m | 3.65 / 12.01; 4252 | 7.65* / 21.49*; 4282 (224) | 3.99 / 12.49; 6252 (1544) | +0.34 / +0.48 |
+    | flying ~300 m | 6.87* / 17.50*; 5369 (no shrubs) | 5.04 / 14.55; 5369 | 6.86* / 18.84*; 6168 (394) | -0.01 / +1.34* |
+
+    \* = rounds with an outlier spike (spread 5-15 ms). The cleaner first pass at 300 m gives a 5.09 / 14.84 and c 5.09 / 14.95 (+0.00 / +0.11), and at 100 m a 5.20 / 14.22 and c 5.40 / 14.82. Shipped scene re-measured (2 rounds, spreads <= 0.6): ground 5.54 / 15.30, ridge 5.00 / 14.82, fly100 4.20 / 12.81, fly300 4.22 / 13.09.
+  - **Verdict:** GPU cost of (c) is within noise (+0.34 ms worst). Frame cost is +0.34 to +0.48 ms where the runs are clean. That is under the +0.5 ms bar, but only narrowly: editor frame noise is about the same size.
+  - **Flora ms:** 0.24 ms in every mode and view. The submit is per model, so it doesn't grow with reach.
+  - **300 m altitude:** today, no shrubs at all (5369 drawn, all trees). With (c), 405 lod2 + 394 impostor shrubs (6168 drawn). Flora 0.24 ms.
+  - **Memory:** shrub layer at 260 m is about 160-200 tiles, 2.5-3.7k plants, GPU 0.4-1.6 MB, CPU 0.1-0.2 MB. At 520 m it is about 585-615 tiles, 10-11k plants, GPU 1.6 MB, CPU 0.4-0.5 MB. The impostor atlas is 140.4 MB (214 models, 8x8 frames of 32 px, 3 mips) and does not change with reach.
+  - **Load:** the bake is 9.5-11.8 ms spread over 18 frames (slowest frame 1.55 ms). The doubled stream settles 0.3-0.5 s after a teleport.
+  - **3-blend vs 1-frame at 520 m (render ms):** ground 5.46 / 5.58, ridge 5.90* / 4.81, fly100 5.40 / 6.18, fly300 5.09 / 5.00. There is no measurable difference, so 3-blend stays the default.
+  - **Shots:** PunchyMilestones/R-7/r3/ ({ground,ridge,fly100,fly300}-{a,b,c,c1}.png, contact-sheet.jpg, shipped-fly100.png, shipped-fly300.png).
+  - Risks: frame ms is near the bar, so a release-build bench would settle it; reverting is one value. No placement or ProjectSettings changes.
