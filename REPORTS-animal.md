@@ -3394,3 +3394,13 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
   - Bear claws are hard to see through the grass in the close-up.
   - The A-92 lying check (LyingTests) runs in the final PlayMode suite.
 - **Final check:** PlayMode suite on fauna/surfaces b5720baf: `25 passed, 0 failed, 17 skipped in 456s (Unity exit 0).` Fingerprint AD723954 (re-pinned), landmarks 112 A955AFE0. LyingTests pass: legs stay above ground on flat ground and on a slope. A-97 is done; branch fauna/surfaces is ready for review.
+
+## A-98
+- **Row 1, done (verified)** on fauna/underwater-sound 89dbf251: every sound is muffled while the camera is under water (#22).
+  - Driven by `Underwater.LensUnder`, eased 0.25 s in/out, with a 0.12 s hold so a bobbing lens doesn't flutter.
+  - One filter per voice: GameAudio.Shape sets the distance cutoff, the water cutoff, pitch and group level together each frame. No AudioMixer, no ProjectSettings.
+  - Log lines (sea, posed camera): surface (0.5 m) cutoff 785 Hz, pitch 0.90, gain 0.88; 2 m 737 Hz, 0.90, 0.84; 10 m 504 Hz, 0.90, 0.60; out of the water 22000 Hz, 1.00, 1.00.
+  - Clips (dog bark + birds 7-10 m away): D:/Unity/PunchyMilestones/A-98/row1-above.wav (rms 0.104, centroid 3114 Hz), row1-under-2m.wav (rms 0.023, centroid 659 Hz, 0.3% energy over 1 kHz), row1-under-10m.wav (rms 0.0066, centroid 521 Hz).
+  - Thunder (WeatherSystem's own source) is adopted, so it is muffled too. Side effect: thunder now follows the Weather level (Music slider); before it ignored the group level.
+  - Outside the lane, small: Camera/Underwater.cs drops its own listener low-pass (GameAudio owns the muffle now) and exposes LensDepth and LensWater. WeatherSystem gets one Adopt line.
+  - There are no rain or wind sound beds to muffle. There is no lava or swamp water kind in Underwater (cave water, the sea, a lake or river), so nothing per fluid.
