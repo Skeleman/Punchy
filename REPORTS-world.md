@@ -4206,3 +4206,23 @@ Built in the player tree, not the one the card names (the world tree's gitignore
   - **Suite + pins (editor closed):** 23 passed, 1 failed, 17 skipped in 359 s. Pins held: Landmarks_V3 112 A955AFE0, Fauna_Fingerprint 66320C7C. The failure is FolkConversationTests.LiveFolk_Answer, which expected a "[who]" line in the folk dialogue dump and found none. This row touches no folk or dialogue code, so it is unrelated (worth a look by the fauna lane if main fails it too). Merge-tree against origin/main is clean.
   - **Not mine:** the pale lavender squares from main (row 4 note) showed up again in 2 of 10 shots at 500 m (after_*_0500_squares.jpg). They were not there in re-shots from the same spot, nor with the town map at 0 or 0.35, so they are intermittent and not from the town glow.
   - **Merge note:** CaveSystem.cs (CRLF) changes one constant only. No ProjectSettings or renderer-asset changes.
+
+## R-12 (#241: lavender squares and hard-edged cloud; tree Punchy-world, branch fix/squares-cloud)
+- **R-12 row 1 DONE (partial, UNVERIFIED for the squares)**. No code commit: fix/squares-cloud is still at origin/main ef393625.
+  - **Squares: not from main.** R-10 took the squares shots on light/forwardplus (cbf6e145 / 95c93aef / 0a4b3b50). Those commits are not ancestors of origin/main, so the issue's "came in from main (484c8f2c)" doesn't hold. They are the unmerged Forward+ real lights and the town glow map.
+    - **Not reproduced.** Many tries at R-10's vantage (west of the big town, 80 m up, 22:00 Clear and Overcast), on main and on forwardplus, with glow on and off: no squares. R-10 also saw them in only 2 of 10 shots, and never in re-shots from the same spot. Shots: PunchyMilestones/R-12/repro/, find/, bisect1/ (each has a contact-sheet.jpg).
+    - **What they look like in R-10's frames:** pale blue rectangles and triangles with dither, drawn on the terrain under the cacti. They show up together with the blue moon and cumulus clouds.
+    - **Ruled out, following Zach's order:**
+      - **Items:** the nearest world item drop or loot spawn is about 1130 m from 1489,-890. None are in frame, so the ItemTable placeholder cubes and spheres are not the cause.
+      - **Foliage, #233/#239/#236 impostors:** zeroed impostor reaches, unbound atlas textures, atlas health checked and the async placeholder. None gave squares. #236 (3e28a4d8, the D3D11 error-shader fix) is in both trees. #239 was not in the shot build.
+      - **Foliage, #215 grass/fields:** the ground detail toggle made no difference.
+      - **Creatures:** #240 breath was not in the shot build. #237 fur shells were not tested on their own (an open gap).
+      - **Also checked:** weather, wetness and cloud maps; sky holes; the low-res cloud buffer; the shadow cache; window spill; the blue moon alone.
+    - **Most likely source (inferred, not proven):** something only in light/forwardplus, either the Forward+ cluster/z-bin light loop or the 95c93aef town glow map sampled in Flora/FloraImpostor. Tile-sized blocks of dither fit a cluster lookup that read stale or unset data for a frame. The forwardplus lane should re-check before that branch merges. Suggested test: 20+ shots at R-10's vantage with real lights off, compared with 20+ with them on.
+  - **Cloud: reproduces on main, not attributed.** At 22:00 Overcast, the cumulus has a hard flat bottom and pill-shaped outline (PunchyMilestones/R-12/cloud1/, cloud-old/).
+    - **Probes that didn't remove it:** no anvil, tall = 0, sky-off 128 and 512, and the old edge.
+    - **Swap test inconclusive:** I swapped Sky.hlsl to pre-R-8 (01e1c1c5) and then restored it. The weather after the replay was different (main had no cloud, the pre-R-8 run had a storm), even with -weatherseed 4. So the shots can't be compared, and #235/R-8 is neither confirmed nor cleared.
+    - **Next steps:** bisect the Sky.hlsl commits 3c91d8ac, 01e1c1c5, 328540d8/5ab6813e/334cbe62 and ccd74cc1 with weather pinned in one session (a shader swap plus AssetDatabase.Refresh, with no replay), or pin WeatherField's cell state.
+- **R-12 row 2 NOT DONE.** There is no root to fix for the squares on main, and the cloud commit is not found. No look or ms change, so no ms table. Pins untouched (no code changed).
+- **Suite + pins (editor closed, fix/squares-cloud = main ef393625):** 24 passed, 1 failed, 17 skipped in 356 s. Pins held: Landmarks_V3 112 A955AFE0, Fauna_Fingerprint 66320C7C. The failure is FolkConversationTests.LiveFolk_Answer, the same one R-10 hit, so main fails it too (fauna lane).
+- Editor closed (own PID). The tree is clean, and Assets/Temp is not committed.
