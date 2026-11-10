@@ -46,6 +46,11 @@ namespace Punchy.Fauna
         public static readonly SharedStatic<int> OldLie = SharedStatic<int>.GetOrCreate<OldLieKey>();
         class OldLieKey { }
 
+        /// <summary>"-seams" (A-92 experiment, #230): 1 has the shader bend each limb segment's start towards the segment
+        /// it hangs from (Material.z: how many segments back that is), hiding the crease at the joint.</summary>
+        public static readonly SharedStatic<int> Seams = SharedStatic<int>.GetOrCreate<SeamsKey>();
+        class SeamsKey { }
+
         /// <summary>
         /// How gathered a leaping run (CreatureBlob.LeapingRun: dogs, cats, wolves) is at a point of its stride: 1 with all
         /// four feet under the body, 0 stretched out in the leap. Held gathered, eased out into the leap, held in the
@@ -857,6 +862,50 @@ namespace Punchy.Fauna
                     piece.Material.x = (float)SegmentMaterial.Metal;
                 }
                 output[offset + seg] = piece;
+            }
+            if (Seams.Data != 0)
+                MarkJoints(ref b, output, offset);
+        }
+
+        /// <summary>
+        /// "-seams": for each limb segment, how many segments back the one it hangs from is (the one before it in its
+        /// limb, else the last of the limb it grows from, else the trunk for a tail or neck), in Material.z for the
+        /// shader, which blends the start of the segment into that one's frame. Legs and arms off the trunk are left
+        /// alone (their start would swing flat along the body).
+        /// </summary>
+        static void MarkJoints(ref CreatureBlob b, NativeArray<SegmentInstance> output, int offset)
+        {
+            for (int p = 0; p < b.Parts.Length; p++)
+            {
+                ref var part = ref b.Parts[p];
+                if (part.Role != LimbRole.Leg && part.Role != LimbRole.Arm && part.Role != LimbRole.Tail && part.Role != LimbRole.Neck && part.Role != LimbRole.Head)
+                    continue;
+                for (int j = 0; j < part.SegmentCount; j++)
+                {
+                    var seg = part.FirstSegment + j;
+                    if (seg <= 0 || seg >= MaxSegments || seg >= b.Segments.Length)
+                        break;
+                    var from = -1;
+                    if (j > 0)
+                        from = seg - 1;
+                    else if (part.Parent >= 0)
+                    {
+                        ref var parent = ref b.Parts[part.Parent];
+                        from = parent.SegmentCount > 0 ? parent.FirstSegment + parent.SegmentCount - 1 : -1;
+                    }
+                    else if (part.Role == LimbRole.Tail || part.Role == LimbRole.Neck)
+                        from = 0;
+                    if (from < 0 || from >= MaxSegments || from >= b.Segments.Length)
+                        continue;
+                    var piece = output[offset + seg];
+                    if (piece.Length <= 0f || output[offset + from].Length <= 0f)
+                        continue;   // hidden (zero size) on either side
+                    // (Not across a fold sharper than a right angle: blended that far, the start would pinch.)
+                    if (math.abs(math.dot(piece.Rotation.value, output[offset + from].Rotation.value)) < 0.7071f)
+                        continue;
+                    piece.Material.z = seg - from;
+                    output[offset + seg] = piece;
+                }
             }
         }
 

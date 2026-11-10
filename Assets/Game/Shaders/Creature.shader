@@ -25,6 +25,7 @@ Shader "Punchy/Creature"
             float4 color;
             float4 material;   // x: what it's made of (SegmentMaterial: body, cloth, leather, metal, wood, bone); y: the
                                // height of the ground the creature stands on (for grounding: a body's segments only)
+                               // z: "-seams" only, how many segments back the one this hangs from is (0: none)
         };
 
         StructuredBuffer<Segment> _Segments;
@@ -44,6 +45,25 @@ Shader "Punchy/Creature"
         {
             float3 t = 2 * cross(q.xyz, v);
             return v + q.w * t + cross(q.xyz, t);
+        }
+
+        // A point of the segment, turned into the world (offset from the segment's start) with its normal. With "-seams"
+        // (material.z: the segment this hangs from, that many back) the start of the segment is blended into that one's
+        // frame over about a radius, so a bent joint reads as one bent tube rather than two capsules crossing.
+        void Joint(Segment s, uint index, float r, float3 local, float3 n, out float3 offsetWS, out float3 normalWS)
+        {
+            offsetWS = Rotate(s.rotation, local);
+            normalWS = Rotate(s.rotation, n);
+            int back = (int)round(s.material.z);
+            if (back == 0)
+                return;
+            float band = max(min(2 * r, 0.6 * s.length), 1e-3);
+            float w = 1 - smoothstep(0, band, local.z);
+            if (w <= 0)
+                return;
+            float4 q = _Segments[(uint)((int)index - back)].rotation;
+            offsetWS = lerp(offsetWS, Rotate(q, local), w);
+            normalWS = normalize(lerp(normalWS, Rotate(q, n), w));
         }
 
         // Fading in or out, as a screen-door dither (a 4x4 ordered pattern of dropped pixels): no blending or sorting,
@@ -71,8 +91,9 @@ Shader "Punchy/Creature"
             float3 local = float3(around.x * r * input.cap.y, around.y * r * input.cap.y * s.flatten, t * s.length + input.cap.x * r);
             float slope = (s.radiusStart - s.radiusEnd) / max(s.length + r, 1e-3);
             float3 n = float3(around.x * input.cap.y, around.y * input.cap.y / max(s.flatten, 0.05), input.cap.x + slope * input.cap.y);
-            positionWS = s.position + Rotate(s.rotation, local);
-            normalWS = Rotate(s.rotation, normalize(n));
+            float3 offsetWS;
+            Joint(s, input.instanceID + _SegmentOffset, r, local, normalize(n), offsetWS, normalWS);
+            positionWS = s.position + offsetWS;
             color = s.color;
             surface = local;
             along = saturate(local.z / max(s.length + 2 * r, 1e-3) + r / max(s.length + 2 * r, 1e-3));
@@ -90,8 +111,9 @@ Shader "Punchy/Creature"
             // Normal of the (flattened, tapered) surface, approximately.
             float slope = (s.radiusStart - s.radiusEnd) / max(s.length + r, 1e-3);
             float3 n = float3(around.x * input.cap.y, around.y * input.cap.y / max(s.flatten, 0.05), input.cap.x + slope * input.cap.y);
-            positionWS = s.position + Rotate(s.rotation, local);
-            normalWS = Rotate(s.rotation, normalize(n));
+            float3 offsetWS;
+            Joint(s, input.instanceID + _SegmentOffset, r, local, normalize(n), offsetWS, normalWS);
+            positionWS = s.position + offsetWS;
             color = s.color;
         }
         ENDHLSL

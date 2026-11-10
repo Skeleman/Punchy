@@ -224,7 +224,7 @@ namespace Punchy.Debugging
         {
             var archive = DialogueArchive.Current;
             if (archive == null || !archive.Cultures.TryGetValue("Any", out var any))
-                return new float[5];
+                return new float[6];
             var anyLines = Templates(any);
             var rng = new Unity.Mathematics.Random(97u);
             int cultures = 0, picks = 0, unfilled = 0, fromAny = 0;
@@ -873,6 +873,75 @@ namespace Punchy.Debugging
             if (fastest > 0.15f)
                 Debug.Log($"LyingDrag: {fastest:F3} m/s, {who}");
             return new float[] { count, fastest };
+        }
+
+        /// <summary>
+        /// A-92 row 2: a bench at a graphics preset ("High"), uncapped (no frame cap, no vsync). Returns what BenchEnd
+        /// puts back (the three sliders, the frame cap and vsync), since setting a preset saves it for this machine.
+        /// </summary>
+        public static string BenchStart(string preset)
+        {
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            var was = string.Join(",", Punchy.Settings.GraphicsSettings.View.ToString(inv), Punchy.Settings.GraphicsSettings.Detail.ToString(inv),
+                                  Punchy.Settings.GraphicsSettings.Shadows.ToString(inv), Application.targetFrameRate.ToString(inv), QualitySettings.vSyncCount.ToString(inv));
+            Punchy.Settings.GraphicsSettings.Set((Punchy.Settings.GraphicsPreset)System.Enum.Parse(typeof(Punchy.Settings.GraphicsPreset), preset));
+            Application.targetFrameRate = -1;
+            QualitySettings.vSyncCount = 0;
+            return was;
+        }
+
+        /// <summary>A-92 row 2: puts back what BenchStart changed.</summary>
+        public static void BenchEnd(string was)
+        {
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            var v = was.Split(',');
+            if (v.Length < 5)
+                return;
+            Punchy.Settings.GraphicsSettings.Set(float.Parse(v[0], inv), float.Parse(v[1], inv), float.Parse(v[2], inv));
+            Application.targetFrameRate = int.Parse(v[3], inv);
+            QualitySettings.vSyncCount = int.Parse(v[4], inv);
+        }
+
+        /// <summary>A-92 row 2: the creature pose job's median frame (ms summed over the workers) since the last call that cleared it.</summary>
+        public static float PoseMedian(bool clear)
+        {
+            var ms = CreatureRenderSystem.PoseMs.ToArray();
+            if (clear)
+                CreatureRenderSystem.PoseMs.Clear();
+            System.Array.Sort(ms);
+            return ms.Length > 0 ? (float)ms[ms.Length / 2] : 0f;
+        }
+
+        /// <summary>
+        /// A-92 row 2: a herd of one species within radius of (x, z), wherever it has wandered: { count, centre x, centre
+        /// y, centre z, how far out four in five of it stand, the farthest }, to frame the herd for a bench.
+        /// </summary>
+        public static float[] HerdAround(string name, float x, float z, float radius)
+        {
+            var director = Object.FindAnyObjectByType<FaunaDirector>();
+            var index = director != null ? director.SpeciesIndex(name) : -1;
+            if (index < 0)
+                return new float[6];
+            using var q = EM.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
+            using var states = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
+            using var bodies = q.ToComponentDataArray<CreatureBody>(Allocator.Temp);
+            var from = new float2(x, z);
+            var sum = float3.zero;
+            var members = new System.Collections.Generic.List<float3>();
+            for (int i = 0; i < states.Length; i++)
+                if (bodies[i].Species == index && states[i].Mode != CreatureMode.Puppet && math.distance(states[i].Position.xz, from) <= radius)
+                {
+                    members.Add(states[i].Position);
+                    sum += states[i].Position;
+                }
+            if (members.Count == 0)
+                return new float[6];
+            var centre = sum / members.Count;
+            var spread = new float[members.Count];
+            for (int i = 0; i < members.Count; i++)
+                spread[i] = math.distance(members[i].xz, centre.xz);
+            System.Array.Sort(spread);
+            return new float[] { members.Count, centre.x, centre.y, centre.z, spread[(int)(spread.Length * 0.8f)], spread[spread.Length - 1] };
         }
     }
 }
