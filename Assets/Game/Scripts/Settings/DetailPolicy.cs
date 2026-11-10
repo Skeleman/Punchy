@@ -202,6 +202,9 @@ namespace Punchy.Settings
         /// <summary>R-7: where a size hands over to its impostor, per reference pixel-per-metre (0: the rule has none).</summary>
         public static float ImpostorReach(in Rule rule, float size) => rule.Impostor > 0f ? size / rule.Impostor : 0f;
 
+        /// <summary>R-7: whether the rule has an impostor tier at all (only those models are baked one).</summary>
+        public static bool HasImpostor(in Rule rule) => rule.Impostor > 0f;
+
         /// <summary>The four answers for one object, packed in a byte (geometry 2 bits, animation 2, shadow 1).</summary>
         public struct Decision
         {

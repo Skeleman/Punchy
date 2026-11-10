@@ -50,15 +50,23 @@ namespace Punchy.Flora
         static readonly int ImpostorAlbedoId = Shader.PropertyToID("_ImpostorAlbedo");
         static readonly int ImpostorDataId = Shader.PropertyToID("_ImpostorData");
         static readonly int ImpostorModelBaseId = Shader.PropertyToID("_ImpostorModelBase");
+        static readonly int ImpostorSliceId = Shader.PropertyToID("_ImpostorSlice");
         static readonly int ImpostorOneFrameId = Shader.PropertyToID("_PunchyImpostorOneFrame");
 
-        /// <summary>A layer's impostors: its two atlases (one slice per model) and how far the bake has got.</summary>
+        /// <summary>A layer's impostors: its two atlases (one slice per model that can become an impostor) and how far
+        /// the bake has got.</summary>
         class ImpostorAtlas
         {
             public RenderTexture Albedo, Data;
             public int Frames, Pixels, Mips;
             public bool Full;
-            /// <summary>The next model (local to the layer) to bake; the bake is done at the layer's ModelCount.</summary>
+            /// <summary>Each model's (local to the layer) atlas slice, or -1 for a model whose DetailPolicy rule gives it
+            /// no impostor (it stays on its meshes, so it isn't baked): FloraImpostor.hlsl's _ImpostorSlice.</summary>
+            public int[] Slices;
+            /// <summary>The models baked, in slice order (local to the layer).</summary>
+            public int[] Baked;
+            public GraphicsBuffer SliceBuffer;
+            /// <summary>The next slice to bake; the bake is done at Baked.Length.</summary>
             public int Next;
             public int BakeFrames;
             public double Ms, SlowestMs;
@@ -75,6 +83,8 @@ namespace Punchy.Flora
                 if (Albedo != null) { Albedo.Release(); UnityEngine.Object.Destroy(Albedo); }
                 if (Data != null) { Data.Release(); UnityEngine.Object.Destroy(Data); }
                 Albedo = Data = null;
+                SliceBuffer?.Release();
+                SliceBuffer = null;
                 ImpostorBytes -= Bytes;
                 Bytes = 0;
             }
@@ -112,10 +122,23 @@ namespace Punchy.Flora
             return impostorBakePass >= 0 ? impostorMaterial : null;
         }
 
-        /// <summary>Sets up an impostor layer's atlases at Build; BakeImpostors fills them over the next frames.</summary>
+        /// <summary>Sets up an impostor layer's atlases at Build; BakeImpostors fills them over the next frames. Only the
+        /// models that can become impostors (DetailPolicy.HasImpostor: in the shrubs, the plants, not the rocks, debris and
+        /// structures) get a slice, so the atlases hold no frames nothing ever draws.</summary>
         void QueueImpostors(Layer layer)
         {
             if (NoImpostors || !ImpostorLayers[layer.Index] || layer.ModelCount == 0 || ImpostorMaterial() == null)
+                return;
+            var slices = new int[layer.ModelCount];
+            var baked = new System.Collections.Generic.List<int>();
+            for (int m = 0; m < layer.ModelCount; m++)
+            {
+                var rule = Punchy.Settings.DetailPolicy.FloraRule(models[layer.ModelBase + m].DetailClass());
+                slices[m] = Punchy.Settings.DetailPolicy.HasImpostor(rule) ? baked.Count : -1;
+                if (slices[m] >= 0)
+                    baked.Add(m);
+            }
+            if (baked.Count == 0)
                 return;
             var frames = math.clamp(ImpostorFrames, 2, 32);
             var pixels = math.clamp(ImpostorPixels, 8, 256);
@@ -123,14 +146,16 @@ namespace Punchy.Flora
             var mips = 1;
             while (pixels >> mips >= ImpostorSmallestMip)
                 mips++;
-            var atlas = new ImpostorAtlas { Frames = frames, Pixels = pixels, Mips = mips, Full = ImpostorFull };
-            atlas.Albedo = ImpostorTarget($"Flora impostors {layer.Index} (albedo)", size, mips, layer.ModelCount);
-            atlas.Data = ImpostorTarget($"Flora impostors {layer.Index} (data)", size, mips, layer.ModelCount);
+            var atlas = new ImpostorAtlas { Frames = frames, Pixels = pixels, Mips = mips, Full = ImpostorFull, Slices = slices, Baked = baked.ToArray() };
+            atlas.Albedo = ImpostorTarget($"Flora impostors {layer.Index} (albedo)", size, mips, atlas.Baked.Length);
+            atlas.Data = ImpostorTarget($"Flora impostors {layer.Index} (data)", size, mips, atlas.Baked.Length);
+            atlas.SliceBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, layer.ModelCount, sizeof(int));
+            atlas.SliceBuffer.SetData(slices);
             // Both RGBA8, each mip a quarter of the one above.
             long texels = 0;
             for (int m = 0; m < mips; m++)
                 texels += (long)(size >> m) * (size >> m);
-            atlas.Bytes = texels * 4 * 2 * layer.ModelCount;
+            atlas.Bytes = texels * 4 * 2 * atlas.Baked.Length;
             ImpostorBytes += atlas.Bytes;
             layer.Impostors = atlas;
         }
@@ -162,7 +187,7 @@ namespace Punchy.Flora
             foreach (var layer in layers)
             {
                 var atlas = layer?.Impostors;
-                if (atlas == null || atlas.Next >= layer.ModelCount || budget <= 0)
+                if (atlas == null || atlas.Next >= atlas.Baked.Length || budget <= 0)
                     continue;
                 material ??= ImpostorMaterial();
                 if (material == null)
@@ -180,10 +205,10 @@ namespace Punchy.Flora
                 }
                 atlas.BakeFrames++;
                 var colours = new RenderTargetIdentifier[] { bakeAlbedo, bakeData };
-                for (; atlas.Next < layer.ModelCount && budget > 0; atlas.Next++, budget--)
+                for (; atlas.Next < atlas.Baked.Length && budget > 0; atlas.Next++, budget--)
                 {
                     var clock = System.Diagnostics.Stopwatch.StartNew();
-                    var model = models[layer.ModelBase + atlas.Next];
+                    var model = models[layer.ModelBase + atlas.Baked[atlas.Next]];
                     var mesh = model.Lods[0];
                     var cmd = bakeCommands;
                     cmd.Clear();
@@ -213,15 +238,15 @@ namespace Punchy.Flora
                         atlas.SlowestMs = ms;
                         atlas.Slowest = atlas.Next;
                     }
-                    Debug.Log($"[flora] impostor bake layer {layer.Index} model {atlas.Next + 1}/{layer.ModelCount} {model.Species.name} " +
+                    Debug.Log($"[flora] impostor bake layer {layer.Index} model {atlas.Next + 1}/{atlas.Baked.Length} {model.Species.name} " +
                               $"({mesh.vertexCount} vertices): {ms:F2} ms");
                 }
-                if (atlas.Next >= layer.ModelCount)
+                if (atlas.Next >= atlas.Baked.Length)
                 {
-                    var slowest = models[layer.ModelBase + atlas.Slowest];
-                    LastImpostorLog = $"layer {layer.Index}: {layer.ModelCount} models, {atlas.Frames}x{atlas.Frames} frames of {atlas.Pixels} px " +
+                    var slowest = models[layer.ModelBase + atlas.Baked[atlas.Slowest]];
+                    LastImpostorLog = $"layer {layer.Index}: {atlas.Baked.Length} of {layer.ModelCount} models, {atlas.Frames}x{atlas.Frames} frames of {atlas.Pixels} px " +
                                       $"({(atlas.Full ? "full" : "hemi")}-octahedral, {atlas.Mips} mips), {atlas.Ms:F1} ms over {atlas.BakeFrames} frames " +
-                                      $"(mean {atlas.Ms / layer.ModelCount:F2} ms, slowest {atlas.SlowestMs:F2} ms {slowest.Species.name}), " +
+                                      $"(mean {atlas.Ms / atlas.Baked.Length:F2} ms, slowest {atlas.SlowestMs:F2} ms {slowest.Species.name}), " +
                                       $"atlases {atlas.Bytes / (1024.0 * 1024.0):F1} MB, all impostors {ImpostorBytes / (1024.0 * 1024.0):F1} MB";
                     Debug.Log($"[flora] impostor bake done, {LastImpostorLog}");
                     StartImpostors(layer);
@@ -243,11 +268,13 @@ namespace Punchy.Flora
             atlas.Material.SetFloat(ImpostorFramesId, atlas.Frames);
             atlas.Material.SetFloat(ImpostorFullId, atlas.Full ? 1f : 0f);
             atlas.Material.SetInteger(ImpostorModelBaseId, layer.ModelBase);
+            atlas.Material.SetBuffer(ImpostorSliceId, atlas.SliceBuffer);
             SetImpostorBuffers(layer);
+            // A model without a slice keeps reach 0, so the cull never hands it to the impostor draw.
             for (int m = 0; m < layer.ModelCount; m++)
             {
                 var model = models[layer.ModelBase + m];
-                layer.ImpostorReach[m] = Punchy.Settings.DetailPolicy.ImpostorReach(
+                layer.ImpostorReach[m] = atlas.Slices[m] < 0 ? 0f : Punchy.Settings.DetailPolicy.ImpostorReach(
                     Punchy.Settings.DetailPolicy.FloraRule(model.DetailClass()), model.Radius * 2f);
             }
             layer.ImpostorBuffer.SetData(layer.ImpostorReach);
