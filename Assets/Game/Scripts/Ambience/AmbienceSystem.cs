@@ -50,6 +50,8 @@ namespace Punchy.Ambience
         /// <summary>0..1 conditions where the player is (for debugging and other systems).</summary>
         public float Heat { get; private set; }
         public float Cold { get; private set; }
+        /// <summary>Breath and snow puffs alive now (A-90's particle count check).</summary>
+        public int PuffCount => puffs != null ? puffs.particleCount : 0;
         public float Fireflies { get; private set; }
         public float Butterflies { get; private set; }
         /// <summary>0..1 how much of each condition ambient particles can depend on.</summary>
@@ -387,22 +389,36 @@ namespace Punchy.Ambience
         /// now and then a wisp of vapour from its mouth, drifting the way it faces, carried along as it goes and by the
         /// wind, as a player's does; size scales the wisp (1 a person's). Nothing while it isn't cold here.
         /// </summary>
-        public void Breathe(Vector3 mouth, Vector3 forward, Vector3 velocity, float size = 1f)
+        public void Breathe(Vector3 mouth, Vector3 forward, Vector3 velocity, float size = 1f) =>
+            Breathe(mouth, forward, velocity, size, 30f, 1.5f, 1f, 0.85f);
+
+        /// <summary>
+        /// The same, shaped to the body (A-90, CreatureBreathSystem.Shape): rate wisps a second on average, each living
+        /// about lifetime seconds, at opacity times a person's, carrying carry of the breather's velocity (a flier's
+        /// breath stays where it was breathed instead of trailing after it).
+        /// </summary>
+        public void Breathe(Vector3 mouth, Vector3 forward, Vector3 velocity, float size, float rate, float lifetime, float opacity, float carry)
         {
             var breathe = math.smoothstep(BreathThreshold, BreathThreshold + 0.3f, Cold);
-            if (puffs == null || breathe <= 0f || UnityEngine.Random.value >= Time.deltaTime * 30f)
+            if (puffs == null || breathe <= 0f)
+                return;
+            // (Whole wisps due this frame, plus one more by chance for the fraction left over.)
+            var due = rate * Time.deltaTime;
+            var count = (int)due + (UnityEngine.Random.value < due - (int)due ? 1 : 0);
+            if (count <= 0)
                 return;
             var wind = Weather != null ? (Vector3)new float3(Climate.CameraWind.x, 0f, Climate.CameraWind.y) * 1.5f : Vector3.zero;
-            puffs.Emit(new ParticleSystem.EmitParams
-            {
-                position = mouth,
-                velocity = forward * 0.7f * size + velocity * 0.85f + new Vector3(0f, -0.05f, 0f) + wind + UnityEngine.Random.insideUnitSphere * 0.08f,
-                startSize = UnityEngine.Random.Range(0.1f, 0.15f) * size,
-                startLifetime = UnityEngine.Random.Range(1.2f, 1.8f),
-                startColor = new Color(1f, 1f, 1f, 0.75f * breathe),
-                rotation = UnityEngine.Random.Range(0f, 360f),
-                applyShapeToPosition = false
-            }, 1);
+            for (int i = 0; i < count; i++)
+                puffs.Emit(new ParticleSystem.EmitParams
+                {
+                    position = mouth,
+                    velocity = forward * 0.7f * math.min(size, 1.6f) + velocity * carry + new Vector3(0f, -0.05f, 0f) + wind + UnityEngine.Random.insideUnitSphere * 0.08f,
+                    startSize = UnityEngine.Random.Range(0.1f, 0.15f) * size,
+                    startLifetime = UnityEngine.Random.Range(0.8f, 1.2f) * lifetime,
+                    startColor = new Color(1f, 1f, 1f, 0.75f * breathe * opacity),
+                    rotation = UnityEngine.Random.Range(0f, 360f),
+                    applyShapeToPosition = false
+                }, 1);
         }
 
         void Puff(Breather b, in TerrainSource source, LocalTransform player, bool grounded, float cold)
