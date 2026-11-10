@@ -21,6 +21,8 @@ Nothing raises the water ahead of it, so the leading edge reads as a dip.
 
 This is for the water lane; I haven't changed anything. Job 45's cost numbers will be on fd50ad58 as built.
 
+**Zach's choice (13:05):** the first option, a raised hump ahead of the swimmer. He says a leading swell is important.
+
 ## Note, 2026-11-10 12:30: main doesn't build a player since #243 (06b2a72b)
 - **The failure:** a Profile (Development) player build of 06b2a72b fails to compile. ed0e68ef still has the same code, so
   latest main fails the same way.
