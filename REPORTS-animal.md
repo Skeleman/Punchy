@@ -3378,3 +3378,18 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
   - [shot] D:/Unity/PunchyMilestones/A-97/row2b-sheet.png (noon): squirrel, fox, fox tail, horse, horse mane, bear, wolf, and the ogre as the mammoth stand-in (there is no mammoth creature). Single shots are in row2b/.
   - The squirrel-tail close-up missed the tail; the squirrel body shot shows it. The wolf pair at 6.5 m and 7.5 m (60 deg FOV) is framed too far out to judge the shell edge.
   - A stray folder, D:/d, holds a misplaced test shot from this card. Deleting it needs the user's approval.
+- **Row 3 (Wolf paws): done (verified).** Branch fauna/surfaces, commit b5720baf.
+  - A new Paw surface (SegmentSurface 7, look code 10, which stores the coat in the high nibble). Each paw now has:
+    - coat colour with short fur over the top (skin pores on bare-coat frogs)
+    - toe grooves at the front
+    - a dark pad under the sole only
+    - small dark claws at the tip on paws with a radius of 3-4 cm or more (wolf, dog, bear; not fox or cat)
+  - PawForeleg/PawHindleg feet: r 0.02/0.016 flatten 0.6 fixed dark became r 0.021/0.022 flatten 0.68 coat colour. Bear feet: r 0.06/0.05 flatten 0.55 became r 0.062/0.064 flatten 0.62, Paw.
+  - Keyframes are unchanged and the feet still plant (shots on flat meadow). StandHeight takes in the wider foot.
+  - Inventory: every former Pad=N is now Paw=N, and BlackBear/GrizzlyBear/PolarBear go from FurM 18 to FurM 14 Paw 4. Nothing else changed.
+  - **Fingerprint warning:** Fauna_Fingerprint changes from 66320C7C to AD723954, because limb radius, flatten and the fixed-colour flag are baked blob bytes. No placement change. WorldTests is re-pinned with a note.
+  - Side effect: frogs share PawForeleg, so their feet are now coat-coloured skin, no longer dark pads.
+  - [shot] D:/Unity/PunchyMilestones/A-97/row3/paws-sheet.png and stride-sheet.png (before/after on a cliff spawn). Flat-ground afters are in meadow-sheet.png (wolf, wolf mid-stride, dog, fox, cat, bear, bear mid-stride, wolf front, paw close-ups). Single shots are in row3/ and row3/meadow/.
+  - The individuals were re-rolled between before and after, so their coat colours differ.
+  - Bear claws are hard to see through the grass in the close-up.
+  - The A-92 lying check (LyingTests) runs in the final PlayMode suite.
