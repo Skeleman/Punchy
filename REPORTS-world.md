@@ -3980,3 +3980,31 @@ Built in the player tree, not the one the card names (the world tree's gitignore
   - **Row 2b (waiting for your go):** Creature.shader (A-92), the water shaders (R-9) and Colossus.shader (A-89). Each needs the same three-line hook-up once those branches are merged.
   - **BENCH-QUEUE line for the laptop:** `R-10 row 2: Profile build of light/forwardplus (e0c4123a), -gfx High, 1920x1080, uncapped, -time 22 -weather Clear, -goto 2988.8,-920 facing north; whole-frame GPU ms with -lightbudget 0 vs default (48 at High) vs 96 (ABBA, 300 frames each), then the same at origin/main for the "today" baseline (pass: High <= +0.5 ms).`
   - **Decisions:** none. Next is row 3: Cave.shader moves to the same falloff, real level fades by on-screen size instead of a 0.8 s pop, and the night map is matched to the slots in colour and reach.
+
+## R-11 (far trees and rocks as impostors; tree Punchy-world, branch lod/impostor-trees from origin/main 2644b295)
+
+- **Row 1, trees: done (verified).** Commit d977c58e, pushed.
+  - The tree layer bakes impostors, but only for the Tree class (DetailPolicy `Impostor = 30` px), so buildings, debris and props keep their meshes. Far reach and shadows are unchanged, because shadows still use the mesh lists.
+  - Impostors turn with each plant: its yaw, its W-16 tilt and the mesh's wind bend (same gust and phase as Flora.hlsl, scaled by each model's sway at its centre).
+  - Far coverage: once a pixel spans more than a texel, the alpha cut is dithered. With the old hard 0.5 cut, far conifers thinned out and vanished, and the rest read as dark blots.
+  - Bark and rock take the mesh's far sky sheen. With both fixes the far-band mean colour matches main within 0.2/255.
+  - Render ms, in-session interleaved A/B at 1920x1080, 3 rounds. `t0` means tree impostors off, which is the same as main. Absolute ms drifts between sessions because other editors share the GPU.
+
+    | preset | view | impostors | main (t0) | delta |
+    |---|---|---|---|---|
+    | High | walk | 5.55 | 5.66 | -0.11 |
+    | High | hilltop | 5.08 | 5.29 | -0.21 |
+    | High | 300 m up | 3.85 | 4.02 | -0.17 |
+    | High | hilltop2 (forest) | 5.33 | 5.53 | -0.20 |
+    | Medium | walk | 4.35 | 4.35 | 0.00 |
+    | Medium | hilltop | 3.89 | 4.15 | -0.26 |
+    | Medium | 300 m up | 3.30 | 3.56 | -0.26 |
+    | Medium | hilltop2 (forest) | 3.92 | 4.18 | -0.26 |
+
+  - Draw counts, High hilltop: 6675 meshes + 4340 impostors, against 8376 + 2014 on main.
+  - Tree atlas 51.8 MB (79 of 603 tree-layer models). Bake 2.4 ms CPU over 7 frames; the slowest model is AncientTree at 0.39 ms. All impostor atlases together: 91.2 MB.
+  - Pops: 12-step walk (3 m steps) and fly (300 m up) strips. Frame-to-frame change is the same as main to within 0.1 at every step (walk worst block 124 both, fly 34 both), so no added pops.
+  - Wind hand-off is UNVERIFIED in stills. It uses the mesh's formulas by construction.
+  - The editor runs D3D11: no magenta, no shader errors.
+  - Shots: PunchyMilestones/R-11/r1final-*.png and r1final-contact-sheet.jpg; r1c-hilltop2-High-zoom-imp-top-t0-bottom.png (the far band after the fixes); strips/r1-{walk,fly}-{imp,t0}-NN.png.
+  - Risk: impostor strata are baked in model space, so banded rock stripes won't line up with the cliffs. Matters for row 2 only, and only far away.
