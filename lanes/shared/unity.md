@@ -22,3 +22,8 @@
 - Never pass `-nographics` to Punchy.exe: compute buffers break and the shot list never finishes, so it never quits.
 - From Git Bash, pass player paths with forward slashes (`D:/PunchyScratch/...`); backslashes get eaten.
 - If Builds/Dev is locked by a player that won't exit, build to Builds/DevB instead and say so in the report. Don't kill it.
+
+## Bound every pipe (11-10)
+An orphaned `grep -o "\"result\":..."` on an editor eval reply held ~18 GB after its shell died: grep -o keeps one
+whole line in memory, and the reply never ended. Always `curl --max-time 120 ... | head -c 1000000 | grep -o ...`
+(or write to a file and read it), and check `tasklist | grep -i grep` before you finish a card.
