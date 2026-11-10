@@ -15,11 +15,12 @@ using UnityEngine.InputSystem.LowLevel;
 
 namespace Punchy.Items
 {
-    /// <summary>One kind of item (#26): its name, the colour it's drawn and shown in, how many stack, its weight (kg).</summary>
+    /// <summary>One kind of item (#26): its name, the colour it's drawn in and a second colour for a part of it (ItemMeshes),
+    /// how many stack, its weight (kg).</summary>
     public struct ItemDef
     {
         public string Name;
-        public Color Colour;
+        public Color Colour, Accent;
         public int Stack;
         public float Weight;
     }
@@ -31,10 +32,10 @@ namespace Punchy.Items
         {
             new ItemDef { Name = "Stick", Colour = new Color(0.55f, 0.38f, 0.2f), Stack = 20, Weight = 0.3f },
             new ItemDef { Name = "Stone", Colour = new Color(0.55f, 0.55f, 0.58f), Stack = 20, Weight = 1f },
-            new ItemDef { Name = "Berry", Colour = new Color(0.75f, 0.1f, 0.3f), Stack = 30, Weight = 0.02f },
-            new ItemDef { Name = "Mushroom", Colour = new Color(0.85f, 0.75f, 0.6f), Stack = 20, Weight = 0.05f },
+            new ItemDef { Name = "Berry", Colour = new Color(0.75f, 0.1f, 0.3f), Accent = new Color(0.25f, 0.5f, 0.2f), Stack = 30, Weight = 0.02f },
+            new ItemDef { Name = "Mushroom", Colour = new Color(0.72f, 0.32f, 0.2f), Accent = new Color(0.9f, 0.85f, 0.72f), Stack = 20, Weight = 0.05f },
             new ItemDef { Name = "Shell", Colour = new Color(0.95f, 0.85f, 0.8f), Stack = 20, Weight = 0.05f },
-            new ItemDef { Name = "Fish", Colour = new Color(0.4f, 0.6f, 0.75f), Stack = 5, Weight = 0.8f },
+            new ItemDef { Name = "Fish", Colour = new Color(0.4f, 0.6f, 0.75f), Accent = new Color(0.3f, 0.42f, 0.55f), Stack = 5, Weight = 0.8f },
             new ItemDef { Name = "Coin", Colour = new Color(1f, 0.8f, 0.2f), Stack = 99, Weight = 0.01f },
             new ItemDef { Name = "Key", Colour = new Color(0.8f, 0.7f, 0.3f), Stack = 5, Weight = 0.05f },
         };
@@ -136,6 +137,7 @@ namespace Punchy.Items
             instance.openChestArg = System.Array.IndexOf(args, "-openchest") >= 0;
             instance.panel = System.Array.IndexOf(args, "-inventory") >= 0;
             instance.padTest = System.Array.IndexOf(args, "-invpad") >= 0;
+            instance.itemRowArg = System.Array.IndexOf(args, "-itemrow") >= 0;
             var ca = System.Array.IndexOf(args, "-container");
             if (ca >= 0 && ca + 1 < args.Length)
                 int.TryParse(args[ca + 1], out instance.containerArg);
@@ -626,8 +628,35 @@ namespace Punchy.Items
 
         // ------------------------------------------------------------------ tests, keys, drawing
 
+        bool itemRowArg;
+
+        /// <summary>"-itemrow" (P-23): one of every item in a row 1.8 m in front of the player and in the inventory, the camera close.</summary>
+        void ItemRow(in TerrainSource terrain)
+        {
+            if (!itemRowArg || Time.realtimeSinceStartup < 20f || !TryPlayer(out var player))
+                return;
+            itemRowArg = false;
+            var forward = math.normalizesafe(math.mul(player.Rotation, new float3(0f, 0f, 1f)).xz);
+            var right = new float2(forward.y, -forward.x);
+            var count = ItemTable.Items.Length;
+            for (int i = 0; i < count; i++)
+            {
+                var xz = player.Position.xz + forward * 1.8f + right * ((i - (count - 1) * 0.5f) * 0.5f);
+                Spawn((byte)i, 1, new float3(xz.x, terrain.SampleHeight(xz), xz.y));
+                Grant((byte)i, 1);
+            }
+            var cam = FindAnyObjectByType<Punchy.CameraRig.ThirdPersonCamera>();
+            if (cam != null)
+            {
+                cam.Distance = 3.5f;
+                cam.SetView(math.degrees(math.atan2(forward.x, forward.y)), 34f);
+            }
+            Debug.Log($"Items: -itemrow: {count} items spawned; inventory: {DescribeInventory()}");
+        }
+
         void Tests(in TerrainSource terrain)
         {
+            ItemRow(terrain);
             if (pickupArg <= 0 && !dropArg && !openChestArg)
                 return;
             testAt = testAt == 0f ? Time.realtimeSinceStartup + 30f : testAt;
@@ -855,23 +884,25 @@ namespace Punchy.Items
                 if (shown.ContainsKey(uid))
                     continue;
                 var it = world[uid];
-                var go = GameObject.CreatePrimitive(it.Item == 2 || it.Item == 6 ? PrimitiveType.Sphere : PrimitiveType.Cube);
-                Destroy(go.GetComponent<Collider>());
-                go.name = "Item " + uid;
-                go.hideFlags = HideFlags.HideInHierarchy;
-                var size = it.Item == 0 ? new Vector3(0.08f, 0.08f, 0.6f) : it.Item == 5 ? new Vector3(0.15f, 0.12f, 0.45f) : Vector3.one * 0.2f;
-                go.transform.localScale = size;
-                go.transform.position = (Vector3)it.Pos + Vector3.up * (size.y * 0.5f + 0.02f);
+                var go = new GameObject("Item " + uid) { hideFlags = HideFlags.HideInHierarchy };
+                var mesh = ItemMeshes.Of(it.Item);
+                go.AddComponent<MeshFilter>().sharedMesh = mesh;
+                var r = go.AddComponent<MeshRenderer>();
+                go.transform.position = (Vector3)it.Pos + Vector3.up * 0.02f;
                 go.transform.rotation = Quaternion.Euler(0f, uid * 37 % 360, 0f);
                 // (Items/Resources/ItemMaterial: the pipeline's own lit material. A primitive's default material has no URP
                 // shader in a player build, and drew magenta.)
-                var r = go.GetComponent<Renderer>();
                 if (itemMaterial == null) itemMaterial = Resources.Load<Material>("ItemMaterial");   // (not ??=: it misses a destroyed Unity object)
                 if (itemMaterial != null)
-                    r.sharedMaterial = itemMaterial;
+                    r.sharedMaterials = mesh.subMeshCount > 1 ? new[] { itemMaterial, itemMaterial } : new[] { itemMaterial };
                 block ??= new MaterialPropertyBlock();
                 block.SetColor(BaseColorId, ItemTable.Items[it.Item].Colour);
-                r.SetPropertyBlock(block);
+                r.SetPropertyBlock(block, 0);
+                if (mesh.subMeshCount > 1)
+                {
+                    block.SetColor(BaseColorId, ItemTable.Items[it.Item].Accent);
+                    r.SetPropertyBlock(block, 1);
+                }
                 shown[uid] = go;
             }
         }
@@ -923,8 +954,8 @@ namespace Punchy.Items
                     if (s.item != 255 && Event.current.type == EventType.Repaint)
                     {
                         var rect = GUILayoutUtility.GetLastRect();
-                        GUI.color = ItemTable.Items[s.item].Colour;
-                        GUI.DrawTexture(new Rect(rect.x + cell * 0.3f, rect.y + 8f, cell * 0.4f, cell * 0.35f), Texture2D.whiteTexture);
+                        GUI.color = Color.white;
+                        GUI.DrawTexture(new Rect(rect.x + cell * 0.2f, rect.y + 2f, cell * 0.6f, cell * 0.6f), ItemMeshes.Icon(s.item), ScaleMode.ScaleToFit);
                         GUI.color = colour;
                     }
                     GUILayout.Space(gap);
