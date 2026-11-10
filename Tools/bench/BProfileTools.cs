@@ -45,6 +45,38 @@ public static class BProfileTools
         EditorApplication.Exit(r.summary.result == UnityEditor.Build.Reporting.BuildResult.Succeeded ? 0 : 1);
     }
 
+    static double main_ms(int f)
+    {
+        using var m = ProfilerDriver.GetRawFrameDataView(f, 0);
+        return m.valid ? m.frameTimeMs : 0;
+    }
+
+    // One "OVER" line: frame, its time into the capture, its ms, the 5 samples with the most self time and the 8 with the
+    // most inclusive time below depth 2 (under PlayerLoop's phases), each with its parent's name.
+    static string OverLine(UnityEditor.Profiling.RawFrameDataView v, double[] selfMs, int f, int first, double ms, double t0)
+    {
+        var parent = new int[v.sampleCount];
+        var depth = new int[v.sampleCount];
+        var stack = new Stack<(int idx, int left)>();
+        for (int i = 0; i < v.sampleCount; i++)
+        {
+            parent[i] = -1;
+            if (stack.Count > 0)
+            {
+                var top = stack.Pop();
+                parent[i] = top.idx; depth[i] = depth[top.idx] + 1;
+                if (top.left - 1 > 0) stack.Push((top.idx, top.left - 1));
+            }
+            int c = v.GetSampleChildrenCount(i);
+            if (c > 0) stack.Push((i, c));
+        }
+        string Name(int i) => v.GetSampleName(i) + (parent[i] >= 0 ? " < " + v.GetSampleName(parent[i]) : "");
+        var idx = Enumerable.Range(0, v.sampleCount);
+        var self = string.Join("; ", idx.OrderByDescending(i => selfMs[i]).Take(5).Select(i => $"{selfMs[i]:F1} {Name(i)}"));
+        var incl = string.Join("; ", idx.Where(i => depth[i] >= 2).OrderByDescending(i => v.GetSampleTimeMs(i)).Take(8).Select(i => $"{v.GetSampleTimeMs(i):F1} {Name(i)}"));
+        return $"OVER frame {f - first} at {(v.frameStartTimeMs - t0) / 1000.0:F2} s: {ms:F1} ms | self: {self} | incl: {incl}";
+    }
+
     static string Arg(string name, string def)
     {
         var a = Environment.GetCommandLineArgs();
@@ -60,6 +92,8 @@ public static class BProfileTools
         var outPath = Arg("-out", "analysis.txt");
         var keep = Arg("-keep", "");   // markers containing this always listed, however small (e.g. NetMenu)
         float skipSec = float.Parse(Arg("-skip", "0"), System.Globalization.CultureInfo.InvariantCulture);
+        // -over N (job 44): for every main-thread frame over N ms, its top samples by self time and by inclusive time.
+        float overMs = float.Parse(Arg("-over", "0"), System.Globalization.CultureInfo.InvariantCulture);
         var sb = new StringBuilder();
         foreach (var raw in inputs)
         {
@@ -107,6 +141,8 @@ public static class BProfileTools
                         int c = v.GetSampleChildrenCount(i);
                         if (c > 0) stack.Push((i, c));
                     }
+                    if (t == 0 && overMs > 0 && main_ms(f) > overMs)
+                        sb.AppendLine(OverLine(v, selfMs, f, first, main_ms(f), t0));
                     for (int i = 0; i < v.sampleCount; i++)
                     {
                         string key = group + "|" + v.GetSampleName(i);

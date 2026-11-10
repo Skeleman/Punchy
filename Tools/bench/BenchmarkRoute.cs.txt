@@ -236,6 +236,23 @@ namespace Punchy.Debugging
                 }
             }
 
+            // -benchline x0,z0,x1,z1,speed,height: also a straight run as stop "line" (job 44: the W-129 shrub walk and glide).
+            // Settles at x0,z0 facing x1,z1, then is carried along the line at speed m/s, height m over the ground (or over
+            // the sea where that's higher); the measured part is the line's length over the speed. -hitchms N logs where.
+            var lineArg = System.Array.IndexOf(args, "-benchline");
+            if (lineArg >= 0 && lineArg + 1 < args.Length)
+            {
+                var v = System.Array.ConvertAll(args[lineArg + 1].Split(','), s => float.Parse(s, System.Globalization.CultureInfo.InvariantCulture));
+                var lineFrom = new float3(v[0], 0f, v[1]);
+                var lineLen = math.distance(lineFrom.xz, new float2(v[2], v[3]));
+                var lineDir = new float3(v[2] - v[0], 0f, v[3] - v[1]) / lineLen;
+                var lineSpeed = v.Length > 4 ? v[4] : 30f;
+                var lineHeight = v.Length > 5 ? v[5] : 0.1f;
+                Debug.Log($"BenchRoute: line from {v[0]:F0},{v[1]:F0} to {v[2]:F0},{v[3]:F0}, {lineLen:F0} m at {lineSpeed:F0} m/s, {lineHeight:F1} m up");
+                yield return Stop("line", () => PlaceAt(new float3(v[0], float.NaN, v[1]), Yaw(lineDir)) && SetWeather("Partly cloudy", 18),
+                                  measure: lineLen / lineSpeed, drive: t => Line(lineFrom, lineDir, lineSpeed, lineHeight, t));
+            }
+
             // -benchplace <name>: also measure the place -place would jump to by that name (e.g. Tors), as stop "place".
             var placeArg = System.Array.IndexOf(args, "-benchplace");
             if (placeArg >= 0 && placeArg + 1 < args.Length)
@@ -899,6 +916,24 @@ namespace Punchy.Debugging
         static string Walk(float3 from, float3 d, float t)
         {
             Carry(new float3(from.x, 0f, from.z) + d * 6f * t, 0.1f);
+            return phase;
+        }
+
+        /// <summary>A drive (-benchline): held at 'from' while settling, then carried along d at speed m/s, height m over the
+        /// ground or the sea, whichever is higher.</summary>
+        static string Line(float3 from, float3 d, float speed, float height, float t)
+        {
+            if (!TryGetWorld(out var em, out var player))
+                return phase;
+            using var terrainQuery = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
+            if (terrainQuery.IsEmpty)
+                return phase;
+            var source = terrainQuery.GetSingleton<TerrainSource>();
+            var at = from + d * speed * math.max(0f, t - Settle);
+            var transform = em.GetComponentData<LocalTransform>(player);
+            transform.Position = new float3(at.x, math.max(source.SampleHeight(at.xz), source.World.SeaLevel) + height, at.z);
+            em.SetComponentData(player, transform);
+            em.SetComponentData(player, new PlayerMotion { Grounded = true });
             return phase;
         }
 
