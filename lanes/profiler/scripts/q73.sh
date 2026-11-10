@@ -2,9 +2,9 @@
 # Job 43: water, SSAO, glow slots and shadow distance on the laptop (11-09 audit, sections 3, 4, 5, 8). Read only. Main
 # 2644b295, Profile build, 1920x1080, -weatherseed 4, noon, Clear, uncapped, -gfx High then Medium, a fresh game per run.
 # Round 1 in list order, round 2 reversed.
-#   cal:    the Beach place (the game's own finder: out from the centre to where the ground meets the sea, facing out) at
-#           camera pitches -10..60, with shots, to pick the 10% / 50% / 90% water views. Writes nothing; I pick the
-#           pitches into results/q73-pitches.txt ("w10 <pitch>", "w50 <pitch>", "w90 <pitch>").
+#   cal:    job 39's lake (spot -1624,-488) facing 270 (the Beach finder faces a sand bank here), at camera pitches -30..50,
+#           with shots, to pick the 10% / 50% / 90% water views. Writes nothing; I pick the pitches into
+#           results/q73-pitches.txt ("w10 <pitch>", "w50 <pitch>", "w90 <pitch>").
 #   water:  those three views x -waterquality High / Medium / Low x -gfx High / Medium.
 #   shadow: the dense forest (spot 1740,3355 facing 180) and the big town at noon, -gfxset shadows=1.0 / 1.6 / 2.0 over
 #           the preset (sun shadow distance 50 / 80 / 100 m: 50 m x Shadows, clamped at 2, so 120 m can't be set; 1.0 casts
@@ -27,7 +27,7 @@ ps -ef | grep -q '[f]reezesample.sh' || (nohup bash "$S/freezesample.sh" >/dev/n
 L="$R/${Q}logs"; RD="$R/rd73"; mkdir -p "$L" "$RD" "$R/$Q-shots"
 ONLY=$1; part() { if [ -z "$ONLY" ]; then [ "$1" != cal ]; else [ "$ONLY" = "$1" ]; fi; }
 WX="-benchweather Clear -benchhour 12 -fpscap 0"
-BEACH="-benchstops place -benchplace Beach"
+LAKE="-benchstops spot -benchspot -1624,-488,270"
 FOREST="-benchstops spot -benchspot 1740,3355,180"
 TOWN="-benchstops bigtown"
 check() { grep -q 'Crash!!!\|Received signal' "$1" && { echo "CRASH in $1"; grep -A15 'Crash!!!\|Received signal' "$1" | head -25; exit 1; }; cp "$1" "$L/"; }
@@ -42,8 +42,7 @@ game() { # name round args...: one game, its numbers into results/<name>.csv; sh
 }
 tables() { for f in "$R"/$Q-$1-*.csv; do echo "== $(basename $f .csv)"; table "$f"; done; }
 if part cal; then
-  for p in -10 0 10 20 35 60; do game $Q-cal-p$p 1 -gfx High $BEACH -benchview place,$p; done
-  grep -h 'BenchRoute: view\|place' "$L"/q-$Q-cal-*.log | grep -i 'beach\|view' | sort -u | head -8
+  for p in -30 -15 0 12 30 50; do game $Q-cal-p$p 1 -gfx High $LAKE -benchpitch $p; done
 fi
 if part water; then
   [ -n "$(pitch w90)" ] || { echo "no $Q-pitches.txt: run cal first"; exit 1; }
@@ -53,7 +52,7 @@ if part water; then
     list=$V; [ $r = 2 ] && list=$(rev $V)
     for v in $list; do
       IFS=- read g w q <<< "$v"
-      game $Q-water-$v $r -gfx $g $BEACH -benchview place,$(pitch $w) -waterquality $q
+      game $Q-water-$v $r -gfx $g $LAKE -benchpitch $(pitch $w) -waterquality $q
     done
   done
   tables water
@@ -86,7 +85,7 @@ if part rd; then
   [ -n "$(pitch w90)" ] || { echo "no $Q-pitches.txt: run cal first"; exit 1; }
   rm -f "$RD"/*.rdc
   for w in w10 w50 w90; do for q in High Medium Low; do
-    rdgame water-$w-$q place $BEACH -benchview place,$(pitch $w) -waterquality $q
+    rdgame water-$w-$q spot $LAKE -benchpitch $(pitch $w) -waterquality $q
   done; done
   for s in forest town; do for d in def 1.0 1.6 2.0; do
     a=$FOREST; st=spot; [ $s = town ] && { a=$TOWN; st=bigtown; }

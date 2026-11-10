@@ -42,6 +42,16 @@ Even with no stall to fix, two of these are worth knowing:
 -force-d3d11-no-singlethreaded changes nothing.
 Cost: this job about $6 (laptop session 0a48ccdb; 120 games overnight); laptop total $681.
 
+**Addendum 05:10, the stall is still there on main 2644b295.** In job 43's first game (a fresh Profile build, the Beach place,
+04:46), the game went quiet twice, both times with CPU and GPU idle:
+- 60 s during loading, ended by freezestall's cdb attach at 04:47:45;
+- 640 s just after the jump (`a 638.1 s frame at 0.2 s into the stop`), with no attach because cdb attaches once per game. It
+  ended on its own at 04:58:37.
+
+So job 42's 0 in 120 means the stall got rarer, or depends on something that run didn't hit, not that it's gone. Both job 41's
+first game and this one came straight after a fresh build. With the stall this rare, the A/B needs a way to trigger it before
+it can tell the arms apart.
+
 ## Job 41: what the Summit stall waits on (main 0e964452), 2026-11-09 (q71.sh)
 Profile build, job 38's Summit setup (facing out, pitched up 10), 1920x1080, `-gfx High`, `-weatherseed 4`, noon, uncapped,
 `-lowres half`, plain weather. 24 fresh games alternating the default API with `-force-d3d12`, round 2 starting on D3D12. The
