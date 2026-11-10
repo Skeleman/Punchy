@@ -475,3 +475,15 @@ A visit's hand-in takes the client's word (it can't be checked by carried items)
 UNVERIFIED: both types as a joined client; pressing Use at the board (the test called TurnIn after reading the board's own answer).
 Suite: 24 passed, 1 failed, 17 skipped in 331 s. The failure is LiveFolk_Answer again; no other test failed. That test class sets the body itself (SetBody Human, Rabbit, Wolf, Horse at FolkConversationTests line 176-207, restoring afterwards), which looks a likelier cause than the saved body. Not proven.
 Next: nothing open. P-25 row 3 still needs the answer on the house kit.
+
+## P-28 row 0 (11-10): DONE, `player/integrate` at 73b18052
+- From origin/main ed0e68ef, merged origin/player/talk (b5343e03), origin/player/quests (e2bb0d21), origin/player/stats
+  (df1bb275) in that order, merge commits, no conflicts.
+- Suite: 25 passed, 0 failed, 17 skipped in 361s (Unity exit 0).
+- Smoke: 60 s Dev run, v3 island, Low: 0 exceptions, no shader errors, quit at 60 s by itself; 14 quests loaded.
+- **Main doesn't build as a player (not from these merges):** `Debugging/DebugControls.DungeonWalk.cs` (A-95 rows 1-2,
+  daadb490/f31751d5) calls `TestHooks` at lines 146, 158, 418, 419; TestHooks is `#if UNITY_EDITOR`, so a player build stops
+  with CS0103. For the smoke build only I wrapped those lines in `#if UNITY_EDITOR` (with `string was = null;` in the #else),
+  then reverted: not in the branch. The animal lane needs the same guard (or the supervisor can add it on merge).
+- UNVERIFIED: nothing joined (host/client) in this run; each branch's own reports cover that.
+- Next: P-28 row 1 (weapons), from player/integrate until it merges.
