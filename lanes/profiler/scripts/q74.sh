@@ -19,7 +19,7 @@ build $K BuildDev $O || { echo "build $O failed"; exit 1; }
 keepawake
 ps -ef | grep -q '[f]reezesample.sh' || (nohup bash "$S/freezesample.sh" >/dev/null 2>&1 &)
 L="$R/${Q}logs"; mkdir -p "$L"
-WX="-benchweather Clear -benchhour 12 -fpscap 0 -gfx High -hitchms 50"
+WX="-benchstops line -benchweather Clear -benchhour 12 -fpscap 0 -gfx High -hitchms 50"
 WALK="-benchline -1236,1324,164,1324,30,0.1"
 GLIDE="-benchline -3000,-1200,3000,-1200,60,40"
 check() { grep -q 'Crash!!!\|Received signal' "$1" && { echo "CRASH in $1"; grep -A15 'Crash!!!\|Received signal' "$1" | head -25; exit 1; }; cp "$1" "$L/"; }
