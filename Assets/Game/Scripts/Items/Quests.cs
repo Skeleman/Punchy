@@ -87,6 +87,7 @@ namespace Punchy.Items
             var g = System.Array.IndexOf(args, "-giveitem");
             if (g >= 0 && g + 1 < args.Length)
                 giveArg = args[g + 1];
+            QuestSaveArgs(args);
             LoadQuests("start");
         }
 
@@ -112,7 +113,8 @@ namespace Punchy.Items
         {
             var q = quests[boards[board].Offers[slot] % quests.Length];
             var place = $"the notice board in {boards[board].Town}";
-            return (q.text ?? "").Replace("{item}", q.item).Replace("{count}", q.count.ToString()).Replace("{town}", boards[board].Town).Replace("{place}", place).Replace("{creature}", q.creature ?? "");
+            // ({dest}: the other town of a deliver or visit quest.)
+            return (q.text ?? "").Replace("{dest}", boards[DestBoard(board, slot)].Town).Replace("{item}", q.item).Replace("{count}", q.count.ToString()).Replace("{town}", boards[board].Town).Replace("{place}", place).Replace("{creature}", q.creature ?? "");
         }
 
         /// <summary>Called from Update: reloading, the boards, the Use key at a board, the tests.</summary>
@@ -128,6 +130,7 @@ namespace Punchy.Items
                 LoadQuests("F10");
             if (!boardsBuilt)
                 BuildBoards(terrain);
+            UpdateQuestSave();
             if (quests.Length == 0 || boards.Count == 0 || !TryPlayer(out var player))
                 return;
             targetBoard = -1;
@@ -136,26 +139,35 @@ namespace Punchy.Items
                     targetBoard = b;
             if (targetBoard >= 0 && prompt == null)
             {
-                var slot = NextSlot(targetBoard, out var turnIn);
+                var slot = NextSlot(targetBoard, out var turnIn, out var from);
                 prompt = slot < 0 ? $"Notice board ({boards[targetBoard].Town}): nothing more for you"
-                       : turnIn ? $"{UseKey.Name}  hand in: {QuestText(targetBoard, slot)}" : $"{UseKey.Name}  take: {QuestText(targetBoard, slot)}";
+                       : turnIn ? $"{UseKey.Name}  hand in: {QuestText(from, slot)}" : $"{UseKey.Name}  take: {QuestText(from, slot)}";
                 if (slot >= 0 && UseKey.WasPressed() && target < 0 && targetChest < 0 && targetContainer < 0)
                 {
-                    if (turnIn) TurnIn(targetBoard, slot);
-                    else TakeQuest(targetBoard, slot);
+                    if (turnIn) TurnIn(from, slot);
+                    else TakeQuest(from, slot);
                 }
             }
+            UpdateVisits(player);
             QuestTests(player);
             CheckTests(player);
             UpdateClearing();
         }
 
         /// <summary>The slot to act on at a board: one taken and ready to hand in, else the first not yet taken (-1: none).</summary>
-        int NextSlot(int board, out bool turnIn)
+        int NextSlot(int board, out bool turnIn, out int from)
         {
             turnIn = false;
+            from = board;
+            // (A delivery is handed in where it's going, whichever board gave it.)
+            foreach (var kv in myQuests)
+                if (kv.Value == 1 && Def(kv.Key.Item1, kv.Key.Item2).type == "deliver" && DestBoard(kv.Key.Item1, kv.Key.Item2) == board && HasFor(kv.Key.Item1, kv.Key.Item2))
+                {
+                    (turnIn, from) = (true, kv.Key.Item1);
+                    return kv.Key.Item2;
+                }
             for (int s = 0; s < boards[board].Offers.Length; s++)
-                if (myQuests.TryGetValue((board, s), out var st) && st == 1 && HasFor(board, s))
+                if (myQuests.TryGetValue((board, s), out var st) && st == 1 && Def(board, s).type != "deliver" && HasFor(board, s))
                 {
                     turnIn = true;
                     return s;
@@ -171,6 +183,8 @@ namespace Punchy.Items
         bool HasFor(int board, int slot)
         {
             var q = Def(board, slot);
+            if (q.type == "visit")
+                return visited.Contains((board, slot));
             var id = ItemId(q.item);
             if (id < 0)
                 return false;
@@ -301,7 +315,11 @@ namespace Punchy.Items
         void TakeQuest(int board, int slot)
         {
             myQuests[(board, slot)] = 1;
+            saveDirty = true;
             Debug.Log($"Quests: took \"{QuestText(board, slot)}\" (board {board} slot {slot})");
+            // (A delivery starts with the parcel in hand.)
+            if (Def(board, slot).type == "deliver" && ItemId(Def(board, slot).item) >= 0)
+                Grant((byte)ItemId(Def(board, slot).item), math.max(Def(board, slot).count, 1));
             if (Joined)
                 SendToHost(new TakeQuestRpc { Board = board, Slot = (byte)slot });
             else
@@ -330,6 +348,7 @@ namespace Punchy.Items
             else
             {
                 myQuests[(board, slot)] = 2;
+                saveDirty = true;
                 HostRecord(0, board, slot, 2, Hosting ? "host" : "solo");
             }
         }
@@ -355,12 +374,15 @@ namespace Punchy.Items
                 Spawn((byte)ItemId(q.item), 1, new float3(xz.x, y, xz.y));
                 Debug.Log($"Quests: hid the {q.item} for {q.id} at ({xz.x:F0}, {xz.y:F0})");
             }
+            if (state == 1 && q.type == "deliver" && ItemId(q.item) >= 0)
+                Carry(player, (byte)ItemId(q.item), math.max(q.count, 1));
             if (state == 2)
             {
                 var reward = ItemId(q.reward);
                 if (reward >= 0)
                 {
-                    Spawn((byte)reward, math.max(q.rewardCount, 1), boards[board].Pos + new float3(0f, 0f, -1.2f));
+                    // (A delivery is paid where it was delivered.)
+                    Spawn((byte)reward, math.max(q.rewardCount, 1), boards[q.type == "deliver" ? DestBoard(board, slot) : board].Pos + new float3(0f, 0f, -1.2f));
                     Debug.Log($"Quests: reward for {q.id}: {q.reward} x{q.rewardCount} by the board");
                 }
             }
@@ -398,6 +420,7 @@ namespace Punchy.Items
         {
             var was = myQuests.TryGetValue((m.Board, m.Slot), out var w) ? w : 0;
             myQuests[(m.Board, m.Slot)] = m.State;
+            saveDirty = true;
             Debug.Log($"Quests: board {m.Board} slot {m.Slot} {(m.State == 2 ? "done" : was == 1 && handingIn ? "hand-in refused by the host" : "taken")} (from the host)");
             handingIn = false;
         }
@@ -444,14 +467,14 @@ namespace Punchy.Items
             if (takeQuestArg && age > 30f)
             {
                 takeQuestArg = false;
-                var slot = NextSlot(nearest, out _);
+                var slot = NextSlot(nearest, out _, out _);
                 Debug.Log($"Quests: -takequest: board {nearest} slot {slot}");
                 if (slot >= 0) TakeQuest(nearest, slot);
             }
             if (turnInArg && age > 45f)
             {
                 turnInArg = false;
-                var slot = NextSlot(nearest, out var ready);
+                var slot = NextSlot(nearest, out var ready, out _);
                 if (fakeHandInArg && !ready)
                 {
                     // (Test: hand in a taken quest without the items, to see the host refuse it.)
@@ -476,11 +499,25 @@ namespace Punchy.Items
         {
             questLineStyle ??= new GUIStyle(GUI.skin.label) { richText = true, wordWrap = true, fontSize = 13 };
             var lines = new List<string>();
+            // (What each row does when pressed: a quest to follow, a lost quest to drop, or nothing.)
+            var rowQuest = new List<(int, int)>();
+            var rowLost = new List<LostQuest>();
+            void Row(string text, (int, int) quest, LostQuest lost)
+            {
+                lines.Add(text);
+                rowQuest.Add(quest);
+                rowLost.Add(lost);
+            }
+            if (myQuests.ContainsKey(tracked))
+                Row($"<b>\u2605 {QuestText(tracked.Board, tracked.Slot)}</b>\n    {QuestProgress(tracked.Board, tracked.Slot)}", tracked, null);
             foreach (var kv in myQuests)
-                if (kv.Key.Item1 < boards.Count && quests.Length > 0)
-                    lines.Add($"{(kv.Value == 2 ? "<b>[done]</b> " : "\u2022 ")}{QuestText(kv.Key.Item1, kv.Key.Item2)}");
+                if (kv.Key.Item1 < boards.Count && quests.Length > 0 && kv.Key != tracked)
+                    Row(kv.Value == 2 ? $"<b>[done]</b> {QuestText(kv.Key.Item1, kv.Key.Item2)}"
+                                      : $"\u2022 {QuestText(kv.Key.Item1, kv.Key.Item2)}\n    {QuestProgress(kv.Key.Item1, kv.Key.Item2)}", kv.Value == 1 ? kv.Key : (-1, -1), null);
+            foreach (var lost in lostQuests)
+                Row($"<i>[lost to time] {lost.Saved.id}: {lost.Why}.</i>  (press to drop, {LostRefund} coins back)", (-1, -1), lost);
             if (lines.Count == 0)
-                lines.Add("No quests yet: notice boards stand in every town.");
+                Row("No quests yet: notice boards stand in every town.", (-1, -1), null);
             var inner = inventory.width - 16f;
             var heights = lines.ConvertAll(l => questLineStyle.CalcHeight(new GUIContent(l), inner - 16f) + 4f);
             var total = 0f;
@@ -491,13 +528,25 @@ namespace Punchy.Items
             var boxHeight = Mathf.Min(total + 30f, room);
             var area = new Rect(20f, top, inventory.width, boxHeight);
             GUI.Box(area, "");
-            GUI.Label(new Rect(area.x + 8f, area.y + 4f, inner, 22f), "<b>Quests</b>", questLineStyle);
+            GUI.Label(new Rect(area.x + 8f, area.y + 4f, inner, 22f), "<b>Quests</b>   (press one, or U: follow it)", questLineStyle);
             var view = new Rect(area.x + 8f, area.y + 26f, inner, boxHeight - 30f);
             questScroll = GUI.BeginScrollView(view, questScroll, new Rect(0f, 0f, inner - 16f, total));
             var y = 0f;
             for (int i = 0; i < lines.Count; i++)
             {
-                GUI.Label(new Rect(0f, y, inner - 16f, heights[i]), lines[i], questLineStyle);
+                var row = new Rect(0f, y, inner - 16f, heights[i]);
+                // (Pressing a quest follows it; U or Y moves on to the next.)
+                if ((rowQuest[i].Item1 >= 0 || rowLost[i] != null) && GUI.Button(row, GUIContent.none, GUIStyle.none))
+                {
+                    if (rowLost[i] != null)
+                        DropLost(rowLost[i]);
+                    else
+                    {
+                        tracked = rowQuest[i];
+                        saveDirty = true;
+                    }
+                }
+                GUI.Label(row, lines[i], questLineStyle);
                 y += heights[i];
             }
             GUI.EndScrollView();
