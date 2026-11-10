@@ -498,6 +498,19 @@ namespace Punchy.Fauna
         public const byte Hat = 1, Pack = 2;
     }
 
+    /// <summary>How the body draws a player's weapon (P-28; the item table's ItemDef.Weapon). 0 for none.</summary>
+    public static class CreatureWeapon
+    {
+        public const byte None = 0, Club = 1, Spear = 2, Sword = 3, Bow = 4;
+    }
+
+    /// <summary>A player's body's gear beyond CreatureWorn (P-28): the weapon (CreatureWeapon) and its swing, 0 at rest,
+    /// then 1..255 through one swing (raised, then brought down; a bow drawn, then loosed).</summary>
+    public struct CreatureOutfit
+    {
+        public byte Weapon, Swing;
+    }
+
     public enum HeldItem : byte
     {
         None,
@@ -682,6 +695,9 @@ namespace Punchy.Fauna
         public HeldItem Held;
         /// <summary>What a player's body has on besides (CreatureWorn bits, P-23). Not sent: each machine sets it (Items.ApplyGear).</summary>
         public byte Worn;
+        /// <summary>What a player's body has on besides that (P-28): its weapon and where it is in a swing. Not sent:
+        /// each machine sets it (Items.ApplyGear).</summary>
+        public CreatureOutfit Outfit;
 
         /// <summary>The need cue it shows (NeedCue: none, tired, hungry, thirsty, lonely): its strongest need past 0.6,
         /// set by the brain (CreatureBrainSystem.Needs) and replicated as one byte, so clients draw the same cue (#64).</summary>

@@ -28,6 +28,11 @@ namespace Punchy.Items
         public GearSlot Slot;
         public float Light, Reach, Cover;
         public int Slots;
+        /// <summary>P-28: a weapon's numbers (the game has no fighting yet, so only the swing uses Speed: swings a
+        /// second), whether it takes both hands, and how the body draws it (CreatureWeapon).</summary>
+        public float Damage, Speed;
+        public bool TwoHanded;
+        public byte Weapon;
     }
 
     /// <summary>The item table (#26, P-11). An item's id is its index here; never reorder, only append.</summary>
@@ -47,6 +52,11 @@ namespace Punchy.Items
             new ItemDef { Name = "Staff", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.72f, 0.66f, 0.5f), Stack = 1, Weight = 1.2f, Slot = GearSlot.Hand, Reach = 0.5f },
             new ItemDef { Name = "Hat", Colour = new Color(0.62f, 0.5f, 0.3f), Accent = new Color(0.36f, 0.24f, 0.16f), Stack = 1, Weight = 0.2f, Slot = GearSlot.Head, Cover = 0.3f },
             new ItemDef { Name = "Pack", Colour = new Color(0.42f, 0.33f, 0.2f), Accent = new Color(0.25f, 0.18f, 0.12f), Stack = 1, Weight = 1.5f, Slot = GearSlot.Back, Slots = 8 },
+            new ItemDef { Name = "Club", Colour = new Color(0.45f, 0.3f, 0.17f), Accent = new Color(0.3f, 0.2f, 0.12f), Stack = 1, Weight = 1.4f, Slot = GearSlot.Hand, Damage = 6f, Reach = 0.9f, Speed = 1.1f, Weapon = Punchy.Fauna.CreatureWeapon.Club },
+            new ItemDef { Name = "Spear", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 1.8f, Slot = GearSlot.Hand, Damage = 8f, Reach = 1.9f, Speed = 0.8f, TwoHanded = true, Weapon = Punchy.Fauna.CreatureWeapon.Spear },
+            new ItemDef { Name = "Sword", Colour = new Color(0.7f, 0.72f, 0.75f), Accent = new Color(0.4f, 0.26f, 0.14f), Stack = 1, Weight = 1.5f, Slot = GearSlot.Hand, Damage = 9f, Reach = 1.1f, Speed = 1.4f, Weapon = Punchy.Fauna.CreatureWeapon.Sword },
+            new ItemDef { Name = "Bow", Colour = new Color(0.55f, 0.38f, 0.2f), Accent = new Color(0.88f, 0.85f, 0.75f), Stack = 1, Weight = 0.9f, Slot = GearSlot.Hand, Damage = 7f, Reach = 25f, Speed = 0.6f, TwoHanded = true, Weapon = Punchy.Fauna.CreatureWeapon.Bow },
+            new ItemDef { Name = "Arrow", Colour = new Color(0.6f, 0.45f, 0.28f), Accent = new Color(0.9f, 0.9f, 0.88f), Stack = 30, Weight = 0.03f },
         };
         public const byte Key = 7, Torch = 8, Staff = 9;
     }
@@ -227,7 +237,9 @@ namespace Punchy.Items
             Tests(terrain);
             GearTest();
             GearLootTest();
+            SwingKeys();
             ApplyGear();
+            ArmLog();
             PadTest();
             UpdateInventoryKeys();
             Draw();
@@ -544,6 +556,7 @@ namespace Punchy.Items
         {
             var em = server.EntityManager;
             ServeGear(em);
+            ServeSwings(em);
             using (var rs = Q(em, ComponentType.ReadWrite<PickupRpc>(), ComponentType.ReadWrite<ReceiveRpcCommandRequest>()).ToEntityArray(Allocator.Temp))
                 foreach (var r in rs)
                 {
@@ -613,6 +626,7 @@ namespace Punchy.Items
             Each(em, joined, onQuestState ??= ReceiveQuestState);
             Each(em, joined, onChestOpened ??= OnChestOpened);
             Each(em, joined, onGearState ??= OnGearState);
+            Each(em, joined, onSwing ??= OnSwing);
         }
 
         System.Action<ItemGoneRpc> onItemGone;
@@ -622,6 +636,7 @@ namespace Punchy.Items
         System.Action<QuestStateRpc> onQuestState;
         System.Action<ChestOpenedRpc> onChestOpened;
         System.Action<GearStateRpc> onGearState;
+        System.Action<SwingRpc> onSwing;
 
         /// <summary>Each RPC of type T that has come in: handled (on a joined client only) and used up.</summary>
         void Each<T>(EntityManager em, bool joined, System.Action<T> act) where T : unmanaged, IRpcCommand

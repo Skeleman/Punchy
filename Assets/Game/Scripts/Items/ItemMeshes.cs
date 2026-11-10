@@ -53,6 +53,11 @@ namespace Punchy.Items
                 case "Torch": k.Tube(0, new Vector3(0f, 0.03f, -0.3f), new Vector3(0f, 0.03f, 0.2f), 0.025f, 0.035f); k.Blob(1, new Vector3(0f, 0.04f, 0.26f), new Vector3(0.055f, 0.05f, 0.09f), 5u); break;
                 case "Staff": k.Tube(0, new Vector3(0f, 0.03f, -0.55f), new Vector3(0f, 0.03f, 0.5f), 0.02f, 0.028f); k.Blob(1, new Vector3(0f, 0.035f, 0.54f), new Vector3(0.05f, 0.05f, 0.05f), 7u); break;
                 case "Hat": k.Dome(1, new Vector3(0f, 0.02f, 0f), 0.22f, 0.02f); k.Dome(0, new Vector3(0f, 0.03f, 0f), 0.12f, 0.13f); break;
+                case "Club": k.Tube(0, new Vector3(0f, 0.035f, -0.32f), new Vector3(0f, 0.045f, 0.14f), 0.024f, 0.042f); k.Blob(0, new Vector3(0f, 0.055f, 0.22f), new Vector3(0.07f, 0.065f, 0.11f), 3u); k.Tube(1, new Vector3(0f, 0.035f, -0.32f), new Vector3(0f, 0.035f, -0.22f), 0.03f, 0.03f); break;
+                case "Spear": k.Tube(0, new Vector3(0f, 0.025f, -0.9f), new Vector3(0f, 0.025f, 0.68f), 0.018f, 0.018f); k.Tube(1, new Vector3(0f, 0.025f, 0.68f), new Vector3(0f, 0.025f, 0.94f), 0.038f, 0.003f, 4); break;
+                case "Sword": Sword(k); break;
+                case "Bow": Bow(k); break;
+                case "Arrow": k.Tube(0, new Vector3(0f, 0.012f, -0.32f), new Vector3(0f, 0.012f, 0.3f), 0.008f, 0.008f, 5); k.Tube(1, new Vector3(0f, 0.012f, 0.3f), new Vector3(0f, 0.012f, 0.37f), 0.016f, 0.002f, 4); k.Tube(1, new Vector3(0f, 0.012f, -0.32f), new Vector3(0f, 0.012f, -0.2f), 0.026f, 0.012f, 3); break;
                 case "Pack": k.Blob(0, new Vector3(0f, 0.15f, 0f), new Vector3(0.17f, 0.15f, 0.11f), 0u, 5, 8); k.Blob(1, new Vector3(0f, 0.25f, 0.01f), new Vector3(0.16f, 0.05f, 0.11f), 0u, 4, 8); k.Tube(1, new Vector3(-0.12f, 0.02f, 0.1f), new Vector3(-0.12f, 0.25f, 0.1f), 0.018f, 0.018f, 4); k.Tube(1, new Vector3(0.12f, 0.02f, 0.1f), new Vector3(0.12f, 0.25f, 0.1f), 0.018f, 0.018f, 4); break;
                 default: k.Blob(0, new Vector3(0f, 0.1f, 0f), new Vector3(0.1f, 0.1f, 0.1f), 3u); break;
             }
@@ -108,6 +113,38 @@ namespace Punchy.Items
             k.Tube(0, centre + new Vector3(0f, 0f, ring), new Vector3(0f, y, 0.16f), 0.014f, 0.014f, 5);
             k.Tube(0, new Vector3(0f, y, 0.14f), new Vector3(0.06f, y, 0.14f), 0.012f, 0.012f, 4);
             k.Tube(0, new Vector3(0f, y, 0.1f), new Vector3(0.045f, y, 0.1f), 0.012f, 0.012f, 4);
+        }
+
+        /// <summary>A flat blade with a raised middle (a diamond across), a crossguard, a wrapped grip and a pommel.</summary>
+        static void Sword(Kit k)
+        {
+            const float y = 0.03f, w = 0.032f, ridge = 0.009f;
+            Vector3 l = new Vector3(-w, y, -0.24f), r = new Vector3(w, y, -0.24f), tip = new Vector3(0f, y, 0.42f);
+            Vector3 top = new Vector3(0f, y + ridge, -0.24f), under = new Vector3(0f, y - ridge, -0.24f);
+            Vector3 topTip = new Vector3(0f, y + ridge * 0.3f, 0.36f), underTip = new Vector3(0f, y - ridge * 0.3f, 0.36f);
+            k.Tri(0, l, top, topTip); k.Tri(0, l, topTip, tip); k.Tri(0, top, r, topTip); k.Tri(0, topTip, r, tip);
+            k.Tri(0, l, underTip, under); k.Tri(0, l, tip, underTip); k.Tri(0, under, underTip, r); k.Tri(0, underTip, tip, r);
+            k.Tube(0, new Vector3(-0.09f, y, -0.25f), new Vector3(0.09f, y, -0.25f), 0.014f, 0.014f, 5);
+            k.Tube(1, new Vector3(0f, y, -0.38f), new Vector3(0f, y, -0.26f), 0.017f, 0.017f, 6);
+            k.Blob(0, new Vector3(0f, y, -0.395f), new Vector3(0.025f, 0.025f, 0.025f), 2u, 4, 6);
+        }
+
+        /// <summary>A bow lying strung: its two limbs curving back from the grip, the string tip to tip.</summary>
+        static void Bow(Kit k)
+        {
+            const int segments = 8;
+            const float y = 0.03f, half = 0.6f, depth = 0.17f;
+            var last = new Vector3(-depth * 0.35f, y, -half);
+            for (int i = 1; i <= segments; i++)
+            {
+                var t = -1f + 2f * i / segments;
+                var at = new Vector3(depth * (1f - t * t) - depth * 0.35f, y, half * t);
+                var r = Mathf.Lerp(0.024f, 0.011f, Mathf.Abs(t));
+                k.Tube(0, last, at, Mathf.Lerp(0.024f, 0.011f, Mathf.Abs(-1f + 2f * (i - 1) / segments)), r, 5);
+                last = at;
+            }
+            k.Tube(1, new Vector3(depth * 0.6f, y, -0.07f), new Vector3(depth * 0.6f, y, 0.07f), 0.03f, 0.03f, 6);
+            k.Tube(1, new Vector3(-depth * 0.35f, y, -half), new Vector3(-depth * 0.35f, y, half), 0.004f, 0.004f, 3);
         }
 
         /// <summary>Triangles being put together, by part, each with its own flat normal.</summary>

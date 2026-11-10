@@ -25,6 +25,13 @@ namespace Punchy.Items
         public byte Hand, Head, Back;
     }
 
+    /// <summary>Client → host → everyone: this player swung its weapon (P-28). From a client, Player is ignored (the host
+    /// knows who sent it).</summary>
+    public struct SwingRpc : IRpcCommand
+    {
+        public int Player;
+    }
+
     /// <summary>
     /// Gear (P-23 row 2): items with a Slot go on the body from the inventory (X or right click on the slot, X on a pad;
     /// the worn row under the slots takes them off). What each piece does is in its ItemDef: a torch's Light is the reach of
@@ -32,7 +39,12 @@ namespace Punchy.Items
     /// the game has no use for them yet. Only an upright body with hands can wear gear. The body shows it through
     /// CreatureState.Held (torch, staff: drawn and lit as the folk's are, so a torch goes through LightBudget) and Worn
     /// (hat, pack). A client tells the host, and the host tells everyone (GearRpc, GearStateRpc), so others see it.
-    /// Test flag: "-equip Torch,Hat" gives and puts on those items after 20 s.
+    /// Weapons (P-28 row 1) go in the hand too: their Damage, Reach and Speed are numbers, because the game has no
+    /// fighting yet; the left mouse button (X on a pad, outside the inventory) swings one, a swing lasting 1/Speed s,
+    /// drawn through CreatureState.Outfit and sent like the gear (SwingRpc).
+    /// Test flags: "-equip Torch,Hat" gives and puts on those items 20 s after our body first stands in the world
+    /// ("-equip Club;Spear;Sword" one set after another, 12 s apart); "-swing" swings every 2 s; "-armlog" logs where
+    /// the posed hands are each second.
     /// </summary>
     public partial class Items
     {
@@ -44,7 +56,10 @@ namespace Punchy.Items
         readonly Dictionary<int, (byte Hand, byte Head, byte Back)> gearOf = new Dictionary<int, (byte, byte, byte)>();
         readonly HashSet<Entity> gearSentTo = new HashSet<Entity>();
         string equipArg;
-        bool gearLootArg;
+        bool gearLootArg, swingArg;
+        /// <summary>When each player last swung (Time.time), by network id; ours apart, as solo has no id.</summary>
+        readonly Dictionary<int, float> swungAt = new Dictionary<int, float>();
+        float ownSwing = -10f, nextTestSwing;
 
         int Capacity => BaseSlots + (worn[(int)GearSlot.Back] != Nothing ? math.min(ItemTable.Items[worn[(int)GearSlot.Back]].Slots, MaxExtraSlots) : 0);
 
@@ -167,7 +182,7 @@ namespace Punchy.Items
             var em = world.EntityManager;
             var own = Q(em, ComponentType.ReadWrite<PlayerAvatar>(), ComponentType.ReadWrite<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
             if (own.TryGetSingletonEntity<PlayerAvatar>(out var avatar))
-                Dress(em, avatar, worn[(int)GearSlot.Hand], worn[(int)GearSlot.Head], worn[(int)GearSlot.Back]);
+                Dress(em, avatar, worn[(int)GearSlot.Hand], worn[(int)GearSlot.Head], worn[(int)GearSlot.Back], ownSwing);
             if (gearOf.Count == 0)
                 return;
             var remote = Q(em, ComponentType.ReadWrite<RemoteAvatar>(), ComponentType.ReadWrite<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
@@ -177,23 +192,126 @@ namespace Punchy.Items
                 var ghost = em.GetComponentData<RemoteAvatar>(e).Ghost;
                 if (!em.Exists(ghost) || !em.HasComponent<GhostOwner>(ghost) || !gearOf.TryGetValue(em.GetComponentData<GhostOwner>(ghost).NetworkId, out var g))
                     continue;
-                Dress(em, e, g.Hand, g.Head, g.Back);
+                Dress(em, e, g.Hand, g.Head, g.Back, swungAt.TryGetValue(em.GetComponentData<GhostOwner>(ghost).NetworkId, out var at) ? at : -10f);
             }
         }
 
-        static void Dress(EntityManager em, Entity body, byte hand, byte head, byte back)
+        static void Dress(EntityManager em, Entity body, byte hand, byte head, byte back, float swung)
         {
             var s = em.GetComponentData<CreatureState>(body);
             ref var blob = ref em.GetComponentData<CreatureBody>(body).Blob.Value;
             var wears = blob.Upright && blob.Hands;
             var held = wears ? HeldFor(hand) : HeldItem.None;
             var bits = wears ? WornBits(head, back) : (byte)0;
-            if (s.Held == held && s.Worn == bits)
+            var weapon = wears && hand != Nothing ? ItemTable.Items[hand].Weapon : CreatureWeapon.None;
+            var swing = weapon != CreatureWeapon.None ? SwingByte(swung, ItemTable.Items[hand].Speed) : (byte)0;
+            if (s.Held == held && s.Worn == bits && s.Outfit.Weapon == weapon && s.Outfit.Swing == swing)
                 return;
+            var changed = s.Held != held || s.Worn != bits || s.Outfit.Weapon != weapon;
             s.Held = held;
             s.Worn = bits;
+            s.Outfit.Weapon = weapon;
+            s.Outfit.Swing = swing;
             em.SetComponentData(body, s);
-            Debug.Log($"[gear] {(em.HasComponent<RemoteAvatar>(body) ? "another player's" : "our")} body: held {held}, worn {bits}");
+            if (changed)
+                Debug.Log($"[gear] {(em.HasComponent<RemoteAvatar>(body) ? "another player's" : "our")} body: held {held}, worn {bits}, weapon {weapon}");
+        }
+
+        /// <summary>Where a swing that began at this time is: 0 at rest, 1..255 through it.</summary>
+        static byte SwingByte(float swung, float speed)
+        {
+            var t = (Time.time - swung) * math.max(speed, 0.1f);
+            return t < 0f || t >= 1f ? (byte)0 : (byte)(1 + (int)(t * 254f));
+        }
+
+        /// <summary>Swings the weapon in hand, if there is one and it isn't already mid-swing.</summary>
+        void Swing()
+        {
+            var hand = worn[(int)GearSlot.Hand];
+            if (hand == Nothing || ItemTable.Items[hand].Weapon == CreatureWeapon.None || !CanWearGear() ||
+                SwingByte(ownSwing, ItemTable.Items[hand].Speed) != 0)
+                return;
+            ownSwing = Time.time;
+            var d = ItemTable.Items[hand];
+            Debug.Log($"[gear] swing: {d.Name}, damage {d.Damage:0}, reach {d.Reach:0.#} m, {1f / math.max(d.Speed, 0.1f):0.00} s");
+            if (Joined)
+                SendToHost(new SwingRpc());
+            else if (Hosting)
+                Broadcast(new SwingRpc { Player = OwnNetworkId() });
+        }
+
+        /// <summary>Outside the inventory and menus: the attack button swings (the mouse only while it steers the camera).</summary>
+        void SwingKeys()
+        {
+            if (swingArg && Time.realtimeSinceStartup >= nextTestSwing)
+            {
+                nextTestSwing = Time.realtimeSinceStartup + 2f;
+                Swing();
+            }
+            if (panel || Punchy.UI.Overlay.AnyOpen)
+                return;
+            var mouse = Mouse.current;
+            var pad = Gamepad.current;
+            if (mouse != null && mouse.leftButton.wasPressedThisFrame && Cursor.lockState == CursorLockMode.Locked || pad != null && pad.buttonWest.wasPressedThisFrame)
+                Swing();
+        }
+
+        float armLogAt;
+
+        /// <summary>"-armlog": every second, our body posed as the renderer poses it, and where each arm's hand ends up
+        /// (m from the body: up, ahead, to the right), with the weapon and swing it was posed for.</summary>
+        void ArmLog()
+        {
+            if (System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-armlog") < 0 || Time.realtimeSinceStartup < armLogAt)
+                return;
+            armLogAt = Time.realtimeSinceStartup + 1f;
+            var world = World.DefaultGameObjectInjectionWorld;
+            var em = world.EntityManager;
+            var own = Q(em, ComponentType.ReadWrite<PlayerAvatar>(), ComponentType.ReadWrite<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
+            if (!own.TryGetSingletonEntity<PlayerAvatar>(out var avatar) || !TryTerrain(out var terrain))
+                return;
+            var s = em.GetComponentData<CreatureState>(avatar);
+            var body = em.GetComponentData<CreatureBody>(avatar);
+            ref var b = ref body.Blob.Value;
+            using var output = new NativeArray<SegmentInstance>(b.Segments.Length + 64, Allocator.Temp);
+            CreatureAnimator.Evaluate(ref b, s, body.Coat, terrain, output, 0);
+            var forward = new float3(math.sin(s.Yaw), 0f, math.cos(s.Yaw));
+            var right = new float3(forward.z, 0f, -forward.x);
+            var line = $"[gear] arms: weapon {s.Outfit.Weapon}, swing {s.Outfit.Swing}, mode {s.Mode}";
+            for (int p = 0; p < b.Parts.Length; p++)
+            {
+                ref var part = ref b.Parts[p];
+                if (part.Role != LimbRole.Arm || part.SegmentCount == 0)
+                    continue;
+                var seg = output[part.FirstSegment + part.SegmentCount - 1];
+                var d = seg.Position + math.mul(seg.Rotation, new float3(0f, 0f, seg.Length)) - s.Position;
+                line += $"; arm side {part.Side:+0;-0} ({part.SegmentCount} segs): up {d.y:0.00}, ahead {math.dot(d, forward):0.00}, right {math.dot(d, right):0.00}";
+            }
+            Debug.Log(line);
+        }
+
+        /// <summary>The host: a client's swing, passed on to everyone.</summary>
+        void ServeSwings(EntityManager em)
+        {
+            using var rs = Q(em, ComponentType.ReadWrite<SwingRpc>(), ComponentType.ReadWrite<ReceiveRpcCommandRequest>()).ToEntityArray(Allocator.Temp);
+            foreach (var r in rs)
+            {
+                var from = em.GetComponentData<ReceiveRpcCommandRequest>(r).SourceConnection;
+                if (em.Exists(from) && em.HasComponent<NetworkId>(from))
+                {
+                    var id = em.GetComponentData<NetworkId>(from).Value;
+                    swungAt[id] = Time.time;
+                    Broadcast(new SwingRpc { Player = id });
+                    Debug.Log($"[gear] player {id} swung (passed on)");
+                }
+                em.DestroyEntity(r);
+            }
+        }
+
+        void OnSwing(SwingRpc m)
+        {
+            swungAt[m.Player] = Time.time;
+            Debug.Log($"[gear] player {m.Player} swung");
         }
 
         void GearArgs(string[] args)
@@ -202,6 +320,7 @@ namespace Punchy.Items
             if (at >= 0 && at + 1 < args.Length)
                 equipArg = args[at + 1];
             gearLootArg = System.Array.IndexOf(args, "-gearloot") >= 0;
+            swingArg = System.Array.IndexOf(args, "-swing") >= 0;
         }
 
         float budgetAt;
@@ -214,11 +333,23 @@ namespace Punchy.Items
                 budgetAt = 0f;
                 LogBudget("with gear");
             }
-            if (equipArg == null || Time.realtimeSinceStartup < 20f)
+            // (Counted from when our body first stands in the world, so a shot list's timings, which start there, line up.)
+            if (equipArg == null || equipFrom < 0f && !TryPlayer(out _))
                 return;
-            LogBudget("before");
-            budgetAt = Time.realtimeSinceStartup + 4f;
-            foreach (var name in equipArg.Split(','))
+            if (equipFrom < 0f)
+                equipFrom = Time.realtimeSinceStartup;
+            if (Time.realtimeSinceStartup < equipFrom + 20f + 12f * equipSet)
+                return;
+            // ("A;B;C": one set after another, 12 s apart; each new set takes the last one's hand item off first.)
+            var sets = equipArg.Split(';');
+            if (equipSet == 0)
+            {
+                LogBudget("before");
+                budgetAt = Time.realtimeSinceStartup + 4f;
+            }
+            else
+                Unequip(GearSlot.Hand);
+            foreach (var name in sets[equipSet].Split(','))
             {
                 var id = ItemId(name);
                 if (id < 0)
@@ -226,8 +357,12 @@ namespace Punchy.Items
                 Grant((byte)id, 1);
                 Equip(System.Array.FindIndex(slots, s => s.item == id));
             }
-            equipArg = null;
+            if (++equipSet >= sets.Length)
+                equipArg = null;
         }
+
+        int equipSet;
+        float equipFrom = -1f;
 
         static void LogBudget(string when) =>
             Debug.Log($"[gear] light budget {when}: requested {Punchy.Settings.LightBudget.Requested}, slots {Punchy.Settings.LightBudget.SlotsUsed}, real {Punchy.Settings.LightBudget.RealUsed}, dropped {Punchy.Settings.LightBudget.Dropped}");
@@ -301,6 +436,8 @@ namespace Punchy.Items
         static string GearEffect(byte item)
         {
             var d = ItemTable.Items[item];
+            if (d.Weapon != CreatureWeapon.None)
+                return $"dmg {d.Damage:0}, reach {d.Reach:0.#} m{(d.TwoHanded ? ", 2 hands" : "")}";
             return d.Light > 0f ? $"light {d.Light:0} m" : d.Reach > 0f ? $"reach +{d.Reach:0.#} m" : d.Cover > 0f ? $"cover {d.Cover:P0}" : d.Slots > 0 ? $"+{d.Slots} slots" : "";
         }
     }

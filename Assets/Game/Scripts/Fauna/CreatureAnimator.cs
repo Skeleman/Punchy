@@ -532,6 +532,35 @@ namespace Punchy.Fauna
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.7f);
                         a.x += j == 0 ? -0.3f : j == 1 ? -0.7f : 0f;
                     }
+                    // A player's weapon (P-28): the right arm bent, ready, the weapon up before it; a swing raises it
+                    // over the shoulder and brings it down fast. A spear in both hands, levelled; a bow held out in the
+                    // left, the right drawing the string back to the cheek.
+                    if (part.Role == LimbRole.Arm && s.Outfit.Weapon != CreatureWeapon.None)
+                    {
+                        var wSwing = s.Outfit.Swing == 0 ? 0f : (s.Outfit.Swing - 1) / 254f;
+                        var wTwo = s.Outfit.Weapon == CreatureWeapon.Spear || s.Outfit.Weapon == CreatureWeapon.Bow;
+                        if (part.Side > 0f || wTwo)
+                            a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.85f);
+                        if (s.Outfit.Weapon == CreatureWeapon.Bow)
+                        {
+                            var wDraw = wSwing < 0.75f ? math.smoothstep(0f, 0.6f, wSwing) : 0f;
+                            if (part.Side < 0f)
+                                a.x += j == 0 ? -1.45f : 0f;
+                            else
+                                a += j == 0 ? new float3(-1.3f, 0f, -0.35f * wDraw) : j == 1 ? new float3(-0.5f - 1.6f * wDraw, 0f, 0f) : float3.zero;
+                        }
+                        else if (s.Outfit.Weapon == CreatureWeapon.Spear)
+                        {
+                            var wThrust = math.sin(wSwing * math.PI);
+                            a.x += j == 0 ? (part.Side > 0f ? -0.55f - 0.5f * wThrust : -0.9f - 0.3f * wThrust) : j == 1 ? (part.Side > 0f ? -1.1f + 0.7f * wThrust : -0.6f + 0.4f * wThrust) : 0f;
+                        }
+                        else if (part.Side > 0f)
+                        {
+                            var wLift = wSwing < 0.55f ? math.smoothstep(0f, 0.55f, wSwing) : 1f - math.smoothstep(0.55f, 0.72f, wSwing);
+                            var wStrike = math.smoothstep(0.6f, 0.72f, wSwing) * (1f - math.smoothstep(0.8f, 1f, wSwing));
+                            a.x += j == 0 ? -0.5f - 2.0f * wLift - 0.4f * wStrike : j == 1 ? -0.9f - 0.5f * wLift + 0.6f * wStrike : 0f;
+                        }
+                    }
                     // Meeting a messenger bird: the left forearm raised out in front at chest height, bent, for it to land
                     // on; once it's there, the right hand across to take the roll from its leg.
                     if (b.Upright && part.Role == LimbRole.Arm && s.Mode == CreatureMode.Idle && (s.Stage == MessageWait || s.Stage == MessageTake))
