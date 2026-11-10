@@ -346,3 +346,13 @@ Scripted approaches (`-doorwalk 40 <mode>`, 10 doors, 5 angles, half run and hal
 UNVERIFIED: the prompt's position at the door (the T-1 shot draws the 3D view only, so the prompt isn't in it; Zach to judge in the playtest). Pad and keyboard weren't driven separately (the rule doesn't read the device). Host and client weren't run: the rule is local and the door RPCs are unchanged.
 Suite: 15 passed, 0 failed, 7 skipped in 219 s. An earlier run on the same code had 14 passed, 1 failed: Setup_SpawnRainAndShot hit its 180 s limit with three other editors open; it took 11.6 s on the re-run.
 Next: row 2.
+
+## P-25 row 2: indoor camera and first person (DONE, 43f32fbf on player/doors)
+Indoors: the camera's distance eases to 2.5-3.5 m by room size over 0.6 s, and back on leaving (logged in a StormShelterHouse: wanted 3.48 then 2.50 going in, 7.14 then 8.00 coming out). The room's walls still limit it: standing just inside the door the wall behind holds the arm at 0.83 m, so the pull-in only shows further into a room. Ceilings are respected by the existing arm probe.
+First person: the Camera distance setting now runs 0.5-20 m and reads "first person" below 1 m; scrolling reaches it too. The eye is at the height the camera already aimed at. The player's own body isn't drawn at all, so its shadow goes as well (a small additive change in CreatureRenderSystem, the animal lane's file). Pitch runs -85 to 85. Near plane 5 cm. New Look tab option "First person indoors".
+Eye heights above the feet: human 1.60, rabbit 0.40, osprey 0.93, horse 2.42 m. Shots ahead and straight down for each, outdoors, and human and rabbit in a room: no body in view in any; the human shows in third person in the same room. T-1 checks all "good". Shots are local, not in the repo.
+Other bodies weren't checked beyond those four. The eye sits above the body's centre, not forward at a horse's or bird's actual head.
+UNVERIFIED: the Look tab controls were not clicked (test flags -camdist and -fpindoors stand in, and -fpindoors itself wasn't run); host and client weren't run (the camera and body hiding are local).
+Seen, not caused here: looking down in that room shows a wedge of blue at the edge of the view, in first and third person. Likely a gap in the room box; for row 3.
+Suite: 15 passed, 0 failed, 7 skipped in 230 s.
+Next: row 3.
