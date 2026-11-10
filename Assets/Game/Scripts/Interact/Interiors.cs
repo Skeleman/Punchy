@@ -94,6 +94,8 @@ namespace Punchy.Interact
         {
             get
             {
+                if (instance != null && instance.inRoom < 0 && instance.walkInAt >= 0 && instance.walkInDepth > 0.5f)
+                    return math.clamp(math.cmax(instance.walkIns[instance.walkInAt].Half), 2.5f, 3.5f);
                 if (instance == null || instance.inRoom < 0 || instance.inRoom >= instance.rooms.Count)
                     return 0f;
                 var room = instance.rooms[instance.inRoom];
@@ -240,9 +242,15 @@ namespace Punchy.Interact
             // Each door anchor's plot (the door stands 0.75 x the plot's half depth + 1.4 m out from its centre).
             ref var anchors = ref terrain.Anchors.Value.Anchors;
             var doors = new List<float2>();
+            var doorY = new List<float>();
             for (int i = 0; i < anchors.Length; i++)
                 if (anchors[i].Kind == AnchorKind.Door)
+                {
                     doors.Add(anchors[i].Position.xz);
+                    doorY.Add(anchors[i].Position.y);
+                }
+            walkIns.Clear();
+            walkInCells.Clear();
             doorRoom = new int[doors.Count];
             var roomOf = new Dictionary<FloraSpecies, int>();
             InteriorCells.Clear();
@@ -274,6 +282,12 @@ namespace Punchy.Interact
                     var species = buildings[plot.Building].Species;
                     if (species == null)
                         continue;
+                    // P-30: a house walked into has no room off the island: it is its own inside.
+                    if (species.Form == FloraForm.KitBuilding && StructureKit.WalkIn(species.KitShape) && FloraGenerator.HouseInterior(species, out _, out var walkInside))
+                    {
+                        AddWalkIn(plot.Centre, plot.Facing, math.min(new float2(walkInside.x, walkInside.z) * 0.5f, plot.Half), doorY[d], walkInside.y, d);
+                        continue;
+                    }
                     if (!roomOf.TryGetValue(species, out var r))
                     {
                         r = -1;
@@ -290,6 +304,8 @@ namespace Punchy.Interact
             var enterable = 0;
             foreach (var r in doorRoom)
                 if (r >= 0) enterable++;
+            if (walkIns.Count > 0)
+                Debug.Log($"Interiors: {walkIns.Count} houses walked into (-seamless), in {walkInCells.Count} cells; doors {string.Join(", ", walkIns.ConvertAll(w => w.Door))}");
             Debug.Log($"Interiors: {rooms.Count} rooms (one per house type with an inside), {InteriorCells.Count} boxes; {doors.Count} doors, {matched} matched to a house, {enterable} lead inside");
             for (int r = 0; r < rooms.Count; r++)
                 Debug.Log($"Interiors: room {r} {rooms[r].Type.name}: {rooms[r].Max.x - rooms[r].Min.x:F1} x {rooms[r].Max.y - rooms[r].Min.y:F1} x {rooms[r].Max.z - rooms[r].Min.z:F1} m, seed {RoomSeed(terrain.World.Seed, r):X8}, {rooms[r].Furniture}");
@@ -618,6 +634,25 @@ namespace Punchy.Interact
         /// </summary>
         void LateUpdate()
         {
+            UpdateWalkIn();
+            WalkInTest();
+            if (inRoom < 0 && walkInDepth > 0f)
+            {
+                // P-30: inside a house walked into, the light follows the player through the doorway rather than easing
+                // in over time: the sky's at the threshold, the room's 1.5 m in.
+                indoors = walkInDepth;
+                var dim = new Color(0.17f, 0.13f, 0.09f);
+                RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
+                RenderSettings.ambientSkyColor = Color.Lerp(RenderSettings.ambientSkyColor, dim * 1.1f, indoors);
+                RenderSettings.ambientEquatorColor = Color.Lerp(RenderSettings.ambientEquatorColor, dim, indoors);
+                RenderSettings.ambientGroundColor = Color.Lerp(RenderSettings.ambientGroundColor, dim * 0.7f, indoors);
+                if (Time.realtimeSinceStartup > ambientLog)
+                {
+                    ambientLog = Time.realtimeSinceStartup + 1f;
+                    Debug.Log($"Interiors: walk-in light {indoors:F2} in: ambient equator {RenderSettings.ambientEquatorColor}, camera arm {IndoorArm:F2}");
+                }
+                return;
+            }
             indoors = Mathf.MoveTowards(indoors, inRoom >= 0 ? 1f : 0f, Time.deltaTime / 0.6f);
             if (indoors <= 0f)
             {
@@ -638,6 +673,203 @@ namespace Punchy.Interact
             RenderSettings.ambientSkyColor = Color.Lerp(RenderSettings.ambientSkyColor, warm * 1.1f, indoors);
             RenderSettings.ambientEquatorColor = Color.Lerp(RenderSettings.ambientEquatorColor, warm, indoors);
             RenderSettings.ambientGroundColor = Color.Lerp(RenderSettings.ambientGroundColor, warm * 0.7f, indoors);
+        }
+
+        /// <summary>A house walked into (P-30): its plot's centre and facing (out through the door), its inside's half
+        /// size across and along, its floor (the door's foot) and how high it is inside.</summary>
+        struct WalkIn
+        {
+            public float2 Centre, Facing, Half;
+            public float Floor, Height;
+            public int Door;
+        }
+
+        readonly List<WalkIn> walkIns = new List<WalkIn>();
+        /// <summary>The per-house lookup: walk-in houses by 32 m cell, so a point asks only the houses round it.</summary>
+        readonly Dictionary<int2, List<int>> walkInCells = new Dictionary<int2, List<int>>();
+        const float WalkInCell = 32f;
+        /// <summary>The house the local player is in (-1: none) and how far in: 0 at the door, 1 from 1.5 m in.</summary>
+        int walkInAt = -1;
+        float walkInDepth;
+
+        void AddWalkIn(float2 centre, float2 facing, float2 half, float floor, float height, int door)
+        {
+            var i = walkIns.Count;
+            walkIns.Add(new WalkIn { Centre = centre, Facing = math.normalizesafe(facing, new float2(0f, 1f)), Half = half, Floor = floor, Height = height, Door = door });
+            var r = math.cmax(half) + 1f;
+            var lo = (int2)math.floor((centre - r) / WalkInCell);
+            var hi = (int2)math.floor((centre + r) / WalkInCell);
+            for (int x = lo.x; x <= hi.x; x++)
+                for (int y = lo.y; y <= hi.y; y++)
+                {
+                    if (!walkInCells.TryGetValue(new int2(x, y), out var list))
+                        walkInCells[new int2(x, y)] = list = new List<int>();
+                    list.Add(i);
+                }
+        }
+
+        /// <summary>P-30: whether a point is inside a house walked into, which, and how far in from its door (0..1).</summary>
+        public static bool InWalkIn(float3 p, out int house, out float depth)
+        {
+            (house, depth) = (-1, 0f);
+            if (instance == null || instance.walkIns.Count == 0 || !instance.walkInCells.TryGetValue((int2)math.floor(p.xz / WalkInCell), out var list))
+                return false;
+            foreach (var i in list)
+            {
+                var w = instance.walkIns[i];
+                var to = p.xz - w.Centre;
+                var along = math.dot(to, w.Facing);
+                var across = math.dot(to, new float2(-w.Facing.y, w.Facing.x));
+                if (math.abs(across) > w.Half.x || math.abs(along) > w.Half.y || p.y < w.Floor - 0.5f || p.y > w.Floor + w.Height + 0.5f)
+                    continue;
+                house = i;
+                depth = math.saturate((w.Half.y - along) / 1.5f);
+                return true;
+            }
+            return false;
+        }
+
+        float walkInLog, ambientLog;
+
+        /// <summary>
+        /// "-walkin N" (P-30): with -atdoor N and -usedoor N, the player walks from in front of door N through it to 2 m
+        /// inside (a second after the door opens), stands, pushes at the side wall for 2.5 s, then walks back out; each step logged with where
+        /// it got to and how far in the house it reads (InWalkIn).
+        /// </summary>
+        int walkInTest = -2, shotsTaken;
+
+        static string ShotDir()
+        {
+            var args = System.Environment.GetCommandLineArgs();
+            var at = System.Array.IndexOf(args, "-shotdir");
+            return at >= 0 && at + 1 < args.Length ? args[at + 1] : null;
+        }
+        float2 stepAt;
+        bool reachedEntry, leftEntry;
+        float walkInTestAt, walkInStepLog;
+
+        void WalkInTest()
+        {
+            if (walkInTest == -2)
+            {
+                var args = System.Environment.GetCommandLineArgs();
+                var at = System.Array.IndexOf(args, "-walkin");
+                walkInTest = at >= 0 && at + 1 < args.Length && int.TryParse(args[at + 1], out var n) ? n : -1;
+            }
+            if (walkInTest < 0 || !Doors.TryGetDoor(walkInTest, out var door, out var facing))
+                return;
+            // (From the moment the door stands open: -usedoor's own time depends on when the world came up.)
+            if (walkInTestAt <= 0f)
+            {
+                if (!FloraDoors.IsOpen(door, 1f))
+                    return;
+                walkInTestAt = Time.realtimeSinceStartup + 3f;   // (time for the outside shot first)
+                Debug.Log($"Interiors: -walkin {walkInTest}: door open, walking in from 1 s");
+            }
+            var t = Time.realtimeSinceStartup - walkInTestAt + 30f;
+            var world = World.DefaultGameObjectInjectionWorld;
+            using var q = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadOnly<LocalTransform>());
+            if (!q.TryGetSingleton<LocalTransform>(out var player))
+                return;
+            var f = math.normalizesafe(facing);
+            var across = new float2(-f.y, f.x);
+            float2? to = null;
+            string step;
+            // (The door anchor stands out from the plot's middle; the kit's doorway can be a bay to one side. So: to the
+            // door's step first, the low box in front of it, then straight in from there.)
+            if (stepAt.x == 0f && stepAt.y == 0f)
+            {
+                using var sq = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<KitBox>());
+                if (sq.TryGetSingletonBuffer<KitBox>(out var boxes, true))
+                    foreach (var kbox in boxes)
+                        if (kbox.Half.y < 0.16f && kbox.Half.x < 1.2f && math.abs(kbox.Centre.y - kbox.Half.y - door.y) < 0.2f && math.distance(kbox.Centre.xz, door.xz) < 3f)
+                        {
+                            stepAt = kbox.Centre.xz;
+                            Debug.Log($"Interiors: -walkin {walkInTest}: the door's step at {kbox.Centre}, {math.distance(kbox.Centre.xz, door.xz):F2} m from the anchor");
+                        }
+            }
+            var entry = stepAt.x != 0f || stepAt.y != 0f ? stepAt + f * 0.8f : door.xz;
+            var threshold = entry - f * 1.2f;   // (on the sill, in the doorway)
+            if (t < 30f) { step = "wait"; }
+            else if (t < 33.5f) { to = !reachedEntry ? entry : threshold; step = "in"; reachedEntry |= math.distance(entry, player.Position.xz) < 0.35f; }
+            else if (t < 36f) { to = threshold; step = "doorway"; }
+            else if (t < 39f) { to = entry - f * 3.2f; step = "in"; }
+            else if (t < 42f) step = "stand";
+            else if (t < 44.5f) { to = player.Position.xz + across * 5f; step = "wall"; }
+            else if (t < 52f)
+            {
+                var inner = entry - f * 2.3f;   // (in the room, on the doorway's line, then out through it)
+                to = !leftEntry ? inner : entry + f * 2f;
+                step = "out";
+                leftEntry |= math.distance(inner, player.Position.xz) < 0.35f;
+            }
+            else
+            {
+                PlayerInputSystem.TestMove = null;
+                Debug.Log($"Interiors: -walkin {walkInTest} done");
+                walkInTest = -1;
+                return;
+            }
+            PlayerInputSystem.TestMove = to is float2 goal && math.distance(goal, player.Position.xz) > 0.3f ? math.normalizesafe(goal - player.Position.xz) : float2.zero;
+            // Shots through the T-1 tool (with -shotdir): outside before the walk, in the doorway, and inside standing.
+            var shotDir = ShotDir();
+            if (shotDir != null)
+            {
+                InWalkIn(player.Position, out var inHouse, out var inDepth);
+                string shot = null;
+                if (shotsTaken == 0 && t >= 27.5f) shot = "seamless-outside";
+                else if (shotsTaken == 1 && step == "doorway" && t >= 34.5f) shot = "seamless-doorway";
+                else if (shotsTaken == 2 && step == "stand" && t >= 40f) shot = "seamless-inside";
+                if (shot != null && Punchy.Debugging.ShotTool.Take(System.IO.Path.Combine(shotDir, shot + ".png"), 1280, 720, 20f, true))
+                {
+                    shotsTaken++;
+                    Debug.Log($"Interiors: -walkin shot {shot} at ({player.Position.x:F2}, {player.Position.y:F2}, {player.Position.z:F2}), house {inHouse}, depth {inDepth:F2}, arm {IndoorArm:F2}");
+                }
+            }
+            if (t >= walkInStepLog)
+            {
+                walkInStepLog = t + 0.5f;
+                InWalkIn(player.Position, out var house, out var depth);
+                var off = player.Position.xz - door.xz;
+                // (What stands just ahead, 0.5 m on: kit boxes spanning the body's height there, and round obstacles.)
+                var ahead = player.Position.xz + (to is float2 g2 ? math.normalizesafe(g2 - player.Position.xz) : float2.zero) * 0.5f;
+                var em2 = world.EntityManager;
+                using var bq = em2.CreateEntityQuery(ComponentType.ReadOnly<KitBox>());
+                using var oq = em2.CreateEntityQuery(ComponentType.ReadOnly<FloraObstacle>());
+                var what = "";
+                if (bq.TryGetSingletonBuffer<KitBox>(out var kb, true))
+                    foreach (var kbox in kb)
+                        if (KitCollision.Span(kbox, ahead, out var lo, out var hi) && hi > player.Position.y + 0.3f && lo < player.Position.y + 1.7f)
+                            what += $" box at {kbox.Centre} half {kbox.Half} spans {lo:F2}..{hi:F2};";
+                        else if (kbox.Half.y < 0.3f && math.distance(kbox.Centre.xz, player.Position.xz) < 2.5f)
+                            what += $" low box at {kbox.Centre} half {kbox.Half};";
+                if (oq.TryGetSingletonBuffer<FloraObstacle>(out var ob, true))
+                    foreach (var o in ob)
+                        if (math.distance(o.Position.xz, ahead) < o.Radius + 0.4f)
+                            what += $" circle at {o.Position} r {o.Radius:F2} h {o.Height:F1};";
+                if (what.Length > 0)
+                    Debug.Log($"Interiors: -walkin ahead:{what}");
+                Debug.Log($"Interiors: -walkin {step}: at ({player.Position.x:F2}, {player.Position.y:F2}, {player.Position.z:F2}), {math.dot(off, -f):F2} m in past the door, {math.dot(off, across):F2} across; house {house}, depth {depth:F2}; ambient {RenderSettings.ambientEquatorColor}");
+            }
+        }
+
+        void UpdateWalkIn()
+        {
+            if (walkIns.Count == 0)
+                return;
+            var world = World.DefaultGameObjectInjectionWorld;
+            if (world == null || !world.IsCreated)
+                return;
+            using var q = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadOnly<LocalTransform>());
+            if (!q.TryGetSingleton<LocalTransform>(out var player))
+                return;
+            var was = walkInAt;
+            InWalkIn(player.Position, out walkInAt, out walkInDepth);
+            if (walkInAt != was || walkInAt >= 0 && Time.realtimeSinceStartup > walkInLog)
+            {
+                walkInLog = Time.realtimeSinceStartup + 1f;
+                Debug.Log(walkInAt >= 0 ? $"Interiors: in walk-in house {walkInAt} (door {walkIns[walkInAt].Door}), {walkInDepth:F2} in, at {player.Position}" : "Interiors: out of the walk-in house");
+            }
         }
 
         // P-20 (profiler finding 11): drawn through a GuiHook, on only while there is something to draw, so this

@@ -42,6 +42,15 @@ namespace Punchy.Flora
             open.Add(new Vector4(doorPosition.x, doorPosition.y, doorPosition.z, amount));
         }
 
+        /// <summary>P-30: whether a door within this distance of a point is open (half way or more).</summary>
+        public static bool IsOpen(float3 near, float within)
+        {
+            foreach (var d in open)
+                if (d.w >= 0.5f && math.distance((float3)(Vector3)d, near) < within)
+                    return true;
+            return false;
+        }
+
         /// <summary>Shuts every door it has opened.</summary>
         public static void Clear() => open.Clear();
 

@@ -1300,8 +1300,17 @@ namespace Punchy.Flora
                             nearest = math.min(nearest, math.distancesq(inst.Position.xz, c));
                         var model = models[inst.Model];
                         if (model.Boxes.Count > 0 && nearest < math.square(KitBoxRange + model.Radius * inst.Scale))
+                        {
                             foreach (var box in model.Boxes)
                                 kitBoxes.Add(KitCollision.Placed(box, inst.Position, inst.Yaw, inst.Scale));
+                            // P-30: a walked-into house's door leaf, while it's shut (the door's anchor stands just out from it).
+                            foreach (var box in model.DoorBoxes)
+                            {
+                                var placed = KitCollision.Placed(box, inst.Position, inst.Yaw, inst.Scale);
+                                if (!FloraDoors.IsOpen(placed.Centre, 2.5f))
+                                    kitBoxes.Add(placed);
+                            }
+                        }
                         if (modelGrid[inst.Model] >= 0 && nearest < SupportRange * SupportRange)
                             buffer.Add(new FloraSupport { Position = inst.Position, Yaw = inst.Yaw, Scale = inst.Scale, Grid = modelGrid[inst.Model], Kit = model.Boxes.Count > 0 });
                     }

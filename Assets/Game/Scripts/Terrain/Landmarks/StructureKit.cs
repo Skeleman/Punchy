@@ -549,6 +549,16 @@ namespace Punchy.Terrain
         }
 
         /// <summary>Whether a kit shape is a walled house with a door and an inside (House, StiltHouse and the #69 hazard houses).</summary>
+        /// <summary>
+        /// P-30 prototype: "-seamless" makes one house type (the storm house, KitShape.StormHouse) one you walk into
+        /// through its door instead of being taken to a room: its leaf swings, nothing fills its middle, its floor is solid.
+        /// Off by default (the teleport stays); read from the command line, so it's the same for the whole session.
+        /// </summary>
+        public static readonly bool Seamless = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-seamless") >= 0;
+
+        /// <summary>Whether this kit shape is walked into, this session (P-30: the storm house, with -seamless).</summary>
+        public static bool WalkIn(KitShape s) => Seamless && s == KitShape.StormHouse;
+
         public static bool HouseLike(KitShape s) => s == KitShape.House || s == KitShape.StiltHouse || s >= KitShape.AshHouse && s <= KitShape.SlabShelter;   // W-119: Boardwalk comes after them
 
         // ------------------------------------------------------------------------------------------- hazard houses (#69)

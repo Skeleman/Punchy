@@ -44,6 +44,8 @@ namespace Punchy.Flora
         /// and jumps under these rather than its cylinders and support grid. Empty for everything else.
         /// </summary>
         public readonly List<KitBox> Boxes = new List<KitBox>();
+        /// <summary>P-30: a walked-into house's door leaves (StructureKit.WalkIn): solid only while the door is shut.</summary>
+        public readonly List<KitBox> DoorBoxes = new List<KitBox>();
         /// <summary>
         /// Where each collider starts above the base, by index (missing = 0, the ground). Lets a leaning shape (an
         /// ArcSpire's prongs) be a stack of short slices that follow its tilt instead of one fat upright cylinder.
@@ -326,6 +328,7 @@ namespace Punchy.Flora
                     model.TrunkRadius = g.TrunkRadius;
                     model.Colliders.AddRange(g.Colliders);
                     model.Boxes.AddRange(g.Boxes);
+                    model.DoorBoxes.AddRange(g.DoorBoxes);
                     model.ColliderBase.AddRange(g.ColliderBase);
                     model.Perches.AddRange(g.Perches);
                     model.Chimneys.AddRange(g.Chimneys);
@@ -415,6 +418,7 @@ namespace Punchy.Flora
             public List<List<Vector3>> Limbs;
             public readonly List<Vector4> Colliders = new List<Vector4>();
             public readonly List<KitBox> Boxes = new List<KitBox>();
+            public readonly List<KitBox> DoorBoxes = new List<KitBox>();
             public readonly List<float> ColliderBase = new List<float>();
             public readonly List<Vector3> Perches = new List<Vector3>();
             public readonly List<Vector3> Chimneys = new List<Vector3>();
