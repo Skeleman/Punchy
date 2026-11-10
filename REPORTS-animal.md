@@ -2,6 +2,16 @@
 
 Newest first.
 
+## 2026-11-10 batch A-92 row 2 (#230): seams, fur and shells tried on horse, wolf and rabbit, all three under 0.3 ms (verified)
+- DONE 2a seams (fauna/detail 664cbb3a, `-seams`): vertex blend across joints (each segment end bends toward its neighbour's axis). Look: subtle, wolf knees and hocks a little smoother, horse and rabbit hard to tell.
+- DONE 2b fur (fauna/detail c88e6927, `-fur`): procedural fur streaks along the body plus soft coat patches in the coat colour. Look: clear on wolf and rabbit up close, still reads at 10 m as mottling; nothing shows on the black horse.
+- DONE 2c shells (fauna/detail 560c5253, `-shells`): two shell layers pushed out along the normal and noise-clipped, only for segments within 7 m; gear, thin segments (eyes, ear tips) and far segments skip. Depth passes match (depth priming is forced). Look: soft furry outline, the clearest of the three up close.
+- Herd cost (DetailTests *Herd, 30 horses, High, editor uncapped, 4 alternating off/on rounds, medians, framed on the herd centroid since the herd scatters): seams pose +0.15 ms (1.422 -> 1.572), gpu -0.28 (noise), main noise; fur pose +0.014, gpu -0.018, main +0.31 (round noise); shells at 30 m pose -0.03, gpu +0.01 (shells collapse at that range); shells near (camera 4 m from the nearest horse) main -0.027, render -0.022, gpu -0.015, pose -0.048. All within noise and under 0.3 ms.
+- Checks: each experiment off by default, so the pins and the suite are untouched until row 3; line endings kept (Creature.shader, CreatureAnimator CRLF; rest LF). Herd bench logs a marker before spawning (a second bench in one session waited on the first one's stale "spawned" line).
+- Shots (off/on pairs at 2 m and 10 m for horse, wolf, rabbit, 12 per experiment, not reviewed in the gallery): PunchyMilestones/animal/seams/gallery/a92-seams-wolf-2m-on-20261110-022348.png; PunchyMilestones/animal/fur/gallery/a92-fur-wolf-2m-on-20261110-024420.png; PunchyMilestones/animal/shells/gallery/a92-shells-rabbit-2m-on-20261110-030613.png (each with matching -off and the other species/distances).
+- Learned: herd benches must frame the herd (it scatters from the player); shells need the same push and clip in DepthOnly and DepthNormals or they vanish under forced depth priming.
+- NEXT: row 3: keep all three (each under 0.3 ms), default on with -noseams/-nofur/-noshells opt-outs, full suite and pins.
+
 ## 2026-11-10 batch A-92 row 1 (#231): lying legs stay above ground, animals stand before moving (verified)
 - DONE row 1 (fauna/detail 4121cd57): folded legs lifted clear of the real ground under each leg while lying (up to hip radius x lie weight, no foot IK pull, blended with the lie); AI speed held at 0 while Lie/Sit > ~0.25, the player's movement input cancels a rest and the body gets up before it moves.
 - Legs (LyingTests, every 4-legged land species, lie 0.3..1, 4 headings): worst >= -0.01 m flat and on a 0.33 slope (before this row: slope worst Camel -0.028; before A-42: -0.4..-0.7 m).
