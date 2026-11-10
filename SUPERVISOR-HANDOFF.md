@@ -191,3 +191,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-10: Zach: all LOD by screen size (DetailPolicy.ScreenSize), no fixed metres. Rule 20 in COORDINATION; A-97 updated; R-13 card (convert the rest) queued after R-12/R-10 4c.
 - 11-10: R-12 row 1 reported (partial): squares only on light/forwardplus, never on main -> added a squares check to R-10 4c. Cloud is on main, commit not found; bisect Sky.hlsl in one session with the weather pinned (R-12 row 1b, after R-10 4c). LiveFolk_Answer fails on main (fauna).
 - 11-10: Zach: pill clouds seen before, likely original cloud code. R-12 row 1b = read/fix cloud shape code, no bisect; runs in Punchy-world after R-10 4c.
+- 11-10: A-96 merged #244 (ed0e68ef). A-97 started in Punchy-release. Non-creature horizon NaN (229 px wolf noon) = small card later (R lane, after R-12).
