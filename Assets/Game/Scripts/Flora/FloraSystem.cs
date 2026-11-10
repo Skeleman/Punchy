@@ -146,9 +146,13 @@ namespace Punchy.Flora
             public readonly Dictionary<int2, float> FarTiles = new Dictionary<int2, float>();
             public NativeArray<FloraInstance> PlacingOutput;
             public int PlacingFrames;
+            /// <summary>R-7: its models' impostor atlases (FloraSystem.Impostors.cs), or null for a layer without.</summary>
+            public ImpostorAtlas Impostors;
 
             public void Release()
             {
+                Impostors?.Release();
+                Impostors = null;
                 Placing.Complete();
                 if (PlacingTiles.IsCreated) PlacingTiles.Dispose();
                 if (PlacingOutput.IsCreated) PlacingOutput.Dispose();
@@ -323,6 +327,7 @@ namespace Punchy.Flora
         {
             ReleaseShadowCache();
             ReleaseWide();
+            ReleaseImpostorBake();
             foreach (var l in layers)
                 l?.Release();
             Array.Clear(layers, 0, layers.Length);
@@ -373,6 +378,7 @@ namespace Punchy.Flora
                 lastSource = source;
                 configStamp = ConfigStamp(palette);
             }
+            BakeImpostors();
 
             ScaleRanges();
             // Deep in a cave the surface's plants are out of sight: no placing, no drawing (obstacles stay).
@@ -539,6 +545,7 @@ namespace Punchy.Flora
                 layer.ModelCounts = new int[layer.ModelCount];
                 CreateDrawBuffers(layer);
                 layers[i] = layer;
+                QueueImpostors(layer);
             }
             built = true;
             obstaclesDirty = true;
