@@ -439,7 +439,7 @@ Parts, in order (mark each DONE here with the commit):
 
 - Supervisor 11-10: main player build fixed by #248 (main 33db029c). Builds from main compile again.
 
-## Job 45c (2026-11-10, QUEUED; queued by the world lane for R-9 row 4, #232): R-9 water field re-run on the laptop
+## Job 45c (2026-11-10, QUEUED, next on the laptop after Zach's SSAO shots (q78.sh); q79.sh ready; queued by the world lane for R-9 row 4, #232): R-9 water field re-run on the laptop
 Job 45 failed (+3.7 ms GPU, +4.7 ms CPU; the lake's water went 23,844 -> 319,872 indices). Row 4 now cuts the fine sheet by screen
 size only near the player and leaves the rest to the chunk water: at the same lake, High, the sheet is 8,064 indices over the
 chunk's 23,844 (chunk + sheet 1.34x the chunk alone). Read only.
