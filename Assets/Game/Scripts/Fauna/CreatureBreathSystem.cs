@@ -39,6 +39,8 @@ namespace Punchy.Fauna
             public float Every, Exhale;
             /// <summary>Wisps per exhale, their size and opacity against a person's, and their mean lifetime (s).</summary>
             public float Puffs, Size, Opacity, Lifetime;
+            /// <summary>A-94: how far from the camera its breath shows (m): 25 for an animal, further for a colossus.</summary>
+            public float Reach;
             /// <summary>Whether it's big enough for its breath to show at all.</summary>
             public bool Shows => Body >= Smallest;
             /// <summary>Wisps a second during an exhale.</summary>
@@ -49,17 +51,35 @@ namespace Punchy.Fauna
         public static Shape ShapeFor(float standHeight, float bodyLength)
         {
             var k = math.max(standHeight + bodyLength, 0f) / PersonExtent;
+            // A-94: past 4x a person (a colossus, a roc) one curve keeps growing it where A-90 capped it at a horse's: up to
+            // 8 times bigger again, puffs up to ~5x wider, slower and longer-lived, the same wisps per exhale, so fewer alive
+            // at once per body. Every animal of 4x a person or less (all of a busy scene's) breathes as before.
+            var big = math.clamp(k / Colossal, 1f, 8f);
+            var slow = math.pow(big, 0.25f);
             return new Shape
             {
                 Body = k,
-                Every = 3.2f * math.clamp(math.pow(k, 0.9f), 0.2f, 2f),
-                Exhale = Exhale * math.clamp(math.sqrt(k), 0.25f, 2f),
+                Every = 3.2f * math.clamp(math.pow(k, 0.9f), 0.2f, 2f) * slow,
+                Exhale = Exhale * math.clamp(math.sqrt(k), 0.25f, 2f) * slow,
                 Puffs = 13.5f * math.clamp(k, 0.1f, 1.6f),
-                Size = math.min(math.pow(k, 1.8f), 3f),
+                Size = math.min(math.pow(k, 1.8f), 3f) * math.pow(big, 0.75f),
                 Opacity = math.clamp(k, 0.15f, 1f),
-                Lifetime = 1.5f * math.clamp(math.sqrt(k), 0.3f, 2f),
+                Lifetime = 1.5f * math.clamp(math.sqrt(k), 0.3f, 2f) * slow,
+                Reach = Range * big,
             };
         }
+
+        /// <summary>A-94: the body size (against a person) past which breath keeps growing as a colossus's.</summary>
+        const float Colossal = 4f;
+
+        /// <summary>How much of its velocity a breather's wisps carry: a walker's most of it, a flier's (fly 1) little, so
+        /// its breath stays where it was breathed and drifts on the wind rather than trailing after it.</summary>
+        public static float Carry(float fly) => math.lerp(0.85f, 0.08f, math.saturate(fly));
+        /// <summary>A-94: how long a breather's exhale lasts (s) given its shape's: a flier (fly 1) breathes its wisps out
+        /// in one short burst, so they stay one faint dot where it breathed rather than a dotted line along its flight.</summary>
+        public static float ExhaleFor(float exhale, float fly) => math.lerp(exhale, math.min(exhale, FlierExhale), math.saturate(fly));
+        /// <summary>A flier's exhale (s): a few frames.</summary>
+        const float FlierExhale = 0.06f;
         /// <summary>Whether players have creature bodies, which breathe here from their own mouths (then AmbienceSystem
         /// leaves players' breath alone).</summary>
         public static bool PlayersBreathe;
@@ -110,7 +130,9 @@ namespace Punchy.Fauna
                 // An exhale every few seconds, each individual on its own beat, twice as often running.
                 var every = (legacy ? 3.2f : shape.Every) * (s.Speed > b.WalkSpeed * 1.5f ? 0.5f : 1f) * (0.85f + 0.3f * ((s.Individual >> 8) % 100u) / 100f);
                 var u = math.frac((s.Clock + (s.Individual % 97u) * 0.37f) / every);
-                if (u * every > (legacy ? Exhale : shape.Exhale))
+                // (A flier's wisps all come out at once: the same wisps, in a few frames.)
+                var exhale = legacy ? Exhale : ExhaleFor(shape.Exhale, s.Fly);
+                if (u * every > exhale)
                     continue;
                 var forward = new float3(math.sin(s.Yaw), 0f, math.cos(s.Yaw));
                 // (From its own head: a chicken's low, a horse's high up on its neck. A body with no head, a guess.)
@@ -125,8 +147,7 @@ namespace Punchy.Fauna
                     continue;
                 }
                 // (A flier's breath stays where it was breathed and drifts on the wind, rather than trailing after it.)
-                var carry = math.lerp(0.85f, 0.08f, math.saturate(s.Fly));
-                ambience.Breathe(mouth, forward, velocity, shape.Size, shape.Rate, shape.Lifetime, shape.Opacity, carry);
+                ambience.Breathe(mouth, forward, velocity, shape.Size, shape.Puffs / math.max(exhale, 1e-3f), shape.Lifetime, shape.Opacity, Carry(s.Fly));
             }
             PlayersBreathe = players;
             CreatureSnapshotSystem.Release(World, states, bodies, entities);

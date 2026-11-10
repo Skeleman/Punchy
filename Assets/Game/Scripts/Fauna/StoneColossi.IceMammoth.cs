@@ -217,8 +217,7 @@ namespace Punchy.Fauna
             }
             AddPart("Loose", root, loose.ToMesh("IceMammothLoose"));
 
-            // Breath steaming off the trunk tip, glitter falling off its flanks, and the powder where shed chunks land.
-            Puffs(trunkPivot, "Breath", q3, new Vector3(0.6f, 0.6f, 0.6f), new Color(0.92f, 0.95f, 1f, 0.35f), new Color(0.85f, 0.90f, 0.96f, 0.25f), 1.2f, 3f, 0f, 0.8f, 4f);
+            // Glitter falling off its flanks and the powder where shed chunks land (its breath steams off the trunk tip, A-94).
             Puffs(root, "Glitter", barrel.c + Vector3.up * 2f, new Vector3(20f, 10f, 30f), new Color(0.90f, 0.96f, 1f, 0.9f), new Color(0.70f, 0.85f, 1f, 0.8f), 0.08f, 0.2f, 12f, -1.2f, 8f);
             Puffs(root, "Powder", Vector3.zero, Vector3.one, new Color(0.92f, 0.95f, 1f, 0.55f), new Color(0.82f, 0.88f, 0.95f, 0.45f), 1.5f, 3.5f, 0f, 0.4f, 3f);
 
@@ -236,7 +235,7 @@ namespace Punchy.Fauna
             MammothRig.Material = Resources.Load<Material>("Colossus");
             MammothRig.Root = root;
             MammothRig.Trunk = trunkPivot;
-            MammothRig.Breath = trunkPivot.Find("Breath")?.GetComponent<ParticleSystem>();
+            MammothRig.Breath = new ColdBreath(root, trunkPivot, q3, q3 - Bezier(q0, q1, q2, q3, 0.9f), "Loose");
             MammothRig.Powder = root.Find("Powder")?.GetComponent<ParticleSystem>();
             MammothRig.Shed = shed.ToArray();
             MammothRig.ShedOut = shedOut.ToArray();
@@ -262,7 +261,9 @@ namespace Punchy.Fauna
         static class MammothRig
         {
             public static Transform Root, Trunk;
-            public static ParticleSystem Breath, Powder;
+            public static ParticleSystem Powder;
+            /// <summary>Its breath in the cold, off the trunk tip (A-94).</summary>
+            public static ColdBreath Breath;
             public static Material Material;
             public static readonly Mesh[] Chunks = new Mesh[3];
             /// <summary>Local spots on its flanks and tusks a chunk can break from, and the way out of the body there.</summary>
@@ -275,7 +276,7 @@ namespace Punchy.Fauna
             public static int Next;
             public static bool HasLast;
             public static Vector3 Last;
-            public static float NextBreath, NextRumble, NextDrip, NextShed;
+            public static float NextRumble, NextDrip, NextShed;
             public static ParticleSystem.EmitParams Puff;
         }
 
@@ -368,11 +369,7 @@ namespace Punchy.Fauna
             // The trunk sways and curls; a breath steams off its tip every few seconds; a low rumble; an icicle drips.
             if (MammothRig.Trunk != null)
                 MammothRig.Trunk.localRotation = Quaternion.Euler(Mathf.Sin(t * 0.37f) * 9f - 4f, Mathf.Sin(t * 0.23f + 1f) * 12f, Mathf.Sin(t * 0.31f) * 5f);
-            if (t >= MammothRig.NextBreath && MammothRig.Breath != null)
-            {
-                MammothRig.NextBreath = t + UnityEngine.Random.Range(5f, 9f);
-                MammothRig.Breath.Emit(14);
-            }
+            MammothRig.Breath?.Tick(eye);
             if (t >= MammothRig.NextRumble)
             {
                 MammothRig.NextRumble = t + UnityEngine.Random.Range(14f, 26f);

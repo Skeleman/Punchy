@@ -83,3 +83,6 @@ Read before changing creatures, behaviour, poses, the player's body, settlements
 - A-90: creature breath is shaped by body size alone (CreatureBreathSystem.ShapeFor, StandHeight + BodyLength against
   a person's 1.18 m); a player's body keeps the old breath. `-breathlog` logs the per-species table and live puff count,
   `-breathsize old` brings back the one-size breath to compare. Shot-list lines reset flags, so repeat them per line.
+- A-94: past 4x a person ShapeFor keeps growing breath (one curve, up to 8x more: bigger, slower, longer-lived, seen
+  further). Colossi breathe through StoneColossi.ColdBreath (size measured off their meshes) and AmbienceSystem's puffs,
+  so only in the cold and near the camera. Fliers breathe each exhale out in one burst (ExhaleFor), so no dotted trail.
