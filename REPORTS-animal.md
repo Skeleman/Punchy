@@ -3211,3 +3211,13 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
   5. Ruin 3894404499: camera inside pillar kit box 17 at (-236.9, 11.1, -3207.5), and a 2.2 m ledge drop at (-242, 11.4, -3222). Kit boxes are world lane (CaveRoomKit), not touched.
 - Shots (800 px, noon, clear, avatar behind the camera): D:/Unity/PunchyMilestones/A-95/row1-temple.png (lever room: lever box, sconce box in the wall, the ledge), row1-cave.png (cave 1169493543 chest room), row1-ruin.png (pillar box 17 corner).
 - Next: row 2 (fix).
+
+## A-96
+
+### Row 0 - LiveFolk_Answer ignores the saved body - done (verified)
+- Cause: with a beast body (Crow, Rabbit) folk use BeastTopics, which have no [who] line, and all trees share the editor PlayerPrefs (`Punchy.Character.Body`).
+- Fix: the test switches to Human through the SetBody hook, then puts the body and the saved pick back (same pattern as Beast_Shots).
+- Commit f8da2466 on fix/creature-sparkle (pushed).
+- Runs (scripts/run-playmode-tests.sh LiveFolk_Answer): pref Crow "1 passed, 0 failed, 0 skipped in 66s"; pref Human "1 passed, 0 failed, 0 skipped in 65s"; pref Rabbit (set by another editor meanwhile) "1 passed, 0 failed, 0 skipped in 163s". Pref left at Rabbit, as it was before the runs.
+- Risk: another editor can change the shared pref during a run; the test now does not care.
+- Next: row 1 (find the sparkles).
