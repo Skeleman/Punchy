@@ -18,8 +18,14 @@ namespace Punchy.Terrain
     /// Red holds how much fire burns there, tinted in the shader with tonight's fire colour and gone by day (the colour
     /// changes every night, so it can't be baked); green, blue and alpha hold the fixed colour of plants and lava.
     /// Seed-derived and cosmetic: every machine bakes the same map and nothing is sent. Worker thread only; the upload
-    /// is a single SetPixelData when it finishes. More kinds of light (window spill, town fixtures) join through
-    /// <see cref="AddWorldSource"/> before the bake.
+    /// is a single SetPixelData when it finishes. More static lights join through <see cref="AddWorldSource"/> before
+    /// the bake.
+    ///
+    /// R-10 row 4 (Zach 11-09, a town glowing in the distance): the same bake also goes over every settlement cell by
+    /// cell (no stride) and puts its lit windows and street lights into a second, one-channel map, <see cref="TownMap"/>.
+    /// It has its own map because it follows the windows (on after dark, off by day) and fades in over a longer stretch
+    /// than plants do. The bake also sums each town's light into <see cref="Towns"/>, for the light dome over it in the
+    /// air (SurfaceGlow.Dome.cs).
     /// </summary>
     public partial class SurfaceGlow
     {
@@ -34,6 +40,17 @@ namespace Punchy.Terrain
         static readonly int3 WorldStride = new int3(24, 8, 2);
         const float LavaReach = 30f;
         static readonly float3 LavaLight = new float3(1.6f, 0.6f, 0.12f);
+        /// <summary>R-10 row 4: how far past a settlement's radius its cells are looked at (m), how far each lit house or
+        /// street light's share of the town glow spreads (m, two texels), and how much each kind adds.</summary>
+        const float TownMargin = 30f, TownReach = 36f, TownWindowLight = 1f, TownFixtureLight = 0.8f;
+
+        /// <summary>A town's light, for its dome: the light-weighted middle of its lit houses and street lights (y their
+        /// height), how far they spread round it (m), and how much light they add up to (one lit house is about 1).</summary>
+        public struct TownGlow
+        {
+            public float3 Centre;
+            public float Radius, Light;
+        }
 
         /// <summary>A static light to bake in as well (a window's spill, a town fixture): position, light, soft reach.</summary>
         public struct WorldSource
@@ -48,11 +65,17 @@ namespace Punchy.Terrain
         public float WorldExtent;
         public bool WorldReady;
         public float WorldBakeMs;
+        /// <summary>R-10 row 4: the towns' lit windows and street lights (one channel, over the same area as the world
+        /// map), and each town's light, once the bake is done.</summary>
+        public Texture2D TownMap;
+        public readonly List<TownGlow> Towns = new List<TownGlow>();
 
         NativeArray<float> modelFire;
         bool anyFire;
         NativeList<WorldSource> worldExtra;
         NativeArray<half4> worldOut;
+        NativeArray<half> townOut;
+        NativeList<TownGlow> townList;
         NativeArray<int> worldCounts;
         JobHandle worldJob;
         bool worldRunning, worldStarted;
@@ -121,10 +144,27 @@ namespace Punchy.Terrain
                 };
                 WorldMap.SetPixelData(worldOut, 0);
                 WorldMap.Apply(false, true);   // (no CPU copy kept)
+                TownMap = new Texture2D(WorldMapSize, WorldMapSize, TextureFormat.RHalf, false, true)
+                {
+                    name = "Town glow",
+                    wrapMode = TextureWrapMode.Clamp,
+                    filterMode = FilterMode.Bilinear,
+                    hideFlags = HideFlags.DontSave
+                };
+                TownMap.SetPixelData(townOut, 0);
+                TownMap.Apply(false, true);
+                Towns.Clear();
+                for (int i = 0; i < townList.Length; i++)
+                    Towns.Add(townList[i]);
+                domesDirty = true;
                 WorldReady = true;
                 Debug.Log($"SurfaceGlow: world glow baked in {WorldBakeMs:F0} ms: {worldCounts[0]} burning trees, " +
-                          $"{worldCounts[1]} glowing plants, {worldCounts[2]} lava texels, {WorldMapSize * WorldMapSize * 8 / (1024 * 1024)} MB, {WorldExtent:F0} m across");
+                          $"{worldCounts[1]} glowing plants, {worldCounts[2]} lava texels, {worldCounts[3]} lit houses and " +
+                          $"{worldCounts[4]} street lights in {Towns.Count} towns, " +
+                          $"{WorldMapSize * WorldMapSize * 10 / (1024 * 1024)} MB, {WorldExtent:F0} m across");
                 worldOut.Dispose();
+                townOut.Dispose();
+                townList.Dispose();
                 worldCounts.Dispose();
             }
             if (worldStarted || (!anyGlow && !anyFire))
@@ -134,7 +174,9 @@ namespace Punchy.Terrain
             WorldExtent = math.max(source.World.WorldSize, IslandV2.WorldSizeM);   // (the v3 island's maps are wider than the settings say)
             WorldCorner = new float2(-WorldExtent * 0.5f);
             worldOut = new NativeArray<half4>(WorldMapSize * WorldMapSize, Allocator.Persistent);
-            worldCounts = new NativeArray<int>(3, Allocator.Persistent);
+            townOut = new NativeArray<half>(WorldMapSize * WorldMapSize, Allocator.Persistent);
+            townList = new NativeList<TownGlow>(64, Allocator.Persistent);
+            worldCounts = new NativeArray<int>(5, Allocator.Persistent);
             worldClock = System.Diagnostics.Stopwatch.StartNew();
             worldJob = new WorldBakeJob
             {
@@ -147,6 +189,8 @@ namespace Punchy.Terrain
                 Extent = WorldExtent,
                 CellSizes = cellSizes,
                 Output = worldOut,
+                TownOutput = townOut,
+                Towns = townList,
                 Counts = worldCounts
             }.Schedule();
             worldRunning = true;
@@ -162,11 +206,20 @@ namespace Punchy.Terrain
             }
             if (worldOut.IsCreated)
                 worldOut.Dispose();
+            if (townOut.IsCreated)
+                townOut.Dispose();
+            if (townList.IsCreated)
+                townList.Dispose();
             if (worldCounts.IsCreated)
                 worldCounts.Dispose();
             if (WorldMap != null)
                 Object.Destroy(WorldMap);
+            if (TownMap != null)
+                Object.Destroy(TownMap);
             WorldMap = null;
+            TownMap = null;
+            Towns.Clear();
+            domesDirty = true;
             WorldReady = false;
             worldStarted = false;
         }
@@ -193,6 +246,8 @@ namespace Punchy.Terrain
             public float Extent;
             public float3 CellSizes;
             public NativeArray<half4> Output;
+            public NativeArray<half> TownOutput;
+            public NativeList<TownGlow> Towns;
             public NativeArray<int> Counts;
 
             public void Execute()
@@ -258,6 +313,88 @@ namespace Punchy.Terrain
                 for (int i = 0; i < sums.Length; i++)
                     Output[i] = new half4(sums[i]);
                 sums.Dispose();
+                BakeTowns(ref f, texel);
+            }
+
+            /// <summary>R-10 row 4: every settlement's lit houses and street lights, every cell, into the town map and
+            /// the town list. A cell inside an earlier settlement's circle is left to that one, so none counts twice.</summary>
+            void BakeTowns(ref FloraBlob f, float texel)
+            {
+                var town = new NativeArray<float>(WorldMapSize * WorldMapSize, Allocator.Temp);
+                if (Source.Settlements.IsCreated)
+                {
+                    ref var all = ref Source.Settlements.Value.Settlements;
+                    for (int s = 0; s < all.Length; s++)
+                    {
+                        var centre = all[s].Centre;
+                        var r = all[s].Radius + TownMargin;
+                        float sum = 0f, spread = 0f;
+                        var weighted = float3.zero;
+                        for (int layer = 1; layer < 3; layer++)
+                        {
+                            var size = CellSizes[layer];
+                            var lo = (int2)math.floor((centre - r) / size);
+                            var hi = (int2)math.floor((centre + r) / size);
+                            for (int y = lo.y; y <= hi.y; y++)
+                            for (int x = lo.x; x <= hi.x; x++)
+                            {
+                                var mid = (new float2(x, y) + 0.5f) * size;
+                                if (math.distancesq(mid, centre) > r * r || InEarlierTown(ref all, s, mid))
+                                    continue;
+                                var plant = FloraPlacement.Place(ref f, Source, new int2(x, y), layer);
+                                if (plant.Model < 0 || plant.Model >= ModelGlow.Length)
+                                    continue;
+                                var w = ModelGlow[plant.Model].w;
+                                if (w >= 0f)
+                                    continue;
+                                var fixture = FloraPlacement.IsFixtureGlow(w);
+                                Counts[fixture ? 4 : 3]++;
+                                var light = (fixture ? TownFixtureLight : TownWindowLight) * math.sqrt(math.max(plant.Scale, 0.3f));
+                                SplatTown(town, texel, plant.Position.xz, light);
+                                sum += light;
+                                weighted += plant.Position * light;
+                                spread += math.lengthsq(plant.Position.xz) * light;
+                            }
+                        }
+                        if (sum <= 0f)
+                            continue;
+                        var middle = weighted / sum;
+                        // How far its lights spread: the light-weighted spread round their middle (an even disc of
+                        // radius R spreads R / sqrt 2).
+                        var radius = math.sqrt(math.max(spread / sum - math.lengthsq(middle.xz), 0f)) * math.SQRT2;
+                        Towns.Add(new TownGlow { Centre = middle, Radius = math.max(radius, 20f), Light = sum });
+                    }
+                }
+                for (int i = 0; i < town.Length; i++)
+                    TownOutput[i] = new half(town[i]);
+                town.Dispose();
+            }
+
+            static bool InEarlierTown(ref BlobArray<SettlementData> all, int s, float2 at)
+            {
+                for (int k = 0; k < s; k++)
+                {
+                    var r = all[k].Radius + TownMargin;
+                    if (math.distancesq(at, all[k].Centre) <= r * r)
+                        return true;
+                }
+                return false;
+            }
+
+            /// <summary>As Splat, one channel.</summary>
+            void SplatTown(NativeArray<float> map, float texel, float2 at, float light)
+            {
+                var lo = math.max((int2)math.floor((at - TownReach - Corner) / texel), 0);
+                var hi = math.min((int2)math.floor((at + TownReach - Corner) / texel), WorldMapSize - 1);
+                for (int y = lo.y; y <= hi.y; y++)
+                for (int x = lo.x; x <= hi.x; x++)
+                {
+                    var d = math.distance(Corner + (new float2(x, y) + 0.5f) * texel, at);
+                    if (d >= TownReach)
+                        continue;
+                    var fall = 1f - d / TownReach;
+                    map[y * WorldMapSize + x] += light * fall * fall;
+                }
             }
 
             void Splat(NativeArray<float4> map, float texel, float2 at, float4 value, float reach)

@@ -214,6 +214,7 @@ namespace Punchy.Terrain
             }
             ReleaseWorld();
             ReleaseSpill();
+            ReleaseDomes();
             if (farPlants.IsCreated)
                 farPlants.Dispose();
             if (farWindows.IsCreated)

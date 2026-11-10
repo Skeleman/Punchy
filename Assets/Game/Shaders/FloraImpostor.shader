@@ -158,7 +158,7 @@ Shader "Punchy/FloraImpostor"
                 half shadow = min(light.shadowAttenuation, 1 - PunchyWideShadow(positionWS, half3(0, 1, 0))) * (1 - PunchyCloudShadow(positionWS));
                 shadow *= (1 - _PunchyUnderground) * (1 - _FloraInCave);
                 half3 sky = SampleSH(n) * lerp(1, 0.06, max(_PunchyUnderground, _FloraInCave * 0.75));
-                sky += PunchyGlowLight(positionWS, n);
+                sky += PunchyGlowLight(positionWS, n) + PunchyGlowWorld(positionWS, n) * (1 - _FloraInCave);
                 if (_PunchyLantern.w > 0)
                 {
                     float3 toLantern = _PunchyLantern.xyz - positionWS;

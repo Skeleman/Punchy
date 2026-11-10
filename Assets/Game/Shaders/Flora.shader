@@ -418,6 +418,8 @@ Shader "Punchy/Flora"
                 }
                 // Glowing plants and molten pools nearby (their own glow included, softly).
                 sky += PunchyGlowLight(input.positionWS, n);
+                // Past the far map: the island's static glow and distant towns' light (R-10 row 4), not in caves.
+                sky += PunchyGlowWorld(input.positionWS, n) * (1 - _FloraInCave);
                 // Real lights (the lantern among them) with the glow falloff; without Forward+ the lantern alone.
                 sky += PunchyRealLights(input.positionWS, n, input.positionCS);
 #if !PUNCHY_REAL_LIGHTS

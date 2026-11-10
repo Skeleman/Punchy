@@ -26,6 +26,9 @@ TEXTURE2D(_PunchyGlowWorld);       // the whole island: r fire amount, gba plant
 float4 _PunchyGlowWorldRect;       // xy its corner (m), z 1 / its width (1/m)
 float4 _PunchyGlowWorldParams;     // x strength (0: off), y night (plants and lava), zw camera distance they fade in over (m)
 float4 _PunchyGlowWorldFire;       // rgb tonight's fire light (0 by day or off), w camera distance it starts fading in at (full at twice it)
+TEXTURE2D(_PunchyGlowTown);        // R-10 row 4: the island's towns, lit windows and street lights summed (same rect as above)
+float4 _PunchyGlowTownParams;      // x strength x windows on (0 by day or off), y how hard dense towns level off, zw camera distance it fades in over (m)
+float4 _PunchyGlowTownColor;       // rgb the warm light of a lit town
 float4 _PunchyBlueLightDirection;  // xyz towards the blue moon
 float4 _PunchyBlueLightColor;      // rgb its light (linear; 0 when it gives none)
 
@@ -64,7 +67,7 @@ half3 PunchyGlowFar(float3 p, half3 n)
     return light;
 }
 
-// The whole island's static glow (R-2, SurfaceGlow.World), for terrain only: r how much fire burns there (tinted with
+// The whole island's static glow (R-2, SurfaceGlow.World), for terrain, plants and built things (R-10 row 4): r how much fire burns there (tinted with
 // tonight's fire), gba the fixed light of plants and lava. One read a pixel, past where the nearer tiers end.
 half3 PunchyGlowWorld(float3 p, half3 n)
 {
@@ -82,6 +85,19 @@ half3 PunchyGlowWorld(float3 p, half3 n)
             float3 rgb = _PunchyGlowWorldFire.rgb * (t.r / (1 + t.r * 2)) * fireFade
                        + t.gba / (1 + (t.g + t.b + t.a) * 2.5) * _PunchyGlowWorldParams.y * plantFade;
             light = rgb * (_PunchyGlowWorldParams.x * saturate(0.6 + 0.4 * n.y));
+        }
+    }
+    // R-10 row 4: a town's windows and street lights, past where the far map ends, so a distant town still glows. Its
+    // own map: it follows the windows (dark by day), and fades in where the far map's street lights fade out.
+    [branch] if (_PunchyGlowTownParams.x > 0)
+    {
+        float2 uv = (p.xz - _PunchyGlowWorldRect.xy) * _PunchyGlowWorldRect.z;
+        float townFade = smoothstep(_PunchyGlowTownParams.z, _PunchyGlowTownParams.w, distance(p, GetCameraPositionWS()));
+        [branch] if (townFade > 0 && uv.x > 0 && uv.x < 1 && uv.y > 0 && uv.y < 1)
+        {
+            float t = SAMPLE_TEXTURE2D_LOD(_PunchyGlowTown, sampler_PunchyGlowMap, uv, 0).r;
+            light += _PunchyGlowTownColor.rgb * (t / (1 + t * _PunchyGlowTownParams.y) * townFade * _PunchyGlowTownParams.x
+                     * saturate(0.6 + 0.4 * n.y));
         }
     }
     return light;

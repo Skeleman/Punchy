@@ -1211,6 +1211,7 @@ namespace Punchy.Terrain
         {
             Shader.SetGlobalVector(GlowMapParamsId, Vector4.zero);
             Shader.SetGlobalVector(GlowWorldParamsId, Vector4.zero);
+            Shader.SetGlobalVector(GlowTownParamsId, Vector4.zero);
             if (paletteQuery.IsEmpty || Underground > 0.9f)
                 return;
             var palette = queryWorld.EntityManager.GetComponentObject<BiomePalette>(paletteQuery.GetSingletonEntity());
@@ -1229,6 +1230,21 @@ namespace Punchy.Terrain
                 Shader.SetGlobalTexture(GlowWorldId, surfaceGlow.WorldMap);
                 Shader.SetGlobalVector(GlowWorldRectId, new Vector4(surfaceGlow.WorldCorner.x, surfaceGlow.WorldCorner.y, 1f / surfaceGlow.WorldExtent, 0f));
                 Shader.SetGlobalVector(GlowWorldParamsId, new Vector4((1f - Underground) * WorldGlowStrength, night, WorldGlowFadeFrom, WorldGlowFadeTo));
+                // R-10 row 4: distant towns' windows and street lights (on with the windows), fading in where the far
+                // map's street lights fade out at its edge, and the light dome over each in the air.
+                if (SurfaceGlow.TownGlowEnabled && surfaceGlow.TownMap != null)
+                {
+                    Shader.SetGlobalTexture(GlowTownId, surfaceGlow.TownMap);
+                    Shader.SetGlobalVector(GlowTownParamsId, new Vector4(windowsOn * (1f - Underground) * TownGlowStrength,
+                                                                         TownGlowLevelOff, TownGlowFadeFrom, TownGlowFadeTo));
+                    Shader.SetGlobalVector(GlowTownColorId, TownGlowColor);
+                    if (weather == null && Time.unscaledTime >= nextWeatherLookup)
+                    {
+                        nextWeatherLookup = Time.unscaledTime + 1f;
+                        weather = FindAnyObjectByType<Punchy.Weather.WeatherSystem>();
+                    }
+                    surfaceGlow.DrawDomes(windowsOn * (1f - Underground), weather != null ? weather.Local.Fog : 1f, camPos);
+                }
             }
             // The far tier (Glow.hlsl): every glowing plant and lit window within about 300 m, baked into a light map,
             // fading in where LightBudget hands a typical glow from its slots to the far tier (refactor 3.1).
@@ -1322,6 +1338,16 @@ namespace Punchy.Terrain
         /// 640 m far map fades out towards its edge.</summary>
         public static float WorldGlowStrength = 1f;
         const float WorldGlowFadeFrom = 240f, WorldGlowFadeTo = 320f;
+        static readonly int GlowTownId = Shader.PropertyToID("_PunchyGlowTown");
+        static readonly int GlowTownParamsId = Shader.PropertyToID("_PunchyGlowTownParams");
+        static readonly int GlowTownColorId = Shader.PropertyToID("_PunchyGlowTownColor");
+        /// <summary>R-10 row 4: the town map's brightness, how hard a dense town levels off, the camera distance (m) it
+        /// fades in over (the far map's edge, where its street lights fade out) and its warm colour.</summary>
+        public static float TownGlowStrength = 0.12f;
+        const float TownGlowLevelOff = 0.15f, TownGlowFadeFrom = 250f, TownGlowFadeTo = 330f;
+        static readonly Vector4 TownGlowColor = new Vector4(1f, 0.6f, 0.28f, 0f);
+        Punchy.Weather.WeatherSystem weather;
+        float nextWeatherLookup;
         /// <summary>A typical surface glow's reach (m), for where the far map takes over (LightBudget.GlowHandOff): the
         /// far map fades in from 70% of where the near lights start fading to where they're gone, so the hand-over adds
         /// up to about the same light.</summary>
