@@ -18,8 +18,8 @@
     { "id": "pigeons", "type": "clear", "creature": "Pigeon", "radius": 25, "text": "Pigeons have taken the roofs near {place}. Drive every {creature} off.", "reward": "Coin", "rewardCount": 5 },
     { "id": "letter-sticks", "type": "deliver", "item": "Stick", "count": 2, "text": "{town} promised {dest} a bundle of {count} sticks. Carry them to the notice board in {dest}.", "reward": "Coin", "rewardCount": 10 },
     { "id": "fish-run", "type": "deliver", "item": "Fish", "count": 1, "text": "A fresh fish from {town}, wanted in {dest}. Take it to their notice board while it's good.", "reward": "Staff", "rewardCount": 1 },
-    { "id": "shells-gift", "type": "deliver", "item": "Shell", "count": 3, "text": "{count} shells from {town} for a friend in {dest}. Leave them at the notice board there.", "reward": "Coin", "rewardCount": 9 },
-    { "id": "see-town", "type": "visit", "text": "Nobody in {town} has heard from {dest} in months. Go and see how they are, then come back to {place}.", "reward": "Coin", "rewardCount": 12 },
+    { "id": "shells-gift", "type": "deliver", "item": "Shell", "count": 3, "text": "{count} shells from {town} for a friend in {dest}. Leave them at the notice board there.", "reward": "Scarf", "rewardCount": 1 },
+    { "id": "see-town", "type": "visit", "text": "Nobody in {town} has heard from {dest} in months. Go and see how they are, then come back to {place}.", "reward": "Cloak", "rewardCount": 1 },
     { "id": "far-news", "type": "visit", "text": "Take a walk to {dest} for {town} and bring back word to {place}.", "reward": "Hat", "rewardCount": 1 },
     { "id": "scout", "type": "visit", "text": "{town} wants to know the road to {dest} is open. Get there, then report at {place}.", "reward": "Pack", "rewardCount": 1 }
   ]

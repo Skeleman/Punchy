@@ -511,20 +511,44 @@ namespace Punchy.Fauna
         public byte Weapon, Swing;
         /// <summary>P-28 row 2: the armour on, place by place (CreatureArmour; 0 for none).</summary>
         public byte Head, Body, Legs, Feet;
+        /// <summary>P-28 row 3: a cloak on the back, a scarf at the neck (CreatureArmour; 0 for none).</summary>
+        public byte Back, Neck;
 
-        public bool Armoured => (Head | Body | Legs | Feet) != 0;
+        public bool Armoured => (Head | Body | Legs | Feet | Back | Neck) != 0;
 
         public bool Equals(CreatureOutfit o) =>
-            Weapon == o.Weapon && Swing == o.Swing && Head == o.Head && Body == o.Body && Legs == o.Legs && Feet == o.Feet;
+            Weapon == o.Weapon && Swing == o.Swing && Head == o.Head && Body == o.Body && Legs == o.Legs && Feet == o.Feet &&
+            Back == o.Back && Neck == o.Neck;
     }
 
     /// <summary>How the body draws a player's armour (P-28 row 2; the item table's ItemDef.Look), by place.</summary>
     public static class CreatureArmour
     {
-        public const byte Cap = 1, Helm = 2;
-        public const byte Jerkin = 1, Chain = 2;
+        public const byte Cap = 1, Helm = 2, Hood = 3, Woolcap = 4, Brimhat = 5;
+        public const byte Jerkin = 1, Chain = 2, Tunic = 3, Robe = 4;
         public const byte Greaves = 1;
         public const byte Boots = 1;
+        public const byte Cloak = 1;
+        public const byte Scarf = 1;
+
+        /// <summary>Cloth (row 3) is dyed by the wearer's folk: its main colour and its trim, linear, by GuardKit.</summary>
+        public static Unity.Mathematics.float4 ClothMain(GuardKit kit) => kit switch
+        {
+            GuardKit.Dwarf => new Unity.Mathematics.float4(0.1f, 0.16f, 0.05f, 0f),    // moss
+            GuardKit.Elf => new Unity.Mathematics.float4(0.04f, 0.2f, 0.16f, 0f),      // teal
+            GuardKit.Goblin => new Unity.Mathematics.float4(0.2f, 0.15f, 0.04f, 0f),   // mustard
+            GuardKit.Ogre => new Unity.Mathematics.float4(0.15f, 0.06f, 0.12f, 0f),    // plum
+            _ => new Unity.Mathematics.float4(0.32f, 0.06f, 0.04f, 0f),                // madder red
+        };
+
+        public static Unity.Mathematics.float4 ClothTrim(GuardKit kit) => kit switch
+        {
+            GuardKit.Dwarf => new Unity.Mathematics.float4(0.35f, 0.2f, 0.05f, 0f),
+            GuardKit.Elf => new Unity.Mathematics.float4(0.6f, 0.6f, 0.52f, 0f),
+            GuardKit.Goblin => new Unity.Mathematics.float4(0.07f, 0.045f, 0.025f, 0f),
+            GuardKit.Ogre => new Unity.Mathematics.float4(0.25f, 0.19f, 0.1f, 0f),
+            _ => new Unity.Mathematics.float4(0.55f, 0.42f, 0.18f, 0f),
+        };
     }
 
     public enum HeldItem : byte

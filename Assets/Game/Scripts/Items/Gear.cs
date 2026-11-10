@@ -10,7 +10,7 @@ using UnityEngine.InputSystem;
 namespace Punchy.Items
 {
     /// <summary>Where a piece of gear goes on the body (P-23); None for ordinary items.</summary>
-    public enum GearSlot : byte { None, Hand, Head, Body, Back, Legs, Feet }
+    public enum GearSlot : byte { None, Hand, Head, Body, Back, Legs, Feet, Neck }
 
     /// <summary>Client → host: what this player has on now (item ids; 255 for nothing).</summary>
     public struct GearRpc : IRpcCommand
@@ -39,10 +39,24 @@ namespace Punchy.Items
         public byte Body, Legs, Feet;
     }
 
+    /// <summary>Client → host (P-28 row 3): one place's item, for the places after Feet (the neck so far), so a new place
+    /// needs no new message: the older gear messages keep their shape.</summary>
+    public struct SlotRpc : IRpcCommand
+    {
+        public byte Slot, Item;
+    }
+
+    /// <summary>Host → everyone: one place's item for a player.</summary>
+    public struct SlotStateRpc : IRpcCommand
+    {
+        public int Player;
+        public byte Slot, Item;
+    }
+
     /// <summary>What a player has on, place by place (item ids; 255 for nothing).</summary>
     public struct GearSet
     {
-        public byte Hand, Head, Back, Body, Legs, Feet;
+        public byte Hand, Head, Back, Body, Legs, Feet, Neck;
     }
 
     /// <summary>Client → host → everyone: this player swung its weapon (P-28). From a client, Player is ignored (the host
@@ -72,7 +86,7 @@ namespace Punchy.Items
         const byte Nothing = 255;
         const int BaseSlots = 16, MaxExtraSlots = 8;
         /// <summary>What's on, by GearSlot.</summary>
-        readonly byte[] worn = { Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing };
+        readonly byte[] worn = { Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing };
         /// <summary>What each player has on, by network id: the host's word.</summary>
         readonly Dictionary<int, GearSet> gearOf = new Dictionary<int, GearSet>();
 
@@ -80,10 +94,11 @@ namespace Punchy.Items
         {
             Hand = worn[(int)GearSlot.Hand], Head = worn[(int)GearSlot.Head], Back = worn[(int)GearSlot.Back],
             Body = worn[(int)GearSlot.Body], Legs = worn[(int)GearSlot.Legs], Feet = worn[(int)GearSlot.Feet],
+            Neck = worn[(int)GearSlot.Neck],
         };
         readonly HashSet<Entity> gearSentTo = new HashSet<Entity>();
         string equipArg;
-        bool gearLootArg, swingArg;
+        bool gearLootArg, swingArg, sprintArg;
         /// <summary>When each player last swung (Time.time), by network id; ours apart, as solo has no id.</summary>
         readonly Dictionary<int, float> swungAt = new Dictionary<int, float>();
         float ownSwing = -10f, nextTestSwing;
@@ -92,7 +107,7 @@ namespace Punchy.Items
 
         static HeldItem HeldFor(byte item) => item == ItemTable.Torch ? HeldItem.Torch : item == ItemTable.Staff ? HeldItem.Staff : HeldItem.None;
 
-        static byte WornBits(byte head, byte back) => (byte)((head == ItemTable.Hat ? CreatureWorn.Hat : 0) | (back != Nothing ? CreatureWorn.Pack : 0));
+        static byte WornBits(byte head, byte back) => (byte)((head == ItemTable.Hat ? CreatureWorn.Hat : 0) | (back == ItemTable.Pack ? CreatureWorn.Pack : 0));
 
         /// <summary>How the body draws this piece of armour (ItemDef.Look; 0 for none or not armour).</summary>
         static byte Look(byte item) => item == Nothing ? (byte)0 : ItemTable.Items[item].Look;
@@ -157,11 +172,12 @@ namespace Punchy.Items
         void GearChanged()
         {
             var g = Wearing;
-            Debug.Log($"Items: wearing hand {GearName(g.Hand)}, head {GearName(g.Head)}, back {GearName(g.Back)}, body {GearName(g.Body)}, legs {GearName(g.Legs)}, feet {GearName(g.Feet)}; armour {ArmourTotal():0}, worn {WornWeight():0.#} kg, carried {CarriedWeight():0.#} kg; {Capacity} slots; inventory: {DescribeInventory()}");
+            Debug.Log($"Items: wearing hand {GearName(g.Hand)}, head {GearName(g.Head)}, back {GearName(g.Back)}, body {GearName(g.Body)}, legs {GearName(g.Legs)}, feet {GearName(g.Feet)}, neck {GearName(g.Neck)}; armour {ArmourTotal():0}, worn {WornWeight():0.#} kg, carried {CarriedWeight():0.#} kg; {Capacity} slots; inventory: {DescribeInventory()}");
             if (Joined)
             {
                 SendToHost(new GearRpc { Hand = g.Hand, Head = g.Head, Back = g.Back });
                 SendToHost(new ArmourRpc { Body = g.Body, Legs = g.Legs, Feet = g.Feet });
+                SendToHost(new SlotRpc { Slot = (byte)GearSlot.Neck, Item = g.Neck });
             }
             else if (Hosting)
                 HostSetGear(OwnNetworkId(), g);
@@ -181,6 +197,7 @@ namespace Punchy.Items
             gearOf[player] = g;
             Broadcast(new GearStateRpc { Player = player, Hand = g.Hand, Head = g.Head, Back = g.Back });
             Broadcast(new ArmourStateRpc { Player = player, Body = g.Body, Legs = g.Legs, Feet = g.Feet });
+            Broadcast(new SlotStateRpc { Player = player, Slot = (byte)GearSlot.Neck, Item = g.Neck });
         }
 
         /// <summary>The armour numbers of everything on, added up (P-28 row 2: a number only, as nothing fights yet).</summary>
@@ -229,6 +246,7 @@ namespace Punchy.Items
                 {
                     Send(em, c, new GearStateRpc { Player = kv.Key, Hand = kv.Value.Hand, Head = kv.Value.Head, Back = kv.Value.Back });
                     Send(em, c, new ArmourStateRpc { Player = kv.Key, Body = kv.Value.Body, Legs = kv.Value.Legs, Feet = kv.Value.Feet });
+                    Send(em, c, new SlotStateRpc { Player = kv.Key, Slot = (byte)GearSlot.Neck, Item = kv.Value.Neck });
                 }
             }
         }
@@ -247,8 +265,41 @@ namespace Punchy.Items
             gearOf[m.Player] = g;
         }
 
+        void OnSlotState(SlotStateRpc m)
+        {
+            var g = gearOf.TryGetValue(m.Player, out var was) ? was : Bare;
+            SetSlot(ref g, m.Slot, m.Item);
+            gearOf[m.Player] = g;
+        }
+
+        /// <summary>One of the places after Feet, in a GearSet.</summary>
+        static void SetSlot(ref GearSet g, byte slot, byte item)
+        {
+            if (slot == (byte)GearSlot.Neck)
+                g.Neck = item;
+        }
+
         /// <summary>Nothing on anywhere.</summary>
-        static GearSet Bare => new GearSet { Hand = Nothing, Head = Nothing, Back = Nothing, Body = Nothing, Legs = Nothing, Feet = Nothing };
+        static GearSet Bare => new GearSet { Hand = Nothing, Head = Nothing, Back = Nothing, Body = Nothing, Legs = Nothing, Feet = Nothing, Neck = Nothing };
+
+        /// <summary>The host: clients' places after Feet, one at a time.</summary>
+        void ServeSlots(EntityManager em)
+        {
+            using var rs = Q(em, ComponentType.ReadWrite<SlotRpc>(), ComponentType.ReadWrite<ReceiveRpcCommandRequest>()).ToEntityArray(Allocator.Temp);
+            foreach (var r in rs)
+            {
+                var m = em.GetComponentData<SlotRpc>(r);
+                var from = em.GetComponentData<ReceiveRpcCommandRequest>(r).SourceConnection;
+                if (em.Exists(from) && em.HasComponent<NetworkId>(from))
+                {
+                    var id = em.GetComponentData<NetworkId>(from).Value;
+                    var g = gearOf.TryGetValue(id, out var was) ? was : Bare;
+                    SetSlot(ref g, m.Slot, m.Item);
+                    HostSetGear(id, g);
+                }
+                em.DestroyEntity(r);
+            }
+        }
 
         /// <summary>The host: clients' armour (as ServeGear does their other gear).</summary>
         void ServeArmour(EntityManager em)
@@ -300,21 +351,22 @@ namespace Punchy.Items
             var wears = blob.Upright && blob.Hands;
             var held = wears ? HeldFor(hand) : HeldItem.None;
             var bits = wears ? WornBits(g.Head, g.Back) : (byte)0;
-            var outfit = wears ? new CreatureOutfit { Head = Look(g.Head), Body = Look(g.Body), Legs = Look(g.Legs), Feet = Look(g.Feet) } : default;
+            var outfit = wears ? new CreatureOutfit { Head = Look(g.Head), Body = Look(g.Body), Legs = Look(g.Legs), Feet = Look(g.Feet), Back = Look(g.Back), Neck = Look(g.Neck) } : default;
             var weapon = wears && hand != Nothing ? ItemTable.Items[hand].Weapon : CreatureWeapon.None;
             var swing = weapon != CreatureWeapon.None ? SwingByte(swung, ItemTable.Items[hand].Speed) : (byte)0;
             outfit.Weapon = weapon;
             outfit.Swing = swing;
             if (s.Held == held && s.Worn == bits && s.Outfit.Equals(outfit))
                 return;
-            var changed = s.Held != held || s.Worn != bits || s.Outfit.Weapon != weapon || s.Outfit.Head != outfit.Head ||
-                          s.Outfit.Body != outfit.Body || s.Outfit.Legs != outfit.Legs || s.Outfit.Feet != outfit.Feet;
+            var was = s.Outfit;
+            was.Swing = outfit.Swing;
+            var changed = s.Held != held || s.Worn != bits || !was.Equals(outfit);
             s.Held = held;
             s.Worn = bits;
             s.Outfit = outfit;
             em.SetComponentData(body, s);
             if (changed)
-                Debug.Log($"[gear] {(em.HasComponent<RemoteAvatar>(body) ? "another player's" : "our")} body: held {held}, worn {bits}, weapon {weapon}, armour head {outfit.Head} body {outfit.Body} legs {outfit.Legs} feet {outfit.Feet}");
+                Debug.Log($"[gear] {(em.HasComponent<RemoteAvatar>(body) ? "another player's" : "our")} body: held {held}, worn {bits}, weapon {weapon}, armour head {outfit.Head} body {outfit.Body} legs {outfit.Legs} feet {outfit.Feet} back {outfit.Back} neck {outfit.Neck}");
         }
 
         /// <summary>Where a swing that began at this time is: 0 at rest, 1..255 through it.</summary>
@@ -348,6 +400,9 @@ namespace Punchy.Items
                 nextTestSwing = Time.realtimeSinceStartup + 2f;
                 Swing();
             }
+            // ("-sprint": any test walk (-walk) is a run, to see a cloak swept back.)
+            if (sprintArg)
+                Punchy.Player.PlayerInputSystem.TestSprint = true;
             if (panel || Punchy.UI.Overlay.AnyOpen)
                 return;
             var mouse = Mouse.current;
@@ -421,6 +476,7 @@ namespace Punchy.Items
                 equipArg = args[at + 1];
             gearLootArg = System.Array.IndexOf(args, "-gearloot") >= 0;
             swingArg = System.Array.IndexOf(args, "-swing") >= 0;
+            sprintArg = System.Array.IndexOf(args, "-sprint") >= 0;
         }
 
         float budgetAt;
@@ -512,7 +568,7 @@ namespace Punchy.Items
 
         static readonly (GearSlot Slot, string Label)[] WornRow =
         {
-            (GearSlot.Hand, "Hand"), (GearSlot.Head, "Head"), (GearSlot.Body, "Body"), (GearSlot.Legs, "Legs"), (GearSlot.Feet, "Feet"), (GearSlot.Back, "Back"),
+            (GearSlot.Hand, "Hand"), (GearSlot.Head, "Head"), (GearSlot.Body, "Body"), (GearSlot.Legs, "Legs"), (GearSlot.Feet, "Feet"), (GearSlot.Neck, "Neck"), (GearSlot.Back, "Back"),
         };
 
         /// <summary>The worn row under the slots: a button per place, showing what's on and what it does; press to take it off.</summary>
@@ -528,7 +584,7 @@ namespace Punchy.Items
             {
                 var item = worn[(int)place];
                 var text = item == Nothing ? $"{label}\n-" : $"{label}\n{ItemTable.Items[item].Name}\n{GearEffect(item)}";
-                if (nav.Button(text, slotStyle, GUILayout.Width(cell * 0.92f), GUILayout.Height(cell - 4f)))
+                if (nav.Button(text, slotStyle, GUILayout.Width(cell * 0.8f), GUILayout.Height(cell - 4f)))
                     Unequip(place);
                 GUILayout.Space(gap);
             }

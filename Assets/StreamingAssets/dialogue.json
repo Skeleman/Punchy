@@ -477,7 +477,10 @@
         { "text": "For you? A tenth off, if you buy today.", "willing": true, "trade": ["Trader", "Merchant", "Smith", "Baker", "Tanner"], "offer": "discount:10" },
         { "text": "Call it a friend's price.", "willing": true, "warmth": "high", "trade": ["Trader", "Merchant", "Smith", "Baker", "Tanner"], "offer": "discount:20" },
         { "text": "Have a fish. Caught this morning.", "willing": true, "trade": ["Fisher", "Fish", "PoolFisher"], "offer": "item:Fish" },
-        { "text": "Mushrooms. The good kind, I promise.", "willing": true, "trade": "Forager", "offer": "item:Mushroom" }
+        { "text": "Mushrooms. The good kind, I promise.", "willing": true, "trade": "Forager", "offer": "item:Mushroom" },
+        { "text": "Here, this scarf's yours. Keeps the wind off your neck.", "willing": true, "warmth": "high", "offer": "item:Scarf", "weight": 0.2 },
+        { "text": "You look cold. Take this old cloak, it's done me well.", "willing": true, "warmth": "high", "offer": "item:Cloak", "weight": 0.1 },
+        { "text": "A spare tunic. Better than what you've got on.", "willing": true, "trade": ["Trader", "Merchant", "Tanner"], "offer": "item:Tunic", "weight": 0.2 }
       ],
       "help": [
         { "text": "No, I'm all right, thanks.", "need": false },
