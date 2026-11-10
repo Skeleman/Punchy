@@ -426,3 +426,23 @@ UNVERIFIED: the chest pane's icons weren't shot. It uses the same call as the in
 Suite: 25 passed, 0 failed, 17 skipped in 321 s. The run before had 24 passed, 1 failed: FolkConversationTests.LiveFolk_Answer, then it passed unchanged on the rerun.
 That test is A-93's and expects a person-shaped player. It takes the body from the settings saved in the shared PlayerPrefs (Punchy.Character / the body key), so it can fail when any lane or Zach last picked an animal. It wants "-body Human" or its own body set. For the animal lane's queue, if you agree.
 Next: row 2 (gear).
+
+### Rows 2 and 3 (gear, and where it comes from) DONE together, on player/items
+New items, appended: Torch, Staff, Hat, Pack, with Slot and stat numbers in ItemDef. Put on with X or a right click on the inventory slot (X on a pad); the worn row under the slots takes them off.
+- Torch: real light, using the guards' torch path. Its reach is ItemDef.Light (11 m). Glow budget, same run before and after putting it on at night: requested 49 to 50, slots 0 to 1, dropped 0.
+- Pack: 8 extra slots, 16 to 24 in the log. It won't come off while its rows hold anything.
+- Staff (Reach 0.5) and Hat (Cover 0.3) have their numbers and show them, but nothing uses those yet: no reach or stamina rule reads a staff, and the player has no weather comfort.
+- Rabbit: refused both, and held nothing.
+- Host wearing hat and staff with a client wearing torch and pack: each machine logged the other player's body dressed correctly (held and worn) through GearRpc and GearStateRpc. A later joiner is sent everything worn so far (code only; not run).
+- Night shot and worn-row shot looked at: flame in the hand, ground lit round the player, hat on the head, pack on the back.
+
+Changes in the animal lane's files, for P-23: CreatureState gains Worn (a byte, not sent); the renderer gains 3 capsules on bodies with something worn. Nothing changes for a body wearing nothing.
+
+Row 3: 384 of 4000 simulated chests hold gear (397 pieces). DungeonSpawner's LootRows gain the four items at low weights. quests.json: the lost-key quest now pays a Torch; rewards were already by item name.
+
+UNVERIFIED: real mouse, X key and pad on the equip (the test went through Equip directly); the staff drawn in a player's hand wasn't shot; a dungeon chest's gear and the quest paying a Torch weren't run through.
+Suite on this code, not green: 24 passed, 1 failed, 17 skipped in 334 s, then 23 passed, 2 failed, 17 skipped in 320 s. Row 1's code had 25 passed, 0 failed.
+The failures are FolkConversationTests.LiveFolk_Answer (both runs) and LiveFolk_BeastResponse (second run: "the folk told to flee isn't fleeing"), both A-93's. LiveFolk_Answer's log shows the player was a rabbit in one run; the saved body read Osprey when I checked, and none of my runs used an Osprey. So the shared saved body is being changed while tests run. BeastResponse may be the same cause or the load (6 editors open); I didn't prove which. No test failed outside those two.
+**For the supervisor:** runs with "-body" write Punchy.Character.Body to the PlayerPrefs every lane and Zach share (FaunaDirector.Avatar), so test runs, mine included, change the body Zach gets next time he starts the game. Those two tests need their own body set, or the flag shouldn't save.
+Also for P-26: Items.cs notes a virtual pad isn't Gamepad.current on its first press (P-16), which fits the first-press miss I reported there. A real pad isn't affected.
+Next: P-24.
