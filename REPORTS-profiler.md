@@ -133,6 +133,15 @@ supervisor.
     in LOD range. The R-9 patch and field would cost what they cost on the surface, so the job 45 fix matters there too.
   - **Memory:** some extra memory for baked cave water meshes.
   - I'd measure it as an A/B against today when there's a branch.
+- **Zach (15:10), cave content ideas for the world lane:**
+  - large chambers holding significant, deep water (an underground lake);
+  - large, long chambers with a river running through them, maybe with whitewater.
+
+  These build on the unified water above (shore, flow, the field, and whitewater cuts by LOD).
+  - **Profiler cost note:** a big chamber means more cave mesh and more water on screen at once. Its LOD and occlusion matter
+    more than for today's small pools.
+  - I'd bench one such chamber, the way job 43 did the lake, once one exists.
+
 
 
 
