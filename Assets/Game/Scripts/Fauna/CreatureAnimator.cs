@@ -93,8 +93,9 @@ namespace Punchy.Fauna
         /// <param name="detail">Near the camera: the legs fitted to the ground under each foot (the hips lowered on a
         /// slope, each foot reaching for the ground, tipped with it, rolling heel to toe). Further off, where none of
         /// that shows, they keep to the body's plane, saving the ground samples.</param>
+        /// <param name="seams">The seams between segments (MarkJoints): only where they can show, at the full capsule (A-97).</param>
         public static void Evaluate(ref CreatureBlob b, in CreatureState s, int coat, in TerrainSource terrain,
-                                    NativeArray<SegmentInstance> output, int offset, bool detail = true)
+                                    NativeArray<SegmentInstance> output, int offset, bool detail = true, bool seams = true)
         {
             var scale = s.Scale;
             // (Posed for the eased speed, so a sudden start or stop doesn't swap the pose under a planted foot.)
@@ -863,7 +864,7 @@ namespace Punchy.Fauna
                 }
                 output[offset + seg] = piece;
             }
-            if (NoSeams.Data == 0)
+            if (seams && NoSeams.Data == 0)
                 MarkJoints(ref b, output, offset);
         }
 

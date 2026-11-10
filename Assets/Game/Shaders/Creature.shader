@@ -114,26 +114,39 @@ Shader "Punchy/Creature"
         // Shells (A-92, #230; "-noshells" turns them off): a near body is drawn again as one or two shells a few millimetres out
         // (_Shell: the layer, 0 for the body itself), each kept only where a fur strand stands, thinner further out, so
         // the outline goes soft. Gear, thin parts (eyes, ear tips), anything that isn't fur (hooves, eyes, horns, scales,
-        // feathers: A-97), short fur and bodies further than ShellRange collapse to a point (nothing drawn).
+        // feathers: A-97) and short fur collapse to a point (nothing drawn). Only bodies whose fur looks big enough get
+        // shells at all (A-97: their own draw group, by DetailPolicy.CreatureFur, in place of a fixed 7 m here). Long
+        // fur (A-97) stands further out, droops a little and gathers into clumps towards the tips.
         float _Shell;
         static const float ShellStep = 0.0045;
-        static const float ShellRange = 7;
 
         void ShellVertex(inout float3 positionWS, float3 normalWS, Segment s)
         {
             if (_Shell <= 0)
                 return;
             if (s.material.x > 0.5 || LookSurface(s.material.w) != 0 || LookLength(s.material.w) == 1 ||
-                max(s.radiusStart, s.radiusEnd) * s.flatten < 0.03 || distance(s.position, _WorldSpaceCameraPos) > ShellRange)
+                max(s.radiusStart, s.radiusEnd) * s.flatten < 0.03)
                 positionWS = s.position;
+            else if (LookLength(s.material.w) == 2)
+                positionWS += normalWS * (_Shell * ShellStep * 1.8) - float3(0, _Shell * _Shell * 0.0012, 0);
             else
                 positionWS += normalWS * (_Shell * ShellStep);
         }
 
-        void ShellClip(float3 surface)
+        void ShellClip(float3 surface, float look)
         {
             if (_Shell > 0)
-                clip(Noise3(float3(surface.xy * 170, surface.z * 20)) - (0.3 + 0.2 * _Shell));
+            {
+                if (LookLength(look) == 2)
+                {
+                    // Long: the body's long strands (Frag) gathered in clumps, more so further out.
+                    half clump = Noise3(float3(surface.xy * 45, surface.z * 6));
+                    half strand = Noise3(float3(surface.xy * 150, surface.z * 9)) * 0.6 + clump * 0.4;
+                    clip(lerp(strand, clump, 0.25 * _Shell) - (0.3 + 0.2 * _Shell));
+                }
+                else
+                    clip(Noise3(float3(surface.xy * 170, surface.z * 20)) - (0.3 + 0.2 * _Shell));
+            }
         }
 
         float SegmentFade(CreatureAttributes input) { return _Segments[input.instanceID + _SegmentOffset].pad; }
@@ -294,7 +307,7 @@ Shader "Punchy/Creature"
             half4 Frag(Varyings input) : SV_Target
             {
                 FadeClip(input.fade, input.positionCS.xy);
-                ShellClip(input.surface);
+                ShellClip(input.surface, input.look);
                 // (Probe steps, see _PunchySparkleProbe: 1 the vertex normal, 2 the normal, 4 after the fur bump, 8 the lit
                 // colour, 16 the final colour bad; 32 the final colour above the cap.)
                 uint probe = SparkleBad((float3)input.normalWS) ? 1u : 0u;
@@ -551,6 +564,7 @@ Shader "Punchy/Creature"
                 float4 positionCS : SV_POSITION;
                 float fade : TEXCOORD0;
                 float3 surface : TEXCOORD1;
+                nointerpolation float look : TEXCOORD2;
             };
 
             Varyings Vert(CreatureAttributes input)
@@ -563,13 +577,14 @@ Shader "Punchy/Creature"
                 ShellVertex(p, n, _Segments[input.instanceID + _SegmentOffset]);
                 o.positionCS = TransformWorldToHClip(p);
                 o.fade = SegmentFade(input);
+                o.look = _Segments[input.instanceID + _SegmentOffset].material.w;
                 return o;
             }
 
             half Frag(Varyings input) : SV_Target
             {
                 FadeClip(input.fade, input.positionCS.xy);
-                ShellClip(input.surface);
+                ShellClip(input.surface, input.look);
                 return input.positionCS.z;
             }
             ENDHLSL
@@ -595,6 +610,7 @@ Shader "Punchy/Creature"
                 half3 normalWS : TEXCOORD0;
                 float fade : TEXCOORD1;
                 float3 surface : TEXCOORD2;
+                nointerpolation float look : TEXCOORD3;
             };
 
             Varyings Vert(CreatureAttributes input)
@@ -608,6 +624,7 @@ Shader "Punchy/Creature"
                 o.positionCS = TransformWorldToHClip(p);
                 o.normalWS = n;
                 o.fade = SegmentFade(input);
+                o.look = _Segments[input.instanceID + _SegmentOffset].material.w;
                 return o;
             }
 
@@ -618,7 +635,7 @@ Shader "Punchy/Creature"
             )
             {
                 FadeClip(input.fade, input.positionCS.xy);
-                ShellClip(input.surface);
+                ShellClip(input.surface, input.look);
                 outNormalWS = half4(SafeNormal(input.normalWS, float3(0, 1, 0)), 0);
             #ifdef _WRITE_RENDERING_LAYERS
                 outRenderingLayers = EncodeMeshRenderingLayer();

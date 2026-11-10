@@ -54,8 +54,6 @@ namespace Punchy.Fauna
         static float LanternLightRange => Punchy.Settings.GraphicsSettings.DetailRange(60f);
         /// <summary>How far off a torch's flame is lit (further than its light reaches: a torch is seen across a town).</summary>
         static float TorchFlameRange => Punchy.Settings.GraphicsSettings.DetailRange(150f);
-        /// <summary>How near the camera feet are fitted to the ground (CreatureAnimator.Evaluate's detail).</summary>
-        static float FootDetailRange => Punchy.Settings.GraphicsSettings.DetailRange(40f);
         /// <summary>A torch's flame: its height (m), and how far it streams back as the bearer moves (m at the tip per
         /// m/s, at most).</summary>
         const float TorchFlameSize = 0.35f, TorchFlameLean = 0.05f, TorchFlameMaxLean = 0.3f;
@@ -412,7 +410,6 @@ namespace Punchy.Fauna
                 CameraRight = cam.transform.right,
                 ForceCues = ForceNeedCues,
                 CameraPosition = cam.transform.position,
-                FootDetail = FootDetailRange,
                 FadeInTime = 1.2f,
                 FadeOutRange = 25f,
                 // A little short of FaunaDirector's despawn distance (170 m), so it's gone before it's removed.
@@ -494,8 +491,6 @@ namespace Punchy.Fauna
             public Unity.Mathematics.float3 CameraRight, CameraPosition;
             /// <summary>"-needcues": every creature shows a need cue all the time (for shots of #64).</summary>
             public bool ForceCues;
-            /// <summary>How near the camera feet are fitted to the ground (FootDetailRange, at the graphics settings).</summary>
-            public float FootDetail;
             /// <summary>Faded in over this long after it's made; out over this far before it's let go.</summary>
             public float FadeInTime, FadeOutRange, FadeFar;
             /// <summary>0 by day, 1 at night (ghosts are only seen at night).</summary>
@@ -525,14 +520,18 @@ namespace Punchy.Fauna
                 var body = Bodies[index];
                 var entity = Entities[index];
                 var offset = Offsets[index];
-                // (Feet fitted to the ground only near the camera: past 40 m nobody can tell, and it's most of the cost.)
+                // (Feet fitted to the ground only while it looks big enough, Decision.Feet: a wolf inside 40 m; further
+                // nobody can tell, and it's most of the cost. Seams between segments, A-97, only at the full capsule.)
                 // As it looks smaller (Decisions, refactor 3.7) a body is posed afresh only every 2nd frame, then every 4th
                 // (staggered by entity), and between those its last pose is carried along to where it is now and turned as
                 // it turns (A-70 row 4).
                 var reused = Tiers && Reuse(state, body, entity, offset, Decisions[index]);
                 if (!reused)
-                    CreatureAnimator.Evaluate(ref body.Blob.Value, state, body.Coat, Terrain, Output, offset,
-                                              Unity.Mathematics.math.distancesq(state.Position, CameraPosition) < FootDetail * FootDetail);
+                {
+                    var decision = new Punchy.Settings.DetailPolicy.Decision { Packed = Decisions[index] };
+                    CreatureAnimator.Evaluate(ref body.Blob.Value, state, body.Coat, Terrain, Output, offset, decision.Feet,
+                                              decision.Geometry == 0);
+                }
                 RideSwell(state, body, offset);
                 Rest(index, state, body, entity, offset);
                 var slot = threadIndex * StatStride;
@@ -598,7 +597,7 @@ namespace Punchy.Fauna
             void Rest(int index, in CreatureState state, in CreatureBody body, Entity entity, int offset)
             {
                 // (The ground it stands on, for the shader's grounding: darker where it meets it. And each segment's
-                // look, A-97: fur, feathers, scales, hoof, eye… from the look table, 0 = fur as before when there's none.)
+                // look, A-97: fur, feathers, scales, hoof, eye... from the look table, 0 = fur as before when there's none.)
                 var looksFrom = -1;
                 if (HaveLooks && body.Species >= 0 && body.Species < Looks.Value.HasFur.Length)
                 {
