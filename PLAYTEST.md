@@ -65,3 +65,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 2026-11-10: #213 merged: lava looks molten; under water each fluid has its own fog and colour (sea, lake, swamp, cave water), light shafts and motes; storm swells. Check: dive in the sea, a lake and a swamp at noon; a storm at the coast. Underwater sound (A-98) still works.
 - 2026-11-10: #248 merged: player builds compile again (dungeon walk debug tool was editor-only). No visible change.
 - 2026-11-10: #249 merged (A-91): dungeons get dressed stone, wood and iron with real props; caves about 2x with gentle main paths; ruins about 4x (two ruins now); dungeons have names and a cleared state for quests. Check: walk a cave and a ruin end to end, look for stuck spots or steep paths.
+- 2026-11-10: Zach on the R-12 storm cloud before/after: "Clouds are looking MUCH better". Merge once ground shadows follow and the bench passes.
