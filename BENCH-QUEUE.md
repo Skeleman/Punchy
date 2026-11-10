@@ -384,3 +384,12 @@ shader compiles). Read only, main at the time you start, Profile build, 1920x108
 - Per run: mean ms, max ms with position, count of frames over 50 and 100 ms; for each frame over 100 ms, the top 3 samples
   (TerrainStreamingSystem and FloraSystem.LateUpdate especially, first visits).
 - Report: does any streaming system repeat over 100 ms outside the editor? If yes, which and where; if no, say W-129 is closed.
+
+## Job 45 (2026-11-10, QUEUED by the main-account supervisor; after job 44): R-9 water field and R-10 lights on the laptop
+Two Profile builds (one at a time), 1920x1080, `-gfx High`, uncapped, ABBA, 300 frames each arm unless noted. Read only.
+- R-9: build branch `water/deform` (fd50ad58 or later). `-time 12 -weather Clear`, `-goto 488,-1144`, swim straight 10 s; then
+  the same with `-waterfield 0`. Whole-frame GPU ms and the water pass ms, ABAB 2 runs each. Pass: on costs < +0.3 ms.
+- R-10: build branch `light/forwardplus` (e0c4123a or later). `-time 22 -weather Clear`, `-goto 2988.8,-920` facing north.
+  Whole-frame GPU ms with `-lightbudget 0` vs default (48 at High) vs `-lightbudget 96`. Then the same spot on a build of
+  origin/main as the "today" baseline. Pass: default <= +0.5 ms over main.
+Report both in REPORTS-profiler.md with the pass/fail line for each.
