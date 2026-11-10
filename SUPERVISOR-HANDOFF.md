@@ -153,3 +153,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 
 - 11-09 late: R-6 merged as #227 (main 1846211d): size-on-screen LOD, trees-only far reach (shrubs back to radius, walk +2.7 ms gone), WideShadow stale-mesh fix. Suite 15/0/7, pins 112 A955AFE0 / 66320C7C. R-7 impostors started on lod/impostors (world tree). Job 42 (swapchain stall fix A/B) queued for the profiler.
 - 11-09 late: running R-7 (Punchy-world), R-8 (Punchy-release), W-129 (Punchy). Queued: A-92 in Punchy after W-129; R-9 in the first free render tree after R-7/R-8. Drafts awaiting Zach: P-23, P-24, A-91. P-22 merged (#229).
+- 11-09: P-25 (doors/indoor camera/first person/seamless-interiors plan, Zach-approved) queued for Punchy-player as a supervisor subagent once an editor closes (10.7 GB free with 3 editors). R-10 queued after R-8.
