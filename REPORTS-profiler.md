@@ -111,6 +111,30 @@ Notes from the profiler:
 their own turbulence: standing waves, broken surface and foam along the steep, fast stretches of a river. The waterfall comes
 first; whitewater is the follow-up if it works.
 
+**Zach (15:00): unify cave water with surface water.** He finds cave river and pond borders unsatisfying, and says cave water
+doesn't feel like surface water. He'd like to see what a unified effort produces; for the world and water lanes and the
+supervisor.
+- **What already differs:**
+  - Cave pools and streams already use the same Water shader, with an under-rock switch.
+  - They aren't in `TerrainSource.SampleGround`: they live in CavePool and CaveStream, behind their own lookups
+    (CaveWaterAbove, FindCaveWater). So swimmer wakes, the R-9 field and anything else that asks the terrain for water skip
+    them.
+  - They're drawn as a shared disc per pool and a strip per stream, not as baked water quads with a shoreline fitted to the
+    ground. That's probably why the borders read badly.
+- **The idea:** one water query for a 3D point covering both, in keeping with "TerrainSource is the single source of truth".
+  Cave water would be baked as quads fitted to the carved floor, like chunk water, and then shared by:
+  - the shore treatment and flow data;
+  - the R-9 field, waterfall cuts and whitewater;
+  - swimming, which keeps only the lighting switch.
+- **Cost estimate (profiler):**
+  - **The query:** gate the cave check on "is the point below the terrain surface", so surface queries pay one comparison.
+    Below that, a cave's pools and streams are a box test (they already store Min and Max).
+  - **Drawing:** baked cave water quads should be similar in triangles to the discs and strips, drawn only when the cave is
+    in LOD range. The R-9 patch and field would cost what they cost on the surface, so the job 45 fix matters there too.
+  - **Memory:** some extra memory for baked cave water meshes.
+  - I'd measure it as an A/B against today when there's a branch.
+
+
 
 
 ## Note, 2026-11-10 12:30: main doesn't build a player since #243 (06b2a72b)
