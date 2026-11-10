@@ -3665,3 +3665,14 @@ Built in the player tree, not the one the card names (the world tree's gitignore
   - **Fauna_Fingerprint: `66320C7C`, NOT back to B15790ED.** Re-bisected with the single test: d68e1c6a (marsh move) `B15790ED, passed`; f2b67f3a (row 4 + marsh reverted) `66320C7C`. So row 3 (cce82b69, the inn in kit pieces) changes it, not the marsh move: my row-4 "correction" was wrong. Reaching B15790ED would mean reverting the inn; needs a re-pin to 66320C7C (supervisor's call; not re-pinned here).
   - **Suite (editor closed, after the last change):** `13 passed, 2 failed, 7 skipped in 219s (Unity exit 2).` Fails: Fauna_Fingerprint (above) and FolkTalkTests.WalkBy_NeverThroughWall (`1 through a wall, 151 held back by walls`). WalkBy re-run alone at the same head: `3 passed, 0 failed, 0 skipped in 208s` (0 through a wall), and it passed at f2b67f3a too: flaky, not from this row.
   - Next: supervisor decides the fingerprint re-pin; card W-128 rows done.
+
+## R-6 row 6
+
+- **Row 6 DONE (verified by numbers)** (349553e7 row 6, f18bce10 origin/main adb548d7 merged in, lod/big): Zach 11-09 "original shrub distance is OK". The size-based reach past Radius (row 4, fcf19e00) is kept for the tree layer only; the ground and shrub layers are cut at their Radius again, as before row 4 (shrub FarRadius = Radius, 0 far tiles).
+  - **Drawn shrubs, forest / ridge** (all in one session, 1920 wide): row 6 **760-781 / 211**; before row 4 781 / 211; row 4 1084 / 592 (about 4500 far tiles). Trees stay at row 4's reach: 2973 / 5782 (before row 4 2936 / 5777).
+  - **Render ms, forest / ridge** (median of 3x40): row 6 2.83-3.84 / 2.75-3.18; before row 4 2.78 / 2.86; row 4 2.70-2.88 / 2.42-2.62. These are noisy because other lanes' editors were open at the time; there is no clear difference between the variants.
+  - **Shrub streaming walk** (1400 m at 30 m/s, uncapped), mean: row 4 10.87 / 11.05 ms; row 6 7.56, 8.19, 8.20, 8.49, 8.71, 9.16, 9.16 ms; before row 4 8.01, 8.03, 8.67 ms. Row 4's ~+2.7 ms is gone. Rare single frames of 200-590 ms happen at 1240-1330 m in both the row 6 and the before-row-4 walks, so row 6 does not cause them; probably streaming or the host.
+  - **MissingReferenceException: 0** (and 0 errors/exceptions) over two play sessions in a row without a domain reload, plus the exit from play.
+  - **Pins (after the merge):** Landmarks_V3 `112 A955AFE0`; Fauna_Fingerprint `66320C7C` (W-128's re-pin on main).
+  - **Suite (editor closed, after the merge):** `15 passed, 0 failed, 7 skipped in 287s (Unity exit 0).` This is the first suite run with the WideShadow stale-caster fix (809f8469).
+  - Risks: none known. No placement or ProjectSettings changes.
