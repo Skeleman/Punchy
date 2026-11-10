@@ -4226,3 +4226,27 @@ Built in the player tree, not the one the card names (the world tree's gitignore
 - **R-12 row 2 NOT DONE.** There is no root to fix for the squares on main, and the cloud commit is not found. No look or ms change, so no ms table. Pins untouched (no code changed).
 - **Suite + pins (editor closed, fix/squares-cloud = main ef393625):** 24 passed, 1 failed, 17 skipped in 356 s. Pins held: Landmarks_V3 112 A955AFE0, Fauna_Fingerprint 66320C7C. The failure is FolkConversationTests.LiveFolk_Answer, the same one R-10 hit, so main fails it too (fauna lane).
 - Editor closed (own PID). The tree is clean, and Assets/Temp is not committed.
+
+## R-10 (continued, row 4c: far lights in tiers; tree Punchy-world, branch light/forwardplus)
+- **R-10 row 4c DONE (verified)**: commit 8263a9b5 on light/forwardplus (base 0a4b3b50), pushed.
+  - **Step 1, squares (#241): 0 seen in every arm, cause unknown, no fix.** 0/24 with all lights on, 0/24 with `-lightbudget 0`, 0/24 with `-townglow 0`. Also 0 in the moon, preset-stress, recompile and rebake arms. D3D11 compile of FloraImpostor, Flora, Pebbles and Grass: 420 variants, 0 errors, so the magenta fallback (W-130/#236) is not the cause. I skipped the `-noimpostors` and GlowWorld-off arms: with 0 in the "on" arm they can't tell anything apart. In the 4b frames the squares look like impostor cards getting past the alpha clip, but that is inferred, not proven. Caveat: play mode starts without a domain reload, so `-townglow 0` and `-lightbudget 0` stay set in later sessions until a script reload.
+  - **Step 2, far lights in tiers.** TownLights is now FarLights (SurfaceGlow.FarLights.cs, FarLights.shader, Resources/FarLights.mat). The world bake gives one far point to each static light: lit windows, street lights, burning trees, beacon fires, surface lava, glowing plants and crystals. Each keeps its source's colour, and fires take tonight's forest-fire colour. Bake line: 7829 far lights, including 5269 burning trees, 2232 glowing plants, 101 houses, 195 street lights and 32 crystals.
+  - **Tier table:** one small table, `Punchy.Settings.FarLightPolicy`.
+    - `Brightness` 5 (4b town lights were 8).
+    - Tiers: Fire 1 (windows, street lights, fires, lava), Glow 0.4 (glowing plants), Faint 0.25 (crystals, creatures).
+    - Each kind's row sets size, least pixels, halo, haze share and the screen-size hand-off (56 -> 30 reference px, rule 20).
+    - Bake strengths (SurfaceGlow.World.cs): burning tree 0.5, beacon 1.5, lava 1.5, plant 0.12 x stride.
+    - The town map (CaveSystem.TownGlowStrength) goes from 0.35 to 0.22.
+  - **Town vs 4b**, measured as glow above the background in the town crop: 0.68x at 500 m (rain over the town in the after shot, so partly the rain), 0.76x in BOTH, 0.84x at 1.5 km (0.74x on an earlier run). That is about 20-30% dimmer, as asked.
+  - **Ember Forest:** in BOTH its glow went from 143k to 615k (4.3x). It now reads from afar as a wide field of fire points, at least as strong as the town. Fungal forest and crystals show as fainter points (F0500, F1500).
+  - **Shots** (22:00 Clear, 7 each, plus contact-sheet.jpg): PunchyMilestones/R-10/4c/before and PunchyMilestones/R-10/4c/after. 0 magenta pixels in the after shots.
+  - **Bug found and fixed:** the Burst bake job reads SurfaceGlow statics. A `Shader.PropertyToID` static in the same partial class made Burst fail with BC1091, the bake threw, and no lights showed. The shader ids now sit in a nested class.
+  - **GPU ms** (desktop editor, High, 22:00 Clear, ABCCBA x2, mean of block medians, first warm-up block dropped). Arms: A = all on (4c), B = far lights off (town map on), C = town map and far lights off (pre-row-4 look, standing in for main):
+    - Walk (eye level in the big town): A 4.40, B 4.63, C 5.03.
+    - Hilltop (1.5 km, 150 m up): A 4.08, B 4.03, C 3.82.
+    - 300 m up, 500 m out: A 2.87, B 2.64, C 2.55.
+    - All of these are inside the block-to-block spread (up to about 0.8 ms). The cost is one draw of 7.8k quads.
+    - These are in-editor toggles, not checkouts of 0a4b3b50 or main. For a laptop pass line, add this commit to BENCH-QUEUE.
+  - **Suite + pins** (editor open, async PlayMode): 24/24 passed. Pins held: Landmarks_V3 112 A955AFE0, Fauna_Fingerprint 66320C7C. FolkConversationTests.LiveFolk_Answer passed in this run.
+  - **Not done:** spores, campfires, colossus eyes and lanterns are not static bake sources, so they have no far points yet; Creature has a row in the table, unused. Vantages T1500, E0500 and E1500 frame close trees. Tonight's fire colour is cyan, so the Ember Forest points read cyan-white.
+  - **Merge note:** CaveSystem.cs (CRLF kept) changes one constant and adds one call. The rename is git mv. No ProjectSettings or renderer-asset changes. Unity re-saved SmallBasalt.asset in the tree; I left it uncommitted.
