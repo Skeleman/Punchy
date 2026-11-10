@@ -59,6 +59,9 @@ Shader "Punchy/Terrain Surface"
             // How far out the marks are drawn (GraphicsSettings: DetailRange(BurrowRange), the feeder's range too).
             float _PunchyBurrowRange;
             float _PunchyTerrainDetailFar;   // where the fine relief has faded out (TerrainStreamingSystem, by Detail distance)
+            // R-6: reference pixels a metre spans 1 m from the camera, times Detail (TerrainStreamingSystem). Each fine-relief
+            // octave fades by its own on-screen size from this. Negative: the old fixed fade at _PunchyTerrainDetailFar.
+            float _PunchyTerrainDetailPpm;
             // Where the marks are, coarsely (CreatureBurrowSystem's MarkMask): a cell 1 where some mark reaches into it,
             // and (x, z of the map's corner, cells per metre, cells across).
             TEXTURE2D(_PunchyBurrowMask);
@@ -175,10 +178,31 @@ Shader "Punchy/Terrain Surface"
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
-            // Fine relief: a two-octave height noise (clods ~0.7 m, grain ~0.2 m), returned with its slope.
-            float MicroHeight(float2 p)
+            // Fine relief: a three-octave height noise (swells ~3 m, clods ~0.7 m, grain ~0.2 m), each weighted by how much
+            // of it is left at this distance (w: x 3 m, y 0.7 m, z 0.21 m), centred on 0. An octave that has faded out
+            // costs nothing. The 3 m octave is taller in the slope (s) than in the colour, so far ground keeps its relief
+            // without blotching.
+            float2 MicroHeight(float2 p, float3 w)   // x for the slope, y for the colour
             {
-                return PunchyValueNoise(p / 0.7) * 0.6 + PunchyValueNoise(p / 0.21 + 17.3) * 0.4;
+                float h = 0, swell = 0;
+                [branch] if (w.x > 0.001) swell = (PunchyValueNoise(p / 3.0 + 41.7) - 0.5) * w.x;
+                [branch] if (w.y > 0.001) h += (PunchyValueNoise(p / 0.7) - 0.5) * 0.6 * w.y;
+                [branch] if (w.z > 0.001) h += (PunchyValueNoise(p / 0.21 + 17.3) - 0.5) * 0.4 * w.z;
+                return float2(h + swell * 1.6, h + swell * 0.4);
+            }
+
+            // How much of each fine-relief octave (x 3 m, y 0.7 m, z 0.21 m) is left at this distance: each fades from 4 to
+            // 2 reference pixels of its own wavelength (DetailPolicy.ScreenSize), before it could shimmer.
+            float3 MicroFades(float distance, float detailFar)
+            {
+                [branch] if (_PunchyTerrainDetailPpm < 0)
+                {
+                    half old = 1 - smoothstep(detailFar * 0.36, detailFar, distance);
+                    return float3(0, old, old);
+                }
+                float ppm = _PunchyTerrainDetailPpm > 0 ? _PunchyTerrainDetailPpm : 935 * detailFar / 110;
+                float3 pixels = float3(3.0, 0.7, 0.21) * ppm / max(distance, 0.01);
+                return saturate((pixels - 2) / 2);
             }
 
             // Cobbles (W-34; rows of rounded boxes in W-09/W-10): rugged field stones, no grid. A jittered Voronoi on a
@@ -293,11 +317,11 @@ Shader "Punchy/Terrain Surface"
                 return slope;
             }
 
-            float3 MicroDetail(float2 p)   // xy = slope (dh/dx, dh/dz), z = height
+            float3 MicroDetail(float2 p, float3 w)   // xy = slope (dh/dx, dh/dz), z = height (0.5 = level)
             {
                 const float e = 0.04;
-                float h = MicroHeight(p);
-                return float3((MicroHeight(p + float2(e, 0)) - h) / e, (MicroHeight(p + float2(0, e)) - h) / e, h);
+                float2 h = MicroHeight(p, w);
+                return float3((MicroHeight(p + float2(e, 0), w).x - h.x) / e, (MicroHeight(p + float2(0, e), w).x - h.x) / e, 0.5 + h.y);
             }
 
             Varyings Vert(TerrainAttributes input)
@@ -346,11 +370,14 @@ Shader "Punchy/Terrain Surface"
                     normalWS = normalize(normalWS + half3(furrowTilt.x, 0, furrowTilt.y));
                 }
 
-                // Fine relief up close (fades out before it could shimmer), skipped on skirts. How far it reaches
-                // follows the Detail distance setting (W-101: 110 m at Detail 1, was a fixed 70 m).
+                // Fine relief, skipped on skirts. R-6: each octave fades by its own on-screen size (MicroFades), so the
+                // clods carry on to about 300 m and a 3 m swell to about 1.4 km at Detail 1; detailFade (the old fixed
+                // range, W-101: 110 m at Detail 1) still bounds the sand grains below.
                 float detailFar = _PunchyTerrainDetailFar > 0 ? _PunchyTerrainDetailFar : 70;
-                half detailFade = (1 - smoothstep(detailFar * 0.36, detailFar, distance)) * input.bump * (input.extra.w <= 0.01);
-                float3 micro = detailFade > 0.001 ? MicroDetail(p) : float3(0, 0, 0.5);
+                half detailMask = input.bump * (input.extra.w <= 0.01);
+                half detailFade = (1 - smoothstep(detailFar * 0.36, detailFar, distance)) * detailMask;
+                float3 octaves = MicroFades(distance, detailFar) * detailMask;
+                float3 micro = max(octaves.x, max(octaves.y, octaves.z)) > 0.001 ? MicroDetail(p, octaves) : float3(0, 0, 0.5);
 
                 // Rain: flat ground collects puddles (dark, mirror-smooth, no relief); elsewhere wet ground just
                 // darkens and gets a soft sheen. Grass and snow don't glaze. Far away the sheen fades, since at
@@ -380,7 +407,7 @@ Shader "Punchy/Terrain Surface"
                             * (1 - 0.6 * input.extra.y);   // grass pokes through, but meadow dips still pool
                 half sheen = max(wet * (1 - 0.85 * porosity), shore * 0.6) * (1 - 0.8 * input.extra.y) * (1 - smoothstep(120, 450, distance));
 
-                half relief = detailFade * 0.45 * (1 - puddle);
+                half relief = 0.45 * (1 - puddle);   // (the octaves' fades are already in micro)
                 normalWS = normalize(normalWS - half3(micro.x, 0, micro.y) * relief);
                 half cobbleFade = smoothstep(0.3, 0.55, input.paving.x) * (1 - smoothstep(30, 80, distance));
                 // W-108: paving above 1 is wear (SettlementSampling.Ground: the ruts down a cobbled road), and paving
@@ -436,7 +463,7 @@ Shader "Punchy/Terrain Surface"
                 inputData.shadowMask = half4(1, 1, 1, 1);
 
                 SurfaceData surface = (SurfaceData)0;
-                half3 albedo = input.surface.rgb * (1 + (micro.z - 0.5) * 0.5 * detailFade);   // grain in the colour too
+                half3 albedo = input.surface.rgb * (1 + (micro.z - 0.5) * 0.5);   // grain in the colour too (faded in micro)
                 // Up close, bare ground (sand, dirt, gravel) is grainy: single grains a shade lighter or darker, at two sizes
                 // (about 3 and 7 cm, hashed by cell so they hold still), gone before they could shimmer, and not under grass.
                 if (detailFade > 0.001)
