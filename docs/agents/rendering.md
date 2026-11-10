@@ -34,6 +34,7 @@ Read before changing any shader, material or render setting.
 - A shader compile error still lets the build report Succeeded: grep the build log for "Shader error" as well as "error CS".
 - `line` is an HLSL keyword (geometry shaders): a variable called `line` breaks the Flora shader.
 - HLSL `&&` doesn't short-circuit.
+- On D3D11 (the editor here and the laptop), a pixel shader that reads `SV_POSITION` and writes conservative depth (`SV_DepthLessEqual`/`GreaterEqual`) only compiles if the position is `noperspective centroid` (X8000); otherwise the pass silently falls back to the magenta error shader (W-130, FloraImpostor). Re-importing a shader in Play mode can also wipe a runtime `new Material(...)`'s properties: re-enter Play before judging a shot.
 - Unity fixes a global array's length the first time it's set in a session; the editor needs a restart after a slot-count change.
 - A white bloom blob on a procedural mesh is usually a zero normal: `Vector3.normalized` returns zero below magnitude 1e-5 (tiny triangles, e.g. 4 mm tooth tips), the shader normalizes it to NaN and bloom spreads it. Use `math.normalizesafe` with a fallback (A-10c, #41).
 - Blue moon (Sky.hlsl PunchyBlueMoonFace): radius 0.13 rad, one thin wandering crack, maria + craters at two scales;
