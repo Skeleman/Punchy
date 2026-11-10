@@ -12,6 +12,10 @@ The supervisor adds requests here; kind-possum pulls before each job and reports
 - When no job is QUEUED or RUNNING, take the next open part of job 47 (LOD range sweep), one kind per session, and report it like
   any job. Jobs the supervisor queues always go first; stop a sweep part at a clean point when one appears.
 
+## Standing rule: all profiling is yours (Zach, 2026-11-10)
+- Lanes on the main PC no longer time anything (COORDINATION rule 21). Every cost check comes here as a job; expect more of
+  them, each naming a branch, commit, spots and arms. Branch-vs-main arms on the same build setup, as usual.
+
 ## Standing rule: uncapped (Zach, 2026-11-03)
 - Profile and bench uncapped (no frame cap, vsync off). Capped runs hide CPU/GPU headroom. Use a cap only if a card
   asks for one, and label it.

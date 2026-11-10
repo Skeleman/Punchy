@@ -205,3 +205,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-10: Zach re-stressed rule 20 (caves slipped through). Rule 20 now covers old code in touched files; tools/lod-lint.sh runs on every branch before merge. Grep leftovers carded: AskFade->R-13, BehindCullRange/Wake->A-99, cave fades/spill->W-135.
 - 11-10: world order now R-9 -> W-135 (cave LOD) -> W-134 -> W-132.
 - 11-10: #249 merged (A-91 rows 2-4). A-99 launched in Punchy tree. Player lane told: DungeonState API + DungeonLoot table for P-23/P-24.
+- 11-10: Zach: only the profiler profiles. Rule 21 added; card ms items now mean a BENCH-QUEUE request in the handoff. Running agents told.

@@ -108,6 +108,11 @@ feature code, and it never edits files in another session's checkout.
    Old code counts too: a file you touch that still has a metre visual range gets converted in that branch, or listed in your
    handoff for R-13. Mark a metre range that is truly gameplay with a `// gameplay:` (or sim/streaming/collision) comment.
    The supervisor runs `tools/lod-lint.sh <branch>` on every branch before merge; unexplained hits go back.
+21. **Only the profiler profiles (Zach, 2026-11-10):** lane agents never measure frame times, ms tables, bench runs or RenderDoc
+   captures, whatever an older card says. The profiler's weaker, isolated machine gives the real and steady numbers. A lane
+   row that needs a cost check instead ends with a BENCH-QUEUE request in its handoff: branch, commit, spots (-goto coords),
+   arms (main vs branch, any flags) and the pass line. The supervisor queues it. Cheap counts you get anyway (triangles, draw
+   calls, index counts, memory from a script) are fine to report; no timing.
 
 ## Sessions and lanes
 
