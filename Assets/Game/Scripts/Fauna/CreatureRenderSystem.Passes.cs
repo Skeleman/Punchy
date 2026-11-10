@@ -170,6 +170,9 @@ namespace Punchy.Fauna
                 buffer?.Release();
                 buffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, Mathf.NextPowerOfTwo(total), Marshal.SizeOf<SegmentInstance>());
             }
+            // (A-96, "-sparkleprobe": the segments as drawn, checked for values the shader can turn into a bad pixel.)
+            if (Punchy.Debugging.SparkleProbe.Running)
+                Punchy.Debugging.SparkleProbe.CheckSegments(instances, total);
             buffer.SetData(instances);
             // (The pose job's time and counts, for -perflog.)
             long ticks = 0;

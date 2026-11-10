@@ -41,6 +41,15 @@ Shader "Punchy/Creature"
             uint instanceID : SV_InstanceID;
         };
 
+        // A-96: a normal from a vector that can come out zero or not a number (two near-opposite normals blended, the fur
+        // bump on a pixel whose screen derivatives are parallel), the fallback then: normalize gives NaN there, and bloom
+        // spreads one such pixel into a white sparkle.
+        float3 SafeNormal(float3 v, float3 fallback)
+        {
+            float l = dot(v, v);
+            return l > 1e-20 && l < 1e20 ? v * rsqrt(l) : fallback;
+        }
+
         float3 Rotate(float4 q, float3 v)
         {
             float3 t = 2 * cross(q.xyz, v);
@@ -63,7 +72,7 @@ Shader "Punchy/Creature"
                 return;
             float4 q = _Segments[(uint)((int)index - back)].rotation;
             offsetWS = lerp(offsetWS, Rotate(q, local), w);
-            normalWS = normalize(lerp(normalWS, Rotate(q, n), w));
+            normalWS = SafeNormal(lerp(normalWS, Rotate(q, n), w), normalWS);
         }
 
         // Fading in or out, as a screen-door dither (a 4x4 ordered pattern of dropped pixels): no blending or sorting,
@@ -134,7 +143,7 @@ Shader "Punchy/Creature"
             float slope = (s.radiusStart - s.radiusEnd) / max(s.length + r, 1e-3);
             float3 n = float3(around.x * input.cap.y, around.y * input.cap.y / max(s.flatten, 0.05), input.cap.x + slope * input.cap.y);
             float3 offsetWS;
-            Joint(s, input.instanceID + _SegmentOffset, r, local, normalize(n), offsetWS, normalWS);
+            Joint(s, input.instanceID + _SegmentOffset, r, local, SafeNormal(n, float3(0, 0, 1)), offsetWS, normalWS);
             positionWS = s.position + offsetWS;
             color = s.color;
             surface = local;
@@ -154,7 +163,7 @@ Shader "Punchy/Creature"
             float slope = (s.radiusStart - s.radiusEnd) / max(s.length + r, 1e-3);
             float3 n = float3(around.x * input.cap.y, around.y * input.cap.y / max(s.flatten, 0.05), input.cap.x + slope * input.cap.y);
             float3 offsetWS;
-            Joint(s, input.instanceID + _SegmentOffset, r, local, normalize(n), offsetWS, normalWS);
+            Joint(s, input.instanceID + _SegmentOffset, r, local, SafeNormal(n, float3(0, 0, 1)), offsetWS, normalWS);
             positionWS = s.position + offsetWS;
             color = s.color;
         }
@@ -178,6 +187,13 @@ Shader "Punchy/Creature"
             #include "Grounding.hlsl"
 
             float _PunchyNoFur; // A-92, #230: 0 gives bodies fur strands and coat patches, 1 ("-nofur") plain
+
+            // A-96 (debug, SparkleProbe "-sparkleprobe", 0 in play): above 0, the brightness cap. A pixel that comes out not a
+            // number, infinite or brighter than the cap is drawn as a marker instead (r 60000, g which steps went bad, b the
+            // shell layer + 1), so the probe camera can count bloom's white sparkles before bloom and say where they start.
+            float _PunchySparkleProbe;
+
+            bool SparkleBad(float3 v) { return any((asuint(v) & 0x7f800000u) == 0x7f800000u); }
 
             struct Varyings
             {
@@ -222,7 +238,7 @@ Shader "Punchy/Creature"
                     // highlight and glints, on a diffuse dimmed to under half, here on a hammered face (the normal
                     // nudged a little, cell by cell).
                     float3 dent = float3(Noise3(surface * 38), Noise3(surface * 38 + 7.1), Noise3(surface * 38 + 13.7)) - 0.5;
-                    half3 m = normalize(n + (half3)dent * 0.5);
+                    half3 m = SafeNormal(n + (half3)dent * 0.5, n);
                     return albedo * 0.45 * (sun * saturate(ndl * 0.75 + 0.25) + ambient) +
                            PunchyMetalShade(albedo, m, (half3)v, surface, light.color, light.direction, shadow, 1, 0);
                 }
@@ -267,8 +283,12 @@ Shader "Punchy/Creature"
             {
                 FadeClip(input.fade, input.positionCS.xy);
                 ShellClip(input.surface);
-                half3 n = normalize(input.normalWS);
+                // (Probe steps, see _PunchySparkleProbe: 1 the vertex normal, 2 the normal, 4 after the fur bump, 8 the lit
+                // colour, 16 the final colour bad; 32 the final colour above the cap.)
+                uint probe = SparkleBad((float3)input.normalWS) ? 1u : 0u;
                 float3 v = GetWorldSpaceNormalizeViewDir(input.positionWS);
+                half3 n = SafeNormal(input.normalWS, v);
+                probe |= SparkleBad((float3)n) ? 2u : 0u;
                 half3 albedo = input.color.rgb * lerp(1, 0.75, PunchyWetnessAt(input.positionWS.xz).r) * (1 + 0.07 * _Shell);
                 Light light = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
                 half shadow = light.shadowAttenuation * (1 - PunchyCloudShadow(input.positionWS));
@@ -286,18 +306,23 @@ Shader "Punchy/Creature"
                         half patch = Noise3(sp * 2.3 + albedo * 17) * 0.6 + Noise3(sp * 5.7 + 3.1) * 0.4;
                         albedo *= lerp(0.84, 1.12, patch);
                         float near = 1 - smoothstep(3, 9, distance(input.positionWS, _WorldSpaceCameraPos));
+                        float h = 0;
                         if (near > 0)
                         {
                             half strand = Noise3(float3(sp.xy * 170, sp.z * 20));
                             albedo *= 1 - near * 0.14 * (1 - strand);
-                            float h = strand * 0.0035 * near;
-                            float3 dpdx = ddx(input.positionWS), dpdy = ddy(input.positionWS);
-                            float3 r1 = cross(dpdy, n), r2 = cross(n, dpdx);
-                            float det = dot(dpdx, r1);
-                            float3 grad = sign(det) * (ddx(h) * r1 + ddy(h) * r2);
-                            n = normalize(abs(det) * n - grad);
+                            h = strand * 0.0035 * near;
                         }
+                        // (A-96: the derivatives are taken after the branch, where every pixel of the quad has its h; inside
+                        // it a neighbour that skipped the branch gave an undefined one. Where the screen derivatives are
+                        // parallel, as on the capsule's pinched ends, det is 0 and the normal is kept as it was.)
+                        float3 dpdx = ddx(input.positionWS), dpdy = ddy(input.positionWS);
+                        float3 r1 = cross(dpdy, n), r2 = cross(n, dpdx);
+                        float det = dot(dpdx, r1);
+                        float3 grad = sign(det) * (ddx(h) * r1 + ddy(h) * r2);
+                        n = SafeNormal(abs(det) * n - grad, n);
                     }
+                    probe |= SparkleBad((float3)n) ? 4u : 0u;
                     half diffuse = saturate(dot(n, light.direction) * 0.75 + 0.25);
                     // A little soft sheen at the silhouette, like fur or feathers catching the light.
                     half rim = pow(1 - saturate(dot(n, v)), 3) * 0.25;
@@ -313,7 +338,16 @@ Shader "Punchy/Creature"
                             lerp(1, PunchyCreatureGrounding(100, n.y), 0.75);
                 // Glowing parts (alpha): embers, toxic markings, eye sockets. Bright enough to bloom.
                 color += input.color.rgb * input.color.a * (2.2 + 0.4 * sin(_Time.y * 2.1 + input.positionWS.x * 3.0));
-                return half4(PunchyAtmosphere(color, input.positionWS), 1);
+                half3 final = PunchyAtmosphere(color, input.positionWS);
+                [branch] if (_PunchySparkleProbe > 0)
+                {
+                    probe |= SparkleBad((float3)color) ? 8u : 0u;
+                    probe |= SparkleBad((float3)final) ? 16u : 0u;
+                    probe |= (probe & 16u) == 0 && max(final.r, max(final.g, final.b)) > _PunchySparkleProbe ? 32u : 0u;
+                    if ((probe & 48u) != 0)
+                        return half4(60000, probe, _Shell + 1, 1);
+                }
+                return half4(final, 1);
             }
             ENDHLSL
         }
@@ -450,7 +484,7 @@ Shader "Punchy/Creature"
             {
                 FadeClip(input.fade, input.positionCS.xy);
                 ShellClip(input.surface);
-                outNormalWS = half4(NormalizeNormalPerPixel(input.normalWS), 0);
+                outNormalWS = half4(SafeNormal(input.normalWS, float3(0, 1, 0)), 0);
             #ifdef _WRITE_RENDERING_LAYERS
                 outRenderingLayers = EncodeMeshRenderingLayer();
             #endif
