@@ -248,8 +248,12 @@ namespace Punchy.Debugging
                 var lineDir = new float3(v[2] - v[0], 0f, v[3] - v[1]) / lineLen;
                 var lineSpeed = v.Length > 4 ? v[4] : 30f;
                 var lineHeight = v.Length > 5 ? v[5] : 0.1f;
-                Debug.Log($"BenchRoute: line from {v[0]:F0},{v[1]:F0} to {v[2]:F0},{v[3]:F0}, {lineLen:F0} m at {lineSpeed:F0} m/s, {lineHeight:F1} m up");
-                yield return Stop("line", () => PlaceAt(new float3(v[0], float.NaN, v[1]), Yaw(lineDir)) && SetWeather("Partly cloudy", 18),
+                // A height below -100 swims: the player stays where -goto put it (e.g. in a lake, job 45) and only x and z
+                // are carried, so the game's swimming keeps it at the surface.
+                var lineSwim = lineHeight < -100f;
+                Debug.Log($"BenchRoute: line from {v[0]:F0},{v[1]:F0} to {v[2]:F0},{v[3]:F0}, {lineLen:F0} m at {lineSpeed:F0} m/s, " +
+                          (lineSwim ? "swimming" : $"{lineHeight:F1} m up"));
+                yield return Stop("line", () => (lineSwim ? SwimStart(Yaw(lineDir)) : PlaceAt(new float3(v[0], float.NaN, v[1]), Yaw(lineDir))) && SetWeather("Partly cloudy", 18),
                                   measure: lineLen / lineSpeed, drive: t => Line(lineFrom, lineDir, lineSpeed, lineHeight, t));
             }
 
@@ -931,10 +935,28 @@ namespace Punchy.Debugging
             var source = terrainQuery.GetSingleton<TerrainSource>();
             var at = from + d * speed * math.max(0f, t - Settle);
             var transform = em.GetComponentData<LocalTransform>(player);
+            if (height < -100f)
+            {
+                transform.Position = new float3(at.x, transform.Position.y, at.z);
+                em.SetComponentData(player, transform);
+                return phase;
+            }
             transform.Position = new float3(at.x, math.max(source.SampleHeight(at.xz), source.World.SeaLevel) + height, at.z);
             em.SetComponentData(player, transform);
             em.SetComponentData(player, new PlayerMotion { Grounded = true });
             return phase;
+        }
+
+        /// <summary>A swimming line's start: the player where -goto left it, the camera turned along the line.</summary>
+        static bool SwimStart(float yaw)
+        {
+            if (!TryGetPlayerPosition(out var p))
+                return false;
+            Debug.Log($"BenchRoute: line: swimming from {p.x:F0},{p.y:F1},{p.z:F0}");
+            var cam = FindAnyObjectByType<ThirdPersonCamera>();
+            if (cam != null)
+                cam.SetView(yaw, 12f);
+            return true;
         }
 
         /// <summary>The middle of the settlement with the most buildings (logged with how many).</summary>
