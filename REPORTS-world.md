@@ -4027,6 +4027,26 @@ Built in the player tree, not the one the card names (the world tree's gitignore
   - Look: no visible difference either way.
   - The W-16 tilt hand-off is moot. ImpostorTurn already carries tilt from row 1.
   - Shots: PunchyMilestones/R-11/scout/r2scout{mesawalk,mesahill,mesafly}-High-{imp,r0}.png and r2scoutcontact-sheet.jpg.
+- **Row 3 (tree reach x1.5): done (verified, measured, not kept).** No code: tree reach stays as it is.
+  - Tried: tree-layer radius x1.5 at High (1500 to 2250 m at View 1), impostors on, against the committed build ("imp") and tree impostors off ("t0", as main). Same forest views as row 1. Render ms, in-session interleaved A/B; run 1 had 4 rounds of imp/reach15/t0, run 2 had 4 rounds of imp/reach15 only:
+
+    | View | imp (run 1 / 2) | reach x1.5 (run 1 / 2) | t0 (run 1) | delta reach - imp (run 2) |
+    |---|---|---|---|---|
+    | walk | 3.86 / 3.68 | 5.53 (one-round outlier) / 3.94 | 3.79 | +0.26 |
+    | hilltop | 3.78 / 3.61 | 3.99 / 3.79 | 3.77 | +0.18 |
+    | 300 m up | 2.84 / 2.71 | 2.88 / 2.76 | 2.83 | +0.05 |
+    | hilltop2 (forest) | 4.07 / 3.88 | 4.08 / 3.93 | 3.83 | +0.05 |
+
+  - Draws, High hilltop: 6637 meshes + 4402 impostors, against 7487 + 7580 at x1.5.
+  - Why not kept: the cost stays under +0.3 ms, but it buys nothing on screen. Terrain streams to about 1536 m at View 1 (12 chunks), and trees already reach 1500 m. The extra ring would stand past the drawn ground and in thick haze. Both contact sheets look the same at every view. To draw further, the terrain's far ring has to grow first (world lane). Then this x1.5 can be redone, at about +0.05 to +0.26 ms.
+  - Session note: this editor showed imp about equal to t0 (row 1 measured -0.1 to -0.26). Other editors share the GPU; row 1's interleaved table is the better measure.
+  - Shots: PunchyMilestones/R-11/r3/r3{walk,hilltop,fly300,hilltop2}-High-{imp,reach15,t0}.png and r3contact-sheet.jpg; r3b/ (rerun) and r3bcontact-sheet.jpg.
+- **Row 4 (what else could use the impostor path): list, no code.** Estimates are for one agent.
+  1. **Far kit buildings (Structure class: 394 models in the tree layer, 71 in the shrub layer).** Best candidate: buildings are heavy meshes, unlike rocks, so the quad should pay as it did for trees. Atlas: about 0.66 MB per model at 32 px frames, so all of them would be about 305 MB. Trim it to the most-placed set (about 60 models, about 40 MB), or use 16 px frames (about 0.17 MB per model, about 80 MB for all). Code: one DetailPolicy line (Structure `Impostor` px) plus the bake set trim. About 0.5 day with an A/B in a town view.
+  2. **Lit-window mask for those buildings (R-7's note in FloraImpostor.shader).** A third atlas (one channel, baked from the window part) is about +25% atlas memory. Sampling it means 3 more taps per pixel, plus Flora.shader's window hour in the impostor pass. Without it, far buildings go dark at night while the near ones glow, so it ships with item 1 or item 1 is day-only. About 1 day. It touches the window/glow logic, which R-10 owns, so it needs a word with R-10 first.
+  3. **Landmarks (Ribcage, SaltTower, SunkenTemple...).** Low value. They are few, drawn one by one with Graphics.RenderMesh and their own LODs, so the draw count barely moves. They are big, so 32 px frames would look soft at any range where they still fill the screen. Only worth it if the reach grows past the terrain edge; a coarser last LOD mesh is cheaper to make. About 1 day, not recommended now.
+  4. **Not candidates:** rocks (row 2: the coarsest mesh beats the quad), debris (tiny, culled early), layer-0 plants (near only). Cluster/HLOD (the 11-9 audit's second step) isn't needed: individual impostors already cut the tree cost.
+- **Card close:** full PlayMode suite (rule 19) on the branch head 2b881062: 15/15 passed, 0 failed, in 201 s. Pins: Landmarks_V3 112 A955AFE0, Fauna_Fingerprint 66320C7C. Editor closed. The branch has no uncommitted changes (the probe is untracked under Assets/Temp).
 
 ## R-10 (continued: lights at distance and a glowing town; tree Punchy-release, branch light/forwardplus)
 - **R-10 row 3 DONE (transitions)**: light/forwardplus `34d4278a` (pushed, on e0c4123a).
