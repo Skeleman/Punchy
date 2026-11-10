@@ -18,7 +18,8 @@ namespace Punchy.Audio
     /// tested as it starts, so it starts right.
     /// When a voice is blocked, the nearest few openings (doors and cave mouths within OpeningReach of the ear) are
     /// tried as a way round: if one can see both the ear and the sound, the sound is heard from that opening's
-    /// direction, as far away as the way round is long, and muffled only as much as the detour is long.
+    /// direction, as far away as the way round is long, and muffled only as much as the detour is long (at least
+    /// ShutDoor through a door leaf).
     /// The tests run as a small Burst job, run in place (a managed ground sample costs ~25 us, a Burst one far less).
     /// Under water the water's muffle wins (GameAudioWater) and this fades out. Local only: nothing is sent.
     /// </summary>
@@ -40,6 +41,9 @@ namespace Punchy.Audio
         const int OpeningsTried = 4;
         /// <summary>How far above a door anchor (on the ground just outside the door) the doorway's middle is (m).</summary>
         const float DoorHeight = 1.2f;
+        /// <summary>A box thinner than this (m) is a door leaf: a way round through it is muffled at least ShutDoor (0..1),
+        /// shut or open (whether a door stands open isn't known here yet).</summary>
+        const float DoorLeaf = 0.2f, ShutDoor = 0.5f;
 
         int checkNext;
         EntityQuery kitQuery;
@@ -189,6 +193,8 @@ namespace Punchy.Audio
             [ReadOnly] public NativeArray<KitBox> Kit;
             [ReadOnly] public NativeArray<float3> At;
             public NativeArray<Heard> Out;
+            /// <summary>Whether the last ways to an opening tested went through a door leaf.</summary>
+            bool leafCrossed;
 
             public void Execute()
             {
@@ -202,23 +208,27 @@ namespace Punchy.Audio
                 if (!Blocked(Ear, at))
                     return heard;
                 heard.Occluded = 1f;
-                if (!Opening(at, out var opening, out var path))
+                if (!Opening(at, out var opening, out var path, out var leaf))
                     return heard;
-                // Heard from the opening's direction, as far off as the way round, muffled by how far round it is.
+                // Heard from the opening's direction, as far off as the way round, muffled by how far round it is (and
+                // by a door leaf in the way).
                 var detour = path - math.distance(Ear, at);
-                heard.Occluded = math.lerp(0.2f, 1f, math.saturate(detour / DetourFull));
+                heard.Occluded = math.max(math.lerp(0.2f, 1f, math.saturate(detour / DetourFull)), leaf ? ShutDoor : 0f);
                 heard.Detour = Ear + math.normalize(opening - Ear) * path - at;
                 heard.Routed = 1;
                 return heard;
             }
 
-            /// <summary>Whether a wall (a big enough kit box) or the ground (a hill, not a cave's air) stands between a and b.</summary>
-            bool Blocked(float3 a, float3 b)
+            /// <summary>
+            /// Whether a wall (a big enough kit box) or the ground (a hill, not a cave's air) stands between a and b. On the
+            /// way to an opening (throughLeaves) a door leaf doesn't block, but crossing one sets leafCrossed.
+            /// </summary>
+            bool Blocked(float3 a, float3 b, bool throughLeaves = false)
             {
                 var length = math.distance(a, b);
                 if (length < 1.5f)
                     return false;
-                if (Walled(a, b, length))
+                if (Walled(a, b, length, throughLeaves))
                     return true;
                 if (!HasGround)
                     return false;
@@ -241,7 +251,7 @@ namespace Punchy.Audio
             }
 
             /// <summary>KitCollision.Blocks without the thin boxes: a slab test against each box big enough to be a wall.</summary>
-            bool Walled(float3 a, float3 b, float length)
+            bool Walled(float3 a, float3 b, float length, bool throughLeaves)
             {
                 var mid = (a + b) * 0.5f;
                 var halfLength = length * 0.5f;
@@ -272,8 +282,11 @@ namespace Punchy.Audio
                         exit = math.min(exit, math.max(t0, t1));
                         hit = enter <= exit;
                     }
-                    if (hit)
+                    if (!hit)
+                        continue;
+                    if (!throughLeaves || math.cmin(size) >= DoorLeaf)
                         return true;
+                    leafCrossed = true;
                 }
                 return false;
             }
@@ -282,10 +295,11 @@ namespace Punchy.Audio
             /// The shortest way round through one of the nearest openings (doors, cave mouths) within OpeningReach of
             /// the ear that can see both the ear and the sound: where it is, and how long the way through it is.
             /// </summary>
-            bool Opening(float3 at, out float3 opening, out float path)
+            bool Opening(float3 at, out float3 opening, out float path, out bool leaf)
             {
                 opening = default;
                 path = 0f;
+                leaf = false;
                 if (!HasGround)
                     return false;
                 // (Each kept as xyz and the way's length, shortest first.)
@@ -308,12 +322,16 @@ namespace Punchy.Audio
                 }
                 // (Shortest way first; the first that sees both ends is the way the sound goes.)
                 for (int i = 0; i < kept.Length; i++)
-                    if (!Blocked(Ear, kept[i].xyz) && !Blocked(kept[i].xyz, at))
+                {
+                    leafCrossed = false;
+                    if (!Blocked(Ear, kept[i].xyz, true) && !Blocked(kept[i].xyz, at, true))
                     {
                         opening = kept[i].xyz;
                         path = kept[i].w;
+                        leaf = leafCrossed;
                         return true;
                     }
+                }
                 return false;
             }
 
