@@ -177,3 +177,5 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-10: R-12 paused cleanly (notes in its card, nothing committed). R-10 resumed for row 4b (dome way down, glow on the town).
 - 11-10: Zach likes the A-92 fur defaults and the A-94 mammoth breath (both stay). New: A-96 rabbit white sparkles (queued after
   A-95 in D:/Unity/Punchy), M-05 Model Lab draft (Zach to pick in-game vs editor window, and which family first).
+- 11-10: Zach approved P-23 (gear has stats), P-24 (menu-only tracker, saved progress robust to world changes), A-91 rows 2-4
+  (dungeons ~4x, caves ~2x with 1-3 gentle main paths, vertical side chambers OK). Cards updated; DRAFT marks removed.
