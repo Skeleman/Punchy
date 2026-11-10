@@ -63,3 +63,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 2026-11-10: Zach: the Ember Forest may stay brighter than a town at night (R-10 4c, kept as is).
 - 2026-11-10: #212 merged: plant stems root into the ground, bark and leaf gloss; bark grain fades by screen size (plant LOD was already screen-size based; the 3D distance fix came earlier). Check: a meadow and a forest floor up close.
 - 2026-11-10: #213 merged: lava looks molten; under water each fluid has its own fog and colour (sea, lake, swamp, cave water), light shafts and motes; storm swells. Check: dive in the sea, a lake and a swamp at noon; a storm at the coast. Underwater sound (A-98) still works.
+- 2026-11-10: #248 merged: player builds compile again (dungeon walk debug tool was editor-only). No visible change.
