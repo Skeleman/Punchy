@@ -442,6 +442,164 @@ namespace Punchy.Debugging
         public static string TownTalkText;
 
         /// <summary>
+        /// A-93 row 3: n made-up folk (Human, every persona, a few wary, annoyed, warm or kin) met by an animal of each
+        /// group in groups (comma separated, as FolkConversation.GroupOf names them): per group, how many took it each
+        /// way, by BeastReaction (None, Pet, Puzzled, Wary, Scared, Repelled, Awed). BeastMeetText: the group each live
+        /// animal species is in, every distinct line per group with its reaction and response, then the first dump folk
+        /// met as each group.
+        /// </summary>
+        public static float[] BeastMeet(string groups, int n, int dump)
+        {
+            var ids = groups.Split(',');
+            var reactions = System.Enum.GetValues(typeof(BeastReaction)).Length;
+            var r = new float[ids.Length * reactions];
+            var sb = new System.Text.StringBuilder();
+            var director = Object.FindAnyObjectByType<FaunaDirector>();
+            if (director != null)
+            {
+                sb.Append("groups:");
+                for (int i = 0; i < director.SpeciesCount; i++)
+                {
+                    var sp = director.SpeciesAt(i);
+                    if (sp != null && !sp.Body.Upright)
+                        sb.Append(' ').Append(sp.name).Append('=').Append(FolkConversation.GroupOf(sp));
+                }
+                sb.Append('\n');
+            }
+            var lines = new SortedSet<string>();
+            var stances = new[] { FolkStance.Neutral, FolkStance.Neutral, FolkStance.Neutral, FolkStance.Neutral, FolkStance.Wary,
+                                  FolkStance.Neutral, FolkStance.Warm, FolkStance.Neutral, FolkStance.Annoyed, FolkStance.Kin };
+            var dumpText = new System.Text.StringBuilder();
+            for (int i = 0; i < n; i++)
+            {
+                var ind = PersonaIndividual(2000 + i);
+                var who = new FolkTalker
+                {
+                    Species = "Human",
+                    BodySpecies = "Human",
+                    HomeTown = i % 3 == 0 ? null : "Millfield",
+                    Beast = true,
+                    Individual = ind,
+                    Persona = FolkPersona.Of(ind),
+                    State = new FolkState { Hour = 9f + i % 10 },
+                    Stance = stances[i % stances.Length],
+                };
+                if (i < dump)
+                    dumpText.Append($"Human #{ind:X8} | {who.Persona} | stance {who.Stance}\n");
+                for (int g = 0; g < ids.Length; g++)
+                {
+                    who.PlayerGroup = ids[g];
+                    who.PlayerSpecies = ids[g] == "small" ? "Rabbit" : ids[g] == "predator" ? "Wolf" : ids[g] == "livestock" ? "Horse"
+                        : ids[g] == "vermin" ? "Tarantula" : ids[g] == "big" ? "Bison" : ids[g] == "pet" ? "Dog" : "Deer";
+                    var a = FolkConversation.Ask(who, FolkConversation.Meet);
+                    r[g * reactions + (int)a.Reaction]++;
+                    lines.Add($"{ids[g]} {a.Reaction}/{a.Response}: {a.Text}");
+                    if (i < dump)
+                        dumpText.Append("  as ").Append(who.PlayerSpecies).Append(": ").Append(a).Append('\n');
+                }
+            }
+            sb.Append($"{lines.Count} distinct lines\n");
+            foreach (var l in lines)
+                sb.Append("  ").Append(l).Append('\n');
+            sb.Append(dumpText);
+            BeastMeetText = sb.ToString();
+            return r;
+        }
+
+        public static string BeastMeetText;
+
+        /// <summary>
+        /// A-93 row 3: the live folk nearest the player sent off with a beast response (Flee, BackOff, Approach) as if the
+        /// player were an animal right there: [its Individual, 1 if FolkConversation.Respond took it]. FolkMode then
+        /// tells how its brain took it.
+        /// </summary>
+        public static float[] BeastRespond(string response)
+        {
+            var world = World.DefaultGameObjectInjectionWorld;
+            var at = (float3)PlayerPosition();
+            using var q = EM.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
+            using var entities = q.ToEntityArray(Allocator.Temp);
+            var best = Entity.Null;
+            var bestD = float.MaxValue;
+            foreach (var e in entities)
+            {
+                var d = math.distance(EM.GetComponentData<CreatureState>(e).Position, at);
+                if (d < bestD && FolkConversation.TryTalker(world, e, null, out _))
+                {
+                    best = e;
+                    bestD = d;
+                }
+            }
+            if (best == Entity.Null || !System.Enum.TryParse(response, true, out BeastResponse kind))
+                return new float[] { 0f, 0f };
+            var s = EM.GetComponentData<CreatureState>(best);
+            // (The "animal" stands 3 m off it, toward the player.)
+            var from = s.Position + math.normalizesafe(at - s.Position, new float3(1f, 0f, 0f)) * 3f;
+            var ok = FolkConversation.Respond(best, new Answer { Reaction = BeastReaction.Scared, Response = kind }, from);
+            BeastRespondFolk = s.Individual;
+            return new float[] { s.Individual, ok ? 1f : 0f };
+        }
+
+        public static uint BeastRespondFolk;
+
+        /// <summary>The mode and distance from the player (m) of the folk BeastRespond sent off ("Flee 12.3"), or "" if gone.</summary>
+        public static string FolkMode()
+        {
+            using var q = EM.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>());
+            using var entities = q.ToEntityArray(Allocator.Temp);
+            foreach (var e in entities)
+            {
+                var s = EM.GetComponentData<CreatureState>(e);
+                if (s.Individual == BeastRespondFolk)
+                    return System.FormattableString.Invariant($"{s.Mode} {math.distance(s.Position, (float3)PlayerPosition()):F1}");
+            }
+            return "";
+        }
+
+        static uint beastLiveFolk;
+
+        /// <summary>
+        /// A-93 row 3 shots: the same live folk (the talker nearest the player on the first call after first = true) met by
+        /// the player's body now: the player put 2.5 m in front of it (facing it), and its answer to topic (meet for an
+        /// animal body; a human gets who). Returns [folk x, y, z, head height, player x, z], or empty if no folk;
+        /// BeastLiveText: "Body: answer".
+        /// </summary>
+        public static float[] BeastLive(bool first)
+        {
+            var world = World.DefaultGameObjectInjectionWorld;
+            var at = (float3)PlayerPosition();
+            using var q = EM.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
+            using var entities = q.ToEntityArray(Allocator.Temp);
+            var best = Entity.Null;
+            var bestD = float.MaxValue;
+            foreach (var e in entities)
+            {
+                var st = EM.GetComponentData<CreatureState>(e);
+                var d = first ? math.distance(st.Position, at) : st.Individual == beastLiveFolk ? 0f : float.MaxValue;
+                if (d < bestD && FolkConversation.TryTalker(world, e, null, out _))
+                {
+                    best = e;
+                    bestD = d;
+                }
+            }
+            if (best == Entity.Null)
+                return new float[0];
+            var s = EM.GetComponentData<CreatureState>(best);
+            beastLiveFolk = s.Individual;
+            FolkConversation.TryTalker(world, best, null, out var who);
+            var a = FolkConversation.Ask(who, who.Beast ? FolkConversation.Meet : FolkConversation.Who);
+            var director = Object.FindAnyObjectByType<FaunaDirector>();
+            BeastLiveText = $"{(director != null && director.PlayerSpecies != null ? director.PlayerSpecies.name : "?")}: {a}";
+            var ahead = math.normalizesafe(new float3(math.sin(s.Yaw), 0f, math.cos(s.Yaw)), new float3(0f, 0f, 1f));
+            var spot = s.Position + ahead * 2.5f;
+            MovePlayer(spot.x - at.x, spot.z - at.z);
+            var height = EM.GetComponentData<CreatureBody>(best).Blob.Value.StandHeight * s.Scale;
+            return new float[] { s.Position.x, s.Position.y, s.Position.z, height, spot.x, spot.z };
+        }
+
+        public static string BeastLiveText;
+
+        /// <summary>
         /// Talks to up to n live folk near the player (the real entity path: persona, condition, home town, stance): one
         /// line per folk with its persona and condition, then each topic's answer. Empty when no folk is near.
         /// </summary>

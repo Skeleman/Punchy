@@ -90,6 +90,127 @@ namespace Punchy.Tests
             yield return null;
         }
 
+        /// <summary>
+        /// Target (row 3): 200 folk met by an animal of each group take it in character: every reaction turns up; a small
+        /// animal is mostly petted, a predator mostly feared (scared or wary), livestock mostly puzzling or petted, vermin
+        /// mostly repelled, a big beast awes; no empty line, no {slot}. The live species land in the right groups
+        /// (Rabbit small, Wolf predator, Horse livestock).
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Beast_ReactsInCharacter()
+        {
+            const string groups = "small,predator,livestock,vermin,big,pet,beast";
+            var ids = groups.Split(',');
+            var r = Game.Hook<float[]>("BeastMeet", groups, 200, 4);
+            var dump = Game.HookField<string>("BeastMeetText");
+            // (BeastReaction in order: the test assembly sees the game only through hooks.)
+            var names = new[] { "None", "Pet", "Puzzled", "Wary", "Scared", "Repelled", "Awed" };
+            var k = names.Length;
+            var sb = new System.Text.StringBuilder();
+            for (int g = 0; g < ids.Length; g++)
+            {
+                sb.Append($"\n  {ids[g]}:");
+                for (int i = 0; i < k; i++)
+                    if (r[g * k + i] > 0f)
+                        sb.Append($" {names[i]} {r[g * k + i]:F0}");
+            }
+            LogWatch.Measure($"beast meet (200 folk per group):{sb}\n{dump}");
+            float At(string group, string x) => r[System.Array.IndexOf(ids, group) * k + System.Array.IndexOf(names, x)];
+            for (int i = 1; i < k; i++)
+            {
+                var total = 0f;
+                for (int g = 0; g < ids.Length; g++)
+                    total += r[g * k + i];
+                Assert.Greater(total, 0f, $"nobody was {names[i]}");
+            }
+            for (int g = 0; g < ids.Length; g++)
+                Assert.AreEqual(0f, r[g * k], $"{ids[g]}: a meeting without a reaction");
+            Assert.Greater(At("small", "Pet"), 100f, "a small animal is not mostly petted");
+            Assert.Greater(At("predator", "Scared") + At("predator", "Wary"), 140f, "a predator is not mostly feared");
+            Assert.Greater(At("livestock", "Puzzled") + At("livestock", "Pet"), 100f, "livestock is not mostly puzzling or petted");
+            Assert.Greater(At("vermin", "Repelled"), 100f, "vermin is not mostly repelled");
+            Assert.Greater(At("big", "Awed"), 80f, "a big beast awes too few");
+            StringAssert.DoesNotContain("{", dump);
+            StringAssert.DoesNotContain("\"\"", dump, "an empty beast line");
+            StringAssert.DoesNotContain(": \n", dump, "an empty beast line");
+            StringAssert.Contains(" Rabbit=small", dump);
+            StringAssert.Contains(" Wolf=predator", dump);
+            StringAssert.Contains(" Horse=livestock", dump);
+            yield return null;
+        }
+
+        /// <summary>
+        /// Target (row 3): a live folk sent off by an animal really does it, with what its brain already does: told to flee
+        /// it is in Flee two seconds on and further off; told to come closer it walks (Wander) toward the player.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator LiveFolk_BeastResponse()
+        {
+            yield return TestSceneSetup.Place("HumanVillage", 10f);
+            var r = Game.Hook<float[]>("BeastRespond", "Flee");
+            Assert.AreEqual(1f, r[1], "no live folk took the flee");
+            var before = Game.Hook<string>("FolkMode");
+            yield return TestSceneSetup.Seconds(2f);
+            var after = Game.Hook<string>("FolkMode");
+            r = Game.Hook<float[]>("BeastRespond", "Approach");
+            var approach = Game.Hook<string>("FolkMode");
+            LogWatch.Measure($"beast response: flee {before} -> {after}; approach {approach}");
+            Assert.AreEqual(1f, r[1], "no live folk took the approach");
+            StringAssert.StartsWith("Flee ", after, "the folk told to flee isn't fleeing");
+            Assert.Greater(float.Parse(after.Split(' ')[1], System.Globalization.CultureInfo.InvariantCulture),
+                float.Parse(before.Split(' ')[1], System.Globalization.CultureInfo.InvariantCulture), "the fleeing folk got no further off");
+            StringAssert.StartsWith("Wander ", approach, "the folk told to come closer isn't walking");
+        }
+
+        /// <summary>
+        /// Card A-93 row 3 shots: the same village folk met by the player as a human, a rabbit, a wolf and a horse; the
+        /// sheet's labels carry what it said and did.
+        /// </summary>
+        [UnityTest, Explicit("shots, run on demand"), Timeout(600000)]
+        public IEnumerator Beast_Shots()
+        {
+            yield return TestSceneSetup.Place("HumanVillage", 10f);
+            yield return TestSceneSetup.TimeOfDay(10f);
+            Game.Hook<bool>("ShotRunStart");
+            var pref = Game.Hook<string>("BodyPref");
+            var was = Game.Hook<string>("SetBody", "Human");
+            var labels = new System.Collections.Generic.List<string>();
+            var first = true;
+            try
+            {
+                foreach (var body in new[] { "Human", "Rabbit", "Wolf", "Horse" })
+                {
+                    Game.Hook<string>("SetBody", body);
+                    yield return TestSceneSetup.Seconds(2f);
+                    var f = Game.Hook<float[]>("BeastLive", first);
+                    first = false;
+                    Assert.Greater(f.Length, 0, "no folk to meet");
+                    yield return TestSceneSetup.Seconds(1f);
+                    // (Again, now the player stands in front of it: its answer, and the spot it is at now.)
+                    f = Game.Hook<float[]>("BeastLive", false);
+                    var text = Game.HookField<string>("BeastLiveText");
+                    StringAssert.StartsWith(body + ":", text, "the body didn't switch");
+                    labels.Add(text);
+                    var folk = new Vector3(f[0], f[1], f[2]);
+                    var player = new Vector3(f[4], f[1], f[5]);
+                    var mid = (folk + player) * 0.5f + Vector3.up * f[3] * 0.6f;
+                    var along = (player - folk).normalized;
+                    var side = new Vector3(along.z, 0f, -along.x);
+                    var from = mid + side * 5f + Vector3.up * 1.2f;
+                    Game.RunOptions(string.Format(System.Globalization.CultureInfo.InvariantCulture, "-shotcam {0:F2},{1:F2},{2:F2},{3:F2},{4:F2},{5:F2}", from.x, from.y, from.z, mid.x, mid.y, mid.z));
+                    yield return Shots.Settled($"a93-beast-{body.ToLowerInvariant()}", 1280, 720);
+                }
+            }
+            finally
+            {
+                Game.RunOptions("-shotcam off");
+                Game.Hook<string>("SetBody", was);
+                Game.Hook<object>("PutBodyPref", pref);
+            }
+            var sheet = Game.Hook<string[]>("ShotRunSheet", System.IO.Path.Combine(Shots.Folder, "a93-beast-sheet.jpg"), labels.ToArray());
+            LogWatch.Measure("beast shots:\n" + string.Join("\n", sheet));
+        }
+
         /// <summary>Target: live village folk answer every topic through the entity path (persona, condition, town, stance).</summary>
         [UnityTest]
         public IEnumerator LiveFolk_Answer()

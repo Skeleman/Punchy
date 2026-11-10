@@ -65,6 +65,8 @@ namespace Punchy.Fauna
 
         /// <summary>The "conversation" section (FolkConversation, A-93), or null when the file has none.</summary>
         public FolkConversation.TalkBook Talk;
+        /// <summary>The "beastTalk" section: what folk say and do to an animal player (A-93 row 3), or null.</summary>
+        public FolkConversation.TalkBook BeastTalk;
 
         public static string Path =>System.IO.Path.Combine(Application.streamingAssetsPath, FileName);
 
@@ -121,6 +123,7 @@ namespace Punchy.Fauna
             var archive = new DialogueArchive();
             // (The talk window's lines, A-93: FolkConversation reads them.)
             archive.Talk = FolkConversation.Parse(root["conversation"]);
+            archive.BeastTalk = FolkConversation.Parse(root["beastTalk"]);
             if (root["cultures"] is JObject cultures)
                 foreach (var pair in cultures)
                 {

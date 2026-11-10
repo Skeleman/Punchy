@@ -27,16 +27,28 @@ namespace Punchy.Fauna
         public override string ToString() => Kind == OfferKind.None ? "-" : Id != null ? $"{Kind}:{Id}" : Kind.ToString();
     }
 
+    /// <summary>How a folk takes an animal coming up to it (A-93 row 3): fond of it as of a pet, puzzled by a tame beast
+    /// that seems to want something, wary of it, scared of it, put off by it (rats, spiders, slimes), or awed (big or
+    /// rare creatures).</summary>
+    public enum BeastReaction : byte { None, Pet, Puzzled, Wary, Scared, Repelled, Awed }
+
+    /// <summary>What a folk does about an animal player, with what the brain already does (FolkConversation.Respond):
+    /// comes closer, comes closer with a bite to eat (the answer offers it), steps back, or runs off.</summary>
+    public enum BeastResponse : byte { None, Approach, Feed, BackOff, Flee }
+
     /// <summary>A folk's answer: the words, a gesture to make while saying them (an IdleAction's name, or another word the
     /// talk window can show; Action is it parsed, None when it isn't an IdleAction), what it offers, and whether it ends
-    /// the talk.</summary>
+    /// the talk. To an animal player: how it takes it and what it does about it.</summary>
     public struct Answer
     {
         public string Topic, Text, Gesture;
         public IdleAction Action;
         public Offer Offer;
         public bool Ends;
-        public override string ToString() => $"[{Topic}] \"{Text}\"" + (Gesture != null ? $" <{Gesture}>" : "") + (Offer.Kind != OfferKind.None ? $" offer {Offer}" : "") + (Ends ? " (ends)" : "");
+        public BeastReaction Reaction;
+        public BeastResponse Response;
+        public override string ToString() => $"[{Topic}] \"{Text}\"" + (Gesture != null ? $" <{Gesture}>" : "") + (Offer.Kind != OfferKind.None ? $" offer {Offer}" : "")
+            + (Reaction != BeastReaction.None ? $" ({Reaction}" + (Response != BeastResponse.None ? $", {Response})" : ")") : "") + (Ends ? " (ends)" : "");
     }
 
     /// <summary>Everything an answer is built from, gathered from a folk entity (FolkConversation.TryTalker) or made up
@@ -53,6 +65,9 @@ namespace Punchy.Fauna
         public string PlayerSpecies;
         /// <summary>The player is in an animal's body (not upright with hands): it gets the beast talk (A-93 row 3).</summary>
         public bool Beast;
+        /// <summary>An animal player's species group (FolkConversation.GroupOf: "small", "pet", "livestock", "predator",
+        /// "vermin", "big", "beast", or a group dialogue.json's beastTalk names); null for a person.</summary>
+        public string PlayerGroup;
         public uint Individual;
         public FolkPersona Persona;
         public FolkState State;
@@ -116,7 +131,8 @@ namespace Punchy.Fauna
             if (!body.Blob.IsCreated)
                 return false;
             ref var b = ref body.Blob.Value;
-            if (!b.Upright || !b.Hands || b.Haunts)
+            // (A puppet is a player's body, or a scripted one: nobody to talk to.)
+            if (!b.Upright || !b.Hands || b.Haunts || s.Mode == CreatureMode.Puppet)
                 return false;
             if (director == null)
                 director = UnityEngine.Object.FindAnyObjectByType<FaunaDirector>();
@@ -161,6 +177,7 @@ namespace Punchy.Fauna
                 HomeTown = town,
                 PlayerSpecies = playerBody == null || species != null && playerKind == species.Body.name ? null : DialogueArchive.Spoken(playerBody.name),
                 Beast = beast,
+                PlayerGroup = beast ? GroupOf(playerBody) : null,
                 Individual = s.Individual,
                 Persona = FolkPersona.Of(s.Individual),
                 State = FolkState.Of(s, ref b, hasMind, mind, hour, night),
@@ -200,6 +217,7 @@ namespace Punchy.Fauna
             topic = string.IsNullOrEmpty(topic) ? Who : topic.ToLowerInvariant();
             if (who.Beast && topic != Bye)
                 topic = Meet;
+            var reaction = who.Beast && topic == Meet ? React(who) : BeastReaction.None;
             var rng = new Unity.Mathematics.Random(BiomeSampling.Scramble(who.Individual ^ Hash(topic) ^ (++asks * 0x9E3779B9u)) | 1u);
             var ctx = new Context
             {
@@ -208,6 +226,7 @@ namespace Punchy.Fauna
                 Willing = Willing(who, out var pestered),
                 Pestered = pestered,
                 Quest = QuestFor(who.Individual),
+                Group = who.PlayerGroup,
             };
             if (topic == Favour)
                 Ledger(who.Individual, true);
@@ -219,7 +238,8 @@ namespace Punchy.Fauna
                 Trade = who.Trade,
                 Job = who.Job,
                 HomeTown = who.HomeTown,
-                PlayerSpecies = who.PlayerSpecies,
+                // (To an animal: "a wolf", not "a Wolf".)
+                PlayerSpecies = who.Beast ? who.PlayerSpecies?.ToLowerInvariant() : who.PlayerSpecies,
                 Stance = who.Stance == FolkStance.Neutral ? null : who.Stance.ToString(),
                 Mood = ctx.Mood,
                 Hour = who.State.Hour,
@@ -229,7 +249,10 @@ namespace Punchy.Fauna
             var known = Array.Exists(AllTopics, t => t.Id == topic) || topic == Meet || archive?.Talk != null && archive.Talk.Labels.ContainsKey(topic);
             if (!known)
                 topic = Who;
-            if (archive?.Talk != null)
+            // (An animal player: the beastTalk lines for how it takes it, or its goodbye; then the plain ones.)
+            if (who.Beast && archive?.BeastTalk != null)
+                text = Choose(archive.BeastTalk, archive, speaker, reaction != BeastReaction.None ? ReactionId(reaction) : topic, ctx, ref rng, out line);
+            if (text == null && archive?.Talk != null)
                 text = Choose(archive.Talk, archive, speaker, topic, ctx, ref rng, out line);
             if (text == null)
                 text = Choose(Defaults, archive, speaker, topic, ctx, ref rng, out line);
@@ -242,7 +265,166 @@ namespace Punchy.Fauna
             if (answer.Gesture != null && Enum.TryParse(answer.Gesture, true, out IdleAction action))
                 answer.Action = action;
             answer.Offer = OfferOf(line, ctx);
+            if (reaction != BeastReaction.None)
+            {
+                answer.Reaction = reaction;
+                answer.Response = line?.Response ?? DefaultResponse(reaction);
+                // (Feeding it needs the bite to eat: a line that says "feed" without one just comes closer.)
+                if (answer.Response == BeastResponse.Feed && answer.Offer.Kind != OfferKind.Item)
+                    answer.Response = BeastResponse.Approach;
+            }
             return answer;
+        }
+
+        // ---- An animal player ----
+
+        /// <summary>The beastTalk topic for a reaction: its name in lower case ("pet", "scared").</summary>
+        public static string ReactionId(BeastReaction r) => r.ToString().ToLowerInvariant();
+
+        /// <summary>
+        /// An animal species' group, as folk see it: the group dialogue.json's beastTalk "groups" puts it in (by its own
+        /// name or its body's), else from what it is: a pet (Friendly), vermin (spins webs), a predator (driven off, or a
+        /// hunter of 20 kg or more), big (600 kg or more), livestock (hooves), small (under 15 kg), else a beast.
+        /// </summary>
+        public static string GroupOf(CreatureSpecies species)
+        {
+            if (species == null)
+                return "beast";
+            var groups = DialogueArchive.Current?.BeastTalk?.Groups;
+            if (groups != null && (groups.TryGetValue(species.name, out var g) || groups.TryGetValue(species.Body.name, out g)))
+                return g;
+            var b = species.Body;
+            var kg = b.Weight * math.pow(species == b ? 1f : species.VariantScale, 3f);
+            if (b.Friendly)
+                return "pet";
+            if (b.SpinsWebs)
+                return "vermin";
+            if (b.DrivenOff || b.Hunts.Count > 0 && kg >= 20f)
+                return "predator";
+            if (kg >= 600f)
+                return "big";
+            if (b.Hooves)
+                return "livestock";
+            return kg < 15f ? "small" : "beast";
+        }
+
+        /// <summary>
+        /// How this folk takes the animal the player is (persona x species group x stance): from the group (small things
+        /// and pets endearing, livestock and other beasts puzzling, predators scary, vermin off-putting, big ones awing),
+        /// then its feeling for beasts (low: wary of what others pet, scared of what others admire; high: calmer, fond of
+        /// livestock, curious past disgust), its courage (low: wary turns scared; high: scared turns wary) and its stance
+        /// (wary or annoyed: no petting; kin or warm: fond, unless it's disgust or awe).
+        /// </summary>
+        public static BeastReaction React(in FolkTalker who)
+        {
+            var group = who.PlayerGroup ?? "beast";
+            var r = BaseReaction(group);
+            var p = who.Persona;
+            var beasts = p.Band(PersonaTrait.Beasts);
+            var courage = p.Band(PersonaTrait.Courage);
+            if (beasts == 0)
+                r = r == BeastReaction.Pet || r == BeastReaction.Puzzled ? BeastReaction.Wary : r == BeastReaction.Awed ? BeastReaction.Scared : r;
+            else if (beasts == 2)
+                r = r == BeastReaction.Scared && courage > 0 ? BeastReaction.Wary
+                    : r == BeastReaction.Wary ? BeastReaction.Puzzled
+                    : r == BeastReaction.Repelled && p.Band(PersonaTrait.Curiosity) == 2 ? BeastReaction.Puzzled
+                    : r == BeastReaction.Puzzled && group == "livestock" ? BeastReaction.Pet
+                    : r;
+            if (courage == 0 && r == BeastReaction.Wary)
+                r = BeastReaction.Scared;
+            else if (courage == 2 && r == BeastReaction.Scared)
+                r = BeastReaction.Wary;
+            if ((who.Stance == FolkStance.Wary || who.Stance == FolkStance.Annoyed) && (r == BeastReaction.Pet || r == BeastReaction.Puzzled))
+                r = BeastReaction.Wary;
+            // (Fond of the player's folk: one step warmer, not straight to petting a wolf.)
+            else if (who.Stance == FolkStance.Kin || who.Stance == FolkStance.Warm)
+                r = r == BeastReaction.Scared ? BeastReaction.Wary : r == BeastReaction.Wary || r == BeastReaction.Puzzled ? BeastReaction.Pet : r;
+            // (Nobody runs screaming from a rabbit: wary at worst.)
+            if (r == BeastReaction.Scared && (group == "small" || group == "pet"))
+                r = BeastReaction.Wary;
+            return r;
+        }
+
+        static BeastReaction BaseReaction(string group) => group switch
+        {
+            "small" or "pet" => BeastReaction.Pet,
+            "predator" => BeastReaction.Scared,
+            "vermin" => BeastReaction.Repelled,
+            "big" or "awe" => BeastReaction.Awed,
+            _ => BeastReaction.Puzzled,
+        };
+
+        /// <summary>What it does when the line doesn't say: comes to a pet, backs off from what it's wary of or put off by,
+        /// runs from what scares it, stays put otherwise.</summary>
+        static BeastResponse DefaultResponse(BeastReaction r) => r switch
+        {
+            BeastReaction.Pet => BeastResponse.Approach,
+            BeastReaction.Wary or BeastReaction.Repelled => BeastResponse.BackOff,
+            BeastReaction.Scared => BeastResponse.Flee,
+            _ => BeastResponse.None,
+        };
+
+        /// <summary>
+        /// Makes a folk do an answer's response to an animal player at playerPos, with what the brain already does: runs
+        /// off 30 m (Flee from the player), steps back 5 m, or walks up to just short of the player (Wander to a point;
+        /// the brain pauses it there). On the simulating world only (host or solo, like Mantrap's flee); false on a joined
+        /// client (its talk window has to ask the host) or when there's nothing to do. Called once per answer, not per frame.
+        /// </summary>
+        public static bool Respond(Entity folk, in Answer a, float3 playerPos)
+        {
+            var world = World.DefaultGameObjectInjectionWorld;
+            if (world == null || !world.IsCreated || !world.EntityManager.Exists(folk) || !world.EntityManager.HasComponent<CreatureState>(folk))
+                return false;
+            return Respond(world.EntityManager.GetComponentData<CreatureState>(folk).Individual, a, playerPos);
+        }
+
+        /// <summary>Respond, for the folk with this Individual.</summary>
+        public static bool Respond(uint individual, in Answer a, float3 playerPos)
+        {
+            if (a.Response == BeastResponse.None)
+                return false;
+            if (director == null)
+                director = UnityEngine.Object.FindAnyObjectByType<FaunaDirector>();
+            var sim = director != null ? director.SimWorld : null;
+            if (sim == null || !sim.IsCreated)
+                return false;
+            var em = sim.EntityManager;
+            // (Found by its Individual: its entity on the simulating world needn't be the one the caller holds.)
+            using var q = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>());
+            using var entities = q.ToEntityArray(Allocator.Temp);
+            foreach (var e in entities)
+            {
+                var s = em.GetComponentData<CreatureState>(e);
+                if (s.Individual != individual)
+                    continue;
+                var from = new float2(playerPos.x, playerPos.z);
+                var dir = math.normalizesafe(s.Position.xz - from, new float2(1f, 0f));
+                s.ModeTime = 0f;
+                s.StageTime = 0f;
+                s.Stage = 0;
+                s.Action = IdleAction.None;
+                s.ActionTime = 0f;
+                switch (a.Response)
+                {
+                    case BeastResponse.Flee:
+                        s.Mode = CreatureMode.Flee;
+                        s.Focus = from;
+                        s.Target = s.Position.xz + dir * 30f;
+                        break;
+                    case BeastResponse.BackOff:
+                        s.Mode = CreatureMode.Wander;
+                        s.Target = s.Position.xz + dir * 5f;
+                        break;
+                    default:
+                        // (Up to the animal, just short of it.)
+                        s.Mode = CreatureMode.Wander;
+                        s.Target = from + dir * 1.2f;
+                        break;
+                }
+                em.SetComponentData(e, s);
+                return true;
+            }
+            return false;
         }
 
         // ---- Choosing a line ----
@@ -254,6 +436,8 @@ namespace Punchy.Fauna
             public string Mood;
             public bool Willing, Pestered;
             public string Quest;
+            /// <summary>An animal player's group (FolkTalker.PlayerGroup).</summary>
+            public string Group;
         }
 
         /// <summary>
@@ -338,6 +522,8 @@ namespace Punchy.Fauna
             if (l.Stances != null && Array.IndexOf(l.Stances, who.Stance.ToString()) < 0)
                 return false;
             if (l.Trades != null && Array.IndexOf(l.Trades, who.Job) < 0 && Array.IndexOf(l.Trades, who.Trade) < 0)
+                return false;
+            if (l.Groups != null && Array.IndexOf(l.Groups, ctx.Group) < 0)
                 return false;
             if (l.Willing.HasValue && l.Willing.Value != ctx.Willing)
                 return false;
@@ -543,8 +729,12 @@ namespace Punchy.Fauna
             /// <summary>Conditions it needs, and conditions it can't have.</summary>
             public FolkCondition State, NotState;
             public string[] Weather, Moods, Stances, Trades;
+            /// <summary>beastTalk: the animal player's groups it fits (FolkConversation.GroupOf), or null for any.</summary>
+            public string[] Groups;
             public bool? Willing, Pestered, Need, Home, Job;
             public bool Ends;
+            /// <summary>beastTalk: what the folk does with this line, or null for its reaction's usual response.</summary>
+            public BeastResponse? Response;
             /// <summary>How many things it's keyed on (traits, conditions): a more particular line is more likely.</summary>
             public int Keys;
         }
@@ -555,6 +745,8 @@ namespace Punchy.Fauna
             public readonly Dictionary<string, Dictionary<string, List<TalkLine>>> Cultures =
                 new Dictionary<string, Dictionary<string, List<TalkLine>>>(StringComparer.OrdinalIgnoreCase);
             public readonly Dictionary<string, string> Labels = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            /// <summary>beastTalk: species name → group, overriding the one GroupOf works out.</summary>
+            public readonly Dictionary<string, string> Groups = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             public int Count
             {
                 get
@@ -573,7 +765,10 @@ namespace Punchy.Fauna
         /// string, or an object with "text" and any of: a trait's name ("warmth": "high", or ["low", "mid"]), "state"
         /// ("tired", or ["hungry", "!busy"]: ! for not), "weather" (a ComfortKind: "Rain"), "mood", "stance", "trade",
         /// "when", "willing", "pestered", "need", "home", "job" (true/false), "gesture", "offer" ("quest", "item:Berry",
-        /// "directions", "rumour", "discount", "refuses"), "ends", "weight".
+        /// "directions", "rumour", "discount", "refuses"), "ends", "weight". The beastTalk section reads the same, its topics
+        /// the reactions ("pet", "puzzled", "wary", "scared", "repelled", "awed") and "bye", with "groups" (group → species
+        /// names) and two more keys for a line: "group" (the animal player's groups) and "response" ("approach", "feed",
+        /// "backoff", "flee", "none").
         /// </summary>
         public static TalkBook Parse(JToken section)
         {
@@ -584,6 +779,15 @@ namespace Punchy.Fauna
             {
                 if (pair.Key.StartsWith("_"))
                     continue;
+                // (beastTalk: { "groups": { group: [ species, ... ] } }.)
+                if (pair.Key == "groups" && pair.Value is JObject groups)
+                {
+                    foreach (var g in groups)
+                        if (!g.Key.StartsWith("_") && Strings(g.Value) is string[] names)
+                            foreach (var n in names)
+                                book.Groups[n] = g.Key;
+                    continue;
+                }
                 if (pair.Key == "topics" && pair.Value is JObject labels)
                 {
                     foreach (var l in labels)
@@ -628,6 +832,7 @@ namespace Punchy.Fauna
                 Moods = Strings(o["mood"]),
                 Stances = Strings(o["stance"]),
                 Trades = Strings(o["trade"]),
+                Groups = Strings(o["group"]),
                 Willing = Bool(o["willing"]),
                 Pestered = Bool(o["pestered"]),
                 Need = Bool(o["need"]),
@@ -636,6 +841,8 @@ namespace Punchy.Fauna
                 Ends = o["ends"] != null && (bool)o["ends"],
             };
             line.OfferKind = OfferOf((string)o["offer"], out line.OfferId);
+            if (o["response"] != null && Enum.TryParse((string)o["response"], true, out BeastResponse response))
+                line.Response = response;
             foreach (var trait in FolkPersona.Traits)
             {
                 var bands = Strings(o[trait.Name]);
@@ -665,6 +872,8 @@ namespace Punchy.Fauna
                     }
                 }
             if (line.Weather != null || line.Moods != null || line.Trades != null)
+                line.Keys++;
+            if (line.Groups != null)
                 line.Keys++;
             return line;
         }

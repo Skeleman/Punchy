@@ -573,5 +573,128 @@
       "news": [{ "text": "The water's tasted strange since the last storm. Something upstream.", "offer": "rumour:river" }],
       "bye": [{ "text": "Leave me be.", "ends": true }]
     }
+  },
+  "beastTalk": {
+    "_readme": [
+      "What folk say and do when the player comes up to them in an animal's body (A-93 row 3). Read like conversation above: one entry per culture (Any, or a species name), each topic a list of lines, the same keys (traits, state, stance, mood, when, gesture, offer, weight...).",
+      "The topics are how the folk takes the animal: pet (fond of it), puzzled (a tame beast that seems to want something), wary, scared, repelled (rats, spiders, slimes), awed (big or rare creatures); and bye. The code picks the reaction from the animal's group, then the folk's persona (beasts, courage, curiosity) and stance; the lines say it.",
+      "groups: which group each species is in, by its asset name, for species the code would place wrongly. The code's own groups: pet (Friendly), vermin (spins webs), predator (driven off, or a hunter of 20 kg or more), big (600 kg or more), livestock (hooves), small (under 15 kg), beast (the rest). A new group name here is taken as puzzling, except awe, which awes.",
+      "Two more keys for a line: group (the animal's groups it fits: \"group\": \"livestock\" or [\"small\", \"pet\"]) and response, what the folk then does with what the brain already does: approach, feed (comes closer with the line's offer, which must be an item), backoff, flee or none. Without one: pet approaches, wary and repelled back off, scared flees, puzzled and awed stay.",
+      "{player} is the animal, in lower case: \"a {player}\" reads \"a wolf\"."
+    ],
+    "groups": {
+      "vermin": ["GiantSpider", "MireSpider", "Tarantula", "Scorpion", "GlassScorpion", "Beetle", "CapBeetle", "CharcoalBeetle", "ArcBeetle", "Skunk", "ToxicFrog", "SporeToad", "Rattlesnake", "Sidewinder"],
+      "predator": ["GilaMonster", "SwampSerpent", "BoneHound"],
+      "awe": ["Roc", "SkySerpent", "SandWorm", "SnowWorm", "BoneStag", "CrystalHare", "Dolphin", "StaticRam"],
+      "pet": ["Cat", "Puppy", "Dog"]
+    },
+    "Any": {
+      "pet": [
+        { "text": "Aww, look at you! Who's a good {player}?", "gesture": "Pet" },
+        { "text": "Hello, little one. Lost, are you?", "group": ["small", "pet"], "gesture": "Pet" },
+        { "text": "Here, have a berry. Don't tell anyone.", "warmth": "high", "gesture": "Pet", "offer": "item:Berry", "response": "feed" },
+        { "text": "Easy, easy. There we go.", "group": "livestock", "gesture": "Pet" },
+        { "text": "You're a fine one. Whose are you?", "group": "livestock", "curiosity": ["mid", "high"] },
+        { "text": "Ha! You want a scratch? Come here.", "group": "pet", "mood": "Cheerful", "gesture": "Pet" },
+        { "text": "Oh, you're soft. Off you go now.", "group": ["small", "pet", "livestock", "beast"], "warmth": ["low", "mid"], "gesture": "Pet", "response": "none" },
+        { "text": "Look, a {player}! Hello, hello!", "mood": "Cheerful", "gesture": "Cheer" },
+        { "text": "Shh, you'll wake the whole street. Come on.", "when": "night", "gesture": "Pet" },
+        { "text": "You've come to the right one. I've a soft spot for strays.", "beasts": "high", "warmth": "high", "offer": "item:Berry", "response": "feed" }
+      ],
+      "puzzled": [
+        { "text": "Hm? What do you want, little one?", "group": ["small", "pet", "beast", "vermin"] },
+        { "text": "Hm? What is it? What do you want?" },
+        { "text": "A {player}, right up to me? Are you tame?", "curiosity": ["mid", "high"] },
+        { "text": "Did somebody's {player} get loose?", "group": "livestock" },
+        { "text": "You're staring. I haven't got anything. Look, empty hands.", "gesture": "Wave" },
+        { "text": "Odd. Animals don't usually come this close.", "curiosity": "high", "gesture": "LookAround" },
+        { "text": "Well, don't just stand there. Go on, shoo.", "warmth": "low", "gesture": "Wave", "response": "none" },
+        { "text": "Are you hungry? Is that it?", "warmth": ["mid", "high"] },
+        { "text": "Not now, I'm working. Go find your herd.", "state": "busy" },
+        { "text": "Strange beast. You look at me like you know something.", "curiosity": "high", "beasts": "high" }
+      ],
+      "wary": [
+        { "text": "Easy now. Stay where you are.", "gesture": "Wave" },
+        { "text": "Don't you come any closer.", "courage": ["mid", "high"] },
+        { "text": "Back. Back, I said.", "warmth": "low", "gesture": "Wave" },
+        { "text": "I don't trust that look in your eye, {player}.", "trust": "low" },
+        { "text": "Slowly... nobody needs to get bitten.", "group": "predator" },
+        { "text": "Hah! I've seen off bigger than you.", "group": "predator", "courage": "high", "pride": "high", "response": "none" },
+        { "text": "Mind your teeth and I'll mind mine.", "group": ["predator", "beast"], "courage": "high", "response": "none" },
+        { "text": "Don't like animals. Never have.", "beasts": "low" }
+      ],
+      "scared": [
+        { "text": "Help! A {player}!", "gesture": "Hunch" },
+        { "text": "Get away! Get away from me!", "gesture": "Wave" },
+        { "text": "Nice {player}... nice... nobody move.", "courage": "low" },
+        { "text": "Somebody fetch the guard!", "home": true },
+        { "text": "Not today, not today!", "mood": "Grumpy" },
+        { "text": "It's huge! Run!", "group": ["big", "awe"], "gesture": "Hunch" },
+        { "text": "Wolves in the streets now? I'm off!", "group": "predator", "home": true },
+        { "text": "Don't eat me, I'm all bones!", "group": "predator", "curiosity": "high" }
+      ],
+      "repelled": [
+        { "text": "Ugh! Get it away!", "gesture": "Shiver" },
+        { "text": "Eugh, a {player}. Shoo! Shoo!", "gesture": "Wave" },
+        { "text": "Don't you dare crawl on me.", "group": "vermin" },
+        { "text": "Where's a broom when you need one?", "home": true, "gesture": "Wave" },
+        { "text": "Horrible thing. Go back under your rock.", "warmth": "low" },
+        { "text": "I'm not scared of you. I just don't like you.", "courage": "high", "pride": ["mid", "high"], "response": "none" },
+        { "text": "Off the path, you. Go on.", "warmth": ["mid", "high"] }
+      ],
+      "awed": [
+        { "text": "By the stars... look at the size of you.", "gesture": "ShieldEyes" },
+        { "text": "I've heard of your kind. Never thought I'd see one.", "curiosity": ["mid", "high"] },
+        { "text": "Don't... don't move. You're beautiful.", "beasts": "high" },
+        { "text": "Wait till I tell them at home. Nobody will believe me.", "home": true, "gesture": "Cheer" },
+        { "text": "Bless you, great one. Pass in peace.", "gesture": "Bow" },
+        { "text": "A {player}! A real {player}!", "mood": "Cheerful" }
+      ],
+      "bye": [
+        { "text": "Off you go, then.", "gesture": "Wave" },
+        { "text": "Bye bye, {player}!", "beasts": "high", "gesture": "Wave" },
+        { "text": "Good riddance.", "beasts": "low" },
+        { "text": "Huh. Strange animal.", "curiosity": "high" }
+      ]
+    },
+    "HumanChild": {
+      "pet": [{ "text": "A {player}! Can I keep it? Can I? Please?", "gesture": "Cheer" }, { "text": "It likes me! Look, it likes me!", "gesture": "Pet" }],
+      "puzzled": ["Are you lost? Where's your mum?"],
+      "scared": [{ "text": "Mama! MAMA! There's a {player}!", "gesture": "Hunch" }],
+      "repelled": ["Ewww! It's so gross! ...can I poke it?"],
+      "awed": [{ "text": "Woooah. You're the biggest thing I ever saw.", "gesture": "Cheer" }]
+    },
+    "Dwarf": {
+      "pet": [{ "text": "Hah, a stout little beast. You'd do well in the mines.", "gesture": "Pet" }],
+      "wary": [{ "text": "Keep your distance, beast. My axe is never far.", "gesture": "Draw" }],
+      "scared": ["Under the mountain we'd have walls for this!"],
+      "repelled": [{ "text": "Cave vermin. Out of my way before I stamp on you.", "group": "vermin" }],
+      "awed": [{ "text": "The old songs speak of beasts like you. Stone keep you.", "gesture": "Bow" }]
+    },
+    "Elf": {
+      "pet": [{ "text": "Peace, little sister of the woods. Rest a while.", "gesture": "Pet" }],
+      "puzzled": ["You've wandered far from the green. What troubles you?"],
+      "wary": ["I see you, hunter. Let us both pass in peace."],
+      "repelled": ["Even you have a place in the world. Just not here."],
+      "awed": [{ "text": "An elder of the wild. We are honoured.", "gesture": "Bow" }]
+    },
+    "Goblin": {
+      "pet": ["Food? You food? ...no. You friend. Maybe."],
+      "puzzled": ["What you want? You got shinies? No? Go."],
+      "wary": ["Mine! All mine! You no take!"],
+      "scared": [{ "text": "Aaah! Not eat goblin! Goblin stringy!", "gesture": "Hunch" }],
+      "repelled": [{ "text": "Ooh, crunchy. Come here, snack.", "group": "vermin", "response": "approach" }]
+    },
+    "Ogre": {
+      "pet": [{ "text": "Small fuzzy. Ogre like.", "gesture": "Pet" }],
+      "puzzled": ["Hm. You lost, little beast?"],
+      "scared": ["Ogre not scared! ...ogre little bit scared."],
+      "awed": ["Big! Bigger than ogre! Good!"]
+    },
+    "Hermit": {
+      "pet": ["Only the animals come by. Suits me. Sit, if you like."],
+      "puzzled": ["You too, eh? Come to stare at the old fool?"],
+      "bye": ["Go on. The woods are yours more than mine."]
+    }
   }
 }
