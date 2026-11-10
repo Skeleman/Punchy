@@ -50,3 +50,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 2026-11-10: R-7 row 5 merged (#234): impostors baked only for the 60 models that can become one; atlas 140 -> 39 MB, bake 14.9 -> 2.1 ms, no look or ms change.
 - 2026-11-10: R-8 merged (#235): cheaper sky. Skybox -54% at noon, -39% at night; storm clouds -7.5% (missed the 15% target, kept the clean version). No visible change.
 - 2026-11-10: W-130 merged (#236): far shrub impostors drew as magenta slabs on D3D11 (shader compile error since #233); fixed, impostors now match the meshes.
+- 2026-11-10: A-92 merged (#237): lying animals keep legs above ground and stand before moving (#231 closed); fur, near fur outline and smoother joints on by default, `-nofur`/`-noshells`/`-noseams` to compare (#230 closed). Check: a wolf or rabbit up close; a horse lying on a slope.

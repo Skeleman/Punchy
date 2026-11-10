@@ -165,3 +165,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-10: W-130 merged #236 (magenta slabs = R-7 impostors failing to compile on D3D11). Any build made from main between #233 and #236 has magenta far shrubs.
 - 11-10: A-92 resumed for row 3 (it stopped mid-suite). A-90 was already merged (#226, 11-09; flier no-trail shot still unverified); Punchy-world free; R-9 waits on bench job 45 (water/deform branch kept).
 - 11-10: R-11 (far trees and rocks on impostors, R-7 row 4 never done) started in Punchy-world on lod/impostor-trees.
+- 11-10: A-92 merged #237 (main a975f71e); #230/#231 closed. Asked Zach on the detail defaults. R-10 row 2b may now hook up Creature (R-9 still pending). D:/Unity/Punchy tree free; burst-prune when editors close.
