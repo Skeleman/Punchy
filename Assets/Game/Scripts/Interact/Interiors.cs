@@ -89,6 +89,18 @@ namespace Punchy.Interact
         /// <summary>Into door <paramref name="door"/>'s room (the local player). False if its house has no room.</summary>
         public static bool Enter(int door) => instance != null && instance.EnterRoom(door);
 
+        /// <summary>P-25: the camera's distance in the room the local player is in, by the room's size (0: not in one).</summary>
+        public static float IndoorArm
+        {
+            get
+            {
+                if (instance == null || instance.inRoom < 0 || instance.inRoom >= instance.rooms.Count)
+                    return 0f;
+                var room = instance.rooms[instance.inRoom];
+                return math.clamp(0.5f * math.cmax((room.Max - room.Min).xz), 2.5f, 3.5f);
+            }
+        }
+
         bool Hosting => server != null && server.IsCreated && server.IsServer();
         bool Joined => !Hosting && client != null && client.IsCreated && client.IsClient();
 

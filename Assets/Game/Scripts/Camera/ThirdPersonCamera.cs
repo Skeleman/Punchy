@@ -15,6 +15,18 @@ namespace Punchy.CameraRig
     {
         public float Distance = 8f;
 
+        /// <summary>P-25: the closest the distance setting goes; below FirstPersonBelow the view is first person.</summary>
+        public const float ClosestDistance = 0.5f, FirstPersonBelow = 1f;
+        /// <summary>P-25: the view is from the player's own eyes now: the body isn't drawn (CreatureRenderSystem).</summary>
+        public static bool FirstPerson { get; private set; }
+        /// <summary>P-25: first person whenever in a room (the Look tab, PlayerOptions).</summary>
+        public static bool FirstPersonIndoors;
+        const float FirstPersonMaxPitch = 85f;
+        /// <summary>P-25: how far the indoor pull-in has eased (0..1), and the room's distance while it eases back out.</summary>
+        float indoor, indoorArm = 3f;
+        /// <summary>Testing: "-camdist N" holds the distance at N for this run (the setting isn't saved).</summary>
+        float testDistance = -1f;
+
         /// <summary>Testing: when set, the camera circles this point (an animal being watched) instead of the player.</summary>
         public static Vector3? WatchTarget;
         /// <summary>Testing: the pitch to watch from (low, looking up, for an animal up a tree).</summary>
@@ -83,6 +95,10 @@ namespace Punchy.CameraRig
             var spinAt = System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-spin");
             if (spinAt >= 0 && spinAt + 1 < Punchy.Debugging.DebugControls.LaunchArgs.Length)
                 float.TryParse(Punchy.Debugging.DebugControls.LaunchArgs[spinAt + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out spin);
+            var distAt = System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-camdist");
+            if (distAt >= 0 && distAt + 1 < Punchy.Debugging.DebugControls.LaunchArgs.Length)
+                float.TryParse(Punchy.Debugging.DebugControls.LaunchArgs[distAt + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out testDistance);
+            FirstPersonIndoors |= System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-fpindoors") >= 0;
             SetCursorCaptured(true);
         }
 
@@ -106,17 +122,33 @@ namespace Punchy.CameraRig
                 if (Gamepad.current != null)
                     look += Gamepad.current.rightStick.ReadValue() * (StickSensitivity * Time.deltaTime);
                 yaw += look.x;
-                pitch = Mathf.Clamp(pitch + (InvertY ? look.y : -look.y), underground ? UndergroundMinPitch : OpenMinPitch, underground ? UndergroundMaxPitch : MaxPitch);
+                pitch = Mathf.Clamp(pitch + (InvertY ? look.y : -look.y), FirstPerson ? -FirstPersonMaxPitch : underground ? UndergroundMinPitch : OpenMinPitch,
+                                    FirstPerson ? FirstPersonMaxPitch : underground ? UndergroundMaxPitch : MaxPitch);
 
                 if (Mouse.current != null)
                     Distance = Mathf.Clamp(Distance - Mouse.current.scroll.ReadValue().y * ZoomSensitivity * Distance,
-                                           WatchTarget.HasValue ? Mathf.Min(MinDistance, WatchDistance) : MinDistance, MaxDistance);
+                                           WatchTarget.HasValue ? Mathf.Min(ClosestDistance, WatchDistance) : ClosestDistance, MaxDistance);
             }
+            if (testDistance > 0f)
+                Distance = testDistance;
+
+            // P-25: in a room the camera eases in to the room's distance (never out past the player's own setting), and back on leaving.
+            var roomArm = Punchy.Interact.Interiors.IndoorArm;
+            if (roomArm > 0f)
+                indoorArm = roomArm;
+            indoor = Mathf.MoveTowards(indoor, roomArm > 0f ? 1f : 0f, Time.deltaTime / IndoorEase);
+            var wanted = Mathf.Min(Distance, Mathf.Lerp(Distance, indoorArm, Mathf.SmoothStep(0f, 1f, indoor)));
+            FirstPerson = !WatchTarget.HasValue && (Distance < FirstPersonBelow || FirstPersonIndoors && roomArm > 0f);
 
             // #85: back above ground, a look from the wider underground range eases into the normal one.
-            if (!underground)
+            if (!underground && !FirstPerson)
                 pitch = Mathf.MoveTowards(pitch, Mathf.Clamp(pitch, OpenMinPitch, MaxPitch), Time.deltaTime * 90f);
             var target = playerPosition + Vector3.up * PivotHeight;
+            if (FirstPerson)
+            {
+                PlaceFirstPerson(target, playerPosition.y);
+                return;
+            }
             // #85 (P-7): a small body looking up underground. Circling the camera under a low pivot puts it on the floor
             // beside the body, which then drops out of the bottom of the frame; instead the camera circles no lower
             // than SmallLookOrbit and tilts its view up for the rest, at most until the body reaches the frame's edge.
@@ -128,7 +160,7 @@ namespace Punchy.CameraRig
                 lookUp = SmallLookOrbit - pitch;   // (capped in Place, once the arm's length is known)
             }
             var rotation = Quaternion.Euler(orbitPitch, yaw, 0f);
-            var position = target - rotation * Vector3.forward * Distance;
+            var position = target - rotation * Vector3.forward * wanted;
 
             // Don't let the camera dip under hills or water; if it has to rise, keep looking at the player.
             if (terrainQuery.TryGetSingleton<TerrainSource>(out var terrain))
@@ -197,7 +229,7 @@ namespace Punchy.CameraRig
                 }
                 else
                 {
-                    caveArm = Distance;
+                    caveArm = wanted;
                     smallLift = 0f;
                 }
                 SetNearPlane(near);
@@ -280,6 +312,36 @@ namespace Punchy.CameraRig
         }
 
         /// <summary>
+        /// P-25: the view from the eyes (the height the third-person camera looks at, which is the body's head height);
+        /// under a low ceiling the eye drops as the camera's pivot does.
+        /// </summary>
+        void PlaceFirstPerson(Vector3 eye, float feetY)
+        {
+            pitch = Mathf.Clamp(pitch, -FirstPersonMaxPitch, FirstPersonMaxPitch);
+            underground = false;
+            caveArm = Distance;
+            smallLift = 0f;
+            if (terrainQuery.TryGetSingleton<TerrainSource>(out var terrain))
+            {
+                var head = ToFloat3(eye);
+                if (terrain.CaveDistance(head) < CaveNear || terrain.TempleAir(head) || Punchy.Terrain.InteriorCells.Distance(head) < CaveNear)
+                {
+                    ProbeArm(terrain, eye, eye, feetY, out var eyeY);
+                    eye.y = eyeY;
+                }
+            }
+            SetNearPlane(FirstPersonNear);
+            transform.SetPositionAndRotation(eye, Quaternion.Euler(pitch, yaw, 0f));
+            if (camLog && Time.unscaledTime >= nextCamLog)
+            {
+                nextCamLog = Time.unscaledTime + 2f;
+                Debug.Log($"Camera: first person, eye {eye.y - feetY:F2} m above the feet, pitch {pitch:F0}, indoors {indoor:F2}");
+            }
+        }
+
+        const float IndoorEase = 0.6f, FirstPersonNear = 0.05f;
+
+        /// <summary>
         /// Puts the camera there. A small body looking up (<paramref name="lookUp"/> degrees past the orbit) tilts the view
         /// up only as far as keeps its feet inside the frame's foot (P-9: the angle the body spans from the lens, plus a
         /// margin), so the whole body stays in view, not just its head.
@@ -300,7 +362,7 @@ namespace Punchy.CameraRig
                 nextCamLog = Time.unscaledTime + 2f;
                 var p = ToFloat3(position);
                 Debug.Log($"Camera: at ({p.x:F1}, {p.y:F1}, {p.z:F1}), pivot {PivotHeight:F2} m, arm {(position - target).magnitude:F2} m, yaw {yaw % 360f:F0} (view {transform.eulerAngles.y:F0}), pitch {pitch:F0} tilt {lookUp:F0}, " +
-                          $"underground {underground}, in temple air {t.TempleAir(p)}, ground {t.SampleHeight(p.xz) - p.y:+0.0;-0.0} m vs lens, cave {t.CaveDistance(p):F1}");
+                          $"wanted {Mathf.Min(Distance, Mathf.Lerp(Distance, indoorArm, Mathf.SmoothStep(0f, 1f, indoor))):F2}, underground {underground}, in temple air {t.TempleAir(p)}, ground {t.SampleHeight(p.xz) - p.y:+0.0;-0.0} m vs lens, cave {t.CaveDistance(p):F1}");
             }
         }
 
