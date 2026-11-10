@@ -34,8 +34,9 @@ namespace Punchy.Flora
         public static bool ImpostorOneFrame = Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-impostoroneframe") >= 0;
         /// <summary>Models baked per frame, so the load spreads over a few frames.</summary>
         public static int ImpostorBakesPerFrame = 12;
-        /// <summary>The layers whose models get impostors (ground, shrub, tree).</summary>
-        static readonly bool[] ImpostorLayers = { false, true, false };
+        /// <summary>The layers whose models get impostors (ground, shrub, tree). R-11: the tree layer too; its rule
+        /// (DetailPolicy.FloraRule) trims the bake to the trees, so its buildings, debris and props stay on their meshes.</summary>
+        static readonly bool[] ImpostorLayers = { false, true, true };
         /// <summary>Mip levels go down to frames this many texels a side, no smaller (they'd bleed into each other).</summary>
         const int ImpostorSmallestMip = 8;
 
@@ -46,11 +47,13 @@ namespace Punchy.Flora
 
         static readonly int ImpostorFramesId = Shader.PropertyToID("_ImpostorFrames");
         static readonly int ImpostorFullId = Shader.PropertyToID("_ImpostorFull");
+        static readonly int ImpostorPixelsId = Shader.PropertyToID("_ImpostorPixels");
         static readonly int ImpostorSphereId = Shader.PropertyToID("_ImpostorSphere");
         static readonly int ImpostorAlbedoId = Shader.PropertyToID("_ImpostorAlbedo");
         static readonly int ImpostorDataId = Shader.PropertyToID("_ImpostorData");
         static readonly int ImpostorModelBaseId = Shader.PropertyToID("_ImpostorModelBase");
         static readonly int ImpostorSliceId = Shader.PropertyToID("_ImpostorSlice");
+        static readonly int ImpostorSwayId = Shader.PropertyToID("_ImpostorSway");
         static readonly int ImpostorOneFrameId = Shader.PropertyToID("_PunchyImpostorOneFrame");
 
         /// <summary>A layer's impostors: its two atlases (one slice per model that can become an impostor) and how far
@@ -66,6 +69,10 @@ namespace Punchy.Flora
             /// <summary>The models baked, in slice order (local to the layer).</summary>
             public int[] Baked;
             public GraphicsBuffer SliceBuffer;
+            /// <summary>R-11: each model's (local) wind sway at its bounding sphere's centre, as its meshes carry it per
+            /// vertex (FloraMeshBuilder.Sway): FloraImpostor.hlsl's _ImpostorSway, so a far plant leans with the wind as
+            /// its mesh does and the hand-off doesn't jump.</summary>
+            public GraphicsBuffer SwayBuffer;
             /// <summary>The next slice to bake; the bake is done at Baked.Length.</summary>
             public int Next;
             public int BakeFrames;
@@ -85,6 +92,8 @@ namespace Punchy.Flora
                 Albedo = Data = null;
                 SliceBuffer?.Release();
                 SliceBuffer = null;
+                SwayBuffer?.Release();
+                SwayBuffer = null;
                 ImpostorBytes -= Bytes;
                 Bytes = 0;
             }
@@ -151,6 +160,11 @@ namespace Punchy.Flora
             atlas.Data = ImpostorTarget($"Flora impostors {layer.Index} (data)", size, mips, atlas.Baked.Length);
             atlas.SliceBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, layer.ModelCount, sizeof(int));
             atlas.SliceBuffer.SetData(slices);
+            var sway = new float[layer.ModelCount];
+            for (int m = 0; m < layer.ModelCount; m++)
+                sway[m] = ImpostorSway(models[layer.ModelBase + m]);
+            atlas.SwayBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, layer.ModelCount, sizeof(float));
+            atlas.SwayBuffer.SetData(sway);
             // Both RGBA8, each mip a quarter of the one above.
             long texels = 0;
             for (int m = 0; m < mips; m++)
@@ -158,6 +172,16 @@ namespace Punchy.Flora
             atlas.Bytes = texels * 4 * 2 * atlas.Baked.Length;
             ImpostorBytes += atlas.Bytes;
             layer.Impostors = atlas;
+        }
+
+        /// <summary>A model's wind sway at its bounding sphere's centre: what FloraMeshBuilder.Sway gives a vertex at that
+        /// height (0 for a model that never moves, and for built things, which stand rigid).</summary>
+        static float ImpostorSway(FloraModel model)
+        {
+            var form = model.Species.Form;
+            if (model.Static || (FloraGenerator.Founded(form) && form != FloraForm.Garden))
+                return 0f;
+            return model.Species.Flexibility * math.pow(math.saturate(model.CentreY / math.max(model.Height, 0.01f)), 1.6f);
         }
 
         static RenderTexture ImpostorTarget(string name, int size, int mips, int slices)
@@ -267,8 +291,10 @@ namespace Punchy.Flora
             atlas.Material.SetTexture(ImpostorDataId, atlas.Data);
             atlas.Material.SetFloat(ImpostorFramesId, atlas.Frames);
             atlas.Material.SetFloat(ImpostorFullId, atlas.Full ? 1f : 0f);
+            atlas.Material.SetFloat(ImpostorPixelsId, atlas.Pixels);
             atlas.Material.SetInteger(ImpostorModelBaseId, layer.ModelBase);
             atlas.Material.SetBuffer(ImpostorSliceId, atlas.SliceBuffer);
+            atlas.Material.SetBuffer(ImpostorSwayId, atlas.SwayBuffer);
             SetImpostorBuffers(layer);
             // A model without a slice keeps reach 0, so the cull never hands it to the impostor draw.
             for (int m = 0; m < layer.ModelCount; m++)

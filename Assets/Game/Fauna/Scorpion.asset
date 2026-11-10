@@ -25,6 +25,7 @@ MonoBehaviour:
   Coats: []
   Size: {x: 0.9, y: 1.1}
   Weight: 0.02
+  Coat: 4
   Parts:
   - Limb: {fileID: 11400000, guid: 3ecb190472011a641862f4ffbcaca104, type: 2}
     Parent: -1

@@ -98,6 +98,15 @@ float2 PunchySwellOnshore(float2 xz)
     return lerp(lerp(h00, h10, f.x), lerp(h01, h11, f.x), f.y);
 }
 
+// Item 32: xy the way the wind blows (unit xz, followed slowly by WaterSwells), z how far it turns the swell from onshore.
+float4 _PunchySwellWind;
+
+// The way the swell runs at xz: onshore, turned towards downwind by a strong wind (as WaterSwells.Heading).
+float2 PunchySwellHeading(float2 xz)
+{
+    return lerp(PunchySwellOnshore(xz), _PunchySwellWind.xy, _PunchySwellWind.z);
+}
+
 struct PunchySwellResult
 {
     float3 offset;   // how far the surface point moves (m)
@@ -119,7 +128,7 @@ PunchySwellResult PunchySwell(float2 xz, float t, float amount, float depth, flo
     float height = PunchySwellHeight() * amount * (1 + _PunchySwellMix.z * shoal) * (1 + _PunchySwellMix.y * (2 * group - 1));
     height = min(height, _PunchySwellLimits.x * depth);
     float q = _PunchySwellShape.z * (1 + _PunchySwellMix.w * shoal);
-    float2 on = PunchySwellOnshore(xz);
+    float2 on = PunchySwellHeading(xz);
     float sectors = _PunchySwellMix.x;
     float f = atan2(on.y, on.x) * sectors / 6.2831853;
     float s0 = floor(f);

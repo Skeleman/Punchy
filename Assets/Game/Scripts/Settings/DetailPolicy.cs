@@ -212,6 +212,13 @@ namespace Punchy.Settings
             public int Geometry => Packed & 3;
             public int Animation => (Packed >> 2) & 3;
             public bool Shadow => (Packed & 16) != 0;
+            /// <summary>A-97, creatures: the fur tier (0 long fur shown, 1 medium at most, 2 short only and no shells)
+            /// in bits 5-6, and whether the feet are fitted to the ground in bit 7. (A real decision tops out at 223, so
+            /// never reads as None.)</summary>
+            public int Fur => (Packed >> 5) & 3;
+            public bool Feet => (Packed & 128) != 0;
+            public Decision With(int fur, bool feet)
+                => new Decision { Packed = (byte)((Packed & 31) | math.min(fur, 2) << 5 | (feet ? 128 : 0)) };
             /// <summary>No decision yet (first seen): tiers start from scratch.</summary>
             public bool None => Packed == 255;
             public static Decision First => new Decision { Packed = 255 };
@@ -252,6 +259,19 @@ namespace Punchy.Settings
             SharpShadow = 14f,
             Activity = 0.5f
         };
+
+        /// <summary>
+        /// A-97: a creature's fur by how big the fur itself looks (tiers as Decision.Fur). Its strands and shells are the
+        /// same few millimetres on a squirrel as on a bear, so the size given is 1 m (CreatureFurSize), not the body:
+        /// long fur within 5 m and shells within 7 m (A-92's fixed range) at the reference view, nearer at a lower
+        /// Detail, further through a zoom.
+        /// </summary>
+        public static readonly Thresholds CreatureFur = new Thresholds(187.1f, 133.6f, 0f);
+        public const float CreatureFurSize = 1f;
+
+        /// <summary>A-97: a creature's feet fitted to the ground (each foot reaching for it, tipped with it) while it looks
+        /// at least this big, reference pixels: a wolf (0.92 m) inside 40 m at the reference view, as the old fixed range.</summary>
+        public const float CreatureFeetPixels = 21.5f;
 
         /// <summary>
         /// R-5: any shadow-casting mesh in the scene that isn't flora or a creature the fauna system draws (the colossi,
@@ -344,9 +364,10 @@ namespace Punchy.Settings
                 // (SharpShadow, 3.7 step 3: a 20 m tree keeps the old 25 m real-time range at High, so a forest casts no
                 // more; only giants reach past it. Built things and big rocks reach out with their size: at High a 12 m
                 // hall casts sharp to about 40 m, past where a bush stops, and a 20 m one to the cascades' end.)
-                case FloraClass.Tree: return new Rule { Geometry = new Thresholds(395f, 98f, 0f), Shadow = 14f, SharpShadow = 1050f, WideShadow = Huge.WideShadow };
+                case FloraClass.Tree: return new Rule { Geometry = new Thresholds(395f, 98f, 0f), Shadow = 14f, SharpShadow = 1050f, WideShadow = Huge.WideShadow, Impostor = 30f };
                 case FloraClass.Plant: return new Rule { Geometry = new Thresholds(46f, 13f, 0f), Shadow = 45f, SharpShadow = float.MaxValue, Impostor = 9f };
-                // Rocks only change mesh, and stay to the layer's edge.
+                // Rocks only change mesh, and stay to the layer's edge. No impostor: a rock's coarsest mesh is already
+                // cheaper than the impostor quad (R-11 measured +0.1-0.25 ms at High in a mesa, for 110 MB more atlas).
                 case FloraClass.Rock: return new Rule { Geometry = new Thresholds(120f, 32f, 0f), Shadow = 45f, SharpShadow = 400f };
                 // Logs, stumps, benches, eggs: gone once they're a few pixels.
                 case FloraClass.Debris: return new Rule { Geometry = new Thresholds(70f, 18f, 12f), Shadow = 55f, SharpShadow = float.MaxValue };

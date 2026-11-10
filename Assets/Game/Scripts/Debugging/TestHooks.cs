@@ -224,7 +224,7 @@ namespace Punchy.Debugging
         {
             var archive = DialogueArchive.Current;
             if (archive == null || !archive.Cultures.TryGetValue("Any", out var any))
-                return new float[5];
+                return new float[6];
             var anyLines = Templates(any);
             var rng = new Unity.Mathematics.Random(97u);
             int cultures = 0, picks = 0, unfilled = 0, fromAny = 0;
@@ -266,6 +266,370 @@ namespace Punchy.Debugging
         }
 
         public static string WorstAnyCulture;
+
+        /// <summary>
+        /// A digest of n folk personas (A-93), each trait quantised to 1/256, individuals spread as spawns spread them:
+        /// the same on every run. Its bands are in PersonaBands.
+        /// </summary>
+        public static string PersonaDigest(int n)
+        {
+            var h = 2166136261u;
+            for (int i = 0; i < n; i++)
+            {
+                var p = FolkPersona.Of(PersonaIndividual(i));
+                for (int t = 0; t < FolkPersona.Count; t++)
+                    h = (h ^ (uint)(int)math.floor(p[(PersonaTrait)t] * 256f)) * 16777619u;
+            }
+            return h.ToString("X8");
+        }
+
+        static uint PersonaIndividual(int i) => (uint)i * 2654435761u + 12345u;
+
+        /// <summary>
+        /// Over n personas: per trait the share in its high band and its low band ([high0, low0, high1, low1, ...]), then
+        /// the share whose mood band disagrees with FolkJobs.Mood (should be 0: the talk and the walk-by lines agree).
+        /// </summary>
+        public static float[] PersonaBands(int n)
+        {
+            var r = new float[FolkPersona.Count * 2 + 1];
+            for (int i = 0; i < n; i++)
+            {
+                var ind = PersonaIndividual(i);
+                var p = FolkPersona.Of(ind);
+                for (int t = 0; t < FolkPersona.Count; t++)
+                {
+                    var b = p.Band((PersonaTrait)t);
+                    if (b == 2) r[t * 2] += 1f / n;
+                    if (b == 0) r[t * 2 + 1] += 1f / n;
+                }
+                if (p.MoodBand != FolkJobs.Mood(ind))
+                    r[FolkPersona.Count * 2] += 1f / n;
+            }
+            return r;
+        }
+
+        /// <summary>
+        /// Every topic asked of made-up folk of every culture in dialogue.json (and of no culture), many individuals, at
+        /// all hours, in every condition, with and without a home and a job, to a player of playerSpecies (null: its own
+        /// kind; beast: an animal player). [cultures, answers, empty answers, unfilled {slots}, exceptions, help answers
+        /// offering a quest, quests with no id]. The first exception's message is in SweepError.
+        /// </summary>
+        public static float[] ConversationSweep(string playerSpecies, bool beast)
+        {
+            SweepError = null;
+            FolkConversation.ForgetAsks();
+            var cultures = new List<string> { null };
+            var archive = DialogueArchive.Current;
+            if (archive != null)
+                cultures.AddRange(archive.Cultures.Keys);
+            int answers = 0, empty = 0, unfilled = 0, errors = 0, quests = 0, noId = 0;
+            var conditions = new[] { FolkCondition.None, FolkCondition.Tired | FolkCondition.Night, FolkCondition.Busy, FolkCondition.Hungry,
+                                     FolkCondition.Thirsty, FolkCondition.Lonely, FolkCondition.Scared, FolkCondition.Weather };
+            var stances = (FolkStance[])System.Enum.GetValues(typeof(FolkStance));
+            foreach (var culture in cultures)
+                for (int i = 0; i < 24; i++)
+                {
+                    var ind = PersonaIndividual(i);
+                    var cond = conditions[i % conditions.Length];
+                    var who = new FolkTalker
+                    {
+                        Species = culture,
+                        Job = i % 3 == 0 ? null : "Smith",
+                        HomeTown = i % 2 == 0 ? "Testford" : null,
+                        PlayerSpecies = playerSpecies,
+                        Beast = beast,
+                        Individual = ind,
+                        Persona = FolkPersona.Of(ind),
+                        State = new FolkState { Flags = cond, Weather = cond == FolkCondition.Weather ? ComfortKind.Rain : ComfortKind.None, Hour = (i * 5) % 24 },
+                        Stance = stances[i % stances.Length],
+                    };
+                    try
+                    {
+                        var topics = FolkConversation.Topics(who);
+                        // (Every topic, then favours again until it's pestered.)
+                        foreach (var t in topics)
+                            Count(FolkConversation.Ask(who, t.Id));
+                        foreach (var (id, _) in FolkConversation.AllTopics)
+                            Count(FolkConversation.Ask(who, id));
+                        for (int k = 0; k < 3; k++)
+                            Count(FolkConversation.Ask(who, FolkConversation.Favour));
+                    }
+                    catch (System.Exception e)
+                    {
+                        errors++;
+                        SweepError ??= $"{culture ?? "(none)"} #{i}: {e}";
+                    }
+                }
+            FolkConversation.ForgetAsks();
+            return new float[] { cultures.Count, answers, empty, unfilled, errors, quests, noId };
+
+            void Count(Answer a)
+            {
+                answers++;
+                if (string.IsNullOrEmpty(a.Text) || a.Text == "...")
+                    empty++;
+                if (a.Text != null && (a.Text.IndexOf('{') >= 0 || a.Text.IndexOf('}') >= 0))
+                    unfilled++;
+                if (a.Offer.Kind == OfferKind.Quest)
+                {
+                    quests++;
+                    if (string.IsNullOrEmpty(a.Offer.Id))
+                        noId++;
+                }
+            }
+        }
+
+        public static string SweepError;
+
+        /// <summary>
+        /// One made-up town of n folk of a culture (a village's mix of jobs, most folk at ease, a few busy, tired, hungry or
+        /// cold), each asked every topic in topics (comma separated), to a player of its own kind: [folk whose answers
+        /// differ from every other's, folk, distinct lines over all topics, then distinct lines per topic]. TownTalkText:
+        /// the first dump folk, persona and answers.
+        /// </summary>
+        public static float[] TownTalk(string culture, int n, string topics, int dump)
+        {
+            FolkConversation.ForgetAsks();
+            var ids = topics.Split(',');
+            var jobs = new[] { "Farmer", "Baker", null, "Smith", "Guard", "Herder", "Healer", null, "Trader", "Fisher" };
+            var conditions = new[] { FolkCondition.None, FolkCondition.None, FolkCondition.Busy, FolkCondition.None, FolkCondition.Tired,
+                                     FolkCondition.None, FolkCondition.Hungry, FolkCondition.Weather, FolkCondition.None, FolkCondition.Lonely };
+            var perTopic = new HashSet<string>[ids.Length];
+            for (int t = 0; t < ids.Length; t++)
+                perTopic[t] = new HashSet<string>();
+            var all = new HashSet<string>();
+            var sets = new List<string>();
+            var sb = new System.Text.StringBuilder();
+            for (int i = 0; i < n; i++)
+            {
+                var ind = PersonaIndividual(1000 + i);
+                var cond = conditions[i % conditions.Length];
+                var who = new FolkTalker
+                {
+                    Species = culture,
+                    Job = jobs[i % jobs.Length],
+                    HomeTown = "Millfield",
+                    Individual = ind,
+                    Persona = FolkPersona.Of(ind),
+                    State = new FolkState { Flags = cond, Weather = cond == FolkCondition.Weather ? ComfortKind.Cold : ComfortKind.None, Hour = 10f + i % 8 },
+                };
+                if (i < dump)
+                    sb.Append($"{culture} #{ind:X8} {who.Job ?? "-"} | {who.Persona} | {who.State}\n");
+                var set = new System.Text.StringBuilder();
+                for (int t = 0; t < ids.Length; t++)
+                {
+                    var a = FolkConversation.Ask(who, ids[t]);
+                    perTopic[t].Add(a.Text);
+                    all.Add(a.Text);
+                    set.Append(a.Text).Append('|');
+                    if (i < dump)
+                        sb.Append("  ").Append(a).Append('\n');
+                }
+                sets.Add(set.ToString());
+            }
+            FolkConversation.ForgetAsks();
+            TownTalkText = sb.ToString();
+            var unique = 0;
+            foreach (var s in sets)
+                if (sets.FindAll(o => o == s).Count == 1)
+                    unique++;
+            var r = new List<float> { unique, n, all.Count };
+            foreach (var p in perTopic)
+                r.Add(p.Count);
+            return r.ToArray();
+        }
+
+        public static string TownTalkText;
+
+        /// <summary>
+        /// A-93 row 3: n made-up folk (Human, every persona, a few wary, annoyed, warm or kin) met by an animal of each
+        /// group in groups (comma separated, as FolkConversation.GroupOf names them): per group, how many took it each
+        /// way, by BeastReaction (None, Pet, Puzzled, Wary, Scared, Repelled, Awed). BeastMeetText: the group each live
+        /// animal species is in, every distinct line per group with its reaction and response, then the first dump folk
+        /// met as each group.
+        /// </summary>
+        public static float[] BeastMeet(string groups, int n, int dump)
+        {
+            var ids = groups.Split(',');
+            var reactions = System.Enum.GetValues(typeof(BeastReaction)).Length;
+            var r = new float[ids.Length * reactions];
+            var sb = new System.Text.StringBuilder();
+            var director = Object.FindAnyObjectByType<FaunaDirector>();
+            if (director != null)
+            {
+                sb.Append("groups:");
+                for (int i = 0; i < director.SpeciesCount; i++)
+                {
+                    var sp = director.SpeciesAt(i);
+                    if (sp != null && !sp.Body.Upright)
+                        sb.Append(' ').Append(sp.name).Append('=').Append(FolkConversation.GroupOf(sp));
+                }
+                sb.Append('\n');
+            }
+            var lines = new SortedSet<string>();
+            var stances = new[] { FolkStance.Neutral, FolkStance.Neutral, FolkStance.Neutral, FolkStance.Neutral, FolkStance.Wary,
+                                  FolkStance.Neutral, FolkStance.Warm, FolkStance.Neutral, FolkStance.Annoyed, FolkStance.Kin };
+            var dumpText = new System.Text.StringBuilder();
+            for (int i = 0; i < n; i++)
+            {
+                var ind = PersonaIndividual(2000 + i);
+                var who = new FolkTalker
+                {
+                    Species = "Human",
+                    BodySpecies = "Human",
+                    HomeTown = i % 3 == 0 ? null : "Millfield",
+                    Beast = true,
+                    Individual = ind,
+                    Persona = FolkPersona.Of(ind),
+                    State = new FolkState { Hour = 9f + i % 10 },
+                    Stance = stances[i % stances.Length],
+                };
+                if (i < dump)
+                    dumpText.Append($"Human #{ind:X8} | {who.Persona} | stance {who.Stance}\n");
+                for (int g = 0; g < ids.Length; g++)
+                {
+                    who.PlayerGroup = ids[g];
+                    who.PlayerSpecies = ids[g] == "small" ? "Rabbit" : ids[g] == "predator" ? "Wolf" : ids[g] == "livestock" ? "Horse"
+                        : ids[g] == "vermin" ? "Tarantula" : ids[g] == "big" ? "Bison" : ids[g] == "pet" ? "Dog" : "Deer";
+                    var a = FolkConversation.Ask(who, FolkConversation.Meet);
+                    r[g * reactions + (int)a.Reaction]++;
+                    lines.Add($"{ids[g]} {a.Reaction}/{a.Response}: {a.Text}");
+                    if (i < dump)
+                        dumpText.Append("  as ").Append(who.PlayerSpecies).Append(": ").Append(a).Append('\n');
+                }
+            }
+            sb.Append($"{lines.Count} distinct lines\n");
+            foreach (var l in lines)
+                sb.Append("  ").Append(l).Append('\n');
+            sb.Append(dumpText);
+            BeastMeetText = sb.ToString();
+            return r;
+        }
+
+        public static string BeastMeetText;
+
+        /// <summary>
+        /// A-93 row 3: the live folk nearest the player sent off with a beast response (Flee, BackOff, Approach) as if the
+        /// player were an animal right there: [its Individual, 1 if FolkConversation.Respond took it]. FolkMode then
+        /// tells how its brain took it.
+        /// </summary>
+        public static float[] BeastRespond(string response)
+        {
+            var world = World.DefaultGameObjectInjectionWorld;
+            var at = (float3)PlayerPosition();
+            using var q = EM.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
+            using var entities = q.ToEntityArray(Allocator.Temp);
+            var best = Entity.Null;
+            var bestD = float.MaxValue;
+            foreach (var e in entities)
+            {
+                var d = math.distance(EM.GetComponentData<CreatureState>(e).Position, at);
+                if (d < bestD && FolkConversation.TryTalker(world, e, null, out _))
+                {
+                    best = e;
+                    bestD = d;
+                }
+            }
+            if (best == Entity.Null || !System.Enum.TryParse(response, true, out BeastResponse kind))
+                return new float[] { 0f, 0f };
+            var s = EM.GetComponentData<CreatureState>(best);
+            // (The "animal" stands 3 m off it, toward the player.)
+            var from = s.Position + math.normalizesafe(at - s.Position, new float3(1f, 0f, 0f)) * 3f;
+            var ok = FolkConversation.Respond(best, new Answer { Reaction = BeastReaction.Scared, Response = kind }, from);
+            BeastRespondFolk = s.Individual;
+            return new float[] { s.Individual, ok ? 1f : 0f };
+        }
+
+        public static uint BeastRespondFolk;
+
+        /// <summary>The mode and distance from the player (m) of the folk BeastRespond sent off ("Flee 12.3"), or "" if gone.</summary>
+        public static string FolkMode()
+        {
+            using var q = EM.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>());
+            using var entities = q.ToEntityArray(Allocator.Temp);
+            foreach (var e in entities)
+            {
+                var s = EM.GetComponentData<CreatureState>(e);
+                if (s.Individual == BeastRespondFolk)
+                    return System.FormattableString.Invariant($"{s.Mode} {math.distance(s.Position, (float3)PlayerPosition()):F1}");
+            }
+            return "";
+        }
+
+        static uint beastLiveFolk;
+
+        /// <summary>
+        /// A-93 row 3 shots: the same live folk (the talker nearest the player on the first call after first = true) met by
+        /// the player's body now: the player put 2.5 m in front of it (facing it), and its answer to topic (meet for an
+        /// animal body; a human gets who). Returns [folk x, y, z, head height, player x, z], or empty if no folk;
+        /// BeastLiveText: "Body: answer".
+        /// </summary>
+        public static float[] BeastLive(bool first)
+        {
+            var world = World.DefaultGameObjectInjectionWorld;
+            var at = (float3)PlayerPosition();
+            using var q = EM.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
+            using var entities = q.ToEntityArray(Allocator.Temp);
+            var best = Entity.Null;
+            var bestD = float.MaxValue;
+            foreach (var e in entities)
+            {
+                var st = EM.GetComponentData<CreatureState>(e);
+                var d = first ? math.distance(st.Position, at) : st.Individual == beastLiveFolk ? 0f : float.MaxValue;
+                if (d < bestD && FolkConversation.TryTalker(world, e, null, out _))
+                {
+                    best = e;
+                    bestD = d;
+                }
+            }
+            if (best == Entity.Null)
+                return new float[0];
+            var s = EM.GetComponentData<CreatureState>(best);
+            beastLiveFolk = s.Individual;
+            FolkConversation.TryTalker(world, best, null, out var who);
+            var a = FolkConversation.Ask(who, who.Beast ? FolkConversation.Meet : FolkConversation.Who);
+            var director = Object.FindAnyObjectByType<FaunaDirector>();
+            BeastLiveText = $"{(director != null && director.PlayerSpecies != null ? director.PlayerSpecies.name : "?")}: {a}";
+            var ahead = math.normalizesafe(new float3(math.sin(s.Yaw), 0f, math.cos(s.Yaw)), new float3(0f, 0f, 1f));
+            var spot = s.Position + ahead * 2.5f;
+            MovePlayer(spot.x - at.x, spot.z - at.z);
+            var height = EM.GetComponentData<CreatureBody>(best).Blob.Value.StandHeight * s.Scale;
+            return new float[] { s.Position.x, s.Position.y, s.Position.z, height, spot.x, spot.z };
+        }
+
+        public static string BeastLiveText;
+
+        /// <summary>
+        /// Talks to up to n live folk near the player (the real entity path: persona, condition, home town, stance): one
+        /// line per folk with its persona and condition, then each topic's answer. Empty when no folk is near.
+        /// </summary>
+        public static string TalkToFolk(int n)
+        {
+            var sb = new System.Text.StringBuilder();
+            var world = World.DefaultGameObjectInjectionWorld;
+            var at = PlayerPosition();
+            using var q = EM.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
+            using var entities = q.ToEntityArray(Allocator.Temp);
+            var near = new List<(float, Entity)>();
+            foreach (var e in entities)
+            {
+                var s = EM.GetComponentData<CreatureState>(e);
+                var d = math.distance(s.Position, (float3)at);
+                if (d < 200f && FolkConversation.TryTalker(world, e, null, out _))
+                    near.Add((d, e));
+            }
+            near.Sort((a, b) => a.Item1.CompareTo(b.Item1));
+            for (int k = 0; k < near.Count && k < n; k++)
+            {
+                if (!FolkConversation.TryTalker(world, near[k].Item2, null, out var who))
+                    continue;
+                sb.Append($"{who.Species} #{who.Individual:X8} job {who.Job ?? who.Trade ?? "-"} town {who.HomeTown ?? "-"} stance {who.Stance}\n  {who.Persona}\n  state {who.State} hour {who.State.Hour:F1}\n");
+                foreach (var t in FolkConversation.Topics(near[k].Item2))
+                    sb.Append("  ").Append(FolkConversation.Ask(near[k].Item2, t.Id)).Append('\n');
+            }
+            FolkConversation.ForgetAsks();
+            return sb.ToString();
+        }
 
         /// <summary>
         /// A-69: dry land where a biome is the dominant one, sampled every 32 m over the island: [km², cells, then the
@@ -690,6 +1054,258 @@ namespace Punchy.Debugging
             t.Position = new float3(xz.x, source.SampleHeight(xz), xz.y);
             EM.SetComponentData(e, t);
             return true;
+        }
+
+        // ------------------------------------------------------------------------------- A-92 row 1: lying legs (#231)
+
+        /// <summary>A-92 row 1: a dry spot within radius of the player whose ground slope (rise over run) is nearest the
+        /// one asked for (0: the flattest): [x, z, its slope, the downhill heading (radians)].</summary>
+        public static float[] SlopeSpot(float slope, float radius)
+        {
+            if (!Source(out var source))
+                return new float[] { 0f, 0f, -1f, 0f };
+            var from = ((float3)PlayerPosition()).xz;
+            var best = new float[] { from.x, from.y, -1f, 0f };
+            var bestMiss = float.MaxValue;
+            for (float x = -radius; x <= radius; x += 3f)
+                for (float z = -radius; z <= radius; z += 3f)
+                {
+                    var at = from + new float2(x, z);
+                    var g = source.SampleGround(at);
+                    if (g.HasWater && g.WaterSurface > g.Height - 0.5f)
+                        continue;
+                    var grad = new float2(source.SampleHeight(at + new float2(1f, 0f)) - source.SampleHeight(at - new float2(1f, 0f)),
+                                          source.SampleHeight(at + new float2(0f, 1f)) - source.SampleHeight(at - new float2(0f, 1f))) * 0.5f;
+                    // (Even ground across the body's length, not a ledge: the slope a metre either way is much the same.)
+                    var far = new float2(source.SampleHeight(at + new float2(2f, 0f)) - source.SampleHeight(at - new float2(2f, 0f)),
+                                         source.SampleHeight(at + new float2(0f, 2f)) - source.SampleHeight(at - new float2(0f, 2f))) * 0.25f;
+                    var miss = math.abs(math.length(grad) - slope) + math.length(far - grad);
+                    if (miss < bestMiss)
+                    {
+                        bestMiss = miss;
+                        best = new[] { at.x, at.y, math.length(grad), math.atan2(-grad.x, -grad.y) };
+                    }
+                }
+            return best;
+        }
+
+        /// <summary>
+        /// A-92 row 1: every land species that lies down (four-legged, not upright, not a flier or swimmer) posed lying at
+        /// x, z by CreatureAnimator.Evaluate, at lie weights 0.3 to 1 and four headings: one line per species,
+        /// "name clearance where", the lowest any leg segment comes to the ground (m, less its radius; negative: into it).
+        /// </summary>
+        public static string LieClearance(float x, float z)
+        {
+            var director = Object.FindAnyObjectByType<FaunaDirector>();
+            if (director == null || !Source(out var source))
+                return "";
+            var lines = new System.Text.StringBuilder();
+            var seen = new HashSet<string>();
+            for (int i = 0; i < director.SpeciesCount; i++)
+            {
+                var sp = director.SpeciesAt(i);
+                if (sp == null || !seen.Add(sp.name))
+                    continue;
+                var blob = CreatureBlobBuilder.Build(sp);
+                ref var b = ref blob.Value;
+                var legs = 0;
+                for (int p = 0; p < b.Parts.Length; p++)
+                    if (b.Parts[p].Role == LimbRole.Leg && b.Parts[p].Parent < 0)
+                        legs++;
+                if (b.Upright || legs < 4 || b.Habitat != Habitat.Land || b.Tunnels)
+                {
+                    blob.Dispose();
+                    continue;
+                }
+                var output = new NativeArray<SegmentInstance>(b.Segments.Length, Allocator.Temp);
+                var low = float.MaxValue;
+                var worst = "";
+                foreach (var lie in new[] { 0.3f, 0.5f, 0.7f, 0.85f, 1f })
+                    for (int k = 0; k < 4; k++)
+                    {
+                        var s = new CreatureState
+                        {
+                            Position = new float3(x, source.SampleHeight(new float2(x, z)), z),
+                            Yaw = k * math.PI / 2f, Scale = 1f, Mode = CreatureMode.Rest, Lie = lie, Clock = 1f
+                        };
+                        CreatureAnimator.Evaluate(ref b, in s, 0, in source, output, 0);
+                        for (int p = 0; p < b.Parts.Length; p++)
+                        {
+                            ref var part = ref b.Parts[p];
+                            if (part.Role != LimbRole.Leg || part.Parent >= 0)
+                                continue;
+                            for (int j = 0; j < part.SegmentCount; j++)
+                            {
+                                var g = output[part.FirstSegment + j];
+                                if (g.Length <= 0f && g.RadiusStart <= 0f)
+                                    continue;
+                                var end = g.Position + math.mul(g.Rotation, new float3(0f, 0f, g.Length));
+                                for (float t = 0f; t <= 1.001f; t += 0.25f)
+                                {
+                                    var at = math.lerp(g.Position, end, t);
+                                    var r = math.lerp(g.RadiusStart, g.RadiusEnd, t) * g.Flatten;
+                                    var clear = at.y - r - source.SampleHeight(at.xz);
+                                    if (clear < low)
+                                    {
+                                        low = clear;
+                                        worst = $"lie{lie:0.00}/yaw{k}/leg{p}.{j}";
+                                    }
+                                }
+                            }
+                        }
+                    }
+                lines.Append(sp.name).Append(' ').Append(low.ToString("0.000")).Append(' ').Append(worst).Append('\n');
+                output.Dispose();
+                blob.Dispose();
+            }
+            return lines.ToString();
+        }
+
+        /// <summary>A-92 row 1: the local player sat (1) or laid (2) down as the interact button would, or got up (0).</summary>
+        public static bool RestPlayer(int how)
+        {
+            var input = World.DefaultGameObjectInjectionWorld.GetExistingSystemManaged<InteractionInputSystem>();
+            if (input == null)
+                return false;
+            input.Rest = how == 1 ? IdleAction.SitDown : how == 2 ? IdleAction.LieBack : IdleAction.None;
+            return true;
+        }
+
+        /// <summary>A-92 row 1: the local player's body now: [lie, sit, x, z, speed (m/s), yaw, ground height], or empty if there's none.</summary>
+        public static float[] AvatarPose()
+        {
+            using var q = EM.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<PlayerAvatar>());
+            if (!q.TryGetSingleton<CreatureState>(out var s))
+                return new float[0];
+            return new[] { s.Lie, s.Sit, s.Position.x, s.Position.z, s.Speed, s.Yaw, Source(out var source) ? source.SampleHeight(s.Position.xz) : s.Position.y };
+        }
+
+        /// <summary>A-92 row 1: the stick held this way (world XZ, its length how far it's pushed) while on, as
+        /// PlayerInputSystem.TestMove; off lets go.</summary>
+        public static void HoldMove(float x, float z, bool on) => PlayerInputSystem.TestMove = on ? new float2(x, z) : null;
+
+        static readonly Dictionary<Entity, float3> lastAt = new();
+        static double lastAtTime;
+
+        static int Legs(ref CreatureBlob b)
+        {
+            var legs = 0;
+            for (int p = 0; p < b.Parts.Length; p++)
+                if (b.Parts[p].Role == LimbRole.Leg && b.Parts[p].Parent < 0)
+                    legs++;
+            return legs;
+        }
+
+        /// <summary>A-92 row 1: of the four-legged creatures (not the player's) still half down (lie or sit over 0.3) now
+        /// and at the last call, how many there are and the fastest one's ground speed since then (m/s): [count, speed].
+        /// The first call only takes positions.</summary>
+        public static float[] LyingDrag()
+        {
+            using var q = EM.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>(),
+                ComponentType.Exclude<PlayerAvatar>());
+            using var entities = q.ToEntityArray(Allocator.Temp);
+            using var states = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
+            using var bodies = q.ToComponentDataArray<CreatureBody>(Allocator.Temp);
+            var dt = (float)(Time.timeAsDouble - lastAtTime);
+            lastAtTime = Time.timeAsDouble;
+            var was = new Dictionary<Entity, float3>(lastAt);
+            lastAt.Clear();
+            int count = 0;
+            var fastest = 0f;
+            var who = "";
+            for (int i = 0; i < states.Length; i++)
+            {
+                ref var b = ref bodies[i].Blob.Value;
+                if (b.Upright || math.max(states[i].Lie, states[i].Sit) <= 0.3f || states[i].Mode == CreatureMode.Held ||
+                    b.Habitat == Habitat.Swims || b.Habitat == Habitat.Floats || b.Habitat == Habitat.Flies || states[i].Fly > 0.5f || Legs(ref b) < 4)
+                    continue;
+                lastAt[entities[i]] = states[i].Position;
+                if (dt > 1e-4f && was.TryGetValue(entities[i], out var p))
+                {
+                    count++;
+                    var v = math.distance(p.xz, states[i].Position.xz) / dt;
+                    if (v > fastest)
+                    {
+                        fastest = v;
+                        var director = Object.FindAnyObjectByType<FaunaDirector>();
+                        var sp = director != null ? director.SpeciesAt(bodies[i].Species) : null;
+                        who = $"{(sp != null ? sp.name : bodies[i].Species.ToString())} lie {states[i].Lie:F2} sit {states[i].Sit:F2} " +
+                              $"speed {states[i].Speed:F2} mode {states[i].Mode} moved {v * dt:F2} m";
+                    }
+                }
+            }
+            if (fastest > 0.15f)
+                Debug.Log($"LyingDrag: {fastest:F3} m/s, {who}");
+            return new float[] { count, fastest };
+        }
+
+        /// <summary>
+        /// A-92 row 2: a bench at a graphics preset ("High"), uncapped (no frame cap, no vsync). Returns what BenchEnd
+        /// puts back (the three sliders, the frame cap and vsync), since setting a preset saves it for this machine.
+        /// </summary>
+        public static string BenchStart(string preset)
+        {
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            var was = string.Join(",", Punchy.Settings.GraphicsSettings.View.ToString(inv), Punchy.Settings.GraphicsSettings.Detail.ToString(inv),
+                                  Punchy.Settings.GraphicsSettings.Shadows.ToString(inv), Application.targetFrameRate.ToString(inv), QualitySettings.vSyncCount.ToString(inv));
+            Punchy.Settings.GraphicsSettings.Set((Punchy.Settings.GraphicsPreset)System.Enum.Parse(typeof(Punchy.Settings.GraphicsPreset), preset));
+            Application.targetFrameRate = -1;
+            QualitySettings.vSyncCount = 0;
+            return was;
+        }
+
+        /// <summary>A-92 row 2: puts back what BenchStart changed.</summary>
+        public static void BenchEnd(string was)
+        {
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            var v = was.Split(',');
+            if (v.Length < 5)
+                return;
+            Punchy.Settings.GraphicsSettings.Set(float.Parse(v[0], inv), float.Parse(v[1], inv), float.Parse(v[2], inv));
+            Application.targetFrameRate = int.Parse(v[3], inv);
+            QualitySettings.vSyncCount = int.Parse(v[4], inv);
+        }
+
+        /// <summary>A-92 row 2: the creature pose job's median frame (ms summed over the workers) since the last call that cleared it.</summary>
+        public static float PoseMedian(bool clear)
+        {
+            var ms = CreatureRenderSystem.PoseMs.ToArray();
+            if (clear)
+                CreatureRenderSystem.PoseMs.Clear();
+            System.Array.Sort(ms);
+            return ms.Length > 0 ? (float)ms[ms.Length / 2] : 0f;
+        }
+
+        /// <summary>
+        /// A-92 row 2: a herd of one species within radius of (x, z), wherever it has wandered: { count, centre x, centre
+        /// y, centre z, how far out four in five of it stand, the farthest }, to frame the herd for a bench.
+        /// </summary>
+        public static float[] HerdAround(string name, float x, float z, float radius)
+        {
+            var director = Object.FindAnyObjectByType<FaunaDirector>();
+            var index = director != null ? director.SpeciesIndex(name) : -1;
+            if (index < 0)
+                return new float[6];
+            using var q = EM.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
+            using var states = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
+            using var bodies = q.ToComponentDataArray<CreatureBody>(Allocator.Temp);
+            var from = new float2(x, z);
+            var sum = float3.zero;
+            var members = new System.Collections.Generic.List<float3>();
+            for (int i = 0; i < states.Length; i++)
+                if (bodies[i].Species == index && states[i].Mode != CreatureMode.Puppet && math.distance(states[i].Position.xz, from) <= radius)
+                {
+                    members.Add(states[i].Position);
+                    sum += states[i].Position;
+                }
+            if (members.Count == 0)
+                return new float[6];
+            var centre = sum / members.Count;
+            var spread = new float[members.Count];
+            for (int i = 0; i < members.Count; i++)
+                spread[i] = math.distance(members[i].xz, centre.xz);
+            System.Array.Sort(spread);
+            return new float[] { members.Count, centre.x, centre.y, centre.z, spread[(int)(spread.Length * 0.8f)], spread[spread.Length - 1] };
         }
     }
 }

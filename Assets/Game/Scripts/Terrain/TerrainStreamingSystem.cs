@@ -135,6 +135,7 @@ namespace Punchy.Terrain
                 Object.Destroy(chunk.WaterMesh);
             }
             ClearWaterRegions(true);
+            DestroyFarMeshes();
             foreach (var pooled in meshPool)
                 Object.Destroy(pooled.mesh);
             loaded.Clear();
@@ -184,6 +185,7 @@ namespace Punchy.Terrain
             Shader.SetGlobalFloat(DetailPpmId, MicroReach
                 ? Punchy.Settings.DetailPolicy.Current.Data.PixelsPerMetre * Punchy.Settings.GraphicsSettings.Detail : -1f);
             RefreshWaterRegions(focus, config.ChunkSize);
+            UpdateFarRing(config, source, focus);
 
             // The focus's speed since the last batch started (batches can be frames apart), smoothed over about half a
             // second (a teleport reads as briefly fast).
@@ -281,6 +283,7 @@ namespace Punchy.Terrain
             var reach = (config.ViewRadiusChunks + 1.5f) * config.ChunkSize;
             if (cam != null && cam.farClipPlane < reach)
                 cam.farClipPlane = reach;
+            ApplyFarRing(config, appliedView);
             return config;
         }
 
@@ -291,6 +294,7 @@ namespace Punchy.Terrain
             {
                 CancelBuild();
                 UnloadAll();
+                UnloadAllFarTiles();
                 var material = config.Material.Value;
                 materialId = material != null ? graphics.RegisterMaterial(material) : BatchMaterialID.Null;
                 if (material == null)
@@ -301,6 +305,7 @@ namespace Punchy.Terrain
             else if (!source.Equals(lastSource))
             {
                 CancelBuild();
+                FlagFarTilesForRebuild();
                 // Same layout, new shape: flag every chunk for rebuild. Nearest ones are rebuilt first.
                 scratchCoords.Clear();
                 scratchCoords.AddRange(loaded.Keys);
@@ -325,7 +330,8 @@ namespace Punchy.Terrain
             foreach (var coord in loaded.Keys)
             {
                 var center = ((float2)coord + 0.5f) * config.ChunkSize;
-                if (math.distance(center, focus) > unloadRadius)
+                // (With the far ring on, only once its far tile has taken over: W-131.)
+                if (math.distance(center, focus) > unloadRadius && (farRadius <= 0f || FarTileCovers(coord, focus, config.ChunkSize)))
                     scratchCoords.Add(coord);
             }
 
@@ -503,6 +509,7 @@ namespace Punchy.Terrain
         /// <summary>Abandons the batch being built (settings changed, or shutting down).</summary>
         void CancelBuild()
         {
+            CancelFarBuild();
             if (building.Count == 0)
                 return;
             buildHandle.Complete();
@@ -583,6 +590,7 @@ namespace Punchy.Terrain
             foreach (var region in regions.Values)
                 if (region.Entity != Entity.Null && region.Merged)
                     Sort(region.Entity, true);
+            SortFarTiles(Sort);
             EntityManager.AddComponent<DisableRendering>(toHide.AsArray());
             EntityManager.RemoveComponent<DisableRendering>(toShow.AsArray());
             toHide.Dispose();
