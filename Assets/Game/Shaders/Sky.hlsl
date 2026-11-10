@@ -442,6 +442,7 @@ void PunchyCloudMarch(float3 dir, float2 screenPos, float framePhase, out half3 
     bool allSunSamples = ((uint)_PunchySkyOff & 64u) != 0;
     bool oldLight = ((uint)_PunchySkyOff & 256u) != 0;
     int stepsTaken = 0;
+    float lastOpticalDepth = -1;   // the light samples' last result, reused where a step's light hardly shows
     [loop]
     for (int i = 0; i < maxSteps && t < t1; i++)
     {
@@ -513,12 +514,26 @@ void PunchyCloudMarch(float3 dir, float2 screenPos, float framePhase, out half3 
             // changes). The weights always sum to 1440 m. (-skyoff 64: always four.)
             float mergeFirst = allSunSamples ? 0 : smoothstep(3000, 6000, t);
             float mergeThird = allSunSamples ? 0 : smoothstep(7000, 11000, t);
-            float opticalDepth = PunchyCloudDensityAt(p + lightDir * 360.0, 0) * (270.0 + 90.0 * mergeFirst + 225.0 * mergeThird)
-                               + PunchyCloudDensityAt(p + lightDir * 1440.0, 0) * (630.0 + 225.0 * mergeThird);
-            [branch] if (mergeFirst < 1)
-                opticalDepth += PunchyCloudDensityAt(p + lightDir * 90.0, 0) * 90.0 * (1 - mergeFirst);
-            [branch] if (mergeThird < 1)
-                opticalDepth += PunchyCloudDensityAt(p + lightDir * 810.0, 0) * 450.0 * (1 - mergeThird);
+            // Fewer samples where the light hardly shows (R-8): thin wisps (little density to shade) and cloud deep behind
+            // nearer cloud (little of it reaches the camera) take two, faded in like the distance merge. Below that, a
+            // near-empty step or one almost hidden reuses the last step's light. (-skyoff 64 turns this off too.)
+            [branch] if (!allSunSamples)
+            {
+                float few = max(1 - smoothstep(0.02, 0.12, density), 1 - smoothstep(0.15, 0.4, transmit));
+                mergeFirst = max(mergeFirst, few);
+                mergeThird = max(mergeThird, few);
+            }
+            float opticalDepth = lastOpticalDepth;
+            [branch] if (allSunSamples || lastOpticalDepth < 0 || (density >= 0.015 && transmit >= 0.08))
+            {
+                opticalDepth = PunchyCloudDensityAt(p + lightDir * 360.0, 0) * (270.0 + 90.0 * mergeFirst + 225.0 * mergeThird)
+                             + PunchyCloudDensityAt(p + lightDir * 1440.0, 0) * (630.0 + 225.0 * mergeThird);
+                [branch] if (mergeFirst < 1)
+                    opticalDepth += PunchyCloudDensityAt(p + lightDir * 90.0, 0) * 90.0 * (1 - mergeFirst);
+                [branch] if (mergeThird < 1)
+                    opticalDepth += PunchyCloudDensityAt(p + lightDir * 810.0, 0) * 450.0 * (1 - mergeThird);
+                lastOpticalDepth = opticalDepth;
+            }
             float beer = exp(-opticalDepth * PUNCHY_CLOUD_SIGMA);
             float powder = 1 - exp(-density * 6);   // edges facing the light stay a touch darker
             // Sunlight is far brighter than skylight: sunlit tops glare white, shaded bellies go grey.
