@@ -607,3 +607,18 @@ code, which isn't on main yet. Merge after player/integrate.
   .Lying_LegsStayAboveGround_FlatAndSlope (BoneStag -0.078 m on the slope and others), animal posing that this change
   can't reach; it passed unchanged on the re-run.
 - Windows as sound openings: not done (the card says they can come with P-30; P-30's prototype didn't add any).
+
+## Tools row (11-10, standing order "never idle": tools like a pickaxe, fishing rod, lantern): DONE, `player/tools`
+(on player/clothing)
+- Items appended (ids 30-32): Lantern (hand, Light 8 m, 1.1 kg), Pickaxe (hand, two hands, 2.6 kg), Rod (hand, two
+  hands, line 3 m, 0.7 kg). Meshes and icons in ItemMeshes. Pickaxe and rod are numbers only (no mining or fishing for the
+  player yet); the worn row says "mining" / "fishing".
+- Drawn through the folk's own held items (HeldItem.Lantern, Pickaxe, Rod; no renderer change beyond the light's reach):
+  the lantern lit in the off hand, the pick across the back, the rod in both hands with its line out. The rod also brings
+  the folk fisher's basket at the feet, wherever the player stands: worth its own pose later.
+- Light: the player's lantern reach is ItemDef.Light, as the torch's (one additive line in CreatureRenderSystem.Passes.cs).
+  Measured at dusk: light budget requested 51 -> 52, slots 0 -> 1, dropped 0. Shot: the body lit warm round the lantern.
+- Shots (D:/Unity/shots-tools, human, 20:30, front and side): 6 of 6 `[shot]` lines ready.
+- Suite: 25 passed, 0 failed, 17 skipped in 350s (Unity exit 0).
+- UNVERIFIED: host/client for these three (they ride the existing Hand slot in GearRpc, which row 1 checked).
+- Next: P-29 once P-28 merges (its card says from origin/main after that); more item rows meanwhile.
