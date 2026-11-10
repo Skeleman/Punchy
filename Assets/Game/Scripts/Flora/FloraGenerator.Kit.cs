@@ -142,43 +142,8 @@ namespace Punchy.Flora
                 if (small && g.Lod >= 2)
                     continue;
                 var lit = house && !ruined && p.Piece == Punchy.Terrain.KitPiece.Window && p.Material == Punchy.Terrain.KitMaterial.Opening;
-                var c = Punchy.Terrain.StructureKit.Colour(trim, p.Material);
-                var jitter = ((i * 2654435761u) >> 24) / 255f;                 // a little per-stone variety, the same at every LOD
-                c = Color.Lerp(c * 0.94f, c * 1.08f, jitter);
-                if (p.Piece == Punchy.Terrain.KitPiece.MossCap)
-                {
-                    // W-64 (#24): one ragged, see-through sheet draped over the stone (was a 9 cm box that read as a pad).
-                    b.MossSheet(p.Centre, p.Size, p.Rotation, c, (uint)i * 2654435761u ^ seed);
+                if (!DrawKitPart(g, parts, i, trim, looks, ruined, lit, seed, contacts))
                     continue;
-                }
-                // W-99: planks, shingles or thatch on the folk's timber walls and roofs, fine grain on bare timber.
-                var look = ruined ? Punchy.Terrain.KitSurface.Plain : p.Material == Punchy.Terrain.KitMaterial.Wall ? looks.Wall :
-                           p.Material == Punchy.Terrain.KitMaterial.Roof ? looks.Roof : Punchy.Terrain.KitSurface.Plain;
-                b.Surface = (int)look;
-                b.Wood = p.Material == Punchy.Terrain.KitMaterial.Wood;
-                b.Unfounded = p.Afloat;
-                if (ruined && g.Lod == 0 && p.Piece == Punchy.Terrain.KitPiece.Wall && p.Material == Punchy.Terrain.KitMaterial.Wall)
-                    RuinBricks(b, p, c, seed ^ (uint)i * 0x9E3779B9u);   // W-94 (#80): old coursed blocks up close
-                else if (g.Lod == 0 && p.Piece == Punchy.Terrain.KitPiece.Roof && (look == Punchy.Terrain.KitSurface.Shingles || look == Punchy.Terrain.KitSurface.Thatch))
-                    RoofCourses(b, p, c, look == Punchy.Terrain.KitSurface.Thatch, seed ^ (uint)i * 0x85EBCA77u);
-                else if (lit)
-                {
-                    // W-127: a lived-in house's window glass is a lit pane (dark glass by day, lamplight at night, each
-                    // pane its own hour: the colour keys it), and its light spills out onto the street (WindowSpill).
-                    b.Box(p.Centre, p.Size, p.Rotation, Punchy.Terrain.StructureKit.Colour(trim, Punchy.Terrain.KitMaterial.Lamp) * Mathf.Lerp(0.9f, 1.05f, jitter), FloraPart.Window);
-                    var outward = p.Rotation * Vector3.forward;
-                    if (outward.x * p.Centre.x + outward.z * p.Centre.z < 0f)
-                        outward = -outward;
-                    g.Windows.Add(new Vector4(p.Centre.x, p.Centre.y, p.Centre.z, Mathf.Atan2(outward.z, outward.x)));
-                }
-                else if (g.Lod < 2 && Contacts(parts, i, contacts))
-                    b.BandedBox(p.Centre, p.Size, p.Rotation, c, FloraPart.Bark, contacts, Mathf.Min(0.5f, p.Size.y * 0.3f), 0.7f);
-                else
-                    b.Box(p.Centre, p.Size, p.Rotation, c, p.Material == Punchy.Terrain.KitMaterial.Moss ? FloraPart.Foliage :
-                                                           p.Material == Punchy.Terrain.KitMaterial.Lamp || p.Material == Punchy.Terrain.KitMaterial.Rune ? FloraPart.Window : FloraPart.Bark);
-                b.Surface = 0;
-                b.Wood = false;
-                b.Unfounded = false;
                 var high = p.Centre.y + p.Size.y * 0.5f;
                 top = Mathf.Max(top, high);
                 // W-67 (#79): every part is a solid box unless it's decor (moss, trim, windows, lamps and runes): the
@@ -252,6 +217,9 @@ namespace Punchy.Flora
                 foreach (var p in parts)
                     if (p.Piece == Punchy.Terrain.KitPiece.Chimney)
                         g.Chimneys.Add(p.Centre + Vector3.up * (p.Size.y * 0.5f + 0.1f));
+            foreach (var p in parts)   // W-128: each moored boat's underside, for the waterline check
+                if (p.Keel)
+                    g.Boats.Add(p.Centre - Vector3.up * (p.Size.y * 0.5f));
             b.Recolor(first, (p, c) => p.y < 0.5f ? c * 0.82f : c);   // darker footing
             if (ruined && g.Lod < 2)
                 RuinSand(g, parts, width, depth, seed);
@@ -267,6 +235,56 @@ namespace Punchy.Flora
             }
             // (A dock or a shore cluster is walked on and round, not a trunk to bump into.)
             g.TrunkRadius = house ? Mathf.Max(width, depth) * 0.55f : 0f;
+        }
+
+        /// <summary>
+        /// Draws one structure-kit part in its trim colour (a little per-part jitter), its folk's wall or roof look,
+        /// lit window glass when <paramref name="lit"/>, and contact bands where it meets other parts. Shared by
+        /// KitStructure and the inn (W-128). False for a moss cap (drawn as a sheet: no box, no collision).
+        /// </summary>
+        static bool DrawKitPart(Grower g, List<Punchy.Terrain.KitPart> parts, int i, in Punchy.Terrain.CultureTrim trim,
+                                (Punchy.Terrain.KitSurface Wall, Punchy.Terrain.KitSurface Roof) looks, bool ruined, bool lit, uint seed, List<float> contacts)
+        {
+            var b = g.B;
+            var p = parts[i];
+            var c = Punchy.Terrain.StructureKit.Colour(trim, p.Material);
+            var jitter = ((i * 2654435761u) >> 24) / 255f;                 // a little per-stone variety, the same at every LOD
+            c = Color.Lerp(c * 0.94f, c * 1.08f, jitter);
+            if (p.Piece == Punchy.Terrain.KitPiece.MossCap)
+            {
+                // W-64 (#24): one ragged, see-through sheet draped over the stone (was a 9 cm box that read as a pad).
+                b.MossSheet(p.Centre, p.Size, p.Rotation, c, (uint)i * 2654435761u ^ seed);
+                return false;
+            }
+            // W-99: planks, shingles or thatch on the folk's timber walls and roofs, fine grain on bare timber.
+            var look = ruined ? Punchy.Terrain.KitSurface.Plain : p.Material == Punchy.Terrain.KitMaterial.Wall ? looks.Wall :
+                       p.Material == Punchy.Terrain.KitMaterial.Roof ? looks.Roof : Punchy.Terrain.KitSurface.Plain;
+            b.Surface = (int)look;
+            b.Wood = p.Material == Punchy.Terrain.KitMaterial.Wood;
+            b.Unfounded = p.Afloat;
+            if (ruined && g.Lod == 0 && p.Piece == Punchy.Terrain.KitPiece.Wall && p.Material == Punchy.Terrain.KitMaterial.Wall)
+                RuinBricks(b, p, c, seed ^ (uint)i * 0x9E3779B9u);   // W-94 (#80): old coursed blocks up close
+            else if (g.Lod == 0 && p.Piece == Punchy.Terrain.KitPiece.Roof && (look == Punchy.Terrain.KitSurface.Shingles || look == Punchy.Terrain.KitSurface.Thatch))
+                RoofCourses(b, p, c, look == Punchy.Terrain.KitSurface.Thatch, seed ^ (uint)i * 0x85EBCA77u);
+            else if (lit)
+            {
+                // W-127: a lived-in house's window glass is a lit pane (dark glass by day, lamplight at night, each
+                // pane its own hour: the colour keys it), and its light spills out onto the street (WindowSpill).
+                b.Box(p.Centre, p.Size, p.Rotation, Punchy.Terrain.StructureKit.Colour(trim, Punchy.Terrain.KitMaterial.Lamp) * Mathf.Lerp(0.9f, 1.05f, jitter), FloraPart.Window);
+                var outward = p.Rotation * Vector3.forward;
+                if (outward.x * p.Centre.x + outward.z * p.Centre.z < 0f)
+                    outward = -outward;
+                g.Windows.Add(new Vector4(p.Centre.x, p.Centre.y, p.Centre.z, Mathf.Atan2(outward.z, outward.x)));
+            }
+            else if (g.Lod < 2 && Contacts(parts, i, contacts))
+                b.BandedBox(p.Centre, p.Size, p.Rotation, c, FloraPart.Bark, contacts, Mathf.Min(0.5f, p.Size.y * 0.3f), 0.7f);
+            else
+                b.Box(p.Centre, p.Size, p.Rotation, c, p.Material == Punchy.Terrain.KitMaterial.Moss ? FloraPart.Foliage :
+                                                       p.Material == Punchy.Terrain.KitMaterial.Lamp || p.Material == Punchy.Terrain.KitMaterial.Rune ? FloraPart.Window : FloraPart.Bark);
+            b.Surface = 0;
+            b.Wood = false;
+            b.Unfounded = false;
+            return true;
         }
 
         static void StoneHouse(Grower g)

@@ -326,69 +326,54 @@ namespace Punchy.Flora
             var half = height * s.Spread * 0.5f;
             var front = half * 0.8f;
             var wall = height * 0.6f;
-            g.Height = height;
+            const float porch = 2.4f;
             g.Width = half * 2.8f;
             g.TrunkRadius = half * 0.9f;
             // Collision only up to the eaves (the trunk cylinder would reach the roof's peak and push anyone on the roof
             // off it, F-36); the roof itself is stood on through its support grid.
             g.Colliders.Add(new Vector4(0f, 0f, half * 0.9f, wall));
 
-            // Walls, with a timber band between the storeys and dark corner posts.
+            // W-128: the walls, roof, porch and sign are kit pieces in the folk's trim and looks (StructureKit.Inn), on the
+            // old box's footprint, so the door, the interior spots and the collider stay where they were.
+            var seed = (uint)(g.R() * 16777215f) ^ ((uint)g.Variant << 24) ^ (uint)s.Seed * 0x9E3779B9u;
+            var trim = Punchy.Terrain.StructureKit.For(s.KitCulture);
+            var parts = Punchy.Terrain.StructureKit.Inn(seed, trim, half, front, wall, porch, out var sign);
+            var looks = Punchy.Terrain.StructureKit.Surfaces(s.KitCulture, seed);
+            var contacts = new List<float>();
             var first = b.VertexCount;
-            b.Box(new Vector3(0f, wall * 0.5f - 0.1f, 0f), new Vector3(half * 2f, wall + 0.2f, front * 2f), Quaternion.identity, g.Bark, FloraPart.Bark);
-            b.Occlude(first, (p, n) => GroundOcclusion(p, wall * 0.4f));
-            var timber = g.Bark * 0.5f;
-            b.Wood = true;   // the timber band and corner posts (Z-30)
-            if (g.Lod < 2)
+            var top = 0f;
+            var perch = Vector3.zero;
+            for (int i = 0; i < parts.Count; i++)
             {
-                b.Box(new Vector3(0f, wall * 0.5f, 0f), new Vector3(half * 2f + 0.08f, 0.2f, front * 2f + 0.08f), Quaternion.identity, timber, FloraPart.Bark);
-                foreach (var x in new[] { -1f, 1f })
-                foreach (var z in new[] { -1f, 1f })
-                    b.Box(new Vector3(x * half, wall * 0.5f, z * front), new Vector3(0.25f, wall, 0.25f), Quaternion.identity, timber, FloraPart.Bark);
+                var p = parts[i];
+                var small = p.Piece == Punchy.Terrain.KitPiece.Trim || p.Piece == Punchy.Terrain.KitPiece.Rail || p.Piece == Punchy.Terrain.KitPiece.Beam ||
+                            (p.Piece == Punchy.Terrain.KitPiece.Window && p.Material != Punchy.Terrain.KitMaterial.Opening);
+                if (small && g.Lod >= 2)
+                    continue;
+                var lit = p.Piece == Punchy.Terrain.KitPiece.Window && p.Material == Punchy.Terrain.KitMaterial.Opening;
+                if (!DrawKitPart(g, parts, i, trim, looks, false, lit, seed, contacts))
+                    continue;
+                var high = p.Centre.y + p.Size.y * 0.5f;
+                top = Mathf.Max(top, high);
+                if (p.Piece == Punchy.Terrain.KitPiece.Chimney)
+                {
+                    g.Chimneys.Add(p.Centre + Vector3.up * (p.Size.y * 0.5f + 0.1f));
+                    g.Perches.Add(p.Centre + Vector3.up * (p.Size.y * 0.5f));
+                }
+                else if (p.Piece != Punchy.Terrain.KitPiece.Column && high > perch.y)
+                    perch = new Vector3(p.Centre.x, high, p.Centre.z);
             }
-            b.Wood = false;
+            if (perch.y > 1f)
+                g.Perches.Add(perch);
+            b.Recolor(first, (p, c) => p.y < 0.5f ? c * 0.82f : c);   // darker footing
+            b.Occlude(first, (p, n) => GroundOcclusion(p, Mathf.Min(top, 4f) * 0.5f));
+            g.Height = Mathf.Max(height, top);
 
-            // Gabled roof: two slabs meeting at a ridge along X, and the gable ends filled in.
-            var roof = g.FoliageColor();
-            var ridge = height;
-            foreach (var z in new[] { -1f, 1f })
-                b.Beam(new Vector3(0f, EaveStart(wall, front, 0.6f, ridge + 0.1f, 0.18f), z * (front + 0.6f)), new Vector3(0f, ridge + 0.1f, 0f), half * 2f + 0.8f, 0.18f, roof, FloraPart.Bark);
-            // A rounded ridge tile along the top, so the slabs meet in a soft bevel, not a hard point (Z-41).
-            b.Tube(new List<Vector3> { new Vector3(-half - 0.4f, ridge + 0.13f, 0f), new Vector3(half + 0.4f, ridge + 0.13f, 0f) },
-                   new List<float> { 0.15f, 0.15f }, g.Sides(6, 4, 3), roof * 0.92f, FloraPart.Bark, cap: true);
-            foreach (var x in new[] { -1f, 1f })
-            {
-                var v0 = b.Vertex(new Vector3(x * half, wall, -front), Vector3.right * x, g.Bark, FloraPart.Bark, 0.9f);
-                var v1 = b.Vertex(new Vector3(x * half, wall, front), Vector3.right * x, g.Bark, FloraPart.Bark, 0.9f);
-                var v2 = b.Vertex(new Vector3(x * half, ridge, 0f), Vector3.right * x, g.Bark, FloraPart.Bark, 0.9f);
-                b.Triangle(v0, v1, v2);
-            }
-            b.Box(new Vector3(half * 0.6f, height * 0.85f, -front * 0.35f), new Vector3(0.6f, height * 0.5f, 0.6f), Quaternion.identity, Stone(g), FloraPart.Bark);
-            ChimneyTop(g, new Vector3(half * 0.6f, height * 1.1f, -front * 0.35f), 0.3f, Stone(g));
-            g.Perches.Add(new Vector3(-half - 0.2f, ridge + 0.29f, 0f));
-            g.Perches.Add(new Vector3(half + 0.2f, ridge + 0.29f, 0f));
-            g.Perches.Add(new Vector3(half * 0.6f, height * 1.1f, -front * 0.35f));
-
-            // Door, windows (lit at night) and the porch out front.
+            // The door the folk use (hinged, with its frame and step), in the middle bay of the front.
             Doorway(g, front + 0.02f, 1.25f, Mathf.Min(wall * 0.42f, HumanDoor));
+            // The sign, hanging on its rods under the porch roof's front edge.
             if (g.Lod < 2)
-                foreach (var (x, y) in new[] { (-0.55f, 0.27f), (0.55f, 0.27f), (-0.55f, 0.75f), (0f, 0.75f), (0.55f, 0.75f) })
-                    Window(g, new Vector3(x * half, y * wall, front + 0.03f), Quaternion.identity, 0.6f, 0.75f);
-            var porch = 2.4f;
-            b.Wood = true;   // the porch deck and its posts (Z-30)
-            b.Box(new Vector3(0f, 0.15f, front + porch * 0.5f), new Vector3(half * 1.8f, 0.3f, porch), Quaternion.identity, g.Bark * 0.75f, FloraPart.Bark);
-            b.Wood = false;
-            // W-100: the porch roof half as high again at its front edge (it hung at head height), and only as steep as
-            // still clears the upper windows' sills where it meets the wall.
-            b.Beam(new Vector3(0f, wall * 0.66f, front), new Vector3(0f, wall * 0.6f, front + porch + 0.3f), half * 1.9f, 0.12f, roof, FloraPart.Bark);
-            b.Wood = true;
-            foreach (var x in new[] { -0.85f, 0.85f })
-                b.Tube(new List<Vector3> { new Vector3(x * half, 0.3f, front + porch - 0.1f), new Vector3(x * half, wall * 0.61f, front + porch - 0.1f) },
-                       new List<float> { 0.1f, 0.1f }, g.Sides(6, 4, 3), timber, FloraPart.Bark);
-            b.Wood = false;
-            // A sign hanging from the porch roof.
-            if (g.Lod < 2)
-                b.Box(new Vector3(half * 0.55f, wall * 0.45f, front + porch + 0.2f), new Vector3(0.9f, 0.55f, 0.06f), Quaternion.identity, AccentAt(g, 1), FloraPart.Bark);
+                b.Box(sign, new Vector3(0.9f, 0.55f, 0.06f), Quaternion.identity, AccentAt(g, 1), FloraPart.Bark);
         }
 
         /// <summary>
