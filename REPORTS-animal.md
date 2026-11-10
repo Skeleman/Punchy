@@ -3248,3 +3248,19 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - Runs (scripts/run-playmode-tests.sh LiveFolk_Answer): pref Crow "1 passed, 0 failed, 0 skipped in 66s"; pref Human "1 passed, 0 failed, 0 skipped in 65s"; pref Rabbit (set by another editor meanwhile) "1 passed, 0 failed, 0 skipped in 163s". Pref left at Rabbit, as it was before the runs.
 - Risk: another editor can change the shared pref during a run; the test now does not care.
 - Next: row 1 (find the sparkles).
+
+### Row 1 - find the sparkles - done (verified)
+- Probe: `-sparkleprobe <label>` (off by default, `-sparklecap X` sets the hot cap). It renders the main camera to a half float target at the start of PostLateUpdate (after the creature draws are queued) and counts, per frame, pixels Creature.shader marks NaN/Inf at each step (vertex normal, normal, fur bump, lit, final, by body/shell pass), other NaN pixels, and pixels above the cap. Log: `<shotdir>/sparkle-log.txt`. Also `-nobloom`. Commit 6375cd03 (pushed).
+- Cause: the fur bump in Creature.shader frag (body pass, and shell 1 on the crow). `ddx/ddy` of the strand height are taken inside the per-pixel `if (near > 0)` branch, and on the sliver triangles at the capsule poles (FaunaDirector.BuildCapsule cap rows have radius cos(pi/2), about -4e-8) the screen derivatives are parallel, det = 0, and `normalize(abs(det)*n - grad)` gives NaN. Lighting carries it to the final colour, and bloom spreads each NaN pixel into a white disc with a black centre: the sparkle.
+- Counts, 360 frames per run (frames with markers / creature NaN pixels, steps where they first appear):
+  - rabbit noon 0 / 0; rabbit dusk 3 / 3 (bump 3); wolf noon (control) 10 / 664 (bump 373, rest from the normal step after it); crow in a cave room 7 / 8 (body 6, shell 1 2; bump 7, vertex 2), plus 134 hot pixels.
+  - -nofur: wolf 0 / 0, rabbit 0 / 0 (fur off removes every marker).
+  - -noshells: wolf 136 / 1386 in r1d, 47 / 2500 in the later rerun (almost all bump; vertex 1-4).
+  - -noseams: wolf 96 / 3658, rabbit 1 / 1, crow 5 / 5 (bump; vertex NaNs persist, so not from the joint blend).
+  - -nobloom: wolf 12 / 12 (NaNs still made, just not spread).
+  - Vertex-step NaNs (rare, 1-4 per run): about 40 drawn segment slots per frame are all-zero (rotation 0,0,0,0, radius 0, unused slots). They collapse to a point; the row 2 safe normal covers them anyway.
+- Separate source, not in Creature.shader: wolf noon also had 229 non-creature NaN pixels at the horizon and mountain edge (cyan in the crops, also blooming). Out of scope for A-96 (likely sky or terrain); worth its own card.
+- [shot] D:/Unity/PunchyMilestones/A-96/row1-before-rabbit-dusk.png - left: probe marker on the rabbit edge; right: the same frame, bloom disc with a black centre.
+- [shot] D:/Unity/PunchyMilestones/A-96/row1-before-crow-cave.png - crow in a cave room, marker and sparkle.
+- [shot] D:/Unity/PunchyMilestones/A-96/row1-before-wolf-bump.png - wolf with -noshells, bump NaNs.
+- Next: row 2 (safe normal at each normalize, derivatives taken outside the branch).
