@@ -2,6 +2,16 @@
 
 Newest first.
 
+## 2026-11-10 batch A-92 row 1 (#231): lying legs stay above ground, animals stand before moving (verified)
+- DONE row 1 (fauna/detail 4121cd57): folded legs lifted clear of the real ground under each leg while lying (up to hip radius x lie weight, no foot IK pull, blended with the lie); AI speed held at 0 while Lie/Sit > ~0.25, the player's movement input cancels a rest and the body gets up before it moves.
+- Legs (LyingTests, every 4-legged land species, lie 0.3..1, 4 headings): worst >= -0.01 m flat and on a 0.33 slope (before this row: slope worst Camel -0.028; before A-42: -0.4..-0.7 m).
+- AI: 30 s near a meadow start, 4046 samples of animals down, fastest 0.000 m/s while down (limit 0.15).
+- Player as horse: lay 1.00, moved 0.000 m while down, stood after 0.46 s, walked 20.48 m in 5 s.
+- Checks: full PlayMode suite 18/18 passed (pins asserted there: Landmarks_V3 112 A955AFE0, Fauna_Fingerprint 66320C7C); line endings kept (CreatureAnimator, PlayerMovementSystem CRLF; rest LF).
+- Shots (viewed small, legs above ground, stand-up sequence clean): PunchyMilestones/animal/lying-legs/gallery/a92-lying-slope-side-20261110-020317.png, a92-lying-flat-front-20261110-020306.png, a92-standing-2-20261110-020308.png (plus flat-side, slope-front, standing-0/1/3).
+- Learned: docs/agents/fauna.md lying gotcha (legs vs the real ground, not the body's plane; speed gated by Lie/Sit).
+- NEXT: row 2 experiments a (seams, `-seams`), b (fur, `-fur`), c (shells, `-shells`).
+
 ## 2026-11-04 batch A-68 (PARTIAL, paused for Zach's test build): row 1 done, rows 2 and 3 left
 - DONE row 1 #132: exact wall-check skips in FloraPlacement.Blocked (prop spot beyond its walls' reach) and dock lane / wharf distance (dock whose slid stretch is past the caller's limit skips its DockShore walk) (animal-behaviours 3d66652). v2 fishing village 3 (-2883,-2121, noon, 121-126 creatures, editor uncapped): brain ms 4.92 -> 3.29, advance 4.05 -> 2.72, solids 3.62 -> 2.49, frame 11.6 -> 9.7 ms (about 86 -> 102 fps). `-oldwalls` = old path for A/B. Commented on #132.
 - Fingerprint: code-only skips with the same answers; run printed C1D6A1EA (not 8726AADB) only because the row 2 BatFolk.asset edit was imported in the editor.
