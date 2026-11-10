@@ -314,6 +314,8 @@ namespace Punchy.Debugging
                     flyHitchMs = hitchMs;
                 if (args[i] == "-flycave" && EnsureLocations(out var flySource))
                     StartFlyCave(flySource, args[i + 1]);
+                if (args[i] == "-dungeonwalk")
+                    StartDungeonWalk(args[i + 1]);
                 if (args[i] == "-place" && args[i + 1].StartsWith("batfolk", System.StringComparison.OrdinalIgnoreCase))
                 {
                     // (Kept trying until v3 is up, ~90 s in: see PlaceAtBatFolkPending.)
