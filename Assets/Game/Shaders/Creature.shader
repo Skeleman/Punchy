@@ -179,6 +179,13 @@ Shader "Punchy/Creature"
 
             float _PunchyNoFur; // A-92, #230: 0 gives bodies fur strands and coat patches, 1 ("-nofur") plain
 
+            // A-96 (debug, SparkleProbe "-sparkleprobe", 0 in play): above 0, the brightness cap. A pixel that comes out not a
+            // number, infinite or brighter than the cap is drawn as a marker instead (r 60000, g which steps went bad, b the
+            // shell layer + 1), so the probe camera can count bloom's white sparkles before bloom and say where they start.
+            float _PunchySparkleProbe;
+
+            bool SparkleBad(float3 v) { return any((asuint(v) & 0x7f800000u) == 0x7f800000u); }
+
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
@@ -267,7 +274,11 @@ Shader "Punchy/Creature"
             {
                 FadeClip(input.fade, input.positionCS.xy);
                 ShellClip(input.surface);
+                // (Probe steps, see _PunchySparkleProbe: 1 the vertex normal, 2 the normal, 4 after the fur bump, 8 the lit
+                // colour, 16 the final colour bad; 32 the final colour above the cap.)
+                uint probe = SparkleBad((float3)input.normalWS) ? 1u : 0u;
                 half3 n = normalize(input.normalWS);
+                probe |= SparkleBad((float3)n) ? 2u : 0u;
                 float3 v = GetWorldSpaceNormalizeViewDir(input.positionWS);
                 half3 albedo = input.color.rgb * lerp(1, 0.75, PunchyWetnessAt(input.positionWS.xz).r) * (1 + 0.07 * _Shell);
                 Light light = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
@@ -298,6 +309,7 @@ Shader "Punchy/Creature"
                             n = normalize(abs(det) * n - grad);
                         }
                     }
+                    probe |= SparkleBad((float3)n) ? 4u : 0u;
                     half diffuse = saturate(dot(n, light.direction) * 0.75 + 0.25);
                     // A little soft sheen at the silhouette, like fur or feathers catching the light.
                     half rim = pow(1 - saturate(dot(n, v)), 3) * 0.25;
@@ -313,7 +325,16 @@ Shader "Punchy/Creature"
                             lerp(1, PunchyCreatureGrounding(100, n.y), 0.75);
                 // Glowing parts (alpha): embers, toxic markings, eye sockets. Bright enough to bloom.
                 color += input.color.rgb * input.color.a * (2.2 + 0.4 * sin(_Time.y * 2.1 + input.positionWS.x * 3.0));
-                return half4(PunchyAtmosphere(color, input.positionWS), 1);
+                half3 final = PunchyAtmosphere(color, input.positionWS);
+                [branch] if (_PunchySparkleProbe > 0)
+                {
+                    probe |= SparkleBad((float3)color) ? 8u : 0u;
+                    probe |= SparkleBad((float3)final) ? 16u : 0u;
+                    probe |= (probe & 16u) == 0 && max(final.r, max(final.g, final.b)) > _PunchySparkleProbe ? 32u : 0u;
+                    if ((probe & 48u) != 0)
+                        return half4(60000, probe, _Shell + 1, 1);
+                }
+                return half4(final, 1);
             }
             ENDHLSL
         }
