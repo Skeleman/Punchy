@@ -3924,3 +3924,23 @@ Built in the player tree, not the one the card names (the world tree's gitignore
   - **Shots:** D:/Unity/PunchyMilestones/R-10/1/: walk_{3,8,13,18,23,27,31,40,60,100,180,280}.jpg, where the number is metres walked back (camera distance is about +7.6). Also town0.jpg / town128b.jpg (128 lights), cave0.jpg / cave128.jpg.
   - **BENCH-QUEUE line for the laptop:** `R-10 lights: Profile build of light/forwardplus, -gfx High, 1920x1080, uncapped, -time 22 -weather Clear, -goto 2988.8,-920 facing north, then a Mine cave (-place cave:Mine); whole-frame GPU ms with -lightbudget 6 vs 32 vs 64 vs 128 (ABBA, 300 frames each), plus the same after row 2 lands so Flora's share shows.` (`-lightbudget` only raises the cap; this spot has few owners until row 2, so rerun it after row 2.)
   - **Decisions:** none yet. For row 2 I plan to give Flora/Grass/Pebbles/SunkenTemple one shared Forward+ loop with Glow's falloff, and to let street lights own pooled real lights up to a per-quality budget (16/48/96), since 64 lights cost about 0.08 ms here.
+
+- **R-10 row 2 DONE for flora and built things (row 2b waits)**: light/forwardplus `e0c4123a` (pushed).
+  - **What changed:**
+    - **One shared Forward+ loop:** `PunchyRealLights()` in Glow.hlsl reads URP's cluster lights with Glow's `(1-d/r)^2` falloff. A real light of colour c and range r lights like a glow slot of c x 0.28 and reach r x 0.75 (the row-1 fit), so a light looks the same as a real light or as a glow. Shadowed lights keep their shadow term.
+    - **Shaders that use it:** Flora (plants AND built things: houses, towers, walls, props), Grass, Pebbles, SunkenTemple and TerrainSurface, under `_CLUSTER_LIGHT_LOOP`. This adds no variants (SelectOnly). URP's own PBR additional lights are switched off there, so no light counts twice.
+    - **Budget:** `RealLights` is 4/16/48/96 by quality (Low/Medium/High/Ultra; `-lightbudget` still overrides it). Sources' own lights (which may cast shadows) stay capped at `OwnRealLights` 4/6/8, as before.
+    - **Pooled street lights:** `LightBudget.AddPooled`. Street lights (W-127) can't own a light, so they rank with the owners and get a pooled unshadowed point light while they're granted one; the rest stay in the glow slots. The glow slots remain the fallback, and Low keeps 4.
+    - **Street-light hand-off:** street lights are now kept out to the Fixture hand-off (184/421 m at Medium) instead of the ambient one (37 m). That was the row-1 pop at 35-38 m. The far night map now fades in over that hand-off (`_PunchyGlowMapNightFade`), not at 16-37 m.
+  - **Numbers (this PC, editor play mode, Medium, 1920x1080, big town at 22:00, ABBA x2, ms a frame):** glow-only (`-lightbudget 0`) 3.21, budget 16 3.29, budget 48 3.18. All within noise. At this spot 16 pooled lights are on at Medium (19 made). Laptop: BENCH-QUEUE line below.
+  - **Suite (editor closed, at e0c4123a's tree):** `15 passed, 0 failed, 7 skipped in 250s (Unity exit 0).` Pins: Landmarks_V3 `112 A955AFE0`, Fauna_Fingerprint `66320C7C`.
+  - **Shots:** D:/Unity/PunchyMilestones/R-10/2/
+    - `sheet_ab_glowonly_vs_real.jpg`: glow-only (left) vs real lights (right), 40/90/150/220 m south of the row-1 lantern, same moment. They look nearly the same, which is the point: the falloffs match, so lights can move between tiers without a step.
+    - `ab_glowonly_*.jpg` / `ab_real_*.jpg` are the full-size shots.
+    - `after_walk_*.jpg` and `sheet_before_after.jpg` are the walk-away. The "before" shots come from an earlier build with a warmer sky tint, so judge from the A/B sheet.
+  - **Look changes:**
+    - Terrain now uses Glow's falloff instead of URP's inverse square: a softer centre, and no specular highlight from lanterns on the ground.
+    - Flora's old lantern diffuse term is off when the cluster loop is on, because the shared loop replaces it.
+  - **Row 2b (waiting for your go):** Creature.shader (A-92), the water shaders (R-9) and Colossus.shader (A-89). Each needs the same three-line hook-up once those branches are merged.
+  - **BENCH-QUEUE line for the laptop:** `R-10 row 2: Profile build of light/forwardplus (e0c4123a), -gfx High, 1920x1080, uncapped, -time 22 -weather Clear, -goto 2988.8,-920 facing north; whole-frame GPU ms with -lightbudget 0 vs default (48 at High) vs 96 (ABBA, 300 frames each), then the same at origin/main for the "today" baseline (pass: High <= +0.5 ms).`
+  - **Decisions:** none. Next is row 3: Cave.shader moves to the same falloff, real level fades by on-screen size instead of a 0.8 s pop, and the night map is matched to the slots in colour and reach.
