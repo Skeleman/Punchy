@@ -121,7 +121,8 @@ namespace Punchy.Fauna
                         else
                             continue;
                         var at = SkyLeader(f, t);
-                        var far = math.distance(at.xz, cam.xz);
+                        // (R-6 row 0: 3D, as every draw distance; the flights' cells stay on the ground plane.)
+                        var far = math.distance(at, cam);
                         if (far > SkyRange)
                             continue;
                         f.Faded = math.max(f.Faded, math.saturate((far - SkyRange * 0.7f) / (SkyRange * 0.3f)));

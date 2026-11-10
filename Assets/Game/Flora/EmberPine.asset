@@ -41,6 +41,7 @@ MonoBehaviour:
   PatchCoverage: 0.6
   NearWater: 1
   OnlyNearWater: 0
+  Exposure: 0.6
   Aquatic: 0
   WaterDepth: {x: 0.1, y: 1.5}
   Floats: 0

@@ -76,8 +76,6 @@ namespace Punchy.Fauna
 
         /// <summary>The definition standing in each slot (a kept one when a "-colossus" flag swapped it in).</summary>
         static ColossusDefinition[] defs = new ColossusDefinition[0];
-        /// <summary>The Dunes colossus's far-shadow height and half-width (it is not a definition: DunesColossus places it).</summary>
-        static readonly float2 DunesCast = new float2(58f, 20f);
 
         const float Step = 150f;
         /// <summary>
@@ -107,10 +105,6 @@ namespace Punchy.Fauna
         static void OnSceneLoaded(UnityEngine.SceneManagement.Scene scene, UnityEngine.SceneManagement.LoadSceneMode mode) => Create();
 
         Transform[] roots = new Transform[0];
-        // One per slot plus the Dunes colossus's (the last).
-        FarShadow[] shadows = new FarShadow[1];
-        // A-72 hook: where each far shadow was last laid, so a walking colossus gets a fresh strip once it has moved.
-        float3[] laidAt = new float3[1];
         bool placed;
         float nextTry;
 
@@ -132,18 +126,6 @@ namespace Punchy.Fauna
             foreach (var r in roots)
                 if (r != null && r.gameObject.activeSelf == DunesColossus.Hidden)
                     r.gameObject.SetActive(!DunesColossus.Hidden);
-            // W-90 (#84): time the frames that schedule a re-lay and the frame after (which lands it), to show the
-            // stall is gone. Logged for the first few re-lays only.
-            int before = FarShadow.LaysScheduled;
-            watch.Restart();
-            DrawFarShadows();
-            bool laid = FarShadow.LaysScheduled != before;
-            if ((laid || landing) && relayLogs < 12)
-            {
-                relayLogs++;
-                Debug.Log($"[farshadow] {(laid ? "schedule" : "land")} frame: StoneColossi far shadows {watch.Elapsed.TotalMilliseconds:F2} ms");
-            }
-            landing = laid;
             GlowLanterns();
             SwayPlant();
             SwayWorm();
@@ -155,56 +137,9 @@ namespace Punchy.Fauna
             SwayMagmaSerpent();
         }
 
-        bool landing;
-        int relayLogs;
-        // (Reused: a new Stopwatch, and a new terrain query, every frame were garbage, A-82.)
-        readonly System.Diagnostics.Stopwatch watch = new System.Diagnostics.Stopwatch();
-        Unity.Entities.World terrainWorld;
-        EntityQuery terrainQuery;
-
-        /// <summary>
-        /// Past the real shadow distance every colossus (these and the Dunes one) still casts, through a far shadow
-        /// proxy (#84, as the salt tower). The terrain is fetched each frame so a rebaked island is never sampled stale.
-        /// </summary>
-        void DrawFarShadows()
-        {
-            if (DunesColossus.Hidden)
-                return;
-            var world = Unity.Entities.World.DefaultGameObjectInjectionWorld;
-            if (world == null || !world.IsCreated)
-                return;
-            if (terrainWorld != world)
-            {
-                terrainWorld = world;
-                terrainQuery = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
-            }
-            if (!terrainQuery.TryGetSingleton(out TerrainSource source))
-                return;
-            int slots = roots.Length;
-            for (int k = 0; k <= slots; k++)
-            {
-                var at = k < slots ? Positions[k] : DunesColossus.Position;
-                if (k < slots ? roots[k] == null : math.all(at == 0f))
-                    continue;
-                // A-72 hook: the strip only re-lays when the sun moves, so one left 10 m behind a walker is laid anew.
-                if (shadows[k] != null && math.distancesq(laidAt[k].xz, ((float3)at).xz) > 100f)
-                {
-                    shadows[k].Dispose();
-                    shadows[k] = null;
-                }
-                if (shadows[k] == null)
-                    laidAt[k] = at;
-                shadows[k] ??= new FarShadow(k < slots ? $"{Placed[k]} far shadow" : "DunesColossus far shadow");
-                var cast = k < slots ? (float2)defs[k].Cast : DunesCast;
-                shadows[k].Draw(source, at, cast.x, cast.y);
-            }
-        }
-
         void OnDestroy()
         {
             DropSurvey();
-            foreach (var s in shadows)
-                s?.Dispose();
         }
 
         void TryPlace()
@@ -314,11 +249,7 @@ namespace Punchy.Fauna
             foreach (var r in roots)
                 if (r != null)
                     Destroy(r.gameObject);
-            foreach (var s in shadows)
-                s?.Dispose();
             roots = new Transform[slots];
-            shadows = new FarShadow[slots + 1];
-            laidAt = new float3[slots + 1];
             Placed = new Kind[slots];
             Positions = new float3[slots];
             Spots = new float3[slots];
@@ -485,6 +416,8 @@ namespace Punchy.Fauna
             var follow = string.IsNullOrEmpty(def.CollisionFollow) ? null : roots[slot].Find(def.CollisionFollow);
             var leave = string.IsNullOrEmpty(def.CollisionLeave) ? new string[0] : def.CollisionLeave.Split(',');
             ColossusCollision.Register(slot, roots[slot], def.Kind.ToString(), follow, def.CollisionFollowRadius, leave);
+            // R-6 row 2: far levels by the size-on-screen rule, built on workers from the meshes just made.
+            ColossusLod.Attach(roots[slot], def.Kind.ToString(), GlowMaterial);
             Debug.Log($"StoneColossi: {def.Kind} placed at ({spot.x:F0}, {Positions[slot].y:F1}, {spot.y:F0}), facing {pickYaw[slot]:F0} degrees, region {pickCells[slot]} cells, relief {Relief(source, spot, def.KeepRadius * 0.7f):F1} m");
         }
 
@@ -652,12 +585,14 @@ namespace Punchy.Fauna
         // ---------------------------------------------------------------- building
 
 
-        /// <summary>Lanterns glow within this far of the camera (m).</summary>
-        const float LanternRange = 450f;
+        /// <summary>Lanterns' flames are drawn within this far of the camera (m); their light is LightBudget's to decide
+        /// (refactor 3.1: it was cut at this distance too). The charred treant's embers and the puffball's pores skip
+        /// their whole glow past it, flames and light together.</summary>
+        const float LanternFlameRange = 450f;
 
         /// <summary>
         /// A-76 row 2: each frame the stag's lanterns burn as small standard-fire flames and throw a warm light round them
-        /// (CaveSystem.MovingLights lights the ground and trees too), faint by day and brightening into the night
+        /// (a creature light request to LightBudget, which lights the ground and trees too), faint by day and brightening into the night
         /// (DayNightCycle.Night). Cosmetic and local.
         /// </summary>
         void GlowLanterns()
@@ -674,15 +609,16 @@ namespace Punchy.Fauna
             for (int k = 0; k < Lanterns.Count; k++)
             {
                 var point = Lanterns[k];
-                if (point == null || !point.gameObject.activeInHierarchy || (point.position - eye).sqrMagnitude > LanternRange * LanternRange)
+                if (point == null || !point.gameObject.activeInHierarchy)
                     continue;
                 var flicker = 0.9f + 0.1f * Mathf.Sin(Time.time * 7f + k * 1.7f);
                 // A-87 row 4: a point's scale sizes its flame and light (1 for a lantern; the hermit crab's lighthouse is a beacon).
                 var scale = point.localScale.x;
-                Punchy.Ambience.FireSystem.AddFlame(point.position, (0.3f + 0.25f * night) * scale, 0x57A60 + k, Punchy.Ambience.FireSystem.Wood);
+                if ((point.position - eye).sqrMagnitude <= LanternFlameRange * LanternFlameRange)
+                    Punchy.Ambience.FireSystem.AddFlame(point.position, (0.3f + 0.25f * night) * scale, 0x57A60 + k, Punchy.Ambience.FireSystem.Wood);
                 var light = Punchy.Ambience.FireSystem.Light(Punchy.Ambience.FireSystem.Wood, flicker * (0.35f + 1.4f * night) * scale);
                 light.w *= 0.6f + 0.8f * night;
-                Punchy.Terrain.CaveSystem.MovingLights.Add((0x57A60 + k, point.position, light));
+                Punchy.Settings.LightBudget.Add(Punchy.Settings.LightKind.Creature, 0x57A60 + k, point.position, light);
             }
         }
 
@@ -739,6 +675,83 @@ namespace Punchy.Fauna
             go.SetActive(true);
             ps.Simulate(life, true, true);
             ps.Play();
+        }
+
+        /// <summary>
+        /// A-94: a living colossus's breath in the cold, shaped like every animal's (CreatureBreathSystem.ShapeFor) from its
+        /// own size, measured once off its meshes (the ground drifts and trails it lies among left out): big, slow puffs
+        /// through AmbienceSystem's puffs, which judge the cold, so there is none in a thaw. Cosmetic and clock-driven.
+        /// </summary>
+        sealed class ColdBreath
+        {
+            readonly Transform head;
+            readonly Vector3 mouth, forward;
+            readonly CreatureBreathSystem.Shape shape;
+            readonly float phase;
+            static Punchy.Ambience.AmbienceSystem ambience;
+            static int lookedFor = -1000;
+
+            /// <summary>Breath from <paramref name="mouth"/> along <paramref name="forward"/> (both in <paramref name="head"/>'s
+            /// space), for the colossus under <paramref name="root"/>; parts named in <paramref name="ground"/> aren't its body.</summary>
+            public ColdBreath(Transform root, Transform head, Vector3 mouth, Vector3 forward, params string[] ground)
+            {
+                this.head = head;
+                this.mouth = mouth;
+                this.forward = forward.normalized;
+                var size = BodySize(root, ground);
+                shape = CreatureBreathSystem.ShapeFor(size.y, Mathf.Max(size.x, size.z));
+                phase = Mathf.Repeat(root.position.x * 0.37f + root.position.z * 0.61f, 97f);
+            }
+
+            /// <summary>The breath shape it was given, from its measured size.</summary>
+            public CreatureBreathSystem.Shape Shape => shape;
+
+            /// <summary>Its body's extent in its own space (m): every mesh under root but the ground parts.</summary>
+            static Vector3 BodySize(Transform root, string[] ground)
+            {
+                var have = false;
+                var box = new Bounds();
+                foreach (var filter in root.GetComponentsInChildren<MeshFilter>())
+                {
+                    if (filter.sharedMesh == null || System.Array.IndexOf(ground, filter.name) >= 0)
+                        continue;
+                    var b = filter.sharedMesh.bounds;
+                    for (int c = 0; c < 8; c++)
+                    {
+                        var corner = b.center + Vector3.Scale(b.extents, new Vector3((c & 1) == 0 ? -1f : 1f, (c & 2) == 0 ? -1f : 1f, (c & 4) == 0 ? -1f : 1f));
+                        var at = root.InverseTransformPoint(filter.transform.TransformPoint(corner));
+                        if (have)
+                            box.Encapsulate(at);
+                        else
+                        {
+                            box = new Bounds(at, Vector3.zero);
+                            have = true;
+                        }
+                    }
+                }
+                return box.size;
+            }
+
+            /// <summary>Breathe this frame if it's in an exhale, it's cold and it's near enough the camera to see.</summary>
+            public void Tick(Vector3 eye)
+            {
+                if (head == null || !shape.Shows)
+                    return;
+                var at = head.TransformPoint(mouth);
+                if ((at - eye).sqrMagnitude > shape.Reach * shape.Reach)
+                    return;
+                if (ambience == null && Time.frameCount - lookedFor > 120)
+                {
+                    lookedFor = Time.frameCount;
+                    ambience = FindAnyObjectByType<Punchy.Ambience.AmbienceSystem>();
+                }
+                if (ambience == null || ambience.Cold <= ambience.BreathThreshold)
+                    return;
+                // (An exhale every Every seconds, each colossus on its own beat.)
+                if (Mathf.Repeat(Time.time + phase, shape.Every) > shape.Exhale)
+                    return;
+                ambience.Breathe(at, head.TransformDirection(forward), Vector3.zero, shape.Size, shape.Rate, shape.Lifetime, shape.Opacity, 0f);
+            }
         }
 
         /// <summary>Snow or moss on every face turned up past <paramref name="from"/> (full at <paramref name="full"/>).</summary>

@@ -46,6 +46,11 @@ namespace Punchy.Fauna
         public static readonly SharedStatic<int> OldLie = SharedStatic<int>.GetOrCreate<OldLieKey>();
         class OldLieKey { }
 
+        /// <summary>Seams (A-92, #230; "-noseams" sets 1 to turn them off): at 0 the shader bends each limb segment's start towards the segment
+        /// it hangs from (Material.z: how many segments back that is), hiding the crease at the joint.</summary>
+        public static readonly SharedStatic<int> NoSeams = SharedStatic<int>.GetOrCreate<SeamsKey>();
+        class SeamsKey { }
+
         /// <summary>
         /// How gathered a leaping run (CreatureBlob.LeapingRun: dogs, cats, wolves) is at a point of its stride: 1 with all
         /// four feet under the body, 0 stretched out in the leap. Held gathered, eased out into the leap, held in the
@@ -359,7 +364,9 @@ namespace Punchy.Fauna
                 var hind = part.Socket.z < 0f;
                 if (folds)
                 {
-                    fold = math.max(s.Lie, part.Socket.z > 0f ? s.Bow * 0.5f : 0f);
+                    // (Lying down, the legs fold ahead of the body coming down, so they are tucked before it reaches the
+                    // ground rather than half-straight under a half-lowered body: A-92, #231.)
+                    fold = math.max(1f - (1f - s.Lie) * (1f - s.Lie), part.Socket.z > 0f ? s.Bow * 0.5f : 0f);
                     // Sitting folds the hind legs; sitting up tall tucks the front paws too; in flight all tuck up.
                     // (A player's body up a trunk is a puppet: its front paws hold on, as a climbing animal's do.)
                     if (hind)
@@ -688,7 +695,8 @@ namespace Punchy.Fauna
                     var reach = 0f;
                     for (int j = 0; j < part.SegmentCount; j++)
                         reach += b.Segments[part.FirstSegment + j].Length * scale;
-                    var correction = ((actual - nominal) * (1f - fold) + (folds ? 0f : lowered) + sink) * (1f - airborne);
+                    // (A folding leg's foot leaves the ground as it folds: no reaching for the ground, nor sinking, once tucked.)
+                    var correction = ((actual - nominal) * (1f - fold) + (folds ? 0f : lowered) + sink * (1f - fold)) * (1f - airborne);
                     if (b.Disguised)
                         correction *= 1f - s.Curl;
                     correction = math.clamp(correction, -0.45f * reach, 0.45f * reach);
@@ -746,7 +754,9 @@ namespace Punchy.Fauna
                 // onto the ground, judged against the local ground plane under the hip so it holds on slopes too.
                 // (Splayed legs, a lizard's, don't fold, but lying flat their knees can still dip in: the same lift.)
                 var lieFold = folds ? fold : part.Role == LimbRole.Leg && part.Parent < 0 && !b.Upright && !aquatic ? s.Lie : 0f;
-                if (lieFold > 0.3f && OldLie.Data == 0 && part.FirstSegment + part.SegmentCount <= MaxSegments)
+                // (From the first moment of lying down, and refined to the least clearing angle, so the swing grows smoothly
+                // with the fold rather than letting the legs dip in while it fades in: A-92, #231.)
+                if (lieFold > 0.01f && OldLie.Data == 0 && part.FirstSegment + part.SegmentCount <= MaxSegments)
                 {
                     var h0 = GroundAt(terrain, hip.xz, s.Position.y);
                     var grad = new float2(GroundAt(terrain, hip.xz + new float2(0.3f, 0f), s.Position.y) - h0,
@@ -756,21 +766,40 @@ namespace Punchy.Fauna
                     var outward = part.Socket.x >= 0f ? 1f : -1f;
                     var best = quaternion.identity;
                     var bestLow = LowestLegPoint(ref b, ref part, ref segPos, ref segRot, quaternion.identity, hip, h0, grad, scale);
+                    var bestAxis = float3.zero;
+                    var bestT = 0f;
                     for (int k = 1; k <= 48 && bestLow < 0f; k++)
                     {
                         // 12 steps of 0.13 rad each way: forward, then back, then rolled out to the side, then in under the body.
                         var t = (1 + (k - 1) % 12) * 0.13f;
-                        var q = k <= 12 ? quaternion.AxisAngle(side, -t) : k <= 24 ? quaternion.AxisAngle(side, t) :
-                                k <= 36 ? quaternion.AxisAngle(ahead, t * outward) : quaternion.AxisAngle(ahead, -t * outward);
+                        var axis = k <= 12 ? -side : k <= 24 ? side : k <= 36 ? ahead * outward : -ahead * outward;
+                        var q = quaternion.AxisAngle(axis, t);
                         var low = LowestLegPoint(ref b, ref part, ref segPos, ref segRot, q, hip, h0, grad, scale);
                         // The first angle that clears wins (the loop ends); failing all, the one that comes closest.
                         if (low > bestLow)
                         {
                             best = q;
                             bestLow = low;
+                            bestAxis = axis;
+                            bestT = t;
                         }
                     }
-                    var weight = math.smoothstep(0.3f, 0.9f, lieFold);
+                    // (Halve the last step a few times to the least angle that still clears, so the legs don't jump by 0.13 rad.)
+                    if (bestLow >= 0f && bestT > 0f)
+                    {
+                        var lo = bestT - 0.13f;
+                        var hi = bestT;
+                        for (int halve = 0; halve < 5; halve++)
+                        {
+                            var mid = 0.5f * (lo + hi);
+                            if (LowestLegPoint(ref b, ref part, ref segPos, ref segRot, quaternion.AxisAngle(bestAxis, mid), hip, h0, grad, scale) >= 0f)
+                                hi = mid;
+                            else
+                                lo = mid;
+                        }
+                        best = quaternion.AxisAngle(bestAxis, hi);
+                    }
+                    var weight = math.smoothstep(0.01f, 0.15f, lieFold);
                     var turn = math.slerp(quaternion.identity, best, weight);
                     for (int j = 0; j < part.SegmentCount; j++)
                     {
@@ -780,6 +809,17 @@ namespace Punchy.Fauna
                     }
                     pos = hip + math.mul(turn, pos - hip);
                     rot = math.mul(turn, rot);
+                    // (No angle frees the ball of the hip itself, which the belly rests on, nor quite all of a long leg on a
+                    // slope, judged on a plane: lift what is left against the real ground up into the flank, at most the hip's
+                    // own radius, so no leg stays in the ground.)
+                    var left = LowestLegOnGround(ref b, ref part, ref segPos, ref segRot, in terrain, s.Position.y, scale);
+                    if (left < 0f)
+                    {
+                        var rise = new float3(0f, math.min(-left, b.Segments[part.FirstSegment].RadiusStart * scale) * weight, 0f);
+                        for (int j = 0; j < part.SegmentCount; j++)
+                            segPos[part.FirstSegment + j] += rise;
+                        pos += rise;
+                    }
                 }
 
                 // Climbing onto a ledge: the hands stay on its rim (Anchor, set as the climb began) while the body pulls
@@ -822,6 +862,50 @@ namespace Punchy.Fauna
                     piece.Material.x = (float)SegmentMaterial.Metal;
                 }
                 output[offset + seg] = piece;
+            }
+            if (NoSeams.Data == 0)
+                MarkJoints(ref b, output, offset);
+        }
+
+        /// <summary>
+        /// Seams: for each limb segment, how many segments back the one it hangs from is (the one before it in its
+        /// limb, else the last of the limb it grows from, else the trunk for a tail or neck), in Material.z for the
+        /// shader, which blends the start of the segment into that one's frame. Legs and arms off the trunk are left
+        /// alone (their start would swing flat along the body).
+        /// </summary>
+        static void MarkJoints(ref CreatureBlob b, NativeArray<SegmentInstance> output, int offset)
+        {
+            for (int p = 0; p < b.Parts.Length; p++)
+            {
+                ref var part = ref b.Parts[p];
+                if (part.Role != LimbRole.Leg && part.Role != LimbRole.Arm && part.Role != LimbRole.Tail && part.Role != LimbRole.Neck && part.Role != LimbRole.Head)
+                    continue;
+                for (int j = 0; j < part.SegmentCount; j++)
+                {
+                    var seg = part.FirstSegment + j;
+                    if (seg <= 0 || seg >= MaxSegments || seg >= b.Segments.Length)
+                        break;
+                    var from = -1;
+                    if (j > 0)
+                        from = seg - 1;
+                    else if (part.Parent >= 0)
+                    {
+                        ref var parent = ref b.Parts[part.Parent];
+                        from = parent.SegmentCount > 0 ? parent.FirstSegment + parent.SegmentCount - 1 : -1;
+                    }
+                    else if (part.Role == LimbRole.Tail || part.Role == LimbRole.Neck)
+                        from = 0;
+                    if (from < 0 || from >= MaxSegments || from >= b.Segments.Length)
+                        continue;
+                    var piece = output[offset + seg];
+                    if (piece.Length <= 0f || output[offset + from].Length <= 0f)
+                        continue;   // hidden (zero size) on either side
+                    // (Not across a fold sharper than a right angle: blended that far, the start would pinch.)
+                    if (math.abs(math.dot(piece.Rotation.value, output[offset + from].Rotation.value)) < 0.7071f)
+                        continue;
+                    piece.Material.z = seg - from;
+                    output[offset + seg] = piece;
+                }
             }
         }
 
@@ -1463,6 +1547,28 @@ namespace Punchy.Fauna
                 var g0 = h0 + math.dot(start.xz - hip.xz, grad);
                 var g1 = h0 + math.dot(end.xz - hip.xz, grad);
                 low = math.min(low, math.min(start.y - bs.RadiusStart * bs.Flatten * scale - g0, end.y - bs.RadiusEnd * bs.Flatten * scale - g1));
+            }
+            return low;
+        }
+
+        /// <summary>The lowest any segment of this leg comes to the real ground under it (m, less its radius).</summary>
+        static float LowestLegOnGround(ref CreatureBlob b, ref CreaturePart part, ref FixedList4096Bytes<float3> segPos,
+            ref FixedList4096Bytes<quaternion> segRot, in TerrainSource terrain, float nearY, float scale)
+        {
+            var low = float.MaxValue;
+            for (int j = 0; j < part.SegmentCount; j++)
+            {
+                var seg = part.FirstSegment + j;
+                ref var bs = ref b.Segments[seg];
+                var start = segPos[seg];
+                var end = start + math.mul(segRot[seg], new float3(0f, 0f, bs.Length * scale));
+                // (Its ends and middle: on curved ground a long shin can dip in between them.)
+                for (float t = 0f; t <= 1.001f; t += 0.5f)
+                {
+                    var at = math.lerp(start, end, t);
+                    var r = math.lerp(bs.RadiusStart, bs.RadiusEnd, t) * bs.Flatten * scale;
+                    low = math.min(low, at.y - r - GroundAt(terrain, at.xz, nearY));
+                }
             }
             return low;
         }

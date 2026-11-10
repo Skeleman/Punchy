@@ -127,6 +127,11 @@ namespace Punchy.Debugging
             colossusShotDistance = colArg >= 0 && colArg + 1 < args.Length && float.TryParse(args[colArg + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var cd) ? cd : 0f;
             // "-huntlog": log land hunters' chases (Z-53).
             huntLog = System.Array.IndexOf(args, "-huntlog") >= 0;
+            // A-90: "-breathlog" logs the breath shape per species and the live puff count; "-breathsize old" brings back
+            // the one-size breath from before, to compare.
+            Punchy.Fauna.CreatureBreathSystem.Log = System.Array.IndexOf(args, "-breathlog") >= 0;
+            var bsArg = System.Array.IndexOf(args, "-breathsize");
+            Punchy.Fauna.CreatureBreathSystem.Legacy = bsArg >= 0 && bsArg + 1 < args.Length && args[bsArg + 1] == "old";
             // "-personalitylog Dog": list each of that species' personality a few seconds in (#50).
             var plArg = System.Array.IndexOf(args, "-personalitylog");
             personalitySpecies = plArg >= 0 && plArg + 1 < args.Length ? args[plArg + 1] : null;
@@ -216,6 +221,15 @@ namespace Punchy.Debugging
             Punchy.Player.PlayerMovementSystem.NoPushOut.Data = System.Array.IndexOf(args, "-nopushout") >= 0;
             // "-oldlie" (A-42): lying four-legged bodies' legs left where they fall, for before shots from the same build.
             CreatureAnimator.OldLie.Data = System.Array.IndexOf(args, "-oldlie") >= 0 ? 1 : 0;
+            // Creature surface detail (A-92, #230), on by default; each costs well under 0.3 ms on a 30-horse herd.
+            // "-noseams": limb segments not blended into the one they hang from at the joint.
+            CreatureAnimator.NoSeams.Data = System.Array.IndexOf(args, "-noseams") >= 0 ? 1 : 0;
+            // "-nofur": no fur strands or coat patches in the creature shader.
+            Shader.SetGlobalFloat("_PunchyNoFur", System.Array.IndexOf(args, "-nofur") >= 0 ? 1f : 0f);
+            // "-noshells": near bodies without their two fur shells.
+            CreatureRenderSystem.Shells = System.Array.IndexOf(args, "-noshells") < 0;
+            // "-nobloom" (A-96): bloom off in the volumes' own copies of their profiles (the asset is untouched).
+            Punchy.Debugging.SparkleProbe.NoBloom(System.Array.IndexOf(args, "-nobloom") >= 0);
             // "-solidsoff" (A-44): wild animals ignore cave walls, towers and carved ground as before, for before numbers
             // from the same build. "-solidstats": log their contacts, sink and floating every 60 s (SolidStatsLog).
             CreatureMotion.SolidsOff.Data = System.Array.IndexOf(args, "-solidsoff") >= 0 ? 1 : 0;
@@ -231,6 +245,7 @@ namespace Punchy.Debugging
             }
             for (int i = 0; i < args.Length - 1; i++)
             {
+                FrameFlag(args, i);
                 if (args[i] == "-time" && Cycle != null && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var hours))
                     Cycle.TimeOfDay = Mathf.Repeat(hours, 24f);
                 if (args[i] == "-watch")
@@ -284,6 +299,16 @@ namespace Punchy.Debugging
                 // "-shotdir C:\shots": tests that take their own screenshots (-interact) save them there.
                 if (args[i] == "-shotdir")
                     shotDir = args[i + 1];
+                // "-sparkleprobe label" (A-96): count creature pixels that are not a number or over 16 for 360 frames
+                // from 3 s on, logged per frame as "[sparkle]" lines, with crops of the first into -shotdir. "-sparklecap 0.5"
+                // before it: a lower cap (a check that the probe sees the creatures at all).
+                if (args[i] == "-sparkleprobe")
+                {
+                    var capAt = System.Array.IndexOf(args, "-sparklecap");
+                    var sparkleCap = capAt >= 0 && capAt + 1 < args.Length && float.TryParse(args[capAt + 1], System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out var sc) ? sc : 16f;
+                    Punchy.Debugging.SparkleProbe.Begin(args[i + 1], cap: sparkleCap, cropDir: shotDir);
+                }
                 // "-cam x,y,z,yaw,pitch" or "-camlook x,y,z,tx,ty,tz": the camera put there directly (its follow off till
                 // the next shot), for framing a shot exactly.
                 if ((args[i] == "-cam" || args[i] == "-camlook") && ParseFloats(args[i + 1]) is float[] c && c.Length >= 5)
@@ -301,6 +326,8 @@ namespace Punchy.Debugging
                     flyHitchMs = hitchMs;
                 if (args[i] == "-flycave" && EnsureLocations(out var flySource))
                     StartFlyCave(flySource, args[i + 1]);
+                if (args[i] == "-dungeonwalk")
+                    StartDungeonWalk(args[i + 1]);
                 if (args[i] == "-place" && args[i + 1].StartsWith("batfolk", System.StringComparison.OrdinalIgnoreCase))
                 {
                     // (Kept trying until v3 is up, ~90 s in: see PlaceAtBatFolkPending.)
@@ -418,6 +445,28 @@ namespace Punchy.Debugging
             // "-oldtrace" (#81): TraceSystem's managed per-creature ground lookups, as before W-66.
             Punchy.Fauna.TraceSystem.OldTrace = System.Array.IndexOf(args, "-oldtrace") >= 0;
             perfLog = System.Array.IndexOf(args, "-perflog") >= 0;
+            // "-skyoff n" (a bit mask, to price the sky's parts): see _PunchySkyOff in Sky.hlsl. Per shot line.
+            var skyOffArg = System.Array.IndexOf(args, "-skyoff");
+            if (skyOffArg >= 0 && skyOffArg + 1 < args.Length && float.TryParse(args[skyOffArg + 1], out var skyOff))
+                Shader.SetGlobalFloat("_PunchySkyOff", skyOff);
+            // "-skyfull" / "-lowres half|quarter": the cloud buffer's size from this shot line on (see GraphicsSettings).
+            if (System.Array.IndexOf(args, "-skyfull") >= 0)
+                Punchy.Rendering.LowResEffectFeature.SetMode("Clouds", Punchy.Rendering.LowResMode.Off);
+            var lowResArg = System.Array.IndexOf(args, "-lowres");
+            if (lowResArg >= 0 && lowResArg + 1 < args.Length && System.Enum.TryParse<Punchy.Rendering.LowResMode>(args[lowResArg + 1], true, out var lowResMode))
+                Punchy.Rendering.LowResEffectFeature.SetMode("Clouds", lowResMode);
+            // R-3 A/B: "-depthpriming off|auto|forced", the PC renderer's depth priming from this shot line on (the asset's
+            // is Forced; on desktop Auto behaves the same). Set on the live renderer, so the asset never changes.
+            var primingArg = System.Array.IndexOf(args, "-depthpriming");
+            if (primingArg >= 0 && primingArg + 1 < args.Length &&
+                UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline is UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset urp &&
+                urp.GetRenderer(0) is UnityEngine.Rendering.Universal.UniversalRenderer renderer)
+            {
+                var priming = args[primingArg + 1].ToLowerInvariant();
+                renderer.depthPrimingMode = priming == "off" ? UnityEngine.Rendering.Universal.DepthPrimingMode.Disabled
+                    : priming == "auto" ? UnityEngine.Rendering.Universal.DepthPrimingMode.Auto : UnityEngine.Rendering.Universal.DepthPrimingMode.Forced;
+                Debug.Log($"DebugControls: -depthpriming {renderer.depthPrimingMode}");
+            }
             // A-45 A/B toggles: "-oldsearch" (#57, every brain search every frame), "-oldsnapshot" (#56, each reader copies
             // the creatures itself), "-oldtrace" (#55, the ground sampled for every creature in trace range).
             // (-oldsearch also holds from the command line or PlayArgs through every shot-list line: A-55's A/B lost it

@@ -16,7 +16,7 @@ namespace Punchy.Terrain
     /// (in a Burst job, picked up a frame later, redone each time the camera moves a few metres). Seed-derived, so
     /// every machine finds the same lights.
     /// </summary>
-    public class SurfaceGlow
+    public partial class SurfaceGlow
     {
         /// <summary>How far round the camera each layer is searched (ground, shrubs, trees), in metres.</summary>
         static readonly float3 Radius = new float3(30f, 32f, 50f);
@@ -68,6 +68,7 @@ namespace Punchy.Terrain
                 Build(palette, flora);
                 from = palette;
             }
+            UpdateWorld(source);
             if (!anyGlow)
                 return;
             if (running && job.IsCompleted)
@@ -77,12 +78,15 @@ namespace Punchy.Terrain
                 Found.Clear();
                 for (int i = 0; i < positions.Length; i++)
                     Found.Add((positions[i].xyz, colors[i]));
+                GatherSpill(flora);
             }
             if (!running && math.distancesq(camPos, scannedAt) > MoveBeforeRescan * MoveBeforeRescan)
             {
                 scannedAt = camPos;
                 positions.Clear();
                 colors.Clear();
+                spillAt.Clear();
+                spillModel.Clear();
                 job = new ScanJob
                 {
                     Flora = blob,
@@ -91,7 +95,9 @@ namespace Punchy.Terrain
                     Centre = camPos.xz,
                     CellSizes = cellSizes,
                     Positions = positions,
-                    Colors = colors
+                    Colors = colors,
+                    SpillAt = spillAt,
+                    SpillModel = spillModel
                 }.Schedule();
                 running = true;
             }
@@ -156,8 +162,11 @@ namespace Punchy.Terrain
                 for (int v = 0; v < f.Rules[s].Variants; v++)
                     modelGlow[f.Rules[s].FirstModel + v] = g;
             }
+            BuildWorldMask(palette, species, ref f);
             positions = new NativeList<float4>(256, Allocator.Persistent);
             colors = new NativeList<float4>(256, Allocator.Persistent);
+            spillAt = new NativeList<float4>(64, Allocator.Persistent);
+            spillModel = new NativeList<float2>(64, Allocator.Persistent);
             scannedAt = new float3(float.MaxValue);
             if (!anyGlow)
                 return;
@@ -188,6 +197,8 @@ namespace Punchy.Terrain
                 farJob.Complete();
                 farRunning = false;
             }
+            ReleaseWorld();
+            ReleaseSpill();
             if (farPlants.IsCreated)
                 farPlants.Dispose();
             if (farWindows.IsCreated)
@@ -220,6 +231,10 @@ namespace Punchy.Terrain
             public float2 Centre;
             public float3 CellSizes;
             public NativeList<float4> Positions, Colors;
+            /// <summary>W-127: lit-window plants within SpillRadius (the tree layer's houses): xyz position, w yaw;
+            /// x its model, y its scale.</summary>
+            public NativeList<float4> SpillAt;
+            public NativeList<float2> SpillModel;
 
             public void Execute()
             {
@@ -227,7 +242,8 @@ namespace Punchy.Terrain
                 for (int layer = 0; layer < 3; layer++)
                 {
                     var size = CellSizes[layer];
-                    var r = Radius[layer];
+                    var near = Radius[layer];
+                    var r = layer == 2 ? math.max(near, SpillRadius) : near;
                     var lo = (int2)math.floor((Centre - r) / size);
                     var hi = (int2)math.floor((Centre + r) / size);
                     for (int y = lo.y; y <= hi.y; y++)
@@ -242,8 +258,23 @@ namespace Punchy.Terrain
                         var glow = ModelGlow[plant.Model];
                         if (glow.w == 0f)
                             continue;
+                        var fixture = FloraPlacement.IsFixtureGlow(glow.w);
+                        if (glow.w < 0f && !fixture)
+                        {
+                            SpillAt.Add(new float4(plant.Position, plant.Yaw));
+                            SpillModel.Add(new float2(plant.Model, plant.Scale));
+                        }
+                        if (math.distancesq(((float2)cell + 0.5f) * size, Centre) > near * near)
+                            continue;
                         // Lit from about the middle of the plant; a bigger one reaches further.
                         var scale = math.max(plant.Scale, 0.3f);
+                        if (fixture)
+                        {
+                            // W-127: a street light, lit from its lamp, out in the street (night only, still marked).
+                            Positions.Add(new float4(plant.Position + new float3(0f, StructureKit.FixtureLightHeight * scale, 0f), 0f));
+                            Colors.Add(new float4(glow.xyz, -(FloraPlacement.FixtureGlowBase + FloraPlacement.GlowReach(glow.w) * math.sqrt(scale))));
+                            continue;
+                        }
                         Positions.Add(new float4(plant.Position + new float3(0f, 0.4f * scale, 0f), 0f));
                         Colors.Add(new float4(glow.xyz, glow.w * math.sqrt(scale)));   // negative: night only (lit windows)
                     }
@@ -293,11 +324,17 @@ namespace Punchy.Terrain
                         var glow = ModelGlow[plant.Model];
                         if (glow.w == 0f)
                             continue;
+                        // W-127: the night map holds street lights only; a lit window's lamp is indoors (its spill
+                        // panes light the street), so it no longer lights the ground through its walls from afar.
+                        var fixture = FloraPlacement.IsFixtureGlow(glow.w);
+                        if (glow.w < 0f && !fixture)
+                            continue;
                         var scale = math.max(plant.Scale, 0.3f);
-                        var reach = math.abs(glow.w) * math.sqrt(scale);
+                        var reach = FloraPlacement.GlowReach(glow.w) * math.sqrt(scale);
                         var wide = math.max(reach * 1.6f, 12f);
                         var light = glow.xyz * (reach * reach / (wide * wide) * step * step);
-                        Splat(glow.w < 0f ? Windows : Plants, plant.Position + new float3(0f, 0.4f * scale, 0f), light, wide);
+                        var lift = fixture ? StructureKit.FixtureLightHeight : 0.4f;
+                        Splat(fixture ? Windows : Plants, plant.Position + new float3(0f, lift * scale, 0f), light, wide);
                     }
                 }
             }

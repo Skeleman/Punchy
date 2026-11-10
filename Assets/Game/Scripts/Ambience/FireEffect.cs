@@ -14,7 +14,7 @@ namespace Punchy.Ambience
         [ColorUsage(false, true)] public Color Mid;
         [Tooltip("The hot core low in the middle.")]
         [ColorUsage(false, true)] public Color Core;
-        [Tooltip("The light it throws on rock and walls (CaveSystem.MovingLights), times the effect's light intensity.")]
+        [Tooltip("The light it throws on rock and walls (a LightBudget request), times the effect's light intensity.")]
         [ColorUsage(false, true)] public Color Light;
     }
 

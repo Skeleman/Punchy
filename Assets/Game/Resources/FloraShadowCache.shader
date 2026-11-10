@@ -33,7 +33,7 @@ Shader "Punchy/FloraShadowCache"
             float4 _FloraCacheTex_TexelSize;
             float4x4 _FloraCacheMatrix;   // world to the cache's uv
             float4 _FloraReceiveSun;      // xyz the way the sunlight travelled when the cache was laid
-            float4 _FloraCacheParams;     // xy the camera (xz), w how dark a cached shadow is
+            float4 _FloraCacheParams;     // xyz the camera, w how dark a cached shadow is
             float4 _FloraCacheFade;       // fades in over x..y and out over z..w (m from the camera)
 
             struct Varyings
@@ -66,7 +66,7 @@ Shader "Punchy/FloraShadowCache"
                     return 1;
             #endif
                 float3 positionWS = ComputeWorldSpacePosition(uv, raw, UNITY_MATRIX_I_VP);
-                float d = distance(positionWS.xz, _FloraCacheParams.xy);
+                float d = distance(positionWS, _FloraCacheParams.xyz);   // 3D, as FloraCull hands trees over (R-6 row 0)
                 float fade = smoothstep(_FloraCacheFade.x, _FloraCacheFade.y, d) * (1 - smoothstep(_FloraCacheFade.z, _FloraCacheFade.w, d));
                 if (fade <= 0)
                     return 1;

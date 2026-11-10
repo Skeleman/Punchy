@@ -22,6 +22,15 @@ namespace Punchy.Flora
         public float2 PatchOffset;
         public float NearWater;
         public int OnlyNearWater;
+        /// <summary>W-126 habitat (FloraSpecies): sun-facing slopes (-1..1), shelter and exposure (0..1) of the local relief, and the wet reach multiple.</summary>
+        public float SunSlope, Shelter, Exposure, WetReach;
+        /// <summary>W-126: the density gain a habitat rule's species gets where its habitat is (1 = no rule): what the rule takes from the rest of the land it gives back here, so the species keeps about its overall density.</summary>
+        public float HabitatGain;
+        /// <summary>W-126: groves (spacing 0 = none), the radius, peak gain and straggler share, a seed, and the clearing-edge affinity.</summary>
+        public float GroveSpacing, GroveRadius, GroveGain, GroveStraggle, EdgeAffinity;
+        public uint GroveSeed;
+        /// <summary>The most a grove or clearing edge multiplies a weight (counted in the early-out bound; 1 = never).</summary>
+        public float ExtraGain;
         public float2 SizeRange;
         public int Aquatic, Floats;
         public float2 WaterDepth;
@@ -120,6 +129,8 @@ namespace Punchy.Flora
         public BlobArray<int2> Ranges;
         /// <summary>Per biome, its realm (BiomePalette.BiomeRealms), or -1 (no realms, or the ocean).</summary>
         public BlobArray<int> BiomeRealm;
+        /// <summary>Per biome: x = ClearingAmount, y = ClearingSize (W-126).</summary>
+        public BlobArray<float2> Clearing;
         public BlobArray<FloraPropEntry> Props;
         /// <summary>Per landmark type × layer.</summary>
         public BlobArray<int2> PropRanges;
@@ -127,6 +138,10 @@ namespace Punchy.Flora
         public BlobArray<int2> SettlementSpecies;
         /// <summary>Per settlement layout (Layouts order): its Kit Building species and layer, or -1 (#24).</summary>
         public BlobArray<int2> LayoutKit;
+        /// <summary>W-127: street-light rows (SettlementLayout.Fixtures, LandmarkType.Fixtures), flattened.</summary>
+        public BlobArray<FloraPlacement.FloraFixture> Fixtures;
+        /// <summary>W-127: per settlement layout (Layouts order) and per landmark type, its rows in Fixtures (first, count).</summary>
+        public BlobArray<int2> LayoutFixtures, TypeFixtures;
         /// <summary>
         /// Per species: the light a glowing plant gives its surroundings (rgb, linear) and how far it reaches (w, m);
         /// all zero for plants that don't glow. See <see cref="FloraPlacement.GlowLight"/>.
@@ -204,6 +219,22 @@ namespace Punchy.Flora
             species.Clear();
             species.AddRange(found);
             species.Sort((a, b) => a.Layer != b.Layer ? a.Layer.CompareTo(b.Layer) : string.CompareOrdinal(a.name, b.name));
+            // W-127: street lights go after every other model (the tree layer is last, so its models stay together), so
+            // adding a folk's lights never moves another species' models.
+            var lights = new HashSet<FloraSpecies>();
+            foreach (var l in layouts)
+                if (l.Fixtures != null)
+                    foreach (var row in l.Fixtures)
+                        if (UsableFixture(row?.Species) && !found.Contains(row.Species))
+                            lights.Add(row.Species);
+            foreach (var landmark in landmarks)
+                if (landmark != null && landmark.Fixtures != null)
+                    foreach (var row in landmark.Fixtures)
+                        if (UsableFixture(row?.Species) && !found.Contains(row.Species))
+                            lights.Add(row.Species);
+            var extra = new List<FloraSpecies>(lights);
+            extra.Sort((a, b) => string.CompareOrdinal(a.name, b.name));
+            species.AddRange(extra);
         }
 
         /// <summary>
@@ -268,6 +299,18 @@ namespace Punchy.Flora
                     PatchOffset = new float2(h & 0xFFFF, h >> 16) / 65535f * 300f,
                     NearWater = s.NearWater,
                     OnlyNearWater = s.OnlyNearWater ? 1 : 0,
+                    SunSlope = s.SunSlope,
+                    Shelter = s.Shelter,
+                    Exposure = s.Exposure,
+                    WetReach = s.WetReach,
+                    HabitatGain = 1f + 0.4f * math.max(math.abs(s.SunSlope), math.max(s.Shelter, s.Exposure)),
+                    GroveSpacing = s.GroveSpacing,
+                    GroveRadius = s.GroveRadius,
+                    GroveGain = s.GroveGain,
+                    GroveStraggle = s.GroveStraggle,
+                    EdgeAffinity = s.EdgeAffinity,
+                    GroveSeed = math.hash(new int2(s.Seed, i * 31 + 7)),
+                    ExtraGain = (s.GroveSpacing > 0f ? math.max(1f, s.GroveGain) : 1f) * (1f + s.EdgeAffinity),
                     SizeRange = s.SizeRange,
                     Aquatic = s.Aquatic ? 1 : 0,
                     Floats = s.Floats ? 1 : 0,
@@ -375,6 +418,10 @@ namespace Punchy.Flora
             for (int b = 0; b < root.BiomeCount; b++)
                 biomeRealm[b] = palette.BiomeRealms != null && b < palette.BiomeRealms.Length ? palette.BiomeRealms[b] : -1;
 
+            var clearing = builder.Allocate(ref root.Clearing, root.BiomeCount);
+            for (int b = 0; b < root.BiomeCount; b++)
+                clearing[b] = palette.Biomes[b] != null ? new float2(palette.Biomes[b].ClearingAmount, palette.Biomes[b].ClearingSize) : float2.zero;
+
             root.LandmarkTypeCount = landmarks.Length;
             var propList = new List<FloraPropEntry>();
             var propRanges = builder.Allocate(ref root.PropRanges, math.max(1, landmarks.Length * 3));
@@ -412,6 +459,22 @@ namespace Punchy.Flora
                 layoutKit[i] = layouts[i].KitBuilding != null
                     ? new int2(species.IndexOf(layouts[i].KitBuilding), (int)layouts[i].KitBuilding.Layer)
                     : new int2(-1, -1);
+            var fixtureList = new List<FloraFixture>();
+            var layoutRanges = new int2[layouts.Count];
+            for (int i = 0; i < layouts.Count; i++)
+                layoutRanges[i] = AddFixtures(layouts[i].Fixtures, species, palette, fixtureList);
+            var typeRanges = new int2[landmarks.Length];
+            for (int t = 0; t < landmarks.Length; t++)
+                typeRanges[t] = landmarks[t] != null ? AddFixtures(landmarks[t].Fixtures, species, palette, fixtureList) : int2.zero;
+            var fixtures = builder.Allocate(ref root.Fixtures, fixtureList.Count);
+            for (int i = 0; i < fixtureList.Count; i++)
+                fixtures[i] = fixtureList[i];
+            var layoutFixtures = builder.Allocate(ref root.LayoutFixtures, layoutRanges.Length);
+            for (int i = 0; i < layoutRanges.Length; i++)
+                layoutFixtures[i] = layoutRanges[i];
+            var typeFixtures = builder.Allocate(ref root.TypeFixtures, typeRanges.Length);
+            for (int i = 0; i < typeRanges.Length; i++)
+                typeFixtures[i] = typeRanges[i];
 
             var blob = builder.CreateBlobAssetReference<FloraBlob>(Allocator.Persistent);
             builder.Dispose();
@@ -444,7 +507,8 @@ namespace Punchy.Flora
 
         /// <summary>The ground colour a placed plant carries (FloraInstance.Ground): a rock's tint, or a built thing's dirt.</summary>
         static uint GroundFor(in TerrainSource source, in FloraRules rule, float2 at, float reach, float band) =>
-            (rule.Tilt > 0f || rule.BiomeRock != 0) && rule.OwnColour == 0 ? RockTint(source, at) : DirtColor(source, rule, at, reach, band);
+            (rule.Tilt > 0f || rule.BiomeRock != 0) && rule.OwnColour == 0 ? RockTint(source, at)
+            : rule.Dirt != 0 ? DirtColor(source, rule, at, reach, band) : GreenTint(source, at);
 
         /// <summary>
         /// A rock's colour where it lies (G-36): on dry ground, the biome's own rock (the surface its cliffs take, so a rock
@@ -461,6 +525,22 @@ namespace Punchy.Flora
             var cliff = source.SampleSurface(at, ground, math.normalize(new float3(1f, 0.2f, 0f)));
             var c = (uint3)math.round(math.saturate(math.lerp(cliff.Albedo, new float3(0.62f, 0.64f, 0.68f), math.saturate(flat.Snow))) * 255f);
             return c.x | (c.y << 8) | (c.z << 16) | (RockTintMark << 24);
+        }
+
+        /// <summary>
+        /// Item 13: the green a plant's leaves lean towards where it grows: the ground's own colour (V3 recolours it through
+        /// SampleSurface), with the alpha at GreenTintMark, the shader's sign for it; 0 off grassy ground. Colour only:
+        /// nothing here draws from a plant's random stream.
+        /// </summary>
+        public const uint GreenTintMark = 254u;
+        static uint GreenTint(in TerrainSource source, float2 at)
+        {
+            var ground = source.SampleGround(at);
+            var flat = source.SampleSurface(at, ground, new float3(0f, 1f, 0f));
+            if (flat.Grass <= 0.3f)
+                return 0u;
+            var c = (uint3)math.round(math.saturate(flat.Albedo) * 255f);
+            return c.x | (c.y << 8) | (c.z << 16) | (GreenTintMark << 24);
         }
 
         /// <summary>FloraRules.Footprint for a species (from its settings, without growing it).</summary>
@@ -553,6 +633,417 @@ namespace Punchy.Flora
                     return true;
             }
             return false;
+        }
+
+        // ------------------------------------------------------------------------------------------- street lights (W-127)
+
+        /// <summary>
+        /// W-127: a street light row, flattened for Burst (SettlementLayout.Fixtures, LandmarkType.Fixtures).
+        /// Biomes: a bit per palette biome it may stand in, 0 = anywhere.
+        /// </summary>
+        public struct FloraFixture
+        {
+            public int Species, Spot;
+            public float Chance;
+            public ulong Biomes;
+            /// <summary>Only in settlements with at least this many plots (0 = any).</summary>
+            public int MinPlots;
+        }
+
+        /// <summary>A street light's reach marker in the glow table: w = -(FixtureGlowBase + reach), night only like lit
+        /// windows, but out in the street (an AddStill Fixture, the far night map), not indoors.</summary>
+        public const float FixtureGlowBase = 1000f;
+        public static bool IsFixtureGlow(float w) => w <= -FixtureGlowBase;
+        /// <summary>A glow entry's reach (m), whatever kind it is.</summary>
+        public static float GlowReach(float w) => w <= -FixtureGlowBase ? -w - FixtureGlowBase : math.abs(w);
+
+        /// <summary>The rows of a table that name a usable species (a Tree layer Fixture kit building), flattened.</summary>
+        static int2 AddFixtures(List<Punchy.Terrain.SettlementFixture> table, List<FloraSpecies> species, BiomePalette palette, List<FloraFixture> into)
+        {
+            var start = into.Count;
+            if (table != null)
+                foreach (var row in table)
+                {
+                    var i = row?.Species != null ? species.IndexOf(row.Species) : -1;
+                    if (i < 0 || row.Chance <= 0f)
+                        continue;
+                    ulong mask = 0;
+                    if (row.OnlyIn != null)
+                        foreach (var b in row.OnlyIn)
+                        {
+                            var bi = b != null ? Array.IndexOf(palette.Biomes, b) : -1;
+                            if (bi >= 0 && bi < 64)
+                                mask |= 1ul << bi;
+                        }
+                    into.Add(new FloraFixture { Species = i, Spot = (int)row.Spot, Chance = row.Chance, Biomes = mask, MinPlots = row.MinPlots });
+                }
+            return new int2(start, into.Count - start);
+        }
+
+        static bool UsableFixture(FloraSpecies s) =>
+            s != null && s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Fixture && (int)s.Layer == TreeLayer;
+
+        /// <summary>A well-mixed hash of a spot, for a street light's own draws (never the cell's).</summary>
+        static uint FixtureHash(float2 spot, uint salt)
+        {
+            var h = math.hash(new uint3(math.asuint(spot), salt));
+            return BiomeSampling.Scramble(h);
+        }
+
+        /// <summary>
+        /// The street light a spot of a kind takes from a table range (species index, or -1): one roll, the rows of that
+        /// kind (whose biomes match <paramref name="biome"/>) taking it by summed chance.
+        /// </summary>
+        static int PickFixture(ref FloraBlob f, int2 range, int spot, int biome, uint h)
+        {
+            var u = (h >> 8) / 16777216f;
+            var sum = 0f;
+            for (int i = range.x; i < range.x + range.y; i++)
+            {
+                var row = f.Fixtures[i];
+                if (row.Spot != spot || (row.Biomes != 0 && (biome < 0 || biome >= 64 || (row.Biomes & (1ul << biome)) == 0)))
+                    continue;
+                sum += row.Chance;
+                if (u < sum)
+                    return row.Species;
+            }
+            return -1;
+        }
+
+        static FloraSystem.FloraInstance FixtureInstance(ref FloraBlob f, in TerrainSource source, int species, float2 spot, float yaw, float scale, uint h, bool footprint)
+        {
+            var rule = f.Rules[species];
+            return new FloraSystem.FloraInstance
+            {
+                Position = new float3(spot.x, footprint ? 0f : source.SampleHeight(spot), spot.y),
+                Yaw = yaw,
+                Scale = scale * (0.92f + (h & 0xFF) / 255f * 0.16f),
+                Model = rule.FirstModel + (int)((h >> 12) % (uint)math.max(1, rule.Variants)),
+                Random = ((h >> 4) & 0xFFFF) / 65535f,
+                Snow = footprint ? 0f : source.SampleBiomeSnow(spot)
+            };
+        }
+
+        /// <summary>
+        /// Whether a landmark's placed prop in the tree layer (a ring-spot prop or its centrepiece) takes this cell: a
+        /// street light gives way to it, as the biome's plants do.
+        /// </summary>
+        static bool LandmarkTreeInCell(ref FloraBlob f, in TerrainSource source, int2 cell, float cellSize)
+        {
+            if (!source.Landmarks.IsCreated || !LandmarkSampling.Find(ref source.Landmarks.Value, ((float2)cell + 0.5f) * cellSize, out var hit) ||
+                hit.Type >= f.LandmarkTypeCount)
+                return false;
+            ref var set = ref source.Landmarks.Value;
+            var instance = set.Instances[hit.Instance];
+            var placed = f.PropRanges[hit.Type * 3 + TreeLayer];
+            for (int e = placed.x; e < placed.x + placed.y; e++)
+            {
+                var prop = f.Props[e];
+                if (prop.Centrepiece != 0 && math.all((int2)math.floor(instance.Position / cellSize) == cell))
+                    return true;
+                for (int k = 0; k < prop.Count; k++)
+                {
+                    var spot = LandmarkSampling.ToWorld(instance, LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / prop.Count), hit.Radius);
+                    if (math.all((int2)math.floor(spot / cellSize) == cell))
+                        return true;
+                }
+            }
+            return false;
+        }
+
+        static bool OnStreet(ref SettlementSetBlob towns, int townCell, float2 xz, float clear)
+        {
+            var streets = towns.StreetCells[townCell];
+            for (int k = streets.x; k < streets.x + streets.y; k++)
+            {
+                var street = towns.Streets[towns.StreetItems[k]];
+                if (SettlementSampling.Across(street, xz, out _) < street.Width * 0.5f + clear)
+                    return true;
+            }
+            return false;
+        }
+
+        static bool InPlot(ref SettlementSetBlob towns, int townCell, float2 xz)
+        {
+            var plots = towns.PlotCells[townCell];
+            for (int k = plots.x; k < plots.x + plots.y; k++)
+                if (SettlementSampling.Outside(towns.Plots[towns.PlotItems[k]], xz) <= 0f)
+                    return true;
+            return false;
+        }
+
+        /// <summary>
+        /// W-127: where a settlement's beacon tower stands, if it has one: a paved square in a town of at least the row's
+        /// MinPlots, at the square's rim in the widest gap between its lane mouths (so it faces no lane), clear of the
+        /// well, the plots, the lanes and the landmark's own props (benches, the well, its trees). Pure: from the town's
+        /// own data and hash, so the flora, LandmarkEffectSystem (its fire) and the world glow all find the same spot.
+        /// Scale is the tower's (a fixture's 0.92 to 1.08; its stair's rise stays under KitStep at the top of it).
+        /// </summary>
+        public static bool BeaconSpot(ref FloraBlob f, in TerrainSource source, int settlement, out float2 spot, out int species, out float yaw,
+                                      out float scale, out uint h)
+        {
+            spot = default; species = -1; yaw = 0f; scale = 1f; h = 0u;
+            if (!source.Settlements.IsCreated || f.Fixtures.Length == 0)
+                return false;
+            ref var towns = ref source.Settlements.Value;
+            if (settlement < 0 || settlement >= towns.Settlements.Length)
+                return false;
+            ref var town = ref towns.Settlements[settlement];
+            if (town.Square <= 0f || town.Layout < 0 || town.Layout >= f.LayoutFixtures.Length)
+                return false;
+            var range = f.LayoutFixtures[town.Layout];
+            h = FixtureHash(town.Centre, 0xBEACu);
+            var biome = BiomeAt(source, town.Centre);
+            var u = (h >> 8) / 16777216f;
+            for (int i = range.x; i < range.x + range.y && species < 0; i++)
+            {
+                var row = f.Fixtures[i];
+                if (row.Spot == (int)Punchy.Terrain.FixtureSpot.Beacon && town.PlotCount >= row.MinPlots && u < row.Chance &&
+                    (row.Biomes == 0 || (biome >= 0 && biome < 64 && (row.Biomes & (1ul << biome)) != 0)))
+                    species = row.Species;
+            }
+            if (species < 0)
+                return false;
+            // The lane mouths, in order round the square; the gaps between them, widest first.
+            var m = town.Mouths;
+            var angles = new float4(99f);
+            var count = 0;
+            for (int i = 0; i < 4; i++)
+                if (m[i] < 90f)
+                    angles[count++] = m[i];
+            for (int a = 0; a < count; a++)
+                for (int b = a + 1; b < count; b++)
+                    if (angles[b] < angles[a])
+                    {
+                        var t = angles[a]; angles[a] = angles[b]; angles[b] = t;
+                    }
+            var mids = new float4(0f, math.PI * 0.5f, math.PI, math.PI * 1.5f);
+            var widths = new float4(1f, 0.9f, 0.8f, 0.7f);
+            for (int i = 0; i < count; i++)
+            {
+                var next = i + 1 < count ? angles[i + 1] : angles[0] + 2f * math.PI;
+                mids[i] = (angles[i] + next) * 0.5f;
+                widths[i] = next - angles[i];
+            }
+            if (count > 0)
+                for (int i = count; i < 4; i++)
+                    widths[i] = -1f;
+            var hit = default(LandmarkHit);
+            var hasLandmark = source.Landmarks.IsCreated && LandmarkSampling.Find(ref source.Landmarks.Value, town.Centre, out hit) && hit.Type < f.LandmarkTypeCount;
+            var cellSize = f.CellSizes[TreeLayer];
+            scale = 0.92f + (h & 0xFF) / 255f * 0.16f;
+            var half = Punchy.Terrain.StructureKit.BeaconHalf * scale;
+            for (int pass = 0; pass < 4; pass++)
+            {
+                // The next widest gap.
+                var g = 0;
+                for (int i = 1; i < 4; i++)
+                    if (widths[i] > widths[g])
+                        g = i;
+                if (widths[g] < 0f)
+                    break;
+                widths[g] = -1f;
+                for (int o = 0; o < 9; o++)
+                {
+                    var angle = mids[g] + (o % 3 - 1) * 0.22f;
+                    var radius = town.Square * 0.5f - half - 0.4f + (o / 3) * 2.2f;
+                    var at = town.Centre + new float2(math.cos(angle), math.sin(angle)) * radius;
+                    if (math.distance(at, town.Water.xz) < half + 3.5f || !BeaconClear(ref towns, ref town, at, half))
+                        continue;
+                    if (hasLandmark && (LandmarkTreeInCell(ref f, source, (int2)math.floor(at / cellSize), cellSize) ||
+                                        LandmarkPropNear(ref f, ref source.Landmarks.Value, hit, at, half + 1.5f)))
+                        continue;
+                    spot = at;
+                    // The stair's foot (the model's +Z face) towards the square's middle.
+                    yaw = FacingYaw(math.normalizesafe(town.Centre - at, new float2(0f, 1f)));
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>The beacon's fire, in the world (see BeaconSpot), and whether the settlement has one.</summary>
+        public static bool BeaconFire(ref FloraBlob f, in TerrainSource source, int settlement, out float3 fire)
+        {
+            fire = default;
+            if (!BeaconSpot(ref f, source, settlement, out var spot, out _, out _, out var scale, out _))
+                return false;
+            fire = new float3(spot.x, source.SampleHeight(spot) + Punchy.Terrain.StructureKit.BeaconFire * scale, spot.y);
+            return true;
+        }
+
+        static bool BeaconClear(ref SettlementSetBlob towns, ref SettlementData town, float2 at, float half)
+        {
+            var corner = half * 1.42f;
+            for (int k = town.FirstPlot; k < town.FirstPlot + town.PlotCount; k++)
+                if (SettlementSampling.Outside(towns.Plots[k], at) < corner + 1f)
+                    return false;
+            for (int k = town.FirstStreet; k < town.FirstStreet + town.StreetCount; k++)
+            {
+                var street = towns.Streets[k];
+                if (math.all(street.A.xz == street.B.xz))
+                    continue;   // the square itself (or a green): the tower stands on it
+                if (SettlementSampling.Across(street, at, out _) < street.Width * 0.5f + corner + 0.8f)
+                    return false;
+            }
+            return true;
+        }
+
+        static bool LandmarkPropNear(ref FloraBlob f, ref LandmarkSetBlob set, in LandmarkHit hit, float2 at, float clear)
+        {
+            var instance = set.Instances[hit.Instance];
+            for (int l = 0; l < 3; l++)
+            {
+                var placed = f.PropRanges[hit.Type * 3 + l];
+                for (int e = placed.x; e < placed.x + placed.y; e++)
+                {
+                    var prop = f.Props[e];
+                    if (prop.Centrepiece != 0 && math.distance(instance.Position, at) < clear)
+                        return true;
+                    for (int k = 0; k < prop.Count; k++)
+                    {
+                        var p = LandmarkSampling.ToWorld(instance, LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / prop.Count), hit.Radius);
+                        if (math.distance(p, at) < clear)
+                            return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// W-127: a settlement's street light in this tree cell, if one of its spots falls here: beside a building's
+        /// door, out on its street side (Door), or at the start of a town street (Post), from the layout's fixture table.
+        /// Pure, from the spot's own hash: no cell draws are taken, so every other plant stays where it was.
+        /// </summary>
+        static bool TownFixture(ref FloraBlob f, in TerrainSource source, ref SettlementSetBlob towns, int townCell, int2 cell, float cellSize,
+                                bool footprint, out FloraSystem.FloraInstance lamp)
+        {
+            lamp = default;
+            // The beacon tower first, from the town's square (an open space: A and B coincide).
+            var squares = towns.StreetCells[townCell];
+            for (int k = squares.x; k < squares.x + squares.y; k++)
+            {
+                var square = towns.Streets[towns.StreetItems[k]];
+                if (square.Road != 0 || math.any(square.A.xz != square.B.xz) || square.Settlement < 0 ||
+                    !BeaconSpot(ref f, source, square.Settlement, out var spot, out var species, out var yaw, out var scale, out var h) ||
+                    math.any((int2)math.floor(spot / cellSize) != cell))
+                    continue;
+                var tower = FixtureInstance(ref f, source, species, spot, yaw, 1f, h, footprint);
+                tower.Scale = scale;
+                lamp = tower;
+                return true;
+            }
+            var plots = towns.PlotCells[townCell];
+            for (int k = plots.x; k < plots.x + plots.y; k++)
+            {
+                ref var plot = ref towns.Plots[towns.PlotItems[k]];
+                if (plot.Role > PlotRole.Stable || plot.Role == PlotRole.Landscaping || plot.Role == PlotRole.Market ||
+                    plot.Building < 0 || plot.Building >= f.SettlementSpecies.Length || f.SettlementSpecies[plot.Building].x < 0 ||
+                    plot.Settlement < 0 || plot.Settlement >= towns.Settlements.Length)
+                    continue;
+                ref var town = ref towns.Settlements[plot.Settlement];
+                if (town.Layout < 0 || town.Layout >= f.LayoutFixtures.Length || f.LayoutFixtures[town.Layout].y == 0)
+                    continue;
+                var scale = math.clamp(towns.Layouts[town.Layout].BuildingScale, 0.75f, 1.4f);
+                var right = new float2(plot.Facing.y, -plot.Facing.x);
+                var spot = plot.Centre + plot.Facing * (plot.Half.y + 0.45f * scale) + right * (plot.Half.x * 0.55f);
+                if (math.any((int2)math.floor(spot / cellSize) != cell))
+                    continue;
+                var h = FixtureHash(spot, 0xD00Bu);
+                var species = PickFixture(ref f, f.LayoutFixtures[town.Layout], (int)Punchy.Terrain.FixtureSpot.Door, BiomeAt(source, town.Centre), h);
+                if (species < 0 || OnStreet(ref towns, townCell, spot, 0.3f) || LandmarkTreeInCell(ref f, source, cell, cellSize))
+                    continue;
+                lamp = FixtureInstance(ref f, source, species, spot, FacingYaw(plot.Facing), scale, h, footprint);
+                return true;
+            }
+            var streets = towns.StreetCells[townCell];
+            for (int k = streets.x; k < streets.x + streets.y; k++)
+            {
+                var index = towns.StreetItems[k];
+                var street = towns.Streets[index];
+                if (street.Road != 0 || street.Settlement < 0 || street.Settlement >= towns.Settlements.Length)
+                    continue;
+                var ab = street.B.xz - street.A.xz;
+                if (math.lengthsq(ab) < 4f)
+                    continue;
+                ref var town = ref towns.Settlements[street.Settlement];
+                if (town.Layout < 0 || town.Layout >= f.LayoutFixtures.Length || f.LayoutFixtures[town.Layout].y == 0)
+                    continue;
+                var scale = math.clamp(towns.Layouts[town.Layout].BuildingScale, 0.75f, 1.4f);
+                var dir = math.normalize(ab);
+                var side = (index & 1) == 0 ? new float2(dir.y, -dir.x) : new float2(-dir.y, dir.x);
+                var spot = street.A.xz + dir * 1.5f + side * (street.Width * 0.5f + 0.35f * scale);
+                if (math.any((int2)math.floor(spot / cellSize) != cell))
+                    continue;
+                var h = FixtureHash(spot, 0x9057u);
+                var species = PickFixture(ref f, f.LayoutFixtures[town.Layout], (int)Punchy.Terrain.FixtureSpot.Post, BiomeAt(source, town.Centre), h);
+                if (species < 0 || OnStreet(ref towns, townCell, spot, 0.1f) || InPlot(ref towns, townCell, spot) || LandmarkTreeInCell(ref f, source, cell, cellSize))
+                    continue;
+                lamp = FixtureInstance(ref f, source, species, spot, FacingYaw(-side), scale, h, footprint);
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// W-127: a landmark's pier lamp in this tree cell, if one falls here: beside the land end of each of its docks
+        /// (beside a wharf's lane, clear of its deck), from the type's fixture table, where the dock itself is built
+        /// (not on a river), on dry ground off plots and roads. Pure, like TownFixture.
+        /// </summary>
+        static bool PierFixture(ref FloraBlob f, in TerrainSource source, in LandmarkHit landmark, int2 cell, float cellSize, bool footprint,
+                                out FloraSystem.FloraInstance lamp)
+        {
+            lamp = default;
+            if (landmark.Type >= f.TypeFixtures.Length || f.TypeFixtures[landmark.Type].y == 0)
+                return false;
+            ref var set = ref source.Landmarks.Value;
+            var instance = set.Instances[landmark.Instance];
+            var dir = math.normalizesafe(instance.Facing, new float2(1f, 0f));
+            var side = new float2(dir.y, -dir.x);
+            var centre = ((float2)cell + 0.5f) * cellSize;
+            for (int l = 0; l < 3; l++)
+            {
+                var placed = f.PropRanges[landmark.Type * 3 + l];
+                for (int e = placed.x; e < placed.x + placed.y; e++)
+                {
+                    var prop = f.Props[e];
+                    var rule = f.Rules[prop.Species];
+                    if (rule.FaceLandmark != 2)
+                        continue;
+                    var across = rule.PerVillage != 0 ? 8.5f : 1.7f;
+                    for (int k = 0; k < prop.Count; k++)
+                    {
+                        var ring = LandmarkSampling.ToWorld(instance, LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / prop.Count), landmark.Radius);
+                        // DockShore only slides the spot along the facing: a cell well off that line can't hold the lamp,
+                        // and the shore (dozens of height samples) isn't measured for it.
+                        var off = centre - (ring + side * across);
+                        if (math.abs(math.dot(off, side)) > cellSize || math.dot(off, dir) < -ShoreSlideBack - cellSize || math.dot(off, dir) > ShoreSlideOut + cellSize)
+                            continue;
+                        var start = DockShore(source, ring, instance.Facing).xz;
+                        var spot = start + side * across - dir * 0.8f;
+                        if (math.any((int2)math.floor(spot / cellSize) != cell))
+                            continue;
+                        var h = FixtureHash(spot, 0x91E2u);
+                        var species = PickFixture(ref f, f.TypeFixtures[landmark.Type], (int)Punchy.Terrain.FixtureSpot.Pier, BiomeAt(source, instance.Position), h);
+                        if (species < 0 || source.SampleHeight(spot) < source.World.SeaLevel + 0.2f ||
+                            OnBuiltPlot(ref f, source, spot, 0.5f) || OnRoad(source, spot, 0.5f) || LandmarkTreeInCell(ref f, source, cell, cellSize))
+                            continue;
+                        if (LandmarkSampling.OnRiver(source, ring, instance.Facing, RiverDockReach) &&
+                            LandmarkSampling.OnRiver(source, start, instance.Facing, DockDeckReach))
+                            continue;
+                        lamp = FixtureInstance(ref f, source, species, spot, FacingYaw(instance.Facing), 1f, h, footprint);
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        static int BiomeAt(in TerrainSource source, float2 xz)
+        {
+            source.SampleBiomes(xz, out var biomes, out _);
+            return biomes.Dominant();
         }
 
         /// <summary>The yaw that turns a model's front (+Z) to face a direction (yaw maps +Z to (-sin, cos)).</summary>
@@ -688,7 +1179,12 @@ namespace Punchy.Flora
                         break;
                 }
             }
-            return new float3(best.x, math.max(source.SampleHeight(best), sea + 0.1f), best.y);
+            // W-128: a base found at the waterline stands exactly StructureKit.DockWater above the sea, so the moored boats
+            // the kit hangs DockWater below it ride on the water (it stood 0.25-0.57 m up, and the boats were sunk).
+            var h = source.SampleHeight(best);
+            if (h > sea + above && h < sea + above + 1f)
+                return new float3(best.x, sea + StructureKit.DockWater, best.y);
+            return new float3(best.x, math.max(h, sea + 0.1f), best.y);
         }
 
         /// <summary>
@@ -1592,6 +2088,21 @@ namespace Punchy.Flora
         {
             Color c;
             float share;
+            // W-127: a street light: night only like a lit window, but out in the street (see FixtureGlowBase).
+            if (s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Fixture)
+            {
+                var v = Punchy.Terrain.StructureKit.FixtureLight(s.FixtureStyle);
+                return new float4(v.x, v.y, v.z, -(FixtureGlowBase + v.w));
+            }
+            // W-127: a lived-in kit house has lit windows (FloraGenerator.Kit), so its light is a lamp inside it: indoor,
+            // night only (negative), like a hut's. Its glowing accents are lamps in it too, which used to light the
+            // street through its walls.
+            if (s.Form == FloraForm.KitBuilding && (Punchy.Terrain.StructureKit.HouseLike(s.KitShape) && s.KitShape != Punchy.Terrain.KitShape.SlabShelter ||
+                                                    s.KitShape == Punchy.Terrain.KitShape.Igloo || s.KitShape == Punchy.Terrain.KitShape.ShellDome))
+            {
+                var lamp = Punchy.Terrain.StructureKit.LampLight.linear;
+                return new float4(lamp.r * 0.6f, lamp.g * 0.6f, lamp.b * 0.6f, -9f);
+            }
             if (s.Finish == FoliageFinish.Glowing)
             {
                 c = s.Foliage;
@@ -1646,6 +2157,57 @@ namespace Punchy.Flora
         /// <summary>#132: 1 turns Blocked's wall-reach skip off (DebugControls "-oldwalls"), for A/B timing.</summary>
         public static readonly SharedStatic<int> OldWalls = SharedStatic<int>.GetOrCreate<OldWallsKey>();
         class OldWallsKey { }
+
+        /// <summary>W-126: the way the sun's slopes face on the map (xz, unit): a fixed south-south-east, so "sunny" is the same everywhere.</summary>
+        static readonly float2 SunDirection = new float2(0.36f, -0.93f);
+
+        /// <summary>
+        /// W-126: how much of a grove this spot is for a species with groves, 0 (between stands) to 1 (the heart of one): stand
+        /// centres sit one to a jittered grid cell (most cells), so the nearest of nine neighbours is the only one that matters.
+        /// </summary>
+        public static float GroveShare(float2 xz, in FloraRules r)
+        {
+            var g = xz / r.GroveSpacing;
+            var home = (int2)math.floor(g);
+            var best = 0f;
+            for (int dy = -1; dy <= 1; dy++)
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                var k = home + new int2(dx, dy);
+                var h = math.hash(new int3(k, (int)r.GroveSeed));
+                h ^= h >> 15; h *= 2246822519u; h ^= h >> 13; h *= 3266489917u; h ^= h >> 16;
+                if ((h & 0xFFu) >= 190u)   // about 3 cells in 4 hold a stand
+                    continue;
+                var centre = ((float2)k + new float2((h >> 8 & 0xFFFFu) / 65535f, (h >> 24 & 0xFFu) / 255f * 0.8f + 0.1f)) * r.GroveSpacing;
+                var d = math.distance(xz, centre) / r.GroveRadius;
+                best = math.max(best, 1f - math.smoothstep(0.35f, 1f, d));
+            }
+            return best;
+        }
+
+        /// <summary>
+        /// W-126: how a slope faces the sun: x = +1 facing it, -1 facing away; y = how much of a slope it is (0 flat, 1 from 12 degrees),
+        /// so flat ground has no aspect. Pass the ground's normal.
+        /// </summary>
+        public static float2 SunFacing(float3 normal)
+        {
+            var slope = math.degrees(math.acos(math.saturate(normal.y)));
+            return new float2(math.dot(math.normalizesafe(normal.xz), SunDirection), math.smoothstep(2f, 12f, slope));
+        }
+
+        /// <summary>
+        /// W-126: the ground against its local average, -1 (hollow, valley floor) to +1 (crest, ridge): its height minus the mean
+        /// of four points 18 m out, over 3 m. Four extra height samples (the fifth is the ground's own), taken once per placement attempt that needs them.
+        /// </summary>
+        public static float Relief(in TerrainSource source, float2 xz) => Relief(source, xz, source.SampleHeight(xz));
+
+        public static float Relief(in TerrainSource source, float2 xz, float height)
+        {
+            const float ring = 18f;
+            var around = source.SampleHeight(xz + new float2(ring, 0f)) + source.SampleHeight(xz - new float2(ring, 0f)) +
+                         source.SampleHeight(xz + new float2(0f, ring)) + source.SampleHeight(xz - new float2(0f, ring));
+            return math.clamp((height - around * 0.25f) / 3f, -1f, 1f);
+        }
 
         /// <summary>
         /// The plant growing in one cell of a layer's grid (Model -1 if none). With <paramref name="footprint"/>, a town's
@@ -1708,6 +2270,10 @@ namespace Punchy.Flora
                             Ground = bridge || footprint ? 0u : DirtColor(source, buildingRule, plot.Centre, math.cmax(plot.Half), 0.9f)
                         };
                     }
+                    // W-127: a street light by a door or at a street's start takes its tree cell.
+                    if (layer == TreeLayer && f.Fixtures.Length > 0 &&
+                        TownFixture(ref f, source, ref towns, townCell, cell, cellSize, footprint, out var townLamp))
+                        return townLamp;
                     // Streets and built plots grow nothing, though a landmark's placed props (benches on the square,
                     // logs round a camp's yard) still stand there: decided after them, below.
                     paved = SettlementSampling.Keep(ref towns, xz) < 0.5f;
@@ -1730,6 +2296,9 @@ namespace Punchy.Flora
                 // Placed props (an inn, a pen): each takes the cell holding its spot, in its own layer, and keeps
                 // everything else in every layer clear of it.
                 var blocked = false;
+                // W-127: a pier lamp at a dock's land end takes its tree cell.
+                if (layer == TreeLayer && f.Fixtures.Length > 0 && PierFixture(ref f, source, landmark, cell, cellSize, footprint, out var pierLamp))
+                    return pierLamp;
                 var boardwalkProp = BoardwalkProp(ref f, landmark.Type, out var boardwalkLayer);
                 if (footprint)
                     boardwalkProp = -1;
@@ -1933,6 +2502,25 @@ namespace Punchy.Flora
 
             // Cheap first pass: which species could grow here, at most how likely.
             source.SampleBiomes(xz, out var biomes, out _);
+            // W-126 clearings: the biome that holds most of this spot sets how empty its clearings are (asked before the early-out, so the bound can count it exactly).
+            var clearCover = 0f;
+            var clearEdge = 0f;
+            {
+                var top = 0;
+                for (int b = 1; b < 4; b++)
+                    if (biomes.Weights[b] > biomes.Weights[top])
+                        top = b;
+                if (biomes.Ids[top] < f.BiomeCount)
+                {
+                    var cp = f.Clearing[biomes.Ids[top]];
+                    if (cp.x > 0f)
+                    {
+                        var cn = noise.snoise(xz / cp.y + new float2(91.3f, 17.7f)) * 0.5f + 0.5f;
+                        clearCover = cp.x * math.smoothstep(0.58f, 0.74f, cn);
+                        clearEdge = math.smoothstep(0.44f, 0.58f, cn) * (1f - math.smoothstep(0.66f, 0.80f, cn));
+                    }
+                }
+            }
             // Realms meet with a hard edge: a biome's plants only grow where its realm has most of the ground (its
             // biomes' summed weight, from the same sample). Inside a realm, biomes still blend.
             var realmOf = int4.zero - 1;
@@ -1963,7 +2551,11 @@ namespace Punchy.Flora
                     }
                     else
                         weights[at] += d;
-                    bound += d * math.max(1f, f.Rules[entry.Species].NearWater);
+                    var br = f.Rules[entry.Species];
+                    var extra = (1f - clearCover * (1f - 0.8f * br.EdgeAffinity)) * (1f + br.EdgeAffinity * clearEdge);
+                    if (br.GroveSpacing > 0f)
+                        extra *= math.lerp(br.GroveStraggle, br.GroveGain, GroveShare(xz, br));
+                    bound += d * math.max(1f, br.NearWater) * br.HabitatGain * math.max(extra, 0f);
                 }
             }
             if (roll >= bound)
@@ -1983,6 +2575,9 @@ namespace Punchy.Flora
             var elevation = ground.Height - source.World.SeaLevel;
             var nearWater = 1f - math.smoothstep(1.5f, 8f, -ground.WaterDepth);
             var dry = 1f - math.saturate(ground.River * 1.5f);
+            var aspect = SunFacing(normal);
+            var relief = 0f;
+            var reliefKnown = false;
 
             var total = 0f;
             var shrink = new FixedList128Bytes<float>();
@@ -2042,9 +2637,37 @@ namespace Punchy.Flora
                     var n = noise.snoise(xz * r.PatchFrequency + r.PatchOffset) * 0.5f + 0.5f;
                     fl *= math.smoothstep(1f - r.PatchCoverage - 0.12f, 1f - r.PatchCoverage + 0.12f, n);
                 }
-                fl *= math.lerp(1f, r.NearWater, nearWater);
+                // W-126 moisture: a species' own reach widens the damp strip (WetReach 1 is the shared nearWater).
+                var wet = r.WetReach == 1f ? nearWater : 1f - math.smoothstep(1.5f, 8f * r.WetReach, -ground.WaterDepth);
+                fl *= math.lerp(1f, r.NearWater, wet);
                 if (r.OnlyNearWater != 0)
-                    fl *= nearWater;
+                    fl *= wet;
+                fl *= r.HabitatGain;
+                // W-126 habitat: sun-facing or shaded slopes, hollows out of the wind, crests. Each is a factor in 0..1, and HabitatGain
+                // (counted in the cheap bound above) pays the thinning back where the habitat is; the relief's four height samples are taken once, on first need.
+                if (r.SunSlope != 0f)
+                {
+                    var toward = aspect.x * (r.SunSlope > 0f ? 1f : -1f);
+                    fl *= 1f - aspect.y * math.abs(r.SunSlope) * (1f - math.smoothstep(-0.45f, 0.45f, toward));
+                }
+                if ((r.Shelter > 0f || r.Exposure > 0f) && fl > 0f)
+                {
+                    if (!reliefKnown)
+                    {
+                        relief = Relief(source, xz, ground.Height);
+                        reliefKnown = true;
+                    }
+                    fl *= math.lerp(1f, math.smoothstep(0.35f, -0.35f, relief), r.Shelter);
+                    fl *= math.lerp(1f, math.smoothstep(-0.35f, 0.35f, relief), r.Exposure);
+                }
+                // W-126 clearings: thin everything inside, sparing and favouring the edge species; groves pull one species into stands.
+                if (clearCover > 0f || clearEdge > 0f)
+                {
+                    fl *= 1f - clearCover * (1f - 0.8f * r.EdgeAffinity);
+                    fl *= 1f + r.EdgeAffinity * clearEdge;
+                }
+                if (r.GroveSpacing > 0f && fl > 0f)
+                    fl *= math.lerp(r.GroveStraggle, r.GroveGain, GroveShare(xz, r));
                 weights[c] = fl;
                 shrink.Add(upper);
                 total += fl;

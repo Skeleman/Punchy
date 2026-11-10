@@ -21,12 +21,14 @@ namespace Punchy.Ambience
     {
         /// <summary>Trees within this distance of the camera burn (at full detail; GraphicsSettings.DetailRange scales it).</summary>
         const float ForestFireRange = 70f;
-        /// <summary>At most this many flames a frame from the forest, and this many of the nearest throw light.</summary>
-        const int MaxForestFlames = 320, ForestLights = 6;
+        /// <summary>At most this many flames a frame from the forest (their light is LightBudget's to pick).</summary>
+        const int MaxForestFlames = 320;
         const int ForestSeedBase = 0x6F000000;
         /// <summary>W-112: burning trees keep a far flame out to this distance (GraphicsSettings.ViewRange scales it), at most MaxFarFlames.</summary>
         const float ForestFarRange = 600f;
         const int MaxFarFlames = 3000;
+        /// <summary>Near and far flames cross over from this fraction of the near reach to all of it.</summary>
+        const float HandOverFrom = 0.75f;
 
         Punchy.Flora.FloraSystem flora;
         readonly HashSet<Punchy.Flora.FloraSpecies> burningSpecies = new HashSet<Punchy.Flora.FloraSpecies>();
@@ -43,8 +45,13 @@ namespace Punchy.Ambience
         /// the far flames only started at 0.75 x the range, so the trees in between burned with nothing. Near and far now
         /// hand over at this reach: the near flames shrink away over its last quarter and the far ones grow in over the
         /// same band.
+        /// R-2 (feedback 11-09: a flickering ring in the middle distance, worst flying up): near and far both measure the
+        /// straight-line (3D) distance from the eye, the shown reach eases to the gathered one (DetailPolicy.EasedReach),
+        /// and the far set holds every burning tree in range, so a change of reach never has to wait for a re-gather.
         /// </summary>
         float nearReach = float.MaxValue;
+        /// <summary>The reach the flames are shown with this frame: <see cref="nearReach"/>, eased.</summary>
+        float shownReach = float.MaxValue;
         bool lastCut;
         float lastShownReach = -100f;
         /// <summary>W-112: the far flames (crown position, size, seed), gathered less often than the near ones.</summary>
@@ -53,9 +60,10 @@ namespace Punchy.Ambience
             new List<(float3, float3, float, float, int)>();
         float3 farGatheredAt = new float3(float.MaxValue);
         float nextFarGather;
-        /// <summary>The near flames' reach the far flames were gathered against; a big change re-gathers them.</summary>
-        float farGatheredReach;
         static readonly int EmberTintId = Shader.PropertyToID("_PunchyEmberTint");
+        static readonly int WorldFireId = Shader.PropertyToID("_PunchyGlowWorldFire");
+        /// <summary>How bright the world glow map's fire is, against the light of one near flame.</summary>
+        public static float WorldFireBrightness = 1.2f;
         Punchy.Weather.DayNightCycle cycle;
 
         /// <summary>Last forest gather, for the world probe: "trees, flames, colour".</summary>
@@ -88,9 +96,15 @@ namespace Punchy.Ambience
             var colour = cycle != null ? ForestColour((uint)source.World.Seed, cycle.Day, cycle.TimeOfDay) : FireSystem.Wood;
             // Off (the A/B switch) is the old look: wood-coloured embers whatever the fire burns, even under the override.
             Shader.SetGlobalVector(EmberTintId, FarForestFiresOn ? FireSystem.EmberTint(colour) : new Vector4(1f, 0.36f, 0.08f, 1f));
+            // The ground far from the near flames glows from the world map, in tonight's colour; it starts where the
+            // near flames' own light ends.
+            var fireLight = ForestFiresOn && FarForestFiresOn ? FireSystem.Light(colour, lit * WorldFireBrightness) : Vector4.zero;
+            fireLight.w = math.min(Punchy.Settings.GraphicsSettings.DetailRange(ForestFireRange), shownReach) * 0.5f;
+            Shader.SetGlobalVector(WorldFireId, fireLight);
             if (!ForestFiresOn || lit <= 0.01f)
             {
                 forestGatheredAt = farGatheredAt = new float3(float.MaxValue);
+                shownReach = float.MaxValue;   // (starts from the first gather next time, not from last night's)
                 return;
             }
             if (burningFrom != palette)
@@ -117,24 +131,28 @@ namespace Punchy.Ambience
                 forestGatheredAt = eye;
                 GatherForest(source, eye, range);
             }
+            // One reach this frame for near and far (eased from what the gathers found).
+            shownReach = Punchy.Settings.DetailPolicy.EasedReach(shownReach, math.min(range, nearReach), math.min(Time.unscaledDeltaTime, 0.1f));
+            var reach = shownReach;
             if (FarForestFiresOn)
-                FarForestFires(eye, math.min(range, nearReach), colour, lit);
+                FarForestFires(eye, reach, colour, lit);
             if (forestFlames.Count == 0)
                 return;
 
-            var reach = math.min(range, nearReach);
             for (int i = 0; i < forestFlames.Count; i++)
             {
                 var f = forestFlames[i];
-                // Flames far out shrink away rather than pop, over the last quarter of what the near flames reach.
+                // Flames far out shrink away rather than pop, over the band where the far flames grow in.
                 var d = Vector3.Distance(f.at, eye);
-                var size = f.size * lit * math.saturate((reach - d) / (reach * 0.25f));
+                var size = f.size * lit * (1f - Punchy.Settings.DetailPolicy.Crossfade(d, reach * HandOverFrom, reach));
                 if (size > 0.02f)
                     FireSystem.AddFlame(f.at, size, f.seed, colour);
             }
-            // The nearest few crowns throw light round them (CaveSystem.MovingLights lights the surface too).
-            var lights = 0;
-            for (int i = 0; i < forestFlames.Count && lights < ForestLights; i++)
+            // Every big burning crown requests a fire light; LightBudget lights the ones that matter most on screen
+            // (refactor 3.1: it was the nearest 6 here).
+            if (lit <= 0f)
+                return;
+            for (int i = 0; i < forestFlames.Count; i++)
             {
                 var f = forestFlames[i];
                 if (f.size < 1.6f)
@@ -142,16 +160,16 @@ namespace Punchy.Ambience
                 var flicker = 0.8f + 0.2f * Mathf.Sin(Time.time * 9f + (f.seed & 255));
                 var light = FireSystem.Light(colour, flicker * lit * 2.5f);
                 light.w *= 2.4f;
-                CaveSystem.MovingLights.Add((f.seed, f.at, light));
-                lights++;
+                Punchy.Settings.LightBudget.Add(Punchy.Settings.LightKind.Fire, f.seed, f.at, light);
             }
         }
 
         /// <summary>
         /// W-112: one far flame in each burning tree's crown from where the near flames thin out to ForestFarRange,
         /// fading in over the band where the near ones shrink away, so nothing pops. <paramref name="range"/> is where
-        /// the near flames really end (refactor 3.2: nearReach, not the nominal range). Gathered every two seconds or
-        /// every 25 m the camera moves (a main-thread walk over the tree tiles in range).
+        /// the near flames really end this frame. Gathered every two seconds or every 25 m the camera moves (a main-thread
+        /// walk over the tree tiles in range). The set holds every burning tree in range, those under the near flames
+        /// too (they draw at size 0 until the reach comes in past them), so nothing depends on when it was gathered.
         /// </summary>
         /// <summary>How many far flames the last gather placed (for probes and the profiler).</summary>
         public static int LastFarFlames;
@@ -161,8 +179,7 @@ namespace Punchy.Ambience
             var far = Punchy.Settings.GraphicsSettings.ViewRange(ForestFarRange);
             if (far <= range)
                 return;
-            if (Time.unscaledTime >= nextFarGather || math.distancesq(farGatheredAt, (float3)eye) > 625f ||
-                math.abs(range - farGatheredReach) > 5f)
+            if (Time.unscaledTime >= nextFarGather || math.distancesq(farGatheredAt, (float3)eye) > 625f)
             {
                 nextFarGather = Time.unscaledTime + 2f;
                 farGatheredAt = eye;
@@ -171,9 +188,6 @@ namespace Punchy.Ambience
                 flora.TreesNear(((float3)eye).xz, far, burningSpecies, farTrees);
                 foreach (var t in farTrees)
                 {
-                    var d = math.distance(t.foot.xz, ((float3)eye).xz);
-                    if (d < range * 0.7f)
-                        continue;
                     var at = t.top - new float3(0f, t.height * 0.12f, 0f);
                     farFlames.Add((at, math.clamp(t.height * 0.3f, 2f, 5f), ForestSeedBase + 0x800000 + (int)((uint)t.seed & 0x7FFFFF)));
                 }
@@ -184,15 +198,15 @@ namespace Punchy.Ambience
                     farFlames.RemoveRange(MaxFarFlames, farFlames.Count - MaxFarFlames);
                 }
                 LastFarFlames = farFlames.Count;
-                // (Gathered with the hand-off as it was then; the gathers come every couple of seconds.)
-                farGatheredReach = range;
             }
             for (int i = 0; i < farFlames.Count; i++)
             {
                 var f = farFlames[i];
                 var d = Vector3.Distance(f.at, eye);
-                // In as the near flames shrink away (the last quarter of their range), out at the far edge.
-                var size = f.size * lit * math.saturate((d - range * 0.75f) / (range * 0.25f)) * math.saturate((far - d) / (far * 0.15f));
+                if (d < range * HandOverFrom)
+                    continue;
+                // In as the near flames shrink away (the same crossfade over the same band), out at the far edge.
+                var size = f.size * lit * Punchy.Settings.DetailPolicy.Crossfade(d, range * HandOverFrom, range) * math.saturate((far - d) / (far * 0.15f));
                 if (size > 0.05f)
                     FireSystem.AddFarFlame(f.at, size, f.seed, colour);
             }
@@ -237,13 +251,17 @@ namespace Punchy.Ambience
                     forestFlames.Add((at, 0.6f + (extra >> 28) * 0.04f, ForestSeedBase + (int)((h + 11u) & 0xFFFFFF)));
                 }
             }
+            // Near flames end at the same straight-line distance the far ones start from: seen from above, trees under
+            // the camera are further away than their flat distance says.
+            var limit = range * range;
             var e = eye;
+            forestFlames.RemoveAll(f => (f.at - e).sqrMagnitude > limit);
             forestFlames.Sort((a, b) => (a.at - e).sqrMagnitude.CompareTo((b.at - e).sqrMagnitude));
             var cut = forestFlames.Count > MaxForestFlames;
             if (cut)
                 forestFlames.RemoveRange(MaxForestFlames, forestFlames.Count - MaxForestFlames);
             // Where the near flames really end: the last one kept when the cap cut the list, else the whole range.
-            nearReach = cut ? math.max(Vector3.Distance(forestFlames[forestFlames.Count - 1].at, eye), 10f) : float.MaxValue;
+            nearReach = Punchy.Settings.DetailPolicy.CappedReach(float.MaxValue, cut ? Vector3.Distance(forestFlames[forestFlames.Count - 1].at, eye) : float.MaxValue);
             LastForestLog = $"{burningTrees.Count} trees, {forestFlames.Count} flames, near reach {(cut ? nearReach : range):F0} of {range:F0} m{(cut ? " (capped)" : "")}";
             // (Logged when the cap starts or stops cutting, or the hand-off moves by 10 m: where near meets far.)
             var shown = cut ? nearReach : range;

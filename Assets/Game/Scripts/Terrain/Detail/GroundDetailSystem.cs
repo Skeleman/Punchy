@@ -24,19 +24,14 @@ namespace Punchy.Terrain
         public Material GrassMaterial;
         public Material PebbleMaterial;
         public float TileSize = 16f;
-        public float GrassRadius = 60f;
-        public float PebbleRadius = 45f;
         [Tooltip("Blades per square metre on full-density grass, up close.")]
         public float GrassPerSquareMetre = 28f;
         [Tooltip("Multiplies grass density (for comparing densities; -grassdensity <x> on the command line overrides it).")]
         [Min(0.1f)] public float GrassDensityScale = 1f;
-        [Tooltip("Within this distance every blade is kept; beyond it grass thins (fewer, wider blades) to the radius.")]
-        [Min(1f)] public float FullDensityRadius = 20f;
-
-        // At the graphics settings' Detail distance (GraphicsSettings: the fields above are the ranges at Detail 1).
-        float GrassRange => Punchy.Settings.GraphicsSettings.DetailRange(GrassRadius);
-        float PebbleRange => Punchy.Settings.GraphicsSettings.DetailRange(PebbleRadius);
-        float FullDensityRange => Punchy.Settings.GraphicsSettings.DetailRange(FullDensityRadius);
+        // By on-screen size (R-2, DetailPolicy): the same ranges as before at the default view, x Detail.
+        float GrassRange => Punchy.Settings.DetailPolicy.GroundReach(Punchy.Settings.DetailPolicy.GrassSize, Punchy.Settings.DetailPolicy.GrassEndPixels);
+        float PebbleRange => Punchy.Settings.DetailPolicy.GroundReach(Punchy.Settings.DetailPolicy.PebbleSize, Punchy.Settings.DetailPolicy.PebbleEndPixels);
+        float FullDensityRange => Punchy.Settings.DetailPolicy.GroundReach(Punchy.Settings.DetailPolicy.GrassSize, Punchy.Settings.DetailPolicy.GrassFullPixels);
         [Tooltip("How much the ground under grass takes the blades' colour near the camera, so gaps between blades don't read as bare soil.")]
         [Range(0f, 1f)] public float GroundTint = 1f;
         [Tooltip("Stones per square metre on full-density pebbly ground.")]
@@ -103,7 +98,17 @@ namespace Punchy.Terrain
         EntityQuery othersQuery;
 
         int GridSamples => (int)TileSize + 1;
-        int MaxGrass => (int)(TileSize * TileSize * GrassPerSquareMetre * DensityScale);
+        int MaxGrass => (int)(TileSize * TileSize * GrassPerSquareMetre * DensityScale * (ClumpBlades > 1 ? ClumpDensity : 1f));
+
+        /// <summary>
+        /// Blades per grass instance: a tuft fanned from one root (GroundDetail.hlsl ClumpMember), 1 for lone blades as
+        /// before (-grassclumps 0). Prototype (Zach, 11-08): clumps sell a continuous field where even stubble didn't.
+        /// </summary>
+        static readonly int ClumpBlades = System.Environment.CommandLine.Contains("-grassclumps 0") ? 1 : 5;
+        /// <summary>Instances per square metre with clumps, as a share of GrassPerSquareMetre: half as many roots, five
+        /// blades each, so about 2.5 times the blades, gathered in tufts.</summary>
+        const float ClumpDensity = 0.5f;
+        static readonly int ClumpId = Shader.PropertyToID("_GrassClump");
 
         /// <summary>The density scale in use: the command line's -grassdensity if given, else the field.</summary>
         float DensityScale
@@ -146,7 +151,9 @@ namespace Punchy.Terrain
                 hasSource = true;
             }
 
+            Punchy.Settings.DetailPolicy.SetView(cam);
             Shader.SetGlobalFloat(FullId, FullDensityRange);
+            Shader.SetGlobalFloat(ClumpId, ClumpBlades);
             Shader.SetGlobalVector(GrassTintId, new Vector4(GroundTint, GrassRange, 0f, 0f));
 
             if (playerQuery.TryGetSingleton<LocalTransform>(out var player))
@@ -337,7 +344,7 @@ namespace Punchy.Terrain
                 if (!GeometryUtility.TestPlanesAABB(frustum, tile.Bounds))
                     continue;
                 var nearest = math.distance(camXZ, math.clamp(camXZ, (float2)kv.Key * TileSize, ((float2)kv.Key + 1f) * TileSize));
-                DrawSet(tile.Grass, tile.GrassCount, tile.GrassProps, GrassMaterial, GrassVertices, nearest, GrassRange, tile.Bounds);
+                DrawSet(tile.Grass, tile.GrassCount, tile.GrassProps, GrassMaterial, GrassVertices * ClumpBlades, nearest, GrassRange, tile.Bounds);
                 DrawSet(tile.Pebbles, tile.PebbleCount, tile.PebbleProps, PebbleMaterial, PebbleVertices, nearest, PebbleRange, tile.Bounds);
             }
         }
@@ -459,7 +466,7 @@ namespace Punchy.Terrain
                     var shape = rng.NextFloat4();
                     if (underwater || keep >= density)
                         continue;
-                    var tint = (0.8f + shape.w * 0.4f) * math.lerp(new float3(1f, 1f, 1f), new float3(1.25f, 1.08f, 0.6f), rng.NextFloat() * 0.45f);
+                    var tint = (0.8f + shape.w * 0.4f) * math.lerp(new float3(1f, 1f, 1f), new float3(1.25f, 1.08f, 0.6f), rng.NextFloat() * 0.25f);
                     Blades[tile * MaxGrass + grass++] = new Blade
                     {
                         Position = new float3(origin.x + local.x, p.Height - 0.03f, origin.y + local.y),
@@ -470,7 +477,7 @@ namespace Punchy.Terrain
                         Random = rng.NextFloat(),
                         // A touch brighter and more saturated than the ground colour, which already averages
                         // grass with the soil showing between blades; some blades yellower.
-                        Color = new float4(p.Albedo * tint * new float3(1.0f, 1.12f, 0.9f), 1f)
+                        Color = new float4(p.Albedo * tint * new float3(0.97f, 1.18f, 0.88f), 1f)
                     };
                 }
 

@@ -137,6 +137,7 @@ Shader "Punchy/Water"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareOpaqueTexture.hlsl"
             #include "Sky.hlsl"
+            #include "WideShadow.hlsl"
             #include "SharedClock.hlsl"
             #include "WaterSwell.hlsl"
 
@@ -642,7 +643,9 @@ Shader "Punchy/Water"
 
                 float3 v = GetWorldSpaceNormalizeViewDir(input.positionWS);
                 Light light = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
-                half shadow = light.shadowAttenuation * (1 - PunchyCloudShadow(input.positionWS));
+                // R-5: past the real-time shadows the wide cached map (WideShadow.hlsl) shades the water too; min, not
+                // product, so the two never darken the same caster twice.
+                half shadow = min(light.shadowAttenuation, 1 - PunchyWideShadow(input.positionWS, half3(0, 1, 0))) * (1 - PunchyCloudShadow(input.positionWS));
 
                 // Looking up from under the water: Snell's window (Zach, 11-08). Light from above reaches the eye only
                 // through a cone of about 48.6 degrees round the surface normal (asin(1 / 1.333)), so the whole sky shows

@@ -32,6 +32,7 @@ float4 _PunchyUnderwaterShafts;  // under water, x light shaft march steps (0 of
 
 float3 _PunchySunDirection;    // towards the sun
 float3 _PunchyMoonDirection;   // towards the moon
+float _PunchySkyOff;           // test only (-skyoff n, to price the sky's parts): 1 no cloud march, 2 no far clouds, 4 no sky colour, 8 no weather volumes, 16 old even steps, 32 steps-per-pixel overlay, 64 always four sun samples, 128 cloud edges before R-4, 256 cloud light before R-4, 512 one cloud type everywhere (before R-4)
 float4 _PunchyMoonPhase;       // phase (0 new, 0.5 full), lit share
 float3 _PunchyBlueMoon;        // towards the second, blue moon
 static const float PunchyBlueMoonRadius = 0.22;    // radians (about 25 degrees across): 6.5x its v0.11.0 size, a sister planet (Zach, #34)
@@ -141,10 +142,25 @@ float PunchyRemap(float v, float a, float b) { return saturate((v - a) / max(b -
 
 // ------------------------------------------------------------------------------------------------ volumetric clouds
 
+// Cloud type (R-4, from data: each weather preset's layering and high cloud, nudged by the biomes' humidity; the
+// wetness map's b and a): x 0 heaped cumulus ... 1 a flat stratus sheet, y wispy high cloud. The density below reads
+// punchyCloudStyle; the march sets it once per step, so the light samples around a point share its type, and the other
+// callers set it themselves. _PunchySkyOff 512 shows one type everywhere, as before R-4.
+static float2 punchyCloudStyle = float2(0, 0.3);
+
+float2 PunchyCloudStyleAt(float2 xz)
+{
+    if (((uint)_PunchySkyOff & 512u) != 0)
+        return float2(0, 0.3);
+    float2 uv = PunchyMapUV(xz);
+    float2 local = SAMPLE_TEXTURE2D_LOD(_PunchyWetnessMap, sampler_PunchyWetnessMap, uv, 0).ba;
+    return lerp(float2(0, 0.3), local, PunchyMapInside(uv));
+}
+
 // Cloud density at a point, given the weather and cloud shape there. detail (0..1) scales the edge-eroding detail
 // noise: 0 for lighting and shadows (only the broad mass matters) and for distant clouds, where fine detail would
-// only shimmer.
-float PunchyCloudDensity(float3 p, half4 weather, float4 shape, float detail)
+// only shimmer. fine (0..1) adds a second, smaller octave of it, for clouds near the camera only.
+float PunchyCloudDensityFine(float3 p, half4 weather, float4 shape, float detail, float fine)
 {
     if (!PunchyInCloudLayer(p.y, shape))
         return 0;
@@ -157,9 +173,11 @@ float PunchyCloudDensity(float3 p, half4 weather, float4 shape, float detail)
     float3 uvw = float3(q.x * 0.8 - q.z * 0.6, q.y, q.x * 0.6 + q.z * 0.8) / PUNCHY_CLOUD_NOISE_SCALE;
     uvw.xz += h * 0.06;   // tops lean downwind a little
     float3 uvwLarge = float3(q.x * 0.28 + q.z * 0.96, q.y * 0.6, -q.x * 0.96 + q.z * 0.28) / (PUNCHY_CLOUD_NOISE_SCALE * 2.73) + 0.37;
+    float layering = punchyCloudStyle.x;
+    // Stratus leans on the large noise, so it spreads into broad, even sheets rather than separate heaps.
     float shapeNoise = lerp(SAMPLE_TEXTURE3D_LOD(_PunchyCloudNoise, sampler_PunchyCloudNoise, uvw, 0).r,
-                            SAMPLE_TEXTURE3D_LOD(_PunchyCloudNoise, sampler_PunchyCloudNoise, uvwLarge, 0).r, 0.4);
-    float coverage = saturate(weather.r * 1.05);
+                            SAMPLE_TEXTURE3D_LOD(_PunchyCloudNoise, sampler_PunchyCloudNoise, uvwLarge, 0).r, lerp(0.4, 0.8, layering));
+    float coverage = saturate(weather.r * 1.05 + 0.2 * layering);
 
     // The cloud body: flat-ish base, rounded top; tall cumulonimbus towers narrow slightly as they climb and are
     // much denser (a solid column rather than a veil).
@@ -169,7 +187,10 @@ float PunchyCloudDensity(float3 p, half4 weather, float4 shape, float detail)
         float tall = saturate((shape.y - 2500) / 3500);
         float profile = saturate(h * 8) * saturate((1 - h) * 3);
         profile = lerp(profile, profile * (1 - 0.3 * h), tall);
-        density = PunchyRemap(shapeNoise, 1 - coverage, 1) * profile * (1 + 2 * tall);
+        // Stratus: a thin, flat slab in the lower part of the layer, a little denser so the sheet reads grey and even.
+        float slabH = h / lerp(1, 0.35, layering);
+        profile = lerp(profile, saturate(slabH * 10) * saturate((1 - slabH) * 5), layering);
+        density = PunchyRemap(shapeNoise, 1 - coverage, 1) * profile * (1 + 2 * tall) * (1 + 0.3 * layering);
     }
 
     // Storm anvils: a flat, spreading layer just below the tower top, reaching well beyond the tower.
@@ -185,12 +206,40 @@ float PunchyCloudDensity(float3 p, half4 weather, float4 shape, float detail)
         return 0;
     if (detail > 0.01)
     {
-        // Erode the edges into cauliflower-like billows; thin, sparse cloud is eroded less so it doesn't break into specks.
-        float erosion = SAMPLE_TEXTURE3D_LOD(_PunchyCloudNoise, sampler_PunchyCloudNoise, uvw * 3.7, 0).g;
-        density = PunchyRemap(density, erosion * lerp(0.15, 0.45, coverage) * detail, 1);
+        float4 erosion = SAMPLE_TEXTURE3D_LOD(_PunchyCloudNoise, sampler_PunchyCloudNoise, uvw * 3.7, 0);
+        [branch] if (((uint)_PunchySkyOff & 128u) != 0)
+        {
+            // (Test only, -skyoff 128: the edges before R-4, one billow noise everywhere.)
+            density = PunchyRemap(density, erosion.g * lerp(0.15, 0.45, coverage) * detail, 1);
+        }
+        else
+        {
+            // Erode the edges (R-4): cauliflower billows (Worley) on the tops, frayed wisps (Perlin) on the bases and on
+            // thin veils. Near the camera a second, smaller octave joins in; it fades out by 6 km, where it would only
+            // shimmer on the half-resolution buffer.
+            float billowy = saturate(h * 2.5 + 0.2) * saturate(0.4 + coverage) * (1 - layering);   // stratus frays, never billows
+            float carve = lerp(erosion.b, erosion.g, billowy);
+            [branch] if (fine > 0.01)
+            {
+                float3 uvwFine = float3(uvw.x * 0.6 - uvw.z * 0.8, uvw.y * 1.3, uvw.x * 0.8 + uvw.z * 0.6) * 11.3 + 0.21;
+                float2 small = SAMPLE_TEXTURE3D_LOD(_PunchyCloudNoise, sampler_PunchyCloudNoise, uvwFine, 0).gb;
+                carve = lerp(carve, carve * 0.6 + lerp(small.y, small.x, billowy) * 0.4, fine);
+            }
+            // Strongest at the edges, where the body is thin; a dense core keeps its mass. Thin, sparse cloud is eroded
+            // less overall so it doesn't break into specks, and so is the flat base (holes there would show the sunlit
+            // inside as bright specks).
+            float edge = 1 - saturate(density * 1.4);
+            carve = saturate((carve - 0.3) * 2.2);   // the summed octaves sit mid-grey: stretch them so the edge really breaks up
+            density = PunchyRemap(density, carve * lerp(0.25, 0.6, coverage) * lerp(0.45, 1.25, edge) * lerp(0.4, 1, saturate(h * 5)) * detail, 1);
+        }
     }
     // Storm clouds are denser (and therefore darker underneath).
     return density * (1.0 + 1.5 * weather.g);
+}
+
+float PunchyCloudDensity(float3 p, half4 weather, float4 shape, float detail)
+{
+    return PunchyCloudDensityFine(p, weather, shape, detail, 0);
 }
 
 float PunchyCloudDensityAt(float3 p, float detail)
@@ -237,20 +286,33 @@ half PunchySunSide(float3 dir)
     return saturate(dot(d, s) * rsqrt(max(dot(d, d) * dot(s, s), 1e-8)) * 0.5 + 0.5);
 }
 
+// The blue moon's light as the sky sees it (WeatherSystem; linear, 0 when it's down, new or by day): feedback 11-08
+// item 35, so the haze and the clouds read as lit by it, not only the ground.
+half3 _PunchyBlueMoonGlow;
+
+// The blue moon's light scattered in the low air towards `dir`: a little all round, much more on its side of the sky.
+half3 PunchyBlueMoonHaze(float3 dir)
+{
+    half toward = saturate(dot(normalize(dir), _PunchyBlueMoon) * 0.5 + 0.5);
+    toward *= toward;
+    return _PunchyBlueMoonGlow * (0.007 + 0.04 * toward * toward);
+}
+
 // The horizon colour in direction `dir` with twilight: warm on the sun's side, grey-violet on the far side. Also
-// the haze colour, so land and sea fade into the same band.
+// the haze colour, so land and sea fade into the same band. Under a blue moon it glows blue towards it.
 half3 PunchyTwilightHorizon(float3 dir)
 {
+    half3 horizon = _PunchySkyHorizon + PunchyBlueMoonHaze(dir);
     float e = PunchySunElevation();
     half amount = PunchyTwilightAmount(e);
     if (amount <= 0)
-        return _PunchySkyHorizon;
+        return horizon;
     half toward = PunchySunSide(dir);
     toward *= toward;
-    half lum = dot(_PunchySkyHorizon, half3(0.3, 0.5, 0.2));
+    half lum = dot(horizon, half3(0.3, 0.5, 0.2));
     half3 warm = PunchyTwilightColor(e) * PunchyTwilightLight(e) * 1.05;
     half3 cool = half3(0.62, 0.55, 0.9) * lum;
-    return lerp(_PunchySkyHorizon, lerp(cool, warm, toward), amount * lerp(0.65, 1, toward));
+    return lerp(horizon, lerp(cool, warm, toward), amount * lerp(0.65, 1, toward));
 }
 
 // The zenith with twilight: a deeper blue with a touch of purple.
@@ -283,10 +345,15 @@ void PunchyCloudLight(out float3 direction, out half3 color)
     // The sun by day, the moon by night; through twilight (down to -8°) the sun still lights the high clouds.
     bool sunUp = _PunchySunDirection.y > -0.14;
     direction = sunUp ? _PunchySunDirection : _PunchyMoonDirection;
-    color = sunUp ? _PunchySunColor : half3(0.16, 0.19, 0.27) * _PunchyNight;
+    // The moon lights the clouds by its phase: a new moon leaves them a dim grey (Zach, 11-08).
+    half3 moonlight = half3(0.16, 0.19, 0.27) * _PunchyNight * lerp(0.15, 1, _PunchyMoonPhase.y);
+    color = sunUp ? _PunchySunColor : moonlight;
     // Moonlight takes over gradually through blue hour, so the switch at -8° doesn't pop.
     if (sunUp)
-        color += half3(0.16, 0.19, 0.27) * _PunchyNight * (1 - smoothstep(-0.14, -0.05, _PunchySunDirection.y));
+        color += moonlight * (1 - smoothstep(-0.14, -0.05, _PunchySunDirection.y));
+    // The blue moon lights the clouds too (item 35), shaded along the main light's path (its own would cost a second
+    // march): its glow is zero by day, so this only shows at night.
+    color += _PunchyBlueMoonGlow * 0.09;
 }
 
 #define PUNCHY_FAR_START 15000.0
@@ -324,26 +391,26 @@ half3 PunchyFarClouds(half3 background, float3 dir)
     return lerp(background, color, cover);
 }
 
-// Marches the view ray through the cloud volume and composites the clouds over `background`.
-half3 PunchyVolumetricClouds(half3 background, float3 dir, float2 screenPos)
+// Marches the view ray through the cloud volume: the light scattered towards the camera, and the fraction of what's behind that
+// still shows through. framePhase (0..1, per frame) varies the start jitter between frames for the low-resolution buffer.
+void PunchyCloudMarch(float3 dir, float2 screenPos, float framePhase, out half3 scatterOut, out float transmitOut)
 {
+    scatterOut = 0;
+    transmitOut = 1;
     const float bottom = 300, top = 9500;
     float3 camera = _WorldSpaceCameraPos;
     if (dir.y <= 0.003)
-        return background;
+        return;
     float t0 = max(0, (bottom - camera.y) / dir.y);
-    // Beyond ~15–22 km the clouds hand over to a generic flat layer with the map-wide average weather: far cheaper,
-    // and local weather that far away is invisible detail anyway.
-    background = PunchyFarClouds(background, dir);
     float t1 = min((top - camera.y) / dir.y, PUNCHY_FAR_END);
     if (t0 >= t1)
-        return background;
+        return;
 
     // Steps grow with distance (~3% of it): fine near the camera, coarse far away where clouds are small on screen.
     // A little per-pixel jitter hides the remaining banding.
     const int maxSteps = 160;
     // (A sine hash: decorrelated on whole-number pixel coordinates, where PunchyHash would show a grid.)
-    float jitter = frac(sin(dot(screenPos, float2(12.9898, 78.233))) * 43758.5453);
+    float jitter = frac(frac(sin(dot(screenPos, float2(12.9898, 78.233))) * 43758.5453) + framePhase);
     float t = t0 + clamp(t0 * 0.02, 30, 500) * jitter;
 
     float3 lightDir;
@@ -363,29 +430,110 @@ half3 PunchyVolumetricClouds(half3 background, float3 dir, float2 screenPos)
     float transmit = 1;
     half3 scatter = 0;
     float firstHit = -1;
+    // Empty air (job 32: the sky was 15 ms of the frame even in clear weather, nearly all of it steps through nothing):
+    // where a step can hold no cloud (no cover over this column, or outside its layer) the march takes long strides of up
+    // to MaxEmptyStride metres, straight towards the layer when it's under the cloud base; inside the layer, where the
+    // samples keep coming back empty, it lengthens its step more cautiously (MaxThinStride, so a small cloud can't be
+    // stepped over). Either way, on reaching cloud it backs up and walks in at the fine step.
+    const float MaxEmptyStride = 800, MaxThinStride = 240, MaxThinScale = 2.5;
+    float lastEmpty = t;
+    int emptyRun = 0;
+    bool strode = false, farStrode = false;   // the last step was a thin (in the layer) or an empty-air stride
+    bool stride = ((uint)_PunchySkyOff & 16u) == 0;
+    bool allSunSamples = ((uint)_PunchySkyOff & 64u) != 0;
+    bool oldLight = ((uint)_PunchySkyOff & 256u) != 0;
+    int stepsTaken = 0;
+    float lastOpticalDepth = -1;   // the light samples' last result, reused where a step's light hardly shows
     [loop]
     for (int i = 0; i < maxSteps && t < t1; i++)
     {
+        stepsTaken = i + 1;
         float stepLength = clamp(t * 0.02, 30, 500);
         float3 p = camera + dir * t;
         half4 weather = PunchyWeatherAt(p.xz);
         float4 shape = PunchyCloudShapeAt(p.xz);
-        float detail = saturate(1.2 - t / 20000);
+        bool canHold = (weather.r > 0.03 || shape.z > 0.02) && PunchyInCloudLayer(p.y, shape);
+        [branch] if (stride && !canHold)
+        {
+            // Under this column's base, aim for it (a little short: the base differs from column to column).
+            float toBase = p.y < shape.x && dir.y > 0 ? (shape.x - p.y) / dir.y * 0.8 : 0;
+            lastEmpty = t;
+            emptyRun++;
+            farStrode = true;
+            // (Varied per pixel by the same jitter as the start, or neighbouring rows land alike and streak the cloud edges.)
+            t += max(stepLength, clamp(max(toBase, stepLength * emptyRun), stepLength, MaxEmptyStride) * (0.75 + 0.5 * jitter));
+            continue;
+        }
+        [branch] if (stride && farStrode)
+        {
+            // Came out of empty air into a step that could hold cloud: back up and come in at the fine step.
+            farStrode = false;
+            emptyRun = 0;
+            if (t - lastEmpty > stepLength * 1.5)
+            {
+                t = lastEmpty + stepLength;
+                continue;
+            }
+        }
+        // Edge detail fades with distance (R-4: full to 3.5 km, gone by 17.5 km; the smaller octave from 2.5 to 6 km),
+        // so far clouds don't shimmer.
+        bool oldEdges = ((uint)_PunchySkyOff & 128u) != 0;
+        float detail = oldEdges ? saturate(1.2 - t / 20000) : saturate(1.25 - t / 14000);
+        float fine = oldEdges ? 0 : 1 - smoothstep(2500, 6000, t);
+        [branch] if (canHold)
+            punchyCloudStyle = PunchyCloudStyleAt(p.xz);
         float density = ((weather.r > 0.03 || shape.z > 0.02) && PunchyInCloudLayer(p.y, shape))
-            ? PunchyCloudDensity(p, weather, shape, detail) * (1 - smoothstep(PUNCHY_FAR_START, PUNCHY_FAR_END, t)) : 0;
+            ? PunchyCloudDensityFine(p, weather, shape, detail, fine) * (1 - smoothstep(PUNCHY_FAR_START, PUNCHY_FAR_END, t)) : 0;
 
+        [branch] if (stride && density <= 0.004)
+        {
+            // Inside the layer but nothing here: lengthen the step a little after a few empty samples.
+            lastEmpty = t;
+            emptyRun++;
+            strode = emptyRun > 3;
+            t += strode ? max(stepLength, min(stepLength * min((emptyRun - 2) * 0.5, MaxThinScale), MaxThinStride) * (0.75 + 0.5 * jitter)) : stepLength;
+            continue;
+        }
         if (density > 0.004)
         {
+            // (A thin stride that landed in cloud backs up too, so a cloud's edge is found at the fine step.)
+            if (stride && strode && t - lastEmpty > stepLength * 1.5)
+            {
+                t = lastEmpty + stepLength;
+                strode = false;
+                emptyRun = 0;
+                continue;
+            }
+            emptyRun = 0;
+            strode = false;
             if (firstHit < 0)
                 firstHit = t;
 
             // Light reaching this point: how much cloud lies between it and the sun (or moon).
-            float opticalDepth = 0;
-            [unroll]
-            for (int j = 1; j <= 4; j++)
+            // Four samples up to 3 km, three by 6 km, two past 11 km: far away a step is a few pixels of soft shading, and the
+            // nearest sample's and the third's weights merge into their neighbours (fading, so no line shows where the count
+            // changes). The weights always sum to 1440 m. (-skyoff 64: always four.)
+            float mergeFirst = allSunSamples ? 0 : smoothstep(3000, 6000, t);
+            float mergeThird = allSunSamples ? 0 : smoothstep(7000, 11000, t);
+            // Fewer samples where the light hardly shows (R-8): thin wisps (little density to shade) and cloud deep behind
+            // nearer cloud (little of it reaches the camera) take two, faded in like the distance merge. Below that, a
+            // near-empty step or one almost hidden reuses the last step's light. (-skyoff 64 turns this off too.)
+            [branch] if (!allSunSamples)
             {
-                float3 q = p + lightDir * (j * j * 90.0);
-                opticalDepth += PunchyCloudDensityAt(q, 0) * (2 * j - 1) * 90.0;
+                float few = max(1 - smoothstep(0.02, 0.12, density), 1 - smoothstep(0.15, 0.4, transmit));
+                mergeFirst = max(mergeFirst, few);
+                mergeThird = max(mergeThird, few);
+            }
+            float opticalDepth = lastOpticalDepth;
+            [branch] if (allSunSamples || lastOpticalDepth < 0 || (density >= 0.015 && transmit >= 0.08))
+            {
+                opticalDepth = PunchyCloudDensityAt(p + lightDir * 360.0, 0) * (270.0 + 90.0 * mergeFirst + 225.0 * mergeThird)
+                             + PunchyCloudDensityAt(p + lightDir * 1440.0, 0) * (630.0 + 225.0 * mergeThird);
+                [branch] if (mergeFirst < 1)
+                    opticalDepth += PunchyCloudDensityAt(p + lightDir * 90.0, 0) * 90.0 * (1 - mergeFirst);
+                [branch] if (mergeThird < 1)
+                    opticalDepth += PunchyCloudDensityAt(p + lightDir * 810.0, 0) * 450.0 * (1 - mergeThird);
+                lastOpticalDepth = opticalDepth;
             }
             float beer = exp(-opticalDepth * PUNCHY_CLOUD_SIGMA);
             float powder = 1 - exp(-density * 6);   // edges facing the light stay a touch darker
@@ -393,11 +541,31 @@ half3 PunchyVolumetricClouds(half3 background, float3 dir, float2 screenPos)
             half3 light = lightColor;
             [branch] if (glow > 0)
                 light = lerp(light, PunchyTwilightCloudLight(sunElevation, p.y) * 0.9 * (1 - 0.4 * weather.g), glow);
-            half3 direct = light * beer * phase * (0.55 + 0.45 * powder) * 3.2 + lining * beer * (1 - powder);
-
             float height = saturate((p.y - shape.x) / max(shape.y, 1));
+            half3 direct;
             half3 ambient = lerp(_PunchySkyHorizon * 0.32, _PunchySkyZenith * 0.75 + _PunchySkyHorizon * 0.25, height)
                           * (1 - 0.6 * weather.g);
+            [branch] if (oldLight)
+            {
+                // (Test only, -skyoff 256: the light before R-4.)
+                direct = light * beer * phase * (0.55 + 0.45 * powder) * 3.2 + lining * beer * (1 - powder);
+            }
+            else
+            {
+                // Softer light through the body (R-4): light scattered many times inside a cloud gets deeper than a single
+                // Beer falloff allows, so a weaker, slower falloff is kept as a floor and bodies glow instead of going flat
+                // grey. Powder: thin edges facing the sun, seen from the sun's side, hold too little cloud to have scattered
+                // light back yet and stay darker; looking towards the sun that fades and a silver lining takes over, light
+                // pushed forward through the thin edges.
+                float soft = max(beer, exp(-opticalDepth * PUNCHY_CLOUD_SIGMA * 0.25) * 0.55);
+                float towardSun = saturate(cosTheta);
+                float powderNew = lerp(1 - exp(-density * 9), 1, towardSun * towardSun);
+                half3 silver = light * pow(towardSun, 8) * (1 - powder) * soft * 2.5;
+                direct = light * soft * phase * (0.35 + 0.65 * powderNew) * 3.4 + (lining + silver) * soft * (1 - powder);
+                // Darker bases: the underside sees little of the bright sky above and the sun's light has crossed the
+                // whole body to reach it.
+                ambient *= lerp(0.6, 1.1, height);
+            }
             ambient = lerp(ambient, dot(ambient, half3(0.3, 0.5, 0.2)) * half3(0.85, 0.75, 1.1), twilight * 0.6);
             half3 flash = half3(0.75, 0.82, 1.0) * _PunchyLightningPos.w * 2.5
                         * exp(-distance(p, _PunchyLightningPos.xyz) / 1200);
@@ -416,13 +584,36 @@ half3 PunchyVolumetricClouds(half3 background, float3 dir, float2 screenPos)
         t += stepLength;
     }
 
+    // (Test only, -skyoff 32: steps per pixel in colour bands, which survive tonemapping: blue under 20, green under 40,
+    // yellow under 80, orange under 120, red above.)
+    if (((uint)_PunchySkyOff & 32u) != 0)
+    {
+        scatterOut = stepsTaken < 20 ? half3(0, 0, 1) : stepsTaken < 40 ? half3(0, 1, 0) : stepsTaken < 80 ? half3(1, 1, 0) : stepsTaken < 120 ? half3(1, 0.4, 0) : half3(1, 0, 0);
+        transmitOut = 0;
+        return;
+    }
+
     // Distant clouds fade into the horizon haze, and right at the horizon (where rays skim through kilometres of
     // cloud layer and alias) they thin out entirely.
     if (firstHit > 0)
         scatter = lerp(scatter, cloudHorizon * (1 - transmit), 1 - exp(-firstHit / 14000));
     float horizonFade = smoothstep(0.003, 0.05, dir.y);
-    transmit = lerp(1, transmit, horizonFade);
-    scatter *= horizonFade;
+    transmitOut = lerp(1, transmit, horizonFade);
+    scatterOut = scatter * horizonFade;
+}
+
+// Marches the view ray through the cloud volume and composites the clouds over `background` (with the far layer under them).
+half3 PunchyVolumetricClouds(half3 background, float3 dir, float2 screenPos)
+{
+    if (dir.y <= 0.003)
+        return background;
+    // Beyond ~15–22 km the clouds hand over to a generic flat layer with the map-wide average weather: far cheaper,
+    // and local weather that far away is invisible detail anyway.
+    if (((uint)_PunchySkyOff & 2u) == 0)
+        background = PunchyFarClouds(background, dir);
+    half3 scatter;
+    float transmit;
+    PunchyCloudMarch(dir, screenPos, 0, scatter, transmit);
     return background * transmit + scatter;
 }
 
@@ -439,6 +630,7 @@ half PunchyCloudCoverAlong(float3 dir, out half darkness)
     float3 p = camera + dir * min((middle - camera.y) / dir.y, 40000);
     half4 weather = PunchyWeatherAt(p.xz);
     darkness = weather.g;
+    punchyCloudStyle = PunchyCloudStyleAt(p.xz);
     return saturate(PunchyCloudDensity(p, weather, PunchyCloudShapeAt(p.xz), 0) * 3) * smoothstep(0.02, 0.12, dir.y);
 }
 
@@ -453,6 +645,7 @@ half PunchyCloudShadow(float3 positionWS)
     float height = shape.x + shape.y * 0.3;
     float3 p = float3(positionWS.xz + toSun.xz * (height - positionWS.y) / toSun.y, height).xzy;
     half4 weather = PunchyWeatherAt(p.xz);
+    punchyCloudStyle = PunchyCloudStyleAt(p.xz);
     float density = PunchyCloudDensity(p, weather, PunchyCloudShapeAt(p.xz), 0);
     return saturate(density * 3) * lerp(0.5, 0.95, saturate(shape.y / 3000));
 }
@@ -469,9 +662,11 @@ half PunchyCirrus(float3 dir)
     float2 wind = normalize(_PunchyCloudOffset + 1e-4);
     float2 uv = (hit - _PunchyCloudOffset * PUNCHY_CLOUD_FEATURE * 2) / 9000;
     uv = float2(dot(uv, wind), dot(uv, float2(-wind.y, wind.x)) * 4);   // streaks along the wind
-    half amount = saturate(PunchyWeatherAt(hit).r * 0.6 + 0.2);
+    // How much there is comes with the cover and, since R-4, the weather's and biome's high cloud (0.3 = as before).
+    half high = PunchyCloudStyleAt(hit).y;
+    half amount = saturate(PunchyWeatherAt(hit).r * 0.6 + 0.2 + (high - 0.3) * 1.5);
     float n = PunchyFbm(uv, 4);
-    return smoothstep(1 - amount * 0.55, 1.05, n) * 0.55 * smoothstep(0.01, 0.15, dir.y);
+    return smoothstep(1 - amount * 0.55, 1.05, n) * 0.55 * (0.85 + 0.5 * high) * smoothstep(0.01, 0.15, dir.y);
 }
 
 #include "SharedClock.hlsl"
@@ -540,6 +735,85 @@ half3 PunchyShootingStars(float3 dir)
         sum += tint * trail * trail * streak * smoothstep(0, 0.12, t) * (1 - smoothstep(0.55, 1.5, t)) * 5;
     }
     return sum;
+}
+
+// How strongly the blue moon holds the night: its lit share (from where it stands against the sun) while it's up.
+half PunchyBlueMoonHold()
+{
+    half lit = 0.5 - 0.5 * dot(_PunchyBlueMoon, _PunchySunDirection);
+    return lit * smoothstep(0.0, 0.15, _PunchyBlueMoon.y);
+}
+
+// The blue moon's pull (Zach, 11-08: it should feel like an insidious influence): on its nights blue streaks leave the
+// moon and run outwards and down towards the island, several a minute when it's up and full, none when it's dark or
+// down. Like the shooting stars, each comes from a hash of its 12 s slot on the shared clock, so every player sees the
+// same ones; each starts just off the moon's disc and runs away from it, longer and slower than a meteor.
+// Feedback 11-08 item 9 (they ended abruptly): a streak thins and dims over the outer part of its run, its head has a
+// soft front, and it breaks up into twinkling sparkles as it tapers out and again as it fades, the sparkles lingering
+// a little past where the line ended. _PunchySkyTest (-meteors) sends all three every slot, for shots.
+// Round 2 (item 23): much fainter, in the disc's own deep blue, and half as fast (2.4-4.4 s a run, so 12 s slots, which
+// also lets every streak finish its fade inside its slot rather than being cut off at the slot's end).
+half3 PunchyBlueMoonStreaks(float3 dir)
+{
+    half hold = PunchyBlueMoonHold();
+    if (hold < 0.35 || dot(dir, _PunchyBlueMoon) < 0.2)
+        return 0;
+    const float slotLength = 12;
+    const float sparkCell = 0.014;   // spacing of the sparkles along a streak (sky units, about 0.8 degrees)
+    float slot = floor(_PunchyClock / slotLength);
+    float local = _PunchyClock - slot * slotLength;
+    half3 sum = 0;
+    [loop] for (int k = 0; k < 3; k++)
+    {
+        float s = fmod(slot, 4096) * 5.31 + k * 23.9 + 911.0;
+        if (PunchyHash1(s) > (_PunchySkyTest > 0.5 ? 1.0 : 0.5 * smoothstep(0.35, 0.8, hold)))
+            continue;
+        float life = lerp(2.4, 4.4, PunchyHash1(s + 2.3));
+        float start = PunchyHash1(s + 1.1) * (slotLength - 1.7 * 4.4);
+        float t = (local - start) / life;
+        // t 0..1 the run; 1..1.7 the fade (the tail draws in and the sparkles twinkle out)
+        if (t < 0 || t > 1.7)
+            continue;
+        // Out from the moon: the anchor is the moon itself; the streak's way is a random direction round it, but
+        // turned towards the ground (the island lies below).
+        float3 a = _PunchyBlueMoon;
+        float3 right = normalize(cross(float3(0, 1, 0), a) + float3(1e-4, 0, 0));
+        float3 up = cross(a, right);
+        float heading = PunchyHash1(s + 6.1) * 6.2832;
+        float2 way = normalize(float2(cos(heading), sin(heading) - 0.9));
+        // (At most 0.7 past the rim, so the whole run stays inside the early-out's cone: no cut at its edge.)
+        float len = lerp(0.4, 0.7, PunchyHash1(s + 7.7));
+        float3 v = dir - a * dot(dir, a);
+        float2 q = float2(dot(v, right), dot(v, up));
+        float along = dot(q, way) - sin(PunchyBlueMoonRadius) - 0.01;   // from just outside the disc's rim
+        float side = q.x * way.y - q.y * way.x;
+        // A soft, slightly wavering glow rather than a hard meteor line.
+        float wobble = sin(along * 40 + _PunchyClock * 3 + PunchyHash1(s + 9.1) * 6.28) * 0.002;
+        float across = abs(side + wobble);
+        float head = len * min(t, 1);
+        float tail = max(len * 0.6 * (1 - smoothstep(1, 1.6, t)), 0.001);
+        half trail = saturate(1 - (head - along) / tail) * step(along, head) * step(head - tail, along) * step(0, along);
+        // The taper: over the outer 70% of its run it thins and dims to nothing, and the head's front is soft.
+        float run = saturate(along / len);
+        half taper = 1 - smoothstep(0.3, 1.0, run);
+        half front = smoothstep(0, 0.025, head - along);
+        half streak = 1 - smoothstep(0.0006, 0.0012 + 0.003 * taper, across);
+        // The break-up: from about a third of the way out, and as the whole streak fades, the line gives way to
+        // sparkles: one dot in most cells along it, a little off the line, each twinkling at its own pace.
+        half breakUp = saturate(smoothstep(0.3, 0.85, run) + smoothstep(0.85, 1.4, t));
+        float cell = floor(along / sparkCell);
+        float h = PunchyHash1(s * 0.37 + cell * 1.731);
+        float2 spark = float2(along - (cell + 0.5) * sparkCell, side + wobble - (PunchyHash1(h * 97.3) - 0.5) * 0.008);
+        half twinkle = pow(0.5 + 0.5 * sin(_PunchyClock * (4 + 7 * h) + h * 40), 3);
+        half dots = (1 - smoothstep(0.0007, 0.0024, length(spark))) * step(h, 0.65) * twinkle;
+        // Sparkles linger a little behind the tail and past the head, and die out at the very end of the run.
+        half sparkTrail = saturate(1 - (head - along) / (tail * 1.4)) * step(head - tail * 1.4, along) * step(along, head + 0.03)
+                        * step(0, along) * (1 - smoothstep(0.85, 1.1, run));
+        half beam = trail * trail * streak * front * taper * (1 - breakUp);
+        sum += half3(0.03, 0.12, 1.5) * (beam + sparkTrail * dots * breakUp * 2.5)
+             * smoothstep(0, 0.1, t) * (1 - smoothstep(0.6, 1.7, t)) * 1.4;
+    }
+    return sum * hold;
 }
 
 // Auroras over the cold lands at night (_PunchyAurora): curtains hanging from the sky round the horizon in some
@@ -724,16 +998,21 @@ half3 PunchySkyColor(float3 dir, bool withDiscs, bool approximateClouds)
 
     if (h > 0)
     {
-        half3 night = PunchyStars(dir) * _PunchyNight;
-        // Shooting stars and auroras show through clear skies only: dimmed by the cloud cover overall, and by the
-        // clouds along this very direction (they're bright enough to show through a thin cloud's last light, Z-09).
-        half3 events = (PunchyShootingStars(dir) + PunchyAurora(dir)) * _PunchyNight * (1 - _PunchyClouds.x);
-        [branch] if (any(events > 0))
+        // Stars and night events only by night (R-8: by day they were a tenth of the skybox draw, all multiplied by 0).
+        half3 night = 0;
+        [branch] if (_PunchyNight > 0)
         {
-            half eventsDarkness;
-            events *= 1 - PunchyCloudCoverAlong(dir, eventsDarkness);
+            night = PunchyStars(dir) * _PunchyNight;
+            // Shooting stars and auroras show through clear skies only: dimmed by the cloud cover overall, and by the
+            // clouds along this very direction (they're bright enough to show through a thin cloud's last light, Z-09).
+            half3 events = (PunchyShootingStars(dir) + PunchyAurora(dir) + PunchyBlueMoonStreaks(dir)) * _PunchyNight * (1 - _PunchyClouds.x);
+            [branch] if (any(events > 0))
+            {
+                half eventsDarkness;
+                events *= 1 - PunchyCloudCoverAlong(dir, eventsDarkness);
+            }
+            night += events;
         }
-        night += events;
         if (withDiscs)
         {
             half moonCover;
@@ -911,6 +1190,35 @@ half3 PunchyUnderwaterShafts(float3 camera, float3 dir, float distance)
     return light * ((half3)_PunchyUnderwater.rgb * 1.5 + 0.08) * sum * stepLength * _PunchyUnderwaterShafts.y * 0.06;
 }
 
+// The weather volumes seen against the sky (R-8): the skybox's own march along each view direction (8 steps out to
+// 8 km, the true ray height), done once a frame into a small direction table (HazeLut.shader's second pass, rendered
+// by WeatherSystem from the camera) instead of per full-res sky pixel, where it was over half the skybox's cost.
+// Columns run round the horizon; rows are spaced by y|y|, so the directions near the horizon, where the volumes are,
+// get most of them. Same layout as the haze table: rgb = scattered light, a = 1 - transmittance.
+TEXTURE2D(_PunchySkyVolumes);  SAMPLER(sampler_PunchySkyVolumes);
+
+// The view direction through table texel uv (0..1 both ways).
+float3 PunchySkyVolumesDirection(float2 uv)
+{
+    float angle = (uv.x - 0.5) * 2 * PI;
+    float r = uv.y * 2 - 1;
+    float y = r * abs(r);
+    float across = sqrt(saturate(1 - y * y));
+    return float3(cos(angle) * across, y, sin(angle) * across);
+}
+
+// Applies the tabled weather volumes along the view direction `dir` (unit length).
+half3 PunchySkyVolumesFromLut(half3 color, float3 dir)
+{
+    float u = atan2(dir.z, dir.x) * (0.5 / PI) + 0.5;
+    float v = sign(dir.y) * sqrt(abs(dir.y)) * 0.5 + 0.5;
+    half4 haze = SAMPLE_TEXTURE2D_LOD(_PunchySkyVolumes, sampler_PunchySkyVolumes, float2(u, v), 0);
+    return color * (1 - haze.a) + haze.rgb;
+}
+
+// 0..1: how fully clear and sunny the day is round the camera (WeatherSystem): the base haze thins there (item 30).
+half _PunchyHazeClear;
+
 // Everything between the camera and a surface point: weather volumes, then the base haze (fog coloured like the
 // horizon, thick enough at the edge of the streamed terrain to hide it).
 half3 PunchyAtmosphere(half3 color, float3 positionWS)
@@ -936,6 +1244,15 @@ half3 PunchyAtmosphere(half3 color, float3 positionWS)
     float haze = 1 - exp(-pow(distance * _PunchyHazeDensity, 2));
     if (haze < 0.01)
         return color;
+    // Fully clear, sunny days (feedback 11-08 item 30): the haze stays thin further out and closes in near the edge of
+    // the streamed terrain (distance cubed instead of squared, scaled to the same ~98% at that edge, so the edge stays
+    // hidden), so distant land isn't greyed. Not in cold lands (_PunchyAurora), cloud or weather (WeatherSystem).
+    half clearDay = _PunchyHazeClear * (1 - _PunchyAurora);
+    if (clearDay > 0)
+    {
+        float far = distance * _PunchyHazeDensity;
+        haze = lerp(haze, 1 - exp(-far * far * far / 1.98), clearDay);
+    }
 
     // Haze towards exactly what the sky shows just above the horizon in this direction: the horizon colour with the
     // sun's glow, seen through the same rain and dust the skybox looks through. Hazing to the bare horizon colour

@@ -1,0 +1,78 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: be30a536c49003f42bba655b0fd41247, type: 3}
+  m_Name: FixtureSconce
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Flora.FloraSpecies
+  Form: 56
+  Layer: 2
+  Height: {x: 2, y: 2.4}
+  Spread: 0.7
+  TrunkFraction: 0.35
+  Thickness: 0.035
+  Fullness: 0.7
+  Branches: {x: 3, y: 5}
+  Flexibility: 0.5
+  FlowerHead: 0
+  Bark: {r: 0.3, g: 0.24, b: 0.17, a: 1}
+  Foliage: {r: 0.22, g: 0.4, b: 0.14, a: 1}
+  FoliageVariation: {r: 0.3, g: 0.45, b: 0.16, a: 1}
+  Accents: []
+  AccentAmount: 0.3
+  ColorVariation: 0.12
+  Finish: 0
+  GlowingAccents: 0
+  RunePatterns: 0
+  GlowPulse: 0.12
+  GlowingSeams: 0
+  Brackets: 0
+  Hanging: 0
+  HangingColor: {r: 0.25, g: 0.4, b: 0.2, a: 1}
+  HangingLength: {x: 1, y: 3}
+  HangingWisps: 0
+  Cocoons: 0
+  BarkFace: 0
+  GlowingVeins: 0
+  RockStrata: 0
+  Breathes: 0
+  StoneSeat: 0
+  KeepOwnColour: 0
+  TakeBiomeRock: 0
+  MaxSlope: 30
+  Elevation: {x: 0.5, y: 10000}
+  GrassAffinity: 0.5
+  ToleratesSnow: 0
+  PatchSize: 60
+  PatchCoverage: 1
+  NearWater: 1
+  OnlyNearWater: 0
+  SunSlope: 0
+  Shelter: 0
+  Exposure: 0
+  WetReach: 1
+  GroveSpacing: 0
+  GroveRadius: 20
+  GroveGain: 4
+  GroveStraggle: 0.3
+  EdgeAffinity: 0
+  Aquatic: 0
+  WaterDepth: {x: 0.1, y: 1.5}
+  Floats: 0
+  MinRapids: 0
+  RiverSpot: 0
+  Solid: 0
+  ShelterStyle: 0
+  KitCulture: 1
+  KitShape: 27
+  FixtureStyle: 1
+  SizeRange: {x: 0.95, y: 1.05}
+  Variants: 4
+  Seed: 1272

@@ -45,6 +45,9 @@ namespace Punchy.Terrain
 
         static readonly int TerrainFocusId = Shader.PropertyToID("_TerrainFocus");
         static readonly int DetailFarId = Shader.PropertyToID("_PunchyTerrainDetailFar");
+        static readonly int DetailPpmId = Shader.PropertyToID("_PunchyTerrainDetailPpm");
+        /// <summary>R-6 row 4b: the fine relief's octaves fade by their own on-screen size (false: the old fixed range, to compare).</summary>
+        public static bool MicroReach = true;
         /// <summary>Where the terrain's fine relief has faded out at Detail 1 (m; TerrainSurface.shader). W-101: was a fixed 70.</summary>
         const float DetailFar = 110f;
         /// <summary>Vertices per batch (a full-detail chunk is about 4,500).</summary>
@@ -130,6 +133,7 @@ namespace Punchy.Terrain
                 Object.Destroy(chunk.WaterMesh);
             }
             ClearWaterRegions(true);
+            DestroyFarMeshes();
             foreach (var pooled in meshPool)
                 Object.Destroy(pooled.mesh);
             loaded.Clear();
@@ -169,10 +173,17 @@ namespace Punchy.Terrain
             var focus = focusQuery.TryGetSingleton<LocalTransform>(out var focusTransform)
                 ? focusTransform.Position.xz
                 : float2.zero;
+            // The chunk rings (and the shader's geomorph) stay on the ground plane, unlike the 3D draw distances
+            // (R-6 row 0): a chunk spans every height its ground reaches, so its nearest point to a camera above it
+            // is already about the ground distance, and a height-dependent ring would reload chunks as the camera
+            // climbs or jumps.
             // The terrain shader geomorphs vertices by their distance from this same point.
             Shader.SetGlobalVector(TerrainFocusId, new Vector4(focus.x, focus.y, 0f, 0f));
             Shader.SetGlobalFloat(DetailFarId, Punchy.Settings.GraphicsSettings.DetailRange(DetailFar));
+            Shader.SetGlobalFloat(DetailPpmId, MicroReach
+                ? Punchy.Settings.DetailPolicy.Current.Data.PixelsPerMetre * Punchy.Settings.GraphicsSettings.Detail : -1f);
             RefreshWaterRegions(focus, config.ChunkSize);
+            UpdateFarRing(config, source, focus);
 
             // The focus's speed since the last batch started (batches can be frames apart), smoothed over about half a
             // second (a teleport reads as briefly fast).
@@ -270,6 +281,7 @@ namespace Punchy.Terrain
             var reach = (config.ViewRadiusChunks + 1.5f) * config.ChunkSize;
             if (cam != null && cam.farClipPlane < reach)
                 cam.farClipPlane = reach;
+            ApplyFarRing(config, appliedView);
             return config;
         }
 
@@ -280,6 +292,7 @@ namespace Punchy.Terrain
             {
                 CancelBuild();
                 UnloadAll();
+                UnloadAllFarTiles();
                 var material = config.Material.Value;
                 materialId = material != null ? graphics.RegisterMaterial(material) : BatchMaterialID.Null;
                 if (material == null)
@@ -290,6 +303,7 @@ namespace Punchy.Terrain
             else if (!source.Equals(lastSource))
             {
                 CancelBuild();
+                FlagFarTilesForRebuild();
                 // Same layout, new shape: flag every chunk for rebuild. Nearest ones are rebuilt first.
                 scratchCoords.Clear();
                 scratchCoords.AddRange(loaded.Keys);
@@ -314,7 +328,8 @@ namespace Punchy.Terrain
             foreach (var coord in loaded.Keys)
             {
                 var center = ((float2)coord + 0.5f) * config.ChunkSize;
-                if (math.distance(center, focus) > unloadRadius)
+                // (With the far ring on, only once its far tile has taken over: W-131.)
+                if (math.distance(center, focus) > unloadRadius && (farRadius <= 0f || FarTileCovers(coord, focus, config.ChunkSize)))
                     scratchCoords.Add(coord);
             }
 
@@ -491,6 +506,7 @@ namespace Punchy.Terrain
         /// <summary>Abandons the batch being built (settings changed, or shutting down).</summary>
         void CancelBuild()
         {
+            CancelFarBuild();
             if (building.Count == 0)
                 return;
             buildHandle.Complete();
@@ -571,6 +587,7 @@ namespace Punchy.Terrain
             foreach (var region in regions.Values)
                 if (region.Entity != Entity.Null && region.Merged)
                     Sort(region.Entity, true);
+            SortFarTiles(Sort);
             EntityManager.AddComponent<DisableRendering>(toHide.AsArray());
             EntityManager.RemoveComponent<DisableRendering>(toShow.AsArray());
             toHide.Dispose();

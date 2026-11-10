@@ -182,6 +182,96 @@ namespace Punchy.Fauna
             }
             return hash;
         }
+
+        /// <summary>
+        /// A-95 (#24): where a socket's thing stands, as a box (centre, size, facing), for its stand-in prop, its
+        /// collision box and the dungeon walk. A chest is the player lane's chest (Items) over its socket. The socket
+        /// itself never moves (its position is in the set pieces' hashes); only the box is nudged: off a chest it
+        /// shares a corner with (to the side, so it shows: Items hides stand-ins on a chest), then out of a wall or
+        /// rock along the socket's facing, and failing that the other ways round, up to <see cref="MostNudge"/>.
+        /// False for wall decor (set into the wall: nothing to bump into) and when no clear spot is found.
+        /// </summary>
+        public static bool PropPlace(in DungeonSocket s, in NativeArray<DungeonSocket> all, in Punchy.Terrain.TerrainSource terrain,
+                                     out float3 centre, out float3 size, out quaternion rot)
+        {
+            rot = s.Rot;
+            size = s.Kind switch
+            {
+                SocketKind.Chest => new float3(0.82f, 0.56f, 0.52f),
+                SocketKind.WallDecor => new float3(0.4f, 0.6f, 0.12f),
+                SocketKind.Interactable => new float3(0.6f, 1f, 0.6f),
+                _ => new float3(0.4f, 0.4f, 0.4f),
+            } * (s.Kind == SocketKind.Chest ? 1f : 1f + 0.35f * s.Size);
+            var fwd = math.mul(s.Rot, new float3(0f, 0f, 1f));
+            centre = s.Pos + new float3(0f, size.y * 0.5f, 0f);
+            if (s.Kind == SocketKind.WallDecor)
+            {
+                centre -= fwd * size.z * 0.5f;
+                return false;
+            }
+            if (s.Kind == SocketKind.Chest)
+                return true;
+            // Off a chest: beside it, its own half width plus the chest's (and a hand's breadth) from the chest's middle.
+            foreach (var o in all)
+            {
+                if (o.Kind != SocketKind.Chest || math.distance(o.Pos.xz, s.Pos.xz) > 0.9f || math.abs(o.Pos.y - s.Pos.y) > 1f)
+                    continue;
+                var side = math.mul(o.Rot, new float3(1f, 0f, 0f));
+                var away = s.Pos.xz - o.Pos.xz;
+                var sign = math.dot(away, side.xz) < 0f ? -1f : 1f;
+                var gap = 0.41f + size.x * 0.5f + 0.1f;
+                var a = o.Pos + side * sign * gap;
+                var b = o.Pos - side * sign * gap;
+                centre.xz = (Clear(terrain, new float3(a.x, centre.y, a.z), size, rot) ? a : b).xz;
+                break;
+            }
+            if (Clear(terrain, centre, size, rot))
+                return true;
+            // Out of a wall: the facing first (a sconce's faces the room), then the other three ways and the diagonals.
+            var right = math.mul(s.Rot, new float3(1f, 0f, 0f));
+            for (float d = 0.1f; d <= MostNudge + 1e-3f; d += 0.1f)
+                for (int k = 0; k < 8; k++)
+                {
+                    var dir = k switch { 0 => fwd, 1 => right, 2 => -right, 3 => -fwd, 4 => fwd + right, 5 => fwd - right, 6 => -fwd + right, _ => -fwd - right };
+                    var at = centre + math.normalize(dir) * d;
+                    if (Clear(terrain, at, size, rot))
+                    {
+                        centre = at;
+                        return true;
+                    }
+                }
+            return false;
+        }
+
+        /// <summary>How far a stand-in's box may be nudged out of a wall (m).</summary>
+        public const float MostNudge = 0.8f;
+
+        /// <summary>Nothing solid (rock, a temple wall) at a box's middle or its eight upper and lower corners (a hair in).</summary>
+        static bool Clear(in Punchy.Terrain.TerrainSource terrain, float3 centre, float3 size, quaternion rot)
+        {
+            if (!terrain.Landmarks.IsCreated)
+                return true;
+            if (Punchy.Player.PlayerMovementSystem.SolidDistance(terrain, centre) <= 0f)
+                return false;
+            for (int c = 0; c < 8; c++)
+            {
+                var corner = new float3((c & 1) == 0 ? -0.45f : 0.45f, (c & 2) == 0 ? -0.4f : 0.45f, (c & 4) == 0 ? -0.45f : 0.45f) * size;
+                if (Punchy.Player.PlayerMovementSystem.SolidDistance(terrain, centre + math.mul(rot, corner)) <= 0f)
+                    return false;
+            }
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// A-95 (#24): a dungeon stand-in's or chest's box (<see cref="DungeonSpawner.PropPlace"/>), solid to the player as a
+    /// kit box is (KitCollision, read as KitBox through Reinterpret). Seed-derived: every world that fills the dungeon
+    /// makes the same boxes, on one entity per world.
+    /// </summary>
+    [InternalBufferCapacity(0)]
+    public struct DungeonPropBox : IBufferElementData
+    {
+        public Punchy.Flora.KitBox Box;
     }
 
     /// <summary>On a dungeon entity once the spawner has filled its sockets (each world fills its own once).</summary>
@@ -263,12 +353,14 @@ namespace Punchy.Fauna
                           $" (again 0x{again:x8}{(again == hash ? ", same" : ", DIFFERS")}; as other types{asTypes})" +
                           $" ({(animals ? "spawns animals" : "no animals here")}{(shows ? ", shows props" : "")}): " +
                           string.Join(" ", picks.FindAll(c => c != DungeonContent.Empty)));
+                SystemAPI.TryGetSingleton<Punchy.Terrain.TerrainSource>(out var terrain);
+                AddBoxes(sockets.ToNativeArray(Allocator.Temp), terrain);
                 if (shows)
                 {
                     using var items = sockets.ToNativeArray(Allocator.Temp);
                     for (int i = 0; i < items.Length; i++)
                         if (picks[i] != DungeonContent.Empty && !DungeonSpawner.IsCreature(picks[i]) &&
-                            MakeProp(items[i], picks[i]) is { } prop)
+                            MakeProp(items[i], picks[i], items, terrain) is { } prop)
                             props.Add(prop);
                     // Loose loot: the host or solo puts it in the world for everyone (Items.Spawn is ignored on a
                     // joined client, which is sent the host's items instead).
@@ -287,6 +379,38 @@ namespace Punchy.Fauna
                     MakeCreatures(d);
                 else
                     EntityManager.AddComponentData(d, new DungeonFilled());
+            }
+        }
+
+        readonly HashSet<int> boxed = new();
+        Entity boxEntity;
+
+        /// <summary>
+        /// A-95 (#24): the dungeon's chests and stand-ins as boxes the player bumps into and stands on (DungeonPropBox,
+        /// one entity per world), placed as the props are. Once per dungeon (by its first socket's spot: a re-baked
+        /// terrain makes the same dungeons again). Wall decor is in the wall and gets none.
+        /// </summary>
+        void AddBoxes(NativeArray<DungeonSocket> sockets, in Punchy.Terrain.TerrainSource terrain)
+        {
+            using (sockets)
+            {
+                if (sockets.Length == 0 || !terrain.Landmarks.IsCreated || !boxed.Add((int)math.hash(sockets[0].Pos)))
+                    return;
+                if (boxEntity == Entity.Null || !EntityManager.Exists(boxEntity))
+                {
+                    boxEntity = EntityManager.CreateEntity(typeof(DungeonPropBox));
+                    EntityManager.SetName(boxEntity, "Dungeon prop boxes");
+                }
+                var boxes = EntityManager.GetBuffer<DungeonPropBox>(boxEntity);
+                for (int i = 0; i < sockets.Length; i++)
+                {
+                    var s = sockets[i];
+                    var shown = s.Kind == SocketKind.Chest || (picks[i] != DungeonContent.Empty && !DungeonSpawner.IsCreature(picks[i]));
+                    if (!shown || !DungeonSpawner.PropPlace(s, sockets, terrain, out var centre, out var size, out var rot))
+                        continue;
+                    var half = size * 0.5f;
+                    boxes.Add(new DungeonPropBox { Box = new Punchy.Flora.KitBox { Centre = centre, Half = half, Rotation = rot, Reach = math.length(half) } });
+                }
             }
         }
 
@@ -334,21 +458,16 @@ namespace Punchy.Fauna
         /// the player lane's Items draws the chest there. Drawn with the items' URP material (Resources/ItemMaterial,
         /// the pipeline's default lit material), tinted through a property block, so it never draws magenta.
         /// </summary>
-        static GameObject MakeProp(in DungeonSocket s, DungeonContent c)
+        static GameObject MakeProp(in DungeonSocket s, DungeonContent c, in NativeArray<DungeonSocket> all, in Punchy.Terrain.TerrainSource terrain)
         {
             if (s.Kind == SocketKind.Chest)
                 return null;
             var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
             go.name = $"Dungeon {c}";
             Object.Destroy(go.GetComponent<Collider>());
-            var size = s.Kind switch
-            {
-                SocketKind.Chest => new Vector3(0.9f, 0.6f, 0.6f),
-                SocketKind.WallDecor => new Vector3(0.4f, 0.6f, 0.12f),
-                SocketKind.Interactable => new Vector3(0.6f, 1f, 0.6f),
-                _ => new Vector3(0.4f, 0.4f, 0.4f),
-            } * (1f + 0.35f * s.Size);
-            go.transform.SetPositionAndRotation((Vector3)s.Pos + Vector3.up * size.y * 0.5f, s.Rot);
+            // (A-95: placed as its collision box is, nudged off a chest or out of a wall; see DungeonSpawner.PropPlace.)
+            DungeonSpawner.PropPlace(s, all, terrain, out var centre, out var size, out var rot);
+            go.transform.SetPositionAndRotation(centre, rot);
             go.transform.localScale = size;
             var h = DungeonSpawner.Scramble((uint)c * 0x9E3779B1u);
             var r = go.GetComponent<Renderer>();
@@ -360,8 +479,6 @@ namespace Punchy.Fauna
             // the saturated purple read as a glitch box when the camera sat beside it (#24, a57-temple-mw).
             bool wall = s.Kind == SocketKind.WallDecor;
             propBlock.SetColor(BaseColorId, Color.HSVToRGB((h & 1023) / 1023f, wall ? 0.12f : 0.45f, wall ? 0.32f : 0.75f));
-            if (wall)
-                go.transform.position -= go.transform.forward * size.z * 0.5f;
             r.SetPropertyBlock(propBlock);
             return go;
         }

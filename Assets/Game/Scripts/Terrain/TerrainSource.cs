@@ -914,7 +914,10 @@ namespace Punchy.Terrain
         public float MouthCut(float2 xz, float h) => MouthCut(xz, h, out _);
 
         /// <summary>MouthCut, and the cave field's own distance at the point it samples (100 away from caves).</summary>
-        public float MouthCut(float2 xz, float h, out float cave)
+        public float MouthCut(float2 xz, float h, out float cave) => MouthCut(xz, h, MouthCutDepth, out cave);
+
+        /// <summary>MouthCut sampled this deep into the ground (the terrain mesh's own cut uses MeshCutDepth).</summary>
+        public float MouthCut(float2 xz, float h, float depth, out float cave)
         {
             cave = 100f;
             if (!Caves.IsCreated || !CaveSampling.NearColumn(ref Caves.Value, xz))
@@ -922,12 +925,39 @@ namespace Punchy.Terrain
             // Into the ground along its normal, as the walls' field measures depth across the slope: mouths open in cliff
             // faces, where straight down is somewhere else entirely.
             var normal = SampleNormal(xz, 0.5f);
-            cave = CaveDistance(new float3(xz.x, h, xz.y) - normal * MouthCutDepth);
-            return math.min(CaveSampling.SmoothMin(MouthCutDepth - CaveSampling.SkinGap, cave, CaveSampling.MouthBlend), 100f);
+            cave = CaveDistance(new float3(xz.x, h, xz.y) - normal * depth);
+            return math.min(CaveSampling.SmoothMin(depth - CaveSampling.SkinGap, cave, CaveSampling.MouthBlend), 100f);
         }
 
         /// <summary>How far into the ground MouthCut samples the cave field.</summary>
         public const float MouthCutDepth = 0.35f;
+
+        /// <summary>
+        /// W-128: how deep the terrain mesh's cut samples it. The cut ends where the walls' skin has dropped this far
+        /// below the ground, so it is the step left at the opening's rim: at MouthCutDepth the terrain's edge hung a
+        /// mean 0.1-0.3 m over the skin. (Placement and creatures keep MouthCutDepth, so baking is unchanged.)
+        /// </summary>
+        public const float MeshCutDepth = 0.15f;
+
+        /// <summary>
+        /// W-128: the ground as the terrain mesh draws it on a grid of this step (corners at multiples of it, each quad
+        /// split along its anti-diagonal as BuildChunkMeshJob's triangles are), not the exact SampleHeight between the
+        /// corners. Whatever must meet the drawn ground edge to edge uses it: the cave walls' skin round a mouth, built
+        /// on the exact height, rose through the drawn ground by up to 0.4 m over a third of the ground round a mouth.
+        /// </summary>
+        public float MeshHeight(float2 xz, float step)
+        {
+            var grid = xz / step;
+            var corner = math.floor(grid);
+            var f = grid - corner;
+            if (f.x + f.y <= 1f)
+            {
+                var h00 = SampleHeight(corner * step);
+                return h00 + f.x * (SampleHeight((corner + new float2(1f, 0f)) * step) - h00) + f.y * (SampleHeight((corner + new float2(0f, 1f)) * step) - h00);
+            }
+            var h11 = SampleHeight((corner + 1f) * step);
+            return h11 + (1f - f.x) * (SampleHeight((corner + new float2(0f, 1f)) * step) - h11) + (1f - f.y) * (SampleHeight((corner + new float2(1f, 0f)) * step) - h11);
+        }
 
         /// <summary>
         /// How far the ground surface at a spot (height h) is from cave air: negative where the terrain is cut away

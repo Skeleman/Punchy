@@ -1046,7 +1046,7 @@ MonoBehaviour:
   Shrubs:
     CellSize: 2
     TileSize: 40
-    Radius: 260
+    Radius: 520
     Lod1Distance: 30
     Lod2Distance: 110
     CastShadows: 1

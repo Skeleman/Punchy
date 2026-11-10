@@ -3,12 +3,15 @@
 
 // Light from glowing things (molten pools, glowing plants on the surface and in caves, lit windows), with no real
 // lights, in two tiers (W-101):
-// - Near: the nearest 16, uploaded by CaveSystem. Each falls off over its reach (squared), brightest on faces turned
-//   to it. Out of reach, a light costs only its distance test. Surface ones fade out by their distance from the camera.
+// - Near: the 16 that matter most on screen, picked and uploaded by LightBudget (refactor 3.1; it was the nearest 16).
+//   Each falls off over its reach (squared), brightest on faces turned to it. Out of reach, a light costs only its
+//   distance test. Each fades out as it shrinks on screen.
 // - Far: every surface glow source within about 320 m, baked by SurfaceGlow into a camera-centred light map (the light
 //   each casts on the ground, softened; rgb, a the light-weighted height of its sources) with lit windows in a second
 //   map for night. One or two texture reads a pixel, however many lights; it fades in as the near tier fades out, so
 //   towns and glowing woods glow from afar and sharpen into single lights as you come close.
+// Also the blue moon's own light (feedback 11-08 item 10): a second, unshadowed moonlight from the blue moon's
+// direction, added on top of the big moon's (the main light), set by WeatherSystem (black when it's down, new or by day).
 float4 _PunchyCaveHeat[16];        // xyz position
 float4 _PunchyCaveHeatColor[16];   // rgb light (linear), w reach (m)
 int _PunchyCaveHeatCount;
@@ -18,6 +21,12 @@ SAMPLER(sampler_PunchyGlowMap);
 TEXTURE2D(_PunchyGlowMapNight);    // rgb light of lit windows, a as above
 float4 _PunchyGlowMapRect;         // xy the map's corner (m), z 1 / its width (1/m)
 float4 _PunchyGlowMapParams;       // x strength (0: off), y lit windows on, zw camera distance the far tier fades in over (m)
+TEXTURE2D(_PunchyGlowWorld);       // the whole island: r fire amount, gba plants' and lava's light (linear)
+float4 _PunchyGlowWorldRect;       // xy its corner (m), z 1 / its width (1/m)
+float4 _PunchyGlowWorldParams;     // x strength (0: off), y night (plants and lava), zw camera distance they fade in over (m)
+float4 _PunchyGlowWorldFire;       // rgb tonight's fire light (0 by day or off), w camera distance it starts fading in at (full at twice it)
+float4 _PunchyBlueLightDirection;  // xyz towards the blue moon
+float4 _PunchyBlueLightColor;      // rgb its light (linear; 0 when it gives none)
 
 // The far tier's light on a surface at p with normal n.
 half3 PunchyGlowFar(float3 p, half3 n)
@@ -30,7 +39,10 @@ half3 PunchyGlowFar(float3 p, half3 n)
     [branch] if (fade > 0)
     {
         float4 a = SAMPLE_TEXTURE2D_LOD(_PunchyGlowMap, sampler_PunchyGlowMap, uv, 0);
-        float4 b = SAMPLE_TEXTURE2D_LOD(_PunchyGlowMapNight, sampler_PunchyGlowMap, uv, 0) * _PunchyGlowMapParams.y;
+        // (Lit windows' layer: off since their light is indoor, P-21 item 31; CaveSystem sends y = 0.)
+        float4 b = 0;
+        [branch] if (_PunchyGlowMapParams.y > 0)
+            b = SAMPLE_TEXTURE2D_LOD(_PunchyGlowMapNight, sampler_PunchyGlowMap, uv, 0) * _PunchyGlowMapParams.y;
         float3 rgb = a.rgb + b.rgb;
         float weight = rgb.r + rgb.g + rgb.b;
         // Its sources' height, weighted by their light (interpolates cleanly where lit and dark texels meet): a cliff
@@ -43,6 +55,29 @@ half3 PunchyGlowFar(float3 p, half3 n)
         // one near light's brightness instead of floodlighting the floor.
         rgb /= 1 + weight * 2.5;
         light = rgb * (fade * vertical * shimmer * _PunchyGlowMapParams.x * saturate(0.6 + 0.4 * n.y));
+    }
+    return light;
+}
+
+// The whole island's static glow (R-2, SurfaceGlow.World), for terrain only: r how much fire burns there (tinted with
+// tonight's fire), gba the fixed light of plants and lava. One read a pixel, past where the nearer tiers end.
+half3 PunchyGlowWorld(float3 p, half3 n)
+{
+    half3 light = 0;
+    [branch] if (_PunchyGlowWorldParams.x > 0)
+    {
+        float2 uv = (p.xz - _PunchyGlowWorldRect.xy) * _PunchyGlowWorldRect.z;
+        float d = distance(p, GetCameraPositionWS());
+        float fireFade = smoothstep(_PunchyGlowWorldFire.w, _PunchyGlowWorldFire.w * 2, d);
+        float plantFade = smoothstep(_PunchyGlowWorldParams.z, _PunchyGlowWorldParams.w, d);
+        [branch] if (fireFade + plantFade > 0 && uv.x > 0 && uv.x < 1 && uv.y > 0 && uv.y < 1)
+        {
+            float4 t = SAMPLE_TEXTURE2D_LOD(_PunchyGlowWorld, sampler_PunchyGlowMap, uv, 0);
+            // Soft cap: a dense forest sums high, and should level off rather than floodlight the ground.
+            float3 rgb = _PunchyGlowWorldFire.rgb * (t.r / (1 + t.r * 2)) * fireFade
+                       + t.gba / (1 + (t.g + t.b + t.a) * 2.5) * _PunchyGlowWorldParams.y * plantFade;
+            light = rgb * (_PunchyGlowWorldParams.x * saturate(0.6 + 0.4 * n.y));
+        }
     }
     return light;
 }
@@ -64,6 +99,9 @@ half3 PunchyGlowLight(float3 p, half3 n)
     }
     [branch] if (_PunchyGlowMapParams.x > 0)
         light += PunchyGlowFar(p, n);
+    // The blue moon: a little wrap, so faces turned just past it aren't cut off hard.
+    [branch] if (_PunchyBlueLightColor.b > 0)
+        light += _PunchyBlueLightColor.rgb * saturate(dot(n, _PunchyBlueLightDirection.xyz) * 0.85 + 0.15);
     return light;
 }
 

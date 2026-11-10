@@ -24,7 +24,7 @@ namespace Punchy.Terrain
     [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation | WorldSystemFilterFlags.ClientSimulation)]
     public partial class SunkenTempleSystem : SystemBase
     {
-        const float Lod0Distance = 120f, Lod1Distance = 1200f;
+        int lod = -1;   // last frame's level (R-6 row 1: picked by on-screen size, DetailPolicy.LandmarkLod)
 
         /// <summary>The last build's triangle counts: exterior LOD0-2, then the interior.</summary>
         public static int[] LodTris = new int[4];
@@ -41,7 +41,6 @@ namespace Punchy.Terrain
         SunkenTempleLayout layout;
         Material stone, sand, innerStone, innerSand, glow;
         float3[] torches;
-        FarShadow farShadow;
         bool warned;
 
         protected override void OnCreate() => RequireForUpdate<TerrainSource>();
@@ -63,13 +62,16 @@ namespace Punchy.Terrain
             if (cam == null)
                 return;
             var cp = cam.transform.position;
+            Punchy.Settings.DetailPolicy.SetView(cam);
             var d = Vector3.Distance(cp, bounds.ClosestPoint(cp));
-            var lod = d < Lod0Distance ? 0 : d < Lod1Distance ? 1 : 2;
             var q = SunkenTempleShape.Local(layout, cp);
+            var near = q.x > -70f && q.x < 66f && math.abs(q.z) < 50f && q.y < 40f;
+            // Within the interior's box the full mesh always draws (its door and the interior belong to LOD 0).
+            lod = near ? 0 : Punchy.Settings.DetailPolicy.LandmarkLod(bounds.size.magnitude, d, lod);
             // W-113 (item 12): the interior shows from well outside the door (30 m round the ruin), so the plugs that
             // close the door while it's hidden never stand between a chase camera and the player walking in (they
             // read as a plane splitting the temple that the player passed through).
-            var inside = lod == 0 && q.x > -70f && q.x < 66f && math.abs(q.z) < 50f && q.y < 40f;
+            var inside = near;
             InteriorShown = inside;
 
             Draw(lods[lod], 0, stone, ShadowCastingMode.TwoSided);
@@ -83,13 +85,10 @@ namespace Punchy.Terrain
             }
             else if (lod == 0)
                 Draw(plug, 0, innerStone, ShadowCastingMode.Off);
-            // Past the real shadow distance the temple still casts, through a far shadow proxy (#84, as the salt tower).
-            var foot = new Vector3(bounds.center.x, source.SampleHeight(new float2(bounds.center.x, bounds.center.z)), bounds.center.z);
-            farShadow ??= new FarShadow("SunkenTemple far shadow");
-            farShadow.Draw(source, foot, math.max(4f, bounds.max.y - foot.y), math.min(bounds.extents.x, bounds.extents.z));
+            Punchy.Rendering.WideShadow.Cast(lods[2], matrix);   // R-5: past the real shadows it casts through the wide shadow map
         }
 
-        /// <summary>The wall torches: a wood flame each (FireSystem) and a flickering pooled light (CaveSystem.MovingLights).</summary>
+        /// <summary>The wall torches: a wood flame each (FireSystem) and a flickering fixture light (LightBudget, refactor 3.1).</summary>
         void Torches()
         {
             if (torches == null)
@@ -100,7 +99,7 @@ namespace Punchy.Terrain
                 var p = (Vector3)torches[k];
                 FireSystem.AddFlame(p, 0.3f, 0x7E00 + k, FireSystem.Wood);
                 var flicker = 0.85f + 0.1f * math.sin(t * 9.1f + k * 2.3f) + 0.05f * math.sin(t * 23.7f + k * 5.1f);
-                CaveSystem.MovingLights.Add((0x7E0000 + k, p + Vector3.up * 0.25f, FireSystem.Light(FireSystem.Wood, flicker)));
+                Punchy.Settings.LightBudget.Add(Punchy.Settings.LightKind.Fixture, 0x7E0000 + k, p + Vector3.up * 0.25f, FireSystem.Light(FireSystem.Wood, flicker));
             }
             TorchesLit = torches.Length;
         }
@@ -153,7 +152,6 @@ namespace Punchy.Terrain
         protected override void OnDestroy()
         {
             Clear();
-            farShadow?.Dispose();
         }
 
         void Clear()
@@ -219,6 +217,9 @@ namespace Punchy.Terrain
                     torches[k] = SunkenTempleShape.World(l, s.At + new float3(s.N.x, 0f, s.N.y) * 0.32f + new float3(0f, 0.42f, 0f));
                 }
                 Debug.Log($"[landmarks] sunken temple: {ruin.Rooms.Length} rooms, {ruin.Boxes.Length} boxes, {torches.Length} torches; tris LOD0-2 {LodTris[0]}/{LodTris[1]}/{LodTris[2]}, interior {LodTris[3]}");
+                lod = -1;
+                var reach = Punchy.Settings.DetailPolicy.LandmarkReach(bounds.size.magnitude);
+                Debug.Log($"[landmarks] sunken temple {bounds.size.magnitude:F0} m across, LOD switches at {reach.x:F0}/{reach.y:F0} m (was 120/1200)");
                 return;
             }
         }
@@ -392,7 +393,9 @@ namespace Punchy.Terrain
                     var r = Rooms[i];
                     if (r.Kind != 0)
                         continue;
+                    b.Kind = Builder.Flags;   // W-128: the floor in close-laid tiles
                     b.Panel(0, 2, r.Floor, r.U0, r.U1, r.V0, r.V1, Vector3.up);
+                    b.Kind = Builder.Ashlar;
                     b.Panel(0, 2, r.Ceil, r.U0, r.U1, r.V0, r.V1, Vector3.down);
                     Edges(i, (e, s0, s1, n) =>
                     {
@@ -470,8 +473,14 @@ namespace Punchy.Terrain
         class Builder
         {
             readonly List<Vector3> v = new List<Vector3>(), n = new List<Vector3>();
+            readonly List<Color> col = new List<Color>();
+            readonly List<Vector2> st = new List<Vector2>();
             readonly List<int>[] sub;
             public int Tris;
+            /// <summary>W-128: the stone pattern of what's added next, in vertex alpha for Punchy/SunkenTemple:
+            /// Ashlar (walls), Column (fluted drums, UV x around in flutes, y along the shaft) or Flags (floor tiles, no grout).</summary>
+            public float Kind = Ashlar;
+            public const float Ashlar = 1f, Column = 0.5f, Flags = 0f;
 
             public Builder(int submeshes)
             {
@@ -480,10 +489,12 @@ namespace Punchy.Terrain
                     sub[i] = new List<int>();
             }
 
-            int Vert(Vector3 p, Vector3 normal)
+            int Vert(Vector3 p, Vector3 normal, Vector2 at = default)
             {
                 v.Add(p);
                 n.Add(normal);
+                col.Add(new Color(1f, 1f, 1f, Kind));
+                st.Add(at);
                 return v.Count - 1;
             }
 
@@ -596,9 +607,19 @@ namespace Punchy.Terrain
                     float t0 = (k + 0.5f) * 2f * math.PI / sides, t1 = (k + 1.5f) * 2f * math.PI / sides, tm = 0.5f * (t0 + t1);
                     float p0 = cp + radius * math.cos(t0), q0 = cq + radius * math.sin(t0), p1 = cp + radius * math.cos(t1), q1 = cq + radius * math.sin(t1);
                     var out_ = Ax(axis, 0f, math.cos(tm), math.sin(tm));
-                    Quad(s, Ax(axis, a0, p0, q0), Ax(axis, a0, p1, q1), Ax(axis, a1, p1, q1), Ax(axis, a1, p0, q0), out_);
+                    // W-128: the shaft in the column pattern, one flute per face (UV x across it, y along the shaft from
+                    // its foot), with round normals so it shades as a drum; the ends are plain tiles.
+                    var kind = Kind;
+                    Kind = Column;
+                    Vector3 n0 = Ax(axis, 0f, math.cos(t0), math.sin(t0)), n1 = Ax(axis, 0f, math.cos(t1), math.sin(t1));
+                    int ia = Vert(Ax(axis, a0, p0, q0), n0, new Vector2(k, 0f)), ib = Vert(Ax(axis, a0, p1, q1), n1, new Vector2(k + 1, 0f));
+                    int ic = Vert(Ax(axis, a1, p1, q1), n1, new Vector2(k + 1, a1 - a0)), id = Vert(Ax(axis, a1, p0, q0), n0, new Vector2(k, a1 - a0));
+                    Index(s, ia, ib, ic, out_);
+                    Index(s, ia, ic, id, out_);
+                    Kind = Flags;
                     Tri(s, Ax(axis, a1, cp, cq), Ax(axis, a1, p0, q0), Ax(axis, a1, p1, q1), Ax(axis, 1f, 0f, 0f));
                     Tri(s, Ax(axis, a0, cp, cq), Ax(axis, a0, p0, q0), Ax(axis, a0, p1, q1), Ax(axis, -1f, 0f, 0f));
+                    Kind = kind;
                 }
             }
 
@@ -607,7 +628,8 @@ namespace Punchy.Terrain
                 var m = new Mesh { name = name, indexFormat = IndexFormat.UInt32 };
                 m.SetVertices(v);
                 m.SetNormals(n);
-                m.SetColors(System.Linq.Enumerable.ToList(System.Linq.Enumerable.Repeat(Color.white, v.Count)));
+                m.SetColors(col);
+                m.SetUVs(0, st);
                 m.subMeshCount = sub.Length;
                 for (int i = 0; i < sub.Length; i++)
                     m.SetTriangles(sub[i], i);

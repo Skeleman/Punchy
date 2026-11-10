@@ -64,6 +64,9 @@ namespace Punchy.Ambience
         readonly List<Emitter> heardFalls = new List<Emitter>();
         /// <summary>Nearby landmarks' flames (position, size; seed, palette), handed to FireSystem every frame.</summary>
         readonly List<(Vector3 at, float size, int seed, int palette, bool night)> fires = new List<(Vector3, float, int, int, bool)>();
+        /// <summary>One light per landmark fire (campfires, braziers, sconces): where it sits, its width (m), seed,
+        /// palette and night-only; requested from LightBudget every frame as a fire light (refactor 3.1: they had none).</summary>
+        readonly List<(Vector3 at, float width, int seed, int palette, bool night)> fireLights = new List<(Vector3, float, int, int, bool)>();
         static readonly int NightId = Shader.PropertyToID("_PunchyNight");
         readonly List<int> nearby = new List<int>(), lastNearby = new List<int>();
         GraphicsBuffer plumeBuffer, fallBuffer;
@@ -122,7 +125,22 @@ namespace Punchy.Ambience
                 if (size > 0.02f && (f.at - eye).sqrMagnitude < flameRange * flameRange)
                     FireSystem.AddFlame(f.at, size, f.seed, f.palette);
             }
+            // Each fire's light: brighter and further for a wider fire, flickering; LightBudget decides by its
+            // on-screen reach whether it lights (a glow slot) or only its flames show (refactor 3.1).
+            var t = Time.time;
+            foreach (var f in fireLights)
+            {
+                var strength = f.night ? lit : 1f;
+                if (strength <= 0.02f)
+                    continue;
+                var flicker = 0.85f + 0.1f * Mathf.Sin(t * 8.3f + (f.seed & 255)) + 0.05f * Mathf.Sin(t * 21.1f + (f.seed & 63));
+                var wide = math.clamp(f.width, 0.3f, 4f);
+                var light = FireSystem.Light(f.palette, flicker * strength * math.clamp(0.6f + 0.4f * wide, 0.7f, 1.8f));
+                light.w *= math.clamp(0.6f + 0.5f * wide, 0.8f, 2.2f);
+                Punchy.Settings.LightBudget.Add(Punchy.Settings.LightKind.Fire, f.seed, f.at, light);
+            }
             ForestFires(source, palette, eye, lit);
+            Beacons(source, eye, lit, flameRange);
             Draw();
         }
 
@@ -278,6 +296,11 @@ namespace Punchy.Ambience
             max = math.max(max, t.Lip + t.PoolRadius + 6f);
         }
 
+        /// <summary>R-6 row 0: how far the camera is from a fall, in 3D, to the nearest point of its drop (lip down to the
+        /// pool), as the flora's draw distances measure; on the ground plane a fall below a cliff counted as near.</summary>
+        static float FallDistance(float3 lip, float drop, float3 camera)
+            => math.distance(new float3(lip.x, math.clamp(camera.y, lip.y - math.max(drop, 0f), lip.y), lip.z), camera);
+
         void Gather(in TerrainSource source, LandmarkType[] types, Vector3 camera)
         {
             ref var set = ref source.Landmarks.Value;
@@ -295,7 +318,7 @@ namespace Punchy.Ambience
             {
                 ref var caveFalls = ref source.Caves.Value.Waterfalls;
                 for (int k = 0; k < caveFalls.Length; k++)
-                    if (math.distance(caveFalls[k].Lip.xz, cam) < Punchy.Settings.GraphicsSettings.DetailRange(CaveRange))
+                    if (FallDistance(caveFalls[k].Lip, caveFalls[k].Drop, camera) < Punchy.Settings.GraphicsSettings.DetailRange(CaveRange))
                         nearby.Add(-(k + 1));
             }
             // River waterfalls (version 2 rivers) within sight, as -(RiverFallBase + index).
@@ -303,7 +326,7 @@ namespace Punchy.Ambience
             {
                 ref var riverFalls = ref source.Rivers.Value.Falls;
                 for (int k = 0; k < riverFalls.Length; k++)
-                    if (math.distance(riverFalls[k].Lip.xz, cam) < Punchy.Settings.GraphicsSettings.DetailRange(RiverFallRange))
+                    if (FallDistance(riverFalls[k].Lip, riverFalls[k].Drop, camera) < Punchy.Settings.GraphicsSettings.DetailRange(RiverFallRange))
                         nearby.Add(-(RiverFallBase + k));
             }
             // The grand falls' tiers (W-29) are big: seen from the whole view range, as -(GrandFallBase + index).
@@ -311,7 +334,7 @@ namespace Punchy.Ambience
             {
                 ref var tiers = ref source.GrandFalls.Value.Tiers;
                 for (int k = 0; k < tiers.Length; k++)
-                    if (math.distance(tiers[k].Lip.xz, cam) < Punchy.Settings.GraphicsSettings.ViewRange(Range))
+                    if (FallDistance(tiers[k].Lip, tiers[k].Drop, camera) < Punchy.Settings.GraphicsSettings.ViewRange(Range))
                         nearby.Add(-(GrandFallBase + k));
             }
             NearChimneys(source, cam);
@@ -324,6 +347,7 @@ namespace Punchy.Ambience
             falls.Clear();
             heardFalls.Clear();
             fires.Clear();
+            fireLights.Clear();
             maxParticles = 1;
             float3 min = float.MaxValue, max = float.MinValue;
             foreach (var i in nearby)
@@ -456,6 +480,8 @@ namespace Punchy.Ambience
                             var size = effect.Size * inst.Scale * (k == 0 ? 1.3f : 1f - 0.3f * spread / math.max(reach, 0.01f));
                             fires.Add((p, size, (int)(math.abs(inst.Seed) * 31 + e * 7 + k), (int)effect.Flame, effect.NightOnly));
                         }
+                        fireLights.Add((new Vector3(at.x, y + 0.05f + effect.Size * inst.Scale * 0.6f, at.y), effect.Width * inst.Scale,
+                                        (int)(math.abs(inst.Seed) * 31 + e * 7), (int)effect.Flame, effect.NightOnly));
                         e++;
                         continue;
                     }

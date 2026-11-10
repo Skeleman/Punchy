@@ -137,6 +137,8 @@ namespace Punchy.Flora
         }
 
         public Vector3 Position(int i) => positions[i];
+        /// <summary>The vertex index at a place in the triangle list (three per triangle).</summary>
+        public int Index(int i) => indices[i];
 
         /// <summary>Smooth normals from the triangles added since the given counts.</summary>
         public void SmoothNormals(int firstVertex, int firstIndex)
@@ -364,6 +366,22 @@ namespace Punchy.Flora
             return firstVertex;
         }
 
+        /// <summary>
+        /// R-6 row 3: a whole house's far LOD is only its outer shell. While Shell is set, Box leaves out a face that
+        /// looks into ShellMin..ShellMax (the closed inside, below the eaves) or down onto the ground, so the far LOD keeps
+        /// the outer wall faces, roof and openings but none of the faces nobody outside can see.
+        /// </summary>
+        public bool Shell;
+        public Vector3 ShellMin, ShellMax;
+
+        bool Hidden(Vector3 face, Vector3 normal)
+        {
+            if (normal.y < -0.9f && face.y < 0.02f)
+                return true;   // its underside, on the ground
+            var q = face + normal * 0.05f;
+            return q.x > ShellMin.x && q.x < ShellMax.x && q.y > ShellMin.y && q.y < ShellMax.y && q.z > ShellMin.z && q.z < ShellMax.z;
+        }
+
         /// <summary>A flat-shaded box (planks, walls, roof slabs, counters), centred and rotated.</summary>
         public void Box(Vector3 centre, Vector3 size, Quaternion rotation, Color color, FloraPart part, float ao = 1f)
         {
@@ -373,6 +391,8 @@ namespace Punchy.Flora
             Vector3[] faces = { Vector3.right, Vector3.left, Vector3.up, Vector3.down, Vector3.forward, Vector3.back };
             foreach (var n in faces)
             {
+                if (Shell && Hidden(centre + rotation * Vector3.Scale(n, half), rotation * n))
+                    continue;
                 var u = Mathf.Abs(n.y) > 0.5f ? Vector3.right : Vector3.up;
                 var w = Vector3.Cross(n, u);
                 var first = positions.Count;
@@ -565,26 +585,25 @@ namespace Punchy.Flora
         /// Fills in wind sway (none at the base, rising with height and with distance from the stem) and returns a
         /// mesh. Rigid plants pass flexibility 0.
         /// </summary>
-        public Mesh ToMesh(string name, float height, float width, float flexibility, bool bendByHeight = false)
+        public Mesh ToMesh(string name, float height, float flexibility)
         {
-            Sway(height, width, flexibility, bendByHeight);
+            Sway(height, flexibility);
             return MakeMesh(name);
         }
 
         /// <summary>Fills in the wind sway (ToMesh's first half; pure code, safe on a worker thread).</summary>
-        public void Sway(float height, float width, float flexibility, bool bendByHeight = false)
+        public void Sway(float height, float flexibility)
         {
             for (int v = 0; v < positions.Count; v++)
             {
                 var p = positions[v];
                 var up = Mathf.Clamp01(p.y / Mathf.Max(height, 0.01f));
-                var outward = new Vector2(p.x, p.z).magnitude / Mathf.Max(width * 0.5f, 0.01f);
                 var d = data[v];
                 if (Mathf.RoundToInt(d.y) == (int)FloraPart.Door)
                     continue;   // a door leaf's x is its distance from the hinge (Hinge), and it doesn't sway
-                // Flowers bend by height alone: scaling by distance from the axis made a head's far petals swing
-                // further than its near ones, so the head swelled and swivelled (#30).
-                d.x = flexibility * Mathf.Pow(up, 1.6f) * (bendByHeight ? 1f : 1f + 0.6f * outward);
+                // By height alone: scaling by distance from the axis made a flower head's far petals (#30) and a crown's
+                // outer leaves (item 12) swing further than the near ones, so they swelled and swivelled.
+                d.x = flexibility * Mathf.Pow(up, 1.6f);
                 data[v] = d;
             }
         }

@@ -12,7 +12,7 @@ namespace Punchy.Ambience
     /// clock, and the list is cleared. A flame's lean is eased between frames by its seed, so a jerky carrier doesn't
     /// snap it about. Every flame is the standard fire (#131, Resources/StandardFire, a FireEffect): its flame, a spark
     /// now and then (the embers), a soft glow round its base and two puffs of smoke, in one of the effect's colours.
-    /// The light it throws is the caller's to add (CaveSystem.MovingLights), coloured by Light(colour).
+    /// The light it throws is the caller's to add (a LightBudget request, refactor 3.1), coloured by Light(colour).
     /// Refactor 3.2: drawn from a buffer of flame instances (48 bytes each) with a fixed index buffer, two procedural
     /// draws (near flames' five quads, far flames' two); the Flame shader builds each corner from the vertex id. It used
     /// to rebuild and upload a 20-vertex, 30-index mesh piece per flame every frame on the main thread.
@@ -51,7 +51,7 @@ namespace Punchy.Ambience
         }
 
         /// <summary>
-        /// The light a fire of <paramref name="colour"/> throws, for CaveSystem.MovingLights: rgb x intensity x the
+        /// The light a fire of <paramref name="colour"/> throws, for a LightBudget request: rgb x intensity x the
         /// caller's <paramref name="flicker"/>, w its reach (m).
         /// </summary>
         public static Vector4 Light(int colour, float flicker = 1f)

@@ -245,6 +245,7 @@ namespace Punchy.Debugging
 
         void Update()
         {
+            FreePosedCameraOnInput();
             // A client's world is replaced when it loses the host: rebuild the cached queries before anything reads them
             // (A-47 #68: the shot list read the old world's playerQuery and threw a NullReferenceException).
             var liveWorld = World.DefaultGameObjectInjectionWorld;
@@ -275,8 +276,10 @@ namespace Punchy.Debugging
             ActionTest();
             Watch();
             SettleGoto();
+            FrameUpdate();
             WalkTo();
             FlyCave();
+            DungeonWalk();
             PlacePropPending();
             PlaceAtLandmarkPending();
             PickSpeciesPending();

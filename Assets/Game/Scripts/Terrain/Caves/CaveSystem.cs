@@ -299,7 +299,7 @@ namespace Punchy.Terrain
             foreach (var l in otherLanterns.Values)
                 if (l.Light != null) Destroy(l.Light.gameObject);
             otherLanterns.Clear();
-            Shader.SetGlobalInt(HeatCountId, 0);
+            Punchy.Settings.LightBudget.ClearSlots();
             foreach (var m in streamMeshes)
                 if (m != null) Destroy(m);
             streamMeshes.Clear();
@@ -381,121 +381,17 @@ namespace Punchy.Terrain
 
         // ------------------------------------------------------------------------------------------- pools
 
-        static readonly int HeatId = Shader.PropertyToID("_PunchyCaveHeat");
-        static readonly int HeatColorId = Shader.PropertyToID("_PunchyCaveHeatColor");
-        static readonly int HeatCountId = Shader.PropertyToID("_PunchyCaveHeatCount");
-        /// <summary>Glowing things lighting the walls at once at most (the nearest; must match Cave.shader's arrays).</summary>
-        const int MaxHeat = 16;
-        readonly Vector4[] heat = new Vector4[MaxHeat];
-        readonly Vector4[] heatColor = new Vector4[MaxHeat];
-        /// <summary>
-        /// This frame's glowing things near the camera: lava pools, glowing plants, lit windows and moving lights. Key:
-        /// what tracks a light's fade from frame to frame (its position, for things that don't move).
-        /// </summary>
-        readonly List<(float distance, Vector4 key, Vector4 position, Vector4 color)> glowing = new List<(float, Vector4, Vector4, Vector4)>();
-
-        /// <summary>
-        /// Lights that move (a lantern a walker carries), for the glow list: other systems add theirs each frame, with
-        /// an id that stays the same while the light lives (so its fade-in carries on as it moves), its position and
-        /// its light (rgb linear times intensity, w its reach in metres, as for glowing plants). CaveSystem takes the
-        /// nearest with everything else and clears the list once it has uploaded them. Main thread only.
-        /// </summary>
-        public static readonly List<(int id, Vector3 position, Vector4 color)> MovingLights = new List<(int, Vector3, Vector4)>();
+        /// <summary>A lava pool's glow (rgb linear x intensity; its reach is set by its size).</summary>
         static readonly Vector4 LavaLight = new Vector4(1f * 2.2f, 0.42f * 2.2f, 0.1f * 2.2f, 0f);
 
-        /// <summary>How long a light takes to come on as it joins the list (with a small swell) and to go out as it leaves (s).</summary>
-        const float HeatFadeIn = 0.8f, HeatFadeOut = 0.8f;
-        /// <summary>A light already in the list counts as this much nearer, so lights at the edge of the nearest
-        /// MaxHeat don't flicker in and out as the camera moves.</summary>
-        const float HeatStickiness = 0.85f;
-        /// <summary>Each listed light's time in the list (s), by key.</summary>
-        readonly Dictionary<Vector4, float> heatAge = new Dictionary<Vector4, float>();
-        /// <summary>Lights that have left the list, still fading out where they were last: colour, position, time left.</summary>
-        readonly Dictionary<Vector4, (Vector4 color, Vector4 position, float left)> heatLeaving = new Dictionary<Vector4, (Vector4, Vector4, float)>();
-        readonly List<Vector4> heatScratch = new List<Vector4>();
-        readonly Dictionary<Vector4, float> heatNextAge = new Dictionary<Vector4, float>();
-        /// <summary>Each listed light's colour and position when last uploaded, by key, so one that drops out of the
-        /// candidates altogether (a surface rescan that no longer reaches it) still fades out rather than popping off.</summary>
-        readonly Dictionary<Vector4, (Vector4 color, Vector4 position)> heatLast = new Dictionary<Vector4, (Vector4, Vector4)>();
-
         /// <summary>
-        /// Uploads the nearest glowing things to the cave shader, which lights the walls round them. A light joining the
-        /// list fades in over HeatFadeIn with a small swell past full, and one leaving fades out (in a spare slot), so
-        /// lights don't pop on and off at the edge of the list.
+        /// Hands this frame's light requests (lava pools, glowing plants, wall torches, room lights, lit windows here, and
+        /// every other system's) to LightBudget, which picks the 16 glow slots and the real lights by LightPolicy and
+        /// uploads them (refactor 3.1; it was nearest-first here).
         /// </summary>
-        void UploadGlowing(float3 camPos)
-        {
-            // Moving lights, keyed by their id (a y no position has keeps them apart from the still ones).
-            foreach (var (id, position, color) in MovingLights)
-                glowing.Add((math.distance((float3)position, camPos), new Vector4(id, float.MaxValue, 0f, 0f),
-                             new Vector4(position.x, position.y, position.z, 0f), color));
-            MovingLights.Clear();
-
-            var dt = math.min(Time.unscaledDeltaTime, 0.1f);
-            for (int i = 0; i < glowing.Count; i++)
-                if (heatAge.ContainsKey(glowing[i].key))
-                    glowing[i] = (glowing[i].distance * HeatStickiness, glowing[i].key, glowing[i].position, glowing[i].color);
-            glowing.Sort(GlowingByDistance);
-            var count = math.min(glowing.Count, MaxHeat);
-
-            heatNextAge.Clear();
-            for (int i = 0; i < count; i++)
-            {
-                var (_, key, position, color) = glowing[i];
-                var age = (heatAge.TryGetValue(key, out var a) ? a : 0f) + dt;
-                heatNextAge[key] = age;
-                heatLeaving.Remove(key);
-                heatLast[key] = (color, position);
-                // Up to full over the first 60%, a swell of about 12% over full, settling back by the end.
-                var t = age / HeatFadeIn;
-                var envelope = math.smoothstep(0f, 0.6f, t) + 0.12f * math.smoothstep(0.3f, 0.6f, t) * (1f - math.smoothstep(0.6f, 1.2f, t));
-                heat[i] = position;
-                heatColor[i] = new Vector4(color.x * envelope, color.y * envelope, color.z * envelope, color.w);
-            }
-            // Those that just left start fading out.
-            foreach (var kv in heatAge)
-                if (!heatNextAge.ContainsKey(kv.Key) && !heatLeaving.ContainsKey(kv.Key))
-                {
-                    if (!heatLast.TryGetValue(kv.Key, out var last))
-                        continue;
-                    heatLeaving[kv.Key] = (last.color, last.position, HeatFadeOut * math.saturate(kv.Value / HeatFadeIn));
-                }
-            foreach (var kv in heatAge)
-                if (!heatNextAge.ContainsKey(kv.Key))
-                    heatLast.Remove(kv.Key);
-            heatAge.Clear();
-            foreach (var kv in heatNextAge)
-                heatAge[kv.Key] = kv.Value;
-
-            // Fading ones fill the spare slots (and are dropped, already dim, when there are none).
-            heatScratch.Clear();
-            foreach (var key in heatLeaving.Keys)
-                heatScratch.Add(key);
-            foreach (var key in heatScratch)
-            {
-                var (color, position, left) = heatLeaving[key];
-                left -= dt;
-                if (left <= 0f || count >= MaxHeat)
-                {
-                    heatLeaving.Remove(key);
-                    continue;
-                }
-                heatLeaving[key] = (color, position, left);
-                var fade = math.smoothstep(0f, 1f, left / HeatFadeOut);
-                heat[count] = position;
-                heatColor[count] = new Vector4(color.x * fade, color.y * fade, color.z * fade, color.w);
-                count++;
-            }
-
-            Shader.SetGlobalVectorArray(HeatId, heat);
-            Shader.SetGlobalVectorArray(HeatColorId, heatColor);
-            Shader.SetGlobalInt(HeatCountId, count);
-            glowing.Clear();
-        }
+        static void UploadGlowing(Camera cam) => Punchy.Settings.LightBudget.Resolve(cam);
         readonly List<(float distance, int pool)> nearPools = new List<(float, int)>();
         // Comparers made once: List.Sort(Comparison) wraps the delegate in a new comparer on every call, every frame.
-        static readonly Comparer<(float distance, Vector4 key, Vector4 position, Vector4 color)> GlowingByDistance =
-            Comparer<(float distance, Vector4 key, Vector4 position, Vector4 color)>.Create((a, b) => a.distance.CompareTo(b.distance));
         static readonly Comparer<(float distance, int pool)> PoolsByDistance =
             Comparer<(float distance, int pool)>.Create((a, b) => a.distance.CompareTo(b.distance));
         static Mesh lavaPoolMesh, waterPoolMesh, whitePoolMesh;
@@ -593,12 +489,8 @@ namespace Punchy.Terrain
                     {
                         var reach = LavaLight;
                         reach.w = pool.Radius * 5f + 4f;
-                        // Only pools whose light could reach something near the camera take one of the 16 slots.
-                        if (math.distance(pool.Centre, camPos) < reach.w + PlantRange)
-                            {
-                            var at = new Vector4(pool.Centre.x, pool.Centre.y + 0.3f, pool.Centre.z, 0f);
-                            glowing.Add((math.distance(pool.Centre, camPos), at, at, reach));
-                        }
+                        // (LightBudget decides by its on-screen reach whether it takes a glow slot: refactor 3.1.)
+                        Punchy.Settings.LightBudget.AddStill(Punchy.Settings.LightKind.AmbientGlow, (Vector3)pool.Centre + Vector3.up * 0.3f, reach);
                     }
                 }
             }
@@ -845,16 +737,13 @@ namespace Punchy.Terrain
             }
 
             foreach (var (position, light) in nearGlowPlants)
-            {
-                var at = new Vector4(position.x, position.y, position.z, 0f);
-                glowing.Add((math.distance(position, camPos), at, at, light));
-            }
+                Punchy.Settings.LightBudget.AddStill(Punchy.Settings.LightKind.AmbientGlow, position, light);
             // Wall torches: a flame on each (every frame: FireSystem's list is per frame) and its warm light on the rock.
             foreach (var (flame, plant) in nearTorches)
             {
                 Punchy.Ambience.FireSystem.AddFlame(flame, 0.3f, plant, Punchy.Ambience.FireSystem.Wood);
-                var at = new Vector4(flame.x, flame.y + 0.15f, flame.z, 0f);
-                glowing.Add((math.distance(flame, camPos), at, at, Punchy.Ambience.FireSystem.Light(Punchy.Ambience.FireSystem.Wood)));
+                Punchy.Settings.LightBudget.AddStill(Punchy.Settings.LightKind.Fixture, (Vector3)flame + Vector3.up * 0.15f,
+                                                     Punchy.Ambience.FireSystem.Light(Punchy.Ambience.FireSystem.Wood));
             }
 
             var bounds = new Bounds(camPos, new Vector3(PlantRange * 2f, PlantRange * 2f, PlantRange * 2f));
@@ -1321,6 +1210,7 @@ namespace Punchy.Terrain
         void GatherSurfaceGlow(in TerrainSource source, float3 camPos)
         {
             Shader.SetGlobalVector(GlowMapParamsId, Vector4.zero);
+            Shader.SetGlobalVector(GlowWorldParamsId, Vector4.zero);
             if (paletteQuery.IsEmpty || Underground > 0.9f)
                 return;
             var palette = queryWorld.EntityManager.GetComponentObject<BiomePalette>(paletteQuery.GetSingletonEntity());
@@ -1332,36 +1222,58 @@ namespace Punchy.Terrain
             surfaceGlow.Update(source, palette, flora, camPos);
             var night = Shader.GetGlobalFloat(NightId);
             var windowsOn = night < 0.25f ? 0f : math.smoothstep(0.25f, 0.55f, night);
+            surfaceGlow.DrawSpill(windowsOn * (1f - Underground), camPos);   // W-127: lit windows' pools outside
+            // The whole island's static glow (R-2, Glow.hlsl), past the far map and fading into it.
+            if (surfaceGlow.WorldReady)
+            {
+                Shader.SetGlobalTexture(GlowWorldId, surfaceGlow.WorldMap);
+                Shader.SetGlobalVector(GlowWorldRectId, new Vector4(surfaceGlow.WorldCorner.x, surfaceGlow.WorldCorner.y, 1f / surfaceGlow.WorldExtent, 0f));
+                Shader.SetGlobalVector(GlowWorldParamsId, new Vector4((1f - Underground) * WorldGlowStrength, night, WorldGlowFadeFrom, WorldGlowFadeTo));
+            }
             // The far tier (Glow.hlsl): every glowing plant and lit window within about 300 m, baked into a light map,
-            // fading in over the distance the near lights fade out over.
+            // fading in where LightBudget hands a typical glow from its slots to the far tier (refactor 3.1).
+            var handOff = Punchy.Settings.LightBudget.GlowHandOff(Punchy.Settings.LightKind.AmbientGlow, TypicalGlowReach);
             if (surfaceGlow.MapReady && (GlowTiers & 2) != 0)
             {
                 Shader.SetGlobalTexture(GlowMapId, surfaceGlow.MapPlants);
                 Shader.SetGlobalTexture(GlowMapNightId, surfaceGlow.MapWindows);
                 Shader.SetGlobalVector(GlowMapRectId, new Vector4(surfaceGlow.MapCorner.x, surfaceGlow.MapCorner.y,
                                                                   1f / (SurfaceGlow.MapSize * SurfaceGlow.MapTexel), 0f));
-                Shader.SetGlobalVector(GlowMapParamsId, new Vector4((1f - Underground) * FarGlowStrength, windowsOn, NearGlowFade.x * 0.7f, NearGlowFade.y));
+                // (y: the night map, street lights only (W-127). Lit windows' light is indoor (P-21, item 31), so
+                // SurfaceGlow leaves them out of it: see the near tier below.)
+                Shader.SetGlobalVector(GlowMapParamsId, new Vector4((1f - Underground) * FarGlowStrength, windowsOn * (1f - Underground), handOff.x * 0.7f, handOff.y));
             }
             if ((GlowTiers & 1) == 0)
                 return;
+            // The near tier: each a request; LightBudget fades them out by on-screen size as the far map takes over.
             foreach (var (position, light) in surfaceGlow.Found)
             {
-                // Near lights fade out by distance (the far map takes over), rather than popping at the scan's edge.
-                var near = 1f - math.smoothstep(NearGlowFade.x, NearGlowFade.y, math.distance(position.xz, camPos.xz));
-                if (near <= 0f)
+                var l = light;
+                if (Punchy.Flora.FloraPlacement.IsFixtureGlow(l.w))
+                {
+                    // W-127: a street light (lantern, brazier, pier lamp), lit after dark like a window, but outdoors.
+                    // Past the hand-off the night map lights it in full, so it asks for no slot there.
+                    if (night < 0.25f || Vector3.Distance(position, camPos) > handOff.y)
+                        continue;
+                    l = new Vector4(l.x, l.y, l.z, 0f) * windowsOn;
+                    l.w = Punchy.Flora.FloraPlacement.GlowReach(light.w);
+                    Punchy.Settings.LightBudget.AddStill(Punchy.Settings.LightKind.Fixture, position, l);
                     continue;
-                var l = light * near;
-                l.w = light.w;
+                }
                 if (l.w < 0f)
                 {
-                    // Lit windows: only after dark.
+                    // Lit windows (only after dark) are the light inside a house: an indoor fixture (P-21, playtest 11-08
+                    // item 31), which lights only its building's inside. It used to go out as a glow from the house's
+                    // middle and lit its outer walls and the ground all round through the walls. The panes keep their
+                    // own night glow (Flora shader).
                     if (night < 0.25f)
                         continue;
                     l = new Vector4(l.x, l.y, l.z, 0f) * windowsOn;
                     l.w = -light.w;
+                    Punchy.Settings.LightBudget.AddIndoor(Punchy.Settings.LightKind.Fixture, position, l);
+                    continue;
                 }
-                var at = new Vector4(position.x, position.y, position.z, 0f);
-                glowing.Add((math.distance(position, camPos), at, at, l));
+                Punchy.Settings.LightBudget.AddStill(Punchy.Settings.LightKind.AmbientGlow, position, l);
             }
         }
 
@@ -1370,9 +1282,17 @@ namespace Punchy.Terrain
         static readonly int GlowMapNightId = Shader.PropertyToID("_PunchyGlowMapNight");
         static readonly int GlowMapRectId = Shader.PropertyToID("_PunchyGlowMapRect");
         static readonly int GlowMapParamsId = Shader.PropertyToID("_PunchyGlowMapParams");
-        /// <summary>Camera distance over which surface glow's near lights fade out (m); the far map fades in from 70%
-        /// of the start to the end, so the hand-over adds up to about the same light.</summary>
-        static readonly Vector2 NearGlowFade = new Vector2(18f, 30f);
+        static readonly int GlowWorldId = Shader.PropertyToID("_PunchyGlowWorld");
+        static readonly int GlowWorldRectId = Shader.PropertyToID("_PunchyGlowWorldRect");
+        static readonly int GlowWorldParamsId = Shader.PropertyToID("_PunchyGlowWorldParams");
+        /// <summary>The world glow's brightness, and the camera distance (m) its plants and lava fade in over: where the
+        /// 640 m far map fades out towards its edge.</summary>
+        public static float WorldGlowStrength = 1f;
+        const float WorldGlowFadeFrom = 240f, WorldGlowFadeTo = 320f;
+        /// <summary>A typical surface glow's reach (m), for where the far map takes over (LightBudget.GlowHandOff): the
+        /// far map fades in from 70% of where the near lights start fading to where they're gone, so the hand-over adds
+        /// up to about the same light.</summary>
+        const float TypicalGlowReach = 8f;
         /// <summary>Which surface glow tiers are on (1 near lights, 2 far map): both, bar a frame-cost measurement.</summary>
         public static int GlowTiers = 3;
         /// <summary>The far map's brightness: a little under the near lights', so a cluster reads as a soft wash from
@@ -1400,7 +1320,7 @@ namespace Punchy.Terrain
             var cam = Camera.main;
             if (cam == null || Material == null || !TryGetWorld(out var source))
             {
-                MovingLights.Clear();
+                Punchy.Settings.LightBudget.Discard();
                 return;
             }
             if (!source.Equals(lastSource))
@@ -1409,13 +1329,14 @@ namespace Punchy.Terrain
                 lastSource = source;
             }
             var camPos = (float3)cam.transform.position;
+            Punchy.Settings.DetailPolicy.SetView(cam);
             var clock = frameClock;
             clock.Restart();
             DrawLandmarkPools(source, camPos);
             GatherSurfaceGlow(source, camPos);
             if (!source.Caves.IsCreated)
             {
-                UploadGlowing(camPos);
+                UploadGlowing(cam);
                 return;
             }
 
@@ -1436,7 +1357,7 @@ namespace Punchy.Terrain
             marks[5] = clock.Elapsed.TotalMilliseconds;
             DrawDrips(source, camPos);
             marks[6] = clock.Elapsed.TotalMilliseconds;
-            UploadGlowing(camPos);
+            UploadGlowing(cam);
             marks[7] = clock.Elapsed.TotalMilliseconds;
             // Startup hitch hunting (#102): name the slow parts of any frame over a quarter second.
             if (marks[7] > 250)
@@ -1505,8 +1426,10 @@ namespace Punchy.Terrain
         /// Walls are kept only where the cave's distance is under this at a cell corner (MeshJob's nearCave). Wide enough
         /// that round a mouth the walls' skin of the ground surface runs on under the terrain past wherever the terrain's
         /// per-vertex cut (TerrainSource.MouthCut) can end, so there's never a gap between them.
+        /// W-128: 2.5 left sky showing through a hole over one mouth (the cut there needs 2.7 m at MouthCutDepth, 3.3 m
+        /// at MeshCutDepth, measured over every mouth).
         /// </summary>
-        const float WallReach = 2.5f;
+        const float WallReach = 3.5f;
 
         /// <summary>
         /// Lists every chunk a cave's walls can reach, by column. Done once per baked world, in a Burst job picked up a
@@ -1780,7 +1703,9 @@ namespace Punchy.Terrain
                 Indices = new NativeList<int>(Allocator.Persistent),
                 Pending = true
             };
-            var columnJob = new ColumnJob { Source = source, Origin = origin, Points = points, Voxel = chunkVoxel, Surface = b.Surface, SurfaceScale = b.SurfaceScale }
+            // W-128: the skin follows the ground as the near terrain draws it (its LOD0 grid), so it meets the terrain's edge.
+            var gridStep = configQuery.IsEmpty ? 0f : configQuery.GetSingleton<TerrainConfig>().ChunkSize / configQuery.GetSingleton<TerrainConfig>().Lod0Quads;
+            var columnJob = new ColumnJob { Source = source, Origin = origin, Points = points, Voxel = chunkVoxel, GridStep = gridStep, Surface = b.Surface, SurfaceScale = b.SurfaceScale }
                 .Schedule(points.x * points.z, 64);
             var field = new FieldJob { Source = source, Origin = origin, Points = points, Voxel = chunkVoxel, Field = b.Field, CaveField = b.CaveField, Surface = b.Surface, SurfaceScale = b.SurfaceScale }
                 .Schedule(points.y * points.z, 4, columnJob);
@@ -1805,12 +1730,15 @@ namespace Punchy.Terrain
             public int3 Origin;
             public int3 Points;
             public float Voxel;
+            /// <summary>The near terrain mesh's grid step (W-128): the surface is the drawn one, not the exact height
+            /// between its corners, so the skin round a mouth stays under the drawn ground. 0: the exact height.</summary>
+            public float GridStep;
             [WriteOnly] public NativeArray<float> Surface, SurfaceScale;
 
             public void Execute(int i)
             {
                 var xz = (float2)(Origin.xz + new int2(i % Points.x, i / Points.x)) * Voxel;
-                var h = Source.SampleHeight(xz);
+                var h = GridStep > 0f ? Source.MeshHeight(xz, GridStep) : Source.SampleHeight(xz);
                 const float e = 0.5f;
                 var slope = new float2(Source.SampleHeight(xz + new float2(e, 0f)) - Source.SampleHeight(xz - new float2(e, 0f)),
                                        Source.SampleHeight(xz + new float2(0f, e)) - Source.SampleHeight(xz - new float2(0f, e))) / (2f * e);
@@ -2163,7 +2091,7 @@ namespace Punchy.Terrain
             lanternLevel = Mathf.MoveTowards(lanternLevel, LanternWanted(source, player.Position), Time.deltaTime * 1.2f);
             if (lantern == null)
                 lantern = CreateLantern("Lantern");
-            PlaceLantern(lantern, player, lanternLevel, 0.5f);
+            PlaceLantern(lantern, player, lanternLevel, 0.5f, LocalLanternId);
             // The flora shader has no light loop (it would cost every plant on the surface), so cave plants get the
             // lantern as one cheap term from these.
             var at = lantern.transform.position;
@@ -2172,6 +2100,8 @@ namespace Punchy.Terrain
         }
 
         static readonly int LanternId = Shader.PropertyToID("_PunchyLantern");
+        /// <summary>The local player's lantern's id in LightBudget (other players' are their entity's index).</summary>
+        const int LocalLanternId = -1;
         static readonly int LanternColorId = Shader.PropertyToID("_PunchyLanternColor");
 
         /// <summary>How lit someone's lantern should be: in a cave and away from the daylight at the entrance.</summary>
@@ -2192,15 +2122,28 @@ namespace Punchy.Terrain
             return light;
         }
 
-        void PlaceLantern(Light light, in Unity.Transforms.LocalTransform holder, float level, float flickerSeed)
+        /// <summary>
+        /// Places someone's lantern and asks LightBudget for its real light (refactor 3.1): it's lit as far as the budget
+        /// grants (fading), and when it loses the budget the same light goes in a glow slot instead (about as bright,
+        /// a little shorter: the glow's fall-off is squared).
+        /// </summary>
+        void PlaceLantern(Light light, in Unity.Transforms.LocalTransform holder, float level, float flickerSeed, int id)
         {
-            light.enabled = level > 0.01f;
             light.color = LanternColor;
             light.range = LanternRange;
             var flicker = 0.92f + 0.08f * Mathf.PerlinNoise(Time.time * 3f, flickerSeed);
-            light.intensity = LanternIntensity * level * flicker;
             var forward = math.mul(holder.Rotation, new float3(0f, 0f, 1f));
-            light.transform.position = holder.Position + new float3(0f, 1.6f, 0f) + forward * 0.4f;
+            var at = holder.Position + new float3(0f, 1.6f, 0f) + forward * 0.4f;
+            light.transform.position = at;
+            if (level > 0.01f)
+            {
+                var glow = (Vector4)LanternColor * (LanternIntensity * 0.27f * level * flicker);
+                glow.w = LanternRange * 0.7f;
+                Punchy.Settings.LightBudget.AddReal(Punchy.Settings.LightKind.Carried, id, at, glow);
+            }
+            var real = level * Punchy.Settings.LightBudget.RealLevel(Punchy.Settings.LightKind.Carried, id);
+            light.enabled = real > 0.01f;
+            light.intensity = LanternIntensity * real * flicker;
         }
 
         void UpdateOtherLanterns(in TerrainSource source, Vector3 camera)
@@ -2216,13 +2159,14 @@ namespace Punchy.Terrain
                 if (em.HasComponent<Unity.NetCode.GhostOwnerIsLocal>(e) && em.IsComponentEnabled<Unity.NetCode.GhostOwnerIsLocal>(e))
                     continue;
                 var t = em.GetComponentData<Unity.Transforms.LocalTransform>(e);
-                if (math.lengthsq(t.Position) < 1e-6f || math.distance(t.Position, camera) > 150f)
+                // (No range of its own: LightBudget caps how many are real lights; the rest glow or go out.)
+                if (math.lengthsq(t.Position) < 1e-6f)
                     continue;
                 if (!otherLanterns.TryGetValue(e, out var l))
                     otherLanterns[e] = l = new OtherLantern { Light = CreateLantern("Lantern (other player)") };
                 l.Seen = true;
                 l.Level = Mathf.MoveTowards(l.Level, LanternWanted(source, t.Position), Time.deltaTime * 1.2f);
-                PlaceLantern(l.Light, t, l.Level, 1.5f + (e.Index % 7));
+                PlaceLantern(l.Light, t, l.Level, 1.5f + (e.Index % 7), e.Index);
             }
             entities.Dispose();
             goneLanterns.Clear();

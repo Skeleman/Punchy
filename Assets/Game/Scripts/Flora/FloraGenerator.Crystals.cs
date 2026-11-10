@@ -212,7 +212,7 @@ namespace Punchy.Flora
             b.Occlude(first, (p, n) => GroundOcclusion(p, mound));
             // Solid (#70): the mound where it stands above a step (its turn isn't kept, so the narrower, round footprint).
             g.AddSteppedCollider(Vector3.up * mound * 0.05f, new Vector3(mound * 0.9f, mound * 0.3f, mound * 0.9f), Quaternion.identity);
-            g.AddTierBoxes(Vector3.up * mound * 0.05f, new Vector3(mound, mound * 0.3f, mound * 0.9f), moundTurn);
+            g.AddChunkBoxes(first, moundTurn);
 
             // Pieces that would hang within walking reach (bottom under head height) have dropped instead: they lie
             // still on the ground or the mound, half sunk, and are solid; only the high ones orbit (#70).
@@ -259,9 +259,9 @@ namespace Punchy.Flora
                     radii.y = Mathf.Min(radii.y, 0.08f);
                     rest.y = radii.y * 0.3f;
                 }
-                b.Blob(rest, radii, lying, g.Sides(1, 1, 0), 0.3f, seed, color * 0.8f, FloraPart.Bark, 1f, 0.5f);
+                var chunk = b.Blob(rest, radii, lying, g.Sides(1, 1, 0), 0.3f, seed, color * 0.8f, FloraPart.Bark, 1f, 0.5f);
                 g.AddSteppedCollider(rest, radii, lying);
-                g.AddTierBoxes(rest, radii, lying);
+                g.AddChunkBoxes(chunk, Quaternion.Euler(0f, lying.eulerAngles.y, 0f));
             }
             var floating = b.VertexCount;
             foreach (var p in high)
@@ -426,7 +426,7 @@ namespace Punchy.Flora
             // Solid (#70): the scorched mound (the flat chunk underfoot). The rock itself floats at least ~5 m up, far
             // over a head, so it stays non-solid.
             g.AddSteppedCollider(Vector3.up * mound * 0.04f, new Vector3(mound * 0.9f, mound * 0.18f, mound * 0.9f), Quaternion.identity);
-            g.AddTierBoxes(Vector3.up * mound * 0.04f, new Vector3(mound, mound * 0.18f, mound * 0.9f), moundTurn);
+            g.AddChunkBoxes(first, moundTurn);
 
             var floating = b.VertexCount;
             var centre = Vector3.up * (lift + size * 0.5f);

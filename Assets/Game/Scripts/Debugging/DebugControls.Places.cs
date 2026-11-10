@@ -653,10 +653,14 @@ namespace Punchy.Debugging
                     if (!flat)
                         continue;
                     var height = source.SampleHeight(at);
-                    var park = at - new float2(0f, 30f);
+                    // For a shot list the player is parked 30 m off and the camera posed over the grass; played by
+                    // hand (item 24) the player stands in the meadow itself and the camera stays free to look round.
+                    var shooting = shotIndex >= 0;
+                    var park = shooting ? at - new float2(0f, 30f) : at;
                     t.Position = new float3(park.x, source.SampleHeight(park) + 0.05f, park.y);
                     em.SetComponentData(player, t);
-                    PoseCamera(new Vector3(at.x, height + 1.7f, at.y), Quaternion.LookRotation(new Vector3(0f, -0.25f, 1f)));
+                    if (shooting)
+                        PoseCamera(new Vector3(at.x, height + 1.7f, at.y), Quaternion.LookRotation(new Vector3(0f, -0.25f, 1f)));
                     Debug.Log($"DebugControls: in a meadow at ({at.x:F0}, {height:F0}, {at.y:F0})");
                     return;
                 }

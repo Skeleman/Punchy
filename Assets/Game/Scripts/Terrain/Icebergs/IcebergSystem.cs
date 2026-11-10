@@ -64,12 +64,34 @@ namespace Punchy.Terrain
                 b.center += origin;
                 Graphics.RenderMesh(new RenderParams(ice) { worldBounds = b, shadowCastingMode = ShadowCastingMode.On, receiveShadows = true }, mesh, 0, Matrix4x4.Translate(origin));
             }
+            CaveLight();
             if (caveMesh != null)
             {
                 var b = caveMesh.bounds;
                 b.center += caveOrigin;
                 Graphics.RenderMesh(new RenderParams(caveIce) { worldBounds = b, shadowCastingMode = ShadowCastingMode.Off, receiveShadows = true }, caveMesh, 0, Matrix4x4.Translate(caveOrigin));
             }
+        }
+
+        /// <summary>The cave light's id in LightBudget (fixture kind), and its Unity light at full.</summary>
+        const int CaveLightId = 0x1CEB0;
+        const float CaveLightIntensity = 6f;
+
+        /// <summary>
+        /// Refactor 3.1: the cave berg's chamber light asks LightBudget for a real light every frame and is lit as far as
+        /// the budget grants (fading; it was always on); without one, the same light goes in a glow slot.
+        /// </summary>
+        void CaveLight()
+        {
+            if (caveLight == null)
+                return;
+            var light = caveLight.GetComponent<Light>();
+            var glow = (Vector4)light.color * (CaveLightIntensity * 0.27f);
+            glow.w = light.range * 0.7f;
+            Punchy.Settings.LightBudget.AddReal(Punchy.Settings.LightKind.Fixture, CaveLightId, caveLight.transform.position, glow);
+            var level = Punchy.Settings.LightBudget.RealLevel(Punchy.Settings.LightKind.Fixture, CaveLightId);
+            light.enabled = level > 0.01f;
+            light.intensity = CaveLightIntensity * level;
         }
 
         protected override void OnDestroy()

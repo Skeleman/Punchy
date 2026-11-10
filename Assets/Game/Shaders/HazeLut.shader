@@ -45,5 +45,38 @@ Shader "Hidden/Punchy/HazeLut"
             }
             ENDHLSL
         }
+
+        // The weather volumes against the sky, one texel per view direction (PunchySkyVolumesFromLut in Sky.hlsl):
+        // exactly the march the skybox used to run per pixel, from the camera at its own height.
+        Pass
+        {
+            HLSLPROGRAM
+            #pragma vertex Vert
+            #pragma fragment Frag
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Sky.hlsl"
+
+            float2 _SkyVolumesSize;   // texels across, down
+
+            struct Attributes { float4 positionOS : POSITION; };
+            struct Varyings { float4 positionCS : SV_POSITION; };
+
+            Varyings Vert(Attributes input)
+            {
+                Varyings o;
+                o.positionCS = float4(input.positionOS.xy * 2 - 1, 0.5, 1);
+                return o;
+            }
+
+            half4 Frag(Varyings input) : SV_Target
+            {
+                float2 uv = input.positionCS.xy / _SkyVolumesSize;
+                half3 scatter;
+                float transmit;
+                PunchyWeatherVolumesAlong(_PunchyHazeOrigin, PunchySkyVolumesDirection(uv), 8000, 8, 1e7, scatter, transmit);
+                return half4(scatter, 1 - transmit);
+            }
+            ENDHLSL
+        }
     }
 }

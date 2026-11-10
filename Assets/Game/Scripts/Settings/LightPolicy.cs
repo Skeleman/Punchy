@@ -11,7 +11,8 @@ namespace Punchy.Settings
     /// - Carried: lanterns and torches someone holds: the player's and other players' cave lanterns (real lights,
     ///   CaveSystem), folk's lanterns and torches (glow list, CreatureRenderSystem).
     /// - Fixture: placed, man-made lights: interior room lamps (real, Interiors), wall and post torches and sconces in
-    ///   cave rooms and the sunken temple, lit windows (SurfaceGlow), the iceberg cave light (real).
+    ///   cave rooms and the sunken temple, lit windows (SurfaceGlow: a house's inside light, indoor, see
+    ///   <see cref="LightPolicy.IndoorLightsOutdoors"/>), the iceberg cave light (real).
     /// - Fire: open fires that light their surroundings: landmark campfires and braziers (flames only, no light
     ///   yet), forest fires (the 6 nearest crowns light; FireSystem.Light).
     /// - Creature: lights carried by or grown on animals: colossus lanterns (lantern stag, mire walker, hermit crab,
@@ -34,6 +35,7 @@ namespace Punchy.Settings
     /// lantern lighting 4.5 m at 30 m. Each kind says which tiers it may use and at what size, and how important it
     /// is when the budget is full (<see cref="Score"/>: importance x on-screen size x brightness).
     /// Global lights (Celestial, SkyFlash) are never budgeted or tiered: they're always on.
+    /// LightBudget applies it to every local light once a frame (refactor 3.1).
     /// </summary>
     public static class LightPolicy
     {
@@ -51,6 +53,16 @@ namespace Punchy.Settings
             /// <summary>Global: always on, never budgeted.</summary>
             public bool Global;
         }
+
+        /// <summary>
+        /// Whether a light inside a building lights anything outside it (P-21, playtest 11-08 item 31): no. An indoor
+        /// light (LightBudget.AddIndoor) lights only its building's inside surfaces; walls stop it, so it never reaches
+        /// the outer faces of the walls or the ground round the house. Chosen over switching it off while doors and
+        /// windows are shut: that ties a cosmetic light to door state on every machine, and a light at the house's
+        /// middle would still leak through every wall whenever a door stood open. Light spilling out of an open door
+        /// would be its own small fixture at the doorway.
+        /// </summary>
+        public const bool IndoorLightsOutdoors = false;
 
         /// <summary>The rule for each kind (indexed by LightKind).</summary>
         public static Rule For(LightKind kind)
@@ -71,8 +83,10 @@ namespace Punchy.Settings
                 case LightKind.Creature:
                     return new Rule { Best = LightTier.Glow, Size = new DetailPolicy.Thresholds(20f, 4f, 1f), Worst = LightTier.Emissive, Importance = 1.5f };
                 // Many and soft: never real lights, a near glow and the far glow map, then just the glowing thing.
+                // (3.1: Near 200 hands an 8 m plant glow to the far map at about 37 m at Detail 1, near the 18-30 m it
+                // used before, so glowing woods keep their slots for the close lights.)
                 default:
-                    return new Rule { Best = LightTier.Glow, Size = new DetailPolicy.Thresholds(25f, 5f, 1f), Worst = LightTier.Emissive, Importance = 1f };
+                    return new Rule { Best = LightTier.Glow, Size = new DetailPolicy.Thresholds(200f, 12f, 1f), Worst = LightTier.Emissive, Importance = 1f };
             }
         }
 

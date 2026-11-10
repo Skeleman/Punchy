@@ -26,6 +26,7 @@ MonoBehaviour:
   OnePerIsland: 0
   TowerHeight: 0
   Temple: 0
+  Ribcage: 0
   Pools: []
   OverrideWater: 0
   WaterColor: {r: 0.2, g: 0.6, b: 0.6, a: 1}
@@ -136,6 +137,11 @@ MonoBehaviour:
     Angle: 0
     Clearance: 0
     Trodden: 0
+  Fixtures:
+  - Species: {fileID: 11400000, guid: 2f1649c1b2614c74cbad9750bd741a6d, type: 2}
+    Spot: 2
+    Chance: 0.7
+    OnlyIn: []
   Effects: []
   Cave: 0
   CaveLength: 40

@@ -38,6 +38,7 @@ MonoBehaviour:
   PatchCoverage: 0.3
   NearWater: 1
   OnlyNearWater: 0
+  EdgeAffinity: 0.6
   Solid: 0
   Variants: 4
   Seed: 12

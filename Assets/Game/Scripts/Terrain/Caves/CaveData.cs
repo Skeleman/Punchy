@@ -611,7 +611,10 @@ namespace Punchy.Terrain
             var clip = Box(l, new float3(0f, (r.Height + t - 3f) * 0.5f, r.HZ), new float3(r.HX + t, (r.Height + t + 3f) * 0.5f, r.HZ + t));
             air = math.max(air, -clip);
             var room = Box(l, new float3(0f, r.Height * 0.5f, r.HZ), new float3(r.HX, r.Height * 0.5f, r.HZ));
-            var door = Box(l, new float3(0f, r.DoorHeight * 0.5f, -(t + 0.4f) * 0.5f), new float3(r.DoorWidth * 0.5f, r.DoorHeight * 0.5f, (t + 0.6f) * 0.5f));
+            // The doorway stub runs on through the porch and 1.2 m into the room (both wider and taller, so the meshed
+            // rock is unchanged): boxes that only touch give the union too short a distance at their seam (0.1 m at
+            // the threshold), and the walker's push-out spheres were held back there (W-128).
+            var door = Box(l, new float3(0f, r.DoorHeight * 0.5f, (1.2f - t - Porch) * 0.5f), new float3(r.DoorWidth * 0.5f, r.DoorHeight * 0.5f, (t + Porch + 1.2f) * 0.5f));
             // A porch out in front, wider and taller than the doorway, so the passage opens to the whole frame and no
             // rock stands across its jambs.
             // It starts at the wall's face, where the frame stands, and clears the frame's posts and lintel.
@@ -632,7 +635,9 @@ namespace Punchy.Terrain
             var mouth = math.min(porch, run);
             var h = math.max(Flare - math.abs(cave - mouth), 0f) / Flare;
             var flare = math.min(cave, mouth) - h * h * Flare * 0.25f;
-            air = math.min(air, math.max(flare, l.z + t + 0.4f));
+            // Only above the ramp's plane (carried on past its end): the fillet rounds the walls and roof, but under the
+            // floor it dug a trench in front of the ramp, a 0.7 m step the walker could not climb (W-128).
+            air = math.min(air, math.max(math.max(flare, l.z + t + 0.4f), -sheared.y * scale));
             var fill = Box(sheared, new float3(0f, -1.25f, -(t + CaveRoom.Ramp * 0.5f)),
                            new float3(r.DoorWidth * 0.5f + 1.6f, 1.25f, CaveRoom.Ramp * 0.5f)) * scale;
             air = math.max(air, -fill);
