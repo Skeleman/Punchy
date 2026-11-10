@@ -5,7 +5,8 @@
 #   cal:    job 39's lake (spot -1624,-488) facing 270 (the Beach finder faces a sand bank here), at camera pitches -30..50,
 #           with shots, to pick the 10% / 50% / 90% water views. Writes nothing; I pick the pitches into
 #           results/q73-pitches.txt ("w10 <pitch>", "w50 <pitch>", "w90 <pitch>").
-#   water:  those three views x -waterquality High / Medium / Low x -gfx High / Medium.
+#   water:  the 50% and 90% views (pitch 0 gives ~45% water, 30 ~80%; any upward pitch puts the camera under the lake,
+#           so there's no 10% view here) x -waterquality High / Medium / Low x -gfx High / Medium.
 #   shadow: the dense forest (spot 1740,3355 facing 180) and the big town at noon, -gfxset shadows=1.0 / 1.6 / 2.0 over
 #           the preset (sun shadow distance 50 / 80 / 100 m: 50 m x Shadows, clamped at 2, so 120 m can't be set; 1.0 casts
 #           3 cascades, 1.6 and 2.0 four), plus the preset's own (High 1.4 = 70 m, Medium 1.0 = 50 m).
@@ -36,7 +37,7 @@ rev() { echo $* | tr ' ' '\n' | tac | tr '\n' ' '; }
 game() { # name round args...: one game, its numbers into results/<name>.csv; shots on round 1
   local n=$1 r=$2; shift 2
   local shot=; [ $r = 1 ] && shot="-benchshots $W/$Q-shots/$n"
-  RUNTIMEOUT=1500 BENCHW=1920 BENCHH=1080 runcsv $O $n $K s100 $r $WX "$@" $shot
+  RUNTIMEOUT=900 BENCHW=1920 BENCHH=1080 runcsv $O $n $K s100 $r $WX "$@" $shot
   check "$R/q-$n-cs100-$r.log"
   echo "$(date +%T) $n r$r: $(grep -h '^Graphics: \|BenchRoute: place .* at \| s frame at ' "$R/q-$n-cs100-$r.log" | sort -u | head -3 | cut -c1-110 | tr '\n' ' ')"
 }
@@ -47,7 +48,7 @@ fi
 if part water; then
   [ -n "$(pitch w90)" ] || { echo "no $Q-pitches.txt: run cal first"; exit 1; }
   rm -f "$R"/$Q-water-*.csv
-  V=; for g in High Medium; do for w in w10 w50 w90; do for q in High Medium Low; do V="$V $g-$w-$q"; done; done; done
+  V=; for g in High Medium; do for w in w50 w90; do for q in High Medium Low; do V="$V $g-$w-$q"; done; done; done
   for r in 1 2; do
     list=$V; [ $r = 2 ] && list=$(rev $V)
     for v in $list; do
@@ -84,7 +85,7 @@ rdgame() { # name stop args...: one RenderDoc capture at -gfx High
 if part rd; then
   [ -n "$(pitch w90)" ] || { echo "no $Q-pitches.txt: run cal first"; exit 1; }
   rm -f "$RD"/*.rdc
-  for w in w10 w50 w90; do for q in High Medium Low; do
+  for w in w50 w90; do for q in High Medium Low; do
     rdgame water-$w-$q spot $LAKE -benchpitch $(pitch $w) -waterquality $q
   done; done
   for s in forest town; do for d in def 1.0 1.6 2.0; do
