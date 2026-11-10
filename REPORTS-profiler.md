@@ -2,6 +2,91 @@
 
 Newest first.
 
+## Job 43: water, SSAO, glow slots and shadow distance on the laptop, 2026-11-10 (q73.sh)
+Main 2644b295, Profile build, 1920x1080, `-weatherseed 4`, noon, Clear, uncapped, D3D11, `-gfx High` and `-gfx Medium`.
+Each run is a fresh game, round 1 in list order and round 2 reversed, about 300 measured frames. 56 bench games ran from
+06:00 to 08:23, then 14 RenderDoc captures at `-gfx High`. Bench numbers are the mean GPU ms per frame from FrameTiming
+(median frame ms in brackets). RenderDoc ms are replay timings, about 2.9x the bench GPU ms on this laptop (a 46 ms RenderDoc
+frame against 15.7 ms in the bench). So I scale them to real ms by each capture's own frame ratio, marked "~".
+
+**Skipped, because main has no flag for them (no code added):**
+- SSAO on vs off. Its pass cost from the captures is below.
+- Glow slots at 22:00.
+- A 10% water view. At job 39's lake (`-benchspot -1624,-488` facing 270, player at y 34), pitch 0 shows about 45% water and
+  pitch 30 about 80%. Every upward pitch puts the camera under the lake. The Beach finder faces a sand bank here.
+- 120 m shadows. `-gfxset shadows=` is 50 m x Shadows, clamped at 2, so 2.0 = 100 m is the most. Also, 1.0 casts 3 cascades
+  while 1.4 (High's own), 1.6 and 2.0 cast 4, so the 50 m arm also drops a cascade.
+
+**Over 1 ms:**
+- **Water is the biggest item.** The water surface is one 24576-index draw in DrawTransparentObjects. At gfx High that pass is
+  ~7 ms of GPU at the 45% view and ~9 ms at the 80% view.
+- **Water quality High over Low** at gfx High, 45% view: +3.9 ms (median frame +2.6 ms). Medium over Low: +2.5 ms. At gfx
+  Medium it's +1.6 ms and +0.8 ms. At the 80% view the gap is smaller: High over Medium is +0.4 ms at both gfx levels.
+- **SSAO is under 1 ms** (~0.6 ms).
+- **Shadow distance 50 to 100 m** costs +0.3 to +0.7 ms of whole-frame GPU. The shadow pass alone grows by ~0.7 ms. Under 1 ms.
+
+**New: ~500 ms hitches at the lake.**
+- Frames of 496–541 ms come back every few seconds with water quality High or Medium at gfx High: 2–7 per game in 7 of 8 games.
+- None in the two clean Low games at the 45% view. At gfx Medium: 1–2 per game in 4 of 12 games. Shadow runs: 3 of 32 games.
+- The log shows only the hitch lines. These hitches inflate "slow", avg and 1% low, so I compare GPU ms and median frame ms.
+- I haven't found the cause. It may be related to the swapchain stall (0.5 s is a typical present-wait timeout), but that's
+  a guess.
+
+**Water, bench GPU ms (median frame ms):**
+| gfx, view | quality High | Medium | Low |
+|---|---|---|---|
+| High, 45% (pitch 0) | 22.1 (22.9) | 20.7 (21.6) | 18.2 (20.3) |
+| High, 80% (pitch 30) | 22.2 (23.2) | 19.8 (22.2), r1 only | no clean round |
+| Medium, 45% | 17.2 (18.7) | 16.4 (18.2) | 15.6 (17.2) |
+| Medium, 80% | 18.4 (18.3) | 18.0 (18.0) | 17.7 (16.9), r2 only |
+
+Dropped runs had a stall inside the measured window: High-80%-Low (both rounds), High-80%-Medium r2 and Medium-80%-Low r1
+(timed out at 900 s).
+
+**Water passes from RenderDoc at gfx High (RenderDoc ms, frame / DrawTransparentObjects / the water draw):**
+| view | High | Medium | Low |
+|---|---|---|---|
+| 45% | 48.7 / 16.0 / 8.9 | 57.1 / 15.0 / 7.9 | 55.6 / 12.9 / 6.4 |
+| 80% | 54.7 / 21.6 / 12.2 | 54.4 / 21.1 / 11.9 | 53.2 / 19.9 / 11.1 |
+
+- The rest of the transparent pass is 59 small instanced draws, plus at the 80% view two more 24576-index water tiles of
+  ~0.75 ms each.
+- The 45%-High capture has a lighter opaque pass (19.4 against 24 ms) and prepass (5.5 against 11 ms), so it was taken before
+  the terrain fully streamed. Use its transparent numbers only.
+- With the camera low over the lake, Low-res effect is 2.9 ms at the 45% view and 0.06 at the 80% view. Skybox goes 0.63 to
+  0.01 for the same reason.
+
+**SSAO (RenderDoc ms, gfx High):**
+- Forest 1.73–1.77, town 1.87–1.89, about 3.7% of the frame. That is ~0.6 ms real. Its main draw is ~1.3 RenderDoc ms.
+- The lake views are 1.16 (45%) and 1.49 (80%).
+
+**Shadow distance (bench GPU ms, median frame ms in brackets; RenderDoc "Draw Main Light Shadowmap" ms after the slash):**
+| spot | 50 m (1.0, 3 cascades) | preset | 80 m (1.6) | 100 m (2.0) |
+|---|---|---|---|---|
+| High, forest | 15.3 (17.9) / 2.40 | 70 m: 15.7 (18.4) / 3.81 | 16.0 (18.5) / 4.09 | 16.0 (18.5) / 4.41 |
+| High, town | 16.6 (19.4) / 1.29 | 70 m: 17.0 (19.8) / 2.41 | 17.0 (19.9) / 2.54 | 16.9 (19.9) / 3.38 |
+| Medium, forest | 12.7 (14.7) | 50 m: 12.5 (14.8) | 13.0 (15.1) | 13.0 (15.1) |
+| Medium, town | 14.1 (16.5) | 50 m: 14.2 (16.4) | 14.1 (16.8) | 14.5 (16.9) |
+
+- **Noise floor ~0.2 ms.** Medium's preset is the same setting as 1.0, and the two arms differ by up to 0.2 ms.
+- **The shadow pass alone:** 50 to 100 m costs ~0.7 ms real at the forest and ~0.7 ms at the town (RenderDoc 2.4 to 4.4 and
+  1.3 to 3.4).
+- **Most of that is the 4th cascade.** 50 to 70 m (the 3-to-4 cascade step) accounts for most of it. 80 to 100 m on 4
+  cascades adds ~0.1 ms at the forest and 0 at the town.
+- **Opaque, prepass and SSAO don't move with shadow distance.** Forest opaque is 22.5 RenderDoc ms at every setting.
+- Forest whole frame is 14.5 ms of prepass and 22.5 of opaque at RenderDoc scale. That's the job 39 picture.
+
+**Stalls (the swapchain wait from job 41) are frequent on 2644b295:**
+- 16 of 56 bench games had a frame of 50 s or more: 14 of 24 lake games and 2 of 32 forest/town games.
+- Most ended at 50–60 s, when the sampler's cdb attach released them. Others ran to 344, 656 and 810 s, and one hit the 900 s
+  timeout.
+- 4 were in the measured window: the three lake rounds dropped above, and High town 1.0 r1. That round is kept because its GPU ms (16.5) matches r2 (16.7).
+- One RenderDoc game (80%-Medium) stalled after its capture.
+
+Files (Punchy-wt results): q73.out, q73-water-*.csv, q73-shadow-*.csv, q73logs/, q73-shots/, rd73/*.rdc, q73-passes.txt.
+
+Cost: this job about $5 (laptop session 0a48ccdb; 56 games and 14 captures); laptop total $686.
+
 ## Job 42: Summit stall swapchain fix A/B (b/fix-swapchain-stall c9672fcc), 2026-11-10 (q72.sh)
 The branch is main 33fe6457 plus two start-up flags, both set from script (FrameRateCap.cs) with no ProjectSettings change:
 `-vsync N` (QualitySettings.vSyncCount) and `-maxqueued N` (QualitySettings.maxQueuedFrames). Each game logs the values it
