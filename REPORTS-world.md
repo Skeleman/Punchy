@@ -4008,3 +4008,22 @@ Built in the player tree, not the one the card names (the world tree's gitignore
   - The editor runs D3D11: no magenta, no shader errors.
   - Shots: PunchyMilestones/R-11/r1final-*.png and r1final-contact-sheet.jpg; r1c-hilltop2-High-zoom-imp-top-t0-bottom.png (the far band after the fixes); strips/r1-{walk,fly}-{imp,t0}-NN.png.
   - Risk: impostor strata are baked in model space, so banded rock stripes won't line up with the cliffs. Matters for row 2 only, and only far away.
+- **Row 2 (rocks): done (verified, measured, not shipped).** Commit 2b881062: rocks stay on meshes. The rule comment and docs/agents/rendering.md say why.
+  - Tried: Rock rule `Impostor = 16` px. That baked 167 rock models (47 in the shrub layer, 120 in the tree layer, none in layer 0). The atlases grew from 91.2 to 200.8 MB, and the bake went from 2.4 to 8.4 ms over 18 frames.
+  - Test: mesa (MesaCanyonlands), same build, in-session A/B. Rock impostors on ("imp") against off ("r0", the rocks' coarsest mesh, as main). Render ms, 5 rounds:
+
+    | Preset | View | imp | r0 |
+    |---|---|---|---|
+    | High | walk | 5.05 | 4.99 |
+    | High | hill | 4.76 | 4.73 |
+    | High | fly 300 m | 4.24 | 4.13 |
+    | Medium | walk | 4.56 | 5.19 (noisy) |
+    | Medium | hill | 4.13 | 4.19 |
+    | Medium | fly 300 m | 3.45 | 3.73 |
+
+  - Repeat runs (3 and 4 rounds) agree: at High, r0 was cheaper in 8 of 9 view-runs, by 0.03 to 0.26 ms. Medium is mixed.
+  - Later start: 8 px instead of 16 px (reach x2) was no better.
+  - Why it doesn't pay: a far rock's coarsest mesh costs less than the impostor quad, which writes depth and blends three frames. So it doesn't pay for 110 MB.
+  - Look: no visible difference either way.
+  - The W-16 tilt hand-off is moot. ImpostorTurn already carries tilt from row 1.
+  - Shots: PunchyMilestones/R-11/scout/r2scout{mesawalk,mesahill,mesafly}-High-{imp,r0}.png and r2scoutcontact-sheet.jpg.
