@@ -4113,6 +4113,21 @@ Built in the player tree, not the one the card names (the world tree's gitignore
   - **Not changed:** ProjectSettings, renderer assets, placement and shaders. When you drop from High to Medium in-session, the far plane keeps its larger value; it only grows, as on main. Nothing is drawn there at Medium.
   - Shots: PunchyMilestones/W-131/r2-{Medium,High}-{150m,300m}.png, r2-contact-sheet.jpg (before: r1-*). `[shot] 'r2-High-150m' ready after 0.9 s ... 1280x720, camera (-1236.0, 227.5, 1324.0); check: mean 0.60 ... good`, `[shot] 'r2-High-300m' ready after 1.5 s ... camera (-1236.0, 377.5, 1324.0); check: mean 0.66 ... good`, `[shot] 'r2-Medium-150m' ... mean 0.65 ... good`, `[shot] 'r2-Medium-300m' ... mean 0.71 ... good`. At High, far ridges now stand out past the old edge and fade at the new one. There are no seams, pops or magenta. Medium matches r1.
   - **Next:** row 3 (tree reach x1.5 at High).
+- **W-131 row 3 NOT KEPT (tree reach x1.5 at High, verified):** no commit; FloraSystem.cs reverted, world/far-ring stays at `94548d6f`.
+  - **What was tried:** (a) "edge": FloraSystem.TerrainEdge() returns the far ring's edge (TerrainStreamingSystem.DrawDistance, 2974 m) instead of the disc's 1984 m, so far trees may stand on the far ring; (b) "x15": that plus the tree layer's (index 2) radius x1.5 while the far ring is on, as R-11 row 3. Both measured against row 2's code ("row2").
+  - **Render ms (High, 1920x1080, synced GPU, 6 interleaved rounds per mode, fresh play session):**
+
+    | view | row2 | edge | x15 | x15 - row2 |
+    |---|---|---|---|---|
+    | walk | 5.34 | 5.61 | 5.67 | +0.33 |
+    | hilltop | 5.07 | 5.21 | 5.29 | +0.22 |
+    | fly300 | 4.09 | 4.27 | 4.31 | +0.22 |
+
+    Spreads 0.15-0.59. The x1.5 radius alone (x15 - edge) is only +0.04 to +0.08; the edge is the cost. Frame ms (editor, uncapped) rose more: +1.0 to +1.4 ms for both edge and x15 (walk 15.63 / 16.77 / 17.07), from twice the tree tiles to stream and cull.
+  - **Memory / counts (tree layer):** tiles 1237 -> 2498, plants about 37k -> 67-73k, CPU 1.6 -> 2.9 MB, GPU buffers 12.2 MB unchanged. Impostors drawn at fly300 2053 -> 5420, LOD2 meshes 4797 -> 5727.
+  - **Visible on screen: no.** Shots at High from 150 m and 300 m in each mode, plus a repeat of row2 as a noise floor. Ground pixels changed (sum RGB diff > 30, below the horizon) against the first row2 shot: repeat row2 2945 / 2637, edge 2770 / 1966, x15 2620 / 2776 (150 m / 300 m). A second shot of the same mode differs as much as x1.5 does, and the band at the horizon (where the extra trees would be) changes by 5-81 pixels. Past 2 km the trees sit in the haze (98% at 2973 m) and are a pixel or less, so there is nothing to see.
+  - **Verdict:** fails "visible on screen" (and walk is at +0.33, just over +0.3), so neither the edge nor the x1.5 radius is kept. Trees still reach the disc edge (1984 m) at High, as row 2.
+  - Shots: PunchyMilestones/W-131/r3-{row2,row2b,edge,x15}-High-{150m,300m}.png, their r3-*-contact-sheet.jpg, and r3-compare-sheet.jpg (row2 / x15 / diff x8, 300 m over 150 m; the diff is clouds drifting and scattered tree sway only). All shots "good"; device Direct3D11; console 0 game errors (only CLI transport lines).
 
 ## R-10 (continued, row 4: a glowing town at distance; tree Punchy-release, branch light/forwardplus)
 - **R-10 row 4 DONE (glowing town)**: light/forwardplus `95c93aef` (pushed; merges cleanly with origin/main 484c8f2c).
