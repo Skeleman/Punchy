@@ -363,3 +363,16 @@ per arm, shuffled, D3D11 default, until the first arm that is clearly better or 
   script, behind a flag to turn it off), commit, push, and hand back on REPORTS-profiler.md; I review and merge. If none passes,
   report the counts and stop: the next step would be a present-wait timeout card for the rendering lane.
 - Fix the runcsv `i` reuse bug from job 41 first, so per-game labels and logs are right.
+
+## Job 43 (2026-11-09, QUEUED by the main-account supervisor; after job 42): water, SSAO, glow slots and shadow distance on the laptop
+From the 11-09 outside audit (docs/Chat audit 11-9.md, sections 3, 4, 5, 8). Read only, main at the time you start (after R-6
+#227), Profile build, 1920x1080, `-gfx High` then `-gfx Medium`, `-weatherseed 4`, `-time 12 -weather Clear`, uncapped, ABBA,
+300 frames each. If a flag below doesn't exist, say so and skip it; don't add code.
+- Water: a spot where water fills about 10%, 50% and 90% of the screen (sea from a cliff, pitched down to fill it; pick spots
+  and give their `-goto`). Per spot: whole-frame GPU ms and the water pass ms with water quality High, Medium, Low.
+- SSAO: one forest spot and one town spot, SSAO on vs off, GPU ms of its passes.
+- Glow slots: the big town at 22:00, glow slots on vs off (or forced 0), whole-frame GPU ms and the opaque pass ms.
+- Shadow distance: forest and big town at noon, the current 50 m cascade distance vs 80 m and 120 m, if a run-time flag can set
+  it; GPU ms of the shadow passes.
+- One RenderDoc capture of the 90% water spot at High: list the water passes with GPU ms.
+Report in REPORTS-profiler.md as usual: which of these costs more than 1 ms, and by how much.
