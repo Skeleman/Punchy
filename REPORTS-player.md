@@ -597,3 +597,13 @@ code, which isn't on main yet. Merge after player/integrate.
   to the door's step first. (2) Without circles, creatures path through this type's walls (not checked, but nothing
   stops them). (3) No furniture: the room is the kit shell. (4) Not run as a joined client (door state is host-owned and
   FloraDoors is set on every machine, so the leaf box should follow).
+
+## Doors.IsOpen for A-98 (11-10, STATE "small row"): DONE, `player/doors-open` at the commit above it (from player/integrate)
+- `Doors.IsOpen(int door)` (index in the island's Door anchors) and `Doors.IsOpen(Vector3 doorPos, float within = 2f)`
+  (the nearest door anchor within that distance; false if none). Read-only, this machine's view (the host's word, or solo).
+  Only Interact/Doors.cs changed; the animal lane wires GameAudioOcclusion to it.
+- Checked in a build: after `-usedoor 9`, "door 9 IsOpen True, by position True; door 10 IsOpen False".
+- Suite: 25 passed, 0 failed, 17 skipped in 320s (Unity exit 0). The run before: 24/1, LyingTests
+  .Lying_LegsStayAboveGround_FlatAndSlope (BoneStag -0.078 m on the slope and others), animal posing that this change
+  can't reach; it passed unchanged on the re-run.
+- Windows as sound openings: not done (the card says they can come with P-30; P-30's prototype didn't add any).
