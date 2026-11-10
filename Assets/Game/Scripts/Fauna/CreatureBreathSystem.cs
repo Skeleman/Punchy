@@ -60,6 +60,10 @@ namespace Punchy.Fauna
                 Lifetime = 1.5f * math.clamp(math.sqrt(k), 0.3f, 2f),
             };
         }
+
+        /// <summary>How much of its velocity a breather's wisps carry: a walker's most of it, a flier's (fly 1) little, so
+        /// its breath stays where it was breathed and drifts on the wind rather than trailing after it.</summary>
+        public static float Carry(float fly) => math.lerp(0.85f, 0.08f, math.saturate(fly));
         /// <summary>Whether players have creature bodies, which breathe here from their own mouths (then AmbienceSystem
         /// leaves players' breath alone).</summary>
         public static bool PlayersBreathe;
@@ -125,8 +129,7 @@ namespace Punchy.Fauna
                     continue;
                 }
                 // (A flier's breath stays where it was breathed and drifts on the wind, rather than trailing after it.)
-                var carry = math.lerp(0.85f, 0.08f, math.saturate(s.Fly));
-                ambience.Breathe(mouth, forward, velocity, shape.Size, shape.Rate, shape.Lifetime, shape.Opacity, carry);
+                ambience.Breathe(mouth, forward, velocity, shape.Size, shape.Rate, shape.Lifetime, shape.Opacity, Carry(s.Fly));
             }
             PlayersBreathe = players;
             CreatureSnapshotSystem.Release(World, states, bodies, entities);
