@@ -12,9 +12,9 @@ log() { echo "[$(date +%T)] $*" | tee -a "$R/job.log"; }
 report() { echo "$*" >> "$REPORT"; echo "$*"; }
 fail() { report "FAILED: $*"; exit 1; }
 REPORT=$R/report-$(date +%m%d-%H%M%S).txt
-wait_s() { for i in $(seq 1 $1); do timeout 1 tail -f /dev/null 2>/dev/null; done; }
+wait_s() { local i; for i in $(seq 1 $1); do timeout 1 tail -f /dev/null 2>/dev/null; done; }
 short() { git -C "$P" rev-parse --short=7 "$1" 2>/dev/null || echo "$1"; }
-cool() { for i in $(seq 1 60); do t=$($SMI --query-gpu=temperature.gpu --format=csv,noheader 2>/dev/null || echo 0); [ "$t" -lt 65 ] && break; wait_s 5; done; }
+cool() { local i t; for i in $(seq 1 60); do t=$($SMI --query-gpu=temperature.gpu --format=csv,noheader 2>/dev/null || echo 0); [ "$t" -lt 65 ] && break; wait_s 5; done; }
 
 keepawake() { # the helper ends by itself when no bench script or game is left
   # 'keepawake[.]ps1' can't match this check's own command line (or a shell's that contains it), only the helper's
