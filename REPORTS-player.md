@@ -460,3 +460,18 @@ Coin refund is a flat 5 and goes straight into the inventory, so a joined client
 
 **Correction to P-23's report:** suite on this branch, which contains all of P-23: 25 passed, 0 failed, 17 skipped in 391 s, with the saved body reading Osprey. So LiveFolk_Answer and LiveFolk_BeastResponse aren't simply failing on the saved body, as I said. In one failed run the player was a rabbit, and I haven't found why. They failed in 3 of 6 runs on and after P-23 row 1, passed in 3. They look intermittent and unrelated to items, but that's not proven.
 Next: rows 2 and 3.
+
+### Rows 2 and 3, part DONE (e2bb0d21 on player/quests); the dungeon type and folk hints are NOT done
+Done:
+- "deliver": taking it hands you the goods; hand in at the other town's board, and it pays there. Run through the real calls: fish-run, GoblinCamp to ElfGrove, the board offered the hand-in, reward Staff paid.
+- "visit": go to the other town (within 15 m of its board), then back to the first board. Run: scout, ElfGrove to DwarfMiningCamp and back, reward Pack paid.
+- Six new quests in quests.json (14 in all), some paying Staff, Hat or Pack. A visit's "visited" is saved with the quest.
+Not done:
+- "dungeon" quests: they need a named dungeon with a stable id and a way to know it's cleared, and A-95 / A-91 are changing that code. Waiting for those. "Escort" wasn't built either (the card said only if cheap).
+- Folk lines hinting at nearby quests: P-26 has the talk window, but it isn't merged to this branch. A later small job.
+- 3-5 quests per town style: boards still pick 1-2 by the town's index, so style isn't used; I added the six quests overall instead.
+Merge note: P-26's change to board Offers (Posted) and this branch's changes to the quest code will meet in Quests.cs; I expect a small conflict.
+A visit's hand-in takes the client's word (it can't be checked by carried items), and its "visited" flag is local.
+UNVERIFIED: both types as a joined client; pressing Use at the board (the test called TurnIn after reading the board's own answer).
+Suite: 24 passed, 1 failed, 17 skipped in 331 s. The failure is LiveFolk_Answer again; no other test failed. That test class sets the body itself (SetBody Human, Rabbit, Wolf, Horse at FolkConversationTests line 176-207, restoring afterwards), which looks a likelier cause than the saved body. Not proven.
+Next: nothing open. P-25 row 3 still needs the answer on the house kit.
