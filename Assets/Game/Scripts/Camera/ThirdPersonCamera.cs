@@ -122,7 +122,7 @@ namespace Punchy.CameraRig
             // than SmallLookOrbit and tilts its view up for the rest, at most until the body reaches the frame's edge.
             var orbitPitch = pitch;
             var lookUp = 0f;
-            if (underground && bodySize < 0.75f && pitch < SmallLookOrbit)
+            if (underground && bodySize < SmallBody && pitch < SmallLookOrbit)
             {
                 orbitPitch = SmallLookOrbit;
                 lookUp = SmallLookOrbit - pitch;   // (capped in Place, once the arm's length is known)
@@ -150,6 +150,7 @@ namespace Punchy.CameraRig
                               Punchy.Terrain.InteriorCells.Distance(head) < CaveNear;
                 if (underground)
                 {
+                    var pivotLift = Vector3.zero;
                     var probeStart = ProbeStats ? System.Diagnostics.Stopwatch.GetTimestamp() : 0L;
                     float clear;
                     if (OldProbe)
@@ -165,15 +166,18 @@ namespace Punchy.CameraRig
                     {
                         // The same pivot drop and sphere trace in Burst (#54, the ArmProbe pattern from W-48): managed
                         // TerrainSource calls cost ~16 us each, and a tight chamber takes up to 160 of them a frame.
-                        var result = new Unity.Collections.NativeArray<float>(2, Unity.Collections.Allocator.TempJob);
-                        Unity.Jobs.IJobExtensions.Run(new ArmProbe
+                        clear = ProbeArm(terrain, target, position, playerPosition.y, out target.y);
+                        // #85 (P-22): a small body's pivot is so low that on a sloping cave floor the arm stops at once, with
+                        // the lens inside the body. Then the arm runs from a raised pivot instead, still aimed at the body.
+                        if (bodySize < SmallBody && (clear < SmallMinArm || smallLift > 0f))
                         {
-                            Terrain = terrain, Target = ToFloat3(target), Position = ToFloat3(position),
-                            PlayerY = playerPosition.y, Result = result
-                        });
-                        target.y = result[0];
-                        clear = result[1];
-                        result.Dispose();
+                            var raise = Vector3.up * SmallLiftHeight;
+                            var raisedClear = ProbeArm(terrain, target + raise, position + raise, playerPosition.y, out var raisedY);
+                            var want = clear < SmallMinArm && raisedClear > clear + 0.2f ? 1f : clear > SmallClearArm ? 0f : smallLift;
+                            smallLift = Mathf.MoveTowards(smallLift, want, Time.deltaTime * 3f);
+                            clear = Mathf.Lerp(clear, raisedClear, smallLift);
+                            pivotLift = Vector3.up * ((raisedY - target.y) * smallLift);
+                        }
                     }
                     var back = position - target;
                     var length = back.magnitude;
@@ -183,8 +187,8 @@ namespace Punchy.CameraRig
                         ProbeTicks += System.Diagnostics.Stopwatch.GetTimestamp() - probeStart;
                     }
                     caveArm = clear < caveArm ? clear : Mathf.MoveTowards(caveArm, clear, Time.deltaTime * 3f);
-                    position = target + back * (Mathf.Min(caveArm, length) / Mathf.Max(length, 1e-4f));
-                    if (caveArm < length - 0.01f)
+                    position = target + pivotLift + back * (Mathf.Min(caveArm, length) / Mathf.Max(length, 1e-4f));
+                    if (caveArm < length - 0.01f || pivotLift.y > 0f)
                     {
                         rotation = Quaternion.LookRotation(target - position);
                         // Pulled in against rock: the near plane's corners stay inside the lens's sphere.
@@ -192,7 +196,10 @@ namespace Punchy.CameraRig
                     }
                 }
                 else
+                {
                     caveArm = Distance;
+                    smallLift = 0f;
+                }
                 SetNearPlane(near);
                 var lens = new Unity.Mathematics.float3(position.x, position.y, position.z);
                 // (P-19: the lens may go under cave water now: Underwater draws it. P-18 kept it above.)
@@ -345,6 +352,34 @@ namespace Punchy.CameraRig
         /// <summary>Testing: "-camlog" logs where the camera is every 2 s (P-9: is it inside the room it should be?).</summary>
         bool camLog;
         float nextCamLog;
+        /// <summary>
+        /// The arm's pivot drop and sphere trace, in Burst: returns the clear length, and the pivot's height once dropped
+        /// under any low ceiling. (A TempJob array, no managed allocation.)
+        /// </summary>
+        static float ProbeArm(in TerrainSource terrain, Vector3 target, Vector3 position, float playerY, out float pivotY)
+        {
+            var result = new Unity.Collections.NativeArray<float>(2, Unity.Collections.Allocator.TempJob);
+            Unity.Jobs.IJobExtensions.Run(new ArmProbe
+            {
+                Terrain = terrain, Target = ToFloat3(target), Position = ToFloat3(position),
+                PlayerY = playerY, Result = result
+            });
+            pivotY = result[0];
+            var clear = result[1];
+            result.Dispose();
+            return clear;
+        }
+
+        /// <summary>#85: bodies smaller than this count as small for the camera underground.</summary>
+        const float SmallBody = 0.75f;
+        /// <summary>#85 (P-22): a small body's arm shorter than this (m) tries the raised pivot; longer than SmallClearArm it goes back.</summary>
+        const float SmallMinArm = 1f;
+        const float SmallClearArm = 1.6f;
+        /// <summary>#85 (P-22): how far the pivot is raised (m), less under a low ceiling.</summary>
+        const float SmallLiftHeight = 0.7f;
+        /// <summary>#85 (P-22): how far the raised pivot is in use now (0..1), eased so the camera doesn't jump.</summary>
+        float smallLift;
+
         /// <summary>#85: the lowest a small body's camera circles underground (deg); looking further up tilts the view instead.</summary>
         const float SmallLookOrbit = -10f;
 
