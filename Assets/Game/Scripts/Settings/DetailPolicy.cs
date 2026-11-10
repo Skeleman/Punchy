@@ -348,7 +348,33 @@ namespace Punchy.Settings
         /// its size. Trees only: a 7 m tree's reduced and far meshes are made for a distance, and by size alone it reached
         /// them at 25 m and 100 m, where its crown read as angular blobs and then flat discs.
         /// </summary>
-        public static float2 FloraFloor(FloraClass c) => c == FloraClass.Tree ? new float2(47f, 190f) : float2.zero;
+        public static float2 FloraFloor(FloraClass c) => (c == FloraClass.Tree ? new float2(47f, 190f) : float2.zero) * LodScale(c);
+
+        /// <summary>
+        /// Bench only (job 47, b/bench-lod): "-lodscale tree=1.5,plant=0.5" multiplies a flora class's reach (its mesh
+        /// changes, its floor and its impostor hand-off; shadows untouched), so the profiler can sweep what a range
+        /// costs. Halving a threshold doubles the reach, so the thresholds are divided by the scale. 1 when not given.
+        /// </summary>
+        public static float LodScale(FloraClass c)
+        {
+            if (lodScales == null)
+            {
+                lodScales = new float[] { 1f, 1f, 1f, 1f, 1f };
+                var args = System.Environment.GetCommandLineArgs();
+                var at = System.Array.IndexOf(args, "-lodscale");
+                if (at >= 0 && at + 1 < args.Length)
+                    foreach (var pair in args[at + 1].Split(','))
+                    {
+                        var kv = pair.Split('=');
+                        if (kv.Length == 2 && System.Enum.TryParse<FloraClass>(kv[0], true, out var k)
+                            && float.TryParse(kv[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) && v > 0f)
+                            lodScales[(int)k] = v;
+                    }
+                Debug.Log($"DetailPolicy: -lodscale tree {lodScales[0]}, plant {lodScales[1]}, rock {lodScales[2]}, debris {lodScales[3]}, structure {lodScales[4]}");
+            }
+            return lodScales[(int)c];
+        }
+        static float[] lodScales;
 
         /// <summary>
         /// R-6 row 4: a class drawn always (Far 0) is drawn past its layer's radius while it is at least this many pixels
@@ -358,6 +384,19 @@ namespace Punchy.Settings
         public const float FloraEdgePixels = 4f;
 
         public static Rule FloraRule(FloraClass c)
+        {
+            // (Bench only: -lodscale, see LodScale. The shadow thresholds stay as tuned.)
+            var rule = FloraRuleTuned(c);
+            var scale = LodScale(c);
+            if (scale != 1f)
+            {
+                rule.Geometry = rule.Geometry.Scaled(scale);
+                rule.Impostor /= scale;
+            }
+            return rule;
+        }
+
+        static Rule FloraRuleTuned(FloraClass c)
         {
             switch (c)
             {
