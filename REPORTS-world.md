@@ -3810,3 +3810,4 @@ Built in the player tree, not the one the card names (the world tree's gitignore
   - **3-blend vs 1-frame at 520 m (render ms):** ground 5.46 / 5.58, ridge 5.90* / 4.81, fly100 5.40 / 6.18, fly300 5.09 / 5.00. There is no measurable difference, so 3-blend stays the default.
   - **Shots:** PunchyMilestones/R-7/r3/ ({ground,ridge,fly100,fly300}-{a,b,c,c1}.png, contact-sheet.jpg, shipped-fly100.png, shipped-fly300.png).
   - Risks: frame ms is near the bar, so a release-build bench would settle it; reverting is one value. No placement or ProjectSettings changes.
+  - **Suite (editor closed, world/spikes = origin/main a984c4e4):** `15 passed, 0 failed, 7 skipped in 303s (Unity exit 0).` Pins: Landmarks_V3 `112 A955AFE0`, Fauna_Fingerprint `66320C7C`. My editor is closed.
