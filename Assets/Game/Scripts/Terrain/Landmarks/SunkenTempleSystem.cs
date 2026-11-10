@@ -392,7 +392,9 @@ namespace Punchy.Terrain
                     var r = Rooms[i];
                     if (r.Kind != 0)
                         continue;
+                    b.Kind = Builder.Flags;   // W-128: the floor in close-laid tiles
                     b.Panel(0, 2, r.Floor, r.U0, r.U1, r.V0, r.V1, Vector3.up);
+                    b.Kind = Builder.Ashlar;
                     b.Panel(0, 2, r.Ceil, r.U0, r.U1, r.V0, r.V1, Vector3.down);
                     Edges(i, (e, s0, s1, n) =>
                     {
@@ -470,8 +472,14 @@ namespace Punchy.Terrain
         class Builder
         {
             readonly List<Vector3> v = new List<Vector3>(), n = new List<Vector3>();
+            readonly List<Color> col = new List<Color>();
+            readonly List<Vector2> st = new List<Vector2>();
             readonly List<int>[] sub;
             public int Tris;
+            /// <summary>W-128: the stone pattern of what's added next, in vertex alpha for Punchy/SunkenTemple:
+            /// Ashlar (walls), Column (fluted drums, UV x around in flutes, y along the shaft) or Flags (floor tiles, no grout).</summary>
+            public float Kind = Ashlar;
+            public const float Ashlar = 1f, Column = 0.5f, Flags = 0f;
 
             public Builder(int submeshes)
             {
@@ -480,10 +488,12 @@ namespace Punchy.Terrain
                     sub[i] = new List<int>();
             }
 
-            int Vert(Vector3 p, Vector3 normal)
+            int Vert(Vector3 p, Vector3 normal, Vector2 at = default)
             {
                 v.Add(p);
                 n.Add(normal);
+                col.Add(new Color(1f, 1f, 1f, Kind));
+                st.Add(at);
                 return v.Count - 1;
             }
 
@@ -596,9 +606,19 @@ namespace Punchy.Terrain
                     float t0 = (k + 0.5f) * 2f * math.PI / sides, t1 = (k + 1.5f) * 2f * math.PI / sides, tm = 0.5f * (t0 + t1);
                     float p0 = cp + radius * math.cos(t0), q0 = cq + radius * math.sin(t0), p1 = cp + radius * math.cos(t1), q1 = cq + radius * math.sin(t1);
                     var out_ = Ax(axis, 0f, math.cos(tm), math.sin(tm));
-                    Quad(s, Ax(axis, a0, p0, q0), Ax(axis, a0, p1, q1), Ax(axis, a1, p1, q1), Ax(axis, a1, p0, q0), out_);
+                    // W-128: the shaft in the column pattern, one flute per face (UV x across it, y along the shaft from
+                    // its foot), with round normals so it shades as a drum; the ends are plain tiles.
+                    var kind = Kind;
+                    Kind = Column;
+                    Vector3 n0 = Ax(axis, 0f, math.cos(t0), math.sin(t0)), n1 = Ax(axis, 0f, math.cos(t1), math.sin(t1));
+                    int ia = Vert(Ax(axis, a0, p0, q0), n0, new Vector2(k, 0f)), ib = Vert(Ax(axis, a0, p1, q1), n1, new Vector2(k + 1, 0f));
+                    int ic = Vert(Ax(axis, a1, p1, q1), n1, new Vector2(k + 1, a1 - a0)), id = Vert(Ax(axis, a1, p0, q0), n0, new Vector2(k, a1 - a0));
+                    Index(s, ia, ib, ic, out_);
+                    Index(s, ia, ic, id, out_);
+                    Kind = Flags;
                     Tri(s, Ax(axis, a1, cp, cq), Ax(axis, a1, p0, q0), Ax(axis, a1, p1, q1), Ax(axis, 1f, 0f, 0f));
                     Tri(s, Ax(axis, a0, cp, cq), Ax(axis, a0, p0, q0), Ax(axis, a0, p1, q1), Ax(axis, -1f, 0f, 0f));
+                    Kind = kind;
                 }
             }
 
@@ -607,7 +627,8 @@ namespace Punchy.Terrain
                 var m = new Mesh { name = name, indexFormat = IndexFormat.UInt32 };
                 m.SetVertices(v);
                 m.SetNormals(n);
-                m.SetColors(System.Linq.Enumerable.ToList(System.Linq.Enumerable.Repeat(Color.white, v.Count)));
+                m.SetColors(col);
+                m.SetUVs(0, st);
                 m.subMeshCount = sub.Length;
                 for (int i = 0; i < sub.Length; i++)
                     m.SetTriangles(sub[i], i);

@@ -442,30 +442,132 @@ namespace Punchy.Flora
             }
 
             /// <summary>
-            /// W-93 (#70): a low rounded chunk as upright kit boxes (KitCollision), terraced like contour lines: one box per
-            /// tier, each as wide as the chunk at half a tier under its top, tiers under a step (0.4 m) apart, so the player
-            /// steps up a low chunk and stops at a tall one's face. Chunks too thin to stand on get none (walked over).
-            /// Only the turn about y is kept (tops stay flat). Model space, bottoms sunk 0.5 m under the ground.
-            /// W-94 (#70): the lowest tier is sunk to a 0.15 m lip (the rest spaced evenly above it), because on a slope the
-            /// widest tier's downhill edge stands its own height plus the ground's fall across it: 0.35 m read as a wall.
+            /// W-93 (#70): a low chunk as upright kit boxes (KitCollision), terraced like contour lines: tiers under a step
+            /// (0.4 m) apart, so the player steps up a low chunk and stops at a tall one's face. Chunks too thin to stand on
+            /// get none (walked over). Bottoms sunk 0.5 m under the ground. W-94 (#70): the lowest tier is sunk to a 0.15 m
+            /// lip (the rest spaced evenly above it), because on a slope the widest tier's downhill edge stands its own height
+            /// plus the ground's fall across it: 0.35 m read as a wall.
+            /// W-128: the tiers follow the drawn rock (the triangles on vertices from <paramref name="first"/> on), not an
+            /// ellipse round it. The rock is rasterised to a height grid; each tier is cut into strips across the chunk's long
+            /// axis (narrower toward the ends, so a pointed edge keeps most of its point), and each strip gets a box over every
+            /// run of cells where the rock stands at least half a tier under the tier's top (to a quarter cell past the
+            /// outer cells' centres). A box's top is a floor, so
+            /// nothing stands on air past a point or over a dent any more, and its sides wall only where the rock is. Strips
+            /// run along the chunk's turn about y (<paramref name="yaw"/>); model space.
             /// </summary>
-            public void AddTierBoxes(Vector3 centre, Vector3 radii, Quaternion rotation)
+            public void AddChunkBoxes(int first, Quaternion yaw)
             {
                 const float tier = 0.35f, bottom = -0.5f, lip = 0.15f;
-                var top = centre.y + radii.y;
+                var back = Quaternion.Inverse(yaw);
+                var count = B.VertexCount - first;
+                if (count < 4)
+                    return;
+                var pts = new Vector3[count];
+                var top = float.MinValue;
+                var lo = new Vector2(float.MaxValue, float.MaxValue);
+                var hi = new Vector2(float.MinValue, float.MinValue);
+                for (int i = 0; i < count; i++)
+                {
+                    var p = pts[i] = back * B.Position(first + i);
+                    top = Mathf.Max(top, p.y);
+                    lo = Vector2.Min(lo, new Vector2(p.x, p.z));
+                    hi = Vector2.Max(hi, new Vector2(p.x, p.z));
+                }
                 if (top < ChunkStep)
                     return;
+
+                // The rock's top as a height grid in the turned frame (cell centres at lo + index * cell).
+                var cell = Mathf.Clamp(Mathf.Max(hi.x - lo.x, hi.y - lo.y) / 80f, 0.04f, 0.2f);
+                int nx = Mathf.CeilToInt((hi.x - lo.x) / cell) + 1, nz = Mathf.CeilToInt((hi.y - lo.y) / cell) + 1;
+                var height = new float[nx * nz];
+                for (int i = 0; i < height.Length; i++)
+                    height[i] = float.MinValue;
+                for (int t = 0; t + 2 < B.IndexCount; t += 3)
+                {
+                    int ia = B.Index(t) - first, ib = B.Index(t + 1) - first, ic = B.Index(t + 2) - first;
+                    if (ia < 0 || ib < 0 || ic < 0 || ia >= count || ib >= count || ic >= count)
+                        continue;
+                    Vector3 a = pts[ia], b = pts[ib], c = pts[ic];
+                    var d = (b.z - c.z) * (a.x - c.x) + (c.x - b.x) * (a.z - c.z);
+                    if (Mathf.Abs(d) < 1e-8f)
+                        continue;   // edge-on
+                    int x0 = Mathf.Max(0, Mathf.CeilToInt((Mathf.Min(a.x, Mathf.Min(b.x, c.x)) - lo.x) / cell));
+                    int x1 = Mathf.Min(nx - 1, Mathf.FloorToInt((Mathf.Max(a.x, Mathf.Max(b.x, c.x)) - lo.x) / cell));
+                    int z0 = Mathf.Max(0, Mathf.CeilToInt((Mathf.Min(a.z, Mathf.Min(b.z, c.z)) - lo.y) / cell));
+                    int z1 = Mathf.Min(nz - 1, Mathf.FloorToInt((Mathf.Max(a.z, Mathf.Max(b.z, c.z)) - lo.y) / cell));
+                    for (int gx = x0; gx <= x1; gx++)
+                    for (int gz = z0; gz <= z1; gz++)
+                    {
+                        float x = lo.x + gx * cell, z = lo.y + gz * cell;
+                        var w0 = ((b.z - c.z) * (x - c.x) + (c.x - b.x) * (z - c.z)) / d;
+                        var w1 = ((c.z - a.z) * (x - c.x) + (a.x - c.x) * (z - c.z)) / d;
+                        var w2 = 1f - w0 - w1;
+                        if (w0 < -1e-4f || w1 < -1e-4f || w2 < -1e-4f)
+                            continue;
+                        ref var cellTop = ref height[gx * nz + gz];
+                        cellTop = Mathf.Max(cellTop, w0 * a.y + w1 * b.y + w2 * c.y);
+                    }
+                }
+
+                // Strips across the longer axis: along = the strip index axis, across = the run axis.
+                var alongX = hi.x - lo.x >= hi.y - lo.y;
+                int nAlong = alongX ? nx : nz, nAcross = alongX ? nz : nx;
+                float H(int al, int ac) => alongX ? height[al * nz + ac] : height[ac * nz + al];
+                // The same strips for every tier (cut from the lowest tier's footprint), so a tier's box always stands
+                // on the box under it: a run where the whole strip clears a tier also clears every tier below.
+                int first0 = -1, last0 = -1;
+                for (int al = 0; al < nAlong; al++)
+                    for (int ac = 0; ac < nAcross; ac++)
+                        if (H(al, ac) >= lip * 0.5f)
+                        {
+                            if (first0 < 0) first0 = al;
+                            last0 = al;
+                            break;
+                        }
+                if (first0 < 0)
+                    return;
+                var span = last0 - first0 + 1;
+                var strips = Mathf.Clamp(Mathf.CeilToInt(span * cell / 0.6f), 2, 12);
                 var n = Mathf.Clamp(Mathf.CeilToInt((top - lip) / tier) + 1, 2, 7);
-                var yaw = Quaternion.Euler(0f, rotation.eulerAngles.y, 0f);
                 for (int k = 1; k <= n; k++)
                 {
                     var t = lip + (top - lip) * (k - 1) / (n - 1);
-                    var u = Mathf.Clamp((t - (k == 1 ? lip : (top - lip) / (n - 1)) * 0.5f - centre.y) / Mathf.Max(radii.y, 0.01f), -1f, 1f);
-                    var s = Mathf.Sqrt(1f - u * u) * 0.8f;
-                    var half = new Vector3(radii.x * s, (t - bottom) * 0.5f, radii.z * s);
-                    if (half.x < 0.15f || half.z < 0.15f)
-                        continue;
-                    Boxes.Add(new KitBox { Centre = new Vector3(centre.x, (t + bottom) * 0.5f, centre.z), Half = half, Rotation = yaw, Reach = half.magnitude });
+                    var h = t - (k == 1 ? lip : (top - lip) / (n - 1)) * 0.5f;
+                    var prev = first0;
+                    for (int s = 0; s < strips; s++)
+                    {
+                        // Cosine spacing: the end strips are the narrow ones.
+                        var end = s == strips - 1 ? last0 + 1 : first0 + Mathf.RoundToInt(span * 0.5f * (1f - Mathf.Cos(Mathf.PI * (s + 1) / strips)));
+                        int c0 = prev, c1 = Mathf.Max(end, prev + 1);
+                        prev = c1;
+                        if (c0 > last0)
+                            break;
+                        c1 = Mathf.Min(c1, last0 + 1);
+                        // Each run of cells across where the whole strip's width stands at least h.
+                        var run = -1;
+                        for (int ac = 0; ac <= nAcross; ac++)
+                        {
+                            var ok = ac < nAcross;
+                            for (int al = c0; al < c1 && ok; al++)
+                                ok = H(al, ac) >= h;
+                            if (ok && run < 0)
+                                run = ac;
+                            else if (!ok && run >= 0)
+                            {
+                                if ((ac - run) * cell >= 0.2f)
+                                {
+                                    float a0 = (c0 - 0.25f) * cell, a1 = (c1 - 0.75f) * cell, b0 = (run - 0.25f) * cell, b1 = (ac - 0.75f) * cell;
+                                    var mid = new Vector2((a0 + a1) * 0.5f, (b0 + b1) * 0.5f);
+                                    var local = alongX ? new Vector3(lo.x + mid.x, (t + bottom) * 0.5f, lo.y + mid.y)
+                                                       : new Vector3(lo.x + mid.y, (t + bottom) * 0.5f, lo.y + mid.x);
+                                    var half = alongX ? new Vector3((a1 - a0) * 0.5f, (t - bottom) * 0.5f, (b1 - b0) * 0.5f)
+                                                      : new Vector3((b1 - b0) * 0.5f, (t - bottom) * 0.5f, (a1 - a0) * 0.5f);
+                                    Boxes.Add(new KitBox { Centre = yaw * local, Half = half, Rotation = yaw, Reach = half.magnitude });
+                                }
+                                run = -1;
+                            }
+                        }
+                    }
                 }
             }
 
