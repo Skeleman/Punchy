@@ -179,3 +179,6 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
   A-95 in D:/Unity/Punchy), M-05 Model Lab draft (Zach to pick in-game vs editor window, and which family first).
 - 11-10: Zach approved P-23 (gear has stats), P-24 (menu-only tracker, saved progress robust to world changes), A-91 rows 2-4
   (dungeons ~4x, caves ~2x with 1-3 gentle main paths, vertical side chambers OK). Cards updated; DRAFT marks removed.
+- 11-10: W-131 reviewed (world/far-ring 94548d6f, merge-tree clean; ring to ~2.97 km at High, +0.09..+0.35 ms; row 3 reach not kept,
+  invisible). Held for row 2b soak (possible disc-chunk leak after preset switches). Suite fail LiveFolk_Answer = shared PlayerPrefs
+  body=Crow, test fix added to A-96 row 0. Empty untracked GameAudio.cs (11-04) in coordination: harmless, left.
