@@ -21,6 +21,7 @@ SAMPLER(sampler_PunchyGlowMap);
 TEXTURE2D(_PunchyGlowMapNight);    // rgb light of lit windows, a as above
 float4 _PunchyGlowMapRect;         // xy the map's corner (m), z 1 / its width (1/m)
 float4 _PunchyGlowMapParams;       // x strength (0: off), y lit windows on, zw camera distance the far tier fades in over (m)
+float4 _PunchyGlowMapNightFade;    // xy camera distance the night map (street lights) fades in over (m): where they stop being real lights (R-10)
 TEXTURE2D(_PunchyGlowWorld);       // the whole island: r fire amount, gba plants' and lava's light (linear)
 float4 _PunchyGlowWorldRect;       // xy its corner (m), z 1 / its width (1/m)
 float4 _PunchyGlowWorldParams;     // x strength (0: off), y night (plants and lava), zw camera distance they fade in over (m)
@@ -33,18 +34,21 @@ half3 PunchyGlowFar(float3 p, half3 n)
 {
     float2 uv = (p.xz - _PunchyGlowMapRect.xy) * _PunchyGlowMapRect.z;
     float2 edge = min(uv, 1 - uv);
-    float fade = saturate(min(edge.x, edge.y) * 8)
-               * smoothstep(_PunchyGlowMapParams.z, _PunchyGlowMapParams.w, distance(p, GetCameraPositionWS()));
+    float fade = saturate(min(edge.x, edge.y) * 8);
+    float dist = distance(p, GetCameraPositionWS());
+    // Plants and street lights hand over at different distances: a street light stays a real light much further out.
+    float plantFade = smoothstep(_PunchyGlowMapParams.z, _PunchyGlowMapParams.w, dist);
+    float nightFade = _PunchyGlowMapParams.y > 0 ? smoothstep(_PunchyGlowMapNightFade.x, _PunchyGlowMapNightFade.y, dist) : 0;
     half3 light = 0;
-    [branch] if (fade > 0)
+    [branch] if (fade > 0 && plantFade + nightFade > 0)
     {
         float4 a = SAMPLE_TEXTURE2D_LOD(_PunchyGlowMap, sampler_PunchyGlowMap, uv, 0);
-        // (Lit windows' layer: off since their light is indoor, P-21 item 31; CaveSystem sends y = 0.)
+        // The night layer: street lights only (W-127); lit windows' light is indoor (P-21 item 31).
         float4 b = 0;
-        [branch] if (_PunchyGlowMapParams.y > 0)
+        [branch] if (nightFade > 0)
             b = SAMPLE_TEXTURE2D_LOD(_PunchyGlowMapNight, sampler_PunchyGlowMap, uv, 0) * _PunchyGlowMapParams.y;
-        float3 rgb = a.rgb + b.rgb;
-        float weight = rgb.r + rgb.g + rgb.b;
+        float3 rgb = a.rgb * plantFade + b.rgb * nightFade;
+        float weight = a.r + a.g + a.b + b.r + b.g + b.b;
         // Its sources' height, weighted by their light (interpolates cleanly where lit and dark texels meet): a cliff
         // top or a cave floor well away from it gets none.
         float height = (a.a + b.a) / max(weight, 1e-4);
@@ -102,6 +106,68 @@ half3 PunchyGlowLight(float3 p, half3 n)
     // The blue moon: a little wrap, so faces turned just past it aren't cut off hard.
     [branch] if (_PunchyBlueLightColor.b > 0)
         light += _PunchyBlueLightColor.rgb * saturate(dot(n, _PunchyBlueLightDirection.xyz) * 0.85 + 0.15);
+    return light;
+}
+
+// Real lights (R-10): the Unity lights LightBudget turns on (lanterns, room lamps, street lights), read through URP's
+// Forward+ clusters, so a pixel pays only for the lights whose clusters it is in. Every shader lights them the same way,
+// with the glow slots' fall-off: a real light of colour c and range r lights like a glow of c x PunchyRealToGlow and
+// reach r x PunchyRealToGlowReach (LightBudget.RealToGlow, which sizes a pooled light from its glow the other way round),
+// so a light handed between a real light and a glow slot looks the same in both. Without Forward+ (the cluster keyword
+// off) there are none: the glow slots light everything, as before.
+#if defined(USE_CLUSTER_LIGHT_LOOP) && defined(LIGHT_LOOP_BEGIN)
+    #if USE_CLUSTER_LIGHT_LOOP
+        #define PUNCHY_REAL_LIGHTS 1
+    #endif
+#endif
+#ifndef PUNCHY_REAL_LIGHTS
+    #define PUNCHY_REAL_LIGHTS 0
+#endif
+static const float PunchyRealToGlow = 0.28;
+static const float PunchyRealToGlowReach = 0.75;
+
+#if PUNCHY_REAL_LIGHTS
+// Real light i (a Forward+ light index) at p: its light as a glow (falling off over its reach, before the facing term)
+// and the direction to it.
+half3 PunchyRealLight(uint i, float3 p, out half3 direction)
+{
+#if USE_STRUCTURED_BUFFER_FOR_LIGHT_DATA
+    float4 position = _AdditionalLightsBuffer[i].position;
+    half3 color = _AdditionalLightsBuffer[i].color.rgb;
+    half4 attenuation = _AdditionalLightsBuffer[i].attenuation;
+    half4 spot = _AdditionalLightsBuffer[i].spotDirection;
+#else
+    float4 position = _AdditionalLightsPosition[i];
+    half3 color = _AdditionalLightsColor[i].rgb;
+    half4 attenuation = _AdditionalLightsAttenuation[i];
+    half4 spot = _AdditionalLightsSpotDir[i];
+#endif
+    float3 to = position.xyz - p * position.w;
+    float dist = max(length(to), 1e-3);
+    direction = half3(to / dist);
+    // URP keeps 1 / range^2 in attenuation.x.
+    float reach = rsqrt(max(attenuation.x, 1e-6)) * PunchyRealToGlowReach;
+    float fall = saturate(1 - dist / reach);
+    return color * (PunchyRealToGlow * fall * fall * AngleAttenuation(spot.xyz, direction, attenuation.zw));
+}
+#endif
+
+// All real lights' diffuse light on a surface at p with normal n, seen at screen position positionCS (SV_POSITION):
+// add it next to PunchyGlowLight.
+half3 PunchyRealLights(float3 p, half3 n, float4 positionCS)
+{
+    half3 light = 0;
+#if PUNCHY_REAL_LIGHTS
+    InputData inputData = (InputData)0;
+    inputData.positionWS = p;
+    inputData.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(positionCS);
+    LIGHT_LOOP_BEGIN(0)
+        half3 direction;
+        half3 lit = PunchyRealLight(lightIndex, p, direction);
+        // Shadowed only in shaders with the additional-light shadow keyword (the few lights LightBudget lets cast them).
+        light += lit * (saturate(dot(n, direction) * 0.7 + 0.3) * AdditionalLightRealtimeShadow(lightIndex, p, direction));
+    LIGHT_LOOP_END
+#endif
     return light;
 }
 

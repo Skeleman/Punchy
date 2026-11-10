@@ -1233,6 +1233,8 @@ namespace Punchy.Terrain
             // The far tier (Glow.hlsl): every glowing plant and lit window within about 300 m, baked into a light map,
             // fading in where LightBudget hands a typical glow from its slots to the far tier (refactor 3.1).
             var handOff = Punchy.Settings.LightBudget.GlowHandOff(Punchy.Settings.LightKind.AmbientGlow, TypicalGlowReach);
+            // Street lights are real lights (pooled) and then glow slots much further out, so the night map has its own.
+            var fixtureHandOff = Punchy.Settings.LightBudget.GlowHandOff(Punchy.Settings.LightKind.Fixture, TypicalFixtureReach);
             if (surfaceGlow.MapReady && (GlowTiers & 2) != 0)
             {
                 Shader.SetGlobalTexture(GlowMapId, surfaceGlow.MapPlants);
@@ -1242,6 +1244,7 @@ namespace Punchy.Terrain
                 // (y: the night map, street lights only (W-127). Lit windows' light is indoor (P-21, item 31), so
                 // SurfaceGlow leaves them out of it: see the near tier below.)
                 Shader.SetGlobalVector(GlowMapParamsId, new Vector4((1f - Underground) * FarGlowStrength, windowsOn * (1f - Underground), handOff.x * 0.7f, handOff.y));
+                Shader.SetGlobalVector(GlowMapNightFadeId, new Vector4(fixtureHandOff.x * 0.7f, fixtureHandOff.y, 0f, 0f));
             }
             if ((GlowTiers & 1) == 0)
                 return;
@@ -1252,12 +1255,13 @@ namespace Punchy.Terrain
                 if (Punchy.Flora.FloraPlacement.IsFixtureGlow(l.w))
                 {
                     // W-127: a street light (lantern, brazier, pier lamp), lit after dark like a window, but outdoors.
-                    // Past the hand-off the night map lights it in full, so it asks for no slot there.
-                    if (night < 0.25f || Vector3.Distance(position, camPos) > handOff.y)
+                    // Near, it's lent a pooled real light (R-10); past the hand-off the night map lights it in full, so
+                    // it asks for nothing there.
+                    if (night < 0.25f || Vector3.Distance(position, camPos) > fixtureHandOff.y)
                         continue;
                     l = new Vector4(l.x, l.y, l.z, 0f) * windowsOn;
                     l.w = Punchy.Flora.FloraPlacement.GlowReach(light.w);
-                    Punchy.Settings.LightBudget.AddStill(Punchy.Settings.LightKind.Fixture, position, l);
+                    Punchy.Settings.LightBudget.AddPooled(Punchy.Settings.LightKind.Fixture, position, l);
                     continue;
                 }
                 if (l.w < 0f)
@@ -1282,6 +1286,7 @@ namespace Punchy.Terrain
         static readonly int GlowMapNightId = Shader.PropertyToID("_PunchyGlowMapNight");
         static readonly int GlowMapRectId = Shader.PropertyToID("_PunchyGlowMapRect");
         static readonly int GlowMapParamsId = Shader.PropertyToID("_PunchyGlowMapParams");
+        static readonly int GlowMapNightFadeId = Shader.PropertyToID("_PunchyGlowMapNightFade");
         static readonly int GlowWorldId = Shader.PropertyToID("_PunchyGlowWorld");
         static readonly int GlowWorldRectId = Shader.PropertyToID("_PunchyGlowWorldRect");
         static readonly int GlowWorldParamsId = Shader.PropertyToID("_PunchyGlowWorldParams");
@@ -1293,6 +1298,8 @@ namespace Punchy.Terrain
         /// far map fades in from 70% of where the near lights start fading to where they're gone, so the hand-over adds
         /// up to about the same light.</summary>
         const float TypicalGlowReach = 8f;
+        /// <summary>A typical street light's reach (m), for where the night map takes over from them.</summary>
+        const float TypicalFixtureReach = 9f;
         /// <summary>Which surface glow tiers are on (1 near lights, 2 far map): both, bar a frame-cost measurement.</summary>
         public static int GlowTiers = 3;
         /// <summary>The far map's brightness: a little under the near lights', so a cluster reads as a soft wash from

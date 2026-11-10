@@ -28,6 +28,7 @@ Shader "Punchy/Flora"
             #pragma fragment Frag
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
+            #pragma multi_compile _ _CLUSTER_LIGHT_LOOP   // R-10: street lights and lanterns as Forward+ real lights
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
@@ -417,12 +418,16 @@ Shader "Punchy/Flora"
                 }
                 // Glowing plants and molten pools nearby (their own glow included, softly).
                 sky += PunchyGlowLight(input.positionWS, n);
+                // Real lights (the lantern among them) with the glow falloff; without Forward+ the lantern alone.
+                sky += PunchyRealLights(input.positionWS, n, input.positionCS);
+#if !PUNCHY_REAL_LIGHTS
                 if (_PunchyLantern.w > 0)
                 {
                     float3 toLantern = _PunchyLantern.xyz - input.positionWS;
                     float reach = saturate(1 - length(toLantern) / _PunchyLanternColor.w);
                     sky += _PunchyLanternColor.rgb * _PunchyLantern.w * reach * reach * saturate(dot(n, normalize(toLantern)) * 0.7 + 0.3);
                 }
+#endif
                 half ndl = dot(n, light.direction);
                 half diffuse = leafy ? saturate(ndl * 0.6 + 0.4) : saturate(ndl * 0.8 + 0.2);
                 half through = leafy ? pow(saturate(dot(-v, light.direction)), 4) * 0.55 : 0;

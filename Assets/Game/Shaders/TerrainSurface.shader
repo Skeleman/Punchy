@@ -38,6 +38,10 @@ Shader "Punchy/Terrain Surface"
             // environment cubemap, which is baked once and would show the wrong sky as weather changes.
             #define _ENVIRONMENTREFLECTIONS_OFF
             #include "TerrainSurface.hlsl"
+            #if defined(_CLUSTER_LIGHT_LOOP)
+                // Real lights go through PunchyRealLights below (one falloff with the glow), not URP's inverse square.
+                #undef _ADDITIONAL_LIGHTS
+            #endif
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Sky.hlsl"
             #include "Glow.hlsl"
@@ -458,7 +462,8 @@ Shader "Punchy/Terrain Surface"
                 inputData.fogCoord = InitializeInputDataFog(float4(input.positionWS, 1.0), input.fogFactor);
                 inputData.bakedGI = SampleSH(inputData.normalWS);
                 // Glowing plants and molten pools nearby light the ground round them.
-                inputData.bakedGI += PunchyGlowLight(input.positionWS, inputData.normalWS) + PunchyGlowWorld(input.positionWS, inputData.normalWS);
+                inputData.bakedGI += PunchyGlowLight(input.positionWS, inputData.normalWS) + PunchyGlowWorld(input.positionWS, inputData.normalWS)
+                                   + PunchyRealLights(input.positionWS, inputData.normalWS, input.positionCS);
                 inputData.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(input.positionCS);
                 inputData.shadowMask = half4(1, 1, 1, 1);
 

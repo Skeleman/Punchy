@@ -18,6 +18,7 @@ Shader "Punchy/Grass Blades"
             #pragma fragment Frag
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
+            #pragma multi_compile _ _CLUSTER_LIGHT_LOOP   // R-10: Forward+ real lights
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
@@ -64,7 +65,8 @@ Shader "Punchy/Grass Blades"
                 half wrap = saturate(dot(n, light.direction) * 0.6 + 0.4);
                 half through = pow(saturate(dot(-v, light.direction)), 4) * t * 0.6;   // sunlight through the blade
                 // Glowing plants and molten pools nearby light the grass round them too.
-                half3 color = albedo * (light.color * shadow * (wrap + through) + SampleSH(n) + PunchyGlowLight(input.positionWS, n));
+                half3 color = albedo * (light.color * shadow * (wrap + through) + SampleSH(n) + PunchyGlowLight(input.positionWS, n)
+                                    + PunchyRealLights(input.positionWS, n, input.positionCS));
 
                 color = PunchyAtmosphere(color, input.positionWS);
                 return half4(color, 1);
