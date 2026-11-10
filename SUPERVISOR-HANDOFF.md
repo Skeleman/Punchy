@@ -182,3 +182,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-10: W-131 reviewed (world/far-ring 94548d6f, merge-tree clean; ring to ~2.97 km at High, +0.09..+0.35 ms; row 3 reach not kept,
   invisible). Held for row 2b soak (possible disc-chunk leak after preset switches). Suite fail LiveFolk_Answer = shared PlayerPrefs
   body=Crow, test fix added to A-96 row 0. Empty untracked GameAudio.cs (11-04) in coordination: harmless, left.
+- 11-10: W-131 soak flat (no leak), merged #242 (main ef393625). Punchy-world tree free. Next world item: none queued; R-12 could move here if R-10 runs long.
