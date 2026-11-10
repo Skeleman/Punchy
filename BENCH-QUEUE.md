@@ -421,7 +421,7 @@ supervisor can see what the reach buys). If a kind has no override flag, add a b
 (profiler self-fix rule; it only multiplies that kind's thresholds; the supervisor reviews and merges).
 Answer per kind: the largest reach whose cost stays within +0.3 ms GPU and adds no 33 ms frames at High, and the same for Medium.
 Parts, in order (mark each DONE here with the commit):
-- 47a trees (FloraFloor, impostor hand-off; R-11 30 px)
+- 47a trees (FloraFloor, impostor hand-off; R-11 30 px) RUNNING on the laptop, q77.sh (main 33db029c + b/bench-lod 9bae987e -lodscale)
 - 47b shrubs (R-7 impostors, reach 520 m today)
 - 47c grass and pebbles (GrassEndPixels, PebbleEndPixels)
 - 47d creatures (geometry and animation tiers, CreatureThinkPixels is gameplay: leave it)
