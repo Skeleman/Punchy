@@ -77,6 +77,48 @@ Shader "Punchy/Creature"
             clip(1 - fade - (pattern[p.y * 4 + p.x] + 0.5) / 16.0);
         }
 
+        // Value noise in 3D (hashed lattice, smoothly blended): fixed patterns on a segment's surface, the same on
+        // every machine and every frame.
+        float Hash3(float3 p)
+        {
+            p = frac(p * 0.3183099 + 0.1);
+            p *= 17.0;
+            return frac(p.x * p.y * p.z * (p.x + p.y + p.z));
+        }
+
+        float Noise3(float3 p)
+        {
+            float3 i = floor(p);
+            float3 f = frac(p);
+            f = f * f * (3 - 2 * f);
+            return lerp(lerp(lerp(Hash3(i), Hash3(i + float3(1, 0, 0)), f.x), lerp(Hash3(i + float3(0, 1, 0)), Hash3(i + float3(1, 1, 0)), f.x), f.y),
+                        lerp(lerp(Hash3(i + float3(0, 0, 1)), Hash3(i + float3(1, 0, 1)), f.x), lerp(Hash3(i + float3(0, 1, 1)), Hash3(i + float3(1, 1, 1)), f.x), f.y), f.z);
+        }
+
+        // "-shells" (A-92 experiment, #230): a near body is drawn again as one or two shells a few millimetres out
+        // (_Shell: the layer, 0 for the body itself), each kept only where a fur strand stands, thinner further out, so
+        // the outline goes soft. Gear, thin parts (eyes, ear tips) and bodies further than ShellRange collapse to a point
+        // (nothing drawn).
+        float _Shell;
+        static const float ShellStep = 0.0045;
+        static const float ShellRange = 7;
+
+        void ShellVertex(inout float3 positionWS, float3 normalWS, Segment s)
+        {
+            if (_Shell <= 0)
+                return;
+            if (s.material.x > 0.5 || max(s.radiusStart, s.radiusEnd) * s.flatten < 0.03 || distance(s.position, _WorldSpaceCameraPos) > ShellRange)
+                positionWS = s.position;
+            else
+                positionWS += normalWS * (_Shell * ShellStep);
+        }
+
+        void ShellClip(float3 surface)
+        {
+            if (_Shell > 0)
+                clip(Noise3(float3(surface.xy * 170, surface.z * 20)) - (0.3 + 0.2 * _Shell));
+        }
+
         float SegmentFade(CreatureAttributes input) { return _Segments[input.instanceID + _SegmentOffset].pad; }
 
         // Also where on the segment the point is, in the segment's own frame (metres: across, across, along; so a pattern on
@@ -156,29 +198,12 @@ Shader "Punchy/Creature"
                 float3 n;
                 float4 c;
                 SegmentVertexMaterial(input, o.positionWS, n, c, o.surface, o.along, o.material, o.ground);
+                ShellVertex(o.positionWS, n, _Segments[input.instanceID + _SegmentOffset]);
                 o.positionCS = TransformWorldToHClip(o.positionWS);
                 o.normalWS = n;
                 o.color = c;
                 o.fade = SegmentFade(input);
                 return o;
-            }
-
-            // Value noise in 3D (hashed lattice, smoothly blended): fixed patterns on a segment's surface, the same on
-            // every machine and every frame.
-            float Hash3(float3 p)
-            {
-                p = frac(p * 0.3183099 + 0.1);
-                p *= 17.0;
-                return frac(p.x * p.y * p.z * (p.x + p.y + p.z));
-            }
-
-            float Noise3(float3 p)
-            {
-                float3 i = floor(p);
-                float3 f = frac(p);
-                f = f * f * (3 - 2 * f);
-                return lerp(lerp(lerp(Hash3(i), Hash3(i + float3(1, 0, 0)), f.x), lerp(Hash3(i + float3(0, 1, 0)), Hash3(i + float3(1, 1, 0)), f.x), f.y),
-                            lerp(lerp(Hash3(i + float3(0, 0, 1)), Hash3(i + float3(1, 0, 1)), f.x), lerp(Hash3(i + float3(0, 1, 1)), Hash3(i + float3(1, 1, 1)), f.x), f.y), f.z);
             }
 
             // What gear is made of, shaded so it reads for what it is from across a town, not just close to: metal
@@ -241,9 +266,10 @@ Shader "Punchy/Creature"
             half4 Frag(Varyings input) : SV_Target
             {
                 FadeClip(input.fade, input.positionCS.xy);
+                ShellClip(input.surface);
                 half3 n = normalize(input.normalWS);
                 float3 v = GetWorldSpaceNormalizeViewDir(input.positionWS);
-                half3 albedo = input.color.rgb * lerp(1, 0.75, PunchyWetnessAt(input.positionWS.xz).r);
+                half3 albedo = input.color.rgb * lerp(1, 0.75, PunchyWetnessAt(input.positionWS.xz).r) * (1 + 0.07 * _Shell);
                 Light light = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
                 half shadow = light.shadowAttenuation * (1 - PunchyCloudShadow(input.positionWS));
                 half3 color;
@@ -355,14 +381,17 @@ Shader "Punchy/Creature"
             {
                 float4 positionCS : SV_POSITION;
                 float fade : TEXCOORD0;
+                float3 surface : TEXCOORD1;
             };
 
             Varyings Vert(CreatureAttributes input)
             {
                 float3 p, n;
                 float4 c;
-                SegmentVertex(input, p, n, c);
+                float along, material, ground;
                 Varyings o;
+                SegmentVertexMaterial(input, p, n, c, o.surface, along, material, ground);
+                ShellVertex(p, n, _Segments[input.instanceID + _SegmentOffset]);
                 o.positionCS = TransformWorldToHClip(p);
                 o.fade = SegmentFade(input);
                 return o;
@@ -371,6 +400,7 @@ Shader "Punchy/Creature"
             half Frag(Varyings input) : SV_Target
             {
                 FadeClip(input.fade, input.positionCS.xy);
+                ShellClip(input.surface);
                 return input.positionCS.z;
             }
             ENDHLSL
@@ -395,14 +425,17 @@ Shader "Punchy/Creature"
                 float4 positionCS : SV_POSITION;
                 half3 normalWS : TEXCOORD0;
                 float fade : TEXCOORD1;
+                float3 surface : TEXCOORD2;
             };
 
             Varyings Vert(CreatureAttributes input)
             {
                 float3 p, n;
                 float4 c;
-                SegmentVertex(input, p, n, c);
+                float along, material, ground;
                 Varyings o;
+                SegmentVertexMaterial(input, p, n, c, o.surface, along, material, ground);
+                ShellVertex(p, n, _Segments[input.instanceID + _SegmentOffset]);
                 o.positionCS = TransformWorldToHClip(p);
                 o.normalWS = n;
                 o.fade = SegmentFade(input);
@@ -416,6 +449,7 @@ Shader "Punchy/Creature"
             )
             {
                 FadeClip(input.fade, input.positionCS.xy);
+                ShellClip(input.surface);
                 outNormalWS = half4(NormalizeNormalPerPixel(input.normalWS), 0);
             #ifdef _WRITE_RENDERING_LAYERS
                 outRenderingLayers = EncodeMeshRenderingLayer();

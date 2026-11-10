@@ -36,6 +36,16 @@ namespace Punchy.Tests
         [UnityTest, Explicit("bench, run on demand"), Timeout(900000)]
         public IEnumerator Detail_FurHerd() => Herd("fur");
 
+        [UnityTest, Explicit("shots, run on demand"), Timeout(900000)]
+        public IEnumerator Detail_ShellShots() => Shoot("shells");
+
+        [UnityTest, Explicit("bench, run on demand"), Timeout(900000)]
+        public IEnumerator Detail_ShellHerd() => Herd("shells");
+
+        /// <summary>Shells only reach a few metres, so also from 3.5 m off one horse of the herd, the rest behind it.</summary>
+        [UnityTest, Explicit("bench, run on demand"), Timeout(900000)]
+        public IEnumerator Detail_ShellHerdNear() => Herd("shells", true);
+
         /// <summary>
         /// Card A-92 shots: each species as the player's body, standing on the flattest spot near a meadow start, from the
         /// side and a little in front at 2 m and 10 m, with the flag off and on.
@@ -81,10 +91,13 @@ namespace Punchy.Tests
         /// Frame times (main thread, render thread, GPU) and the pose job's median, with the flag off and on in turn, four
         /// rounds of 4 s each, medians of each round's per-frame times.
         /// </summary>
-        static IEnumerator Herd(string flag)
+        static IEnumerator Herd(string flag, bool near = false)
         {
             yield return TestSceneSetup.Place("meadow");
             var spot = Game.Hook<float[]>("SlopeSpot", 0f, 60f);
+            // (Spawn waits for a new "spawned" line: a marker first, or a second bench in the same session would see the
+            // first one's line again and wait in vain.)
+            Debug.Log("DebugControls: spawned nothing yet (A-92 herd bench)");
             yield return TestSceneSetup.Spawn("Horse", spot[0], spot[1], 30, 10f);
             yield return TestSceneSetup.Seconds(3f);
             var was = Game.Hook<string>("BenchStart", "High");
@@ -93,6 +106,12 @@ namespace Punchy.Tests
             var herd = Game.Hook<float[]>("HerdAround", "Horse", spot[0], spot[1], 150f);
             var centre = new Vector3(herd[1], herd[2], herd[3]);
             var back = Mathf.Clamp(herd[4] * 1.8f, 18f, 30f);
+            if (near)
+            {
+                var one = Game.Hook<float[]>("SpeciesNear", "Horse", 150f);
+                centre = new Vector3(one[2], one[3], one[4]);
+                back = 3.5f;
+            }
             var off = new List<float>[4];
             var on = new List<float>[4];
             for (int k = 0; k < 4; k++)
@@ -134,7 +153,7 @@ namespace Punchy.Tests
             var summary = "";
             for (int k = 0; k < 4; k++)
                 summary += $"{names[k]} {Median(off[k]):F3} -> {Median(on[k]):F3} ({Median(on[k]) - Median(off[k]):+0.000;-0.000} ms); ";
-            LogWatch.Measure($"herd {flag}: {herd[0]:F0} horses from {back:F0} m (four in five within {herd[4]:F0} m, all within {herd[5]:F0} m); {summary}rounds: {lines}");
+            LogWatch.Measure($"herd {flag}{(near ? " near" : "")}: {herd[0]:F0} horses from {back:F0} m (four in five within {herd[4]:F0} m, all within {herd[5]:F0} m); {summary}rounds: {lines}");
             Assert.GreaterOrEqual(herd[0], 25f, "no herd to measure");
         }
 
