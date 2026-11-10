@@ -333,3 +333,16 @@ Zach's follow-up on the same drafts (2026-11-09):
 - Save file: no seed checks. A changing seed is a development side effect that won't exist in the final game, so the format carries no conditions for it. This replaces the "open choice" above.
 - P-23: the torch gives real light (through the light budget). Lighting in dark places and on dark nights will matter to the game. Other gear stays looks only.
 - P-25: taken by the player account, branch player/doors, starting row 1.
+
+## P-25 row 1: door prompt (DONE, c01551c9 on player/doors)
+Cause measured: door anchors stand 0.6-0.8 m in front of the door, so at the door the player has passed the point the facing test aimed at. Every old-rule failure was the facing cone.
+New rule: reach 3 m to the opening, cone about 75 degrees either side, body or camera, no facing test within 1.2 m, nearest door in front wins, prompt held 0.35 s and drawn at the door.
+Scripted approaches (`-doorwalk 40 <mode>`, 10 doors, 5 angles, half run and half stroll, shown within 0.2 s of arriving and still up; old and new scored on the same frames; approaches blocked by obstacles left out):
+- Stop 1.4 m out (the card's pass): human new 46/46, old 46/46; rabbit new 45/45, old 45/45. Both rules pass, so this case does not show the problem.
+- Walk until the door stops you: human new 47/47, old 12/47; rabbit new 48/48, old 14/48.
+- Walk into the wall 0.8 m beside the door: human new 47/47, old 14/47.
+- Stop, turn the body 120 degrees, camera on the door: human new 46/46, old 0/46.
+- Straight walk-ups: no flicker in any approach.
+UNVERIFIED: the prompt's position at the door (the T-1 shot draws the 3D view only, so the prompt isn't in it; Zach to judge in the playtest). Pad and keyboard weren't driven separately (the rule doesn't read the device). Host and client weren't run: the rule is local and the door RPCs are unchanged.
+Suite: 15 passed, 0 failed, 7 skipped in 219 s. An earlier run on the same code had 14 passed, 1 failed: Setup_SpawnRainAndShot hit its 180 s limit with three other editors open; it took 11.6 s on the re-run.
+Next: row 2.
