@@ -24,8 +24,8 @@ namespace Punchy.Terrain
     /// R-10 row 4 (Zach 11-09, a town glowing in the distance): the same bake also goes over every settlement cell by
     /// cell (no stride) and puts its lit windows and street lights into a second, one-channel map, <see cref="TownMap"/>.
     /// It has its own map because it follows the windows (on after dark, off by day) and fades in over a longer stretch
-    /// than plants do. The bake also sums each town's light into <see cref="Towns"/>, for the light dome over it in the
-    /// air (SurfaceGlow.Dome.cs).
+    /// than plants do. The bake also sums each town's light into <see cref="Towns"/>, and keeps every lit house and
+    /// street light as a point (<see cref="TownPoints"/>), for the town lights seen from afar (SurfaceGlow.TownLights.cs).
     /// </summary>
     public partial class SurfaceGlow
     {
@@ -43,6 +43,8 @@ namespace Punchy.Terrain
         /// <summary>R-10 row 4: how far past a settlement's radius its cells are looked at (m), how far each lit house or
         /// street light's share of the town glow spreads (m, two texels), and how much each kind adds.</summary>
         const float TownMargin = 30f, TownReach = 36f, TownWindowLight = 1f, TownFixtureLight = 0.8f;
+        /// <summary>R-10 row 4b: how high over its foot a lit house's windows and a street light's lamp are (m, at scale 1).</summary>
+        const float TownWindowHeight = 1.6f, TownLampHeight = 3.2f;
 
         /// <summary>A town's light, for its dome: the light-weighted middle of its lit houses and street lights (y their
         /// height), how far they spread round it (m), and how much light they add up to (one lit house is about 1).</summary>
@@ -69,6 +71,9 @@ namespace Punchy.Terrain
         /// map), and each town's light, once the bake is done.</summary>
         public Texture2D TownMap;
         public readonly List<TownGlow> Towns = new List<TownGlow>();
+        /// <summary>R-10 row 4b: every lit house and street light, xyz where its light is seen from afar, w its light
+        /// (negative for a street light).</summary>
+        public readonly List<float4> TownPoints = new List<float4>();
 
         NativeArray<float> modelFire;
         bool anyFire;
@@ -76,6 +81,7 @@ namespace Punchy.Terrain
         NativeArray<half4> worldOut;
         NativeArray<half> townOut;
         NativeList<TownGlow> townList;
+        NativeList<float4> townPoints;
         NativeArray<int> worldCounts;
         JobHandle worldJob;
         bool worldRunning, worldStarted;
@@ -156,6 +162,9 @@ namespace Punchy.Terrain
                 Towns.Clear();
                 for (int i = 0; i < townList.Length; i++)
                     Towns.Add(townList[i]);
+                TownPoints.Clear();
+                for (int i = 0; i < townPoints.Length; i++)
+                    TownPoints.Add(townPoints[i]);
                 domesDirty = true;
                 WorldReady = true;
                 Debug.Log($"SurfaceGlow: world glow baked in {WorldBakeMs:F0} ms: {worldCounts[0]} burning trees, " +
@@ -165,6 +174,7 @@ namespace Punchy.Terrain
                 worldOut.Dispose();
                 townOut.Dispose();
                 townList.Dispose();
+                townPoints.Dispose();
                 worldCounts.Dispose();
             }
             if (worldStarted || (!anyGlow && !anyFire))
@@ -176,6 +186,7 @@ namespace Punchy.Terrain
             worldOut = new NativeArray<half4>(WorldMapSize * WorldMapSize, Allocator.Persistent);
             townOut = new NativeArray<half>(WorldMapSize * WorldMapSize, Allocator.Persistent);
             townList = new NativeList<TownGlow>(64, Allocator.Persistent);
+            townPoints = new NativeList<float4>(512, Allocator.Persistent);
             worldCounts = new NativeArray<int>(5, Allocator.Persistent);
             worldClock = System.Diagnostics.Stopwatch.StartNew();
             worldJob = new WorldBakeJob
@@ -191,6 +202,7 @@ namespace Punchy.Terrain
                 Output = worldOut,
                 TownOutput = townOut,
                 Towns = townList,
+                TownPoints = townPoints,
                 Counts = worldCounts
             }.Schedule();
             worldRunning = true;
@@ -210,6 +222,8 @@ namespace Punchy.Terrain
                 townOut.Dispose();
             if (townList.IsCreated)
                 townList.Dispose();
+            if (townPoints.IsCreated)
+                townPoints.Dispose();
             if (worldCounts.IsCreated)
                 worldCounts.Dispose();
             if (WorldMap != null)
@@ -219,6 +233,7 @@ namespace Punchy.Terrain
             WorldMap = null;
             TownMap = null;
             Towns.Clear();
+            TownPoints.Clear();
             domesDirty = true;
             WorldReady = false;
             worldStarted = false;
@@ -248,6 +263,7 @@ namespace Punchy.Terrain
             public NativeArray<half4> Output;
             public NativeArray<half> TownOutput;
             public NativeList<TownGlow> Towns;
+            public NativeList<float4> TownPoints;
             public NativeArray<int> Counts;
 
             public void Execute()
@@ -351,6 +367,8 @@ namespace Punchy.Terrain
                                 Counts[fixture ? 4 : 3]++;
                                 var light = (fixture ? TownFixtureLight : TownWindowLight) * math.sqrt(math.max(plant.Scale, 0.3f));
                                 SplatTown(town, texel, plant.Position.xz, light);
+                                // Seen from afar at a window's or a lamp's height.
+                                TownPoints.Add(new float4(plant.Position + new float3(0f, (fixture ? TownLampHeight : TownWindowHeight) * plant.Scale, 0f), fixture ? -light : light));
                                 sum += light;
                                 weighted += plant.Position * light;
                                 spread += math.lengthsq(plant.Position.xz) * light;

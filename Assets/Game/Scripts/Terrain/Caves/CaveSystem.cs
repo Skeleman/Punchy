@@ -1342,8 +1342,9 @@ namespace Punchy.Terrain
         static readonly int GlowTownParamsId = Shader.PropertyToID("_PunchyGlowTownParams");
         static readonly int GlowTownColorId = Shader.PropertyToID("_PunchyGlowTownColor");
         /// <summary>R-10 row 4: the town map's brightness, how hard a dense town levels off, the camera distance (m) it
-        /// fades in over (the far map's edge, where its street lights fade out) and its warm colour.</summary>
-        public static float TownGlowStrength = 0.12f;
+        /// fades in over (the far map's edge, where its street lights fade out) and its warm colour. Row 4b: about three
+        /// times as bright (was 0.12), so the glow sits on the town rather than in the sky.</summary>
+        public static float TownGlowStrength = 0.35f;
         const float TownGlowLevelOff = 0.15f, TownGlowFadeFrom = 250f, TownGlowFadeTo = 330f;
         static readonly Vector4 TownGlowColor = new Vector4(1f, 0.6f, 0.28f, 0f);
         Punchy.Weather.WeatherSystem weather;

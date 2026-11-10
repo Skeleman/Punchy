@@ -49,6 +49,10 @@ Read before changing any shader, material or render setting.
   the real-light cap (default 4/6/8 by Detail).
 - Terrain reads a whole-island glow map past the nearer glow tiers (`SurfaceGlow.World`, `PunchyGlowWorld`): fire in red, tinted
   by the night's colour, plants and lava in gba. New static lights join through `AddWorldSource`. `-worldglow 0` turns it off to compare.
+- A distant town at night (R-10): the town map (`TownMap`) on its ground and walls, plus `SurfaceGlow.TownLights` (one
+  sprite per lit house and street light, `TownPoints`) so it reads as a cluster of lights out to 3 km. The sky dome is off
+  unless `-towndome 1`; `-townglow 0` turns all three off. HDR lights saturate after tonemapping, so compare strength
+  0 vs N, not two bright values. Past 1.5 km a town is a thin line a few dozen pixels wide, and ridges often hide it.
 - Rain puddles (TerrainSurface.shader) need level ground (vertex normal y > ~0.975) and a true hollow: the mesh's
   hollow depth (BuildChunkMeshJob, Strata.z) is capped by twice the lowest rise round the point, so slopes and
   downhill gullies get none. `TerrainSurface.Porosity` (vertex TEXCOORD4.x) makes sand soak rain up: it darkens,
