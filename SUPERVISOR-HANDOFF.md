@@ -150,3 +150,5 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 
 - 11-09: Zach installed RAM (63 GB visible, ~54 GB free idle). Pause lifted. Running: W-128 row 5 (marsh revert) in Punchy-release, R-6 row 6 (shrub reach back, suite incl. WideShadow fix) in Punchy-world. Next: merge both, then impostor card, A-90, white-splotch card (need Zach shot/location).
 - 11-09: W-128 merged as #225 (main adb548d7): marsh move reverted, Fauna_Fingerprint re-pinned 66320C7C (kit inn anchors), Landmarks_V3 unchanged. FolkTalk WalkBy_NeverThroughWall flaked once (passed alone); watch it. R-6 must merge origin/main (new pin) before its PR.
+
+- 11-09 late: R-6 merged as #227 (main 1846211d): size-on-screen LOD, trees-only far reach (shrubs back to radius, walk +2.7 ms gone), WideShadow stale-mesh fix. Suite 15/0/7, pins 112 A955AFE0 / 66320C7C. R-7 impostors started on lod/impostors (world tree). Job 42 (swapchain stall fix A/B) queued for the profiler.
