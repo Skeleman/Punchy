@@ -446,3 +446,17 @@ The failures are FolkConversationTests.LiveFolk_Answer (both runs) and LiveFolk_
 **For the supervisor:** the suite takes the player's body from Punchy.Character.Body in the PlayerPrefs every lane and Zach share. A "-body" run doesn't write it (none of my 83 run logs has the "saved for next time" line); a body changed during a session does. So those two tests can fail whenever someone last picked an animal. They need their own body set (animal lane's queue, if you agree).
 Also for P-26: Items.cs notes a virtual pad isn't Gamepad.current on its first press (P-16), which fits the first-press miss I reported there. A real pad isn't affected.
 Next: P-24.
+
+## P-24: quests
+### Row 1 (tracking in the menu, saved progress) DONE, on player/quests (from player/items, with main merged)
+Zach's override followed: the tracker is in the quest log only. No overlay and no world marker (I didn't ask about a marker, since none is needed yet).
+- The log shows each taken quest's progress ("Stones 0/4") or where to hand it in. Press a quest, or U (Y on a pad), to follow it; the followed quest goes first with a star.
+- Saved to a file per machine, by quest id, town (name and position) and a hash of the towns as the world version. New fields can be added without breaking old saves.
+- Measured: 3 quests taken, restarted, "3 restored, 0 lost".
+- Old save against a changed world (a quest id removed, a town renamed, old world hash): "1 restored, 2 lost to time", with a reason each. They show in the log, and dropping them gave 5 coins each and removed them from the save.
+- A done quest comes back shown as done without paying again. A client tells the host again what it had taken (code only, not run).
+UNVERIFIED: pressing a row and the U key (no real input was driven; "-droplost" calls the same drop); a client's restore; a save with an item removed from the table.
+Coin refund is a flat 5 and goes straight into the inventory, so a joined client's coins aren't on the host's tally. Fine for now, but noted.
+
+**Correction to P-23's report:** suite on this branch, which contains all of P-23: 25 passed, 0 failed, 17 skipped in 391 s, with the saved body reading Osprey. So LiveFolk_Answer and LiveFolk_BeastResponse aren't simply failing on the saved body, as I said. In one failed run the player was a rabbit, and I haven't found why. They failed in 3 of 6 runs on and after P-23 row 1, passed in 3. They look intermittent and unrelated to items, but that's not proven.
+Next: rows 2 and 3.
