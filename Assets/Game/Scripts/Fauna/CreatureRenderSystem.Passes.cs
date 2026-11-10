@@ -280,6 +280,9 @@ namespace Punchy.Fauna
 
         /// <summary>Shells (A-92, #230; off with "-noshells"): near bodies drawn again as ShellLayers fur shells.</summary>
         public static bool Shells = true;
+        /// <summary>A-97 ("-nosurfaces" turns it off): each segment's look (feathers, scales, hoof, eye...) and fur length;
+        /// off, every creature is drawn as before A-97 (all medium fur).</summary>
+        public static bool Surfaces = true;
         const int ShellLayers = 2;
         static readonly int ShellId = Shader.PropertyToID("_Shell");
         MaterialPropertyBlock[] shellProps;

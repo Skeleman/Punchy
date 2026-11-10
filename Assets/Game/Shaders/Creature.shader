@@ -26,6 +26,9 @@ Shader "Punchy/Creature"
             float4 material;   // x: what it's made of (SegmentMaterial: body, cloth, leather, metal, wood, bone); y: the
                                // height of the ground the creature stands on (for grounding: a body's segments only)
                                // z: seams only ("-noseams" leaves it 0), how many segments back the one this hangs from is (0: none)
+                               // w: the look (A-97, Punchy.Fauna.SurfaceLook): surface in the low 4 bits (0 fur, 1 feathers,
+                               // 2 scales, 3 skin, 4 chitin, 5 hoof, 6 claw, 7 pad, 8 eye, 9 horn), fur length x 16 (0 medium,
+                               // 1 short, 2 long); 0 = fur as every body was before
         };
 
         StructuredBuffer<Segment> _Segments;
@@ -104,10 +107,14 @@ Shader "Punchy/Creature"
                         lerp(lerp(Hash3(i + float3(0, 0, 1)), Hash3(i + float3(1, 0, 1)), f.x), lerp(Hash3(i + float3(0, 1, 1)), Hash3(i + float3(1, 1, 1)), f.x), f.y), f.z);
         }
 
+        // The look's surface and fur length (material.w, see Segment).
+        uint LookSurface(float look) { return (uint)(look + 0.5) & 15u; }
+        uint LookLength(float look) { return (uint)(look + 0.5) >> 4; }
+
         // Shells (A-92, #230; "-noshells" turns them off): a near body is drawn again as one or two shells a few millimetres out
         // (_Shell: the layer, 0 for the body itself), each kept only where a fur strand stands, thinner further out, so
-        // the outline goes soft. Gear, thin parts (eyes, ear tips) and bodies further than ShellRange collapse to a point
-        // (nothing drawn).
+        // the outline goes soft. Gear, thin parts (eyes, ear tips), anything that isn't fur (hooves, eyes, horns, scales,
+        // feathers: A-97), short fur and bodies further than ShellRange collapse to a point (nothing drawn).
         float _Shell;
         static const float ShellStep = 0.0045;
         static const float ShellRange = 7;
@@ -116,7 +123,8 @@ Shader "Punchy/Creature"
         {
             if (_Shell <= 0)
                 return;
-            if (s.material.x > 0.5 || max(s.radiusStart, s.radiusEnd) * s.flatten < 0.03 || distance(s.position, _WorldSpaceCameraPos) > ShellRange)
+            if (s.material.x > 0.5 || LookSurface(s.material.w) != 0 || LookLength(s.material.w) == 1 ||
+                max(s.radiusStart, s.radiusEnd) * s.flatten < 0.03 || distance(s.position, _WorldSpaceCameraPos) > ShellRange)
                 positionWS = s.position;
             else
                 positionWS += normalWS * (_Shell * ShellStep);
@@ -206,6 +214,7 @@ Shader "Punchy/Creature"
                 float along : TEXCOORD5;
                 nointerpolation float material : TEXCOORD6;
                 nointerpolation float ground : TEXCOORD7;
+                nointerpolation float look : TEXCOORD8;
             };
 
             Varyings Vert(CreatureAttributes input)
@@ -219,6 +228,7 @@ Shader "Punchy/Creature"
                 o.normalWS = n;
                 o.color = c;
                 o.fade = SegmentFade(input);
+                o.look = _Segments[input.instanceID + _SegmentOffset].material.w;
                 return o;
             }
 
@@ -297,7 +307,7 @@ Shader "Punchy/Creature"
                 uint material = _PunchyPlainGear > 0.5 ? 0 : (uint)(input.material + 0.5);
                 if (material == 0)
                 {
-                    if (_PunchyNoFur < 0.5)
+                    if (_PunchyNoFur < 0.5 && LookSurface(input.look) == 0)
                     {
                         // Fur: broad soft patches in the coat (both shades of it, a little), and up close fine strands
                         // running along the segment, as a bump on the normal (screen-space derivatives: no tangents) and

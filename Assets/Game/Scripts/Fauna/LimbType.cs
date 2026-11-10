@@ -19,6 +19,27 @@ namespace Punchy.Fauna
     }
 
     /// <summary>
+    /// What a body segment is made of, for shading: most are the species' coat (fur, feathers, scales…); the rest
+    /// are hard or bare parts that never grow fur. Gear (cloth, metal…) is set by the part's equipment, not here.
+    /// </summary>
+    public enum SegmentSurface : byte
+    {
+        [Tooltip("The species' coat (CreatureSpecies.Coat): fur, feathers, scales, bare skin or chitin.")] Coat,
+        [Tooltip("Hoof: matte keratin with faint growth rings.")] Hoof,
+        [Tooltip("Claw or nail: matte keratin.")] Claw,
+        [Tooltip("Paw pad: dark, leathery, no fur.")] Pad,
+        [Tooltip("Eye: wet, sharp highlight.")] Eye,
+        [Tooltip("Antler, horn, tusk or beak: flat matte with faint rings.")] Horn,
+        [Tooltip("Bare skin: noses, combs, wattles, bat wings.")] Skin
+    }
+
+    /// <summary>How long a furry segment's fur is: Short has no shells, Medium is the standard coat, Long is shaggy.</summary>
+    public enum FurLength : byte { Medium, Short, Long }
+
+    /// <summary>A segment's own fur length, or the species' (Default).</summary>
+    public enum FurLengthOverride : byte { Default, Short, Medium, Long }
+
+    /// <summary>
     /// A kind of body part: a chain of tapered segments (thigh, shin, foot; or tail pieces; or a single head), and a
     /// handful of key poses. Animation interpolates between the keys by gait phase, so a whole walk cycle is three
     /// poses (reach, push, lift) and a run another three; idle is one more. Parts are mixed and matched on creatures
@@ -69,6 +90,10 @@ namespace Punchy.Fauna
         [Range(0f, 1f)] public float Glow;
         [Tooltip("Hair (or beard): each individual colours it from its species' Hair Colors.")]
         public bool Hair;
+        [Tooltip("What it is made of, for shading. Coat = the species' coat; anything else never has fur.")]
+        public SegmentSurface Surface;
+        [Tooltip("Fur length here, if it differs from the species' (a long tail on a short-haired body).")]
+        public FurLengthOverride FurLength;
     }
 
     [Serializable]

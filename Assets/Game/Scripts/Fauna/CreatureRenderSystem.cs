@@ -397,6 +397,7 @@ namespace Punchy.Fauna
             Pass(4);
 
             var instances = new NativeArray<SegmentInstance>(total, Allocator.TempJob);
+            var haveLooks = SystemAPI.TryGetSingleton<CreatureLooks>(out var looks) && looks.Blob.IsCreated && Surfaces;
             var stats = new NativeArray<long>(Unity.Jobs.LowLevel.Unsafe.JobsUtility.ThreadIndexCount * StatStride, Allocator.TempJob);
             // Over the copies, a few creatures per batch, so every worker takes a share (per chunk, it was one or two).
             var posing = new PoseJob
@@ -425,6 +426,8 @@ namespace Punchy.Fauna
                 Tiers = tiers,
                 Decisions = decisions,
                 Frame = poseFrame++,
+                Looks = looks.Blob,
+                HaveLooks = haveLooks,
                 Stats = stats
             }.Schedule(bodies.Length, 8, indexing);
             Pass(5);
@@ -508,6 +511,9 @@ namespace Punchy.Fauna
             /// <summary>Each creature's detail decision (DetailPolicy.Decision, packed), from CompactJob.</summary>
             [ReadOnly] public NativeArray<byte> Decisions;
             public int Frame;
+            /// <summary>Each species' segment looks (A-97), when FaunaDirector has made them.</summary>
+            [ReadOnly] public BlobAssetReference<CreatureLookBlob> Looks;
+            public bool HaveLooks;
             /// <summary>Per worker, StatStride apart: ticks, posed afresh, moved on (for -perflog).</summary>
             [NativeDisableParallelForRestriction] public NativeArray<long> Stats;
             [Unity.Collections.LowLevel.Unsafe.NativeSetThreadIndex] int threadIndex;
@@ -533,6 +539,9 @@ namespace Punchy.Fauna
                 Stats[slot] += Unity.Profiling.LowLevel.Unsafe.ProfilerUnsafeUtility.Timestamp - start;
                 Stats[slot + (reused ? 2 : 1)] += 1;
             }
+
+            /// <summary>The creature's fur tier (DetailPolicy.Decision.Fur): 0 long fur shown, 1 medium at most, 2 short only.</summary>
+            int FurTier(int index) => Decisions[index] == byte.MaxValue ? 2 : (Decisions[index] >> 5) & 3;
 
             /// <summary>Last frame's pose of this body moved on to where it is now, when it isn't due a fresh one.</summary>
             bool Reuse(in CreatureState state, in CreatureBody body, Entity entity, int offset, byte decision)
@@ -588,11 +597,21 @@ namespace Punchy.Fauna
             /// <summary>Everything after the body's own segments: grounding, fades, marks, lairs and what it holds.</summary>
             void Rest(int index, in CreatureState state, in CreatureBody body, Entity entity, int offset)
             {
-                // (The ground it stands on, for the shader's grounding: darker where it meets it.)
+                // (The ground it stands on, for the shader's grounding: darker where it meets it. And each segment's
+                // look, A-97: fur, feathers, scales, hoof, eye… from the look table, 0 = fur as before when there's none.)
+                var looksFrom = -1;
+                if (HaveLooks && body.Species >= 0 && body.Species < Looks.Value.HasFur.Length)
+                {
+                    looksFrom = Looks.Value.Starts[body.Species];
+                    if (Looks.Value.Starts[body.Species + 1] - looksFrom != body.SegmentCount)
+                        looksFrom = -1;
+                }
+                var furTier = FurTier(index);
                 for (int i = 0; i < body.SegmentCount; i++)
                 {
                     var seg = Output[offset + i];
                     seg.Material.y = state.Position.y;
+                    seg.Material.w = looksFrom < 0 ? 0f : SurfaceLook.Clamp(Looks.Value.Codes[looksFrom + i], furTier);
                     Output[offset + i] = seg;
                 }
                 // Appearing (its first moments: Clock counts from when it was made, here) or nearing the distance

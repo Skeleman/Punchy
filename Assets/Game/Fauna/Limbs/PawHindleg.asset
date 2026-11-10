@@ -42,6 +42,7 @@ MonoBehaviour:
     Accent: 0
     UseFixedColor: 1
     FixedColor: {r: 0.15, g: 0.1, b: 0.08, a: 1}
+    Surface: 3
   Spring: 0
   JointPhaseStep: 0
   FollowGround: 0
