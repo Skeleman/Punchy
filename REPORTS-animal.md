@@ -3057,3 +3057,22 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - Note (feature freeze, Zach 11-07): the stand-in supervisor's "do not start row 3" message arrived after row 3 was already
   committed and pushed (2bb2aed7). I did not revert it. It sits on animal-behaviours only, unmerged; supervisor decides whether
   it ships or is dropped. No further feature work started.
+
+## A-90
+
+- Row 1: done (verified for ground birds and large animals; flying songbird UNVERIFIED in a shot). Branch fauna/breath-size,
+  commit 791d331e. Breath shape comes from StandHeight + BodyLength against a person's 1.18 m, one curve, no species values.
+  Fliers carry 8% of their velocity (walkers 85%). Bodies under 0.1 of a person show none. Player breath unchanged (legacy path).
+  `-breathlog` logs the table and puff count; `-breathsize old` shows the old breath for comparison.
+- Table (body vs a person, beat s, puffs/exhale, puff size, life s, opacity): Songbird 0.22, 0.83, 3.0, 0.067, 0.71, 0.22 |
+  ArcticFox 0.60, 2.02, 8.1, 0.40, 1.16, 0.60 | Human 1.00, 3.20, 13.5, 1.00, 1.50, 1.00 | Deer 1.82, 5.47, 21.6, 2.93, 2.02, 1.00 |
+  Horse 2.52, 6.40, 21.6, 3.00, 2.38, 1.00 | Bison 2.01, 6.00, 21.6, 3.00, 2.13, 1.00 | colossus body 16.95, 6.40, 21.6, 3.00, 3.00, 1.00.
+  Songbird: puff 6.7% of a person's, beat 3.9x faster.
+- Particle count, busy cold scene (Tundra, snow, 14 songbirds, 4 caribou, 3 arctic foxes, 2 horses; puffs alive sampled every 5 s
+  over 30 s): old mean 65, sized mean 38.
+- Shots (run2 folder in the animal a90 milestones dir; contact sheet only viewed): 7 shots, all `good` per the check lines. Old songbird
+  has a long trail; sized has none visible. Sized horse puff is bigger than old. The watched songbird was on the ground, so
+  flight carry is shown by code only.
+- Suite: 15 passed, 0 failed, 7 skipped in 235s (Unity exit 0). Landmarks_V3 and Fauna_Fingerprint pass (pins unchanged).
+- Risk: large-body puffs are capped at size 3, so a colossus breathes like a horse. An untracked Assets/Resources.meta in the
+  tree is not mine and was left alone.
