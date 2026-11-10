@@ -70,6 +70,13 @@ namespace Punchy.Audio
             /// <summary>Where the sound is, the pitch it was started at, and its air low-pass from distance (Setup).</summary>
             public Vector3 At;
             public float Pitch, AirCut;
+            /// <summary>How much of it gets past the caves' rock (ThroughRock, already in Volume).</summary>
+            public float Rock = 1f;
+            /// <summary>Behind a wall or a hill (GameAudioOcclusion): how muffled, eased and as last tested (0 open ..
+            /// 1 blocked), and the way round through an opening: where it's heard from, as an offset from At.</summary>
+            public float Occluded, OccludedTarget;
+            public Vector3 Detour, DetourTarget;
+            public bool Routed;
         }
 
         readonly List<Voice> voices = new List<Voice>();
@@ -154,6 +161,7 @@ namespace Punchy.Audio
             Echo();
             Water();
             Hum();
+            Occlude();
             // Every playing voice follows the group levels as they change (master is on the listener) and the water.
             foreach (var voice in voices)
                 if (voice.Source.isPlaying)
@@ -173,6 +181,13 @@ namespace Punchy.Audio
             {
                 cut = Mathf.Min(cut, wetCut);
                 gain *= wetGain;
+            }
+            // Behind a wall or a hill: the same low-pass lower and quieter. Under the caves' rock the rock's own fade
+            // (already in Volume) and this aren't both taken: the quieter of the two.
+            if (voice.Occluded > 0f)
+            {
+                cut = Mathf.Min(cut, 22000f * Mathf.Pow(BlockedCut / 22000f, voice.Occluded));
+                gain *= Mathf.Min(1f, Mathf.Lerp(1f, BlockedGain, voice.Occluded) / Mathf.Max(voice.Rock, 0.01f));
             }
             voice.Air.cutoffFrequency = cut;
             s.pitch = voice.Pitch * wetPitch;
@@ -314,6 +329,8 @@ namespace Punchy.Audio
             voice.Pitch = pitch;
             voice.Volume = volume;
             voice.Group = group;
+            voice.Rock = ThroughRock(at);
+            OccludeAtStart(voice);
             Shape(voice);
         }
 
@@ -372,9 +389,10 @@ namespace Punchy.Audio
             foreach (var voice in instance.voices)
                 if (voice.Loop && voice.Handle == handle)
                 {
-                    voice.Source.transform.position = at;
                     voice.At = at;
-                    voice.Volume = volume * ThroughRock(at);
+                    voice.Rock = ThroughRock(at);
+                    voice.Source.transform.position = at + voice.Detour;
+                    voice.Volume = volume * voice.Rock;
                     instance.Shape(voice);
                 }
         }
