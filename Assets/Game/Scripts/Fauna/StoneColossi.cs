@@ -416,6 +416,8 @@ namespace Punchy.Fauna
             var follow = string.IsNullOrEmpty(def.CollisionFollow) ? null : roots[slot].Find(def.CollisionFollow);
             var leave = string.IsNullOrEmpty(def.CollisionLeave) ? new string[0] : def.CollisionLeave.Split(',');
             ColossusCollision.Register(slot, roots[slot], def.Kind.ToString(), follow, def.CollisionFollowRadius, leave);
+            // R-6 row 2: far levels by the size-on-screen rule, built on workers from the meshes just made.
+            ColossusLod.Attach(roots[slot], def.Kind.ToString(), GlowMaterial);
             Debug.Log($"StoneColossi: {def.Kind} placed at ({spot.x:F0}, {Positions[slot].y:F1}, {spot.y:F0}), facing {pickYaw[slot]:F0} degrees, region {pickCells[slot]} cells, relief {Relief(source, spot, def.KeepRadius * 0.7f):F1} m");
         }
 
