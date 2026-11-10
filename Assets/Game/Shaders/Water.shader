@@ -83,26 +83,50 @@ Shader "Punchy/Water"
             #pragma vertex DepthVert
             #pragma fragment DepthFrag
             #pragma multi_compile_instancing
+            // R-9: on for the fine sheet near the player (WaterPatchSystem.cs, WaterField.hlsl).
+            #pragma multi_compile_local _ _WATER_FIELD
             #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DOTS.hlsl"
             #include "SharedClock.hlsl"
             #include "WaterSwell.hlsl"
+            #include "WaterField.hlsl"
 
             struct DepthAttributes
             {
                 float3 positionOS : POSITION;
                 float4 data       : TEXCOORD0;   // as WaterAttributes: z the depth below the surface
+            #ifdef _WATER_FIELD
+                float4 parent     : TEXCOORD3;   // as WaterAttributes
+            #endif
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
-            float4 DepthVert(DepthAttributes input) : SV_POSITION
+            struct DepthVaryings
+            {
+                float4 positionCS : SV_POSITION;
+                float2 restXZ     : TEXCOORD0;   // where the point is before the swell moves it
+            };
+
+            DepthVaryings DepthVert(DepthAttributes input)
             {
                 UNITY_SETUP_INSTANCE_ID(input);
+                DepthVaryings o;
                 float swell;
-                return TransformWorldToHClip(PunchySwellVertex(TransformObjectToWorld(input.positionOS), input.data.z, _PunchyClock, swell));
+                float3 rest = TransformObjectToWorld(input.positionOS);
+                o.restXZ = rest.xz;
+            #ifdef _WATER_FIELD
+                o.positionCS = TransformWorldToHClip(PunchyWaterPatchVertex(rest, input.data.z, input.parent, _PunchyClock, swell));
+            #else
+                o.positionCS = TransformWorldToHClip(PunchySwellVertex(rest, input.data.z, _PunchyClock, swell));
+            #endif
+                return o;
             }
 
-            half4 DepthFrag() : SV_Target
+            half4 DepthFrag(DepthVaryings input) : SV_Target
             {
+            #ifndef _WATER_FIELD
+                // (The fine sheet stands in for the chunk water near the player; cave water is never under it.)
+                clip(PunchyWaterInPatch(input.restXZ) && _UnderRock < 0.5 ? -1 : 1);
+            #endif
                 return 0;
             }
             ENDHLSL
@@ -136,6 +160,9 @@ Shader "Punchy/Water"
             #include "WideShadow.hlsl"
             #include "SharedClock.hlsl"
             #include "WaterSwell.hlsl"
+            // R-9: on for the fine sheet near the player (WaterPatchSystem.cs, WaterField.hlsl).
+            #pragma multi_compile_local _ _WATER_FIELD
+            #include "WaterField.hlsl"
 
             // Weather global (WeatherSystem): 0..1 wind strength at the camera.
             half _PunchyWind;
@@ -183,6 +210,11 @@ Shader "Punchy/Water"
                 float4 data       : TEXCOORD0;   // flow direction xz, depth below the surface, rapids 0..1
                 float4 look       : TEXCOORD1;   // biome water colour rgb, murk 0..1
                 float2 glow       : TEXCOORD2;   // self-glow (toxic water), lava 0..1
+            #ifdef _WATER_FIELD
+                // The fine sheet only (WaterField.hlsl, PunchyWaterPatchVertex): on the square's edge, the depths at the
+                // chunk water edge's two corners, how far along it the vertex is, and which way it runs.
+                float4 parent     : TEXCOORD3;
+            #endif
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -196,6 +228,7 @@ Shader "Punchy/Water"
                 float2 glow       : TEXCOORD4;
                 float  swell      : TEXCOORD5;   // how strongly the sea swells here (WaterSwell.hlsl), 0 elsewhere
                 float  sea        : TEXCOORD6;   // 1 on the sea (its surface at sea level), 0 on lakes and rivers
+                float2 restXZ     : TEXCOORD7;   // where the point is before the swell moves it (the fine sheet's square)
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -206,8 +239,13 @@ Shader "Punchy/Water"
                 UNITY_TRANSFER_INSTANCE_ID(input, o);
                 VertexPositionInputs pos = GetVertexPositionInputs(input.positionOS);
                 o.sea = step(abs(pos.positionWS.y - _PunchySwell.y), 0.05);
+                o.restXZ = pos.positionWS.xz;
                 // The sea rises and falls in swells (-noswells for the flat sea); the same move as the depth pass's.
+            #ifdef _WATER_FIELD
+                pos.positionWS = PunchyWaterPatchVertex(pos.positionWS, input.data.z, input.parent, _PunchyClock, o.swell);
+            #else
                 pos.positionWS = PunchySwellVertex(pos.positionWS, input.data.z, _PunchyClock, o.swell);
+            #endif
                 pos.positionCS = TransformWorldToHClip(pos.positionWS);
                 o.positionCS = pos.positionCS;
                 o.positionWS = pos.positionWS;
@@ -481,6 +519,10 @@ Shader "Punchy/Water"
             half4 Frag(Varyings input, bool frontFace : SV_IsFrontFace) : SV_Target
             {
                 UNITY_SETUP_INSTANCE_ID(input);
+            #ifndef _WATER_FIELD
+                // (R-9: the fine sheet stands in for the chunk water near the player; cave water is never under it.)
+                clip(PunchyWaterInPatch(input.restXZ) && _UnderRock < 0.5 ? -1 : 1);
+            #endif
                 float t = _PunchyClock;   // the shared clock, so every player sees the same ripples
                 float2 p = input.positionWS.xz;
                 float2 flow = input.data.xy;
@@ -540,6 +582,17 @@ Shader "Punchy/Water"
                 float2 wakeSlope = 0;
                 [branch] if (_PunchySwimmerCount > 0 && distance(input.positionWS, GetCameraPositionWS()) < 45 && NearRipple(p))
                     wakeSlope = SwimmerWakes(p, t, wakeFoam) * 0.6 * distanceFade;
+            #ifdef _WATER_FIELD
+                // R-9: on the fine sheet the wave field's own slope takes over from the ripples (they fade back in towards
+                // the square's edge), with a little foam where a splash or a bow wave stands steepest. (Drawn 2.5x steeper
+                // than it is: dents of a few cm barely tilt the light otherwise.)
+                {
+                    float fieldWeight = PunchyWaterFieldWeight(input.restXZ);
+                    float2 fieldSlope = PunchyWaterFieldSlope(input.restXZ) * 2.5;
+                    wakeSlope = lerp(wakeSlope, fieldSlope, fieldWeight);
+                    wakeFoam = lerp(wakeFoam, (half)smoothstep(0.9, 1.8, length(fieldSlope)) * 0.7h, (half)fieldWeight);
+                }
+            #endif
                 // Murky water barely ripples; thick water instead heaves in slow, broad swells and bubbles.
                 slope *= 1 - 0.75 * murk;
                 float3 bubbles = 0;
