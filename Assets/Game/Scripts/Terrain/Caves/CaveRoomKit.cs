@@ -354,6 +354,18 @@ namespace Punchy.Terrain
                 var sx = k == 0 ? -1f : 1f;
                 m.Spots.Add(new Spot { At = new float3(sx * (r.HX - 0.25f), 1.6f, r.HZ), Face = new float2(-sx, 0f), Kind = SocketKind.WallDecor, Size = r.HZ >= 4f ? SocketSize.Medium : SocketSize.Small });
             }
+            // A-91 row 3: a four-room ruin gets a creature, clutter and wall decor in each room too, so its spawns grow
+            // with it (the spots above on its inner walls are dropped in Finish).
+            if (RuinCells(r))
+                for (int k = 0; k < 4; k++)
+                {
+                    float sx = (k & 1) == 0 ? -1f : 1f, cz = k < 2 ? r.HZ * 0.5f : r.HZ * 1.5f, cx = sx * r.HX * 0.5f;
+                    var face = math.normalize(new float2(-sx, -1f));
+                    m.Spots.Add(new Spot { At = new float3(cx + sx * r.HX * 0.2f, 0.05f, cz + r.HZ * 0.15f), Face = face, Kind = SocketKind.Creature, Size = SocketSize.Medium });
+                    m.Spots.Add(new Spot { At = new float3(sx * (r.HX - 0.85f), 0.05f, cz), Face = new float2(-sx, 0f), Kind = SocketKind.Clutter, Size = SocketSize.Small });
+                    m.Spots.Add(new Spot { At = k < 2 ? new float3(sx * r.HX * 0.75f, 0.05f, 0.9f) : new float3(sx * 0.85f, 0.05f, cz + r.HZ * 0.35f), Face = math.normalize(new float2(sx, k < 2 ? 1f : 0f)), Kind = SocketKind.Clutter, Size = SocketSize.Small });
+                    m.Spots.Add(new Spot { At = new float3(sx * (r.HX - 0.25f), 1.6f, cz), Face = new float2(-sx, 0f), Kind = SocketKind.WallDecor, Size = SocketSize.Medium });
+                }
         }
 
         /// <summary>The tiled box: floor, ceiling, four walls (the front one round the doorway), trims and the doorway.</summary>
@@ -663,16 +675,103 @@ namespace Punchy.Terrain
                 m.K.Glows.Add(new Glow { At = r.World(new float3(m.Rng.NextFloat(-hx * 0.5f, hx * 0.5f), h - 0.4f, r.HZ * (k == 0 ? 0.6f : 1.4f))), Light = new float4(0.25f, 0.6f, 0.4f, 8f) });
         }
 
+        /// <summary>A-91 row 3: a grown ruin (this half-width or more) is laid out as four rooms (<see cref="RuinCells"/>).</summary>
+        public const float RuinCellsFrom = 5.2f;
+
+        /// <summary>Whether a ruin room is a four-room layout.</summary>
+        public static bool RuinCells(in CaveRoom r) => r.Type == (int)CaveRoomType.Ruin && r.HX >= RuinCellsFrom;
+
+        /// <summary>Width and height of a doorway between a four-room ruin's rooms, and half its inner walls' thickness.</summary>
+        const float InnerDoor = 2.2f, InnerDoorHeight = 2.7f, InnerWall = 0.35f;
+
+        /// <summary>
+        /// A buried ruin room. A small one is one RuinKit chamber or sanctum stretched to the room; a grown one (A-91 row
+        /// 3, Zach 11-10: ruins about 4x) is four: a front hall of two, then a cross wall with a doorway into each back
+        /// room, and the back rooms walled apart with a doorway between them (so the rooms make a loop). Each quarter
+        /// gets its own piece, and the walks between the doorways are kept clear of pillars and rubble.
+        /// </summary>
         static void Ruin(Maker m)
+        {
+            var r = m.R;
+            if (!RuinCells(r))
+            {
+                RuinCell(m, -r.HX, r.HX, 0f, r.HZ * 2f, null);
+                return;
+            }
+            float hx = r.HX, hz = r.HZ, h = r.Height, t = InnerWall, dw = InnerDoor * 0.5f, dh = InnerDoorHeight;
+            // The walks: in from the door to each back doorway, through it, and across the back rooms' own doorway.
+            var lanes = new List<float4>
+            {
+                new float4(0f, 0f, -hx * 0.5f, hz), new float4(0f, 0f, hx * 0.5f, hz),
+                new float4(-hx * 0.5f, hz - 1.5f, -hx * 0.5f, hz + 2.5f), new float4(hx * 0.5f, hz - 1.5f, hx * 0.5f, hz + 2.5f),
+                new float4(-2.5f, hz * 1.5f, 2.5f, hz * 1.5f)
+            };
+            // The cross wall at z = hz, with a doorway in front of each back room and a lintel over each.
+            var xs = new[] { -hx, -hx * 0.5f - dw, -hx * 0.5f + dw, hx * 0.5f - dw, hx * 0.5f + dw, hx };
+            for (int k = 0; k < 6; k += 2)
+                m.Span(new float3(xs[k], 0f, hz - t), new float3(xs[k + 1], h, hz + t), Stone, m.Jit(0.88f, 1f), true);
+            foreach (var cx in new[] { -hx * 0.5f, hx * 0.5f })
+            {
+                m.Span(new float3(cx - dw, dh, hz - t), new float3(cx + dw, h, hz + t), Stone, m.Jit(0.88f, 1f), true);
+                // A dressed frame: posts and a lintel stone proud of the wall on both faces.
+                for (int f = -1; f <= 1; f += 2)
+                {
+                    m.Span(new float3(cx - dw - 0.25f, 0f, hz + f * t), new float3(cx - dw, dh, hz + f * (t + 0.08f)), Trim, 0.95f);
+                    m.Span(new float3(cx + dw, 0f, hz + f * t), new float3(cx + dw + 0.25f, dh, hz + f * (t + 0.08f)), Trim, 0.95f);
+                    m.Span(new float3(cx - dw - 0.3f, dh, hz + f * t), new float3(cx + dw + 0.3f, dh + 0.3f, hz + f * (t + 0.1f)), Trim, 0.9f);
+                }
+                // A torch beside the doorway, on the hall's side.
+                var at = new float3(cx + (cx < 0f ? dw + 0.7f : -dw - 0.7f), 1.9f, hz - t - 0.02f);
+                m.Add(at + new float3(0f, 0f, -0.1f), new float3(0.06f, 0.06f, 0.12f), quaternion.identity, Wood, 0.9f);
+                m.Add(at + new float3(0f, 0.06f, -0.26f), new float3(0.07f, 0.05f, 0.07f), quaternion.identity, Wood, 1f, 2);
+                m.K.Glows.Add(new Glow { At = r.World(at + new float3(0f, 0.26f, -0.26f)), Light = (Vector4)Punchy.Ambience.FireSystem.Light(Punchy.Ambience.FireSystem.Wood), Flame = true });
+            }
+            // The long wall between the back rooms, with its doorway halfway along.
+            var zm = hz * 1.5f;
+            m.Span(new float3(-t, 0f, hz + t), new float3(t, h, zm - dw), Stone, m.Jit(0.88f, 1f), true);
+            m.Span(new float3(-t, 0f, zm + dw), new float3(t, h, hz * 2f), Stone, m.Jit(0.88f, 1f), true);
+            m.Span(new float3(-t, dh, zm - dw), new float3(t, h, zm + dw), Stone, m.Jit(0.88f, 1f), true);
+            for (int f = -1; f <= 1; f += 2)
+                m.Span(new float3(f * t, dh, zm - dw - 0.3f), new float3(f * (t + 0.1f), dh + 0.3f, zm + dw + 0.3f), Trim, 0.9f);
+            // The four quarters, each its own piece (the front two share the hall).
+            RuinCell(m, -hx, 0f, 0f, hz - t, lanes);
+            RuinCell(m, 0f, hx, 0f, hz - t, lanes);
+            RuinCell(m, -hx, -t, hz + t, hz * 2f, lanes);
+            RuinCell(m, t, hx, hz + t, hz * 2f, lanes);
+        }
+
+        /// <summary>
+        /// One RuinKit chamber or sanctum laid into the rectangle x0..x1, z0..z1 of a ruin room: its pillars, drums,
+        /// blocks, torches and rubble scaled to fit, and a mosaic border round its floor. Nothing goes in the doorway,
+        /// or within a metre of a walk (lanes: from x, y to z, w).
+        /// </summary>
+        static void RuinCell(Maker m, float x0, float x1, float z0, float z1, List<float4> lanes)
         {
             var r = m.R;
             var rng = new Random(m.Rng.NextUInt() | 1u);
             var piece = m.Rng.NextFloat() < 0.55f ? RuinKit.Sanctum(ref rng) : RuinKit.Chamber(ref rng);
             var room = piece.Rooms[0];
-            float sz = r.HZ * 2f / (room.U1 - room.U0), sx = r.HX * 2f / (room.V1 - room.V0), sy = r.Height / (room.Ceil - room.Floor);
+            float sz = (z1 - z0) / (room.U1 - room.U0), sx = (x1 - x0) / (room.V1 - room.V0), sy = r.Height / (room.Ceil - room.Floor);
             var bc = (room.V0 + room.V1) * 0.5f;
-            float3 Map(float a, float y, float b) => new float3(-(b - bc) * sx, (y - room.Floor) * sy, (a - room.U0) * sz);
-            bool InDoor(float x0, float x1, float z0) => x1 > -r.DoorWidth * 0.5f - 0.3f && x0 < r.DoorWidth * 0.5f + 0.3f && z0 < 2f;
+            float cx = (x0 + x1) * 0.5f, cz = (z0 + z1) * 0.5f, hxc = (x1 - x0) * 0.5f, hzc = (z1 - z0) * 0.5f;
+            float3 Map(float a, float y, float b) => new float3(cx - (b - bc) * sx, (y - room.Floor) * sy, z0 + (a - room.U0) * sz);
+            bool OnLane(float lx0, float lx1, float lz0, float lz1)
+            {
+                if (lanes == null)
+                    return false;
+                foreach (var l in lanes)
+                {
+                    var n = math.max(1, (int)math.ceil(math.distance(l.xy, l.zw) / 0.25f));
+                    for (int k = 0; k <= n; k++)
+                    {
+                        var q = math.lerp(l.xy, l.zw, k / (float)n);
+                        if (q.x > lx0 - 1f && q.x < lx1 + 1f && q.y > lz0 - 1f && q.y < lz1 + 1f)
+                            return true;
+                    }
+                }
+                return false;
+            }
+            bool InDoor(float dx0, float dx1, float dz0) => dx1 > -r.DoorWidth * 0.5f - 0.3f && dx0 < r.DoorWidth * 0.5f + 0.3f && dz0 < 2f;
             var altar = float3.zero; var hasAltar = false;
             foreach (var box in piece.Boxes)
             {
@@ -682,7 +781,7 @@ namespace Punchy.Terrain
                 var hi = Map(box.UV.y, math.min(box.Y.y, room.Ceil), box.UV.z);
                 var mn = math.min(lo, hi); var mx = math.max(lo, hi);
                 mx.y = math.min(mx.y, r.Height);
-                if (InDoor(mn.x, mx.x, mn.z))
+                if (InDoor(mn.x, mx.x, mn.z) || OnLane(mn.x, mx.x, mn.z, mx.z))
                     continue;
                 var c = (mn + mx) * 0.5f; var half = (mx - mn) * 0.5f;
                 switch (box.Draw)
@@ -716,9 +815,11 @@ namespace Punchy.Terrain
             {
                 var at = Map(s.At.x, s.At.y, s.At.z);
                 var n = math.normalize(new float3(-s.N.y * sx, 0f, s.N.x * sz));
-                if (InDoor(at.x - 0.3f, at.x + 0.3f, at.z) || math.abs(at.x) > r.HX + 0.1f && math.abs(at.z - r.HZ) > r.HZ + 0.1f)
+                if (InDoor(at.x - 0.3f, at.x + 0.3f, at.z) || math.abs(at.x - cx) > hxc + 0.1f && math.abs(at.z - cz) > hzc + 0.1f)
                     continue;
-                at.x = math.clamp(at.x, -r.HX, r.HX); at.z = math.clamp(at.z, 0f, r.HZ * 2f);
+                at.x = math.clamp(at.x, x0, x1); at.z = math.clamp(at.z, z0, z1);
+                if (OnLane(at.x, at.x, at.z, at.z))
+                    continue;
                 at.y = math.min(at.y, r.Height - 1f);
                 m.Add(at + n * 0.12f, new float3(0.06f, 0.06f, 0.06f) + math.abs(n) * 0.08f, quaternion.identity, Wood, 0.9f);
                 m.Add(at + n * 0.28f + new float3(0f, 0.06f, 0f), new float3(0.07f, 0.05f, 0.07f), quaternion.identity, Wood, 1f, 2);
@@ -734,7 +835,8 @@ namespace Punchy.Terrain
                     var at = c.xz + off;
                     if (!m.Clear(at, 0.8f, 0.4f) && !(math.abs(at.x) < r.HX - 0.4f && at.y > 0.4f && at.y < r.HZ * 2f - 0.4f && !InDoor(at.x, at.x, at.y)))
                         continue;
-                    if (InDoor(at.x - 0.3f, at.x + 0.3f, at.y))
+                    if (InDoor(at.x - 0.3f, at.x + 0.3f, at.y) || OnLane(at.x, at.x, at.y, at.y) ||
+                        at.x < x0 + 0.4f || at.x > x1 - 0.4f || at.y < z0 + 0.4f || at.y > z1 - 0.4f)
                         continue;
                     var s = m.Rng.NextFloat(0.1f, 0.26f);
                     m.Add(new float3(at.x, s * 0.6f, at.y), new float3(s, s * 0.7f, s * 0.8f), quaternion.EulerXYZ(m.Rng.NextFloat3(-0.4f, 0.4f)), Stone, m.Jit(0.8f, 0.98f));
@@ -752,12 +854,13 @@ namespace Punchy.Terrain
                     m.Add(at + new float3(0f, 0.008f, 0f), new float3(tile * 0.44f, 0.012f, tile * 0.44f), quaternion.identity, (k & 1) == 0 ? Pale : Trim, m.Jit(0.85f, 1f));
                 }
             }
-            Border(new float3(-r.HX + band, 0f, 1.6f), new float3(-r.HX + band, 0f, r.HZ * 2f - band));
-            Border(new float3(r.HX - band, 0f, 1.6f), new float3(r.HX - band, 0f, r.HZ * 2f - band));
-            Border(new float3(-r.HX + band + tile, 0f, r.HZ * 2f - band), new float3(r.HX - band - tile, 0f, r.HZ * 2f - band));
+            var zb = z0 < 0.5f ? 1.6f : z0 + band;
+            Border(new float3(x0 + band, 0f, zb), new float3(x0 + band, 0f, z1 - band));
+            Border(new float3(x1 - band, 0f, zb), new float3(x1 - band, 0f, z1 - band));
+            Border(new float3(x0 + band + tile, 0f, z1 - band), new float3(x1 - band - tile, 0f, z1 - band));
             if (hasAltar)
             {
-                var toward = math.normalizesafe(new float2(0f, r.HZ) - altar.xz, new float2(0f, -1f));
+                var toward = math.normalizesafe(new float2(cx, cz) - altar.xz, new float2(0f, -1f));
                 var at = altar.xz + toward * 1.2f;
                 m.Spots.Add(new Spot { At = new float3(at.x, 0.05f, at.y), Face = -toward, Kind = SocketKind.Interactable, Size = SocketSize.Small, Tags = SocketTags.NearAltar });
             }

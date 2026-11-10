@@ -78,6 +78,13 @@ namespace Punchy.Debugging
             dwBodies.Clear();
             dwBodies.AddRange(parts.Length > 1 && parts[1].Length > 0 ? parts[1].Split(',') : new[] { "Human", "Rabbit", "Crow" });
             dwLegCap = parts.Length > 2 && int.TryParse(parts[2], out var cap) ? math.max(cap, 4) : 40;
+            // A-91 row 3: a fourth part "main" walks every cave's and ruin's main paths instead (see MainRoute).
+            dwMain = parts.Length > 3 && parts[3] == "main";
+            if (dwMain)
+                dwLegCap = math.max(dwLegCap, 1000);
+            dwPaths = dwSteepPaths = dwDropPaths = 0;
+            dwWorstGrade = dwWorstDrop = 0f;
+            dwWorstGradeAt = dwWorstDropAt = "";
             dwPending = spec;
             dwPendingSince = Time.unscaledTime;
         }
@@ -114,7 +121,13 @@ namespace Punchy.Debugging
             foreach (var type in new[] { "Cave", "Ruin", "Temple" })
             {
                 var picked = all.FindAll(d => d.Type == type);
-                if (picked.Count > dwCount)
+                // (Main paths: every cave and ruin, no temple: it has no main paths.)
+                if (dwMain)
+                {
+                    if (type == "Temple")
+                        picked.Clear();
+                }
+                else if (picked.Count > dwCount)
                     picked.RemoveRange(dwCount, picked.Count - dwCount);
                 dwDungeons.AddRange(picked);
                 WalkLog($"DebugControls: dungeonwalk {type}: {all.FindAll(d => d.Type == type).Count} in the world, walking {picked.Count}");
@@ -598,6 +611,11 @@ namespace Punchy.Debugging
             var doorstep = new float2(mouthFeet.x, mouthFeet.z) + outward * 3f;
             dwRoute.Add(new float3(doorstep.x, source.FloorUnder(new float3(doorstep.x, mouthFeet.y + 2f, doorstep.y), out _), doorstep.y));
             dwRoute.Add(mouthFeet);
+            if (dwMain)
+            {
+                MainRoute(source, d, c, links, mouthNode);
+                return;
+            }
             var used = new bool[sockets.Length];
             var at = mouthNode;
             foreach (var target in order)
@@ -651,6 +669,90 @@ namespace Punchy.Debugging
             // And back out.
             foreach (var k in WalkPath(links, at, mouthNode))
                 dwRoute.Add(Node(k));
+            dwRoute.Add(mouthFeet);
+        }
+
+        static bool dwMain;
+        static int dwPaths, dwSteepPaths, dwDropPaths;
+        static float dwWorstGrade, dwWorstDrop;
+        static string dwWorstGradeAt, dwWorstDropAt;
+
+        /// <summary>
+        /// A-91 row 3 (Zach 11-10: every cave has 1-3 main paths, gradual, walkable end to end by a human and a rabbit):
+        /// the route out along each main path (CaveData.MainEnds) to its end and back to the mouth. The first body also
+        /// measures each path's floor without walking it: sampled every 0.5 m along the passage, the steepest grade over
+        /// any 2 m (in degrees) and the biggest step down or up in 0.5 m (a ledge or a drop), logged per path.
+        /// </summary>
+        void MainRoute(in TerrainSource source, WalkDungeon d, int c, List<int>[] links, int mouthNode)
+        {
+            ref var set = ref source.Caves.Value;
+            ref var cave = ref set.Caves[c];
+            int first = cave.FirstNode;
+            var mouthFeet = Feet(source, cave.Mouth);
+            for (int m = 0; m < 3; m++)
+            {
+                var end = cave.MainEnds[m];
+                if (end < 0 || end >= cave.NodeCount)
+                    continue;
+                var path = WalkPath(links, mouthNode, end);
+                if (path.Count == 0)
+                    continue;
+                var feet = new List<float3> { Feet(source, set.Nodes[first + mouthNode].Position) };
+                foreach (var k in path)
+                    feet.Add(Feet(source, set.Nodes[first + k].Position));
+                // A path that ends in a room: in through its doorway (down its ramp) to its middle, not straight at the node.
+                for (int r = cave.FirstRoom; r < cave.FirstRoom + cave.RoomCount; r++)
+                {
+                    var room = set.Rooms[r];
+                    if (room.Node != first + end)
+                        continue;
+                    feet.RemoveAt(feet.Count - 1);
+                    feet.Add(Feet(source, room.World(new float3(0f, room.RampFloor(-CaveRoom.Wall - CaveRoom.Ramp) + 0.3f, -CaveRoom.Wall - CaveRoom.Ramp))));
+                    feet.Add(Feet(source, room.World(new float3(0f, room.RampFloor(-CaveRoom.Wall - 2f) + 0.3f, -CaveRoom.Wall - 2f))));
+                    feet.Add(Feet(source, room.World(new float3(0f, 0.3f, -CaveRoom.Wall * 0.5f))));
+                    feet.Add(Feet(source, room.World(new float3(0f, 0.3f, 1f))));
+                    feet.Add(Feet(source, room.World(new float3(0f, 0.3f, room.HZ * 0.5f))));
+                }
+                foreach (var f in feet)
+                    dwRoute.Add(f);
+                for (int i = feet.Count - 2; i >= 0; i--)
+                    dwRoute.Add(feet[i]);
+                if (dwBody != 0)
+                    continue;
+                // The floor along it, every 0.5 m.
+                var ys = new List<float3>();
+                for (int i = 0; i + 1 < feet.Count; i++)
+                {
+                    var n = math.max(1, (int)math.ceil(math.distance(feet[i].xz, feet[i + 1].xz) / 0.5f));
+                    for (int s = 0; s < n; s++)
+                    {
+                        var p = math.lerp(feet[i], feet[i + 1], s / (float)n);
+                        ys.Add(new float3(p.x, source.FloorUnder(p + new float3(0f, 1.2f, 0f), out _), p.z));
+                    }
+                }
+                ys.Add(feet[^1]);
+                float grade = 0f, drop = 0f, length = 0f;
+                var gradeAt = float3.zero; var dropAt = float3.zero;
+                for (int i = 1; i < ys.Count; i++)
+                {
+                    length += math.distance(ys[i].xz, ys[i - 1].xz);
+                    var step = math.abs(ys[i].y - ys[i - 1].y);
+                    if (step > drop) { drop = step; dropAt = ys[i]; }
+                    if (i >= 4)
+                    {
+                        var run = math.max(0.5f, math.distance(ys[i].xz, ys[i - 4].xz));
+                        var g = math.degrees(math.atan(math.abs(ys[i].y - ys[i - 4].y) / run));
+                        if (g > grade) { grade = g; gradeAt = ys[i]; }
+                    }
+                }
+                dwPaths++;
+                if (grade > 30f) dwSteepPaths++;
+                if (drop > 0.6f) dwDropPaths++;
+                if (grade > dwWorstGrade) { dwWorstGrade = grade; dwWorstGradeAt = $"{d.Type} {d.Id:X8} path {m} {P(gradeAt)}"; }
+                if (drop > dwWorstDrop) { dwWorstDrop = drop; dwWorstDropAt = $"{d.Type} {d.Id:X8} path {m} {P(dropAt)}"; }
+                WalkLog($"DebugControls: dungeonwalk MAIN {d.Type} {d.Id:X8} path {m}: nodes {feet.Count}, length {V(length)} m, " +
+                        $"fall {V(feet[0].y - feet[^1].y)} m, max grade {V(grade)} deg at {P(gradeAt)}, max step {V(drop)} m at {P(dropAt)}");
+            }
             dwRoute.Add(mouthFeet);
         }
 
@@ -1073,6 +1175,9 @@ namespace Punchy.Debugging
                 var w = worst[i];
                 WalkLog($"DebugControls: dungeonwalk WORST {i + 1}: type={w.Type} dungeon={w.Dungeon} body={w.Body} kind={w.Kind} frames={w.Frames} at {P(w.At)} near={w.Near}");
             }
+            if (dwMain)
+                WalkLog($"DebugControls: dungeonwalk MAINPATHS {dwPaths} paths, steeper than 30 deg {dwSteepPaths}, steps over 0.6 m {dwDropPaths}; " +
+                        $"worst grade {V(dwWorstGrade)} deg ({dwWorstGradeAt}), worst step {V(dwWorstDrop)} m ({dwWorstDropAt})");
             WalkLog($"DebugControls: dungeonwalk DONE {dwDungeons.Count} dungeons x {dwBodies.Count} bodies, {dwProblems.Count} problems:{sb}");
         }
     }
