@@ -71,6 +71,9 @@ namespace Punchy.Items
                 case "Hood": k.Dome(0, new Vector3(0f, 0.01f, 0f), 0.14f, 0.15f); k.Tube(0, new Vector3(0f, 0.04f, -0.12f), new Vector3(0f, 0.02f, -0.26f), 0.08f, 0.04f); break;
                 case "Woolcap": k.Dome(0, new Vector3(0f, 0.01f, 0f), 0.11f, 0.1f); k.Blob(1, new Vector3(0f, 0.12f, 0f), new Vector3(0.04f, 0.04f, 0.04f), 4u, 4, 6); break;
                 case "Brimhat": k.Dome(1, new Vector3(0f, 0.015f, 0f), 0.26f, 0.02f); k.Dome(0, new Vector3(0f, 0.03f, 0f), 0.11f, 0.12f); break;
+                case "Lantern": k.Tube(0, new Vector3(0f, 0f, 0f), new Vector3(0f, 0.04f, 0f), 0.07f, 0.07f, 6); k.Tube(1, new Vector3(0f, 0.04f, 0f), new Vector3(0f, 0.16f, 0f), 0.055f, 0.055f, 6); k.Tube(0, new Vector3(0f, 0.16f, 0f), new Vector3(0f, 0.21f, 0f), 0.07f, 0.02f, 6); k.Tube(0, new Vector3(-0.05f, 0.21f, 0f), new Vector3(0.05f, 0.21f, 0f), 0.008f, 0.008f, 4); break;
+                case "Pickaxe": k.Tube(0, new Vector3(0f, 0.03f, -0.4f), new Vector3(0f, 0.03f, 0.3f), 0.022f, 0.025f); k.Tube(1, new Vector3(-0.26f, 0.035f, 0.28f), new Vector3(0f, 0.035f, 0.31f), 0.012f, 0.03f, 5); k.Tube(1, new Vector3(0f, 0.035f, 0.31f), new Vector3(0.26f, 0.035f, 0.28f), 0.03f, 0.012f, 5); break;
+                case "Rod": k.Tube(0, new Vector3(0f, 0.02f, -0.7f), new Vector3(0f, 0.02f, 0.7f), 0.016f, 0.006f, 5); k.Tube(1, new Vector3(0.02f, 0.03f, -0.5f), new Vector3(0.06f, 0.03f, -0.5f), 0.03f, 0.03f, 8); break;
                 case "Pack": k.Blob(0, new Vector3(0f, 0.15f, 0f), new Vector3(0.17f, 0.15f, 0.11f), 0u, 5, 8); k.Blob(1, new Vector3(0f, 0.25f, 0.01f), new Vector3(0.16f, 0.05f, 0.11f), 0u, 4, 8); k.Tube(1, new Vector3(-0.12f, 0.02f, 0.1f), new Vector3(-0.12f, 0.25f, 0.1f), 0.018f, 0.018f, 4); k.Tube(1, new Vector3(0.12f, 0.02f, 0.1f), new Vector3(0.12f, 0.25f, 0.1f), 0.018f, 0.018f, 4); break;
                 default: k.Blob(0, new Vector3(0f, 0.1f, 0f), new Vector3(0.1f, 0.1f, 0.1f), 3u); break;
             }

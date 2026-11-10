@@ -73,8 +73,11 @@ namespace Punchy.Items
             new ItemDef { Name = "Hood", Colour = new Color(0.6f, 0.27f, 0.22f), Accent = new Color(0.78f, 0.69f, 0.46f), Stack = 1, Weight = 0.25f, Slot = GearSlot.Head, Cover = 0.25f, Look = Punchy.Fauna.CreatureArmour.Hood },
             new ItemDef { Name = "Woolcap", Colour = new Color(0.6f, 0.27f, 0.22f), Accent = new Color(0.78f, 0.69f, 0.46f), Stack = 1, Weight = 0.1f, Slot = GearSlot.Head, Cover = 0.15f, Look = Punchy.Fauna.CreatureArmour.Woolcap },
             new ItemDef { Name = "Brimhat", Colour = new Color(0.6f, 0.27f, 0.22f), Accent = new Color(0.78f, 0.69f, 0.46f), Stack = 1, Weight = 0.3f, Slot = GearSlot.Head, Cover = 0.35f, Look = Punchy.Fauna.CreatureArmour.Brimhat },
+            new ItemDef { Name = "Lantern", Colour = new Color(0.25f, 0.24f, 0.24f), Accent = new Color(1f, 0.75f, 0.35f), Stack = 1, Weight = 1.1f, Slot = GearSlot.Hand, Light = 8f },
+            new ItemDef { Name = "Pickaxe", Colour = new Color(0.45f, 0.31f, 0.17f), Accent = new Color(0.45f, 0.46f, 0.5f), Stack = 1, Weight = 2.6f, Slot = GearSlot.Hand, TwoHanded = true, Damage = 5f, Reach = 0.9f },
+            new ItemDef { Name = "Rod", Colour = new Color(0.55f, 0.42f, 0.25f), Accent = new Color(0.85f, 0.85f, 0.8f), Stack = 1, Weight = 0.7f, Slot = GearSlot.Hand, TwoHanded = true, Reach = 3f },
         };
-        public const byte Key = 7, Torch = 8, Staff = 9, Hat = 10, Pack = 11;
+        public const byte Key = 7, Torch = 8, Staff = 9, Hat = 10, Pack = 11, Lantern = 30, Pickaxe = 31, Rod = 32;
     }
 
     /// <summary>Client → host: pick up world item Uid.</summary>

@@ -163,6 +163,9 @@ namespace Punchy.Fauna
                 // (A player's torch: its reach is the item's, ItemDef.Light.)
                 if (torch && states[i].Mode == CreatureMode.Puppet)
                     carried.w = Punchy.Items.ItemTable.Items[Punchy.Items.ItemTable.Torch].Light;
+                // (A player's lantern, the same: the tools row.)
+                else if (states[i].Held == HeldItem.Lantern && states[i].Mode == CreatureMode.Puppet)
+                    carried.w = Punchy.Items.ItemTable.Items[Punchy.Items.ItemTable.Lantern].Light;
                 Punchy.Settings.LightBudget.Add(Punchy.Settings.LightKind.Carried, entities[i].Index, centre, carried);
             }
             Pass(8);

@@ -105,7 +105,17 @@ namespace Punchy.Items
 
         int Capacity => BaseSlots + (worn[(int)GearSlot.Back] != Nothing ? math.min(ItemTable.Items[worn[(int)GearSlot.Back]].Slots, MaxExtraSlots) : 0);
 
-        static HeldItem HeldFor(byte item) => item == ItemTable.Torch ? HeldItem.Torch : item == ItemTable.Staff ? HeldItem.Staff : HeldItem.None;
+        /// <summary>What the body holds for an item in hand, drawn as folk's are (a lantern lit in the off hand, a pick
+        /// across the back, a rod in both hands: P-28's tools row).</summary>
+        static HeldItem HeldFor(byte item) => item switch
+        {
+            ItemTable.Torch => HeldItem.Torch,
+            ItemTable.Staff => HeldItem.Staff,
+            ItemTable.Lantern => HeldItem.Lantern,
+            ItemTable.Pickaxe => HeldItem.Pickaxe,
+            ItemTable.Rod => HeldItem.Rod,
+            _ => HeldItem.None,
+        };
 
         static byte WornBits(byte head, byte back) => (byte)((head == ItemTable.Hat ? CreatureWorn.Hat : 0) | (back == ItemTable.Pack ? CreatureWorn.Pack : 0));
 
@@ -595,6 +605,10 @@ namespace Punchy.Items
         static string GearEffect(byte item)
         {
             var d = ItemTable.Items[item];
+            if (d.Name == "Pickaxe")
+                return $"mining, reach {d.Reach:0.#} m";
+            if (d.Name == "Rod")
+                return $"fishing, line {d.Reach:0} m";
             if (d.Armour > 0f)
                 return $"armour {d.Armour:0}, {d.Weight:0.#} kg";
             if (d.Weapon != CreatureWeapon.None)
