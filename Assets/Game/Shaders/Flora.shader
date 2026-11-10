@@ -657,7 +657,7 @@ Shader "Punchy/Flora"
                 clip(input.fade >= 0 && input.fade < 1 ? -1 : 1);
                 FloraMossClip(input.moss);
                 // (Only open crowns: solid casters come with a negative fade, 3.7 step 3, full crowns with 3 to 4.)
-                if (input.fade > 0 && input.fade < 2.5 && _FloraCheapHoles.w > 0 && distance(input.positionWS.xz, _FloraCheapHoles.xz) > _FloraCheapHoles.w)
+                if (input.fade > 0 && input.fade < 2.5 && _FloraCheapHoles.w > 0 && distance(input.positionWS, _FloraCheapHoles.xyz) > _FloraCheapHoles.w)
                     clip(HoleNoise(input.moss.yzw) - 0.45);
                 return 0;
             }

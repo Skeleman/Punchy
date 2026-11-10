@@ -185,7 +185,7 @@ namespace Punchy.Flora
             Culling.SetInt(ModelBaseId, l.ModelBase);
             Culling.SetVectorArray(PlanesId, planeVectors);
             Culling.SetVector(CameraId, (Vector3)eye);
-            Culling.SetVector(LodId, new Vector4(l.Lod1Distance, l.Lod2Distance, l.Radius, 0f));
+            Culling.SetVector(LodId, new Vector4(l.Lod1Distance, l.Lod2Distance, l.Radius, l.Radius));
             // Every tree out to CacheRange goes to the first shadow list (full mesh). The cache starts where the real-time
             // shadows end, less the CacheMove the camera can drift before the next redraw and 2 m of overlap: otherwise
             // the trees between the near range round the laid spot and round the camera cast nowhere (a gap that grows
@@ -256,8 +256,10 @@ namespace Punchy.Flora
             m.SetTexture(CacheTexId, cacheFront);
             m.SetMatrix(CacheMatrixId, cacheFrontUv);
             m.SetVector(ReceiveSunId, cacheFrontSun);
-            m.SetVector(CacheParamsId, new Vector4(eye.x, eye.z, 0f, FloraShadowOptions.CacheDarkness * sun.shadowStrength * up));
+            m.SetVector(CacheParamsId, new Vector4(eye.x, eye.y, eye.z, FloraShadowOptions.CacheDarkness * sun.shadowStrength * up));
             // In from half the near range (the real-time shadows keep it from doubling), out over the cache's last 8 m.
+            // (R-6 row 0: 3D distance from the camera, as the cull hands trees over by; on the ground plane a summit's
+            // view of the forest below faded the cache out where its trees had no real-time shadow.)
             m.SetVector(CacheFadeId, new Vector4(near * 0.5f, near * 0.8f, far - 8f, far));
             var rp = new RenderParams(m)
             {

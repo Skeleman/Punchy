@@ -45,6 +45,9 @@ namespace Punchy.Terrain
 
         static readonly int TerrainFocusId = Shader.PropertyToID("_TerrainFocus");
         static readonly int DetailFarId = Shader.PropertyToID("_PunchyTerrainDetailFar");
+        static readonly int DetailPpmId = Shader.PropertyToID("_PunchyTerrainDetailPpm");
+        /// <summary>R-6 row 4b: the fine relief's octaves fade by their own on-screen size (false: the old fixed range, to compare).</summary>
+        public static bool MicroReach = true;
         /// <summary>Where the terrain's fine relief has faded out at Detail 1 (m; TerrainSurface.shader). W-101: was a fixed 70.</summary>
         const float DetailFar = 110f;
         /// <summary>Vertices per batch (a full-detail chunk is about 4,500).</summary>
@@ -169,9 +172,15 @@ namespace Punchy.Terrain
             var focus = focusQuery.TryGetSingleton<LocalTransform>(out var focusTransform)
                 ? focusTransform.Position.xz
                 : float2.zero;
+            // The chunk rings (and the shader's geomorph) stay on the ground plane, unlike the 3D draw distances
+            // (R-6 row 0): a chunk spans every height its ground reaches, so its nearest point to a camera above it
+            // is already about the ground distance, and a height-dependent ring would reload chunks as the camera
+            // climbs or jumps.
             // The terrain shader geomorphs vertices by their distance from this same point.
             Shader.SetGlobalVector(TerrainFocusId, new Vector4(focus.x, focus.y, 0f, 0f));
             Shader.SetGlobalFloat(DetailFarId, Punchy.Settings.GraphicsSettings.DetailRange(DetailFar));
+            Shader.SetGlobalFloat(DetailPpmId, MicroReach
+                ? Punchy.Settings.DetailPolicy.Current.Data.PixelsPerMetre * Punchy.Settings.GraphicsSettings.Detail : -1f);
             RefreshWaterRegions(focus, config.ChunkSize);
 
             // The focus's speed since the last batch started (batches can be frames apart), smoothed over about half a

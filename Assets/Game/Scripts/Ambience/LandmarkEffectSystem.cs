@@ -296,6 +296,11 @@ namespace Punchy.Ambience
             max = math.max(max, t.Lip + t.PoolRadius + 6f);
         }
 
+        /// <summary>R-6 row 0: how far the camera is from a fall, in 3D, to the nearest point of its drop (lip down to the
+        /// pool), as the flora's draw distances measure; on the ground plane a fall below a cliff counted as near.</summary>
+        static float FallDistance(float3 lip, float drop, float3 camera)
+            => math.distance(new float3(lip.x, math.clamp(camera.y, lip.y - math.max(drop, 0f), lip.y), lip.z), camera);
+
         void Gather(in TerrainSource source, LandmarkType[] types, Vector3 camera)
         {
             ref var set = ref source.Landmarks.Value;
@@ -313,7 +318,7 @@ namespace Punchy.Ambience
             {
                 ref var caveFalls = ref source.Caves.Value.Waterfalls;
                 for (int k = 0; k < caveFalls.Length; k++)
-                    if (math.distance(caveFalls[k].Lip.xz, cam) < Punchy.Settings.GraphicsSettings.DetailRange(CaveRange))
+                    if (FallDistance(caveFalls[k].Lip, caveFalls[k].Drop, camera) < Punchy.Settings.GraphicsSettings.DetailRange(CaveRange))
                         nearby.Add(-(k + 1));
             }
             // River waterfalls (version 2 rivers) within sight, as -(RiverFallBase + index).
@@ -321,7 +326,7 @@ namespace Punchy.Ambience
             {
                 ref var riverFalls = ref source.Rivers.Value.Falls;
                 for (int k = 0; k < riverFalls.Length; k++)
-                    if (math.distance(riverFalls[k].Lip.xz, cam) < Punchy.Settings.GraphicsSettings.DetailRange(RiverFallRange))
+                    if (FallDistance(riverFalls[k].Lip, riverFalls[k].Drop, camera) < Punchy.Settings.GraphicsSettings.DetailRange(RiverFallRange))
                         nearby.Add(-(RiverFallBase + k));
             }
             // The grand falls' tiers (W-29) are big: seen from the whole view range, as -(GrandFallBase + index).
@@ -329,7 +334,7 @@ namespace Punchy.Ambience
             {
                 ref var tiers = ref source.GrandFalls.Value.Tiers;
                 for (int k = 0; k < tiers.Length; k++)
-                    if (math.distance(tiers[k].Lip.xz, cam) < Punchy.Settings.GraphicsSettings.ViewRange(Range))
+                    if (FallDistance(tiers[k].Lip, tiers[k].Drop, camera) < Punchy.Settings.GraphicsSettings.ViewRange(Range))
                         nearby.Add(-(GrandFallBase + k));
             }
             NearChimneys(source, cam);

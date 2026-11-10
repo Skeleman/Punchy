@@ -6,6 +6,9 @@ namespace Punchy.Flora
     // FloraGenerator, kit structures: KitStructure, stone houses, ruins, bedrolls, rail fences. Code moved from FloraGenerator.cs (W-116).
     public static partial class FloraGenerator
     {
+        /// <summary>R-6 row 3: whole kit houses' LOD 2 is their outer shell only (off: the old far LOD, for comparisons).</summary>
+        public static bool FarShells = true;
+
         /// <summary>
         /// A structure-kit building (FloraForm.KitBuilding) or its ruin (FloraForm.KitRuin), #24: StructureKit lays out
         /// the parts from a seed drawn per variant, in the species' Kit Culture trim set (a ruin takes its stone from Bark
@@ -133,6 +136,12 @@ namespace Punchy.Flora
             var top = 0f;
             var perch = Vector3.zero;
             var eaves = house ? lift + storeys * trim.Storey : 0f;
+            // R-6 row 3: far away a whole house is its shell; drop the faces that look into its closed inside or onto the
+            // ground. Only the plain and hazard houses, which stand on the width x depth footprint round the origin.
+            var halfIn = new Vector3(width * 0.5f - Punchy.Terrain.StructureKit.Thick * 0.5f, 0f, depth * 0.5f - Punchy.Terrain.StructureKit.Thick * 0.5f);
+            b.Shell = FarShells && g.Lod >= 2 && !ruined && (shape == Punchy.Terrain.KitShape.House || shape >= Punchy.Terrain.KitShape.AshHouse && shape <= Punchy.Terrain.KitShape.SandHouse);
+            b.ShellMin = new Vector3(-halfIn.x, 0f, -halfIn.z);
+            b.ShellMax = new Vector3(halfIn.x, eaves, halfIn.z);
             for (int i = 0; i < parts.Count; i++)
             {
                 var p = parts[i];
@@ -193,6 +202,7 @@ namespace Punchy.Flora
                 if ((p.Piece == Punchy.Terrain.KitPiece.Wall || p.Piece == Punchy.Terrain.KitPiece.Roof) && high > perch.y)
                     perch = new Vector3(p.Centre.x, high, p.Centre.z);
             }
+            b.Shell = false;
             if (!ruined && house)   // the inside: one fat cylinder so nothing walks through the middle of the house
             {
                 var inner = Mathf.Min(width, depth) * 0.45f;

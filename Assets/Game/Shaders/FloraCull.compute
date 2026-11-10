@@ -11,6 +11,10 @@
 // Refactor 3.5c / 3.3 (DetailPolicy.FloraRule): each variant's own class and size set its mesh changes, how far it's drawn
 // and how far it casts, from _ModelReach, not its layer's distances; the layer's values stay as ceilings. A plant's
 // real-time shadow has hysteresis (_FloraCastState), so one hovering at its limit doesn't flicker.
+// R-6 row 0: one distance for everything a plant's draw and shadows decide (PlantDistance): 3D, from the camera to the
+// nearest point of its base-to-top segment (the reject and cast tests keep the bounding sphere, 3D and never further).
+// A ground-plane distance disagreed with the 3D tests from high ground: trees popped instead of fading, and one could
+// fall between the cascades and the cache with no shadow.
 
 #pragma kernel Clear
 #pragma kernel Cull
@@ -32,6 +36,8 @@ StructuredBuffer<FloraInstance> _FloraInstances;
 StructuredBuffer<float3> _ModelBounds;   // radius, centre height (unscaled), thins (1: a natural plant), per variant
 StructuredBuffer<uint> _Regions;         // output offset per variant × draw (3 LODs, then 2 shadow lists)
 // Per variant: how far (m per reference pixel-per-metre, at scale 1) it keeps x LOD 0, y LOD 1, z being drawn, w casting.
+// R-6 row 4: a negative z is a variant drawn to at least the layer's radius and on past it, to the far reach, while
+// its size keeps it on screen (DetailPolicy.FloraEdgePixels); a positive one is gone at its size, never past the radius.
 StructuredBuffer<float4> _ModelReach;
 // Per variant (3.7 step 3, DetailPolicy.SharpShadow): x how far it keeps a real-time shadow where a cached map takes over
 // (m per reference pixel-per-metre at scale 1; 0: just the floor), y 0 a solid caster, 1 a tree with a full crown, 2 a
@@ -57,7 +63,7 @@ uint _DrawCount;
 int _ModelBase;
 float4 _Planes[6];
 float3 _CameraPosition;
-float4 _Lod;      // x LOD1 distance, y LOD2 distance, z radius
+float4 _Lod;      // x LOD1 distance, y LOD2 distance, z farthest any plant is drawn (R-6 row 4: the far reach), w the layer's radius
 // x cast distance (0: the layer casts none), y margin off-screen, z where the shadow list changes to its second
 // level (0: the LOD 1 change; W-107's cheap far caster sets the near range), w skip plants nearer than this (W-107's
 // shadow cache: the near trees cast in real time)
@@ -83,6 +89,17 @@ void Clear(uint id : SV_DispatchThreadID)
 
 #define DRAWS 5
 
+// R-6 row 0: the one distance the cull uses: from the camera to the nearest point of the plant's base-to-top segment.
+// Its base rather than its centre suits a tall tree seen from beside its trunk (the reason the old ground-plane
+// distance was taken); the segment keeps it right from above and below too. centreY is the model's unscaled centre
+// height, so its top is twice that above the base.
+float PlantDistance(float3 base, float centreY, float scale)
+{
+    float top = base.y + max(centreY * 2, 0) * scale;
+    float3 nearest = float3(base.x, clamp(_CameraPosition.y, base.y, top), base.z);
+    return length(_CameraPosition - nearest);
+}
+
 void Append(uint instance, uint local, uint lod, float fade)
 {
     uint draw = local * DRAWS + lod;
@@ -101,24 +118,26 @@ void Cull(uint id : SV_DispatchThreadID)
     float3 bounds = _ModelBounds[local];
     float radius = bounds.x * plant.scale;
     float3 centre = plant.position + float3(0, bounds.y * plant.scale, 0);
+    // The reject and the cast test take the bounding sphere's nearest surface (3D, never further than PlantDistance), so
+    // they hold every plant the size tests below might keep: a caster the real-time tier lets go is always past the
+    // cache's start, as d is never shorter than this.
     float distance = length(centre - _CameraPosition);
     if (distance - radius > _Lod.z)
         return;
+    float d = PlantDistance(plant.position, bounds.y, plant.scale);
 
-    float lod1 = _Lod.x, lod2 = _Lod.y, drawn = _Lod.z, castTo = _Shadow.x;
+    float lod1 = _Lod.x, lod2 = _Lod.y, drawn = _Lod.w, castTo = _Shadow.x;
     if (_Reach.x > 0)
     {
         float4 reach = _ModelReach[local] * plant.scale;
         lod1 = reach.x * _Reach.x;
         lod2 = reach.y * _Reach.x;
-        drawn = min(drawn, reach.z * _Reach.x);
+        drawn = reach.z < 0 ? clamp(-reach.z * _Reach.x, _Lod.w, _Lod.z) : min(_Lod.w, reach.z * _Reach.x);
         castTo = min(castTo, reach.w * _Reach.y);
     }
     float2 tierInfo = _ModelShadow[local];
     // Solid casters (rocks, built things, small plants) never get the far crown's holes nor its cheap mesh.
     bool solid = _Reach.x > 0 && tierInfo.y == 0;
-    // Distance to the plant's base on the ground plane suits LOD better than to its centre (tall trees).
-    float d = length(plant.position.xz - _CameraPosition.xz);
     if (_Sharp.x > 0)
     {
         // The real-time tier ends where the plant stops being big on screen (never inside the floor); past it the
@@ -174,7 +193,7 @@ void Cull(uint id : SV_DispatchThreadID)
     // over a tenth of it, so the thinning has no line: plants drop out one by one, scattered over the distance.
     if (bounds.z > 0)
     {
-        float share = lerp(1, _Thin.y, smoothstep(_Thin.x, _Lod.z, d));
+        float share = lerp(1, _Thin.y, smoothstep(_Thin.x, _Lod.w, d));
         keep *= saturate((share * 1.1 - frac(plant.random * 61.7)) * 10);
     }
     if (keep <= 0)
@@ -217,13 +236,14 @@ void WideCull(uint id : SV_DispatchThreadID)
     FloraInstance plant = _FloraInstances[id];
     uint local = (uint)(plant.model - _ModelBase);
     float reach = _ModelWide[local] * plant.scale * _Wide.x;
-    float2 off = plant.position.xz - _CameraPosition.xz;
-    float d = length(off);
+    // R-6 row 0: by size on screen and the hand-over from the cache, the same 3D distance as the camera's cull; the
+    // map's own reach is a square on the ground (an orthographic sun view), so that limit stays on the ground plane.
+    float d = PlantDistance(plant.position, _ModelBounds[local].y, plant.scale);
     bool was = _FloraWideState[id] != 0;
     bool casts = reach > 0 && (d < reach || was && d < reach * 1.176);
     if (was != casts)
         _FloraWideState[id] = casts ? 1 : 0;
-    if (!casts || d < _Wide.y || d > _Wide.z)
+    if (!casts || d < _Wide.y || length(plant.position.xz - _CameraPosition.xz) > _Wide.z)
         return;
     Append(id, local, 2, 1);
 }

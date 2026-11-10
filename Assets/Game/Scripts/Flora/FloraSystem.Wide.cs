@@ -110,6 +110,7 @@ namespace Punchy.Flora
                 Culling.SetBuffer(kernel, ArgsId, w.Counts);
                 Culling.SetBuffer(kernel, RegionsId, l.Regions);
                 Culling.SetBuffer(kernel, ModelWideId, w.ModelWide);
+                Culling.SetBuffer(kernel, BoundsId, l.Bounds);   // R-6 row 0: each plant's height for its distance
                 Culling.SetBuffer(kernel, WideStateId, w.State);
                 Culling.Dispatch(kernel, (l.Count + 63) / 64, 1, 1);
                 Graphics.CopyBuffer(w.Counts, w.Args);

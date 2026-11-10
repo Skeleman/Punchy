@@ -24,7 +24,7 @@ namespace Punchy.Terrain
     [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation | WorldSystemFilterFlags.ClientSimulation)]
     public partial class SunkenTempleSystem : SystemBase
     {
-        const float Lod0Distance = 120f, Lod1Distance = 1200f;
+        int lod = -1;   // last frame's level (R-6 row 1: picked by on-screen size, DetailPolicy.LandmarkLod)
 
         /// <summary>The last build's triangle counts: exterior LOD0-2, then the interior.</summary>
         public static int[] LodTris = new int[4];
@@ -41,7 +41,6 @@ namespace Punchy.Terrain
         SunkenTempleLayout layout;
         Material stone, sand, innerStone, innerSand, glow;
         float3[] torches;
-        FarShadow farShadow;
         bool warned;
 
         protected override void OnCreate() => RequireForUpdate<TerrainSource>();
@@ -63,13 +62,16 @@ namespace Punchy.Terrain
             if (cam == null)
                 return;
             var cp = cam.transform.position;
+            Punchy.Settings.DetailPolicy.SetView(cam);
             var d = Vector3.Distance(cp, bounds.ClosestPoint(cp));
-            var lod = d < Lod0Distance ? 0 : d < Lod1Distance ? 1 : 2;
             var q = SunkenTempleShape.Local(layout, cp);
+            var near = q.x > -70f && q.x < 66f && math.abs(q.z) < 50f && q.y < 40f;
+            // Within the interior's box the full mesh always draws (its door and the interior belong to LOD 0).
+            lod = near ? 0 : Punchy.Settings.DetailPolicy.LandmarkLod(bounds.size.magnitude, d, lod);
             // W-113 (item 12): the interior shows from well outside the door (30 m round the ruin), so the plugs that
             // close the door while it's hidden never stand between a chase camera and the player walking in (they
             // read as a plane splitting the temple that the player passed through).
-            var inside = lod == 0 && q.x > -70f && q.x < 66f && math.abs(q.z) < 50f && q.y < 40f;
+            var inside = near;
             InteriorShown = inside;
 
             Draw(lods[lod], 0, stone, ShadowCastingMode.TwoSided);
@@ -83,11 +85,7 @@ namespace Punchy.Terrain
             }
             else if (lod == 0)
                 Draw(plug, 0, innerStone, ShadowCastingMode.Off);
-            // Past the real shadow distance the temple still casts, through a far shadow proxy (#84, as the salt tower).
-            var foot = new Vector3(bounds.center.x, source.SampleHeight(new float2(bounds.center.x, bounds.center.z)), bounds.center.z);
-            farShadow ??= new FarShadow("SunkenTemple far shadow");
-            farShadow.Draw(source, foot, math.max(4f, bounds.max.y - foot.y), math.min(bounds.extents.x, bounds.extents.z));
-            Punchy.Rendering.WideShadow.Cast(lods[2], matrix);   // R-5: and into the wide shadow map
+            Punchy.Rendering.WideShadow.Cast(lods[2], matrix);   // R-5: past the real shadows it casts through the wide shadow map
         }
 
         /// <summary>The wall torches: a wood flame each (FireSystem) and a flickering fixture light (LightBudget, refactor 3.1).</summary>
@@ -154,7 +152,6 @@ namespace Punchy.Terrain
         protected override void OnDestroy()
         {
             Clear();
-            farShadow?.Dispose();
         }
 
         void Clear()
@@ -220,6 +217,9 @@ namespace Punchy.Terrain
                     torches[k] = SunkenTempleShape.World(l, s.At + new float3(s.N.x, 0f, s.N.y) * 0.32f + new float3(0f, 0.42f, 0f));
                 }
                 Debug.Log($"[landmarks] sunken temple: {ruin.Rooms.Length} rooms, {ruin.Boxes.Length} boxes, {torches.Length} torches; tris LOD0-2 {LodTris[0]}/{LodTris[1]}/{LodTris[2]}, interior {LodTris[3]}");
+                lod = -1;
+                var reach = Punchy.Settings.DetailPolicy.LandmarkReach(bounds.size.magnitude);
+                Debug.Log($"[landmarks] sunken temple {bounds.size.magnitude:F0} m across, LOD switches at {reach.x:F0}/{reach.y:F0} m (was 120/1200)");
                 return;
             }
         }

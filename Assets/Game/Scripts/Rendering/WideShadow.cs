@@ -17,7 +17,7 @@ namespace Punchy.Rendering
     /// <summary>
     /// R-5: one wide cached sun-shadow map for the huge things. Real shadows stop at the pipeline's shadow distance
     /// and the flora cache at 120 m, so from afar the colossi, the salt tower and the sunken temple stood shadowless,
-    /// patched by one strip each (FarShadow). This lays one orthographic sun view about Reach round the player (3.2 km
+    /// patched by one ground strip each (the old FarShadow, retired by R-5 row 2). This lays one orthographic sun view about Reach round the player (3.2 km
     /// across by default), texel-snapped, into a 2048x2048 R16 texture that keeps, per texel, how far along the
     /// sunlight the nearest caster is.
     /// Which things cast is the DetailPolicy size-on-screen rule, never a list of types: every shadow-casting mesh in
@@ -298,8 +298,10 @@ namespace Punchy.Rendering
         static void DropUnseen()
         {
             var frame = Time.frameCount;
+            // A destroyed mesh goes at once; so does an entry from an earlier play session (statics outlive it with the
+            // domain reload off, and the frame count starts again, so its Seen can lie ahead of this frame).
             for (int i = casterCount - 1; i >= 0; i--)
-                if (frame - casters[i].Seen > 3)
+                if (casters[i].Mesh == null || frame - casters[i].Seen > 3 || casters[i].Seen > frame)
                 {
                     casters[i] = casters[--casterCount];
                     casters[casterCount] = default;
@@ -507,6 +509,8 @@ namespace Punchy.Rendering
             for (int i = 0; i < casterCount; i++)
             {
                 ref var c = ref casters[i];
+                if (c.Mesh == null)
+                    continue;
                 var box = BoxOf(c.Mesh, c.Matrix);
                 c.Tier = Tier(box, eye, handOver, c.Tier);
                 if (c.Tier <= 2 && AddDraw(c.Mesh, c.Matrix, null, box, centre, reach2, ref top))
@@ -841,6 +845,10 @@ namespace Punchy.Rendering
             if (field != null) Destroy(field);
             if (caster != null) Destroy(caster);
             commands?.Release();
+            // The registered landmark meshes die with the play session; start the next one empty.
+            System.Array.Clear(casters, 0, casters.Length);
+            casterCount = 0;
+            castersChanged = false;
             if (instance == this)
                 instance = null;
         }
