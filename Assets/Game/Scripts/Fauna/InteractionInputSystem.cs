@@ -358,7 +358,7 @@ namespace Punchy.Fauna
         void OnGUI()
         {
             var text = InteractionInputSystem.Prompt;
-            if (Hidden || string.IsNullOrEmpty(text))
+            if (Hidden || Punchy.UI.Overlay.Talking || string.IsNullOrEmpty(text))
                 return;
             if (style == null)
             {
