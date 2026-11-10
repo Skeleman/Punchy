@@ -2,6 +2,14 @@
 
 Newest first.
 
+## 2026-11-10 batch A-92 row 3 (#230): seams, fur and shells kept, on by default; card done (verified)
+- DONE row 3 (fauna/detail a1b6e20f): all three winners kept (none over 0.3 ms), nothing removed. On by default; `-noseams`, `-nofur`, `-noshells` turn each off (the flags' zero values mean on, so builds without launch options get them).
+- Combined cost (Detail_AllHerdNear, 30 horses, High, editor uncapped, camera 4 m from the nearest horse, 4 alternating rounds, all three vs none): main -0.19, render -0.05, gpu -0.05, pose -0.02 ms, all noise.
+- Checks: full PlayMode suite 18/18 passed; pins hold: Landmarks_V3 112 A955AFE0, Fauna_Fingerprint 66320C7C (render-only change). Line endings kept (CreatureAnimator, Creature.shader CRLF; rest LF). Defaults checked in a retake: -nofur still shows shells, default shows fur plus shells.
+- Shots (default vs -nofur, horse/wolf/rabbit at 2 m and 10 m, not reviewed in the gallery): PunchyMilestones/animal/detail-defaults/gallery/a92-fur-wolf-2m-on-20261110-034303.png (plus the other 11).
+- Weak: seams are hard to see on horse and rabbit; fur does not show on black coats. Herd benches are editor numbers, not the build bench.
+- NEXT: card A-92 done; editor closed. A build-bench pass (BENCH-QUEUE) would confirm the near-zero cost.
+
 ## 2026-11-10 batch A-92 row 2 (#230): seams, fur and shells tried on horse, wolf and rabbit, all three under 0.3 ms (verified)
 - DONE 2a seams (fauna/detail 664cbb3a, `-seams`): vertex blend across joints (each segment end bends toward its neighbour's axis). Look: subtle, wolf knees and hocks a little smoother, horse and rabbit hard to tell.
 - DONE 2b fur (fauna/detail c88e6927, `-fur`): procedural fur streaks along the body plus soft coat patches in the coat colour. Look: clear on wolf and rabbit up close, still reads at 10 m as mottling; nothing shows on the black horse.
