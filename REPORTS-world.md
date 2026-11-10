@@ -3685,6 +3685,24 @@ Built in the player tree, not the one the card names (the world tree's gitignore
   - **Contact sheet** (3 models; albedo over grey on the left, packed normal on the right): PunchyMilestones/R-7/r1/atlas-sheet-32.png (BarrelCactus, DryBush, SwampShrub) and atlas-sheet-64.png (BarrelCactus, FishBoardwalk, SwampShrub). Written check at 480 px: every frame is filled and centred; the middle frame is the top-down view and the corners are horizon views; the outlines are clean, the normals vary smoothly from frame to frame, and the background is empty.
   - Note: the shrub layer also holds props such as FishBoardwalk. Row 3's size rule decides whether they get impostors.
   - Risks: memory scales with the shrub model count. No placement or ProjectSettings changes.
+- **R-7 row 2 DONE (verified)** (8b449db7, lod/impostors): far shrubs are drawn as impostors. Each plant past its LOD2 hand-over (DetailPolicy Plant rule `Impostor = 9` px, with hysteresis in the cull) is one camera-facing quad on the same GPU cull and indirect path. It blends the 3 nearest frames, or only the nearest with `-impostoroneframe`. Depth is rebuilt from the baked depth (conservative SV_Depth), so the plants sort and take the sun's shadow, and they are lit from the baked normal the way Flora.shader lights the mesh. There is a dithered cross-fade with LOD2.
+  - **Shadows: none.** The impostor has no shadow caster. Far shadows come from the wide cache (R-5/R-6), which still lays shrubs in.
+  - **Method:** editor play mode on this PC, hour 15, clear weather, 1280x720, 180-frame means. The forest poses come from R-6's FindForest. Render ms is synced GPU time. "Flora ms" is the new `FloraSystem.Draw` marker (CPU cull dispatch and indirect submit).
+  - **Shrubs drawn (lod0/1/2 + imp), render ms, frame ms:**
+
+    | pose | mesh (today) | impostors 3-blend | 1-frame |
+    |---|---|---|---|
+    | ground at hand-over | 16/120/630, 4.27, 15.78 | 16/120/421 + 271, 4.48, 15.73 | 4.27, 15.15 |
+    | hilltop | 0/15/244, 4.83, 21.22 | 0/15/138 + 122, 4.77, 20.97 | 4.81, 20.91 |
+    | fly ~100 m | 0/8/439, 3.87, 16.02 | 0/8/263 + 207, 3.74, 16.08 | 3.76, 15.78 |
+    | fly ~300 m | no shrubs (reach 260 m), 3.74 | same, 3.66 | 3.65 |
+
+    Flora ms is 0.32 in every case: the submit is per model, not per plant. At today's reach the impostors cost about the same as the LOD2 meshes they replace (-0.13 to +0.21 ms render, within noise). Any saving has to come from longer reach (row 3).
+  - **Look:** mean absolute image difference, mesh vs impostor (0-255): ground 11.6 (heavy mist drifts between shots; mesh vs 1-frame is 5.0), hilltop 0.9, fly 100 m 1.0, fly 300 m 0.3 (no impostors in view, so this is the noise floor). At small size the colour and outline match.
+  - **Pop:** slow fly-over at 100 m, 10 shots 4 m apart. Frame-to-frame change (mean / worst 32 px block): impostors 5.0-5.8 / 38-51, mesh 6.9-7.8 / 50-59. There is no spike with impostors on.
+  - **Shots:** PunchyMilestones/R-7/r2/ ({ground,hilltop,fly100,fly300}-{mesh,imp,one}.png, contact-sheet.jpg, strip100-{imp,mesh}.jpg and frames).
+  - **Lit windows (Zach's R-10 note):** buildings are not on impostors in this card. A hook comment marks where they would go in the ForwardLit pass. Cost estimate: a third atlas (an emissive mask baked from the window part), R8 at about +25% of that layer's atlas memory, plus 3 more samples per pixel and the window-hour logic.
+  - Risks: no placement or ProjectSettings changes. The 1-frame mode is a debug flag.
 
 ## R-8 (skybox cost and adaptive cloud light; tree Punchy-release, branch sky/cost)
 
