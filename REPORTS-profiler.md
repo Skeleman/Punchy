@@ -2,6 +2,25 @@
 
 Newest first.
 
+## Note for R-9 (water/deform fd50ad58), 2026-11-10 13:00: Zach's look feedback on the swim wake
+I showed Zach a shot from job 45's R-9 run: the player swimming east at 4 m/s in the lake at 488,-1144, noon, `-gfx High`. He
+said the wake looks good, except that the water dips around the player at the front edge, where it should swell first.
+
+**What the shot shows:** a trough wraps the front of the swimmer, and the V arms and the rings behind look right.
+
+**Code pointer:** WaterPatchSystem's source job, lines ~206–219. Each swimmer adds two presses at its own position, both
+pushing the surface down:
+- the dimple (`depth`);
+- the shove (`-radius`, `shove`).
+
+Nothing raises the water ahead of it, so the leading edge reads as a dip.
+
+**Possible fix:**
+- add a raised hump a little ahead along the motion, about one radius forward, scaled with speed;
+- or move the dimple slightly behind the body so the field's own crest leads.
+
+This is for the water lane; I haven't changed anything. Job 45's cost numbers will be on fd50ad58 as built.
+
 ## Note, 2026-11-10 12:30: main doesn't build a player since #243 (06b2a72b)
 - **The failure:** a Profile (Development) player build of 06b2a72b fails to compile. ed0e68ef still has the same code, so
   latest main fails the same way.
