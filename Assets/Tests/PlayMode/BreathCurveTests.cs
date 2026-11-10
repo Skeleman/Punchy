@@ -11,7 +11,8 @@ namespace Punchy.Tests
     /// scene: small bodies breathe smaller puffs and less vapour per exhale on a quicker beat, fliers carry little of
     /// their velocity and breathe each exhale out in one burst (no trail), and bodies below the smallest size show none. Targets from A-90's card and its
     /// REPORTS table. The bodies are the -breathlog sizes of a songbird, an arctic fox, a deer and a horse (StandHeight,
-    /// BodyLength at the species' middle size, m) and A-90's colossus-sized body (8 m tall, 12 m long).
+    /// BodyLength at the species' middle size, m) and A-90's colossus-sized body (8 m tall, 12 m long), whose puffs grow
+    /// past a horse's since A-94 row 3.
     /// </summary>
     public class BreathCurveTests
     {
@@ -48,7 +49,7 @@ namespace Punchy.Tests
 
         /// <summary>
         /// Target (A-90 row 1): along songbird &lt; fox &lt; deer &lt; horse, puff size and vapour per exhale rise and the
-        /// beat slows; the colossus-sized body is never below the horse on any of them; a songbird's puff is 5-10% of a
+        /// beat slows, on to the colossus-sized body (A-94: no longer capped at a horse's); a songbird's puff is 5-10% of a
         /// person's and its beat at least 3x quicker; a flier carries at most 10% of its velocity (a walker 85%); a body
         /// under 0.1 of a person shows no breath, a songbird does.
         /// </summary>
@@ -65,14 +66,6 @@ namespace Punchy.Tests
             {
                 var (small, big) = (shapes[i - 1], shapes[i]);
                 var pair = $"{Bodies[i - 1].name} vs {Bodies[i].name}";
-                // (The colossus row is only held level here: A-94 row 3 lifts its size cap.)
-                if (Bodies[i].name == "colossus")
-                {
-                    Assert.That(big.Size, Is.GreaterThanOrEqualTo(small.Size), $"{pair}: puff size");
-                    Assert.That(big.Vapour, Is.GreaterThanOrEqualTo(small.Vapour), $"{pair}: vapour per exhale");
-                    Assert.That(big.Every, Is.GreaterThanOrEqualTo(small.Every), $"{pair}: beat");
-                    continue;
-                }
                 Assert.That(big.Size, Is.GreaterThan(small.Size), $"{pair}: puff size");
                 Assert.That(big.Vapour, Is.GreaterThan(small.Vapour), $"{pair}: vapour per exhale");
                 Assert.That(big.Every, Is.GreaterThan(small.Every), $"{pair}: the smaller body's beat should be quicker");
