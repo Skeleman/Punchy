@@ -4266,3 +4266,21 @@ Built in the player tree, not the one the card names (the world tree's gitignore
 
   Ultra: shafts about +0.1 to +0.3 ms. High: inside the noise (off measured higher than on). First-pass lines vary by up to 0.9 ms.
 - **Main's player build is broken (not this merge):** DebugControls.DungeonWalk.cs (A-95) calls the editor-only TestHooks at lines 146, 158, 418, 419 (CS0103), so `BuildPlayer` fails on main as is. I built with a local, uncommitted stub and restored it after. Owner of A-95 should guard those calls with `#if UNITY_EDITOR`.
+
+## W-133 row 2 - #212 flora round 3 merged with main: done (verified)
+- Commit 365e29fb on flora/round3 (pushed; merge of origin/main, no rebase).
+- Resolution: FloraCull.compute takes main's hunk as is. Main's `PlantDistance` (R-6 row 0) already measures 3D distance, so round 3's 3D LOD fix is dropped and main's is kept (the file now equals main). Flora.shader (CRLF kept) takes main's impostor hand-off, cull and shadow cheap-holes, with round 3 on top. Net diff vs main: FloraMeshBuilder.cs +5 (rooted stems) and Flora.shader +43/-3 (bark grain at 35% relief, wet darkening 0.5/0.7, gloss 0.07 power 10).
+- Rule 20: the bark grain's metre fade (`smoothstep(30, 60, detailFade)`) is removed. The grain now fades by screen size alone (`1 - smoothstep(0.35, 0.9, length(fwidth(ring)) * furrows)`), so it goes once the furrows are under a pixel. No other distances added or touched.
+- Shots (High, `-weatherseed 4`, branch vs main): PunchyMilestones/W-133/flora-Dev + flora-DevB (meadow-stems x2, climb-120m, climb-310m, oak/pine dry and rain) and flora2-Dev + flora2-DevB (hill-sw/nw/se forest from 60 m, oak-rain6/21, pine-rain6). Every ShotTool check is good and has the same mean on both builds. Side by side: flora-left-branch-right-main.jpg, flora2-left-branch-right-main.jpg.
+  - Climb 310 m looking down: ground drawn, sky 0.00 in the check, no hole (same as main).
+  - Forest from the hill: impostors and tree layout match main; the only differences are clouds (mean abs diff 2.5-3.7, the same order as main vs main).
+  - Bark: oak and pine trunks show long vertical grain where main shows speckle; in rain the pine trunk reads darker and wetter than main.
+- Walk / hilltop ms (1920x1080, uncapped, High, (1740, 3355) 11:00 clear, 8 s per line, alternating branch/main x2):
+
+| View | GPU branch | GPU main | frame branch | frame main |
+|---|---|---|---|---|
+| Walk (eye level, forest) | 2.90 / 2.95 / 3.38 / 3.86 | 3.84 / 3.90 / 4.42 / 4.62 | 5.9-6.3 | 6.5-7.1 |
+| Hilltop (60 m, facing forest) | 2.57 / 2.59 / 3.21 / 3.75 | 3.28 / 3.72 / 3.77 / 3.89 | 5.5-5.7 | 6.1-6.6 |
+
+  Frames given for the settled lines only; lines with streaming hitches (max 55-350 ms) show up in both builds. The branch costs no more than main (GPU about 0.5-0.9 ms lower in these runs, which may be noise).
+- Not ours, found on the way: (1) at the lone-oak spot near (1756, 17, ...) rain draws a grey wall over the bottom of the view on both builds (pine spot is fine). (2) Main's player build still fails on DungeonWalk TestHooks (see row 1); built with the same local stub, restored before the push.
