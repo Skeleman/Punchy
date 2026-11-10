@@ -2,6 +2,103 @@
 
 Newest first.
 
+## Job 44: W-129 streaming spikes in a player build, 2026-11-10 (q74.sh)
+**Answer: no streaming system repeats over 100 ms outside the editor.** Of the frames over 100 ms that the bench logged:
+- About 9 in 10 are the ~500 ms swapchain wait, the one Job 43 hit at the lake.
+- Most of the rest are full stalls, or frames right after one.
+- Only two frames over 100 ms weren't one of those. Both came from the main thread waiting on Burst jobs. Neither came from a
+  streaming system's own main-thread code.
+
+So W-129's 200–590 ms spikes don't come from streaming code in a player build: the ones near 500 ms match this swapchain
+wait. The 100–150 ms place below is the only streaming candidate, and it's contention between job systems (W-129 row 3),
+not one system.
+
+**Setup:**
+- Main ef393625, Profile build, 1920x1080, `-gfx High`, noon, Clear, uncapped, island v3, D3D11, no editor open, each run a
+  fresh launch.
+- New bench stop `-benchline` (Punchy b/bench-stress 2018d2fd). It settles 10 s at the start, then carries the player along
+  the line.
+  - Shrub walk: z=1324, x -1236 to 164, at 30 m/s on the ground.
+  - Glide: z=-1200, x -3000 to 3000, at 60 m/s, 40 m over the ground or the sea.
+- Each run is a pair of launches: a plain one (`-hitchms 50` logs every frame over 50 ms with the player's position), then
+  one with the Profiler recording the line.
+- Each capture was analysed by `BProfileTools.Analyze -over 50` (5be51e94). For every frame over 50 ms it lists the main
+  thread's top samples by self and inclusive time, and the workers' busiest samples.
+- **Capture limit:** a capture keeps only its last 2000 frames. So a walk's first 4–6 s and a glide's first ~55 s are only in
+  the plain runs' hitch lines.
+- **Glides:** 4 glides were needed to get 2 clean ones. 5 of the 8 glide launches stalled while measuring, and a stall skips
+  the player ~3 km ahead.
+- **Walk1:** the first walk1 pair overlapped a leftover copy of the script and was rerun.
+
+**Per run (mean frame ms, median, and the bench's "hitch" counts):**
+| run | mean ms | median | over 50 | over 100 | of those over 100 |
+|---|---|---|---|---|---|
+| walk 1 | 19.3 | 17.9 | 4 | 2 | 2 ~500 ms waits (x -1229, -1168) |
+| walk 1 profiled | 20.3 | 19.0 | 4 | 1 | 1 wait |
+| walk 2 | 19.7 | 17.7 | 6 | 3 | 3 waits |
+| walk 2 profiled | 21.4 | 19.2 | 9 | 6 | 5 waits; 136 ms on the first frame after settling (x -1236) |
+| walk 3 | 19.4 | 17.4 | 6 | 4 | 4 waits |
+| walk 3 profiled | 21.3 | 19.3 | 9 | 3 | 3 waits |
+| glide 1 | 45.0 | 17.8 | 6 | 2 | a 54.6 s stall at x -2265 and a 4.0 s frame after it |
+| glide 1 profiled | 38.5 | 18.7 | 8 | 2 | 1 wait; a 54.2 s stall |
+| glide 2 | 32.7 | 18.5 | 11 | 5 | 3 waits; a 54.4 s stall and a 159 ms frame right after it |
+| glide 2 profiled | 20.7 | 18.8 | 37 | 9 | 9 waits (clean run) |
+| glide 3 | 32.8 | 18.5 | 19 | 6 | 4 waits; a 56.0 s stall and a 147 ms frame right after it |
+| glide 3 profiled | 20.6 | 18.7 | 24 | 10 | 10 waits (clean run) |
+| glide 4 | 27.5 | 18.1 | 19 | 8 | 4 waits; a 27.6 s stall and 107/142 ms frames right after it; 143 ms at x -1515 |
+| glide 4 profiled | 40.7 | 18.7 | 15 | 7 | 3 waits; a 57.7 s stall and a 104 ms frame after it; 134 ms at x -1524; 104 ms at x -4 |
+
+**The ~500 ms waits (449–551 ms, 51 of them):**
+- In the profiled runs every one is the main thread in `DXGI.WaitOnSwapChain` (under `WaitForLastPresentation`) for
+  490–530 ms. Main-thread work in the same frame is under 20 ms. This is the same wait as the long stalls (job 41).
+- They gather where streaming is heavy: the walk's first 70 m (x -1236 to -1168) and the glide around x -1800 to -1440.
+- **I think the GPU or driver is busy with something the CPU doesn't see,** such as uploads or pipeline creation, and the
+  present blocks until a ~0.5 s timeout. That's a guess.
+- At 1–10 per run, they're the biggest source of frames over 100 ms in the player build.
+
+**The non-wait frames over 100 ms, with their top samples:**
+- **x -1520, z -1200, the glide** (first visit; 143 ms plain and 134 ms profiled in glide 4, 69–84 ms in glide 1 profiled):
+  - Main thread: waits 114 ms in `WaitForJobGroupID` on `FloraSystem:PlaceJob`, from `FloraSystem.LateUpdate`.
+  - Workers in the same frame: FloraSystem:PlaceJob 194 ms, CaveSystem:MeshJob 134, BuildChunkMeshJob 114,
+    SurfaceGlow:FarScanJob 105, SurfaceGlow:ScanJob 80.
+  - The flora placement complete lands while caves, terrain meshes and glow scans fill the workers. This is the contention
+    W-129 row 3 asks about.
+- **x -4, the glide (glide 4 profiled), 104 ms:**
+  - Main thread: waits 79 ms in `WaitForJobGroupID`.
+  - Workers: FloraSystem:PlaceJob 303 ms, BuildChunkMeshJob 69.
+- **The walk start, 136 ms (walk 2 profiled):** the first frame after settling, before the capture began, so it has no
+  samples.
+- **Frames right after a stall (104–159 ms):** catch-up after a 27–58 s frame. The line skips ahead, so these are not
+  streaming.
+
+**Frames of 50–100 ms (from the captures):**
+- **Main thread waiting on jobs.** About half are `WaitForJobGroupID`, usually on `FloraSystem:PlaceJob`. Its workers total
+  140–490 ms in those frames, with `GroundDetailSystem:SampleGroundJob` and `CaveSystem:ColumnJob` the next most often.
+- **`TerrainStreamingSystem`'s own main-thread time.** It runs 30–63 ms (self) on single frames of the glide.
+  - Repeated at 7.6–7.7 s, 29 s and 38–40 s into the capture in both clean glides.
+  - The top was 63 ms near the glide's end, with `EngineJob` 91 ms and `WideShadow:HeightJob` 38 ms on the workers.
+- **Others, once each:**
+  - `CaveSystem.Update` running Mono.JIT (10–16 ms) at 21 s in both clean glides. This is first-use JIT.
+  - `Instantiate.Copy` 15 ms with `ColossusWalker.Update` 9–10 ms at 33 s in both.
+- **`FloraSystem.LateUpdate` grows** from ~3 ms to 10–20 ms self on the busiest glide frames, around 38–40 s into the
+  capture.
+- None of these reach 100 ms by themselves.
+
+**For W-129:**
+- Closed as "no streaming system over 100 ms outside the editor".
+- Two items to keep:
+  1. **The x -1520 glide contention.** Flora placement's Complete lands behind cave and chunk-mesh jobs, 70–143 ms on a first
+     visit.
+  2. **TerrainStreamingSystem's 30–63 ms main-thread frames on the glide.**
+- The ~500 ms swapchain waits belong with the swapchain stall work (b/fix-swapchain-stall, job 42), not with streaming.
+
+Files (Punchy-wt results):
+- q74.out and q74b.out
+- q74logs/
+- q74-*-p.txt: the OVER lines
+
+Cost: this job about $4 (laptop session 0a48ccdb; 28 launches and 7 analyses); laptop total $690.
+
 ## Job 43: water, SSAO, glow slots and shadow distance on the laptop, 2026-11-10 (q73.sh)
 Main 2644b295, Profile build, 1920x1080, `-weatherseed 4`, noon, Clear, uncapped, D3D11, `-gfx High` and `-gfx Medium`.
 Each run is a fresh game, round 1 in list order and round 2 reversed, about 300 measured frames. 56 bench games ran from
