@@ -755,6 +755,8 @@ namespace Punchy.Weather
             source.panStereo = pan;
             source.volume = math.lerp(1f, 0.25f, math.saturate(distance / 9000f));
             source.clip = clip;
+            // (Its group's level and the water's muffle, with the rest of the sound: GameAudio.)
+            Punchy.Audio.GameAudio.Adopt(source, Punchy.Audio.SoundGroup.Weather);
             source.Play();
             Destroy(source.gameObject, clip.length + 0.5f);
             Destroy(clip, clip.length + 1f);

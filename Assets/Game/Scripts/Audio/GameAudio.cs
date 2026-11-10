@@ -23,9 +23,12 @@ namespace Punchy.Audio
     /// surface's sounds fade with CaveSystem.SurfaceHidden, so near a mouth the outside is still heard), and from above
     /// ground nothing deep in a cave is heard. Underground everything echoes, longer the bigger the cave around the
     /// listener (one reverb zone kept on the listener, sized from the cave's air around it).
+    /// Under water (the camera's lens, Underwater.LensUnder) every voice is muffled and pitched down, the weather's
+    /// sources too (GameAudioWater). Each voice's low-pass, pitch and volume are set every frame from what it was
+    /// started with and what's in the way (Shape): one filter per voice, never a second stacked on it.
     /// Created by itself on load; nothing needs to be in a scene.
     /// </summary>
-    public class GameAudio : MonoBehaviour
+    public partial class GameAudio : MonoBehaviour
     {
         public const int MaxVoices = 24;
 
@@ -64,6 +67,9 @@ namespace Punchy.Audio
             public int Handle;
             public float Volume;
             public SoundGroup Group;
+            /// <summary>Where the sound is, the pitch it was started at, and its air low-pass from distance (Setup).</summary>
+            public Vector3 At;
+            public float Pitch, AirCut;
         }
 
         readonly List<Voice> voices = new List<Voice>();
@@ -146,10 +152,30 @@ namespace Punchy.Audio
                 making = null;
             }
             Echo();
-            // Loops follow the group levels as they change (master is on the listener).
+            Water();
+            // Every playing voice follows the group levels as they change (master is on the listener) and the water.
             foreach (var voice in voices)
-                if (voice.Loop && voice.Source.isPlaying)
-                    voice.Source.volume = voice.Volume * Volume[(int)voice.Group];
+                if (voice.Source.isPlaying)
+                    Shape(voice);
+        }
+
+        /// <summary>
+        /// A voice's low-pass, pitch and volume from what it was started with: its air low-pass (distance), and under
+        /// water the water's cutoff (the lower of the two wins: one filter, not two), its pitch down and a little quieter.
+        /// </summary>
+        void Shape(Voice voice)
+        {
+            var s = voice.Source;
+            var cut = voice.AirCut;
+            var gain = 1f;
+            if (wet > 0f)
+            {
+                cut = Mathf.Min(cut, wetCut);
+                gain *= wetGain;
+            }
+            voice.Air.cutoffFrequency = cut;
+            s.pitch = voice.Pitch * wetPitch;
+            s.volume = voice.Volume * Volume[(int)voice.Group] * gain;
         }
 
         void OnDestroy()
@@ -276,17 +302,18 @@ namespace Punchy.Audio
             s.Stop();
             s.clip = clip;
             s.transform.position = at;
-            s.pitch = pitch;
             s.maxDistance = reach;
             // (Full volume out to a quarter of its reach, then falling away: heard where it's meant to be heard.)
             s.minDistance = Mathf.Max(1f, reach * 0.25f);
-            s.volume = volume * Volume[(int)group];
             // Far off (past 40 m), muffled as the air muffles it: a wolf's howl across the valley is soft and dull, not
             // crisp, down to a 1.8 kHz top by 200 m.
             var far = Mathf.InverseLerp(40f, 200f, Vector3.Distance(at, Ear));
-            voice.Air.cutoffFrequency = Mathf.Lerp(22000f, 1800f, Mathf.Sqrt(far));
+            voice.AirCut = Mathf.Lerp(22000f, 1800f, Mathf.Sqrt(far));
+            voice.At = at;
+            voice.Pitch = pitch;
             voice.Volume = volume;
             voice.Group = group;
+            Shape(voice);
         }
 
         /// <summary>
@@ -345,8 +372,9 @@ namespace Punchy.Audio
                 if (voice.Loop && voice.Handle == handle)
                 {
                     voice.Source.transform.position = at;
+                    voice.At = at;
                     voice.Volume = volume * ThroughRock(at);
-                    voice.Source.volume = voice.Volume * Volume[(int)voice.Group];
+                    instance.Shape(voice);
                 }
         }
 

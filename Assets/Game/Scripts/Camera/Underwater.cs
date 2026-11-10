@@ -11,9 +11,9 @@ namespace Punchy.CameraRig
     /// <summary>
     /// The camera under water (#22, P-19, first slice): when the lens is in a body of water (the sea, a lake or a river:
     /// TerrainSource.SampleGround's water, between its bed and its surface; or a cave stream or pool:
-    /// ThirdPersonCamera.CaveWaterAbove), a blue-green fog with short visibility, a tint over the screen, and the sound
-    /// muffled (a low-pass filter on the listener). Going in blends over <see cref="BlendIn"/> s; coming out, the fog and
-    /// the teal sky go at once and only the tint and muffling fade, over <see cref="BlendOut"/> s (playtest 11-08 item 7:
+    /// ThirdPersonCamera.CaveWaterAbove), a blue-green fog with short visibility and a tint over the screen; the sound is
+    /// GameAudio's (it muffles each voice from LensUnder and LensDepth, A-98). Going in blends over <see cref="BlendIn"/> s;
+    /// coming out, the fog and the teal sky go at once and only the tint fades, over <see cref="BlendOut"/> s (playtest 11-08 item 7:
     /// surfacing was slow, the sky stayed teal and the world popped in as the fog thinned). A few centimetres between
     /// going in and coming out, so a lens bobbing at the waterline doesn't flicker. Water surfaces are only read; the
     /// surface over the lens goes to the shaders (_PunchyUnderwaterSurface) for Snell's window near the top (item 8).
@@ -22,7 +22,7 @@ namespace Punchy.CameraRig
     [DefaultExecutionOrder(1100)]
     public class Underwater : MonoBehaviour
     {
-        const float BlendIn = 0.25f, BlendOut = 0.15f, Margin = 0.04f, Cutoff = 700f;
+        const float BlendIn = 0.25f, BlendOut = 0.15f, Margin = 0.04f;
         static readonly Color FogColour = new Color(0.04f, 0.22f, 0.25f);
         static readonly Color Tint = new Color(0.08f, 0.32f, 0.36f, 0.32f);
         const float FogDensity = 0.11f;
@@ -44,7 +44,9 @@ namespace Punchy.CameraRig
         float amount;
         /// <summary>Whether the camera's lens is in the water now (WeatherSystem hides its precipitation then, item 18).</summary>
         public static bool LensUnder { get; private set; }
-        AudioLowPassFilter lowPass;
+        /// <summary>How deep the lens is under the surface (m, with the swell; 0 when dry), and what water it's in (for GameAudio).</summary>
+        public static float LensDepth { get; private set; }
+        public static string LensWater { get; private set; } = "none";
         EntityQuery terrainQuery;
         World queryWorld;
         GUIStyle none;
@@ -82,6 +84,7 @@ namespace Punchy.CameraRig
         {
             RenderPipelineManager.beginContextRendering -= BeforeRender;
             LensUnder = false;
+            LensDepth = 0f;
         }
 
         void BeforeRender(ScriptableRenderContext context, List<Camera> cameras)
@@ -106,8 +109,11 @@ namespace Punchy.CameraRig
             var was = under;
             under = surface > float.MinValue && (under ? y < surface + Margin : y < surface - Margin);
             LensUnder = under;
+            LensDepth = under ? Mathf.Max(surface - y, 0f) : 0f;
+            if (under)
+                LensWater = kind;
             if (under != was)
-                Debug.Log($"Underwater: {(under ? "in" : "out of")} the water ({kind}, lens {y:F2}, surface {(surface > float.MinValue ? surface.ToString("F2") : "-")}); low-pass {(under ? $"on ({Cutoff:F0} Hz)" : "off")}");
+                Debug.Log($"Underwater: {(under ? "in" : "out of")} the water ({kind}, lens {y:F2}, surface {(surface > float.MinValue ? surface.ToString("F2") : "-")})");
             amount = Mathf.MoveTowards(amount, under ? 1f : 0f, Time.deltaTime / (under ? BlendIn : BlendOut));
             // The water's fog and teal sky only while the lens is in the water: out of it, nothing is between the eye and
             // the world any more, so they go at once (item 7); the tint (water running off the lens) and muffling fade.
@@ -131,25 +137,7 @@ namespace Punchy.CameraRig
             // (Shaders work in linear colour; the density blends with the rest, so the fog thins in as the lens sinks.)
             var water = FogColour.linear;
             Shader.SetGlobalVector(UnderwaterId, fog > 0f ? new Vector4(water.r, water.g, water.b, WaterFogDensity * fog) : Vector4.zero);
-            Shader.SetGlobalVector(SurfaceId, under ? new Vector4(surface, Mathf.Max(surface - y, 0f), 0f, 0f) : Vector4.zero);
-            Muffle();
-        }
-
-        /// <summary>A low-pass filter on the listener, its cutoff blended with the rest (off when dry).</summary>
-        void Muffle()
-        {
-            if (lowPass == null)
-            {
-                var listener = FindAnyObjectByType<AudioListener>();
-                if (listener == null)
-                    return;
-                // Unity's missing component is a fake null, so ?? would never add the filter.
-                lowPass = listener.GetComponent<AudioLowPassFilter>();
-                if (lowPass == null)
-                    lowPass = listener.gameObject.AddComponent<AudioLowPassFilter>();
-            }
-            lowPass.enabled = amount > 0f;
-            lowPass.cutoffFrequency = Mathf.Lerp(22000f, Cutoff, amount * amount);
+            Shader.SetGlobalVector(SurfaceId, under ? new Vector4(surface, LensDepth, 0f, 0f) : Vector4.zero);
         }
 
         /// <summary>The surface of the water the point is in (float.MinValue: not in water), and what kind it is.</summary>
@@ -204,12 +192,6 @@ namespace Punchy.CameraRig
             GUI.color = new Color(Tint.r, Tint.g, Tint.b, Tint.a * amount);
             GUI.DrawTexture(new Rect(0f, 0f, Screen.width, Screen.height), Texture2D.whiteTexture);
             GUI.color = c;
-        }
-
-        void OnDisable()
-        {
-            if (lowPass != null)
-                lowPass.enabled = false;
         }
     }
 }
