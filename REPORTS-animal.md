@@ -3183,3 +3183,31 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - Full PlayMode suite (rule 19): "25 passed, 0 failed, 17 skipped in 377s (Unity exit 0)." Pins: Landmarks_V3 and Fauna_Fingerprint (66320C7C) pass. No placement changes.
 - Risk: the mammoth's puff reads bright and blob-like up close. A lower opacity for colossi would be a one-line tweak if Zach wants it softer.
 - Card done. Editor closed. Branch fauna/breath-check is ready for review (commits 666f6d1b, b4053ec6, a606114b).
+
+## A-95 - dungeon collision (issue #24)
+
+### Row 1 - find - done (verified)
+- Commit daadb490 on fauna/dungeon-collision (pushed). New `DebugControls.DungeonWalk.cs` plus the `-dungeonwalk` flag; walker only, no game change.
+- Run: `-dungeonwalk 5:Human,Rabbit,Crow:40`, Play Unfocused. The island has 24 caves (5 walked), 1 buried ruin and 1 sunken temple, so Ruin and Temple are 1 dungeon each. Ledge drops (stepping off a ledge the line passes over) and a flier circling a point are counted apart from falls and stuck.
+- Table (legs walked / problems):
+
+| Type/body | legs | walked | falls | stuck | timeouts | ledge drops | circles | body clips | cam clips | sockets in wall | socket boxes poking |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Cave/Human | 177 | 170 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 4 | 35 |
+| Cave/Rabbit | 177 | 168 | 0 | 0 | 1 | 1 | 0 | 1 | 0 | - | - |
+| Cave/Crow | 177 | 155 | 0 | 1 | 8 | 0 | 8 | 4 | 12 | - | - |
+| Ruin/Human | 36 | 33 | 0 | 0 | 0 | 1 | 0 | 0 | 1 | 0 | 2 |
+| Ruin/Rabbit | 36 | 32 | 0 | 0 | 1 | 1 | 0 | 1 | 1 | - | - |
+| Ruin/Crow | 36 | 34 | 0 | 0 | 0 | 0 | 2 | 0 | 0 | - | - |
+| Temple/Human | 39 | 34 | 0 | 0 | 3 | 0 | 0 | 1 | 0 | 7 | 11 |
+| Temple/Rabbit | 39 | 33 | 0 | 0 | 4 | 0 | 0 | 0 | 0 | - | - |
+| Temple/Crow | 39 | 29 | 0 | 0 | 2 | 0 | 1 | 0 | 0 | - | - |
+
+- Worst found:
+  1. Temple: Human and Rabbit can't get down from the lever room ledge (3538, 22.7, 353) to the floor 3.8 m below. Timeouts on legs 30/32/39.
+  2. Temple: 5 Interactable sockets (sconces and altar tops) have their box middle inside temple wall, and 2 Clutter sockets sit inside a chest (chest 4 and chest 8). The Lever stand-in clips the human at (3540, 19.8, 354).
+  3. Caves: 4 chest sockets share their spot with a clutter prop 0.2 m away (Cobweb, RockPile, Bones). Rabbit and crow clip clutter stand-ins, which have no collider.
+  4. Cave 1169493543: crow stuck 0.2 m under rock at (-3095, 137.4, 279).
+  5. Ruin 3894404499: camera inside pillar kit box 17 at (-236.9, 11.1, -3207.5), and a 2.2 m ledge drop at (-242, 11.4, -3222). Kit boxes are world lane (CaveRoomKit), not touched.
+- Shots (800 px, noon, clear, avatar behind the camera): D:/Unity/PunchyMilestones/A-95/row1-temple.png (lever room: lever box, sconce box in the wall, the ledge), row1-cave.png (cave 1169493543 chest room), row1-ruin.png (pillar box 17 corner).
+- Next: row 2 (fix).
