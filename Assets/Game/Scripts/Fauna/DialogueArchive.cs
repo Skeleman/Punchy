@@ -63,7 +63,10 @@ namespace Punchy.Fauna
         /// <summary>The last parse error (shown once in the log), or null.</summary>
         public static string Error;
 
-        public static string Path => System.IO.Path.Combine(Application.streamingAssetsPath, FileName);
+        /// <summary>The "conversation" section (FolkConversation, A-93), or null when the file has none.</summary>
+        public FolkConversation.TalkBook Talk;
+
+        public static string Path =>System.IO.Path.Combine(Application.streamingAssetsPath, FileName);
 
         /// <summary>The archive, read again if the file has changed (checked once a second); null if there's none.</summary>
         public static DialogueArchive Current
@@ -116,6 +119,8 @@ namespace Punchy.Fauna
         {
             var root = JObject.Parse(json);
             var archive = new DialogueArchive();
+            // (The talk window's lines, A-93: FolkConversation reads them.)
+            archive.Talk = FolkConversation.Parse(root["conversation"]);
             if (root["cultures"] is JObject cultures)
                 foreach (var pair in cultures)
                 {
@@ -300,10 +305,13 @@ namespace Punchy.Fauna
                 return false;
             if (line.Moods != null && line.Moods.Length > 0 && Array.IndexOf(line.Moods, who.Mood) < 0)
                 return false;
-            if (string.IsNullOrEmpty(line.When))
-                return true;
-            var h = who.Hour;
-            switch (line.When.ToLowerInvariant())
+            return string.IsNullOrEmpty(line.When) || InHours(line.When, who.Hour);
+        }
+
+        /// <summary>Whether hour h is in a line's "when" (day, night, dawn, morning, afternoon, evening/dusk; anything else: always).</summary>
+        internal static bool InHours(string when, float h)
+        {
+            switch (when.ToLowerInvariant())
             {
                 case "day": return h >= 6f && h < 18f;
                 case "night": return h >= 20f || h < 5f;

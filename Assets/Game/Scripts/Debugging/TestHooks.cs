@@ -268,6 +268,152 @@ namespace Punchy.Debugging
         public static string WorstAnyCulture;
 
         /// <summary>
+        /// A digest of n folk personas (A-93), each trait quantised to 1/256, individuals spread as spawns spread them:
+        /// the same on every run. Its bands are in PersonaBands.
+        /// </summary>
+        public static string PersonaDigest(int n)
+        {
+            var h = 2166136261u;
+            for (int i = 0; i < n; i++)
+            {
+                var p = FolkPersona.Of(PersonaIndividual(i));
+                for (int t = 0; t < FolkPersona.Count; t++)
+                    h = (h ^ (uint)(int)math.floor(p[(PersonaTrait)t] * 256f)) * 16777619u;
+            }
+            return h.ToString("X8");
+        }
+
+        static uint PersonaIndividual(int i) => (uint)i * 2654435761u + 12345u;
+
+        /// <summary>
+        /// Over n personas: per trait the share in its high band and its low band ([high0, low0, high1, low1, ...]), then
+        /// the share whose mood band disagrees with FolkJobs.Mood (should be 0: the talk and the walk-by lines agree).
+        /// </summary>
+        public static float[] PersonaBands(int n)
+        {
+            var r = new float[FolkPersona.Count * 2 + 1];
+            for (int i = 0; i < n; i++)
+            {
+                var ind = PersonaIndividual(i);
+                var p = FolkPersona.Of(ind);
+                for (int t = 0; t < FolkPersona.Count; t++)
+                {
+                    var b = p.Band((PersonaTrait)t);
+                    if (b == 2) r[t * 2] += 1f / n;
+                    if (b == 0) r[t * 2 + 1] += 1f / n;
+                }
+                if (p.MoodBand != FolkJobs.Mood(ind))
+                    r[FolkPersona.Count * 2] += 1f / n;
+            }
+            return r;
+        }
+
+        /// <summary>
+        /// Every topic asked of made-up folk of every culture in dialogue.json (and of no culture), many individuals, at
+        /// all hours, in every condition, with and without a home and a job, to a player of playerSpecies (null: its own
+        /// kind; beast: an animal player). [cultures, answers, empty answers, unfilled {slots}, exceptions, help answers
+        /// offering a quest, quests with no id]. The first exception's message is in SweepError.
+        /// </summary>
+        public static float[] ConversationSweep(string playerSpecies, bool beast)
+        {
+            SweepError = null;
+            FolkConversation.ForgetAsks();
+            var cultures = new List<string> { null };
+            var archive = DialogueArchive.Current;
+            if (archive != null)
+                cultures.AddRange(archive.Cultures.Keys);
+            int answers = 0, empty = 0, unfilled = 0, errors = 0, quests = 0, noId = 0;
+            var conditions = new[] { FolkCondition.None, FolkCondition.Tired | FolkCondition.Night, FolkCondition.Busy, FolkCondition.Hungry,
+                                     FolkCondition.Thirsty, FolkCondition.Lonely, FolkCondition.Scared, FolkCondition.Weather };
+            var stances = (FolkStance[])System.Enum.GetValues(typeof(FolkStance));
+            foreach (var culture in cultures)
+                for (int i = 0; i < 24; i++)
+                {
+                    var ind = PersonaIndividual(i);
+                    var cond = conditions[i % conditions.Length];
+                    var who = new FolkTalker
+                    {
+                        Species = culture,
+                        Job = i % 3 == 0 ? null : "Smith",
+                        HomeTown = i % 2 == 0 ? "Testford" : null,
+                        PlayerSpecies = playerSpecies,
+                        Beast = beast,
+                        Individual = ind,
+                        Persona = FolkPersona.Of(ind),
+                        State = new FolkState { Flags = cond, Weather = cond == FolkCondition.Weather ? ComfortKind.Rain : ComfortKind.None, Hour = (i * 5) % 24 },
+                        Stance = stances[i % stances.Length],
+                    };
+                    try
+                    {
+                        var topics = FolkConversation.Topics(who);
+                        // (Every topic, then favours again until it's pestered.)
+                        foreach (var t in topics)
+                            Count(FolkConversation.Ask(who, t.Id));
+                        foreach (var (id, _) in FolkConversation.AllTopics)
+                            Count(FolkConversation.Ask(who, id));
+                        for (int k = 0; k < 3; k++)
+                            Count(FolkConversation.Ask(who, FolkConversation.Favour));
+                    }
+                    catch (System.Exception e)
+                    {
+                        errors++;
+                        SweepError ??= $"{culture ?? "(none)"} #{i}: {e}";
+                    }
+                }
+            FolkConversation.ForgetAsks();
+            return new float[] { cultures.Count, answers, empty, unfilled, errors, quests, noId };
+
+            void Count(Answer a)
+            {
+                answers++;
+                if (string.IsNullOrEmpty(a.Text) || a.Text == "...")
+                    empty++;
+                if (a.Text != null && (a.Text.IndexOf('{') >= 0 || a.Text.IndexOf('}') >= 0))
+                    unfilled++;
+                if (a.Offer.Kind == OfferKind.Quest)
+                {
+                    quests++;
+                    if (string.IsNullOrEmpty(a.Offer.Id))
+                        noId++;
+                }
+            }
+        }
+
+        public static string SweepError;
+
+        /// <summary>
+        /// Talks to up to n live folk near the player (the real entity path: persona, condition, home town, stance): one
+        /// line per folk with its persona and condition, then each topic's answer. Empty when no folk is near.
+        /// </summary>
+        public static string TalkToFolk(int n)
+        {
+            var sb = new System.Text.StringBuilder();
+            var world = World.DefaultGameObjectInjectionWorld;
+            var at = PlayerPosition();
+            using var q = EM.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
+            using var entities = q.ToEntityArray(Allocator.Temp);
+            var near = new List<(float, Entity)>();
+            foreach (var e in entities)
+            {
+                var s = EM.GetComponentData<CreatureState>(e);
+                var d = math.distance(s.Position, (float3)at);
+                if (d < 200f && FolkConversation.TryTalker(world, e, null, out _))
+                    near.Add((d, e));
+            }
+            near.Sort((a, b) => a.Item1.CompareTo(b.Item1));
+            for (int k = 0; k < near.Count && k < n; k++)
+            {
+                if (!FolkConversation.TryTalker(world, near[k].Item2, null, out var who))
+                    continue;
+                sb.Append($"{who.Species} #{who.Individual:X8} job {who.Job ?? who.Trade ?? "-"} town {who.HomeTown ?? "-"} stance {who.Stance}\n  {who.Persona}\n  state {who.State} hour {who.State.Hour:F1}\n");
+                foreach (var t in FolkConversation.Topics(near[k].Item2))
+                    sb.Append("  ").Append(FolkConversation.Ask(near[k].Item2, t.Id)).Append('\n');
+            }
+            FolkConversation.ForgetAsks();
+            return sb.ToString();
+        }
+
+        /// <summary>
         /// A-69: dry land where a biome is the dominant one, sampled every 32 m over the island: [km², cells, then the
         /// x,z of up to 8 cells spread through it (every n-th)]. Empty if the world isn't up or the biome isn't there.
         /// </summary>
