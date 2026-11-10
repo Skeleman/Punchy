@@ -3164,3 +3164,22 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - After: no trail in any frame. Condor-2 shows one faint pair of dots in the sky behind it. Landed condors and songbirds show nothing larger than before.
 - BreathCount (-breathlog, puffs alive across the scene every 5 s): before 100 / 67 / 83, after 127 / 58 / 45. Same order, no rise.
 - Next: row 3 (colossus breath).
+
+### Row 3 - colossus breath - done (verified)
+- Commit a606114b on fauna/breath-check (pushed).
+- One curve, no species literals: past 4x a person, `ShapeFor` multiplies by `big = clamp(body/4, 1, 8)`. Puff size grows as big^0.75 on top of the old size-3 cap. Beat, exhale and lifetime grow as big^0.25, and reach (distance from the camera) grows as 25 m x big. Wisps per exhale stay the same, so a body has fewer alive at once. Every body of 4x a person or less (everything in a busy scene) breathes as before.
+- Colossi now breathe through `StoneColossi.ColdBreath`. It measures the body off its meshes (ground drifts and trails left out), uses ShapeFor, and puffs through AmbienceSystem, so breath shows only in the cold and only within reach.
+  - The old always-on "Breath" particle systems are gone: the mammoth's 14-particle burst every 5-9 s, and the snow worm's 11-14-particle stream, which ran even 2 km away and in a thaw.
+  - Ice mammoth: body 74.9 x a person, puff size 14.3, beat 10.8 s, exhale 1.5 s, 21.6 wisps, life 5.1 s, reach 200 m. The snow worm is the same shape, clamped at big 8.
+  - Test colossus-sized body (8 x 12 m): size 8.86, beat 9.18 s. Horse unchanged: 3.00, 6.40 s.
+- `BreathCurveTests.Breath_SmallLessBigMore` now holds the colossus row strictly above the horse (size, vapour, beat).
+- Shots at the ice mammoth, clear and cold (cold 0.89):
+  - before: D:/Unity/PunchyMilestones/A-94/row3-before/ (6 frames plus contact sheet). No visible breath.
+  - after: D:/Unity/PunchyMilestones/A-94/row3-after/. Frames 5 and 6 show a big white puff at the trunk tip near the ground.
+- Particle counts at the mammoth:
+  - before: old mammoth Breath 0-14, old worm Breath 11-14 at all times, ambience puffs 0.
+  - after: old systems 0 (removed), ambience puffs 0 / 18 / 0 / 18 / 17 / 0 / 10 / 23 over the exhale cycle.
+- Busy cold scene (row 2's Tundra shot list, 14 songbirds and 3 condors, rerun on row 3 code), BreathCount: 103 / 70 / 68 / 63 / 47. Main gave 100 / 67 / 83, plus the worm's ~12 always alive. So the budget is no higher than main. Shots in D:/Unity/PunchyMilestones/A-94/row3-busy/.
+- Full PlayMode suite (rule 19): "25 passed, 0 failed, 17 skipped in 377s (Unity exit 0)." Pins: Landmarks_V3 and Fauna_Fingerprint (66320C7C) pass. No placement changes.
+- Risk: the mammoth's puff reads bright and blob-like up close. A lower opacity for colossi would be a one-line tweak if Zach wants it softer.
+- Card done. Editor closed. Branch fauna/breath-check is ready for review (commits 666f6d1b, b4053ec6, a606114b).
