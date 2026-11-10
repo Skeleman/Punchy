@@ -3676,3 +3676,12 @@ Built in the player tree, not the one the card names (the world tree's gitignore
   - **Pins (after the merge):** Landmarks_V3 `112 A955AFE0`; Fauna_Fingerprint `66320C7C` (W-128's re-pin on main).
   - **Suite (editor closed, after the merge):** `15 passed, 0 failed, 7 skipped in 287s (Unity exit 0).` This is the first suite run with the WideShadow stale-caster fix (809f8469).
   - Risks: none known. No placement or ProjectSettings changes.
+
+## R-7 (octahedral impostors for far flora; tree Punchy-world, branch lod/impostors)
+
+- **R-7 row 1 DONE (verified)** (80616e50, lod/impostors): shrub models (layer 1) are baked into impostor atlases at load, after Build. Each model is drawn once per frame of a hemi-octahedral grid on the GPU into a slice of two texture arrays: albedo + coverage, and normal / depth / occlusion + leafy flag. It runs 12 models a frame, and the atlases are freed with their layer. There are launch flags `-impostorframes N` (default 8), `-impostorpixels N` (default 32), `-impostorfull` (the whole octahedron) and `-noimpostors`. Nothing draws the atlases yet (row 2).
+  - **Load cost:** 214 shrub models in 9.8 ms total over 18 frames. Per model the median is 0.01 ms, p95 0.26 ms and the slowest 1.06 ms (the first model, warm-up). These are CPU submission times only; the GPU time is not measured. Each model gets a log line (`[flora] impostor bake layer 1 model i/214 ...`) and there is a total line.
+  - **Atlas memory:** 140.4 MB at 8x8 frames of 32 px (3 mips), and 568.4 MB at 64 px (4 mips; the first run). 12x12 at 32 px would be about 316 MB. I chose 32 px as the default because a shrub at impostor range is only about 13-20 px tall on screen.
+  - **Contact sheet** (3 models; albedo over grey on the left, packed normal on the right): PunchyMilestones/R-7/r1/atlas-sheet-32.png (BarrelCactus, DryBush, SwampShrub) and atlas-sheet-64.png (BarrelCactus, FishBoardwalk, SwampShrub). Written check at 480 px: every frame is filled and centred; the middle frame is the top-down view and the corners are horizon views; the outlines are clean, the normals vary smoothly from frame to frame, and the background is empty.
+  - Note: the shrub layer also holds props such as FishBoardwalk. Row 3's size rule decides whether they get impostors.
+  - Risks: memory scales with the shrub model count. No placement or ProjectSettings changes.
