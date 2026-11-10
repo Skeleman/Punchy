@@ -2,6 +2,73 @@
 
 Newest first.
 
+## Job 45: R-9 water field and R-10 lights on the laptop, 2026-11-10 (q75.sh)
+Profile builds, 1920x1080, `-gfx High`, uncapped, `-weatherseed 4`, Clear, D3D11. Each run is a fresh game, 4 rounds in
+alternating order. Bench numbers are mean GPU ms per frame from FrameTiming (median frame ms in brackets). RenderDoc ms are
+replay timings, about 2.9x the bench.
+
+### R-9, water/deform fd50ad58: FAIL (+3.7 ms against < +0.3)
+**Setup:**
+- `-goto 488,-1144` puts the player swimming in the lake (y 9.2).
+- New `-benchline` swim mode (Punchy b/bench-stress fa26214d): 10 s settling, then carried east 40 m at 4 m/s.
+- `-time 12`, field on vs `-waterfield 0`, rounds on/off, off/on, on/off, off/on.
+- The shot shows the swimmer with its V wake and rings. Zach's look note (no leading swell) is the entry below.
+
+| arm | GPU ms by round | mean GPU | median frame | CPU |
+|---|---|---|---|---|
+| field on | 21.9, 22.3, 21.6, 21.1 | 21.7 | 25.4 | 27.1 |
+| `-waterfield 0` | 18.1, 18.0, 18.2, 17.8 | 18.0 | 21.0 | 22.4 |
+
+- **The cost:** on costs +3.7 ms GPU and +4.7 ms CPU, the same in every round.
+- **Round 4 (on):** stalled 53.6 s while measuring (the swapchain wait). Its GPU ms still matches the other rounds, so it's
+  kept.
+
+**Where it goes (RenderDoc, 3 s into the swim):**
+- The whole frame is 57.5 ms off and 63.6 on.
+- All of the difference is in DrawTransparentObjects (17.3 to 23.4 RenderDoc ms), in one draw: the lake's water.
+  - Off, it's a 23844-index mesh at 10.5 ms.
+  - On, it's a **319872-index mesh** at 16.2 ms: 13.4x the triangles, costing +5.7 RenderDoc ms, ~2 ms real.
+- So the fine sheet isn't limited to the 32 m square around the player. With Cuts = 8, every quad of the water chunk under
+  the player is cut 8x8, across the whole lake.
+- **CPU:** the +4.7 ms CPU is most likely building or uploading that mesh each frame. I didn't profile it.
+- **Suggested fix:** cut only the quads inside the field's square (the 32 m around the player) and leave the rest of the
+  chunk coarse. That should bring both the draw and the CPU close to the off arm.
+
+### R-10, light/forwardplus 0a4b3b50: FAIL against main (+0.9 ms against <= +0.5), but not from the lights
+**Setup:**
+- `-benchspot 2988.8,-920,0`, facing north, `-benchhour 22`.
+- 4 arms on the branch, plus main as today's baseline.
+- Rounds in order def, lb0, lb64, tg0, main, then reversed, then repeated.
+- **Baseline:** main is ef393625. 06b2a72b and later don't build a player (see the 12:30 note), so I used the last main that
+  does.
+
+| arm | GPU ms by round | mean GPU | median frame | CPU |
+|---|---|---|---|---|
+| default (48 lights) | 16.0, 16.2, 16.0, 16.1 | 16.1 | 16.4 | 16.9 |
+| `-lightbudget 0` | 15.9, 16.1, 16.0, 16.0 | 16.0 | 16.4 | 16.8 |
+| `-lightbudget 64` | 16.1, 15.9, 16.2, 16.2 | 16.1 | 16.4 | 16.9 |
+| `-townglow 0` | 16.2, 16.1, 16.0, 16.2 | 16.1 | 16.5 | 17.0 |
+| main ef393625 | 15.2, 15.2, 15.2, 15.3 | 15.2 | 15.4 | 15.8 |
+
+- **Against main:** default is +0.9 ms GPU and +1.1 ms CPU, the same in all 4 rounds.
+- **The light arms:** lights 0, 48 and 64 and the town glow are within 0.1 ms of each other. At this spot the R-10 lights
+  themselves cost nothing measurable.
+- **RenderDoc disagrees with the bench gap:** branch 47.3–47.8 ms against main 48.2. Opaque is 24.1–24.5 on the branch vs
+  23.8 on main; transparent is 1.5–1.7 vs 2.5. Main also uses 795 MB of graphics memory against 722.
+- **The branch's base is 18df736a,** three merges before ef393625: lod/impostor-trees (#239), fauna/breath-check (#240) and
+  world/far-ring (#242). The 0.9 ms may come from that base difference rather than from R-10.
+- **For 45b:** I'll add a build of the branch's base 18df736a as a fifth arm, so R-10 is measured against its own base as
+  well as main.
+
+### Next
+- Job 45b on light/forwardplus 8263a9b5 (row 4c, far lights), as the supervisor queued it. Same spot and arms, plus the same
+  spot facing the Ember Forest, plus the 18df736a base.
+- Then job 47a.
+
+Files (Punchy-wt results): q75.out, q75-r9-*.csv, q75-r10-*.csv, q75logs/, q75-shots/, rd75/*.rdc, q75-passes.txt.
+
+Cost: this job about $5 (laptop session 0a48ccdb; 3 builds and a Burst-crash retry, 28 games, 7 captures); laptop total $695.
+
 ## Note for R-9 (water/deform fd50ad58), 2026-11-10 13:00: Zach's look feedback on the swim wake
 I showed Zach a shot from job 45's R-9 run: the player swimming east at 4 m/s in the lake at 488,-1144, noon, `-gfx High`. He
 said the wake looks good, except that the water dips around the player at the front edge, where it should swell first.
