@@ -3264,3 +3264,13 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - [shot] D:/Unity/PunchyMilestones/A-96/row1-before-crow-cave.png - crow in a cave room, marker and sparkle.
 - [shot] D:/Unity/PunchyMilestones/A-96/row1-before-wolf-bump.png - wolf with -noshells, bump NaNs.
 - Next: row 2 (safe normal at each normalize, derivatives taken outside the branch).
+
+### Row 2 - fix at the source - done (verified)
+- Fix (Creature.shader only): the fur bump's ddx/ddy now come after the per-pixel branch (h = 0 where there is no fur), and every normalize that can meet a zero or non-finite vector goes through `SafeNormal(v, fallback)` (joint blend, vertex normal, frag normal, metal dent, fur bump, DepthNormals). Valid inputs give exactly what normalize gave. No bloom, Glow, light, Flora or Water change. Commit 169b1043 (pushed).
+- Same runs as row 1 (r2, 360 frames each), creature NaN pixels before -> after: rabbit noon 0 -> 0, rabbit dusk 3 -> 0, wolf noon 664 -> 0, crow cave 8 -> 0 (hot 134 -> 0), -noshells 1386 -> 0, -noseams wolf 3658 -> 0 / rabbit 1 -> 0 / crow 5 -> 0, -nobloom 12 -> 0, -nofur 0 -> 0. Everything-on runs: 0 creature and 0 other bad pixels.
+- Look unchanged: one frozen frame (timeScale 0) captured with the fixed shader, the old shader and the fixed one again: byte-identical PNGs. Control: the same swap with a darkened albedo changed 607k pixels, so the method sees shader changes.
+- Left over, not creatures (non-creature NaN pixels, few per run, only on flag runs this time: wolf -nofur 358, -noseams 13, crow -noseams 14, rabbit -noseams 2, -nobloom 1; row 1 wolf noon had 229 at the horizon). One sits next to a wolf's nose with fur off (maybe the breath puff, SoftParticle, or terrain or sky). Worth its own card; out of scope here.
+- Suite (scripts/run-playmode-tests.sh, editor closed, after the last change): "25 passed, 0 failed, 17 skipped in 348s". Pins: landmarks 112 A955AFE0, fauna fingerprint 66320C7C.
+- [shot] D:/Unity/PunchyMilestones/A-96/row2-fur-same-frame-old-vs-fixed.png - same frozen frame, old shader left, fixed right (identical).
+- [shot] D:/Unity/PunchyMilestones/A-96/row1-before-rabbit-dusk.png - before (the sparkle); after: no marked pixels in any r2 run, so the probe made no crop.
+- Probe stays in, off by default (`-sparkleprobe <label>`, `-sparklecap`, `-nobloom`).
