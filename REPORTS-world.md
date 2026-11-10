@@ -3909,6 +3909,14 @@ Built in the player tree, not the one the card names (the world tree's gitignore
   - **Overlap:** R-10 row 2b plans a three-line light hook-up in the water shaders; Water.shader now has R-9 changes, so whichever merges
     second rebases (additive, separate blocks).
   - **Decisions:** none. Next is row 3: pass/flag call (needs the laptop number) and the full suite with the pins.
+- **R-9 row 3 DONE (suite + pins; pass/fail: pending laptop job 45)**
+  - **State:** water/deform fd50ad58 unchanged. The feature is on by default at High/Medium; it is off on Low water quality or with
+    `-waterfield 0`, and the swimmer ripples carry on there. No new commit was needed.
+  - **Suite:** `scripts/run-playmode-tests.sh` gave 15 passed, 0 failed, 7 skipped (shot tests, Explicit) in 251 s.
+    Pins hold: Landmarks_V3 112 A955AFE0, Fauna_Fingerprint 66320C7C.
+  - **Cost:** desktop +0.10 ms GPU (row 2). The laptop pass/fail is pending BENCH-QUEUE job 45 (pass < +0.3 ms). If it fails, put the
+    feature behind the flag (off by default, `-waterfield 1` to turn it on) as the card says.
+  - **Editor:** closed. No Fauna edits. Decisions: none.
 
 ## W-130 (magenta slabs; tree Punchy-world, branch fix/magenta-slabs from origin/main beabf98b)
 
