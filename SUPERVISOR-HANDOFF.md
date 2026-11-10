@@ -183,3 +183,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
   invisible). Held for row 2b soak (possible disc-chunk leak after preset switches). Suite fail LiveFolk_Answer = shared PlayerPrefs
   body=Crow, test fix added to A-96 row 0. Empty untracked GameAudio.cs (11-04) in coordination: harmless, left.
 - 11-10: W-131 soak flat (no leak), merged #242 (main ef393625). Punchy-world tree free. Next world item: none queued; R-12 could move here if R-10 runs long.
+- 11-10: R-10 row 4b done (0a4b3b50): dome off by default (`-towndome 1`, small halo), 296 window/street-light sprites, town map 0.35. Within noise vs off. Sheets sent to Zach for OK. Job 45 re-pointed to 0a4b3b50. Merge after Zach OK + job 45. Punchy-release free.
