@@ -171,20 +171,26 @@ namespace Punchy.Fauna
 
         // ---- From a FolkTalker ----
 
-        /// <summary>The topics for this talker: all of them to a person; to an animal, going up to it and wandering off.</summary>
+        /// <summary>The topics for this talker: all of them to a person (with any topic dialogue.json adds, just before
+        /// goodbye); to an animal, going up to it and wandering off.</summary>
         public static Topic[] Topics(in FolkTalker who)
         {
-            var list = who.Beast ? BeastTopics : AllTopics;
             var labels = DialogueArchive.Current?.Talk?.Labels;
-            var topics = new Topic[list.Length];
-            for (int i = 0; i < list.Length; i++)
-                topics[i] = new Topic
-                {
-                    Id = list[i].Id,
-                    Label = labels != null && labels.TryGetValue(list[i].Id, out var l) && !string.IsNullOrEmpty(l) ? l : list[i].Label
-                };
-            return topics;
+            var topics = new List<Topic>();
+            foreach (var (id, label) in who.Beast ? BeastTopics : AllTopics)
+            {
+                // (A topic that's only in the file goes in ahead of goodbye.)
+                if (id == Bye && !who.Beast && labels != null)
+                    foreach (var extra in labels)
+                        if (IsExtra(extra.Key) && !string.IsNullOrEmpty(extra.Value))
+                            topics.Add(new Topic { Id = extra.Key, Label = extra.Value });
+                topics.Add(new Topic { Id = id, Label = labels != null && labels.TryGetValue(id, out var l) && !string.IsNullOrEmpty(l) ? l : label });
+            }
+            return topics.ToArray();
         }
+
+        /// <summary>A topic dialogue.json adds that the code doesn't know (not one of AllTopics, not meet).</summary>
+        static bool IsExtra(string id) => id != Meet && !Array.Exists(AllTopics, t => t.Id == id);
 
         static uint asks;
 
@@ -220,7 +226,7 @@ namespace Punchy.Fauna
             };
             TalkLine line = null;
             string text = null;
-            var known = Array.Exists(AllTopics, t => t.Id == topic) || topic == Meet;
+            var known = Array.Exists(AllTopics, t => t.Id == topic) || topic == Meet || archive?.Talk != null && archive.Talk.Labels.ContainsKey(topic);
             if (!known)
                 topic = Who;
             if (archive?.Talk != null)
@@ -417,6 +423,9 @@ namespace Punchy.Fauna
                 FolkStance.Annoyed => -0.45f,
                 _ => 0f
             };
+            // (Asked too often lately: no, whoever it is, until the asks fade.)
+            if (pestered)
+                return false;
             var p = who.Persona;
             return p.Trust * 0.55f + p.Warmth * 0.45f + bias + (p.Mood - 0.5f) * 0.1f - asked * 0.2f >= 0.42f;
         }

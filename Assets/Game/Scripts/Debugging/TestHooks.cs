@@ -382,6 +382,66 @@ namespace Punchy.Debugging
         public static string SweepError;
 
         /// <summary>
+        /// One made-up town of n folk of a culture (a village's mix of jobs, most folk at ease, a few busy, tired, hungry or
+        /// cold), each asked every topic in topics (comma separated), to a player of its own kind: [folk whose answers
+        /// differ from every other's, folk, distinct lines over all topics, then distinct lines per topic]. TownTalkText:
+        /// the first dump folk, persona and answers.
+        /// </summary>
+        public static float[] TownTalk(string culture, int n, string topics, int dump)
+        {
+            FolkConversation.ForgetAsks();
+            var ids = topics.Split(',');
+            var jobs = new[] { "Farmer", "Baker", null, "Smith", "Guard", "Herder", "Healer", null, "Trader", "Fisher" };
+            var conditions = new[] { FolkCondition.None, FolkCondition.None, FolkCondition.Busy, FolkCondition.None, FolkCondition.Tired,
+                                     FolkCondition.None, FolkCondition.Hungry, FolkCondition.Weather, FolkCondition.None, FolkCondition.Lonely };
+            var perTopic = new HashSet<string>[ids.Length];
+            for (int t = 0; t < ids.Length; t++)
+                perTopic[t] = new HashSet<string>();
+            var all = new HashSet<string>();
+            var sets = new List<string>();
+            var sb = new System.Text.StringBuilder();
+            for (int i = 0; i < n; i++)
+            {
+                var ind = PersonaIndividual(1000 + i);
+                var cond = conditions[i % conditions.Length];
+                var who = new FolkTalker
+                {
+                    Species = culture,
+                    Job = jobs[i % jobs.Length],
+                    HomeTown = "Millfield",
+                    Individual = ind,
+                    Persona = FolkPersona.Of(ind),
+                    State = new FolkState { Flags = cond, Weather = cond == FolkCondition.Weather ? ComfortKind.Cold : ComfortKind.None, Hour = 10f + i % 8 },
+                };
+                if (i < dump)
+                    sb.Append($"{culture} #{ind:X8} {who.Job ?? "-"} | {who.Persona} | {who.State}\n");
+                var set = new System.Text.StringBuilder();
+                for (int t = 0; t < ids.Length; t++)
+                {
+                    var a = FolkConversation.Ask(who, ids[t]);
+                    perTopic[t].Add(a.Text);
+                    all.Add(a.Text);
+                    set.Append(a.Text).Append('|');
+                    if (i < dump)
+                        sb.Append("  ").Append(a).Append('\n');
+                }
+                sets.Add(set.ToString());
+            }
+            FolkConversation.ForgetAsks();
+            TownTalkText = sb.ToString();
+            var unique = 0;
+            foreach (var s in sets)
+                if (sets.FindAll(o => o == s).Count == 1)
+                    unique++;
+            var r = new List<float> { unique, n, all.Count };
+            foreach (var p in perTopic)
+                r.Add(p.Count);
+            return r.ToArray();
+        }
+
+        public static string TownTalkText;
+
+        /// <summary>
         /// Talks to up to n live folk near the player (the real entity path: persona, condition, home town, stance): one
         /// line per folk with its persona and condition, then each topic's answer. Empty when no folk is near.
         /// </summary>

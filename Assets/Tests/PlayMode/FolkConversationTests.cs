@@ -69,6 +69,27 @@ namespace Punchy.Tests
             yield return null;
         }
 
+        /// <summary>
+        /// Target: 20 folk of one town (mixed trades, conditions and hours) feel distinct: at least 18 give a set of
+        /// answers nobody else gives, and each topic has at least 6 different lines among them. Logs 10 folk x 3 topics.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Town_TwentyFolkDistinct()
+        {
+            var r = Game.Hook<float[]>("TownTalk", "Human", 20, "who,how,work,town,news,favour,help,bye", 0);
+            Game.Hook<float[]>("TownTalk", "Human", 10, "who,how,favour", 10);
+            var dump = Game.HookField<string>("TownTalkText");
+            var sb = new System.Text.StringBuilder();
+            for (int i = 3; i < r.Length; i++)
+                sb.Append($" {r[i]:F0}");
+            LogWatch.Measure($"town talk: {r[0]:F0} of {r[1]:F0} folk unique, {r[2]:F0} lines overall, per topic{sb}\n{dump}");
+            Assert.GreaterOrEqual(r[0], 18f, "too many folk in one town answer alike");
+            for (int i = 3; i < r.Length; i++)
+                Assert.GreaterOrEqual(r[i], 6f, $"topic {i - 3}: too few different lines");
+            StringAssert.DoesNotContain("{", dump);
+            yield return null;
+        }
+
         /// <summary>Target: live village folk answer every topic through the entity path (persona, condition, town, stance).</summary>
         [UnityTest]
         public IEnumerator LiveFolk_Answer()

@@ -341,5 +341,237 @@
         { "text": "Dancing? We drift, mostly.", "emote": ["Cheer", "Dance"] }
       ]
     }
+  },
+  "conversation": {
+    "_readme": [
+      "What folk say when the player talks to them (A-93): the talk window lists the topics and a folk answers each from these lines. Read again a second after you save, like the rest of this file.",
+      "topics: each topic's id and the words the player picks. Relabel any of them here. To add a topic, give it an id and a label here and lines under it below; it shows before goodbye with no code change. The built-in ids are who, how, work, town, news, favour, help and bye; meet is an animal player's (beastTalk).",
+      "Then one entry per culture (Any, or a species name as in cultures), each topic a list of lines. A folk picks from its species' lines, its body's, then Any's (Any's count for less when its own culture has a fitting line). Words and built-in slots come from cultures above: {trade}, {home_town}, {player}, {time_of_day}, a culture's {culture_greeting}. {quest} is the quest the folk wants done, in a few words.",
+      "To add a line: append a string, or an object with text and any of the keys below. A line fits only when every key it has matches; a line with more keys is likelier, and a line that names the folk's state (tired, hungry, the weather) wins over one that doesn't, so how-are-you is honest.",
+      "Traits (each low, mid or high, or a list): warmth (cold to kind), trust, curiosity, courage, pride, beasts (fears animals to loves them).",
+      "state: tired, busy, hungry, thirsty, lonely, scared, hurt, weather (a list; !busy for not). weather: Hot, Dry, Cold, Rain, Snow, Storm, Bright, Wind. mood: Cheerful, Plain, Grumpy (its temper today). stance: Kin, Warm, Rival, Wary, Annoyed. trade: a job (Smith, Baker, Farmer...) or task. when: day, night, dawn, morning, afternoon, evening.",
+      "true or false: home (lives in a town), job (has one), need (wants a quest done), willing (will do a favour: trust and warmth against stance and how often it was asked lately), pestered (asked twice in the last few minutes: never willing then).",
+      "gesture: an emote it makes (Wave, Bow, Cheer, Dance, Pet, LookAround...) or a word the talk window shows. offer: quest, item:<item name>, directions, rumour:<what about>, discount:<percent>, refuses. ends: true closes the talk. weight: default 1."
+    ],
+    "topics": {
+      "who": "Who are you?",
+      "how": "How are you?",
+      "work": "What do you do?",
+      "town": "Tell me about this town.",
+      "news": "Heard any news?",
+      "favour": "Can you help me?",
+      "help": "Do you need anything?",
+      "bye": "Goodbye."
+    },
+    "Any": {
+      "who": [
+        "Just a local. Nobody special.",
+        { "text": "A {trade}, from {home_town}.", "job": true, "home": true },
+        { "text": "Who's asking?", "warmth": "low", "gesture": "LookAround" },
+        { "text": "None of your business.", "warmth": "low", "trust": "low" },
+        { "text": "I'm the best {trade} you'll meet, that's who.", "pride": "high", "job": true, "gesture": "Bow" },
+        { "text": "Oh, nobody you'd have heard of.", "pride": "low" },
+        { "text": "Born in {home_town}, never left. Never wanted to.", "home": true, "curiosity": "low" },
+        { "text": "Someone who'd rather ask the questions. Where are you from?", "curiosity": "high" },
+        { "text": "A friend, if you'll have one.", "warmth": "high", "trust": ["mid", "high"], "gesture": "Wave" },
+        { "text": "Me? I keep {home_town} running, near enough.", "pride": "high", "home": true },
+        { "text": "Just someone on the road.", "home": false },
+        { "text": "I, er... I'd rather not say.", "courage": "low", "trust": ["low", "mid"] },
+        { "text": "A {trade}. Proud of it, too.", "job": true, "pride": "mid" },
+        { "text": "Glad you asked! I'm a {trade}, here in {home_town}.", "mood": "Cheerful", "job": true, "home": true, "gesture": "Wave" },
+        { "text": "Someone with work to do. Make it quick.", "mood": "Grumpy", "job": true },
+        { "text": "What, you don't know? Everyone knows me.", "pride": "high", "warmth": ["mid", "high"] }
+      ],
+      "how": [
+        "Can't complain.",
+        { "text": "Very well, thank you!", "mood": "Cheerful", "gesture": "Cheer" },
+        { "text": "Never better. Lovely day for it.", "mood": "Cheerful", "when": "day" },
+        { "text": "Could be better.", "mood": "Grumpy" },
+        { "text": "Don't ask.", "mood": "Grumpy", "warmth": "low" },
+        { "text": "Why do you want to know?", "trust": "low" },
+        { "text": "Fine. Same as always.", "curiosity": "low" },
+        { "text": "Better for the company. Nobody stops to talk any more.", "warmth": "high", "mood": ["Plain", "Cheerful"] },
+        { "text": "Tired. It's late.", "state": "tired", "when": "night" },
+        { "text": "Worn out. I could sleep standing up.", "state": "tired" },
+        { "text": "Tired, but I'll manage.", "state": "tired", "courage": "high" },
+        { "text": "Hungry, if you must know.", "state": "hungry" },
+        { "text": "Starving. I haven't eaten since dawn.", "state": "hungry", "pride": ["low", "mid"] },
+        { "text": "Parched. Is there a well near?", "state": "thirsty" },
+        { "text": "Busy. What is it?", "state": "busy" },
+        { "text": "Busy, but I've a moment for you.", "state": "busy", "warmth": "high" },
+        { "text": "Up to my ears in work, thanks for asking.", "state": "busy", "mood": "Cheerful" },
+        { "text": "Not now, something's out there!", "state": "scared", "gesture": "LookAround" },
+        { "text": "Something spooked the others. I'm keeping watch.", "state": "scared", "courage": "high" },
+        { "text": "Lonely, truth be told. Thank you for stopping.", "state": "lonely", "warmth": ["mid", "high"] },
+        { "text": "On my own too much. Not that I mind. Much.", "state": "lonely", "pride": "high" },
+        { "text": "Hurt. I'll mend.", "state": "hurt" },
+        { "text": "Freezing. I can't feel my fingers.", "state": "weather", "weather": "Cold", "gesture": "Shiver" },
+        { "text": "Soaked through, and you?", "state": "weather", "weather": "Rain" },
+        { "text": "Snow in my boots again.", "state": "weather", "weather": "Snow" },
+        { "text": "Too hot. Far too hot.", "state": "weather", "weather": "Hot" },
+        { "text": "Dry as dust, this air.", "state": "weather", "weather": "Dry" },
+        { "text": "Not in this storm! Get under a roof!", "state": "weather", "weather": "Storm" },
+        { "text": "This wind won't let up.", "state": "weather", "weather": "Wind" },
+        { "text": "The glare's giving me a headache.", "state": "weather", "weather": "Bright" }
+      ],
+      "work": [
+        "Bit of this, bit of that.",
+        { "text": "I'm a {trade}.", "job": true },
+        { "text": "I'm a {trade}, and I love it.", "job": true, "mood": "Cheerful" },
+        { "text": "Same work as yesterday. I'm a {trade}.", "job": true, "mood": "Grumpy" },
+        { "text": "Nobody in {home_town} does it better. I'm the {trade}.", "job": true, "home": true, "pride": "high" },
+        { "text": "Looking for work, if you hear of any.", "job": false },
+        { "text": "This and that. Mostly I watch people. Like you.", "curiosity": "high" },
+        { "text": "Hammer and tongs, all day long.", "trade": ["Smith", "Hammer"] },
+        { "text": "Bread before dawn, every day.", "trade": "Baker" },
+        { "text": "The fields don't plough themselves.", "trade": "Farmer" },
+        { "text": "Fish. Mostly waiting for fish.", "trade": ["Fisher", "Fish", "PoolFisher"] },
+        { "text": "Keeping the peace. Mostly from goats.", "trade": ["Guard", "Patrol", "Watch", "Gatekeeper"] },
+        { "text": "Mending cuts and bad tempers.", "trade": "Healer" },
+        { "text": "Counting sheep. Wide awake.", "trade": "Herder" },
+        { "text": "Buying low, selling... well, selling.", "trade": ["Trader", "Merchant", "Gesture"] },
+        { "text": "Trees. Chop. Repeat.", "trade": ["Woodcutter", "Chop"] },
+        { "text": "Down in the dark, digging.", "trade": ["Miner", "Mine"] },
+        { "text": "Tracking. Quietly. You're not helping.", "trade": ["Hunter", "Hunt"] },
+        { "text": "Walking, mostly. The road's my work.", "trade": ["Traveller", "Travel", "Camper"] }
+      ],
+      "town": [
+        "I'm only passing through.",
+        { "text": "This is {home_town}. It's home.", "home": true },
+        { "text": "{home_town}'s the best town on the island. Ask anyone.", "home": true, "pride": "high" },
+        { "text": "{home_town}? Too many neighbours.", "home": true, "mood": "Grumpy" },
+        { "text": "Everyone in {home_town} knows everyone's business. Mine's knowing it first.", "home": true, "curiosity": "high" },
+        { "text": "Welcome to {home_town}! Stay a while.", "home": true, "warmth": "high", "gesture": "Wave" },
+        { "text": "Strangers don't often stop in {home_town}.", "home": true, "trust": "low" },
+        { "text": "Quiet place, {home_town}. I like it quiet.", "home": true, "curiosity": "low" },
+        { "text": "No town for me. The road's my home.", "home": false, "curiosity": "high" },
+        { "text": "{home_town}'s small, but nobody goes hungry.", "home": true, "warmth": "mid" }
+      ],
+      "news": [
+        "Nothing much happens round here.",
+        { "text": "I don't listen to gossip.", "curiosity": "low" },
+        { "text": "Wouldn't tell you if there was.", "trust": "low", "warmth": "low" },
+        { "text": "They say there's a cave in the hills nobody comes back from the same.", "curiosity": ["mid", "high"], "offer": "rumour:cave" },
+        { "text": "One of the stone giants moved, out past the hills. Only a little. I swear it.", "curiosity": "high", "offer": "rumour:colossus" },
+        { "text": "A traveller came through with tales of a ruin in the woods. Treasure, he said.", "curiosity": "high", "offer": "rumour:ruins" },
+        { "text": "Wolves have been seen near the road. Keep to the light.", "courage": "low", "offer": "rumour:wolves" },
+        { "text": "Someone's getting married, I heard!", "mood": "Cheerful" },
+        { "text": "Prices are up. That's the news.", "mood": "Grumpy" },
+        { "text": "Crows at the seed again.", "trade": "Farmer" },
+        { "text": "The fish moved upriver. Nobody knows why.", "trade": ["Fisher", "Fish"] },
+        { "text": "Somebody's been taking more than their share of firewood. I have my suspicions.", "curiosity": "high", "trust": "low" }
+      ],
+      "favour": [
+        { "text": "Sorry, I can't help you.", "willing": false, "pestered": false, "offer": "refuses" },
+        { "text": "Help yourself. Somewhere else.", "willing": false, "pestered": false, "warmth": "low", "offer": "refuses" },
+        { "text": "I don't do favours for strangers.", "willing": false, "pestered": false, "trust": "low", "offer": "refuses" },
+        { "text": "I... no, I'd better not.", "willing": false, "pestered": false, "courage": "low", "offer": "refuses" },
+        { "text": "You again? No.", "pestered": true, "offer": "refuses" },
+        { "text": "I've given you all I can spare, friend. Come back another day.", "pestered": true, "warmth": "high", "offer": "refuses" },
+        { "text": "Ask someone else for a while.", "pestered": true, "mood": "Grumpy", "offer": "refuses" },
+        { "text": "Here, take a few berries for the road.", "willing": true, "offer": "item:Berry" },
+        { "text": "The town's that way. Follow the road.", "willing": true, "home": true, "offer": "directions" },
+        { "text": "Take a coin. Don't spend it all at once.", "willing": true, "warmth": "high", "offer": "item:Coin", "weight": 0.5 },
+        { "text": "I suppose I can spare something. Here.", "willing": true, "pride": "high", "offer": "item:Berry" },
+        { "text": "Tell you what: there's a cave up in the hills worth a look. Don't say I told you.", "willing": true, "curiosity": "high", "offer": "rumour:cave" },
+        { "text": "For you? A tenth off, if you buy today.", "willing": true, "trade": ["Trader", "Merchant", "Smith", "Baker", "Tanner"], "offer": "discount:10" },
+        { "text": "Call it a friend's price.", "willing": true, "warmth": "high", "trade": ["Trader", "Merchant", "Smith", "Baker", "Tanner"], "offer": "discount:20" },
+        { "text": "Have a fish. Caught this morning.", "willing": true, "trade": ["Fisher", "Fish", "PoolFisher"], "offer": "item:Fish" },
+        { "text": "Mushrooms. The good kind, I promise.", "willing": true, "trade": "Forager", "offer": "item:Mushroom" }
+      ],
+      "help": [
+        { "text": "No, I'm all right, thanks.", "need": false },
+        { "text": "Kind of you to ask, but no.", "need": false, "warmth": "high" },
+        { "text": "I can manage myself, thank you.", "need": false, "pride": "high" },
+        { "text": "Not from you.", "need": false, "trust": "low", "warmth": "low" },
+        { "text": "Well, if you're offering, you could {quest}.", "need": true, "offer": "quest" },
+        { "text": "Oh, would you? Could you {quest}?", "need": true, "mood": "Cheerful", "offer": "quest" },
+        { "text": "Hmm. Can I trust you? Fine: you could {quest}.", "need": true, "trust": "low", "offer": "quest" },
+        { "text": "I'd do it myself, but you could {quest}.", "need": true, "pride": "high", "offer": "quest" },
+        { "text": "I daren't go myself. Could you {quest}?", "need": true, "courage": "low", "offer": "quest" }
+      ],
+      "bye": [
+        { "text": "Safe travels.", "gesture": "Wave" },
+        { "text": "Hmph.", "mood": "Grumpy" },
+        { "text": "Right.", "warmth": "low" },
+        { "text": "Come back soon!", "mood": "Cheerful", "gesture": "Wave" },
+        { "text": "Do come back and tell me what you find.", "curiosity": "high" },
+        { "text": "Mind the dark.", "when": "night" },
+        { "text": "Off you go, then.", "pride": "high" },
+        { "text": "Take care of yourself, friend.", "warmth": "high", "gesture": "Wave" }
+      ]
+    },
+    "Human": {
+      "who": [{ "text": "{culture_greeting}. A {trade} of {home_town}, at your service.", "job": true, "home": true, "warmth": ["mid", "high"], "gesture": "Bow" }],
+      "town": [{ "text": "{home_town} has stood since my grandmother's grandmother. Mind the mud.", "home": true }],
+      "bye": [{ "text": "{culture_greeting}, and farewell.", "gesture": "Wave" }]
+    },
+    "HumanChild": {
+      "who": [
+        { "text": "I'm not supposed to talk to strangers!", "trust": ["low", "mid"] },
+        { "text": "I live in {home_town}! Do you want to see a frog?", "home": true, "curiosity": ["mid", "high"] }
+      ],
+      "how": [
+        "I'm bored.",
+        { "text": "Good! I found a snail!", "mood": "Cheerful" },
+        { "text": "Hungry. Is it supper yet?", "state": "hungry" },
+        { "text": "Not sleepy. Not even a little.", "state": "tired" }
+      ],
+      "work": ["I'm helping! Kind of.", "Playing. That's a job."],
+      "town": [{ "text": "{home_town} has a big dog. He's my friend.", "home": true }],
+      "news": ["There's a monster in the well. Probably.", { "text": "I saw a stone giant once. It winked.", "curiosity": "high", "offer": "rumour:colossus" }],
+      "favour": [
+        { "text": "You can have my best stick.", "willing": true, "offer": "item:Stick" },
+        { "text": "No! Mine!", "willing": false, "offer": "refuses" }
+      ],
+      "help": [{ "text": "Can you {quest}? I'm too little.", "need": true, "offer": "quest" }],
+      "bye": [{ "text": "Bye bye!", "gesture": "Wave" }]
+    },
+    "Dwarf": {
+      "who": [
+        { "text": "{culture_greeting}. A {trade} of {home_town}, and that's enough.", "job": true, "home": true },
+        { "text": "A dwarf. What more is there to know?", "pride": ["mid", "high"] }
+      ],
+      "how": [
+        { "text": "Solid as stone!", "mood": "Cheerful" },
+        { "text": "My beard's damp and my ale's warm. How d'you think?", "mood": "Grumpy" }
+      ],
+      "work": [{ "text": "Stone and steel. What else is there?", "job": true }],
+      "town": [{ "text": "{home_town} was dug by my grandsire's grandsire. Every stone by hand.", "home": true }],
+      "news": [{ "text": "The deep veins are singing. Means there's silver down there.", "curiosity": ["mid", "high"], "offer": "rumour:silver" }],
+      "favour": [{ "text": "Dwarf steel at a fair price. Fair for a dwarf, mind.", "willing": true, "trade": ["Smith", "Trader"], "offer": "discount:10" }],
+      "bye": [{ "text": "Stone keep you.", "gesture": "Bow" }]
+    },
+    "Elf": {
+      "who": [
+        { "text": "{culture_greeting}. I tend the trees of {home_town}.", "home": true },
+        { "text": "Older than I look. Younger than the oaks.", "pride": ["mid", "high"] }
+      ],
+      "how": [{ "text": "The leaves are glad today, so I am too.", "mood": "Cheerful" }, { "text": "The wind brings bad news from the east.", "mood": "Grumpy" }],
+      "town": [{ "text": "{home_town} grows where the trees allow. We ask before we build.", "home": true }],
+      "news": [{ "text": "The old shrine in the wood has woken. The birds have gone quiet near it.", "curiosity": ["mid", "high"], "offer": "rumour:shrine" }],
+      "favour": [{ "text": "Follow the stream and keep the moss on your left.", "willing": true, "home": true, "offer": "directions" }],
+      "bye": [{ "text": "May the green keep you.", "gesture": "Bow" }]
+    },
+    "Goblin": {
+      "who": [{ "text": "Who wants to know? You got shinies?", "trust": ["low", "mid"] }, "Goblin. Best kind of folk."],
+      "how": [{ "text": "Hungry! Always hungry!", "state": "hungry" }, "Sneaky. Very sneaky. You didn't see me."],
+      "news": [{ "text": "Big folk got cheese in the cellar. Lots. Not that I looked.", "curiosity": ["mid", "high"], "offer": "rumour:cheese" }],
+      "favour": [{ "text": "Shiny? No. Mine. ...fine, have a berry.", "willing": true, "offer": "item:Berry" }],
+      "bye": ["Go away now. Bye."]
+    },
+    "Ogre": {
+      "who": ["Me ogre. You small.", { "text": "Me {trade}. Good {trade}.", "job": true }],
+      "how": [{ "text": "Hungry. Always hungry.", "state": "hungry" }, { "text": "Happy! Sun warm!", "mood": "Cheerful" }],
+      "town": [{ "text": "{home_town} good. Big rocks.", "home": true }],
+      "bye": ["Bye, small one."]
+    },
+    "Hermit": {
+      "who": ["Nobody. That's the point."],
+      "how": ["Alone. As I like it."],
+      "town": ["No town. Just the quiet."],
+      "news": [{ "text": "The water's tasted strange since the last storm. Something upstream.", "offer": "rumour:river" }],
+      "bye": [{ "text": "Leave me be.", "ends": true }]
+    }
   }
 }
