@@ -245,19 +245,22 @@ float PunchyCloudDensity(float3 p, half4 weather, float4 shape, float detail)
 // Where the cloud volume reads the weather and cloud maps (R-12): a few hundred metres off the point, wandering with
 // position and height. A storm cell is a smooth disc in the 64 m maps, and inside it the cover saturates so the noise
 // no longer carves the cloud; read straight, its rim stood as a smooth pillar with straight sides (#241). Wandered, the
-// rim bulges and leans like a heaped tower. (-skyoff 1024: read straight, before R-12.)
-float2 PunchyCloudMapXZ(float3 p)
+// rim bulges and leans like a heaped tower. The march sets punchyCloudWarp once per step and its light samples share it.
+// (-skyoff 1024: read straight, before R-12.)
+static float2 punchyCloudWarp = 0;
+
+float2 PunchyCloudWarpAt(float3 p)
 {
     if (((uint)_PunchySkyOff & 1024u) != 0)
-        return p.xz;
+        return 0;
     float3 q = p - float3(_PunchyCloudOffset.x, 0, _PunchyCloudOffset.y) * PUNCHY_CLOUD_FEATURE;
     float2 n = SAMPLE_TEXTURE3D_LOD(_PunchyCloudNoise, sampler_PunchyCloudNoise, float3(q.x * 0.6 + q.z * 0.8, q.y * 1.4, q.z * 0.6 - q.x * 0.8) / 3100.0 + 0.53, 0).gb;
-    return p.xz + (n - 0.5) * 800;
+    return (n - 0.5) * 800;
 }
 
 float PunchyCloudDensityAt(float3 p, float detail)
 {
-    float2 xz = PunchyCloudMapXZ(p);
+    float2 xz = p.xz + punchyCloudWarp;
     return PunchyCloudDensity(p, PunchyWeatherAt(xz), PunchyCloudShapeAt(xz), detail);
 }
 
@@ -464,7 +467,8 @@ void PunchyCloudMarch(float3 dir, float2 screenPos, float framePhase, out half3 
         stepsTaken = i + 1;
         float stepLength = clamp(t * 0.02, 30, 500);
         float3 p = camera + dir * t;
-        float2 mapXZ = PunchyCloudMapXZ(p);
+        punchyCloudWarp = PunchyCloudWarpAt(p);
+        float2 mapXZ = p.xz + punchyCloudWarp;
         half4 weather = PunchyWeatherAt(mapXZ);
         float4 shape = PunchyCloudShapeAt(mapXZ);
         bool canHold = (weather.r > 0.03 || shape.z > 0.02) && PunchyInCloudLayer(p.y, shape);
