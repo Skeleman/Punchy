@@ -542,3 +542,32 @@ Next: nothing open. P-25 row 3 still needs the answer on the house kit.
 - Correction (row 2): the armour went in before Arrow in the table, moving Arrow from id 16 to 22. Fixed in 746ea888
   on player/armour: Arrow back at 16, armour 17-22. A one-line data move, not yet covered by a suite run; row 3's
   suite runs will include it.
+
+## P-28 row 3 (11-10): DONE, `player/clothing` at 9a0455ea (on player/armour; P-28 complete)
+- Items appended (ids 23-29): Tunic, Robe (body), Cloak (back), Scarf (new GearSlot.Neck, appended), Hood, Woolcap,
+  Brimhat (head). No armour; light (0.1-1.2 kg); Cover: brimhat 0.35, hood 0.25, cloak 0.25, woolcap 0.15, robe 0.1,
+  scarf 0.05 (a number, as the hat's is).
+- Folk colours: cloth is dyed by the wearer's GuardKit (human madder red, dwarf moss, elf teal, goblin mustard, ogre
+  plum, each with a trim). One item per garment; the colour comes from who wears it.
+- Drawn in the worn pass (PoseGear.cs, ArmourParts now 13): hats over the crown (brimhat wide brim, woolcap bobble, hood
+  hanging behind), tunic/robe shells on the torso, a robe's skirt to the shins, the cloak from the shoulders in two pieces
+  swept back with speed (up to 4 m/s) and stirring with the clock, the scarf round the base of the head with an end down
+  the chest. The cloak first hung about 0.3 m behind the back; fixed (the torso's flattened depth) and reshot.
+- Sync: the Neck place goes in new SlotRpc/SlotStateRpc (one place, one item), so places added later need no new message
+  and no existing RPC changes shape (row 2's finding). Host + client: host saw robe+woolcap+scarf, client saw
+  tunic+cloak+scarf; 0 deserialize errors.
+- Where it comes from: chests (the existing 1-in-20 gear roll per slot now includes clothing: about 7 in 22 of those),
+  quest rewards (letter-sticks pays Scarf, see-town pays Cloak; were coins), and three folk gift lines appended to
+  dialogue.json (scarf 0.2, cloak 0.1, tunic 0.2 for traders/tanners). A folk gift of something to wear is 1, not 3.
+  **dialogue.json is the animal lane's data file (A-93)**: three lines appended at the end of the gift list, nothing else
+  touched.
+- Shots (D:/Unity/shots-P28-cloth): outfit 1 human tunic+woolcap+scarf+boots, outfit 2 human robe+hood+cloak, outfit 3
+  elf robe+brimhat+scarf (teal, silver trim), outfit 4 dwarf tunic+hood+cloak+boots (moss); a cloak standing and while
+  running (swept back). 4+3+3+3 `[shot]` lines, all ready.
+- Suite: 25 passed, 0 failed, 17 skipped in 350s (Unity exit 0). Includes row 2's item-id fix (746ea888).
+- Test flag: `-sprint` (a test walk runs).
+- UNVERIFIED: clothing actually dropping from a chest, paid by those two quests, or given by a folk in play (the data is
+  in, not run); goblin and ogre colours not shot; the cloak is two stiff pieces (it tilts, it doesn't fold).
+- Branches to merge, in order: player/integrate (row 0) <- player/weapons <- player/armour <- player/clothing (each on
+  the one before). Builds still need main's DungeonWalk guard.
+- Next: P-29 (hairstyles) after P-28 merges per its card; P-30 may run first if P-28 waits on review.
