@@ -4066,3 +4066,27 @@ Built in the player tree, not the one the card names (the world tree's gitignore
     - The failure is `LyingTests.Lying_LegsStayAboveGround_FlatAndSlope`, which came in from main with A-92 (#231). OcotilloMimic reads -0.051 m on the 0.33 slope (lie 0.85), and every other species is >= -0.005.
     - This row only touches the shader, which has no part in leg placement. It looks like a main or animal-lane issue: OcotilloMimic was probably not in A-92's species list when it was measured. Over to the supervisor.
   - **Next:** row 4 (glowing town at distance).
+
+## W-131 (far terrain ring for flight; tree Punchy-world, branch world/far-ring from origin/main da39fd72)
+- **Row 1 (measure): done (verified), no code.** Editor D3D11, play mode, walk spot (-1236, 1324), console 0 errors.
+  - **Where the ground stops** (chunks stream to ViewRadiusChunks 24 x View; far plane is 3000 m at every preset, fog = haze, 98% haze at the edge):
+
+    | Preset (View) | Chunks (water) | Edge, nearest point / chunk centre | Terrain mesh | Water mesh |
+    |---|---|---|---|---|
+    | Low (0.6) | 660 (208) | 952 / 989 m | 187k verts, 37 MB | 30k verts, 3.7 MB |
+    | Medium (1.0) | 1809 (404) | 1499 / 1536 m | 453k, 90 MB | 84k, 9.9 MB |
+    | High (1.3) | 3018 (789) | 1948 / 1983 m | 722k, 144 MB | 161k, 19 MB |
+    | Ultra (1.7) | 5280 (1564) | 2589 / 2624 m | 1202k, 241 MB | 293k, 35 MB |
+
+  - **What the outer ring costs** (render ms, 3 rounds, chunks past the cut hidden; frame ms in brackets):
+
+    | View | Medium full | High, cut 1536 m | High full | High delta | Ultra, cut 1984 m | Ultra full |
+    |---|---|---|---|---|---|---|
+    | walk | 4.98 (15.98) | 6.53 (17.44) | 6.70 (18.30) | +0.17 | 9.39 (noisy) | 8.56 |
+    | hilltop | 5.54 (19.07) | 5.94 (17.05) | 6.25 (17.77) | +0.31 | 8.40 | 9.97 |
+    | 300 m up | 4.71 (14.59) | 3.58 (14.82) | 4.73 (15.92) | +1.15 | 6.19 | 7.69 |
+
+    High's ring from 1536 to 1984 m (about 1200 chunks, LOD4) costs +1.15 ms at 300 m; the cost follows the draw count, not the vertices. So the far ring in row 2 uses 256 m tiles (one draw per 16 chunks).
+  - **Hitches over a fixed 60 s flight** (40 m/s, 300 m up, along the walk line): High 5884 frames, mean 10.20 ms, p99 14.52, max 43.7, 1 frame over 33 ms, 0 over 50; Medium 6862 frames, mean 8.75, p99 12.88, max 43.4, 4 over 33 ms, 0 over 50. No `[stream]` slow batches at either.
+  - **Look:** from 150 m and 300 m the edge is not a hard line; the ground fades into haze before it ends (haze is tied to the edge). The cost of "more distance" is therefore also thinner haze near the player, which row 2 will report.
+  - Shots: PunchyMilestones/W-131/r1-{Medium,High}-{150m,300m}.png, r1-contact-sheet.jpg. `[shot] 'r1-High-300m' ready after 0.9 s ... 1280x720, camera (-1236.0, 377.5, 1324.0); check: mean 0.69 ... good` (all four "good").
