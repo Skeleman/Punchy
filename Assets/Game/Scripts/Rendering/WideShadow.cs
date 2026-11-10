@@ -298,8 +298,10 @@ namespace Punchy.Rendering
         static void DropUnseen()
         {
             var frame = Time.frameCount;
+            // A destroyed mesh goes at once; so does an entry from an earlier play session (statics outlive it with the
+            // domain reload off, and the frame count starts again, so its Seen can lie ahead of this frame).
             for (int i = casterCount - 1; i >= 0; i--)
-                if (frame - casters[i].Seen > 3)
+                if (casters[i].Mesh == null || frame - casters[i].Seen > 3 || casters[i].Seen > frame)
                 {
                     casters[i] = casters[--casterCount];
                     casters[casterCount] = default;
@@ -507,6 +509,8 @@ namespace Punchy.Rendering
             for (int i = 0; i < casterCount; i++)
             {
                 ref var c = ref casters[i];
+                if (c.Mesh == null)
+                    continue;
                 var box = BoxOf(c.Mesh, c.Matrix);
                 c.Tier = Tier(box, eye, handOver, c.Tier);
                 if (c.Tier <= 2 && AddDraw(c.Mesh, c.Matrix, null, box, centre, reach2, ref top))
@@ -841,6 +845,10 @@ namespace Punchy.Rendering
             if (field != null) Destroy(field);
             if (caster != null) Destroy(caster);
             commands?.Release();
+            // The registered landmark meshes die with the play session; start the next one empty.
+            System.Array.Clear(casters, 0, casters.Length);
+            casterCount = 0;
+            castersChanged = false;
             if (instance == this)
                 instance = null;
         }
