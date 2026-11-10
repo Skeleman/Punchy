@@ -156,3 +156,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-09: P-25 assigned to the player ACCOUNT (Zach: spread tokens), via lanes/player/STATE.md; player-lane cards go to that account, not supervisor subagents. R-10 queued after R-8.
 
 - 11-09: NPC talk split (Zach: animal-related goes to the animal lane): A-93 (animal, after A-92: FolkPersona, FolkConversation API, lines, animal-player reactions; row 1 merge early) -> P-26 talk window, P-27 stats (player account, after P-25).
+- 11-10: W-129 done, no code (editor stalls under host load, no repeatable streaming spike); bench job 44 queued to confirm in a player build. A-92 started in D:/Unity/Punchy (fauna/detail).
