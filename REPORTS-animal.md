@@ -3404,3 +3404,9 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
   - Thunder (WeatherSystem's own source) is adopted, so it is muffled too. Side effect: thunder now follows the Weather level (Music slider); before it ignored the group level.
   - Outside the lane, small: Camera/Underwater.cs drops its own listener low-pass (GameAudio owns the muffle now) and exposes LensDepth and LensWater. WeatherSystem gets one Adopt line.
   - There are no rain or wind sound beds to muffle. There is no lava or swamp water kind in Underwater (cave water, the sea, a lake or river), so nothing per fluid.
+- **Row 2, done (verified)** on fauna/underwater-sound 8ce6abcd: an underwater hum bed and bubbles.
+  - SoundSynth.UnderwaterHum: an 8 s loop (1 s seamless crossfade). Rumble from 70/80 Hz band-passed noise under a 120 Hz pole, plus a 42 Hz band, with a slow swell, 3-5 faint bubbles and 1-2 creaks or clicks. 92% of its energy is in 30-130 Hz, centroid 89 Hz. Loop seam step 0.0054 against a median step of 0.0035 and p99 of 0.0145, so no click (row2-hum-loop-x3.wav plays it three times).
+  - SoundSynth.Bubbles: 3 variants, 0.7 s, 350-900 Hz rising blips (row2-Bubbles-0/1/2.wav).
+  - Played on two flat sources outside the pool ("Underwater hum", "Bubbles"); the pool is still 24 voices (checked in play). Hum volume = wet x 0.45-0.6 (deeper is louder) x the World level: 0.48 at 2 m, 0.60 at 10 m. It stops when dry.
+  - Bubbles burst on going in, on surfacing, and when the camera moves 3+ m/s under water (0.6 s gap).
+  - Clips: D:/Unity/PunchyMilestones/A-98/row2-under-2m.wav (hum + a muffled howl, rms 0.091), row2-under-10m.wav (rms 0.052), row2-dive-swim-surface.wav (12 s: dive at 0.5 s gives a bubble burst, the 10 m/s swim gives bursts at 6.75 and 7.75 s, then surfacing).
