@@ -313,3 +313,18 @@ Not checked: night and interior ceilings, which are lit by the same rule; other 
 Row 2 (#85): DONE, pushed (85de3a24). Rabbit in a tight Granite cave: the arm stopped at 0.41 m on the sloping floor and the lens was inside the body. A short arm for a small body now runs from a raised pivot, still aimed at the body (arm 2.41 m, rabbit in frame looking up, level, down and sideways). Temple room views as a rabbit match the old ones. Human and Osprey don't take the new path. Outdoors is untouched by construction (the code runs only underground). No managed allocation (a TempJob array, as before). Stills only, not continuous motion.
 Row 3 (#78): DONE, no code change; DisplaySettings already provides it (P-1). In Builds/Dev-player: windowed at 1280x720 and 1600x900 confirmed by the rendered shot sizes; borderless and exclusive read back from Windows as captionless and covering the monitor; a restart kept each mode ("saved, applied"). Display prefs restored after. Not checked: the Graphics tab itself (the -display flag stands in for it), and on-screen proof that exclusive differs from borderless (Windows reported the same window for both).
 Suite: 14 passed, 0 failed on 85de3a24 (pin tests included), after an earlier run was stopped for low memory. P-22 is complete on player/p22 (head 85de3a24), not merged.
+
+## Zach's answers to the P-23 and P-24 draft questions (2026-11-09), for the supervisor to fold into the cards
+- P-23: gear changes looks only for now. No stat block; stats need their own design first. Which gear comes first was not answered (the draft's torch, staff, hat and pack still stands as a guess). A torch that gives light is a question for that row, since light is more than a look.
+- P-24: the tracker is text only. No persistent on-screen guide to where to travel, so the draft's distance and direction readout, and the world marker, are out unless Zach says otherwise.
+- P-24: quest progress should eventually be saved. A save file can be explored now, but has to stay flexible because the game is changing fast.
+
+### Save file: what exists today, and a suggested shape (not built, no card yet)
+Today only settings and the chosen body and colouring persist, in PlayerPrefs. Inventory, quests and world changes are lost on quit. Quest state is keyed by NetworkId, board index and slot, and none of those is safe to save: NetworkId changes each session, and board index and slot move when settlements or quests.json change. QuestDef already has a stable string `id`.
+Suggested shape, so that changes to the game don't break saves:
+- One JSON file per world, written by the host, with a format version and the seed at the top.
+- Named sections, one per system (quests, inventory, later others). Each system reads and writes only its own. A section the game doesn't recognise is kept and written back; a missing one means defaults.
+- Saved keys are stable names, never indices: quest `id`, item name, town name. An entry that no longer resolves is logged and dropped, without failing the load.
+- Players need a stable id in place of NetworkId, which each client sends on joining. The `Punchy.PlayerIndividual` pref may be a start; not yet checked that it is unique enough.
+- Open choice: what to do when the seed differs (refuse, or keep only what isn't tied to a place). Moved or rebuilt worlds are likely while the island keeps changing.
+A first slice could be the file, the section mechanism and quests only.
