@@ -3619,6 +3619,17 @@ Built in the player tree, not the one the card names (the world tree's gitignore
   - **Render ms (1920x1080, LOD on/off):** 200 m 2.89/2.89, 600 m 2.99/2.99, edge 3.14/3.18, three 2.94/2.93. Main-thread cost of the LOD script 0.11 ms/frame (RenderMesh for ~70 far parts; the renderers' own cull/draw is saved).
   - **Shots (T-1 tool):** Assets/Temp/shots/r6-row2-onoff.jpg and r6-row2-crops.jpg in the world tree (LOD on vs off, same frame). Saguaro at 200 m and 600 m reads the same; on/off mean pixel diff < 1.4 per channel, the differing pixels spread over the whole frame (wind, walker motion). At the edge (2850 m) the saguaro is lost in haze in both, and the three-colossi pose shows no clear colossus, so those two compare only as equal frames, not as a readable silhouette.
   - **Pins:** placement code untouched; WorldProbe.cs and r5-row2-wip untouched.
+- **R-6 row 3 DONE (verified)** (92e42fc4, lod/big): intact kit houses' LOD 2 is their outer shell. FloraMeshBuilder.Box skips faces
+  that look into the closed inside below the eaves or down onto the ground, only for KitShape.House and the four hazard houses at LOD 2
+  (LOD 2 already had no floors, inside stairs or slabs for intact houses; StiltHouse and other shapes are left alone).
+  - Big town (#5, r 96 m) from 400 m: 66 buildings at LOD 2, **19248 -> 16608 tris (-14%)**, about 292 -> 252 per building; 900 m: 19104 -> 16464.
+    All 347 intact variants: 196332 -> 186504 LOD 2 tris; 72 variants shelled. Render 2.72 -> 2.65 ms at 400 m (noise level).
+  - Ruins: 12 variants, LOD 0-2 identical tris/verts with the shell on or off. Intact LOD 0/1: 0 of 347 differ.
+  - Shots (same session, LOD 2 meshes swapped): Assets/Temp/shots/r6-row3-town-high-oldnew.png (from above, old | new) and
+    r6-row3-town400-zoom.png (old over new): same outline and colours.
+  - Risk: merges next to W-128's edits in FloraGenerator.Kit.cs (mine are at the top of the class and right after the eaves line).
+    The probe found one trap: swapping a model's mesh in play mode also needs the layer's indirect args updated (they hold the index range).
+
 - **Row 4 DONE (verified)** (766bf902, world/fixes-1107):
   - **Giant ribcage:** each rib and the spine are walkable floors along the bone (kit box tops following the curve), and a rib stops walling you once you stand on it. Walk test on rib 3: `-goto -448.2,101.7,-2338.5`, walked ~28 m along the bone, `walk ARRIVED at (-458.9, 90.5, -2365.7) ... 0.0 m over the floor`; stepping 8 m sideways off it falls to the ground (feet 28.42).
   - **Electric Wastelands rocks:** MagneticDebris / MagneticDrift mounds and fallen chunks get kit boxes cut from a height grid of the drawn rock (strips across the long axis, shared by every tier so each tier rests on the one below), instead of an ellipse round it. Box-top samples with no rock under them (>0.3 m): (-640,-1230) r60 **2284 of 61259 -> 0 of 60768**; (-987,-3990) **9666 of 288842 -> 6 of 258994** (the 6 are W-106's stone boxes on Debris m1). Edge check beside the drift mound's point (`-goto -634.61,20.6,-1224.62`): before stood on air at 20.25 (box top 20.25, ground 18.80, no rock), now `no top`, falls to 18.80. Centre drop stands at 20.92 = box top; walking down and back up the mound's tiers works (19.8 <-> 20.9).
