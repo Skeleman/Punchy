@@ -4158,3 +4158,21 @@ Built in the player tree, not the one the card names (the world tree's gitignore
     - glide_sheet.jpg and glide/f00..f19.
   - **Not mine:** pale lavender squares on the ground at about 1.5 km west of the big town. They stay with the world and town glow fully off (squares_glow_on.jpg vs squares_glow_off.jpg), so they came in from main (flat props or decals?). Worth a look by the world or flora lane.
   - **Merge note:** R-11 (far trees and rocks as impostors) may also touch FloraImpostor.shader. My change there is one line (the PunchyGlowWorld read).
+
+- **W-131 row 2b (far-ring leak soak, no code change, world/far-ring stays at `94548d6f`):** fresh editor at High, scripted soak of 30 cycles each with the ring on and with it off (`PUNCHY_FARRING=0`). Each cycle: Medium -> High (90 frames each), plus an Ultra hop every 5th cycle (Low every 10th) and back to High, then a 20 s terrain-following flight leg at 300 m and 75 m/s (1.5 km out on a heading turned 77 deg per cycle on odd cycles, back home on even cycles), then settle and count.
+  - **Counts after settle are flat in both runs and match cycle for cycle:**
+
+    | measure | ring on | ring off |
+    |---|---|---|
+    | disc chunks | 3062-3114 | same |
+    | chunks past the unload radius | 0 every cycle | 0 every cycle |
+    | water chunks at home (c02 824 ... c30 806) | 805-831 | same |
+    | water chunks at the out spots | 797-1254, repeats by heading | same |
+    | water regions | 114-159 | same |
+    | far tiles (unbuilt) | 230-257 (0) | 0 |
+    | farWanted / farBuilding | 0 / 0 | 0 / 0 |
+
+  - **Leg-end transients (before the settle):** chunks past unload max 15 on / 14 off (sum over 30 legs 129 / 111); farWanted up to 25 and farBuilding up to 11 with the ring on. All drain to 0 by the settle.
+  - **Hitches (other editors open, so noisy):** frames over 33 ms 101 on / 393 off; worst frame 196 ms on / 643 ms off; cycles with a hitch 18 on / 26 off. The ring-on run had a late cluster in cycles 24-29. Neither run trends upward.
+  - **Verdict:** no leak, so no fix and no ms rerun. The earlier 972 -> 2710 water-chunk rise did not come back. Water-chunk counts depend on where you are (797-1254 across these spots), and that long session also had extra probe tweaks. The code agrees: CancelFarBuild only drops the current batch, UpdateFarRing re-wants those tiles every frame, and Medium/Low unload the whole ring, so nothing is left behind.
+  - Soak probe (`W131Probe.Soak`) is untracked, as before. Editor closed (own PID), BurstCache pruned.
