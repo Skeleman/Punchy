@@ -3145,3 +3145,13 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - Shots (explicit Beast_Shots, same well-keeper of Millfield; sheet Assets/Temp/shots/a93-beast-sheet.jpg). All four [shot] checks are good: human mean 0.40, rabbit 0.41, wolf 0.41, horse 0.45. Human: "Good morning. A well-keeper of Millfield, at your service." <Bow>. Rabbit: "Don't you come any closer." Wolf: "Slowly... nobody needs to get bitten." Horse: "Don't like animals. Never have." This folk has low beasts, so it stays Wary for all three animals. In the horse frame something in the foreground hazes the view.
 - Full PlayMode suite 24/24 passed (rule 19). Pins: Landmarks_V3 112 A955AFE0 and Fauna_Fingerprint 66320C7C pass. Nothing runs per frame.
 - Risk for P-26: Respond runs on host/solo only; a joined client needs an RPC to make the folk flee or approach on the host.
+
+## A-94 - breath check: test, flier shot, colossus breath
+
+### Row 1 - default test of the breath curve - done (verified by test)
+- Commit 666f6d1b on fauna/breath-check (pushed, cut from origin/main).
+- New default test `BreathCurveTests.Breath_SmallLessBigMore` (PlayMode assembly, plain NUnit `[Test]`, 0.0 s, no scene). There is no EditMode test assembly and the game code is reached by reflection from Punchy.Tests.PlayMode, so the test sits there like BiomeLiteralTests. That is a deviation from "EditMode" in the card.
+- Checks: puff size, vapour per exhale and beat rise strictly songbird < fox < deer < horse; the colossus-sized body (8 x 12 m) is held >= horse (made strict in row 3); songbird puff 5-10% of a person's; beat at least 3x quicker; flier carry <= 0.1, walker 0.85; songbird shows breath, a body under 0.1 does not.
+- Measured on main's curve: songbird size 0.066 beat 0.82 s | fox 0.401, 2.03 s | deer 2.920, 5.47 s | horse 3.000, 6.40 s | colossus 3.000, 6.40 s (capped, same as horse); carry walk 0.85, fly 0.08; tiny body 0.08 shows False.
+- Flier carry was lifted into `CreatureBreathSystem.Carry(fly)` with the same numbers so the test can read it. Behaviour is unchanged.
+- Run: 1 passed, 0 failed, 0 skipped in 104s (Unity exit 0). Next: row 2 (flier shot).
