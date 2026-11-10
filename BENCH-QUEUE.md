@@ -350,7 +350,7 @@ runner (unlikely since b/fix-stall-hang).
   Present or a fence: driver/render-thread side (I'll card a frame-latency or swapchain change). If it waits in a managed Monitor
   or Task wait: TakePregrown (I'll card the timeout fix). If too few stalls happen to tell, say so and stop at 24 games.
 
-## Job 42 (2026-11-09, RUNNING on the laptop; q72.sh; queued by the main-account supervisor): fix the Summit stall's swapchain wait (job 41)
+## Job 42 (2026-11-09, REPORTED in REPORTS-profiler.md; q72.sh; queued by the main-account supervisor): fix the Summit stall's swapchain wait (job 41)
 Job 41 caught the main thread in `WaitOnSwapChain` (WaitForLastPresentationAndGetTimestamp) on both D3D11 and D3D12, with the GPU
 idle, and any cdb attach wakes it: a missed wakeup on the waitable swapchain. Under the profiler self-fix rule, branch
 `b/fix-swapchain-stall` from main, and add start-up flags only (set from script at runtime; no ProjectSettings change):

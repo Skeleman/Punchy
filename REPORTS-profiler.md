@@ -2,6 +2,46 @@
 
 Newest first.
 
+## Job 42: Summit stall swapchain fix A/B (b/fix-swapchain-stall c9672fcc), 2026-11-10 (q72.sh)
+The branch is main 33fe6457 plus two start-up flags, both set from script (FrameRateCap.cs) with no ProjectSettings change:
+`-vsync N` (QualitySettings.vSyncCount) and `-maxqueued N` (QualitySettings.maxQueuedFrames). Each game logs the values it
+ended up with; the default is vSyncCount 0, maxQueuedFrames 2. Profile build, job 41's setup (Summit facing out, pitched up 10,
+1920x1080, `-gfx High`, `-weatherseed 4`, noon, uncapped, `-lowres half`), D3D11 (every log says Direct3D 11.0). 24 rounds, each
+one fresh game per arm in shuffled order, so 120 games from 23:51 to 03:43. A stall counted as a frame of 30 s or more, or a log
+quiet for 120 s (then cdb once per arm, then a kill by PID). freezestall's own cdb attach was off for the job. The runcsv `i`
+bug is fixed first (Punchy b/bench-stress 1e1374b0: wait_s and cool keep their loop counter local).
+
+**Stalls: none in any arm, the control included.** 0 in 24 games for each of A (no flags), B `-maxqueued 1`, C `-maxqueued 3`,
+D `-vsync 1` and E `-force-d3d11-no-singlethreaded`. No frame over 30 s, the watchdog never fired, and freezestall saw no quiet
+log. Job 41's D3D11 rate (3 in 12) would give 0 in 24 about 0.1% of the time, so **the stall didn't reproduce, and this A/B
+can't tell whether any arm fixes it.** Per the card I'm stopping here, with no default changed in the branch.
+
+What differs from job 41:
+- main 0e964452 became 33fe6457 (#222-#226: town lights, wide shadows, the shots tool, world fixes, breath size). None of these
+  touches presentation, timing or flora tasks.
+- No automatic cdb attach, though that can only end a stall, not prevent one.
+- The time of day: job 41 ran 15:40-17:00, and jobs 38-39 ran in the daytime too; this job ran overnight with the laptop untouched.
+
+If the stall comes back, the flags are on the branch for a rerun.
+
+**fps at the Summit (24 games per arm, none stalled; the spread across games is in brackets):**
+
+| arm | avg fps | 1% low | CPU ms | GPU ms | fps vs A |
+|---|---|---|---|---|---|
+| A control (queued 2) | 70.4 (68.5-71.7) | 44.8 | 14.22 | 9.82 | |
+| B `-maxqueued 1` | 31.5 (30.4-34.9) | 15.1 | 31.79 | 13.00 | **-55%** |
+| C `-maxqueued 3` | 80.2 (78.3-81.3) | 53.1 | 12.47 | 12.23 | **+14%** |
+| D `-vsync 1` | 57.2 (56.1-58.0) | 25.2 | 17.48 | 10.98 | -19% (vsync; the cap sits under 60) |
+| E `-force-d3d11-no-singlethreaded` | 70.3 (68.1-71.4) | 45.3 | 14.22 | 9.79 | 0% |
+
+Even with no stall to fix, two of these are worth knowing:
+- **One queued frame halves the frame rate here.** The CPU waits for the GPU every frame.
+- **Three queued frames gain 14%,** with no overlap between the arms' ranges. The GPU ms rises because each frame's timer now
+  includes more queueing, not more work. The cost is one more frame of input latency.
+
+-force-d3d11-no-singlethreaded changes nothing.
+Cost: this job about $6 (laptop session 0a48ccdb; 120 games overnight); laptop total $681.
+
 ## Job 41: what the Summit stall waits on (main 0e964452), 2026-11-09 (q71.sh)
 Profile build, job 38's Summit setup (facing out, pitched up 10), 1920x1080, `-gfx High`, `-weatherseed 4`, noon, uncapped,
 `-lowres half`, plain weather. 24 fresh games alternating the default API with `-force-d3d12`, round 2 starting on D3D12. The
