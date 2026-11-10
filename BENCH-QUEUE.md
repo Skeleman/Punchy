@@ -316,7 +316,7 @@ doesn't scale with resolution. Main acd0cad5 Profile build, job 34's setup (Summ
   pass) with their GPU ms. Name the biggest pass that doesn't scale with resolution.
 - Report the numbers in REPORTS-profiler.md as usual. The rendering lane uses this to decide what to cut.
 
-## Job 39 (2026-11-09, REPORTED in REPORTS-profiler.md (pass ms to follow); q69.sh): depth priming on the laptop (main 5558f89a, R-3 #220)
+## Job 39 (2026-11-09, REPORTED in REPORTS-profiler.md; q69.sh): depth priming on the laptop (main 5558f89a, R-3 #220)
 R-3 row 4: on the desktop, forced depth priming beats off at every spot (forest prepass+opaques 1.61 vs 2.81 ms). The laptop's
 iGPU may differ. Profile build of main 5558f89a, 1920x1080, `-gfx High` then `-gfx Low`, `-weatherseed 4`, `-time 12 -weather
 Clear`, uncapped (`-fpscap 0`). At `-goto 2972,-885` (big town), `1740,3355` (forest), `-1624,-488` (lake), `-2446,1154`
@@ -334,7 +334,7 @@ ABBA, 300 frames each.
 - One RenderDoc capture of R-4 at half: DrawSkybox ms against job 38's 3.68.
 - Pass: R-4 within +1 ms of main at each spot. Say whether DrawSkybox dropped. Report in REPORTS-profiler.md as usual.
 
-## Job 41 (2026-11-09, RUNNING on the laptop after job 40; q71.sh; queued by the main-account supervisor): what the Summit stall waits on (jobs 37-38)
+## Job 41 (2026-11-09, REPORTED in REPORTS-profiler.md; q71.sh; queued by the main-account supervisor): what the Summit stall waits on (jobs 37-38)
 A read-only code review (supervisor, 11-09) found no unbounded shader loop and no main-thread GPU readback during settle.
 `-skyoff` only sets a float; in q68 the -skyoff 2/4 games all sat at positions 5-8 of each round, so the link is likely timing,
 not the flag. Ranked suspects: (1) the main thread blocked in the render thread or the Intel D3D12 driver (Present, swapchain or

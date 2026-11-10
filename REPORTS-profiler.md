@@ -2,6 +2,57 @@
 
 Newest first.
 
+## Job 41: what the Summit stall waits on (main 0e964452), 2026-11-09 (q71.sh)
+Profile build, job 38's Summit setup (facing out, pitched up 10), 1920x1080, `-gfx High`, `-weatherseed 4`, noon, uncapped,
+`-lowres half`, plain weather. 24 fresh games alternating the default API with `-force-d3d12`, round 2 starting on D3D12. The
+default on this build and laptop is **D3D11** (the logs say `Direct3D 11.0 [level 11.1]`), not D3D12, and the GPU is a GTX 1060 Max-Q,
+not Intel; the `-force-d3d12` games say `Direct3D 12 [level 12.1]`. With Zach's OK I installed cdb (WinDbg) and procdump.
+freezestall.ps1 now attaches cdb non-invasively on a game's second stall snapshot (about 45-50 s into a stall), once per game,
+and saves every thread's stack with Microsoft and Unity symbols.
+
+**Stalls (frames of 30 s or more):** D3D11 3 in 12 games (56.5, 56.0, 52.5 s); D3D12 6 in 12 games, in 4 of them (50.1 then
+500.6 s in one game, 54.2 then 1080.7 s in another, 55.6, 51.9). Shorter ones: D3D11 22.0, 24.3, 5.1 s; D3D12 12.2 s. Both APIs
+stall. D3D12 is also slower here when it isn't stalled: 61-64 fps against 72-76 fps, with CPU at 16 ms against 13.5 ms.
+
+**Where the threads sit (all 13 stall snapshots, both APIs):** the main thread ("Unity Main Thread") is in Wait/UserRequest and the
+window is not responding. The slow-polling thread (the Audio Mixer Thread, priority 13, start address UnityPlayer.dll+0x2e4b1b0)
+is also in Wait/UserRequest and is just the mixer ticking. The GPU is at 0% with idle clocks, and the game uses about 0.03 s of
+CPU per second. There's no disk, Defender or CPU load.
+
+**cdb stacks (7 stalls, one per game):** two caught the main thread still waiting, on both APIs, in the same place:
+```
+ntdll!NtWaitForMultipleObjects / KERNELBASE!WaitForMultipleObjectsEx
+UnityPlayer!SwapChainWaitingContext::WaitOnSwapChain
+UnityPlayer!GfxDeviceD3D12::WaitForLastPresentationAndGetTimestamp   (D3D11 game: GfxDeviceD3D11::...)
+UnityPlayer!...TimeUpdateWaitForLastPresentationAndUpdateTimeRegistrator::Forward
+UnityPlayer!ExecutePlayerLoop / ExecuteTimeUpdate / MainMessageLoop
+```
+That is the start of the player loop, waiting for the last frame's presentation through the swapchain's waitable object. The
+UnityGfxDeviceWorker is idle on a futex, and the NVIDIA driver threads (nvwgf2umx) sit in their own waits. No managed code is on
+the stack, and there is no Monitor, Task or `task.Result` wait anywhere on the main thread, so **it isn't TakePregrown.**
+Classification: **the presentation/swapchain wait, on the driver side, under both D3D11 and D3D12.**
+
+**Attaching cdb ends the stall.** In all 7 games the game came back to life within 8 s of cdb attaching: CPU climbs, the GPU goes to
+55-99%, and the log grows again. Three of the stacks already show the main thread back in LateUpdate or culling, and the two
+shutdown stacks are games that resumed and quit within seconds. That's why every stall in this job lasted about 50-56 s, which is
+when the attach fires. Without an attach they run long:
+- the second stalls in the two D3D12 games that had already been attached once lasted 500.6 and 1080.7 s, and freezestall's
+  read-only snapshots, which ran every 30 s through both, didn't end them;
+- jobs 38-39, before cdb, had stalls of 41.8 to 1622 s, with a median of about 500.
+
+A non-invasive attach suspends and resumes every thread and injects a break-in thread. So the stall looks like a missed wakeup:
+the swapchain's wait object never signals (the GPU has nothing queued) until something disturbs the process. The stalls still
+fall just after the Summit jump, mostly while settling at 0.2-7.7 s into the stop, and twice while measuring.
+
+For the frame-latency/swapchain card: this points at the waitable-swapchain present wait itself, not at the GPU work. Things to
+try: a timeout or a fallback on that wait, `-force-d3d11-no-singlethreaded`, a different `QualitySettings.maxQueuedFrames`, or
+VSync on. I can bench any of them here; with cdb now in place, a stall that ends right at an attach is the tell.
+
+Script bug: runcsv reuses the loop's `i`, so the per-game labels in q71.out (g1-g13) are wrong, and of the 24 game logs only 23 were
+kept (11 D3D11, 12 D3D12; same-named ones overwrote). The counts above come from the lines printed right after each game, so they
+cover all 24. Stacks are in results/freezestacks-<pid>.txt and snapshots in results/freezestall.txt (laptop only).
+Cost: this job about $2 (laptop session 0a48ccdb, including the cdb stack tooling); laptop total $675.
+
 ## Job 40: R-4 sky cost on the laptop (sky/look 5880293c vs main 5558f89a), 2026-11-09 (q70.sh)
 Profile builds of both, job 34's Summit setup (place Summit, pitched up 10), 1920x1080, `-gfx High`, `-weatherseed 4`, noon,
 uncapped, a fresh game per run. Each list ran in order, then reversed. GTX 1060 Max-Q on D3D11.
@@ -79,6 +130,24 @@ audio mixer thread.
   duplicate is stopped.
 
 Cost: this job about $5 (laptop session 0a48ccdb, including the stall tooling); laptop total $673.
+
+**Addendum, 2026-11-09, RenderDoc pass ms** (the 16 q69 captures, replayed with rdpasses.py; RenderDoc replay times run about 3x the
+bench, so read them as ratios). The depth prepass costs the same with priming off as with it forced. Only the opaque pass changes:
+
+| capture | prepass forced / off | opaque forced / off | opaque saved |
+|---|---|---|---|
+| High big town | 12.6 / 11.9 | 29.6 / 55.3 | 25.7 |
+| High forest | 14.1 / 13.4 | 21.1 / 52.7 | 31.6 |
+| High Summit | 9.9 / 10.0 | 17.9 / 35.8 | 17.9 |
+| High lake | 10.5 / 10.0 | 27.0 / 66.4 | 39.5 |
+| Low big town | 4.15 / 4.17 | 19.6 / 34.5 | 15.0 |
+| Low forest | 5.34 / 5.29 | 11.9 / 35.6 | 23.6 |
+| Low Summit | 2.71 / 2.76 | 8.0 / 13.8 | 5.8 |
+| Low lake | 4.02 / 3.87 | 18.7 / 37.6 | 18.9 |
+
+The DepthNormal prepass runs either way (SSAO needs it), so forced priming just lets the opaque pass reuse that depth (Z equal)
+and skip overdraw. It costs nothing extra on this GPU, which is why forced wins everywhere. DrawSkybox is 0.2-1.4 ms in these
+views.
 
 ## Job 38: why quarter-resolution sky isn't cheaper than half (main acd0cad5), 2026-11-09 (q68.sh)
 Job 34's setup: Profile build, the Summit facing out, pitched up 10, 1920x1080, `-gfx High`, `-weatherseed 4`,
