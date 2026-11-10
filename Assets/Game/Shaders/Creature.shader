@@ -27,8 +27,8 @@ Shader "Punchy/Creature"
                                // height of the ground the creature stands on (for grounding: a body's segments only)
                                // z: seams only ("-noseams" leaves it 0), how many segments back the one this hangs from is (0: none)
                                // w: the look (A-97, Punchy.Fauna.SurfaceLook): surface in the low 4 bits (0 fur, 1 feathers,
-                               // 2 scales, 3 skin, 4 chitin, 5 hoof, 6 claw, 7 pad, 8 eye, 9 horn), fur length x 16 (0 medium,
-                               // 1 short, 2 long); 0 = fur as every body was before
+                               // 2 scales, 3 skin, 4 chitin, 5 hoof, 6 claw, 7 pad, 8 eye, 9 horn, 10 paw), fur length x 16 (0 medium,
+                               // 1 short, 2 long; a paw's: the coat over its top); 0 = fur as every body was before
         };
 
         StructuredBuffer<Segment> _Segments;
@@ -229,6 +229,7 @@ Shader "Punchy/Creature"
                 nointerpolation float ground : TEXCOORD7;
                 nointerpolation float look : TEXCOORD8;
                 nointerpolation float radius : TEXCOORD9; // (the segment's mean radius: feather and scale rows round it, A-97)
+                nointerpolation float flatten : TEXCOORD10; // (its cross-section's height over width: where a paw's sole is)
             };
 
             Varyings Vert(CreatureAttributes input)
@@ -244,6 +245,7 @@ Shader "Punchy/Creature"
                 o.fade = SegmentFade(input);
                 o.look = _Segments[input.instanceID + _SegmentOffset].material.w;
                 o.radius = 0.5 * (_Segments[input.instanceID + _SegmentOffset].radiusStart + _Segments[input.instanceID + _SegmentOffset].radiusEnd);
+                o.flatten = _Segments[input.instanceID + _SegmentOffset].flatten;
                 return o;
             }
 
@@ -445,6 +447,48 @@ Shader "Punchy/Creature"
                                 // Eye: wet and hard, a sharp highlight from the sun, the sky mirrored at a glancing angle
                                 // and a small catchlight, so it reads alive from a few metres. No bump.
                                 wrap = 0.2; rimK = 0; spec = 2.2; specPow = 220; sky = 0.6;
+                            }
+                            else if (surf == 10)
+                            {
+                                // Paw (row 3): the coat over the top, short and fine (fur strands, or pores on a bare-skinned
+                                // coat; len holds the coat's surface), a dark leathery pad under the sole only (local -y is
+                                // down on a standing foot), grooves between four toes over the front half, and on big paws
+                                // (a mean radius of 2.4 cm and up) a small dark claw at the tip of each toe.
+                                float u = sp.x / r;
+                                float w = sp.y / (r * max(input.flatten, 0.05));
+                                float front = smoothstep(0.5, 0.75, input.along);
+                                half fine = saturate(1.5 - fwidth(u) * 6);
+                                albedo *= lerp(0.92, 1.06, patch);
+                                if (len == 0)
+                                {
+                                    half strand = Noise3(float3(sp.xy * 260, sp.z * 40));
+                                    albedo *= 1 - near * 0.09 * (1 - strand);
+                                    h = strand * 0.0015 * near;
+                                }
+                                else
+                                {
+                                    half pore = Noise3(sp * 140);
+                                    albedo *= 1 - 0.08 * (1 - pore) * near;
+                                    h = pore * 0.0005 * near;
+                                }
+                                // Toes: the distance to the nearest groove (u = 0 and +-0.45), within the paw's width.
+                                float g = abs(frac(u / 0.45 + 0.5) - 0.5) * 0.45;
+                                half groove = (1 - smoothstep(0.015, 0.06, g)) * front * (1 - smoothstep(0.6, 0.75, abs(u))) * fine;
+                                albedo *= 1 - 0.4 * groove;
+                                h -= groove * 0.08 * r * near;
+                                // The sole: the pad, pebbled and dark, with a low sheen.
+                                half sole = smoothstep(-0.25, -0.6, w);
+                                half pebble = Noise3(sp * 260);
+                                albedo = lerp(albedo, half3(0.03, 0.022, 0.018) * (1.1 - 0.25 * (1 - pebble)), sole);
+                                h = lerp(h, pebble * 0.0005 * near, sole);
+                                // Claws: at the front tip, on each toe's middle (u = +-0.225, +-0.675), just below mid-height.
+                                float tc = abs(frac((abs(u) - 0.225) / 0.45 + 0.5) - 0.5) * 0.45;
+                                half claw = smoothstep(0.024, 0.04, r) * smoothstep(0.88, 0.96, input.along) * (1 - smoothstep(0.05, 0.1, tc)) *
+                                            (1 - smoothstep(0.25, 0.55, abs(w + 0.15))) * (1 - smoothstep(0.75, 0.85, abs(u)));
+                                albedo = lerp(albedo, half3(0.035, 0.03, 0.026), claw);
+                                h += claw * 0.05 * r * near;
+                                wrap = lerp(0.25, 0.3, sole); rimK = lerp(0.2, 0.05, max(sole, claw));
+                                spec = 0.1 * sole + 0.25 * claw; specPow = lerp(12, 30, claw);
                             }
                         }
                     }

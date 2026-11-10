@@ -30,7 +30,9 @@ namespace Punchy.Fauna
         [Tooltip("Paw pad: dark, leathery, no fur.")] Pad,
         [Tooltip("Eye: wet, sharp highlight.")] Eye,
         [Tooltip("Antler, horn, tusk or beak: flat matte with faint rings.")] Horn,
-        [Tooltip("Bare skin: noses, combs, wattles, bat wings.")] Skin
+        [Tooltip("Bare skin: noses, combs, wattles, bat wings.")] Skin,
+        [Tooltip("A whole paw: the coat (short) over the top, a dark pad under the sole only, toes at the front, small " +
+                 "claws on big paws. Give it the coat colour, not a fixed one.")] Paw
     }
 
     /// <summary>How long a furry segment's fur is: Short has no shells, Medium is the standard coat, Long is shaggy.</summary>

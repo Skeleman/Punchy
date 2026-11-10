@@ -26,15 +26,18 @@ namespace Punchy.Fauna
 
     /// <summary>
     /// The per-segment look code in SegmentInstance.Material.w: the low nibble is the surface (0 = fur, as every
-    /// creature was drawn before A-97), the high one the fur length (FurLength: 0 Medium, 1 Short, 2 Long).
+    /// creature was drawn before A-97), the high one the fur length (FurLength: 0 Medium, 1 Short, 2 Long). A paw's
+    /// high nibble is instead the coat over its top (the coat's own surface code: fur, scales, skin…).
     /// Creature.shader decodes the same numbers.
     /// </summary>
     public static class SurfaceLook
     {
-        public const byte Fur = 0, Feathers = 1, Scales = 2, Skin = 3, Chitin = 4, Hoof = 5, Claw = 6, Pad = 7, Eye = 8, Horn = 9;
+        public const byte Fur = 0, Feathers = 1, Scales = 2, Skin = 3, Chitin = 4, Hoof = 5, Claw = 6, Pad = 7, Eye = 8, Horn = 9, Paw = 10;
 
         public static byte Of(CoatKind coat, SegmentSurface surface, FurLength length)
         {
+            if (surface == SegmentSurface.Paw)
+                return (byte)(Paw | (Of(coat, SegmentSurface.Coat, FurLength.Medium) << 4));
             byte code = surface switch
             {
                 SegmentSurface.Hoof => Hoof,
