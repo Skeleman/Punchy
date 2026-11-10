@@ -9,7 +9,7 @@
 // the full octahedron covers every direction. This file is the one place the mapping lives, so the bake and the draw
 // agree on it.
 //
-// The atlases (one slice per model, frames x frames tiles of a few dozen texels):
+// The atlases (one slice per model that can become an impostor, frames x frames tiles of a few dozen texels):
 //   albedo: rgb the vertex colour, a coverage.
 //   data:   rg the normal (model space, octahedral, 0..1), b depth along the view (0..1 over the bounding sphere),
 //           a occlusion * 0.49 plus 0.51 on leaves and petals (lit the leafy way).
@@ -91,7 +91,8 @@ SAMPLER(sampler_ImpostorAlbedo);
 TEXTURE2D_ARRAY(_ImpostorData);
 SAMPLER(sampler_ImpostorData);
 StructuredBuffer<float3> _ModelBounds;   // radius, centre height (unscaled), thins: FloraCull.compute's
-int _ImpostorModelBase;                  // the layer's first model: a plant's slice is its model less this
+int _ImpostorModelBase;                  // the layer's first model: a plant's local model is its model less this
+StructuredBuffer<int> _ImpostorSlice;    // each local model's atlas slice (-1: none; the cull never sends those here)
 float _PunchyImpostorOneFrame;           // 1: the nearest frame only (FloraSystem.ImpostorOneFrame, for comparison)
 
 struct ImpostorAttributes
@@ -127,8 +128,9 @@ ImpostorVaryings ImpostorVert(ImpostorAttributes input)
     InitIndirectDrawArgs(0);
     uint2 visible = _FloraVisible[GetIndirectInstanceID_Base(input.instanceID)];
     FloraInstance plant = _FloraInstances[visible.x];
-    uint slice = (uint)(plant.model - _ImpostorModelBase);
-    float3 bounds = _ModelBounds[slice];
+    uint local = (uint)(plant.model - _ImpostorModelBase);
+    float3 bounds = _ModelBounds[local];
+    float slice = max(_ImpostorSlice[local], 0);
     float radius = max(bounds.x, 0.01) * 1.01 * plant.scale;
     float3 centre = plant.position + float3(0, bounds.y * plant.scale, 0);
 
