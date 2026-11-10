@@ -211,17 +211,34 @@ namespace Punchy.Tests
             LogWatch.Measure("beast shots:\n" + string.Join("\n", sheet));
         }
 
-        /// <summary>Target: live village folk answer every topic through the entity path (persona, condition, town, stance).</summary>
+        /// <summary>
+        /// Target: live village folk answer every topic through the entity path (persona, condition, town, stance).
+        /// A-96 row 0: folk answer a beast differently (no "[who]" line for a crow), and every tree shares the editor's
+        /// PlayerPrefs, so the saved body (Punchy.Character.Body) may be anything: the test plays a human itself and puts
+        /// the body and the saved pick back after.
+        /// </summary>
         [UnityTest]
         public IEnumerator LiveFolk_Answer()
         {
             yield return TestSceneSetup.Place("HumanVillage", 10f);
-            var dump = Game.Hook<string>("TalkToFolk", 3);
-            LogWatch.Measure($"live folk talk:\n{dump}");
-            Assert.IsFalse(string.IsNullOrEmpty(dump), "no folk near the village to talk to");
-            StringAssert.Contains("[who]", dump);
-            StringAssert.Contains("[bye]", dump);
-            StringAssert.DoesNotContain("{", dump);
+            var pref = Game.Hook<string>("BodyPref");
+            var was = Game.Hook<string>("SetBody", "Human");
+            try
+            {
+                yield return TestSceneSetup.Seconds(1f);
+                var dump = Game.Hook<string>("TalkToFolk", 3);
+                LogWatch.Measure($"live folk talk (body was '{was}', saved pick '{pref}'):\n{dump}");
+                Assert.IsFalse(string.IsNullOrEmpty(dump), "no folk near the village to talk to");
+                StringAssert.Contains("[who]", dump);
+                StringAssert.Contains("[bye]", dump);
+                StringAssert.DoesNotContain("{", dump);
+            }
+            finally
+            {
+                if (!string.IsNullOrEmpty(was))
+                    Game.Hook<string>("SetBody", was);
+                Game.Hook<object>("PutBodyPref", pref);
+            }
         }
     }
 }
