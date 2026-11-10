@@ -174,3 +174,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-10: A-95 started (Punchy, dungeon collision = A-91 row 1; rows 2-4 still await Zach).
 - 11-10: R-10 row 4 done (95c93aef, town map + light dome, desktop pass). HOLD merge for laptop job 45 (spec updated to 95c93aef, 4th arm -townglow 0; jobs 43/44 ahead). Water row 2b waits on R-9. Opened #241 (lavender squares + pill cloud on main); R-12 started in Punchy-release.
 - 11-10: Zach: town light dome far too strong, lights too much sky; wants glow concentrated where the town is. R-12 paused to free Punchy-release; R-10 resumes for row 4b (dome way down, glow on the town).
+- 11-10: R-12 paused cleanly (notes in its card, nothing committed). R-10 resumed for row 4b (dome way down, glow on the town).
