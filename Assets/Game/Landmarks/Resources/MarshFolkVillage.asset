@@ -21,12 +21,15 @@ MonoBehaviour:
   Height: 0
   ShapeRadius: 0.7
   Edge: 0.2
-  Flatten: 0
+  Flatten: 1
   Roughness: 0
   OnePerIsland: 0
   TowerHeight: 0
   Temple: 0
-  Pools: []
+  Pools:
+  - Offset: {x: 0, y: 0}
+    Radius: 0.7
+    Depth: 1.4
   OverrideWater: 1
   WaterColor: {r: 0.22, g: 0.32, b: 0.2, a: 1}
   WaterMurk: 0.5
