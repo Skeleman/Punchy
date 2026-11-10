@@ -647,10 +647,11 @@ half PunchyCloudCoverAlong(float3 dir, out half darkness)
     float4 shape = PunchyCloudShapeAt(guess);
     float middle = shape.x + shape.y * 0.35;
     float3 p = camera + dir * min((middle - camera.y) / dir.y, 40000);
-    half4 weather = PunchyWeatherAt(p.xz);
+    float2 mapXZ = p.xz + PunchyCloudWarpAt(p);   // where the volume reads its maps (R-12)
+    half4 weather = PunchyWeatherAt(mapXZ);
     darkness = weather.g;
     punchyCloudStyle = PunchyCloudStyleAt(p.xz);
-    return saturate(PunchyCloudDensity(p, weather, PunchyCloudShapeAt(p.xz), 0) * 3) * smoothstep(0.02, 0.12, dir.y);
+    return saturate(PunchyCloudDensity(p, weather, PunchyCloudShapeAt(mapXZ), 0) * 3) * smoothstep(0.02, 0.12, dir.y);
 }
 
 // 0..1: how much a point on the ground is shaded from the sun by the clouds above it (one sample at the clouds'
@@ -663,9 +664,10 @@ half PunchyCloudShadow(float3 positionWS)
     float4 shape = PunchyCloudShapeAt(positionWS.xz);
     float height = shape.x + shape.y * 0.3;
     float3 p = float3(positionWS.xz + toSun.xz * (height - positionWS.y) / toSun.y, height).xzy;
-    half4 weather = PunchyWeatherAt(p.xz);
+    float2 mapXZ = p.xz + PunchyCloudWarpAt(p);   // where the volume reads its maps (R-12), so the shadow sits under it
+    half4 weather = PunchyWeatherAt(mapXZ);
     punchyCloudStyle = PunchyCloudStyleAt(p.xz);
-    float density = PunchyCloudDensity(p, weather, PunchyCloudShapeAt(p.xz), 0);
+    float density = PunchyCloudDensity(p, weather, PunchyCloudShapeAt(mapXZ), 0);
     return saturate(density * 3) * lerp(0.5, 0.95, saturate(shape.y / 3000));
 }
 
