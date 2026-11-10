@@ -487,3 +487,31 @@ Next: nothing open. P-25 row 3 still needs the answer on the house kit.
   then reverted: not in the branch. The animal lane needs the same guard (or the supervisor can add it on merge).
 - UNVERIFIED: nothing joined (host/client) in this run; each branch's own reports cover that.
 - Next: P-28 row 1 (weapons), from player/integrate until it merges.
+
+## P-28 row 1 (11-10): DONE, `player/weapons` at 42847ca9 (from player/integrate)
+- Items appended (ids 12-16): Club (dmg 6, reach 0.9 m, 1.1 swings/s), Spear (8, 1.9 m, 0.8/s, two hands), Sword (9, 1.1 m,
+  1.4/s), Bow (7, 25 m, 0.6/s, two hands), Arrow (stack 30). Hand slot; ItemDef gains Damage, Speed, TwoHanded, Weapon.
+  Procedural meshes and icons in ItemMeshes. The worn row shows e.g. "Bow, dmg 7, reach 25 m, 2 hands".
+- **The player has no attack** (the Attack input action is bound but nothing reads it), so per the card: stat numbers and a
+  swing pose only, no combat. Left mouse (while it steers the camera) or pad X outside the inventory swings; a swing lasts
+  1/Speed s. Club/sword raised over the shoulder and brought down, spear thrust, bow drawn and loosed (an arrow on the string
+  while drawn).
+- Drawing: CreatureState gains `Outfit` (weapon kind, swing phase; 2 bytes, not sent: each machine sets it, like Worn).
+  Pieces are in the worn pass in PoseGear.cs (WeaponParts 7), skipped under 6 reference px (DetailPolicy.ScreenSize).
+  Outside PoseGear.cs: WornCount takes the state (CreatureRenderSystem.cs line 98, Passes.cs line 517, the call at
+  CreatureRenderSystem.cs line 682), and **an additive arm block in CreatureAnimator.cs** after the staff's (the animal lane's
+  file; no swing pose without it). No shader edits.
+- Sync: SwingRpc client -> host -> everyone; the weapon goes through the existing GearRpc/GearStateRpc. Host + client: each
+  saw the other's weapon (host: "another player's body ... weapon 4" = bow; client: "weapon 3" = sword); swings 26 relayed
+  from the client, 36 from the host received; 0 exceptions either side.
+- Arms, measured (`-armlog`, hands from the body): no weapon up 0.75 / ahead -0.03; club and sword ready, right hand up 1.04,
+  ahead 0.47; spear both hands ahead 0.50/0.58; bow both up 1.25-1.33, ahead 0.65-0.67.
+- Shots (D:/Unity/shots-P28 on the main PC, human at noon, -camdist 3): each weapon back and front; side views of a sword
+  swing (raised, struck through) and a bow drawn; inventory pane with the three weapon icons and the bow worn.
+  `[shot]` lines: 8 of 8 then 6 of 6 ready after 0.8-1.1 s, contact sheets written.
+- Suite: 25 passed, 0 failed, 17 skipped in 335s (Unity exit 0).
+- Test flags: `-equip A,B;C` (sets 12 s apart, now counted from when the body first stands in the world), `-swing`, `-armlog`.
+- Builds still need main's DungeonWalk TestHooks guard (row 0 note); I apply it locally per build and revert it.
+- UNVERIFIED: a real mouse click and a real pad X (only the -swing path ran); weapons in chests/rewards not added (not in
+  row 1); animals refusing a weapon goes through CanWearGear as before, not re-run.
+- Next: P-28 row 2 (armour), on top of player/weapons.
