@@ -43,3 +43,6 @@ When you learn a lasting gotcha, add one or two lines to the matching `docs/agen
 - The repo is public: everything pushed (code, assets, commit messages, docs, coordination files) can be read by
   anyone. Never commit secrets (keys, tokens, passwords), personal information, or machine-specific paths such as
   `C:\Users\<name>\...`.
+
+## Roadmap Ideas
+When Zach shares long-term or 'someday' feature ideas, append them to ROADMAP-IDEAS.md under the right category with the date. Do not implement them unless he explicitly asks. When he asks for a change meant for another agent, add it to that agent's card queue and confirm which card it went on.

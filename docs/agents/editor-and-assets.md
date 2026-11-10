@@ -27,3 +27,5 @@ Read before editing assets or scenes, driving the editor from the CLI, or commit
   cache doesn't depend on the view. Move the camera, let a frame pass (a second eval), then render (W-108).
 - An editor killed while in Play mode leaves `Temp/__Backupscenes`, and the next start sits at a modal "Recovering
   Scene Backups" dialog that the CLI can't see (100 MB, no log). Delete that folder before restarting (W-108).
+- Closing Unity: if a "scene modified" dialog appears, save or discard through script (EditorSceneManager) before
+  quitting. Never leave the dialog blocking.
