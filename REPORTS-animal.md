@@ -3325,3 +3325,22 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
   - Deer have no antler segments (none in their limbs), so the antler check uses caribou/elk (Horn 8).
   - No mammoth creature exists (only the IceMammoth colossus mesh), so the tusk shots use the ogre.
   - [shot] D:/Unity/PunchyMilestones/A-97/row1-sheet.png (before = -nosurfaces, after = default, noon): horse, hoof, wolf, wolf eye, deer, ogre tusk, lizard, snake, crow, beetle, frog. Fringes are gone from hooves, eyes, tusks, beaks, scales and chitin; Medium fur looks the same.
+- **Row 2 (Shade): done (verified).** Branch fauna/surfaces, commit 50da1c8b (Creature.shader only). Each surface gets its own pattern, bump and light:
+  - Fur: Medium is unchanged (identical code path). Short has finer, flatter strands; Long has longer strands gathered into clumps.
+  - Feathers are staggered vanes with dark overlap edges. Scales are small domes with grooves and a little gloss.
+  - Skin has pores and a moist gloss. Chitin has plate bands and a sharp gloss.
+  - Hoof, claw, horn, antler, tusk and beak are matte, with faint growth rings, streaks and flat light.
+  - Pads are dark and pebbled.
+  - Eyes are wet: sharp sun highlight (pow 220), sky reflection at grazing angles, and a small catchlight.
+  - `-nosurfaces` gives the old look.
+  - ms (synced cam.Render at 1920x1080 in the editor (D3D11), median of 7x30 frames; 4 alternating rounds, median of rounds):
+
+| Scene | -nosurfaces | surfaces | Difference |
+|---|---|---|---|
+| Herd, 30 horses, camera 6 m | 1.50 | 1.45 | noise |
+| Herd, 30 horses, camera 20 m | 1.98 | 1.84 | noise |
+| HumanVillage centre, high view | 1.73 | 1.83 | noise (round spread 1.59-3.81) |
+
+  - Magenta check: the editor runs D3D11. Creature.shader isSupported = true, with no errors (one existing warning, "potentially uninitialized Material", at line 256, outside this change). No magenta in any shot.
+  - [shot] D:/Unity/PunchyMilestones/A-97/row2-sheet.png: 9 subjects x (noon before/after, dusk before/after). Before = -nosurfaces, at 12 h and 18 h. Subjects: horse hoof, wolf eye, caribou antler (deer have none), ogre tusk (no mammoth creature), lizard, garter snake, crow, cap beetle, frog. Single shots are in row2/.
+  - Risk: the eye catchlight is a fixed view-relative glint, so it is visible at night too (lit by the SH ambient only).
