@@ -105,6 +105,9 @@ feature code, and it never edits files in another session's checkout.
    effects, impostor hand-offs, light reach) uses `DetailPolicy.ScreenSize` (object size over distance in reference pixels,
    FOV and resolution aware) with a per-kind threshold in DetailPolicy, plus hysteresis. A fixed-metre visual range in new
    code goes back. Gameplay and simulation ranges (senses, AI, collision, streaming) are not LOD and may stay in metres.
+   Old code counts too: a file you touch that still has a metre visual range gets converted in that branch, or listed in your
+   handoff for R-13. Mark a metre range that is truly gameplay with a `// gameplay:` (or sim/streaming/collision) comment.
+   The supervisor runs `tools/lod-lint.sh <branch>` on every branch before merge; unexplained hits go back.
 
 ## Sessions and lanes
 
