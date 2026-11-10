@@ -415,3 +415,14 @@ Not what the card said:
 UNVERIFIED: real mouse clicks, keys 1-9, arrows, Enter, Esc and WASD (only the pad was driven, and only a virtual one); host playing as itself in a talk; laptop screen. On a freshly added virtual pad, the first RB press missed in 2 of 4 runs with the folk in reach and no door or item nearer; the next press worked. I didn't find why. The 10-folk pass line didn't go through the pad.
 Suite: 24 passed, 0 failed, 17 skipped in 330 s.
 Next: P-25 row 3's prototype waits for the answer on the house kit. P-23 and P-24 are still drafts.
+
+## P-23: item models and gear
+### Row 1 (item models) DONE, on player/items from main
+All 8 items now have a small procedural mesh in the world and an icon in the inventory and chest panes (ItemMeshes): stick, stone, berries with a leaf, mushroom, shell, fish, coin, key. Item ids and networking are unchanged. ItemDef gains Accent, a second colour for part of a mesh.
+The icon is drawn on the CPU from the mesh once per item (64 px), not with a camera, so it doesn't change with the time of day or graphics settings.
+Mushroom's colour changed to a red-brown cap (it was the pale colour now on its stem).
+Shots: "-itemrow" lays one of each in front of the player at noon and in the inventory; I looked at both, and every item reads as what it is. The key was hidden behind the player in the ground shot, but shows in the icon.
+UNVERIFIED: the chest pane's icons weren't shot. It uses the same call as the inventory.
+Suite: 25 passed, 0 failed, 17 skipped in 321 s. The run before had 24 passed, 1 failed: FolkConversationTests.LiveFolk_Answer, then it passed unchanged on the rerun.
+That test is A-93's and expects a person-shaped player. It takes the body from the settings saved in the shared PlayerPrefs (Punchy.Character / the body key), so it can fail when any lane or Zach last picked an animal. It wants "-body Human" or its own body set. For the animal lane's queue, if you agree.
+Next: row 2 (gear).
