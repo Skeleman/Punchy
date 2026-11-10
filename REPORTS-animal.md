@@ -3393,3 +3393,4 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
   - The individuals were re-rolled between before and after, so their coat colours differ.
   - Bear claws are hard to see through the grass in the close-up.
   - The A-92 lying check (LyingTests) runs in the final PlayMode suite.
+- **Final check:** PlayMode suite on fauna/surfaces b5720baf: `25 passed, 0 failed, 17 skipped in 456s (Unity exit 0).` Fingerprint AD723954 (re-pinned), landmarks 112 A955AFE0. LyingTests pass: legs stay above ground on flat ground and on a slope. A-97 is done; branch fauna/surfaces is ready for review.
