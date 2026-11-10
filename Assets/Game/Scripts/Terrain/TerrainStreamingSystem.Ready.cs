@@ -5,11 +5,11 @@ namespace Punchy.Terrain
     {
         /// <summary>
         /// True once every chunk in range of the focus is built at its level of detail: nothing wanted and no batch
-        /// meshing. (Deep in a cave nothing streams, so it is idle too.)
+        /// meshing, far tiles included (W-131). (Deep in a cave nothing streams, so it is idle too.)
         /// </summary>
-        public bool ShotIdle => building.Count == 0 && (wanted.Count == 0 || CaveSystem.SurfaceHidden >= 0.99f);
+        public bool ShotIdle => building.Count == 0 && ((wanted.Count == 0 && !FarPending) || CaveSystem.SurfaceHidden >= 0.99f);
 
         /// <summary>Chunks still wanted or meshing, for the gate's log line.</summary>
-        public int ShotPending => wanted.Count + building.Count;
+        public int ShotPending => wanted.Count + building.Count + farWanted.Count + farBuilding.Count;
     }
 }

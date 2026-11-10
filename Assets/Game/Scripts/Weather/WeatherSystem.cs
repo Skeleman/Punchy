@@ -270,9 +270,10 @@ namespace Punchy.Weather
             cloudOffset += WindDirection * (4f + 18f * Local.Wind) * dt / 1800f;
 
             var drawDistance = 1500f;
-            if (EnsureQueries() && configQuery.TryGetSingleton<TerrainConfig>(out var config))
-                // At the graphics settings' View distance, as TerrainStreamingSystem streams it.
-                drawDistance = math.max(2, math.round(config.ViewRadiusChunks * Punchy.Settings.GraphicsSettings.View)) * config.ChunkSize;
+            if (EnsureQueries() && configQuery.TryGetSingleton<TerrainConfig>(out _))
+                // Where TerrainStreamingSystem's drawn ground ends at the graphics settings' View distance: the chunk
+                // disc, or the far ring past it from High up (W-131).
+                drawDistance = TerrainStreamingSystem.DrawDistance;
             // Exponential-squared haze reaching ~98% at the edge of the streamed terrain, so it's never visible.
             var hazeDensity = 1.98f / drawDistance;
 
