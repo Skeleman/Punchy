@@ -3410,3 +3410,15 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
   - Played on two flat sources outside the pool ("Underwater hum", "Bubbles"); the pool is still 24 voices (checked in play). Hum volume = wet x 0.45-0.6 (deeper is louder) x the World level: 0.48 at 2 m, 0.60 at 10 m. It stops when dry.
   - Bubbles burst on going in, on surfacing, and when the camera moves 3+ m/s under water (0.6 s gap).
   - Clips: D:/Unity/PunchyMilestones/A-98/row2-under-2m.wav (hum + a muffled howl, rms 0.091), row2-under-10m.wav (rms 0.052), row2-dive-swim-surface.wav (12 s: dive at 0.5 s gives a bubble burst, the 10 m/s swim gives bursts at 6.75 and 7.75 s, then surfacing).
+- **Row 3, edges checked** (no code change needed; the PlayMode suite runs once at the end of the card, result with row 5).
+  - Bobbing lens at the sea surface, 8 s each (lens flips / sound flips): amp 0.05 m period 0.2 s 3/3; amp 0.08 m 0.15 s 6/4; amp 0.1 m 0.1 s 13/3. A slow true crossing (0.3 m, 2 s) 8/9: the sound follows real dips, as intended. The 0.12 s hold stops the flutter.
+  - Cave water muffles (780 Hz); the sea folk lake muffles (631 Hz).
+  - The Settings volume still applies (the water gain multiplies the group level). Menus don't pause it: the water uses unscaled time.
+  - Everything is local and camera-driven, nothing is sent, so host and client behave the same. Underwater.OnDisable resets LensUnder, so the sound can't stick muffled.
+- **Row 4, done (verified)** on fauna/underwater-sound d90d6782: sounds muffled by walls and hills.
+  - New GameAudioOcclusion.cs. 3 playing voices a frame get a line test ear to sound, against kit boxes near the player (only wall-sized: middle size >= 0.5 m, so rails, posts, beams and window gaps don't block) and the ground (16 samples max; a cave's air is open). A new sound is tested as it starts.
+  - Blocked: cutoff 1500 Hz, gain 0.4 (-8 dB), eased 0.2 s, on the voice's own air low-pass (no second filter). Where the cave rock occlusion also applies, the quieter of the two wins.
+  - The tests run as a Burst IJob via .Run() (managed ground samples cost 0.2 ms with one voice).
+  - Cost, editor (safety checks on), 24 voices playing in town, 7 blocked, 4 routed: 0.050-0.051 ms per frame (target 0.05). 1 voice: 0.038-0.042 ms; most of it is the fixed cost of running a job in the editor.
+  - Clips in D:/Unity/PunchyMilestones/A-98/: row4-folk-behind-house.wav (TownMurmur stands in for a folk talking, as no talk sound exists; rms 0.0068) vs row4-folk-open.wav (rms 0.0154), -7.1 dB plus the low-pass. row4-wolf-behind-hill.wav (howl 70 m away behind a 23 m hill, rms 0.022) vs row4-wolf-open.wav (same distance, open, rms 0.063), -9.2 dB.
+  - Risk: kit boxes exist only within about 12 m plus the model radius of the player, so a far house doesn't block. Fine for now: town sounds are short range.
