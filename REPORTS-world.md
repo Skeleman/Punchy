@@ -4176,3 +4176,33 @@ Built in the player tree, not the one the card names (the world tree's gitignore
   - **Hitches (other editors open, so noisy):** frames over 33 ms 101 on / 393 off; worst frame 196 ms on / 643 ms off; cycles with a hitch 18 on / 26 off. The ring-on run had a late cluster in cycles 24-29. Neither run trends upward.
   - **Verdict:** no leak, so no fix and no ms rerun. The earlier 972 -> 2710 water-chunk rise did not come back. Water-chunk counts depend on where you are (797-1254 across these spots), and that long session also had extra probe tweaks. The code agrees: CancelFarBuild only drops the current batch, UpdateFarRing re-wants those tiles every frame, and Medium/Low unload the whole ring, so nothing is left behind.
   - Soak probe (`W131Probe.Soak`) is untracked, as before. Editor closed (own PID), BurstCache pruned.
+
+## R-10 (continued, row 4b: the glow on the town, not the sky; tree Punchy-release, branch light/forwardplus)
+- **R-10 row 4b DONE (verified)**: light/forwardplus `0a4b3b50` (pushed). This follows Zach's 11-10 note: "the glow dome ... illuminating too much of the sky".
+  - **Changes:**
+    - **Dome off by default:** the dome still read as a sky dome even weaker and tighter, so it is now off unless `-towndome 1`. When on, it is a low, small halo: radius R x 1.3 + 40 m (was R x 2.5 + 120), height up to 50 m (was 300), strength 0.3 (was 0.8), and Overcast/Rain thickening 0.9-1.15 (was 0.6-1.6).
+    - **Town lights (new SurfaceGlow.TownLights.cs + TownLights.shader + Resources/TownLights.mat):** the world bake keeps every lit house and street light as a point (`TownPoints`, at window height 1.6 m or lamp height 3.2 m). 296 points: 101 houses and 195 street lights in 6 towns.
+      - Drawing: one RenderPrimitives call each night frame, 6 vertices a light, read from a structured buffer.
+      - Each light is a warm HDR core at least 5 px across, with a faint halo 4 light-sizes wide, so a far town's lights run together into one cluster.
+      - It takes a twentieth of the land's haze, fades in past 150-280 m (where real lights take over), and has its own soft depth test so hills hide it.
+      - It is lit with the windows, off underground and off with `-townglow 0`. It is cosmetic and seed-derived, so nothing is sent and it works the same solo, as host and as a client.
+    - **Town map 3x brighter:** `CaveSystem.TownGlowStrength` is 0.35 (was 0.12), on the town's ground and walls.
+    - **Docs:** one rendering.md line on town glow and on comparing HDR strengths.
+  - **Shots (PunchyMilestones/R-10/4b/):**
+    - Sheets: sheet_Clear.jpg and sheet_Overcast.jpg, 22:00, before (95c93aef) and after side by side, at 500 m, 1.5 km and 3 km (1.5 km and 3 km are crops round the town).
+    - Full frames: before_/after_{Clear,Overcast}_{0500,1500,3000}.jpg (1920x1080), plus after_Clear_1500_towndome1.jpg with the dome on.
+    - Vantages:
+      - 500 m and 1.5 km: west of the big town, camera 80 m and 120 m up.
+      - 3 km: east over the sea, camera 60 m up. From west, north and south at 3 km, ridges hide the town.
+    - What they show:
+      - Before: an orange dome lights a wide patch of sky at every distance.
+      - After: no sky glow. At 500 m the town is a bright warm cluster on the land. At 1.5 km it is a clear line of warm lights. At 3 km it is a small row of lights on the horizon: it does read, but it is tiny, because the whole town is about 25-50 px wide in a 1920 frame at a grazing angle.
+  - **D3D11:** the editor runs Direct3D11. TownLights and TownDome shaders have 0 messages and no errors. 0 magenta pixels in all after shots.
+  - **GPU ms (desktop editor, High, 22:00 Clear, ABBA, 4b town map + town lights on vs off by `TownGlowEnabled`/`TownGlowStrength`, first warm-up block dropped):**
+    - Walk (in the big town, eye level): 5.55 on vs 5.21 off.
+    - Hilltop (1.5 km, 150 m up): 6.45 vs 6.15.
+    - 300 m up, 500 m out: 3.01 vs 3.37.
+    - All within block-to-block noise (up to 1.6 ms at the hilltop). The extra work is one draw of 296 quads. Pass line on the laptop: BENCH-QUEUE job 45 (point it at this commit).
+  - **Suite + pins (editor closed):** 23 passed, 1 failed, 17 skipped in 359 s. Pins held: Landmarks_V3 112 A955AFE0, Fauna_Fingerprint 66320C7C. The failure is FolkConversationTests.LiveFolk_Answer, which expected a "[who]" line in the folk dialogue dump and found none. This row touches no folk or dialogue code, so it is unrelated (worth a look by the fauna lane if main fails it too). Merge-tree against origin/main is clean.
+  - **Not mine:** the pale lavender squares from main (row 4 note) showed up again in 2 of 10 shots at 500 m (after_*_0500_squares.jpg). They were not there in re-shots from the same spot, nor with the town map at 0 or 0.35, so they are intermittent and not from the town glow.
+  - **Merge note:** CaveSystem.cs (CRLF) changes one constant only. No ProjectSettings or renderer-asset changes.
