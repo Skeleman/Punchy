@@ -98,9 +98,13 @@ namespace Punchy.Weather
         static readonly int HazeLutId = Shader.PropertyToID("_PunchyHazeLut");
         static readonly int HazeOriginId = Shader.PropertyToID("_PunchyHazeOrigin");
         static readonly int HazeLutSizeId = Shader.PropertyToID("_HazeLutSize");
+        static readonly int SkyVolumesId = Shader.PropertyToID("_PunchySkyVolumes");
+        static readonly int SkyVolumesSizeId = Shader.PropertyToID("_SkyVolumesSize");
 
         // Haze table size: directions round the horizon × distances (rows must match PUNCHY_HAZE_ROWS in Sky.hlsl).
         const int HazeLutWidth = 1024, HazeLutHeight = 32;
+        // Sky volumes table (R-8): view directions round the horizon x up/down, 1/16 of a 1080p screen.
+        const int SkyVolumesWidth = 1024, SkyVolumesHeight = 128;
 
         /// <summary>Final sky colours for this frame, after time of day and the weather overhead.</summary>
         struct Sky
@@ -122,7 +126,7 @@ namespace Punchy.Weather
         Vector3 strikeDirection, strikePosition;
         Texture2D fallbackWeather, fallbackWetness, fallbackCloud;
         Texture3D cloudNoise;
-        RenderTexture hazeLut;
+        RenderTexture hazeLut, skyVolumes;
         Material hazeLutMaterial;
         EntityQuery playerQuery, terrainQuery, configQuery, paletteQuery;
         World queryWorld;
@@ -168,6 +172,11 @@ namespace Punchy.Weather
             {
                 hazeLut.Release();
                 DestroyImmediate(hazeLut);
+            }
+            if (skyVolumes != null)
+            {
+                skyVolumes.Release();
+                DestroyImmediate(skyVolumes);
             }
             if (hazeLutMaterial != null)
                 DestroyImmediate(hazeLutMaterial);
@@ -443,6 +452,7 @@ namespace Punchy.Weather
             {
                 // Without the table surfaces show no weather haze (black reads as none), rather than going black.
                 Shader.SetGlobalTexture(HazeLutId, Texture2D.blackTexture);
+                Shader.SetGlobalTexture(SkyVolumesId, Texture2D.blackTexture);
                 return;
             }
             if (hazeLutMaterial == null)
@@ -466,6 +476,26 @@ namespace Punchy.Weather
             hazeLutMaterial.SetVector(HazeLutSizeId, new Vector2(HazeLutWidth, HazeLutHeight));
             Graphics.Blit(null, hazeLut, hazeLutMaterial);
             Shader.SetGlobalTexture(HazeLutId, hazeLut);
+
+            // The same volumes against the sky, per view direction (R-8): the skybox reads this instead of marching
+            // them for every full-res pixel.
+            if (skyVolumes == null || !skyVolumes.IsCreated())
+            {
+                if (skyVolumes != null)
+                    DestroyImmediate(skyVolumes);
+                skyVolumes = new RenderTexture(SkyVolumesWidth, SkyVolumesHeight, 0, RenderTextureFormat.ARGBHalf)
+                {
+                    name = "SkyVolumes",
+                    hideFlags = HideFlags.HideAndDontSave,
+                    wrapModeU = TextureWrapMode.Repeat,   // round the horizon
+                    wrapModeV = TextureWrapMode.Clamp,
+                    filterMode = FilterMode.Bilinear
+                };
+                skyVolumes.Create();
+            }
+            hazeLutMaterial.SetVector(SkyVolumesSizeId, new Vector2(SkyVolumesWidth, SkyVolumesHeight));
+            Graphics.Blit(null, skyVolumes, hazeLutMaterial, 1);
+            Shader.SetGlobalTexture(SkyVolumesId, skyVolumes);
         }
 
         void ApplyShaderGlobals(in WeatherValues s, in Sky sky, float hazeDensity)

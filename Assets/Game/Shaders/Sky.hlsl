@@ -442,6 +442,7 @@ void PunchyCloudMarch(float3 dir, float2 screenPos, float framePhase, out half3 
     bool allSunSamples = ((uint)_PunchySkyOff & 64u) != 0;
     bool oldLight = ((uint)_PunchySkyOff & 256u) != 0;
     int stepsTaken = 0;
+    float lastOpticalDepth = -1;   // the light samples' last result, reused where a step's light hardly shows
     [loop]
     for (int i = 0; i < maxSteps && t < t1; i++)
     {
@@ -513,12 +514,26 @@ void PunchyCloudMarch(float3 dir, float2 screenPos, float framePhase, out half3 
             // changes). The weights always sum to 1440 m. (-skyoff 64: always four.)
             float mergeFirst = allSunSamples ? 0 : smoothstep(3000, 6000, t);
             float mergeThird = allSunSamples ? 0 : smoothstep(7000, 11000, t);
-            float opticalDepth = PunchyCloudDensityAt(p + lightDir * 360.0, 0) * (270.0 + 90.0 * mergeFirst + 225.0 * mergeThird)
-                               + PunchyCloudDensityAt(p + lightDir * 1440.0, 0) * (630.0 + 225.0 * mergeThird);
-            [branch] if (mergeFirst < 1)
-                opticalDepth += PunchyCloudDensityAt(p + lightDir * 90.0, 0) * 90.0 * (1 - mergeFirst);
-            [branch] if (mergeThird < 1)
-                opticalDepth += PunchyCloudDensityAt(p + lightDir * 810.0, 0) * 450.0 * (1 - mergeThird);
+            // Fewer samples where the light hardly shows (R-8): thin wisps (little density to shade) and cloud deep behind
+            // nearer cloud (little of it reaches the camera) take two, faded in like the distance merge. Below that, a
+            // near-empty step or one almost hidden reuses the last step's light. (-skyoff 64 turns this off too.)
+            [branch] if (!allSunSamples)
+            {
+                float few = max(1 - smoothstep(0.02, 0.12, density), 1 - smoothstep(0.15, 0.4, transmit));
+                mergeFirst = max(mergeFirst, few);
+                mergeThird = max(mergeThird, few);
+            }
+            float opticalDepth = lastOpticalDepth;
+            [branch] if (allSunSamples || lastOpticalDepth < 0 || (density >= 0.015 && transmit >= 0.08))
+            {
+                opticalDepth = PunchyCloudDensityAt(p + lightDir * 360.0, 0) * (270.0 + 90.0 * mergeFirst + 225.0 * mergeThird)
+                             + PunchyCloudDensityAt(p + lightDir * 1440.0, 0) * (630.0 + 225.0 * mergeThird);
+                [branch] if (mergeFirst < 1)
+                    opticalDepth += PunchyCloudDensityAt(p + lightDir * 90.0, 0) * 90.0 * (1 - mergeFirst);
+                [branch] if (mergeThird < 1)
+                    opticalDepth += PunchyCloudDensityAt(p + lightDir * 810.0, 0) * 450.0 * (1 - mergeThird);
+                lastOpticalDepth = opticalDepth;
+            }
             float beer = exp(-opticalDepth * PUNCHY_CLOUD_SIGMA);
             float powder = 1 - exp(-density * 6);   // edges facing the light stay a touch darker
             // Sunlight is far brighter than skylight: sunlit tops glare white, shaded bellies go grey.
@@ -982,16 +997,21 @@ half3 PunchySkyColor(float3 dir, bool withDiscs, bool approximateClouds)
 
     if (h > 0)
     {
-        half3 night = PunchyStars(dir) * _PunchyNight;
-        // Shooting stars and auroras show through clear skies only: dimmed by the cloud cover overall, and by the
-        // clouds along this very direction (they're bright enough to show through a thin cloud's last light, Z-09).
-        half3 events = (PunchyShootingStars(dir) + PunchyAurora(dir) + PunchyBlueMoonStreaks(dir)) * _PunchyNight * (1 - _PunchyClouds.x);
-        [branch] if (any(events > 0))
+        // Stars and night events only by night (R-8: by day they were a tenth of the skybox draw, all multiplied by 0).
+        half3 night = 0;
+        [branch] if (_PunchyNight > 0)
         {
-            half eventsDarkness;
-            events *= 1 - PunchyCloudCoverAlong(dir, eventsDarkness);
+            night = PunchyStars(dir) * _PunchyNight;
+            // Shooting stars and auroras show through clear skies only: dimmed by the cloud cover overall, and by the
+            // clouds along this very direction (they're bright enough to show through a thin cloud's last light, Z-09).
+            half3 events = (PunchyShootingStars(dir) + PunchyAurora(dir) + PunchyBlueMoonStreaks(dir)) * _PunchyNight * (1 - _PunchyClouds.x);
+            [branch] if (any(events > 0))
+            {
+                half eventsDarkness;
+                events *= 1 - PunchyCloudCoverAlong(dir, eventsDarkness);
+            }
+            night += events;
         }
-        night += events;
         if (withDiscs)
         {
             half moonCover;
@@ -1125,6 +1145,32 @@ half3 PunchyHazeFromLut(half3 color, float2 offsetXZ, float distance)
     float s = sqrt(saturate(distance / PUNCHY_HAZE_RANGE));
     float v = (s * (PUNCHY_HAZE_ROWS - 1) + 0.5) / PUNCHY_HAZE_ROWS;
     half4 haze = SAMPLE_TEXTURE2D_LOD(_PunchyHazeLut, sampler_PunchyHazeLut, float2(u, v), 0);
+    return color * (1 - haze.a) + haze.rgb;
+}
+
+// The weather volumes seen against the sky (R-8): the skybox's own march along each view direction (8 steps out to
+// 8 km, the true ray height), done once a frame into a small direction table (HazeLut.shader's second pass, rendered
+// by WeatherSystem from the camera) instead of per full-res sky pixel, where it was over half the skybox's cost.
+// Columns run round the horizon; rows are spaced by y|y|, so the directions near the horizon, where the volumes are,
+// get most of them. Same layout as the haze table: rgb = scattered light, a = 1 - transmittance.
+TEXTURE2D(_PunchySkyVolumes);  SAMPLER(sampler_PunchySkyVolumes);
+
+// The view direction through table texel uv (0..1 both ways).
+float3 PunchySkyVolumesDirection(float2 uv)
+{
+    float angle = (uv.x - 0.5) * 2 * PI;
+    float r = uv.y * 2 - 1;
+    float y = r * abs(r);
+    float across = sqrt(saturate(1 - y * y));
+    return float3(cos(angle) * across, y, sin(angle) * across);
+}
+
+// Applies the tabled weather volumes along the view direction `dir` (unit length).
+half3 PunchySkyVolumesFromLut(half3 color, float3 dir)
+{
+    float u = atan2(dir.z, dir.x) * (0.5 / PI) + 0.5;
+    float v = sign(dir.y) * sqrt(abs(dir.y)) * 0.5 + 0.5;
+    half4 haze = SAMPLE_TEXTURE2D_LOD(_PunchySkyVolumes, sampler_PunchySkyVolumes, float2(u, v), 0);
     return color * (1 - haze.a) + haze.rgb;
 }
 

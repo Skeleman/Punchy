@@ -59,8 +59,10 @@ Shader "Punchy/Sky"
                 [branch] if (_PunchyUnderwater.w > 0)
                     return half4(_PunchyUnderwater.rgb, 1);
                 uint off = (uint)_PunchySkyOff;   // (test only, -skyoff: see Sky.hlsl)
-                half3 sky = (off & 4u) == 0 ? PunchySkyColor(dir, true, false) : half3(0.3, 0.45, 0.7);
-                // (A real branch: a ternary would run both sides, and the point is not to march here.)
+                // (Real branches: a ternary would run both sides, and the point of the test bits is to skip the work.)
+                half3 sky = half3(0.3, 0.45, 0.7);
+                [branch] if ((off & 4u) == 0)
+                    sky = PunchySkyColor(dir, true, false);
                 [branch] if ((off & 1u) == 0)
                 {
                 #if defined(PUNCHY_CLOUDS_LOW_RES)
@@ -71,8 +73,11 @@ Shader "Punchy/Sky"
                 }
                 if ((off & 32u) != 0)
                     return half4(sky, 1);
-                // (Same step count as the terrain haze target, so distant land and sky converge exactly.)
-                return half4((off & 8u) == 0 ? PunchyWeatherVolumes(sky, _WorldSpaceCameraPos, dir, 8000, 8) : sky, 1);
+                // The rain and dust volumes along this direction, marched once a frame into a direction table (R-8; it
+                // was over half this draw's cost per pixel).
+                [branch] if ((off & 8u) == 0)
+                    sky = PunchySkyVolumesFromLut(sky, dir);
+                return half4(sky, 1);
             }
             ENDHLSL
         }
