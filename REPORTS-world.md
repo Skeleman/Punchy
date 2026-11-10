@@ -4300,3 +4300,38 @@ Built in the player tree, not the one the card names (the world tree's gitignore
   - Before this merge (earlier today): main 30ed6629 24/1 (LiveFolk_BeastResponse 52.4 vs >52.7, passed on rerun), same pins.
 - Not re-shot after the second merge: the underwater visuals code is #213's, unchanged; only the audio lines changed. Row 1's under-sea/swamp/lava shots still stand for the look.
 - Both PRs (#212 flora/round3, #213 water/round3) are ready to merge.
+
+## R-12 cloud (#241 pill cloud; tree Punchy-release, branch fix/pill-cloud)
+- **R-12 row 1b DONE (verified).** Cause, in `Assets/Game/Shaders/Sky.hlsl` (PunchyCloudDensity):
+  - L180 `float coverage = saturate(weather.r * 1.05 + 0.2 * layering);`. Inside a storm cell, weather.r is high, so coverage saturates to 1.
+  - L193 `density = PunchyRemap(shapeNoise, 1 - coverage, 1) * ...`. With coverage 1 the remap no longer cuts the noise, so the noise stops carving the cloud's edge.
+  - The outline then comes only from the cell's smooth disc in the 64 m weather map (WeatherField.cs L531/L573, `smoothstep(1, 0.55, d / R)`). That disc stands as a pillar with straight walls, and the base/thickness lerp across the rim rounds its bottom corners: the pill. This is original cloud code, as Zach guessed, so no bisect was done.
+  - Shots (22:00 Overcast and noon, weather pinned in one session): PunchyMilestones/R-12/pill/b_night.png, b_noon.png, sheet_pill.jpg.
+- **R-12 row 2 DONE (verified).** Fix: the cloud march reads the weather and cloud maps a few hundred metres off the point (a 3D noise warp of up to +-400 m, set once per march step, shared by that step's light samples). The disc's rim now bulges and leans like a heaped tower. `-skyoff 1024` turns it off (maps read straight) for A/B.
+  - Kept small: two functions plus three lines in PunchyCloudMarch, with no reformatting. R-8's cheap paths and the underwater early-out are untouched. Cloud shadows and rain volumes still read unwarped maps.
+  - Commits 9c476c4e, merge of origin/main 84ec5110 (keeps #213's lines), 1732eed8. Shader refreshed and re-shot after the merge.
+  - Shots, before (skyoff 1024) / after, in PunchyMilestones/R-12/after/:
+    - Same spot: same_night*, same_noon*, sheet_same.jpg.
+    - Coast and sea, another biome: coast_night*, coast_noon*, sheet_coast.jpg.
+    - Away view: away_noon*.
+  - Look elsewhere, mean abs diff (pixels differing by >16):
+    - away_noon: 0.69/255 (0.11%).
+    - coast_noon: 0.86/255 (0.25%).
+    - same_noon: 5.58/255 (12%). This is the storm itself, which also shades darker grey at noon.
+  - Editor-only indicative timings, taken before rule 21 arrived. Not a gate. Same build, skyoff 1024 = main's path, High, uncapped, ABBA ×2:
+    - Cloud march: +0.10 ms (0.654-0.661 vs 0.554-0.562).
+    - Whole frame: 3.06 vs 3.02 ms avg, within noise.
+  - Tried and dropped: an ALU sine warp. Free, but it left a smooth leaning blob.
+- **BENCH-QUEUE request (rule 21):**
+  - Branch fix/pill-cloud, commit 1732eed8, against main 0479ee53. Player build, High, uncapped.
+  - Spots, both with a forced Storm (`WeatherSystem.ForceAt("Storm", xz)`) and timescale 0:
+    - (a) shotcam 1489,88,-897 -> 1889,98,-897, Storm at (5489,-897), 22:00 and 12:00.
+    - (b) shotcam -1500,300,-3500 -> -1100,330,-3500, Storm at (2500,-3500), 12:00.
+  - Arms: main vs branch, ABBA. On the branch build, `-skyoff 1024` gives main's path.
+  - Pass: frame time within noise of main (<= +0.1 ms GPU) at every spot.
+  - Main's player build needs A-91's DungeonWalk TestHooks fix first, or a local stub.
+- PlayMode suite on 1732eed8: 25 passed, 0 failed, 17 skipped (405 s). Landmarks 112 A955AFE0, Fauna AD723954.
+- Risks:
+  - The rain column under a storm keeps its straight sides. That is the separate rain-volume system, not changed here.
+  - GraphicsSettings High was set through the editor. It writes PlayerPrefs, which other trees may share.
+  - For a while, some eval calls went to the world editor (PID 25428) because the port swapped. Those were reads, failed compiles and possibly one AssetDatabase.Refresh, so no writes. Evals were then pinned to the release port with a dataPath guard.
