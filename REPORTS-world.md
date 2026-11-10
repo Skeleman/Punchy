@@ -4027,3 +4027,14 @@ Built in the player tree, not the one the card names (the world tree's gitignore
   - Look: no visible difference either way.
   - The W-16 tilt hand-off is moot. ImpostorTurn already carries tilt from row 1.
   - Shots: PunchyMilestones/R-11/scout/r2scout{mesawalk,mesahill,mesafly}-High-{imp,r0}.png and r2scoutcontact-sheet.jpg.
+
+## R-10 (continued: lights at distance and a glowing town; tree Punchy-release, branch light/forwardplus)
+- **R-10 row 3 DONE (transitions)**: light/forwardplus `34d4278a` (pushed, on e0c4123a).
+  - **Changes:** an owner's real light now dims by on-screen size over the last stretch of its Real tier (LightBudget RealFade) while its glow slot joins at full, so Real to Glow is one long size fade instead of a 0.8 s swap. Street lights beyond 40 m come from SurfaceGlow's far scan (new FarFixtures, out to 276 m), so pooled real lights cover the whole town, not just the ~50 m the near scan saw. The far night map now starts where the budget's lights end (LightBudget.StreetLightGapAt, capped at 207 m) instead of at 276-631 m, and its soft cap leaves one or two street lights as bright as their glow slots, so it matches where it takes over. Cave.shader's real lights use the shared PunchyRealLight falloff.
+  - **Walk-away (editor, High, 22:00, town at 2988.8,-900 walking south to -1200 facing north):** real lights 48 out to ~220 m, then fading smoothly to 3 by 300 m. Night map from 38-62 m near the town to 176-290 m at the far end, tracking the gap continuously. Before (row 2): 33 real at 5 m, 0 by 110 m, night map 276-631, so the town went dark from ~100 m.
+  - **GPU ms (desktop editor, town at -920 facing north, FrameTimingManager medians, ABBA):** default 5.48 ms before vs 5.62 after (noise ~0.3 ms; budget 0 vs 48 within noise too). The pass line needs the laptop: BENCH-QUEUE job 45 already covers it; please point it at `34d4278a` (or later). Note: `-lightbudget` clamps to 64, so job 45's `-lightbudget 96` arm actually runs 64.
+  - **Suite + pins (editor closed):** 15 passed, 0 failed, 7 skipped in 251 s. Landmarks_V3 112 A955AFE0, Fauna_Fingerprint 66320C7C.
+  - **Shots:** PunchyMilestones/R-10/3/walkaway_before_after.mp4 (side by side, 5 m steps to 300 m), sheet_before_after.jpg, ba_010m..ba_300m.jpg, cave_mine_after.jpg (Mine cave, lanterns lit as before).
+  - **Decisions:** street lights within 40 m use the near scan, beyond that the far scan's tree layer out to 276 m. The night map starts where the real lights run out (~40-250 m), not at a fixed hand-off. The before and after runs differ a little in clouds (different time in the session); the lights are what to compare.
+  - **Process note:** a fresh play came up at Medium (16 real lights) because the editor's saved graphics prefs are shared across worktrees; my scripts now force High for the run by reflection without saving prefs.
+  - **Next:** merge origin/main (clean per merge-tree), then row 2b (Creature.shader), then row 4.
