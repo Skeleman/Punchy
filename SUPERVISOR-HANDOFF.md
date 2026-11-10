@@ -171,3 +171,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-10: R-11 merged #239 (main da39fd72). Row 4 list: far kit buildings best next (needs lit-window mask, ask R-10 first); landmarks not worth it. Punchy-world tree free.
 - 11-10: W-131 started (Punchy-world, far terrain ring for flight). A-94 started (Punchy, breath follow-up).
 - 11-10: A-94 merged #240. D:/Unity/Punchy tree free.
+- 11-10: A-95 started (Punchy, dungeon collision = A-91 row 1; rows 2-4 still await Zach).
