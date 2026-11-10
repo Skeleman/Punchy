@@ -598,7 +598,7 @@ code, which isn't on main yet. Merge after player/integrate.
   stops them). (3) No furniture: the room is the kit shell. (4) Not run as a joined client (door state is host-owned and
   FloraDoors is set on every machine, so the leaf box should follow).
 
-## Doors.IsOpen for A-98 (11-10, STATE "small row"): DONE, `player/doors-open` at the commit above it (from player/integrate)
+## Doors.IsOpen for A-98 (11-10, STATE "small row"): DONE, `player/doors-open` at f5123250 (from player/integrate)
 - `Doors.IsOpen(int door)` (index in the island's Door anchors) and `Doors.IsOpen(Vector3 doorPos, float within = 2f)`
   (the nearest door anchor within that distance; false if none). Read-only, this machine's view (the host's word, or solo).
   Only Interact/Doors.cs changed; the animal lane wires GameAudioOcclusion to it.
