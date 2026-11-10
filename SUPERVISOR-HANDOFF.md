@@ -192,3 +192,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-10: R-12 row 1 reported (partial): squares only on light/forwardplus, never on main -> added a squares check to R-10 4c. Cloud is on main, commit not found; bisect Sky.hlsl in one session with the weather pinned (R-12 row 1b, after R-10 4c). LiveFolk_Answer fails on main (fauna).
 - 11-10: Zach: pill clouds seen before, likely original cloud code. R-12 row 1b = read/fix cloud shape code, no bisect; runs in Punchy-world after R-10 4c.
 - 11-10: A-96 merged #244 (ed0e68ef). A-97 started in Punchy-release. Non-creature horizon NaN (229 px wolf noon) = small card later (R lane, after R-12).
+- 11-10: Zach: cheaper far ground + thinner fog + sunset horizon oddity -> W-132 card (first free tree), BENCH-QUEUE job 46 ON HOLD until W-132 rows 2-4 push.

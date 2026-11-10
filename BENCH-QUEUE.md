@@ -393,3 +393,12 @@ Two Profile builds (one at a time), 1920x1080, `-gfx High`, uncapped, ABBA, 300 
   Whole-frame GPU ms with `-lightbudget 0` vs default (48 at High) vs `-lightbudget 64` (the flag clamps at 64). Then the same spot on a build of
   origin/main as the "today" baseline. Pass: default <= +0.5 ms over main.
 Report both in REPORTS-profiler.md with the pass/fail line for each.
+
+## Job 46 (2026-11-10, ON HOLD until W-132 rows 2-4 are pushed; the supervisor flips this to QUEUED; queued by the main-account supervisor): far ground variants on the laptop
+Zach 11-10 asked for the far ground to cost a little less, and for the profiler to check it. Read only. Profile builds, 1920x1080,
+uncapped, ABBA, 300 frames each arm, `-weatherseed 4 -time 18.5 -weather Clear`, at `-gfx High` then `-gfx Ultra`.
+- Arms: origin/main (today's far ring), `world/far-lite` at the commit the supervisor names, and that branch with each row's off
+  switch (the W-132 report lists them).
+- Spots: W-131's walk (-1236, 1324), its hilltop, and 300 m up flying 60 s at 40 m/s.
+- Per arm: whole-frame GPU ms, terrain + water pass ms, draw count, frames over 33 ms on the flight.
+Report in REPORTS-profiler.md: saving per row in ms, and whether the cheap far path is worth keeping on the laptop.
