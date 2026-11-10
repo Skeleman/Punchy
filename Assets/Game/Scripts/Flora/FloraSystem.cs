@@ -656,6 +656,9 @@ namespace Punchy.Flora
 
         void Stream(in TerrainSource source, float2 camXZ)
         {
+            // Tiles stream by ground distance on purpose (R-6 row 0): the cull measures 3D distance to each plant,
+            // which is never shorter than the ground distance, so the ground ring always holds every plant the cull
+            // could draw, and climbing doesn't drop and re-place tiles.
             // Unload tiles that fell out of range (or every tile once, when a keep-out circle changed: see Replant).
             var all = Replant;
             Replant = false;

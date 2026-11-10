@@ -169,6 +169,10 @@ namespace Punchy.Terrain
             var focus = focusQuery.TryGetSingleton<LocalTransform>(out var focusTransform)
                 ? focusTransform.Position.xz
                 : float2.zero;
+            // The chunk rings (and the shader's geomorph) stay on the ground plane, unlike the 3D draw distances
+            // (R-6 row 0): a chunk spans every height its ground reaches, so its nearest point to a camera above it
+            // is already about the ground distance, and a height-dependent ring would reload chunks as the camera
+            // climbs or jumps.
             // The terrain shader geomorphs vertices by their distance from this same point.
             Shader.SetGlobalVector(TerrainFocusId, new Vector4(focus.x, focus.y, 0f, 0f));
             Shader.SetGlobalFloat(DetailFarId, Punchy.Settings.GraphicsSettings.DetailRange(DetailFar));

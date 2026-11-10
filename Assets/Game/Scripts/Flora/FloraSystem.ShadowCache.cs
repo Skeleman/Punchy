@@ -256,8 +256,10 @@ namespace Punchy.Flora
             m.SetTexture(CacheTexId, cacheFront);
             m.SetMatrix(CacheMatrixId, cacheFrontUv);
             m.SetVector(ReceiveSunId, cacheFrontSun);
-            m.SetVector(CacheParamsId, new Vector4(eye.x, eye.z, 0f, FloraShadowOptions.CacheDarkness * sun.shadowStrength * up));
+            m.SetVector(CacheParamsId, new Vector4(eye.x, eye.y, eye.z, FloraShadowOptions.CacheDarkness * sun.shadowStrength * up));
             // In from half the near range (the real-time shadows keep it from doubling), out over the cache's last 8 m.
+            // (R-6 row 0: 3D distance from the camera, as the cull hands trees over by; on the ground plane a summit's
+            // view of the forest below faded the cache out where its trees had no real-time shadow.)
             m.SetVector(CacheFadeId, new Vector4(near * 0.5f, near * 0.8f, far - 8f, far));
             var rp = new RenderParams(m)
             {
