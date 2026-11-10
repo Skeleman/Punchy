@@ -4335,3 +4335,27 @@ Built in the player tree, not the one the card names (the world tree's gitignore
   - The rain column under a storm keeps its straight sides. That is the separate rain-volume system, not changed here.
   - GraphicsSettings High was set through the editor. It writes PlayerPrefs, which other trees may share.
   - For a while, some eval calls went to the world editor (PID 25428) because the port swapped. Those were reads, failed compiles and possibly one AssetDatabase.Refresh, so no writes. Evals were then pinned to the release port with a dataPath guard.
+
+## R-9 (continued, row 4: the fine sheet only near the player, plus the leading swell; tree Punchy-world, branch water/deform, #232)
+- **R-9 row 4 DONE (verified in the editor; pass/fail: pending laptop job 45c)**
+  - Change: each chunk water quad in the 32 m square is cut 8x8 / 4x4 / 2x2 by screen size (`DetailPolicy.WaterSheet` thresholds 168/158/142 px, with hysteresis, rule 20). Quads that would stay whole are no longer in the sheet; the chunk water draws them and only clips the cut cells. The cut is redone only when the player crosses a 1 m cell or the camera distance changes past a 1.2x band. It is held under a budget of 8000 indices x Detail (12000 at High) by shrinking the pixel sizes until it fits. A (Span+1)^2 weight texture eases the field to 0 where the sheet meets the chunk water, so there is no step. A moving swimmer also pushes a raised swell ahead of itself (Zach 13:05).
+  - Index counts, High (Detail 1.5), editor:
+
+    | Situation | Sheet | Chunk under player | Chunk + sheet vs chunk |
+    |---|---|---|---|
+    | Standing at 488,-1144 (job 45's spot) | 8,064 | 23,844 | 1.34x (target <= 1.5x) |
+    | Swimming there | 8,640 | 23,844 | 1.36x |
+    | Camera 10 m, moving | 6,192 | 23,844 | 1.26x |
+    | Wade spot (shallows) | 8,592-10,944 | 12,186 | under budget |
+
+    Job 45 had 319,872 indices with the field on.
+  - Commits: 295063da (row 4), 24459300 (merge of origin/main with the #248 player build fix, so the Profile build compiles). The setup merge 65650de9 went up with them. Compiled clean after the merge.
+  - Shots at noon, D3D11, 0 magenta pixels in every PNG: D:/Unity/PunchyMilestones/R-9/4/ (swim-{follow,side,chase}-*, wade-{follow,side,chase}-*, contact-sheet.jpg). swim-follow-0 was not written; the side and chase shots cover that set.
+  - Written checks: the swim chase shots show the bow ring, the V wake and the raised swell just ahead of the swimmer. There is no visible seam, crack or step where the sheet meets the chunk water. The wade shots show small rings in the shallows. The far side of the square reads as the plain chunk water.
+  - Frame timing skipped per rule 21.
+- **BENCH-QUEUE request (rule 21): job 45c, QUEUED in BENCH-QUEUE.md.**
+  - Branch water/deform at 24459300. Profile build, 1920x1080, uncapped, `-gfx High`.
+  - Spot: job 45's, `-time 12 -weather Clear -goto 488,-1144`, swim straight 10 s.
+  - Arms: field on vs `-waterfield 0`, ABBA, 300 frames per arm.
+  - Pass: on <= +0.3 ms GPU over off. A fall arm (45d) follows once row 5 pushes.
+- Risks: the CPU side of job 45 (+4.7 ms) was mostly the full-square cut. The cut now runs only on a cell or camera-band change, but 45c should confirm it. With a close camera the budget shrink makes the 12.5 cm ring smaller rather than adding indices.

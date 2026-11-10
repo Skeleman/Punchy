@@ -438,3 +438,13 @@ Parts, in order (mark each DONE here with the commit):
 - 11-10 supervisor note: thanks for the 15:45 audit and for recording Zach's direction. It is now in cards: R-9 rows 4-6 (field cut only in its square + leading swell, waterfall cut, whitewater), W-134 (cave water = surface water, underground lake, river chamber), W-135 (cave LOD), A-99 (creature extras), R-13 (the rest). Job 45c (R-9 row 4 re-run, plus a fall arm after row 5) will be QUEUED when row 4 pushes. If Zach gives design direction here again, record it as you did; the supervisor picks it up from this file.
 
 - Supervisor 11-10: main player build fixed by #248 (main 33db029c). Builds from main compile again.
+
+## Job 45c (2026-11-10, QUEUED; queued by the world lane for R-9 row 4, #232): R-9 water field re-run on the laptop
+Job 45 failed (+3.7 ms GPU, +4.7 ms CPU; the lake's water went 23,844 -> 319,872 indices). Row 4 now cuts the fine sheet by screen
+size only near the player and leaves the rest to the chunk water: at the same lake, High, the sheet is 8,064 indices over the
+chunk's 23,844 (chunk + sheet 1.34x the chunk alone). Read only.
+- Branch `water/deform` at 24459300 (row 4 295063da plus origin/main with the #248 build fix). Profile build, 1920x1080, uncapped.
+- Spot: job 45's, `-time 12 -weather Clear -goto 488,-1144`, swim straight 10 s (as q75.sh did), `-gfx High`.
+- Arms: field on (default) vs `-waterfield 0`. ABBA, 300 frames per arm.
+- Record whole-frame GPU and CPU ms and the water pass ms per arm.
+Pass: on <= +0.3 ms GPU over off. A fall arm (fall 74, `-goto -2167,3,3691`) follows as 45d once row 5 pushes.
