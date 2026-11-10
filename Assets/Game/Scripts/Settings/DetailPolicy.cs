@@ -258,6 +258,26 @@ namespace Punchy.Settings
             WideShadow = 30f
         };
 
+        /// <summary>
+        /// R-6 row 1: a big single mesh's level (0-2: the landmarks' own meshes) by the Huge rule's geometry boundaries,
+        /// from last frame's (-1 when first seen), at the current view (<see cref="SetView"/> first). Size is the whole
+        /// mesh's bounding diameter (m) and distance from the camera to its nearest point, so the ribcage, the basalt
+        /// tower and the sunken temple change where anything else their size would.
+        /// </summary>
+        public static int LandmarkLod(float size, float distance, int previous)
+        {
+            var view = Current.Data;
+            var pixels = ScreenSize(size, distance, view.PixelsPerMetre);
+            return math.min(2, Tier(pixels, Huge.Geometry.Scaled(math.max(view.Detail, 0.1f)), previous));
+        }
+
+        /// <summary>A landmark mesh's switch distances (m: off LOD 0, off LOD 1) at the reference view and Detail 1, for logs.</summary>
+        public static float2 LandmarkReach(float size)
+        {
+            var perMetre = PixelsPerMetreAt(ReferenceFov);
+            return new float2(Reach(size, Huge.Geometry.Near, perMetre), Reach(size, Huge.Geometry.Mid, perMetre));
+        }
+
         /// <summary>The simulation's (brain LOD) boundary for creatures, reference pixels: a deer thinks every frame
         /// inside 80 m of a player (A-54), something 10x its size inside 800 m.</summary>
         public const float CreatureThinkPixels = 17.5f;

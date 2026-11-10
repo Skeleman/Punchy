@@ -16,7 +16,7 @@ namespace Punchy.Terrain
     [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation | WorldSystemFilterFlags.ClientSimulation)]
     public partial class SaltTowerSystem : SystemBase
     {
-        const float Lod0Distance = 250f, Lod1Distance = 1200f;
+        int lod = -1;   // last frame's level (R-6 row 1: picked by on-screen size, DetailPolicy.LandmarkLod)
 
         /// <summary>The last build's triangle counts per LOD, for reports.</summary>
         public static int[] LodTris = new int[3];
@@ -61,8 +61,9 @@ namespace Punchy.Terrain
             var cam = Camera.main;
             if (cam == null)
                 return;
+            Punchy.Settings.DetailPolicy.SetView(cam);
             var d = Vector3.Distance(cam.transform.position, bounds.ClosestPoint(cam.transform.position));
-            var lod = d < Lod0Distance ? 0 : d < Lod1Distance ? 1 : 2;
+            lod = Punchy.Settings.DetailPolicy.LandmarkLod(bounds.size.magnitude, d, lod);
             var rp = new RenderParams(material) { worldBounds = bounds, shadowCastingMode = ShadowCastingMode.On, receiveShadows = true };
             Graphics.RenderMesh(rp, lods[lod], 0, Matrix4x4.Translate(origin));
             Punchy.Rendering.WideShadow.Cast(lods[2], Matrix4x4.Translate(origin));   // R-5: past the real shadows it casts through the wide shadow map
@@ -107,7 +108,9 @@ namespace Punchy.Terrain
                 }
                 bounds = lods[0].bounds;
                 bounds.center += origin;
-                Debug.Log($"[landmarks] SaltTower meshes LOD0 {LodTris[0]} tris, LOD1 {LodTris[1]}, LOD2 {LodTris[2]}");
+                lod = -1;
+                var reach = Punchy.Settings.DetailPolicy.LandmarkReach(bounds.size.magnitude);
+                Debug.Log($"[landmarks] SaltTower meshes LOD0 {LodTris[0]} tris, LOD1 {LodTris[1]}, LOD2 {LodTris[2]}; {bounds.size.magnitude:F0} m across, LOD switches at {reach.x:F0}/{reach.y:F0} m (was 250/1200)");
                 return;
             }
         }
