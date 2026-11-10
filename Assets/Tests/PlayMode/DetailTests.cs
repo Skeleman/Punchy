@@ -30,6 +30,12 @@ namespace Punchy.Tests
         [UnityTest, Explicit("bench, run on demand"), Timeout(900000)]
         public IEnumerator Detail_SeamHerd() => Herd("seams");
 
+        [UnityTest, Explicit("shots, run on demand"), Timeout(900000)]
+        public IEnumerator Detail_FurShots() => Shoot("fur");
+
+        [UnityTest, Explicit("bench, run on demand"), Timeout(900000)]
+        public IEnumerator Detail_FurHerd() => Herd("fur");
+
         /// <summary>
         /// Card A-92 shots: each species as the player's body, standing on the flattest spot near a meadow start, from the
         /// side and a little in front at 2 m and 10 m, with the flag off and on.

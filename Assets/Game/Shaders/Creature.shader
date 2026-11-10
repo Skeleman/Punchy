@@ -135,6 +135,8 @@ Shader "Punchy/Creature"
             #include "Metal.hlsl"
             #include "Grounding.hlsl"
 
+            float _PunchyFur;   // "-fur" (A-92 experiment, #230): bodies get fur strands and coat patches
+
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
@@ -249,6 +251,27 @@ Shader "Punchy/Creature"
                 uint material = _PunchyPlainGear > 0.5 ? 0 : (uint)(input.material + 0.5);
                 if (material == 0)
                 {
+                    if (_PunchyFur > 0.5)
+                    {
+                        // "-fur": broad soft patches in the coat (both shades of it, a little), and up close fine strands
+                        // running along the segment, as a bump on the normal (screen-space derivatives: no tangents) and
+                        // a darker fleck between them. Patterns sit in the segment's own frame, so they move with it.
+                        float3 sp = input.surface;
+                        half patch = Noise3(sp * 2.3 + albedo * 17) * 0.6 + Noise3(sp * 5.7 + 3.1) * 0.4;
+                        albedo *= lerp(0.84, 1.12, patch);
+                        float near = 1 - smoothstep(3, 9, distance(input.positionWS, _WorldSpaceCameraPos));
+                        if (near > 0)
+                        {
+                            half strand = Noise3(float3(sp.xy * 170, sp.z * 20));
+                            albedo *= 1 - near * 0.14 * (1 - strand);
+                            float h = strand * 0.0035 * near;
+                            float3 dpdx = ddx(input.positionWS), dpdy = ddy(input.positionWS);
+                            float3 r1 = cross(dpdy, n), r2 = cross(n, dpdx);
+                            float det = dot(dpdx, r1);
+                            float3 grad = sign(det) * (ddx(h) * r1 + ddy(h) * r2);
+                            n = normalize(abs(det) * n - grad);
+                        }
+                    }
                     half diffuse = saturate(dot(n, light.direction) * 0.75 + 0.25);
                     // A little soft sheen at the silhouette, like fur or feathers catching the light.
                     half rim = pow(1 - saturate(dot(n, v)), 3) * 0.25;

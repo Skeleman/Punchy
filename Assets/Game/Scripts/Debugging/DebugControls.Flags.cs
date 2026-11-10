@@ -223,6 +223,8 @@ namespace Punchy.Debugging
             CreatureAnimator.OldLie.Data = System.Array.IndexOf(args, "-oldlie") >= 0 ? 1 : 0;
             // "-seams" (A-92 experiment, #230): limb segments blended into the one they hang from at the joint.
             CreatureAnimator.Seams.Data = System.Array.IndexOf(args, "-seams") >= 0 ? 1 : 0;
+            // "-fur" (A-92 experiment, #230): fur strands and coat patches in the creature shader.
+            Shader.SetGlobalFloat("_PunchyFur", System.Array.IndexOf(args, "-fur") >= 0 ? 1f : 0f);
             // "-solidsoff" (A-44): wild animals ignore cave walls, towers and carved ground as before, for before numbers
             // from the same build. "-solidstats": log their contacts, sink and floating every 60 s (SolidStatsLog).
             CreatureMotion.SolidsOff.Data = System.Array.IndexOf(args, "-solidsoff") >= 0 ? 1 : 0;
