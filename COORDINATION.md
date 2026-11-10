@@ -101,6 +101,10 @@ feature code, and it never edits files in another session's checkout.
    before and after, and quoted as numbers. (d) Shots: use the shared screenshot tool (T-1, once merged; see docs/agents) and
    quote its written checks. If a shot can't be made to show the change, say UNVERIFIED with the reason and move on: don't
    loop on retakes; Zach judges the look in the playtest.
+20. **LOD by screen size, never fixed metres (Zach, 2026-11-10):** every visual detail choice (fade, cull, tier, shells, seams,
+   effects, impostor hand-offs, light reach) uses `DetailPolicy.ScreenSize` (object size over distance in reference pixels,
+   FOV and resolution aware) with a per-kind threshold in DetailPolicy, plus hysteresis. A fixed-metre visual range in new
+   code goes back. Gameplay and simulation ranges (senses, AI, collision, streaming) are not LOD and may stay in metres.
 
 ## Sessions and lanes
 
