@@ -610,10 +610,14 @@ namespace Punchy.Flora
                 layer.Settings.Lod2Distance >= layer.Settings.Radius ? Never : math.max(size / rule.Geometry.Mid, floor.y),
                 rule.Geometry.Far > 0f ? size / rule.Geometry.Far
                     // R-6 row 4: always drawn: to the layer's radius at least, and past it while big enough on screen
-                    // (negative, see FloraCull.compute). Not the ground layer: its grass would reach out past its radius.
-                    : layer.Index > 0 ? -size / Punchy.Settings.DetailPolicy.FloraEdgePixels : Never,
+                    // (negative, see FloraCull.compute). R-6 row 6 (Zach 11-09): the tree layer only; the ground and
+                    // shrub layers stay cut at their radius as before (far shrubs cost ~3 ms of streaming per frame).
+                    : layer.Index == FarReachLayer ? -size / Punchy.Settings.DetailPolicy.FloraEdgePixels : Never,
                 size / rule.Shadow);
         }
+
+        /// <summary>R-6 row 6: the one layer whose always-drawn variants reach past its radius (the trees).</summary>
+        const int FarReachLayer = 2;
 
         /// <summary>R-6 row 4: always-drawn variants reach past their layer's radius by size (false: cut at the radius, as before).</summary>
         public static bool FarReach = System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-nofarflora") < 0;

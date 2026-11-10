@@ -322,7 +322,7 @@ namespace Punchy.Settings
         /// <summary>
         /// R-6 row 4: a class drawn always (Far 0) is drawn past its layer's radius while it is at least this many pixels
         /// across, out to the terrain edge: a layer's fixed radius no longer cuts a tall tree or a big building off before
-        /// its size says so (FloraSystem streams those far plants on their own).
+        /// its size says so (FloraSystem streams those far plants on their own). R-6 row 6: the tree layer only.
         /// </summary>
         public const float FloraEdgePixels = 4f;
 
