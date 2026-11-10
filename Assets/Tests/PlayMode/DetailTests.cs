@@ -46,6 +46,10 @@ namespace Punchy.Tests
         [UnityTest, Explicit("bench, run on demand"), Timeout(900000)]
         public IEnumerator Detail_ShellHerdNear() => Herd("shells", true);
 
+        /// <summary>All three kept together (row 3): seams, fur and shells against none, near the herd.</summary>
+        [UnityTest, Explicit("bench, run on demand"), Timeout(900000)]
+        public IEnumerator Detail_AllHerdNear() => Herd("all", true);
+
         /// <summary>
         /// Card A-92 shots: each species as the player's body, standing on the flattest spot near a meadow start, from the
         /// side and a little in front at 2 m and 10 m, with the flag off and on.
@@ -73,7 +77,7 @@ namespace Punchy.Tests
                 foreach (var far in new[] { false, true })
                     foreach (var on in new[] { false, true })
                     {
-                        flags = on ? "-" + flag : "";
+                        flags = on ? "" : "-no" + flag;
                         var d = far ? 10f : 2f * size;
                         Cam(body + side * d + Vector3.up * (far ? 1.6f : 0.6f * size), body + Vector3.up * 0.7f * size);
                         yield return Shots.Settled($"a92-{flag}-{species.ToLowerInvariant()}-{(far ? "10m" : "2m")}-{(on ? "on" : "off")}", 1280, 720);
@@ -123,7 +127,7 @@ namespace Punchy.Tests
             for (int round = 0; round < 4; round++)
                 foreach (var flagOn in new[] { false, true })
                 {
-                    flags = flagOn ? "-" + flag : "";
+                    flags = flagOn ? "" : flag == "all" ? "-noseams -nofur -noshells" : "-no" + flag;
                     Cam(centre + new Vector3(back, back / 3f, 0f), centre + Vector3.up * 1f);
                     yield return TestSceneSetup.Seconds(1.5f);
                     var frames = new[] { new List<float>(), new List<float>(), new List<float>() };

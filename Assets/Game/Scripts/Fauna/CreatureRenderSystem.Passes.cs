@@ -215,7 +215,7 @@ namespace Punchy.Fauna
                 rp.matProps = block;
                 rp.shadowCastingMode = (g & 1) == 0 ? ShadowCastingMode.On : ShadowCastingMode.Off;
                 Graphics.RenderMeshPrimitives(rp, mesh, 0, to - from);
-                // "-shells" (A-92 experiment, #230): the full-detail groups again as fur shells, no shadow (the shader
+                // Shells (A-92, #230; "-noshells" turns them off): the full-detail groups again as fur shells, no shadow (the shader
                 // keeps only bodies within a few metres of the camera).
                 if (Shells && detail == 0)
                 {
@@ -275,8 +275,8 @@ namespace Punchy.Fauna
         const int GroupCount = 6;
         MaterialPropertyBlock[] groupProps;
 
-        /// <summary>"-shells" (A-92 experiment, #230): near bodies drawn again as ShellLayers fur shells.</summary>
-        public static bool Shells;
+        /// <summary>Shells (A-92, #230; off with "-noshells"): near bodies drawn again as ShellLayers fur shells.</summary>
+        public static bool Shells = true;
         const int ShellLayers = 2;
         static readonly int ShellId = Shader.PropertyToID("_Shell");
         MaterialPropertyBlock[] shellProps;

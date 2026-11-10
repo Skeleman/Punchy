@@ -25,7 +25,7 @@ Shader "Punchy/Creature"
             float4 color;
             float4 material;   // x: what it's made of (SegmentMaterial: body, cloth, leather, metal, wood, bone); y: the
                                // height of the ground the creature stands on (for grounding: a body's segments only)
-                               // z: "-seams" only, how many segments back the one this hangs from is (0: none)
+                               // z: seams only ("-noseams" leaves it 0), how many segments back the one this hangs from is (0: none)
         };
 
         StructuredBuffer<Segment> _Segments;
@@ -47,7 +47,7 @@ Shader "Punchy/Creature"
             return v + q.w * t + cross(q.xyz, t);
         }
 
-        // A point of the segment, turned into the world (offset from the segment's start) with its normal. With "-seams"
+        // A point of the segment, turned into the world (offset from the segment's start) with its normal. With seams
         // (material.z: the segment this hangs from, that many back) the start of the segment is blended into that one's
         // frame over about a radius, so a bent joint reads as one bent tube rather than two capsules crossing.
         void Joint(Segment s, uint index, float r, float3 local, float3 n, out float3 offsetWS, out float3 normalWS)
@@ -95,7 +95,7 @@ Shader "Punchy/Creature"
                         lerp(lerp(Hash3(i + float3(0, 0, 1)), Hash3(i + float3(1, 0, 1)), f.x), lerp(Hash3(i + float3(0, 1, 1)), Hash3(i + float3(1, 1, 1)), f.x), f.y), f.z);
         }
 
-        // "-shells" (A-92 experiment, #230): a near body is drawn again as one or two shells a few millimetres out
+        // Shells (A-92, #230; "-noshells" turns them off): a near body is drawn again as one or two shells a few millimetres out
         // (_Shell: the layer, 0 for the body itself), each kept only where a fur strand stands, thinner further out, so
         // the outline goes soft. Gear, thin parts (eyes, ear tips) and bodies further than ShellRange collapse to a point
         // (nothing drawn).
@@ -177,7 +177,7 @@ Shader "Punchy/Creature"
             #include "Metal.hlsl"
             #include "Grounding.hlsl"
 
-            float _PunchyFur;   // "-fur" (A-92 experiment, #230): bodies get fur strands and coat patches
+            float _PunchyNoFur; // A-92, #230: 0 gives bodies fur strands and coat patches, 1 ("-nofur") plain
 
             struct Varyings
             {
@@ -277,9 +277,9 @@ Shader "Punchy/Creature"
                 uint material = _PunchyPlainGear > 0.5 ? 0 : (uint)(input.material + 0.5);
                 if (material == 0)
                 {
-                    if (_PunchyFur > 0.5)
+                    if (_PunchyNoFur < 0.5)
                     {
-                        // "-fur": broad soft patches in the coat (both shades of it, a little), and up close fine strands
+                        // Fur: broad soft patches in the coat (both shades of it, a little), and up close fine strands
                         // running along the segment, as a bump on the normal (screen-space derivatives: no tangents) and
                         // a darker fleck between them. Patterns sit in the segment's own frame, so they move with it.
                         float3 sp = input.surface;

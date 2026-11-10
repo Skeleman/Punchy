@@ -46,9 +46,9 @@ namespace Punchy.Fauna
         public static readonly SharedStatic<int> OldLie = SharedStatic<int>.GetOrCreate<OldLieKey>();
         class OldLieKey { }
 
-        /// <summary>"-seams" (A-92 experiment, #230): 1 has the shader bend each limb segment's start towards the segment
+        /// <summary>Seams (A-92, #230; "-noseams" sets 1 to turn them off): at 0 the shader bends each limb segment's start towards the segment
         /// it hangs from (Material.z: how many segments back that is), hiding the crease at the joint.</summary>
-        public static readonly SharedStatic<int> Seams = SharedStatic<int>.GetOrCreate<SeamsKey>();
+        public static readonly SharedStatic<int> NoSeams = SharedStatic<int>.GetOrCreate<SeamsKey>();
         class SeamsKey { }
 
         /// <summary>
@@ -863,12 +863,12 @@ namespace Punchy.Fauna
                 }
                 output[offset + seg] = piece;
             }
-            if (Seams.Data != 0)
+            if (NoSeams.Data == 0)
                 MarkJoints(ref b, output, offset);
         }
 
         /// <summary>
-        /// "-seams": for each limb segment, how many segments back the one it hangs from is (the one before it in its
+        /// Seams: for each limb segment, how many segments back the one it hangs from is (the one before it in its
         /// limb, else the last of the limb it grows from, else the trunk for a tail or neck), in Material.z for the
         /// shader, which blends the start of the segment into that one's frame. Legs and arms off the trunk are left
         /// alone (their start would swing flat along the body).
