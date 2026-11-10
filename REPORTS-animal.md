@@ -3293,3 +3293,35 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 
   *The first perflog shot of a run sometimes reports render/gpu near 0 (a timer glitch). GPU stays within 0.4 ms of main. CPU main goes up 0.5-1.4 ms and drifts by about 0.9 ms between back-to-back runs, temple included. It is probably the extra prop objects (each prop is now 2-6 renderers instead of 1 cube) plus noise. This needs a same-spot A/B before anyone calls it a real cost; I am checking that during row 3.
 - [shot] D:/Unity/PunchyMilestones/A-91/after/contact-sheet.jpg (13 frames: entrance + deepest room per type, ruin props, 5 prop close-ups); before: D:/Unity/PunchyMilestones/A-91/before/contact-sheet.jpg
+
+## A-97
+
+- **Row 1 (Tag): done (verified).** Branch fauna/surfaces, commit b5768261. LimbType segments have a Surface (Coat default; Hoof, Pad, Claw, Eye, Horn). Species have a coat kind (Fur/Feathers/Scales/Skin/Chitin) and a fur length. Both are baked into a CreatureLookBlob (not on CreatureBlob) and written to SegmentInstance.Material.w. In Creature.shader, shells grow only on the Fur coat. `-nosurfaces` gives the old look.
+  - Pins hold: Fauna_Fingerprint 66320C7C, Landmarks_V3 112 A955AFE0. ProjectSettings untouched.
+  - Inventory (segments per surface; every fur length is still Medium until row 2b):
+
+| Species | Coat | Segments |
+|---|---|---|
+| Horse | Fur | Fur 21, Hoof 4, Skin 2, Eye 2 |
+| Deer / Camel | Fur | Fur 19/21, Hoof 4, Eye 2 |
+| Caribou, elk, bighorn, ram | Fur | Fur 19, Hoof 4, Horn 8, Eye 2 |
+| Bison, goat, pronghorn, mud pig | Fur | Fur 17-20, Hoof 4, Horn 4-5, Eye 2 |
+| Wolf, coyote, foxes, dogs, cat, squirrels, small mammals | Fur | Fur 15-21, Pad 2-4, Eye 2-4 |
+| Bears (grizzly, black, polar) | Fur | Fur 18, Eye 2 (pads come in row 3) |
+| Ogre | Fur | Fur 31, Horn 2 (tusks), Eye 2 |
+| Bone hound/lizard/stag | Fur | Horn 22-36 (bone), Fur 13-16, Eye 2 |
+| Lizards (8), Gila, horned lizard | Scales | Scales 19, Eye 2 (+Horn 4 horned) |
+| Snakes (garter, rattle, sidewinder, swamp, sky) | Scales | Scales 14-18, Eye 2 (+Horn 1 rattle) |
+| Fish (carp, koi, trout, ...), turtles, fish folk | Scales | Scales 8-76, Eye 2 |
+| Birds (17 species) | Feathers | Feathers 5-13, Horn 1-2 (beak/comb), Skin 4-12 (legs), Eye 2 |
+| Beetles, spiders, crabs, dragonfly | Chitin | Chitin 9-32, Eye 2-4, Horn 0-2 |
+| Scorpions | Chitin | Chitin 35, Claw 1 |
+| Frogs/toads | Skin | Skin 12, Pad 2, Eye 2 |
+| Salamander, eel, dolphin, worms | Skin | Skin 9-19, Eye 0-2 |
+| Bat | Fur | Fur 8, Skin 20 (wing membranes), Eye 2 |
+| Folk, ghosts, plant creatures | Fur | Fur everywhere, Eye 0-2 (unchanged) |
+
+  - Full per-species table (121 rows): in the final handoff.
+  - Deer have no antler segments (none in their limbs), so the antler check uses caribou/elk (Horn 8).
+  - No mammoth creature exists (only the IceMammoth colossus mesh), so the tusk shots use the ogre.
+  - [shot] D:/Unity/PunchyMilestones/A-97/row1-sheet.png (before = -nosurfaces, after = default, noon): horse, hoof, wolf, wolf eye, deer, ogre tusk, lizard, snake, crow, beetle, frog. Fringes are gone from hooves, eyes, tusks, beaks, scales and chitin; Medium fur looks the same.
