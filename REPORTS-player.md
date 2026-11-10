@@ -356,3 +356,21 @@ UNVERIFIED: the Look tab controls were not clicked (test flags -camdist and -fpi
 Seen, not caused here: looking down in that room shows a wedge of blue at the edge of the view, in first and third person. Likely a gap in the room box; for row 3.
 Suite: 15 passed, 0 failed, 7 skipped in 230 s.
 Next: row 3.
+
+## P-25 row 3: seamless interiors (design note DONE; prototype BLOCKED, question for the supervisor)
+**Question: may the prototype change one house kit?** The card says to ask first. A real walk-through needs a real hole in the shell, and today there is none: behind the door leaf is a dark panel in front of a solid wall (FloraGenerator.Door), and kit houses collide as wall circles plus one fat cylinder inside. Without that change the prototype could only fake the doorway. If yes: one type (StormShelterHouse, a kit house), one town, behind a `-seamless` flag, teleport still the default, anchors untouched. Rows 1 and 2 don't depend on this and are ready for review.
+
+### Design
+Today: using an open door teleports the player to one room per house type, built off the island out of box GameObjects. The room boxes (InteriorCells) are axis-aligned and global.
+
+- **Shell (world lane).** At the near LOD, an enterable house's front wall has a real opening the size of the door, with wall thickness showing at the jambs and lintel. The leaf swings on its existing hinge. The dark panel stays at far LODs, where nobody can walk in.
+- **Collision.** Enterable types lose the fat inner cylinder, and the door bay's wall circle. Walls become boxes in the house's own frame with the door gap (InteriorCells.AddRoom already takes a door width and height). Houses are turned to their plots, so boxes need a yaw: a query rotates into the house's frame first. The player already stands on and bumps into these boxes, and the camera's arm probe already treats them as solid.
+- **Contents.** Keep the per-type seeds and furniture, so a type's layout is the same in every town, placed in the house's frame. One baked mesh per type, drawn instanced, in place of a GameObject per box. Rooms would no longer be shared: containers are numbered per type today (so every house of a type shares its chest), and need numbering by door.
+- **Lighting.** The room ambient (P-16) blends on being in a room; it becomes a blend on the player's position through the doorway. Lamps stay inside with range sized to the room (P-21). No sun indoors except through the door: the shell casts the shadow.
+- **Cost per town.** Only houses near the player build insides, by DetailPolicy, up to about 8 at once. A room is 10-20 boxes, under about 300 triangles, one draw per type. InteriorCells has only one overall bounds check today, and the camera can ask up to 160 times a frame, so it needs a per-house lookup first (which house is this point in, then that house's boxes only).
+- **Networking.** Nothing new: layouts are seeded and door state is already host-owned. Each player's own body moves through the door.
+- **Camera.** Interiors.IndoorArm (row 2) reads the room the player is in; it would read the room around the player instead. No other camera change.
+- **Folk.** Door anchors stay where they are.
+
+**Needed from the world lane:** a wall-with-opening in the house builders and kit, one type first; no inner cylinder on enterable types.
+**Order after the prototype:** the per-house lookup, then one type per culture, then retire the teleport.
