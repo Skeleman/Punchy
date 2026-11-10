@@ -3843,3 +3843,38 @@ Built in the player tree, not the one the card names (the world tree's gitignore
   - **Seen, not mine:** a few magenta (missing-shader) objects on the hill in the hilltop view, in both before and after shots; worth a look by whoever owns those props.
   - Risks: if a rule later gains an impostor tier, its models get slices automatically (atlas grows about 0.66 MB per model). No placement, scene or ProjectSettings changes.
   - **Suite (editor closed):** `15 passed, 0 failed, 7 skipped in 197s (Unity exit 0).` Pins: Landmarks_V3 `112 A955AFE0`, Fauna_Fingerprint `66320C7C`. My editor is closed.
+
+## R-9 (water deforms under the player, #232; tree Punchy-world, branch water/deform from origin/main beabf98b)
+
+- **R-9 row 1 DONE (read-through; no code, nothing committed on water/deform; costs below are estimates, measured in row 2)**
+  - **Mesh:** the water is a sheet built with the terrain chunk (BuildChunkMeshJob.BuildWater): one vertex per terrain vertex,
+    chunk 64 m, LOD0 64 quads, so **1.0 m spacing** at best (2, 4, 8 m on coarser LODs). No tessellation. Drawn through
+    Entities Graphics (BRG, one Water.mat for every chunk); shores are cut per quad on the CPU, and lake/river levels differ per vertex.
+  - **Waves:** the vertex stage only does the sea swell (WaterSwell.hlsl: up to 12 Gerstner waves, sea only, mirrored on the CPU by
+    WaterSwells.Height). Everything small is in the pixel stage: 6 directional waves, two reads of the fine detail texture, flow-mapped
+    river ripples, rain rings, and the wakes.
+  - **Today's ripples:** CreatureWakeSystem (Fauna lane file) drops a ripple every 0.5 m or 0.5 s for anything at the surface within
+    40 m of the camera (players' bodies included); the 48 nearest go out as `_PunchySwimmers`, with a coarse MarkMask. Water.shader
+    SwimmerWakes loops over them per pixel (within 45 m, only in marked cells) and draws each as an analytic ring (4.2 m over 3 s) that
+    bends the normal and adds a little foam. No height change, no interaction between rings, nothing pushed aside under the body.
+  - **Can the mesh carry 5-20 cm at 10-20 cm spacing? No.** At 1 m spacing anything shorter than about 2 m aliases away. It needs 5-10x
+    more vertices near the player. Options:
+    - (a) **Fine near patch (recommended):** each frame the LOD0 water quads within ~16 m of the player are copied from the chunk data and
+      subdivided 8x (12.5 cm) in a Burst job when the player crosses a metre: ~32x32 quads -> 256x256 = 65k verts / 131k tris at most, far
+      less on a river. Exact surface levels and shore cuts, since it comes from the same quads. The chunk water clips itself inside the
+      patch's rect (one compare per pixel). Drawn with Graphics.RenderMesh and the same shader (a keyword), so BRG is not touched.
+      Estimated cost: vertex work on 65k verts (swell + 1 field read) ~0.02-0.05 ms on the laptop's GTX; CPU rebuild ~0.2 ms only on
+      the frames it runs.
+    - (b) Hardware tessellation (hull/domain) on the near quads: same result without the CPU copy, but it puts hull/domain stages on every
+      water draw through BRG (untested with DOTS instancing here) and pays the stage on far water too. Riskier.
+    - (c) Normals only from the field, no geometry: cheapest (~2 texture reads per pixel inside the field), but no silhouette at grazing
+      views. This is also what Low/fallback could do.
+  - **Field (row 2 plan):** 256x256 R16G16 RT over 32 m (12.5 cm texels), scrolled with the player in whole texels; a compute (or blit)
+    wave step with damping, 2 dispatches a frame; swimmers/waders/splashes splat discs into it from the same list CreatureWakeSystem
+    already builds (I'd read its ripple sources rather than edit the Fauna file; if I need a hook there I'll ask). Estimated 0.01-0.03
+    ms GPU. The water frag reads the field (height + gradient) inside the patch for normals; the old rings stay outside the field and on
+    Low.
+  - **Budget risk:** the laptop's water already costs ~10 ms GPU at the lake (profiler q57), so 0.3 ms leaves room for the field and the
+    patch but not for extra full-screen work. Laptop numbers will need a BENCH-QUEUE job (I can only measure this PC).
+  - **Not mine:** CreatureWakeSystem.cs is in Scripts/Fauna (animal lane); Water.shader is shared-additive (animal session told first).
+  - Next: W-130 side task (supervisor), then row 2 (prototype as (a) + field).
