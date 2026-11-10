@@ -56,7 +56,29 @@ prof() { # name args...: one run with the Profiler on the measured part, then th
   strays >/dev/null
   [ -f "$R/$tag.txt" ] && { rm -f "$R/q-$tag.raw"; echo "  $(grep -c '^OVER' "$R/$tag.txt") frames over 50 ms in the capture"; }
 }
-rm -f "$R"/$Q-*.csv
-for r in 1 2 3; do game walk$r $WALK; prof walk$r-p $WALK; done
-for r in 1 2; do game glide$r $GLIDE; prof glide$r-p $GLIDE; done
+analyze() { # tag: the -over analysis of a capture left on disk (job 44: walk2-p's first analysis threw on a null name)
+  local tag=$1
+  cp "$P/Library/LastSceneManagerSetup.txt" "$R/LastSceneManagerSetup.bak" 2>/dev/null
+  cp "$B/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs"
+  ( cd "$P" && timeout 2400 "$UNITY" -batchmode -projectPath "$(cygpath -m $P)" -executeMethod BProfileTools.Analyze \
+      -raws "$WW\\q-$tag.raw" -out "$WW\\$tag.txt" -over 50 -logFile "$W/analyze-$tag.log" )
+  echo "  analyze $tag rc=$?"
+  cp "$R/LastSceneManagerSetup.bak" "$P/Library/LastSceneManagerSetup.txt" 2>/dev/null
+  rm -f "$P/Assets/Game/Scripts/Editor/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs.meta"
+  strays >/dev/null
+  [ -f "$R/$tag.txt" ] && { rm -f "$R/q-$tag.raw"; echo "  $(grep -c '^OVER' "$R/$tag.txt") frames over 50 ms in the capture"; }
+}
+# "q74.sh" runs everything; "q74.sh walk1 glide3 an:walk2-p ..." runs just those (a fresh plain + profiled pair each; a
+# stall in the measured part skips the line ahead, so such runs are redone).
+if [ -z "$1" ]; then
+  rm -f "$R"/$Q-*.csv
+  for r in 1 2 3; do game walk$r $WALK; prof walk$r-p $WALK; done
+  for r in 1 2; do game glide$r $GLIDE; prof glide$r-p $GLIDE; done
+else
+  for n in "$@"; do case $n in
+    an:*) analyze $Q-${n#an:} ;;
+    walk*) rm -f "$R/$Q-$n.csv"; game $n $WALK; prof $n-p $WALK ;;
+    glide*) rm -f "$R/$Q-$n.csv"; game $n $GLIDE; prof $n-p $GLIDE ;;
+  esac; done
+fi
 echo $Q done
