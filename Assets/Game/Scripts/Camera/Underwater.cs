@@ -310,8 +310,6 @@ namespace Punchy.CameraRig
             return ps;
         }
 
-        }
-
         /// <summary>
         /// The surface of the water the point is in (float.MinValue: not in water), what kind it is, and how much of it
         /// is swamp (thick, from the water's murk, as Water.shader turns oily) and lava (0..1 each).
