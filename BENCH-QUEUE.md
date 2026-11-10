@@ -385,7 +385,7 @@ shader compiles). Read only, main at the time you start, Profile build, 1920x108
   (TerrainStreamingSystem and FloraSystem.LateUpdate especially, first visits).
 - Report: does any streaming system repeat over 100 ms outside the editor? If yes, which and where; if no, say W-129 is closed.
 
-## Job 45 (2026-11-10, QUEUED by the main-account supervisor; after job 44): R-9 water field and R-10 lights on the laptop
+## Job 45 (2026-11-10, RUNNING on the laptop; q75.sh; queued by the main-account supervisor): R-9 water field and R-10 lights on the laptop
 Two Profile builds (one at a time), 1920x1080, `-gfx High`, uncapped, ABBA, 300 frames each arm unless noted. Read only.
 - R-9: build branch `water/deform` (fd50ad58 or later). `-time 12 -weather Clear`, `-goto 488,-1144`, swim straight 10 s; then
   the same with `-waterfield 0`. Whole-frame GPU ms and the water pass ms, ABAB 2 runs each. Pass: on costs < +0.3 ms.
