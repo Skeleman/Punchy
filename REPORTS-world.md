@@ -3881,6 +3881,34 @@ Built in the player tree, not the one the card names (the world tree's gitignore
     patch but not for extra full-screen work. Laptop numbers will need a BENCH-QUEUE job (I can only measure this PC).
   - **Not mine:** CreatureWakeSystem.cs is in Scripts/Fauna (animal lane); Water.shader is shared-additive (animal session told first).
   - Next: W-130 side task (supervisor), then row 2 (prototype as (a) + field).
+- **R-9 row 2 DONE (plan (a): fine near sheet + 256² wave field; water/deform fd50ad58, pushed, no PR)**
+  - **What:** WaterPatchSystem.cs (new, Terrain) copies the LOD0 chunk water's own wet quads in a 32 m square round the player and cuts
+    each 8x8 (12.5 cm) in Burst when the player crosses a metre, drawn with Graphics.RenderMesh in Water.mat with the `_WATER_FIELD`
+    keyword. WaterField.compute steps a 256² R16G16 field over the same square at 60 steps/s (damped wave equation, 3 m absorbing rim,
+    scrolls with the player in whole texels). The sheet's vertices rise and fall by the field, its normals follow (slope drawn 2.5x),
+    and foam shows only where it stands steepest. The chunk water clips itself under the sheet (rect + per-metre mask, so fountains and
+    cave water are untouched); sheet edge vertices follow the chunk's straight edges, so no cracks with the swell.
+  - **Sources (read from the water side, no Fauna edits):** the creature snapshot (CreatureSnapshotSystem.Get), not CreatureWakeSystem.
+    Every swimmer/wader/floater in the square holds a dimple (35 cm-1 m wide, deeper with speed), shoves water aside each step while
+    it moves (the troughs spring back as a V wake), and upright waders knock a ring out on each stride (1.2-3.6 a second, own beat per
+    creature). Landings through the surface splash. Old ripples (SwimmerWakes) stay outside the square, on Low and with `-waterfield 0`
+    (or `WaterPatchSystem.On = false`).
+  - **Files:** new WaterPatchSystem.cs, Resources/WaterField.compute, Shaders/WaterField.hlsl (all LF); Water.shader (+59, CRLF kept;
+    keyword in the depth and colour passes, clip outside the sheet); TerrainStreamingSystem.cs (+32, CRLF kept: `TryGetWater(int2,
+    out Mesh, out int lod, out int built)` so the sheet can copy a chunk's water mesh and see when it was rebuilt).
+  - **Look:** swimming leaves a clear V wake with foam streaks; a landing throws rings that cross the square; wading shows stride
+    rings spreading away (subtler: in 0.8 m of clear water the bottom caustics dominate at a steep view). Night reads the same, darker.
+  - **Desktop ms (High, uncapped, editor play, swimming at the lake 488,-1144, 3 ABAB pairs x 360 frames):** ExecuteRenderGraph GPU
+    0.795/0.791/0.798 off vs 0.901/0.893/0.883 on = **+0.10 ms**. PlayerLoop CPU 9.6-9.9 ms both ways (no measurable change). The
+    compute step is dispatched outside the render graph, so it is not in that figure (2 dispatches of 256² a frame at most).
+  - **BENCH-QUEUE line for the laptop:** `R-9 row 2: Profile build of water/deform (fd50ad58), -gfx High, 1920x1080, uncapped, -time 12
+    -weather Clear; stand in the lake at -goto 488,-1144 (swimming) and swim straight for 10 s, then the same with -waterfield 0; whole-frame
+    GPU ms and the water pass ms, ABAB 2 runs each. Pass = on costs < +0.3 ms over -waterfield 0.`
+  - **Shots:** D:/Unity/PunchyMilestones/R-9/2/: swim-noon.jpg, landing-noon.jpg, wade-and-night.jpg (wade noon | wade night /
+    swim night | landing night).
+  - **Overlap:** R-10 row 2b plans a three-line light hook-up in the water shaders; Water.shader now has R-9 changes, so whichever merges
+    second rebases (additive, separate blocks).
+  - **Decisions:** none. Next is row 3: pass/flag call (needs the laptop number) and the full suite with the pins.
 
 ## W-130 (magenta slabs; tree Punchy-world, branch fix/magenta-slabs from origin/main beabf98b)
 
