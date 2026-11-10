@@ -412,6 +412,6 @@ Not what the card said:
 - A folk's quest is handed in at the nearest notice board to where it was taken. The window names that town.
 - An animal offered a berry (Feed) gets the folk walking up and the line, not the berry.
 
-UNVERIFIED: real mouse clicks, keys 1-9, arrows, Enter, Esc and WASD (only the pad was driven, and only a virtual one); host playing as itself in a talk; laptop screen. On a freshly added virtual pad, the first RB press missed in 2 of 5 runs with the folk in reach and no door or item nearer; the next press worked. I didn't find why. The 10-folk pass line didn't go through the pad.
+UNVERIFIED: real mouse clicks, keys 1-9, arrows, Enter, Esc and WASD (only the pad was driven, and only a virtual one); host playing as itself in a talk; laptop screen. On a freshly added virtual pad, the first RB press missed in 2 of 4 runs with the folk in reach and no door or item nearer; the next press worked. I didn't find why. The 10-folk pass line didn't go through the pad.
 Suite: 24 passed, 0 failed, 17 skipped in 330 s.
 Next: P-25 row 3's prototype waits for the answer on the house kit. P-23 and P-24 are still drafts.
