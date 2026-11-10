@@ -215,6 +215,22 @@ namespace Punchy.Fauna
                 rp.matProps = block;
                 rp.shadowCastingMode = (g & 1) == 0 ? ShadowCastingMode.On : ShadowCastingMode.Off;
                 Graphics.RenderMeshPrimitives(rp, mesh, 0, to - from);
+                // Shells (A-92, #230; "-noshells" turns them off): the full-detail groups again as fur shells, no shadow (the shader
+                // keeps only bodies within a few metres of the camera).
+                if (Shells && detail == 0)
+                {
+                    shellProps ??= new MaterialPropertyBlock[2 * ShellLayers];
+                    for (int layer = 1; layer <= ShellLayers; layer++)
+                    {
+                        var shell = shellProps[(g & 1) * ShellLayers + layer - 1] ??= new MaterialPropertyBlock();
+                        shell.SetBuffer(SegmentsId, buffer);
+                        shell.SetInteger(SegmentOffsetId, from);
+                        shell.SetFloat(ShellId, layer);
+                        rp.matProps = shell;
+                        rp.shadowCastingMode = ShadowCastingMode.Off;
+                        Graphics.RenderMeshPrimitives(rp, mesh, 0, to - from);
+                    }
+                }
             }
             if (total > colonyStart)
             {
@@ -258,6 +274,12 @@ namespace Punchy.Fauna
         /// </summary>
         const int GroupCount = 6;
         MaterialPropertyBlock[] groupProps;
+
+        /// <summary>Shells (A-92, #230; off with "-noshells"): near bodies drawn again as ShellLayers fur shells.</summary>
+        public static bool Shells = true;
+        const int ShellLayers = 2;
+        static readonly int ShellId = Shader.PropertyToID("_Shell");
+        MaterialPropertyBlock[] shellProps;
         NativeArray<byte> noDecisions;
         /// <summary>The draw group for a decision.</summary>
         static int DrawGroup(Punchy.Settings.DetailPolicy.Decision d) => math.min(d.Geometry, 2) * 2 + (d.Shadow ? 0 : 1);

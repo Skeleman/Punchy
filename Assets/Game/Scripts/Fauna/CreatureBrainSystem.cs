@@ -1580,8 +1580,12 @@ namespace Punchy.Fauna
             /// <summary>Turning and moving by itself (not climbing, flying or the like): turn to the target, keep off water, cliffs and solids, then Advance.</summary>
             void Steer(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, bool moving, bool urgent, float targetSpeed, bool flier, bool perched, float walk, float run)
             {
-                // Getting up comes before going anywhere.
-                targetSpeed *= math.saturate(1f - math.max(s.Lie, s.Sit) * 1.5f);
+                // Getting up comes before going anywhere: not a step until it's all but up (A-92, #231: it used to set off
+                // a third of the way up, crawling with its folded legs dragging under it).
+                // (Its speed too, not just the aim, which it eases towards: else it coasts on while lying down. Fliers
+                // perch by sitting and take off from it, so not them.)
+                var down = flier || s.Fly > 0.5f ? 1f : 1f - math.smoothstep(0.05f, 0.25f, math.max(s.Lie, s.Sit));
+                targetSpeed *= down;
 
                 // Turn towards the target, then move; slow down while turning sharply.
                 var turn = 0f;
@@ -1611,6 +1615,7 @@ namespace Punchy.Fauna
                 s.Yaw = WrapAngle(s.Yaw + turn);
                 s.YawRate = dt > 0f ? turn / dt : 0f;
                 s.Speed += (targetSpeed - s.Speed) * math.min(1f, dt * (urgent ? 4f : 2.5f));
+                s.Speed *= down;
 
                 // Stay out of water and off cliffs: stop (or, running, veer) when the way ahead is bad.
                 var forward = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
