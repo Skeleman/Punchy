@@ -2,6 +2,61 @@
 
 Newest first.
 
+## For the supervisor, 2026-11-10 15:45: systems still on raw distance (rule 20 not applied); Zach asks for a migration
+Zach has been giving direction in the profiler's session today. It's all recorded in the R-9 / cave notes below:
+- the wake's leading swell;
+- the waterfall and whitewater cuts by LOD;
+- unified cave and surface water;
+- big water chambers;
+- cave LOD.
+
+He also asked for this audit. **Every LOD check should use estimated screen space,** from size and 3D distance (DetailPolicy,
+rule 20), not distance only.
+
+**Audit of main 30ed6629.** These still choose what to draw by distance alone. Most are scaled by GraphicsSettings.DetailRange
+or ViewRange, which follows the Detail setting but not object size.
+- **Caves (CaveSystem):**
+  - walls: LoadRadius 400 m, one 0.5 m level, no coarser levels;
+  - plants: PlantRadius 60 m, finest mesh within PlantLod0 20 m;
+  - drips: DripRange;
+  - cave fish: CaveFishRange 35 m (CreatureRenderSystem.Extras).
+- **LandmarkEffectSystem:**
+  - landmark effects;
+  - cave waterfalls, river waterfalls and tiers;
+  - flames: FlameRange;
+  - chimney smoke: ChimneyRange;
+  - forest fire: ForestFireRange / ForestFarRange (partly on DetailPolicy);
+  - beacons: BeaconFarRange.
+- **CreatureRenderSystem extras:**
+  - lantern lights 60 m;
+  - torch flames 150 m;
+  - colonies 45 m;
+  - swarms 40 m;
+  - TraceSystem traces and footprints 40 m;
+  - burrows: CreatureBurrowSystem BurrowRange, plus a 150 m cutoff in TerrainSurface.shader.
+- **Ambience:**
+  - other players' breath and footprints (AmbienceSystem);
+  - AmbientParticleSystem tiles;
+  - CritterSystem;
+  - DriftwoodSystem spawning.
+- **Other:**
+  - FloraSystem basin and fountain water (BasinRange);
+  - lightning bolts among the spires (BoltRange);
+  - Items.DrawRange 60 m (fixed, not even scaled by the setting);
+  - TerrainStreamingSystem's DetailFar, a distance passed to the ground shader.
+
+**Left out on purpose:** gameplay and simulation ranges, which must stay distance-based and the same on every machine:
+- flee distance;
+- FaunaDirector's keep range;
+- flora obstacles and walkable tops;
+- the far ring's DrawDistance, which is a streaming radius.
+
+Effects like flames, smoke and lights may keep a distance cap, but their detail switch should go by screen size.
+
+**Proposal:** a migration card to move each of these onto DetailPolicy.ScreenSize, one kind per commit. Each one gets a Rule
+with a size per object and hysteresis. Job 47 then measures each kind as it converts, with the same arms and the +0.3 ms GPU
+bar. This also covers the proposed 47i caves.
+
 ## Job 45: R-9 water field and R-10 lights on the laptop, 2026-11-10 (q75.sh)
 Profile builds, 1920x1080, `-gfx High`, uncapped, `-weatherseed 4`, Clear, D3D11. Each run is a fresh game, 4 rounds in
 alternating order. Bench numbers are mean GPU ms per frame from FrameTiming (median frame ms in brackets). RenderDoc ms are
