@@ -57,7 +57,7 @@ namespace Punchy.Flora
         public Material Material;
         public ComputeShader Culling;
         public LayerSettings Ground = new LayerSettings { CellSize = 0.7f, TileSize = 14f, Radius = 70f, Lod1Distance = 18f, Lod2Distance = 1000f, CastShadows = false, ThinFrom = 0.4f, ThinTo = 0.25f };
-        public LayerSettings Shrubs = new LayerSettings { CellSize = 2f, TileSize = 40f, Radius = 260f, Lod1Distance = 30f, Lod2Distance = 110f, ShadowCastDistance = 40f, ThinFrom = 0.5f, ThinTo = 0.25f };
+        public LayerSettings Shrubs = new LayerSettings { CellSize = 2f, TileSize = 40f, Radius = 520f, Lod1Distance = 30f, Lod2Distance = 110f, ShadowCastDistance = 40f, ThinFrom = 0.5f, ThinTo = 0.25f };
         public LayerSettings Trees = new LayerSettings { CellSize = 4.5f, TileSize = 108f, Radius = 1500f, Lod1Distance = 55f, Lod2Distance = 220f, ShadowCastDistance = 60f, ThinFrom = 0.25f, ThinTo = 0.5f };
         [Tooltip("Placement cells started per frame across all layers. Placement runs on worker threads in the " +
                  "background; too many at once crowds out the terrain's own jobs and causes hitches.")]
