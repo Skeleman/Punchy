@@ -20,6 +20,31 @@ namespace Punchy.Terrain
         const float GridCell = 32f;
         /// <summary>Rock kept above every passage (m), so the hillside never opens except at mouths and shafts.</summary>
         const float Cover = 3f;
+        /// <summary>
+        /// A-91 row 3 (Zach 11-10): caves about twice as big as their landmark types say: main passages twice as long,
+        /// twice the chambers along them and twice the side passages (the types' numbers are kept, so landmark hashes and
+        /// the asset ranges don't move).
+        /// </summary>
+        const int Grow = 2;
+        /// <summary>
+        /// A-91 row 3: steepest a main path's floor climbs or falls between two nodes (rise over run), so every main path
+        /// can be walked end to end by a human and a rabbit: about 17 degrees, under the player's slope limit.
+        /// </summary>
+        public const float MainGrade = 0.3f;
+        /// <summary>
+        /// A-91 row 3: how steep a whole main path may get when thin rock further on leaves MainGrade no way under it
+        /// (about 31 degrees, still well under the 45 degree slope limit).
+        /// </summary>
+        const float MaxGrade = 0.6f;
+        /// <summary>A-91 row 3: the share of MainGrade a main path may climb or fall between a chamber and its neighbours.</summary>
+        const float ChamberGrade = 0.2f;
+        /// <summary>A-91 row 3: the smallest a main path's node may be squashed to under shallow rock, as a share of the passage radius.</summary>
+        const float MinMain = 0.8f;
+        /// <summary>
+        /// A-91 row 3: the least headroom (m, floor to the passage's planned top) a squashed main-path node keeps, so a
+        /// human walks under it upright past the wall noise: a squat passage near a mouth sinks its floor instead.
+        /// </summary>
+        const float MainHead = 2.8f;
 
         /// <summary>A node a side passage can start from, and the way its own passage was heading there.</summary>
         struct Attach
@@ -84,17 +109,93 @@ namespace Punchy.Terrain
                 // Highest a node's centre may be at a spot: its top (the passage's height there) under the cover, below
                 // the lowest ground round it out to half way to the next node, so a passage running under a canyon's edge
                 // or a valley between nodes doesn't break the surface there (F-31: torn holes in a mesa wall).
-                float Ceiling(float2 xz, float nodeRadius)
+                // ahead (non-zero only near a mouth) skips the ring samples behind the node, out past the face: the low
+                // ground outside a cliff mouth would otherwise sink the first nodes into a drop (A-91 row 3).
+                float Ceiling(float2 xz, float nodeRadius, float2 ahead = default)
                 {
                     var ground = terrain.SampleHeight(xz);
                     var ring = nodeRadius * profile.x + NodeSpacing * 0.5f;
                     for (int k = 0; k < 8; k++)
                     {
                         var a = k * math.PI / 4f;
-                        ground = math.min(ground, terrain.SampleHeight(xz + new float2(math.cos(a), math.sin(a)) * ring));
+                        var dir = new float2(math.cos(a), math.sin(a));
+                        if (math.dot(dir, ahead) < -0.1f)
+                            continue;
+                        ground = math.min(ground, terrain.SampleHeight(xz + dir * ring));
                     }
                     return ground - nodeRadius * profile.y - Cover;
                 }
+
+                // A-91 row 3: how far a node's floor lies under its centre (as CaveSampling's capsules cut it), so main
+                // paths can be graded on their floors: a wide chamber's floor sits lower than a passage's at the same centre.
+                var flatness = rock.y;
+                float FloorDrop(float nodeRadius) => nodeRadius * profile.y * (0.45f + (1f - flatness) * 0.65f);
+                // Grades a main path (chain[0] is fixed: the mouth, or the node it branches from): each floor as near its
+                // planned height as it can be, never above its node's ceiling, and never more than MainGrade per metre
+                // above or below the floor before it. The ceilings are made Lipschitz first (a low ceiling pulls the
+                // floors before it down gradually), so the grade only gives way to the ceiling right at a mouth. A node
+                // too tall for the rock over its graded floor is made lower (down to MinMain of the passage radius)
+                // rather than sunk, so a chamber near a mouth is squat instead of a pit.
+                var tall = profile.y * (1.45f + (1f - flatness) * 0.65f);
+                var minMain = math.max(r * MinMain, MainHead / tall);
+                void Grade(List<int> path, List<float> want, List<float> ceil)
+                {
+                    var n = path.Count;
+                    var up = new float[n];
+                    var hard = new float[n];
+                    var f = new float[n];
+                    var gap = new float[n];
+                    var full = new float[n];
+                    for (int i = 0; i < n; i++)
+                    {
+                        var node = nodes[path[i]];
+                        var least = math.min(node.Radius, minMain);
+                        up[i] = hard[i] = ceil[i] == float.MaxValue ? float.MaxValue : ceil[i] + node.Radius * profile.y - least * tall;
+                        full[i] = gap[i] = i > 0 ? math.distance(node.Position.xz, nodes[path[i - 1]].Position.xz) * MainGrade : 0f;
+                        // Into or out of a chamber nearly level: a chamber's floor is a flat disc, so a passage that
+                        // came down onto it at the full grade would meet the disc's rim as a step.
+                        if (i > 0 && (kinds[path[i]] == CaveNodeKind.Chamber || kinds[path[i - 1]] == CaveNodeKind.Chamber))
+                            gap[i] *= ChamberGrade;
+                    }
+                    // When the rock gets too thin further on for MainGrade to get under it from chain[0] (a cave running
+                    // in under a valley lower than its mouth), the whole path steepens just enough (up to MaxGrade)
+                    // instead of the floor dropping off a ledge where it can't keep up.
+                    f[0] = nodes[path[0]].Position.y - FloorDrop(nodes[path[0]].Radius);
+                    float run = 0f, need = MainGrade;
+                    for (int i = 1; i < n; i++)
+                    {
+                        run += full[i] / MainGrade;
+                        if (hard[i] != float.MaxValue)
+                            need = math.max(need, (f[0] - hard[i]) / math.max(run, 1f));
+                    }
+                    var steepen = math.min(need, MaxGrade) / MainGrade;
+                    for (int i = 1; i < n; i++)
+                    {
+                        full[i] *= steepen;
+                        gap[i] *= steepen;
+                    }
+                    // up is the ceiling made Lipschitz at the chamber-eased grade (where the floors aim); hard at the
+                    // full grade (what they must stay under). When a path has to dive under low ground further on, the
+                    // eased grade can't get there in time, so the floors fall back to the full grade instead of meeting
+                    // the mouth with a drop.
+                    for (int i = 1; i < n; i++) up[i] = math.min(up[i], up[i - 1] + gap[i]);
+                    for (int i = n - 2; i >= 0; i--) up[i] = math.min(up[i], up[i + 1] + gap[i + 1]);
+                    for (int i = n - 2; i >= 0; i--) hard[i] = math.min(hard[i], hard[i + 1] + full[i + 1]);
+                    for (int i = 1; i < n; i++)
+                    {
+                        f[i] = math.clamp(math.min(want[i], up[i]), f[i - 1] - gap[i], f[i - 1] + gap[i]);
+                        f[i] = math.min(f[i], hard[i]);
+                        var node = nodes[path[i]];
+                        if (ceil[i] != float.MaxValue)
+                            node.Radius = math.clamp((ceil[i] + node.Radius * profile.y - f[i]) / tall, math.min(node.Radius, minMain), node.Radius);
+                        node.Position.y = f[i] + FloorDrop(node.Radius);
+                        nodes[path[i]] = node;
+                    }
+                }
+                var chain = new List<int>();
+                var plan = new List<float>();
+                var tops = new List<float>();
+                var mainEnds = new int3(-1);
 
                 // The entrance: starting just outside the face, so the passage cuts cleanly into it.
                 var start = inst.Position - forward * (radius * type.Edge * 0.5f + r * 0.6f);
@@ -102,12 +203,20 @@ namespace Punchy.Terrain
                 var previous = AddNode(mouth, r, CaveNodeKind.Passage);
                 var heading = math.atan2(forward.y, forward.x);
                 var p = start;
-                var steps = math.max(3, (int)math.ceil(type.CaveLength / NodeSpacing));
+                var steps = math.max(3, (int)math.ceil(type.CaveLength * Grow / NodeSpacing));
+                var chambers = type.CaveChambers * Grow;
+                var branches = type.CaveBranches * Grow;
+                // A-91 row 3: 1, 2 or 3 main paths (the main passage, then the first side passages off it), by how
+                // branchy the type is: grottos one, entrances and mines two, networks three.
+                var mains = math.clamp(1 + type.CaveBranches / 3, 1, 3);
+                chain.Add(previous);
+                plan.Add(mouth.y - FloorDrop(r));
+                tops.Add(float.MaxValue);
 
                 // Chambers along the main passage, evenly spaced between the entrance and the end.
                 var chamberAt = new HashSet<int>();
-                for (int c = 0; c < type.CaveChambers; c++)
-                    chamberAt.Add(math.clamp((int)math.round((c + 1f) * steps / (type.CaveChambers + 1f)), 2, steps - 1));
+                for (int c = 0; c < chambers; c++)
+                    chamberAt.Add(math.clamp((int)math.round((c + 1f) * steps / (chambers + 1f)), 2, steps - 1));
 
                 for (int k = 1; k <= steps; k++)
                 {
@@ -121,28 +230,86 @@ namespace Punchy.Terrain
                         : r * math.lerp(1f, rng.NextFloat(0.85f, 1.2f), wander);
                     // Down by the cave's depth, and always a good way under the surface above.
                     var y = floor + r * 0.4f - type.CaveDepth * math.smoothstep(0.1f, 1f, t);
-                    if (k > 1)
-                        y = math.min(y, Ceiling(p, nodeRadius));
+                    var top = k > 1 ? Ceiling(p, nodeRadius, k <= 3 ? forward : default) : float.MaxValue;
+                    plan.Add(y - FloorDrop(r));
+                    tops.Add(top);
+                    y = math.min(y, top);
                     var node = AddNode(new float3(p.x, y, p.y), nodeRadius, isChamber ? CaveNodeKind.Chamber : CaveNodeKind.Passage);
                     Join(previous, node);
                     previous = node;
+                    chain.Add(node);
                     if (k >= 2)
                         attach.Add(new Attach { Node = node, Heading = heading });
+                }
+                Grade(chain, plan, tops);
+                mainEnds.x = previous - firstNode;
+                var mainSegments = segments.Count;   // segments before this are the main passage's; main branches add theirs to mainLinks
+                var mainLinks = new List<int2>();
+                for (int s = firstSegment; s < mainSegments; s++)
+                    mainLinks.Add(new int2(segments[s].A, segments[s].B));
+
+                // A-91 row 3: whether the passages laid since segment `since` run into a main path's passage at another
+                // height (a floor a metre or more apart, with too little rock between them), which cuts a pit or a
+                // shelf into the main path where they meet. Passages well above or below one, or level with it (a
+                // crossroads), are fine. The node a branch starts from is skipped: it meets the main path there by design.
+                float Floor(float3 at, float nodeRadius) => at.y - FloorDrop(nodeRadius);
+                float Top(float3 at, float nodeRadius) => at.y + nodeRadius * profile.y + CaveSampling.JaggedReach * rock.x;
+                bool CutsMain(int since, int fromNode)
+                {
+                    for (int s = since; s < segments.Count; s++)
+                        for (int k = 0; k <= 2; k++)
+                        {
+                            var na = nodes[segments[s].A];
+                            var nb = nodes[segments[s].B];
+                            var at = math.lerp(na.Position, nb.Position, k * 0.5f);
+                            var ar = math.lerp(na.Radius, nb.Radius, k * 0.5f);
+                            foreach (var link in mainLinks)
+                            {
+                                if (link.x == fromNode || link.y == fromNode)
+                                    continue;
+                                var ma = nodes[link.x];
+                                var mb = nodes[link.y];
+                                var ab = mb.Position.xz - ma.Position.xz;
+                                var t = math.saturate(math.dot(at.xz - ma.Position.xz, ab) / math.max(math.lengthsq(ab), 1e-6f));
+                                var mp = math.lerp(ma.Position, mb.Position, t);
+                                var mr = math.lerp(ma.Radius, mb.Radius, t);
+                                if (math.distance(at.xz, mp.xz) > (ar + mr) * profile.x + 1f)
+                                    continue;
+                                float fa = Floor(at, ar), fm = Floor(mp, mr);
+                                if (math.abs(fa - fm) < 1f)
+                                    continue;
+                                var clear = fa > fm ? fa - Top(mp, mr) : fm - Top(at, ar);
+                                if (clear < 1.5f)
+                                    return true;
+                            }
+                        }
+                    return false;
                 }
 
                 // Side passages. The first half start from the main passage; later ones may start from earlier side
                 // passages too, so big networks branch like a tree (and meet themselves where branches cross).
+                // A-91 row 3: the first mains - 1 of them are main paths too (always off the main passage, twice as long,
+                // graded like it); the rest may be as steep as they come.
                 var mainAttach = attach.Count;
-                for (int b = 0; b < type.CaveBranches && attach.Count > 0; b++)
+                for (int b = 0, tries = 0; b < branches && attach.Count > 0; b++)
                 {
-                    var from = attach[rng.NextInt(b < (type.CaveBranches + 1) / 2 ? mainAttach : attach.Count)];
+                    var main = b < mains - 1;
+                    int nodesBefore = nodes.Count, segmentsBefore = segments.Count, attachBefore = attach.Count;
+                    var from = attach[rng.NextInt(main || b < (branches + 1) / 2 ? mainAttach : attach.Count)];
                     var origin = nodes[from.Node].Position;
                     var bh = from.Heading + (rng.NextBool() ? 1f : -1f) * math.lerp(math.PI * 0.5f, rng.NextFloat(0.7f, 1.6f), wander);
-                    var length = type.BranchLength * inst.Scale * rng.NextFloat(0.6f, 1.25f);
+                    var length = type.BranchLength * inst.Scale * rng.NextFloat(0.6f, 1.25f) * (main ? Grow : 1);
                     var bsteps = math.max(2, (int)math.ceil(length / NodeSpacing));
                     var targetY = origin.y - rng.NextFloat(-2f, type.CaveDepth * 0.5f + 1f);
                     var bp = origin.xz;
                     var last = from.Node;
+                    chain.Clear();
+                    plan.Clear();
+                    tops.Clear();
+                    var originFloor = origin.y - FloorDrop(nodes[from.Node].Radius);
+                    chain.Add(from.Node);
+                    plan.Add(originFloor);
+                    tops.Add(float.MaxValue);
                     for (int k = 1; k <= bsteps; k++)
                     {
                         if (k > 1)
@@ -150,11 +317,38 @@ namespace Punchy.Terrain
                         bp += new float2(math.cos(bh), math.sin(bh)) * NodeSpacing;
                         var end = k == bsteps;
                         var nodeRadius = end ? chamber * rng.NextFloat(0.45f, 0.7f) : r * math.lerp(0.9f, rng.NextFloat(0.7f, 1.05f), wander);
-                        var y = math.min(math.lerp(origin.y, targetY, k / (float)bsteps), Ceiling(bp, nodeRadius));
+                        var top = Ceiling(bp, nodeRadius);
+                        var y = math.min(math.lerp(origin.y, targetY, k / (float)bsteps), top);
                         var node = AddNode(new float3(bp.x, y, bp.y), nodeRadius, end ? CaveNodeKind.Chamber : CaveNodeKind.Passage);
                         Join(last, node);
                         last = node;
                         attach.Add(new Attach { Node = node, Heading = bh });
+                        chain.Add(node);
+                        plan.Add(originFloor + (targetY - origin.y) * k / bsteps);
+                        tops.Add(top);
+                    }
+                    if (main)
+                        Grade(chain, plan, tops);
+                    // A-91 row 3: a passage that runs into a main path at another height is laid again on a new heading
+                    // (up to 4 times), then left out.
+                    if (CutsMain(segmentsBefore, from.Node))
+                    {
+                        nodes.RemoveRange(nodesBefore, nodes.Count - nodesBefore);
+                        kinds.RemoveRange(nodesBefore, kinds.Count - nodesBefore);
+                        segments.RemoveRange(segmentsBefore, segments.Count - segmentsBefore);
+                        attach.RemoveRange(attachBefore, attach.Count - attachBefore);
+                        if (++tries < 4)
+                            b--;
+                        else
+                            tries = 0;
+                        continue;
+                    }
+                    tries = 0;
+                    if (main)
+                    {
+                        mainEnds[b + 1] = last - firstNode;
+                        for (int s = segmentsBefore; s < segments.Count; s++)
+                            mainLinks.Add(new int2(segments[s].A, segments[s].B));
                     }
                 }
 
@@ -205,7 +399,8 @@ namespace Punchy.Terrain
                     Profile = profile,
                     Wall = wall,
                     Facet = style != null ? new float2(style.Angularity, style.FacetSize) : float2.zero,
-                    Rock = rock
+                    Rock = rock,
+                    MainEnds = mainEnds
                 });
             }
 
@@ -361,8 +556,9 @@ namespace Punchy.Terrain
                         for (int i = 0; i < count; i++)
                         {
                             var point = extras.StreamPoints[first + i];
-                            min = math.min(min, point.Position.xz - point.Width);
-                            max = math.max(max, point.Position.xz + point.Width);
+                            var reach = point.Width + (point.Depth + 1.2f + CaveSampling.BankReach) * CaveSampling.BankRun;   // past the bank (StreamBed)
+                            min = math.min(min, point.Position.xz - reach);
+                            max = math.max(max, point.Position.xz + reach);
                         }
                         extras.Streams.Add(new CaveStream { FirstPoint = first, PointCount = extras.StreamPoints.Count - first, Min = min, Max = max });
                         // The pool at the stream's end, at its own level, added to this cave's pools (later caves'
@@ -500,6 +696,7 @@ namespace Punchy.Terrain
                 if (density <= 0f)
                     continue;
                 var rng = new Random(math.hash(new uint2(caves[c].Key, 0x57A1u)) | 1u);
+                var mains = MainLines(cave, nodes, segments);
                 for (int n = cave.FirstNode; n < cave.FirstNode + cave.NodeCount; n++)
                 {
                     // Chambers, and at half the density any passage wide enough to keep a way past them (so even a
@@ -515,7 +712,8 @@ namespace Punchy.Terrain
                         var a = rng.NextFloat(math.PI * 2f);
                         var q = centre.xz + new float2(math.cos(a), math.sin(a)) * spread * math.sqrt(rng.NextFloat());
                         var thickness = (style != null ? style.SpeleothemThickness : 0.55f) * rng.NextFloat(0.7f, 1.3f);
-                        if (InTheWay(q, 0.6f + thickness * 1.3f, n, nodes, segments, cave) || InPool(q, thickness, pools, cave))
+                        if (InTheWay(q, 0.6f + thickness * 1.3f, n, nodes, segments, cave) || OnMain(q, 0.6f + thickness * 1.3f, mains)
+                            || InPool(q, thickness, pools, cave))
                             continue;
                         var floor = source.FloorUnder(new float3(q.x, centre.y, q.y), out var inCave);
                         if (!inCave || source.CaveDistance(new float3(q.x, floor + 0.3f, q.y)) >= 0f)
@@ -565,6 +763,7 @@ namespace Punchy.Terrain
                     return;
                 var size = !ReferenceEquals(style, null) ? style.RubbleSize : 0.6f;
                 var rng = new Random(math.hash(new uint2(caves[c].Key, 0x2B1Eu)) | 1u);
+                var mains = MainLines(cave, nodes, segments);
                 for (int n = cave.FirstNode; n < cave.FirstNode + cave.NodeCount; n++)
                 {
                     if (kinds[n] != CaveNodeKind.Chamber)
@@ -598,7 +797,7 @@ namespace Punchy.Terrain
                         }
                         else
                             q = centre.xz + dir * spread * 0.8f * math.sqrt(rng.NextFloat());
-                        if (InTheWay(q, 0.6f + r, n, nodes, segments, cave) || InPool(q, r, pools, cave))
+                        if (InTheWay(q, 0.6f + r, n, nodes, segments, cave) || OnMain(q, 0.6f + r, mains) || InPool(q, r, pools, cave))
                             continue;
                         var floor = terrain.FloorUnder(new float3(q.x, centre.y, q.y), out var inCave);
                         if (!inCave || terrain.CaveDistance(new float3(q.x, floor + 0.3f, q.y)) >= 0f)
@@ -630,7 +829,7 @@ namespace Punchy.Terrain
                         if (!hit || t < r * 2.5f)
                             continue;
                         var q = centre.xz + dir * (t - r * 0.9f);
-                        if (InTheWay(q, 0.8f + r, n, nodes, segments, cave) || InPool(q, r, pools, cave))
+                        if (InTheWay(q, 0.8f + r, n, nodes, segments, cave) || OnMain(q, 0.8f + r, mains) || InPool(q, r, pools, cave))
                             continue;
                         var floor = terrain.FloorUnder(new float3(q.x, centre.y, q.y), out var inCave);
                         if (!inCave || terrain.CaveDistance(new float3(q.x, floor + r * 1.6f, q.y)) >= 0f)
@@ -1088,6 +1287,62 @@ namespace Punchy.Terrain
         }
 
         /// <summary>Whether a pool there would cover the way through a chamber: the axis of any passage joining it.</summary>
+        /// <summary>
+        /// A-91 row 3: the cave's main paths as flat lines (a.xz, b.xz), each link from the node nearest the mouth out
+        /// to each of CaveData.MainEnds (fewest links), so rock never lands across the graded walk in and out.
+        /// </summary>
+        static List<float4> MainLines(CaveData cave, List<CaveNode> nodes, List<CaveSegment> segments)
+        {
+            var lines = new List<float4>();
+            var first = cave.FirstNode;
+            var count = cave.NodeCount;
+            var links = new List<int>[count];
+            for (int k = 0; k < count; k++) links[k] = new List<int>();
+            for (int i = cave.FirstSegment; i < cave.FirstSegment + cave.SegmentCount; i++)
+            {
+                int a = segments[i].A - first, b = segments[i].B - first;
+                if (a < 0 || b < 0 || a >= count || b >= count) continue;
+                links[a].Add(b);
+                links[b].Add(a);
+            }
+            int mouth = 0;
+            for (int k = 1; k < count; k++)
+                if (math.distance(nodes[first + k].Position, cave.Mouth) < math.distance(nodes[first + mouth].Position, cave.Mouth))
+                    mouth = k;
+            var back = new int[count];
+            for (int k = 0; k < count; k++) back[k] = -2;
+            var queue = new Queue<int>();
+            queue.Enqueue(mouth);
+            back[mouth] = -1;
+            while (queue.Count > 0)
+            {
+                var at = queue.Dequeue();
+                foreach (var l in links[at])
+                    if (back[l] == -2) { back[l] = at; queue.Enqueue(l); }
+            }
+            for (int m = 0; m < 3; m++)
+            {
+                var end = cave.MainEnds[m];
+                if (end < 0 || end >= count) continue;
+                for (int k = end; back[k] >= 0; k = back[k])
+                    lines.Add(new float4(nodes[first + back[k]].Position.xz, nodes[first + k].Position.xz));
+            }
+            return lines;
+        }
+
+        /// <summary>A-91 row 3: whether q is within radius (plus a body's width) of one of the main path lines.</summary>
+        static bool OnMain(float2 q, float radius, List<float4> lines)
+        {
+            foreach (var l in lines)
+            {
+                var ab = l.zw - l.xy;
+                var t = math.saturate(math.dot(q - l.xy, ab) / math.max(math.lengthsq(ab), 1e-6f));
+                if (math.distance(q, l.xy + ab * t) < radius + 1.2f)
+                    return true;
+            }
+            return false;
+        }
+
         static bool InTheWay(float2 q, float radius, int node, List<CaveNode> nodes, List<CaveSegment> segments, CaveData cave)
         {
             for (int i = cave.FirstSegment; i < cave.FirstSegment + cave.SegmentCount; i++)

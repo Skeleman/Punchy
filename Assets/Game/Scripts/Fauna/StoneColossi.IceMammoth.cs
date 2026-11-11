@@ -258,6 +258,13 @@ namespace Punchy.Fauna
             return u * u * u * p0 + 3f * u * u * t * p1 + 3f * u * t * t * p2 + t * t * t * p3;
         }
 
+        /// <summary>
+        /// The trunk's sway at clock time <paramref name="t"/>: it swings and curls about its pivot. <paramref name="sway"/>
+        /// scales the swing (1 as built; M-05's Model Lab tunes and previews it). Shared by the game and the Lab.
+        /// </summary>
+        public static Quaternion MammothTrunkPose(float t, float sway) =>
+            Quaternion.Euler(Mathf.Sin(t * 0.37f) * 9f * sway - 4f, Mathf.Sin(t * 0.23f + 1f) * 12f * sway, Mathf.Sin(t * 0.31f) * 5f * sway);
+
         static class MammothRig
         {
             public static Transform Root, Trunk;
@@ -368,7 +375,7 @@ namespace Punchy.Fauna
                 return;
             // The trunk sways and curls; a breath steams off its tip every few seconds; a low rumble; an icicle drips.
             if (MammothRig.Trunk != null)
-                MammothRig.Trunk.localRotation = Quaternion.Euler(Mathf.Sin(t * 0.37f) * 9f - 4f, Mathf.Sin(t * 0.23f + 1f) * 12f, Mathf.Sin(t * 0.31f) * 5f);
+                MammothRig.Trunk.localRotation = MammothTrunkPose(t, CreatureTunables.ForColossus(nameof(Kind.IceMammoth))?.Sway ?? 1f);
             MammothRig.Breath?.Tick(eye);
             if (t >= MammothRig.NextRumble)
             {

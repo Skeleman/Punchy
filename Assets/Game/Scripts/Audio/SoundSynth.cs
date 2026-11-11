@@ -22,7 +22,10 @@ namespace Punchy.Audio
         Rattle, FrogChorus,
         // More voices for cats and dogs (Z-51): a cat's hiss and its night yowl, a dog's whine, growl and its own softer
         // howl (not the wolf's).
-        Hiss, Yowl, Whine, Growl, DogHowl
+        Hiss, Yowl, Whine, Growl, DogHowl,
+        // Under water (A-98): the hum around a camera under the surface (GameAudio's own bed, not a pool voice), and a
+        // burst of bubbles.
+        UnderwaterHum, Bubbles
     }
 
     /// <summary>
@@ -45,12 +48,14 @@ namespace Punchy.Audio
             SoundId.Whinny => 2, SoundId.Bleat => 3, SoundId.Moo => 3, SoundId.Grunt => 3, SoundId.Pant => 3,
             SoundId.CricketChirp => 3, SoundId.Croak => 4, SoundId.Cicada => 2, SoundId.Drum => 3, SoundId.Zip => 3, SoundId.Zap => 3,
             SoundId.StepPaw => 3, SoundId.StepGrass => 3, SoundId.StepSnow => 3, SoundId.StepRock => 3, SoundId.StepSand => 3, SoundId.Rattle => 2,
-            SoundId.Hiss => 3, SoundId.Yowl => 3, SoundId.Whine => 3, SoundId.Growl => 3, SoundId.DogHowl => 3, _ => 1
+            SoundId.Hiss => 3, SoundId.Yowl => 3, SoundId.Whine => 3, SoundId.Growl => 3, SoundId.DogHowl => 3,
+            SoundId.Bubbles => 3, _ => 1
         };
 
         public static bool Loops(SoundId id) => id == SoundId.BeeBuzz || id == SoundId.Crickets || id == SoundId.FireCrackle ||
                                                  id == SoundId.TorchHiss || id == SoundId.WaterfallRush || id == SoundId.TownMurmur ||
-                                                 id == SoundId.MineAmbience || id == SoundId.Purr || id == SoundId.FrogChorus;
+                                                 id == SoundId.MineAmbience || id == SoundId.Purr || id == SoundId.FrogChorus ||
+                                                 id == SoundId.UnderwaterHum;
 
         public static float[] Generate(SoundId id, int variant)
         {
@@ -111,6 +116,8 @@ namespace Punchy.Audio
                 SoundId.Whine => Whine(rng),
                 SoundId.Growl => Growl(rng),
                 SoundId.DogHowl => Howl(rng, 1.6f, 2.4f, 430f, 520f, 0.45f),
+                SoundId.UnderwaterHum => Hum(rng),
+                SoundId.Bubbles => Bubbles(rng),
                 _ => new float[1]
             };
         }
@@ -1208,6 +1215,106 @@ namespace Punchy.Audio
                 s[i] = (crack + ticks + fizz) * (1f - u) * (1f - u);
             }
             return Normalise(s, 0.6f);
+        }
+
+        /// <summary>
+        /// The sea around an ear under water, 8 s looped: a deep rumble (noise in a 40-120 Hz band, two passes so it's
+        /// round rather than hissy) swelling once a loop, a slower drone under it, now and then a few faint far-off
+        /// bubbles and the odd creak or click, all dull (nothing much above a kilohertz carries to the ear).
+        /// </summary>
+        static float[] Hum(System.Random rng)
+        {
+            const float seconds = 8f;
+            var fade = Rate;
+            var n = (int)(seconds * Rate) + fade;
+            var s = new float[n];
+            var low = new Band();
+            var lower = new Band();
+            var deep = new Band();
+            float smooth = 0f;
+            for (int i = 0; i < n; i++)
+            {
+                var t = i / (float)Rate;
+                var x = Noise(rng);
+                // (The swell fits whole cycles in the loop, so it carries across the seam as the noise is crossfaded.)
+                var swell = 0.75f + 0.25f * Mathf.Sin(2f * Mathf.PI * t / seconds) + 0.08f * Mathf.Sin(2f * Mathf.PI * 3f * t / seconds + 1f);
+                var rumble = lower.Run(low.Run(x, 70f, 1.2f), 80f, 1.2f);
+                smooth += Pole(120f) * (rumble - smooth);
+                s[i] = (smooth * 2.2f + deep.Run(x, 42f, 3f) * 0.6f) * swell;
+            }
+            var level = 0f;
+            foreach (var v in s)
+                level = Mathf.Max(level, Mathf.Abs(v));
+            // Far bubbles: a few short rising blips, low and soft.
+            var bubbles = rng.Next(3, 6);
+            for (int b = 0; b < bubbles; b++)
+            {
+                var at = rng.Next(0, n - Rate / 4);
+                var hz = Lerp(260f, 520f, R(rng));
+                var size = Lerp(0.04f, 0.09f, R(rng)) * level;
+                Blip(s, at, hz, Lerp(0.03f, 0.06f, R(rng)), size);
+            }
+            // The odd creak (a slow low groan) or click (a dull tick), once or twice a loop.
+            var creaks = rng.Next(1, 3);
+            for (int c = 0; c < creaks; c++)
+            {
+                var at = rng.Next(0, n - Rate);
+                if (R(rng) < 0.5f)
+                {
+                    var band = new Band();
+                    var len = (int)(Lerp(0.35f, 0.7f, R(rng)) * Rate);
+                    var hz = Lerp(150f, 260f, R(rng));
+                    for (int i = 0; i < len; i++)
+                    {
+                        var u = i / (float)len;
+                        var grain = 0.6f + 0.4f * Mathf.Sin(2f * Mathf.PI * Lerp(18f, 30f, u) * i / Rate);
+                        s[at + i] += band.Run(Noise(rng), hz * (1f + 0.25f * u), 12f) * Mathf.Sin(u * Mathf.PI) * grain * level * 0.6f;
+                    }
+                }
+                else
+                {
+                    var band = new Band();
+                    for (int i = 0; i < Rate / 20; i++)
+                        s[at + i] += band.Run(Noise(rng), 700f, 4f) * Mathf.Exp(-i / (0.006f * Rate)) * level * 0.9f;
+                }
+            }
+            return Normalise(Seamless(s, fade), 0.5f);
+        }
+
+        /// <summary>A burst of bubbles, ~0.6 s: half a dozen to a dozen blips rising in pitch, close and a little muffled.</summary>
+        static float[] Bubbles(System.Random rng)
+        {
+            var n = (int)(0.7f * Rate);
+            var s = new float[n];
+            var count = rng.Next(6, 13);
+            for (int b = 0; b < count; b++)
+            {
+                // Bunched at the start, thinning out, smaller (higher) ones later.
+                var u = R(rng) * R(rng);
+                var at = (int)(u * 0.45f * Rate);
+                Blip(s, at, Lerp(350f, 900f, R(rng)) * (1f + u), Lerp(0.02f, 0.05f, R(rng)), Lerp(0.5f, 1f, R(rng)) * (1f - 0.5f * u));
+            }
+            float dull = 0f;
+            for (int i = 0; i < n; i++)
+            {
+                dull += Pole(2500f) * (s[i] - dull);
+                s[i] = dull;
+            }
+            return Normalise(s, 0.5f);
+        }
+
+        /// <summary>One bubble added at a sample: a sine whose pitch rises as it rings down (how a bubble sounds).</summary>
+        static void Blip(float[] s, int at, float hz, float decay, float level)
+        {
+            var len = Mathf.Min((int)(decay * 5f * Rate), s.Length - at);
+            var phase = 0.0;
+            for (int i = 0; i < len; i++)
+            {
+                var t = i / (float)Rate;
+                phase += hz * (1f + t / decay * 0.6f) / Rate;
+                var attack = Mathf.Min(1f, t / 0.002f);
+                s[at + i] += Mathf.Sin((float)(phase * 2.0 * Math.PI)) * Mathf.Exp(-t / decay) * attack * level;
+            }
         }
     }
 }

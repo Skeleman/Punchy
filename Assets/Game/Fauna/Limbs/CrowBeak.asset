@@ -23,6 +23,7 @@ MonoBehaviour:
     FixedColor: {r: 0.2, g: 0.2, b: 0.22, a: 1}
     Glow: 0
     Hair: 0
+    Surface: 5
   Spring: 0
   JointPhaseStep: 0
   FollowGround: 0

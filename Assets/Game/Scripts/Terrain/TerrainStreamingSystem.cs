@@ -34,6 +34,8 @@ namespace Punchy.Terrain
             public Entity WaterEntity;   // Entity.Null when the chunk is dry
             public Mesh WaterMesh;
             public BatchMeshID WaterMeshId;
+            /// <summary>R-9: bumped each time the chunk is meshed, so a copy of its water (WaterPatchSystem) knows to redo it.</summary>
+            public int Built;
         }
 
         struct BuildItem
@@ -481,6 +483,7 @@ namespace Punchy.Terrain
                     EntityManager.SetComponentData(chunk.Entity, new RenderBounds { Value = terrainBounds });
                 }
                 chunk.Lod = item.Lod;
+                chunk.Built = ++builtStamp;
 
                 // Water entities come and go as a chunk's water appears or disappears.
                 var canDrawWater = hasWater && waterMaterialId != BatchMaterialID.Null;
@@ -626,6 +629,35 @@ namespace Punchy.Terrain
             EntityManager.SetName(entity, name);
 #endif
             return entity;
+        }
+
+        int builtStamp;
+
+        /// <summary>
+        /// R-9: a loaded chunk's water mesh (chunk-local, CPU-readable; one vertex per grid point, triangles only on wet
+        /// quads), its detail level and a stamp that changes whenever it is meshed again. False when the chunk isn't
+        /// loaded or has no water drawn. For WaterPatchSystem's fine copy near the player; read it, never change it.
+        /// </summary>
+        public bool TryGetWater(int2 coord, out Mesh mesh, out int lod, out int built)
+        {
+            mesh = null;
+            lod = -1;
+            built = 0;
+            if (!loaded.TryGetValue(coord, out var chunk))
+                return false;
+            lod = chunk.Lod;
+            built = chunk.Built;
+            if (chunk.WaterEntity == Entity.Null)
+                return false;
+            mesh = chunk.WaterMesh;
+            return true;
+        }
+
+        /// <summary>Whether a chunk is loaded (with or without water), and its detail level.</summary>
+        public bool TryGetLod(int2 coord, out int lod)
+        {
+            lod = loaded.TryGetValue(coord, out var chunk) ? chunk.Lod : -1;
+            return lod >= 0;
         }
 
         /// <summary>Unloads a chunk; its entities go on the dead list, destroyed together by the caller.</summary>
