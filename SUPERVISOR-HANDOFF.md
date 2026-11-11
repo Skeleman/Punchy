@@ -214,3 +214,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-10: Zach asked for props to darken the ground under them (cave: W-135 row 4; terrain: new W-136, never built before). World order R-9 -> W-135 -> W-136 -> W-134 -> W-132.
 - 11-10: #252 merged (M-05 rows 1-3, main 0477dd07). No bench (no runtime change while the asset is empty). M-05 rows 4+ (colossi editing) wait on Zach's look at the Lab.
 - 11-10: #253 merged (R-9, main cc835cf6). Benches 45c/45d/45f pending (post-merge). Cave falls -> W-135. World tree now on W-135.
+- 11-10: Zach: cave mouths still have a seam (asked many times). New W-137: geometric cut and a shared-vertex collar (row 1), prolapse lip as fallback or option (row 2), Zach picks. World order R-9 -> W-135 -> W-137 -> W-136 -> W-134 -> W-132.
