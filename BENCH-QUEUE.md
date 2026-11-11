@@ -554,6 +554,7 @@ W-134 row 2 on `world/cave-water`: cave pools and streams are baked as 0.5 m qua
 - Arms: (A) origin/main 393a9c20 or newer; (B) `world/cave-water` at 54dd9ff3 or newer. Profile builds, 1920x1080, High, uncapped, ABBA, 300 frames per arm. Can share a session with job 55 (same branch).
 - Views: (a) `-place cavepool`, looking over the pool; (b) a stream cave if one can be placed; (c) the walk from the cave mouth to the pool (the bake fires on approach): list frames over 2x the median.
 - Record whole-frame GPU, CPU and render-thread ms, plus draw calls and the bake job's main-thread cost if it shows in the profiler.
+- 11-11 widening (W-134 row 3, 11176d1c): arm B at 11176d1c or newer. Also (d) inside lake 1's hall (-2600,205,334), standing and swimming; (e) the cave bake's new 'lakes' and 'lake details' steps, main vs branch.
 - Pass: B within noise of A at (a) and (b); no new hitch over 2x median on (c).
 
 ## Job 58 (2026-11-11, QUEUED after 57; supervisor, for W-136 row 3 + W-135): one contact-shade path, caves and overworld
