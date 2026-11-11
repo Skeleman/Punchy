@@ -555,7 +555,8 @@ W-134 row 2 on `world/cave-water`: cave pools and streams are baked as 0.5 m qua
 - Views: (a) `-place cavepool`, looking over the pool; (b) a stream cave if one can be placed; (c) the walk from the cave mouth to the pool (the bake fires on approach): list frames over 2x the median.
 - Record whole-frame GPU, CPU and render-thread ms, plus draw calls and the bake job's main-thread cost if it shows in the profiler.
 - 11-11 widening (W-134 row 3, 11176d1c): arm B at 11176d1c or newer. Also (d) inside lake 1's hall (-2600,205,334), standing and swimming; (e) the cave bake's new 'lakes' and 'lake details' steps, main vs branch.
-- Pass: B within noise of A at (a) and (b); no new hitch over 2x median on (c).
+- 11-11 widening (W-134 row 4, 6df55722): arm B at 6df55722 or newer. Also (f) river chamber 0 (cave 20) at the vault and the gravel bars; (g) chamber 1's chute (cave 24); (h) small deep cave 1 as a baseline; (i) the bake's new 'rivers' and 'river details' steps. Record draws, SetPass, triangles and memory at (f)-(h). The world lane counted up to 2999 draws at (f), most from the overworld that still draws within 45 m of a mouth: note how much of the frame is surface vs cave.
+- Pass: B within noise of A at (a), (b) and (h); no new hitch over 2x median on (c); (f)/(g) are measures (no main arm has chambers).
 
 ## Job 58 (2026-11-11, QUEUED after 57; supervisor, for W-136 row 3 + W-135): one contact-shade path, caves and overworld
 W-136 row 3 on `world/ground-contact-shade` (077acd90): one ContactShade path for terrain chunks, cave chunks and room/kit tiles; cave plants now use fitted feet (1209 -> 4564 contacts). Cost only, no look change.
