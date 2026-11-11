@@ -2,6 +2,42 @@
 
 Newest first.
 
+## Job 45c: R-9 row 4 water field re-run (water/deform 24459300), 2026-11-10 (q79.sh): FAIL (+1.6 ms GPU against <= +0.3)
+**Setup:**
+- Job 45's spot and swim: `-goto 488,-1144`, swimming at y 9.2, then east 40 m at 4 m/s.
+- Profile build, 1920x1080, `-gfx High`, uncapped, noon, Clear, a fresh game per run.
+- Field on vs `-waterfield 0`, 4 rounds alternating. One RenderDoc frame per arm.
+
+| arm | GPU ms by round | mean GPU | median frame | CPU |
+|---|---|---|---|---|
+| field on | 19.2, 18.8, 20.0, 19.4 | 19.35 | 23.1 | 24.05 |
+| `-waterfield 0` | 17.8, 17.5, 18.0, 17.8 | 17.8 | 22.35 | 23.2 |
+
+- **The cost:** on costs **+1.6 ms GPU** (down from job 45's +3.7) and +0.9 ms CPU (down from +4.7). The median frame is +0.75.
+- **Rounds:** every on round is above every off round. Round 2 on had a 58.8 s stall while settling, before measuring.
+
+**RenderDoc (one frame each, RenderDoc ms; about 3x the real GPU ms here):**
+- The whole frame is 59.7 off and 60.9 on (+1.2). All of that is DrawTransparentObjects, 17.2 to 18.4.
+- **The fine sheet:** one 4,944-index draw at **8.7 RenderDoc ms.** It's small in triangles, but it covers the water right in front
+  of the camera, so its cost is pixels: the field-normal water shading per pixel.
+- **The chunk water under it:** the 23,844-index draw falls from 10.0 to 2.4 RenderDoc ms, because it clips out where the sheet
+  covers it.
+- **Net:** about +1.1 RenderDoc ms, roughly +0.4 ms real.
+- **The rest of the bench gap,** about 1 ms, isn't in any drawing pass, and my pass tool lists no compute dispatches. The
+  likeliest place is WaterField.compute's step: 60 steps a second on a 256x256 field, catching up a few steps a frame at
+  ~45 fps. That's not verified.
+
+**For R-9 row 4 (world lane):**
+1. **Price the compute step.** For example, a run with the field's step off but the sheet drawn, if there's a switch for it,
+   or a RenderDoc frame with compute shown, or the Profiler's GPU timeline.
+2. **The sheet's pixel shader.** It costs about 15% more per pixel than the chunk water it replaces. A cheaper normal from the
+   field (fewer taps), or a smaller square at High, would cut it.
+3. **Indices:** 4,944 sheet indices here, not the 8,064 in the card. The sheet is already lean in triangles.
+
+Files (Punchy-wt results): q79.out, q79-on.csv, q79-off.csv, q79logs/, q79-shots/, rd79/*.rdc, q79-passes.txt.
+
+Cost: this job about $3 (laptop session 0a48ccdb; 1 build, 8 games, 2 captures); laptop total $711.
+
 ## SSAO on vs off in a cave and in town (Zach, 2026-11-10; q78.sh)
 **Setup:**
 - Main 33db029c (+ b/bench-lod 9bae987e, which only adds -lodscale), Profile build.
