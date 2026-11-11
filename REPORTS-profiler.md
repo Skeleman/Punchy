@@ -2,6 +2,64 @@
 
 Newest first.
 
+## Jobs 45d and 45f: R-9 rows 5 and 6 (water/deform 2856a634 and 9b1cacc1), 2026-11-10 (q80.sh): both FAIL
+**Setup:**
+- Profile builds, 1920x1080, `-gfx High`, uncapped, noon, Clear, a fresh game per run.
+- `-goto -2167,3,3691`, then the card's `-shotcam` views, measured by the bench's "here" stop (20 s).
+- 4 rounds alternating. One RenderDoc frame per arm.
+- The shots show fall 74, the plunge pool and the rapids as the cards describe.
+
+### 45d: the fall sheet (row 5), field on vs `-waterfield 0`: FAIL (+0.65 ms GPU against <= +0.3)
+| arm | GPU ms by round | mean GPU | median frame | CPU |
+|---|---|---|---|---|
+| on | 17.4, 17.3, 17.5, 17.7 | 17.5 | 20.0 | 21.1 |
+| off | 16.7, 17.1, 16.6, 16.9 | 16.8 | 19.35 | 20.1 |
+
+- **The cost:** +0.65 ms GPU and +1.0 ms CPU. Every on round is above every off round.
+- **RenderDoc (frame 54.7 off, 55.7 on):** the difference is all in DrawTransparentObjects, 14.5 to 15.5.
+  - The fall's fine sheet is one 25,536-index draw at 5.3 RenderDoc ms.
+  - The chunk water it covers drops: the 8,580-index draw from 3.6 to 2.0, and the 11,640-index draw from 2.8 to 1.7.
+  - Net +1.0 RenderDoc ms, about +0.35 ms real.
+- **The rest of the gap** (bench +0.65) is outside the draws again, like job 45c's ~1 ms. The CPU is up 1.0 ms here too.
+- The profiler's experiment b/fix-waterfield-step (below, q81) prices the field's compute, which should show how much of this
+  is the step.
+
+### 45f: rapids whitewater (row 6) vs row 5: FAIL (about +2.1 ms GPU against <= +0.2)
+| view / arm | GPU ms by round | mean GPU | median frame | CPU |
+|---|---|---|---|---|
+| rapids, row 6 | —, 22.5, —, 23.1 | 22.8 | 23.55 | 25.65 |
+| rapids, row 5 | 20.6, 20.9, 20.6, 20.5 | 20.65 | 21.5 | 23.35 |
+| band (6 m from x = -2176), row 6 | 22.5, 22.5, 23.5, 22.8 | 22.8 | 23.4 | 27.9 |
+| band, row 5 | 21.0, 20.5, 20.6, 20.6 | 20.7 | 21.9 | 23.6 |
+
+- **Cost: +2.15 ms GPU at the rapids and +2.1 in the handover band.**
+- **The double read in the band costs nothing measurable.** Band and rapids match in each arm.
+- **CPU:** row 6's CPU is +2.3 to +4.3 ms. But three of its rounds stalled while measuring, which inflates CPU, so I'd only
+  trust the GPU numbers.
+
+**RenderDoc, rapids (frame 60.5 row 5, 68.7 row 6):**
+- DrawTransparentObjects goes 21.5 to 29.6 RenderDoc ms (+8.1, about +2.7 ms real). Opaque and prepass are unchanged.
+- Same meshes and index counts, but every water draw in view costs 40–50% more per pixel:
+  - the fine sheet (26,022 indices): 7.7 to 11.5;
+  - the chunk water (8,580 indices): 5.5 to 7.5;
+  - the chunk water (4,944 indices): 5.3 to 7.5.
+- **So the row 6 shader work is paid wherever water is drawn, not just on the rapids' pixels.** Probably the flow ripple and
+  streak reads about the camera anchor, and the sines, aren't masked to rapids. That's a guess from the even spread across
+  draws; I haven't read the shader.
+- **Suggested fix:** branch the row 6 work on the rapids amount per vertex or pixel (skip it where it's 0), or put it under
+  a keyword that only the rapids' quads use.
+
+**Stalls:**
+- The swapchain wait hit row 6 games far more than row 5: 5 of 8 row 6 games had a stall of 53 s or more (one more had an
+  11 s frame), against 1 of 8 for row 5.
+- Two row 6 rapids rounds (1 and 3) were lost: they stalled until the old 900 s cap. Since then, lib.sh kills a game after
+  150 s of quiet log and caps a game at 420 s (Punchy b/bench-stress 902acf05).
+- More GPU work per frame may make the stall more likely. That's a guess, but worth knowing for the stall card.
+
+Files (Punchy-wt results): q80.out, q80-d-*.csv, q80-f-*.csv, q80logs/, q80-shots/, rd80/*.rdc, q80-passes.txt.
+
+Cost: these jobs about $4 (laptop session 0a48ccdb; 2 builds, 24 games, 4 captures); laptop total $718.
+
 ## Job 45c: R-9 row 4 water field re-run (water/deform 24459300), 2026-11-10 (q79.sh): FAIL (+1.6 ms GPU against <= +0.3)
 **Setup:**
 - Job 45's spot and swim: `-goto 488,-1144`, swimming at y 9.2, then east 40 m at 4 m/s.
