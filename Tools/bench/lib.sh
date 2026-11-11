@@ -86,6 +86,9 @@ quietkill() { # log tag: while the game runs, kill it by PID once its log has be
   done
 }
 
+# Every bench game gets "-body default" (BENCHBODY): no playable body has that name, so the body Zach last picked in a
+# PunchyBench build (saved in its player prefs: a horse on 11-10) isn't restored and the player is the default human, as in
+# every bench before. Pass BENCHBODY=Wolf etc. to bench a body.
 run() { # outdir tag args...: one bench game; its log is results/q-<tag>.log. Killed once its log is quiet 150 s
   # (QUIETKILL; a stall: normal logs never pause that long), and after RUNTIMEOUT s (420) whatever it's doing.
   local out=$1 tag=$2; shift 2
@@ -94,7 +97,7 @@ run() { # outdir tag args...: one bench game; its log is results/q-<tag>.log. Ki
   cool
   rm -f "$R/q-$tag.log"
   quietkill "$R/q-$tag.log" $tag & local wd=$!
-  ( cd "$P/Builds/Bench" && timeout ${RUNTIMEOUT:-420} ./Punchy.exe -logFile "$W/q-$tag.log" -benchroute -weatherseed 4 -time 12 $(screen Bench ${BENCHW:-1280} ${BENCHH:-720}) "$@" >/dev/null 2>&1 )
+  ( cd "$P/Builds/Bench" && timeout ${RUNTIMEOUT:-420} ./Punchy.exe -logFile "$W/q-$tag.log" -benchroute -weatherseed 4 -time 12 -body ${BENCHBODY:-default} $(screen Bench ${BENCHW:-1280} ${BENCHH:-720}) "$@" >/dev/null 2>&1 )
   local rc=$?
   kill $wd 2>/dev/null; wait $wd 2>/dev/null
   [ $rc -eq 124 ] && log "$tag: TIMED OUT (dialogs: $(dialogs))"
