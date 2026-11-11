@@ -889,9 +889,20 @@ namespace Punchy.Debugging
             // -weather does at the start spot; job 32), held for the rest of the run. By reflection: older builds lack it.
             var forceArg = System.Array.IndexOf(args, "-benchweather");
             var force = typeof(WeatherSystem).GetMethod("ForceAt", BindingFlags.Public | BindingFlags.Instance);
+            // -benchweatherat x,z: force it there instead of over the stop (job 49: a storm 4 km off, or one whose shadow
+            // falls on the stop).
+            var whereArg = System.Array.IndexOf(args, "-benchweatherat");
+            var where = whereArg >= 0 && whereArg + 1 < args.Length ? args[whereArg + 1].Split(',') : null;
             if (forceArg >= 0 && forceArg + 1 < args.Length && TryGetPlayerPosition(out var at))
-                Debug.Log($"BenchRoute: weather {args[forceArg + 1]} forced: " +
-                          (force != null && (bool)force.Invoke(weather, new object[] { args[forceArg + 1], new Vector2(at.x, at.z) })));
+            {
+                var xz = new Vector2(at.x, at.z);
+                if (where != null && where.Length == 2 && float.TryParse(where[0], System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out var wx) && float.TryParse(where[1],
+                        System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var wz))
+                    xz = new Vector2(wx, wz);
+                Debug.Log($"BenchRoute: weather {args[forceArg + 1]} forced at {xz.x:F0},{xz.y:F0}: " +
+                          (force != null && (bool)force.Invoke(weather, new object[] { args[forceArg + 1], xz })));
+            }
             return true;
         }
 
