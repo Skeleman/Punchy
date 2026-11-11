@@ -702,3 +702,44 @@ DONE, with one crash found on main (not player-lane code).
   - The walk evidence above is the logged step and snap numbers instead. That is a T-1 gap for two-player shots, for the supervisor to queue if wanted.
 - For job 50b: give both machines `-netsim 150,30,2 -rttlog`. The joiner's line reads about 290 ms with snaps 0 when all is well.
 - Also found: a crashed run's frozen copy, held by Windows Error Reporting, keeps the build's DLLs locked and makes the next build half-fail, crashing at start-up. My test scripts now end those.
+
+## P-32: menu focus follows the layout (player/menu-grid-nav @275c65ba, from origin/main)
+Row 1 DONE. Row 2: nothing to change today (see below); please say if you want scrolling added anyway.
+- How it works:
+  - MenuNav keeps each stop's screen rect from the last Repaint (GUILayoutUtility.GetLastRect turned into screen space).
+  - Up/down goes to the nearest row in that direction, landing on the cell closest across (overlapping first, then by
+    centres). With no row beyond, it wraps to the far row, as the flat order wrapped before.
+  - Left/right goes to the nearest stop in the same row (rects overlapping by half a height). At a row's end it stays put,
+    with no wrap.
+  - Sliders take left/right for their value first, as before.
+  - Until rects are known (the first frame), the old flat order.
+  - Mouse, Submit and the text wheel are unchanged. Keyboard arrows/WASD, d-pad and stick all go through the same
+    UI/Navigate action, which wasn't touched. No input-asset or ProjectSettings change.
+- It also covers the inventory grid and the container pane, which use the same MenuNav.
+- Test hook: `-navtest U,D,L,R,A,...` (with `-navshot dir`) presses those 1.2 s apart and logs
+  `MenuNav test: n key: focus i of N at (x, y) wxh`, with a shot after each press.
+- Measured (Dev build, solo, `-menu <tab>`), 0 exceptions:
+  - **Character** (17 stops): opened on Human (stop 5).
+    - D: 5 to 9 to 12 (species row 1, species row 2, colours, each the cell under it).
+    - R, R, L: 12, 13, 14, 13 (along the colour row).
+    - U, U: 13 to 10 to 6 (the nearest cell above each time).
+    - D from the colour row goes to Exit game (16). D again wraps to class row stop 2, the cell nearest Exit's centre.
+  - **Graphics** (14): D steps through Low, then the three sliders, then each button.
+    - R, R, L on a slider keeps the focus there and slides it. Shots nav-03 and nav-05: Detail distance 0.50x to 0.60x,
+      preset Low to Custom.
+    - R on a full-width button stays put.
+  - **Sound** (5): sliders slide; D from the last reaches Exit game.
+  - **Multiplayer** (7): D from a full-width row goes to the closer of the two buttons below (5 at x 1034 rather than 4 at
+    x 856, Exit's centre being 960). L goes to 4, U to the full-width row.
+  - **Inventory** (16 slots, `-inventory`):
+    - D: 0 to 4 to 8 (by row; the old order went 0, 1, 2).
+    - R: 9, 10. D: 14. L: 13. U: 9, 5, 1.
+    - U from the top wraps to 13, the bottom of the same column.
+- Focus never landed off-screen. All stops are inside the 420x500 panel; the lowest is Exit game at y 496.
+- Shots: D:/Unity/PunchyMilestones/P-32/<Character|Graphics|Sound|Multiplayer|Inventory>/nav-NN-<key>.png.
+- Row 2 (scroll views): no MenuNav stop is inside a scroll view today. The only scroll view in the game is the quest log
+  (GUI.BeginScrollView), and it has no stops. Every tab fits its panel, so there is nothing to scroll into view yet.
+  The tab bar is still switched by the shoulder buttons / Q E; it is not a focus stop, as before.
+- Suite 25/0/17.
+- UNVERIFIED: the Look and Keys tabs (same code path, not run), a real pad (presses were injected as Navigate values),
+  and the container pane beside the inventory (needs an open container).
