@@ -799,3 +799,35 @@ Folk hair needs two edits outside PoseGear.cs, both in animal-lane code:
    For folk with only hair, I'd give hair its own count (7) in `CreatureRenderSystem.cs` / `.Passes.cs`
    (`CompactJob`'s total and the PoseJob offset).
 - Until then I'll do item rows (standing order) and the camera's cave-water row once W-134 merges.
+
+## P-29 row 1 follow-up and row 2 finding (11-11, `player/hair` at 39f71afa)
+**Finding: folk already have hair by culture from their seed.** Every folk species asset has hair style groups:
+scalp (group 1), beard (2) and moustache (3). The limbs are HumanHair, HairLong, HairPonytail, HairBun, HairMohawk,
+BeardShort, DwarfBeard, BeardForked and Moustache, plus HairNone. Each individual picks one per group from its
+replicated `Individual` (`CreatureBlob.Style`), coloured from the species' `HairColors`, and it sways (HairSway).
+Culture is already in it:
+- dwarves: beards and forked beards;
+- goblins: mohawks or bald;
+- elves: long hair and ponytails;
+- ogres: buns or mohawks.
+A guard's helmet already hides them. So row 2's "folk pick a style and colour by culture from their seed" exists
+today, so I have NOT added `CreatureHair.ForFolk`. A second, procedural folk hair would draw over the species' own.
+- **QUESTION:** is row 2 done as is, or do you want something on top? For example, more folk variety from the P-29
+  styles (braid, curls, crest), via new hair limbs in the species assets (animal-lane data), not code.
+- What the finding changed in row 1 (DONE, within the GO you gave):
+  - A player body showed its species' hair (from its Individual's style groups) as well as the picked style (a stray
+    lock in the first shots).
+  - Now `CreatureOutfit.OwnHair` is the player marker. It is set in `Items.Dress`, the one place that knows a body is
+    the player's (own or remote, when it wears gear).
+  - With it, the Hair pass hides the species' own hair parts, as the guard helmet does, and draws the pick (bald =
+    none). Folk never have OwnHair, so they are unchanged.
+  - Hair has its own count: `HairCount` = 7 on OwnHair bodies only, in CompactJob's total and the PoseJob offset after
+    WornCount. It is no longer part of the 30-capsule worn block.
+- Checks: all P-29 shots retaken (same names in `D:/Unity/PunchyMilestones/P-29/`); no stray locks, bald is clean.
+  Host plus client: each sees the other's hair (3/5 and 7/4). 0 exceptions in every run.
+- Suite 25 passed, 0 failed, 17 skipped. Fauna_Fingerprint passed (AD723954).
+- **BENCH-QUEUE request:** town crowd frame, main vs `player/hair` (players with hair: +7 capsules each; folk unchanged,
+  so expect no change at a town). I have not added it to BENCH-QUEUE myself; please queue it if you want it.
+- UNVERIFIED: a real pad on the hair rows.
+- Next: I wait for the row 2 answer. Meanwhile: item rows (standing order), and the camera's cave-water row once
+  W-134 merges.
