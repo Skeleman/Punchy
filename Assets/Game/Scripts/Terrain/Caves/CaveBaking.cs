@@ -432,6 +432,9 @@ namespace Punchy.Terrain
             // W-134 row 3: underground lakes last of the water, in spots of their own (nothing placed before moves).
             PlaceLakes(withCaves, caves, nodes, kinds, segments, styles, extras);
             Step("lakes");
+            // W-134 row 4: river chambers after the lakes, in spots of their own again.
+            PlaceRivers(withCaves, caves, nodes, kinds, segments, styles, extras);
+            Step("rivers");
             bare.Dispose();
             var withWater = BuildBlob(caves, nodes, kinds, segments, extras, Allocator.Persistent);
             withCaves.Caves = withWater;
@@ -446,6 +449,8 @@ namespace Punchy.Terrain
             Step("fittings");
             PlaceLakeDetails(withCaves, caves, styles, CaveFloraTable.Collect(types), extras);
             Step("lake details");
+            PlaceRiverDetails(withCaves, caves, styles, CaveFloraTable.Collect(types), extras);
+            Step("river details");
             FinishRooms(caves, extras);
             withWater.Dispose();
             // W-110: road tunnels last, appended after the landmarks' caves (whose indices, seeds and extras stay as
@@ -477,6 +482,9 @@ namespace Punchy.Terrain
             public readonly List<CaveRoom> Rooms = new List<CaveRoom>();
             /// <summary>W-134 row 3: the lakes kept, for their details.</summary>
             public readonly List<Lake> Lakes = new List<Lake>();
+            /// <summary>W-134 row 4: river chambers, and the seed and stream of each for its details.</summary>
+            public readonly List<CaveChamber> Chambers = new List<CaveChamber>();
+            public readonly List<River> Rivers = new List<River>();
         }
 
         /// <summary>
@@ -680,7 +688,10 @@ namespace Punchy.Terrain
             var roomArray = builder.Allocate(ref root.Rooms, extras.Rooms.Count);
             for (int i = 0; i < extras.Rooms.Count; i++)
                 roomArray[i] = extras.Rooms[i];
-            BuildGrid(builder, ref root, caves, nodes, segments, extras.Rooms, pools);
+            var chamberArray = builder.Allocate(ref root.Chambers, extras.Chambers.Count);
+            for (int i = 0; i < extras.Chambers.Count; i++)
+                chamberArray[i] = extras.Chambers[i];
+            BuildGrid(builder, ref root, caves, nodes, segments, extras.Rooms, pools, extras.Chambers);
             BuildSpeleothemGrid(builder, ref root, speleothems);
             var blob = builder.CreateBlobAssetReference<CaveSetBlob>(allocator);
             builder.Dispose();
@@ -1288,7 +1299,7 @@ namespace Punchy.Terrain
         {
             foreach (var s in rods)
                 if (s.Carve == 0f && math.all(p >= s.Min - 0.6f) && math.all(p <= s.Max + 0.6f) &&
-                    (s.Block != 0f ? CaveSampling.Block(s, p) : CaveSampling.Rod(s, p)) < 0.6f)
+                    CaveSampling.Shape(s, p) < 0.6f)
                     return true;
             return false;
         }
@@ -1404,7 +1415,7 @@ namespace Punchy.Terrain
         /// stay grouped by cave (sampling relies on it).
         /// </summary>
         static void BuildGrid(BlobBuilder builder, ref CaveSetBlob root, List<CaveData> caves, List<CaveNode> nodes, List<CaveSegment> segments,
-                              List<CaveRoom> rooms, List<CavePool> pools)
+                              List<CaveRoom> rooms, List<CavePool> pools, List<CaveChamber> chambers)
         {
             float2 min = float.MaxValue, max = float.MinValue;
             for (int i = 0; i < segments.Count; i++)
@@ -1434,6 +1445,18 @@ namespace Punchy.Terrain
                     {
                         seg.Min = math.min(seg.Min, lo);
                         seg.Max = math.max(seg.Max, hi);
+                    }
+                }
+                // W-134 row 4: and a passage by a river chamber's gallery reaches over the whole chamber.
+                foreach (var ch in chambers)
+                {
+                    if (ch.Cave != seg.Cave)
+                        continue;
+                    var margin = CaveSampling.SegmentMargin + CaveSampling.WallReach(c);
+                    if (math.all(seg.Min <= ch.Max + margin + 2f) && math.all(seg.Max >= ch.Min - margin - 2f))
+                    {
+                        seg.Min = math.min(seg.Min, ch.Min - margin);
+                        seg.Max = math.max(seg.Max, ch.Max + margin);
                     }
                 }
                 segments[i] = seg;

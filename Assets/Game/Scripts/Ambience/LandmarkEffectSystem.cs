@@ -415,7 +415,11 @@ namespace Punchy.Ambience
                         Drop = fall.Drop,
                         UnderRock = 1f
                     };
-                    falls.Add(curtain);
+                    // W-134 row 4: a river chamber's chute is the stream's own water: heard, not drawn, only its spray.
+                    if (fall.Spray > 0f)
+                        heardFalls.Add(curtain);
+                    else
+                        falls.Add(curtain);
                     var landing = fall.Lip + new float3(fall.Out.x, 0f, fall.Out.y) * FallReach - new float3(0f, fall.Drop, 0f);
                     plumes.Add(new Emitter
                     {

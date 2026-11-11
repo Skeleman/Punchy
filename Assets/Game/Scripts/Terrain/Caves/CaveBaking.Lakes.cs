@@ -278,8 +278,14 @@ namespace Punchy.Terrain
                     if (ceiling - level < 3f || ceiling - level > main.Hall + 3f)
                         continue;
                     var bed = CaveSampling.HallFloor(main, math.distance(q, main.Centre.xz));
-                    extras.Speleothems.Add(Rod(new float3(q.x, bed - 0.5f, q.y), new float3(q.x + lean.x, ceiling + 0.5f, q.y + lean.y),
-                                               thick * 1.25f, thick * 0.8f, 0.9f));
+                    // A drip column: flared at foot and ceiling, ringed and lumpy (CaveSampling.Column), not a smooth rod.
+                    var column = Rod(new float3(q.x, bed - 0.5f, q.y), new float3(q.x + lean.x, ceiling + 0.5f, q.y + lean.y),
+                                     thick * 0.85f, thick * 0.6f, 0.9f);
+                    column.Flow = 0.3f * thick + 0.12f;
+                    var flare = 2.3f * column.Flow;
+                    column.Min -= flare;
+                    column.Max += flare;
+                    extras.Speleothems.Add(column);
                 }
 
                 // Stalactites over the water, their tips at least 2 m over it.
@@ -318,18 +324,7 @@ namespace Punchy.Terrain
                 // Glowing flora on the beach: the style's glow species if it has one, else any floor flora that grows in
                 // the dark.
                 var style = caves[lake.Cave].Style > 0 ? styles[caves[lake.Cave].Style - 1] : null;
-                CaveFlora pick = null;
-                if (style != null)
-                    foreach (var entry in style.Flora)
-                    {
-                        if (entry == null || entry.Species == null || entry.Hanging || entry.Light == CaveLight.NearDaylight)
-                            continue;
-                        var glow = entry.Species.name.Contains("Glow") || entry.Species.name.Contains("Glimmer");
-                        if (pick == null || glow)
-                            pick = entry;
-                        if (glow)
-                            break;
-                    }
+                var pick = GlowFlora(style);
                 var patches = rng.NextFloat() < 0.5f ? 2 : 1;
                 for (int k = 0; k < patches; k++)
                 {

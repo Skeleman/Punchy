@@ -126,6 +126,11 @@ namespace Punchy.Terrain
         public int FirstPoint, PointCount;
         /// <summary>Box round the channel, to skip it cheaply when sampling.</summary>
         public float2 Min, Max;
+        /// <summary>
+        /// W-134 row 4: 1 for a river chamber's river, whose banks stop at their edge (its chamber's own floor meets
+        /// them there) instead of rising on past it into the passages nearby.
+        /// </summary>
+        public float Chamber;
     }
 
     /// <summary>
@@ -182,6 +187,35 @@ namespace Punchy.Terrain
         public float2 Out;
         /// <summary>Height from the lip to the pool's surface.</summary>
         public float Drop;
+        /// <summary>
+        /// W-134 row 4: 1 for spray where a river chamber's stream drops (no curtain: the stream's own water falls there,
+        /// whitewater), only the mist and churn at the foot and the sound; 0 for a waterfall from a notch.
+        /// </summary>
+        public float Spray;
+    }
+
+    /// <summary>
+    /// W-134 row 4: a river chamber, a long vaulted hall beside a passage with a river running its whole length, out of a
+    /// hole in one end wall and into a hole in the other, dropping down a chute partway (whitewater, spray). Its floor
+    /// runs along the axis from A (upstream) to B, falling gently and then by Drop over a short run at DropAt; its
+    /// vault rises Height over the floor and is Width across at the floor. A short gallery joins it to its cave's
+    /// passage at Door. Its river is one of its cave's streams (CaveStream), so the water is baked like any cave
+    /// water; the hall's air joins its cave's in CaveSampling.Settle, as a lake's hall does.
+    /// </summary>
+    public struct CaveChamber
+    {
+        /// <summary>Its cave's index.</summary>
+        public int Cave;
+        /// <summary>The floor at the two ends of its axis (A upstream and higher).</summary>
+        public float3 A, B;
+        /// <summary>Half-width of the floor and the vault's height over it (m).</summary>
+        public float Width, Height;
+        /// <summary>Where along the axis the chute is (0 to 1), and how far the floor drops there (m).</summary>
+        public float DropAt, Drop;
+        /// <summary>The passage's floor where the gallery leaves it.</summary>
+        public float3 Door;
+        /// <summary>World-space box round the hall and its gallery (no margin).</summary>
+        public float3 Min, Max;
     }
 
     /// <summary>One capsule of a passage, between two nodes, with the box its influence reaches.</summary>
@@ -206,11 +240,17 @@ namespace Punchy.Terrain
         public float Fillet;
         /// <summary>
         /// 0: a tapered rod (root to tip). Otherwise a fallen boulder: a sharp-edged block cut by planes round Root
-        /// (RootRadius across), Seed being this value (see <see cref="CaveSampling.Block"/>).
+        /// (RootRadius across), Seed being this value (see <see cref="CaveSampling.Block"/>); with Tip off Root, a slab
+        /// |Tip - Root| thick either side of Root across that way (W-134 row 4).
         /// </summary>
         public float Block;
         /// <summary>1: not rock but a hollow cut into the rock (a waterfall's notch): the rod's shape is taken out of it.</summary>
         public float Carve;
+        /// <summary>
+        /// W-134: above 0, a drip column (a rod grown floor to ceiling): its foot and top flare into the rock, with a waist,
+        /// rings of flowstone and lumps, this many metres strong (see <see cref="CaveSampling.Column"/>).
+        /// </summary>
+        public float Flow;
         /// <summary>World-space box around it (with a margin).</summary>
         public float3 Min, Max;
     }
@@ -237,6 +277,8 @@ namespace Punchy.Terrain
         public BlobArray<CavePlant> Plants;
         /// <summary>W-115: destination chambers, grouped by cave.</summary>
         public BlobArray<CaveRoom> Rooms;
+        /// <summary>W-134 row 4: river chambers (each names its cave; a handful an island, so scanned whole).</summary>
+        public BlobArray<CaveChamber> Chambers;
         public float2 GridOrigin;
         public float CellSize;
         public int2 GridSize;
@@ -336,7 +378,12 @@ namespace Punchy.Terrain
                     ref var a = ref set.StreamPoints[i];
                     ref var b = ref set.StreamPoints[i + 1];
                     var ab = b.Position.xz - a.Position.xz;
-                    var t = math.saturate(math.dot(xz - a.Position.xz, ab) / math.max(math.lengthsq(ab), 1e-6f));
+                    var along = math.dot(xz - a.Position.xz, ab) / math.max(math.lengthsq(ab), 1e-6f);
+                    // W-134 row 4: a river chamber's stretches cut only abreast of themselves (round ends only at the
+                    // river's two ends), so the pool under its chute doesn't hollow out the run above it.
+                    if (stream.Chamber > 0f && ((along < 0f && i > stream.FirstPoint) || (along > 1f && i < stream.FirstPoint + stream.PointCount - 2)))
+                        continue;
+                    var t = math.saturate(along);
                     var half = math.lerp(a.Width, b.Width, t) * 0.5f;
                     var across = math.distance(xz, a.Position.xz + ab * t);
                     var depth = math.lerp(a.Depth, b.Depth, t);
@@ -344,7 +391,8 @@ namespace Punchy.Terrain
                     // main path, a rabbit) wades down and up a gentle gully instead of meeting a 1 m slot.
                     var run = math.max(half * 1.5f, (depth + 1.2f) * BankRun);
                     var edge = half * 0.5f + run;
-                    if (across >= edge + BankReach * BankRun)
+                    var beyond = stream.Chamber > 0f ? 0f : BankReach * BankRun;
+                    if (across >= edge + beyond)
                         continue;
                     var surface = math.lerp(a.Position.y, b.Position.y, t);
                     // The bank rises smoothly from the bed to above the surface, then keeps rising at 1 in BankRun for
@@ -489,7 +537,7 @@ namespace Punchy.Terrain
                 if (seg.Cave != current)
                 {
                     // Items are grouped by cave, so the previous cave is done.
-                    Settle(ref set, current, d, p, floorY, height, ref best, ref cave);
+                    Settle(ref set, current, d, p, floorY, height, floorShape, channel, ref best, ref cave);
                     current = seg.Cave;
                     d = 1e9f;
                     nearest = 1e9f;
@@ -506,7 +554,7 @@ namespace Punchy.Terrain
                 }
                 d = SmoothMin(d, ds, Blend);
             }
-            Settle(ref set, current, d, p, floorY, height, ref best, ref cave);
+            Settle(ref set, current, d, p, floorY, height, floorShape, channel, ref best, ref cave);
             if (best < SpeleothemReach && set.SpeleothemCells.Length > 0)
             {
                 best = Speleothems(ref set, p, best);
@@ -567,7 +615,7 @@ namespace Punchy.Terrain
                 if (math.any(p < s.Min) || math.any(p > s.Max))
                     continue;
                 air = s.Carve > 0f ? SmoothMin(air, Rod(s, p), math.max(s.Fillet, 0.05f))
-                                   : -SmoothMin(-air, s.Block != 0f ? Block(s, p) : Rod(s, p), math.max(s.Fillet, 0.05f));
+                                   : -SmoothMin(-air, Shape(s, p), math.max(s.Fillet, 0.05f));
             }
             return air;
         }
@@ -591,7 +639,44 @@ namespace Punchy.Terrain
                 var h = math.frac(math.sin((i + 1) * 12.9898f + s.Block * 78.233f) * 43758.5453f);
                 d = math.max(d, math.dot(q, n) - s.RootRadius * (0.72f + 0.3f * h));
             }
+            // W-134 row 4: a slab, when Tip is off Root: cut to |Tip - Root| either side of the plane through Root facing it.
+            var across = s.Tip - s.Root;
+            var thick = math.length(across);
+            if (thick > 1e-4f)
+                d = math.max(d, math.abs(math.dot(q, across / thick)) - thick);
             return d;
+        }
+
+        /// <summary>Distance to a speleothem's rock, whichever shape it is (a boulder, a drip column or a plain rod).</summary>
+        internal static float Shape(in CaveSpeleothem s, float3 p) =>
+            s.Block != 0f ? Block(s, p) : s.Flow > 0f ? Column(s, p) : Rod(s, p);
+
+        /// <summary>
+        /// W-134: distance to a drip column, a rod from Root (its foot) to Tip (in the ceiling) whose radius swells: a skirt
+        /// at the foot and a wider bell where it meets the ceiling, a waist below the middle, uneven rings of flowstone
+        /// and lumps (from a seed off its root). Each swell steepens the field, so the distance is divided by the
+        /// steepest it can get: stepping never overshoots.
+        /// </summary>
+        internal static float Column(in CaveSpeleothem s, float3 p)
+        {
+            var ab = s.Tip - s.Root;
+            var len = math.max(math.length(ab), 1e-3f);
+            var t = math.saturate(math.dot(p - s.Root, ab) / (len * len));
+            var h = t * len;
+            var seed = math.frac(math.dot(s.Root, new float3(0.1371f, 0.7113f, 0.2917f))) * 61f;
+            var r = math.lerp(s.RootRadius, s.TipRadius, t)
+                    + s.Flow * (1.6f * math.exp(-h / 1.1f) + 2f * math.exp(-(len - h) / 1.4f))
+                    - s.Flow * 0.45f * math.sin(math.PI * t)
+                    + s.Flow * 0.9f * Ring(h * 2.6f + seed + 0.8f * noise.snoise(p * 0.7f + seed))
+                    + s.Flow * 0.7f * noise.snoise(p * 0.9f - seed);
+            return (math.distance(p, s.Root + ab * t) - r) * 0.9f / (1f + 6.5f * s.Flow);
+        }
+
+        /// <summary>A flowstone ring's profile: narrow ridges with wide hollows between them (0..1).</summary>
+        static float Ring(float x)
+        {
+            var w = 0.5f + 0.5f * math.sin(x);
+            return w * w * w;
         }
 
         /// <summary>Distance to a tapered rod (a cone with rounded ends), slightly understated so stepping never overshoots.</summary>
@@ -602,8 +687,12 @@ namespace Punchy.Terrain
             return (math.distance(p, s.Root + ab * t) - math.lerp(s.RootRadius, s.TipRadius, t)) * 0.9f;
         }
 
-        /// <summary>Adds a finished cave's wall noise and keeps it if it's the nearest so far.</summary>
-        static void Settle(ref CaveSetBlob set, int current, float d, float3 p, float floorY, float height, ref float best, ref int cave)
+        /// <summary>
+        /// Adds a finished cave's wall noise (and its lake halls and river chambers) and keeps it if it's the nearest so
+        /// far. floorShape and channel are the cave's FloorShape and StreamBed here.
+        /// </summary>
+        static void Settle(ref CaveSetBlob set, int current, float d, float3 p, float floorY, float height, float floorShape, float channel,
+                           ref float best, ref int cave)
         {
             if (current < 0)
                 return;
@@ -626,6 +715,21 @@ namespace Punchy.Terrain
                 var floor = HallFloor(pool, math.distance(p.xz, pool.Centre.xz));
                 var hall = math.max(HallDome(pool, p) + WallNoise(c, p, floor, pool.Hall), (floor - p.y) * 0.6f);
                 full = SmoothMin(full, hall, Blend);
+            }
+            // W-134 row 4: each river chamber's vault and its gallery join the cave's air the same way. Its floor is cut
+            // down by the cave's streams (its own river among them) like a passage's, and undulates like one.
+            for (int i = 0; i < set.Chambers.Length; i++)
+            {
+                ref var ch = ref set.Chambers[i];
+                if (ch.Cave != current || math.cmax(math.max(ch.Min - p, p - ch.Max)) - reach - Blend - 2f > full)
+                    continue;
+                var vault = ChamberVault(ch, p, out var floorAt, out var scale);
+                // Its floor only undulates up (never under its river's surface, which sits just under floorAt).
+                var floor = math.min(floorAt + math.max(floorShape, 0f), channel);
+                var air = math.max(vault + WallNoise(c, p, floor, ch.Height), (floor - p.y) * 0.6f * scale);
+                var gallery = ChamberGallery(ch, p, out var galleryFloor);
+                air = SmoothMin(air, gallery + WallNoise(c, p, galleryFloor, GalleryRadius), Blend);
+                full = SmoothMin(full, air, Blend);
             }
             for (int i = c.FirstRoom; i < c.FirstRoom + c.RoomCount; i++)
                 full = Room(set.Rooms[i], p, full);
@@ -809,6 +913,78 @@ namespace Punchy.Terrain
             return k1 < 1e-6f ? -math.cmin(radii) : k0 * (k0 - 1f) / k1;
         }
 
+        /// <summary>W-134 row 4: a river chamber's chute runs this many metres per metre it drops (about 35 degrees at its steepest).</summary>
+        public const float ChuteRun = 1.4f;
+        /// <summary>W-134 row 4: a river chamber's gallery: its round roof's radius, and that roof's middle over the floor (m).</summary>
+        public const float GalleryRadius = 2.4f, GalleryRise = 1.2f;
+
+        /// <summary>
+        /// W-134 row 4: a river chamber's floor (no noise) at a distance along its axis from A, and how steeply it falls
+        /// there (m per m): a gentle fall from end to end, then the chute.
+        /// </summary>
+        public static float ChamberFloor(in CaveChamber ch, float u, out float slope)
+        {
+            var length = math.max(math.distance(ch.A.xz, ch.B.xz), 1f);
+            var fall = (ch.A.y - ch.B.y - ch.Drop) / length;
+            var run = ch.Drop * ChuteRun;
+            var x = math.saturate((u - (ch.DropAt * length - run * 0.5f)) / math.max(run, 0.01f));
+            slope = (u > 0f && u < length ? fall : 0f) + ch.Drop * 6f * x * (1f - x) / math.max(run, 0.01f);
+            return ch.A.y - fall * math.clamp(u, 0f, length) - ch.Drop * x * x * (3f - 2f * x);
+        }
+
+        /// <summary>W-134 row 4: a point's place by a river chamber's axis: x along it from A, y across it (left positive).</summary>
+        public static float2 ChamberLocal(in CaveChamber ch, float2 xz)
+        {
+            var dir = math.normalizesafe(ch.B.xz - ch.A.xz, new float2(1f, 0f));
+            var rel = xz - ch.A.xz;
+            return new float2(math.dot(rel, dir), dir.x * rel.y - dir.y * rel.x);
+        }
+
+        /// <summary>
+        /// W-134 row 4: distance to a river chamber's vault, a long ellipsoid whose middle sinks under the floor (so its
+        /// walls meet the floor steeply) and follows the floor down the chute, rounded at both ends. The ellipsoid
+        /// estimate, scaled down where the chute shears it so stepping never overshoots. Out: the floor here, and that
+        /// scale (for the floor's own cut).
+        /// </summary>
+        internal static float ChamberVault(in CaveChamber ch, float3 p, out float floor, out float scale)
+        {
+            var length = math.max(math.distance(ch.A.xz, ch.B.xz), 1f);
+            var l = ChamberLocal(ch, p.xz);
+            floor = ChamberFloor(ch, l.x, out var slope);
+            scale = math.rsqrt(1f + slope * slope);
+            var sink = ch.Height * 0.35f;
+            var tall = ch.Height + sink;
+            var wide = ch.Width * math.rsqrt(1f - sink * sink / (tall * tall));
+            var radii = new float3(wide, tall, wide);
+            var q = new float3(l.y, p.y - (floor - sink), l.x - math.clamp(l.x, 0f, length));
+            var k0 = math.length(q / radii);
+            var k1 = math.length(q / (radii * radii));
+            return (k1 < 1e-6f ? -math.cmin(radii) : k0 * (k0 - 1f) / k1) * scale;
+        }
+
+        /// <summary>W-134 row 4: where a river chamber's gallery comes out on its floor (on the axis, abreast of the door).</summary>
+        public static float3 ChamberDoorEnd(in CaveChamber ch)
+        {
+            var length = math.max(math.distance(ch.A.xz, ch.B.xz), 1f);
+            var u = math.clamp(ChamberLocal(ch, ch.Door.xz).x, 0f, length);
+            var xz = ch.A.xz + math.normalizesafe(ch.B.xz - ch.A.xz, new float2(1f, 0f)) * u;
+            return new float3(xz.x, ChamberFloor(ch, u, out _), xz.y);
+        }
+
+        /// <summary>
+        /// W-134 row 4: distance to a river chamber's gallery, a round-roofed tunnel from the passage's floor at Door to
+        /// the chamber's floor, its own floor sloping evenly between them. Out: that floor here.
+        /// </summary>
+        internal static float ChamberGallery(in CaveChamber ch, float3 p, out float floor)
+        {
+            var end = ChamberDoorEnd(ch);
+            var ab = end - ch.Door;
+            var t = math.saturate(math.dot(p - ch.Door, ab) / math.max(math.lengthsq(ab), 1e-6f));
+            floor = math.lerp(ch.Door.y, end.y, t);
+            var centre = ch.Door + ab * t + new float3(0f, GalleryRise, 0f);
+            return math.max(math.distance(p, centre) - GalleryRadius, floor - p.y);
+        }
+
         /// <summary>How far above a cave water surface a point still counts as over it (m, W-134).</summary>
         // gameplay: tall enough for a swimmer's head and a wading creature, short of the passage stacked above
         public const float WaterReachAbove = 2.5f;
@@ -871,7 +1047,14 @@ namespace Punchy.Terrain
                         ref var e = ref set.StreamPoints[i + 1];
                         var ab = e.Position.xz - a.Position.xz;
                         var length = math.length(ab);
-                        var t = math.saturate(math.dot(p.xz - a.Position.xz, ab) / math.max(length * length, 1e-6f));
+                        var along = math.dot(p.xz - a.Position.xz, ab) / math.max(length * length, 1e-6f);
+                        // W-134 row 4: a river chamber's points sit closer than its half width, so (as in StreamBed) its
+                        // stretches count only abreast of themselves: an earlier stretch's end would read a step high.
+                        // A quarter metre's grace either way closes the wedge outside each bend.
+                        var grace = 0.25f / math.max(length, 0.25f);
+                        if (st.Chamber > 0f && ((along < -grace && i > st.FirstPoint) || (along > 1f + grace && i < st.FirstPoint + st.PointCount - 2)))
+                            continue;
+                        var t = math.saturate(along);
                         var half = math.lerp(a.Width, e.Width, t) * 0.5f;
                         var across = math.distance(p.xz, a.Position.xz + ab * t);
                         if (across >= half)
