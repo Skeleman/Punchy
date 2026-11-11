@@ -410,3 +410,14 @@ asks Zach if needed, and records the answer here.
   First case: the wave field (R-9) becomes a "Dynamic water" setting on at High/Ultra if it stays marginal at Medium.
 - **Why:** keep the default playable on the laptop while letting strong PCs show the best look.
 - **Revisited:** 0.
+
+### J-045: May someone other than the profiler time things, to clear the bench queue?
+
+- **Asked:** 2026-11-11, by Zach ("temporarily make an exception to the 'only profiler can profile' rule to get some of
+  this moving forward?").
+- **Also comes up when:** merges stall behind a long BENCH queue.
+- **Answer (2026-11-11):** yes, temporarily: a main-account bench agent runs branch-vs-main "no slower than main" jobs on
+  the main PC (rule 21 exception). Pass within noise or < ~2% of frame, else back to the laptop. Budget and preset
+  questions stay on the laptop. First jobs moved: 52, 54, 55, 57, 58, 60 (main PC half). Zach: "Yes, let's do that".
+- **Why:** W-134/W-135/W-136/W-140 were several laptop sessions away while the laptop works on water, lights and clouds.
+- **Revisited:** 0.

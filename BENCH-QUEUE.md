@@ -528,7 +528,7 @@ Row 2 turns the fixed-metre visual ranges (landmark effects, flames, chimneys, f
 - Record whole-frame GPU and CPU ms per arm and spot.
 - Pass: branch within noise of main at High at every spot; at Medium, branch <= main. A miss means a fix on lod/screen-size before the merge.
 
-## Job 52 (2026-11-10, QUEUED after 51; supervisor, for W-135, all four rows; folds in 47i): cave LOD and seam darkening
+## Job 52 (2026-11-10, MAIN PC (J-045, 11-11): profiler skip this job; the main-account bench agent runs it; was QUEUED after 51; supervisor, for W-135, all four rows; folds in 47i): cave LOD and seam darkening
 W-135 on `world/cave-lod`: row 1 skips hidden cave work (`-nocaveskip` turns it off), row 2 builds cave walls at 0.5/1/2 m by screen size with border skirts (`-cavelevel 0` = main), row 3 moves cave plants, drips, fish, falls and glow to screen size, row 4 bakes contact darkening into cave chunks (no shader change).
 - Arms: (A) origin/main 0477dd07 or newer; (B) `world/cave-lod` at ef191d54 or newer, default; (C) B with `-cavelevel 0 -nocaveskip`. Profile builds, 1920x1080, High, uncapped, ABBA (A/B), then B vs C, 300 frames per arm.
 - Views (shotcam):
@@ -551,7 +551,7 @@ W-137 row 2b on `world/mouth-rim`: each road-tunnel portal now builds a stone co
 - Record whole-frame GPU, CPU and render-thread ms per arm and view.
 - Pass: B within noise of A on GPU and render thread at every view; no new hitch over 2x median on approach.
 
-## Job 54 (2026-11-10, QUEUED after 52; supervisor, for W-136 rows 1-2): ground contact darkening on the laptop
+## Job 54 (2026-11-10, MAIN PC (J-045, 11-11): profiler skip this job; the main-account bench agent runs it; was QUEUED after 52; supervisor, for W-136 rows 1-2): ground contact darkening on the laptop
 W-136 on `world/ground-contact-shade` (builds on W-135): terrain chunks bake darkening under trunks, rocks, buildings and props. Per LOD0 chunk, a Burst job loops over the feet within 36 m (natural) or 52 m (built); loaded terrain re-meshes once when a chunk publishes.
 - Arms: (A) origin/main 0477dd07 or newer; (B) `world/ground-contact-shade` at 3b1cb6aa or newer. Profile builds, 1920x1080, High, uncapped, ABBA, 300 frames per arm.
 - Views: (a) big town `-goto 2972,-885` at 14:00, clear; (b) forest `-goto 1740,3355` at 14:00, clear; (c) village `-place HumanVillage -time 12 -weather Clear`.
@@ -559,7 +559,7 @@ W-136 on `world/ground-contact-shade` (builds on W-135): terrain chunks bake dar
 - Record whole-frame GPU, CPU and render-thread ms per arm and view.
 - Pass: B within noise of A on every view (no shader change, so GPU should match); no new hitch over 2x median on load or the run.
 
-## Job 55 (2026-11-11, QUEUED after 54; supervisor, for W-134 row 1): cave water through the one ground query
+## Job 55 (2026-11-11, MAIN PC (J-045, 11-11): profiler skip this job; the main-account bench agent runs it; was QUEUED after 54; supervisor, for W-134 row 1): cave water through the one ground query
 W-134 row 1 on `world/cave-water`: SampleGround(float3) answers cave pools and streams below the terrain surface (one compare on the surface, then a per-cave box test); wakes, the R-9 field, swimming and river current now query with 3D positions.
 - Arms: (A) origin/main 393a9c20 or newer; (B) `world/cave-water` at 0a726943 or newer. Profile builds, 1920x1080, High, uncapped, ABBA, 300 frames per arm.
 - Views: (a) `-place cavepool`, the player swimming/wading in the pool; (b) a surface river, the R-9 rapids below fall 74; (c) a lake swim, `-goto 488,-1144` at y 9.2 (job 45's).
@@ -577,7 +577,7 @@ W-132 row 2 on `world/far-lite`: far LOD chunks use runtime material copies with
 - Extra leg on the B build only: PUNCHY_FARSKIRT=0 vs default, and PUNCHY_FARDISC=0 vs 1, at (c) at 18:00 and at noon; record GPU/CPU ms, draws, and the Water and Skybox pass times (the sun road lives there). Pass: the skirt costs under 0.3 ms GPU at High.
 - 11-11: arm B at 4eabc7c7 or newer (W-132 row 4b; SunRoad default 1 = row 4's road, Zach's pick; also run one sunset view with env PUNCHY_SUNROAD=2 to price the stronger option); same views, plus the sea sunset from the shore.
 
-## Job 57 (2026-11-11, QUEUED after 56; supervisor, for W-134 row 2): baked cave water
+## Job 57 (2026-11-11, MAIN PC (J-045, 11-11): profiler skip this job; the main-account bench agent runs it; was QUEUED after 56; supervisor, for W-134 row 2): baked cave water
 W-134 row 2 on `world/cave-water`: cave pools and streams are baked as 0.5 m quads fitted to the carved floor (a Burst bake job per cave when it first comes within LoadRadius), tiled, each tile drawn only while big enough on screen. Pool 2: 540 -> 2939 triangles; pool 8: 1040 -> 4706.
 - Arms: (A) origin/main 393a9c20 or newer; (B) `world/cave-water` at 54dd9ff3 or newer. Profile builds, 1920x1080, High, uncapped, ABBA, 300 frames per arm. Can share a session with job 55 (same branch).
 - Views: (a) `-place cavepool`, looking over the pool; (b) a stream cave if one can be placed; (c) the walk from the cave mouth to the pool (the bake fires on approach): list frames over 2x the median.
@@ -586,7 +586,7 @@ W-134 row 2 on `world/cave-water`: cave pools and streams are baked as 0.5 m qua
 - 11-11 widening (W-134 row 4, 6df55722): arm B at 75c98a00 or newer (row 4 look fixes). Also (f) river chamber 0 (cave 20) at the vault and the gravel bars; (g) chamber 1's chute (cave 24); (h) small deep cave 1 as a baseline; (i) the bake's new 'rivers' and 'river details' steps. Record draws, SetPass, triangles and memory at (f)-(h). The world lane counted up to 2999 draws at (f), most from the overworld that still draws within 45 m of a mouth: note how much of the frame is surface vs cave.
 - Pass: B within noise of A at (a), (b) and (h); no new hitch over 2x median on (c); (f)/(g) are measures (no main arm has chambers).
 
-## Job 58 (2026-11-11, QUEUED after 57; supervisor, for W-136 row 3 + W-135): one contact-shade path, caves and overworld
+## Job 58 (2026-11-11, MAIN PC (J-045, 11-11): profiler skip this job; the main-account bench agent runs it; was QUEUED after 57; supervisor, for W-136 row 3 + W-135): one contact-shade path, caves and overworld
 W-136 row 3 on `world/ground-contact-shade` (077acd90): one ContactShade path for terrain chunks, cave chunks and room/kit tiles; cave plants now use fitted feet (1209 -> 4564 contacts). Cost only, no look change.
 - Arms: (A) origin/main 393a9c20 or newer; (B) `world/ground-contact-shade` at 077acd90 or newer. Profile builds, 1920x1080, High, uncapped, ABBA, 300 frames per arm. Can fold in job 54 (same branch, earlier rows).
 - Measure: main-thread and job cost of (1) a ruin room and a lake room mesh build (`-place cavepool` and a ruin), (2) cave chunk mesh builds on the walk into a planted cave, (3) terrain LOD0 chunk builds over a forest and a town; plus whole-frame GPU/CPU ms at each spot and frames over 2x the median on the walk.
@@ -604,5 +604,5 @@ W-138 row 2a on `world/mountain-tunnels` (3e3c9e08): six new road spurs (+617 st
 - W-138 row 4 (added 2026-11-11): take (B) at a149c17f or newer. The bake now does an extra detail pass per road tunnel (niche, markers, stones). Bores of 300 m or more are always lit, so caves 24 and 28 now have torches, and every niche adds one torch and one small shrine glow. Same route: note any frames over 2x the median at C0a's niche (about -1600,458) and its marker pair (about z 385), and compare first-load time with row 3b.
 - W-138 row 4b (added 2026-11-11): take (B) at f6217674 or newer. Cave.shader gains a road-tunnel branch (cobbles/grit floor, cut-stone courses, veins and crack net off); tunnel lamps are brighter with a 6.5 m reach, and marker stones add a small glow light. Same C0a walk: note GPU ms inside the bore vs row 4, and frames over 2x the median at the lamps.
 
-## Job 60 (2026-11-11, QUEUED after 59; supervisor, for W-140): island cache, launch to island-ready
+## Job 60 (2026-11-11, MAIN PC half by the main-account bench agent (J-045, 11-11); laptop half QUEUED after 59; supervisor, for W-140): island cache, launch to island-ready
 `world/island-cache` (622d7bb5 or newer; row 4 when it lands so a build hits on first launch). Arm A main, arm B branch. In the editor and in a Builds/Dev build, main PC and laptop: time from launch (or Play) to the island-ready frame, 3 runs each, for (B hit) the second launch on a cache hit and (B fresh) `-freshisland` / PUNCHY_FRESHISLAND=1, vs A. Also note the `[island] cache hit/miss` line each run, the file load ms it prints, and the memory peak on hit vs fresh. From now on, other jobs may launch arm B builds on a cache hit to save the bake; say which in each report.
