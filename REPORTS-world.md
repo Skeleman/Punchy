@@ -5238,6 +5238,32 @@ Branch `world/mountain-tunnels` at a149c17f (pushed), on 0ef51794. One commit: C
 - No frame timing (rule 21). Bench note added to job 59.
 - FloraPlacement.cs is not touched in this row.
 
+### W-138 row 4b: tunnel interior look fixes: done (verified, f6217674)
+Branch `world/mountain-tunnels` at f6217674 (pushed), on a149c17f. One commit: CaveData.cs, CaveSystem.cs, Cave.shader.
+
+**What the white artifacts were:**
+- White road smear: the road's share was written into the terrain blend channel, so the floor took the terrain branch: full sun whatever the openness, and a flat pale vertex colour. Now the road share has its own channel (rib shade slot, tunnels only) and the cave shader draws it in the cave's light: cobbles where paved, packed grit (6 cm pebbles in world xz, crisp at 2-5 m) otherwise, with a darker damp gutter. Road colour is capped at luminance 0.32.
+- White squiggles: the calcite mineral veins of the bare-rock branch. Off in road tunnels.
+- Net pattern: the Voronoi crack net drawn in the style's glow colour. Off in road tunnels.
+
+**Walls, stones, lights:**
+- Walls: rough rock from a coarse read of the shared detail; built tunnels (lamps or frames) get cut stone courses on the side walls (0.42 m rows, 0.95 m blocks, mortar, a tone per block). The vault stays rock.
+- Fallen stones: drawn pale grey with a dark contact band where they meet the floor (new `CaveData.StoneDistance`).
+- Marker stones: a small cold glow (0.3, 0.45, 0.85, reach 3 m) 1 m above each marker in a road tunnel.
+- Lamps: tunnel torches are brighter (x2.2) with a shorter reach (6.5 m), so they read as warm pools with dark stretches between. Choice to note: the player's lantern dims to 0.35 inside a lit bore (Tunnel >= 2), so it doesn't flatten the pools. Easy to drop if Zach wants the full lantern.
+- Shrine niche unchanged.
+- Shader encoding: the style slot now carries 32 x a tunnel code (1 + paved + 2 if built); 0 in every ordinary cave, so caves look as before.
+
+**Shots** in `W-138/row4b/` (same 6 poses as row 4, plus `close-3m`), checked by me on a small sheet (`sheet.jpg`): no veins or net in any view; floor is grit at the walls' light level; courses read on the side walls. The vault still has a slightly swirly grain from the shared detail at a distance.
+
+**Rule 22:** no placement change in this row; row 4's four gaps stand (no stable ids for tunnel records, no portal records, waystation keys from position, no break records).
+
+**Measures:**
+- Landmarks_V3 117 689D5348 and Fauna_Fingerprint AD723954, unchanged.
+- Suite after the last code change: `25 passed, 0 failed, 17 skipped in 391s`.
+- lod-lint f6217674 vs a149c17f: clean (vs origin/main: only row 4's 4 bake-geometry hits).
+- No timing (rule 21). **BENCH-QUEUE request** (supervisor to add): walk the length of C0a (1073 m, the longest bore) from its daylit approach, plus the first load near it; compare against main for the cave shader's tunnel branch (cobble/pebble Voronoi loops, extra coarse detail read) and the added marker glows and lamp lights.
+
 ## W-132 (cheaper 3 km landscape, horizon; tree Punchy-release, branch world/far-lite from origin/main cc835cf6)
 
 ### Row 1: the horizon oddity (2026-11-10): done (verified; diagnosis only, no code change)
