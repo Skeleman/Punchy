@@ -4963,6 +4963,51 @@ Proposed fix (world lane, RoadBaking + TunnelPortalKit):
 - whether the lake loop and the ruined bridge go into row 2
 - whether spine 2 gets a road now
 
+### Row 2a: strict tunnel rule, router A default, spurs to the landing, a mine and caves: done (3e3c9e08)
+Branch `world/mountain-tunnels` at 3e3c9e08 (pushed). Router B/C and C0a/C0b not started: they wait for Zach's picks.
+
+**Roads (probe, before -> after):** 2424 -> 3041 streets, 13871 -> 17122 m. Road 1: 2292 -> 2855; road 2: 115 -> 186; tunnels (road 3): 17 -> 0. The town network kept its xz for 2414 of 2424 streets; the other 10 are roadside access streets, which are added later and now sit at new indexes. 51 streets changed kind and 56 changed level, all near the old tunnels.
+
+**Tunnels removed (all three are now cuttings):**
+- (2053,-1535), 19 m: road 2, 0.58 m of cover
+- (-1870,118), 44 m: road 2, 2.99 m
+- (-2023,713), 30 m: road 1, 2.27 m
+
+**The new tunnel rule:** a bore needs >= 60 m length, >= 20 m of cover over most of it and ~6 m over each portal arch. The router's tunnel, climb and detour costs are now named settings (RouterCosts), with A (today) as the default, so nothing new bores yet: 0 new tunnels.
+
+**Spurs:**
+| Destination | From | To | Length |
+|---|---|---|---|
+| cave23 MineEntrance | (-1955,605) | (-1969,498) | 123 m |
+| cave13 CaveEntrance (passes cave24) | (1443,-2577) | (1598,-2709) | 221 m |
+| cave1 CaveEntrance | (-3024,1365) | (-3133,1039) | 358 m |
+| Sea folk landing (required) | (-2122,-282) | (-1783,-552) | 1182 m |
+| cave5 CaveNetwork | (-2365,-887) | (-2809,-654) | 518 m |
+| cave17 Grotto | (-1789,622) | (-1358,1097) | 921 m, the last 250 m footpath |
+
+Skipped: cave9 and cave19 grottos already have a road; cave16 is too far from any road. Cave grottos in the mountains get footpath ends, as the card allows for cave17.
+
+**What moved (Zach OK'd roads moving):**
+- Roads: the six spurs above are new, and the three crests are now cuttings.
+- Landmarks: 112, hash A955AFE0 -> A5D1D048. Only the sea folk pair moved: the landing 2 m ((-1783,-554) -> (-1783,-552)) and the village 16 m ((-1624,-488) -> (-1624,-504)). Their spots are now found before the roads, so the landing spur ends exactly at the landing; the other 110 landmarks did not move. Landmarks_V3 is repinned to 112 A5D1D048.
+- Fauna_Fingerprint AD723954: unchanged, passes.
+- Fix along the way: the cave13 spur pushed the cave24 roadside CaveEntrance at (1453,-2608) off its site. Roadside landmarks now keep only their middles off spur streets (RoadBaking.SpurStreets, RoadsideBaking.SpurClear), and cave24 is back.
+
+**Checks:** playmode suite 24 passed, 17 skipped; the only failure before the repin was Landmarks_V3, from the expected sea folk move. World up in 37 s. lod-lint is clean. The probe stays untracked.
+
+**Shots** (PunchyMilestones/W-138/row2a/, all checked):
+- 1-landing-spur-at-pier.png: wide view; the road runs along the bank to the shore, with the spire in the lake.
+- 1b-landing-close.png
+- 1c-landing-from-road.png: the road reaches the waterline, with the teal pier deck and its post/sail a few metres out in the shallows.
+- 2-former-tunnel-cutting.png: high wide view.
+- 2c-cutting.png: the road climbs between bare cut banks at (-1870,118).
+
+**Caveats:**
+- The pier deck sits a little offshore of the road's end. I have not checked that you can walk from the road onto the deck.
+- A jagged white water-edge strip runs along the graded bank by the landing.
+- The landing spur's ruined-bridge break is kept out until Zach answers.
+- BENCH: job 59, first load near the landing.
+
 ## W-132 (cheaper 3 km landscape, horizon; tree Punchy-release, branch world/far-lite from origin/main cc835cf6)
 
 ### Row 1: the horizon oddity (2026-11-10): done (verified; diagnosis only, no code change)
