@@ -110,11 +110,13 @@ parse() { # log commit cap round: CSV rows from a game's per-stop lines
   awk -v c="$2" -v cap="$3" -v r="$4" -v ex="$(grep -c Exception "$1" 2>/dev/null)" '
     function num(re,   m) { return match($0, re) ? substr($0, RSTART, RLENGTH) : "" }
     function val(re,   s) { s = num(re); sub(/.* /, "", s); return s }   # the number after the label
-    /BenchRoute: [a-z]+: avg/ {
-      stop = $0; sub(/.*BenchRoute: /, "", stop); sub(/:.*/, "", stop)
+    /BenchRoute: [a-z]+(\/[A-Za-z0-9_.+-]+#[0-9]+)?: avg/ {
+      stop = $0; sub(/.*BenchRoute: /, "", stop); sub(/: .*/, "", stop)
+      # (-benchcycle segments, "<stop>/<arm>#<k>": the arm joins the stop, the segment round goes after the game round.)
+      rr = r; if (index(stop, "#")) { rr = r "." substr(stop, index(stop, "#") + 1); stop = substr(stop, 1, index(stop, "#") - 1) }
       at = val("at -?[0-9]+,-?[0-9]+"); split(at, xz, ",")
       slow = 0; w = $0; sub(/.*slow frames:/, "", w); n = split(w, a, " "); for (i = 1; i <= n; i++) { split(a[i], s, "/"); slow += s[2] }
-      printf "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%d,%s,%s,%s,%s\n", c, cap, r, stop,
+      printf "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%d,%s,%s,%s,%s\n", c, cap, rr, stop,
         val("avg [0-9.]+"), val("1% low [0-9.]+"), val("median [0-9.]+"), val("worst [0-9.]+"),
         val("cpu [0-9.]+"), val("gpu [0-9.]+"), slow, xz[1], xz[2], val("players [0-9]+"), ex }' "$1"
 }
