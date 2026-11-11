@@ -449,6 +449,15 @@ chunk's 23,844 (chunk + sheet 1.34x the chunk alone). Read only.
 - Record whole-frame GPU and CPU ms and the water pass ms per arm.
 Pass: on <= +0.3 ms GPU over off. A fall arm (fall 74, `-goto -2167,3,3691`) follows as 45d once row 5 pushes.
 
+## Job 45d (2026-11-10, QUEUED after 45c, same build; queued by the world lane for R-9 row 5, #232): R-9 fall arm on the laptop
+Row 5 adds a fine sheet on the river fall that looks biggest (cut along the drop, by screen size, under a 32k x Detail index
+budget) with its own lip curl, curtain ripples and foot churn in the vertex shader. Fall 74 near: 45,240 sheet indices (High). Read only.
+- Branch `water/deform` at 2856a634 (row 4 plus row 5; it can replace 24459300 for 45c too). Profile build, 1920x1080, uncapped, `-gfx High`.
+- Spot: `-time 12 -weather Clear -goto -2167,3,3691`, then `-shotcam -2150.7,30.1,3675.1,-2180.2,12.1,3648.1` (fall 74 from 40 m, sheet fully on), hold 10 s.
+- Arms: field on (default) vs `-waterfield 0`. ABBA, 300 frames per arm.
+- Record whole-frame GPU and CPU ms and the water pass ms per arm.
+Pass: on <= +0.3 ms GPU over off, CPU within noise.
+
 ## Job 48 (2026-11-10, QUEUED after 45c; queued by the main-account supervisor for A-99, merged as #250): creature extras by screen size on the laptop
 - Arms: origin/main be98cde1 (before) vs origin/main 739cdff7 (after; A-99 branch fauna/extras-screen-size c0f22efe).
 - Spots: `-goto -1500,-995` (hive), `-place HumanVillage -time 23` (night torches and lanterns), `-place Tundra` (traces and breath), `-goto -1149,1219` (bat roost). High, uncapped.

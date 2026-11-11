@@ -4386,3 +4386,37 @@ Built in the player tree, not the one the card names (the world tree's gitignore
   - What changed in cost: one extra 3D noise sample per cloud-shadow and sun-cover call. The rain march in the haze table and the sky pass now takes one 3D warp sample per step, in all weather, including clear. The haze table now draws one pass instead of two.
 - Suite (PlayMode, at 86462ce0, editor closed): 24 passed, 1 failed, 17 skipped. Pins hold: Landmarks_V3 112 A955AFE0, Fauna AD723954. The failure is `LyingTests.Lying_LegsStayAboveGround_FlatAndSlope` (BoneStag -0.078 m on the 0.33 slope). This is the known A-92 (#231) failure from main, already reported by player and world, and is in animal posing, not sky.
 - Editor targeting (coordinator, A-99 report): eval.sh now also refuses unless the port is owned by a Unity process whose command line names Punchy-release. It already read the release port file, passed --project-path and refused (WRONG EDITOR) any other dataPath before running anything. The shotcam 1489,88,-897 writes in PID 46020 date from earlier, when a shared scratchpad script was overwritten by another agent, before the guard existed.
+
+## R-9 (continued, row 5: fine water on falls; tree Punchy-world, branch water/deform, #232)
+- **R-9 row 5 DONE for river falls (verified in the editor; pass/fail pending laptop job 45d). Cave falls are NOT done.**
+  - Change (commit 2856a634, new WaterPatchSystem.Falls.cs plus WaterPatchSystem.cs, DetailPolicy.cs, WaterField.hlsl, Water.shader):
+    - The river fall that looks biggest gets its own fine sheet, switched by `DetailPolicy.ScreenSize` of its drop (WaterFallOn 300 / WaterFallFull 520 px, held with hysteresis; rule 20).
+    - The river's own sloping quads are cut from the lip's run-in to the outflow (span -5 m .. foot + 10 m). Each quad gets its own level along and across the flow, so a tall drop gets rows down its length. The budget is 32k x Detail indices, shrunk to fit.
+    - The vertex shader moves the fall along its flow (the wave field is a height field): the run-in bulges, the lip curls out, ripples run down the curtain, and the pool heaves at the foot, with foam there.
+    - Everything is scaled by the screen-size fade, so the switch-on doesn't pop.
+    - Edge vertices follow their coarser neighbour's sloped segment (new per-vertex parentY), so there are no cracks.
+    - The curtain is kept shaded as a steep face, so ripples don't make pale flat patches.
+    - `-waterfield 0` turns it off too.
+  - Index counts, fall 74, High (Detail 1.5), camera yaw 30 rise 18:
+
+    | Distance | Fade | Sheet indices |
+    |---|---|---|
+    | 15 m | 1.00 | 45,240 |
+    | 40 m | 1.00 | 44,040 |
+    | 75 m | 0.82 | 37,752 |
+    | 90 m | 0.35 | 37,752 |
+    | 105 m | 0.06 | 26,856 |
+    | 130 m | 0 (off) | 0 |
+
+  - Shots, Clear, D3D11, no magenta: D:/Unity/PunchyMilestones/R-9/5/ (fall74-{15,40,75,90,105,130}m-0.png, contact-sheet.jpg, checks.txt; baseline in before/).
+  - Written checks: the near shot shows the lip curl, the rippled curtain and the churning foam at the foot. 75 -> 105 -> 130 m reads the same with the effect fading, with no visible pop or seam. The seam halfway down the curtain is in the baseline too (fall 74 has two steps).
+  - Not done: the cave-fall cut (LandmarkEffectSystem meshes); left for a later card. Row 6 (whitewater) not started.
+  - Frame timing skipped per rule 21.
+- **BENCH-QUEUE request (rule 21): job 45d, QUEUED in BENCH-QUEUE.md.**
+  - Branch water/deform at 2856a634 (it can stand in for 24459300 in 45c). Profile build, High, uncapped.
+  - Spot: `-goto -2167,3,3691`, shotcam on fall 74 from 40 m.
+  - Arms: field on vs `-waterfield 0`, ABBA, 300 frames per arm.
+  - Pass: on <= +0.3 ms GPU over off.
+- Risks:
+  - The fall cut runs on a fall, camera-band or Detail change, as a job finished the next frame. 45d should confirm the CPU side.
+  - One fall at a time: a second big fall in view stays coarse.
