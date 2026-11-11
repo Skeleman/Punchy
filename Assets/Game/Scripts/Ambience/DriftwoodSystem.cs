@@ -23,7 +23,6 @@ namespace Punchy.Ambience
     {
         // W-80/W-81 (#86): a lone piece here and there, at most one in view.
         public int MaxLogs = 2;
-        public float SpawnRadius = 150f;
         [Tooltip("Seconds between new logs while the pool isn't full.")]
         public float SpawnInterval = 15f;
         [Tooltip("No new log within this distance (m) of one already afloat.")]
@@ -111,7 +110,8 @@ namespace Punchy.Ambience
                 Seed = math.hash(new uint2(++frame, 0x9E3779B9u)) | 1u,
                 Spawn = spawn,
                 MinGap = MinGap,
-                SpawnRadius = Punchy.Settings.GraphicsSettings.DetailRange(SpawnRadius)
+                // R-13: logs come and go where a log (DetailPolicy.DriftwoodSize) looks small, 150 m at the reference view.
+                SpawnRadius = Punchy.Settings.DetailPolicy.ExtraReach(Punchy.Settings.DetailPolicy.DriftwoodSize, Punchy.Settings.DetailPolicy.DriftwoodPixels)
             }.Schedule();
             hasPending = true;
             JobHandle.ScheduleBatchedJobs();

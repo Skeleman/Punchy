@@ -2,6 +2,7 @@
 #define PUNCHY_LANDMARK_EFFECTS_INCLUDED
 
 #include "SharedClock.hlsl"
+#include "PunchyPixels.hlsl"
 
 // Landmark effects (LandmarkEffectSystem). Each emitter is one effect; every puff and streak is animated from time
 // alone. Must match LandmarkEffectSystem.Emitter.
@@ -86,7 +87,7 @@ PlumeVertex BuildPlume(uint vertex, uint instance)
         float2 spot = float2(cos(h1 * 6.2832), sin(h1 * 6.2832)) * e.shape.y * sqrt(h2);
         float3 at = e.position + float3(spot.x, 0.02, spot.y);
         float bubbleSize = e.shape.z * lerp(0.6, 1.4, EffectHash(cycle + r * 3.3)) * (bubbleAge < 0.6 ? 0.5 + 0.5 * bubbleAge / 0.6 : 1 + (bubbleAge - 0.6) * 2.5);
-        float bubbleAlpha = e.timing.z * step(k, e.timing.w - 1) * (1 - smoothstep(600, 750, distance(at, GetCameraPositionWS())));
+        float bubbleAlpha = e.timing.z * step(k, e.timing.w - 1) * smoothstep(24.94, 31.18, PunchyPixels(20, distance(at, GetCameraPositionWS())));
         // The swelling dome faces the camera; once it bursts its ripples lie flat on the water (Z-36).
         float3 bRight = UNITY_MATRIX_V[0].xyz, bUp = UNITY_MATRIX_V[1].xyz;
         if (bubbleAge >= 0.6)
@@ -114,7 +115,7 @@ PlumeVertex BuildPlume(uint vertex, uint instance)
 
     float size = e.shape.z * (0.35 + 1.1 * age) * lerp(0.7, 1.3, EffectHash(r * 4.7));
     float alpha = e.timing.z * Eruption(e, born) * smoothstep(0, 0.12, age) * (1 - smoothstep(0.55, 1, age)) * step(k, e.timing.w - 1);
-    alpha *= 1 - smoothstep(600, 750, distance(centre, GetCameraPositionWS()));
+    alpha *= smoothstep(24.94, 31.18, PunchyPixels(20, distance(centre, GetCameraPositionWS())));   // R-13: a 20 m effect, by its pixels
 
     float3 right = UNITY_MATRIX_V[0].xyz, up = UNITY_MATRIX_V[1].xyz;
     float2 corner = EffectCorner[vertex];

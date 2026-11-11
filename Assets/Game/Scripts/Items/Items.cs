@@ -75,7 +75,7 @@ namespace Punchy.Items
     /// </summary>
     public partial class Items : MonoBehaviour
     {
-        public const float Reach = 2f, DrawRange = 60f;
+        public const float Reach = 2f;   // gameplay: how near the player picks one up
         /// <summary>Uids: seeded door items are door*4+k; chest items ChestBase + socket*4+k; drops DropBase upwards.</summary>
         const int ChestBase = 1_000_000, DropBase = 2_000_000;
 
@@ -826,7 +826,8 @@ namespace Punchy.Items
             r.SetPropertyBlock(b);
         }
 
-        /// <summary>Small coloured blocks for the items within DrawRange of the camera (a pool of primitives).</summary>
+        /// <summary>Small coloured blocks for the items that look big enough (R-13: DetailPolicy.ItemSize, 60 m at the
+        /// reference view), held a little past that once shown (a pool of primitives).</summary>
         readonly HashSet<int> drawNear = new HashSet<int>();
         readonly List<int> drawDrop = new List<int>();
 
@@ -837,8 +838,10 @@ namespace Punchy.Items
                 return;
             var near = drawNear;
             near.Clear();
+            Punchy.Settings.DetailPolicy.SetView(cam);
+            var reach = Punchy.Settings.DetailPolicy.ExtraReach(Punchy.Settings.DetailPolicy.ItemSize, Punchy.Settings.DetailPolicy.ItemPixels);
             foreach (var kv in world)
-                if (math.distancesq(kv.Value.Pos, (float3)cam.transform.position) < DrawRange * DrawRange)
+                if (Punchy.Settings.DetailPolicy.Within(math.distance(kv.Value.Pos, (float3)cam.transform.position), reach, shown.ContainsKey(kv.Key)))
                     near.Add(kv.Key);
             var drop = drawDrop;
             drop.Clear();

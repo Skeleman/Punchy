@@ -598,7 +598,7 @@ Shader "Punchy/Water"
                 // Reflections use a calmer normal for the broad waves, so they don't break into noise, but the fine
                 // ripples do move them: mirrored trees and clouds wobble and break up near the camera. Faded out with
                 // distance (and so the screen-space march's ray, the sky lookup and the Fresnel stay steady far off).
-                float rippleNear = 1 - smoothstep(25, 110, distance(input.positionWS, GetCameraPositionWS()));
+                float rippleNear = smoothstep(8.503, 37.41, PunchyWaterPixelsPerMetre(distance(input.positionWS, GetCameraPositionWS())));   // R-13: a 1 m ripple, by its pixels
                 float fineReflect = fineStrength * 0.7 * rippleNear;
                 float3 nReflect = normalize(float3(-slope.x * strength * 0.4 - fine.x * fineReflect - wakeSlope.x * 0.6, 1, -slope.y * strength * 0.4 - fine.y * fineReflect - wakeSlope.y * 0.6));
                 // Running water underground has no calm sky to mirror: its reflection breaks up with the flow and fades.

@@ -37,8 +37,9 @@ namespace Punchy.Rendering
         /// <summary>Where the near range ends (m, -shadownear): full-mesh, real-time tree shadows stay inside it.</summary>
         public static float NearRange = Number("-shadownear", 25f);
 
-        /// <summary>Where far shadows stop swaying (m, -stillfrom, 30-50): the sway fades out over 5 m either side.</summary>
-        public static float StillFrom = Number("-stillfrom", 40f);
+        /// <summary>Where far shadows stop swaying (m, -stillfrom, 30-50): the sway fades out over 5 m either side. Below 0
+        /// (the default) it goes by screen size instead (R-13: DetailPolicy.TreeSwaySize, 40 m at the reference view).</summary>
+        public static float StillFrom = Number("-stillfrom", -1f);
 
         /// <summary>How far the cached shadows reach (m, -shadowcachefar). W-112: 120 (was 50, past which trees cast
         /// nothing at all, so a forest seen from afar had no shadows).</summary>

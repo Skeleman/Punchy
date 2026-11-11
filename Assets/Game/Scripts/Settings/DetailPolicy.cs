@@ -65,7 +65,11 @@ namespace Punchy.Settings
                 Detail = GraphicsSettings.Detail,
                 Shadows = GraphicsSettings.Shadows
             };
+            // Shader fades (PunchyPixels.hlsl) measure pixels the same way: per metre at 1 m, Detail included.
+            Shader.SetGlobalFloat(PixelsPerMetreId, Current.Data.PixelsPerMetre * math.max(GraphicsSettings.Detail, 0.1f));
         }
+
+        static readonly int PixelsPerMetreId = Shader.PropertyToID("_PunchyPixelsPerMetre");
 
         public static float PixelsPerMetreAt(float fovDegrees)
             => ReferenceLines / (2f * math.tan(math.radians(math.clamp(fovDegrees, 5f, 170f)) * 0.5f));
@@ -351,6 +355,44 @@ namespace Punchy.Settings
         /// <summary>Behind the camera a creature is still posed while bigger than this (reference pixels, no Detail):
         /// its shadow falls into view. A deer inside 25 m, as before; a 6 m beast inside 100 m.</summary>
         public const float BehindPixels = 56.12f;
+
+        /// <summary>
+        /// R-13 (rule 20): the other visual ranges by how big the thing looks, one line per kind. Sizes in m, boundaries
+        /// in reference pixels at Detail 1, each tuned so the 60 degree view at 1080 lines gets the old range: a fire's
+        /// flame (0.35 m) at 150 m, a chimney's smoke (3 m) at 220 m, a river fall (10 m drop) at 350 m, a landmark's
+        /// effect (20 m plus its radius) at 700 m, a burning crown (2 m) at 70 m, a far burning crown (4 m) at 600 m,
+        /// a beacon (8 m) at 1600 m, a colossus lantern (1 m) at 450 m, a lightning bolt (10 m) at 160 m, a basin
+        /// (4 m across) at 80 m, a dropped item (0.3 m) at 60 m, ground surface detail (0.5 m) at 110 m, driftwood
+        /// (2 m) at 150 m, tree sway stopping (15 m) at 40 m, an interior room (8 m) at 40 m and ambient particles (0.1 m) at their type's Range. The far kinds (View
+        /// scaled before) use <see cref="FarReach"/>, the rest <see cref="ExtraReach(float, float)"/> (Detail scaled).
+        /// </summary>
+        public const float FlameSize = 0.35f, FlamePixels = TorchFlamePixels;
+        public const float ChimneySize = 3f, ChimneyPixels = 12.75f;
+        public const float RiverFallPixels = 26.72f;
+        public const float LandmarkEffectSize = 20f, LandmarkEffectPixels = 26.72f;
+        public const float BurningCrownSize = 2f, BurningCrownPixels = 26.72f;
+        public const float DistantCrownSize = 4f, DistantCrownPixels = 6.235f;
+        public const float BeaconSize = 8f, BeaconPixels = 4.677f;
+        public const float LanternSize = 1f, LanternPixels = 2.078f;
+        public const float BoltSize = 10f, BoltPixels = 58.46f;
+        public const float BasinPixels = 46.77f;
+        public const float ItemSize = 0.3f, ItemPixels = 4.677f;
+        public const float SurfaceDetailSize = 0.5f, SurfaceDetailPixels = 4.251f;
+        public const float DriftwoodSize = 2f, DriftwoodPixels = 12.47f;
+        public const float TreeSwaySize = 15f, TreeSwayPixels = 350.7f;
+        public const float RoomSize = 8f, RoomPixels = 187.1f;
+        /// <summary>An ambient particle (mote, firefly, dust puff): its type's Range is where one gets this small.</summary>
+        public const float ParticleSize = 0.1f;
+
+        /// <summary>How far something this big keeps this many reference pixels at the current view, scaled by the View
+        /// setting rather than Detail: the far kinds (landmark effects, beacons, far fires, lightning) that
+        /// GraphicsSettings.ViewRange used to scale (<see cref="SetView"/> first).</summary>
+        public static float FarReach(float size, float pixels)
+        {
+            var view = Current.Data;
+            var perMetre = view.PixelsPerMetre > 0f ? view.PixelsPerMetre : PixelsPerMetreAt(ReferenceFov);
+            return Reach(size, pixels / math.max(GraphicsSettings.View, 0.1f), perMetre);
+        }
 
         /// <summary>How far something this big keeps this many reference pixels at the current view, Detail included
         /// (<see cref="SetView"/> first; before any view, the reference one at the current Detail).</summary>

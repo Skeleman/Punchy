@@ -4,6 +4,7 @@
 #include "PlayerReveal.hlsl"
 #include "SharedClock.hlsl"
 #include "WaterSwell.hlsl"
+#include "PunchyPixels.hlsl"
 
 // Plants drawn by FloraSystem with indirect instanced draws. Each draw is one variant at one LOD; its instances
 // are the plants FloraCull.compute found visible, stored from the draw's startInstance in _FloraVisible as (plant index, dither
@@ -181,14 +182,14 @@ FloraVertex FloraTransform(FloraAttributes input)
     // Breaths and twitches settle beyond 60-100 m, where they're too small to see.
     else if (input.data.z < -1.5)
     {
-        float size = (-input.data.z - 2) * plant.scale * (1 - smoothstep(60, 100, distance(plant.position, GetCameraPositionWS())));
+        float size = (-input.data.z - 2) * plant.scale * smoothstep(9.353, 15.59, PunchyPixels(1, distance(plant.position, GetCameraPositionWS())));
         float beat = frac(_PunchyClock * 0.23 + plant.random * 7.1 + input.positionOS.x * 0.37);
         float jerk = beat < 0.06 ? sin(beat / 0.06 * 18.85) : 0;
         p += float3(sin(plant.random * 40 + input.positionOS.z), 0, cos(plant.random * 40 + input.positionOS.x)) * jerk * size;
     }
     else if (input.data.z < 0)
         p += n * (-input.data.z) * plant.scale * (0.5 + 0.5 * sin(_PunchyClock * 1.571 + plant.random * 6.28))   // a 4 s breath
-             * (1 - smoothstep(60, 100, distance(plant.position, GetCameraPositionWS())));
+             * smoothstep(9.353, 15.59, PunchyPixels(1, distance(plant.position, GetCameraPositionWS())));
 
     // Cloth (part 10; how free each vertex is, 0 at its pole or bar to 1 at the free edge, rides on the part as a
     // fraction x 0.4): a wave running out to the free edge with a quicker flutter there, leaning downwind, hanging
@@ -219,7 +220,7 @@ FloraVertex FloraTransform(FloraAttributes input)
         float along = (input.positionOS.x + input.positionOS.z) * 0.9;
         float wave = sin(t - free * 4.2 + along);
         // The quicker flutter at the free edge only up close: far off it's a shimmer the eye reads as noise (Z-33).
-        float flutterNear = 1 - smoothstep(30, 80, distance(plant.position, GetCameraPositionWS()));
+        float flutterNear = smoothstep(11.69, 31.18, PunchyPixels(1, distance(plant.position, GetCameraPositionWS())));
         float flutter = taut ? 0 : sin(t * 1.8 - free * 5.5 + input.positionOS.y * 2.6) * free * flutterNear;
         // Taut cloth stirs only in wind, and gently (G-19): nothing in calm air.
         float amount = free * (taut ? 0.08 * smoothstep(0.2, 0.9, _PunchyWind) * (0.5 + 0.5 * gust) : 0.06 + 0.4 * strength) * plant.scale;

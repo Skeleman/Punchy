@@ -157,8 +157,9 @@ namespace Punchy.Interact
             }
         }
 
-        /// <summary>How close to a house (one of its doors) a room is drawn (m); P-20, item 30.</summary>
-        const float CullNear = 40f;
+        /// <summary>How close to a house (one of its doors) a room is drawn (m); P-20, item 30. R-13: while a room
+        /// (DetailPolicy.RoomSize) looks big enough, 40 m at the reference view.</summary>
+        static float CullNear => Punchy.Settings.DetailPolicy.ExtraReach(Punchy.Settings.DetailPolicy.RoomSize, Punchy.Settings.DetailPolicy.RoomPixels);
         float cullAt;
         bool[] shown = System.Array.Empty<bool>();
         static bool noCull = System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-nointeriorcull") >= 0;

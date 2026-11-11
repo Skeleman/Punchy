@@ -10,22 +10,24 @@ namespace Punchy.Ambience
     /// in their crowns, with a few smaller ones at their feet and on the ground between them (each flame's glow lights
     /// the ground), all in one colour of the standard fire picked from the world seed and the night, so each night's
     /// fire is its own. Cosmetic only: it doesn't spread, burn or hurt anything. It catches as the light goes and dies
-    /// down at dawn with the landmarks' night fires. Only trees within ForestFireRange are gathered (twice a second, or
+    /// down at dawn with the landmarks' night fires. Only trees within ForestFireReach are gathered (twice a second, or
     /// as the camera moves), and only the nearest few throw light.
-    /// W-112: past that, out to ForestFarRange, each burning tree keeps one far flame in its crown (FireSystem's far
+    /// W-112: past that, out to ForestFarReach, each burning tree keeps one far flame in its crown (FireSystem's far
     /// level of detail: the flame and a broad glow card standing in for its light, no real light), so the forest
     /// glows across the island instead of lighting up only round the player. The trees' ember seams and leaf slivers
     /// glow in the night's fire colour too (FireSystem.EmberTint).
     /// </summary>
     public partial class LandmarkEffectSystem
     {
-        /// <summary>Trees within this distance of the camera burn (at full detail; GraphicsSettings.DetailRange scales it).</summary>
-        const float ForestFireRange = 70f;
+        /// <summary>Trees burn at full detail while their crown fire looks big enough (R-13: DetailPolicy.BurningCrownSize,
+        /// Detail scaled); this is that reach.</summary>
+        static float ForestFireReach => Punchy.Settings.DetailPolicy.ExtraReach(Punchy.Settings.DetailPolicy.BurningCrownSize, Punchy.Settings.DetailPolicy.BurningCrownPixels);
         /// <summary>At most this many flames a frame from the forest (their light is LightBudget's to pick).</summary>
         const int MaxForestFlames = 320;
         const int ForestSeedBase = 0x6F000000;
-        /// <summary>W-112: burning trees keep a far flame out to this distance (GraphicsSettings.ViewRange scales it), at most MaxFarFlames.</summary>
-        const float ForestFarRange = 600f;
+        /// <summary>W-112: burning trees keep a far flame while it looks big enough (R-13: DetailPolicy.DistantCrownSize, View
+        /// scaled), at most MaxFarFlames.</summary>
+        static float ForestFarReach => Punchy.Settings.DetailPolicy.FarReach(Punchy.Settings.DetailPolicy.DistantCrownSize, Punchy.Settings.DetailPolicy.DistantCrownPixels);
         const int MaxFarFlames = 3000;
         /// <summary>Near and far flames cross over from this fraction of the near reach to all of it.</summary>
         const float HandOverFrom = 0.75f;
@@ -99,7 +101,7 @@ namespace Punchy.Ambience
             // The ground far from the near flames glows from the world map, in tonight's colour; it starts where the
             // near flames' own light ends.
             var fireLight = ForestFiresOn && FarForestFiresOn ? FireSystem.Light(colour, lit * WorldFireBrightness) : Vector4.zero;
-            fireLight.w = math.min(Punchy.Settings.GraphicsSettings.DetailRange(ForestFireRange), shownReach) * 0.5f;
+            fireLight.w = math.min(ForestFireReach, shownReach) * 0.5f;
             Shader.SetGlobalVector(WorldFireId, fireLight);
             if (!ForestFiresOn || lit <= 0.01f)
             {
@@ -124,7 +126,7 @@ namespace Punchy.Ambience
             if (flora == null)
                 return;
 
-            var range = Punchy.Settings.GraphicsSettings.DetailRange(ForestFireRange);
+            var range = ForestFireReach;
             if (Time.unscaledTime >= nextForestGather || math.distancesq(forestGatheredAt, (float3)eye) > 36f)
             {
                 nextForestGather = Time.unscaledTime + 0.5f;
@@ -165,7 +167,7 @@ namespace Punchy.Ambience
         }
 
         /// <summary>
-        /// W-112: one far flame in each burning tree's crown from where the near flames thin out to ForestFarRange,
+        /// W-112: one far flame in each burning tree's crown from where the near flames thin out to ForestFarReach,
         /// fading in over the band where the near ones shrink away, so nothing pops. <paramref name="range"/> is where
         /// the near flames really end this frame. Gathered every two seconds or every 25 m the camera moves (a main-thread
         /// walk over the tree tiles in range). The set holds every burning tree in range, those under the near flames
@@ -176,7 +178,7 @@ namespace Punchy.Ambience
 
         void FarForestFires(Vector3 eye, float range, int colour, float lit)
         {
-            var far = Punchy.Settings.GraphicsSettings.ViewRange(ForestFarRange);
+            var far = ForestFarReach;
             if (far <= range)
                 return;
             if (Time.unscaledTime >= nextFarGather || math.distancesq(farGatheredAt, (float3)eye) > 625f)

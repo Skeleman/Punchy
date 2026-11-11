@@ -42,6 +42,7 @@ Shader "Punchy/Terrain Surface"
             #include "Sky.hlsl"
             #include "Glow.hlsl"
             #include "WideShadow.hlsl"
+            #include "PunchyPixels.hlsl"
             // x how much the ground under grass takes the blades' colour, y the grass radius (GroundDetailSystem).
             float4 _PunchyGrassTint;
             // The shared fine detail CaveSystem makes (rg a normal, b a height): grain on rock faces up close.
@@ -405,11 +406,11 @@ Shader "Punchy/Terrain Surface"
                 half dip = smoothstep(0.0, 0.08, input.hollow.x) * (1 - 0.65 * porosity);
                 half puddle = smoothstep(0.82, 0.9, dip * 0.4 + puddleNoise * 0.6 + wet * 0.15) * flatness * smoothstep(0.1, 0.3, wet)
                             * (1 - 0.6 * input.extra.y);   // grass pokes through, but meadow dips still pool
-                half sheen = max(wet * (1 - 0.85 * porosity), shore * 0.6) * (1 - 0.8 * input.extra.y) * (1 - smoothstep(120, 450, distance));
+                half sheen = max(wet * (1 - 0.85 * porosity), shore * 0.6) * (1 - 0.8 * input.extra.y) * smoothstep(4.157, 15.59, PunchyPixels(2, distance));
 
                 half relief = 0.45 * (1 - puddle);   // (the octaves' fades are already in micro)
                 normalWS = normalize(normalWS - half3(micro.x, 0, micro.y) * relief);
-                half cobbleFade = smoothstep(0.3, 0.55, input.paving.x) * (1 - smoothstep(30, 80, distance));
+                half cobbleFade = smoothstep(0.3, 0.55, input.paving.x) * smoothstep(3.507, 9.353, PunchyPixels(0.3, distance));
                 // W-108: paving above 1 is wear (SettlementSampling.Ground: the ruts down a cobbled road), and paving
                 // a little under 1 (a road's verge, the fade at a town's edge) lets the grass in between the stones.
                 half wear = saturate(input.paving.x - 1);
@@ -429,7 +430,7 @@ Shader "Punchy/Terrain Surface"
                 // Rock faces (steep ground) up close: the caves' shared grain and fine relief, read three ways, so cliffs
                 // carry the same detail as cave walls.
                 half rockShade = 1;
-                half steep = (1 - smoothstep(0.55, 0.8, normalWS.y)) * (1 - smoothstep(40, 90, distance)) * (input.extra.w <= 0.01);
+                half steep = (1 - smoothstep(0.55, 0.8, normalWS.y)) * smoothstep(20.78, 46.77, PunchyPixels(2, distance)) * (input.extra.w <= 0.01);
                 // W-112: round a cave mouth (its cut field under 8 m) any ground takes the walls' grain at the walls' own
                 // scale, so the terrain doesn't turn smooth where it meets the finer cave rock. Only there: the rest of
                 // the ground pays nothing.
@@ -469,7 +470,7 @@ Shader "Punchy/Terrain Surface"
                 if (detailFade > 0.001)
                 {
                     half grain = Grain(p * 37) * 0.6 + Grain(float2(p.x * 0.866 - p.y * 0.5, p.x * 0.5 + p.y * 0.866) * 15 + 11.3) * 0.4;   // turned: no grid
-                    albedo *= 1 + grain * 0.5 * (1 - smoothstep(6, 22, distance)) * (1 - input.extra.y) * detailFade;
+                    albedo *= 1 + grain * 0.5 * smoothstep(4.251, 15.59, PunchyPixels(0.1, distance)) * (1 - input.extra.y) * detailFade;
                 }
                 // Paved ground (settlement streets and squares): cobbles up close, fading to plain stone grey before
                 // the gaps could shimmer; the stones' domes catch the light.
@@ -546,7 +547,7 @@ Shader "Punchy/Terrain Surface"
                 if (puddle > 0.01)
                 {
                     float3 v = inputData.viewDirectionWS;
-                    half rain = PunchyWetnessAt(p).g * (1 - smoothstep(20, 60, distance));
+                    half rain = PunchyWetnessAt(p).g * smoothstep(4.677, 14.03, PunchyPixels(0.3, distance));
                     float2 ripple = rain > 0.01 ? PuddleRings(p, _PunchyClock) * rain * 0.35 : float2(0, 0);
                     float3 n = normalize(float3(-ripple.x, 1, -ripple.y));
                     float3 r = reflect(-v, n);

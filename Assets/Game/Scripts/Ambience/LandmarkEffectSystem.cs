@@ -20,22 +20,19 @@ namespace Punchy.Ambience
         [Tooltip("Material (Punchy/Flame) for the flames FireSystem collects each frame: torches, campfires.")]
         public Material FlameMaterial;
         public Material WaterfallMaterial;
-        [Tooltip("Effects of landmarks within this distance of the camera are drawn.")]
-        public float Range = 700f;
         /// <summary>Cave waterfalls are drawn within this distance (small, and underground).</summary>
         const float CaveRange = 120f;
-        /// <summary>Flame effects are lit within this distance (they're small; FireSystem draws them each frame).</summary>
-        const float FlameRange = 150f;
         /// <summary>How far a cave's waterfall carries out from its notch as it falls (m).</summary>
         const float FallReach = 0.9f;
-        /// <summary>River waterfalls: how far the water carries out as it falls (m), the distance they are drawn from, and the index offset.</summary>
-        const float RiverFallReach = 1.6f, RiverFallRange = 350f;
+        /// <summary>River waterfalls: how far the water carries out as it falls (m), the smallest size a fall counts as
+        /// for its reach (m: its drop, at least this; DetailPolicy.RiverFallPixels), and the index offset.</summary>
+        const float RiverFallReach = 1.6f, RiverFallSize = 10f;
         const int RiverFallBase = 1000000, GrandFallBase = 2000000;
         /// <summary>
-        /// W-43c chimney smoke: plots within this distance whose building has a chimney may smoke (index offset
-        /// ChimneyBase); a seeded share of buildings smoke, the same ones on every machine.
+        /// W-43c chimney smoke: plots whose chimney smoke looks big enough (DetailPolicy.ChimneySize) and whose building
+        /// has a chimney may smoke (index offset ChimneyBase); a seeded share of buildings smoke, the same ones on every machine.
         /// </summary>
-        const float ChimneyRange = 220f, SmokeShare = 0.42f;
+        const float SmokeShare = 0.42f;
         const int ChimneyBase = 3000000, SmokeParticles = 14;
         /// <summary>Last chimney gather: "smoking/total chimney buildings in range, particles, ms" (for the world probe).</summary>
         public static string LastChimneyLog = "";
@@ -100,6 +97,7 @@ namespace Punchy.Ambience
             var cam = Camera.main;
             if (cam == null || PlumeMaterial == null || WaterfallMaterial == null || !TryGetWorld(out var source, out var palette))
                 return;
+            Punchy.Settings.DetailPolicy.SetView(cam);
             if (!source.Landmarks.IsCreated || palette.Landmarks == null)
                 return;
 
@@ -116,7 +114,8 @@ namespace Punchy.Ambience
             }
             var eye = cam.transform.position;
             FallSounds(eye);
-            var flameRange = Punchy.Settings.GraphicsSettings.DetailRange(FlameRange);
+            // Flames by how big one looks (R-13, the torch flame's reference size): a narrower view reaches further.
+            var flameRange = Punchy.Settings.DetailPolicy.ExtraReach(Punchy.Settings.DetailPolicy.FlameSize, Punchy.Settings.DetailPolicy.FlamePixels);
             // Night-only fires catch as the light goes (the sky's night past a fifth) and die down at dawn.
             var lit = math.saturate((Shader.GetGlobalFloat(NightId) - 0.2f) / 0.3f);
             foreach (var f in fires)
@@ -306,11 +305,13 @@ namespace Punchy.Ambience
             ref var set = ref source.Landmarks.Value;
             nearby.Clear();
             var cam = new float2(camera.x, camera.z);
+            // R-13: each kind kept by how big it looks, and held a little past its reach once in (DetailPolicy.Within).
+            var effectReach = Punchy.Settings.DetailPolicy.FarReach(Punchy.Settings.DetailPolicy.LandmarkEffectSize, Punchy.Settings.DetailPolicy.LandmarkEffectPixels);
             for (int i = 0; i < set.Instances.Length; i++)
             {
                 ref var inst = ref set.Instances[i];
                 var type = inst.Type < types.Length ? types[inst.Type] : null;
-                if (type != null && type.Effects.Count > 0 && math.distance(inst.Position, cam) < Punchy.Settings.GraphicsSettings.ViewRange(Range) + set.Types[inst.Type].Radius * inst.Scale)
+                if (type != null && type.Effects.Count > 0 && Punchy.Settings.DetailPolicy.Within(math.distance(inst.Position, cam), effectReach + set.Types[inst.Type].Radius * inst.Scale, lastNearby.Contains(i)))
                     nearby.Add(i);
             }
             // Cave waterfalls near the camera (they're small and underground: within CaveRange), as -(index + 1).
@@ -326,15 +327,18 @@ namespace Punchy.Ambience
             {
                 ref var riverFalls = ref source.Rivers.Value.Falls;
                 for (int k = 0; k < riverFalls.Length; k++)
-                    if (FallDistance(riverFalls[k].Lip, riverFalls[k].Drop, camera) < Punchy.Settings.GraphicsSettings.DetailRange(RiverFallRange))
+                {
+                    var reach = Punchy.Settings.DetailPolicy.ExtraReach(math.max(riverFalls[k].Drop, RiverFallSize), Punchy.Settings.DetailPolicy.RiverFallPixels);
+                    if (Punchy.Settings.DetailPolicy.Within(FallDistance(riverFalls[k].Lip, riverFalls[k].Drop, camera), reach, lastNearby.Contains(-(RiverFallBase + k))))
                         nearby.Add(-(RiverFallBase + k));
+                }
             }
-            // The grand falls' tiers (W-29) are big: seen from the whole view range, as -(GrandFallBase + index).
+            // The grand falls' tiers (W-29) are big: seen as far as a landmark's effects, as -(GrandFallBase + index).
             if (source.GrandFalls.IsCreated)
             {
                 ref var tiers = ref source.GrandFalls.Value.Tiers;
                 for (int k = 0; k < tiers.Length; k++)
-                    if (FallDistance(tiers[k].Lip, tiers[k].Drop, camera) < Punchy.Settings.GraphicsSettings.ViewRange(Range))
+                    if (Punchy.Settings.DetailPolicy.Within(FallDistance(tiers[k].Lip, tiers[k].Drop, camera), effectReach, lastNearby.Contains(-(GrandFallBase + k))))
                         nearby.Add(-(GrandFallBase + k));
             }
             NearChimneys(source, cam);
@@ -576,12 +580,12 @@ namespace Punchy.Ambience
             var watch = System.Diagnostics.Stopwatch.StartNew();
             ref var f = ref blob.Value;
             ref var plots = ref source.Settlements.Value.Plots;
-            var range = Punchy.Settings.GraphicsSettings.DetailRange(ChimneyRange);
+            var range = Punchy.Settings.DetailPolicy.ExtraReach(Punchy.Settings.DetailPolicy.ChimneySize, Punchy.Settings.DetailPolicy.ChimneyPixels);
             int total = 0, smoking = 0;
             for (int k = 0; k < plots.Length; k++)
             {
                 ref var plot = ref plots[k];
-                if (plot.Building < 0 || plot.Building >= f.SettlementSpecies.Length || math.distancesq(plot.Centre, cam) > range * range)
+                if (plot.Building < 0 || plot.Building >= f.SettlementSpecies.Length || !Punchy.Settings.DetailPolicy.Within(math.distance(plot.Centre, cam), range, lastNearby.Contains(-(ChimneyBase + k))))
                     continue;
                 var building = f.SettlementSpecies[plot.Building];
                 if (building.x < 0 || f.Models[f.Rules[building.x].FirstModel].ChimneyCount == 0)

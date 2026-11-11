@@ -87,6 +87,7 @@ namespace Punchy.Ambience
             var cam = Camera.main;
             if (cam == null || GlowMaterial == null || MistMaterial == null || !TryGetWorld(out var source, out var palette))
                 return;
+            Punchy.Settings.DetailPolicy.SetView(cam);
             if (built && !source.Equals(lastSource))
                 Teardown();
             if (!built)
@@ -320,6 +321,16 @@ namespace Punchy.Ambience
             pending.Dispose();
         }
 
+        /// <summary>R-13: how far a type's particles draw, by how big one looks (DetailPolicy.ParticleSize): its Range is
+        /// where one gets that small at the reference view, Detail 1. A narrower view reaches further (up to the ground
+        /// detail's stretch, as tiles are built round the camera), and never past the tiles built.</summary>
+        float ParticleReach(AmbientParticleType type)
+        {
+            var size = Punchy.Settings.DetailPolicy.ParticleSize;
+            var pixels = Punchy.Settings.DetailPolicy.ScreenSize(size, type.Range, Punchy.Settings.DetailPolicy.PixelsPerMetreAt(Punchy.Settings.DetailPolicy.ReferenceFov));
+            return math.min(Punchy.Settings.DetailPolicy.GroundReach(size, pixels), math.max(radius, type.Range));
+        }
+
         void Draw(float2 camXZ)
         {
             for (int t = 0; t < types.Count; t++)
@@ -330,15 +341,16 @@ namespace Punchy.Ambience
                 if (amount <= 0f || Punchy.CameraRig.Underwater.LensUnder && type.Style != AmbientParticleStyle.Glow)
                     continue;
                 var material = type.Style == AmbientParticleStyle.Glow ? GlowMaterial : MistMaterial;
+                var reach = ParticleReach(type);
                 foreach (var tile in tiles.Values)
                 {
-                    if (tile.Counts[t] == 0 || math.distance(new float2(tile.Bounds.center.x, tile.Bounds.center.z), camXZ) > Punchy.Settings.GraphicsSettings.DetailRange(type.Range) + TileSize)
+                    if (tile.Counts[t] == 0 || math.distance(new float2(tile.Bounds.center.x, tile.Bounds.center.z), camXZ) > reach + TileSize)
                         continue;
                     var props = tile.Props[t];
                     props.SetVector(ColorId, type.Color);
                     props.SetVector(SizeId, new Vector4(type.Size.x, type.Size.y, type.Height.x, type.Height.y));
                     props.SetVector(MotionId, new Vector4(type.Wander, type.Rise, type.WindDrift, type.Travel));
-                    props.SetVector(ShapeId, new Vector4(type.Twinkle, amount, Punchy.Settings.GraphicsSettings.DetailRange(type.Range), type.Volume));
+                    props.SetVector(ShapeId, new Vector4(type.Twinkle, amount, reach, type.Volume));
                     props.SetFloat(GroundTintId, type.GroundTint);
                     var rp = new RenderParams(material)
                     {

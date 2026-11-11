@@ -378,7 +378,7 @@ Shader "Punchy/Flora"
                     // with distance, where the crown reads as one mass anyway).
                     float3 q = (input.positionWS - frac(r * 7.3) * 10) * 2.2;
                     half leafNoise = PunchyValueNoise(q.xz + q.y * 0.7) * 0.6 + PunchyValueNoise(q.zy * 2.3 + 5.1) * 0.4;
-                    half leafNear = 1 - smoothstep(40, 90, distance(input.positionWS, GetCameraPositionWS()));
+                    half leafNear = smoothstep(10.39, 23.38, PunchyPixels(1, distance(input.positionWS, GetCameraPositionWS())));
                     albedo *= lerp(1, lerp(half3(0.62, 0.66, 0.7), half3(1.25, 1.22, 1.0), leafNoise), leafNear * 0.85);
                 }
                 // Moss (W-64): darker, greener clumps and yellower tips, and darker still in the thin cover near the rim.
@@ -478,7 +478,7 @@ Shader "Punchy/Flora"
                 if (part == 0 || metal)
                 {
                     half fresnel = 0.04 + 0.96 * pow(1 - saturate(dot(n, v)), 5);
-                    half sheenFar = metal ? 1 : lerp(0.25, 1, smoothstep(30, 120, distance(input.positionWS, GetCameraPositionWS())));
+                    half sheenFar = metal ? 1 : lerp(0.25, 1, 1 - smoothstep(15.59, 62.35, PunchyPixels(2, distance(input.positionWS, GetCameraPositionWS()))));
                     color += SampleSH(reflect(-v, n)) * fresnel * 0.35 * sheenFar * ao * lerp(1, 0.06, _PunchyUnderground) * lerp(1, PunchyUndersideSky, under);
                 }
 
@@ -564,7 +564,7 @@ Shader "Punchy/Flora"
                 if (part == 5)
                 {
                     // A steady glow beyond 100 m, where the shimmer can't be seen.
-                    float amount = saturate((input.extra.x - 5) / 0.4) * (1 - smoothstep(80, 100, distance(input.positionWS, GetCameraPositionWS())));
+                    float amount = saturate((input.extra.x - 5) / 0.4) * smoothstep(9.353, 11.69, PunchyPixels(1, distance(input.positionWS, GetCameraPositionWS())));
                     float pulse = 1 + amount * sin(_PunchyClock * 0.55 + r * 40 + input.positionWS.y * 0.7);
                     // Brighter in the dark of a cave (eyes adjusted to the dark see the glow stand out).
                     color += albedo * 1.6 * pulse * lerp(1, 2.5, _PunchyUnderground);
@@ -590,7 +590,7 @@ Shader "Punchy/Flora"
                     float2 hexB = fmod(abs(q + float2(0.866, 0.5)), float2(1.732, 1)) - float2(0.866, 0.5);
                     float2 h2 = dot(hexA, hexA) < dot(hexB, hexB) ? hexA : hexB;
                     float rim = max(abs(h2.y), dot(abs(h2), float2(0.866, 0.5)));
-                    half cellNear = 1 - smoothstep(4, 10, distance(input.positionWS, GetCameraPositionWS()));
+                    half cellNear = smoothstep(9.353, 23.38, PunchyPixels(0.1, distance(input.positionWS, GetCameraPositionWS())));
                     color *= 1 - smoothstep(0.38, 0.47, rim) * 0.35 * cellNear;
                 }
                 // Items 27-28: wet bark and leaves are rough and absorbent: a faint, broad damp sheen, not the sharp

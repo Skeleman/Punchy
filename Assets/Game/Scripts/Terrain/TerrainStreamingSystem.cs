@@ -48,8 +48,6 @@ namespace Punchy.Terrain
         static readonly int DetailPpmId = Shader.PropertyToID("_PunchyTerrainDetailPpm");
         /// <summary>R-6 row 4b: the fine relief's octaves fade by their own on-screen size (false: the old fixed range, to compare).</summary>
         public static bool MicroReach = true;
-        /// <summary>Where the terrain's fine relief has faded out at Detail 1 (m; TerrainSurface.shader). W-101: was a fixed 70.</summary>
-        const float DetailFar = 110f;
         /// <summary>Vertices per batch (a full-detail chunk is about 4,500).</summary>
         const int VertexBudget = 14000;
         /// <summary>When off, the first batch is load-boosted too (for before/after timing).</summary>
@@ -179,7 +177,9 @@ namespace Punchy.Terrain
             // climbs or jumps.
             // The terrain shader geomorphs vertices by their distance from this same point.
             Shader.SetGlobalVector(TerrainFocusId, new Vector4(focus.x, focus.y, 0f, 0f));
-            Shader.SetGlobalFloat(DetailFarId, Punchy.Settings.GraphicsSettings.DetailRange(DetailFar));
+            // Where the terrain's fine relief has faded out (TerrainSurface.shader): R-13, by how big its detail looks
+            // (DetailPolicy.SurfaceDetailSize, 110 m at the reference view; W-101: was a fixed 70, then 110).
+            Shader.SetGlobalFloat(DetailFarId, Punchy.Settings.DetailPolicy.ExtraReach(Punchy.Settings.DetailPolicy.SurfaceDetailSize, Punchy.Settings.DetailPolicy.SurfaceDetailPixels));
             Shader.SetGlobalFloat(DetailPpmId, MicroReach
                 ? Punchy.Settings.DetailPolicy.Current.Data.PixelsPerMetre * Punchy.Settings.GraphicsSettings.Detail : -1f);
             RefreshWaterRegions(focus, config.ChunkSize);

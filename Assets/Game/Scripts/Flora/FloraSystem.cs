@@ -271,8 +271,8 @@ namespace Punchy.Flora
         readonly List<Basin> basins = new List<Basin>();
         /// <summary>One water disc per model (its species' water colour baked in), made when first drawn.</summary>
         readonly Dictionary<int, Mesh> basinMeshes = new Dictionary<int, Mesh>();
-        /// <summary>How far fountains' water is drawn with the terrain's water (at Detail 1); beyond it their models' own discs stand in.</summary>
-        const float BasinRange = 80f;
+        // Fountains' water is drawn with the terrain's water while the basin looks big enough (R-13: its width at
+        // DetailPolicy.BasinPixels, 80 m for a 4 m basin at the reference view); beyond it their models' own discs stand in.
 
         /// <summary>Notes the basins of a newly loaded tile's plants (turned and scaled as the plants are).</summary>
         void AddBasins(Layer l, int2 tile, NativeArray<FloraInstance> plants)
@@ -311,7 +311,7 @@ namespace Punchy.Flora
                 return;
             foreach (var basin in basins)
             {
-                if (math.distance(basin.Centre, camPos) > Punchy.Settings.GraphicsSettings.DetailRange(BasinRange) + basin.Radius)
+                if (math.distance(basin.Centre, camPos) > Punchy.Settings.DetailPolicy.ExtraReach(2f * basin.Radius, Punchy.Settings.DetailPolicy.BasinPixels) + basin.Radius)
                     continue;
                 if (!basinMeshes.TryGetValue(basin.Model, out var mesh))
                 {
@@ -1042,7 +1042,10 @@ namespace Punchy.Flora
             if (GraphicsSettings.currentRenderPipeline is UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset urp)
                 shadowDistance = urp.shadowDistance;
             // W-107: where the shadow lists stop swaying (0: never). The cull does it once per plant, not per vertex.
-            Culling.SetFloat(ShadowStillId, FloraShadowOptions.StillFarShadows ? FloraShadowOptions.StillFrom : 0f);
+            // R-13: by default where a tree (DetailPolicy.TreeSwaySize) gets small enough; -stillfrom still sets metres.
+            var stillFrom = FloraShadowOptions.StillFrom >= 0f ? FloraShadowOptions.StillFrom
+                : Punchy.Settings.DetailPolicy.ExtraReach(Punchy.Settings.DetailPolicy.TreeSwaySize, Punchy.Settings.DetailPolicy.TreeSwayPixels);
+            Culling.SetFloat(ShadowStillId, FloraShadowOptions.StillFarShadows ? stillFrom : 0f);
             // W-107: where the cheap far caster's cards get holes (0: off).
             Shader.SetGlobalVector(CheapHolesId, new Vector4(camPos.x, camPos.y, camPos.z,
                 FloraShadowOptions.CheapFarCaster ? FloraShadowOptions.NearRange : 0f));
@@ -1334,10 +1337,8 @@ namespace Punchy.Flora
         Mesh boltMesh;
         Material boltMaterial;
         bool boltsLoaded;
-        /// <summary>Bolts are found among arcing spires within this distance of the camera.</summary>
-        const float BoltRange = 160f;
-        /// <summary>BoltRange at the graphics settings' View distance.</summary>
-        float BoltReach => Punchy.Settings.GraphicsSettings.ViewRange(BoltRange);
+        /// <summary>Bolts are found among arcing spires while a bolt looks big enough (R-13: DetailPolicy.BoltSize, View scaled).</summary>
+        float BoltReach => Punchy.Settings.DetailPolicy.FarReach(Punchy.Settings.DetailPolicy.BoltSize, Punchy.Settings.DetailPolicy.BoltPixels);
 
         /// <summary>
         /// Electric bolts between neighbouring arcing spires (FloraForm.ArcSpire): every spire near the camera pairs with

@@ -9,13 +9,14 @@ namespace Punchy.Ambience
     /// W-127: the beacon towers' fires (FloraPlacement.BeaconSpot: one in each big town's square). Lit at night with the
     /// landmarks' night fires: near the camera a standard fire flame in the tower's bowl that lights the square (a
     /// LightBudget fire, wider than a campfire's), and past that a far flame (FireSystem's far level of detail, a flame and
-    /// a glow card) out to BeaconFarRange, so a town's beacon is seen across the island. The towers never move, so their
+    /// a glow card) out to BeaconFarReach, so a town's beacon is seen across the island. The towers never move, so their
     /// fires are found once per world (all settlements, a few dozen) and only drawn after that. Cosmetic only.
     /// </summary>
     public partial class LandmarkEffectSystem
     {
-        /// <summary>Beacon fires keep a far flame out to this distance (GraphicsSettings.ViewRange scales it).</summary>
-        const float BeaconFarRange = 1600f;
+        /// <summary>Beacon fires keep a far flame while the tower's fire looks big enough (R-13: DetailPolicy.BeaconSize,
+        /// View scaled); this is that reach.</summary>
+        static float BeaconFarReach => Punchy.Settings.DetailPolicy.FarReach(Punchy.Settings.DetailPolicy.BeaconSize, Punchy.Settings.DetailPolicy.BeaconPixels);
         const float BeaconFlame = 1.5f, BeaconFarFlame = 3f, BeaconFarGrow = 200f;
         const int BeaconSeedBase = 0x6E000000;
         /// <summary>Debug switch for before/after costs.</summary>
@@ -47,7 +48,7 @@ namespace Punchy.Ambience
                 return;
             // Tonight's fire colour, as the Ember Forest's: the world map's fire channel lights the square from afar in it.
             var colour = cycle != null ? ForestColour((uint)source.World.Seed, cycle.Day, cycle.TimeOfDay) : FireSystem.Wood;
-            var far = Punchy.Settings.GraphicsSettings.ViewRange(BeaconFarRange);
+            var far = BeaconFarReach;
             var t = Time.time;
             for (int i = 0; i < beacons.Count; i++)
             {
