@@ -2,6 +2,35 @@
 
 Newest first.
 
+## Wave field fix 1: the field shades the chunk water over its whole square (Zach, 2026-11-11; q84.sh; b/fix-waterfield-step 17ec2216)
+**Why:** at cuts 4 the fine sheet only covers a few metres around the player. So the a9db11d7 switch ("no ring ripples
+where the field fully covers") left white ring ripples over most of the wake, and Zach saw them in every arm.
+
+**The change:**
+- The field's slope now shades all water in its 32 m square, fading over the outer 3 m, and the ring ripples and field foam
+  are left out across it.
+- The sheet still moves near the player. The chunk water beyond only takes the field's light.
+- Cave water is untouched. With no field (hidden, `-waterfield 0`) nothing changes.
+- `-waterfieldripples 1` keeps the old look.
+
+**Look (shots in Punchy-wt results/q84-shots, old-vs-fix1-crop.png):**
+- The white rings and foam blobs are gone. The wake reads as one continuous V back from the swimmer.
+- Its pale arms are the field's slopes reflecting the sky, drawn 2.5x steeper than the displacement, not foam. That factor
+  is a one-line tune if they read too bright; for Zach to judge in motion with Profile-17ec221.
+
+**Cost (cuts 4, 30 Hz, swim at 488,-1144, default body):**
+| arm | RenderDoc frame | transparent | bench GPU (2 rounds) |
+|---|---|---|---|
+| old look | 60.95 | 18.30 | 19.6, 18.1 |
+| fix 1 | 61.31 | 18.58 | 18.4, 18.4 |
+| field off | 60.07 | 17.66 | 18.4, 18.0 |
+
+- **Fix 1 costs about +0.3 RenderDoc ms over the old look,** roughly +0.1 ms real. That's the chunk water reading the field's
+  slope: 5 texture reads a pixel inside the square.
+- **The whole field is about +1.2 RenderDoc ms over off, roughly +0.4 ms real.** Job 45c measured +1.6 ms on the bench.
+
+**For R-9 (water lane):** take b/fix-waterfield-step 17ec2216 rather than a9db11d7.
+
 ## Wave field: 30/20 Hz fixed, displacement only (Zach, 2026-11-11; q82.sh, q83.sh; b/fix-waterfield-step)
 **Changes on the experiment branch:**
 - **96c1425a:** a move no longer forces its own step; the shift waits for the next scheduled one, and the shaders read the
