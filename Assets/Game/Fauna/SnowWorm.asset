@@ -33,6 +33,7 @@ MonoBehaviour:
   Size: {x: 16, y: 20}
   Weight: 20000
   HairColors: []
+  Coat: 3
   Parts:
   - Limb: {fileID: 11400000, guid: 0b0d268b6767d0947ade03e60eb9e58a, type: 2}
     Parent: -1

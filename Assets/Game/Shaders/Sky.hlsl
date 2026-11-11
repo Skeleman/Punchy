@@ -28,10 +28,11 @@ half3  _PunchyDustColor;
 float  _PunchyHazeDensity;     // base exponential-squared haze per metre (hides the edge of the streamed terrain)
 float4 _PunchyUnderwater;       // P-20: under water, rgb the water's fog colour and w its density per metre; 0 when dry (Underwater.cs)
 float4 _PunchyUnderwaterSurface; // under water, x the surface over the lens (m) and y the lens's depth under it; 0 when dry (Underwater.cs)
+float4 _PunchyUnderwaterShafts;  // under water, x light shaft march steps (0 off), y brightness, z fade per metre under the surface (Underwater.cs)
 
 float3 _PunchySunDirection;    // towards the sun
 float3 _PunchyMoonDirection;   // towards the moon
-float _PunchySkyOff;           // test only (-skyoff n, to price the sky's parts): 1 no cloud march, 2 no far clouds, 4 no sky colour, 8 no weather volumes, 16 old even steps, 32 steps-per-pixel overlay, 64 always four sun samples, 128 cloud edges before R-4, 256 cloud light before R-4, 512 one cloud type everywhere (before R-4)
+float _PunchySkyOff;           // test only (-skyoff n, to price the sky's parts): 1 no cloud march, 2 no far clouds, 4 no sky colour, 8 no weather volumes, 16 old even steps, 32 steps-per-pixel overlay, 64 always four sun samples, 128 cloud edges before R-4, 256 cloud light before R-4, 512 one cloud type everywhere (before R-4), 1024 cloud maps read straight (before R-12)
 float4 _PunchyMoonPhase;       // phase (0 new, 0.5 full), lit share
 float3 _PunchyBlueMoon;        // towards the second, blue moon
 static const float PunchyBlueMoonRadius = 0.22;    // radians (about 25 degrees across): 6.5x its v0.11.0 size, a sister planet (Zach, #34)
@@ -241,9 +242,26 @@ float PunchyCloudDensity(float3 p, half4 weather, float4 shape, float detail)
     return PunchyCloudDensityFine(p, weather, shape, detail, 0);
 }
 
+// Where the cloud volume reads the weather and cloud maps (R-12): a few hundred metres off the point, wandering with
+// position and height. A storm cell is a smooth disc in the 64 m maps, and inside it the cover saturates so the noise
+// no longer carves the cloud; read straight, its rim stood as a smooth pillar with straight sides (#241). Wandered, the
+// rim bulges and leans like a heaped tower. The march sets punchyCloudWarp once per step and its light samples share it.
+// (-skyoff 1024: read straight, before R-12.)
+static float2 punchyCloudWarp = 0;
+
+float2 PunchyCloudWarpAt(float3 p)
+{
+    if (((uint)_PunchySkyOff & 1024u) != 0)
+        return 0;
+    float3 q = p - float3(_PunchyCloudOffset.x, 0, _PunchyCloudOffset.y) * PUNCHY_CLOUD_FEATURE;
+    float2 n = SAMPLE_TEXTURE3D_LOD(_PunchyCloudNoise, sampler_PunchyCloudNoise, float3(q.x * 0.6 + q.z * 0.8, q.y * 1.4, q.z * 0.6 - q.x * 0.8) / 3100.0 + 0.53, 0).gb;
+    return (n - 0.5) * 800;
+}
+
 float PunchyCloudDensityAt(float3 p, float detail)
 {
-    return PunchyCloudDensity(p, PunchyWeatherAt(p.xz), PunchyCloudShapeAt(p.xz), detail);
+    float2 xz = p.xz + punchyCloudWarp;
+    return PunchyCloudDensity(p, PunchyWeatherAt(xz), PunchyCloudShapeAt(xz), detail);
 }
 
 float PunchyPhase(float cosTheta, float g)
@@ -449,8 +467,10 @@ void PunchyCloudMarch(float3 dir, float2 screenPos, float framePhase, out half3 
         stepsTaken = i + 1;
         float stepLength = clamp(t * 0.02, 30, 500);
         float3 p = camera + dir * t;
-        half4 weather = PunchyWeatherAt(p.xz);
-        float4 shape = PunchyCloudShapeAt(p.xz);
+        punchyCloudWarp = PunchyCloudWarpAt(p);
+        float2 mapXZ = p.xz + punchyCloudWarp;
+        half4 weather = PunchyWeatherAt(mapXZ);
+        float4 shape = PunchyCloudShapeAt(mapXZ);
         bool canHold = (weather.r > 0.03 || shape.z > 0.02) && PunchyInCloudLayer(p.y, shape);
         [branch] if (stride && !canHold)
         {
@@ -627,10 +647,11 @@ half PunchyCloudCoverAlong(float3 dir, out half darkness)
     float4 shape = PunchyCloudShapeAt(guess);
     float middle = shape.x + shape.y * 0.35;
     float3 p = camera + dir * min((middle - camera.y) / dir.y, 40000);
-    half4 weather = PunchyWeatherAt(p.xz);
+    float2 mapXZ = p.xz + PunchyCloudWarpAt(p);   // where the volume reads its maps (R-12)
+    half4 weather = PunchyWeatherAt(mapXZ);
     darkness = weather.g;
     punchyCloudStyle = PunchyCloudStyleAt(p.xz);
-    return saturate(PunchyCloudDensity(p, weather, PunchyCloudShapeAt(p.xz), 0) * 3) * smoothstep(0.02, 0.12, dir.y);
+    return saturate(PunchyCloudDensity(p, weather, PunchyCloudShapeAt(mapXZ), 0) * 3) * smoothstep(0.02, 0.12, dir.y);
 }
 
 // 0..1: how much a point on the ground is shaded from the sun by the clouds above it (one sample at the clouds'
@@ -643,9 +664,10 @@ half PunchyCloudShadow(float3 positionWS)
     float4 shape = PunchyCloudShapeAt(positionWS.xz);
     float height = shape.x + shape.y * 0.3;
     float3 p = float3(positionWS.xz + toSun.xz * (height - positionWS.y) / toSun.y, height).xzy;
-    half4 weather = PunchyWeatherAt(p.xz);
+    float2 mapXZ = p.xz + PunchyCloudWarpAt(p);   // where the volume reads its maps (R-12), so the shadow sits under it
+    half4 weather = PunchyWeatherAt(mapXZ);
     punchyCloudStyle = PunchyCloudStyleAt(p.xz);
-    float density = PunchyCloudDensity(p, weather, PunchyCloudShapeAt(p.xz), 0);
+    float density = PunchyCloudDensity(p, weather, PunchyCloudShapeAt(mapXZ), 0);
     return saturate(density * 3) * lerp(0.5, 0.95, saturate(shape.y / 3000));
 }
 
@@ -1075,7 +1097,10 @@ void PunchyWeatherVolumesAlong(float3 start, float3 dir, float rayLength, int st
         previous = t;
         float height = min(p.y, heightCap);
 
-        half4 w = PunchyWeatherAt(p.xz);
+        // The rain falls from where the cloud's rim is (R-12): the maps are read at the cloud's warp at its base, so the
+        // shaft's sides follow the cloud above instead of the smooth disc in the map.
+        float cloudBase = PunchyCloudShapeAt(p.xz).x;
+        half4 w = PunchyWeatherAt(p.xz + PunchyCloudWarpAt(float3(p.x, cloudBase, p.z)));
         if (w.a + w.b <= 0.004)
             continue;
 
@@ -1084,10 +1109,13 @@ void PunchyWeatherVolumesAlong(float3 start, float3 dir, float rayLength, int st
         float billow = PunchyValueNoise((p.xz - drift) / 260) * 0.65 + PunchyValueNoise((p.xz - drift * 1.6) / 90) * 0.35;
         float dustTop = PUNCHY_DUST_TOP * (0.45 + billow);
         float dust = w.a * PUNCHY_DUST_DENSITY * saturate((dustTop - height) / 180) * (0.4 + billow);
-        float streaks = PunchyValueNoise((p.xz - drift) / 110);
-        float cloudBase = PunchyCloudShapeAt(p.xz).x;
-        // The shaft is densest in the middle of the cell and frays at its edges.
-        float rain = w.b * w.b * PUNCHY_RAIN_DENSITY * 1.4 * saturate((cloudBase - height) / 120) * (0.3 + 1.4 * streaks);
+        // The shaft is densest in the middle of the cell and frays at its edges. R-12: thin enough to see through, in
+        // streaks with clear gaps between them (a coarse and a fine layer, cut off below), thinning with depth under
+        // the cloud base as it falls, so the land behind shows.
+        float streaks = PunchyValueNoise((p.xz - drift) / 110) * 0.6 + PunchyValueNoise((p.xz - drift * 1.3) / 30) * 0.4;
+        streaks = saturate((streaks - 0.3) * 2.5);
+        float fall = cloudBase - height;
+        float rain = w.b * w.b * PUNCHY_RAIN_DENSITY * 0.6 * saturate(fall / 120) * lerp(1, 0.4, saturate(fall / 1500)) * (0.15 + streaks);
         float density = dust + rain;
         if (density <= 1e-6)
             continue;
@@ -1148,6 +1176,47 @@ half3 PunchyHazeFromLut(half3 color, float2 offsetXZ, float distance)
     return color * (1 - haze.a) + haze.rgb;
 }
 
+// Under water (playtest 11-08 item 38): light streaming down through the surface in shafts. A few steps along the view
+// ray, the first 40 m; each step's point is traced back up to the surface along the sun's (or moon's) refracted ray,
+// and two drifting noise layers there say whether light got through (the ripples focusing it), sharpened into
+// shafts. Each fades with the point's depth under the surface and with the water's fog towards the eye. Steps come
+// from the water quality setting (WaterQuality.UnderwaterShaftSteps); none on Low.
+half3 PunchyUnderwaterShafts(float3 camera, float3 dir, float distance)
+{
+    int steps = (int)_PunchyUnderwaterShafts.x;
+    if (steps <= 0)
+        return 0;
+    bool day = _PunchySunDirection.y > 0;
+    float3 toLight = day ? _PunchySunDirection : _PunchyMoonDirection;
+    half3 light = day ? _PunchySunColor : half3(0.16, 0.19, 0.27) * 0.4 * _PunchyNight * saturate(_PunchyMoonDirection.y * 4);
+    // (Into water the light bends towards the vertical; held a little off flat so the trace back stays short.)
+    float3 down = refract(-toLight, float3(0, 1, 0), 0.75);
+    down.y = min(down.y, -0.3);
+    // (Item 39: the shafts fan out from one point up through the Snell window, not along parallel rays, so they converge
+    // on a vanishing point overhead and spread around you. Held a little above the surface along the way to the light.)
+    float3 toSource = -down / max(length(down), 1e-3);
+    float3 source = camera + toSource * ((_PunchyUnderwaterSurface.x - camera.y + 30) / max(toSource.y, 0.3));
+    float reach = min(distance, 40);
+    float stepLength = reach / steps;
+    float t = _PunchyClock;
+    float sum = 0;
+    [loop] for (int i = 0; i < steps; i++)
+    {
+        float s = (i + 0.5) * stepLength;
+        float3 q = camera + dir * s;
+        float below = _PunchyUnderwaterSurface.x - q.y;
+        if (below <= 0)
+            continue;
+        // Where the line from this point up to the source crosses the surface.
+        float2 at = q.xz + (source.xz - q.xz) * saturate(below / max(source.y - q.y, 1));
+        float a = PunchyValueNoise(at * 0.42 + float2(t * 0.11, t * 0.05));
+        float b = PunchyValueNoise(at * 0.71 - float2(t * 0.07, -t * 0.09) + 5.3);
+        float shaft = smoothstep(0.3, 0.62, a * b * 2);
+        sum += shaft * exp(-below * _PunchyUnderwaterShafts.z) * exp(-s * _PunchyUnderwater.w);
+    }
+    return light * ((half3)_PunchyUnderwater.rgb * 1.5 + 0.08) * sum * stepLength * _PunchyUnderwaterShafts.y * 0.06;
+}
+
 // The weather volumes seen against the sky (R-8): the skybox's own march along each view direction (8 steps out to
 // 8 km, the true ray height), done once a frame into a small direction table (HazeLut.shader's second pass, rendered
 // by WeatherSystem from the camera) instead of per full-res sky pixel, where it was over half the skybox's cost.
@@ -1195,7 +1264,8 @@ half3 PunchyAtmosphere(half3 color, float3 positionWS)
         float rise = positionWS.y - camera.y;
         if (positionWS.y > _PunchyUnderwaterSurface.x && rise > 1e-3)
             wet *= saturate(_PunchyUnderwaterSurface.y / rise);
-        return lerp(color, (half3)_PunchyUnderwater.rgb, 1 - exp(-pow(wet * _PunchyUnderwater.w, 2)));
+        color = lerp(color, (half3)_PunchyUnderwater.rgb, 1 - exp(-pow(wet * _PunchyUnderwater.w, 2)));
+        return color + PunchyUnderwaterShafts(camera, dir, distance);
     }
     color = PunchyHazeFromLut(color, positionWS.xz - _PunchyHazeOrigin.xz, distance);
     float haze = 1 - exp(-pow(distance * _PunchyHazeDensity, 2));

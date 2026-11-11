@@ -326,7 +326,8 @@ namespace Punchy.Ambience
             {
                 var type = types[t];
                 var amount = Amount(type.Condition);
-                if (amount <= 0f)
+                // Under water (playtest 11-08 item 33) the air's mist, fog and dust puffs don't draw, like the clouds.
+                if (amount <= 0f || Punchy.CameraRig.Underwater.LensUnder && type.Style != AmbientParticleStyle.Glow)
                     continue;
                 var material = type.Style == AmbientParticleStyle.Glow ? GlowMaterial : MistMaterial;
                 foreach (var tile in tiles.Values)
@@ -359,8 +360,9 @@ namespace Punchy.Ambience
             {
                 case AmbientParticleCondition.Night: return Ambience.Night;
                 case AmbientParticleCondition.Day: return 1f - Ambience.Night;
-                case AmbientParticleCondition.Fog: return Ambience.Fog;
-                case AmbientParticleCondition.Dust: return Ambience.Dust;
+                // (Weather in the air: none of it under water, item 33.)
+                case AmbientParticleCondition.Fog: return Punchy.CameraRig.Underwater.LensUnder ? 0f : Ambience.Fog;
+                case AmbientParticleCondition.Dust: return Punchy.CameraRig.Underwater.LensUnder ? 0f : Ambience.Dust;
                 default: return 1f;
             }
         }

@@ -42,8 +42,6 @@ namespace Punchy.Fauna
 
         /// <summary>The most traces at once (all kinds).</summary>
         public const int Capacity = 1536;
-        /// <summary>How near the camera traces are left (m, at the graphics settings' Detail).</summary>
-        static float Range => Punchy.Settings.GraphicsSettings.DetailRange(40f);
         const float FootprintLife = 90f, FeatherLife = 120f;
 
         public NativeArray<Trace> Traces;
@@ -107,7 +105,7 @@ namespace Punchy.Fauna
             // (The first pass in Burst, A-70 row 5: in creature order, on one thread, as the managed loop had it.)
             Unity.Jobs.IJobExtensions.Run(new DueJob
             {
-                States = states, Bodies = bodies, Entities = entities, Camera = camPos, Range = Range, OldOrder = OldOrder,
+                States = states, Bodies = bodies, Entities = entities, Camera = camPos, View = Punchy.Settings.DetailPolicy.Current.Data, OldOrder = OldOrder,
                 Steps = steps, Actions = actions, Throws = throws, Need = need, Due = due, LastPhases = lastPhases,
                 Positions = positions
             });
@@ -169,7 +167,9 @@ namespace Punchy.Fauna
             [ReadOnly] public NativeArray<CreatureBody> Bodies;
             [ReadOnly] public NativeArray<Entity> Entities;
             public float3 Camera;
-            public float Range;
+            /// <summary>The view (A-99): traces are left while the creature leaving them is DetailPolicy.TracePixels
+            /// across at it (a deer's inside 40 m at the 60 degree view, x Detail), held a little past while it was.</summary>
+            public Punchy.Settings.DetailPolicy.View View;
             public bool OldOrder;
             public NativeHashMap<Entity, float4> Steps;
             public NativeHashMap<Entity, byte> Actions;
@@ -186,8 +186,9 @@ namespace Punchy.Fauna
                     ref var b = ref Bodies[i].Blob.Value;
                     Positions[i] = s.Position;
                     // (Huge animals seen from far off leave their marks as far: a serpent's splash across the lake.)
-                    var range = math.max(Range, b.SeenFrom);
-                    if (math.distancesq(s.Position, Camera) > range * range)
+                    var range = math.max(Punchy.Settings.DetailPolicy.ExtraReach(CreatureMotion.ApparentSize(s, ref b),
+                        Punchy.Settings.DetailPolicy.TracePixels, View), b.SeenFrom);
+                    if (!Punchy.Settings.DetailPolicy.Within(math.distance(s.Position, Camera), range, Steps.ContainsKey(Entities[i])))
                     {
                         Steps.Remove(Entities[i]);
                         continue;
