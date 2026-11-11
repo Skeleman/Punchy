@@ -83,6 +83,8 @@ namespace Punchy.Terrain
         public float2 Flow;
         /// <summary>0..1: how steep the river is here (white water at 1).</summary>
         public float Rapids;
+        /// <summary>W-134: the water is a cave pool's or stream's (from the float3 SampleGround, under the surface).</summary>
+        public bool CaveWater;
 
         public const float NoWater = -1e6f;
         public bool HasWater => WaterSurface > NoWater * 0.5f;
@@ -855,6 +857,29 @@ namespace Punchy.Terrain
             g.WaterSurface = water;
             g.Flow = flow;
             g.WaterDepth = ruleDepth;
+            return g;
+        }
+
+        /// <summary>
+        /// W-134: the ground and water at a point that may be underground. At or above the terrain surface it is the
+        /// float2 sample, unchanged (one compare more). Below it, where the point is in a cave pool or stream (or up to
+        /// CaveSampling.WaterReachAbove over one), the water fields describe that water instead: Height its bed,
+        /// WaterSurface its level, WaterDepth level minus bed, Flow and Rapids its stream's, River 1 in a stream, and
+        /// CaveWater set. Below the surface away from cave water it is the float2 sample too (surface water above).
+        /// </summary>
+        public GroundSample SampleGround(float3 p)
+        {
+            var g = SampleGround(p.xz);
+            if (p.y >= g.Height || !Caves.IsCreated ||
+                !CaveSampling.WaterAt(ref Caves.Value, p, out var surface, out var bed, out var flow, out var rapids, out var stream))
+                return g;
+            g.Height = bed;
+            g.WaterSurface = surface;
+            g.WaterDepth = surface - bed;
+            g.Flow = flow;
+            g.Rapids = rapids;
+            g.River = stream ? 1f : 0f;
+            g.CaveWater = true;
             return g;
         }
 

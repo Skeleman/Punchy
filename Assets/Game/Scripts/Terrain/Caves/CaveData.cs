@@ -762,6 +762,94 @@ namespace Punchy.Terrain
         public const float LakeDepth = 1.6f;
         public static float LakeRadius(in CaveRoom r) => math.min(r.HX, r.HZ) * 0.72f;
 
+        /// <summary>How far above a cave water surface a point still counts as over it (m, W-134).</summary>
+        // gameplay: tall enough for a swimmer's head and a wading creature, short of the passage stacked above
+        public const float WaterReachAbove = 2.5f;
+        /// <summary>How far below a cave water bed a point still counts as in it (m, W-134): a body's feet sunk in.</summary>
+        public const float WaterReachBelow = 1.5f;
+
+        /// <summary>
+        /// W-134: the cave water (a pool's or a stream's, never lava) at a point, if the point is in it or a little over it:
+        /// its surface, its bed (estimated from how the basin and channel are carved), the flow and how steep the stream
+        /// is. Only the caves whose segments reach the point's column are looked at, and only their pools and streams
+        /// whose boxes hold it. Where two waters overlap (a stream running into its pool) the higher surface wins.
+        /// </summary>
+        public static bool WaterAt(ref CaveSetBlob set, float3 p, out float surface, out float bed, out float2 flow,
+            out float rapids, out bool stream)
+        {
+            surface = -1e6f;
+            bed = 0f;
+            flow = float2.zero;
+            rapids = 0f;
+            stream = false;
+            var range = CellRange(ref set, p.xz);
+            var current = -1;
+            for (int k = range.x; k < range.x + range.y; k++)
+            {
+                var cave = set.Segments[set.Items[k]].Cave;
+                // Items are grouped by cave: test each cave's water once.
+                if (cave == current)
+                    continue;
+                current = cave;
+                ref var c = ref set.Caves[cave];
+                if (math.any(p.xz < c.Min.xz) || math.any(p.xz > c.Max.xz) ||
+                    p.y < c.Min.y - LakeDepth - WaterReachBelow || p.y > c.Max.y)
+                    continue;
+                for (int i = c.FirstPool; i < c.FirstPool + c.PoolCount; i++)
+                {
+                    ref var pool = ref set.Pools[i];
+                    if (pool.Lava > 0.5f || pool.Centre.y <= surface)
+                        continue;
+                    var d = math.distance(p.xz, pool.Centre.xz);
+                    if (d >= pool.Radius)
+                        continue;
+                    // The floor at the middle is 0.12 m over the surface, sunk by FloorShape's basin.
+                    var b = pool.Centre.y + 0.12f - pool.Depth * math.smoothstep(pool.Radius * 1.2f, pool.Radius * 0.7f, d);
+                    if (p.y > pool.Centre.y + WaterReachAbove || p.y < b - WaterReachBelow)
+                        continue;
+                    surface = pool.Centre.y;
+                    bed = b;
+                    flow = float2.zero;
+                    rapids = 0f;
+                    stream = false;
+                }
+                for (int s = c.FirstStream; s < c.FirstStream + c.StreamCount; s++)
+                {
+                    ref var st = ref set.Streams[s];
+                    if (math.any(p.xz < st.Min) || math.any(p.xz > st.Max))
+                        continue;
+                    for (int i = st.FirstPoint; i < st.FirstPoint + st.PointCount - 1; i++)
+                    {
+                        ref var a = ref set.StreamPoints[i];
+                        ref var e = ref set.StreamPoints[i + 1];
+                        var ab = e.Position.xz - a.Position.xz;
+                        var length = math.length(ab);
+                        var t = math.saturate(math.dot(p.xz - a.Position.xz, ab) / math.max(length * length, 1e-6f));
+                        var half = math.lerp(a.Width, e.Width, t) * 0.5f;
+                        var across = math.distance(p.xz, a.Position.xz + ab * t);
+                        if (across >= half)
+                            continue;
+                        var level = math.lerp(a.Position.y, e.Position.y, t);
+                        if (level <= surface)
+                            continue;
+                        // The channel as StreamBed carves it (inside the water's width the bank hasn't started to rise far).
+                        var depth = math.lerp(a.Depth, e.Depth, t);
+                        var edge = half * 0.5f + math.max(half * 1.5f, (depth + 1.2f) * BankRun);
+                        var b = level - (depth - (depth + 1.2f) * math.smoothstep(half * 0.5f, edge, across)) + 0.05f;
+                        if (p.y > level + WaterReachAbove || p.y < b - WaterReachBelow)
+                            continue;
+                        surface = level;
+                        bed = b;
+                        flow = length > 1e-4f ? ab / length : float2.zero;
+                        // gameplay: the same white-water slopes as the surface rivers' rapids read at a glance
+                        rapids = math.smoothstep(0.015f, 0.08f, (a.Position.y - e.Position.y) / math.max(length, 0.1f));
+                        stream = true;
+                    }
+                }
+            }
+            return surface > -1e5f;
+        }
+
         /// <summary>Signed distance to a box (centre, half size).</summary>
         static float Box(float3 p, float3 centre, float3 half)
         {
