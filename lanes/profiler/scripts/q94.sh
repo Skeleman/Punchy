@@ -6,9 +6,11 @@
 #   cuts4 (the default: CPU cut 4), cuts2 (-waterfieldcuts 2), tess (-waterfieldtess 1: CPU cut 2, the GPU divides up
 #   to 4x more by screen size), normals (-waterfieldnormals 1: no sheet, the field only shades the chunk water), off.
 # Supervisor 11-11 (rule 23, R-9 row 7): the same arms again at -gfx Medium; both presets reported (Medium decides).
+# Built at f053c7bf (+ row 6's flow-anchor loop not unrolled). Then job 45f's rapids view at High, 3 rounds: f053c7bf vs
+# 0318b5ee (job 45g's new) vs row 5 (2856a634), to see what the smaller shader buys.
 B=$HOME/Projects/Punchy-wt/Tools/bench
 . "$B/lib.sh"
-K=d2c748a; O=Profile-${K}; Q=q94
+K=f053c7b; O=Profile-${K}; Q=q94
 S=$HOME/Projects/Punchy-coordination/lanes/profiler/scripts
 mkdir "$R/.lock" 2>/dev/null || { echo "lock held: $(cat $R/.lock/job)"; exit 2; }
 echo $$ > "$R/.lock/pid"; echo "$Q wave field forms (since $(date +%T))" > "$R/.lock/job"
@@ -34,6 +36,17 @@ V="cuts4 cuts2 tess normals off"
 for g in High Medium; do
   for r in 1 2 3 4; do
     for a in $(rot $r $V); do game $g ${g,,}-$a $r $(arm $a) $SWIM; done
+  done
+done
+AT="-goto -2167,3,3691 -benchstops here -benchweather Clear -benchhour 12 -shotcam -2169,13.1,3682,-2184,3.1,3656"
+for r in 1 2 3; do
+  for a in $(rot $r loop unrolled row5); do
+    case $a in loop) o=$O;; unrolled) o=Profile-0318b5e;; row5) o=Profile-2856a63;; esac
+    local_shot=; [ $r = 1 ] && local_shot="-benchshots $W/$Q-shots/rapids-$a"
+    BENCHW=1920 BENCHH=1080 runcsv $o $Q-rapids-$a ${o#Profile-} s100 $r -gfx High -fpscap 0 $AT $local_shot
+    f="$R/q-$Q-rapids-$a-cs100-$r.log"; check "$f"
+    echo "$(date +%T) rapids-$a r$r: $(grep -h 'BenchRoute: [a-z]*: avg' "$f" | grep -o 'median [0-9.]* ms\|gpu [0-9.]* ms\|cpu [0-9.]* ms' | tr '
+' ' ') $(grep -h ' s frame at ' "$f" | cut -c1-70)"
   done
 done
 for f in "$R"/$Q-*.csv; do echo "== $(basename $f .csv)"; table "$f"; done
