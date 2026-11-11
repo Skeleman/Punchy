@@ -2,6 +2,29 @@
 
 Newest first.
 
+## Bench tooling (Zach 11-11: "script the repeated steps"), for the supervisor
+Where a test's time goes on the laptop:
+- **Builds:** 20 min with a warm shader cache, 45–55 min cold. Cold happens when the base commit changes, because nearly every shader includes Sky.hlsl.
+- **Each game:** about 2 min 10 s, of which only 20 s is measured.
+- **Stalls:** about 10–15% of games, each 55–70 s or a lost round.
+- **The profiler's own steps:** hand-copied scripts and tables worked out by hand.
+
+**Changes:**
+1. **`-benchcycle` (in-game arm cycling)**, staged in Punchy `b/bench-stress` BenchmarkRoute.cs.next.txt.
+   - After a stop's settle, one game measures every arm in turn. A setting is a shader global (`g.`), a keyword (`k.`) or a static field (`f.`).
+   - Arms are rotated each round, and a stalled segment is measured again.
+   - It goes live after the chain now running finishes, so a compile error can't break its builds.
+   - Expect jobs whose arms are runtime switches to take about a third to a quarter of the time, with less game-to-game noise.
+2. **report.py:** per-arm tables from a job's CSVs: rounds, means, median, CPU, 1% low, the difference from the reference and the pass line. Stalled rounds are left out of the means.
+3. **job.sh plus a short spec per job** (lanes/profiler/scripts/example.job), replacing hand-copied q-scripts. `DRY=1` prints the games without running them.
+4. **Retry:** a game that measured nothing (stall kill, hang) is run once more instead of losing the round.
+5. **Cooldown:** cool() logs its wait to results/cool.log, so its cost can be judged.
+6. **watch-queue.sh** skips the profiler session's own commits (`SELF_SESSION`). Before, they woke it about ten times a day.
+
+**For queue order:** jobs on the same base commit, run back to back, avoid cold builds. When the order is otherwise free, the profiler will group them.
+
+**For lanes adding test flags:** make a switch a plain static field, or a shader global the feature reads every frame. A `static readonly` field or a flag read only at start can't be cycled within one game.
+
 ## Job 45g follow-up: RenderDoc at fall 74 and the rapids (q92.sh), 2026-11-11
 **Setup:** one frame per arm, 1920x1080, High, noon, `-body default`. RenderDoc ms run about 3x real.
 
