@@ -569,6 +569,7 @@ namespace Punchy.Terrain
         readonly List<(float3 position, Vector4 light)> nearGlowPlants = new List<(float3, Vector4)>();
         /// <summary>Per species: the height of its torch's head (1 at scale 1), or 0 if it isn't a torch.</summary>
         readonly List<float> speciesTorch = new List<float>();
+        readonly List<bool> speciesShrine = new List<bool>();
         /// <summary>Torches near the camera: where the flame sits and the plant's index (its seed).</summary>
         readonly List<(float3 flame, int plant)> nearTorches = new List<(float3, int)>();
         /// <summary>How far a glowing plant lights the floor and walls round it (m).</summary>
@@ -638,6 +639,7 @@ namespace Punchy.Terrain
                         // The same light the plant casts on the surface (colour and reach by how much of it glows).
                         speciesGlow.Add(Punchy.Flora.FloraPlacement.GlowLight(species));
                         speciesTorch.Add(species.Form == Punchy.Flora.FloraForm.Torch ? species.Height.y : 0f);
+                        speciesShrine.Add(species.Form == Punchy.Flora.FloraForm.Shrine);
                     }
                 }
                 if (plantModels.Count < plantSpecies.Count * PlantVariants)
@@ -668,7 +670,14 @@ namespace Punchy.Terrain
                         continue;
                     plantKeys.Add((model * 2 + (d < PlantLod0 ? 0 : 1), i));
                     if (speciesGlow[p.Species].w > 0f)
-                        nearGlowPlants.Add((p.Position + new float3(0f, 0.3f * p.Scale, 0f), speciesGlow[p.Species]));
+                    {
+                        // W-138 row 4: a shrine (a road tunnel's, set small in its niche) glows as big as it's set, not
+                        // as its species' full height: at full strength and reach it flooded the niche blue-white.
+                        var glow = speciesGlow[p.Species];
+                        if (speciesShrine[p.Species])
+                            glow *= math.min(1f, p.Scale);
+                        nearGlowPlants.Add((p.Position + new float3(0f, 0.3f * p.Scale, 0f), glow));
+                    }
                     if (speciesTorch[p.Species] > 0f)
                     {
                         // The head: up the stick and out from the wall (the model leans out along its +Z by ~20°).
@@ -766,6 +775,7 @@ namespace Punchy.Terrain
             plantModels.Clear();
             speciesGlow.Clear();
             speciesTorch.Clear();
+            speciesShrine.Clear();
             nearGlowPlants.Clear();
             nearTorches.Clear();
             plantDraws.Clear();

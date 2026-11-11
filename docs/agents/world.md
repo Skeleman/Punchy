@@ -74,6 +74,10 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
   right behind the headwall, and the mouth cut (which drops every triangle touching a cut vertex) dropped that whole
   cliff-high quad: a window straight through the ridge above the arch. `BiomeStyle` picks only plain styles (no glow,
   gloss <= 0.5) for road tunnels: Ice and the like lit the bore blue-white and spilt their tint onto the cutting.
+- **Tunnel details (W-138 row 4):** `CaveBaking.PlaceTunnelDetails` adds a side niche (its segment ends in a smaller
+  node: `NicheSegment`, so code walking a tunnel's road must skip it), a shrine and a torch there, `CaveStyle.Marker`
+  stones where the biome above changes, and fallen-stone speleothems. Bores >= 300 m are always lit. A cave plant of
+  form Shrine glows in proportion to its set scale (`CaveSystem`); at full strength it flooded the niche blue-white.
 - **Bat folk (#35, W-18):** `BatFolkBaking` runs after CaveBaking, reads the caves only and writes its own blob
 - **Bat folk kit (#35, W-61):** wall/ceiling houses are kit `StructureKit.House` in `FolkCulture.BatFolk` trim, rebuilt in `BatFolkMeshes` from a hash of the spot (no extra blob data; Lamp/Rune parts skipped, never add lights). Details come from the weighted `BatFolkBaking.Details` table, jittered per site. Pools of bat sites use `CaveSystem.WhitePoolWater`.
   (`TerrainSource.BatFolk`), so landmark and cave hashes never see it. A cave qualifies with a chamber >= 9 m

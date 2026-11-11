@@ -444,13 +444,17 @@ namespace Punchy.Terrain
             FinishRooms(caves, extras);
             withWater.Dispose();
             // W-110: road tunnels last, appended after the landmarks' caves (whose indices, seeds and extras stay as
-            // they were), then their lamps and frames against the caves with them.
+            // they were), then their details, lamps and frames against the caves with them.
             if (tunnelRuns.Count > 0)
             {
                 AddTunnels(source, palette, styles, tunnelRuns, caves, nodes, kinds, segments);
                 var withTunnels = BuildBlob(caves, nodes, kinds, segments, extras, Allocator.Persistent);
                 withCaves.Caves = withTunnels;
-                PlaceTunnelFittings(withCaves, caves, nodes, segments, styles, CaveFloraTable.Collect(types), extras);
+                // W-138 row 4: the shrine, marker stones and fallen stones first, so the lamps keep clear of them.
+                // (Stones sit below shoulder height, so the lamps' wall probes don't need them in the blob.)
+                var tunnelFlora = CaveFloraTable.Collect(types);
+                var keepClear = PlaceTunnelDetails(withCaves, caves, nodes, segments, styles, tunnelFlora, extras);
+                PlaceTunnelFittings(withCaves, caves, nodes, segments, styles, tunnelFlora, extras, keepClear);
                 withTunnels.Dispose();
                 Step("tunnels");
             }
