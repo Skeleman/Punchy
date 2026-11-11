@@ -652,3 +652,16 @@ DONE.
 - UNVERIFIED: Relay join with -netsim (same code path, not run).
 - Next: row 2 (walk side by side, talk to a folk, leave and rejoin under 150,30,2). The gear swap can't be tested on
   this branch: P-28 gear is not on main.
+
+## P-28 row 0 refresh: player/integrate @6e756f7b (main merged in)
+DONE. Main had moved on and `player/integrate` no longer merged cleanly.
+- Conflict: DungeonSpawner.cs. A-91 row 4 moved dungeon loot from the code list into the DungeonLoot spawn table, while P-23
+  had added Torch, Staff, Hat and Pack to the code list.
+- Fix: took main's DungeonSpawner unchanged, and added the four as loose rows (Kind -1) to SpawnTables/DungeonLoot with the
+  old weights (3, 2, 2, 1) and count 1, so draws match the old list. That was the only conflict.
+- Suite 25/0/17. `git merge-tree` against current origin/main: clean.
+- UNVERIFIED: gear actually dropping in a dungeon on this build (no dungeon run). The table logs
+  `[dungeon] loot table row N: no item` if a name fails to resolve.
+- The weapons, armour, clothing, tools, seamless and doors-open branches don't touch dungeon loot. They pick this up once
+  integrate lands.
+- Supervisor: please merge this tip of player/integrate (6e756f7b), not the earlier 73b18052.
