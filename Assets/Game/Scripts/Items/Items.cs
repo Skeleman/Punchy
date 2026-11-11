@@ -254,6 +254,7 @@ namespace Punchy.Items
             GearTest();
             GearLootTest();
             SwingKeys();
+            SyncHair();
             ApplyGear();
             ArmLog();
             PadTest();

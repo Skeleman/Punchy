@@ -513,12 +513,46 @@ namespace Punchy.Fauna
         public byte Head, Body, Legs, Feet;
         /// <summary>P-28 row 3: a cloak on the back, a scarf at the neck (CreatureArmour; 0 for none).</summary>
         public byte Back, Neck;
+        /// <summary>P-29: the hairstyle and its colour (CreatureHair; style 0 for none).</summary>
+        public byte Hair, HairColour;
 
         public bool Armoured => (Head | Body | Legs | Feet | Back | Neck) != 0;
 
         public bool Equals(CreatureOutfit o) =>
             Weapon == o.Weapon && Swing == o.Swing && Head == o.Head && Body == o.Body && Legs == o.Legs && Feet == o.Feet &&
-            Back == o.Back && Neck == o.Neck;
+            Back == o.Back && Neck == o.Neck && Hair == o.Hair && HairColour == o.HairColour;
+    }
+
+    /// <summary>
+    /// Hairstyles and hair colours (P-29), as CreatureOutfit.Hair and HairColour carry them: a player's pick on the
+    /// Character tab, saved and sent like gear. Ids only ever grow (a saved pick and a joined player's must keep meaning
+    /// the same style). Style 0 is none, a bald head.
+    /// </summary>
+    public static class CreatureHair
+    {
+        public const byte Bald = 0, Short = 1, Long = 2, Braid = 3, Ponytail = 4, Topknot = 5, Curls = 6, Crest = 7,
+                          ShortBeard = 8, LongBeard = 9, LongAndBeard = 10, TopknotBeard = 11;
+        public static readonly string[] Names =
+            { "Bald", "Short", "Long", "Braid", "Ponytail", "Topknot", "Curls", "Crest", "Short, beard", "Long beard", "Long, beard", "Topknot, beard" };
+        public static readonly string[] ColourNames = { "Black", "Dark brown", "Brown", "Auburn", "Ginger", "Fair", "Grey", "White" };
+        public const byte DefaultStyle = Short, DefaultColour = 1;
+
+        /// <summary>Whether a style has hair on the scalp, and a beard.</summary>
+        public static bool Scalp(byte style) => style != Bald && style != LongBeard;
+        public static bool Beard(byte style) => style >= ShortBeard && style <= TopknotBeard;
+
+        /// <summary>A colour, linear as the shader takes it.</summary>
+        public static Unity.Mathematics.float4 Colour(byte colour) => colour switch
+        {
+            0 => new Unity.Mathematics.float4(0.012f, 0.011f, 0.01f, 0f),    // black
+            1 => new Unity.Mathematics.float4(0.035f, 0.02f, 0.012f, 0f),    // dark brown
+            2 => new Unity.Mathematics.float4(0.09f, 0.05f, 0.025f, 0f),     // brown
+            3 => new Unity.Mathematics.float4(0.16f, 0.045f, 0.02f, 0f),     // auburn
+            4 => new Unity.Mathematics.float4(0.35f, 0.11f, 0.03f, 0f),      // ginger
+            5 => new Unity.Mathematics.float4(0.5f, 0.36f, 0.16f, 0f),       // fair
+            6 => new Unity.Mathematics.float4(0.25f, 0.24f, 0.23f, 0f),      // grey
+            _ => new Unity.Mathematics.float4(0.62f, 0.61f, 0.58f, 0f),      // white
+        };
     }
 
     /// <summary>How the body draws a player's armour (P-28 row 2; the item table's ItemDef.Look), by place.</summary>

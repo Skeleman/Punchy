@@ -53,10 +53,12 @@ namespace Punchy.Items
         public byte Slot, Item;
     }
 
-    /// <summary>What a player has on, place by place (item ids; 255 for nothing).</summary>
+    /// <summary>What a player has on, place by place (item ids; 255 for nothing); and its hair (P-29: CreatureHair style
+    /// and colour, sent as two more places in SlotRpc / SlotStateRpc, HairPlace and HairColourPlace).</summary>
     public struct GearSet
     {
         public byte Hand, Head, Back, Body, Legs, Feet, Neck;
+        public byte Hair, HairColour;
     }
 
     /// <summary>Client → host → everyone: this player swung its weapon (P-28). From a client, Player is ignored (the host
@@ -95,7 +97,13 @@ namespace Punchy.Items
             Hand = worn[(int)GearSlot.Hand], Head = worn[(int)GearSlot.Head], Back = worn[(int)GearSlot.Back],
             Body = worn[(int)GearSlot.Body], Legs = worn[(int)GearSlot.Legs], Feet = worn[(int)GearSlot.Feet],
             Neck = worn[(int)GearSlot.Neck],
+            Hair = Punchy.Net.PlayerHair.Style, HairColour = Punchy.Net.PlayerHair.Colour,
         };
+        /// <summary>The hair's two places in SlotRpc / SlotStateRpc (P-29), past any GearSlot.</summary>
+        const byte HairPlace = 200, HairColourPlace = 201;
+        /// <summary>The hair last told to the host (or set as the host's own), and the client world it went to.</summary>
+        (byte, byte) hairSent = (255, 255);
+        World hairSentIn;
         readonly HashSet<Entity> gearSentTo = new HashSet<Entity>();
         string equipArg;
         bool gearLootArg, swingArg, sprintArg;
@@ -198,6 +206,35 @@ namespace Punchy.Items
             Broadcast(new GearStateRpc { Player = player, Hand = g.Hand, Head = g.Head, Back = g.Back });
             Broadcast(new ArmourStateRpc { Player = player, Body = g.Body, Legs = g.Legs, Feet = g.Feet });
             Broadcast(new SlotStateRpc { Player = player, Slot = (byte)GearSlot.Neck, Item = g.Neck });
+            Broadcast(new SlotStateRpc { Player = player, Slot = HairPlace, Item = g.Hair });
+            Broadcast(new SlotStateRpc { Player = player, Slot = HairColourPlace, Item = g.HairColour });
+        }
+
+        /// <summary>Our hair to the host when it changes, and once into each world joined (the host keeps its own in
+        /// gearOf, as its gear): so the others draw it.</summary>
+        void SyncHair()
+        {
+            var hair = (Punchy.Net.PlayerHair.Style, Punchy.Net.PlayerHair.Colour);
+            var into = Hosting ? server : Joined ? client : null;
+            if (into == null || hair == hairSent && into == hairSentIn)
+                return;
+            if (Joined)
+            {
+                // (Not before the connection has its id: an RPC sent sooner isn't delivered.)
+                if (Q(client.EntityManager, ComponentType.ReadWrite<NetworkId>()).IsEmpty)
+                    return;
+                SendToHost(new SlotRpc { Slot = HairPlace, Item = hair.Style });
+                SendToHost(new SlotRpc { Slot = HairColourPlace, Item = hair.Colour });
+            }
+            else
+            {
+                var id = OwnNetworkId();
+                var g = gearOf.TryGetValue(id, out var was) ? was : Wearing;
+                (g.Hair, g.HairColour) = hair;
+                HostSetGear(id, g);
+            }
+            (hairSent, hairSentIn) = (hair, into);
+            Debug.Log($"[hair] ours sent: {CreatureHair.Names[hair.Style % CreatureHair.Names.Length]}, {CreatureHair.ColourNames[hair.Colour % CreatureHair.ColourNames.Length]}");
         }
 
         /// <summary>The armour numbers of everything on, added up (P-28 row 2: a number only, as nothing fights yet).</summary>
@@ -247,6 +284,8 @@ namespace Punchy.Items
                     Send(em, c, new GearStateRpc { Player = kv.Key, Hand = kv.Value.Hand, Head = kv.Value.Head, Back = kv.Value.Back });
                     Send(em, c, new ArmourStateRpc { Player = kv.Key, Body = kv.Value.Body, Legs = kv.Value.Legs, Feet = kv.Value.Feet });
                     Send(em, c, new SlotStateRpc { Player = kv.Key, Slot = (byte)GearSlot.Neck, Item = kv.Value.Neck });
+                    Send(em, c, new SlotStateRpc { Player = kv.Key, Slot = HairPlace, Item = kv.Value.Hair });
+                    Send(em, c, new SlotStateRpc { Player = kv.Key, Slot = HairColourPlace, Item = kv.Value.HairColour });
                 }
             }
         }
@@ -277,6 +316,10 @@ namespace Punchy.Items
         {
             if (slot == (byte)GearSlot.Neck)
                 g.Neck = item;
+            else if (slot == HairPlace)
+                g.Hair = item;
+            else if (slot == HairColourPlace)
+                g.HairColour = item;
         }
 
         /// <summary>Nothing on anywhere.</summary>
@@ -356,6 +399,8 @@ namespace Punchy.Items
             var swing = weapon != CreatureWeapon.None ? SwingByte(swung, ItemTable.Items[hand].Speed) : (byte)0;
             outfit.Weapon = weapon;
             outfit.Swing = swing;
+            if (wears)
+                (outfit.Hair, outfit.HairColour) = (g.Hair, g.HairColour);
             if (s.Held == held && s.Worn == bits && s.Outfit.Equals(outfit))
                 return;
             var was = s.Outfit;
@@ -366,7 +411,7 @@ namespace Punchy.Items
             s.Outfit = outfit;
             em.SetComponentData(body, s);
             if (changed)
-                Debug.Log($"[gear] {(em.HasComponent<RemoteAvatar>(body) ? "another player's" : "our")} body: held {held}, worn {bits}, weapon {weapon}, armour head {outfit.Head} body {outfit.Body} legs {outfit.Legs} feet {outfit.Feet} back {outfit.Back} neck {outfit.Neck}");
+                Debug.Log($"[gear] {(em.HasComponent<RemoteAvatar>(body) ? "another player's" : "our")} body: held {held}, worn {bits}, weapon {weapon}, armour head {outfit.Head} body {outfit.Body} legs {outfit.Legs} feet {outfit.Feet} back {outfit.Back} neck {outfit.Neck}, hair {outfit.Hair} colour {outfit.HairColour}");
         }
 
         /// <summary>Where a swing that began at this time is: 0 at rest, 1..255 through it.</summary>

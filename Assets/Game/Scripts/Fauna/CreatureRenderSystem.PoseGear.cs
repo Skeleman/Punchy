@@ -20,6 +20,11 @@ namespace Punchy.Fauna
         /// two shells over the torso, a greave on each shin, a boot on each foot; then a robe's skirt, a cloak in two
         /// pieces and a scarf with its end.</summary>
         const int ArmourParts = 13;
+        /// <summary>A player's hair (P-29): the scalp's, up to four locks (a fall down the back, a braid, a tail, a bun or
+        /// a crest), a beard and a moustache.</summary>
+        const int HairParts = 7;
+        /// <summary>Under this many pixels across (the body), hair is one shape: the scalp's, or a bald head's beard (rule 20).</summary>
+        const float HairStrandPixels = 60f;
 
         partial struct PoseJob
         {
@@ -191,6 +196,133 @@ namespace Punchy.Fauna
                 }
             }
 
+            /// <summary>
+            /// A player's hair (P-29; CreatureState.Outfit.Hair and HairColour): a shell over the scalp down to the brow, as
+            /// a cap is drawn, then the style's locks (a fall to the shoulders, a braid, a tail, a bun, a crest) and a beard,
+            /// all off the head's last segment so they move with it. A hat or anything on the head hides what's on top of
+            /// the head (the scalp, a bun, a crest) and a hood what hangs behind too, so nothing shows through them; what
+            /// hangs below a hat's brim still shows. Small on screen, one shape; smaller still, none.
+            /// </summary>
+            void Hair(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded)
+            {
+                var style = state.Outfit.Hair;
+                int head = -1;
+                for (int i = 0; i < b.Parts.Length; i++)
+                    if (b.Parts[i].Role == LimbRole.Head && b.Parts[i].SegmentCount > 0)
+                    {
+                        head = b.Parts[i].FirstSegment + b.Parts[i].SegmentCount - 1;
+                        break;
+                    }
+                if (head < 0)
+                    return;
+                var scale = Unity.Mathematics.math.max(state.Scale, 0.3f);
+                var view = Punchy.Settings.DetailPolicy.Current.Data;
+                var pixels = view.PixelsPerMetre > 0f
+                    ? Punchy.Settings.DetailPolicy.ScreenSize(scale * 1.7f, Unity.Mathematics.math.distance(state.Position, CameraPosition), view.PixelsPerMetre)
+                    : float.MaxValue;
+                if (pixels < 8f)
+                    return;
+                var strands = pixels >= HairStrandPixels;
+                var covered = (state.Worn & CreatureWorn.Hat) != 0 || state.Outfit.Head != 0;
+                var hood = state.Outfit.Head == CreatureArmour.Hood;
+                var colour = CreatureHair.Colour(state.Outfit.HairColour);
+                const SegmentMaterial hair = SegmentMaterial.Body;
+
+                var h = Output[offset + head];
+                var ax = Unity.Mathematics.math.mul(h.Rotation, new Unity.Mathematics.float3(0f, 0f, 1f));
+                var r = Unity.Mathematics.math.max(h.RadiusStart, h.RadiusEnd);
+                var forward = new Unity.Mathematics.float3(Unity.Mathematics.math.sin(state.Yaw), 0f, Unity.Mathematics.math.cos(state.Yaw));
+                var face = Unity.Mathematics.math.normalizesafe(forward - ax * Unity.Mathematics.math.dot(forward, ax), forward);
+                var side = Unity.Mathematics.math.normalizesafe(Unity.Mathematics.math.cross(ax, face), new Unity.Mathematics.float3(1f, 0f, 0f));
+                var down = new Unity.Mathematics.float3(0f, -1f, 0f);
+                var crown = h.Position + ax * h.Length;
+                var pad = 0.008f * scale;
+
+                // The scalp: a shell from the brow over the crown (curls fuller and lower, a topknot drawn tight), set
+                // back a little so the brow shows.
+                if (CreatureHair.Scalp(style) && style != CreatureHair.Crest && !covered)
+                {
+                    var curls = style == CreatureHair.Curls;
+                    var brow = h.Length * (curls ? 0.42f : 0.5f);
+                    var from = h.Position + ax * (brow + r * 0.9f) - face * r * 0.06f;
+                    var grow = curls ? 1.16f : style == CreatureHair.Topknot || style == CreatureHair.TopknotBeard ? 1.03f : 1.06f;
+                    Output[at] = Shell(h, from, Unity.Mathematics.math.max(h.Length + r * 0.15f - brow - r * 1.8f, 0f), grow, pad, colour, faded, hair);
+                }
+                else if (!strands && CreatureHair.Beard(style))
+                    Output[at] = Piece(h.Position + face * r * 0.6f + ax * h.Length * 0.22f, Unity.Mathematics.math.normalize(-ax + face * 0.25f), face, r * 1.2f, r * 0.75f, r * 0.4f, 0.6f, colour, faded, hair);
+                if (!strands)
+                    return;
+
+                switch (style)
+                {
+                    case CreatureHair.Long:
+                    case CreatureHair.LongAndBeard:
+                        // A fall down the back to the shoulders, flat against it (narrower under a helm, hidden by a hood).
+                        if (!hood)
+                            Output[at + 1] = Piece(h.Position + ax * h.Length * 0.75f - face * r * 0.45f, Unity.Mathematics.math.normalize(down - face * 0.15f), face,
+                                                   r * 2.4f, r * (covered ? 0.85f : 0.95f), r * 0.82f, 0.4f, colour, faded, hair);
+                        break;
+                    case CreatureHair.Braid:
+                        // A braid of four knots from the back of the head, thinning.
+                        if (!hood)
+                        {
+                            var p = h.Position + ax * h.Length * 0.35f - face * r * 0.95f;
+                            var along = Unity.Mathematics.math.normalize(down - face * 0.2f);
+                            for (int k = 0; k < 4; k++)
+                            {
+                                Output[at + 1 + k] = Piece(p, along, face, r * 0.4f, r * (0.27f - 0.03f * k), r * (0.24f - 0.03f * k), 1f, colour, faded, hair);
+                                p += along * r * 0.62f;
+                            }
+                        }
+                        break;
+                    case CreatureHair.Ponytail:
+                        // Tied high at the back: the tie, then the tail swinging down behind.
+                        if (!hood && !covered)
+                        {
+                            var tie = h.Position + ax * h.Length * 0.8f - face * r * 1.0f;
+                            Output[at + 1] = Piece(tie, -face, ax, 0f, r * 0.22f, r * 0.22f, 1f, colour, faded, hair);
+                            Output[at + 2] = Piece(tie, Unity.Mathematics.math.normalize(down - face * 0.45f), face, r * 1.9f, r * 0.32f, r * 0.12f, 0.8f, colour, faded, hair);
+                        }
+                        else if (!hood)
+                            // (Under a hat: tied low, below the brim.)
+                            Output[at + 2] = Piece(h.Position + ax * h.Length * 0.3f - face * r * 1.0f, Unity.Mathematics.math.normalize(down - face * 0.2f), face,
+                                                   r * 1.6f, r * 0.3f, r * 0.12f, 0.8f, colour, faded, hair);
+                        break;
+                    case CreatureHair.Topknot:
+                    case CreatureHair.TopknotBeard:
+                        // A bun on the crown.
+                        // (Clear of the scalp's shell, which reaches the head's end radius and a little more.)
+                        if (!covered)
+                            Output[at + 1] = Piece(crown + ax * (h.RadiusEnd * 1.03f + r * 0.28f), ax, face, r * 0.25f, r * 0.45f, r * 0.38f, 1f, colour, faded, hair);
+                        break;
+                    case CreatureHair.Crest:
+                        // A ridge from the brow over the crown to the back of the head, thin side to side, in two pieces
+                        // that follow the head's curve.
+                        if (!covered)
+                        {
+                            // (Its ends sunk into the head, so it grows out of it rather than sitting on it.)
+                            var front = crown + face * r * 0.6f + ax * h.RadiusEnd * 0.5f;
+                            var top = crown + ax * h.RadiusEnd * 0.85f;
+                            var back = crown - face * r * 0.7f + ax * h.RadiusEnd * 0.3f;
+                            Output[at + 1] = Piece(front, Unity.Mathematics.math.normalize(top - front), side, Unity.Mathematics.math.distance(front, top), r * 0.36f, r * 0.42f, 0.45f, colour, faded, hair);
+                            Output[at + 2] = Piece(top, Unity.Mathematics.math.normalize(back - top), side, Unity.Mathematics.math.distance(top, back), r * 0.42f, r * 0.32f, 0.45f, colour, faded, hair);
+                        }
+                        break;
+                }
+
+                // The beard, from the jaw forward and down (short, or long to the chest), and a moustache over the mouth.
+                if (CreatureHair.Beard(style))
+                {
+                    // (From the cheeks under the mouth, so it covers the chin rather than hanging off it.)
+                    var full = style != CreatureHair.ShortBeard;
+                    var jaw = h.Position + face * r * 0.6f + ax * h.Length * 0.22f;
+                    Output[at + 5] = Piece(jaw, Unity.Mathematics.math.normalize(-ax + face * 0.25f), face, r * (full ? 1.7f : 0.7f), r * 0.75f, r * (full ? 0.3f : 0.55f), 0.6f,
+                                           colour, faded, hair);
+                    Output[at + 6] = Piece(h.Position + ax * h.Length * 0.36f + face * r * 1.02f - side * r * 0.42f, side, ax, r * 0.84f, r * 0.17f, r * 0.17f, 0.6f,
+                                           colour, faded, hair);
+                }
+            }
+
             /// <summary>A shell round a segment: the same turn, flattening and taper (its radii where the shell starts and
             /// ends along it, grown by this much and padded), from here along it, this long.</summary>
             static SegmentInstance Shell(in SegmentInstance under, Unity.Mathematics.float3 from, float length, float grow, float pad,
@@ -303,12 +435,14 @@ namespace Punchy.Fauna
             /// <summary>What a player's body has on (P-23): a hat on the crown of the head, a pack on the back.</summary>
             void Worn(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded)
             {
-                for (int i = 0; i < WornParts + WeaponParts + ArmourParts; i++)
+                for (int i = 0; i < WornParts + WeaponParts + ArmourParts + HairParts; i++)
                     Output[at + i] = default;
                 if (state.Outfit.Weapon != CreatureWeapon.None)
                     Weapon(in state, ref b, offset, at + WornParts, faded);
                 if (state.Outfit.Armoured)
                     Armour(in state, ref b, offset, at + WornParts + WeaponParts, faded);
+                if (state.Outfit.Hair != CreatureHair.Bald)
+                    Hair(in state, ref b, offset, at + WornParts + WeaponParts + ArmourParts, faded);
                 int head = -1, chest = -1;
                 for (int i = 0; i < b.Parts.Length; i++)
                 {
