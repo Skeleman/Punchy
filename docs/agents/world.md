@@ -53,6 +53,12 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
   (`Stats.Tunnels`). The router's climb/detour/tunnel costs are `RoadBaking.Router` (setting A = no router bores); `CaveBaking.Tunnels` appends one cave per bore after the natural caves (`CaveData.Tunnel` 1 dark,
   2 lamps, 3 lamps + frames), with no chambers, so cave sockets and bat folk skip them. Any code that loops
   every cave (fauna den visitors, anchors) also sees tunnels: filter on `Tunnel != 0` there.
+- **Spurs and hand tunnels (W-138 row 2b):** destination spurs, the lake loop and hand tunnels' roads go through
+  `SpurRoute`, which only takes a bored route if it comes out 20% shorter (router C alone sent spurs through every
+  mountain). `Route` can move a path's end off its cell centre; `Shape` never counts a route's first or last hop as a
+  bore, or 30 m "tunnels" appear at road ends. Hand tunnels (`HandBores`) are re-checked by `HandBoreHolds` and left out
+  on islands without the mountain; `Portals` feeds the roadside waystations. Ruining a bridge must also take any other
+  road's bridge over the same crossing (`RuinTwin`).
 - **Bat folk (#35, W-18):** `BatFolkBaking` runs after CaveBaking, reads the caves only and writes its own blob
 - **Bat folk kit (#35, W-61):** wall/ceiling houses are kit `StructureKit.House` in `FolkCulture.BatFolk` trim, rebuilt in `BatFolkMeshes` from a hash of the spot (no extra blob data; Lamp/Rune parts skipped, never add lights). Details come from the weighted `BatFolkBaking.Details` table, jittered per site. Pools of bat sites use `CaveSystem.WhitePoolWater`.
   (`TerrainSource.BatFolk`), so landmark and cave hashes never see it. A cave qualifies with a chamber >= 9 m
