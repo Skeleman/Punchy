@@ -4747,3 +4747,31 @@ Flora.shader / FloraImpostor.shader / Flora.hlsl are also changed by R-10 (light
   - Where the ground dips and rises again behind a portal, the roof shows as a separate raised step (p4-high).
   - Optional frame styles not done: they would sit on the portal path in CaveSystem.Rooms.cs (W-135's file).
 - Pins: Landmarks_V3 112 A955AFE0 and Fauna_Fingerprint AD723954 unchanged. Full PlayMode suite: "24 passed, 1 failed, 17 skipped in 337s". The failure is FolkConversationTests.LiveFolk_BeastResponse ("the fleeing folk got no further off"). Re-running FolkConversationTests alone: "6 passed, 1 failed", the same test again ("the folk told to flee isn't fleeing", mode Idle). This is the animal lane's known flaky test (see REPORTS-animal/player). This branch changes only TunnelPortalKit.cs, but I did not prove the failure has nothing to do with it.
+
+## W-137 look-check (diagnosis only, no code change; world/mouth-rim b5312063)
+
+Zach: "I don't see a tunnel at all... It looks like an archway embedded in the ground." Checked all 6 road portals (3 tunnels).
+
+- Which side: in the old shots the camera was on the approach side (the road side, out of the hill), facing the arch. The far end is not hiding a better entrance: both ends of each tunnel look the same.
+- Does the road reach the arch? Yes. At all 6 portals the road comes in at floor level and the drawn ground follows it within about 0.4 m. Nothing buries the opening; the old p0 "hump" was the side ground of a shallow cutting seen from a low camera.
+- The real problem: every portal face sits where the ground is level with the road. The ground over the tunnel line is only 1.0-1.5 m up 5 m in, and passes the 3.36 m arch top 7-8 m in. So the 4.9-5.2 m headwall stands up out of flat ground, with no hillside around it. The approach cuttings are only 0-1 m deep, so no cut slopes frame the mouth either.
+
+Ground over the tunnel line, metres above the road floor at the face (arch top 3.36, headwall top 4.9-5.2):
+
+| Portal | tunnel / bore | 5 m in | 10 m in | 20 m in | peak |
+|---|---|---|---|---|---|
+| 0 | 25, 18.8 m | 1.0 | 3.3 | -0.1 (past the far end) | 3.3 |
+| 1 | 25, 18.8 m | 1.1 | 4.1 | 0.5 (past the far end) | 4.1 |
+| 2 | 26, 44.3 m | 1.3 | 8.2 | 13.2 | 13.7 |
+| 3 | 26, 44.3 m | 1.3 | 5.5 | 9.1 | 9.6 |
+| 4 | 27, 30.3 m | 1.5 | 5.1 | 7.9 | 8.2 |
+| 5 | 27, 30.3 m | 1.5 | 4.7 | 2.3 | 5.0 |
+
+- Tunnel 25 (portals 0/1) has no hill at all. It is an 18.8 m cut-and-cover under a 3-4 m bump that never rises more than 0.7 m above the inner arch, and the terrain cut runs its whole length. From the road you can see daylight straight through it.
+- Tunnel 27 has a low hill (5-8 m). Tunnel 26 has a real hill (9-14 m), but its mouths still start 7 m out on flat ground.
+- Shots: look/p{0..5}-{approach,hill,inside}.png, approach sheet look/sheet.jpg (milestone folder W-137). The p2/p3 hill shots are blocked by forest, even from 20 m up.
+
+Proposed fix (world lane, RoadBaking + TunnelPortalKit):
+1. Move each portal face in to where the ground over the line is at least the headwall top plus about 1 m (about 6 m), and keep the stretch between as a proper cutting: graded to the bore, with side slopes that climb to meet the headwall wings.
+2. Turn down bores whose peak cover is under about 6 m. Tunnel 25 would become a plain cutting.
+3. Give the approach cutting a minimum depth, so the headwall is set into a slope face and does not stand free.
