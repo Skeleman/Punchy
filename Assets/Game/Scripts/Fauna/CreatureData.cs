@@ -515,12 +515,15 @@ namespace Punchy.Fauna
         public byte Back, Neck;
         /// <summary>P-29: the hairstyle and its colour (CreatureHair; style 0 for none).</summary>
         public byte Hair, HairColour;
+        /// <summary>P-29: a player's body that wears gear: its hair is Hair / HairColour (bald included), drawn in place of
+        /// the species' own hair parts, which are hidden. False for folk, who keep their species' hair.</summary>
+        public bool OwnHair;
 
         public bool Armoured => (Head | Body | Legs | Feet | Back | Neck) != 0;
 
         public bool Equals(CreatureOutfit o) =>
             Weapon == o.Weapon && Swing == o.Swing && Head == o.Head && Body == o.Body && Legs == o.Legs && Feet == o.Feet &&
-            Back == o.Back && Neck == o.Neck && Hair == o.Hair && HairColour == o.HairColour;
+            Back == o.Back && Neck == o.Neck && Hair == o.Hair && HairColour == o.HairColour && OwnHair == o.OwnHair;
     }
 
     /// <summary>

@@ -542,7 +542,7 @@ namespace Punchy.Fauna
                         GroupStarts[nextGroup++] = total;
                     Offsets[i] = total;
                     total += body.SegmentCount + MarkCount + (InWeb(state) ? WebCount : 0) + LairCount(ref body.Blob.Value) +
-                             (state.Task == CreatureTask.Hunt ? 1 : 0) + HeldCount(state.Held, state.Task) + GearCount(state.Task) + WornCount(state);
+                             (state.Task == CreatureTask.Hunt ? 1 : 0) + HeldCount(state.Held, state.Task) + GearCount(state.Task) + WornCount(state) + HairCount(state);
                     if (state.Mode == CreatureMode.Roost && state.Stage == 200)
                         Hanging.Add(state.Position);
                     // (Bodies of players emoting: their gestures scatter colonies.)

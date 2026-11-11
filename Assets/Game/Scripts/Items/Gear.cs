@@ -400,7 +400,7 @@ namespace Punchy.Items
             outfit.Weapon = weapon;
             outfit.Swing = swing;
             if (wears)
-                (outfit.Hair, outfit.HairColour) = (g.Hair, g.HairColour);
+                (outfit.Hair, outfit.HairColour, outfit.OwnHair) = (g.Hair, g.HairColour, true);
             if (s.Held == held && s.Worn == bits && s.Outfit.Equals(outfit))
                 return;
             var was = s.Outfit;

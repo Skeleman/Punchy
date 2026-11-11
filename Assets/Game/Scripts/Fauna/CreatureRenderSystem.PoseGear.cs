@@ -205,7 +205,21 @@ namespace Punchy.Fauna
             /// </summary>
             void Hair(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded)
             {
+                for (int i = 0; i < HairParts; i++)
+                    Output[at + i] = default;
+                // The species' own hair parts (scalp, beard, moustache: whichever its Individual's style groups picked)
+                // are hidden, as a guard's helmet hides them: this hair takes their place, bald included.
+                for (int i = 0; i < b.Parts.Length; i++)
+                {
+                    ref var part = ref b.Parts[i];
+                    if (part.SegmentCount == 0 || b.Segments[part.FirstSegment].Hair == 0)
+                        continue;
+                    for (int j = 0; j < part.SegmentCount; j++)
+                        Output[offset + part.FirstSegment + j] = default;
+                }
                 var style = state.Outfit.Hair;
+                if (style == CreatureHair.Bald)
+                    return;
                 int head = -1;
                 for (int i = 0; i < b.Parts.Length; i++)
                     if (b.Parts[i].Role == LimbRole.Head && b.Parts[i].SegmentCount > 0)
@@ -435,14 +449,12 @@ namespace Punchy.Fauna
             /// <summary>What a player's body has on (P-23): a hat on the crown of the head, a pack on the back.</summary>
             void Worn(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded)
             {
-                for (int i = 0; i < WornParts + WeaponParts + ArmourParts + HairParts; i++)
+                for (int i = 0; i < WornParts + WeaponParts + ArmourParts; i++)
                     Output[at + i] = default;
                 if (state.Outfit.Weapon != CreatureWeapon.None)
                     Weapon(in state, ref b, offset, at + WornParts, faded);
                 if (state.Outfit.Armoured)
                     Armour(in state, ref b, offset, at + WornParts + WeaponParts, faded);
-                if (state.Outfit.Hair != CreatureHair.Bald)
-                    Hair(in state, ref b, offset, at + WornParts + WeaponParts + ArmourParts, faded);
                 int head = -1, chest = -1;
                 for (int i = 0; i < b.Parts.Length; i++)
                 {
