@@ -3495,3 +3495,46 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
   - Clips in D:/Unity/PunchyMilestones/A-98/: row5-inside-folk-at-door.wav (ear inside the house, folk 2 m past the door: routed through the door, cutoff 5745 Hz, volume 0.7, rms 0.0255) and row5-inside-folk-round-corner.wav (folk round the house's corner: still heard from the door's direction, detour 15 m, rms 0.0178). Before the fix: rms 0.0072 / 0.0047 through the far door. row5-cave-hearing-mouth.wav (cave 0, ear inside the cave, howl outside: heard from the mouth's side, muffle 0.233, cutoff 11764 Hz, rms 0.0221).
   - Cost, editor (safety checks on), 24 voices around the ear inside a house, 18 blocked, 15 routed (the worst case): 0.053-0.057 ms per frame. A town street (7 blocked, 4 routed): 0.050 ms. Just over the 0.05 target in the worst case; a player build without safety checks should be lower (not benched).
   - Risks: whether a door is open isn't readable from Scripts/Audio (Doors' open set is private and in the player lane; FloraDoors is cosmetic and private), so every door counts as half shut. Follow-up: expose a read-only Doors.IsOpen(position) so an open door carries the sound unmuffled. Openings are found only where kit boxes exist (near the player). Windows aren't openings yet (no window points in the kit).
+
+## A-99
+
+- **Done (verified)** on fauna/extras-screen-size c0f22efe (from main be98cde1): creature extras are cut by screen size, not metres (rule 20).
+  - Each extra uses DetailPolicy.ExtraReach(size, pixels): reach = size x PixelsPerMetre / pixels, eased (EasedReach), with Within/Holds hysteresis 0.15. The thresholds are tuned to put every cut-off where the old metres did at 1080p, 60 degree FOV (935.3 px/m) and Detail 1.
+
+    | Extra | Old | Size | Pixels | Reach at Detail 1 (live) |
+    |---|---|---|---|---|
+    | Torch flame (CreatureRenderSystem) | 150 m | 0.35 m x bearer scale | 2.182 | 150.03 (0.35 m) |
+    | Bat colonies | 45 m | 1 m | 20.78 | 45.01 |
+    | Bee swarms | 40 m | 1.5 m | 35.07 | 40.00 |
+    | Traces (TraceSystem) | 40 m | the trace's size (1.5 m) | 35.07 | 40.00, floored at the trace's SeenFrom |
+    | Burrow marks (CreatureBurrowSystem, BurrowRange) | 150 m x Detail | 8 m | 49.88 | 150.01, passed as _PunchyBurrowRange |
+    | Wake ripples (CreatureWakeSystem Range) | 40 m | 8.4 m | 196.4 | 40.00 |
+    | Critters (CritterSystem Radius) | 70 m | 0.15 m | 2.004 | 70.01 |
+    | Others' breath and footprints (AmbienceSystem OthersRange) | 80 m | 1.8 m | 21.04 | 80.02 |
+    | Behind-camera cull (BehindCullRange) | 25 m | the creature's size (1.5 m) | 56.12 | 25.00 (reference ppm; held for the creatures kept last frame) |
+    | Lantern light range | 60 m | - | - | was dead code (LanternLightRange had no users); removed. Lantern glow is already LightBudget's on-screen reach. |
+
+  - TerrainSurface.shader is not edited: C# writes the pixel-derived reach into the existing _PunchyBurrowRange, which the shader already reads.
+  - Gameplay ranges stay in metres with a `// gameplay:` comment (wake Above/Below and others). Senses, flee and FaunaDirector's keep range are untouched.
+  - lod-lint.sh fauna/extras-screen-size: no hits.
+  - Checks, in the editor at Detail 1:
+    - Live reaches match the old metres (table).
+    - Bat colony at the nearest roost (shownRoosts): 56 m off, 40 m on, 50 m held, 56 m off again. The camera sat in cave rock, so these are numbers only, no shot.
+    - Torch, guard 289, night, time frozen (litTorches): 200 m off, 165 m off, 145 m on, 170 m held, 200 m off. The bearer's scale is 1.025, so its reach is 153.7 m.
+    - Swarm: hive and bees at 28 m, hive alone at 42 m.
+    - Traces at 36 m and 44 m: the prints are too small to read at 1080p either way, so no usable pair. The numbers stand.
+  - Shots in D:/Unity/PunchyMilestones/A-99/: swarm-pair-28m-vs-42m.png (plus swarm-28m.png and swarm-42m.png) and torch-pair-147m-vs-167m.png (zoomed: flame and embers at 147 m, none at 167 m; plus torch-200m, -165m-approach, -145m, -170m-held and -200m-after).
+  - Pins: Landmarks_V3 112 A955AFE0 and Fauna_Fingerprint AD723954 both pass. No look bytes changed (only draw cut-offs moved).
+  - PlayMode suite: 25 passed, 0 failed, 17 skipped (Explicit), Unity exit 0.
+  - ms not measured (rule 21). **BENCH-QUEUE request:**
+    - Branch fauna/extras-screen-size at c0f22efe.
+    - Arms: origin/main (be98cde1) vs the branch.
+    - Spots: `-goto -1500,-995` (wild hive, swarm), `-place HumanVillage -time 23` (night torches and lanterns), `-place Tundra` (traces, breath), `-goto -1149,1219` (bat roost cave).
+    - Pass line: frame ms within noise of main at each spot.
+  - Risks and notes:
+    - Extras now scale with Detail and resolution. Before, only burrow marks did (150 x Detail). At Detail 1.5 every reach is 1.5x the old metres.
+    - EasedReach ignores a change in the target within 7.5% (dead band). After a Detail change, a reach can stay up to 7.5% off until the next bigger change.
+    - Torch reach now follows the bearer's scale: a 0.86-scale guard's flame cuts at about 130 m, not 150 m.
+    - Not converted, flagged for R-13: CaveFishRange in CreatureRenderSystem.Extras.cs (not on the card).
+    - The serialized fields Radius (CritterSystem) and OthersRange (AmbienceSystem) are still saved in SampleScene. Unity drops them on its next save; the scene is not touched here.
+    - Interference: during the card, another session's commands reached my editor (PID-targeted): shotcam (1489,88,-897), timescale 0.1, night. That is the R-12 release spot. Someone may be targeting editors by port alone.
