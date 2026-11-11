@@ -379,6 +379,10 @@ namespace Punchy.Terrain
         /// <summary>The field's corner (texels follow the square), texels it still has to move, and time not yet stepped.</summary>
         int2 fieldCorner = NoCorner;
         int2 pendingShift;
+        /// <summary>The square corner the field's texels are laid out for: fieldCorner once the pending shift is stepped in.
+        /// The shaders read the field by this one, so between steps (a move waits for the next one, not forcing its own)
+        /// the surface still lines up; it only trails the square by up to a step.</summary>
+        int2 texelCorner;
         float stepClock;
         bool fieldClear;
 
@@ -780,13 +784,14 @@ namespace Punchy.Terrain
                 RenderTexture.active = active;
                 fieldClear = true;
                 pendingShift = int2.zero;
+                texelCorner = fieldCorner;
             }
             var dt = UnityEngine.Time.deltaTime;
             stepClock = math.min(stepClock + dt, StepTime * MaxSteps);
             var steps = (int)(stepClock / StepTime);
             stepClock -= steps * StepTime;
-            if (steps == 0 && !pendingShift.Equals(int2.zero))
-                steps = 1;
+            // (A move used to force a step of its own, so at 30 steps a second a swimmer still stepped about every frame:
+            // the shift now waits for the next scheduled step, and texelCorner keeps the shaders lined up meanwhile.)
             if (steps > 0)
             {
                 var presses = new NativeList<float4>(16, Allocator.TempJob);
@@ -854,9 +859,10 @@ namespace Punchy.Terrain
                     (fieldA, fieldB) = (fieldB, fieldA);
                 }
                 pendingShift = int2.zero;
+                texelCorner = fieldCorner;
             }
             Shader.SetGlobalTexture(FieldId, fieldA);
-            Shader.SetGlobalVector(FieldAtId, new Vector4(fieldCorner.x, fieldCorner.y, TexelsPerMetre, Size));
+            Shader.SetGlobalVector(FieldAtId, new Vector4(texelCorner.x, texelCorner.y, TexelsPerMetre, Size));
         }
     }
 }
