@@ -4859,6 +4859,35 @@ Proposed fix (world lane, RoadBaking + TunnelPortalKit):
   - Note: the row1b set shows thick cloud under "-weather Clear", but the air300 set has none.
 - Pins: not run (no code changed).
 
+### Row 2: cheap far-ring path (2026-11-11): done (verified)
+- Commit b0a46b6d on world/far-lite (pushed). Four files: TerrainSurface.shader, Water.shader, TerrainStreamingSystem.cs, TerrainStreamingSystem.FarRing.cs.
+  - The far tiles and far water now use runtime copies of the terrain and water materials with a far-only keyword on (`_PUNCHY_FAR`, `_PUNCHY_FAR_WATER`, multi_compile_local). No new asset and no Shader.Find. The disc is unchanged.
+  - Far terrain keeps: cave clip, albedo, strata, far-grass gust, wetness, shore, BRDF with SH and the main light, emission, cloud dim, one PunchyAtmosphere. It drops micro relief, grain, cobbles, rock faces, burrows, salt, puddles, sheen, shadows, extra lights, SSAO and glow GI. Cloud shadow moves to the vertex.
+  - Far water is flat: broad WaveSlope and swell kept for the seam, simple fresnel, sky reflection and cloud shadow per vertex, one depth sample for thickness. No foam, caustics, water field or per-pixel shadows. Toxic, falling and lava looks are kept in cheap form.
+- Counts (static D3D11 SHEX counts, ForwardLit with _MAIN_LIGHT_SHADOWS_CASCADE _SHADOWS_SOFT; both sides of every branch counted, so these are upper bounds, not timings):
+  - Terrain fragment: full 5856 instructions, 127 samples, 81 if/loop -> far 773 instructions, 4 samples, 9 if/loop.
+  - Terrain vertex: 41 -> 208 instructions, 0 -> 7 samples (cloud shadow per vertex; the far ring has few vertices).
+  - Water fragment: full 9589 instructions, 83 samples, 16 loads, 124 if/loop -> far 1737 instructions, 4 samples, 5 loads, 27 if/loop.
+  - Water vertex: 249 -> 1966 instructions, 0 -> 23 samples (sky colour per vertex).
+- Seam check: an A/B in one play session, with the far keyword switched off and on live on the same far materials, so each pair is the same view with the far ring on the full path vs the far path.
+  - 5 views at High: hill west at sunset (eye 128 m), and 400 m over the hill looking west (sunset), north and east (noon), south (sunset).
+  - No visible line or colour step at the disc edge. Mean pixel difference 0.6-5.9 of 255; most of it is wave and cloud animation between the two frames (the near sea, drawn by the disc, differs as much as the far sea).
+  - Far water reads a little more wave-textured near the horizon than the full path, where the full path's foam and sheen smooth it. No band.
+  - D3D11 editor, 0 magenta pixels in all 10 shots.
+- Shots: milestone folder W-132/row2-ab (pairs *-far / *-full).
+  - Best for Zach: zoom-hill-seam-far-top-full-bottom.jpg and ab-sheet-far-full-diff.jpg (far | full | difference x6).
+  - W-132/row2 is a first pass at the same spots (some views blocked by slopes, weather not clear away from the forced cell).
+- Tests: full PlayMode suite 25 passed, 0 failed, 17 skipped (on-demand). Pins hold: landmarks 112 A955AFE0, fauna AD723954.
+- lod-lint (world/far-lite vs origin/main): no hits.
+- Decisions for review:
+  - Far colour comes from the far tile's per-vertex albedo, not a separate low-res texture.
+  - Sky reflection and cloud shadow are per vertex (an approximation; the far ring's triangles are large).
+  - Wetness, shore, broad waves and swell are kept to match the seam. They could go if the bench says they cost.
+  - The ForwardLit variant count doubles for both shaders, because the keyword is set on runtime copies (multi_compile_local, not shader_feature).
+  - Live inspector edits to the terrain or water material during play reach the far copies only when the settings re-register.
+- BENCH-QUEUE request: main vs world/far-lite, High and Ultra, three spots: a ground walk, a hilltop view (e.g. -3460,2425 looking west) and a 300 m flight over land and sea. Watch GPU frame time and the far ring's draw cost. The row is kept only if the branch costs no more than main.
+- Row 3 not started; waits for the supervisor.
+
 ## W-134 (cave water = surface water; tree Punchy-world, branch world/cave-water)
 
 ### Row 1: one water query for a 3D point - done (verified)
