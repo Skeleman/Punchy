@@ -494,6 +494,10 @@ Pass: row 6 <= +0.2 ms GPU over row 5 at both views, CPU within noise.
 - One Profile build of Punchy `b/r12-trims` 247d2777 (origin/main 393a9c20 + test bits): plain; `-skyoff 1024` (no warp); 2048 (the march reads the warp every other fine step: a trial fix); 4096 (cloud shadow and sun cover read the maps straight: prices their share); 6144 (both). Job 49's storm spots, 3 rounds rotated. q90.sh.
 - Purpose: split R-12's warp cost between the sky march and the per-pixel cloud shadow, and see what the half-rate march buys.
 
+## Job 45h (2026-11-11, QUEUED after 49b; Zach in the profiler session): R-10's town cost, trimmed
+- One Profile build of Punchy `b/r10-trims` a1cb1899 (= light/forwardplus 1f6c966d + LightBudget's real-light reach: pixels past every real light's reach skip the Forward+ light loop): trim; `-realreach 0` (R-10 as is); `-floraglowworld 0` (prices plants' island glow); and origin/main 60edfacb. Job 45e's spot, town (yaw 201) and north, 3 rounds rotated. q91.sh.
+- Pass (45e's): trim <= +0.5 ms GPU over main at both views.
+
 ## Job 50 (2026-11-10, QUEUED after 45e; queued by the main-account supervisor, Zach asked): two-player crash and desync test on the laptop
 Note (supervisor 11-10): leave/rejoin is expected to crash in GameAudio occlusion until #259 is fixed. If it does, report it as #259 and finish the rest of the route without the rejoin step.
 - Build: origin/main at the time you start (cc835cf6 or newer; note the commit), one Dev build, two instances on the laptop: host `-host`, client `-join 127.0.0.1`, start the client once the host is in game. Correctness only, no timing: two instances on one machine make frame times meaningless.
