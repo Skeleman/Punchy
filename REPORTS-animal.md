@@ -3538,3 +3538,33 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
     - Not converted, flagged for R-13: CaveFishRange in CreatureRenderSystem.Extras.cs (not on the card).
     - The serialized fields Radius (CritterSystem) and OthersRange (AmbienceSystem) are still saved in SampleScene. Unity drops them on its next save; the scene is not touched here.
     - Interference: during the card, another session's commands reached my editor (PID-targeted): shotcam (1489,88,-897), timescale 0.1, night. That is the R-12 release spot. Someone may be targeting editors by port alone.
+
+## M-05 Model Lab
+
+### Row 1: inventory (no code)
+- **Done (verified by reading the code)** on fauna/model-lab (from main 739cdff7). No code changed in this row.
+- **The card's assumption only half holds.** Colossus proportions are literal numbers inside their builders. Creature proportions are not: they are already ScriptableObject data (species and limb assets). So creature tunables become multipliers and pose deltas layered on top of that data, rather than a copy of it.
+
+| Family | How it is built | What sets the proportions | What "key frames" means | Lab estimate |
+|---|---|---|---|---|
+| Creatures (about 40 species) | `CreatureSpecies` assets in Assets/Game/Fauna. `CreatureBlobBuilder.Build` (CreatureData.cs) bakes each one into a `CreatureBlob`. `CreatureAnimator.Evaluate` poses it as a list of SegmentInstance capsules. | Species: BodyLength, BodyRadius, BodyTaper, BodyFlatten, Size, plus Variant* multipliers. Each LimbSlot: Socket, Direction, Scale, Thickness, Phase. Each `LimbType` segment: Length, RadiusStart, RadiusEnd, Flatten. | Seven key poses per LimbType (Idle, WalkReach, WalkPush, WalkLift, RunReach, RunPush, RunLift), one joint angle in degrees per segment. Stance sweeps linearly from reach to push; swing eases back with lift times sin. Gait sets WalkSpeed, RunSpeed, Bob, BobsPerCycle and RunRock. Stride is measured from the poses. | Rows 2-3 as carded: about 1 tunables asset, 1 hook in Build and 1 editor window. Medium. |
+| Colossi (24 kinds) | `ColossusDefinition` assets in Resources/Colossi. Each look is a hand-coded builder (StoneColossi.<Kind>.cs, with mesh helpers in DunesColossus.MeshBuilder) that makes one baked mesh, or loose rocks for the golem. | Inline literal numbers per builder. For example the mammoth: barrel r(9, 8.5, 15) at y 18, hump, head, legs with radii 3.9/3.3/3.4, bezier tusks, trunk pivot (0, 19.5, 20). That is hundreds of literals across 24 files. | Hand-written sin sways. The mammoth trunk uses SwayMammoth. Six walking rigs in ColossusRigs.cs (Saguaro, Golem, Tortoise, MesaTortoise, Heron, Stag) have `Pose(pace, stride, settle, t)` with sin amplitudes. ColossusWalker drives them from the shared clock. | Cheap: load any kind into the Lab, plus a root-scale tunable (x, y, z, default 1) and the mammoth trunk sway amplitude as data. Expensive: per-part proportions, which means turning each builder's literals into named fields. That is about 24 files of rework; a later card per kind. |
+| Kit houses and villages | StructureKit parts (boxes, drums and sheets, tagged by trim colour) are assembled in FloraGenerator.Houses/Kit/Village.cs and baked through SettlementBaking and FishingVillageBaking. | Literal sizes and per-culture rules in about 1150 lines of builder code. | None. They are static, apart from doors and lanterns. | World lane (row 4). A Lab view of the composed kit parts needs a "build one house at the origin" entry point. Medium-large. |
+| Ruins | RuinKit.cs: rooms and solid boxes in the landmark's (u, y, v) frame, plus sand drifts. | Literals in RuinKit (about 460 lines). | None. | World lane. Medium. |
+| Landmarks (temple, salt tower, ribcage, marsh folk) | Their own builders in Terrain/Landmarks, baked through LandmarkBaking. | Literals. These numbers feed the Landmarks_V3 hash, so any tunable must leave the defaults byte-identical. | Small effects only (glows, beacons). | World lane, last. A Lab view only; no tunables until the hash is checked. |
+
+- **Plan for row 2:** a `CreatureTunables` ScriptableObject in Resources. It holds one entry per species name, with these multipliers, all defaulting to 1:
+  - size;
+  - body length and thickness;
+  - leg length and thickness;
+  - head;
+  - gait speed;
+  - pose amplitude.
+  
+  It also holds optional per-limb, per-key pose deltas in degrees, which default to empty.
+  - Build applies them, so a multiplier of exactly 1 and an empty delta list keep every blob byte, and with them Fauna_Fingerprint AD723954. No blob fields are added.
+  - For colossi: one root scale per kind, and the mammoth sway amplitude, through a shared pure pose function.
+- **Plan for row 3: the preview.** The Lab will use PreviewRenderUtility, drawing one tapered mesh per SegmentInstance from Evaluate with a default TerrainSource (flat ground at sea level + 10; checked that the samplers guard empty blobs). It will not use the ECS instanced renderer, because procedural instancing inside a preview camera is fragile. Colossi are built in edit mode, outside play mode only, because their builders write static rig fields.
+- Risks:
+  - Tunables reach every creature. A Save that leaves a non-1 value moves the fingerprint. That is intended, but it must be a reviewed diff.
+  - Colossus builders assume runtime statics such as MammothRig, so the Lab must not run them during play.
