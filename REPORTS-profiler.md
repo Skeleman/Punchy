@@ -2,6 +2,49 @@
 
 Newest first.
 
+## Wave field savings, one at a time and in pairs (Zach, 2026-11-10; q81.sh, b/fix-waterfield-step d7f0f975)
+**Setup:**
+- The experiment branch is water/deform 24459300 (R-9 row 4, job 45c's build) plus four changes, each with a launch flag:
+  - idle sleep;
+  - per-group source culling (exact, same output);
+  - `-waterfieldcuts` (the finest cut);
+  - `-waterfieldhz` (the step rate, with damping and decay rescaled per second).
+- One Profile build. 1920x1080, `-gfx High`, noon, Clear. 2 rounds per arm, the second reversed. The noise between rounds is
+  about ±0.4 ms GPU.
+
+**Swim (job 45c's lake swim; one swimmer, about 2 sources a step):**
+| arm | GPU ms (r1, r2) | mean | vs base |
+|---|---|---|---|
+| base (45c's behaviour) | 18.8, 19.6 | 19.2 | — |
+| cull | 19.4, 18.7 | 19.05 | −0.15 |
+| cuts 4 | 18.4, 18.5 | 18.45 | **−0.75** |
+| 30 Hz | 19.1, 18.9 | 19.0 | −0.2 |
+| cull + cuts 4 | 18.4, 18.7 | 18.55 | −0.65 |
+| cull + 30 Hz | 18.9, 19.2 | 19.05 | −0.15 |
+| cuts 4 + 30 Hz | 19.0, 18.7 | 18.85 | −0.35 |
+| all three | 17.9, 18.8 | 18.35 | **−0.85** |
+| no step (sheet drawn flat, no compute) | 18.9, 18.7 | 18.8 | −0.4 |
+| field off | 18.2, 17.8 | 18.0 | −1.2 |
+
+- **The compute step is about 0.4 ms of the field's 1.2 ms** (no step against base). So cull and 30 Hz can only save from that
+  0.4. Culling does nothing with 2 sources; it pays off with many creatures in the water.
+- **Cuts 4 is the big saving.** The sheet goes from about 4,990 indices to 768: tier 0 cuts 4, the next tier 2, and beyond
+  that the chunk water. That's −0.75 ms, leaving it about 0.45 over off.
+- **Pairs add up within the noise.** All three together are about +0.35 over off, against +1.2 today.
+- **30 Hz doesn't halve the steps while moving.** The log shows 184–232 steps per 5 s against 300 at 60 Hz (150 expected),
+  because StepField forces a step whenever the square shifts, and a swimmer shifts it almost every frame.
+  - Fix: carry the shift into the next scheduled step instead of forcing one, or shift with a cheap copy.
+- **Sleep is untested.** The idle view (job 43's lake shore) wasn't idle: creatures came into the water, 0.3–1.6 sources a
+  step, so the field never slept. Those games also stalled heavily; the new 150 s watchdog killed both sleep + cull games.
+  The idle numbers are not usable.
+  - Next: an idle view with nothing in the water (the field's log shows 0 sources), or the swim stop with the swimmer
+    leaving the water.
+
+**Look:** cuts 4 and 30 Hz need playtesting in motion; that's Zach's call. The build is Punchy/Builds/Profile-d7f0f97, and the
+flags work in normal play: for example `-waterfieldcuts 4 -waterfieldhz 30`.
+
+Files (Punchy-wt results): q81.out, q81-*.csv, q81logs/, q81-shots/.
+
 ## Jobs 45d and 45f: R-9 rows 5 and 6 (water/deform 2856a634 and 9b1cacc1), 2026-11-10 (q80.sh): both FAIL
 **Setup:**
 - Profile builds, 1920x1080, `-gfx High`, uncapped, noon, Clear, a fresh game per run.
