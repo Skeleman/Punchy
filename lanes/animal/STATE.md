@@ -44,3 +44,4 @@ Fauna fingerprint 8726AADB on branch (115 species); main D0B9488A.
 - Shot flags: see TESTING.md and older STATE in git history (A-50 version).
 
 - 11-10 (supervisor): **crash fix first (#259)**: GameAudio occlusion job runs during the world switch on leave/rejoin (P-31 row 2 stack in REPORTS-player.md). Skip Occlude() while GameBootstrap is switching or no world exists. Small b/fix-* branch from main; the supervisor merges.
+- 11-11 (supervisor): when W-134 merges (world/cave-water): the creature brain's swim choice and the fish body's SwimOrFlop still use the 2D SampleGround; switch them to SampleGround(float3) so creatures see cave pools and streams. Not before the merge.
