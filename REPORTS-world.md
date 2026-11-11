@@ -5008,6 +5008,36 @@ Skipped: cave9 and cave19 grottos already have a road; cave16 is too far from an
 - The landing spur's ruined-bridge break is kept out until Zach answers.
 - BENCH: job 59, first load near the landing.
 
+### W-138 row 2a fix: landing road onto the pier, white strip removed: done (verified, c3cdf1db)
+Branch `world/mountain-tunnels` at c3cdf1db (pushed). Row 2b not started; it waits for Zach's picks.
+
+**(1) Road onto the pier.** The pier wasn't offshore: it was missing. The spur ended at the landing centre, inside the pier's 6 m footprint, so FloraPlacement's road cull dropped the pier. The teal deck with a post and sail in row 2a's 1c shot is the sea folk boat, not the pier.
+- The landing spur now ends at the foot of the pier's ramp: 8.5 m inland of the landing, against its facing (SettlementBaking.LandingRampRun). The road end is (-1791.0,-554.7).
+- A prop with a PierReach is no longer culled by a road over its spot (FloraPlacement). Every other prop is still culled.
+- Play-mode walk (scripted -walk legs, sampled every 0.2 s, 63 samples): from 6 m up the road, down the road end, along the 28 m deck to (-1760,-545) and back.
+  - Feet never went under water. The closest was 3.86 m above the lake surface (35.63).
+  - On the deck the feet held y 39.66 over open water. Off the deck they matched the ground.
+  - Walk ended ARRIVED.
+- The bank from the road end down to the deck drops about 3.8 m over 8 m. The pier's ramp lies inside that bank, and the walker steps onto the deck where the ground meets deck level, about 1.4 m in from the deck's land end. There is no step.
+
+**(2) The white strip.** It was neither shore foam nor the waterline mask, and it predates row 2a (row1b/shot-landing.png already shows it).
+- It was a river sheet standing 1.02 m over a lowered lake: water 36.65 against lake 35.63.
+- Cause: ReshapeLoweredLakes lifted the lake's river cells to the outlet's pre-cut level, and CutDams then left lake cells alone. The water shader's falling-water term drew the sheet's stepped cell edges as a white zig-zag.
+- Fix: a new RiverBaking.SettleLakeRivers pass. On the drawn map only, it lays a river in a lake at the lake's surface, and the river cells downstream of it follow, down to their own level.
+
+**What moved:**
+- The landing spur's last 8.5 m. The spur is 1182 -> 1176 m, and streets stay 3041.
+- road 1 2855 -> 2852, road 2 186 -> 189: re-levelled cells near the end.
+- The pier now stands.
+- Landmarks unchanged: 112 A5D1D048. Fauna_Fingerprint AD723954.
+
+**Checks:** playmode suite 25 passed, 0 failed, 17 skipped (Landmarks_V3 and Fauna_Fingerprint pass). lod-lint clean. The probes stay untracked.
+
+**Shots** (PunchyMilestones/W-138/row2a-fix/, all checked):
+- a0-top-before.png / a0-top-after.png: same top pose. Before shows the zig-zag along the bank and no pier. After shows a smooth waterline and the pier off the road end. Both are night with rain; same pose and weather draw.
+- join-15m.png: 15 m off the join, 10:30, clear. The road comes over the bank and down onto the deck.
+- a0-probe1/2/4.png: the water probe views used for the diagnosis.
+
 ## W-132 (cheaper 3 km landscape, horizon; tree Punchy-release, branch world/far-lite from origin/main cc835cf6)
 
 ### Row 1: the horizon oddity (2026-11-10): done (verified; diagnosis only, no code change)
