@@ -39,8 +39,8 @@ namespace Punchy.Terrain
         public const int Span = 32, Snap = 4, Size = 256;
         const float TexelsPerMetre = Size / (float)Span;
         /// <summary>The finest cut (a chunk water quad into Cuts x Cuts, tier 0; each tier further out halves it).</summary>
-        /// (Profiler experiment, b/fix-waterfield-step: "-waterfieldcuts 8|4|2" for playtesting a coarser finest cut.)
-        static readonly int Cuts = LaunchInt("-waterfieldcuts", 8, 2, 8);
+        /// 4 by default (Zach 11-11: 8 looked no different in play and cost the most); "-waterfieldcuts 8|4|2" to compare.
+        static readonly int Cuts = LaunchInt("-waterfieldcuts", 4, 2, 8);
         /// <summary>How far (m) the player moves before the cut is redone round them, and how much the camera's distance
         /// from them may change (as a ratio) before it is.</summary>
         const int FineStep = 1;
@@ -49,9 +49,9 @@ namespace Punchy.Terrain
         const int SheetBudget = 8000;
         /// <summary>The field's step (s), the most steps a frame catches up, and how fast its waves run (m/s): slower than
         /// a walk, so a wader trails a V rather than pushing a ring ahead of it.</summary>
-        /// (Profiler experiment: "-waterfieldhz 60|30|20" steps it less often; the damping and decay per step are rescaled
-        /// so waves die away over the same seconds, and the wave speed is unchanged.)
-        static readonly float StepTime = 1f / LaunchInt("-waterfieldhz", 60, 10, 60);
+        /// 30 Hz by default (Zach 11-11: no visible change from 60); "-waterfieldhz 60|30|20" to compare. The damping and
+        /// decay per step are rescaled so waves die away over the same seconds, and the wave speed is unchanged.
+        static readonly float StepTime = 1f / LaunchInt("-waterfieldhz", 30, 10, 60);
         const float WaveSpeed = 0.9f;
         const int MaxSteps = 4, MaxSources = 64;
 

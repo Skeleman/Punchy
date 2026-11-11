@@ -598,7 +598,9 @@ Shader "Punchy/Water"
                     float2 cellA = floor(eye / AnchorGrid) * AnchorGrid;
                     float2 cellB = floor(eye / AnchorGrid + 0.5) * AnchorGrid - AnchorGrid * 0.5;
                     float2 inA = eye - cellA;
-                    float2 weightA = smoothstep(3, 10, min(inA, AnchorGrid - inA));
+                    // (A narrow hand-over band, 2-5 m from a line: inside it every river pixel pays for two reads, or
+                    // four near a corner. 3-10 m put the camera in it a fifth of the time on each axis; profiler 11-11.)
+                    float2 weightA = smoothstep(2, 5, min(inA, AnchorGrid - inA));
                     streaks = 0;
                     [unroll] for (int corner = 0; corner < 4; corner++)
                     {
@@ -935,8 +937,12 @@ Shader "Punchy/Water"
                 float2 carried1 = p - shoreDrift * shorePhase1 + 5.3;
                 float2 still = float2(t * 0.25, -t * 0.18) * (1 - riverShore) * lerp(1, 0.25, lakeShore);
                 float stillT = t * 0.4 * (1 - riverShore) * lerp(1, 0.25, lakeShore);
-                half foamNoise = (PunchyValueNoise(carried0 * 0.9 + still) * 0.6 + PunchyValueNoise(carried0 * 2.7 - stillT) * 0.4) * shoreW0 +
-                                 (PunchyValueNoise(carried1 * 0.9 + still) * 0.6 + PunchyValueNoise(carried1 * 2.7 - stillT) * 0.4) * (1 - shoreW0);
+                // (Only a river's shore drifts, so only it needs the second read: a lake's or the sea's takes one, as before
+                // row 6. Profiler 11-11: the second read was paid on every water pixel.)
+                half foamNoise = PunchyValueNoise(carried0 * 0.9 + still) * 0.6 + PunchyValueNoise(carried0 * 2.7 - stillT) * 0.4;
+                [branch] if (riverShore > 0)
+                    foamNoise = foamNoise * shoreW0 +
+                        (PunchyValueNoise(carried1 * 0.9 + still) * 0.6 + PunchyValueNoise(carried1 * 2.7 - stillT) * 0.4) * (1 - shoreW0);
                 // The line laps: it creeps up the shore and draws back, unevenly along it. A river's laps as before; a lake's
                 // hardly moves; the sea's is the surf, below.
                 half lap = seaShore
