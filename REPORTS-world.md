@@ -5473,3 +5473,28 @@ Branch `world/mountain-tunnels` at 0ef51794 (pushed), on 53f2d557. One commit: S
 - Shots checked at small size. Test shots deleted.
 - Suite (water code touched): `DONE 26 passed, 0 failed, 17 skipped in 311s`. Pins hold: Landmarks_V3 112 A955AFE0, Fauna_Fingerprint AD723954. lod-lint clean.
 - I did not change the surface-hiding distance.
+
+### Row 4b: stronger far sun road (2026-11-11) - done (verified)
+- Commit e99891ed on world/far-lite (pushed), on top of row 4 (0900515f).
+- Zach (11-11): "Stronger sun road in the distance please", then "farawy sun set with reflective path looks excellent". So this is a modest boost to the far band only. Near and mid keep row 4's look exactly.
+- **Knob: `TerrainStreamingSystem.SunRoad`, default 2** (env `PUNCHY_SUNROAD`). 1 is row 4's road everywhere, bit for bit. 0 turns the road off. To go back to row 4, set the default to 1.
+- How (Sky.hlsl `PunchySunRoad`, used by the far water and the skybox's below-horizon band):
+  - Distance is read from how big a glitter cell looks: `DetailPolicy.ScreenSize(SunGlintSize 28 m)` over distance, flattened by the grazing angle (rule 20, no fixed metres).
+  - A cell that still looks whole (>= `SunGlintFull` 6 px) gives exactly row 4's output.
+  - Where cells shrink, the band widens and brightens by up to (strength - 1). The sparkle hands over to cells 4x the size, then settles to its mean by `SunGlintEnd` 1.5 px, so it can't flicker. Output is capped at 1.5x the sun colour, so it doesn't bloom out.
+  - TerrainStreamingSystem sets `_PunchySunRoad` with the other per-frame detail globals.
+- Far water fragment (ForwardLit, D3D11, my opcode count): row 4 had 1818; now 1870 instructions, 4 samples, 5 loads, 27 if/loop. That is +52 ALU and no new sample, within row 4's +81. Far vertex is unchanged (1966). I didn't count the skybox (unnamed pass, my counter needs a name); it runs the same function.
+- Shots (milestone W-132/row4b; all viewed small):
+  - **pair/** is the comparison to use. One session, time paused, the same clouds. `<spot>-r4.png` is strength 1 (= row 4) and `<spot>.png` is strength 2, plus contact-sheet.jpg. Spots: air300-sun0, airsea-sun1, hill-sun1, hill-sun0, ground-sun1, airsea-noon.
+    - Near and mid water look the same in every pair.
+    - At sunset, the road under the sun runs longer and brighter toward the horizon.
+    - At noon, neither strength shows a road.
+  - before/ (row 4 code) and after/ (default 2) come from separate sessions, so the clouds differ. Use them for context only.
+- Suite: `DONE 25 passed, 0 failed, 17 skipped in 310s`. Pins hold: Landmarks_V3 112 A955AFE0, Fauna_Fingerprint AD723954. lod-lint world/far-lite vs origin/main: clean.
+- Findings for anyone shooting sunsets:
+  - Shot-list waits run the clock (1 game hour per real minute). Row 4's `-time 18.0 ... -wait 12` shots ended with the sun below the horizon, which is partly why the road looked so subtle there. I set `DayNightCycle.Paused = true` by eval right after entering play, and set sun0 to 17.95.
+  - With the sun low from the first frame, the flora shadow cache never draws, shot readiness waits on it, and the shot is never saved. A noon warm-up line first (`-goto ... -time 12 -wait 10`) fixes it.
+  - `-weather` on a `-goto` line applies at the old spot. Put `-goto` on its own line.
+  - At these spots the road is drawn mostly by the skybox's below-horizon band, not by far-water tiles.
+  - Cloud coverage over the sea is about 0.8 even with `-weather Clear` (orography and pressure). The road is multiplied by (1 - 0.8 x clouds), so on a truly clear evening it's stronger than in these shots.
+- No placement changes. No bench request: job 56 already notes the new arm.
