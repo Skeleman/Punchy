@@ -36,6 +36,7 @@ build() { # commit Build|BuildDev outdir: archived per commit (A/Bs copy it into
   strays >/dev/null
   git -C "$P" fetch -q origin 2>/dev/null
   ( cd "$P" && git checkout -q --detach $c && [ "$(git rev-parse --short=7 HEAD)" = "$c" ] ) || { log "checkout $c failed"; return 1; }
+  rm -f "$P"/Assets/Resources/PerformanceTestRun*   # a killed build leaves these; they broke a later build's Burst AOT
   cp "$B/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs"
   cp "$B/BenchmarkRoute.cs.txt" "$P/Assets/Game/Scripts/Debugging/BenchmarkRoute.cs"
   cp "$B/BenchmarkRoute.cs.meta.txt" "$P/Assets/Game/Scripts/Debugging/BenchmarkRoute.cs.meta"
