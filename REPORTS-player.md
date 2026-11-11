@@ -622,3 +622,8 @@ code, which isn't on main yet. Merge after player/integrate.
 - Suite: 25 passed, 0 failed, 17 skipped in 350s (Unity exit 0).
 - UNVERIFIED: host/client for these three (they ride the existing Hand slot in GearRpc, which row 1 checked).
 - Next: P-29 once P-28 merges (its card says from origin/main after that); more item rows meanwhile.
+
+## Shots moved (11-10)
+DONE: per the supervisor's 11-10 rule, every player-lane shot folder is now under D:/Unity/PunchyMilestones/P-<nn>/ on the main PC
+(190 files, nothing left in D:/Unity/shots-*). Old report paths map as: shots-P9/P22/P23/P24/P25/P26/P28/P30 -> P-9 ... P-30;
+shots-P28-armour -> P-28/armour; shots-P28-cloth -> P-28/cloth; shots-tools -> P-28/tools. New shots go there directly (P-31 next).
