@@ -321,11 +321,11 @@ namespace Punchy.Terrain
                 var exists = farTiles.TryGetValue(farBuilding[i].Tile, out var known);
                 if (!exists)
                     newTerrain++;
-                if (farWaterRanges[i].x <= farWaterRanges[i].y && waterMaterialId != BatchMaterialID.Null && (!exists || known.WaterEntity == Entity.Null))
+                if (farWaterRanges[i].x <= farWaterRanges[i].y && farWaterMaterialId != BatchMaterialID.Null && (!exists || known.WaterEntity == Entity.Null))
                     newWater++;
             }
-            var terrainEntities = Spawn(ref farPrototype, FarDesc, materialId, buildMeshIds[0], false, newTerrain);
-            var waterEntities = Spawn(ref waterPrototype, WaterDesc, waterMaterialId, buildMeshIds[count], false, newWater);
+            var terrainEntities = Spawn(ref farPrototype, FarDesc, farMaterialId, buildMeshIds[0], false, newTerrain);
+            var waterEntities = Spawn(ref waterPrototype, WaterDesc, farWaterMaterialId, buildMeshIds[count], false, newWater);
             newTerrain = 0;
             newWater = 0;
 
@@ -334,12 +334,12 @@ namespace Punchy.Terrain
                 var item = farBuilding[i];
                 var origin = farRequests[i].Origin;
                 var terrainBounds = SetBounds(buildMeshes[i], farRanges[i], span);
-                var hasWater = farWaterRanges[i].x <= farWaterRanges[i].y && waterMaterialId != BatchMaterialID.Null;
+                var hasWater = farWaterRanges[i].x <= farWaterRanges[i].y && farWaterMaterialId != BatchMaterialID.Null;
                 var waterBounds = hasWater ? SetBounds(buildMeshes[count + i], farWaterRanges[i], span, WaterSwells.BoundsPad) : default;
                 if (!farTiles.TryGetValue(item.Tile, out var tile))
                     tile = new FarTile
                     {
-                        Entity = Place(terrainEntities[newTerrain++], origin, materialId, buildMeshIds[i], terrainBounds, "FarTile"),
+                        Entity = Place(terrainEntities[newTerrain++], origin, farMaterialId, buildMeshIds[i], terrainBounds, "FarTile"),
                         Mesh = buildMeshes[i],
                         MeshId = buildMeshIds[i],
                         WaterMesh = buildMeshes[count + i],
@@ -349,7 +349,7 @@ namespace Punchy.Terrain
                     EntityManager.SetComponentData(tile.Entity, new RenderBounds { Value = terrainBounds });
                 tile.Quads = item.Quads;
                 if (hasWater && tile.WaterEntity == Entity.Null)
-                    tile.WaterEntity = Place(waterEntities[newWater++], origin, waterMaterialId, tile.WaterMeshId, waterBounds, "FarWater");
+                    tile.WaterEntity = Place(waterEntities[newWater++], origin, farWaterMaterialId, tile.WaterMeshId, waterBounds, "FarWater");
                 else if (hasWater)
                     EntityManager.SetComponentData(tile.WaterEntity, new RenderBounds { Value = waterBounds });
                 else if (tile.WaterEntity != Entity.Null)

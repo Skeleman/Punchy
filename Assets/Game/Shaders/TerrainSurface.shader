@@ -27,6 +27,9 @@ Shader "Punchy/Terrain Surface"
             #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
             #pragma multi_compile_fragment _ _SCREEN_SPACE_OCCLUSION
             #pragma multi_compile_fragment _ _LIGHT_COOKIES
+            // W-132: the far ring's cheap path (TerrainStreamingSystem's far material turns it on; FarFrag below).
+            // multi_compile, not shader_feature: the material is made at runtime, so a build would strip the variant.
+            #pragma multi_compile_local _ _PUNCHY_FAR
             #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Fog.hlsl"
             #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/RenderingLayers.hlsl"
 
@@ -175,6 +178,9 @@ Shader "Punchy/Terrain Surface"
                 half   strata     : TEXCOORD8;
                 half2  paving     : TEXCOORD9;   // paving amount, flagstones (W-108)
                 half2  hollow     : TEXCOORD10;  // hollow depth (m), porosity (item 22)
+            #if defined(_PUNCHY_FAR)
+                half   farCloud   : TEXCOORD11;  // W-132: the cloud shadow, per vertex on the far ring
+            #endif
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -343,12 +349,82 @@ Shader "Punchy/Terrain Surface"
                 o.strata = input.strata.x;
                 o.paving = input.strata.yw;
                 o.hollow = half2(input.strata.z, input.soak.x);
+            #if defined(_PUNCHY_FAR)
+                // Cloud shapes span hundreds of metres and far vertices sit 16-32 m apart, so once a vertex is enough.
+                o.farCloud = PunchyCloudShadow(pos.positionWS + float3(0, max(input.extra.w, 0), 0));
+            #endif
                 return o;
             }
+
+        #if defined(_PUNCHY_FAR)
+            // W-132: the far ring (past the chunk disc, about 2-3 km at High). Only what still shows at that distance in
+            // Frag below, done the same way so the seam with the disc's last LOD has no colour step: the baked vertex
+            // colour, rock strata, the far grass's gusts, rain darkening, the wet shore band, sun and sky light, cloud
+            // shadow and the haze. Left out because each has faded to nothing by the disc's edge or can't reach it:
+            // fine relief, grain, cobbles, rock faces, worm and salt marks, puddles (the last LOD has no dips) and
+            // sheen, the real and wide shadows (they end inside the disc), extra lights, ambient occlusion and glow.
+            half4 FarFrag(Varyings input)
+            {
+                TerrainCaveClip(input.cave);
+                float3 positionWS = input.positionWS;
+                float distance = length(positionWS - GetCameraPositionWS());
+                half3 normalWS = NormalizeNormalPerPixel(input.normalWS);
+                float2 p = positionWS.xz;
+                half3 albedo = input.surface.rgb;
+                [branch] if (input.strata > 0.01)
+                {
+                    float y = positionWS.y + (PunchyValueNoise(p * 0.02) - 0.5) * 6 + (PunchyValueNoise(p * 0.11) - 0.5) * 1.2;
+                    half band = PunchyValueNoise(float2(y / 4.5, 7.1)) * 0.7 + PunchyValueNoise(float2(y / 1.1, 3.3)) * 0.3;
+                    albedo *= lerp(1, lerp(half3(0.55, 0.45, 0.42), half3(1.45, 1.3, 1.08), smoothstep(0.3, 0.7, band)), input.strata);
+                }
+                half farGrass = input.extra.y * smoothstep(_PunchyGrassTint.y * 0.6, _PunchyGrassTint.y, distance);
+                [branch] if (farGrass > 0.01 && _PunchyCaveDetailReady > 0)
+                {
+                    float2 gustUV = p * 0.011 - _PunchyWindDirection * _PunchyClock * (0.025 + 0.06 * _PunchyWind);
+                    half gust = smoothstep(0.3, 0.75, SAMPLE_TEXTURE2D_LOD(_PunchyCaveDetail, sampler_PunchyCaveDetail, gustUV, 0).b);
+                    albedo *= 1 + (gust - 0.5) * 0.3 * farGrass * (0.4 + _PunchyWind);
+                }
+                half wet = PunchyWetnessAt(p).r * (1 - saturate(input.extra.z * 2));
+                albedo *= lerp(1, 0.72 - 0.12 * input.hollow.y, wet);
+                [branch] if (input.extra.w < -0.001)
+                {
+                    half shore = smoothstep(0.2, 0.75, saturate(-input.extra.w) + (PunchyValueNoise(p * 0.8) - 0.5) * 0.35
+                                                     + (PunchyValueNoise(p * 0.13 + 2.9) - 0.5) * 0.5)
+                               * (1 - saturate(input.extra.z * 2));
+                    half bandMix = smoothstep(0.35, 0.7, PunchyValueNoise(p * 0.21 + 8.3) * 0.75 + PunchyValueNoise(p * 1.9) * 0.25);
+                    half3 shingle = lerp(albedo, dot(albedo, half3(0.3, 0.5, 0.2)).xxx * 1.35, 0.7) * (1 + Grain(p * 6) * 0.5);
+                    albedo = lerp(albedo, shingle, bandMix * shore * (1 - input.extra.y));
+                    albedo *= lerp(1, 0.55, shore * (1 - 0.4 * input.extra.y));
+                }
+
+                // UniversalFragmentPBR's sum with nothing it would add out here: sky light, the sun (unshadowed: past
+                // the shadow distance its attenuation is 1 anyway) and the glow of lava.
+                BRDFData brdf;
+                half alpha = 1;
+                InitializeBRDFData(albedo, input.extra.x, half3(0, 0, 0), input.surface.a, alpha, brdf);
+                half3 view = GetWorldSpaceNormalizeViewDir(positionWS);
+                half3 bakedGI = SampleSH(normalWS);
+                Light sun = GetMainLight();
+                half3 color = GlobalIllumination(brdf, bakedGI, 1, positionWS, normalWS, view)
+                            + LightingPhysicallyBased(brdf, sun, normalWS, view)
+                            + input.emission * _EmissionScale;
+                // The cloud shadow dims the sun's share alone, as in Frag.
+                half cloudShadow = input.farCloud;
+                if (cloudShadow > 0)
+                {
+                    half sunlit = Luminance(sun.color) * saturate(dot(normalWS, sun.direction));
+                    color *= 1 - sunlit * cloudShadow / max(sunlit + Luminance(bakedGI), 1e-3);
+                }
+                return half4(PunchyAtmosphere(color, positionWS), 1);
+            }
+        #endif
 
             half4 Frag(Varyings input) : SV_Target
             {
                 UNITY_SETUP_INSTANCE_ID(input);
+            #if defined(_PUNCHY_FAR)
+                return FarFrag(input);
+            #else
                 TerrainCaveClip(input.cave);
 
                 float distance = length(input.positionWS - GetCameraPositionWS());
@@ -579,6 +655,7 @@ Shader "Punchy/Terrain Surface"
 
                 color.rgb = PunchyAtmosphere(color.rgb, input.positionWS);
                 return color;
+            #endif
             }
             ENDHLSL
         }

@@ -107,6 +107,11 @@ namespace Punchy.Terrain
         EntitiesGraphicsSystem graphics;
         BatchMaterialID materialId;
         BatchMaterialID waterMaterialId;
+        // W-132 row 2: the far ring's cheap materials, copies of the two above with the far path's keyword on
+        // (_PUNCHY_FAR in TerrainSurface, _PUNCHY_FAR_WATER in Water): no detail, puddles or shadows past the disc.
+        Material farMaterial, farWaterMaterial;
+        BatchMaterialID farMaterialId;
+        BatchMaterialID farWaterMaterialId;
         TerrainConfig lastConfig;
         TerrainSource lastSource;
         bool initialized;
@@ -136,6 +141,7 @@ namespace Punchy.Terrain
             }
             ClearWaterRegions(true);
             DestroyFarMeshes();
+            DestroyFarMaterials();
             foreach (var pooled in meshPool)
                 Object.Destroy(pooled.mesh);
             loaded.Clear();
@@ -287,6 +293,42 @@ namespace Punchy.Terrain
             return config;
         }
 
+        // The far ring's materials are made here from the configured ones (a keyword on a copy, so no extra asset to keep
+        // in step and no Shader.Find), and remade whenever those are.
+        void RegisterFarMaterials(Material material, Material waterMaterial)
+        {
+            DestroyFarMaterials();
+            if (material != null)
+            {
+                farMaterial = new Material(material) { name = material.name + " (far)" };
+                farMaterial.EnableKeyword("_PUNCHY_FAR");
+                farMaterialId = graphics.RegisterMaterial(farMaterial);
+            }
+            if (waterMaterial != null)
+            {
+                farWaterMaterial = new Material(waterMaterial) { name = waterMaterial.name + " (far)" };
+                farWaterMaterial.EnableKeyword("_PUNCHY_FAR_WATER");
+                farWaterMaterialId = graphics.RegisterMaterial(farWaterMaterial);
+            }
+        }
+
+        void DestroyFarMaterials()
+        {
+            if (graphics != null)
+            {
+                if (farMaterialId != BatchMaterialID.Null)
+                    graphics.UnregisterMaterial(farMaterialId);
+                if (farWaterMaterialId != BatchMaterialID.Null)
+                    graphics.UnregisterMaterial(farWaterMaterialId);
+            }
+            farMaterialId = farWaterMaterialId = BatchMaterialID.Null;
+            if (farMaterial != null)
+                Object.Destroy(farMaterial);
+            if (farWaterMaterial != null)
+                Object.Destroy(farWaterMaterial);
+            farMaterial = farWaterMaterial = null;
+        }
+
         void HandleSettingsChanges(in TerrainConfig config, in TerrainSource source)
         {
             // Settings change when the subscene re-bakes (e.g. editing the Terrain inspector during Play mode).
@@ -301,6 +343,7 @@ namespace Punchy.Terrain
                     Debug.LogWarning("TerrainAuthoring has no Material assigned; terrain will not render.");
                 var waterMaterial = config.WaterMaterial.Value;
                 waterMaterialId = waterMaterial != null ? graphics.RegisterMaterial(waterMaterial) : BatchMaterialID.Null;
+                RegisterFarMaterials(material, waterMaterial);
             }
             else if (!source.Equals(lastSource))
             {

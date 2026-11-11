@@ -168,6 +168,8 @@ Shader "Punchy/Water"
             // R-9: on for the fine sheet near the player (WaterPatchSystem.cs, WaterField.hlsl).
             #pragma multi_compile_local _ _WATER_FIELD
             #include "WaterField.hlsl"
+            // W-132: the far ring's cheap water (TerrainStreamingSystem's far water material; FarWaterFrag below).
+            #pragma multi_compile_local _ _PUNCHY_FAR_WATER
 
             // Weather global (WeatherSystem): 0..1 wind strength at the camera.
             half _PunchyWind;
@@ -236,6 +238,9 @@ Shader "Punchy/Water"
                 float  swell      : TEXCOORD5;   // how strongly the sea swells here (WaterSwell.hlsl), 0 elsewhere
                 float  sea        : TEXCOORD6;   // 1 on the sea (its surface at sea level), 0 on lakes and rivers
                 float2 restXZ     : TEXCOORD7;   // where the point is before the swell moves it (the fine sheet's square)
+            #if defined(_PUNCHY_FAR_WATER)
+                half4  farSky     : TEXCOORD8;   // W-132: the sky the flat far water mirrors (rgb), the cloud shadow (a)
+            #endif
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -260,6 +265,13 @@ Shader "Punchy/Water"
                 o.look = input.look;
                 o.glow = input.glow;
                 o.fogFactor = ComputeFogFactor(pos.positionCS.z);
+            #if defined(_PUNCHY_FAR_WATER)
+                // Far off (2-3 km) a vertex spans a few pixels and both of these change slowly across the water, so they
+                // are worked out once a vertex instead of once a pixel: the sky reflection is the dearest step left.
+                float3 farR = reflect(-GetWorldSpaceNormalizeViewDir(pos.positionWS), float3(0, 1, 0));
+                farR.y = max(farR.y, 0.03);
+                o.farSky = half4(PunchySkyColor(farR, false, true), PunchyCloudShadow(pos.positionWS));
+            #endif
                 return o;
             }
 
@@ -526,9 +538,131 @@ Shader "Punchy/Water"
                 return 0;
             }
 
+        #if defined(_PUNCHY_FAR_WATER)
+            // W-132 row 2: the far ring's water (2-3 km off, past the chunk disc), where a metre is a fraction of a pixel.
+            // It keeps what still shows at that size and matches Frag where the two meet at the disc's edge: the body
+            // colour by thickness, the broad wind waves and the sea swell on the normal, the sky mirror (worked out per
+            // vertex), the sun's glint, toxic glow, lava and a fall's white face. Dropped, as Frag itself has them faded
+            // out by then (distanceFade, the quality tiers) or too small to see: the fine detail reads, caustics,
+            // glitter, rain rings, wakes, streaks, the shore foam and surf, whitecaps, the lantern, the screen-space
+            // reflection, refraction and the real-time and wide shadows (the far ring has none).
+            half4 FarWaterFrag(Varyings input, bool frontFace)
+            {
+                float t = _PunchyClock;
+                float2 p = input.positionWS.xz;
+                float flowAmount = saturate(length(input.data.xy));
+                float depth = input.data.z;
+                float murk = saturate(input.look.a);
+                float glow = input.glow.x;
+                float lava = saturate(input.glow.y);
+                half rim = lerp(1, smoothstep(0.0, 0.55, depth), _SoftRim);
+                half whiteMiddle = _SoftRim * smoothstep(0.25, 1.0, depth);
+                float viscous = smoothstep(0.55, 0.9, murk) * (1 - lava);
+                float pixelsPerMetre = PunchyWaterPixelsPerMetre(distance(input.positionWS, GetCameraPositionWS()));
+                float3 face = cross(ddy(input.positionWS), ddx(input.positionWS));
+                face *= face.y < 0 ? -1 : 1;
+                face = normalize(face);
+                half steep = smoothstep(0.85, 0.35, face.y);
+
+                // The broad waves as Frag has them out here (distanceFade 0), and the sea swell's tilt.
+                float2 slope = WaveSlope(p, t) * (1 - flowAmount) * (1 - 0.75 * murk);
+                float strength = _WaveStrength * (0.5 + _PunchyWind) * 0.25 * (1 - 0.8 * steep);
+                float3 n = normalize(float3(-slope.x * strength, 1, -slope.y * strength));
+                float3 nReflect = normalize(float3(-slope.x * strength * 0.4, 1, -slope.y * strength * 0.4));
+                [branch] if (input.swell > 0)
+                {
+                    PunchySwellResult sw = PunchySwell(p, t, input.swell, depth, PunchySwellWaveCount(pixelsPerMetre));
+                    float2 swellSlope = sw.slope / max(1 - sw.squeeze, 0.3);
+                    n = normalize(float3(n.x / n.y - swellSlope.x, 1, n.z / n.y - swellSlope.y));
+                    nReflect = normalize(float3(nReflect.x / nReflect.y - swellSlope.x, 1, nReflect.z / nReflect.y - swellSlope.y));
+                }
+                if (!frontFace)
+                {
+                    n = -n;
+                    nReflect = -nReflect;
+                }
+
+                float2 screenUV = GetNormalizedScreenSpaceUV(input.positionCS);
+                float thickness = max(LinearEyeDepth(SampleSceneDepth(screenUV), _ZBufferParams) - LinearEyeDepth(input.positionCS.z, _ZBufferParams), 0);
+                float3 v = GetWorldSpaceNormalizeViewDir(input.positionWS);
+                Light light = GetMainLight();
+                half underRock = max(_PunchyUnderground, _UnderRock);
+                half shadow = (1 - input.farSky.a) * (1 - _PunchyUnderground);
+
+                // From under the water (a swimmer looking out to sea): the water below, as Frag's mirror outside the window.
+                [branch] if (!frontFace && GetCameraPositionWS().y < input.positionWS.y)
+                {
+                    half3 below = _PunchyUnderwater.w > 0 ? (half3)_PunchyUnderwater.rgb : _DeepColor.rgb;
+                    return half4(lerp(PunchyAtmosphere(below, input.positionWS), below, _PunchyUnderground), rim);
+                }
+
+                half3 ambient = SampleSH(n) * lerp(1, 0.06, _PunchyUnderground);
+                [branch] if (glow > 0 && lava < 1)
+                {
+                    half swirl = smoothstep(0.35, 0.65, PunchyValueNoise(p * 0.3 + float2(t * 0.05, -t * 0.065)) * 0.7 + PunchyValueNoise(p * 1.05) * 0.3);
+                    input.look.rgb = lerp(input.look.rgb, input.look.rbg, swirl * 0.6 * saturate(glow * 3) * (1 - lava));
+                }
+                half3 shallowColor = lerp(_ShallowColor.rgb, input.look.rgb, saturate(murk * 1.5));
+                half3 deepColor = lerp(_DeepColor.rgb, input.look.rgb * 0.2, saturate(murk * 1.5));
+                half3 waterColor = lerp(deepColor, shallowColor, exp(-thickness * _Absorption * (1 + murk * 8)));
+                waterColor *= 1 - 0.7 * whiteMiddle;
+                half3 body = waterColor * (ambient + light.color * saturate(dot(n, light.direction)) * shadow * 0.6);
+
+                half fresnel = 0.02 + 0.98 * pow(1 - saturate(dot(nReflect, v)), 5);
+                half3 reflection = input.farSky.rgb * lerp(1, 0.04, underRock);
+                fresnel *= 1 - 0.5 * murk * (1 - viscous);
+                fresnel *= 1 - 0.85 * steep;
+                float3 h = normalize(light.direction + v);
+                half glint = pow(saturate(dot(n, h)), exp2(lerp(10 * _Smoothness + 1, 6, viscous))) * shadow * (1 - 0.6 * viscous)
+                             * (1 - underRock) * (1 - steep);
+                half3 color = lerp(body, reflection, fresnel) + light.color * glint * 4 * (1 - 0.6 * murk * (1 - viscous));
+                color += input.look.rgb * glow * rim * rim * (1 - 0.8 * whiteMiddle) * (1 - lava) * (0.7 + 0.3 * sin(t * 0.6 + PunchyValueNoise(p * 0.08) * 6.28)) * 1.5;
+                half bodyAlpha = (1 - exp(-thickness * _Opacity * (1 + murk * 12))) * lerp(1, 0.55, _SoftRim);
+                half alpha = saturate(bodyAlpha + fresnel + glint);
+
+                // A fall's face: lit as it is turned and whitened evenly (its streaming sheets are under a pixel wide here).
+                half falling = steep * smoothstep(0.0, 0.1, flowAmount) * (1 - viscous) * (1 - lava);
+                alpha = max(alpha, falling * 0.85);
+                half sunFacing = lerp(saturate(light.direction.y), 0.4 + 0.5 * saturate(dot(face, light.direction)), steep);
+                half3 foamLit = _FoamColor.rgb * (ambient + light.color * shadow * sunFacing);
+                color = lerp(color, foamLit, falling * 0.55);
+
+                if (lava > 0)
+                {
+                    float2 home = p - floor(p / 1024) * 1024;
+                    float edge = 1.5 * (1 - saturate(thickness / 0.2));
+                    half3 lavaColor;
+                    [branch] if (_GoldLiquid > 0.5)
+                    {
+                        float crust = LavaFlow(home * 0.45, frac(t * 0.1 / 500) * 500, 4) + edge;
+                        lavaColor = min(pow(half3(0.2, 0.07, 0.01) / max(crust * 1.35, 0.05), 1.7), half3(2.3, 1.2, 0.5));
+                    }
+                    else
+                    {
+                        float crust = LavaFlow(home * 0.3, frac(t * 0.03 / 500) * 500, 3) + edge;
+                        half heat = saturate(1 - crust / LavaVein);
+                        half3 rock = half3(0.025, 0.021, 0.019) * (ambient + light.color * shadow * saturate(light.direction.y)) + half3(0.006, 0.002, 0.001);
+                        half3 glowing = lerp(half3(0.35, 0.02, 0.0), half3(2.0, 0.42, 0.03), smoothstep(0.15, 0.5, heat));
+                        glowing = lerp(glowing, half3(2.3, 0.7, 0.1), smoothstep(0.85, 1.0, heat));
+                        lavaColor = lerp(rock, glowing, smoothstep(0.0, 0.15, heat));
+                    }
+                    color = lerp(color, lavaColor, lava);
+                    alpha = lerp(alpha, 1, lava);
+                }
+
+                alpha *= rim;
+                if (_PunchyUnderground < 0.999)
+                    color = lerp(PunchyAtmosphere(color, input.positionWS), color, _PunchyUnderground);
+                return half4(color, alpha);
+            }
+        #endif
+
             half4 Frag(Varyings input, bool frontFace : SV_IsFrontFace) : SV_Target
             {
                 UNITY_SETUP_INSTANCE_ID(input);
+            #if defined(_PUNCHY_FAR_WATER)
+                return FarWaterFrag(input, frontFace);
+            #else
             #ifndef _WATER_FIELD
                 // (R-9: the fine sheet stands in for the chunk water near the player; cave water is never under it.)
                 clip(PunchyWaterInPatch(input.restXZ) && _UnderRock < 0.5 ? -1 : 1);
@@ -1085,6 +1219,7 @@ Shader "Punchy/Water"
                     alpha = 1;
                 }
                 return half4(color, alpha);
+            #endif
             }
             ENDHLSL
         }
