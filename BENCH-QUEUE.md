@@ -468,7 +468,7 @@ four at a corner). Shader only; index counts unchanged (sheet 7992, chunk 4944 a
 - Record whole-frame GPU and CPU ms and the water pass ms per arm.
 Pass: row 6 <= +0.2 ms GPU over row 5 at both views, CPU within noise.
 
-## Job 48 (2026-11-10, RUNNING on the laptop; q85.sh; queued by the main-account supervisor for A-99, merged as #250): creature extras by screen size on the laptop
+## Job 48 (2026-11-10, QUEUED again: paused at its first build 11-11 01:50 for Zach's restart of the laptop, rerun q85.sh; queued by the main-account supervisor for A-99, merged as #250): creature extras by screen size on the laptop
 - Arms: origin/main be98cde1 (before) vs origin/main 739cdff7 (after; A-99 branch fauna/extras-screen-size c0f22efe).
 - Spots: `-goto -1500,-995` (hive), `-place HumanVillage -time 23` (night torches and lanterns), `-place Tundra` (traces and breath), `-goto -1149,1219` (bat roost). High, uncapped.
 - Pass: frame ms within noise of the before arm at every spot. A miss means a fix branch (b/fix-*), as usual.
