@@ -32,7 +32,7 @@ float4 _PunchyUnderwaterShafts;  // under water, x light shaft march steps (0 of
 
 float3 _PunchySunDirection;    // towards the sun
 float3 _PunchyMoonDirection;   // towards the moon
-float _PunchySkyOff;           // test only (-skyoff n, to price the sky's parts): 1 no cloud march, 2 no far clouds, 4 no sky colour, 8 no weather volumes, 16 old even steps, 32 steps-per-pixel overlay, 64 always four sun samples, 128 cloud edges before R-4, 256 cloud light before R-4, 512 one cloud type everywhere (before R-4)
+float _PunchySkyOff;           // test only (-skyoff n, to price the sky's parts): 1 no cloud march, 2 no far clouds, 4 no sky colour, 8 no weather volumes, 16 old even steps, 32 steps-per-pixel overlay, 64 always four sun samples, 128 cloud edges before R-4, 256 cloud light before R-4, 512 one cloud type everywhere (before R-4), 1024 cloud maps read straight (before R-12)
 float4 _PunchyMoonPhase;       // phase (0 new, 0.5 full), lit share
 float3 _PunchyBlueMoon;        // towards the second, blue moon
 static const float PunchyBlueMoonRadius = 0.22;    // radians (about 25 degrees across): 6.5x its v0.11.0 size, a sister planet (Zach, #34)
@@ -242,9 +242,26 @@ float PunchyCloudDensity(float3 p, half4 weather, float4 shape, float detail)
     return PunchyCloudDensityFine(p, weather, shape, detail, 0);
 }
 
+// Where the cloud volume reads the weather and cloud maps (R-12): a few hundred metres off the point, wandering with
+// position and height. A storm cell is a smooth disc in the 64 m maps, and inside it the cover saturates so the noise
+// no longer carves the cloud; read straight, its rim stood as a smooth pillar with straight sides (#241). Wandered, the
+// rim bulges and leans like a heaped tower. The march sets punchyCloudWarp once per step and its light samples share it.
+// (-skyoff 1024: read straight, before R-12.)
+static float2 punchyCloudWarp = 0;
+
+float2 PunchyCloudWarpAt(float3 p)
+{
+    if (((uint)_PunchySkyOff & 1024u) != 0)
+        return 0;
+    float3 q = p - float3(_PunchyCloudOffset.x, 0, _PunchyCloudOffset.y) * PUNCHY_CLOUD_FEATURE;
+    float2 n = SAMPLE_TEXTURE3D_LOD(_PunchyCloudNoise, sampler_PunchyCloudNoise, float3(q.x * 0.6 + q.z * 0.8, q.y * 1.4, q.z * 0.6 - q.x * 0.8) / 3100.0 + 0.53, 0).gb;
+    return (n - 0.5) * 800;
+}
+
 float PunchyCloudDensityAt(float3 p, float detail)
 {
-    return PunchyCloudDensity(p, PunchyWeatherAt(p.xz), PunchyCloudShapeAt(p.xz), detail);
+    float2 xz = p.xz + punchyCloudWarp;
+    return PunchyCloudDensity(p, PunchyWeatherAt(xz), PunchyCloudShapeAt(xz), detail);
 }
 
 float PunchyPhase(float cosTheta, float g)
@@ -450,8 +467,10 @@ void PunchyCloudMarch(float3 dir, float2 screenPos, float framePhase, out half3 
         stepsTaken = i + 1;
         float stepLength = clamp(t * 0.02, 30, 500);
         float3 p = camera + dir * t;
-        half4 weather = PunchyWeatherAt(p.xz);
-        float4 shape = PunchyCloudShapeAt(p.xz);
+        punchyCloudWarp = PunchyCloudWarpAt(p);
+        float2 mapXZ = p.xz + punchyCloudWarp;
+        half4 weather = PunchyWeatherAt(mapXZ);
+        float4 shape = PunchyCloudShapeAt(mapXZ);
         bool canHold = (weather.r > 0.03 || shape.z > 0.02) && PunchyInCloudLayer(p.y, shape);
         [branch] if (stride && !canHold)
         {
@@ -628,10 +647,11 @@ half PunchyCloudCoverAlong(float3 dir, out half darkness)
     float4 shape = PunchyCloudShapeAt(guess);
     float middle = shape.x + shape.y * 0.35;
     float3 p = camera + dir * min((middle - camera.y) / dir.y, 40000);
-    half4 weather = PunchyWeatherAt(p.xz);
+    float2 mapXZ = p.xz + PunchyCloudWarpAt(p);   // where the volume reads its maps (R-12)
+    half4 weather = PunchyWeatherAt(mapXZ);
     darkness = weather.g;
     punchyCloudStyle = PunchyCloudStyleAt(p.xz);
-    return saturate(PunchyCloudDensity(p, weather, PunchyCloudShapeAt(p.xz), 0) * 3) * smoothstep(0.02, 0.12, dir.y);
+    return saturate(PunchyCloudDensity(p, weather, PunchyCloudShapeAt(mapXZ), 0) * 3) * smoothstep(0.02, 0.12, dir.y);
 }
 
 // 0..1: how much a point on the ground is shaded from the sun by the clouds above it (one sample at the clouds'
@@ -644,9 +664,10 @@ half PunchyCloudShadow(float3 positionWS)
     float4 shape = PunchyCloudShapeAt(positionWS.xz);
     float height = shape.x + shape.y * 0.3;
     float3 p = float3(positionWS.xz + toSun.xz * (height - positionWS.y) / toSun.y, height).xzy;
-    half4 weather = PunchyWeatherAt(p.xz);
+    float2 mapXZ = p.xz + PunchyCloudWarpAt(p);   // where the volume reads its maps (R-12), so the shadow sits under it
+    half4 weather = PunchyWeatherAt(mapXZ);
     punchyCloudStyle = PunchyCloudStyleAt(p.xz);
-    float density = PunchyCloudDensity(p, weather, PunchyCloudShapeAt(p.xz), 0);
+    float density = PunchyCloudDensity(p, weather, PunchyCloudShapeAt(mapXZ), 0);
     return saturate(density * 3) * lerp(0.5, 0.95, saturate(shape.y / 3000));
 }
 
@@ -1076,7 +1097,10 @@ void PunchyWeatherVolumesAlong(float3 start, float3 dir, float rayLength, int st
         previous = t;
         float height = min(p.y, heightCap);
 
-        half4 w = PunchyWeatherAt(p.xz);
+        // The rain falls from where the cloud's rim is (R-12): the maps are read at the cloud's warp at its base, so the
+        // shaft's sides follow the cloud above instead of the smooth disc in the map.
+        float cloudBase = PunchyCloudShapeAt(p.xz).x;
+        half4 w = PunchyWeatherAt(p.xz + PunchyCloudWarpAt(float3(p.x, cloudBase, p.z)));
         if (w.a + w.b <= 0.004)
             continue;
 
@@ -1085,10 +1109,13 @@ void PunchyWeatherVolumesAlong(float3 start, float3 dir, float rayLength, int st
         float billow = PunchyValueNoise((p.xz - drift) / 260) * 0.65 + PunchyValueNoise((p.xz - drift * 1.6) / 90) * 0.35;
         float dustTop = PUNCHY_DUST_TOP * (0.45 + billow);
         float dust = w.a * PUNCHY_DUST_DENSITY * saturate((dustTop - height) / 180) * (0.4 + billow);
-        float streaks = PunchyValueNoise((p.xz - drift) / 110);
-        float cloudBase = PunchyCloudShapeAt(p.xz).x;
-        // The shaft is densest in the middle of the cell and frays at its edges.
-        float rain = w.b * w.b * PUNCHY_RAIN_DENSITY * 1.4 * saturate((cloudBase - height) / 120) * (0.3 + 1.4 * streaks);
+        // The shaft is densest in the middle of the cell and frays at its edges. R-12: thin enough to see through, in
+        // streaks with clear gaps between them (a coarse and a fine layer, cut off below), thinning with depth under
+        // the cloud base as it falls, so the land behind shows.
+        float streaks = PunchyValueNoise((p.xz - drift) / 110) * 0.6 + PunchyValueNoise((p.xz - drift * 1.3) / 30) * 0.4;
+        streaks = saturate((streaks - 0.3) * 2.5);
+        float fall = cloudBase - height;
+        float rain = w.b * w.b * PUNCHY_RAIN_DENSITY * 0.6 * saturate(fall / 120) * lerp(1, 0.4, saturate(fall / 1500)) * (0.15 + streaks);
         float density = dust + rain;
         if (density <= 1e-6)
             continue;
