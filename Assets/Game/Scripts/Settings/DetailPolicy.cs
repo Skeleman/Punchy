@@ -66,10 +66,15 @@ namespace Punchy.Settings
                 Shadows = GraphicsSettings.Shadows
             };
             // Shader fades (PunchyPixels.hlsl) measure pixels the same way: per metre at 1 m, Detail included.
-            Shader.SetGlobalFloat(PixelsPerMetreId, Current.Data.PixelsPerMetre * math.max(GraphicsSettings.Detail, 0.1f));
+            Shader.SetGlobalFloat(ShaderIds.PixelsPerMetre, Current.Data.PixelsPerMetre * math.max(GraphicsSettings.Detail, 0.1f));
         }
 
-        static readonly int PixelsPerMetreId = Shader.PropertyToID("_PunchyPixelsPerMetre");
+        // Its own class: DetailPolicy is read inside Burst jobs, and Burst runs this class's static constructor, where a
+        // Shader.PropertyToID call fails the whole compile (BC1091) and every job falls back to slow managed code.
+        static class ShaderIds
+        {
+            public static readonly int PixelsPerMetre = Shader.PropertyToID("_PunchyPixelsPerMetre");
+        }
 
         public static float PixelsPerMetreAt(float fovDegrees)
             => ReferenceLines / (2f * math.tan(math.radians(math.clamp(fovDegrees, 5f, 170f)) * 0.5f));
