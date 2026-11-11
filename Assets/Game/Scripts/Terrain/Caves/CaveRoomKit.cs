@@ -67,6 +67,10 @@ namespace Punchy.Terrain
             public readonly List<Glow> Glows = new List<Glow>();
             public readonly List<Spot> Spots = new List<Spot>();
             public readonly List<Solid> Solids = new List<Solid>();
+            /// <summary>W-135 row 4: parts before this are the room's shell (tiles, trims, the doorway), the rest its set.</summary>
+            public int SetFrom;
+            /// <summary>W-135 row 4: where its set touches the floor (world space), for the seam darkening round them.</summary>
+            public readonly List<ContactShade.Contact> Contacts = new List<ContactShade.Contact>();
         }
 
         /// <summary>The cave shader's rock tones per room type (grotto, lake, roost, ruin) for the stone and trim groups.</summary>
@@ -320,6 +324,7 @@ namespace Punchy.Terrain
             };
             Spots(m);
             Shell(m);
+            m.K.SetFrom = m.K.Parts.Count;
             switch ((CaveRoomType)room.Type)
             {
                 case CaveRoomType.Lake: Lake(m); break;
@@ -328,7 +333,74 @@ namespace Punchy.Terrain
                 default: Grotto(m); break;
             }
             Finish(m);
+            FloorContacts(m.K, room);
             return m.K;
+        }
+
+        /// <summary>How near the floor (m, below or above it) a set piece's foot must be to count as standing on it.</summary>
+        const float FloorBelow = 0.35f, FloorAbove = 0.2f;
+
+        /// <summary>
+        /// W-135 row 4: the footprints where the room's set stands on its floor (crystals by their foot, drums by their
+        /// bottom cap, boxes by their face nearest down), for the seam darkening on the tiles and the rock round them.
+        /// Parts stacked on others or fixed to a wall don't touch the floor and aren't counted.
+        /// </summary>
+        static void FloorContacts(Kit kit, in CaveRoom room)
+        {
+            var floor = room.Origin.y;
+            for (int i = kit.SetFrom; i < kit.Parts.Count; i++)
+            {
+                var p = kit.Parts[i];
+                var up = math.mul(p.Rotation, new float3(0f, 1f, 0f));
+                float3 foot;
+                ContactShade.Contact contact;
+                switch (p.Shape)
+                {
+                    case 1:
+                        foot = p.Centre;
+                        contact = ContactShade.Contact.Disc(foot, p.Half.x * 0.8f);
+                        break;
+                    case 2:
+                        foot = p.Centre - up * p.Half.y;
+                        contact = ContactShade.Contact.Disc(foot, p.Half.x);
+                        break;
+                    default:
+                    {
+                        // Its lowest corner, and the footprint across the two axes nearest level.
+                        var low = float.MaxValue;
+                        for (int c = 0; c < 8; c++)
+                        {
+                            var corner = new float3((c & 1) == 0 ? -1f : 1f, (c & 2) == 0 ? -1f : 1f, (c & 4) == 0 ? -1f : 1f) * p.Half;
+                            low = math.min(low, math.mul(p.Rotation, corner).y);
+                        }
+                        foot = p.Centre + new float3(0f, low, 0f);
+                        var x = math.mul(p.Rotation, new float3(1f, 0f, 0f));
+                        var z = math.mul(p.Rotation, new float3(0f, 0f, 1f));
+                        float2 half, axis;
+                        if (math.abs(x.y) >= math.abs(up.y) && math.abs(x.y) >= math.abs(z.y))
+                        {
+                            half = p.Half.yz;
+                            axis = up.xz;
+                        }
+                        else if (math.abs(z.y) >= math.abs(up.y))
+                        {
+                            half = p.Half.xy;
+                            axis = x.xz;
+                        }
+                        else
+                        {
+                            half = p.Half.xz;
+                            axis = x.xz;
+                        }
+                        contact = ContactShade.Contact.Box(foot, axis, half);
+                        break;
+                    }
+                }
+                var rise = foot.y - floor;
+                if (rise < -FloorBelow || rise > FloorAbove)
+                    continue;
+                kit.Contacts.Add(contact);
+            }
         }
 
         /// <summary>The room's socket spots, laid first so the props keep clear of them.</summary>
@@ -948,13 +1020,19 @@ namespace Punchy.Terrain
         // ------------------------------------------------------------------------------------------- meshes
 
         /// <summary>One mesh per material group (null where the room has none), in the cave walls' vertex layout.
-        /// Openness is the vertex colour alpha: 0 deep in the cave (rooms), 1 out in daylight (tunnel portals).</summary>
-        public static Mesh[] BuildMeshes(Kit kit, float openness = 0f)
+        /// Openness is the vertex colour alpha: 0 deep in the cave (rooms), 1 out in daylight (tunnel portals).
+        /// W-135 row 4: with contacts, the shell's tiles are darkened round them (ContactShade, the seam where a prop
+        /// stands on the floor), their faces there cut finer so it falls off smoothly; the set itself is left as it is.</summary>
+        public static Mesh[] BuildMeshes(Kit kit, float openness = 0f, List<ContactShade.Contact> contacts = null)
         {
             var builders = new Builder[Groups];
-            foreach (var p in kit.Parts)
+            if (contacts != null && contacts.Count == 0)
+                contacts = null;
+            for (int i = 0; i < kit.Parts.Count; i++)
             {
+                var p = kit.Parts[i];
                 var b = builders[p.Group] ??= new Builder();
+                b.Contacts = i < kit.SetFrom ? contacts : null;
                 switch (p.Shape)
                 {
                     case 1: b.Prism(p.Centre, p.Rotation, p.Half.x, p.Half.y, p.Tint); break;
@@ -974,13 +1052,39 @@ namespace Punchy.Terrain
             readonly List<Vector3> normals = new List<Vector3>();
             readonly List<Vector4> data = new List<Vector4>();
             readonly List<int> indices = new List<int>();
+            /// <summary>The contacts darkening the parts being added now (null: none).</summary>
+            public List<ContactShade.Contact> Contacts;
+            /// <summary>The finest a face near a contact is cut (m), and the most cuts along a side.</summary>
+            const float ShadeStep = 0.2f;
+            const int ShadeCuts = 12;
+
+            /// <summary>The seam darkening at p: the darkest any contact gives it.</summary>
+            float ShadeAt(float3 p)
+            {
+                var shade = 1f;
+                if (Contacts != null)
+                    foreach (var c in Contacts)
+                        shade = math.min(shade, c.ShadeAt(p));
+                return shade;
+            }
+
+            /// <summary>Whether a contact darkens anywhere within radius of p.</summary>
+            bool Near(float3 p, float radius)
+            {
+                if (Contacts != null)
+                    foreach (var c in Contacts)
+                        if (c.Distance(p) - radius < c.Reach)
+                            return true;
+                return false;
+            }
 
             void Vertex(float3 p, float3 n, float tint)
             {
                 positions.Add(p);
                 normals.Add(math.normalizesafe(n, new float3(0f, 1f, 0f)));
-                // x terrain blend 0, y tint, z style slot 0 (the material's own colours), w rib shade 0.
-                data.Add(new Vector4(0f, tint, 0f, 0f));
+                // x terrain blend 0, y tint, z style slot 0 (the material's own colours), w rib shade: none, but the
+                // seam darkening round the set (W-135 row 4).
+                data.Add(new Vector4(0f, tint, 0f, CaveSystem.SeamRib(0f, ShadeAt(p))));
             }
 
             void Quad(float3 a, float3 b, float3 c, float3 d, float3 n, float tint)
@@ -1011,7 +1115,21 @@ namespace Punchy.Terrain
                     var wn = math.mul(rotation, n);
                     var faceTint = wn.y < -0.5f ? tint * 0.6f : tint;
                     float3 P(float su, float sv) => centre + math.mul(rotation, (n + u * su + v * sv) * half);
-                    Quad(P(-1f, -1f), P(1f, -1f), P(1f, 1f), P(-1f, 1f), wn, faceTint);
+                    // Near a contact, cut into cells of about ShadeStep so the darkening falls off across the face.
+                    float sizeU = math.dot(u, half) * 2f, sizeV = math.dot(v, half) * 2f;
+                    int cu = 1, cv = 1;
+                    if (Contacts != null && Near(P(0f, 0f), math.sqrt(sizeU * sizeU + sizeV * sizeV) * 0.5f))
+                    {
+                        cu = math.clamp((int)math.ceil(sizeU / ShadeStep), 1, ShadeCuts);
+                        cv = math.clamp((int)math.ceil(sizeV / ShadeStep), 1, ShadeCuts);
+                    }
+                    for (int i = 0; i < cu; i++)
+                        for (int j = 0; j < cv; j++)
+                        {
+                            float u0 = -1f + 2f * i / cu, u1 = -1f + 2f * (i + 1) / cu;
+                            float v0 = -1f + 2f * j / cv, v1 = -1f + 2f * (j + 1) / cv;
+                            Quad(P(u0, v0), P(u1, v0), P(u1, v1), P(u0, v1), wn, faceTint);
+                        }
                 }
             }
 

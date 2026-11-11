@@ -99,6 +99,10 @@ namespace Punchy.Terrain
             /// level in flight, swapped in once uploaded so the old walls draw until then.</summary>
             public int Level;
             public Built Next;
+            /// <summary>W-135 row 4: the contacts its walls are darkened round (its build's own copy), and the hash of the
+            /// chunk's contact list it was built with, so a chunk whose list has changed since is rebuilt.</summary>
+            public NativeArray<ContactShade.Contact> Contacts;
+            public uint ContactHash;
 
             public void Dispose()
             {
@@ -109,6 +113,7 @@ namespace Punchy.Terrain
                 }
                 Job.Complete();
                 if (Opening.IsCreated) Opening.Dispose();
+                if (Contacts.IsCreated) Contacts.Dispose();
                 if (Field.IsCreated) Field.Dispose();
                 if (CaveField.IsCreated) CaveField.Dispose();
                 if (Surface.IsCreated) Surface.Dispose();
@@ -302,6 +307,7 @@ namespace Punchy.Terrain
             foreach (var c in dying)
                 c.Dispose();
             dying.Clear();
+            ReleaseContacts();
             columns.Clear();
             chunkCaves.Clear();
             DisposeIndex();
@@ -1600,6 +1606,7 @@ namespace Punchy.Terrain
         {
             if (!IndexChunks(source))
                 return;
+            RefreshContacts(source, camPos);
 
             // Which chunks are in range only changes when the camera crosses into another chunk.
             var cameraChunk = (int3)math.floor(camPos / chunkSize);
@@ -1692,7 +1699,9 @@ namespace Punchy.Terrain
                     if (b.Pending || b.Next != null)
                         continue;
                     var level = WallLevel(kv.Key, camPos, b.Level);
-                    if (level == b.Level || b.Mesh == null && level > b.Level)
+                    // W-135 row 4: or whose contact list changed since it was built (rebuilt at its level).
+                    var stale = b.Mesh != null && b.ContactHash != ChunkContactHash(kv.Key);
+                    if (!stale && (level == b.Level || b.Mesh == null && level > b.Level))
                         continue;
                     var distance = ChunkDistance(kv.Key, camPos);
                     if (distance < bestDistance)
@@ -1809,6 +1818,7 @@ namespace Punchy.Terrain
             b.Data.Dispose();
             b.Indices.Dispose();
             b.Opening.Dispose();
+            b.Contacts.Dispose();
             return true;
         }
 
@@ -1862,6 +1872,8 @@ namespace Punchy.Terrain
                 Colors = new NativeList<float4>(Allocator.Persistent),
                 Indices = new NativeList<int>(Allocator.Persistent),
                 Opening = new NativeArray<float3>(2, Allocator.Persistent),
+                Contacts = ChunkContacts(key),
+                ContactHash = ChunkContactHash(key),
                 Pending = true
             };
             // W-128: the skin follows the ground as the near terrain draws it (its LOD0 grid), so it meets the terrain's edge.
@@ -1875,7 +1887,7 @@ namespace Punchy.Terrain
                 Source = source, Origin = origin, Cells = cells, Voxel = voxel, Skirt = voxel * SkirtVoxels,
                 Field = b.Field, CaveField = b.CaveField, ShardProbe = ShardProbe,
                 Positions = b.Positions, Normals = b.Normals, Colors = b.Colors, Data = b.Data, Indices = b.Indices,
-                Opening = b.Opening
+                Opening = b.Opening, Contacts = b.Contacts
             }.Schedule(field);
             JobHandle.ScheduleBatchedJobs();
             return b;
@@ -1988,6 +2000,31 @@ namespace Punchy.Terrain
             public NativeArray<float3> Opening;
             /// <summary>W-135 row 2: how far the skirt round the chunk's edge reaches into the rock (0: none).</summary>
             public float Skirt;
+            /// <summary>W-135 row 4: the things standing on this chunk's rock, its walls darkened round them.</summary>
+            [ReadOnly] public NativeArray<ContactShade.Contact> Contacts;
+
+            /// <summary>
+            /// W-135 row 4: the seam darkening at a wall vertex (ContactShade: darkest at a contact, back to 1 within its
+            /// reach). A coarse level's vertices sit up to about half a voxel off the true wall, so the contact is grown
+            /// by that much, and its reach is at least half a voxel so the darkening still spans a cell; a seam much
+            /// narrower than that is faded in proportion rather than smeared over a whole cell.
+            /// </summary>
+            float SeamShade(float3 p)
+            {
+                var pad = math.max(0f, Voxel - 0.5f) * 0.5f;
+                var minReach = Voxel * 0.5f;
+                var shade = 1f;
+                for (int i = 0; i < Contacts.Length; i++)
+                {
+                    var c = Contacts[i];
+                    var far = c.Extent + pad + minReach;
+                    if (math.distancesq(p, c.Base) > far * far)
+                        continue;
+                    var s = ContactShade.Shade(math.max(c.Distance(p) - pad, 0f), math.max(c.Reach, minReach));
+                    shade = math.min(shade, math.lerp(1f, s, math.min(1f, c.Reach / minReach)));
+                }
+                return shade;
+            }
 
             int Point(int x, int y, int z) => (z * (Cells.y + 1) + y) * (Cells.x + 1) + x;
             int Cell(int x, int y, int z) => (z * Cells.y + y) * Cells.x + x;
@@ -2043,7 +2080,11 @@ namespace Punchy.Terrain
                     edge.Add(x == 0 || y == 0 || z == 0 || x >= Cells.x - 2 || y >= Cells.y - 2 || z >= Cells.z - 2);
                     Positions.Add(p);
                     Normals.Add(Gradient(p));
-                    Colors.Add(Look(p, out var data, out var open));
+                    var color = Look(p, out var data, out var open);
+                    // W-135 row 4: darkened round the things standing here (through the rib shade; openness left alone).
+                    if (Contacts.Length > 0 && !ShardProbe)
+                        data.w = SeamRib(data.w, SeamShade(p));
+                    Colors.Add(color);
                     Data.Add(data);
                     // Walls the sky can see (the terrain cut away above them, generously): only through these can
                     // anyone outside see into the cave.
