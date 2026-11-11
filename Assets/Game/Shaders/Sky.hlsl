@@ -32,7 +32,7 @@ float4 _PunchyUnderwaterShafts;  // under water, x light shaft march steps (0 of
 
 float3 _PunchySunDirection;    // towards the sun
 float3 _PunchyMoonDirection;   // towards the moon
-float _PunchySkyOff;           // test only (-skyoff n, to price the sky's parts): 1 no cloud march, 2 no far clouds, 4 no sky colour, 8 no weather volumes, 16 old even steps, 32 steps-per-pixel overlay, 64 always four sun samples, 128 cloud edges before R-4, 256 cloud light before R-4, 512 one cloud type everywhere (before R-4), 1024 cloud maps read straight (before R-12), 2048 the march's map warp read every other fine step (profiler trial), 4096 cloud shadow and sun cover read the maps straight (profiler: prices their share)
+float _PunchySkyOff;           // test only (-skyoff n, to price the sky's parts): 1 no cloud march, 2 no far clouds, 4 no sky colour, 8 no weather volumes, 16 old even steps, 32 steps-per-pixel overlay, 64 always four sun samples, 128 cloud edges before R-4, 256 cloud light before R-4, 512 one cloud type everywhere (before R-4), 1024 cloud maps read straight (before R-12), 2048 the march's map warp read every other fine step (profiler trial), 4096 cloud shadow and sun cover read the maps straight (profiler: prices their share), 8192 the march skips the warp on steps far above or below the cloud layer (profiler trial)
 float4 _PunchyMoonPhase;       // phase (0 new, 0.5 full), lit share
 float3 _PunchyBlueMoon;        // towards the second, blue moon
 static const float PunchyBlueMoonRadius = 0.22;    // radians (about 25 degrees across): 6.5x its v0.11.0 size, a sister planet (Zach, #34)
@@ -464,17 +464,26 @@ void PunchyCloudMarch(float3 dir, float2 screenPos, float framePhase, out half3 
     // (Profiler trial, -skyoff 2048: the warp wanders over hundreds of metres and fine steps are 30-500 m, so a fine step
     // reuses the last step's warp every other step; after an empty-air stride it is always read afresh.)
     bool halfWarp = ((uint)_PunchySkyOff & 2048u) != 0;
+    // (Profiler trial, -skyoff 8192: the warp moves the maps sideways, at most a few hundred metres, never up or down, so
+    // a step more than 800 m below the last step's cloud base or above its tops can hold no cloud whichever column it
+    // reads: it keeps the last warp instead of reading it. The test uses the shape the last step read, so it costs no
+    // read of its own. Most of a ground-level ray's steps are such strides under the base.)
+    bool bandWarp = ((uint)_PunchySkyOff & 8192u) != 0;
+    float4 lastShape = float4(-1e9, 0, 0, 0);
     [loop]
     for (int i = 0; i < maxSteps && t < t1; i++)
     {
         stepsTaken = i + 1;
         float stepLength = clamp(t * 0.02, 30, 500);
         float3 p = camera + dir * t;
-        [branch] if (!halfWarp || (i & 1) == 0 || farStrode || i == 0)
+        float lastTop = max(lastShape.x + lastShape.y, lastShape.z > 0.02 ? lastShape.w : 0);
+        bool farFromLayer = bandWarp && i > 0 && (p.y < lastShape.x - 800 || p.y > lastTop + 800);
+        [branch] if (!farFromLayer && (!halfWarp || (i & 1) == 0 || farStrode || i == 0))
             punchyCloudWarp = PunchyCloudWarpAt(p);
         float2 mapXZ = p.xz + punchyCloudWarp;
         half4 weather = PunchyWeatherAt(mapXZ);
         float4 shape = PunchyCloudShapeAt(mapXZ);
+        lastShape = shape;
         bool canHold = (weather.r > 0.03 || shape.z > 0.02) && PunchyInCloudLayer(p.y, shape);
         [branch] if (stride && !canHold)
         {
