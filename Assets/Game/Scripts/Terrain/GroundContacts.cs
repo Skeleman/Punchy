@@ -59,6 +59,8 @@ namespace Punchy.Terrain
         public const float MaxReachScale = 2f;
         /// <summary>The most feet one model keeps (its fit coarsens until it fits).</summary>
         const int MaxFeet = 160;
+        /// <summary>The coarsest bin (metres) the feet fit merges outline points into: model geometry, not a view range.</summary>
+        const float CoarsestFootBin = 50f;
 
         /// <summary>Row 2 tunables, per Kind (x plants and trees, y rocks, z buildings, w props): how dark the seam gets
         /// (1 = ContactShade.Seam) and how far it reaches (1 = about its width). Read when chunks are built.</summary>
@@ -273,7 +275,7 @@ namespace Punchy.Terrain
                         list.Add(pt);
                     }
                 }
-                if (pieces.Count > MaxFeet && bin < 50f)
+                if (pieces.Count > MaxFeet && bin < CoarsestFootBin)
                     continue;
                 foreach (var piece in pieces)
                 {
