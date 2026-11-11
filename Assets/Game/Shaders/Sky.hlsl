@@ -249,9 +249,9 @@ float PunchyCloudDensity(float3 p, half4 weather, float4 shape, float detail)
 // (-skyoff 1024: read straight, before R-12.)
 static float2 punchyCloudWarp = 0;
 
-float2 PunchyCloudWarpAt(float3 p)
+float2 PunchyCloudWarpAt(float3 p, uint offBits = 1024u)
 {
-    if (((uint)_PunchySkyOff & 1024u) != 0)
+    [branch] if (((uint)_PunchySkyOff & offBits) != 0)
         return 0;
     float3 q = p - float3(_PunchyCloudOffset.x, 0, _PunchyCloudOffset.y) * PUNCHY_CLOUD_FEATURE;
     float2 n = SAMPLE_TEXTURE3D_LOD(_PunchyCloudNoise, sampler_PunchyCloudNoise, float3(q.x * 0.6 + q.z * 0.8, q.y * 1.4, q.z * 0.6 - q.x * 0.8) / 3100.0 + 0.53, 0).gb;
@@ -651,7 +651,7 @@ half PunchyCloudCoverAlong(float3 dir, out half darkness)
     float4 shape = PunchyCloudShapeAt(guess);
     float middle = shape.x + shape.y * 0.35;
     float3 p = camera + dir * min((middle - camera.y) / dir.y, 40000);
-    float2 mapXZ = p.xz + ((((uint)_PunchySkyOff & 4096u) != 0) ? 0 : PunchyCloudWarpAt(p));   // (R-12; -skyoff 4096: straight)
+    float2 mapXZ = p.xz + PunchyCloudWarpAt(p, 1024u | 4096u);   // (R-12; -skyoff 4096: straight)
     half4 weather = PunchyWeatherAt(mapXZ);
     darkness = weather.g;
     punchyCloudStyle = PunchyCloudStyleAt(p.xz);
@@ -669,7 +669,7 @@ half PunchyCloudShadow(float3 positionWS)
     float height = shape.x + shape.y * 0.3;
     float3 p = float3(positionWS.xz + toSun.xz * (height - positionWS.y) / toSun.y, height).xzy;
     // (Where the volume reads its maps (R-12), so the shadow sits under it. -skyoff 4096: straight, to price this.)
-    float2 mapXZ = p.xz + ((((uint)_PunchySkyOff & 4096u) != 0) ? 0 : PunchyCloudWarpAt(p));
+    float2 mapXZ = p.xz + PunchyCloudWarpAt(p, 1024u | 4096u);
     half4 weather = PunchyWeatherAt(mapXZ);
     punchyCloudStyle = PunchyCloudStyleAt(p.xz);
     float density = PunchyCloudDensity(p, weather, PunchyCloudShapeAt(mapXZ), 0);
