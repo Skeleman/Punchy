@@ -4775,3 +4775,18 @@ Proposed fix (world lane, RoadBaking + TunnelPortalKit):
 1. Move each portal face in to where the ground over the line is at least the headwall top plus about 1 m (about 6 m), and keep the stretch between as a proper cutting: graded to the bore, with side slopes that climb to meet the headwall wings.
 2. Turn down bores whose peak cover is under about 6 m. Tunnel 25 would become a plain cutting.
 3. Give the approach cutting a minimum depth, so the headwall is set into a slope face and does not stand free.
+
+## W-136 (ground contact darkening; tree Punchy-world, branch world/ground-contact-shade)
+
+### Row 1: contact darkening hugging the footprint: done (verified)
+
+- Commit aa0b87f9 (pushed; the branch started from W-135 row 5, e5dcb14b). New GroundContacts.cs: each flora model gets a list of "feet", sized from where it touches the ground: a trunk's width (never its canopy), a rock's base outline, walls and posts of built pieces, a prop's legs. BuildChunkMeshJob darkens the terrain vertex albedo at every LOD: darkest at the seam (ContactShade.Seam 0.54), fading out within about one to two widths. Placement is only read, never moved.
+- Feet per model: a trunk 1, a boulder up to 8 base pieces, the KitHouse 156 along its walls (capped at 160 per model; the fit coarsens until it fits). Fence posts and stall legs are their own small feet.
+- Shots (same camera before/after, contacts off/on, clear sky, time frozen at 14:00): milestone folder W-136/row1/, sheet_near.png (2-5 m: trunk, boulder, house wall, fence post, stall) and sheet_far.png (the same at 30 m). diff_sheet.png shows where pixels got darker (top near, bottom far). Darkened pixels per near shot: trunk 17k, boulder 109k (a large rock, so its reach covers the frame), wall 58k (a band along the base), post 837, stall 142.
+- Pins: Landmarks_V3 112 A955AFE0 and Fauna_Fingerprint AD723954 are unchanged (in the PlayMode suite, run before the last handoff).
+- lod-lint on aa0b87f9 flagged `bin < 50f` in the feet fit. That is model geometry (the coarsest merge bin), not a view range. 3b1cb6aa makes it a named constant; lint on 3b1cb6aa prints nothing.
+- Limits:
+  - The terrain vertex grid is 1 m at LOD0 and coarser further out. A 6 cm fence post spreads over a vertex, so posts and stall legs are faint by design.
+  - Wall feet are clamped to 3 m wide, so a house band is about 1 m and partly under the wall. From eye height (1.7 m) it is foreshortened; it reads best from about 3 m up.
+  - When flora publishes or a tunable changes, all loaded chunks re-mesh once. To catch objects across chunk edges, chunk builds look this far out: 36 m for natural objects, 52 m for built ones.
+- BENCH request (rule 21, lanes don't time): chunk build cost (ms per LOD0 chunk) and frame time over a forest and a town, main vs world/ground-contact-shade. The contact pass loops over the feet near each chunk inside the Burst job.
