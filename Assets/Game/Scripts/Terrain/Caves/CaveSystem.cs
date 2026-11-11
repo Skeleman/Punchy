@@ -570,13 +570,29 @@ namespace Punchy.Terrain
         /// <summary>Per species: the height of its torch's head (1 at scale 1), or 0 if it isn't a torch.</summary>
         readonly List<float> speciesTorch = new List<float>();
         readonly List<bool> speciesShrine = new List<bool>();
-        /// <summary>Torches near the camera: where the flame sits and the plant's index (its seed).</summary>
-        readonly List<(float3 flame, int plant)> nearTorches = new List<(float3, int)>();
+        /// <summary>Per species: whether it's a standing stone (a road tunnel's marker, W-138).</summary>
+        readonly List<bool> speciesMarker = new List<bool>();
+        /// <summary>
+        /// Torches near the camera: where the flame sits, the plant's index (its seed), and whether it hangs in a road
+        /// tunnel (a lamp: a brighter, shorter pool, so lamps read as lights with dark between them, W-138 row 4b).
+        /// </summary>
+        readonly List<(float3 flame, int plant, bool tunnel)> nearTorches = new List<(float3, int, bool)>();
+        /// <summary>A road tunnel lamp's light: this much brighter than a cave torch's, over this reach (m).</summary>
+        const float TunnelLampBoost = 2.2f, TunnelLampReach = 6.5f;
+        /// <summary>The faint cold light a road tunnel's marker stone's runes give the stone and the floor round it.</summary>
+        static readonly Vector4 MarkerGlow = new Vector4(0.3f, 0.45f, 0.85f, 3f);
         /// <summary>How far a glowing plant lights the floor and walls round it (m).</summary>
         const float PlantGlowReach = 5f;
         float3 plantsAround = new float3(float.MaxValue);
         static readonly int FloraInstancesId = Shader.PropertyToID("_FloraInstances");
         static readonly int FloraVisibleId = Shader.PropertyToID("_FloraVisible");
+
+        /// <summary>Whether p is in a road tunnel (W-110) rather than a cave.</summary>
+        static bool InRoadTunnel(ref CaveSetBlob set, float3 p)
+        {
+            CaveSampling.Distance(ref set, p, out var cave);
+            return cave >= 0 && set.Caves[cave].Tunnel != 0;
+        }
 
         /// <summary>Whether p is in a bat folk settlement's chamber (its radius and a margin, a little above and below).</summary>
         static bool InBatFolkChamber(in TerrainSource source, float3 p)
@@ -640,6 +656,7 @@ namespace Punchy.Terrain
                         speciesGlow.Add(Punchy.Flora.FloraPlacement.GlowLight(species));
                         speciesTorch.Add(species.Form == Punchy.Flora.FloraForm.Torch ? species.Height.y : 0f);
                         speciesShrine.Add(species.Form == Punchy.Flora.FloraForm.Shrine);
+                        speciesMarker.Add(species.Form == Punchy.Flora.FloraForm.Spire);
                     }
                 }
                 if (plantModels.Count < plantSpecies.Count * PlantVariants)
@@ -683,8 +700,10 @@ namespace Punchy.Terrain
                         // The head: up the stick and out from the wall (the model leans out along its +Z by ~20°).
                         var head = speciesTorch[p.Species] * p.Scale;
                         var outward = new float3(-math.sin(p.Yaw), 0f, math.cos(p.Yaw));
-                        nearTorches.Add((p.Position + new float3(0f, head * 0.94f, 0f) + outward * head * 0.34f, i));
+                        nearTorches.Add((p.Position + new float3(0f, head * 0.94f, 0f) + outward * head * 0.34f, i, InRoadTunnel(ref set, p.Position)));
                     }
+                    if (speciesMarker[p.Species] && InRoadTunnel(ref set, p.Position))
+                        nearGlowPlants.Add((p.Position + new float3(0f, 1f, 0f), MarkerGlow));
                 }
                 plantKeys.Sort((a, b) => a.key.CompareTo(b.key));
                 var count = plantKeys.Count;
@@ -748,11 +767,13 @@ namespace Punchy.Terrain
             foreach (var (position, light) in nearGlowPlants)
                 Punchy.Settings.LightBudget.AddStill(Punchy.Settings.LightKind.AmbientGlow, position, light);
             // Wall torches: a flame on each (every frame: FireSystem's list is per frame) and its warm light on the rock.
-            foreach (var (flame, plant) in nearTorches)
+            foreach (var (flame, plant, tunnel) in nearTorches)
             {
                 Punchy.Ambience.FireSystem.AddFlame(flame, 0.3f, plant, Punchy.Ambience.FireSystem.Wood);
-                Punchy.Settings.LightBudget.AddStill(Punchy.Settings.LightKind.Fixture, (Vector3)flame + Vector3.up * 0.15f,
-                                                     Punchy.Ambience.FireSystem.Light(Punchy.Ambience.FireSystem.Wood));
+                var light = Punchy.Ambience.FireSystem.Light(Punchy.Ambience.FireSystem.Wood);
+                if (tunnel)
+                    light = new Vector4(light.x * TunnelLampBoost, light.y * TunnelLampBoost, light.z * TunnelLampBoost, TunnelLampReach);
+                Punchy.Settings.LightBudget.AddStill(Punchy.Settings.LightKind.Fixture, (Vector3)flame + Vector3.up * 0.15f, light);
             }
 
             var bounds = new Bounds(camPos, new Vector3(PlantRange * 2f, PlantRange * 2f, PlantRange * 2f));
@@ -776,6 +797,7 @@ namespace Punchy.Terrain
             speciesGlow.Clear();
             speciesTorch.Clear();
             speciesShrine.Clear();
+            speciesMarker.Clear();
             nearGlowPlants.Clear();
             nearTorches.Clear();
             plantDraws.Clear();
@@ -1935,16 +1957,14 @@ namespace Punchy.Terrain
             }
 
             /// <summary>
-            /// rgb the terrain's colour at this spot; alpha how much daylight reaches (the entrance and near the
-            /// surface). Data: x how much to look like the terrain (1 at the surface, fading out a few metres
-            /// underground), y a slight brightness tint for the cave rock, z the cave's style slot, w how much darker
-            /// (negative: lighter) ribs make it here.
+            /// A road tunnel's floor (its road's level) under p: along the nearest of its passages; axis is the point
+            /// on that passage's centre line (xz) nearest p.
             /// </summary>
-            /// <summary>A road tunnel's floor (its road's level) under p: along the nearest of its passages.</summary>
-            static float TunnelFloor(ref CaveSetBlob set, in CaveData c, float3 p)
+            static float TunnelFloor(ref CaveSetBlob set, in CaveData c, float3 p, out float2 axis)
             {
                 var best = 1e9f;
                 var floor = p.y;
+                axis = p.xz;
                 for (int s = c.FirstSegment; s < c.FirstSegment + c.SegmentCount; s++)
                 {
                     var a = set.Nodes[set.Segments[s].A];
@@ -1956,11 +1976,19 @@ namespace Punchy.Terrain
                     {
                         best = d;
                         floor = math.lerp(a.Position.y, b.Position.y, t) - math.lerp(a.Radius, b.Radius, t) * c.Profile.y * 0.45f;
+                        axis = a.Position.xz + ab * t;
                     }
                 }
                 return floor;
             }
 
+            /// <summary>
+            /// rgb the terrain's colour at this spot; alpha how much daylight reaches (the entrance and near the
+            /// surface). Data: x how much to look like the terrain (1 at the surface, fading out a few metres
+            /// underground), y a slight brightness tint for the cave rock, z the cave's style slot, w how much darker
+            /// (negative: lighter) ribs make it here. In a road tunnel z also carries 32 x a tunnel code (1 + paved +
+            /// 2 if built, see Cave.shader) and w the road's share of the floor here (negative: a fallen stone's share).
+            /// </summary>
             float4 Look(float3 p, out float4 data)
             {
                 var surface = Source.SampleHeight(p.xz);
@@ -1982,14 +2010,34 @@ namespace Punchy.Terrain
                 var open = math.saturate((2f - Source.CaveClearance(p.xz, surface)) / 1.5f);
                 var ground = Source.SampleGround(p.xz);
                 var albedo = Source.SampleSurface(p.xz, ground, Source.SampleNormal(p.xz, 1f)).Albedo;
-                // A road tunnel's floor carries its road through (W-110): the road's own surface, painted as outside,
-                // and taken as the terrain look so it reads as the same road from portal to portal.
-                var road = 0f;
-                if (cave >= 0 && set.Caves[cave].Tunnel != 0 && p.y < TunnelFloor(ref set, set.Caves[cave], p) + 0.35f)
+                // A road tunnel's floor carries its road through (W-110): the road's own colour, as painted on the
+                // centre line outside, so it reads as the same road from portal to portal. W-138 row 4b: no longer
+                // taken as the terrain look (that shaded it as daylit ground, a pale smear deep inside); the shader
+                // draws it as its own surface (cobbles or packed grit) in the cave's light, and fallen stones in their
+                // own pale grey.
+                var tunnelCode = 0;
+                var tunnelFloor = 0f;
+                if (cave >= 0 && set.Caves[cave].Tunnel != 0)
                 {
-                    var props = new SurfaceProps { Albedo = albedo };
-                    road = Source.TunnelRoadSurface(p.xz, ref props);
-                    albedo = props.Albedo;
+                    var floorY = TunnelFloor(ref set, set.Caves[cave], p, out var axis);
+                    if (p.y < floorY + 1.2f)
+                    {
+                        var props = new SurfaceProps { Albedo = albedo };
+                        if (Source.TunnelRoadSurface(axis, ref props) > 0f)
+                        {
+                            // Never brighter than worn stone: a pale road paint would glare under a lamp.
+                            var lum = math.dot(props.Albedo, new float3(0.3f, 0.59f, 0.11f));
+                            albedo = props.Albedo * math.min(1f, 0.32f / math.max(lum, 1e-3f));
+                            tunnelFloor = 1f - math.smoothstep(floorY + 0.35f, floorY + 0.8f, p.y);
+                        }
+                        tunnelCode = 1 + (props.Paving > 0.4f ? 1 : 0);
+                    }
+                    else
+                        tunnelCode = 1;
+                    if (set.Caves[cave].Tunnel >= 2)
+                        tunnelCode += 2;
+                    var stone = 1f - math.smoothstep(0.05f, 0.25f, CaveSampling.StoneDistance(ref set, p));
+                    tunnelFloor = tunnelFloor * (1f - stone) - stone;
                 }
                 // Ribbed caves: how much darker the hollow between two ribs is (crests a touch lighter), applied to
                 // every look the wall takes, so the ribs read even in the flat light of a shallow ice cave; none where
@@ -2000,8 +2048,9 @@ namespace Punchy.Terrain
                     var rib = CaveSampling.Rib(set.Caves[cave], p);
                     ribShade = (0.55f - 0.75f * rib * rib) * set.Caves[cave].Wall.z * (1f - open);
                 }
-                data = new float4(math.max(math.max(math.saturate(1f - (surface - p.y - 0.3f) / 2.5f), open), road),
-                                  0.85f + 0.3f * (noise.snoise(p * 0.15f) * 0.5f + 0.5f), cave >= 0 ? set.Caves[cave].Style : 0, ribShade);
+                data = new float4(math.max(math.saturate(1f - (surface - p.y - 0.3f) / 2.5f), open),
+                                  0.85f + 0.3f * (noise.snoise(p * 0.15f) * 0.5f + 0.5f),
+                                  (cave >= 0 ? set.Caves[cave].Style : 0) + 32 * tunnelCode, tunnelCode > 0 ? tunnelFloor : ribShade);
                 if (ShardProbe && cave < 0)
                 {
                     data.x = 1f;
@@ -2119,8 +2168,22 @@ namespace Punchy.Terrain
         {
             source.FloorUnder(feet, out var inCave);
             var depth = source.SampleHeight(feet.xz) - feet.y;
-            return inCave ? math.saturate((depth - 1f) / 3f) : 0f;
+            if (!inCave)
+                return 0f;
+            var wanted = math.saturate((depth - 1f) / 3f);
+            // W-138 row 4b: in a road tunnel with lamps the lantern is turned low, so the lamps' pools and the dark
+            // between them read rather than one even wash round the player.
+            if (source.Caves.IsCreated)
+            {
+                CaveSampling.Distance(ref source.Caves.Value, feet + new float3(0f, 1f, 0f), out var cave);
+                if (cave >= 0 && source.Caves.Value.Caves[cave].Tunnel >= 2)
+                    wanted *= TunnelLanternLevel;
+            }
+            return wanted;
         }
+
+        /// <summary>The lantern's level in a lamp-lit road tunnel (of its usual).</summary>
+        const float TunnelLanternLevel = 0.35f;
 
         Light CreateLantern(string name)
         {
