@@ -211,3 +211,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-10: M-05 rows 1-3 (Model Lab, creatures) launched in D:/Unity/Punchy, branch fauna/model-lab.
 - 11-10: #251 merged (R-12, main 60edfacb; closes #241, #247 - haze table blit drew both passes). Job 49 queued. Punchy-release tree free: R-13 next there. R-12 editor guard now checks process command line.
 - 11-10: Punchy-release: R-10 merge-main (Creature.shader conflict) then R-13 launched. Job 45b: R-10 +0.3-0.4 ms vs own base (passes); re-bench vs main after the merge.
+- 11-10: Zach asked for props to darken the ground under them (cave: W-135 row 4; terrain: new W-136, never built before). World order R-9 -> W-135 -> W-136 -> W-134 -> W-132.
