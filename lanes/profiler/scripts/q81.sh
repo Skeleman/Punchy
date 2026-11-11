@@ -3,10 +3,11 @@
 # 24459300 (R-9 row 4, job 45c's build) + idle sleep + per-group source culling, and launch flags for the finest cut and the
 # step rate. One Profile build; every arm is a launch flag. 1920x1080, -gfx High, uncapped, -weatherseed 4, noon, Clear, a
 # fresh game per run, round 1 in list order, round 2 reversed.
-#   swim (job 45c's: -goto 488,-1144, swim east 40 m at 4 m/s):
-#     old (-waterfieldsleep 0 -waterfieldcull 0: 45c's behaviour), new (sleep + cull, the default), cuts4 (-waterfieldcuts 4),
-#     hz30 (-waterfieldhz 30), nostep (-waterfieldstep 0: the sheet drawn flat, no compute), off (-waterfield 0).
-#   idle (job 43's lake shore, -benchspot -1624,-488,270: water in view, nothing in it): old, new, off.
+#   swim (job 45c's: -goto 488,-1144, swim east 40 m at 4 m/s; one swimmer, the field never idle, so sleep can't act):
+#     base (all four off: 45c's behaviour), each of cull / cuts4 / hz30 alone, the three pairs, all three together; and
+#     nostep (-waterfieldstep 0: the sheet drawn flat, no compute) and off (-waterfield 0) as references.
+#   idle (job 43's lake shore, -benchspot -1624,-488,270: water in view, nothing in it):
+#     base, sleep alone, cull alone, sleep + cull, off.
 # The game logs every 5 s how many steps were dispatched or skipped and how many sources pressed.
 B=$HOME/Projects/Punchy-wt/Tools/bench
 . "$B/lib.sh"
@@ -22,8 +23,16 @@ L="$R/${Q}logs"; mkdir -p "$L" "$R/$Q-shots"
 SWIM="-goto 488,-1144 -benchstops line -benchline 488,-1144,528,-1144,4,-999"
 IDLE="-benchstops spot -benchspot -1624,-488,270"
 check() { grep -q 'Crash!!!\|Received signal' "$1" && { echo "CRASH in $1"; grep -A15 'Crash!!!\|Received signal' "$1" | head -25; exit 1; }; cp "$1" "$L/"; }
-arm() { case $1 in old) echo "-waterfieldsleep 0 -waterfieldcull 0";; new) echo "";; cuts4) echo "-waterfieldcuts 4";;
-  hz30) echo "-waterfieldhz 30";; nostep) echo "-waterfieldstep 0";; off) echo "-waterfield 0";; esac; }
+# An arm is a "+"-joined list of the changes it has on; the rest are off (base has none).
+arm() {
+  case $1 in nostep) echo "-waterfieldsleep 0 -waterfieldstep 0"; return;; off) echo "-waterfield 0"; return;; esac
+  local f="-waterfieldsleep 0 -waterfieldcull 0"
+  [[ +$1+ == *+sleep+* ]] && f=${f/-waterfieldsleep 0/}
+  [[ +$1+ == *+cull+* ]] && f=${f/-waterfieldcull 0/}
+  [[ +$1+ == *+cuts4+* ]] && f="$f -waterfieldcuts 4"
+  [[ +$1+ == *+hz30+* ]] && f="$f -waterfieldhz 30"
+  echo $f
+}
 rev() { echo $* | tr ' ' '\n' | tac | tr '\n' ' '; }
 game() { # name round args...
   local n=$1 r=$2; shift 2
@@ -34,11 +43,11 @@ game() { # name round args...
 }
 rm -f "$R"/$Q-*.csv
 for r in 1 2; do
-  V="old new cuts4 hz30 nostep off"; [ $r = 2 ] && V=$(rev $V)
+  V="base cull cuts4 hz30 cull+cuts4 cull+hz30 cuts4+hz30 cull+cuts4+hz30 nostep off"; [ $r = 2 ] && V=$(rev $V)
   for a in $V; do game swim-$a $r $(arm $a) $SWIM; done
 done
 for r in 1 2; do
-  V="old new off"; [ $r = 2 ] && V=$(rev $V)
+  V="base sleep cull sleep+cull off"; [ $r = 2 ] && V=$(rev $V)
   for a in $V; do game idle-$a $r $(arm $a) $IDLE; done
 done
 for f in "$R"/$Q-*.csv; do echo "== $(basename $f .csv)"; table "$f"; done
