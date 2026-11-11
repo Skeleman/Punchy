@@ -5,6 +5,7 @@
 # exits, so waiting costs nothing.
 #   watch-queue.sh [paths...]   paths on the coordination branch that count (default BENCH-QUEUE.md lanes/profiler)
 #   POLL=60 ISSUE_POLL=300 MAX_HOURS=12 IGNORE="REPORTS-profiler|profiler:" watch-queue.sh (IGNORE: own commit subjects)
+#   SELF_SESSION=<the session's Claude-Session URL>: commits carrying it are the watcher's own session's, also ignored
 # Exit 0: something changed (printed). Exit 3: MAX_HOURS passed with nothing new (start it again).
 C=$HOME/Projects/Punchy-coordination
 BRANCH=coordination
@@ -27,6 +28,10 @@ while :; do
     timeout 120 git -C "$C" fetch -q origin "$BRANCH"
     # Only others' commits count: the profiler's own (subjects matching IGNORE) would wake it for its own reports.
     commits=$(git -C "$C" log --format='%h %s' "$base..$head" -- "${PATHS[@]}" | grep -Ev "^[0-9a-f]+ ($IGNORE)")
+    if [ -n "$SELF_SESSION" ] && [ -n "$commits" ]; then
+      commits=$(echo "$commits" | while read -r h rest; do
+        git -C "$C" show -s --format=%B "$h" | grep -qF "$SELF_SESSION" || echo "$h $rest"; done)
+    fi
     if [ -n "$commits" ]; then
       echo "== $BRANCH ${base:0:8}..${head:0:8} at $(date +%T)"
       echo "$commits"
