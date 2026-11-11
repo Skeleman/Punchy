@@ -5665,3 +5665,15 @@ Branch `world/mountain-tunnels` at f6217674 (pushed), on a149c17f. One commit: C
 - **Rule 22:** the lamps come from the seed and the cave style asset, with no new runtime state, so a world file only needs the cave style's TunnelLamp reference.
 - **Note:** SurfaceGlow doesn't use `FixtureLightAt` yet (the lit height for the wall lantern). That only matters if a WallLantern is ever placed on the surface.
 - **BENCH-QUEUE request (profiler, not timed by me):** cave light cost walking the C0a tunnel (up to about 14 lamp lights near the player) vs row 4b.
+
+### W-140 row 4: the shipped file hits on first launch; stamped user copies - done (verified)
+- **Commit:** 47f5490a on world/island-cache (pushed). Files: `IslandV2.cs` (CRLF kept), `IslandCache.cs`.
+- **(a) LandmarkTypes de-duplicated by name.** The player now has the editor's 66 types (`.names`: `landmarks 66`). Placements are unchanged: they index the palette's own objects, so the old duplicate entries 66-71 were never used. With the shipped file moved aside, a forced player bake writes a file of 25,397,152 bytes that is **byte-identical** (`cmp`) to the editor's Library file. Before the fix the player's file was 25,398,176 bytes.
+- **(b) Stamped per-user name:** `persistentDataPath/IslandCache/island-v3-<stamp8>.bin` (e.g. `island-v3-b4a83457.bin`). The shipped StreamingAssets file keeps its plain name. Each player save prunes stamped files beyond the newest 2, along with their sidecars and the old unstamped name. Checked with dummies: a newer dummy was kept; an older dummy, its `.parts` and the legacy `island-v3.bin` were deleted. I removed the dummies afterwards.
+- **First launches on a fresh Builds/Dev build** (no per-user copy present; nothing was written there afterwards):
+  - Solo: `[island] cache hit StreamingAssets/IslandCache/island-v3.bin 24.22 MB`, 112 landmarks, hash D6B4846D.
+  - `-host`: `cache hit StreamingAssets/...`. Its ClientWorld: `shared with ClientWorld (no rebake)`, hash D6B4846D.
+  - `-join 127.0.0.1`: connected (connection 2), `cache hit StreamingAssets/...`, hash D6B4846D.
+- **WorldTests:** `12 passed, 0 failed, 0 skipped in 221s`, including IslandCache_LoadedEqualsFresh and IslandCache_SavesEveryBlob. The editor missed once on `key changed (stamp)` (new code) and rebaked; the build then shipped that file.
+- **Pins:** landmarks 112 A955AFE0 and fauna fingerprint AD723954 are unchanged.
+- **Editor:** none open from this lane (batch runs only, all exited). Ready for job 60.
