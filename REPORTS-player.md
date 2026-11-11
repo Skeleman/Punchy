@@ -850,3 +850,20 @@ draw over the species' own. I took the GO's check shots instead, on today's buil
   hair for folk)? I'll do whichever you pick. ForFolk would change how every town looks.
 - Fauna_Fingerprint is unchanged (AD723954); nothing for folk changed on `player/hair`.
 - Next: item rows (standing order) until you answer; then the camera's cave-water row once W-134 merges.
+
+## Item row: the axe (11-11, standing order) DONE, branch `player/items-axe` 61a78b26 (on top of `player/hair`)
+- New item 30 "Axe" (appended; no ids moved) and `CreatureWeapon.Axe = 5`. One-handed: dmg 8, reach 1 m,
+  1 swing/s, 1.6 kg.
+- Held: a haft plus a flat iron blade facing the strike, with a short poll. It uses 3 of the 7 weapon capsules, has
+  the same LOD cut as the other weapons (DetailPolicy.ScreenSize under 6 px), and swings like the club.
+- In the world: a haft with a flat wedge blade (ItemMeshes).
+- Shots in `D:/Unity/PunchyMilestones/Items/`: `axe-front/side`, `axe-swing1-4` and `axe-far` (30 m), plus the sheet
+  `axe-sheet.jpg`. The first take had the blade flattened the wrong way; fixed and retaken.
+  - Log: "[gear] our body: ... weapon 5" and "[gear] swing: Axe, damage 8, reach 1 m, 1.00 s".
+  - 0 exceptions in all runs.
+- Suite: 25 passed, 0 failed, 17 skipped. Fauna_Fingerprint passed (AD723954).
+- Side effect: the item table grew, so seeded chest rolls (`rng.NextInt(Torch, Items.Length)`) can now give an axe,
+  and some chests' contents change. This is the same as every earlier appended item.
+- UNVERIFIED: the axe's inventory icon and its world item on the ground (not shot).
+- Merge order: `player/items-axe` is based on `player/hair`, so merge it after P-29.
+- Next: another item row, unless the P-29 row 2 answer or W-134 comes first.
