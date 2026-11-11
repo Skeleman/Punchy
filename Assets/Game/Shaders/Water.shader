@@ -591,27 +591,28 @@ Shader "Punchy/Water"
                 half wakeFoam = 0;
                 float2 wakeSlope = 0;
             #ifdef _WATER_FIELD
-                // (Zach 11-10: where the field fully covers, the ring ripples would only be blended away below, so they
-                // aren't worked out there at all.)
                 float fieldWeight = PunchyWaterFieldWeight(input.restXZ);
-                bool ripplesHere = _PunchyWaterFieldRipples > 0.5 || fieldWeight < 0.999;
             #else
-                bool ripplesHere = true;
+                float fieldWeight = 0;
             #endif
-                [branch] if (ripplesHere && _PunchySwimmerCount > 0 && distance(input.positionWS, GetCameraPositionWS()) < 45 && NearRipple(p))
+                // Zach 11-11: over the field's whole square (32 m round the player), not just the fine sheet, the field's
+                // slope shades the water and the ring ripples and the field's foam are left out: the sheet near the player
+                // moves with it, the chunk water beyond only takes its light, so the wake reads as one ripple pattern with no
+                // white rings. (-waterfieldripples 1: as before, the field only on the sheet, with ripples and foam.) Never
+                // under rock: cave water isn't on the field.
+                float fieldShade = _PunchyWaterFieldRipples > 0.5 ? fieldWeight
+                    : max(fieldWeight, PunchyWaterFieldShade(input.restXZ) * (1 - step(0.5, _UnderRock)));
+                [branch] if (fieldShade < 0.999 && _PunchySwimmerCount > 0 && distance(input.positionWS, GetCameraPositionWS()) < 45 && NearRipple(p))
                     wakeSlope = SwimmerWakes(p, t, wakeFoam) * 0.6 * distanceFade;
-            #ifdef _WATER_FIELD
-                // R-9: on the fine sheet the wave field's own slope takes over from the ripples (they fade back in towards
-                // the square's edge). (Drawn 2.5x steeper than it is: dents of a few cm barely tilt the light otherwise.)
-                // Zach 11-10: no foam of its own: the displacement shows the wake (-waterfieldripples 1: the old foam where a
-                // splash or a bow wave stands steepest).
+                // R-9: the wave field's own slope takes over from the ripples (drawn 2.5x steeper than it is: dents of a few
+                // cm barely tilt the light otherwise).
+                [branch] if (fieldShade > 0)
                 {
                     float2 fieldSlope = PunchyWaterFieldSlope(input.restXZ) * 2.5;
-                    wakeSlope = lerp(wakeSlope, fieldSlope, fieldWeight);
+                    wakeSlope = lerp(wakeSlope, fieldSlope, fieldShade);
                     half fieldFoam = _PunchyWaterFieldRipples > 0.5 ? (half)smoothstep(0.9, 1.8, length(fieldSlope)) * 0.7h : 0;
-                    wakeFoam = lerp(wakeFoam, fieldFoam, (half)fieldWeight);
+                    wakeFoam = lerp(wakeFoam, fieldFoam, (half)fieldShade);
                 }
-            #endif
                 // Murky water barely ripples; thick water instead heaves in slow, broad swells and bubbles.
                 slope *= 1 - 0.75 * murk;
                 float3 bubbles = 0;

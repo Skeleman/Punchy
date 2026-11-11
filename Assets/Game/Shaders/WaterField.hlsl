@@ -39,6 +39,18 @@ float PunchyWaterFieldWeight(float2 restXZ)
     return SAMPLE_TEXTURE2D_LOD(_PunchyWaterPatchWeight, sampler_PunchyWaterPatchWeight, uv, 0).r;
 }
 
+// Zach 11-11: how much the field's slope shades the water at xz: 1 over the field's square, fading out over its outer
+// 3 m (where the step soaks waves up anyway), 0 outside it or with no field (WaterPatchSystem sets w = 0 then).
+float PunchyWaterFieldShade(float2 xz)
+{
+    if (_PunchyWaterFieldAt.w <= 0)
+        return 0;
+    float side = _PunchyWaterFieldAt.w / _PunchyWaterFieldAt.z;
+    float2 local = xz - _PunchyWaterFieldAt.xy;
+    float edge = min(min(local.x, local.y), min(side - local.x, side - local.y));
+    return saturate(edge / 3.0);
+}
+
 float2 PunchyWaterFieldUV(float2 xz)
 {
     return (xz - _PunchyWaterFieldAt.xy) * _PunchyWaterFieldAt.z / _PunchyWaterFieldAt.w;
