@@ -88,7 +88,7 @@ current release. Lane: A = animal, W = world.
   bustling main road (more folk, stalls, carts). Builds on #36 and the pier networks.
 - (W) Floating islands (#256): off the coast over the ocean, walkable, some with caves inside; one carries a new kind
   of town. Asked for before (11-09 audit, W-113 "floating archipelago") but never logged until now. Far islands
-  draw simply; collision only near the player. Open: how players reach them.
+  draw simply; collision only near the player. Reached by flying for now (Zach 11-10).
 
 ## Current roadmap (snapshot 2026-11-04, from open GitHub issues and Zach's direction)
 
