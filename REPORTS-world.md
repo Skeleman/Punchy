@@ -4807,3 +4807,28 @@ Proposed fix (world lane, RoadBaking + TunnelPortalKit):
 - Props barely show. Their feet are much smaller than the 1 m vertex grid, so there's almost nothing to darken at any setting. Making them show would need a finer grid or a decal, which is not in this card.
 - Full PlayMode suite on 3b1cb6aa: "completed: 25/25 passed". Pins Landmarks_V3 112 A955AFE0 and Fauna_Fingerprint AD723954 are unchanged.
 - The row 1 BENCH request covers this row too: with the defaults the cost is the same as row 1.
+
+## W-138 (mountain tunnels; tree Punchy-release, branch world/mountain-tunnels from origin/main cc835cf6)
+
+### Row 1: survey of roads against ranges and big relief: done (no game code changed), waiting for the rule review with Zach
+
+- Method: a throwaway, git-ignored editor probe. It rebuilds the road pairs (the MST plus cave spurs), chains the baked road streets per pair, and measures each road and the best straight bore under it. A "bore" here is the straight line between the two points where cover over a level-graded line first and last reaches 6 m. It reports length, peak and mean cover, the share of the length under at least 20 m, cover and ground slope at each portal, grade, and the road length it would save. Today's seed: 6 settlements, 5 town roads (all built), 20 V3 spines, 5 passes. None of the 11 cave spurs got a road; that predates this card.
+- Today's tunnels (Stats.Tunnels): (2053,-1535) bore 19 m on road S0-S1 in coastal lowland, with ground nearby only 12-27 m (the "senseless" case); (-1870,118) bore 44 m where road S4-S5 crosses spine 0 at a saddle; (-2023,713) bore 30 m on the massif top near S5.
+
+| Road | Length vs straight | Climb | Range | Best 60-500 m bore: length, peak/mean cover, % >= 20 m, portal cover, portal slope, grade, saves |
+|---|---|---|---|---|
+| S0-S1 | 3920 / 3642 (x1.08) | +5 | none (spine 9 is 554 m off) | none: flat lowland |
+| S0-S4 | 4503 / 4109 (x1.10) | +8 | none | none (best at any length: 1124 m, peak only 18) |
+| S4-S2 | 842 / 810 | flat | none | none |
+| S4-S5 | 2721 / 2282 (x1.19) | +247 (y 6 to 253, up the escarpment) | crosses spine 0 (Wet-Cold border range, crest 142) | 171 m, 32/22, 66%, 8.4/7.3, 0.94/0.24, 0.077, 66 m |
+| S5-S3 | 1883 / 1592 (x1.18) | +19 (y 253 to 137) | runs on the massif, 154 m from spine 0 | 453 m, 35/22, 60%, 6.5/6.2, 0.17/0.32, 0.035, 58 m. At any length: 1241 m, 84/43, 79%, 6.5/6.0, grade 0.067, saves 284 m |
+
+- S4-S5 climbs a valley onto the plateau north of range 0, which is 180-250 m high. A single-level bore can't avoid the climb, so the best bore only shortcuts the saddle near the top.
+- Pairs left without a road because a range is in the way: none. No pair within 4 km crosses a spine or a rise over 60 m with a network route more than 1.8x the straight line. Range 0 is a true range (at (-1001,283): crest 167 m, with lowland at 50 and 28 m either side), but no settlements sit near it, so no road needs to cross it.
+- Proposed tunnel rule (for the review before row 2):
+  1. Bore only where a road has to cross a V3 border range or massif (the line crosses a spine or the massif's crest), never under small hills. Today's sub-20 m bores (19, 30 and 44 m long) become cuttings or go round.
+  2. Bore 60 m to about 500 m long, graded at most 0.08. At least 20 m of cover over at least half the length, and at least 6 m of cover at each portal, set into a slope face.
+  3. Bore only when the far side is about the same level, so the bore replaces a climb over the crest and doesn't just shortcut the top of an escarpment. Otherwise build a switchback or a graded road.
+  4. With 6 towns, a range-crossing need almost never comes up. If Zach wants tunnels visible, make one on purpose: a road across a border range between realms (range 0 or spine 2), or tie it to the coming settlements.
+- Shots (milestone folder W-138, clear sky, 12:00, no HUD): w138-1-range0-crossing.png (road S4-S5 climbing to the spine 0 crossing; the road reads as a pale line up the valley), w138-2-massif-450m.png and w138-3-massif-1200m.png (the massif top along road S5-S3). Contact sheet: contact-sheet.jpg. On the massif the ground reads as a broad, bare dome rather than a mountain, and the road is a short pale line. Expected for a 35-84 m cover. The shot tool's checks: all three "good".
+- Pins: not run (no code changed). Landmark hash and fauna fingerprint stay measures only.
