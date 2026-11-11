@@ -1,0 +1,6 @@
+# An example job.sh spec (job 45h's shape): DRY=1 bash job.sh example.job prints its games.
+Q=qexample; TITLE="example"
+BUILDS="a1cb189 60edfac"; OUT_60edfac=Profile-60edfacw
+VIEWS="town"; view() { case $1 in town) echo "-benchweather Clear -benchhour 22 -benchstops spot -benchspot 2988.8,-920,201";; esac; }
+ARMS="r10 noreach main"; arm() { case $1 in r10) echo "Profile-a1cb189";; noreach) echo "Profile-a1cb189 -realreach 0";; main) echo "Profile-60edfacw";; esac; }
+ROUNDS=2; GFX="High Medium"; REF=main; BAR=0.3
