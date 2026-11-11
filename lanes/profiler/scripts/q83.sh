@@ -30,7 +30,7 @@ rdgame() { # name args...: one RenderDoc capture
   local n=$1; shift
   fixed $O || exit 1; cool
   ( cd "$P/Builds/Bench" && timeout 1800 "$RDC" capture -w -d "$(cygpath -w "$P/Builds/Bench")" -c "$(cygpath -w "$RD/$n")" \
-      "$(cygpath -w "$P/Builds/Bench/Punchy.exe")" -logFile "$W/q-$Q-rd-$n.log" -benchroute -weatherseed 4 -time 12 \
+      "$(cygpath -w "$P/Builds/Bench/Punchy.exe")" -logFile "$W/q-$Q-rd-$n.log" -benchroute -weatherseed 4 -time 12 -body ${BENCHBODY:-default} \
       $(screen Bench 1920 1080) -gfx High -fpscap 0 "$@" -renderdocstop line 1 >/dev/null 2>&1 )
   [ $? -eq 124 ] && echo "rd $n: TIMED OUT"
   strays >/dev/null; check "$R/q-$Q-rd-$n.log"
@@ -41,12 +41,15 @@ arm() { case $1 in ripples) echo "$SET -waterfieldripples 1";; disp) echo "$SET"
 rev() { echo $* | tr ' ' '
 ' | tac | tr '
 ' ' '; }
+# "q83.sh rd": the RenderDoc part only (the first run's captures launched without -body, so Zach's horse).
+if [ "$1" != rd ]; then
 rm -f "$R"/$Q-*.csv
 for r in 1 2 3; do
   V="ripples disp off"; [ $r = 2 ] && V=$(rev $V)
   for a in $V; do game $a $r $(arm $a) $SWIM; done
 done
 for f in "$R"/$Q-*.csv; do echo "== $(basename $f .csv)"; table "$f"; done
+fi
 rm -f "${RD:?}"/*.rdc
 for a in ripples disp off; do rdgame $a $(arm $a) $SWIM; done
 CAPS=$(ls "$RD"/*.rdc | xargs -n1 cygpath -w | tr '
