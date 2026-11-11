@@ -4546,3 +4546,43 @@ Flora.shader / FloraImpostor.shader / Flora.hlsl are also changed by R-10 (light
 - Risks:
   - Inside the 3-10 m band around each 64 m grid line, both patterns are read twice; at a corner, four times.
   - The river mouth's flow-data zigzag remains (see above).
+
+## W-135 (cave LOD by screen size; tree Punchy-world, branch world/cave-lod)
+- **W-135 row 1 DONE (verified): surface-side skip.** Commit f18fc7f7 (CaveSystem.cs, DetailPolicy.cs, DebugControls.Flags.cs).
+  - Change:
+    - Each chunk's mesh job records the box of its opening vertices (Look's open > 0).
+    - Above ground, Draw keeps a chunk only when an opening is big enough on screen (new DetailPolicy.CaveOpeningPixels 4, through Holds hysteresis), is in the frustum, and the chunk's screen rect overlaps that opening's rect.
+    - Chunks within BuriedReach of a seen opening but off its rect are drawn ShadowsOnly, so the light at the mouth is unchanged.
+    - `-nocaveskip` restores the old drawing (the A/B arm).
+  - Counts, main view (submitted = RenderMesh calls including shadow-only; skip on vs -nocaveskip):
+
+    | Spot | Skip on | -nocaveskip |
+    |---|---|---|
+    | c5 network (-2785, 62, -584), looking +z | 15 submitted, 6 in view, 85,964 tris | 41, 7, 90,208 |
+    | c5, looking west | 25, 10, 114,458 | 41, 10, 114,458 |
+    | c5 overview from 160 m | 40, 35, 429,486 | 41, 35, 429,486 |
+    | c13/c24 (1500, 25, -2620), looking west | 11, 11, 97,802 | 26, 11, 97,802 |
+    | c1 (-3060, 204, 1010), looking east | 0, 0, 0 | 8, 3, 32,990 |
+    | c1 walk-in (5 poses, 1.7 m eye) | 7, 7, 76,148 | 8, 8, 76,946 |
+
+    - c5 is riddled with openings: 36 of 176 chunks have one, so most of its chunks really are visible.
+  - No pop:
+    - Same-pose pairs along the walk into the c1 mouth: under 0.2% of pixels differ by more than 40 levels, all of it wind and cloud.
+    - Mouth and network stills match main to within the noise between two skip-on captures.
+  - Shots: D:/Unity/PunchyMilestones/W-135/row1/
+    - walk-pairs-sheet.png: top row skip, bottom row main
+    - walk-pairs/
+    - mouth-skip/, net-skip/
+    - walk-in-skip.gif: early fixed-height walk; it clips through the terrain and shows nothing useful about pops
+  - lod-lint: 0 hits.
+  - Pins and suite: these will be checked once, before the last row's handoff.
+- **BENCH-QUEUE request (rule 21), for the supervisor to queue as job 47i:**
+  - Arms: f18fc7f7 default vs f18fc7f7 `-nocaveskip`. Profile build, High, uncapped, ABBA, 300 frames per arm.
+  - Views (shotcam):
+    - surface over the c5 network (-2785, 62, -584), looking +z
+    - c1 mouth approach (-3155, 166, 1038), looking at (-3110, 169, 1038)
+    - c13 mouth (1615, 20, -2725)
+  - Pass: default is no slower than -nocaveskip (CPU render thread and GPU).
+- Risks:
+  - The per-frame opening test is O(chunks with openings x chunks drawn). For c5 that is 36 x 176 rect checks, all in managed code.
+  - Thin openings seen almost edge-on can fall under 4 px. The hysteresis and the 0.25-0.35 x distance frustum pad cover this in the walk tests; it is not tested at extreme angles.
