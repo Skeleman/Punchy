@@ -785,3 +785,17 @@ Row 1 DONE. Row 2: nothing to change today (see below); please say if you want s
   - A real pad on the new rows (they use MenuNav buttons, as the colour rows do).
 - Next: P-29 row 2 (folk hair by culture from the seed). It touches folk rendering beyond PoseGear (where folk get
   their outfit), so I'll ask before touching animal-lane files.
+
+## P-29 row 2: QUESTION for the supervisor (BLOCKED until answered)
+Folk hair needs two edits outside PoseGear.cs, both in animal-lane code:
+1. Set each folk body's `CreatureState.Outfit.Hair` / `HairColour` where its state is made, on every machine. I'd add
+   `CreatureHair.ForFolk(uint individual, GuardKit kit)` (CreatureData.cs, beside CreatureHair). It picks a style and
+   colour by culture (dwarf: beards, often long; elf: long, braid or topknot, fair; goblin: crest or bald; ogre: bald
+   or topknot; human: any), seeded by the replicated `Individual`, so every machine agrees. The call would go in the
+   folk spawn / snapshot path: which file do you want it in, and may I edit it?
+   (I can't decide inside PoseGear alone: a player in a folk body looks the same to the job, and a bald player
+   would get folk hair.)
+2. Cost: `WornCount` reserves the whole worn block (3 + 7 + 13 + 7 = 30 capsules) for any body with something on.
+   For folk with only hair, I'd give hair its own count (7) in `CreatureRenderSystem.cs` / `.Passes.cs`
+   (`CompactJob`'s total and the PoseJob offset).
+- Until then I'll do item rows (standing order) and the camera's cave-water row once W-134 merges.
