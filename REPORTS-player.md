@@ -752,3 +752,36 @@ Row 1 DONE. Row 2: nothing to change today (see below); please say if you want s
   synced outfit and the helms/hoods from rows 1-3 (P-29 row 1: "hats and helms hide the hair"), and would conflict with
   them in CreatureData/PoseGear/Gear sync from main. Merging order for the supervisor: weapons, armour, clothing, then hair.
 - Next: P-29 row 1.
+
+## P-29 row 1: hair for people bodies (DONE, `player/hair` at 971c2983, on player/clothing)
+- 12 styles: Bald, Short, Long, Braid, Ponytail, Topknot, Curls, Crest, Short+beard, Long beard, Long+beard,
+  Topknot+beard. 8 colours: black, dark brown, brown, auburn, ginger, fair, grey, white. They are carried as
+  `CreatureOutfit.Hair` / `HairColour` (`CreatureHair` ids, append-only; 0 = bald).
+- Character tab (humanoid bodies only): Hair and Hair colour rows. The pick is saved in PlayerPrefs
+  (`Punchy.Character.Hair`, `.HairColour`), and an unknown id falls back to the default (Short, dark brown).
+- Drawing (PoseGear `Hair()`, up to 7 capsules after the armour):
+  - Scalp shell, locks (fall, braid, tail, bun, crest), beard and moustache, all off the head's last segment.
+  - A hat, helm or cap hides the top of the head. A hood also hides what hangs behind. Long hair and a low
+    ponytail still show below a hat or helm brim.
+- LOD by `DetailPolicy.ScreenSize`: under 60 px across it is one shape (the scalp, or a beard on a bald head).
+  Under 8 px it is not drawn, as armour.
+- Sync: two more places in `SlotRpc` / `SlotStateRpc` (`HairPlace` 200, `HairColourPlace` 201), so there is no new
+  message. Sent once the connection has its id, and on every change. The host keeps it in `gearOf` with the gear.
+- Test flag `-hair style,colour` (launch or shot line; not saved).
+- Checks (Dev build, solo unless noted), 0 exceptions in every run:
+  - All 12 styles: 24 shots, front and side, each in another colour.
+  - Head items, one run each: hat, helm and hood (4 shots each).
+  - One far shot (45 m, one shape) and the Character tab.
+  - Host (`-hair 3,5`) plus joined client (`-hair 7,4`): each logs "[gear] another player's body: ... hair 7 colour 4"
+    and "hair 3 colour 5" respectively.
+- Suite 25 passed, 0 failed, 17 skipped (after the last code change). There are no folk changes, so no pin change
+  is expected.
+- Shots: `D:/Unity/PunchyMilestones/P-29/`
+  - `hairNN-front/side`, `hat-*`, `helm-*`, `hood-*`, `far-ponytail`, `menu-character`.
+- Files: `CreatureData.cs` (CreatureOutfit, CreatureHair) and `CreatureRenderSystem.cs` (WornCount) as well as
+  PoseGear, the same places P-28 touched.
+- UNVERIFIED:
+  - Cost at a town (rule 21: no timing). Hair is drawn only on players with a style: up to 7 capsules each.
+  - A real pad on the new rows (they use MenuNav buttons, as the colour rows do).
+- Next: P-29 row 2 (folk hair by culture from the seed). It touches folk rendering beyond PoseGear (where folk get
+  their outfit), so I'll ask before touching animal-lane files.
