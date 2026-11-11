@@ -23,7 +23,10 @@ namespace Punchy.Ambience
         public Material FireflyMaterial;
         public Material ButterflyMaterial;
         public float TileSize = 24f;
-        public float Radius = 70f;
+        /// <summary>How far round the camera critter tiles stream (A-99): while a critter (DetailPolicy.CritterSize) is
+        /// CritterPixels across at the view, as ground detail stretches (70 m at the 60 degree view, x Detail), eased;
+        /// a tile goes only once it's 1.5 tiles past it.</summary>
+        float reach;
         [Tooltip("Upper limit on critters of each kind per 100 m² (densities above this are clipped).")]
         public float MaxDensity = 8f;
         [Tooltip("Scales every biome's Butterflies density: a few round you in a meadow, not a cloud.")]
@@ -154,6 +157,9 @@ namespace Punchy.Ambience
             if (amounts.x <= 0f && amounts.y <= 0f || CaveSystem.SurfaceHidden >= 0.99f)
                 return;
             var camXZ = new float2(cam.transform.position.x, cam.transform.position.z);
+            Punchy.Settings.DetailPolicy.SetView(cam);
+            reach = Punchy.Settings.DetailPolicy.EasedReach(reach, Punchy.Settings.DetailPolicy.GroundReach(
+                Punchy.Settings.DetailPolicy.CritterSize, Punchy.Settings.DetailPolicy.CritterPixels), Time.deltaTime);
             Stream(source, camXZ);
             Draw(cam, camXZ, amounts);
         }
@@ -185,7 +191,7 @@ namespace Punchy.Ambience
                 Finish(source);
             scratch.Clear();
             foreach (var kv in tiles)
-                if (math.distance(TileCentre(kv.Key), camXZ) > Punchy.Settings.GraphicsSettings.DetailRange(Radius) + TileSize * 1.5f)
+                if (math.distance(TileCentre(kv.Key), camXZ) > reach + TileSize * 1.5f)
                     scratch.Add(kv.Key);
             foreach (var key in scratch)
             {
@@ -194,7 +200,7 @@ namespace Punchy.Ambience
             }
 
             scratch.Clear();
-            var radius = Punchy.Settings.GraphicsSettings.DetailRange(Radius);
+            var radius = reach;
             var r = (int)math.ceil(radius / TileSize) + 1;
             var centre = (int2)math.floor(camXZ / TileSize);
             for (int z = -r; z <= r; z++)

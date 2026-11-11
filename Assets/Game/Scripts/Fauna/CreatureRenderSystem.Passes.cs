@@ -131,8 +131,9 @@ namespace Punchy.Fauna
             // carrier, so its fade-in carries on as it moves), which decides by its on-screen reach whether it gets a
             // glow slot (refactor 3.1), at the middle of a lantern's glass as just posed, or a torch's flame. A torch's
             // flame itself is the world's (FireSystem), lit each frame at the top of its handle, streaming back as its
-            // bearer goes, within TorchFlameRange.
+            // bearer goes, while the flame is DetailPolicy.TorchFlamePixels across (A-99, held a little past that).
             float3 camAt = cam.transform.position;
+            litNow.Clear();
             for (int i = 0; i < bodies.Length; i++)
             {
                 var lightPart = LightPart(states[i].Held);
@@ -153,14 +154,20 @@ namespace Punchy.Fauna
                     if (leanLength > TorchFlameMaxLean)
                         lean *= TorchFlameMaxLean / leanLength;
                     var size = TorchFlameSize * math.max(states[i].Scale, 0.3f);
-                    if (math.distancesq(states[i].Position, camAt) <= TorchFlameRange * TorchFlameRange)
+                    if (Punchy.Settings.DetailPolicy.Within(math.distance(states[i].Position, camAt),
+                            Punchy.Settings.DetailPolicy.ExtraReach(size, Punchy.Settings.DetailPolicy.TorchFlamePixels), litTorches.Contains(entities[i].Index)))
+                    {
                         Punchy.Ambience.FireSystem.AddFlame(top, size, entities[i].Index, Punchy.Ambience.FireSystem.Wood, lean);
+                        litNow.Add(entities[i].Index);
+                    }
                     centre = top + new float3(0f, size * 0.4f, 0f);
                 }
                 else
                     centre = part.Position + math.mul(part.Rotation, new float3(0f, 0f, part.Length * 0.5f));
                 Punchy.Settings.LightBudget.Add(Punchy.Settings.LightKind.Carried, entities[i].Index, centre, torch ? TorchLight : LanternLight);
             }
+            litTorches.Clear();
+            litTorches.UnionWith(litNow);
             Pass(8);
             if (ForceNeedCues)
                 LogCues(camAt, instances, bodies, states, offsets, colonyStart);
@@ -293,7 +300,7 @@ namespace Punchy.Fauna
         static int DrawGroup(Punchy.Settings.DetailPolicy.Decision d)
             => (d.Geometry == 0 && d.Fur < 2 ? 0 : 1 + math.min(d.Geometry, 2)) * 2 + (d.Shadow ? 0 : 1);
         /// <summary>Creatures nearer than this to the camera are never frustum culled (their shadows can fall in view, as
-        /// with BehindCullRange); further ones are when wholly outside it by FrustumMargin and more for the huge.</summary>
+        /// with NearBehind); further ones are when wholly outside it by FrustumMargin and more for the huge.</summary>
         const float FrustumMargin = 6f;
         /// <summary>Last frame's posing, kept until this frame's is done (its poses are moved on for the skipped), and
         /// where each creature is in it.</summary>
@@ -425,6 +432,9 @@ namespace Punchy.Fauna
             /// positive), and whether to cull those wholly outside them.</summary>
             public bool Frustum;
             public float4 Left, Right, Bottom, Top;
+            /// <summary>A-99: every creature's entity, and where each was in last frame's posing (posed then: held near).</summary>
+            [ReadOnly] public NativeArray<Entity> AllEntities;
+            [ReadOnly] public NativeParallelHashMap<Entity, int> PrevIndex;
             public NativeArray<bool> Keep;
 
             public void Execute(int i)
@@ -436,7 +446,7 @@ namespace Punchy.Fauna
                     return;
                 }
                 var to = state.Position - CameraPosition;
-                var far = math.lengthsq(to) > BehindCullRange * BehindCullRange;
+                var far = !NearBehind(math.length(to), state, ref Bodies[i].Blob.Value, PrevIndex.ContainsKey(AllEntities[i]));
                 var behind = far && math.dot(math.normalizesafe(to), CameraForward) < BehindCos &&
                              math.length(to) > Bodies[i].Blob.Value.SeenFrom * 0.5f;
                 // Well off to a side of the view (A-70 row 4), by more than its own size and a margin. Not a lantern or

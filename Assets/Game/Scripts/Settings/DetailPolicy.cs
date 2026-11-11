@@ -332,6 +332,45 @@ namespace Punchy.Settings
             return Reach(size, pixels / math.max(view.Detail, 0.1f), perMetre);
         }
 
+        /// <summary>
+        /// A-99 (rule 20): the creature extras by how big they look, not by fixed metres. Sizes in m, boundaries in
+        /// reference pixels at Detail 1, each tuned so the 60 degree view at 1080 lines gets the old range (x Detail, as
+        /// GraphicsSettings.DetailRange scaled it): torch flame 0.35 m at 150 m, a bat colony 1 m at 45 m, a swarm
+        /// 1.5 m at 40 m, a deer's (1.5 m) footprints at 40 m, a sand worm's mark (its 8 m drawn disc) at 150 m, a
+        /// ripple ring (8.4 m across) at 40 m, another player (1.8 m) breathing at 80 m, a critter (0.15 m) at 70 m,
+        /// and a deer kept behind the camera inside 25 m. Bigger things reach further, a narrower view further too.
+        /// </summary>
+        public const float TorchFlamePixels = 2.182f;
+        public const float ColonySize = 1f, ColonyPixels = 20.78f;
+        public const float SwarmSize = 1.5f, SwarmPixels = 35.07f;
+        public const float TracePixels = 35.07f;
+        public const float BurrowMarkSize = 8f, BurrowMarkPixels = 49.88f;
+        public const float RippleSize = 8.4f, RipplePixels = 196.4f;
+        public const float OtherPlayerSize = 1.8f, BreathPixels = 21.04f;
+        public const float CritterSize = 0.15f, CritterPixels = 2.004f;
+        /// <summary>Behind the camera a creature is still posed while bigger than this (reference pixels, no Detail):
+        /// its shadow falls into view. A deer inside 25 m, as before; a 6 m beast inside 100 m.</summary>
+        public const float BehindPixels = 56.12f;
+
+        /// <summary>How far something this big keeps this many reference pixels at the current view, Detail included
+        /// (<see cref="SetView"/> first; before any view, the reference one at the current Detail).</summary>
+        public static float ExtraReach(float size, float pixels)
+        {
+            var view = Current.Data;
+            var perMetre = view.PixelsPerMetre > 0f ? view.PixelsPerMetre : PixelsPerMetreAt(ReferenceFov);
+            var detail = view.PixelsPerMetre > 0f ? view.Detail : GraphicsSettings.Detail;
+            return Reach(size, pixels / math.max(detail, 0.1f), perMetre);
+        }
+
+        /// <summary>Rule 2 for something kept by a reach: inside it counts as in, and something that was in stays in
+        /// until it's past the reach that Hysteresis fewer pixels give (<see cref="Holds"/> in metres).</summary>
+        public static bool Within(float distance, float reach, bool was)
+            => distance < reach || was && distance < reach / (1f - Hysteresis);
+
+        /// <summary>The same in Burst, from a view handed in.</summary>
+        public static float ExtraReach(float size, float pixels, in View view)
+            => view.PixelsPerMetre > 0f ? Reach(size, pixels / math.max(view.Detail, 0.1f), view.PixelsPerMetre) : Reach(size, pixels, PixelsPerMetreAt(ReferenceFov));
+
         /// <summary>What a flora model is, for its rule (refactor 3.5c, from FloraModel.Static and the form).</summary>
         public enum FloraClass : byte { Tree, Plant, Rock, Debris, Structure }
 

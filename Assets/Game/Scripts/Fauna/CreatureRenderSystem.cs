@@ -50,10 +50,10 @@ namespace Punchy.Fauna
         static readonly UnityEngine.Vector4 LanternLight = new UnityEngine.Vector4(1.6f, 0.9f, 0.4f, 9f);
         /// <summary>A torch's: redder, brighter and further.</summary>
         static readonly UnityEngine.Vector4 TorchLight = new UnityEngine.Vector4(2.4f, 1.0f, 0.3f, 11f);
-        /// <summary>How far off a lantern lights the ground (m; the graphics settings' Detail scales these ranges).</summary>
-        static float LanternLightRange => Punchy.Settings.GraphicsSettings.DetailRange(60f);
-        /// <summary>How far off a torch's flame is lit (further than its light reaches: a torch is seen across a town).</summary>
-        static float TorchFlameRange => Punchy.Settings.GraphicsSettings.DetailRange(150f);
+        /// <summary>The torches whose flames were lit last frame (by entity index), for A-99's hysteresis: a flame is
+        /// lit while it's DetailPolicy.TorchFlamePixels across (a torch is seen across a town, further than its light
+        /// reaches; LightBudget decides the light itself by its on-screen reach).</summary>
+        readonly System.Collections.Generic.HashSet<int> litTorches = new System.Collections.Generic.HashSet<int>(), litNow = new System.Collections.Generic.HashSet<int>();
         /// <summary>A torch's flame: its height (m), and how far it streams back as the bearer moves (m at the tip per
         /// m/s, at most).</summary>
         const float TorchFlameSize = 0.35f, TorchFlameLean = 0.05f, TorchFlameMaxLean = 0.3f;
@@ -62,8 +62,14 @@ namespace Punchy.Fauna
         /// breastplate, sash and shoulder pads. The torch's handle is always the first (its flame is lit from it).
         /// </summary>
         const int GuardParts = 18;
-        /// <summary>Creatures behind the camera nearer than this are still posed (their shadows can fall in view).</summary>
-        const float BehindCullRange = 25f;
+        /// <summary>
+        /// Whether a creature behind the camera is still near enough to pose (its shadow can fall in view): while it's
+        /// DetailPolicy.BehindPixels across at the reference view (A-99: a deer inside 25 m as before, a bigger beast
+        /// further, its shadow being longer; no Detail or zoom, the view not looking that way). Held while it was posed.
+        /// </summary>
+        static bool NearBehind(float distance, in CreatureState state, ref CreatureBlob blob, bool was)
+            => Punchy.Settings.DetailPolicy.Holds(Punchy.Settings.DetailPolicy.ScreenSize(CreatureMotion.ApparentSize(state, ref blob), distance,
+                Punchy.Settings.DetailPolicy.PixelsPerMetreAt(Punchy.Settings.DetailPolicy.ReferenceFov)), Punchy.Settings.DetailPolicy.BehindPixels, was);
         /// <summary>Capsules in a miner's gear: its pick (the haft, the head's two points) and a sack of ore.</summary>
         const int MinerParts = 4;
         /// <summary>When in a throw (its ActionTime) the stone leaves the hand: TraceSystem throws it from there.</summary>
@@ -93,9 +99,11 @@ namespace Punchy.Fauna
         static int GearCount(CreatureTask task) => HasGear(task) ? GearParts : 0;
         /// <summary>Where a held item's light comes from among its capsules (the lantern's glass, the torch's flame).</summary>
         static int LightPart(HeldItem held) => held == HeldItem.Lantern ? 2 : held == HeldItem.Torch ? 0 : -1;
-        /// <summary>Capsules per hanging bat, the most per roost, and how near the camera colonies show.</summary>
+        /// <summary>Capsules per hanging bat and the most per roost. Colonies show while DetailPolicy.ColonyPixels
+        /// across (A-99): colonyReach, eased, and the roosts shown last frame held a little past it.</summary>
         const int BatParts = 4, ColonyMax = 10;
-        static float ColonyRange => Punchy.Settings.GraphicsSettings.DetailRange(45f);
+        float colonyReach;
+        readonly System.Collections.Generic.HashSet<int> shownRoosts = new System.Collections.Generic.HashSet<int>();
         Unity.Collections.NativeList<int> roosts;
         /// <summary>
         /// Bees at the wild hives near the camera (Hive anchors): drawn only, like the colonies, never simulated or
@@ -103,10 +111,10 @@ namespace Punchy.Fauna
         /// few crawl on the comb. Someone coming close sets SwarmChasers on them for a few seconds.
         /// </summary>
         const int SwarmRound = 26, SwarmForagers = 6, SwarmNight = 8, SwarmChasers = 9;
-        /// <summary>(How near the camera they're drawn scales with the graphics settings; how near someone sets them off
-        /// and for how long doesn't.)</summary>
-        static float SwarmRange => Punchy.Settings.GraphicsSettings.DetailRange(40f);
-        const float SwarmAngerDistance = 5f, SwarmChaseTime = 6f, SwarmCalmTime = 20f;
+        /// <summary>(How near the camera they're drawn goes by how big a swarm looks, DetailPolicy.SwarmPixels, eased,
+        /// fading out over its last quarter (A-99); how near someone sets them off and for how long doesn't.)</summary>
+        float swarmReach;
+        const float SwarmAngerDistance = 5f, SwarmChaseTime = 6f, SwarmCalmTime = 20f; // gameplay: who sets a hive off
         Unity.Collections.NativeList<int> hives;
         /// <summary>When each hive (by anchor index) last set its bees on someone: per machine, for looks only.</summary>
         readonly System.Collections.Generic.Dictionary<int, float> hiveAngry = new System.Collections.Generic.Dictionary<int, float>();
@@ -192,7 +200,7 @@ namespace Punchy.Fauna
             var entities = new NativeArray<Entity>(allBodies.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
             // Deep in a cave, out of sight of every mouth (CaveSystem.SurfaceHidden): the creatures up on the surface are
             // neither posed nor drawn. (Players' bodies always are.)
-            // And anything well behind the camera (past BehindCullRange, so the shadows of those close behind still fall
+            // And anything well behind the camera (past NearBehind, so the shadows of those close behind still fall
             // in view) is neither posed nor drawn: about half of them at any moment, the biggest share of the pose cost.
             var hidden = Punchy.Terrain.CaveSystem.SurfaceHidden >= 0.99f;
             SystemAPI.TryGetSingleton<TerrainSource>(out var hiddenFrom);
@@ -218,13 +226,18 @@ namespace Punchy.Fauna
             var groupStarts = new NativeArray<int>(GroupCount + 1, Allocator.TempJob);
             UnityEngine.GeometryUtility.CalculateFrustumPlanes(cam, frustumPlanes);
             static float4 PlaneOf(UnityEngine.Plane plane) => new float4(plane.normal, plane.distance);
+            // (Where each creature was in last frame's posing, by entity: for its last decision here, and for those
+            // moved on from their last pose in PoseJob, A-70 row 4; and
+            // in CullJob, for whether one behind the camera was near, A-99.)
+            var usePrev = tiers && havePrev;
+            var indexing = new IndexJob { Entities = usePrev ? prevPosed.Entities : noEntities, Index = prevIndex }.Schedule();
             if (OldCull)
             {
                 copied.Complete();
                 for (int i = 0; i < bodies.Length; i++)
                 {
                     var to = allStates[i].Position - camPos;
-                    var far = math.lengthsq(to) > BehindCullRange * BehindCullRange;
+                    var far = !NearBehind(math.length(to), allStates[i], ref allBodies[i].Blob.Value, false);
                     var behind = far && math.dot(math.normalizesafe(to), camFwd) < behindCos &&
                                  math.length(to) > allBodies[i].Blob.Value.SeenFrom * 0.5f;
                     var underground = hidden && !(allStates[i].Position.y < hiddenFrom.SampleHeight(allStates[i].Position.xz) - 1f);
@@ -246,12 +259,10 @@ namespace Punchy.Fauna
                     Right = PlaneOf(frustumPlanes[1]),
                     Bottom = PlaneOf(frustumPlanes[2]),
                     Top = PlaneOf(frustumPlanes[3]),
+                    AllEntities = allEntities,
+                    PrevIndex = prevIndex,
                     Keep = keepFlags
-                }.Schedule(bodies.Length, 16, copied);
-            // (Where each creature was in last frame's posing, by entity: for its last decision here, and for those
-            // moved on from their last pose in PoseJob, A-70 row 4.)
-            var usePrev = tiers && havePrev;
-            var indexing = new IndexJob { Entities = usePrev ? prevPosed.Entities : noEntities, Index = prevIndex }.Schedule();
+                }.Schedule(bodies.Length, 16, JobHandle.CombineDependencies(copied, indexing));
             culling = new CompactJob
             {
                 AllBodies = allBodies,
@@ -329,8 +340,23 @@ namespace Punchy.Fauna
             if (!roosts.IsCreated)
                 roosts = new Unity.Collections.NativeList<int>(16, Allocator.Persistent);
             roosts.Clear();
+            var extrasDt = SystemAPI.Time.DeltaTime;
+            colonyReach = Punchy.Settings.DetailPolicy.EasedReach(colonyReach,
+                Punchy.Settings.DetailPolicy.ExtraReach(Punchy.Settings.DetailPolicy.ColonySize, Punchy.Settings.DetailPolicy.ColonyPixels), extrasDt);
             if (terrain.Anchors.IsCreated)
-                Punchy.Terrain.Anchors.Near(ref terrain.Anchors.Value, cam.transform.position, ColonyRange, AnchorKind.Roost, ref roosts);
+            {
+                // (Out to the held reach, then those that weren't shown last frame only inside the reach itself.)
+                Punchy.Terrain.Anchors.Near(ref terrain.Anchors.Value, cam.transform.position,
+                    colonyReach / (1f - Punchy.Settings.DetailPolicy.Hysteresis), AnchorKind.Roost, ref roosts);
+                float3 roostFrom = cam.transform.position;
+                for (int i = roosts.Length - 1; i >= 0; i--)
+                    if (!Punchy.Settings.DetailPolicy.Within(math.distance(roostFrom, terrain.Anchors.Value.Anchors[roosts[i]].Position),
+                            colonyReach, shownRoosts.Contains(roosts[i])))
+                        roosts.RemoveAtSwapBack(i);
+            }
+            shownRoosts.Clear();
+            foreach (var r in roosts)
+                shownRoosts.Add(r);
             var night = SystemAPI.TryGetSingleton<FaunaClock>(out var clock) ? clock.Night : 0f;
             // (Less any real bats hanging there now, so they don't double up with the drawn ones.)
             var colonyStart = total;
@@ -356,7 +382,11 @@ namespace Punchy.Fauna
                 hives = new Unity.Collections.NativeList<int>(4, Allocator.Persistent);
             hives.Clear();
             if (terrain.Anchors.IsCreated)
-                Punchy.Terrain.Anchors.Near(ref terrain.Anchors.Value, cam.transform.position, SwarmRange, AnchorKind.Hive, ref hives);
+            {
+                swarmReach = Punchy.Settings.DetailPolicy.EasedReach(swarmReach,
+                    Punchy.Settings.DetailPolicy.ExtraReach(Punchy.Settings.DetailPolicy.SwarmSize, Punchy.Settings.DetailPolicy.SwarmPixels), extrasDt);
+                Punchy.Terrain.Anchors.Near(ref terrain.Anchors.Value, cam.transform.position, swarmReach, AnchorKind.Hive, ref hives);
+            }
             var day = night < 0.5f;
             var swarmPlayer = new float3(float.MaxValue);
             foreach (var t in SystemAPI.Query<RefRO<Unity.Transforms.LocalTransform>>().WithAll<Punchy.Player.PlayerTag>())
@@ -446,7 +476,7 @@ namespace Punchy.Fauna
             {
                 var hive = terrain.Anchors.Value.Anchors[hives[i]];
                 var angry = hiveAngry.TryGetValue(hives[i], out var since) ? now - since : -1f;
-                var faded = math.saturate((math.distance(camAt0, hive.Position) - SwarmRange * 0.75f) / (SwarmRange * 0.25f));
+                var faded = math.saturate((math.distance(camAt0, hive.Position) - swarmReach * 0.75f) / (swarmReach * 0.25f));
                 at = Swarm(hive, hives[i], day, now, angry, swarmTargets[i], faded, terrain, extras, at);
             }
             swarmTargets.Dispose();
