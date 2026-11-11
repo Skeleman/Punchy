@@ -34,7 +34,10 @@ namespace Punchy.Terrain
         /// <summary>Grey volcanic ash heaped on and around an ash house (#69).</summary>
         Ash,
         /// <summary>Trodden dirt: a slab shelter's (#69) floor and ramp, tinted a little toward the local rock.</summary>
-        Dirt
+        Dirt,
+        /// <summary>W-138: a lantern turned low (a tunnel's wall lantern): glass drawn as a window pane like Lamp, but a
+        /// deeper amber, so a small flame reads as flame light rather than a white box in a dark-adapted cave.</summary>
+        Flame
     }
 
     /// <summary>
@@ -337,6 +340,9 @@ namespace Punchy.Terrain
         /// <summary>W-127: lamplight's colour (lamps, and a lived-in house's lit windows).</summary>
         public static readonly Color LampLight = new Color(1f, 0.72f, 0.38f);
 
+        /// <summary>W-138 row 4c: a turned-down lantern's glass (KitMaterial.Flame): deeper and redder than LampLight.</summary>
+        public static readonly Color FlameLight = new Color(0.42f, 0.15f, 0.03f);
+
         /// <summary>A culture's trim colour for a material.</summary>
         public static Color Colour(in CultureTrim t, KitMaterial m) => m switch
         {
@@ -347,6 +353,7 @@ namespace Punchy.Terrain
             KitMaterial.Moss => t.Moss,
             KitMaterial.Stone => Color.Lerp(t.Wall, t.Trim, 0.5f) * 0.85f,
             KitMaterial.Lamp => LampLight,
+            KitMaterial.Flame => FlameLight,
             KitMaterial.Net => new Color(0.70f, 0.66f, 0.55f),
             KitMaterial.Rune => new Color(0.55f, 0.95f, 1f),
             KitMaterial.Ice => Color.Lerp(t.Wall, t.Trim, 0.25f),
@@ -1679,7 +1686,7 @@ namespace Punchy.Terrain
                     Add(parts, KitPiece.Beam, KitMaterial.Trim, new Vector3(0f, 0.15f, 0.1f), new Vector3(0.03f, 0.03f, 0.28f), 0f, false, -38f);
                     Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(0f, 0.25f, armOut), new Vector3(0.02f, 0.08f, 0.02f), 0f, false);
                     Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(0f, WallLanternAt.y + 0.16f, armOut), new Vector3(0.2f, 0.05f, 0.2f), 45f, false);
-                    Add(parts, KitPiece.Window, KitMaterial.Lamp, new Vector3(0f, WallLanternAt.y, armOut), new Vector3(0.15f, 0.24f, 0.15f), R() * 10f, false);
+                    Add(parts, KitPiece.Window, KitMaterial.Flame, new Vector3(0f, WallLanternAt.y, armOut), new Vector3(0.15f, 0.24f, 0.15f), R() * 10f, false);
                     Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(0f, WallLanternAt.y - 0.14f, armOut), new Vector3(0.18f, 0.04f, 0.18f), 0f, false);
                     // It hangs on a wall, off the ground: keep the foundation skirt from carrying its foot to the floor.
                     for (int k = first; k < parts.Count; k++)
