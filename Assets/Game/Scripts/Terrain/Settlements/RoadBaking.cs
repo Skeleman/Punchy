@@ -8,8 +8,9 @@ namespace Punchy.Terrain
 {
     /// <summary>
     /// Roads between settlements, baked as more streets in the settlement blob (so they're levelled, paved and kept
-    /// clear of plants as streets are): every settlement joined to the others along a minimum spanning tree, and a spur
-    /// to each cave mouth near a settlement. Each road is routed over a coarse cost grid (gentle slopes preferred, steep
+    /// clear of plants as streets are): every settlement joined to the others along a minimum spanning tree, then a spur
+    /// off that network to each destination beyond the towns (W-138: the sea folk landing, mines, caves; see
+    /// Destinations). Each road is routed over a coarse cost grid (gentle slopes preferred, steep
     /// ground and cave entrances avoided, shallow water crossed as a ford left unpaved, deeper rivers bridged at a cost),
     /// smoothed, and cut into short stretches. A signpost stands where each road leaves a settlement, and camps with a
     /// palisade get one round them once the roads' gaps through it are known. Integer-seeded and deterministic.
@@ -33,7 +34,6 @@ namespace Punchy.Terrain
         /// goes round: the cell's own centre samples can't see a sheer drop between them.</summary>
         const float CliffSlope = 1f;
         const float FordDepth = 0.7f;
-        const float CaveReach = 700f;
         const float StretchLength = 10f;
         /// <summary>Deepest water a road will bridge (deeper is a lake or the sea: the road goes round).</summary>
         const float BridgeDepth = 6f;
@@ -52,28 +52,118 @@ namespace Punchy.Terrain
         }
 
         /// <summary>
+        /// W-138: the router's costs, as named settings. Climb weighs a step's slope squared (per metre run), Detour is
+        /// how much dearer the wander patches get (see Wander), and a bore would cost TunnelPerMetre times its length
+        /// plus TunnelEntry. A is today's router: it never bores (a climb always comes cheaper), so the only tunnels
+        /// are the ones Emit's strict rule finds under a road's own line. B and C wait on Zach's pick (W-138 row 2b).
+        /// </summary>
+        public struct RouterCosts
+        {
+            public float Climb, Detour, TunnelPerMetre, TunnelEntry;
+            public static readonly RouterCosts A = new() { Climb = 25f, Detour = 0.4f, TunnelPerMetre = float.PositiveInfinity, TunnelEntry = 0f };
+        }
+
+        /// <summary>The router setting roads are baked with.</summary>
+        public static readonly RouterCosts Router = RouterCosts.A;
+
+        /// <summary>
+        /// W-138: a place beyond the towns a road leads to: a spur from the nearest point of the roads already laid
+        /// (the town network, then the spurs before it, nearest first) to At. Footpath is how many metres at the end
+        /// are only a narrow path; Reach, how far from the roads it may be and still get one; Served, whether it goes
+        /// without when a road already passes within ServedReach (a second grotto beside one with a path).
+        /// </summary>
+        public struct Destination
+        {
+            public float2 At;
+            public string Name;
+            public float Footpath, Reach;
+            public bool Served;
+        }
+
+        /// <summary>W-138: how far from the roads a cave (with chambers) may be and still get a road, and a mountain grotto a path.</summary>
+        public const float CaveRoadReach = 1000f;
+        /// <summary>W-138: how far from the roads a mine may be and still get a road.</summary>
+        public const float MineReach = 1500f;
+        /// <summary>W-138: a grotto with a road this close to its mouth already counts as reached.</summary>
+        public const float ServedReach = 320f;
+        /// <summary>W-138: the last metres to a mountain grotto are a footpath this share of the road's width.</summary>
+        public const float FootpathLength = 250f, FootpathWidth = 0.45f;
+        /// <summary>W-138: a road ends this far out in front of a cave's mouth.</summary>
+        const float MouthApron = 6f;
+
+        /// <summary>
+        /// W-138 (row 2a): the destinations beyond the towns, from the landmarks placed so far: the sea folk landing
+        /// (<paramref name="landing"/>, required), every mine (a cave whose style is dug), every cave with chambers, and
+        /// the grottos that open in a mountain ridge biome (a footpath for the last stretch). Reach and Served trim them
+        /// once the town roads are known. In landmark order, so the same island gives the same list.
+        /// </summary>
+        public static List<Destination> Destinations(in TerrainSource source, IReadOnlyList<LandmarkType> types,
+                                                     IReadOnlyList<BiomeDefinition> palette, float2? landing)
+        {
+            var list = new List<Destination>();
+            if (landing.HasValue)
+                list.Add(new Destination { At = landing.Value, Name = SeaFolkBaking.LandingName, Reach = float.MaxValue });
+            if (!source.Landmarks.IsCreated || types == null)
+                return list;
+            ref var set = ref source.Landmarks.Value;
+            for (int i = 0; i < set.Instances.Length; i++)
+            {
+                var inst = set.Instances[i];
+                var type = (uint)inst.Type < (uint)types.Count ? types[inst.Type] : null;
+                if (type == null || !type.Cave)
+                    continue;
+                var mouth = CaveBaking.MouthAt(inst, type);
+                var at = mouth - inst.Facing * MouthApron;
+                var style = palette != null ? CaveBaking.StyleOf(source, palette, type, inst) : null;
+                if (style != null && style.Straightness > 0f)
+                    list.Add(new Destination { At = at, Name = $"mine {type.name} {i}", Reach = MineReach });
+                else if (type.CaveChambers > 0)
+                    list.Add(new Destination { At = at, Name = $"cave {type.name} {i}", Reach = CaveRoadReach });
+                else if (palette != null && MountainAt(source, palette, inst.Position))
+                    list.Add(new Destination { At = at, Name = $"grotto {type.name} {i}", Reach = CaveRoadReach, Footpath = FootpathLength, Served = true });
+            }
+            return list;
+        }
+
+        /// <summary>Whether the ground's dominant biome there is a mountain ridge biome.</summary>
+        static bool MountainAt(in TerrainSource source, IReadOnlyList<BiomeDefinition> palette, float2 xz)
+        {
+            var b = source.SampleGround(xz).Biomes;
+            var best = 0;
+            for (int k = 1; k < 4; k++)
+                if (b.Weights[k] > b.Weights[best])
+                    best = k;
+            var id = b.Ids[best];
+            return id >= 0 && id < palette.Count && palette[id] != null && palette[id].HasTag(BiomeTags.RidgeMountain);
+        }
+
+        /// <summary>
         /// Adds the roads to <paramref name="streets"/>, and their signposts and bridges and the camps' palisades to
         /// <paramref name="plots"/> (both appended after every settlement's own).
         /// </summary>
         public static void Build(in TerrainSource source, List<SettlementLayout> layouts, List<int> firstBuilding, List<SettlementData> settlements,
-                                 List<SettlementStreet> streets, List<SettlementPlot> plots, List<RoadsideBaking.RoadPath> roads = null)
+                                 List<SettlementStreet> streets, List<SettlementPlot> plots, List<RoadsideBaking.RoadPath> roads = null,
+                                 List<Destination> destinations = null)
         {
             if (settlements.Count == 0)
                 return;
-            Roads(source, layouts, firstBuilding, settlements, streets, plots, roads);
+            Roads(source, layouts, firstBuilding, settlements, streets, plots, roads, destinations);
             Palisades(source, layouts, firstBuilding, settlements, streets, plots);
         }
 
         static void Roads(in TerrainSource source, List<SettlementLayout> layouts, List<int> firstBuilding, List<SettlementData> settlements,
-                          List<SettlementStreet> streets, List<SettlementPlot> plots, List<RoadsideBaking.RoadPath> roads)
+                          List<SettlementStreet> streets, List<SettlementPlot> plots, List<RoadsideBaking.RoadPath> roads,
+                          List<Destination> destinations)
         {
             Stats.Reset();
+            SpurStreets = (streets.Count, streets.Count);
             var ends = new List<End>();
             foreach (var s in settlements)
                 ends.Add(new End { At = s.Centre + s.Road * s.Radius * 0.95f, Out = s.Road, Settlement = ends.Count, Radius = s.Radius });
 
-            // Which pairs to join: a minimum spanning tree over the settlements (Prim, by straight distance), then a spur
-            // from the nearest settlement to each cave mouth within reach.
+            // Which pairs to join: a minimum spanning tree over the settlements (Prim, by straight distance). (The spurs
+            // to caves once added here read source.Caves, which isn't baked yet when roads are: W-138 replaced them with
+            // Destinations, routed after the town roads.)
             var pairs = new List<(float2 from, float2 to, int settlement, bool toTown, int other)>();
             var inTree = new bool[ends.Count];
             inTree[0] = true;
@@ -95,27 +185,6 @@ namespace Punchy.Terrain
                 }
                 inTree[best.b] = true;
                 pairs.Add((ends[best.a].At, ends[best.b].At, best.a, true, best.b));
-            }
-            if (source.Caves.IsCreated)
-            {
-                ref var caves = ref source.Caves.Value;
-                for (int c = 0; c < caves.Caves.Length; c++)
-                {
-                    var mouth = caves.Caves[c].Mouth.xz;
-                    var nearest = -1;
-                    var nearestDistance = CaveReach;
-                    for (int e = 0; e < ends.Count; e++)
-                    {
-                        var d = math.distance(ends[e].At, mouth);
-                        if (d < nearestDistance)
-                        {
-                            nearest = e;
-                            nearestDistance = d;
-                        }
-                    }
-                    if (nearest >= 0)
-                        pairs.Add((ends[nearest].At, mouth + math.normalizesafe(ends[nearest].At - mouth) * 12f, nearest, false, -1));
-                }
             }
             if (pairs.Count == 0)
                 return;
@@ -165,9 +234,11 @@ namespace Punchy.Terrain
                     wander[y * size.x + x] = Wander(origin + new float2(x, y) * Cell, offset);
             });
             var src = source;
-            System.Threading.Tasks.Parallel.For(0, pairs.Count, i =>
+            System.Threading.Tasks.Parallel.For(0, pairs.Count, i => paths[i] = RoutePair(pairs[i].from, pairs[i].to));
+
+            List<float2> RoutePair(float2 from, float2 to)
             {
-                var found = Route(cells, wander, size, min, pairs[i].from, pairs[i].to);
+                var found = Route(cells, wander, size, min, from, to);
                 var path = found == null ? null : Smooth(Smooth(Relax(found, 3)));
                 // W-100 (#39): close the cells round any stretch too steep to lay and route again on this pair's own copy
                 // of the grid. Roads that pass first time are unchanged.
@@ -185,8 +256,8 @@ namespace Punchy.Terrain
                     if (steep.Count == 0 || attempt == RerouteTries)
                         break;
                     closed ??= (float4[])cells.Clone();
-                    var keepA = math.clamp((int2)math.round((pairs[i].from - min) / Cell), 0, size - 1);
-                    var keepB = math.clamp((int2)math.round((pairs[i].to - min) / Cell), 0, size - 1);
+                    var keepA = math.clamp((int2)math.round((from - min) / Cell), 0, size - 1);
+                    var keepB = math.clamp((int2)math.round((to - min) / Cell), 0, size - 1);
                     foreach (var at in steep)
                     {
                         var c = (int2)math.round((at - min) / Cell);
@@ -199,13 +270,67 @@ namespace Punchy.Terrain
                             closed[y * size.x + x].z = 1f;
                         }
                     }
-                    var again = Route(closed, wander, size, min, pairs[i].from, pairs[i].to);
+                    var again = Route(closed, wander, size, min, from, to);
                     if (again == null)
                         break;   // no way round: keep the best route so far, and Emit leaves out its steep stretches
                     path = Smooth(Smooth(Relax(again, 3)));
                 }
-                paths[i] = best;
-            });
+                return best;
+            }
+
+            // W-138: the spurs to the destinations, after the town roads (so those are found exactly as before), one at
+            // a time nearest first, each from the nearest point of every road found so far, so a spur may branch off
+            // another (two caves side by side share one way in). The branch keeps the width of the road it leaves.
+            var spurs = new List<(List<float2> path, int settlement, Destination to)>();
+            if (destinations != null && destinations.Count > 0)
+            {
+                var laid = new List<(List<float2> path, int settlement)>();
+                for (int i = 0; i < pairs.Count; i++)
+                    if (paths[i] != null)
+                        laid.Add((paths[i], pairs[i].settlement));
+                var left = new List<Destination>(destinations);
+                var edge = min + Cell;
+                var far = max - Cell;
+                while (left.Count > 0 && laid.Count > 0)
+                {
+                    // The destination nearest the roads so far (ties to the first listed).
+                    int pick = -1, road = -1, point = -1;
+                    var nearest = float.MaxValue;
+                    for (int d = 0; d < left.Count; d++)
+                    {
+                        var (r, p, dist) = NearestOn(laid, left[d].At);
+                        if (dist < nearest)
+                        {
+                            nearest = dist;
+                            pick = d;
+                            road = r;
+                            point = p;
+                        }
+                    }
+                    var to = left[pick];
+                    left.RemoveAt(pick);
+                    if (nearest > to.Reach || to.Served && nearest < ServedReach)
+                    {
+                        Stats.Spurs.Add(new SpurStat { Name = to.Name + (nearest > to.Reach ? " (too far)" : " (served)"), From = laid[road].path[point], To = to.At });
+                        continue;
+                    }
+                    if (math.any(to.At < edge) || math.any(to.At > far))
+                    {
+                        Stats.Spurs.Add(new SpurStat { Name = to.Name + " (off the grid)", To = to.At });
+                        continue;
+                    }
+                    var from = laid[road].path[point];
+                    var path = from.Equals(to.At) ? null : RoutePair(from, to.At);
+                    if (path == null)
+                    {
+                        Stats.Spurs.Add(new SpurStat { Name = to.Name + " (no way)", From = from, To = to.At });
+                        continue;
+                    }
+                    laid.Add((path, laid[road].settlement));
+                    spurs.Add((path, laid[road].settlement, to));
+                }
+            }
+
             for (int i = 0; i < pairs.Count; i++)
             {
                 var (_, _, settlement, toTown, other) = pairs[i];
@@ -224,6 +349,78 @@ namespace Punchy.Terrain
                 if (toTown)
                     AddGate(source, path, other, settlements, layouts, plots, true);
             }
+
+            // The spurs, after every town road (so those keep their streets and plots): no gates (they leave a road, not
+            // a town) and no roadside landmarks. A footpath's last stretch is laid narrow.
+            var firstSpur = streets.Count;
+            foreach (var (path, settlement, to) in spurs)
+            {
+                var layout = layouts[settlements[settlement].Layout];
+                var width = layout.RoadWidth * settlements[settlement].Scale;
+                var length = Length(path);
+                var footpath = math.min(to.Footpath, length);
+                if (footpath > 0f)
+                {
+                    var (road, path2) = Split(path, length - footpath);
+                    if (road.Count > 1 && length - footpath > 0.5f)
+                        Emit(source, road, width, settlement, settlements, streets);
+                    Emit(source, path2, width * FootpathWidth, settlement, settlements, streets);
+                }
+                else
+                    Emit(source, path, width, settlement, settlements, streets);
+                ClearPlots(path, width, plots);
+                AddBridges(source, path, settlement, settlements, layouts, firstBuilding, plots);
+                Stats.Spurs.Add(new SpurStat { Name = to.Name, From = path[0], To = path[path.Count - 1], Length = length, Footpath = footpath });
+            }
+            SpurStreets = (firstSpur, streets.Count);
+        }
+
+        /// <summary>The road point nearest <paramref name="at"/> over every road so far: which road, which point, how far.</summary>
+        static (int road, int point, float distance) NearestOn(List<(List<float2> path, int settlement)> laid, float2 at)
+        {
+            var best = (road: -1, point: -1, distance: float.MaxValue);
+            for (int r = 0; r < laid.Count; r++)
+            {
+                var path = laid[r].path;
+                for (int p = 0; p < path.Count; p++)
+                {
+                    var d = math.distance(path[p], at);
+                    if (d < best.distance)
+                        best = (r, p, d);
+                }
+            }
+            return best;
+        }
+
+        static float Length(List<float2> path)
+        {
+            var length = 0f;
+            for (int i = 0; i < path.Count - 1; i++)
+                length += math.distance(path[i], path[i + 1]);
+            return length;
+        }
+
+        /// <summary>A path cut in two <paramref name="at"/> metres along it (the cut point ends the first and starts the second).</summary>
+        static (List<float2> first, List<float2> second) Split(List<float2> path, float at)
+        {
+            var first = new List<float2> { path[0] };
+            var along = 0f;
+            for (int i = 0; i < path.Count - 1; i++)
+            {
+                var span = math.distance(path[i], path[i + 1]);
+                if (along + span >= at)
+                {
+                    var cut = math.lerp(path[i], path[i + 1], span > 0f ? (at - along) / span : 0f);
+                    first.Add(cut);
+                    var second = new List<float2> { cut };
+                    for (int k = i + 1; k < path.Count; k++)
+                        second.Add(path[k]);
+                    return (first, second);
+                }
+                along += span;
+                first.Add(path[i + 1]);
+            }
+            return (first, new List<float2> { path[path.Count - 1], path[path.Count - 1] });
         }
 
         [BurstCompile]
@@ -321,7 +518,7 @@ namespace Punchy.Terrain
                     // its way instead of running dead straight for kilometres (G-23). Never below 1, so the distance
                     // heuristic still holds.
                     var wander = wanders[ni];
-                    var g = cost[current.index] + run * (1f + 25f * slope * slope + wet) * wander;
+                    var g = cost[current.index] + run * (1f + Router.Climb * slope * slope + wet) * wander;
                     // Each bridge costs as much again to build, so a road along a river doesn't hop back and forth.
                     if (there.y > FordDepth && here.y <= FordDepth)
                         g += 400f;
@@ -346,7 +543,7 @@ namespace Punchy.Terrain
         /// Not inlined, so every caller gets the very same float result.
         /// </summary>
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-        static float Wander(float2 at, float2 offset) => 1f + 0.4f * (noise.snoise(at / WanderScale + offset) + 1f);
+        static float Wander(float2 at, float2 offset) => 1f + Router.Detour * (noise.snoise(at / WanderScale + offset) + 1f);
 
         /// <summary>
         /// Bridges where the road crosses water too deep to ford: each wet run with any deep water in it gets spans from
@@ -662,84 +859,55 @@ namespace Punchy.Terrain
                 start = end;
             }
 
-            // W-110: a crest the grade cuts through (TunnelCrest deep or more) may be bored instead. The bore runs at a
-            // straight grade between the road profile's levels at two stretch ends either side of the crest (under a
-            // crest that's lower than the profile, so the hill over it is thicker), the pair chosen within TunnelReach
-            // for the thickest hill over the line while the ground stays above it all the way. Deep enough
-            // (TunnelCover over the line, TunnelRoofed metres of it roofed), some (seeded by the bore's middle) are
-            // bored: the hill stays, the stretches become tunnel roads (Road 3) and CaveBaking bores their passage. The
-            // cuttings either side lead into its portals.
+            // W-110, made strict by W-138: a crest the grade cuts through (TunnelCrest deep or more) is bored only where
+            // the hill is a real mountain over the road. The bore runs at a straight grade between the road profile's
+            // levels at two stretch ends either side of the crest, the ground staying above that line all the way; its
+            // tunnel is the run of stretches with at least TunnelPortal of hill over every metre (so each portal arch
+            // has that much rock over it), and it is bored only when that run is TunnelLeast long or more with
+            // TunnelDeep of cover over TunnelDeepShare of it. Of the pairs that pass, the one with the most deep metres
+            // wins. The stretches become tunnel roads (Road 3) and CaveBaking bores their passage; the rest of the bore
+            // is cuttings at its grade up to the portals. Any lesser crest stays a cutting (the small-crest tunnels
+            // W-110 bored are gone).
             var tunnel = new bool[stretches.Count];
             for (int c = 0; c < stretches.Count; c++)
             {
                 if (skip[c] || DeepestCut(ground[c], profile[c]) < TunnelCrest)
                     continue;
-                int bestStart = -1, bestEnd = -1;
-                float bestPeak = 0f, bestRoofed = 0f;
+                int bestStart = -1, bestEnd = -1, bestFirst = -1, bestLast = -1;
+                float bestDeep = 0f, bestBored = 0f;
                 for (int s = c; s >= 0 && s > c - TunnelReach && !skip[s] && !tunnel[s]; s--)
                     for (int e = c + 1; e <= stretches.Count && e <= c + TunnelReach && !skip[e - 1]; e++)
                     {
                         // A portal opens on a cutting, never straight onto a bridge or other skipped stretch.
                         if (SkipNear(skip, s - TunnelLead, s) || SkipNear(skip, e, e + TunnelLead))
                             continue;
-                        var peak = BoreCover(stretches, ground, profile, s, e, out var roofed);
-                        if (peak > bestPeak)
+                        if (StrictBore(stretches, ground, profile, s, e, out var first, out var last, out var bored, out var deep) && deep > bestDeep)
                         {
-                            bestPeak = peak;
-                            bestRoofed = roofed;
-                            bestStart = s;
-                            bestEnd = e;
+                            bestDeep = deep;
+                            bestBored = bored;
+                            (bestStart, bestEnd, bestFirst, bestLast) = (s, e, first, last);
                         }
                     }
                 if (bestStart < 0)
                     continue;
-                var middle = math.lerp(stretches[bestStart].p0, stretches[bestEnd - 1].p1, 0.5f);
-                var cell = (int2)math.floor(middle / 8f);
-                var roll = BiomeSampling.Scramble(math.hash(cell) ^ 0x7B0E0110u) / (float)uint.MaxValue;
-                if (bestPeak >= TunnelCover && bestRoofed >= TunnelRoofed && roll < TunnelChance)
+                var length = 0f;
+                for (int i = bestStart; i < bestEnd; i++)
+                    length += math.distance(stretches[i].p0, stretches[i].p1);
+                var y0 = profile[bestStart][0];
+                var y1 = profile[bestEnd - 1][profile[bestEnd - 1].Length - 1];
+                var along = 0f;
+                for (int i = bestStart; i < bestEnd; i++)
                 {
-                    var length = 0f;
-                    for (int i = bestStart; i < bestEnd; i++)
-                        length += math.distance(stretches[i].p0, stretches[i].p1);
-                    var y0 = profile[bestStart][0];
-                    var y1 = profile[bestEnd - 1][profile[bestEnd - 1].Length - 1];
-                    // The whole bore takes the straight grade; only the stretches the hill roofs all along (the core
-                    // round its thickest stretch) are tunnel, and the rest are cuttings at that grade up to its portals.
-                    var along = 0f;
-                    var seed = bestStart;
-                    var thinnest = new float[bestEnd - bestStart];
-                    for (int i = bestStart; i < bestEnd; i++)
-                    {
-                        var span = math.distance(stretches[i].p0, stretches[i].p1);
-                        var y = profile[i];
-                        var least = float.MaxValue;
-                        for (int k = 0; k < y.Length; k++)
-                        {
-                            y[k] = math.lerp(y0, y1, (along + span * k / (float)(y.Length - 1)) / length);
-                            least = math.min(least, ground[i][k] - y[k]);
-                        }
-                        thinnest[i - bestStart] = least;
-                        if (least > thinnest[seed - bestStart])
-                            seed = i;
-                        along += span;
-                    }
-                    int first = seed, last = seed;
-                    while (first > bestStart && thinnest[first - 1 - bestStart] >= TunnelPortal)
-                        first--;
-                    while (last < bestEnd - 1 && thinnest[last + 1 - bestStart] >= TunnelPortal)
-                        last++;
-                    var bored = 0f;
-                    for (int i = first; i <= last; i++)
-                        bored += math.distance(stretches[i].p0, stretches[i].p1);
-                    if (thinnest[seed - bestStart] >= TunnelPortal && bored >= TunnelRoofed)
-                    {
-                        for (int i = first; i <= last; i++)
-                            tunnel[i] = true;
-                        var centre = math.lerp(stretches[first].p0, stretches[last].p1, 0.5f);
-                        Stats.Tunnels.Add(new float4(centre.x, math.max(profile[first][0], profile[last][profile[last].Length - 1]), centre.y, bored));
-                    }
+                    var span = math.distance(stretches[i].p0, stretches[i].p1);
+                    var y = profile[i];
+                    for (int k = 0; k < y.Length; k++)
+                        y[k] = math.lerp(y0, y1, (along + span * k / (float)(y.Length - 1)) / length);
+                    along += span;
                 }
-                // The crest is settled either way (one roll per crest).
+                for (int i = bestFirst; i <= bestLast; i++)
+                    tunnel[i] = true;
+                var centre = math.lerp(stretches[bestFirst].p0, stretches[bestLast].p1, 0.5f);
+                Stats.Tunnels.Add(new float4(centre.x, math.max(profile[bestFirst][0], profile[bestLast][profile[bestLast].Length - 1]), centre.y, bestBored));
                 c = math.max(c, bestEnd - 1);
             }
 
@@ -784,29 +952,38 @@ namespace Punchy.Terrain
             }
         }
 
+        /// <summary>
+        /// W-138: the streets the last Build laid as spurs (first, end). Roadside landmarks keep only their middles off
+        /// these, so a spur leaving a road beside a roadside cave passes it instead of pushing it away.
+        /// </summary>
+        public static (int First, int End) SpurStreets;
+
+        /// <summary>W-138: a spur laid to a destination: where it branched off a road, where it ends, its length and the footpath share of it (m).</summary>
+        public struct SpurStat { public string Name; public float2 From, To; public float Length, Footpath; }
+
         /// <summary>Road bake numbers for the last island baked (W-111): stretches graded, deepest cut and fill.</summary>
         public static class Stats
         {
             public static int SteepStretches, GradedStretches, Unbridged;
             public static float DeepestCut, DeepestFill;
             public static float3 CutAt, FillAt;
-            /// <summary>W-110: each tunnel bored, its middle (xz), its west/first portal's road level (y) and length (w).</summary>
+            /// <summary>W-110 (strict since W-138): each tunnel bored, its middle (xz), its west/first portal's road level (y) and length (w).</summary>
             public static readonly List<float4> Tunnels = new();
-            public static void Reset() { SteepStretches = GradedStretches = Unbridged = 0; DeepestCut = DeepestFill = 0f; Tunnels.Clear(); }
+            public static void Reset() { SteepStretches = GradedStretches = Unbridged = 0; DeepestCut = DeepestFill = 0f; Tunnels.Clear(); Spurs.Clear(); }
+            /// <summary>W-138: each spur laid to a destination beyond the towns, and each destination left without one (Length 0, Name saying why).</summary>
+            public static readonly List<SpurStat> Spurs = new();
         }
 
-        /// <summary>W-110: how deep the grade must cut through a crest for a bore to be tried there.</summary>
+        /// <summary>W-110: how deep the grade must cut through a crest for a bore to be tried there </summary>
         const float TunnelCrest = 0.75f;
         /// <summary>W-110: the most stretches either side of a crest a bore may reach to its portals.</summary>
-        const int TunnelReach = 16;
-        /// <summary>W-110: the thickest the hill over a bore's road must be (metres) to bore it.</summary>
-        const float TunnelCover = 5.5f;
-        /// <summary>W-110: the hill over a bore's road that roofs its passage (its arch and a metre of rock), and how many metres of the bore must be roofed.</summary>
-        const float TunnelRoof = 4.5f, TunnelRoofed = 10f;
-        /// <summary>W-110: the share of deep enough crests that are bored (the rest stay cuttings).</summary>
-        const float TunnelChance = 0.75f;
-        /// <summary>W-110: the least hill over every metre of a tunnel stretch's road (its arch and a little rock); thinner, it's a cutting into the portal.</summary>
-        const float TunnelPortal = 4f;
+        const int TunnelReach = 24;
+        /// <summary>W-138: the shortest tunnel bored (m).</summary>
+        public const float TunnelLeast = 60f;
+        /// <summary>W-138: the cover (m of hill over the road) a tunnel must have over TunnelDeepShare of its length.</summary>
+        public const float TunnelDeep = 20f, TunnelDeepShare = 0.5f;
+        /// <summary>W-138: the least hill over every metre of a tunnel stretch's road, its portal arches included (the arch and some rock); thinner, it is a cutting into the portal.</summary>
+        public const float TunnelPortal = 6f;
         /// <summary>W-110: the fewest ordinary stretches between a bore's portal and a skipped one (a bridge's deck sits above the grade).</summary>
         const int TunnelLead = 2;
 
@@ -820,36 +997,59 @@ namespace Punchy.Terrain
         }
 
         /// <summary>
-        /// The thickest hill over a straight-grade road from stretch start's level to stretch end - 1's (0 when the
-        /// ground dips under that line anywhere, the road coming out in the air), and how many metres of it are roofed.
+        /// W-138's strict tunnel rule for a straight-grade road from stretch start's level to stretch end - 1's: false
+        /// when the ground dips under that line anywhere (the road would come out in the air). Otherwise the tunnel is
+        /// the run of stretches [first, last] round the thickest one with TunnelPortal or more over every metre, and it
+        /// passes when that run is TunnelLeast long or more with TunnelDeep of cover over TunnelDeepShare of it
+        /// (<paramref name="bored"/> its length, <paramref name="deep"/> the metres that deep).
         /// </summary>
-        static float BoreCover(List<(float2 p0, float2 p1)> stretches, float[][] ground, float[][] profile, int start, int end, out float roofed)
+        static bool StrictBore(List<(float2 p0, float2 p1)> stretches, float[][] ground, float[][] profile, int start, int end,
+                               out int first, out int last, out float bored, out float deep)
         {
-            roofed = 0f;
+            first = last = -1;
+            bored = deep = 0f;
             var length = 0f;
             for (int i = start; i < end; i++)
                 length += math.distance(stretches[i].p0, stretches[i].p1);
             var y0 = profile[start][0];
             var y1 = profile[end - 1][profile[end - 1].Length - 1];
-            var peak = 0f;
+            var thinnest = new float[end - start];
+            var deepRun = new float[end - start];
+            var thickest = start;
             var along = 0f;
             for (int i = start; i < end; i++)
             {
                 var span = math.distance(stretches[i].p0, stretches[i].p1);
                 var h = ground[i];
                 var step = span / (h.Length - 1);
+                var least = float.MaxValue;
                 for (int k = 0; k < h.Length; k++)
                 {
                     var cover = h[k] - math.lerp(y0, y1, (along + step * k) / length);
                     if (cover < -0.25f)
-                        return 0f;
-                    peak = math.max(peak, cover);
-                    if (k > 0 && cover >= TunnelRoof)
-                        roofed += step;
+                        return false;
+                    least = math.min(least, cover);
+                    if (k > 0 && cover >= TunnelDeep)
+                        deepRun[i - start] += step;
                 }
+                thinnest[i - start] = least;
+                if (least > thinnest[thickest - start])
+                    thickest = i;
                 along += span;
             }
-            return peak;
+            if (thinnest[thickest - start] < TunnelPortal)
+                return false;
+            first = last = thickest;
+            while (first > start && thinnest[first - 1 - start] >= TunnelPortal)
+                first--;
+            while (last < end - 1 && thinnest[last + 1 - start] >= TunnelPortal)
+                last++;
+            for (int i = first; i <= last; i++)
+            {
+                bored += math.distance(stretches[i].p0, stretches[i].p1);
+                deep += deepRun[i - start];
+            }
+            return bored >= TunnelLeast && deep >= TunnelDeepShare * bored;
         }
 
         /// <summary>The deepest cut under a stretch: its ground less the road's straight line, the most over every metre.</summary>

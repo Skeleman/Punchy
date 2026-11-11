@@ -198,7 +198,7 @@ namespace Punchy.Terrain
                 var mainEnds = new int3(-1);
 
                 // The entrance: starting just outside the face, so the passage cuts cleanly into it.
-                var start = inst.Position - forward * (radius * type.Edge * 0.5f + r * 0.6f);
+                var start = MouthAt(inst, type);
                 var mouth = new float3(start.x, floor + r * 0.4f, start.y);
                 var previous = AddNode(mouth, r, CaveNodeKind.Passage);
                 var heading = math.atan2(forward.y, forward.x);
@@ -1357,6 +1357,17 @@ namespace Punchy.Terrain
                     return true;
             }
             return false;
+        }
+
+        /// <summary>Where a cave's entrance passage starts, just outside its face (W-138: roads lead here too).</summary>
+        public static float2 MouthAt(in LandmarkInstance inst, LandmarkType type)
+            => inst.Position - inst.Facing * (type.Radius * inst.Scale * type.Edge * 0.5f + type.CaveRadius * inst.Scale * 0.6f);
+
+        /// <summary>The style a cave is dug in, from the same roll Build uses (W-138: a road picks out the mines by it).</summary>
+        public static CaveStyle StyleOf(in TerrainSource source, IReadOnlyList<BiomeDefinition> palette, LandmarkType type, in LandmarkInstance inst)
+        {
+            var rng = new Random(math.hash(new uint2(inst.Key, 7717u)) | 1u);
+            return PickStyle(source, palette, type, inst.Position, ref rng);
         }
 
         /// <summary>

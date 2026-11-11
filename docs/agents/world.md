@@ -47,8 +47,10 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
   logs each step. `-whitepools` draws every cave water pool as white pool water (`CaveSystem.WhitePoolWater`,
   #35); murk above about 0.3 makes the pool a hard-edged opaque slab that reads as snow. White pools set `_SoftRim`:
   the rim fades, the middle darkens and stays see-through (body alpha x0.55), and the glow is a band inside the rim.
-- **Road tunnels (W-110):** RoadBaking marks the roofed core of steep crest stretches as `TunnelRoad`
-  (`Stats.Tunnels`); `CaveBaking.Tunnels` appends one cave per bore after the natural caves (`CaveData.Tunnel` 1 dark,
+- **Road tunnels (W-110, strict since W-138):** RoadBaking bores a crest only where the hill is a real mountain
+  over the road's straight grade: a core >= `TunnelLeast` (60 m) with >= `TunnelPortal` (6 m) over every metre and
+  >= `TunnelDeep` (20 m) over half of it; lesser crests stay cuttings. It marks that core as `TunnelRoad`
+  (`Stats.Tunnels`). The router's climb/detour/tunnel costs are `RoadBaking.Router` (setting A = no router bores); `CaveBaking.Tunnels` appends one cave per bore after the natural caves (`CaveData.Tunnel` 1 dark,
   2 lamps, 3 lamps + frames), with no chambers, so cave sockets and bat folk skip them. Any code that loops
   every cave (fauna den visitors, anchors) also sees tunnels: filter on `Tunnel != 0` there.
 - **Bat folk (#35, W-18):** `BatFolkBaking` runs after CaveBaking, reads the caves only and writes its own blob
@@ -77,7 +79,12 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
   level at its centre's `BaseHeight`, with a bank 0.3 m above the higher neighbour. Contour bands (W-24) were ~1-6 m
   wide and read as mud lines; cells keep the paddies wide on any slope. The 16 m pond
   grid labels on the pre-terrace dig (`PondDig`), or the banks split every pond and the mask drops them.
-- Roads (W-16): the A* routes run in parallel on a managed copy of the cost grid with a precomputed wander array; Emit and bridge sampling run in parallel and are added serially in pair order, so output is identical. The `[bake] stages` line splits settlements into towns/roads/roadside/blob. Settlements went from about 970 ms to about 290 ms (editor bench, hash unchanged).
+- Roads (W-16): the A* routes run in parallel on a managed copy of the cost grid with a precomputed wander array; Emit and bridge sampling run in parallel and are added serially in pair order, so output is identical. W-138: `SettlementBaking` finds the sea folk pair early (`SeaFolkBaking.Place`) and keeps it
+  in `SettlementBaking.LastSeaFolk`; the late pass in TerrainAuthoring reuses those spots (found again there, the
+  spur's grading moved the landing 15 m off the road's end) and  `RoadBaking.Destinations` adds it, every mine, caves with chambers and ridge-mountain grottos (a footpath end) as
+  spurs routed after the town roads, nearest first, so town roads keep their streets. `Stats.Spurs` lists each;
+  `RoadBaking.SpurStreets` is their street range, which roadside landmarks only keep their middles off
+  (`SpurClear`), or a spur beside a roadside cave pushed the cave away. The `[bake] stages` line splits settlements into towns/roads/roadside/blob. Settlements went from about 970 ms to about 290 ms (editor bench, hash unchanged).
 
 ## Island version and waterfalls (W-22)
 

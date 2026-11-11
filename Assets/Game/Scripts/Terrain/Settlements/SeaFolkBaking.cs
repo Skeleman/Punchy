@@ -8,9 +8,10 @@ namespace Punchy.Terrain
     /// the village (Resources/SeaFolkVillage), whose placed props are shell domes, a spiral spire tall enough to break
     /// the surface, glow stones and lake-bed details (kelp gardens, shell mosaics, bubble vents, sunken trade goods, coral arches,
     /// glowing anemones), all StructureKit in the sea folk's trim; and its landing (Resources/SeaFolkLanding) on the
-    /// nearest bank, a pier running out towards the village so it reads from the shore. Both go in after every other
-    /// place (turtle settlements included), each on its own new spot, so nothing placed before moves. Neither stamps
-    /// the ground or the water. Island v2 and v3.
+    /// nearest bank, a pier running out towards the village so it reads from the shore. Both are appended after every
+    /// other place (turtle settlements included), each on its own spot clear of the landmarks so far. Neither stamps
+    /// the ground or the water. Island v2 and v3. W-138: their spots are found first in SettlementBaking (from the
+    /// rivers and the landmarks so far), so a road can lead to the landing, and the later pass keeps those spots.
     /// </summary>
     public static class SeaFolkBaking
     {
@@ -26,11 +27,23 @@ namespace Punchy.Terrain
         public static LandmarkType LoadVillage() => UnityEngine.Resources.Load<LandmarkType>(VillageName);
         public static LandmarkType LoadLanding() => UnityEngine.Resources.Load<LandmarkType>(LandingName);
 
-        /// <summary>The sea folk village and its landing, as landmark instances to append (none when no lake is deep enough).</summary>
-        public static List<LandmarkInstance> Place(in TerrainSource source, IReadOnlyList<LandmarkType> types)
+        /// <summary>
+        /// The sea folk village and its landing, as landmark instances to append (none when no lake is deep enough).
+        /// W-138: given <paramref name="spots"/> (an earlier Place's pair), it keeps those spots and only re-reads their ground.
+        /// </summary>
+        public static List<LandmarkInstance> Place(in TerrainSource source, IReadOnlyList<LandmarkType> types,
+                                                   IReadOnlyList<LandmarkInstance> spots = null)
         {
             var placed = new List<LandmarkInstance>();
             LastLog = "";
+            if (spots != null && spots.Count == 2)
+            {
+                placed.Add(Make(source, spots[0].Position, spots[0].Facing, spots[0].Type, 0x5EAu));
+                placed.Add(Make(source, spots[1].Position, spots[1].Facing, spots[1].Type, 0x5EBu));
+                LastLog = $"[sea folk] village at {spots[0].Position.x:F0},{spots[0].Position.y:F0}; landing at {spots[1].Position.x:F0},{spots[1].Position.y:F0} (as found for the roads)";
+                UnityEngine.Debug.Log(LastLog);
+                return placed;
+            }
             int tv = -1, tl = -1;
             for (int i = 0; i < types.Count; i++)
             {

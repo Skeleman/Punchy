@@ -19,6 +19,8 @@ namespace Punchy.Terrain
         const float Apart = 260f;
         /// <summary>Clear ground between a landmark's edge and the road beside it (m).</summary>
         const float Verge = 3f;
+        /// <summary>W-138: how near a spur may pass a roadside landmark, as a share of its radius (its cleared middle).</summary>
+        const float SpurClear = 0.4f;
         /// <summary>No fork signpost within this far of a settlement's edge (m).</summary>
         const float TownClear = 80f;
 
@@ -244,7 +246,9 @@ namespace Punchy.Terrain
                 {
                     var st = streets[k];
                     var d = SegmentDistance(site, st.A.xz, st.B.xz);
-                    if (d < radius * 0.75f + st.Width * 0.5f + Verge - 0.5f)
+                    // W-138: a spur only has to miss the landmark's middle (it may lead past it, as a road would).
+                    var spur = k >= RoadBaking.SpurStreets.First && k < RoadBaking.SpurStreets.End;
+                    if (d < radius * (spur ? SpurClear : 0.75f) + st.Width * 0.5f + Verge - 0.5f)
                         return;
                 }
                 // Dry, gentle ground with no cave under it.

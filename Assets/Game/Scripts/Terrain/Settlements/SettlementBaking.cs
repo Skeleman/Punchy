@@ -65,6 +65,7 @@ namespace Punchy.Terrain
         {
             var watch = System.Diagnostics.Stopwatch.StartNew();
             roadsideLandmarks = new List<LandmarkInstance>();
+            LastSeaFolk = null;
             var layouts = Layouts(types);
             if (layouts.Count == 0 || !source.Landmarks.IsCreated)
                 return default;
@@ -92,7 +93,14 @@ namespace Punchy.Terrain
             }
             var lap = watch.ElapsedMilliseconds;
             var roads = new List<RoadsideBaking.RoadPath>();
-            RoadBaking.Build(source, layouts, firstBuilding, settlements, streets, plots, roads);
+            // W-138: roads also lead beyond the towns, to the sea folk landing, the mines and some caves. Those are placed
+            // after the roads in the bake, so the landing is found here the same way (from the rivers and landmarks so far)
+            // and the caves are read off their landmarks.
+            var sea = SeaFolkBaking.Place(source, types);
+            LastSeaFolk = sea;
+            float2? landing = sea.Count > 1 ? sea[1].Position : null;
+            var destinations = RoadBaking.Destinations(source, types, palette, landing);
+            RoadBaking.Build(source, layouts, firstBuilding, settlements, streets, plots, roads, destinations);
             var roadsDone = watch.ElapsedMilliseconds;
             roadsideLandmarks = RoadsideBaking.Place(source, types, roadside, roads, settlements, streets, layouts, firstBuilding, plots);
             var roadsideDone = watch.ElapsedMilliseconds;
@@ -103,6 +111,13 @@ namespace Punchy.Terrain
 
         /// <summary>W-16: the last Build's steps in ms, for the "[bake] stages" log line.</summary>
         public static string LastTiming = "";
+
+        /// <summary>
+        /// W-138: the sea folk village and landing the last Build found for its landing spur (null when it found none).
+        /// The bake places them later from these same spots: found again then, the spur's grading of the bank would move
+        /// the landing off the spur's end.
+        /// </summary>
+        public static List<LandmarkInstance> LastSeaFolk;
 
         /// <summary>One settlement being laid out.</summary>
         class Planner
