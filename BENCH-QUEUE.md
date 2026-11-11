@@ -490,11 +490,11 @@ Pass: row 6 <= +0.2 ms GPU over row 5 at both views, CPU within noise.
 - Views: job 45c's lake swim, job 45d's fall 74, job 45f's rapids. Profile builds, 1920x1080, High, uncapped, 4 rounds rotated. q89.sh.
 - Pass: swim and fall, new <= +0.3 ms GPU over off; rapids, new <= +0.2 ms GPU over row5.
 
-## Job 49b (2026-11-11, RUNNING (q90.sh); Zach in the profiler session): pricing and trimming R-12
+## Job 49b (2026-11-11, REPORTED 11-11 (warp +0.6-0.75 in the sky march; neither trial bit helps); q90.sh; Zach in the profiler session): pricing and trimming R-12
 - One Profile build of Punchy `b/r12-trims` 247d2777 (origin/main 393a9c20 + test bits): plain; `-skyoff 1024` (no warp); 2048 (the march reads the warp every other fine step: a trial fix); 4096 (cloud shadow and sun cover read the maps straight: prices their share); 6144 (both). Job 49's storm spots, 3 rounds rotated. q90.sh.
 - Purpose: split R-12's warp cost between the sky march and the per-pixel cloud shadow, and see what the half-rate march buys.
 
-## Job 45h (2026-11-11, QUEUED after 49b; Zach in the profiler session): R-10's town cost, trimmed
+## Job 45h (2026-11-11, REPORTED 11-11 (+1.0 town, reach cut no help); q91.sh; Zach in the profiler session): R-10's town cost, trimmed
 - One Profile build of Punchy `b/r10-trims` a1cb1899 (= light/forwardplus 1f6c966d + LightBudget's real-light reach: pixels past every real light's reach skip the Forward+ light loop): trim; `-realreach 0` (R-10 as is); `-floraglowworld 0` (prices plants' island glow); and origin/main 60edfacb. Job 45e's spot, town (yaw 201) and north, 3 rounds rotated. q91.sh.
 - Pass (45e's): trim <= +0.5 ms GPU over main at both views.
 

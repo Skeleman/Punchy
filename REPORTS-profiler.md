@@ -2,6 +2,44 @@
 
 Newest first.
 
+## Jobs 49b and 45h: the R-12 and R-10 trims, 2026-11-11 (q90.sh, q91.sh): neither trim helps; both costs located
+**Setup:**
+- Profile builds, 1920x1080, `-gfx High`, uncapped, `-weatherseed 4`, `-body default`, 3 rounds rotated.
+
+### 49b: R-12 (Punchy b/r12-trims 247d2777, on main 393a9c20), job 49's storm spots
+| spot | plain | `-skyoff 1024` (no warp) | 2048 (half-rate march warp) | 4096 (no warp in shadow / sun cover) | 6144 (both) |
+|---|---|---|---|---|---|
+| storm, night | 19.5, 19.6, 19.3 = **19.45** | 18.5, 18.8, 19.3 = **18.85** | 19.7, 19.3, 19.3 = 19.45 | 19.5, 19.1, 19.6 = 19.4 | 19.4, 19.5, 19.6 = 19.5 |
+| storm, noon | 18.1, 18.8, 18.9 = **18.6** | 17.6, 18.1, 17.8 = **17.85** | 18.4, 19.5 (stalled), 19.2 = 19.05 | 18.5, 19.1, 18.9 = 18.85 | 19.0, 18.8, 18.4 = 18.75 |
+| storm shadow | 15.2, 15.5, 15.1 = **15.25** | 15.2, 15.0, 15.0 = **15.05** | 15.3, 15.2, 15.4 = 15.3 | 15.2, 15.2, 15.3 = 15.25 | 15.2, 15.3, 15.2 = 15.25 |
+
+- **The warp costs +0.6 (night) and +0.75 (noon) ms GPU where the storm is in view, +0.2 under its shadow.** This matches job 49.
+- **Half-rate warp in the march (2048): no saving.** It only thins the fine steps inside the cloud. Most of the march's warp reads must be in its long strides through empty air, which always read afresh.
+- **The shadow's and sun cover's warp (4096): no measurable share.** So the per-pixel shadow isn't where R-12's cost is; it's the sky march.
+- **Odd but real:** with `-skyoff 1024` the median frame is also lower under the storm's shadow (15.4 against 16.1–16.4 ms), and so is CPU (16.0 against 16.6–16.9) in every round, though GPU is equal. I don't have an explanation yet.
+- **Next fix to try:** read the warp only when the march step is within a vertical band round the cloud layer, tested with the unwarped shape map plus a margin. The warp moves the maps sideways (up to ±400 m), not up or down, so a step well below the cloud base or above the tops can skip it. That should catch the long under-base strides of ground-level rays.
+
+### 45h: R-10 (Punchy b/r10-trims a1cb1899, light/forwardplus 1f6c966d + real-light reach cut), job 45e's spot at 22:00
+| view | trim (reach cut on) | `-realreach 0` (R-10 as is) | `-floraglowworld 0` | main 60edfacb |
+|---|---|---|---|---|
+| town (yaw 201) | 16.1, 16.0, 15.9 = **16.0** | 16.0, 15.9, 16.1 = 16.0 | 16.2, 16.0, 16.1 = 16.1 | 15.0, 15.1, 14.9 = **15.0** |
+| north | 16.5, 16.6, 16.5 = **16.55** | 16.6, 16.6, 16.6 = 16.6 | 16.5, 16.4, 16.1 = 16.35 | 16.2, 15.8, 16.0 = **16.0** |
+
+- **R-10 is +1.0 ms GPU at the town and +0.55 north on this run.** Job 45e had +0.8 and +0.15; rule 23's bar is +0.3 for a Medium feature.
+- **The reach cut changes nothing.** Neither does the plants' island glow. Together with job 45b (no change at light budgets 0, 48 or 64), the per-pixel light loop and the light count are ruled out.
+- **What's left:**
+  - the shader variant itself: `_CLUSTER_LIGHT_LOOP` compiled into terrain, plants, grass, pebbles, creatures and caves, which also switches URP's own code paths for that keyword;
+  - the far lights draw and the town dome;
+  - CPU-side Forward+ work showing up as GPU time.
+- **Next:**
+  - a RenderDoc pair (trim against main) at the town view, to name the draws that grew;
+  - a build of R-10 without the `_CLUSTER_LIGHT_LOOP` multi_compile in the surface shaders (the real lights off, everything else on), to price the variant alone.
+- **The light-system owner may know URP's Forward+ variant costs better than the profiler.** Supervisor: worth asking them in parallel.
+
+Files (Punchy-wt results): q90.out, q90-*.csv, q90logs/; q91.out, q91-*.csv, q91logs/, q91-shots/.
+
+Cost: laptop total $755 (laptop session 0a48ccdb; 2 builds plus one over the old 50-minute cap, 69 games).
+
 ## Job 45g: R-9 rows 4-6 with the wave field savings (b/water-rows-fixes 0318b5ee), 2026-11-11 (q89.sh): better, none passes yet
 **Setup:**
 - Three main arms:
