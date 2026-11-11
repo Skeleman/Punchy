@@ -5537,3 +5537,52 @@ Branch `world/mountain-tunnels` at a149c17f (pushed), on 0ef51794. One commit: C
 - The tunable, env `PUNCHY_SUNROAD` (2 gives 4b's stronger far band) and the far-band code all stay. Only the default and its doc comment changed. TerrainStreamingSystem.cs is still CRLF.
 - No new shots: the `-r4.png` files in W-132/row4b/pair/ are strength 1.
 - Suite: `DONE 24 passed, 1 failed, 17 skipped`. The one failure was the known-flaky LiveFolk_BeastResponse, which passed when rerun alone. Pins hold: Landmarks_V3 112 A955AFE0, Fauna_Fingerprint AD723954.
+
+## W-140 (island cache; tree Punchy-world, branch world/island-cache)
+
+### Row 1: survey - done (verified)
+- Commit c3eea1df on world/island-cache (pushed), from origin/main 393a9c20. Small code only: `IslandCache` (Terrain/Island) lists every blob the island bake writes, and the bake now logs `[island] blob sizes ...`. No output change.
+- WorldTests (batch): `10 passed, 0 failed, 0 skipped`. Pins hold: Landmarks_V3 112 A955AFE0, Fauna_Fingerprint AD723954.
+- **What the island-ready frame builds** (IslandV2System.OnUpdate, v3). Sizes are serialised sizes from the new log line:
+
+| Output | Saveable | Size | Runtime-state dependence |
+|---|---|---|---|
+| BiomeMap blob | yes, plain BlobArrays | 256K | none |
+| Island (heightmap) blob | yes | 2048K | none |
+| V3Ground blob | yes | 1024K | none |
+| Rivers blob | yes | 19202K | none |
+| Landmarks blob | yes | 50K | type indices into the palette's landmark list (see LandmarkTypes below) |
+| Settlements blob | yes | 738K | none |
+| Caves blob | yes | 768K | none |
+| BatFolk blob | yes | <1K | none |
+| Icebergs blob | yes | 58K | none |
+| GrandFalls blob | yes | <1K (off without -lakeshelf) | none |
+| Archipelago blob | yes | 1K | none |
+| Anchors blob | yes | 144K | none |
+| PondMask blob | yes | 512K | none |
+| Scalars: BiomeKind, RiverSettings (after the v2/v3 adjustment), PondsOn, RiverRoughOn; BiomeCells = default | yes | bytes | none |
+| Palette landmark list (LandmarkTypes appends 6 Resources village types) | no (asset refs) | - | stays runtime; cheap, idempotent |
+| FloraSystem.Pregrow (plant variants on workers) | no (meshes) | - | stays runtime; depends on palette, not island |
+| Bake statics: IslandV3.LakeCentre, V3Ranges massif/spine/pass/border tables, CampsiteTest.At | not needed by runtime | - | read only by the bake itself, the audits and -campsitetest |
+
+  - Total **24.22 MB** per version. Rivers is 79% of it. No blob holds an Entity, UnityObjectRef, BlobPtr, BlobString or pointer, so `BinaryWriter.Write<T>(blob)` / `Read<T>()` (Entities 6.5) round-trip them byte for byte.
+  - Runtime systems read only the blobs and `IslandV2.ActiveVersion`, never the bake statics. So the plan is safe.
+- **Proposal for row 2:**
+  - **File:** header (magic, format version, island version, key hash, blob count), then the scalars, then per blob its name, its byte length and the Write<T> bytes in IslandCache.Each order, then a 128-bit xxHash3 of everything before it. Written to a temp file and moved into place. A wrong magic, version, name, length or checksum is a miss, never an exception. Raw, not compressed: a read is a memcpy, and 24 MB is fine on disk.
+  - **Key** (any change means a miss):
+    - format version
+    - island version
+    - bake flags: -lakeshelf / PUNCHY_LAKESHELF, PUNCHY_SPRINGS
+    - the bake inputs as they arrive from the subscene: World, BiomeNoise, RiverSettings (before adjustment), SpawnCell, HeightKind, plus the Biomes and Heightmap blob bytes
+    - a code+data stamp. Editor: hash of Library/ScriptAssemblies/Assembly-CSharp.dll, Application.unityVersion, Packages/packages-lock.json, and AssetDatabase.GetAssetDependencyHash over the World subscene's recursive dependencies plus the six Resources village types and theirs. Player: the stamp the build step wrote next to the file; with no stamp, no cache.
+  - **Where:**
+    - Editor: Library/IslandCache/island-v{n}.bin (git-ignored, per tree).
+    - Player: StreamingAssets/IslandCache/ (row 3's build step writes it), then a per-user copy in persistentDataPath for other flags.
+  - **Stays runtime:** DecideVersion and the joined client's wait for HostVersion, LandmarkTypes(palette), FloraSystem.Pregrow, per-process sharing (Shared), the landmark hash log, the river report.
+  - **Bypass** (fresh bake, no write): -freshisland / PUNCHY_FRESHISLAND=1, -campsitetest. Audits (-islandaudit / PUNCHY_ISLANDAUDIT, which the editor menu turns on by default) need the bake statics. On a hit I plan to skip them with a log line that says so, rather than bake fresh. Otherwise editor plays and the suite would never hit (audits are ~21 s of the 39 s to ready in the suite run). -freshisland runs them.
+- **Rule 22 gaps seen:**
+  - (a) GrandFalls reads IslandV3.LakeCentre, a static set by Generate, instead of an input.
+  - (b) The audits read V3Ranges statics.
+  - (c) LakeShelfOn and PUNCHY_SPRINGS are read from flags inside bake steps, not passed in as settings.
+  - (d) LandmarkTypes mutates palette.Landmarks at runtime.
+  - None blocks the cache: (c) goes into the key.
