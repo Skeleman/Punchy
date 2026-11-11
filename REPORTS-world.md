@@ -4781,7 +4781,7 @@ Proposed fix (world lane, RoadBaking + TunnelPortalKit):
 ### Row 1: contact darkening hugging the footprint: done (verified)
 
 - Commit aa0b87f9 (pushed; the branch started from W-135 row 5, e5dcb14b). New GroundContacts.cs: each flora model gets a list of "feet", sized from where it touches the ground: a trunk's width (never its canopy), a rock's base outline, walls and posts of built pieces, a prop's legs. BuildChunkMeshJob darkens the terrain vertex albedo at every LOD: darkest at the seam (ContactShade.Seam 0.54), fading out within about one to two widths. Placement is only read, never moved.
-- Feet per model: a trunk 1, a boulder up to 8 base pieces, the KitHouse 156 along its walls (capped at 160 per model; the fit coarsens until it fits). Fence posts and stall legs are their own small feet.
+- Feet per model: the KitHouse has 156 along its walls (capped at 160 per model; the fit coarsens until it fits), a RailFence 4. Models by kind (893 in all): 215 plants and trees, 167 rocks, 465 buildings, 46 props.
 - Shots (same camera before/after, contacts off/on, clear sky, time frozen at 14:00): milestone folder W-136/row1/, sheet_near.png (2-5 m: trunk, boulder, house wall, fence post, stall) and sheet_far.png (the same at 30 m). diff_sheet.png shows where pixels got darker (top near, bottom far). Darkened pixels per near shot: trunk 17k, boulder 109k (a large rock, so its reach covers the frame), wall 58k (a band along the base), post 837, stall 142.
 - Pins: Landmarks_V3 112 A955AFE0 and Fauna_Fingerprint AD723954 are unchanged (in the PlayMode suite, run before the last handoff).
 - lod-lint on aa0b87f9 flagged `bin < 50f` in the feet fit. That is model geometry (the coarsest merge bin), not a view range. 3b1cb6aa makes it a named constant; lint on 3b1cb6aa prints nothing.
@@ -4790,3 +4790,20 @@ Proposed fix (world lane, RoadBaking + TunnelPortalKit):
   - Wall feet are clamped to 3 m wide, so a house band is about 1 m and partly under the wall. From eye height (1.7 m) it is foreshortened; it reads best from about 3 m up.
   - When flora publishes or a tunable changes, all loaded chunks re-mesh once. To catch objects across chunk edges, chunk builds look this far out: 36 m for natural objects, 52 m for built ones.
 - BENCH request (rule 21, lanes don't time): chunk build cost (ms per LOD0 chunk) and frame time over a forest and a town, main vs world/ground-contact-shade. The contact pass loops over the feet near each chunk inside the Burst job.
+
+### Row 2: per-kind strength and reach tunables: done (verified), waiting for Zach's OK
+
+- Commit 3b1cb6aa (pushed). FloraSystem's inspector has a "Ground contacts (W-136)" header with ContactPlants, ContactRocks, ContactBuildings and ContactProps, each with Strength (0-2, where 1 means the seam reaches ContactShade.Seam) and Reach (0-2, where 1 means about the contact's width). FloraSystem passes them to GroundContacts. A change re-meshes the loaded terrain once, and you can tune them live in play mode. They change only how the ground looks, so each peer just uses its own values.
+- The kinds follow DetailPolicy's flora classes. Plants and trees are one kind. Buildings means every Structure form, so fences, stalls, wells and signposts count as buildings. Props means the Debris forms: benches, seat logs, stumps, fire pits, woodpiles, driftwood.
+- Shot for Zach: milestone folder W-136/row2/sheet_row2.png (1200x676). Rows: trunk, boulder, house wall, fire pit with seat logs. Columns: all off, defaults (1/1), that kind at Strength 2, that kind at Reach 2. Pixels darker than "off" (count / largest drop, out of 255):
+
+| Subject | defaults | Strength 2 | Reach 2 |
+|---|---|---|---|
+| trunk | 17.5k / 27 | 31.6k / 62 | 33.8k / 29 |
+| boulder | 112k / 27 | 116k / 73 | 127k / 30 |
+| house wall | 52k / 13 | 75k / 30 | 74k / 15 |
+| fire pit + logs | 21 / 6 | 1.4k / 7 | 1.4k / 7 |
+
+- Props barely show. Their feet are much smaller than the 1 m vertex grid, so there's almost nothing to darken at any setting. Making them show would need a finer grid or a decal, which is not in this card.
+- Full PlayMode suite on 3b1cb6aa: "completed: 25/25 passed". Pins Landmarks_V3 112 A955AFE0 and Fauna_Fingerprint AD723954 are unchanged.
+- The row 1 BENCH request covers this row too: with the defaults the cost is the same as row 1.
