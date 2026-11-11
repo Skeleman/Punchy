@@ -128,6 +128,14 @@ runcsv() { # outdir csvname commit cap round args...: run, then append its rows 
   [ -f "$R/$name.csv" ] || echo $HEADER > "$R/$name.csv"
   run $out $tag "$@"
   local rows=$(parse "$R/q-$tag.log" $c $cap $r)
+  # A game that measured nothing (killed in a stall, or hung) is run once more instead of losing the round (RETRY=0: not);
+  # its log is kept as q-<tag>.lost.log. A crash is not retried: the q-script's check reports it.
+  if [ -z "$rows" ] && [ "${RETRY:-1}" -gt 0 ] && ! grep -q 'Crash!!!\|Received signal' "$R/q-$tag.log" 2>/dev/null; then
+    mv -f "$R/q-$tag.log" "$R/q-$tag.lost.log" 2>/dev/null
+    log "$tag: no stop lines, running it again"
+    run $out $tag "$@"
+    rows=$(parse "$R/q-$tag.log" $c $cap $r)
+  fi
   [ -z "$rows" ] && log "$tag: no stop lines (see q-$tag.log)"
   [ -n "$rows" ] && echo "$rows" >> "$R/$name.csv"
 }
