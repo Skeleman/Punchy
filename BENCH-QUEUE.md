@@ -449,7 +449,7 @@ chunk's 23,844 (chunk + sheet 1.34x the chunk alone). Read only.
 - Record whole-frame GPU and CPU ms and the water pass ms per arm.
 Pass: on <= +0.3 ms GPU over off. A fall arm (fall 74, `-goto -2167,3,3691`) follows as 45d once row 5 pushes.
 
-## Job 45d (2026-11-10, QUEUED after 45c, same build; queued by the world lane for R-9 row 5, #232): R-9 fall arm on the laptop
+## Job 45d (2026-11-10, RUNNING on the laptop; q80.sh d; queued by the world lane for R-9 row 5, #232): R-9 fall arm on the laptop
 Row 5 adds a fine sheet on the river fall that looks biggest (cut along the drop, by screen size, under a 32k x Detail index
 budget) with its own lip curl, curtain ripples and foot churn in the vertex shader. Fall 74 near: 45,240 sheet indices (High). Read only.
 - Branch `water/deform` at 2856a634 (row 4 plus row 5; it can replace 24459300 for 45c too). Profile build, 1920x1080, uncapped, `-gfx High`.
@@ -458,7 +458,7 @@ budget) with its own lip curl, curtain ripples and foot churn in the vertex shad
 - Record whole-frame GPU and CPU ms and the water pass ms per arm.
 Pass: on <= +0.3 ms GPU over off, CPU within noise.
 
-## Job 45f (2026-11-10, QUEUED after 45d, same branch; queued by the world lane for R-9 row 6, #232): R-9 rapids whitewater on the laptop
+## Job 45f (2026-11-10, RUNNING on the laptop after 45d; q80.sh f; queued by the world lane for R-9 row 6, #232): R-9 rapids whitewater on the laptop
 Row 6 adds standing waves and crest whitewater on rapids (3 sines per pixel on rapids, plus the mesh on the fine sheet), and reads the
 river's flow ripples and streaks about a camera anchor (one extra read of each only while the camera is within 10 m of a 64 m grid line;
 four at a corner). Shader only; index counts unchanged (sheet 7992, chunk 4944 at spawn).
