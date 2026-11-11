@@ -210,3 +210,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-10: #250 merged (A-99, main 739cdff7). Job 48 queued (bench after merge). Fauna tree free. Leftover: CaveFishRange (CreatureRenderSystem.Extras.cs) added to R-13. A-99 saw another session's eval commands land in its editor (R-12 shot spot): R-12 told to target editors by PID.
 - 11-10: M-05 rows 1-3 (Model Lab, creatures) launched in D:/Unity/Punchy, branch fauna/model-lab.
 - 11-10: #251 merged (R-12, main 60edfacb; closes #241, #247 - haze table blit drew both passes). Job 49 queued. Punchy-release tree free: R-13 next there. R-12 editor guard now checks process command line.
+- 11-10: Punchy-release: R-10 merge-main (Creature.shader conflict) then R-13 launched. Job 45b: R-10 +0.3-0.4 ms vs own base (passes); re-bench vs main after the merge.
