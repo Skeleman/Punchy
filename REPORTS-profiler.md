@@ -31,6 +31,20 @@ where the field fully covers") left white ring ripples over most of the wake, an
 
 **For R-9 (water lane):** take b/fix-waterfield-step 17ec2216 rather than a9db11d7.
 
+**After a fresh boot (Zach restarted the laptop 11-11 01:53; q86.sh, same build and arms, 2 rounds):**
+| arm | bench GPU before → after | median frame after | RenderDoc frame after |
+|---|---|---|---|
+| old look | 18.85 → 18.45 | 23.0 | 62.02 |
+| fix 1 | 18.4 → 18.1 | 22.85 | 61.44 |
+| field off | 18.2 → 17.75 | 23.4 | 61.23 |
+
+- **Every arm is 0.3–0.4 ms GPU faster after the boot.** A mild drift over the long session, the same for every arm.
+- **The differences between arms are unchanged.** Fix 1 is about +0.35 ms GPU over off on the bench, and +0.2 RenderDoc ms
+  (under 0.1 ms real).
+- **Median frame time is not worse with the field:** fix 1 is 22.85 against 23.4 off.
+- So with fix 1 at cuts 4 and 30 Hz, the field is effectively free in frame time on the laptop.
+
+
 ## Wave field: 30/20 Hz fixed, displacement only (Zach, 2026-11-11; q82.sh, q83.sh; b/fix-waterfield-step)
 **Changes on the experiment branch:**
 - **96c1425a:** a move no longer forces its own step; the shift waits for the next scheduled one, and the shaders read the
