@@ -70,6 +70,10 @@ namespace Punchy.Terrain
         static readonly int DampingId = Shader.PropertyToID("_Damping");
         static readonly int DecayId = Shader.PropertyToID("_Decay");
         static readonly int CullId = Shader.PropertyToID("_Cull");
+        static readonly int RipplesId = Shader.PropertyToID("_PunchyWaterFieldRipples");
+        /// <summary>Profiler experiment (Zach 11-10): "-waterfieldripples 1" keeps the ring ripples and the field's foam
+        /// under the field (as before); otherwise its displacement alone shows the wake where it fully covers.</summary>
+        static readonly bool RipplesUnderField = LaunchInt("-waterfieldripples", 0, 0, 1) == 1;
 
         /// <summary>
         /// Profiler experiment (Zach 11-10, b/fix-waterfield-step): the field sleeps after SleepAfter steps with nothing
@@ -860,6 +864,7 @@ namespace Punchy.Terrain
                 pendingShift = int2.zero;
                 texelCorner = fieldCorner;
             }
+            Shader.SetGlobalFloat(RipplesId, RipplesUnderField ? 1f : 0f);
             // (Every frame, not only the ones that step: a 5 s log window over stepping frames alone spanned ~10 s at 20 Hz.)
             LogField();
             Shader.SetGlobalTexture(FieldId, fieldA);

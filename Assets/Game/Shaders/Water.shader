@@ -180,6 +180,9 @@ Shader "Punchy/Water"
             // z, how strongly it was stirred (0 an empty slot).
             float4 _PunchySwimmers[48];
             int _PunchySwimmerCount;
+            // Profiler experiment (Zach 11-10, b/fix-waterfield-step): 0 = where the wave field fully covers, its displacement
+            // alone shows the wake (no ring ripples, no field foam); 1 = as before ("-waterfieldripples 1").
+            float _PunchyWaterFieldRipples;
             // Where the ripples are, coarsely (CreatureWakeSystem's MarkMask): a cell 1 where some ripple reaches into it,
             // and (x, z of the map's corner, cells per metre, cells across).
             TEXTURE2D(_PunchySwimmerMask);
@@ -634,17 +637,26 @@ Shader "Punchy/Water"
                 // ripple reaches into: the rest of the water skips the loop.)
                 half wakeFoam = 0;
                 float2 wakeSlope = 0;
-                [branch] if (_PunchySwimmerCount > 0 && distance(input.positionWS, GetCameraPositionWS()) < 45 && NearRipple(p))
+            #ifdef _WATER_FIELD
+                // (Zach 11-10: where the field fully covers, the ring ripples would only be blended away below, so they
+                // aren't worked out there at all.)
+                float fieldWeight = PunchyWaterFieldWeight(input.restXZ);
+                bool ripplesHere = _PunchyWaterFieldRipples > 0.5 || fieldWeight < 0.999;
+            #else
+                bool ripplesHere = true;
+            #endif
+                [branch] if (ripplesHere && _PunchySwimmerCount > 0 && distance(input.positionWS, GetCameraPositionWS()) < 45 && NearRipple(p))
                     wakeSlope = SwimmerWakes(p, t, wakeFoam) * 0.6 * distanceFade;
             #ifdef _WATER_FIELD
                 // R-9: on the fine sheet the wave field's own slope takes over from the ripples (they fade back in towards
-                // the square's edge), with a little foam where a splash or a bow wave stands steepest. (Drawn 2.5x steeper
-                // than it is: dents of a few cm barely tilt the light otherwise.)
+                // the square's edge). (Drawn 2.5x steeper than it is: dents of a few cm barely tilt the light otherwise.)
+                // Zach 11-10: no foam of its own: the displacement shows the wake (-waterfieldripples 1: the old foam where a
+                // splash or a bow wave stands steepest).
                 {
-                    float fieldWeight = PunchyWaterFieldWeight(input.restXZ);
                     float2 fieldSlope = PunchyWaterFieldSlope(input.restXZ) * 2.5;
                     wakeSlope = lerp(wakeSlope, fieldSlope, fieldWeight);
-                    wakeFoam = lerp(wakeFoam, (half)smoothstep(0.9, 1.8, length(fieldSlope)) * 0.7h, (half)fieldWeight);
+                    half fieldFoam = _PunchyWaterFieldRipples > 0.5 ? (half)smoothstep(0.9, 1.8, length(fieldSlope)) * 0.7h : 0;
+                    wakeFoam = lerp(wakeFoam, fieldFoam, (half)fieldWeight);
                     // Row 5: foam where a fall's curtain lands and churns the pool.
                     wakeFoam = max(wakeFoam, (half)(fallChurn * 0.7));
                 }
