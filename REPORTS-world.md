@@ -4918,6 +4918,52 @@ Proposed fix (world lane, RoadBaking + TunnelPortalKit):
   - Row 2's job 56 stands as is.
 - Row 4 next (the horizon skirt and the haze knob).
 
+### Row 4: coarser far band, horizon skirt, haze knob, sun road on far water (2026-11-11) - done (verified)
+- Commit 0900515f on world/far-lite (pushed). It sits on row 3 (21df3a54).
+- Correction to the row 1 report: row 1 changed no code, so it has no game commit. Its report is coordination commit 30821339. The id a0f3c1e2 given earlier does not exist.
+- What changed:
+  - Far ring: a third tile level, 1024 m tiles. Past coarseFrom (~2.5 km) they draw a 64 m grid; inside the drawn reach they draw 16 quads per side, and 8 past it.
+  - Horizon skirt (from High up): the same 1024 m tiles carry the island shape and sea out to 1.35x the haze reach, about 6.2 km at High. The sun now sets on land or sea, not on the drawn ground's cut. It can be turned off for A/B: `TerrainStreamingSystem.FarSkirt` (env `PUNCHY_FARSKIRT=0`).
+  - Haze is decoupled from DrawDistance. **Knob: `TerrainStreamingSystem.HazeDistance`, default 4600 m** (env `PUNCHY_HAZE`, metres). WeatherSystem hazes to `HazeReach = max(HazeDistance, DrawDistance)` while the skirt is on, and to DrawDistance (2976 m at High, as before) when it is off or below High. At the drawn edge the haze is now about 80% instead of 98%, so the land and sea silhouettes read out to the horizon. I picked 4600 m by eye. Zach (11-11) saw it demoed and said keep the look.
+  - Sky.hlsl: `PunchyHazeHorizon` is factored out of PunchyAtmosphere (same maths). New `PunchySunRoad`: the view ray mirrored in a flat sea, tested against the sun's direction. It gives a band that is narrow across and long toward the viewer, broken into glitter by one value-noise read, with no cubemap and no texture. Clouds and the sun under the horizon fade it.
+  - The far water (`_PUNCHY_FAR_WATER`) adds the road over the haze, so it runs out to the skirt's sea. The skybox fades to the haze colour below the horizon and carries the road on past the skirt. Row 2's far-path choices are kept as they are: per-vertex colour, sky reflection and cloud shadow.
+- Far water fragment counts (ForwardLit, D3D11 bytecode; my opcode count):
+  - Before: 1737 instructions, 4 samples, 5 loads, 27 if/loop.
+  - After: 1818 instructions, 4 samples, 5 loads, 27 if/loop. That is +81 ALU and no new sample.
+  - Far water vertex is unchanged: 1966 instructions, 23 samples. The full-water fragment moved 9381 -> 9388 from the shared header, with no behaviour change.
+  - The analytic road was cheap enough, so no glint-quad impostor was built.
+- Shader messages: warnings only, no errors. They are "potentially uninitialized variable" in PunchyAtmosphere, FarWaterFrag and the skybox's PunchyBelowHorizon. Both shaders report isSupported.
+- Counts (High, Clear; skirt off vs on, same session and same view; counts only, no timing):
+
+  | View | Far tiles (256 / 512 / 1024 m) | Water tiles | Draws | Setpass |
+  |---|---|---|---|---|
+  | Start spot, skirt off | 308 (271 / 37 / 0) | 215 | ~2502 | ~435 |
+  | Start spot, skirt on | 405 (271 / 22 / 112) | 309 | ~2615 | ~490 |
+  | Hilltop -3460,2425, off | 297 (259 / 38 / 0) | 255 | ~1958 | 361 |
+  | Hilltop, on | 386-392 (255-259 / 18-21 / 112-113) | 341-347 | ~1880-2050 (noisy) | ~380-415 |
+
+  - Chunks are unchanged: 1936 at the start spot, 1952 at the hilltop. Vertex totals move by about 1% either way.
+  - Budget: rows 2-3 saved about 440-520 draws. Row 4 spends about 100 of them (~110 at the start spot) and about 95 more far-water tiles, so the net is still about 340-420 fewer draws than main.
+- No-holes flight with the skirt on (the probe now also checks level-2 tiles and the skirt's reach): 60 s at 40 m/s east from air300 (y 400). 1334 frames, 0 frames with holes, pending peaked at 1709. The only holes in the hilltop hold came from the 2.3 km teleport at its start (186 frames, then none).
+- Suite: `25 passed, 0 failed, 17 skipped in 397s`.
+- Pins hold: Landmarks_V3 112 A955AFE0 and Fauna_Fingerprint AD723954 PASS.
+- lod-lint world/far-lite vs origin/main: clean. HazeDistance is streaming haze, not a detail fade, and is labelled `// streaming:`.
+- Shots: milestone folder W-132/row4, before/ and after/. Spots: air300-sun0, airsea-sun1, hill-sun1, hill-sun0, ground-sun1 (shore at sea level, looking west at the sunset), and low120-noon (near-view check). Also `before-after-crops.jpg` and `hill-sun0-sun-crop.jpg`. All viewed; 0 magenta pixels on D3D11.
+  - hill-sun0: before, the drawn sea ended in a line above the sun, and the sun sat in a band of plain sky. After, the sun sits on the sea's horizon and the waves run all the way out to it.
+  - air300-sun0: mountains past the old edge now show at the right through the thinner haze.
+  - airsea-sun1 and ground-sun1: the sea's texture reads further out, with no cut.
+  - low120-noon: near ground, trees and water look the same as before.
+- Risks and notes:
+  - The road is subtle at these spots. It shows most with the sun just above the sea; at 300 m the haze still softens it. If Zach wants it stronger, raise the 0.25 + 1.25*glitter gain in PunchySunRoad (that changes the look, so ask him first).
+  - Clouds differ between before and after because weather drifts after the first goto (as in row 3). Cloud code is not touched.
+  - The skirt has no colliders, the same as row 3's far tiles.
+  - Below High nothing changes: there is no far ring, so there is no skirt and the haze follows DrawDistance.
+- BENCH-QUEUE request (row 4): world/far-lite at 0900515f, High, uncapped. One build, env A/B on the skirt and haze: `PUNCHY_FARSKIRT=0` vs default.
+  - Spots: air300 (`-goto -1236,1324 -camlook -1236,380,1324,-2236,270,1324`) at `-time 18` (sunset) and at noon.
+  - Record GPU and CPU frame time, draws, and the Water and Skybox GPU passes (the sun road on far water and in the skybox).
+  - Second leg: main vs world/far-lite at the same spots, for rows 2-4 together.
+  - Jobs 56 and the row 3 request stand.
+
 ## W-134 (cave water = surface water; tree Punchy-world, branch world/cave-water)
 
 ### Row 1: one water query for a 3D point - done (verified)
