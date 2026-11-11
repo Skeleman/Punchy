@@ -5118,6 +5118,45 @@ Branch `world/mountain-tunnels` at 277087ea (pushed), built on c3cdf1db. 90ffa7a
 
 **BENCH-QUEUE:** job 59 now carries the C0a walk: south to north through the bore at walking pace, with whole-frame ms and hitches located at the portals, mid-bore and under the tarn. No timing from the lane (rule 21).
 
+### W-138 row 3a: one bore per ridge, shorter bores: done (verified, 5a549268)
+Branch `world/mountain-tunnels` at 5a549268 (pushed), on 277087ea. One commit: RoadBaking.cs plus the Landmarks_V3 re-pin to 117 689D5348.
+
+**What changed** (RoadBaking.cs only):
+- `BoreLongest` is now 800 m (was 1500 m). With 1500 m the router ran dead-straight kilometre bores where a shorter bore plus a valley road fits. The one long, biome-changing tunnel is still C0a, laid by hand.
+- `FindBores` no longer offers a bore that passes under a town's closed cells (`UnderTown`). The old 1110 m north-south bore ran under the mining camp's edge, beside the second one.
+
+**Result** (map: `W-138/row3a/map-row3a.png`; grey is the row 2b roads):
+- The two parallel north-south bores near x -2000 are gone. Neither survives in any form, so nothing needed a fork inside.
+- The elf grove road now goes up the far west: a 480 m bore north at x -2937, then a 607 m diagonal to (-2459,638), then a surface road east into the camp, with a 120 m bore through the last ridge.
+- The camp-DwarfHold road is valley road, a 234 m bore, more valley road, then a 694 m bore NW. It was one 1260 m straight line.
+- Near the camp, two short bores (120 m going west, 234 m going NW) cross the same ridge band about 200 m apart. I kept them on purpose. They lead to different places, they diverge at about 45 degrees, and each is shorter than the ridge's way round. Unlike the old pair, they are not two copies of one route. If you'd rather they shared one bore, it's a router change: bores shared between roads.
+
+**Tunnels** (probe, play island seed 1337). Cover is ground over the bore's straight grade. "Line" is portal to portal including the approach.
+
+| Tunnel | From -> to | y | Bore | Line | Peak cover | Cover A / B | Grade |
+|---|---|---|---|---|---|---|---|
+| router | (-2937,-340) -> (-2937,140), elf grove road | 60 -> 125 | 480 m | 540 m | 45.6 m | 6.4 / 8.3 m | 0.134 |
+| router | (-2889,208) -> (-2459,638), elf grove road | 132 -> 213 | 608 m | 707 m | 51.1 m | 7.2 / 6.4 m | 0.133 |
+| router | (-2217,660) -> (-2097,660), into the camp | 234 -> 251 | 120 m | 180 m | 25.2 m | 15.6 / 10.1 m | 0.149 |
+| router | (-2058,701) -> (-2223,867), camp to dwarf hold | 258 -> 266 | 234 m | 283 m | 25.4 m | 9.7 / 6.6 m | 0.037 |
+| router | (-2471,894) -> (-2962,1385), camp to dwarf hold | 257 -> 166 | 694 m | 764 m | 52.5 m | 6.9 / 7.0 m | 0.131 |
+| **C0a** (hand) | (-1596,74) -> (-1596,1144) | 43 -> 92 | 1070 m | 1120 m | 103.8 m | 8.5 / 10.8 m | 0.046 |
+
+- 6 tunnels, 3206 m bored. Row 2b had 5 tunnels and 3883 m.
+- Every tunnel passes the same rule as row 2b: 20 m peak cover, 6 m or more at each portal, 60 m or more long, grade 0.15 or less.
+- Longest router bore: 694 m (was 1260 m).
+
+**Roads before -> after:**
+- Streets 3610 -> 3866, length 21556 -> 22283 m. The new length comes from the valley roads in place of bores.
+- Loops 2, breaks 1, the ruined bridge and the ford: unchanged.
+- Spurs: cave 19 is now 91 m (was 497 m), because the new west road passes near it. The other spurs, C0a's roads and the lake loop are unchanged. Cave 37 is still too far, and grottos 25 and 47 are still served.
+
+**Measures:**
+- Landmarks 114 00D16E22 -> 117 689D5348 (re-pinned in 5a549268).
+- What moved: three roadside campsites are new along the new far-west road: CampsiteForest at (-2894,-650), and two CampsiteFungal at (-2764,-981) and (-2669,-1313). C0a's south waystation (CampsiteSwamp) moved 65 m, from (-1608,14) to (-1582,73). The other 113 are unmoved.
+- Fauna_Fingerprint: AD723954, unchanged (read live).
+- I didn't run the suite for this row; it runs after row 3's final re-pin, as asked.
+
 ## W-132 (cheaper 3 km landscape, horizon; tree Punchy-release, branch world/far-lite from origin/main cc835cf6)
 
 ### Row 1: the horizon oddity (2026-11-10): done (verified; diagnosis only, no code change)
