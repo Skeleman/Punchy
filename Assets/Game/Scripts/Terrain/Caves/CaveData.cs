@@ -916,7 +916,7 @@ namespace Punchy.Terrain
         /// <summary>W-134 row 4: a river chamber's chute runs this many metres per metre it drops (about 35 degrees at its steepest).</summary>
         public const float ChuteRun = 1.4f;
         /// <summary>W-134 row 4: a river chamber's gallery: its round roof's radius, and that roof's middle over the floor (m).</summary>
-        public const float GalleryRadius = 2.4f, GalleryRise = 1.2f;
+        public const float GalleryRadius = 2.4f, GalleryRise = 1.2f;   // collision: the carved tunnel's size, not a draw range
 
         /// <summary>
         /// W-134 row 4: a river chamber's floor (no noise) at a distance along its axis from A, and how steeply it falls
