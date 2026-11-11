@@ -26,7 +26,8 @@ namespace Punchy.Tests
             yield return null;
         }
 
-        /// <summary>Target: 112 landmarks, probe hash A5D1D048 since W-138 row 2a (the sea folk landing 2 m and village 16 m
+        /// <summary>Target: 114 landmarks, probe hash 00D16E22 since W-138 row 2b (the two C0a waystations added; the roadside
+        /// picks re-drawn on the new road net: inns, shrines, campsites, monuments and a ruin moved). 112 / A5D1D048 since W-138 row 2a (the sea folk landing 2 m and village 16 m
         /// moved: their spots are now found before the roads; the other 110 unmoved). A955AFE0 since W-122 row 1 (the MarshFolkVillage entry appended; the other
         /// 111 hash to 3BDF705F unchanged). 111 / 3BDF705F since W-114 (the Ashlands ribcage on its own spot; the other 110
         /// unmoved). 110 / 09EAC0FE since W-105 row 3 (stilt houses out over the shallows; village
@@ -37,7 +38,7 @@ namespace Punchy.Tests
         {
             var hash = Game.Hook<string>("LandmarkHash");
             LogWatch.Measure($"landmarks {hash}; game line: {LogWatch.Last("[island]")}");
-            Assert.AreEqual("112 A5D1D048", hash);
+            Assert.AreEqual("114 00D16E22", hash);
             yield return null;
         }
 
