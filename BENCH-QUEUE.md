@@ -499,3 +499,11 @@ Row 2 turns the fixed-metre visual ranges (landmark effects, flames, chimneys, f
 - Spots: (a) village at night `-place HumanVillage -time 22 -weather Clear`; (b) forest at night `-place meadow -time 23 -weather Clear`; (c) hilltop `-place HumanVillage -time 12 -frame HumanVillage -framing aerial`; (d) a 300 m flight from (c) at walking-camera height, timed by frame ms only.
 - Record whole-frame GPU and CPU ms per arm and spot.
 - Pass: branch within noise of main at High at every spot; at Medium, branch <= main. A miss means a fix on lod/screen-size before the merge.
+
+## Job 52 (2026-11-10, QUEUED after 51; supervisor, for W-135 row 2): cave wall levels by screen size
+Cave chunks are now built at 0.5, 1 or 2 m by screen size, with skirts on chunk borders; `-cavelevel 0` forces the old single level (= main).
+- Arms: branch `world/cave-lod` at 9d3d86dd or newer, default vs the same build with `-cavelevel 0`. Profile build, 1920x1080, High, uncapped, ABBA, 300 frames per arm.
+- Views (shotcam): (a) c5 tunnel (-2864, 24.5, -567) looking at (-2799, 27, -551); (b) c5 big room (-2810, 27, -556) looking at (-2795, 29, -549); (c) c1 mouth approach (-3155, 172, 1038) looking at (-3110, 169, 1038).
+- Also: one walk down the c5 tunnel per arm; list frames over 2x the median (rebuild swaps upload during the walk).
+- Record whole-frame GPU, CPU and render-thread ms per arm and view.
+- Pass: default no slower than `-cavelevel 0` at every view, and no new spikes on the walk.
