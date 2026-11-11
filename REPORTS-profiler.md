@@ -2,6 +2,56 @@
 
 Newest first.
 
+## Job 49: R-12 cloud warp and rain (#251), 2026-11-11 (q87.sh): FAIL at every spot (+0.45 to +1.1 ms GPU against <= +0.1)
+**Setup:**
+- Three arms:
+  - **main:** origin/main 60edfacb;
+  - **warp off:** the same build with `-skyoff 1024`;
+  - **before:** 739cdff7, before R-12.
+- Profile builds, 1920x1080, `-gfx High`, uncapped, `-weatherseed 4`, `-body default`, a fresh game per run.
+- 4 rounds, with the arm order rotated each round. Each spot measured by the bench's "here" stop (20 s).
+- **New bench flag:** `-benchweatherat x,z` (Punchy b/bench-stress a0e26c92) forces `-benchweather`'s preset at a given point instead of over the player. The logs confirm "Weather: forced Storm at 5489,-897 (held)".
+
+**Spots:**
+- **stormnight / stormnoon:** card spot (a). `-goto 1489,-897`, shotcam 1489,88,-897 -> 1889,98,-897, Storm forced at (5489,-897), at 22:00 and 12:00. The storm and its rain shaft are in the middle of the view.
+- **shadow:** card spot (c). Shotcam 1489,30,-897 -> 1889,25,-600, Storm forced at (1700,-1900), at 12:00.
+- **rain:** Rain forced over the player at `-goto 1489,-897`, noon, eye level.
+  - This stands in for the lone-oak spot. Its camera line (w133-flora.txt) isn't in the repo or the coordination files.
+  - World lane: please paste the oak's shotcam line here if that view is still wanted.
+
+| spot | GPU main | GPU warp off | GPU before | median frame main / warp off / before | main − before GPU | warp's share (main − warp off) |
+|---|---|---|---|---|---|---|
+| stormnight | 18.5, 18.9, 18.6, 18.2 = **18.55** | 17.5, 17.6, 17.6, 18.2 = 17.7 | 17.5, 17.6, 17.5, 17.4 = **17.5** | 21.7 / 21.1 / 20.8 | **+1.05** | +0.8 |
+| stormnoon | 17.9, 18.2, 18.1, 18.4 = **18.15** | 17.6, 17.6, 17.5, (18.4 stalled) = 17.6 | 17.1, 17.1, 16.9, 17.1 = **17.05** | 20.3 / 20.6 / 20.2 | **+1.1** | +0.55 |
+| shadow | 15.0, 15.0, 15.1, 15.0 = **15.0** | 15.1, 14.6, 14.8, 14.7 = 14.8 | 14.6, 14.5, 14.5, 14.4 = **14.5** | 15.75 / 15.1 / 15.0 | **+0.5** | +0.2 |
+| rain | 13.3, 13.4, 13.2, 13.3 = **13.3** | 13.2, 13.1, 13.2, 13.3 = 13.2 | 12.9, 12.8, 12.8, 12.9 = **12.85** | 14.5 / 14.4 / 14.35 | **+0.45** | +0.1 |
+
+**FAIL: R-12 costs +0.45 to +1.1 ms GPU against the <= +0.1 bar.**
+- At every spot, every main round is above every before round, so this isn't noise.
+- Frame time follows: +0.85 ms median at stormnight and +0.75 at shadow. At stormnoon and rain the frame is CPU-bound and moves +0.1 or less.
+
+**The warp is most of it where a storm is in view:**
+- +0.8 ms at night and +0.55 at noon, measured as main against `-skyoff 1024` on the same build.
+- What's left over before (warp off against before) is +0.2–0.45 ms. That's the rest of R-12: the warp sample per rain step, which it takes in all weather, plus the extra noise in cloud shadow and sun cover.
+- I haven't checked whether `-skyoff 1024` also turns off the extra samples in the shadow and sun-cover helpers, or only the sky's map reads. If it only covers the sky, the warp's real share is larger than this column shows.
+
+**Rain spot:** +0.45 ms, of which the warp is only +0.1. So the per-pixel cost there is mostly the rain march's new warp sample and the creature, ground and mist shaders' extra cloud-shadow noise.
+
+**Suggested fix directions (for the fix branch the card calls for):**
+- Take the warp sample once per pixel or per ray, not once per rain step.
+- Skip it where there's no weather volume along the ray (clear sky, outside the shaft).
+- Drop the per-pixel cloud-shadow noise in Creature, Cave, Colossus and mist for a per-vertex or a low-resolution shadow map read.
+
+**Visual check:** rain over near ground shows as thin streaks with the land visible through them; there is no grey wall (shots rain-*, shadow-*).
+
+**Stalls:** 6 of 48 games had a 55–69 s swapchain stall inside the stop, and one had a 6 s stall. They were spread across arms. The one inflated reading (stormnoon warp off r4, CPU 26.3) is excluded from that mean.
+
+**Build note:** the first build of 60edfacb hung in Burst AOT until the 50-minute timeout. The cause was leftover `Assets/Resources/PerformanceTestRun*` files in the main checkout, as before. Deleting them fixed it.
+
+Files (Punchy-wt results): q87.out, q87-*.csv, q87logs/, q87-shots/.
+
+Cost: laptop total $739 (laptop session 0a48ccdb; 2 builds plus one timed-out build, 48 games).
+
 ## Job 48: A-99 creature extras by screen size (#250), main be98cde1 vs 739cdff7, 2026-11-11 (q85.sh): PASS
 **Setup:**
 - Profile builds, 1920x1080, `-gfx High`, uncapped, `-weatherseed 4`, Clear, `-body default`, a fresh game per run.
