@@ -546,3 +546,10 @@ W-132 row 2 on `world/far-lite`: far LOD chunks use runtime material copies with
 - Also: first 20 s after load at (b); list frames over 2x the median (shader variant warm-up).
 - Record whole-frame GPU, CPU and render-thread ms per arm, view and quality.
 - Pass: B faster than A on GPU at (b) and (c), within noise at (a); no new hitch over 2x median.
+
+## Job 57 (2026-11-11, QUEUED after 56; supervisor, for W-134 row 2): baked cave water
+W-134 row 2 on `world/cave-water`: cave pools and streams are baked as 0.5 m quads fitted to the carved floor (a Burst bake job per cave when it first comes within LoadRadius), tiled, each tile drawn only while big enough on screen. Pool 2: 540 -> 2939 triangles; pool 8: 1040 -> 4706.
+- Arms: (A) origin/main 393a9c20 or newer; (B) `world/cave-water` at 54dd9ff3 or newer. Profile builds, 1920x1080, High, uncapped, ABBA, 300 frames per arm. Can share a session with job 55 (same branch).
+- Views: (a) `-place cavepool`, looking over the pool; (b) a stream cave if one can be placed; (c) the walk from the cave mouth to the pool (the bake fires on approach): list frames over 2x the median.
+- Record whole-frame GPU, CPU and render-thread ms, plus draw calls and the bake job's main-thread cost if it shows in the profiler.
+- Pass: B within noise of A at (a) and (b); no new hitch over 2x median on (c).
