@@ -4808,6 +4808,40 @@ Proposed fix (world lane, RoadBaking + TunnelPortalKit):
 - Full PlayMode suite on 3b1cb6aa: "completed: 25/25 passed". Pins Landmarks_V3 112 A955AFE0 and Fauna_Fingerprint AD723954 are unchanged.
 - The row 1 BENCH request covers this row too: with the defaults the cost is the same as row 1.
 
+### Row 3: one contact-shade path for every surface: done (verified)
+
+- Commit 077acd90 (pushed, world/ground-contact-shade). Zach 11-11: unify the methods rather than keeping a cave version and an overworld version. Defaults stay at 1/1.
+- The one code path is ContactShade (Assets/Game/Scripts/Terrain/ContactShade.cs + ContactShade.Footprints.cs):
+  - Footprints: one fit for every placed thing. ModelFeet handles flora models on the terrain and in caves (fitted feet, then ground colliders, then trunk, plus a stem for cave plants). PartFoot handles kit parts, using W-135's lying-drum line and lowest-face box rules. BoxFoot handles dungeon boxes. FitFeet does the slice fit.
+  - Shade: Weigh + Darken, used through Contact.ShadeAt and Contact.Near.
+  - Tunables: one per-kind Strength/ReachScale set, through ContactShade.Set and Version. FloraSystem's inspector sets it.
+  - Users: terrain chunks (GroundContacts + BuildChunkMeshJob), cave chunks (CaveSystem.MeshJob SeamShade) and room/kit tiles (CaveRoomKit.BuildMeshes). All three take their footprints, shade and tunables from ContactShade, and each mesh build gets copies of the tunables.
+- Deleted duplicates:
+  - from GroundContacts: its own Foot/Kind structs, FitFeet, the tunables, KindOf and the per-foot Kinds array
+  - from CaveSystem: its own cave-plant footprint code and the SeamShade fall-off math
+  - from CaveRoomKit: its own part-foot switch
+- Net change in 11 files: +479 / -364.
+- Split dropped: any contact now darkens whatever surface it touches. Cave plants and dungeon boxes feed room tiles (RoomTileContacts lists the kit's own contacts, then the plant and box contacts standing in that room). A tunable change re-meshes the terrain, cave chunks and rooms once.
+- Kit shell tiles cull contacts per part by bounds. Set parts count only contacts on the floor or on their own raised top.
+- Contact counts (before -> after, at the defaults):
+  - Terrain feet: 43960 -> 43960, over 893 models. By kind (plant/rock/building/prop): 206/6577/35812/1365.
+  - Room kits' own contacts (grotto/lake/root/ruin): 140/92/27/672 -> the same.
+  - Dungeon boxes: 298 -> 298. Extra tile contacts per room type: 8/5/3/14, all boxes, as before.
+  - Cave plants: 1209 -> 4564. They now use the same fitted feet as the terrain (several capsules per rock or bush) instead of one collider or stem disc each.
+  - Plant contacts on room tiles: 0. No cave plant stands within 2 m of a room's floor area today (the nearest is 2.2 m outside), so the dropped split only matters for future placements.
+- Shots (same camera before/after, milestone folder W-136/row3/): before_/after_ trunk, boatpost, lakeroom and ruin; sheet_*.png puts them side by side; diff_*.png marks the pixels that changed by more than 8/255.
+  - Checked at small size: no change in ground, rock or tile shading.
+  - The changed pixels are animated water, the boat bobbing, a doorway highlight, and clouds in the trunk sky (ruin: 232 px).
+- Changes at the defaults, besides the split:
+  - Caves now also skip contacts fainter than ContactShade.Faint (4% at the seam). This only applies to small contacts on coarse cave LODs, which the terrain already skipped.
+  - Cave chunk contact buckets are wider because Extent allows reach x2. This doesn't change the shade.
+- lod-lint on 077acd90 prints nothing.
+- Full PlayMode suite on 077acd90: 24/25 passed. The one failure was the known-flaky FolkConversationTests.LiveFolk_BeastResponse ("Idle 81.1"), which passed when rerun alone. Pins Landmarks_V3 112 A955AFE0 and Fauna_Fingerprint AD723954 are unchanged.
+- BENCH request (rule 21, lanes don't time): compare main with world/ground-contact-shade 077acd90 on:
+  - cave room mesh build cost (CaveRoomKit.BuildMeshes for a ruin room and a lake room)
+  - cave chunk mesh build with about 3.8x more plant contacts
+  - terrain LOD0 chunk build over a forest and a town
+
 ## W-138 (mountain tunnels; tree Punchy-release, branch world/mountain-tunnels from origin/main cc835cf6)
 
 ### Row 1: survey of roads against ranges and big relief: done (no game code changed), waiting for the rule review with Zach
