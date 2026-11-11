@@ -5612,3 +5612,26 @@ Branch `world/mountain-tunnels` at f6217674 (pushed), on a149c17f. One commit: C
   - (c) LakeShelfOn and PUNCHY_SPRINGS are read from flags inside bake steps, not passed in as settings.
   - (d) LandmarkTypes mutates palette.Landmarks at runtime.
   - None blocks the cache: (c) goes into the key.
+
+### W-140 row 2: save + load, switch, tests - done (verified)
+- Commit c5d72dae on world/island-cache (pushed).
+- **What it does:**
+  - IslandV2System builds a SHA256 key from: the format and island version, the lakeshelf/springs flags, the code+asset stamp, the setting structs, the Biomes/Heightmap/BiomeMap/BiomeCells bytes, and the biome and landmark names and counts.
+  - On a match it loads the file and skips the bake. A missing, mismatched or unreadable file (checksum, magic, format, key, sizes) gives a fresh bake and a rewrite, never an error.
+  - The save writes a temp file, then moves it into place.
+  - Logs `[island] cache hit|miss <reason> <ms> ms`.
+  - `-freshisland` or `PUNCHY_FRESHISLAND=1` (and `-campsitetest`) bypass the cache.
+  - On a hit the audits are skipped, with a log line saying so.
+- **Tests** (WorldTests, `bash scripts/run-playmode-tests.sh WorldTests`):
+  - `IslandCache_LoadedEqualsFresh`: every blob is byte-equal live vs fresh and loaded vs fresh. BiomeKind and RiverSettings are equal. The landmark hash is equal fresh/live/loaded. A key changed by one character does not load.
+  - `IslandCache_SavesEveryBlob`: fails if TerrainSource gains a blob the cache doesn't save.
+  - Miss run (key changed): 12 passed, 0 failed.
+  - Hit run: 12 passed, 0 failed, 0 skipped. Log: `[island] cache hit Library/IslandCache/island-v3.bin 24.22 MB`.
+  - `PUNCHY_FRESHISLAND=1` run: 12 passed, 0 failed. Log: `cache miss bypass (-freshisland)`.
+- **Pins:** landmarks 112 A955AFE0 and fauna fingerprint AD723954 hold on all three runs.
+- **File:** 25,397,152 bytes (24.22 MB of blobs).
+- **Fix found on the way:** the Rivers blob is changed in place after it is built, so its header hash is stale. The load restores the stored header hash, so the bytes match exactly. Nothing at runtime reads that hash.
+- **Risks:**
+  - Writing uses reflection on internal Entities types (StreamBinaryWriter; the blob address for the hash restore). An Entities upgrade could break it. It then fails safe: "cache not saved", fresh bake.
+  - Unsaved in-memory asset edits in the editor are not in the stamp.
+- **BENCH-QUEUE request (profiler, not timed by me):** launch to island-ready (`v3 ready at N s since start`). Compare a cache hit against `-freshisland`, on a main PC Dev build and on the laptop. Use the row 3 build in Builds/Dev, once it lands.
