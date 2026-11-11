@@ -4858,3 +4858,32 @@ Proposed fix (world lane, RoadBaking + TunnelPortalKit):
   - The first ground and hill set (W-132/row1) was blocked by trees and was retaken in row1b.
   - Note: the row1b set shows thick cloud under "-weather Clear", but the air300 set has none.
 - Pins: not run (no code changed).
+
+## W-134 (cave water = surface water; tree Punchy-world, branch world/cave-water)
+
+### Row 1: one water query for a 3D point - done (verified)
+- Commit 0a726943 on world/cave-water (pushed). New `TerrainSource.SampleGround(float3)`:
+  - At or above the ground it gives the float2 answer, at the cost of one compare.
+  - Below the ground, `CaveSampling.WaterAt` does a box test per cave, then uses the pool basin or the stream's carved bed. It sets `GroundSample.CaveWater` and gives Height = bed, plus the water level, flow and rapids.
+- Callers now asking with the 3D position: swimmer wakes (CreatureWakeSystem), the R-9 field (WaterPatchSystem.SourceJob), player swimming (the floor in a cave pool) and river current (PlayerMovementSystem).
+- Test `WorldTests.CaveWater_SurfaceMatchesAndPoolStirs` (about 5 s):
+  - Surface matches main: 0 of 4000 random spots differ on the ground or 5 m above it, and 0 of 4000 differ 30 m underground away from cave water.
+  - Cave water is found: 12/12 pools and 6/6 streams read as cave water, with worst level error 0.000 m.
+  - In a cave pool, the player at (1526.31, -0.97, -2628.29) is in cave water 1.36 m deep. That made 6 ripples near and 1 R-9 field press.
+- Suite (fresh domain): `DONE 26 passed, 0 failed, 17 skipped in 307s`.
+- Pins hold: Landmarks_V3 112 A955AFE0, Fauna_Fingerprint AD723954.
+- lod-lint vs origin/main: clean (the new reach constants are `// gameplay:`).
+- Shot: D:/Unity/PunchyMilestones/W-134/row1-cavepool-stir-spot.png. It shows the cistern pool that `-place cavepool` uses; the ripples don't show at shot size.
+  - No clip: row 1 doesn't change the look. Visible cave water comes with row 2.
+- Docs: docs/agents/world.md has 3 lines next to FloorUnder.
+- Notes and risks:
+  - Small edits in fauna and R-9 files: CreatureWakeSystem gained `RipplesNear`, WaterPatchSystem gained `Presses`. Both use the float3 sample.
+  - Still on the xz sample, as follow-ups for their owners:
+    - The creature brain's swim choice and the fish body's SwimOrFlop (fauna).
+    - ThirdPersonCamera.CaveWaterAbove (player lane) should call CaveSampling.WaterAt.
+  - Most cave pools (Depth <= 1.2) are shallower than SwimDepth 1.3, so the player wades rather than swims. Row 2 or 3 should decide pool depth.
+  - New TestHooks `FreeCamera` re-enables Camera.main's behaviours. `-place prop:` poses the camera and nothing freed it, so the cave test got 0 ripples after the wharf test.
+  - Place_PropFindsAndFramesWharf can fail on suite reruns in the same editor domain, because it reads a stale `[measure]` line from LogWatch. It passes after a domain reload. Worth a small fix in that test's log wait (its owner's call).
+  - Two ignored probes from other cards (W135Probe, W136Probe in Assets/Temp/Editor) don't compile against this branch. They were parked during the run and are now restored.
+- BENCH-QUEUE request: main vs world/cave-water at `-place cavepool` (the cave pool) and at a surface river/lake spot. Watch the WaterPatchSystem/CreatureWakeSystem jobs and player movement; the expected surface cost is one compare per sample.
+- Row 2 not started. Row 3 waits for the supervisor.
