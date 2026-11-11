@@ -25,6 +25,8 @@ namespace Punchy.Terrain
     /// just ahead of it: Zach's leading swell, row 4), and anything dropping into
     /// the water knocks out a splash ring. The fine sheet's vertices rise and fall by the field, and its normals follow.
     /// Outside the square, on Low water quality or with "-waterfield 0", the swimmer ripples carry on alone.
+    /// A river fall that looks big enough gets a fine sheet of its own (row 5, WaterPatchSystem.Falls.cs): its sloping
+    /// quads cut along the drop, with a curling lip, a rippled curtain and churn at the foot.
     /// Cosmetic and per machine, from state every machine already has (the creature snapshot); nothing is sent.
     /// </summary>
     [UpdateInGroup(typeof(PresentationSystemGroup))]
@@ -72,6 +74,9 @@ namespace Punchy.Terrain
             public float4 Data, Look;
             public float2 Glow;
             public float4 Parent;
+            /// <summary>The heights of the neighbour's segment's ends, less the vertex's own (a fall's sheet stands near
+            /// upright, and what moves it there depends on height).</summary>
+            public float2 ParentY;
         }
 
         static readonly VertexAttributeDescriptor[] Layout =
@@ -81,6 +86,7 @@ namespace Punchy.Terrain
             new VertexAttributeDescriptor(VertexAttribute.TexCoord1, VertexAttributeFormat.Float32, 4),
             new VertexAttributeDescriptor(VertexAttribute.TexCoord2, VertexAttributeFormat.Float32, 2),
             new VertexAttributeDescriptor(VertexAttribute.TexCoord3, VertexAttributeFormat.Float32, 4),
+            new VertexAttributeDescriptor(VertexAttribute.TexCoord4, VertexAttributeFormat.Float32, 2),
         };
 
         /// <summary>One wet chunk water quad in the square: its cell (world metres) and corners (world positions), in
@@ -121,18 +127,22 @@ namespace Punchy.Terrain
             }
         }
 
-        /// <summary>Cuts each quad into n x n (n its cell's cut in Grid), split along the same diagonal as the chunk water
-        /// (B to C), so the fine sheet lies where the chunk water did. A vertex on an edge it shares with a coarser
-        /// neighbour (a coarser cut quad, or the chunk water past the square's edge) is told that neighbour's segment, so
-        /// the shader puts it on that segment's straight line and the two leave no crack.</summary>
+        /// <summary>Cuts each quad into nx x nz (its cell's cuts across x in Grid and along z in Rows: the same for the
+        /// player's sheet, apart on a fall's, whose upright quads want many more rows down the drop than across), split
+        /// along the same diagonal as the chunk water (B to C), so the fine sheet lies where the chunk water did. A vertex
+        /// on an edge it shares with a coarser neighbour (a coarser cut quad, or the chunk water past the rectangle's edge)
+        /// is told that neighbour's segment, so the shader puts it on that segment's straight line and the two leave no
+        /// crack.</summary>
         [BurstCompile]
         struct CutJob : IJobParallelFor
         {
             [ReadOnly] public NativeArray<ParentQuad> Quads;
-            /// <summary>Each of the square's cells' cut (0: no quad there), and each quad's first vertex and index.</summary>
-            [ReadOnly] public NativeArray<byte> Grid;
+            /// <summary>Each of the rectangle's cells' cuts (0: no quad there), and each quad's first vertex and index.</summary>
+            [ReadOnly] public NativeArray<byte> Grid, Rows;
             [ReadOnly] public NativeArray<int2> Starts;
+            /// <summary>The rectangle's corner and cells across (Grid's row).</summary>
             public int2 RectMin;
+            public int Width;
             // (Both come from one MeshData, which the safety system takes for the same container twice.)
             [NativeDisableParallelForRestriction, NativeDisableContainerSafetyRestriction] public NativeArray<PatchVertex> Vertices;
             [NativeDisableParallelForRestriction, NativeDisableContainerSafetyRestriction] public NativeArray<uint> Indices;
@@ -140,66 +150,72 @@ namespace Punchy.Terrain
             static float4 Mix(float4 a, float4 b, float4 c, float4 d, float u, float v) =>
                 u + v <= 1f ? a + u * (b - a) + v * (c - a) : d + (1f - u) * (c - d) + (1f - v) * (b - d);
 
-            /// <summary>A cell's cut: the chunk water's 1 outside the square, 0 where it's dry.</summary>
-            int CutsAt(int2 cell)
+            /// <summary>A cell's cuts: the chunk water's 1 outside the rectangle, 0 where it's dry.</summary>
+            int CutsAt(NativeArray<byte> cuts, int2 cell)
             {
                 var c = cell - RectMin;
-                return math.any(c < 0) || math.any(c >= Span) ? 1 : Grid[c.y * Span + c.x];
+                return math.any(c < 0) || math.any(c >= Width) ? 1 : cuts[c.y * Width + c.x];
             }
 
-            /// <summary>The k-th of n + 1 vertices along an edge (from the corner with depth dA to the one with dB), next to
-            /// a neighbour cut nc: if that's coarser and the vertex isn't one of its own, the depths at the ends of the
-            /// neighbour's segment it sits on, how far along that it is (m), and the segment's length, signed by which way
-            /// it runs (+ along z, - along x; WaterField.hlsl, PunchyWaterPatchVertex).</summary>
-            static float4 EdgeParent(float dA, float dB, int k, int n, int nc, float sign)
+            /// <summary>The k-th of n + 1 vertices along an edge (from corner a to corner b), next to a neighbour cut nc:
+            /// if that's coarser and the vertex isn't one of its own, the depths at the ends of the neighbour's segment it
+            /// sits on, how far along that it is (m), and the segment's length, signed by which way it runs (+ along z, -
+            /// along x; WaterField.hlsl, PunchyWaterPatchVertex), and the ends' heights less the vertex's.</summary>
+            static float4 EdgeParent(in WaterVertex a, in WaterVertex b, int k, int n, int nc, float sign, out float2 heights)
             {
+                heights = float2.zero;
                 if (nc <= 0 || nc >= n)
                     return float4.zero;
                 var r = n / nc;
                 if (k % r == 0)
                     return float4.zero;
                 var s = k / r * r;
-                return new float4(math.lerp(dA, dB, s / (float)n), math.lerp(dA, dB, (s + r) / (float)n), (k - s) / (float)n, sign * r / n);
+                float y = math.lerp(a.Position.y, b.Position.y, k / (float)n);
+                heights = new float2(math.lerp(a.Position.y, b.Position.y, s / (float)n), math.lerp(a.Position.y, b.Position.y, (s + r) / (float)n)) - y;
+                return new float4(math.lerp(a.Data.z, b.Data.z, s / (float)n), math.lerp(a.Data.z, b.Data.z, (s + r) / (float)n), (k - s) / (float)n, sign * r / n);
             }
 
             public void Execute(int index)
             {
                 var q = Quads[index];
-                var n = CutsAt(q.Cell);
+                int nx = CutsAt(Grid, q.Cell), nz = CutsAt(Rows, q.Cell);
                 var first = Starts[index].x;
-                int west = CutsAt(q.Cell - new int2(1, 0)), east = CutsAt(q.Cell + new int2(1, 0));
-                int south = CutsAt(q.Cell - new int2(0, 1)), north = CutsAt(q.Cell + new int2(0, 1));
-                for (int j = 0; j <= n; j++)
-                for (int i = 0; i <= n; i++)
+                // (An edge along z has as many vertices as the cell has rows; one along x, as it has columns.)
+                int west = CutsAt(Rows, q.Cell - new int2(1, 0)), east = CutsAt(Rows, q.Cell + new int2(1, 0));
+                int south = CutsAt(Grid, q.Cell - new int2(0, 1)), north = CutsAt(Grid, q.Cell + new int2(0, 1));
+                for (int j = 0; j <= nz; j++)
+                for (int i = 0; i <= nx; i++)
                 {
-                    float u = i / (float)n, v = j / (float)n;
+                    float u = i / (float)nx, v = j / (float)nz;
                     var p = Mix(new float4(q.A.Position, 0), new float4(q.B.Position, 0), new float4(q.C.Position, 0), new float4(q.D.Position, 0), u, v);
                     var g = Mix(new float4(q.A.Glow, 0, 0), new float4(q.B.Glow, 0, 0), new float4(q.C.Glow, 0, 0), new float4(q.D.Glow, 0, 0), u, v);
                     // (Not at a chunk water corner, which is exact anyway.)
                     var parent = float4.zero;
-                    if (j % n != 0 && i == 0)
-                        parent = EdgeParent(q.A.Data.z, q.C.Data.z, j, n, west, 1f);
-                    else if (j % n != 0 && i == n)
-                        parent = EdgeParent(q.B.Data.z, q.D.Data.z, j, n, east, 1f);
-                    else if (i % n != 0 && j == 0)
-                        parent = EdgeParent(q.A.Data.z, q.B.Data.z, i, n, south, -1f);
-                    else if (i % n != 0 && j == n)
-                        parent = EdgeParent(q.C.Data.z, q.D.Data.z, i, n, north, -1f);
-                    Vertices[first + j * (n + 1) + i] = new PatchVertex
+                    var heights = float2.zero;
+                    if (j % nz != 0 && i == 0)
+                        parent = EdgeParent(q.A, q.C, j, nz, west, 1f, out heights);
+                    else if (j % nz != 0 && i == nx)
+                        parent = EdgeParent(q.B, q.D, j, nz, east, 1f, out heights);
+                    else if (i % nx != 0 && j == 0)
+                        parent = EdgeParent(q.A, q.B, i, nx, south, -1f, out heights);
+                    else if (i % nx != 0 && j == nz)
+                        parent = EdgeParent(q.C, q.D, i, nx, north, -1f, out heights);
+                    Vertices[first + j * (nx + 1) + i] = new PatchVertex
                     {
                         Position = p.xyz,
                         Data = Mix(q.A.Data, q.B.Data, q.C.Data, q.D.Data, u, v),
                         Look = Mix(q.A.Look, q.B.Look, q.C.Look, q.D.Look, u, v),
                         Glow = g.xy,
-                        Parent = parent
+                        Parent = parent,
+                        ParentY = heights
                     };
                 }
                 var t = Starts[index].y;
-                for (int j = 0; j < n; j++)
-                for (int i = 0; i < n; i++)
+                for (int j = 0; j < nz; j++)
+                for (int i = 0; i < nx; i++)
                 {
-                    var a = (uint)(first + j * (n + 1) + i);
-                    uint b = a + 1, c = a + (uint)n + 1, d = c + 1;
+                    var a = (uint)(first + j * (nx + 1) + i);
+                    uint b = a + 1, c = a + (uint)nx + 1, d = c + 1;
                     Indices[t++] = a; Indices[t++] = c; Indices[t++] = b;
                     Indices[t++] = b; Indices[t++] = c; Indices[t++] = d;
                 }
@@ -346,11 +362,13 @@ namespace Punchy.Terrain
             if (at >= 0 && at + 1 < args.Length && args[at + 1] == "0")
                 On = false;
             Shader.SetGlobalVector(RectId, NoRect);
+            CreateFall();
         }
 
         protected override void OnDestroy()
         {
             FinishCut(false);
+            DestroyFall();
             Shader.SetGlobalVector(RectId, NoRect);
             if (lastAt.IsCreated) lastAt.Dispose();
             if (quads.IsCreated) quads.Dispose();
@@ -370,32 +388,41 @@ namespace Punchy.Terrain
             var enabled = On && Punchy.Settings.WaterQuality.Reflection != Punchy.Settings.ReflectionQuality.Low &&
                           SystemAPI.HasSingleton<TerrainConfig>() && SystemAPI.HasSingleton<TerrainSource>();
             var streaming = World.GetExistingSystemManaged<TerrainStreamingSystem>();
-            if (!enabled || streaming == null || !TryFocus(out var focus) || !Setup())
+            if (!enabled || streaming == null || !Setup())
             {
                 Hide();
+                HideFall();
                 return;
             }
             var config = SystemAPI.GetSingleton<TerrainConfig>();
             FinishCut(true);
+            FinishFallCut(true);
+            var cam = Camera.main;
+            Punchy.Settings.DetailPolicy.SetView(cam);
+            var view = Punchy.Settings.DetailPolicy.Current.Data;
+            UpdateFall(streaming, config, cam != null, view);
+            if (!TryFocus(out var focus))
+            {
+                Hide();
+                return;
+            }
 
             // The square round the player, and whether the chunk water under it is all fine (LOD0) and loaded.
             var corner = (int2)math.floor((focus.xz - Span * 0.5f) / Snap) * Snap;
             var builds = 17;
-            var ready = Gather(streaming, config, corner, ref builds, false);
+            var ready = Gather(streaming, config, corner, Span, ref builds, false);
             if (!ready)
             {
                 Hide();
                 return;
             }
             // Recut when the square moves, a chunk under it is rebuilt, or the cut no longer fits the view: the player has
-            // moved a cell on, the camera has come much nearer or gone much further, or the Detail setting changed.
-            var cam = Camera.main;
-            Punchy.Settings.DetailPolicy.SetView(cam);
-            var view = Punchy.Settings.DetailPolicy.Current.Data;
+            // moved a cell on, the camera has come much nearer or gone much further, or the Detail setting changed (or a
+            // fall's sheet took cells from it or gave them back).
             var focusCell = (int2)math.floor(focus.xz / FineStep) * FineStep;
             var camera = cam != null ? math.max(math.distance(view.Camera, focus), 1f) : 8f;
             var refit = !focusCell.Equals(shownFocus) || camera > shownCamera * CameraBand || camera * CameraBand < shownCamera ||
-                        view.Detail != shownDetail;
+                        view.Detail != shownDetail || fallMaskChanged;
             if (!cutPending && (!corner.Equals(shownCorner) || builds != shownBuilds || refit))
                 StartCut(streaming, config, corner, builds, focus, focusCell, camera, view);
 
@@ -475,7 +502,7 @@ namespace Punchy.Terrain
         /// The chunks under the square: whether they're all loaded and those with water fine (LOD0), and a fingerprint of
         /// their builds (a rebuilt chunk recuts the sheet). With <paramref name="collect"/>, also lists their water meshes.
         /// </summary>
-        bool Gather(TerrainStreamingSystem streaming, TerrainConfig config, int2 corner, ref int builds, bool collect)
+        bool Gather(TerrainStreamingSystem streaming, TerrainConfig config, int2 corner, int2 extent, ref int builds, bool collect)
         {
             if (collect)
             {
@@ -484,7 +511,7 @@ namespace Punchy.Terrain
             }
             var size = config.ChunkSize;
             var lo = (int2)math.floor((float2)corner / size);
-            var hi = (int2)math.floor((float2)(corner + Span - 1) / size);
+            var hi = (int2)math.floor((float2)(corner + extent - 1) / size);
             var vertices = (config.Lod0Quads + 1) * (config.Lod0Quads + 1);
             for (int z = lo.y; z <= hi.y; z++)
             for (int x = lo.x; x <= hi.x; x++)
@@ -513,7 +540,7 @@ namespace Punchy.Terrain
             float camera, Punchy.Settings.DetailPolicy.View view)
         {
             var check = 17;
-            Gather(streaming, config, corner, ref check, true);
+            Gather(streaming, config, corner, Span, ref check, true);
             quads.Clear();
             if (gatherMeshes.Count > 0)
             {
@@ -543,6 +570,7 @@ namespace Punchy.Terrain
             cutFocus = focusCell;
             cutCamera = camera;
             cutDetail = view.Detail;
+            fallMaskChanged = false;
 
             // Each quad's cut, by how big a metre of water looks there (rule 20): its distance taken as the camera's
             // distance from the player and the quad's from the player together, so the cut doesn't change as the camera
@@ -569,6 +597,10 @@ namespace Punchy.Terrain
                     var was = cell - tierCorner;
                     var previous = tierCorner.Equals(NoCorner) || math.any(was < 0) || math.any(was >= Span) ? -1 : tiers[was.y * Span + was.x] - 1;
                     var tier = Punchy.Settings.DetailPolicy.Tier(pixels * shrink, thresholds, previous);
+                    // (A cell a fall's sheet covers is the fall's: left whole here, so the edge meets it as it meets the
+                    // chunk water.)
+                    if (InFall(cell))
+                        tier = 3;
                     var c = cell - corner;
                     nextTiers[c.y * Span + c.x] = (byte)(tier + 1);
                     var n = Cuts >> tier;
@@ -607,7 +639,7 @@ namespace Punchy.Terrain
             data.SetIndexBufferParams(indexCount, IndexFormat.UInt32);
             cutting = new CutJob
             {
-                Quads = quads.AsArray(), Grid = cutGrid, Starts = cutStarts, RectMin = corner,
+                Quads = quads.AsArray(), Grid = cutGrid, Starts = cutStarts, RectMin = corner, Width = Span, Rows = cutGrid,
                 Vertices = data.GetVertexData<PatchVertex>(), Indices = data.GetIndexData<uint>()
             }.Schedule(quads.Length, 16);
             cutPending = true;

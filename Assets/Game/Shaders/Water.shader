@@ -100,6 +100,7 @@ Shader "Punchy/Water"
                 float4 data       : TEXCOORD0;   // as WaterAttributes: z the depth below the surface
             #ifdef _WATER_FIELD
                 float4 parent     : TEXCOORD3;   // as WaterAttributes
+                float2 parentY    : TEXCOORD4;
             #endif
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
@@ -118,7 +119,7 @@ Shader "Punchy/Water"
                 float3 rest = TransformObjectToWorld(input.positionOS);
                 o.restXZ = rest.xz;
             #ifdef _WATER_FIELD
-                o.positionCS = TransformWorldToHClip(PunchyWaterPatchVertex(rest, input.data.z, input.parent, _PunchyClock, swell));
+                o.positionCS = TransformWorldToHClip(PunchyWaterPatchVertex(rest, input.data.z, input.parent, input.parentY, _PunchyClock, swell));
             #else
                 o.positionCS = TransformWorldToHClip(PunchySwellVertex(rest, input.data.z, _PunchyClock, swell));
             #endif
@@ -218,6 +219,8 @@ Shader "Punchy/Water"
                 // The fine sheet only (WaterField.hlsl, PunchyWaterPatchVertex): on the square's edge, the depths at the
                 // chunk water edge's two corners, how far along it the vertex is, and which way it runs.
                 float4 parent     : TEXCOORD3;
+                // And the heights of those two corners less the vertex's own (a fall's sheet slopes steeply).
+                float2 parentY    : TEXCOORD4;
             #endif
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
@@ -246,7 +249,7 @@ Shader "Punchy/Water"
                 o.restXZ = pos.positionWS.xz;
                 // The sea rises and falls in swells (-noswells for the flat sea); the same move as the depth pass's.
             #ifdef _WATER_FIELD
-                pos.positionWS = PunchyWaterPatchVertex(pos.positionWS, input.data.z, input.parent, _PunchyClock, o.swell);
+                pos.positionWS = PunchyWaterPatchVertex(pos.positionWS, input.data.z, input.parent, input.parentY, _PunchyClock, o.swell);
             #else
                 pos.positionWS = PunchySwellVertex(pos.positionWS, input.data.z, _PunchyClock, o.swell);
             #endif
@@ -562,6 +565,13 @@ Shader "Punchy/Water"
                 face *= face.y < 0 ? -1 : 1;
                 face = normalize(face);
                 half steep = smoothstep(0.85, 0.35, face.y);
+            #ifdef _WATER_FIELD
+                // R-9 row 5: a fall's curtain is steep by where it lies, not by how its ripples tilt each fine triangle
+                // (else the tilted ones lit up as flat water, in pale patches).
+                float fallChurn, fallCurtain;
+                PunchyWaterFallOffset(float3(input.restXZ.x, input.positionWS.y, input.restXZ.y), t, fallChurn, fallCurtain);
+                steep = max(steep, (half)fallCurtain);
+            #endif
 
                 // Rivers run faster in the deep middle than at the banks, and much faster down steep rapids.
                 float riverSpeed = _FlowSpeed * (1 + 2.5 * rapids) * lerp(0.45, 1.25, saturate(depth / 1.6));
@@ -598,6 +608,8 @@ Shader "Punchy/Water"
                     float2 fieldSlope = PunchyWaterFieldSlope(input.restXZ) * 2.5;
                     wakeSlope = lerp(wakeSlope, fieldSlope, fieldWeight);
                     wakeFoam = lerp(wakeFoam, (half)smoothstep(0.9, 1.8, length(fieldSlope)) * 0.7h, (half)fieldWeight);
+                    // Row 5: foam where a fall's curtain lands and churns the pool.
+                    wakeFoam = max(wakeFoam, (half)(fallChurn * 0.7));
                 }
             #endif
                 // Murky water barely ripples; thick water instead heaves in slow, broad swells and bubbles.

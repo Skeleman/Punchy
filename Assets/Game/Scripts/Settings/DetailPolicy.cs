@@ -366,6 +366,13 @@ namespace Punchy.Settings
         public static readonly Thresholds WaterSheet = new Thresholds(168f, 158f, 142f);
         public const float WaterSheetSize = 1f;
 
+        /// <summary>
+        /// R-9 row 5: a river fall gets a fine sheet of its own (WaterPatchSystem.Falls.cs) once it looks bigger than
+        /// WaterFallOn (its size the larger of its drop and its width), its lip curling, curtain rippling and foot churning
+        /// in by WaterFallFull, so it never pops; each quad of it is cut until a piece looks about WaterFallPiece across.
+        /// </summary>
+        public const float WaterFallOn = 300f, WaterFallFull = 520f, WaterFallPiece = 24f;
+
         public static Rule FloraRule(FloraClass c)
         {
             switch (c)
