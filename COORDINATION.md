@@ -122,6 +122,18 @@ feature code, and it never edits files in another session's checkout.
    may scatter visuals (flora, small details, chunk meshes) from the records, ground and seed, but nothing gameplay places at
    runtime; (d) a bake step depends only on its inputs (seed, settings, earlier records), with no editor, scene or frame state.
    Old code that breaks this is fine until touched; list what you notice in your handoff.
+23. **Profiling targets (Zach, 2026-11-11, J-044):** the supervisor writes every BENCH pass line from this rule; a handoff may ask
+   for an exception ("Ultra feature"), Zach may override. (a) Reference: the profiler laptop, 1920x1080, Profile builds for GPU;
+   the main PC is never the reference. (b) Per preset, on the laptop: Low 1% low >= 50 fps (budget); Medium, the default,
+   1% low >= 30 fps (budget, J-006); High 1% low >= 25 fps (soft, a miss is a note); Ultra no floor, report only.
+   (c) A feature on at Medium: <= +0.3 ms GPU, CPU within noise, at its worst spot; over ~+0.5 ms it gets cheaper, justifies
+   itself, or moves to a higher preset. On only at High: <= +1 ms. Ultra-only: priced and reported, never held, but it must
+   cost nothing at Medium and below. (d) Hitches have no Ultra allowance: on any preset no new frame over 2x median and none
+   over 100 ms on a walk or flight; load and first-arrival spikes are tracked apart. (e) Refactors and no-look-change work:
+   within noise of main at every spot. (f) A miss is a note and a fix card; a merge is held only for a big, repeatable miss
+   (> ~1 ms at Medium, a new hitch, a preset under its floor). (g) A feature moves to a higher preset through the existing
+   preset values (view/detail/shadows, DetailPolicy thresholds) or its own runtime graphics setting, never ProjectSettings,
+   QualitySettings or the URP asset.
 
 ## Sessions and lanes
 

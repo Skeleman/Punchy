@@ -398,3 +398,15 @@ asks Zach if needed, and records the answer here.
 - **Why:** Zach: "You are the supervisor now." Earlier: "you will need to work serially. This computer cannot handle
   multiple unity instances." Revises J-042 (solo, no helpers), since lanes now run on the laptop.
 - **Revisited:** 0.
+
+### J-044: What are the profiling targets, and may features cost more at Ultra?
+
+- **Asked:** 2026-11-11, by Zach ("it would be OK for some features to have a higher budget if they're considered
+  'ultra' settings").
+- **Also comes up when:** every BENCH pass line; any feature that misses its bar.
+- **Answer (2026-11-11):** COORDINATION.md rule 23. Laptop budgets per preset (Low 1% low >= 50, Medium >= 30,
+  High >= 25 soft, Ultra none); Medium features <= +0.3 ms GPU, High-only <= +1 ms, Ultra-only reported, never held;
+  hitches held on every preset. A marginal feature moves up a preset rather than being cut. Zach: "Sounds good."
+  First case: the wave field (R-9) becomes a "Dynamic water" setting on at High/Ultra if it stays marginal at Medium.
+- **Why:** keep the default playable on the laptop while letting strong PCs show the best look.
+- **Revisited:** 0.

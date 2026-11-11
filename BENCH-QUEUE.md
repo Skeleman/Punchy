@@ -506,6 +506,7 @@ Pass: row 6 <= +0.2 ms GPU over row 5 at both views, CPU within noise.
 ## Job 45i (2026-11-11, QUEUED after 49c; Zach in the profiler session): the wave field's cheaper forms
 - One Profile build of Punchy `b/water-rows-fixes` d2c748a6: cuts 4 (default), `-waterfieldcuts 2`, `-waterfieldtess 1` (prototype: CPU cut 2, the GPU tessellates up to 4x more by screen size; Water.shader's passes now shared through includes), `-waterfieldnormals 1` (no sheet; the field only shades the chunk water: Zach's preferred fallback and far-range form), and `-waterfield 0`. Job 45c's lake swim, 4 rounds rotated, shots of every arm. q94.sh.
 - Bar (45c's): <= +0.3 ms GPU over off.
+- Added 11-11 (supervisor, Zach, rule 23): run the same arms once more at `-gfx Medium` and report both presets. The result decides R-9 row 7: a form that passes at Medium stays on by default; otherwise the wave field becomes a Dynamic water setting (High/Ultra Full, Medium the normals-only form if it passes, else Off).
 
 ## Job 50 (2026-11-10, QUEUED after 45e; queued by the main-account supervisor, Zach asked): two-player crash and desync test on the laptop
 Note (supervisor 11-10): leave/rejoin is expected to crash in GameAudio occlusion until #259 is fixed. If it does, report it as #259 and finish the rest of the route without the rejoin step.
