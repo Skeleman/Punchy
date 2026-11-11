@@ -4832,3 +4832,29 @@ Proposed fix (world lane, RoadBaking + TunnelPortalKit):
   4. With 6 towns, a range-crossing need almost never comes up. If Zach wants tunnels visible, make one on purpose: a road across a border range between realms (range 0 or spine 2), or tie it to the coming settlements.
 - Shots (milestone folder W-138, clear sky, 12:00, no HUD): w138-1-range0-crossing.png (road S4-S5 climbing to the spine 0 crossing; the road reads as a pale line up the valley), w138-2-massif-450m.png and w138-3-massif-1200m.png (the massif top along road S5-S3). Contact sheet: contact-sheet.jpg. On the massif the ground reads as a broad, bare dome rather than a mountain, and the road is a short pale line. Expected for a 35-84 m cover. The shot tool's checks: all three "good".
 - Pins: not run (no code changed). Landmark hash and fauna fingerprint stay measures only.
+
+## W-132 (cheaper 3 km landscape, horizon; tree Punchy-release, branch world/far-lite from origin/main cc835cf6)
+
+### Row 1: the horizon oddity (2026-11-10): done (verified; diagnosis only, no code change)
+- Setup: Clear weather, High preset (DrawDistance 2976 m with the far ring, far plane 3744 m, fog ExponentialSquared 0.000665 = 1.98 / 2976). The sun sets due west (-X). Sun heights: +4.1° (17:40), +1.4° (17:53), 0° (18:00). Vertical FOV 60°.
+- Cause 1, the main one: the sun sets on the camera's own eye-level line, not on the land or sea. Sky.hlsl line 1020 (`if (h > 0)`) draws the sun disc (line 1041) only above dir.y = 0. Below that line the skybox draws a flat below-horizon sky (line 1009, then line 1074 lerps it 85% to the horizon colour). Drawn land and sea stop at DrawDistance, so they end atan(eye height / D) below eye level. Between the two lines is a band of plain sky that sits where the sea should be.
+  - Ground (eye 1.8 m over the sea at -2240,-2999): the sea edge is 0.03° down. The sun meets the sea and looks right.
+  - Hill (eye 128 m at -3460,2425): the sea edge is 2.2° down (about 3.3 km out at the square ring's tiles). The disc is cut flat at 0.0° (measured), so the sun sinks into a 2.2° orange band above the sea.
+  - 300 m over sea (-2240,-2999): the sea edge is 5.0° down and straight, with a tile corner showing. The disc cut is at 0.0°, so the band is 5°, about 10 sun widths.
+  - 300 m over land (-1236,1324, eye 380 m): a half sun sliced by a flat line in open sky, well above the hills.
+  - On a round world the sea horizon from 300 m would be only 0.56° down (about 62 km away), so the band is entirely an artefact of where the drawn world ends.
+- Cause 2, a colour step at the drawn edge: the haze colour (PunchyAtmosphere, Sky.hlsl lines 1287-1295) is not the sky's below-horizon colour.
+  - Haze takes half the sunset tint (W-33) and only the pow12 sun glow, without the twilight glow terms.
+  - Measured across the edge (mean of 200 px, sun +1.4°), the step is hard and 1 px wide: band RGB 209,154,109 against sea 200,164,140 at 300 m, and 209,159,109 against 201,169,149 from the hill (blue +31-40).
+  - The edge is also only about 98% hazed, so the tile outline shows.
+- Fix direction, for row 4, not done here:
+  - Add a sea skirt or horizon plane from DrawDistance outward, so the sea reaches about eye level.
+  - Make the haze colour equal the skybox's below-horizon colour in each direction (or clip the sun disc at the drawn edge's depression).
+  - Decouple haze from DrawDistance.
+  - Sky.hlsl's sun and horizon code is named here. Its cloud code (R-12) is not touched.
+- Shots: milestone folder W-132/row1-final.
+  - 9 shots: ground, hill and air300, each at sun4, sun1 and sun0.
+  - Plus airsea-sun1, contact-sheet.jpg, zoom-airsea-sun1.jpg and zoom-air300-sun0.jpg (the best two).
+  - The first ground and hill set (W-132/row1) was blocked by trees and was retaken in row1b.
+  - Note: the row1b set shows thick cloud under "-weather Clear", but the air300 set has none.
+- Pins: not run (no code changed).
