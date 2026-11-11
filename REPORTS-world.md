@@ -5649,3 +5649,19 @@ Branch `world/mountain-tunnels` at f6217674 (pushed), on a149c17f. One commit: C
 - **Full PlayMode suite:** `26 passed, 1 failed, 17 skipped in 306s`. The failure was `FolkConversationTests.LiveFolk_BeastResponse` ("the fleeing folk got no further off", 53.4 vs > 53.7 m), not the island. Reran alone twice: `1 passed, 0 failed` both times (flaky margin).
 - **Pins:** landmarks 112 A955AFE0 and fauna fingerprint AD723954 hold in the full suite (island loaded from the cache).
 - **File:** 25,397,152 bytes (24.22 MB).
+
+### W-138 row 4c: tunnels hang their own dim wall lanterns - done (verified)
+- **Commit:** c4befd05 on world/mountain-tunnels (pushed). Files: `StructureKit.cs`, `CaveStyle.cs`, `CaveBaking.Tunnels.cs`, `CaveSystem.cs`, `Flora.shader`, `CaveStyles/Mine.asset`, new `Flora/FixtureTunnelLantern.asset` (+ .meta).
+- **As Zach asked (11-11):** no tunnel-specific lighting. `TunnelLanternLevel`, the tunnel lamp boost/reach and the in-tunnel flag are gone, so the player's lantern is the same everywhere.
+- **The lamp:** a new kit fixture style `WallLantern` (bracket, arm, glass box) and species `FixtureTunnelLantern`. The Mine cave style names it as `TunnelLamp` (falls back to Torch for styles without one). The tunnel bake hangs them in pairs on both walls, about 13 m apart, 1.7 m up. CaveSystem adds them as Fixture lights.
+- **Light values (the fixture's own data, `StructureKit.FixtureLight`):** WallLantern = 1.05x lamp colour, reach 7 m. Street Lantern = 1.3x, reach 9 m. The 4b tunnel torch was about 3.7 strength over 6.5 m, so the pools are softer than 4b's but still read as warm patches on the walls with the full player lantern on.
+- **Marker glow:** comes from the marker's own data (Spire with RunePatterns), not from a tunnel flag.
+- **Kit fix on the way:** wall-hung parts are now `Afloat`, otherwise the foundation skirt stretched the lantern into a post down to the floor.
+- **Shared shader (tell flora owner):** `Flora.shader` windows now use `on = max(on, _FloraInCave)`, so lamp glass in a cave glows by day too. This affects any window part placed as cave flora.
+- **Shots:** D:/Unity/PunchyMilestones/W-138/row4c/ (c0a-1-entrance, c0a-2-marker, c0a-3-middle, bore25-middle, sheet.jpg). Compared with row4b/sheet.jpg: the lanterns now show as a chain of lit points down the bore. The glass reads near-white up close rather than amber.
+- **Pins:** landmarks 117 689D5348 and fauna fingerprint AD723954, unchanged.
+- **Full PlayMode suite:** `25 passed, 0 failed, 17 skipped in 399s (Unity exit 0)`.
+- **lod-lint:** clean against f6217674 (row 4b). Against origin/main it shows only the 4 earlier tunnel lines from rows 1-4b (niche radius, bake loop/length gates), with no new hits.
+- **Rule 22:** the lamps come from the seed and the cave style asset, with no new runtime state, so a world file only needs the cave style's TunnelLamp reference.
+- **Note:** SurfaceGlow doesn't use `FixtureLightAt` yet (the lit height for the wall lantern). That only matters if a WallLantern is ever placed on the surface.
+- **BENCH-QUEUE request (profiler, not timed by me):** cave light cost walking the C0a tunnel (up to about 14 lamp lights near the player) vs row 4b.
