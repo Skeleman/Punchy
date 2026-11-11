@@ -68,13 +68,36 @@ fixed() { # outdir: copy an archived build into the one path games run from (rul
   rm -rf "$P/Builds/Bench" && cp -r "$P/Builds/$1" "$P/Builds/Bench" && echo "$1" > "$P/Builds/Bench/.from"
 }
 
-run() { # outdir tag args...: one bench game; its log is results/q-<tag>.log
+gamepid() { # the bench game's PID (the copy in Builds/Bench only), or nothing
+  timeout 20 powershell -NoProfile -Command "(Get-Process Punchy -ErrorAction SilentlyContinue | Where-Object { \$_.Path -like '*\Builds\Bench\Punchy.exe' } | Select-Object -First 1).Id" 2>/dev/null | tr -d ''
+}
+
+quietkill() { # log tag: while the game runs, kill it by PID once its log has been quiet QUIETKILL s (default 150)
+  local lg=$1 tag=$2 last= since=$(date +%s) sz pid
+  while :; do
+    sleep 5
+    pid=$(gamepid); [ -n "$pid" ] && [ -f "$lg" ] || { since=$(date +%s); continue; }
+    sz=$(stat -c %s "$lg" 2>/dev/null || echo 0)
+    [ "$sz" = "$last" ] || since=$(date +%s); last=$sz
+    [ $(( $(date +%s) - since )) -ge ${QUIETKILL:-150} ] || continue
+    log "$tag: log quiet ${QUIETKILL:-150} s (a stall), killed pid $pid"
+    timeout 20 powershell -NoProfile -Command "Stop-Process -Id $pid -Force" >/dev/null 2>&1
+    return
+  done
+}
+
+run() { # outdir tag args...: one bench game; its log is results/q-<tag>.log. Killed once its log is quiet 150 s
+  # (QUIETKILL; a stall: normal logs never pause that long), and after RUNTIMEOUT s (420) whatever it's doing.
   local out=$1 tag=$2; shift 2
   [ -f "$P/Builds/$out/Punchy.exe" ] || { log "$tag: no build $out"; return 1; }
   fixed $out || { log "$tag: copy to Builds/Bench failed"; return 1; }
   cool
-  ( cd "$P/Builds/Bench" && timeout ${RUNTIMEOUT:-900} ./Punchy.exe -logFile "$W/q-$tag.log" -benchroute -weatherseed 4 -time 12 $(screen Bench ${BENCHW:-1280} ${BENCHH:-720}) "$@" >/dev/null 2>&1 )
-  [ $? -eq 124 ] && log "$tag: TIMED OUT (dialogs: $(dialogs))"
+  rm -f "$R/q-$tag.log"
+  quietkill "$R/q-$tag.log" $tag & local wd=$!
+  ( cd "$P/Builds/Bench" && timeout ${RUNTIMEOUT:-420} ./Punchy.exe -logFile "$W/q-$tag.log" -benchroute -weatherseed 4 -time 12 $(screen Bench ${BENCHW:-1280} ${BENCHH:-720}) "$@" >/dev/null 2>&1 )
+  local rc=$?
+  kill $wd 2>/dev/null; wait $wd 2>/dev/null
+  [ $rc -eq 124 ] && log "$tag: TIMED OUT (dialogs: $(dialogs))"
   strays >/dev/null
   return 0
 }
