@@ -580,6 +580,8 @@ namespace Punchy.Terrain
             string hashText = LandmarkHash(ref source, types) + $"; {pregrown} plant variants pregrown";
             Debug.Log($"[island] {gen.Report}; baked in {watch.ElapsedMilliseconds} ms (generate {genMs}, places {placesMs}: grand falls {fallsMs}, archipelago {archMs}); {hashText}");
             var report = System.Diagnostics.Stopwatch.StartNew();
+            // W-140: each island blob's serialised size (the island cache's file size).
+            Debug.Log(IslandCache.SizeReport(ref source));
             // (Ponds: the "[ponds]" line from BuildPlaces; W-14 dropped the second count here, ~2.8 s.)
             if (source.Rivers.IsCreated) Debug.Log("[island] " + RiverReport(ref source.Rivers.Value));
             // W-68: v3 ends the bake with the water audit (V3Audit; on v2 run it from the editor for a baseline).
