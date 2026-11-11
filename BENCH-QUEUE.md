@@ -514,3 +514,11 @@ W-135 on `world/cave-lod`: row 1 skips hidden cave work (`-nocaveskip` turns it 
 - Also: one walk down the c5 tunnel per arm, and the first 20 s after load at (d); list frames over 2x the median (level swaps and contact rebuilds upload then).
 - Record whole-frame GPU, CPU and render-thread ms per arm and view.
 - Pass: B no slower than A on GPU and render thread at every view; B no slower than C; no new hitches on the walk or in the first 20 s.
+
+## Job 53 (2026-11-10, QUEUED after 52; supervisor, for W-137 row 2b): tunnel portal covered ways on the laptop
+W-137 row 2b on `world/mouth-rim`: each road-tunnel portal now builds a stone covered way behind the headwall (walls, stepped lintel roof, risers, end wall) plus wing walls. All 6 portals went from 31,968 to 88,176 vertices (15,984 to 44,088 triangles); editor build 7-31 ms per portal.
+- Arms: (A) origin/main cc835cf6 or newer; (B) `world/mouth-rim` at b5312063 or newer. Profile builds, 1920x1080, High, uncapped, ABBA, 300 frames per arm.
+- Views (shotcam, look along the road into each portal): (a) portal #4 (-2024.9, 261.4, 697.7); (b) portal #2 (-1878.9, 125.4, 97.7); (c) portal #0 (2045.7, 6.8, -1540.3); also one view at Medium for (c).
+- Hitch check: approach each portal from 300 m at run speed per arm; list frames over 2x the median (the kit builds on first load).
+- Record whole-frame GPU, CPU and render-thread ms per arm and view.
+- Pass: B within noise of A on GPU and render thread at every view; no new hitch over 2x median on approach.
