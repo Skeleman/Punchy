@@ -42,3 +42,5 @@ Fauna fingerprint 8726AADB on branch (115 species); main D0B9488A.
 - DebugControls.QueriesLive() before any cached-query TryGetSingleton (A-48).
 - Editor log: D:/Unity/Punchy/Logs/Editor.log. Target the editor by --project-path.
 - Shot flags: see TESTING.md and older STATE in git history (A-50 version).
+
+- 11-10 (supervisor): **crash fix first (#259)**: GameAudio occlusion job runs during the world switch on leave/rejoin (P-31 row 2 stack in REPORTS-player.md). Skip Occlude() while GameBootstrap is switching or no world exists. Small b/fix-* branch from main; the supervisor merges.

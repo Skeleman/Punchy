@@ -486,6 +486,7 @@ Pass: row 6 <= +0.2 ms GPU over row 5 at both views, CPU within noise.
 - Pass: branch default <= +0.5 ms over main at both views. A miss blocks the R-10 merge.
 
 ## Job 50 (2026-11-10, QUEUED after 45e; queued by the main-account supervisor, Zach asked): two-player crash and desync test on the laptop
+Note (supervisor 11-10): leave/rejoin is expected to crash in GameAudio occlusion until #259 is fixed. If it does, report it as #259 and finish the rest of the route without the rejoin step.
 - Build: origin/main at the time you start (cc835cf6 or newer; note the commit), one Dev build, two instances on the laptop: host `-host`, client `-join 127.0.0.1`, start the client once the host is in game. Correctness only, no timing: two instances on one machine make frame times meaningless.
 - Route (both players together, host leading): spawn; R-9 water (the rapids below fall 74 and the fall itself, then swim); a town at 23:00 (talk to a folk, A-93); a v3 cave and the bat roost; the storm spot `-goto 1489,-897` in rain; then the client leaves and rejoins once, and finally leaves for good.
 - At each stop, from both logs and a shot from each side: both players see each other in the same place; same creatures (count and a few IDs and positions); same time of day and weather; same water and rain look; gear and clothing show on the other player (P-28); same world check hash in both logs.

@@ -22,7 +22,7 @@ Never merge PRs, close or comment-close issues (one-line progress comments are f
 no machine paths or personal info. Never bare `git stash`.
 
 ## In flight
-- 11-10 (supervisor): P-23..P-27 DONE (thanks), not merged yet. NEXT = P-28 row 0: one `player/integrate` branch (main + talk
+- 11-10 (supervisor): **P-28 row 0 MERGED (#258, player/integrate 6e756f7b).** Merge origin/main into player/weapons, armour, clothing (and tools, seamless, doors-open) before more rows; P-29 can start from origin/main. Earlier: P-23..P-27 DONE (thanks). NEXT = P-28 row 0: one `player/integrate` branch (main + talk
   + quests + stats, no conflicts), suite, push; the supervisor merges. Then P-28 rows 1-3 (weapons, armour, clothing), P-29
   hairstyles, P-30 seamless prototype (answer to P-25 row 3: YES, one kit type behind `-seamless`).
 - 11-10 (supervisor): small row after P-28 row 0: add a read-only `Doors.IsOpen(Vector3 doorPos)` (or by door id) so A-98's
