@@ -4946,3 +4946,38 @@ Proposed fix (world lane, RoadBaking + TunnelPortalKit):
   - Two ignored probes from other cards (W135Probe, W136Probe in Assets/Temp/Editor) don't compile against this branch. They were parked during the run and are now restored.
 - BENCH-QUEUE request: main vs world/cave-water at `-place cavepool` (the cave pool) and at a surface river/lake spot. Watch the WaterPatchSystem/CreatureWakeSystem jobs and player movement; the expected surface cost is one compare per sample.
 - Row 2 not started. Row 3 waits for the supervisor.
+
+### Row 2: bake cave water like chunk water - done (verified)
+- Commit 54dd9ff3 on world/cave-water (pushed). New `CaveSystem.Water.cs` replaces the shared disc per pool and the strip per stream (`MakeStreamMesh` and `streamMeshes` are gone):
+  - Pools and streams become water quads on a fixed 0.5 m world lattice, fitted to the carved floor. A vertex is wet where the cave's air reaches below the water level (the floor is marched the way FloorUnder does it).
+  - Wet vertices stay flat at the level. Dry vertices stay flat too, and sink (up to 1.2 m) only over the last 0.5 m of the water's reach, so the rim ends under the rock and the GPU clips the shoreline smoothly, as surface water does in its bank. A vertex still wet at the reach end is cut, with a continuous claim so the cut follows a curve.
+  - Shore foam comes from the water shader's depth thickness. Per-vertex depth drives river speed, the soft rim and the white middle, as on the surface. Streams and their pools share the lattice, so there's no seam where they meet.
+  - Each cave bakes in a background Burst job the first time it comes within LoadRadius (one cave at a time). It is cut into tiles, and each tile draws only while big enough on screen (DetailPolicy.ScreenSize, rule 20). Lava pools keep their disc and glow.
+- Shots (inside, by lantern light), all viewed:
+  - Before: row2-before-pool2/pool6/pool8/pool9/pool11.png and row2-before-stream0/stream3.png.
+  - After: row2-after-pool2.png, row2-after-pool6.png, row2-after-pool8.png, row2-after-stream0.png. Also row2-after-pool8-white.png, with the white debug look on, which shows the sheet filling the basin.
+  - All are in D:/Unity/PunchyMilestones/W-134/. The borders now meet the floor with a curved, foamy shoreline instead of a disc edge cutting through the rock.
+- Triangle counts in a cave view (old means the main meshes, rebuilt on this branch for comparison):
+
+  | View | Old tris | New tris | Tiles drawn / baked |
+  |---|---|---|---|
+  | Pool 2 | 540 | 2939 | 9 / 9 |
+  | Pool 8 | 1040 | 4706 | 15 / 16 |
+  | Pool 6 (small) | - | 56 | 1 / 1 |
+
+- Memory: the old shared meshes were 9 meshes, 134 KB in all. Baked water for the caves loaded at each view: 234 KB at pool 2, 373 KB at pool 8, 6 KB at pool 6. It is baked per cave in range only.
+- Pool depths are unchanged. Of 12 water pools, the mean middle depth is 0.62 m and the max is 1.36 m. If the basin were deepened at the centre, the number reaching SwimDepth 1.3 would be:
+  - 2 today
+  - 3 at +0.5 m
+  - 12 at +1.0 m
+  - 12 at +1.5 m
+
+  Only 3 pools have a radius of 2.5 m or more. Carving is not changed.
+- Suite (fresh domain): `DONE 26 passed, 0 failed, 17 skipped in 314s`.
+- Pins hold: Landmarks_V3 112 A955AFE0, Fauna_Fingerprint AD723954.
+- lod-lint HEAD: clean.
+- Notes and risks:
+  - In row2-after-pool2, a faint straight edge shows on a rock shelf just under water level (right side). It's minor: the lattice meets a near-flat shelf.
+  - There are more triangles per cave than the old disc, but they draw only in screen-size range and are tiled.
+- BENCH-QUEUE request: main vs world/cave-water inside a cave with water: `-place cavepool`, and a stream cave if one can be placed. Watch the cave water bake job, the draw count and memory. No timing from the lane (rule 21).
+- Row 3 not started. It waits for the supervisor.
