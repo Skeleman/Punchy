@@ -171,7 +171,7 @@ namespace Punchy.Terrain
                 ref var pool = ref set.Pools[i];
                 if (pool.Lava > 0.5f)
                     continue;
-                var reach = PoolReach(pool.Radius) + WaterStep;
+                var reach = PoolReach(pool) + WaterStep;
                 AddNear(keys, pool.Centre.xz, pool.Centre.xz, reach);
             }
             for (int s = cave.FirstStream; s < cave.FirstStream + cave.StreamCount; s++)
@@ -217,7 +217,8 @@ namespace Punchy.Terrain
         }
 
         /// <summary>How far from a pool's middle its water may reach (m), past where its basin rises out of it.</summary>
-        static float PoolReach(float radius) => radius * 2f + 1.5f;
+        // A lake's beach rises steadily from its edge (W-134 row 3), so its water ends close past the basin.
+        static float PoolReach(in CavePool pool) => pool.Hall > 0f ? pool.Radius * 1.2f + 3f : pool.Radius * 2f + 1.5f;
 
         /// <summary>How far from a stream's middle its water may reach (m), past where StreamBed's banks rise out of it.</summary>
         static float StreamReach(float half) => half * 2f + 2.5f;
@@ -302,7 +303,7 @@ namespace Punchy.Terrain
                     if (pool.Lava > 0.5f)
                         continue;
                     var d = math.distance(xz, pool.Centre.xz);
-                    var poolReach = PoolReach(pool.Radius);
+                    var poolReach = PoolReach(pool);
                     if (d >= poolReach)
                         continue;
                     // Wherever it lies flat, a pool's level holds against the streams running into it (their last points

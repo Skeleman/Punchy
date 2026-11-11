@@ -429,6 +429,9 @@ namespace Punchy.Terrain
             PlaceStreams(withCaves, caves, nodes, segments, styles, extras);
             UnityEngine.Debug.Log($"[cave-streams] ends: pool {EndCounts[0]}, hole {EndCounts[1]}, left out {EndCounts[2]}; kept {extras.Streams.Count}");
             Step("streams");
+            // W-134 row 3: underground lakes last of the water, in spots of their own (nothing placed before moves).
+            PlaceLakes(withCaves, caves, nodes, kinds, segments, styles, extras);
+            Step("lakes");
             bare.Dispose();
             var withWater = BuildBlob(caves, nodes, kinds, segments, extras, Allocator.Persistent);
             withCaves.Caves = withWater;
@@ -441,6 +444,8 @@ namespace Punchy.Terrain
             Step("plants");
             PlaceFittings(withCaves, caves, nodes, kinds, segments, styles, CaveFloraTable.Collect(types), extras);
             Step("fittings");
+            PlaceLakeDetails(withCaves, caves, styles, CaveFloraTable.Collect(types), extras);
+            Step("lake details");
             FinishRooms(caves, extras);
             withWater.Dispose();
             // W-110: road tunnels last, appended after the landmarks' caves (whose indices, seeds and extras stay as
@@ -470,6 +475,8 @@ namespace Punchy.Terrain
             public readonly List<CaveSpeleothem> Speleothems = new List<CaveSpeleothem>();
             public readonly List<CavePlant> Plants = new List<CavePlant>();
             public readonly List<CaveRoom> Rooms = new List<CaveRoom>();
+            /// <summary>W-134 row 3: the lakes kept, for their details.</summary>
+            public readonly List<Lake> Lakes = new List<Lake>();
         }
 
         /// <summary>
@@ -673,7 +680,7 @@ namespace Punchy.Terrain
             var roomArray = builder.Allocate(ref root.Rooms, extras.Rooms.Count);
             for (int i = 0; i < extras.Rooms.Count; i++)
                 roomArray[i] = extras.Rooms[i];
-            BuildGrid(builder, ref root, caves, nodes, segments, extras.Rooms);
+            BuildGrid(builder, ref root, caves, nodes, segments, extras.Rooms, pools);
             BuildSpeleothemGrid(builder, ref root, speleothems);
             var blob = builder.CreateBlobAssetReference<CaveSetBlob>(allocator);
             builder.Dispose();
@@ -1397,7 +1404,7 @@ namespace Punchy.Terrain
         /// stay grouped by cave (sampling relies on it).
         /// </summary>
         static void BuildGrid(BlobBuilder builder, ref CaveSetBlob root, List<CaveData> caves, List<CaveNode> nodes, List<CaveSegment> segments,
-                              List<CaveRoom> rooms)
+                              List<CaveRoom> rooms, List<CavePool> pools)
         {
             float2 min = float.MaxValue, max = float.MinValue;
             for (int i = 0; i < segments.Count; i++)
@@ -1419,6 +1426,16 @@ namespace Punchy.Terrain
                         seg.Min = math.min(seg.Min, lo - 1f);
                         seg.Max = math.max(seg.Max, hi + 1f);
                     }
+                // W-134 row 3: a passage beside a lake reaches over its whole hall, so the hall's air is sampled.
+                for (int k = c.FirstPool; k < c.FirstPool + c.PoolCount; k++)
+                {
+                    LakeBox(pools[k], CaveSampling.SegmentMargin + CaveSampling.WallReach(c), out var lo, out var hi);
+                    if (pools[k].Hall > 0f && math.all(seg.Min <= hi + 2f) && math.all(seg.Max >= lo - 2f))
+                    {
+                        seg.Min = math.min(seg.Min, lo);
+                        seg.Max = math.max(seg.Max, hi);
+                    }
+                }
                 segments[i] = seg;
                 min = math.min(min, seg.Min.xz);
                 max = math.max(max, seg.Max.xz);

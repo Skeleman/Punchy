@@ -161,6 +161,12 @@ namespace Punchy.Terrain
         public float Radius, Depth;
         /// <summary>1 = molten lava, 0 = water.</summary>
         public float Lava;
+        /// <summary>
+        /// W-134 row 3: an underground lake's hall, the domed chamber the pool fills (0 = an ordinary pool in a passage
+        /// floor): how high the dome rises over the water (m) and how far it reaches across (m, from the centre). Its
+        /// floor runs on past the water as a gently rising beach (CaveSampling.HallFloor).
+        /// </summary>
+        public float Hall, Span;
     }
 
     /// <summary>
@@ -370,6 +376,8 @@ namespace Punchy.Terrain
             for (int i = c.FirstPool; i < c.FirstPool + c.PoolCount; i++)
             {
                 ref var pool = ref set.Pools[i];
+                if (pool.Hall > 0f)
+                    continue;   // a lake carries its own floor (HallFloor), under its hall
                 var d = math.distance(xz, pool.Centre.xz);
                 if (d < pool.Radius * 1.2f)
                     shape -= pool.Depth * math.smoothstep(pool.Radius * 1.2f, pool.Radius * 0.7f, d);
@@ -609,6 +617,16 @@ namespace Punchy.Terrain
                      : d + WallNoise(c, p, floorY, height);
             // W-115: each destination chamber walls its box off from the cave's own air, then carves its room and
             // doorway in (always, not only near walls, so the field stays continuous).
+            // W-134 row 3: each lake's hall joins the cave's air (a smooth union, so the passage opens into it).
+            for (int i = c.FirstPool; i < c.FirstPool + c.PoolCount; i++)
+            {
+                ref var pool = ref set.Pools[i];
+                if (pool.Hall <= 0f || math.distance(p.xz, pool.Centre.xz) - pool.Span - reach - Blend - 2f > full)
+                    continue;
+                var floor = HallFloor(pool, math.distance(p.xz, pool.Centre.xz));
+                var hall = math.max(HallDome(pool, p) + WallNoise(c, p, floor, pool.Hall), (floor - p.y) * 0.6f);
+                full = SmoothMin(full, hall, Blend);
+            }
             for (int i = c.FirstRoom; i < c.FirstRoom + c.RoomCount; i++)
                 full = Room(set.Rooms[i], p, full);
             if (full < best)
@@ -761,6 +779,35 @@ namespace Punchy.Terrain
 
         public const float LakeDepth = 1.6f;
         public static float LakeRadius(in CaveRoom r) => math.min(r.HX, r.HZ) * 0.72f;
+
+        /// <summary>How steeply a lake hall's beach rises from the water's edge to its walls (1 up in 4 across, W-134 row 3).</summary>
+        public const float HallBeach = 0.25f;
+
+        /// <summary>
+        /// W-134 row 3: a lake hall's floor at a distance across from its centre: the pool's basin (as WaterAt reads it)
+        /// out to 1.2 radii, then a beach rising from just over the water.
+        /// </summary>
+        public static float HallFloor(in CavePool pool, float across)
+        {
+            var edge = pool.Radius * 1.2f;
+            return across < edge ? pool.Centre.y + 0.12f - pool.Depth * math.smoothstep(edge, pool.Radius * 0.7f, across)
+                                 : pool.Centre.y + 0.12f + (across - edge) * HallBeach;
+        }
+
+        /// <summary>
+        /// W-134 row 3: distance to a lake hall's dome, an ellipsoid whose middle sits under the water, so its walls
+        /// meet the beach steeply and its roof is Hall over the surface. The usual ellipsoid estimate (close to true
+        /// distance near the surface, where it matters).
+        /// </summary>
+        internal static float HallDome(in CavePool pool, float3 p)
+        {
+            var drop = pool.Hall * (0.4f / 0.6f);
+            var radii = new float3(pool.Span, pool.Hall + drop, pool.Span);
+            var q = p - new float3(pool.Centre.x, pool.Centre.y - drop, pool.Centre.z);
+            var k0 = math.length(q / radii);
+            var k1 = math.length(q / (radii * radii));
+            return k1 < 1e-6f ? -math.cmin(radii) : k0 * (k0 - 1f) / k1;
+        }
 
         /// <summary>How far above a cave water surface a point still counts as over it (m, W-134).</summary>
         // gameplay: tall enough for a swimmer's head and a wading creature, short of the passage stacked above
