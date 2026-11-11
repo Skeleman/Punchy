@@ -22,6 +22,10 @@
 TEXTURE2D(_PunchyWeatherMap);  SAMPLER(sampler_PunchyWeatherMap);
 TEXTURE2D(_PunchyWetnessMap);  SAMPLER(sampler_PunchyWetnessMap);
 TEXTURE2D(_PunchyCloudMap);    SAMPLER(sampler_PunchyCloudMap);
+// The clouds' shadow density baked a few times a second over the cloud plane round the camera (WeatherSystem, HazeLut
+// pass 2), so surface shaders read it once instead of working out the cloud there per pixel.
+TEXTURE2D(_PunchyCloudShadowMap);   // (read with the cloud map's sampler: a new sampler could push a shader past D3D11's 16)
+float4 _PunchyCloudShadowRect;    // xy the map's corner on the cloud plane (m), z 1 / its width (1/m), w 1 when it's on
 TEXTURE3D(_PunchyCloudNoise);  SAMPLER(sampler_PunchyCloudNoise);
 float4 _PunchyWeatherRect;     // xy world origin of the maps, zw 1 / world size
 half3  _PunchyDustColor;
@@ -654,6 +658,18 @@ half PunchyCloudCoverAlong(float3 dir, out half darkness)
     return saturate(PunchyCloudDensity(p, weather, PunchyCloudShapeAt(mapXZ), 0) * 3) * smoothstep(0.02, 0.12, dir.y);
 }
 
+// The clouds' density (0..1, before the thickness factor) at a point of the cloud plane, at its column's lower middle:
+// what the shadow map stores (HazeLut pass 2).
+float PunchyCloudShadowDensityAt(float2 xz)
+{
+    float4 shape = PunchyCloudShapeAt(xz);
+    float3 p = float3(xz.x, shape.x + shape.y * 0.3, xz.y);
+    float2 mapXZ = p.xz + PunchyCloudWarpAt(p);
+    half4 weather = PunchyWeatherAt(mapXZ);
+    punchyCloudStyle = PunchyCloudStyleAt(p.xz);
+    return saturate(PunchyCloudDensity(p, weather, PunchyCloudShapeAt(mapXZ), 0) * 3);
+}
+
 // 0..1: how much a point on the ground is shaded from the sun by the clouds above it (one sample at the clouds'
 // lower middle, along the sun direction — matches the volumetric clouds' shapes).
 half PunchyCloudShadow(float3 positionWS)
@@ -664,6 +680,16 @@ half PunchyCloudShadow(float3 positionWS)
     float4 shape = PunchyCloudShapeAt(positionWS.xz);
     float height = shape.x + shape.y * 0.3;
     float3 p = float3(positionWS.xz + toSun.xz * (height - positionWS.y) / toSun.y, height).xzy;
+    // From the baked map where it covers the point (all but a low sun's long throw): one read for the cloud's warp,
+    // maps and noise. (Its density is at the cloud column's own height, a little off this column's where the base
+    // slopes; the thickness factor stays this column's.)
+    [branch] if (_PunchyCloudShadowRect.w > 0.5)
+    {
+        float2 uv = (p.xz - _PunchyCloudShadowRect.xy) * _PunchyCloudShadowRect.z;
+        [branch] if (all(uv > 0.002) && all(uv < 0.998))
+            return SAMPLE_TEXTURE2D_LOD(_PunchyCloudShadowMap, sampler_PunchyCloudMap, uv, 0).r
+                   * lerp(0.5, 0.95, saturate(shape.y / 3000));
+    }
     float2 mapXZ = p.xz + PunchyCloudWarpAt(p);   // where the volume reads its maps (R-12), so the shadow sits under it
     half4 weather = PunchyWeatherAt(mapXZ);
     punchyCloudStyle = PunchyCloudStyleAt(p.xz);

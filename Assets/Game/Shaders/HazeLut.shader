@@ -78,5 +78,37 @@ Shader "Hidden/Punchy/HazeLut"
             }
             ENDHLSL
         }
+
+        // The clouds' shadow density over the cloud plane round the camera (PunchyCloudShadowDensityAt), baked a few
+        // times a second for PunchyCloudShadow to read once per pixel.
+        Pass
+        {
+            HLSLPROGRAM
+            #pragma vertex Vert
+            #pragma fragment Frag
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Sky.hlsl"
+
+            float2 _CloudShadowMapSize;   // texels across, down
+
+            struct Attributes { float4 positionOS : POSITION; };
+            struct Varyings { float4 positionCS : SV_POSITION; };
+
+            Varyings Vert(Attributes input)
+            {
+                Varyings o;
+                o.positionCS = float4(input.positionOS.xy * 2 - 1, 0.5, 1);
+                return o;
+            }
+
+            half4 Frag(Varyings input) : SV_Target
+            {
+                // (Texel centres, as the readers' bilinear reads expect: uv (i + 0.5) / width.)
+                float2 uv = input.positionCS.xy / _CloudShadowMapSize;
+                float2 xz = _PunchyCloudShadowRect.xy + uv / _PunchyCloudShadowRect.z;
+                return PunchyCloudShadowDensityAt(xz);
+            }
+            ENDHLSL
+        }
     }
 }

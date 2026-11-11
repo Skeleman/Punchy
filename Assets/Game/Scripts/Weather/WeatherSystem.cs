@@ -100,11 +100,23 @@ namespace Punchy.Weather
         static readonly int HazeLutSizeId = Shader.PropertyToID("_HazeLutSize");
         static readonly int SkyVolumesId = Shader.PropertyToID("_PunchySkyVolumes");
         static readonly int SkyVolumesSizeId = Shader.PropertyToID("_SkyVolumesSize");
+        static readonly int CloudShadowMapId = Shader.PropertyToID("_PunchyCloudShadowMap");
+        static readonly int CloudShadowRectId = Shader.PropertyToID("_PunchyCloudShadowRect");
+        static readonly int CloudShadowMapSizeId = Shader.PropertyToID("_CloudShadowMapSize");
 
         // Haze table size: directions round the horizon × distances (rows must match PUNCHY_HAZE_ROWS in Sky.hlsl).
         const int HazeLutWidth = 1024, HazeLutHeight = 32;
         // Sky volumes table (R-8): view directions round the horizon x up/down, 1/16 of a 1080p screen.
         const int SkyVolumesWidth = 1024, SkyVolumesHeight = 128;
+        // The cloud shadow map (profiler prototype, Zach 11-11): the clouds' shadow density over the cloud plane round
+        // the camera, baked every few frames (HazeLut pass 2) so surface shaders read it once instead of working out
+        // the cloud per pixel. Span (m) across, texels across, frames between bakes; "-cloudshadowmap 0" turns it off,
+        // "-cloudshadowmapsize n" and "-cloudshadowmapevery n" change the size and the rate.
+        const float CloudShadowSpan = 8192f;
+        static int cloudShadowSize = 1024, cloudShadowEvery = 2;
+        static bool cloudShadowOn = true, cloudShadowArgsRead;
+        RenderTexture cloudShadowMap;
+        int cloudShadowFrame;
 
         /// <summary>Final sky colours for this frame, after time of day and the weather overhead.</summary>
         struct Sky
@@ -177,6 +189,11 @@ namespace Punchy.Weather
             {
                 skyVolumes.Release();
                 DestroyImmediate(skyVolumes);
+            }
+            if (cloudShadowMap != null)
+            {
+                cloudShadowMap.Release();
+                DestroyImmediate(cloudShadowMap);
             }
             if (hazeLutMaterial != null)
                 DestroyImmediate(hazeLutMaterial);
@@ -499,6 +516,72 @@ namespace Punchy.Weather
             hazeLutMaterial.SetVector(SkyVolumesSizeId, new Vector2(SkyVolumesWidth, SkyVolumesHeight));
             Graphics.Blit(null, skyVolumes, hazeLutMaterial, 1);
             Shader.SetGlobalTexture(SkyVolumesId, skyVolumes);
+            RenderCloudShadowMap(cam);
+        }
+
+        /// <summary>
+        /// Bakes the clouds' shadow density over the cloud plane round the camera (HazeLut pass 2) every few frames, for
+        /// PunchyCloudShadow to read once per pixel; off ("-cloudshadowmap 0"), every pixel works it out as before. The
+        /// map is centred where the sun's line through the camera meets the clouds' usual height (so it covers the
+        /// shadows the camera can see), snapped to whole texels so it doesn't swim.
+        /// </summary>
+        void RenderCloudShadowMap(Camera cam)
+        {
+            if (!cloudShadowArgsRead)
+            {
+                cloudShadowArgsRead = true;
+                var args = Punchy.Debugging.DebugControls.LaunchArgs;
+                int Arg(string name, int fallback)
+                {
+                    var at = System.Array.IndexOf(args, name);
+                    return at >= 0 && at + 1 < args.Length && int.TryParse(args[at + 1], out var v) ? v : fallback;
+                }
+                cloudShadowOn = Arg("-cloudshadowmap", 1) != 0;
+                cloudShadowSize = Mathf.Clamp(Arg("-cloudshadowmapsize", cloudShadowSize), 128, 2048);
+                cloudShadowEvery = Mathf.Clamp(Arg("-cloudshadowmapevery", cloudShadowEvery), 1, 30);
+            }
+            if (!cloudShadowOn || cam == null)
+            {
+                Shader.SetGlobalVector(CloudShadowRectId, Vector4.zero);
+                return;
+            }
+            var fresh = cloudShadowMap == null || !cloudShadowMap.IsCreated();
+            if (fresh)
+            {
+                if (cloudShadowMap != null)
+                    DestroyImmediate(cloudShadowMap);
+                cloudShadowMap = new RenderTexture(cloudShadowSize, cloudShadowSize, 0, RenderTextureFormat.RHalf)
+                {
+                    name = "CloudShadowMap",
+                    hideFlags = HideFlags.HideAndDontSave,
+                    wrapMode = TextureWrapMode.Clamp,
+                    filterMode = FilterMode.Bilinear
+                };
+                cloudShadowMap.Create();
+            }
+            var toSun = Cycle != null ? Cycle.SunDirection : Vector3.up;
+            if (toSun.y < 0.05f)
+            {
+                // (No cloud shadow with the sun this low: PunchyCloudShadow returns 0 before reading it.)
+                cloudShadowFrame = cloudShadowEvery;
+                return;
+            }
+            if (!fresh && ++cloudShadowFrame < cloudShadowEvery)
+                return;
+            cloudShadowFrame = 0;
+            var eye = cam.transform.position;
+            // (The clouds' lower middle is mostly 1.5-3 km up; the map's 4 km either side covers the rest.)
+            var throwOut = toSun.y > 0.2f ? (2200f - eye.y) / toSun.y : 0f;
+            var centre = new Vector2(eye.x + toSun.x * throwOut, eye.z + toSun.z * throwOut);
+            var texel = CloudShadowSpan / cloudShadowSize;
+            var corner = new Vector2(Mathf.Floor(centre.x / texel) * texel, Mathf.Floor(centre.y / texel) * texel)
+                         - new Vector2(CloudShadowSpan, CloudShadowSpan) * 0.5f;
+            // (The bake reads the rect too, with w 0 so nothing it calls reads the half-made map.)
+            Shader.SetGlobalVector(CloudShadowRectId, new Vector4(corner.x, corner.y, 1f / CloudShadowSpan, 0f));
+            hazeLutMaterial.SetVector(CloudShadowMapSizeId, new Vector2(cloudShadowSize, cloudShadowSize));
+            Graphics.Blit(null, cloudShadowMap, hazeLutMaterial, 2);
+            Shader.SetGlobalTexture(CloudShadowMapId, cloudShadowMap);
+            Shader.SetGlobalVector(CloudShadowRectId, new Vector4(corner.x, corner.y, 1f / CloudShadowSpan, 1f));
         }
 
         void ApplyShaderGlobals(in WeatherValues s, in Sky sky, float hazeDensity)
