@@ -116,6 +116,9 @@ Zach's order (2026-11-03): (1) a modular building kit plus more colossi, (2) fis
   (player lane, plus the socket contract). Second, spawn points filled at random with creatures, chests and clutter
   per biome and dungeon type (animal lane). The world lane adds entrances and tile art later (#24).
 - Interactive doors, gates and torches whose state syncs in multiplayer; interiors with portal culling (see Dungeons above).
+- Map editing (Zach 11-11): hand-adjust the generated map in passes: ground and biome borders; landmark, cave, dungeon and tunnel spots;
+  road and river paths; settlements, colossi, hermitages, lone NPCs; placed fences, signs and lights. Flora stays procedural (paint
+  masks only). One edits file applied over the seed in the bake; a baked-world cache could cut load times (#260).
 
 ### Creatures and NPCs (A)
 - Decide as one activity table with explicit priorities (#60).
