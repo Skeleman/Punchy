@@ -4586,3 +4586,39 @@ Flora.shader / FloraImpostor.shader / Flora.hlsl are also changed by R-10 (light
 - Risks:
   - The per-frame opening test is O(chunks with openings x chunks drawn). For c5 that is 36 x 176 rect checks, all in managed code.
   - Thin openings seen almost edge-on can fall under 4 px. The hysteresis and the 0.25-0.35 x distance frustum pad cover this in the walk tests; it is not tested at extreme angles.
+- **W-135 row 2 DONE (verified): coarser wall levels.** Commit 9d3d86dd (CaveSystem.cs, DetailPolicy.cs, DebugControls.Flags.cs).
+  - Change:
+    - Each chunk is built at 0.5, 1 or 2 m, picked by Tier on a 1 m ScreenSize at the chunk's nearest point (new DetailPolicy.CaveWall 20/10 px, Scaled by Detail, shared hysteresis). At 1080p and 60 degrees, that is 0.5 m to about 47 m and 1 m to about 94 m.
+    - A chunk whose level should change is rebuilt in the background with the leftover build budget, nearest first. The rebuild is swapped in once it is uploaded, so the old walls draw until then. Empty chunks only rebuild finer.
+    - Skirts: every open edge on a chunk's border hangs a strip 1.5 voxels back into the rock along its normal, in the edge's own colour. Where levels meet, a crack shows rock, not sky.
+    - `-cavelevel n` forces one level for every chunk. `-cavelevel 0` matches main (the A/B arm).
+  - Counts. All loaded cave chunk meshes are summed (vertex streams plus 32-bit indices); in-view tris is StatTriangles:
+
+    | Spot | -cavelevel 0 (= main) | by screen size |
+    |---|---|---|
+    | c5 big room (-2798, 33, -560), all loaded, fresh load | 29.0 MB, 722k tris | 19.4 MB, 479k tris (L0 79 / L1 80 / L2 13 chunks) |
+    | same, in view | 171,600 tris | 158,586 |
+    | c5 tunnel, 68 m from the room, in view | 599,606 | 356,628 |
+    | c5 tunnel, 42 m from the room, in view | 408,214 | 294,990 |
+    | c5 mouth from 70 m, all loaded | 30.0 MB, 746k tris | 11.2 MB, 273k tris |
+    | c1 mouth from 29 m, in view | 80,300 | 50,674 |
+
+    - Hysteresis makes the mix depend on history. After `-cavelevel 0` and then back to auto at the room, it settles at 22.8 MB (L0 150 chunks).
+  - No cracks or changed look: same-pose pairs, -cavelevel 0 vs auto.
+    - Room near, mid and far, and the tunnel: at most 0.02% of pixels differ by more than 40.
+    - c5 mouth near/mid/far and c1 mouth mid/far: 0.1-2%, all plant sway and cloud. The mouths themselves match.
+    - No sky or terrain shows through anywhere.
+  - Shots: D:/Unity/PunchyMilestones/W-135/row2/ (room-sheet.png, mouth-sheet.png, c1mouth-sheet.png; columns are main, auto and a >40 diff mask; single shots *-main.png / *-auto.png).
+  - Console: no errors or leaks while moving between the spots or when leaving Play with rebuilds in flight. A "JobTempAlloc older than 4 frames" warning shows during the world bake on entering Play. It is logged next to the [ranges] bake; I did not check whether main logs it too.
+  - lod-lint: 0 hits.
+- **BENCH-QUEUE request (rule 21), for the supervisor to queue (or fold into 47i):**
+  - Arms: 9d3d86dd default vs 9d3d86dd `-cavelevel 0`. Profile build, High, uncapped, ABBA, 300 frames per arm.
+  - Views (shotcam):
+    - c5 tunnel (-2864, 24.5, -567), looking at (-2799, 27, -551)
+    - c5 big room (-2810, 27, -556), looking at (-2795, 29, -549)
+    - c1 mouth approach (-3155, 172, 1038), looking at (-3110, 169, 1038)
+  - Pass: default is no slower than -cavelevel 0 (GPU and render thread). Also watch for spikes while walking the tunnel, from the swap uploads.
+- Risks:
+  - The rebuild picker scans every loaded chunk (about 180) up to BuildsPerFrame times a frame. It is plain managed code with no allocations.
+  - A level change rebuilds the whole chunk, so the build count rises while you move through a network.
+  - Skirts add triangles on every border edge (they are in the counts above). Where neighbours share a level, they are hidden behind the wall.
