@@ -490,6 +490,10 @@ Pass: row 6 <= +0.2 ms GPU over row 5 at both views, CPU within noise.
 - Views: job 45c's lake swim, job 45d's fall 74, job 45f's rapids. Profile builds, 1920x1080, High, uncapped, 4 rounds rotated. q89.sh.
 - Pass: swim and fall, new <= +0.3 ms GPU over off; rapids, new <= +0.2 ms GPU over row5.
 
+## Job 49b (2026-11-11, QUEUED after 45g; Zach in the profiler session): pricing and trimming R-12
+- One Profile build of Punchy `b/r12-trims` 247d2777 (origin/main 393a9c20 + test bits): plain; `-skyoff 1024` (no warp); 2048 (the march reads the warp every other fine step: a trial fix); 4096 (cloud shadow and sun cover read the maps straight: prices their share); 6144 (both). Job 49's storm spots, 3 rounds rotated. q90.sh.
+- Purpose: split R-12's warp cost between the sky march and the per-pixel cloud shadow, and see what the half-rate march buys.
+
 ## Job 50 (2026-11-10, QUEUED after 45e; queued by the main-account supervisor, Zach asked): two-player crash and desync test on the laptop
 Note (supervisor 11-10): leave/rejoin is expected to crash in GameAudio occlusion until #259 is fixed. If it does, report it as #259 and finish the rest of the route without the rejoin step.
 - Build: origin/main at the time you start (cc835cf6 or newer; note the commit), one Dev build, two instances on the laptop: host `-host`, client `-join 127.0.0.1`, start the client once the host is in game. Correctness only, no timing: two instances on one machine make frame times meaningless.

@@ -2,6 +2,35 @@
 
 Newest first.
 
+## Note for the supervisor (2026-11-11): fixes for the failing cards, and help wanted on R-12
+Zach asked the profiler to attempt fixes for the failing cards, and to ask the supervisor for help where needed.
+
+**R-9 rows 4-6** (jobs 45c, 45d, 45f): Punchy `b/water-rows-fixes` 0318b5ee, on water/deform 9b1cacc1. It has:
+- the wave field savings;
+- fix 1;
+- cuts 4 and 30 Hz as defaults;
+- two trims of row 6's per-pixel cost:
+  - the shore foam's second read only on rivers;
+  - the flow-anchor hand-over band narrowed to 2-5 m.
+
+It's measured as Job 45g (q89.sh). If it passes, the world lane can merge it into water/deform. **Please card that hand-off once 45g reports.**
+
+**R-12** (job 49 FAIL, +0.45 to +1.1 ms): trial bits on Punchy `b/r12-trims` 247d2777, measured as Job 49b (q90.sh):
+- a half-rate warp read in the march;
+- a bit that prices the cloud shadow's share.
+
+**Help wanted:** a fix that brings R-12 near the +0.1 ms bar probably needs a design call from the sky owner. The warp is a dependent 3D read before every map read:
+- in each march step;
+- in every surface's per-pixel PunchyCloudShadow (terrain, flora, grass, water, creatures and more).
+
+The real saving would be to bake the warp into the 256x256 weather and cloud maps (a render-only warped copy, rebuilt when the maps rebuild), so no shader reads it at all. That drops the warp's height lean (the "leaning tower" rim), unless the march keeps its own read.
+
+Also, part of R-12's cost may be the thinner rain itself: the rain is now see-through, so cloud marches that used to stop behind the rain now run longer. That would be the price of the look, not waste.
+
+**Please assign the bake (or a decision on the bar) to whoever owns the sky.**
+
+**R-10:** job 45e (the merge with main) is measuring now; no change attempted until it reports.
+
 ## Job 49: R-12 cloud warp and rain (#251), 2026-11-11 (q87.sh): FAIL at every spot (+0.45 to +1.1 ms GPU against <= +0.1)
 **Setup:**
 - Three arms:
