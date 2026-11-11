@@ -71,8 +71,9 @@ namespace Punchy.Terrain
 
         /// <summary>W-138 row 2b: the steepest a bore may climb (rise over run, portal to portal); outside, MaxGrade holds.</summary>
         public const float BoreGrade = 0.15f;
-        /// <summary>W-138 row 2b: the longest bore the router tries (m).</summary>
-        const float BoreLongest = 1500f;
+        /// <summary>W-138 row 2b: the longest bore the router tries (m). Row 3a: 1500 m let the router run dead-straight
+        /// kilometre bores where a shorter bore and a valley road fit (Zach asked for meandering); the long one is C0a, by hand.</summary>
+        const float BoreLongest = 800f;
         /// <summary>W-138 row 2b: how far a bore's tunnel (TunnelPortal of rock over it) may start from either end of its line (m); the rest is a cutting in.</summary>
         const float BoreApproach = 60f;
 
@@ -913,6 +914,19 @@ namespace Punchy.Terrain
                 return deep >= TunnelDeepShare * run;
             }
 
+            // W-138 row 3a: a bore never runs under a town or a cave mouth (the closed cells): one passing 11 m from the
+            // mining camp took the elf grove's road past the camp's gate and back down a second bore beside it.
+            bool UnderTown(float2 a, float2 b, float length)
+            {
+                for (var t = Cell; t < length - Cell; t += Cell * 0.5f)
+                {
+                    var c = math.clamp((int2)math.round((math.lerp(a, b, t / length) - origin) / Cell), 0, size - 1);
+                    if (cells[c.y * size.x + c.x].z > 0.5f)
+                        return true;
+                }
+                return false;
+            }
+
             var rows = new List<(int a, int b, float length)>[size.y];
             var src = origin;
             System.Threading.Tasks.Parallel.For(0, size.y, y =>
@@ -953,7 +967,7 @@ namespace Punchy.Terrain
                             var span = math.distance(a, b);
                             if (!Open(cell) || math.abs(cell.x - hA) > BoreGrade * span || H(b - (b - a) / span * 20f) < cell.x + 4f)
                                 continue;
-                            if (!Passes(a, hA, b, cell.x, span))
+                            if (UnderTown(a, b, span) || !Passes(a, hA, b, cell.x, span))
                                 continue;
                             found.Add((ia, ib, span));
                             break;
