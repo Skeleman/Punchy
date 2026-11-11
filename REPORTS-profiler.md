@@ -2,6 +2,42 @@
 
 Newest first.
 
+## SSAO on vs off in a cave and in town (Zach, 2026-11-10; q78.sh)
+**Setup:**
+- Main 33db029c (+ b/bench-lod 9bae987e, which only adds -lodscale), Profile build.
+- New runner switch `-benchnossao` (Punchy b/bench-stress 34abe6ac). It switches off PC_Renderer's ScreenSpaceAmbientOcclusion
+  feature.
+- 1920x1080, `-gfx High`, uncapped, noon, Clear, a fresh game per run, 4 rounds alternating.
+
+| | median frame ms | CPU ms | GPU ms (bench) |
+|---|---|---|---|
+| cave, SSAO on | 9.25 | 9.2 | 3.7 |
+| cave, SSAO off | 8.1 (−1.2) | 8.2 (−1.0) | 3.2 (−0.5) |
+| town, SSAO on | 18.15 | 18.3 | 14.9 |
+| town, SSAO off | 16.3 (−1.9) | 16.5 (−1.8) | 15.5 (+0.6) |
+
+All four rounds agree within 0.2 ms.
+
+**What it looks like** (shot pairs and difference images ×10 in Punchy-wt results/q78-shots):
+- **Cave:** no visible effect. The mean change is 0.3 of 255, and 0.4% of pixels change by more than 4 levels, mostly swaying
+  plants and a creature that moved. The cave's look is lantern and glow light, and AO seems to have nothing to darken there.
+  That's an inference.
+- **Town:** real contact shading under every bush, cactus, post and the player where they meet the ground, and in building
+  creases. 14% of pixels change by more than 4 levels.
+
+**RenderDoc, town, on vs off:**
+- With SSAO off, the SSAO pass (1.5 RenderDoc ms) goes. The prepass stays, but drops from DepthNormals (14.7) to DepthOnly
+  (13.8), with the same 1,521 draws.
+- So the GPU saves about 2.4 RenderDoc ms, about 0.8 ms real.
+- The bench's GPU +0.6 in town is in a CPU-bound frame, so I trust the capture there.
+- **About 1.8 ms of the saving is CPU, not yet explained.** Candidates: the DepthNormals prepass costing more to submit than
+  depth-only, and URP's SSAO setup on the CPU. A CPU profile on vs off would tell; about 15 minutes with this build.
+
+**Options for the supervisor:**
+1. Switch SSAO off underground (CaveSystem.Underground), about −1.2 ms in caves with nothing visible lost.
+2. Make SSAO a graphics setting, off at Low and Medium; on the surface it's a real look for about 1.9 ms on the laptop.
+3. Profile the CPU side first; there may be a cheap fix that keeps the look.
+
 ## Note, 2026-11-10 16:05: is the sky drawn in caves? (Zach's question; for W-135)
 **Answer: yes, but it costs almost nothing there.**
 
