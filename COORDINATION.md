@@ -190,6 +190,7 @@ work; animal session gets told first), `TerrainSource.cs` and `TerrainAuthoring.
   the CLI. Check for it if the editor seems hung after a merge.
 - **Adding a landmark type to a biome list reshuffles the whole island** (LandmarkBaking places from one sequential random stream): caves change style, towns move, every bench coordinate goes stale. Flag it to the supervisor and kind-possum before pushing one; prefer props on existing landmarks where that works.
 - Watch line endings in shaders and assets; the world session added a pre-commit check after two accidents.
+- **No Unity API calls in static field initialisers of any type Burst code reads** (DetailPolicy, policy/tuning classes). Burst runs those initialisers; `Shader.PropertyToID` there failed the compile (BC1091) and silently dropped every job to managed code (terrain 60-100 s per shot instead of ~5 s, R-13 2bcbbba9). Put such IDs in a nested class Burst never touches. If shots suddenly crawl, check the console for Burst errors first.
 
 ## Log
 
