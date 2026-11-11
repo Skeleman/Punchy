@@ -4359,3 +4359,29 @@ Built in the player tree, not the one the card names (the world tree's gitignore
   - Arms: field on vs `-waterfield 0`, ABBA, 300 frames per arm.
   - Pass: on <= +0.3 ms GPU over off. A fall arm (45d) follows once row 5 pushes.
 - Risks: the CPU side of job 45 (+4.7 ms) was mostly the full-square cut. The cut now runs only on a cell or camera-band change, but 45c should confirm it. With a close camera the budget shrink makes the 12.5 cm ring smaller rather than adding indices.
+
+## R-12 cloud (continued: shadow follow-up and row 3; tree Punchy-release, branch fix/pill-cloud)
+- **R-12 shadow follow-up DONE (verified, with a caveat).** Commit ea9a7ee0. PunchyCloudShadow and PunchyCloudCoverAlong now read the weather and cloud maps at `p.xz + PunchyCloudWarpAt(p)`, the same warp as the cloud march: one 3D sample per call. Style and the height estimate stay unwarped. `-skyoff 1024` turns it off.
+  - Shots, noon, branch vs `-skyoff 1024`, in PunchyMilestones/R-12/shadow/: east_noon*.png, sheet_east.jpg, east_ground_diff.jpg (ground band: before / after / diff x6); edge_noon2*.png, sheet_edge2.jpg.
+  - Written check: on the branch the cloud's rim is ragged, and the ground diff shows the shadow patches moved and reshaped on the loaded terrain under it (1.4% of ground pixels differ by >16; elsewhere ~0). The rain shaft's sides follow the cloud bulge.
+  - Caveat: terrain streams only near the play area, so I could not frame the cloud and its whole ground shadow in one shot. The match is shown by the shadow changing with the warp, not by a single picture of the rim lined up with its shadow.
+- **R-12 row 3 DONE (verified).** Commit 86462ce0.
+  - **Cause of rain over near terrain:** `Assets/Game/Scripts/Weather/WeatherSystem.cs` L478 (RenderHazeLut), `Graphics.Blit(null, hazeLut, hazeLutMaterial);`. It gave no pass index, so Unity drew every pass of HazeLut.shader. R-8's second pass (sky directions: 8 km rays at true height) was drawn over the haze table after pass 0, so every distance row held the whole 8 km shaft. Ground in the storm's directions was hazed at any distance, with screen-vertical edges (sheet_same.jpg). This came in with R-8 commit 01e1c1c5.
+  - Proof from a dump of the table, column toward the storm: before, alpha was 0.97-1.0 in every row including distance 0. After, rows 0-18 are 0.00, then 0.20, 0.46, 0.58, 0.67, 0.59, 0.54 from the shaft (~3 km) on.
+  - Fix: `Graphics.Blit(null, hazeLut, hazeLutMaterial, 0);` with a comment. The sky pass call is unchanged.
+  - **Thinner rain (Sky.hlsl, PunchyWeatherVolumesAlong):** the maps are read at the cloud warp at its base (the shared helper), so the shaft's sides follow the cloud. The density factor went from 1.4 to 0.6. Streaks are now a coarse layer (110 m) plus a fine layer (30 m) with a cut-off, so there are clear gaps between them, and the rain thins to 40% over 1.5 km below the cloud base. PUNCHY_RAIN_DENSITY is unchanged.
+  - **#247: same cause.** At the lone oak (editor, seed 4, Rain, the camera spot from w133-flora.txt) the before shot is an all-grey wall (mean 143/255 in every band). The after shot shows the oak, grass and hills with thin streaks (mean 34-52). Seen in the editor only; a player build was not retaken because main's player build is broken.
+  - Shots in PunchyMilestones/R-12/rain/:
+    - Storm spot (1489,88,-897), Storm at (5489,-897): storm_noon_before/storm_noon, storm_night_before/storm_night, sheet_storm.jpg.
+    - Lone oak: oak_rain_before/oak_rain, sheet_oak.jpg.
+  - Written check: in the after shots there is no grey column over the near ground or water. The rain reads as thin streaks you can see the land through, and its sides follow the cloud.
+  - Note: the after storm shots were taken in a different play session, and the cumulus/overcast around the storm in the before shots is absent. That is the session's day type; the rain code does not touch clouds.
+  - Risk: WeatherSystem.cs is listed under the Animal manager for Sun handling. The only edit is the one Blit line in RenderHazeLut, not the Sun code.
+- **BENCH-QUEUE request (rule 21), no timing done:**
+  - Branch fix/pill-cloud at 86462ce0 against main. Player build, High, uncapped. Main's player build is currently broken (A-91), so this may wait for that fix.
+  - Spots, Storm forced (`WeatherSystem.ForceAt("Storm", xz)`), timescale 0:
+    - (a) shotcam 1489,88,-897 -> 1889,98,-897, Storm at (5489,-897), 22:00 and 12:00.
+    - (c) ground under the storm's shadow with creatures in view: shotcam 1489,30,-897 -> 1889,25,-600, Storm at (1700,-1900), 12:00 (the noon shadow falls ~0.7x cloud height north of the cell).
+  - Arms: branch vs `-skyoff 1024` on the same build, ABBA, then branch vs main.
+  - What changed in cost: one extra 3D noise sample per cloud-shadow and sun-cover call. The rain march in the haze table and the sky pass now takes one 3D warp sample per step, in all weather, including clear. The haze table now draws one pass instead of two.
+- Suite: see the final line below once it finishes.
