@@ -5498,3 +5498,9 @@ Branch `world/mountain-tunnels` at 0ef51794 (pushed), on 53f2d557. One commit: S
   - At these spots the road is drawn mostly by the skybox's below-horizon band, not by far-water tiles.
   - Cloud coverage over the sea is about 0.8 even with `-weather Clear` (orography and pressure). The road is multiplied by (1 - 0.8 x clouds), so on a truly clear evening it's stronger than in these shots.
 - No placement changes. No bench request: job 56 already notes the new arm.
+
+### W-132 row 4b default (2026-11-11) - done (verified)
+- Commit 4eabc7c7 on world/far-lite (pushed). `TerrainStreamingSystem.SunRoad` now defaults to 1, which is row 4's road exactly. Zach (11-11): "I actually prefer it to the newest. Your original implementation is good!"
+- The tunable, env `PUNCHY_SUNROAD` (2 gives 4b's stronger far band) and the far-band code all stay. Only the default and its doc comment changed. TerrainStreamingSystem.cs is still CRLF.
+- No new shots: the `-r4.png` files in W-132/row4b/pair/ are strength 1.
+- Suite: `DONE 24 passed, 1 failed, 17 skipped`. The one failure was the known-flaky LiveFolk_BeastResponse, which passed when rerun alone. Pins hold: Landmarks_V3 112 A955AFE0, Fauna_Fingerprint AD723954.
