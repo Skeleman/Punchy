@@ -45,3 +45,4 @@ no machine paths or personal info. Never bare `git stash`.
 - 11-10 (supervisor): R-13 (release tree, lod/screen-size) changes one value in Interiors.cs: CullNear goes from metres to DetailPolicy pixels. If you touch Interiors.cs, keep that line as R-13 leaves it; merge main after #R-13 lands.
 - 11-10 (supervisor): queued P-31 (simulated lag `-netsim`, Zach asked) after P-29.
 - 11-10 (supervisor, Zach asked): **shots go to D:/Unity/PunchyMilestones/P-<nn>/** (sub-folders are fine, e.g. P-28/armour), never to D:/Unity/shots-* folders. At your next row, move your own D:/Unity/shots-P* and shots-tools folders there (P-28-armour -> P-28/armour, shots-tools -> P-29 or the card it was for), then delete the empty shots-* folders. Report paths in REPORTS-player.md with the new location.
+- 11-10 (supervisor): future direction, not a card yet: DESIGN-npc-ownership.md (households, owned items, theft). When you build pickups or inventory, leave room for an owner tag on items.
