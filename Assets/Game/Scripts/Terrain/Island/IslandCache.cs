@@ -372,8 +372,50 @@ namespace Punchy.Terrain
 #if UNITY_EDITOR
             return new List<string> { Path.Combine(Path.GetDirectoryName(Application.dataPath), "Library", Folder, name) };
 #else
-            return new List<string> { Path.Combine(Application.streamingAssetsPath, Folder, name), Path.Combine(Application.persistentDataPath, Folder, name) };
+            return new List<string> { Path.Combine(Application.streamingAssetsPath, Folder, name), Path.Combine(Application.persistentDataPath, Folder, UserName(version)) };
 #endif
+        }
+
+        /// <summary>
+        /// W-140 row 4: the player's own copy is named for its build's stamp (first 8 characters), e.g.
+        /// island-v3-1a2b3c4d.bin, because every Punchy build on a machine shares one data folder: builds from different
+        /// trees would otherwise keep overwriting each other's file. The shipped file keeps the plain name.
+        /// </summary>
+        public static string UserName(int version)
+        {
+            var tag = new StringBuilder();
+            foreach (var c in LastStamp ?? "")
+            {
+                if (tag.Length == 8) break;
+                if (char.IsLetterOrDigit(c)) tag.Append(char.ToLowerInvariant(c));
+            }
+            return tag.Length > 0 ? $"island-v{version}-{tag}.bin" : $"island-v{version}.bin";
+        }
+
+        /// <summary>How many stamped island files the player's data folder keeps (the newest by write time).</summary>
+        public const int KeepUserFiles = 2;
+
+        /// <summary>Player: deletes stamped island files beyond the newest <see cref="KeepUserFiles"/> (and their
+        /// sidecars), plus the unstamped name older builds wrote there. Never throws.</summary>
+        static void PruneUserFiles(string folder, string keep)
+        {
+            try
+            {
+                var old = new List<FileInfo>();
+                foreach (var file in new DirectoryInfo(folder).GetFiles("island-v*.bin"))
+                    if (!string.Equals(file.FullName, Path.GetFullPath(keep), StringComparison.OrdinalIgnoreCase))
+                        old.Add(file);
+                old.Sort((a, b) => b.LastWriteTimeUtc.CompareTo(a.LastWriteTimeUtc));
+                int kept = 1;
+                foreach (var file in old)
+                {
+                    bool stamped = file.Name.Split('-').Length >= 3;
+                    if (stamped && kept < KeepUserFiles) { kept++; continue; }
+                    foreach (var suffix in new[] { "", PartsSuffix, NamesSuffix, StampSuffix })
+                        try { if (File.Exists(file.FullName + suffix)) File.Delete(file.FullName + suffix); } catch (Exception) { }
+                }
+            }
+            catch (Exception) { }
         }
 
         /// <summary>Where this process writes the island file after a fresh bake.</summary>
@@ -383,7 +425,7 @@ namespace Punchy.Terrain
 #if UNITY_EDITOR
             return Path.Combine(Path.GetDirectoryName(Application.dataPath), "Library", Folder, name);
 #else
-            return Path.Combine(Application.persistentDataPath, Folder, name);
+            return Path.Combine(Application.persistentDataPath, Folder, UserName(version));
 #endif
         }
 
@@ -408,6 +450,8 @@ namespace Punchy.Terrain
 #if UNITY_EDITOR
                 // The build step ships this file only while the editor's stamp still reads the same.
                 File.WriteAllText(path + StampSuffix, LastStamp ?? "");
+#else
+                PruneUserFiles(Path.GetDirectoryName(path), path);
 #endif
             }
             catch (Exception e)

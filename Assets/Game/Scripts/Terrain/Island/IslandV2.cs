@@ -493,7 +493,9 @@ namespace Punchy.Terrain
             var types = new List<LandmarkType>(palette.Landmarks);
             LandmarkBaking.AddLooks(types);
             foreach (var extra in new[] { FishingVillageBaking.LoadType(), TurtleVillageBaking.LoadType(), SeaFolkBaking.LoadVillage(), SeaFolkBaking.LoadLanding(), RibcageBaking.LoadType(), MarshFolkBaking.LoadType() })
-                if (extra != null && !types.Contains(extra))
+                // W-140 row 4: matched by name, not object. In a player build Resources.Load returns other objects than
+                // the subscene palette's for the same asset, which appended all six again (72 types, not 66).
+                if (extra != null && !types.Exists(t => t != null && t.name == extra.name))
                 {
                     types.Add(extra);
                     if (palette.Landmarks.Length == types.Count - 1)
