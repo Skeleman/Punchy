@@ -229,6 +229,27 @@ namespace Punchy.Tests
             yield return null;
         }
 
+        /// <summary>W-140: the island this launch has (loaded from the island cache, or baked) is byte for byte a fresh bake
+        /// of the same inputs, and so is a write and read of the island file; the landmark hash is the same all ways.
+        /// Run last: it bakes the island once more (~14 s).</summary>
+        [UnityTest, Order(90)]
+        public IEnumerator IslandCache_LoadedEqualsFresh()
+        {
+            var problems = Game.Hook<string>("IslandCacheRoundTrip");
+            LogWatch.Measure($"island {LogWatch.Last("[island] cache") ?? "no cache line"}; round trip: {(problems == "" ? "all blobs byte-equal, landmark hash the same" : problems)}");
+            Assert.AreEqual("", problems);
+            yield return null;
+        }
+
+        /// <summary>W-140: every blob in TerrainSource is saved by the island cache or named as not the bake's, so a new
+        /// blob can't come back empty on a cache hit.</summary>
+        [UnityTest, Order(90)]
+        public IEnumerator IslandCache_SavesEveryBlob()
+        {
+            Assert.AreEqual("", Game.Hook<string>("IslandCacheMissingBlobs"));
+            yield return null;
+        }
+
         /// <summary>The "(x, y, z)" after " at " in a DebugControls line.</summary>
         static Vector3 ParseAt(string line)
         {
