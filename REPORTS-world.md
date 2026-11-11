@@ -4420,3 +4420,25 @@ Built in the player tree, not the one the card names (the world tree's gitignore
 - Risks:
   - The fall cut runs on a fall, camera-band or Detail change, as a job finished the next frame. 45d should confirm the CPU side.
   - One fall at a time: a second big fall in view stays coarse.
+
+## R-10 merge main (2026-11-10, world lane subagent on the release tree): done (verified)
+- Branch `light/forwardplus`: merge commit 1f6c966d (origin/main 60edfacb into 8263a9b5). It is a merge, not a rebase. Pushed.
+- Conflict: only Assets/Game/Shaders/Creature.shader (CRLF kept). Both sides are kept:
+  - from main: A-92 fur shells, the A-96 NaN fix, A-97 per-segment surfaces and spec block (ndv/rimK), and A-99;
+  - from R-10: `multi_compile _ _CLUSTER_LIGHT_LOOP`, the positionCS input, and `+ PunchyRealLights(positionWS, n, positionCS)` added after PunchyGlowLight in the lit sum.
+- Shader check after an asset refresh: no shader errors.
+- Suite on 1f6c966d: 25 passed, 0 failed, 17 skipped in 572 s (Unity exit 0). Pins match: Landmarks_V3 112 A955AFE0, Fauna_Fingerprint AD723954.
+- Shots are in D:/Unity/PunchyMilestones/R-10/merge/:
+  - town-night-{aerial,mid,ground}.png (`-place HumanVillage -time 22`): all three are "good". Window lights and town glow show, as in the R-10 4c shots.
+  - wolf-noon.png and deer-noon.png (village, noon, `-pose X:rest`):
+    - fur shells, coat-coloured furry paws, dark hooves and eyes all render as on main;
+    - no white sparkles. The sparkle probe found 0 creature markers on the wolf (360 frames, and 227 on the re-run) and on the deer (360 frames). The deer run also flagged 6 non-creature pixels over 2 frames, at the bottom right of the frame, not on the deer.
+  - sparkle-log.txt and contact-sheet.jpg (the contact sheet holds only the last run).
+  - Note: `-pose` circles the camera (ThirdPersonCamera.WatchSpin 12), so the still-shot gate never opens. I set WatchSpin = 0 by eval for these runs and changed no code. A `-posespin 0` flag would make this repeatable.
+- lod-lint hits on this branch are R-10's own code, not the merge, and they are not view ranges:
+  - FarLightPolicy FadeFrom/To 56/30 are reference pixels already;
+  - CaveSystem NearFixtures 40 and TownGlowFadeFrom/To 250/330 hand data over at the far map's edge;
+  - SurfaceGlow.World FarCrownHeight and FarFireLight are a height and a strength.
+  R-13 lists them, and they can convert later.
+- Frame timing skipped per rule 21. **BENCH-QUEUE request: job 45e, QUEUED in BENCH-QUEUE.md.**
+- Risks: Creature.shader now builds the cluster light loop variant on top of the shells. A creature in a lit town at night pays for both, and 45e's town spot covers it.

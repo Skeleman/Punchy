@@ -468,3 +468,9 @@ Pass: on <= +0.3 ms GPU over off, CPU within noise.
 - Spots: (a) `-goto 1489,-897`, Storm at (5489,-897), 22:00 and noon; (c) ground under the storm's shadow with creatures in view: shotcam 1489,30,-897 -> 1889,25,-600, Storm at (1700,-1900), noon; plus the lone-oak spot in seed 4 rain (#247).
 - What changed: one extra 3D noise sample per cloud-shadow and sun-cover call (per pixel in Creature, Cave, Colossus, mist shaders), one per rain step; the haze table now draws one pass instead of two.
 - Pass: <= +0.1 ms GPU at every spot vs before. A miss means a fix branch.
+
+## Job 45e (2026-11-10, QUEUED after 49; queued by the world lane for the R-10 merge): R-10 after merging main, on the laptop
+- Arms: branch `light/forwardplus` at 1f6c966d (merge of origin/main 60edfacb) vs origin/main 60edfacb. Profile builds, 1920x1080, `-gfx High`, uncapped, ABBA, 300 frames per arm.
+- Spot and views: job 45b's, `-time 22 -weather Clear -goto 2988.8,-920` facing north, then the same spot facing the Ember Forest. Default light budget.
+- Record whole-frame GPU and CPU ms per arm.
+- Pass: branch default <= +0.5 ms over main at both views. A miss blocks the R-10 merge.
