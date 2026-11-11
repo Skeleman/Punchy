@@ -531,3 +531,10 @@ W-136 on `world/ground-contact-shade` (builds on W-135): terrain chunks bake dar
 - Also: the first 20 s after load at (a), and a 300 m run into (b) at run speed; list frames over 2x the median. If the build logs per-chunk build times, report the median and p95 ms per LOD0 chunk per arm.
 - Record whole-frame GPU, CPU and render-thread ms per arm and view.
 - Pass: B within noise of A on every view (no shader change, so GPU should match); no new hitch over 2x median on load or the run.
+
+## Job 55 (2026-11-11, QUEUED after 54; supervisor, for W-134 row 1): cave water through the one ground query
+W-134 row 1 on `world/cave-water`: SampleGround(float3) answers cave pools and streams below the terrain surface (one compare on the surface, then a per-cave box test); wakes, the R-9 field, swimming and river current now query with 3D positions.
+- Arms: (A) origin/main 393a9c20 or newer; (B) `world/cave-water` at 0a726943 or newer. Profile builds, 1920x1080, High, uncapped, ABBA, 300 frames per arm.
+- Views: (a) `-place cavepool`, the player swimming/wading in the pool; (b) a surface river, the R-9 rapids below fall 74; (c) a lake swim, `-goto 488,-1144` at y 9.2 (job 45's).
+- Record whole-frame CPU and main-thread ms, plus WaterPatchSystem, CreatureWakeSystem and PlayerMovementSystem from the profiler markers.
+- Pass: B within noise of A at (b) and (c); at (a) those three systems together no more than +0.1 ms CPU.
