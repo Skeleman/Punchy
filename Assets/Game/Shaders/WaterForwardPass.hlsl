@@ -443,7 +443,9 @@ half4 Frag(Varyings input, bool frontFace : SV_IsFrontFace) : SV_Target
         // four near a corner. 3-10 m put the camera in it a fifth of the time on each axis; profiler 11-11.)
         float2 weightA = smoothstep(2, 5, min(inA, AnchorGrid - inA));
         streaks = 0;
-        [unroll] for (int corner = 0; corner < 4; corner++)
+        // (A real loop, not unrolled: four inlined copies of the flow patterns made the whole shader bigger, which can cost
+        // every water pixel through register pressure, rapids or not; job 45g follow-up, q92.)
+        [loop] for (int corner = 0; corner < 4; corner++)
         {
             bool bx = (corner & 1) != 0;
             bool bz = (corner & 2) != 0;
