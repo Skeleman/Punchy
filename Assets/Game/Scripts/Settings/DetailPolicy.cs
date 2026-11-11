@@ -427,6 +427,42 @@ namespace Punchy.Settings
         public const float CaveWallSize = 1f;
         public static readonly Thresholds CaveWall = new Thresholds(20f, 10f, 0f);
 
+        /// <summary>
+        /// W-135 row 3 (rule 20): cave detail by how big it looks, not by fixed metres. Sizes in m, boundaries in reference
+        /// pixels, each tuned so the 60 degree view at 1080 lines gets the old range: plants (1 m) drawn to 60 m and at
+        /// their finest to 20 m, drips (1 m) to 25 m, a cave fall's spray (4 m) to 120 m and a pool's fish (0.3 m) to 35 m
+        /// past its rim, all x Detail as GraphicsSettings.DetailRange scaled them. With no Detail (they were fixed metres):
+        /// a room's flame (0.32 m) to 60 m, the surface hidden from 25 m to 45 m from a mouth (6 m), the world's glow
+        /// fading from 240 m to 320 m (8 m, its typical reach; never past the far map's edge) and a mouth's spill of light
+        /// from 60 m to 85 m (4 m; never past its scan radius). Pools and streams are drawn while their width is a couple
+        /// of pixels, inside the cave streaming radius.
+        /// </summary>
+        public const float CavePlantSize = 1f, CavePlantPixels = 15.59f, CavePlantFinestPixels = 46.77f;
+        public const float CaveDripSize = 1f, CaveDripPixels = 37.41f;
+        public const float CaveFallSize = 4f, CaveFallPixels = 31.18f;
+        public const float CaveFishSize = 0.3f, CaveFishPixels = 8.017f;
+        public const float RoomFlameSize = 0.32f, RoomFlamePixels = 4.988f;
+        public const float CaveMouthSize = 6f, SurfaceHiddenPixels = 124.7f, SurfaceShownPixels = 224.5f;
+        public const float WorldGlowSize = 8f, WorldGlowFromPixels = 31.18f, WorldGlowToPixels = 23.38f;
+        public const float SpillSize = 4f, SpillFromPixels = 62.35f, SpillToPixels = 44.01f;
+        public const float CaveWaterPixels = 2f;
+
+        /// <summary>How far something this big keeps this many reference pixels at the current view, Detail left out:
+        /// for what used fixed metres (<see cref="ExtraReach(float, float)"/> without the x Detail).</summary>
+        public static float ViewReach(float size, float pixels)
+        {
+            var view = Current.Data;
+            return Reach(size, pixels, view.PixelsPerMetre > 0f ? view.PixelsPerMetre : PixelsPerMetreAt(ReferenceFov));
+        }
+
+        /// <summary>A fade's two ends by size (<see cref="ViewReach"/>), both scaled down together so the far one never
+        /// passes the cap (what the faded thing covers): a fade that runs from near to far.</summary>
+        public static float2 FadeReach(float size, float nearPixels, float farPixels, float cap)
+        {
+            var fade = new float2(ViewReach(size, nearPixels), ViewReach(size, farPixels));
+            return fade * math.min(1f, cap / math.max(fade.y, 1e-3f));
+        }
+
         public static Rule FloraRule(FloraClass c)
         {
             switch (c)

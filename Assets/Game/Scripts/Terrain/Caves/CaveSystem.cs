@@ -45,13 +45,13 @@ namespace Punchy.Terrain
         public static float Underground { get; private set; }
 
         /// <summary>
-        /// How completely the surface world is out of sight, 0..1: Underground, faded out near any cave mouth (0 within
-        /// SurfaceFadeNear of a mouth, 1 past SurfaceFadeFar), so a view out of a mouth still shows the outside. Systems
-        /// drawing things on the surface (flora, terrain beyond the camera's own neighbourhood, creatures) skip them at
-        /// 1. The one rule everyone keys on.
+        /// How completely the surface world is out of sight, 0..1: Underground, faded out near any cave mouth (0 while
+        /// the nearest mouth looks bigger than DetailPolicy.SurfaceShownPixels, 1 once smaller than SurfaceHiddenPixels:
+        /// 25 m and 45 m at the reference view), so a view out of a mouth still shows the outside. Systems drawing things
+        /// on the surface (flora, terrain beyond the camera's own neighbourhood, creatures) skip them at 1. The one rule
+        /// everyone keys on.
         /// </summary>
         public static float SurfaceHidden { get; private set; }
-        const float SurfaceFadeNear = 25f, SurfaceFadeFar = 45f;
 
         /// <summary>
         /// Whether every cave chunk in range of the camera is built and nothing is queued or building: what tools that
@@ -457,10 +457,13 @@ namespace Punchy.Terrain
         static readonly float4 CaveStreamWater = new float4(0.04f, 0.13f, 0.12f, 0.15f);
         /// <summary>One mesh per stream, built when the world's caves are first drawn (streams are few and fixed).</summary>
         readonly List<Mesh> streamMeshes = new List<Mesh>();
+        /// <summary>Per pool and per stream: drawn last frame (DetailPolicy.Within holds them).</summary>
+        bool[] poolDrawn = System.Array.Empty<bool>(), streamDrawn = System.Array.Empty<bool>();
         EntityQuery configQuery;
 
         /// <summary>
-        /// Draws every pool and stream within LoadRadius with the terrain's own water material (lava is its lava path):
+        /// Draws every pool and stream within LoadRadius while it's a couple of pixels wide (DetailPolicy.CaveWaterPixels,
+        /// held by Hysteresis) with the terrain's own water material (lava is its lava path):
         /// pools with one shared disc mesh each for water and lava, streams with a ribbon mesh each. Uploads the nearest
         /// lava pools so the cave shader can light the walls round them warmly without real lights.
         /// </summary>
@@ -468,10 +471,14 @@ namespace Punchy.Terrain
         {
             ref var set = ref source.Caves.Value;
             nearPools.Clear();
+            if (poolDrawn.Length != set.Pools.Length)
+                poolDrawn = new bool[set.Pools.Length];
             for (int i = 0; i < set.Pools.Length; i++)
             {
                 var d = math.distance(set.Pools[i].Centre, camPos);
-                if (d < LoadRadius)
+                var reach = math.min(DetailPolicy.ViewReach(set.Pools[i].Radius * 2f, DetailPolicy.CaveWaterPixels), LoadRadius);
+                poolDrawn[i] = DetailPolicy.Within(d, reach, poolDrawn[i]);
+                if (poolDrawn[i])
                     nearPools.Add((d, i));
             }
             var water = UnderRockWater(configQuery.IsEmpty ? null : configQuery.GetSingleton<TerrainConfig>().WaterMaterial.Value);
@@ -519,10 +526,15 @@ namespace Punchy.Terrain
             if (streamMeshes.Count == 0)
                 for (int s = 0; s < set.Streams.Length; s++)
                     streamMeshes.Add(MakeStreamMesh(ref set, s));
+            if (streamDrawn.Length != streamMeshes.Count)
+                streamDrawn = new bool[streamMeshes.Count];
             for (int s = 0; s < streamMeshes.Count; s++)
             {
                 var bounds = streamMeshes[s].bounds;
-                if (math.distance((float3)bounds.ClosestPoint(camPos), camPos) > LoadRadius)
+                var width = math.max(math.min(bounds.size.x, bounds.size.z), 1f);
+                var reach = math.min(DetailPolicy.ViewReach(width, DetailPolicy.CaveWaterPixels), LoadRadius);
+                streamDrawn[s] = DetailPolicy.Within(math.distance((float3)bounds.ClosestPoint(camPos), camPos), reach, streamDrawn[s]);
+                if (!streamDrawn[s])
                     continue;
                 var rp = new RenderParams(water) { worldBounds = bounds, shadowCastingMode = ShadowCastingMode.Off, receiveShadows = false };
                 Graphics.RenderMesh(rp, streamMeshes[s], 0, Matrix4x4.identity);
@@ -531,10 +543,11 @@ namespace Punchy.Terrain
 
         // ------------------------------------------------------------------------------------------- plants
 
-        [Tooltip("Cave plants within this distance of the camera are drawn.")]
-        public float PlantRadius = 60f;
-        /// <summary>PlantRadius at the graphics settings' Detail distance.</summary>
-        float PlantRange => Punchy.Settings.GraphicsSettings.DetailRange(PlantRadius);
+        /// <summary>W-135 row 3: how far a cave plant is drawn (DetailPolicy.CavePlantPixels, x Detail: 60 m at the
+        /// reference view and Detail 1).</summary>
+        static float PlantRange => DetailPolicy.ExtraReach(DetailPolicy.CavePlantSize, DetailPolicy.CavePlantPixels);
+        /// <summary>Per plant (index into the cave set's Plants): drawn, and drawn at its finest, at the last gather.</summary>
+        bool[] plantShown = System.Array.Empty<bool>(), plantFine = System.Array.Empty<bool>();
         float nextFloraLookup;
         /// <summary>
         /// Variants grown per species, and the stride between species' models. It must cover every variant baking
@@ -542,8 +555,9 @@ namespace Punchy.Terrain
         /// drew the next species' models instead, a frame-sized wall torch standing mid-passage (W-100).
         /// </summary>
         public static readonly int PlantVariants = math.max(3, Punchy.Flora.FloraGenerator.MineFrameHeights.Length);
-        /// <summary>Cave plants nearer than this use the finest mesh, the rest the middle one.</summary>
-        const float PlantLod0 = 20f;
+        /// <summary>Cave plants that look bigger than DetailPolicy.CavePlantFinestPixels (20 m at the reference view, no
+        /// Detail) use the finest mesh, the rest the middle one.</summary>
+        static float PlantFinestRange => DetailPolicy.ViewReach(DetailPolicy.CavePlantSize, DetailPolicy.CavePlantFinestPixels);
 
         readonly List<Punchy.Flora.FloraModel> plantModels = new List<Punchy.Flora.FloraModel>();
         BiomePalette plantsFrom;
@@ -672,11 +686,19 @@ namespace Punchy.Terrain
                 plantKeys.Clear();
                 nearGlowPlants.Clear();
                 nearTorches.Clear();
+                if (plantShown.Length != set.Plants.Length)
+                {
+                    plantShown = new bool[set.Plants.Length];
+                    plantFine = new bool[set.Plants.Length];
+                }
+                float plantRange = PlantRange, finestRange = PlantFinestRange;
                 for (int i = 0; i < set.Plants.Length; i++)
                 {
                     ref var p = ref set.Plants[i];
                     var d = math.distance(p.Position, camPos);
-                    if (d > PlantRange)
+                    plantShown[i] = DetailPolicy.Within(d, plantRange, plantShown[i]);
+                    plantFine[i] = DetailPolicy.Within(d, finestRange, plantFine[i]);
+                    if (!plantShown[i])
                         continue;
                     var model = p.Species * PlantVariants + p.Variant;
                     if (model < 0 || model >= plantModels.Count)
@@ -685,7 +707,7 @@ namespace Punchy.Terrain
                     // pygmies are blind). Dropped here, not at bake, so the cave plants and their hashes stay as they are.
                     if (speciesGlow[p.Species].w > 0f && InBatFolkChamber(source, p.Position))
                         continue;
-                    plantKeys.Add((model * 2 + (d < PlantLod0 ? 0 : 1), i));
+                    plantKeys.Add((model * 2 + (plantFine[i] ? 0 : 1), i));
                     if (speciesGlow[p.Species].w > 0f)
                         nearGlowPlants.Add((p.Position + new float3(0f, 0.3f * p.Scale, 0f), speciesGlow[p.Species]));
                     if (speciesTorch[p.Species] > 0f)
@@ -765,7 +787,8 @@ namespace Punchy.Terrain
                                                      Punchy.Ambience.FireSystem.Light(Punchy.Ambience.FireSystem.Wood));
             }
 
-            var bounds = new Bounds(camPos, new Vector3(PlantRange * 2f, PlantRange * 2f, PlantRange * 2f));
+            var plantBox = PlantRange / (1f - DetailPolicy.Hysteresis) * 2f;
+            var bounds = new Bounds(camPos, new Vector3(plantBox, plantBox, plantBox));
             for (int d = 0; d < plantDraws.Count; d++)
             {
                 var rp = new RenderParams(floraMaterial)
@@ -1002,9 +1025,11 @@ namespace Punchy.Terrain
         }
 
         const int MaxDrips = 48;
-        const float DripRadius = 25f;
-        /// <summary>DripRadius at the graphics settings' Detail distance.</summary>
-        float DripRange => Punchy.Settings.GraphicsSettings.DetailRange(DripRadius);
+        /// <summary>W-135 row 3: how far a drip is drawn (DetailPolicy.CaveDripPixels, x Detail: 25 m at the reference
+        /// view and Detail 1).</summary>
+        static float DripRange => DetailPolicy.ExtraReach(DetailPolicy.CaveDripSize, DetailPolicy.CaveDripPixels);
+        /// <summary>Per drip (index into allDrips): near at the last gather.</summary>
+        bool[] dripNear = System.Array.Empty<bool>();
         readonly List<Drip> allDrips = new List<Drip>();
         readonly List<(float distance, Drip drip)> nearDrips = new List<(float, Drip)>();
         static readonly Comparer<(float distance, Drip drip)> DripsByDistance =
@@ -1108,10 +1133,15 @@ namespace Punchy.Terrain
             {
                 dripsAround = camPos;
                 nearDrips.Clear();
-                foreach (var d in allDrips)
+                if (dripNear.Length != allDrips.Count)
+                    dripNear = new bool[allDrips.Count];
+                var dripRange = DripRange;
+                for (int k = 0; k < allDrips.Count; k++)
                 {
+                    var d = allDrips[k];
                     var dist = math.distance(d.Tip.xyz, camPos);
-                    if (dist < DripRange)
+                    dripNear[k] = DetailPolicy.Within(dist, dripRange, dripNear[k]);
+                    if (dripNear[k])
                         nearDrips.Add((dist, d));
                 }
                 nearDrips.Sort(DripsByDistance);
@@ -1128,7 +1158,7 @@ namespace Punchy.Terrain
             dripProps.SetBuffer(DripsId, dripBuffer);
             var rp = new RenderParams(dripMaterial)
             {
-                worldBounds = new Bounds(camPos, new Vector3(DripRange * 2f, DripRange * 2f, DripRange * 2f)),
+                worldBounds = new Bounds(camPos, Vector3.one * (DripRange / (1f - DetailPolicy.Hysteresis) * 2f)),
                 matProps = dripProps,
                 shadowCastingMode = ShadowCastingMode.Off,
                 receiveShadows = false
@@ -1247,7 +1277,8 @@ namespace Punchy.Terrain
             {
                 Shader.SetGlobalTexture(GlowWorldId, surfaceGlow.WorldMap);
                 Shader.SetGlobalVector(GlowWorldRectId, new Vector4(surfaceGlow.WorldCorner.x, surfaceGlow.WorldCorner.y, 1f / surfaceGlow.WorldExtent, 0f));
-                Shader.SetGlobalVector(GlowWorldParamsId, new Vector4((1f - Underground) * WorldGlowStrength, night, WorldGlowFadeFrom, WorldGlowFadeTo));
+                var glowFade = DetailPolicy.FadeReach(DetailPolicy.WorldGlowSize, DetailPolicy.WorldGlowFromPixels, DetailPolicy.WorldGlowToPixels, WorldGlowEdge);
+                Shader.SetGlobalVector(GlowWorldParamsId, new Vector4((1f - Underground) * WorldGlowStrength, night, glowFade.x, glowFade.y));
             }
             // The far tier (Glow.hlsl): every glowing plant and lit window within about 300 m, baked into a light map,
             // fading in where LightBudget hands a typical glow from its slots to the far tier (refactor 3.1).
@@ -1304,10 +1335,11 @@ namespace Punchy.Terrain
         static readonly int GlowWorldId = Shader.PropertyToID("_PunchyGlowWorld");
         static readonly int GlowWorldRectId = Shader.PropertyToID("_PunchyGlowWorldRect");
         static readonly int GlowWorldParamsId = Shader.PropertyToID("_PunchyGlowWorldParams");
-        /// <summary>The world glow's brightness, and the camera distance (m) its plants and lava fade in over: where the
-        /// 640 m far map fades out towards its edge.</summary>
+        /// <summary>The world glow's brightness. Its plants and lava fade in over a camera distance by how big a glow looks
+        /// (DetailPolicy.WorldGlowFromPixels to WorldGlowToPixels: 240 m to 320 m at the reference view), never past
+        /// WorldGlowEdge, where the 640 m far map fades out towards its edge.</summary>
         public static float WorldGlowStrength = 1f;
-        const float WorldGlowFadeFrom = 240f, WorldGlowFadeTo = 320f;
+        const float WorldGlowEdge = 320f; // streaming: the far map's coverage, not a look
         /// <summary>A typical surface glow's reach (m), for where the far map takes over (LightBudget.GlowHandOff): the
         /// far map fades in from 70% of where the near lights start fading to where they're gone, so the hand-over adds
         /// up to about the same light.</summary>
@@ -1391,7 +1423,8 @@ namespace Punchy.Terrain
             ref var caveSet = ref source.Caves.Value;
             for (int c = 0; c < caveSet.Caves.Length; c++)
                 nearestMouth = math.min(nearestMouth, math.distance(camPos, caveSet.Caves[c].Mouth));
-            SurfaceHidden = Underground * math.smoothstep(SurfaceFadeNear, SurfaceFadeFar, nearestMouth);
+            var surfaceFade = DetailPolicy.FadeReach(DetailPolicy.CaveMouthSize, DetailPolicy.SurfaceShownPixels, DetailPolicy.SurfaceHiddenPixels, LoadRadius);
+            SurfaceHidden = Underground * math.smoothstep(surfaceFade.x, surfaceFade.y, nearestMouth);
             UpdateLantern(source);
             UpdateOtherLanterns(source, cam.transform.position);
         }

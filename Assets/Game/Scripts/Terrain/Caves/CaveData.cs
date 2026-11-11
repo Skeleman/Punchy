@@ -165,10 +165,13 @@ namespace Punchy.Terrain
 
     /// <summary>
     /// An underground waterfall: water pouring from a lip high on a chamber wall, out and down into a pool. Drawn by
-    /// LandmarkEffectSystem as a waterfall curtain and a mist plume, lit as under rock.
+    /// LandmarkEffectSystem as a waterfall curtain and a mist plume, lit as under rock, and, once it looks big enough,
+    /// as a fine water sheet by WaterPatchSystem (W-135 row 3).
     /// </summary>
     public struct CaveWaterfall
     {
+        /// <summary>How far the water carries out from the lip as it falls (m).</summary>
+        public const float Reach = 0.9f;
         /// <summary>The lip, on the wall.</summary>
         public float3 Lip;
         public float Width;
