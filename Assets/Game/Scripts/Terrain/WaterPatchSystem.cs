@@ -807,7 +807,6 @@ namespace Punchy.Terrain
                 }
                 else
                     dispatched += steps;
-                LogField();
 
                 compute.SetInt(SizeId, Size);
                 compute.SetInt(CullId, CullOn ? 1 : 0);
@@ -829,6 +828,8 @@ namespace Punchy.Terrain
                 pendingShift = int2.zero;
                 texelCorner = fieldCorner;
             }
+            // (Every frame, not only the ones that step: a 5 s log window over stepping frames alone spanned ~10 s at 20 Hz.)
+            LogField();
             Shader.SetGlobalTexture(FieldId, fieldA);
             Shader.SetGlobalVector(FieldAtId, new Vector4(texelCorner.x, texelCorner.y, TexelsPerMetre, Size));
         }
