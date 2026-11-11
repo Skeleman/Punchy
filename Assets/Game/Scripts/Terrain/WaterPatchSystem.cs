@@ -83,6 +83,10 @@ namespace Punchy.Terrain
         /// </summary>
         static readonly bool SleepOn = LaunchSwitch("-waterfieldsleep"), CullOn = LaunchSwitch("-waterfieldcull"), StepOn = LaunchSwitch("-waterfieldstep");
         static int SleepAfter => (int)(10f / StepTime);
+        /// <summary>Zach 11-11: "-waterfieldnormals 1" runs the field without the fine sheet: nothing is cut or drawn and
+        /// the chunk water isn't clipped; it only takes the field's slope as its light over the square (PunchyWaterFieldShade),
+        /// so the wake shows in the shading with no displacement. The cheap option, and a far-range one later.</summary>
+        static readonly bool NormalsOnly = LaunchInt("-waterfieldnormals", 0, 0, 1) == 1;
         int quietSteps, dispatched, skipped, sourceSum;
         bool asleep;
         float logClock;
@@ -455,6 +459,19 @@ namespace Punchy.Terrain
                 Hide();
                 return;
             }
+            if (NormalsOnly)
+            {
+                // (The field follows the square in whole texels as the cut would move it; no sheet, no mask, no clip.)
+                if (!corner.Equals(fieldCorner))
+                {
+                    if (!fieldCorner.Equals(NoCorner))
+                        pendingShift += (corner - fieldCorner) * (int)TexelsPerMetre;
+                    fieldCorner = corner;
+                    shownCorner = corner;
+                }
+                StepField();
+                return;
+            }
             // Recut when the square moves, a chunk under it is rebuilt, or the cut no longer fits the view: the player has
             // moved a cell on, the camera has come much nearer or gone much further, or the Detail setting changed (or a
             // fall's sheet took cells from it or gave them back).
@@ -771,7 +788,7 @@ namespace Punchy.Terrain
             if (logClock < 5f)
                 return;
             Debug.Log($"WaterField: {dispatched} steps dispatched, {skipped} skipped, {(float)sourceSum / math.max(1, dispatched + skipped):F1} sources a step, " +
-                      $"{(asleep ? "asleep" : "awake")} (sleep {SleepOn}, cull {CullOn}, step {StepOn}, cuts {Cuts}, {1f / StepTime:F0} Hz), sheet {(mesh != null && mesh.subMeshCount > 0 ? mesh.GetIndexCount(0) : 0)} indices");
+                      $"{(asleep ? "asleep" : "awake")} (sleep {SleepOn}, cull {CullOn}, step {StepOn}, cuts {Cuts}, {1f / StepTime:F0} Hz{(NormalsOnly ? ", normals only" : "")}), sheet {(mesh != null && mesh.subMeshCount > 0 ? mesh.GetIndexCount(0) : 0)} indices");
             logClock = 0f;
             dispatched = skipped = sourceSum = 0;
         }
