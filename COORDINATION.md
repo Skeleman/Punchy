@@ -113,8 +113,8 @@ feature code, and it never edits files in another session's checkout.
    row that needs a cost check instead ends with a BENCH-QUEUE request in its handoff: branch, commit, spots (-goto coords),
    arms (main vs branch, any flags) and the pass line. The supervisor queues it. Cheap counts you get anyway (triangles, draw
    calls, index counts, memory from a script) are fine to report; no timing.
-22. **Placement is data, ready for a world file (Zach, 2026-11-11, #260):** one day the island may be generated once at design
-   time, saved to a file, hand-edited and loaded by the game. No layouts are final yet, but new and changed world code must stay
+22. **Placement is data, ready for a world file (Zach, 2026-11-11, #260):** there will be one designed island: one day it is generated once
+   at design time, saved to a file, hand-edited and loaded by the game. No layouts are final yet, but new and changed world code must stay
    compatible: (a) every placed thing (landmark, cave, dungeon, tunnel, road/river waypoint, settlement, building, colossus spot,
    hermitage, lone NPC, fence/sign/light) comes out of its bake step as a plain record (kind, position, rotation, size, params) with
    a stable id, held in a blob or list, not only as a mesh, entity or side effect; (b) later steps and runtime systems read those

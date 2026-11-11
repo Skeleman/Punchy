@@ -118,7 +118,7 @@ Zach's order (2026-11-03): (1) a modular building kit plus more colossi, (2) fis
 - Interactive doors, gates and torches whose state syncs in multiplayer; interiors with portal culling (see Dungeons above).
 - Map editing (Zach 11-11): hand-adjust the generated map in passes: ground and biome borders; landmark, cave, dungeon and tunnel spots;
   road and river paths; settlements, colossi, hermitages, lone NPCs; placed fences, signs and lights. Flora stays procedural (paint
-  masks only). One edits file applied over the seed in the bake; a baked-world cache could cut load times (#260).
+  masks only). One designed island (Zach 11-11): generation becomes a design step whose saved world file the game loads and Zach edits (#260).
 
 ### Creatures and NPCs (A)
 - Decide as one activity table with explicit priorities (#60).
