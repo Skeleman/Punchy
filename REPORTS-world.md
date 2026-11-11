@@ -5257,3 +5257,41 @@ Branch `world/mountain-tunnels` at c3cdf1db (pushed). Row 2b not started; it wai
   - Lake 3's swim shot looks past a drip column; the hall is small enough that a column is usually in view.
 - BENCH-QUEUE request: main vs world/cave-water. (1) Island bake: the new "lakes" and "lake details" steps. (2) Standing in lake 1's hall (-2600, 205, 333) and swimming in it: cave water bake job, draw count and memory for the hall's water tiles, props and glow flora. No timing from the lane (rule 21).
 - W-134 rows 1-3 done. Row 4 (river chambers) waits for the supervisor.
+
+### Row 4: river chamber - done (verified)
+- Commits cca1d174 and 6df55722 on world/cave-water (pushed). New `CaveBaking.Rivers.cs`, plus edits in CaveData, CaveBaking, CaveBaking.Lakes and LandmarkEffectSystem:
+  - A few wet caves gain a river chamber: a long vaulted chamber (CaveChamber: ChamberVault/ChamberFloor in CaveData) hung off a passage by a round-roofed gallery. A river (CaveStream.Chamber) flows from end to end on a gentle fall, then drops 1.6-2.4 m down a chute at 55-70% of its length.
+  - Steep stretches pick up R-9 row 6 whitewater (9b1cacc1 is in the branch). The chute is the stream's own water: LandmarkEffectSystem plays its sound and draws only its spray mist, no curtain.
+  - Stable seeds: every draw comes from hash(cave Key), and all draws are made before any skip. A chamber only takes its own spot: it is dropped on a cover, wet, air or overlap miss. Chambers and their streams go after the cave's own pools and streams, so existing indices hold.
+  - The water is row 2's baked lattice; there's no new water path.
+  - Details tenet: gravel bars on the inside of the run, a fallen slab (the Block shape with a slab cut), and spray at the chute. Everything goes through the existing cave props, so it's drawn by DetailPolicy.ScreenSize.
+- Play island: `[cave-rivers] planned 6, kept 2; misses: host 0, cover 119, wet 27, air 37, overlap 11`.
+
+  | Chamber | Cave | From | To | Width | Height | Chute drop |
+  |---|---|---|---|---|---|---|
+  | 0 | 20 | -2163.6, 35.0, -1094.5 | -2194.8, 31.7, -1107.7 | 6.2 m | 7.6 m | 2.0 m |
+  | 1 | 24 | 1447.0, 7.3, -2616.4 | 1405.6, 3.4, -2612.7 | 6.6 m | 6.4 m | 2.1 m |
+
+- Fixes folded into these commits:
+  - Drip columns are no longer smooth cylinders. They are waisted, with flowstone rings (narrow ridges, wide hollows), lumps from noise, a wider foot and a bell flaring into the ceiling, all in the cave rock material. See r4-5-column.
+  - The "E sit" prompt in every shot comes from fauna-lane code, not world-lane code: InteractionInputSystem's idle rest offer (offerRest after 1.5 s standing still, or nearSeat within 1.6 m). For shots I hide the HUD instead (InteractionPrompt.Hidden plus DebugControls noHud).
+  - StreamBed end caps: a chamber river's stretches cut only alongside themselves (round ends only at the river's two ends), so the plunge pool doesn't hollow out the run above the chute.
+  - WaterAt does the same for chamber rivers (with 0.25 m of slack at bends). Their points sit closer together than half the river's width, so an earlier stretch's end read the water 5 cm high. The suite caught this (CaveWater_SurfaceMatchesAndPoolStirs). The worst level error is now 0.000 m, and a sweep across both rivers found no dry gaps.
+- Shots, viewed at sheet size, in D:/Unity/PunchyMilestones/W-134/: r4-1-chute (chamber 1 whitewater and spray), r4-2-vault (chamber 0 end to end), r4-3-bars (gravel bank), r4-4-slab, r4-5-column, r4-6-chute-c0, r4-7-small-cave (the comparison cave). r4-sheet.jpg is a contact sheet of shots 1-6.
+- Clip: r4-clip-river.mp4, 6 s at 20 fps: a glide down chamber 0 past the chute and the slab.
+- Counts (UnityStats for the whole frame, no timing):
+
+  | Pose | Triangles | Draws | SetPass |
+  |---|---|---|---|
+  | Chamber 0 vault | ~4.4 M | 750 | 224 |
+  | Chamber 0 bars | ~5.4 M | 2999 | 518 |
+  | Chamber 1 chute | ~2.0 M | 2599 | 455 |
+  | Small deep cave 1 (57 m down) | 384k | 110 | 61 |
+
+  - The cave's own rock: chamber cave 20 is 8 chunks, 66k triangles; chamber cave 24 is 13 chunks, 120k. Ordinary cave 1 is 23 chunks, 139k; lake cave 13 is 20 chunks, 141k. So the chambers are not heavier in rock.
+  - The big frame numbers come from the overworld still drawing. Both chambers are 11-16 m under the ground and within 45 m of a cave mouth, and CaveSystem only fades the surface out between 25 and 45 m from the nearest mouth (SurfaceHidden 0.76 in chamber 0, 0.20 in chamber 1). Hiding by depth or by cover rather than by distance to a mouth would be a separate card; I made no change.
+- Pins hold: Landmarks_V3 112 A955AFE0, Fauna_Fingerprint AD723954.
+- Suite (fresh domain): `DONE 26 passed, 0 failed, 17 skipped in 305s`.
+- lod-lint HEAD: clean. GalleryRadius carries a collision tag because it is a carved size, not a draw range.
+- BENCH-QUEUE request: main vs world/cave-water at three poses: (1) chamber 0 (-2180, 34, -1100), (2) chamber 1's chute (1425, 6, -2614), and (3) small deep cave 1 (-3011.8, 157.8, 1028.0) as the baseline. Measure draw count, SetPass, triangles and memory, plus the new "rivers" and "river details" bake steps. Note how much of the chamber cost is the surface still drawn near the mouths. No timing from the lane (rule 21).
+- W-134 rows 1-4 done.
