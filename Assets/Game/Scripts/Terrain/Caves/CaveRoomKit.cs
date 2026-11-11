@@ -71,6 +71,10 @@ namespace Punchy.Terrain
             public int SetFrom;
             /// <summary>W-135 row 4: where its set touches the floor (world space), for the seam darkening round them.</summary>
             public readonly List<ContactShade.Contact> Contacts = new List<ContactShade.Contact>();
+            /// <summary>W-135 row 5: the part each contact belongs to (its index in Parts).</summary>
+            public readonly List<int> ContactPart = new List<int>();
+            /// <summary>The room's floor height (world y).</summary>
+            public float Floor;
         }
 
         /// <summary>The cave shader's rock tones per room type (grotto, lake, roost, ruin) for the stone and trim groups.</summary>
@@ -339,15 +343,22 @@ namespace Punchy.Terrain
 
         /// <summary>How near the floor (m, below or above it) a set piece's foot must be to count as standing on it.</summary>
         const float FloorBelow = 0.35f, FloorAbove = 0.2f;
+        /// <summary>W-135 row 5: how far (m) a foot may stray past a raised part's top and still stand on it, how near the
+        /// floor a top counts as the floor itself, and the highest top above the floor anything is stood on.</summary>
+        const float OnMargin = 0.05f, OnFloor = 0.05f, OnHighest = 1.2f;
 
         /// <summary>
-        /// W-135 row 4: the footprints where the room's set stands on its floor (crystals by their foot, drums by their
-        /// bottom cap, boxes by their face nearest down), for the seam darkening on the tiles and the rock round them.
-        /// Parts stacked on others or fixed to a wall don't touch the floor and aren't counted.
+        /// W-135 row 4: the footprints where the room's set stands (crystals by their foot, drums upright by their bottom
+        /// cap, boxes by their face nearest down), for the seam darkening on the tiles and the rock round them.
+        /// W-135 row 5: a drum on its side (a fallen ruin drum, a bone) touches along its lowest line, and a piece stands
+        /// on the floor or on the raised part under it (pool coping, a pillar's base, a step), whichever top its foot is
+        /// nearest above; <see cref="BuildMeshes"/> darkens that part's top round it too. Parts stacked on a like part (a
+        /// guano mound's crown, a rope coil's turns), hung over a smaller one or fixed to a wall aren't counted.
         /// </summary>
         static void FloorContacts(Kit kit, in CaveRoom room)
         {
             var floor = room.Origin.y;
+            kit.Floor = floor;
             for (int i = kit.SetFrom; i < kit.Parts.Count; i++)
             {
                 var p = kit.Parts[i];
@@ -360,6 +371,19 @@ namespace Punchy.Terrain
                         foot = p.Centre;
                         contact = ContactShade.Contact.Disc(foot, p.Half.x * 0.8f);
                         break;
+                    case 2 when math.abs(up.y) < 0.5f:
+                    {
+                        // On its side: the lowest line of its round, along its length.
+                        var u = math.mul(p.Rotation, new float3(1f, 0f, 0f));
+                        var w = math.mul(p.Rotation, new float3(0f, 0f, 1f));
+                        var rz = p.Half.z > 0f ? p.Half.z : p.Half.x;
+                        var low = math.abs(up.y) * p.Half.y + math.sqrt(math.square(u.y * p.Half.x) + math.square(w.y * rz));
+                        foot = p.Centre - new float3(0f, low, 0f);
+                        var along = math.length(up.xz);
+                        contact = ContactShade.Contact.Box(foot, along > 1e-4f ? up.xz / along : new float2(1f, 0f),
+                            new float2(p.Half.y * along, math.min(p.Half.x, rz)));
+                        break;
+                    }
                     case 2:
                         foot = p.Centre - up * p.Half.y;
                         contact = ContactShade.Contact.Disc(foot, p.Half.x);
@@ -396,11 +420,101 @@ namespace Punchy.Terrain
                         break;
                     }
                 }
+                // What it stands on: the floor, or the highest raised top under its foot that it's no wider than.
                 var rise = foot.y - floor;
-                if (rise < -FloorBelow || rise > FloorAbove)
+                var best = rise >= -FloorBelow && rise <= FloorAbove ? floor : float.NegativeInfinity;
+                var own = Top(p);
+                var size = math.cmax(contact.Half) + contact.Radius;
+                for (int j = 0; j < kit.Parts.Count; j++)
+                {
+                    var q = kit.Parts[j];
+                    if (j == i || !Raised(q, out var top, out var span))
+                        continue;
+                    if (top <= floor + OnFloor || top > floor + OnHighest || top <= best || own <= top + OnMargin)
+                        continue;
+                    var gap = foot.y - top;
+                    if (gap < -FloorBelow || gap > FloorAbove || size > span + OnMargin || !Over(q, contact.Base.xz, OnMargin))
+                        continue;
+                    if (p.Shape == 2 && q.Shape == 2 && p.Group == q.Group)
+                        continue;
+                    best = top;
+                }
+                if (best == float.NegativeInfinity)
                     continue;
+                if (best > floor)
+                    contact.Base.y = best;
                 kit.Contacts.Add(contact);
+                kit.ContactPart.Add(i);
             }
+        }
+
+        /// <summary>W-135 row 5: the height of a part's highest point.</summary>
+        static float Top(in Part p)
+        {
+            var x = math.mul(p.Rotation, new float3(1f, 0f, 0f));
+            var y = math.mul(p.Rotation, new float3(0f, 1f, 0f));
+            var z = math.mul(p.Rotation, new float3(0f, 0f, 1f));
+            switch (p.Shape)
+            {
+                case 1:
+                    return p.Centre.y + math.max(0f, y.y * p.Half.y);
+                case 2:
+                    var rz = p.Half.z > 0f ? p.Half.z : p.Half.x;
+                    return p.Centre.y + math.abs(y.y) * p.Half.y + math.sqrt(math.square(x.y * p.Half.x) + math.square(z.y * rz));
+                default:
+                    return p.Centre.y + math.abs(x.y) * p.Half.x + math.abs(y.y) * p.Half.y + math.abs(z.y) * p.Half.z;
+            }
+        }
+
+        /// <summary>W-135 row 5: whether others can stand on a part (a box lying level or a drum upright), the height of
+        /// its top, and the half width of its narrower side there.</summary>
+        static bool Raised(in Part p, out float top, out float span)
+        {
+            top = Top(p);
+            span = 0f;
+            if (p.Shape == 2)
+            {
+                span = math.min(p.Half.x, p.Half.z > 0f ? p.Half.z : p.Half.x);
+                return math.abs(math.mul(p.Rotation, new float3(0f, 1f, 0f)).y) > 0.9f;
+            }
+            if (p.Shape != 0)
+                return false;
+            for (int k = 0; k < 3; k++)
+            {
+                var a = float3.zero;
+                a[k] = 1f;
+                if (math.abs(math.mul(p.Rotation, a).y) > 0.9f)
+                {
+                    span = math.min(p.Half[(k + 1) % 3], p.Half[(k + 2) % 3]);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>W-135 row 5: whether a point (x, z) lies over a raised part's top, grown by margin.</summary>
+        static bool Over(in Part p, float2 at, float margin)
+        {
+            var d = at - p.Centre.xz;
+            if (p.Shape == 2)
+            {
+                var u = math.mul(p.Rotation, new float3(1f, 0f, 0f)).xz;
+                var w = math.mul(p.Rotation, new float3(0f, 0f, 1f)).xz;
+                var rz = p.Half.z > 0f ? p.Half.z : p.Half.x;
+                var e = new float2(math.dot(d, u) / (p.Half.x + margin), math.dot(d, w) / (rz + margin));
+                return math.lengthsq(e) <= 1f;
+            }
+            for (int k = 0; k < 3; k++)
+            {
+                var a = float3.zero;
+                a[k] = 1f;
+                var ax = math.mul(p.Rotation, a);
+                if (math.abs(ax.y) > 0.9f)
+                    continue;
+                if (math.abs(math.dot(d, math.normalizesafe(ax.xz))) > p.Half[k] * math.length(ax.xz) + margin)
+                    return false;
+            }
+            return true;
         }
 
         /// <summary>The room's socket spots, laid first so the props keep clear of them.</summary>
@@ -1022,17 +1136,27 @@ namespace Punchy.Terrain
         /// <summary>One mesh per material group (null where the room has none), in the cave walls' vertex layout.
         /// Openness is the vertex colour alpha: 0 deep in the cave (rooms), 1 out in daylight (tunnel portals).
         /// W-135 row 4: with contacts, the shell's tiles are darkened round them (ContactShade, the seam where a prop
-        /// stands on the floor), their faces there cut finer so it falls off smoothly; the set itself is left as it is.</summary>
+        /// stands on the floor), their faces there cut finer so it falls off smoothly.
+        /// W-135 row 5: the set's own raised tops (pool coping, a pillar's base, a step, floor tiles) are darkened round
+        /// the pieces standing on them too; other set parts are left as they are.</summary>
         public static Mesh[] BuildMeshes(Kit kit, float openness = 0f, List<ContactShade.Contact> contacts = null)
         {
             var builders = new Builder[Groups];
             if (contacts != null && contacts.Count == 0)
                 contacts = null;
+            var onTop = new List<ContactShade.Contact>();
             for (int i = 0; i < kit.Parts.Count; i++)
             {
                 var p = kit.Parts[i];
                 var b = builders[p.Group] ??= new Builder();
-                b.Contacts = i < kit.SetFrom ? contacts : null;
+                if (i < kit.SetFrom)
+                    b.Contacts = contacts;
+                else
+                {
+                    b.Contacts = null;
+                    if (contacts != null && StoodOn(kit, i, onTop))
+                        b.Contacts = onTop;
+                }
                 switch (p.Shape)
                 {
                     case 1: b.Prism(p.Centre, p.Rotation, p.Half.x, p.Half.y, p.Tint); break;
@@ -1044,6 +1168,26 @@ namespace Punchy.Terrain
             for (int g = 0; g < Groups; g++)
                 meshes[g] = builders[g]?.ToMesh("Cave room " + g, openness);
             return meshes;
+        }
+
+        /// <summary>W-135 row 5: the set's contacts that darken set part j's top (others standing on it or beside it at
+        /// its height, rising above it), into list; false if there are none or j isn't a raised top.</summary>
+        static bool StoodOn(Kit kit, int j, List<ContactShade.Contact> list)
+        {
+            list.Clear();
+            var q = kit.Parts[j];
+            if (!Raised(q, out var top, out _) || top > kit.Floor + OnHighest)
+                return false;
+            for (int k = 0; k < kit.Contacts.Count; k++)
+            {
+                var i = kit.ContactPart[k];
+                var c = kit.Contacts[k];
+                if (i == j || math.abs(c.Base.y - top) > OnFloor + 0.01f || Top(kit.Parts[i]) <= top + OnMargin)
+                    continue;
+                if (Over(q, c.Base.xz, math.length(c.Half) + c.Radius + c.Reach))
+                    list.Add(c);
+            }
+            return list.Count > 0;
         }
 
         class Builder
