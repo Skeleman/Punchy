@@ -498,6 +498,11 @@ Pass: row 6 <= +0.2 ms GPU over row 5 at both views, CPU within noise.
 - One Profile build of Punchy `b/r10-trims` a1cb1899 (= light/forwardplus 1f6c966d + LightBudget's real-light reach: pixels past every real light's reach skip the Forward+ light loop): trim; `-realreach 0` (R-10 as is); `-floraglowworld 0` (prices plants' island glow); and origin/main 60edfacb. Job 45e's spot, town (yaw 201) and north, 3 rounds rotated. q91.sh.
 - Pass (45e's): trim <= +0.5 ms GPU over main at both views.
 
+## Job 49c (2026-11-11, QUEUED after 45h and the q92 water captures; Zach in the profiler session): cloud shadow map prototype
+- One Profile build of Punchy `b/cloud-shadow-map` 88ee4c89 (origin/main 393a9c20 + WeatherSystem baking the clouds' shadow density over the cloud plane round the camera, 8 km at 1024x1024, every 2 frames; PunchyCloudShadow reads it once per pixel): on; `-cloudshadowmap 0` (per pixel, as main); `-cloudshadowmapevery 1`.
+- Spots: job 49's storm shadow and storm noon, and the hive spot at noon (Partly cloudy). 3 rounds rotated; shots of every arm to compare the shadows. q93.sh.
+- Purpose: R-12's per-pixel shadow cost (and the cloud shadow's cost from before it) moved into a bake a few times a second.
+
 ## Job 50 (2026-11-10, QUEUED after 45e; queued by the main-account supervisor, Zach asked): two-player crash and desync test on the laptop
 Note (supervisor 11-10): leave/rejoin is expected to crash in GameAudio occlusion until #259 is fixed. If it does, report it as #259 and finish the rest of the route without the rejoin step.
 - Build: origin/main at the time you start (cc835cf6 or newer; note the commit), one Dev build, two instances on the laptop: host `-host`, client `-join 127.0.0.1`, start the client once the host is in game. Correctness only, no timing: two instances on one machine make frame times meaningless.
