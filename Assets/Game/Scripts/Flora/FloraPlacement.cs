@@ -2323,8 +2323,10 @@ namespace Punchy.Flora
                                 // posts in the shallows, instead of leaving its plot empty (no draws moved).
                                 if (placedRule.House == 2 && LandmarkSampling.StiltHouseSpot(source, set.Instances[landmark.Instance].Position, spot, out var stiltPlot, out _))
                                     spot = stiltPlot;
+                                // W-138: a pier stays where a road ends on it: the landing spur stops at its ramp foot,
+                                // so the road walks straight onto the deck.
                                 if (OnBuiltPlot(ref f, source, spot, placedRule.Footprint * prop.Scale.y) ||
-                                    OnRoad(source, spot, placedRule.Footprint * prop.Scale.y))
+                                    (placedRule.PierReach <= 0f && OnRoad(source, spot, placedRule.Footprint * prop.Scale.y)))
                                     return none;
                                 // W-59d: a shore cluster reaches about 5 m (2.5 m spread plus half a pulled-up boat):
                                 // none within that of a dock's walk lane, so nothing stands on the ramp or deck.

@@ -98,7 +98,9 @@ namespace Punchy.Terrain
             // and the caves are read off their landmarks.
             var sea = SeaFolkBaking.Place(source, types);
             LastSeaFolk = sea;
-            float2? landing = sea.Count > 1 ? sea[1].Position : null;
+            // The spur ends at the foot of the pier's ramp (StructureKit.Pier: 8 m inland of the landing, against its
+            // facing), so the road runs straight onto the ramp and deck.
+            float2? landing = sea.Count > 1 ? sea[1].Position - math.normalizesafe(sea[1].Facing) * LandingRampRun : null;
             var destinations = RoadBaking.Destinations(source, types, palette, landing);
             RoadBaking.Build(source, layouts, firstBuilding, settlements, streets, plots, roads, destinations);
             var roadsDone = watch.ElapsedMilliseconds;
@@ -108,6 +110,9 @@ namespace Punchy.Terrain
             LastTiming = $"(towns {lap} roads {roadsDone - lap} roadside {roadsideDone - roadsDone} blob {watch.ElapsedMilliseconds - roadsideDone})";
             return blob;
         }
+
+        /// <summary>W-138: how far inland of the landing the landing spur ends: the pier's 8 m ramp and half a metre.</summary>
+        const float LandingRampRun = 8.5f;
 
         /// <summary>W-16: the last Build's steps in ms, for the "[bake] stages" log line.</summary>
         public static string LastTiming = "";
