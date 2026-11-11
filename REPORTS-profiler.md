@@ -2,6 +2,59 @@
 
 Newest first.
 
+## Wave field: 30/20 Hz fixed, displacement only (Zach, 2026-11-11; q82.sh, q83.sh; b/fix-waterfield-step)
+**Changes on the experiment branch:**
+- **96c1425a:** a move no longer forces its own step; the shift waits for the next scheduled one, and the shaders read the
+  field by the corner its texels hold. So 30 and 20 Hz step at their rate.
+- **afa70c25:** the field's 5 s log now counts every frame. It ran only on stepping frames, which doubled its window at 20 Hz.
+- **a9db11d7:** where the field fully covers, no swimmer ring ripples are worked out and the field adds no foam; the
+  displacement alone shows the wake (`-waterfieldripples 1`: as before). The rings carry on toward the square's edge and
+  beyond it.
+
+**Zach's look calls:**
+- He saw no difference with cuts 4 and 30 Hz (and 20 Hz) in play.
+- He prefers displacement only, with no white ring decal or field foam where the field covers.
+
+**q82, swim (default body, 3 rounds, GPU ms):**
+| arm | mean |
+|---|---|
+| base | 18.8 |
+| sleep + cull | 18.8 |
+| + cuts 4 | 17.8 |
+| + 30 Hz | 18.7 |
+| + 20 Hz | 18.9 |
+| + cuts 4 + 30 Hz | 18.4 |
+| + cuts 4 + 20 Hz | 18.4 |
+| off | 17.9 |
+
+- Cuts 4 is the only saving clearly above the noise, about −1 ms.
+- 30 and 20 Hz save at most the compute's share, about 0.2–0.3 ms, which is under the noise here.
+- The swims are CPU-bound (median frame ~23 ms against GPU ~18.5), so the laptop GPU's clock moves and per-frame GPU ms
+  differences under ~0.7 ms aren't reliable. RenderDoc settles them.
+
+**q83, cuts 4 at 30 Hz:**
+- **Step rate:** the log confirms 150 steps per 5 s at 30 Hz.
+
+| | bench GPU (3 rounds) | median frame | RenderDoc frame | water pass | fine sheet draw |
+|---|---|---|---|---|---|
+| old ripples and foam | 18.6 | 23.2 | 59.74 | 17.67 | 4.16 (768 indices) |
+| displacement only | 18.7 | 22.3 | 59.91 | 17.63 | 4.21 |
+| field off | 17.8 | 22.6 | 59.01 | 16.61 | — |
+
+- **Displacement only costs the same as the old ripples on the GPU.** With one swimmer, the ring loop ran only near it.
+  It's a look choice, not a saving.
+- **At cuts 4 and 30 Hz the whole field costs about +1.0 RenderDoc ms, roughly +0.3 ms real.** That's down from job 45c's
+  +1.6 ms and at the +0.3 bar.
+- **Suggested for R-9 (water lane):** take cuts 4, 30 Hz, the shift fix, idle sleep, per-group culling and displacement only
+  from b/fix-waterfield-step a9db11d7. All but the look change keep their flags for A/B.
+- **Stalls and hitches in these swims:** 0–2 frames over 50 ms per 10 s run; the big ones are ~530 ms swapchain waits
+  (job 44), not streaming. A steadier swim test (a 30 s settle, then 30 s of swimming inside the lake) is offered to Zach.
+
+**Bench fix:** every bench and RenderDoc launch now passes `-body default` (b/bench-stress 1a4c0c4b). Zach's horse, saved in
+the PunchyBench player prefs, had come into q82's first games and q83's first capture; both were rerun.
+
+Files (Punchy-wt results): q82.out, q82-*.csv, q83.out, q83rd.out, q83-*.csv, rd83/, q83-passes.txt, q8[23]logs/.
+
 ## Wave field savings, one at a time and in pairs (Zach, 2026-11-10; q81.sh, b/fix-waterfield-step d7f0f975)
 **Setup:**
 - The experiment branch is water/deform 24459300 (R-9 row 4, job 45c's build) plus four changes, each with a launch flag:
