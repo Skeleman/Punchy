@@ -548,6 +548,7 @@ W-132 row 2 on `world/far-lite`: far LOD chunks use runtime material copies with
 - Pass: B faster than A on GPU at (b) and (c), within noise at (a); no new hitch over 2x median.
 - 11-11 widening: arm B is now `world/far-lite` at 0900515f (rows 2-4: far material copies, row 3 far disc on far-tile lines, row 4 horizon skirt of 1024 m tiles to ~6.2 km, HazeDistance 4600 m, analytic sun road on far water). Branch counts: ~340-420 fewer draws than main.
 - Extra leg on the B build only: PUNCHY_FARSKIRT=0 vs default, and PUNCHY_FARDISC=0 vs 1, at (c) at 18:00 and at noon; record GPU/CPU ms, draws, and the Water and Skybox pass times (the sun road lives there). Pass: the skirt costs under 0.3 ms GPU at High.
+- 11-11: arm B moves to world/far-lite tip once W-132 row 4b (stronger far sun road, shader only) is pushed; same views, plus the sea sunset from the shore.
 
 ## Job 57 (2026-11-11, QUEUED after 56; supervisor, for W-134 row 2): baked cave water
 W-134 row 2 on `world/cave-water`: cave pools and streams are baked as 0.5 m quads fitted to the carved floor (a Burst bake job per cave when it first comes within LoadRadius), tiled, each tile drawn only while big enough on screen. Pool 2: 540 -> 2939 triangles; pool 8: 1040 -> 4706.
