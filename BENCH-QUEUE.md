@@ -473,7 +473,7 @@ Pass: row 6 <= +0.2 ms GPU over row 5 at both views, CPU within noise.
 - Spots: `-goto -1500,-995` (hive), `-place HumanVillage -time 23` (night torches and lanterns), `-place Tundra` (traces and breath), `-goto -1149,1219` (bat roost). High, uncapped.
 - Pass: frame ms within noise of the before arm at every spot. A miss means a fix branch (b/fix-*), as usual.
 
-## Job 49 (2026-11-10, QUEUED after 48; queued by the main-account supervisor for R-12, merged as #251): cloud warp and rain on the laptop
+## Job 49 (2026-11-10, RUNNING 11-11 on the laptop (q87.sh); queued by the main-account supervisor for R-12, merged as #251): cloud warp and rain on the laptop
 - Arms: origin/main 60edfacb with `-skyoff 1024` (warp off) vs plain; then 60edfacb vs 739cdff7 (before R-12). Main builds again since #248.
 - Spots: (a) `-goto 1489,-897`, Storm at (5489,-897), 22:00 and noon; (c) ground under the storm's shadow with creatures in view: shotcam 1489,30,-897 -> 1889,25,-600, Storm at (1700,-1900), noon; plus the lone-oak spot in seed 4 rain (#247).
 - What changed: one extra 3D noise sample per cloud-shadow and sun-cover call (per pixel in Creature, Cave, Colossus, mist shaders), one per rain step; the haze table now draws one pass instead of two.
