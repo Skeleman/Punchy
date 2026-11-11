@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Punchy.Settings;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -86,10 +87,19 @@ namespace Punchy.Terrain
             /// <summary>Which caves' walls reach it, as bits (cave index mod 64; a shared bit only ever draws more).</summary>
             public ulong Caves;
             public int Triangles;
+            /// <summary>W-135: the box round its walls that lie open to the sky (where the terrain is cut for a mouth),
+            /// [0] min and [1] max; min above max when it has none. Written by MeshJob.</summary>
+            public NativeArray<float3> Opening;
+            /// <summary>Its opening box (copied out of Opening on upload), and whether it has one.</summary>
+            public Bounds OpeningBounds;
+            public bool Opens;
+            /// <summary>Whether its opening counted as in view last frame (the surface-side skip's hysteresis).</summary>
+            public bool OpeningSeen;
 
             public void Dispose()
             {
                 Job.Complete();
+                if (Opening.IsCreated) Opening.Dispose();
                 if (Field.IsCreated) Field.Dispose();
                 if (CaveField.IsCreated) CaveField.Dispose();
                 if (Surface.IsCreated) Surface.Dispose();
@@ -1652,6 +1662,10 @@ namespace Punchy.Terrain
                     // Buried: wholly a few metres under the ground and out of sight of every mouth (a view in through a
                     // mouth reaches a winding passage only so far), so it's skipped while the camera is outside caves.
                     b.Buried = min.y + chunkSize + chunkVoxel < lowestGround - 4f && !NearMouth(source, min, min + chunkSize, BuriedReach);
+                    b.Opens = math.all(b.Opening[0] <= b.Opening[1]);
+                    if (b.Opens)
+                        b.OpeningBounds = new Bounds((b.Opening[0] + b.Opening[1]) * 0.5f, b.Opening[1] - b.Opening[0]);
+                    b.OpeningSeen = false;
                 }
                 b.Field.Dispose();
                 b.CaveField.Dispose();
@@ -1662,6 +1676,7 @@ namespace Punchy.Terrain
                 b.Colors.Dispose();
                 b.Data.Dispose();
                 b.Indices.Dispose();
+                b.Opening.Dispose();
             }
         }
 
@@ -1701,6 +1716,7 @@ namespace Punchy.Terrain
                 Normals = new NativeList<float3>(Allocator.Persistent),
                 Colors = new NativeList<float4>(Allocator.Persistent),
                 Indices = new NativeList<int>(Allocator.Persistent),
+                Opening = new NativeArray<float3>(2, Allocator.Persistent),
                 Pending = true
             };
             // W-128: the skin follows the ground as the near terrain draws it (its LOD0 grid), so it meets the terrain's edge.
@@ -1713,7 +1729,8 @@ namespace Punchy.Terrain
             {
                 Source = source, Origin = origin, Cells = cells, Voxel = chunkVoxel,
                 Field = b.Field, CaveField = b.CaveField, ShardProbe = ShardProbe,
-                Positions = b.Positions, Normals = b.Normals, Colors = b.Colors, Data = b.Data, Indices = b.Indices
+                Positions = b.Positions, Normals = b.Normals, Colors = b.Colors, Data = b.Data, Indices = b.Indices,
+                Opening = b.Opening
             }.Schedule(field);
             JobHandle.ScheduleBatchedJobs();
             return b;
@@ -1822,6 +1839,8 @@ namespace Punchy.Terrain
             public NativeList<int> Indices;
             /// <summary>"-caveshards": walls no cave owns drawn magenta (the grey shards at cave mouths, style 0).</summary>
             public bool ShardProbe;
+            /// <summary>W-135: the box round the walls open to the sky ([0] min, [1] max).</summary>
+            public NativeArray<float3> Opening;
 
             int Point(int x, int y, int z) => (z * (Cells.y + 1) + y) * (Cells.x + 1) + x;
             int Cell(int x, int y, int z) => (z * Cells.y + y) * Cells.x + x;
@@ -1831,6 +1850,8 @@ namespace Punchy.Terrain
                 var cellVertex = new NativeArray<int>(Cells.x * Cells.y * Cells.z, Allocator.Temp);
                 for (int i = 0; i < cellVertex.Length; i++)
                     cellVertex[i] = -1;
+                Opening[0] = new float3(float.MaxValue);
+                Opening[1] = new float3(float.MinValue);
 
                 // A vertex in every cell the boundary crosses (near the cave): the average of the crossing points
                 // on the cell's edges.
@@ -1872,8 +1893,15 @@ namespace Punchy.Terrain
                     cellVertex[Cell(x, y, z)] = Positions.Length;
                     Positions.Add(p);
                     Normals.Add(Gradient(p));
-                    Colors.Add(Look(p, out var data));
+                    Colors.Add(Look(p, out var data, out var open));
                     Data.Add(data);
+                    // Walls the sky can see (the terrain cut away above them, generously): only through these can
+                    // anyone outside see into the cave.
+                    if (open > 0f)
+                    {
+                        Opening[0] = math.min(Opening[0], p);
+                        Opening[1] = math.max(Opening[1], p);
+                    }
                 }
 
                 // A quad across every grid edge the boundary crosses, joining the four cells round it. Only edges that
@@ -1951,7 +1979,7 @@ namespace Punchy.Terrain
                 return floor;
             }
 
-            float4 Look(float3 p, out float4 data)
+            float4 Look(float3 p, out float4 data, out float open)
             {
                 var surface = Source.SampleHeight(p.xz);
                 // Daylight from the mouth of whichever cave this wall belongs to.
@@ -1969,7 +1997,7 @@ namespace Punchy.Terrain
                 // so it takes the land's look and daylight however far below the uncut surface height it lies. Generous
                 // (up to 2 m of clearance): the terrain's cut is interpolated between its vertices, and wherever the
                 // terrain stays it hides this skin anyway.
-                var open = math.saturate((2f - Source.CaveClearance(p.xz, surface)) / 1.5f);
+                open = math.saturate((2f - Source.CaveClearance(p.xz, surface)) / 1.5f);
                 var ground = Source.SampleGround(p.xz);
                 var albedo = Source.SampleSurface(p.xz, ground, Source.SampleNormal(p.xz, 1f)).Albedo;
                 // A road tunnel's floor carries its road through (W-110): the road's own surface, painted as outside,
@@ -2007,8 +2035,105 @@ namespace Punchy.Terrain
         public static bool NoWalls;
         /// <summary>Testing (-perflog): count chunks each frame (the frustum test only runs when set).</summary>
         public static bool CountStats;
+        /// <summary>Testing (-nocaveskip): from the surface, draw every unburied chunk as before W-135 row 1.</summary>
+        public static bool NoSurfaceSkip;
         public static int StatLoaded, StatSubmitted, StatInView, StatShadows, StatTriangles;
         Plane[] statPlanes = new Plane[6];
+        Plane[] viewPlanes = new Plane[6];
+        readonly List<Bounds> openingsInView = new List<Bounds>();
+        readonly List<float4> openingRects = new List<float4>();
+        readonly Vector3[] corners = new Vector3[8];
+
+        /// <summary>
+        /// W-135 row 1: from the surface a cave's walls show only through its openings (the vertices open to the sky,
+        /// where the terrain is cut away). This lists the openings in view, each grown by BuriedReach: a chunk outside
+        /// all of them is hidden by the ground. The frustum test is padded (more for an opening seen last frame) so a
+        /// turn of the camera after this frame's Update never shows a missing wall, and an opening counts only while it
+        /// looks bigger than DetailPolicy.CaveOpeningPixels (held by Hysteresis), so nothing pops as it comes in.
+        /// Each opening also keeps the part of the screen it covers (padded): a chunk near one but outside all those
+        /// parts can't be seen through any, so it only casts its shadow (the light through a sinkhole stays the same).
+        /// </summary>
+        void GatherOpenings(float3 camPos, Camera cam)
+        {
+            openingsInView.Clear();
+            openingRects.Clear();
+            GeometryUtility.CalculateFrustumPlanes(cam, viewPlanes);
+            var ppm = DetailPolicy.Current.Data.PixelsPerMetre > 0f ? DetailPolicy.Current.Data.PixelsPerMetre
+                : DetailPolicy.PixelsPerMetreAt(cam.fieldOfView);
+            foreach (var b in chunks.Values)
+            {
+                if (b.Mesh == null || !b.Opens)
+                {
+                    if (b.Mesh != null) b.OpeningSeen = false;
+                    continue;
+                }
+                var box = b.OpeningBounds;
+                var distance = math.distance((float3)box.ClosestPoint(camPos), camPos);
+                var size = math.cmax((float3)box.size);
+                var seen = DetailPolicy.Holds(DetailPolicy.ScreenSize(math.max(size, 1f), distance, ppm), DetailPolicy.CaveOpeningPixels, b.OpeningSeen);
+                if (seen)
+                {
+                    var padded = box;
+                    padded.Expand(2f * (4f + distance * (b.OpeningSeen ? 0.35f : 0.25f)));
+                    seen = GeometryUtility.TestPlanesAABB(viewPlanes, padded);
+                }
+                b.OpeningSeen = seen;
+                if (seen)
+                {
+                    var reach = box;
+                    reach.Expand(2f * BuriedReach);
+                    openingsInView.Add(reach);
+                    var rect = ScreenRect(cam, box);
+                    openingRects.Add(rect + new float4(-OpeningRectPad, -OpeningRectPad, OpeningRectPad, OpeningRectPad));
+                }
+            }
+        }
+
+        /// <summary>How far (in viewport units) an opening's part of the screen is padded: what parallax can move a wall
+        /// behind it in the frame between this test and the render. Rotation moves both alike.</summary>
+        const float OpeningRectPad = 0.08f;
+
+        /// <summary>The viewport rectangle (min x, min y, max x, max y) a box covers; the whole plane if it reaches
+        /// behind the camera's near plane.</summary>
+        float4 ScreenRect(Camera cam, Bounds box)
+        {
+            var min = box.min;
+            var max = box.max;
+            for (int i = 0; i < 8; i++)
+                corners[i] = new Vector3((i & 1) != 0 ? max.x : min.x, (i & 2) != 0 ? max.y : min.y, (i & 4) != 0 ? max.z : min.z);
+            var rect = new float4(float.MaxValue, float.MaxValue, float.MinValue, float.MinValue);
+            for (int i = 0; i < 8; i++)
+            {
+                var v = cam.WorldToViewportPoint(corners[i]);
+                if (v.z <= cam.nearClipPlane)
+                    return new float4(float.MinValue, float.MinValue, float.MaxValue, float.MaxValue);
+                rect = new float4(math.min(rect.xy, new float2(v.x, v.y)), math.max(rect.zw, new float2(v.x, v.y)));
+            }
+            return rect;
+        }
+
+        /// <summary>0: no opening in view reaches the chunk (hidden); 1: one reaches it but it's outside every
+        /// opening's part of the screen (shadow only); 2: seen through one.</summary>
+        int SeenThroughOpening(Bounds chunk, Camera cam)
+        {
+            var near = false;
+            for (int i = 0; i < openingsInView.Count; i++)
+                if (openingsInView[i].Intersects(chunk))
+                {
+                    near = true;
+                    break;
+                }
+            if (!near)
+                return 0;
+            var rect = ScreenRect(cam, chunk);
+            for (int i = 0; i < openingRects.Count; i++)
+            {
+                var o = openingRects[i];
+                if (rect.x <= o.z && rect.z >= o.x && rect.y <= o.w && rect.w >= o.y)
+                    return 2;
+            }
+            return 1;
+        }
 
         /// <summary>
         /// Draws the loaded chunks. Deep in a cave, out of sight of every mouth (SurfaceHidden), only chunks that
@@ -2053,6 +2178,9 @@ namespace Punchy.Terrain
                 StatLoaded = StatSubmitted = StatInView = StatShadows = StatTriangles = 0;
                 GeometryUtility.CalculateFrustumPlanes(cam, statPlanes);
             }
+            var skip = outside && !NoSurfaceSkip && !NoRoomCull && cam != null;
+            if (skip)
+                GatherOpenings(camPos, cam);
             foreach (var b in chunks.Values)
             {
                 if (b.Mesh == null)
@@ -2061,10 +2189,15 @@ namespace Punchy.Terrain
                     StatLoaded++;
                 if (NoWalls || outside && b.Buried || (b.Caves & rooms) == 0ul)
                     continue;
+                // From the surface, a chunk no opening in view reaches is behind the ground, and one that no opening
+                // shows only casts its shadow (W-135 row 1).
+                var seen = skip ? SeenThroughOpening(b.Mesh.bounds, cam) : 2;
+                if (seen == 0 || seen == 1 && !b.CastsShadows)
+                    continue;
                 if (CountStats)
                 {
                     StatSubmitted++;
-                    if (GeometryUtility.TestPlanesAABB(statPlanes, b.Mesh.bounds))
+                    if (seen == 2 && GeometryUtility.TestPlanesAABB(statPlanes, b.Mesh.bounds))
                     {
                         StatInView++;
                         StatTriangles += b.Triangles;
@@ -2075,7 +2208,7 @@ namespace Punchy.Terrain
                 var rp = new RenderParams(Material)
                 {
                     worldBounds = b.Mesh.bounds,
-                    shadowCastingMode = b.CastsShadows ? ShadowCastingMode.On : ShadowCastingMode.Off,
+                    shadowCastingMode = seen == 1 ? ShadowCastingMode.ShadowsOnly : b.CastsShadows ? ShadowCastingMode.On : ShadowCastingMode.Off,
                     receiveShadows = true
                 };
                 Graphics.RenderMesh(rp, b.Mesh, 0, Matrix4x4.identity);

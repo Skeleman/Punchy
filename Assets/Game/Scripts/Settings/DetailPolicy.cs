@@ -412,6 +412,13 @@ namespace Punchy.Settings
         /// </summary>
         public const float WaterFallOn = 300f, WaterFallFull = 520f, WaterFallPiece = 24f;
 
+        /// <summary>
+        /// W-135 row 1: from the surface, a cave chunk is drawn only near an opening (its walls open to the sky) that is in
+        /// view and looks bigger than this, held by Hysteresis. Small: an opening this size is a few pixels, so a
+        /// cave's walls come in long before they could show through it.
+        /// </summary>
+        public const float CaveOpeningPixels = 4f;
+
         public static Rule FloraRule(FloraClass c)
         {
             switch (c)
