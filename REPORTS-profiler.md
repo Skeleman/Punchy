@@ -2,6 +2,32 @@
 
 Newest first.
 
+## Job 48: A-99 creature extras by screen size (#250), main be98cde1 vs 739cdff7, 2026-11-11 (q85.sh): PASS
+**Setup:**
+- Profile builds, 1920x1080, `-gfx High`, uncapped, `-weatherseed 4`, Clear, `-body default`, a fresh game per run.
+- 4 rounds alternating (ABBA x2). Each spot measured by the bench's "here" stop (20 s, after a 10 s settle).
+- Run after Zach's restart of the laptop.
+
+| spot | arm | GPU ms by round | mean GPU | mean median frame | mean CPU |
+|---|---|---|---|---|---|
+| hive (`-goto -1500,-995`, noon) | before | 16.9, 16.9, 17.3, 17.0 | 17.0 | 21.0 | 21.2 |
+| | after | 17.0, 17.2, 16.9, 17.8 | 17.2 | 21.0 | 21.25 |
+| night (`-place HumanVillage`, 23:00) | before | 15.3, 14.6, 14.6, 14.7 | 14.8 | 18.1 | 18.4 |
+| | after | 14.9, 14.8, 14.6, 14.7 | 14.75 | 18.1 | 18.25 |
+| tundra (`-place Tundra`, noon) | before | 13.4, 13.4, 13.4, 13.2 | 13.35 | 16.3 | 16.45 |
+| | after | 13.1, 13.0, 13.2, 13.0 | 13.1 | 15.45 | 15.8 |
+| roost (`-goto -1149,1219`, noon) | before | 14.6, 14.4, 14.6, 14.6 | 14.55 | 18.5 | 19.65 |
+| | after | 14.8, 15.4, 14.4, 14.8 | 14.85 | 18.4 | 19.45 |
+
+**Pass: frame ms within noise of the before arm at every spot.**
+- Hive, night and roost: median frame within 0.1 ms. The GPU means differ by 0.2–0.3 ms, each due to one round (hive after r4 17.8, roost after r2 15.4); that is under the laptop's ~0.7 ms GPU noise when frames are CPU-bound.
+- **Tundra is faster after: −0.85 ms median frame and −0.65 ms CPU, in every round.** Each after round (15.3–15.6) is below every before round (16.1–16.6). The spot has traces and breath, so this is probably the screen-size cut doing its job.
+- No game logged "restored body". No crash. One game (tundra after, r3) took about 3 minutes longer to finish, but its measured numbers match the other after rounds.
+
+Files (Punchy-wt results): q85.out, q85-*.csv, q85logs/, q85-shots/.
+
+Cost: laptop total $736 (laptop session 0a48ccdb; 2 builds, 32 games; includes the post-restart check).
+
 ## Wave field fix 1: the field shades the chunk water over its whole square (Zach, 2026-11-11; q84.sh; b/fix-waterfield-step 17ec2216)
 **Why:** at cuts 4 the fine sheet only covers a few metres around the player. So the a9db11d7 switch ("no ring ripples
 where the field fully covers") left white ring ripples over most of the wake, and Zach saw them in every arm.
