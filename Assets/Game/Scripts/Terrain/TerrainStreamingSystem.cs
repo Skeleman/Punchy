@@ -51,10 +51,10 @@ namespace Punchy.Terrain
         static readonly int SunRoadId = Shader.PropertyToID("_PunchySunRoad");
         /// <summary>
         /// W-132 row 4b: the sun road's strength in the far band (Sky.hlsl PunchySunRoad; near and mid keep row 4's look).
-        /// 1 is row 4's road everywhere; the default, 2, is Zach's stronger far road (11-11). Env PUNCHY_SUNROAD overrides
-        /// it; 0 turns the road off.
+        /// 1, the default, is row 4's road everywhere (Zach 11-11 preferred it to 4b's stronger far road at 2). Env
+        /// PUNCHY_SUNROAD overrides it; 0 turns the road off.
         /// </summary>
-        public static float SunRoad = EnvStrength("PUNCHY_SUNROAD", 2f);
+        public static float SunRoad = EnvStrength("PUNCHY_SUNROAD", 1f);
 
         static float EnvStrength(string name, float fallback)
         {
