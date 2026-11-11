@@ -297,6 +297,8 @@ namespace Punchy.Terrain
                 var edge = -1f;
                 var band = 0f;
                 var held = false;
+                // How far into a river chamber's chute the vertex lies (m; 0 outside one): its water pours as a curtain there.
+                var chute = 0f;
                 for (int i = cave.FirstPool; i < cave.FirstPool + cave.PoolCount; i++)
                 {
                     ref var pool = ref set.Pools[i];
@@ -349,12 +351,34 @@ namespace Punchy.Terrain
                         continue;
                     ref var p0 = ref set.StreamPoints[best];
                     ref var p1 = ref set.StreamPoints[best + 1];
+                    // W-134 row 4 fix: down a river chamber's chute a flat sheet would stand up as a tilted slab (its edge a
+                    // dark slit seen from below), so the stream's sheet ends at the lip and starts again at the foot, cut
+                    // across the flow there, and LandmarkEffectSystem pours the chute's water as a curtain between them.
+                    var run = math.distance(p0.Position.xz, p1.Position.xz);
+                    var toChute = float.MaxValue;
+                    if (st.Chamber > 0.5f)
+                    {
+                        if (CaveSampling.ChuteSegment(p0.Position, p1.Position))
+                        {
+                            chute = math.max(chute, math.max(math.min(bestT, 1f - bestT) * run, 0.001f));
+                            continue;
+                        }
+                        // Measured along the flow without the segment's clamp, so a vertex just past the lip (or short
+                        // of the foot) that still finds this segment nearest lies a negative distance from the chute:
+                        // the cut then falls on the lip itself, not up to a lattice step out over the drop.
+                        var along = math.dot(xz - p0.Position.xz, p1.Position.xz - p0.Position.xz) / math.max(run, 1e-4f);
+                        var last = st.FirstPoint + st.PointCount - 1;
+                        if (best + 2 <= last && CaveSampling.ChuteSegment(p1.Position, set.StreamPoints[best + 2].Position))
+                            toChute = run - along;
+                        if (best > st.FirstPoint && CaveSampling.ChuteSegment(set.StreamPoints[best - 1].Position, p0.Position))
+                            toChute = math.min(toChute, along);
+                    }
                     var flat = math.lerp(p0.Position.y, p1.Position.y, bestT);
                     var level = flat - ShoreSink * math.smoothstep(bestReach - ShoreBand, bestReach, bestAcross);
                     if (level <= surface - ShoreSink * band)
                         continue;
                     surface = flat;
-                    edge = bestEdge;
+                    edge = math.max(math.min(bestEdge, toChute + ShoreCut), 1e-4f);
                     band = math.smoothstep(bestReach - ShoreBand, bestReach, bestAcross);
                     kind = 2f;
                     var dir = p1.Position.xz - p0.Position.xz;
@@ -420,7 +444,9 @@ namespace Punchy.Terrain
                 // The claim: positive inside. A cut vertex's is how far it lies past ShoreCut, and its wet neighbours' are
                 // measured from ShoreCut too, so the cut falls along the line edge == ShoreCut, a curve, not the lattice.
                 var cut = kind == 0f && edge > 0f;
-                var claim = kind > 0f ? math.max(edge - ShoreCut, 0.001f) : cut ? math.min(edge - ShoreCut, -0.001f) : -1f;
+                // A vertex down a chute is cut by how far into it it lies, its neighbours above the lip and below the foot
+                // claimed by how far short of it they lie, so the cut falls along the lip and the foot.
+                var claim = kind > 0f ? math.max(edge - ShoreCut, 0.001f) : cut ? math.min(edge - ShoreCut, -0.001f) : chute > 0f ? -chute : -1f;
                 Flow[index] = new float3(flow, claim);
             }
         }

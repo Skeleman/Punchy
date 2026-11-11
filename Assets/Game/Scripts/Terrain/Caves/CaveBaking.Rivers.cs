@@ -355,16 +355,30 @@ namespace Punchy.Terrain
                     extras.Speleothems.Add(notch);
                 }
 
-                // Spray and churn where the chute lands (the stream's own water falls there: no curtain).
-                var foot = RiverAt(ch.DropAt * length + ch.Drop * CaveSampling.ChuteRun * 0.5f);
-                extras.Waterfalls.Add(new CaveWaterfall
+                // The chute's water (W-134 row 4 fix): a curtain from the lip, where the cave water bake ends the stream's
+                // flat water (its first chute segment), down to the foot, where it starts again, with spray and churn there.
+                int top = -1, bottom = -1;
+                for (int i = river.FirstPoint; i + 1 < river.FirstPoint + river.PointCount; i++)
+                    if (CaveSampling.ChuteSegment(extras.StreamPoints[i].Position, extras.StreamPoints[i + 1].Position))
+                    {
+                        if (top < 0)
+                            top = i;
+                        bottom = i + 1;
+                    }
+                if (top >= 0)
                 {
-                    Lip = foot + new float3(0f, ch.Drop, 0f) - flow3 * 0.9f,
-                    Width = river.Width,
-                    Out = flow,
-                    Drop = ch.Drop,
-                    Spray = 1f
-                });
+                    var lip = extras.StreamPoints[top].Position;
+                    var foot = extras.StreamPoints[bottom].Position;
+                    extras.Waterfalls.Add(new CaveWaterfall
+                    {
+                        Lip = lip,
+                        Width = math.min(extras.StreamPoints[top].Width, extras.StreamPoints[bottom].Width),
+                        Out = math.normalizesafe(foot.xz - lip.xz, flow),
+                        Drop = lip.y - foot.y,
+                        Spray = 1f,
+                        Reach = math.distance(lip.xz, foot.xz)
+                    });
+                }
 
                 // Gravel bars: cobbles half sunk at the waterline on the inside of the meander's bends, clear of the chute.
                 // Where the meander bends hardest (u * Meander + phase = pi/2 + n pi), along the hall and clear of the chute.

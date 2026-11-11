@@ -188,10 +188,12 @@ namespace Punchy.Terrain
         /// <summary>Height from the lip to the pool's surface.</summary>
         public float Drop;
         /// <summary>
-        /// W-134 row 4: 1 for spray where a river chamber's stream drops (no curtain: the stream's own water falls there,
-        /// whitewater), only the mist and churn at the foot and the sound; 0 for a waterfall from a notch.
+        /// W-134 row 4: 1 for a river chamber's chute, its stream pouring from where its flat water ends at the lip down
+        /// to where it starts again at the foot; 0 for a waterfall from a notch.
         /// </summary>
         public float Spray;
+        /// <summary>W-134 row 4 fix: how far out from the lip the water lands (m); 0 for a notch's usual short reach.</summary>
+        public float Reach;
     }
 
     /// <summary>
@@ -915,6 +917,14 @@ namespace Punchy.Terrain
 
         /// <summary>W-134 row 4: a river chamber's chute runs this many metres per metre it drops (about 35 degrees at its steepest).</summary>
         public const float ChuteRun = 1.4f;
+        /// <summary>
+        /// W-134 row 4 fix: a river chamber's stream falls faster than this (m per m) only down its chute (its hall falls
+        /// far more gently), so a segment this steep is part of the chute: its water pours as a curtain, not a flat sheet.
+        /// </summary>
+        public const float ChuteSlope = 0.25f;
+
+        /// <summary>W-134 row 4 fix: whether a river chamber's stream segment a-b runs down its chute (see ChuteSlope).</summary>
+        public static bool ChuteSegment(float3 a, float3 b) => a.y - b.y > ChuteSlope * math.distance(a.xz, b.xz);
         /// <summary>W-134 row 4: a river chamber's gallery: its round roof's radius, and that roof's middle over the floor (m).</summary>
         public const float GalleryRadius = 2.4f, GalleryRise = 1.2f;   // collision: the carved tunnel's size, not a draw range
 
