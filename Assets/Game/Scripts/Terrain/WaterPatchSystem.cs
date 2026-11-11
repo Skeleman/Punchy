@@ -535,6 +535,8 @@ namespace Punchy.Terrain
             fieldCorner = NoCorner;
             fieldClear = false;
             Shader.SetGlobalVector(RectId, NoRect);
+            // (No field to shade the chunk water with either: PunchyWaterFieldShade reads w = 0 as none.)
+            Shader.SetGlobalVector(FieldAtId, Vector4.zero);
         }
 
         /// <summary>
