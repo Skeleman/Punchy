@@ -4656,3 +4656,39 @@ Flora.shader / FloraImpostor.shader / Flora.hlsl are also changed by R-10 (light
 - Risks:
   - The fall sheet holds one fall at a time. A cave fall can win over a river fall that looks smaller, which is by design.
   - Per-index hold arrays (plants, drips, pools, streams) are rebuilt when a cave set's counts change.
+
+### W-135 row 4: seam darkening (done, verified). Branch world/cave-lod, commit ef191d54
+- What it does:
+  - Anything standing in a cave darkens the rock and the room tiles round where it touches down. That covers cave plants (not wall torches), room set pieces (crystals, drums, boxes on the floor) and dungeon chests and stand-ins (DungeonPropBox).
+  - It hides the seam and is not a shadow. Darkest at the seam: 0.54, Grounding.hlsl's contact 0.72 x broad 0.75. It falls off within a reach sized from the contact's width (0.15-1.5 m).
+  - The shared helper is Assets/Game/Scripts/Terrain/ContactShade.cs (Contact.Disc/Box, Distance, ShadeAt), ready for W-136.
+- How:
+  - Baked at build, so there is no per-frame cost. Each chunk takes its contact list when it builds, and MeshJob folds the shade into the rib shade (Data.w), which Cave.shader multiplies over the whole lit colour. Rock, floor tone, dressed stone, wood and iron all darken alike. No shader edit.
+  - The rock tint alone wasn't enough: a floor's tone ignores the tint, so the first try showed nothing.
+  - Openness (alpha) and placement are untouched.
+  - Coarse levels: the contact grows by half a voxel and keeps at least half a voxel of reach. A seam much narrower than that is faded in proportion.
+  - A chunk whose list changes (plant models grown, a room kit made, a dungeon filled) is rebuilt at its level through the usual swap.
+  - Room tiles near a contact are cut into cells of about 0.2 m, so the fall-off is smooth.
+  - All contacts are seed-derived, so solo, host and client darken alike.
+- Counts:
+  - Live contacts: plants 1209, boxes 298.
+  - Triangles before -> after: room 16006 -> 15754 (row 2 level mix), ruin 83924 -> 86012 (+2088, finer tiles), crystal 28432 -> 31044 (+2612).
+- Shots: D:/Unity/PunchyMilestones/W-135/row4/
+  - room_/ruin_/crystal_before.png and _after.png.
+  - row4_pair.jpg: before | after.
+  - row4_darker_x6.jpg: where the after shot is darker, amplified 6x.
+  - It is subtle by design: both faces of the seam darken alike. Pixels darker by more than 8/255: room 36.5k, ruin 20.4k, crystal 6.4k.
+  - The room's pool floor is darkened inside the basin (the basin is a floor contact).
+  - The crystal "before" shot has a dark block at the back left that the "after" doesn't. It is a streaming state, not this change.
+- lod-lint: 0 hits on the whole branch.
+- **BENCH-QUEUE request (rule 21):**
+  - Arms: ef191d54 vs 1bf4435a. Profile build, High, uncapped, ABBA, 300 frames per arm.
+  - Views (shotcam):
+    - room (-1389.2, 65.9, 1043.96), looking at (-1392.3, 63.4, 1037.4)
+    - ruin (1363.4, 9.85, -2544.1), looking at (1372, 7.3, -2544)
+    - crystal (1538.9, 3.96, -2596.45), looking at (1536.7, 1.9, -2591.95)
+  - Also the first 20 s after load, while chunks rebuild as plants grow.
+  - Pass: no slower on GPU or render thread at any view, and no new hitch in the first 20 s. Expect a few % more triangles where tiles are cut finer.
+- Risks:
+  - Chunks near contacts rebuild once when plant models finish growing, and again when a dungeon fills.
+  - Plant contacts darken chunk rock only, not room tiles. Room tiles take their set's and the dungeon boxes' contacts.
