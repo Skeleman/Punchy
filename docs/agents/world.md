@@ -68,6 +68,12 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
   `InPortalCut` keeps trees out of the cutting and its mouth: scattered trees through `SettlementSampling.Keep`, placed
   props through FloraPlacement's `OnRoad` (both are needed; `OnRoad` alone left the swamp trees standing).
   Bore radius is `TunnelRadius(width)` in both bakers.
+- **Portal ledge and tunnel rock (W-138 row 3b):** behind each headwall the ground is capped at the road plus
+  `PortalLedge` (2 m over the passage crown) for `PortalLedgeBack` (4 m), and the headwall is raised (up to
+  `HeadwallRaise`) to hide that ledge. Gotcha: without the ledge one mesh cell climbed from the road to the hilltop
+  right behind the headwall, and the mouth cut (which drops every triangle touching a cut vertex) dropped that whole
+  cliff-high quad: a window straight through the ridge above the arch. `BiomeStyle` picks only plain styles (no glow,
+  gloss <= 0.5) for road tunnels: Ice and the like lit the bore blue-white and spilt their tint onto the cutting.
 - **Bat folk (#35, W-18):** `BatFolkBaking` runs after CaveBaking, reads the caves only and writes its own blob
 - **Bat folk kit (#35, W-61):** wall/ceiling houses are kit `StructureKit.House` in `FolkCulture.BatFolk` trim, rebuilt in `BatFolkMeshes` from a hash of the spot (no extra blob data; Lamp/Rune parts skipped, never add lights). Details come from the weighted `BatFolkBaking.Details` table, jittered per site. Pools of bat sites use `CaveSystem.WhitePoolWater`.
   (`TerrainSource.BatFolk`), so landmark and cave hashes never see it. A cave qualifies with a chamber >= 9 m

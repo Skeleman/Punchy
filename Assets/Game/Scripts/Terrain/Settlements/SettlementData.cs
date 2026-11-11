@@ -113,6 +113,20 @@ namespace Punchy.Terrain
         /// so the headwall stands in the slope instead of on a cleared floor (the "arch embedded in flat ground" look).
         /// </summary>
         public const float PortalWing = 6f, PortalTaper = 8f, PortalCutBlend = 0.6f, PortalBack = 0.6f;
+        /// <summary>
+        /// W-138 row 3b: the ledge behind a headwall. Where the hill rises steeply straight behind a portal, the ground
+        /// there is capped at PortalLedge over the road for PortalLedgeBack metres into the hill (as wide as the
+        /// cutting), then the slope rises on behind it. The terrain mesh drops every triangle touching the cave's mouth,
+        /// and with the ground going straight from the road up to the hilltop in one cell, that dropped a quad the
+        /// whole height of the cliff: a window through the ridge over the headwall. Capped, the dropped quads reach only
+        /// the ledge, which the headwall (raised to the ground behind it) hides.
+        /// </summary>
+        public const float PortalLedgeBack = 4f;
+
+        /// <summary>W-138 row 3b: the ledge's height over the road for a cutting this half wide: 2 m over the passage's
+        /// crown (its head room is 1.45 radius), so the cave's mouth stays clear of it.</summary>
+        public static float PortalLedge(float cutHalf) => 1.45f * (cutHalf - PortalWall - 1.6f) / 0.95f + 2f;
+
         /// <summary>W-138 row 3: how far out from a portal a road stretch takes its frame (m).</summary>
         public const float PortalReach = 40f;
 
@@ -143,18 +157,35 @@ namespace Punchy.Terrain
             return (1f - math.smoothstep(half, half + blend, across)) * (1f - math.smoothstep(0f, PortalBack, into));
         }
 
+        /// <summary>W-138 row 3b: the ground at xz capped by the ledge behind a portal (PortalLedge), for the stretch
+        /// that ends at the headwall; other stretches, and spots off the ledge, keep h.</summary>
+        static float PortalLedgeCap(in SettlementStreet s, float2 xz, float h)
+        {
+            var dir = s.Portal.xy;
+            float ia = math.dot(s.A.xz, dir) - s.Portal.z, ib = math.dot(s.B.xz, dir) - s.Portal.z;
+            if (math.min(math.abs(ia), math.abs(ib)) > 1f)
+                return h;
+            var end = math.abs(ia) < math.abs(ib) ? s.A : s.B;
+            var into = math.dot(xz, dir) - s.Portal.z;
+            var side = math.abs(math.dot(xz - end.xz, new float2(-dir.y, dir.x)));
+            var w = (1f - math.smoothstep(s.Portal.w, s.Portal.w + 1f, side))
+                  * math.smoothstep(-1.5f, -0.5f, into) * (1f - math.smoothstep(PortalLedgeBack - 1f, PortalLedgeBack, into));
+            return w > 0f ? math.lerp(h, math.min(h, end.y + PortalLedge(s.Portal.w)), w) : h;
+        }
+
         /// <summary>W-138 row 3: how far past a portal cutting's edge plants keep clear (m), so no trunk stands in the
         /// cutting and no canopy hangs over its mouth.</summary>
         public const float PortalClear = 2.5f;
 
         /// <summary>W-138 row 3: whether a footprint of this radius at xz stands in a portal's cutting (or within
-        /// PortalClear of it), from the headwall out to where the cutting has widened into the road's banks.</summary>
+        /// PortalClear of it), from the ledge behind the headwall out to where the cutting has widened into the road's
+        /// banks.</summary>
         public static bool InPortalCut(in SettlementStreet s, float2 xz, float radius)
         {
             if (s.Portal.w <= 0f)
                 return false;
             var into = math.dot(xz, s.Portal.xy) - s.Portal.z;
-            return into < PortalBack + radius && into > -(PortalWing + PortalTaper) - radius
+            return into < PortalLedgeBack + radius && into > -(PortalWing + PortalTaper) - radius
                 && Across(s, xz, out _) < s.Portal.w + PortalCutBlend + PortalClear + radius;
         }
 
@@ -203,6 +234,8 @@ namespace Punchy.Terrain
                                         : 1f - math.smoothstep(s.Width * 0.5f, s.Width * 0.5f + blend, across);
                 if (w > 0f)
                     h = math.lerp(h, level, w);
+                if (s.Portal.w > 0f)
+                    h = PortalLedgeCap(s, xz, h);
             }
             // W-74 (#87): plots no longer level one after another (a later neighbour's blend fringe tilted an earlier
             // plot's pad and left house corners buried or floating). The pads mix weighted by w^8, so a plot's own

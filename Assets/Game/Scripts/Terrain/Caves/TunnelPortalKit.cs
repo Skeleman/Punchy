@@ -298,10 +298,12 @@ namespace Punchy.Terrain
             var height = m.Spring + m.ArchY + ring * 1.3f + m.Rng.NextFloat(0.35f, 0.7f);
             height = row * math.ceil(height / row);
             // W-138 row 3: raised by whole courses towards the hill behind (up to HeadwallRaise), so the slope meets the
-            // coping instead of rising behind a free-standing wall.
-            var behind = m.Ground(source, 0f, -2f) - 0.4f;
+            // coping instead of rising behind a free-standing wall. Row 3b: up past the ground there, which in a steep
+            // flank is the ledge (SettlementSampling.PortalLedge), so the coping hides the ledge's edge and the gap the
+            // terrain leaves round the mouth.
+            var behind = m.Ground(source, 0f, -2f) + 0.2f;
             if (behind > height)
-                height += row * math.floor(math.min(behind - height, HeadwallRaise) / row);
+                height += row * math.ceil(math.min(behind - height, HeadwallRaise) / row);
             // The bed behind, in two pieces either side and one over the arch, all clear of the opening.
             var crown = m.Spring + m.ArchY + 0.05f;
             var outerX = m.ArchX + ring;
@@ -452,7 +454,7 @@ namespace Punchy.Terrain
         }
 
         /// <summary>W-138 row 3: a wing wall's thickness (m), and the most the headwall rises over its arch for the hill behind.</summary>
-        const float WingThick = SettlementSampling.PortalWall, HeadwallRaise = 3f;
+        const float WingThick = SettlementSampling.PortalWall, HeadwallRaise = 5f;
 
         /// <summary>
         /// W-138 row 3: a wing wall on one side (side -1 left, 1 right) retaining the cutting's wall, from the headwall's

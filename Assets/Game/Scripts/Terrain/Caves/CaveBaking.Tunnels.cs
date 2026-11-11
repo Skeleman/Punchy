@@ -128,7 +128,11 @@ namespace Punchy.Terrain
             return null;
         }
 
-        /// <summary>A style listed for the biome at a spot (by the roll when several are), else one for anywhere, else none.</summary>
+        /// <summary>
+        /// A style listed for the biome at a spot (by the roll when several are), else one for anywhere, else none.
+        /// W-138 row 3b: only plain rock. A glowing or glossy style (ice, crystal, lava, fungus) lit the whole bore
+        /// blue-white from the portal in; a road tunnel goes dark a few metres in, bar the daylight on its floor.
+        /// </summary>
         static CaveStyle BiomeStyle(in TerrainSource source, IReadOnlyList<BiomeDefinition> palette, List<CaveStyle> styles,
                                     float2 position, ref Random rng)
         {
@@ -136,14 +140,16 @@ namespace Punchy.Terrain
             var here = biome >= 0 && biome < palette.Count ? palette[biome] : null;
             var matches = new List<CaveStyle>();
             foreach (var s in styles)
-                if (s != null && s.Torch == null && here != null && s.Biomes.Contains(here))
+                if (s != null && s.Torch == null && Plain(s) && here != null && s.Biomes.Contains(here))
                     matches.Add(s);
             if (matches.Count == 0)
                 foreach (var s in styles)
-                    if (s != null && s.Torch == null && s.Biomes.Count == 0)
+                    if (s != null && s.Torch == null && Plain(s) && s.Biomes.Count == 0)
                         matches.Add(s);
             return matches.Count > 0 ? matches[rng.NextInt(matches.Count)] : null;
         }
+
+        static bool Plain(CaveStyle s) => s.Glow <= 0f && s.GlowEverywhere <= 0f && s.Gloss <= 0.5f;
 
         /// <summary>
         /// Lamps on alternate walls at shoulder height along lit tunnels (each its own spacing, some hung in facing
