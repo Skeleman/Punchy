@@ -508,6 +508,10 @@ Pass: row 6 <= +0.2 ms GPU over row 5 at both views, CPU within noise.
 - Bar (45c's): <= +0.3 ms GPU over off.
 - Added 11-11 (supervisor, Zach, rule 23): run the same arms once more at `-gfx Medium` and report both presets. The result decides R-9 row 7: a form that passes at Medium stays on by default; otherwise the wave field becomes a Dynamic water setting (High/Ultra Full, Medium the normals-only form if it passes, else Off).
 
+## Jobs 49d and 45j (2026-11-11, QUEUED after 45i; Zach in the profiler session): R-12 band trial, R-10 variant pricing
+- 49d: Punchy `b/r12-trims` c43b5eaf: plain, `-skyoff 1024`, `-skyoff 8192` (the march keeps the last warp on steps 800 m outside the cloud layer). Job 49's storm night and noon, 3 rounds.
+- 45j: R-10 `b/r10-trims` a1cb1899 vs `b/r10-nocluster` a378b7e6 (no cluster variant in creatures, plants, grass, pebbles, temple; pricing only, not for merge) vs main 60edfacb at the town view, 3 rounds; then RenderDoc frames of all three. q95.sh.
+
 ## Job 50 (2026-11-10, QUEUED after 45e; queued by the main-account supervisor, Zach asked): two-player crash and desync test on the laptop
 Note (supervisor 11-10): leave/rejoin is expected to crash in GameAudio occlusion until #259 is fixed. If it does, report it as #259 and finish the rest of the route without the rejoin step.
 - Build: origin/main at the time you start (cc835cf6 or newer; note the commit), one Dev build, two instances on the laptop: host `-host`, client `-join 127.0.0.1`, start the client once the host is in game. Correctness only, no timing: two instances on one machine make frame times meaningless.
