@@ -41,7 +41,7 @@ build() { # commit Build|BuildDev outdir: archived per commit (A/Bs copy it into
   cp "$B/BenchmarkRoute.cs.meta.txt" "$P/Assets/Game/Scripts/Debugging/BenchmarkRoute.cs.meta"
   cp "$P/Library/LastSceneManagerSetup.txt" "$R/LastSceneManagerSetup.bak" 2>/dev/null
   log "build $out ($c $m)"
-  ( cd "$P" && timeout 3000 "$UNITY" -batchmode -projectPath "$(cygpath -m $P)" -buildTarget Win64 -executeMethod BProfileTools.$m -out Builds/$out/Punchy.exe -logFile "$W/build-$out.log" )
+  ( cd "$P" && timeout ${BUILDTIMEOUT:-5400} "$UNITY" -batchmode -projectPath "$(cygpath -m $P)" -buildTarget Win64 -executeMethod BProfileTools.$m -out Builds/$out/Punchy.exe -logFile "$W/build-$out.log" )
   local rc=$?
   cp "$R/LastSceneManagerSetup.bak" "$P/Library/LastSceneManagerSetup.txt" 2>/dev/null
   ( cd "$P" && git checkout -- ProjectSettings 2>/dev/null
