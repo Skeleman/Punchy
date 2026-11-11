@@ -5665,6 +5665,7 @@ Branch `world/mountain-tunnels` at f6217674 (pushed), on a149c17f. One commit: C
 - **Rule 22:** the lamps come from the seed and the cave style asset, with no new runtime state, so a world file only needs the cave style's TunnelLamp reference.
 - **Note:** SurfaceGlow doesn't use `FixtureLightAt` yet (the lit height for the wall lantern). That only matters if a WallLantern is ever placed on the surface.
 - **BENCH-QUEUE request (profiler, not timed by me):** cave light cost walking the C0a tunnel (up to about 14 lamp lights near the player) vs row 4b.
+- **Addendum (amber glass, ec884d2d):** WallLantern glass now uses its own kit material `Flame` (0.42, 0.15, 0.03) instead of LampLight. The `_FloraInCave` glow no longer pushes it to white: it samples (205, 151, 75), amber, at about 3 m. Light values are unchanged. Retook c0a-2-marker, added close-3m, and updated row4c/sheet.jpg (checked small). Also touches FloraGenerator.Kit.cs (two Flame checks next to Lamp). Suite `25 passed, 0 failed, 17 skipped in 371s`, pins 117 689D5348 / AD723954 unchanged, and lod-lint shows only the earlier tunnel lines. Editor closed.
 
 ### W-140 row 4: the shipped file hits on first launch; stamped user copies - done (verified)
 - **Commit:** 47f5490a on world/island-cache (pushed). Files: `IslandV2.cs` (CRLF kept), `IslandCache.cs`.
