@@ -149,7 +149,59 @@ namespace Punchy.Terrain
 
             /// <summary>The ground's height in the portal's frame at a local spot (for stones that lie on it).</summary>
             public float Ground(in TerrainSource source, float x, float z) => source.SampleHeight(World(new float3(x, 0f, z)).xz) - P.Floor.y;
+
+            /// <summary>
+            /// W-137: the ground as the terrain mesh draws it at a local spot, in the portal's frame: the highest (or
+            /// lowest) of its LOD0-2 grids (1, 2 and 4 m, TerrainSource.MeshHeight), so masonry meets the ground at
+            /// whichever LOD the terrain round it is drawn.
+            /// </summary>
+            public float Drawn(in TerrainSource source, float x, float z, bool highest)
+            {
+                var xz = World(new float3(x, 0f, z)).xz;
+                float a = Mesh(source, xz, 1f), b = Mesh(source, xz, 2f), c = Mesh(source, xz, 4f);
+                return (highest ? math.max(a, math.max(b, c)) : math.min(a, math.min(b, c))) - P.Floor.y;
+            }
+
+            /// <summary>W-137: whether the terrain mesh is cut open for the tunnel's mouth at a local spot (its cut as the
+            /// finest grid samples it there; BuildChunkMeshJob cuts at LOD 0 and 1 only).</summary>
+            public bool Cut(in TerrainSource source, float x, float z)
+            {
+                var xz = World(new float3(x, 0f, z)).xz;
+                return source.MouthCut(xz, Mesh(source, xz, 1f), TerrainSource.MeshCutDepth, out _) < 0f;
+            }
+
+            /// <summary>TerrainSource.MeshHeight, its corner heights kept (every grid's corners lie on the half-metre
+            /// lattice), since the cutting samples the same corners many times over.</summary>
+            float Mesh(in TerrainSource source, float2 xz, float step)
+            {
+                var grid = xz / step;
+                var corner = math.floor(grid);
+                var f = grid - corner;
+                if (f.x + f.y <= 1f)
+                {
+                    var h00 = Height(source, corner * step);
+                    return h00 + f.x * (Height(source, (corner + new float2(1f, 0f)) * step) - h00) + f.y * (Height(source, (corner + new float2(0f, 1f)) * step) - h00);
+                }
+                var h11 = Height(source, (corner + 1f) * step);
+                return h11 + (1f - f.x) * (Height(source, (corner + new float2(0f, 1f)) * step) - h11) + (1f - f.y) * (Height(source, (corner + new float2(1f, 0f)) * step) - h11);
+            }
+
+            readonly Dictionary<long, float> heights = new Dictionary<long, float>();
+
+            float Height(in TerrainSource source, float2 corner)
+            {
+                var key = ((long)math.round(corner.x * 2f) << 32) ^ (uint)(int)math.round(corner.y * 2f);
+                if (!heights.TryGetValue(key, out var h))
+                {
+                    h = source.SampleHeight(corner);
+                    heights[key] = h;
+                }
+                return h;
+            }
         }
+
+        /// <summary>The coping's thickness.</summary>
+        const float CopingHeight = 0.22f;
 
         public static CaveRoomKit.Kit Build(in TerrainSource source, in Portal portal)
         {
@@ -182,8 +234,9 @@ namespace Punchy.Terrain
             m.Rng = rng;
 
             Arch(m, ring, cracked, mark);
-            var top = Headwall(m, ring, row);
+            var top = Headwall(m, ring, row, out var halfW);
             Dressing(source, m, top, moss, ivy, rockfall, fallen);
+            Cutting(source, m, ring, row, top - CopingHeight, halfW, moss);
             return m.K;
         }
 
@@ -282,9 +335,9 @@ namespace Punchy.Terrain
         /// <summary>
         /// The headwall: ashlar courses either side of and over the arch, set back behind the arch stones, cut into
         /// small setts where they meet the opening so none crosses it; a dark bed behind; a coping on top. Returns the
-        /// coping's top.
+        /// coping's top, and the wall's half width.
         /// </summary>
-        static float Headwall(Maker m, float ring, float row)
+        static float Headwall(Maker m, float ring, float row, out float wallHalf)
         {
             const float face = 0.12f, depth = 0.7f, grout = 0.035f;
             var halfW = m.ArchX + ring + m.Rng.NextFloat(0.9f, 1.6f);
@@ -337,16 +390,267 @@ namespace Punchy.Terrain
             while (end - c > 0.05f)
             {
                 var c1 = math.min(end, c + m.Rng.NextFloat(0.8f, 1.4f));
-                m.Span(new float3(c + 0.015f, height, face - depth - 0.04f), new float3(c1 - 0.015f, height + 0.22f, face + 0.12f), Trim, m.Jit(0.9f, 1.05f));
+                m.Span(new float3(c + 0.015f, height, face - depth - 0.04f), new float3(c1 - 0.015f, height + CopingHeight, face + 0.12f), Trim, m.Jit(0.9f, 1.05f));
                 c = c1;
             }
-            return height + 0.22f;
+            wallHalf = halfW;
+            return height + CopingHeight;
 
             void Block(float a0, float a1, float t0, float t1, float proud, float tint, float g)
             {
                 var half = new float3(math.max(0.02f, (a1 - a0 - g) * 0.5f), math.max(0.02f, (t1 - t0 - g) * 0.5f), depth * 0.5f);
                 m.Add(new float3((a0 + a1) * 0.5f, (t0 + t1) * 0.5f, face + proud - depth * 0.5f), half, quaternion.identity, Stone, tint);
             }
+        }
+
+        /// <summary>
+        /// W-137 row 2b: where a road tunnel runs out of a slope its passage stands higher than the ground for its first
+        /// metres, so the terrain is cut open over it (TerrainSource.MouthCut) back to where the hill finally covers
+        /// it, and a little in front of the face beside the road. The headwall alone left that cut as a roofless trench
+        /// behind it and a strip of hole each side of the road in front. This builds what a real cut-and-cover portal
+        /// has there, from the drawn ground (MeshHeight) and the cut itself (on the grids that cut holes): behind the
+        /// headwall a covered way, two ashlar side walls under a roof of long lintels, the roof stepping up in whole
+        /// courses to stay over the cut's rim until the hill closes over the passage (or the tunnel's middle, where the
+        /// other portal's meets it), closed by an end wall; in front, wing walls along the road's edge over the cut
+        /// beside it, stepping down in whole courses with a coping on each step. Where nothing is cut nothing is added.
+        /// Its own random stream (from the portal's seed), so the arch, headwall and dressing are unchanged.
+        /// </summary>
+        static void Cutting(in TerrainSource source, Maker m, float ring, float row, float height, float halfW, float moss)
+        {
+            const float face = 0.12f, back = face - 0.7f, bury = 0.12f, wallT = 0.55f, grout = 0.035f, slice = 1f;
+            var rng = new Random(m.P.Seed ^ 0x6A11E5u | 1u);
+            var outerX = m.ArchX + ring;
+            var capTop = height + 14f;
+            // The covered way runs at most to the tunnel's middle (where the other end's meets it).
+            ref var set = ref source.Caves.Value;
+            ref var cave = ref set.Caves[m.P.Cave];
+            var reach = math.min(30f, 0.5f * math.distance(set.Nodes[cave.FirstNode + 1].Position.xz,
+                set.Nodes[cave.FirstNode + cave.NodeCount - 2].Position.xz));
+
+            // The cut follows the passage, whose rough walls stand out up to about a metre past its radius, so the
+            // masonry is that wide each side and the cut is sampled at a handful of points across it per slice (the
+            // cave field is costly to sample, and a kit is built when its portal first comes near).
+            var r = m.P.Radius;
+            var g = math.min(math.max(outerX + 0.2f, r + 1.35f), halfW + 1.5f);
+            float[] across = { 0f, -0.55f * r, 0.55f * r, -r, r, -(r + 0.7f), r + 0.7f };
+
+            // ---- Behind the face: per metre back while the passage is cut open, its rim's height.
+            var tops = new List<float>();
+            var ends = new List<float>();
+            var open = true; // still cut at the last slice (stopped at the middle, not closed by the hill)
+            for (int k = 0; k < 40; k++)
+            {
+                float za = back - k * slice, zb = math.max(za - slice, -reach);
+                if (za - zb < 0.05f)
+                    break;
+                var cut = false;
+                for (int i = 0; i < across.Length && !cut; i++)
+                    cut = m.Cut(source, across[i], za - 0.25f) || m.Cut(source, across[i], zb + 0.25f);
+                if (!cut)
+                {
+                    open = false;
+                    break;
+                }
+                var rim = float.MinValue;
+                for (var z = za; z >= zb - 0.01f; z -= 0.5f)
+                    for (var x = -g; x <= g + 0.01f; x += 0.5f)
+                        rim = math.max(rim, m.Drawn(source, x, z, true));
+                tops.Add(math.clamp(row * math.ceil((rim + bury) / row), height, capTop));
+                ends.Add(zb);
+            }
+            if (tops.Count > 0)
+                CoveredWay(source, m, ref rng, tops, ends, g, row, open, moss);
+
+            // ---- In front of the face: the cut beside the road, each side, in slices out from the arch's plinths.
+            const float plinth = 0.36f, step = 0.75f;
+            for (int side = -1; side <= 1; side += 2)
+            {
+                var wTops = new List<float>();
+                var wEnds = new List<float>();
+                var w = g;
+                for (int k = 0; k < 10; k++)
+                {
+                    float za = plinth + k * step, zb = za + step, zm = (za + zb) * 0.5f;
+                    if (!m.Cut(source, side * (m.JambX + 0.3f), zm) && !m.Cut(source, side * r, zm) && !m.Cut(source, side * (r + 0.7f), zm))
+                        break;
+                    var rim = 0f;
+                    for (var z = za; z <= zb + 0.01f; z += step * 0.5f)
+                        for (var x = m.JambX; x <= w + 0.01f; x += 0.5f)
+                            rim = math.max(rim, m.Drawn(source, side * x, z, true));
+                    wTops.Add(math.clamp(row * math.ceil((rim + bury) / row), row, height));
+                    wEnds.Add(zb);
+                }
+                if (wTops.Count > 0)
+                    Wing(m, ref rng, side, wTops, wEnds, w, row, plinth, face);
+            }
+
+            void Block(Maker mk, float3 lo, float3 hi, float tint, float gap)
+            {
+                var half = math.max(0.02f, (hi - lo - gap) * 0.5f);
+                mk.Add((lo + hi) * 0.5f, half, quaternion.identity, Stone, tint);
+            }
+
+            // The covered way: side walls in ashlar courses on a dark bed, from the ground up to each slice's roof,
+            // lintels across the top, an end wall where the hill closes over it, moss on the roof.
+            void CoveredWay(in TerrainSource src, Maker mk, ref Random r, List<float> tp, List<float> en, float gw, float rw, bool stillOpen, float mo)
+            {
+                var n = tp.Count;
+                var bottoms = new float[n];
+                var lowest = 0f;
+                var highest = 0f;
+                for (int k = 0; k < n; k++)
+                {
+                    float za = k == 0 ? back : en[k - 1], zb = en[k];
+                    var low = float.MaxValue;
+                    for (var z = za; z >= zb - 0.01f; z -= 0.5f)
+                        for (int sd = -1; sd <= 1; sd += 2)
+                            low = math.min(low, math.min(mk.Drawn(src, sd * gw, z, false), mk.Drawn(src, sd * (gw - wallT), z, false)));
+                    bottoms[k] = math.clamp(rw * math.floor((low - 0.1f) / rw), -6f, tp[k]);
+                    lowest = math.min(lowest, bottoms[k]);
+                    highest = math.max(highest, tp[k]);
+                }
+                var end = en[n - 1];
+                for (int sd = -1; sd <= 1; sd += 2)
+                {
+                    float xo = sd * gw, xi = sd * (gw - wallT);
+                    float xa = math.min(xo, xi), xb = math.max(xo, xi);
+                    for (int k = 0; k < n; k++)
+                    {
+                        float za = k == 0 ? back : en[k - 1], zb = en[k];
+                        if (tp[k] - bottoms[k] < 0.05f)
+                            continue;
+                        // The bed on the inner side (no light through the joints), and the wall solid to walk against.
+                        var bx = sd > 0 ? xa - 0.05f : xb - 0.02f;
+                        mk.Span(new float3(bx, bottoms[k], zb), new float3(bx + 0.07f, tp[k], za), Stone, 0.4f);
+                        mk.K.Solids.Add(new CaveRoomKit.Solid { Centre = mk.World(new float3((xa + xb) * 0.5f, (bottoms[k] + tp[k]) * 0.5f, (za + zb) * 0.5f)),
+                            Half = new float3(wallT * 0.5f, (tp[k] - bottoms[k]) * 0.5f, (za - zb) * 0.5f), Rotation = mk.Frame });
+                    }
+                    for (var b0 = lowest; b0 < highest - 0.05f; b0 += rw)
+                    {
+                        var b1 = b0 + rw;
+                        var a = back + r.NextFloat(0f, rw * 1.6f);
+                        while (a > end)
+                        {
+                            var a1 = math.max(end, a - rw * r.NextFloat(1.4f, 2.6f));
+                            var tint = mk.Jit();
+                            // Split where the roof steps; pieces above a slice's roof, below its foot or wholly buried
+                            // in the ground beside the wall are left out.
+                            for (var piece = math.min(a, back); piece > a1 + 0.001f;)
+                            {
+                                var k = SliceAt(en, piece - 0.001f);
+                                var lo = math.max(a1, en[k]);
+                                var hiZ = piece;
+                                piece = lo;
+                                if (hiZ - lo < 0.08f || b1 > tp[k] + 0.001f || b0 < bottoms[k] - 0.001f)
+                                    continue;
+                                var ground = math.min(mk.Drawn(src, xo, lo, false), mk.Drawn(src, xo, hiZ, false));
+                                if (b1 < ground - 0.05f)
+                                    continue;
+                                Block(mk, new float3(xa, b0, lo), new float3(xb, b1, hiZ), tint, grout);
+                            }
+                            a = a1;
+                        }
+                    }
+                }
+                // The roof: lintels across the way, breaking where it steps, solid to walk on (starting just behind the
+                // headwall's coping so the two never share a face).
+                var zr = back - 0.05f;
+                while (zr - end > 0.05f)
+                {
+                    var k = SliceAt(en, zr - 0.001f);
+                    var z1 = math.max(math.max(end, en[k]), zr - r.NextFloat(0.7f, 1.2f));
+                    if (z1 - end < 0.2f)
+                        z1 = end;
+                    mk.Span(new float3(-gw - 0.1f, tp[k] - 0.2f, z1 + 0.012f), new float3(gw + 0.1f, tp[k] + CopingHeight, zr - 0.012f), Trim, mk.Jit(0.88f, 1.05f));
+                    mk.K.Solids.Add(new CaveRoomKit.Solid { Centre = mk.World(new float3(0f, tp[k] + CopingHeight * 0.5f - 0.1f, (zr + z1) * 0.5f)),
+                        Half = new float3(gw + 0.1f, CopingHeight * 0.5f + 0.1f, (zr - z1) * 0.5f), Rotation = mk.Frame });
+                    zr = z1;
+                }
+                // A riser where the roof steps (and behind the headwall's coping when the first slice stands above it),
+                // laid in courses under the higher slice's lintels, so the passage never shows through the step.
+                for (int k = 0; k < n; k++)
+                {
+                    var z = k == 0 ? back : en[k - 1];
+                    var below = k == 0 ? height : tp[k - 1];
+                    float lowT = math.min(below, tp[k]), highT = math.max(below, tp[k]);
+                    if (highT - lowT < 0.05f)
+                        continue;
+                    // On the higher slice's side of the boundary.
+                    float z0 = tp[k] > below ? z - 0.35f : z, z1 = z0 + 0.35f;
+                    for (var b0 = lowT - 0.2f; b0 < highT - 0.05f; b0 += rw)
+                    {
+                        var b1 = math.min(highT, b0 + rw);
+                        var a = -gw - r.NextFloat(0f, rw * 1.6f);
+                        while (a < gw)
+                        {
+                            var a1 = math.min(gw, a + rw * r.NextFloat(1.4f, 2.6f));
+                            if (a1 - math.max(a, -gw) > 0.1f)
+                                Block(mk, new float3(math.max(a, -gw), b0, z0), new float3(a1, b1, z1), mk.Jit(), grout);
+                            a = a1;
+                        }
+                    }
+                    mk.Span(new float3(-gw, lowT - 0.2f, z0 + 0.05f), new float3(gw, highT, z1 - 0.05f), Stone, 0.4f);
+                }
+                // The end wall where the hill closes over the passage (none at the tunnel's middle).
+                if (!stillOpen)
+                    mk.Span(new float3(-gw, bottoms[n - 1], end - 0.45f), new float3(gw, tp[n - 1], end), Stone, mk.Jit(0.55f, 0.75f));
+                // Moss on the roof, in patches as thick as the portal's moss.
+                var patches = (int)(mo * (back - end) * 1.2f);
+                for (int i = 0; i < patches; i++)
+                {
+                    var z = r.NextFloat(end + 0.3f, back - 0.3f);
+                    var x = r.NextFloat(-gw, gw);
+                    var t = tp[SliceAt(en, z)] + CopingHeight;
+                    float lx = r.NextFloat(0.3f, 1.1f) * (0.5f + mo), lz = r.NextFloat(0.2f, 0.6f);
+                    mk.Span(new float3(x - lx * 0.5f, t, z - lz * 0.5f), new float3(x + lx * 0.5f, t + 0.03f, z + lz * 0.5f), Moss, mk.Jit(0.8f, 1.1f));
+                }
+            }
+
+            // A wing wall along the road's edge from the arch's plinth out over the cut beside the road: blocks per
+            // course per slice, stepping down in whole courses as the ground falls away from the face, a coping on each
+            // step; its first slice reaches back to the headwall's face beyond the arch's stones.
+            void Wing(Maker mk, ref Random r, int sd, List<float> tp, List<float> en, float w, float rw, float za0, float fc)
+            {
+                var outer = mk.ArchX + ring;
+                for (int k = 0; k < tp.Count; k++)
+                {
+                    float za = k == 0 ? za0 : en[k - 1], zb = en[k];
+                    float xi = sd * mk.JambX, xo = sd * w;
+                    float xa = math.min(xi, xo), xb = math.max(xi, xo);
+                    for (float b0 = 0f; b0 < tp[k] - 0.05f; b0 += rw)
+                    {
+                        var tint = mk.Jit();
+                        // Wider than a block: two, the joint somewhere near the middle.
+                        if (xb - xa > 1.3f)
+                        {
+                            var split = math.lerp(xa, xb, r.NextFloat(0.35f, 0.65f));
+                            Block(mk, new float3(xa, b0, za), new float3(split, b0 + rw, zb), tint, grout);
+                            Block(mk, new float3(split, b0, za), new float3(xb, b0 + rw, zb), tint * mk.Jit(0.94f, 1.04f), grout);
+                        }
+                        else
+                            Block(mk, new float3(xa, b0, za), new float3(xb, b0 + rw, zb), tint, grout);
+                        if (k == 0)
+                        {
+                            // Back to the headwall's face, beyond the arch's stones.
+                            float ba = sd > 0 ? outer : xa, bb = sd > 0 ? xb : -outer;
+                            if (bb - ba > 0.1f)
+                                Block(mk, new float3(ba, b0, fc), new float3(bb, b0 + rw, za), tint, grout);
+                        }
+                    }
+                    mk.Span(new float3(xa - 0.06f, tp[k], za - (k == 0 ? 0.24f : 0f)), new float3(xb + 0.06f, tp[k] + 0.18f, zb + 0.06f), Trim, mk.Jit(0.9f, 1.05f));
+                    mk.K.Solids.Add(new CaveRoomKit.Solid { Centre = mk.World(new float3((xa + xb) * 0.5f, (tp[k] + 0.18f) * 0.5f, (za + zb) * 0.5f)),
+                        Half = new float3((xb - xa) * 0.5f, (tp[k] + 0.18f) * 0.5f, (zb - za) * 0.5f), Rotation = mk.Frame });
+                }
+            }
+        }
+
+        /// <summary>The slice (of the covered way's, ends[k] its far end, running back into the hill) a local z is in.</summary>
+        static int SliceAt(List<float> ends, float z)
+        {
+            var k = 0;
+            while (k < ends.Count - 1 && z < ends[k])
+                k++;
+            return k;
         }
 
         /// <summary>Moss on the coping, the arch and the face; an ivy fringe; fallen stones and a rockfall by the jambs.</summary>
