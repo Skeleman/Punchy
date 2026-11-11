@@ -228,6 +228,10 @@ namespace Punchy.Debugging
             Shader.SetGlobalFloat("_PunchyNoFur", System.Array.IndexOf(args, "-nofur") >= 0 ? 1f : 0f);
             // "-noshells": near bodies without their two fur shells.
             CreatureRenderSystem.Shells = System.Array.IndexOf(args, "-noshells") < 0;
+            // "-nosurfaces": creatures without their A-97 surfaces and fur lengths (all medium fur, as before).
+            CreatureRenderSystem.Surfaces = System.Array.IndexOf(args, "-nosurfaces") < 0;
+            // "-nobloom" (A-96): bloom off in the volumes' own copies of their profiles (the asset is untouched).
+            Punchy.Debugging.SparkleProbe.NoBloom(System.Array.IndexOf(args, "-nobloom") >= 0);
             // "-solidsoff" (A-44): wild animals ignore cave walls, towers and carved ground as before, for before numbers
             // from the same build. "-solidstats": log their contacts, sink and floating every 60 s (SolidStatsLog).
             CreatureMotion.SolidsOff.Data = System.Array.IndexOf(args, "-solidsoff") >= 0 ? 1 : 0;
@@ -297,6 +301,16 @@ namespace Punchy.Debugging
                 // "-shotdir C:\shots": tests that take their own screenshots (-interact) save them there.
                 if (args[i] == "-shotdir")
                     shotDir = args[i + 1];
+                // "-sparkleprobe label" (A-96): count creature pixels that are not a number or over 16 for 360 frames
+                // from 3 s on, logged per frame as "[sparkle]" lines, with crops of the first into -shotdir. "-sparklecap 0.5"
+                // before it: a lower cap (a check that the probe sees the creatures at all).
+                if (args[i] == "-sparkleprobe")
+                {
+                    var capAt = System.Array.IndexOf(args, "-sparklecap");
+                    var sparkleCap = capAt >= 0 && capAt + 1 < args.Length && float.TryParse(args[capAt + 1], System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out var sc) ? sc : 16f;
+                    Punchy.Debugging.SparkleProbe.Begin(args[i + 1], cap: sparkleCap, cropDir: shotDir);
+                }
                 // "-cam x,y,z,yaw,pitch" or "-camlook x,y,z,tx,ty,tz": the camera put there directly (its follow off till
                 // the next shot), for framing a shot exactly.
                 if ((args[i] == "-cam" || args[i] == "-camlook") && ParseFloats(args[i + 1]) is float[] c && c.Length >= 5)
@@ -314,6 +328,8 @@ namespace Punchy.Debugging
                     flyHitchMs = hitchMs;
                 if (args[i] == "-flycave" && EnsureLocations(out var flySource))
                     StartFlyCave(flySource, args[i + 1]);
+                if (args[i] == "-dungeonwalk")
+                    StartDungeonWalk(args[i + 1]);
                 if (args[i] == "-place" && args[i + 1].StartsWith("batfolk", System.StringComparison.OrdinalIgnoreCase))
                 {
                     // (Kept trying until v3 is up, ~90 s in: see PlaceAtBatFolkPending.)
@@ -379,6 +395,12 @@ namespace Punchy.Debugging
             }
             if (inCave && EnsureLocations(out var source))
                 GoIntoCave(source);
+            // "-dungeonspots" (A-91): logs an entrance and a deepest-room camera spot per dungeon type.
+            if (System.Array.IndexOf(args, "-dungeonspots") >= 0)
+            {
+                dsPending = true;
+                dsPendingSince = Time.unscaledTime;
+            }
             if (System.Array.IndexOf(args, "-goto") >= 0 || System.Array.IndexOf(args, "-at") >= 0
                 || System.Array.IndexOf(args, "-walkershot") >= 0)
                 landmarkPlacePending = null;

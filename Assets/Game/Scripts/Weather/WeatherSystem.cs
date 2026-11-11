@@ -270,9 +270,10 @@ namespace Punchy.Weather
             cloudOffset += WindDirection * (4f + 18f * Local.Wind) * dt / 1800f;
 
             var drawDistance = 1500f;
-            if (EnsureQueries() && configQuery.TryGetSingleton<TerrainConfig>(out var config))
-                // At the graphics settings' View distance, as TerrainStreamingSystem streams it.
-                drawDistance = math.max(2, math.round(config.ViewRadiusChunks * Punchy.Settings.GraphicsSettings.View)) * config.ChunkSize;
+            if (EnsureQueries() && configQuery.TryGetSingleton<TerrainConfig>(out _))
+                // Where TerrainStreamingSystem's drawn ground ends at the graphics settings' View distance: the chunk
+                // disc, or the far ring past it from High up (W-131).
+                drawDistance = TerrainStreamingSystem.DrawDistance;
             // Exponential-squared haze reaching ~98% at the edge of the streamed terrain, so it's never visible.
             var hazeDensity = 1.98f / drawDistance;
 
@@ -474,7 +475,9 @@ namespace Punchy.Weather
             var origin = cam != null ? cam.transform.position : Vector3.zero;
             Shader.SetGlobalVector(HazeOriginId, origin);
             hazeLutMaterial.SetVector(HazeLutSizeId, new Vector2(HazeLutWidth, HazeLutHeight));
-            Graphics.Blit(null, hazeLut, hazeLutMaterial);
+            // Pass 0 only (R-12): with no pass given, Blit draws every pass, so the sky-direction pass below (8 km
+            // rays at true height) was drawn over the table, and every distance read the whole shaft.
+            Graphics.Blit(null, hazeLut, hazeLutMaterial, 0);
             Shader.SetGlobalTexture(HazeLutId, hazeLut);
 
             // The same volumes against the sky, per view direction (R-8): the skybox reads this instead of marching
@@ -754,6 +757,8 @@ namespace Punchy.Weather
             source.panStereo = pan;
             source.volume = math.lerp(1f, 0.25f, math.saturate(distance / 9000f));
             source.clip = clip;
+            // (Its group's level and the water's muffle, with the rest of the sound: GameAudio.)
+            Punchy.Audio.GameAudio.Adopt(source, Punchy.Audio.SoundGroup.Weather);
             source.Play();
             Destroy(source.gameObject, clip.length + 0.5f);
             Destroy(clip, clip.length + 1f);

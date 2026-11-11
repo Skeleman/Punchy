@@ -677,6 +677,83 @@ namespace Punchy.Fauna
             ps.Play();
         }
 
+        /// <summary>
+        /// A-94: a living colossus's breath in the cold, shaped like every animal's (CreatureBreathSystem.ShapeFor) from its
+        /// own size, measured once off its meshes (the ground drifts and trails it lies among left out): big, slow puffs
+        /// through AmbienceSystem's puffs, which judge the cold, so there is none in a thaw. Cosmetic and clock-driven.
+        /// </summary>
+        sealed class ColdBreath
+        {
+            readonly Transform head;
+            readonly Vector3 mouth, forward;
+            readonly CreatureBreathSystem.Shape shape;
+            readonly float phase;
+            static Punchy.Ambience.AmbienceSystem ambience;
+            static int lookedFor = -1000;
+
+            /// <summary>Breath from <paramref name="mouth"/> along <paramref name="forward"/> (both in <paramref name="head"/>'s
+            /// space), for the colossus under <paramref name="root"/>; parts named in <paramref name="ground"/> aren't its body.</summary>
+            public ColdBreath(Transform root, Transform head, Vector3 mouth, Vector3 forward, params string[] ground)
+            {
+                this.head = head;
+                this.mouth = mouth;
+                this.forward = forward.normalized;
+                var size = BodySize(root, ground);
+                shape = CreatureBreathSystem.ShapeFor(size.y, Mathf.Max(size.x, size.z));
+                phase = Mathf.Repeat(root.position.x * 0.37f + root.position.z * 0.61f, 97f);
+            }
+
+            /// <summary>The breath shape it was given, from its measured size.</summary>
+            public CreatureBreathSystem.Shape Shape => shape;
+
+            /// <summary>Its body's extent in its own space (m): every mesh under root but the ground parts.</summary>
+            static Vector3 BodySize(Transform root, string[] ground)
+            {
+                var have = false;
+                var box = new Bounds();
+                foreach (var filter in root.GetComponentsInChildren<MeshFilter>())
+                {
+                    if (filter.sharedMesh == null || System.Array.IndexOf(ground, filter.name) >= 0)
+                        continue;
+                    var b = filter.sharedMesh.bounds;
+                    for (int c = 0; c < 8; c++)
+                    {
+                        var corner = b.center + Vector3.Scale(b.extents, new Vector3((c & 1) == 0 ? -1f : 1f, (c & 2) == 0 ? -1f : 1f, (c & 4) == 0 ? -1f : 1f));
+                        var at = root.InverseTransformPoint(filter.transform.TransformPoint(corner));
+                        if (have)
+                            box.Encapsulate(at);
+                        else
+                        {
+                            box = new Bounds(at, Vector3.zero);
+                            have = true;
+                        }
+                    }
+                }
+                return box.size;
+            }
+
+            /// <summary>Breathe this frame if it's in an exhale, it's cold and it's near enough the camera to see.</summary>
+            public void Tick(Vector3 eye)
+            {
+                if (head == null || !shape.Shows)
+                    return;
+                var at = head.TransformPoint(mouth);
+                if ((at - eye).sqrMagnitude > shape.Reach * shape.Reach)
+                    return;
+                if (ambience == null && Time.frameCount - lookedFor > 120)
+                {
+                    lookedFor = Time.frameCount;
+                    ambience = FindAnyObjectByType<Punchy.Ambience.AmbienceSystem>();
+                }
+                if (ambience == null || ambience.Cold <= ambience.BreathThreshold)
+                    return;
+                // (An exhale every Every seconds, each colossus on its own beat.)
+                if (Mathf.Repeat(Time.time + phase, shape.Every) > shape.Exhale)
+                    return;
+                ambience.Breathe(at, head.TransformDirection(forward), Vector3.zero, shape.Size, shape.Rate, shape.Lifetime, shape.Opacity, 0f);
+            }
+        }
+
         /// <summary>Snow or moss on every face turned up past <paramref name="from"/> (full at <paramref name="full"/>).</summary>
         static void Weather(Mesh mesh, Color cover, float from, float full)
         {

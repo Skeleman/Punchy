@@ -17,8 +17,9 @@
 // Empty texels are all zero, and coverage is 1 wherever the model was drawn, so a texel averaged with empty ones
 // (mipmaps, bilinear filtering at the outline) divides back by its coverage: no dark fringe.
 
-/// Frames per side of the grid, and 1 for the full octahedron (0 hemi). Set per layer (FloraSystem.Impostors.cs).
-float _ImpostorFrames, _ImpostorFull;
+/// Frames per side of the grid, and 1 for the full octahedron (0 hemi), and each frame's side in texels. Set per layer
+/// (FloraSystem.Impostors.cs).
+float _ImpostorFrames, _ImpostorFull, _ImpostorPixels;
 
 /// The view direction (from the model towards the eye, model space, y up) of a point of the grid square [-1, 1]^2.
 float3 ImpostorDirection(float2 g, bool full)
@@ -93,6 +94,7 @@ SAMPLER(sampler_ImpostorData);
 StructuredBuffer<float3> _ModelBounds;   // radius, centre height (unscaled), thins: FloraCull.compute's
 int _ImpostorModelBase;                  // the layer's first model: a plant's local model is its model less this
 StructuredBuffer<int> _ImpostorSlice;    // each local model's atlas slice (-1: none; the cull never sends those here)
+StructuredBuffer<float> _ImpostorSway;   // R-11: each local model's wind sway at its sphere's centre (0: rigid)
 float _PunchyImpostorOneFrame;           // 1: the nearest frame only (FloraSystem.ImpostorOneFrame, for comparison)
 
 struct ImpostorAttributes
@@ -124,11 +126,42 @@ struct ImpostorVaryings
     nointerpolation float4 centre : TEXCOORD8;          // the sphere's centre (world), its radius (scaled)
     nointerpolation float4 plant : TEXCOORD9;           // yaw, fade, random, snow
     nointerpolation float2 ground : TEXCOORD10;         // the plant's base height, its ground colour (packed, as FloraInstance)
+    nointerpolation float4 frameQ : TEXCOORD11;         // the plant's turn (yaw, ground tilt, wind bend) as a quaternion
 };
 
-// The sphere's frame: model space (the plant's yaw undone) over its bounding sphere, centre 0, radius 1, as baked.
-float3 ImpostorUnyaw(float3 v, float c, float s) { return float3(v.x * c + v.z * s, v.y, -v.x * s + v.z * c); }
-float3 ImpostorYaw(float3 v, float c, float s) { return float3(v.x * c - v.z * s, v.y, v.x * s + v.z * c); }
+// The sphere's frame: model space (the plant's turn undone) over its bounding sphere, centre 0, radius 1, as baked.
+// R-11: the turn is a quaternion, so trees and rocks carry the meshes' whole rigid turn (Flora.hlsl's vertex stage):
+// the yaw, then the ground tilt (rocks, W-16), then the wind's bend about the base, taken at the sphere's centre.
+float3 ImpostorRotate(float4 q, float3 v) { return v + 2 * cross(q.xyz, cross(q.xyz, v) + q.w * v); }
+float3 ImpostorUnrotate(float4 q, float3 v) { return ImpostorRotate(float4(-q.xyz, q.w), v); }
+float4 ImpostorQMul(float4 a, float4 b) { return float4(a.w * b.xyz + b.w * a.xyz + cross(a.xyz, b.xyz), a.w * b.w - dot(a.xyz, b.xyz)); }
+
+/// The plant's turn, as Flora.hlsl turns its mesh: yaw (x c - z s, y, x s + z c), tilt, then the wind's bend.
+float4 ImpostorTurn(FloraInstance plant, uint local, float centreHeight)
+{
+    float4 q = float4(0, sin(-0.5 * plant.yaw), 0, cos(-0.5 * plant.yaw));
+    if (any(plant.tilt != 0))
+    {
+        float3 up = float3(plant.tilt.x, sqrt(saturate(1 - dot(plant.tilt, plant.tilt))), plant.tilt.y);
+        float3 axis = normalize(float3(up.z, 0, -up.x));
+        q = ImpostorQMul(float4(axis * sqrt(saturate((1 - up.y) * 0.5)), sqrt(saturate((1 + up.y) * 0.5))), q);
+    }
+    float sway = _ImpostorSway[local];
+    if (sway > 0)
+    {
+        // Flora.hlsl's wind, read once at the plant's foot (the same gust noise, scroll and phase), its bend angle at the
+        // sphere's centre height: the far plant leans as its mesh's crown does.
+        float3 windDir = float3(_PunchyWindDirection.x, 0, _PunchyWindDirection.y);
+        float2 gustUV = plant.position.xz * 0.011 - _PunchyWindDirection * _PunchyClock * (0.025 + 0.06 * _PunchyWind);
+        float plantGust = lerp(0.5, smoothstep(0.3, 0.75, SAMPLE_TEXTURE2D_LOD(_PunchyCaveDetail, sampler_PunchyCaveDetail, gustUV, 0).b), _PunchyCaveDetailReady);
+        float phase = _PunchyClock * 1.2 - dot(plant.position.xz, _PunchyWindDirection) * 0.04 + plant.random * 6.28;
+        float gust = (0.62 + 0.38 * sin(phase) * sin(phase * 0.37 + 1.3)) * (0.08 + 0.92 * _PunchyWind) * (0.35 + 0.8 * plantGust);
+        float bend = sway * gust * (0.16 + 0.18 / max(abs(centreHeight), 0.5));
+        float3 bendAxis = float3(windDir.z, 0, -windDir.x);
+        q = ImpostorQMul(float4(bendAxis * sin(0.5 * bend), cos(0.5 * bend)), q);
+    }
+    return q;
+}
 
 // One quad per plant, facing the camera in front of its bounding sphere and just covering it, and the three frames
 // nearest the view (the corners of the grid triangle the view falls in), weighted by where it falls.
@@ -141,7 +174,8 @@ ImpostorVaryings ImpostorVert(ImpostorAttributes input)
     float3 bounds = _ModelBounds[local];
     float slice = max(_ImpostorSlice[local], 0);
     float radius = max(bounds.x, 0.01) * 1.01 * plant.scale;
-    float3 centre = plant.position + float3(0, bounds.y * plant.scale, 0);
+    float4 q = ImpostorTurn(plant, local, bounds.y * plant.scale);
+    float3 centre = plant.position + ImpostorRotate(q, float3(0, bounds.y * plant.scale, 0));
 
     float3 camera = GetCameraPositionWS();
     float3 toEye = camera - centre;
@@ -155,8 +189,7 @@ ImpostorVaryings ImpostorVert(ImpostorAttributes input)
     float halfSize = radius * near / sqrt(max(distance * distance - radius * radius, 1e-4)) * 1.03;
     float3 positionWS = centre + forward * radius + (right * input.positionOS.x + up * input.positionOS.y) * halfSize;
 
-    float c = cos(plant.yaw), s = sin(plant.yaw);
-    float3 eye = ImpostorUnyaw(toEye, c, s) / radius;
+    float3 eye = ImpostorUnrotate(q, toEye) / radius;
     float frames = _ImpostorFrames;
     bool full = _ImpostorFull > 0.5;
     float2 g = (ImpostorGrid(normalize(eye), full) * 0.5 + 0.5) * (frames - 1);
@@ -179,7 +212,7 @@ ImpostorVaryings ImpostorVert(ImpostorAttributes input)
 
     ImpostorVaryings o;
     o.positionCS = TransformWorldToHClip(positionWS);
-    o.ray = ImpostorUnyaw(positionWS - camera, c, s) / radius;
+    o.ray = ImpostorUnrotate(q, positionWS - camera) / radius;
     o.eye = eye;
     o.dir0 = ImpostorFrameDirection(frame0, frames, full);
     o.dir1 = ImpostorFrameDirection(frame1, frames, full);
@@ -190,6 +223,7 @@ ImpostorVaryings ImpostorVert(ImpostorAttributes input)
     o.centre = float4(centre, radius);
     o.plant = float4(plant.yaw, asfloat(visible.y), plant.random, plant.snow);
     o.ground = float2(plant.position.y, asfloat(plant.ground));
+    o.frameQ = q;
     return o;
 }
 
@@ -227,18 +261,24 @@ ImpostorSample ImpostorSurface(ImpostorVaryings input)
     float4 albedo = 0, data = 0;
     float along = 0;
     float slice = input.frame2Slice.z;
+    // How many of a frame's texels one pixel spans (the ray crosses the frame's square, 2 wide, in _ImpostorPixels).
+    float texels = max(length(ddx(input.ray)), length(ddy(input.ray))) * 0.5 * _ImpostorPixels;
     ImpostorFrame(input.eye, input.ray, input.dir0, input.frame01.xy, slice, input.weights.x, albedo, data, along);
     ImpostorFrame(input.eye, input.ray, input.dir1, input.frame01.zw, slice, input.weights.y, albedo, data, along);
     ImpostorFrame(input.eye, input.ray, input.dir2, input.frame2Slice.xy, slice, input.weights.z, albedo, data, along);
-    clip(albedo.a - 0.5);
+    // Up close a sharp outline (cut at half coverage); once the mips average the outline away, a dithered cut instead,
+    // so a plant keeps the share of its pixels it covers. A hard cut there dropped every texel of a thin conifer below
+    // half, so far impostor trees thinned out, then vanished, and the ones left read as dark solid blots (R-11). The
+    // dither's pattern is crossed with the hand-off's (FloraDither) so the two fades multiply instead of cancelling.
+    float cut = FloraDitherValue(float4(input.positionCS.y + 5.3, input.positionCS.x + 11.7, 0, 0));
+    clip(albedo.a - lerp(0.5, cut, saturate(log2(max(texels, 1e-3)))));
     float coverage = max(albedo.a, 1e-3);
     data /= coverage;
     along /= coverage;
-    float c = cos(input.plant.x), s = sin(input.plant.x);
 
     ImpostorSample o;
-    o.positionWS = input.centre.xyz + ImpostorYaw(input.eye + input.ray * along, c, s) * input.centre.w;
-    o.normalWS = (half3)ImpostorYaw(ImpostorUnpackNormal(data.rg), c, s);
+    o.positionWS = input.centre.xyz + ImpostorRotate(input.frameQ, input.eye + input.ray * along) * input.centre.w;
+    o.normalWS = (half3)ImpostorRotate(input.frameQ, ImpostorUnpackNormal(data.rg));
     o.albedo = (half3)(albedo.rgb / coverage);
     o.leafy = data.a >= 0.5;
     o.occlusion = (half)saturate((data.a - (o.leafy ? 0.51 : 0)) / 0.49);

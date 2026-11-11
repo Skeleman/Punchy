@@ -743,7 +743,9 @@ namespace Punchy.Fauna
         public quaternion Rotation;
         public float RadiusStart, RadiusEnd, Flatten, Pad;
         public float4 Color;
-        /// <summary>x: what it's made of (a SegmentMaterial, as a float), shaded to match; yzw spare.</summary>
+        /// <summary>x: what it's made of (a SegmentMaterial, as a float), shaded to match; z: how many segments back
+        /// the one it hangs from is (the joint seam, CreatureAnimator); w: its look code (SurfaceLook: fur and its
+        /// length, feathers, scales, hoof, eye..., A-97), written by the render system; y: the ground height under a body (grounding), set by the render system.</summary>
         public float4 Material;
     }
 
@@ -786,19 +788,9 @@ namespace Punchy.Fauna
             public int SlotIndex;
         }
 
-        /// <summary>
-        /// Builds a species. A variant takes its body, parts, gait and behaviour from the species it is a variant
-        /// of, and only its own colours and size.
-        /// </summary>
-        /// <param name="prey">Indices of the species it hunts.</param>
-        /// <param name="hunted">Whether any species hunts it.</param>
-        /// <param name="regard">Folk only: its regard for each species (by index), and its kinship (FolkKin).</param>
-        public static BlobAssetReference<CreatureBlob> Build(CreatureSpecies variant, IReadOnlyList<int> prey = null, bool hunted = false,
-                                                             IReadOnlyList<float> regard = null, IReadOnlyList<byte> kinship = null,
-                                                             Vector2? home = null)
+        /// <summary>Expands slots: mirrored slots become left and right copies; children follow every copy of their parent.</summary>
+        static List<Expanded> Expand(CreatureSpecies species)
         {
-            var species = variant.Body;
-            // Expand slots: mirrored slots become left and right copies; children follow every copy of their parent.
             var parts = new List<Expanded>();
             var copies = new List<List<int>>();
             for (int i = 0; i < species.Parts.Count; i++)
@@ -821,6 +813,48 @@ namespace Punchy.Fauna
                     }
                 }
             }
+            return parts;
+        }
+
+        /// <summary>
+        /// The look of each segment of a species, in blob segment order (segment 0 is the body): a SurfaceLook code
+        /// plus 16 × FurLength for fur. Kept off the creature blob so looks never move the fauna fingerprint.
+        /// </summary>
+        public static byte[] Looks(CreatureSpecies variant)
+        {
+            var species = variant.Body;
+            var parts = Expand(species);
+            var count = 1;
+            foreach (var p in parts)
+                count += p.Slot.Limb.Segments.Count;
+            var looks = new byte[count];
+            looks[0] = SurfaceLook.Of(species.Coat, SegmentSurface.Coat, species.FurLength);
+            var cursor = 1;
+            foreach (var p in parts)
+                foreach (var seg in p.Slot.Limb.Segments)
+                {
+                    var length = p.Slot.FurLength != FurLengthOverride.Default ? p.Slot.FurLength
+                               : seg.FurLength != FurLengthOverride.Default ? seg.FurLength
+                               : FurLengthOverride.Default;
+                    looks[cursor++] = SurfaceLook.Of(species.Coat, seg.Surface,
+                        length == FurLengthOverride.Default ? species.FurLength : SurfaceLook.Length(length));
+                }
+            return looks;
+        }
+
+        /// <summary>
+        /// Builds a species. A variant takes its body, parts, gait and behaviour from the species it is a variant
+        /// of, and only its own colours and size.
+        /// </summary>
+        /// <param name="prey">Indices of the species it hunts.</param>
+        /// <param name="hunted">Whether any species hunts it.</param>
+        /// <param name="regard">Folk only: its regard for each species (by index), and its kinship (FolkKin).</param>
+        public static BlobAssetReference<CreatureBlob> Build(CreatureSpecies variant, IReadOnlyList<int> prey = null, bool hunted = false,
+                                                             IReadOnlyList<float> regard = null, IReadOnlyList<byte> kinship = null,
+                                                             Vector2? home = null)
+        {
+            var species = variant.Body;
+            var parts = Expand(species);
 
             var segmentCount = 1;
             foreach (var p in parts)

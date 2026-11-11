@@ -114,14 +114,73 @@ namespace Punchy.Fauna
             public float3 Pos;
         }
 
-        // ItemTable ids (player lane, Punchy.Items.ItemTable): Stone 1, Mushroom 3, Coin 6, Key 7.
-        static readonly (byte item, ushort weight, byte maxCount)[] LootRows = { (6, 45, 5), (3, 25, 3), (1, 25, 2), (7, 5, 1) };
+        /// <summary>
+        /// A-91 row 4 (the P-23 hook): what dungeons hand out, as data. Resources/SpawnTables/DungeonLoot, a
+        /// <see cref="SpawnTable"/> whose rows name an item by its ItemTable name (Coin, Key, and P-23's gear when it
+        /// lands) with a weight and a count range. A row with Kind -1 is loose loot on the floor (<see cref="PickLoot"/>);
+        /// a row with Kind 1 (SocketKind.Chest) is for chests (<see cref="PickChestLoot"/>). Types, tags and biomes filter
+        /// as in any table. A row naming an item the table doesn't have yet is skipped (so gear rows can go in first).
+        /// The first four rows (Coin 45, Mushroom 25, Stone 25, Key 5) draw exactly as the old code rows did.
+        /// </summary>
+        public static SpawnTable LootTable => lootTable != null ? lootTable : lootTable = SpawnTable.Load("DungeonLoot");
+        static SpawnTable lootTable;
+        static int[] lootItems;
+
+        /// <summary>The ItemTable id a loot row names, or -1 (looked up by name once; ids are append-only).</summary>
+        static int LootItem(int row)
+        {
+            var rows = LootTable.Rows;
+            if (lootItems == null || lootItems.Length != rows.Count)
+            {
+                lootItems = new int[rows.Count];
+                for (int i = 0; i < rows.Count; i++)
+                {
+                    lootItems[i] = -1;
+                    for (int k = 0; k < Punchy.Items.ItemTable.Items.Length; k++)
+                        if (string.Equals(Punchy.Items.ItemTable.Items[k].Name, rows[i].Content, System.StringComparison.OrdinalIgnoreCase))
+                            lootItems[i] = k;
+                    if (lootItems[i] < 0)
+                        Debug.Log($"[dungeon] loot table row {i}: no item '{rows[i].Content}' yet (skipped)");
+                }
+            }
+            return lootItems[row];
+        }
+
+        /// <summary>
+        /// One weighted draw over the loot rows that fit a socket (and name an item), from a roll: the item and how many
+        /// (from the row's count range and a second roll). False when no row fits.
+        /// </summary>
+        static bool DrawLoot(in DungeonSocket s, bool chest, uint roll, uint countRoll, out byte item, out byte count)
+        {
+            item = count = 0;
+            var table = LootTable;
+            if (table == null)
+                return false;
+            var q = AsSpawnSocket(s);
+            int total = 0;
+            for (int i = 0; i < table.Rows.Count; i++)
+                if ((table.Rows[i].Kind >= 0) == chest && SpawnTable.Fits(table.Rows[i], q) && LootItem(i) >= 0)
+                    total += table.Rows[i].Weight;
+            if (total <= 0)
+                return false;
+            var left = (int)(roll % (uint)total);
+            for (int i = 0; i < table.Rows.Count; i++)
+                if ((table.Rows[i].Kind >= 0) == chest && SpawnTable.Fits(table.Rows[i], q) && LootItem(i) >= 0 &&
+                    (left -= table.Rows[i].Weight) < 0)
+                {
+                    var c = table.Rows[i].Count;
+                    item = (byte)LootItem(i);
+                    count = (byte)(c.y <= c.x ? math.max(1, c.x) : c.x + countRoll % (uint)(c.y - c.x + 1));
+                    return count > 0;
+                }
+            return false;
+        }
 
         /// <summary>
         /// Loose items for a dungeon (#24): 3-6 of its empty floor sockets (Creature or Clutter sockets that picked
         /// nothing, so no prop or chest stands there), chosen and filled from the dungeon's seed (all its socket seeds
-        /// folded), so every machine gets the same list and no two dungeons lay theirs out alike. Coins most, then
-        /// mushrooms and stones, a key rarely. Returns the dungeon seed.
+        /// folded), so every machine gets the same list and no two dungeons lay theirs out alike. What lies there comes
+        /// from the loose rows of <see cref="LootTable"/>. Returns the dungeon seed.
         /// </summary>
         public static uint PickLoot(DynamicBuffer<DungeonSocket> sockets, List<DungeonContent> picks, List<Loot> into)
         {
@@ -135,32 +194,29 @@ namespace Punchy.Fauna
                     spots.Add((Scramble(sockets[i].Seed ^ seed ^ 0x10075EEDu), i));
             spots.Sort((a, b) => a.key.CompareTo(b.key));
             var n = math.min(spots.Count, 3 + (int)(seed % 4));
-            int total = 0;
-            foreach (var row in LootRows)
-                total += row.weight;
             for (int k = 0; k < n; k++)
             {
                 var r = Scramble(spots[k].key ^ 0xC0FFEEu);
-                var roll = (int)(r % (uint)total);
-                var pick = LootRows[0];
-                foreach (var row in LootRows)
-                    if ((roll -= row.weight) < 0)
-                    {
-                        pick = row;
-                        break;
-                    }
                 var r2 = Scramble(r);
+                if (!DrawLoot(sockets[spots[k].i], false, r, r2 >> 16, out var item, out var count))
+                    continue;
                 // (A little off the socket's centre, so the loot doesn't sit on a grid.)
                 var jitter = new float3(((r2 & 255) / 255f - 0.5f) * 0.7f, 0f, (((r2 >> 8) & 255) / 255f - 0.5f) * 0.7f);
-                into.Add(new Loot
-                {
-                    Item = pick.item,
-                    Count = (byte)(1 + (r2 >> 16) % pick.maxCount),
-                    Socket = spots[k].i,
-                    Pos = sockets[spots[k].i].Pos + jitter,
-                });
+                into.Add(new Loot { Item = item, Count = count, Socket = spots[k].i, Pos = sockets[spots[k].i].Pos + jitter });
             }
             return seed;
+        }
+
+        /// <summary>
+        /// A-91 row 4, the P-23 hook for chests: an extra item for a chest socket from the chest rows of
+        /// <see cref="LootTable"/> (P-23's gear goes there), seeded by the socket alone, so host and clients agree.
+        /// False while the table has no chest row that fits (today: none). Items (player lane) calls it when it fills a
+        /// chest; the spawner never opens chests.
+        /// </summary>
+        public static bool PickChestLoot(in DungeonSocket chest, out byte item, out byte count)
+        {
+            var r = Scramble(chest.Seed ^ 0xC4E57u);
+            return DrawLoot(chest, true, r, Scramble(r), out item, out count);
         }
 
         /// <summary>
@@ -182,6 +238,96 @@ namespace Punchy.Fauna
             }
             return hash;
         }
+
+        /// <summary>
+        /// A-95 (#24): where a socket's thing stands, as a box (centre, size, facing), for its stand-in prop, its
+        /// collision box and the dungeon walk. A chest is the player lane's chest (Items) over its socket. The socket
+        /// itself never moves (its position is in the set pieces' hashes); only the box is nudged: off a chest it
+        /// shares a corner with (to the side, so it shows: Items hides stand-ins on a chest), then out of a wall or
+        /// rock along the socket's facing, and failing that the other ways round, up to <see cref="MostNudge"/>.
+        /// False for wall decor (set into the wall: nothing to bump into) and when no clear spot is found.
+        /// </summary>
+        public static bool PropPlace(in DungeonSocket s, in NativeArray<DungeonSocket> all, in Punchy.Terrain.TerrainSource terrain,
+                                     out float3 centre, out float3 size, out quaternion rot)
+        {
+            rot = s.Rot;
+            size = s.Kind switch
+            {
+                SocketKind.Chest => new float3(0.82f, 0.56f, 0.52f),
+                SocketKind.WallDecor => new float3(0.4f, 0.6f, 0.12f),
+                SocketKind.Interactable => new float3(0.6f, 1f, 0.6f),
+                _ => new float3(0.4f, 0.4f, 0.4f),
+            } * (s.Kind == SocketKind.Chest ? 1f : 1f + 0.35f * s.Size);
+            var fwd = math.mul(s.Rot, new float3(0f, 0f, 1f));
+            centre = s.Pos + new float3(0f, size.y * 0.5f, 0f);
+            if (s.Kind == SocketKind.WallDecor)
+            {
+                centre -= fwd * size.z * 0.5f;
+                return false;
+            }
+            if (s.Kind == SocketKind.Chest)
+                return true;
+            // Off a chest: beside it, its own half width plus the chest's (and a hand's breadth) from the chest's middle.
+            foreach (var o in all)
+            {
+                if (o.Kind != SocketKind.Chest || math.distance(o.Pos.xz, s.Pos.xz) > 0.9f || math.abs(o.Pos.y - s.Pos.y) > 1f)
+                    continue;
+                var side = math.mul(o.Rot, new float3(1f, 0f, 0f));
+                var away = s.Pos.xz - o.Pos.xz;
+                var sign = math.dot(away, side.xz) < 0f ? -1f : 1f;
+                var gap = 0.41f + size.x * 0.5f + 0.1f;
+                var a = o.Pos + side * sign * gap;
+                var b = o.Pos - side * sign * gap;
+                centre.xz = (Clear(terrain, new float3(a.x, centre.y, a.z), size, rot) ? a : b).xz;
+                break;
+            }
+            if (Clear(terrain, centre, size, rot))
+                return true;
+            // Out of a wall: the facing first (a sconce's faces the room), then the other three ways and the diagonals.
+            var right = math.mul(s.Rot, new float3(1f, 0f, 0f));
+            for (float d = 0.1f; d <= MostNudge + 1e-3f; d += 0.1f)
+                for (int k = 0; k < 8; k++)
+                {
+                    var dir = k switch { 0 => fwd, 1 => right, 2 => -right, 3 => -fwd, 4 => fwd + right, 5 => fwd - right, 6 => -fwd + right, _ => -fwd - right };
+                    var at = centre + math.normalize(dir) * d;
+                    if (Clear(terrain, at, size, rot))
+                    {
+                        centre = at;
+                        return true;
+                    }
+                }
+            return false;
+        }
+
+        /// <summary>How far a stand-in's box may be nudged out of a wall (m).</summary>
+        public const float MostNudge = 0.8f;
+
+        /// <summary>Nothing solid (rock, a temple wall) at a box's middle or its eight upper and lower corners (a hair in).</summary>
+        static bool Clear(in Punchy.Terrain.TerrainSource terrain, float3 centre, float3 size, quaternion rot)
+        {
+            if (!terrain.Landmarks.IsCreated)
+                return true;
+            if (Punchy.Player.PlayerMovementSystem.SolidDistance(terrain, centre) <= 0f)
+                return false;
+            for (int c = 0; c < 8; c++)
+            {
+                var corner = new float3((c & 1) == 0 ? -0.45f : 0.45f, (c & 2) == 0 ? -0.4f : 0.45f, (c & 4) == 0 ? -0.45f : 0.45f) * size;
+                if (Punchy.Player.PlayerMovementSystem.SolidDistance(terrain, centre + math.mul(rot, corner)) <= 0f)
+                    return false;
+            }
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// A-95 (#24): a dungeon stand-in's or chest's box (<see cref="DungeonSpawner.PropPlace"/>), solid to the player as a
+    /// kit box is (KitCollision, read as KitBox through Reinterpret). Seed-derived: every world that fills the dungeon
+    /// makes the same boxes, on one entity per world.
+    /// </summary>
+    [InternalBufferCapacity(0)]
+    public struct DungeonPropBox : IBufferElementData
+    {
+        public Punchy.Flora.KitBox Box;
     }
 
     /// <summary>On a dungeon entity once the spawner has filled its sockets (each world fills its own once).</summary>
@@ -263,12 +409,14 @@ namespace Punchy.Fauna
                           $" (again 0x{again:x8}{(again == hash ? ", same" : ", DIFFERS")}; as other types{asTypes})" +
                           $" ({(animals ? "spawns animals" : "no animals here")}{(shows ? ", shows props" : "")}): " +
                           string.Join(" ", picks.FindAll(c => c != DungeonContent.Empty)));
+                SystemAPI.TryGetSingleton<Punchy.Terrain.TerrainSource>(out var terrain);
+                AddBoxes(sockets.ToNativeArray(Allocator.Temp), terrain);
                 if (shows)
                 {
                     using var items = sockets.ToNativeArray(Allocator.Temp);
                     for (int i = 0; i < items.Length; i++)
                         if (picks[i] != DungeonContent.Empty && !DungeonSpawner.IsCreature(picks[i]) &&
-                            MakeProp(items[i], picks[i]) is { } prop)
+                            MakeProp(items[i], picks[i], items, terrain) is { } prop)
                             props.Add(prop);
                     // Loose loot: the host or solo puts it in the world for everyone (Items.Spawn is ignored on a
                     // joined client, which is sent the host's items instead).
@@ -290,6 +438,38 @@ namespace Punchy.Fauna
             }
         }
 
+        readonly HashSet<int> boxed = new();
+        Entity boxEntity;
+
+        /// <summary>
+        /// A-95 (#24): the dungeon's chests and stand-ins as boxes the player bumps into and stands on (DungeonPropBox,
+        /// one entity per world), placed as the props are. Once per dungeon (by its first socket's spot: a re-baked
+        /// terrain makes the same dungeons again). Wall decor is in the wall and gets none.
+        /// </summary>
+        void AddBoxes(NativeArray<DungeonSocket> sockets, in Punchy.Terrain.TerrainSource terrain)
+        {
+            using (sockets)
+            {
+                if (sockets.Length == 0 || !terrain.Landmarks.IsCreated || !boxed.Add((int)math.hash(sockets[0].Pos)))
+                    return;
+                if (boxEntity == Entity.Null || !EntityManager.Exists(boxEntity))
+                {
+                    boxEntity = EntityManager.CreateEntity(typeof(DungeonPropBox));
+                    EntityManager.SetName(boxEntity, "Dungeon prop boxes");
+                }
+                var boxes = EntityManager.GetBuffer<DungeonPropBox>(boxEntity);
+                for (int i = 0; i < sockets.Length; i++)
+                {
+                    var s = sockets[i];
+                    var shown = s.Kind == SocketKind.Chest || (picks[i] != DungeonContent.Empty && !DungeonSpawner.IsCreature(picks[i]));
+                    if (!shown || !DungeonSpawner.PropPlace(s, sockets, terrain, out var centre, out var size, out var rot))
+                        continue;
+                    var half = size * 0.5f;
+                    boxes.Add(new DungeonPropBox { Box = new Punchy.Flora.KitBox { Centre = centre, Half = half, Rotation = rot, Reach = math.length(half) } });
+                }
+            }
+        }
+
         /// <summary>
         /// Makes the creature picks (already in <see cref="picks"/>) at their sockets, each with its post, and marks the
         /// dungeon filled in this director build. Returns how many were made.
@@ -299,6 +479,7 @@ namespace Punchy.Fauna
             var made = new List<(Entity e, DungeonPost post)>();
             // (A copy: spawning a creature is a structural change, which invalidates the buffer.)
             using var copy = EntityManager.GetBuffer<DungeonSocket>(d, true).ToNativeArray(Allocator.Temp);
+            var id = EntityManager.HasComponent<DungeonInfo>(d) ? EntityManager.GetComponentData<DungeonInfo>(d).Id : 0u;
             for (int i = 0; i < copy.Length; i++)
             {
                 var s = copy[i];
@@ -312,7 +493,9 @@ namespace Punchy.Fauna
                 var e = director.Spawn(species, s.Pos, math.atan2(fwd.x, fwd.z));
                 // (Every dungeon creature gets a post, even with nothing to do there: the post is what keeps the
                 // director from letting it go.)
-                made.Add((e, DungeonPost.From(s, c)));
+                var post = DungeonPost.From(s, c);
+                post.Dungeon = id;
+                made.Add((e, post));
             }
             // (After the loop: adding components moves entities.)
             foreach (var (e, post) in made)
@@ -334,21 +517,23 @@ namespace Punchy.Fauna
         /// the player lane's Items draws the chest there. Drawn with the items' URP material (Resources/ItemMaterial,
         /// the pipeline's default lit material), tinted through a property block, so it never draws magenta.
         /// </summary>
-        static GameObject MakeProp(in DungeonSocket s, DungeonContent c)
+        static GameObject MakeProp(in DungeonSocket s, DungeonContent c, in NativeArray<DungeonSocket> all, in Punchy.Terrain.TerrainSource terrain)
         {
             if (s.Kind == SocketKind.Chest)
                 return null;
+            // (A-95: placed as its collision box is, nudged off a chest or out of a wall; see DungeonSpawner.PropPlace.)
+            DungeonSpawner.PropPlace(s, all, terrain, out var centre, out var size, out var rot);
+            // A-91: the real prop, built from parts in the cave's dressed stone, wood and iron; the tinted box below
+            // only when there is no cave material to draw it with.
+            if (DungeonProps.Make(c, size) is { } built)
+            {
+                built.transform.SetPositionAndRotation(centre, rot);
+                return built;
+            }
             var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
             go.name = $"Dungeon {c}";
             Object.Destroy(go.GetComponent<Collider>());
-            var size = s.Kind switch
-            {
-                SocketKind.Chest => new Vector3(0.9f, 0.6f, 0.6f),
-                SocketKind.WallDecor => new Vector3(0.4f, 0.6f, 0.12f),
-                SocketKind.Interactable => new Vector3(0.6f, 1f, 0.6f),
-                _ => new Vector3(0.4f, 0.4f, 0.4f),
-            } * (1f + 0.35f * s.Size);
-            go.transform.SetPositionAndRotation((Vector3)s.Pos + Vector3.up * size.y * 0.5f, s.Rot);
+            go.transform.SetPositionAndRotation(centre, rot);
             go.transform.localScale = size;
             var h = DungeonSpawner.Scramble((uint)c * 0x9E3779B1u);
             var r = go.GetComponent<Renderer>();
@@ -360,8 +545,6 @@ namespace Punchy.Fauna
             // the saturated purple read as a glitch box when the camera sat beside it (#24, a57-temple-mw).
             bool wall = s.Kind == SocketKind.WallDecor;
             propBlock.SetColor(BaseColorId, Color.HSVToRGB((h & 1023) / 1023f, wall ? 0.12f : 0.45f, wall ? 0.32f : 0.75f));
-            if (wall)
-                go.transform.position -= go.transform.forward * size.z * 0.5f;
             r.SetPropertyBlock(propBlock);
             return go;
         }

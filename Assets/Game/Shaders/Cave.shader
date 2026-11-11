@@ -15,6 +15,9 @@ Shader "Punchy/Cave"
         _RockColor ("Rock", Color) = (0.48, 0.44, 0.4, 1)
         _DarkColor ("Crevices", Color) = (0.22, 0.2, 0.18, 1)
         _Darkness ("Light deep inside", Range(0, 0.2)) = 0.05
+        // A-91: what a room kit copy of this material is made of: -1 as is (crystals, bone), 0 bare rock (damp,
+        // drips, mineral veins), 1 dressed stone (blocks, flagstones), 2 wood, 3 iron.
+        [HideInInspector] _Dressed ("Dressed", Float) = 0
     }
 
     SubShader
@@ -29,6 +32,7 @@ Shader "Punchy/Cave"
             half4 _RockColor;
             half4 _DarkColor;
             half _Darkness;
+            half _Dressed;
         CBUFFER_END
 
         struct CaveAttributes
@@ -203,6 +207,76 @@ Shader "Punchy/Cave"
                     float moss = smoothstep(0.55, 0.7, clump + s7.w * 0.35 + openness * 0.25) * saturate(shape.y * 1.6 + 0.2) * s7.w;
                     rock = lerp(rock, s8.rgb * (0.7 + 0.6 * detail.b), moss);
                     gloss *= 1 - moss;
+                }
+                // A-91: what the surface is made of. Bare rock (the cave walls) gets damp and minerals; room kit copies
+                // get dressed stone, wood or iron. All in the albedo and gloss: no extra pass, no texture.
+                float dressed = _Dressed;
+                float bare = (1 - terrain) * (1 - slick) * (1 - openness * 0.8);
+                // Damp: dark, glossy patches pooled on floors and low on the walls, and drip streaks running down the
+                // walls under them; fading out towards a mouth.
+                float dampMask = PunchyValueNoise(p.xz * 0.11 + p.y * 0.05 + 211) * 0.7 + PunchyValueNoise(p.xz * 0.43 - 17) * 0.3;
+                float wall = 1 - abs(shape.y);
+                float streak = smoothstep(0.7, 0.8, PunchyValueNoise(float2((p.x - p.z) * 2.3, p.y * 0.16 + 5)))
+                             * smoothstep(0.45, 0.6, dampMask) * wall;
+                float damp = max(smoothstep(0.58, 0.7, dampMask) * saturate(shape.y * 0.8 + 0.5), streak * 0.8) * bare;
+                if (dressed > -0.5 && dressed < 0.5)
+                {
+                    rock *= lerp(1, 0.6, damp);
+                    gloss = lerp(gloss, 0.8, damp * 0.85);
+                    // Mineral veins in sparse patches: thin bands where a slow noise crosses its middle, calcite white
+                    // in some caves' stretches and iron rust in others.
+                    float veinPatch = PunchyValueNoise(p.xz * 0.06 + p.y * 0.08 + 401);
+                    float veinLine = PunchyValueNoise(p.xy * 0.7 + p.z * 0.55 + 3) * 0.6 + PunchyValueNoise(p.zy * 1.9 - p.x * 0.4) * 0.4;
+                    float vein = (1 - smoothstep(0.0, 0.03, abs(veinLine - 0.5))) * smoothstep(0.62, 0.72, veinPatch)
+                               * (1 - floorShare * 0.7) * bare;
+                    float calcite = step(0.5, PunchyValueNoise(p.xz * 0.015 + 77));
+                    half3 mineral = lerp(half3(0.5, 0.25, 0.11), half3(0.88, 0.86, 0.8), calcite);
+                    rock = lerp(rock, mineral * (0.8 + 0.4 * detail.b), vein * 0.85);
+                    gloss = lerp(gloss, 0.55, vein * calcite);
+                }
+                else if (dressed > 0.5 && dressed < 1.5)
+                {
+                    // Dressed stone (the kit's ashlar tiles are already cut blocks): weathered faces. A mottled tone,
+                    // pitting, a paler polish where floors are worn smooth, soot-dark grime in patches, moss in clumps
+                    // on anything facing up and creeping up the walls, and damp pooled on the floors.
+                    // Fine noise in the face's own plane (floor: xz; wall: along it and up), so it isn't sheared into
+                    // diagonal scratches on walls.
+                    float2 faceDir = normalize(float2(-shape.z, shape.x) + float2(1e-4, 0));
+                    float2 face = abs(shape.y) > 0.7 ? p.xz : float2(dot(p.xz, faceDir), p.y);
+                    float mottle = PunchyValueNoise(face * 1.7 + 13) * 0.6 + PunchyValueNoise(face * 4.1 - 29) * 0.4;
+                    float pit = smoothstep(0.86, 0.9, PunchyValueNoise(face * 23 + 57));
+                    float up = saturate(shape.y * 1.4 - 0.3);
+                    float wear = smoothstep(0.35, 0.75, PunchyValueNoise(p.xz * 0.22 + 33)) * up;
+                    float grime = smoothstep(0.55, 0.8, PunchyValueNoise(face * 0.35 + 71)) * (1 - up);
+                    rock *= (0.84 + 0.28 * mottle) * (1 - pit * 0.2) * (1 + wear * 0.14) * (1 - grime * 0.25);
+                    float clump = PunchyValueNoise(p.xz * 0.55 + p.y * 0.4 + 91) * 0.7 + detail.b * 0.3;
+                    float creep = smoothstep(0.66, 0.72, clump) * saturate(1 - abs(shape.y)) * smoothstep(0.6, 0.75, PunchyValueNoise(p.xz * 0.12 - 9));
+                    float stoneMoss = max(smoothstep(0.66, 0.74, clump) * smoothstep(0.3, 0.8, shape.y) * (1 - wear), creep) * (1 - terrain);
+                    rock = lerp(rock, half3(0.24, 0.33, 0.13) * (0.7 + 0.6 * detail.b), stoneMoss);
+                    // Pooled damp on the floors only: drip streaks read as scratches across cut blocks.
+                    float pool = smoothstep(0.62, 0.72, dampMask) * up * bare;
+                    rock *= lerp(1, 0.7, pool);
+                    gloss = lerp(lerp(gloss * 0.5, 0.3, wear), 0.7, pool * 0.8) * (1 - stoneMoss);
+                }
+                else if (dressed > 1.5 && dressed < 2.5)
+                {
+                    // Wood: grain along the face (lengthwise on walls, along x on flat faces), plank seams, the odd knot.
+                    float2 along = normalize(float2(-shape.z, shape.x) + float2(1e-4, 0));
+                    float2 g = abs(shape.y) > 0.7 ? p.xz : float2(dot(p.xz, along), p.y);
+                    float grain = PunchyValueNoise(float2(g.x * 0.8, g.y * 22)) * 0.6 + PunchyValueNoise(float2(g.x * 2.5, g.y * 60)) * 0.4;
+                    float seam = 1 - smoothstep(0.0, 0.04, min(frac(g.y / 0.24), 1 - frac(g.y / 0.24)));
+                    float knot = smoothstep(0.86, 0.9, PunchyValueNoise(g * float2(3, 9) + 41));
+                    rock = lerp(_DarkColor.rgb, _RockColor.rgb, saturate(grain * 0.9 + 0.1)) * input.data.y;
+                    rock *= 1 - seam * 0.55 - knot * 0.35;
+                    gloss = 0.12 * (1 - seam);
+                }
+                else if (dressed > 2.5)
+                {
+                    // Iron: dark, a little metallic, rusted in blotches and along the bottom.
+                    float rust = smoothstep(0.5, 0.7, PunchyValueNoise(p.xz * 3.1 + p.y * 2.3 + 5) * 0.7 + detail.b * 0.3 + saturate(-shape.y) * 0.3);
+                    rock = lerp(_RockColor.rgb * (0.85 + 0.3 * detail.b), half3(0.42, 0.2, 0.08) * (0.7 + 0.6 * detail.b), rust) * input.data.y;
+                    metallic = 0.65 * (1 - rust);
+                    gloss = lerp(0.55, 0.05, rust);
                 }
                 // Slick ice: the deep, clear tone of the rock and a mirror gloss.
                 rock = lerp(rock, s1.rgb * 0.8, slick * 0.7);
