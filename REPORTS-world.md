@@ -5157,6 +5157,34 @@ Branch `world/mountain-tunnels` at 5a549268 (pushed), on 277087ea. One commit: R
 - Fauna_Fingerprint: AD723954, unchanged (read live).
 - I didn't run the suite for this row; it runs after row 3's final re-pin, as asked.
 
+### W-138 row 3: portals set into the rock face: done (verified, 53f2d557)
+Branch `world/mountain-tunnels` at 53f2d557 (pushed), on 5a549268. One commit: SettlementData.cs, RoadBaking.cs, CaveBaking.Tunnels.cs, TunnelPortalKit.cs, FloraPlacement.cs (3 additive lines, see below), docs/agents/world.md and editor-and-assets.md.
+
+**What changed:**
+- Root cause of the "arch embedded in flat ground" look: a road street's round end cap carved a disc into the ground, so the hill behind every headwall was levelled to road height. A road street within 40 m of a tunnel portal now carries the portal (way into the hill, its plane, the cutting's half width). `SettlementSampling.Height` stops levelling 0.6 m behind the headwall and cuts a narrow graded cutting in front of it: 6 m flat, then an 8 m taper out to the open road.
+- The W-137 kit (not the shelved covered way): the stepped wing walls are now 1.2 m thick, and the cut floor runs just behind them. The first shots had dark sawtooth spikes in front of the walls, because a steep cut edge at 1 m a terrain cell draws triangles across the wall face. With the edge inside the wall, they're gone. The wings sample the ground past the cut edge, so the banks climb to the wing tops.
+- Trees: no trees in the cutting or in front of the mouth. Scattered trees are cleared through `SettlementSampling.Keep`; placed props through `OnRoad` in FloraPlacement. FloraPlacement.cs is shared, additive only: 3 added lines in `OnRoad`, no other change. Please tell the flora owner.
+- Both bakers now use one `TunnelRadius(width)`, so the bore and the headwall can't disagree.
+- Gotcha logged in docs/agents/world.md. Also logged in editor-and-assets.md: a CLI-started editor can open with no scene loaded.
+
+**Portal check** (probe, 12 portals = both ends of the 6 tunnels). This is ground over the road floor, measured behind and beside each portal:
+- 2 m behind the headwall: 6.6 to 18.5 m. 6 m behind: 7.2 to 24.2 m. Before this row, the hill behind every portal was levelled flat (0 m).
+- 3 m out to the side: 0.8 to 4.6 m (the banks).
+- Road 12 m out: -1.6 to +1.8 m (graded approach).
+
+**Shots** in `W-138/row3/`: `pNN-15m.png` and `pNN-40m.png` for portals 00 to 11, checked by me. All 12 read as arches set into a slope, with stepped wings and banks.
+- c0a-south is portal 10, at (-1596,74). `p10-15m` is redone from the other side, now with no trees in the cutting. That needed the `Keep` change: the swamp trees there came through the scatter, not `OnRoad`. At 40 m the swamp canopy closes over the road whatever the pose. So `p10-40m` is from 40 m out, raised over the canopy, looking down into the cutting, and I added `p10-30m` at eye height, where it reads best.
+- `p00-40m` is raised (eye 14 m) over the autumn forest; the portal is small but visible. `p02-40m` has mushrooms in the foreground.
+- The bright tunnel interiors on the snow portals are the existing tunnel lighting, unchanged.
+
+**Tunnel table:** unchanged from row 3a. This row moves no road or portal.
+
+**Measures:**
+- Landmarks 117 689D5348, unchanged from row 3a. No landmark moved in row 3.
+- Fauna_Fingerprint AD723954, unchanged.
+- Suite after the final pin (run after the last code change): `25 passed, 0 failed, 17 skipped in 357s`. lod-lint clean.
+- No frame timing (rule 21). Bench notes added to job 59.
+
 ## W-132 (cheaper 3 km landscape, horizon; tree Punchy-release, branch world/far-lite from origin/main cc835cf6)
 
 ### Row 1: the horizon oddity (2026-11-10): done (verified; diagnosis only, no code change)
