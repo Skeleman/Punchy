@@ -3579,3 +3579,27 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - Pins: Landmarks_V3 112 A955AFE0 and Fauna_Fingerprint AD723954, both unchanged.
 - Suite: PlayMode 25 of 25 passed (310 s), in my editor.
 - Next: row 3, the Model Lab window (shots show the sliders taking effect).
+
+### Row 3: Model Lab window (done, verified)
+- Commit e41f9fba on fauna/model-lab (pushed). New file `Assets/Game/Scripts/Editor/ModelLab.cs` (editor-only, menu Punchy > Model Lab), plus `StoneColossi.BuilderFor(kind)`.
+- What it does:
+  - loads any creature species or colossus kind by name or from a dropdown, onto a turntable with a grid and a 1.8 m person;
+  - proportion sliders rebuild the model live;
+  - a timeline plays, pauses and scrubs idle, walk and run at 0.05-3x speed, and loops; orange ticks mark each leg's reach;
+  - a key-pose editor nudges any limb slot, segment and key (pitch, yaw, roll);
+  - Save writes CreatureTunables (only non-default entries, sorted, so the diff stays small); Reset clears the loaded model, Reset all clears everything.
+- Renderer: PreviewRenderUtility. It uses the same blob builder and `CreatureAnimator.Evaluate` as the game, with each posed segment turned into a CPU tapered capsule (the Creature.shader shape). Light is baked into the vertex colours and drawn unlit, because the game's lit shaders add island haze and washed the colours out. It does not use the ECS instanced renderer, which draws from an ECS-filled buffer that a preview camera can't fill.
+- Shots, in D:/Unity/PunchyMilestones/M-05/:
+  - wolf.png (walk);
+  - mammoth.png (IceMammoth, 31 m, with the person tiny in front of it);
+  - wolf_slider.png (Legs 1.6, BodyLength 1.3, Neck 1.5);
+  - wolf_scrub.png (run, paused mid-scrub at 0.62).
+- Save/Reset round-trip: Wolf Legs set to 1.4, then Save, gave an 11-line diff with one Wolf entry. Reset all, then Save, left `git diff c28f366d -- CreatureTunables.asset` empty.
+- Pins: Landmarks_V3 112 A955AFE0 and Fauna_Fingerprint AD723954, both unchanged.
+- Suite: PlayMode 25 of 25 passed (304 s), in my editor.
+- Risks:
+  - Variants share their base species' entry.
+  - Curve shapes stay in code; only the keys are editable.
+  - Colossi are view-only apart from the mammoth's trunk sway.
+  - Colossus builders set static rig fields, so colossi load only in edit mode and unload when play mode starts.
+  - Colossi draw with their game materials, so they look paler than creatures.
