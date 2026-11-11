@@ -14,8 +14,6 @@ namespace Punchy.Terrain
     /// </summary>
     public static partial class CaveBaking
     {
-        /// <summary>The fewest metres of passage radius a tunnel gets (head room is 1.45 times it).</summary>
-        const float TunnelMinRadius = 3f;
         /// <summary>A tunnel's height for its width (its Profile.y): a low arch, as bored road tunnels are, so a shallow hill still roofs it.</summary>
         const float TunnelArch = 0.8f;
         /// <summary>How far past each portal's road end a tunnel's passage runs (metres).</summary>
@@ -71,9 +69,9 @@ namespace Punchy.Terrain
                 // The rock: a style for the biome it runs under, as a cave there would have; a framed tunnel takes the
                 // dug style (timbered, even).
                 var style = tunnel == 3 ? lit : BiomeStyle(source, palette, styles, (first.xz + last.xz) * 0.5f, ref rng);
-                // Wide enough that the road (and half a metre more each side) is all floor: the floor is 0.89 radius
-                // either side of the axis (0.45 of the arch's height under the centre).
-                var radius = math.max(TunnelMinRadius, width * 0.5f / 0.89f + 0.6f);
+                // Wide enough that the road (and half a metre more each side) is all floor, at least 3 m (head room is
+                // 1.45 times it). Shared with RoadBaking, which sizes each portal's cutting from it.
+                var radius = SettlementSampling.TunnelRadius(width);
                 // Past each portal by a little, so the passage's rounded end lies in the cutting and the portal opens
                 // full height instead of narrowing to the end cap.
                 var line = new List<float3>(points.Count + 2) { first + math.normalizesafe(first - points[1]) * TunnelOverrun };

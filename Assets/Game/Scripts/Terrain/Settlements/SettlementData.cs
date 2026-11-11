@@ -51,6 +51,11 @@ namespace Punchy.Terrain
         /// walls carry its surface), 0 for a town's own street or square.</summary>
         public int Road;
         public float2 Min, Max;
+        /// <summary>W-138 row 3: for a road stretch near a tunnel portal, that portal's frame: the way into the hill
+        /// (xy, unit), the face's offset along it (z: dot(portal, way in)) and the cutting's half width at the headwall
+        /// (w); w 0 for every other street. Near the portal the stretch levels a narrow, steep-walled cutting instead
+        /// of its banks, and never past the headwall into the hill (see SettlementSampling.Height).</summary>
+        public float4 Portal;
     }
 
     /// <summary>A plot: a rectangle levelled to Pad, its front (door side) facing its street.</summary>
@@ -101,6 +106,58 @@ namespace Punchy.Terrain
         /// <summary>SettlementStreet.Road for a stretch bored through a tunnel (W-110).</summary>
         public const int TunnelRoad = 3;
 
+        /// <summary>
+        /// W-138 row 3: a tunnel portal's cutting. For PortalWing metres out from the headwall the cutting is flat to
+        /// its half width (PortalCutHalf, just behind the wing walls) with walls only PortalCutBlend wide; over the next
+        /// PortalTaper metres it widens back into the road's own banks. Nothing levels past PortalBack into the hill,
+        /// so the headwall stands in the slope instead of on a cleared floor (the "arch embedded in flat ground" look).
+        /// </summary>
+        public const float PortalWing = 6f, PortalTaper = 8f, PortalCutBlend = 0.6f, PortalBack = 0.6f;
+        /// <summary>W-138 row 3: how far out from a portal a road stretch takes its frame (m).</summary>
+        public const float PortalReach = 40f;
+
+        /// <summary>A road tunnel's passage radius for its road's width (the road and half a metre more each side all
+        /// floor: the floor is 0.89 radius either side of the axis).</summary>
+        public static float TunnelRadius(float width) => math.max(3f, width * 0.5f / 0.89f + 0.6f);
+
+        /// <summary>W-138 row 3: a portal cutting's half width at the headwall: the arch's outer ring (at most 0.95 r
+        /// plus 0.72) and a little headwall either side of it.</summary>
+        public static float PortalHalf(float radius) => 0.95f * radius + 1.5f;
+
+        /// <summary>W-138 row 3: a portal wing wall's thickness (m). Its inner face stands at PortalHalf.</summary>
+        public const float PortalWall = 1.2f;
+
+        /// <summary>W-138 row 3: how far the cutting's flat floor reaches: just behind the wing walls, so the steep
+        /// cut's triangles (a metre a cell near) rise inside the wall instead of poking out of its face.</summary>
+        public static float PortalCutHalf(float radius) => PortalHalf(radius) + PortalWall + 0.1f;
+
+        /// <summary>W-138 row 3: how much a street near a portal (Portal.w over 0) levels at xz, given what it would
+        /// level with its own banks: the narrow cutting near the headwall, its banks again further out, nothing behind
+        /// the headwall. half and blend are the street's own.</summary>
+        static float PortalCut(in SettlementStreet s, float2 xz, float across, float half, float blend)
+        {
+            var into = math.dot(xz, s.Portal.xy) - s.Portal.z;
+            var k = math.smoothstep(-(PortalWing + PortalTaper), -PortalWing, into);
+            half = math.lerp(half, s.Portal.w, k);
+            blend = math.lerp(blend, PortalCutBlend, k);
+            return (1f - math.smoothstep(half, half + blend, across)) * (1f - math.smoothstep(0f, PortalBack, into));
+        }
+
+        /// <summary>W-138 row 3: how far past a portal cutting's edge plants keep clear (m), so no trunk stands in the
+        /// cutting and no canopy hangs over its mouth.</summary>
+        public const float PortalClear = 2.5f;
+
+        /// <summary>W-138 row 3: whether a footprint of this radius at xz stands in a portal's cutting (or within
+        /// PortalClear of it), from the headwall out to where the cutting has widened into the road's banks.</summary>
+        public static bool InPortalCut(in SettlementStreet s, float2 xz, float radius)
+        {
+            if (s.Portal.w <= 0f)
+                return false;
+            var into = math.dot(xz, s.Portal.xy) - s.Portal.z;
+            return into < PortalBack + radius && into > -(PortalWing + PortalTaper) - radius
+                && Across(s, xz, out _) < s.Portal.w + PortalCutBlend + PortalClear + radius;
+        }
+
         /// <summary>The grid cell holding a point, or -1 outside the grid.</summary>
         public static int Cell(ref SettlementSetBlob set, float2 xz)
         {
@@ -142,7 +199,8 @@ namespace Punchy.Terrain
                 var level = math.lerp(s.A.y, s.B.y, t);
                 // W-111: a graded road stretch (Road 2: a cutting or embankment) banks out further the deeper it is.
                 var blend = s.Road == 2 ? math.min(StreetBlend + math.abs(h - level) * GradeBank, GradeBlendMax) : StreetBlend;
-                var w = 1f - math.smoothstep(s.Width * 0.5f, s.Width * 0.5f + blend, across);
+                var w = s.Portal.w > 0f ? PortalCut(s, xz, across, s.Width * 0.5f, blend)
+                                        : 1f - math.smoothstep(s.Width * 0.5f, s.Width * 0.5f + blend, across);
                 if (w > 0f)
                     h = math.lerp(h, level, w);
             }
@@ -211,6 +269,9 @@ namespace Punchy.Terrain
                     continue;
                 var half = s.Width * 0.5f;
                 var w = 1f - math.smoothstep(half - 0.6f, half + 0.6f, Across(s, xz, out _) + edgeNoise * 0.8f);
+                // W-138 row 3: no road surface past a portal's face (the end cap would paint the headwall's foot).
+                if (s.Portal.w > 0f)
+                    w *= 1f - math.smoothstep(-0.3f, 0.2f, math.dot(xz, s.Portal.xy) - s.Portal.z);
                 if (w <= 0f)
                     continue;
                 var street = layout.Street.Props;
@@ -399,6 +460,9 @@ namespace Punchy.Terrain
                 if (math.any(xz < s.Min) || math.any(xz > s.Max))
                     continue;
                 keep = math.min(keep, math.smoothstep(s.Width * 0.5f + 0.5f, s.Width * 0.5f + 2f, Across(s, xz, out _)));
+                // W-138 row 3: no trees in a tunnel portal's cutting or in front of its mouth.
+                if (InPortalCut(s, xz, 0f))
+                    keep = 0f;
             }
             range = set.PlotCells[cell];
             for (int k = range.x; k < range.x + range.y; k++)

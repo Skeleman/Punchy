@@ -1503,6 +1503,20 @@ namespace Punchy.Terrain
                 c = math.max(c, bestEnd - 1);
             }
 
+            // W-138 row 3: each portal of this road's tunnels (where a tunnel run meets an open stretch): its spot and
+            // the way into the hill. The open stretches near one cut a narrow cutting up to its headwall (Portal).
+            var portals = new List<float4>();
+            for (int i = 0; i < stretches.Count; i++)
+            {
+                if (!tunnel[i] || skip[i])
+                    continue;
+                var (q0, q1) = stretches[i];
+                if (i == 0 || !tunnel[i - 1])
+                    portals.Add(new float4(q0, math.normalizesafe(q1 - q0)));
+                if (i == stretches.Count - 1 || !tunnel[i + 1])
+                    portals.Add(new float4(q1, math.normalizesafe(q0 - q1)));
+            }
+            var cutHalf = SettlementSampling.PortalCutHalf(SettlementSampling.TunnelRadius(width));
             var reach = width * 0.5f + SettlementSampling.StreetBlend;
             for (int i = 0; i < stretches.Count; i++)
             {
@@ -1533,6 +1547,23 @@ namespace Punchy.Terrain
                 // A graded stretch's levelling reaches out over its banks, a metre and a half per metre of depth (the
                 // ground beside the road may be deeper than under it, so its bounds take the widest bank).
                 var r = isGraded ? width * 0.5f + SettlementSampling.GradeBlendMax : reach;
+                // W-138 row 3: the nearest portal within PortalReach of this open stretch, if any.
+                var portal = float4.zero;
+                if (!tunnel[i])
+                {
+                    var nearest = SettlementSampling.PortalReach;
+                    foreach (var q in portals)
+                    {
+                        var d = math.min(math.distance(p0, q.xy), math.distance(p1, q.xy));
+                        if (d < nearest)
+                        {
+                            nearest = d;
+                            portal = new float4(q.zw, math.dot(q.xy, q.zw), cutHalf);
+                        }
+                    }
+                    if (portal.w > 0f)
+                        r = math.max(r, cutHalf + SettlementSampling.PortalCutBlend + SettlementSampling.PortalClear);
+                }
                 streets.Add(new SettlementStreet
                 {
                     A = from,
@@ -1541,7 +1572,8 @@ namespace Punchy.Terrain
                     Settlement = settlement,
                     Road = tunnel[i] ? SettlementSampling.TunnelRoad : isGraded ? 2 : 1,
                     Min = math.min(from.xz, to.xz) - r,
-                    Max = math.max(from.xz, to.xz) + r
+                    Max = math.max(from.xz, to.xz) + r,
+                    Portal = portal
                 });
             }
         }

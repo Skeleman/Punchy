@@ -631,6 +631,9 @@ namespace Punchy.Flora
                     continue;
                 if (SettlementSampling.Across(street, xz, out _) < street.Width * 0.5f + radius)
                     return true;
+                // W-138 row 3: a tunnel portal's cutting and its mouth stay clear too.
+                if (SettlementSampling.InPortalCut(street, xz, radius))
+                    return true;
             }
             return false;
         }

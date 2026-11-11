@@ -181,9 +181,15 @@ namespace Punchy.Terrain
             var ring = rng.NextFloat(0.55f, 0.72f);    // the voussoirs' depth across the ring
             m.Rng = rng;
 
+            // W-138 row 3: the road's cutting is CutHalf wide either side up to the headwall (SettlementSampling.Height
+            // stops levelling there), so the headwall spans it and buries its ends in the cutting's walls, rises
+            // towards the hill over it, and wing walls retain the cutting's sides.
+            var cutHalf = SettlementSampling.PortalHalf(r);
             Arch(m, ring, cracked, mark);
-            var top = Headwall(m, ring, row);
-            Dressing(source, m, top, moss, ivy, rockfall, fallen);
+            var top = Headwall(source, m, ring, row, cutHalf);
+            Dressing(source, m, top, moss, ivy, rockfall, fallen, cutHalf);
+            Wing(source, m, -1f, row, top - 0.22f, cutHalf);
+            Wing(source, m, 1f, row, top - 0.22f, cutHalf);
             return m.K;
         }
 
@@ -284,12 +290,18 @@ namespace Punchy.Terrain
         /// small setts where they meet the opening so none crosses it; a dark bed behind; a coping on top. Returns the
         /// coping's top.
         /// </summary>
-        static float Headwall(Maker m, float ring, float row)
+        static float Headwall(in TerrainSource source, Maker m, float ring, float row, float cutHalf)
         {
             const float face = 0.12f, depth = 0.7f, grout = 0.035f;
-            var halfW = m.ArchX + ring + m.Rng.NextFloat(0.9f, 1.6f);
+            // W-138 row 3: past the cutting's walls and the wings on them, so both ends sit in the slope.
+            var halfW = math.max(m.ArchX + ring + m.Rng.NextFloat(0.9f, 1.6f), cutHalf + WingThick + m.Rng.NextFloat(0.3f, 0.8f));
             var height = m.Spring + m.ArchY + ring * 1.3f + m.Rng.NextFloat(0.35f, 0.7f);
             height = row * math.ceil(height / row);
+            // W-138 row 3: raised by whole courses towards the hill behind (up to HeadwallRaise), so the slope meets the
+            // coping instead of rising behind a free-standing wall.
+            var behind = m.Ground(source, 0f, -2f) - 0.4f;
+            if (behind > height)
+                height += row * math.floor(math.min(behind - height, HeadwallRaise) / row);
             // The bed behind, in two pieces either side and one over the arch, all clear of the opening.
             var crown = m.Spring + m.ArchY + 0.05f;
             var outerX = m.ArchX + ring;
@@ -350,10 +362,11 @@ namespace Punchy.Terrain
         }
 
         /// <summary>Moss on the coping, the arch and the face; an ivy fringe; fallen stones and a rockfall by the jambs.</summary>
-        static void Dressing(in TerrainSource source, Maker m, float top, float moss, bool ivy, bool rockfall, int fallen)
+        static void Dressing(in TerrainSource source, Maker m, float top, float moss, bool ivy, bool rockfall, int fallen, float cutHalf)
         {
             var outerX = m.ArchX + 0.7f;
-            var halfW = outerX + 1.2f;
+            // (Inside the cutting's walls, W-138 row 3: past them the face is in the ground.)
+            var halfW = math.min(outerX + 1.2f, cutHalf - 0.2f);
             // Moss along the coping's top, in patches whose count and length follow the portal's moss.
             var patches = (int)(moss * 9f);
             for (int k = 0; k < patches; k++)
@@ -412,7 +425,7 @@ namespace Punchy.Terrain
             for (int k = 0; k < fallen; k++)
             {
                 var side = m.Rng.NextBool() ? 1f : -1f;
-                var x = side * m.Rng.NextFloat(m.JambX + 0.2f, halfW + 0.6f);
+                var x = side * m.Rng.NextFloat(m.JambX + 0.2f, math.max(m.JambX + 0.3f, halfW - 0.3f));
                 var z = m.Rng.NextFloat(0.6f, 2.4f);
                 var half = new float3(m.Rng.NextFloat(0.18f, 0.38f), m.Rng.NextFloat(0.12f, 0.22f), m.Rng.NextFloat(0.15f, 0.3f));
                 var y = math.max(0f, m.Ground(source, x, z)) + half.y * 0.8f;
@@ -435,6 +448,57 @@ namespace Punchy.Terrain
                     var turn = quaternion.Euler(m.Rng.NextFloat(-0.6f, 0.6f), m.Rng.NextFloat(0f, math.PI), m.Rng.NextFloat(-0.6f, 0.6f));
                     m.Add(new float3(x, y, z), new float3(size, size * m.Jit(0.55f, 0.85f), size * m.Jit(0.7f, 1f)), turn, Stone, m.Jit(0.72f, 0.95f), 0, size > 0.3f);
                 }
+            }
+        }
+
+        /// <summary>W-138 row 3: a wing wall's thickness (m), and the most the headwall rises over its arch for the hill behind.</summary>
+        const float WingThick = SettlementSampling.PortalWall, HeadwallRaise = 3f;
+
+        /// <summary>
+        /// W-138 row 3: a wing wall on one side (side -1 left, 1 right) retaining the cutting's wall, from the headwall's
+        /// face out along the road. It steps down in lengths of a metre or two to the ground outside it (sampled past the
+        /// cutting's edge behind it), never above the headwall's coping, each length ashlar courses with a coping; it ends where the ground
+        /// outside is under a course high or the cutting has widened into its banks.
+        /// </summary>
+        static void Wing(in TerrainSource source, Maker m, float side, float row, float cap, float cutHalf)
+        {
+            const float grout = 0.035f;
+            float x0 = cutHalf, x1 = cutHalf + WingThick;
+            var z = 0.12f;   // from the headwall's face
+            var last = SettlementSampling.PortalWing + SettlementSampling.PortalTaper * 0.6f;
+            var top = cap;
+            while (z < last)
+            {
+                var z1 = math.min(last, z + m.Rng.NextFloat(1.1f, 1.8f));
+                // The ground outside this length at its outer end (the lower one: the hill falls away from the portal),
+                // sampled past the cutting's wall behind it.
+                var ox = x1 + 0.1f + SettlementSampling.PortalCutBlend + 0.5f;
+                var outside = math.min(m.Ground(source, side * ox, z1), m.Ground(source, side * ox, (z + z1) * 0.5f));
+                var want = math.min(row * math.floor((outside + 0.1f) / row), top);
+                if (want < row * 1.5f)
+                    break;
+                top = want;
+                for (float b0 = 0f; b0 < top - 0.05f; b0 += row)
+                {
+                    var b1 = math.min(top, b0 + row);
+                    var a = z - m.Rng.NextFloat(0f, row * 1.6f);
+                    while (a < z1)
+                    {
+                        var a1 = a + row * m.Rng.NextFloat(1.4f, 2.6f);
+                        float lo = math.max(a, z), hi = math.min(a1, z1);
+                        a = a1;
+                        if (hi - lo < 0.12f)
+                            continue;
+                        var proud = m.Rng.NextFloat() < 0.06f ? 0.04f : 0f;
+                        var half = new float3(WingThick * 0.5f, math.max(0.02f, (b1 - b0 - grout) * 0.5f), math.max(0.02f, (hi - lo - grout) * 0.5f));
+                        m.Add(new float3(side * ((x0 + x1) * 0.5f - proud), (b0 + b1) * 0.5f, (lo + hi) * 0.5f), half, quaternion.identity, Stone, m.Jit());
+                    }
+                }
+                // The dark bed behind the joints, the coping (overhanging the cutting a little) and the solid.
+                m.Span(new float3(side * (x0 + 0.04f), 0f, z), new float3(side * (x1 + 0.05f), top, z1), Stone, 0.4f);
+                m.Span(new float3(side * (x0 - 0.1f), top, z + 0.015f), new float3(side * (x1 + 0.04f), top + 0.18f, z1 - 0.015f), Trim, m.Jit(0.9f, 1.05f));
+                m.K.Solids.Add(new CaveRoomKit.Solid { Centre = m.World(new float3(side * (x0 + x1) * 0.5f, top * 0.5f, (z + z1) * 0.5f)), Half = new float3(WingThick * 0.5f, top * 0.5f + 0.09f, (z1 - z) * 0.5f), Rotation = m.Frame });
+                z = z1;
             }
         }
     }
