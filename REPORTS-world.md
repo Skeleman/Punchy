@@ -4867,6 +4867,102 @@ Proposed fix (world lane, RoadBaking + TunnelPortalKit):
 - Shots (milestone folder W-138, clear sky, 12:00, no HUD): w138-1-range0-crossing.png (road S4-S5 climbing to the spine 0 crossing; the road reads as a pale line up the valley), w138-2-massif-450m.png and w138-3-massif-1200m.png (the massif top along road S5-S3). Contact sheet: contact-sheet.jpg. On the massif the ground reads as a broad, bare dome rather than a mountain, and the road is a short pale line. Expected for a 35-84 m cover. The shot tool's checks: all three "good".
 - Pins: not run (no code changed). Landmark hash and fauna fingerprint stay measures only.
 
+### Row 1b: tunnel and destination survey for row 2: done (no game code changed), waiting for Zach's pick of router setting
+
+- Method: a throwaway, git-ignored editor probe. It dumps RoadBaking's cost grid (20 m cells), a 10 m height grid, roads, caves, landmarks, spines and settlements. A python copy of the road router then reruns the town links and spurs with tunnels allowed. A bore is any straight line with dry portals, at least 60 m long, whose cover reaches 15 m. Inside a bore the grade is at most 0.15. Outside, roads keep MaxGrade. The option C bores were checked again against exact editor ground every 5 m. Placement can move; the landmark hash and fauna fingerprint stay measures only.
+- Images (milestone folder W-138/row1b): map-router-A.png, map-router-B.png, map-router-C.png (the top-down network for each setting, with bores in red), map-option-c.png (the five option C bores), shot-landing.png, shot-portal-c0a.png, shot-cave5.png. All checked at small size.
+
+**(a) Sea folk landing (required road).** The landing is at (-1783,-554), h37, in FoggyMarsh, on the lake's west shore. The underwater SeaFolkVillage is 172 m out under 15.7 m of water, so this landing is the pier for the underwater city. The nearest road is S4-S5, 434 m away in a straight line. Best route: a spur from (-2336,-856), 793 m long, ascent 26 m, max grade 0.16, one bridge cell. No bore is needed. With the B or C costs the spur starts at (-2316,-816) instead: 801 m, grade 0.12. shot-landing.png shows the shore with the landing post in the water.
+
+**(b) Hills that could take a bore (cover of 30 m or more over the road line, within 400 m of a road or sight line).** The survey found 37; 9 of them would shortcut an existing road. Almost all sit on the massif and the S4-S5 escarpment. The lowland roads (S0-S1, S0-S4, S4-S2) have none. Top 12:
+
+| # | Hill centre | Ground | Peak cover | Near | Best bore | Saves | Biomes |
+|---|---|---|---|---|---|---|---|
+| 1 | (-2486,1004) | 290 | 151 | S5-S3 | (-2876,1244)->(-2045,900), 900 m, mean cover 36, grade 0.018 | 305 m, crest +37 | Tundra/Tundra |
+| 2 | (-2803,1231) | 244 | 136 | S5-S3 | (-3316,1424)->(-2281,995), 1120 m, mean 25, grade 0.135 | 213 m | Tundra/Tundra |
+| 3 | (-2269,717) | 264 | 168 | S5-S3 | (-2856,1344)->(-2022,510), 1180 m, mean 34, grade 0.023 | 208 m, crest +31 | Tundra/Tundra |
+| 4 | (-1901,668) | 234 | 138 | mine spur | (-1936,304)->(-1844,526), 240 m, mean 17, grade 0.129 | 175 m on S4-S5 | PoisonSwamp/Tundra |
+| 5 | (-2028,372) | 199 | 121 | S4-S5 | (-1896,304)->(-1769,431), 180 m, mean 18, grade 0.145 | 134 m | PoisonSwamp/Tundra |
+| 6 | (-2166,-26) | 151 | 85 | S4-S5 | (-2276,-656)->(-1710,711), 1480 m, mean 25, grade 0.086 | 54 m, crest +41 | SparklingForest/Mountains |
+| 7 | (-1932,1005) | 213 | 158 | S5-S3 | (-2376,1424)->(-2070,685), 800 m, mean 22 | 35 m | Tundra/Tundra |
+| 8 | (-1709,223) | 142 | 111 | S4-S5 | (-1716,104)->(-1716,504), 400 m, mean 30, grade 0.125 | 3 m, crest +24 | FoggyMarsh/Tundra |
+| 9 | (-2246,1344) | 254 | 136 | S5-S3 | (-2736,1424)->(-2145,1179), 640 m, mean 22 | 1 m | Tundra/Tundra |
+| 10 | (-2866,934) | 261 | 136 | cave1 spur | (-2756,724)->(-2897,865), 200 m, mean 25, grade 0.148 | - | Mountains |
+| 11 | (-1961,1449) | 186 | 116 | S5-S3 (312 m) | (-1976,1384)->(-1902,1415), 80 m, mean 27 | - | Tundra/Mountains |
+| 12 | (-2536,4) | 178 | 113 | S4-S5 (98 m) | (-2576,144)->(-2477,-96), 260 m, mean 19 | - | SparklingForest |
+
+**(c) Option C: hand-placed bores under spine 0 and spine 2 (exact editor ground).** See map-option-c.png.
+
+| Bore | South/west portal (x,z,h) | North/east portal | Length | Peak / mean cover | Share >= 15 m / >= 20 m | Grade | Roads to portals | Waystations |
+|---|---|---|---|---|---|---|---|---|
+| C0a | (-1596,44,41) FoggyMarsh | (-1596,1164,93) Mountains | 1120 m | 103 / 50 | 0.85 / 0.76 | 0.046 | 280 / 563 m | (-1635,34) h49; (-1496,1164) h78 |
+| C0b | (-1776,4,74) FoggyMarsh | (-1776,1924,79) Mountains | 1920 m | 129 / 78 | 0.95 / 0.95 | 0.002 | 137 / 824 m | (-1679,-22) h53; (-1916,2166) h107 |
+| C0c | (-1796,44,94) | (-1597,524,114) | 520 m | 69 / 37 | 0.85 / 0.83 | 0.038 | 99 / 147 m | (-1780,-14); (-1500,550) |
+| C2a | (1344,944,55) Temperate | (1824,944,61) MesaCanyonlands | 480 m | 64 / 34 | 0.73 / 0.69 | 0.013 | 2150 / 2430 m | (1286,960); (1945,874) |
+| C2b | (2844,584,39) MesaCanyonlands | (2155,2247,20) Grassland | 1800 m | 76 / 29 | 0.76 / 0.63 | 0.011 | 1430 / 3204 m | (2787,527); (2183,2275) |
+
+- C0a is the best long tunnel that changes biome. It runs from the marsh lake shore into the Mountains realm. Its north portal is 247 m from cave17 (Granite grotto), and the south end is near cave26 and the FungalGrotto. A dip at (-1596,554) leaves 41 m of cover, enough for a light shaft. shot-portal-c0a.png shows the ridge above the south portal rising behind the lake.
+- C0b is the showpiece: 1.9 km long, almost level, with 95% of its length under 20 m or more of cover. It ends 429 m from cave2 (Ice grotto). Cover dips to 28 m at (-1776,1624).
+- C0c is a shortcut on S4-S5. Its north end is 380 m from the mine (cave23) and DwarfMiningCamp.
+- Spine 2 (C2a, C2b) has no roads near it: both bores need a new road or a settlement first. C2b's portals have only 1-5 m of cover over the first 30 m, so they need cut-and-cover or a moved portal.
+- Each waystation is the flattest dry spot within 320 m of its portal and within 30 m of its height. The ground near the portals is steep (median slope 0.35-0.6), so each waystation needs a small terrace.
+
+**(d) Router settings.** The table shows the climb weight and the tunnel cost, given as a multiple per metre plus a fixed cost to enter a bore. Strict means at least 70% of the bore lies under at least 15 m of cover.
+
+| Setting | Climb | Tunnel cost | Tunnels | Bored | Road | Ascent |
+|---|---|---|---|---|---|---|
+| base = A | 25 | none / 4x + 600 | 0 | 0 m | 17469 m | 537 m |
+| B loose | 50 | 2.5x + 300 | 3 | 2211 m | 17845 m | 316 m |
+| B strict (map-router-B) | 50 | 2.5x + 300 | 2 | 1018 m | 17786 m | 437 m |
+| C loose | 80 | 1.5x + 150 | 6 | 4340 m | 18510 m | 246 m |
+| C strict (map-router-C) | 80 | 1.5x + 150 | 5 | 4046 m | 18424 m | 278 m |
+
+- A gives no tunnels: at today's costs a climb is always cheaper than a bore.
+- B strict:
+  - S4-S5 (-2116,444)->(-1916,644), 283 m
+  - cave17 spur (-2076,404)->(-1556,924), 735 m, under spine 0 into the Mountains realm
+- C strict:
+  - S4-S5 (-2756,-736)->(-2316,344), 1166 m: a ramp from the lowland into the massif
+  - S4-S5 (-2296,444)->(-1836,644), 502 m
+  - S5-S3 (-1996,604)->(-2936,1544), 1329 m, Tundra to Tundra
+  - cave17 spur (-1976,564)->(-2176,564), 200 m, then (-2196,584)->(-1596,1184), 849 m
+- The loose runs include short stubs (220-323 m) with only 52-61% of their length under 15 m of cover. Row 2 should use the strict filter.
+- Recommendation: B strict, plus C0a placed by hand as the long tunnel that changes biome (C0b if Zach wants the bigger showpiece). C strict gives 5 tunnels and much more road underground; that is Zach's call.
+
+**(e) Destinations, second routes and breaks.**
+- Mines:
+  - cave23 (Mine style, with a MineEntrance) at (-1975,496) is the only real mine. It needs a 117 m spur.
+  - cave26 is a mine-style road tunnel that is already on a road.
+  - cave21 (Metallic, at (-1434,-1147)) is 950 m off the road: optional.
+- Caves that deserve roads:
+  - cave5 (Crystal CaveNetwork, at (-2804,-651)): 241 x 261 m, the biggest cave. It needs a 526 m spur, or 88 m with B costs. shot-cave5.png shows its purple crystal mouth.
+  - cave1 (Granite CaveEntrance, near DwarfHold): 395 m.
+  - cave24/13 (Rock, two rooms, near S0-S1): 48-246 m.
+  - cave17 (Granite, north of spine 0): 996 m by surface, or reached as the tunnel's payoff.
+  - Skip cave16 (1772 m off), cave10 (already on a road), cave3 and cave20 (small grottos) and cave19.
+- Second routes, loops and breaks:
+  1. Lake loop, a second S4-S5 route: S4, the landing, the lake's east shore, MarshFolk (-1240,320), then S5. The legs are 1542 + 2376 + 1074 = 4991 m, with 352 m of ascent and 3 + 3 bridge cells; the direct road is 2977 m. The loop can tie into C0a's south portal.
+  2. A ruined bridge on the landing spur at (-1876,-756): 22 cells beside water up to 14 m deep.
+  3. A washed-out stretch on S4-S5 from (-2276,-616) to (-2376,-896), h29-43, along a SparklingForest stream 1.6 m deep.
+  4. A ford on S0-S4 at (-1056,-3076), h10, in PoisonSwamp, 0.4 m deep.
+  5. A low causeway or tidal break on S4-S2 at (-2976,-1456), h2, in FungalForest.
+  6. A footpath-only last stretch to cave17 at (-1516,944), along a Mountains stream.
+  - The survey found no switchback shortcuts.
+
+**Proposed rules for row 2:**
+1. Each bore is at least 60 m long. At least 70% of its length has 15 m or more of cover, and each portal arch has at least 6 m. The grade inside is at most 0.15, both portals are dry, and each bore crosses only one spine.
+2. Run the router at B costs (climb 50, tunnels 2.5x per metre + 300), and place C0a (or C0b) as an extra bore.
+3. Each portal of a bore longer than 500 m gets a waystation or outpost on a terraced flat.
+4. Build spurs to every mine and to cave5, cave1, cave24/13 and cave17. The landing road is required.
+5. Build at least one loop (the lake loop) and one break (the ruined bridge on the landing spur, or the S4-S5 washout).
+6. Spine 2 tunnels wait for a road or settlement on that side.
+
+**Zach decides:**
+- router B or C
+- C0a, C0b, or both
+- whether the lake loop and the ruined bridge go into row 2
+- whether spine 2 gets a road now
+
 ## W-132 (cheaper 3 km landscape, horizon; tree Punchy-release, branch world/far-lite from origin/main cc835cf6)
 
 ### Row 1: the horizon oddity (2026-11-10): done (verified; diagnosis only, no code change)
