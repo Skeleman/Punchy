@@ -14,7 +14,10 @@ fail() { report "FAILED: $*"; exit 1; }
 REPORT=$R/report-$(date +%m%d-%H%M%S).txt
 wait_s() { local i; for i in $(seq 1 $1); do timeout 1 tail -f /dev/null 2>/dev/null; done; }
 short() { git -C "$P" rev-parse --short=7 "$1" 2>/dev/null || echo "$1"; }
-cool() { local i t; for i in $(seq 1 60); do t=$($SMI --query-gpu=temperature.gpu --format=csv,noheader 2>/dev/null || echo 0); [ "$t" -lt 65 ] && break; wait_s 5; done; }
+cool() { # until the GPU is under COOLTO degrees (65), up to 5 min; the wait goes to results/cool.log (is the wait worth it?)
+  local i t s=$(date +%s) t0=$($SMI --query-gpu=temperature.gpu --format=csv,noheader 2>/dev/null || echo 0)
+  for i in $(seq 1 60); do t=$($SMI --query-gpu=temperature.gpu --format=csv,noheader 2>/dev/null || echo 0); [ "$t" -lt ${COOLTO:-65} ] && break; wait_s 5; done
+  echo "$(date +%T) cool: ${t0} -> ${t} C in $(( $(date +%s) - s )) s" >> "$R/cool.log"; }
 
 keepawake() { # the helper ends by itself when no bench script or game is left
   # 'keepawake[.]ps1' can't match this check's own command line (or a shell's that contains it), only the helper's
