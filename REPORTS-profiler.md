@@ -2,6 +2,50 @@
 
 Newest first.
 
+## Job 45g: R-9 rows 4-6 with the wave field savings (b/water-rows-fixes 0318b5ee), 2026-11-11 (q89.sh): better, none passes yet
+**Setup:**
+- Three main arms:
+  - **old:** water/deform 9b1cacc1;
+  - **new:** Punchy `b/water-rows-fixes` 0318b5ee, which has the savings, fix 1, cuts 4 and 30 Hz as defaults, and row 6's two trims;
+  - **off:** new with `-waterfield 0`.
+- At the rapids only, a fourth arm, **row5:** 2856a634.
+- Profile builds, 1920x1080, High, uncapped, noon, Clear, `-body default`, 4 rounds rotated.
+- Three games stalled and were killed after 150 s of quiet log (swim new r1, fall off r4, rapids old r1). Their arms have 3 rounds.
+
+| view | arm | GPU ms by round | mean GPU | vs reference | before the savings |
+|---|---|---|---|---|---|
+| swim (job 45c) | new | —, 18.6, 18.7, 19.4 | **18.9** | **+0.4 over off** (bar +0.3) | old 20.0, 19.1, 20.8, 22.6 = 20.6: +2.1 over off |
+| | off | 18.2, 18.3, 18.5, 19.1 | 18.5 | | |
+| fall 74 (job 45d) | new | 18.2, 18.3, 18.1, 17.9 | **18.1** | **+1.2 over off** (bar +0.3) | old 18.1, 17.9, 18.0, 17.5 = 17.9: +0.95 over off |
+| | off | 17.0, 17.3, 16.5, — | 16.9 | | |
+| rapids (job 45f) | new | 23.2, 21.4, 21.8, 21.9 | **22.1** | **+1.0 over row5** (bar +0.2) | old —, 22.9, 22.5, 23.1 = 22.8: +1.7 over row5 |
+| | row5 | 20.8, 20.9, 22.0 (stalled), 20.7 | 21.1 | | |
+
+**Swim (row 4): the savings remove about 80% of the field's cost.** It's +2.1 ms down to +0.4, one tenth over the bar and inside the overlap of the rounds:
+- new 18.6–19.4, off 18.2–19.1.
+- After Zach's restart (q86) the same comparison was +0.35, so it's consistently a hair over.
+- Median frame: new 23.3–23.9 ms; off 21.0–21.8 in three rounds and 23.9 in one. The off arm's frames are spikier (its CPU mean is as high as new's, 24.1 against 24.2), so I wouldn't read the median gap as the field's cost without a CPU profile.
+
+**Fall (row 5): no better, and about 0.25 worse than old.**
+- The savings (sleep, culling, cuts, 30 Hz) are all about the player's field. The fall's sheet is its own (WaterPatchSystem.Falls) and its own budget.
+- The likely extra is fix 1: the field's slope now shades the chunk water over the whole 32 m square round the player, and at this spot the player stands by the plunge pool.
+- **Next:** a RenderDoc pair (new vs old) at this view to confirm, and to see whether the fall sheet's 25k-index draw can be cut further (its Detail budget is 32k).
+
+**Rapids (row 6): the two trims took about 40% off row 6's cost.** It's +1.7 down to +1.0 over row 5 (job 45f measured +2.1 on its own build). What's left:
+- the standing waves on rapids pixels (the feature itself);
+- the flow patterns read about the camera anchor (two reads when the camera is within 2–5 m of a 64 m grid line).
+- **Next:** a RenderDoc pair (new vs row5) to split those. A further trim would be to read the flow patterns once (no anchor cross-fade) beyond ~100 m, where the zigzag error the anchor fixes can't be seen.
+
+**Not changed:** the visible look of rows 5 and 6 is unchanged apart from fix 1 and the lake shore foam going back to one read, which matches its look before row 6. Shots are in q89-shots/.
+
+**For the supervisor:**
+- The branch is ready for the world lane to look at; it is better than water/deform on all three views.
+- None of the three meets its bar yet, so it shouldn't merge on a PASS. The profiler continues with the RenderDoc pairs above unless the supervisor wants to relax the swim bar (+0.4 against +0.3, inside the noise).
+
+Files (Punchy-wt results): q89.out, q89-*.csv, q89logs/, q89-shots/.
+
+Cost: laptop total $745 (laptop session 0a48ccdb; 3 builds, 40 games).
+
 ## Job 45e: R-10 after merging main (light/forwardplus 1f6c966d vs main 60edfacb), 2026-11-11 (q88.sh): north PASS, town FAIL
 **Setup:**
 - Profile builds, 1920x1080, `-gfx High`, uncapped, `-weatherseed 4`, Clear, 22:00, `-body default`, default light budget.

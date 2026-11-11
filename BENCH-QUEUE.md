@@ -485,12 +485,12 @@ Pass: row 6 <= +0.2 ms GPU over row 5 at both views, CPU within noise.
 - Record whole-frame GPU and CPU ms per arm.
 - Pass: branch default <= +0.5 ms over main at both views. A miss blocks the R-10 merge.
 
-## Job 45g (2026-11-11, RUNNING (q89.sh); Zach in the profiler session): R-9 rows 4-6 with the wave field savings, formally
+## Job 45g (2026-11-11, REPORTED 11-11 (swim +0.4, fall +1.2, rapids +1.0: all better than water/deform, none passes); q89.sh; Zach in the profiler session): R-9 rows 4-6 with the wave field savings, formally
 - Arms: (old) water/deform 9b1cacc1; (new) Punchy `b/water-rows-fixes` 0318b5ee = 9b1cacc1 + the profiler's wave field savings (idle sleep, per-group source culling, the 30 Hz step fix, fix 1: no ring ripples or field foam over the field's square), cuts 4 and 30 Hz as defaults, and two trims of row 6's per-pixel cost (shore foam's second read only on rivers; flow-anchor hand-over band 2-5 m); (off) new with `-waterfield 0`; (row5) 2856a634 at the rapids only.
 - Views: job 45c's lake swim, job 45d's fall 74, job 45f's rapids. Profile builds, 1920x1080, High, uncapped, 4 rounds rotated. q89.sh.
 - Pass: swim and fall, new <= +0.3 ms GPU over off; rapids, new <= +0.2 ms GPU over row5.
 
-## Job 49b (2026-11-11, QUEUED after 45g; Zach in the profiler session): pricing and trimming R-12
+## Job 49b (2026-11-11, RUNNING (q90.sh); Zach in the profiler session): pricing and trimming R-12
 - One Profile build of Punchy `b/r12-trims` 247d2777 (origin/main 393a9c20 + test bits): plain; `-skyoff 1024` (no warp); 2048 (the march reads the warp every other fine step: a trial fix); 4096 (cloud shadow and sun cover read the maps straight: prices their share); 6144 (both). Job 49's storm spots, 3 rounds rotated. q90.sh.
 - Purpose: split R-12's warp cost between the sky march and the per-pixel cloud shadow, and see what the half-rate march buys.
 
