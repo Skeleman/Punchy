@@ -4442,3 +4442,79 @@ Built in the player tree, not the one the card names (the world tree's gitignore
   R-13 lists them, and they can convert later.
 - Frame timing skipped per rule 21. **BENCH-QUEUE request: job 45e, QUEUED in BENCH-QUEUE.md.**
 - Risks: Creature.shader now builds the cluster light loop variant on top of the shells. A creature in a lit town at night pays for both, and 45e's town spot covers it.
+
+## R-13 row 1: list (2026-11-10, world lane subagent on the release tree): done (verified by grep and lod-lint; no code yet)
+- Branch `lod/screen-size` made from origin/main 0477dd07 and pushed. The list was made on 60edfacb; the #252 delta (Model Lab, StoneColossi.BuilderFor) touches no range.
+- Row 2 next: C# conversions first. Before touching Flora.shader, FloraImpostor.shader, Flora.hlsl (R-10) or Interiors.cs (player lane) I ask the supervisor.
+
+
+Pixels are reference pixels: 1080 lines, 60 degree FOV (935.3 px per metre at 1 m), Detail 1; px = size x 935.3 / today's metres, so the reference view keeps today's distance. "Size" = what ScreenSize measures. Owner other than R-13 in brackets.
+
+**Convert (C#)**
+
+| Name | File | m | Kind | Size used | px |
+|---|---|---|---|---|---|
+| FlameRange | Ambience/LandmarkEffectSystem.cs | 150 (xDetail) | landmark fire flames drawn | flame size (f.size); ref 0.35 m | 2.182 (= TorchFlamePixels) |
+| ChimneyRange | LandmarkEffectSystem.cs | 220 (xDetail) | chimney smoke gathered | plume 3 m | 12.75 |
+| RiverFallRange | LandmarkEffectSystem.cs | 350 (xDetail) | river waterfall sheets | fall drop; ref 10 m | 26.72 |
+| Range (Inspector) + tiers | LandmarkEffectSystem.cs | 700 (xView) | landmark effects, river tiers | type radius x scale; ref 20 m | 26.72; 700 m kept as cap |
+| ForestFireRange | LandmarkEffectSystem.ForestFire.cs | 70 (xDetail) | near flames on burning trees | crown flame 2 m | 26.72 |
+| ForestFarRange | LandmarkEffectSystem.ForestFire.cs | 600 (xView) | one far flame per crown | 4 m | 6.235 |
+| BeaconFarRange | LandmarkEffectSystem.Beacons.cs | 1600 (xView) | beacon glow card | 8 m | 4.677 |
+| LanternFlameRange | Fauna/StoneColossi.cs | 450 (fixed) | colossus lantern flames | 1 m | 2.078 |
+| BoltRange | Flora/FloraSystem.cs | 160 (xView) | spire lightning bolts | bolt 10 m | 58.46 |
+| BasinRange | FloraSystem.cs | 80 (xDetail) | fountain/basin water disc swap | basin diameter; ref 4 m | 46.77 |
+| DrawRange | Items/Items.cs | 60 (fixed) | dropped item blocks | 0.3 m | 4.677 |
+| DetailFar | Terrain/TerrainStreamingSystem.cs -> TerrainSurface.shader | 110 (xDetail) | ground detail texture fade | 0.5 m texture detail | 4.251 |
+| SpawnRadius | Ambience/DriftwoodSystem.cs | 150 (xDetail) | driftwood logs shown | 2 m log | 12.47 |
+| Range (per type asset) | Ambience/AmbientParticleType.cs | 50 default (xDetail) | ambient particle tiles | type's particle size; ref 0.1 m | 1.871 at default, per type keeps its m |
+| StillFrom | Flora/FloraShadowOptions.cs | 40 (-stillfrom) | far tree shadows stop swaying | tree 15 m | 350.7 |
+| CullNear | Interact/Interiors.cs | 40 | room meshes + lamp drawn | room 8 m | 187.1 [player lane: ask] |
+
+**Convert (shaders)**: one global set by DetailPolicy.SetView (reference pixels per metre at 1 m, Detail included), helper `PunchyPixels(size, distance)`; each fade becomes a smoothstep on pixels with the same ends at the reference view.
+
+| Fade | File | m | Size | px (fade end) |
+|---|---|---|---|---|
+| plant shrink (two lines) | Flora.hlsl 184/191 | 60-100 | 1 m | 15.59-9.35 |
+| flutterNear | Flora.hlsl 222 | 30-80 | 1 m | 31.18-11.69 |
+| leafNear | Flora.shader 381 | 40-90 | 1 m | 23.38-10.39 |
+| sheenFar | Flora.shader 481, FloraImpostor.shader 178 | 30-120 | 2 m | 62.35-15.59 |
+| amount (ember/bloom) | Flora.shader 567 | 80-100 | 1 m | 11.69-9.35 |
+| cellNear | Flora.shader 593 | 4-10 | 0.1 m | 23.38-9.35 |
+| wet sheen | TerrainSurface.shader 408 | 120-450 | 2 m | 15.59-4.157 |
+| cobbleFade | TerrainSurface.shader 412 | 30-80 | 0.3 m | 9.35-3.51 |
+| steep (rock streaks) | TerrainSurface.shader 432 | 40-90 | 2 m | 46.77-20.78 |
+| grain | TerrainSurface.shader 472 | 6-22 | 0.1 m | 15.59-4.25 |
+| rain darkening | TerrainSurface.shader 549 | 20-60 | 0.3 m | 14.03-4.68 |
+| rippleNear | Water.shader 601 | 25-110 | 1 m | 37.41-8.50 (uses existing PunchyWaterPixelsPerMetre) |
+| landmark bubbles/alpha | LandmarkEffects.hlsl 89/117 | 600-750 | 20 m | 31.18-24.94 (with Range above) |
+
+Flora.shader / FloraImpostor.shader / Flora.hlsl are also changed by R-10 (light/forwardplus): ask the supervisor before editing.
+
+**Stays (gameplay / simulation / physical)**
+
+| Name | File | m | Why |
+|---|---|---|---|
+| AskFade | Fauna/FolkConversation.cs | 90 | seconds, not metres: how fast repeated asks are forgotten |
+| Items.Reach | Items.cs | 2 | pick-up reach (gameplay) |
+| FallVoice 40-180 | LandmarkEffectSystem.cs | - | sound reach (audio) |
+| NearRange | FloraShadowOptions.cs | 25 | real-time cascade / shadow cache split; matched to cascade and cache geometry, not one object's size (keep, -shadownear stays for benches) |
+| _Thin.x (ThinFrom x layer Radius) | FloraSystem.cs | share of layer radius | follows the layer's draw radius, which FloraRule already sets by pixels; no metre of its own |
+| HeatHaze 15-220 / 250-700 | HeatHaze.shader | - | physical: air between eye and ground, grows with distance whatever the view |
+| BurrowRange | GraphicsSettings.cs | - | already DetailPolicy.SimulationReach (A-99) |
+| Water detail/tiers | WaterQuality.cs, Water.shader 513 | - | already pixels |
+| Flora LODs, reach, casting, impostors | DetailPolicy.FloraRule | - | already pixels |
+
+**List only (other owners)**
+
+| Name | File | m | Owner |
+|---|---|---|---|
+| CaveRange (cave falls) | LandmarkEffectSystem.cs | 120 | W-135 |
+| SurfaceFadeNear/Far, WorldGlowFadeFrom/To, RoomFlameRange | Terrain/Caves/CaveSystem*.cs | 25/45, 240/320, 60 | W-135 |
+| cave mouth fade | TerrainSurface.shader 436 | 30-60 | W-135 |
+| CaveFishRange | Fauna/CreatureRenderSystem.Extras.cs | 35 (xDetail) | A-99 leftover |
+| CreatureBreathSystem Range | Fauna/CreatureBreathSystem.cs | 25 | A-99 (breath) |
+| AmbientLife Range (drawn critters/birds; also heard) | Fauna/AmbientLife.cs | 40 (22 small) | A-99 (critters); the sound part stays |
+| Critters.hlsl fade | Critters.hlsl 27 | 50-68 | A-99 |
+| Creature.shader near fades (3-9, 4-14), ShellRange, FootDetail | Creature.shader, creature render | - | A-97 |
+| R-10's own (on light/forwardplus, not main): CaveSystem NearFixtures 40, TownGlowFadeFrom/To 250/330 | CaveSystem.cs | - | R-10 / W-135; data hand-offs tied to the far map's edge, not a look |
