@@ -114,24 +114,43 @@ namespace Punchy.Terrain
             {
                 using var ms = new MemoryStream();
                 void Text(string s) { var b = Encoding.UTF8.GetBytes(s ?? "-"); ms.Write(BitConverter.GetBytes(b.Length), 0, 4); ms.Write(b, 0, b.Length); }
-                Text("Punchy island cache"); Text(Format.ToString()); Text(version.ToString());
+                // A short digest of each part, kept beside the saved file and logged on "key changed", so a miss says which
+                // input moved (editor file vs player, say) instead of only that one did.
+                var parts = new StringBuilder();
+                long mark = 0;
+                using var partSha = SHA256.Create();
+                void Part(string label)
+                {
+                    var digest = partSha.ComputeHash(ms.GetBuffer(), (int)mark, (int)(ms.Position - mark));
+                    parts.Append(label).Append('=').Append(Hex(digest).Substring(0, 8)).Append(' ');
+                    mark = ms.Position;
+                }
+                Text("Punchy island cache"); Text(Format.ToString()); Text(version.ToString()); Part("format");
                 // Bake flags read inside the bake steps (rule 22: these should become world settings).
                 Text(GrandFalls.LakeShelfOn() ? "lakeshelf" : "-");
-                Text(Environment.GetEnvironmentVariable("PUNCHY_SPRINGS"));
-                Text(stamp);
+                Text(Environment.GetEnvironmentVariable("PUNCHY_SPRINGS")); Part("flags");
+                Text(stamp); Part("stamp");
                 // The subscene's inputs, byte for byte.
-                Struct(ms, ref source.World); Struct(ms, ref source.BiomeNoise); Struct(ms, ref source.RiverSettings);
-                Struct(ms, ref source.SpawnCell); Struct(ms, ref source.HeightKind); Struct(ms, ref source.BiomeKind);
-                Struct(ms, ref source.PondsOn); Struct(ms, ref source.RiverRoughOn);
-                foreach (var bytes in new[] { BlobBytes(source.Biomes), BlobBytes(source.Heightmap), BlobBytes(source.BiomeMap), BlobBytes(source.BiomeCells) })
+                Struct(ms, ref source.World); Part("World"); Struct(ms, ref source.BiomeNoise); Part("BiomeNoise");
+                Struct(ms, ref source.RiverSettings); Part("RiverSettings"); Struct(ms, ref source.SpawnCell); Part("SpawnCell");
+                Struct(ms, ref source.HeightKind); Struct(ms, ref source.BiomeKind); Struct(ms, ref source.PondsOn);
+                Struct(ms, ref source.RiverRoughOn); Part("kinds");
+                var inputs = new[] { ("Biomes", BlobBytes(source.Biomes)), ("Heightmap", BlobBytes(source.Heightmap)), ("BiomeMap", BlobBytes(source.BiomeMap)), ("BiomeCells", BlobBytes(source.BiomeCells)) };
+                foreach (var (name, bytes) in inputs)
                 {
                     if (bytes == null) { reason = "blob unreadable"; return null; }
-                    ms.Write(BitConverter.GetBytes(bytes.Length), 0, 4); ms.Write(bytes, 0, bytes.Length);
+                    ms.Write(BitConverter.GetBytes(bytes.Length), 0, 4); ms.Write(bytes, 0, bytes.Length); Part(name);
                 }
                 // The palette by name (its contents are in the stamp: the assets' dependency hashes, or the build's).
                 foreach (var b in palette.Biomes ?? Array.Empty<BiomeDefinition>()) Text(b != null ? b.name : null);
+                Part("biomeNames");
                 foreach (var t in types) Text(t != null ? t.name : null);
+                Part("typeNames");
+                LastKeyNames = $"types {types.Count}: " + string.Join(", ", types.ConvertAll(t => t != null ? t.name : "-"))
+                    + $"\nlandmarks {palette.Landmarks?.Length} placed {palette.Placed?.Count} roadside {palette.Roadside?.Count} realms {palette.BiomeRealms?.Length}";
                 Text($"{palette.Landmarks?.Length} {palette.Placed?.Count} {palette.Roadside?.Count} {palette.BiomeRealms?.Length}");
+                Part("counts");
+                LastKeyParts = parts.ToString().TrimEnd();
                 ms.Position = 0;
                 using var sha = SHA256.Create();
                 reason = "key";
@@ -166,6 +185,16 @@ namespace Punchy.Terrain
 
         /// <summary>The stamp the last key was made with (the editor saves it beside the file, for the build step).</summary>
         public static string LastStamp;
+
+        /// <summary>Per-part digests of the last key (see <see cref="Key"/>); saved as the file's ".parts" sidecar.</summary>
+        public static string LastKeyParts;
+
+        public const string PartsSuffix = ".parts";
+
+        /// <summary>The landmark type names and palette counts of the last key, saved as the ".names" sidecar.</summary>
+        public static string LastKeyNames;
+
+        public const string NamesSuffix = ".names";
 
         /// <summary>The editor's record of the stamp an island file was baked under: its path plus this.</summary>
         public const string StampSuffix = ".stamp";
@@ -374,6 +403,8 @@ namespace Punchy.Terrain
                 }
                 if (File.Exists(path)) File.Delete(path);
                 File.Move(temp, path);
+                File.WriteAllText(path + PartsSuffix, LastKeyParts ?? "");
+                File.WriteAllText(path + NamesSuffix, LastKeyNames ?? "");
 #if UNITY_EDITOR
                 // The build step ships this file only while the editor's stamp still reads the same.
                 File.WriteAllText(path + StampSuffix, LastStamp ?? "");
@@ -393,20 +424,49 @@ namespace Punchy.Terrain
         /// otherwise, with the reason.</summary>
         public static bool TryLoad(ref TerrainSource source, int version, string key, out string reason)
         {
-            reason = "no file";
+            var misses = new List<string>();
             foreach (var path in ReadPaths(version))
             {
                 if (!File.Exists(path)) continue;
+                var where = $"{Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(path)))}/{Folder}/{Path.GetFileName(path)}";
                 byte[] bytes;
                 try { bytes = File.ReadAllBytes(path); }
-                catch (Exception e) { reason = "unreadable (" + e.GetType().Name + ")"; continue; }
+                catch (Exception e) { misses.Add($"{where} unreadable ({e.GetType().Name})"); continue; }
                 if (Parse(bytes, ref source, version, key, out reason))
                 {
-                    reason = $"{Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(path)))}/{Folder}/{Path.GetFileName(path)} {bytes.Length / (1024.0 * 1024.0):F2} MB";
+                    reason = $"{where} {bytes.Length / (1024.0 * 1024.0):F2} MB";
                     return true;
                 }
+                if (reason == "key changed") reason += PartsChanged(path + PartsSuffix);
+                misses.Add($"{reason} [{where}]");
             }
+            // (Each file tried says why it missed; "key changed" first, as the tests and logs expect.)
+            reason = misses.Count > 0 ? string.Join("; ", misses) : "no file";
             return false;
+        }
+
+        /// <summary>Which key parts differ from the ones saved beside a file (" (World, stamp)"), or "" with no sidecar.</summary>
+        static string PartsChanged(string sidecar)
+        {
+            try
+            {
+                if (LastKeyParts == null || !File.Exists(sidecar)) return "";
+                var saved = new Dictionary<string, string>();
+                foreach (var part in File.ReadAllText(sidecar).Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    int eq = part.IndexOf('=');
+                    if (eq > 0) saved[part.Substring(0, eq)] = part.Substring(eq + 1);
+                }
+                var changed = new List<string>();
+                foreach (var part in LastKeyParts.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    int eq = part.IndexOf('=');
+                    if (eq > 0 && (!saved.TryGetValue(part.Substring(0, eq), out var was) || was != part.Substring(eq + 1)))
+                        changed.Add(part.Substring(0, eq));
+                }
+                return changed.Count > 0 ? $" ({string.Join(", ", changed)})" : " (same parts: check the file's key)";
+            }
+            catch (Exception) { return ""; }
         }
 
         struct Clearer : IBlobVisitor
