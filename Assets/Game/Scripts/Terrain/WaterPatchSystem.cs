@@ -40,7 +40,11 @@ namespace Punchy.Terrain
         const float TexelsPerMetre = Size / (float)Span;
         /// <summary>The finest cut (a chunk water quad into Cuts x Cuts, tier 0; each tier further out halves it).</summary>
         /// 4 by default (Zach 11-11: 8 looked no different in play and cost the most); "-waterfieldcuts 8|4|2" to compare.
-        static readonly int Cuts = LaunchInt("-waterfieldcuts", 4, 2, 8);
+        /// With tessellation ("-waterfieldtess 1", profiler prototype) the CPU cuts only 2 and the GPU divides further
+        /// (WaterTess.shader): up to "-waterfieldtessmax" (4) times per edge, aiming at "-waterfieldtesspx" (8) pixels.
+        static readonly bool TessOn = LaunchInt("-waterfieldtess", 0, 0, 1) == 1 && SystemInfo.supportsTessellationShaders;
+        static readonly int Cuts = TessOn ? 2 : LaunchInt("-waterfieldcuts", 4, 2, 8);
+        static readonly int TessMax = LaunchInt("-waterfieldtessmax", 4, 1, 16), TessPixels = LaunchInt("-waterfieldtesspx", 8, 1, 64);
         /// <summary>How far (m) the player moves before the cut is redone round them, and how much the camera's distance
         /// from them may change (as a ratio) before it is.</summary>
         const int FineStep = 1;
@@ -521,6 +525,16 @@ namespace Punchy.Terrain
             kernel = compute.FindKernel("Step");
             material = new Material(water) { name = "Water (fine sheet)" };
             material.EnableKeyword("_WATER_FIELD");
+            if (TessOn)
+            {
+                // (Water.shader's passes with hull and domain stages; the material keeps the water's settings.)
+                var tess = Resources.Load<Shader>("WaterTess");
+                if (tess != null && tess.isSupported)
+                    material.shader = tess;
+                else
+                    Debug.LogWarning("WaterField: tessellation shader missing or unsupported; the sheet stays cut on the CPU at 2");
+                Shader.SetGlobalVector("_PunchyWaterTess", new Vector4(TessMax, TessPixels, 0f, 0f));
+            }
             mesh = new Mesh { name = "Water fine sheet" };
             mesh.MarkDynamic();
             mask = new Texture2D(Span, Span, TextureFormat.R8, false, true) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp, name = "Water fine sheet mask" };
@@ -788,7 +802,7 @@ namespace Punchy.Terrain
             if (logClock < 5f)
                 return;
             Debug.Log($"WaterField: {dispatched} steps dispatched, {skipped} skipped, {(float)sourceSum / math.max(1, dispatched + skipped):F1} sources a step, " +
-                      $"{(asleep ? "asleep" : "awake")} (sleep {SleepOn}, cull {CullOn}, step {StepOn}, cuts {Cuts}, {1f / StepTime:F0} Hz{(NormalsOnly ? ", normals only" : "")}), sheet {(mesh != null && mesh.subMeshCount > 0 ? mesh.GetIndexCount(0) : 0)} indices");
+                      $"{(asleep ? "asleep" : "awake")} (sleep {SleepOn}, cull {CullOn}, step {StepOn}, cuts {Cuts}, {1f / StepTime:F0} Hz{(NormalsOnly ? ", normals only" : "")}{(TessOn ? $", tessellated to {TessMax} at {TessPixels} px" : "")}), sheet {(mesh != null && mesh.subMeshCount > 0 ? mesh.GetIndexCount(0) : 0)} indices");
             logClock = 0f;
             dispatched = skipped = sourceSum = 0;
         }
