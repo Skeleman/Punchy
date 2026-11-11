@@ -362,64 +362,7 @@ namespace Punchy.Terrain
             for (int i = kit.SetFrom; i < kit.Parts.Count; i++)
             {
                 var p = kit.Parts[i];
-                var up = math.mul(p.Rotation, new float3(0f, 1f, 0f));
-                float3 foot;
-                ContactShade.Contact contact;
-                switch (p.Shape)
-                {
-                    case 1:
-                        foot = p.Centre;
-                        contact = ContactShade.Contact.Disc(foot, p.Half.x * 0.8f);
-                        break;
-                    case 2 when math.abs(up.y) < 0.5f:
-                    {
-                        // On its side: the lowest line of its round, along its length.
-                        var u = math.mul(p.Rotation, new float3(1f, 0f, 0f));
-                        var w = math.mul(p.Rotation, new float3(0f, 0f, 1f));
-                        var rz = p.Half.z > 0f ? p.Half.z : p.Half.x;
-                        var low = math.abs(up.y) * p.Half.y + math.sqrt(math.square(u.y * p.Half.x) + math.square(w.y * rz));
-                        foot = p.Centre - new float3(0f, low, 0f);
-                        var along = math.length(up.xz);
-                        contact = ContactShade.Contact.Box(foot, along > 1e-4f ? up.xz / along : new float2(1f, 0f),
-                            new float2(p.Half.y * along, math.min(p.Half.x, rz)));
-                        break;
-                    }
-                    case 2:
-                        foot = p.Centre - up * p.Half.y;
-                        contact = ContactShade.Contact.Disc(foot, p.Half.x);
-                        break;
-                    default:
-                    {
-                        // Its lowest corner, and the footprint across the two axes nearest level.
-                        var low = float.MaxValue;
-                        for (int c = 0; c < 8; c++)
-                        {
-                            var corner = new float3((c & 1) == 0 ? -1f : 1f, (c & 2) == 0 ? -1f : 1f, (c & 4) == 0 ? -1f : 1f) * p.Half;
-                            low = math.min(low, math.mul(p.Rotation, corner).y);
-                        }
-                        foot = p.Centre + new float3(0f, low, 0f);
-                        var x = math.mul(p.Rotation, new float3(1f, 0f, 0f));
-                        var z = math.mul(p.Rotation, new float3(0f, 0f, 1f));
-                        float2 half, axis;
-                        if (math.abs(x.y) >= math.abs(up.y) && math.abs(x.y) >= math.abs(z.y))
-                        {
-                            half = p.Half.yz;
-                            axis = up.xz;
-                        }
-                        else if (math.abs(z.y) >= math.abs(up.y))
-                        {
-                            half = p.Half.xy;
-                            axis = x.xz;
-                        }
-                        else
-                        {
-                            half = p.Half.xz;
-                            axis = x.xz;
-                        }
-                        contact = ContactShade.Contact.Box(foot, axis, half);
-                        break;
-                    }
-                }
+                var contact = ContactShade.PartFoot(p.Shape, p.Centre, p.Rotation, p.Half, out var foot);
                 // What it stands on: the floor, or the highest raised top under its foot that it's no wider than.
                 var rise = foot.y - floor;
                 var best = rise >= -FloorBelow && rise <= FloorAbove ? floor : float.NegativeInfinity;
@@ -1145,18 +1088,25 @@ namespace Punchy.Terrain
             if (contacts != null && contacts.Count == 0)
                 contacts = null;
             var onTop = new List<ContactShade.Contact>();
+            var near = new List<ContactShade.Contact>();
             for (int i = 0; i < kit.Parts.Count; i++)
             {
                 var p = kit.Parts[i];
                 var b = builders[p.Group] ??= new Builder();
-                if (i < kit.SetFrom)
-                    b.Contacts = contacts;
-                else
+                b.Contacts = null;
+                if (contacts != null && i < kit.SetFrom)
                 {
-                    b.Contacts = null;
-                    if (contacts != null && StoodOn(kit, i, onTop))
-                        b.Contacts = onTop;
+                    // W-136 row 3: only the contacts that can reach this tile (by its bounds).
+                    near.Clear();
+                    var size = math.length(p.Half) + (p.Shape == 1 ? p.Half.y : 0f);
+                    foreach (var c in contacts)
+                        if (math.distance(c.Base, p.Centre) <= size + c.Extent)
+                            near.Add(c);
+                    if (near.Count > 0)
+                        b.Contacts = near;
                 }
+                else if (contacts != null && i >= kit.SetFrom && StoodOn(kit, i, contacts, onTop))
+                    b.Contacts = onTop;
                 switch (p.Shape)
                 {
                     case 1: b.Prism(p.Centre, p.Rotation, p.Half.x, p.Half.y, p.Tint); break;
@@ -1170,9 +1120,10 @@ namespace Punchy.Terrain
             return meshes;
         }
 
-        /// <summary>W-135 row 5: the set's contacts that darken set part j's top (others standing on it or beside it at
-        /// its height, rising above it), into list; false if there are none or j isn't a raised top.</summary>
-        static bool StoodOn(Kit kit, int j, List<ContactShade.Contact> list)
+        /// <summary>W-135 row 5: the contacts that darken set part j's top (others standing on it or beside it at its
+        /// height, rising above it), into list; false if there are none or j isn't a raised top. W-136 row 3: contacts
+        /// past the kit's own (the cave plants and dungeon boxes in the room) count too, by their height alone.</summary>
+        static bool StoodOn(Kit kit, int j, List<ContactShade.Contact> contacts, List<ContactShade.Contact> list)
         {
             list.Clear();
             var q = kit.Parts[j];
@@ -1185,6 +1136,12 @@ namespace Punchy.Terrain
                 if (i == j || math.abs(c.Base.y - top) > OnFloor + 0.01f || Top(kit.Parts[i]) <= top + OnMargin)
                     continue;
                 if (Over(q, c.Base.xz, math.length(c.Half) + c.Radius + c.Reach))
+                    list.Add(c);
+            }
+            for (int k = kit.Contacts.Count; k < contacts.Count; k++)
+            {
+                var c = contacts[k];
+                if (math.abs(c.Base.y - top) <= OnFloor + 0.01f && Over(q, c.Base.xz, math.length(c.Half) + c.Radius + c.Reach))
                     list.Add(c);
             }
             return list.Count > 0;
@@ -1208,7 +1165,7 @@ namespace Punchy.Terrain
                 var shade = 1f;
                 if (Contacts != null)
                     foreach (var c in Contacts)
-                        shade = math.min(shade, c.ShadeAt(p));
+                        shade = math.min(shade, c.ShadeAt(p, 0f, 0f, ContactShade.Strength, ContactShade.ReachScale));
                 return shade;
             }
 
@@ -1217,7 +1174,7 @@ namespace Punchy.Terrain
             {
                 if (Contacts != null)
                     foreach (var c in Contacts)
-                        if (c.Distance(p) - radius < c.Reach)
+                        if (c.Near(p, radius, ContactShade.ReachScale))
                             return true;
                 return false;
             }

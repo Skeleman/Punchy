@@ -79,9 +79,9 @@ namespace Punchy.Flora
         /// <summary>
         /// W-136: where it meets the ground, as capsules fitted to its mesh's cross-section just above its base (before
         /// the plant's own rotation and scale), each with the width of the part it belongs to (a post's, a wall's, a
-        /// boulder's). The terrain darkens round them (GroundContacts). Empty for ground-layer plants.
+        /// boulder's). The ground, rock or tile under it darkens round them (ContactShade.ModelFeet). Empty for ground-layer plants.
         /// </summary>
-        public readonly List<Punchy.Terrain.GroundContacts.Foot> Feet = new List<Punchy.Terrain.GroundContacts.Foot>();
+        public readonly List<Punchy.Terrain.ContactShade.Contact> Feet = new List<Punchy.Terrain.ContactShade.Contact>();
 
         /// <summary>Forms that cast no shadow (see CastsShadows).</summary>
         public static bool Shadowless(FloraForm form) =>
@@ -132,8 +132,8 @@ namespace Punchy.Flora
             if (Species != null && Species.Layer != FloraLayer.Ground && Pending.Length > 0 && Pending[0] != null)
             {
                 var segments = new List<Vector4>();
-                Pending[0].Slice(Punchy.Terrain.GroundContacts.SliceHeight, segments);
-                Punchy.Terrain.GroundContacts.FitFeet(segments, Feet);
+                Pending[0].Slice(Punchy.Terrain.ContactShade.SliceHeight, segments);
+                Punchy.Terrain.ContactShade.FitFeet(segments, Feet);
             }
             for (int lod = 0; lod < Pending.Length; lod++)
                 Lods[lod] = Pending[lod].MakeMesh($"{MeshName} LOD{lod}");

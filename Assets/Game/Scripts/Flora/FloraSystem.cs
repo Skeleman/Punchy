@@ -65,17 +65,17 @@ namespace Punchy.Flora
         [Tooltip("Plants this far outside the view still draw into the shadow maps, so off-screen trees cast shadows.")]
         public float ShadowMargin = 30f;
 
-        /// <summary>W-136 ground contact tunables for one kind of model: how dark the terrain gets at its seam and how
-        /// far the darkening spreads. Read by the terrain's chunk builds through GroundContacts.</summary>
+        /// <summary>W-136 ground contact tunables for one kind of model: how dark the ground gets at its seam and how
+        /// far the darkening spreads. One set for every surface (terrain chunks, cave chunks, room tiles): ContactShade.</summary>
         [Serializable]
         public class ContactSettings
         {
             [Tooltip("1 darkens the seam to ContactShade.Seam, 0 turns it off, 2 doubles the darkening.")]
             [Range(0f, 2f)] public float Strength = 1f;
             [Tooltip("1 spreads the darkening about the contact's width (a trunk's, a wall's, a post's) from its edge.")]
-            [Range(0f, GroundContacts.MaxReachScale)] public float Reach = 1f;
+            [Range(0f, ContactShade.MaxReachScale)] public float Reach = 1f;
         }
-        [Header("Ground contacts (W-136): terrain darkening where models meet the ground")]
+        [Header("Ground contacts (W-136): darkening where things meet the ground, rock or tiles")]
         public ContactSettings ContactPlants = new ContactSettings();
         public ContactSettings ContactRocks = new ContactSettings();
         public ContactSettings ContactBuildings = new ContactSettings();
@@ -382,16 +382,12 @@ namespace Punchy.Flora
             built = false;
         }
 
-        /// <summary>Hands the contact tunables to GroundContacts; a change re-meshes the loaded terrain once.</summary>
+        /// <summary>Hands the contact tunables to ContactShade; a change re-meshes the loaded terrain, caves and rooms once.</summary>
         void PushContacts()
         {
             var strength = new float4(ContactPlants.Strength, ContactRocks.Strength, ContactBuildings.Strength, ContactProps.Strength);
             var reach = new float4(ContactPlants.Reach, ContactRocks.Reach, ContactBuildings.Reach, ContactProps.Reach);
-            if (math.all(strength == GroundContacts.Strength) && math.all(reach == GroundContacts.ReachScale))
-                return;
-            GroundContacts.Strength = strength;
-            GroundContacts.ReachScale = reach;
-            GroundContacts.Version++;
+            ContactShade.Set(strength, reach);
         }
 
         void LateUpdate()

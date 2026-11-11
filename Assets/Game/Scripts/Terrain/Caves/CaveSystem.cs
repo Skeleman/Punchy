@@ -1887,7 +1887,8 @@ namespace Punchy.Terrain
                 Source = source, Origin = origin, Cells = cells, Voxel = voxel, Skirt = voxel * SkirtVoxels,
                 Field = b.Field, CaveField = b.CaveField, ShardProbe = ShardProbe,
                 Positions = b.Positions, Normals = b.Normals, Colors = b.Colors, Data = b.Data, Indices = b.Indices,
-                Opening = b.Opening, Contacts = b.Contacts
+                Opening = b.Opening, Contacts = b.Contacts,
+                ContactStrength = ContactShade.Strength, ContactReach = ContactShade.ReachScale
             }.Schedule(field);
             JobHandle.ScheduleBatchedJobs();
             return b;
@@ -2002,12 +2003,14 @@ namespace Punchy.Terrain
             public float Skirt;
             /// <summary>W-135 row 4: the things standing on this chunk's rock, its walls darkened round them.</summary>
             [ReadOnly] public NativeArray<ContactShade.Contact> Contacts;
+            /// <summary>W-136 row 3: the shared per-kind tunables (ContactShade.Strength, ReachScale) when scheduled.</summary>
+            public float4 ContactStrength, ContactReach;
 
             /// <summary>
             /// W-135 row 4: the seam darkening at a wall vertex (ContactShade: darkest at a contact, back to 1 within its
             /// reach). A coarse level's vertices sit up to about half a voxel off the true wall, so the contact is grown
             /// by that much, and its reach is at least half a voxel so the darkening still spans a cell; a seam much
-            /// narrower than that is faded in proportion rather than smeared over a whole cell.
+            /// narrower than that is faded in proportion rather than smeared over a whole cell (ContactShade.Contact.ShadeAt).
             /// </summary>
             float SeamShade(float3 p)
             {
@@ -2020,8 +2023,7 @@ namespace Punchy.Terrain
                     var far = c.Extent + pad + minReach;
                     if (math.distancesq(p, c.Base) > far * far)
                         continue;
-                    var s = ContactShade.Shade(math.max(c.Distance(p) - pad, 0f), math.max(c.Reach, minReach));
-                    shade = math.min(shade, math.lerp(1f, s, math.min(1f, c.Reach / minReach)));
+                    shade = math.min(shade, c.ShadeAt(p, minReach, pad, ContactStrength, ContactReach));
                 }
                 return shade;
             }

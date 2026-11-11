@@ -14,6 +14,8 @@ namespace Punchy.Terrain
     /// until then. All of it is
     /// seed-derived (plants and rooms from the bake, the boxes from the dungeon's sockets), so every machine darkens
     /// alike; it only changes how the rock is drawn.
+    /// W-136 row 3: the footprints are ContactShade's (a plant's ModelFeet as on the terrain, a box's BoxFoot), they take
+    /// the shared tunables, and the plants and boxes in a room darken its tiles as well as the rock.
     /// </summary>
     public partial class CaveSystem
     {
@@ -31,8 +33,11 @@ namespace Punchy.Terrain
         List<ContactShade.Contact> plantContacts;
         readonly Dictionary<int, List<ContactShade.Contact>> roomContacts = new Dictionary<int, List<ContactShade.Contact>>();
         readonly List<ContactShade.Contact> boxContacts = new List<ContactShade.Contact>();
-        /// <summary>Bumped whenever boxContacts changes, so a room rebuilds its tiles if the boxes in it did.</summary>
-        int boxContactsVersion;
+        /// <summary>Bumped whenever the plants', the boxes' or the tunables' contacts change, so a room rebuilds its tiles
+        /// if the contacts in it did.</summary>
+        int tileContactsVersion;
+        /// <summary>The ContactShade.Version the lists were sorted at.</summary>
+        int contactShadeVersion = -1;
         int boxCount = -1;
         float nextBoxLookup;
         readonly Dictionary<World, EntityQuery> boxQueries = new Dictionary<World, EntityQuery>();
@@ -78,6 +83,13 @@ namespace Punchy.Terrain
                 plantContacts = new List<ContactShade.Contact>();
                 for (int i = 0; i < set.Plants.Length; i++)
                     AddPlantContacts(set.Plants[i], plantContacts);
+                tileContactsVersion++;
+                contactsDirty = true;
+            }
+            if (contactShadeVersion != ContactShade.Version)
+            {
+                contactShadeVersion = ContactShade.Version;
+                tileContactsVersion++;
                 contactsDirty = true;
             }
 
@@ -105,38 +117,16 @@ namespace Punchy.Terrain
             }
         }
 
-        /// <summary>A cave plant's footprint: its ground colliders and ground-standing boxes, else its stem.</summary>
+        /// <summary>A cave plant's footprint: its feet as a terrain plant's (ContactShade.ModelFeet), else its stem.</summary>
         void AddPlantContacts(in CavePlant p, List<ContactShade.Contact> into)
         {
             var model = p.Species * PlantVariants + p.Variant;
             if (model < 0 || model >= plantModels.Count || p.Species >= speciesTorch.Count || speciesTorch[p.Species] > 0f)
                 return;   // (a wall torch stands off the wall on a bracket: no seam)
-            var m = plantModels[model];
-            float c = math.cos(p.Yaw), s = math.sin(p.Yaw);
-            float2 Turn(float2 v) => new float2(v.x * c - v.y * s, v.x * s + v.y * c);
-            var before = into.Count;
-            for (int k = 0; k < m.Colliders.Count; k++)
-            {
-                if (k < m.ColliderBase.Count && m.ColliderBase[k] > 0.05f)
-                    continue;
-                var col = m.Colliders[k];
-                var at = Turn(new float2(col.x, col.y)) * p.Scale;
-                into.Add(ContactShade.Contact.Disc(p.Position + new float3(at.x, 0f, at.y), col.z * p.Scale));
-            }
-            foreach (var box in m.Boxes)
-            {
-                var foot = box.Centre - math.mul(box.Rotation, new float3(0f, box.Half.y, 0f));
-                if (foot.y > 0.15f)
-                    continue;
-                var at = Turn(foot.xz) * p.Scale;
-                var axis = Turn(math.mul(box.Rotation, new float3(1f, 0f, 0f)).xz);
-                into.Add(ContactShade.Contact.Box(p.Position + new float3(at.x, foot.y * p.Scale, at.y), axis, box.Half.xz * p.Scale));
-            }
-            if (into.Count > before)
-                return;
-            var radius = m.TrunkRadius > 0f ? m.TrunkRadius : math.min(m.Radius * 0.35f, 0.4f);
-            if (radius > 0f)
-                into.Add(ContactShade.Contact.Disc(p.Position, radius * p.Scale));
+            var first = into.Count;
+            ContactShade.ModelFeet(plantModels[model], into, stem: true);
+            for (int k = first; k < into.Count; k++)
+                into[k] = into[k].Placed(p.Position, p.Yaw, p.Scale);
         }
 
         /// <summary>The dungeons' chest and stand-in boxes (DungeonPropBox, one list per world: the first found), by
@@ -170,10 +160,9 @@ namespace Punchy.Terrain
             for (int i = 0; i < count; i++)
             {
                 var b = found[i].Box;
-                var foot = b.Centre - math.mul(b.Rotation, new float3(0f, b.Half.y, 0f));
-                boxContacts.Add(ContactShade.Contact.Box(foot, math.mul(b.Rotation, new float3(1f, 0f, 0f)).xz, b.Half.xz));
+                boxContacts.Add(ContactShade.BoxFoot(b.Centre, b.Rotation, b.Half, ContactShade.Kind.Prop));
             }
-            boxContactsVersion++;
+            tileContactsVersion++;
             contactsDirty = true;
         }
 
@@ -195,10 +184,7 @@ namespace Punchy.Terrain
             {
                 if (kv.Value.Count == 0)
                     continue;
-                var h = 2166136261u;
-                foreach (var c in kv.Value)
-                    h = math.hash(new float4(c.Base, c.Radius + c.Half.x * 3f + c.Half.y * 7f)) ^ (h * 16777619u);
-                contactHashes[kv.Key] = h == 0u ? 1u : h;
+                contactHashes[kv.Key] = ContactShade.Hash(kv.Value);
             }
         }
 
@@ -220,15 +206,23 @@ namespace Punchy.Terrain
             }
         }
 
-        /// <summary>The contacts a room's tiles are darkened by: its own set's and the dungeon boxes standing in it.</summary>
+        /// <summary>The contacts a room's tiles are darkened by: its own set's (first, as the kit lists them) and the cave
+        /// plants and dungeon boxes standing in it.</summary>
         List<ContactShade.Contact> RoomTileContacts(in CaveRoom room, CaveRoomKit.Kit kit)
         {
             var list = new List<ContactShade.Contact>(kit.Contacts);
             var centre = room.Centre;
             var reach = math.max(room.HX, room.HZ) + 2f;
-            foreach (var c in boxContacts)
-                if (math.abs(c.Base.y - room.Origin.y) < 2f && math.distance(c.Base.xz, centre.xz) < reach)
-                    list.Add(c);
+            var floor = room.Origin.y;
+            void Add(List<ContactShade.Contact> from)
+            {
+                if (from != null)
+                    foreach (var c in from)
+                        if (math.abs(c.Base.y - floor) < 2f && math.distance(c.Base.xz, centre.xz) < reach)
+                            list.Add(c);
+            }
+            Add(plantContacts);
+            Add(boxContacts);
             return list;
         }
 
@@ -240,7 +234,8 @@ namespace Punchy.Terrain
             roomContacts.Clear();
             boxContacts.Clear();
             boxCount = -1;
-            boxContactsVersion++;
+            tileContactsVersion++;
+            contactShadeVersion = -1;
             boxQueries.Clear();
             contactsDirty = false;
         }

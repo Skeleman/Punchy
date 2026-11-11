@@ -21,9 +21,10 @@ namespace Punchy.Terrain
         readonly HashSet<int> roomFlamesOn = new HashSet<int>();
         /// <summary>Per room (index into the cave set's Rooms): its meshes by group, built the first time it is in range.</summary>
         readonly Dictionary<int, Mesh[]> roomMeshes = new Dictionary<int, Mesh[]>();
-        /// <summary>W-135 row 4: per room, the boxContactsVersion its tiles were darkened at and how many dungeon boxes
-        /// stood in it then, so its tiles are rebuilt when a dungeon filled later puts boxes in it.</summary>
-        readonly Dictionary<int, (int version, int boxes)> roomBoxes = new Dictionary<int, (int, int)>();
+        /// <summary>W-135 row 4, W-136 row 3: per room, the tileContactsVersion its tiles were darkened at and the hash of
+        /// the contacts then, so its tiles are rebuilt when the cave plants grow, a dungeon filled later puts boxes in it
+        /// or the tunables change.</summary>
+        readonly Dictionary<int, (int version, uint hash)> roomTileContacts = new Dictionary<int, (int, uint)>();
         /// <summary>Per room type and group, a copy of the cave material in that group's colours.</summary>
         Material[] roomMaterials;
         /// <summary>A-91: Cave.shader's _Dressed (what a kit copy is made of: -1 as is, 0 bare rock, 1 stone, 2 wood, 3 iron).</summary>
@@ -64,10 +65,10 @@ namespace Punchy.Terrain
                 if (distance > LoadRadius)
                     continue;
                 var kit = CaveRoomKit.Get(room);
-                if (roomMeshes.TryGetValue(i, out var meshes) && roomBoxes.TryGetValue(i, out var seen) && seen.version != boxContactsVersion)
+                if (roomMeshes.TryGetValue(i, out var meshes) && roomTileContacts.TryGetValue(i, out var seen) && seen.version != tileContactsVersion)
                 {
-                    var boxes = RoomTileContacts(room, kit).Count - kit.Contacts.Count;
-                    if (boxes != seen.boxes)
+                    var hash = ContactShade.Hash(RoomTileContacts(room, kit));
+                    if (hash != seen.hash)
                     {
                         foreach (var mesh in meshes)
                             if (mesh != null)
@@ -76,15 +77,15 @@ namespace Punchy.Terrain
                         meshes = null;
                     }
                     else
-                        roomBoxes[i] = (boxContactsVersion, boxes);
+                        roomTileContacts[i] = (tileContactsVersion, hash);
                 }
                 if (meshes == null)
                 {
-                    // Its tiles darkened round its own set and any dungeon boxes standing in it (W-135 row 4).
+                    // Its tiles darkened round its own set and any cave plants and dungeon boxes standing in it.
                     var contacts = RoomTileContacts(room, kit);
                     meshes = CaveRoomKit.BuildMeshes(kit, 0f, contacts);
                     roomMeshes[i] = meshes;
-                    roomBoxes[i] = (boxContactsVersion, contacts.Count - kit.Contacts.Count);
+                    roomTileContacts[i] = (tileContactsVersion, ContactShade.Hash(contacts));
                 }
                 var type = math.clamp(room.Type, 0, 3);
                 for (int g = 0; g < meshes.Length; g++)
@@ -115,7 +116,7 @@ namespace Punchy.Terrain
                     if (mesh != null)
                         Destroy(mesh);
             roomMeshes.Clear();
-            roomBoxes.Clear();
+            roomTileContacts.Clear();
             if (roomMaterials != null)
                 foreach (var mat in roomMaterials)
                     if (mat != null)

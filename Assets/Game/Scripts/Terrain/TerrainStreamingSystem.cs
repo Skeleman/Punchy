@@ -88,7 +88,7 @@ namespace Punchy.Terrain
         // The batch being built in the background.
         readonly List<BuildItem> building = new List<BuildItem>();
         JobHandle buildHandle;
-        /// <summary>W-136: the GroundContacts.Version the loaded chunks were built with.</summary>
+        /// <summary>W-136: the GroundContacts.Version + ContactShade.Version the loaded chunks were built with.</summary>
         int contactVersion;
         int buildFrames;
 
@@ -167,9 +167,9 @@ namespace Punchy.Terrain
             config = ApplyViewDistance(config);
 
             // W-136: placed plants (re)published their ground contacts, so every loaded chunk re-meshes once with them.
-            if (GroundContacts.Version != contactVersion)
+            if (GroundContacts.Version + ContactShade.Version != contactVersion)
             {
-                contactVersion = GroundContacts.Version;
+                contactVersion = GroundContacts.Version + ContactShade.Version;
                 scratchCoords.Clear();
                 scratchCoords.AddRange(loaded.Keys);
                 foreach (var coord in scratchCoords)
@@ -428,8 +428,8 @@ namespace Punchy.Terrain
                 WaterRanges = buildWaterRanges,
                 Flora = GroundContacts.Flora,
                 Contacts = GroundContacts.Contacts,
-                ContactStrength = GroundContacts.Strength,
-                ContactReach = GroundContacts.ReachScale,
+                ContactStrength = ContactShade.Strength,
+                ContactReach = ContactShade.ReachScale,
                 ContactPixelsPerMetre = Punchy.Settings.DetailPolicy.Current.Data.PixelsPerMetre * Punchy.Settings.GraphicsSettings.Detail
             };
             buildHandle = IJobParallelForExtensions.Schedule(job, count, 1);
