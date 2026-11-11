@@ -37,7 +37,7 @@ rev() { echo $* | tr ' ' '\n' | tac | tr '\n' ' '; }
 game() { # name round args...
   local n=$1 r=$2; shift 2
   local shot=; [ $r = 1 ] && shot="-benchshots $W/$Q-shots/$n"
-  RUNTIMEOUT=900 BENCHW=1920 BENCHH=1080 runcsv $O $Q-$n $K s100 $r -gfx High -fpscap 0 -benchweather Clear -benchhour 12 "$@" $shot
+  BENCHW=1920 BENCHH=1080 runcsv $O $Q-$n $K s100 $r -gfx High -fpscap 0 -benchweather Clear -benchhour 12 "$@" $shot
   local f="$R/q-$Q-$n-cs100-$r.log"; check "$f"
   echo "$(date +%T) $n r$r: $(grep -h 'BenchRoute: [a-z]*: avg' "$f" | grep -o 'median [0-9.]* ms\|gpu [0-9.]* ms\|cpu [0-9.]* ms' | tr '\n' ' ')| $(grep -h 'WaterField:' "$f" | tail -1 | cut -c1-200) $(grep -h ' s frame at ' "$f" | cut -c1-70)"
 }
