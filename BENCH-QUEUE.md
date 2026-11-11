@@ -503,6 +503,10 @@ Pass: row 6 <= +0.2 ms GPU over row 5 at both views, CPU within noise.
 - Spots: job 49's storm shadow and storm noon, and the hive spot at noon (Partly cloudy). 3 rounds rotated; shots of every arm to compare the shadows. q93.sh.
 - Purpose: R-12's per-pixel shadow cost (and the cloud shadow's cost from before it) moved into a bake a few times a second.
 
+## Job 45i (2026-11-11, QUEUED after 49c; Zach in the profiler session): the wave field's cheaper forms
+- One Profile build of Punchy `b/water-rows-fixes` d2c748a6: cuts 4 (default), `-waterfieldcuts 2`, `-waterfieldtess 1` (prototype: CPU cut 2, the GPU tessellates up to 4x more by screen size; Water.shader's passes now shared through includes), `-waterfieldnormals 1` (no sheet; the field only shades the chunk water: Zach's preferred fallback and far-range form), and `-waterfield 0`. Job 45c's lake swim, 4 rounds rotated, shots of every arm. q94.sh.
+- Bar (45c's): <= +0.3 ms GPU over off.
+
 ## Job 50 (2026-11-10, QUEUED after 45e; queued by the main-account supervisor, Zach asked): two-player crash and desync test on the laptop
 Note (supervisor 11-10): leave/rejoin is expected to crash in GameAudio occlusion until #259 is fixed. If it does, report it as #259 and finish the rest of the route without the rejoin step.
 - Build: origin/main at the time you start (cc835cf6 or newer; note the commit), one Dev build, two instances on the laptop: host `-host`, client `-join 127.0.0.1`, start the client once the host is in game. Correctness only, no timing: two instances on one machine make frame times meaningless.
