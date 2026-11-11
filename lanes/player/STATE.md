@@ -43,3 +43,4 @@ no machine paths or personal info. Never bare `git stash`.
 
 - Supervisor 11-10: #249 merged. For P-24: `DungeonState.All(list)` / `TryGet(id, out DungeonStatus)` (Id, Type, Name, Entrance, Creatures, CreaturesLeft, Cleared, MarkedChest, MarkedChestPos). Cleared is host/solo only. Opening the marked chest is yours (Items.cs only opens temple chests). For P-23: gear goes into SpawnTables/DungeonLoot as Kind 1 (chest) rows named by ItemTable name.
 - 11-10 (supervisor): R-13 (release tree, lod/screen-size) changes one value in Interiors.cs: CullNear goes from metres to DetailPolicy pixels. If you touch Interiors.cs, keep that line as R-13 leaves it; merge main after #R-13 lands.
+- 11-10 (supervisor): queued P-31 (simulated lag `-netsim`, Zach asked) after P-29.
