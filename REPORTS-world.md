@@ -4715,3 +4715,35 @@ Flora.shader / FloraImpostor.shader / Flora.hlsl are also changed by R-10 (light
 - No timing. BENCH job 52 ("ef191d54 or newer") covers it, so bench e5dcb14b.
 - world/ground-contact-shade had no commits of its own yet. It was fast-forwarded to e5dcb14b and pushed: no rebase of existing work and no force-push.
 - Risk: kit BuildMeshes is CPU-heavy because ShadeAt checks every contact for every vertex. This dates from row 4; row 5 adds 11 contacts and about 4% more vertices. A possible follow-up is culling contacts per part by bounds.
+
+### W-137 rows 0 and 2b: cave mouth seam map, and tunnel portal covered way (row 2b done, verified; row 0 done, part UNVERIFIED). Release tree, branch world/mouth-rim, commit b5312063
+- Row 0, seam map (4 mouths on this seed: cliff = cave 5 Crystal, gentle = cave 18 LavaTube, narrow slit = cave 9 Granite, mine = cave 23; there is no bat-folk mouth on this seed). Read from code and the shots:
+  - Step at the rim: the terrain is cut MeshCutDepth deep but the cave skin stands SkinGap off it, so a lip shows where they overlap (BuildChunkMeshJob cut vs CaveSystem skin).
+  - Crack / sky showing: the shader's per-pixel clip against the skin mesh leaves a thin slot on narrow slits, and chunks at LOD 2+ cut no hole at all, so the mouth shows as a dent at 30 m (BuildChunkMeshJob only cuts at LOD 0-1).
+  - Shading and texture change: TerrainSurface.shader on the ground against the cave material on the skin, with no blend across the rim.
+  - All of these sit in W-135's files (BuildChunkMeshJob, CaveSystem*, TerrainSurface.shader): rows 1 and 2, not touched here.
+  - Shots: D:/Unity/PunchyMilestones/W-137/before/before-m{5,18,9,23}-{2,8,30}.png. Several 2 m shots show only ground: UNVERIFIED. Frames are 2560x1600 (16:10), not cropped.
+- Row 2b finding: the headwall top already met the hill (top gap 0.00 m at all 6 portals before and after, all LODs). The gap Zach saw is the terrain cut behind and beside the portal: a roofless trench over the road, with sky through the arch (before-p0-front).
+- Change (TunnelPortalKit.cs only): per portal, from its seed, a stone covered way behind the headwall (ashlar side walls down to the drawn ground, a lintel roof in whole courses clear of the ground, risers where it steps, an end wall where the hill closes) and wing walls over the cut beside the road in front. Heights from MeshHeight at LOD 0-2. Cut test is MouthCut at mesh height. Headwall and arch output unchanged.
+- Probe (all 6 road-tunnel portals; cut cells not under stone):
+
+| Portal | Before | After |
+|---|---|---|
+| #0 cave 25/0 | 67.13 m2 | 2.38 m2 |
+| #1 cave 25/1 | 67.75 m2 | 2.13 m2 |
+| #2 cave 26/0 | 57.00 m2 | 0.25 m2 |
+| #3 cave 26/1 | 58.13 m2 | 0.50 m2 |
+| #4 cave 27/0 | 73.38 m2 | 0.13 m2 |
+| #5 cave 27/1 | 53.63 m2 | 0.50 m2 |
+| Total | 377.00 m2 | 5.88 m2 |
+
+  - Cave 25's remainder is one row at z -9.5, the tunnel's middle where the two covered ways meet (probe edge, not a hole). The rest are single cells at the face corners.
+  - Headwall top gap: worst 0.00 m (target 0), none over 5 cm. The probe's "bottom" column (3.5-3.9 m) is the coping's end overhang, not a gap.
+- Mesh: all 6 portal kits 31,968 -> 88,176 verts, 15,984 -> 44,088 tris (about 13-17k verts and 45-53 solids per portal).
+- Shots (same camera): D:/Unity/PunchyMilestones/W-137/before/before-p{0,3,4,5}-{front,high}.png and after/after-*.png. p0-front shows the sky through the arch before and the roof after. All [shot] lines "good".
+- BENCH-QUEUE request: arms origin/main vs b5312063, spots portals #4 (-2024.9, 261.4, 697.7), #2 (-1878.9, 125.4, 97.7) and #0 (2045.7, 6.8, -1540.3). Check the one-off kit build when a portal first loads (7-31 ms each in the editor) and GPU cost with the extra triangles.
+- Risks:
+  - The covered way runs straight along the portal's axis, so a tunnel that curves sharply near its mouth could leave a strip uncovered.
+  - Where the ground dips and rises again behind a portal, the roof shows as a separate raised step (p4-high).
+  - Optional frame styles not done: they would sit on the portal path in CaveSystem.Rooms.cs (W-135's file).
+- Pins: Landmarks_V3 112 A955AFE0 and Fauna_Fingerprint AD723954 unchanged. Full PlayMode suite: "24 passed, 1 failed, 17 skipped in 337s". The failure is FolkConversationTests.LiveFolk_BeastResponse ("the fleeing folk got no further off"). Re-running FolkConversationTests alone: "6 passed, 1 failed", the same test again ("the folk told to flee isn't fleeing", mode Idle). This is the animal lane's known flaky test (see REPORTS-animal/player). This branch changes only TunnelPortalKit.cs, but I did not prove the failure has nothing to do with it.
