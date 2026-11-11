@@ -20,14 +20,50 @@ float _Courant2;
 float _Damping;
 float _Decay;
 
+// 1: each 8 x 8 group first finds which sources reach any of its texels (within 3 radii, the loop's own cut-off), and
+// its texels loop over just those, in the same order; 0: every texel loops over every source (as before).
+int _Cull;
+groupshared uint gsSources[2];
+
 float2 Fetch(int2 p)
 {
     return all(p >= 0) && all(p < _Size) ? _Src[p] : 0;
 }
 
-[numthreads(8, 8, 1)]
-void Step(uint3 id : SV_DispatchThreadID)
+// Applies source i to a texel's next height (the step's pressing, unchanged).
+float Press(float next, float2 at, int i)
 {
+    float4 s = _Sources[i];
+    float r = abs(s.z);
+    float2 d = at - s.xy;
+    float d2 = dot(d, d) / (r * r);
+    if (d2 > 9)
+        return next;
+    float g = exp(-d2);
+    // A splash knocks the surface down once; a body held in it pulls the surface towards its own dent, so a still
+    // one sits in a dimple and a moving one pushes a bow wave and leaves a wake.
+    if (s.z < 0)
+        return next - s.w * g;
+    return lerp(next, -s.w * g, 0.4 * g);
+}
+
+[numthreads(8, 8, 1)]
+void Step(uint3 id : SV_DispatchThreadID, uint gi : SV_GroupIndex, uint3 gid : SV_GroupID)
+{
+    // The group's source list (a bit per source, up to 64), made before any texel returns.
+    if (gi < 2)
+        gsSources[gi] = 0;
+    GroupMemoryBarrierWithGroupSync();
+    if (_Cull != 0 && (int)gi < _SourceCount)
+    {
+        float4 s = _Sources[gi];
+        float reach = 3 * abs(s.z);
+        float2 lo = (float2)(gid.xy * 8) + 0.5, hi = lo + 7;
+        float2 nearest = clamp(s.xy, lo, hi);
+        if (dot(s.xy - nearest, s.xy - nearest) <= reach * reach)
+            InterlockedOr(gsSources[gi >> 5], 1u << (gi & 31));
+    }
+    GroupMemoryBarrierWithGroupSync();
     int2 p = (int2)id.xy;
     if (any(p >= _Size))
         return;
@@ -39,21 +75,23 @@ void Step(uint3 id : SV_DispatchThreadID)
     float absorb = saturate(edge / 24.0);
     float next = c.x + (c.x - c.y) * _Damping * lerp(0.8, 1, absorb) + _Courant2 * laplacian;
     float2 at = (float2)p + 0.5;
-    for (int i = 0; i < _SourceCount; i++)
+    if (_Cull != 0)
     {
-        float4 s = _Sources[i];
-        float r = abs(s.z);
-        float2 d = at - s.xy;
-        float d2 = dot(d, d) / (r * r);
-        if (d2 > 9)
-            continue;
-        float g = exp(-d2);
-        // A splash knocks the surface down once; a body held in it pulls the surface towards its own dent, so a still
-        // one sits in a dimple and a moving one pushes a bow wave and leaves a wake.
-        if (s.z < 0)
-            next -= s.w * g;
-        else
-            next = lerp(next, -s.w * g, 0.4 * g);
+        for (int w = 0; w < 2; w++)
+        {
+            uint m = gsSources[w];
+            while (m != 0)
+            {
+                int i = w * 32 + (int)firstbitlow(m);
+                m &= m - 1;
+                next = Press(next, at, i);
+            }
+        }
+    }
+    else
+    {
+        for (int i = 0; i < _SourceCount; i++)
+            next = Press(next, at, i);
     }
     next *= _Decay * lerp(0.9, 1, absorb);
     _Dst[p] = float2(next, c.x);

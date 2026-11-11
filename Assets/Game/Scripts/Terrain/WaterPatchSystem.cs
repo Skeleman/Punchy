@@ -39,7 +39,8 @@ namespace Punchy.Terrain
         public const int Span = 32, Snap = 4, Size = 256;
         const float TexelsPerMetre = Size / (float)Span;
         /// <summary>The finest cut (a chunk water quad into Cuts x Cuts, tier 0; each tier further out halves it).</summary>
-        const int Cuts = 8;
+        /// (Profiler experiment, b/fix-waterfield-step: "-waterfieldcuts 8|4|2" for playtesting a coarser finest cut.)
+        static readonly int Cuts = LaunchInt("-waterfieldcuts", 8, 2, 8);
         /// <summary>How far (m) the player moves before the cut is redone round them, and how much the camera's distance
         /// from them may change (as a ratio) before it is.</summary>
         const int FineStep = 1;
@@ -48,7 +49,10 @@ namespace Punchy.Terrain
         const int SheetBudget = 8000;
         /// <summary>The field's step (s), the most steps a frame catches up, and how fast its waves run (m/s): slower than
         /// a walk, so a wader trails a V rather than pushing a ring ahead of it.</summary>
-        const float StepTime = 1f / 60f, WaveSpeed = 0.9f;
+        /// (Profiler experiment: "-waterfieldhz 60|30|20" steps it less often; the damping and decay per step are rescaled
+        /// so waves die away over the same seconds, and the wave speed is unchanged.)
+        static readonly float StepTime = 1f / LaunchInt("-waterfieldhz", 60, 10, 60);
+        const float WaveSpeed = 0.9f;
         const int MaxSteps = 4, MaxSources = 64;
 
         static readonly int FieldId = Shader.PropertyToID("_PunchyWaterField");
@@ -65,6 +69,33 @@ namespace Punchy.Terrain
         static readonly int CourantId = Shader.PropertyToID("_Courant2");
         static readonly int DampingId = Shader.PropertyToID("_Damping");
         static readonly int DecayId = Shader.PropertyToID("_Decay");
+        static readonly int CullId = Shader.PropertyToID("_Cull");
+
+        /// <summary>
+        /// Profiler experiment (Zach 11-10, b/fix-waterfield-step): the field sleeps after SleepAfter steps with nothing
+        /// pressing it (cleared flat, no dispatch) until something does; each step's thread groups loop only over the
+        /// sources that reach them. "-waterfieldsleep 0" / "-waterfieldcull 0" turn each off (as before); "-waterfieldstep 0"
+        /// never steps (the sheet drawn flat: what the compute costs, for the bench only).
+        /// </summary>
+        static readonly bool SleepOn = LaunchSwitch("-waterfieldsleep"), CullOn = LaunchSwitch("-waterfieldcull"), StepOn = LaunchSwitch("-waterfieldstep");
+        static int SleepAfter => (int)(10f / StepTime);
+        int quietSteps, dispatched, skipped, sourceSum;
+        bool asleep;
+        float logClock;
+
+        static int LaunchInt(string name, int fallback, int min, int max)
+        {
+            var args = Punchy.Debugging.DebugControls.LaunchArgs;
+            var at = System.Array.IndexOf(args, name);
+            return at >= 0 && at + 1 < args.Length && int.TryParse(args[at + 1], out var v) ? math.clamp(v, min, max) : fallback;
+        }
+
+        static bool LaunchSwitch(string name)
+        {
+            var args = Punchy.Debugging.DebugControls.LaunchArgs;
+            var at = System.Array.IndexOf(args, name);
+            return !(at >= 0 && at + 1 < args.Length && args[at + 1] == "0");
+        }
         static readonly Vector4 NoRect = new Vector4(1e9f, 1e9f, -1e9f, -1e9f);
 
         /// <summary>A fine sheet vertex: the chunk water's (WaterVertex) plus where it sits on a coarser neighbour's edge.</summary>
@@ -723,6 +754,18 @@ namespace Punchy.Terrain
             fieldCorner = cutCorner;
         }
 
+        /// <summary>Every 5 s: how many steps were dispatched and skipped (asleep, or -waterfieldstep 0), and the sources.</summary>
+        void LogField()
+        {
+            logClock += UnityEngine.Time.unscaledDeltaTime;
+            if (logClock < 5f)
+                return;
+            Debug.Log($"WaterField: {dispatched} steps dispatched, {skipped} skipped, {(float)sourceSum / math.max(1, dispatched + skipped):F1} sources a step, " +
+                      $"{(asleep ? "asleep" : "awake")} (sleep {SleepOn}, cull {CullOn}, step {StepOn}, cuts {Cuts}, {1f / StepTime:F0} Hz), sheet {(mesh != null && mesh.subMeshCount > 0 ? mesh.GetIndexCount(0) : 0)} indices");
+            logClock = 0f;
+            dispatched = skipped = sourceSum = 0;
+        }
+
         /// <summary>Steps the wave field at 60 steps a second (at least once if it has moved, so its texels and the
         /// square stay together), pressed by this frame's creatures.</summary>
         void StepField()
@@ -769,11 +812,37 @@ namespace Punchy.Terrain
                 if (count > 0)
                     sourceBuffer.SetData(sourceArray, 0, 0, count);
 
+                sourceSum += count;
+                quietSteps = count > 0 ? 0 : quietSteps + steps;
+                if (count > 0)
+                    asleep = false;
+                else if (SleepOn && quietSteps >= SleepAfter && !asleep)
+                {
+                    // Nothing has pressed it for 10 s: what's left is a few mm settling. Clear it flat and stop stepping.
+                    var active = RenderTexture.active;
+                    RenderTexture.active = fieldA;
+                    GL.Clear(false, true, Color.clear);
+                    RenderTexture.active = fieldB;
+                    GL.Clear(false, true, Color.clear);
+                    RenderTexture.active = active;
+                    asleep = true;
+                }
+                if (asleep || !StepOn)
+                {
+                    skipped += steps;
+                    steps = 0;
+                }
+                else
+                    dispatched += steps;
+                LogField();
+
                 compute.SetInt(SizeId, Size);
+                compute.SetInt(CullId, CullOn ? 1 : 0);
                 var courant = WaveSpeed * StepTime * TexelsPerMetre;
                 compute.SetFloat(CourantId, courant * courant);
-                compute.SetFloat(DampingId, 0.994f);
-                compute.SetFloat(DecayId, 0.999f);
+                // (Tuned per step at 60 a second; per step at another rate so a second's worth stays the same.)
+                compute.SetFloat(DampingId, math.pow(0.994f, StepTime * 60f));
+                compute.SetFloat(DecayId, math.pow(0.999f, StepTime * 60f));
                 compute.SetBuffer(kernel, SourcesId, sourceBuffer);
                 for (int s = 0; s < steps; s++)
                 {
