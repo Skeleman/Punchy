@@ -56,8 +56,9 @@ Shader "Punchy/Sky"
                 // Under water the sky is endlessly far through the water's fog, and the surface's underside (Snell's
                 // window, Water.shader) covers it anyway: skip the clouds and weather marches (job 30: with the water off,
                 // the underwater frame was still 27-29 ms, mostly sky).
+                // (Item 38: with the light shafts through the water in front.)
                 [branch] if (_PunchyUnderwater.w > 0)
-                    return half4(_PunchyUnderwater.rgb, 1);
+                    return half4(_PunchyUnderwater.rgb + PunchyUnderwaterShafts(_WorldSpaceCameraPos, dir, 1000), 1);
                 uint off = (uint)_PunchySkyOff;   // (test only, -skyoff: see Sky.hlsl)
                 // (Real branches: a ternary would run both sides, and the point of the test bits is to skip the work.)
                 half3 sky = half3(0.3, 0.45, 0.7);

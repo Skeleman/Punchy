@@ -228,6 +228,8 @@ namespace Punchy.Debugging
             Shader.SetGlobalFloat("_PunchyNoFur", System.Array.IndexOf(args, "-nofur") >= 0 ? 1f : 0f);
             // "-noshells": near bodies without their two fur shells.
             CreatureRenderSystem.Shells = System.Array.IndexOf(args, "-noshells") < 0;
+            // "-nosurfaces": creatures without their A-97 surfaces and fur lengths (all medium fur, as before).
+            CreatureRenderSystem.Surfaces = System.Array.IndexOf(args, "-nosurfaces") < 0;
             // "-nobloom" (A-96): bloom off in the volumes' own copies of their profiles (the asset is untouched).
             Punchy.Debugging.SparkleProbe.NoBloom(System.Array.IndexOf(args, "-nobloom") >= 0);
             // "-solidsoff" (A-44): wild animals ignore cave walls, towers and carved ground as before, for before numbers
@@ -393,6 +395,12 @@ namespace Punchy.Debugging
             }
             if (inCave && EnsureLocations(out var source))
                 GoIntoCave(source);
+            // "-dungeonspots" (A-91): logs an entrance and a deepest-room camera spot per dungeon type.
+            if (System.Array.IndexOf(args, "-dungeonspots") >= 0)
+            {
+                dsPending = true;
+                dsPendingSince = Time.unscaledTime;
+            }
             if (System.Array.IndexOf(args, "-goto") >= 0 || System.Array.IndexOf(args, "-at") >= 0
                 || System.Array.IndexOf(args, "-walkershot") >= 0)
                 landmarkPlacePending = null;

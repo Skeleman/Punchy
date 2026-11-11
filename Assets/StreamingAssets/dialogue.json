@@ -26,7 +26,12 @@
         "trade.Camper": ["traveller"],
         "weather_word": ["fair", "fine", "still"],
         "town_start": ["Ash", "Oak", "Mill", "Stone", "Brook", "Thorn", "Elm", "Hollow"],
-        "town_end": ["ford", "by", "stead", "wick", "field", "well", "ton", "dale"]
+        "town_end": ["ford", "by", "stead", "wick", "field", "well", "ton", "dale"],
+        "dungeon_start": ["Grim", "Thorn", "Black", "Echo", "Mist", "Bone", "Gloam", "Drip", "Moss", "Cold", "Raven", "Under"],
+        "dungeon_end": ["hollow", "deep", "maw", "gullet", "barrow", "reach", "fang", "well", "hold", "drift"],
+        "cave_kind": ["Cave", "Cavern", "Grotto", "Hollow", "Caves"],
+        "ruin_kind": ["Ruins", "Vaults", "Halls", "Crypts"],
+        "temple_kind": ["Sunken Temple", "Drowned Shrine"]
       },
       "lines": [
         "Mind how you go.",

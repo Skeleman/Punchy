@@ -1,0 +1,60 @@
+// R-9: the water's wave field near the player (WaterPatchSystem.cs). A square of texels (heights in m) over the water
+// round the player, stepped as a damped wave equation at a fixed 60 steps a second: what swims, wades or lands in it
+// presses the surface down, and the dents spread out as rings and wakes. R is the height now, G the height a step ago
+// (their difference is the surface's speed). Cosmetic and per machine: nothing is sent, and nothing reads it back.
+
+#pragma kernel Step
+
+Texture2D<float2> _Src;
+RWTexture2D<float2> _Dst;
+// What presses on the water this step: x, y the centre (texels), z the radius (texels; negative for a one-off splash
+// rather than a body held in the water), w how deep it presses (m).
+StructuredBuffer<float4> _Sources;
+int _SourceCount;
+// Texels the square moved by since the last step (it follows the player in whole texels): each texel reads from here.
+int2 _Shift;
+int _Size;
+// (speed x step / texel)^2: how far a dent spreads each step (well under the 0.5 a square grid can take).
+float _Courant2;
+// The surface's speed kept each step (the ripples die away), and its height kept (a dent left alone settles flat).
+float _Damping;
+float _Decay;
+
+float2 Fetch(int2 p)
+{
+    return all(p >= 0) && all(p < _Size) ? _Src[p] : 0;
+}
+
+[numthreads(8, 8, 1)]
+void Step(uint3 id : SV_DispatchThreadID)
+{
+    int2 p = (int2)id.xy;
+    if (any(p >= _Size))
+        return;
+    int2 q = p + _Shift;
+    float2 c = Fetch(q);
+    float laplacian = Fetch(q + int2(1, 0)).x + Fetch(q - int2(1, 0)).x + Fetch(q + int2(0, 1)).x + Fetch(q - int2(0, 1)).x - 4 * c.x;
+    // The outer 24 texels (3 m) soak the waves up, so nothing bounces back off the square's edge.
+    float edge = (float)min(min(p.x, p.y), min(_Size - 1 - p.x, _Size - 1 - p.y));
+    float absorb = saturate(edge / 24.0);
+    float next = c.x + (c.x - c.y) * _Damping * lerp(0.8, 1, absorb) + _Courant2 * laplacian;
+    float2 at = (float2)p + 0.5;
+    for (int i = 0; i < _SourceCount; i++)
+    {
+        float4 s = _Sources[i];
+        float r = abs(s.z);
+        float2 d = at - s.xy;
+        float d2 = dot(d, d) / (r * r);
+        if (d2 > 9)
+            continue;
+        float g = exp(-d2);
+        // A splash knocks the surface down once; a body held in it pulls the surface towards its own dent, so a still
+        // one sits in a dimple and a moving one pushes a bow wave and leaves a wake.
+        if (s.z < 0)
+            next -= s.w * g;
+        else
+            next = lerp(next, -s.w * g, 0.4 * g);
+    }
+    next *= _Decay * lerp(0.9, 1, absorb);
+    _Dst[p] = float2(next, c.x);
+}

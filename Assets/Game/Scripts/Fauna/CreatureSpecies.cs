@@ -51,6 +51,10 @@ namespace Punchy.Fauna
         [Tooltip("Colours an individual's hair and beard (segments marked Hair) are picked from. Empty = the " +
                  "species this is a variant of, or the segments' own colour.")]
         public List<Color> HairColors = new List<Color>();
+        [Tooltip("What the body and Coat segments are covered in, for shading. Only Fur grows shells.")]
+        public CoatKind Coat;
+        [Tooltip("Fur length on the body and on parts that don't set their own (Fur coats only).")]
+        public FurLength FurLength;
 
         [Header("Parts")]
         public List<LimbSlot> Parts = new List<LimbSlot>();
@@ -322,6 +326,9 @@ namespace Punchy.Fauna
     /// <summary>What a body can climb (CreatureSpecies.ClimbsAs).</summary>
     public enum ClimbAbility : byte { None, Trees, AnySurface }
 
+    /// <summary>What a species' body is covered in; the Coat surface of its parts resolves to this.</summary>
+    public enum CoatKind : byte { Fur, Feathers, Scales, Skin, Chitin }
+
     /// <summary>A part a species plays for FaunaDirector (CreatureSpecies.Role).</summary>
     public enum DirectorRole : byte { None, Folk, Hermit, Messenger }
 
@@ -443,6 +450,9 @@ namespace Punchy.Fauna
         [Tooltip("Style option group (hairstyles, beards): each individual shows just one of the slots in a group, " +
                  "picked at random (list a slot twice to make it more common). 0 = always shown.")]
         [Min(0)] public int StyleGroup;
+        [Tooltip("Fur length on this part's Coat segments, over the segments' own and the species' (a fox's long " +
+                 "tail on a shared tail part).")]
+        public FurLengthOverride FurLength;
     }
 
     /// <summary>A species living in a biome, and how many.</summary>
