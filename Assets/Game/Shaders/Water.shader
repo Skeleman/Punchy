@@ -119,7 +119,7 @@ Shader "Punchy/Water"
                 float3 rest = TransformObjectToWorld(input.positionOS);
                 o.restXZ = rest.xz;
             #ifdef _WATER_FIELD
-                o.positionCS = TransformWorldToHClip(PunchyWaterPatchVertex(rest, input.data.z, input.parent, input.parentY, _PunchyClock, swell));
+                o.positionCS = TransformWorldToHClip(PunchyWaterPatchVertex(rest, input.data, input.parent, input.parentY, _PunchyClock, swell));
             #else
                 o.positionCS = TransformWorldToHClip(PunchySwellVertex(rest, input.data.z, _PunchyClock, swell));
             #endif
@@ -249,7 +249,7 @@ Shader "Punchy/Water"
                 o.restXZ = pos.positionWS.xz;
                 // The sea rises and falls in swells (-noswells for the flat sea); the same move as the depth pass's.
             #ifdef _WATER_FIELD
-                pos.positionWS = PunchyWaterPatchVertex(pos.positionWS, input.data.z, input.parent, input.parentY, _PunchyClock, o.swell);
+                pos.positionWS = PunchyWaterPatchVertex(pos.positionWS, input.data, input.parent, input.parentY, _PunchyClock, o.swell);
             #else
                 pos.positionWS = PunchySwellVertex(pos.positionWS, input.data.z, _PunchyClock, o.swell);
             #endif
@@ -583,11 +583,48 @@ Shader "Punchy/Water"
                 float streaks = 0.5;
                 [branch] if (flowAmount > 0 || rapids > 0)
                 {
+                    // R-9 row 6: both patterns are turned to the flow, so reading them at the world position put the
+                    // flow's turns times the distance from the world's origin (kilometres) into them: wherever the river
+                    // bent (most of all down rapids) they broke into dense zigzag lines along the mesh's triangles. They
+                    // are read about an anchor near the camera instead, so that error stays small where it can be seen.
+                    // The anchor is the camera snapped to a 64 m grid. On each axis, near that grid's lines it hands over to a
+                    // second grid offset half a cell, cross-fading as the camera moves, so the pattern never jumps: one read
+                    // in most places, two near a line, four only near a corner.
+                    const float AnchorGrid = 64;
+                    float2 eye = _WorldSpaceCameraPos.xz;
+                    float2 cellA = floor(eye / AnchorGrid) * AnchorGrid;
+                    float2 cellB = floor(eye / AnchorGrid + 0.5) * AnchorGrid - AnchorGrid * 0.5;
+                    float2 inA = eye - cellA;
+                    float2 weightA = smoothstep(3, 10, min(inA, AnchorGrid - inA));
+                    streaks = 0;
+                    [unroll] for (int corner = 0; corner < 4; corner++)
+                    {
+                        bool bx = (corner & 1) != 0;
+                        bool bz = (corner & 2) != 0;
+                        float w = (bx ? 1 - weightA.x : weightA.x) * (bz ? 1 - weightA.y : weightA.y);
+                        [branch] if (w > 0)
+                        {
+                            float2 q = p - float2(bx ? cellB.x : cellA.x, bz ? cellB.y : cellA.y);
+                            flowingSlope += FlowingSlope(q, flowDir, riverSpeed, t) * w;
+                            streaks += FlowStreaks(q, flowDir, riverSpeed, t) * w;
+                        }
+                    }
                     // (Stronger as the river quickens, so the current shows in the surface itself.)
-                    flowingSlope = FlowingSlope(p, flowDir, riverSpeed, t) * (1 + 1.3 * rapids) * (1 + 0.5 * saturate(riverSpeed));
-                    streaks = FlowStreaks(p, flowDir, riverSpeed, t);
+                    flowingSlope *= (1 + 1.3 * rapids) * (1 + 0.5 * saturate(riverSpeed));
                 }
                 float2 slope = lerp(WaveSlope(p, t), flowingSlope, flowAmount);
+                // R-9 row 6: down a steep, fast stretch the river stands up in standing waves that hold their place
+                // under the running chop (WaterField.hlsl); on the fine sheet they heave the mesh, everywhere they tilt
+                // the light.
+                float rapidsAmount = PunchyRapidsAmount(rapids, flowAmount) * (1 - steep);
+                float standCrest = 0;
+                [branch] if (rapidsAmount > 0)
+                {
+                    float2 standSlope;
+                    PunchyRapidsWave(input.restXZ, t, standSlope, standCrest);
+                    slope += standSlope * rapidsAmount * 1.6;
+                    standCrest *= rapidsAmount;
+                }
                 // Rain rings only where it's actually raining (from the world weather map).
                 float rain = PunchyWetnessAt(p).g * distanceFade;
                 [branch] if (rain > 0)
@@ -872,9 +909,19 @@ Shader "Punchy/Water"
                 half seaShore = input.sea;
                 half riverShore = saturate(flowAmount * 4) * (1 - seaShore);
                 half lakeShore = (1 - seaShore) * (1 - riverShore);
-                float2 carried = p - flowDir * flowAmount * riverSpeed * t * riverShore;
+                // (R-9 row 6: the river's drift runs in two reads half a short cycle apart that cross-fade, like FlowFoam.
+                // Carried by the whole of t it grew to kilometres, and the flow's turns between triangles tore it into zigzags.)
+                const float shoreCycle = 6;
+                float shorePhase0 = frac(t / shoreCycle);
+                float shorePhase1 = frac(t / shoreCycle + 0.5);
+                float shoreW0 = 1 - abs(1 - 2 * shorePhase0);
+                float2 shoreDrift = flowDir * flowAmount * riverSpeed * shoreCycle * riverShore;
+                float2 carried0 = p - shoreDrift * shorePhase0;
+                float2 carried1 = p - shoreDrift * shorePhase1 + 5.3;
                 float2 still = float2(t * 0.25, -t * 0.18) * (1 - riverShore) * lerp(1, 0.25, lakeShore);
-                half foamNoise = PunchyValueNoise(carried * 0.9 + still) * 0.6 + PunchyValueNoise(carried * 2.7 - t * 0.4 * (1 - riverShore) * lerp(1, 0.25, lakeShore)) * 0.4;
+                float stillT = t * 0.4 * (1 - riverShore) * lerp(1, 0.25, lakeShore);
+                half foamNoise = (PunchyValueNoise(carried0 * 0.9 + still) * 0.6 + PunchyValueNoise(carried0 * 2.7 - stillT) * 0.4) * shoreW0 +
+                                 (PunchyValueNoise(carried1 * 0.9 + still) * 0.6 + PunchyValueNoise(carried1 * 2.7 - stillT) * 0.4) * (1 - shoreW0);
                 // The line laps: it creeps up the shore and draws back, unevenly along it. A river's laps as before; a lake's
                 // hardly moves; the sea's is the surf, below.
                 half lap = seaShore
@@ -929,6 +976,11 @@ Shader "Punchy/Water"
                     half cover = smoothstep(0.7 - 0.26 * rapids, 0.88 - 0.16 * rapids, carried);
                     // (From 0.1: cave brooks carry a floor of 0.12 down the middle and should stay clear there.)
                     whiteWater = cover * smoothstep(0.1, 0.6, rapids) * (0.55 + 0.45 * churn) * distanceFade;
+                    // Row 6: the standing waves break white along their crests, torn up by the carried foam, with
+                    // ragged trails of it between them.
+                    half standWhite = standCrest * smoothstep(0.3, 0.75, carried) +
+                        rapidsAmount * smoothstep(0.62, 0.85, carried) * (1 - standCrest) * 0.3;
+                    whiteWater = max(whiteWater, standWhite * (1 - caveRun) * distanceFade);
                 }
                 half3 foamParts = half3(foam, min(max(whiteWater * 0.85, rapids * rapids * churn * 0.35), 0.85) * (1 - steep),
                                         flowAmount * smoothstep(0.9 - 0.06 * rapids, 0.98, streaks) * (0.2 + 0.4 * rapids) * distanceFade * (1 - viscous)

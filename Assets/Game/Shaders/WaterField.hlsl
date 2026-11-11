@@ -82,27 +82,38 @@ float2 PunchyWaterFieldSlope(float2 xz)
 // sheet's edges, across its ends, and with how big the fall looks (Axis.w), so it meets the chunk water and fades in
 // with no step. churn: how much the foot is churning here (for foam); curtain: how much this is the falling curtain
 // (the shader keeps it shaded as a steep face even where a ripple tilts a triangle back).
+// How much a fall's own motion shows at a point of its sheet (0 off the sheet): its fade, easing to nothing at the
+// sheet's sides, across its ends and at its rectangle's edge. s, c: how far along the flow from the lip and across.
+float PunchyWaterFallWeight(float2 restXZ, out float s, out float c)
+{
+    s = 0;
+    c = 0;
+    float fade = _PunchyWaterFallAxis.w;
+    [branch] if (fade <= 0 || any(restXZ < _PunchyWaterFallRect.xy) || any(restXZ > _PunchyWaterFallRect.zw))
+        return 0;
+    float2 o = _PunchyWaterFallAxis.xy;
+    float2 rel = restXZ - _PunchyWaterFallLip.xz;
+    s = dot(rel, o);
+    c = dot(rel, float2(-o.y, o.x));
+    float halfWidth = _PunchyWaterFallAxis.z;
+    float2 edge = min(restXZ - _PunchyWaterFallRect.xy, _PunchyWaterFallRect.zw - restXZ);
+    return fade * (1 - smoothstep(halfWidth - 3, halfWidth, abs(c))) *
+        smoothstep(_PunchyWaterFallSpan.x, _PunchyWaterFallSpan.x + 3, s) *
+        (1 - smoothstep(_PunchyWaterFallSpan.z - 4, _PunchyWaterFallSpan.z, s)) *
+        saturate(min(edge.x, edge.y) * 0.5 - 0.25);
+}
+
 float3 PunchyWaterFallOffset(float3 restWS, float t, out float churn, out float curtain)
 {
     churn = 0;
     curtain = 0;
-    float fade = _PunchyWaterFallAxis.w;
-    [branch] if (fade <= 0 || any(restWS.xz < _PunchyWaterFallRect.xy) || any(restWS.xz > _PunchyWaterFallRect.zw))
-        return 0;
-    float2 o = _PunchyWaterFallAxis.xy;
-    float2 rel = restWS.xz - _PunchyWaterFallLip.xz;
-    float s = dot(rel, o);
-    float c = dot(rel, float2(-o.y, o.x));
-    float down = _PunchyWaterFallLip.y - restWS.y;
-    float drop = _PunchyWaterFallLip.w;
-    float halfWidth = _PunchyWaterFallAxis.z;
-    float2 edge = min(restWS.xz - _PunchyWaterFallRect.xy, _PunchyWaterFallRect.zw - restWS.xz);
-    float w = fade * (1 - smoothstep(halfWidth - 3, halfWidth, abs(c))) *
-        smoothstep(_PunchyWaterFallSpan.x, _PunchyWaterFallSpan.x + 3, s) *
-        (1 - smoothstep(_PunchyWaterFallSpan.z - 4, _PunchyWaterFallSpan.z, s)) *
-        saturate(min(edge.x, edge.y) * 0.5 - 0.25);
+    float s, c;
+    float w = PunchyWaterFallWeight(restWS.xz, s, c);
     [branch] if (w <= 0)
         return 0;
+    float2 o = _PunchyWaterFallAxis.xy;
+    float down = _PunchyWaterFallLip.y - restWS.y;
+    float drop = _PunchyWaterFallLip.w;
     // (A phase that wanders across the fall, so the curtain isn't one sheet moving in step.)
     float ph = c * 0.9 + sin(c * 0.37) * 2.1 + sin(c * 1.3 + 1.7) * 0.6;
     float3 outward = float3(o.x, 0, o.y);
@@ -124,13 +135,58 @@ float3 PunchyWaterFallOffset(float3 restWS, float t, out float churn, out float 
     return offset * w;
 }
 
-// A point of the fine sheet moved by the swell, the field and a fall.
-float3 PunchyWaterPatchPoint(float3 restWS, float depth, float t, out float swell)
+// Row 6: white water on steep, fast river water (rapids, from the river's gradient in the mesh data). How much of it
+// a rapids value carries: none on a gently running river, all of it down a steep stretch.
+float PunchyRapidsAmount(float rapids, float flowAmount)
 {
-    float3 positionWS = PunchySwellVertex(restWS, depth, t, swell);
+    return smoothstep(0.3, 0.85, rapids) * smoothstep(0.02, 0.15, flowAmount);
+}
+
+// The rapids' surface (per unit amount) at a point before the swell moved it: standing waves that hold their place
+// while the water runs through them (the running chop over them is the flow's own, FlowingSlope), heaving a little as
+// they break. Fixed in the world on purpose: lining them up with the flow put the flow's turns, times the distance from
+// the world's origin, into their phase, which broke them into zigzags along the mesh's triangles. Returns the height (m);
+// slope: its dh/dx, dh/dz; crest: how near the top of a wave this is (where it breaks white).
+float PunchyRapidsWave(float2 xz, float t, out float2 slope, out float crest)
+{
+    // (Three crossing rows at odd angles and lengths, bent a little, so no row runs on straight.)
+    float2 q = xz + float2(sin(xz.y * 0.37 + 1.3), sin(xz.x * 0.41 + 0.7)) * 1.2;
+    const float2 d0 = float2(0.95, 0.31) * 2.6;
+    const float2 d1 = float2(-0.42, 0.91) * 2.94;
+    const float2 d2 = float2(-0.64, -0.77) * 2.26;
+    float a0 = dot(q, d0), a1 = dot(q, d1), a2 = dot(q, d2);
+    float s = (sin(a0) + sin(a1) + sin(a2)) / 3;
+    float heave = 0.75 + 0.25 * sin(t * 4.3 + q.x * 0.9 + q.y * 1.3);
+    // (The slope leaves out the bend, which is gentle.)
+    slope = (d0 * cos(a0) + d1 * cos(a1) + d2 * cos(a2)) * (0.16 / 3 * heave);
+    crest = smoothstep(0.35, 0.8, s * heave);
+    return 0.16 * s * heave;
+}
+
+// How much the fine sheet's own moves (the field, a fall's, the rapids') show here.
+float PunchyWaterSheetWeight(float2 restXZ)
+{
+    float s, c;
+    return max(PunchyWaterFieldWeight(restXZ), PunchyWaterFallWeight(restXZ, s, c));
+}
+
+// A point of the fine sheet moved by the swell, the field, a fall and the rapids. data: the mesh's flow (xy), depth (z)
+// and rapids (w).
+float3 PunchyWaterPatchPoint(float3 restWS, float4 data, float t, out float swell)
+{
+    float3 positionWS = PunchySwellVertex(restWS, data.z, t, swell);
     positionWS.y += PunchyWaterFieldHeight(restWS.xz) * PunchyWaterFieldWeight(restWS.xz);
     float churn, curtain;
     positionWS += PunchyWaterFallOffset(restWS, t, churn, curtain);
+    float flowAmount = saturate(length(data.xy));
+    float rapids = PunchyRapidsAmount(data.w, flowAmount) * (1 - curtain);
+    [branch] if (rapids > 0)
+    {
+        float2 slope;
+        float crest;
+        positionWS.y += PunchyRapidsWave(restWS.xz, t, slope, crest) * rapids *
+            PunchyWaterSheetWeight(restWS.xz);
+    }
     return positionWS;
 }
 
@@ -140,8 +196,9 @@ float3 PunchyWaterPatchPoint(float3 restWS, float depth, float t, out float swel
 // by which way it runs (+ along z, - along x; 0 elsewhere). The neighbour is straight from end to end, so the vertex
 // goes where that straight line is (the moved ends, mixed), not where the swell and field would put it, leaving no
 // crack between them. (Where the sheet meets the chunk water the field weighs nothing, so that is the chunk water's own line.)
-// parentY: the heights of the segment's two ends less the vertex's own (a fall's segments slope steeply).
-float3 PunchyWaterPatchVertex(float3 restWS, float depth, float4 parent, float2 parentY, float t, out float swell)
+// parentY: the heights of the segment's two ends less the vertex's own (a fall's segments slope steeply). data: the
+// mesh's flow, depth and rapids.
+float3 PunchyWaterPatchVertex(float3 restWS, float4 data, float4 parent, float2 parentY, float t, out float swell)
 {
     [branch] if (abs(parent.w) > 1e-4)
     {
@@ -152,13 +209,14 @@ float3 PunchyWaterPatchVertex(float3 restWS, float depth, float4 parent, float2 
         a.y = restWS.y + parentY.x;
         b.y = restWS.y + parentY.y;
         float swellA, swellB;
-        float3 movedA = PunchyWaterPatchPoint(a, parent.x, t, swellA);
-        float3 movedB = PunchyWaterPatchPoint(b, parent.y, t, swellB);
+        // (The ends take the vertex's own flow and rapids, which vary slowly along a segment.)
+        float3 movedA = PunchyWaterPatchPoint(a, float4(data.xy, parent.x, data.w), t, swellA);
+        float3 movedB = PunchyWaterPatchPoint(b, float4(data.xy, parent.y, data.w), t, swellB);
         float k = parent.z / span;
         swell = lerp(swellA, swellB, k);
         return lerp(movedA, movedB, k);
     }
-    return PunchyWaterPatchPoint(restWS, depth, t, swell);
+    return PunchyWaterPatchPoint(restWS, data, t, swell);
 }
 
 #endif
