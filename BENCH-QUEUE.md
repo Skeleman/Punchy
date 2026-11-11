@@ -500,10 +500,17 @@ Row 2 turns the fixed-metre visual ranges (landmark effects, flames, chimneys, f
 - Record whole-frame GPU and CPU ms per arm and spot.
 - Pass: branch within noise of main at High at every spot; at Medium, branch <= main. A miss means a fix on lod/screen-size before the merge.
 
-## Job 52 (2026-11-10, QUEUED after 51; supervisor, for W-135 row 2): cave wall levels by screen size
-Cave chunks are now built at 0.5, 1 or 2 m by screen size, with skirts on chunk borders; `-cavelevel 0` forces the old single level (= main).
-- Arms: branch `world/cave-lod` at 9d3d86dd or newer, default vs the same build with `-cavelevel 0`. Profile build, 1920x1080, High, uncapped, ABBA, 300 frames per arm.
-- Views (shotcam): (a) c5 tunnel (-2864, 24.5, -567) looking at (-2799, 27, -551); (b) c5 big room (-2810, 27, -556) looking at (-2795, 29, -549); (c) c1 mouth approach (-3155, 172, 1038) looking at (-3110, 169, 1038).
-- Also: one walk down the c5 tunnel per arm; list frames over 2x the median (rebuild swaps upload during the walk).
+## Job 52 (2026-11-10, QUEUED after 51; supervisor, for W-135, all four rows; folds in 47i): cave LOD and seam darkening
+W-135 on `world/cave-lod`: row 1 skips hidden cave work (`-nocaveskip` turns it off), row 2 builds cave walls at 0.5/1/2 m by screen size with border skirts (`-cavelevel 0` = main), row 3 moves cave plants, drips, fish, falls and glow to screen size, row 4 bakes contact darkening into cave chunks (no shader change).
+- Arms: (A) origin/main 0477dd07 or newer; (B) `world/cave-lod` at ef191d54 or newer, default; (C) B with `-cavelevel 0 -nocaveskip`. Profile builds, 1920x1080, High, uncapped, ABBA (A/B), then B vs C, 300 frames per arm.
+- Views (shotcam):
+  - (a) c5 tunnel (-2864, 24.5, -567) looking at (-2799, 27, -551)
+  - (b) c5 big room (-2810, 27, -556) looking at (-2795, 29, -549)
+  - (c) c1 mouth approach (-3155, 172, 1038) looking at (-3110, 169, 1038)
+  - (d) room (-1389.2, 65.9, 1043.96) looking at (-1392.3, 63.4, 1037.4)
+  - (e) ruin (1363.4, 9.85, -2544.1) looking at (1372, 7.3, -2544)
+  - (f) crystal (1538.9, 3.96, -2596.45) looking at (1536.7, 1.9, -2591.95)
+  - (g) surface over a cave network, open ground near (c)
+- Also: one walk down the c5 tunnel per arm, and the first 20 s after load at (d); list frames over 2x the median (level swaps and contact rebuilds upload then).
 - Record whole-frame GPU, CPU and render-thread ms per arm and view.
-- Pass: default no slower than `-cavelevel 0` at every view, and no new spikes on the walk.
+- Pass: B no slower than A on GPU and render thread at every view; B no slower than C; no new hitches on the walk or in the first 20 s.
