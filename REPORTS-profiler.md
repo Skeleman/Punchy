@@ -2,6 +2,35 @@
 
 Newest first.
 
+## Job 45g follow-up: RenderDoc at fall 74 and the rapids (q92.sh), 2026-11-11
+**Setup:** one frame per arm, 1920x1080, High, noon, `-body default`. RenderDoc ms run about 3x real.
+
+| capture | frame | transparent pass | biggest water draws |
+|---|---|---|---|
+| fall, new (0318b5ee) | 60.3 | 19.3 | fall sheet 7.1; chunk water 2.8, 2.4, 1.6, 1.2 |
+| fall, old (9b1cacc1) | 60.4 | 19.3 | fall sheet 7.1; chunk water 2.7, 2.3, 1.6, 1.1 |
+| fall, off | 59.1 | 18.3 | (no sheet) chunk water 5.0, 3.7, 3.2, 2.2 |
+| rapids, new | 67.2 | 27.2 | player's sheet 10.6; chunk water 6.7, 6.7 |
+| rapids, old | 69.6 | 29.7 | player's sheet 11.8; chunk water 7.4, 7.3 |
+| rapids, row 5 | 61.6 | 21.8 | player's sheet 7.8; chunk water 5.7, 5.3 |
+
+**Fall:**
+- New and old are the same frame. The savings don't touch the fall, and fix 1 costs nothing here; the 45g bench gap between them was noise.
+- The fall costs +1.0 RenderDoc ms in the transparent pass, about +0.35 real.
+  - The fall's sheet is one 25.5k-index draw at 7.1 RenderDoc ms.
+  - The chunk water it covers drops from 14.1 to 8.0.
+- The rest of the bench's +1.2 ms GPU isn't in any draw. That's the same unexplained gap as jobs 45c and 45d.
+- **Next:** a GPU-timer capture of the whole frame (compute included), or a CPU profile of a fall frame, to find what's outside the draws.
+
+**Rapids:**
+- The two trims took row 6's transparent cost from +7.9 to +5.3 RenderDoc ms (about +1.8 real).
+- What's left is spread over every water draw: each is 20–35% slower per pixel than on row 5. This view is mostly rapids, so much of it is the standing waves themselves. But row 6's code also made the whole shader bigger, and that can cost every pixel through register pressure.
+- **Trim 3** (Punchy `b/water-rows-fixes` f053c7bf): the flow-anchor loop becomes a real loop instead of four inlined copies. It's measured in job 45i's run (q94) at this view, against 0318b5ee and row 5.
+
+**Capture note:** the row-5 capture launch timed out once, after its capture was already taken. The capture was kept.
+
+Files (Punchy-wt results): q92.out, q92-passes.txt, rd92/*.rdc.
+
 ## Jobs 49b and 45h: the R-12 and R-10 trims, 2026-11-11 (q90.sh, q91.sh): neither trim helps; both costs located
 **Setup:**
 - Profile builds, 1920x1080, `-gfx High`, uncapped, `-weatherseed 4`, `-body default`, 3 rounds rotated.
