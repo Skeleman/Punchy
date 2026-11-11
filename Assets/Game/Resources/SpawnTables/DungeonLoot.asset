@@ -1,0 +1,151 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6e35ddb82ae5493c8cd51d8493bb7ceb, type: 3}
+  m_Name: DungeonLoot
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Fauna.SpawnTable
+  Rows:
+  - Content: Coin
+    Species: {fileID: 0}
+    Weight: 45
+    Count: {x: 1, y: 5}
+    Seeded: 1
+    Kind: -1
+    Size: {x: 0, y: 255}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Mushroom
+    Species: {fileID: 0}
+    Weight: 25
+    Count: {x: 1, y: 3}
+    Seeded: 1
+    Kind: -1
+    Size: {x: 0, y: 255}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Stone
+    Species: {fileID: 0}
+    Weight: 25
+    Count: {x: 1, y: 2}
+    Seeded: 1
+    Kind: -1
+    Size: {x: 0, y: 255}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Key
+    Species: {fileID: 0}
+    Weight: 5
+    Count: {x: 1, y: 1}
+    Seeded: 1
+    Kind: -1
+    Size: {x: 0, y: 255}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Torch
+    Species: {fileID: 0}
+    Weight: 3
+    Count: {x: 1, y: 1}
+    Seeded: 1
+    Kind: -1
+    Size: {x: 0, y: 255}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Staff
+    Species: {fileID: 0}
+    Weight: 2
+    Count: {x: 1, y: 1}
+    Seeded: 1
+    Kind: -1
+    Size: {x: 0, y: 255}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Hat
+    Species: {fileID: 0}
+    Weight: 2
+    Count: {x: 1, y: 1}
+    Seeded: 1
+    Kind: -1
+    Size: {x: 0, y: 255}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Pack
+    Species: {fileID: 0}
+    Weight: 1
+    Count: {x: 1, y: 1}
+    Seeded: 1
+    Kind: -1
+    Size: {x: 0, y: 255}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0

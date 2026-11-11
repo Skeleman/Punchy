@@ -81,6 +81,7 @@ namespace Punchy.Fauna
         BlobAssetReference<CreatureBlob> avatarBlob;
         Entity settingsEntity, simClockEntity, floraEntity;
         BlobAssetReference<CarryBlob> carryBlob;
+        BlobAssetReference<CreatureLookBlob> lookBlob;
         /// <summary>Where trees are, for climbing, perching and webs (the same tables the plants are drawn from).</summary>
         BlobAssetReference<Punchy.Flora.FloraBlob> floraBlob;
         BlobAssetReference<WharfSpotSet> wharfBlob;
@@ -186,6 +187,9 @@ namespace Punchy.Fauna
             if (carryBlob.IsCreated)
                 carryBlob.Dispose();
             carryBlob = default;
+            if (lookBlob.IsCreated)
+                lookBlob.Dispose();
+            lookBlob = default;
             if (queryWorld != null && queryWorld.IsCreated)
             {
                 var em = queryWorld.EntityManager;

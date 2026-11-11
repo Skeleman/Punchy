@@ -20,6 +20,15 @@ namespace Punchy.Terrain
     {
         /// <summary>Most sockets of each kind (SocketKind order) kept per cave, thinned evenly through the candidates.</summary>
         static readonly int[] Caps = { 6, 3, 8, 3, 10 };
+        /// <summary>
+        /// A-91 row 3: the caps are for a cave of this many nodes (about the average before caves grew); bigger caves keep
+        /// proportionally more, up to three times the caps, so spawn counts scale with size.
+        /// </summary>
+        const float CapNodes = 13f;
+        /// <summary>A-91 row 3: least distance between two floor sockets of a cave's passages and pools.</summary>
+        const float Apart = 1.6f;
+        /// <summary>How far a floor socket keeps from a main path's line (A-91 row 3), in metres.</summary>
+        const float PathClear = 1.5f;
 
         /// <summary>Daylight reach: spots nearer the mouth (or under a shaft, or by lava) than this aren't Dark.</summary>
         const float DarkBeyond = 20f;
@@ -246,14 +255,82 @@ namespace Punchy.Terrain
 
             // About Caps[kind] of each kind, picked evenly through the candidates (in the order made, so it's stable).
             var kept = new List<Candidate>();
+            var grow = math.clamp(count / CapNodes, 1f, 3f);
             for (int kind = 0; kind <= (int)SocketKind.Clutter; kind++)
             {
                 var all = cands.FindAll(x => (int)x.Kind == kind);
-                if (all.Count <= Caps[kind])
+                var cap = (int)math.round(Caps[kind] * grow);
+                if (all.Count <= cap)
                     kept.AddRange(all);
                 else
-                    for (int j = 0; j < Caps[kind]; j++)
-                        kept.Add(all[j * all.Count / Caps[kind]]);
+                    for (int j = 0; j < cap; j++)
+                        kept.Add(all[j * all.Count / cap]);
+            }
+            // A-91 row 3: the main paths (mouth node to each of CaveData.MainEnds, through the links) stay clear: a floor
+            // socket within PathClear of one (a chamber's middle, a passage creature) moves sideways off it onto floor,
+            // or goes, so no chest or stand-in box ever stands in the way of the walk out and back.
+            var mainSegs = new List<(float3 a, float3 b)>();
+            int mouthNode = 0;
+            for (int k = 1; k < count; k++)
+                if (math.distance(nodes[k].Position, c.Mouth) < math.distance(nodes[mouthNode].Position, c.Mouth))
+                    mouthNode = k;
+            for (int m = 0; m < 3; m++)
+            {
+                var end = c.MainEnds[m];
+                if (end < 0 || end >= count) continue;
+                var back = new int[count];
+                for (int k = 0; k < count; k++) back[k] = -2;
+                var queue = new Queue<int>();
+                queue.Enqueue(mouthNode);
+                back[mouthNode] = -1;
+                while (queue.Count > 0)
+                {
+                    var at = queue.Dequeue();
+                    foreach (var l in links[at])
+                        if (back[l] == -2) { back[l] = at; queue.Enqueue(l); }
+                }
+                for (int k = end; k >= 0 && back[k] >= 0; k = back[k])
+                    mainSegs.Add((nodes[back[k]].Position, nodes[k].Position));
+            }
+            for (int j = kept.Count - 1; j >= 0 && mainSegs.Count > 0; j--)
+            {
+                var x = kept[j];
+                if (x.Kind == SocketKind.WallDecor || (x.Tags & SocketTags.Ceiling) != 0) continue;
+                float best = PathClear;
+                var away = float2.zero;
+                foreach (var (a, b) in mainSegs)
+                {
+                    var ab = b.xz - a.xz;
+                    var t = math.saturate(math.dot(x.P.xz - a.xz, ab) / math.max(math.lengthsq(ab), 1e-6f));
+                    var on = a + (b - a) * t;
+                    var dist = math.distance(x.P.xz, on.xz);
+                    if (dist >= best || math.abs(x.P.y - on.y) > 4f) continue;
+                    best = dist;
+                    var side = new float2(-ab.y, ab.x);
+                    away = math.normalizesafe(dist > 0.05f ? x.P.xz - on.xz : side * (math.dot(side, x.Face) >= 0f ? 1f : -1f), new float2(1f, 0f));
+                }
+                if (best >= PathClear) continue;
+                var to = x.P.xz + away * (PathClear + 0.3f - best);
+                if (FloorAt(to.x, x.P.y + 1.5f, to.y, 3f) is float f
+                    && source.CaveDistance(new float3(to.x, f + 0.55f, to.y)) <= -0.1f && !Blocked(new float3(to.x, f, to.y), false))
+                {
+                    x.P = new float3(to.x, f + 0.05f, to.y);
+                    kept[j] = x;
+                }
+                else
+                    kept.RemoveAt(j);
+            }
+            // A-91 row 3: floor sockets at least Apart from each other (the earlier kind wins), so a prop or chest set in
+            // one never stands over a creature's socket next to it (bigger caves pack more candidates into a chamber).
+            for (int j = kept.Count - 1; j > 0; j--)
+            {
+                if (kept[j].Kind == SocketKind.WallDecor) continue;
+                for (int o = 0; o < j; o++)
+                    if (kept[o].Kind != SocketKind.WallDecor && math.distance(kept[o].P.xz, kept[j].P.xz) < Apart && math.abs(kept[o].P.y - kept[j].P.y) < 2f)
+                    {
+                        kept.RemoveAt(j);
+                        break;
+                    }
             }
             // Tags from neighbours: near a chest, near water.
             for (int j = 0; j < kept.Count; j++)

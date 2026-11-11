@@ -21,6 +21,7 @@ MonoBehaviour:
     Accent: 0
     UseFixedColor: 1
     FixedColor: {r: 0.55, g: 0.46, b: 0.33, a: 1}
+    Surface: 5
   - Length: 0.08
     RadiusStart: 0.027
     RadiusEnd: 0.022
@@ -28,6 +29,7 @@ MonoBehaviour:
     Accent: 0
     UseFixedColor: 1
     FixedColor: {r: 0.55, g: 0.46, b: 0.33, a: 1}
+    Surface: 5
   - Length: 0.07
     RadiusStart: 0.022
     RadiusEnd: 0.015
@@ -35,6 +37,7 @@ MonoBehaviour:
     Accent: 0
     UseFixedColor: 1
     FixedColor: {r: 0.55, g: 0.46, b: 0.33, a: 1}
+    Surface: 5
   - Length: 0.06
     RadiusStart: 0.015
     RadiusEnd: 0.004
@@ -42,6 +45,7 @@ MonoBehaviour:
     Accent: 0
     UseFixedColor: 1
     FixedColor: {r: 0.55, g: 0.46, b: 0.33, a: 1}
+    Surface: 5
   Spring: 0
   JointPhaseStep: 0
   FollowGround: 0

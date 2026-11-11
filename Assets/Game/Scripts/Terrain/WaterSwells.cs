@@ -28,6 +28,9 @@ namespace Punchy.Terrain
     /// (swimming and floating creatures in CreatureRenderSystem, floating flora and kit in Flora.hlsl). Limits: the wind
     /// is the camera's, so in multiplayer each player's swell height follows their own wind (everything that rides it is
     /// drawn from the same machine's numbers, so it agrees on each screen).
+    /// The weather's wind drives it too (playtest 11-08 item 32: a sandstorm's wind only moved the ripples): its strength
+    /// sets the height and, from a strong wind up, its direction turns the swell's heading from onshore towards
+    /// downwind. Both follow the weather slowly (<see cref="WindFollow"/>), so a change of weather never makes it jump.
     /// </summary>
     public static class WaterSwells
     {
@@ -53,6 +56,7 @@ namespace Punchy.Terrain
             struct GroupsKey { }
             struct ShoreKey { }
             struct WarpKey { }
+            struct WindKey { }
             /// <summary>x 1 on / 0 off, y the sea level, z the wind 0..1, w the shared clock (s).</summary>
             public static readonly SharedStatic<float4> State = SharedStatic<float4>.GetOrCreate<StateKey>();
             /// <summary>The wave table, as in Table.</summary>
@@ -62,10 +66,14 @@ namespace Punchy.Terrain
             public static readonly SharedStatic<float4x2> Groups = SharedStatic<float4x2>.GetOrCreate<GroupsKey>();
             public static readonly SharedStatic<float4> Warp = SharedStatic<float4>.GetOrCreate<WarpKey>();
             public static readonly SharedStatic<ShoreField> Shore = SharedStatic<ShoreField>.GetOrCreate<ShoreKey>();
+            /// <summary>xy the way the wind blows (unit xz, followed slowly), z how far it turns the swell from onshore.</summary>
+            public static readonly SharedStatic<float4> Wind = SharedStatic<float4>.GetOrCreate<WindKey>();
         }
 
         static readonly int SwellId = Shader.PropertyToID("_PunchySwell");
         static readonly int WindId = Shader.PropertyToID("_PunchyWind");
+        static readonly int WindDirectionId = Shader.PropertyToID("_PunchyWindDirection");
+        static readonly int SwellWindId = Shader.PropertyToID("_PunchySwellWind");
         static readonly int ClockId = Shader.PropertyToID("_PunchyClock");
         static readonly int WavesId = Shader.PropertyToID("_PunchySwellWaves");
         static readonly int ShapeId = Shader.PropertyToID("_PunchySwellShape");
@@ -124,6 +132,11 @@ namespace Punchy.Terrain
         /// interference never repeats within sight. Gentle enough (under 4% of any wave's own wavenumber) not to bend it.</summary>
         static readonly float4 Warp = new float4(0.0016f, 0.0011f, -0.0009f, 0.0019f);
         const float WarpGain = 1.1f;
+        /// <summary>Item 32: how long (s) the swell's wind takes to follow the weather's most of the way (1 - 1/e).</summary>
+        const float WindFollow = 12f;
+        /// <summary>The wind turns the swell towards downwind from WindSteerFrom, fully (by WindSteer) at WindSteerTo
+        /// (0..1; a sandstorm or storm blows about 0.8-1).</summary>
+        const float WindSteerFrom = 0.4f, WindSteerTo = 0.85f, WindSteer = 0.85f;
         /// <summary>Extra room (m) round the furthest the swell can reach, for the render bounds.</summary>
         const float BoundsMargin = 0.5f;
 
@@ -156,9 +169,11 @@ namespace Punchy.Terrain
         public static void Publish(in TerrainSource terrain)
         {
             var clock = Shader.GetGlobalFloat(ClockId);
-            var state = new float4(Enabled ? 1f : 0f, terrain.World.SeaLevel, Shader.GetGlobalFloat(WindId), clock > 0f ? clock : Time.time);
+            FollowWind();
+            var state = new float4(Enabled ? 1f : 0f, terrain.World.SeaLevel, wind, clock > 0f ? clock : Time.time);
             Shared.State.Data = state;
             Shader.SetGlobalVector(SwellId, new Vector4(state.x, state.y, state.z, 0f));
+            Shader.SetGlobalVector(SwellWindId, Shared.Wind.Data);
             if (!built)
                 Build();
             // (Every frame, cheap: globals are easily lost in the editor.)
@@ -174,6 +189,30 @@ namespace Punchy.Terrain
             Shader.SetGlobalVector(ShoreAtId, shoreReady ? new Vector4(shore.Origin.x, shore.Origin.y, shore.CellsPerMetre, shore.Size) : Vector4.zero);
             if (shoreTexture != null)
                 Shader.SetGlobalTexture(ShoreId, shoreTexture);
+        }
+
+        static bool windSet;
+        static float wind;
+        static float2 windDirection = new float2(1f, 0f);
+
+        // Play mode may start without a domain reload: start each run from the weather's wind as it is.
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetWind() => windSet = false;
+
+        /// <summary>The swell's wind, following the weather's (strength and direction) over WindFollow seconds; the first
+        /// frame takes it as it is.</summary>
+        static void FollowWind()
+        {
+            var target = Mathf.Clamp01(Shader.GetGlobalFloat(WindId));
+            var d = (Vector4)Shader.GetGlobalVector(WindDirectionId);
+            var towards = new float2(d.x, d.y);
+            towards = math.lengthsq(towards) > 1e-6f ? math.normalize(towards) : windDirection;
+            var follow = windSet ? 1f - math.exp(-Time.deltaTime / WindFollow) : 1f;
+            windSet = true;
+            wind = math.lerp(wind, target, follow);
+            // (Turned by blending the vectors: through a half turn it shrinks and the normalise picks up the new side.)
+            windDirection = math.normalizesafe(math.lerp(windDirection, towards, follow), windDirection);
+            Shared.Wind.Data = new float4(windDirection, WindSteer * math.smoothstep(WindSteerFrom, WindSteerTo, wind), 0f);
         }
 
         static bool built;
@@ -386,6 +425,14 @@ namespace Punchy.Terrain
         }
 
         /// <summary>The way the swell runs at xz (not normalised): towards the nearest shore. As PunchySwellOnshore.</summary>
+        /// <summary>The way the swell runs at xz: onshore, turned towards downwind by a strong wind (item 32). As
+        /// PunchySwellHeading.</summary>
+        static float2 Heading(float2 xz)
+        {
+            var w = Shared.Wind.Data;
+            return math.lerp(Onshore(xz), w.xy, w.z);
+        }
+
         static float2 Onshore(float2 xz)
         {
             var f = Shared.Shore.Data;
@@ -434,7 +481,7 @@ namespace Punchy.Terrain
             var height = (shape.c0.x + shape.c0.y * math.saturate(s.z)) * amount * (1f + shape.c1.z * shoal)
                          * (1f + shape.c1.y * (2f * e - 1f));
             height = math.min(height, shape.c3.x * depth);
-            var on = Onshore(xz);
+            var on = Heading(xz);
             var sectors = shape.c1.x;
             var f = math.atan2(on.y, on.x) * sectors / (2f * math.PI);
             var s0 = math.floor(f);

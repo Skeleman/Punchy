@@ -33,6 +33,9 @@ namespace Punchy.Terrain
                 // Every draw is made whatever is picked, so one cave's choice never shifts another's.
                 float mainRoll = rng.NextFloat(), sideRoll = rng.NextFloat();
                 var sidePick = rng.NextUInt();
+                // A-91 row 3: a second side room in the grown networks (drawn after the first, so its rolls are unchanged).
+                float sideRoll2 = rng.NextFloat();
+                var sidePick2 = rng.NextUInt();
                 // The stream's own roll (PlaceStreams): a stream runs down the main passage, so its end stays a chamber.
                 var streamRng = new Random(math.hash(new uint2(cave.Key, 0x5711u)) | 1u);
                 var stream = style != null && style.StreamChance > 0f && streamRng.NextFloat() < style.StreamChance && cave.NodeCount >= 4;
@@ -75,7 +78,9 @@ namespace Punchy.Terrain
                     {
                         case CaveRoomType.Lake: hx = new float2(4.5f, 5.5f); hz = new float2(4.5f, 6f); h = new float2(5f, 6.5f); break;
                         case CaveRoomType.Roost: hx = new float2(3.5f, 4.5f); hz = new float2(4f, 5.5f); h = new float2(6f, 8f); break;
-                        case CaveRoomType.Ruin: hx = new float2(3.5f, 4.5f); hz = new float2(3.5f, 4.5f); h = new float2(4.5f, 5.5f); break;
+                        // A-91 row 3 (Zach 11-10): ruins about 4x: twice as wide and deep, laid out as four rooms
+                        // (CaveRoomKit.Ruin). Measure shrinks one that doesn't fit back towards the old size.
+                        case CaveRoomType.Ruin: hx = new float2(7f, 9f); hz = new float2(7f, 9f); h = new float2(5f, 6f); break;
                         default: hx = new float2(3.5f, 4.5f); hz = new float2(3.5f, 5f); h = new float2(4.5f, 6f); break;
                     }
                     plans.Add(new CaveRoom
@@ -91,8 +96,14 @@ namespace Punchy.Terrain
                 }
                 if (!stream && Fits(mainEnd) && mainRoll < chance)
                     Plan(mainEnd, 1u);
+                var first = -1;
                 if (sides.Count >= 2 && sideRoll < chance * 0.5f)
-                    Plan(sides[(int)(sidePick % (uint)sides.Count)], 2u);
+                    Plan(first = sides[(int)(sidePick % (uint)sides.Count)], 2u);
+                if (sides.Count >= 4 && sideRoll2 < chance * 0.5f)
+                {
+                    sides.Remove(first);
+                    Plan(sides[(int)(sidePick2 % (uint)sides.Count)], 3u);
+                }
             }
             if (plans.Count == 0)
                 return;
@@ -102,6 +113,7 @@ namespace Punchy.Terrain
             var at = source;
             at.Caves = probe;
             var kept = new List<CaveRoom>();
+            System.Array.Clear(RoomMisses, 0, RoomMisses.Length);
             for (int i = 0; i < plans.Count; i++)
             {
                 var room = plans[i];
@@ -109,6 +121,24 @@ namespace Punchy.Terrain
                 {
                     kept.Add(room);
                     continue;
+                }
+                // A-91 row 3: a grown ruin that doesn't fit tries three quarters, then half its size (the old one);
+                // any other room tries three quarters once (under thin rock or near other air a smaller room fits).
+                {
+                    var fit = false;
+                    var tries = room.Type == (int)CaveRoomType.Ruin ? 2 : 1;
+                    for (int k = 1; k <= tries && !fit; k++)
+                    {
+                        room = plans[i];
+                        room.HX *= 1f - k * 0.25f;
+                        room.HZ *= 1f - k * 0.25f;
+                        fit = Measure(at, caves[room.Cave], nodes, ref room, kept);
+                    }
+                    if (fit)
+                    {
+                        kept.Add(room);
+                        continue;
+                    }
                 }
                 nodes[room.Node] = new CaveNode { Position = nodes[room.Node].Position, Radius = oldRadius[i] };
                 kinds[room.Node] = CaveNodeKind.Chamber;
@@ -133,7 +163,15 @@ namespace Punchy.Terrain
             var counts = new int[4];
             foreach (var room in kept)
                 counts[room.Type]++;
-            UnityEngine.Debug.Log($"[cave-rooms] planned {plans.Count}, kept {kept.Count}: grotto {counts[0]}, lake {counts[1]}, roost {counts[2]}, ruin {counts[3]}");
+            UnityEngine.Debug.Log($"[cave-rooms] planned {plans.Count}, kept {kept.Count}: grotto {counts[0]}, lake {counts[1]}, roost {counts[2]}, ruin {counts[3]}; misses: floor {RoomMisses[0]}, head room {RoomMisses[1]}, width {RoomMisses[2]}, door top {RoomMisses[3]}, cover {RoomMisses[4]}, air {RoomMisses[5]}, overlap {RoomMisses[6]}");
+        }
+
+        /// <summary>Why planned rooms didn't fit in the last bake, by Measure's checks in order (for the log).</summary>
+        static readonly int[] RoomMisses = new int[7];
+        static bool Miss(int why)
+        {
+            RoomMisses[why]++;
+            return false;
         }
 
         /// <summary>
@@ -141,6 +179,7 @@ namespace Punchy.Terrain
         /// at least 2.2 m of head room and 1.9 m of width there, cover above the whole room, no other air (any cave's)
         /// inside its walls, and clear of rooms already kept.
         /// </summary>
+
         static bool Measure(in TerrainSource source, in CaveData cave, List<CaveNode> nodes, ref CaveRoom room, List<CaveRoom> kept)
         {
             const float t = CaveRoom.Wall;
@@ -148,10 +187,10 @@ namespace Punchy.Terrain
             var door = node.Position.xz - room.F * (t + 0.3f);
             var floor = source.FloorUnder(new float3(door.x, node.Position.y, door.y), out var inCave);
             if (!inCave)
-                return false;
+                return Miss(0);
             var gap = source.CeilingOver(new float3(door.x, floor + 0.5f, door.y)) - floor;
             if (gap < 2.2f)
-                return false;
+                return Miss(1);
             room.Origin = new float3(node.Position.x, floor, node.Position.z);
             var half = 4f;
             for (int side = -1; side <= 1; side += 2)
@@ -162,7 +201,7 @@ namespace Punchy.Terrain
                         break;
                     }
             if (half * 2f < 1.9f)
-                return false;
+                return Miss(2);
             room.DoorWidth = math.clamp(half * 2f - 0.6f, 1.6f, 2.4f);
             room.DoorHeight = math.clamp(gap - 0.3f, 2f, 3f);
             // The doorway's top corners must be in the passage's air too (a sloping roof lowers it).
@@ -175,7 +214,7 @@ namespace Punchy.Terrain
                 room.DoorHeight -= 0.4f;
             }
             if (room.DoorHeight < 2f)
-                return false;
+                return Miss(3);
             // The passage's floor a ramp's length out from the wall's face, over the room's floor: the ramp in front of
             // the porch meets it, so the doorway is a slope up or down instead of a step or a pit.
             room.Approach = 0f;
@@ -187,15 +226,18 @@ namespace Punchy.Terrain
                     break;
                 }
 
-            // Cover over the room, at its corners and middle.
-            var top = floor + room.Height + t + Cover;
+            // Cover over the room, at its corners and middle. A-91 row 3: under thin rock the room is made lower to
+            // keep its cover (down to 3.2 m, a roost to 4.5 m for its perches) rather than left out: the longer, gently
+            // graded caves end shallower than they used to.
+            var ground = float.MaxValue;
             for (int k = 0; k < 9; k++)
             {
                 var l = new float3((k % 3 - 1) * (room.HX + t), 0f, (k / 3) * (room.HZ + t * 0.5f));
-                var w = room.World(l);
-                if (source.SampleHeight(w.xz) < top)
-                    return false;
+                ground = math.min(ground, source.SampleHeight(room.World(l).xz));
             }
+            room.Height = math.min(room.Height, ground - floor - t - Cover);
+            if (room.Height < (room.Type == (int)CaveRoomType.Roost ? 4.5f : 3.2f))
+                return Miss(4);
             // No air inside the walls but the passage's own end (any other passage or cave would be cut off).
             var pass = node.Radius * math.cmax(cave.Profile) * 1.2f + 1.5f;
             for (float z = -t; z <= room.HZ * 2f + t; z += 1.5f)
@@ -205,14 +247,14 @@ namespace Punchy.Terrain
                 if (z < pass && math.abs(x) < pass)
                     continue;
                 if (source.CaveDistance(room.World(new float3(x, y, z))) < 0.3f)
-                    return false;
+                    return Miss(5);
             }
             RoomBox(room, out var lo, out var hi);
             foreach (var other in kept)
             {
                 RoomBox(other, out var olo, out var ohi);
                 if (math.all(lo < ohi + 2f) && math.all(olo < hi + 2f))
-                    return false;
+                    return Miss(6);
             }
             return true;
         }
