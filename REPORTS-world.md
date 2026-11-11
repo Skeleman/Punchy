@@ -5185,6 +5185,26 @@ Branch `world/mountain-tunnels` at 53f2d557 (pushed), on 5a549268. One commit: S
 - Suite after the final pin (run after the last code change): `25 passed, 0 failed, 17 skipped in 357s`. lod-lint clean.
 - No frame timing (rule 21). Bench notes added to job 59.
 
+### W-138 row 3b: solid rock over the portals, dark bores: done (verified, 0ef51794)
+Branch `world/mountain-tunnels` at 0ef51794 (pushed), on 53f2d557. One commit: SettlementData.cs, TunnelPortalKit.cs, CaveBaking.Tunnels.cs, docs/agents/world.md. FloraPlacement.cs is not touched again; the 3 `OnRoad` lines are still row 3's.
+
+**1. The hole over p04 (fixed at its source: the terrain, not a landmark or cave mesh):**
+- Cause: row 3 levelled the ground only 0.6 m behind the headwall. Behind that, one terrain mesh cell climbed from road height to the hilltop. The cave mouth cut drops every terrain triangle that touches a cut vertex, so it dropped that whole cliff-high quad. That left a window straight through the ridge above the arch. The "fins" were the terrain edges left either side, and the "pale struts" were the bore's lit interior seen through the gap.
+- Fix: behind each headwall the ground is capped at the road plus `PortalLedge` (2 m over the passage crown) for `PortalLedgeBack` (4 m). The headwall is raised by whole rows (up to `HeadwallRaise`, 5 m) to cover that ledge. Now the dropped cells are small, and they sit behind solid masonry.
+- Checked all 12 portals from above (`pNN-40m`, plus `p00/p02/p10-20m-top`, where trees hide the 40 m view). No hole or slot over any of them. p04 before and after: `p04-40m-before` / `p04-40m`, `p04-air-before` / `p04-air`, `p04-close`.
+
+**2. The blue-white glow and "foam" in p06 to p09 (the interior material, not light or water):**
+- Cause: `BiomeStyle` picked any style listed for the biome above. Under snow that was the Ice style (or another glowing or glossy one), whose glow and gloss lit the bore blue-white from the portal in. The white "foam" on p07's road was that glossy ice floor. It was not water: road tunnels are added after cave water is placed, so they never get pools or streams.
+- Fix: road tunnels only take plain styles (no glow, gloss 0.5 or less). Now p08 and p09 go dark a few metres in. p06 and p07 (the 234 m bore, Rock) show warm daylit walls for about 17 m, which is the existing reach of daylight from a mouth, then dark. The bright dot at the end is the far portal seen down the straight bore.
+- The p09-40m blue stream: there's no river there. The river mask is 0, and there's no water within a 120 m grid around it. It was the Ice style's tint spilling onto the cutting's banks, and it's gone in the new `p09-40m`. No water reaches any cutting.
+
+**Shots** in `W-138/row3b/` (sunny, 11:00, checked by me): `p00..p11-40m`, `p06..p09-15m`, the p04 before/after set, and the `-top` views.
+
+**Measures:**
+- Landmarks 117 689D5348 and Fauna_Fingerprint AD723954, both unchanged: nothing moved.
+- Suite after the last code change: `25 passed, 0 failed, 17 skipped in 354s`. lod-lint clean.
+- No frame timing (rule 21). Bench note added to job 59.
+
 ## W-132 (cheaper 3 km landscape, horizon; tree Punchy-release, branch world/far-lite from origin/main cc835cf6)
 
 ### Row 1: the horizon oddity (2026-11-10): done (verified; diagnosis only, no code change)
