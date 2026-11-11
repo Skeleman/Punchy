@@ -5205,6 +5205,39 @@ Branch `world/mountain-tunnels` at 0ef51794 (pushed), on 53f2d557. One commit: S
 - Suite after the last code change: `25 passed, 0 failed, 17 skipped in 354s`. lod-lint clean.
 - No frame timing (rule 21). Bench note added to job 59.
 
+### W-138 row 4: long tunnel interiors: done (verified, a149c17f)
+Branch `world/mountain-tunnels` at a149c17f (pushed), on 0ef51794. One commit: CaveBaking.Tunnels.cs, CaveBaking.cs, CaveStyle.cs, CaveSystem.cs, CaveStyles/Mine.asset, docs/agents/world.md.
+
+**What's in the bores now:**
+- Light beyond the daylit ends: bores of 300 m or more are always lit (torches and frames). That turned caves 24 (483 m) and 28 (697 m) from dark to lit. C0a (1073 m) and cave 25 (610 m) were lit already. Short bores keep their lighting as before.
+- A side niche in each road tunnel, with a small shrine against its back wall and a torch on its side wall.
+- Runed marker stones (`CaveStyle.Marker`, RunedStone) on both sides of the road where the biome above changes and stays changed for 15 m. At most two crossings per bore, 80 m apart, clear of the portals. C0a has one pair. The stones are kept small where the roof is low (scale about 0.4 in C0a).
+- Fallen stones: small heaps of the bore's own rock against one wall every 25-55 m, sometimes with a sharp-edged block, never on the road.
+- No drainage gutter or vent shaft: a vent would need a hole through the rock above, which row 3b had just made solid.
+- Fix found on the way: the niche first read blue-white. The cause was the Shrine species' glow (accent 0.6, 0.85, 1; strength 3; reach about 14 m), which was applied at full species height. A cave plant of form Shrine now glows in proportion to its set scale (`CaveSystem`). The Shrine asset is not edited, so surface settlement shrines are unchanged.
+
+**Shots** in `W-138/row4/` (checked by me):
+- `c0a-1-entrance`: entrance.
+- `c0a-3-middle`: middle.
+- `c0a-2-marker`: detail, the marker stone at the biome border in C0a.
+- `c0a-4-shrine`: the niche and shrine, warm now.
+- `bore28-middle` (697 m) and `bore25-middle` (610 m): one inside each of the next two longest bores.
+
+**Rule 22 (placement is data): gaps.**
+- Tunnels and row 4's details (niche nodes and segments, shrine, torch and marker plants, stones) are baked into the cave blob as plain records. Runtime (`CaveSystem`) only reads them and never re-runs placement or its RNG.
+- Gap 1: none of these records has a stable id. Their identity is an array index plus the cave's `Key`, which shifts on any re-bake.
+- Gap 2: portals have no record of their own. `TunnelPortalKit.Portals` derives them at runtime from the cave nodes. That is deterministic and uses no RNG, but there is nothing a world file could hold.
+- Gap 3: waystations are `LandmarkInstance` records (from `RoadsideBaking`) with a `Key`. The key is a hash of their position, so it changes if the road moves.
+- Gap 4: breaks (the ruined bridge and its ford) are only edits to streets and plots during the road bake: bridge spans removed, ford streets added. No break record or id exists.
+- I did not rework any of these. Suggest a follow-up card for ids and portal/break records.
+
+**Measures:**
+- Landmarks 117 689D5348 and Fauna_Fingerprint AD723954, both unchanged: nothing moved.
+- Suite after the last code change: `25 passed, 0 failed, 17 skipped in 364s`.
+- lod-lint: 4 hits, all bake geometry, none visual: the niche radius, the 0.1 m wall-search step, the 40 m minimum bore for markers and stones, and the marker spacing.
+- No frame timing (rule 21). Bench note added to job 59.
+- FloraPlacement.cs is not touched in this row.
+
 ## W-132 (cheaper 3 km landscape, horizon; tree Punchy-release, branch world/far-lite from origin/main cc835cf6)
 
 ### Row 1: the horizon oddity (2026-11-10): done (verified; diagnosis only, no code change)
