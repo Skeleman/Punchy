@@ -4692,3 +4692,26 @@ Flora.shader / FloraImpostor.shader / Flora.hlsl are also changed by R-10 (light
 - Risks:
   - Chunks near contacts rebuild once when plant models finish growing, and again when a dungeon fills.
   - Plant contacts darken chunk rock only, not room tiles. Room tiles take their set's and the dungeon boxes' contacts.
+
+### W-135 row 5: lying drums and pieces on raised kit parts (done, verified). Branch world/cave-lod, commit e5dcb14b
+- Change (CaveRoomKit.cs only):
+  - A drum on its side (fallen ruin drum, roost bone) touches along its lowest line as a Box contact, not at its end cap.
+  - A set piece stands on the floor or on the raised part under its foot (pool coping, a pillar's base, a step, floor tiles), whichever top it is nearest above. The contact sits on that top, and BuildMeshes darkens that part's top round it too.
+  - Stacked like drums (guano crowns, rope coil turns), overhangs (lantern housings over the smaller post) and anything more than 1.2 m above the floor stay out.
+- Contacts over every room (grotto/lake/roost/ruin): 137/92/27/664 -> 140/92/27/672, total 920 -> 931.
+  - Lake is unchanged in count: the posts were already counted against the floor. What changed is that their contact now sits on the coping top, and the coping darkens.
+  - Roost bones were already counted, as discs at the end cap. They are now boxes along their length.
+  - Contacts standing on raised parts: 9/10/5/32.
+- Kit mesh size over the 8 loaded rooms: 660,896 -> 687,408 vertices (+4.0%), 328,822 -> 342,078 triangles (+13.3k), from finer cells on the darkened tops.
+- Sweep of set parts, in and out:
+  - In: grotto floor crystals; lake floor tiles, coping, posts and coil base; roost guano bases, bones and the skull; ruin tiles, rubble, blocks, altar, pillars and bases, fallen capitals and fallen drums.
+  - Out: everything 1.5 m or more above the floor (wall and ceiling crystals, beams, perches, sconces, lantern housings, ruin lintels and upper drums), plus the lake pieces sunk in the pool (y -1 to -1.5).
+- Pins: Landmarks_V3 112 A955AFE0 and Fauna_Fingerprint AD723954 unchanged. Full PlayMode suite: 25/25 passed. lod-lint: 0 hits.
+- Shots (same camera before and after): D:/Unity/PunchyMilestones/W-135/row5/
+  - sheet_ruin_fallen.png: the floor darkens under the fallen drum along its length, and the pillar base top darkens round the pillar.
+  - sheet_lake_boatpost.png and sheet_lake_lantern.png: subtle darkening on the coping at the post foot and under the coil.
+  - sheet_roost_bones.png: the bones darken along their length.
+  - The single shots are before_*.png and after_*.png.
+- No timing. BENCH job 52 ("ef191d54 or newer") covers it, so bench e5dcb14b.
+- world/ground-contact-shade had no commits of its own yet. It was fast-forwarded to e5dcb14b and pushed: no rebase of existing work and no force-push.
+- Risk: kit BuildMeshes is CPU-heavy because ShadeAt checks every contact for every vertex. This dates from row 4; row 5 adds 11 contacts and about 4% more vertices. A possible follow-up is culling contacts per part by bounds.
