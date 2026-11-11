@@ -183,6 +183,9 @@ namespace Punchy.Fauna
             carryBlob = BuildCarryTable();
             Stage("carry");
             em.AddComponentData(settingsEntity, new CarryTable { Blob = carryBlob });
+            // (Segment looks, A-97: off the creature blobs so they never move the fauna fingerprint.)
+            lookBlob = SurfaceLook.Build(species);
+            em.AddComponentData(settingsEntity, new CreatureLooks { Blob = lookBlob });
             if (simWorld != null && simWorld != queryWorld)
             {
                 simClockEntity = simWorld.EntityManager.CreateEntity(typeof(FaunaClock));

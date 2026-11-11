@@ -20,6 +20,8 @@ namespace Punchy.Terrain
         readonly Dictionary<int, Mesh[]> roomMeshes = new Dictionary<int, Mesh[]>();
         /// <summary>Per room type and group, a copy of the cave material in that group's colours.</summary>
         Material[] roomMaterials;
+        /// <summary>A-91: Cave.shader's _Dressed (what a kit copy is made of: -1 as is, 0 bare rock, 1 stone, 2 wood, 3 iron).</summary>
+        internal static readonly int DressedId = Shader.PropertyToID("_Dressed");
 
         void DrawRooms(in TerrainSource source, float3 camPos)
         {
@@ -39,6 +41,7 @@ namespace Punchy.Terrain
                         var mat = new Material(Material) { name = "Cave room " + t + "." + g };
                         mat.SetColor(RockColorId, rock);
                         mat.SetColor(DarkColorId, dark);
+                        mat.SetFloat(DressedId, CaveRoomKit.Dressing(g));
                         roomMaterials[t * CaveRoomKit.Groups + g] = mat;
                     }
             }
@@ -131,6 +134,8 @@ namespace Punchy.Terrain
                     var mat = new Material(Material) { name = "Tunnel portal " + g };
                     mat.SetColor(RockColorId, rock);
                     mat.SetColor(DarkColorId, dark);
+                    // A-91: the portal's cut stone weathers like a room's; moss and ivy stay as they are.
+                    mat.SetFloat(DressedId, g <= TunnelPortalKit.Trim ? 1f : -1f);
                     portalMaterials[g] = mat;
                 }
             }

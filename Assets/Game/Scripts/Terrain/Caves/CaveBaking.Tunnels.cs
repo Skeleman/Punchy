@@ -115,7 +115,8 @@ namespace Punchy.Terrain
                     Wall = wall,
                     Rock = rock,
                     Facet = float2.zero,
-                    Tunnel = tunnel
+                    Tunnel = tunnel,
+                    MainEnds = new int3(-1)   // (a road, not a cave: no main paths to walk)
                 });
             }
         }
