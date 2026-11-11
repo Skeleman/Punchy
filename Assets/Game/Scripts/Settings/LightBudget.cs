@@ -44,6 +44,10 @@ namespace Punchy.Settings
         static readonly int HeatId = Shader.PropertyToID("_PunchyCaveHeat");
         static readonly int HeatColorId = Shader.PropertyToID("_PunchyCaveHeatColor");
         static readonly int HeatCountId = Shader.PropertyToID("_PunchyCaveHeatCount");
+        static readonly int RealReachId = Shader.PropertyToID("_PunchyRealLightReach");
+        /// <summary>Profiler trial (11-11, R-10's town cost): "-realreach 0" turns off the reach cut below (every pixel
+        /// walks the Forward+ light loop, as before).</summary>
+        static bool reachCut = true;
 
         /// <summary>A real light of colour c and range r lights like a glow of c x RealToGlow with reach r x
         /// RealToGlowReach (must match Glow.hlsl's PunchyRealToGlow and PunchyRealToGlowReach).</summary>
@@ -105,6 +109,13 @@ namespace Punchy.Settings
         static void Init()
         {
             LogOn = System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-lightlog") >= 0;
+            var reachArg = System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-realreach");
+            reachCut = !(reachArg >= 0 && reachArg + 1 < Punchy.Debugging.DebugControls.LaunchArgs.Length
+                         && Punchy.Debugging.DebugControls.LaunchArgs[reachArg + 1] == "0");
+            // (Profiler pricing, 11-11: "-floraglowworld 0" leaves the island glow out of plants, R-10 row 4's addition.)
+            var floraArg = System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-floraglowworld");
+            Shader.SetGlobalFloat("_PunchyFloraGlowWorldOff", floraArg >= 0 && floraArg + 1 < Punchy.Debugging.DebugControls.LaunchArgs.Length
+                                  && Punchy.Debugging.DebugControls.LaunchArgs[floraArg + 1] == "0" ? 1f : 0f);
             Discard();
             tiers.Clear();
             realLevel.Clear();
@@ -424,6 +435,19 @@ namespace Punchy.Settings
             Shader.SetGlobalVectorArray(HeatId, heat);
             Shader.SetGlobalVectorArray(HeatColorId, heatColor);
             Shader.SetGlobalInt(HeatCountId, count);
+
+            // How far from the camera any real light reaches (its distance plus its reach, with a margin, as the shaders
+            // light it: Glow.hlsl's PunchyRealLights): past that a pixel skips the Forward+ light loop, which every pixel
+            // of terrain, plants and grass otherwise walks however few lights there are (profiler 11-11: R-10 cost
+            // +0.8 ms GPU over a lit town at any light budget). 0 with no real lights on.
+            var realReach = 0f;
+            for (int i = 0; i < requests.Count; i++)
+            {
+                var r = requests[i];
+                if (realLevel.TryGetValue(r.Key, out var lit) && lit > 0f)
+                    realReach = math.max(realReach, Vector3.Distance(r.Position, eyeAt) + math.abs(r.Light.w) * 1.5f + 2f);
+            }
+            Shader.SetGlobalFloat(RealReachId, reachCut ? realReach : 1e9f);
 
             // Totals, and the log.
             Requested = requests.Count;

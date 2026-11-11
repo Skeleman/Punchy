@@ -140,6 +140,8 @@ half3 PunchyGlowLight(float3 p, half3 n)
 #ifndef PUNCHY_REAL_LIGHTS
     #define PUNCHY_REAL_LIGHTS 0
 #endif
+float _PunchyFloraGlowWorldOff;  // profiler pricing (-floraglowworld 0): plants skip PunchyGlowWorld
+float _PunchyRealLightReach;   // how far from the camera (m) any real light reaches (LightBudget): past it, none
 static const float PunchyRealToGlow = 0.28;
 static const float PunchyRealToGlowReach = 0.75;
 
@@ -175,6 +177,9 @@ half3 PunchyRealLights(float3 p, half3 n, float4 positionCS)
 {
     half3 light = 0;
 #if PUNCHY_REAL_LIGHTS
+    // (No real light reaches past this: skip the cluster lookup and loop. Uniform per frame, so whole far draws skip it.)
+    [branch] if (distance(p, GetCameraPositionWS()) > _PunchyRealLightReach)
+        return light;
     InputData inputData = (InputData)0;
     inputData.positionWS = p;
     inputData.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(positionCS);
