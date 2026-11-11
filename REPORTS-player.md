@@ -665,3 +665,40 @@ DONE. Main had moved on and `player/integrate` no longer merged cleanly.
 - The weapons, armour, clothing, tools, seamless and doors-open branches don't touch dungeon loot. They pick this up once
   integrate lands.
 - Supervisor: please merge this tip of player/integrate (6e756f7b), not the earlier 73b18052.
+
+## P-31 row 2: play under lag (player/netsim @b483ec06)
+DONE, with one crash found on main (not player-lane code).
+- Tools added (player/netsim):
+  - `-rejoin <s>[,<times>]`: a joiner leaves, as the menu's Play alone does, and rejoins the same host. It logs each step and the time back in.
+  - The -netsim/-rttlog line also counts snaps: frames where a player's body moves over 1 m, or over 0.3 m faster than 25 m/s. Own player and others are counted apart.
+- Setup: all runs at `-netsim 150,30,2` on both machines, with the host and joiner on the main PC.
+  - Talk and gear were tested on a local unpushed merge (netsim + refreshed integrate + tools), since they are not on main.
+  - Rejoin was tested on both that merge and a main-based build.
+- **Walk side by side (both -autowalk):**
+  - Joiner RTT 281-302 ms.
+  - After the first few seconds in game, steps are 0.05-0.3 m per frame on both sides, with 0 snaps.
+  - The only snaps are the arrival placement in the first window (up to 6 m), and one 5 s window with a 1 m step on both machines at once, including the host's own player. That looks like a frame stall, not the network.
+- **Gear swap:**
+  - The host wore Sword, Helm and Chainmail, then switched to Bow, Cloak and Brimhat.
+  - The joiner wore Lantern, Hood and Robe, then switched to Spear, Cap, Jerkin and Boots.
+  - Each machine logged `another player's body` with the other's new set, about one RTT after it changed. Nothing stuck.
+- **Talk to a folk (joiner, -talktest 3):**
+  - 3 of 3 opened within 9 ms, each stood and faced. Each folk waved back (gesture sent to the host).
+  - Shot: D:/Unity/PunchyMilestones/P-31/talk-00-talk.png.
+- **Leave and rejoin: CRASH, on main, in A-98's sound occlusion.**
+  - The joiner crashed on leaving in 3 of 4 runs that left:
+    - test merge, lagged: crashed on the 1st leave;
+    - test merge, unlagged: crashed on the 2nd;
+    - main-based, unlagged: 3 of 3 rejoins clean (back in 4.6, 4.8 and 5.1 s);
+    - main-based, lagged: crashed on the 1st.
+  - Every crash has the same stack: `Punchy.Audio.GameAudio:Update -> Occlude -> Check -> IJobExtensions.Run<GameAudio.OcclusionJob>`, then into `lib_burst_generated burst.initialize.statics`.
+  - The log just before is `GameBootstrap: 1 worlds disposed (jobs first)`. So the occlusion job runs during the world switch's gap, after the old world is gone. That looks like the #99 kind (Burst static set-up after a teardown).
+  - It is not caused by -netsim (it crashes without it) and not player-lane code. **For the animal lane (A-98 owner):** skip occlusion while GameBootstrap is switching or no world exists.
+  - Job 50 will likely hit it on any leave or rejoin.
+- 0 exceptions in every log.
+- Suite: 24/1/17, then 25/0/17 on a re-run. The one failure was FolkConversationTests.LiveFolk_BeastResponse ("folk told to flee isn't fleeing"), animal lane, flaky; no files of that area changed.
+- UNVERIFIED: walk and gear shots.
+  - The T-1 shot list (`-shotlist`) never starts on a host or a joined client. It logs `shot list of N` but takes nothing; it only runs in solo.
+  - The walk evidence above is the logged step and snap numbers instead. That is a T-1 gap for two-player shots, for the supervisor to queue if wanted.
+- For job 50b: give both machines `-netsim 150,30,2 -rttlog`. The joiner's line reads about 290 ms with snaps 0 when all is well.
+- Also found: a crashed run's frozen copy, held by Windows Error Reporting, keeps the build's DLLs locked and makes the next build half-fail, crashing at start-up. My test scripts now end those.
