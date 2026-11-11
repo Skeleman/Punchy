@@ -539,13 +539,15 @@ W-134 row 1 on `world/cave-water`: SampleGround(float3) answers cave pools and s
 - Record whole-frame CPU and main-thread ms, plus WaterPatchSystem, CreatureWakeSystem and PlayerMovementSystem from the profiler markers.
 - Pass: B within noise of A at (b) and (c); at (a) those three systems together no more than +0.1 ms CPU.
 
-## Job 56 (2026-11-11, QUEUED after 55; supervisor, for W-132 rows 1-2): cheap far terrain and sea shader
+## Job 56 (2026-11-11, QUEUED after 55; supervisor, for W-132 rows 1-4; widened 11-11): cheap far terrain and sea shader, far disc, horizon skirt
 W-132 row 2 on `world/far-lite`: far LOD chunks use runtime material copies with `_PUNCHY_FAR` / `_PUNCHY_FAR_WATER` (terrain 5856 -> 773 fragment instructions, water 9589 -> 1737; vertex instructions go up; shader variants double).
 - Arms: (A) origin/main 393a9c20 or newer; (B) `world/far-lite` at b0a46b6d or newer. Profile builds, 1920x1080, High and Ultra, uncapped, ABBA, 300 frames per arm.
 - Views: (a) ground walk in open country; (b) hilltop `-goto -3460,2425` looking west at 18:00, clear; (c) a 300 m-high flight over land, then over open sea.
 - Also: first 20 s after load at (b); list frames over 2x the median (shader variant warm-up).
 - Record whole-frame GPU, CPU and render-thread ms per arm, view and quality.
 - Pass: B faster than A on GPU at (b) and (c), within noise at (a); no new hitch over 2x median.
+- 11-11 widening: arm B is now `world/far-lite` at 0900515f (rows 2-4: far material copies, row 3 far disc on far-tile lines, row 4 horizon skirt of 1024 m tiles to ~6.2 km, HazeDistance 4600 m, analytic sun road on far water). Branch counts: ~340-420 fewer draws than main.
+- Extra leg on the B build only: PUNCHY_FARSKIRT=0 vs default, and PUNCHY_FARDISC=0 vs 1, at (c) at 18:00 and at noon; record GPU/CPU ms, draws, and the Water and Skybox pass times (the sun road lives there). Pass: the skirt costs under 0.3 ms GPU at High.
 
 ## Job 57 (2026-11-11, QUEUED after 56; supervisor, for W-134 row 2): baked cave water
 W-134 row 2 on `world/cave-water`: cave pools and streams are baked as 0.5 m quads fitted to the carved floor (a Burst bake job per cave when it first comes within LoadRadius), tiled, each tile drawn only while big enough on screen. Pool 2: 540 -> 2939 triangles; pool 8: 1040 -> 4706.
