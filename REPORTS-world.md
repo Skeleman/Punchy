@@ -4622,3 +4622,37 @@ Flora.shader / FloraImpostor.shader / Flora.hlsl are also changed by R-10 (light
   - The rebuild picker scans every loaded chunk (about 180) up to BuildsPerFrame times a frame. It is plain managed code with no allocations.
   - A level change rebuilds the whole chunk, so the build count rises while you move through a network.
   - Skirts add triangles on every border edge (they are in the counts above). Where neighbours share a level, they are hidden behind the wall.
+- **W-135 row 3 DONE (verified): cave detail by screen size, plus the cave fall sheet.** Commit 1bf4435a.
+  - Files: DetailPolicy.cs, CaveSystem.cs, CaveSystem.Rooms.cs, SurfaceGlow.Spill.cs, CreatureRenderSystem.Extras.cs, LandmarkEffectSystem.cs, CaveData.cs, WaterPatchSystem.Falls.cs.
+  - What moved to DetailPolicy (new helpers ViewReach and FadeReach, all with Hysteresis 0.15):
+    - Plants (shown and finest), drips, fish, falls (spray/curtain), pools and streams (while about 2 px wide), room flames.
+    - SurfaceFade, the world glow fade and the window spill.
+    - CaveRange 120 and PlantRadius are gone.
+  - Tuning: checked in play at ppm 935.3 (reference 935.31) and Detail 1.5. The new reaches at the reference view equal the old metres exactly:
+    - plant 60, finest 20, drip 25, fall 120, fish 35, flame 60
+    - surface 25/45, glow 240/320, spill 60/85
+  - Cave fall sheet:
+    - WaterPatchSystem.Falls.cs now weighs cave waterfalls together with river falls by screen size.
+    - A cave fall builds its own quads (a 0.4 m run-in at the lip, then the curtain down to the pool), all cut to the same level, leaving the chunk water uncut.
+    - The island's one cave fall shows at fade 1.00 with 12,288 indices.
+  - Same-look A/B, 9d3d86dd (main) vs 1bf4435a (auto), same poses. Share of pixels differing by more than 40:
+    - c5 room 0.00%, c5 mouth 0.00%.
+    - c5 tunnel 3.75%: foliage sparkle seen through the far mouth, plus a few wall columns. Triangle counts differed (74,034 vs 72,724), so the row 2 level mix was in a different state.
+    - c1 mouth from outside 4.88%: clouds (time of day).
+    - Cave fall 0.42%: the new fine sheet over the curtain, which is intended.
+  - Shots: D:/Unity/PunchyMilestones/W-135/row3/
+    - row3-sheet.png: columns are main, auto and the diff mask.
+    - *-main.png / *-auto.png per pose.
+    - fall-auto.png and fall2-auto.png: the sheet.
+  - lod-lint: 0 hits. WorldGlowEdge 320 and SpillEdge 85 stay as caps, each with a `// streaming` comment: they are the far map's and the near scan's coverage, not looks.
+- **BENCH-QUEUE request (rule 21):**
+  - Arms: 1bf4435a vs 9d3d86dd. Profile build, High, uncapped, ABBA, 300 frames per arm.
+  - Views (shotcam):
+    - c5 room (-2785, 34, -540), looking at (-2805, 30, -555)
+    - c5 tunnel (-2805, 31.5, -564), looking at (-2860, 31, -564)
+    - c5 mouth (-2803, 45, -630), looking at (-2804, 52, -660)
+    - cave fall (-2195.5, 10.5, -1572), looking at (-2203, 8.5, -1576.2)
+  - Pass: no slower on GPU or render thread at any view. Expect the fall view to cost a little more (the new sheet).
+- Risks:
+  - The fall sheet holds one fall at a time. A cave fall can win over a river fall that looks smaller, which is by design.
+  - Per-index hold arrays (plants, drips, pools, streams) are rebuilt when a cave set's counts change.
