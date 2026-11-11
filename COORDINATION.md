@@ -113,6 +113,15 @@ feature code, and it never edits files in another session's checkout.
    row that needs a cost check instead ends with a BENCH-QUEUE request in its handoff: branch, commit, spots (-goto coords),
    arms (main vs branch, any flags) and the pass line. The supervisor queues it. Cheap counts you get anyway (triangles, draw
    calls, index counts, memory from a script) are fine to report; no timing.
+22. **Placement is data, ready for a world file (Zach, 2026-11-11, #260):** one day the island may be generated once at design
+   time, saved to a file, hand-edited and loaded by the game. No layouts are final yet, but new and changed world code must stay
+   compatible: (a) every placed thing (landmark, cave, dungeon, tunnel, road/river waypoint, settlement, building, colossus spot,
+   hermitage, lone NPC, fence/sign/light) comes out of its bake step as a plain record (kind, position, rotation, size, params) with
+   a stable id, held in a blob or list, not only as a mesh, entity or side effect; (b) later steps and runtime systems read those
+   records, never re-run an earlier placement or its RNG to ask what is there; (c) placement RNG runs only in the bake. Runtime
+   may scatter visuals (flora, small details, chunk meshes) from the records, ground and seed, but nothing gameplay places at
+   runtime; (d) a bake step depends only on its inputs (seed, settings, earlier records), with no editor, scene or frame state.
+   Old code that breaks this is fine until touched; list what you notice in your handoff.
 
 ## Sessions and lanes
 
