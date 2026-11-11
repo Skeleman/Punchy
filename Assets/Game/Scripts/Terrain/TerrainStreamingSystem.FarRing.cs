@@ -24,6 +24,12 @@ namespace Punchy.Terrain
     /// one chunk into its outermost LOD (<see cref="DiscIntoLastLod"/>), so the two overlap only for a moment while
     /// one hands over to the other, and the ring draws the disc's old outer band in far fewer draws. Far tiles build in
     /// their own small background batches, beside the chunk batches.
+    ///
+    /// Since W-132 row 4 the outer band and a horizon skirt are drawn as 1024 m tiles (level 2): the 64 m grid where
+    /// a whole one lies past the 32 m band and inside the ring, then the 128 m grid out to <see cref="SkirtReach"/>
+    /// times the haze's reach (<see cref="HazeReach"/>), island and sea alike, so the sun sets on land or water instead
+    /// of on the ring's cut. The haze no longer follows the ring's edge: it reaches ~98% at <see cref="HazeDistance"/>,
+    /// thinner than before, and the skirt runs on past that so its own edge can't show.
     /// </summary>
     public partial class TerrainStreamingSystem
     {
@@ -56,6 +62,32 @@ namespace Punchy.Terrain
         /// <summary>Where the drawn ground ends (m from the focus): the far ring's edge when it's on, else the disc's.
         /// The haze (WeatherSystem) reaches ~98% here and the camera's far plane reaches past it.</summary>
         public static float DrawDistance { get; private set; } = 1536f;
+        /// <summary>
+        /// W-132 row 4: the horizon skirt (1024 m tiles at the 128 m grid past the ring). Off ends the ground at the
+        /// ring's edge with the haze tied to it, as row 3 (PUNCHY_FARSKIRT=0).
+        /// </summary>
+        public static bool FarSkirt = System.Environment.GetEnvironmentVariable("PUNCHY_FARSKIRT") != "0";
+        /// <summary>
+        /// W-132 row 4: the haze knob. With the skirt on, the haze reaches ~98% this far from the camera (m) instead of
+        /// at the ring's edge; never nearer than the ring's edge. Env PUNCHY_HAZE overrides it (metres).
+        /// </summary>
+        public static float HazeDistance = EnvMetres("PUNCHY_HAZE", 4600f);   // streaming: haze over the streamed ground, not a detail fade
+        /// <summary>The skirt reaches this many times the haze's reach, so its edge sits deep in the haze.</summary>
+        const float SkirtReach = 1.35f;
+        /// <summary>Where the haze reaches ~98% this frame (m): <see cref="HazeDistance"/> with the skirt, else the drawn
+        /// edge. WeatherSystem sets the fog and the shaders' haze from it.</summary>
+        public static float HazeReach { get; private set; } = 1536f;
+        /// <summary>The skirt's outer radius (m); the ring's radius while the skirt is off.</summary>
+        float skirtRadius;
+        /// <summary>The largest tile level (2: 1024 m).</summary>
+        const int MaxLevel = 2;
+
+        static float EnvMetres(string name, float fallback)
+        {
+            var text = System.Environment.GetEnvironmentVariable(name);
+            return float.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var value) && value > 0f
+                ? value : fallback;
+        }
 
         /// <summary>Tile side in chunks (level 0; a level 1 tile is twice that).</summary>
         const int FarTileChunks = 4;
@@ -76,7 +108,7 @@ namespace Punchy.Terrain
             public int Quads;            // -1: flagged for a rebuild (new island shape)
         }
 
-        /// <summary>A tile's key is (x, z, level): level 0 is 256 m, level 1 is 512 m.</summary>
+        /// <summary>A tile's key is (x, z, level): level 0 is 256 m, level 1 is 512 m, level 2 is 1024 m.</summary>
         struct FarItem
         {
             public int3 Tile;
@@ -103,8 +135,8 @@ namespace Punchy.Terrain
         static readonly RenderMeshDescription FarDesc = new RenderMeshDescription(ShadowCastingMode.Off, receiveShadows: true);
 
         static int3 TileOf(int2 coord) => new int3((int2)math.floor((float2)coord / FarTileChunks), 0);
-        static int3 ParentOf(int3 tile) => new int3((int2)math.floor((float2)tile.xy / 2f), 1);
-        static int3 ChildOf(int3 big, int i) => new int3(big.xy * 2 + new int2(i & 1, i >> 1), 0);
+        static int3 ParentOf(int3 tile) => new int3((int2)math.floor((float2)tile.xy / 2f), tile.z + 1);
+        static int3 ChildOf(int3 big, int i) => new int3(big.xy * 2 + new int2(i & 1, i >> 1), big.z - 1);
         static int TileChunks(int3 tile) => FarTileChunks << tile.z;
 
         /// <summary>Distance from the focus to the farthest of a tile's chunk centres (inside the disc when all are).</summary>
@@ -142,6 +174,10 @@ namespace Punchy.Terrain
             fullRadius = config.ViewRadiusChunks * config.ChunkSize;
             farRadius = FarRing && view >= FarFromView ? fullRadius * math.max(1f, FarScale) : 0f;
             DrawDistance = farRadius > 0f ? farRadius : fullRadius;
+            // (Row 4: the haze thins past the ring's edge only where the skirt carries the ground on past it.)
+            var skirt = farRadius > 0f && FarSkirt;
+            HazeReach = skirt ? math.max(HazeDistance, DrawDistance) : DrawDistance;
+            skirtRadius = skirt ? HazeReach * SkirtReach : farRadius;
             // (Row 3: the disc hands its outer chunks to the ring.)
             if (farRadius > 0f && TileDisc)
             {
@@ -151,8 +187,8 @@ namespace Punchy.Terrain
             }
             nearRadius = config.ViewRadiusChunks * config.ChunkSize;
             var cam = Camera.main;
-            // (The farthest corner of a 512 m tile can sit most of its diagonal past the edge.)
-            var reach = farRadius > 0f ? farRadius + FarTileChunks * config.ChunkSize * 3f : 0f;
+            // (The farthest corner of a top-level tile can sit most of its diagonal past the edge.)
+            var reach = farRadius > 0f ? skirtRadius + (FarTileChunks << MaxLevel) * config.ChunkSize * 1.5f : 0f;
             if (cam != null && cam.farClipPlane < reach)
                 cam.farClipPlane = reach;
         }
@@ -161,9 +197,10 @@ namespace Punchy.Terrain
         bool FarTileCovers(int2 coord, float2 focus, float chunkSize)
         {
             var tile = TileOf(coord);
-            if (FarBuilt(tile) || FarBuilt(ParentOf(tile)))
-                return true;
-            return TileDistance(tile, focus, chunkSize) > farRadius;
+            for (var over = tile; over.z <= MaxLevel; over = ParentOf(over))
+                if (FarBuilt(over))
+                    return true;
+            return TileDistance(tile, focus, chunkSize) > math.max(farRadius, skirtRadius);
         }
 
         /// <summary>
@@ -180,61 +217,55 @@ namespace Punchy.Terrain
             }
 
             var size = config.ChunkSize;
+            var reach = math.max(farRadius, skirtRadius);
             farKeep.Clear();
             farWanted.Clear();
             if (farRadius > 0f)
             {
-                // A 512 m tile where the whole of it lies past the fine band, else its four 256 m tiles.
+                // With the skirt, a 1024 m tile where the whole of it lies past the 32 m band: the 64 m grid inside the
+                // ring, the 128 m grid past it. Else its four 512 m tiles (row 3's choice; always, without the skirt).
                 var coarseFrom = fullRadius + FarFineBand;
-                var bigSpan = 2 * FarTileChunks * size;
-                var r = (int)math.ceil(farRadius / bigSpan) + 1;
-                var centre = (int2)math.floor(focus / bigSpan);
+                var topSpan = (FarTileChunks << MaxLevel) * size;
+                var r = (int)math.ceil(reach / topSpan) + 1;
+                var centre = (int2)math.floor(focus / topSpan);
                 for (int dz = -r; dz <= r; dz++)
                 for (int dx = -r; dx <= r; dx++)
                 {
-                    var big = new int3(centre + new int2(dx, dz), 1);
-                    var distance = TileDistance(big, focus, size);
-                    if (distance > farRadius)
+                    var top = new int3(centre + new int2(dx, dz), MaxLevel);
+                    var distance = TileDistance(top, focus, size);
+                    if (distance > reach)
                         continue;
-                    // (A built one holds a little inside the band, so it isn't split and merged as the focus wanders.)
-                    if (distance >= coarseFrom || (distance >= coarseFrom - 128f && FarBuilt(big)))
+                    if (skirtRadius > farRadius && (distance >= coarseFrom || (distance >= coarseFrom - 256f && FarBuilt(top))))
                     {
-                        WantFar(big, 16, distance);
+                        var quads = distance < farRadius ? 16 : 8;
+                        if (quads == 8 && distance < farRadius + 256f && farTiles.TryGetValue(top, out var known) && known.Quads == 16)
+                            quads = 16;
+                        WantFar(top, quads, distance);
                         continue;
                     }
                     for (int i = 0; i < 4; i++)
-                    {
-                        var tile = ChildOf(big, i);
-                        var d = TileDistance(tile, focus, size);
-                        if (d > farRadius || TileFarthestCentre(tile, focus, size) <= nearRadius)
-                            continue;
-                        var quads = d < coarseFrom ? 16 : 8;
-                        // Coarse tiles sharpen as they come into the band; fine ones coarsen only well past it.
-                        if (quads == 8 && d < coarseFrom + 128f && farTiles.TryGetValue(tile, out var known) && known.Quads == 16)
-                            quads = 16;
-                        WantFar(tile, quads, d);
-                    }
+                        WantBig(ChildOf(top, i), focus, size, coarseFrom, reach);
                 }
             }
 
-            // A tile no longer kept goes once whatever replaces it is built: a split 512 m tile once its kept children
-            // are, merged 256 m tiles once their parent is, a tile the disc has fully taken over once its chunks are in.
+            // A tile no longer kept goes once whatever replaces it is built: merged tiles once the tile over them is,
+            // a split tile once its kept children are, a tile the disc has fully taken over once its chunks are in.
             farScratch.Clear();
             foreach (var kv in farTiles)
             {
                 var tile = kv.Key;
                 if (farKeep.Contains(tile))
                     continue;
-                if (farRadius <= 0f || TileDistance(tile, focus, size) > farRadius + 128f)
+                if (farRadius <= 0f || TileDistance(tile, focus, size) > reach + 128f)
                     farScratch.Add(tile);
-                else if (tile.z == 1)
+                else if (KeptAncestor(tile, out var over))
                 {
-                    if (ChildrenBuilt(tile))
+                    if (FarBuilt(over))
                         farScratch.Add(tile);
                 }
-                else if (farKeep.Contains(ParentOf(tile)))
+                else if (tile.z > 0)
                 {
-                    if (FarBuilt(ParentOf(tile)))
+                    if (ChildrenBuilt(tile))
                         farScratch.Add(tile);
                 }
                 // (A little inside the line, so a tile on it isn't dropped and rebuilt as the focus wanders.)
@@ -257,12 +288,55 @@ namespace Punchy.Terrain
                 farWanted.Add(new FarItem { Tile = tile, Quads = quads, Distance = distance });
         }
 
-        /// <summary>True when every kept child of a 512 m tile is built.</summary>
+        /// <summary>Row 3's choice for one 512 m tile: whole where it lies past the 32 m band (held a little inside it
+        /// once built, so it isn't split and merged as the focus wanders), else its four 256 m tiles.</summary>
+        void WantBig(int3 big, float2 focus, float size, float coarseFrom, float reach)
+        {
+            var distance = TileDistance(big, focus, size);
+            if (distance > reach)
+                return;
+            if (distance >= coarseFrom || (distance >= coarseFrom - 128f && FarBuilt(big)))
+            {
+                WantFar(big, 16, distance);
+                return;
+            }
+            for (int i = 0; i < 4; i++)
+            {
+                var tile = ChildOf(big, i);
+                var d = TileDistance(tile, focus, size);
+                if (d > reach || TileFarthestCentre(tile, focus, size) <= nearRadius)
+                    continue;
+                var quads = d < coarseFrom ? 16 : 8;
+                // Coarse tiles sharpen as they come into the band; fine ones coarsen only well past it.
+                if (quads == 8 && d < coarseFrom + 128f && farTiles.TryGetValue(tile, out var known) && known.Quads == 16)
+                    quads = 16;
+                WantFar(tile, quads, d);
+            }
+        }
+
+        /// <summary>The nearest kept tile over this one, if any.</summary>
+        bool KeptAncestor(int3 tile, out int3 over)
+        {
+            for (over = ParentOf(tile); over.z <= MaxLevel; over = ParentOf(over))
+                if (farKeep.Contains(over))
+                    return true;
+            return false;
+        }
+
+        /// <summary>True when every kept tile under this one is built.</summary>
         bool ChildrenBuilt(int3 big)
         {
             for (int i = 0; i < 4; i++)
-                if (farKeep.Contains(ChildOf(big, i)) && !FarBuilt(ChildOf(big, i)))
+            {
+                var child = ChildOf(big, i);
+                if (farKeep.Contains(child))
+                {
+                    if (!FarBuilt(child))
+                        return false;
+                }
+                else if (child.z > 0 && !ChildrenBuilt(child))
                     return false;
+            }
             return true;
         }
 
@@ -302,9 +376,9 @@ namespace Punchy.Terrain
                 {
                     Origin = (float2)item.Tile.xy * span,
                     Quads = item.Quads,
-                    // The disc's last LOD (no cave cuts, no puddle dips, no morph); the 32 m grid a step past it, for
-                    // a deeper skirt over the coarser step.
-                    Lod = item.Quads == 16 && level == 0 ? last : last + 1,
+                    // The disc's last LOD (no cave cuts, no puddle dips, no morph); a step past it per doubling of
+                    // the grid, for a deeper skirt over each coarser step.
+                    Lod = item.Quads == 16 && level == 0 ? last : last + level + (item.Quads == 8 ? 1 : 0),
                     CanMorph = false,
                     MorphRange = config.MorphRange(last)
                 };

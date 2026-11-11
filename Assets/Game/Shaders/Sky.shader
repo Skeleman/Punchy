@@ -38,6 +38,20 @@ Shader "Punchy/Sky"
                 return background * clouds.a + clouds.rgb;
             }
 
+            // W-132 row 4: below the horizon the sky fades to the haze's own colour in this direction (full by 0.7 degrees
+            // down, nothing at the horizon), so wherever the drawn ground or the horizon skirt ends, deep in the haze, it
+            // meets sky of the same colour and the sun sets on what reads as distant land or sea, not on a cut. The far
+            // water's sun road (PunchySunRoad) carries on over it, on the sea the ray would meet past the skirt.
+            half3 PunchyBelowHorizon(half3 sky, float3 dir)
+            {
+                [branch] if (dir.y >= 0)
+                    return sky;
+                float3 camera = _WorldSpaceCameraPos;
+                float2 sea = camera.xz + dir.xz * max(camera.y, 1) / max(-dir.y, 1e-3);
+                return lerp(sky, PunchyHazeHorizon(dir), saturate(-dir.y * 80))
+                       + PunchySunRoad(float3(dir.x, -dir.y, dir.z), sea);
+            }
+
             struct Attributes { float4 positionOS : POSITION; };
             struct Varyings { float4 positionCS : SV_POSITION; float3 direction : TEXCOORD0; };
 
@@ -73,12 +87,12 @@ Shader "Punchy/Sky"
                 #endif
                 }
                 if ((off & 32u) != 0)
-                    return half4(sky, 1);
+                    return half4(PunchyBelowHorizon(sky, dir), 1);
                 // The rain and dust volumes along this direction, marched once a frame into a direction table (R-8; it
                 // was over half this draw's cost per pixel).
                 [branch] if ((off & 8u) == 0)
                     sky = PunchySkyVolumesFromLut(sky, dir);
-                return half4(sky, 1);
+                return half4(PunchyBelowHorizon(sky, dir), 1);
             }
             ENDHLSL
         }

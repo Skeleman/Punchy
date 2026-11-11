@@ -542,7 +542,8 @@ Shader "Punchy/Water"
             // W-132 row 2: the far ring's water (2-3 km off, past the chunk disc), where a metre is a fraction of a pixel.
             // It keeps what still shows at that size and matches Frag where the two meet at the disc's edge: the body
             // colour by thickness, the broad wind waves and the sea swell on the normal, the sky mirror (worked out per
-            // vertex), the sun's glint, toxic glow, lava and a fall's white face. Dropped, as Frag itself has them faded
+            // vertex), the sun's glint and its road out to the horizon (row 4), toxic glow, lava and a fall's white face.
+            // Dropped, as Frag itself has them faded
             // out by then (distanceFade, the quality tiers) or too small to see: the fine detail reads, caustics,
             // glitter, rain rings, wakes, streaks, the shore foam and surf, whitecaps, the lantern, the screen-space
             // reflection, refraction and the real-time and wide shadows (the far ring has none).
@@ -652,7 +653,14 @@ Shader "Punchy/Water"
 
                 alpha *= rim;
                 if (_PunchyUnderground < 0.999)
+                {
                     color = lerp(PunchyAtmosphere(color, input.positionWS), color, _PunchyUnderground);
+                    // W-132 row 4: the sun's road, over the haze so it runs out to the horizon (the skybox carries it on
+                    // past the skirt). Not on lava, slime or a fall's face, nor under cloud shadow.
+                    half3 road = PunchySunRoad(float3(-v.x, v.y, -v.z), p) * shadow * (1 - viscous) * (1 - lava) * (1 - steep);
+                    color += road;
+                    alpha = saturate(alpha + dot(road, 0.33));
+                }
                 return half4(color, alpha);
             }
         #endif

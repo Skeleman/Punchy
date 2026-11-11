@@ -1246,8 +1246,41 @@ half3 PunchySkyVolumesFromLut(half3 color, float3 dir)
 // 0..1: how fully clear and sunny the day is round the camera (WeatherSystem): the base haze thins there (item 30).
 half _PunchyHazeClear;
 
+// The colour the base haze fades to in this direction: exactly what the sky shows just above the horizon there, the
+// horizon colour with the sun's glow, seen through the same rain and dust the skybox looks through. Hazing to the bare
+// horizon colour left distant land brighter than the sky behind it whenever rain or cloud darkened the sky. The skybox
+// fades to this below the horizon too (W-132 row 4), so the drawn ground's far edge meets sky of its own colour.
+half3 PunchyHazeHorizon(float3 dir)
+{
+    float3 flat = normalize(float3(dir.x, 0.02, dir.z));
+    float clearness = 1 - _PunchyClouds.x * 0.7;
+    // Distant land takes only half the sunset tint (luminance kept), so far hills don't go pink (W-33).
+    half3 twilightHaze = PunchyTwilightHorizon(flat);
+    float hazeElevation = PunchySunElevation();
+    twilightHaze = lerp(twilightHaze, dot(twilightHaze, half3(0.3, 0.5, 0.2)) * half3(1.05, 0.97, 0.92),
+                        0.5 * saturate(PunchyTwilightAmount(hazeElevation) * 3) * smoothstep(-3, 0, hazeElevation));
+    half3 horizon = twilightHaze + _PunchySunColor * pow(saturate(dot(flat, _PunchySunDirection)), 12) * 0.25 * clearness;
+    return PunchyHazeFromLut(horizon, flat.xz, PUNCHY_HAZE_RANGE);
+}
+
+// W-132 row 4: the sun's road on distant water, worked out from the view ray alone (no normal map, no cubemap): the
+// ray mirrored in a flat sea (r, pointing up) glints where it lies near the sun, in a band narrow across and long
+// towards the viewer, as wave slopes spread the reflection more along the line of sight than across it. One value
+// noise read at the sea point p breaks the band into glitter that drifts with the clock. Drawn over the haze by the far
+// water and by the skybox below the horizon, so the road runs out to the horizon; times the sun colour.
+half3 PunchySunRoad(float3 r, float2 p)
+{
+    float3 sun = _PunchySunDirection;
+    float above = r.y - sun.y;
+    float across = (1 - dot(normalize(r.xz), normalize(sun.xz + 1e-5))) * 1800 / (1 + 40 * abs(above));
+    float along = above * above / (above > 0 ? 0.02 : 0.0015);
+    half glitter = smoothstep(0.3, 0.9, PunchyValueNoise(p * 0.035 + _PunchyClock * float2(0.23, 0.17)));
+    half road = exp(-across - along) * smoothstep(-0.015, 0.02, sun.y) * (1 - 0.8 * _PunchyClouds.x);
+    return _PunchySunColor * road * (0.25 + 1.25 * glitter);
+}
+
 // Everything between the camera and a surface point: weather volumes, then the base haze (fog coloured like the
-// horizon, thick enough at the edge of the streamed terrain to hide it).
+// horizon, thick enough at the haze's reach to hide the edge of the streamed terrain).
 half3 PunchyAtmosphere(half3 color, float3 positionWS)
 {
     float3 camera = _WorldSpaceCameraPos;
@@ -1281,19 +1314,7 @@ half3 PunchyAtmosphere(half3 color, float3 positionWS)
         haze = lerp(haze, 1 - exp(-far * far * far / 1.98), clearDay);
     }
 
-    // Haze towards exactly what the sky shows just above the horizon in this direction: the horizon colour with the
-    // sun's glow, seen through the same rain and dust the skybox looks through. Hazing to the bare horizon colour
-    // left distant land brighter than the sky behind it whenever rain or cloud darkened the sky.
-    float3 flat = normalize(float3(dir.x, 0.02, dir.z));
-    float clearness = 1 - _PunchyClouds.x * 0.7;
-    // Distant land takes only half the sunset tint (luminance kept), so far hills don't go pink (W-33).
-    half3 twilightHaze = PunchyTwilightHorizon(flat);
-    float hazeElevation = PunchySunElevation();
-    twilightHaze = lerp(twilightHaze, dot(twilightHaze, half3(0.3, 0.5, 0.2)) * half3(1.05, 0.97, 0.92),
-                        0.5 * saturate(PunchyTwilightAmount(hazeElevation) * 3) * smoothstep(-3, 0, hazeElevation));
-    half3 horizon = twilightHaze + _PunchySunColor * pow(saturate(dot(flat, _PunchySunDirection)), 12) * 0.25 * clearness;
-    horizon = PunchyHazeFromLut(horizon, flat.xz, PUNCHY_HAZE_RANGE);
-    return lerp(color, horizon, haze);
+    return lerp(color, PunchyHazeHorizon(dir), haze);
 }
 
 #endif

@@ -271,10 +271,11 @@ namespace Punchy.Weather
 
             var drawDistance = 1500f;
             if (EnsureQueries() && configQuery.TryGetSingleton<TerrainConfig>(out _))
-                // Where TerrainStreamingSystem's drawn ground ends at the graphics settings' View distance: the chunk
-                // disc, or the far ring past it from High up (W-131).
-                drawDistance = TerrainStreamingSystem.DrawDistance;
-            // Exponential-squared haze reaching ~98% at the edge of the streamed terrain, so it's never visible.
+                // Where TerrainStreamingSystem's haze should close in at the graphics settings' View distance: the
+                // chunk disc's edge, the far ring's from High up (W-131), or its haze knob where the horizon skirt
+                // carries the ground on past that (W-132).
+                drawDistance = TerrainStreamingSystem.HazeReach;
+            // Exponential-squared haze reaching ~98% there, at or short of the streamed terrain's edge, so that's never visible.
             var hazeDensity = 1.98f / drawDistance;
 
             var sky = ComputeSky(Local);
