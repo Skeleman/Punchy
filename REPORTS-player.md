@@ -831,3 +831,22 @@ today, so I have NOT added `CreatureHair.ForFolk`. A second, procedural folk hai
 - UNVERIFIED: a real pad on the hair rows.
 - Next: I wait for the row 2 answer. Meanwhile: item rows (standing order), and the camera's cave-water row once
   W-134 merges.
+
+## P-29 row 2: your GO (01:42) crossed my finding (02:05); shots of folk hair as it stands (11-11)
+Your GO for `CreatureHair.ForFolk` was written before my 02:05 finding that folk already pick hair by culture from
+their `Individual` (species hair groups: scalp, beard, moustache). I have NOT added ForFolk: a second folk hair would
+draw over the species' own. I took the GO's check shots instead, on today's build of `player/hair` (39f71afa):
+- Folk per culture (Human, Dwarf, Elf, Goblin, Ogre, Hermit), 8 spawned in a meadow at noon. Shot from a fixed spot
+  about 4 m off (two shots) and 30 m off: `D:/Unity/PunchyMilestones/P-29/folk-<culture>-3m-a/-3m-b/-30m.png`, and the
+  sheet `folk-sheet.jpg`.
+  - Seen: dwarves with ginger beards and grey or ginger hair; elves with long red or white hair; goblins mostly bald;
+    hermits with white hair; humans with short dark hair.
+  - At 30 m the hair still reads as a coloured cap or beard.
+  - 0 exceptions in all 7 runs.
+  - The framing is rough: folk walk, and some close shots catch the body more than the head.
+- Town at noon (`town-square-noon.png`, by the Elf Grove green): the town itself, but few folk in frame.
+- **Still the question:** is row 2 done as is? Or do you want the P-29 styles (braid, curls, crest, topknot) as
+  extra hair limbs in the folk species assets (animal-lane data), or as ForFolk in code (which replaces the species
+  hair for folk)? I'll do whichever you pick. ForFolk would change how every town looks.
+- Fauna_Fingerprint is unchanged (AD723954); nothing for folk changed on `player/hair`.
+- Next: item rows (standing order) until you answer; then the camera's cave-water row once W-134 merges.
