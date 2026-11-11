@@ -55,6 +55,9 @@ namespace Punchy.Terrain
         public Punchy.Flora.FloraSpecies Marker;
         [Tooltip("W-138: a small shrine (flora form Shrine) in a side niche of long road tunnels.")]
         public Punchy.Flora.FloraSpecies Shrine;
+        [Tooltip("W-138 row 4c: the lamp road tunnels hang on their walls in place of the Torch: a Fixture kit species, " +
+                 "lit as its Fixture Style says (a Wall Lantern is a lantern turned low). None = the Torch.")]
+        public Punchy.Flora.FloraSpecies TunnelLamp;
         [Tooltip("How flat the floor is: 1 = a level floor halfway down the passage, 0 = the passage's own round bottom.")]
         [Range(0f, 1f)] public float FloorFlatness = 0.85f;
         [Tooltip("How many ledges and steps the floor has.")]
@@ -233,6 +236,10 @@ namespace Punchy.Terrain
                 if (style.Shrine != null && !species.Contains(style.Shrine))
                     species.Add(style.Shrine);
             }
+            // W-138 row 4c: tunnel lamps after every other species, so the indices cave plants already store hold.
+            foreach (var style in CaveStyleTable.Collect(types))
+                if (style.TunnelLamp != null && !species.Contains(style.TunnelLamp))
+                    species.Add(style.TunnelLamp);
             return species;
         }
     }

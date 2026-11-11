@@ -570,29 +570,26 @@ namespace Punchy.Terrain
         /// <summary>Per species: the height of its torch's head (1 at scale 1), or 0 if it isn't a torch.</summary>
         readonly List<float> speciesTorch = new List<float>();
         readonly List<bool> speciesShrine = new List<bool>();
-        /// <summary>Per species: whether it's a standing stone (a road tunnel's marker, W-138).</summary>
+        /// <summary>Per species: whether it's a rune-cut standing stone (Spire with rune patterns: a road tunnel's
+        /// marker, W-138), whose runes give a faint cold light underground.</summary>
         readonly List<bool> speciesMarker = new List<bool>();
         /// <summary>
-        /// Torches near the camera: where the flame sits, the plant's index (its seed), and whether it hangs in a road
-        /// tunnel (a lamp: a brighter, shorter pool, so lamps read as lights with dark between them, W-138 row 4b).
+        /// W-138 row 4c: per species, a lamp fixture's light (rgb strength, w reach; zero if it isn't one) and where it
+        /// comes from (model space, from the fixture's foot), both from its Fixture Style (StructureKit.FixtureLight).
+        /// Underground a fixture is lit day and night.
         /// </summary>
-        readonly List<(float3 flame, int plant, bool tunnel)> nearTorches = new List<(float3, int, bool)>();
-        /// <summary>A road tunnel lamp's light: this much brighter than a cave torch's, over this reach (m).</summary>
-        const float TunnelLampBoost = 2.2f, TunnelLampReach = 6.5f;
-        /// <summary>The faint cold light a road tunnel's marker stone's runes give the stone and the floor round it.</summary>
+        readonly List<(Vector4 light, Vector3 at)> speciesLamp = new List<(Vector4, Vector3)>();
+        /// <summary>Torches near the camera: where the flame sits and the plant's index (its seed).</summary>
+        readonly List<(float3 flame, int plant)> nearTorches = new List<(float3, int)>();
+        /// <summary>W-138 row 4c: lamp fixtures near the camera: where the light comes from, and its light.</summary>
+        readonly List<(float3 position, Vector4 light)> nearLamps = new List<(float3, Vector4)>();
+        /// <summary>The faint cold light a rune-cut marker stone's runes give the stone and the floor round it.</summary>
         static readonly Vector4 MarkerGlow = new Vector4(0.3f, 0.45f, 0.85f, 3f);
         /// <summary>How far a glowing plant lights the floor and walls round it (m).</summary>
         const float PlantGlowReach = 5f;
         float3 plantsAround = new float3(float.MaxValue);
         static readonly int FloraInstancesId = Shader.PropertyToID("_FloraInstances");
         static readonly int FloraVisibleId = Shader.PropertyToID("_FloraVisible");
-
-        /// <summary>Whether p is in a road tunnel (W-110) rather than a cave.</summary>
-        static bool InRoadTunnel(ref CaveSetBlob set, float3 p)
-        {
-            CaveSampling.Distance(ref set, p, out var cave);
-            return cave >= 0 && set.Caves[cave].Tunnel != 0;
-        }
 
         /// <summary>Whether p is in a bat folk settlement's chamber (its radius and a margin, a little above and below).</summary>
         static bool InBatFolkChamber(in TerrainSource source, float3 p)
@@ -656,7 +653,10 @@ namespace Punchy.Terrain
                         speciesGlow.Add(Punchy.Flora.FloraPlacement.GlowLight(species));
                         speciesTorch.Add(species.Form == Punchy.Flora.FloraForm.Torch ? species.Height.y : 0f);
                         speciesShrine.Add(species.Form == Punchy.Flora.FloraForm.Shrine);
-                        speciesMarker.Add(species.Form == Punchy.Flora.FloraForm.Spire);
+                        speciesMarker.Add(species.Form == Punchy.Flora.FloraForm.Spire && species.RunePatterns > 0);
+                        var fixture = species.Form == Punchy.Flora.FloraForm.KitBuilding && species.KitShape == Punchy.Terrain.KitShape.Fixture;
+                        speciesLamp.Add(fixture ? (Punchy.Terrain.StructureKit.FixtureLight(species.FixtureStyle), Punchy.Terrain.StructureKit.FixtureLightAt(species.FixtureStyle))
+                                                : (Vector4.zero, Vector3.zero));
                     }
                 }
                 if (plantModels.Count < plantSpecies.Count * PlantVariants)
@@ -672,6 +672,7 @@ namespace Punchy.Terrain
                 plantKeys.Clear();
                 nearGlowPlants.Clear();
                 nearTorches.Clear();
+                nearLamps.Clear();
                 for (int i = 0; i < set.Plants.Length; i++)
                 {
                     ref var p = ref set.Plants[i];
@@ -700,9 +701,16 @@ namespace Punchy.Terrain
                         // The head: up the stick and out from the wall (the model leans out along its +Z by ~20°).
                         var head = speciesTorch[p.Species] * p.Scale;
                         var outward = new float3(-math.sin(p.Yaw), 0f, math.cos(p.Yaw));
-                        nearTorches.Add((p.Position + new float3(0f, head * 0.94f, 0f) + outward * head * 0.34f, i, InRoadTunnel(ref set, p.Position)));
+                        nearTorches.Add((p.Position + new float3(0f, head * 0.94f, 0f) + outward * head * 0.34f, i));
                     }
-                    if (speciesMarker[p.Species] && InRoadTunnel(ref set, p.Position))
+                    var (lampLight, lampAt) = speciesLamp[p.Species];
+                    if (lampLight.w > 0f)
+                    {
+                        // Model +Z turns to (-sin yaw, cos yaw) as for the torches above; +X to (cos yaw, sin yaw).
+                        float3 forward = new float3(-math.sin(p.Yaw), 0f, math.cos(p.Yaw)), right = new float3(math.cos(p.Yaw), 0f, math.sin(p.Yaw));
+                        nearLamps.Add((p.Position + (right * lampAt.x + new float3(0f, lampAt.y, 0f) + forward * lampAt.z) * p.Scale, lampLight));
+                    }
+                    if (speciesMarker[p.Species])
                         nearGlowPlants.Add((p.Position + new float3(0f, 1f, 0f), MarkerGlow));
                 }
                 plantKeys.Sort((a, b) => a.key.CompareTo(b.key));
@@ -767,14 +775,15 @@ namespace Punchy.Terrain
             foreach (var (position, light) in nearGlowPlants)
                 Punchy.Settings.LightBudget.AddStill(Punchy.Settings.LightKind.AmbientGlow, position, light);
             // Wall torches: a flame on each (every frame: FireSystem's list is per frame) and its warm light on the rock.
-            foreach (var (flame, plant, tunnel) in nearTorches)
+            foreach (var (flame, plant) in nearTorches)
             {
                 Punchy.Ambience.FireSystem.AddFlame(flame, 0.3f, plant, Punchy.Ambience.FireSystem.Wood);
                 var light = Punchy.Ambience.FireSystem.Light(Punchy.Ambience.FireSystem.Wood);
-                if (tunnel)
-                    light = new Vector4(light.x * TunnelLampBoost, light.y * TunnelLampBoost, light.z * TunnelLampBoost, TunnelLampReach);
                 Punchy.Settings.LightBudget.AddStill(Punchy.Settings.LightKind.Fixture, (Vector3)flame + Vector3.up * 0.15f, light);
             }
+            // Lamp fixtures (a road tunnel's wall lanterns): the light their Fixture Style gives.
+            foreach (var (position, light) in nearLamps)
+                Punchy.Settings.LightBudget.AddStill(Punchy.Settings.LightKind.Fixture, position, light);
 
             var bounds = new Bounds(camPos, new Vector3(PlantRange * 2f, PlantRange * 2f, PlantRange * 2f));
             for (int d = 0; d < plantDraws.Count; d++)
@@ -798,6 +807,7 @@ namespace Punchy.Terrain
             speciesTorch.Clear();
             speciesShrine.Clear();
             speciesMarker.Clear();
+            speciesLamp.Clear();
             nearGlowPlants.Clear();
             nearTorches.Clear();
             plantDraws.Clear();
@@ -2170,20 +2180,8 @@ namespace Punchy.Terrain
             var depth = source.SampleHeight(feet.xz) - feet.y;
             if (!inCave)
                 return 0f;
-            var wanted = math.saturate((depth - 1f) / 3f);
-            // W-138 row 4b: in a road tunnel with lamps the lantern is turned low, so the lamps' pools and the dark
-            // between them read rather than one even wash round the player.
-            if (source.Caves.IsCreated)
-            {
-                CaveSampling.Distance(ref source.Caves.Value, feet + new float3(0f, 1f, 0f), out var cave);
-                if (cave >= 0 && source.Caves.Value.Caves[cave].Tunnel >= 2)
-                    wanted *= TunnelLanternLevel;
-            }
-            return wanted;
+            return math.saturate((depth - 1f) / 3f);
         }
-
-        /// <summary>The lantern's level in a lamp-lit road tunnel (of its usual).</summary>
-        const float TunnelLanternLevel = 0.35f;
 
         Light CreateLantern(string name)
         {

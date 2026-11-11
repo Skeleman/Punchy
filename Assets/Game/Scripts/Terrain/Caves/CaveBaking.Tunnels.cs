@@ -223,6 +223,9 @@ namespace Punchy.Terrain
             return matches.Count > 0 ? matches[rng.NextInt(matches.Count)] : null;
         }
 
+        /// <summary>W-138 row 4c: the lamp a road tunnel hangs: the style's own tunnel lamp (a dim wall lantern), else its torch.</summary>
+        static Punchy.Flora.FloraSpecies TunnelLamp(CaveStyle s) => s.TunnelLamp != null ? s.TunnelLamp : s.Torch;
+
         static bool Plain(CaveStyle s) => s.Glow <= 0f && s.GlowEverywhere <= 0f && s.Gloss <= 0.5f;
 
         /// <summary>
@@ -235,7 +238,7 @@ namespace Punchy.Terrain
             var lit = TunnelLampStyle(styles);
             if (lit == null)
                 return;
-            var torch = flora.IndexOf(lit.Torch);
+            var torch = flora.IndexOf(TunnelLamp(lit));
             var frame = lit.Frame != null ? flora.IndexOf(lit.Frame) : -1;
             var terrain = source;   // local functions can't capture an in parameter
             float Wall(float3 from, float2 dir)
@@ -396,7 +399,7 @@ namespace Punchy.Terrain
                         extras.Plants.Add(new CavePlant { Position = spot, Yaw = math.atan2(dir.x, -dir.y), Scale = scale, Species = shrine, Variant = rng.NextInt(3), Random = rng.NextFloat() });
                     // And a lamp on the niche's side wall, so its rock takes warm light like the bore's rather than
                     // the cool ambient alone (W-138 row 4).
-                    var torch = lit.Torch != null ? flora.IndexOf(lit.Torch) : -1;
+                    var torch = flora.IndexOf(TunnelLamp(lit));
                     var sideways = new float2(-dir.y, dir.x) * (rng.NextBool() ? 1f : -1f);
                     var shoulder = new float3(b.Position.x, nicheFloor + 1.5f, b.Position.z) + new float3(dir.x, 0f, dir.y) * 0.3f;
                     var reach = terrain.CaveDistance(shoulder) < 0f ? Wall(shoulder, sideways) : 0f;
