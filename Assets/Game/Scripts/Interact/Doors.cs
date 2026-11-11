@@ -153,9 +153,9 @@ namespace Punchy.Interact
     /// Test flags: "-usedoor N" uses door N (through the same path) once the world is up; "-atdoor N" stands the player in front of door N
     /// (12 s after start).
     /// </summary>
-    public class Doors : MonoBehaviour
+    public partial class Doors : MonoBehaviour
     {
-        public const float Reach = 2.5f;
+        public const float Reach = DoorPick.Reach;
         /// <summary>How far the door the player faces is (float.MaxValue: none): the Use key goes to the nearer of it and an item (P-11).</summary>
         public static float FacingDistance = float.MaxValue;
 
@@ -167,6 +167,10 @@ namespace Punchy.Interact
         readonly HashSet<Entity> sentTo = new HashSet<Entity>();
         World server, client;
         int facing = -1;
+        // (The prompt's door, kept for a moment after the player stops qualifying; where its prompt is drawn.)
+        int heldDoor = -1;
+        float heldUntil;
+        Vector3 promptAt;
         string prompt;
         GUIStyle promptStyle;
         int useDoorArg = -1, atDoorArg = -1;
@@ -188,6 +192,13 @@ namespace Punchy.Interact
             at = System.Array.IndexOf(args, "-atdoor");
             if (at >= 0 && at + 1 < args.Length && int.TryParse(args[at + 1], out var stand))
                 instance.atDoorArg = stand;
+            at = System.Array.IndexOf(args, "-doorwalk");
+            if (at >= 0 && at + 1 < args.Length && int.TryParse(args[at + 1], out var walk))
+            {
+                instance.walkFirst = walk;
+                if (at + 2 < args.Length && int.TryParse(args[at + 2], out var mode))
+                    instance.walkMode = mode;
+            }
             at = System.Array.IndexOf(args, "-climbhouse");
             if (at >= 0 && at + 1 < args.Length && int.TryParse(args[at + 1], out var climb))
             {
@@ -260,6 +271,8 @@ namespace Punchy.Interact
                 }
             }
             FindFacing(ref terrain.Anchors.Value);
+            if (walkFirst >= 0)
+                DoorWalk(ref terrain);
             // (P-13: an open door whose house has a room takes the player inside: Interiors.)
             if (facing >= 0 && UseKey.WasPressed() && !(open.Contains(facing) && Interiors.Enter(facing)))
                 Use(facing);
@@ -388,36 +401,51 @@ namespace Punchy.Interact
             Debug.Log($"Doors: standing at door {door} ({p.x:F1}, {p.y:F1}, {p.z:F1})");
         }
 
-        /// <summary>The nearest door in front of the player within reach (or -1), and the prompt for it.</summary>
+        /// <summary>The door the player means, by <see cref="DoorPick"/> (or -1), and the prompt for it.</summary>
         void FindFacing(ref AnchorSetBlob set)
         {
             facing = -1;
+            walkPicked = -1;
             prompt = null;
             FacingDistance = float.MaxValue;
             var world = World.DefaultGameObjectInjectionWorld;
             using var q = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadOnly<LocalTransform>());
             if (!q.TryGetSingleton<LocalTransform>(out var player))
                 return;
-            var forward = math.mul(player.Rotation, new float3(0f, 0f, 1f)).xz;
-            var best = Reach;
+            var forward = math.normalizesafe(math.mul(player.Rotation, new float3(0f, 0f, 1f)).xz);
+            var camera = Camera.main;
+            var look = camera != null ? math.normalizesafe(((float3)camera.transform.forward).xz) : forward;
+            var bestScore = float.MaxValue;
+            var distance = float.MaxValue;
             for (int k = 0; k < doorAnchors.Count; k++)
             {
                 var a = set.Anchors[doorAnchors[k]];
-                var to = a.Position - player.Position;
-                var d = math.length(to.xz);
-                if (d >= best || math.abs(to.y) > 2f)
-                    continue;
-                if (d > 0.3f && math.dot(math.normalizesafe(to.xz), math.normalizesafe(forward)) < 0.4f)
-                    continue;
-                (best, facing) = (d, k);
+                if (DoorPick.Test(player.Position, forward, look, a.Position, a.Facing, out var d, out var score) && score < bestScore)
+                    (bestScore, facing, distance) = (score, k, d);
             }
-            FacingDistance = facing >= 0 ? best : float.MaxValue;
-            // (An item or chest at least as near takes the Use key: Items.)
-            if (facing >= 0 && FacingDistance >= Punchy.Items.Items.TargetDistance)
-                facing = -1;
+            // Held for a moment once shown, so turning or stepping at the edge of the rule doesn't make it flicker.
+            var now = Time.realtimeSinceStartup;
             if (facing >= 0)
-                prompt = open.Contains(facing) && Interiors.CanEnter(facing) ? $"{UseKey.Name}  go inside"
-                       : $"{UseKey.Name}  {(open.Contains(facing) ? "close" : "open")} door";
+                (heldDoor, heldUntil) = (facing, now + DoorPick.Hold);
+            else if (heldDoor >= 0 && heldDoor < doorAnchors.Count && now < heldUntil)
+            {
+                var a = set.Anchors[doorAnchors[heldDoor]];
+                var d = math.distance(DoorPick.Opening(a.Position, a.Facing), player.Position.xz);
+                if (d < DoorPick.Reach + DoorPick.HoldMargin && math.abs(a.Position.y - player.Position.y) <= 2f)
+                    (facing, distance) = (heldDoor, d);
+            }
+            walkPicked = facing;
+            FacingDistance = facing >= 0 ? distance : float.MaxValue;
+            // (An item or chest at least as near takes the Use key: Items.)
+            if (facing >= 0 && (FacingDistance >= Punchy.Items.Items.TargetDistance || FacingDistance >= FolkTalk.TargetDistance))
+                facing = -1;
+            if (facing < 0)
+                return;
+            var door = set.Anchors[doorAnchors[facing]];
+            var opening = DoorPick.Opening(door.Position, door.Facing);
+            promptAt = new Vector3(opening.x, door.Position.y + 1.4f, opening.y);
+            prompt = open.Contains(facing) && Interiors.CanEnter(facing) ? $"{UseKey.Name}  go inside"
+                   : $"{UseKey.Name}  {(open.Contains(facing) ? "close" : "open")} door";
         }
 
         /// <summary>The player used a door: solo or host decide now; a client asks the host.</summary>
@@ -525,7 +553,20 @@ namespace Punchy.Interact
                 return;
             promptStyle ??= new GUIStyle(GUI.skin.box) { fontSize = 20, alignment = TextAnchor.MiddleCenter, richText = true };
             var size = promptStyle.CalcSize(new GUIContent(prompt)) + new Vector2(24f, 10f);
-            GUI.Box(new Rect((Screen.width - size.x) * 0.5f, Screen.height * 0.72f, size.x, size.y), prompt, promptStyle);
+            // At the door; where the door isn't in front of the camera, low in the middle of the screen as before.
+            var x = (Screen.width - size.x) * 0.5f;
+            var y = Screen.height * 0.72f;
+            var camera = Camera.main;
+            if (camera != null)
+            {
+                var at = camera.WorldToScreenPoint(promptAt);
+                if (at.z > 0.1f)
+                {
+                    x = Mathf.Clamp(at.x - size.x * 0.5f, 8f, Mathf.Max(8f, Screen.width - size.x - 8f));
+                    y = Mathf.Clamp(Screen.height - at.y - size.y * 0.5f, 8f, Mathf.Max(8f, Screen.height - size.y - 8f));
+                }
+            }
+            GUI.Box(new Rect(x, y, size.x, size.y), prompt, promptStyle);
         }
     }
 }

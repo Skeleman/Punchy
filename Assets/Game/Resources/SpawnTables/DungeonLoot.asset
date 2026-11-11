@@ -81,3 +81,71 @@ MonoBehaviour:
     WorldState: 
     Range: 0.8
     Task: 0
+  - Content: Torch
+    Species: {fileID: 0}
+    Weight: 3
+    Count: {x: 1, y: 1}
+    Seeded: 1
+    Kind: -1
+    Size: {x: 0, y: 255}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Staff
+    Species: {fileID: 0}
+    Weight: 2
+    Count: {x: 1, y: 1}
+    Seeded: 1
+    Kind: -1
+    Size: {x: 0, y: 255}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Hat
+    Species: {fileID: 0}
+    Weight: 2
+    Count: {x: 1, y: 1}
+    Seeded: 1
+    Kind: -1
+    Size: {x: 0, y: 255}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Pack
+    Species: {fileID: 0}
+    Weight: 1
+    Count: {x: 1, y: 1}
+    Seeded: 1
+    Kind: -1
+    Size: {x: 0, y: 255}
+    Types: 65535
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0

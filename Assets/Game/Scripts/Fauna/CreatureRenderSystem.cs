@@ -97,6 +97,9 @@ namespace Punchy.Fauna
                                                   task == CreatureTask.Gesture || task == CreatureTask.Fish || task == CreatureTask.Hermit ||
                                                   task == CreatureTask.Watch;
         static int GearCount(CreatureTask task) => HasGear(task) ? GearParts : 0;
+        /// <summary>Capsules for what a player's body has on (P-23): a hat's brim and crown, a pack.</summary>
+        const int WornParts = 3;
+        static int WornCount(byte worn) => worn != 0 ? WornParts : 0;
         /// <summary>Where a held item's light comes from among its capsules (the lantern's glass, the torch's flame).</summary>
         static int LightPart(HeldItem held) => held == HeldItem.Lantern ? 2 : held == HeldItem.Torch ? 0 : -1;
         /// <summary>Capsules per hanging bat and the most per roost. Colonies show while DetailPolicy.ColonyPixels
@@ -203,6 +206,10 @@ namespace Punchy.Fauna
             // And anything well behind the camera (past NearBehind, so the shadows of those close behind still fall
             // in view) is neither posed nor drawn: about half of them at any moment, the biggest share of the pose cost.
             var hidden = Punchy.Terrain.CaveSystem.SurfaceHidden >= 0.99f;
+            // P-25: in first person the player's own body isn't drawn, so nothing of it can block the lens.
+            var hideBody = Entity.Null;
+            if (Punchy.CameraRig.ThirdPersonCamera.FirstPerson)
+                SystemAPI.TryGetSingletonEntity<PlayerAvatar>(out hideBody);
             SystemAPI.TryGetSingleton<TerrainSource>(out var hiddenFrom);
             float3 camPos = cam.transform.position, camFwd = cam.transform.forward;
             // (Behind: more than about 100 degrees off the way the camera looks, well outside any view it has.)
@@ -241,7 +248,7 @@ namespace Punchy.Fauna
                     var behind = far && math.dot(math.normalizesafe(to), camFwd) < behindCos &&
                                  math.length(to) > allBodies[i].Blob.Value.SeenFrom * 0.5f;
                     var underground = hidden && !(allStates[i].Position.y < hiddenFrom.SampleHeight(allStates[i].Position.xz) - 1f);
-                    keepFlags[i] = allStates[i].Mode == CreatureMode.Puppet || !behind && !underground;
+                    keepFlags[i] = allEntities[i] != hideBody && (allStates[i].Mode == CreatureMode.Puppet || !behind && !underground);
                 }
             }
             else
@@ -249,6 +256,8 @@ namespace Punchy.Fauna
                 {
                     States = allStates,
                     Bodies = allBodies,
+                    Entities = allEntities,
+                    HideBody = hideBody,
                     Terrain = hiddenFrom,
                     CameraPosition = camPos,
                     CameraForward = camFwd,
@@ -718,6 +727,8 @@ namespace Punchy.Fauna
                     Goggles(state, ref body.Blob.Value, offset, held, faded);
                 if (HasGear(state.Task))
                     Gear(state, ref body.Blob.Value, offset, held + HeldCount(state.Held, state.Task), faded);
+                if (state.Worn != 0)
+                    Worn(state, ref body.Blob.Value, offset, held + HeldCount(state.Held, state.Task) + GearCount(state.Task), faded);
             }
         }
     }
