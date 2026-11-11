@@ -88,6 +88,8 @@ namespace Punchy.Terrain
         // The batch being built in the background.
         readonly List<BuildItem> building = new List<BuildItem>();
         JobHandle buildHandle;
+        /// <summary>W-136: the GroundContacts.Version the loaded chunks were built with.</summary>
+        int contactVersion;
         int buildFrames;
 
         /// <summary>True while a batch of chunks is meshing in the background, so other background work (the weather
@@ -163,6 +165,20 @@ namespace Punchy.Terrain
             }
 
             config = ApplyViewDistance(config);
+
+            // W-136: placed plants (re)published their ground contacts, so every loaded chunk re-meshes once with them.
+            if (GroundContacts.Version != contactVersion)
+            {
+                contactVersion = GroundContacts.Version;
+                scratchCoords.Clear();
+                scratchCoords.AddRange(loaded.Keys);
+                foreach (var coord in scratchCoords)
+                {
+                    var chunk = loaded[coord];
+                    chunk.Lod = -1;
+                    loaded[coord] = chunk;
+                }
+            }
 
             // Deep in a cave (CaveSystem.SurfaceHidden) the surface is out of sight: chunks beyond the camera's own
             // neighbourhood stop drawing, and nothing new streams in until the surface comes back into view.
@@ -387,7 +403,9 @@ namespace Punchy.Terrain
                     Quads = quads,
                     Lod = item.Lod,
                     CanMorph = item.Lod < config.LodLevels - 1 && quads > 1,
-                    MorphRange = config.MorphRange(item.Lod)
+                    MorphRange = config.MorphRange(item.Lod),
+                    // The LOD band's start, less a chunk (LODs go by the chunk's centre): its nearest approach.
+                    Near = item.Lod == 0 ? 0f : math.max(0f, config.Lod0Distance * (1 << (item.Lod - 1)) - config.ChunkSize)
                 };
 
                 var data = buildData[i];
@@ -407,9 +425,15 @@ namespace Punchy.Terrain
                 NormalEpsilon = config.ChunkSize / config.Lod0Quads,
                 SkirtDepth = config.SkirtDepth,
                 HeightRanges = buildRanges,
-                WaterRanges = buildWaterRanges
+                WaterRanges = buildWaterRanges,
+                Flora = GroundContacts.Flora,
+                Contacts = GroundContacts.Contacts,
+                ContactStrength = GroundContacts.Strength,
+                ContactReach = GroundContacts.ReachScale,
+                ContactPixelsPerMetre = Punchy.Settings.DetailPolicy.Current.Data.PixelsPerMetre * Punchy.Settings.GraphicsSettings.Detail
             };
             buildHandle = IJobParallelForExtensions.Schedule(job, count, 1);
+            GroundContacts.Readers = buildHandle;   // freed only once this build is done reading them
             buildFrames = 0;
             Meshing = true;
             JobHandle.ScheduleBatchedJobs();

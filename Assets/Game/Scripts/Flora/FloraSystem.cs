@@ -348,6 +348,7 @@ namespace Punchy.Flora
             models.Clear();
             thins.Clear();
             species.Clear();
+            Punchy.Terrain.GroundContacts.Withdraw(placement);
             if (placement.IsCreated) placement.Dispose();
             placement = default;
             // Nothing may read the grids once they're gone.
@@ -558,6 +559,8 @@ namespace Punchy.Flora
             }
             built = true;
             obstaclesDirty = true;
+            // W-136: the terrain darkens the ground where these meet it (re-meshes its chunks once).
+            Punchy.Terrain.GroundContacts.Publish(placement, models);
         }
 
         void CreateDrawBuffers(Layer layer)

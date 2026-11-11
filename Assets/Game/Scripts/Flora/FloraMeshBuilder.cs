@@ -633,6 +633,48 @@ namespace Punchy.Flora
             return false;
         }
 
+        /// <summary>
+        /// W-136: where what's been built crosses the level plane at <paramref name="y"/>, as segments (x0, z0, x1, z1),
+        /// each turned so its solid side is on its left (from the faces' normals), so closed loops wind one way and their
+        /// signed area is the cross-section's. Leaves, petals and cloth don't count: the ground contact is what stands on it.
+        /// </summary>
+        public void Slice(float y, List<Vector4> into)
+        {
+            Span<Vector3> hits = stackalloc Vector3[3];
+            for (int t = 0; t + 2 < indices.Count; t += 3)
+            {
+                int i0 = indices[t], i1 = indices[t + 1], i2 = indices[t + 2];
+                var part = Mathf.RoundToInt(data[i0].y);
+                if (part == (int)FloraPart.Foliage || part == (int)FloraPart.Petal || part == (int)FloraPart.Cloth)
+                    continue;
+                var n = 0;
+                Cross(positions[i0], positions[i1], y, hits, ref n);
+                Cross(positions[i1], positions[i2], y, hits, ref n);
+                Cross(positions[i2], positions[i0], y, hits, ref n);
+                if (n != 2)
+                    continue;
+                var p = hits[0];
+                var q = hits[1];
+                var d = q - p;
+                if (d.x * d.x + d.z * d.z < 1e-8f)
+                    continue;
+                var normal = normals[i0] + normals[i1] + normals[i2];
+                if (d.x * normal.z - d.z * normal.x < 0f)
+                    (p, q) = (q, p);
+                into.Add(new Vector4(p.x, p.z, q.x, q.z));
+            }
+        }
+
+        static void Cross(Vector3 a, Vector3 b, float y, Span<Vector3> hits, ref int n)
+        {
+            if ((a.y < y) == (b.y < y) || n >= 3)
+                return;
+            // The same edge from either face gives the same point: lerp from the lower end.
+            if (a.y > b.y)
+                (a, b) = (b, a);
+            hits[n++] = Vector3.Lerp(a, b, (y - a.y) / (b.y - a.y));
+        }
+
         /// <summary>The mesh of what's been built (main thread).</summary>
         public Mesh MakeMesh(string name)
         {
