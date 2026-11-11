@@ -1263,20 +1263,40 @@ half3 PunchyHazeHorizon(float3 dir)
     return PunchyHazeFromLut(horizon, flat.xz, PUNCHY_HAZE_RANGE);
 }
 
+// W-132 row 4b (TerrainStreamingSystem.SunRoad): x the far road's strength (1: row 4's road everywhere); y how many
+// reference pixels a glitter cell (DetailPolicy.SunGlintSize) spans seen square-on from 1 m; z, w the sizes
+// (DetailPolicy.SunGlintFull, SunGlintEnd) at which a cell's sparkle is whole and gone. Zero (nothing set yet) leaves
+// the road off.
+float4 _PunchySunRoad;
+
 // W-132 row 4: the sun's road on distant water, worked out from the view ray alone (no normal map, no cubemap): the
 // ray mirrored in a flat sea (r, pointing up) glints where it lies near the sun, in a band narrow across and long
-// towards the viewer, as wave slopes spread the reflection more along the line of sight than across it. One value
-// noise read at the sea point p breaks the band into glitter that drifts with the clock. Drawn over the haze by the far
-// water and by the skybox below the horizon, so the road runs out to the horizon; times the sun colour.
+// towards the viewer, as wave slopes spread the reflection more along the line of sight than across it. Value noise at
+// the sea point p breaks the band into glitter that drifts with the clock. Drawn over the haze by the far water and by
+// the skybox below the horizon, so the road runs out to the horizon; times the sun colour.
+// Row 4b (Zach 11-11, "stronger sun road in the distance"; row 4's look kept near and mid): how big a glitter cell
+// looks there (its size over the distance, flattened along the line of sight by the grazing angle r.y) says how far
+// off it is (rule 20). Only where cells have shrunk does the road widen and brighten, by up to the strength, and the
+// sparkle hand over to cells four times the size, then settle to its mean before either could flicker. Where a cell
+// still looks whole, or at strength 1, this is row 4's road exactly. Capped so the far band never blooms out.
 half3 PunchySunRoad(float3 r, float2 p)
 {
     float3 sun = _PunchySunDirection;
+    float pixels = _PunchySunRoad.y * max(r.y, 0.002) / max(length(p - _WorldSpaceCameraPos.xz), 1);
+    float span = max(_PunchySunRoad.z - _PunchySunRoad.w, 1e-3);
+    half fine = saturate((pixels - _PunchySunRoad.w) / span);
+    half coarse = saturate((pixels * 4 - _PunchySunRoad.w) / span);
+    half settle = saturate(_PunchySunRoad.x - 1);
+    half boost = max(_PunchySunRoad.x - 1, 0) * (1 - coarse * 0.5 - fine * 0.5);
     float above = r.y - sun.y;
-    float across = (1 - dot(normalize(r.xz), normalize(sun.xz + 1e-5))) * 1800 / (1 + 40 * abs(above));
-    float along = above * above / (above > 0 ? 0.02 : 0.0015);
-    half glitter = smoothstep(0.3, 0.9, PunchyValueNoise(p * 0.035 + _PunchyClock * float2(0.23, 0.17)));
+    float across = (1 - dot(normalize(r.xz), normalize(sun.xz + 1e-5))) * 1800 / ((1 + 40 * abs(above)) * (1 + boost));
+    float along = above * above / (above > 0 ? 0.02 * (1 + boost) : 0.0015 + 0.015 * boost);
+    float2 drift = _PunchyClock * float2(0.23, 0.17);
+    half sparkle = smoothstep(0.3, 0.9, PunchyValueNoise(p * 0.035 + drift));
+    half settled = lerp(0.3, smoothstep(0.3, 0.9, PunchyValueNoise(p * 0.00875 + drift * 0.25)), coarse);
+    half glitter = lerp(sparkle, lerp(settled, sparkle, fine), settle);
     half road = exp(-across - along) * smoothstep(-0.015, 0.02, sun.y) * (1 - 0.8 * _PunchyClouds.x);
-    return _PunchySunColor * road * (0.25 + 1.25 * glitter);
+    return _PunchySunColor * min(road * (0.25 + 1.25 * glitter) * (1 + boost), 1.5) * min(_PunchySunRoad.x, 1);
 }
 
 // Everything between the camera and a surface point: weather volumes, then the base haze (fog coloured like the

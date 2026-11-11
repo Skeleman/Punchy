@@ -412,6 +412,13 @@ namespace Punchy.Settings
         /// </summary>
         public const float WaterFallOn = 300f, WaterFallFull = 520f, WaterFallPiece = 24f;
 
+        /// <summary>
+        /// W-132 row 4b: the far sun road's glitter (Sky.hlsl PunchySunRoad). A cell of it is SunGlintSize across (the
+        /// noise's wavelength on the sea); its sparkle is whole while a cell looks SunGlintFull or bigger, flattened by the
+        /// grazing angle, and gone (its mean) by SunGlintEnd, handing over to cells four times the size on the way.
+        /// </summary>
+        public const float SunGlintSize = 28f, SunGlintFull = 6f, SunGlintEnd = 1.5f;
+
         public static Rule FloraRule(FloraClass c)
         {
             switch (c)

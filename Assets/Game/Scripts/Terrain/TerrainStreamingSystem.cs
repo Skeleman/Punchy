@@ -48,6 +48,20 @@ namespace Punchy.Terrain
         static readonly int TerrainFocusId = Shader.PropertyToID("_TerrainFocus");
         static readonly int DetailFarId = Shader.PropertyToID("_PunchyTerrainDetailFar");
         static readonly int DetailPpmId = Shader.PropertyToID("_PunchyTerrainDetailPpm");
+        static readonly int SunRoadId = Shader.PropertyToID("_PunchySunRoad");
+        /// <summary>
+        /// W-132 row 4b: the sun road's strength in the far band (Sky.hlsl PunchySunRoad; near and mid keep row 4's look).
+        /// 1 is row 4's road everywhere; the default, 2, is Zach's stronger far road (11-11). Env PUNCHY_SUNROAD overrides
+        /// it; 0 turns the road off.
+        /// </summary>
+        public static float SunRoad = EnvStrength("PUNCHY_SUNROAD", 2f);
+
+        static float EnvStrength(string name, float fallback)
+        {
+            var text = System.Environment.GetEnvironmentVariable(name);
+            return float.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var value) && value >= 0f
+                ? value : fallback;
+        }
         /// <summary>R-6 row 4b: the fine relief's octaves fade by their own on-screen size (false: the old fixed range, to compare).</summary>
         public static bool MicroReach = true;
         /// <summary>Where the terrain's fine relief has faded out at Detail 1 (m; TerrainSurface.shader). W-101: was a fixed 70.</summary>
@@ -190,6 +204,9 @@ namespace Punchy.Terrain
             Shader.SetGlobalFloat(DetailFarId, Punchy.Settings.GraphicsSettings.DetailRange(DetailFar));
             Shader.SetGlobalFloat(DetailPpmId, MicroReach
                 ? Punchy.Settings.DetailPolicy.Current.Data.PixelsPerMetre * Punchy.Settings.GraphicsSettings.Detail : -1f);
+            Shader.SetGlobalVector(SunRoadId, new Vector4(SunRoad,
+                Punchy.Settings.DetailPolicy.ScreenSize(Punchy.Settings.DetailPolicy.SunGlintSize, 1f, Punchy.Settings.DetailPolicy.Current.Data.PixelsPerMetre),
+                Punchy.Settings.DetailPolicy.SunGlintFull, Punchy.Settings.DetailPolicy.SunGlintEnd));
             RefreshWaterRegions(focus, config.ChunkSize);
             UpdateFarRing(config, source, focus);
 
