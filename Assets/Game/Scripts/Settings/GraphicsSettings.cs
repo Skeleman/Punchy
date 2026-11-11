@@ -46,10 +46,10 @@ namespace Punchy.Settings
         static int lightBudgetArg = -1;
 
         /// <summary>
-        /// How far worms' marks are drawn and fed, at Detail 1 (m). One source for both: CreatureBurrowSystem feeds
-        /// marks within DetailRange(BurrowRange), and the terrain shader draws them within _PunchyBurrowRange.
+        /// How far worms' marks are drawn and fed: one source for both, _PunchyBurrowRange, which the terrain shader
+        /// draws them within. Set here to the reference view's reach (A-99: DetailPolicy.BurrowMarkSize at
+        /// BurrowMarkPixels, x Detail), then each frame by CreatureBurrowSystem for the view as it is.
         /// </summary>
-        public const float BurrowRange = 150f;
         static readonly int BurrowRangeId = Shader.PropertyToID("_PunchyBurrowRange");
 
         /// <summary>Each preset's view, detail and shadows (Medium is the game as tuned).</summary>
@@ -175,7 +175,7 @@ namespace Punchy.Settings
         /// <summary>What's applied here rather than read by each system: the sun's shadows and the worm marks' range.</summary>
         static void Apply()
         {
-            Shader.SetGlobalFloat(BurrowRangeId, DetailRange(BurrowRange));
+            Shader.SetGlobalFloat(BurrowRangeId, DetailPolicy.SimulationReach(DetailPolicy.BurrowMarkSize, DetailPolicy.BurrowMarkPixels) * Detail);
             Punchy.Rendering.LowResEffectFeature.SetMode("Clouds", CloudBuffer);
             if (pipeline == null)
                 return;

@@ -131,8 +131,9 @@ namespace Punchy.Fauna
             // carrier, so its fade-in carries on as it moves), which decides by its on-screen reach whether it gets a
             // glow slot (refactor 3.1), at the middle of a lantern's glass as just posed, or a torch's flame. A torch's
             // flame itself is the world's (FireSystem), lit each frame at the top of its handle, streaming back as its
-            // bearer goes, within TorchFlameRange.
+            // bearer goes, while the flame is DetailPolicy.TorchFlamePixels across (A-99, held a little past that).
             float3 camAt = cam.transform.position;
+            litNow.Clear();
             for (int i = 0; i < bodies.Length; i++)
             {
                 var lightPart = LightPart(states[i].Held);
@@ -153,8 +154,12 @@ namespace Punchy.Fauna
                     if (leanLength > TorchFlameMaxLean)
                         lean *= TorchFlameMaxLean / leanLength;
                     var size = TorchFlameSize * math.max(states[i].Scale, 0.3f);
-                    if (math.distancesq(states[i].Position, camAt) <= TorchFlameRange * TorchFlameRange)
+                    if (Punchy.Settings.DetailPolicy.Within(math.distance(states[i].Position, camAt),
+                            Punchy.Settings.DetailPolicy.ExtraReach(size, Punchy.Settings.DetailPolicy.TorchFlamePixels), litTorches.Contains(entities[i].Index)))
+                    {
                         Punchy.Ambience.FireSystem.AddFlame(top, size, entities[i].Index, Punchy.Ambience.FireSystem.Wood, lean);
+                        litNow.Add(entities[i].Index);
+                    }
                     centre = top + new float3(0f, size * 0.4f, 0f);
                 }
                 else
@@ -165,6 +170,8 @@ namespace Punchy.Fauna
                     carried.w = Punchy.Items.ItemTable.Items[Punchy.Items.ItemTable.Torch].Light;
                 Punchy.Settings.LightBudget.Add(Punchy.Settings.LightKind.Carried, entities[i].Index, centre, carried);
             }
+            litTorches.Clear();
+            litTorches.UnionWith(litNow);
             Pass(8);
             if (ForceNeedCues)
                 LogCues(camAt, instances, bodies, states, offsets, colonyStart);
@@ -212,8 +219,9 @@ namespace Punchy.Fauna
                 int from = p.GroupStarts[g], to = p.GroupStarts[g + 1];
                 if (to <= from)
                     continue;
-                // (A capsule detail the settings leave out falls back to the next finer one.)
-                var detail = g / 2;
+                // (A capsule detail the settings leave out falls back to the next finer one. Groups 0-1 and 2-3 are both
+                // the full capsule, with and without fur shells.)
+                var detail = math.max(g / 2 - 1, 0);
                 var mesh = detail == 2 && settings.CapsuleFar != null ? settings.CapsuleFar
                          : detail >= 1 && settings.CapsuleMid != null ? settings.CapsuleMid : settings.Capsule;
                 var block = groupProps[g] ??= new MaterialPropertyBlock();
@@ -222,9 +230,9 @@ namespace Punchy.Fauna
                 rp.matProps = block;
                 rp.shadowCastingMode = (g & 1) == 0 ? ShadowCastingMode.On : ShadowCastingMode.Off;
                 Graphics.RenderMeshPrimitives(rp, mesh, 0, to - from);
-                // Shells (A-92, #230; "-noshells" turns them off): the full-detail groups again as fur shells, no shadow (the shader
-                // keeps only bodies within a few metres of the camera).
-                if (Shells && detail == 0)
+                // Shells (A-92, #230; "-noshells" turns them off): the shell groups again as fur shells, no shadow (A-97:
+                // only bodies whose fur looks big enough, Decision.Fur, are in them).
+                if (Shells && g < 2)
                 {
                     shellProps ??= new MaterialPropertyBlock[2 * ShellLayers];
                     for (int layer = 1; layer <= ShellLayers; layer++)
@@ -276,22 +284,27 @@ namespace Punchy.Fauna
         /// - Shadow: cast while it looks big enough for one to show.
         /// A deer keeps today's 40 / 100 m at 60 degrees; a sky serpent stays smooth, detailed and shadowed as far out
         /// as it looks as big as a deer does there.
-        /// The creatures are drawn in GroupCount groups: capsule detail (0-2) x shadow (on, off), group = detail x 2 +
-        /// (shadow ? 0 : 1).
+        /// The creatures are drawn in GroupCount groups: full capsule with fur shells, then capsule detail (0-2) without,
+        /// x shadow (on, off); group = that x 2 + (shadow ? 0 : 1). A-97: shells are drawn for the first pair only, the
+        /// bodies whose fur looks big enough (Decision.Fur below 2).
         /// </summary>
-        const int GroupCount = 6;
+        const int GroupCount = 8;
         MaterialPropertyBlock[] groupProps;
 
         /// <summary>Shells (A-92, #230; off with "-noshells"): near bodies drawn again as ShellLayers fur shells.</summary>
         public static bool Shells = true;
+        /// <summary>A-97 ("-nosurfaces" turns it off): each segment's look (feathers, scales, hoof, eye...) and fur length;
+        /// off, every creature is drawn as before A-97 (all medium fur).</summary>
+        public static bool Surfaces = true;
         const int ShellLayers = 2;
         static readonly int ShellId = Shader.PropertyToID("_Shell");
         MaterialPropertyBlock[] shellProps;
         NativeArray<byte> noDecisions;
         /// <summary>The draw group for a decision.</summary>
-        static int DrawGroup(Punchy.Settings.DetailPolicy.Decision d) => math.min(d.Geometry, 2) * 2 + (d.Shadow ? 0 : 1);
+        static int DrawGroup(Punchy.Settings.DetailPolicy.Decision d)
+            => (d.Geometry == 0 && d.Fur < 2 ? 0 : 1 + math.min(d.Geometry, 2)) * 2 + (d.Shadow ? 0 : 1);
         /// <summary>Creatures nearer than this to the camera are never frustum culled (their shadows can fall in view, as
-        /// with BehindCullRange); further ones are when wholly outside it by FrustumMargin and more for the huge.</summary>
+        /// with NearBehind); further ones are when wholly outside it by FrustumMargin and more for the huge.</summary>
         const float FrustumMargin = 6f;
         /// <summary>Last frame's posing, kept until this frame's is done (its poses are moved on for the skipped), and
         /// where each creature is in it.</summary>
@@ -313,17 +326,27 @@ namespace Punchy.Fauna
         /// <summary>
         /// A creature's detail under this view, from its last decision: players' bodies and the carried always in full.
         /// Its size is CreatureMotion.ApparentSize; how active: crossing up to three body lengths a second, or flying.
+        /// A-97: also its fur tier, by how big the fur looks (DetailPolicy.CreatureFur), and whether its feet are fitted
+        /// to the ground (CreatureFeetPixels), each held by the shared hysteresis.
         /// </summary>
         static Punchy.Settings.DetailPolicy.Decision Decide(in CreatureState state, in CreatureBody body,
                                                             in Punchy.Settings.DetailPolicy.View view,
                                                             Punchy.Settings.DetailPolicy.Decision previous)
         {
+            var distance = math.distance(state.Position, view.Camera);
+            var first = previous.None;
+            var quality = math.max(view.Detail, 0.1f);
+            var fur = Punchy.Settings.DetailPolicy.Tier(
+                Punchy.Settings.DetailPolicy.ScreenSize(Punchy.Settings.DetailPolicy.CreatureFurSize, distance, view.PixelsPerMetre),
+                Punchy.Settings.DetailPolicy.CreatureFur.Scaled(quality), first ? -1 : previous.Fur);
             if (state.Mode == CreatureMode.Puppet || state.Mode == CreatureMode.Held)
-                return Punchy.Settings.DetailPolicy.Decision.Of(0, 0, true);
+                return Punchy.Settings.DetailPolicy.Decision.Of(0, 0, true).With(fur, true);
             var size = CreatureMotion.ApparentSize(state, ref body.Blob.Value);
             var activity = math.max(math.saturate(state.Speed / math.max(size, 0.3f) / 3f), state.Fly > 0.5f ? 0.5f : 0f);
-            return Punchy.Settings.DetailPolicy.Decide(Punchy.Settings.DetailPolicy.Creature, size,
-                                                       math.distance(state.Position, view.Camera), activity, view, previous);
+            var feet = Punchy.Settings.DetailPolicy.Holds(Punchy.Settings.DetailPolicy.ScreenSize(size, distance, view.PixelsPerMetre),
+                                                          Punchy.Settings.DetailPolicy.CreatureFeetPixels / quality, !first && previous.Feet);
+            return Punchy.Settings.DetailPolicy.Decide(Punchy.Settings.DetailPolicy.Creature, size, distance, activity, view, previous)
+                                               .With(fur, feet);
         }
 
         /// <summary>Where each creature is in last frame's posing, by entity, for PoseJob.Reuse.</summary>
@@ -416,6 +439,9 @@ namespace Punchy.Fauna
             /// positive), and whether to cull those wholly outside them.</summary>
             public bool Frustum;
             public float4 Left, Right, Bottom, Top;
+            /// <summary>A-99: every creature's entity, and where each was in last frame's posing (posed then: held near).</summary>
+            [ReadOnly] public NativeArray<Entity> AllEntities;
+            [ReadOnly] public NativeParallelHashMap<Entity, int> PrevIndex;
             public NativeArray<bool> Keep;
 
             public void Execute(int i)
@@ -432,7 +458,7 @@ namespace Punchy.Fauna
                     return;
                 }
                 var to = state.Position - CameraPosition;
-                var far = math.lengthsq(to) > BehindCullRange * BehindCullRange;
+                var far = !NearBehind(math.length(to), state, ref Bodies[i].Blob.Value, PrevIndex.ContainsKey(AllEntities[i]));
                 var behind = far && math.dot(math.normalizesafe(to), CameraForward) < BehindCos &&
                              math.length(to) > Bodies[i].Blob.Value.SeenFrom * 0.5f;
                 // Well off to a side of the view (A-70 row 4), by more than its own size and a margin. Not a lantern or
@@ -489,12 +515,14 @@ namespace Punchy.Fauna
                     var previous = Punchy.Settings.DetailPolicy.Decision.First;
                     if (PrevIndex.TryGetValue(AllEntities[i], out var was) && was < PrevDecisions.Length)
                         previous.Packed = PrevDecisions[was];
-                    decided[i] = (Tiers ? Decide(AllStates[i], AllBodies[i], View, previous) : full).Packed;
+                    // (Without Tiers still the fur and feet by size, A-97: only pose rate and capsule go back to before.)
+                    var d = Decide(AllStates[i], AllBodies[i], View, previous);
+                    decided[i] = (Tiers ? d : full.With(d.Fur, d.Feet)).Packed;
                 }
                 var keep = 0;
-                for (int group = 0; group < (Tiers ? GroupCount : 1); group++)
+                for (int group = 0; group < GroupCount; group++)
                     for (int i = 0; i < AllBodies.Length; i++)
-                        if (Keep[i] && (!Tiers || DrawGroup(new Punchy.Settings.DetailPolicy.Decision { Packed = decided[i] }) == group))
+                        if (Keep[i] && DrawGroup(new Punchy.Settings.DetailPolicy.Decision { Packed = decided[i] }) == group)
                         {
                             Bodies[keep] = AllBodies[i];
                             States[keep] = AllStates[i];

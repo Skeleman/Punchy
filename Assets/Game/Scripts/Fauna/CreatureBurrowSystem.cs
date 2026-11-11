@@ -22,10 +22,13 @@ namespace Punchy.Fauna
     {
         public const int MaxBurrowers = 32;
         /// <summary>
-        /// How far from the camera a worm's marks are shown: _PunchyBurrowRange, which GraphicsSettings publishes as
-        /// DetailRange(BurrowRange) and TerrainSurface.shader draws them within (150 m before it's set).
+        /// How far from the camera a worm's marks are shown: _PunchyBurrowRange, which TerrainSurface.shader draws them
+        /// within. A-99: published here each frame, eased, as far as a mark (DetailPolicy.BurrowMarkSize, the disc a
+        /// worm's mound draws) stays BurrowMarkPixels across at the view (150 m at the 60 degree view, x Detail);
+        /// GraphicsSettings sets the reference view's reach before the first frame.
         /// </summary>
-        static float Range { get { var r = Shader.GetGlobalFloat(RangeId); return r > 0 ? r : 150f; } }
+        static float Range { get { var r = Shader.GetGlobalFloat(RangeId); return r > 0 ? r : Punchy.Settings.DetailPolicy.ExtraReach(Punchy.Settings.DetailPolicy.BurrowMarkSize, Punchy.Settings.DetailPolicy.BurrowMarkPixels); } }
+        float reach;
         static readonly int RangeId = Shader.PropertyToID("_PunchyBurrowRange");
         /// <summary>How long a bump in a worm's trail stays (s), sinking away as its age runs to 1.</summary>
         const float TrailTime = 30f;
@@ -83,6 +86,13 @@ namespace Punchy.Fauna
             // (Kept in order by hand, not RemoveAll: its lambda caught now, a closure and a delegate every frame.)
             Expire(bumps, now, TrailTime);
             Expire(craters, now, CraterTime);
+            if (cam != null)
+            {
+                Punchy.Settings.DetailPolicy.SetView(cam);
+                reach = Punchy.Settings.DetailPolicy.EasedReach(reach, Punchy.Settings.DetailPolicy.ExtraReach(
+                    Punchy.Settings.DetailPolicy.BurrowMarkSize, Punchy.Settings.DetailPolicy.BurrowMarkPixels), SystemAPI.Time.DeltaTime);
+                Shader.SetGlobalFloat(RangeId, reach);
+            }
             if (cam != null && SystemAPI.TryGetSingleton<TerrainSource>(out var terrain))
             {
                 float3 camAt = cam.transform.position;

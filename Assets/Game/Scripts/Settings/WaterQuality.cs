@@ -24,7 +24,8 @@ namespace Punchy.Settings
     /// kept per machine (PlayerPrefs); "-waterquality low|medium|high" sets it for one run (benches), never saved.
     /// The Detail setting moves the tier boundaries, as it does DetailPolicy's. All of it is cosmetic and per machine:
     /// what the camera sees, never what the swell does (WaterSwells.Height counts every wave). "-waterssr 0" and
-    /// "-waterrefraction 0" (CaveSystem) still turn those off outright, for profiling.
+    /// "-waterrefraction 0" (CaveSystem) still turn those off outright, for profiling. The same setting picks how finely
+    /// the light shafts under water are marched (<see cref="UnderwaterShaftSteps"/>).
     /// </summary>
     public static class WaterQuality
     {
@@ -49,6 +50,13 @@ namespace Punchy.Settings
         /// <summary>The march's first step (m), and the 1.22x growth of the tuned 28 steps: every step count grows its
         /// steps so it reaches as far as those do (~355 m), only more coarsely.</summary>
         const float FirstStep = 0.3f, TunedGrowth = 1.22f;
+        /// <summary>
+        /// Under water, the light shafts' march steps by setting (Low, Medium, High; item 38): none on Low (as the
+        /// reflections, only the plain fog), fewer, longer steps on Medium.
+        /// </summary>
+        static readonly int[] ShaftSteps = { 0, 4, 6 };
+        /// <summary>How many steps the light shafts under water march with this setting (0: none).</summary>
+        public static int UnderwaterShaftSteps => ShaftSteps[(int)Reflection];
         const int TunedSteps = 28;
 
         static readonly int TiersId = Shader.PropertyToID("_PunchyWaterTiers");
