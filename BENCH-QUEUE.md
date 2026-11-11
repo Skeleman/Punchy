@@ -448,3 +448,8 @@ chunk's 23,844 (chunk + sheet 1.34x the chunk alone). Read only.
 - Arms: field on (default) vs `-waterfield 0`. ABBA, 300 frames per arm.
 - Record whole-frame GPU and CPU ms and the water pass ms per arm.
 Pass: on <= +0.3 ms GPU over off. A fall arm (fall 74, `-goto -2167,3,3691`) follows as 45d once row 5 pushes.
+
+## Job 48 (2026-11-10, QUEUED after 45c; queued by the main-account supervisor for A-99, merged as #250): creature extras by screen size on the laptop
+- Arms: origin/main be98cde1 (before) vs origin/main 739cdff7 (after; A-99 branch fauna/extras-screen-size c0f22efe).
+- Spots: `-goto -1500,-995` (hive), `-place HumanVillage -time 23` (night torches and lanterns), `-place Tundra` (traces and breath), `-goto -1149,1219` (bat roost). High, uncapped.
+- Pass: frame ms within noise of the before arm at every spot. A miss means a fix branch (b/fix-*), as usual.

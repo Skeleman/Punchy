@@ -207,3 +207,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-10: #249 merged (A-91 rows 2-4). A-99 launched in Punchy tree. Player lane told: DungeonState API + DungeonLoot table for P-23/P-24.
 - 11-10: Zach: only the profiler profiles. Rule 21 added; card ms items now mean a BENCH-QUEUE request in the handoff. Running agents told.
 - 11-10: R-12 (fix/pill-cloud 1732eed8) reviewed: sent back, ground cloud shadows and sun cover miss the new warp. Shots sent to Zach. Bench request to queue when it returns.
+- 11-10: #250 merged (A-99, main 739cdff7). Job 48 queued (bench after merge). Fauna tree free. Leftover: CaveFishRange (CreatureRenderSystem.Extras.cs) added to R-13. A-99 saw another session's eval commands land in its editor (R-12 shot spot): R-12 told to target editors by PID.
