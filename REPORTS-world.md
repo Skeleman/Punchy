@@ -4518,3 +4518,31 @@ Flora.shader / FloraImpostor.shader / Flora.hlsl are also changed by R-10 (light
 | Critters.hlsl fade | Critters.hlsl 27 | 50-68 | A-99 |
 | Creature.shader near fades (3-9, 4-14), ShellRange, FootDetail | Creature.shader, creature render | - | A-97 |
 | R-10's own (on light/forwardplus, not main): CaveSystem NearFixtures 40, TownGlowFadeFrom/To 250/330 | CaveSystem.cs | - | R-10 / W-135; data hand-offs tied to the far map's edge, not a look |
+
+## R-9 (continued, row 6: whitewater on rapids; tree Punchy-world, branch water/deform, #232)
+- **R-9 row 6 DONE (verified in the editor; pass/fail pending laptop job 45f).**
+  - Change (commit 9b1cacc1, shader only: WaterField.hlsl, Water.shader; no new placement):
+    - Standing waves on steep, fast river water, driven by the mesh's rapids value times its flow. They are world-fixed, so they hold place while the water runs through. Three crossed rows about 2.4 m apart heave with time.
+    - On the fine sheet (field or fall) they also move the mesh, by up to 0.16 m. Elsewhere they tilt the light only. They are off down a fall's curtain.
+    - Crests break white, torn up by the carried foam (FlowFoam), with a thin broken cover between them.
+    - Pre-existing artifact fixed: the flow-turned ripples (FlowingSlope) and foam streaks (FlowStreaks) were read at world position, so the flow's per-triangle turns tore them into dense zigzag lines on bending and rapid rivers (visible in the before shots). They are now read about a camera anchor: a 64 m grid with a per-axis cross-fade to a half-offset grid, so the pattern never jumps.
+    - The river shore foam's drift grew without bound with time, and now cross-fades two 6 s reads.
+  - Index counts unchanged: sheet 7,992, chunk 4,944 at spawn.
+  - Shader messages 0 after AssetDatabase.Refresh. D3D11, no magenta.
+  - Shots: D:/Unity/PunchyMilestones/R-9/6/:
+    - after/ (near-sheet, near-river, mid, far, runin; contact-sheet.jpg);
+    - before/ (2856a634 baseline);
+    - before-after.jpg and checks.txt.
+  - Written checks:
+    - The ruled zigzag lines are gone at near-river, mid, far and runin.
+    - The rapids read as broken water, with white crests and streaks running with the flow.
+    - Residual: at near-sheet (the river mouth into the sea) some jagged streak edges remain. There, the mouth's flow data itself turns sharply between triangles; it is not a phase error. Left as is.
+  - Suite on 9b1cacc1: 25 passed, 0 failed, 17 skipped in 331 s (Unity exit 0). Pins match: Landmarks_V3 112 A955AFE0, Fauna_Fingerprint AD723954.
+  - Frame timing skipped per rule 21.
+- **BENCH-QUEUE request (rule 21): job 45f, QUEUED in BENCH-QUEUE.md (45e was already R-10's).**
+  - Arms: 9b1cacc1 vs 2856a634. Profile build, High, uncapped, ABBA, 300 frames per arm.
+  - Views: shotcam on the rapids below fall 74 from 30 m, and a second view inside the anchor handover band.
+  - Pass: <= +0.2 ms GPU.
+- Risks:
+  - Inside the 3-10 m band around each 64 m grid line, both patterns are read twice; at a corner, four times.
+  - The river mouth's flow-data zigzag remains (see above).

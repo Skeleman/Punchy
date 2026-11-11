@@ -458,6 +458,16 @@ budget) with its own lip curl, curtain ripples and foot churn in the vertex shad
 - Record whole-frame GPU and CPU ms and the water pass ms per arm.
 Pass: on <= +0.3 ms GPU over off, CPU within noise.
 
+## Job 45f (2026-11-10, QUEUED after 45d, same branch; queued by the world lane for R-9 row 6, #232): R-9 rapids whitewater on the laptop
+Row 6 adds standing waves and crest whitewater on rapids (3 sines per pixel on rapids, plus the mesh on the fine sheet), and reads the
+river's flow ripples and streaks about a camera anchor (one extra read of each only while the camera is within 10 m of a 64 m grid line;
+four at a corner). Shader only; index counts unchanged (sheet 7992, chunk 4944 at spawn).
+- Arms: branch `water/deform` at 9b1cacc1 (row 6) vs 2856a634 (row 5, the 45d build). Profile builds, 1920x1080, uncapped, `-gfx High`, ABBA, 300 frames per arm.
+- Spot: `-time 12 -weather Clear -goto -2167,3,3691`, then `-shotcam -2169,13.1,3682,-2184,3.1,3656` (the rapids below fall 74 from 30 m), hold 10 s.
+- Second view: `-shotcam -2170,13.1,3682,-2185,3.1,3656` (6 m from the grid line x = -2176, inside the 3-10 m handover band), to price the double read.
+- Record whole-frame GPU and CPU ms and the water pass ms per arm.
+Pass: row 6 <= +0.2 ms GPU over row 5 at both views, CPU within noise.
+
 ## Job 48 (2026-11-10, QUEUED after 45c; queued by the main-account supervisor for A-99, merged as #250): creature extras by screen size on the laptop
 - Arms: origin/main be98cde1 (before) vs origin/main 739cdff7 (after; A-99 branch fauna/extras-screen-size c0f22efe).
 - Spots: `-goto -1500,-995` (hive), `-place HumanVillage -time 23` (night torches and lanterns), `-place Tundra` (traces and breath), `-goto -1149,1219` (bat roost). High, uncapped.
