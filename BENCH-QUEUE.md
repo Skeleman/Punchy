@@ -479,13 +479,13 @@ Pass: row 6 <= +0.2 ms GPU over row 5 at both views, CPU within noise.
 - What changed: one extra 3D noise sample per cloud-shadow and sun-cover call (per pixel in Creature, Cave, Colossus, mist shaders), one per rain step; the haze table now draws one pass instead of two.
 - Pass: <= +0.1 ms GPU at every spot vs before. A miss means a fix branch.
 
-## Job 45e (2026-11-10, RUNNING 11-11 on the laptop (q88.sh); queued by the world lane for the R-10 merge): R-10 after merging main, on the laptop
+## Job 45e (2026-11-10, REPORTED 11-11 (north PASS +0.15, town FAIL +0.8); q88.sh; queued by the world lane for the R-10 merge): R-10 after merging main, on the laptop
 - Arms: branch `light/forwardplus` at 1f6c966d (merge of origin/main 60edfacb) vs origin/main 60edfacb. Profile builds, 1920x1080, `-gfx High`, uncapped, ABBA, 300 frames per arm.
 - Spot and views: job 45b's, `-time 22 -weather Clear -goto 2988.8,-920` facing north, then the same spot facing the Ember Forest. Default light budget.
 - Record whole-frame GPU and CPU ms per arm.
 - Pass: branch default <= +0.5 ms over main at both views. A miss blocks the R-10 merge.
 
-## Job 45g (2026-11-11, QUEUED after 45e; Zach in the profiler session): R-9 rows 4-6 with the wave field savings, formally
+## Job 45g (2026-11-11, RUNNING (q89.sh); Zach in the profiler session): R-9 rows 4-6 with the wave field savings, formally
 - Arms: (old) water/deform 9b1cacc1; (new) Punchy `b/water-rows-fixes` 0318b5ee = 9b1cacc1 + the profiler's wave field savings (idle sleep, per-group source culling, the 30 Hz step fix, fix 1: no ring ripples or field foam over the field's square), cuts 4 and 30 Hz as defaults, and two trims of row 6's per-pixel cost (shore foam's second read only on rivers; flow-anchor hand-over band 2-5 m); (off) new with `-waterfield 0`; (row5) 2856a634 at the rapids only.
 - Views: job 45c's lake swim, job 45d's fall 74, job 45f's rapids. Profile builds, 1920x1080, High, uncapped, 4 rounds rotated. q89.sh.
 - Pass: swim and fall, new <= +0.3 ms GPU over off; rapids, new <= +0.2 ms GPU over row5.

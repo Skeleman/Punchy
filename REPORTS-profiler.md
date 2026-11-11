@@ -2,6 +2,33 @@
 
 Newest first.
 
+## Job 45e: R-10 after merging main (light/forwardplus 1f6c966d vs main 60edfacb), 2026-11-11 (q88.sh): north PASS, town FAIL
+**Setup:**
+- Profile builds, 1920x1080, `-gfx High`, uncapped, `-weatherseed 4`, Clear, 22:00, `-body default`, default light budget.
+- A fresh game per run, 4 rounds ABBA.
+- Spot `-benchspot 2988.8,-920`, facing north (yaw 0) and yaw 201. The Ember Forest isn't visible from this spot (as in job 45b), so yaw 201 looks over the lamp-lit town instead.
+
+| view | arm | GPU ms by round | mean GPU | mean median frame | mean CPU |
+|---|---|---|---|---|---|
+| north | branch | 16.4, 16.4, 16.0, 16.2 | 16.25 | 16.45 | 17.1 |
+| | main | 16.1, 16.2, 16.0, 16.1 | 16.1 | 16.35 | 17.0 |
+| town (yaw 201) | branch | 15.8, 15.8, 16.2, 16.1 | **16.0** | 16.9 | 17.4 |
+| | main | 15.1, 15.3, 14.9, 15.4 | **15.2** | 16.5 | 17.1 |
+
+**Pass lines (branch <= +0.5 ms GPU over main):**
+- **North: +0.15, PASS.**
+- **Town: +0.8, FAIL.** Every branch round (15.8–16.2) is above every main round (14.9–15.4), so it's real. Median frame is +0.4 ms and CPU +0.3.
+
+**What it means:**
+- Rebasing removed the north miss (it was +0.8 in 45b, which came from the old base).
+- The town view's cost is R-10's own. In job 45b it was +1.05 against its base there, and its light-budget flags (0, 48, 64) and `-townglow 0` didn't change it.
+- So the cost isn't the number of lights. It's something R-10 does per pixel or per draw whenever the town is in view. The candidates are the Glow.hlsl changes read by Terrain, Flora, Grass, Pebbles, Creature and Cave, the far lights draw, and the town dome.
+- The profiler is attempting a fix next (Zach 11-11: "attempt fixes that can optimize the other failing cards").
+
+Files (Punchy-wt results): q88.out, q88-*.csv, q88logs/, q88-shots/.
+
+Cost: laptop total $742 (laptop session 0a48ccdb; 1 build, 16 games).
+
 ## Note for the supervisor (2026-11-11): fixes for the failing cards, and help wanted on R-12
 Zach asked the profiler to attempt fixes for the failing cards, and to ask the supervisor for help where needed.
 
