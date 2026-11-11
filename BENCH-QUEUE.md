@@ -571,3 +571,4 @@ W-138 row 2a on `world/mountain-tunnels` (3e3c9e08): six new road spurs (+617 st
 - View: shotcam near (-1803,50,-543) looking at (-1778,34,-553), the landing spur's end at the pier.
 - Record: world-up time; the first 20 s after load, with frames over 2x the median listed; then whole-frame GPU, CPU and render-thread ms over 300 frames.
 - Pass: B within noise of A; no new hitch over 2x the median.
+- W-138 row 2b (added 2026-11-11): take (B) at the row 2b commit or newer. Add the C0a walk: start at (-1600,-20), walk north on the road through the south portal (-1596,44), the 1070 m bore and out of the north portal (-1596,1164) to (-1590,1200), at walking pace (about 4 min). Record whole-frame GPU, CPU and render-thread ms over the walk, frames over 2x the median (with where they happen: portals, mid-bore, under the mountain lake at z about 555), and the same on the open-road arm A over the same distance as a reference.

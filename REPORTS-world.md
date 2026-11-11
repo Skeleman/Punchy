@@ -5038,6 +5038,86 @@ Branch `world/mountain-tunnels` at c3cdf1db (pushed). Row 2b not started; it wai
 - join-15m.png: 15 m off the join, 10:30, clear. The road comes over the bank and down onto the deck.
 - a0-probe1/2/4.png: the water probe views used for the diagnosis.
 
+### W-138 row 2b: router C, tunnel C0a, lake loop, ruined bridge + ford: done (verified, 90ffa7a1 + 277087ea)
+Branch `world/mountain-tunnels` at 277087ea (pushed), built on c3cdf1db. 90ffa7a1 holds the code (RoadBaking.cs, RoadsideBaking.cs, and a gotcha in docs/agents/world.md). 277087ea re-pins Landmarks_V3 to 114 00D16E22. Spine 2 roads and portals set into the rock face are not in this row.
+
+**Router.** `RoadBaking.Router` now defaults to C, with the strict cover filter unchanged: TunnelLeast 60 m, TunnelPortal 6 m over every metre, TunnelDeep 20 m peak, BoreGrade 0.15 inside, MaxGrade outside.
+- Router C on its own sent spurs and the lake loop through every mountain: 15 tunnels and 26 km of road, with cave 11's spur at 2.6 km.
+- Fix: destination spurs, the lake loop and hand tunnels' roads use `SpurRoute`, which takes a bored route only if it comes out 20% shorter than the open one.
+- Fix: `Route` can move a path's end off its cell centre, which made false 31-38 m "bores" at road ends. `Shape` never counts a route's first or last hop as a bore.
+
+**Tunnels** (probe, play island seed 1337). Cover is ground over the bore's straight grade. "Line" is portal to portal including the approach.
+
+| Tunnel | From -> to | Bore | Line | Peak cover | Cover A / B | Grade |
+|---|---|---|---|---|---|---|
+| router | (-2269,-632) -> (-2091,-454), elf grove road | 252.8 m | 311.1 m | 32.3 m | 9.5 / 6.7 m | 0.065 |
+| router | (-1977,-210) -> (-1977,900), up to the mining camp | 1110 m | 1180 m | 68.0 m | 9.6 / 9.1 m | 0.150 |
+| router | (-2017,680) <-> (-2017,870), used by two roads | 190 m | 240 m | 26.2 m | 7.8 / 8.2 m | 0.070 |
+| router | (-2035,968) -> (-3198,1453), mining camp to dwarf hold | 1260 m | 1300 m | 92.7 m | 6.6 / 7.1 m | 0.073 |
+| **C0a** (hand) | (-1596,74) -> (-1596,1144), y 42.6 -> 91.7 | 1070 m | 1120 m | 103.8 m | 8.5 / 10.8 m | 0.046 |
+
+- 5 tunnels, 3883 m bored. Row 1b predicted 5 and 4046 m.
+- Every tunnel passes 20 m peak cover, 6 m or more at each portal, 60 m or more long, and grade 0.15 or less.
+- C0a is laid by hand (`HandBores`) and re-checked by `HandBoreHolds`, so an island without that mountain simply leaves it out. Its roads join the nearest roads at each end, which closes a loop.
+
+**C0a walk** (scripted -walk, sampled every 10 s, 17 samples): from (-1600,-20), in at the south portal, along the bore and out of the north portal to (-1590,1200).
+- Ended ARRIVED. The feet followed the bore's grade (y 44.5 -> 91.4) with no stall.
+- The probe's MaxUnder reads 42.5 m once, at z 555. That's a mountain tarn 42 m above the bore, not water at the feet. Every other sample was dry.
+
+**Waystations.** One at each portal, from the existing roadside kit with no new art.
+- North: wanted LoneInn, then Campsite. The inn fails on the mountain slope (relief), so CampsiteSnow went in, 31.7 m from the portal.
+- South: CampsiteSwamp, 32.5 m from the portal.
+- The north portal's own road was only about 38 m long, so the portal's way out (`Portals[i].Out`) carries on along the road it joins until it is 300 m long.
+
+**Breaks.** Loops 2, breaks 1.
+- Loop 1 is C0a itself. It is a second way between the mining camp and the marsh/landing side.
+- Loop 2 is the lake loop: 2483 m from the landing road's end, round the marsh folk village (75 m off its middle) to C0a's south portal. It ends at the portal, not at S5.
+- The ruined bridge is the landing road's river crossing at (-2060,-870), about 210 m from the 1b spot, and the nearest bridge with 3 or more spans.
+  - Its middle span is gone; one span stands at each bank as a stub.
+  - A second road had a 2-span bridge over the same crossing 4 m away, so any other bridge within 20 m of the ruined one goes too (`RuinTwin`). A transect shows deck height only on the stubs.
+- Ford: a 3 m footpath 10 m off the bridge line, on the side with shallower water, joining the road on both banks. Its bed is raised to 0.35 m under the water where it was deeper (deepest was 1.22 m), so the river can always be crossed on foot.
+
+**Roads before -> after:**
+- Streets 3041 -> 3610. Length 17116.6 -> 21556.0 m (+4439 m).
+- Road 1 2852 -> 3010, road 2 189 -> 192, tunnel 0 -> 408.
+- Spurs:
+
+  | Spur | Before | After |
+  |---|---|---|
+  | landing | 1176 m | 955 m (now joins at (-2065,-417)) |
+  | cave 11 | 358 m | 477 m |
+  | cave 19 | 518 m | 497 m |
+  | cave 32 | 221 m | 173 m |
+  | mine 87 | 123 m | 139 m |
+  | grotto 42 | 921 m | 938 m (footpath 250 m) |
+  | C0a roads | - | 1726 m |
+  | lake loop | - | 2483 m |
+
+- Grottos 25 and 47 are still served. Cave 37 is still too far.
+- Old row 2a tunnel spots: (-2023,713) is now 6.6 m from a tunnel street, and (-1870,118) 107 m from one.
+
+**What moved** (measures, not gates):
+- Landmarks 112 A5D1D048 -> 114 00D16E22. Two are new: the waystations.
+- Every roadside pick re-drew, because the roads changed and the waystations take their keys first.
+  - Gone: LoneInn (1169,-3083), the roadside CaveEntrance (1453,-2608), RoadShrines at (2213,-1437), (177,-3572) and (-1898,-2056), CampsiteAsh (-402,-3627), Monuments at (-989,-3130), (-2163,-1829) and (-2240,-440).
+  - New: LoneInn (1521,-2253), RoadShrines at (1548,-2614), (350,-3548), (-1335,-2658) and (-2282,-1778), CampsiteDune (2676,-1073), Monuments at (849,-3744) and (-2006,-1988), Ruins (-473,-3620), CampsiteSnow (-1566,1154), CampsiteSwamp (-1608,14).
+- All other landmarks are unchanged.
+- Fauna_Fingerprint: AD723954, unchanged. It passes.
+
+**Checks:**
+- Suite: 24 passed, 1 failed, 17 skipped (358 s). The one failure was Landmarks_V3 on the old pin (112 A5D1D048). The measured value was 114 00D16E22, as expected, so I re-pinned it in 277087ea. I did not run the suite again for a one-line pin change.
+- lod-lint on world/mountain-tunnels: clean.
+- The probes (W138bProbe, W138Walk) stay untracked.
+
+**Shots** (PunchyMilestones/W-138/row2b/, all checked at small size; 10:30, clear):
+- map-row2b.png: top-down, the whole island plus a west close-up. Tunnels are red, row 2a roads grey underneath.
+- c0a-north.png: the north portal arch in the scree slope, with the snow campsite beside the road.
+- c0a-south.png: the south portal's arch at the end of the marsh road, in fog.
+- c0a-south-camp.png: the swamp campsite and signpost at the south end.
+- ruined-bridge.png: the two stubs with the gap between them, and the ford's sandy bed crossing just upstream.
+
+**BENCH-QUEUE:** job 59 now carries the C0a walk: south to north through the bore at walking pace, with whole-frame ms and hitches located at the portals, mid-bore and under the tarn. No timing from the lane (rule 21).
+
 ## W-132 (cheaper 3 km landscape, horizon; tree Punchy-release, branch world/far-lite from origin/main cc835cf6)
 
 ### Row 1: the horizon oddity (2026-11-10): done (verified; diagnosis only, no code change)
