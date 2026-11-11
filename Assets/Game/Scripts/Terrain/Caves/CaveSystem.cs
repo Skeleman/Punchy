@@ -64,7 +64,7 @@ namespace Punchy.Terrain
                 if (wanted.Count > 0 || dying.Count > 0)
                     return false;
                 foreach (var b in chunks.Values)
-                    if (b.Pending)
+                    if (b.Pending || b.Next != null)
                         return false;
                 return true;
             }
@@ -95,9 +95,18 @@ namespace Punchy.Terrain
             public bool Opens;
             /// <summary>Whether its opening counted as in view last frame (the surface-side skip's hysteresis).</summary>
             public bool OpeningSeen;
+            /// <summary>W-135 row 2: its wall level (0: Voxel, 1: twice it, 2: four times), and the rebuild at another
+            /// level in flight, swapped in once uploaded so the old walls draw until then.</summary>
+            public int Level;
+            public Built Next;
 
             public void Dispose()
             {
+                if (Next != null)
+                {
+                    Next.Dispose();
+                    Next = null;
+                }
                 Job.Complete();
                 if (Opening.IsCreated) Opening.Dispose();
                 if (Field.IsCreated) Field.Dispose();
@@ -1456,6 +1465,10 @@ namespace Punchy.Terrain
                 chunkVoxel = Voxel;
                 chunkCells = math.max(4, (int)math.round(ChunkMetres / chunkVoxel));
                 chunkSize = chunkCells * chunkVoxel;
+                // A coarser level halves the cells across a chunk, so it needs a whole, not too small, number of them.
+                maxLevel = 0;
+                while (maxLevel < 2 && chunkCells % (2 << maxLevel) == 0 && chunkCells >> (maxLevel + 1) >= 4)
+                    maxLevel++;
                 indexSeen = new NativeHashMap<int3, ulong>(1024, Allocator.Persistent);
                 indexKeys = new NativeList<int3>(1024, Allocator.Persistent);
                 indexJob = new IndexJob
@@ -1586,10 +1599,16 @@ namespace Punchy.Terrain
                 foreach (var key in scratch)
                 {
                     // One still building is parked until its jobs finish rather than waited on here.
-                    if (chunks[key].Pending)
-                        dying.Add(chunks[key]);
+                    var gone = chunks[key];
+                    if (gone.Next != null)
+                    {
+                        dying.Add(gone.Next);
+                        gone.Next = null;
+                    }
+                    if (gone.Pending)
+                        dying.Add(gone);
                     else
-                        chunks[key].Dispose();
+                        gone.Dispose();
                     chunks.Remove(key);
                 }
             }
@@ -1609,9 +1628,15 @@ namespace Punchy.Terrain
 
             var building = dying.Count;
             foreach (var b in chunks.Values)
+            {
                 if (b.Pending)
                     building++;
-            for (int n = 0; n < BuildsPerFrame && building < (fast ? 1 : MaxBuilding) && wanted.Count > 0; n++, building++)
+                if (b.Next != null)
+                    building++;
+            }
+            var budget = fast ? 1 : MaxBuilding;
+            var started = 0;
+            for (; started < BuildsPerFrame && building < budget && wanted.Count > 0; started++, building++)
             {
                 var key = wanted[wanted.Count - 1];
                 // Moving fast: only the near ones (the list is nearest last, so the rest wait).
@@ -1619,65 +1644,139 @@ namespace Punchy.Terrain
                     break;
                 wanted.RemoveAt(wanted.Count - 1);
                 if (!chunks.ContainsKey(key))
-                    chunks[key] = StartBuild(source, key);
+                    chunks[key] = StartBuild(source, key, WallLevel(key, camPos, -1));
+            }
+            // W-135 row 2: then, with what's left of the budget, rebuild the nearest chunks whose wall level should
+            // change. An empty chunk is only rebuilt finer (a coarse grid can miss a sliver of wall a fine one finds).
+            for (; started < BuildsPerFrame && building < budget; started++, building++)
+            {
+                var best = new int3(int.MinValue);
+                var bestDistance = float.MaxValue;
+                var bestLevel = 0;
+                foreach (var kv in chunks)
+                {
+                    var b = kv.Value;
+                    if (b.Pending || b.Next != null)
+                        continue;
+                    var level = WallLevel(kv.Key, camPos, b.Level);
+                    if (level == b.Level || b.Mesh == null && level > b.Level)
+                        continue;
+                    var distance = ChunkDistance(kv.Key, camPos);
+                    if (distance < bestDistance)
+                    {
+                        best = kv.Key;
+                        bestDistance = distance;
+                        bestLevel = level;
+                    }
+                }
+                if (bestDistance == float.MaxValue || fast && bestDistance > FastRadius)
+                    break;
+                chunks[best].Next = StartBuild(source, best, bestLevel);
             }
 
             var uploads = 0;
+            swapped.Clear();
             foreach (var kv in chunks)
             {
                 var b = kv.Value;
-                if (!b.Pending || !b.Job.IsCompleted)
-                    continue;
-                b.Job.Complete();   // already done: cheap
-                // Empty ones cost nothing to finish; those with a mesh wait their turn.
-                if (b.Indices.Length > 0 && uploads >= UploadsPerFrame)
-                    continue;
-                b.Pending = false;
-                // Chunks the cave only grazes come out empty: keep the record (so they aren't rebuilt), not a mesh.
-                if (b.Indices.Length > 0)
-                {
-                    uploads++;
-                    var mesh = new Mesh { name = "Cave chunk", indexFormat = IndexFormat.UInt32 };
-                    mesh.SetVertices(b.Positions.AsArray());
-                    mesh.SetNormals(b.Normals.AsArray());
-                    mesh.SetColors(b.Colors.AsArray());
-                    if (ShardProbe)
-                        LogShards(b);
-                    mesh.SetUVs(0, b.Data.AsArray());
-                    mesh.SetIndices(b.Indices.AsArray(), MeshTopology.Triangles, 0);
-                    var min = (float3)kv.Key * chunkSize;
-                    mesh.bounds = new Bounds(min + chunkSize * 0.5f, new float3(chunkSize + chunkVoxel * 4f));
-                    // Drawn only: let the CPU copy go.
-                    mesh.UploadMeshData(true);
-                    b.Mesh = mesh;
-                    b.Triangles = b.Indices.Length / 3;
-                    b.Caves = chunkCaves.TryGetValue(kv.Key, out var caveBits) ? caveBits : ~0ul;
-                    // A chunk whose top is a few metres under the lowest ground above it can't shade anything the sun
-                    // reaches, so it stays out of the shadow cascades (the column heights are already sampled) -
-                    // unless it's near a mouth, where daylight comes in sideways under the hill.
-                    var lowestGround = float.MaxValue;
-                    for (int i = 0; i < b.Surface.Length; i++)
-                        lowestGround = math.min(lowestGround, b.Surface[i]);
-                    b.CastsShadows = min.y + chunkSize + chunkVoxel > lowestGround - 4f || NearMouth(source, min, min + chunkSize, MouthLight);
-                    // Buried: wholly a few metres under the ground and out of sight of every mouth (a view in through a
-                    // mouth reaches a winding passage only so far), so it's skipped while the camera is outside caves.
-                    b.Buried = min.y + chunkSize + chunkVoxel < lowestGround - 4f && !NearMouth(source, min, min + chunkSize, BuriedReach);
-                    b.Opens = math.all(b.Opening[0] <= b.Opening[1]);
-                    if (b.Opens)
-                        b.OpeningBounds = new Bounds((b.Opening[0] + b.Opening[1]) * 0.5f, b.Opening[1] - b.Opening[0]);
-                    b.OpeningSeen = false;
-                }
-                b.Field.Dispose();
-                b.CaveField.Dispose();
-                b.Surface.Dispose();
-                b.SurfaceScale.Dispose();
-                b.Positions.Dispose();
-                b.Normals.Dispose();
-                b.Colors.Dispose();
-                b.Data.Dispose();
-                b.Indices.Dispose();
-                b.Opening.Dispose();
+                if (b.Pending)
+                    Finish(source, kv.Key, b, ref uploads);
+                else if (b.Next != null && Finish(source, kv.Key, b.Next, ref uploads))
+                    swapped.Add(kv.Key);
             }
+            // A finished rebuild takes the old one's place (its hysteresis carried over).
+            foreach (var key in swapped)
+            {
+                var old = chunks[key];
+                var next = old.Next;
+                old.Next = null;
+                next.OpeningSeen = old.OpeningSeen;
+                old.Dispose();
+                chunks[key] = next;
+            }
+        }
+
+        readonly List<int3> swapped = new List<int3>();
+
+        /// <summary>The coarsest wall level the chunk size allows (IndexChunks).</summary>
+        int maxLevel;
+        /// <summary>Testing (-cavelevel n): every chunk built at this wall level (-1: by screen size).</summary>
+        public static int ForceLevel = -1;
+
+        /// <summary>
+        /// W-135 row 2: the wall level a chunk should have, from how big a metre looks at its nearest point
+        /// (DetailPolicy.CaveWall, held by Hysteresis from the level it has; -1 when it has none yet).
+        /// </summary>
+        int WallLevel(int3 key, float3 camPos, int previous)
+        {
+            if (ForceLevel >= 0)
+                return math.min(ForceLevel, maxLevel);
+            var view = DetailPolicy.Current.Data;
+            var ppm = view.PixelsPerMetre > 0f ? view.PixelsPerMetre : DetailPolicy.PixelsPerMetreAt(DetailPolicy.ReferenceFov);
+            var pixels = DetailPolicy.ScreenSize(DetailPolicy.CaveWallSize, ChunkDistance(key, camPos), ppm);
+            var tiers = view.Detail > 0f ? DetailPolicy.CaveWall.Scaled(view.Detail) : DetailPolicy.CaveWall;
+            return math.min(DetailPolicy.Tier(pixels, tiers, previous), maxLevel);
+        }
+
+        /// <summary>
+        /// Turns a finished build into its mesh (on the main thread, at most UploadsPerFrame with walls a frame) and lets
+        /// its build data go. False while it's still building or waiting its turn.
+        /// </summary>
+        bool Finish(in TerrainSource source, int3 key, Built b, ref int uploads)
+        {
+            if (!b.Pending || !b.Job.IsCompleted)
+                return false;
+            b.Job.Complete();   // already done: cheap
+            // Empty ones cost nothing to finish; those with a mesh wait their turn.
+            if (b.Indices.Length > 0 && uploads >= UploadsPerFrame)
+                return false;
+            b.Pending = false;
+            // Chunks the cave only grazes come out empty: keep the record (so they aren't rebuilt), not a mesh.
+            if (b.Indices.Length > 0)
+            {
+                uploads++;
+                var mesh = new Mesh { name = "Cave chunk", indexFormat = IndexFormat.UInt32 };
+                mesh.SetVertices(b.Positions.AsArray());
+                mesh.SetNormals(b.Normals.AsArray());
+                mesh.SetColors(b.Colors.AsArray());
+                if (ShardProbe)
+                    LogShards(b);
+                mesh.SetUVs(0, b.Data.AsArray());
+                mesh.SetIndices(b.Indices.AsArray(), MeshTopology.Triangles, 0);
+                var min = (float3)key * chunkSize;
+                // Room for the apron and the skirts (each within two of its voxels outside the chunk).
+                mesh.bounds = new Bounds(min + chunkSize * 0.5f, new float3(chunkSize + LevelVoxel(b.Level) * 4f));
+                // Drawn only: let the CPU copy go.
+                mesh.UploadMeshData(true);
+                b.Mesh = mesh;
+                b.Triangles = b.Indices.Length / 3;
+                b.Caves = chunkCaves.TryGetValue(key, out var caveBits) ? caveBits : ~0ul;
+                // A chunk whose top is a few metres under the lowest ground above it can't shade anything the sun
+                // reaches, so it stays out of the shadow cascades (the column heights are already sampled) -
+                // unless it's near a mouth, where daylight comes in sideways under the hill.
+                var lowestGround = float.MaxValue;
+                for (int i = 0; i < b.Surface.Length; i++)
+                    lowestGround = math.min(lowestGround, b.Surface[i]);
+                b.CastsShadows = min.y + chunkSize + chunkVoxel > lowestGround - 4f || NearMouth(source, min, min + chunkSize, MouthLight);
+                // Buried: wholly a few metres under the ground and out of sight of every mouth (a view in through a
+                // mouth reaches a winding passage only so far), so it's skipped while the camera is outside caves.
+                b.Buried = min.y + chunkSize + chunkVoxel < lowestGround - 4f && !NearMouth(source, min, min + chunkSize, BuriedReach);
+                b.Opens = math.all(b.Opening[0] <= b.Opening[1]);
+                if (b.Opens)
+                    b.OpeningBounds = new Bounds((b.Opening[0] + b.Opening[1]) * 0.5f, b.Opening[1] - b.Opening[0]);
+                b.OpeningSeen = false;
+            }
+            b.Field.Dispose();
+            b.CaveField.Dispose();
+            b.Surface.Dispose();
+            b.SurfaceScale.Dispose();
+            b.Positions.Dispose();
+            b.Normals.Dispose();
+            b.Colors.Dispose();
+            b.Data.Dispose();
+            b.Indices.Dispose();
+            b.Opening.Dispose();
+            return true;
         }
 
         /// <summary>Daylight from a mouth lights walls up to about 17 m in (Look's fromMouth), so walls within 20 m shade.</summary>
@@ -1697,16 +1796,29 @@ namespace Punchy.Terrain
             return false;
         }
 
-        Built StartBuild(in TerrainSource source, int3 key)
+        /// <summary>The voxel of a wall level: Voxel doubled per level.</summary>
+        float LevelVoxel(int level) => chunkVoxel * (1 << level);
+
+        /// <summary>
+        /// W-135 row 2: a chunk at a coarser level is built on a grid of LevelVoxel(level) (half the cells across per
+        /// level), so it costs a quarter of the triangles per level. Each chunk hangs a skirt into the rock from its
+        /// edge (MeshJob), which covers the crack where it meets a neighbour at another level.
+        /// </summary>
+        const float SkirtVoxels = 1.5f;
+
+        Built StartBuild(in TerrainSource source, int3 key, int level)
         {
-            // Points run from one voxel before the chunk to one after its far side; cells from -1 to chunkCells. The
+            // Points run from one voxel before the chunk to one after its far side; cells from -1 to its cells. The
             // origin is a global grid index, so neighbouring chunks sample their shared apron at bit-identical points
             // (a float origin plus an offset rounds differently in each, and a value near zero can flip sign).
-            var origin = key * chunkCells - 1;
-            var cells = new int3(chunkCells + 2);
+            var levelCells = chunkCells >> level;
+            var voxel = LevelVoxel(level);
+            var origin = key * levelCells - 1;
+            var cells = new int3(levelCells + 2);
             var points = cells + 1;
             var b = new Built
             {
+                Level = level,
                 Field = new NativeArray<float>(points.x * points.y * points.z, Allocator.Persistent, NativeArrayOptions.UninitializedMemory),
                 CaveField = new NativeArray<float>(points.x * points.y * points.z, Allocator.Persistent, NativeArrayOptions.UninitializedMemory),
                 Surface = new NativeArray<float>(points.x * points.z, Allocator.Persistent, NativeArrayOptions.UninitializedMemory),
@@ -1721,13 +1833,13 @@ namespace Punchy.Terrain
             };
             // W-128: the skin follows the ground as the near terrain draws it (its LOD0 grid), so it meets the terrain's edge.
             var gridStep = configQuery.IsEmpty ? 0f : configQuery.GetSingleton<TerrainConfig>().ChunkSize / configQuery.GetSingleton<TerrainConfig>().Lod0Quads;
-            var columnJob = new ColumnJob { Source = source, Origin = origin, Points = points, Voxel = chunkVoxel, GridStep = gridStep, Surface = b.Surface, SurfaceScale = b.SurfaceScale }
+            var columnJob = new ColumnJob { Source = source, Origin = origin, Points = points, Voxel = voxel, GridStep = gridStep, Surface = b.Surface, SurfaceScale = b.SurfaceScale }
                 .Schedule(points.x * points.z, 64);
-            var field = new FieldJob { Source = source, Origin = origin, Points = points, Voxel = chunkVoxel, Field = b.Field, CaveField = b.CaveField, Surface = b.Surface, SurfaceScale = b.SurfaceScale }
+            var field = new FieldJob { Source = source, Origin = origin, Points = points, Voxel = voxel, Field = b.Field, CaveField = b.CaveField, Surface = b.Surface, SurfaceScale = b.SurfaceScale }
                 .Schedule(points.y * points.z, 4, columnJob);
             b.Job = new MeshJob
             {
-                Source = source, Origin = origin, Cells = cells, Voxel = chunkVoxel,
+                Source = source, Origin = origin, Cells = cells, Voxel = voxel, Skirt = voxel * SkirtVoxels,
                 Field = b.Field, CaveField = b.CaveField, ShardProbe = ShardProbe,
                 Positions = b.Positions, Normals = b.Normals, Colors = b.Colors, Data = b.Data, Indices = b.Indices,
                 Opening = b.Opening
@@ -1841,6 +1953,8 @@ namespace Punchy.Terrain
             public bool ShardProbe;
             /// <summary>W-135: the box round the walls open to the sky ([0] min, [1] max).</summary>
             public NativeArray<float3> Opening;
+            /// <summary>W-135 row 2: how far the skirt round the chunk's edge reaches into the rock (0: none).</summary>
+            public float Skirt;
 
             int Point(int x, int y, int z) => (z * (Cells.y + 1) + y) * (Cells.x + 1) + x;
             int Cell(int x, int y, int z) => (z * Cells.y + y) * Cells.x + x;
@@ -1850,6 +1964,8 @@ namespace Punchy.Terrain
                 var cellVertex = new NativeArray<int>(Cells.x * Cells.y * Cells.z, Allocator.Temp);
                 for (int i = 0; i < cellVertex.Length; i++)
                     cellVertex[i] = -1;
+                // Which vertices lie in the outermost cells the quads use (0 and Cells - 2 on any axis): the chunk's edge.
+                var edge = new NativeList<bool>(Allocator.Temp);
                 Opening[0] = new float3(float.MaxValue);
                 Opening[1] = new float3(float.MinValue);
 
@@ -1891,6 +2007,7 @@ namespace Punchy.Terrain
                     // Room corners kept square, so the destination chambers' tiles cover the rock (W-115).
                     p = CaveSampling.OutOfRooms(ref Source.Caves.Value, p);
                     cellVertex[Cell(x, y, z)] = Positions.Length;
+                    edge.Add(x == 0 || y == 0 || z == 0 || x >= Cells.x - 2 || y >= Cells.y - 2 || z >= Cells.z - 2);
                     Positions.Add(p);
                     Normals.Add(Gradient(p));
                     Colors.Add(Look(p, out var data, out var open));
@@ -1921,6 +2038,54 @@ namespace Punchy.Terrain
                         Quad(cellVertex, Cell(x - 1, y - 1, z), Cell(x, y - 1, z), Cell(x, y, z), Cell(x - 1, y, z), a);
                 }
                 cellVertex.Dispose();
+                if (Skirt > 0f)
+                    Skirts(edge);
+                edge.Dispose();
+            }
+
+            /// <summary>
+            /// W-135 row 2: a strip hung from every open edge on the chunk's border, straight back into the rock (along
+            /// the wall's inward normal) by Skirt. Where the neighbour is built at the same level its walls hide the strip;
+            /// where it's at another level the two edges don't meet, and the strip fills the crack between them with the
+            /// same rock (it takes its edge vertex's colour and normal).
+            /// </summary>
+            void Skirts(NativeList<bool> edge)
+            {
+                var triangles = Indices.Length;
+                var halfEdges = new NativeHashSet<int2>(triangles, Allocator.Temp);
+                for (int t = 0; t < triangles; t += 3)
+                for (int k = 0; k < 3; k++)
+                    halfEdges.Add(new int2(Indices[t + k], Indices[t + (k + 1) % 3]));
+                var skirtOf = new NativeArray<int>(Positions.Length, Allocator.Temp);
+                for (int i = 0; i < skirtOf.Length; i++)
+                    skirtOf[i] = -1;
+                for (int t = 0; t < triangles; t += 3)
+                for (int k = 0; k < 3; k++)
+                {
+                    int a = Indices[t + k], b = Indices[t + (k + 1) % 3];
+                    // Open: no triangle runs back along it. Only on the border (a cell left out deep in the rock leaves
+                    // a hole no one sees).
+                    if (!edge[a] || !edge[b] || halfEdges.Contains(new int2(b, a)))
+                        continue;
+                    int a2 = SkirtVertex(skirtOf, a), b2 = SkirtVertex(skirtOf, b);
+                    Indices.Add(b); Indices.Add(a); Indices.Add(a2);
+                    Indices.Add(b); Indices.Add(a2); Indices.Add(b2);
+                }
+                skirtOf.Dispose();
+                halfEdges.Dispose();
+            }
+
+            int SkirtVertex(NativeArray<int> skirtOf, int v)
+            {
+                if (skirtOf[v] < 0)
+                {
+                    skirtOf[v] = Positions.Length;
+                    Positions.Add(Positions[v] - Normals[v] * Skirt);
+                    Normals.Add(Normals[v]);
+                    Colors.Add(Colors[v]);
+                    Data.Add(Data[v]);
+                }
+                return skirtOf[v];
             }
 
             void Quad(NativeArray<int> cellVertex, int c0, int c1, int c2, int c3, bool flip)

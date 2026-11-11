@@ -419,6 +419,14 @@ namespace Punchy.Settings
         /// </summary>
         public const float CaveOpeningPixels = 4f;
 
+        /// <summary>
+        /// W-135 row 2: cave wall levels. A chunk's walls are built at 0.5 m while a metre at its nearest point looks
+        /// bigger than Near, at 1 m while bigger than Mid, else at 2 m: at 1080p and 60° that is 0.5 m to about 47 m and
+        /// 1 m to about 94 m, so a voxel never grows past about 10 px.
+        /// </summary>
+        public const float CaveWallSize = 1f;
+        public static readonly Thresholds CaveWall = new Thresholds(20f, 10f, 0f);
+
         public static Rule FloraRule(FloraClass c)
         {
             switch (c)
