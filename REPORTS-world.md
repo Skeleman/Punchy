@@ -5157,3 +5157,28 @@ Proposed fix (world lane, RoadBaking + TunnelPortalKit):
   - There are more triangles per cave than the old disc, but they draw only in screen-size range and are tiled.
 - BENCH-QUEUE request: main vs world/cave-water inside a cave with water: `-place cavepool`, and a stream cave if one can be placed. Watch the cave water bake job, the draw count and memory. No timing from the lane (rule 21).
 - Row 3 not started. It waits for the supervisor.
+
+### Row 3: underground lakes - done (verified)
+- Commit 11176d1c on world/cave-water (pushed). New `CaveBaking.Lakes.cs`, plus small edits in CaveData, CaveBaking and CaveSystem.Water:
+  - A few caves gain a lake hall: a domed chamber carved around a wide, deep basin (pool Hall/Span; HallFloor/HallDome in CaveData). Eligible caves are wet, winding (Straightness < 0.5), non-lava and have 4+ nodes; a 15% roll per cave picks them. The hall hangs off a passage or chamber node.
+  - Stable seeds: every draw comes from hash(cave Key, 0x1A4E), and all draws are made before any skip. A lake only takes its own spot: it is dropped if it would break the cover above, flood, open into air outside its host segments, or overlap another cave. Lake pools are inserted after the cave's own pools, so existing pools, streams and landmarks keep their indices.
+  - The water is row 2's baked lattice (PoolReach grows to 1.2R + 3 for halls); there's no new water path.
+  - Details tenet (PlaceLakeDetails): 1-2 drip columns, 3-7 stalactites, a 60% chance of a 2-3 boulder ledge, and 1-2 patches of 8-16 glow flora from the cave flora table. All of it goes through the existing cave props/plants, so it's drawn by DetailPolicy.ScreenSize.
+- Play island (seed 8121): planned 5, kept 3 (misses: cover 67, wet 18, air 9, overlap 5 tries).
+
+  | Lake | Centre | Radius | Hall | Surface >= SwimDepth 1.3 m |
+  |---|---|---|---|---|
+  | 1 | -2600.2, 204.5, 333.5 | 8.4 m | 4.6 m | 70% (twin basin 67%) |
+  | 2 | -2709.2, 41.4, -617.8 | 7.8 m | 8.9 m | 67% |
+  | 3 | 1623.2, 4.2, -2632.1 | 6.6 m | 7.5 m | 69% |
+
+- Shots, viewed at sheet size, in D:/Unity/PunchyMilestones/W-134/: row3-lake{1,2,3}-{door,over,swim}.png (entrance, over the water, swimming). Lakes 1 and 2 are in the purple glow style, lake 3 in a dark style lit by lantern.
+- Pins hold: Landmarks_V3 112 A955AFE0, Fauna_Fingerprint AD723954.
+- Suite (fresh domain): `DONE 26 passed, 0 failed, 17 skipped in 304s`.
+- lod-lint HEAD: clean.
+- Notes and risks:
+  - The cave and landmark hashes don't move, but the cave layout of the chosen caves does (new hall, wider bounds), so any test or save that keys on a cave's Min/Max or PoolCount sees the new pools.
+  - Two new bake steps: "lakes" (after streams) and "lake details" (after fittings). The "lakes" step marches the hall's cover and air for each try, so its cost scales with tries (99 on the play island).
+  - Lake 3's swim shot looks past a drip column; the hall is small enough that a column is usually in view.
+- BENCH-QUEUE request: main vs world/cave-water. (1) Island bake: the new "lakes" and "lake details" steps. (2) Standing in lake 1's hall (-2600, 205, 333) and swimming in it: cave water bake job, draw count and memory for the hall's water tiles, props and glow flora. No timing from the lane (rule 21).
+- W-134 rows 1-3 done. Row 4 (river chambers) waits for the supervisor.
