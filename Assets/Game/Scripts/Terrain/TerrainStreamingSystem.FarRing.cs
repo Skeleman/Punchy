@@ -18,12 +18,12 @@ namespace Punchy.Terrain
     /// ring costs about a quarter of the draws there. Far tiles are drawn only: no colliders, no shadows, no flora or props, no TerrainChunk tag, so
     /// nothing that reads chunks ever sees one.
     ///
-    /// The disc of chunks is left as it is. A far tile is wanted wherever any of its 16 chunks lies outside the disc
-    /// (so along the disc's edge a tile and some of its chunks both draw), and it goes once the disc has fully taken it
-    /// over: every chunk centre inside, every chunk built. A disc chunk past its unload margin waits for its far tile,
-    /// so the ground never has a hole. Where they overlap the two are the same 16 m grid sampled at the same points,
-    /// so the overlap draws identical depth and colour and can't be seen. Far tiles build in their own small
-    /// background batches, beside the chunk batches.
+    /// A far tile is wanted wherever any of its 16 chunks lies outside the disc, and it goes once the disc has fully
+    /// taken it over: every chunk centre inside, every chunk built. A disc chunk past its unload margin waits for its
+    /// far tile, so the ground never has a hole. Since W-132 row 3 the disc ends on tile lines (<see cref="TileDisc"/>)
+    /// one chunk into its outermost LOD (<see cref="DiscIntoLastLod"/>), so the two overlap only for a moment while
+    /// one hands over to the other, and the ring draws the disc's old outer band in far fewer draws. Far tiles build in
+    /// their own small background batches, beside the chunk batches.
     /// </summary>
     public partial class TerrainStreamingSystem
     {
@@ -34,6 +34,25 @@ namespace Punchy.Terrain
         const float FarFromView = 1.29f;
         /// <summary>Off keeps the plain disc at every preset (for before/after; PUNCHY_FARRING=0).</summary>
         public static bool FarRing = System.Environment.GetEnvironmentVariable("PUNCHY_FARRING") != "0";
+        /// <summary>
+        /// W-132 row 3: the disc ends on far-tile lines. A chunk whose 256 m tile is drawn by the ring (any of the tile's
+        /// chunk centres past the disc) isn't loaded, so along the edge the ground draws once instead of twice; a loaded
+        /// one goes once its tile is built. Off loads every chunk inside the full disc as before, with no trim
+        /// (PUNCHY_FARDISC=0).
+        /// </summary>
+        public static bool TileDisc = System.Environment.GetEnvironmentVariable("PUNCHY_FARDISC") != "0";
+        /// <summary>A loaded chunk stays this far (m) past the line before its tile takes over, so it doesn't thrash.</summary>
+        const float TileDiscHold = 32f;
+        /// <summary>
+        /// W-132 row 3: with the ring on, the disc ends this many chunks into its outermost LOD and far tiles take the
+        /// rest (High: 31 chunks to 27, about 1.73 km; the last LOD starts at 1.66 km). That LOD is the far tiles' own
+        /// 16 m grid, so they draw the same ground there in about a sixteenth of the draws. The ring's reach, its 16 m
+        /// band and the drawn edge still go by the full radius; flora reads the config's radius, not this, so its reach
+        /// is unchanged.
+        /// </summary>
+        const int DiscIntoLastLod = 1;   // streaming: chunks past the LOD config's own band start, not metres
+        /// <summary>The View distance's disc radius (m) before the trim.</summary>
+        float fullRadius;
         /// <summary>Where the drawn ground ends (m from the focus): the far ring's edge when it's on, else the disc's.
         /// The haze (WeatherSystem) reaches ~98% here and the camera's far plane reaches past it.</summary>
         public static float DrawDistance { get; private set; } = 1536f;
@@ -108,12 +127,29 @@ namespace Punchy.Terrain
 
         bool FarBuilt(int3 tile) => farTiles.TryGetValue(tile, out var t) && t.Quads > 0;
 
-        /// <summary>Sets the ring's reach for this frame's disc, the drawn edge, and the camera's far plane to match.</summary>
-        void ApplyFarRing(in TerrainConfig config, float view)
+        /// <summary>True when the ring draws this chunk's ground, so the disc leaves it out (row 3). A loaded chunk is
+        /// held a little past the line.</summary>
+        bool LeftToRing(int2 coord, float2 focus, float chunkSize, bool loadedNow)
         {
+            if (!TileDisc || farRadius <= 0f)
+                return false;
+            return TileFarthestCentre(TileOf(coord), focus, chunkSize) > nearRadius + (loadedNow ? TileDiscHold : 0f);
+        }
+
+        /// <summary>Sets the ring's reach for this frame's disc, the drawn edge, and the camera's far plane to match.</summary>
+        void ApplyFarRing(ref TerrainConfig config, float view)
+        {
+            fullRadius = config.ViewRadiusChunks * config.ChunkSize;
+            farRadius = FarRing && view >= FarFromView ? fullRadius * math.max(1f, FarScale) : 0f;
+            DrawDistance = farRadius > 0f ? farRadius : fullRadius;
+            // (Row 3: the disc hands its outer chunks to the ring.)
+            if (farRadius > 0f && TileDisc)
+            {
+                var lastLodFrom = config.Lod0Distance * (1 << math.max(0, config.LodLevels - 2));
+                var disc = (int)math.ceil(lastLodFrom / config.ChunkSize) + DiscIntoLastLod;
+                config.ViewRadiusChunks = math.clamp(disc, 2, config.ViewRadiusChunks);
+            }
             nearRadius = config.ViewRadiusChunks * config.ChunkSize;
-            farRadius = FarRing && view >= FarFromView ? nearRadius * math.max(1f, FarScale) : 0f;
-            DrawDistance = farRadius > 0f ? farRadius : nearRadius;
             var cam = Camera.main;
             // (The farthest corner of a 512 m tile can sit most of its diagonal past the edge.)
             var reach = farRadius > 0f ? farRadius + FarTileChunks * config.ChunkSize * 3f : 0f;
@@ -149,7 +185,7 @@ namespace Punchy.Terrain
             if (farRadius > 0f)
             {
                 // A 512 m tile where the whole of it lies past the fine band, else its four 256 m tiles.
-                var coarseFrom = nearRadius + FarFineBand;
+                var coarseFrom = fullRadius + FarFineBand;
                 var bigSpan = 2 * FarTileChunks * size;
                 var r = (int)math.ceil(farRadius / bigSpan) + 1;
                 var centre = (int2)math.floor(focus / bigSpan);

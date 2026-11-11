@@ -289,7 +289,7 @@ namespace Punchy.Terrain
             var reach = (config.ViewRadiusChunks + 1.5f) * config.ChunkSize;
             if (cam != null && cam.farClipPlane < reach)
                 cam.farClipPlane = reach;
-            ApplyFarRing(config, appliedView);
+            ApplyFarRing(ref config, appliedView);
             return config;
         }
 
@@ -374,7 +374,8 @@ namespace Punchy.Terrain
             {
                 var center = ((float2)coord + 0.5f) * config.ChunkSize;
                 // (With the far ring on, only once its far tile has taken over: W-131.)
-                if (math.distance(center, focus) > unloadRadius && (farRadius <= 0f || FarTileCovers(coord, focus, config.ChunkSize)))
+                var gone = math.distance(center, focus) > unloadRadius || LeftToRing(coord, focus, config.ChunkSize, true);
+                if (gone && (farRadius <= 0f || FarTileCovers(coord, focus, config.ChunkSize)))
                     scratchCoords.Add(coord);
             }
 
@@ -396,10 +397,14 @@ namespace Punchy.Terrain
                 var min = (float2)coord * size;
                 if (math.distance(min + size * 0.5f, focus) > radius)
                     continue;
+                var isLoaded = loaded.TryGetValue(coord, out var existing);
+                // (W-132 row 3: a chunk whose far tile draws its ground stays out.)
+                if (LeftToRing(coord, focus, size, isLoaded))
+                    continue;
 
                 var distance = math.distance(focus, math.clamp(focus, min, min + size));
                 var lod = config.LodForDistance(distance);
-                if (loaded.TryGetValue(coord, out var existing) && existing.Lod == lod)
+                if (isLoaded && existing.Lod == lod)
                     continue;
 
                 wanted.Add(new BuildItem { Coord = coord, Lod = lod, Distance = distance });
