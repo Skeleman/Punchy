@@ -4888,6 +4888,36 @@ Proposed fix (world lane, RoadBaking + TunnelPortalKit):
 - BENCH-QUEUE request: main vs world/far-lite, High and Ultra, three spots: a ground walk, a hilltop view (e.g. -3460,2425 looking west) and a 300 m flight over land and sea. Watch GPU frame time and the far ring's draw cost. The row is kept only if the branch costs no more than main.
 - Row 3 not started; waits for the supervisor.
 
+### Row 3: fewer draws in the disc's outer ring - done (verified)
+- Commit 21df3a54 on world/far-lite (pushed).
+- What changed: with the far ring on, the chunk disc now ends one chunk into its outermost LOD. At High that is 31 chunks down to 27 (1.73 km); the last LOD starts at 1.66 km.
+  - The trim comes from the LOD config (Lod0Distance x 2^(LodLevels-2) + 1 chunk), not from a fixed number of metres.
+  - The disc also ends on 256 m tile lines: a chunk whose far tile the ring draws isn't loaded, with a 32 m hold so it doesn't flip back and forth.
+  - The LOD4 band was the far tiles' own 16 m grid, so the ring now draws that ground once, in far fewer draws.
+  - Unchanged: the ring's reach, the 16 m fine band, DrawDistance (haze) and flora reach (still the config radius). Colliders, flora and props near the player are unchanged; disc chunks past 1.73 km had no gameplay use.
+  - `PUNCHY_FARDISC=0` restores the old disc for before/after.
+- Counts at air300 looking west, High (row 1 spot, same camera):
+  - Before: 3018 chunks, LODs [45,115,426,1647,785], 263 far tiles, about 2370-2450 draws, about 270 setpass.
+  - Tile lines only, no trim: 2656 chunks, about 2264 draws.
+  - After: 1936 chunks, LODs [45,115,426,1342,8], 308 far tiles, about 1930 draws, about 253 setpass.
+  - Net: -1082 chunks and about 440-520 fewer draws (about 20%).
+- No-holes flight: 60 s at 40 m/s heading east from air300 (y 400). Every frame, the probe counted 64 m cells within reach that neither a loaded chunk nor a built far tile covered.
+  - After: 5412 frames, 0 frames with holes. The queue peaked at 1277 pending.
+  - Before (PUNCHY_FARDISC=0, same line): 6155 frames, 0 holes. The queue peaked at 2347 pending.
+  - The streaming backlog while flying is about halved.
+- lod-lint vs origin/main: clean. The one hit, `DiscIntoLastLod`, is a chunk count and is labelled `// streaming:`.
+- Shots: milestone folder W-132/row3. It has before/ and after/ (air300-west, air300-north-noon, low120-south-noon, hill-east-noon, hill-west-sunset), plus `ab-sheet-before-after-diff.jpg` and `rim-crops.jpg` (the horizon band at full resolution).
+  - 0 magenta pixels on D3D11.
+  - The A/B differences (mean 6-13) come from clouds and fog density: weather is forced clear only at the first goto, so the later shots drifted.
+  - The rim crops show no seam, band or z-fighting at the handover. Near ground and trees match.
+- Risks:
+  - Past 1.73 km there are now no chunk colliders (far tiles have none). Anything that raycasts the ground that far would miss. I found nothing that does; flora and water patches use their own nearer radius.
+  - At High the disc ends on a tile line, so the old LOD3/LOD4 morph is never seen past 1.73 km. That ground is the far tiles' identical 16 m grid.
+- BENCH-QUEUE request (job for row 3): world/far-lite at 21df3a54, High, uncapped, at air300 (`-goto -1236,1324 -camlook -1236,380,1324,-2236,270,1324`). Run PUNCHY_FARDISC=0 against 1 (same build) for frame and GPU time.
+  - A second leg: a 60 s flight or glide at speed, for streaming hitches (the pending peak halved).
+  - Row 2's job 56 stands as is.
+- Row 4 next (the horizon skirt and the haze knob).
+
 ## W-134 (cave water = surface water; tree Punchy-world, branch world/cave-water)
 
 ### Row 1: one water query for a 3D point - done (verified)
