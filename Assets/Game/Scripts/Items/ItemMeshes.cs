@@ -57,6 +57,7 @@ namespace Punchy.Items
                 case "Spear": k.Tube(0, new Vector3(0f, 0.025f, -0.9f), new Vector3(0f, 0.025f, 0.68f), 0.018f, 0.018f); k.Tube(1, new Vector3(0f, 0.025f, 0.68f), new Vector3(0f, 0.025f, 0.94f), 0.038f, 0.003f, 4); break;
                 case "Sword": Sword(k); break;
                 case "Bow": Bow(k); break;
+                case "Axe": Axe(k); break;
                 case "Arrow": k.Tube(0, new Vector3(0f, 0.012f, -0.32f), new Vector3(0f, 0.012f, 0.3f), 0.008f, 0.008f, 5); k.Tube(1, new Vector3(0f, 0.012f, 0.3f), new Vector3(0f, 0.012f, 0.37f), 0.016f, 0.002f, 4); k.Tube(1, new Vector3(0f, 0.012f, -0.32f), new Vector3(0f, 0.012f, -0.2f), 0.026f, 0.012f, 3); break;
                 case "Cap": k.Dome(0, new Vector3(0f, 0.01f, 0f), 0.11f, 0.09f); k.Tube(1, new Vector3(-0.1f, 0.015f, 0.04f), new Vector3(0.1f, 0.015f, 0.04f), 0.012f, 0.012f, 4); break;
                 case "Helm": k.Dome(0, new Vector3(0f, 0.01f, 0f), 0.13f, 0.14f); k.Tube(1, new Vector3(0f, 0.12f, 0.12f), new Vector3(0f, 0.02f, 0.135f), 0.014f, 0.01f, 4); k.Tube(1, new Vector3(-0.13f, 0.02f, 0f), new Vector3(0.13f, 0.02f, 0f), 0.014f, 0.014f, 4); break;
@@ -140,6 +141,20 @@ namespace Punchy.Items
             k.Tube(0, new Vector3(-0.09f, y, -0.25f), new Vector3(0.09f, y, -0.25f), 0.014f, 0.014f, 5);
             k.Tube(1, new Vector3(0f, y, -0.38f), new Vector3(0f, y, -0.26f), 0.017f, 0.017f, 6);
             k.Blob(0, new Vector3(0f, y, -0.395f), new Vector3(0.025f, 0.025f, 0.025f), 2u, 4, 6);
+        }
+
+        /// <summary>An axe lying flat: a haft, and at its head a flat iron blade widening out to the edge on one side
+        /// (thicker by the haft, thin at the edge), a short poll on the other.</summary>
+        static void Axe(Kit k)
+        {
+            const float y = 0.03f, t = 0.012f;
+            k.Tube(0, new Vector3(0f, y, -0.34f), new Vector3(0f, y, 0.34f), 0.02f, 0.024f, 6);
+            Vector3 n0 = new Vector3(0.02f, y + t, 0.21f), n1 = new Vector3(0.02f, y + t, 0.33f);
+            Vector3 m0 = new Vector3(0.02f, y - t, 0.21f), m1 = new Vector3(0.02f, y - t, 0.33f);
+            Vector3 e0 = new Vector3(0.16f, y, 0.15f), e1 = new Vector3(0.16f, y, 0.39f);
+            k.Tri(1, n0, n1, e1); k.Tri(1, n0, e1, e0);
+            k.Tri(1, m0, e1, m1); k.Tri(1, m0, e0, e1);
+            k.Blob(1, new Vector3(-0.03f, y, 0.27f), new Vector3(0.035f, 0.022f, 0.045f), 2u, 4, 6);
         }
 
         /// <summary>A bow lying strung: its two limbs curving back from the grip, the string tip to tip.</summary>

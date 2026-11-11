@@ -502,6 +502,8 @@ namespace Punchy.Fauna
     public static class CreatureWeapon
     {
         public const byte None = 0, Club = 1, Spear = 2, Sword = 3, Bow = 4;
+        /// <summary>Item row (Zach 11-10, never idle): a one-handed axe.</summary>
+        public const byte Axe = 5;
     }
 
     /// <summary>A player's body's gear beyond CreatureWorn (P-28): the weapon (CreatureWeapon) and its swing, 0 at rest,
