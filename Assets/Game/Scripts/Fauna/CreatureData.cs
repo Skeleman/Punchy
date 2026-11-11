@@ -767,7 +767,9 @@ namespace Punchy.Fauna
         public quaternion Rotation;
         public float RadiusStart, RadiusEnd, Flatten, Pad;
         public float4 Color;
-        /// <summary>x: what it's made of (a SegmentMaterial, as a float), shaded to match; yzw spare.</summary>
+        /// <summary>x: what it's made of (a SegmentMaterial, as a float), shaded to match; z: how many segments back
+        /// the one it hangs from is (the joint seam, CreatureAnimator); w: its look code (SurfaceLook: fur and its
+        /// length, feathers, scales, hoof, eye..., A-97), written by the render system; y: the ground height under a body (grounding), set by the render system.</summary>
         public float4 Material;
     }
 
@@ -810,19 +812,9 @@ namespace Punchy.Fauna
             public int SlotIndex;
         }
 
-        /// <summary>
-        /// Builds a species. A variant takes its body, parts, gait and behaviour from the species it is a variant
-        /// of, and only its own colours and size.
-        /// </summary>
-        /// <param name="prey">Indices of the species it hunts.</param>
-        /// <param name="hunted">Whether any species hunts it.</param>
-        /// <param name="regard">Folk only: its regard for each species (by index), and its kinship (FolkKin).</param>
-        public static BlobAssetReference<CreatureBlob> Build(CreatureSpecies variant, IReadOnlyList<int> prey = null, bool hunted = false,
-                                                             IReadOnlyList<float> regard = null, IReadOnlyList<byte> kinship = null,
-                                                             Vector2? home = null)
+        /// <summary>Expands slots: mirrored slots become left and right copies; children follow every copy of their parent.</summary>
+        static List<Expanded> Expand(CreatureSpecies species)
         {
-            var species = variant.Body;
-            // Expand slots: mirrored slots become left and right copies; children follow every copy of their parent.
             var parts = new List<Expanded>();
             var copies = new List<List<int>>();
             for (int i = 0; i < species.Parts.Count; i++)
@@ -845,6 +837,57 @@ namespace Punchy.Fauna
                     }
                 }
             }
+            return parts;
+        }
+
+        /// <summary>
+        /// The look of each segment of a species, in blob segment order (segment 0 is the body): a SurfaceLook code
+        /// plus 16 × FurLength for fur. Kept off the creature blob so looks never move the fauna fingerprint.
+        /// </summary>
+        public static byte[] Looks(CreatureSpecies variant)
+        {
+            var species = variant.Body;
+            var parts = Expand(species);
+            var count = 1;
+            foreach (var p in parts)
+                count += p.Slot.Limb.Segments.Count;
+            var looks = new byte[count];
+            looks[0] = SurfaceLook.Of(species.Coat, SegmentSurface.Coat, species.FurLength);
+            var cursor = 1;
+            foreach (var p in parts)
+                foreach (var seg in p.Slot.Limb.Segments)
+                {
+                    var length = p.Slot.FurLength != FurLengthOverride.Default ? p.Slot.FurLength
+                               : seg.FurLength != FurLengthOverride.Default ? seg.FurLength
+                               : FurLengthOverride.Default;
+                    looks[cursor++] = SurfaceLook.Of(species.Coat, seg.Surface,
+                        length == FurLengthOverride.Default ? species.FurLength : SurfaceLook.Length(length));
+                }
+            return looks;
+        }
+
+        /// <summary>
+        /// Builds a species. A variant takes its body, parts, gait and behaviour from the species it is a variant
+        /// of, and only its own colours and size.
+        /// </summary>
+        /// <param name="prey">Indices of the species it hunts.</param>
+        /// <param name="hunted">Whether any species hunts it.</param>
+        /// <param name="regard">Folk only: its regard for each species (by index), and its kinship (FolkKin).</param>
+        public static BlobAssetReference<CreatureBlob> Build(CreatureSpecies variant, IReadOnlyList<int> prey = null, bool hunted = false,
+                                                             IReadOnlyList<float> regard = null, IReadOnlyList<byte> kinship = null,
+                                                             Vector2? home = null)
+        {
+            var species = variant.Body;
+            var parts = Expand(species);
+            // M-05: the Model Lab's adjustments for this species (null: none). Every multiplier defaults to 1 and is
+            // applied as a plain multiply, which for 1 is exact, so an untuned species bakes byte for byte as before.
+            var tune = CreatureTunables.For(species.name);
+            var bodyLength = species.BodyLength * (tune?.BodyLength ?? 1f);
+            var speed = tune?.Speed ?? 1f;
+            var size = tune?.Size ?? 1f;
+            var neckScale = tune?.Neck ?? 1f;
+            var tailScale = tune?.Tail ?? 1f;
+            var swing = tune?.Swing ?? 1f;
 
             var segmentCount = 1;
             foreach (var p in parts)
@@ -852,20 +895,20 @@ namespace Punchy.Fauna
 
             var builder = new BlobBuilder(Allocator.Temp);
             ref var root = ref builder.ConstructRoot<CreatureBlob>();
-            root.BodyLength = species.BodyLength;
+            root.BodyLength = bodyLength;
             // (Short bodies bound, longer ones gallop, unless the species says.)
-            root.Bounds = species.Gallop == GallopStyle.Bound || species.Gallop == GallopStyle.Auto && species.BodyLength < 0.5f;
+            root.Bounds = species.Gallop == GallopStyle.Bound || species.Gallop == GallopStyle.Auto && bodyLength < 0.5f;
             root.LeapingRun = species.Gallop == GallopStyle.Leap;
             // A variant's own proportions (a child's big head, chunky limbs and short legs) on the body it's based on.
             var own = variant != species;
-            var headScale = own ? variant.VariantHead : 1f;
-            var thickness = own ? variant.VariantThickness : 1f;
-            var legScale = own ? variant.VariantLegs : 1f;
+            var headScale = (own ? variant.VariantHead : 1f) * (tune?.Head ?? 1f);
+            var thickness = (own ? variant.VariantThickness : 1f) * (tune?.Thickness ?? 1f);
+            var legScale = (own ? variant.VariantLegs : 1f) * (tune?.Legs ?? 1f);
             root.FrontRadius = species.BodyRadius * thickness;
             root.RearRadius = species.BodyRadius * species.BodyTaper * thickness;
             root.BodyFlatten = species.BodyFlatten;
-            root.WalkSpeed = species.WalkSpeed;
-            root.RunSpeed = math.max(species.RunSpeed, species.WalkSpeed * 1.3f);
+            root.WalkSpeed = species.WalkSpeed * speed;
+            root.RunSpeed = math.max(species.RunSpeed * speed, species.WalkSpeed * speed * 1.3f);
             root.Bob = new float2(species.Bob.x, species.Bob.y);
             root.BobsPerCycle = new float2(species.BobsPerCycle.x, species.BobsPerCycle.y);
             root.RunRock = math.radians(species.RunRock);
@@ -886,7 +929,7 @@ namespace Punchy.Fauna
             root.TurnRate = math.radians(species.TurnRate);
             root.IdleTime = new float2(species.IdleTime.x, species.IdleTime.y);
             var sizeScale = variant != species ? variant.VariantScale : 1f;
-            root.Size = new float2(species.Size.x, species.Size.y) * sizeScale;
+            root.Size = new float2(species.Size.x, species.Size.y) * sizeScale * size;
             root.Active = variant.Active;
             root.Grazing = variant.Grazing;
             root.Thirst = variant.Thirst;
@@ -928,12 +971,12 @@ namespace Punchy.Fauna
             root.RaidsHives = species.RaidsHives;
             root.Hands = species.Parts.Exists(p => p != null && p.Limb != null && p.Limb.Role == LimbRole.Arm);
             root.Child = variant.Child;
-            root.SeenFrom = species.SeenFrom * sizeScale;
+            root.SeenFrom = species.SeenFrom * sizeScale * size;
             root.Rooted = species.Rooted;
             root.Disguised = species.Disguised;
             root.Comfort = ComfortProfiles.For(variant, home ?? new Vector2(-1f, -1f));
             root.Nests = species.Nests;
-            root.WebSize = species.WebSize * sizeScale;
+            root.WebSize = species.WebSize * sizeScale * size;
             root.FlightHeight = new float2(species.FlightHeight.x, math.max(species.FlightHeight.x, species.FlightHeight.y));
             root.FlySpeed = species.FlySpeed;
             root.FlapRate = species.FlapRate;
@@ -976,7 +1019,7 @@ namespace Punchy.Fauna
 
             segArray[0] = new CreatureSegment
             {
-                Length = math.max(0f, species.BodyLength - root.RearRadius - root.FrontRadius),
+                Length = math.max(0f, bodyLength - root.RearRadius - root.FrontRadius),
                 RadiusStart = root.RearRadius,
                 RadiusEnd = root.FrontRadius,
                 Flatten = species.BodyFlatten
@@ -995,7 +1038,8 @@ namespace Punchy.Fauna
                 onHead[i] = limb.Role == LimbRole.Head || e.Parent >= 0 && onHead[e.Parent];
                 if (e.Parent >= 0 && onHead[e.Parent])
                     socket *= headScale;
-                var lengthScale = onHead[i] ? headScale : limb.Role == LimbRole.Leg ? legScale : 1f;
+                var lengthScale = onHead[i] ? headScale : limb.Role == LimbRole.Leg ? legScale
+                                : limb.Role == LimbRole.Neck ? neckScale : limb.Role == LimbRole.Tail ? tailScale : 1f;
                 var radiusScale = onHead[i] ? headScale : thickness;
                 // (The head's own neck, before its last segment, only thickens: a big head, not a long neck.)
                 var neck = limb.Role == LimbRole.Head ? limb.Segments.Count - 1 : 0;
@@ -1003,7 +1047,7 @@ namespace Punchy.Fauna
                 {
                     // Body units → metres: across the radius at that point along the body, along the half-length.
                     var radius = math.lerp(root.RearRadius, root.FrontRadius, socket.z * 0.5f + 0.5f);
-                    socket = new float3(socket.x * radius, socket.y * radius * species.BodyFlatten, socket.z * species.BodyLength * 0.5f);
+                    socket = new float3(socket.x * radius, socket.y * radius * species.BodyFlatten, socket.z * bodyLength * 0.5f);
                 }
                 socket.x *= side;
                 var dir = (float3)slot.Direction;
@@ -1043,7 +1087,13 @@ namespace Punchy.Fauna
                     };
                     for (int k = 0; k < CreatureBlob.PoseCount; k++)
                     {
-                        var a = math.radians((float3)poses[k][s]);
+                        var deg = (float3)poses[k][s];
+                        // (M-05: the walk and run keys swung further from, or closer to, the idle pose; then any nudges.)
+                        if (swing != 1f && k != 0)
+                            deg = (float3)poses[0][s] + (deg - (float3)poses[0][s]) * swing;
+                        if (tune != null && tune.Nudge(e.SlotIndex, s, k, out var nudge))
+                            deg += (float3)nudge;
+                        var a = math.radians(deg);
                         poseArray[cursor * CreatureBlob.PoseCount + k] = new float3(a.x, a.y * side, a.z * side);
                     }
                     cursor++;
