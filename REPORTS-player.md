@@ -627,3 +627,28 @@ code, which isn't on main yet. Merge after player/integrate.
 DONE: per the supervisor's 11-10 rule, every player-lane shot folder is now under D:/Unity/PunchyMilestones/P-<nn>/ on the main PC
 (190 files, nothing left in D:/Unity/shots-*). Old report paths map as: shots-P9/P22/P23/P24/P25/P26/P28/P30 -> P-9 ... P-30;
 shots-P28-armour -> P-28/armour; shots-P28-cloth -> P-28/cloth; shots-tools -> P-28/tools. New shots go there directly (P-31 next).
+
+## P-31 row 1: -netsim (player/netsim @353b10a2, from origin/main)
+DONE.
+- `-netsim <delay ms>[,<jitter ms>[,<loss %>]]` (e.g. `-netsim 150,30,2`). Logs once at start: `netsim: delay 150 ms, jitter 30, loss 2%`.
+  Off without the flag; no define, no ProjectSettings change; works in a Dev player build.
+- How: a joiner's UDP (LAN or Relay) driver gets Transport's simulator pipeline stage on all three pipelines,
+  ApplyMode.AllPackets, so both directions lag from the joiner's side (round trip about twice the delay). This is what
+  Netcode's own editor simulator does. The host's link to its own client is never touched.
+- **Differs from the card:** the host's side gets nothing. A host given `-netsim` only logs
+  `netsim: hosting: the host's drivers are left as they are`. Passing the flag to both (as job 50b would) still gives
+  about 300 ms.
+- Why not Transport's global simulator layer (first try): it also lags and drops the connection handshake. At 150,30,2,
+  2 joins in 4 sat in Connecting until the game's 15 s join limit and fell back to solo. Delay only, jitter only and loss
+  only each joined once.
+- New `-rttlog` (also on under -netsim): a joined client logs Netcode's estimated RTT every 5 s (`netsim: rtt 288 ms (deviation 14)`).
+- Measured (Dev build, host + joiner on the main PC):
+  - With 150,30,2 on both, 4 of 4 joins connected. The joiner's RTT read 279-306 ms (deviation 6-28).
+  - Without the flag, it read 11-12 ms. That is Netcode's tick and frame floor on one machine, not 0.
+  - 0 exceptions in all 10 logs.
+  - The lagged runs end with `disconnected (ClosedByRemote)` on the joiner. That is the host's -quitafter firing about
+    5 s before the joiner's, not a dropped link.
+- Suite 25/0/17.
+- UNVERIFIED: Relay join with -netsim (same code path, not run).
+- Next: row 2 (walk side by side, talk to a folk, leave and rejoin under 150,30,2). The gear swap can't be tested on
+  this branch: P-28 gear is not on main.
