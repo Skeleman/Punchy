@@ -3568,3 +3568,14 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - Risks:
   - Tunables reach every creature. A Save that leaves a non-1 value moves the fingerprint. That is intended, but it must be a reviewed diff.
   - Colossus builders assume runtime statics such as MammothRig, so the Lab must not run them during play.
+
+### Row 2: creature tunables (done, verified by pins and suite; no shot)
+- Commit c28f366d on fauna/model-lab (pushed).
+- New `CreatureTunables` asset (Resources/CreatureTunables.asset, empty lists by default). It holds only differences:
+  - per species (keyed by the base species' name, so a variant follows its base): Size, BodyLength, Thickness, Legs, Head, Neck, Tail, Speed and Swing multipliers, plus pose nudges (limb slot, segment, key, degrees);
+  - per colossus kind: Sway (only the ice mammoth's trunk reads it so far).
+- `CreatureBlobBuilder.Build` multiplies by the entry where one exists. Swing scales each walk/run key's distance from the idle pose, and nudges are added to the key's angles. With no entry, every multiply is by exactly 1, so the blob bytes don't change.
+- Runtime cost: one linear lookup per species bake, and one per frame for the mammoth's sway (on an empty list).
+- Pins: Landmarks_V3 112 A955AFE0 and Fauna_Fingerprint AD723954, both unchanged.
+- Suite: PlayMode 25 of 25 passed (310 s), in my editor.
+- Next: row 3, the Model Lab window (shots show the sliders taking effect).
