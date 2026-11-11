@@ -743,3 +743,12 @@ Row 1 DONE. Row 2: nothing to change today (see below); please say if you want s
 - Suite 25/0/17.
 - UNVERIFIED: the Look and Keys tabs (same code path, not run), a real pad (presses were injected as Navigate values),
   and the container pane beside the inventory (needs an open container).
+
+## After #258 (11-10): origin/main merged into the open player branches (DONE)
+- All clean, pushed: player/weapons 44d5dc2c, player/armour 6a959216, player/clothing 343df4dc, player/tools 8dec1205,
+  player/seamless 2f8b77e2, player/doors-open f7c2930c. Each is 0 behind main.
+- Check: all six merged onto main together (one by one, no conflicts) and the suite run on that: 25 passed, 0 failed, 17 skipped.
+- P-29 started: `player/hair` is on player/clothing (343df4dc), not bare main. Only P-28 row 0 is on main; hair needs the
+  synced outfit and the helms/hoods from rows 1-3 (P-29 row 1: "hats and helms hide the hair"), and would conflict with
+  them in CreatureData/PoseGear/Gear sync from main. Merging order for the supervisor: weapons, armour, clothing, then hair.
+- Next: P-29 row 1.
