@@ -11,7 +11,8 @@ namespace Punchy.Net
     /// P-31: a client's round-trip time to the host, as Netcode estimates it, logged every few seconds while "-netsim"
     /// or "-rttlog" is given ("netsim: rtt 302 ms (deviation 14)"), so a lag test can check the simulator took effect.
     /// With it, how smoothly players move here: the biggest step any player's body took in one frame, and how many
-    /// frames were snaps (a step over <see cref="SnapMetres"/>, or faster than <see cref="SnapSpeed"/>), for our own
+    /// frames were snaps (a step over <see cref="SnapMetres"/>, or over <see cref="FastMetres"/> and faster than
+    /// <see cref="SnapSpeed"/>: at a few hundred frames a second a plain walking step is already "fast"), for our own
     /// player and for the others apart. Nothing runs without either flag.
     /// </summary>
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
@@ -19,8 +20,9 @@ namespace Punchy.Net
     public partial class RttLogSystem : SystemBase
     {
         const float Every = 5f;
-        /// <summary>A frame's step counts as a snap past this many metres, or past this speed (m/s; a sprint is under 10).</summary>
-        const float SnapMetres = 1f, SnapSpeed = 25f;
+        /// <summary>A frame's step counts as a snap past SnapMetres, or past FastMetres at over SnapSpeed (m/s; a sprint
+        /// is under 10).</summary>
+        const float SnapMetres = 1f, FastMetres = 0.3f, SnapSpeed = 25f;
         float next;
         readonly Dictionary<Entity, float3> last = new Dictionary<Entity, float3>();
         readonly HashSet<Entity> seen = new HashSet<Entity>();
@@ -45,7 +47,7 @@ namespace Punchy.Net
                 {
                     var step = math.distance(p, was);
                     var own = EntityManager.HasComponent<GhostOwnerIsLocal>(e) && EntityManager.IsComponentEnabled<GhostOwnerIsLocal>(e);
-                    var snap = step > SnapMetres || step / dt > SnapSpeed;
+                    var snap = step > SnapMetres || (step > FastMetres && step / dt > SnapSpeed);
                     if (own)
                     {
                         ownMax = math.max(ownMax, step);
