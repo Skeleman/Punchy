@@ -26,6 +26,8 @@ namespace Punchy.Terrain
             public int Building, Wanted;
             /// <summary>Rebuilds (another level or contact list) in flight at the end of streaming.</summary>
             public int Rebuilding;
+            /// <summary>W-135 row 6b: field points of the builds in flight once streaming has started this frame's.</summary>
+            public int FlightPoints;
         }
 
         /// <summary>This frame's counts so far.</summary>

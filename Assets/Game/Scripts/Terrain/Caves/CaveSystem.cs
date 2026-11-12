@@ -110,6 +110,8 @@ namespace Punchy.Terrain
             /// it came out empty with the cave too far off for a finer grid to find a wall either (never rebuilt finer).</summary>
             public NativeArray<float> Gap;
             public bool Clear;
+            /// <summary>W-135 row 6b: the field points its build samples (what it hands the job workers).</summary>
+            public int Points;
 
             public void Dispose()
             {
@@ -1557,14 +1559,19 @@ namespace Punchy.Terrain
 
             var building = dying.Count;
             var rebuilding = 0;
+            var flightPoints = 0;
             foreach (var b in chunks.Values)
             {
                 if (b.Pending)
+                {
                     building++;
+                    flightPoints += b.Points;
+                }
                 if (b.Next != null)
                 {
                     building++;
                     rebuilding++;
+                    flightPoints += b.Next.Points;
                 }
             }
             var budget = fast ? 1 : MaxBuilding;
@@ -1578,7 +1585,9 @@ namespace Punchy.Terrain
                 wanted.RemoveAt(wanted.Count - 1);
                 if (!chunks.ContainsKey(key))
                 {
-                    chunks[key] = StartBuild(source, key, WallLevel(key, camPos, -1));
+                    var made = StartBuild(source, key, WallLevel(key, camPos, -1));
+                    chunks[key] = made;
+                    flightPoints += made.Points;
                     Counts.NewBuilds++;
                 }
             }
@@ -1633,6 +1642,12 @@ namespace Punchy.Terrain
                 }
                 if (bestDistance == float.MaxValue || fast && bestDistance > FastRadius)
                     break;
+                // W-135 row 6b: and only while the builds in flight (with this one) sample no more points than one
+                // finest chunk does. Two finest rebuilds started on back-to-back frames 25 m inside a mouth were a
+                // one-frame main-thread hitch (bench job 61): the main thread runs field batches while it waits on its
+                // own jobs. Now the second waits for the first to land, a few frames.
+                if (flightPoints > 0 && flightPoints + LevelPoints(bestLevel) > LevelPoints(0))
+                    break;
                 var rebuilt = chunks[best];
                 if (bestLevel != rebuilt.Level)
                 {
@@ -1643,7 +1658,9 @@ namespace Punchy.Terrain
                 else
                     Counts.ContactBuilds++;
                 rebuilt.Next = StartBuild(source, best, bestLevel);
+                flightPoints += rebuilt.Next.Points;
             }
+            Counts.FlightPoints = flightPoints;
 
             var uploads = 0;
             swapped.Clear();
@@ -1787,6 +1804,13 @@ namespace Punchy.Terrain
         /// <summary>The voxel of a wall level: Voxel doubled per level.</summary>
         float LevelVoxel(int level) => chunkVoxel * (1 << level);
 
+        /// <summary>The field points a chunk's build samples at a wall level (as StartBuild lays them out).</summary>
+        int LevelPoints(int level)
+        {
+            var n = (chunkCells >> level) + 3;
+            return n * n * n;
+        }
+
         /// <summary>
         /// W-135 row 2: a chunk at a coarser level is built on a grid of LevelVoxel(level) (half the cells across per
         /// level), so it costs a quarter of the triangles per level. Each chunk hangs a skirt into the rock from its
@@ -1808,6 +1832,7 @@ namespace Punchy.Terrain
             var b = new Built
             {
                 Level = level,
+                Points = points.x * points.y * points.z,
                 Field = new NativeArray<float>(points.x * points.y * points.z, Allocator.Persistent, NativeArrayOptions.UninitializedMemory),
                 CaveField = new NativeArray<float>(points.x * points.y * points.z, Allocator.Persistent, NativeArrayOptions.UninitializedMemory),
                 Surface = new NativeArray<float>(points.x * points.z, Allocator.Persistent, NativeArrayOptions.UninitializedMemory),
