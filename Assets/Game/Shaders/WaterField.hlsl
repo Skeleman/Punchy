@@ -67,6 +67,37 @@ float PunchyWaterFieldShade(float2 xz)
     return saturate(edge / 3.0);
 }
 
+// Zach 11-12: the far field (WaterPatchSystem.StepFar), a coarse wave field 128 m round the player at 0.5 m texels,
+// normals only, so wakes beyond the fine field's square look like Medium's (the field's light) rather than the old rings.
+// Read with the fine field's sampler (bilinear, clamped; no new sampler). x, z of its corner, texels per metre, across.
+TEXTURE2D(_PunchyWaterFarField);
+float4 _PunchyWaterFarFieldAt;
+// 1 while WaterPatchSystem runs (a field is on): the old ring ripples (SwimmerWakes) are off everywhere.
+float _PunchyWaterRingsOff;
+
+// How much the far field shades the water at xz: 1 over its square, fading out over its outer 12 m.
+float PunchyWaterFarShade(float2 xz)
+{
+    if (_PunchyWaterFarFieldAt.w <= 0)
+        return 0;
+    float side = _PunchyWaterFarFieldAt.w / _PunchyWaterFarFieldAt.z;
+    float2 local = xz - _PunchyWaterFarFieldAt.xy;
+    float edge = min(min(local.x, local.y), min(side - local.x, side - local.y));
+    return saturate(edge / 12.0);
+}
+
+// The far field's slope (dh/dx, dh/dz), from its texels either side.
+float2 PunchyWaterFarSlope(float2 xz)
+{
+    float2 uv = (xz - _PunchyWaterFarFieldAt.xy) * _PunchyWaterFarFieldAt.z / _PunchyWaterFarFieldAt.w;
+    float du = 1 / _PunchyWaterFarFieldAt.w;
+    float hx0 = SAMPLE_TEXTURE2D_LOD(_PunchyWaterFarField, sampler_PunchyWaterField, uv - float2(du, 0), 0).r;
+    float hx1 = SAMPLE_TEXTURE2D_LOD(_PunchyWaterFarField, sampler_PunchyWaterField, uv + float2(du, 0), 0).r;
+    float hz0 = SAMPLE_TEXTURE2D_LOD(_PunchyWaterFarField, sampler_PunchyWaterField, uv - float2(0, du), 0).r;
+    float hz1 = SAMPLE_TEXTURE2D_LOD(_PunchyWaterFarField, sampler_PunchyWaterField, uv + float2(0, du), 0).r;
+    return float2(hx1 - hx0, hz1 - hz0) * _PunchyWaterFarFieldAt.z * 0.5;
+}
+
 float2 PunchyWaterFieldUV(float2 xz)
 {
     return (xz - _PunchyWaterFieldAt.xy) * _PunchyWaterFieldAt.z / _PunchyWaterFieldAt.w;

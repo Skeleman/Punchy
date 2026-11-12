@@ -494,8 +494,15 @@ half4 Frag(Varyings input, bool frontFace : SV_IsFrontFace) : SV_Target
     // under rock: cave water isn't on the field.
     float fieldShade = _PunchyWaterFieldRipples > 0.5 ? fieldWeight
         : max(fieldWeight, PunchyWaterFieldShade(input.restXZ) * (1 - step(0.5, _UnderRock)));
-    [branch] if (fieldShade < 0.999 && _PunchySwimmerCount > 0 && distance(input.positionWS, GetCameraPositionWS()) < 45 && NearRipple(p))
+    // Zach 11-12: beyond the fine field's square the far field's light (normals only, as Medium shows the fine field);
+    // and while a field runs, none of the old ring ripples anywhere but under rock (no field there; they showed through
+    // the field's own wake).
+    float farShade = _PunchyWaterFieldRipples > 0.5 ? 0 : PunchyWaterFarShade(input.restXZ) * (1 - step(0.5, _UnderRock));
+    [branch] if ((_PunchyWaterRingsOff < 0.5 || _UnderRock > 0.5) && fieldShade < 0.999 && farShade < 0.999 && _PunchySwimmerCount > 0
+                 && distance(input.positionWS, GetCameraPositionWS()) < 45 && NearRipple(p))
         wakeSlope = SwimmerWakes(p, t, wakeFoam) * 0.6 * distanceFade;
+    [branch] if (farShade > 0 && fieldShade < 0.999)
+        wakeSlope = lerp(wakeSlope, PunchyWaterFarSlope(input.restXZ) * 2.5, farShade * (1 - fieldShade));
     // R-9: the wave field's own slope takes over from the ripples (drawn 2.5x steeper than it is: dents of a few
     // cm barely tilt the light otherwise).
     [branch] if (fieldShade > 0)

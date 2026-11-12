@@ -91,6 +91,26 @@ namespace Punchy.Terrain
         /// </summary>
         static readonly bool SleepOn = LaunchSwitch("-waterfieldsleep"), CullOn = LaunchSwitch("-waterfieldcull"), StepOn = LaunchSwitch("-waterfieldstep");
         static int SleepAfter => (int)(10f / StepTime);
+
+        /// <summary>
+        /// Zach 11-12: the far field, a coarse wave field round the fine one (FarSpan m across at FarSize texels, stepped
+        /// FarHz times a second), normals only: every swimmer in it presses it, and the water beyond the fine field's
+        /// square takes its slope as its light, as Medium shows the fine field (Water.shader). With it, and the fine field,
+        /// the old ring ripples (SwimmerWakes) are off everywhere a field runs ("-waterfar 0": no far field; FarOn at
+        /// runtime for the bench's cycle).
+        /// </summary>
+        public static bool FarOn = LaunchSwitch("-waterfar");
+        const int FarSpan = 128, FarSize = 256, FarSnap = 8;
+        const float FarTexelsPerMetre = FarSize / (float)FarSpan, FarStepTime = 1f / 15f;
+        RenderTexture farA, farB;
+        int2 farCorner = NoCorner, farTexelCorner, farShift;
+        float farClock, farSourceTime;
+        bool farClear, farAsleep;
+        int farQuiet;
+        NativeHashMap<Entity, float3> farLastAt;
+        static readonly int FarFieldId = Shader.PropertyToID("_PunchyWaterFarField");
+        static readonly int FarFieldAtId = Shader.PropertyToID("_PunchyWaterFarFieldAt");
+        static readonly int RingsOffId = Shader.PropertyToID("_PunchyWaterRingsOff");
         /// <summary>Zach 11-11: "-waterfieldnormals 1" runs the field without the fine sheet: nothing is cut or drawn and
         /// the chunk water isn't clipped; it only takes the field's slope as its light over the square (PunchyWaterFieldShade),
         /// so the wake shows in the shading with no displacement. The cheap option, and a far-range one later.</summary>
@@ -279,6 +299,9 @@ namespace Punchy.Terrain
             [ReadOnly] public NativeArray<Entity> Entities;
             [ReadOnly] public TerrainSource Terrain;
             public float2 Corner;
+            /// <summary>The field's texels per metre and texels across (the fine field's, or the far field's), and the
+            /// smallest dimple in texels (a coarse field's must cover a texel).</summary>
+            public float Scale, Across, MinRadius;
             public float DeltaTime;
             /// <summary>Seconds since play began, now and when this last ran (wading strides keep time by it).</summary>
             public float Time, LastTime;
@@ -291,8 +314,8 @@ namespace Punchy.Terrain
                 for (int i = 0; i < States.Length; i++)
                 {
                     var s = States[i];
-                    var at = (s.Position.xz - Corner) * TexelsPerMetre;
-                    if (math.any(at < -8f) || math.any(at > Size + 8f) || s.Gone || s.Fly > 0.5f)
+                    var at = (s.Position.xz - Corner) * Scale;
+                    if (math.any(at < -8f) || math.any(at > Across + 8f) || s.Gone || s.Fly > 0.5f)
                         continue;
                     ref var b = ref Bodies[i].Blob.Value;
                     bool upright = b.Upright || s.Mode == CreatureMode.Puppet || b.CrossesWater;
@@ -310,7 +333,7 @@ namespace Punchy.Terrain
                         continue;
                     var size = math.clamp(s.Scale * b.FrontRadius * 6f, 0.5f, 1.5f);
                     // (At least 35 cm across, or a wader's legs dent the sheet too narrowly to read as a wake.)
-                    var radius = math.clamp(s.Scale * b.FrontRadius * 4f, 0.35f, 1f) * TexelsPerMetre;
+                    var radius = math.max(math.clamp(s.Scale * b.FrontRadius * 4f, 0.35f, 1f) * Scale, MinRadius);
                     // (Something standing in it, feet down, crosses the surface wherever its feet are under; a fish or a
                     // diver only dents it near the top.)
                     var near = upright ? 1f : 1f - math.smoothstep(0.3f, 1.2f, under);
@@ -407,6 +430,7 @@ namespace Punchy.Terrain
             focusQuery = GetEntityQuery(ComponentType.ReadOnly<TerrainFocus>(), ComponentType.ReadOnly<LocalTransform>());
             creatureQuery = GetEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
             lastAt = new NativeHashMap<Entity, float3>(64, Allocator.Persistent);
+            farLastAt = new NativeHashMap<Entity, float3>(64, Allocator.Persistent);
             quads = new NativeList<ParentQuad>(1024, Allocator.Persistent);
             var args = Punchy.Debugging.DebugControls.LaunchArgs;
             var at = System.Array.IndexOf(args, "-waterfield");
@@ -422,6 +446,11 @@ namespace Punchy.Terrain
             DestroyFall();
             Shader.SetGlobalVector(RectId, NoRect);
             if (lastAt.IsCreated) lastAt.Dispose();
+            if (farLastAt.IsCreated) farLastAt.Dispose();
+            if (farA != null) farA.Release();
+            if (farB != null) farB.Release();
+            Object.Destroy(farA);
+            Object.Destroy(farB);
             if (quads.IsCreated) quads.Dispose();
             sourceBuffer?.Release();
             if (fieldA != null) fieldA.Release();
@@ -439,10 +468,14 @@ namespace Punchy.Terrain
             var enabled = On && Punchy.Settings.WaterQuality.Reflection != Punchy.Settings.ReflectionQuality.Low &&
                           SystemAPI.HasSingleton<TerrainConfig>() && SystemAPI.HasSingleton<TerrainSource>();
             var streaming = World.GetExistingSystemManaged<TerrainStreamingSystem>();
+            // (The old ring ripples are off wherever a field runs: Zach 11-12, they showed through the field's own wake.)
+            Shader.SetGlobalFloat(RingsOffId, enabled ? 1f : 0f);
             if (!enabled || streaming == null || !Setup())
             {
                 Hide();
                 HideFall();
+                HideFar();
+                Shader.SetGlobalFloat(RingsOffId, 0f);
                 return;
             }
             var config = SystemAPI.GetSingleton<TerrainConfig>();
@@ -457,6 +490,10 @@ namespace Punchy.Terrain
                 Hide();
                 return;
             }
+            if (FarOn)
+                StepFar(focus);
+            else
+                HideFar();
 
             // The square round the player, and whether the chunk water under it is all fine (LOD0) and loaded.
             var corner = (int2)math.floor((focus.xz - Span * 0.5f) / Snap) * Snap;
@@ -550,9 +587,9 @@ namespace Punchy.Terrain
             return true;
         }
 
-        static RenderTexture MakeField(string name)
+        static RenderTexture MakeField(string name, int size = Size)
         {
-            var rt = new RenderTexture(Size, Size, 0, RenderTextureFormat.RGHalf, RenderTextureReadWrite.Linear)
+            var rt = new RenderTexture(size, size, 0, RenderTextureFormat.RGHalf, RenderTextureReadWrite.Linear)
             {
                 name = name, enableRandomWrite = true, filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp
             };
@@ -813,6 +850,111 @@ namespace Punchy.Terrain
 
         /// <summary>Steps the wave field at 60 steps a second (at least once if it has moved, so its texels and the
         /// square stay together), pressed by this frame's creatures.</summary>
+        /// <summary>
+        /// Steps the far field round the player (snapped to FarSnap m, moving in whole texels), pressed by every swimmer
+        /// in it, at FarHz; sleeps when nothing has pressed it for 10 s, like the fine field. Normals only: nothing is cut
+        /// or drawn for it, the chunk water reads its slope (_PunchyWaterFarField).
+        /// </summary>
+        void StepFar(float3 focus)
+        {
+            if (farA == null)
+            {
+                farA = MakeField("Water far field A", FarSize);
+                farB = MakeField("Water far field B", FarSize);
+                farClear = false;
+            }
+            var corner = (int2)math.floor((focus.xz - FarSpan * 0.5f) / FarSnap) * FarSnap;
+            if (!farClear || farCorner.Equals(NoCorner))
+            {
+                var active = RenderTexture.active;
+                RenderTexture.active = farA;
+                GL.Clear(false, true, Color.clear);
+                RenderTexture.active = farB;
+                GL.Clear(false, true, Color.clear);
+                RenderTexture.active = active;
+                farClear = true;
+                farShift = int2.zero;
+                farCorner = farTexelCorner = corner;
+            }
+            else if (!corner.Equals(farCorner))
+            {
+                farShift += (corner - farCorner) * (int)FarTexelsPerMetre;
+                farCorner = corner;
+            }
+            farClock = math.min(farClock + UnityEngine.Time.deltaTime, FarStepTime * MaxSteps);
+            var steps = (int)(farClock / FarStepTime);
+            farClock -= steps * FarStepTime;
+            if (steps > 0)
+            {
+                var presses = new NativeList<float4>(16, Allocator.TempJob);
+                var splashes = new NativeList<float4>(4, Allocator.TempJob);
+                var now = (float)SystemAPI.Time.ElapsedTime;
+                CreatureSnapshotSystem.Get(World, creatureQuery, out var states, out var bodies, out var entities);
+                new SourceJob
+                {
+                    States = states, Bodies = bodies, Entities = entities, Terrain = SystemAPI.GetSingleton<TerrainSource>(),
+                    Corner = farCorner, Scale = FarTexelsPerMetre, Across = FarSize, MinRadius = 1f,
+                    DeltaTime = math.max(UnityEngine.Time.deltaTime, FarStepTime), Time = now, LastTime = farSourceTime,
+                    LastAt = farLastAt, Presses = presses, Splashes = splashes
+                }.Run();
+                CreatureSnapshotSystem.Release(World, states, bodies, entities);
+                farSourceTime = now;
+                if (farLastAt.Count > 2000)
+                    farLastAt.Clear();
+                var pressCount = presses.Length;
+                var count = math.min(MaxSources, pressCount + splashes.Length);
+                for (int i = 0; i < count; i++)
+                    sourceArray[i] = i < pressCount ? presses[i] : splashes[i - pressCount];
+                presses.Dispose();
+                splashes.Dispose();
+                if (count > 0)
+                    sourceBuffer.SetData(sourceArray, 0, 0, count);
+                farQuiet = count > 0 ? 0 : farQuiet + steps;
+                if (count > 0)
+                    farAsleep = false;
+                else if (SleepOn && farQuiet >= (int)(10f / FarStepTime) && !farAsleep)
+                {
+                    var active = RenderTexture.active;
+                    RenderTexture.active = farA;
+                    GL.Clear(false, true, Color.clear);
+                    RenderTexture.active = farB;
+                    GL.Clear(false, true, Color.clear);
+                    RenderTexture.active = active;
+                    farAsleep = true;
+                }
+                if (!farAsleep && StepOn)
+                {
+                    compute.SetInt(SizeId, FarSize);
+                    compute.SetInt(CullId, CullOn ? 1 : 0);
+                    var courant = WaveSpeed * FarStepTime * FarTexelsPerMetre;
+                    compute.SetFloat(CourantId, courant * courant);
+                    compute.SetFloat(DampingId, math.pow(0.994f, FarStepTime * 60f));
+                    compute.SetFloat(DecayId, math.pow(0.999f, FarStepTime * 60f));
+                    compute.SetBuffer(kernel, SourcesId, sourceBuffer);
+                    for (int st = 0; st < steps; st++)
+                    {
+                        compute.SetInts(ShiftId, st == 0 ? farShift.x : 0, st == 0 ? farShift.y : 0);
+                        compute.SetInt(SourceCountId, st == 0 ? count : math.min(count, pressCount));
+                        compute.SetTexture(kernel, SrcId, farA);
+                        compute.SetTexture(kernel, DstId, farB);
+                        compute.Dispatch(kernel, FarSize / 8, FarSize / 8, 1);
+                        (farA, farB) = (farB, farA);
+                    }
+                    farShift = int2.zero;
+                    farTexelCorner = farCorner;
+                }
+            }
+            Shader.SetGlobalTexture(FarFieldId, farA);
+            Shader.SetGlobalVector(FarFieldAtId, new Vector4(farTexelCorner.x, farTexelCorner.y, FarTexelsPerMetre, FarSize));
+        }
+
+        void HideFar()
+        {
+            farCorner = NoCorner;
+            farClear = false;
+            Shader.SetGlobalVector(FarFieldAtId, Vector4.zero);
+        }
+
         void StepField()
         {
             if (!fieldClear)
@@ -842,7 +984,8 @@ namespace Punchy.Terrain
                 new SourceJob
                 {
                     States = states, Bodies = bodies, Entities = entities, Terrain = SystemAPI.GetSingleton<TerrainSource>(),
-                    Corner = fieldCorner, DeltaTime = math.max(dt, StepTime), Time = now, LastTime = lastSourceTime, LastAt = lastAt, Presses = presses, Splashes = splashes
+                    Corner = fieldCorner, Scale = TexelsPerMetre, Across = Size, MinRadius = 0f,
+                    DeltaTime = math.max(dt, StepTime), Time = now, LastTime = lastSourceTime, LastAt = lastAt, Presses = presses, Splashes = splashes
                 }.Run();
                 CreatureSnapshotSystem.Release(World, states, bodies, entities);
                 lastSourceTime = now;
