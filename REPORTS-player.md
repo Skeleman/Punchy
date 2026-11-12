@@ -1215,3 +1215,23 @@ still stands (main vs 639d7234).
   frame this run.
 
 **Next:** row 4, the player's sheathe key.
+
+## DONE: unify items row 4, the player's sheathe key (player/unify-items 1916ec59)
+
+H (LT on a pad) puts the weapon or tool in hand away or draws it: new action Player/Sheathe in
+InputSystem_Actions (Zach approved the binding), listed in the controls table. It goes on the back or at the hip
+by the folk's rule (FolkKits.OnBack), drawn by row 3's sheath block, the right hand reaching through the half-second
+Draw and Sheathe as a guard's does. CreatureOutfit.Kept and Stow carry it; attacking with it put away draws it first.
+Sent as one more SlotRpc place (SheathPlace 202), so no message changes shape; a late joiner gets it settled. Not for
+a rod, nor a torch, staff or lantern (CreatureState.Held). New test flag "-sheathe" toggles every 3 s.
+
+- Solo shots (`Unify/u4-sheet-*.jpg`, `u4b-sheet-*.jpg`): sword and axe at the left hip, spear and bow on the back, back
+  in the right hand when drawn; never in both places. 0 exceptions, 0 table errors.
+- "-sheathe -swing": every swing while put away logs "drawn first", and no swing lands until it's in hand.
+- Host + client in one meadow: the host logged 13 of the client's put-aways and draws, the client 19 of the host's;
+  0 exceptions, 0 deserialize errors.
+- Lint rc 0; suite 26/0/17; fingerprint AD723954.
+- UNVERIFIED: the arm's reach itself isn't clearly caught in a shot (it uses the guards' reach code). An attack pressed
+  in the half second while it's going away is dropped, not queued.
+
+**Next:** row 5, post props (table, block, log, rope, hot iron) as items at worker posts; Gear props go.
