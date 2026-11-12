@@ -2,6 +2,27 @@
 
 Newest first.
 
+## 2026-11-12 night: job 61 (W-135 row 6) main PC, provisional
+One session, 00:00-00:19, machine quiet the whole time (no Unity.exe and no second Punchy.exe in the 15 s checks; no round thrown out). Arms: (A) origin/main 94c359ef (Profile-94c359e); (B) `world/ground-contact-shade` dc65c63b (Profile-dc65c63); (C) B with `-cavelevel 0 -nocaveskip`. Profile builds, `-display 1920x1080,windowed`, `-fpscap 0`, `-gfx High`, `-weatherseed 4`, view `walk -goto -2810,27,-556 -benchstops here,hereentry` (the c5 walk, as in job 52), ABBA (r1 A,B,C; r2 C,B,A), 2 rounds. About 24.5k frames per run, 112.9 s at the hereentry stop. Every arm got one untimed warm-up first. 0 exceptions.
+- **Island cache:** A got a hit on both timed runs (and on its warm-up: 24.24 MB, 248 ms). B and C have no cache: dc65c63 is older than the W-140 cache, so it logs no cache line and builds the island every launch (v3 ready at 11.1-11.4 s). That only changes the load before the walk, not the walk frames. No run was dropped.
+- **Result: FAIL on part 1 (narrow), PASS on part 2.** The pass line is "B shows no frame over 2x the median that A doesn't also show; B's worst frame near C's". B has one frame A and C don't: **15.7 ms at 46.1 s, in both rounds**. In the 45-50 s window A's worst is 12/11 ms and C's 10/10. B r2 also has 13.3 ms at 37.3 s and 12.2 ms at 40.0 s (not in r1). B's worst (15.7/17.7 ms, both at about 22 s) is next to C's (16.3/17.8) and A's (15.0/15.8). That 22 s spike shows in all three arms, so the branch didn't cause it. This is far better than job 52: then B had repeatable 13-19 ms frames across 25-50 s; now one repeatable frame is left, at 46 s.
+- 2x median is about 7.5-7.8 ms, and all three arms have hundreds of frames just over it (8-12 ms, spread over 0-55 s in the same windows), so the count alone doesn't separate the arms. Counts per run: A 715/991, B 545/787, C 501/676.
+
+Per arm and round (hereentry walk; ms; CPU = main thread, render = render thread, means over the walk):
+
+| arm | round | median | >2x med | worst (time into walk) | frames >= 12 ms | CPU | GPU | render |
+|---|---|---|---|---|---|---|---|---|
+| A main | r1 | 3.78 | 715 | 15.0 @ 22.1 s | 15.0@22.1 | 4.60 | 1.94 | 1.13 |
+| A main | r2 | 3.71 | 991 | 15.8 @ 22.1 s | 15.8@22.1 | 4.55 | 2.00 | 1.12 |
+| B gcs | r1 | 3.90 | 545 | 15.7 @ 21.9 s | 15.7@21.9, 15.7@46.1 | 4.66 | 2.06 | 1.17 |
+| B gcs | r2 | 3.81 | 787 | 17.7 @ 22.2 s | 17.7@22.2, 13.3@37.3, 12.2@40.0, 15.7@46.1 | 4.61 | 2.03 | 1.14 |
+| C lod0 | r1 | 3.85 | 501 | 16.3 @ 22.1 s | 16.3@22.1 | 4.58 | 2.05 | 1.17 |
+| C lod0 | r2 | 3.72 | 676 | 17.8 @ 22.1 s | 17.8@22.1 | 4.45 | 2.03 | 1.13 |
+
+Pooled medians: A 3.74, B 3.87, C 3.79 ms. Worst frame in each 5 s window, r1/r2: 35-40 s A 11/10, B 12/13, C 11/12; 45-50 s A 12/11, B 16/16, C 10/10. The `here` stop (standing still): avg A 327/324, B 317/318, C 317/323 fps; worst 6.4-9.3 ms, all arms.
+- Suggestion for the laptop/world lane: find what B starts at about 46 s into the walk (one more cave rebuild finishing on the main thread?). The rest of row 6 looks done.
+- Files: `PunchyBench/Tools/bench/results/fr-j61-walk-<arm>-<r>/`, `q-j61-walk-*-c0-*.log`, `j61-walk-*.csv`; analyser `jobs2/j61an.py 12`. The first attempt's runner died at 23:28 during warm-ups. Its orphaned watchdog was killed (with the supervisor's OK) before this run, and its two warm logs are in `jobs2/old/`.
+
 ## 2026-11-11: jobs 52 + 54 + 58 (W-135/W-136) — main PC, provisional
 One session. Arms: (A) main 6fc00007; (B) `world/ground-contact-shade` 82d43e13 (W-136 merged with main, includes W-135 `world/cave-lod`; main does not); (C) B with `-cavelevel 0 -nocaveskip`, cave views only. Profile builds, `-display 1920x1080,windowed`, `-fpscap 0`, `-gfx High`, `-weatherseed 4`, ABBA (A/B/C rotated), 2 rounds, 300+ frames per view. Medians over both rounds; ">2x med" is r1/r2.
 - **Job 54: PASS.** Every surface view within noise, GPU equal, no new hitch on load or on the run.
