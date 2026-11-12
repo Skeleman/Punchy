@@ -6389,3 +6389,10 @@ plot rules would have to accept a raised deck).
   - In `r19-row2-snowpeak-150m.png` (and `r19-gully-25m`), 1b's blocks on a pale mountain face read fairly rectangular at 150 m, close to masonry. If that bothers you, a 1c could soften the block edges or add a per-block lean. Say if you want it.
   - The same frames show a waterfall sheet with visible flat quads (not R-19, water lane).
 - **BENCH:** nothing new (the row 1b request stands).
+
+### R-19 row 1c (render/steep-triplanar b30c967f, pushed)
+- Change: TerrainSurface.shader only. The square block grid on steep rock is replaced by soft-thresholded value noise on a warped domain: slabs wide along the beds (0.22/m across, 0.75/m up the wandering bed height), a second smaller octave for mixed sizes, no cell edges, so no grid and no straight vertical seams. Contrast drops to 45% at distance; the screen-size fade (rule 20) is unchanged. No divides or normalizes were added.
+- Shots (D:/Unity/PunchyMilestones/R-19): r19-1c-snowpeak-{20m,150m}, r19-1c-mossravine-{20m,150m}, r19-after1c-mountain-{20m,150m}, r19-after1c-canyon-{20m,150m}; pairs r19-pair1c-{snowpeak-150m,mountain-20m,mountain-150m,canyon-150m} (left 1b/row 2, right 1c). The snowpeak face now shows irregular, soft-edged horizontal slabs, not brickwork. Canyon 150 m keeps its red and its beds (mean 137,120,111 -> 143,123,111). This session's sky came up overcast even with -weather Clear, so the light differs from the 1b shots.
+- NaN: sparkleprobe bad 0 on all 6 shots (-stopnan 0). Shader compiles clean (0 messages). lod-lint rc 0; nan-lint shows no new hints.
+- Pins unchanged (shader only). Suite not run: shader only, no C# changed.
+- BENCH-QUEUE request (replaces 1b's): GPU ms at the canyon (2266,-434) and the mountain (-3130,2878), 20 m and 150 m, branch vs main. 1c adds about 5 value-noise samples per close rock pixel.
