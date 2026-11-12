@@ -1,0 +1,15 @@
+# Tessellation re-test, take 3 (5e7bfad2): q96's shader compiled, but with a CPU cut of 2 no cell was cut at this view,
+# so there was nothing to tessellate. Now the CPU cuts 2 wherever cut 8 would, and the GPU divides further by screen
+# size. Arms: tess, cuts 8 (the old default, the look Zach first saw), cuts 4 (today's default), off. Lake swim.
+Q=q97; TITLE="wave field tessellation, take 3"
+BUILDS="5e7bfad"
+VIEWS="swim"
+view() { echo "-goto 488,-1144 -benchstops line -benchline 488,-1144,528,-1144,4,-999 -benchweather Clear -benchhour 12"; }
+ARMS="tess cuts8 cuts4 off"
+arm() { case $1 in tess) echo "Profile-5e7bfad -waterfieldtess 1";; cuts8) echo "Profile-5e7bfad -waterfieldcuts 8";;
+  cuts4) echo "Profile-5e7bfad";; off) echo "Profile-5e7bfad -waterfield 0";; esac; }
+ROUNDS=3; GFX="High Medium"; REF=off; BAR=0.3
+before() { if grep -q "Shader error in 'Hidden/Punchy/WaterTess'" "$R/build-Profile-5e7bfad.log"; then
+  grep "Shader error in 'Hidden/Punchy/WaterTess'" "$R/build-Profile-5e7bfad.log" | sort -u | head -5; echo "WaterTess failed to compile"; exit 1; fi; }
+after() { for a in tess cuts8 cuts4; do for g in high medium; do
+  echo "$g-$a: $(grep -h 'WaterField:' "$R"/q-$Q-$g-swim-$a-cs100-*.log | grep -o 'sheet [0-9]* indices' | sort | uniq -c | tr '\n' ' ')"; done; done; }
