@@ -476,19 +476,21 @@ Shader "Punchy/Terrain Surface"
                     half rise = (bed.y - bed.x) / ey;
                     normalWS = normalize(normalWS + half3(0, saturate(rise) * 0.5 * rockFace, 0));
                     rockLedge = saturate(-rise * 0.5);   // the underside of a bed lip sits in its own shade
-                    // Blocks: 3D cells (so no projection can stretch them) a bed high, of a width that changes course to
-                    // course, offset like stone courses, each a little lighter or darker. Soft edged, no drawn joints:
-                    // a grid of lines reads as brickwork, not as a mountain.
+                    // Slabs (1c): patches of lighter and darker stone, wide along the beds and short across them, of
+                    // mixed sizes. Soft-thresholded value noise on a warped domain, so there are no cell edges, no grid
+                    // and no straight seams (cells read as brickwork). Read along x and along z with the bed height,
+                    // so a face of any heading gets them. Softer far off: at distance they are mottling, not blocks.
                     half blockF = saturate((2.5 * pxm - 2) / 2);
                     [branch] if (blockF > 0.001)
                     {
-                        float row = floor(y / 1.6);
-                        float rowHash = frac(sin(row * 12.9898) * 43758.5453);
-                        float2 bq = input.positionWS.xz / (1.8 + 2.4 * rowHash) + row * 0.37;
-                        float2 cell = floor(bq), f = frac(bq);
-                        float h = frac(sin(dot(float3(cell, row), float3(12.9898, 78.233, 37.719))) * 43758.5453);
-                        half soft = smoothstep(0.0, 0.18, min(min(f.x, 1 - f.x), min(f.y, 1 - f.y)));
-                        rockBlock = (h - 0.5) * lerp(0.5, 1, soft) * blockF;
+                        float2 xz = input.positionWS.xz;
+                        float wy = y + (PunchyValueNoise(xz * 0.21 + 2.9) - 0.5) * 1.2;
+                        half sA = PunchyValueNoise(float2(xz.x * 0.22 + PunchyValueNoise(xz * 0.09) * 2.5, wy * 0.75));
+                        half sB = PunchyValueNoise(float2(xz.y * 0.22 + PunchyValueNoise(xz * 0.09 + 4.1) * 2.5, wy * 0.75 + 31.7));
+                        half sC = PunchyValueNoise(float2((xz.x + xz.y) * 0.5, wy * 1.6 + 9.3));
+                        half s = (sA + sB) * 0.35 + sC * 0.3;
+                        half far = lerp(0.45, 1, saturate((1.0 * pxm - 2) / 3));
+                        rockBlock = (smoothstep(0.36, 0.64, s) - 0.5) * 0.9 * blockF * far;
                     }
                     [branch] if (_PunchyCaveDetailReady > 0 && max(fineF, coarseF) > 0.001)
                     {
