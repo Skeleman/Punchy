@@ -6311,3 +6311,18 @@ plot rules would have to accept a raised deck).
 - **Slip:** once in this row I ran AssetDatabase.Refresh during play mode to pick up the .hlsl edit, which breaks the no-Refresh-in-play rule. Nothing broke (the world stayed ready), and every later refresh went through exit-play first.
 - **Checks:** PlayMode suite `completed: 28/28 passed` after the last code change. lod-lint exit 0. Pins not touched (shader-only change).
 - **BENCH request (R-18 row 2):** a player build of render/nan-guard at Ultra, with `-stopnan 0 -sparkleprobe` on the REPORTS-profiler line 15 repro. Pass: NaN count 0 and no white dot. Also GPU ms there, branch vs main, passing within 0.1 ms.
+
+### R-15: rule 24 NaN check (render/audit-fixes 1a2e5499)
+- **How:** the same raw-render count as R-18 row 2 (Ultra, Stop NaN off, post off and on per pose), over the six R-18 views plus two 36-pose orbits with the player wading at the sea shore (2960,2220, ground 1.8 m under sea level, open sea beyond). Those two orbits keep the water field R-15 changed live around the player.
+- **Result:** there are no NaN pixels from R-15. The only hits are the two grass pixels that are already on main, and R-18 row 2 fixes them:
+
+  | view | poses | NaN px |
+  |---|---|---|
+  | hilltop dusk orbit | 36 | 1 (y270 p12, grass, on main) |
+  | peak noon / peak dusk orbit | 36 + 36 | 0 / 0 |
+  | mountains from 150 m, noon | 24 | 1 (y315 p40, grass, on main) |
+  | sea from 300 m, noon / dusk | 24 + 24 | 0 / 0 |
+  | player wading at the shore, noon / dusk | 36 + 36 | 0 / 0 |
+
+  So R-15 rows 1-3 meet the rule 24 done-when once R-18 merges, and the merge order between them doesn't matter. Row 4 still waits on job 62.
+- **Not run:** the profiler's own `-sparkleprobe` in a player. This editor count stands in for it, and the R-18 row 2 BENCH request covers the player check.
