@@ -99,7 +99,7 @@ namespace Punchy.Fauna
         static int GearCount(CreatureTask task) => HasGear(task) ? GearParts : 0;
         /// <summary>Capsules for what a player's body has on (P-23): a hat's brim and crown, a pack.</summary>
         const int WornParts = 3;
-        static int WornCount(in CreatureState s) => s.Worn != 0 || s.Outfit.Weapon != 0 || s.Outfit.Armoured ? WornParts + WeaponParts + ArmourParts : 0;
+        static int WornCount(in CreatureState s) => s.Worn != 0 || s.Outfit.Weapon != 0 || s.Outfit.OffHand != 0 || s.Outfit.Armoured ? WornParts + WeaponParts + ArmourParts : 0;
         /// <summary>Capsules for a player's own hair (P-29), after the worn block: only bodies with OwnHair.</summary>
         static int HairCount(in CreatureState s) => s.Outfit.OwnHair ? HairParts : 0;
         /// <summary>Where a held item's light comes from among its capsules (the lantern's glass, the torch's flame).</summary>

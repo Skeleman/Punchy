@@ -536,10 +536,18 @@ namespace Punchy.Fauna
                     // A player's weapon (P-28): the right arm bent, ready, the weapon up before it; a swing raises it
                     // over the shoulder and brings it down fast. A spear in both hands, levelled; a bow held out in the
                     // left, the right drawing the string back to the cheek.
-                    if (part.Role == LimbRole.Arm && s.Outfit.Weapon != CreatureWeapon.None)
+                    // (Zach 11-12: a sack, a bowl or dough in both arms, held to the chest as the folk carry ore; nothing to
+                    // swing.)
+                    var wArms = s.Outfit.Weapon == CreatureWeapon.OreSack || s.Outfit.Weapon == CreatureWeapon.Bowl || s.Outfit.Weapon == CreatureWeapon.Dough;
+                    if (part.Role == LimbRole.Arm && wArms)
+                    {
+                        a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.85f);
+                        a += j == 0 ? new float3(-0.8f, 0f, part.Side * 0.5f) : j == 1 ? new float3(-1.75f, 0f, 0f) : float3.zero;
+                    }
+                    else if (part.Role == LimbRole.Arm && s.Outfit.Weapon != CreatureWeapon.None)
                     {
                         var wSwing = s.Outfit.Swing == 0 ? 0f : (s.Outfit.Swing - 1) / 254f;
-                        var wTwo = s.Outfit.Weapon == CreatureWeapon.Spear || s.Outfit.Weapon == CreatureWeapon.Bow;
+                        var wTwo = s.Outfit.Weapon == CreatureWeapon.Spear || s.Outfit.Weapon == CreatureWeapon.Bow || s.Outfit.Weapon == CreatureWeapon.GreatClub;
                         if (part.Side > 0f || wTwo)
                             a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.85f);
                         if (s.Outfit.Weapon == CreatureWeapon.Bow)

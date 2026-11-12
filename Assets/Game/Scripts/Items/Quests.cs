@@ -106,7 +106,11 @@ namespace Punchy.Items
             }
         }
 
-        static int ItemId(string name) => System.Array.FindIndex(ItemTable.Items, d => string.Equals(d.Name, name, System.StringComparison.OrdinalIgnoreCase));
+        static int ItemId(string name) => System.Array.FindIndex(ItemTable.Items, d => string.Equals(Plain(d.Name), Plain(name), System.StringComparison.OrdinalIgnoreCase));
+
+        /// <summary>A name as test flags can write it (Zach 11-12): "Kettle_hat" for "Kettle hat", "Smiths_hammer" for
+        /// "Smith's hammer" (a space would end the flag).</summary>
+        static string Plain(string name) => name == null ? "" : name.Replace("'", "").Replace(' ', '_').Trim();
 
         /// <summary>A quest's text with its slots filled.</summary>
         string QuestText(int board, int slot)

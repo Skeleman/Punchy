@@ -512,6 +512,20 @@ namespace Punchy.Fauna
         public const byte Pickaxe = 8;
         /// <summary>Item row: a shovel, a digger's tool (a long haft, a T grip, a flat iron blade), swung like a club.</summary>
         public const byte Shovel = 9;
+
+        // Zach 11-12, one item system: how the body draws everything else that goes in a hand, folk's and players' alike
+        // (ItemDef.Weapon is a hand look, not only a weapon's). Append only.
+        /// <summary>An ogre's great club; a goblin's scrap shield (on the forearm).</summary>
+        public const byte GreatClub = 10, Shield = 11;
+        /// <summary>Lights: a lantern hanging from the hand, a torch held up (its flame the world's).</summary>
+        public const byte Lantern = 12, Torch = 13;
+        /// <summary>A traveller's walking staff.</summary>
+        public const byte Staff = 14;
+        /// <summary>Workers' tools: a farmer's hoe, a broom, a smith's hammer, tongs, a bucket.</summary>
+        public const byte Hoe = 15, Broom = 16, SmithHammer = 17, Tongs = 18, Bucket = 19;
+        /// <summary>Carried things: a rolled letter, a sack of ore in both arms, a healer's bowl, a trader's jar or fruit,
+        /// a lump of dough, a child's stick or stone, a loaf.</summary>
+        public const byte Letter = 20, OreSack = 21, Bowl = 22, Jar = 23, Fruit = 24, Dough = 25, Stick = 26, Stone = 27, Loaf = 28;
     }
 
     /// <summary>A player's body's gear beyond CreatureWorn (P-28): the weapon (CreatureWeapon) and its swing, 0 at rest,
@@ -528,12 +542,15 @@ namespace Punchy.Fauna
         /// <summary>P-29: a player's body that wears gear: its hair is Hair / HairColour (bald included), drawn in place of
         /// the species' own hair parts, which are hidden. False for folk, who keep their species' hair.</summary>
         public bool OwnHair;
+        /// <summary>Zach 11-12: what's in the other hand (a CreatureWeapon hand look: a shield, tongs, a bucket; 0 for
+        /// nothing).</summary>
+        public byte OffHand;
 
         public bool Armoured => (Head | Body | Legs | Feet | Back | Neck) != 0;
 
         public bool Equals(CreatureOutfit o) =>
             Weapon == o.Weapon && Swing == o.Swing && Head == o.Head && Body == o.Body && Legs == o.Legs && Feet == o.Feet &&
-            Back == o.Back && Neck == o.Neck && Hair == o.Hair && HairColour == o.HairColour && OwnHair == o.OwnHair;
+            Back == o.Back && Neck == o.Neck && Hair == o.Hair && HairColour == o.HairColour && OwnHair == o.OwnHair && OffHand == o.OffHand;
     }
 
     /// <summary>
@@ -577,6 +594,17 @@ namespace Punchy.Fauna
         public const byte Boots = 1;
         public const byte Cloak = 1;
         public const byte Scarf = 1;
+        // Zach 11-12, one item system: what guards and workers wear, as items (append only, by place).
+        /// <summary>Head: guards' helmets by folk (a human's kettle hat, a dwarf's horned helm, an elf's crested helm, a
+        /// goblin's dented pot, an ogre's beast skull), a baker's cap, a straw hat, a fisher's hat, smoked goggles.</summary>
+        public const byte KettleHat = 6, HornedHelm = 7, CrestedHelm = 8, PotHelm = 9, SkullHelm = 10, BakerCap = 11, StrawHat = 12, FisherHat = 13, Goggles = 14;
+        /// <summary>Body: a guard's breastplate (with shoulder pads), a leather cuirass (with leather pads), an apron down
+        /// the front: plain cloth (a stallholder's), leather (a smith's), floury white (a baker's).</summary>
+        public const byte Breastplate = 5, Cuirass = 6, Apron = 7, LeatherApron = 8, BakerApron = 9;
+        /// <summary>Back: an ogre's hide cape, a healer's satchel.</summary>
+        public const byte HideCape = 2, Satchel = 3;
+        /// <summary>Neck: a guard's sash, from the shoulder across to the other hip, in its town's colour.</summary>
+        public const byte Sash = 2;
 
         /// <summary>Cloth (row 3) is dyed by the wearer's folk: its main colour and its trim, linear, by GuardKit.</summary>
         public static Unity.Mathematics.float4 ClothMain(GuardKit kit) => kit switch
