@@ -20,7 +20,8 @@ before() { :; }; after() { :; }
 . "$SPEC"
 # DRY=1 job.sh <spec>: print the builds and games in order (no lock, builds or games), to check a spec.
 if [ -n "${DRY:-}" ]; then
-  build() { echo "build $1 -> $3"; }; runcsv() { echo "game $*"; }; check() { :; }; keepawake() { :; }; R=$(mktemp -d)
+  build() { echo "build $1 -> $3"; }; runcsv() { echo "game $(env | grep '^PUNCHY_' | tr '
+' ' ')$*"; }; check() { :; }; keepawake() { :; }; R=$(mktemp -d)
 fi
 mkdir "$R/.lock" 2>/dev/null || { echo "lock held: $(cat $R/.lock/job)"; exit 2; }
 echo $$ > "$R/.lock/pid"; echo "$Q $TITLE (since $(date +%T))" > "$R/.lock/job"
@@ -36,10 +37,15 @@ check() { [ -n "${DRY:-}" ] && return; grep -q 'Crash!!!\|Received signal' "$1" 
 game() { # gfx view arm round
   local g=$1 v=$2 a=$3 r=$4 spec o n shot=""
   spec=$(arm $a); o=${spec%% *}; [ "$o" = "$spec" ] && spec="" || spec=${spec#* }
+  # (Words "@VAR=value" in an arm are environment variables for that game, e.g. @PUNCHY_FARSKIRT=0.)
+  local envs=() flags=() w
+  for w in $spec; do [ "${w:0:1}" = "@" ] && envs+=("${w:1}") || flags+=("$w"); done
+  spec="${flags[*]}"
   n=$v-$a; [ "$GFX" != "${GFX% *}" ] && n=${g,,}-$n
   [ $r = 1 ] && shot="-benchshots $W/$Q-shots/$n"
   local cyc=(); [ -n "$CYCLE" ] && cyc=(-benchcycle "$CYCLE")
-  BENCHW=1920 BENCHH=1080 runcsv $o $Q-$n ${o#Profile-} s100 $r -gfx $g -fpscap 0 $(view $v) $spec "${cyc[@]}" $shot
+  ( for e in "${envs[@]}"; do export "$e"; done
+    BENCHW=1920 BENCHH=1080 runcsv $o $Q-$n ${o#Profile-} s100 $r -gfx $g -fpscap 0 $(view $v) $spec "${cyc[@]}" $shot )
   local f="$R/q-$Q-$n-cs100-$r.log"; check "$f"
   echo "$(date +%T) $n r$r: $(grep -h 'BenchRoute: [a-z]*[^:]*: avg' "$f" 2>/dev/null | sed 's/.*BenchRoute: //' | grep -o '^[^:]*\|1% low [0-9.]*\|median [0-9.]* ms\|gpu [0-9.]* ms\|cpu [0-9.]* ms' | tr '\n' ' ') $(grep -h ' s frame at ' "$f" 2>/dev/null | cut -c1-70 | head -2 | tr '\n' ' ')"
 }

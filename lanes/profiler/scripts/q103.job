@@ -1,0 +1,14 @@
+# Job 56's extra leg on the B build only (world/far-lite 4eabc7c7): the horizon skirt off (PUNCHY_FARSKIRT=0) and the far
+# disc off (PUNCHY_FARDISC=0) against default on the 300 m flight at 18:00 and at noon; and the stronger sun road
+# (PUNCHY_SUNROAD=2) against default at the hilltop sunset view. High. Pass: the skirt costs under 0.3 ms GPU.
+Q=q103; TITLE="job 56 far-lite extra leg"
+BUILDS="4eabc7c"
+VIEWS="flight18 flightnoon sunset"
+view() { case $1 in
+  flight18)   echo "-goto -3000,2425 -benchstops line -benchline -3000,2425,-4500,2425,25,300 -benchhour 18 -benchweather Clear";;
+  flightnoon) echo "-goto -3000,2425 -benchstops line -benchline -3000,2425,-4500,2425,25,300 -benchhour 12 -benchweather Clear";;
+  sunset)     echo "-benchspot -3460,2425,270 -benchstops spot -benchhour 18 -benchweather Clear";; esac; }
+ARMS="default noskirt nodisc road2"
+arm() { case $1 in default) echo "Profile-4eabc7c";; noskirt) echo "Profile-4eabc7c @PUNCHY_FARSKIRT=0";;
+  nodisc) echo "Profile-4eabc7c @PUNCHY_FARDISC=0";; road2) echo "Profile-4eabc7c @PUNCHY_SUNROAD=2";; esac; }
+ROUNDS=3; GFX=High; REF=default

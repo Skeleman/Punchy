@@ -1,0 +1,14 @@
+# Job 56: W-132 rows 1-4b, cheap far terrain and sea, far disc, horizon skirt, sun road. world/far-lite 4eabc7c7 vs its
+# base on main, cc835cf6. Views: (a) ground in open country (-place meadow, noon); (b) hilltop -3460,2425 looking west
+# at 18:00, clear; (c) a 1.5 km flight west at 300 m from -3000,2425 (over land, then the sea), noon. High and Ultra.
+# Pass: B faster than A on GPU at (b) and (c), within noise at (a); no new hitch over 2x median.
+Q=q102; TITLE="job 56 far-lite"
+BUILDS="4eabc7c cc835cf"
+VIEWS="ground hilltop flight"
+view() { case $1 in
+  ground)  echo "-place meadow -benchhour 12 -benchweather Clear -benchstops here";;
+  hilltop) echo "-benchspot -3460,2425,270 -benchstops spot -benchhour 18 -benchweather Clear";;
+  flight)  echo "-goto -3000,2425 -benchstops line -benchline -3000,2425,-4500,2425,25,300 -benchhour 12 -benchweather Clear";; esac; }
+ARMS="branch main"
+arm() { case $1 in branch) echo "Profile-4eabc7c";; main) echo "Profile-cc835cf";; esac; }
+ROUNDS=3; GFX="High Ultra"; REF=main
