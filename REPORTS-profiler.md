@@ -2,6 +2,39 @@
 
 Newest first.
 
+## Job 51: R-13 row 2, visual ranges by screen size (lod/screen-size d9634f37 vs main 0477dd07), 2026-11-12 (q100.job): within noise except the village, which is +0.2–0.4
+**Setup:**
+- Profile builds, 1920x1080, uncapped, `-weatherseed 4`, `-body default`, 3 rounds rotated per preset.
+- Views:
+  - village: `-place HumanVillage`, 22:00;
+  - forest: `-place meadow`, 23:00;
+  - hilltop: `-place HumanVillage -frame HumanVillage -framing aerial`, noon;
+  - flight: 300 m east from the village (3066,-913) at 2 m and 10 m/s, noon.
+- Tables from report.py. One branch round at Medium in the village logged a broken GPU timer value (13407615532 ms); it's left out. report.py now drops values over 1000 ms.
+
+| view | High: main | High: branch | vs main | Medium: main | Medium: branch | vs main |
+|---|---|---|---|---|---|---|
+| village, 22:00 | 17.0, 16.7, 16.8 = 16.85 | 17.4, 17.2, 17.2 = 17.25 | **+0.43** | 13.4, 12.5, 12.6 = 12.85 | 13.4, 12.7 = 13.05 | **+0.22** |
+| forest, 23:00 | 15.3, 15.6, 15.4 = 15.45 | 15.3, 15.6, 15.4 = 15.45 | 0.0 | 12.2, 12.2, 12.3 = 12.25 | 12.6, 12.4, 12.3 = 12.45 | +0.2 |
+| hilltop, noon | 13.5, 13.6, 14.2 = 13.75 | 13.6, 13.7, 13.1 = 13.45 | −0.3 | 11.2, 11.4, 11.7 = 11.45 | 12.6, 11.5, 11.7 = 11.95 | +0.5 (one round; else +0.15) |
+| flight, noon | 16.6, 16.9, 17.3 = 16.95 | 16.6, 16.5, 16.7 = 16.6 | −0.33 | 12.4 ×3 = 12.35 | 12.4, 12.4, 12.3 = 12.35 | 0.0 |
+
+**Pass lines:**
+- **High (within noise of main at every view): pass at forest, hilltop and flight. The village is +0.43, and every branch round (17.2–17.4) is above every main round (16.7–17.0).** That's small but consistent: a narrow miss.
+- **Medium (branch at or below main): strictly, a miss at village (+0.22), forest (+0.2) and hilltop (+0.15 without its outlier round).** All three are inside this laptop's ±0.3 noise. Only the village repeats the High result.
+
+**Likely cause at the village:** at night, row 2's screen-size ranges let more of the town's effects (flames, chimneys, lanterns' particles, items) stay on further out than main's fixed metres did.
+- **Next:** a RenderDoc pair at the village. The branch owner can also lower that class's screen-size threshold, for example with the `-lodscale` tool (Punchy b/bench-lod 9bae987e).
+
+**Verdict:**
+- No change at the forest and on the flight.
+- The village costs +0.2–0.4 ms.
+- Rule 23 holds a merge only for a miss over about 1 ms at Medium, so the profiler would note this, not block on it.
+
+Files (Punchy-wt results): q100.out, q100-*.csv, q100logs/, q100-shots/.
+
+Cost: laptop total $800 (laptop session 0a48ccdb; 2 builds, 48 games).
+
 ## -benchcycle validated (q98, q99), 2026-11-12: in-game arm cycling matches separate games
 Punchy `b/bench-stress` 84d4c7da. Job 49d's R-12 arms (plain, `-skyoff 1024`, `-skyoff 8192`) were cycled inside one game at job 49's storm-noon view. Segments were 4 s settle plus 15 s measured, 4 rounds rotated, 2 games.
 
