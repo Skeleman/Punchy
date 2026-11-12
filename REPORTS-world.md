@@ -5820,3 +5820,29 @@ Branch `world/mountain-tunnels` at f6217674 (pushed), on a149c17f. One commit: C
 - **Strip:** D:/Unity/PunchyMilestones/R-16/R16-row3-crawl.png (before/after pixel-change masks over 1 s).
 - **Cost:** while blending, every wide-shadow reader and the cache receiver take 4 more taps. Added as an addendum to BENCH-QUEUE job 63 (no timing here).
 - **Shader warnings:** none new (Terrain/Flora/Impostor only show the old uninitialised-variable warnings).
+
+## W-146 crystal caves dark (#274), branch world/dark-crystal
+
+### Row 1: find the light (measure only, no code)
+- **Setup:** lantern off (CaveSystem.LanternIntensity 0), weather Clear, no HUD. Frame mean luma (sRGB 0..1) and near-black share (luma < 0.04), 3 views each. A plain Rock passage (cave 13) is the reference. "Crystal passage" is cave 5 (Crystal style, the lavender look). "Grotto" is crystal room 2 (cyan group) off cave 13. Knock-outs: the Crystal style's glow set to 0, the room's fixture glows cleared, and the style's sheen set to 0 (all restored after).
+
+| lantern off | mean (3 views) | near-black |
+|---|---|---|
+| Rock passage, deep (p1, p2) | 0.038, 0.019 | 83%, 99% |
+| Rock passage, by a lit ruin doorway (p0) | 0.133 | 6% |
+| Crystal passage, as is | 0.29, 0.27, 0.24 | 0%, 0%, 4% |
+| - style glow 0 | 0.12, 0.08, 0.06 | 7%, 5%, 38% |
+| - style glow 0 and sheen 0 | 0.09, 0.06, 0.03 | 17%, 24%, 78% |
+| - room glows cleared (none in passages) | 0.29, 0.27, 0.24 | unchanged |
+| Grotto, as is | 0.20, 0.13, 0.28 | 4-5% |
+| - room glows cleared | 0.05, 0.05, 0.05 | 26-30% |
+| Lantern on, for scale: Crystal passage / Rock / Grotto | 0.34, 0.33, 0.28 / 0.19, 0.14, 0.16 / 0.26, 0.23, 0.32 | |
+
+- **What lights a crystal cave with the lantern off, biggest first:**
+  1. **The Crystal style's emission (GlowEverywhere 0.08 × Glow 1.6, lavender).** It is a flat wash on every wall. Its colour matches the measured frame colour (about 0.32, 0.26, 0.42 sRGB). It is about 60-75% of the light, and it is why the lantern barely matters there (0.27 rises to 0.33).
+  2. **Sheen's light-free rim term** (the 0.035 floor × Sheen 0.9): grazing walls glow on their own.
+  3. **Cave ambient** (SH × _Darkness 0.05, the same as in plain passages) on the much paler lavender rock (0.78, 0.70, 0.95 against Rock's 0.48). This is what is left: 0.03-0.09.
+  4. **Grottos:** the room's 2-3 fixture glows (7 m reach, cyan or violet) are about 75% of their light. Without them the room sits at 0.05 (ambient on pale room tiles and crystals).
+  - Fog, the sun and torches do not reach these views (atmosphere and sun need openness, which is 0 this deep).
+- **Row 2 plan:** cut the style's always-on emission to faint, local glints on crystal faces. Drop the sheen's light-free floor for glowing styles. Cut grotto fixtures to small, short-reach glints. Darken ambient on pale glowing rock toward the plain passage's level. Lantern light keeps the lavender albedo, gloss and facets, so lit crystals still sparkle.
+- **Shots:** D:/Unity/PunchyMilestones/W-146/raw/ (crystal5-*, rock13-*, grotto-*; suffixes -style, -glows, -both and -style-nosheen for the knock-outs).
