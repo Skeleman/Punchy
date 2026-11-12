@@ -623,6 +623,10 @@ Why (Zach 11-12): profiler runs keep showing start-up hitches. A faster, quieter
 - Tiered culling question (#270): over the same 60 s, log visible draws / instances submitted, CPU culling ms (FloraCull dispatch, impostor and creature culling, SRP batcher), and how much of each hitch frame is draw/cull work vs build/upload/compile/GC work. Say plainly whether region/cluster culling would shorten the start or remove hitches, or whether the cost is elsewhere.
 - Report: a time line (bar per phase) per start, the top five hitch causes with ms and count, the settle time, and a recommended bench warm-up (seconds to skip after load so jobs measure only what they test). Name any fix that looks small (a warm-up pass, a precompile, spreading builds) so the supervisor can card it.
 
+## Job 49e (2026-11-12, QUEUED after 64; Zach in the profiler session: "Let's try 2, and if the look isn't good, then we'll go with 1"): R-12's warp baked into the maps
+- Punchy `b/r12-warp-bake` 26e26ec1 (on main db9ca83e): bake (default) vs `-warpbake 0` (R-12 as merged) vs main db9ca83e. Job 49's storm views plus a storm 2 km off at noon; shots of every arm for Zach to judge the rims. q105.job.
+- If Zach likes the look and it saves most of R-12's +0.55-1.35 ms: merge candidate. Otherwise option 1 (keep per-read warp, merge the cloud shadow map, job 49c).
+
 ## Job 62 (2026-11-12, QUEUED after 64 (laptop); supervisor, from the outside shader audit, #269/#270): water cost split, variant counts, flora cull
 Purpose: find which part of water costs what, before any water or architecture work (R-15 row 4, #270). Main only (plus R-15 as arm B once row 1 lands).
 - Arms: (A) origin/main; for each view also A with `-waterfield 0`, A with `-waterssr 0`, and A with water detail off. Profile builds, 1920x1080, High, uncapped, ABBA, 300 frames each.
