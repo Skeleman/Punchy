@@ -1353,3 +1353,28 @@ each hand." On `player/take-items`, for players and folk alike:
 - **For now:** attacking swings the right hand's item; the sheathe key puts away the right hand's.
 - Files: CreatureData (CreatureOutfit, FolkKit), CreatureAnimator, CreatureRenderSystem.PoseGear/PoseGuard,
   CreatureGhosts, Items/Gear/FolkKits.
+
+## DONE: two hands, no off hand (player/take-items a3ba8767)
+
+Anything held now goes in either hand, for players and folk.
+- **Places:** GearSlot.LeftHand is the old off hand's byte, so messages keep their shape. Every held item's Slot is
+  Hand.
+- **Equipping:**
+  - X or right click fills an empty hand, right first, and swaps the right with both full.
+  - Shift puts the item in the left.
+  - Two of a stack go one in each hand.
+  - A rod, a bowl and dough are now two-handed.
+- **Drawing:** the Weapon pass draws any look in either hand, mirrored for the left. A torch, staff or lantern goes in
+  whichever hand holds it (CreatureOutfit.HeldLeft and HeldSide; the folk's lantern stays in the left). The left arm
+  holds its item ready.
+- **Labels:** the worn row reads Right hand / Left hand.
+- **Results:**
+  - Solo: two apples, sword + torch, bread + lantern, tongs + bucket, a spear and sword + staff are each drawn in the
+    right hands (`Take/h-sheet.jpg`). Shield + sword was logged right/left but missed by the shot timing.
+  - 0 exceptions, 0 parity errors. Lint rc 0; suite 26/0/17; fingerprint AD723954.
+- UNVERIFIED: no host + client run of a left-hand item yet (same SlotRpc place as before). The left arm's "ready" bend
+  looks slight in the shots.
+- Still the right hand's: attacking and the sheathe key (asked Zach).
+
+**Next:** row 3 of taking folk items (restock walk, guard report by mood) waits for the supervisor's go on the
+animal-lane brain files.
