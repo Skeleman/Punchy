@@ -6282,3 +6282,32 @@ plot rules would have to accept a raised deck).
   - `normalize(cross(float3(0,1,0), x))` with no vertical-case guard: Sky.hlsl:708, 742, 884, 921, 971; LandmarkEffects.hlsl:148; CaveDrips.shader:86, 111.
   - (FloraImpostor.hlsl:65 is a false hit: its guard is on the line before; the lint is line-local.)
 - **lod-lint:** clean. **Suite:** not rerun (docs only). **Pins:** not touched.
+
+### R-18 row 2: the hilltop circle came from grass
+- **Branch** render/nan-guard **0cb5bce0**: GroundDetail.hlsl BuildBladeVertex. When a grass blade fades out (thinned or past the radius, visibility 0) it is not culled; it collapses to height 0 with no bend. The tip vertex (side 0) then normalizes `cross(across, (0,0,0))`, which gives a NaN normal. The base rows keep their width, so the flat triangle lying on the ground still covers pixels, and every pixel it covers is NaN. Bloom spreads that pixel into Zach's white circle. It only happens at Ultra because Ultra grass reaches further, out to the dark pine slope in the repro. Fix: `max(height, 1e-4)` in the tangent, marked nan-safe. Visible blades are far taller than that, so the look is unchanged. rendering.md gains the gotcha: geometry that fades by scaling to 0 needs a floor on any normal built from that size.
+- **How it was found:** by bisection with a raw render of the main camera view (ARGBHalf, Stop NaN off, read back as float):
+  - Default layer only; GroundDetailSystem off gives 0.
+  - The grass material is the source, not pebbles. With its UniversalForward pass off: 0; DepthNormals off: 0 (depth priming); DepthOnly or ShadowCaster off: still 1.
+  - Flora, Ambient, Critter, Driftwood, LandmarkEffect, WideShadow and Puffs off: no change.
+  - So the culprit is grass, not the flora or impostor shading the coordinator suspected. Job 65a's pixel history can still confirm it, but it is no longer needed to find the cause.
+- **Before / after NaN pixel counts** (Ultra, `-stopnan 0` equivalent, raw render per pose with post off and on; before = the same build with only the tangent line reverted):
+
+  | view | poses | before | after |
+  |---|---|---|---|
+  | hilltop dusk, the R-18 repro (-3460,2425, 18:00, Clear, ws 4), orbit | 36 | 1 (y270 p12) | 0 |
+  | peak noon (-3130,2878), orbit | 36 | 0 | 0 |
+  | peak dusk, orbit | 36 | 0 | 0 |
+  | mountains from 150 m, noon (free camera) | 24 | 1 (y315 p40) | 0 |
+  | sea from 300 m, noon | 24 | 0 | 0 |
+  | sea from 300 m, dusk | 24 | 0 | 0 |
+
+  The NaN pixels showed in the post-off render. My offscreen post-on render returned 0 even before the fix, because its post path doesn't carry the NaN through. SparkleProbe on the real camera had seen the hilltop pixel in 20 of 20 frames before the fix.
+- **Shots** in PunchyMilestones/R-18:
+  - `row2-before-*-raw.png` and `row2-after-*-raw.png`, for the hilltop y270 p12 and for 150 m y315 p40: raw renders with each NaN pixel ringed in magenta.
+  - `row2-pair-hilltop.png`: before | after side by side, with crops. The look is unchanged apart from the ringed pixel.
+  - These raw probe renders have no pines, because flora doesn't draw into the probe camera. Ground and grass are as in game.
+  - UNVERIFIED: the white circle itself. At 850x496 in the editor's game view, the before frame showed a dark pixel there, not a halo. Zach saw it at 1920x1080 in a player. A profiler `-sparkleprobe` run of the R-18 repro on this branch with `-stopnan 0` would close it (it's in the BENCH request below).
+- **nan-lint:** it already listed GroundDetail.hlsl:143 among the 38 normalize hints on main. I hadn't singled it out in row 3 because the added `across * side` term looked like a guard, but it is 0 on the tip vertex. Line 180 (pebble facet normal) is a degenerate zero-area triangle when a pebble scales to 0, so it produces no fragments; left alone.
+- **Slip:** once in this row I ran AssetDatabase.Refresh during play mode to pick up the .hlsl edit, which breaks the no-Refresh-in-play rule. Nothing broke (the world stayed ready), and every later refresh went through exit-play first.
+- **Checks:** PlayMode suite `completed: 28/28 passed` after the last code change. lod-lint exit 0. Pins not touched (shader-only change).
+- **BENCH request (R-18 row 2):** a player build of render/nan-guard at Ultra, with `-stopnan 0 -sparkleprobe` on the REPORTS-profiler line 15 repro. Pass: NaN count 0 and no white dot. Also GPU ms there, branch vs main, passing within 0.1 ms.
