@@ -1235,3 +1235,21 @@ a rod, nor a torch, staff or lantern (CreatureState.Held). New test flag "-sheat
   in the half second while it's going away is dropped, not queued.
 
 **Next:** row 5, post props (table, block, log, rope, hot iron) as items at worker posts; Gear props go.
+
+## DONE: unify items row 5, post props are kit items (player/unify-items aea232b5)
+
+What stands at a worker's post (a baker's kneading table and loaf, the well's rope and bucket, a smith's hot iron, a
+woodcutter's chopping block and log) is now FolkKit.Post0/Post1. The host fills these while the worker is there, and
+they're sent with the rest of the kit (two more CreatureNet ghost bytes, KitPost0/1). Gear draws by item, sized by
+PostParts, instead of each machine working it out from the job. The props can't be picked up: they stay part of the
+post (Zach can ask for pick-up as a later step). docs/agents/fauna.md has a line on post items and per-look capsule
+counts.
+
+- Host + client: kits agree 8/8 at noon and 11/12 at night (one smith logged a moment apart). The host's working smith
+  shows "post Hot iron". 0 exceptions, 0 deserialize errors.
+- Town shots (`Unify/u5-compare.jpg`, row 3 left, row 5 right): the baker's table and the smith match.
+- Lint rc 0; suite 26/0/17; fingerprint AD723954.
+- UNVERIFIED: the chopping block and log, and the well's rope and bucket, weren't in frame (no woodcutter or well
+  keeper at work near the camera).
+
+**Next:** row 6, final sweep: solo, host and client; shots per culture and job at 3 m and 30 m.
