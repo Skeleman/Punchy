@@ -117,7 +117,8 @@ feature code, and it never edits files in another session's checkout.
    bench agent on the main PC (tree Punchy-release, builds to its Builds/Bench-A and Bench-B) runs branch-vs-main jobs whose
    pass line is "within noise / no slower than main" and which are not near a budget. Same method as the laptop
    (lanes/profiler/scripts: job.sh, report.py, ABBA, Profile builds, 1920x1080, uncapped, 300 frames). It times only
-   while no other Unity editor or player runs on this PC (lane editors pause at a save point, never killed). Pass on the
+   while no other Unity editor or player runs on this PC (lane editors pause at a save point, never killed; the supervisor
+   opens a window with the file D:/Unity/PunchyBench/HOLD, see lanes/shared/unity.md "Bench hold"). Pass on the
    main PC: within noise or under ~2% of frame ms; above that, the job goes back to the laptop queue before the merge.
    Reports go in BENCH-REPORTS.md marked "main PC, provisional"; the profiler re-checks one now and then. Laptop-only:
    budget and preset decisions (rule 23), water/lights/clouds, two-machine tests, LOD reach. Lane agents still never time.

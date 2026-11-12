@@ -13,6 +13,14 @@
 - Never send keystrokes or window grabs outside the Punchy window; use in-game shot lists.
 - Install editors only with `unity install <ver> --no-elevate -d D:\Unity\Editors\<ver>` (no UAC prompts).
 
+## Bench hold (11-11)
+The main-PC bench agent (rule 21, J-045) times only while no other Unity editor or player runs. When the file
+`D:/Unity/PunchyBench/HOLD` exists, a bench window is on (the file says until when; at most 3 hours):
+- Before opening an editor, building, launching a player or running tests, check for it. While it exists, don't start any.
+- Something already running: let it finish (or reach a save point), close your editor and player, never kill anything.
+- Meanwhile do the work that needs no Unity: write code for the next row, read, plan, draft the report. Resume when the
+  file is gone. Never create or delete the file yourself (the supervisor and the bench agent own it).
+
 ## Players must exit on their own
 - A player left running locks `Builds/.../Punchy.exe`, and the next build fails (W-02 and A-03 were both blocked this way).
   Agents are not allowed to kill processes. Make the last shot-list line quit the player, or launch it so it exits
