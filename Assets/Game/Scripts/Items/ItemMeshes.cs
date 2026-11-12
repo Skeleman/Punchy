@@ -97,6 +97,9 @@ namespace Punchy.Items
                 case "Axe": Axe(k); break;
                 case "Rod": k.Tube(1, new Vector3(0f, 0.03f, -0.85f), new Vector3(0f, 0.03f, -0.55f), 0.022f, 0.02f, 6); k.Tube(0, new Vector3(0f, 0.03f, -0.55f), new Vector3(0f, 0.025f, 0.95f), 0.014f, 0.004f, 5); k.Tube(0, new Vector3(0.03f, 0.03f, -0.5f), new Vector3(0.03f, 0.03f, -0.44f), 0.028f, 0.028f, 6); break;
                 case "Hammer": k.Tube(0, new Vector3(0f, 0.035f, -0.32f), new Vector3(0f, 0.035f, 0.3f), 0.02f, 0.024f, 6); k.Tube(1, new Vector3(-0.09f, 0.045f, 0.3f), new Vector3(0.09f, 0.045f, 0.3f), 0.045f, 0.045f, 6); k.Tube(0, new Vector3(0f, 0.035f, -0.34f), new Vector3(0f, 0.035f, -0.24f), 0.028f, 0.028f, 6); break;
+                // (A pickaxe lying flat: a haft, and across its top an iron head, a long point one side, a short blunt
+                // adze the other.)
+                case "Pickaxe": k.Tube(0, new Vector3(0f, 0.035f, -0.34f), new Vector3(0f, 0.035f, 0.32f), 0.02f, 0.024f, 6); k.Tube(1, new Vector3(0f, 0.04f, 0.32f), new Vector3(0.24f, 0.04f, 0.29f), 0.03f, 0.007f, 6); k.Tube(1, new Vector3(0f, 0.04f, 0.32f), new Vector3(-0.15f, 0.04f, 0.3f), 0.03f, 0.026f, 6); break;
                 case "Arrow": k.Tube(0, new Vector3(0f, 0.012f, -0.32f), new Vector3(0f, 0.012f, 0.3f), 0.008f, 0.008f, 5); k.Tube(1, new Vector3(0f, 0.012f, 0.3f), new Vector3(0f, 0.012f, 0.37f), 0.016f, 0.002f, 4); k.Tube(1, new Vector3(0f, 0.012f, -0.32f), new Vector3(0f, 0.012f, -0.2f), 0.026f, 0.012f, 3); break;
                 case "Cap": k.Dome(0, new Vector3(0f, 0.01f, 0f), 0.11f, 0.09f); k.Tube(1, new Vector3(-0.1f, 0.015f, 0.04f), new Vector3(0.1f, 0.015f, 0.04f), 0.012f, 0.012f, 4); break;
                 case "Helm": k.Dome(0, new Vector3(0f, 0.01f, 0f), 0.13f, 0.14f); k.Tube(1, new Vector3(0f, 0.12f, 0.12f), new Vector3(0f, 0.02f, 0.135f), 0.014f, 0.01f, 4); k.Tube(1, new Vector3(-0.13f, 0.02f, 0f), new Vector3(0.13f, 0.02f, 0f), 0.014f, 0.014f, 4); break;
