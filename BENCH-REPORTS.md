@@ -2,7 +2,45 @@
 
 Newest first.
 
-## 2026-11-11: job 60 (W-140) � main PC, provisional
+## 2026-11-11: jobs 52 + 54 + 58 (W-135/W-136) — main PC, provisional
+One session. Arms: (A) main 6fc00007; (B) `world/ground-contact-shade` 82d43e13 (W-136 merged with main, includes W-135 `world/cave-lod`; main does not); (C) B with `-cavelevel 0 -nocaveskip`, cave views only. Profile builds, `-display 1920x1080,windowed`, `-fpscap 0`, `-gfx High`, `-weatherseed 4`, ABBA (A/B/C rotated), 2 rounds, 300+ frames per view. Medians over both rounds; ">2x med" is r1/r2.
+- **Job 54: PASS.** Every surface view within noise, GPU equal, no new hitch on load or on the run.
+- **Job 52: OVER on the walk, BACK TO LAPTOP.** GPU and render thread pass at every view (B equals A and C). But B adds repeatable 13-19 ms frames on the walk into c5 that A and C don't have (see below).
+- **Job 58: frame half PASS; build costs not measured, BACK TO LAPTOP.** Whole-frame ms at pool, ruin, town and forest is within noise. Steady profiler captures (pool, ruin, town, room d) show no ContactShade or cave-mesh marker growth. The mesh builds happen during load, before the profiled stop, and the game logs no per-chunk build times, so "no build >10% slower" is not checked.
+
+Surface (job 54, also job 58 (3)):
+
+| view | A median ms / 1% low | B median ms / 1% low | worst A / B | >2x med A / B |
+|---|---|---|---|---|
+| town 2972,-885, 14:00 clear | 6.10 / 121.5 | 6.20 / 117.8 | 10.4 / 10.7 | 0/0 / 0/0 |
+| town, first 20 s after load (herewarm) | 6.20 / 116.5 | 6.15 / 117.9 | 11.0 / 9.4 | 0/0 / 0/0 |
+| forest 1740,3355 | 5.70 / 128.7 | 5.80 / 123.0 | 8.8 / 11.5 | 0/0 / 0/0 |
+| village (-place HumanVillage, 12:00) | 5.90 / 118.9 | 5.90 / 116.2 | 11.4 / 11.4 | 0/0 / 0/0 |
+| 300 m run into forest (line, 7 m/s) | 5.90 / 116.6 | 5.80 / 114.8 | 12.6 / 11.9 | 1/0 / 1/1 |
+
+Caves (job 52, and job 58 (1)); CPU / GPU / render thread in ms:
+
+| view | A median, cpu/gpu/rt | B median, cpu/gpu/rt | C median, cpu/gpu/rt | >2x med A / B / C |
+|---|---|---|---|---|
+| (a) c5 tunnel | 2.90, 3.00/1.50/0.60 | 3.00, 3.10/1.40/0.60 | 2.95, 3.10/1.50/0.60 | 1/39 / 40/7 / 5/4 |
+| (b) c5 big room | 3.00, 3.10/1.50/0.50 | 3.15, 3.25/1.50/0.50 | 3.10, 3.20/1.50/0.50 | 29/41 / 28/35 / 43/37 |
+| (c) c1 mouth approach | 5.70, 5.85/2.65/2.25 | 5.60, 5.80/2.60/2.20 | 5.55, 5.70/2.60/2.20 | 0 all |
+| (d) room | 3.25, 3.35/1.60/0.55 | 3.50, 3.60/1.60/0.60 | 3.35, 3.45/1.60/0.60 | 1/0 / 1/1 / 0/1 |
+| (d) first 20 s after load | 3.15 | 3.30 | 3.25 | 14/9 / 9/15 / 11/10 |
+| (e) ruin | 2.40, 2.50/1.10/0.40 | 2.40, 2.50/1.20/0.40 | 2.40, 2.50/1.20/0.40 | noise (all under 8 ms) |
+| (f) crystal | 2.45, 2.50/1.00/0.40 | 2.50, 2.50/1.00/0.40 | 2.45, 2.50/1.00/0.40 | noise (all under 8 ms) |
+| (g) surface over c1 (-3230,1038) | 6.80, 7.00/2.20/2.10 | 6.80, 7.00/2.20/2.10 | 6.80, 7.00/2.20/2.10 | 0/0 / 0/1 / 0/0 |
+| job 58 lake room, `-place cavepool` | 6.10, 6.30/2.50/2.20 | 6.15, 6.30/2.55/2.20 | 6.15, 6.30/2.55/2.20 | 0 all |
+| walk 250 m out into c5 (hereentry) | 3.60 / 116.3 fps 1% low | 3.70 / 112.4 | 3.70 / 118.5 | worst 15.7 / 18.9 / 15.0 |
+
+- **The walk:** in both rounds, B's worst frame per 5 s window is 17-19, 11-13, 13 and 16 ms in windows 5, 6, 8 and 10 (about 25-50 s in, near the mouth and the first chambers). A gives 15-16, 9, 10-11 and 12 ms there, and C 14-15, 10-11, 10 and 10-11 ms. Nothing goes over 20 ms, and nothing in any arm goes over 33 ms. C is B with W-135 rows 1-2 turned off and shows no extra spikes, so they point at the hidden-cave skip / level swaps, not at W-136's contact shade. Most of the ~600-1100 frames over 2x median in every arm are the outdoor part of the walk (7-10 ms against a 3.7 ms median).
+- **Steady cave CPU:** B was 0.1-0.25 ms slower on CPU at (a), (b) and (d) in the first pass (3-8% of a ~3 ms frame). One confirming re-run of those three views (A/B, 2 rounds) gave +0.05 ms, +0.05 ms and +0.10 ms (1.6%, 1.7% and 3%), with GPU and the render thread equal. That's borderline at the 0.1 ms resolution the route reports. The room (d) profiler captures were equal (3.76 vs 3.79 ms median frame).
+- **Job 58 (2), "walk into a planted cave":** the cave walk from the crystal spot (1538.9,3.96,-2596.45) printed "hereentry: couldn't get there, skipped" on all 3 arms, both tries, both rounds. The c5 walk above stands in for it.
+- **Job 54, per-chunk build times:** none logged, so not reported.
+- Job 54's description matches what the branch does (no look change, GPU equal at every view).
+- Memory: gfx and system MB flat across arms (within 20 MB). World ready 11.6-11.8 s on every arm. 0 exceptions, no crash, 0 frames over 100 ms.
+
+## 2026-11-11: job 60 (W-140) — main PC, provisional
 Main-PC half only. B hit: island ready 4.8 s vs 10.6-10.9 s on B fresh and on its base (393a9c20), and 11.8 s on current main 6fc00007. That is -6.0 s against the fair base, with the file loading in 260 ms and the peak working set about 260 MB lower. B fresh matches its base (no cost when the cache is off). Landmark hash D6B4846D on every arm. **PASS** (measure job; nothing slower).
 
 - Shas: B `world/island-cache` 47f5490a (row 4), Profile build. A1 = its base, main 393a9c20, for a fair comparison. A2 = current main 6fc00007 for reference (it carries W-134's extra ~1.1 s in "places"). Profile builds, `-display 1920x1080,windowed`, `-fpscap 0`, `-gfx High`, `-weatherseed 4`, `-benchstops none`, 3 runs per arm, rotated per round (base, main, fresh, hit; reversed in round 2).
