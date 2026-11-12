@@ -881,3 +881,24 @@ draw over the species' own. I took the GO's check shots instead, on today's buil
 - Suite: 25 passed, 0 failed, 17 skipped. Fauna_Fingerprint passed (AD723954).
 - UNVERIFIED: the hammer's inventory icon and its world item on the ground.
 - Still waiting on: the P-29 row 2 answer, and W-134 merging (then the camera's cave-water row).
+
+## Small row: the camera's cave water through CaveSampling.WaterAt (11-11, after W-134 merged) DONE, `player/cave-water-camera` e5f328d1 (from main 6fc00007)
+- `ThirdPersonCamera.CaveWaterAbove` drops its own stream and pool search (-35 lines). It now asks
+  `CaveSampling.WaterAt`, the same cave water the swimmer and the creatures use.
+- Only a point below the surface counts: WaterAt also answers up to 2.5 m over the water.
+- The signature is the same, and Underwater.cs is unchanged; cave lava still goes through its own pool check there.
+- Checked in the Dev build:
+  - Cave pool 1: "Underwater: in the water (cave water, lens 202.95, surface 204.55)", then "out of the water"
+    with the lens 0.3 m above the surface.
+  - Cave stream 6, at its end: "in the water (cave water, lens 95.95, surface 96.22)", then "out" at 97.60.
+  - 0 exceptions.
+  - Shots in `D:/Unity/PunchyMilestones/P-cavewater/` (`cw-sheet.jpg`): over each water, and under it with the
+    teal fog, the surface seen from below and fish.
+- `tools/lod-lint.sh origin/main`: exit 0.
+- Suite, first run: 25 passed, 1 failed, 17 skipped. The failure was `LiveFolk_BeastResponse` ("the fleeing folk
+  got no further off", 62.4 against more than 62.6). That is folk simulation, untouched here.
+- Suite, rerun: 26 passed, 0 failed, 17 skipped. Fauna_Fingerprint passed (AD723954). The flee test looks flaky on
+  main by about 0.2 m; worth a line on the animal lane's list.
+- Not checked: the effect on a waterfall plunge pool, or on a stream where it runs into its pool. Both are WaterAt's
+  own handling now ("the higher surface wins").
+- Next: item rows, until the P-29 row 2 answer.
