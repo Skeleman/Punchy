@@ -5784,3 +5784,19 @@ Branch `world/mountain-tunnels` at f6217674 (pushed), on a149c17f. One commit: C
   - The wide map skips the cache band (or the two blend to 1).
   - The cache receiver uses the faded real-time term so the gap closes.
 - **Row 3 plan:** texel-snap the cache view, and crossfade old and new maps after each cache and wide redraw.
+
+## R-16 row 2: same shadow darkness in every tier (done, commit 1fcccf58 on render/shadow-tiers)
+
+- **Branch:** render/shadow-tiers, from origin/main 6c3588b6.
+- **What changed (FloraShadowCache.shader, FloraShadowOptions.cs):**
+  - The cache shadow now takes only the direct sunlight's share, as the real-time and wide shadows do. It uses the main light's brightness on the surface and the ambient probe. CacheDarkness is now 1 x shadow strength, like the wide tier (was 0.62 of the whole colour).
+  - Where the real-time or wide shadow already dims a point, the darker one wins. Both sides of each hand-over weigh to one: lit = ambient + sun x min(real-time, 1 - wide, 1 - cache).
+  - The real-time term fades with URP's own shadow fade, so the band near the shadow distance is no longer left lit.
+  - No ProjectSettings or renderer changes. No new ranges in metres.
+- **Probe after (tree, median / darkest 10%):**
+  - Noon: 0.47-0.52 / 0.39-0.41 at 5-70 m, 0.445 / 0.40 at 100 m, 0.44-0.47 / 0.40-0.44 at 140-300 m. Was 0.29 at 100 m. The far tiers sit 5-9% darker than the near ones by median, and match by darkest 10%.
+  - 17:00: 0.72-0.79 out to 122 m, 0.71-0.83 past that.
+  - The 70 m "centre" sample still reads about 1.0. In the shot that point is under the crown, and the ground shadow there is whole (dbg-F-on vs dbg-F-off in R-16/raw).
+- **Strip (checked at small size):** D:/Unity/PunchyMilestones/R-16/R16-row2-walkin.png, at 200/100/70/50/30 m. The tone holds and the brown band is gone.
+- **BENCH-QUEUE:** job added for the receiver's cost. It now reads the wide map (4 taps) and the ambient probe per pixel in the cache band.
+- **Not done yet:** the 30 s walk-in clip. Row 3 has the motion checks.

@@ -622,3 +622,10 @@ Purpose: find which part of water costs what, before any water or architecture w
 - Record: GPU ms for the depth pass, the opaque/forward pass, the water field compute dispatch and the SSR, where the profiler can split them (Frame Debugger/GPU markers); whole-frame GPU and CPU; WaterPatchSystem main-thread ms (SourceJob .Run and the sheet build) and the fine sheet's vertex/index count and rebuilds per second.
 - Also, once each: (e) the shader variant counts from the Profile build's log for Water, Terrain, Flora, Creature and Sky (compiled per pass), and (f) the FloraCull dispatch GPU ms at the densest forest with far trees on.
 - Pass: measures only. Report the top three water costs by view, and say whether the field step is over 0.1 ms.
+
+## Job 63 (2026-11-12, QUEUED; world lane, for R-16 row 2, #272): cache shadow receiver cost
+R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shadow receiver now also reads the wide shadow map (4 taps) and the ambient probe for each pixel in the 25-120 m cache band, so it can keep the darker of the tiers instead of stacking them.
+- Arms: (A) origin/main; (B) `render/shadow-tiers` at 1fcccf58 or newer. Profile builds, 1920x1080, High, uncapped, ABBA, 300 frames each.
+- Views: (a) the densest forest at noon, camera on the ground; (b) a hilltop looking down over forest with the cache band filling most of the screen.
+- Record: GPU ms for the FloraShadowCache draw (Frame Debugger/GPU markers) and whole-frame GPU and CPU ms.
+- Pass: B's FloraShadowCache draw within 0.1 ms of A's, and no whole-frame GPU change past noise.
