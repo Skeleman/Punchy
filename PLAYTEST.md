@@ -71,3 +71,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 2026-11-10: Zach on the #251 rain before/after: "The rain looks much better now as well :)". Density stays as merged.
 - 11-10: #252 merged (M-05 rows 1-3): Model Lab editor window (Punchy > Model Lab), tunables asset empty so no look change. Try: load Wolf, drag Legs, scrub run.
 - 11-10: #253 merged (R-9): fine water sheet near the player, river falls that curl and ripple, whitewater on rapids, no zigzag foam far from origin. Leftover: jagged streaks at river mouths.
+- 11-12: #232 closed (water deforms under the player): landed in #253 (R-9). Cost/coverage follow-ups on R-15 (#269).
