@@ -178,8 +178,8 @@ namespace Punchy.Terrain
                     vertex.Strata.z = (half)math.clamp(math.min(ring / 8f - h, 2f * (lowest - h)), -1f, 1f);
                 }
                 verts[z * v + x] = vertex;
-                // Landmark pools are left out of the sheet: CaveSystem draws each as a smooth disc (a small pool spans
-                // only a few quads of this grid, which gave it a ragged edge).
+                // Landmark pools are left out of the sheet: CaveSystem bakes each on the finer 0.5 m water lattice, fitted
+                // to its basin (W-148; a small pool spans only a few quads of this grid, which gave it a ragged edge).
                 var sheet = ground.WaterSurface;
                 if (Source.Landmarks.IsCreated)
                 {

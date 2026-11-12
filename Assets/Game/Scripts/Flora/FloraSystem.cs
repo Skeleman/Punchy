@@ -275,20 +275,25 @@ namespace Punchy.Flora
 
         // ------------------------------------------------------------------------------------------- fountains' water
 
-        /// <summary>A basin of water in a plant in a loaded tile (FloraModel.Pools: a fountain's), in the world.</summary>
+        /// <summary>A basin of water in a plant in a loaded tile (FloraModel.Pools: a fountain's or a well's), in the world.</summary>
         struct Basin
         {
             public int Layer;
             public int2 Tile;
             public float3 Centre;
             public float Radius;
-            public int Model;
+            public float Yaw, Scale;
+            public int Model, Pool;
+            public bool Shown;
         }
         readonly List<Basin> basins = new List<Basin>();
-        /// <summary>One water disc per model (its species' water colour baked in), made when first drawn.</summary>
-        readonly Dictionary<int, Mesh> basinMeshes = new Dictionary<int, Mesh>();
-        /// <summary>How far fountains' water is drawn with the terrain's water (at Detail 1); beyond it their models' own discs stand in.</summary>
-        const float BasinRange = 80f;
+        /// <summary>One water polygon per model and pool (its look and depth baked in), made when first drawn.</summary>
+        readonly Dictionary<long, Mesh> basinMeshes = new Dictionary<long, Mesh>();
+        /// <summary>
+        /// A basin's water is drawn with the terrain's water while it is at least this big on screen (reference pixels across,
+        /// at Detail 1, rule 20); smaller, the model's own polygon of the same shape stands in.
+        /// </summary>
+        const float BasinPixels = 16f;
 
         /// <summary>Notes the basins of a newly loaded tile's plants (turned and scaled as the plants are).</summary>
         void AddBasins(Layer l, int2 tile, NativeArray<FloraInstance> plants)
@@ -298,24 +303,30 @@ namespace Punchy.Flora
                 if (plant.Model < 0 || plant.Model >= models.Count || models[plant.Model].Pools.Count == 0)
                     continue;
                 float c = math.cos(plant.Yaw), sn = math.sin(plant.Yaw);
-                foreach (var pool in models[plant.Model].Pools)
+                var pools = models[plant.Model].Pools;
+                for (int p = 0; p < pools.Count; p++)
                 {
-                    var offset = new float2(pool.x * c - pool.z * sn, pool.x * sn + pool.z * c) * plant.Scale;
+                    var pool = pools[p];
+                    var offset = new float2(pool.Centre.x * c - pool.Centre.z * sn, pool.Centre.x * sn + pool.Centre.z * c) * plant.Scale;
                     basins.Add(new Basin
                     {
                         Layer = l.Index,
                         Tile = tile,
-                        Centre = plant.Position + new float3(offset.x, pool.y * plant.Scale, offset.y),
-                        Radius = pool.w * plant.Scale,
-                        Model = plant.Model
+                        Centre = plant.Position + new float3(offset.x, pool.Centre.y * plant.Scale, offset.y),
+                        Radius = pool.Radius * plant.Scale,
+                        Yaw = plant.Yaw,
+                        Scale = plant.Scale,
+                        Model = plant.Model,
+                        Pool = p
                     });
                 }
             }
         }
 
         /// <summary>
-        /// Fountains' water near the camera, drawn as the landmark pools are (CaveSystem): a disc in the terrain's water
-        /// material, so it ripples, reflects and catches the light as all other water does (Z-12; it was a shiny disc).
+        /// Fountains' and wells' water while big enough on screen (BasinPixels), in the terrain's water material, so it
+        /// ripples, reflects and catches the light as all other water does (Z-12; it was a shiny disc). W-148: the polygon
+        /// of the basin's wall, turned as the plant is, not a disc.
         /// </summary>
         void DrawBasins(float3 camPos)
         {
@@ -325,16 +336,27 @@ namespace Punchy.Flora
             var water = configQuery.GetSingleton<TerrainConfig>().WaterMaterial.Value;
             if (water == null)
                 return;
-            foreach (var basin in basins)
+            var view = Punchy.Settings.DetailPolicy.Current.Data;
+            var pixels = BasinPixels / math.max(view.Detail, 0.1f);
+            for (int i = 0; i < basins.Count; i++)
             {
-                if (math.distance(basin.Centre, camPos) > Punchy.Settings.GraphicsSettings.DetailRange(BasinRange) + basin.Radius)
-                    continue;
-                if (!basinMeshes.TryGetValue(basin.Model, out var mesh))
+                var basin = basins[i];
+                var d = math.max(math.distance(basin.Centre, camPos) - basin.Radius, 0f);
+                var shown = Punchy.Settings.DetailPolicy.Holds(
+                    Punchy.Settings.DetailPolicy.ScreenSize(basin.Radius * 2f, d, view.PixelsPerMetre), pixels, basin.Shown);
+                if (shown != basin.Shown)
                 {
-                    var colour = models[basin.Model].Species.Foliage.linear;
-                    mesh = CaveSystem.MakePoolMesh(new float4(colour.r, colour.g, colour.b, 0.1f), 0f);
-                    mesh.name = "Fountain basin";
-                    basinMeshes[basin.Model] = mesh;
+                    basin.Shown = shown;
+                    basins[i] = basin;
+                }
+                if (!shown)
+                    continue;
+                var key = ((long)basin.Model << 8) | (uint)basin.Pool;
+                if (!basinMeshes.TryGetValue(key, out var mesh))
+                {
+                    var pool = models[basin.Model].Pools[basin.Pool];
+                    mesh = CaveSystem.MakeBasinMesh(pool.Radius, pool.Sides, pool.Depth, pool.Look);
+                    basinMeshes[key] = mesh;
                 }
                 var rp = new RenderParams(water)
                 {
@@ -342,7 +364,8 @@ namespace Punchy.Flora
                     shadowCastingMode = ShadowCastingMode.Off,
                     receiveShadows = true
                 };
-                Graphics.RenderMesh(rp, mesh, 0, Matrix4x4.TRS(basin.Centre, Quaternion.identity, new Vector3(basin.Radius, 1f, basin.Radius)));
+                // The plant's yaw turns its mesh the other way round the up axis (see AddBasins' offsets).
+                Graphics.RenderMesh(rp, mesh, 0, Matrix4x4.TRS(basin.Centre, Quaternion.AngleAxis(-basin.Yaw * Mathf.Rad2Deg, Vector3.up), Vector3.one * basin.Scale));
             }
         }
 

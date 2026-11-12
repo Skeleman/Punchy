@@ -798,7 +798,7 @@ namespace Punchy.Terrain
         /// </summary>
         internal static Mesh MakePoolMesh(float4 look, float lava) => MakePoolMesh(look, new float2(0f, lava));
 
-        /// <summary>The same disc with a self-glow too (toxic pools): glow x, lava y.</summary>
+        /// <summary>The same disc with a self-glow too: glow x, lava y.</summary>
         static Mesh MakePoolMesh(float4 look, float2 glow)
         {
             const int rings = 6, spokes = 32;
@@ -838,62 +838,39 @@ namespace Punchy.Terrain
             };
         }
 
-        // ------------------------------------------------------------------------------------------- landmark pools
-
-        /// <summary>A landmark's pool, drawn as a smooth disc (the terrain's water grid leaves it out).</summary>
-        struct LandmarkPool
-        {
-            public float3 Centre;
-            public float Radius;
-            public Mesh Mesh;
-        }
-
-        readonly List<LandmarkPool> landmarkPools = new List<LandmarkPool>();
-        BlobAssetReference<LandmarkSetBlob> landmarkPoolsFrom;
-
         /// <summary>
-        /// Draws every landmark pool (oases, hot springs, toxic pools, crater lava) within LoadRadius with the terrain's
-        /// water material: a disc a tenth wider than the pool, so its rim tucks under the gentle bank, in the water look
-        /// the terrain would give it there. A small pool spanned only a few quads of the terrain's water grid, which
-        /// left a ragged edge. One mesh per pool, built when the landmarks change.
+        /// A basin's water (a fountain's or a well's, FloraSystem): a flat polygon of the given sides and radius in the
+        /// terrain's water vertex layout, corner s where an upright FloraMeshBuilder.Tube's ring vertex s lies, so it fills
+        /// the basin's wall ring for ring (W-148: it was a disc). Still, one depth throughout, in the given look.
         /// </summary>
-        void DrawLandmarkPools(in TerrainSource source, float3 camPos)
+        internal static Mesh MakeBasinMesh(float radius, int sides, float depth, float4 look)
         {
-            if (!source.Landmarks.IsCreated || configQuery.IsEmpty)
-                return;
-            var water = configQuery.GetSingleton<TerrainConfig>().WaterMaterial.Value;
-            if (water == null)
-                return;
-            if (landmarkPoolsFrom != source.Landmarks)
+            sides = math.max(sides, 3);
+            var vertices = new List<WaterVertex>(sides + 1) { Vertex(float2.zero) };
+            for (int k = 0; k < sides; k++)
             {
-                ReleaseLandmarkPools();
-                landmarkPoolsFrom = source.Landmarks;
-                ref var set = ref source.Landmarks.Value;
-                for (int i = 0; i < set.Instances.Length; i++)
-                {
-                    ref var type = ref set.Types[set.Instances[i].Type];
-                    for (int p = 0; p < type.PoolCount; p++)
-                    {
-                        LandmarkSampling.Pool(ref set, i, p, out var centre, out var radius);
-                        var look = source.WaterLook(centre.xz, source.SampleGround(centre.xz).Biomes, out var glow);
-                        var mesh = MakePoolMesh(look, glow);
-                        mesh.name = "Landmark pool";
-                        landmarkPools.Add(new LandmarkPool { Centre = centre, Radius = radius * 1.1f, Mesh = mesh });
-                    }
-                }
+                var a = k * math.PI * 2f / sides;
+                vertices.Add(Vertex(new float2(-math.sin(a), -math.cos(a)) * radius));
             }
-            foreach (var pool in landmarkPools)
+            var indices = new List<int>(sides * 3);
+            for (int k = 0; k < sides; k++)
             {
-                if (math.distance(pool.Centre, camPos) > LoadRadius + pool.Radius)
-                    continue;
-                var rp = new RenderParams(water)
-                {
-                    worldBounds = new Bounds(pool.Centre, new Vector3(pool.Radius * 2f, 1f, pool.Radius * 2f)),
-                    shadowCastingMode = ShadowCastingMode.Off,
-                    receiveShadows = true
-                };
-                Graphics.RenderMesh(rp, pool.Mesh, 0, Matrix4x4.TRS(pool.Centre, Quaternion.identity, new Vector3(pool.Radius, 1f, pool.Radius)));
+                indices.Add(0); indices.Add(1 + k); indices.Add(1 + (k + 1) % sides);
             }
+            var mesh = new Mesh { name = "Basin water" };
+            mesh.SetVertexBufferParams(vertices.Count, WaterVertex.Layout);
+            mesh.SetVertexBufferData(vertices, 0, 0, vertices.Count);
+            mesh.SetIndices(indices, MeshTopology.Triangles, 0);
+            mesh.bounds = new Bounds(Vector3.zero, new Vector3(radius * 2f, 1f, radius * 2f));
+            return mesh;
+
+            WaterVertex Vertex(float2 xz) => new WaterVertex
+            {
+                Position = new float3(xz.x, 0f, xz.y),
+                Data = new float4(0f, 0f, depth, 0f),
+                Look = look,
+                Glow = float2.zero
+            };
         }
 
         // ------------------------------------------------------------------------------------------- drips
@@ -1235,13 +1212,6 @@ namespace Punchy.Terrain
 
         Punchy.Flora.FloraSystem flora;
 
-        void ReleaseLandmarkPools()
-        {
-            foreach (var pool in landmarkPools)
-                Destroy(pool.Mesh);
-            landmarkPools.Clear();
-            landmarkPoolsFrom = default;
-        }
 
         // The frame timer and its section marks, reused so Update allocates nothing (W-117 GC).
         readonly System.Diagnostics.Stopwatch frameClock = new System.Diagnostics.Stopwatch();
