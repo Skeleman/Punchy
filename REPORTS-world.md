@@ -5704,3 +5704,21 @@ Branch `world/mountain-tunnels` at f6217674 (pushed), on a149c17f. One commit: C
 - **Bench:** job 61 queued (c5 walk, A main / B branch / C B with `-cavelevel 0 -nocaveskip`, frames over 2x median).
 - **Risk:** a chunk entering the fine band now waits up to a few frames longer for its finer mesh (it keeps its coarser mesh drawn meanwhile). That doesn't show in the shots.
 - **Tree:** on world/ground-contact-shade with the five parked .mat edits uncommitted. Editor closed.
+
+## W-138 merge prep (done, verified)
+
+- **Branch:** world/mountain-tunnels at 70d0890d, a merge of origin/main 6c3588b6 into ec884d2d. Ready for laptop bench job 59 and the supervisor's merge (main has not moved since).
+- **Conflicts:** CaveSystem.cs only, both sides kept.
+- **Portals as mouths:** a road tunnel's far portal now counts as a mouth (`FarPortal`, used by `NearMouth`, the nearest-mouth test and Look).
+- **Fix found while checking:** from outside, bore chunks more than 32 m past the portal counted as buried and were skipped, so the bore showed sky and popped in when you entered. New `InPortalSight`: chunks on a tunnel's straight run from either portal are never buried and are left to the screen test.
+- **Walk through a road tunnel (counts):** before, 7 skip flips and 264 swaps; after, 6 flips (all on the frame you cross the mouth) and 251 swaps. Max per frame: 2 builds and 2 uploads.
+- **Shots:** in D:/Unity/PunchyMilestones/W-138/. Each was shot after settling and compared against a repeat shot of the same pose, to measure haze noise:
+  - portal-bore-before-after.jpg: the sky hole is gone.
+  - s15, s5, n15 and n5 before/after: the remaining differences are within that noise.
+  - s1-r-skip and s1-r-noskip: skip on vs off, 174 to 405 px apart, which is noise.
+  - bore-levels-default-vs-l0.jpg: no cracks and no sky pixels at z 400 or z 800.
+  - Lamps show far down the bore.
+- **Tests:** PlayMode suite: 28 passed, 17 skipped, 0 failed. Pins: Landmarks_V3 117 689D5348, Fauna_Fingerprint AD723954. lod-lint clean.
+- **Flora owner:** compared with main, this branch touches FloraGenerator.Kit.cs, FloraPlacement.cs, Flora.shader and FixtureTunnelLantern.asset (the tunnel lantern fixture). Flag these at merge time.
+- **Risk:** markers and shrines down a bore follow the plantShown/DetailPolicy path. I checked this in code only, with no shot.
+- **Tree:** editor closed. Next: W-145 on world/cave-entry.
