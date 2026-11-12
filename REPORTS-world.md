@@ -6353,3 +6353,22 @@ plot rules would have to accept a raised deck).
   - The texture samples sit inside [branch] blocks. The NaN probe reads 0, but a thin mip seam at the 40 deg edge is possible and didn't show in the shots.
   - Snow and moss on steep faces are row 2.
 - **BENCH request (R-19 row 1):** GPU ms at the canyon (2266,-434) and the mountain (-3130,2878), render/steep-triplanar vs main, from 20 m and 150 m.
+
+### R-19 row 1b: canyon keeps its red, mountain rock reads at 20 m (render/steep-triplanar 0ebcf1b2, #281)
+- **Change:** TerrainSurface.shader only, 25 lines added and 7 changed on top of a4dfb261.
+  - (a) Hue: the rock now keeps the biome slope surface's own colour. Greying applies only where grass grew (a grassy bank turns to stone, not green stone), so mesa and canyon walls stay warm red/orange.
+  - (b) Mountain at 20 m: the beds are stronger (x1.0, up from a weaker mix). Soft hashed blocks a bed high (1.6 m courses) are offset per course, with widths of 1.8-4.2 m that change course to course and +-25% shade. There are no drawn joints: my first try with joint lines read as brickwork. Bed-lip undersides get up to 45% ledge shade from the bed slope.
+  - Blocks fade by screen size (2.5 m per pixel scale via the same ppm as the beds, rule 20). Blocks are 3D cells on world xz plus a course index, so no projection can stretch them, and the stretched speckle stays gone. On strata faces (mesa) beds and blocks are damped to 40% so the existing strata colour leads.
+- **Hue check (same-session A/B, Clear weather, noon, High):** the weather drifts between sessions (my first 1b canyon shot was under storm cloud), so I shot main's shader and 1b back to back in one session at the same pose. Wall region mean RGB:
+  - Canyon 150 m: main [126.1, 100.9, 83.8], 1b [128.5, 103.0, 86.1], so +2.0/+2.1/+2.8%. A repeat gives +1.8/+1.9/+2.5%. The hue ratio (r/b) is 1.505 vs 1.492.
+  - Canyon 20 m: -6.3/-2.2/+2.5% raw, but the untouched floor in the same frames shifted -4.5/-2.0/-0.5% between the two runs. Normalised by the floor, it's within about 3%.
+- **Shots** in PunchyMilestones/R-19:
+  - `r19-pair1b-canyon-{20m,150m}.png` (main | 1b, same session).
+  - `r19-pair1b-mountain-{20m,150m}.png` (row 1 before | 1b).
+  - Singles: `r19-after1b-*` and `r19-ab{main,1b,1b2}-canyon-*`.
+  - Mountain 20 m: beds read on the far peak, and ledge shade and blocks show on the near face. No stretched speckle.
+- **Rule 24:** raw NaN count 0 on all 1b shots (Stop NaN off).
+- **lod-lint:** clean. **nan-lint:** no hint on any R-19 line (the blocks use frac/floor/smoothstep only; no divide or normalize added).
+- **Checks:** PlayMode `completed: 28/28 passed` (after the last change). The first run gave 27/28: Place_PropFindsAndFramesWharf failed on the known stale-`[measure]` LogWatch flake (same strings, WorldTests.cs:199). It passed after a domain reload. ShaderUtil: no errors.
+- **Pins:** unchanged (shader only).
+- **BENCH request (R-19 row 1b, supersedes row 1's):** GPU ms at the canyon (2266,-434) and the mountain (-3130,2878), render/steep-triplanar vs main, from 20 m and 150 m.
