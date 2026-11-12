@@ -232,6 +232,9 @@ namespace Punchy.Debugging
             CreatureRenderSystem.Surfaces = System.Array.IndexOf(args, "-nosurfaces") < 0;
             // "-nobloom" (A-96): bloom off in the volumes' own copies of their profiles (the asset is untouched).
             Punchy.Debugging.SparkleProbe.NoBloom(System.Array.IndexOf(args, "-nobloom") >= 0);
+            // "-stopnan 0" (R-18): the main camera without URP's Stop NaN guard (a bench arm; hunting NaN by eye).
+            var stopNan = System.Array.IndexOf(args, "-stopnan");
+            Punchy.CameraRig.NanGuard.Set(!(stopNan >= 0 && stopNan + 1 < args.Length && args[stopNan + 1] == "0"));
             // "-solidsoff" (A-44): wild animals ignore cave walls, towers and carved ground as before, for before numbers
             // from the same build. "-solidstats": log their contacts, sink and floating every 60 s (SolidStatsLog).
             CreatureMotion.SolidsOff.Data = System.Array.IndexOf(args, "-solidsoff") >= 0 ? 1 : 0;
