@@ -81,6 +81,7 @@ namespace Punchy.Items
             new ItemDef { Name = "Pickaxe", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 2.2f, Slot = GearSlot.Hand, Damage = 7f, Reach = 1.1f, Speed = 0.8f, Weapon = Punchy.Fauna.CreatureWeapon.Pickaxe },
             // (Held, it is the folk's lit lantern, HeldItem.Lantern: its light is theirs, 9 m.)
             new ItemDef { Name = "Lantern", Colour = new Color(0.22f, 0.2f, 0.18f), Accent = new Color(1f, 0.78f, 0.4f), Stack = 1, Weight = 1f, Slot = GearSlot.Hand, Light = 9f },
+            new ItemDef { Name = "Shovel", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 1.8f, Slot = GearSlot.Hand, Damage = 5f, Reach = 1.3f, Speed = 0.9f, Weapon = Punchy.Fauna.CreatureWeapon.Shovel },
         };
         public const byte Fish = 5, Key = 7, Torch = 8, Staff = 9, Hat = 10, Pack = 11;
         /// <summary>Item row: the lantern (held: HeldItem.Lantern).</summary>

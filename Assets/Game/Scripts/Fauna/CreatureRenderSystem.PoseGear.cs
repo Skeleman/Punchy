@@ -444,6 +444,13 @@ namespace Punchy.Fauna
                         Output[at + k++] = Piece(grip + dir * 0.49f * scale, face, right, 0.24f * scale, 0.03f * scale, 0.007f * scale, 1f, iron, faded, SegmentMaterial.Metal);
                         Output[at + k++] = Piece(grip + dir * 0.49f * scale, -face, dir, 0.15f * scale, 0.03f * scale, 0.028f * scale, 0.35f, iron, faded, SegmentMaterial.Metal);
                         break;
+                    case CreatureWeapon.Shovel:
+                        // (A long haft with a short cross grip at its butt, and at its head a flat iron blade, wide side
+                        // to side, thin front to back.)
+                        Output[at + k++] = Piece(grip - dir * 0.3f * scale, dir, face, 0.95f * scale, 0.02f * scale, 0.022f * scale, 1f, wood, faded, SegmentMaterial.Wood);
+                        Output[at + k++] = Piece(grip - dir * 0.3f * scale - right * 0.06f * scale, right, face, 0.12f * scale, 0.016f * scale, 0.016f * scale, 1f, wood, faded, SegmentMaterial.Wood);
+                        Output[at + k++] = Piece(grip + dir * 0.62f * scale, dir, face, 0.26f * scale, 0.1f * scale, 0.085f * scale, 0.12f, iron, faded, SegmentMaterial.Metal);
+                        break;
                     case CreatureWeapon.Spear:
                     {
                         // (Both hands: levelled forward, the right hand back along the shaft, thrust out through a swing.)
