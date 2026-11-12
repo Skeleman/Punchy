@@ -2,6 +2,28 @@
 
 Newest first.
 
+## -benchcycle validated (q98, q99), 2026-11-12: in-game arm cycling matches separate games
+Punchy `b/bench-stress` 84d4c7da. Job 49d's R-12 arms (plain, `-skyoff 1024`, `-skyoff 8192`) were cycled inside one game at job 49's storm-noon view. Segments were 4 s settle plus 15 s measured, 4 rounds rotated, 2 games.
+
+| arm | cycled (8 segments, 2 games) | job 49d (3 separate games) |
+|---|---|---|
+| plain | 18.6, 18.8, 18.2, 19.1, 18.8, 20.6, 19.2, 19.3 = **19.07** | 19.1 |
+| warp off (1024) | 18.0, 18.6, 16.7, 18.5, 17.9, 18.4, 16.5, 18.4 = **17.88** | 17.75 |
+| band trial (8192) | 18.6, 19.2, 18.6, 18.8, 18.6, 18.9, 18.7, 18.5 = **18.74** | 18.8 |
+
+- **Same answers as separate games, within 0.15 ms per arm.** That's 24 measurements in two games (about 20 minutes of games), against job 49d's 18 games (about 40).
+- **The rest between segments is needed.** Without it (q98), the GPU reached 80 °C after about 3 minutes, and segments jumped to 23–34 ms erratically.
+  - With 20 s at 10 fps between segments (q99), it ran at 77–84 °C, but the clock held (about 1,650 MHz) and nothing spiked.
+- **A finding for the budgets (rule 23):** separate bench games start a cool GPU (cool() waits until under 65 °C, about 60 s a game). Long play on this laptop sits near 80 °C. Whether that costs frame time in steady play is untested; a 10-minute capped soak would answer it.
+
+**How to use it (job.sh):**
+- `CYCLE="label/g.<global>=<value>;...|..."` with one arm; the cycle's arms are reported as `<view>-cycle` rows in report.py.
+- Set `export RUNTIMEOUT=900` in the spec for 4-round cycles.
+- **It only works for runtime switches.** Shader globals (`g.`), keywords (`k.`), and static fields that aren't readonly (`f.`, for example `f.Punchy.Settings.LightBudget.reachCut=False`).
+- A different build, or a launch-time flag, still needs its own game.
+
+Cost: laptop total $787 (laptop session 0a48ccdb; 2 builds, 4 games).
+
 ## Job 45i follow-up: the wave field with hardware tessellation (q96, q97), 2026-11-12: works, costs twice the CPU cut
 **Setup:**
 - Punchy `b/water-rows-fixes` 5e7bfad2. Job 45c's lake swim, 1920x1080, uncapped, `-body default`, 3 rounds rotated per preset.
