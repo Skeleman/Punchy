@@ -498,12 +498,12 @@ Pass: row 6 <= +0.2 ms GPU over row 5 at both views, CPU within noise.
 - One Profile build of Punchy `b/r10-trims` a1cb1899 (= light/forwardplus 1f6c966d + LightBudget's real-light reach: pixels past every real light's reach skip the Forward+ light loop): trim; `-realreach 0` (R-10 as is); `-floraglowworld 0` (prices plants' island glow); and origin/main 60edfacb. Job 45e's spot, town (yaw 201) and north, 3 rounds rotated. q91.sh.
 - Pass (45e's): trim <= +0.5 ms GPU over main at both views.
 
-## Job 49c (2026-11-11, QUEUED after 45h and the q92 water captures; Zach in the profiler session): cloud shadow map prototype
+## Job 49c (2026-11-11, REPORTED 11-11 (forest -0.75 to -1.3 ms, storm views neutral); Zach in the profiler session): cloud shadow map prototype
 - One Profile build of Punchy `b/cloud-shadow-map` 88ee4c89 (origin/main 393a9c20 + WeatherSystem baking the clouds' shadow density over the cloud plane round the camera, 8 km at 1024x1024, every 2 frames; PunchyCloudShadow reads it once per pixel): on; `-cloudshadowmap 0` (per pixel, as main); `-cloudshadowmapevery 1`.
 - Spots: job 49's storm shadow and storm noon, and the hive spot at noon (Partly cloudy). 3 rounds rotated; shots of every arm to compare the shadows. q93.sh.
 - Purpose: R-12's per-pixel shadow cost (and the cloud shadow's cost from before it) moved into a bake a few times a second.
 
-## Job 45i (2026-11-11, QUEUED after 49c; Zach in the profiler session): the wave field's cheaper forms
+## Job 45i (2026-11-11, RUNNING (q94.sh); Zach in the profiler session): the wave field's cheaper forms
 - One Profile build of Punchy `b/water-rows-fixes` d2c748a6: cuts 4 (default), `-waterfieldcuts 2`, `-waterfieldtess 1` (prototype: CPU cut 2, the GPU tessellates up to 4x more by screen size; Water.shader's passes now shared through includes), `-waterfieldnormals 1` (no sheet; the field only shades the chunk water: Zach's preferred fallback and far-range form), and `-waterfield 0`. Job 45c's lake swim, 4 rounds rotated, shots of every arm. q94.sh.
 - Bar (45c's): <= +0.3 ms GPU over off.
 - Added 11-11 (supervisor, Zach, rule 23): run the same arms once more at `-gfx Medium` and report both presets. The result decides R-9 row 7: a form that passes at Medium stays on by default; otherwise the wave field becomes a Dynamic water setting (High/Ultra Full, Medium the normals-only form if it passes, else Off).

@@ -2,6 +2,34 @@
 
 Newest first.
 
+## Job 49c: cloud shadow map prototype (Punchy b/cloud-shadow-map 88ee4c89), 2026-11-11 (q93.sh): saves 0.8–1.3 ms over a forest, nothing in the storm views
+**Setup:**
+- One Profile build (main 393a9c20 plus the map), 1920x1080, High, uncapped, `-body default`, 3 rounds rotated.
+- Arms: on (baked every 2 frames), every1 (`-cloudshadowmapevery 1`), off (`-cloudshadowmap 0`, the per-pixel shadow as main).
+- Tables from report.py; a stalled round is in brackets and left out of the mean.
+
+| view | off | on (every 2 frames) | every frame | on vs off | 1% low off / on / every1 |
+|---|---|---|---|---|---|
+| hive, noon, Partly cloudy (forest and grass) | 19.8, 19.2, 19.9 = **19.6** | 18.6, 18.7, 19.3 = **18.9** | 18.0, 18.4, 18.5 = **18.3** | **−0.75** (every1 −1.3) | 23.8 / 29.9 / 30.3 fps |
+| under the storm's shadow (job 49 c) | 15.3, 15.3, 15.0 = 15.2 | 15.5, 15.3, 15.3 = 15.4 | 15.3, 15.1, 15.4 = 15.3 | +0.15 | 45 / 42 / 43 |
+| storm at noon (job 49 a) | 18.4, 18.9, 18.6 = 18.6 | 18.6, 19.5, (stalled) = 19.05 | 18.6 ×3 = 18.6 | +0.4 on two rounds, 0 every1 | 30 / 17 (stall) / 32 |
+
+**Over the forest, the map saves 0.75–1.3 ms GPU.** It also lifts the 1% low from 24 to 30 fps, and slow frames drop from 15 to 1–3.
+- That view is mostly plants and grass, and every one of their pixels used to work out the cloud shadow itself.
+- Baking every frame looks no more expensive than every 2 frames. The difference between them is inside the noise, so the bake itself costs little.
+
+**In the storm views it makes no measurable difference** (+0.15, and ±0.4 with a stall). Those views are mostly sky and distant ground, and much of the ground is at the map's edge or beyond it, where pixels fall back to the per-pixel path.
+
+**Look:** the shots of the same view on and off look the same by eye (q93-shots/hive_off_on.jpg). About 5% of pixels differ by more than 16/255, which is plant and creature motion between separate games, not shadow shapes. Zach should judge a playtest with `-cloudshadowmap 0/1`.
+
+**Verdict:** a clear win wherever surfaces fill the view (the common case), and neutral elsewhere.
+- It doesn't fix R-12's cost, which is in the sky march (job 49b), but it pays back more than R-12's +0.6–0.75 over forests.
+- **Suggest:** the sky owner reviews it for merge, with every frame as the default, since it costs no more than every 2 frames.
+
+Files (Punchy-wt results): q93.out, q93-*.csv, q93logs/, q93-shots/.
+
+Cost: laptop total $765 (laptop session 0a48ccdb; 1 build, 27 games).
+
 ## Bench tooling (Zach 11-11: "script the repeated steps"), for the supervisor
 Where a test's time goes on the laptop:
 - **Builds:** 20 min with a warm shader cache, 45–55 min cold. Cold happens when the base commit changes, because nearly every shader includes Sky.hlsl.
