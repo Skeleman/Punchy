@@ -6036,3 +6036,30 @@ Branch `world/mountain-tunnels` at f6217674 (pushed), on a149c17f. One commit: C
 - **lod-lint:** clean.
 - **BENCH-QUEUE:** no new cost worth a job (one sort of the square's creatures per field step, about 60 at most). Job 62 can include it: same branch, commit dadf0457.
 - **Pins:** not touched.
+
+### Row 3: the far plane comes back in (render/audit-fixes)
+
+- **Commit:** 1a2e5499 on render/audit-fixes, pushed.
+- **Change:** ApplyViewDistance now sets the far plane every frame, and nothing else sets it. It keeps the camera's own far plane from start-up (3000 in the scene) and sets far = max(own, disc reach, far-ring reach).
+  - ApplyFarRing no longer touches the camera; it returns the ring's reach (0 with the ring off).
+  - Before, both places only ever pushed the far plane out, so it stayed out after the View setting or the ring went down.
+- **Probe, in play:**
+
+  | Setting | Far plane |
+  |---|---|
+  | View 1.3, ring on (start) | 3744 |
+  | View 2, ring on | 5376 |
+  | View 0.5 | 3000 (own) |
+  | View 2, ring off | 3168 |
+  | View 0.5, ring off | 3000 |
+  | Back to View 1.3, ring on | 3744 |
+
+  The far plane follows every change, within the existing 0.3 s settle.
+- **Drawn edge:** shots from 350 m up, looking out: `r15-row3-view2-ring.png` and `r15-row3-back.png`. The terrain fades into haze before the far plane, with no hard cut and no gap.
+  - `r15-row3-view05.png` was taken while the disc was rebuilding for the smaller View, so it shows mostly haze.
+- **lod-lint:** clean.
+- **Pins:** not touched.
+
+### Row 4: field step cost
+
+Waiting on job 62. Row 4 is only needed if job 62 puts the field step above 0.1 ms. Job 62 should cover render/audit-fixes at e495758c, dadf0457 and 1a2e5499.
