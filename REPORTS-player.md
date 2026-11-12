@@ -1308,3 +1308,30 @@ worker first walks to the nearest guard on patrol, stops beside it for a few sec
 to the merchant. A cheerful one goes straight to the merchant. A plain one does either, by its hash. For now the
 report is only seen, not acted on: guards have no theft reaction yet. A logged "[take] reported to a guard" line
 leaves room for one later.
+
+## DONE: taking folk items rows 1-2 (player/take-items fd4ed997, 1186f4e6)
+
+- **Row 1, parity:** a stick, stone, apple, loaf and dough (held by folk, hand looks) now have GearSlot.Hand. A start-up
+  check logs any item with a hand or worn look a player can't hold or wear. Solo: every folk hand item equipped in
+  turn and drawn; 0 parity errors.
+- **Row 2, spares at posts (Items/Spares.cs):** a worker first seen at work has its spares laid out beside it as
+  ordinary world items, from the host's own simulation:
+  - smith: hammer and sword
+  - woodcutter: axe; farmer: hoe; miner: pick; fisher: rod
+  - baker: 2 loaves; healer: bowl
+  - trader: jar and apple
+  - well keeper: bucket
+  They're taken with the Use key and sent like any item that appears (late joiners too). The host keeps which spares
+  belong to which worker. Uids start at SpareBase, so the drop limit never clears them. Test flag "-pickupspares N".
+  - Solo: 6 workers stocked, 2 spares taken and marked gone.
+  - Host + client: 8 spares on both; the client's pick-up was marked on the host.
+  - 0 exceptions, 0 deserialize errors.
+  - A bug fixed during the row: the host first read its client's copies of the folk, which lack the village job, and
+    gave healers buckets.
+- Lint rc 0; suite 26/0/17; fingerprint AD723954.
+- UNVERIFIED / known: spares lie on the floor beside the worker, which may put them in a fire or inside forge
+  stonework. Zach's "on the table, on a rack" needs new post set pieces; I propose that as a follow-up after row 3.
+  Lanterns differ: folk hold them in the off hand, players in the main hand (asked Zach).
+
+**Next:** row 3 (the worker notices, reports to a guard by mood, fetches from the merchant). This touches animal-lane
+brain files: waiting for the supervisor's go.
