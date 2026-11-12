@@ -45,6 +45,10 @@ namespace Punchy.Terrain
         static readonly bool TessOn = LaunchInt("-waterfieldtess", 0, 0, 1) == 1 && SystemInfo.supportsTessellationShaders;
         static readonly int Cuts = TessOn ? 2 : LaunchInt("-waterfieldcuts", 4, 2, 8);
         static readonly int TessMax = LaunchInt("-waterfieldtessmax", 4, 1, 16), TessPixels = LaunchInt("-waterfieldtesspx", 8, 1, 64);
+        /// <summary>A cell's cut at a tier: Cuts halved per tier; with tessellation, 2 wherever the finest CPU cut (8)
+        /// would still cut (tiers 0-2), and the GPU divides further by screen size (a cut of 2 halved once is already 1,
+        /// so it left no sheet at all: q96).</summary>
+        static int CellCuts(int tier) => TessOn ? ((8 >> tier) > 1 ? 2 : 1) : Cuts >> tier;
         /// <summary>How far (m) the player moves before the cut is redone round them, and how much the camera's distance
         /// from them may change (as a ratio) before it is.</summary>
         const int FineStep = 1;
@@ -675,7 +679,7 @@ namespace Punchy.Terrain
                         tier = 3;
                     var c = cell - corner;
                     nextTiers[c.y * Span + c.x] = (byte)(tier + 1);
-                    var n = Cuts >> tier;
+                    var n = CellCuts(tier);
                     if (n > 1)
                         total += n * n * 6;
                 }
@@ -686,7 +690,7 @@ namespace Punchy.Terrain
             for (int i = 0; i < quads.Length; i++)
             {
                 var c = quads[i].Cell - corner;
-                var n = Cuts >> (nextTiers[c.y * Span + c.x] - 1);
+                var n = CellCuts(nextTiers[c.y * Span + c.x] - 1);
                 cutGrid[c.y * Span + c.x] = (byte)n;
                 // (A quad left whole is the chunk water's own: the chunk water draws it, so the sheet covers only what it
                 // cuts, a few metres round the player, and adds a fraction of the lake's indices rather than all of them
