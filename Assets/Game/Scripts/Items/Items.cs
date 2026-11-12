@@ -79,8 +79,12 @@ namespace Punchy.Items
             // P-33: a fishing rod, held like a weapon but cast (Reach: the longest cast, m).
             new ItemDef { Name = "Rod", Colour = new Color(0.55f, 0.4f, 0.22f), Accent = new Color(0.6f, 0.44f, 0.28f), Stack = 1, Weight = 0.8f, Slot = GearSlot.Hand, Reach = 22f, Speed = 1.6f, Weapon = Punchy.Fauna.CreatureWeapon.Rod },
             new ItemDef { Name = "Pickaxe", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 2.2f, Slot = GearSlot.Hand, Damage = 7f, Reach = 1.1f, Speed = 0.8f, Weapon = Punchy.Fauna.CreatureWeapon.Pickaxe },
+            // (Held, it is the folk's lit lantern, HeldItem.Lantern: its light is theirs, 9 m.)
+            new ItemDef { Name = "Lantern", Colour = new Color(0.22f, 0.2f, 0.18f), Accent = new Color(1f, 0.78f, 0.4f), Stack = 1, Weight = 1f, Slot = GearSlot.Hand, Light = 9f },
         };
         public const byte Fish = 5, Key = 7, Torch = 8, Staff = 9, Hat = 10, Pack = 11;
+        /// <summary>Item row: the lantern (held: HeldItem.Lantern).</summary>
+        public const byte Lantern = 34;
     }
 
     /// <summary>Client → host: pick up world item Uid.</summary>
