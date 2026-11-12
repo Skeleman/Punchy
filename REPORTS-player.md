@@ -1335,3 +1335,21 @@ leaves room for one later.
 
 **Next:** row 3 (the worker notices, reports to a guard by mood, fetches from the merchant). This touches animal-lane
 brain files: waiting for the supervisor's go.
+
+## Zach 11-12 (direct to the player lane): two hands, no off hand. PLAN, started (taking folk items, row 2b)
+Zach: "There should be no 'off' hand. Things can be equipped to either hand. A person could carry two apples, one in
+each hand." On `player/take-items`, for players and folk alike:
+- **Places:** GearSlot.Hand is the right hand and GearSlot.OffHand becomes LeftHand (same byte, so messages keep
+  their shape). Every held item's Slot is Hand ("a hand"); a shield, tongs and a bucket stop being left-only.
+- **Equipping:**
+  - X (or right click) fills an empty hand, right first; with both full it swaps the right.
+  - Shift+X (Shift + right click) puts it in the left.
+  - Two of a stack can go one in each hand.
+  - Two-handed things (spear, bow, great club, ore sack, and now a rod, a bowl and dough, which are held in both
+    arms) take both hands.
+  - The worn row reads Right hand / Left hand.
+- **Drawing:** the Weapon pass draws any look in either hand, mirrored for the left. A torch, staff or lantern is drawn
+  in whichever hand holds it. The left arm holds a one-handed thing ready, as the right does.
+- **For now:** attacking swings the right hand's item; the sheathe key puts away the right hand's.
+- Files: CreatureData (CreatureOutfit, FolkKit), CreatureAnimator, CreatureRenderSystem.PoseGear/PoseGuard,
+  CreatureGhosts, Items/Gear/FolkKits.
