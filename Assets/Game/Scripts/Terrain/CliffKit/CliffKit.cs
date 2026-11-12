@@ -442,7 +442,7 @@ namespace Punchy.Terrain
             for (int a = 0; a < 8; a++)
             {
                 var o = new float2(math.cos(a * math.PI / 4f), math.sin(a * math.PI / 4f));
-                for (float r = 8f; r <= 40f; r += 16f)
+                for (float r = 8f; r <= 40f; r += 16f) // gameplay: bake placement, not a view range
                 {
                     var g = s.SampleGround(p + o * r);
                     if (g.River > 0.05f) otherWater = true;
@@ -503,7 +503,7 @@ namespace Punchy.Terrain
                 }
             }
             s.MouthCut(xz, s.SampleHeight(xz), out var cave);
-            return cave < 12f;
+            return cave < 12f; // gameplay: bake keep-out from cave mouths
         }
     }
 }
