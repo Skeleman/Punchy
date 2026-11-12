@@ -1253,3 +1253,28 @@ counts.
   keeper at work near the camera).
 
 **Next:** row 6, final sweep: solo, host and client; shots per culture and job at 3 m and 30 m.
+
+## Unify items row 6, final sweep: PARTLY DONE (player/unify-items aea232b5, no code change)
+
+Towns 0, 2, 3 and 4 at noon and towns 0, 2 and 3 at night: human (desert), dwarf, elf and goblin towns (`Unify/u3-r3b-*`,
+`u3-r5-*`, `u3-r6-*`; sheet `u6-towns34.jpg`). Solo, plus host and client (rows 2, 4, 5). Every run had 0
+exceptions and 0 table or deserialize errors.
+
+- **Kits (host log at work):**
+  - Goblin and human bakers: post Kneading table/Bread.
+  - Human woodcutter: Chopping block/Log, axe in hand, straw hat.
+  - Well keeper: Rope/Bucket.
+  - Healers: bowl and satchel. Smiths: Hot iron.
+- **Shots:**
+  - Guards of every folk: helm, plate or cuirass, sash, weapon drawn or sheathed.
+  - Gatekeepers' spears; bakers (the goblin's at its table); the smith; healers.
+  - The player's sword and axe at the hip and spear and bow on the back.
+- **UNVERIFIED in a shot:**
+  - The well's rope and bucket: the one well-keeper shot caught it idle beside the well.
+  - The chopping block: no woodcutter near the camera.
+  - The fisher, hermit and trader: none near the camera.
+  - These draw with the same code as before row 5, moved as it was.
+- Still open: the BENCH-QUEUE town request (main vs aea232b5, instance count and GPU ms).
+
+**Branch ready for review:** `player/unify-items` (rows 1-5 plus slot sizing). Next: a P card when one comes, or a
+targeted well-keeper and woodcutter shot if the supervisor wants it before merging.
