@@ -111,6 +111,8 @@ namespace Punchy.Terrain
         static readonly int FarFieldId = Shader.PropertyToID("_PunchyWaterFarField");
         static readonly int FarFieldAtId = Shader.PropertyToID("_PunchyWaterFarFieldAt");
         static readonly int RingsOffId = Shader.PropertyToID("_PunchyWaterRingsOff");
+        static readonly int FieldYId = Shader.PropertyToID("_PunchyWaterFieldY");
+        float focusY;
         /// <summary>Zach 11-11: "-waterfieldnormals 1" runs the field without the fine sheet: nothing is cut or drawn and
         /// the chunk water isn't clipped; it only takes the field's slope as its light over the square (PunchyWaterFieldShade),
         /// so the wake shows in the shading with no displacement. The cheap option, and a far-range one later.</summary>
@@ -302,6 +304,9 @@ namespace Punchy.Terrain
             /// <summary>The field's texels per metre and texels across (the fine field's, or the far field's), and the
             /// smallest dimple in texels (a coarse field's must cover a texel).</summary>
             public float Scale, Across, MinRadius;
+            /// <summary>The player's height: creatures over 20 m above or below it don't press this field (a flat map
+            /// shared by cave pools and the lakes over them, Zach 11-12).</summary>
+            public float FocusY;
             public float DeltaTime;
             /// <summary>Seconds since play began, now and when this last ran (wading strides keep time by it).</summary>
             public float Time, LastTime;
@@ -315,7 +320,7 @@ namespace Punchy.Terrain
                 {
                     var s = States[i];
                     var at = (s.Position.xz - Corner) * Scale;
-                    if (math.any(at < -8f) || math.any(at > Across + 8f) || s.Gone || s.Fly > 0.5f)
+                    if (math.any(at < -8f) || math.any(at > Across + 8f) || s.Gone || s.Fly > 0.5f || math.abs(s.Position.y - FocusY) > 20f)
                         continue;
                     ref var b = ref Bodies[i].Blob.Value;
                     bool upright = b.Upright || s.Mode == CreatureMode.Puppet || b.CrossesWater;
@@ -493,6 +498,8 @@ namespace Punchy.Terrain
                 Hide();
                 return;
             }
+            focusY = focus.y;
+            Shader.SetGlobalFloat(FieldYId, focusY);
             if (FarOn)
                 StepFar(focus);
             else
@@ -896,7 +903,7 @@ namespace Punchy.Terrain
                 new SourceJob
                 {
                     States = states, Bodies = bodies, Entities = entities, Terrain = SystemAPI.GetSingleton<TerrainSource>(),
-                    Corner = farCorner, Scale = FarTexelsPerMetre, Across = FarSize, MinRadius = 1f,
+                    Corner = farCorner, Scale = FarTexelsPerMetre, Across = FarSize, MinRadius = 1f, FocusY = focusY,
                     DeltaTime = math.max(UnityEngine.Time.deltaTime, FarStepTime), Time = now, LastTime = farSourceTime,
                     LastAt = farLastAt, Presses = presses, Splashes = splashes
                 }.Run();
@@ -987,7 +994,7 @@ namespace Punchy.Terrain
                 new SourceJob
                 {
                     States = states, Bodies = bodies, Entities = entities, Terrain = SystemAPI.GetSingleton<TerrainSource>(),
-                    Corner = fieldCorner, Scale = TexelsPerMetre, Across = Size, MinRadius = 0f,
+                    Corner = fieldCorner, Scale = TexelsPerMetre, Across = Size, MinRadius = 0f, FocusY = focusY,
                     DeltaTime = math.max(dt, StepTime), Time = now, LastTime = lastSourceTime, LastAt = lastAt, Presses = presses, Splashes = splashes
                 }.Run();
                 CreatureSnapshotSystem.Release(World, states, bodies, entities);

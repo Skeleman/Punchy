@@ -490,15 +490,16 @@ half4 Frag(Varyings input, bool frontFace : SV_IsFrontFace) : SV_Target
     // Zach 11-11: over the field's whole square (32 m round the player), not just the fine sheet, the field's
     // slope shades the water and the ring ripples and the field's foam are left out: the sheet near the player
     // moves with it, the chunk water beyond only takes its light, so the wake reads as one ripple pattern with no
-    // white rings. (-waterfieldripples 1: as before, the field only on the sheet, with ripples and foam.) Never
-    // under rock: cave water isn't on the field.
+    // white rings. (-waterfieldripples 1: as before, the field only on the sheet, with ripples and foam.)
+    // Zach 11-12: cave water too (W-134 made it one water with the surface's); the fields are flat maps, so only water
+    // near the player's own level takes them (PunchyWaterFieldLevel), not a lake above a cave pool or the reverse.
     float fieldShade = _PunchyWaterFieldRipples > 0.5 ? fieldWeight
-        : max(fieldWeight, PunchyWaterFieldShade(input.restXZ) * (1 - step(0.5, _UnderRock)));
+        : max(fieldWeight, PunchyWaterFieldShade(input.restXZ) * PunchyWaterFieldLevel(input.positionWS.y));
     // Zach 11-12: beyond the fine field's square the far field's light (normals only, as Medium shows the fine field);
     // and while a field runs, none of the old ring ripples anywhere but under rock (no field there; they showed through
     // the field's own wake).
-    float farShade = _PunchyWaterFieldRipples > 0.5 ? 0 : PunchyWaterFarShade(input.restXZ) * (1 - step(0.5, _UnderRock));
-    [branch] if ((_PunchyWaterRingsOff < 0.5 || _UnderRock > 0.5) && fieldShade < 0.999 && farShade < 0.999 && _PunchySwimmerCount > 0
+    float farShade = _PunchyWaterFieldRipples > 0.5 ? 0 : PunchyWaterFarShade(input.restXZ) * PunchyWaterFieldLevel(input.positionWS.y);
+    [branch] if (_PunchyWaterRingsOff < 0.5 && fieldShade < 0.999 && farShade < 0.999 && _PunchySwimmerCount > 0
                  && distance(input.positionWS, GetCameraPositionWS()) < 45 && NearRipple(p))
         wakeSlope = SwimmerWakes(p, t, wakeFoam) * 0.6 * distanceFade;
     [branch] if (farShade > 0 && fieldShade < 0.999)

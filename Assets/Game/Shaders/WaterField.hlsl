@@ -74,6 +74,15 @@ TEXTURE2D(_PunchyWaterFarField);
 float4 _PunchyWaterFarFieldAt;
 // 1 while WaterPatchSystem runs (a field is on): the old ring ripples (SwimmerWakes) are off everywhere.
 float _PunchyWaterRingsOff;
+// The height of the water the player is in or nearest (WaterPatchSystem): the fields are flat maps, so water far above
+// or below it (a surface lake over a cave pool, or the reverse) doesn't take them.
+float _PunchyWaterFieldY;
+
+// 1 for water within 10 m of the player's level, fading to 0 by 20 m.
+float PunchyWaterFieldLevel(float y)
+{
+    return saturate(2 - abs(y - _PunchyWaterFieldY) / 10);
+}
 
 // How much the far field shades the water at xz: 1 over its square, fading out over its outer 12 m.
 float PunchyWaterFarShade(float2 xz)
