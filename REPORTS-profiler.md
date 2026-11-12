@@ -2,6 +2,23 @@
 
 Newest first.
 
+## For job 65 / R-18 row 2: what was on the laptop screen 11-12 (the white bloom circle Zach saw)
+**Only job 56 ran on the laptop this morning** (q102.job: world/far-lite 4eabc7c7 against main cc835cf6, 1920x1080, uncapped):
+
+| time | preset | view |
+|---|---|---|
+| 09:00–09:20 | High | ground, `-place meadow`, noon |
+| 09:20–09:40 | High | hilltop `-3460,2425` facing west, 18:00 (the sun low over the sea) |
+| 09:40–10:20 | High | the 300 m flight west from `-3000,2425`, noon (over land, then the sea) |
+| 10:20–10:50 | Ultra | ground |
+| 10:50–11:20 | Ultra | hilltop at 18:00 |
+| 11:20 on | Ultra | the flight |
+
+- **The shots don't show it.** Shots are taken only at each stop's end, and those are clean; the only white is the "E sit" prompt.
+- **Before that,** from about 02:30 to 08:30, job 51 (village and forest at night, hilltop, flight), job 50 (two players: rapids, lake, town at 23:00, roost, storm) and the job 56 builds ran. Nothing was flagged during those.
+- **If Zach remembers roughly when he saw it, the table names the view.** The sun-low-over-the-sea view, and the flight over the sea, are the likeliest places for a NaN in the sun road or far water: rows 4 and 4b of `far-lite` changed both. Both builds ran those views.
+- **From now on** the profiler adds `-sparkleprobe <view>` to its games (rule 24d) once R-18 row 1 lands the flag, and reports any NaN count above 0 with its view.
+
 ## Zach's direction, 11-12 (in the profiler session): R-12 keeps the cloud warp
 After seeing the comparison sheet (job 49's storm views: before R-12, R-12, R-12 with `-skyoff 1024`), Zach said: "R-12 with warp off makes the clouds look like pills again. The regular shots labeled R-12 look good."
 - **The warp stays.** None of the trims that drop it are wanted: `-skyoff 1024`, or anything that reads the maps straight.
