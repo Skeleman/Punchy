@@ -5985,4 +5985,4 @@ Branch `world/mountain-tunnels` at f6217674 (pushed), on a149c17f. One commit: C
   1. Viscosity comes from the existing glow. As a result, PoisonSwamp chunk water (glow 0.35) is also thick (0.3). The alternative is an explicit viscosity field on the landmark and biome assets. Adding it would re-bake the terrain, so I did not.
   2. Lava's churn now runs about 3.3x slower (tk). Its speed was tuned at playtest 11-08 item 37, so Zach may want to look.
   3. Swell (sea) waves are not scaled, since they only run on the sea.
-- **BENCH-QUEUE:** the field step now samples one more texture per texel, and the viscosity rebuild costs about 1 ms of main thread when the square moves. Please queue a bench of a lake walk and the MudPits, main against world/no-water-discs.
+- **BENCH-QUEUE:** the field step now samples one more texture per texel, and the viscosity rebuild, a main-thread loop over the square's corners and the nearby liquids, runs when the square moves. Neither is timed. Please queue a bench of a lake walk and the MudPits, main against world/no-water-discs.
