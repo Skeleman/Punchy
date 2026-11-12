@@ -84,6 +84,9 @@ namespace Punchy.Terrain
             public bool CastsShadows;
             /// <summary>Wholly under the ground and well away from every mouth: nothing outside a cave can see it.</summary>
             public bool Buried;
+            /// <summary>On a road tunnel's straight run from a portal (InPortalSight): seen down the bore from outside
+            /// however deep it lies, so it's never buried and the surface skip leaves it to the screen test.</summary>
+            public bool InSight;
             /// <summary>Which caves' walls reach it, as bits (cave index mod 64; a shared bit only ever draws more).</summary>
             public ulong Caves;
             public int Triangles;
@@ -588,8 +591,22 @@ namespace Punchy.Terrain
         readonly List<(float3 position, Vector4 light)> nearGlowPlants = new List<(float3, Vector4)>();
         /// <summary>Per species: the height of its torch's head (1 at scale 1), or 0 if it isn't a torch.</summary>
         readonly List<float> speciesTorch = new List<float>();
+        readonly List<bool> speciesShrine = new List<bool>();
+        /// <summary>Per species: whether it's a rune-cut standing stone (Spire with rune patterns: a road tunnel's
+        /// marker, W-138), whose runes give a faint cold light underground.</summary>
+        readonly List<bool> speciesMarker = new List<bool>();
+        /// <summary>
+        /// W-138 row 4c: per species, a lamp fixture's light (rgb strength, w reach; zero if it isn't one) and where it
+        /// comes from (model space, from the fixture's foot), both from its Fixture Style (StructureKit.FixtureLight).
+        /// Underground a fixture is lit day and night.
+        /// </summary>
+        readonly List<(Vector4 light, Vector3 at)> speciesLamp = new List<(Vector4, Vector3)>();
         /// <summary>Torches near the camera: where the flame sits and the plant's index (its seed).</summary>
         readonly List<(float3 flame, int plant)> nearTorches = new List<(float3, int)>();
+        /// <summary>W-138 row 4c: lamp fixtures near the camera: where the light comes from, and its light.</summary>
+        readonly List<(float3 position, Vector4 light)> nearLamps = new List<(float3, Vector4)>();
+        /// <summary>The faint cold light a rune-cut marker stone's runes give the stone and the floor round it.</summary>
+        static readonly Vector4 MarkerGlow = new Vector4(0.3f, 0.45f, 0.85f, 3f);
         /// <summary>How far a glowing plant lights the floor and walls round it (m).</summary>
         const float PlantGlowReach = 5f;
         float3 plantsAround = new float3(float.MaxValue);
@@ -657,6 +674,11 @@ namespace Punchy.Terrain
                         // The same light the plant casts on the surface (colour and reach by how much of it glows).
                         speciesGlow.Add(Punchy.Flora.FloraPlacement.GlowLight(species));
                         speciesTorch.Add(species.Form == Punchy.Flora.FloraForm.Torch ? species.Height.y : 0f);
+                        speciesShrine.Add(species.Form == Punchy.Flora.FloraForm.Shrine);
+                        speciesMarker.Add(species.Form == Punchy.Flora.FloraForm.Spire && species.RunePatterns > 0);
+                        var fixture = species.Form == Punchy.Flora.FloraForm.KitBuilding && species.KitShape == Punchy.Terrain.KitShape.Fixture;
+                        speciesLamp.Add(fixture ? (Punchy.Terrain.StructureKit.FixtureLight(species.FixtureStyle), Punchy.Terrain.StructureKit.FixtureLightAt(species.FixtureStyle))
+                                                : (Vector4.zero, Vector3.zero));
                     }
                 }
                 if (plantModels.Count < plantSpecies.Count * PlantVariants)
@@ -672,6 +694,7 @@ namespace Punchy.Terrain
                 plantKeys.Clear();
                 nearGlowPlants.Clear();
                 nearTorches.Clear();
+                nearLamps.Clear();
                 if (plantShown.Length != set.Plants.Length)
                 {
                     plantShown = new bool[set.Plants.Length];
@@ -695,7 +718,14 @@ namespace Punchy.Terrain
                         continue;
                     plantKeys.Add((model * 2 + (plantFine[i] ? 0 : 1), i));
                     if (speciesGlow[p.Species].w > 0f)
-                        nearGlowPlants.Add((p.Position + new float3(0f, 0.3f * p.Scale, 0f), speciesGlow[p.Species]));
+                    {
+                        // W-138 row 4: a shrine (a road tunnel's, set small in its niche) glows as big as it's set, not
+                        // as its species' full height: at full strength and reach it flooded the niche blue-white.
+                        var glow = speciesGlow[p.Species];
+                        if (speciesShrine[p.Species])
+                            glow *= math.min(1f, p.Scale);
+                        nearGlowPlants.Add((p.Position + new float3(0f, 0.3f * p.Scale, 0f), glow));
+                    }
                     if (speciesTorch[p.Species] > 0f)
                     {
                         // The head: up the stick and out from the wall (the model leans out along its +Z by ~20°).
@@ -703,6 +733,15 @@ namespace Punchy.Terrain
                         var outward = new float3(-math.sin(p.Yaw), 0f, math.cos(p.Yaw));
                         nearTorches.Add((p.Position + new float3(0f, head * 0.94f, 0f) + outward * head * 0.34f, i));
                     }
+                    var (lampLight, lampAt) = speciesLamp[p.Species];
+                    if (lampLight.w > 0f)
+                    {
+                        // Model +Z turns to (-sin yaw, cos yaw) as for the torches above; +X to (cos yaw, sin yaw).
+                        float3 forward = new float3(-math.sin(p.Yaw), 0f, math.cos(p.Yaw)), right = new float3(math.cos(p.Yaw), 0f, math.sin(p.Yaw));
+                        nearLamps.Add((p.Position + (right * lampAt.x + new float3(0f, lampAt.y, 0f) + forward * lampAt.z) * p.Scale, lampLight));
+                    }
+                    if (speciesMarker[p.Species])
+                        nearGlowPlants.Add((p.Position + new float3(0f, 1f, 0f), MarkerGlow));
                 }
                 plantKeys.Sort((a, b) => a.key.CompareTo(b.key));
                 var count = plantKeys.Count;
@@ -769,9 +808,12 @@ namespace Punchy.Terrain
             foreach (var (flame, plant) in nearTorches)
             {
                 Punchy.Ambience.FireSystem.AddFlame(flame, 0.3f, plant, Punchy.Ambience.FireSystem.Wood);
-                Punchy.Settings.LightBudget.AddStill(Punchy.Settings.LightKind.Fixture, (Vector3)flame + Vector3.up * 0.15f,
-                                                     Punchy.Ambience.FireSystem.Light(Punchy.Ambience.FireSystem.Wood));
+                var light = Punchy.Ambience.FireSystem.Light(Punchy.Ambience.FireSystem.Wood);
+                Punchy.Settings.LightBudget.AddStill(Punchy.Settings.LightKind.Fixture, (Vector3)flame + Vector3.up * 0.15f, light);
             }
+            // Lamp fixtures (a road tunnel's wall lanterns): the light their Fixture Style gives.
+            foreach (var (position, light) in nearLamps)
+                Punchy.Settings.LightBudget.AddStill(Punchy.Settings.LightKind.Fixture, position, light);
 
             var plantBox = PlantRange / (1f - DetailPolicy.Hysteresis) * 2f;
             var bounds = new Bounds(camPos, new Vector3(plantBox, plantBox, plantBox));
@@ -794,6 +836,9 @@ namespace Punchy.Terrain
             plantModels.Clear();
             speciesGlow.Clear();
             speciesTorch.Clear();
+            speciesShrine.Clear();
+            speciesMarker.Clear();
+            speciesLamp.Clear();
             nearGlowPlants.Clear();
             nearTorches.Clear();
             plantDraws.Clear();
@@ -1316,7 +1361,11 @@ namespace Punchy.Terrain
             var nearestMouth = float.MaxValue;
             ref var caveSet = ref source.Caves.Value;
             for (int c = 0; c < caveSet.Caves.Length; c++)
+            {
                 nearestMouth = math.min(nearestMouth, math.distance(camPos, caveSet.Caves[c].Mouth));
+                if (caveSet.Caves[c].Tunnel != 0)
+                    nearestMouth = math.min(nearestMouth, math.distance(camPos, FarPortal(ref caveSet, caveSet.Caves[c])));
+            }
             var surfaceFade = DetailPolicy.FadeReach(DetailPolicy.CaveMouthSize, DetailPolicy.SurfaceShownPixels, DetailPolicy.SurfaceHiddenPixels, LoadRadius);
             SurfaceHidden = Underground * math.smoothstep(surfaceFade.x, surfaceFade.y, nearestMouth);
             UpdateLantern(source);
@@ -1746,7 +1795,8 @@ namespace Punchy.Terrain
                 b.CastsShadows = min.y + chunkSize + chunkVoxel > lowestGround - 4f || NearMouth(source, min, min + chunkSize, MouthLight);
                 // Buried: wholly a few metres under the ground and out of sight of every mouth (a view in through a
                 // mouth reaches a winding passage only so far), so it's skipped while the camera is outside caves.
-                b.Buried = min.y + chunkSize + chunkVoxel < lowestGround - 4f && !NearMouth(source, min, min + chunkSize, BuriedReach);
+                b.InSight = InPortalSight(source, min, min + chunkSize);
+                b.Buried = min.y + chunkSize + chunkVoxel < lowestGround - 4f && !NearMouth(source, min, min + chunkSize, BuriedReach) && !b.InSight;
                 b.Opens = math.all(b.Opening[0] <= b.Opening[1]);
                 if (b.Opens)
                     b.OpeningBounds = new Bounds((b.Opening[0] + b.Opening[1]) * 0.5f, b.Opening[1] - b.Opening[0]);
@@ -1780,9 +1830,70 @@ namespace Punchy.Terrain
                 var mouth = set.Caves[c].Mouth;
                 if (math.distance(math.clamp(mouth, min, max), mouth) < reach)
                     return true;
+                // A road tunnel's far portal is a mouth too (W-138 merge): without it the chunks there counted as buried
+                // and stayed hidden from outside until the camera went in.
+                if (set.Caves[c].Tunnel != 0)
+                {
+                    var far = FarPortal(ref set, set.Caves[c]);
+                    if (math.distance(math.clamp(far, min, max), far) < reach)
+                        return true;
+                }
             }
             return false;
         }
+
+        /// <summary>How far a road tunnel's node may stray from its portal's axis and still be seen from outside it: about
+        /// the bore's half width, so the view down a straight bore stops where the bore bends out of it.</summary>
+        const float PortalSightStray = 3f;
+        /// <summary>How near a chunk must come to a portal's sight run to hold part of the bore seen down it.</summary>
+        const float PortalSightPad = 6f;
+
+        /// <summary>
+        /// W-138 merge: a road tunnel is a straight bore, so from outside a portal it's seen far deeper than BuriedReach
+        /// (a winding cave's passage turns out of sight sooner). From each portal this follows the nodes while they stay
+        /// within PortalSightStray of the portal's axis, and tells whether the chunk box touches that run. Without it the
+        /// bore past BuriedReach counted as buried and the view in showed sky through it, then popped in on entry.
+        /// </summary>
+        static bool InPortalSight(in TerrainSource source, float3 min, float3 max)
+        {
+            ref var set = ref source.Caves.Value;
+            for (int c = 0; c < set.Caves.Length; c++)
+            {
+                var cv = set.Caves[c];
+                if (cv.Tunnel == 0 || cv.NodeCount < 2)
+                    continue;
+                for (int end = 0; end < 2; end++)
+                {
+                    int Node(int k) => cv.FirstNode + (end == 0 ? k : cv.NodeCount - 1 - k);
+                    var portal = set.Nodes[Node(0)].Position;
+                    var axis = math.normalizesafe(set.Nodes[Node(math.min(3, cv.NodeCount - 1))].Position - portal);
+                    var reach = portal;
+                    for (int k = 1; k < cv.NodeCount; k++)
+                    {
+                        var to = set.Nodes[Node(k)].Position - portal;
+                        if (math.length(to - axis * math.dot(to, axis)) > PortalSightStray)
+                            break;
+                        reach = portal + to;
+                    }
+                    // The box's nearest point to the run, refined twice (exact enough for a pad of metres).
+                    var t = 0.5f;
+                    var span = reach - portal;
+                    var lengthSq = math.max(math.lengthsq(span), 1e-4f);
+                    for (int i = 0; i < 3; i++)
+                    {
+                        var q = math.clamp(portal + span * t, min, max);
+                        t = math.saturate(math.dot(q - portal, span) / lengthSq);
+                    }
+                    var p = portal + span * t;
+                    if (math.distance(math.clamp(p, min, max), p) < PortalSightPad)
+                        return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>A road tunnel's (W-110) second portal: its last node (Mouth is the first).</summary>
+        static float3 FarPortal(ref CaveSetBlob set, in CaveData c) => set.Nodes[c.FirstNode + c.NodeCount - 1].Position;
 
         /// <summary>The voxel of a wall level: Voxel doubled per level.</summary>
         float LevelVoxel(int level) => chunkVoxel * (1 << level);
@@ -2147,16 +2258,14 @@ namespace Punchy.Terrain
             }
 
             /// <summary>
-            /// rgb the terrain's colour at this spot; alpha how much daylight reaches (the entrance and near the
-            /// surface). Data: x how much to look like the terrain (1 at the surface, fading out a few metres
-            /// underground), y a slight brightness tint for the cave rock, z the cave's style slot, w how much darker
-            /// (negative: lighter) ribs make it here.
+            /// A road tunnel's floor (its road's level) under p: along the nearest of its passages; axis is the point
+            /// on that passage's centre line (xz) nearest p.
             /// </summary>
-            /// <summary>A road tunnel's floor (its road's level) under p: along the nearest of its passages.</summary>
-            static float TunnelFloor(ref CaveSetBlob set, in CaveData c, float3 p)
+            static float TunnelFloor(ref CaveSetBlob set, in CaveData c, float3 p, out float2 axis)
             {
                 var best = 1e9f;
                 var floor = p.y;
+                axis = p.xz;
                 for (int s = c.FirstSegment; s < c.FirstSegment + c.SegmentCount; s++)
                 {
                     var a = set.Nodes[set.Segments[s].A];
@@ -2168,11 +2277,19 @@ namespace Punchy.Terrain
                     {
                         best = d;
                         floor = math.lerp(a.Position.y, b.Position.y, t) - math.lerp(a.Radius, b.Radius, t) * c.Profile.y * 0.45f;
+                        axis = a.Position.xz + ab * t;
                     }
                 }
                 return floor;
             }
 
+            /// <summary>
+            /// rgb the terrain's colour at this spot; alpha how much daylight reaches (the entrance and near the
+            /// surface). Data: x how much to look like the terrain (1 at the surface, fading out a few metres
+            /// underground), y a slight brightness tint for the cave rock, z the cave's style slot, w how much darker
+            /// (negative: lighter) ribs make it here. In a road tunnel z also carries 32 x a tunnel code (1 + paved +
+            /// 2 if built, see Cave.shader) and w the road's share of the floor here (negative: a fallen stone's share).
+            /// </summary>
             float4 Look(float3 p, out float4 data, out float open)
             {
                 var surface = Source.SampleHeight(p.xz);
@@ -2183,7 +2300,7 @@ namespace Punchy.Terrain
                 // A road tunnel (W-110) has a portal at each end: daylight comes in at both.
                 if (cave >= 0 && set.Caves[cave].Tunnel != 0)
                 {
-                    var far = set.Nodes[set.Caves[cave].FirstNode + set.Caves[cave].NodeCount - 1].Position;
+                    var far = FarPortal(ref set, set.Caves[cave]);
                     fromMouth = math.max(fromMouth, math.saturate(1f - (math.distance(p, far) - 3f) / 14f));
                 }
                 var nearSurface = math.saturate(1f - (surface - p.y - 1f) / 3f);
@@ -2194,14 +2311,34 @@ namespace Punchy.Terrain
                 open = math.saturate((2f - Source.CaveClearance(p.xz, surface)) / 1.5f);
                 var ground = Source.SampleGround(p.xz);
                 var albedo = Source.SampleSurface(p.xz, ground, Source.SampleNormal(p.xz, 1f)).Albedo;
-                // A road tunnel's floor carries its road through (W-110): the road's own surface, painted as outside,
-                // and taken as the terrain look so it reads as the same road from portal to portal.
-                var road = 0f;
-                if (cave >= 0 && set.Caves[cave].Tunnel != 0 && p.y < TunnelFloor(ref set, set.Caves[cave], p) + 0.35f)
+                // A road tunnel's floor carries its road through (W-110): the road's own colour, as painted on the
+                // centre line outside, so it reads as the same road from portal to portal. W-138 row 4b: no longer
+                // taken as the terrain look (that shaded it as daylit ground, a pale smear deep inside); the shader
+                // draws it as its own surface (cobbles or packed grit) in the cave's light, and fallen stones in their
+                // own pale grey.
+                var tunnelCode = 0;
+                var tunnelFloor = 0f;
+                if (cave >= 0 && set.Caves[cave].Tunnel != 0)
                 {
-                    var props = new SurfaceProps { Albedo = albedo };
-                    road = Source.TunnelRoadSurface(p.xz, ref props);
-                    albedo = props.Albedo;
+                    var floorY = TunnelFloor(ref set, set.Caves[cave], p, out var axis);
+                    if (p.y < floorY + 1.2f)
+                    {
+                        var props = new SurfaceProps { Albedo = albedo };
+                        if (Source.TunnelRoadSurface(axis, ref props) > 0f)
+                        {
+                            // Never brighter than worn stone: a pale road paint would glare under a lamp.
+                            var lum = math.dot(props.Albedo, new float3(0.3f, 0.59f, 0.11f));
+                            albedo = props.Albedo * math.min(1f, 0.32f / math.max(lum, 1e-3f));
+                            tunnelFloor = 1f - math.smoothstep(floorY + 0.35f, floorY + 0.8f, p.y);
+                        }
+                        tunnelCode = 1 + (props.Paving > 0.4f ? 1 : 0);
+                    }
+                    else
+                        tunnelCode = 1;
+                    if (set.Caves[cave].Tunnel >= 2)
+                        tunnelCode += 2;
+                    var stone = 1f - math.smoothstep(0.05f, 0.25f, CaveSampling.StoneDistance(ref set, p));
+                    tunnelFloor = tunnelFloor * (1f - stone) - stone;
                 }
                 // Ribbed caves: how much darker the hollow between two ribs is (crests a touch lighter), applied to
                 // every look the wall takes, so the ribs read even in the flat light of a shallow ice cave; none where
@@ -2212,8 +2349,9 @@ namespace Punchy.Terrain
                     var rib = CaveSampling.Rib(set.Caves[cave], p);
                     ribShade = (0.55f - 0.75f * rib * rib) * set.Caves[cave].Wall.z * (1f - open);
                 }
-                data = new float4(math.max(math.max(math.saturate(1f - (surface - p.y - 0.3f) / 2.5f), open), road),
-                                  0.85f + 0.3f * (noise.snoise(p * 0.15f) * 0.5f + 0.5f), cave >= 0 ? set.Caves[cave].Style : 0, ribShade);
+                data = new float4(math.max(math.saturate(1f - (surface - p.y - 0.3f) / 2.5f), open),
+                                  0.85f + 0.3f * (noise.snoise(p * 0.15f) * 0.5f + 0.5f),
+                                  (cave >= 0 ? set.Caves[cave].Style : 0) + 32 * tunnelCode, tunnelCode > 0 ? tunnelFloor : ribShade);
                 if (ShardProbe && cave < 0)
                 {
                     data.x = 1f;
@@ -2307,11 +2445,12 @@ namespace Punchy.Terrain
         }
 
         /// <summary>0: no opening in view reaches the chunk (hidden); 1: one reaches it but it's outside every
-        /// opening's part of the screen (shadow only); 2: seen through one.</summary>
-        int SeenThroughOpening(Bounds chunk, Camera cam)
+        /// opening's part of the screen (shadow only); 2: seen through one. A chunk on a portal's sight run (InSight) is
+        /// reached however far down the bore it lies, so only the screen test decides it.</summary>
+        int SeenThroughOpening(Bounds chunk, bool inSight, Camera cam)
         {
-            var near = false;
-            for (int i = 0; i < openingsInView.Count; i++)
+            var near = inSight;
+            for (int i = 0; i < openingsInView.Count && !near; i++)
                 if (openingsInView[i].Intersects(chunk))
                 {
                     near = true;
@@ -2385,7 +2524,7 @@ namespace Punchy.Terrain
                     continue;
                 // From the surface, a chunk no opening in view reaches is behind the ground, and one that no opening
                 // shows only casts its shadow (W-135 row 1).
-                var seen = skip ? SeenThroughOpening(b.Mesh.bounds, cam) : 2;
+                var seen = skip ? SeenThroughOpening(b.Mesh.bounds, b.InSight, cam) : 2;
                 if (b.LastSeen >= 0 && b.LastSeen != seen)
                     Counts.SkipFlips++;
                 b.LastSeen = seen;
@@ -2439,7 +2578,9 @@ namespace Punchy.Terrain
         {
             source.FloorUnder(feet, out var inCave);
             var depth = source.SampleHeight(feet.xz) - feet.y;
-            return inCave ? math.saturate((depth - 1f) / 3f) : 0f;
+            if (!inCave)
+                return 0f;
+            return math.saturate((depth - 1f) / 3f);
         }
 
         Light CreateLantern(string name)

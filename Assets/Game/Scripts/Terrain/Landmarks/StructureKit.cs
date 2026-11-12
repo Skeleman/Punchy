@@ -34,7 +34,10 @@ namespace Punchy.Terrain
         /// <summary>Grey volcanic ash heaped on and around an ash house (#69).</summary>
         Ash,
         /// <summary>Trodden dirt: a slab shelter's (#69) floor and ramp, tinted a little toward the local rock.</summary>
-        Dirt
+        Dirt,
+        /// <summary>W-138: a lantern turned low (a tunnel's wall lantern): glass drawn as a window pane like Lamp, but a
+        /// deeper amber, so a small flame reads as flame light rather than a white box in a dark-adapted cave.</summary>
+        Flame
     }
 
     /// <summary>
@@ -122,7 +125,11 @@ namespace Punchy.Terrain
         PierLamp,
         /// <summary>A stone beacon tower on a town's square, a stair winding up its outside to a railed top where a
         /// fire burns after dark (LandmarkEffectSystem lights it; seen from far off).</summary>
-        Beacon
+        Beacon,
+        /// <summary>W-138 row 4c: a small lantern on an iron bracket, fixed to a wall, turned low: dimmer and shorter
+        /// reaching than a street Lantern (a road tunnel's lamps). Its foot is the wall at the bracket; the lantern
+        /// hangs out along +Z.</summary>
+        WallLantern
     }
 
     /// <summary>The small things a sea folk settlement leaves on the lake bed (#37), picked by weight from SeaDetails.</summary>
@@ -333,6 +340,9 @@ namespace Punchy.Terrain
         /// <summary>W-127: lamplight's colour (lamps, and a lived-in house's lit windows).</summary>
         public static readonly Color LampLight = new Color(1f, 0.72f, 0.38f);
 
+        /// <summary>W-138 row 4c: a turned-down lantern's glass (KitMaterial.Flame): deeper and redder than LampLight.</summary>
+        public static readonly Color FlameLight = new Color(0.42f, 0.15f, 0.03f);
+
         /// <summary>A culture's trim colour for a material.</summary>
         public static Color Colour(in CultureTrim t, KitMaterial m) => m switch
         {
@@ -343,6 +353,7 @@ namespace Punchy.Terrain
             KitMaterial.Moss => t.Moss,
             KitMaterial.Stone => Color.Lerp(t.Wall, t.Trim, 0.5f) * 0.85f,
             KitMaterial.Lamp => LampLight,
+            KitMaterial.Flame => FlameLight,
             KitMaterial.Net => new Color(0.70f, 0.66f, 0.55f),
             KitMaterial.Rune => new Color(0.55f, 0.95f, 1f),
             KitMaterial.Ice => Color.Lerp(t.Wall, t.Trim, 0.25f),
@@ -1664,6 +1675,28 @@ namespace Punchy.Terrain
                 case FixtureStyle.Beacon:
                     Beacon(parts, rng);
                     break;
+                case FixtureStyle.WallLantern:
+                {
+                    // A plate on the wall (reaching back into rough rock), an arm out with a brace under it, and the
+                    // lantern hung off it: a cap, the glass and a drip tray.
+                    var armOut = WallLanternAt.z;
+                    var first = parts.Count;
+                    Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(0f, 0.12f, -0.06f), new Vector3(0.14f, 0.34f, 0.2f), 0f, false);
+                    Add(parts, KitPiece.Beam, KitMaterial.Trim, new Vector3(0f, 0.3f, armOut * 0.5f - 0.04f), new Vector3(0.035f, 0.035f, armOut + 0.1f), 0f, false);
+                    Add(parts, KitPiece.Beam, KitMaterial.Trim, new Vector3(0f, 0.15f, 0.1f), new Vector3(0.03f, 0.03f, 0.28f), 0f, false, -38f);
+                    Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(0f, 0.25f, armOut), new Vector3(0.02f, 0.08f, 0.02f), 0f, false);
+                    Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(0f, WallLanternAt.y + 0.16f, armOut), new Vector3(0.2f, 0.05f, 0.2f), 45f, false);
+                    Add(parts, KitPiece.Window, KitMaterial.Flame, new Vector3(0f, WallLanternAt.y, armOut), new Vector3(0.15f, 0.24f, 0.15f), R() * 10f, false);
+                    Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(0f, WallLanternAt.y - 0.14f, armOut), new Vector3(0.18f, 0.04f, 0.18f), 0f, false);
+                    // It hangs on a wall, off the ground: keep the foundation skirt from carrying its foot to the floor.
+                    for (int k = first; k < parts.Count; k++)
+                    {
+                        var part = parts[k];
+                        part.Afloat = true;
+                        parts[k] = part;
+                    }
+                    break;
+                }
             }
             return parts;
         }
@@ -1750,12 +1783,22 @@ namespace Punchy.Terrain
         /// <summary>W-127: about where a fixture's light comes from, at scale 1 (m above its foot).</summary>
         public const float FixtureLightHeight = 1.9f;
 
+        /// <summary>W-138 row 4c: where a wall lantern's glass hangs, from its foot on the wall (m, +Z out from the wall).</summary>
+        static readonly Vector3 WallLanternAt = new Vector3(0f, 0.04f, 0.36f);
+
+        /// <summary>W-138 row 4c: where a fixture style's light comes from, from its foot at scale 1 (+Z is the model's
+        /// own forward, so turn it by the fixture's yaw).</summary>
+        public static Vector3 FixtureLightAt(FixtureStyle style)
+            => style == FixtureStyle.WallLantern ? WallLanternAt : new Vector3(0f, FixtureLightHeight, 0f);
+
         /// <summary>W-127: a fixture style's light (linear rgb, strength folded in) and reach (m).</summary>
         public static Vector4 FixtureLight(FixtureStyle style)
         {
             var lamp = LampLight.linear;
             switch (style)
             {
+                // W-138 row 4c: a lantern turned low, about four fifths of a street Lantern's light over a shorter reach.
+                case FixtureStyle.WallLantern: return new Vector4(lamp.r * 1.05f, lamp.g * 1.05f, lamp.b * 1.05f, 7f);
                 case FixtureStyle.Brazier: return new Vector4(1.6f, 0.62f, 0.22f, 12f);
                 case FixtureStyle.Rune: return new Vector4(0.32f, 0.95f, 0.85f, 8f);
                 case FixtureStyle.Sconce: return new Vector4(lamp.r * 1.1f, lamp.g * 1.1f, lamp.b * 1.1f, 7f);

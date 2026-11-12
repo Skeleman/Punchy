@@ -628,6 +628,29 @@ namespace Punchy.Terrain
         }
 
         /// <summary>
+        /// W-138 row 4b: distance from a point to the nearest solid speleothem (rod or block, not a carved notch) round
+        /// it, a large number with none. For the look only (a road tunnel's fallen stones take their own tone).
+        /// </summary>
+        public static float StoneDistance(ref CaveSetBlob set, float3 p)
+        {
+            var best = 1e9f;
+            if (set.SpeleothemCells.Length == 0)
+                return best;
+            var c = (int2)math.floor((p.xz - set.GridOrigin) / set.CellSize);
+            if (math.any(c < 0) || math.any(c >= set.GridSize))
+                return best;
+            var range = set.SpeleothemCells[c.y * set.GridSize.x + c.x];
+            for (int k = range.x; k < range.x + range.y; k++)
+            {
+                ref var s = ref set.Speleothems[set.SpeleothemItems[k]];
+                if (s.Carve > 0f || math.any(p < s.Min) || math.any(p > s.Max))
+                    continue;
+                best = math.min(best, s.Block != 0f ? Block(s, p) : Rod(s, p));
+            }
+            return best;
+        }
+
+        /// <summary>
         /// Distance to a fallen boulder: the intersection of ten planes round its middle, each facing its own way (from
         /// the boulder's seed) and set at its own distance, so it's an irregular block with flat faces and sharp
         /// edges. The largest plane distance never overstates the true distance, so stepping never overshoots.

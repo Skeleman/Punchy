@@ -31,6 +31,9 @@ MonoBehaviour:
   FrameSpacing: 4
   Torch: {fileID: 11400000, guid: 5f4e3146770f50e408e6443bc18325e9, type: 2}
   TorchSpacing: 10
+  Marker: {fileID: 11400000, guid: 38e415dc10be41119e54fc61fd94e064, type: 2}
+  Shrine: {fileID: 11400000, guid: 71d1f02f3ce27f84b85a1556a6c4cca5, type: 2}
+  TunnelLamp: {fileID: 11400000, guid: 1689993ab0824123ac23ecc192f804a8, type: 2}
   FloorFlatness: 1
   FloorSteps: 0.1
   Burrows: 0
