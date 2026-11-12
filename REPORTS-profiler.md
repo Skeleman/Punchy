@@ -2,6 +2,16 @@
 
 Newest first.
 
+## R-18: Zach placed the bloom circle (11-12)
+- **The view:** Zach saw it at the **hilltop at sunset**, job 56's view (b): the player at `-3460,2425`, the camera facing west and looking down, 18:00, Clear. The scene was lit blue by the moon.
+- **What he saw:** "a pure white dot a few pixels wide near the top of a tree".
+- **When:** job 56 ran that view at High from 09:20 to 09:40 and at Ultra from 10:50 to 11:20, alternating world/far-lite 4eabc7c7 and main cc835cf6. Which build showed it isn't known.
+- **So it's on a tree top: the flora shader (or impostors) at dusk, under the blue moon's light.** It's not the far water. The stop-end shots of that view (q102-shots/*-hilltop-*/spot.png) are clean, so it comes and goes.
+- **To catch it:**
+  - the profiler can run that view with `-sparkleprobe hilltop` once R-18 row 1 lands;
+  - meanwhile, RenderDoc frames of it, both builds, to read the bad pixel's draw.
+- **Job 56's extra leg (q103, next)** runs that same view at High with the sun road at 1 and 2. A shot per stop won't catch a transient, but the RenderDoc pair can follow.
+
 ## For job 65 / R-18 row 2: what was on the laptop screen 11-12 (the white bloom circle Zach saw)
 **Only job 56 ran on the laptop this morning** (q102.job: world/far-lite 4eabc7c7 against main cc835cf6, 1920x1080, uncapped):
 
