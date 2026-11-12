@@ -63,7 +63,7 @@ PUNCHY_TESS_INPUT Hull(InputPatch<PUNCHY_TESS_INPUT, 3> p, uint id : SV_OutputCo
 PUNCHY_TESS_OUTPUT Domain(PunchyTessFactors f, OutputPatch<PUNCHY_TESS_INPUT, 3> p, float3 bary : SV_DomainLocation)
 {
     PUNCHY_TESS_INPUT v = p[0];
-    #define PUNCHY_TESS_LERP(x) v.x = p[0].x * bary.x + p[1].x * bary.y + p[2].x * bary.z
+    #define PUNCHY_TESS_LERP(F) v.F = p[0].F * bary.x + p[1].F * bary.y + p[2].F * bary.z   // (not "x": bary.x would expand too)
     PUNCHY_TESS_LERP(positionOS);
     PUNCHY_TESS_LERP(data);
     PUNCHY_TESS_EXTRA
