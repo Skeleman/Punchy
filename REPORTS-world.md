@@ -6326,3 +6326,30 @@ plot rules would have to accept a raised deck).
 
   So R-15 rows 1-3 meet the rule 24 done-when once R-18 merges, and the merge order between them doesn't matter. Row 4 still waits on job 62.
 - **Not run:** the profiler's own `-sparkleprobe` in a player. This editor count stands in for it, and the R-18 row 2 BENCH request covers the player check.
+
+## R-19
+
+### R-19 row 1: steep rock looks like rock (render/steep-triplanar a4dfb261, #281)
+- **Change:** a TerrainSurface.shader edit only, 60 lines, all added.
+  - Faces steeper than 40 deg blend to layered rock, fully rock by 55 deg. Steepness comes from the vertex normal, so fine relief can't speckle it. Skirts are excluded.
+  - The rock layer has horizontal beds (thick 6 m plus thin 1.4 m) whose height is noise-warped so they wander. A small ledge normal tilt follows the beds.
+  - Biplanar (zy/xy) fine grain and coarse mottle come from the shared cave detail texture. Rock tint comes from the biome's own slope-layer albedo, greyed more where grass was.
+  - The xz-projected micro relief and grain that smeared down cliffs fade out on those faces.
+  - Every new fade is screen-size (DetailPolicy ppm, the same as the existing micro detail).
+- **Gentle ground:** under 40 deg every addition multiplies by 1 or sits behind a skipped branch, so those pixels run the same maths as main.
+  - The before/after shots of gentle ground can't be repeated pixel for pixel (grass wind, water, streaming, framing). Back-to-back shots of one pose differ by a mean of 12-16 per pixel, and before vs after near ground at the hilltop is 14.6, inside that noise.
+  - Shots: `r19-pair-gentle-hilltop.png` and `r19-pair-gentle-beach.png`. The beach frame is mostly animated water.
+  - My `ab-*-gentle-down` pose turned out to sit on a slope steeper than 40 deg, so it shows the change rather than gentle ground.
+- **Shots** in PunchyMilestones/R-19, at noon, Sunny, High preset:
+  - `r19-pair-<face>-<20m|150m>.png` (before | after) for the six W-149 faces: mesa, mountain, seacliff, gorge, lakeshelf and canyon. Single frames are `r19-before-*` and `r19-after-*`.
+  - The canyon 150 m pair shows it best: the vertical smears are gone and the horizontal strata read across the wall.
+  - Mountain 20 m: the stretched bright speckles are gone, replaced by faint beds and grain.
+- **Rule 24:** raw NaN count (Stop NaN off, post off) is 0 on all 14 after shots and on the 8 A/B shots.
+- **nan-lint:** one new hint, `normalize(normalWS + half3(0, ... * 0.5 * rockFace, 0))`. It is safe: a unit normal plus at most 0.5 up can't reach zero. The other added normalizes add offsets of at most about 0.57 to a unit normal. The biplanar weight divide is guarded with max(.., 1e-4).
+- **lod-lint:** clean (no output).
+- **Checks:** PlayMode suite `completed: 28/28 passed` after the last code change. ShaderUtil reports no errors. The two warnings it reports are in includes, not in the new lines.
+- **Pins:** unchanged. The branch has no CPU, bake or asset change.
+- **Notes:**
+  - The texture samples sit inside [branch] blocks. The NaN probe reads 0, but a thin mip seam at the 40 deg edge is possible and didn't show in the shots.
+  - Snow and moss on steep faces are row 2.
+- **BENCH request (R-19 row 1):** GPU ms at the canyon (2266,-434) and the mountain (-3130,2878), render/steep-triplanar vs main, from 20 m and 150 m.
