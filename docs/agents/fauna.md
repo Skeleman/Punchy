@@ -29,6 +29,12 @@ Read before changing creatures, behaviour, poses, the player's body, settlements
   spot facing FaceRing/FaceAngle, works by day in CreatureMode.Work (arm poses in CreatureAnimator.TaskPose),
   takes breaks within 7 m, and dozes at its post at night. LandmarkResident.Size overrides size (HumanChild is a
   small, playful Human variant).
+- **Folk kits (Zach 11-12):** what the folk carry and wear are items (Items/FolkKits.cs: the host fills each
+  upright body's CreatureState.Kit, sent with CreatureNet). Their helmets, armour, sashes, hats, aprons, work tools,
+  shields and sheathed weapons are drawn from the kit by the player's own Weapon/Armour passes (FolkKits.Dress,
+  FolkKits.Sheathed); only what moves its own way keeps its pass (a guard's drawn weapon and torch, lanterns, rods,
+  a hunter's spear, a miner's pick, staffs, letters, playthings). A new item with a look goes in HandLook/WornLook
+  too (checked at start: "FolkKits.HandLook" errors).
 
 ## Animation conventions
 

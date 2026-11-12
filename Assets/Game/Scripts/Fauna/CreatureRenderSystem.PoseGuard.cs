@@ -16,12 +16,12 @@ namespace Punchy.Fauna
         partial struct PoseJob
         {
             /// <summary>
-            /// A town guard's kit, by its folk (GuardKit), so a guard is known at a glance across the town: a helmet of
-            /// its folk's shape, a breastplate and shoulder pads (metal or leather), a sash in the town's colour from the
-            /// shoulder across to the other hip, and in a closed fist its folk's weapon (a spear, an axe, a club; an elf's bow on its back instead,
-            /// a goblin's scrap shield on its other arm, an ogre's great club over its shoulder), or after dark a torch
-            /// held up and forward (the handle: its flame is FireSystem's). Running at a beast, the weapon is levelled
-            /// at it, or raised.
+            /// A town guard's weapon, by its folk (GuardKit): in a closed fist (a spear, an axe, a club, an ogre's great
+            /// club over its shoulder; an elf's bow on its back instead), sheathed on its back or at its hip while it isn't
+            /// drawn, between the two through the half-second Draw and Sheathe; or after dark a torch held up and forward
+            /// (the handle: its flame is FireSystem's). Running at a beast, the weapon is levelled at it, or raised. (What
+            /// it wears, its helmet, armour, sash and an ogre's cape, and a goblin's shield, are its kit's since Zach 11-12
+            /// row 3, FolkKits: the Armour and Weapon passes draw them, as on a player.)
             /// </summary>
             /// <summary>
             /// A torch carried by one of the folk out after dark (goblins, ogres): the brand in the right fist, held up and a
@@ -29,7 +29,7 @@ namespace Punchy.Fauna
             /// </summary>
             void Torch(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded)
             {
-                for (int i = 0; i < GuardParts; i++)
+                for (int i = 0; i < TorchParts; i++)
                     Output[at + i] = default;
                 var hand = -1;
                 for (int i = 0; i < b.Parts.Length && hand < 0; i++)
@@ -55,22 +55,12 @@ namespace Punchy.Fauna
             {
                 for (int i = 0; i < GuardParts; i++)
                     Output[at + i] = default;
-                int hand = -1, offHand = -1, head = -1, chest = -1, shoulderR = -1, shoulderL = -1;
+                int hand = -1, chest = -1;
                 for (int i = 0; i < b.Parts.Length; i++)
                 {
                     ref var part = ref b.Parts[i];
                     if (part.Role == LimbRole.Arm && part.Side > 0f && hand < 0)
-                    {
                         hand = part.FirstSegment + part.SegmentCount - 1;
-                        shoulderR = part.FirstSegment;
-                    }
-                    else if (part.Role == LimbRole.Arm && part.Side < 0f && offHand < 0)
-                    {
-                        offHand = part.FirstSegment + part.SegmentCount - 1;
-                        shoulderL = part.FirstSegment;
-                    }
-                    else if (part.Role == LimbRole.Head && head < 0)
-                        head = part.FirstSegment + part.SegmentCount - 1;   // (the head itself, past the neck)
                     else if (part.Parent < 0 && part.Role != LimbRole.Leg && part.Role != LimbRole.Arm && chest < 0)
                         chest = part.FirstSegment + part.SegmentCount - 1;
                 }
@@ -84,9 +74,6 @@ namespace Punchy.Fauna
                 var wood = new Unity.Mathematics.float4(0.16f, 0.1f, 0.05f, 0f);
                 var iron = new Unity.Mathematics.float4(0.32f, 0.33f, 0.35f, 0f);
                 var bone = new Unity.Mathematics.float4(0.78f, 0.74f, 0.62f, 0f);
-                var armour = b.GuardArmour;
-                // (Plate for humans, dwarves and elves; goblins and ogres in leather.)
-                var armourMaterial = b.GuardKit == GuardKit.Goblin || b.GuardKit == GuardKit.Ogre ? SegmentMaterial.Leather : SegmentMaterial.Metal;
                 var levelled = state.Mode == CreatureMode.Patrol && state.Stage == 2;
 
                 // How far the weapon is out of its sheath and in hand: drawn, all the way; worn (or a torch in hand
@@ -188,169 +175,26 @@ namespace Punchy.Fauna
                     }
                 }
 
-                // The chest: a breastplate over it, the sash down its front, pads on the shoulders.
-                if (chest >= 0)
+                // An elf's bow across its back: an arc from low on one side to high on the other, and its string.
+                if (b.GuardKit == GuardKit.Elf && chest >= 0)
                 {
                     var c = Output[offset + chest];
                     var axis = Unity.Mathematics.math.mul(c.Rotation, new Unity.Mathematics.float3(0f, 0f, 1f));
                     var r = Unity.Mathematics.math.max(c.RadiusStart, c.RadiusEnd);
-                    var plate = c;
-                    plate.RadiusStart *= 1.12f;
-                    plate.RadiusEnd *= 1.12f;
-                    plate.Color = armour;
-                    plate.Material = new Unity.Mathematics.float4((float)armourMaterial, 0f, 0f, 0f);
-                    plate.Pad = faded;
-                    Output[at + k++] = plate;
                     var front = Unity.Mathematics.math.normalize(forward - axis * Unity.Mathematics.math.dot(forward, axis));
-                    var top = c.Position + axis * c.Length;
-                    // (The chest's own reach forward and to the side: a flattened chest, an ogre's or a dwarf's, is shallower
-                    // than it is wide, so the sash is laid on its surface from these rather than its radius.)
-                    var cx = Unity.Mathematics.math.mul(c.Rotation, new Unity.Mathematics.float3(1f, 0f, 0f));
-                    var cy = Unity.Mathematics.math.mul(c.Rotation, new Unity.Mathematics.float3(0f, 1f, 0f));
-                    var deep = r * Unity.Mathematics.math.sqrt(Unity.Mathematics.math.square(Unity.Mathematics.math.dot(cx, front)) + Unity.Mathematics.math.square(c.Flatten * Unity.Mathematics.math.dot(cy, front))) * 1.12f;
-                    var wide = r * Unity.Mathematics.math.sqrt(Unity.Mathematics.math.square(Unity.Mathematics.math.dot(cx, right)) + Unity.Mathematics.math.square(c.Flatten * Unity.Mathematics.math.dot(cy, right))) * 1.12f;
-                    var band = Unity.Mathematics.math.min(r * 0.2f, wide * 0.22f);
-                    var from = top + right * wide * 0.7f + front * deep * 0.35f;
-                    var over = c.Position + axis * c.Length * 0.45f + front * deep * 1.02f;
-                    var to = c.Position - axis * r * 0.4f - right * wide * 0.75f + front * deep * 0.6f;
-                    Output[at + k++] = Piece(from, Unity.Mathematics.math.normalize(over - from), front, Unity.Mathematics.math.distance(from, over), band, band, 0.25f, b.GuardSash, faded, SegmentMaterial.Cloth);
-                    Output[at + k++] = Piece(over, Unity.Mathematics.math.normalize(to - over), front, Unity.Mathematics.math.distance(over, to), band, band, 0.25f, b.GuardSash, faded, SegmentMaterial.Cloth);
-                    // The sash's knot at the hip, its tail hanging loose: two lengths of cloth, blown in the wind and
-                    // swinging back as the guard runs.
-                    k = Hanging(to, front, band * 1.1f, band * 0.8f, 0.16f * scale, in state, forward, b.GuardSash, faded, SegmentMaterial.Cloth, at, k);
-                    // An elf's bow across its back: an arc from low on one side to high on the other, and its string.
-                    if (b.GuardKit == GuardKit.Elf)
-                    {
-                        var centre = c.Position + axis * c.Length * 0.5f - front * r * 1.25f;
-                        var across = Unity.Mathematics.math.normalize(axis + right * 0.9f);
-                        var bowLength = 1.1f * scale;
-                        var lower = centre - across * bowLength * 0.5f;
-                        var mid = centre - front * 0.08f * scale;
-                        var upper = centre + across * bowLength * 0.5f;
-                        Output[at + k++] = Piece(lower, Unity.Mathematics.math.normalize(mid - lower), front, Unity.Mathematics.math.distance(lower, mid), 0.012f * scale, 0.02f * scale, 1f, wood, faded, SegmentMaterial.Wood);
-                        Output[at + k++] = Piece(mid, Unity.Mathematics.math.normalize(upper - mid), front, Unity.Mathematics.math.distance(upper, mid), 0.02f * scale, 0.012f * scale, 1f, wood, faded, SegmentMaterial.Wood);
-                        Output[at + k++] = Piece(lower, across, front, bowLength, 0.003f * scale, 0.003f * scale, 1f, bone, faded, SegmentMaterial.Cloth);
-                    }
-                    for (int side = 0; side < 2; side++)
-                    {
-                        var arm = side == 0 ? shoulderR : shoulderL;
-                        if (arm < 0)
-                            continue;
-                        var sh = Output[offset + arm];
-                        var outward = side == 0 ? right : -right;
-                        // (An ogre's are iron on its dark hide, so it stands out from its folk at a distance.)
-                        var ogre = b.GuardKit == GuardKit.Ogre;
-                        Output[at + k++] = Piece(sh.Position + upward * sh.RadiusStart * 0.4f, outward, upward, 0.02f * scale,
-                                                 sh.RadiusStart * 1.9f, sh.RadiusStart * 1.6f, 0.55f, ogre ? iron : armour, faded, ogre ? SegmentMaterial.Metal : armourMaterial);
-                    }
-                    // An ogre guard's hide cape, from across its shoulders down its back, heavy but stirring in the wind.
-                    if (b.GuardKit == GuardKit.Ogre)
-                    {
-                        var nape = top - front * deep * 0.9f;
-                        k = Hanging(nape + axis * r * 0.15f, -front, wide * 0.85f, wide * 1.1f, c.Length * 1.1f + r, in state, forward,
-                                    new Unity.Mathematics.float4(0.36f, 0.27f, 0.18f, 0f), faded, SegmentMaterial.Leather, at, k, 0.5f);
-                    }
-                }
-
-                // A goblin's scrap shield on its other forearm.
-                if (b.GuardKit == GuardKit.Goblin && offHand >= 0)
-                {
-                    var fore = Output[offset + offHand - 1];
-                    var at2 = fore.Position + Unity.Mathematics.math.mul(fore.Rotation, new Unity.Mathematics.float3(0f, 0f, fore.Length * 0.5f)) - right * 0.06f * scale;
-                    Output[at + k++] = Piece(at2, forward, -right, 0.01f * scale, 0.17f * scale, 0.155f * scale, 0.12f, new Unity.Mathematics.float4(0.36f, 0.3f, 0.24f, 0f), faded, SegmentMaterial.Metal);
-                }
-
-                // The helmet, its folk's shape (the hair under it hidden: whatever grows from the top of the head, not
-                // beards and moustaches below).
-                // (A-77: cave folk, pygmies and bat folk, go bareheaded, ears and all.)
-                if (head >= 0 && k + 4 <= GuardParts && !b.CaveDweller)
-                {
-                    for (int i = 0; i < b.Parts.Length; i++)
-                    {
-                        ref var part = ref b.Parts[i];
-                        if (part.Socket.y < 0f || part.SegmentCount == 0 || b.Segments[part.FirstSegment].Hair == 0)
-                            continue;
-                        for (int j = 0; j < part.SegmentCount; j++)
-                            Output[offset + part.FirstSegment + j] = default;
-                    }
-                    var h = Output[offset + head];
-                    var ax = Unity.Mathematics.math.mul(h.Rotation, new Unity.Mathematics.float3(0f, 0f, 1f));
-                    var r = Unity.Mathematics.math.max(h.RadiusStart, h.RadiusEnd);
-                    var crown = h.Position + ax * h.Length;
-                    var face = Unity.Mathematics.math.normalize(forward - ax * Unity.Mathematics.math.dot(forward, ax));
-                    var side = Unity.Mathematics.math.normalize(Unity.Mathematics.math.cross(ax, face));
-                    // (A dome: wide round the head, flattened along it, sitting on the crown.)
-                    var dome = Piece(crown + ax * r * 0.12f, face, ax, 0f, r * 1.18f, r * 1.18f, 0.72f, armour, faded, armourMaterial);
-                    switch (b.GuardKit)
-                    {
-                        case GuardKit.Dwarf:
-                            Output[at + k++] = dome;
-                            for (int e = -1; e <= 1; e += 2)
-                                Output[at + k++] = Piece(crown + side * e * r * 0.85f, Unity.Mathematics.math.normalize(side * e * 0.8f + ax * 0.7f), face,
-                                                         r * 1.3f, r * 0.32f, r * 0.04f, 1f, bone, faded, SegmentMaterial.Bone);
-                            break;
-                        case GuardKit.Elf:
-                            Output[at + k++] = dome;
-                            // A tall crest, broad from front to back and thin across, swept back like a leaf.
-                            Output[at + k++] = Piece(crown + ax * r * 0.4f, Unity.Mathematics.math.normalize(ax - face * 0.35f), side, r * 2.6f, r * 0.95f, r * 0.08f, 0.14f, b.GuardSash, faded, SegmentMaterial.Cloth);
-                            break;
-                        case GuardKit.Goblin:
-                            // A dented pot, tipped askew.
-                            var tip = Unity.Mathematics.math.normalize(ax + side * 0.3f - face * 0.1f);
-                            Output[at + k++] = Piece(crown - tip * r * 0.55f, tip, face, r * 0.95f, r * 1.12f, r * 1.2f, 0.92f, new Unity.Mathematics.float4(0.3f, 0.29f, 0.27f, 0f), faded, SegmentMaterial.Metal);
-                            Output[at + k++] = Piece(crown - tip * r * 0.2f, face, tip, 0f, r * 1.42f, r * 1.42f, 0.12f, new Unity.Mathematics.float4(0.22f, 0.21f, 0.2f, 0f), faded, SegmentMaterial.Metal);
-                            break;
-                        case GuardKit.Ogre:
-                        {
-                            // A great beast's skull: a bone cap, a heavy brow, and two short horns.
-                            var skull = dome;
-                            skull.Color = bone;
-                            skull.Material = new Unity.Mathematics.float4((float)SegmentMaterial.Bone, 0f, 0f, 0f);
-                            Output[at + k++] = skull;
-                            Output[at + k++] = Piece(crown + face * r * 0.75f - side * r * 0.85f, side, ax, r * 1.7f, r * 0.3f, r * 0.3f, 0.7f, bone, faded, SegmentMaterial.Bone);
-                            for (int e = -1; e <= 1; e += 2)
-                                Output[at + k++] = Piece(crown + side * e * r * 0.7f + face * r * 0.3f, Unity.Mathematics.math.normalize(side * e * 0.5f + ax * 0.6f + face * 0.4f), face,
-                                                         r * 0.7f, r * 0.25f, r * 0.05f, 1f, bone, faded, SegmentMaterial.Bone);
-                            break;
-                        }
-                        default:
-                            // A kettle hat: a dome with a broad brim all round.
-                            Output[at + k++] = dome;
-                            Output[at + k++] = Piece(crown - ax * r * 0.3f, face, ax, 0f, r * 1.95f, r * 1.95f, 0.07f, armour, faded, armourMaterial);
-                            break;
-                    }
+                    var centre = c.Position + axis * c.Length * 0.5f - front * r * 1.25f;
+                    var across = Unity.Mathematics.math.normalize(axis + right * 0.9f);
+                    var bowLength = 1.1f * scale;
+                    var lower = centre - across * bowLength * 0.5f;
+                    var mid = centre - front * 0.08f * scale;
+                    var upper = centre + across * bowLength * 0.5f;
+                    Output[at + k++] = Piece(lower, Unity.Mathematics.math.normalize(mid - lower), front, Unity.Mathematics.math.distance(lower, mid), 0.012f * scale, 0.02f * scale, 1f, wood, faded, SegmentMaterial.Wood);
+                    Output[at + k++] = Piece(mid, Unity.Mathematics.math.normalize(upper - mid), front, Unity.Mathematics.math.distance(upper, mid), 0.02f * scale, 0.012f * scale, 1f, wood, faded, SegmentMaterial.Wood);
+                    Output[at + k++] = Piece(lower, across, front, bowLength, 0.003f * scale, 0.003f * scale, 1f, bone, faded, SegmentMaterial.Cloth);
                 }
             }
 
             /// <summary>One capsule of a kit: from a point along a direction, its flattening across "flat" (local y), and what it's made of.</summary>
-            /// <summary>
-            /// A loose length of cloth or hide hanging from a point in two pieces: down, pushed by the wind's rolling
-            /// gusts (the trees' and hair's, CreatureAnimator.Wind) and swung back by the wearer's speed, the lower piece
-            /// more than the upper. Stiff (0..1) holds it closer to hanging straight. Returns the next free slot.
-            /// </summary>
-            int Hanging(Unity.Mathematics.float3 from, Unity.Mathematics.float3 face, float width, float widthEnd, float length,
-                        in CreatureState state, Unity.Mathematics.float3 forward, Unity.Mathematics.float4 color, float faded,
-                        SegmentMaterial material, int at, int k, float stiff = 0f)
-            {
-                if (k + 2 > GuardParts)
-                    return k;
-                var w = CreatureAnimator.Wind.Data;
-                var dir = Unity.Mathematics.math.normalizesafe(new Unity.Mathematics.float2(w.y, w.z), new Unity.Mathematics.float2(1f, 0f));
-                var phase = w.w * (0.7f + w.x * 1.1f) - Unity.Mathematics.math.dot(state.Position.xz, dir) * 0.04f + (state.Individual % 628u) * 0.01f;
-                var gust = (0.6f + 0.4f * Unity.Mathematics.math.sin(phase) * Unity.Mathematics.math.sin(phase * 0.37f + 1.3f)) * (0.08f + 0.92f * w.x);
-                var flutter = Unity.Mathematics.math.sin(w.w * 6f + state.Individual * 0.1f) * 0.15f * gust;
-                var down = new Unity.Mathematics.float3(0f, -1f, 0f);
-                var push = new Unity.Mathematics.float3(dir.x, 0f, dir.y) * (gust * 0.9f + flutter) - forward * Unity.Mathematics.math.min(state.Speed * 0.12f, 0.8f);
-                push *= 1f - stiff;
-                var upper = Unity.Mathematics.math.normalize(down + push * 0.6f);
-                var lower = Unity.Mathematics.math.normalize(down + push * 1.2f);
-                var mid = from + upper * length * 0.5f;
-                var widthMid = (width + widthEnd) * 0.5f;
-                Output[at + k++] = Piece(from, upper, face, length * 0.5f, width, widthMid, 0.12f, color, faded, material);
-                Output[at + k++] = Piece(mid, lower, face, length * 0.5f, widthMid, widthEnd, 0.12f, color, faded, material);
-                return k;
-            }
-
             static SegmentInstance Piece(Unity.Mathematics.float3 from, Unity.Mathematics.float3 along, Unity.Mathematics.float3 flat, float length,
                                          float radiusStart, float radiusEnd, float flatten, Unity.Mathematics.float4 color, float faded,
                                          SegmentMaterial material) =>

@@ -58,10 +58,13 @@ namespace Punchy.Fauna
         /// m/s, at most).</summary>
         const float TorchFlameSize = 0.35f, TorchFlameLean = 0.05f, TorchFlameMaxLean = 0.3f;
         /// <summary>
-        /// Capsules in a guard's kit: what it holds (a weapon, or a torch), a shield or a bow on its back, its helmet,
-        /// breastplate, sash and shoulder pads. The torch's handle is always the first (its flame is lit from it).
+        /// Capsules in a guard's own pass: its torch's handle (always the first: its flame is lit from it), and its
+        /// folk's weapon, drawn or sheathed, or an elf's bow on its back. (What it wears and a goblin's shield are its
+        /// kit's, drawn by the Armour and Weapon passes since Zach 11-12 row 3.)
         /// </summary>
-        const int GuardParts = 18;
+        const int GuardParts = 4;
+        /// <summary>A torch carried by anyone else: its handle.</summary>
+        const int TorchParts = 1;
         /// <summary>
         /// Whether a creature behind the camera is still near enough to pose (its shadow can fall in view): while it's
         /// DetailPolicy.BehindPixels across at the reference view (A-99: a deer inside 25 m as before, a bigger beast
@@ -80,27 +83,51 @@ namespace Punchy.Fauna
         const int BasketStaves = 8;
         const int RodParts = 4 + BasketStaves * 2 + 2;
         static int HeldCount(HeldItem held, CreatureTask task) => task == CreatureTask.Hunt && (held == HeldItem.Spear || held == HeldItem.SpearDrawn) ? 0 :
-                                               held == HeldItem.Lantern ? LanternParts : held == HeldItem.Spear || held == HeldItem.SpearDrawn || held == HeldItem.Torch ? GuardParts :
+                                               held == HeldItem.Lantern ? LanternParts : held == HeldItem.Spear || held == HeldItem.SpearDrawn ? GuardParts :
+                                               held == HeldItem.Torch ? (task == CreatureTask.Patrol ? GuardParts : TorchParts) :
                                                held == HeldItem.Rod ? RodParts : held == HeldItem.Stick || held == HeldItem.Stone ? 1 :
-                                               held == HeldItem.Pickaxe || held == HeldItem.OreSack ? MinerParts : held == HeldItem.Staff || held == HeldItem.Letter ? 2 : held == HeldItem.Honey ? 1 : held == HeldItem.Goggles ? 3 : 0;
+                                               held == HeldItem.Pickaxe || held == HeldItem.OreSack ? MinerParts : held == HeldItem.Staff || held == HeldItem.Letter ? 2 : held == HeldItem.Honey ? 1 : 0;
         /// <summary>
-        /// Capsules for a worker's gear, from its job alone (already on every machine, nothing more sent): the tool in
-        /// hand while at work (a smith's hammer, a woodcutter's axe, a water-carrier's bucket), and what it wears (an
-        /// apron for smiths and stallholders, a straw hat for those working outdoors, a fisher's hat). Since A-33 the job
-        /// (CreatureState.Job, else the one the task implies) picks the props too: a baker's dough, table and cap, a
-        /// healer's bowl and satchel, a well keeper's rope and bucket, a gatekeeper's spear, a smith's tongs and hot iron,
-        /// a woodcutter's chopping block, a farmer's hoe, a trader's wares in hand. Slots: 0-1 the tool, 2 the apron,
-        /// 3-4 the hat, 5-7 extras.
+        /// Capsules for what stands at a worker's post (A-33), from its job alone (already on every machine, nothing
+        /// more sent): a baker's kneading table and a loaf on it, a smith's hot iron in its tongs, a woodcutter's
+        /// chopping block and log, a well keeper's rope and the bucket on it. (Its tools, wares, hat and apron are its
+        /// kit's since Zach 11-12 row 3, drawn by the Weapon and Armour passes; the props become items in row 5.)
         /// </summary>
-        const int GearParts = 8;
-        static bool HasGear(CreatureTask task) => task == CreatureTask.Hammer || task == CreatureTask.Chop || task == CreatureTask.Tend ||
-                                                  task == CreatureTask.Gesture || task == CreatureTask.Fish || task == CreatureTask.Hermit ||
-                                                  task == CreatureTask.Watch;
-        static int GearCount(CreatureTask task) => HasGear(task) ? GearParts : 0;
+        const int GearParts = 3;
+        static bool HasGear(in CreatureState s)
+        {
+            if (s.Mode != CreatureMode.Work || s.Stage == 0)
+                return false;
+            var job = FolkJobs.Of(in s);
+            return s.Task == CreatureTask.Hammer || s.Task == CreatureTask.Chop && job != FolkJob.Farmer ||
+                   s.Task == CreatureTask.Tend && (job == FolkJob.Baker || job == FolkJob.WellKeeper);
+        }
+        static int GearCount(in CreatureState s) => HasGear(in s) ? GearParts : 0;
         /// <summary>Capsules for what a player's body has on (P-23): a hat's brim and crown, a pack.</summary>
         const int WornParts = 3;
-        static int WornCount(in CreatureState s) => s.Worn != 0 || s.Outfit.Weapon != 0 || s.Outfit.OffHand != 0 || s.Outfit.Armoured ? WornParts + WeaponParts + ArmourParts : 0;
-        /// <summary>Capsules for a player's own hair (P-29), after the worn block: only bodies with OwnHair.</summary>
+        /// <summary>
+        /// The worn block, only the parts a body needs (Zach 11-12 row 3, so dressing the folk adds no empty capsules):
+        /// P-23's hat and pack, then the hands' looks (WeaponParts), then what's worn (ArmourParts). Of a body as drawn
+        /// (Dressed).
+        /// </summary>
+        static int HatPackCount(in CreatureState s) => s.Worn != 0 ? WornParts : 0;
+        static int HandsCount(in CreatureState s) => s.Outfit.Weapon != 0 || s.Outfit.OffHand != 0 ? WeaponParts : 0;
+        static int ArmourCount(in CreatureState s) => s.Outfit.Armoured ? ArmourParts : 0;
+        static int WornCount(in CreatureState s) => HatPackCount(in s) + HandsCount(in s) + ArmourCount(in s);
+        /// <summary>Zach 11-12 row 3: a body as it's drawn: one of the folk in its kit's looks (FolkKits.Dress), a player
+        /// in its own outfit.</summary>
+        static CreatureState Dressed(in CreatureState s)
+        {
+            var d = s;
+            d.Outfit = Punchy.Items.FolkKits.Dress(in s);
+            return d;
+        }
+        /// <summary>Capsules for what's sheathed on the back or at the hip (Zach 11-12 row 3), after the worn block: a
+        /// weapon or tool's shape (a bow's arc and string), for a body whose own pass doesn't draw it
+        /// (Punchy.Items.FolkKits.Sheathed).</summary>
+        const int SheathParts = 3;
+        static int SheathCount(in CreatureState s) => Punchy.Items.FolkKits.Sheathed(in s) >= 0 ? SheathParts : 0;
+        /// <summary>Capsules for a player's own hair (P-29), after the sheath block: only bodies with OwnHair.</summary>
         static int HairCount(in CreatureState s) => s.Outfit.OwnHair ? HairParts : 0;
         /// <summary>Where a held item's light comes from among its capsules (the lantern's glass, the torch's flame).</summary>
         static int LightPart(HeldItem held) => held == HeldItem.Lantern ? 2 : held == HeldItem.Torch ? 0 : -1;
@@ -725,14 +752,21 @@ namespace Punchy.Fauna
                     Letter(state, ref body.Blob.Value, offset, held, faded);
                 else if (state.Held == HeldItem.Honey)
                     Honey(state, ref body.Blob.Value, offset, held, faded);
-                else if (state.Held == HeldItem.Goggles)
-                    Goggles(state, ref body.Blob.Value, offset, held, faded);
-                if (HasGear(state.Task))
+                if (HasGear(in state))
                     Gear(state, ref body.Blob.Value, offset, held + HeldCount(state.Held, state.Task), faded);
-                if (WornCount(state) != 0)
-                    Worn(state, ref body.Blob.Value, offset, held + HeldCount(state.Held, state.Task) + GearCount(state.Task), faded);
+                // (What it has on and in its hands: a player's outfit, or one of the folk's kit, Zach 11-12 row 3.)
+                var dressed = Dressed(in state);
+                if (WornCount(dressed) != 0)
+                    Worn(dressed, ref body.Blob.Value, offset, held + HeldCount(state.Held, state.Task) + GearCount(state), faded);
+                var sheathAt = held + HeldCount(state.Held, state.Task) + GearCount(state) + WornCount(dressed);
+                if (SheathCount(state) != 0)
+                {
+                    for (int i = 0; i < SheathParts; i++)
+                        Output[sheathAt + i] = default;
+                    Weapon(dressed, ref body.Blob.Value, offset, sheathAt, faded, Punchy.Items.FolkKits.Sheathed(in state));
+                }
                 if (HairCount(state) != 0)
-                    Hair(state, ref body.Blob.Value, offset, held + HeldCount(state.Held, state.Task) + GearCount(state.Task) + WornCount(state), faded);
+                    Hair(state, ref body.Blob.Value, offset, sheathAt + SheathCount(state), faded);
             }
         }
     }

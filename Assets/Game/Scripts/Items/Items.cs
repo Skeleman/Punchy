@@ -267,6 +267,7 @@ namespace Punchy.Items
                 names.Add($"{i} {ItemTable.Items[i].Name} (stack {ItemTable.Items[i].Stack}, {ItemTable.Items[i].Weight} kg)");
             Debug.Log("Items: table of " + ItemTable.Items.Length + ": " + string.Join(", ", names));
             ItemTable.Check();
+            FolkKits.CheckLooks();
             for (int i = 0; i < instance.slots.Length; i++)
                 instance.slots[i].item = 255;
             var args = Punchy.Debugging.DebugControls.LaunchArgs;

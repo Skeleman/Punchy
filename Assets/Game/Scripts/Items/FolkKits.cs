@@ -98,8 +98,8 @@ namespace Punchy.Items
                         k.Sheath = FolkKit.Of(ItemTable.Pickaxe);
                     break;
                 case HeldItem.OreSack:
+                    // (A miner's pick stays across its back, below; a bat folk bringing goods home has only the sack, #35.)
                     k.Hand = FolkKit.Of(ItemTable.OreSack);
-                    k.Sheath = FolkKit.Of(ItemTable.Pickaxe);
                     break;
                 case HeldItem.Staff:
                     k.Hand = FolkKit.Of(ItemTable.Staff);
@@ -201,6 +201,170 @@ namespace Punchy.Items
                     k.Bag2 = FolkKit.Of(other);
             }
             return k;
+        }
+
+        /// <summary>
+        /// Zach 11-12 row 3: the looks a folk body's kit is drawn with, by the same passes as a player's outfit (the
+        /// Weapon and Armour passes): what it wears on its head, body, back and neck, and the tool or ware in its hands at
+        /// work and what's in its other hand (a shield, tongs, a bucket). What moves in its own way is still drawn by its
+        /// own pass from CreatureState.Held, the same thing the kit's hand has in it: a guard's weapon (drawn and
+        /// sheathed) and torch, a hunter's spear, a lantern and its light, a rod and its line, a miner's pick, a
+        /// traveller's staff, a letter, a child's stick or stone. Burst reads it (PoseJob, CompactJob): the looks are
+        /// HandLook and WornLook, checked against the item table at start (CheckLooks).
+        /// </summary>
+        public static CreatureOutfit Dress(in CreatureState s)
+        {
+            var o = s.Outfit;
+            var k = s.Kit;
+            if (k.Empty || s.Mode == CreatureMode.Puppet)
+                return o;
+            if (s.Held == HeldItem.None && s.Task != CreatureTask.Patrol && s.Task != CreatureTask.Hunt)
+                o.Weapon = HandLook(FolkKit.Item(k.Hand));
+            var off = FolkKit.Item(k.OffHand);
+            if (off == ItemTable.Shield || off == ItemTable.Tongs || off == ItemTable.Bucket)
+                o.OffHand = HandLook(off);
+            o.Head = WornLook(FolkKit.Item(k.Head));
+            o.Body = WornLook(FolkKit.Item(k.Body));
+            o.Back = WornLook(FolkKit.Item(k.Back));
+            o.Neck = WornLook(FolkKit.Item(k.Neck));
+            return o;
+        }
+
+        /// <summary>How an item is drawn in the hand (ItemDef.Weapon), for Burst. 0: not as a weapon look.</summary>
+        public static byte HandLook(int item) => item switch
+        {
+            ItemTable.Stick => CreatureWeapon.Stick,
+            ItemTable.Stone => CreatureWeapon.Stone,
+            ItemTable.Club => CreatureWeapon.Club,
+            ItemTable.Spear => CreatureWeapon.Spear,
+            ItemTable.Sword => CreatureWeapon.Sword,
+            ItemTable.Bow => CreatureWeapon.Bow,
+            ItemTable.Axe => CreatureWeapon.Axe,
+            ItemTable.Hammer => CreatureWeapon.Hammer,
+            ItemTable.Rod => CreatureWeapon.Rod,
+            ItemTable.Pickaxe => CreatureWeapon.Pickaxe,
+            ItemTable.Shovel => CreatureWeapon.Shovel,
+            ItemTable.GreatClub => CreatureWeapon.GreatClub,
+            ItemTable.Shield => CreatureWeapon.Shield,
+            ItemTable.Letter => CreatureWeapon.Letter,
+            ItemTable.OreSack => CreatureWeapon.OreSack,
+            ItemTable.Hoe => CreatureWeapon.Hoe,
+            ItemTable.Broom => CreatureWeapon.Broom,
+            ItemTable.SmithHammer => CreatureWeapon.SmithHammer,
+            ItemTable.Tongs => CreatureWeapon.Tongs,
+            ItemTable.Bucket => CreatureWeapon.Bucket,
+            ItemTable.Bowl => CreatureWeapon.Bowl,
+            ItemTable.Jar => CreatureWeapon.Jar,
+            ItemTable.Apple => CreatureWeapon.Fruit,
+            ItemTable.Bread => CreatureWeapon.Loaf,
+            ItemTable.Dough => CreatureWeapon.Dough,
+            _ => CreatureWeapon.None,
+        };
+
+        /// <summary>How an item is drawn worn (ItemDef.Look, by its place), for Burst. 0: not worn as a look.</summary>
+        public static byte WornLook(int item) => item switch
+        {
+            // (P-28's wear, ids 17-29: no folk wears them yet, but a kit could.)
+            17 => CreatureArmour.Cap,
+            18 => CreatureArmour.Helm,
+            19 => CreatureArmour.Jerkin,
+            20 => CreatureArmour.Chain,
+            21 => CreatureArmour.Greaves,
+            22 => CreatureArmour.Boots,
+            23 => CreatureArmour.Tunic,
+            24 => CreatureArmour.Robe,
+            25 => CreatureArmour.Cloak,
+            26 => CreatureArmour.Scarf,
+            27 => CreatureArmour.Hood,
+            28 => CreatureArmour.Woolcap,
+            29 => CreatureArmour.Brimhat,
+            ItemTable.Goggles => CreatureArmour.Goggles,
+            ItemTable.KettleHat => CreatureArmour.KettleHat,
+            ItemTable.HornedHelm => CreatureArmour.HornedHelm,
+            ItemTable.CrestedHelm => CreatureArmour.CrestedHelm,
+            ItemTable.PotHelm => CreatureArmour.PotHelm,
+            ItemTable.SkullHelm => CreatureArmour.SkullHelm,
+            ItemTable.Breastplate => CreatureArmour.Breastplate,
+            ItemTable.Cuirass => CreatureArmour.Cuirass,
+            ItemTable.Sash => CreatureArmour.Sash,
+            ItemTable.HideCape => CreatureArmour.HideCape,
+            ItemTable.Apron => CreatureArmour.Apron,
+            ItemTable.LeatherApron => CreatureArmour.LeatherApron,
+            ItemTable.BakerApron => CreatureArmour.BakerApron,
+            ItemTable.BakerCap => CreatureArmour.BakerCap,
+            ItemTable.StrawHat => CreatureArmour.StrawHat,
+            ItemTable.FisherHat => CreatureArmour.FisherHat,
+            ItemTable.Satchel => CreatureArmour.Satchel,
+            _ => 0,
+        };
+
+        /// <summary>
+        /// Zach 11-12 row 3: the item a body's sheath is drawn with by the shared sheath pass (PoseJob.Weapon, sheathed),
+        /// on its back or at its hip (OnBack); -1 for none. Its kit's sheathed weapon or tool, unless its own pass draws
+        /// it, drawing and sheathing it as it goes: a guard's while it has its weapon or a torch out (Guard), a hunter's
+        /// spear (Spear), a miner's pick (Miner). So a guard carrying a lantern, or with nothing in hand, still wears
+        /// its folk's weapon.
+        /// </summary>
+        public static int Sheathed(in CreatureState s)
+        {
+            if (s.Mode == CreatureMode.Puppet || s.Kit.Sheath == 0 || s.Task == CreatureTask.Hunt || s.Task == CreatureTask.Mine ||
+                s.Held == HeldItem.Pickaxe || s.Held == HeldItem.OreSack ||
+                s.Task == CreatureTask.Patrol && (s.Held == HeldItem.Spear || s.Held == HeldItem.SpearDrawn || s.Held == HeldItem.Torch))
+                return -1;
+            var item = FolkKit.Item(s.Kit.Sheath);
+            return SheathOf(item) == ItemSheath.None || HandLook(item) == CreatureWeapon.None ? -1 : item;
+        }
+
+        /// <summary>An item's length (ItemDef.Length, m at scale 1), for Burst.</summary>
+        public static float Length(int item) => item switch
+        {
+            ItemTable.Stick => 0.6f,
+            ItemTable.Staff => 1.6f,
+            ItemTable.Club => 0.8f,
+            ItemTable.Spear => 2.1f,
+            ItemTable.Sword => 0.95f,
+            ItemTable.Bow => 1.1f,
+            ItemTable.Axe => 0.75f,
+            ItemTable.Hammer => 0.7f,
+            ItemTable.Rod => 1.8f,
+            ItemTable.Pickaxe => 0.75f,
+            ItemTable.Shovel => 1.05f,
+            ItemTable.GreatClub => 1.15f,
+            ItemTable.Shield => 0.34f,
+            ItemTable.Hoe => 1.1f,
+            ItemTable.Broom => 1.25f,
+            ItemTable.SmithHammer => 0.4f,
+            ItemTable.Tongs => 0.35f,
+            _ => 0f,
+        };
+
+        /// <summary>Where an item goes sheathed (ItemDef.Sheath), for Burst.</summary>
+        public static ItemSheath SheathOf(int item) => item switch
+        {
+            ItemTable.Club or ItemTable.Spear or ItemTable.Axe or ItemTable.Hammer or ItemTable.Pickaxe or ItemTable.Shovel or
+                ItemTable.GreatClub or ItemTable.Hoe or ItemTable.Broom => ItemSheath.Auto,
+            ItemTable.Bow or ItemTable.Rod or ItemTable.Shield => ItemSheath.Back,
+            ItemTable.Sword or ItemTable.SmithHammer or ItemTable.Tongs => ItemSheath.Hip,
+            _ => ItemSheath.None,
+        };
+
+        /// <summary>ItemSheaths.OnBack for Burst: on the back if it's long for its bearer, else at the hip.</summary>
+        public static bool OnBack(int item, float standHeight) =>
+            SheathOf(item) == ItemSheath.Back || SheathOf(item) == ItemSheath.Auto && Length(item) > 0.6f * 2f * standHeight;
+
+        /// <summary>Whether HandLook and WornLook (and Length and SheathOf) say what the item table does, for every item
+        /// (an item added with a look and not added here would be drawn bare on the folk). Logged as an error if not.</summary>
+        public static void CheckLooks()
+        {
+            for (int i = 0; i < ItemTable.Items.Length; i++)
+            {
+                if (Length(i) != ItemTable.Items[i].Length || SheathOf(i) != ItemTable.Items[i].Sheath)
+                    Debug.LogError($"Items: FolkKits.Length/SheathOf({i}) is {Length(i)} {SheathOf(i)}, the {ItemTable.Items[i].Name}'s are {ItemTable.Items[i].Length} {ItemTable.Items[i].Sheath}");
+                if (HandLook(i) != ItemTable.Items[i].Weapon)
+                    Debug.LogError($"Items: FolkKits.HandLook({i}) is {HandLook(i)}, the {ItemTable.Items[i].Name}'s look is {ItemTable.Items[i].Weapon}");
+                if (WornLook(i) != ItemTable.Items[i].Look)
+                    Debug.LogError($"Items: FolkKits.WornLook({i}) is {WornLook(i)}, the {ItemTable.Items[i].Name}'s look is {ItemTable.Items[i].Look}");
+            }
         }
     }
 
