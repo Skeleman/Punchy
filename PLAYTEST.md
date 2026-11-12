@@ -5,6 +5,7 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 
 | Issue | What to check | Where | Shipped |
 |---|---|---|---|
+| #282 white bloom circles | No white dot on tree tops or anywhere else at Ultra, the hilltop at sunset especially; grass looks the same | Hilltop -3460,2425 at 18:00, Ultra | 11-12, #283 |
 | Marsh wildlife, colossi | Frogs on lily pads, a heron in the shallows, dragonflies darting low at marsh folk villages; magma, ember and spore colossi glow at night; fewer hitches when the plant, salt and magma colossi appear. New pins Landmarks_V3 112 A955AFE0, Fauna 83902658 | Foggy marsh villages; colossi at night | PR #193, 2026-11-07 |
 | Marsh folk | Stilt villages over the water: reed huts, plank walks, a smoke hut; drying frames, eel traps, totems; a nest raft of eggs with a hatchling behind the smoke hut | Foggy marsh villages | PR #192, 2026-11-07 |
 | #39 tunnels | Roads go through tunnels under steep crests, with a stone portal at each end | Hilly roads between towns | PR #178, 2026-11-06 |

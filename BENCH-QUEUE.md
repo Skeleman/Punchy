@@ -648,7 +648,7 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
 - Pass: B's FloraShadowCache draw within 0.1 ms of A's, and no whole-frame GPU change past noise.
 - **Addendum (R-16 row 3, 8d7e5cde):** take B at 8d7e5cde or newer. For about 1 s after each cache redraw and 2 s after each wide redraw, the cache receiver and every wide-shadow reader (terrain, flora, impostors) read the old map too (4 more taps per pixel). Record GPU ms for a still camera with the sun running, which is blending about half the time, and with `-wideblend 0`. Pass: within 0.1 ms. The wide candidate scan now builds a small HashSet every 90 frames; check WideShadow's CPU marker if you can see it.
 
-## Job 65 (2026-11-12, QUEUED after 63; supervisor, for R-18 row 1, #282): Stop NaN cost, and NaN on routes
+## Job 65 (2026-11-12, QUEUED after 63; R-18 MERGED as #283, take main b66b4c2a with and without `-stopnan 0`, plus the hilltop repro at Ultra with `-stopnan 0 -sparkleprobe hilltop`: NaN 0 and no white dot; supervisor, for R-18 row 1, #282): Stop NaN cost, and NaN on routes
 - Zach 11-12 saw another white bloom circle during a laptop run (job 64?). If you can say which job, view and time it showed, write it in REPORTS-profiler (a screenshot path helps): R-18 row 2 hunts it.
 - Once R-18 row 1 lands: (A) `render/nan-guard` (guard on) vs (B) same with `-stopnan 0`. Profile builds, 1920x1080, Medium and High, uncapped, ABBA, 300 frames each, on job 62's ocean view and the densest forest.
 - Record: whole-frame GPU ms; the StopNaN pass GPU ms if the Frame Debugger shows it.
