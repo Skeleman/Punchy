@@ -8,7 +8,7 @@
 // where the field weighs nothing (the sheet's border, where it meets the chunk water) stays whole, as the chunk water's.
 //
 // The including pass defines PUNCHY_TESS_INPUT (its vertex input), PUNCHY_TESS_OUTPUT and PUNCHY_TESS_VERT (its vertex
-// function, run in the domain stage on each new point) and PUNCHY_TESS_EXTRA (the lerps of any further fields).
+// function, run in the domain stage on each new point), and PUNCHY_TESS_COLOUR when its input has look and glow.
 
 float4 _PunchyWaterTess;   // x the most a triangle's edge is divided, y the pixels a segment aims at (WaterPatchSystem)
 
@@ -18,9 +18,31 @@ struct PunchyTessFactors
     float inside  : SV_InsideTessFactor;
 };
 
-PUNCHY_TESS_INPUT TessVert(PUNCHY_TESS_INPUT input)
+// The control points between the stages: the pass's vertex input with plain semantics (its POSITION, a float3, would be
+// read as SV_Position on the way out of the vertex stage, which must be a float4). look and glow are the colour pass's
+// (PUNCHY_TESS_COLOUR); the depth pass leaves them 0.
+struct PunchyTessCP
 {
-    return input;
+    float3 positionOS : INTERNALTESSPOS;
+    float4 data       : TEXCOORD0;
+    float4 look       : TEXCOORD1;
+    float2 glow       : TEXCOORD2;
+    float4 parent     : TEXCOORD3;
+    float2 parentY    : TEXCOORD4;
+};
+
+PunchyTessCP TessVert(PUNCHY_TESS_INPUT input)
+{
+    PunchyTessCP o = (PunchyTessCP)0;
+    o.positionOS = input.positionOS;
+    o.data = input.data;
+#ifdef PUNCHY_TESS_COLOUR
+    o.look = input.look;
+    o.glow = input.glow;
+#endif
+    o.parent = input.parent;
+    o.parentY = input.parentY;
+    return o;
 }
 
 float PunchyTessEdge(float3 a, float3 b)
@@ -35,7 +57,7 @@ float PunchyTessEdge(float3 a, float3 b)
     return clamp(pixels / max(_PunchyWaterTess.y, 1), 1, max(_PunchyWaterTess.x, 1));
 }
 
-PunchyTessFactors PunchyTessPatch(InputPatch<PUNCHY_TESS_INPUT, 3> p)
+PunchyTessFactors PunchyTessPatch(InputPatch<PunchyTessCP, 3> p)
 {
     float3 a = TransformObjectToWorld(p[0].positionOS);
     float3 b = TransformObjectToWorld(p[1].positionOS);
@@ -54,19 +76,22 @@ PunchyTessFactors PunchyTessPatch(InputPatch<PUNCHY_TESS_INPUT, 3> p)
 [outputtopology("triangle_cw")]
 [patchconstantfunc("PunchyTessPatch")]
 [outputcontrolpoints(3)]
-PUNCHY_TESS_INPUT Hull(InputPatch<PUNCHY_TESS_INPUT, 3> p, uint id : SV_OutputControlPointID)
+PunchyTessCP Hull(InputPatch<PunchyTessCP, 3> p, uint id : SV_OutputControlPointID)
 {
     return p[id];
 }
 
 [domain("tri")]
-PUNCHY_TESS_OUTPUT Domain(PunchyTessFactors f, OutputPatch<PUNCHY_TESS_INPUT, 3> p, float3 bary : SV_DomainLocation)
+PUNCHY_TESS_OUTPUT Domain(PunchyTessFactors f, OutputPatch<PunchyTessCP, 3> p, float3 bary : SV_DomainLocation)
 {
-    PUNCHY_TESS_INPUT v = p[0];
+    PUNCHY_TESS_INPUT v = (PUNCHY_TESS_INPUT)0;
     #define PUNCHY_TESS_LERP(F) v.F = p[0].F * bary.x + p[1].F * bary.y + p[2].F * bary.z   // (not "x": bary.x would expand too)
     PUNCHY_TESS_LERP(positionOS);
     PUNCHY_TESS_LERP(data);
-    PUNCHY_TESS_EXTRA
+#ifdef PUNCHY_TESS_COLOUR
+    PUNCHY_TESS_LERP(look);
+    PUNCHY_TESS_LERP(glow);
+#endif
     // (The edge-weld data, PunchyWaterPatchVertex's parent, means something only at the vertex it was made for: the
     // sheet's border edges stay whole, so a new point never lies on one; it takes none.)
     float most = max(bary.x, max(bary.y, bary.z));

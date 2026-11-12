@@ -59,7 +59,6 @@ Shader "Hidden/Punchy/WaterTess"
             #define PUNCHY_TESS_INPUT DepthAttributes
             #define PUNCHY_TESS_OUTPUT DepthVaryings
             #define PUNCHY_TESS_VERT DepthVert
-            #define PUNCHY_TESS_EXTRA
             #include "Assets/Game/Shaders/WaterTess.hlsl"
             ENDHLSL
         }
@@ -89,7 +88,7 @@ Shader "Hidden/Punchy/WaterTess"
             #define PUNCHY_TESS_INPUT WaterAttributes
             #define PUNCHY_TESS_OUTPUT Varyings
             #define PUNCHY_TESS_VERT Vert
-            #define PUNCHY_TESS_EXTRA PUNCHY_TESS_LERP(look); PUNCHY_TESS_LERP(glow);
+            #define PUNCHY_TESS_COLOUR 1
             #include "Assets/Game/Shaders/WaterTess.hlsl"
             ENDHLSL
         }
