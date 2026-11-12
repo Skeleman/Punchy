@@ -721,7 +721,7 @@ namespace Punchy.Terrain
             for (int i = 0; i < quads.Length; i++)
             {
                 var q = quads[i];
-                if (math.abs(q.A.Position.y - focus.y) > 12f)
+                if (math.abs(q.A.Position.y - focus.y) > 12f) // sim: which water layer the player is in, not a view range
                     continue;
                 var c = q.Cell - corner;
                 ThickenCorner(c, q.A.Glow);
