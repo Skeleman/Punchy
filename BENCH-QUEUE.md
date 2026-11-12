@@ -628,7 +628,7 @@ Why (Zach 11-12): profiler runs keep showing start-up hitches. A faster, quieter
 - If Zach likes the look and it saves most of R-12's +0.55-1.35 ms: merge candidate. Otherwise option 1 (keep per-read warp, merge the cloud shadow map, job 49c).
 
 ## Job 45k (2026-11-12, QUEUED after 49e; Zach in the profiler session): far wave field, old rings retired
-- Zach 11-12: cuts 4 is the High wake; Medium's normals-only look is good, but the old ring shader still showed in the field's region, and he asked for Medium's normals at distance. Punchy `b/water-rows-fixes` 17fc2144: a coarse normals-only far field (128 m, 0.5 m texels, 15 Hz) beyond the fine 32 m square, and the SwimmerWakes rings off wherever a field runs (kept under rock).
+- Zach 11-12: cuts 4 is the High wake; Medium's normals-only look is good, but the old ring shader still showed in the field's region, and he asked for Medium's normals at distance. Punchy `b/water-rows-fixes` 9357db50 (merged with main incl. W-134; cave water on the fields too, following the player's level): a coarse normals-only far field (128 m, 0.5 m texels, 15 Hz) beyond the fine 32 m square, and the SwimmerWakes rings off wherever a field runs (kept under rock).
 - Arms: far (default), `-waterfar 0`, `-waterfield 0`. Lake swim and lake shore, High and Medium, 3 rounds, shots for Zach. q106.job.
 - Bar (rule 23, on at Medium): far field <= +0.3 ms GPU over off at Medium.
 

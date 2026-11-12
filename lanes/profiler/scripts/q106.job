@@ -1,14 +1,16 @@
-# Zach 11-12: the far wave field (Punchy b/water-rows-fixes 17fc2144): normals-only wakes beyond the fine field's 32 m
+# Zach 11-12: the far wave field (Punchy b/water-rows-fixes 9357db54): normals-only wakes beyond the fine field's 32 m
 # square, and the old ring ripples off wherever a field runs. Arms: far (default: cuts 4 fine field + far field),
 # nofar (-waterfar 0: the fine field only, rings still off), off (-waterfield 0: the old rings everywhere).
-# Views: job 45c's lake swim (shots show the trail behind the swimmer past the fine square) and job 43's lake shore
+# 9357db50 also merges main (W-134 cave water) and puts cave water on the fields (no old rings in caves either; the
+# fields follow the player's level). Views: job 45c's lake swim (shots show the trail behind the swimmer past the fine square) and job 43's lake shore
 # (-benchspot -1624,-488,270: water in view, creatures swimming further out). High and Medium, 3 rounds, shots on round 1.
 Q=q106; TITLE="far wave field"
-BUILDS="17fc214"
-VIEWS="swim shore"
+BUILDS="9357db5"
+VIEWS="swim shore cave"
 view() { case $1 in
   swim)  echo "-goto 488,-1144 -benchstops line -benchline 488,-1144,528,-1144,4,-999 -benchweather Clear -benchhour 12";;
-  shore) echo "-benchstops spot -benchspot -1624,-488,270 -benchweather Clear -benchhour 12";; esac; }
+  shore) echo "-benchstops spot -benchspot -1624,-488,270 -benchweather Clear -benchhour 12";;
+  cave)  echo "-place cavepool -benchstops here -benchhour 12";; esac; }
 ARMS="far nofar off"
-arm() { case $1 in far) echo "Profile-17fc214";; nofar) echo "Profile-17fc214 -waterfar 0";; off) echo "Profile-17fc214 -waterfield 0";; esac; }
+arm() { case $1 in far) echo "Profile-9357db5";; nofar) echo "Profile-9357db5 -waterfar 0";; off) echo "Profile-9357db5 -waterfield 0";; esac; }
 ROUNDS=3; GFX="High Medium"; REF=off; BAR=0.3
