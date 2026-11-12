@@ -92,52 +92,23 @@ current release. Lane: A = animal, W = world.
   of town. Asked for before (11-09 audit, W-113 "floating archipelago") but never logged until now. Far islands
   draw simply; collision only near the player. Reached by flying for now (Zach 11-10).
 
-## Current roadmap (snapshot 2026-11-04, from open GitHub issues and Zach's direction)
 
-Zach's order (2026-11-03): (1) a modular building kit plus more colossi, (2) fishing villages built from the kit,
-(3) new settlements with their races. Core rule throughout: small, varied, seeded details everywhere, kept sparse.
+## Current roadmap (snapshot 2026-11-12, from open GitHub issues)
 
-### In progress or queued now
-- (A) Bat folk look: no hat-like hair, bigger ears, a lighter coat; fires and torches count as light (#35, A-68 row 2).
-- (A) Blind cave pygmies live with the bat folk in the same chamber, in a symbiotic setup (#35, A-68 row 3).
-- (W) Bat folk homes are organic pods hung from the ceiling; pygmy homes are cutouts in the cave walls (#35, W-96).
-- (W) Play-mode test harness that every lane runs before asking for a merge (W-97).
-- (W) Salt ball as a meteoroid: higher-poly irregular body, smaller crystals, a trail that varies in width (#40, W-95 row 3).
-- (W) Fire revamp: one shared fire effect for everything that burns; Ember Forest burns at night in a seeded colour (#131).
-- (A) Fishing villages: the brain still spends about 2.5 ms on solids checks; next is a BuildingSink precheck (#132).
+Done from Zach's 2026-11-03 order: the modular kit and colossi (#40), fishing villages (#36), bat folk and cave
+pygmies (#35, #10), turtle folk (#38). Core rule throughout: small, varied, seeded details everywhere, kept sparse.
 
-### World (W)
-- Colossi: one unique giant creature per biome, built to Zach's per-biome design in the issue (#40).
-- Shelters and work suited to each biome, for hermits and harsh-biome settlements; the Tundra shelter has not shown up yet (#69).
-- Electric wastelands: the player still runs through some flat rock chunks (#70).
-- Ruins: old stone-brick walls and a natural wind-shaped sand mound (#80).
-- Water geography rethink: stepped pools and the open water issues, redone rather than patched (#83).
-- Roads: cobblestone, paved stone settlements, tunnels (#39).
-- Sea folk: an underwater settlement in the central lake (#37).
-- Dungeons: caves and ruins as large dungeons, in two phases. First, set pieces made from underground tilesets
-  (player lane, plus the socket contract). Second, spawn points filled at random with creatures, chests and clutter
-  per biome and dungeon type (animal lane). The world lane adds entrances and tile art later (#24).
-- Interactive doors, gates and torches whose state syncs in multiplayer; interiors with portal culling (see Dungeons above).
-- Map editing (Zach 11-11): hand-adjust the generated map in passes: ground and biome borders; landmark, cave, dungeon and tunnel spots;
-  road and river paths; settlements, colossi, hermitages, lone NPCs; placed fences, signs and lights. Flora stays procedural (paint
-  masks only). One designed island (Zach 11-11): generation becomes a design step whose saved world file the game loads and Zach edits (#260).
+### Open, not yet started
+- Sea folk underwater city in the central lake (#37): the landing pier and its road exist (W-138); the city does not.
+- Castle walls: modular walls, towers, a working portcullis, interior halls (#254).
+- Dock town with a big pier, a boardable galleon and a busy main road (#255).
+- Floating islands off the coast, walkable, with caves and a new kind of town (#256).
+- Climbable colossi, maybe a fur section (#276), after unified climbing (A-101, W-144, W-147).
+- Rideable creatures: anything rides a creature 50% heavier; the ridden player steers (#278).
 
-### Creatures and NPCs (A)
-- Decide as one activity table with explicit priorities (#60).
-- NPC reactions to the player's race (#8).
-- NPCs and characters: personality-driven lines, then dialogue options; shared skills and attributes (#25).
-- Sand worm and snow worm (see Creatures above).
+### Open, partly done
+- Dungeons (#24), NPCs (#25), items and gear (#26), quests (#27): player lane cards in flight.
+- Plant fidelity experiments (#21).
+- Cluster culling (#270): waits for profiler numbers.
 
-### Player, items and quests (P)
-- Graphics settings: resolution and full screen (#78).
-- Camera underground: clipping in ruins and vertical control (#85).
-- Items and inventory: player and object inventories, picking up and moving objects, harvest yields (#26).
-- Quests: more objective types on the shipped base: lead an NPC, find a rare item (#27).
-
-### Tech, performance and platforms
-- Startup: one 16 s main-thread frame after the island is ready (#102).
-- MonoBehaviours driving ECS: explicit order and job dependencies (#62).
-- Underwater camera, visuals and sound (#22, Z-64).
-- Plant fidelity experiments (#21, Z-63).
-- Linux build (#28).
-- Shared frame budget, world streaming scheduler, cluster culling for flora/props/far villages; measure first (#270, outside audit 2026-11-12).
+Before carding any of these, check the issue, lanes/ISSUES-MAP.md, in-flight cards and main so it isn't already done.
