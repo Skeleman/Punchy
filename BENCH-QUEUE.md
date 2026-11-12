@@ -655,7 +655,7 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
 - Pass (rule 23c, on at Medium): <= +0.3 ms GPU. Expected ~0.05-0.1 ms (one full-screen pass).
 - From now on (rule 24d): add `-sparkleprobe <label>` to any route you run when it costs nothing extra, and report a NaN count above 0 with its view.
 
-## Job 65a (2026-11-12, QUEUED NEXT, a short one before 62; supervisor answering 'say which'): RenderDoc pixel history on the Ultra hilltop NaN
+## Job 65a (2026-11-12, NEXT after job 56 (q107.sh: capture, pixel history, then Ultra with each setting at High), a short one before 62; supervisor answering 'say which'): RenderDoc pixel history on the Ultra hilltop NaN
 - You take the capture (R-18's owner is on the main PC). Your repro from REPORTS-profiler: Profile build of main, `-gfx Ultra`, hilltop spot -3460,2425,270, 18:00, Clear, weatherseed 4; pixel (1060, 224).
 - Pixel history on that pixel: name the draw (shader, pass, mesh or impostor), and the first event where it turns NaN. If you can, step to the Ultra setting that turns it on (flora shadows, far trees, flora detail) by switching one `-gfxset` at a time back to its High value.
 - Report in REPORTS-profiler under 'R-18'. No fix from your side; R-18 row 2 fixes it.
