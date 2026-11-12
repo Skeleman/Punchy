@@ -902,3 +902,58 @@ draw over the species' own. I took the GO's check shots instead, on today's buil
 - Not checked: the effect on a waterfall plunge pool, or on a stream where it runs into its pool. Both are WaterAt's
   own handling now ("the higher surface wins").
 - Next: item rows, until the P-29 row 2 answer.
+
+## P-33 row 1 (#266): rod and cast. DONE, `player/fishing` 921d0858
+**Base (please read before merging):** `player/fishing` is NOT from bare origin/main. It is `player/items-axe` with
+origin/main merged in (clean).
+- Why: main has 12 items; the weapons, armour, clothing, hair and items branches stack to 32.
+- A rod appended on main would be id 12 (the club on `player/weapons`) and break append-only ids.
+- Here the rod is item 32. Merge order: weapons, armour, clothing, hair, items-axe, then fishing.
+- The history has a "WIP P-33 row 1" commit from before the main merge (the code needed W-134's SampleGround(float3)).
+
+**What it does:**
+- **Rod:** item 32 "Rod" with `CreatureWeapon.Rod` = 7. It is held like a weapon: a cork grip plus a 1.8 m pole
+  (2 weapon capsules).
+- **Aim and cast:** hold the attack button (left mouse while it steers the camera, X on a pad) to aim. A "Cast |||..."
+  prompt fills over 1.2 s. Releasing casts 4-22 m the way the body faces, with the weapon swing as the flick.
+- **Where it lands:** only on water the ground query knows (`TerrainSource.SampleGround(float3)`: sea, lake, river,
+  cave pool), within 12 m below and 3 m above the player's feet.
+- **Onto ground:** the bobber drops at 35% of the aim (on `FloorUnder`, a cave's too) and reels itself in 0.6 s
+  after landing.
+- **On water:** the bobber rides `WaterSwells.Height` plus a small bob. Pressing again reels in over 0.8 s.
+- **Line:** drawn slack (a sag of up to 1.2 m) from the rod's tip to the bobber. The tip comes from
+  `CreatureRenderSystem.RodTip` and `WeaponAim`, now shared with the pose code, so the line starts where the rod is
+  drawn.
+- **LOD:** line and bobber are cut by DetailPolicy.ScreenSize, with the same 6 px body cut as the weapons. The line
+  stays about 1 px thick at range. Item drawing goes through `Graphics.RenderMesh` with ItemMaterial.
+- **Net:** `FishRpc` goes client to host to everyone (cast with target and water flag; reel).
+- **Rod away:** putting the rod away reels the line in at once.
+- **Other changes:** a rod item mesh, a bobber mesh in ItemMeshes, and a "casts up to 22 m" effect line. Swing() skips
+  rods.
+
+**Checked** (Dev build, test flags `-cast 0.6;1 -castwater`; shots in `D:/Unity/PunchyMilestones/P-33/`):
+- Lake shore (`-place clearlake`): "cast: charge 0.50, aimed 13.0 m, onto the sea (surface 0.00, 8.0 m deep)", then
+  "landed on water ... 13.0 m out"; charge 1.00 gave 22.0 m.
+  - That "clear lake" sits at sea level, so it is the sea as WaterSwells counts it.
+  - The spot is a narrow gorge, so the camera can't frame it well.
+- Beach / the sea (`beach-sheet.jpg`, `beach07-crop.png`): the rod and the line out to the bobber are seen; 14.8 m and
+  22.0 m casts.
+- River (`-place crossing`): "onto a river (surface 116.43, 0.1 m deep)" at 14.8 m. Its first cast found no water
+  9.4 m off, so it dropped short at 3.3 m on the ground and reeled itself in.
+- Cave pool (`cavepool-sheet.jpg`): "onto cave water (surface 204.55)" at 5.8 m and 9.4 m; the slack line sags from
+  the tip to the bobber.
+- Ground (`-place meadow`, no `-castwater`): "dropped short at 5.2 m", then "reeled in".
+- Host plus client, both casting at the beach: each logs the other's cast ("player 2 cast onto water at ...",
+  "player 1 cast ...") and reel, and each sees the other's body with weapon 7. 0 exceptions on both.
+- `tools/lod-lint.sh origin/main`: exit 0.
+- Suite: 26 passed, 0 failed, 17 skipped. Fauna_Fingerprint passed (AD723954).
+
+**UNVERIFIED / known gaps:**
+- Real mouse and pad input, and the "Cast" prompt: only the `-cast` test path ran.
+- The flight arc isn't checked against walls or trees; it can pass through them.
+- A player who joins after a line is cast doesn't see it until the next cast.
+- The player can cast while swimming (the cave-pool spot puts them waist-deep).
+- The rod's inventory icon and its world item on the ground were not shot.
+- The beach water reads as "the sea" because it is at sea level. I didn't find a "true open sea" spot to compare.
+
+**Next:** P-33 row 2 (bite and catch, behind an `IFishSource` stub).
