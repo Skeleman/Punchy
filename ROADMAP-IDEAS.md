@@ -138,3 +138,4 @@ Zach's order (2026-11-03): (1) a modular building kit plus more colossi, (2) fis
 - Underwater camera, visuals and sound (#22, Z-64).
 - Plant fidelity experiments (#21, Z-63).
 - Linux build (#28).
+- Shared frame budget, world streaming scheduler, cluster culling for flora/props/far villages; measure first (#270, outside audit 2026-11-12).

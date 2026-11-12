@@ -614,3 +614,11 @@ W-135 row 6 on `world/ground-contact-shade` (dc65c63b): cave chunk rebuilds (ano
 - Record: frames over 2x the median on the walk, with their time into the walk (job 52's B spikes were at about 25-50 s); whole-frame CPU and GPU ms over the walk.
 - Pass: B shows no frame over 2x the median that A doesn't also show; B's worst frame near C's.
 - Note for the jc.views crystal spot (f): the path is valid, but `here` was missing from `-benchstops`, so the stop never ran. Use `-benchstops here,hereentry`.
+
+## Job 62 (2026-11-12, QUEUED after 59 (laptop); supervisor, from the outside shader audit, #269/#270): water cost split, variant counts, flora cull
+Purpose: find which part of water costs what, before any water or architecture work (R-15 row 4, #270). Main only (plus R-15 as arm B once row 1 lands).
+- Arms: (A) origin/main; for each view also A with `-waterfield 0`, A with `-waterssr 0`, and A with water detail off. Profile builds, 1920x1080, High, uncapped, ABBA, 300 frames each.
+- Views: (a) a wide ocean view from a cliff, water most of the screen; (b) a whitewater river with the biggest waterfall in view; (c) wading in the lake with a herd in the water (as many swimmers as can be placed); (d) a cave pool.
+- Record: GPU ms for the depth pass, the opaque/forward pass, the water field compute dispatch and the SSR, where the profiler can split them (Frame Debugger/GPU markers); whole-frame GPU and CPU; WaterPatchSystem main-thread ms (SourceJob .Run and the sheet build) and the fine sheet's vertex/index count and rebuilds per second.
+- Also, once each: (e) the shader variant counts from the Profile build's log for Water, Terrain, Flora, Creature and Sky (compiled per pass), and (f) the FloraCull dispatch GPU ms at the densest forest with far trees on.
+- Pass: measures only. Report the top three water costs by view, and say whether the field step is over 0.1 ms.

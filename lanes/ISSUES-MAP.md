@@ -27,6 +27,8 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #261 | Caves: gentle water trickling down walls from slits | W-141 (after W-134) |
 | #262 | Ambient details: falling leaves, smoke vents, lava seeps | W-142 (after W-141) |
 | #263 | Wispy ground fog that reacts to movement | R-14 (rendering lane) |
+| #269 | Water field and camera fixes from the shader audit | R-15 (rendering lane), job 62 |
+| #270 | Perf architecture: frame budget, streaming scheduler, cluster culling | roadmap, after job 62 |
 | #265 | Small shallow natural pools in the temperate lands | W-143 (world lane, after W-141) |
 | #266 | Fishing: the player can fish | P-33 (player lane, after P-32) + A-100 (animal lane, after A-99) |
 | #267 | Caves: climbable walls in vertical sections | W-144 (world lane, after W-143) + A-101 (animal lane, after A-100) |
