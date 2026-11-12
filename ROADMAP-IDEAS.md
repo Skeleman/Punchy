@@ -8,6 +8,7 @@ current release. Lane: A = animal, W = world.
 - (A/W) Sand worm and snow worm (2026-10-30): enormous worms that usually move underground (a ripple or trail
   in the sand or snow) and periodically burst out in flat, duney areas (desert and glass desert dunes, snowfields).
   Needs a long segmented body, a ground-disturbance effect from the world side, and rules for where they may surface.
+- Climbable colossi (2026-11-12): sections of a colossus graded on the shared climbability scale (A-101), maybe a fur section to climb; the climb rides the colossus as it moves (#276).
 
 ## Dungeons: caves and ruins as expansive dungeons (2026-10-29)
 - Ruin types from different ancient cultures:
