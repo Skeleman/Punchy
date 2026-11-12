@@ -375,42 +375,13 @@ namespace Punchy.CameraRig
         float nextWaterLog;
 
         /// <summary>
-        /// The surface of the cave stream or pool a point is under (its water, not just over its channel), or
-        /// float.MinValue: the streams' segments (each point's surface height and width) and the pools' discs.
+        /// The surface of the cave stream or pool a point is under (in its water, not just over its channel), or
+        /// float.MinValue. W-134: asks CaveSampling.WaterAt, the same cave water the swimmer and creatures use, so the
+        /// underwater look starts where swimming does; only a point below that surface counts (WaterAt also answers a
+        /// little over it).
         /// </summary>
-        public static float CaveWaterAbove(ref CaveSetBlob set, Unity.Mathematics.float3 p)
-        {
-            var best = float.MinValue;
-            for (int s = 0; s < set.Streams.Length; s++)
-            {
-                ref var st = ref set.Streams[s];
-                if (p.x < st.Min.x - 2f || p.z < st.Min.y - 2f || p.x > st.Max.x + 2f || p.z > st.Max.y + 2f)
-                    continue;
-                for (int k = st.FirstPoint; k < st.FirstPoint + st.PointCount - 1; k++)
-                {
-                    var a = set.StreamPoints[k];
-                    var b = set.StreamPoints[k + 1];
-                    var ab = b.Position.xz - a.Position.xz;
-                    var t = Unity.Mathematics.math.saturate(Unity.Mathematics.math.dot(p.xz - a.Position.xz, ab) / Unity.Mathematics.math.max(Unity.Mathematics.math.lengthsq(ab), 1e-4f));
-                    var half = Unity.Mathematics.math.lerp(a.Width, b.Width, t) * 0.5f;
-                    if (Unity.Mathematics.math.distance(p.xz, a.Position.xz + ab * t) > half)
-                        continue;
-                    var level = Unity.Mathematics.math.lerp(a.Position.y, b.Position.y, t);
-                    var depth = Unity.Mathematics.math.lerp(a.Depth, b.Depth, t);
-                    if (p.y < level && p.y > level - depth - 1.5f)
-                        best = Unity.Mathematics.math.max(best, level);
-                }
-            }
-            for (int i = 0; i < set.Pools.Length; i++)
-            {
-                var pool = set.Pools[i];
-                if (pool.Lava > 0.5f || Unity.Mathematics.math.distance(p.xz, pool.Centre.xz) > pool.Radius)
-                    continue;
-                if (p.y < pool.Centre.y && p.y > pool.Centre.y - pool.Depth - 1.5f)
-                    best = Unity.Mathematics.math.max(best, pool.Centre.y);
-            }
-            return best;
-        }
+        public static float CaveWaterAbove(ref CaveSetBlob set, Unity.Mathematics.float3 p) =>
+            CaveSampling.WaterAt(ref set, p, out var surface, out _, out _, out _, out _) && p.y < surface ? surface : float.MinValue;
 
         /// <summary>Testing: "-spin N" turns the view N degrees a second, as a mouse would (P-18: is the yaw free?).</summary>
         float spin;
