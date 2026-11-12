@@ -992,3 +992,15 @@ Added two lines to `docs/agents/multiplayer.md`. Other lanes changing an RPC may
 - The `clearlake` spot sits at sea level, so it gives sea fish (mackerel, cod). A-100's tables should decide water kind.
 
 **Next:** P-33 rows 3-4 wait for A-100 row 1 on main. Meanwhile, item rows per the standing order.
+
+## Item row: the pickaxe (11-11, standing order). DONE, `player/items-pick` ab716e5a (on player/fishing)
+- Item 33 "Pickaxe", `CreatureWeapon.Pickaxe` = 8: dmg 7, reach 1.1 m, 0.8 swings/s, 2.2 kg, hand slot.
+- Held: a 0.65 m haft and an iron head across its top, a long point tapering forward and a short flat adze behind
+  (3 of the 7 weapon capsules). World item: the same lying flat.
+- Based on player/fishing so the id follows the rod (32). Append-only: earlier ids unchanged.
+- Checked: shots `D:/Unity/PunchyMilestones/Items/pick-front/-side/-swing1..4/-far.png`, sheet `pick-sheet.jpg`.
+  Log: "[gear] swing: Pickaxe, damage 7, reach 1.1 m, 1.25 s", body weapon 8. 0 exceptions.
+  lod-lint exit 0; suite 26 passed, 0 failed, 17 skipped; Fauna_Fingerprint AD723954.
+- UNVERIFIED: the world item on the ground and its inventory icon were not shot. Mining isn't wired (it swings like a
+  weapon); folk miners keep their own `HeldItem.Pickaxe`.
+- Next: another item row (lantern) unless a card opens or P-29 row 2 is answered.
