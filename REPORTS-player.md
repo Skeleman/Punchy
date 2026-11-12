@@ -867,3 +867,17 @@ draw over the species' own. I took the GO's check shots instead, on today's buil
 - UNVERIFIED: the axe's inventory icon and its world item on the ground (not shot).
 - Merge order: `player/items-axe` is based on `player/hair`, so merge it after P-29.
 - Next: another item row, unless the P-29 row 2 answer or W-134 comes first.
+
+## Item row: the hammer (11-11, standing order) DONE, `player/items-axe` 5879400b
+- New item 31 "Hammer" (appended) and `CreatureWeapon.Hammer = 6`. One-handed: dmg 10, reach 0.9 m,
+  0.8 swings/s, 2.2 kg.
+- Held: a haft and a squat iron head across its top (2 weapon capsules). It has the same 6 px ScreenSize cut as the
+  other weapons.
+- In the world: a haft with a cross head.
+- Shots in `D:/Unity/PunchyMilestones/Items/`: `hammer-front/side`, `hammer-swing1-4` and `hammer-far` (30 m),
+  plus `hammer-sheet.jpg`.
+  - Log: "weapon 6" and "[gear] swing: Hammer, damage 10, reach 0.9 m, 1.25 s".
+  - 0 exceptions.
+- Suite: 25 passed, 0 failed, 17 skipped. Fauna_Fingerprint passed (AD723954).
+- UNVERIFIED: the hammer's inventory icon and its world item on the ground.
+- Still waiting on: the P-29 row 2 answer, and W-134 merging (then the camera's cave-water row).
