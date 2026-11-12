@@ -216,7 +216,8 @@ namespace Punchy.Items
     public partial class Items : MonoBehaviour
     {
         public const float Reach = 2f, DrawRange = 60f;
-        /// <summary>Uids: seeded door items are door*4+k; chest items ChestBase + socket*4+k; drops DropBase upwards.</summary>
+        /// <summary>Uids: seeded door items are door*4+k; chest items ChestBase + socket*4+k; drops DropBase upwards; spares
+        /// at the folk's posts SpareBase upwards (Spares.cs).</summary>
         const int ChestBase = 1_000_000, DropBase = 2_000_000;
 
         struct WorldItem { public byte Item, Count; public float3 Pos; }
@@ -274,6 +275,10 @@ namespace Punchy.Items
             var at = System.Array.IndexOf(args, "-pickup");
             if (at >= 0 && at + 1 < args.Length)
                 int.TryParse(args[at + 1], out instance.pickupArg);
+            // ("-pickupspares N": the same, the N nearest spares at the folk's posts only; Spares.cs.)
+            at = System.Array.IndexOf(args, "-pickupspares");
+            if (at >= 0 && at + 1 < args.Length && int.TryParse(args[at + 1], out instance.pickupArg))
+                instance.spareOnlyArg = true;
             instance.dropArg = System.Array.IndexOf(args, "-drop") >= 0;
             instance.openChestArg = System.Array.IndexOf(args, "-openchest") >= 0;
             instance.panel = System.Array.IndexOf(args, "-inventory") >= 0;
@@ -342,6 +347,7 @@ namespace Punchy.Items
             if (!TryTerrain(out var terrain))
                 return;
             RegisterChests();
+            StockPosts();
             if (Hosting)
                 Serve();
             if (client != null && client.IsCreated && client.IsClient())
@@ -645,7 +651,7 @@ namespace Punchy.Items
             var w = new WorldItem { Item = item, Count = (byte)math.clamp(count, 1, 255), Pos = pos };
             world[uid] = w;
             added[uid] = w;
-            if (uid >= DropBase)
+            if (uid >= DropBase && uid < SpareBase)
                 NoteDrop(uid);
             Debug.Log($"Items: item {uid} ({ItemTable.Items[item].Name} x{w.Count}) on the ground at ({pos.x:F1}, {pos.y:F1}, {pos.z:F1})");
             if (Hosting)
@@ -660,6 +666,8 @@ namespace Punchy.Items
             if (!added.Remove(uid))
                 gone.Add(uid);
             Debug.Log($"Items: item {uid} ({ItemTable.Items[it.Item].Name}) taken{(Hosting ? " (host)" : "")}");
+            if (!Joined)
+                NoteSpareTaken(uid);
             if (Hosting)
                 Broadcast(new ItemGoneRpc { Uid = uid });
             return true;
@@ -879,6 +887,8 @@ namespace Punchy.Items
                 var bestD = float.MaxValue;
                 foreach (var kv in world)
                 {
+                    if (spareOnlyArg && kv.Key < SpareBase)
+                        continue;
                     var d = math.distance(kv.Value.Pos, player.Position);
                     if (d < bestD) (bestD, best) = (d, kv.Key);
                 }
