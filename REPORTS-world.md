@@ -5678,3 +5678,17 @@ Branch `world/mountain-tunnels` at f6217674 (pushed), on a149c17f. One commit: C
 - **WorldTests:** `12 passed, 0 failed, 0 skipped in 221s`, including IslandCache_LoadedEqualsFresh and IslandCache_SavesEveryBlob. The editor missed once on `key changed (stamp)` (new code) and rebaked; the build then shipped that file.
 - **Pins:** landmarks 112 A955AFE0 and fauna fingerprint AD723954 are unchanged.
 - **Editor:** none open from this lane (batch runs only, all exited). Ready for job 60.
+
+## W-136 merge with main (W-134), 11-11
+- **Pushed:** world/ground-contact-shade at 82d43e13. It holds merge commit 1e59c0f2 (origin/main into W-136) and fix commit 82d43e13. world/cave-lod was not touched.
+- **CaveSystem.cs hunk:** I took W-134's structure. Pools and streams are baked by CaveSystem.Water, and streamMeshes, streamDrawn and MakeStreamMesh are gone. Lava pools use main's disc mesh and LightBudget glow. W-135's rule-20 lava test stays: ViewReach(radius*2, CaveWaterPixels) capped at LoadRadius, held by DetailPolicy.Within with poolDrawn. The two doc comments are merged into one.
+- **Second clash (it compiled only after this fix):** W-135 added the const CaveWaterfall.Reach (0.9) and W-134 added the per-fall field Reach. Both auto-merged into CaveData.cs (CS0102). The const is now NotchReach, and a new Carry property returns Reach, or NotchReach when Reach is 0. The W-135 fall sheet (WaterPatchSystem.Falls) now uses Carry, so a chute's sheet lands where its curtain lands. LandmarkEffectSystem points at NotchReach.
+- **Checks:** W-135's surface skip sits inside Draw. DrawPools/DrawCaveWater run every frame, so the bake trigger isn't blocked. Baked tiles follow screen size (Holds(ScreenSize, WaterTilePixels/Detail)). Note for R-13: the 24 px tile threshold is local to CaveSystem.Water, not a DetailPolicy per-kind constant. Bake start and evict use fixed LoadRadius and LoadRadius*1.2. Those are load reach, not visual reach, and were left as they are. lod-lint on HEAD: clean.
+- **PlayMode suite:** `26 passed, 0 failed, 17 skipped in 698s`, 0 compile errors. I didn't run EditMode.
+- **Pins:** landmarks 112 A955AFE0, fauna AD723954. Unchanged, and they match main.
+- **Look-check** (shots in W-136/merge in the milestone folder):
+  - `[shot] 'cavepool' ... camera (1520.0, 2.0, -2622.0); check: mean 0.13, near-black 0.58 ...; good`. This is the W-134 cistern spot. A pale water sheet shows at the bottom.
+  - `[shot] 'cavelava' ... in a cave; good`. No lava pool could be placed (the world has 0 lava texels). `-place cavelava` fell back to cave pool 3, at (-210.3, 1.6, -2729.0), 0.6 m deep, and the player stands in that pool.
+  - I checked the contact sheet at small size.
+- **Tree:** back on world/island-cache. The five parked .mat edits (Cave, Water, Colossus, IcebergIce, TempleGlow: shader property values and a MOTIONVECTORS pass change) were stashed, applied back by SHA, and the stash entry was dropped. None of them were committed.
+- **Editor:** closed. Ready for bench.
