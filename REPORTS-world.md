@@ -6063,3 +6063,23 @@ Branch `world/mountain-tunnels` at f6217674 (pushed), on a149c17f. One commit: C
 ### Row 4: field step cost
 
 Waiting on job 62. Row 4 is only needed if job 62 puts the field step above 0.1 ms. Job 62 should cover render/audit-fixes at e495758c, dadf0457 and 1a2e5499.
+
+## R-17: the sea swell never tiles from high up (#280)
+
+### Row 1: seed-baked swell noise (render/swell-noise)
+
+- **Commit:** 0d16f028 on render/swell-noise (from main db9ca83e), pushed.
+- **Change:** WaterSwells bakes one tileable 256x256, 4-channel value-noise texture from the seed. The bake runs once, in a background Burst job, and is taken up a frame later, like the shore field.
+  - The hash is its own full-avalanche mix (not math.hash) with the seed, and nothing comes from Unity's random, so every player bakes the same texels.
+  - Each channel is normalised to mean 0, spread 1. r (set height) has a finer second layer, so its blotches are irregular. g (warp) and b (bend) stay smooth.
+  - Stored as RGBAFloat, point filtered, so the CPU and GPU read identical numbers. The texels are also kept in an UnsafeList for Burst.
+  - Two taps, each turned and drifting with the shared clock: lattice cells of 2 km (0.61 rad, 0.6 m/s) and 550 m (2.17 rad, 3 m/s). The tiles repeat every 32 km and 8.8 km.
+  - PunchySwellNoise (HLSL) and WaterSwells.Noise (C#) do the same hand bilinear as PunchySwellOnshore. Until the bake is in, both return 0.
+  - Nothing reads it yet. Row 2 swaps the group and warp sines for it.
+- **Deviation:** the broad tap is 2 km, not the card's ~1.5 km. At 1.5 km the warp's steepest slope came to 5% of the shortest wave's wavenumber. At 2 km it is 3.75%, under the card's 4%.
+- **Probe, in play (GPU readback of 20 random open-sea points, depth 26-35 m, vs the CPU at the same clock):**
+  - Noise, all 4 channels: worst difference 2.5e-5. The bend channel is in metres, so that is 0.025 mm.
+  - Swell height (PunchySwell vs WaterSwells.Height, unchanged yet): worst 0.23 mm. This checks the probe for row 2.
+  - The texture is the same object over frames, and Publish only reuses fixed arrays, so nothing is allocated per frame.
+- **lod-lint:** clean.
+- **Pins:** not touched (no placement code).
