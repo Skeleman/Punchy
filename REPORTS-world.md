@@ -6372,3 +6372,20 @@ plot rules would have to accept a raised deck).
 - **Checks:** PlayMode `completed: 28/28 passed` (after the last change). The first run gave 27/28: Place_PropFindsAndFramesWharf failed on the known stale-`[measure]` LogWatch flake (same strings, WorldTests.cs:199). It passed after a domain reload. ShaderUtil: no errors.
 - **Pins:** unchanged (shader only).
 - **BENCH request (R-19 row 1b, supersedes row 1's):** GPU ms at the canyon (2266,-434) and the mountain (-3130,2878), render/steep-triplanar vs main, from 20 m and 150 m.
+
+### R-19 row 2: snow and moss already sit right on 1b, no code change (render/steep-triplanar stays at 0ebcf1b2, #281)
+- **Finding (measured, not assumed):** on 1b, snow caps and moss keep their own rules, so row 2 needs no shader change.
+  - Snow: the Mountains snow layer's slope cut ends the snow at the lip of each face. A CPU scan (4 m step, whole island) finds no cell with snow > 0.3 steeper than ~47 deg (normal y < 0.68). On the GPU, a temporary debug tint of "snow x rockFace" lit only a thin seam along the face lips: 0.34% of a 400 m peak view and 1.3% of a 25 m gully view. The faces below are bare rock with the 1b beds and blocks, and the snow stays on the flatter ground above. That is "snow on flatter steps only".
+  - Moss: the moss sheet is structure, ruin and colossus decor (Flora/KitPiece). It's drawn by its own shaders, so the terrain shader can't touch it. Terrain MossCarpet and grass never reach rockFace slopes: the same debug tint shows 0.00% in two FungalForest views (-3220,564) and (-3220,108).
+- **What I tried and dropped:** a row 2 shader (grey stone under snow on faces, with snow kept on bed tops, plus moss in damp shade under the ledges). In a same-frame A/B (a temporary global toggle, removed) it changed only that seam: about 1% of pixels at 25 m, means shifting about 5%. Its moss term never fired. Shipping code with no visible effect seemed wrong, so the branch stays at 1b. The parked version is in my scratch if you want it anyway.
+- **Shots** in PunchyMilestones/R-19:
+  - `r19-row2-snowpeak-{20m,150m}.png` and `r19-row2-mossravine-{20m,150m}.png` (1b).
+  - `r19-row2-gully-{25m,70m,150m}.png`: 1b | debug tint, with the magenta seam where snow meets a face.
+  - `r19-row2-snowpeak-400m-debug.png`.
+- **Rule 24:** NaN 0 on every shot (Stop NaN off).
+- **Checks:** no code change, so the 1b suite line stands (28/28). The shader in the tree equals 0ebcf1b2 (git diff empty). The probe was removed from Assets/Temp, and the preset is back to Medium.
+- **Pins:** unchanged.
+- **For the supervisor:**
+  - In `r19-row2-snowpeak-150m.png` (and `r19-gully-25m`), 1b's blocks on a pale mountain face read fairly rectangular at 150 m, close to masonry. If that bothers you, a 1c could soften the block edges or add a per-block lean. Say if you want it.
+  - The same frames show a waterfall sheet with visible flat quads (not R-19, water lane).
+- **BENCH:** nothing new (the row 1b request stands).
