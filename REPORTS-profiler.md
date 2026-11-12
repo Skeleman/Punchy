@@ -2,6 +2,45 @@
 
 Newest first.
 
+## Job 56: W-132 far-lite (world/far-lite 4eabc7c7 vs main cc835cf6), 2026-11-12 (q102.job, q103.job): flight -6 ms GPU, ground within noise or better, hilltop +0.3/+0.5 (FAIL, small); skirt PASS, far disc saves 2.2-2.4 ms
+**Setup:** Profile builds, 1920x1080, uncapped, `-body default`, `-weatherseed 4`, arms alternated, 3 rounds each.
+- Views: (a) ground, `-place meadow`, noon; (b) hilltop `-3460,2425` facing west, 18:00, Clear; (c) a 1.5 km line west from `-3000,2425` at 300 m and 25 m/s (land, then sea), noon.
+- Extra leg (q103) on the branch only, High: horizon skirt off (`PUNCHY_FARSKIRT=0`), far disc off (`PUNCHY_FARDISC=0`), stronger sun road (`PUNCHY_SUNROAD=2`), against default, at the flight at 18:00 and noon and at the hilltop sunset.
+
+**Main comparison (GPU ms, mean of rounds; main/render thread ms from the route line):**
+
+| view | preset | main GPU | branch GPU | delta | main thr (main/branch) | render thr (main/branch) | 1% low fps (main/branch) |
+|---|---|---|---|---|---|---|---|
+| (a) ground | High | 17.4 | 17.27 | -0.13 | 22.5 / 23.1 | 11.0 / 10.4 | 7.8 / 9.2 |
+| (a) ground | Ultra | 22.43 | 20.67 | **-1.77** | 37.4 / 35.6 | 17.1 / 15.1 | 9.9 / 14.0 |
+| (b) hilltop | High | 10.67 | 11.0 | **+0.33** | 14.3 / 15.4 | 4.1 / 4.2 | 31.1 / 25.8 |
+| (b) hilltop | Ultra | 13.13 | 13.67 | **+0.53** | 20.5 / 21.9 | 5.3 / 5.2 | 18.4 / 21.9 |
+| (c) flight | High | 24.4 | 18.2 | **-6.20** | 22.4 / 20.4 | 5.8 / 5.2 | 15.4 / 10.9 |
+| (c) flight | Ultra | 25.27 | 19.13 | **-6.13** | 28.2 / 27.6 | 7.9 / 6.9 | 11.6 / 11.8 |
+
+- (High flight: round 1 of both arms had a 20 s frame, the first game after the builds, and is left out.)
+- **Pass lines:** (c) PASS by a wide margin (frames over the sea: slow-frame count 941 -> 331 at High). (a) PASS (High noise, Ultra faster). **(b) FAIL, small:** the branch is slower at the hilltop in every round (High 10.4-11.1 vs 10.8-11.3; Ultra 13.1-13.2 vs 13.6-13.8). The view looks over the sea at sunset, so the sun road (analytic, on the far water) is the first suspect; the q103 road2 arm adds a further +0.23 there.
+- **Hitches over 2x median:** no branch-only pattern. ~0.5 s frames show on both arms (main: all 3 High ground rounds; branch: 2 High ground rounds, 1 High hilltop, 1 High flight); that's the laptop's 0.5 s present stall seen before (q50), not the far shaders. Ultra worst frames are lower on the branch (hilltop 55 vs 79 ms, ground 86 vs 226).
+- **Not measured: the first 20 s after load at (b).** The route measures after the stop settles, so variant warm-up in the first 20 s isn't in these numbers. A `-benchframes` per-frame dump from load would cover it; say if it's wanted (it fits into job 64's start-up run).
+- **NaN dot:** the Ultra hilltop shots of both arms carry the bloom dot at (1060, 224); reported under R-18 above (merged as #283).
+
+**Extra leg (branch 4eabc7c7, High; GPU ms, delta vs default):**
+
+| view | default | skirt off | disc off | sun road 2 |
+|---|---|---|---|---|
+| flight 18:00 | 18.93 | 18.8 (-0.13) | 21.3 (**+2.37**) | 19.2 (+0.27) |
+| flight noon | 18.3 | 18.43 (+0.13) | 20.5 (**+2.20**) | 18.33 (+0.03) |
+| hilltop sunset | 10.83 | 11.87 (+1.03, rounds 10.9-12.7: noise) | 10.73 (-0.10) | 11.07 (+0.23) |
+
+- **Skirt: PASS** (costs -0.13 to +0.13 ms GPU on the flight, under the 0.3 bar).
+- **Far disc: a win of 2.2-2.4 ms GPU** on the flight (and 0.6-1.0 ms render thread); nothing at the hilltop.
+- **Sun road 2:** about +0.25 ms at sunset views, 0 at noon; near noise, but consistent in direction.
+- **Draws and the Water/Skybox pass times weren't recorded:** per-pass GPU timers report nothing on this laptop (TESTING.md), and draw counts need a RenderDoc capture. If the supervisor wants the hilltop +0.3 split by pass, a RenderDoc pair of (b) on both builds would name it.
+
+**Shots:** every arm and view, `q102-shots/` and `q103-shots/` in the Punchy-wt bench results.
+**Note:** this report was written by a second account picking up the profiler session after the first hit its usage limit; the chain (job 64 next) carried on unattended.
+Cost: laptop total $835 (laptop sessions 0a48ccdb, e163d8ab; 2 builds, 72 games).
+
 ## R-18: the bloom circle reproduces, at Ultra only, on main too (11-12)
 **Zach found it in job 56's shot** `q102-shots/ultra-hilltop-main/spot.png`, Punchy-wt results.
 - **What it is:** a bloom halo round one black centre pixel at **(1060, 224)** of the 1920x1080 frame, on a dark pine near its top. That's the NaN pattern: the bad pixel draws black, and bloom spreads it white.

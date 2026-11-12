@@ -566,7 +566,7 @@ W-134 row 1 on `world/cave-water`: SampleGround(float3) answers cave pools and s
 - Record whole-frame CPU and main-thread ms, plus WaterPatchSystem, CreatureWakeSystem and PlayerMovementSystem from the profiler markers.
 - Pass: B within noise of A at (b) and (c); at (a) those three systems together no more than +0.1 ms CPU.
 
-## Job 56 (2026-11-11, RUNNING 11-12 (q102.job, q103.job); supervisor, for W-132 rows 1-4; widened 11-11): cheap far terrain and sea shader, far disc, horizon skirt
+## Job 56 (2026-11-11, REPORTED 11-12 in REPORTS-profiler.md (q102.job, q103.job); supervisor, for W-132 rows 1-4; widened 11-11): cheap far terrain and sea shader, far disc, horizon skirt
 W-132 row 2 on `world/far-lite`: far LOD chunks use runtime material copies with `_PUNCHY_FAR` / `_PUNCHY_FAR_WATER` (terrain 5856 -> 773 fragment instructions, water 9589 -> 1737; vertex instructions go up; shader variants double).
 - Arms: (A) origin/main 393a9c20 or newer; (B) `world/far-lite` at b0a46b6d or newer. Profile builds, 1920x1080, High and Ultra, uncapped, ABBA, 300 frames per arm.
 - Views: (a) ground walk in open country; (b) hilltop `-goto -3460,2425` looking west at 18:00, clear; (c) a 300 m-high flight over land, then over open sea.
