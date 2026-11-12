@@ -957,3 +957,38 @@ origin/main merged in (clean).
 - The beach water reads as "the sea" because it is at sea level. I didn't find a "true open sea" spot to compare.
 
 **Next:** P-33 row 2 (bite and catch, behind an `IFishSource` stub).
+
+## P-33 row 2 (#266): bite and catch. DONE, `player/fishing` 8859331a
+
+- **Catch table:** what bites comes from `IFishSource` (new `FishSource.cs`). `StubFishSource` stands in until A-100:
+  two or three fish per water (sea: mackerel, cod; river: trout, perch; lake: carp, pike, bream; cave: blind
+  cavefish), a bite 3-8 s after the bobber settles, size from the fish's range, all from a seed.
+- **Bite:** the bobber dips with a splash ring and a splash sound; 0.9 s to strike, else "missed", bait gone.
+- **Reel:** hold to wind in. Tension rises (faster while the fish runs) and the line snaps at full; letting go slackens.
+- **Catch:** a Fish item in the inventory, kind and size in a note and the log; the fish hangs at the rod tip 1.5 s.
+- **Net:** each stage goes to everyone (`FishRpc` Kind 3, now 21 bytes). The host adds a client's catch to its
+  carried tally (P-17).
+- Test flag `-fishplay hook|miss|snap`.
+
+**Checked** (Dev build; shots in `D:/Unity/PunchyMilestones/P-33/fish2-*`):
+- Lake spot, hook: "bite! (0.9 s to strike)", "hooked a mackerel", "caught a mackerel, 31 cm; inventory: Fish x1",
+  then a cod 43 cm, Fish x2. `fish2-lake-hook-01.png` shows the taut line, `-03` the fish hanging from the tip.
+- River, miss: "missed: the trout let go, the bait is gone".
+- Beach, snap: "the line snapped: the mackerel got away", and again with a cod.
+- Cave pool, hook: two blind cavefish (17 cm, 9 cm), Fish x2.
+- Host plus client: each logs the other's stages ("player 2: a bite / hooked / caught, Fish 47 cm (host tally: 1)",
+  "player 1: caught, Fish 70 cm"); client snap run shows "player 2: lost it" on the host. 0 exceptions, no drops.
+- `lod-lint.sh origin/main` exit 0. Suite 26 passed, 0 failed, 17 skipped; Fauna_Fingerprint AD723954.
+
+**Found on the way:** the first host plus client run dropped the connection: "RpcSystem failed to deserialize ...
+bits read 144 did not match expected 168" (InvalidRpc). The build's Burst code still had row 1's 18-byte FishRpc;
+`--burst-disable-compilation` cleared it. Deleting `Library/BurstCache` in the player tree and rebuilding fixed it.
+Added two lines to `docs/agents/multiplayer.md`. Other lanes changing an RPC may hit the same.
+
+**UNVERIFIED / known gaps:**
+- The splash ring and bobber dip: the bobber is too far off in every shot to see them.
+- Real mouse and pad input: only the `-fishplay` test path ran.
+- The inventory has one Fish item; kind and size live only in the note and the log, not on the item.
+- The `clearlake` spot sits at sea level, so it gives sea fish (mackerel, cod). A-100's tables should decide water kind.
+
+**Next:** P-33 rows 3-4 wait for A-100 row 1 on main. Meanwhile, item rows per the standing order.
