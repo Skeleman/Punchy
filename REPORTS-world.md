@@ -6018,3 +6018,21 @@ Branch `world/mountain-tunnels` at f6217674 (pushed), on a149c17f. One commit: C
 - **lod-lint:** clean.
 - **BENCH-QUEUE:** job 62 measures this (GPU ms of the water draw, lake and open sea). Please run it on render/audit-fixes e495758c against main.
 - **Pins:** not touched (shader only).
+
+### Row 2: nearest disturbances win when the list fills (render/audit-fixes)
+
+- **Branch:** render/audit-fixes, commit dadf0457 (parent e495758c), pushed.
+- **Change (WaterPatchSystem.SourceJob, Burst):**
+  - The creatures in the square are put in turn order: players first (CreatureMode.Puppet, so local and joined players alike), then by distance to the square's centre.
+  - Sources are taken in that order until the 64 slots are full. Presses and splashes now share the 64 slots; before, each list had its own cap and the total was then cut to 64.
+  - The source lists and the turn list are now Persistent and kept between steps, so a step allocates nothing (before: two TempJob lists per step).
+  - New probe counters: Sources, PlayerSources, SquareCreatures.
+- **Probe:**
+  - Setup: R-9 lake, spawned 30 Duck and 30 Trout, and held 50 of them moving in rings 3-20 m round the wading player for 12 s.
+  - Results: 54-56 creatures in the square, and the list held 56-64 sources (full at 64). The player's sources were 1-4 on every frame (2460 frames), never 0.
+  - Herd shot: `r15-row2-herd.png`. The player's dimple and rings show in the middle of the herd.
+- **Few creatures:** nothing is cut off, so the same sources go on the list, only in a different order, and the field sums them. Look unchanged: compare `r15-row2-wade-row2b.png` with row 1's `r15-row1-wade-after.png`. `r15-row2-wade-stride.png` caught a stride's ring set by timing; retakes show the same faint ring as before.
+- **Not done yet: W-148's geyser vent sources.** world/no-water-discs is not on main yet. Once it merges, I'll add the vents to the same turn order, after the players.
+- **lod-lint:** clean.
+- **BENCH-QUEUE:** no new cost worth a job (one sort of the square's creatures per field step, about 60 at most). Job 62 can include it: same branch, commit dadf0457.
+- **Pins:** not touched.
