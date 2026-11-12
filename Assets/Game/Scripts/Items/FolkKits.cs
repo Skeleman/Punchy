@@ -383,6 +383,13 @@ namespace Punchy.Items
                     Debug.LogError($"Items: FolkKits.HandLook({i}) is {HandLook(i)}, the {ItemTable.Items[i].Name}'s look is {ItemTable.Items[i].Weapon}");
                 if (WornLook(i) != ItemTable.Items[i].Look)
                     Debug.LogError($"Items: FolkKits.WornLook({i}) is {WornLook(i)}, the {ItemTable.Items[i].Name}'s look is {ItemTable.Items[i].Look}");
+                // (Zach 11-12: what the folk hold and wear, a player can hold and wear: an item with a hand look goes in
+                // a hand, one with a worn look in a worn place.)
+                var slot = ItemTable.Items[i].Slot;
+                if (ItemTable.Items[i].Weapon != CreatureWeapon.None && slot != GearSlot.Hand && slot != GearSlot.OffHand)
+                    Debug.LogError($"Items: FolkKits: the {ItemTable.Items[i].Name} has a hand look but a player can't hold it (Slot {slot})");
+                if (ItemTable.Items[i].Look != 0 && (slot == GearSlot.None || slot == GearSlot.Hand || slot == GearSlot.OffHand))
+                    Debug.LogError($"Items: FolkKits: the {ItemTable.Items[i].Name} has a worn look but a player can't wear it (Slot {slot})");
             }
         }
     }

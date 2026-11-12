@@ -62,8 +62,8 @@ namespace Punchy.Items
     {
         public static readonly ItemDef[] Items =
         {
-            new ItemDef { Name = "Stick", Colour = new Color(0.55f, 0.38f, 0.2f), Stack = 20, Weight = 0.3f, Weapon = Punchy.Fauna.CreatureWeapon.Stick, Length = 0.6f },
-            new ItemDef { Name = "Stone", Colour = new Color(0.55f, 0.55f, 0.58f), Stack = 20, Weight = 1f, Weapon = Punchy.Fauna.CreatureWeapon.Stone },
+            new ItemDef { Name = "Stick", Colour = new Color(0.55f, 0.38f, 0.2f), Stack = 20, Weight = 0.3f, Slot = GearSlot.Hand, Weapon = Punchy.Fauna.CreatureWeapon.Stick, Length = 0.6f },
+            new ItemDef { Name = "Stone", Colour = new Color(0.55f, 0.55f, 0.58f), Stack = 20, Weight = 1f, Slot = GearSlot.Hand, Weapon = Punchy.Fauna.CreatureWeapon.Stone },
             new ItemDef { Name = "Berry", Colour = new Color(0.75f, 0.1f, 0.3f), Accent = new Color(0.25f, 0.5f, 0.2f), Stack = 30, Weight = 0.02f },
             new ItemDef { Name = "Mushroom", Colour = new Color(0.72f, 0.32f, 0.2f), Accent = new Color(0.9f, 0.85f, 0.72f), Stack = 20, Weight = 0.05f },
             new ItemDef { Name = "Shell", Colour = new Color(0.95f, 0.85f, 0.8f), Stack = 20, Weight = 0.05f },
@@ -118,9 +118,9 @@ namespace Punchy.Items
             // What healers, traders and bakers have in hand, and food.
             new ItemDef { Name = "Bowl", Colour = new Color(0.5f, 0.36f, 0.22f), Accent = new Color(0.32f, 0.42f, 0.2f), Stack = 5, Weight = 0.4f, Slot = GearSlot.Hand, Weapon = Punchy.Fauna.CreatureWeapon.Bowl },
             new ItemDef { Name = "Jar", Colour = new Color(0.55f, 0.32f, 0.2f), Accent = new Color(0.7f, 0.6f, 0.45f), Stack = 5, Weight = 0.6f, Slot = GearSlot.Hand, Weapon = Punchy.Fauna.CreatureWeapon.Jar },
-            new ItemDef { Name = "Apple", Colour = new Color(0.78f, 0.18f, 0.12f), Accent = new Color(0.3f, 0.5f, 0.2f), Stack = 20, Weight = 0.15f, Weapon = Punchy.Fauna.CreatureWeapon.Fruit },
-            new ItemDef { Name = "Bread", Colour = new Color(0.62f, 0.38f, 0.16f), Accent = new Color(0.8f, 0.6f, 0.35f), Stack = 10, Weight = 0.4f, Weapon = Punchy.Fauna.CreatureWeapon.Loaf },
-            new ItemDef { Name = "Dough", Colour = new Color(0.9f, 0.82f, 0.62f), Stack = 5, Weight = 0.5f, Weapon = Punchy.Fauna.CreatureWeapon.Dough },
+            new ItemDef { Name = "Apple", Colour = new Color(0.78f, 0.18f, 0.12f), Accent = new Color(0.3f, 0.5f, 0.2f), Stack = 20, Weight = 0.15f, Slot = GearSlot.Hand, Weapon = Punchy.Fauna.CreatureWeapon.Fruit },
+            new ItemDef { Name = "Bread", Colour = new Color(0.62f, 0.38f, 0.16f), Accent = new Color(0.8f, 0.6f, 0.35f), Stack = 10, Weight = 0.4f, Slot = GearSlot.Hand, Weapon = Punchy.Fauna.CreatureWeapon.Loaf },
+            new ItemDef { Name = "Dough", Colour = new Color(0.9f, 0.82f, 0.62f), Stack = 5, Weight = 0.5f, Slot = GearSlot.Hand, Weapon = Punchy.Fauna.CreatureWeapon.Dough },
             // Props at a worker's post (placed there; heavy).
             new ItemDef { Name = "Kneading table", Colour = new Color(0.6f, 0.48f, 0.32f), Accent = new Color(0.9f, 0.88f, 0.82f), Stack = 1, Weight = 25f },
             new ItemDef { Name = "Chopping block", Colour = new Color(0.32f, 0.22f, 0.14f), Accent = new Color(0.7f, 0.56f, 0.36f), Stack = 1, Weight = 30f },
