@@ -84,6 +84,7 @@ namespace Punchy.Terrain
                     // Its tiles darkened round its own set and any cave plants and dungeon boxes standing in it.
                     var contacts = RoomTileContacts(room, kit);
                     meshes = CaveRoomKit.BuildMeshes(kit, 0f, contacts);
+                    Counts.RoomTiles++;
                     roomMeshes[i] = meshes;
                     roomTileContacts[i] = (tileContactsVersion, ContactShade.Hash(contacts));
                 }

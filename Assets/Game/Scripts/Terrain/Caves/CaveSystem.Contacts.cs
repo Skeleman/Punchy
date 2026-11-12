@@ -101,6 +101,7 @@ namespace Punchy.Terrain
                     continue;
                 roomContacts[i] = CaveRoomKit.Get(set.Rooms[i]).Contacts;
                 made++;
+                Counts.RoomKits++;
                 contactsDirty = true;
             }
 
@@ -169,6 +170,7 @@ namespace Punchy.Terrain
         /// <summary>Sorts every contact into the chunks it can darken and hashes each chunk's list.</summary>
         void SortContacts()
         {
+            Counts.Sorts++;
             foreach (var list in contactBuckets.Values)
                 list.Clear();
             if (plantContacts != null)

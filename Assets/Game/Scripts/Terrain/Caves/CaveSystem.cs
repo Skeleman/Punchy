@@ -103,6 +103,13 @@ namespace Punchy.Terrain
             /// chunk's contact list it was built with, so a chunk whose list has changed since is rebuilt.</summary>
             public NativeArray<ContactShade.Contact> Contacts;
             public uint ContactHash;
+            /// <summary>W-135 row 6: what the surface skip made of it last frame (0 hidden, 1 shadow only, 2 drawn; -1 not yet),
+            /// to count flips.</summary>
+            public int LastSeen = -1;
+            /// <summary>W-135 row 6: the least cave distance among its field's points (written by MeshJob), and whether
+            /// it came out empty with the cave too far off for a finer grid to find a wall either (never rebuilt finer).</summary>
+            public NativeArray<float> Gap;
+            public bool Clear;
 
             public void Dispose()
             {
@@ -113,6 +120,7 @@ namespace Punchy.Terrain
                 }
                 Job.Complete();
                 if (Opening.IsCreated) Opening.Dispose();
+                if (Gap.IsCreated) Gap.Dispose();
                 if (Contacts.IsCreated) Contacts.Dispose();
                 if (Field.IsCreated) Field.Dispose();
                 if (CaveField.IsCreated) CaveField.Dispose();
@@ -135,6 +143,11 @@ namespace Punchy.Terrain
         [Tooltip("Cave chunks building at once at most. Each holds a few MB of fields while it builds, and too many " +
                  "crowd the terrain's own jobs off the workers.")]
         [Min(1)] public int MaxBuilding = 4;
+        [Tooltip("W-135 row 6: chunks rebuilt (at another wall level, or for a changed contact list) started per frame at " +
+                 "most, and in flight at once. A finer rebuild is a new chunk's whole cost (a level-0 field is about 300k " +
+                 "points), so walking up to a mouth they're spread out, not started two a frame.")]
+        [Min(1)] public int RebuildsPerFrame = 1;
+        [Min(1)] public int MaxRebuilding = 2;
         [Tooltip("Above this camera speed (m/s: gliding, riding) caves build only within Fast Radius, one chunk at a " +
                  "time: cave walls can't be seen from the air, and their jobs would land on the frames the terrain is " +
                  "meshing in.")]
@@ -1479,6 +1492,7 @@ namespace Punchy.Terrain
 
         void Stream(in TerrainSource source, float3 camPos)
         {
+            BeginFrameCounts();
             if (!IndexChunks(source))
                 return;
             RefreshContacts(source, camPos);
@@ -1542,12 +1556,16 @@ namespace Punchy.Terrain
             var fast = cameraSpeed > FastSpeed;
 
             var building = dying.Count;
+            var rebuilding = 0;
             foreach (var b in chunks.Values)
             {
                 if (b.Pending)
                     building++;
                 if (b.Next != null)
+                {
                     building++;
+                    rebuilding++;
+                }
             }
             var budget = fast ? 1 : MaxBuilding;
             var started = 0;
@@ -1559,15 +1577,27 @@ namespace Punchy.Terrain
                     break;
                 wanted.RemoveAt(wanted.Count - 1);
                 if (!chunks.ContainsKey(key))
+                {
                     chunks[key] = StartBuild(source, key, WallLevel(key, camPos, -1));
+                    Counts.NewBuilds++;
+                }
             }
             // W-135 row 2: then, with what's left of the budget, rebuild the nearest chunks whose wall level should
-            // change. An empty chunk is only rebuilt finer (a coarse grid can miss a sliver of wall a fine one finds).
-            for (; started < BuildsPerFrame && building < budget; started++, building++)
+            // change. An empty chunk is only rebuilt finer (a coarse grid can miss a sliver of wall a fine one finds),
+            // and not even that once it's Clear (row 6).
+            // W-135 row 6: at most RebuildsPerFrame a frame and MaxRebuilding at once, so walking up to a mouth they
+            // don't crowd the terrain's jobs off the workers. The nearest going finer (or with a changed contact list)
+            // goes first; one going coarser waits until nothing else is building. Its finer walls draw on until then:
+            // a few more triangles for a while, never a pop.
+            for (var rebuilds = 0; rebuilds < RebuildsPerFrame && started < BuildsPerFrame && building < budget && rebuilding < MaxRebuilding;
+                 rebuilds++, started++, building++, rebuilding++)
             {
                 var best = new int3(int.MinValue);
                 var bestDistance = float.MaxValue;
                 var bestLevel = 0;
+                var coarse = new int3(int.MinValue);
+                var coarseDistance = float.MaxValue;
+                var coarseLevel = 0;
                 foreach (var kv in chunks)
                 {
                     var b = kv.Value;
@@ -1576,19 +1606,43 @@ namespace Punchy.Terrain
                     var level = WallLevel(kv.Key, camPos, b.Level);
                     // W-135 row 4: or whose contact list changed since it was built (rebuilt at its level).
                     var stale = b.Mesh != null && b.ContactHash != ChunkContactHash(kv.Key);
-                    if (!stale && (level == b.Level || b.Mesh == null && level > b.Level))
+                    if (!stale && (level == b.Level || b.Mesh == null && (level > b.Level || b.Clear)))
                         continue;
                     var distance = ChunkDistance(kv.Key, camPos);
-                    if (distance < bestDistance)
+                    if (!stale && level > b.Level)
+                    {
+                        if (distance < coarseDistance)
+                        {
+                            coarse = kv.Key;
+                            coarseDistance = distance;
+                            coarseLevel = level;
+                        }
+                    }
+                    else if (distance < bestDistance)
                     {
                         best = kv.Key;
                         bestDistance = distance;
                         bestLevel = level;
                     }
                 }
+                if (bestDistance == float.MaxValue && building == 0)
+                {
+                    best = coarse;
+                    bestDistance = coarseDistance;
+                    bestLevel = coarseLevel;
+                }
                 if (bestDistance == float.MaxValue || fast && bestDistance > FastRadius)
                     break;
-                chunks[best].Next = StartBuild(source, best, bestLevel);
+                var rebuilt = chunks[best];
+                if (bestLevel != rebuilt.Level)
+                {
+                    Counts.LevelBuilds++;
+                    if (bestLevel < rebuilt.Level) Counts.Finer++; else Counts.Coarser++;
+                    if (rebuilt.Mesh == null) Counts.EmptyRebuilds++;
+                }
+                else
+                    Counts.ContactBuilds++;
+                rebuilt.Next = StartBuild(source, best, bestLevel);
             }
 
             var uploads = 0;
@@ -1608,9 +1662,16 @@ namespace Punchy.Terrain
                 var next = old.Next;
                 old.Next = null;
                 next.OpeningSeen = old.OpeningSeen;
+                next.LastSeen = old.LastSeen;
                 old.Dispose();
                 chunks[key] = next;
+                Counts.Swaps++;
             }
+            Counts.Building = building;
+            foreach (var b in chunks.Values)
+                if (b.Next != null)
+                    Counts.Rebuilding++;
+            Counts.Wanted = wanted.Count;
         }
 
         readonly List<int3> swapped = new List<int3>();
@@ -1648,10 +1709,18 @@ namespace Punchy.Terrain
             if (b.Indices.Length > 0 && uploads >= UploadsPerFrame)
                 return false;
             b.Pending = false;
+            // W-135 row 6: walls only come where a cell corner is within WallReach of the cave, and every point a finer
+            // grid samples is within a coarse voxel's half-diagonal (0.87 voxel) of one this grid sampled. With the
+            // least sampled distance two voxels past WallReach, a finer grid can't find a wall here either. (A point
+            // no segment box holds reads as far: those boxes reach Blend + 4 m past the walls, more than a level-2
+            // voxel's half-diagonal past any point within WallReach, so the nearest sample to such a point is held.)
+            b.Clear = b.Indices.Length == 0 && b.Gap[0] >= WallReach + 2f * LevelVoxel(b.Level);
             // Chunks the cave only grazes come out empty: keep the record (so they aren't rebuilt), not a mesh.
             if (b.Indices.Length > 0)
             {
                 uploads++;
+                Counts.Uploads++;
+                Counts.UploadVertices += b.Positions.Length;
                 var mesh = new Mesh { name = "Cave chunk", indexFormat = IndexFormat.UInt32 };
                 mesh.SetVertices(b.Positions.AsArray());
                 mesh.SetNormals(b.Normals.AsArray());
@@ -1693,6 +1762,7 @@ namespace Punchy.Terrain
             b.Data.Dispose();
             b.Indices.Dispose();
             b.Opening.Dispose();
+            b.Gap.Dispose();
             b.Contacts.Dispose();
             return true;
         }
@@ -1734,6 +1804,7 @@ namespace Punchy.Terrain
             var origin = key * levelCells - 1;
             var cells = new int3(levelCells + 2);
             var points = cells + 1;
+            Counts.BuildPoints += points.x * points.y * points.z;
             var b = new Built
             {
                 Level = level,
@@ -1747,6 +1818,7 @@ namespace Punchy.Terrain
                 Colors = new NativeList<float4>(Allocator.Persistent),
                 Indices = new NativeList<int>(Allocator.Persistent),
                 Opening = new NativeArray<float3>(2, Allocator.Persistent),
+                Gap = new NativeArray<float>(1, Allocator.Persistent),
                 Contacts = ChunkContacts(key),
                 ContactHash = ChunkContactHash(key),
                 Pending = true
@@ -1762,7 +1834,7 @@ namespace Punchy.Terrain
                 Source = source, Origin = origin, Cells = cells, Voxel = voxel, Skirt = voxel * SkirtVoxels,
                 Field = b.Field, CaveField = b.CaveField, ShardProbe = ShardProbe,
                 Positions = b.Positions, Normals = b.Normals, Colors = b.Colors, Data = b.Data, Indices = b.Indices,
-                Opening = b.Opening, Contacts = b.Contacts,
+                Opening = b.Opening, Gap = b.Gap, Contacts = b.Contacts,
                 ContactStrength = ContactShade.Strength, ContactReach = ContactShade.ReachScale
             }.Schedule(field);
             JobHandle.ScheduleBatchedJobs();
@@ -1878,6 +1950,8 @@ namespace Punchy.Terrain
             public float Skirt;
             /// <summary>W-135 row 4: the things standing on this chunk's rock, its walls darkened round them.</summary>
             [ReadOnly] public NativeArray<ContactShade.Contact> Contacts;
+            /// <summary>W-135 row 6: [0] the least CaveField value (Built.Gap).</summary>
+            public NativeArray<float> Gap;
             /// <summary>W-136 row 3: the shared per-kind tunables (ContactShade.Strength, ReachScale) when scheduled.</summary>
             public float4 ContactStrength, ContactReach;
 
@@ -1908,6 +1982,10 @@ namespace Punchy.Terrain
 
             public void Execute()
             {
+                var gap = float.MaxValue;
+                for (int i = 0; i < CaveField.Length; i++)
+                    gap = math.min(gap, CaveField[i]);
+                Gap[0] = gap;
                 var cellVertex = new NativeArray<int>(Cells.x * Cells.y * Cells.z, Allocator.Temp);
                 for (int i = 0; i < cellVertex.Length; i++)
                     cellVertex[i] = -1;
@@ -2308,6 +2386,9 @@ namespace Punchy.Terrain
                 // From the surface, a chunk no opening in view reaches is behind the ground, and one that no opening
                 // shows only casts its shadow (W-135 row 1).
                 var seen = skip ? SeenThroughOpening(b.Mesh.bounds, cam) : 2;
+                if (b.LastSeen >= 0 && b.LastSeen != seen)
+                    Counts.SkipFlips++;
+                b.LastSeen = seen;
                 if (seen == 0 || seen == 1 && !b.CastsShadows)
                     continue;
                 if (CountStats)
