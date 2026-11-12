@@ -459,7 +459,7 @@ Shader "Punchy/Terrain Surface"
                 // step out). Grain: the caves' shared detail read on the two side planes the face is nearest
                 // (biplanar: a face this steep never needs the top one), at 2 m and 12 m. Every part fades by its own
                 // on-screen size (DetailPolicy.ScreenSize via the reference pixels a metre spans), never by metres.
-                half rockBand = 0, rockGrain = 0, rockMottle = 0;
+                half rockBand = 0, rockGrain = 0, rockMottle = 0, rockBlock = 0, rockLedge = 0;
                 [branch] if (rockFace > 0.001)
                 {
                     float ppm = _PunchyTerrainDetailPpm > 0 ? _PunchyTerrainDetailPpm : 935 * detailFar / 110;
@@ -473,7 +473,23 @@ Shader "Punchy/Terrain Surface"
                     float2 thin = float2(PunchyValueNoise(float2(y / 1.4, 23.1)), PunchyValueNoise(float2((y + ey) / 1.4, 23.1)));
                     float2 bed = (thick - 0.5) * thickF + (thin - 0.5) * 0.5 * thinF;
                     rockBand = bed.x;
-                    normalWS = normalize(normalWS + half3(0, saturate((bed.y - bed.x) / ey) * 0.5 * rockFace, 0));
+                    half rise = (bed.y - bed.x) / ey;
+                    normalWS = normalize(normalWS + half3(0, saturate(rise) * 0.5 * rockFace, 0));
+                    rockLedge = saturate(-rise * 0.5);   // the underside of a bed lip sits in its own shade
+                    // Blocks: 3D cells (so no projection can stretch them) a bed high, of a width that changes course to
+                    // course, offset like stone courses, each a little lighter or darker. Soft edged, no drawn joints:
+                    // a grid of lines reads as brickwork, not as a mountain.
+                    half blockF = saturate((2.5 * pxm - 2) / 2);
+                    [branch] if (blockF > 0.001)
+                    {
+                        float row = floor(y / 1.6);
+                        float rowHash = frac(sin(row * 12.9898) * 43758.5453);
+                        float2 bq = input.positionWS.xz / (1.8 + 2.4 * rowHash) + row * 0.37;
+                        float2 cell = floor(bq), f = frac(bq);
+                        float h = frac(sin(dot(float3(cell, row), float3(12.9898, 78.233, 37.719))) * 43758.5453);
+                        half soft = smoothstep(0.0, 0.18, min(min(f.x, 1 - f.x), min(f.y, 1 - f.y)));
+                        rockBlock = (h - 0.5) * lerp(0.5, 1, soft) * blockF;
+                    }
                     [branch] if (_PunchyCaveDetailReady > 0 && max(fineF, coarseF) > 0.001)
                     {
                         half3 vn = normalize(input.normalWS);
@@ -553,14 +569,16 @@ Shader "Punchy/Terrain Surface"
                     rockShade = lerp(rockShade, 1, input.strata * 0.7);
                 }
                 // R-19: steep faces take the rock's colour: the biome's own steep surface (its slope layer already
-                // picks red sandstone on the mesas, glass plate in the glass desert, grey rock in the mountains), greyed
-                // a little, and more where grass grew (a grassy bank turns to stone, not green stone), then banded and
-                // grained. Mesa strata already band the colour strongly, so the beds add less there.
+                // picks red sandstone on the mesas, glass plate in the glass desert, grey rock in the mountains), its hue
+                // kept, greyed only where grass grew (a grassy bank turns to stone, not green stone), then banded,
+                // blocked, grained and shaded under its ledges. Mesa strata already band the colour strongly, so the beds add less there.
                 [branch] if (rockFace > 0.001)
                 {
                     half luma = dot(albedo, half3(0.3, 0.5, 0.2));
-                    half3 rock = lerp(albedo, luma.xxx * half3(1.03, 0.98, 0.92), 0.2 + 0.6 * input.extra.y);
-                    rock *= (1 + rockBand * 0.4 * (1 - 0.6 * input.strata)) * (1 + rockGrain * 0.6) * (1 + rockMottle * 0.5);
+                    half3 rock = lerp(albedo, luma.xxx * half3(1.03, 0.98, 0.92), 0.6 * input.extra.y);
+                    half lessOnStrata = 1 - 0.6 * input.strata;
+                    rock *= (1 + rockBand * 1.0 * lessOnStrata) * (1 + rockBlock * 0.7 * lessOnStrata)
+                          * (1 + rockGrain * 0.6) * (1 + rockMottle * 0.7) * (1 - rockLedge * 0.45);
                     albedo = lerp(albedo, rock, rockFace);
                 }
                 albedo *= rockShade;
