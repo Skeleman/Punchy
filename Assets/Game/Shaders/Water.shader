@@ -28,6 +28,9 @@ Shader "Punchy/Water"
         _Sparkle("Sun Sparkle", Range(0, 1)) = 0.6
         // 1 on CaveSystem's copy for cave pools and streams: always under rock, whatever the camera's depth.
         [HideInInspector] _UnderRock("Under Rock", Float) = 0
+        // 1 on CaveSystem's copies for cave water and landmark pools (W-148 row 5): their 0.5 m lattice is too coarse to
+        // dent, so inside the player's square the wave field tilts their normals instead (rings without the fine sheet).
+        [HideInInspector] _LatticeField("Lattice Field", Float) = 0
         // Lava drawn as molten gold instead (the 11-08 lava look, kept for a gold liquid later: playtest 11-08 item 37).
         // Nothing sets it yet; a material copy with it on draws its lava gold.
         [ToggleUI] _GoldLiquid("Gold Liquid (lava draws as molten gold)", Float) = 0
@@ -59,6 +62,7 @@ Shader "Punchy/Water"
             float _DetailScale;
             half _Sparkle;
             half _UnderRock;
+            half _LatticeField;
             half _GoldLiquid;
         CBUFFER_END
         ENDHLSL
@@ -637,6 +641,19 @@ Shader "Punchy/Water"
                     wakeFoam = lerp(wakeFoam, (half)smoothstep(0.9, 1.8, length(fieldSlope)) * 0.7h, (half)fieldWeight);
                     // Row 5: foam where a fall's curtain lands and churns the pool.
                     wakeFoam = max(wakeFoam, (half)(fallChurn * 0.7));
+                }
+            #else
+                // W-148 row 5: cave water and landmark pools (a 0.5 m lattice, never under the fine sheet) take the field's
+                // slope in their normals inside the player's square, so a wader's wake or a geyser's rings show there too.
+                [branch] if (_LatticeField > 0.5)
+                {
+                    float fieldWeight = PunchyWaterLatticeFieldWeight(input.restXZ);
+                    [branch] if (fieldWeight > 0)
+                    {
+                        float2 fieldSlope = PunchyWaterFieldSlope(input.restXZ) * 2.5;
+                        wakeSlope = lerp(wakeSlope, fieldSlope, fieldWeight);
+                        wakeFoam = lerp(wakeFoam, (half)smoothstep(0.9, 1.8, length(fieldSlope)) * 0.7h, (half)fieldWeight);
+                    }
                 }
             #endif
                 // Murky water barely ripples; thick water instead heaves in slow, broad swells and bubbles.

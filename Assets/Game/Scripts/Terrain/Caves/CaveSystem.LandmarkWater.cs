@@ -68,7 +68,7 @@ namespace Punchy.Terrain
             LandmarkWatersDrawn = 0;
             if (!source.Landmarks.IsCreated || configQuery.IsEmpty)
                 return;
-            var water = configQuery.GetSingleton<TerrainConfig>().WaterMaterial.Value;
+            var water = LandmarkWater(configQuery.GetSingleton<TerrainConfig>().WaterMaterial.Value);
             if (water == null)
                 return;
             if (landmarkPoolsFrom != source.Landmarks)
@@ -129,6 +129,29 @@ namespace Punchy.Terrain
             }
             if (next >= 0)
                 StartLandmarkWaterBake(source, next);
+        }
+
+        Material landmarkWater;
+
+        /// <summary>
+        /// A copy of the terrain's water material for landmark pools (W-148 row 5): open-air water like the chunk water's,
+        /// but its lattice takes the wave field in its normals (_LatticeField), so a geyser's rings and a wader's wake show.
+        /// Kept in step with the original's settings.
+        /// </summary>
+        Material LandmarkWater(Material water)
+        {
+            if (water == null)
+                return null;
+            if (landmarkWater == null || landmarkWater.shader != water.shader)
+            {
+                if (landmarkWater != null)
+                    Destroy(landmarkWater);
+                landmarkWater = new Material(water) { name = "Landmark pool water" };
+            }
+            else
+                landmarkWater.CopyPropertiesFromMaterial(water);
+            landmarkWater.SetFloat(LatticeFieldId, 1f);
+            return landmarkWater;
         }
 
         /// <summary>Starts sampling the lattice round landmark pool i.</summary>

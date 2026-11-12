@@ -27,6 +27,9 @@ namespace Punchy.Terrain
     /// Outside the square, on Low water quality or with "-waterfield 0", the swimmer ripples carry on alone.
     /// A river fall that looks big enough gets a fine sheet of its own (row 5, WaterPatchSystem.Falls.cs): its sloping
     /// quads cut along the drop, with a curling lip, a rippled curtain and churn at the foot.
+    /// W-148 row 5: a geyser's vent in the square stirs it too, a soft splash every second or so (each on its own seeded
+    /// beat), stronger as the spout builds and while it erupts; cave water and landmark pools show the field in their
+    /// normals (_LatticeField in Water.shader).
     /// Cosmetic and per machine, from state every machine already has (the creature snapshot); nothing is sent.
     /// </summary>
     [UpdateInGroup(typeof(PresentationSystemGroup))]
@@ -50,6 +53,21 @@ namespace Punchy.Terrain
         /// a walk, so a wader trails a V rather than pushing a ring ahead of it.</summary>
         const float StepTime = 1f / 60f, WaveSpeed = 0.9f;
         const int MaxSteps = 4, MaxSources = 64;
+        /// <summary>A geyser vent's splash: its radius (m) and how deep it knocks the surface (m) at rest, how much deeper
+        /// as the spout builds up (the last <see cref="VentBuild"/> of its period) and while it erupts.</summary>
+        const float VentRadius = 0.3f, VentDepth = 0.018f, VentBuildGain = 1.2f, VentEruptGain = 2.5f, VentBuild = 0.15f;
+
+        /// <summary>A spout that erupts from water (W-148 row 5): where, and its eruption clock as its plume's (period s,
+        /// duty, seed; LandmarkEffects.hlsl). LandmarkEffectSystem keeps the list of those near the camera.</summary>
+        public struct Vent
+        {
+            public float2 At;
+            public float Period, Duty, Seed;
+        }
+        public static readonly List<Vent> Vents = new List<Vent>();
+        /// <summary>Geyser vents inside the square, and the splashes they gave, when the field last stepped, and all the
+        /// splashes vents have given (probe).</summary>
+        public int VentsInField, VentSplashes, VentSplashTotal;
 
         static readonly int FieldId = Shader.PropertyToID("_PunchyWaterField");
         static readonly int FieldAtId = Shader.PropertyToID("_PunchyWaterFieldAt");
@@ -238,8 +256,54 @@ namespace Punchy.Terrain
             /// <summary>Each creature's place when this last ran (to see it drop through the surface, and which way it goes).</summary>
             public NativeHashMap<Entity, float3> LastAt;
             public NativeList<float4> Presses, Splashes;
+            /// <summary>Geyser vents near the camera, and the shared clock now and when this last ran (the spouts' own).</summary>
+            [ReadOnly] public NativeArray<Vent> Vents;
+            public float Clock, LastClock;
+            /// <summary>x vents inside the square, y splashes they gave.</summary>
+            public NativeReference<int2> VentCount;
 
             public void Execute()
+            {
+                Creatures();
+                // After every creature's (they keep the slots first, R-15 row 2): each geyser vent in the square knocks
+                // a soft splash ring out from its centre on its own beat, every 0.5-1.5 s.
+                var counted = int2.zero;
+                for (int v = 0; v < Vents.Length; v++)
+                {
+                    var vent = Vents[v];
+                    var at = (vent.At - Corner) * TexelsPerMetre;
+                    if (math.any(at < 0f) || math.any(at > Size))
+                        continue;
+                    counted.x++;
+                    // The spout's eruption, as its plume draws it (LandmarkEffects.hlsl), and the build-up just before.
+                    var phase = math.frac(Clock / vent.Period + vent.Seed);
+                    var erupt = math.smoothstep(0f, 0.04f, phase) * (1f - math.smoothstep(vent.Duty * 0.6f, vent.Duty, phase));
+                    var build = math.smoothstep(1f - VentBuild, 1f, phase);
+                    var depth = VentDepth * (1f + VentBuildGain * build + VentEruptGain * erupt);
+                    // Splash j comes at j plus a seeded jitter of up to a quarter second either way (so 0.5-1.5 s apart);
+                    // while it erupts, a second beat half a second on doubles them.
+                    var beats = erupt > 0.3f ? 2 : 1;
+                    for (int b = 0; b < beats; b++)
+                    {
+                        var shift = vent.Seed * 17.3f + b * 0.5f;
+                        var now = Clock + shift;
+                        var then = LastClock + shift;
+                        for (var j = math.floor(now) - 1f; j <= math.floor(now) + 1f; j++)
+                        {
+                            var jitter = (math.frac(math.sin(j * 12.9898f + vent.Seed * 78.233f + b * 3.7f) * 43758.5453f) - 0.5f) * 0.5f;
+                            var when = j + jitter;
+                            if (when > then && when <= now && Splashes.Length < MaxSources)
+                            {
+                                Splashes.Add(new float4(at, -VentRadius * TexelsPerMetre, depth));
+                                counted.y++;
+                            }
+                        }
+                    }
+                }
+                VentCount.Value = counted;
+            }
+
+            void Creatures()
             {
                 for (int i = 0; i < States.Length; i++)
                 {
@@ -314,7 +378,8 @@ namespace Punchy.Terrain
         int kernel = -1;
         ComputeBuffer sourceBuffer;
         readonly float4[] sourceArray = new float4[MaxSources];
-        float lastSourceTime;
+        float lastSourceTime, lastClock;
+        static readonly int ClockId = Shader.PropertyToID("_PunchyClock");
         NativeHashMap<Entity, float3> lastAt;
         NativeList<ParentQuad> quads;
         readonly List<Mesh> gatherMeshes = new List<Mesh>(4);
@@ -752,14 +817,29 @@ namespace Punchy.Terrain
                 var presses = new NativeList<float4>(16, Allocator.TempJob);
                 var splashes = new NativeList<float4>(4, Allocator.TempJob);
                 var now = (float)SystemAPI.Time.ElapsedTime;
+                // (The spouts' clock: the shared one their plumes erupt by.)
+                var clock = Shader.GetGlobalFloat(ClockId);
+                if (clock < lastClock || clock - lastClock > 1f)
+                    lastClock = clock;
+                var vents = new NativeArray<Vent>(Vents.Count, Allocator.TempJob);
+                for (int v = 0; v < Vents.Count; v++)
+                    vents[v] = Vents[v];
+                var ventCount = new NativeReference<int2>(Allocator.TempJob);
                 CreatureSnapshotSystem.Get(World, creatureQuery, out var states, out var bodies, out var entities);
                 new SourceJob
                 {
                     States = states, Bodies = bodies, Entities = entities, Terrain = SystemAPI.GetSingleton<TerrainSource>(),
-                    Corner = fieldCorner, DeltaTime = math.max(dt, StepTime), Time = now, LastTime = lastSourceTime, LastAt = lastAt, Presses = presses, Splashes = splashes
+                    Corner = fieldCorner, DeltaTime = math.max(dt, StepTime), Time = now, LastTime = lastSourceTime, LastAt = lastAt, Presses = presses, Splashes = splashes,
+                    Vents = vents, Clock = clock, LastClock = lastClock, VentCount = ventCount
                 }.Run();
                 CreatureSnapshotSystem.Release(World, states, bodies, entities);
+                VentsInField = ventCount.Value.x;
+                VentSplashes = ventCount.Value.y;
+                VentSplashTotal += VentSplashes;
+                vents.Dispose();
+                ventCount.Dispose();
                 lastSourceTime = now;
+                lastClock = clock;
                 if (lastAt.Count > 2000)
                     lastAt.Clear();
                 // (Dimples first, splashes after: later steps leave the splashes out, as they knock the surface once.)

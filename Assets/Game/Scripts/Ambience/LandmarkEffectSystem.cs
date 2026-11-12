@@ -86,6 +86,7 @@ namespace Punchy.Ambience
             fallBuffer?.Release();
             plumeBuffer = fallBuffer = null;
             lastNearby.Clear();
+            WaterPatchSystem.Vents.Clear();
             foreach (var handle in fallLoops.Values)
                 Punchy.Audio.GameAudio.StopLoop(handle);
             fallLoops.Clear();
@@ -345,6 +346,7 @@ namespace Punchy.Ambience
 
             plumes.Clear();
             falls.Clear();
+            WaterPatchSystem.Vents.Clear();
             heardFalls.Clear();
             fires.Clear();
             fireLights.Clear();
@@ -528,6 +530,13 @@ namespace Punchy.Ambience
                         // Bubbles ride the plume's draw, flagged by a negative lifetime (LandmarkEffects.hlsl).
                         if (effect.Kind == LandmarkEffectKind.Bubbles)
                             emitter.Shape.w = -math.max(effect.Lifetime, 0.1f);
+                        // W-148 row 5: a spout that erupts from water (a geyser's pool) stirs the wave field at its vent,
+                        // on the spout's own clock, so the rings swell as it builds and erupts.
+                        if (effect.Kind == LandmarkEffectKind.Plume && effect.Period > 0f && ground.HasWater)
+                            WaterPatchSystem.Vents.Add(new WaterPatchSystem.Vent
+                            {
+                                At = emitter.Position.xz, Period = effect.Period, Duty = effect.Duty, Seed = emitter.Seed
+                            });
                         plumes.Add(emitter);
                         maxParticles = math.max(maxParticles, effect.Particles);
                         top = y + effect.Height * inst.Scale;

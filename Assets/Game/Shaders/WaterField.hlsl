@@ -55,6 +55,15 @@ float PunchyWaterFieldWeight(float2 restXZ)
     return SAMPLE_TEXTURE2D_LOD(_PunchyWaterPatchWeight, sampler_PunchyWaterPatchWeight, uv, 0).r;
 }
 
+// W-148 row 5: how much the field shows on lattice water (cave water, landmark pools) here: 1 inside the player's
+// square, easing to 0 over its outer metres (where the field soaks its waves up), 0 outside it or with the field off.
+float PunchyWaterLatticeFieldWeight(float2 restXZ)
+{
+    float2 lo = restXZ - _PunchyWaterPatchRect.xy, hi = _PunchyWaterPatchRect.zw - restXZ;
+    float edge = min(min(lo.x, lo.y), min(hi.x, hi.y));
+    return smoothstep(1.5, 4.0, edge);
+}
+
 float2 PunchyWaterFieldUV(float2 xz)
 {
     return (xz - _PunchyWaterFieldAt.xy) * _PunchyWaterFieldAt.z / _PunchyWaterFieldAt.w;

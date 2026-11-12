@@ -194,6 +194,7 @@ namespace Punchy.Terrain
         static readonly int DetailReadyId = Shader.PropertyToID("_PunchyCaveDetailReady");
         static readonly int FloraInCaveId = Shader.PropertyToID("_FloraInCave");
         static readonly int UnderRockId = Shader.PropertyToID("_UnderRock");
+        static readonly int LatticeFieldId = Shader.PropertyToID("_LatticeField");
         static Texture2D detail;
 
         void OnEnable()
@@ -346,6 +347,9 @@ namespace Punchy.Terrain
             if (caveWater != null)
                 Destroy(caveWater);
             caveWater = null;
+            if (landmarkWater != null)
+                Destroy(landmarkWater);
+            landmarkWater = null;
             ReleaseBatFolk();
             ReleaseRooms();
             Shader.SetGlobalVector(LanternId, Vector4.zero);
@@ -554,6 +558,7 @@ namespace Punchy.Terrain
             else
                 caveWater.CopyPropertiesFromMaterial(water);
             caveWater.SetFloat(UnderRockId, 1f);
+            caveWater.SetFloat(LatticeFieldId, 1f);
             return caveWater;
         }
         /// <summary>One draw per run of the same model and LOD: its mesh, and its index in plantArgs.</summary>
