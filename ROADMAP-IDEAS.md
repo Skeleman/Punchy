@@ -9,6 +9,7 @@ current release. Lane: A = animal, W = world.
   in the sand or snow) and periodically burst out in flat, duney areas (desert and glass desert dunes, snowfields).
   Needs a long segmented body, a ground-disturbance effect from the world side, and rules for where they may surface.
 - Climbable colossi (2026-11-12): sections of a colossus graded on the shared climbability scale (A-101), maybe a fur section to climb; the climb rides the colossus as it moves (#276).
+- Rideable creatures (2026-11-12): any creature can ride another at least 50% heavier than itself (rider mass x 1.5 <= mount mass), so a child can ride an adult, a cat a dog. Players can ride each other in multiplayer: the one being ridden keeps control, the rider is carried (#278).
 
 ## Dungeons: caves and ruins as expansive dungeons (2026-10-29)
 - Ruin types from different ancient cultures:
