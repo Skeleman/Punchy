@@ -5955,3 +5955,34 @@ Branch `world/mountain-tunnels` at f6217674 (pushed), on a149c17f. One commit: C
 - **Shots** (W-148/): `r5-geyser-1/2/3` and `r5-geyser-strip`, the pool from 5 m, 0.7 s apart, starting on a splash. Rings spread from the centre and grow wider frame to frame. They are faint, rings rather than a boil, and the spout's idle steam is above them. Frame 3 catches a fresh splash with a little foam at the vent.
 - **Pins:** Landmarks_V3 and Fauna_Fingerprint are not touched (no bake or placement data changed).
 - **For the supervisor:** this seed has no ToxicGeyser, so only the plain Geyser was shot. ToxicGeyser has the same flags (Period 18), so it gets a vent the same way.
+
+### Row 6: each liquid has its own viscosity (#277)
+- **Commits:** world/no-water-discs 853e820d, plus fc9e6385 (a lod-lint `sim:` comment) (both pushed). lod-lint clean.
+- **Viscosity:** `WaterPatchSystem.Viscosity(glow)` = max(lava, 0.3 x smoothstep(0, 0.1, self-glow)). Water is 0, white, toxic and the poison swamp are 0.3, and lava is 1. Water.shader's `PunchyLiquidViscosity` (WaterField.hlsl) is the same formula.
+- **Field (WaterField.compute):** a per-metre-corner viscosity texture (R8, bilinear) sets each texel's wave speed, damping and decay. CPU side, it is built from the chunk water quads' glow plus a `Liquids` list that CaveSystem publishes: landmark pools with v > 0, and cave pools that are lava or white. It is rebuilt when the square moves, when the list changes, or when the player's height changes by more than 2 m. In SourceJob, presses and splashes in thick liquid spread wider and push less deep.
+- **Params probe** (`W148R6Probe.Params`):
+
+  | Kind | v | wave speed | damping | decay | press r / d | splash r / d |
+  |---|---|---|---|---|---|---|
+  | water | 0 | x1.000 | 0.9940 | 0.9990 | x1.00 / x1.00 | x1.00 / x1.00 |
+  | white, swamp, toxic | 0.3 | x0.805 | 0.9799 | 0.9972 | x1.24 / x0.88 | x1.15 / x0.82 |
+  | lava | 1 | x0.35 | 0.947 | 0.993 | x1.80 / x0.60 | x1.50 / x0.40 |
+
+  Water's damping and decay are the old constants, and every viscosity term reduces to the old code at v = 0. So water steps and shades exactly as before.
+- **Shader (Water.shader):** thicker liquid gets slower and smaller ripples, slower river flow, slower detail drift and slower murk rings and bubbles, all on a clock tk = t x lerp(1, 0.3, v). For lava (non-gold), the field's slope x4 (LavaHeave) thins the crust where the surface heaves (LavaStir 0.9) and tilts the rock's lighting. Undisturbed lava looks the same as before, apart from the slower clock.
+- **Strips** (W-148/):
+  - `r6-<kind>-1/2/3` and the montage `r6-kinds-strips.png` (rows: water, white, toxic, lava). The same MudPits pool (202,-3632), r 5 m, is restyled in memory to each kind. The camera is the same for all four. Each kind gets the same knock (r 0.5 m, 6 cm) at the centre, with shots at +0.3, +0.9 and +1.8 s.
+  - `r6-toxic-lava-close.png`: a crop of the pool centre.
+  - What the shots show:
+    - Water: a wide ring that runs outward.
+    - White and toxic: smaller, slower rings, gone by frame 3.
+    - Lava: no ring. A bright stirred patch opens in the crust at the knock and slowly closes over 1.8 s.
+  - Square max viscosity during the shots was 0.298 (white and toxic) and 1.000 (lava).
+  - There is no pixel-by-pixel before/after strip for water. Water's equality rests on the v = 0 math above.
+- **Pins:** Landmarks_V3 and Fauna_Fingerprint are not touched (no bake or placement data changed).
+- **Correction to rows 4 and 5:** this seed (8121) does have a ToxicGeyser, at (-3273,1008), r 4.2 m, and a VolcanoCone lava pool, at (-2232,-3061), r 14.3 m. The earlier inventory missed them. I have not shot them yet.
+- **For the supervisor (decisions):**
+  1. Viscosity comes from the existing glow. As a result, PoisonSwamp chunk water (glow 0.35) is also thick (0.3). The alternative is an explicit viscosity field on the landmark and biome assets. Adding it would re-bake the terrain, so I did not.
+  2. Lava's churn now runs about 3.3x slower (tk). Its speed was tuned at playtest 11-08 item 37, so Zach may want to look.
+  3. Swell (sea) waves are not scaled, since they only run on the sea.
+- **BENCH-QUEUE:** the field step now samples one more texture per texel, and the viscosity rebuild costs about 1 ms of main thread when the square moves. Please queue a bench of a lake walk and the MudPits, main against world/no-water-discs.
