@@ -96,7 +96,7 @@ namespace Punchy.Items
             new ItemDef { Name = "Axe", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 1.6f, Slot = GearSlot.Hand, Damage = 8f, Reach = 1f, Speed = 1f, Weapon = Punchy.Fauna.CreatureWeapon.Axe, Length = 0.75f, Sheath = ItemSheath.Auto },
             new ItemDef { Name = "Hammer", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.5f, 0.51f, 0.54f), Stack = 1, Weight = 2.2f, Slot = GearSlot.Hand, Damage = 10f, Reach = 0.9f, Speed = 0.8f, Weapon = Punchy.Fauna.CreatureWeapon.Hammer, Length = 0.7f, Sheath = ItemSheath.Auto },
             // P-33: a fishing rod, held like a weapon but cast (Reach: the longest cast, m).
-            new ItemDef { Name = "Rod", Colour = new Color(0.55f, 0.4f, 0.22f), Accent = new Color(0.6f, 0.44f, 0.28f), Stack = 1, Weight = 0.8f, Slot = GearSlot.Hand, Reach = 22f, Speed = 1.6f, Weapon = Punchy.Fauna.CreatureWeapon.Rod, Length = 1.8f, Sheath = ItemSheath.Back },
+            new ItemDef { Name = "Rod", Colour = new Color(0.55f, 0.4f, 0.22f), Accent = new Color(0.6f, 0.44f, 0.28f), Stack = 1, Weight = 0.8f, Slot = GearSlot.Hand, Reach = 22f, Speed = 1.6f, TwoHanded = true, Weapon = Punchy.Fauna.CreatureWeapon.Rod, Length = 1.8f, Sheath = ItemSheath.Back },
             new ItemDef { Name = "Pickaxe", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 2.2f, Slot = GearSlot.Hand, Damage = 7f, Reach = 1.1f, Speed = 0.8f, Weapon = Punchy.Fauna.CreatureWeapon.Pickaxe, Length = 0.75f, Sheath = ItemSheath.Auto },
             // (Held, it is the folk's lit lantern, HeldItem.Lantern: its light is theirs, 9 m.)
             new ItemDef { Name = "Lantern", Colour = new Color(0.22f, 0.2f, 0.18f), Accent = new Color(1f, 0.78f, 0.4f), Stack = 1, Weight = 1f, Slot = GearSlot.Hand, Light = 9f },
@@ -104,7 +104,7 @@ namespace Punchy.Items
             // Zach 11-12, one item system: everything folk carry, wear and work with, as items (ids from 36).
             // What guards carry: an ogre's great club, a goblin's scrap shield.
             new ItemDef { Name = "Great club", Colour = new Color(0.36f, 0.24f, 0.14f), Accent = new Color(0.25f, 0.17f, 0.1f), Stack = 1, Weight = 4f, Slot = GearSlot.Hand, Damage = 11f, Reach = 1.3f, Speed = 0.6f, TwoHanded = true, Weapon = Punchy.Fauna.CreatureWeapon.GreatClub, Length = 1.15f, Sheath = ItemSheath.Auto },
-            new ItemDef { Name = "Shield", Colour = new Color(0.36f, 0.3f, 0.24f), Accent = new Color(0.25f, 0.22f, 0.2f), Stack = 1, Weight = 3f, Slot = GearSlot.OffHand, Armour = 3f, Weapon = Punchy.Fauna.CreatureWeapon.Shield, Length = 0.34f, Sheath = ItemSheath.Back },
+            new ItemDef { Name = "Shield", Colour = new Color(0.36f, 0.3f, 0.24f), Accent = new Color(0.25f, 0.22f, 0.2f), Stack = 1, Weight = 3f, Slot = GearSlot.Hand, Armour = 3f, Weapon = Punchy.Fauna.CreatureWeapon.Shield, Length = 0.34f, Sheath = ItemSheath.Back },
             // What travellers and miners carry: a letter, ore and a sack of it.
             new ItemDef { Name = "Letter", Colour = new Color(0.9f, 0.86f, 0.74f), Accent = new Color(0.6f, 0.12f, 0.1f), Stack = 5, Weight = 0.02f, Slot = GearSlot.Hand, Weapon = Punchy.Fauna.CreatureWeapon.Letter },
             new ItemDef { Name = "Ore", Colour = new Color(0.42f, 0.36f, 0.32f), Accent = new Color(0.55f, 0.3f, 0.15f), Stack = 20, Weight = 2f },
@@ -113,14 +113,14 @@ namespace Punchy.Items
             new ItemDef { Name = "Hoe", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 1.5f, Slot = GearSlot.Hand, Damage = 4f, Reach = 1.2f, Speed = 0.9f, Weapon = Punchy.Fauna.CreatureWeapon.Hoe, Length = 1.1f, Sheath = ItemSheath.Auto },
             new ItemDef { Name = "Broom", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.76f, 0.62f, 0.33f), Stack = 1, Weight = 1f, Slot = GearSlot.Hand, Damage = 1f, Reach = 1.3f, Speed = 1f, Weapon = Punchy.Fauna.CreatureWeapon.Broom, Length = 1.25f, Sheath = ItemSheath.Auto },
             new ItemDef { Name = "Smith's hammer", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 1.2f, Slot = GearSlot.Hand, Damage = 5f, Reach = 0.7f, Speed = 1.2f, Weapon = Punchy.Fauna.CreatureWeapon.SmithHammer, Length = 0.4f, Sheath = ItemSheath.Hip },
-            new ItemDef { Name = "Tongs", Colour = new Color(0.55f, 0.56f, 0.58f), Accent = new Color(0.4f, 0.41f, 0.44f), Stack = 1, Weight = 0.8f, Slot = GearSlot.OffHand, Weapon = Punchy.Fauna.CreatureWeapon.Tongs, Length = 0.35f, Sheath = ItemSheath.Hip },
-            new ItemDef { Name = "Bucket", Colour = new Color(0.42f, 0.3f, 0.18f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 1.5f, Slot = GearSlot.OffHand, Weapon = Punchy.Fauna.CreatureWeapon.Bucket },
+            new ItemDef { Name = "Tongs", Colour = new Color(0.55f, 0.56f, 0.58f), Accent = new Color(0.4f, 0.41f, 0.44f), Stack = 1, Weight = 0.8f, Slot = GearSlot.Hand, Weapon = Punchy.Fauna.CreatureWeapon.Tongs, Length = 0.35f, Sheath = ItemSheath.Hip },
+            new ItemDef { Name = "Bucket", Colour = new Color(0.42f, 0.3f, 0.18f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 1.5f, Slot = GearSlot.Hand, Weapon = Punchy.Fauna.CreatureWeapon.Bucket },
             // What healers, traders and bakers have in hand, and food.
-            new ItemDef { Name = "Bowl", Colour = new Color(0.5f, 0.36f, 0.22f), Accent = new Color(0.32f, 0.42f, 0.2f), Stack = 5, Weight = 0.4f, Slot = GearSlot.Hand, Weapon = Punchy.Fauna.CreatureWeapon.Bowl },
+            new ItemDef { Name = "Bowl", Colour = new Color(0.5f, 0.36f, 0.22f), Accent = new Color(0.32f, 0.42f, 0.2f), Stack = 5, Weight = 0.4f, Slot = GearSlot.Hand, TwoHanded = true, Weapon = Punchy.Fauna.CreatureWeapon.Bowl },
             new ItemDef { Name = "Jar", Colour = new Color(0.55f, 0.32f, 0.2f), Accent = new Color(0.7f, 0.6f, 0.45f), Stack = 5, Weight = 0.6f, Slot = GearSlot.Hand, Weapon = Punchy.Fauna.CreatureWeapon.Jar },
             new ItemDef { Name = "Apple", Colour = new Color(0.78f, 0.18f, 0.12f), Accent = new Color(0.3f, 0.5f, 0.2f), Stack = 20, Weight = 0.15f, Slot = GearSlot.Hand, Weapon = Punchy.Fauna.CreatureWeapon.Fruit },
             new ItemDef { Name = "Bread", Colour = new Color(0.62f, 0.38f, 0.16f), Accent = new Color(0.8f, 0.6f, 0.35f), Stack = 10, Weight = 0.4f, Slot = GearSlot.Hand, Weapon = Punchy.Fauna.CreatureWeapon.Loaf },
-            new ItemDef { Name = "Dough", Colour = new Color(0.9f, 0.82f, 0.62f), Stack = 5, Weight = 0.5f, Slot = GearSlot.Hand, Weapon = Punchy.Fauna.CreatureWeapon.Dough },
+            new ItemDef { Name = "Dough", Colour = new Color(0.9f, 0.82f, 0.62f), Stack = 5, Weight = 0.5f, Slot = GearSlot.Hand, TwoHanded = true, Weapon = Punchy.Fauna.CreatureWeapon.Dough },
             // Props at a worker's post (placed there; heavy).
             new ItemDef { Name = "Kneading table", Colour = new Color(0.6f, 0.48f, 0.32f), Accent = new Color(0.9f, 0.88f, 0.82f), Stack = 1, Weight = 25f },
             new ItemDef { Name = "Chopping block", Colour = new Color(0.32f, 0.22f, 0.14f), Accent = new Color(0.7f, 0.56f, 0.36f), Stack = 1, Weight = 30f },

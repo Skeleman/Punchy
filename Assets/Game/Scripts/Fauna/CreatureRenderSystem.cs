@@ -114,12 +114,8 @@ namespace Punchy.Fauna
         /// drawn (Dressed).
         /// </summary>
         static int HatPackCount(in CreatureState s) => ((s.Worn & CreatureWorn.Hat) != 0 ? 2 : 0) + ((s.Worn & CreatureWorn.Pack) != 0 ? 1 : 0);
-        static int HandsCount(in CreatureState s)
-        {
-            var main = LookParts(s.Outfit.Weapon, false);
-            // (The other hand's only with something one-handed in the right, as Weapon draws it.)
-            return main + (main <= 4 ? OffHandParts(s.Outfit.OffHand) : 0);
-        }
+        /// <summary>(The right hand's look, then the left's: Zach 11-12, there's no off hand, either holds anything.)</summary>
+        static int HandsCount(in CreatureState s) => LookParts(s.Outfit.Weapon, false) + LookParts(s.Outfit.LeftHand, false);
         /// <summary>Capsules a hand look takes (Weapon's shapes): in the fist, or sheathed on the back or at the hip.
         /// A bow in hand is its four limbs, its string in two and an arrow while drawn.</summary>
         static int LookParts(byte look, bool sheathed) => look switch
@@ -127,12 +123,12 @@ namespace Punchy.Fauna
             CreatureWeapon.Bow => sheathed ? 3 : 7,
             CreatureWeapon.Sword or CreatureWeapon.Axe or CreatureWeapon.Pickaxe or CreatureWeapon.Shovel => 3,
             CreatureWeapon.Club or CreatureWeapon.Spear or CreatureWeapon.Rod or CreatureWeapon.Hammer or CreatureWeapon.Hoe or
-                CreatureWeapon.Broom or CreatureWeapon.SmithHammer or CreatureWeapon.Letter or CreatureWeapon.Bowl => 2,
+                CreatureWeapon.Broom or CreatureWeapon.SmithHammer or CreatureWeapon.Letter or CreatureWeapon.Bowl or
+                CreatureWeapon.Tongs or CreatureWeapon.Bucket => 2,
             CreatureWeapon.GreatClub or CreatureWeapon.Stick or CreatureWeapon.Stone or CreatureWeapon.Jar or CreatureWeapon.Fruit or
-                CreatureWeapon.Loaf or CreatureWeapon.OreSack or CreatureWeapon.Dough => 1,
+                CreatureWeapon.Loaf or CreatureWeapon.OreSack or CreatureWeapon.Dough or CreatureWeapon.Shield => 1,
             _ => 0
         };
-        static int OffHandParts(byte look) => look == CreatureWeapon.Shield ? 1 : look == CreatureWeapon.Tongs || look == CreatureWeapon.Bucket ? 2 : 0;
         /// <summary>Capsules for each worn slot (Armour's sub-blocks, in this order): a head's (a helm or hat and its
         /// rim, horns, a crest or a brow), a body's (two shells; a robe's skirt; a breastplate's or cuirass's two pads),
         /// a greave on each shin, a boot on each foot, a back's two (a cloak, a cape, a satchel and its strap), a neck's

@@ -58,7 +58,7 @@ namespace Punchy.Items
                 if (b.GuardKit == GuardKit.Ogre)
                     k.Back = FolkKit.Of(ItemTable.HideCape);
                 if (b.GuardKit == GuardKit.Goblin)
-                    k.OffHand = FolkKit.Of(ItemTable.Shield);
+                    k.LeftHand = FolkKit.Of(ItemTable.Shield);
                 return k;
             }
 
@@ -75,7 +75,7 @@ namespace Punchy.Items
             switch (s.Held)
             {
                 case HeldItem.Lantern:
-                    k.OffHand = FolkKit.Of(ItemTable.Lantern);
+                    k.LeftHand = FolkKit.Of(ItemTable.Lantern);
                     break;
                 case HeldItem.Torch:
                     k.Hand = FolkKit.Of(ItemTable.Torch);
@@ -210,8 +210,8 @@ namespace Punchy.Items
             }
             if (other >= 0)
             {
-                if (toolInHand && k.OffHand == 0)
-                    k.OffHand = FolkKit.Of(other);
+                if (toolInHand && k.LeftHand == 0)
+                    k.LeftHand = FolkKit.Of(other);
                 else
                     k.Bag2 = FolkKit.Of(other);
             }
@@ -235,9 +235,10 @@ namespace Punchy.Items
                 return o;
             if (s.Held == HeldItem.None && s.Task != CreatureTask.Patrol && s.Task != CreatureTask.Hunt)
                 o.Weapon = HandLook(FolkKit.Item(k.Hand));
-            var off = FolkKit.Item(k.OffHand);
-            if (off == ItemTable.Shield || off == ItemTable.Tongs || off == ItemTable.Bucket)
-                o.OffHand = HandLook(off);
+            // (The left hand's, whatever it is, but a lantern: its own pass draws it, lit.)
+            var left = FolkKit.Item(k.LeftHand);
+            if (left >= 0 && left != ItemTable.Lantern)
+                o.LeftHand = HandLook(left);
             o.Head = WornLook(FolkKit.Item(k.Head));
             o.Body = WornLook(FolkKit.Item(k.Body));
             o.Back = WornLook(FolkKit.Item(k.Back));
@@ -386,9 +387,10 @@ namespace Punchy.Items
                 // (Zach 11-12: what the folk hold and wear, a player can hold and wear: an item with a hand look goes in
                 // a hand, one with a worn look in a worn place.)
                 var slot = ItemTable.Items[i].Slot;
-                if (ItemTable.Items[i].Weapon != CreatureWeapon.None && slot != GearSlot.Hand && slot != GearSlot.OffHand)
+                // (A held thing's Slot is Hand, either hand: there's no off hand.)
+                if (ItemTable.Items[i].Weapon != CreatureWeapon.None && slot != GearSlot.Hand)
                     Debug.LogError($"Items: FolkKits: the {ItemTable.Items[i].Name} has a hand look but a player can't hold it (Slot {slot})");
-                if (ItemTable.Items[i].Look != 0 && (slot == GearSlot.None || slot == GearSlot.Hand || slot == GearSlot.OffHand))
+                if (ItemTable.Items[i].Look != 0 && (slot == GearSlot.None || slot == GearSlot.Hand || slot == GearSlot.LeftHand))
                     Debug.LogError($"Items: FolkKits: the {ItemTable.Items[i].Name} has a worn look but a player can't wear it (Slot {slot})");
             }
         }
@@ -457,7 +459,7 @@ namespace Punchy.Items
             {
                 var s = states[near[n].i];
                 var kit = s.Kit;
-                Debug.Log($"[kit] {s.Individual:X8} {bodies[near[n].i].Blob.Value.GuardKit} {s.Task}/{s.Mode} held {s.Held}, {near[n].d:0} m: hand {KitName(kit.Hand)}, off {KitName(kit.OffHand)}, " +
+                Debug.Log($"[kit] {s.Individual:X8} {bodies[near[n].i].Blob.Value.GuardKit} {s.Task}/{s.Mode} held {s.Held}, {near[n].d:0} m: right {KitName(kit.Hand)}, left {KitName(kit.LeftHand)}, " +
                           $"sheath {KitName(kit.Sheath)}, head {KitName(kit.Head)}, body {KitName(kit.Body)}, back {KitName(kit.Back)}, neck {KitName(kit.Neck)}, " +
                           $"bag {KitName(kit.Bag0)}/{KitName(kit.Bag1)}/{KitName(kit.Bag2)}/{KitName(kit.Bag3)}, post {KitName(kit.Post0)}/{KitName(kit.Post1)}");
             }

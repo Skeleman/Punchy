@@ -32,8 +32,10 @@ namespace Punchy.Fauna
                 for (int i = 0; i < TorchParts; i++)
                     Output[at + i] = default;
                 var hand = -1;
+                // (In whichever hand holds it: a player's may be its left, CreatureOutfit.HeldSide.)
+                var side = CreatureOutfit.HeldSide(in state);
                 for (int i = 0; i < b.Parts.Length && hand < 0; i++)
-                    if (b.Parts[i].Role == LimbRole.Arm && b.Parts[i].Side > 0f)
+                    if (b.Parts[i].Role == LimbRole.Arm && b.Parts[i].Side * side > 0f)
                         hand = b.Parts[i].FirstSegment + b.Parts[i].SegmentCount - 1;
                 if (hand < 0)
                     return;
@@ -212,16 +214,18 @@ namespace Punchy.Fauna
                 };
 
             /// <summary>
-            /// A lantern hanging from the off hand by its bail: a dark iron cap and base, and between them a warm glass
-            /// core that glows. It hangs plumb, swinging gently fore and aft with the walk (and still when standing).
+            /// A lantern hanging from the hand by its bail (one of the folk's left, a player's either: HeldSide): a dark
+            /// iron cap and base, and between them a warm glass core that glows. It hangs plumb, swinging gently fore and
+            /// aft with the walk (and still when standing).
             /// </summary>
             void Lantern(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded)
             {
                 for (int i = 0; i < LanternParts; i++)
                     Output[at + i] = default;
                 var hand = -1;
+                var side = CreatureOutfit.HeldSide(in state);
                 for (int i = 0; i < b.Parts.Length; i++)
-                    if (b.Parts[i].Role == LimbRole.Arm && b.Parts[i].Side < 0f)
+                    if (b.Parts[i].Role == LimbRole.Arm && b.Parts[i].Side * side > 0f)
                     {
                         hand = b.Parts[i].FirstSegment + b.Parts[i].SegmentCount - 1;
                         break;

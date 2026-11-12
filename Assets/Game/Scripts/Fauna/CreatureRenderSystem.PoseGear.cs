@@ -619,255 +619,258 @@ namespace Punchy.Fauna
                 var darkWood = new Unity.Mathematics.float4(0.16f, 0.1f, 0.05f, 0f);
                 var straw = new Unity.Mathematics.float4(0.76f, 0.62f, 0.33f, 0f);
                 var stick = new Unity.Mathematics.float4(0.24f, 0.16f, 0.08f, 0f);
-                var h = Output[offset + hand];
-                var grip = Tip(h);
-                // (The fist's tip, and the point between both hands, for what's held in the fist or in both arms.)
-                var tip = grip;
-                var between = offHand >= 0 ? (tip + Tip(Output[offset + offHand])) * 0.5f : tip;
                 var p = state.Outfit.Swing == 0 ? 0f : (state.Outfit.Swing - 1) / 254f;
-                // (Held up and a little forward, ready; a swing tips it back over the shoulder, then down and through,
-                // as the arm goes: CreatureAnimator's weapon arm, the same phases.)
-                var dir = WeaponAim(state.Yaw, state.Outfit.Swing);
-                // (One of the folk at work, Zach 11-12 row 3: its tool out of the fist crossing the hand's own line, so
-                // it swings with the arm as the job's pose goes (TaskPose), as Gear held them.)
-                var folk = state.Mode != CreatureMode.Puppet;
-                if (folk)
-                {
-                    var along = Unity.Mathematics.math.mul(h.Rotation, new Unity.Mathematics.float3(0f, 0f, 1f));
-                    grip = h.Position + along * h.Length * 0.6f;
-                    dir = Unity.Mathematics.math.normalize(Unity.Mathematics.math.cross(along, right) + along * 0.2f);
-                }
-                // Sheathed (Zach 11-12 row 3, the sheath block: Punchy.Items.FolkKits.Sheathed): the same shape worn, as
-                // a guard wears its weapon (PoseGuard.Guard): across the back from low on the left to high on the right if
-                // it's long for its bearer, else hung from the belt at the left hip by its grip, its head down along the
-                // thigh and a little back.
-                var look = state.Outfit.Weapon;
                 var sheathing = sheathed >= 0;
-                if (sheathing)
-                {
-                    look = Punchy.Items.FolkKits.HandLook(sheathed);
-                    var chest = -1;
-                    for (int i = 0; i < b.Parts.Length && chest < 0; i++)
-                        if (b.Parts[i].Parent < 0 && b.Parts[i].Role != LimbRole.Leg && b.Parts[i].Role != LimbRole.Arm && b.Parts[i].SegmentCount > 0)
-                            chest = b.Parts[i].FirstSegment + b.Parts[i].SegmentCount - 1;
-                    if (chest < 0)
-                        return;
-                    var torso = Output[offset + chest];
-                    var torsoAxis = Unity.Mathematics.math.mul(torso.Rotation, new Unity.Mathematics.float3(0f, 0f, 1f));
-                    var torsoR = Unity.Mathematics.math.max(torso.RadiusStart, torso.RadiusEnd);
-                    var length = Punchy.Items.FolkKits.Length(sheathed) * scale;
-                    if (Punchy.Items.FolkKits.OnBack(sheathed, b.StandHeight))
-                    {
-                        dir = Unity.Mathematics.math.normalize(torsoAxis + right * 0.75f);
-                        grip = torso.Position + torsoAxis * torso.Length * 0.5f - forward * torsoR * 1.3f - dir * length * 0.35f;
-                    }
-                    else
-                    {
-                        dir = Unity.Mathematics.math.normalize(-up - forward * 0.3f - right * 0.08f);
-                        grip = torso.Position - torsoAxis * torsoR * 0.5f - right * torsoR * 1.15f;
-                    }
-                }
-                var face = Unity.Mathematics.math.normalizesafe(Unity.Mathematics.math.cross(dir, right), forward);
+                var folk = state.Mode != CreatureMode.Puppet;
+                // (The point between both hands, for what's held in both arms.)
+                var between = offHand >= 0 ? (Tip(Output[offset + hand]) + Tip(Output[offset + offHand])) * 0.5f : Tip(Output[offset + hand]);
                 var k = 0;
-                switch (look)
+                // Each hand in turn (Zach 11-12: there's no off hand, anything held goes in either): the right's look
+                // from the start of the block, then the left's after the right's capsules (HandsCount), the same shapes
+                // held the same way, mirrored (across: the hand's own outward side). Put away, the one item only.
+                for (int which = 0; which < (sheathing ? 1 : 2); which++)
                 {
-                    case CreatureWeapon.Spear when sheathing:
-                        // (Its shaft and head along the back.)
-                        Output[at + k++] = Piece(grip - dir * 0.3f * scale, dir, face, 1.9f * scale, 0.017f * scale, 0.014f * scale, 1f, darkWood, faded, SegmentMaterial.Wood);
-                        Output[at + k++] = Piece(grip + dir * 1.6f * scale, dir, face, 0.2f * scale, 0.03f * scale, 0.003f * scale, 0.4f, iron, faded, SegmentMaterial.Metal);
-                        break;
-                    case CreatureWeapon.Bow when sheathing:
+                    var leftHand = which == 1;
+                    var arm = leftHand ? offHand : hand;
+                    var look = leftHand ? state.Outfit.LeftHand : sheathing ? Punchy.Items.FolkKits.HandLook(sheathed) : state.Outfit.Weapon;
+                    if (arm < 0 || look == CreatureWeapon.None)
+                        continue;
+                    if (leftHand)
+                        k = LookParts(state.Outfit.Weapon, false);
+                    var across = leftHand ? -right : right;
+                    var h = Output[offset + arm];
+                    var grip = Tip(h);
+                    // (The fist's tip, for what's held in the fist.)
+                    var tip = grip;
+                    // (Held up and a little forward, ready; a swing tips it back over the shoulder, then down and through,
+                    // as the arm goes: CreatureAnimator's weapon arm, the same phases.)
+                    var dir = WeaponAim(state.Yaw, leftHand ? (byte)0 : state.Outfit.Swing);
+                    // (One of the folk at work, Zach 11-12 row 3: its tool out of the fist crossing the hand's own line, so
+                    // it swings with the arm as the job's pose goes (TaskPose), as Gear held them.)
+                    if (folk)
                     {
-                        // (An elf's bow across its back, as PoseGuard drew it: an arc from low on one side to high on the
-                        // other, and its string.)
-                        var bowLength = 1.1f * scale;
-                        var centre = grip + dir * bowLength * 0.35f;
-                        var lower = centre - dir * bowLength * 0.5f;
-                        var mid = centre - forward * 0.08f * scale;
-                        var upper = centre + dir * bowLength * 0.5f;
-                        var thread = new Unity.Mathematics.float4(0.78f, 0.74f, 0.62f, 0f);
-                        Output[at + k++] = Piece(lower, Unity.Mathematics.math.normalize(mid - lower), forward, Unity.Mathematics.math.distance(lower, mid), 0.012f * scale, 0.02f * scale, 1f, darkWood, faded, SegmentMaterial.Wood);
-                        Output[at + k++] = Piece(mid, Unity.Mathematics.math.normalize(upper - mid), forward, Unity.Mathematics.math.distance(upper, mid), 0.02f * scale, 0.012f * scale, 1f, darkWood, faded, SegmentMaterial.Wood);
-                        Output[at + k++] = Piece(lower, dir, forward, bowLength, 0.003f * scale, 0.003f * scale, 1f, thread, faded, SegmentMaterial.Cloth);
-                        break;
+                        var along = Unity.Mathematics.math.mul(h.Rotation, new Unity.Mathematics.float3(0f, 0f, 1f));
+                        grip = h.Position + along * h.Length * 0.6f;
+                        dir = Unity.Mathematics.math.normalize(Unity.Mathematics.math.cross(along, across) + along * 0.2f);
                     }
-                    case CreatureWeapon.Club:
-                        Output[at + k++] = Piece(grip - dir * 0.08f * scale, dir, face, 0.55f * scale, 0.024f * scale, 0.05f * scale, 1f, wood, faded, SegmentMaterial.Wood);
-                        Output[at + k++] = Piece(grip + dir * 0.4f * scale, dir, face, 0.12f * scale, 0.06f * scale, 0.045f * scale, 0.85f, wood, faded, SegmentMaterial.Wood);
-                        break;
-                    case CreatureWeapon.Sword:
-                        Output[at + k++] = Piece(grip - dir * 0.08f * scale, dir, face, 0.13f * scale, 0.017f * scale, 0.017f * scale, 1f, leather, faded, SegmentMaterial.Leather);
-                        Output[at + k++] = Piece(grip + dir * 0.06f * scale - face * 0.09f * scale, face, dir, 0.18f * scale, 0.014f * scale, 0.014f * scale, 1f, iron, faded, SegmentMaterial.Metal);
-                        Output[at + k++] = Piece(grip + dir * 0.06f * scale, dir, face, 0.66f * scale, 0.032f * scale, 0.006f * scale, 0.25f, iron, faded, SegmentMaterial.Metal);
-                        break;
-                    case CreatureWeapon.Axe:
-                        // (A haft, and at its head a flat blade facing the way the swing strikes, widening to the edge,
-                        // with a short poll behind; flattened across, side to side.)
-                        Output[at + k++] = Piece(grip - dir * 0.1f * scale, dir, face, 0.62f * scale, 0.02f * scale, 0.024f * scale, 1f, wood, faded, SegmentMaterial.Wood);
-                        Output[at + k++] = Piece(grip + dir * 0.44f * scale, -face, right, 0.15f * scale, 0.035f * scale, 0.075f * scale, 0.22f, iron, faded, SegmentMaterial.Metal);
-                        Output[at + k++] = Piece(grip + dir * 0.44f * scale, face, right, 0.04f * scale, 0.03f * scale, 0.026f * scale, 0.6f, iron, faded, SegmentMaterial.Metal);
-                        break;
-                    case CreatureWeapon.Rod:
-                        // (P-33: a long pole tapering to the tip, a cork grip; the line and bobber are the Items side's,
-                        // from RodTip.)
-                        Output[at + k++] = Piece(grip - dir * 0.2f * scale, dir, face, 0.32f * scale, 0.02f * scale, 0.018f * scale, 1f, leather, faded, SegmentMaterial.Leather);
-                        Output[at + k++] = Piece(grip + dir * 0.1f * scale, dir, face, (RodLength - 0.1f) * scale, 0.013f * scale, 0.004f * scale, 1f, wood, faded, SegmentMaterial.Wood);
-                        break;
-                    case CreatureWeapon.Hammer:
-                        // (A haft, and across its top a squat iron head, square-ish, both faces flat.)
-                        Output[at + k++] = Piece(grip - dir * 0.1f * scale, dir, face, 0.6f * scale, 0.02f * scale, 0.024f * scale, 1f, wood, faded, SegmentMaterial.Wood);
-                        Output[at + k++] = Piece(grip + dir * 0.47f * scale + face * 0.1f * scale, -face, right, 0.2f * scale, 0.05f * scale, 0.05f * scale, 0.9f, iron, faded, SegmentMaterial.Metal);
-                        break;
-                    case CreatureWeapon.Pickaxe:
-                        // (A haft, and across its top an iron head: a long point tapering forward, the way the swing
-                        // strikes, and a short adze behind, flat along the haft, wide side to side.)
-                        Output[at + k++] = Piece(grip - dir * 0.1f * scale, dir, face, 0.65f * scale, 0.02f * scale, 0.024f * scale, 1f, wood, faded, SegmentMaterial.Wood);
-                        Output[at + k++] = Piece(grip + dir * 0.49f * scale, face, right, 0.24f * scale, 0.03f * scale, 0.007f * scale, 1f, iron, faded, SegmentMaterial.Metal);
-                        Output[at + k++] = Piece(grip + dir * 0.49f * scale, -face, dir, 0.15f * scale, 0.03f * scale, 0.028f * scale, 0.35f, iron, faded, SegmentMaterial.Metal);
-                        break;
-                    case CreatureWeapon.Shovel:
-                        // (A long haft with a short cross grip at its butt, and at its head a flat iron blade, wide side
-                        // to side, thin front to back.)
-                        Output[at + k++] = Piece(grip - dir * 0.3f * scale, dir, face, 0.95f * scale, 0.02f * scale, 0.022f * scale, 1f, wood, faded, SegmentMaterial.Wood);
-                        Output[at + k++] = Piece(grip - dir * 0.3f * scale - right * 0.06f * scale, right, face, 0.12f * scale, 0.016f * scale, 0.016f * scale, 1f, wood, faded, SegmentMaterial.Wood);
-                        Output[at + k++] = Piece(grip + dir * 0.62f * scale, dir, face, 0.26f * scale, 0.1f * scale, 0.085f * scale, 0.12f, iron, faded, SegmentMaterial.Metal);
-                        break;
-                    case CreatureWeapon.Spear when folk:
+                    // Sheathed (Zach 11-12 row 3, the sheath block: Punchy.Items.FolkKits.Sheathed): the same shape worn, as
+                    // a guard wears its weapon (PoseGuard.Guard): across the back from low on the left to high on the right if
+                    // it's long for its bearer, else hung from the belt at the left hip by its grip, its head down along the
+                    // thigh and a little back.
+                    if (sheathing)
                     {
-                        // (A gatekeeper's: upright in its fist, butt near the ground.)
-                        var butt = tip - up * 0.95f * scale + forward * 0.02f * scale;
-                        Output[at + k++] = Piece(butt, up, forward, 2f * scale, 0.017f * scale, 0.015f * scale, 1f, darkWood, faded, SegmentMaterial.Wood);
-                        Output[at + k++] = Piece(butt + up * 2f * scale, up, forward, 0.2f * scale, 0.035f * scale, 0.004f * scale, 0.3f, iron, faded, SegmentMaterial.Metal);
-                        break;
-                    }
-                    case CreatureWeapon.Spear:
-                    {
-                        // (Both hands: levelled forward, the right hand back along the shaft, thrust out through a swing.)
-                        var level = Unity.Mathematics.math.normalizesafe(forward + up * 0.15f, forward);
-                        var thrust = Unity.Mathematics.math.sin(p * Unity.Mathematics.math.PI) * 0.35f * scale;
-                        var butt = grip - level * (0.6f * scale - thrust);
-                        Output[at + k++] = Piece(butt, level, up, 1.9f * scale, 0.018f * scale, 0.016f * scale, 1f, wood, faded, SegmentMaterial.Wood);
-                        Output[at + k++] = Piece(butt + level * 1.9f * scale, level, up, 0.24f * scale, 0.036f * scale, 0.003f * scale, 0.35f, iron, faded, SegmentMaterial.Metal);
-                        break;
-                    }
-                    case CreatureWeapon.Bow:
-                    {
-                        // (In the left hand, upright, its limbs curving back; the string drawn to the right hand as the
-                        // swing goes and loosed at its end, an arrow on it while drawn.)
-                        var o = offHand >= 0 ? Output[offset + offHand] : h;
-                        var bowAt = o.Position + Unity.Mathematics.math.mul(o.Rotation, new Unity.Mathematics.float3(0f, 0f, o.Length * 0.75f));
-                        // (Each limb in two pieces: out from the grip, then curving back to its tip; drawn, the tips
-                        // come back further.)
-                        var draw = p < 0.75f ? Unity.Mathematics.math.smoothstep(0f, 0.6f, p) : 0f;
-                        var limb = 0.31f * scale;
-                        var bend = (0.14f + 0.08f * draw) * scale;
-                        var topMid = bowAt + up * limb - forward * bend * 0.3f;
-                        var top = bowAt + up * limb * 1.9f - forward * bend;
-                        var bottomMid = bowAt - up * limb - forward * bend * 0.3f;
-                        var bottom = bowAt - up * limb * 1.9f - forward * bend;
-                        Output[at + k++] = Piece(bowAt, Unity.Mathematics.math.normalize(topMid - bowAt), right, Unity.Mathematics.math.length(topMid - bowAt), 0.026f * scale, 0.02f * scale, 0.6f, wood, faded, SegmentMaterial.Wood);
-                        Output[at + k++] = Piece(topMid, Unity.Mathematics.math.normalize(top - topMid), right, Unity.Mathematics.math.length(top - topMid), 0.02f * scale, 0.01f * scale, 0.6f, wood, faded, SegmentMaterial.Wood);
-                        Output[at + k++] = Piece(bowAt, Unity.Mathematics.math.normalize(bottomMid - bowAt), right, Unity.Mathematics.math.length(bottomMid - bowAt), 0.026f * scale, 0.02f * scale, 0.6f, wood, faded, SegmentMaterial.Wood);
-                        Output[at + k++] = Piece(bottomMid, Unity.Mathematics.math.normalize(bottom - bottomMid), right, Unity.Mathematics.math.length(bottom - bottomMid), 0.02f * scale, 0.01f * scale, 0.6f, wood, faded, SegmentMaterial.Wood);
-                        var rest = (top + bottom) * 0.5f;
-                        var nock = Unity.Mathematics.math.lerp(rest, Tip(h), draw);
-                        var thread = new Unity.Mathematics.float4(0.88f, 0.85f, 0.75f, 0f);
-                        Output[at + k++] = Piece(top, Unity.Mathematics.math.normalizesafe(nock - top, -up), right, Unity.Mathematics.math.length(nock - top), 0.006f * scale, 0.006f * scale, 1f, thread, faded, SegmentMaterial.Cloth);
-                        Output[at + k++] = Piece(nock, Unity.Mathematics.math.normalizesafe(bottom - nock, -up), right, Unity.Mathematics.math.length(bottom - nock), 0.006f * scale, 0.006f * scale, 1f, thread, faded, SegmentMaterial.Cloth);
-                        if (draw > 0.05f)
+                        var chest = -1;
+                        for (int i = 0; i < b.Parts.Length && chest < 0; i++)
+                            if (b.Parts[i].Parent < 0 && b.Parts[i].Role != LimbRole.Leg && b.Parts[i].Role != LimbRole.Arm && b.Parts[i].SegmentCount > 0)
+                                chest = b.Parts[i].FirstSegment + b.Parts[i].SegmentCount - 1;
+                        if (chest < 0)
+                            return;
+                        var torso = Output[offset + chest];
+                        var torsoAxis = Unity.Mathematics.math.mul(torso.Rotation, new Unity.Mathematics.float3(0f, 0f, 1f));
+                        var torsoR = Unity.Mathematics.math.max(torso.RadiusStart, torso.RadiusEnd);
+                        var length = Punchy.Items.FolkKits.Length(sheathed) * scale;
+                        if (Punchy.Items.FolkKits.OnBack(sheathed, b.StandHeight))
                         {
-                            var shaft = Unity.Mathematics.math.normalizesafe(bowAt - nock, forward);
-                            Output[at + k++] = Piece(nock, shaft, up, Unity.Mathematics.math.distance(bowAt, nock) + 0.12f * scale, 0.008f * scale, 0.008f * scale, 1f, wood, faded, SegmentMaterial.Wood);
+                            dir = Unity.Mathematics.math.normalize(torsoAxis + right * 0.75f);
+                            grip = torso.Position + torsoAxis * torso.Length * 0.5f - forward * torsoR * 1.3f - dir * length * 0.35f;
                         }
-                        break;
+                        else
+                        {
+                            dir = Unity.Mathematics.math.normalize(-up - forward * 0.3f - right * 0.08f);
+                            grip = torso.Position - torsoAxis * torsoR * 0.5f - right * torsoR * 1.15f;
+                        }
                     }
-                    // Zach 11-12, one item system: what folk carry, in any body's hand (the shapes are the folk's own).
-                    case CreatureWeapon.GreatClub:
-                        // (An ogre's great club: thick at the end, both hands on it.)
-                        Output[at + k++] = Piece(grip - dir * 0.1f * scale, dir, face, 1.15f * scale, 0.045f * scale, 0.13f * scale, 1f, darkWood, faded, SegmentMaterial.Wood);
-                        break;
-                    case CreatureWeapon.Hoe:
-                        // (A long haft, a flat blade set across its top, facing the strike.)
-                        Output[at + k++] = Piece(grip - dir * 0.38f * scale, dir, face, 1.1f * scale, 0.016f * scale, 0.02f * scale, 1f, wood, faded, SegmentMaterial.Wood);
-                        Output[at + k++] = Piece(grip + dir * 0.7f * scale, face, dir, 0.16f * scale, 0.06f * scale, 0.07f * scale, 0.1f, iron, faded, SegmentMaterial.Metal);
-                        break;
-                    case CreatureWeapon.Broom:
-                        // (A long haft, and its bristles on from the top, flaring.)
-                        Output[at + k++] = Piece(grip - dir * 0.45f * scale, dir, face, 1.0f * scale, 0.016f * scale, 0.018f * scale, 1f, wood, faded, SegmentMaterial.Wood);
-                        Output[at + k++] = Piece(grip + dir * 0.55f * scale, dir, face, 0.3f * scale, 0.05f * scale, 0.14f * scale, 0.7f, straw, faded, SegmentMaterial.Wood);
-                        break;
-                    case CreatureWeapon.SmithHammer:
-                        // (A short haft, a small square head across its top.)
-                        Output[at + k++] = Piece(grip - dir * 0.05f * scale, dir, face, 0.32f * scale, 0.016f * scale, 0.02f * scale, 1f, wood, faded, SegmentMaterial.Wood);
-                        Output[at + k++] = Piece(grip + dir * 0.27f * scale + face * 0.045f * scale, -face, right, 0.09f * scale, 0.024f * scale, 0.024f * scale, 1f, iron, faded, SegmentMaterial.Metal);
-                        break;
-                    case CreatureWeapon.Stick:
-                        // (A crooked stick held out ahead.)
-                        Output[at + k++] = Piece(grip - dir * 0.06f * scale, Unity.Mathematics.math.normalizesafe(dir + forward * 0.6f, dir), face, 0.6f * scale, 0.014f * scale, 0.009f * scale, 0.85f, stick, faded, SegmentMaterial.Wood);
-                        break;
-                    case CreatureWeapon.Stone:
-                        Output[at + k++] = Piece(tip - up * 0.02f * scale, up, forward, 0.03f * scale, 0.06f * scale, 0.05f * scale, 0.8f, new Unity.Mathematics.float4(0.45f, 0.44f, 0.42f, 0f), faded, SegmentMaterial.Body);
-                        break;
-                    case CreatureWeapon.Letter:
-                        // (A rolled letter across the fist, its red seal.)
-                        Output[at + k++] = Piece(tip - right * 0.06f * scale, right, up, 0.12f * scale, 0.012f * scale, 0.012f * scale, 1f, new Unity.Mathematics.float4(0.86f, 0.82f, 0.7f, 0f), faded, SegmentMaterial.Cloth);
-                        Output[at + k++] = Piece(tip + up * 0.012f * scale, up, forward, 0f, 0.008f * scale, 0.008f * scale, 0.6f, new Unity.Mathematics.float4(0.45f, 0.06f, 0.05f, 0f), faded, SegmentMaterial.Cloth);
-                        break;
-                    case CreatureWeapon.Jar:
-                        Output[at + k++] = Piece(tip - up * 0.04f * scale, up, forward, 0.12f * scale, 0.05f * scale, 0.04f * scale, 1f, new Unity.Mathematics.float4(0.55f, 0.32f, 0.2f, 0f), faded, SegmentMaterial.Wood);
-                        break;
-                    case CreatureWeapon.Fruit:
-                        Output[at + k++] = Piece(tip - up * 0.03f * scale, up, forward, 0.02f * scale, 0.045f * scale, 0.045f * scale, 1f, new Unity.Mathematics.float4(0.78f, 0.18f, 0.12f, 0f), faded, SegmentMaterial.Cloth);
-                        break;
-                    case CreatureWeapon.Loaf:
-                        Output[at + k++] = Piece(tip - right * 0.09f * scale, right, up, 0.18f * scale, 0.065f * scale, 0.06f * scale, 0.7f, new Unity.Mathematics.float4(0.62f, 0.38f, 0.16f, 0f), faded, SegmentMaterial.Wood);
-                        break;
-                    case CreatureWeapon.OreSack:
-                        // (A lumpy sack held to the chest in both arms, low.)
-                        Output[at + k++] = Piece(between - up * 0.12f * scale, up, forward, 0.14f * scale, 0.16f * scale, 0.12f * scale, 0.85f, new Unity.Mathematics.float4(0.36f, 0.3f, 0.2f, 0f), faded, SegmentMaterial.Cloth);
-                        break;
-                    case CreatureWeapon.Bowl:
-                        // (Between the hands: a wooden bowl, herbs in it.)
-                        Output[at + k++] = Piece(between - up * 0.07f * scale, up, forward, 0.07f * scale, 0.05f * scale, 0.1f * scale, 1f, new Unity.Mathematics.float4(0.5f, 0.36f, 0.22f, 0f), faded, SegmentMaterial.Wood);
-                        Output[at + k++] = Piece(between - up * 0.005f * scale, forward, up, 0f, 0.085f * scale, 0.085f * scale, 0.05f, new Unity.Mathematics.float4(0.32f, 0.42f, 0.2f, 0f), faded, SegmentMaterial.Cloth);
-                        break;
-                    case CreatureWeapon.Dough:
-                        Output[at + k++] = Piece(between - right * 0.11f * scale - up * 0.05f * scale, right, up, 0.22f * scale, 0.07f * scale, 0.07f * scale, 0.55f, new Unity.Mathematics.float4(0.9f, 0.82f, 0.62f, 0f), faded, SegmentMaterial.Cloth);
-                        break;
-                }
-
-                // The other hand (Zach 11-12), after the right's (HandsCount): a shield on the forearm, tongs, a bucket.
-                // (Only with something one-handed in the right: a two-handed thing frees it, Items.Equip.)
-                if (sheathing || state.Outfit.OffHand == CreatureWeapon.None || offHand < 0 || k > 4)
-                    return;
-                k = LookParts(look, false);
-                var otherHand = Output[offset + offHand];
-                var oTip = Tip(otherHand);
-                switch (state.Outfit.OffHand)
-                {
-                    case CreatureWeapon.Shield:
+                    var face = Unity.Mathematics.math.normalizesafe(Unity.Mathematics.math.cross(dir, across), forward);
+                    switch (look)
                     {
-                        // (A goblin's scrap shield, strapped to the forearm, facing out.)
-                        var fore = Output[offset + offHand - 1];
-                        var on = fore.Position + Unity.Mathematics.math.mul(fore.Rotation, new Unity.Mathematics.float3(0f, 0f, fore.Length * 0.5f)) - right * 0.06f * scale;
-                        Output[at + k++] = Piece(on, forward, -right, 0.01f * scale, 0.17f * scale, 0.155f * scale, 0.12f, new Unity.Mathematics.float4(0.36f, 0.3f, 0.24f, 0f), faded, SegmentMaterial.Metal);
-                        break;
-                    }
-                    case CreatureWeapon.Tongs:
-                    {
-                        // (Two iron arms out from the fist, held forward and down.)
-                        var hold = Unity.Mathematics.math.normalize(forward - up * 0.6f);
-                        Output[at + k++] = Piece(oTip + right * 0.012f * scale, hold, right, 0.32f * scale, 0.009f * scale, 0.008f * scale, 1f, iron, faded, SegmentMaterial.Metal);
-                        Output[at + k++] = Piece(oTip - right * 0.012f * scale, hold, right, 0.32f * scale, 0.009f * scale, 0.008f * scale, 1f, iron, faded, SegmentMaterial.Metal);
-                        break;
-                    }
-                    case CreatureWeapon.Bucket:
-                    {
-                        // (Hanging from the hand by its handle.)
-                        var hang = otherHand.Position + Unity.Mathematics.math.mul(otherHand.Rotation, new Unity.Mathematics.float3(0f, 0f, otherHand.Length * 0.8f));
-                        Output[at + k++] = Piece(hang - up * 0.27f * scale, up, forward, 0.2f * scale, 0.08f * scale, 0.095f * scale, 1f, new Unity.Mathematics.float4(0.42f, 0.3f, 0.18f, 0f), faded, SegmentMaterial.Wood);
-                        Output[at + k++] = Piece(hang - up * 0.08f * scale - right * 0.09f * scale, right, up, 0.18f * scale, 0.007f * scale, 0.007f * scale, 1f, iron, faded, SegmentMaterial.Metal);
-                        break;
+                        case CreatureWeapon.Spear when sheathing:
+                            // (Its shaft and head along the back.)
+                            Output[at + k++] = Piece(grip - dir * 0.3f * scale, dir, face, 1.9f * scale, 0.017f * scale, 0.014f * scale, 1f, darkWood, faded, SegmentMaterial.Wood);
+                            Output[at + k++] = Piece(grip + dir * 1.6f * scale, dir, face, 0.2f * scale, 0.03f * scale, 0.003f * scale, 0.4f, iron, faded, SegmentMaterial.Metal);
+                            break;
+                        case CreatureWeapon.Bow when sheathing:
+                        {
+                            // (An elf's bow across its back, as PoseGuard drew it: an arc from low on one side to high on the
+                            // other, and its string.)
+                            var bowLength = 1.1f * scale;
+                            var centre = grip + dir * bowLength * 0.35f;
+                            var lower = centre - dir * bowLength * 0.5f;
+                            var mid = centre - forward * 0.08f * scale;
+                            var upper = centre + dir * bowLength * 0.5f;
+                            var thread = new Unity.Mathematics.float4(0.78f, 0.74f, 0.62f, 0f);
+                            Output[at + k++] = Piece(lower, Unity.Mathematics.math.normalize(mid - lower), forward, Unity.Mathematics.math.distance(lower, mid), 0.012f * scale, 0.02f * scale, 1f, darkWood, faded, SegmentMaterial.Wood);
+                            Output[at + k++] = Piece(mid, Unity.Mathematics.math.normalize(upper - mid), forward, Unity.Mathematics.math.distance(upper, mid), 0.02f * scale, 0.012f * scale, 1f, darkWood, faded, SegmentMaterial.Wood);
+                            Output[at + k++] = Piece(lower, dir, forward, bowLength, 0.003f * scale, 0.003f * scale, 1f, thread, faded, SegmentMaterial.Cloth);
+                            break;
+                        }
+                        case CreatureWeapon.Club:
+                            Output[at + k++] = Piece(grip - dir * 0.08f * scale, dir, face, 0.55f * scale, 0.024f * scale, 0.05f * scale, 1f, wood, faded, SegmentMaterial.Wood);
+                            Output[at + k++] = Piece(grip + dir * 0.4f * scale, dir, face, 0.12f * scale, 0.06f * scale, 0.045f * scale, 0.85f, wood, faded, SegmentMaterial.Wood);
+                            break;
+                        case CreatureWeapon.Sword:
+                            Output[at + k++] = Piece(grip - dir * 0.08f * scale, dir, face, 0.13f * scale, 0.017f * scale, 0.017f * scale, 1f, leather, faded, SegmentMaterial.Leather);
+                            Output[at + k++] = Piece(grip + dir * 0.06f * scale - face * 0.09f * scale, face, dir, 0.18f * scale, 0.014f * scale, 0.014f * scale, 1f, iron, faded, SegmentMaterial.Metal);
+                            Output[at + k++] = Piece(grip + dir * 0.06f * scale, dir, face, 0.66f * scale, 0.032f * scale, 0.006f * scale, 0.25f, iron, faded, SegmentMaterial.Metal);
+                            break;
+                        case CreatureWeapon.Axe:
+                            // (A haft, and at its head a flat blade facing the way the swing strikes, widening to the edge,
+                            // with a short poll behind; flattened across, side to side.)
+                            Output[at + k++] = Piece(grip - dir * 0.1f * scale, dir, face, 0.62f * scale, 0.02f * scale, 0.024f * scale, 1f, wood, faded, SegmentMaterial.Wood);
+                            Output[at + k++] = Piece(grip + dir * 0.44f * scale, -face, across, 0.15f * scale, 0.035f * scale, 0.075f * scale, 0.22f, iron, faded, SegmentMaterial.Metal);
+                            Output[at + k++] = Piece(grip + dir * 0.44f * scale, face, across, 0.04f * scale, 0.03f * scale, 0.026f * scale, 0.6f, iron, faded, SegmentMaterial.Metal);
+                            break;
+                        case CreatureWeapon.Rod:
+                            // (P-33: a long pole tapering to the tip, a cork grip; the line and bobber are the Items side's,
+                            // from RodTip.)
+                            Output[at + k++] = Piece(grip - dir * 0.2f * scale, dir, face, 0.32f * scale, 0.02f * scale, 0.018f * scale, 1f, leather, faded, SegmentMaterial.Leather);
+                            Output[at + k++] = Piece(grip + dir * 0.1f * scale, dir, face, (RodLength - 0.1f) * scale, 0.013f * scale, 0.004f * scale, 1f, wood, faded, SegmentMaterial.Wood);
+                            break;
+                        case CreatureWeapon.Hammer:
+                            // (A haft, and across its top a squat iron head, square-ish, both faces flat.)
+                            Output[at + k++] = Piece(grip - dir * 0.1f * scale, dir, face, 0.6f * scale, 0.02f * scale, 0.024f * scale, 1f, wood, faded, SegmentMaterial.Wood);
+                            Output[at + k++] = Piece(grip + dir * 0.47f * scale + face * 0.1f * scale, -face, across, 0.2f * scale, 0.05f * scale, 0.05f * scale, 0.9f, iron, faded, SegmentMaterial.Metal);
+                            break;
+                        case CreatureWeapon.Pickaxe:
+                            // (A haft, and across its top an iron head: a long point tapering forward, the way the swing
+                            // strikes, and a short adze behind, flat along the haft, wide side to side.)
+                            Output[at + k++] = Piece(grip - dir * 0.1f * scale, dir, face, 0.65f * scale, 0.02f * scale, 0.024f * scale, 1f, wood, faded, SegmentMaterial.Wood);
+                            Output[at + k++] = Piece(grip + dir * 0.49f * scale, face, across, 0.24f * scale, 0.03f * scale, 0.007f * scale, 1f, iron, faded, SegmentMaterial.Metal);
+                            Output[at + k++] = Piece(grip + dir * 0.49f * scale, -face, dir, 0.15f * scale, 0.03f * scale, 0.028f * scale, 0.35f, iron, faded, SegmentMaterial.Metal);
+                            break;
+                        case CreatureWeapon.Shovel:
+                            // (A long haft with a short cross grip at its butt, and at its head a flat iron blade, wide side
+                            // to side, thin front to back.)
+                            Output[at + k++] = Piece(grip - dir * 0.3f * scale, dir, face, 0.95f * scale, 0.02f * scale, 0.022f * scale, 1f, wood, faded, SegmentMaterial.Wood);
+                            Output[at + k++] = Piece(grip - dir * 0.3f * scale - across * 0.06f * scale, across, face, 0.12f * scale, 0.016f * scale, 0.016f * scale, 1f, wood, faded, SegmentMaterial.Wood);
+                            Output[at + k++] = Piece(grip + dir * 0.62f * scale, dir, face, 0.26f * scale, 0.1f * scale, 0.085f * scale, 0.12f, iron, faded, SegmentMaterial.Metal);
+                            break;
+                        case CreatureWeapon.Spear when folk:
+                        {
+                            // (A gatekeeper's: upright in its fist, butt near the ground.)
+                            var butt = tip - up * 0.95f * scale + forward * 0.02f * scale;
+                            Output[at + k++] = Piece(butt, up, forward, 2f * scale, 0.017f * scale, 0.015f * scale, 1f, darkWood, faded, SegmentMaterial.Wood);
+                            Output[at + k++] = Piece(butt + up * 2f * scale, up, forward, 0.2f * scale, 0.035f * scale, 0.004f * scale, 0.3f, iron, faded, SegmentMaterial.Metal);
+                            break;
+                        }
+                        case CreatureWeapon.Spear:
+                        {
+                            // (Both hands: levelled forward, the right hand back along the shaft, thrust out through a swing.)
+                            var level = Unity.Mathematics.math.normalizesafe(forward + up * 0.15f, forward);
+                            var thrust = Unity.Mathematics.math.sin(p * Unity.Mathematics.math.PI) * 0.35f * scale;
+                            var butt = grip - level * (0.6f * scale - thrust);
+                            Output[at + k++] = Piece(butt, level, up, 1.9f * scale, 0.018f * scale, 0.016f * scale, 1f, wood, faded, SegmentMaterial.Wood);
+                            Output[at + k++] = Piece(butt + level * 1.9f * scale, level, up, 0.24f * scale, 0.036f * scale, 0.003f * scale, 0.35f, iron, faded, SegmentMaterial.Metal);
+                            break;
+                        }
+                        case CreatureWeapon.Bow:
+                        {
+                            // (In the left hand, upright, its limbs curving back; the string drawn to the right hand as the
+                            // swing goes and loosed at its end, an arrow on it while drawn.)
+                            var o = offHand >= 0 ? Output[offset + offHand] : h;
+                            var bowAt = o.Position + Unity.Mathematics.math.mul(o.Rotation, new Unity.Mathematics.float3(0f, 0f, o.Length * 0.75f));
+                            // (Each limb in two pieces: out from the grip, then curving back to its tip; drawn, the tips
+                            // come back further.)
+                            var draw = p < 0.75f ? Unity.Mathematics.math.smoothstep(0f, 0.6f, p) : 0f;
+                            var limb = 0.31f * scale;
+                            var bend = (0.14f + 0.08f * draw) * scale;
+                            var topMid = bowAt + up * limb - forward * bend * 0.3f;
+                            var top = bowAt + up * limb * 1.9f - forward * bend;
+                            var bottomMid = bowAt - up * limb - forward * bend * 0.3f;
+                            var bottom = bowAt - up * limb * 1.9f - forward * bend;
+                            Output[at + k++] = Piece(bowAt, Unity.Mathematics.math.normalize(topMid - bowAt), right, Unity.Mathematics.math.length(topMid - bowAt), 0.026f * scale, 0.02f * scale, 0.6f, wood, faded, SegmentMaterial.Wood);
+                            Output[at + k++] = Piece(topMid, Unity.Mathematics.math.normalize(top - topMid), right, Unity.Mathematics.math.length(top - topMid), 0.02f * scale, 0.01f * scale, 0.6f, wood, faded, SegmentMaterial.Wood);
+                            Output[at + k++] = Piece(bowAt, Unity.Mathematics.math.normalize(bottomMid - bowAt), right, Unity.Mathematics.math.length(bottomMid - bowAt), 0.026f * scale, 0.02f * scale, 0.6f, wood, faded, SegmentMaterial.Wood);
+                            Output[at + k++] = Piece(bottomMid, Unity.Mathematics.math.normalize(bottom - bottomMid), right, Unity.Mathematics.math.length(bottom - bottomMid), 0.02f * scale, 0.01f * scale, 0.6f, wood, faded, SegmentMaterial.Wood);
+                            var rest = (top + bottom) * 0.5f;
+                            var nock = Unity.Mathematics.math.lerp(rest, Tip(h), draw);
+                            var thread = new Unity.Mathematics.float4(0.88f, 0.85f, 0.75f, 0f);
+                            Output[at + k++] = Piece(top, Unity.Mathematics.math.normalizesafe(nock - top, -up), right, Unity.Mathematics.math.length(nock - top), 0.006f * scale, 0.006f * scale, 1f, thread, faded, SegmentMaterial.Cloth);
+                            Output[at + k++] = Piece(nock, Unity.Mathematics.math.normalizesafe(bottom - nock, -up), right, Unity.Mathematics.math.length(bottom - nock), 0.006f * scale, 0.006f * scale, 1f, thread, faded, SegmentMaterial.Cloth);
+                            if (draw > 0.05f)
+                            {
+                                var shaft = Unity.Mathematics.math.normalizesafe(bowAt - nock, forward);
+                                Output[at + k++] = Piece(nock, shaft, up, Unity.Mathematics.math.distance(bowAt, nock) + 0.12f * scale, 0.008f * scale, 0.008f * scale, 1f, wood, faded, SegmentMaterial.Wood);
+                            }
+                            break;
+                        }
+                        // Zach 11-12, one item system: what folk carry, in any body's hand (the shapes are the folk's own).
+                        case CreatureWeapon.GreatClub:
+                            // (An ogre's great club: thick at the end, both hands on it.)
+                            Output[at + k++] = Piece(grip - dir * 0.1f * scale, dir, face, 1.15f * scale, 0.045f * scale, 0.13f * scale, 1f, darkWood, faded, SegmentMaterial.Wood);
+                            break;
+                        case CreatureWeapon.Hoe:
+                            // (A long haft, a flat blade set across its top, facing the strike.)
+                            Output[at + k++] = Piece(grip - dir * 0.38f * scale, dir, face, 1.1f * scale, 0.016f * scale, 0.02f * scale, 1f, wood, faded, SegmentMaterial.Wood);
+                            Output[at + k++] = Piece(grip + dir * 0.7f * scale, face, dir, 0.16f * scale, 0.06f * scale, 0.07f * scale, 0.1f, iron, faded, SegmentMaterial.Metal);
+                            break;
+                        case CreatureWeapon.Broom:
+                            // (A long haft, and its bristles on from the top, flaring.)
+                            Output[at + k++] = Piece(grip - dir * 0.45f * scale, dir, face, 1.0f * scale, 0.016f * scale, 0.018f * scale, 1f, wood, faded, SegmentMaterial.Wood);
+                            Output[at + k++] = Piece(grip + dir * 0.55f * scale, dir, face, 0.3f * scale, 0.05f * scale, 0.14f * scale, 0.7f, straw, faded, SegmentMaterial.Wood);
+                            break;
+                        case CreatureWeapon.SmithHammer:
+                            // (A short haft, a small square head across its top.)
+                            Output[at + k++] = Piece(grip - dir * 0.05f * scale, dir, face, 0.32f * scale, 0.016f * scale, 0.02f * scale, 1f, wood, faded, SegmentMaterial.Wood);
+                            Output[at + k++] = Piece(grip + dir * 0.27f * scale + face * 0.045f * scale, -face, across, 0.09f * scale, 0.024f * scale, 0.024f * scale, 1f, iron, faded, SegmentMaterial.Metal);
+                            break;
+                        case CreatureWeapon.Stick:
+                            // (A crooked stick held out ahead.)
+                            Output[at + k++] = Piece(grip - dir * 0.06f * scale, Unity.Mathematics.math.normalizesafe(dir + forward * 0.6f, dir), face, 0.6f * scale, 0.014f * scale, 0.009f * scale, 0.85f, stick, faded, SegmentMaterial.Wood);
+                            break;
+                        case CreatureWeapon.Stone:
+                            Output[at + k++] = Piece(tip - up * 0.02f * scale, up, forward, 0.03f * scale, 0.06f * scale, 0.05f * scale, 0.8f, new Unity.Mathematics.float4(0.45f, 0.44f, 0.42f, 0f), faded, SegmentMaterial.Body);
+                            break;
+                        case CreatureWeapon.Letter:
+                            // (A rolled letter across the fist, its red seal.)
+                            Output[at + k++] = Piece(tip - across * 0.06f * scale, across, up, 0.12f * scale, 0.012f * scale, 0.012f * scale, 1f, new Unity.Mathematics.float4(0.86f, 0.82f, 0.7f, 0f), faded, SegmentMaterial.Cloth);
+                            Output[at + k++] = Piece(tip + up * 0.012f * scale, up, forward, 0f, 0.008f * scale, 0.008f * scale, 0.6f, new Unity.Mathematics.float4(0.45f, 0.06f, 0.05f, 0f), faded, SegmentMaterial.Cloth);
+                            break;
+                        case CreatureWeapon.Jar:
+                            Output[at + k++] = Piece(tip - up * 0.04f * scale, up, forward, 0.12f * scale, 0.05f * scale, 0.04f * scale, 1f, new Unity.Mathematics.float4(0.55f, 0.32f, 0.2f, 0f), faded, SegmentMaterial.Wood);
+                            break;
+                        case CreatureWeapon.Fruit:
+                            Output[at + k++] = Piece(tip - up * 0.03f * scale, up, forward, 0.02f * scale, 0.045f * scale, 0.045f * scale, 1f, new Unity.Mathematics.float4(0.78f, 0.18f, 0.12f, 0f), faded, SegmentMaterial.Cloth);
+                            break;
+                        case CreatureWeapon.Loaf:
+                            Output[at + k++] = Piece(tip - across * 0.09f * scale, across, up, 0.18f * scale, 0.065f * scale, 0.06f * scale, 0.7f, new Unity.Mathematics.float4(0.62f, 0.38f, 0.16f, 0f), faded, SegmentMaterial.Wood);
+                            break;
+                        case CreatureWeapon.OreSack:
+                            // (A lumpy sack held to the chest in both arms, low.)
+                            Output[at + k++] = Piece(between - up * 0.12f * scale, up, forward, 0.14f * scale, 0.16f * scale, 0.12f * scale, 0.85f, new Unity.Mathematics.float4(0.36f, 0.3f, 0.2f, 0f), faded, SegmentMaterial.Cloth);
+                            break;
+                        case CreatureWeapon.Bowl:
+                            // (Between the hands: a wooden bowl, herbs in it.)
+                            Output[at + k++] = Piece(between - up * 0.07f * scale, up, forward, 0.07f * scale, 0.05f * scale, 0.1f * scale, 1f, new Unity.Mathematics.float4(0.5f, 0.36f, 0.22f, 0f), faded, SegmentMaterial.Wood);
+                            Output[at + k++] = Piece(between - up * 0.005f * scale, forward, up, 0f, 0.085f * scale, 0.085f * scale, 0.05f, new Unity.Mathematics.float4(0.32f, 0.42f, 0.2f, 0f), faded, SegmentMaterial.Cloth);
+                            break;
+                        case CreatureWeapon.Dough:
+                            Output[at + k++] = Piece(between - across * 0.11f * scale - up * 0.05f * scale, across, up, 0.22f * scale, 0.07f * scale, 0.07f * scale, 0.55f, new Unity.Mathematics.float4(0.9f, 0.82f, 0.62f, 0f), faded, SegmentMaterial.Cloth);
+                            break;
+                        // (Zach 11-12: what the folk held in the other hand, now in either.)
+                        case CreatureWeapon.Shield:
+                        {
+                            // (A goblin's scrap shield, strapped to the forearm, facing out.)
+                            var fore = Output[offset + arm - 1];
+                            var on = fore.Position + Unity.Mathematics.math.mul(fore.Rotation, new Unity.Mathematics.float3(0f, 0f, fore.Length * 0.5f)) + across * 0.06f * scale;
+                            Output[at + k++] = Piece(on, forward, across, 0.01f * scale, 0.17f * scale, 0.155f * scale, 0.12f, new Unity.Mathematics.float4(0.36f, 0.3f, 0.24f, 0f), faded, SegmentMaterial.Metal);
+                            break;
+                        }
+                        case CreatureWeapon.Tongs:
+                        {
+                            // (Two iron arms out from the fist, held forward and down.)
+                            var hold = Unity.Mathematics.math.normalize(forward - up * 0.6f);
+                            Output[at + k++] = Piece(tip + across * 0.012f * scale, hold, across, 0.32f * scale, 0.009f * scale, 0.008f * scale, 1f, iron, faded, SegmentMaterial.Metal);
+                            Output[at + k++] = Piece(tip - across * 0.012f * scale, hold, across, 0.32f * scale, 0.009f * scale, 0.008f * scale, 1f, iron, faded, SegmentMaterial.Metal);
+                            break;
+                        }
+                        case CreatureWeapon.Bucket:
+                        {
+                            // (Hanging from the hand by its handle.)
+                            var hang = h.Position + Unity.Mathematics.math.mul(h.Rotation, new Unity.Mathematics.float3(0f, 0f, h.Length * 0.8f));
+                            Output[at + k++] = Piece(hang - up * 0.27f * scale, up, forward, 0.2f * scale, 0.08f * scale, 0.095f * scale, 1f, new Unity.Mathematics.float4(0.42f, 0.3f, 0.18f, 0f), faded, SegmentMaterial.Wood);
+                            Output[at + k++] = Piece(hang - up * 0.08f * scale + across * 0.09f * scale, -across, up, 0.18f * scale, 0.007f * scale, 0.007f * scale, 1f, iron, faded, SegmentMaterial.Metal);
+                            break;
+                        }
                     }
                 }
             }
@@ -1085,10 +1088,12 @@ namespace Punchy.Fauna
                 Output[at] = default;
                 Output[at + 1] = default;
                 int hand = -1, chest = -1;
+                // (The staff in whichever hand holds it: a player's may be its left, CreatureOutfit.HeldSide.)
+                var side = CreatureOutfit.HeldSide(in state);
                 for (int i = 0; i < b.Parts.Length; i++)
                 {
                     ref var part = ref b.Parts[i];
-                    if (part.Role == LimbRole.Arm && part.Side > 0f && hand < 0)
+                    if (part.Role == LimbRole.Arm && part.Side * side > 0f && hand < 0)
                         hand = part.FirstSegment + part.SegmentCount - 1;
                     else if (part.Parent < 0 && part.Role != LimbRole.Leg && part.Role != LimbRole.Arm && chest < 0)
                         chest = part.FirstSegment + part.SegmentCount - 1;

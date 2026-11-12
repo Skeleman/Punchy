@@ -542,20 +542,28 @@ namespace Punchy.Fauna
         /// <summary>P-29: a player's body that wears gear: its hair is Hair / HairColour (bald included), drawn in place of
         /// the species' own hair parts, which are hidden. False for folk, who keep their species' hair.</summary>
         public bool OwnHair;
-        /// <summary>Zach 11-12: what's in the other hand (a CreatureWeapon hand look: a shield, tongs, a bucket; 0 for
-        /// nothing).</summary>
-        public byte OffHand;
+        /// <summary>Zach 11-12: what's in the left hand (a CreatureWeapon hand look; 0 for nothing). Weapon is the right's:
+        /// there's no off hand, anything held goes in either.</summary>
+        public byte LeftHand;
         /// <summary>Zach 11-12 row 4: a player's hand item put away or on its way there or back (ItemTable id + 1; 0 for
         /// none), and how far into its sheath it is: 255 all the way, 0 in hand, between through the half-second Draw and
         /// Sheathe (from 128 on, it's worn, not held: Weapon is then None).</summary>
         public byte Kept, Stow;
+        /// <summary>Zach 11-12: a player's CreatureState.Held (a torch, a staff, a lantern) is in its left hand, not its
+        /// right.</summary>
+        public bool HeldLeft;
 
         public bool Armoured => (Head | Body | Legs | Feet | Back | Neck) != 0;
 
+        /// <summary>Which arm holds the body's CreatureState.Held (+1 the right, -1 the left: LimbPart.Side): one of the
+        /// folk's lantern in its left and anything else in its right; a player's where it put it (HeldLeft).</summary>
+        public static float HeldSide(in CreatureState s) =>
+            s.Mode == CreatureMode.Puppet ? (s.Outfit.HeldLeft ? -1f : 1f) : s.Held == HeldItem.Lantern ? -1f : 1f;
+
         public bool Equals(CreatureOutfit o) =>
             Weapon == o.Weapon && Swing == o.Swing && Head == o.Head && Body == o.Body && Legs == o.Legs && Feet == o.Feet &&
-            Back == o.Back && Neck == o.Neck && Hair == o.Hair && HairColour == o.HairColour && OwnHair == o.OwnHair && OffHand == o.OffHand &&
-            Kept == o.Kept && Stow == o.Stow;
+            Back == o.Back && Neck == o.Neck && Hair == o.Hair && HairColour == o.HairColour && OwnHair == o.OwnHair && LeftHand == o.LeftHand &&
+            Kept == o.Kept && Stow == o.Stow && HeldLeft == o.HeldLeft;
     }
 
     /// <summary>
@@ -639,7 +647,7 @@ namespace Punchy.Fauna
     /// </summary>
     public struct FolkKit : System.IEquatable<FolkKit>
     {
-        public byte Hand, OffHand, Sheath, Head, Body, Back, Neck, Bag0, Bag1, Bag2, Bag3;
+        public byte Hand, LeftHand, Sheath, Head, Body, Back, Neck, Bag0, Bag1, Bag2, Bag3;
         /// <summary>Zach 11-12 row 5: what stands at its post while it works there (a kneading table and a loaf, the well's
         /// rope and bucket, the hot iron, a chopping block and log), drawn by the Gear pass.</summary>
         public byte Post0, Post1;
@@ -648,10 +656,10 @@ namespace Punchy.Fauna
         public static byte Of(int item) => (byte)(item + 1);
         public static int Item(byte slot) => slot - 1;
 
-        public bool Empty => (Hand | OffHand | Sheath | Head | Body | Back | Neck | Bag0 | Bag1 | Bag2 | Bag3 | Post0 | Post1) == 0;
+        public bool Empty => (Hand | LeftHand | Sheath | Head | Body | Back | Neck | Bag0 | Bag1 | Bag2 | Bag3 | Post0 | Post1) == 0;
 
         public bool Equals(FolkKit o) =>
-            Hand == o.Hand && OffHand == o.OffHand && Sheath == o.Sheath && Head == o.Head && Body == o.Body && Back == o.Back && Neck == o.Neck &&
+            Hand == o.Hand && LeftHand == o.LeftHand && Sheath == o.Sheath && Head == o.Head && Body == o.Body && Back == o.Back && Neck == o.Neck &&
             Bag0 == o.Bag0 && Bag1 == o.Bag1 && Bag2 == o.Bag2 && Bag3 == o.Bag3 && Post0 == o.Post0 && Post1 == o.Post1;
     }
 

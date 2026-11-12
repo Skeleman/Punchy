@@ -9,8 +9,10 @@ using UnityEngine.InputSystem;
 
 namespace Punchy.Items
 {
-    /// <summary>Where a piece of gear goes on the body (P-23); None for ordinary items.</summary>
-    public enum GearSlot : byte { None, Hand, Head, Body, Back, Legs, Feet, Neck, OffHand }
+    /// <summary>Where a piece of gear goes on the body (P-23); None for ordinary items. As an item's Slot, Hand is "held,
+    /// in either hand" (Zach 11-12: there's no off hand); as a place on the body, Hand is the right hand and LeftHand the
+    /// left (the byte LeftHand was the off hand's, so messages keep their shape).</summary>
+    public enum GearSlot : byte { None, Hand, Head, Body, Back, Legs, Feet, Neck, LeftHand }
 
     /// <summary>Client → host: what this player has on now (item ids; 255 for nothing).</summary>
     public struct GearRpc : IRpcCommand
@@ -59,8 +61,8 @@ namespace Punchy.Items
     {
         public byte Hand, Head, Back, Body, Legs, Feet, Neck;
         public byte Hair, HairColour;
-        /// <summary>Zach 11-12: the other hand (a shield, tongs, a bucket).</summary>
-        public byte OffHand;
+        /// <summary>Zach 11-12: the left hand (Hand is the right).</summary>
+        public byte LeftHand;
         /// <summary>Zach 11-12 row 4: 1 while the hand's item is put away (the sheathe key), else 0; sent as SheathPlace.</summary>
         public byte Sheathed;
     }
@@ -100,7 +102,7 @@ namespace Punchy.Items
         {
             Hand = worn[(int)GearSlot.Hand], Head = worn[(int)GearSlot.Head], Back = worn[(int)GearSlot.Back],
             Body = worn[(int)GearSlot.Body], Legs = worn[(int)GearSlot.Legs], Feet = worn[(int)GearSlot.Feet],
-            Neck = worn[(int)GearSlot.Neck], OffHand = worn[(int)GearSlot.OffHand],
+            Neck = worn[(int)GearSlot.Neck], LeftHand = worn[(int)GearSlot.LeftHand],
             Hair = Punchy.Net.PlayerHair.Style, HairColour = Punchy.Net.PlayerHair.Colour,
             Sheathed = sheathed ? (byte)1 : (byte)0,
         };
@@ -147,7 +149,12 @@ namespace Punchy.Items
         }
 
         /// <summary>Puts on the item in this inventory slot; what was on goes back to the inventory.</summary>
-        void Equip(int slot)
+        /// <summary>
+        /// Puts on the item in this inventory slot; what was on goes back to the inventory. Something held (Slot Hand)
+        /// goes in either hand (Zach 11-12: there's no off hand): an empty one, the right first, or the right's place
+        /// with both full; in the left if asked (Shift). A two-handed thing takes both.
+        /// </summary>
+        void Equip(int slot, bool left = false)
         {
             if (slot < 0 || slot >= Capacity || slots[slot].item == Nothing)
                 return;
@@ -159,6 +166,12 @@ namespace Punchy.Items
             {
                 Debug.Log($"Items: this body can't wear the {ItemTable.Items[item].Name}");
                 return;
+            }
+            if (place == GearSlot.Hand && !ItemTable.Items[item].TwoHanded)
+            {
+                var rightFull = worn[(int)GearSlot.Hand] != Nothing && !ItemTable.Items[worn[(int)GearSlot.Hand]].TwoHanded;
+                if (left || rightFull && worn[(int)GearSlot.LeftHand] == Nothing)
+                    place = GearSlot.LeftHand;
             }
             var was = worn[(int)place];
             // (Swapping a pack: only if what's in its rows still fits.)
@@ -172,10 +185,9 @@ namespace Punchy.Items
                 (sheathed, ownSheathAt) = (false, -10f);
             if (was != Nothing)
                 Grant(was, 1);
-            // (Both hands: a two-handed thing frees the other hand, and something for the other hand puts down a
-            // two-handed one.)
-            var other = place == GearSlot.Hand && ItemTable.Items[item].TwoHanded ? GearSlot.OffHand :
-                        place == GearSlot.OffHand && worn[(int)GearSlot.Hand] != Nothing && ItemTable.Items[worn[(int)GearSlot.Hand]].TwoHanded ? GearSlot.Hand : GearSlot.None;
+            // (Both hands: a two-handed thing frees the left, and something put in the left puts down a two-handed one.)
+            var other = place == GearSlot.Hand && ItemTable.Items[item].TwoHanded ? GearSlot.LeftHand :
+                        place == GearSlot.LeftHand && worn[(int)GearSlot.Hand] != Nothing && ItemTable.Items[worn[(int)GearSlot.Hand]].TwoHanded ? GearSlot.Hand : GearSlot.None;
             if (other != GearSlot.None && worn[(int)other] != Nothing)
             {
                 Grant(worn[(int)other], 1);
@@ -213,13 +225,13 @@ namespace Punchy.Items
         void GearChanged()
         {
             var g = Wearing;
-            Debug.Log($"Items: wearing hand {GearName(g.Hand)}, head {GearName(g.Head)}, back {GearName(g.Back)}, body {GearName(g.Body)}, legs {GearName(g.Legs)}, feet {GearName(g.Feet)}, neck {GearName(g.Neck)}, off hand {GearName(g.OffHand)}; armour {ArmourTotal():0}, worn {WornWeight():0.#} kg, carried {CarriedWeight():0.#} kg; {Capacity} slots; inventory: {DescribeInventory()}");
+            Debug.Log($"Items: wearing right hand {GearName(g.Hand)}, left hand {GearName(g.LeftHand)}, head {GearName(g.Head)}, back {GearName(g.Back)}, body {GearName(g.Body)}, legs {GearName(g.Legs)}, feet {GearName(g.Feet)}, neck {GearName(g.Neck)}; armour {ArmourTotal():0}, worn {WornWeight():0.#} kg, carried {CarriedWeight():0.#} kg; {Capacity} slots; inventory: {DescribeInventory()}");
             if (Joined)
             {
                 SendToHost(new GearRpc { Hand = g.Hand, Head = g.Head, Back = g.Back });
                 SendToHost(new ArmourRpc { Body = g.Body, Legs = g.Legs, Feet = g.Feet });
                 SendToHost(new SlotRpc { Slot = (byte)GearSlot.Neck, Item = g.Neck });
-                SendToHost(new SlotRpc { Slot = (byte)GearSlot.OffHand, Item = g.OffHand });
+                SendToHost(new SlotRpc { Slot = (byte)GearSlot.LeftHand, Item = g.LeftHand });
                 SendToHost(new SlotRpc { Slot = SheathPlace, Item = g.Sheathed });
             }
             else if (Hosting)
@@ -242,7 +254,7 @@ namespace Punchy.Items
             Broadcast(new GearStateRpc { Player = player, Hand = g.Hand, Head = g.Head, Back = g.Back });
             Broadcast(new ArmourStateRpc { Player = player, Body = g.Body, Legs = g.Legs, Feet = g.Feet });
             Broadcast(new SlotStateRpc { Player = player, Slot = (byte)GearSlot.Neck, Item = g.Neck });
-            Broadcast(new SlotStateRpc { Player = player, Slot = (byte)GearSlot.OffHand, Item = g.OffHand });
+            Broadcast(new SlotStateRpc { Player = player, Slot = (byte)GearSlot.LeftHand, Item = g.LeftHand });
             Broadcast(new SlotStateRpc { Player = player, Slot = HairPlace, Item = g.Hair });
             Broadcast(new SlotStateRpc { Player = player, Slot = HairColourPlace, Item = g.HairColour });
             Broadcast(new SlotStateRpc { Player = player, Slot = SheathPlace, Item = g.Sheathed });
@@ -333,7 +345,7 @@ namespace Punchy.Items
                     Send(em, c, new GearStateRpc { Player = kv.Key, Hand = kv.Value.Hand, Head = kv.Value.Head, Back = kv.Value.Back });
                     Send(em, c, new ArmourStateRpc { Player = kv.Key, Body = kv.Value.Body, Legs = kv.Value.Legs, Feet = kv.Value.Feet });
                     Send(em, c, new SlotStateRpc { Player = kv.Key, Slot = (byte)GearSlot.Neck, Item = kv.Value.Neck });
-                    Send(em, c, new SlotStateRpc { Player = kv.Key, Slot = (byte)GearSlot.OffHand, Item = kv.Value.OffHand });
+                    Send(em, c, new SlotStateRpc { Player = kv.Key, Slot = (byte)GearSlot.LeftHand, Item = kv.Value.LeftHand });
                     Send(em, c, new SlotStateRpc { Player = kv.Key, Slot = HairPlace, Item = kv.Value.Hair });
                     Send(em, c, new SlotStateRpc { Player = kv.Key, Slot = HairColourPlace, Item = kv.Value.HairColour });
                     Send(em, c, new SlotStateRpc { Player = kv.Key, Slot = SheathPlace, Item = kv.Value.Sheathed });
@@ -368,8 +380,8 @@ namespace Punchy.Items
         {
             if (slot == (byte)GearSlot.Neck)
                 g.Neck = item;
-            else if (slot == (byte)GearSlot.OffHand)
-                g.OffHand = item;
+            else if (slot == (byte)GearSlot.LeftHand)
+                g.LeftHand = item;
             else if (slot == HairPlace)
                 g.Hair = item;
             else if (slot == HairColourPlace)
@@ -379,7 +391,7 @@ namespace Punchy.Items
         }
 
         /// <summary>Nothing on anywhere.</summary>
-        static GearSet Bare => new GearSet { Hand = Nothing, Head = Nothing, Back = Nothing, Body = Nothing, Legs = Nothing, Feet = Nothing, Neck = Nothing, OffHand = Nothing };
+        static GearSet Bare => new GearSet { Hand = Nothing, Head = Nothing, Back = Nothing, Body = Nothing, Legs = Nothing, Feet = Nothing, Neck = Nothing, LeftHand = Nothing };
 
         /// <summary>The host: clients' places after Feet, one at a time.</summary>
         void ServeSlots(EntityManager em)
@@ -463,7 +475,12 @@ namespace Punchy.Items
             var s = em.GetComponentData<CreatureState>(body);
             ref var blob = ref em.GetComponentData<CreatureBody>(body).Blob.Value;
             var wears = blob.Upright && blob.Hands;
+            // (A torch, a staff or a lantern is drawn by its own pass, in whichever hand holds it: the right's, else the
+            // left's.)
             var held = wears ? HeldFor(hand) : HeldItem.None;
+            var heldLeft = false;
+            if (wears && held == HeldItem.None && g.LeftHand != Nothing && HeldFor(g.LeftHand) != HeldItem.None)
+                (held, heldLeft) = (HeldFor(g.LeftHand), true);
             var bits = wears ? WornBits(g.Head, g.Back) : (byte)0;
             var outfit = wears ? new CreatureOutfit { Head = Look(g.Head), Body = Look(g.Body), Legs = Look(g.Legs), Feet = Look(g.Feet), Back = Look(g.Back), Neck = Look(g.Neck) } : default;
             var weapon = wears && hand != Nothing ? ItemTable.Items[hand].Weapon : CreatureWeapon.None;
@@ -476,7 +493,8 @@ namespace Punchy.Items
             var swing = weapon != CreatureWeapon.None ? SwingByte(swung, ItemTable.Items[hand].Speed) : (byte)0;
             outfit.Weapon = weapon;
             outfit.Swing = swing;
-            outfit.OffHand = wears && g.OffHand != Nothing ? ItemTable.Items[g.OffHand].Weapon : (byte)0;
+            outfit.LeftHand = wears && g.LeftHand != Nothing && !heldLeft ? ItemTable.Items[g.LeftHand].Weapon : (byte)0;
+            outfit.HeldLeft = heldLeft;
             if (wears)
                 (outfit.Hair, outfit.HairColour, outfit.OwnHair) = (g.Hair, g.HairColour, true);
             if (s.Held == held && s.Worn == bits && s.Outfit.Equals(outfit))
@@ -490,7 +508,7 @@ namespace Punchy.Items
             s.Outfit = outfit;
             em.SetComponentData(body, s);
             if (changed)
-                Debug.Log($"[gear] {(em.HasComponent<RemoteAvatar>(body) ? "another player's" : "our")} body: held {held}, worn {bits}, weapon {weapon}, armour head {outfit.Head} body {outfit.Body} legs {outfit.Legs} feet {outfit.Feet} back {outfit.Back} neck {outfit.Neck} off hand {outfit.OffHand}, hair {outfit.Hair} colour {outfit.HairColour}");
+                Debug.Log($"[gear] {(em.HasComponent<RemoteAvatar>(body) ? "another player's" : "our")} body: held {held}, worn {bits}, weapon {weapon}, armour head {outfit.Head} body {outfit.Body} legs {outfit.Legs} feet {outfit.Feet} back {outfit.Back} neck {outfit.Neck} left hand {outfit.LeftHand}{(heldLeft ? " (held in the left)" : "")}, hair {outfit.Hair} colour {outfit.HairColour}");
         }
 
         /// <summary>Where a swing that began at this time is: 0 at rest, 1..255 through it.</summary>
@@ -670,7 +688,7 @@ namespace Punchy.Items
                 equipFrom = Time.realtimeSinceStartup;
             if (Time.realtimeSinceStartup < equipFrom + 20f + 12f * equipSet)
                 return;
-            // ("A;B;C": one set after another, 12 s apart; each new set takes the last one's hand item off first.)
+            // ("A;B;C": one set after another, 12 s apart; each new set takes the last one's hand items off first.)
             var sets = equipArg.Split(';');
             if (equipSet == 0)
             {
@@ -678,7 +696,10 @@ namespace Punchy.Items
                 budgetAt = Time.realtimeSinceStartup + 4f;
             }
             else
+            {
                 Unequip(GearSlot.Hand);
+                Unequip(GearSlot.LeftHand);
+            }
             foreach (var name in sets[equipSet].Split(','))
             {
                 var id = ItemId(name);
@@ -726,23 +747,23 @@ namespace Punchy.Items
             var keyboard = Keyboard.current;
             var pad = Gamepad.current;
             if (keyboard != null && keyboard.xKey.wasPressedThisFrame || pad != null && pad.buttonWest.wasPressedThisFrame)
-                Equip(selected);
+                Equip(selected, keyboard != null && keyboard.shiftKey.isPressed);
         }
 
-        /// <summary>A right click on an inventory slot puts its gear on.</summary>
+        /// <summary>A right click on an inventory slot puts its gear on (with Shift, a held thing in the left hand).</summary>
         void RightClickEquip(Rect slot, int index)
         {
             var e = Event.current;
             if (e.type == EventType.MouseDown && e.button == 1 && slot.Contains(e.mousePosition))
             {
-                Equip(index);
+                Equip(index, e.shift);
                 e.Use();
             }
         }
 
         static readonly (GearSlot Slot, string Label)[] WornRow =
         {
-            (GearSlot.Hand, "Hand"), (GearSlot.OffHand, "Off hand"), (GearSlot.Head, "Head"), (GearSlot.Body, "Body"), (GearSlot.Legs, "Legs"), (GearSlot.Feet, "Feet"), (GearSlot.Neck, "Neck"), (GearSlot.Back, "Back"),
+            (GearSlot.Hand, "Right hand"), (GearSlot.LeftHand, "Left hand"), (GearSlot.Head, "Head"), (GearSlot.Body, "Body"), (GearSlot.Legs, "Legs"), (GearSlot.Feet, "Feet"), (GearSlot.Neck, "Neck"), (GearSlot.Back, "Back"),
         };
 
         /// <summary>The worn row under the slots: a button per place, showing what's on and what it does; press to take it off.</summary>
@@ -751,7 +772,7 @@ namespace Punchy.Items
             if (openContainer >= 0)
                 return;
             var area = new Rect(inventory.x, inventory.yMax + 6f, inventory.width, cell + 28f);
-            GUI.Box(area, "Wearing   (X or right click on an item: put on)");
+            GUI.Box(area, "Wearing   (X or right click on an item: put on; with Shift, in the left hand)");
             GUILayout.BeginArea(new Rect(area.x + gap, area.y + 24f, area.width - 2f * gap, cell));
             GUILayout.BeginHorizontal();
             foreach (var (place, label) in WornRow)

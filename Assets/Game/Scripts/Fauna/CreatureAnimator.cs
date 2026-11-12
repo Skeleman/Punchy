@@ -511,7 +511,8 @@ namespace Punchy.Fauna
                     // with a torch; running at a beast, the weapon levelled at it, held low and forward at the hip. (With
                     // the weapon worn, or an elf's bow on its back, the arms swing free.)
                     // (Anyone carrying a torch holds it up so, guard or not.)
-                    if (part.Role == LimbRole.Arm && part.Side > 0f && (s.Task == CreatureTask.Patrol && s.Held == HeldItem.SpearDrawn && b.GuardKit != GuardKit.Elf || s.Held == HeldItem.Torch))
+                    if (part.Role == LimbRole.Arm && (part.Side > 0f && s.Task == CreatureTask.Patrol && s.Held == HeldItem.SpearDrawn && b.GuardKit != GuardKit.Elf ||
+                                                      part.Side * CreatureOutfit.HeldSide(in s) > 0f && s.Held == HeldItem.Torch))
                     {
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.8f);
                         var torch = s.Held == HeldItem.Torch;
@@ -532,7 +533,7 @@ namespace Punchy.Fauna
                             : j == 1 ? (toBack ? new float3(-1.4f, 0f, 0f) : new float3(-1.0f, 0f, 0f)) : float3.zero) * reach;
                     }
                     // A traveller's staff in the right hand: the arm a little forward and bent, planting it as it goes.
-                    if (part.Role == LimbRole.Arm && part.Side > 0f && s.Held == HeldItem.Staff)
+                    if (part.Role == LimbRole.Arm && part.Side * CreatureOutfit.HeldSide(in s) > 0f && s.Held == HeldItem.Staff)
                     {
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.7f);
                         a.x += j == 0 ? -0.3f : j == 1 ? -0.7f : 0f;
@@ -573,6 +574,14 @@ namespace Punchy.Fauna
                             var wStrike = math.smoothstep(0.6f, 0.72f, wSwing) * (1f - math.smoothstep(0.8f, 1f, wSwing));
                             a.x += j == 0 ? -0.5f - 2.0f * wLift - 0.4f * wStrike : j == 1 ? -0.9f - 0.5f * wLift + 0.6f * wStrike : 0f;
                         }
+                    }
+                    // Something in the left hand (Zach 11-12: there's no off hand, either holds anything): held ready as
+                    // the right holds its own, bent and a little up; it isn't swung.
+                    if (part.Role == LimbRole.Arm && part.Side < 0f && s.Outfit.LeftHand != CreatureWeapon.None && !wArms &&
+                        s.Outfit.Weapon != CreatureWeapon.Spear && s.Outfit.Weapon != CreatureWeapon.Bow && s.Outfit.Weapon != CreatureWeapon.GreatClub)
+                    {
+                        a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.85f);
+                        a.x += j == 0 ? -0.5f : j == 1 ? -0.9f : 0f;
                     }
                     // Meeting a messenger bird: the left forearm raised out in front at chest height, bent, for it to land
                     // on; once it's there, the right hand across to take the roll from its leg.
@@ -644,8 +653,9 @@ namespace Punchy.Fauna
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.85f);
                         a += j == 0 ? new float3(-0.8f, 0f, part.Side * 0.5f) : j == 1 ? new float3(-1.75f, 0f, 0f) : float3.zero;
                     }
-                    // A lantern in the off hand: that arm held a little forward and bent, hardly swinging.
-                    if (part.Role == LimbRole.Arm && part.Side < 0f && s.Held == HeldItem.Lantern)
+                    // A lantern in hand (one of the folk's left, a player's either: CreatureOutfit.HeldSide): that arm held a
+                    // little forward and bent, hardly swinging.
+                    if (part.Role == LimbRole.Arm && part.Side * CreatureOutfit.HeldSide(in s) > 0f && s.Held == HeldItem.Lantern)
                     {
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.75f);
                         a.x += j == 0 ? -0.3f : j == 1 ? -0.55f : 0f;
