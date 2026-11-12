@@ -94,6 +94,8 @@ current release. Lane: A = animal, W = world.
 - (W) Cliff and mountain geometry beyond the heightmap (#281, 2026-11-12): big separate rock pieces on cliffs and
   mountain faces with real texture, strata, overhangs and ledges, which the heightmap can't do. Ties into climbing
   (grades, shimmy ledges) and gives shelves for mountaintop settlements and ruins. Design study first (W-149).
+  Zach 11-12: shelves can hold settlements, hermit homes, ruins, even flora; not all, but some, for the views.
+  Carded: R-19 (triplanar rock on steep ground), W-150 (cliff kit, shelves offered to places).
 
 
 ## Current roadmap (snapshot 2026-11-12, from open GitHub issues)
@@ -108,7 +110,7 @@ pygmies (#35, #10), turtle folk (#38). Core rule throughout: small, varied, seed
 - Floating islands off the coast, walkable, with caves and a new kind of town (#256).
 - Climbable colossi, maybe a fur section (#276), after unified climbing (A-101, W-144, W-147).
 - Rideable creatures: anything rides a creature 50% heavier; the ridden player steers (#278).
-- Cliff and mountain geometry: overhangs, ledges, strata as separate rock pieces (#281); W-149 design study.
+- Cliff and mountain geometry: overhangs, ledges, strata as separate rock pieces (#281); W-149 done, R-19 and W-150 carded.
 
 ### Open, partly done
 - Dungeons (#24), NPCs (#25), items and gear (#26), quests (#27): player lane cards in flight.
