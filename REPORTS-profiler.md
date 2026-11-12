@@ -2,6 +2,46 @@
 
 Newest first.
 
+## Jobs 49d and 45j: R-12 band trial, R-10 cluster-variant pricing, 2026-11-11 (q95.sh); and a correction to how I read RenderDoc
+**Setup:** Profile builds, 1920x1080, High, uncapped, `-body default`, 3 rounds rotated. Tables from report.py, with stalled rounds counted.
+
+### 49d: R-12 (b/r12-trims c43b5eaf)
+| view | plain | `-skyoff 1024` (no warp) | `-skyoff 8192` (no warp read 800 m outside the cloud layer) |
+|---|---|---|---|
+| storm, night | 19.8, 19.1, 19.6 = **19.5** | 18.8, 19.1, 18.9 = **18.95** (−0.55) | 19.4, 19.5, 19.6 = **19.5** (0.0) |
+| storm, noon | 18.9, 19.5, 18.9 = **19.1** | 17.0, 18.2, 18.1 = **17.75** (−1.35) | 18.9, 19.0, 18.5 = **18.8** (−0.3) |
+
+- **The band skip saves at most 0.3 ms at noon, and nothing at night.** The warp's cost isn't in the march's empty strides below the clouds.
+- With jobs 49b and 49d, the cheap trims are exhausted. The warp costs what it does where the march is inside or near the cloud.
+- **R-12 needs the sky owner's call:**
+  - bake the warp into the maps (losing the height lean);
+  - make it a High/Ultra feature under rule 23 (the bar there is +1 ms; R-12 is +0.55–1.35);
+  - or accept it with the cloud shadow map (job 49c), which pays back 0.75–1.3 ms over forests.
+
+### 45j: R-10 at the town (yaw 201, 22:00)
+| arm | GPU ms by round | mean | vs main |
+|---|---|---|---|
+| main 60edfacb | 15.1, 15.1, 15.1 | **15.1** | |
+| R-10 without the cluster variant in creatures, plants, grass, pebbles and temple (b/r10-nocluster a378b7e6) | 15.7, 15.7, 15.3 | **15.55** | +0.45 |
+| R-10 (a1cb1899) | 16.1, 16.2, 16.0 | **16.1** | +1.0 |
+
+- **Half of R-10's town cost (+0.55 of +1.0) is the Forward+ cluster variant compiled into those five surface shaders.**
+  - It's not the light loop: the reach cut didn't help (job 45h).
+  - It's not the light count: budgets 0, 48 and 64 measured the same (job 45b).
+  - It's the variant itself: URP's cluster code path in shaders that cover most of the screen.
+- **Suggested fix for the light owner:** keep real lights on terrain (main already had the variant there) and on creatures. Grass, pebbles and plants go back to the glow slots for street-light light, as before R-10. They're the bulk of the pixels and get little from a real light's exact falloff. That should recover most of the +0.55. Measure it with this same job.
+- **The other +0.45:** RenderDoc frames (one each) show it spread across the opaque pass (+0.5), the low-res effects pass (+0.35, likely the town dome) and the transparents (+0.15). No single draw stands out.
+
+### Correction: RenderDoc differences are about 1:1 with real ms, not 1:3
+- Here R-10's frame is +0.8 RenderDoc ms over main against +1.0 ms on the bench. At fall 74 (q92) the fall sheet's transparent pass was +1.0 RenderDoc ms against +1.2 on the bench.
+- The ~3x ratio I've been using holds for whole frames: RenderDoc adds a fixed overhead to each of ~3,000 draws. A difference between two captures of the same view mostly cancels that overhead.
+- **So my reports since job 45c that said "about 1 ms isn't in any draw" were wrong.** That cost was in the draws: the water sheets' extra pixels. Their RenderDoc deltas should be read as real ms.
+- This makes the water findings simpler (no hidden cost outside the draws), and RenderDoc pairs a reliable way to place costs.
+
+Files (Punchy-wt results): q95.out, q95-*.csv, q95logs/, q95-shots/, q95-passes.txt, rd95/*.rdc.
+
+Cost: laptop total $780 (laptop session 0a48ccdb; 2 builds, 27 games, 3 captures).
+
 ## Job 45i: the wave field's forms at High and Medium (b/water-rows-fixes f053c7bf), 2026-11-11 (q94.sh): all within noise of off at Medium
 **Setup:**
 - One Profile build. Job 45c's lake swim, 1920x1080, uncapped, `-body default`, 4 rounds rotated per preset.
