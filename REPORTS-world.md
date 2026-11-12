@@ -6396,3 +6396,34 @@ plot rules would have to accept a raised deck).
 - NaN: sparkleprobe bad 0 on all 6 shots (-stopnan 0). Shader compiles clean (0 messages). lod-lint rc 0; nan-lint shows no new hints.
 - Pins unchanged (shader only). Suite not run: shader only, no C# changed.
 - BENCH-QUEUE request (replaces 1b's): GPU ms at the canyon (2266,-434) and the mountain (-3130,2878), 20 m and 150 m, branch vs main. 1c adds about 5 value-noise samples per close rock pixel.
+
+## W-150
+
+### Row 1: cliff kit pieces on sea cliffs and mesa/canyon faces (#281), branch world/cliff-kit (from origin/main b66b4c2a), commits 18dfbd78, 9dd8ff37
+- What: a baked kit of five pieces (slab, stacked block, overhang, buttress, fallen block), each one to three chunky rotated boxes, put by the island bake on steep sea-cliff and mesa/canyon faces (tan 50 degrees and at least 8 m of relief in 20 m). Records follow rule 22: kit id, position, yaw/tilt, scale, tint, grade (row 2 reads it), face and seed, cached with the island (IslandCache visits CliffKit) and on their own random stream. They take no landmark spot.
+- Bake: 4024 pieces (sea cliff 1217, mesa/canyon 2807; slab 1253, stacked 879, overhang 749, buttress 600, fallen 543) from 7057 steep blocks, 9 kept out (cave mouths and settlements). The bake costs about 2.9 s, on an island cache miss only. A coarse 16 m step filter means only 35,781 of 331k blocks get the 4 m test (heights 1.85 s, faces 0.78 s, accept 0.29 s).
+- Draw (CliffKitSystem): pieces are merged per 128 m region (349 regions) into meshes using the terrain vertex layout and material, coloured from the face each piece stands in, with no snow or grass and 0.85x darker. LOD by on-screen size (rule 20, DetailPolicy.ScreenSize on a 10 m piece): chamfered and jittered boxes above 60 px, plain boxes above 4 px, nothing below.
+- Collision: KitBox boxes through FloraSystem.AddKitBoxes, so every machine stands on and bumps into the same pieces. Seed-derived, nothing is sent.
+- Probe (CliffKitSystem.Stats, per shot):
+  - canyon: 20 m 96,204 tris in 300 draws; 150 m 99,404 tris in 300 draws
+  - mesa: 20 m 86,700 tris in 295 draws; 150 m 91,660 tris in 295 draws
+  - lakeshelf: 63,780 tris in 276 draws
+  - gorge: 9,168 tris in 80 draws
+  - sea cliff: 20 m 4,588 tris in 51 draws
+  - mountain: 3,432 tris in 54 draws
+  - The far tier holds out to about 2.5 km, so the draw count over the red country is about 300. If BENCH shows a cost, the next step is merging far regions into larger meshes or raising the far threshold.
+- Landmark hash FA8F24B1, unchanged.
+- Placement fingerprint change: CliffKit.Covered runs in FloraPlacement.Place after the jitter and before the roll, so only cells under or inside a piece change; every other cell places exactly as before. Pieces remove:
+  - ground: 732 instances (447,353 cells covered)
+  - shrubs: 2,888 (54,872 cells covered)
+  - trees: 259 (10,816 cells covered), of which 70 are rocks/tilted
+  - Removed-set hash A9A3CA10. Nothing else moved.
+- Shots (D:/Unity/PunchyMilestones/W-150): w150-before-* and w150-after-* for mesa, mountain, seacliff, gorge, lakeshelf and canyon, at 20 m and 150 m. I checked them myself at small size:
+  - Mesa 20 m shows a red stacked block standing out of the face.
+  - Canyon and sea cliff show pieces along the faces.
+  - Mountain, gorge and lakeshelf are not steep enough for pieces in frame (unchanged; W-149 counted them as worst faces, but this row's test is sea cliff and mesa/canyon only).
+  - The tops of sea-cliff pieces read a little paler than the face in sun.
+- NaN: sparkleprobe bad 0 on all 12 after shots (-stopnan 0). lod-lint is clean after 9dd8ff37 (two bake ranges marked gameplay); nan-lint shows no new hints (no shader changed).
+- Suite: "completed: 28/28 passed" on 18dfbd78. 9dd8ff37 is comment-only.
+- BENCH-QUEUE request: CPU and GPU ms, branch vs main, at the canyon (2266,-434) from 20 m and 150 m, and at the sea cliff seen from the beach. Also the island bake time on a cache miss (expect about +2.9 s).
+- Rows 2 and 3 not started.
