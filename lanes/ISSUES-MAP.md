@@ -55,3 +55,4 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #274 | Crystal caves far darker (Zach 11-12) | W-146 |
 | #275 | Ladders (docks, mines, roofs), cliff climbs (Zach 11-12) | W-147 |
 | #276 | Roadmap: climbable colossi | roadmap |
+| #277 | No water discs: cave lakes, white pools, fountains (Zach 11-12) | W-148 |
