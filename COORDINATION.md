@@ -143,6 +143,13 @@ feature code, and it never edits files in another session's checkout.
    (> ~1 ms at Medium, a new hitch, a preset under its floor). (g) A feature moves to a higher preset through the existing
    preset values (view/detail/shadows, DetailPolicy thresholds) or its own runtime graphics setting, never ProjectSettings,
    QualitySettings or the URP asset.
+24. **NaN-safe rendering (Zach, 2026-11-12, #282):** white bloom circles are NaN pixels spread by bloom. (a) The main camera
+   runs URP Stop NaN (set from code, R-18); it is a safety net, not a fix, so NaN still counts as a bug. (b) Shader and mesh
+   maths stay NaN-safe: SafeNormal or a guarded normalize for anything that can be zero length (tiny triangles, differences,
+   crosses), divisions by a value that can be 0 get `max(d, 1e-5)`, `pow`/`sqrt` take saturated or non-negative input,
+   derivatives (ddx/ddy/fwidth) never inside a branch. (c) Every card that touches a shader, a material or generated mesh
+   adds to its done-when: `-sparkleprobe` NaN count 0 on its views with `-stopnan 0`. (d) The profiler reports any NaN count
+   above 0 seen on a bench route, with the view.
 
 ## Sessions and lanes
 

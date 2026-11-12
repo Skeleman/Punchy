@@ -21,3 +21,5 @@ Done since v0.10: test hooks (3025dbf), brain-sample markers (item 13/14 capture
   wip/brain-blocked-* branches.
 - F-02 held.
 - Supervisor 11-12: #279 (W-138 tunnels) merged and touches shared flora files, additively: FloraGenerator.Kit.cs (Flame beside Lamp, 2 places), FloraPlacement.cs (OnRoad, 3 lines: props with PierReach exempt from the road cull), Flora.shader (`_FloraInCave` line), new FixtureTunnelLantern.asset. Rebase open flora work on main. Also: job 59b shows TraceSystem spikes (1.7-3.4 ms) in the first 3 s after leaving a tunnel bore; this joins the profiler's row 5 (TraceSystem to a Burst job) when that gets carded.
+
+- **Rule 24 (11-12, #282):** NaN-safe shader/mesh maths; every shader, material or generated-mesh row adds `-sparkleprobe` NaN count 0 (with `-stopnan 0` once R-18 lands) to its done-when. R-18 (world agent, rendering) turns on Stop NaN for the main camera and hunts the horizon/mountain-edge NaN left over from A-96.
