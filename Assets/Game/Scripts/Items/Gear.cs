@@ -425,7 +425,8 @@ namespace Punchy.Items
         void Swing()
         {
             var hand = worn[(int)GearSlot.Hand];
-            if (hand == Nothing || ItemTable.Items[hand].Weapon == CreatureWeapon.None || !CanWearGear() ||
+            // (A rod is cast, not swung: FishKeys has its button.)
+            if (hand == Nothing || ItemTable.Items[hand].Weapon == CreatureWeapon.None || ItemTable.Items[hand].Weapon == CreatureWeapon.Rod || !CanWearGear() ||
                 SwingByte(ownSwing, ItemTable.Items[hand].Speed) != 0)
                 return;
             ownSwing = Time.time;
@@ -642,6 +643,8 @@ namespace Punchy.Items
             var d = ItemTable.Items[item];
             if (d.Armour > 0f)
                 return $"armour {d.Armour:0}, {d.Weight:0.#} kg";
+            if (d.Weapon == CreatureWeapon.Rod)
+                return $"casts up to {d.Reach:0} m";
             if (d.Weapon != CreatureWeapon.None)
                 return $"dmg {d.Damage:0}, reach {d.Reach:0.#} m{(d.TwoHanded ? ", 2 hands" : "")}";
             return d.Light > 0f ? $"light {d.Light:0} m" : d.Reach > 0f ? $"reach +{d.Reach:0.#} m" : d.Cover > 0f ? $"cover {d.Cover:P0}" : d.Slots > 0 ? $"+{d.Slots} slots" : "";

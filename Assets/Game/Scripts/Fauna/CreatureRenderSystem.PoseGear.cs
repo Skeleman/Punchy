@@ -25,6 +25,27 @@ namespace Punchy.Fauna
         const int HairParts = 7;
         /// <summary>Under this many pixels across (the body), hair is one shape: the scalp's, or a bald head's beard (rule 20).</summary>
         const float HairStrandPixels = 60f;
+        /// <summary>A fishing rod's length from the grip to its tip (m, at scale 1; P-33).</summary>
+        public const float RodLength = 1.8f;
+
+        /// <summary>
+        /// Which way a held weapon points (P-28, shared with P-33's fishing line): held up and a little forward, ready; a
+        /// swing tips it back over the shoulder, then down and through, as the arm goes (CreatureAnimator's weapon arm,
+        /// the same phases). Swing is CreatureOutfit.Swing (0 at rest).
+        /// </summary>
+        public static float3 WeaponAim(float yaw, byte swing)
+        {
+            var forward = new float3(math.sin(yaw), 0f, math.cos(yaw));
+            var p = swing == 0 ? 0f : (swing - 1) / 254f;
+            var lift = p < 0.55f ? math.smoothstep(0f, 0.55f, p) : 1f - math.smoothstep(0.55f, 0.72f, p);
+            var strike = math.smoothstep(0.6f, 0.72f, p) * (1f - math.smoothstep(0.8f, 1f, p));
+            var tilt = 0.45f - 1.1f * lift + 1.6f * strike;
+            return new float3(0f, math.cos(tilt), 0f) + forward * math.sin(tilt);
+        }
+
+        /// <summary>Where a held rod's tip is, from the posed hand's last segment (P-33: the line starts there).</summary>
+        public static float3 RodTip(in SegmentInstance hand, float yaw, byte swing, float scale) =>
+            hand.Position + math.mul(hand.Rotation, new float3(0f, 0f, hand.Length)) + WeaponAim(yaw, swing) * RodLength * math.max(scale, 0.3f);
 
         partial struct PoseJob
         {
@@ -384,10 +405,7 @@ namespace Punchy.Fauna
                 var p = state.Outfit.Swing == 0 ? 0f : (state.Outfit.Swing - 1) / 254f;
                 // (Held up and a little forward, ready; a swing tips it back over the shoulder, then down and through,
                 // as the arm goes: CreatureAnimator's weapon arm, the same phases.)
-                var lift = p < 0.55f ? Unity.Mathematics.math.smoothstep(0f, 0.55f, p) : 1f - Unity.Mathematics.math.smoothstep(0.55f, 0.72f, p);
-                var strike = Unity.Mathematics.math.smoothstep(0.6f, 0.72f, p) * (1f - Unity.Mathematics.math.smoothstep(0.8f, 1f, p));
-                var tilt = 0.45f - 1.1f * lift + 1.6f * strike;
-                var dir = up * Unity.Mathematics.math.cos(tilt) + forward * Unity.Mathematics.math.sin(tilt);
+                var dir = WeaponAim(state.Yaw, state.Outfit.Swing);
                 var face = Unity.Mathematics.math.normalizesafe(Unity.Mathematics.math.cross(dir, right), forward);
                 var k = 0;
                 switch (state.Outfit.Weapon)
@@ -407,6 +425,12 @@ namespace Punchy.Fauna
                         Output[at + k++] = Piece(grip - dir * 0.1f * scale, dir, face, 0.62f * scale, 0.02f * scale, 0.024f * scale, 1f, wood, faded, SegmentMaterial.Wood);
                         Output[at + k++] = Piece(grip + dir * 0.44f * scale, -face, right, 0.15f * scale, 0.035f * scale, 0.075f * scale, 0.22f, iron, faded, SegmentMaterial.Metal);
                         Output[at + k++] = Piece(grip + dir * 0.44f * scale, face, right, 0.04f * scale, 0.03f * scale, 0.026f * scale, 0.6f, iron, faded, SegmentMaterial.Metal);
+                        break;
+                    case CreatureWeapon.Rod:
+                        // (P-33: a long pole tapering to the tip, a cork grip; the line and bobber are the Items side's,
+                        // from RodTip.)
+                        Output[at + k++] = Piece(grip - dir * 0.2f * scale, dir, face, 0.32f * scale, 0.02f * scale, 0.018f * scale, 1f, leather, faded, SegmentMaterial.Leather);
+                        Output[at + k++] = Piece(grip + dir * 0.1f * scale, dir, face, (RodLength - 0.1f) * scale, 0.013f * scale, 0.004f * scale, 1f, wood, faded, SegmentMaterial.Wood);
                         break;
                     case CreatureWeapon.Hammer:
                         // (A haft, and across its top a squat iron head, square-ish, both faces flat.)

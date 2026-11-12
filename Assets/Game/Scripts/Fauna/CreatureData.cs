@@ -506,6 +506,8 @@ namespace Punchy.Fauna
         public const byte Axe = 5;
         /// <summary>Item row: a one-handed war hammer.</summary>
         public const byte Hammer = 6;
+        /// <summary>P-33: a fishing rod (cast, not swung; the line and bobber are drawn by Items).</summary>
+        public const byte Rod = 7;
     }
 
     /// <summary>A player's body's gear beyond CreatureWorn (P-28): the weapon (CreatureWeapon) and its swing, 0 at rest,

@@ -76,6 +76,8 @@ namespace Punchy.Items
             // Item rows (Zach 11-10: never idle, more weapons and wear in small rows).
             new ItemDef { Name = "Axe", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 1.6f, Slot = GearSlot.Hand, Damage = 8f, Reach = 1f, Speed = 1f, Weapon = Punchy.Fauna.CreatureWeapon.Axe },
             new ItemDef { Name = "Hammer", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.5f, 0.51f, 0.54f), Stack = 1, Weight = 2.2f, Slot = GearSlot.Hand, Damage = 10f, Reach = 0.9f, Speed = 0.8f, Weapon = Punchy.Fauna.CreatureWeapon.Hammer },
+            // P-33: a fishing rod, held like a weapon but cast (Reach: the longest cast, m).
+            new ItemDef { Name = "Rod", Colour = new Color(0.55f, 0.4f, 0.22f), Accent = new Color(0.6f, 0.44f, 0.28f), Stack = 1, Weight = 0.8f, Slot = GearSlot.Hand, Reach = 22f, Speed = 1.6f, Weapon = Punchy.Fauna.CreatureWeapon.Rod },
         };
         public const byte Key = 7, Torch = 8, Staff = 9, Hat = 10, Pack = 11;
     }
@@ -183,6 +185,7 @@ namespace Punchy.Items
             instance.takeArg = System.Array.IndexOf(args, "-takeitem") >= 0;
             instance.QuestArgs(args);
             instance.GearArgs(args);
+            instance.FishArgs(args);
             instance.CheckArgs(args);
         }
 
@@ -257,8 +260,10 @@ namespace Punchy.Items
             GearTest();
             GearLootTest();
             SwingKeys();
+            FishKeys(terrain);
             SyncHair();
             ApplyGear();
+            DrawFishing(terrain);
             ArmLog();
             PadTest();
             UpdateInventoryKeys();
@@ -579,6 +584,7 @@ namespace Punchy.Items
             ServeArmour(em);
             ServeSlots(em);
             ServeSwings(em);
+            ServeFish(em);
             using (var rs = Q(em, ComponentType.ReadWrite<PickupRpc>(), ComponentType.ReadWrite<ReceiveRpcCommandRequest>()).ToEntityArray(Allocator.Temp))
                 foreach (var r in rs)
                 {
@@ -651,6 +657,7 @@ namespace Punchy.Items
             Each(em, joined, onArmourState ??= OnArmourState);
             Each(em, joined, onSlotState ??= OnSlotState);
             Each(em, joined, onSwing ??= OnSwing);
+            Each(em, joined, onFish ??= OnFish);
         }
 
         System.Action<ItemGoneRpc> onItemGone;
@@ -663,6 +670,7 @@ namespace Punchy.Items
         System.Action<ArmourStateRpc> onArmourState;
         System.Action<SlotStateRpc> onSlotState;
         System.Action<SwingRpc> onSwing;
+        System.Action<FishRpc> onFish;
 
         /// <summary>Each RPC of type T that has come in: handled (on a joined client only) and used up.</summary>
         void Each<T>(EntityManager em, bool joined, System.Action<T> act) where T : unmanaged, IRpcCommand
