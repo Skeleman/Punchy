@@ -529,6 +529,11 @@ namespace Punchy.Debugging
             var rounds = Mathf.RoundToInt(CycleArg(args, "-benchcyclerounds", 4f));
             var segSettle = CycleArg(args, "-benchcyclesettle", 4f);
             var segMeasure = CycleArg(args, "-benchcyclemeasure", 15f);
+            // -benchcyclerest s (20): between segments the game renders at 10 fps, unmeasured, so the laptop's GPU cools
+            // as it does between separate games (q98: without it, after ~3 min it reached 80 C and throttled, 18 -> 34 ms).
+            var segRest = CycleArg(args, "-benchcyclerest", 20f);
+            var cappedAt = Application.targetFrameRate;
+            var first = true;
             for (int r = 1; r <= rounds; r++)
             {
                 var order = new List<int>();
@@ -539,6 +544,18 @@ namespace Punchy.Debugging
                 foreach (var a in order)
                 {
                     var label = arms[a].label;
+                    if (!first && segRest > 0f)
+                    {
+                        Application.targetFrameRate = 10;
+                        var rest = 0f;
+                        while (rest < segRest)
+                        {
+                            rest += Mathf.Min(Time.unscaledDeltaTime, 0.25f);
+                            yield return null;
+                        }
+                        Application.targetFrameRate = cappedAt;
+                    }
+                    first = false;
                     ApplyArm(label, arms[a].sets);
                     for (int attempt = 0; attempt < 2; attempt++)
                     {
