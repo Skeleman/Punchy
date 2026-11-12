@@ -659,3 +659,9 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
 - You take the capture (R-18's owner is on the main PC). Your repro from REPORTS-profiler: Profile build of main, `-gfx Ultra`, hilltop spot -3460,2425,270, 18:00, Clear, weatherseed 4; pixel (1060, 224).
 - Pixel history on that pixel: name the draw (shader, pass, mesh or impostor), and the first event where it turns NaN. If you can, step to the Ultra setting that turns it on (flora shadows, far trees, flora detail) by switching one `-gfxset` at a time back to its High value.
 - Report in REPORTS-profiler under 'R-18'. No fix from your side; R-18 row 2 fixes it.
+
+## Job 66 (2026-11-12, QUEUED after 65; supervisor, for R-19 rows 1-1c, #281): steep rock cost
+- (A) main vs (B) `render/steep-triplanar` b30c967f. Profile builds, 1920x1080, Medium and High, uncapped, ABBA, 300 frames each.
+- Views: the canyon (2266,-434) and the mountain (-3130,2878), each from 20 m and 150 m, facing the steep face, 12:00 Clear.
+- Record: whole-frame GPU ms per view; add `-sparkleprobe r19` (NaN count should be 0).
+- Pass: <= +0.3 ms GPU at Medium on every view. 1c adds about 5 noise samples per close rock pixel.
