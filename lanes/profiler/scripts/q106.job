@@ -1,4 +1,4 @@
-# Zach 11-12: the far wave field (Punchy b/water-rows-fixes 9357db54): normals-only wakes beyond the fine field's 32 m
+# Zach 11-12: the far wave field (Punchy b/water-rows-fixes 9357db50): normals-only wakes beyond the fine field's 32 m
 # square, and the old ring ripples off wherever a field runs. Arms: far (default: cuts 4 fine field + far field),
 # nofar (-waterfar 0: the fine field only, rings still off), off (-waterfield 0: the old rings everywhere).
 # 9357db50 also merges main (W-134 cave water) and puts cave water on the fields (no old rings in caves either; the
