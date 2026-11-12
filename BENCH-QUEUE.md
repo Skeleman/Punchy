@@ -592,7 +592,7 @@ W-136 row 3 on `world/ground-contact-shade` (077acd90): one ContactShade path fo
 - Measure: main-thread and job cost of (1) a ruin room and a lake room mesh build (`-place cavepool` and a ruin), (2) cave chunk mesh builds on the walk into a planted cave, (3) terrain LOD0 chunk builds over a forest and a town; plus whole-frame GPU/CPU ms at each spot and frames over 2x the median on the walk.
 - Pass: no build more than 10% slower than A, no new hitch over 2x median.
 
-## Job 59 (2026-11-11, QUEUED after 58; supervisor, for W-138 row 2a): first load near the sea folk landing
+## Job 59 (2026-11-11, MAIN PC (J-045, 11-12): profiler skip this job; the main-account bench agent runs it; was QUEUED after 58; supervisor, for W-138 row 2a): first load near the sea folk landing
 W-138 row 2a on `world/mountain-tunnels` (3e3c9e08): six new road spurs (+617 streets, +3.25 km), small-crest tunnels became cuttings, and the sea folk spots are found before the roads.
 - Arms: (A) origin/main 393a9c20 or newer; (B) `world/mountain-tunnels` at 3e3c9e08 or newer. Profile builds, 1920x1080, High, uncapped, ABBA.
 - View: shotcam near (-1803,50,-543) looking at (-1778,34,-553), the landing spur's end at the pier.
@@ -615,7 +615,15 @@ W-135 row 6 on `world/ground-contact-shade` (dc65c63b): cave chunk rebuilds (ano
 - Pass: B shows no frame over 2x the median that A doesn't also show; B's worst frame near C's.
 - Note for the jc.views crystal spot (f): the path is valid, but `here` was missing from `-benchstops`, so the stop never ran. Use `-benchstops here,hereentry`.
 
-## Job 62 (2026-11-12, QUEUED after 59 (laptop); supervisor, from the outside shader audit, #269/#270): water cost split, variant counts, flora cull
+## Job 64 (2026-11-12, QUEUED NEXT on the laptop, before 62; supervisor, for Zach): where start-up time and start-up hitches go
+Why (Zach 11-12): profiler runs keep showing start-up hitches. A faster, quieter start speeds up every job and removes noise that has nothing to do with what is being tested. With the island cache (W-140) island-ready is ~4.8 s on a hit; this job finds what the rest of the start costs and whether tiered culling (#270) would help it. Main only, measures only.
+- Arm: origin/main, Profile build, 1920x1080, High, uncapped, 3 launches with a cache hit (warm one launch first and check the log says `hit`), plus 1 launch with `-freshisland` for reference.
+- Starts: (a) the default spawn; (b) the town start used by the `herewarm` views; (c) a dense forest start.
+- Record per launch, from process start: Unity splash/first frame, island ready, `[stream] world ready`, first playable frame, and when frame time settles (first 2 s window whose median is within 10% of the 60-90 s median). Then, for the first 60 s, every frame over 2x the settled median, with its time and what it spent (Profiler markers: terrain chunk build/upload, flora placement and cull, creature spawn/snapshot, cave bake/chunks, road/settlement props, shader/PSO compile or first-use, Burst/JIT, GC, asset loads, audio).
+- Tiered culling question (#270): over the same 60 s, log visible draws / instances submitted, CPU culling ms (FloraCull dispatch, impostor and creature culling, SRP batcher), and how much of each hitch frame is draw/cull work vs build/upload/compile/GC work. Say plainly whether region/cluster culling would shorten the start or remove hitches, or whether the cost is elsewhere.
+- Report: a time line (bar per phase) per start, the top five hitch causes with ms and count, the settle time, and a recommended bench warm-up (seconds to skip after load so jobs measure only what they test). Name any fix that looks small (a warm-up pass, a precompile, spreading builds) so the supervisor can card it.
+
+## Job 62 (2026-11-12, QUEUED after 64 (laptop); supervisor, from the outside shader audit, #269/#270): water cost split, variant counts, flora cull
 Purpose: find which part of water costs what, before any water or architecture work (R-15 row 4, #270). Main only (plus R-15 as arm B once row 1 lands).
 - Arms: (A) origin/main; for each view also A with `-waterfield 0`, A with `-waterssr 0`, and A with water detail off. Profile builds, 1920x1080, High, uncapped, ABBA, 300 frames each.
 - Views: (a) a wide ocean view from a cliff, water most of the screen; (b) a whitewater river with the biggest waterfall in view; (c) wading in the lake with a herd in the water (as many swimmers as can be placed); (d) a cave pool.
