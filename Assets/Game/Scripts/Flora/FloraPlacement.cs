@@ -2232,6 +2232,9 @@ namespace Punchy.Flora
                 if (c.w > 0f && math.distancesq(xz, c.xy) < c.z * c.z)
                     return none;
             }
+            // W-150: nor under or through a cliff kit piece.
+            if (CliffKit.Covered(source, xz))
+                return none;
             var roll = rng.NextFloat();
             var area = cellSize * cellSize / 100f;
             // Room for 31 (a four-biome border plus a landmark's props; a fuller list would silently drop species).

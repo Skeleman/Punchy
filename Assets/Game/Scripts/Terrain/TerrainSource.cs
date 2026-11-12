@@ -132,6 +132,8 @@ namespace Punchy.Terrain
         public BlobAssetReference<BatFolkSetBlob> BatFolk;
         /// <summary>Icebergs off the cold coasts (W-28, baked last, scenery with its own seed stream) and the one berg's ice cave.</summary>
         public BlobAssetReference<IcebergSetBlob> Icebergs;
+        /// <summary>W-150: the cliff kit pieces on sea cliff and mesa faces (CliffKitBaking), built after every place.</summary>
+        public BlobAssetReference<CliffKitSetBlob> CliffKit;
         /// <summary>The grand falls (W-29, v2 only, baked after every place): a stepped mountain stream into the central lake.</summary>
         public BlobAssetReference<GrandFallsBlob> GrandFalls;
         /// <summary>The archipelago off the dune coast (W-30, v2 only, baked after every place): islets raised out of the sea floor.</summary>
@@ -1352,6 +1354,6 @@ namespace Punchy.Terrain
         public bool Equals(TerrainSource o) =>
             World.Equals(o.World) && HeightKind == o.HeightKind && Heightmap == o.Heightmap && Island == o.Island &&
             BiomeKind == o.BiomeKind && BiomeNoise.Equals(o.BiomeNoise) && BiomeMap == o.BiomeMap && Biomes == o.Biomes && BiomeCells == o.BiomeCells &&
-            RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks && Settlements == o.Settlements && Caves == o.Caves && BatFolk == o.BatFolk && Icebergs == o.Icebergs && GrandFalls == o.GrandFalls && Archipelago == o.Archipelago && Anchors == o.Anchors && PondMask == o.PondMask && V3Ground == o.V3Ground;
+            RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks && Settlements == o.Settlements && Caves == o.Caves && BatFolk == o.BatFolk && Icebergs == o.Icebergs && CliffKit == o.CliffKit && GrandFalls == o.GrandFalls && Archipelago == o.Archipelago && Anchors == o.Anchors && PondMask == o.PondMask && V3Ground == o.V3Ground;
     }
 }
