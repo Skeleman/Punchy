@@ -14,7 +14,7 @@ namespace Punchy.Terrain
     /// surface (the floor found by marching the cave field, as FloorUnder does), and a dry one sits at the surface inside
     /// the rock round it (sinking only at the very end of the water's reach), so a quad from wet to dry ends where the water meets the rock, exactly as surface water hides
     /// its edge in the bank. Shore foam then comes from the water shader's depth-buffer thickness, and the depth under
-    /// each vertex drives its river speed, soft rim and white middle, as on the surface. Streams and their pools share
+    /// each vertex drives its river speed, as on the surface. White pools are the same water with a milky look (W-148). Streams and their pools share
     /// the lattice, so the water runs from one into the other with no seam.
     ///
     /// A cave is sampled in a background Burst job the first time it comes within LoadRadius (one cave at a time,
@@ -47,12 +47,12 @@ namespace Punchy.Terrain
         /// <summary>Two lattice neighbours whose surfaces differ more than this aren't joined (m).</summary>
         const float WaterSeam = 0.75f;
 
-        /// <summary>One drawn piece of a cave's water: a lattice tile's quads (submesh 1, if any, is white pool water).</summary>
+        /// <summary>One drawn piece of a cave's water: a lattice tile's quads (white pools are ordinary water with their own look, W-148).</summary>
         class WaterTile
         {
             public Mesh Mesh;
             public Bounds Bounds;
-            public bool Shown, White;
+            public bool Shown;
             public int Triangles;
         }
 
@@ -138,12 +138,6 @@ namespace Punchy.Terrain
                         continue;
                     var rp = new RenderParams(water) { worldBounds = t.Bounds, shadowCastingMode = ShadowCastingMode.Off, receiveShadows = false };
                     Graphics.RenderMesh(rp, t.Mesh, 0, Matrix4x4.identity);
-                    if (t.White)
-                    {
-                        // White pools fade out towards their rim (W-16), now by the real depth under each vertex.
-                        rp.matProps = SoftRimProps;
-                        Graphics.RenderMesh(rp, t.Mesh, 1, Matrix4x4.identity);
-                    }
                     WaterTrianglesDrawn += t.Triangles;
                     WaterTilesDrawn++;
                 }
@@ -473,7 +467,7 @@ namespace Punchy.Terrain
                 if (!at.TryGetValue(Key(k + new int2(1, 0)), out corners[1]) || !at.TryGetValue(Key(k + new int2(1, 1)), out corners[2]) ||
                     !at.TryGetValue(Key(k + new int2(0, 1)), out corners[3]))
                     continue;
-                bool wet = false, white = false;
+                bool wet = false;
                 int inside = 0;
                 float lo = float.MaxValue, hi = float.MinValue;
                 for (int j = 0; j < 4; j++)
@@ -484,7 +478,6 @@ namespace Punchy.Terrain
                     var sample = waterSamples[c];
                     inside++;
                     wet |= sample.y > 0.02f;
-                    white |= sample.w == 3f;
                     lo = math.min(lo, sample.x);
                     hi = math.max(hi, sample.x);
                 }
@@ -493,7 +486,7 @@ namespace Punchy.Terrain
                 var tile = Key(new int2((int)math.floor(k.x / (float)WaterTileCells), (int)math.floor(k.y / (float)WaterTileCells)));
                 if (!builds.TryGetValue(tile, out var build))
                     builds[tile] = build = new TileBuild();
-                var target = white ? build.Whites : build.Plain;
+                var target = build.Indices;
                 // The cell's outline with each corner outside the claim replaced by the edge's crossings.
                 polygon.Clear();
                 for (int j = 0; j < 4; j++)
@@ -520,15 +513,12 @@ namespace Punchy.Terrain
                 mesh.SetVertexBufferParams(vertices.Count, WaterVertex.Layout);
                 mesh.SetVertexBufferData(vertices, 0, 0, vertices.Count);
                 mesh.indexFormat = vertices.Count > 65535 ? IndexFormat.UInt32 : IndexFormat.UInt16;
-                mesh.subMeshCount = build.Whites.Count > 0 ? 2 : 1;
-                mesh.SetIndices(build.Plain, MeshTopology.Triangles, 0);
-                if (build.Whites.Count > 0)
-                    mesh.SetIndices(build.Whites, MeshTopology.Triangles, 1);
+                mesh.SetIndices(build.Indices, MeshTopology.Triangles, 0);
                 mesh.RecalculateBounds();
                 var bounds = mesh.bounds;
                 // Drawn from the GPU copy only.
                 mesh.UploadMeshData(true);
-                tiles.Add(new WaterTile { Mesh = mesh, Bounds = bounds, White = build.Whites.Count > 0, Triangles = (build.Plain.Count + build.Whites.Count) / 3 });
+                tiles.Add(new WaterTile { Mesh = mesh, Bounds = bounds, Triangles = build.Indices.Count / 3 });
             }
             return tiles;
         }
@@ -537,7 +527,7 @@ namespace Punchy.Terrain
         class TileBuild
         {
             public readonly List<WaterVertex> Vertices = new List<WaterVertex>();
-            public readonly List<int> Plain = new List<int>(), Whites = new List<int>();
+            public readonly List<int> Indices = new List<int>();
             readonly Dictionary<int, int> local = new Dictionary<int, int>();
 
             public int Vertex(CaveSystem sys, int i)
