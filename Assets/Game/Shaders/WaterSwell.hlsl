@@ -5,29 +5,25 @@
 // sea breeze pushes them in, playtest 11-08 item 2), the same for every player (seed and shared clock); the wind at the
 // camera sets their height. Gerstner waves: each point also moves a little along the wave, which bunches and sharpens
 // the crests. Two sets of waves turned to the nearest two of eight headings round a point's onshore heading are
-// cross-faded, with slow wave groups raising and lowering them (item 1: no repeating pattern), and they grow and steepen
-// over the shelf (item 3). The wave table, the shape and the shore field come from WaterSwells.cs as globals (one
-// source, so the drawn sea and the swimmer can't drift apart); only the maths is here, and it must stay the same as
-// WaterSwells.Height.
+// cross-faded, with the swell noise raising and lowering them in blotches, shifting their phases and curving their crests
+// (item 1, R-17: no repeating pattern, even from high up), and they grow and steepen over the shelf (item 3). The wave
+// table, the shape, the shore field and the noise come from WaterSwells.cs as globals (one source, so the drawn sea and
+// the swimmer can't drift apart); only the maths is here, and it must stay the same as WaterSwells.Height.
 
 // x 1 on / 0 off (-noswells), y the sea level, z the wind 0..1 (WaterSwells.cs).
 float4 _PunchySwell;
 // x the height (m) in a calm, y what a full wind adds, z how far a point moves along a wave (fraction of its height),
 // w how many waves there are in a set.
 float4 _PunchySwellShape;
-// x headings the sets turn to, y how much the wave groups raise and lower the height, z, w how much higher and steeper
+// x headings the sets turn to, y how much the swell noise raises and lowers the height, z, w how much higher and steeper
 // the waves get fully shoaled.
 float4 _PunchySwellMix;
 // x, y the swell fades in between these depths (m); z, w it shoals fully at z, not at all from w.
 float4 _PunchySwellDepths;
 // x the swell's height is held under this share of the water's depth (a trough never bares the bed), y how much
-// choppier (steeper) the shortest wave is than the longest, z the phase warp's strength.
+// choppier (steeper) the shortest wave is than the longest, z the phase warp's strength (the swell noise's g channel
+// shifts each wave's phase by this times its place in the table, item 19).
 float4 _PunchySwellLimits;
-// The phase warp (item 19): two very long, slow-turning patterns (wavevectors xy and zw, rad/m) that shift each wave's
-// phase across the sea, so the waves' interference never repeats where you can see it.
-float4 _PunchySwellWarp;
-// The two wave groups: heading x z, wavenumber, angular speed.
-float4 _PunchySwellGroups[2];
 // The room for waves: WaterSwells.MaxWaves (the array's size only; unused entries have no height).
 #define PunchySwellMaxWaves 12
 // Each wave: wavelength (m), heading from its set's onshore heading (radians), relative height, phase.
@@ -160,10 +156,9 @@ PunchySwellResult PunchySwell(float2 xz, float t, float amount, float depth, flo
 {
     PunchySwellResult r = (PunchySwellResult)0;
     float shoal = 1 - smoothstep(_PunchySwellDepths.z, _PunchySwellDepths.w, depth);
-    float group = 0.5;
-    [unroll] for (int g = 0; g < 2; g++)
-        group += 0.25 * sin(dot(_PunchySwellGroups[g].xy, xz) * _PunchySwellGroups[g].z - _PunchySwellGroups[g].w * t);
-    float height = PunchySwellHeight() * amount * (1 + _PunchySwellMix.z * shoal) * (1 + _PunchySwellMix.y * (2 * group - 1));
+    // (R-17: the noise's r raises and lowers the sets, g warps the phases, b moves each crest along its wave.)
+    float4 noise = PunchySwellNoise(xz, t);
+    float height = PunchySwellHeight() * amount * (1 + _PunchySwellMix.z * shoal) * (1 + _PunchySwellMix.y * clamp(noise.r, -1, 1));
     height = min(height, _PunchySwellLimits.x * depth);
     float q = _PunchySwellShape.z * (1 + _PunchySwellMix.w * shoal);
     float2 on = PunchySwellHeading(xz);
@@ -173,7 +168,7 @@ PunchySwellResult PunchySwell(float2 xz, float t, float amount, float depth, flo
     float blend = smoothstep(0, 1, f - s0);
     float norm = rsqrt(blend * blend + (1 - blend) * (1 - blend));
     int count = min((int)ceil(waves), (int)_PunchySwellShape.w);
-    float warp = (sin(dot(_PunchySwellWarp.xy, xz)) + sin(dot(_PunchySwellWarp.zw, xz) + 1.3)) * _PunchySwellLimits.z;
+    float warp = noise.g * _PunchySwellLimits.z;
     float chop = _PunchySwellLimits.y / max(_PunchySwellShape.w - 1, 1);
     float most = 0;
     [unroll] for (int set = 0; set < 2; set++)
@@ -190,7 +185,7 @@ PunchySwellResult PunchySwell(float2 xz, float t, float amount, float depth, flo
                 float4 w = _PunchySwellWaves[i];
                 float k = 6.2831853 / w.x;
                 float2 dir = float2(cos(heading + w.y), sin(heading + w.y));
-                float theta = k * dot(dir, xz) - sqrt(9.81 * k) * t + w.w + sector * 2.39996 * (i + 1) + warp * (i + 1);
+                float theta = k * (dot(dir, xz) + noise.b) - sqrt(9.81 * k) * t + w.w + sector * 2.39996 * (i + 1) + warp * (i + 1);
                 float a = height * w.z * weight * saturate(waves - i);
                 // (Shorter waves are choppier, item 19: their crests peak and the troughs between flatten.)
                 float qi = q * (1 + chop * i);
