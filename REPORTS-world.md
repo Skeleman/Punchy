@@ -5846,3 +5846,23 @@ Branch `world/mountain-tunnels` at f6217674 (pushed), on a149c17f. One commit: C
   - Fog, the sun and torches do not reach these views (atmosphere and sun need openness, which is 0 this deep).
 - **Row 2 plan:** cut the style's always-on emission to faint, local glints on crystal faces. Drop the sheen's light-free floor for glowing styles. Cut grotto fixtures to small, short-reach glints. Darken ambient on pale glowing rock toward the plain passage's level. Lantern light keeps the lavender albedo, gloss and facets, so lit crystals still sparkle.
 - **Shots:** D:/Unity/PunchyMilestones/W-146/raw/ (crystal5-*, rock13-*, grotto-*; suffixes -style, -glows, -both and -style-nosheen for the knock-outs).
+
+### Row 2: dark by default (commit 94e031fe)
+- **Done:** crystal passages and grottos read near-black with the lantern off. Only small lavender vein glints and faint plant glints remain, with no wash over the walls. With the lantern on, the walls, veins and crystal plants light up and sparkle in its pool.
+- **Lantern off, mean luma / near-black share (luma < 0.04), 3 views each:**
+
+| View | p0 / door | p1 / mid | p2 / back |
+|---|---|---|---|
+| Crystal passage (cave 5) | 0.026 / 83% (was 0.29 / 0%) | 0.013 / 94% | 0.023 / 88% |
+| Plain Rock passage (cave 13) | 0.129 / 11% (by a lit ruin doorway) | 0.012 / 99% | 0.014 / 98% |
+| Grotto (room 2) | 0.017 / 92% (was 0.20 / 4%) | 0.010 / 100% | 0.020 / 90% |
+
+  Crystal averages 88% against the plain passage's 69%. In the two deepest views the crystal passage is 5-10 points under the plain passage (94 vs 99, 88 vs 98); the gap is the glints the card asks for. Lantern on: crystal 0.12-0.19, grotto 0.14-0.18.
+- **What changed:**
+  - `CaveStyle.Ambient` sets the share of the deep ambient, and of the sheen's light-free rim, that a style takes. The style table grows from 9 to 10 vectors. It defaults to 1, so every other style is unchanged. Crystal uses 0.3.
+  - `CaveStyle.PlantLight` sets how much light a style's glowing plants throw: `CavePlant.Dim` is set at bake time, and reach drops to 40% when fully dimmed. The plants' own glow is untouched. Crystal uses 0.15. With the emission and ambient already cut, these plants (CrystalShrub, GlimmerCap, both blue) were the last thing lighting crystal passages. Fungal caves keep their full plant light.
+  - Crystal asset: Glow 1.6 -> 0.5, GlowEverywhere 0.08 -> 0.
+  - Grotto rooms: cluster lights at 12% with 2.5 m reach (`CaveRoomKit.GrottoGlint`), and walls take 30% of the deep ambient (`GrottoAmbient`, scaling the room material's `_Darkness`).
+- **Checks:** no placement changes (Dim draws no random numbers, and Find() lists the same caves and grottos). No compile or shader errors. Every shot was checked at small size. No timing was done.
+- **For the supervisor:** Crystal.asset is a landmark asset, so editing it re-bakes. The layout came out the same here. CavePlant gains a float, so any fingerprint that hashes raw plant structs will move.
+- **Shots:** D:/Unity/PunchyMilestones/W-146/row2-off-on.png. Rows 1-3: crystal p0, crystal p1 and grotto mid, lantern off and on. Row 4: plain Rock p1, off and on. Row 5: crystal p0 and p1 before the change (lantern off). Raw shots use the suffix -r2b.
