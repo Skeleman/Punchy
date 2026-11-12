@@ -127,6 +127,25 @@ namespace Punchy.Weather
         Texture2D fallbackWeather, fallbackWetness, fallbackCloud;
         Texture3D cloudNoise;
         RenderTexture hazeLut, skyVolumes;
+        /// <summary>
+        /// Zach 11-12 (R-12, option 2): the cloud warp baked into render-only copies of the weather and cloud maps once a
+        /// frame (HazeLut passes 2-3), so the sky march, cloud shadow, sun cover and rain read the maps straight instead of
+        /// reading the warp's noise before every map read. "-warpbake 0" (or WarpBake = false at runtime, for the bench's
+        /// cycle) reads them warped per sample as before.
+        /// </summary>
+        public static bool WarpBake = WarpBakeArg();
+
+        static bool WarpBakeArg()
+        {
+            var args = System.Environment.GetCommandLineArgs();
+            var at = System.Array.IndexOf(args, "-warpbake");
+            return !(at >= 0 && at + 1 < args.Length && args[at + 1] == "0");
+        }
+        RenderTexture warpedWeather, warpedCloud;
+        static readonly int WarpBakedId = Shader.PropertyToID("_PunchyWarpBaked");
+        static readonly int SrcWeatherMapId = Shader.PropertyToID("_SrcWeatherMap");
+        static readonly int SrcCloudMapId = Shader.PropertyToID("_SrcCloudMap");
+        static readonly int WarpMapSizeId = Shader.PropertyToID("_WarpMapSize");
         Material hazeLutMaterial;
         EntityQuery playerQuery, terrainQuery, configQuery, paletteQuery;
         World queryWorld;
@@ -180,6 +199,12 @@ namespace Punchy.Weather
             }
             if (hazeLutMaterial != null)
                 DestroyImmediate(hazeLutMaterial);
+            foreach (var rt in new[] { warpedWeather, warpedCloud })
+                if (rt != null)
+                {
+                    rt.Release();
+                    DestroyImmediate(rt);
+                }
         }
 
         void Start()
@@ -458,6 +483,7 @@ namespace Punchy.Weather
             }
             if (hazeLutMaterial == null)
                 hazeLutMaterial = new Material(HazeLutShader) { hideFlags = HideFlags.HideAndDontSave };
+            BakeWarp();
             if (hazeLut == null || !hazeLut.IsCreated())
             {
                 if (hazeLut != null)
@@ -499,6 +525,58 @@ namespace Punchy.Weather
             hazeLutMaterial.SetVector(SkyVolumesSizeId, new Vector2(SkyVolumesWidth, SkyVolumesHeight));
             Graphics.Blit(null, skyVolumes, hazeLutMaterial, 1);
             Shader.SetGlobalTexture(SkyVolumesId, skyVolumes);
+        }
+
+        /// <summary>
+        /// Writes the warped weather and cloud maps for this frame (the warp drifts with the clouds) and points the
+        /// shaders' map globals at them; without the bake (or before the field is ready) the field's own maps stay bound
+        /// and the shaders warp per read. Runs before the haze table, which reads the maps too.
+        /// </summary>
+        void BakeWarp()
+        {
+            if (!WarpBake || !field.Ready || field.WeatherMap == null || field.CloudMap == null)
+            {
+                Shader.SetGlobalFloat(WarpBakedId, 0f);
+                if (field.Ready)
+                {
+                    Shader.SetGlobalTexture(WeatherMapId, field.WeatherMap);
+                    Shader.SetGlobalTexture(CloudMapId, field.CloudMap);
+                }
+                return;
+            }
+            int w = field.WeatherMap.width, h = field.WeatherMap.height;
+            warpedWeather = Fit(warpedWeather, w, h, "Weather map (warped)");
+            warpedCloud = Fit(warpedCloud, w, h, "Cloud map (warped)");
+            hazeLutMaterial.SetTexture(SrcWeatherMapId, field.WeatherMap);
+            hazeLutMaterial.SetTexture(SrcCloudMapId, field.CloudMap);
+            hazeLutMaterial.SetVector(WarpMapSizeId, new Vector2(w, h));
+            // (The bake reads the warp itself, so the flag goes up only after both maps are written.)
+            Shader.SetGlobalFloat(WarpBakedId, 0f);
+            Graphics.Blit(null, warpedWeather, hazeLutMaterial, 2);
+            Graphics.Blit(null, warpedCloud, hazeLutMaterial, 3);
+            Shader.SetGlobalTexture(WeatherMapId, warpedWeather);
+            Shader.SetGlobalTexture(CloudMapId, warpedCloud);
+            Shader.SetGlobalFloat(WarpBakedId, 1f);
+
+            static RenderTexture Fit(RenderTexture rt, int w, int h, string name)
+            {
+                if (rt != null && rt.IsCreated() && rt.width == w && rt.height == h)
+                    return rt;
+                if (rt != null)
+                {
+                    rt.Release();
+                    DestroyImmediate(rt);
+                }
+                rt = new RenderTexture(w, h, 0, RenderTextureFormat.ARGBHalf)
+                {
+                    name = name,
+                    hideFlags = HideFlags.HideAndDontSave,
+                    wrapMode = TextureWrapMode.Clamp,
+                    filterMode = FilterMode.Bilinear
+                };
+                rt.Create();
+                return rt;
+            }
         }
 
         void ApplyShaderGlobals(in WeatherValues s, in Sky sky, float hazeDensity)

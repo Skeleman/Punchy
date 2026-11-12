@@ -78,5 +78,29 @@ Shader "Hidden/Punchy/HazeLut"
             }
             ENDHLSL
         }
+
+        // R-12's cloud warp baked into the weather map (pass 2) and the cloud map (pass 3), once a frame
+        // (WeatherSystem.BakeWarp): each texel takes the source map where the warp at its column's cloud (lower middle)
+        // points, so readers get the warped maps straight (_PunchyWarpBaked). The source maps come in as _Src*.
+        Pass
+        {
+            HLSLPROGRAM
+            #pragma vertex Vert
+            #pragma fragment Frag
+            #define PUNCHY_WARP_PASS_MAP _SrcWeatherMap
+            #include "WarpBake.hlsl"
+            ENDHLSL
+        }
+
+        Pass
+        {
+            HLSLPROGRAM
+            #pragma vertex Vert
+            #pragma fragment Frag
+            #define PUNCHY_WARP_PASS_MAP _SrcCloudMap
+            #define PUNCHY_WARP_PASS_CLOUD 1
+            #include "WarpBake.hlsl"
+            ENDHLSL
+        }
     }
 }

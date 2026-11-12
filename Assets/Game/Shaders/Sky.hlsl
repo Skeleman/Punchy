@@ -248,14 +248,24 @@ float PunchyCloudDensity(float3 p, half4 weather, float4 shape, float detail)
 // rim bulges and leans like a heaped tower. The march sets punchyCloudWarp once per step and its light samples share it.
 // (-skyoff 1024: read straight, before R-12.)
 static float2 punchyCloudWarp = 0;
+// 1 when WeatherSystem has baked the warp into the weather and cloud maps (Zach 11-12, option 2): every reader then
+// reads the maps straight, already warped, and skips the noise read below. The bake takes each column's warp at its
+// cloud's lower middle, so the rim keeps its bulges but no longer leans with height.
+float _PunchyWarpBaked;
 
-float2 PunchyCloudWarpAt(float3 p)
+// The warp itself (no switches): what the march reads per step, and what the bake (HazeLut passes 2-3) writes in.
+float2 PunchyCloudWarpRaw(float3 p)
 {
-    if (((uint)_PunchySkyOff & 1024u) != 0)
-        return 0;
     float3 q = p - float3(_PunchyCloudOffset.x, 0, _PunchyCloudOffset.y) * PUNCHY_CLOUD_FEATURE;
     float2 n = SAMPLE_TEXTURE3D_LOD(_PunchyCloudNoise, sampler_PunchyCloudNoise, float3(q.x * 0.6 + q.z * 0.8, q.y * 1.4, q.z * 0.6 - q.x * 0.8) / 3100.0 + 0.53, 0).gb;
     return (n - 0.5) * 800;
+}
+
+float2 PunchyCloudWarpAt(float3 p)
+{
+    [branch] if (((uint)_PunchySkyOff & 1024u) != 0 || _PunchyWarpBaked > 0.5)
+        return 0;
+    return PunchyCloudWarpRaw(p);
 }
 
 float PunchyCloudDensityAt(float3 p, float detail)
