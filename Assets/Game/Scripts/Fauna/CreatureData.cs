@@ -640,16 +640,19 @@ namespace Punchy.Fauna
     public struct FolkKit : System.IEquatable<FolkKit>
     {
         public byte Hand, OffHand, Sheath, Head, Body, Back, Neck, Bag0, Bag1, Bag2, Bag3;
+        /// <summary>Zach 11-12 row 5: what stands at its post while it works there (a kneading table and a loaf, the well's
+        /// rope and bucket, the hot iron, a chopping block and log), drawn by the Gear pass.</summary>
+        public byte Post0, Post1;
 
         /// <summary>A slot's value for an item (its id + 1), and the item in a slot (-1 for nothing).</summary>
         public static byte Of(int item) => (byte)(item + 1);
         public static int Item(byte slot) => slot - 1;
 
-        public bool Empty => (Hand | OffHand | Sheath | Head | Body | Back | Neck | Bag0 | Bag1 | Bag2 | Bag3) == 0;
+        public bool Empty => (Hand | OffHand | Sheath | Head | Body | Back | Neck | Bag0 | Bag1 | Bag2 | Bag3 | Post0 | Post1) == 0;
 
         public bool Equals(FolkKit o) =>
             Hand == o.Hand && OffHand == o.OffHand && Sheath == o.Sheath && Head == o.Head && Body == o.Body && Back == o.Back && Neck == o.Neck &&
-            Bag0 == o.Bag0 && Bag1 == o.Bag1 && Bag2 == o.Bag2 && Bag3 == o.Bag3;
+            Bag0 == o.Bag0 && Bag1 == o.Bag1 && Bag2 == o.Bag2 && Bag3 == o.Bag3 && Post0 == o.Post0 && Post1 == o.Post1;
     }
 
     public enum HeldItem : byte

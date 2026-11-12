@@ -185,6 +185,21 @@ namespace Punchy.Items
                         k.Head = FolkKit.Of(ItemTable.StrawHat);
                     break;
             }
+            // What stands at its post while it works there (row 5; drawn by the Gear pass): a baker's kneading table
+            // and a finished loaf, the well's rope and the bucket on it, a smith's hot iron, a woodcutter's chopping
+            // block and the log on it.
+            if (atWork)
+            {
+                (int, int) post = s.Task == CreatureTask.Hammer ? (ItemTable.HotIron, -1)
+                                : s.Task == CreatureTask.Chop && job != FolkJob.Farmer ? (ItemTable.ChoppingBlock, ItemTable.Log)
+                                : s.Task == CreatureTask.Tend && job == FolkJob.Baker ? (ItemTable.KneadingTable, ItemTable.Bread)
+                                : s.Task == CreatureTask.Tend && job == FolkJob.WellKeeper ? (ItemTable.Rope, ItemTable.Bucket)
+                                : (-1, -1);
+                if (post.Item1 >= 0)
+                    k.Post0 = FolkKit.Of(post.Item1);
+                if (post.Item2 >= 0)
+                    k.Post1 = FolkKit.Of(post.Item2);
+            }
             var toolInHand = atWork && !(s.Task == CreatureTask.Hermit && s.Stage == 2);
             if (tool >= 0)
             {
@@ -437,7 +452,7 @@ namespace Punchy.Items
                 var kit = s.Kit;
                 Debug.Log($"[kit] {s.Individual:X8} {bodies[near[n].i].Blob.Value.GuardKit} {s.Task}/{s.Mode} held {s.Held}, {near[n].d:0} m: hand {KitName(kit.Hand)}, off {KitName(kit.OffHand)}, " +
                           $"sheath {KitName(kit.Sheath)}, head {KitName(kit.Head)}, body {KitName(kit.Body)}, back {KitName(kit.Back)}, neck {KitName(kit.Neck)}, " +
-                          $"bag {KitName(kit.Bag0)}/{KitName(kit.Bag1)}/{KitName(kit.Bag2)}/{KitName(kit.Bag3)}");
+                          $"bag {KitName(kit.Bag0)}/{KitName(kit.Bag1)}/{KitName(kit.Bag2)}/{KitName(kit.Bag3)}, post {KitName(kit.Post0)}/{KitName(kit.Post1)}");
             }
         }
 

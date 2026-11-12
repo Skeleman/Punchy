@@ -947,50 +947,65 @@ namespace Punchy.Fauna
                 var right = new Unity.Mathematics.float3(forward.z, 0f, -forward.x);
                 var up = new Unity.Mathematics.float3(0f, 1f, 0f);
                 var wood = new Unity.Mathematics.float4(0.36f, 0.24f, 0.13f, 0f);
-                var job = FolkJobs.Of(in state);
+                var bark = new Unity.Mathematics.float4(0.32f, 0.22f, 0.14f, 0f);
                 // (A hand's tip, and the point between both hands.)
                 var tip = hand >= 0 ? Tip(Output[offset + hand]) : state.Position;
                 var offTip = offHand >= 0 ? Tip(Output[offset + offHand]) : tip;
                 var between = (tip + offTip) * 0.5f;
                 var ground = state.Position;
-                if (state.Task == CreatureTask.Tend && job == FolkJob.Baker)
+                // (Where the post's things stand: the kneading table under the dough, the chopping block in front, the
+                // well's rope from the higher hand down into the well in front. Each item's capsules are PostParts.)
+                var tableTop = new Unity.Mathematics.float3(between.x, between.y - 0.1f * scale, between.z) - forward * 0.05f * scale;
+                var topLevel = Unity.Mathematics.math.max(tableTop.y, ground.y + 0.4f * scale);
+                var centre = new Unity.Mathematics.float3(tableTop.x, topLevel, tableTop.z);
+                var block = ground + forward * 0.75f * scale;
+                for (int n = 0; n < 2; n++)
                 {
-                    // The kneading table under the dough, floured: a flat top on a stout leg.
-                    var tableTop = new Unity.Mathematics.float3(between.x, between.y - 0.1f * scale, between.z) - forward * 0.05f * scale;
-                    var topLevel = Unity.Mathematics.math.max(tableTop.y, ground.y + 0.4f * scale);
-                    var centre = new Unity.Mathematics.float3(tableTop.x, topLevel, tableTop.z);
-                    Output[at + k++] = Piece(centre - forward * 0.05f * scale, forward, up, 0.5f * scale, 0.4f * scale, 0.4f * scale, 0.1f, new Unity.Mathematics.float4(0.6f, 0.48f, 0.32f, 0f), faded, SegmentMaterial.Wood);
-                    Output[at + k++] = Piece(new Unity.Mathematics.float3(centre.x, ground.y, centre.z) + forward * 0.2f * scale, up, forward, topLevel - ground.y, 0.07f * scale, 0.07f * scale, 1f, wood, faded, SegmentMaterial.Wood);
-                    // A finished loaf at the table's far end.
-                    Output[at + k++] = Piece(centre + forward * 0.25f * scale + right * 0.2f * scale + up * 0.05f * scale, right, up, 0.18f * scale, 0.065f * scale, 0.06f * scale, 0.7f,
-                                             new Unity.Mathematics.float4(0.62f, 0.38f, 0.16f, 0f), faded, SegmentMaterial.Wood);
-                }
-                else if (state.Task == CreatureTask.Tend && job == FolkJob.WellKeeper && hand >= 0)
-                {
-                    // The well's rope, from the higher hand down into the well in front, and the bucket coming up on it.
-                    var top = tip.y > offTip.y ? tip : offTip;
-                    var foot = state.Position + forward * 0.75f * scale;
-                    var drop = top - foot;
-                    var ropeLength = Unity.Mathematics.math.length(drop) + 0.4f * scale;
-                    var down = -Unity.Mathematics.math.normalize(drop);
-                    Output[at + k++] = Piece(top + up * 0.3f * scale, down, forward, ropeLength, 0.011f * scale, 0.011f * scale, 1f, new Unity.Mathematics.float4(0.6f, 0.52f, 0.36f, 0f), faded, SegmentMaterial.Cloth);
-                    var bucketAt = state.Position + forward * 0.6f * scale + up * (0.25f + 0.2f * Unity.Mathematics.math.sin(state.Clock * 0.4f)) * scale;
-                    Output[at + k++] = Piece(bucketAt, up, forward, 0.2f * scale, 0.08f * scale, 0.095f * scale, 1f, new Unity.Mathematics.float4(0.42f, 0.3f, 0.18f, 0f), faded, SegmentMaterial.Wood);
-                }
-                else if (state.Task == CreatureTask.Hammer && offHand >= 0)
-                {
-                    // The glowing bar in its tongs (the tongs are its kit's, in the other hand: the Weapon pass's), on the anvil.
-                    var hold = Unity.Mathematics.math.normalize(forward - up * 0.6f);
-                    Output[at + k++] = Piece(offTip + hold * 0.3f * scale, right, up, 0.2f * scale, 0.018f * scale, 0.018f * scale, 1f, new Unity.Mathematics.float4(1f, 0.42f, 0.08f, 0f), faded, SegmentMaterial.Metal);
-                }
-                else if (state.Task == CreatureTask.Chop && job != FolkJob.Farmer)
-                {
-                    // A chopping block in front with a log stood on it, and a split piece beside.
-                    var block = ground + forward * 0.75f * scale;
-                    var bark = new Unity.Mathematics.float4(0.32f, 0.22f, 0.14f, 0f);
-                    Output[at + k++] = Piece(block, up, forward, 0.35f * scale, 0.2f * scale, 0.2f * scale, 1f, bark, faded, SegmentMaterial.Wood);
-                    Output[at + k++] = Piece(block + up * 0.35f * scale, up, forward, 0.3f * scale, 0.1f * scale, 0.1f * scale, 1f, new Unity.Mathematics.float4(0.7f, 0.56f, 0.36f, 0f), faded, SegmentMaterial.Wood);
-                    Output[at + k++] = Piece(block + right * 0.35f * scale + up * 0.05f * scale, Unity.Mathematics.math.normalize(forward + right * 0.5f), up, 0.3f * scale, 0.06f * scale, 0.06f * scale, 0.6f, bark, faded, SegmentMaterial.Wood);
+                    var item = FolkKit.Item(n == 0 ? state.Kit.Post0 : state.Kit.Post1);
+                    switch (item)
+                    {
+                        case Punchy.Items.ItemTable.KneadingTable:
+                            // A flat top, floured, on a stout leg.
+                            Output[at + k++] = Piece(centre - forward * 0.05f * scale, forward, up, 0.5f * scale, 0.4f * scale, 0.4f * scale, 0.1f, new Unity.Mathematics.float4(0.6f, 0.48f, 0.32f, 0f), faded, SegmentMaterial.Wood);
+                            Output[at + k++] = Piece(new Unity.Mathematics.float3(centre.x, ground.y, centre.z) + forward * 0.2f * scale, up, forward, topLevel - ground.y, 0.07f * scale, 0.07f * scale, 1f, wood, faded, SegmentMaterial.Wood);
+                            break;
+                        case Punchy.Items.ItemTable.Bread:
+                            // A finished loaf at the table's far end.
+                            Output[at + k++] = Piece(centre + forward * 0.25f * scale + right * 0.2f * scale + up * 0.05f * scale, right, up, 0.18f * scale, 0.065f * scale, 0.06f * scale, 0.7f,
+                                                     new Unity.Mathematics.float4(0.62f, 0.38f, 0.16f, 0f), faded, SegmentMaterial.Wood);
+                            break;
+                        case Punchy.Items.ItemTable.Rope:
+                        {
+                            var top = tip.y > offTip.y ? tip : offTip;
+                            var drop = top - (state.Position + forward * 0.75f * scale);
+                            var down = -Unity.Mathematics.math.normalizesafe(drop, up);
+                            Output[at + k++] = Piece(top + up * 0.3f * scale, down, forward, Unity.Mathematics.math.length(drop) + 0.4f * scale, 0.011f * scale, 0.011f * scale, 1f,
+                                                     new Unity.Mathematics.float4(0.6f, 0.52f, 0.36f, 0f), faded, SegmentMaterial.Cloth);
+                            break;
+                        }
+                        case Punchy.Items.ItemTable.Bucket:
+                        {
+                            // Coming up the well on its rope.
+                            var bucketAt = state.Position + forward * 0.6f * scale + up * (0.25f + 0.2f * Unity.Mathematics.math.sin(state.Clock * 0.4f)) * scale;
+                            Output[at + k++] = Piece(bucketAt, up, forward, 0.2f * scale, 0.08f * scale, 0.095f * scale, 1f, new Unity.Mathematics.float4(0.42f, 0.3f, 0.18f, 0f), faded, SegmentMaterial.Wood);
+                            break;
+                        }
+                        case Punchy.Items.ItemTable.HotIron:
+                        {
+                            // The glowing bar in its tongs (the tongs are its kit's, in the other hand: the Weapon pass's).
+                            var hold = Unity.Mathematics.math.normalize(forward - up * 0.6f);
+                            Output[at + k++] = Piece(offTip + hold * 0.3f * scale, right, up, 0.2f * scale, 0.018f * scale, 0.018f * scale, 1f, new Unity.Mathematics.float4(1f, 0.42f, 0.08f, 0f), faded, SegmentMaterial.Metal);
+                            break;
+                        }
+                        case Punchy.Items.ItemTable.ChoppingBlock:
+                            Output[at + k++] = Piece(block, up, forward, 0.35f * scale, 0.2f * scale, 0.2f * scale, 1f, bark, faded, SegmentMaterial.Wood);
+                            break;
+                        case Punchy.Items.ItemTable.Log:
+                            // Stood on the block, and a split piece beside it.
+                            Output[at + k++] = Piece(block + up * 0.35f * scale, up, forward, 0.3f * scale, 0.1f * scale, 0.1f * scale, 1f, new Unity.Mathematics.float4(0.7f, 0.56f, 0.36f, 0f), faded, SegmentMaterial.Wood);
+                            Output[at + k++] = Piece(block + right * 0.35f * scale + up * 0.05f * scale, Unity.Mathematics.math.normalize(forward + right * 0.5f), up, 0.3f * scale, 0.06f * scale, 0.06f * scale, 0.6f, bark, faded, SegmentMaterial.Wood);
+                            break;
+                    }
                 }
             }
 

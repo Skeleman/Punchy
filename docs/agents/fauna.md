@@ -34,7 +34,10 @@ Read before changing creatures, behaviour, poses, the player's body, settlements
   shields and sheathed weapons are drawn from the kit by the player's own Weapon/Armour passes (FolkKits.Dress,
   FolkKits.Sheathed); only what moves its own way keeps its pass (a guard's drawn weapon and torch, lanterns, rods,
   a hunter's spear, a miner's pick, staffs, letters, playthings). A new item with a look goes in HandLook/WornLook
-  too (checked at start: "FolkKits.HandLook" errors).
+  too (checked at start: "FolkKits.HandLook" errors). What stands at a worker's post is the kit's Post0/Post1, drawn
+  by Gear (a new post item needs PostParts and a case there). Worn and sheath blocks are sized per look (LookParts,
+  HeadParts, BodyParts): a new look's capsule count must match what its pass writes. A player's sheathe key (H)
+  rides CreatureOutfit.Kept/Stow through the same sheath block.
 
 ## Animation conventions
 

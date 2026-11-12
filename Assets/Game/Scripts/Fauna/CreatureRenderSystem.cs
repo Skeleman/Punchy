@@ -88,23 +88,25 @@ namespace Punchy.Fauna
                                                held == HeldItem.Rod ? RodParts : held == HeldItem.Stick || held == HeldItem.Stone ? 1 :
                                                held == HeldItem.Pickaxe || held == HeldItem.OreSack ? MinerParts : held == HeldItem.Staff || held == HeldItem.Letter ? 2 : held == HeldItem.Honey ? 1 : 0;
         /// <summary>
-        /// Capsules for what stands at a worker's post (A-33), from its job alone (already on every machine, nothing
-        /// more sent): a baker's kneading table and a loaf on it, a smith's hot iron in its tongs, a woodcutter's
-        /// chopping block and log, a well keeper's rope and the bucket on it. (Its tools, wares, hat and apron are its
-        /// kit's since Zach 11-12 row 3, drawn by the Weapon and Armour passes; the props become items in row 5.)
+        /// Capsules for what stands at a worker's post (A-33): a baker's kneading table and a loaf on it, a smith's hot
+        /// iron in its tongs, a woodcutter's chopping block and log, a well keeper's rope and the bucket on it. Items in
+        /// its kit since Zach 11-12 row 5 (FolkKit.Post0, Post1: the host's, sent with the rest of the kit), as its
+        /// tools, wares, hat and apron are (row 3, drawn by the Weapon and Armour passes).
         /// </summary>
         static bool HasGear(in CreatureState s) => GearCount(in s) != 0;
-        /// <summary>(Each exactly what Gear draws for it, so no capsule is sent empty.)</summary>
-        static int GearCount(in CreatureState s)
+        /// <summary>(Its kit's post items, Zach 11-12 row 5: each exactly what Gear draws for it, so no capsule is sent
+        /// empty.)</summary>
+        static int GearCount(in CreatureState s) =>
+            s.Mode == CreatureMode.Puppet ? 0 : PostParts(FolkKit.Item(s.Kit.Post0)) + PostParts(FolkKit.Item(s.Kit.Post1));
+        /// <summary>Capsules a post item takes: a kneading table's top and leg, a log stood on the block and a split piece
+        /// beside it, one for the rest.</summary>
+        static int PostParts(int item) => item switch
         {
-            if (s.Mode != CreatureMode.Work || s.Stage == 0)
-                return 0;
-            var job = FolkJobs.Of(in s);
-            return s.Task == CreatureTask.Hammer ? 1 :
-                   s.Task == CreatureTask.Chop && job != FolkJob.Farmer ? 3 :
-                   s.Task == CreatureTask.Tend && job == FolkJob.Baker ? 3 :
-                   s.Task == CreatureTask.Tend && job == FolkJob.WellKeeper ? 2 : 0;
-        }
+            Punchy.Items.ItemTable.KneadingTable or Punchy.Items.ItemTable.Log => 2,
+            Punchy.Items.ItemTable.Bread or Punchy.Items.ItemTable.Rope or Punchy.Items.ItemTable.Bucket or Punchy.Items.ItemTable.HotIron or
+                Punchy.Items.ItemTable.ChoppingBlock => 1,
+            _ => 0
+        };
         /// <summary>
         /// The worn block, only the capsules a body's looks draw (Zach 11-12, so an empty capsule is never sent: every
         /// look's count below is what its pass writes, and each pass writes from the start of its own sub-block):
