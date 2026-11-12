@@ -2,6 +2,15 @@
 
 Newest first.
 
+## Zach's direction, 11-12 (in the profiler session): R-12 keeps the cloud warp
+After seeing the comparison sheet (job 49's storm views: before R-12, R-12, R-12 with `-skyoff 1024`), Zach said: "R-12 with warp off makes the clouds look like pills again. The regular shots labeled R-12 look good."
+- **The warp stays.** None of the trims that drop it are wanted: `-skyoff 1024`, or anything that reads the maps straight.
+- **Its cost is +0.55–1.35 ms GPU where a storm is in view** (jobs 49, 49b, 49d). The cheap march trims are exhausted.
+- **What's left for the supervisor and the sky owner:**
+  1. **Accept it, paired with the cloud shadow map** (job 49c: −0.75 to −1.3 ms over forests, no visible change). The net is about even or better on most views. The profiler recommends this.
+  2. **Bake the warp into the weather and cloud maps.** That keeps the ragged rim but drops the lean with height. The look would need Zach to judge new shots before any merge.
+  3. **Rule 23's preset route** (warp at High/Ultra only) would bring the pills back at Medium and Low. Given Zach's reaction, the profiler wouldn't suggest it.
+
 ## Job 50: two-player crash and desync check on main 6c3588b, 2026-11-12 (q101.sh): PASS on what's automated; talk and gear not checked
 **Setup:**
 - One Dev build of origin/main 6c3588b, plus the profiler's TwoPlayerRoute overlay (lanes/profiler/scripts/TwoPlayerRoute.cs.txt; build-only, not in the game).
