@@ -34,21 +34,21 @@ COMMON="-weatherseed 4 -time 12 -body default $(screen Bench 1280 720) -fpscap 3
 STOPS="rapids@-2167,3691@12@Clear;swim@488,-1144@12@Clear;town@3066,-913@23@Clear;roost@-1149,1219@12@Clear;storm@1489,-897@12@Storm;rejoin@1489,-897@12@Storm;last@1489,-897@12@Storm"
 HOLD=60
 cool
-launch() { # name args...: one instance in the background; prints its PID
+launch() { # name args...: one instance in the background; its PID in LP (not through $(...): a subshell's child can't be waited on)
   local n=$1; shift
   ( cd "$P/Builds/Bench" && exec timeout 1500 ./Punchy.exe -logFile "$(cygpath -m "$L/$n.log")" $COMMON "$@" >/dev/null 2>&1 ) &
-  echo $!
+  LP=$!
 }
 waitlog() { # file pattern seconds
   local i; for i in $(seq 1 $3); do grep -q "$2" "$1" 2>/dev/null && return 0; sleep 1; done; return 1; }
-HP=$(launch host -host -tproute host -tpstops "$STOPS" -tphold $HOLD -tpwait 300 -tpquitafter 900)
+launch host -host -tproute host -tpstops "$STOPS" -tphold $HOLD -tpwait 300 -tpquitafter 900; HP=$LP
 waitlog "$L/host.log" "TPCHECK host: in the world" 240 || echo "host never reached the world"
 sleep 20; log "$Q host in the world; starting client 1"
 # Client 1 leaves 20 s into the storm stop: the route starts ~10 s after it joins, five stops of HOLD before the storm.
-C1=$(launch client1 -join 127.0.0.1 -tproute client -tpquitafter $((10 + 5 * HOLD + 20 + 30)))
+launch client1 -join 127.0.0.1 -tproute client -tpquitafter $((10 + 5 * HOLD + 20 + 30)); C1=$LP
 wait $C1; log "$Q client 1 exited (rc $?)"
 sleep 5; log "$Q starting client 2 (the rejoin)"
-C2=$(launch client2 -join 127.0.0.1 -tproute client -tpquitafter 120)
+launch client2 -join 127.0.0.1 -tproute client -tpquitafter 120; C2=$LP
 wait $C2; log "$Q client 2 exited (rc $?)"
 waitlog "$L/host.log" "TPCHECK host: route done" 400 || echo "host route not done"
 sleep 15
