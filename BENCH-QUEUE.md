@@ -592,7 +592,7 @@ W-136 row 3 on `world/ground-contact-shade` (077acd90): one ContactShade path fo
 - Measure: main-thread and job cost of (1) a ruin room and a lake room mesh build (`-place cavepool` and a ruin), (2) cave chunk mesh builds on the walk into a planted cave, (3) terrain LOD0 chunk builds over a forest and a town; plus whole-frame GPU/CPU ms at each spot and frames over 2x the median on the walk.
 - Pass: no build more than 10% slower than A, no new hitch over 2x median.
 
-## Job 59 (2026-11-11, MAIN PC (J-045, 11-12): profiler skip this job; the main-account bench agent runs it; was QUEUED after 58; supervisor, for W-138 row 2a): first load near the sea folk landing
+## Job 59 (2026-11-11, DONE main PC provisional (see BENCH-REPORTS); MAIN PC (J-045, 11-12): profiler skip this job; the main-account bench agent runs it; was QUEUED after 58; supervisor, for W-138 row 2a): first load near the sea folk landing
 W-138 row 2a on `world/mountain-tunnels` (3e3c9e08): six new road spurs (+617 streets, +3.25 km), small-crest tunnels became cuttings, and the sea folk spots are found before the roads.
 - Arms: (A) origin/main 393a9c20 or newer; (B) `world/mountain-tunnels` at 3e3c9e08 or newer. Profile builds, 1920x1080, High, uncapped, ABBA.
 - View: shotcam near (-1803,50,-543) looking at (-1778,34,-553), the landing spur's end at the pier.

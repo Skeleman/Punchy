@@ -2,6 +2,19 @@
 
 Newest first.
 
+## 2026-11-12 morning: job 59 (W-138 tunnels) main PC, provisional
+One session, 09:04-09:28, machine quiet the whole time (no Unity.exe and no second Punchy.exe in the 10 s checks; no round thrown out). Arms: (A) origin/main 6c3588b6 (Profile-6c3588b); (B) `world/mountain-tunnels` 70d0890d (main merged in, includes row 4b f6217674). Profile builds, `-display 1920x1080,windowed`, `-fpscap 0`, `-gfx High`, ABBA, 2 rounds, one untimed warm-up per arm first. Views: landing shotcam (-1803,50,-543) and the C0a walk from (-1600,-20) via the S portal (-1596,74) to (-1590,1200), 230 s captured. 0 crashes.
+- **Landing: PASS.** World ready 4.8-5.0 s on both arms. First 20 s and the 20 s after: no frame over 2x the median on either arm (worst 9.5 ms on both). Steady: median A 5.81-5.84 / B 5.77-5.89 ms; CPU A 5.95 / B 5.96; GPU A 3.66 / B 3.77 (+0.1 ms); render A 2.27 / B 2.37 (+0.1 ms). Within noise.
+- **Walk: whole frame PASS, hitches FAIL (narrow) at the N portal.** B walks the bore and reaches z 1164 at 182 s. A has no tunnel: it climbs over the ground and only gets to z ~1060 in 230 s, so A has no N-portal or stand data to compare. Over z 24-1100: median A 7.84 / B 3.26 ms; CPU A 7.69 / B 3.41; GPU A 2.80 / B 1.00; render A 2.30 / B 0.32. B is much cheaper inside the bore. (One junk GPU sample in B r2 was dropped.)
+- **Hitches by place (both rounds unless noted):**
+  - Both arms, 265-272 ms at 105-108 s (z 704-712; A on the surface, B mid-bore). Main, render and GPU are all under 10 ms in that frame, so it is a stall outside the timed slices. It hits at the same time on both arms, so it is not the tunnel. A shared issue worth a look.
+  - S portal (within 50 m): B 12.9-13.6 ms at z 75-84 (part median 5.4). A's worst there is 10-12 ms. Small, but it repeats.
+  - Mid-bore: B 17-18 ms at z 749, about 7 s after the big stall (A r2 has 17.3 ms right at its stall). Markers (z ~385), niche (z ~458) and lake (z ~555): no frame over 2x the part median on B, worst 7-8 ms. On A the niche/lake stretch has 13-15 ms frames.
+  - N portal: B 30 ms at z 1107 (just before the portal), then a run of 13-21 ms frames from z 1157 to 1186 as it comes out (part median 6.9 ms; 38/53 frames >= 12 ms). That is over 2x A's walk median (7.8 ms), so it fails "no new hitch over 2x the median". A never reaches the same spot, so it can't confirm or rule it out there.
+- **S-portal smoke frames (100-210 ms at z 126-143): cold-cache first pass.** After the warm-up they are gone in both timed B runs (worst at z 120-150 is 7.9/8.4 ms).
+- Suggestion for the world lane: see what streams in on the approach to the N portal and as you come out (z 1105-1190): outside terrain or chunks coming back after the bore culled them?
+- Files: `PunchyBench/Tools/bench/results/fr-j59-<view>-<arm>-<r>/`, `q-j59-*-c0-*.log`; analyser `jobs2/j59an.py`.
+
 ## 2026-11-12 night: job 61 (W-135 row 6) main PC, provisional
 One session, 00:00-00:19, machine quiet the whole time (no Unity.exe and no second Punchy.exe in the 15 s checks; no round thrown out). Arms: (A) origin/main 94c359ef (Profile-94c359e); (B) `world/ground-contact-shade` dc65c63b (Profile-dc65c63); (C) B with `-cavelevel 0 -nocaveskip`. Profile builds, `-display 1920x1080,windowed`, `-fpscap 0`, `-gfx High`, `-weatherseed 4`, view `walk -goto -2810,27,-556 -benchstops here,hereentry` (the c5 walk, as in job 52), ABBA (r1 A,B,C; r2 C,B,A), 2 rounds. About 24.5k frames per run, 112.9 s at the hereentry stop. Every arm got one untimed warm-up first. 0 exceptions.
 - **Island cache:** A got a hit on both timed runs (and on its warm-up: 24.24 MB, 248 ms). B and C have no cache: dc65c63 is older than the W-140 cache, so it logs no cache line and builds the island every launch (v3 ready at 11.1-11.4 s). That only changes the load before the walk, not the walk frames. No run was dropped.
