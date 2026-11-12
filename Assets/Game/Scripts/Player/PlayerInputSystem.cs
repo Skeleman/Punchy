@@ -117,14 +117,18 @@ namespace Punchy.Player
             Sprinting = sprinting;
             Walking = walking;
 
+            // (Zach 11-12: the pad's bottom button is Use as well as Jump; with something to use in front (its prompt
+            // up), it uses and doesn't jump. Space on the keyboard always jumps.)
+            var padUse = Punchy.Interact.UseKey.Offered && UnityEngine.InputSystem.Gamepad.current != null &&
+                         UnityEngine.InputSystem.Gamepad.current.buttonSouth.isPressed;
             SystemAPI.SetSingleton(new PlayerInput
             {
                 MoveDirection = direction,
                 Sprint = TestSprint || sprinting && !flying,
                 Walk = TestWalk || walking && !sprinting && !TestSprint,
                 DiveHeld = TestSprint || !typing && sprint != null && sprint.IsPressed(),
-                JumpPressed = TestJump || !typing && jump != null && jump.WasPressedThisFrame(),
-                JumpHeld = TestClimb || !typing && jump != null && jump.IsPressed(),
+                JumpPressed = TestJump || !typing && !padUse && jump != null && jump.WasPressedThisFrame(),
+                JumpHeld = TestClimb || !typing && !padUse && jump != null && jump.IsPressed(),
                 CrouchPressed = TestRoll || !typing && crouch != null && crouch.WasPressedThisFrame(),
                 CrouchHeld = TestCrouch || !typing && crouch != null && crouch.IsPressed(),
                 CameraForward = TestCamera.HasValue ? math.normalizesafe(TestCamera.Value, new float2(0f, 1f)) : TestMove.HasValue && math.lengthsq(TestMove.Value) > 0f ? math.normalize(TestMove.Value) : cameraForward,

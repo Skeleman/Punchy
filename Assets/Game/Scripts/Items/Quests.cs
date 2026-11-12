@@ -144,6 +144,8 @@ namespace Punchy.Items
             if (targetBoard >= 0 && prompt == null)
             {
                 var slot = NextSlot(targetBoard, out var turnIn, out var from);
+                if (slot >= 0)
+                    UseKey.Offer();
                 prompt = slot < 0 ? $"Notice board ({boards[targetBoard].Town}): nothing more for you"
                        : turnIn ? $"{UseKey.Name}  hand in: {QuestText(from, slot)}" : $"{UseKey.Name}  take: {QuestText(from, slot)}";
                 if (slot >= 0 && UseKey.WasPressed() && target < 0 && targetChest < 0 && targetContainer < 0)

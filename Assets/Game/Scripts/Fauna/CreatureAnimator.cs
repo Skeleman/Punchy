@@ -576,12 +576,24 @@ namespace Punchy.Fauna
                         }
                     }
                     // Something in the left hand (Zach 11-12: there's no off hand, either holds anything): held ready as
-                    // the right holds its own, bent and a little up; it isn't swung.
-                    if (part.Role == LimbRole.Arm && part.Side < 0f && s.Outfit.LeftHand != CreatureWeapon.None && !wArms &&
-                        s.Outfit.Weapon != CreatureWeapon.Spear && s.Outfit.Weapon != CreatureWeapon.Bow && s.Outfit.Weapon != CreatureWeapon.GreatClub)
+                    // the right holds its own, bent and a little up, and swung on its own button the same way
+                    // (Outfit.LeftSwing).
+                    var twoRight = s.Outfit.Weapon == CreatureWeapon.Spear || s.Outfit.Weapon == CreatureWeapon.Bow || s.Outfit.Weapon == CreatureWeapon.GreatClub;
+                    if (part.Role == LimbRole.Arm && part.Side < 0f && s.Outfit.LeftHand != CreatureWeapon.None && !wArms && !twoRight)
                     {
+                        var lSwing = s.Outfit.LeftSwing == 0 ? 0f : (s.Outfit.LeftSwing - 1) / 254f;
+                        var lLift = lSwing < 0.55f ? math.smoothstep(0f, 0.55f, lSwing) : 1f - math.smoothstep(0.55f, 0.72f, lSwing);
+                        var lStrike = math.smoothstep(0.6f, 0.72f, lSwing) * (1f - math.smoothstep(0.8f, 1f, lSwing));
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.85f);
-                        a.x += j == 0 ? -0.5f : j == 1 ? -0.9f : 0f;
+                        a.x += j == 0 ? -0.5f - 2.0f * lLift - 0.4f * lStrike : j == 1 ? -0.9f - 0.5f * lLift + 0.6f * lStrike : 0f;
+                    }
+                    // Raised to block (Zach 11-12, Outfit.Block): that arm up before the face, bent, what it holds across
+                    // in front of it; a two-handed thing with both arms.
+                    var blockRight = (s.Outfit.Block & 1) != 0;
+                    if (part.Role == LimbRole.Arm && (part.Side > 0f && blockRight || part.Side < 0f && ((s.Outfit.Block & 2) != 0 || blockRight && twoRight)))
+                    {
+                        a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.9f);
+                        a += j == 0 ? new float3(-1.35f, 0f, part.Side * 0.4f) : j == 1 ? new float3(-1.5f, 0f, 0f) : float3.zero;
                     }
                     // Meeting a messenger bird: the left forearm raised out in front at chest height, bent, for it to land
                     // on; once it's there, the right hand across to take the roll from its leg.

@@ -196,6 +196,7 @@ namespace Punchy.Interact
             // (Below the head: an animal's reaction goes up over it, on the same spot.)
             promptAt = at - new float3(0f, PromptDrop, 0f);
             prompt = $"{UseKey.Name}  talk";
+            UseKey.Offer();
         }
 
         static bool IsWalled(World world, in CreatureState s, ref CreatureBlob b, float3 player)

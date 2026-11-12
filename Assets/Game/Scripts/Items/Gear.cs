@@ -65,11 +65,20 @@ namespace Punchy.Items
         public byte LeftHand;
         /// <summary>Zach 11-12 row 4: 1 while the hand's item is put away (the sheathe key), else 0; sent as SheathPlace.</summary>
         public byte Sheathed;
+        /// <summary>Zach 11-12: which hands are raised to block (bit 0 the right, bit 1 the left); sent as BlockPlace.</summary>
+        public byte Block;
     }
 
     /// <summary>Client → host → everyone: this player swung its weapon (P-28). From a client, Player is ignored (the host
     /// knows who sent it).</summary>
     public struct SwingRpc : IRpcCommand
+    {
+        public int Player;
+    }
+
+    /// <summary>Zach 11-12: the same for the left hand's thing (SwingRpc is the right's). Its own message rather than a
+    /// hand field on SwingRpc: a grown SwingRpc failed to read back (bits read 32, expected 40), as GearRpc did.</summary>
+    public struct LeftSwingRpc : IRpcCommand
     {
         public int Player;
     }
@@ -83,7 +92,8 @@ namespace Punchy.Items
     /// (hat, pack). A client tells the host, and the host tells everyone (GearRpc, GearStateRpc; armour in ArmourRpc,
     /// ArmourStateRpc), so others see it.
     /// Weapons (P-28 row 1) go in the hand too: their Damage, Reach and Speed are numbers, because the game has no
-    /// fighting yet; the left mouse button (X on a pad, outside the inventory) swings one, a swing lasting 1/Speed s,
+    /// fighting yet; each hand's attack (left or right click, LT or RT on a pad, outside the inventory) swings its
+    /// one and its block (Alt + that click, LB or RB) raises it (Zach 11-12), a swing lasting 1/Speed s,
     /// drawn through CreatureState.Outfit and sent like the gear (SwingRpc).
     /// Test flags: "-equip Torch,Hat" gives and puts on those items 20 s after our body first stands in the world
     /// ("-equip Club;Spear;Sword" one set after another, 12 s apart); "-swing" swings every 2 s; "-armlog" logs where
@@ -105,10 +115,11 @@ namespace Punchy.Items
             Neck = worn[(int)GearSlot.Neck], LeftHand = worn[(int)GearSlot.LeftHand],
             Hair = Punchy.Net.PlayerHair.Style, HairColour = Punchy.Net.PlayerHair.Colour,
             Sheathed = sheathed ? (byte)1 : (byte)0,
+            Block = ownBlock,
         };
         /// <summary>The hair's two places in SlotRpc / SlotStateRpc (P-29), past any GearSlot; and whether the hand's item
         /// is put away (Zach 11-12 row 4).</summary>
-        const byte HairPlace = 200, HairColourPlace = 201, SheathPlace = 202;
+        const byte HairPlace = 200, HairColourPlace = 201, SheathPlace = 202, BlockPlace = 203;
         /// <summary>
         /// Zach 11-12 row 4, the sheathe key (H, LT on a pad: Player/Sheathe): the weapon or tool in hand put away, on the
         /// back or at the hip as the folk wear theirs (FolkKits.OnBack), or drawn again, the hand reaching for it through
@@ -130,6 +141,17 @@ namespace Punchy.Items
         /// <summary>When each player last swung (Time.time), by network id; ours apart, as solo has no id.</summary>
         readonly Dictionary<int, float> swungAt = new Dictionary<int, float>();
         float ownSwing = -10f, nextTestSwing;
+        /// <summary>
+        /// Zach 11-12, a hand each: the left hand's thing swings on its own button (left click, LT / L2), the right's on
+        /// its (right click, RT / R2), a two-handed thing on either; each is raised to block while its button is held
+        /// (Alt + that click, LB / L1 or RB / R1), and doesn't swing while it is. When each player's left last swung,
+        /// ours apart; which of our hands are raised (GearSet.Block bits), and what was last sent of it.
+        /// </summary>
+        readonly Dictionary<int, float> swungLeftAt = new Dictionary<int, float>();
+        float ownSwingLeft = -10f;
+        byte ownBlock, blockSent;
+        bool blockArg, swingLeftNext;
+        float nextTestBlock;
 
         int Capacity => BaseSlots + (worn[(int)GearSlot.Back] != Nothing ? math.min(ItemTable.Items[worn[(int)GearSlot.Back]].Slots, MaxExtraSlots) : 0);
 
@@ -258,6 +280,7 @@ namespace Punchy.Items
             Broadcast(new SlotStateRpc { Player = player, Slot = HairPlace, Item = g.Hair });
             Broadcast(new SlotStateRpc { Player = player, Slot = HairColourPlace, Item = g.HairColour });
             Broadcast(new SlotStateRpc { Player = player, Slot = SheathPlace, Item = g.Sheathed });
+            Broadcast(new SlotStateRpc { Player = player, Slot = BlockPlace, Item = g.Block });
         }
 
         /// <summary>A player's item put away or drawn: the reach starts now, here (a first word, as on joining, doesn't
@@ -349,6 +372,7 @@ namespace Punchy.Items
                     Send(em, c, new SlotStateRpc { Player = kv.Key, Slot = HairPlace, Item = kv.Value.Hair });
                     Send(em, c, new SlotStateRpc { Player = kv.Key, Slot = HairColourPlace, Item = kv.Value.HairColour });
                     Send(em, c, new SlotStateRpc { Player = kv.Key, Slot = SheathPlace, Item = kv.Value.Sheathed });
+                    Send(em, c, new SlotStateRpc { Player = kv.Key, Slot = BlockPlace, Item = kv.Value.Block });
                 }
             }
         }
@@ -388,6 +412,8 @@ namespace Punchy.Items
                 g.HairColour = item;
             else if (slot == SheathPlace)
                 g.Sheathed = item;
+            else if (slot == BlockPlace)
+                g.Block = item;
         }
 
         /// <summary>Nothing on anywhere.</summary>
@@ -440,7 +466,7 @@ namespace Punchy.Items
             var em = world.EntityManager;
             var own = Q(em, ComponentType.ReadWrite<PlayerAvatar>(), ComponentType.ReadWrite<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
             if (own.TryGetSingletonEntity<PlayerAvatar>(out var avatar))
-                Dress(em, avatar, Wearing, ownSwing, ownSheathAt);
+                Dress(em, avatar, Wearing, ownSwing, ownSwingLeft, ownSheathAt);
             if (gearOf.Count == 0)
                 return;
             var remote = Q(em, ComponentType.ReadWrite<RemoteAvatar>(), ComponentType.ReadWrite<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
@@ -451,7 +477,8 @@ namespace Punchy.Items
                 if (!em.Exists(ghost) || !em.HasComponent<GhostOwner>(ghost) || !gearOf.TryGetValue(em.GetComponentData<GhostOwner>(ghost).NetworkId, out var g))
                     continue;
                 var id = em.GetComponentData<GhostOwner>(ghost).NetworkId;
-                Dress(em, e, g, swungAt.TryGetValue(id, out var at) ? at : -10f, sheathedAt.TryGetValue(id, out var sAt) ? sAt : -10f);
+                Dress(em, e, g, swungAt.TryGetValue(id, out var at) ? at : -10f, swungLeftAt.TryGetValue(id, out var lAt) ? lAt : -10f,
+                      sheathedAt.TryGetValue(id, out var sAt) ? sAt : -10f);
             }
         }
 
@@ -469,7 +496,7 @@ namespace Punchy.Items
             return (byte)math.round(255f * (sheathed ? t : 1f - t));
         }
 
-        static void Dress(EntityManager em, Entity body, GearSet g, float swung, float sheathAt)
+        static void Dress(EntityManager em, Entity body, GearSet g, float swung, float swungLeft, float sheathAt)
         {
             var hand = g.Hand;
             var s = em.GetComponentData<CreatureState>(body);
@@ -495,20 +522,26 @@ namespace Punchy.Items
             outfit.Swing = swing;
             outfit.LeftHand = wears && g.LeftHand != Nothing && !heldLeft ? ItemTable.Items[g.LeftHand].Weapon : (byte)0;
             outfit.HeldLeft = heldLeft;
+            if (outfit.LeftHand != CreatureWeapon.None)
+                outfit.LeftSwing = SwingByte(swungLeft, ItemTable.Items[g.LeftHand].Speed);
+            // (A hand raised to block only with something in it; a two-handed thing goes up for either.)
+            var twoHanded = weapon != CreatureWeapon.None && ItemTable.Items[hand].TwoHanded;
+            outfit.Block = (byte)((weapon != CreatureWeapon.None && ((g.Block & 1) != 0 || twoHanded && g.Block != 0) ? 1 : 0) |
+                                  (outfit.LeftHand != CreatureWeapon.None && (g.Block & 2) != 0 ? 2 : 0));
             if (wears)
                 (outfit.Hair, outfit.HairColour, outfit.OwnHair) = (g.Hair, g.HairColour, true);
             if (s.Held == held && s.Worn == bits && s.Outfit.Equals(outfit))
                 return;
             var was = s.Outfit;
             // (Not logged for a swing or a reach going on: NoteSheath and Sheathe log those.)
-            (was.Swing, was.Kept, was.Stow) = (outfit.Swing, outfit.Kept, outfit.Stow);
+            (was.Swing, was.LeftSwing, was.Kept, was.Stow) = (outfit.Swing, outfit.LeftSwing, outfit.Kept, outfit.Stow);
             var changed = s.Held != held || s.Worn != bits || !was.Equals(outfit);
             s.Held = held;
             s.Worn = bits;
             s.Outfit = outfit;
             em.SetComponentData(body, s);
             if (changed)
-                Debug.Log($"[gear] {(em.HasComponent<RemoteAvatar>(body) ? "another player's" : "our")} body: held {held}, worn {bits}, weapon {weapon}, armour head {outfit.Head} body {outfit.Body} legs {outfit.Legs} feet {outfit.Feet} back {outfit.Back} neck {outfit.Neck} left hand {outfit.LeftHand}{(heldLeft ? " (held in the left)" : "")}, hair {outfit.Hair} colour {outfit.HairColour}");
+                Debug.Log($"[gear] {(em.HasComponent<RemoteAvatar>(body) ? "another player's" : "our")} body: held {held}, worn {bits}, weapon {weapon}, armour head {outfit.Head} body {outfit.Body} legs {outfit.Legs} feet {outfit.Feet} back {outfit.Back} neck {outfit.Neck} left hand {outfit.LeftHand}{(heldLeft ? " (held in the left)" : "")}, block {outfit.Block}, hair {outfit.Hair} colour {outfit.HairColour}");
         }
 
         /// <summary>Where a swing that began at this time is: 0 at rest, 1..255 through it.</summary>
@@ -518,30 +551,63 @@ namespace Punchy.Items
             return t < 0f || t >= 1f ? (byte)0 : (byte)(1 + (int)(t * 254f));
         }
 
-        /// <summary>Swings the weapon in hand, if there is one and it isn't already mid-swing.</summary>
-        void Swing()
+        /// <summary>Swings the thing in this hand (Zach 11-12: each hand its own button; a two-handed thing in the right
+        /// answers either), if it has a swing to it and isn't mid-swing or raised to block.</summary>
+        void Swing(bool left = false)
         {
-            var hand = worn[(int)GearSlot.Hand];
-            // (Put away: drawn first, and no swing until it's in hand.)
-            if (sheathed)
+            var place = left ? GearSlot.LeftHand : GearSlot.Hand;
+            var right = worn[(int)GearSlot.Hand];
+            if (left && worn[(int)GearSlot.LeftHand] == Nothing && right != Nothing && ItemTable.Items[right].TwoHanded)
+                place = GearSlot.Hand;
+            var hand = worn[(int)place];
+            var isRight = place == GearSlot.Hand;
+            // (The right's put away: drawn first, and no swing until it's in hand.)
+            if (isRight && sheathed)
             {
                 Debug.Log("[gear] swing while put away: drawn first");
                 Sheathe();
                 return;
             }
-            if (Time.time - ownSheathAt < DrawTime)
+            if (isRight && Time.time - ownSheathAt < DrawTime || (ownBlock & (isRight ? 1 : 2)) != 0)
                 return;
             // (A rod is cast, not swung: FishKeys has its button. Nor is what has no swing to it: a letter, a bowl.)
             if (hand == Nothing || ItemTable.Items[hand].Weapon == CreatureWeapon.None || ItemTable.Items[hand].Weapon == CreatureWeapon.Rod || ItemTable.Items[hand].Speed <= 0f || !CanWearGear() ||
-                SwingByte(ownSwing, ItemTable.Items[hand].Speed) != 0)
+                SwingByte(isRight ? ownSwing : ownSwingLeft, ItemTable.Items[hand].Speed) != 0)
                 return;
-            ownSwing = Time.time;
+            if (isRight)
+                ownSwing = Time.time;
+            else
+                ownSwingLeft = Time.time;
             var d = ItemTable.Items[hand];
-            Debug.Log($"[gear] swing: {d.Name}, damage {d.Damage:0}, reach {d.Reach:0.#} m, {1f / math.max(d.Speed, 0.1f):0.00} s");
+            Debug.Log($"[gear] swing ({(isRight ? "right" : "left")} hand): {d.Name}, damage {d.Damage:0}, reach {d.Reach:0.#} m, {1f / math.max(d.Speed, 0.1f):0.00} s");
             if (Joined)
-                SendToHost(new SwingRpc());
+            {
+                if (isRight) SendToHost(new SwingRpc());
+                else SendToHost(new LeftSwingRpc());
+            }
             else if (Hosting)
-                Broadcast(new SwingRpc { Player = OwnNetworkId() });
+            {
+                if (isRight) Broadcast(new SwingRpc { Player = OwnNetworkId() });
+                else Broadcast(new LeftSwingRpc { Player = OwnNetworkId() });
+            }
+        }
+
+        /// <summary>Which hands are raised to block changed: told to the host (or, hosting, to everyone).</summary>
+        void SendBlock()
+        {
+            if (ownBlock == blockSent)
+                return;
+            blockSent = ownBlock;
+            Debug.Log($"[gear] block: {((ownBlock & 1) != 0 ? "right " : "")}{((ownBlock & 2) != 0 ? "left" : "")}{(ownBlock == 0 ? "lowered" : "")}");
+            if (Joined)
+                SendToHost(new SlotRpc { Slot = BlockPlace, Item = ownBlock });
+            else if (Hosting)
+            {
+                var id = OwnNetworkId();
+                var g = gearOf.TryGetValue(id, out var was) ? was : Wearing;
+                g.Block = ownBlock;
+                HostSetGear(id, g);
+            }
         }
 
         /// <summary>Puts the hand's item away, or draws it (the sheathe key; Zach 11-12 row 4). Not mid-reach, nor mid-swing.</summary>
@@ -574,14 +640,22 @@ namespace Punchy.Items
             return own.TryGetSingletonEntity<PlayerAvatar>(out var avatar) ? world.EntityManager.GetComponentData<CreatureBody>(avatar).Blob.Value.StandHeight : 1f;
         }
 
-        /// <summary>Outside the inventory and menus: the attack button swings (the mouse only while it steers the camera),
-        /// the sheathe key puts away or draws ("-sheathe": every 3 s, for shots).</summary>
+        /// <summary>Outside the inventory and menus: each hand's attack swings it and its block raises it (the mouse only
+        /// while it steers the camera), the sheathe key puts away or draws. Tests: "-swing" swings every 2 s, the right
+        /// hand then the left; "-sheathe" every 3 s; "-block" raises the left for 2 s, then the right, then both.</summary>
         void SwingKeys()
         {
             if (swingArg && Time.realtimeSinceStartup >= nextTestSwing)
             {
                 nextTestSwing = Time.realtimeSinceStartup + 2f;
-                Swing();
+                Swing(swingLeftNext);
+                swingLeftNext = !swingLeftNext;
+            }
+            if (blockArg && (worn[(int)GearSlot.Hand] != Nothing || worn[(int)GearSlot.LeftHand] != Nothing) && Time.realtimeSinceStartup >= nextTestBlock)
+            {
+                nextTestBlock = Time.realtimeSinceStartup + 2f;
+                ownBlock = ownBlock == 0 ? (byte)2 : ownBlock == 2 ? (byte)1 : ownBlock == 1 ? (byte)3 : (byte)0;
+                SendBlock();
             }
             if (sheatheArg && worn[(int)GearSlot.Hand] != Nothing && Time.realtimeSinceStartup >= nextTestSheathe)
             {
@@ -596,8 +670,22 @@ namespace Punchy.Items
                 return;
             var mouse = Mouse.current;
             var pad = Gamepad.current;
-            if (mouse != null && mouse.leftButton.wasPressedThisFrame && Cursor.lockState == CursorLockMode.Locked || pad != null && pad.buttonWest.wasPressedThisFrame)
-                Swing();
+            var keyboard = Keyboard.current;
+            var aiming = mouse != null && Cursor.lockState == CursorLockMode.Locked;
+            var alt = keyboard != null && keyboard.altKey.isPressed;
+            // (Blocks while held: Alt with a click, or a shoulder button.)
+            if (!blockArg)
+            {
+                var blockLeft = aiming && alt && mouse.leftButton.isPressed || pad != null && pad.leftShoulder.isPressed;
+                var blockRight = aiming && alt && mouse.rightButton.isPressed || pad != null && pad.rightShoulder.isPressed;
+                ownBlock = (byte)((blockRight ? 1 : 0) | (blockLeft ? 2 : 0));
+                SendBlock();
+            }
+            // (Attacks: a click without Alt, or a trigger.)
+            if (aiming && !alt && mouse.leftButton.wasPressedThisFrame || pad != null && pad.leftTrigger.wasPressedThisFrame)
+                Swing(left: true);
+            if (aiming && !alt && mouse.rightButton.wasPressedThisFrame || pad != null && pad.rightTrigger.wasPressedThisFrame)
+                Swing(left: false);
             if (sheatheAction != null && sheatheAction.WasPressedThisFrame())
                 Sheathe();
         }
@@ -639,25 +727,44 @@ namespace Punchy.Items
         /// <summary>The host: a client's swing, passed on to everyone.</summary>
         void ServeSwings(EntityManager em)
         {
-            using var rs = Q(em, ComponentType.ReadWrite<SwingRpc>(), ComponentType.ReadWrite<ReceiveRpcCommandRequest>()).ToEntityArray(Allocator.Temp);
-            foreach (var r in rs)
-            {
-                var from = em.GetComponentData<ReceiveRpcCommandRequest>(r).SourceConnection;
-                if (em.Exists(from) && em.HasComponent<NetworkId>(from))
+            using (var rs = Q(em, ComponentType.ReadWrite<SwingRpc>(), ComponentType.ReadWrite<ReceiveRpcCommandRequest>()).ToEntityArray(Allocator.Temp))
+                foreach (var r in rs)
                 {
-                    var id = em.GetComponentData<NetworkId>(from).Value;
-                    swungAt[id] = Time.time;
-                    Broadcast(new SwingRpc { Player = id });
-                    Debug.Log($"[gear] player {id} swung (passed on)");
+                    var from = em.GetComponentData<ReceiveRpcCommandRequest>(r).SourceConnection;
+                    if (em.Exists(from) && em.HasComponent<NetworkId>(from))
+                    {
+                        var id = em.GetComponentData<NetworkId>(from).Value;
+                        swungAt[id] = Time.time;
+                        Broadcast(new SwingRpc { Player = id });
+                        Debug.Log($"[gear] player {id} swung its right hand's (passed on)");
+                    }
+                    em.DestroyEntity(r);
                 }
-                em.DestroyEntity(r);
-            }
+            using (var rs = Q(em, ComponentType.ReadWrite<LeftSwingRpc>(), ComponentType.ReadWrite<ReceiveRpcCommandRequest>()).ToEntityArray(Allocator.Temp))
+                foreach (var r in rs)
+                {
+                    var from = em.GetComponentData<ReceiveRpcCommandRequest>(r).SourceConnection;
+                    if (em.Exists(from) && em.HasComponent<NetworkId>(from))
+                    {
+                        var id = em.GetComponentData<NetworkId>(from).Value;
+                        swungLeftAt[id] = Time.time;
+                        Broadcast(new LeftSwingRpc { Player = id });
+                        Debug.Log($"[gear] player {id} swung its left hand's (passed on)");
+                    }
+                    em.DestroyEntity(r);
+                }
         }
 
         void OnSwing(SwingRpc m)
         {
             swungAt[m.Player] = Time.time;
-            Debug.Log($"[gear] player {m.Player} swung");
+            Debug.Log($"[gear] player {m.Player} swung its right hand's");
+        }
+
+        void OnLeftSwing(LeftSwingRpc m)
+        {
+            swungLeftAt[m.Player] = Time.time;
+            Debug.Log($"[gear] player {m.Player} swung its left hand's");
         }
 
         void GearArgs(string[] args)
@@ -668,6 +775,7 @@ namespace Punchy.Items
             gearLootArg = System.Array.IndexOf(args, "-gearloot") >= 0;
             swingArg = System.Array.IndexOf(args, "-swing") >= 0;
             sheatheArg = System.Array.IndexOf(args, "-sheathe") >= 0;
+            blockArg = System.Array.IndexOf(args, "-block") >= 0;
             sprintArg = System.Array.IndexOf(args, "-sprint") >= 0;
         }
 

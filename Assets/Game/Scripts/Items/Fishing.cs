@@ -32,7 +32,7 @@ namespace Punchy.Items
 
     /// <summary>
     /// Fishing, the player's side (P-33 row 1, #266): a rod (ItemDef with CreatureWeapon.Rod) in the hand is cast, not
-    /// swung. Hold the attack button (left mouse while it steers the camera, X on a pad) to aim: the longer, the further,
+    /// swung. Hold either attack button (a click while the mouse steers the camera, a trigger on a pad) to aim: the longer, the further,
     /// up to the rod's Reach after ChargeTime; release to cast. The bobber flies in an arc the way the body faces and lands
     /// only on water the ground query knows (sea, lake, river, pool, cave pool: TerrainSource.SampleGround(float3)), within
     /// a few metres of the player's height; aimed at ground, it drops short and the line reels itself in. On water it
@@ -164,9 +164,12 @@ namespace Punchy.Items
                 var mouse = Mouse.current;
                 var pad = Gamepad.current;
                 var mouseOn = mouse != null && Cursor.lockState == CursorLockMode.Locked;
-                pressed = mouseOn && mouse.leftButton.wasPressedThisFrame || pad != null && pad.buttonWest.wasPressedThisFrame;
-                released = mouseOn && mouse.leftButton.wasReleasedThisFrame || pad != null && pad.buttonWest.wasReleasedThisFrame;
-                held = mouseOn && mouse.leftButton.isPressed || pad != null && pad.buttonWest.isPressed;
+                // (Either hand's attack: the rod's in both hands. Zach 11-12: a click or a trigger.)
+                pressed = mouseOn && (mouse.leftButton.wasPressedThisFrame || mouse.rightButton.wasPressedThisFrame) ||
+                          pad != null && (pad.leftTrigger.wasPressedThisFrame || pad.rightTrigger.wasPressedThisFrame);
+                released = mouseOn && (mouse.leftButton.wasReleasedThisFrame || mouse.rightButton.wasReleasedThisFrame) ||
+                           pad != null && (pad.leftTrigger.wasReleasedThisFrame || pad.rightTrigger.wasReleasedThisFrame);
+                held = mouseOn && (mouse.leftButton.isPressed || mouse.rightButton.isPressed) || pad != null && (pad.leftTrigger.isPressed || pad.rightTrigger.isPressed);
             }
             var onWater = ownOut && ownLanded && ownLine.Water && ownLine.Reeled < 0f;
             if (fishPlayArg != null && onWater)

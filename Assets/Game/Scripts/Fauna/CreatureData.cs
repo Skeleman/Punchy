@@ -552,6 +552,9 @@ namespace Punchy.Fauna
         /// <summary>Zach 11-12: a player's CreatureState.Held (a torch, a staff, a lantern) is in its left hand, not its
         /// right.</summary>
         public bool HeldLeft;
+        /// <summary>Zach 11-12: the left hand's swing (as Swing is the right's: 0 at rest, then 1..255), and which hands
+        /// are raised to block (bit 0 the right, bit 1 the left; a two-handed thing is the right's).</summary>
+        public byte LeftSwing, Block;
 
         public bool Armoured => (Head | Body | Legs | Feet | Back | Neck) != 0;
 
@@ -563,7 +566,7 @@ namespace Punchy.Fauna
         public bool Equals(CreatureOutfit o) =>
             Weapon == o.Weapon && Swing == o.Swing && Head == o.Head && Body == o.Body && Legs == o.Legs && Feet == o.Feet &&
             Back == o.Back && Neck == o.Neck && Hair == o.Hair && HairColour == o.HairColour && OwnHair == o.OwnHair && LeftHand == o.LeftHand &&
-            Kept == o.Kept && Stow == o.Stow && HeldLeft == o.HeldLeft;
+            Kept == o.Kept && Stow == o.Stow && HeldLeft == o.HeldLeft && LeftSwing == o.LeftSwing && Block == o.Block;
     }
 
     /// <summary>

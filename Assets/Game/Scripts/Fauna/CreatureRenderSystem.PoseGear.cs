@@ -644,7 +644,10 @@ namespace Punchy.Fauna
                     var tip = grip;
                     // (Held up and a little forward, ready; a swing tips it back over the shoulder, then down and through,
                     // as the arm goes: CreatureAnimator's weapon arm, the same phases.)
-                    var dir = WeaponAim(state.Yaw, leftHand ? (byte)0 : state.Outfit.Swing);
+                    var dir = WeaponAim(state.Yaw, leftHand ? state.Outfit.LeftSwing : state.Outfit.Swing);
+                    // (Raised to block, Zach 11-12: held across in front of the body, a little up, towards the other side.)
+                    if (!sheathing && (state.Outfit.Block & (leftHand ? 2 : 1)) != 0)
+                        dir = Unity.Mathematics.math.normalize(-across + up * 0.35f + forward * 0.1f);
                     // (One of the folk at work, Zach 11-12 row 3: its tool out of the fist crossing the hand's own line, so
                     // it swings with the arm as the job's pose goes (TaskPose), as Gear held them.)
                     if (folk)

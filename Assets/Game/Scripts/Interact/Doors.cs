@@ -15,7 +15,7 @@ namespace Punchy.Interact
     /// <summary>
     /// The Use key (#25, P-10): doors now, later items and chests. Its own key, apart from Interact (E: pet, pick up,
     /// sit, the animal lane's), so using a door never sits the player down. F on the keyboard (changeable in the menu's
-    /// Keys tab, kept per machine), RB on a pad.
+    /// Keys tab, kept per machine), the bottom face button on a pad (shared with Jump: Offered).
     /// </summary>
     public static class UseKey
     {
@@ -43,7 +43,7 @@ namespace Punchy.Interact
                 // (Kept until the device, the pad or the key changes: asked for every frame by the prompts.)
                 var key = (InputGlyphs.Version, InputGlyphs.Gamepad, Current);
                 if (name == null || !nameFor.Equals(key))
-                    (name, nameFor) = (InputGlyphs.Gamepad ? InputGlyphs.Path(PadPath) ?? "RB" : Current.ToString(), key);
+                    (name, nameFor) = (InputGlyphs.Gamepad ? InputGlyphs.Path(PadPath) ?? "A" : Current.ToString(), key);
                 return name;
             }
         }
@@ -51,17 +51,29 @@ namespace Punchy.Interact
         static string name;
         static (int, bool, Key) nameFor;
 
-        public const string PadPath = "<Gamepad>/rightShoulder";
+        /// <summary>On a pad, the bottom face button (Zach 11-12; it was RB, now a hand's block): shared with Jump, it
+        /// uses when there's something to use in front of the player (Offered), and jumps otherwise.</summary>
+        public const string PadPath = "<Gamepad>/buttonSouth";
 
-        /// <summary>Pressed this frame (the key, or RB), and no menu open.</summary>
+        /// <summary>Pressed this frame (the key, or the pad's bottom button), and no menu open.</summary>
         public static bool WasPressed()
         {
             if (Punchy.UI.Overlay.AnyOpen)
                 return false;
             var keyboard = Keyboard.current;
             var pad = Gamepad.current;
-            return keyboard != null && keyboard[Current].wasPressedThisFrame || pad != null && pad.rightShoulder.wasPressedThisFrame;
+            return keyboard != null && keyboard[Current].wasPressedThisFrame || pad != null && pad.buttonSouth.wasPressedThisFrame;
         }
+
+        /// <summary>The key alone (not the pad's button: in the inventory, the pad's A is the panel's own Submit).</summary>
+        public static bool KeyWasPressed() => !Punchy.UI.Overlay.AnyOpen && Keyboard.current != null && Keyboard.current[Current].wasPressedThisFrame;
+
+        static int offeredFrame = -10;
+        /// <summary>Something in front of the player can be used now (a door, an item, a chest, someone to talk to, a
+        /// lamp, a quest): its prompt is up. Called each frame by whatever shows one.</summary>
+        public static void Offer() => offeredFrame = Time.frameCount;
+        /// <summary>Whether something was offered this frame or the last (Jump gives way to Use on the pad's button).</summary>
+        public static bool Offered => Time.frameCount - offeredFrame <= 1;
 
         static void Next()
         {
@@ -96,6 +108,9 @@ namespace Punchy.Interact
         /// <summary>A pad button's name for the pad in use (or the one forced with -forcepad).</summary>
         static string Pad(string path) => InputGlyphs.Path(path) ?? path;
 
+        /// <summary>The pad's inventory button (Zach 11-12: View / Select; it was LB, now the left hand's block).</summary>
+        public const string InventoryPadPath = "<Gamepad>/select";
+
         /// <summary>The binding table (P-20, item 28): command, keyboard, pad.</summary>
         public static System.Collections.Generic.IEnumerable<(string what, string keys, string pad)> Table()
         {
@@ -106,16 +121,21 @@ namespace Punchy.Interact
             yield return ("Walk", Bound("Player/Walk", false, "Left Ctrl"), Bound("Player/Walk", true, "right stick press"));
             yield return ("Roll", Bound("Player/Crouch", false, "C"), Bound("Player/Crouch", true, "B"));
             yield return ("Interact (pet, sit)", Bound("Player/Interact", false, "E"), Bound("Player/Interact", true, "Y"));
-            yield return ("Use: doors, lamps, pick up, chests", Current.ToString(), Pad(PadPath));
-            yield return ("Inventory and quest log", "Tab / I", Pad("<Gamepad>/leftShoulder"));
-            yield return ("Inventory: drop / move an item", $"{Current} / click", $"{Pad("<Gamepad>/buttonSouth")} / {Pad(PadPath)}");
-            yield return ("Inventory: close", "Tab / I / Esc", $"{Pad("<Gamepad>/leftShoulder")} / {Pad("<Gamepad>/buttonEast")}");
-            yield return ("Put away or draw what's in hand", Bound("Player/Sheathe", false, "H"), Bound("Player/Sheathe", true, "LT"));
+            yield return ("Use: doors, lamps, pick up, chests (pad: when there's one, else jump)", Current.ToString(), Pad(PadPath));
+            // (Zach 11-12: each hand its own attack and block.)
+            yield return ("Attack with the left hand's", "left click", Pad("<Gamepad>/leftTrigger"));
+            yield return ("Attack with the right hand's", "right click", Pad("<Gamepad>/rightTrigger"));
+            yield return ("Block with the left hand's (hold)", "Alt + left click", Pad("<Gamepad>/leftShoulder"));
+            yield return ("Block with the right hand's (hold)", "Alt + right click", Pad("<Gamepad>/rightShoulder"));
+            yield return ("Put away or draw what's in hand", Bound("Player/Sheathe", false, "H"), Bound("Player/Sheathe", true, "X"));
+            yield return ("Inventory and quest log", "Tab / I", Pad(InventoryPadPath));
+            yield return ("Inventory: drop / move an item", $"{Current} / click", $"{Pad("<Gamepad>/buttonSouth")} / {Pad("<Gamepad>/rightShoulder")}");
+            yield return ("Inventory: close", "Tab / I / Esc", $"{Pad(InventoryPadPath)} / {Pad("<Gamepad>/buttonEast")}");
             yield return ("Creature actions 1-4", "1 2 3 4", "d-pad");
-            yield return ("Cycle the weather", Punchy.Settings.WeatherKey.KeyboardName, Pad(Punchy.Settings.WeatherKey.PadPath));
+            yield return ("Cycle the weather", Punchy.Settings.WeatherKey.KeyboardName, "-");
             yield return ("Menu", "Esc", Pad("<Gamepad>/start"));
-            yield return ("Menu tabs", "Q / E", $"{Pad("<Gamepad>/leftShoulder")} / {Pad(PadPath)}");
-            yield return ("Options", Bound("Player/Options", false, "F4"), Bound("Player/Options", true, "View"));
+            yield return ("Menu tabs", "Q / E", $"{Pad("<Gamepad>/leftShoulder")} / {Pad("<Gamepad>/rightShoulder")}");
+            yield return ("Options", Bound("Player/Options", false, "F4"), "-");
         }
 
         /// <summary>An action's control on the keyboard and mouse or on a pad, by name, from the actions' own bindings.</summary>
@@ -442,6 +462,7 @@ namespace Punchy.Interact
                 facing = -1;
             if (facing < 0)
                 return;
+            UseKey.Offer();
             var door = set.Anchors[doorAnchors[facing]];
             var opening = DoorPick.Opening(door.Position, door.Facing);
             promptAt = new Vector3(opening.x, door.Position.y + 1.4f, opening.y);

@@ -469,6 +469,8 @@ namespace Punchy.Items
                 targetContainer = -1;
             if (TargetDistance > Doors.FacingDistance || TargetDistance > FolkTalk.TargetDistance)
                 return;
+            if (target >= 0 || targetChest >= 0 || targetContainer >= 0)
+                UseKey.Offer();
             var key = UseKey.Name;
             var item = target >= 0 ? world[target] : default;
             var promptKey = (key, targetContainer, target, targetChest, item.Item, item.Count);
@@ -769,6 +771,7 @@ namespace Punchy.Items
             Each(em, joined, onArmourState ??= OnArmourState);
             Each(em, joined, onSlotState ??= OnSlotState);
             Each(em, joined, onSwing ??= OnSwing);
+            Each(em, joined, onLeftSwing ??= OnLeftSwing);
             Each(em, joined, onFish ??= OnFish);
         }
 
@@ -782,6 +785,7 @@ namespace Punchy.Items
         System.Action<ArmourStateRpc> onArmourState;
         System.Action<SlotStateRpc> onSlotState;
         System.Action<SwingRpc> onSwing;
+        System.Action<LeftSwingRpc> onLeftSwing;
         System.Action<FishRpc> onFish;
 
         /// <summary>Each RPC of type T that has come in: handled (on a joined client only) and used up.</summary>
@@ -906,7 +910,7 @@ namespace Punchy.Items
         }
 
         /// <summary>
-        /// The panel: Tab or I, or LB on a pad, opens and closes it (B too). Inside, MenuNav moves between the slots
+        /// The panel: Tab or I, or View on a pad, opens and closes it (B too). Inside, MenuNav moves between the slots
         /// (arrows, d-pad, left stick) and Submit (Enter, A) or the Use key drops one of the focused slot's items.
         /// </summary>
         void UpdateInventoryKeys()
@@ -915,11 +919,12 @@ namespace Punchy.Items
                 return;
             var keyboard = Keyboard.current;
             var pad = Gamepad.current;
-            // (Any pad's LB / B, not only Gamepad.current: P-16's virtual pad wasn't current on its first press.)
+            // (Any pad's View / B, not only Gamepad.current: P-16's virtual pad wasn't current on its first press. View
+            // since Zach 11-12: LB is the left hand's block.)
             bool padLB = false, padB = false;
             foreach (var g in Gamepad.all)
             {
-                padLB |= g.leftShoulder.wasPressedThisFrame;
+                padLB |= g.selectButton.wasPressedThisFrame;
                 padB |= g.buttonEast.wasPressedThisFrame;
             }
             var toggle = keyboard != null && (keyboard.tabKey.wasPressedThisFrame || keyboard.iKey.wasPressedThisFrame) || padLB;
@@ -943,7 +948,9 @@ namespace Punchy.Items
                 Debug.Log($"Items: inventory slot {nav.Focus} ({(s.item == 255 ? "empty" : $"{ItemTable.Items[s.item].Name} x{s.count}")})");
             }
             selected = nav.Focus;
-            if (target < 0 && targetChest < 0 && targetContainer < 0 && UseKey.WasPressed())
+            // (In the panel the pad's A is its own Submit; the Use key, or RB, as before.)
+            var padRB = Gamepad.current != null && Gamepad.current.rightShoulder.wasPressedThisFrame;
+            if (target < 0 && targetChest < 0 && targetContainer < 0 && (UseKey.KeyWasPressed() || padRB))
             {
                 if (openContainer >= 0 && selected >= Capacity) TakeFromContainer(openContainer, selected - Capacity);
                 else if (openContainer >= 0) Put(selected);
@@ -953,7 +960,7 @@ namespace Punchy.Items
         }
 
         /// <summary>
-        /// "-invpad": drives the panel with a virtual gamepad through the Input System (the real input path): LB opens it,
+        /// "-invpad": drives the panel with a virtual gamepad through the Input System (the real input path): View opens it,
         /// d-pad right three times, A drops one, B closes it. Starts 45 s in (after any -pickup).
         /// </summary>
         void PadTest()
@@ -973,7 +980,7 @@ namespace Punchy.Items
                 InputSystem.EnableDevice(testPad);
             }
             testPad.MakeCurrent();
-            GamepadButton[] script = { GamepadButton.LeftShoulder, GamepadButton.DpadRight, GamepadButton.DpadRight, GamepadButton.DpadLeft, GamepadButton.South, GamepadButton.East };
+            GamepadButton[] script = { GamepadButton.Select, GamepadButton.DpadRight, GamepadButton.DpadRight, GamepadButton.DpadLeft, GamepadButton.South, GamepadButton.East };
             var press = padStep % 2 == 0;
             var button = script[padStep / 2];
             InputSystem.QueueStateEvent(testPad, press ? new UnityEngine.InputSystem.LowLevel.GamepadState().WithButton(button) : new UnityEngine.InputSystem.LowLevel.GamepadState());
