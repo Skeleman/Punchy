@@ -1199,3 +1199,19 @@ sheathed items drawn on the back or hip for every body.
 
 **Next:** row 4, the player's sheathe key (Zach approved the binding): a sheathed flag in CreatureOutfit, synced; the
 half-second draw and sheathe; attacking while sheathed draws first.
+
+## DONE: unify items, slots sized to the looks (player/unify-items 639d7234)
+
+Zach asked why empty capsules were sent. Each worn sub-block (hat and pack, hands, head, body, shins, feet, back, neck),
+the sheath block and a worker's post gear now take exactly the capsules their looks draw (LookParts, HeadParts,
+BodyParts, GearCount) instead of a fixed most-ever size. Gear capsules per body: a working smith 27 → 6, a dwarf guard
+27 → 12, a baker at work 27 → about 7. This supersedes row 3's capsule-budget numbers; the BENCH-QUEUE town request
+still stands (main vs 639d7234).
+
+- Shots: towns 0 and 2 at noon and town 0 at night match row 3's (`Unify/u3-r3b-compare-0.jpg`, `-1.jpg`): horns, pads,
+  plate, sash, lantern, smith's hammer, baker's cap and table, gatekeeper's spear. 0 exceptions, 0 table errors.
+- Lint rc 0; suite 26/0/17; fingerprint AD723954.
+- UNVERIFIED: the goblin's shield and the smith's tongs (off-hand, now right after the main hand's capsules) weren't in
+  frame this run.
+
+**Next:** row 4, the player's sheathe key.
