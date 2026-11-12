@@ -1065,3 +1065,42 @@ Rows (each committed and reported as usual; branch `player/unify-items` from `pl
 - CreatureBrainSystem*.cs (only where `Held` is set)
 - CreatureSnapshotSystem.cs
 - FaunaDirector.Visitors.cs
+
+## Unify items row 1 (Zach 11-12): folk things as items players can use. DONE, `player/unify-items` a68a601b
+- **Design, refined:**
+  - Bodies keep carrying *looks* (CreatureWeapon for a hand, CreatureArmour by place). The drawing is a Burst job and
+    can't read the managed item table.
+  - Every visibly different item gets its own look. So one drawing path serves any body.
+  - Row 2's folk inventories (item ids) will map to looks through a small Burst-safe table.
+- **Items 36-74**, append-only, with world meshes:
+  - Guards: great club, shield, five helmets by folk, breastplate, cuirass, sash, hide cape.
+  - Workers: hoe, broom, smith's hammer, tongs, bucket, three aprons, baker's cap, straw and fisher's hats, satchel,
+    goggles.
+  - Carried things and food: letter, ore, ore sack, bowl, jar, apple, bread, dough, honeycomb.
+  - Post props: kneading table, chopping block, log, rope, hot iron, creel.
+- **Drawing:** shapes ported from PoseGuard.Guard and Gear and drawn on any body, players included. The armour block
+  grows from 13 to 17 capsules (players only for now).
+- **Off hand:** a new slot (GearSlot.OffHand, CreatureOutfit.OffHand), synced the way Neck is. A two-handed item
+  frees it, and anything with no swing speed isn't swung.
+- **Sheath data:** ItemDef.Length and Sheath, with the guards' back-or-hip rule as ItemSheaths.OnBack.
+
+**Checked** (Dev build; shots in `D:/Unity/PunchyMilestones/Unify/`):
+- `u1-ground-a.png` (`-itemrow 36`): all 39 new items on the ground.
+- `u1-sets-1.jpg`, `u1-sets-2.jpg`, `u1-zoom.jpg`: 14 outfits on a human (each folk's guard, farmer, smith, baker,
+  healer, trader, miner, broom, letter, sword and shield).
+  - Each piece sits where the folk wear it: helmets, pads, sash, shield on the forearm, bucket hanging, ore sack held to
+    the chest.
+  - Note: each front shot is of the set before the side shot beside it.
+- The log shows each look id on our body. The ore sack put the bucket away, and the great club the shield.
+- Host plus client: each logs the other's body with its off hand ("off hand 18" tongs, "off hand 11" shield). 0
+  exceptions, 0 deserialize errors.
+- lod-lint exit 0. Suite 26 passed, 0 failed, 17 skipped; Fauna_Fingerprint AD723954.
+
+**UNVERIFIED / known:**
+- Folk are still drawn by their own passes (row 3 switches them).
+- Bread, apple and dough aren't gear, so a player can't hold them. Folk kits will.
+- The crested helm's crest and the sash use the wearer's folk cloth colour. A guard's town colour comes in row 3.
+- Inventory icons for the new items were not looked at.
+
+**Next:** row 2, replicated folk inventories (a kit per folk body, filled by the host where the brain sets `Held`, sent
+in the snapshot).
