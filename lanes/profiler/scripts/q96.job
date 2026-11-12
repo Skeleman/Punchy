@@ -1,0 +1,11 @@
+# Job 45i follow-up: the tessellation prototype, now that its shader compiles (483592ad: the first build's shader failed,
+# so job 45i's "tess" arm ran the fallback, a plain CPU cut of 2). Job 45c's lake swim at High and Medium.
+Q=q96; TITLE="wave field tessellation, fixed"
+BUILDS="483592a"
+VIEWS="swim"
+view() { echo "-goto 488,-1144 -benchstops line -benchline 488,-1144,528,-1144,4,-999 -benchweather Clear -benchhour 12"; }
+ARMS="tess cuts4 cuts2 off"
+arm() { case $1 in tess) echo "Profile-483592a -waterfieldtess 1";; cuts4) echo "Profile-483592a";;
+  cuts2) echo "Profile-483592a -waterfieldcuts 2";; off) echo "Profile-483592a -waterfield 0";; esac; }
+ROUNDS=3; GFX="High Medium"; REF=off; BAR=0.3
+after() { grep -h 'WaterTess\|tessellat' "$R/build-Profile-483592a.log" | grep -i 'error' | head -5; grep -h 'tessellat' "$R"/q-$Q-*tess*-1.log | head -2; }
