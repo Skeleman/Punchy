@@ -55,7 +55,7 @@ namespace Punchy.Terrain
         const int MaxSteps = 4, MaxSources = 64;
         /// <summary>A geyser vent's splash: its radius (m) and how deep it knocks the surface (m) at rest, how much deeper
         /// as the spout builds up (the last <see cref="VentBuild"/> of its period) and while it erupts.</summary>
-        const float VentRadius = 0.3f, VentDepth = 0.018f, VentBuildGain = 1.2f, VentEruptGain = 2.5f, VentBuild = 0.15f;
+        const float VentRadius = 0.3f, VentDepth = 0.018f, VentBuildGain = 1.2f, VentEruptGain = 2.5f, VentBuild = 0.15f; // sim: a source in the field, not a view range
 
         /// <summary>A spout that erupts from water (W-148 row 5): where, and its eruption clock as its plume's (period s,
         /// duty, seed; LandmarkEffects.hlsl). LandmarkEffectSystem keeps the list of those near the camera.</summary>
