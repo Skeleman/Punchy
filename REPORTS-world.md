@@ -6109,3 +6109,22 @@ Waiting on job 62. Row 4 is only needed if job 62 puts the field step above 0.1 
 - **lod-lint:** clean.
 - **Pins:** not touched.
 - **QUEUE-animal:** WaterSwell.hlsl changed, and the `_PunchySwellGroups` and `_PunchySwellWarp` globals were removed. Nothing in the animal lane read them.
+
+### Row 3: riders still ride
+
+- **No new code:** the probe is an untracked editor script, nothing committed. Branch stays at dd9497ee.
+- **Probe, in play:** 3 sea spots (depth 7-30 m), the player swimming, `-spawn Mackerel:3 -spawn Duck:2` (a swimmer and a floater) at each, read 3 times per spot. GPU readback with the camera at the player.
+  - **Lift, CPU vs GPU** at each rider's xz (what the player, swimmers and floaters ride vs what the sea shader computes there): worst 0.02 cm.
+  - **Floating plants** (PunchySwellFloat, GPU) vs the sea's lift at the same wave count: worst 0.01 cm.
+  - **Player height** vs surface + lift - SwimDepth: worst 2.2 cm. This is a one-frame clock lag; the code before row 2 gave 2.4 cm.
+  - So nobody bobs out of step: all three kinds take the same lift as the shader, from the same noise.
+- **The 2 cm line is missed in one way, and it is older than R-17:** the Gerstner vertices also move sideways, so the drawn surface over a point is not the lift at that point. Measured by inverting the sideways shift (8 steps):
+  - After (row 2): worst 7.3 cm, mean 1.7 cm.
+  - Before (0d16f028): worst 15.5 cm, mean 3.3 cm. The weather differs per run, so this pair is not matched.
+  - Nobody sinks through a crest by more than a few cm at today's wave heights. The gap comes from item 20 (sideways motion), not from the noise.
+- **Decision for the supervisor:** leave it, or close it by 1-2 inverse steps in WaterSwells.Height and PunchySwellFloat. That doubles or triples the swell cost for riders, including every floating-plant vertex, so it would need a BENCH job. I did not do it.
+- **Logs:** `r17-row3-riders-after.txt` and `r17-row3-riders-before.txt` in PunchyMilestones/R-17.
+- **Suite:** PlayMode 28/28 passed, 0 failed (the status command does not print skips or seconds).
+- **Pins:** not touched.
+- **BENCH request (R-17):** GPU ms over open sea from the beach and from about 300 m up, branch vs main. Pass: within 0.1 ms.
+- **QUEUE-animal:** WaterSwell.hlsl changed, and the `_PunchySwellGroups` and `_PunchySwellWarp` globals were removed (nothing in the animal lane read them).
