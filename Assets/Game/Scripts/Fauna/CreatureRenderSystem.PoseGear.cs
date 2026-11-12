@@ -14,13 +14,6 @@ namespace Punchy.Fauna
     // moved out of CreatureRenderSystem.cs as it was.
     public partial class CreatureRenderSystem
     {
-        /// <summary>A player's weapon (P-28): at most a haft, a head or blade, a guard and, for a bow, its string and arrow.</summary>
-        const int WeaponParts = 7;
-        /// <summary>A player's armour and clothes (P-28 rows 2-3): a helm, cap or hat and its rim (or a woolcap's bobble),
-        /// two shells over the torso, a greave on each shin, a boot on each foot; then a robe's skirt, a cloak in two
-        /// pieces and a scarf with its end; then (Zach 11-12) two more for a guard's helmet (horns, a crest, a brow) and
-        /// a shoulder pad each side.</summary>
-        const int ArmourParts = 17;
         /// <summary>A player's hair (P-29): the scalp's, up to four locks (a fall down the back, a braid, a tail, a bun or
         /// a crest), a beard and a moustache.</summary>
         const int HairParts = 7;
@@ -73,6 +66,12 @@ namespace Punchy.Fauna
                 var iron = new Unity.Mathematics.float4(0.21f, 0.22f, 0.24f, 0f);
                 var chain = new Unity.Mathematics.float4(0.13f, 0.14f, 0.15f, 0f);
                 var pad = 0.012f * scale;
+                // (Each worn slot's sub-block, only as long as its look needs: ArmourCount.)
+                var bodyAt = at + HeadParts(state.Outfit.Head);
+                var legsAt = bodyAt + BodyParts(state.Outfit.Body);
+                var feetAt = legsAt + PairParts(state.Outfit.Legs);
+                var backAt = feetAt + PairParts(state.Outfit.Feet);
+                var neckAt = backAt + PairParts(state.Outfit.Back);
                 int legs = 0;
                 bool head = false, torso = false;
                 for (int i = 0; i < b.Parts.Length; i++)
@@ -137,10 +136,10 @@ namespace Punchy.Fauna
                         torso = true;
                         if (state.Outfit.Body >= CreatureArmour.Breastplate)
                         {
-                            GuardBody(in state, ref b, offset, part.FirstSegment, last, at, faded, scale, pad);
+                            GuardBody(in state, ref b, offset, part.FirstSegment, last, bodyAt, faded, scale, pad);
                             continue;
                         }
-                        var k = 2;
+                        var k = 0;
                         var mail = state.Outfit.Body == CreatureArmour.Chain;
                         var woven = state.Outfit.Body >= CreatureArmour.Tunic;
                         var bodyColour = woven ? CreatureArmour.ClothMain(b.GuardKit) : mail ? chain : leather;
@@ -149,7 +148,7 @@ namespace Punchy.Fauna
                         {
                             var t = Output[offset + j];
                             var ax = Unity.Mathematics.math.mul(t.Rotation, new Unity.Mathematics.float3(0f, 0f, 1f));
-                            Output[at + k++] = Shell(t, t.Position + ax * t.Length * (woven ? 0f : 0.05f), t.Length * (woven ? 0.92f : 0.85f), mail ? 1.08f : 1.05f, pad,
+                            Output[bodyAt + k++] = Shell(t, t.Position + ax * t.Length * (woven ? 0f : 0.05f), t.Length * (woven ? 0.92f : 0.85f), mail ? 1.08f : 1.05f, pad,
                                                      bodyColour, faded, bodyMaterial);
                         }
                         // A robe: a skirt from the hips flaring down to the shins.
@@ -159,7 +158,7 @@ namespace Punchy.Fauna
                             var drop = Unity.Mathematics.math.max(hips.Position.y - state.Position.y - 0.15f * scale, 0.1f * scale);
                             var down = new Unity.Mathematics.float3(0f, -1f, 0f);
                             var ahead = new Unity.Mathematics.float3(Unity.Mathematics.math.sin(state.Yaw), 0f, Unity.Mathematics.math.cos(state.Yaw));
-                            Output[at + 8] = Piece(hips.Position, down, ahead, drop, hips.RadiusStart * 1.1f + pad, hips.RadiusStart * 1.45f + pad, hips.Flatten,
+                            Output[bodyAt + 2] = Piece(hips.Position, down, ahead, drop, hips.RadiusStart * 1.1f + pad, hips.RadiusStart * 1.45f + pad, hips.Flatten,
                                                    CreatureArmour.ClothMain(b.GuardKit), faded, SegmentMaterial.Cloth);
                         }
                     }
@@ -171,14 +170,14 @@ namespace Punchy.Fauna
                         {
                             var s = Output[offset + shin];
                             var ax = Unity.Mathematics.math.mul(s.Rotation, new Unity.Mathematics.float3(0f, 0f, 1f));
-                            Output[at + 4 + legs] = Shell(s, s.Position + ax * s.Length * 0.12f, s.Length * 0.72f, 1.15f, pad, iron, faded, SegmentMaterial.Metal);
+                            Output[legsAt + legs] = Shell(s, s.Position + ax * s.Length * 0.12f, s.Length * 0.72f, 1.15f, pad, iron, faded, SegmentMaterial.Metal);
                         }
                         if (state.Outfit.Feet != 0)
                         {
                             var f = Output[offset + last];
                             var ax = Unity.Mathematics.math.mul(f.Rotation, new Unity.Mathematics.float3(0f, 0f, 1f));
                             var r = Unity.Mathematics.math.max(f.RadiusStart, f.RadiusEnd);
-                            Output[at + 6 + legs] = part.SegmentCount >= 3
+                            Output[feetAt + legs] = part.SegmentCount >= 3
                                 ? Shell(f, f.Position - ax * r * 0.4f, f.Length + r * 0.5f, 1.2f, pad, dark, faded, SegmentMaterial.Leather)
                                 : Shell(f, f.Position + ax * f.Length * 0.7f, f.Length * 0.35f, 1.25f, pad, dark, faded, SegmentMaterial.Leather);
                         }
@@ -186,14 +185,14 @@ namespace Punchy.Fauna
                     }
                 }
                 if (state.Outfit.Back != 0 || state.Outfit.Neck != 0)
-                    Wrap(in state, ref b, offset, at, faded, scale, pad);
+                    Wrap(in state, ref b, offset, backAt, neckAt, faded, scale, pad);
             }
 
             /// <summary>
             /// Zach 11-12: what guards and workers wear on the head, on any body (the shapes are the folk's own,
             /// PoseGuard.Guard's helmets and Gear's hats): a kettle hat, a dwarf's horned helm, an elf's crested helm (its
             /// crest dyed), a goblin's dented pot, an ogre's beast skull, a baker's cap, a straw hat, a fisher's hat, or
-            /// goggles over the eyes. Slots 0-1 and 13-14 of the armour block.
+            /// goggles over the eyes. The armour block's head sub-block (HeadParts).
             /// </summary>
             void GuardHead(in CreatureState state, ref CreatureBlob b, in SegmentInstance h, byte look, int at, float faded, float scale)
             {
@@ -217,13 +216,13 @@ namespace Punchy.Fauna
                         break;
                     case CreatureArmour.HornedHelm:
                         Output[at] = dome;
-                        Output[at + 13] = Piece(crown + side * r * 0.85f, Unity.Mathematics.math.normalize(side * 0.8f + ax * 0.7f), face, r * 1.3f, r * 0.32f, r * 0.04f, 1f, bone, faded, SegmentMaterial.Bone);
-                        Output[at + 14] = Piece(crown - side * r * 0.85f, Unity.Mathematics.math.normalize(-side * 0.8f + ax * 0.7f), face, r * 1.3f, r * 0.32f, r * 0.04f, 1f, bone, faded, SegmentMaterial.Bone);
+                        Output[at + 1] = Piece(crown + side * r * 0.85f, Unity.Mathematics.math.normalize(side * 0.8f + ax * 0.7f), face, r * 1.3f, r * 0.32f, r * 0.04f, 1f, bone, faded, SegmentMaterial.Bone);
+                        Output[at + 2] = Piece(crown - side * r * 0.85f, Unity.Mathematics.math.normalize(-side * 0.8f + ax * 0.7f), face, r * 1.3f, r * 0.32f, r * 0.04f, 1f, bone, faded, SegmentMaterial.Bone);
                         break;
                     case CreatureArmour.CrestedHelm:
                         // (A tall crest, broad front to back and thin across, swept back like a leaf; dyed.)
                         Output[at] = dome;
-                        Output[at + 13] = Piece(crown + ax * r * 0.4f, Unity.Mathematics.math.normalize(ax - face * 0.35f), side, r * 2.6f, r * 0.95f, r * 0.08f, 0.14f, Dye(in state, ref b), faded, SegmentMaterial.Cloth);
+                        Output[at + 1] = Piece(crown + ax * r * 0.4f, Unity.Mathematics.math.normalize(ax - face * 0.35f), side, r * 2.6f, r * 0.95f, r * 0.08f, 0.14f, Dye(in state, ref b), faded, SegmentMaterial.Cloth);
                         break;
                     case CreatureArmour.PotHelm:
                     {
@@ -241,8 +240,8 @@ namespace Punchy.Fauna
                         skull.Material = new Unity.Mathematics.float4((float)SegmentMaterial.Bone, 0f, 0f, 0f);
                         Output[at] = skull;
                         Output[at + 1] = Piece(crown + face * r * 0.75f - side * r * 0.85f, side, ax, r * 1.7f, r * 0.3f, r * 0.3f, 0.7f, bone, faded, SegmentMaterial.Bone);
-                        Output[at + 13] = Piece(crown + side * r * 0.7f + face * r * 0.3f, Unity.Mathematics.math.normalize(side * 0.5f + ax * 0.6f + face * 0.4f), face, r * 0.7f, r * 0.25f, r * 0.05f, 1f, bone, faded, SegmentMaterial.Bone);
-                        Output[at + 14] = Piece(crown - side * r * 0.7f + face * r * 0.3f, Unity.Mathematics.math.normalize(-side * 0.5f + ax * 0.6f + face * 0.4f), face, r * 0.7f, r * 0.25f, r * 0.05f, 1f, bone, faded, SegmentMaterial.Bone);
+                        Output[at + 2] = Piece(crown + side * r * 0.7f + face * r * 0.3f, Unity.Mathematics.math.normalize(side * 0.5f + ax * 0.6f + face * 0.4f), face, r * 0.7f, r * 0.25f, r * 0.05f, 1f, bone, faded, SegmentMaterial.Bone);
+                        Output[at + 3] = Piece(crown - side * r * 0.7f + face * r * 0.3f, Unity.Mathematics.math.normalize(-side * 0.5f + ax * 0.6f + face * 0.4f), face, r * 0.7f, r * 0.25f, r * 0.05f, 1f, bone, faded, SegmentMaterial.Bone);
                         break;
                     }
                     case CreatureArmour.BakerCap:
@@ -269,7 +268,7 @@ namespace Punchy.Fauna
                         var glass = new Unity.Mathematics.float4(0.05f, 0.05f, 0.06f, 0f);
                         Output[at] = Piece(eyes + forward * r * 0.82f + right * r * 0.42f, forward, new Unity.Mathematics.float3(0f, 1f, 0f), r * 0.22f, r * 0.3f, r * 0.3f, 1f, glass, faded, SegmentMaterial.Cloth);
                         Output[at + 1] = Piece(eyes + forward * r * 0.82f - right * r * 0.42f, forward, new Unity.Mathematics.float3(0f, 1f, 0f), r * 0.22f, r * 0.3f, r * 0.3f, 1f, glass, faded, SegmentMaterial.Cloth);
-                        Output[at + 13] = Piece(eyes - right * r * 1.02f, right, new Unity.Mathematics.float3(0f, 1f, 0f), r * 2.04f, r * 0.12f, r * 0.12f, 1f, new Unity.Mathematics.float4(0.22f, 0.14f, 0.08f, 0f), faded, SegmentMaterial.Cloth);
+                        Output[at + 2] = Piece(eyes - right * r * 1.02f, right, new Unity.Mathematics.float3(0f, 1f, 0f), r * 2.04f, r * 0.12f, r * 0.12f, 1f, new Unity.Mathematics.float4(0.22f, 0.14f, 0.08f, 0f), faded, SegmentMaterial.Cloth);
                         break;
                     }
                 }
@@ -278,7 +277,7 @@ namespace Punchy.Fauna
             /// <summary>
             /// Zach 11-12: what guards and workers wear on the body, on any body: a breastplate (iron) or a leather
             /// cuirass over the chest, with a pad on each shoulder; or an apron down the front (cloth, a smith's leather,
-            /// a baker's white). Slots 2-3 and 15-16 of the armour block.
+            /// a baker's white). The armour block's body sub-block (BodyParts), from at.
             /// </summary>
             void GuardBody(in CreatureState state, ref CreatureBlob b, int offset, int first, int last, int at, float faded, float scale, float pad)
             {
@@ -295,7 +294,7 @@ namespace Punchy.Fauna
                     var front = Unity.Mathematics.math.normalize(forward - axis * Unity.Mathematics.math.dot(forward, axis));
                     var colour = look == CreatureArmour.LeatherApron ? new Unity.Mathematics.float4(0.14f, 0.085f, 0.05f, 0f) : look == CreatureArmour.BakerApron ? new Unity.Mathematics.float4(0.86f, 0.84f, 0.78f, 0f) : new Unity.Mathematics.float4(0.62f, 0.58f, 0.5f, 0f);
                     var topAt = c.Position + axis * c.Length * 0.55f + front * r * 0.72f;
-                    Output[at + 2] = Piece(topAt, -axis, front, c.Length * 0.6f + r * 1.2f, r * 0.62f, r * 0.7f, 0.035f, colour, faded,
+                    Output[at] = Piece(topAt, -axis, front, c.Length * 0.6f + r * 1.2f, r * 0.62f, r * 0.7f, 0.035f, colour, faded,
                                            look == CreatureArmour.LeatherApron ? SegmentMaterial.Leather : SegmentMaterial.Cloth);
                     return;
                 }
@@ -307,7 +306,7 @@ namespace Punchy.Fauna
                 var colourOf = folk ? b.GuardArmour : plate ? new Unity.Mathematics.float4(0.32f, 0.33f, 0.35f, 0f) : new Unity.Mathematics.float4(0.2f, 0.12f, 0.06f, 0f);
                 var material = plate ? SegmentMaterial.Metal : SegmentMaterial.Leather;
                 var ogrePads = folk && b.GuardKit == GuardKit.Ogre;
-                var k = 2;
+                var k = 0;
                 for (int j = Unity.Mathematics.math.max(first, last - 1); j <= last; j++)
                 {
                     var t = Output[offset + j];
@@ -323,7 +322,7 @@ namespace Punchy.Fauna
                         continue;
                     var sh = Output[offset + part.FirstSegment];
                     var outward = part.Side > 0f ? right : -right;
-                    Output[at + 15 + pads++] = Piece(sh.Position + up * sh.RadiusStart * 0.4f, outward, up, 0.02f * scale, sh.RadiusStart * 1.9f, sh.RadiusStart * 1.6f, 0.55f,
+                    Output[at + 2 + pads++] = Piece(sh.Position + up * sh.RadiusStart * 0.4f, outward, up, 0.02f * scale, sh.RadiusStart * 1.9f, sh.RadiusStart * 1.6f, 0.55f,
                                                       ogrePads ? new Unity.Mathematics.float4(0.32f, 0.33f, 0.35f, 0f) : colourOf, faded, ogrePads ? SegmentMaterial.Metal : material);
                 }
             }
@@ -331,9 +330,10 @@ namespace Punchy.Fauna
             /// <summary>
             /// A cloak and a scarf (P-28 row 3), in the wearer's folk's colours: the cloak hangs from behind the shoulders
             /// to the knees in two pieces, swept back as the body goes faster and stirring a little as it walks; the scarf
-            /// is a band round the base of the head with one end down the chest.
+            /// is a band round the base of the head with one end down the chest. The back's two capsules from backAt, the
+            /// neck's from neckAt (Armour's sub-blocks).
             /// </summary>
-            void Wrap(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded, float scale, float pad)
+            void Wrap(in CreatureState state, ref CreatureBlob b, int offset, int backAt, int neckAt, float faded, float scale, float pad)
             {
                 int chest = -1, head = -1;
                 for (int i = 0; i < b.Parts.Length; i++)
@@ -365,8 +365,8 @@ namespace Punchy.Fauna
                     var top = Unity.Mathematics.math.normalize(-up - forward * (0.12f + 0.35f * going + stir));
                     var hem = Unity.Mathematics.math.normalize(-up - forward * (0.2f + 0.9f * going + stir * 2f));
                     var width = r * 1.25f + pad;
-                    Output[at + 9] = Piece(shoulders, top, forward, hang * 0.5f, width * 0.85f, width, 0.15f, main, faded, SegmentMaterial.Cloth);
-                    Output[at + 10] = Piece(shoulders + top * hang * 0.5f, hem, forward, hang * 0.5f, width, width * 1.1f, 0.15f, main, faded, SegmentMaterial.Cloth);
+                    Output[backAt] = Piece(shoulders, top, forward, hang * 0.5f, width * 0.85f, width, 0.15f, main, faded, SegmentMaterial.Cloth);
+                    Output[backAt + 1] = Piece(shoulders + top * hang * 0.5f, hem, forward, hang * 0.5f, width, width * 1.1f, 0.15f, main, faded, SegmentMaterial.Cloth);
                 }
                 if ((state.Outfit.Back == CreatureArmour.HideCape || state.Outfit.Back == CreatureArmour.Satchel) && chest >= 0)
                 {
@@ -384,18 +384,18 @@ namespace Punchy.Fauna
                         var hem = Unity.Mathematics.math.normalize(-up - forward * (0.12f + 0.5f * going));
                         var hide = new Unity.Mathematics.float4(0.36f, 0.27f, 0.18f, 0f);
                         var width = r * 1.3f + pad;
-                        Output[at + 9] = Piece(shoulders, top, forward, hang * 0.5f, width * 0.9f, width, 0.15f, hide, faded, SegmentMaterial.Leather);
-                        Output[at + 10] = Piece(shoulders + top * hang * 0.5f, hem, forward, hang * 0.5f, width, width * 1.1f, 0.15f, hide, faded, SegmentMaterial.Leather);
+                        Output[backAt] = Piece(shoulders, top, forward, hang * 0.5f, width * 0.9f, width, 0.15f, hide, faded, SegmentMaterial.Leather);
+                        Output[backAt + 1] = Piece(shoulders + top * hang * 0.5f, hem, forward, hang * 0.5f, width, width * 1.1f, 0.15f, hide, faded, SegmentMaterial.Leather);
                     }
                     else
                     {
                         // (A healer's satchel at the hip, on a strap across the chest from the other shoulder.)
                         var leather = new Unity.Mathematics.float4(0.4f, 0.25f, 0.13f, 0f);
                         var hip = c.Position + right * r * 1.05f + forward * r * 0.2f;
-                        Output[at + 9] = Piece(hip - axis * 0.06f * scale, axis, right, 0.2f * scale, 0.09f * scale, 0.1f * scale, 0.5f, leather, faded, SegmentMaterial.Leather);
+                        Output[backAt] = Piece(hip - axis * 0.06f * scale, axis, right, 0.2f * scale, 0.09f * scale, 0.1f * scale, 0.5f, leather, faded, SegmentMaterial.Leather);
                         var shoulder = c.Position + axis * c.Length - right * r * 0.6f + forward * r * 0.9f;
                         var strap = hip + axis * 0.12f * scale - shoulder;
-                        Output[at + 10] = Piece(shoulder, Unity.Mathematics.math.normalize(strap), forward, Unity.Mathematics.math.length(strap), 0.02f * scale, 0.02f * scale, 0.3f, leather, faded, SegmentMaterial.Leather);
+                        Output[backAt + 1] = Piece(shoulder,Unity.Mathematics.math.normalize(strap), forward, Unity.Mathematics.math.length(strap), 0.02f * scale, 0.02f * scale, 0.3f, leather, faded, SegmentMaterial.Leather);
                     }
                 }
                 if (state.Outfit.Neck == CreatureArmour.Sash && chest >= 0)
@@ -418,8 +418,8 @@ namespace Punchy.Fauna
                     var over = c.Position + axis * c.Length * 0.45f + front * (deep * 1.02f + pad);
                     var to = c.Position - axis * r * 0.4f - right * wide * 0.75f + front * deep * 0.6f;
                     var dye = Dye(in state, ref b);
-                    Output[at + 11] = Piece(from, Unity.Mathematics.math.normalize(over - from), front, Unity.Mathematics.math.distance(from, over), band, band, 0.25f, dye, faded, SegmentMaterial.Cloth);
-                    Output[at + 12] = Piece(over, Unity.Mathematics.math.normalize(to - over), front, Unity.Mathematics.math.distance(over, to), band, band, 0.25f, dye, faded, SegmentMaterial.Cloth);
+                    Output[neckAt] = Piece(from,Unity.Mathematics.math.normalize(over - from), front, Unity.Mathematics.math.distance(from, over), band, band, 0.25f, dye, faded, SegmentMaterial.Cloth);
+                    Output[neckAt + 1] = Piece(over,Unity.Mathematics.math.normalize(to - over), front, Unity.Mathematics.math.distance(over, to), band, band, 0.25f, dye, faded, SegmentMaterial.Cloth);
                 }
                 if (state.Outfit.Neck == CreatureArmour.Scarf && head >= 0)
                 {
@@ -427,8 +427,8 @@ namespace Punchy.Fauna
                     var ax = Unity.Mathematics.math.mul(h.Rotation, new Unity.Mathematics.float3(0f, 0f, 1f));
                     var r = Unity.Mathematics.math.min(h.RadiusStart, h.RadiusEnd);
                     var neck = h.Position - ax * r * 0.15f;
-                    Output[at + 11] = Piece(neck, ax, forward, r * 0.35f, r * 1.05f + pad, r * 1.05f + pad, 0.9f, trim, faded, SegmentMaterial.Cloth);
-                    Output[at + 12] = Piece(neck + forward * r * 0.9f + right * r * 0.3f, Unity.Mathematics.math.normalize(-up + forward * 0.15f), forward,
+                    Output[neckAt] = Piece(neck,ax, forward, r * 0.35f, r * 1.05f + pad, r * 1.05f + pad, 0.9f, trim, faded, SegmentMaterial.Cloth);
+                    Output[neckAt + 1] = Piece(neck + forward * r * 0.9f + right * r * 0.3f, Unity.Mathematics.math.normalize(-up + forward * 0.15f), forward,
                                             0.28f * scale, 0.035f * scale, 0.03f * scale, 0.35f, trim, faded, SegmentMaterial.Cloth);
                 }
             }
@@ -836,11 +836,11 @@ namespace Punchy.Fauna
                         break;
                 }
 
-                // The other hand (Zach 11-12), from the fifth capsule on: a shield on the forearm, tongs, a bucket. (Only
-                // with something one-handed in the right: a two-handed thing frees it, Items.Equip.)
+                // The other hand (Zach 11-12), after the right's (HandsCount): a shield on the forearm, tongs, a bucket.
+                // (Only with something one-handed in the right: a two-handed thing frees it, Items.Equip.)
                 if (sheathing || state.Outfit.OffHand == CreatureWeapon.None || offHand < 0 || k > 4)
                     return;
-                k = 4;
+                k = LookParts(look, false);
                 var otherHand = Output[offset + offHand];
                 var oTip = Tip(otherHand);
                 switch (state.Outfit.OffHand)
@@ -917,18 +917,18 @@ namespace Punchy.Fauna
                     var mid = c.Position + Unity.Mathematics.math.mul(c.Rotation, new Unity.Mathematics.float3(0f, 0f, c.Length * 0.5f));
                     var up = new Unity.Mathematics.float3(0f, 1f, 0f);
                     var at0 = mid - forward * (Unity.Mathematics.math.max(c.RadiusStart, c.RadiusEnd) + 0.08f * scale) - up * 0.2f * scale;
-                    Output[at + 2] = Piece(at0, up, forward, 0.42f * scale, 0.16f * scale, 0.14f * scale, 0.7f, new Unity.Mathematics.float4(0.42f, 0.33f, 0.2f, 0f), faded, SegmentMaterial.Leather);
+                    Output[at + HatPackCount(in state) - 1] = Piece(at0, up, forward, 0.42f * scale, 0.16f * scale, 0.14f * scale, 0.7f, new Unity.Mathematics.float4(0.42f, 0.33f, 0.2f, 0f), faded, SegmentMaterial.Leather);
                 }
             }
 
             /// <summary>
-            /// What stands at a worker's post (see GearParts; A-33): a baker's kneading table, floured, with a loaf at its
+            /// What stands at a worker's post (see GearCount; A-33): a baker's kneading table, floured, with a loaf at its
             /// far end; a smith's bar glowing in its tongs; a woodcutter's chopping block with a log on it and a split
             /// piece beside; a well keeper's rope down into the well and the bucket coming up on it.
             /// </summary>
             void Gear(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded)
             {
-                for (int i = 0; i < GearParts; i++)
+                for (int i = 0; i < GearCount(in state); i++)
                     Output[at + i] = default;
                 if (!b.Upright || !b.Hands)
                     return;

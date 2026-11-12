@@ -93,26 +93,67 @@ namespace Punchy.Fauna
         /// chopping block and log, a well keeper's rope and the bucket on it. (Its tools, wares, hat and apron are its
         /// kit's since Zach 11-12 row 3, drawn by the Weapon and Armour passes; the props become items in row 5.)
         /// </summary>
-        const int GearParts = 3;
-        static bool HasGear(in CreatureState s)
+        static bool HasGear(in CreatureState s) => GearCount(in s) != 0;
+        /// <summary>(Each exactly what Gear draws for it, so no capsule is sent empty.)</summary>
+        static int GearCount(in CreatureState s)
         {
             if (s.Mode != CreatureMode.Work || s.Stage == 0)
-                return false;
+                return 0;
             var job = FolkJobs.Of(in s);
-            return s.Task == CreatureTask.Hammer || s.Task == CreatureTask.Chop && job != FolkJob.Farmer ||
-                   s.Task == CreatureTask.Tend && (job == FolkJob.Baker || job == FolkJob.WellKeeper);
+            return s.Task == CreatureTask.Hammer ? 1 :
+                   s.Task == CreatureTask.Chop && job != FolkJob.Farmer ? 3 :
+                   s.Task == CreatureTask.Tend && job == FolkJob.Baker ? 3 :
+                   s.Task == CreatureTask.Tend && job == FolkJob.WellKeeper ? 2 : 0;
         }
-        static int GearCount(in CreatureState s) => HasGear(in s) ? GearParts : 0;
-        /// <summary>Capsules for what a player's body has on (P-23): a hat's brim and crown, a pack.</summary>
-        const int WornParts = 3;
         /// <summary>
-        /// The worn block, only the parts a body needs (Zach 11-12 row 3, so dressing the folk adds no empty capsules):
-        /// P-23's hat and pack, then the hands' looks (WeaponParts), then what's worn (ArmourParts). Of a body as drawn
-        /// (Dressed).
+        /// The worn block, only the capsules a body's looks draw (Zach 11-12, so an empty capsule is never sent: every
+        /// look's count below is what its pass writes, and each pass writes from the start of its own sub-block):
+        /// P-23's hat (brim and crown) and pack, then the hands' looks (Weapon), then what's worn (Armour). Of a body as
+        /// drawn (Dressed).
         /// </summary>
-        static int HatPackCount(in CreatureState s) => s.Worn != 0 ? WornParts : 0;
-        static int HandsCount(in CreatureState s) => s.Outfit.Weapon != 0 || s.Outfit.OffHand != 0 ? WeaponParts : 0;
-        static int ArmourCount(in CreatureState s) => s.Outfit.Armoured ? ArmourParts : 0;
+        static int HatPackCount(in CreatureState s) => ((s.Worn & CreatureWorn.Hat) != 0 ? 2 : 0) + ((s.Worn & CreatureWorn.Pack) != 0 ? 1 : 0);
+        static int HandsCount(in CreatureState s)
+        {
+            var main = LookParts(s.Outfit.Weapon, false);
+            // (The other hand's only with something one-handed in the right, as Weapon draws it.)
+            return main + (main <= 4 ? OffHandParts(s.Outfit.OffHand) : 0);
+        }
+        /// <summary>Capsules a hand look takes (Weapon's shapes): in the fist, or sheathed on the back or at the hip.
+        /// A bow in hand is its four limbs, its string in two and an arrow while drawn.</summary>
+        static int LookParts(byte look, bool sheathed) => look switch
+        {
+            CreatureWeapon.Bow => sheathed ? 3 : 7,
+            CreatureWeapon.Sword or CreatureWeapon.Axe or CreatureWeapon.Pickaxe or CreatureWeapon.Shovel => 3,
+            CreatureWeapon.Club or CreatureWeapon.Spear or CreatureWeapon.Rod or CreatureWeapon.Hammer or CreatureWeapon.Hoe or
+                CreatureWeapon.Broom or CreatureWeapon.SmithHammer or CreatureWeapon.Letter or CreatureWeapon.Bowl => 2,
+            CreatureWeapon.GreatClub or CreatureWeapon.Stick or CreatureWeapon.Stone or CreatureWeapon.Jar or CreatureWeapon.Fruit or
+                CreatureWeapon.Loaf or CreatureWeapon.OreSack or CreatureWeapon.Dough => 1,
+            _ => 0
+        };
+        static int OffHandParts(byte look) => look == CreatureWeapon.Shield ? 1 : look == CreatureWeapon.Tongs || look == CreatureWeapon.Bucket ? 2 : 0;
+        /// <summary>Capsules for each worn slot (Armour's sub-blocks, in this order): a head's (a helm or hat and its
+        /// rim, horns, a crest or a brow), a body's (two shells; a robe's skirt; a breastplate's or cuirass's two pads),
+        /// a greave on each shin, a boot on each foot, a back's two (a cloak, a cape, a satchel and its strap), a neck's
+        /// two (a scarf and its end, a sash).</summary>
+        static int HeadParts(byte look) => look switch
+        {
+            0 => 0,
+            CreatureArmour.BakerCap => 1,
+            CreatureArmour.HornedHelm or CreatureArmour.Goggles => 3,
+            CreatureArmour.SkullHelm => 4,
+            _ => 2
+        };
+        static int BodyParts(byte look) => look switch
+        {
+            0 => 0,
+            CreatureArmour.Robe => 3,
+            CreatureArmour.Breastplate or CreatureArmour.Cuirass => 4,
+            >= CreatureArmour.Apron => 1,
+            _ => 2
+        };
+        static int PairParts(byte look) => look != 0 ? 2 : 0;
+        static int ArmourCount(in CreatureState s) => HeadParts(s.Outfit.Head) + BodyParts(s.Outfit.Body) + PairParts(s.Outfit.Legs) +
+                                                      PairParts(s.Outfit.Feet) + PairParts(s.Outfit.Back) + PairParts(s.Outfit.Neck);
         static int WornCount(in CreatureState s) => HatPackCount(in s) + HandsCount(in s) + ArmourCount(in s);
         /// <summary>Zach 11-12 row 3: a body as it's drawn: one of the folk in its kit's looks (FolkKits.Dress), a player
         /// in its own outfit.</summary>
@@ -125,8 +166,11 @@ namespace Punchy.Fauna
         /// <summary>Capsules for what's sheathed on the back or at the hip (Zach 11-12 row 3), after the worn block: a
         /// weapon or tool's shape (a bow's arc and string), for a body whose own pass doesn't draw it
         /// (Punchy.Items.FolkKits.Sheathed).</summary>
-        const int SheathParts = 3;
-        static int SheathCount(in CreatureState s) => Punchy.Items.FolkKits.Sheathed(in s) >= 0 ? SheathParts : 0;
+        static int SheathCount(in CreatureState s)
+        {
+            var item = Punchy.Items.FolkKits.Sheathed(in s);
+            return item >= 0 ? LookParts(Punchy.Items.FolkKits.HandLook(item), true) : 0;
+        }
         /// <summary>Capsules for a player's own hair (P-29), after the sheath block: only bodies with OwnHair.</summary>
         static int HairCount(in CreatureState s) => s.Outfit.OwnHair ? HairParts : 0;
         /// <summary>Where a held item's light comes from among its capsules (the lantern's glass, the torch's flame).</summary>
@@ -761,7 +805,7 @@ namespace Punchy.Fauna
                 var sheathAt = held + HeldCount(state.Held, state.Task) + GearCount(state) + WornCount(dressed);
                 if (SheathCount(state) != 0)
                 {
-                    for (int i = 0; i < SheathParts; i++)
+                    for (int i = 0; i < SheathCount(state); i++)
                         Output[sheathAt + i] = default;
                     Weapon(dressed, ref body.Blob.Value, offset, sheathAt, faded, Punchy.Items.FolkKits.Sheathed(in state));
                 }
