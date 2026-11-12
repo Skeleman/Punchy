@@ -25,7 +25,7 @@ namespace Punchy.Terrain
         /// <summary>W-138 row 4: bores at least this long (metres) may have a side niche with a shrine.</summary>
         const float TunnelNicheBore = 150f;
         /// <summary>The niche's radius (metres): about 2.2 m high at the back, deep enough for a shrine.</summary>
-        const float TunnelNicheRadius = 1.9f;
+        const float TunnelNicheRadius = 1.9f;   // gameplay: bake geometry (the niche's carved size), not LOD
 
         /// <summary>Each tunnel road's line, portal to portal (its stretches' ends, in order), and its width.</summary>
         static List<(List<float3> points, float width)> TunnelRuns(in TerrainSource source)
@@ -243,7 +243,7 @@ namespace Punchy.Terrain
             var terrain = source;   // local functions can't capture an in parameter
             float Wall(float3 from, float2 dir)
             {
-                for (var t = 0.3f; t < 12f; t += 0.1f)
+                for (var t = 0.3f; t < 12f; t += 0.1f)   // collision: bake ray to the bore wall, not LOD
                     if (terrain.CaveDistance(from + new float3(dir.x, 0f, dir.y) * t) >= 0f)
                         return t;
                 return 0f;
@@ -354,7 +354,7 @@ namespace Punchy.Terrain
             var terrain = source;   // local functions can't capture an in parameter
             float Wall(float3 from, float2 dir)
             {
-                for (var t = 0.3f; t < 12f; t += 0.1f)
+                for (var t = 0.3f; t < 12f; t += 0.1f)   // collision: bake ray to the bore wall, not LOD
                     if (terrain.CaveDistance(from + new float3(dir.x, 0f, dir.y) * t) >= 0f)
                         return t;
                 return 0f;
@@ -406,7 +406,7 @@ namespace Punchy.Terrain
                     if (torch >= 0 && reach > 0f)
                         extras.Plants.Add(new CavePlant { Position = shoulder + new float3(sideways.x, 0f, sideways.y) * (reach - 0.12f), Yaw = math.atan2(sideways.x, -sideways.y), Scale = 1f, Species = torch, Variant = rng.NextInt(3), Random = rng.NextFloat() });
                 }
-                if (total < 40f)
+                if (total < 40f)   // gameplay: bake placement (short bores get no extras), not LOD
                     continue;
                 // A point along the road's line: where, which way it runs, and the floor there.
                 void At(float along, out float3 q, out float2 dir, out float floor)
@@ -452,7 +452,7 @@ namespace Punchy.Terrain
                 for (int i = 3; i + 3 <= biomes.Count && borders < 2 && marker >= 0; i++)
                 {
                     var along = i * step;
-                    if (along < 20f || along > total - 20f || along - lastBorder < 80f || biomes[i] == biomes[i - 1])
+                    if (along < 20f || along > total - 20f || along - lastBorder < 80f || biomes[i] == biomes[i - 1])   // gameplay: bake placement of marker stones, not LOD
                         continue;
                     var steady = true;
                     for (int j = 1; j <= 3 && steady; j++)

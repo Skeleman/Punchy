@@ -204,6 +204,43 @@ namespace Punchy.Tests
         }
 
         /// <summary>
+        /// W-134 row 1: one water query for a point that may be underground (TerrainSource.SampleGround(float3)). At and
+        /// over the ground it must answer exactly as the float2 query (the surface water as on main), and 30 m under it
+        /// too away from cave water; every water pool and stream under the ground must read as cave water at its own
+        /// level. Then, stood in the deepest cave pool ("-place cavepool"), the player's body must leave ripples
+        /// (CreatureWakeSystem) and press the R-9 field (WaterPatchSystem) within 5 s: both saw no water there before.
+        /// </summary>
+        [UnityTest, Order(9)]
+        public IEnumerator CaveWater_SurfaceMatchesAndPoolStirs()
+        {
+            var q = Game.Hook<float[]>("CaveWaterQuery", 4000);
+            LogWatch.Measure($"cave water query: {q[1]} of {q[0]} surface spots differ, {q[3]} of {q[2]} deep; pools read {q[5]} of {q[4]}, streams {q[7]} of {q[6]}, worst level error {q[8]:F3} m");
+            Assert.AreEqual(0f, q[1], "the float3 query changed a surface answer");
+            Assert.AreEqual(0f, q[3], "the float3 query changed an answer under the ground away from cave water");
+            Assert.Greater(q[4], 0f, "no water pools under the ground to check");
+            Assert.AreEqual(q[4], q[5], "a cave water pool didn't read as cave water");
+            Assert.AreEqual(q[6], q[7], "a cave stream didn't read as cave water");
+            Assert.Less(q[8], 0.01f, "a cave water level read wrong");
+
+            // (Ripples are made only near the camera: an earlier test may have left it posed elsewhere.)
+            Game.Hook<bool>("FreeCamera");
+            yield return TestSceneSetup.Place("cavepool", 4f);
+            var best = new float[4];
+            var start = Time.realtimeSinceStartup;
+            while ((best[2] <= 0f || best[3] <= 0f) && Time.realtimeSinceStartup - start < 5f)
+            {
+                var s = Game.Hook<float[]>("CaveWaterStir");
+                for (int i = 0; i < 4; i++)
+                    best[i] = Mathf.Max(best[i], s[i]);
+                yield return null;
+            }
+            LogWatch.Measure($"in a cave pool at {Game.Hook<Vector3>("PlayerPosition")}: cave water {best[0]}, {best[1]:F2} m deep, {best[2]} ripples near, {best[3]} field presses");
+            Assert.AreEqual(1f, best[0], "the player's spot in the cave pool didn't read as cave water");
+            Assert.Greater(best[2], 0f, "no ripples from the player's body in the cave pool");
+            Assert.Greater(best[3], 0f, "no R-9 field presses from the player's body in the cave pool");
+        }
+
+        /// <summary>
         /// W-126: flora placement cost, measured only (no limit): the managed Place over 3 squares of 160 m round biome spots, best
         /// of three. Baseline on main acd0cad5 is in the W-126 report; row 1 must stay within +10%.
         /// </summary>
@@ -230,6 +267,27 @@ namespace Punchy.Tests
             }
             LogWatch.Measure("flora placement cost: " + line + $"total {total:F0} ms");
             Assert.Greater(total, 0f);
+            yield return null;
+        }
+
+        /// <summary>W-140: the island this launch has (loaded from the island cache, or baked) is byte for byte a fresh bake
+        /// of the same inputs, and so is a write and read of the island file; the landmark hash is the same all ways.
+        /// Run last: it bakes the island once more (~14 s).</summary>
+        [UnityTest, Order(90)]
+        public IEnumerator IslandCache_LoadedEqualsFresh()
+        {
+            var problems = Game.Hook<string>("IslandCacheRoundTrip");
+            LogWatch.Measure($"island {LogWatch.Last("[island] cache") ?? "no cache line"}; round trip: {(problems == "" ? "all blobs byte-equal, landmark hash the same" : problems)}");
+            Assert.AreEqual("", problems);
+            yield return null;
+        }
+
+        /// <summary>W-140: every blob in TerrainSource is saved by the island cache or named as not the bake's, so a new
+        /// blob can't come back empty on a cache hit.</summary>
+        [UnityTest, Order(90)]
+        public IEnumerator IslandCache_SavesEveryBlob()
+        {
+            Assert.AreEqual("", Game.Hook<string>("IslandCacheMissingBlobs"));
             yield return null;
         }
 

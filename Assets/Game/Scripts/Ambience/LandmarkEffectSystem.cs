@@ -22,12 +22,10 @@ namespace Punchy.Ambience
         public Material WaterfallMaterial;
         [Tooltip("Effects of landmarks within this distance of the camera are drawn.")]
         public float Range = 700f;
-        /// <summary>Cave waterfalls are drawn within this distance (small, and underground).</summary>
-        const float CaveRange = 120f;
         /// <summary>Flame effects are lit within this distance (they're small; FireSystem draws them each frame).</summary>
         const float FlameRange = 150f;
         /// <summary>How far a cave's waterfall carries out from its notch as it falls (m).</summary>
-        const float FallReach = 0.9f;
+        const float FallReach = Punchy.Terrain.CaveWaterfall.NotchReach;
         /// <summary>River waterfalls: how far the water carries out as it falls (m), the distance they are drawn from, and the index offset.</summary>
         const float RiverFallReach = 1.6f, RiverFallRange = 350f;
         const int RiverFallBase = 1000000, GrandFallBase = 2000000;
@@ -313,12 +311,14 @@ namespace Punchy.Ambience
                 if (type != null && type.Effects.Count > 0 && math.distance(inst.Position, cam) < Punchy.Settings.GraphicsSettings.ViewRange(Range) + set.Types[inst.Type].Radius * inst.Scale)
                     nearby.Add(i);
             }
-            // Cave waterfalls near the camera (they're small and underground: within CaveRange), as -(index + 1).
+            // Cave waterfalls near the camera (they're small and underground: while their spray looks big enough, W-135
+            // row 3, held by Hysteresis), as -(index + 1).
             if (source.Caves.IsCreated)
             {
                 ref var caveFalls = ref source.Caves.Value.Waterfalls;
+                var caveReach = Punchy.Settings.DetailPolicy.ExtraReach(Punchy.Settings.DetailPolicy.CaveFallSize, Punchy.Settings.DetailPolicy.CaveFallPixels);
                 for (int k = 0; k < caveFalls.Length; k++)
-                    if (FallDistance(caveFalls[k].Lip, caveFalls[k].Drop, camera) < Punchy.Settings.GraphicsSettings.DetailRange(CaveRange))
+                    if (Punchy.Settings.DetailPolicy.Within(FallDistance(caveFalls[k].Lip, caveFalls[k].Drop, camera), caveReach, lastNearby.Contains(-(k + 1))))
                         nearby.Add(-(k + 1));
             }
             // River waterfalls (version 2 rivers) within sight, as -(RiverFallBase + index).
@@ -404,19 +404,22 @@ namespace Punchy.Ambience
                     // A cave's waterfall: a small curtain from its notch in the wall into its pool, churning white
                     // water and a foam patch where it lands, and mist over them, lit as under rock.
                     var fall = source.Caves.Value.Waterfalls[-i - 1];
+                    var fallReach = fall.Reach > 0f ? fall.Reach : FallReach;
                     var curtain = new Emitter
                     {
                         Position = fall.Lip,
                         Seed = math.frac(-i * 0.618f),
                         Color = new float4(0.3f, 0.43f, 0.47f, 0f),
-                        Shape = new float4(FallReach, fall.Width, 0.6f, 2f),
+                        Shape = new float4(fallReach, fall.Width, 0.6f, 2f),
                         Timing = new float4(0f, 0.25f, 0.75f, 20f),
                         Out = fall.Out,
                         Drop = fall.Drop,
                         UnderRock = 1f
                     };
+                    // W-134 row 4 fix: a river chamber's chute pours as a curtain too, from its lip down to its foot (the
+                    // cave water bake ends the stream's flat water at both).
                     falls.Add(curtain);
-                    var landing = fall.Lip + new float3(fall.Out.x, 0f, fall.Out.y) * FallReach - new float3(0f, fall.Drop, 0f);
+                    var landing = fall.Lip + new float3(fall.Out.x, 0f, fall.Out.y) * fallReach - new float3(0f, fall.Drop, 0f);
                     plumes.Add(new Emitter
                     {
                         Position = landing,

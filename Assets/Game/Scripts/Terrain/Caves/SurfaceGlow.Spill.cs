@@ -18,8 +18,10 @@ namespace Punchy.Terrain
     /// </summary>
     public partial class SurfaceGlow
     {
-        /// <summary>How far round the camera houses' panes spill (m), and where it starts fading out.</summary>
-        const float SpillRadius = 90f, SpillFadeFrom = 60f, SpillFadeTo = 85f;
+        /// <summary>How far round the camera houses' panes are listed (m). The spill fades out by how big a pane's pool
+        /// looks (DetailPolicy.SpillFromPixels to SpillToPixels: 60 m to 85 m at the reference view), never past
+        /// SpillEdge, inside the scan.</summary>
+        const float SpillRadius = 90f, SpillEdge = 85f; // streaming: the near scan's reach
         const int MaxPanes = 2048;
         /// <summary>The pool's brightness (added light at its brightest, before facing and fall-off).</summary>
         public static float SpillStrength = 0.6f;
@@ -118,7 +120,9 @@ namespace Punchy.Terrain
                 paneBuffer.SetData(panes);
             }
             spillProps.SetBuffer(SpillIds.Panes, paneBuffer);
-            spillProps.SetVector(SpillIds.Params, new Vector4(on, SpillStrength, SpillFadeFrom, SpillFadeTo));
+            var fade = Punchy.Settings.DetailPolicy.FadeReach(Punchy.Settings.DetailPolicy.SpillSize, Punchy.Settings.DetailPolicy.SpillFromPixels,
+                                                              Punchy.Settings.DetailPolicy.SpillToPixels, SpillEdge);
+            spillProps.SetVector(SpillIds.Params, new Vector4(on, SpillStrength, fade.x, fade.y));
             var rp = new RenderParams(spillMaterial)
             {
                 worldBounds = new Bounds(camPos, Vector3.one * (SpillRadius * 2f + 40f)),
