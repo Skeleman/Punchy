@@ -1,0 +1,13 @@
+# -benchcycle validation, take 2 (84d4c7da: 20 s rests at 10 fps between segments, unmeasured). q98 matched job 49d in
+# its first two rounds, then throttled (80 C, 18 -> 34 ms). Same arms and view; GPU temperature logged every 10 s.
+Q=q99; TITLE="benchcycle validation 2 (rests)"
+BUILDS="c43b5ea"; OUT_c43b5ea=Profile-c43b5eacyc2
+VIEWS="stormnoon"
+view() { echo "-goto 1489,-897 -shotcam 1489,88,-897,1889,98,-897 -benchweather Storm -benchweatherat 5489,-897 -benchhour 12 -benchstops here"; }
+ARMS="cycle"
+arm() { echo "Profile-c43b5eacyc2 -benchcyclerounds 4"; }
+CYCLE="plain/g._PunchySkyOff=0|w1024/g._PunchySkyOff=1024|w8192/g._PunchySkyOff=8192"
+ROUNDS=2; GFX=High; REF=plain
+export RUNTIMEOUT=900
+before() { ( while :; do echo "$(date +%T) $($SMI --query-gpu=temperature.gpu,clocks.gr --format=csv,noheader 2>/dev/null)" >> "$R/$Q-temps.log"; sleep 10; done ) & TEMPS=$!; }
+after() { kill $TEMPS 2>/dev/null; sort -t' ' -k2 -n "$R/$Q-temps.log" | tail -1 | sed 's/^/hottest: /'; }
