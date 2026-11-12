@@ -91,6 +91,9 @@ current release. Lane: A = animal, W = world.
 - (W) Floating islands (#256): off the coast over the ocean, walkable, some with caves inside; one carries a new kind
   of town. Asked for before (11-09 audit, W-113 "floating archipelago") but never logged until now. Far islands
   draw simply; collision only near the player. Reached by flying for now (Zach 11-10).
+- (W) Cliff and mountain geometry beyond the heightmap (#281, 2026-11-12): big separate rock pieces on cliffs and
+  mountain faces with real texture, strata, overhangs and ledges, which the heightmap can't do. Ties into climbing
+  (grades, shimmy ledges) and gives shelves for mountaintop settlements and ruins. Design study first (W-149).
 
 
 ## Current roadmap (snapshot 2026-11-12, from open GitHub issues)
@@ -105,6 +108,7 @@ pygmies (#35, #10), turtle folk (#38). Core rule throughout: small, varied, seed
 - Floating islands off the coast, walkable, with caves and a new kind of town (#256).
 - Climbable colossi, maybe a fur section (#276), after unified climbing (A-101, W-144, W-147).
 - Rideable creatures: anything rides a creature 50% heavier; the ridden player steers (#278).
+- Cliff and mountain geometry: overhangs, ledges, strata as separate rock pieces (#281); W-149 design study.
 
 ### Open, partly done
 - Dungeons (#24), NPCs (#25), items and gear (#26), quests (#27): player lane cards in flight.
