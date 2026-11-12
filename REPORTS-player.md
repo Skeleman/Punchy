@@ -1004,3 +1004,13 @@ Added two lines to `docs/agents/multiplayer.md`. Other lanes changing an RPC may
 - UNVERIFIED: the world item on the ground and its inventory icon were not shot. Mining isn't wired (it swings like a
   weapon); folk miners keep their own `HeldItem.Pickaxe`.
 - Next: another item row (lantern) unless a card opens or P-29 row 2 is answered.
+
+## Item row: the lantern (11-12, standing order). DONE, `player/items-pick` 803764ca
+- Item 34 "Lantern" (`ItemTable.Lantern`), hand slot, 1 kg, "light 9 m". Held, it maps to the folk's lit
+  `HeldItem.Lantern` (Gear `HeldFor`), so the body draws it hanging from the hand and LightBudget gives it the folk
+  lantern's carried light (9 m). No animal-lane file touched. World item: iron base and cap, glowing glass, ring handle.
+- Checked: `D:/Unity/PunchyMilestones/Items/lantern-front/-side.png` (noon), `lantern-night-front/-side.png` (22:00:
+  warm light on the body and grass), `lantern-night-far.png`, sheet `lantern-sheet.jpg`. Log: "table of 35 ... 34
+  Lantern", "wearing hand Lantern". 0 exceptions. lod-lint exit 0; suite 26/0/17; Fauna_Fingerprint AD723954.
+- UNVERIFIED: host plus client (held items already sync as the torch does, not rerun); world item and icon not shot.
+- Next: more item rows unless a card opens or P-29 row 2 is answered.
