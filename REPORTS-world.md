@@ -5941,3 +5941,17 @@ Branch `world/mountain-tunnels` at f6217674 (pushed), on a149c17f. One commit: C
   - This seed has no ToxicGeyser or VolcanoCone and only that one cave lava pool. For the card's two lava and two toxic pools, I gave four MudPits pools ToxicGeyser's and VolcanoCone's water look and glow, in memory only (`W148Probe.Restyle`), and let them rebake: `r4-toxic1/2-3m/15m` and `r4-lava1/2-3m/15m`. All follow their basins with no disc rim; toxic keeps its green and its glow, and lava glows and crusts. Harm for landmark lava is unchanged (no code there touched).
 - **Pins:** Landmarks_V3 and Fauna_Fingerprint are not touched (no bake or placement data changed).
 - **For the supervisor:** a seed that has a ToxicGeyser and a VolcanoCone would let a later check shoot real ones.
+
+### Row 5: geyser vents stir the water (#277)
+- **Commits:** world/no-water-discs aed66c50, plus ddf2a5ff (a lod-lint comment) (both pushed). lod-lint clean.
+- **Vents:** LandmarkEffectSystem lists each spout that erupts from water and is near the camera (Kind Plume, Period > 0, its foot in water) as a vent. It keeps the plume's own seed, period and duty. The field's SourceJob gives each vent inside the 32 m square a soft splash ring (r 0.3 m, 1.8 cm deep) on its own seeded beat, 0.5-1.5 s apart. Splashes run up to 2.2x deeper over the last 15% of the period, as the spout builds, and 3.5x while it erupts. During an eruption a second beat half a second later doubles them. Vents use the shared `_PunchyClock`, the same clock the plume shader uses (LandmarkEffects.hlsl), so the rings keep time with the spout. Vent splashes are added after every creature source, so creatures and players keep the slots first (this fits R-15 row 2's order). The field is cosmetic and per machine, and nothing is sent.
+- **Rings on lattice water:** before this row, landmark pools and cave water (the 0.5 m lattice) never showed the field. Only the fine sheet over chunk water did. Their materials are now CaveSystem copies with `_LatticeField = 1`: inside the square, the field's slope bends their normals, and a ring now shows round a wader's legs too. The effect fades over the square's outer metres, and there is no vertex displacement. The cave water copy also gets the flag, but I did not check it in a cave this row.
+- **Source probe** (`W148Probe.Sources`, counted from a total kept by the system):
+  - Geyser (-2427,2450), r 3.8 m, Period 30, Duty 0.25:
+    - At rest: 1 vent listed, 1 in the square, about 11 splashes per 10.7 s (1.0/s), presses 0.
+    - During an eruption: 13 splashes in 7.4 s (1.75/s).
+  - Player 57 m away: the vent is still listed but not in the square, and no splashes are added.
+  - Camera and player at the MudPits: 0 vents listed.
+- **Shots** (W-148/): `r5-geyser-1/2/3` and `r5-geyser-strip`, the pool from 5 m, 0.7 s apart, starting on a splash. Rings spread from the centre and grow wider frame to frame. They are faint, rings rather than a boil, and the spout's idle steam is above them. Frame 3 catches a fresh splash with a little foam at the vent.
+- **Pins:** Landmarks_V3 and Fauna_Fingerprint are not touched (no bake or placement data changed).
+- **For the supervisor:** this seed has no ToxicGeyser, so only the plain Geyser was shot. ToxicGeyser has the same flags (Period 18), so it gets a vent the same way.
