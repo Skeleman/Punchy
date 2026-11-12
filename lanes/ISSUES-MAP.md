@@ -57,3 +57,4 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #276 | Roadmap: climbable colossi | roadmap |
 | #277 | No water discs: cave lakes, white pools, fountains (Zach 11-12) | W-148 |
 | #278 | Roadmap: rideable creatures, players ride players | roadmap |
+| #280 | Sea swell tiles when seen from high up (Zach 11-12) | R-17 (rendering lane) |
