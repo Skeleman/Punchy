@@ -895,6 +895,7 @@ namespace Punchy.Terrain
                     return;
                 var found = perCave[c] = new List<CavePlant>();
                 var cave = caves[c];
+                var style = styles[cave.Style - 1];
                 var rng = new Random(math.hash(new uint2(caves[c].Key, 0xF10Au)) | 1u);
                 var shafts = new List<float2>();
                 for (int n = cave.FirstNode; n < cave.FirstNode + cave.NodeCount; n++)
@@ -956,7 +957,8 @@ namespace Punchy.Terrain
                                 Scale = math.lerp(size.x, size.y, rng.NextFloat()),
                                 Species = species,
                                 Variant = rng.NextInt(3),
-                                Random = rng.NextFloat()
+                                Random = rng.NextFloat(),
+                                Dim = 1f - style.PlantLight
                             });
                         }
                     }

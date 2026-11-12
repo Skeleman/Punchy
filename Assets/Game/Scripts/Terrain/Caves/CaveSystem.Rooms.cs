@@ -29,6 +29,7 @@ namespace Punchy.Terrain
         Material[] roomMaterials;
         /// <summary>A-91: Cave.shader's _Dressed (what a kit copy is made of: -1 as is, 0 bare rock, 1 stone, 2 wood, 3 iron).</summary>
         internal static readonly int DressedId = Shader.PropertyToID("_Dressed");
+        static readonly int DarknessId = Shader.PropertyToID("_Darkness");
 
         void DrawRooms(in TerrainSource source, float3 camPos)
         {
@@ -49,6 +50,8 @@ namespace Punchy.Terrain
                         mat.SetColor(RockColorId, rock);
                         mat.SetColor(DarkColorId, dark);
                         mat.SetFloat(DressedId, CaveRoomKit.Dressing(g));
+                        if (t == (int)CaveRoomType.Grotto)
+                            mat.SetFloat(DarknessId, Material.GetFloat(DarknessId) * CaveRoomKit.GrottoAmbient);
                         roomMaterials[t * CaveRoomKit.Groups + g] = mat;
                     }
             }

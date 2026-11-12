@@ -70,10 +70,11 @@ Shader "Punchy/Cave"
                 nointerpolation float style : TEXCOORD4;
             };
 
-            // Nine vectors per style slot (CaveStyle.Pack): rock rgb + strata, dark rgb + strata frequency,
+            // Ten vectors per style slot (CaveStyle.Pack): rock rgb + strata, dark rgb + strata frequency,
             // glow rgb + crack width, (gloss, metallic, facets, translucency), (glow scale, glow everywhere, cracks),
-            // floor rgb + grit, floor dark rgb + floor gloss, (detail, detail scale, sheen, moss), moss rgb.
-            float4 _PunchyCaveStyles[32 * 9];
+            // floor rgb + grit, floor dark rgb + floor gloss, (detail, detail scale, sheen, moss), moss rgb,
+            // (ambient share deep inside).
+            float4 _PunchyCaveStyles[32 * 10];
             // The nearest glowing things (lava pools, glowing plants): they light the walls round them in the shader
             // instead of with real lights (the list is declared in Glow.hlsl, shared with the terrain and plants).
             #include "Glow.hlsl"
@@ -147,14 +148,15 @@ Shader "Punchy/Cave"
                 int slot = clamp((int)round(input.style), 0, 31);
                 float4 s0 = float4(_RockColor.rgb, 0.3), s1 = float4(_DarkColor.rgb, 0.366), s2 = 0, s3 = 0, s4 = float4(1, 0, 0, 0);
                 float4 s5 = float4(_RockColor.rgb * 0.8, 0.3), s6 = float4(_DarkColor.rgb, 0), s7 = float4(0.3, 1, 0, 0), s8 = 0;
+                float4 s9 = float4(1, 0, 0, 0);
                 if (slot > 0)
                 {
-                    int i = slot * 9;
+                    int i = slot * 10;
                     s0 = _PunchyCaveStyles[i];     s1 = _PunchyCaveStyles[i + 1];
                     s2 = _PunchyCaveStyles[i + 2]; s3 = _PunchyCaveStyles[i + 3];
                     s4 = _PunchyCaveStyles[i + 4]; s5 = _PunchyCaveStyles[i + 5];
                     s6 = _PunchyCaveStyles[i + 6]; s7 = _PunchyCaveStyles[i + 7];
-                    s8 = _PunchyCaveStyles[i + 8];
+                    s8 = _PunchyCaveStyles[i + 8]; s9 = _PunchyCaveStyles[i + 9];
                 }
                 float terrain = saturate(input.data.x);
                 // Floor: ground that faces up, by its shape (not its fine detail), away from the terrain-coloured mouth.
@@ -298,7 +300,9 @@ Shader "Punchy/Cave"
 
                 // Daylight reaches only near the entrance. Openness is per vertex, so this branch is coherent: deep
                 // inside, whole wavefronts skip the sun's shadow taps.
-                half3 light = SampleSH(n) * lerp(_Darkness, 1, openness);
+                // W-146: pale or glowing rock (crystal) takes less of the faint deep ambient, so it reads near-black
+                // away from a lantern like plain rock does (s9.x, the style's Ambient).
+                half3 light = SampleSH(n) * lerp(_Darkness * s9.x, 1, openness);
                 if (openness > 0.001)
                 {
                     Light sun = GetMainLight(TransformWorldToShadowCoord(p));
@@ -344,8 +348,9 @@ Shader "Punchy/Cave"
                 half ribs = 1 - clamp(input.data.z * 2.4, -0.3, 0.75);
                 color *= ribs;
                 // Sheen: a soft rim where the wall turns away, lit by whatever light reaches it, with a faint floor of
-                // its own so even near-black rock (obsidian) keeps its shape out of the lantern's reach.
-                color += lerp(s0.rgb, 1, 0.3) * pow(1 - saturate(dot(n, view)), 3) * s7.z * (light * 0.5 + 0.035);
+                // its own so even near-black rock (obsidian) keeps its shape out of the lantern's reach (scaled like the
+                // ambient, so rock meant to go dark does).
+                color += lerp(s0.rgb, 1, 0.3) * pow(1 - saturate(dot(n, view)), 3) * s7.z * (light * 0.5 + 0.035 * s9.x);
                 // The atmosphere (fog and weather marches) only where daylight reaches; deep inside it would be lerped away.
                 if (openness > 0.001)
                     color = lerp(color, PunchyAtmosphere(color, p), openness);
@@ -379,7 +384,7 @@ Shader "Punchy/Cave"
                     ground.normalWS = groundNormal;
                     ground.viewDirectionWS = view;
                     ground.shadowCoord = TransformWorldToShadowCoord(p);
-                    ground.bakedGI = SampleSH(shape) * lerp(_Darkness, 1, openness) + PunchyGlowLight(p, shape);
+                    ground.bakedGI = SampleSH(shape) * lerp(_Darkness * s9.x, 1, openness) + PunchyGlowLight(p, shape);
                     ground.normalizedScreenSpaceUV = inputData.normalizedScreenSpaceUV;
                     ground.shadowMask = half4(1, 1, 1, 1);
                     SurfaceData groundSurface = (SurfaceData)0;

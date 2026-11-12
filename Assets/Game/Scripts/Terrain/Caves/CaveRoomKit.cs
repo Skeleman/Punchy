@@ -575,11 +575,20 @@ namespace Punchy.Terrain
             return math.normalize(axis * math.cos(most * rng.NextFloat()) + side * math.sin(most * rng.NextFloat()));
         }
 
+        /// <summary>W-146: a grotto's cluster glows, as a share of their old brightness, and their reach (m).</summary>
+        public const float GrottoGlint = 0.12f, GrottoGlintReach = 2.5f;
+        /// <summary>W-146: the share of the cave's deep ambient a grotto's pale walls and crystals take (rooms are slot 0,
+        /// so this scales their material's _Darkness), so the room reads near-black like a deep passage.</summary>
+        public const float GrottoAmbient = 0.3f;
+
         static void Grotto(Maker m)
         {
             var r = m.R;
             var group = m.Rng.NextBool() ? Cyan : Violet;
-            var light = group == Cyan ? new float4(0.3f, 0.9f, 1.4f, 7f) : new float4(0.9f, 0.4f, 1.5f, 7f);
+            // W-146: faint and local, a glint round a cluster rather than a lamp that fills the room: the grotto is dark
+            // until a lantern makes the crystals sparkle.
+            var light = group == Cyan ? new float4(0.3f, 0.9f, 1.4f, 0f) * GrottoGlint : new float4(0.9f, 0.4f, 1.5f, 0f) * GrottoGlint;
+            light.w = GrottoGlintReach;
             var clusters = new List<float3>();
             int floor = m.Rng.NextInt(5, 10);
             float3 bigAt = default; var big = 0f;

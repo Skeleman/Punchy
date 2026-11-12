@@ -137,6 +137,13 @@ namespace Punchy.Terrain
         [Range(0.2f, 4f)] public float DetailScale = 1f;
         [Tooltip("A soft frosty rim where the wall turns away from the eye.")]
         [Range(0f, 1f)] public float Sheen;
+        [Tooltip("How much of the cave's faint ambient light the rock takes deep inside (1 = as plain rock), and the sheen's " +
+                 "own faint rim with it. Pale rock that should still read near-black away from a lantern takes less; the " +
+                 "daylight near the mouth is untouched.")]
+        [Range(0f, 1f)] public float Ambient = 1f;
+        [Tooltip("How much light this style's glowing plants throw on the rock round them (1 = their full glow). Less " +
+                 "keeps them a faint, local glint (their own glow is unchanged), so the cave stays dark away from a lantern.")]
+        [Range(0f, 1f)] public float PlantLight = 1f;
 
         [Header("Glow")]
         [Tooltip("Light the rock gives off by itself, in veins: crystal light, lava cracks, glowing lichen.")]
@@ -162,7 +169,7 @@ namespace Punchy.Terrain
         [Tooltip("How often each kind of destination chamber is picked here: crystal grotto, underground lake, bat roost, buried ruin room.")]
         public Vector4 RoomWeights = Vector4.one;
 
-        /// <summary>The look as four vectors for the cave shader's style table.</summary>
+        /// <summary>The look as CaveStyleTable.Vectors vectors for the cave shader's style table.</summary>
         public void Pack(Vector4[] table, int slot)
         {
             var rock = RockColor.linear;
@@ -180,6 +187,7 @@ namespace Punchy.Terrain
             table[i + 7] = new Vector4(Detail, DetailScale, Sheen, Moss);
             var moss = MossColor.linear;
             table[i + 8] = new Vector4(moss.r, moss.g, moss.b, CrackBreakup);
+            table[i + 9] = new Vector4(Ambient, 0f, 0f, 0f);
         }
     }
 
@@ -234,7 +242,7 @@ namespace Punchy.Terrain
     /// </summary>
     public static class CaveStyleTable
     {
-        public const int Vectors = 9;
+        public const int Vectors = 10;
         public const int MaxStyles = 32;
 
         public static List<CaveStyle> Collect(IReadOnlyList<LandmarkType> types)

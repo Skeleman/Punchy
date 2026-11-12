@@ -146,6 +146,9 @@ namespace Punchy.Terrain
         /// <summary>Which of the species' variants, and a per-plant random for the flora shader.</summary>
         public int Variant;
         public float Random;
+        /// <summary>W-146: how much dimmer than its species' glow the light it throws is (0 = full; its style's
+        /// 1 - PlantLight). The plant's own glow is unchanged.</summary>
+        public float Dim;
     }
 
     public struct CaveStreamPoint

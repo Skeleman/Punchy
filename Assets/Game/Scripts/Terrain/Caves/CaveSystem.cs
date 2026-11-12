@@ -585,6 +585,8 @@ namespace Punchy.Terrain
         readonly List<(int key, int plant)> plantKeys = new List<(int, int)>();
         /// <summary>Per species, the light its glowing parts give the walls round it (rgb strength, w reach); zero if none.</summary>
         readonly List<Vector4> speciesGlow = new List<Vector4>();
+        /// <summary>W-146: a fully dimmed plant's light reaches this share of its species' reach.</summary>
+        const float PlantDimReach = 0.4f;
         readonly List<(float3 position, Vector4 light)> nearGlowPlants = new List<(float3, Vector4)>();
         /// <summary>Per species: the height of its torch's head (1 at scale 1), or 0 if it isn't a torch.</summary>
         readonly List<float> speciesTorch = new List<float>();
@@ -695,7 +697,13 @@ namespace Punchy.Terrain
                         continue;
                     plantKeys.Add((model * 2 + (plantFine[i] ? 0 : 1), i));
                     if (speciesGlow[p.Species].w > 0f)
-                        nearGlowPlants.Add((p.Position + new float3(0f, 0.3f * p.Scale, 0f), speciesGlow[p.Species]));
+                    {
+                        // W-146: a dark style's plants (crystal) throw a fainter, shorter light: a glint, not a lamp.
+                        var glow = speciesGlow[p.Species];
+                        var keep = 1f - p.Dim;
+                        glow = new Vector4(glow.x * keep, glow.y * keep, glow.z * keep, glow.w * math.lerp(1f, PlantDimReach, p.Dim));
+                        nearGlowPlants.Add((p.Position + new float3(0f, 0.3f * p.Scale, 0f), glow));
+                    }
                     if (speciesTorch[p.Species] > 0f)
                     {
                         // The head: up the stick and out from the wall (the model leans out along its +Z by ~20°).
