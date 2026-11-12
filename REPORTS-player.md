@@ -1278,3 +1278,26 @@ exceptions and 0 table or deserialize errors.
 
 **Branch ready for review:** `player/unify-items` (rows 1-5 plus slot sizing). Next: a P card when one comes, or a
 targeted well-keeper and woodcutter shot if the supervisor wants it before merging.
+
+## Zach 11-12 (direct to the player lane): taking folk items. PLAN, started (please card it, e.g. P-35)
+
+Zach: "Props, like tables, shouldn't be able to be taken. If the Smith has spare items on the table, like another
+hammer or a finished sword on a rack, those should be able to be taken. Right now, just equippable and wearable items
+that are not currently in use. I want to make sure the inventory and equipment systems are identical for players and
+NPCs, so what they pick up and use with their hands should be things we can also pick up and use with our hands."
+Restocking: "The worker will go to the local merchant to get a new one after they notice it is missing."
+
+Rows (on `player/take-items`, from `player/unify-items`):
+1. **Parity.** Every item a folk body holds or wears can be held or worn by a player. Today a stick, stone, apple,
+   loaf and dough have hand looks but no GearSlot. A start-up check logs any item a kit puts in a hand or worn place
+   that a player can't equip there.
+2. **Spare stock at posts.** Each worker's post (Work or Stall anchor) gets spares by job, laid out at the post as
+   ordinary world items: a smith's hammer and a finished sword, a woodcutter's axe, a farmer's hoe, a baker's
+   loaves, a healer's bowl. They're seeded per anchor like the door items, so every machine has them without
+   sending; taking them uses the existing pick-up (host decides, late joiners told). Props stay props.
+3. **Restock.** The host notices a spare is gone. The post's worker, at its next break from work, walks to the
+   town's merchant stall, waits there briefly and walks back; the spare reappears for everyone. **This touches
+   animal-lane files (CreatureBrainSystem.Folk / FolkWork).** Please clear it with the animal lane, or tell me to
+   wait for that row.
+4. **Checks.** Solo, host and client: take a spare, see the worker go to the merchant and the spare return, from
+   both machines.
