@@ -151,6 +151,34 @@ namespace Punchy.Items
         public const byte Fish = 5, Key = 7, Torch = 8, Staff = 9, Hat = 10, Pack = 11;
         /// <summary>Item row: the lantern (held: HeldItem.Lantern).</summary>
         public const byte Lantern = 34;
+        /// <summary>Zach 11-12, one item system: the ids folk kits are filled with (FolkKits). Checked against the names
+        /// at start (Check).</summary>
+        public const byte Stick = 0, Stone = 1, Club = 12, Spear = 13, Sword = 14, Bow = 15, Axe = 30, Hammer = 31, Rod = 32, Pickaxe = 33, Shovel = 35,
+                          GreatClub = 36, Shield = 37, Letter = 38, Ore = 39, OreSack = 40, Hoe = 41, Broom = 42, SmithHammer = 43, Tongs = 44,
+                          Bucket = 45, Bowl = 46, Jar = 47, Apple = 48, Bread = 49, Dough = 50, KneadingTable = 51, ChoppingBlock = 52, Log = 53,
+                          Rope = 54, HotIron = 55, Creel = 56, Honeycomb = 57, Goggles = 58, KettleHat = 59, HornedHelm = 60, CrestedHelm = 61,
+                          PotHelm = 62, SkullHelm = 63, Breastplate = 64, Cuirass = 65, Sash = 66, HideCape = 67, Apron = 68, LeatherApron = 69,
+                          BakerApron = 70, BakerCap = 71, StrawHat = 72, FisherHat = 73, Satchel = 74;
+
+        /// <summary>Whether each id above is still the item it names (an id is its index: one appended in the wrong place
+        /// would shift them). Logged as an error if not.</summary>
+        public static void Check()
+        {
+            (byte id, string name)[] named =
+            {
+                (Stick, "Stick"), (Stone, "Stone"), (Fish, "Fish"), (Torch, "Torch"), (Staff, "Staff"), (Pack, "Pack"), (Club, "Club"), (Spear, "Spear"),
+                (Sword, "Sword"), (Bow, "Bow"), (Axe, "Axe"), (Rod, "Rod"), (Pickaxe, "Pickaxe"), (Lantern, "Lantern"), (Shovel, "Shovel"),
+                (GreatClub, "Great club"), (Shield, "Shield"), (Letter, "Letter"), (OreSack, "Ore sack"), (Hoe, "Hoe"), (Broom, "Broom"),
+                (SmithHammer, "Smith's hammer"), (Tongs, "Tongs"), (Bucket, "Bucket"), (Bowl, "Bowl"), (Jar, "Jar"), (Apple, "Apple"), (Dough, "Dough"),
+                (Creel, "Creel"), (Goggles, "Goggles"), (KettleHat, "Kettle hat"), (HornedHelm, "Horned helm"), (CrestedHelm, "Crested helm"),
+                (PotHelm, "Pot helm"), (SkullHelm, "Skull helm"), (Breastplate, "Breastplate"), (Cuirass, "Leather cuirass"), (Sash, "Sash"),
+                (HideCape, "Hide cape"), (Apron, "Apron"), (LeatherApron, "Leather apron"), (BakerApron, "Baker's apron"), (BakerCap, "Baker's cap"),
+                (StrawHat, "Straw hat"), (FisherHat, "Fisher's hat"), (Satchel, "Satchel"),
+            };
+            foreach (var (id, name) in named)
+                if (id >= Items.Length || Items[id].Name != name)
+                    Debug.LogError($"Items: item {id} should be the {name}, is the {(id < Items.Length ? Items[id].Name : "end of the table")}");
+        }
     }
 
     /// <summary>Client → host: pick up world item Uid.</summary>
@@ -238,6 +266,7 @@ namespace Punchy.Items
             for (int i = 0; i < ItemTable.Items.Length; i++)
                 names.Add($"{i} {ItemTable.Items[i].Name} (stack {ItemTable.Items[i].Stack}, {ItemTable.Items[i].Weight} kg)");
             Debug.Log("Items: table of " + ItemTable.Items.Length + ": " + string.Join(", ", names));
+            ItemTable.Check();
             for (int i = 0; i < instance.slots.Length; i++)
                 instance.slots[i].item = 255;
             var args = Punchy.Debugging.DebugControls.LaunchArgs;
@@ -816,6 +845,7 @@ namespace Punchy.Items
         void Tests(in TerrainSource terrain)
         {
             ItemRow(terrain);
+            KitLog();
             if (pickupArg <= 0 && !dropArg && !openChestArg)
                 return;
             testAt = testAt == 0f ? Time.realtimeSinceStartup + 30f : testAt;

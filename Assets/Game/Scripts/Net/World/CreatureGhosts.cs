@@ -44,6 +44,8 @@ namespace Punchy.Net
         [GhostField] public byte Held;
         /// <summary>The need cue it shows (CreatureState.Cue, a NeedCue), so clients draw it too (#64).</summary>
         [GhostField] public byte Cue;
+        /// <summary>Zach 11-12: one of the folk's kit (FolkKit: items in hand, sheathed, worn, in its bag), the host's.</summary>
+        [GhostField] public byte KitHand, KitOffHand, KitSheath, KitHead, KitBody, KitBack, KitNeck, KitBag0, KitBag1, KitBag2, KitBag3;
     }
 
     /// <summary>Client: this creature is a server ghost that FaunaDirector has given a body (CreatureState/CreatureBody).</summary>
@@ -104,6 +106,9 @@ namespace Punchy.Net
                 n.Holder = c.Holder;
                 n.Held = (byte)c.Held;
                 n.Cue = c.Cue;
+                (n.KitHand, n.KitOffHand, n.KitSheath, n.KitHead, n.KitBody, n.KitBack, n.KitNeck) =
+                    (c.Kit.Hand, c.Kit.OffHand, c.Kit.Sheath, c.Kit.Head, c.Kit.Body, c.Kit.Back, c.Kit.Neck);
+                (n.KitBag0, n.KitBag1, n.KitBag2, n.KitBag3) = (c.Kit.Bag0, c.Kit.Bag1, c.Kit.Bag2, c.Kit.Bag3);
             }
         }
     }
@@ -217,6 +222,11 @@ namespace Punchy.Net
                 c.Holder = n.Holder;
                 c.Held = (HeldItem)n.Held;
                 c.Cue = n.Cue;
+                c.Kit = new FolkKit
+                {
+                    Hand = n.KitHand, OffHand = n.KitOffHand, Sheath = n.KitSheath, Head = n.KitHead, Body = n.KitBody, Back = n.KitBack, Neck = n.KitNeck,
+                    Bag0 = n.KitBag0, Bag1 = n.KitBag1, Bag2 = n.KitBag2, Bag3 = n.KitBag3,
+                };
                 CreatureMotion.AdvancePhase(ref c, ref b, dt);
                 CreatureMotion.EaseGait(ref c, ref b, dt);
             }

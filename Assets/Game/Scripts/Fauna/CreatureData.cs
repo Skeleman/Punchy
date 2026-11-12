@@ -626,6 +626,27 @@ namespace Punchy.Fauna
         };
     }
 
+    /// <summary>
+    /// What one of the folk has on it and about it (Zach 11-12, one item system): items from the item table (ItemTable)
+    /// in its hand and its other hand, its weapon or tool sheathed (on the back or at the hip, by its length:
+    /// ItemSheaths.OnBack), what it wears by place, and a bag of four. Each slot holds the item's id + 1, so 0 (as a
+    /// beast's or a new body's) is nothing. The host fills it (FolkKitSystem); clients get it with the creature.
+    /// </summary>
+    public struct FolkKit : System.IEquatable<FolkKit>
+    {
+        public byte Hand, OffHand, Sheath, Head, Body, Back, Neck, Bag0, Bag1, Bag2, Bag3;
+
+        /// <summary>A slot's value for an item (its id + 1), and the item in a slot (-1 for nothing).</summary>
+        public static byte Of(int item) => (byte)(item + 1);
+        public static int Item(byte slot) => slot - 1;
+
+        public bool Empty => (Hand | OffHand | Sheath | Head | Body | Back | Neck | Bag0 | Bag1 | Bag2 | Bag3) == 0;
+
+        public bool Equals(FolkKit o) =>
+            Hand == o.Hand && OffHand == o.OffHand && Sheath == o.Sheath && Head == o.Head && Body == o.Body && Back == o.Back && Neck == o.Neck &&
+            Bag0 == o.Bag0 && Bag1 == o.Bag1 && Bag2 == o.Bag2 && Bag3 == o.Bag3;
+    }
+
     public enum HeldItem : byte
     {
         None,
@@ -813,6 +834,9 @@ namespace Punchy.Fauna
         /// <summary>What a player's body has on besides that (P-28): its weapon and where it is in a swing. Not sent:
         /// each machine sets it (Items.ApplyGear).</summary>
         public CreatureOutfit Outfit;
+        /// <summary>Zach 11-12: what one of the folk has on it and about it, as items (FolkKit). The host's: FolkKitSystem
+        /// fills it; replicated (CreatureNet). Empty for players (theirs is Items') and beasts.</summary>
+        public FolkKit Kit;
 
         /// <summary>The need cue it shows (NeedCue: none, tired, hungry, thirsty, lonely): its strongest need past 0.6,
         /// set by the brain (CreatureBrainSystem.Needs) and replicated as one byte, so clients draw the same cue (#64).</summary>
