@@ -2,6 +2,24 @@
 
 Newest first.
 
+## 2026-11-11: job 60 (W-140) — main PC, provisional
+Main-PC half only. B hit: island ready 4.8 s vs 10.6-10.9 s on B fresh and on its base (393a9c20), and 11.8 s on current main 6fc00007. That is -6.0 s against the fair base, with the file loading in 260 ms and the peak working set about 260 MB lower. B fresh matches its base (no cost when the cache is off). Landmark hash D6B4846D on every arm. **PASS** (measure job; nothing slower).
+
+- Shas: B `world/island-cache` 47f5490a (row 4), Profile build. A1 = its base, main 393a9c20, for a fair comparison. A2 = current main 6fc00007 for reference (it carries W-134's extra ~1.1 s in "places"). Profile builds, `-display 1920x1080,windowed`, `-fpscap 0`, `-gfx High`, `-weatherseed 4`, `-benchstops none`, 3 runs per arm, rotated per round (base, main, fresh, hit; reversed in round 2).
+- Timing: "BenchRoute: world ready" = the island-ready frame, seconds since launch. The peak working set is sampled every 2 s.
+
+| arm | runs | `[island]` line | island load ms | v3 ready s | world ready s (mean) | stream world ready s | peak MB (mean) | system MB |
+|---|---|---|---|---|---|---|---|---|
+| A1 base 393a9c20 | 3 | (no cache) bake | 5898 / 6111 / 5888 | 10.0-10.3 | 10.77 | 14.3 | 1982 | 682 |
+| A2 main 6fc00007 | 3 | (no cache) bake | 6970 / 6990 / 7007 | 11.2 | 11.83 | 15.4 | 1994 | 682 |
+| B fresh (`-freshisland`) | 3 | `cache miss bypass (-freshisland)` | 5836 / 5833 / 5827 | 9.9-10.1 | 10.47 | 14.2 | 1803 | 682 |
+| B hit | 3 | `cache hit .../IslandCache/island-v3-1a206a8b.bin 24.22 MB` | 261 / 259 / 259 | 4.4 | 4.80 | 8.4 | 1718 | 681 |
+
+- First launch (row 4's "hit on first launch") is **not tested here**. Batch-mode BuildDev builds ship only the stamp, because the build step copies the editor's cache file only after the editor has played. So the warm-up launch logged `cache miss no file 6013 ms`, baked, and saved the user copy, and every hit run read that user copy. A build made from an editor that has played is needed to check row 4.
+- No editor (Play) timings on the main PC: these were player builds only.
+- Odd: "audits skipped on a cache hit" did not appear in the hit logs. The hit logs print "v3 loaded from the island cache in 261 ms" instead.
+- 0 exceptions, no crash. B fresh's peak is about 180 MB below its base's. Fresh doesn't write the file, but the reason is not checked.
+
 ## 2026-11-11: jobs 55 + 57 (W-134) â€” main PC, provisional
 Both PASS on the main PC. Arms: (A) main 393a9c20, (B) `world/cave-water` 75c98a00 (covers rows 1-4). Profile builds, 1920x1080 windowed, High, -fpscap 0, -weatherseed 4, ABBA, 2 rounds, 300+ frames per view. Medians are over both rounds.
 - Runner: the bench route and profiler-capture tools were taken from `b/bench-stress` (62798d41) and copied in only for each build. Earlier runs at 3840x2160 fullscreen came from saved display prefs overriding -screen flags. They were discarded and everything was re-run with `-display 1920x1080,windowed`.
