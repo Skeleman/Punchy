@@ -181,8 +181,8 @@ namespace Punchy.Terrain
     /// </summary>
     public struct CaveWaterfall
     {
-        /// <summary>How far the water carries out from the lip as it falls (m).</summary>
-        public const float Reach = 0.9f;
+        /// <summary>How far a notch's water carries out from the lip as it falls (m): the reach when Reach is 0.</summary>
+        public const float NotchReach = 0.9f;
         /// <summary>The lip, on the wall.</summary>
         public float3 Lip;
         public float Width;
@@ -197,6 +197,8 @@ namespace Punchy.Terrain
         public float Spray;
         /// <summary>W-134 row 4 fix: how far out from the lip the water lands (m); 0 for a notch's usual short reach.</summary>
         public float Reach;
+        /// <summary>How far out from the lip the water lands (m): Reach, or NotchReach for a notch.</summary>
+        public float Carry => Reach > 0f ? Reach : NotchReach;
     }
 
     /// <summary>

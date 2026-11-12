@@ -25,7 +25,7 @@ namespace Punchy.Ambience
         /// <summary>Flame effects are lit within this distance (they're small; FireSystem draws them each frame).</summary>
         const float FlameRange = 150f;
         /// <summary>How far a cave's waterfall carries out from its notch as it falls (m).</summary>
-        const float FallReach = Punchy.Terrain.CaveWaterfall.Reach;
+        const float FallReach = Punchy.Terrain.CaveWaterfall.NotchReach;
         /// <summary>River waterfalls: how far the water carries out as it falls (m), the distance they are drawn from, and the index offset.</summary>
         const float RiverFallReach = 1.6f, RiverFallRange = 350f;
         const int RiverFallBase = 1000000, GrandFallBase = 2000000;

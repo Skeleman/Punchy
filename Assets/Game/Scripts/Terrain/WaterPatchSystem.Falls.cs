@@ -144,7 +144,7 @@ namespace Punchy.Terrain
                 for (int k = 0; k < caveFalls.Length; k++)
                 {
                     var f = caveFalls[k];
-                    var middle = f.Lip + new float3(f.Out.x * CaveWaterfall.Reach * 0.5f, -f.Drop * 0.5f, f.Out.y * CaveWaterfall.Reach * 0.5f);
+                    var middle = f.Lip + new float3(f.Out.x * f.Carry * 0.5f, -f.Drop * 0.5f, f.Out.y * f.Carry * 0.5f);
                     Consider(CaveFallBase + k, math.max(f.Drop, f.Width), middle, view, ref best, ref bestPixels, ref heldPixels);
                 }
             }
@@ -220,7 +220,7 @@ namespace Punchy.Terrain
         static FallShape CaveShape(CaveWaterfall f)
         {
             var o = math.normalizesafe(f.Out, new float2(0f, 1f));
-            float reach = CaveWaterfall.Reach;
+            float reach = f.Carry;
             return new FallShape
             {
                 Corner = (int2)math.floor(f.Lip.xz) - FallWidth / 2,
@@ -240,7 +240,7 @@ namespace Punchy.Terrain
             var o = math.normalizesafe(f.Out, new float2(0f, 1f));
             var across = new float3(o.y, 0f, -o.x);
             var outward = new float3(o.x, 0f, o.y);
-            var reach = CaveWaterfall.Reach;
+            var reach = f.Carry;
             int columns = math.max(1, (int)math.ceil(f.Width)), drops = math.max(1, (int)math.ceil(f.Drop / 2f));
             var data = new float4(o, 0.3f, 0.5f);
             // (Row r's near edge: r 0 is the run-in's start, r 1 the lip, r 1 + drops the landing.)
