@@ -2,6 +2,31 @@
 
 Newest first.
 
+## 2026-11-11: jobs 55 + 57 (W-134) — main PC, provisional
+Both PASS on the main PC. Arms: (A) main 393a9c20, (B) `world/cave-water` 75c98a00 (covers rows 1-4). Profile builds, 1920x1080 windowed, High, -fpscap 0, -weatherseed 4, ABBA, 2 rounds, 300+ frames per view. Medians are over both rounds.
+- Runner: the bench route and profiler-capture tools were taken from `b/bench-stress` (62798d41) and copied in only for each build. Earlier runs at 3840x2160 fullscreen came from saved display prefs overriding -screen flags. They were discarded and everything was re-run with `-display 1920x1080,windowed`.
+- `-place cavepool` picks the deepest pool, which is a different pool in each arm (B: lake hall pool 1; A: pool 9). So (a) was run at pool 9 in both arms via `-goto 1526.3,0.5,-2628.3`.
+- Draws, SetPass and triangle counters came back invalid in these builds, so they are not reported. The stream view's GPU timer reads garbage, so CPU only there.
+
+| view | A median ms / 1% low fps | B median ms / 1% low fps | worst A / B ms | >2x median A / B (r1/r2) |
+|---|---|---|---|---|
+| 55(a)/57(a) cave pool 9 (same pool) | 2.60 / 179 | 2.60 / 192 | — | noise only (median 2.6 ms, so 2x is 5.2 ms) |
+| 55(b) rapids below fall 74 | 5.40 / 124.5 | 5.35 / 130.4 | 10.5 / 11.2 | 0/0 / 1/0 |
+| 55(c) lake swim 488,-1144 | 5.60 / 120.2 | 5.70 / 123.2 | 11.0 / 10.8 | 0/0 / 0/0 |
+| 57(b) stream cave | 2.80 / 202 | 2.80 / 195 | 7.2 / 6.9 | 9/3 / 22/3 (all under 7 ms) |
+| 57(h) small deep cave 1 | 2.20 / 213.9 | 2.20 / 214.8 | 6.0 / 5.9 | 58/58 / 60/57 (all under 6 ms) |
+| 57(c) walk 250 m out -> mouth -> pool 9 at 6 m/s | 5.55 / 113.9 | 5.70 / 109.2 | 12.5 / 11.3 | 1/0 / 0/0 |
+
+- 55 pass line (a): profiler at pool 9, PlayerMovementSystem 0.10 ms (A) vs 0.105 ms (B). WaterPatchSystem and CreatureWakeSystem fall below the capture's 0.03 ms self-time cut in both arms. All three together are well under +0.1 ms. (b) and (c) are within noise; (c) is +1.8% on the median with a better 1% low.
+- 57 pass line: (a), (b) and (h) are within noise. (c) has no new hitch: B has 0 frames over 2x median against 1 in A, and its worst frame is 11.3 ms. The bake on approach doesn't show as a hitch.
+- Measures in B (the A arm stands on the surface at these points, with hidden 0.00, so it is a reference only):
+  - (d) lake 1 hall: 6.20 ms, 1% low 92.8, hidden 0.95 (A surface 5.90 / 125.5).
+  - (f) river chamber 0: 6.10 ms, 1% low 103.4 (A 5.70 / 124.8).
+  - (g) chamber 1 chute: 6.25 ms, 1% low 84.8, 12 frames over 2x median in r1 only, worst 14.1 ms (A 5.70 / 123.1, 0 over).
+  - The chambers cost about 0.4-0.55 ms median and roughly 20-30% of the 1% low compared with the surface at the same point. Memory is flat: gfx about 800 MB and system about 1.95 GB in both arms.
+- Load: world ready 10.6 s (A) vs 11.7-11.8 s (B), so +1.1 s. Cave bake about 1.02 s in A vs about 1.83 s in B. The new steps are (e)/(i): lakes 169-171 ms, rivers 543-551 ms, lake details 27-28 ms, river details 41-42 ms. Rivers is the big one.
+- Not yet done: the laptop numbers. The +1.1 s load and the (g) r1 hitches are worth a look by the world lane.
+
 ## 2026-11-05: job 34, new shadow defaults (PR #158) vs old, main c19e799: shadow-pass GPU halved where flora shadows matter (fishing village 3.5 -> 1.5 ms, +7.6 fps; swamp 4.3 -> 2.2 ms, +5.3 fps); forest and desert unchanged. CPU shadow cost unchanged. No hitches over 300 ms; 0 frames of 0.5 s and 0 hangs in 2 sweep sessions. Details: REPORTS-profiler.md.
 
 ## 2026-11-05: job 29, #132 fix (A-68 row 1, 3d66652c) before/after: fishing villages +3 to +38% (v3 village 3: 64 -> 89 fps). Brain.Walls is gone; what's left at v2 village 3 is Brain.Built, 5.4 ms (the building check for wild animals near a player)

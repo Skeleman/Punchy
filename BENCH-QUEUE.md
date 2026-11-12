@@ -559,7 +559,7 @@ W-136 on `world/ground-contact-shade` (builds on W-135): terrain chunks bake dar
 - Record whole-frame GPU, CPU and render-thread ms per arm and view.
 - Pass: B within noise of A on every view (no shader change, so GPU should match); no new hitch over 2x median on load or the run.
 
-## Job 55 (2026-11-11, MAIN PC (J-045, 11-11): profiler skip this job; the main-account bench agent runs it; was QUEUED after 54; supervisor, for W-134 row 1): cave water through the one ground query
+## Job 55 (2026-11-11, DONE main PC provisional (see BENCH-REPORTS); MAIN PC (J-045, 11-11): profiler skip this job; the main-account bench agent runs it; was QUEUED after 54; supervisor, for W-134 row 1): cave water through the one ground query
 W-134 row 1 on `world/cave-water`: SampleGround(float3) answers cave pools and streams below the terrain surface (one compare on the surface, then a per-cave box test); wakes, the R-9 field, swimming and river current now query with 3D positions.
 - Arms: (A) origin/main 393a9c20 or newer; (B) `world/cave-water` at 0a726943 or newer. Profile builds, 1920x1080, High, uncapped, ABBA, 300 frames per arm.
 - Views: (a) `-place cavepool`, the player swimming/wading in the pool; (b) a surface river, the R-9 rapids below fall 74; (c) a lake swim, `-goto 488,-1144` at y 9.2 (job 45's).
@@ -577,7 +577,7 @@ W-132 row 2 on `world/far-lite`: far LOD chunks use runtime material copies with
 - Extra leg on the B build only: PUNCHY_FARSKIRT=0 vs default, and PUNCHY_FARDISC=0 vs 1, at (c) at 18:00 and at noon; record GPU/CPU ms, draws, and the Water and Skybox pass times (the sun road lives there). Pass: the skirt costs under 0.3 ms GPU at High.
 - 11-11: arm B at 4eabc7c7 or newer (W-132 row 4b; SunRoad default 1 = row 4's road, Zach's pick; also run one sunset view with env PUNCHY_SUNROAD=2 to price the stronger option); same views, plus the sea sunset from the shore.
 
-## Job 57 (2026-11-11, MAIN PC (J-045, 11-11): profiler skip this job; the main-account bench agent runs it; was QUEUED after 56; supervisor, for W-134 row 2): baked cave water
+## Job 57 (2026-11-11, DONE main PC provisional (see BENCH-REPORTS); MAIN PC (J-045, 11-11): profiler skip this job; the main-account bench agent runs it; was QUEUED after 56; supervisor, for W-134 row 2): baked cave water
 W-134 row 2 on `world/cave-water`: cave pools and streams are baked as 0.5 m quads fitted to the carved floor (a Burst bake job per cave when it first comes within LoadRadius), tiled, each tile drawn only while big enough on screen. Pool 2: 540 -> 2939 triangles; pool 8: 1040 -> 4706.
 - Arms: (A) origin/main 393a9c20 or newer; (B) `world/cave-water` at 54dd9ff3 or newer. Profile builds, 1920x1080, High, uncapped, ABBA, 300 frames per arm. Can share a session with job 55 (same branch).
 - Views: (a) `-place cavepool`, looking over the pool; (b) a stream cave if one can be placed; (c) the walk from the cave mouth to the pool (the bake fires on approach): list frames over 2x the median.
