@@ -503,12 +503,12 @@ Pass: row 6 <= +0.2 ms GPU over row 5 at both views, CPU within noise.
 - Spots: job 49's storm shadow and storm noon, and the hive spot at noon (Partly cloudy). 3 rounds rotated; shots of every arm to compare the shadows. q93.sh.
 - Purpose: R-12's per-pixel shadow cost (and the cloud shadow's cost from before it) moved into a bake a few times a second.
 
-## Job 45i (2026-11-11, RUNNING (q94.sh); Zach in the profiler session): the wave field's cheaper forms
+## Job 45i (2026-11-11, REPORTED 11-11 (Medium: every form within noise of off, no sheet drawn at Medium; tess re-test q96); q94.sh; Zach in the profiler session): the wave field's cheaper forms
 - One Profile build of Punchy `b/water-rows-fixes` d2c748a6: cuts 4 (default), `-waterfieldcuts 2`, `-waterfieldtess 1` (prototype: CPU cut 2, the GPU tessellates up to 4x more by screen size; Water.shader's passes now shared through includes), `-waterfieldnormals 1` (no sheet; the field only shades the chunk water: Zach's preferred fallback and far-range form), and `-waterfield 0`. Job 45c's lake swim, 4 rounds rotated, shots of every arm. q94.sh.
 - Bar (45c's): <= +0.3 ms GPU over off.
 - Added 11-11 (supervisor, Zach, rule 23): run the same arms once more at `-gfx Medium` and report both presets. The result decides R-9 row 7: a form that passes at Medium stays on by default; otherwise the wave field becomes a Dynamic water setting (High/Ultra Full, Medium the normals-only form if it passes, else Off).
 
-## Jobs 49d and 45j (2026-11-11, QUEUED after 45i; Zach in the profiler session): R-12 band trial, R-10 variant pricing
+## Jobs 49d and 45j (2026-11-11, RUNNING (q95.sh); Zach in the profiler session): R-12 band trial, R-10 variant pricing
 - 49d: Punchy `b/r12-trims` c43b5eaf: plain, `-skyoff 1024`, `-skyoff 8192` (the march keeps the last warp on steps 800 m outside the cloud layer). Job 49's storm night and noon, 3 rounds.
 - 45j: R-10 `b/r10-trims` a1cb1899 vs `b/r10-nocluster` a378b7e6 (no cluster variant in creatures, plants, grass, pebbles, temple; pricing only, not for merge) vs main 60edfacb at the town view, 3 rounds; then RenderDoc frames of all three. q95.sh.
 

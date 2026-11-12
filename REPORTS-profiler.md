@@ -2,6 +2,40 @@
 
 Newest first.
 
+## Job 45i: the wave field's forms at High and Medium (b/water-rows-fixes f053c7bf), 2026-11-11 (q94.sh): all within noise of off at Medium
+**Setup:**
+- One Profile build. Job 45c's lake swim, 1920x1080, uncapped, `-body default`, 4 rounds rotated per preset.
+- Tables from report.py. Stalled rounds are counted here: 11 of 52 games had a 20–80 s swapchain stall, and their GPU means look normal.
+
+| arm (GPU ms, mean of 4) | High | vs off | Medium | vs off | sheet indices (High / Medium) |
+|---|---|---|---|---|---|
+| off (`-waterfield 0`) | 18.6 | | 18.0 | | — |
+| cuts 4 (default) | 19.05 | +0.4 | 18.05 | **+0.05** | 288–768 / **0** |
+| cuts 2 | 18.9 | +0.3 | 17.5 | −0.5 | 0 / 0 |
+| normals only | 18.9 | +0.25 | 18.0 | **0.0** | 0 / 0 |
+| "tess" | 18.65 | +0.0 | 17.95 | −0.05 | (see below) |
+
+**The tessellation arm wasn't tessellating.**
+- Its shader failed to compile (WaterTess.hlsl: the lerp macro's parameter `x` also rewrote `bary.x`), so the game logged a warning and fell back to a plain CPU cut of 2. That arm is a second cuts-2 run.
+- Its spread against the cuts-2 arm (High +0.0 against +0.3, Medium −0.05 against −0.5) shows **this view's noise is about ±0.3–0.5 ms**. That's as large as the bar.
+- Fixed in 483592ad; re-tested as q96 (the first job.sh spec).
+
+**At Medium the fine sheet is never drawn.** Every game logged "sheet 0 indices": at Medium's view and detail, the screen-size tiers never cut a cell.
+- So at Medium every form is the normals-only form: the field steps, and the chunk water takes its slope (fix 1).
+- **That costs nothing measurable: +0.05 and 0.0 ms over off, so it passes Medium's +0.3 bar.**
+- **R-9 row 7:** on these numbers the wave field can stay on by default, and the Dynamic water setting would only add the switch. Zach should know, though, that **Medium already shows no displacement** on this swim.
+
+**Even at High, cuts 4 cuts very little here:** 288–768 indices, about 50–130 triangles round the swimmer. Cuts 2 cuts nothing at all. So most of what the 45c-era sheet did is already gone at this view, and High's +0.25–0.4 over off is mostly the field's step and shading.
+- If Zach liked the wake's look at cuts 4 in play, that was likely with the camera closer than the bench's. Its look should be checked at the normal play camera.
+
+**Rapids, row 6's trim 3 (the flow-anchor loop not unrolled): no gain.** At High: row 5 at 20.7, unrolled 21.45 (+0.75), loop 21.65 (+0.95). The loop is within noise of unrolled. Row 6 stays about +0.75 over row 5 at the rapids (job 45f had +2.1).
+
+**Stalls:** 11 of 52 games stalled, often enough to drag the 1% lows (8–20 fps in those arms). This is worth the swapchain-stall card's attention.
+
+Files (Punchy-wt results): q94.out, q94-*.csv, q94logs/, q94-shots/.
+
+Cost: laptop total $775 (laptop session 0a48ccdb; 1 build, 49 games).
+
 ## Job 49c: cloud shadow map prototype (Punchy b/cloud-shadow-map 88ee4c89), 2026-11-11 (q93.sh): saves 0.8–1.3 ms over a forest, nothing in the storm views
 **Setup:**
 - One Profile build (main 393a9c20 plus the map), 1920x1080, High, uncapped, `-body default`, 3 rounds rotated.
