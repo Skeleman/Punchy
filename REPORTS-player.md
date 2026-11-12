@@ -1378,3 +1378,36 @@ Anything held now goes in either hand, for players and folk.
 
 **Next:** row 3 of taking folk items (restock walk, guard report by mood) waits for the supervisor's go on the
 animal-lane brain files.
+
+## DONE: a hand each, attack and block, new pad layout (player/take-items 92b74cba; Zach 11-12)
+
+Zach's layout:
+- **Attack:** left click or LT/L2 swings the left hand's item; right click or RT/R2 the right's. A two-handed item
+  answers either.
+- **Block (hold):** Alt + that click, or LB/L1 or RB/R1. The hand raises its item across in front; a two-handed item
+  goes up with both arms. A raised hand doesn't swing.
+- **Sheathe:** the pad's left face button; H stays on the keyboard.
+- **Use:** the pad's bottom face button, shared with Jump. When a Use prompt is up (UseKey.Offer), it uses and doesn't
+  jump.
+- **Inventory:** View/Select on the pad.
+- **Keyboard only now:** weather (K) and the frame-rate cap (F4).
+- **Also moved:** fishing casts and the animal-body lunge (Player/Attack) now fire on either click or either trigger.
+  The Keys tab lists all of it.
+
+Messages:
+- The block is one more SlotRpc place (BlockPlace 203).
+- The left swing is its own LeftSwingRpc, because adding a byte to SwingRpc broke reading it. The receiver read 32 bits
+  where 40 were sent, and the client was dropped (the same thing happened to GearRpc earlier).
+- Gotcha worth a line in multiplayer.md: don't grow an existing RPC; add a new one.
+
+Results:
+- Solo: the block cycled left/right/both/lowered with sword + shield, and two swords swung right then left
+  (`Take/hb-sheet.jpg`, `hs-sheet.jpg`).
+- Host + client: the client saw the host's sword, shield, every block change and 7 right swings, with 0 deserialize
+  errors.
+- Lint rc 0. Suite 25/1/17: the failure was LiveFolk_BeastResponse, the known flake. FolkConversationTests then passed
+  7/0 twice. Fingerprint AD723954.
+- UNVERIFIED:
+  - Left-hand swings over the network: the host's left held a shield, which doesn't swing.
+  - The pad's Use and Jump sharing, and Alt+click, with a real pad and mouse: the tests drive flags, not devices.
+  - The animal-body lunge (animal lane) also fires on Alt+click while empty-handed.
