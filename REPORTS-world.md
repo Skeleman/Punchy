@@ -5986,3 +5986,17 @@ Branch `world/mountain-tunnels` at f6217674 (pushed), on a149c17f. One commit: C
   2. Lava's churn now runs about 3.3x slower (tk). Its speed was tuned at playtest 11-08 item 37, so Zach may want to look.
   3. Swell (sea) waves are not scaled, since they only run on the sea.
 - **BENCH-QUEUE:** the field step now samples one more texture per texel, and the viscosity rebuild, a main-thread loop over the square's corners and the nearby liquids, runs when the square moves. Neither is timed. Please queue a bench of a lake walk and the MudPits, main against world/no-water-discs.
+
+## W-135 row 6b (world/cave-walk-46s)
+
+- **Branch:** world/cave-walk-46s, commit 04727e01 (parent 6c3588b6), pushed.
+- **Cause, from counts (not timed):** on main, two finest cave wall rebuilds (wall level 0, 300,763 field points each) start on back-to-back frames. RebuildsPerFrame is 1 and MaxRebuilding is 2, so nothing stops the second one starting the frame after the first. The main thread runs field batches while it waits on its own jobs, so the pair lands as one heavy frame. In the c5 walk probe the pair falls at frames 14368/14369 (25 m inside the mouth), which matches the bench player spot and job 61's +3 ms then +9 ms frame pair. Arm C (level forced to 0, so no level rebuilds) has no spike, which fits.
+- **Fix:** a rebuild starts only if the builds in flight plus this one sample no more points than one finest chunk, or when nothing is in flight. CaveSystem now counts the points per build and reports `Counts.FlightPoints`. The second finest rebuild waits a few frames for the first to land. No constants, placement or bake data changed.
+- **Probe (c5 walk, counts):**
+  - Max flight points: 300,763 (one finest chunk). Frames above that: 0.
+  - Back-to-back finest starts: 0 (main: 7).
+  - Totals unchanged: level rebuilds 285 (finer 229, coarser 56, empty 79), uploads 207, verts 705,035, points 40.2M, swaps 285, flips 10.
+  - Incidentally, max uploads per frame dropped from 2 to 1. Max rebuilding per frame is still 2, now only for level-1 builds.
+- **Checks:** PlayMode suite 45 cases: 28 passed, 0 failed, 17 skipped. lod-lint exit 0.
+- **Pins:** Landmarks_V3 112 A955AFE0 and Fauna_Fingerprint AD723954 both pass, unchanged (the branch is off an older main; no placement change).
+- **BENCH-QUEUE:** please rerun job 61 on the c5 walk (`walk -goto -2810,27,-556`): arm A origin/main, arm B world/cave-walk-46s. The 46.1 s frame should be gone; the cost is that the cave walls refine a few frames later near a mouth.
