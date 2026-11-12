@@ -5866,3 +5866,28 @@ Branch `world/mountain-tunnels` at f6217674 (pushed), on a149c17f. One commit: C
 - **Checks:** no placement changes (Dim draws no random numbers, and Find() lists the same caves and grottos). No compile or shader errors. Every shot was checked at small size. No timing was done.
 - **For the supervisor:** Crystal.asset is a landmark asset, so editing it re-bakes. The layout came out the same here. CavePlant gains a float, so any fingerprint that hashes raw plant structs will move.
 - **Shots:** D:/Unity/PunchyMilestones/W-146/row2-off-on.png. Rows 1-3: crystal p0, crystal p1 and grotto mid, lantern off and on. Row 4: plain Rock p1, off and on. Row 5: crystal p0 and p1 before the change (lantern off). Raw shots use the suffix -r2b.
+
+## W-148
+
+### Row 1: list every disc (#277)
+- **Branch:** world/no-water-discs, from origin/main 6c3588b6. No code changes yet; the probe is untracked (`W148Probe.Inventory()`).
+- **Method:** counts come from the baked blobs on the current seed: landmark pools (`LandmarkSampling.Pool`), cave pools and streams, bat folk `WhitePools`, settlement well plots, and landmark props that are wells or fountains. Loaded counts come from reflection on CaveSystem and FloraSystem.
+
+| Water | Drawn as today | On this seed | Where (examples) | W-134 baked tiles? | Swim/wade today |
+|---|---|---|---|---|---|
+| Cave water pools and lakes | lattice tiles fitted to the carved floor | 15 pools (4 lake halls), 8 streams | lake halls #1 (-2600,334), #2 (-2597,343), #4 (-2709,-618) | yes | yes (`SampleGround(float3)` returns CaveWater) |
+| Bat folk white pools | baked tiles, white submesh drawn with `_SoftRim` (alpha x0.55 plus a soft white rim) | 1 | #4 (-2709,-618) | yes, plus the soft-rim look | yes, as cave water |
+| Cave lava pools | one shared disc (`CaveSystem.DrawPools`) plus glow | 1 | (-210,-2729) | no | no (WaterAt skips lava; harm and keep-out rules) |
+| Landmark pools | one disc mesh each, radius x1.1 (`CaveSystem.DrawLandmarkPools`); left out of the chunk water sheet | 36: MudPits 24, HotSprings 3, BrinePools 3, Waterfall 2, Oasis 1, DesertSpring 1, Geyser 1, MarshFolkVillage 1 | MudPits (556,-3429), Oasis (3616,691), Geyser (-2427,2450), MarshFolk (-1240,320) | no | yes (`PoolWater` feeds WaterSurface) |
+| Toxic pools (ToxicGeyser) and crater lava (VolcanoCone) | landmark pool disc with glow/lava look | 0 on this seed (both types exist with pools) | none | no | toxic: as water; lava: no |
+| Elven fountain, near | two discs (basin and upper bowl) from `FloraSystem.DrawBasins`, within a fixed 80 m `DetailRange` | 1 ElfGrove centrepiece | (-2511,-1518) | no | no |
+| Elven fountain, far | two blob discs inside the model (stand-in) | same fountain | same | no | no |
+| Wells (towns, inns, dwarf holds) | dark blob disc in the model at 0.25 m, no Pools entry | 4: HumanVillage 1 and LoneInn 1 (props), DwarfHold 1 and DwarfMiningCamp 1 (well plots) | (2972,-885), (1169,-3083), (-3280,1581), (-1970,650) | no | no |
+| Dungeon wells | iron drum disc (`DungeonProps`, DungeonContent.Well) | rolled per socket at spawn, so not in the baked data | dungeon sockets | no | no |
+| Cave mouth pools | no separate kind found; pools near a mouth are ordinary cave pools or landmark pools | none separate | none | n/a | n/a |
+
+- **Loaded at the spawn point:** 36 landmark pool meshes (all of them are built at load, and each is drawn within LoadRadius), 0 fountain basins, 0 cave water tiles.
+- **What row 2 changes:** cave water is already basin-fitted. Row 2 is mainly about the white pools: take them off the `_SoftRim` submesh so they draw as ordinary water with a white look.
+- **For the supervisor:**
+  1. This seed has too few of some kinds for the shots. Row 2 asks for 3 cave lakes and 2 white pools; there are 4 lake halls but only 1 white pool. Row 4 asks for 2 lava and 2 toxic pools; there is 1 cave lava pool, and no ToxicGeyser or VolcanoCone. Unless you say otherwise, I will take the missing kinds from the debug switches (`-whitepools` marks every cave pool white; this changes the look only, not the bake) and say which shots used them. Toxic and crater lava may need another seed. Tell me which one to use if you have a preference.
+  2. `FloraSystem.BasinRange` is a fixed 80 m range, which breaks rule 20. It goes away in row 3, when the fountain basins become real water.
