@@ -46,6 +46,25 @@ namespace Punchy.Items
             return bobber;
         }
 
+        static Mesh splash;
+
+        /// <summary>P-33 row 2: a bite's splash, a ring of eight droplets 0.12 m out on the water (scaled out as it grows).</summary>
+        public static Mesh Splash()
+        {
+            if (splash != null)
+                return splash;
+            var k = new Kit();
+            for (int i = 0; i < 8; i++)
+            {
+                var a = i * Mathf.PI * 2f / 8f;
+                k.Blob(0, new Vector3(Mathf.Cos(a) * 0.12f, 0.02f + (i % 2) * 0.02f, Mathf.Sin(a) * 0.12f), new Vector3(0.022f, 0.03f, 0.022f), (uint)i, 3, 5);
+            }
+            splash = k.ToMesh();
+            splash.name = "Splash";
+            splash.hideFlags = HideFlags.DontSave;
+            return splash;
+        }
+
         /// <summary>This item's icon, 64 px with a clear background (made the first time it's asked for).</summary>
         public static Texture2D Icon(byte item)
         {

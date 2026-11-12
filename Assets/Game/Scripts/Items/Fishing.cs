@@ -14,12 +14,20 @@ namespace Punchy.Items
 {
     /// <summary>Client → host → everyone (P-33): a player's fishing line. Kind 1: cast to Target (Water 1: onto water, its
     /// surface at Target.y; 0: onto the ground, short of where it was aimed); Kind 2: reeled in. From a client, Player is
-    /// ignored (the host knows who sent it).</summary>
+    /// ignored (the host knows who sent it). Kind 3 (row 2): its stage now (FishStage), with the fish's item and size
+    /// once caught.</summary>
     public struct FishRpc : IRpcCommand
     {
         public int Player;
-        public byte Kind, Water;
+        public byte Kind, Water, Stage, Item, Size;
         public float3 Target;
+    }
+
+    /// <summary>Where a line on the water is (P-33 row 2): waiting, a bite (the bobber dips), hooked (reeling, the line
+    /// taut), caught (reeled in with the fish on it), or lost (missed or snapped: the bait gone, reeled in empty).</summary>
+    public static class FishStage
+    {
+        public const byte Waiting = 0, Bite = 1, Hooked = 2, Caught = 3, Lost = 4;
     }
 
     /// <summary>
@@ -32,8 +40,14 @@ namespace Punchy.Items
     /// RodTip, where the rod is drawn) to the bobber. The cast is the rod's flick (the weapon swing). A client tells the
     /// host and the host tells everyone (FishRpc), so others see the cast and the bobber; a player who joins later doesn't
     /// see a line already out until it is cast again.
-    /// Test flags: "-cast 0.8;0.4" casts with those charges (0-1), the first 5 s after a rod is in hand and then every
-    /// 12 s, each reeled in 8 s after it was cast; "-castwater" turns the body first toward the nearest water in reach,
+    /// Row 2: what bites comes from FishSource (IFishSource; a stub table by kind of water until A-100). After its wait the
+    /// bobber dips with a splash and its sound; press within BiteWindow to hook it, then hold to reel (the line tightens,
+    /// more while the fish runs; let go to slacken it): wound in, the fish (a Fish item; its kind and size in the log and
+    /// a note) goes to the inventory and hangs from the rod tip a moment; a missed bite or a snapped line loses the bait.
+    /// Each stage goes to everyone (FishRpc Kind 3), so others see the bite, the fight and the catch.
+    /// Test flags: "-cast 0.8;0.4" casts with those charges (0-1), the first 5 s after a rod is in hand, each next one 3 s
+    /// after the line before is in (one with nothing on it is reeled in after 30 s); "-fishplay hook|miss|snap" plays the
+    /// bite and the reel; "-castwater" turns the body first toward the nearest water in reach,
     /// and the camera to look out along the cast from a little to one side.
     /// </summary>
     public partial class Items
@@ -45,7 +59,18 @@ namespace Punchy.Items
             public float3 Target;
             public float Bed, Cast, Reeled;
             public bool Water;
+            /// <summary>Row 2: its FishStage and since when (Time.time), and the fish caught (item id and cm).</summary>
+            public byte Stage, Fish, Size;
+            public float StageAt;
         }
+
+        /// <summary>Row 2: what bites (IFishSource; A-100's tables replace the stub in row 3).</summary>
+        public static IFishSource FishSource = new StubFishSource();
+        /// <summary>How long a bite lasts before the fish lets go (s), and how long a catch hangs from the rod tip (s).</summary>
+        const float BiteWindow = 0.9f, CatchShow = 1.5f;
+        /// <summary>The reel (row 2): holding the button winds in (Wind of the way a second, slower while the fish runs) and
+        /// tightens the line (Tighten a second, more while it runs); letting go slackens it (Slacken a second). At 1 it snaps.</summary>
+        const float Wind = 0.32f, Tighten = 0.4f, RunTighten = 0.55f, Slacken = 0.75f;
 
         /// <summary>The shortest cast (m), how long the button is held for the longest (s), and the reel's length (s).</summary>
         const float MinCast = 4f, ChargeTime = 1.2f, ReelTime = 0.8f;
@@ -73,6 +98,15 @@ namespace Punchy.Items
         int castDone;
         float castNext = -1f;
         bool castWaterArg;
+        FishBite ownBite;
+        bool ownBiteSet;
+        float ownTension, ownProgress;
+        uint castCount;
+        /// <summary>Testing: "-fishplay hook" (strike at the bite, reel keeping the line under 0.7), "miss" (never
+        /// strike), "snap" (strike, then hold until it snaps).</summary>
+        string fishPlayArg;
+        string catchNote;
+        float catchNoteUntil;
 
         void FishArgs(string[] args)
         {
@@ -85,6 +119,9 @@ namespace Punchy.Items
                     float.TryParse(parts[i], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out castArg[i]);
             }
             castWaterArg = System.Array.IndexOf(args, "-castwater") >= 0;
+            var play = System.Array.IndexOf(args, "-fishplay");
+            if (play >= 0 && play + 1 < args.Length)
+                fishPlayArg = args[play + 1].ToLowerInvariant();
         }
 
         bool HoldingRod()
@@ -109,30 +146,49 @@ namespace Punchy.Items
             // (A short cast onto ground reels itself in once it has dropped.)
             if (ownOut && !ownLine.Water && ownLine.Reeled < 0f && Time.time > ownLine.Cast + flight + GroundLie)
                 Reel(false);
-            if (ownOut && ownLine.Reeled >= 0f && Time.time > ownLine.Reeled + ReelTime)
+            if (ownOut && ownLine.Reeled >= 0f && Time.time > ownLine.Reeled + ReelTime + (ownLine.Stage == FishStage.Caught ? CatchShow : 0f))
                 ownOut = false;
             if (ownOut && !ownLanded && ownLine.Reeled < 0f && Time.time > ownLine.Cast + flight)
             {
                 ownLanded = true;
+                ownLine.StageAt = Time.time;
                 Debug.Log($"[fish] landed {(ownLine.Water ? "on water" : "on the ground")} at ({ownLine.Target.x:F1}, {ownLine.Target.y:F2}, {ownLine.Target.z:F1}), " +
                           $"{math.distance(me.Position.xz, ownLine.Target.xz):0.0} m out");
             }
-            if (panel || Punchy.UI.Overlay.AnyOpen)
+            // (In the inventory or a menu the button does nothing, but a bite still comes and goes, and a hooked fish
+            // still pulls on a line that isn't being wound.)
+            var open = panel || Punchy.UI.Overlay.AnyOpen;
+            bool pressed = false, released = false, held = false;
+            if (!open)
             {
-                aimFrom = -1f;
-                return;
+                var mouse = Mouse.current;
+                var pad = Gamepad.current;
+                var mouseOn = mouse != null && Cursor.lockState == CursorLockMode.Locked;
+                pressed = mouseOn && mouse.leftButton.wasPressedThisFrame || pad != null && pad.buttonWest.wasPressedThisFrame;
+                released = mouseOn && mouse.leftButton.wasReleasedThisFrame || pad != null && pad.buttonWest.wasReleasedThisFrame;
+                held = mouseOn && mouse.leftButton.isPressed || pad != null && pad.buttonWest.isPressed;
             }
-            var mouse = Mouse.current;
-            var pad = Gamepad.current;
-            var mouseOn = mouse != null && Cursor.lockState == CursorLockMode.Locked;
-            var pressed = mouseOn && mouse.leftButton.wasPressedThisFrame || pad != null && pad.buttonWest.wasPressedThisFrame;
-            var released = mouseOn && mouse.leftButton.wasReleasedThisFrame || pad != null && pad.buttonWest.wasReleasedThisFrame;
+            var onWater = ownOut && ownLanded && ownLine.Water && ownLine.Reeled < 0f;
+            if (fishPlayArg != null && onWater)
+                (pressed, held) = TestPlay();
             if (pressed)
             {
-                if (ownOut && ownLine.Reeled < 0f)
+                // (A press strikes at a bite; while waiting it reels in; with no line out it starts the aim.)
+                if (onWater && ownLine.Stage == FishStage.Bite)
+                    Hook();
+                else if (ownOut && ownLine.Reeled < 0f && ownLine.Stage == FishStage.Waiting)
                     Reel(false);
                 else if (!ownOut)
                     aimFrom = Time.time;
+            }
+            if (onWater)
+                FishStep(terrain, held);
+            if (catchNote != null && Time.time < catchNoteUntil)
+                prompt = catchNote;
+            if (open)
+            {
+                aimFrom = -1f;
+                return;
             }
             if (aimFrom >= 0f)
             {
@@ -146,22 +202,27 @@ namespace Punchy.Items
             }
         }
 
-        /// <summary>"-cast": the test casts, each turned toward water first with "-castwater", and reeled in 8 s on.</summary>
+        /// <summary>"-cast": the test casts, each turned toward water first with "-castwater", the next 3 s after a line is in.</summary>
         void FishTest(in TerrainSource terrain)
         {
             if (castArg == null || castDone >= castArg.Length || !TryPlayer(out _))
                 return;
             if (castNext < 0f)
                 castNext = Time.time + 5f;
-            if (ownOut && ownLine.Reeled < 0f && Time.time > ownLine.Cast + 8f)
+            // (Nothing bit in 30 s: reel in. The next cast 3 s after a line is in.)
+            if (ownOut && ownLine.Reeled < 0f && ownLine.Stage == FishStage.Waiting && Time.time > ownLine.Cast + 30f)
                 Reel(false);
-            if (Time.time < castNext || ownOut)
+            if (ownOut)
+            {
+                castNext = math.max(castNext, Time.time + 3f);
+                return;
+            }
+            if (Time.time < castNext)
                 return;
             var charge = math.saturate(castArg[castDone++]);
             if (castWaterArg)
                 FaceWater(terrain, math.lerp(MinCast, ItemTable.Items[worn[(int)GearSlot.Hand]].Reach, charge));
             Cast(terrain, charge);
-            castNext = Time.time + 12f;
         }
 
         /// <summary>Testing: turns the player toward the nearest water this far off (every 10 degrees round), if any.</summary>
@@ -227,6 +288,8 @@ namespace Punchy.Items
             ownLine = line;
             ownOut = true;
             ownLanded = false;
+            ownBiteSet = false;
+            castCount++;
             // (The rod's flick is the weapon swing.)
             ownSwing = Time.time;
             Debug.Log($"[fish] cast: charge {charge:0.00}, aimed {distance:0.0} m, {where}");
@@ -264,6 +327,133 @@ namespace Punchy.Items
             }
         }
 
+        /// <summary>
+        /// Row 2, each frame a line is on the water: the bite comes after the source's wait (the bobber dips, a splash and
+        /// its sound) and lasts BiteWindow; struck in time it is hooked. Hooked, holding the button winds in and tightens
+        /// the line, more while the fish runs (it runs in bursts), letting go slackens it: wound all the way in, it is
+        /// caught; at full tension the line snaps. A missed bite or a snapped line loses the bait: the line comes in empty.
+        /// </summary>
+        void FishStep(in TerrainSource terrain, bool held)
+        {
+            var now = Time.time;
+            switch (ownLine.Stage)
+            {
+                case FishStage.Waiting:
+                    if (!ownBiteSet)
+                    {
+                        ownBiteSet = true;
+                        var water = terrain.SampleGround(ownLine.Target - new float3(0f, 0.1f, 0f));
+                        var seed = math.hash(new uint3(castCount, (uint)(int)(ownLine.Target.x * 10f), (uint)(int)(ownLine.Target.z * 10f)));
+                        if (!FishSource.Next(terrain, water, ownLine.Target, seed, out ownBite))
+                            ownBite.Wait = -1f;
+                        else
+                            Debug.Log($"[fish] waiting: a {ownBite.Name} ({ownBite.Size} cm) will bite in {ownBite.Wait:0.0} s");
+                    }
+                    if (ownBite.Wait >= 0f && now > ownLine.StageAt + ownBite.Wait)
+                    {
+                        SetStage(FishStage.Bite);
+                        Punchy.Audio.GameAudio.PlayOneShot(Punchy.Audio.SoundId.Splash, ownLine.Target, 1.4f, 0.5f, 25f, Punchy.Audio.SoundGroup.World);
+                        Debug.Log($"[fish] bite! ({BiteWindow:0.0} s to strike)");
+                    }
+                    break;
+                case FishStage.Bite:
+                    if (now > ownLine.StageAt + BiteWindow)
+                        Lose($"missed: the {ownBite.Name} let go, the bait is gone");
+                    break;
+                case FishStage.Hooked:
+                {
+                    var dt = Time.deltaTime;
+                    var runs = math.sin(now * 2.3f + ownBite.Size) > 0.3f;
+                    ownTension = math.max(0f, ownTension + dt * (held ? Tighten + (runs ? RunTighten * ownBite.Strength : 0f) : -Slacken));
+                    if (held)
+                        ownProgress += dt * Wind * (runs ? 0.4f : 1f);
+                    var bars = (int)(math.saturate(ownTension) * 10f);
+                    prompt = $"Reel (hold)  line [{new string('#', bars)}{new string('.', 10 - bars)}]  {math.saturate(ownProgress):P0}";
+                    if (ownTension >= 1f)
+                        Lose($"the line snapped: the {ownBite.Name} got away");
+                    else if (ownProgress >= 1f)
+                        Catch();
+                    break;
+                }
+            }
+        }
+
+        /// <summary>Testing (-fishplay): this frame's press and hold, as a player would.</summary>
+        (bool pressed, bool held) TestPlay()
+        {
+            var t = Time.time - ownLine.StageAt;
+            switch (fishPlayArg)
+            {
+                case "hook":
+                    // (Strike a quarter second into the bite; reel, letting go above 0.7 and taking up again under 0.35.)
+                    if (ownLine.Stage == FishStage.Bite)
+                        return (t > 0.25f && t < 0.25f + Time.deltaTime * 1.5f, false);
+                    if (ownLine.Stage == FishStage.Hooked)
+                        testWinding = testWinding ? ownTension < 0.7f : ownTension < 0.35f;
+                    return (false, ownLine.Stage == FishStage.Hooked && testWinding);
+                case "snap":
+                    if (ownLine.Stage == FishStage.Bite)
+                        return (t > 0.25f && t < 0.25f + Time.deltaTime * 1.5f, false);
+                    return (false, ownLine.Stage == FishStage.Hooked);
+                default:
+                    return (false, false);
+            }
+        }
+
+        bool testWinding = true;
+
+        void Hook()
+        {
+            ownTension = 0.3f;
+            ownProgress = 0f;
+            testWinding = true;
+            SetStage(FishStage.Hooked);
+            Debug.Log($"[fish] hooked a {ownBite.Name}: reel it in");
+        }
+
+        void Catch()
+        {
+            Grant(ItemTable.Fish, 1);
+            ownLine.Fish = ItemTable.Fish;
+            ownLine.Size = ownBite.Size;
+            SetStage(FishStage.Caught);
+            ownLine.Reeled = Time.time;
+            catchNote = $"Caught a {ownBite.Name} ({ownBite.Size} cm)";
+            catchNoteUntil = Time.time + 3f;
+            Debug.Log($"[fish] caught a {ownBite.Name}, {ownBite.Size} cm; inventory: {DescribeInventory()}");
+        }
+
+        void Lose(string why)
+        {
+            SetStage(FishStage.Lost);
+            ownLine.Reeled = Time.time;
+            Debug.Log($"[fish] {why}");
+        }
+
+        /// <summary>Our line's stage, here and for everyone (FishRpc Kind 3).</summary>
+        void SetStage(byte stage)
+        {
+            ownLine.Stage = stage;
+            ownLine.StageAt = Time.time;
+            var rpc = new FishRpc { Kind = 3, Stage = stage, Item = ownLine.Fish, Size = ownLine.Size };
+            if (Joined)
+                SendToHost(rpc);
+            else if (Hosting)
+            {
+                rpc.Player = OwnNetworkId();
+                Broadcast(rpc);
+            }
+        }
+
+        static string StageName(byte stage) => stage switch
+        {
+            FishStage.Bite => "a bite",
+            FishStage.Hooked => "hooked",
+            FishStage.Caught => "caught",
+            FishStage.Lost => "lost it",
+            _ => "waiting",
+        };
+
         /// <summary>The host: a client's cast or reel, kept and passed on to everyone.</summary>
         void ServeFish(EntityManager em)
         {
@@ -297,6 +487,22 @@ namespace Punchy.Items
                 swungAt[m.Player] = Time.time;
                 Debug.Log($"[fish] player {m.Player} cast {(m.Water != 0 ? "onto water" : "onto the ground")} at ({m.Target.x:F1}, {m.Target.y:F2}, {m.Target.z:F1})");
             }
+            else if (m.Kind == 3 && linesOf.TryGetValue(m.Player, out var staged))
+            {
+                (staged.Stage, staged.StageAt, staged.Fish, staged.Size) = (m.Stage, Time.time, m.Item, m.Size);
+                // (Caught or lost: it reels in, with the fish or empty.)
+                if (m.Stage == FishStage.Caught || m.Stage == FishStage.Lost)
+                    staged.Reeled = Time.time;
+                if (m.Stage == FishStage.Bite)
+                    Punchy.Audio.GameAudio.PlayOneShot(Punchy.Audio.SoundId.Splash, staged.Target, 1.4f, 0.5f, 25f, Punchy.Audio.SoundGroup.World);
+                linesOf[m.Player] = staged;
+                // (The host's tally of what each player carries, P-17: a client's catch.)
+                if (m.Stage == FishStage.Caught && Hosting && m.Item < ItemTable.Items.Length)
+                    Carry(m.Player, m.Item, 1);
+                var what = m.Stage == FishStage.Caught && m.Item < ItemTable.Items.Length ? ", " + ItemTable.Items[m.Item].Name + " " + m.Size + " cm" +
+                    (Hosting ? $" (host tally: {Carries(m.Player, m.Item)})" : "") : "";
+                Debug.Log($"[fish] player {m.Player}: {StageName(m.Stage)}{what}");
+            }
             else if (linesOf.TryGetValue(m.Player, out var line))
             {
                 line.Reeled = Time.time;
@@ -323,7 +529,7 @@ namespace Punchy.Items
             // (Lines reeled all the way in are dropped.)
             lineDone.Clear();
             foreach (var kv in linesOf)
-                if (kv.Value.Reeled >= 0f && Time.time > kv.Value.Reeled + ReelTime)
+                if (kv.Value.Reeled >= 0f && Time.time > kv.Value.Reeled + ReelTime + (kv.Value.Stage == FishStage.Caught ? CatchShow : 0f))
                     lineDone.Add(kv.Key);
             foreach (var id in lineDone)
                 linesOf.Remove(id);
@@ -367,13 +573,25 @@ namespace Punchy.Items
             var landed = line.Target;
             if (line.Water)
                 landed.y += WaterSwells.Height(line.Target.xz, line.Target.y, line.Bed) + math.sin(t * 2.3f + key) * 0.02f;
+            // (A bite: the bobber dips and jerks. Hooked: pulled under and darting about, the line taut.)
+            if (line.Stage == FishStage.Bite && line.Reeled < 0f)
+                landed.y -= 0.07f * (0.5f + 0.5f * math.sin((t - line.StageAt) * 20f));
+            else if (line.Stage == FishStage.Hooked && line.Reeled < 0f)
+                landed += new float3(0.18f * math.sin(t * 7f), -0.06f, 0.18f * math.cos(t * 5.3f));
             float3 bob;
             float slack;
+            var caught = line.Stage == FishStage.Caught;
             if (line.Reeled >= 0f)
             {
                 var u = math.smoothstep(0f, 1f, math.saturate((t - line.Reeled) / ReelTime));
-                bob = math.lerp(landed, tip, u);
-                slack = 1f - u;
+                // (A catch comes in on the line and hangs from the rod's tip a moment.)
+                bob = math.lerp(landed, caught ? tip - new float3(0f, 0.35f, 0f) : tip, u);
+                slack = caught ? 0f : 1f - u;
+            }
+            else if (line.Stage == FishStage.Hooked)
+            {
+                bob = landed;
+                slack = 0f;
             }
             else if (t < line.Cast + flight)
             {
@@ -399,13 +617,41 @@ namespace Punchy.Items
             Graphics.RenderMesh(rp, lineMeshes[key], 0, Matrix4x4.identity);
             if (view.PixelsPerMetre > 0f && Punchy.Settings.DetailPolicy.ScreenSize(0.1f, math.distance(bob, cam), view.PixelsPerMetre) < 1f)
                 return;
+            if (caught && line.Fish < ItemTable.Items.Length)
+            {
+                // The fish, nose down from the line (its mesh lies on its side, nose along +z), sized by its length.
+                var fishMesh = ItemMeshes.Of(line.Fish);
+                var hang = Matrix4x4.TRS(bob, Quaternion.LookRotation(Vector3.down, Vector3.forward), Vector3.one * math.clamp(line.Size / 35f, 0.5f, 2f));
+                Graphics.RenderMesh(new RenderParams(itemMaterial) { matProps = FishBlock(line.Fish, 0) }, fishMesh, 0, hang);
+                if (fishMesh.subMeshCount > 1)
+                    Graphics.RenderMesh(new RenderParams(itemMaterial) { matProps = FishBlock(line.Fish, 1) }, fishMesh, 1, hang);
+                return;
+            }
             var bobber = ItemMeshes.Bobber();
             var at = Matrix4x4.Translate(bob);
+            if (line.Stage == FishStage.Bite && line.Reeled < 0f)
+            {
+                // The splash: a ring of droplets, growing over the bite.
+                var grow = 0.6f + 2f * math.saturate((t - line.StageAt) / BiteWindow);
+                bobberWhite ??= Block(new Color(0.92f, 0.92f, 0.88f));
+                Graphics.RenderMesh(new RenderParams(itemMaterial) { matProps = bobberWhite }, ItemMeshes.Splash(), 0,
+                                    Matrix4x4.TRS(new Vector3(bob.x, line.Target.y, bob.z), Quaternion.identity, new Vector3(grow, 1f, grow)));
+            }
             bobberRed ??= Block(new Color(0.8f, 0.12f, 0.1f));
             bobberWhite ??= Block(new Color(0.92f, 0.92f, 0.88f));
             Graphics.RenderMesh(new RenderParams(itemMaterial) { matProps = bobberRed }, bobber, 0, at);
             if (bobber.subMeshCount > 1)
                 Graphics.RenderMesh(new RenderParams(itemMaterial) { matProps = bobberWhite }, bobber, 1, at);
+        }
+
+        MaterialPropertyBlock fishMain, fishAccent;
+
+        /// <summary>A caught fish's colours, its item's.</summary>
+        MaterialPropertyBlock FishBlock(byte item, int part)
+        {
+            if (part == 0)
+                return fishMain ??= Block(ItemTable.Items[item].Colour);
+            return fishAccent ??= Block(ItemTable.Items[item].Accent);
         }
 
         static MaterialPropertyBlock Block(Color c)

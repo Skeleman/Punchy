@@ -79,7 +79,7 @@ namespace Punchy.Items
             // P-33: a fishing rod, held like a weapon but cast (Reach: the longest cast, m).
             new ItemDef { Name = "Rod", Colour = new Color(0.55f, 0.4f, 0.22f), Accent = new Color(0.6f, 0.44f, 0.28f), Stack = 1, Weight = 0.8f, Slot = GearSlot.Hand, Reach = 22f, Speed = 1.6f, Weapon = Punchy.Fauna.CreatureWeapon.Rod },
         };
-        public const byte Key = 7, Torch = 8, Staff = 9, Hat = 10, Pack = 11;
+        public const byte Fish = 5, Key = 7, Torch = 8, Staff = 9, Hat = 10, Pack = 11;
     }
 
     /// <summary>Client → host: pick up world item Uid.</summary>

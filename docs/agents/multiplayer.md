@@ -76,3 +76,6 @@ the same build. The world fingerprint in `WorldSync` refuses mismatched joiners.
   slow host (see `InteractRpc`).
 - `CreatureState` fields are local (ghosts copy fields one by one), so adding one isn't a network change.
   `SoundId`s are stored by number: append only.
+- After adding fields to an RPC, a player build can keep the old layout in its Burst code (`Library/BurstCache`
+  stale): the receiver logs "RpcSystem failed to deserialize ... bits read did not match expected" and drops the
+  connection (InvalidRpc). `--burst-disable-compilation` on the player confirms it; delete `Library/BurstCache` and rebuild.
