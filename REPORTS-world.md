@@ -5911,3 +5911,19 @@ Branch `world/mountain-tunnels` at f6217674 (pushed), on a149c17f. One commit: C
 - **Look note for the supervisor:** the deep white pool (#4) now reads as an opaque, flat, milky sheet with a hard edge like other water. The old soft fade at the rim and the darker middle are gone, as the card asks. Shallow parts are still see-through. If Zach wants it less solid, the change is a data change: lower the murk/opacity in `WhitePoolWater`.
 - **Checks:** lod-lint shows no hits. Line endings are unchanged (CaveSystem.Water.cs LF, the other two files CRLF). Compile is clean, with no shader errors in Editor.log. No timing. The pins (Landmarks_V3, Fauna_Fingerprint) are not touched, because no bake or placement data changed.
 - **Rejected:** pool rooms #13 and #15 cannot be used for the swim check, because the player lands on a stepping post at the centre (feet +0.16).
+
+### Row 3: landmark pools, fountains and wells (#277)
+- **Commit:** world/no-water-discs b94063b4 (pushed). lod-lint clean.
+- **Landmark pools:** each pool is now baked on the cave water's 0.5 m lattice by a Burst job (new file CaveSystem.LandmarkWater.cs). A vertex is wet where the carved basin lies below the pool's level. Marching squares cut the sheet at the pool's reach (1.3 radii, under the bank) and, for pools of the same landmark, where the two pools meet, so the disc is gone. Bakes run one at a time and are collected on a later frame. Pools are shown and released by screen size (DetailPolicy.CaveWaterPixels, rule 20). The terrain's chunk sheet still leaves these pools out (comment updated).
+- **Fountains and wells:** the water is a polygon that follows the inside of the basin's wall, with the same number of sides as the wall. Near, it is drawn with the terrain's water. Far, the model's own face stands in, with the same shape (the blob stand-in is gone). This covers both of the elven fountain's bowls and the village or inn well. `FloraSystem.BasinRange` (a fixed 80 m) is now `BasinPixels` (screen size, rule 20).
+- **Probe** (`W148Probe.Inventory`): 36 landmark pools are drawn as lattice water, 69k triangles in total. The table now lists two remaining discs, both outside this row:
+  1. The cave lava pool's shared disc, which goes in row 4.
+  2. Dungeon wells in DungeonProps, which the animal lane last touched (A-91). Someone needs to decide who changes these.
+- **Shots** (W-148/):
+  - `r3-fountain-near`: the elven grove fountain from 4 m.
+  - `r3-fountain-far-pair`: from 28 m, with near water on (left) and the far stand-in alone (right). The stand-in is the same polygon, not a disc. I took the right shot after clearing the basins list from the probe.
+  - Landmark pools: `r3-oasis`, `r3-hotsprings`, and `r3-mudpits` (a small pool, r 3.6 m).
+  - `r3-well-near`: the HumanVillage well.
+- **Notes:**
+  - At this view, landmark pool water shows out to kilometres: CaveWaterPixels is 2 px, and big pools reach 145 cells across. The old discs were limited to LoadRadius. This is a cost check for BENCH-QUEUE.
+  - The well's water draws with the terrain's look, so it reads bluer than the old dark blob.
