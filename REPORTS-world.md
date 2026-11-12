@@ -5692,3 +5692,15 @@ Branch `world/mountain-tunnels` at f6217674 (pushed), on a149c17f. One commit: C
   - I checked the contact sheet at small size.
 - **Tree:** back on world/island-cache. The five parked .mat edits (Cave, Water, Colossus, IcebergIce, TempleGlow: shader property values and a MOTIONVECTORS pass change) were stashed, applied back by SHA, and the stash entry was dropped. None of them were committed.
 - **Editor:** closed. Ready for bench.
+
+## W-135 row 6: walk hitch (done, verified by counts and shots)
+- **Branch:** `world/ground-contact-shade`, commit dc65c63b (pushed).
+- **Cause (counted, no timing):** on the bench's c5 hereentry walk, cave chunks crossing a wall-level band were rebuilt with no cap. Up to 2 level-0 rebuilds started in one frame (601,526 field points, each a new chunk's whole cost), up to 4 builds were in flight, and near the mouth (25-50 s in, the job 52 spike window) up to 22 level builds and 4.55M points ran in one walk-second. 184 of 390 level rebuilds were chunks that stay empty. No room kits, tiles or sorts on this walk; skip flips 10 in all (7 in one frame at the mouth).
+- **Fix:** `RebuildsPerFrame` 1 and `MaxRebuilding` 2 cap level and contact rebuilds, nearest finer first; coarser rebuilds wait until nothing else builds. The old mesh stays drawn until the new one swaps in. The mesh job records the chunk's lowest cave field value, so an empty chunk with no wall within WallReach + 2 voxels is never rebuilt finer. New `CaveSystem.Counts` per-frame counters for probes.
+- **Counts, walk before -> after:** level rebuilds 390 -> 285; empty rebuilds 184 -> 79; field points 57.3M -> 40.2M; max points per frame 601,526 -> 300,763; max in flight 4 -> 2; max per walk-second 22 / 4.55M -> 13 / 2.28M; frames over 50k points 157 -> 110; frames with 2+ level builds 23 -> 0. Uploads 207 and vertices 705,035 unchanged (the same meshes come out).
+- **Pop check:** D:/Unity/PunchyMilestones/W-135/w135r6-3m-{now,settled}.png and w135r6-15m-{now,settled}.png: c5 hall wall at 3 m and 15 m, shot right after posing and again 8 s later. Mean pixel diff 0.02 and 0.11 (0.16% of pixels over 24 at 15 m, from glow). All walls round the camera are level 0. Checked at small size: no coarse wall, no pop.
+- **Tests:** PlayMode suite 25 of 26. The one failure was LiveFolk_BeastResponse (the allowed flake); it passed alone on rerun. Pins hold: Landmarks_V3 112 A955AFE0, Fauna_Fingerprint AD723954. lod-lint clean.
+- **Crystal spot (f):** the path is valid. The jc.views line lacked `here` in `-benchstops`; it needs `-benchstops here,hereentry`.
+- **Bench:** job 61 queued (c5 walk, A main / B branch / C B with `-cavelevel 0 -nocaveskip`, frames over 2x median).
+- **Risk:** a chunk entering the fine band now waits up to a few frames longer for its finer mesh (it keeps its coarser mesh drawn meanwhile). That doesn't show in the shots.
+- **Tree:** on world/ground-contact-shade with the five parked .mat edits uncommitted. Editor closed.

@@ -606,3 +606,11 @@ W-138 row 2a on `world/mountain-tunnels` (3e3c9e08): six new road spurs (+617 st
 
 ## Job 60 (2026-11-11, MAIN PC half DONE main PC provisional (see BENCH-REPORTS); MAIN PC half by the main-account bench agent (J-045, 11-11); laptop half QUEUED after 59; supervisor, for W-140): island cache, launch to island-ready
 `world/island-cache` (622d7bb5 or newer; row 4 when it lands so a build hits on first launch). Arm A main, arm B branch. In the editor and in a Builds/Dev build, main PC and laptop: time from launch (or Play) to the island-ready frame, 3 runs each, for (B hit) the second launch on a cache hit and (B fresh) `-freshisland` / PUNCHY_FRESHISLAND=1, vs A. Also note the `[island] cache hit/miss` line each run, the file load ms it prints, and the memory peak on hit vs fresh. From now on, other jobs may launch arm B builds on a cache hit to save the bake; say which in each report.
+
+## Job 61 (2026-11-11, QUEUED after 60; supervisor, for W-135 row 6): c5 walk hitch, rebuilds spread out
+W-135 row 6 on `world/ground-contact-shade` (dc65c63b): cave chunk rebuilds (another wall level) are now capped at 1 started per frame and 2 in flight, nearest finer first, coarser ones wait; empty chunks far from any wall are no longer rebuilt finer. Counted on the walk: max field points started in one frame 601k -> 301k, max builds in flight 4 -> 2, frames with 2+ level builds 23 -> 0. Job 52 found 13-19 ms frames on this walk in arm B only.
+- Arms: (A) origin/main; (B) `world/ground-contact-shade` at dc65c63b or newer; (C) B with `-cavelevel 0 -nocaveskip`. Profile builds, 1920x1080, High, uncapped, ABBA.
+- View: the c5 walk only, `walk -goto -2810,27,-556 -benchstops here,hereentry` (same as job 52).
+- Record: frames over 2x the median on the walk, with their time into the walk (job 52's B spikes were at about 25-50 s); whole-frame CPU and GPU ms over the walk.
+- Pass: B shows no frame over 2x the median that A doesn't also show; B's worst frame near C's.
+- Note for the jc.views crystal spot (f): the path is valid, but `here` was missing from `-benchstops`, so the stop never ran. Use `-benchstops here,hereentry`.
