@@ -627,6 +627,11 @@ Why (Zach 11-12): profiler runs keep showing start-up hitches. A faster, quieter
 - Punchy `b/r12-warp-bake` 26e26ec1 (on main db9ca83e): bake (default) vs `-warpbake 0` (R-12 as merged) vs main db9ca83e. Job 49's storm views plus a storm 2 km off at noon; shots of every arm for Zach to judge the rims. q105.job.
 - If Zach likes the look and it saves most of R-12's +0.55-1.35 ms: merge candidate. Otherwise option 1 (keep per-read warp, merge the cloud shadow map, job 49c).
 
+## Job 45k (2026-11-12, QUEUED after 49e; Zach in the profiler session): far wave field, old rings retired
+- Zach 11-12: cuts 4 is the High wake; Medium's normals-only look is good, but the old ring shader still showed in the field's region, and he asked for Medium's normals at distance. Punchy `b/water-rows-fixes` 17fc2144: a coarse normals-only far field (128 m, 0.5 m texels, 15 Hz) beyond the fine 32 m square, and the SwimmerWakes rings off wherever a field runs (kept under rock).
+- Arms: far (default), `-waterfar 0`, `-waterfield 0`. Lake swim and lake shore, High and Medium, 3 rounds, shots for Zach. q106.job.
+- Bar (rule 23, on at Medium): far field <= +0.3 ms GPU over off at Medium.
+
 ## Job 62 (2026-11-12, QUEUED after 64 (laptop); supervisor, from the outside shader audit, #269/#270): water cost split, variant counts, flora cull
 Purpose: find which part of water costs what, before any water or architecture work (R-15 row 4, #270). Main only (plus R-15 as arm B once row 1 lands).
 - Arms: (A) origin/main; for each view also A with `-waterfield 0`, A with `-waterssr 0`, and A with water detail off. Profile builds, 1920x1080, High, uncapped, ABBA, 300 frames each.
