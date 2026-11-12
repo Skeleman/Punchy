@@ -528,7 +528,7 @@ Row 2 turns the fixed-metre visual ranges (landmark effects, flames, chimneys, f
 - Record whole-frame GPU and CPU ms per arm and spot.
 - Pass: branch within noise of main at High at every spot; at Medium, branch <= main. A miss means a fix on lod/screen-size before the merge.
 
-## Job 52 (2026-11-10, BACK TO LAPTOP (main PC: GPU/render pass, but new 13-19 ms frames on the c5 walk in B only; see BENCH-REPORTS); MAIN PC (J-045, 11-11): profiler skip this job; the main-account bench agent runs it; was QUEUED after 51; supervisor, for W-135, all four rows; folds in 47i): cave LOD and seam darkening
+## Job 52 (2026-11-10, WAIT for W-135 row 6, then laptop: c5 walk only, A/B/C, frames over 2x median (supervisor 11-11); BACK TO LAPTOP (main PC: GPU/render pass, but new 13-19 ms frames on the c5 walk in B only; see BENCH-REPORTS); MAIN PC (J-045, 11-11): profiler skip this job; the main-account bench agent runs it; was QUEUED after 51; supervisor, for W-135, all four rows; folds in 47i): cave LOD and seam darkening
 W-135 on `world/cave-lod`: row 1 skips hidden cave work (`-nocaveskip` turns it off), row 2 builds cave walls at 0.5/1/2 m by screen size with border skirts (`-cavelevel 0` = main), row 3 moves cave plants, drips, fish, falls and glow to screen size, row 4 bakes contact darkening into cave chunks (no shader change).
 - Arms: (A) origin/main 0477dd07 or newer; (B) `world/cave-lod` at ef191d54 or newer, default; (C) B with `-cavelevel 0 -nocaveskip`. Profile builds, 1920x1080, High, uncapped, ABBA (A/B), then B vs C, 300 frames per arm.
 - Views (shotcam):
