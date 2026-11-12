@@ -1,0 +1,12 @@
+# Validates -benchcycle (b/bench-stress, live 11-12): job 49d's R-12 arms (plain, -skyoff 1024, -skyoff 8192) cycled
+# inside one game, 4 rounds of 15 s segments, against job 49d's separate games (storm noon: plain 19.1, 1024 17.75,
+# 8192 18.8 ms GPU). Two games, so the game-to-game spread shows too. Rebuilt with the new runner under its own name.
+Q=q98; TITLE="benchcycle validation (R-12 arms)"
+BUILDS="c43b5ea"; OUT_c43b5ea=Profile-c43b5eacyc
+VIEWS="stormnoon"
+view() { echo "-goto 1489,-897 -shotcam 1489,88,-897,1889,98,-897 -benchweather Storm -benchweatherat 5489,-897 -benchhour 12 -benchstops here"; }
+ARMS="cycle"
+arm() { echo "Profile-c43b5eacyc -benchcyclerounds 4"; }
+CYCLE="plain/g._PunchySkyOff=0|w1024/g._PunchySkyOff=1024|w8192/g._PunchySkyOff=8192"
+ROUNDS=2; GFX=High; REF=plain
+after() { grep -h 'BenchRoute: cycle\|BenchRoute: here/' "$R"/q-$Q-*-1.log | head -16 | cut -c1-150; }
