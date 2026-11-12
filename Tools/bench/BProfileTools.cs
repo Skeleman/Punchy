@@ -94,6 +94,10 @@ public static class BProfileTools
         float skipSec = float.Parse(Arg("-skip", "0"), System.Globalization.CultureInfo.InvariantCulture);
         // -over N (job 44): for every main-thread frame over N ms, its top samples by self time and by inclusive time.
         float overMs = float.Parse(Arg("-over", "0"), System.Globalization.CultureInfo.InvariantCulture);
+        // -frames <file> (job 64): every main-thread frame's start (s from the capture's first frame) and length (ms),
+        // as CSV, for the start-up time line and when frame time settles.
+        var framesPath = Arg("-frames", "");
+        var frameList = framesPath.Length > 0 ? new StringBuilder("t,ms" + Environment.NewLine) : null;
         var sb = new StringBuilder();
         foreach (var raw in inputs)
         {
@@ -115,6 +119,8 @@ public static class BProfileTools
                     if (t0 < 0) t0 = main.frameStartTimeMs;
                     if ((main.frameStartTimeMs - t0) / 1000.0 < skipSec) continue;
                     frameMs.Add(main.frameTimeMs);
+                    frameList?.Append(((main.frameStartTimeMs - t0) / 1000.0).ToString("F3", System.Globalization.CultureInfo.InvariantCulture))
+                             .Append(',').Append(main.frameTimeMs.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)).Append(Environment.NewLine);
                     spike = main.frameTimeMs > 33.3;
                     if (spike) spikes++; else normals++;
                 }
@@ -183,6 +189,8 @@ public static class BProfileTools
             }
         }
         File.WriteAllText(outPath, sb.ToString());
+        if (frameList != null)
+            File.WriteAllText(framesPath, frameList.ToString());
         EditorApplication.Exit(0);
     }
 
