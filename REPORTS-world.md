@@ -6272,3 +6272,13 @@ What a world-file record holds:
 
 Decisions for Zach: whether phase 0 ships on its own; whether cliff shelves may hold settlements (the settlement
 plot rules would have to accept a raised deck).
+
+### R-18 row 3 (done before row 2, which still waits on job 65a)
+- **Branch** render/nan-guard **f861764c**: docs/agents/rendering.md gains the NaN-safe maths list under the zero-normal note (SafeNormalize / normalizesafe or `+ 1e-5`, `max(d, 1e-5)` under divides, saturate or `max(x, 0)` before pow and sqrt, derivatives before any `if`), the rule 24 done-when, and row 1's two gotchas (fxc folds `0/0` to 1, so a probe NaN needs `asfloat(0x7FC00000u)`; an offscreen `cam.Render` shows no bloom halo, so judge circles from the game view).
+- **tools/nan-lint.sh** (coordination tree): `tools/nan-lint.sh [ref]`, default origin/main, run from any Punchy worktree. Line-local hints, not a gate; `nan-safe` on a line silences it. Flags normalize of a difference or cross with no guard, divides by length/dot/distance/sqrt/abs or `.w` with no max, pow/sqrt of an unguarded base, and ddx/ddy/fwidth inside an `if` block.
+- **Output on main:** 81 hints: normalize 38, divide 17, pow 13, sqrt 6, deriv 7. Worth a look in row 2 (the rest checked by eye are fine, mostly bases saturated a line earlier or `.w` that can't be 0):
+  - deriv inside an `if`: Cave.shader:198 (`normalize(cross(ddy(p), ddx(p)))`, also unguarded), Creature.shader:392, 422, 460, 500, 503, Flora.shader:368.
+  - unguarded facet normals `normalize(cross(ddy, ddx))`: FloraShadowCache.shader:81, WindowSpill.shader:99 (Flora.shader adds `+ 1e-9`, the right pattern).
+  - `normalize(cross(float3(0,1,0), x))` with no vertical-case guard: Sky.hlsl:708, 742, 884, 921, 971; LandmarkEffects.hlsl:148; CaveDrips.shader:86, 111.
+  - Flora impostor: FloraImpostor.hlsl:65 `normalize(cross(ref, d))` (line 184 has the guard) — the likeliest flora/impostor candidate for the Ultra hilltop dot until 65a names the draw.
+- **lod-lint:** clean. **Suite:** not rerun (docs only). **Pins:** not touched.
