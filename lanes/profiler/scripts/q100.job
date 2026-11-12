@@ -1,0 +1,15 @@
+# Job 51: R-13 row 2, visual ranges by screen size. lod/screen-size d9634f37 vs its base origin/main 0477dd07.
+# Views: (a) village at night, (b) forest at night, (c) village hilltop aerial at noon, (d) a 300 m flight east from the
+# village (3066,-913, where -place HumanVillage puts the player on seed 4) at walking height, 10 m/s.
+# Pass: within noise of main at High at every view; at Medium, branch <= main.
+Q=q100; TITLE="job 51 R-13 row 2"
+BUILDS="d9634f3 0477dd0"
+VIEWS="village forest hilltop flight"
+view() { case $1 in
+  village) echo "-place HumanVillage -benchhour 22 -benchweather Clear -benchstops here";;
+  forest)  echo "-place meadow -benchhour 23 -benchweather Clear -benchstops here";;
+  hilltop) echo "-place HumanVillage -frame HumanVillage -framing aerial -benchhour 12 -benchweather Clear -benchstops here";;
+  flight)  echo "-goto 3066,-913 -benchhour 12 -benchweather Clear -benchstops line -benchline 3066,-913,3366,-913,10,2";; esac; }
+ARMS="branch main"
+arm() { case $1 in branch) echo "Profile-d9634f3";; main) echo "Profile-0477dd0";; esac; }
+ROUNDS=3; GFX="High Medium"; REF=main; BAR=0.3
