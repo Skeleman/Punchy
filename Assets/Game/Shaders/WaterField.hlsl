@@ -32,6 +32,13 @@ float4 _PunchyWaterFallLip;
 float4 _PunchyWaterFallAxis;
 float4 _PunchyWaterFallSpan;
 
+// W-148 row 6: how thick a liquid is (0 water .. 1 lava) from its glow (x self-glow, y lava): lava 1, a glowing liquid
+// (toxic, the bat folk's white pools) 0.3, plain water exactly 0. The same as WaterPatchSystem.Viscosity.
+float PunchyLiquidViscosity(float2 glow)
+{
+    return max(saturate(glow.y), 0.3 * smoothstep(0, 0.1, glow.x));
+}
+
 // Whether a point (its place before the swell moved it) is under the fine sheet, so the chunk water leaves it out.
 bool PunchyWaterInPatch(float2 restXZ)
 {

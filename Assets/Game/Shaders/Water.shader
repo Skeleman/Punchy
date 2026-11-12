@@ -435,6 +435,10 @@ Shader "Punchy/Water"
 
             // Lava (item 37): crust thinner than this glows; thicker is black rock.
             static const float LavaVein = 0.34;
+            // W-148 row 6: how far a disturbance thins the crust, and how much steeper than the field's slope it reads
+            // (lava's dents are shallow and slow, a few cm: drawn at the water's steepness they barely showed).
+            static const float LavaStir = 0.9;
+            static const float LavaHeave = 4;
 
             // How much crust over the melt at p (small: a hot vein; large: dark crust), on a clock that runs slowly.
             float LavaFlow(float2 p, float time, int octaves)
@@ -545,6 +549,12 @@ Shader "Punchy/Water"
                 float lava = saturate(input.glow.y);
                 // Very murky water is thick, like oil or sludge.
                 float viscous = smoothstep(0.55, 0.9, murk) * (1 - lava);
+                // W-148 row 6: how thick the liquid is (WaterField.hlsl; water 0, toxic and white 0.3, lava 1). Thicker,
+                // its ripples run slower and come smaller and its flow drags; water's are exactly as they were.
+                float kindViscosity = PunchyLiquidViscosity(input.glow);
+                float kindSpeed = lerp(1, 0.3, kindViscosity);
+                float kindSize = lerp(1, 0.6, kindViscosity);
+                float tk = t * kindSpeed;
                 // The water's quality policy (refactor 3.4, WaterQuality.cs): how big a metre of water looks here decides
                 // the reflection march's tier, refraction, how many swell waves are summed and the fine detail's fade
                 // (distanceFade: 350 m at the reference view, as tuned).
@@ -568,7 +578,7 @@ Shader "Punchy/Water"
             #endif
 
                 // Rivers run faster in the deep middle than at the banks, and much faster down steep rapids.
-                float riverSpeed = _FlowSpeed * (1 + 2.5 * rapids) * lerp(0.45, 1.25, saturate(depth / 1.6));
+                float riverSpeed = _FlowSpeed * (1 + 2.5 * rapids) * lerp(0.45, 1.25, saturate(depth / 1.6)) * kindSpeed;
                 // (The flow-mapped ripples grow choppier with speed, so faster water reads rougher, not just whiter.)
                 // (Refactor 3.4, job 29: water was a third of the lake's GPU frame. Each layer below is skipped where its
                 // weight is zero, so the picture is unchanged: flow on still water, rain in dry weather, thick-water swells
@@ -606,7 +616,7 @@ Shader "Punchy/Water"
                     // (Stronger as the river quickens, so the current shows in the surface itself.)
                     flowingSlope *= (1 + 1.3 * rapids) * (1 + 0.5 * saturate(riverSpeed));
                 }
-                float2 slope = lerp(WaveSlope(p, t), flowingSlope, flowAmount);
+                float2 slope = lerp(WaveSlope(p / kindSize, tk), flowingSlope, flowAmount);
                 // R-9 row 6: down a steep, fast stretch the river stands up in standing waves that hold their place
                 // under the running chop (WaterField.hlsl); on the fine sheet they heave the mesh, everywhere they tilt
                 // the light.
@@ -661,11 +671,11 @@ Shader "Punchy/Water"
                 float3 bubbles = 0;
                 float2 murkRings = 0, swells = 0;
                 [branch] if (murk > 0)
-                    murkRings = RainRipples(p * 0.45 + 13.7, t * 0.25) * murk * distanceFade * 0.6;
+                    murkRings = RainRipples(p * 0.45 / kindSize + 13.7, tk * 0.25) * murk * distanceFade * 0.6;
                 [branch] if (viscous > 0)
                 {
-                    bubbles = Bubbles(p, t) * distanceFade;
-                    swells = WaveSlope(p * 0.3, t * 0.12) * 0.5 + bubbles.xy;
+                    bubbles = Bubbles(p, tk) * distanceFade;
+                    swells = WaveSlope(p * 0.3, tk * 0.12) * 0.5 + bubbles.xy;
                 }
                 slope += lerp(murkRings, swells, viscous);
                 float strength = _WaveStrength * (0.5 + _PunchyWind) * (0.25 + 0.75 * distanceFade);
@@ -679,7 +689,7 @@ Shader "Punchy/Water"
                 // turning the detail to noise and the texture reads incoherent (slow) after a few minutes. Each read
                 // drifts over its own 4 s cycle, half a cycle apart, and fades out as it jumps back.
                 const float detailCycle = 4.0;
-                float phaseA = frac(t / detailCycle), phaseB = frac(t / detailCycle + 0.5);
+                float phaseA = frac(tk / detailCycle), phaseB = frac(tk / detailCycle + 0.5);
                 float2 driftStep = flowDir * flowAmount * riverSpeed * detailCycle;
                 // With the detail off (-waterdetail 0, for profiling), the reads are skipped and the flat values below
                 // leave no ripples, caustics or glitter. Past 350 m (distanceFade 0) the ripples and glitter are faded
@@ -690,11 +700,11 @@ Shader "Punchy/Water"
                 UNITY_BRANCH
                 if (_PunchyWaterDetail > 0.5 && distanceFade > 0)
                 {
-                    fine0 = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, p * _DetailScale + float2(t * 0.031, t * 0.017) - driftStep * phaseA * _DetailScale * 0.6);
+                    fine0 = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, p * _DetailScale + float2(tk * 0.031, tk * 0.017) - driftStep * phaseA * _DetailScale * 0.6);
                     // (The second read is turned about 34 degrees: with both reads square to the texture, their texel grids
                     // lined up and the glitter, which needs both to sparkle at once, came out in rows and columns, crossing
                     // stripes of glints on open water (playtest 11-07, 11-08). Its normal is turned back below.)
-                    fine1 = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, mul(DetailTurn, p * _DetailScale * 1.7 - driftStep * phaseB * _DetailScale * 1.1) + float2(-t * 0.022, t * 0.029));
+                    fine1 = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, mul(DetailTurn, p * _DetailScale * 1.7 - driftStep * phaseB * _DetailScale * 1.1) + float2(-tk * 0.022, tk * 0.029));
                 }
                 // On still water both reads count fully; on flowing water each fades in and out with its cycle.
                 // (A triangle 0..1..0 over the cycle, doubled, averages 1, like a still read.)
@@ -1058,11 +1068,18 @@ Shader "Punchy/Water"
                         // Lava (playtest 11-08 item 37): about 30% of the gold's speed, broader and with one octave less
                         // fine noise; black crust over most of it (lit faintly, as rock), and only where the crust is
                         // thinnest a vein heating from deep red through orange, never yellow.
-                        home -= flowDir * flowAmount * frac(t / 8192) * 8192 * 0.036;
+                        // (W-148 row 6: on lava's own slow clock, tk, so its churn repeats even less.)
+                        home -= flowDir * flowAmount * frac(tk / 8192) * 8192 * 0.036;
                         int octaves = pixelsPerMetre > _PunchyWaterTiers.y ? 4 : 3;
-                        float crust = LavaFlow(home * 0.3, frac(t * 0.03 / 500) * 500, octaves) + edge;
+                        // W-148 row 6: what disturbs it (the wave field, a wader's wake) shows: the crust cracks open
+                        // where the surface heaves, and the heaved rock catches the light by the field's slope alone
+                        // (undisturbed, both are exactly as before).
+                        float2 heaved = wakeSlope * LavaHeave;
+                        float stir = saturate(length(heaved));
+                        float crust = LavaFlow(home * 0.3, frac(tk * 0.03 / 500) * 500, octaves) + edge - LavaStir * stir;
                         half heat = saturate(1 - crust / LavaVein);
-                        half3 rock = half3(0.025, 0.021, 0.019) * (ambient + light.color * shadow * saturate(light.direction.y)) + half3(0.006, 0.002, 0.001);
+                        float3 heave = normalize(float3(-heaved.x, 1, -heaved.y));
+                        half3 rock = half3(0.025, 0.021, 0.019) * (ambient + light.color * shadow * saturate(dot(heave, light.direction))) + half3(0.006, 0.002, 0.001);
                         half3 glowing = lerp(half3(0.35, 0.02, 0.0), half3(2.0, 0.42, 0.03), smoothstep(0.15, 0.5, heat));
                         glowing = lerp(glowing, half3(2.3, 0.7, 0.1), smoothstep(0.85, 1.0, heat));
                         lavaColor = lerp(rock, glowing, smoothstep(0.0, 0.15, heat));

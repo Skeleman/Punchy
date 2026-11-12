@@ -55,6 +55,45 @@ namespace Punchy.Terrain
         NativeArray<float2> landmarkWaterSamples;
         NativeArray<float4> landmarkWaterOthers;
 
+        /// <summary>What the liquids list (WaterPatchSystem.Liquids) was last made from: the cave set, and whether every
+        /// cave pool was white.</summary>
+        BlobAssetReference<CaveSetBlob> liquidsCaves;
+        bool liquidsWhite;
+
+        /// <summary>
+        /// W-148 row 6: tells the water field (WaterPatchSystem.Liquids) where the liquids off the chunk water that aren't
+        /// water lie, and how thick each is (WaterPatchSystem.Viscosity of its glow): landmark pools by their look, cave
+        /// pools lava or white.
+        /// </summary>
+        void PublishLiquids(in TerrainSource source)
+        {
+            var liquids = WaterPatchSystem.Liquids;
+            liquids.Clear();
+            foreach (var pool in landmarkPools)
+            {
+                var v = WaterPatchSystem.Viscosity(pool.Glow);
+                if (v > 0f)
+                    liquids.Add(new WaterPatchSystem.Liquid { Centre = pool.Centre, Radius = pool.Radius * LandmarkWaterReach, Viscosity = v });
+            }
+            liquidsCaves = source.Caves;
+            liquidsWhite = WhitePools;
+            if (source.Caves.IsCreated)
+            {
+                ref var set = ref source.Caves.Value;
+                var batFolk = source.BatFolk.IsCreated && source.BatFolk.Value.WhitePools.Length == set.Pools.Length;
+                for (int i = 0; i < set.Pools.Length; i++)
+                {
+                    ref var pool = ref set.Pools[i];
+                    var white = WhitePools || batFolk && source.BatFolk.Value.WhitePools[i] != 0;
+                    var glow = new float2(white ? WhitePoolGlow : 0f, pool.Lava > 0.5f ? 1f : 0f);
+                    var v = WaterPatchSystem.Viscosity(glow);
+                    if (v > 0f)
+                        liquids.Add(new WaterPatchSystem.Liquid { Centre = pool.Centre, Radius = PoolReach(pool), Viscosity = v });
+                }
+            }
+            WaterPatchSystem.LiquidsVersion++;
+        }
+
         /// <summary>Triangles and pools of landmark water drawn last frame.</summary>
         public static int LandmarkWaterTrianglesDrawn, LandmarkWatersDrawn;
 
@@ -86,7 +125,10 @@ namespace Punchy.Terrain
                         landmarkPools.Add(new LandmarkPool { Centre = centre, Radius = radius, Instance = i, Look = look, Glow = glow });
                     }
                 }
+                PublishLiquids(source);
             }
+            else if (liquidsCaves != source.Caves || liquidsWhite != WhitePools)
+                PublishLiquids(source);
             if (landmarkWaterBaking >= 0 && landmarkWaterJob.IsCompleted)
             {
                 landmarkWaterJob.Complete();
