@@ -17,12 +17,18 @@ namespace Punchy.Terrain
     /// an upright sheet: the lip curls out, ripples run down the curtain, and the pool churns at the foot, all fading in
     /// with how big the fall looks so nothing pops. The chunk water and the player's sheet leave the fall's cells to it.
     /// One fall at a time (the one that looks biggest), cosmetic and per machine, from seed data every machine has.
+    /// W-135 row 3: a cave's waterfall has no chunk water, so its sheet is made here (CaveQuads): a short run-in at the
+    /// lip and the curtain down into its pool, in a few quads cut the same way. It leaves the chunk water uncut.
     /// </summary>
     public partial class WaterPatchSystem
     {
         /// <summary>The fall's rectangle (cells across, at most), the finest cut of a quad either way, and the most indices
         /// its sheet may have per unit of Detail.</summary>
         const int FallWidth = 64, FallMaxCut = 32, FallBudget = 32000;
+        /// <summary>Cave waterfalls are chosen as this plus their index (river falls are their own index).</summary>
+        const int CaveFallBase = 1 << 20;
+        /// <summary>A cave waterfall's water colour and murk (as CaveSystem's pools).</summary>
+        static readonly float4 CaveFallLook = new float4(0.1f, 0.28f, 0.3f, 0.1f);
 
         static readonly int FallRectId = Shader.PropertyToID("_PunchyWaterFallRect");
         static readonly int FallMaskId = Shader.PropertyToID("_PunchyWaterFallMask");
@@ -114,26 +120,32 @@ namespace Punchy.Terrain
         void UpdateFall(TerrainStreamingSystem streaming, TerrainConfig config, bool hasCamera, Punchy.Settings.DetailPolicy.View view)
         {
             var source = SystemAPI.GetSingleton<TerrainSource>();
-            if (!hasCamera || !source.Rivers.IsCreated || source.RiverSettings.FallDrop <= 0f)
+            var rivers = source.Rivers.IsCreated && source.RiverSettings.FallDrop > 0f;
+            if (!hasCamera || !rivers && !source.Caves.IsCreated)
             {
                 HideFall();
                 return;
             }
-            ref var falls = ref source.Rivers.Value.Falls;
             int best = -1;
             float bestPixels = 0f, heldPixels = 0f;
-            for (int k = 0; k < falls.Length; k++)
+            if (rivers)
             {
-                var f = falls[k];
-                var middle = f.Lip + new float3(f.Out.x, -f.Drop * 0.5f, f.Out.y);
-                var pixels = Punchy.Settings.DetailPolicy.ScreenSize(math.max(f.Drop, f.Width),
-                    math.max(math.distance(view.Camera, middle), 1f), view.PixelsPerMetre);
-                if (k == fallChosen)
-                    heldPixels = pixels;
-                if (pixels > bestPixels)
+                ref var falls = ref source.Rivers.Value.Falls;
+                for (int k = 0; k < falls.Length; k++)
                 {
-                    best = k;
-                    bestPixels = pixels;
+                    var f = falls[k];
+                    var middle = f.Lip + new float3(f.Out.x, -f.Drop * 0.5f, f.Out.y);
+                    Consider(k, math.max(f.Drop, f.Width), middle, view, ref best, ref bestPixels, ref heldPixels);
+                }
+            }
+            if (source.Caves.IsCreated)
+            {
+                ref var caveFalls = ref source.Caves.Value.Waterfalls;
+                for (int k = 0; k < caveFalls.Length; k++)
+                {
+                    var f = caveFalls[k];
+                    var middle = f.Lip + new float3(f.Out.x * f.Carry * 0.5f, -f.Drop * 0.5f, f.Out.y * f.Carry * 0.5f);
+                    Consider(CaveFallBase + k, math.max(f.Drop, f.Width), middle, view, ref best, ref bestPixels, ref heldPixels);
                 }
             }
             // (The fall already chosen stays until it looks well under the switch-on, or another looks much bigger.)
@@ -150,12 +162,16 @@ namespace Punchy.Terrain
                 HideFall();
                 return;
             }
+            var cave = best >= CaveFallBase;
             if (best != fallChosen || fallShape.Lip.w <= 0f)
-                fallShape = Shape(ref source, falls[best]);
+                fallShape = cave ? CaveShape(source.Caves.Value.Waterfalls[best - CaveFallBase]) : Shape(ref source, source.Rivers.Value.Falls[best]);
             fallChosen = best;
 
+            // (A cave fall's sheet is its own, not the chunk water's: nothing to wait for.)
             var builds = 23;
-            if (!Gather(streaming, config, fallShape.Corner, fallShape.Extent, ref builds, false))
+            if (cave)
+                builds = 0;
+            else if (!Gather(streaming, config, fallShape.Corner, fallShape.Extent, ref builds, false))
             {
                 // (Not all fine and loaded under it yet: wait, or, if it was on show, let the chunk water have it back.)
                 if (fallShown >= 0)
@@ -181,6 +197,72 @@ namespace Punchy.Terrain
                 shadowCastingMode = ShadowCastingMode.Off,
                 layer = 0
             }, fallMesh, 0, Matrix4x4.identity);
+        }
+
+        /// <summary>Weighs one fall: how big it looks (its size seen from the camera at its middle), keeping the biggest and
+        /// noting the one already chosen.</summary>
+        void Consider(int fall, float size, float3 middle, Punchy.Settings.DetailPolicy.View view, ref int best, ref float bestPixels,
+            ref float heldPixels)
+        {
+            var pixels = Punchy.Settings.DetailPolicy.ScreenSize(size, math.max(math.distance(view.Camera, middle), 1f), view.PixelsPerMetre);
+            if (fall == fallChosen)
+                heldPixels = pixels;
+            if (pixels > bestPixels)
+            {
+                best = fall;
+                bestPixels = pixels;
+            }
+        }
+
+        /// <summary>A cave waterfall's sheet: its run-in from just inside the notch, and its curtain out and down to the pool
+        /// (the foot where it lands). Its rectangle is centred on the lip, only so the shader's rectangle holds it: its cells
+        /// are the sheet's own (CaveQuads), not the ground's.</summary>
+        static FallShape CaveShape(CaveWaterfall f)
+        {
+            var o = math.normalizesafe(f.Out, new float2(0f, 1f));
+            float reach = f.Carry;
+            return new FallShape
+            {
+                Corner = (int2)math.floor(f.Lip.xz) - FallWidth / 2,
+                Extent = new int2(FallWidth, FallWidth),
+                Middle = f.Lip + new float3(o.x * reach * 0.5f, -f.Drop * 0.5f, o.y * reach * 0.5f),
+                Lip = new float4(f.Lip, f.Drop),
+                Axis = new float4(o, f.Width * 0.5f + 2f, 0f),
+                Span = new float4(-3.5f, reach, reach + 5f, 0f)
+            };
+        }
+
+        /// <summary>A cave waterfall's quads: across its width in metre columns, and along it a short run-in at the lip
+        /// (0.4 m) then the curtain in rows of about 2 m from the lip to where it lands, all standing in for chunk water
+        /// cells of the shape's rectangle (columns along x, rows along z, so they wind as the ground's do).</summary>
+        void CaveQuads(CaveWaterfall f, in FallShape shape)
+        {
+            var o = math.normalizesafe(f.Out, new float2(0f, 1f));
+            var across = new float3(o.y, 0f, -o.x);
+            var outward = new float3(o.x, 0f, o.y);
+            var reach = f.Carry;
+            int columns = math.max(1, (int)math.ceil(f.Width)), drops = math.max(1, (int)math.ceil(f.Drop / 2f));
+            var data = new float4(o, 0.3f, 0.5f);
+            // (Row r's near edge: r 0 is the run-in's start, r 1 the lip, r 1 + drops the landing.)
+            float3 RowAt(int r) => r == 0
+                ? f.Lip - outward * 0.4f
+                : f.Lip + outward * (reach * (r - 1) / drops) - new float3(0f, f.Drop * (r - 1) / drops, 0f);
+            WaterVertex At(float3 row, int i) => new WaterVertex
+            {
+                Position = row + across * (f.Width * (i / (float)columns - 0.5f)),
+                Data = data,
+                Look = CaveFallLook
+            };
+            for (int r = 0; r < 1 + drops; r++)
+            {
+                float3 near = RowAt(r), far = RowAt(r + 1);
+                for (int i = 0; i < columns; i++)
+                    fallQuads.Add(new ParentQuad
+                    {
+                        Cell = shape.Corner + new int2(1 + i, 1 + r),
+                        A = At(near, i), B = At(near, i + 1), C = At(far, i), D = At(far, i + 1)
+                    });
+            }
         }
 
         /// <summary>A fall's sheet: from 5 m above the lip to 10 m past the foot (where the water first lies at the pool's
@@ -228,10 +310,17 @@ namespace Punchy.Terrain
             Punchy.Settings.DetailPolicy.View view)
         {
             var shape = fallShape;
+            var cave = fall >= CaveFallBase;
             var check = 23;
-            Gather(streaming, config, shape.Corner, shape.Extent, ref check, true);
+            if (!cave)
+                Gather(streaming, config, shape.Corner, shape.Extent, ref check, true);
             fallQuads.Clear();
-            if (gatherMeshes.Count > 0)
+            if (cave)
+            {
+                var source = SystemAPI.GetSingleton<TerrainSource>();
+                CaveQuads(source.Caves.Value.Waterfalls[fall - CaveFallBase], shape);
+            }
+            else if (gatherMeshes.Count > 0)
             {
                 using var read = Mesh.AcquireReadOnlyMeshData(gatherMeshes);
                 for (int m = 0; m < read.Length; m++)
@@ -261,7 +350,7 @@ namespace Punchy.Terrain
                 fallRows[c.y * FallWidth + c.x] = 1;
                 var rel = (float2)q.Cell + 0.5f - shape.Lip.xz;
                 float s = math.dot(rel, o), side = math.abs(math.dot(rel, across));
-                if (s < shape.Span.x - 0.5f || s > shape.Span.z + 0.5f || side > shape.Axis.z + 0.5f)
+                if (!cave && (s < shape.Span.x - 0.5f || s > shape.Span.z + 0.5f || side > shape.Axis.z + 0.5f))
                     continue;
                 fallQuads[kept++] = q;
             }
@@ -289,6 +378,17 @@ namespace Punchy.Terrain
                     levels[i] = level;
                     total += (1 << level.x) * (1 << level.y) * 6;
                 }
+                // (A cave fall's quads are cut alike: their cells aren't the ground's, so a seam between two cuts couldn't
+                // be closed the chunk water's way, along x or z.)
+                if (cave && kept > 0)
+                {
+                    var most = int2.zero;
+                    for (int i = 0; i < kept; i++)
+                        most = math.max(most, levels[i]);
+                    for (int i = 0; i < kept; i++)
+                        levels[i] = most;
+                    total = kept * (1 << most.x) * (1 << most.y) * 6;
+                }
                 if (total <= budget)
                     break;
             }
@@ -302,7 +402,8 @@ namespace Punchy.Terrain
                 int nx = 1 << levels[i].x, nz = 1 << levels[i].y;
                 fallGrid[c.y * FallWidth + c.x] = (byte)nx;
                 fallRows[c.y * FallWidth + c.x] = (byte)nz;
-                fallMaskCut[c.y * FallWidth + c.x] = 255;
+                if (!cave)
+                    fallMaskCut[c.y * FallWidth + c.x] = 255;
                 fallNextLevels[q.Cell] = (byte)(levels[i].x | levels[i].y << 4);
                 fallStarts[i] = new int2(vertexCount, indexCount);
                 vertexCount += (nx + 1) * (nz + 1);
@@ -318,6 +419,14 @@ namespace Punchy.Terrain
             var pad = WaterSwells.BoundsPad + new float3(1f, 1f, 1f);
             var lo = new float3(shape.Corner.x, lowY, shape.Corner.y) - pad;
             var hi = new float3(shape.Corner.x + shape.Extent.x, highY, shape.Corner.y + shape.Extent.y) + pad;
+            if (cave)
+            {
+                // (Round the sheet itself, not its rectangle.)
+                var near = shape.Lip.xz - (float2)(WaterSwells.BoundsPad.xz + 3f);
+                var far = shape.Lip.xz + (float2)(WaterSwells.BoundsPad.xz + 3f);
+                lo = new float3(near.x, lo.y, near.y);
+                hi = new float3(far.x, hi.y, far.y);
+            }
             cutFallBounds = new Bounds((lo + hi) * 0.5f, hi - lo);
             cutFallShape = shape;
             cutFallBuilds = builds;
