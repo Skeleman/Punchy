@@ -341,6 +341,10 @@ namespace Punchy.Debugging
             }
             lightsMax = 0; lightsTotal = 0; drawTotal = 0; batchTotal = 0; setPassTotal = 0; shadowTotal = 0; triTotal = 0;
             var settle = Settle;   // waitCaves: pushed on while cave chunks are queued or building, up to MaxCaveSettle
+            // -benchcycle: this stop only settles here; Cycle below measures each arm in turn, in this one game.
+            var cycleArms = CycleArms(args, name);
+            if (cycleArms != null)
+                measure = 0f;
             var caves = waitCaves ? FindAnyObjectByType<CaveSystem>() : null;
             var settledProp = caves != null ? typeof(CaveSystem).GetProperty("Settled", BindingFlags.Public | BindingFlags.Instance) : null;
             while (t < settle + measure)
@@ -403,8 +407,13 @@ namespace Punchy.Debugging
                 UnityEngine.Profiling.Profiler.enabled = false;
                 UnityEngine.Profiling.Profiler.logFile = "";
             }
-            Report(name);
-            WriteFrames(name);
+            if (cycleArms != null)
+                yield return Cycle(name, cycleArms, args);
+            else
+            {
+                Report(name);
+                WriteFrames(name);
+            }
             if (FlameCounter.Frames > 0 && FlameCounter.Max > 0)
                 Debug.Log($"BenchRoute flames: {name}: {FlameCounter.Mean:F0} a frame (max {FlameCounter.Max}), dropped " +
                           (FlameCounter.DroppedNow < 0 ? "n/a (no FireSystem.Dropped in this build)" : $"{FlameCounter.DroppedNow - FlameCounter.DroppedAtBegin}"));
@@ -428,6 +437,149 @@ namespace Punchy.Debugging
         /// shadow lists, as last culled) and logs instances and triangles, split into plants and the rest (bones, rocks,
         /// kit buildings: FloraForm.Bones onward). By reflection, as FloraSystem keeps its layers private.
         /// </summary>
+        /// <summary>
+        /// -benchcycle "label/set;set|label/set;set|...": the arms a stop measures in turn in one game (after its settle),
+        /// instead of one game per arm: no launch, load and settle for each, and no game-to-game variance. A set is
+        /// g.(shader global)=(float), k.(global keyword)=0|1, or f.(Namespace.Type).(static field)=(value): a switch the
+        /// feature reads every frame. -benchcyclestop (stop) picks the stop (default: every stop), -benchcyclerounds n (4),
+        /// -benchcyclesettle s (4) and -benchcyclemeasure s (15) the rounds and each segment's settle and measured time.
+        /// Each round runs the arms rotated by one, reversed every other round. A segment with a frame over 5 s (a stall)
+        /// is measured again once. Reported as "(stop)/(label)#(round)" lines, which lib.sh's parse reads.
+        /// </summary>
+        static List<(string label, string[] sets)> CycleArms(string[] args, string stop)
+        {
+            var at = System.Array.IndexOf(args, "-benchcycle");
+            if (at < 0 || at + 1 >= args.Length)
+                return null;
+            var only = System.Array.IndexOf(args, "-benchcyclestop");
+            if (only >= 0 && only + 1 < args.Length && args[only + 1] != stop)
+                return null;
+            var arms = new List<(string label, string[] sets)>();
+            foreach (var arm in args[at + 1].Split('|'))
+            {
+                var slash = arm.IndexOf('/');
+                var label = slash < 0 ? arm : arm.Substring(0, slash);
+                var sets = slash < 0 ? new string[0] : arm.Substring(slash + 1).Split(new[] { ';' }, System.StringSplitOptions.RemoveEmptyEntries);
+                arms.Add((label, sets));
+            }
+            return arms.Count > 0 ? arms : null;
+        }
+
+        static float CycleArg(string[] args, string flag, float fallback)
+        {
+            var at = System.Array.IndexOf(args, flag);
+            return at >= 0 && at + 1 < args.Length && float.TryParse(args[at + 1], System.Globalization.NumberStyles.Float,
+                       System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : fallback;
+        }
+
+        static void ApplyArm(string label, string[] sets)
+        {
+            foreach (var set in sets)
+            {
+                var eq = set.IndexOf('=');
+                if (set.Length < 3 || set[1] != '.' || eq < 0)
+                {
+                    Debug.LogWarning($"BenchRoute: cycle {label}: can't read '{set}'");
+                    continue;
+                }
+                var key = set.Substring(2, eq - 2);
+                var value = set.Substring(eq + 1);
+                var ok = false;
+                switch (set[0])
+                {
+                    case 'g':
+                        if (float.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var f))
+                        {
+                            Shader.SetGlobalFloat(key, f);
+                            ok = true;
+                        }
+                        break;
+                    case 'k':
+                        if (value == "0") Shader.DisableKeyword(key); else Shader.EnableKeyword(key);
+                        ok = true;
+                        break;
+                    case 'f':
+                        var dot = key.LastIndexOf('.');
+                        System.Type type = null;
+                        if (dot > 0)
+                            foreach (var asm in System.AppDomain.CurrentDomain.GetAssemblies())
+                                if ((type = asm.GetType(key.Substring(0, dot))) != null)
+                                    break;
+                        var field = type?.GetField(key.Substring(dot + 1), BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+                        if (field != null && !field.IsInitOnly && !field.IsLiteral)
+                        {
+                            try
+                            {
+                                field.SetValue(null, System.Convert.ChangeType(value, field.FieldType, System.Globalization.CultureInfo.InvariantCulture));
+                                ok = true;
+                            }
+                            catch (System.Exception e) { Debug.LogWarning($"BenchRoute: cycle {label}: {key}: {e.Message}"); }
+                        }
+                        else
+                            Debug.LogWarning($"BenchRoute: cycle {label}: no settable static field {key}" + (field != null ? " (readonly)" : ""));
+                        break;
+                }
+                if (ok)
+                    Debug.Log($"BenchRoute: cycle {label}: {key} = {value}");
+            }
+        }
+
+        IEnumerator Cycle(string name, List<(string label, string[] sets)> arms, string[] args)
+        {
+            var rounds = Mathf.RoundToInt(CycleArg(args, "-benchcyclerounds", 4f));
+            var segSettle = CycleArg(args, "-benchcyclesettle", 4f);
+            var segMeasure = CycleArg(args, "-benchcyclemeasure", 15f);
+            for (int r = 1; r <= rounds; r++)
+            {
+                var order = new List<int>();
+                for (int k = 0; k < arms.Count; k++)
+                    order.Add((k + r - 1) % arms.Count);
+                if (r % 2 == 0)
+                    order.Reverse();
+                foreach (var a in order)
+                {
+                    var label = arms[a].label;
+                    ApplyArm(label, arms[a].sets);
+                    for (int attempt = 0; attempt < 2; attempt++)
+                    {
+                        var t = 0f;
+                        while (t < segSettle)
+                        {
+                            t += Mathf.Min(Time.unscaledDeltaTime, 0.25f);
+                            yield return null;
+                        }
+                        frameMs.Clear(); cpuMs.Clear(); gpuMs.Clear(); mainMs.Clear(); renderMs.Clear(); hitchLines = 0; phase = name;
+                        frameRows.Clear();
+                        lightsMax = 0; lightsTotal = 0; drawTotal = 0; batchTotal = 0; setPassTotal = 0; shadowTotal = 0; triTotal = 0;
+                        gcAtStart = System.GC.CollectionCount(0);
+                        StartGpuPasses();
+                        measuring = true;
+                        var stalled = false;
+                        t = 0f;
+                        while (t < segMeasure)
+                        {
+                            var dt = Time.unscaledDeltaTime;
+                            if (dt > 5f)
+                            {
+                                stalled = true;
+                                Debug.LogWarning($"BenchRoute: {name}/{label}#{r}: a {dt:F1} s frame at {t:F1} s into the segment, frame {Time.frameCount} (measuring)");
+                            }
+                            t += dt;
+                            yield return null;
+                        }
+                        measuring = false;
+                        if (!stalled || attempt == 1)
+                        {
+                            Report($"{name}/{label}#{r}");
+                            break;
+                        }
+                        Debug.Log($"BenchRoute: {name}/{label}#{r}: stalled, measuring again");
+                    }
+                }
+            }
+            ApplyArm(arms[0].label, arms[0].sets);
+        }
+
         IEnumerator FloraInView(string name)
         {
             const BindingFlags Any = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
