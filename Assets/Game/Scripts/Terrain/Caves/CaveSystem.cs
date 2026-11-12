@@ -430,7 +430,11 @@ namespace Punchy.Terrain
         // Comparers made once: List.Sort(Comparison) wraps the delegate in a new comparer on every call, every frame.
         static readonly Comparer<(float distance, int pool)> PoolsByDistance =
             Comparer<(float distance, int pool)>.Create((a, b) => a.distance.CompareTo(b.distance));
-        static Mesh lavaPoolMesh;
+        /// <summary>
+        /// Lava pools' look (rgb, murk): the water shader's lava path (glow y = 1) makes it glow and creep. W-148 row 4:
+        /// on the cave water lattice like any pool, fitted to its basin (it was a shared disc mesh).
+        /// </summary>
+        static readonly float4 LavaPoolLook = new float4(1f, 0.33f, 0.05f, 0.2f);
         /// <summary>Cave water's look in the water vertex layout: dark, clear and cold (rgb, murk).</summary>
         static readonly float4 CaveWater = new float4(0.1f, 0.28f, 0.3f, 0.1f);
         /// <summary>
@@ -457,16 +461,16 @@ namespace Punchy.Terrain
         }
         // Streams run shallow over dark rock: darker and greener than the pools, a little murkier.
         static readonly float4 CaveStreamWater = new float4(0.04f, 0.13f, 0.12f, 0.15f);
-        /// <summary>Per pool: drawn last frame (DetailPolicy.Within holds it; only lava pools are drawn here).</summary>
+        /// <summary>Per pool: its glow handed on last frame (DetailPolicy.Within holds it; only lava pools glow).</summary>
         bool[] poolDrawn = System.Array.Empty<bool>();
         EntityQuery configQuery;
 
         /// <summary>
         /// Draws cave water with the terrain's own water material: pools and streams baked like chunk water
-        /// (CaveSystem.Water, W-134; each tile drawn only while big enough on screen), lava pools with one shared disc
-        /// mesh (lava is its lava path) while within LoadRadius and a couple of pixels wide (DetailPolicy.CaveWaterPixels,
-        /// held by DetailPolicy.Within, W-135). Hands the drawn lava pools' glow to LightBudget so the cave shader can
-        /// light the walls round them warmly without real lights.
+        /// (CaveSystem.Water, W-134; each tile drawn only while big enough on screen), lava pools among them in the lava
+        /// look (W-148 row 4). Hands the lava pools' glow, while within LoadRadius and a couple of pixels wide
+        /// (DetailPolicy.CaveWaterPixels, held by DetailPolicy.Within, W-135), to LightBudget so the cave shader can light
+        /// the walls round them warmly without real lights.
         /// </summary>
         void DrawPools(in TerrainSource source, float3 camPos)
         {
@@ -491,22 +495,10 @@ namespace Punchy.Terrain
             DrawCaveWater(source, camPos, water);
             if (nearPools.Count == 0)
                 return;
-            if (lavaPoolMesh == null)
-                lavaPoolMesh = MakePoolMesh(new float4(1f, 0.33f, 0.05f, 0.2f), 1f);
             nearPools.Sort(PoolsByDistance);
             foreach (var (_, i) in nearPools)
             {
                 ref var pool = ref set.Pools[i];
-                if (water != null)
-                {
-                    var rp = new RenderParams(water)
-                    {
-                        worldBounds = new Bounds(pool.Centre, new Vector3(pool.Radius * 2f, 1f, pool.Radius * 2f)),
-                        shadowCastingMode = ShadowCastingMode.Off,
-                        receiveShadows = false
-                    };
-                    Graphics.RenderMesh(rp, lavaPoolMesh, 0, Matrix4x4.TRS(pool.Centre, Quaternion.identity, new Vector3(pool.Radius, 1f, pool.Radius)));
-                }
                 var reach = LavaLight;
                 reach.w = pool.Radius * 5f + 4f;
                 // (LightBudget decides by its on-screen reach whether it takes a glow slot: refactor 3.1.)
@@ -790,52 +782,6 @@ namespace Punchy.Terrain
             plantInstances = plantVisible = plantArgs = null;
             plantsFrom = plantsGrowing = null;
             plantsAround = new float3(float.MaxValue);
-        }
-
-        /// <summary>
-        /// A unit disc in the terrain's water vertex layout: no flow, deepest at the middle (lava cools and crusts
-        /// towards the rim), in the given look and lava amount.
-        /// </summary>
-        internal static Mesh MakePoolMesh(float4 look, float lava) => MakePoolMesh(look, new float2(0f, lava));
-
-        /// <summary>The same disc with a self-glow too: glow x, lava y.</summary>
-        static Mesh MakePoolMesh(float4 look, float2 glow)
-        {
-            const int rings = 6, spokes = 32;
-            var vertices = new List<WaterVertex> { Vertex(float2.zero) };
-            for (int r = 1; r <= rings; r++)
-                for (int s = 0; s < spokes; s++)
-                {
-                    var a = s / (float)spokes * math.PI * 2f;
-                    vertices.Add(Vertex(new float2(math.cos(a), math.sin(a)) * r / rings));
-                }
-            var indices = new List<int>();
-            for (int s = 0; s < spokes; s++)
-            {
-                indices.Add(0); indices.Add(1 + (s + 1) % spokes); indices.Add(1 + s);
-            }
-            for (int r = 1; r < rings; r++)
-                for (int s = 0; s < spokes; s++)
-                {
-                    int a = 1 + (r - 1) * spokes + s, b = 1 + (r - 1) * spokes + (s + 1) % spokes;
-                    int c = a + spokes, d = b + spokes;
-                    indices.Add(a); indices.Add(b); indices.Add(c);
-                    indices.Add(b); indices.Add(d); indices.Add(c);
-                }
-            var mesh = new Mesh { name = "Cave pool" };
-            mesh.SetVertexBufferParams(vertices.Count, WaterVertex.Layout);
-            mesh.SetVertexBufferData(vertices, 0, 0, vertices.Count);
-            mesh.SetIndices(indices, MeshTopology.Triangles, 0);
-            mesh.bounds = new Bounds(Vector3.zero, new Vector3(2f, 1f, 2f));
-            return mesh;
-
-            WaterVertex Vertex(float2 xz) => new WaterVertex
-            {
-                Position = new float3(xz.x, 0f, xz.y),
-                Data = new float4(0f, 0f, 1f - math.lengthsq(xz), 0f),
-                Look = look,
-                Glow = glow
-            };
         }
 
         /// <summary>

@@ -19,7 +19,9 @@ namespace Punchy.Terrain
     ///
     /// A cave is sampled in a background Burst job the first time it comes within LoadRadius (one cave at a time,
     /// collected on a later frame), cut into tiles of the lattice, and each tile is drawn only while it is big enough on
-    /// screen (DetailPolicy.ScreenSize, rule 20). Lava pools keep their smooth disc and glow.
+    /// screen (DetailPolicy.ScreenSize, rule 20). Lava pools are the same lattice in the lava look (W-148 row 4: they were a
+    /// disc); their glow light is still handed to LightBudget by DrawPools, and nobody swims in them (CaveData's water
+    /// query still skips lava, so only OverLava's harm applies).
     /// </summary>
     public partial class CaveSystem
     {
@@ -163,8 +165,6 @@ namespace Punchy.Terrain
             for (int i = cave.FirstPool; i < cave.FirstPool + cave.PoolCount; i++)
             {
                 ref var pool = ref set.Pools[i];
-                if (pool.Lava > 0.5f)
-                    continue;
                 var reach = PoolReach(pool) + WaterStep;
                 AddNear(keys, pool.Centre.xz, pool.Centre.xz, reach);
             }
@@ -211,8 +211,11 @@ namespace Punchy.Terrain
         }
 
         /// <summary>How far from a pool's middle its water may reach (m), past where its basin rises out of it.</summary>
-        // A lake's beach rises steadily from its edge (W-134 row 3), so its water ends close past the basin.
-        static float PoolReach(in CavePool pool) => pool.Hall > 0f ? pool.Radius * 1.2f + 3f : pool.Radius * 2f + 1.5f;
+        // A lake's beach rises steadily from its edge (W-134 row 3), so its water ends close past the basin. Lava is cut
+        // where its harm ends (OverLava's radius; the claim cuts ShoreCut short of the reach), so no lava lies on a low
+        // floor round the basin that a player could walk across unharmed (W-148 row 4).
+        static float PoolReach(in CavePool pool) => pool.Lava > 0.5f ? pool.Radius + ShoreCut
+            : pool.Hall > 0f ? pool.Radius * 1.2f + 3f : pool.Radius * 2f + 1.5f;
 
         /// <summary>How far from a stream's middle its water may reach (m), past where StreamBed's banks rise out of it.</summary>
         static float StreamReach(float half) => half * 2f + 2.5f;
@@ -272,7 +275,7 @@ namespace Punchy.Terrain
             [ReadOnly] public NativeArray<int2> Keys;
             [ReadOnly] public NativeArray<float> StreamRapids;
             [ReadOnly] public NativeArray<byte> White;
-            /// <summary>x surface, y depth (-1 dry), z rapids, w kind (0 none, 1 pool, 2 stream, 3 white pool).</summary>
+            /// <summary>x surface, y depth (-1 dry), z rapids, w kind (0 none, 1 pool, 2 stream, 3 white pool, 4 lava pool).</summary>
             [WriteOnly] public NativeArray<float4> Samples;
             /// <summary>xy flow direction, z claim: how far inside its water's reach the vertex lies (m; negative where no
             /// water claims it, or where the claim was cut over a drop), so BuildWaterTiles can cut cells along it.</summary>
@@ -296,8 +299,6 @@ namespace Punchy.Terrain
                 for (int i = cave.FirstPool; i < cave.FirstPool + cave.PoolCount; i++)
                 {
                     ref var pool = ref set.Pools[i];
-                    if (pool.Lava > 0.5f)
-                        continue;
                     var d = math.distance(xz, pool.Centre.xz);
                     var poolReach = PoolReach(pool);
                     if (d >= poolReach)
@@ -312,7 +313,7 @@ namespace Punchy.Terrain
                     surface = pool.Centre.y;
                     edge = poolReach - d;
                     band = math.smoothstep(poolReach - ShoreBand, poolReach, d);
-                    kind = White[i] != 0 ? 3f : 1f;
+                    kind = pool.Lava > 0.5f ? 4f : White[i] != 0 ? 3f : 1f;
                     flow = float2.zero;
                     rapids = 0f;
                     reach = pool.Depth + 1.5f;
@@ -422,8 +423,10 @@ namespace Punchy.Terrain
                         // Dry: inside the bank. It stays flat, so the GPU clips the sheet along the floor between it and
                         // its wet neighbours (sinking it would pull the shoreline onto the lattice), except over the last
                         // ShoreCut of the reach, where it sinks so the rim ends under the rock. Wet vertices stay flat
-                        // everywhere (sinking them shows a slope).
-                        surface -= ShoreSink * (1f - math.smoothstep(0f, ShoreCut, edge));
+                        // everywhere (sinking them shows a slope). Lava is cut at its harm's edge, often over a ledge
+                        // inside its reach, so its dry vertices stay flat: sunk, they tore notches out of the pool (W-148).
+                        if (kind != 4f)
+                            surface -= ShoreSink * (1f - math.smoothstep(0f, ShoreCut, edge));
                         depth = -1f;
                     }
                     // Still wet near the end of its reach, the floor falls away (a drop, or a bank lower than the water):
@@ -555,12 +558,13 @@ namespace Punchy.Terrain
         {
             var s = waterSamples[i];
             var white = s.w == 3f;
+            var lava = s.w == 4f;
             return new WaterVertex
             {
                 Position = new float3(xz.x, s.x, xz.y),
                 Data = new float4(waterFlow[i].xy, math.max(s.y, 0f), s.z),
-                Look = white ? WhitePoolWater : s.w == 2f ? CaveStreamWater : CaveWater,
-                Glow = new float2(white ? WhitePoolGlow : 0f, 0f)
+                Look = lava ? LavaPoolLook : white ? WhitePoolWater : s.w == 2f ? CaveStreamWater : CaveWater,
+                Glow = new float2(white ? WhitePoolGlow : 0f, lava ? 1f : 0f)
             };
         }
 
