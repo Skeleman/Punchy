@@ -2,6 +2,39 @@
 
 Newest first.
 
+## Job 45i follow-up: the wave field with hardware tessellation (q96, q97), 2026-11-12: works, costs twice the CPU cut
+**Setup:**
+- Punchy `b/water-rows-fixes` 5e7bfad2. Job 45c's lake swim, 1920x1080, uncapped, `-body default`, 3 rounds rotated per preset.
+- Run with job.sh and report.py (q97.job).
+
+**Getting the prototype to run took two more fixes, each found by a run:**
+- 25954f2d: the stages now pass their own control-point struct. The vertex input's float3 POSITION was being read as SV_Position.
+- 5e7bfad2: in tess mode the CPU cuts 2×2 every cell that cut 8 would cut. A plain cut of 2 halves to 1 one tier out, so q96's tess arm had no sheet at all.
+  - q96's "tess" arm therefore measured only the field step and shading: −0.3 (High) and −0.17 (Medium) over off.
+
+**Take 3 (q97):**
+
+| arm | High GPU (vs off) | High sheet indices | Medium GPU (vs off) | Medium sheet |
+|---|---|---|---|---|
+| off | 19.1 | — | 17.3 | — |
+| cuts 4 (today's default) | 19.4 (**+0.3**) | 288–768 | 17.4 (+0.1) | 0 |
+| cuts 8 (the old default) | 20.1 (**+0.95**) | 2,500–4,900 | 17.2 (−0.1) | 0 |
+| tessellated (CPU 2, the GPU up to 4x more at 8 px a segment) | 21.05 (**+1.9**) | 1,600–2,600 before the GPU divides | 17.25 (−0.05) | 0 |
+
+**Tessellation isn't a win here. It costs twice what cuts 8 does over the same cells (+1.9 against +0.95 at High).**
+- The domain stage runs the water's whole vertex work (swell, field and fall reads) for every new point.
+- The hull and domain stages add their own overhead on this GPU.
+- The CPU cut builds those points once per recut instead. A coarser target (fewer GPU points) would cost less, but it would be giving up exactly the detail tessellation was meant to add.
+- **Recommendation:** drop it. Keep the CPU cut: cuts 4 at +0.3 is within High's +1 ms, and cuts 8 at +0.95 is just within it for a High/Ultra "Full" setting. The prototype stays on the branch behind `-waterfieldtess 1` (off by default) in case a different GPU says otherwise.
+
+**At Medium every arm is within noise of off, because no cell is cut at Medium's view and detail (0 indices).** This is job 45i's finding again: Medium already shows only the normals-only form.
+
+**The water shader is now split into includes** (WaterMaterial, WaterDepthPass, WaterForwardPass .hlsl), so a second shader could share it. Water.shader draws exactly as before. The world lane may keep or undo that split when merging.
+
+Files (Punchy-wt results): q96.out, q97.out, q96-*.csv, q97-*.csv, q96logs/, q97logs/, q97-shots/.
+
+Cost: laptop total $784 (laptop session 0a48ccdb; 2 builds plus one stopped, 48 games).
+
 ## Jobs 49d and 45j: R-12 band trial, R-10 cluster-variant pricing, 2026-11-11 (q95.sh); and a correction to how I read RenderDoc
 **Setup:** Profile builds, 1920x1080, High, uncapped, `-body default`, 3 rounds rotated. Tables from report.py, with stalled rounds counted.
 
