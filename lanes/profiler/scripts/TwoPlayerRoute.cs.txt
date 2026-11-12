@@ -1,0 +1,282 @@
+using System.Collections;
+using System.Collections.Generic;
+using System.Text;
+using Punchy.CameraRig;
+using Punchy.Fauna;
+using Punchy.Net;
+using Punchy.Player;
+using Punchy.Terrain;
+using Punchy.Weather;
+using Unity.Entities;
+using Unity.Mathematics;
+using Unity.NetCode;
+using Unity.Transforms;
+using UnityEngine;
+
+namespace Punchy.Debugging
+{
+    /// <summary>
+    /// Profiler test helper for BENCH job 50 (two-player crash and desync check), copied into a bench build by the
+    /// profiler's q-script and never committed to the game. "-tproute host": after the client joins, the host walks a
+    /// route of stops ("-tpstops name@x,z@hour@weather;...", each held "-tphold" seconds), setting the hour and forcing
+    /// the weather over each stop. "-tproute client": keeps its own player beside the host's (teleports when over 12 m
+    /// away). Both log a "TPCHECK" line every 10 s (role, stop, own and the other player's position and look, the nearest
+    /// creatures by ghost id, hour, weather, exceptions so far) and take a shot 15 s into each stop. "-tpquitafter s"
+    /// quits the game that many seconds after it is in the world (the client's leave).
+    /// </summary>
+    public class TwoPlayerRoute : MonoBehaviour
+    {
+        string role;
+        int exceptions, errors;
+        string stop = "start";
+        float stopSince;
+        string shotDir;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        static void Boot()
+        {
+            var args = System.Environment.GetCommandLineArgs();
+            var at = System.Array.IndexOf(args, "-tproute");
+            if (at < 0 || at + 1 >= args.Length || FindAnyObjectByType<TwoPlayerRoute>() != null)
+                return;
+            var go = new GameObject("TwoPlayerRoute");
+            DontDestroyOnLoad(go);
+            var r = go.AddComponent<TwoPlayerRoute>();
+            r.role = args[at + 1];
+        }
+
+        void OnEnable() => Application.logMessageReceivedThreaded += Count;
+        void OnDisable() => Application.logMessageReceivedThreaded -= Count;
+
+        void Count(string message, string trace, LogType type)
+        {
+            if (type == LogType.Exception) System.Threading.Interlocked.Increment(ref exceptions);
+            else if (type == LogType.Error) System.Threading.Interlocked.Increment(ref errors);
+        }
+
+        static string Arg(string name, string fallback)
+        {
+            var args = System.Environment.GetCommandLineArgs();
+            var at = System.Array.IndexOf(args, name);
+            return at >= 0 && at + 1 < args.Length ? args[at + 1] : fallback;
+        }
+
+        static float ArgF(string name, float fallback) =>
+            float.TryParse(Arg(name, ""), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : fallback;
+
+        IEnumerator Start()
+        {
+            shotDir = Arg("-tpshots", null);
+            if (shotDir != null)
+                System.IO.Directory.CreateDirectory(shotDir);
+            while (!TryGetWorld(out _, out _))
+                yield return null;
+            Debug.Log($"TPCHECK {role}: in the world at {Time.realtimeSinceStartup:F1} s");
+            var quitAfter = ArgF("-tpquitafter", -1f);
+            if (quitAfter > 0f)
+                StartCoroutine(QuitAfter(quitAfter));
+            StartCoroutine(Checks());
+            if (role == "host")
+                yield return HostRoute();
+            else
+                yield return Follow();
+        }
+
+        IEnumerator QuitAfter(float seconds)
+        {
+            yield return new WaitForSecondsRealtime(seconds);
+            Debug.Log($"TPCHECK {role}: leaving (quit) at {Time.realtimeSinceStartup:F1} s, exceptions {exceptions}, errors {errors}");
+            Application.Quit();
+        }
+
+        IEnumerator HostRoute()
+        {
+            // Wait for a second player to show up (another NetPlayer ghost), up to -tpwait s.
+            var wait = ArgF("-tpwait", 240f);
+            var t = 0f;
+            while (t < wait && OtherPlayers().Count == 0)
+            {
+                t += Time.unscaledDeltaTime;
+                yield return null;
+            }
+            Debug.Log($"TPCHECK host: {(OtherPlayers().Count > 0 ? "client in" : "no client")} after {t:F0} s");
+            yield return new WaitForSecondsRealtime(10f);
+            var hold = ArgF("-tphold", 60f);
+            foreach (var spec in Arg("-tpstops", "").Split(';'))
+            {
+                var parts = spec.Split('@');
+                if (parts.Length < 2)
+                    continue;
+                var xz = parts[1].Split(',');
+                var x = float.Parse(xz[0], System.Globalization.CultureInfo.InvariantCulture);
+                var z = float.Parse(xz[1], System.Globalization.CultureInfo.InvariantCulture);
+                stop = parts[0];
+                stopSince = Time.realtimeSinceStartup;
+                PlaceAt(new float3(x, float.NaN, z), 0f);
+                if (parts.Length > 2 && float.TryParse(parts[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var hour))
+                {
+                    var cycle = FindAnyObjectByType<DayNightCycle>();
+                    if (cycle != null)
+                        cycle.TimeOfDay = hour;
+                }
+                if (parts.Length > 3)
+                {
+                    var weather = FindAnyObjectByType<WeatherSystem>();
+                    if (weather != null)
+                        weather.ForceAt(parts[3], new Vector2(x, z));
+                }
+                Debug.Log($"TPCHECK host: stop {stop} at {x:F0},{z:F0} (hour {(parts.Length > 2 ? parts[2] : "-")}, weather {(parts.Length > 3 ? parts[3] : "-")})");
+                yield return new WaitForSecondsRealtime(hold);
+            }
+            stop = "end";
+            Debug.Log($"TPCHECK host: route done, exceptions {exceptions}, errors {errors}");
+        }
+
+        IEnumerator Follow()
+        {
+            float3 last = default;
+            var lastSet = false;
+            while (true)
+            {
+                var others = OtherPlayers();
+                if (others.Count > 0 && TryGetWorld(out var em, out var player))
+                {
+                    var host = others[0].position;
+                    var me = em.GetComponentData<LocalTransform>(player).Position;
+                    if (math.distance(me.xz, host.xz) > 12f)
+                    {
+                        if (lastSet && math.distance(last.xz, host.xz) > 100f)
+                        {
+                            stop = "after-jump";
+                            stopSince = Time.realtimeSinceStartup;
+                        }
+                        PlaceAt(new float3(host.x + 3f, float.NaN, host.z + 3f), 0f);
+                    }
+                    last = host;
+                    lastSet = true;
+                }
+                yield return new WaitForSecondsRealtime(1f);
+            }
+        }
+
+        IEnumerator Checks()
+        {
+            var shotTaken = "";
+            while (true)
+            {
+                yield return new WaitForSecondsRealtime(10f);
+                Debug.Log(Check());
+                // A shot 15-25 s into each stop.
+                if (shotDir != null && stop != shotTaken && Time.realtimeSinceStartup - stopSince > 15f)
+                {
+                    shotTaken = stop;
+                    ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(shotDir, $"{role}-{stop}-{Time.realtimeSinceStartup:F0}.png"));
+                }
+            }
+        }
+
+        string Check()
+        {
+            var sb = new StringBuilder();
+            sb.Append($"TPCHECK {role}: t {Time.realtimeSinceStartup:F0} stop {stop}");
+            if (TryGetWorld(out var em, out var player))
+            {
+                var me = em.GetComponentData<LocalTransform>(player).Position;
+                sb.Append($" | me {me.x:F1},{me.y:F1},{me.z:F1}");
+                foreach (var (pos, look, id) in OtherPlayers())
+                    sb.Append($" | player#{id} {pos.x:F1},{pos.y:F1},{pos.z:F1} species {look.Species} coat {look.Coat} pose {look.Pose}");
+                // Creatures within 120 m, nearest first: count, then ghost id, species and position of the five nearest.
+                using var q = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
+                var states = q.ToComponentDataArray<CreatureState>(Unity.Collections.Allocator.Temp);
+                var bodies = q.ToComponentDataArray<CreatureBody>(Unity.Collections.Allocator.Temp);
+                var ents = q.ToEntityArray(Unity.Collections.Allocator.Temp);
+                var near = new List<(float d, int i)>();
+                for (int i = 0; i < states.Length; i++)
+                {
+                    var d = math.distance(states[i].Position.xz, me.xz);
+                    if (d < 120f)
+                        near.Add((d, i));
+                }
+                near.Sort((a, b) => a.d.CompareTo(b.d));
+                sb.Append($" | creatures {near.Count} (of {states.Length})");
+                for (int k = 0; k < math.min(5, near.Count); k++)
+                {
+                    var i = near[k].i;
+                    var gid = em.HasComponent<GhostInstance>(ents[i]) ? em.GetComponentData<GhostInstance>(ents[i]).ghostId : -1;
+                    var p = states[i].Position;
+                    sb.Append($" [{gid} s{bodies[i].Species} {p.x:F0},{p.z:F0}]");
+                }
+            }
+            var cycle = FindAnyObjectByType<DayNightCycle>();
+            if (cycle != null)
+                sb.Append($" | hour {cycle.TimeOfDay:F2}");
+            var weather = FindAnyObjectByType<WeatherSystem>();
+            if (weather != null)
+            {
+                var w = weather.Local;
+                sb.Append($" | weather cover {w.Coverage:F2} precip {w.Precipitation:F2} fog {w.Fog:F2} wind {w.Wind:F2}");
+            }
+            sb.Append($" | exceptions {exceptions} errors {errors}");
+            return sb.ToString();
+        }
+
+        /// <summary>The other players' NetPlayer ghosts in this machine's world: position, look and ghost id.</summary>
+        static List<(float3 position, NetPlayerLook look, int id)> OtherPlayers()
+        {
+            var list = new List<(float3, NetPlayerLook, int)>();
+            var world = World.DefaultGameObjectInjectionWorld;
+            if (world == null || !world.IsCreated)
+                return list;
+            var em = world.EntityManager;
+            using var q = em.CreateEntityQuery(ComponentType.ReadOnly<NetPlayer>(), ComponentType.ReadOnly<LocalTransform>(), ComponentType.ReadOnly<NetPlayerLook>());
+            var ents = q.ToEntityArray(Unity.Collections.Allocator.Temp);
+            foreach (var e in ents)
+            {
+                if (em.HasComponent<GhostOwnerIsLocal>(e) && em.IsComponentEnabled<GhostOwnerIsLocal>(e))
+                    continue;
+                var id = em.HasComponent<GhostInstance>(e) ? em.GetComponentData<GhostInstance>(e).ghostId : -1;
+                list.Add((em.GetComponentData<LocalTransform>(e).Position, em.GetComponentData<NetPlayerLook>(e), id));
+            }
+            return list;
+        }
+
+        static bool TryGetWorld(out EntityManager em, out Entity player)
+        {
+            em = default;
+            player = Entity.Null;
+            var world = World.DefaultGameObjectInjectionWorld;
+            if (world == null || !world.IsCreated)
+                return false;
+            em = world.EntityManager;
+            using var query = em.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadWrite<LocalTransform>());
+            if (query.CalculateEntityCount() == 1)
+            {
+                player = query.GetSingletonEntity();
+                return true;
+            }
+            using var local = em.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadWrite<LocalTransform>(),
+                                                   ComponentType.ReadOnly<GhostOwnerIsLocal>());
+            if (local.CalculateEntityCount() != 1)
+                return false;
+            player = local.GetSingletonEntity();
+            return true;
+        }
+
+        static bool PlaceAt(float3 at, float yaw)
+        {
+            if (!TryGetWorld(out var em, out var player))
+                return false;
+            using var terrainQuery = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
+            if (terrainQuery.IsEmpty)
+                return false;
+            var source = terrainQuery.GetSingleton<TerrainSource>();
+            var floor = float.IsNaN(at.y) ? source.SampleHeight(at.xz) : source.FloorUnder(at, out _);
+            em.SetComponentData(player, new LocalTransform { Position = new float3(at.x, floor + 0.1f, at.z), Rotation = quaternion.RotateY(math.radians(yaw)), Scale = 1f });
+            em.SetComponentData(player, new PlayerMotion { Grounded = true });
+            var cam = FindAnyObjectByType<ThirdPersonCamera>();
+            if (cam != null)
+                cam.SetView(yaw, 12f);
+            return true;
+        }
+    }
+}
