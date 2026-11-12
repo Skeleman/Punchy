@@ -5735,3 +5735,23 @@ Branch `world/mountain-tunnels` at f6217674 (pushed), on a149c17f. One commit: C
 - **Strips:** D:/Unity/PunchyMilestones/W-145/row1-{plain,hall,room}-strip.png (pops marked red) and row1-hall-pop-pair.png (the d+5.3 frame before and after). Raw shots in W-145/raw/. Checked at small size.
 - **Row 2 plan:** give natural caves the same sight run W-138 gave tunnel portals. From the mouth, follow the main passage while it stays roughly straight (first chamber, plus the next if seen); those chunks are not buried and are built at the level needed from just inside before entry. Room kits, lamps and plants on that run start early. Hold "outside" against brief camera-in-rock blips. Same caps.
 - **Tree:** editor 74068 open in play mode for row 2.
+
+## W-145 row 2: cave mouths keep their first stretch built (done, commit f51e4226 on world/cave-entry)
+
+- **Branch:** world/cave-entry, based on 70d0890d, the W-138 merge prep commit, which is not merged yet. Merge W-138 first.
+- **What changed (CaveSystem.cs only):**
+  - Once per baked world, the Burst index job works out which parts of each natural cave can be seen from outside the mouth. It draws lines from 5 points across the mouth and follows each line through cave air or open air above the ground.
+  - Chunks around a seen part are never counted as buried, so the surface skip leaves them to the opening and screen tests.
+  - While the mouth is near on screen (DetailPolicy.Holds on screen size, rule 20), those chunks get their wall level from the mouth, not the camera. So they are built at the level needed from just inside before the camera crosses.
+  - A camera pushed just under the ground over a passage (it trails the player) no longer counts as outside. Before, the buried chunks around it blinked.
+  - Result: 24 mouth runs, 117 chunks. No new range in metres. The constants are a visibility test plus wall-noise padding, and are commented as such.
+- **What the d+5.3 hall pop really is:** I compared shots taken from outside with the hidden chunks forced on and off: buried chunks shown, and the whole surface skip turned off, at d-0.5 to d+5.2. The change is 38-80 px out of 129,600, and all of it is birds moving. So the 18 chunks that drew first at the crossing in row 1 sit behind the mouth's rock and cannot be seen from outside. The sight test agrees: lines from the mouth leave the air 5-11 m in, before the hall. The row 1 pop pair was taken 0.5 s (3 m) apart, so the camera move looked like a pop. Underground lighting ramps smoothly (0.16 to 0.69 over 1 m) and does not step.
+- **Walks (same 3 as row 1, 6 m/s, counts only):**
+  - **Hall (c5):** at d+5.3 the first draws dropped from 18 to 7, and 11 chunks drawn earlier came back. The skip flips at the crossing dropped from 7 to 3. Totals: first draws 20 to 7. Work inside the cave: level rebuilds 151 to 132, uploads 121 to 108. The work outside the cave also fell, because this run started with the world warm, so I can't claim it moved before the mouth. The bench A/B will settle it.
+  - **Room (c10):** late builds that land in view now draw earlier: d-59/-24/+3/+29 against row 1's -37/-4/+28/+49. The 12 reveals at +60 are the camera rising about 3 m into the ceiling at the end of the walk. Row 1 had 13 there, and nothing is seen from inside the rock.
+  - **Plain (c12):** no first draws or reveals. Skip flips dropped from 219 to 35 (the camera-in-rock fix).
+  - **Max per frame, all walks:** 2 new builds, 1 level rebuild, 2 uploads, 2 swaps, 4 building, 2 rebuilding. That is the same as W-135 row 6 and within the caps.
+- **Strips:** D:/Unity/PunchyMilestones/W-145/row2-{hall,room,plain}-strip.png. Checked at small size: no geometry pop at the mouth in any of the 3. Plants still come in as batches at the plant range edge (+9 to +26 m in the hall). That edge stays on screen size (rule 20). I did not move it to metres.
+- **Checks:** PlayMode suite 28 passed, 0 failed, 17 skipped. Pins hold: Landmarks_V3 117 689D5348, Fauna_Fingerprint AD723954. lod-lint is clean on world/cave-entry.
+- **BENCH-QUEUE request:** the c5 walk, A = main and B = world/cave-entry, for counts and cost of the cave entry and the extra one-time sight pass in the index job.
+- **For Zach / supervisor:** the measurable chunk pop is fixed or hidden. If Zach still sees a pop on entering, the likely causes are plant batches at the range edge and wall LOD swaps (about 75 per walk, spread out), not chunks appearing. A shot or clip from him would narrow it down.
