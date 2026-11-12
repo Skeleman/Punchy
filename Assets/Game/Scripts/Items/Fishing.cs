@@ -32,8 +32,9 @@ namespace Punchy.Items
     /// RodTip, where the rod is drawn) to the bobber. The cast is the rod's flick (the weapon swing). A client tells the
     /// host and the host tells everyone (FishRpc), so others see the cast and the bobber; a player who joins later doesn't
     /// see a line already out until it is cast again.
-    /// Test flags: "-cast 0.8;0.4" casts with those charges (0-1), the first 25 s after the body stands and then every
-    /// 12 s, each reeled in 8 s after it was cast; "-castwater" turns the body first toward the nearest water in reach.
+    /// Test flags: "-cast 0.8;0.4" casts with those charges (0-1), the first 5 s after a rod is in hand and then every
+    /// 12 s, each reeled in 8 s after it was cast; "-castwater" turns the body first toward the nearest water in reach,
+    /// and the camera to look out along the cast from a little to one side.
     /// </summary>
     public partial class Items
     {
@@ -151,7 +152,7 @@ namespace Punchy.Items
             if (castArg == null || castDone >= castArg.Length || !TryPlayer(out _))
                 return;
             if (castNext < 0f)
-                castNext = Time.time + 25f;
+                castNext = Time.time + 5f;
             if (ownOut && ownLine.Reeled < 0f && Time.time > ownLine.Cast + 8f)
                 Reel(false);
             if (Time.time < castNext || ownOut)
@@ -180,6 +181,8 @@ namespace Punchy.Items
                     continue;
                 t.Rotation = quaternion.RotateY(yaw);
                 em.SetComponentData(player, t);
+                if (FindAnyObjectByType<Punchy.CameraRig.ThirdPersonCamera>() is Punchy.CameraRig.ThirdPersonCamera rig)
+                    rig.SetView(math.degrees(yaw) + 35f, 18f);
                 Debug.Log($"[fish] test: turned {math.degrees(yaw - start):0} deg (to yaw {math.degrees(yaw):0}) toward water {distance:0.0} m off");
                 return;
             }
@@ -237,6 +240,7 @@ namespace Punchy.Items
             }
         }
 
+        /// <summary>For the log: which water (at sea level it is the sea, as WaterSwells counts it: inlets and lagoons too).</summary>
         static string WaterKind(in TerrainSource terrain, in GroundSample g) =>
             g.CaveWater ? "cave water" : math.abs(g.WaterSurface - terrain.World.SeaLevel) < 0.05f ? "the sea" : g.River > 0.5f ? "a river" : "a lake";
 
