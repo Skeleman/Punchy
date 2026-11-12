@@ -108,17 +108,15 @@ namespace Punchy.Terrain
 
         bool FarBuilt(int3 tile) => farTiles.TryGetValue(tile, out var t) && t.Quads > 0;
 
-        /// <summary>Sets the ring's reach for this frame's disc, the drawn edge, and the camera's far plane to match.</summary>
-        void ApplyFarRing(in TerrainConfig config, float view)
+        /// <summary>Sets the ring's reach for this frame's disc and the drawn edge; returns how far the camera must see for
+        /// it (0 with the ring off). ApplyViewDistance sets the far plane.</summary>
+        float ApplyFarRing(in TerrainConfig config, float view)
         {
             nearRadius = config.ViewRadiusChunks * config.ChunkSize;
             farRadius = FarRing && view >= FarFromView ? nearRadius * math.max(1f, FarScale) : 0f;
             DrawDistance = farRadius > 0f ? farRadius : nearRadius;
-            var cam = Camera.main;
             // (The farthest corner of a 512 m tile can sit most of its diagonal past the edge.)
-            var reach = farRadius > 0f ? farRadius + FarTileChunks * config.ChunkSize * 3f : 0f;
-            if (cam != null && cam.farClipPlane < reach)
-                cam.farClipPlane = reach;
+            return farRadius > 0f ? farRadius + FarTileChunks * config.ChunkSize * 3f : 0f;
         }
 
         /// <summary>A disc chunk past the unload margin goes only once its far tile has taken over (or it's past the ring).</summary>

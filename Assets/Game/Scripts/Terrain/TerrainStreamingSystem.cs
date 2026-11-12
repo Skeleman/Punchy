@@ -264,6 +264,9 @@ namespace Punchy.Terrain
         /// <summary>The graphics settings' View distance (GraphicsSettings.View) last applied, and one waiting to be.</summary>
         float appliedView = 1f, pendingView = 1f;
         double pendingViewSince;
+        /// <summary>R-15: the camera whose far plane this sets, and that plane as the camera came (its scene value).</summary>
+        Camera farCamera;
+        float ownFar;
 
         /// <summary>
         /// The config with its view radius and LOD distances at the graphics settings' View distance. A new setting
@@ -294,12 +297,18 @@ namespace Punchy.Terrain
             }
             config.Lod0Distance *= appliedView;
             config.ViewRadiusChunks = math.max(2, (int)math.round(config.ViewRadiusChunks * appliedView));
-            // The camera reaches past the farthest chunk (only ever pushed out: at View 1 its own far plane already does).
+            // The camera reaches past the farthest chunk, or the far ring's farthest tile, and never short of its own far
+            // plane (at View 1 that already covers the disc). R-15: set from its own plane each time, here only, so it
+            // comes back in when the View or the ring goes down (it was only ever pushed out).
+            var reach = math.max((config.ViewRadiusChunks + 1.5f) * config.ChunkSize, ApplyFarRing(config, appliedView));
             var cam = Camera.main;
-            var reach = (config.ViewRadiusChunks + 1.5f) * config.ChunkSize;
-            if (cam != null && cam.farClipPlane < reach)
-                cam.farClipPlane = reach;
-            ApplyFarRing(config, appliedView);
+            if (cam != farCamera)
+            {
+                farCamera = cam;
+                ownFar = cam != null ? cam.farClipPlane : 0f;
+            }
+            if (cam != null && cam.farClipPlane != math.max(ownFar, reach))
+                cam.farClipPlane = math.max(ownFar, reach);
             return config;
         }
 
