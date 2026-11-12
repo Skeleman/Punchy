@@ -20,3 +20,4 @@ Done since v0.10: test hooks (3025dbf), brain-sample markers (item 13/14 capture
 - wip/brain-sample: merge animal-behaviours in, or retire it now that item 14 is captured. Never merge the profiler's
   wip/brain-blocked-* branches.
 - F-02 held.
+- Supervisor 11-12: #279 (W-138 tunnels) merged and touches shared flora files, additively: FloraGenerator.Kit.cs (Flame beside Lamp, 2 places), FloraPlacement.cs (OnRoad, 3 lines: props with PierReach exempt from the road cull), Flora.shader (`_FloraInCave` line), new FixtureTunnelLantern.asset. Rebase open flora work on main. Also: job 59b shows TraceSystem spikes (1.7-3.4 ms) in the first 3 s after leaving a tunnel bore; this joins the profiler's row 5 (TraceSystem to a Burst job) when that gets carded.
