@@ -6083,3 +6083,29 @@ Waiting on job 62. Row 4 is only needed if job 62 puts the field step above 0.1 
   - The texture is the same object over frames, and Publish only reuses fixed arrays, so nothing is allocated per frame.
 - **lod-lint:** clean.
 - **Pins:** not touched (no placement code).
+
+### Row 2: the noise drives the sea
+
+- **Commit:** dd9497ee on render/swell-noise, pushed.
+- **(a) Sets:** the two group sines are gone. Set height is now `1 + GroupDepth * clamp(noise.r, -1, 1)`, so the range is the same as before (`_PunchySwellMix.y`, 0.35). The sets rise and fall in irregular blotches.
+- **(b) Warp:** the two warp sines are gone. The phase warp is now `noise.g * WarpGain` (still 1.1), times each wave's place in the table.
+- **(c) Bend:** each crest is moved along its own wave by `noise.b` (theta = k * (dot(dir, xz) + b)). The crest then turns by the slope of b. This uses the direction already computed, so there is no extra sincos.
+  - **Deviation:** this is a shift along each wave, not a rotated heading. It gives the same curve with no extra trig.
+- **Unchanged:** shoaling, wind steer, the depth cap and the sector cross-fade.
+- **Globals removed:** the `_PunchySwellWarp` and `_PunchySwellGroups` globals are gone. WaterSwells.Height mirrors every change.
+- **Probe, in play:**
+  - Swell height, GPU vs CPU at 20 open-sea points: worst 0.32 mm.
+  - Noise: worst 1.5e-5.
+  - Slopes, from finite differences over an 8 km grid at 40 m steps:
+    - Crest turn: largest 6.5°, rms 2.0°. The card asks for about ±6° and at most ±10°.
+    - Warp: largest share 3.7% of a wave's wavenumber. The card limit is 4%.
+- **Shots** in PunchyMilestones/R-17 (before/after at 300 m, 800 m, beach and 2 m, plus `r17-row2-sheet.jpg`). All were taken at noon on a forced Sunny day, at the same views.
+  - Beach and 2 m: the close look is unchanged in character.
+  - 300 m: no lattice visible in either shot at small size.
+  - 800 m: mostly haze, both before and after.
+  - Straight-down after shots from 800 m and 1600 m (`r17-after-top800/top1600`): no repeat visible. Only the glint shows crest lines.
+  - I could not prove the before lattice from these angles. Zach's view from altitude is the real test.
+- **Rule 24:** sparkleprobe NaN count is 0 on all four views (60 frames each; other bad 0, creature marked 0). The main camera's stopNaN reads False, so this is the raw camera, the same as `-stopnan 0`.
+- **lod-lint:** clean.
+- **Pins:** not touched.
+- **QUEUE-animal:** WaterSwell.hlsl changed, and the `_PunchySwellGroups` and `_PunchySwellWarp` globals were removed. Nothing in the animal lane read them.
