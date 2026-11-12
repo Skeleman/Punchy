@@ -35,6 +35,10 @@ def load(prefix, stall):
                        for k in ('gpu', 'cpu', 'median', 'low1', 'worst', 'slow')}
             except ValueError:
                 continue
+            # (A GPU or CPU timer glitch can log an absurd value, e.g. 13407615532 ms: read it as missing.)
+            for k in ('gpu', 'cpu', 'median'):
+                if rec[k] is not None and rec[k] > 1000:
+                    rec[k] = None
             rec['round'] = r['round']
             rec['stalled'] = rec['worst'] is not None and rec['worst'] > stall
             rows[(view, arm)].append(rec)
