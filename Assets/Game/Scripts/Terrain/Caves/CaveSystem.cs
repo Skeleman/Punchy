@@ -109,6 +109,9 @@ namespace Punchy.Terrain
             /// <summary>W-135 row 6: what the surface skip made of it last frame (0 hidden, 1 shadow only, 2 drawn; -1 not yet),
             /// to count flips.</summary>
             public int LastSeen = -1;
+            /// <summary>W-145: whether it was drawn on screen last frame (seen through an opening or from inside, in the
+            /// frustum), and whether it ever was: counted only while CountReveals is on.</summary>
+            public bool Drawn, EverDrawn;
             /// <summary>W-135 row 6: the least cave distance among its field's points (written by MeshJob), and whether
             /// it came out empty with the cave too far off for a finer grid to find a wall either (never rebuilt finer).</summary>
             public NativeArray<float> Gap;
@@ -705,8 +708,14 @@ namespace Punchy.Terrain
                 {
                     ref var p = ref set.Plants[i];
                     var d = math.distance(p.Position, camPos);
+                    var wasShown = plantShown[i];
+                    var wasFine = plantFine[i];
                     plantShown[i] = DetailPolicy.Within(d, plantRange, plantShown[i]);
                     plantFine[i] = DetailPolicy.Within(d, finestRange, plantFine[i]);
+                    if (plantShown[i] && !wasShown)
+                        Counts.PlantsShown++;
+                    if (plantFine[i] != wasFine)
+                        Counts.PlantsFine++;
                     if (!plantShown[i])
                         continue;
                     var model = p.Species * PlantVariants + p.Variant;
@@ -1712,6 +1721,11 @@ namespace Punchy.Terrain
                 old.Next = null;
                 next.OpeningSeen = old.OpeningSeen;
                 next.LastSeen = old.LastSeen;
+                // W-145: a wall level swapped in on screen is a pop.
+                if (old.Drawn)
+                    Counts.VisibleSwaps++;
+                next.Drawn = old.Drawn;
+                next.EverDrawn = old.EverDrawn;
                 old.Dispose();
                 chunks[key] = next;
                 Counts.Swaps++;
@@ -2468,6 +2482,26 @@ namespace Punchy.Terrain
             return 1;
         }
 
+        /// <summary>W-145: count what comes onto the screen each frame (chunks revealed, first drawn, swapped in view).
+        /// Testing only: a frustum test per chunk a frame.</summary>
+        public static bool CountReveals;
+        readonly Plane[] revealPlanes = new Plane[6];
+
+        /// <summary>W-145: a chunk drawn in the frustum this frame that wasn't last frame is a pop: Revealed if it had
+        /// been drawn before (the surface skip let it through again), FirstDraws if its walls are new.</summary>
+        static void CountReveal(Built b, bool onScreen)
+        {
+            if (onScreen && !b.Drawn)
+            {
+                if (b.EverDrawn)
+                    Counts.Revealed++;
+                else
+                    Counts.FirstDraws++;
+                b.EverDrawn = true;
+            }
+            b.Drawn = onScreen;
+        }
+
         /// <summary>
         /// Draws the loaded chunks. Deep in a cave, out of sight of every mouth (SurfaceHidden), only chunks that
         /// belong to the caves around the camera are drawn: rock hides every other cave, and with only a frustum
@@ -2514,6 +2548,8 @@ namespace Punchy.Terrain
             var skip = outside && !NoSurfaceSkip && !NoRoomCull && cam != null;
             if (skip)
                 GatherOpenings(camPos, cam);
+            if (CountReveals && cam != null)
+                GeometryUtility.CalculateFrustumPlanes(cam, revealPlanes);
             foreach (var b in chunks.Values)
             {
                 if (b.Mesh == null)
@@ -2521,13 +2557,18 @@ namespace Punchy.Terrain
                 if (CountStats)
                     StatLoaded++;
                 if (NoWalls || outside && b.Buried || (b.Caves & rooms) == 0ul)
+                {
+                    b.Drawn = false;
                     continue;
+                }
                 // From the surface, a chunk no opening in view reaches is behind the ground, and one that no opening
                 // shows only casts its shadow (W-135 row 1).
                 var seen = skip ? SeenThroughOpening(b.Mesh.bounds, b.InSight, cam) : 2;
                 if (b.LastSeen >= 0 && b.LastSeen != seen)
                     Counts.SkipFlips++;
                 b.LastSeen = seen;
+                if (CountReveals)
+                    CountReveal(b, seen == 2 && cam != null && GeometryUtility.TestPlanesAABB(revealPlanes, b.Mesh.bounds));
                 if (seen == 0 || seen == 1 && !b.CastsShadows)
                     continue;
                 if (CountStats)

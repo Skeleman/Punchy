@@ -58,7 +58,9 @@ namespace Punchy.Terrain
                 var room = set.Rooms[i];
                 var distance = math.distance(room.Centre, camPos);
                 var flames = Punchy.Settings.DetailPolicy.Within(distance, flameRange, roomFlamesOn.Contains(i));
-                if (flames)
+                if (flames && roomFlamesOn.Add(i))
+                    Counts.FlamesShown++;
+                else if (flames)
                     roomFlamesOn.Add(i);
                 else
                     roomFlamesOn.Remove(i);
