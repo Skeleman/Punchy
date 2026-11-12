@@ -5722,3 +5722,16 @@ Branch `world/mountain-tunnels` at f6217674 (pushed), on a149c17f. One commit: C
 - **Flora owner:** compared with main, this branch touches FloraGenerator.Kit.cs, FloraPlacement.cs, Flora.shader and FixtureTunnelLantern.asset (the tunnel lantern fixture). Flag these at merge time.
 - **Risk:** markers and shrines down a bore follow the plantShown/DetailPolicy path. I checked this in code only, with no shot.
 - **Tree:** editor closed. Next: W-145 on world/cave-entry.
+
+## W-145 row 1: cave entry pops (done, counts and shots)
+
+- **Branch:** `world/cave-entry`, commit 9d004729 (pushed). It branches from the W-138 merge commit 70d0890d (main 6c3588b6 plus the unmerged W-138), so it needs W-138 merged first.
+- **Method:** walked 3 caves at walking pace (6 m/s), from 250 m outside through the mouth and down the main passage. Per-frame counters (new, off by default behind `CaveSystem.CountReveals`): first draws, reveals of chunks drawn before, visible wall swaps, plant batches, water bakes, lamp flames. A shot every 0.5 s from 30 m before the mouth to 45 m after. Counts only, no timing.
+- **Pops (d = metres past the mouth, minus is outside):**
+  - **Hall (cave 5, the c5 walk), the main pop.** At d+5.3 the camera crosses underground and 18 chunks draw for the first time in one frame. They are chunks more than 32 m from the mouth that count as buried, so they are skipped while the camera is outside, even though the big hall can be seen deep through the mouth (from outside it looks flat purple). Smaller: 1-2 reveals at +11.7, then single ones at +26.9, +51.6, +67.5, +91.6, +107. Plants come in as batches of 28-56 at the plant range edge every 4 m from +11 to +26. 76 visible wall swaps spread before and after the mouth.
+  - **Room (cave 10, grotto).** First draws match late chunk builds that land in view: 3 at d-37.4, 2 at d-4, 2 at +28.2, 1 at +48.6. Lamp flames appear at d-4.6. At +60.2, 13 reveals when the camera (12 m back) rose into rock and briefly counted as outside.
+  - **Plain (cave 12).** No first draws or reveals. 10 visible swaps at d-48/-41/-22 while the mouth is still behind a rise. 5 brief camera "outside" blips inside the cave (no pop seen).
+- **Max per frame, all walks:** 2 new builds, 1 level rebuild, 2 uploads, 1 swap, 4 building, 1 rebuilding. Within the W-135 caps.
+- **Strips:** D:/Unity/PunchyMilestones/W-145/row1-{plain,hall,room}-strip.png (pops marked red) and row1-hall-pop-pair.png (the d+5.3 frame before and after). Raw shots in W-145/raw/. Checked at small size.
+- **Row 2 plan:** give natural caves the same sight run W-138 gave tunnel portals. From the mouth, follow the main passage while it stays roughly straight (first chamber, plus the next if seen); those chunks are not buried and are built at the level needed from just inside before entry. Room kits, lamps and plants on that run start early. Hold "outside" against brief camera-in-rock blips. Same caps.
+- **Tree:** editor 74068 open in play mode for row 2.
