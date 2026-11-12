@@ -5755,3 +5755,32 @@ Branch `world/mountain-tunnels` at f6217674 (pushed), on a149c17f. One commit: C
 - **Checks:** PlayMode suite 28 passed, 0 failed, 17 skipped. Pins hold: Landmarks_V3 117 689D5348, Fauna_Fingerprint AD723954. lod-lint is clean on world/cave-entry.
 - **BENCH-QUEUE request:** the c5 walk, A = main and B = world/cave-entry, for counts and cost of the cave entry and the extra one-time sight pass in the index job.
 - **For Zach / supervisor:** the measurable chunk pop is fixed or hidden. If Zach still sees a pop on entering, the likely causes are plant batches at the range edge and wall LOD swaps (about 75 per walk, spread out), not chunks appearing. A shot or clip from him would narrow it down.
+
+## R-16 row 1: where the shadow darkness jumps (findings, branch render/shadow-tiers, no code yet)
+
+- **Probe:** one canopy tree and one boulder on flat ground, camera on a 25 degree line, shadows on vs strength 0, clear weather, ambient mist off (it added most of the noise in a first pass). Ratio = shadow pixel brightness on / off; lower is darker. Noon (h12, strength 0.98) and late afternoon (h17, 0.86).
+- **Tree, noon (median / darkest 10%):**
+
+| Camera to caster | Ratio | Tier |
+|---|---|---|
+| 5-50 m | 0.53-0.58 / 0.43-0.46 | sharp (URP cascades, distance 50) |
+| 70 m | centre 1.17, edge 0.28 | gap + cache: inner shadow is lit, outer rim dark brown |
+| 100 m | 0.49 / 0.28, centre 0.29 | cache and wide stacked |
+| 140-300 m | 0.51-0.55 / 0.47-0.50 | wide only |
+
+- **Tree, 17:00:** 0.69-0.74 to 75 m, 0.76 (darkest 0.47) at 93 m, 0.68 (centre 0.44) at 122 m, then 0.74-0.83 out to 320 m.
+- **Rock:** sharp up to about 25 m (0.44-0.67 noon, 0.67-0.69 at 17:00). Past 30 m its shadow is a few pixels at most (0.84-0.95); it is too small to cast into the cache or wide maps.
+- **Jumps, in Zach's walk-in order:**
+  1. **Wide to cache (about 120 m):** 0.50 to 0.29. The shadow nearly doubles in darkness.
+  2. **Cache to sharp (50-75 m):** 0.29 to 0.55, plus a lit gap first.
+- **Causes:**
+  - **Cache and wide stack.** The wide map is fully on past 50 m (fade 0.75-1.0 of shadow distance), and the cache covers 50-120 m, so both darken the same ground. Shot: 70 m cache only = 66, cache + wide = 27, off = 104 (8-bit brightness).
+  - **The cache darkens the whole colour** (colour x (1-k)), so ambient goes too and the shadow reads brown. Sharp and wide darken only the direct light, so they read blue-grey.
+  - **Lit gap at about 70 m:** the cache receiver skips where the real-time shadow map still has the tree (casters are held past shadow distance), but the terrain's own real-time shadow has already faded out there. Neither tier darkens it.
+- **Far "instability":** a still camera for 18 s at 90 m saw 9 cache redraws (every 0.5 degree of sun, about 2 s on the 24 min day) and 8 wide redraws (every 1 degree, plus flora re-streams). Each swaps in with no crossfade. Frame diffs show every canopy shadow edge stepping in blocky stairs (wide texels about 1.6 m; the cache view is not texel-snapped). 4.5-6% of the far half changes between shots taken about 1 s apart, against 0.6-2% in the near half. So it is redraw stepping plus texel snap, not a cascade edge.
+- **Strips (checked at small size):** D:/Unity/PunchyMilestones/R-16/R16-row1-tiers.png (30/50/100/200 m: blue sharp shadow, then dark brown at 100 m) and R16-row1-stack.png (70 m: off / cache only / cache + wide). Raw shots and the still series are in R-16/raw/.
+- **Row 2 plan:**
+  - Cache darkens only the direct share, like the wide tier does.
+  - The wide map skips the cache band (or the two blend to 1).
+  - The cache receiver uses the faded real-time term so the gap closes.
+- **Row 3 plan:** texel-snap the cache view, and crossfade old and new maps after each cache and wide redraw.
