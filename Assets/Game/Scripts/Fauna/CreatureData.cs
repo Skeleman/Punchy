@@ -545,12 +545,17 @@ namespace Punchy.Fauna
         /// <summary>Zach 11-12: what's in the other hand (a CreatureWeapon hand look: a shield, tongs, a bucket; 0 for
         /// nothing).</summary>
         public byte OffHand;
+        /// <summary>Zach 11-12 row 4: a player's hand item put away or on its way there or back (ItemTable id + 1; 0 for
+        /// none), and how far into its sheath it is: 255 all the way, 0 in hand, between through the half-second Draw and
+        /// Sheathe (from 128 on, it's worn, not held: Weapon is then None).</summary>
+        public byte Kept, Stow;
 
         public bool Armoured => (Head | Body | Legs | Feet | Back | Neck) != 0;
 
         public bool Equals(CreatureOutfit o) =>
             Weapon == o.Weapon && Swing == o.Swing && Head == o.Head && Body == o.Body && Legs == o.Legs && Feet == o.Feet &&
-            Back == o.Back && Neck == o.Neck && Hair == o.Hair && HairColour == o.HairColour && OwnHair == o.OwnHair && OffHand == o.OffHand;
+            Back == o.Back && Neck == o.Neck && Hair == o.Hair && HairColour == o.HairColour && OwnHair == o.OwnHair && OffHand == o.OffHand &&
+            Kept == o.Kept && Stow == o.Stow;
     }
 
     /// <summary>

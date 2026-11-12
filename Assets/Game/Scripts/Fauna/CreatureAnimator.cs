@@ -520,10 +520,14 @@ namespace Punchy.Fauna
                     }
                     // Reaching for the weapon, drawing it or putting it away: the right hand up over the shoulder to
                     // the back, or down across to the left hip, and back, in half a second.
-                    if (part.Role == LimbRole.Arm && part.Side > 0f && (s.Action == IdleAction.Draw || s.Action == IdleAction.Sheathe))
+                    // (A player's the same, through its sheathe key: Outfit.Stow, the reach at its height half way; Zach
+                    // 11-12 row 4.)
+                    var playerReach = s.Mode == CreatureMode.Puppet && s.Outfit.Kept != 0 && s.Outfit.Stow != 0 && s.Outfit.Stow != 255;
+                    if (part.Role == LimbRole.Arm && part.Side > 0f && (s.Action == IdleAction.Draw || s.Action == IdleAction.Sheathe || playerReach))
                     {
-                        var reach = math.sin(math.saturate(s.ActionTime) * math.PI);
-                        var toBack = s.Task == CreatureTask.Hunt || GuardWeapons.OnBack(b.GuardKit, s.Scale, b.StandHeight);   // (a hunter's spear is always on its back)
+                        var reach = playerReach ? math.sin(s.Outfit.Stow / 255f * math.PI) : math.sin(math.saturate(s.ActionTime) * math.PI);
+                        var toBack = playerReach ? Punchy.Items.FolkKits.OnBack(s.Outfit.Kept - 1, b.StandHeight)
+                                   : s.Task == CreatureTask.Hunt || GuardWeapons.OnBack(b.GuardKit, s.Scale, b.StandHeight);   // (a hunter's spear is always on its back)
                         a += (j == 0 ? (toBack ? new float3(-2.5f, 0f, -0.35f) : new float3(-0.35f, 0f, 0.75f))
                             : j == 1 ? (toBack ? new float3(-1.4f, 0f, 0f) : new float3(-1.0f, 0f, 0f)) : float3.zero) * reach;
                     }

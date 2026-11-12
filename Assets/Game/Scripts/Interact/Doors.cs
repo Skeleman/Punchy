@@ -110,6 +110,7 @@ namespace Punchy.Interact
             yield return ("Inventory and quest log", "Tab / I", Pad("<Gamepad>/leftShoulder"));
             yield return ("Inventory: drop / move an item", $"{Current} / click", $"{Pad("<Gamepad>/buttonSouth")} / {Pad(PadPath)}");
             yield return ("Inventory: close", "Tab / I / Esc", $"{Pad("<Gamepad>/leftShoulder")} / {Pad("<Gamepad>/buttonEast")}");
+            yield return ("Put away or draw what's in hand", Bound("Player/Sheathe", false, "H"), Bound("Player/Sheathe", true, "LT"));
             yield return ("Creature actions 1-4", "1 2 3 4", "d-pad");
             yield return ("Cycle the weather", Punchy.Settings.WeatherKey.KeyboardName, Pad(Punchy.Settings.WeatherKey.PadPath));
             yield return ("Menu", "Esc", Pad("<Gamepad>/start"));

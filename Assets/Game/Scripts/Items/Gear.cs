@@ -61,6 +61,8 @@ namespace Punchy.Items
         public byte Hair, HairColour;
         /// <summary>Zach 11-12: the other hand (a shield, tongs, a bucket).</summary>
         public byte OffHand;
+        /// <summary>Zach 11-12 row 4: 1 while the hand's item is put away (the sheathe key), else 0; sent as SheathPlace.</summary>
+        public byte Sheathed;
     }
 
     /// <summary>Client → host → everyone: this player swung its weapon (P-28). From a client, Player is ignored (the host
@@ -100,9 +102,23 @@ namespace Punchy.Items
             Body = worn[(int)GearSlot.Body], Legs = worn[(int)GearSlot.Legs], Feet = worn[(int)GearSlot.Feet],
             Neck = worn[(int)GearSlot.Neck], OffHand = worn[(int)GearSlot.OffHand],
             Hair = Punchy.Net.PlayerHair.Style, HairColour = Punchy.Net.PlayerHair.Colour,
+            Sheathed = sheathed ? (byte)1 : (byte)0,
         };
-        /// <summary>The hair's two places in SlotRpc / SlotStateRpc (P-29), past any GearSlot.</summary>
-        const byte HairPlace = 200, HairColourPlace = 201;
+        /// <summary>The hair's two places in SlotRpc / SlotStateRpc (P-29), past any GearSlot; and whether the hand's item
+        /// is put away (Zach 11-12 row 4).</summary>
+        const byte HairPlace = 200, HairColourPlace = 201, SheathPlace = 202;
+        /// <summary>
+        /// Zach 11-12 row 4, the sheathe key (H, LT on a pad: Player/Sheathe): the weapon or tool in hand put away, on the
+        /// back or at the hip as the folk wear theirs (FolkKits.OnBack), or drawn again, the hand reaching for it through
+        /// the half-second Draw and Sheathe (DrawTime). Swinging with it put away draws it first. When each player last
+        /// started one, by network id (ours apart), so every machine plays the reach from when it heard.
+        /// </summary>
+        bool sheathed;
+        float ownSheathAt = -10f, nextTestSheathe;
+        readonly Dictionary<int, float> sheathedAt = new Dictionary<int, float>();
+        const float DrawTime = 0.5f;
+        bool sheatheArg;
+        InputAction sheatheAction;
         /// <summary>The hair last told to the host (or set as the host's own), and the client world it went to.</summary>
         (byte, byte) hairSent = (255, 255);
         World hairSentIn;
@@ -151,6 +167,9 @@ namespace Punchy.Items
             if (--slots[slot].count <= 0)
                 slots[slot] = (Nothing, 0);
             worn[(int)place] = item;
+            // (Something new in the hand is in the hand, not put away.)
+            if (place == GearSlot.Hand)
+                (sheathed, ownSheathAt) = (false, -10f);
             if (was != Nothing)
                 Grant(was, 1);
             // (Both hands: a two-handed thing frees the other hand, and something for the other hand puts down a
@@ -177,6 +196,8 @@ namespace Punchy.Items
             }
             worn[(int)place] = Nothing;
             Grant(item, 1);
+            if (place == GearSlot.Hand)
+                (sheathed, ownSheathAt) = (false, -10f);
             GearChanged();
         }
 
@@ -199,6 +220,7 @@ namespace Punchy.Items
                 SendToHost(new ArmourRpc { Body = g.Body, Legs = g.Legs, Feet = g.Feet });
                 SendToHost(new SlotRpc { Slot = (byte)GearSlot.Neck, Item = g.Neck });
                 SendToHost(new SlotRpc { Slot = (byte)GearSlot.OffHand, Item = g.OffHand });
+                SendToHost(new SlotRpc { Slot = SheathPlace, Item = g.Sheathed });
             }
             else if (Hosting)
                 HostSetGear(OwnNetworkId(), g);
@@ -215,6 +237,7 @@ namespace Punchy.Items
 
         void HostSetGear(int player, GearSet g)
         {
+            NoteSheath(player, g.Sheathed);
             gearOf[player] = g;
             Broadcast(new GearStateRpc { Player = player, Hand = g.Hand, Head = g.Head, Back = g.Back });
             Broadcast(new ArmourStateRpc { Player = player, Body = g.Body, Legs = g.Legs, Feet = g.Feet });
@@ -222,6 +245,18 @@ namespace Punchy.Items
             Broadcast(new SlotStateRpc { Player = player, Slot = (byte)GearSlot.OffHand, Item = g.OffHand });
             Broadcast(new SlotStateRpc { Player = player, Slot = HairPlace, Item = g.Hair });
             Broadcast(new SlotStateRpc { Player = player, Slot = HairColourPlace, Item = g.HairColour });
+            Broadcast(new SlotStateRpc { Player = player, Slot = SheathPlace, Item = g.Sheathed });
+        }
+
+        /// <summary>A player's item put away or drawn: the reach starts now, here (a first word, as on joining, doesn't
+        /// play it).</summary>
+        void NoteSheath(int player, byte now)
+        {
+            if (gearOf.TryGetValue(player, out var was) && was.Sheathed != now)
+            {
+                sheathedAt[player] = Time.time;
+                Debug.Log($"[gear] player {player} {(now != 0 ? "put away" : "drew")} the {GearName(was.Hand)}");
+            }
         }
 
         /// <summary>Our hair to the host when it changes, and once into each world joined (the host keeps its own in
@@ -301,6 +336,7 @@ namespace Punchy.Items
                     Send(em, c, new SlotStateRpc { Player = kv.Key, Slot = (byte)GearSlot.OffHand, Item = kv.Value.OffHand });
                     Send(em, c, new SlotStateRpc { Player = kv.Key, Slot = HairPlace, Item = kv.Value.Hair });
                     Send(em, c, new SlotStateRpc { Player = kv.Key, Slot = HairColourPlace, Item = kv.Value.HairColour });
+                    Send(em, c, new SlotStateRpc { Player = kv.Key, Slot = SheathPlace, Item = kv.Value.Sheathed });
                 }
             }
         }
@@ -323,6 +359,7 @@ namespace Punchy.Items
         {
             var g = gearOf.TryGetValue(m.Player, out var was) ? was : Bare;
             SetSlot(ref g, m.Slot, m.Item);
+            NoteSheath(m.Player, g.Sheathed);
             gearOf[m.Player] = g;
         }
 
@@ -337,6 +374,8 @@ namespace Punchy.Items
                 g.Hair = item;
             else if (slot == HairColourPlace)
                 g.HairColour = item;
+            else if (slot == SheathPlace)
+                g.Sheathed = item;
         }
 
         /// <summary>Nothing on anywhere.</summary>
@@ -389,7 +428,7 @@ namespace Punchy.Items
             var em = world.EntityManager;
             var own = Q(em, ComponentType.ReadWrite<PlayerAvatar>(), ComponentType.ReadWrite<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
             if (own.TryGetSingletonEntity<PlayerAvatar>(out var avatar))
-                Dress(em, avatar, Wearing, ownSwing);
+                Dress(em, avatar, Wearing, ownSwing, ownSheathAt);
             if (gearOf.Count == 0)
                 return;
             var remote = Q(em, ComponentType.ReadWrite<RemoteAvatar>(), ComponentType.ReadWrite<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
@@ -399,11 +438,26 @@ namespace Punchy.Items
                 var ghost = em.GetComponentData<RemoteAvatar>(e).Ghost;
                 if (!em.Exists(ghost) || !em.HasComponent<GhostOwner>(ghost) || !gearOf.TryGetValue(em.GetComponentData<GhostOwner>(ghost).NetworkId, out var g))
                     continue;
-                Dress(em, e, g, swungAt.TryGetValue(em.GetComponentData<GhostOwner>(ghost).NetworkId, out var at) ? at : -10f);
+                var id = em.GetComponentData<GhostOwner>(ghost).NetworkId;
+                Dress(em, e, g, swungAt.TryGetValue(id, out var at) ? at : -10f, sheathedAt.TryGetValue(id, out var sAt) ? sAt : -10f);
             }
         }
 
-        static void Dress(EntityManager em, Entity body, GearSet g, float swung)
+        /// <summary>Whether this hand item can be put away with the sheathe key: a weapon or tool with a place to wear it
+        /// (FolkKits.SheathOf). Not a rod (cast, not carried), nor what the body holds as the folk do (a torch, a staff,
+        /// a lantern: CreatureState.Held).</summary>
+        static bool CanSheathe(byte item) => item != Nothing && ItemTable.Items[item].Weapon != CreatureWeapon.None && item != ItemTable.Rod &&
+                                             HeldFor(item) == HeldItem.None && FolkKits.SheathOf(item) != ItemSheath.None;
+
+        /// <summary>How far into its sheath the hand's item is (CreatureOutfit.Stow): 255 put away, 0 in hand, between
+        /// through the DrawTime since it was started.</summary>
+        static byte StowByte(bool sheathed, float since)
+        {
+            var t = math.saturate((Time.time - since) / DrawTime);
+            return (byte)math.round(255f * (sheathed ? t : 1f - t));
+        }
+
+        static void Dress(EntityManager em, Entity body, GearSet g, float swung, float sheathAt)
         {
             var hand = g.Hand;
             var s = em.GetComponentData<CreatureState>(body);
@@ -413,6 +467,12 @@ namespace Punchy.Items
             var bits = wears ? WornBits(g.Head, g.Back) : (byte)0;
             var outfit = wears ? new CreatureOutfit { Head = Look(g.Head), Body = Look(g.Body), Legs = Look(g.Legs), Feet = Look(g.Feet), Back = Look(g.Back), Neck = Look(g.Neck) } : default;
             var weapon = wears && hand != Nothing ? ItemTable.Items[hand].Weapon : CreatureWeapon.None;
+            // (Put away, or past the middle of the reach: worn, not in hand; Zach 11-12 row 4.)
+            var stow = wears && CanSheathe(hand) ? StowByte(g.Sheathed != 0, sheathAt) : (byte)0;
+            if (stow != 0)
+                (outfit.Kept, outfit.Stow) = ((byte)(hand + 1), stow);
+            if (stow >= 128)
+                weapon = CreatureWeapon.None;
             var swing = weapon != CreatureWeapon.None ? SwingByte(swung, ItemTable.Items[hand].Speed) : (byte)0;
             outfit.Weapon = weapon;
             outfit.Swing = swing;
@@ -422,7 +482,8 @@ namespace Punchy.Items
             if (s.Held == held && s.Worn == bits && s.Outfit.Equals(outfit))
                 return;
             var was = s.Outfit;
-            was.Swing = outfit.Swing;
+            // (Not logged for a swing or a reach going on: NoteSheath and Sheathe log those.)
+            (was.Swing, was.Kept, was.Stow) = (outfit.Swing, outfit.Kept, outfit.Stow);
             var changed = s.Held != held || s.Worn != bits || !was.Equals(outfit);
             s.Held = held;
             s.Worn = bits;
@@ -443,6 +504,15 @@ namespace Punchy.Items
         void Swing()
         {
             var hand = worn[(int)GearSlot.Hand];
+            // (Put away: drawn first, and no swing until it's in hand.)
+            if (sheathed)
+            {
+                Debug.Log("[gear] swing while put away: drawn first");
+                Sheathe();
+                return;
+            }
+            if (Time.time - ownSheathAt < DrawTime)
+                return;
             // (A rod is cast, not swung: FishKeys has its button. Nor is what has no swing to it: a letter, a bowl.)
             if (hand == Nothing || ItemTable.Items[hand].Weapon == CreatureWeapon.None || ItemTable.Items[hand].Weapon == CreatureWeapon.Rod || ItemTable.Items[hand].Speed <= 0f || !CanWearGear() ||
                 SwingByte(ownSwing, ItemTable.Items[hand].Speed) != 0)
@@ -456,7 +526,38 @@ namespace Punchy.Items
                 Broadcast(new SwingRpc { Player = OwnNetworkId() });
         }
 
-        /// <summary>Outside the inventory and menus: the attack button swings (the mouse only while it steers the camera).</summary>
+        /// <summary>Puts the hand's item away, or draws it (the sheathe key; Zach 11-12 row 4). Not mid-reach, nor mid-swing.</summary>
+        void Sheathe()
+        {
+            var hand = worn[(int)GearSlot.Hand];
+            if (!CanSheathe(hand) || !CanWearGear() || Time.time - ownSheathAt < DrawTime || SwingByte(ownSwing, ItemTable.Items[hand].Speed) != 0)
+                return;
+            sheathed = !sheathed;
+            ownSheathAt = Time.time;
+            Debug.Log($"[gear] {(sheathed ? "sheathe" : "draw")}: {ItemTable.Items[hand].Name}, {(FolkKits.SheathOf(hand) == ItemSheath.Hip || !FolkKits.OnBack(hand, PlayerStandHeight()) ? "at the hip" : "on the back")}");
+            if (Joined)
+                SendToHost(new SlotRpc { Slot = SheathPlace, Item = sheathed ? (byte)1 : (byte)0 });
+            else if (Hosting)
+            {
+                var id = OwnNetworkId();
+                var g = gearOf.TryGetValue(id, out var was) ? was : Wearing;
+                g.Sheathed = sheathed ? (byte)1 : (byte)0;
+                HostSetGear(id, g);
+            }
+        }
+
+        /// <summary>Our body's standing height (m), for where its sheath is (FolkKits.OnBack); 1 if it isn't up yet.</summary>
+        float PlayerStandHeight()
+        {
+            var world = World.DefaultGameObjectInjectionWorld;
+            if (world == null || !world.IsCreated)
+                return 1f;
+            var own = Q(world.EntityManager, ComponentType.ReadOnly<PlayerAvatar>(), ComponentType.ReadOnly<CreatureBody>());
+            return own.TryGetSingletonEntity<PlayerAvatar>(out var avatar) ? world.EntityManager.GetComponentData<CreatureBody>(avatar).Blob.Value.StandHeight : 1f;
+        }
+
+        /// <summary>Outside the inventory and menus: the attack button swings (the mouse only while it steers the camera),
+        /// the sheathe key puts away or draws ("-sheathe": every 3 s, for shots).</summary>
         void SwingKeys()
         {
             if (swingArg && Time.realtimeSinceStartup >= nextTestSwing)
@@ -464,6 +565,12 @@ namespace Punchy.Items
                 nextTestSwing = Time.realtimeSinceStartup + 2f;
                 Swing();
             }
+            if (sheatheArg && worn[(int)GearSlot.Hand] != Nothing && Time.realtimeSinceStartup >= nextTestSheathe)
+            {
+                nextTestSheathe = Time.realtimeSinceStartup + 3f;
+                Sheathe();
+            }
+            sheatheAction ??= InputSystem.actions?.FindAction("Player/Sheathe");
             // ("-sprint": any test walk (-walk) is a run, to see a cloak swept back.)
             if (sprintArg)
                 Punchy.Player.PlayerInputSystem.TestSprint = true;
@@ -473,6 +580,8 @@ namespace Punchy.Items
             var pad = Gamepad.current;
             if (mouse != null && mouse.leftButton.wasPressedThisFrame && Cursor.lockState == CursorLockMode.Locked || pad != null && pad.buttonWest.wasPressedThisFrame)
                 Swing();
+            if (sheatheAction != null && sheatheAction.WasPressedThisFrame())
+                Sheathe();
         }
 
         float armLogAt;
@@ -540,6 +649,7 @@ namespace Punchy.Items
                 equipArg = args[at + 1];
             gearLootArg = System.Array.IndexOf(args, "-gearloot") >= 0;
             swingArg = System.Array.IndexOf(args, "-swing") >= 0;
+            sheatheArg = System.Array.IndexOf(args, "-sheathe") >= 0;
             sprintArg = System.Array.IndexOf(args, "-sprint") >= 0;
         }
 

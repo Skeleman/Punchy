@@ -307,7 +307,11 @@ namespace Punchy.Items
         /// </summary>
         public static int Sheathed(in CreatureState s)
         {
-            if (s.Mode == CreatureMode.Puppet || s.Kit.Sheath == 0 || s.Task == CreatureTask.Hunt || s.Task == CreatureTask.Mine ||
+            // (A player's: what it has put away with the sheathe key, once it's past the middle of the reach; row 4.)
+            if (s.Mode == CreatureMode.Puppet)
+                return s.Outfit.Kept != 0 && s.Outfit.Stow >= 128 && HandLook(s.Outfit.Kept - 1) != CreatureWeapon.None &&
+                       SheathOf(s.Outfit.Kept - 1) != ItemSheath.None ? s.Outfit.Kept - 1 : -1;
+            if (s.Kit.Sheath == 0 || s.Task == CreatureTask.Hunt || s.Task == CreatureTask.Mine ||
                 s.Held == HeldItem.Pickaxe || s.Held == HeldItem.OreSack ||
                 s.Task == CreatureTask.Patrol && (s.Held == HeldItem.Spear || s.Held == HeldItem.SpearDrawn || s.Held == HeldItem.Torch))
                 return -1;
