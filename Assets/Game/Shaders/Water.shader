@@ -639,12 +639,16 @@ Shader "Punchy/Water"
             #ifdef _WATER_FIELD
                 // R-9: on the fine sheet the wave field's own slope takes over from the ripples (they fade back in towards
                 // the square's edge), with a little foam where a splash or a bow wave stands steepest. (Drawn 2.5x steeper
-                // than it is: dents of a few cm barely tilt the light otherwise.)
+                // than it is: dents of a few cm barely tilt the light otherwise.) R-15: the slope's four taps only where
+                // the field shows; outside the square (most of every water draw) they changed nothing.
                 {
                     float fieldWeight = PunchyWaterFieldWeight(input.restXZ);
-                    float2 fieldSlope = PunchyWaterFieldSlope(input.restXZ) * 2.5;
-                    wakeSlope = lerp(wakeSlope, fieldSlope, fieldWeight);
-                    wakeFoam = lerp(wakeFoam, (half)smoothstep(0.9, 1.8, length(fieldSlope)) * 0.7h, (half)fieldWeight);
+                    [branch] if (fieldWeight > 0)
+                    {
+                        float2 fieldSlope = PunchyWaterFieldSlope(input.restXZ) * 2.5;
+                        wakeSlope = lerp(wakeSlope, fieldSlope, fieldWeight);
+                        wakeFoam = lerp(wakeFoam, (half)smoothstep(0.9, 1.8, length(fieldSlope)) * 0.7h, (half)fieldWeight);
+                    }
                     // Row 5: foam where a fall's curtain lands and churns the pool.
                     wakeFoam = max(wakeFoam, (half)(fallChurn * 0.7));
                 }

@@ -175,7 +175,10 @@ float PunchyWaterSheetWeight(float2 restXZ)
 float3 PunchyWaterPatchPoint(float3 restWS, float4 data, float t, out float swell)
 {
     float3 positionWS = PunchySwellVertex(restWS, data.z, t, swell);
-    positionWS.y += PunchyWaterFieldHeight(restWS.xz) * PunchyWaterFieldWeight(restWS.xz);
+    // R-15: the field's height tap only where it shows (the fall's sheet shares this code and lies mostly outside).
+    float fieldWeight = PunchyWaterFieldWeight(restWS.xz);
+    [branch] if (fieldWeight > 0)
+        positionWS.y += PunchyWaterFieldHeight(restWS.xz) * fieldWeight;
     float churn, curtain;
     positionWS += PunchyWaterFallOffset(restWS, t, churn, curtain);
     float flowAmount = saturate(length(data.xy));
