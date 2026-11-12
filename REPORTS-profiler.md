@@ -2,6 +2,20 @@
 
 Newest first.
 
+## R-18: the bloom circle reproduces, at Ultra only, on main too (11-12)
+**Zach found it in job 56's shot** `q102-shots/ultra-hilltop-main/spot.png`, Punchy-wt results.
+- **What it is:** a bloom halo round one black centre pixel at **(1060, 224)** of the 1920x1080 frame, on a dark pine near its top. That's the NaN pattern: the bad pixel draws black, and bloom spreads it white.
+- **Where it shows:**
+  - the same pixel in **both Ultra shots**, main cc835cf6 and world/far-lite 4eabc7c7, from separate games;
+  - **neither High shot** of the same view.
+- **What that tells R-18:**
+  - it's on main, not from far-lite;
+  - it's **Ultra only**, so look at what Ultra turns on for plants (shadows, far trees, flora detail);
+  - it's **repeatable**, so a RenderDoc capture of this view at Ultra should hold it every time.
+- **To reproduce:** a Profile build of main, `-gfx Ultra -benchroute -benchstops spot -benchspot -3460,2425,270 -benchhour 18 -benchweather Clear -weatherseed 4 -body default`, 1920x1080; the dot is at (1060, 224) of the spot stop's view.
+- **Crops:** lanes/profiler/shots/nan-dot-hilltop-ultra.png (Ultra main, Ultra far-lite, High main, High far-lite).
+- **Next:** the profiler can take that RenderDoc capture (pixel history on (1060, 224) names the draw and pass) as soon as the queue allows, unless R-18's owner takes it first. Say which.
+
 ## R-18: Zach placed the bloom circle (11-12)
 - **The view:** Zach saw it at the **hilltop at sunset**, job 56's view (b): the player at `-3460,2425`, the camera facing west and looking down, 18:00, Clear. The scene was lit blue by the moon.
 - **What he saw:** "a pure white dot a few pixels wide near the top of a tree".
