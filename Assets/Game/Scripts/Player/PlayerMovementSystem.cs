@@ -216,7 +216,7 @@ namespace Punchy.Player
                 {
                     // Rivers carry swimmers downstream: harder in rapids, but never faster than they can swim, so
                     // they can always fight their way to the bank.
-                    var water = terrain.SampleGround(position.xz);
+                    var water = terrain.SampleGround(position);   // (a cave stream's current too, W-134)
                     var current = math.min(settings.RiverCurrent * (1f + water.Rapids), speed * 0.8f);
                     position.xz += water.Flow * current * dt;
                 }
@@ -1349,7 +1349,14 @@ namespace Punchy.Player
         {
             floor = terrain.FloorUnder(position, out inCave);
             if (inCave)
-                return false;
+            {
+                // W-134: a cave pool or stream deeper than SwimDepth is swum in like surface water (no swell).
+                var cave = terrain.SampleGround(position);
+                if (!cave.CaveWater || cave.WaterSurface - swimDepth <= floor)
+                    return false;
+                floor = cave.WaterSurface - swimDepth;
+                return true;
+            }
             // On a bridge: the deck, not the water under it.
             if (terrain.Deck(position, out floor))
             {

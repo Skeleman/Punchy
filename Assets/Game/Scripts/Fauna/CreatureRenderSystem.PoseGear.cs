@@ -17,6 +17,44 @@ namespace Punchy.Fauna
         partial struct PoseJob
         {
             /// <summary>A worker's gear (see GearParts): its tool while at work, and its apron or hat.</summary>
+            /// <summary>What a player's body has on (P-23): a hat on the crown of the head, a pack on the back.</summary>
+            void Worn(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded)
+            {
+                for (int i = 0; i < WornParts; i++)
+                    Output[at + i] = default;
+                int head = -1, chest = -1;
+                for (int i = 0; i < b.Parts.Length; i++)
+                {
+                    ref var part = ref b.Parts[i];
+                    if (part.Role == LimbRole.Head && head < 0)
+                        head = part.FirstSegment + part.SegmentCount - 1;
+                    else if (part.Parent < 0 && part.Role != LimbRole.Leg && part.Role != LimbRole.Arm && chest < 0)
+                        chest = part.FirstSegment + part.SegmentCount - 1;
+                }
+                var scale = Unity.Mathematics.math.max(state.Scale, 0.3f);
+                var forward = new Unity.Mathematics.float3(Unity.Mathematics.math.sin(state.Yaw), 0f, Unity.Mathematics.math.cos(state.Yaw));
+                if ((state.Worn & CreatureWorn.Hat) != 0 && head >= 0)
+                {
+                    var h = Output[offset + head];
+                    var ax = Unity.Mathematics.math.mul(h.Rotation, new Unity.Mathematics.float3(0f, 0f, 1f));
+                    var r = Unity.Mathematics.math.max(h.RadiusStart, h.RadiusEnd);
+                    var crown = h.Position + ax * h.Length;
+                    var face = Unity.Mathematics.math.normalize(forward - ax * Unity.Mathematics.math.dot(forward, ax));
+                    var straw = new Unity.Mathematics.float4(0.62f, 0.5f, 0.3f, 0f);
+                    var band = new Unity.Mathematics.float4(0.36f, 0.24f, 0.16f, 0f);
+                    Output[at] = Piece(crown - ax * r * 0.1f, face, ax, 0f, r * 1.9f, r * 1.9f, 0.1f, straw, faded, SegmentMaterial.Cloth);
+                    Output[at + 1] = Piece(crown + ax * r * 0.25f, face, ax, 0f, r * 0.95f, r * 0.95f, 0.8f, band, faded, SegmentMaterial.Cloth);
+                }
+                if ((state.Worn & CreatureWorn.Pack) != 0 && chest >= 0)
+                {
+                    var c = Output[offset + chest];
+                    var mid = c.Position + Unity.Mathematics.math.mul(c.Rotation, new Unity.Mathematics.float3(0f, 0f, c.Length * 0.5f));
+                    var up = new Unity.Mathematics.float3(0f, 1f, 0f);
+                    var at0 = mid - forward * (Unity.Mathematics.math.max(c.RadiusStart, c.RadiusEnd) + 0.08f * scale) - up * 0.2f * scale;
+                    Output[at + 2] = Piece(at0, up, forward, 0.42f * scale, 0.16f * scale, 0.14f * scale, 0.7f, new Unity.Mathematics.float4(0.42f, 0.33f, 0.2f, 0f), faded, SegmentMaterial.Leather);
+                }
+            }
+
             void Gear(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded)
             {
                 for (int i = 0; i < GearParts; i++)

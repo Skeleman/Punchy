@@ -35,6 +35,9 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
   `CaveDistance`, `IsCaveHole` (surface cut away at an entrance), `IsRock` and `FloorUnder(float3)` (the cave
   floor under a point, or the surface). Anything that can go underground must use `FloorUnder` with a 3D
   position instead of `SampleHeight` (player movement, the player's body in `CreatureAnimator`, the camera).
+  Water works the same way (W-134): `SampleGround(float3)` is the float2 answer at and above the ground, and below
+  it the cave pool or stream the point is in (`CaveWater` set, Height = its bed). Anything that can swim or splash
+  underground (wakes, the R-9 field, swimming) asks with its 3D position.
   `CaveDistance` has an exact sign but its size can overstate the distance to rock 2-9x (squashed floors,
   ledges, wall noise); carving and placement hash on it, so it never changes. For push-out, sphere casts or step
   sizes use `CaveDistanceBound` (`CaveSampling.LowerBound`): a lower bound (W-33 probe: 5 of ~10k points over,
