@@ -6000,3 +6000,21 @@ Branch `world/mountain-tunnels` at f6217674 (pushed), on a149c17f. One commit: C
 - **Checks:** PlayMode suite 45 cases: 28 passed, 0 failed, 17 skipped. lod-lint exit 0.
 - **Pins:** Landmarks_V3 112 A955AFE0 and Fauna_Fingerprint AD723954 both pass, unchanged (the branch is off an older main; no placement change).
 - **BENCH-QUEUE:** please rerun job 61 on the c5 walk (`walk -goto -2810,27,-556`): arm A origin/main, arm B world/cave-walk-46s. The 46.1 s frame should be gone; the cost is that the cave walls refine a few frames later near a mouth.
+
+## R-15
+
+### Row 1: skip the field's taps where it weighs nothing (render/audit-fixes)
+
+- **Branch:** render/audit-fixes, commit e495758c (parent db9ca83e, main), pushed.
+- **Change:**
+  - Water.shader fine sheet: the field's slope (four taps) and its foam now run only under `[branch] if (fieldWeight > 0)`. The fall churn foam stays outside the branch.
+  - WaterField.hlsl `PunchyWaterPatchPoint` (vertex): the field height tap runs only under the same check. The fall's sheet shares this code and lies mostly outside the square.
+  - Inside the square the math is unchanged (the same lerp by weight). Outside, the old code multiplied by zero.
+- **Look, before/after in the same editor state and the same views** (shots in R-15/, plus `r15-row1-grid.png`):
+  - The R-9 lake wade (eye 457,15,-1100) looks the same: glints, ripples and the shore.
+  - Fall #67's pool (drop 27 m, the seed's biggest fall in reach) looks the same: churn foam ring and curtain.
+  - Water animates, so I compared by eye, not by pixel diff.
+- **Side note, not caused by this change:** in this editor run, trees and props did not show in shots, with or without the change. Shots from an earlier run did show them. Flora streaming in the editor may lag after a restart. It needs a look if other lanes see it too.
+- **lod-lint:** clean.
+- **BENCH-QUEUE:** job 62 measures this (GPU ms of the water draw, lake and open sea). Please run it on render/audit-fixes e495758c against main.
+- **Pins:** not touched (shader only).
