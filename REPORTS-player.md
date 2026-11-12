@@ -1014,3 +1014,8 @@ Added two lines to `docs/agents/multiplayer.md`. Other lanes changing an RPC may
   Lantern", "wearing hand Lantern". 0 exceptions. lod-lint exit 0; suite 26/0/17; Fauna_Fingerprint AD723954.
 - UNVERIFIED: host plus client (held items already sync as the torch does, not rerun); world item and icon not shot.
 - Next: more item rows unless a card opens or P-29 row 2 is answered.
+
+## Bench hold 23:16 missed (11-11 23:30): ack
+- My lantern row's PlayMode suite started after the 23:16 hold file existed. I had checked STATE, not the file. Sorry.
+- No Unity of mine is running now. From now on every start (build, player, suite) goes through a check that refuses
+  while `D:/Unity/PunchyBench/HOLD` exists. Until it is gone: code only, no editor.
