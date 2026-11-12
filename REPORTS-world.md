@@ -6280,5 +6280,5 @@ plot rules would have to accept a raised deck).
   - deriv inside an `if`: Cave.shader:198 (`normalize(cross(ddy(p), ddx(p)))`, also unguarded), Creature.shader:392, 422, 460, 500, 503, Flora.shader:368.
   - unguarded facet normals `normalize(cross(ddy, ddx))`: FloraShadowCache.shader:81, WindowSpill.shader:99 (Flora.shader adds `+ 1e-9`, the right pattern).
   - `normalize(cross(float3(0,1,0), x))` with no vertical-case guard: Sky.hlsl:708, 742, 884, 921, 971; LandmarkEffects.hlsl:148; CaveDrips.shader:86, 111.
-  - Flora impostor: FloraImpostor.hlsl:65 `normalize(cross(ref, d))` (line 184 has the guard) — the likeliest flora/impostor candidate for the Ultra hilltop dot until 65a names the draw.
+  - (FloraImpostor.hlsl:65 is a false hit: its guard is on the line before; the lint is line-local.)
 - **lod-lint:** clean. **Suite:** not rerun (docs only). **Pins:** not touched.
