@@ -512,7 +512,7 @@ Pass: row 6 <= +0.2 ms GPU over row 5 at both views, CPU within noise.
 - 49d: Punchy `b/r12-trims` c43b5eaf: plain, `-skyoff 1024`, `-skyoff 8192` (the march keeps the last warp on steps 800 m outside the cloud layer). Job 49's storm night and noon, 3 rounds.
 - 45j: R-10 `b/r10-trims` a1cb1899 vs `b/r10-nocluster` a378b7e6 (no cluster variant in creatures, plants, grass, pebbles, temple; pricing only, not for merge) vs main 60edfacb at the town view, 3 rounds; then RenderDoc frames of all three. q95.sh.
 
-## Job 50 (2026-11-10, RUNNING 11-12 (q101.sh); queued by the main-account supervisor, Zach asked): two-player crash and desync test on the laptop
+## Job 50 (2026-11-10, REPORTED 11-12 (PASS: 0 crashes/exceptions, rejoin works, no desync; talk and gear not checked; bat folk 1.6 s client frame); q101.sh; queued by the main-account supervisor, Zach asked): two-player crash and desync test on the laptop
 Note (supervisor 11-10): leave/rejoin is expected to crash in GameAudio occlusion until #259 is fixed. If it does, report it as #259 and finish the rest of the route without the rejoin step.
 - Build: origin/main at the time you start (cc835cf6 or newer; note the commit), one Dev build, two instances on the laptop: host `-host`, client `-join 127.0.0.1`, start the client once the host is in game. Correctness only, no timing: two instances on one machine make frame times meaningless.
 - Route (both players together, host leading): spawn; R-9 water (the rapids below fall 74 and the fall itself, then swim); a town at 23:00 (talk to a folk, A-93); a v3 cave and the bat roost; the storm spot `-goto 1489,-897` in rain; then the client leaves and rejoins once, and finally leaves for good.

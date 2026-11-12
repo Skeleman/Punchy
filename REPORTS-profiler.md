@@ -2,6 +2,55 @@
 
 Newest first.
 
+## Job 50: two-player crash and desync check on main 6c3588b, 2026-11-12 (q101.sh): PASS on what's automated; talk and gear not checked
+**Setup:**
+- One Dev build of origin/main 6c3588b, plus the profiler's TwoPlayerRoute overlay (lanes/profiler/scripts/TwoPlayerRoute.cs.txt; build-only, not in the game).
+- Two or three instances on the laptop: 1280x720, `-fpscap 30`, `-weatherseed 4`, `-body default`.
+- **The host** walks the route once a client is in, 60 s a stop:
+  - the rapids below fall 74;
+  - the lake (swim);
+  - the town at 23:00;
+  - the bat roost;
+  - the storm spot in Storm.
+- **Each client** keeps itself beside the host.
+- Every 10 s, each instance logs its position, the other players' positions and looks, the five nearest creatures by ghost id, the hour, the weather, and the exception and error counts. tpcompare.py lines them up stop by stop (q101-compare.txt).
+
+**Run 1** (a script bug launched both clients at once, so three players for the whole route):
+- Client 2 left during the lake stop, and client 1 during the storm.
+- 0 crashes, 0 exceptions on all three.
+
+**Run 2** (the card's sequence):
+- Client 1 did the whole route and left 20 s into the storm.
+- Client 2 joined (the rejoin) and left after 2 minutes. The host carried on to the end.
+- 0 crashes, 0 exceptions on all three. The rejoin did not hit #259's GameAudio crash.
+
+**Checks (both runs):**
+
+| check | result |
+|---|---|
+| world check | B4F63E24 on every machine, every join "has the same world; welcome" |
+| positions | each side sees the other exactly where it is (gap 0.0 m once settled; 1.6 m once, mid-move) |
+| hour | the same within about 0.1 h at matching moments, including the town at 23:00 |
+| weather | the storm's rain 1.0 on both sides; Clear elsewhere |
+| creatures (within 120 m) | similar counts (for example 66 and 73 at the storm, 68 and 68 at the roost) and mostly the same nearest ghost ids. The sides stand 3 m apart and clients only get animals within 200 m, so small differences are expected. |
+| looks | each side sees the other's body (default, coat 2) |
+| leave and rejoin | works; the host drops the player and takes the new one in, with no errors from it |
+
+- **Client logged errors:** clients log 16–86 each. All of them are Netcode "Large serverTick prediction error encountered" warnings. Two or three games on one laptop at 30 fps, with 1–2 km teleports, push the client's tick around, so these aren't game faults. The host logged one error.
+- **A real finding: a 1.6 s frame on client 1 at the bat roost** ("[caves] slow frame 1670 ms: ... bat folk 1635"). The bat folk work stalled a joined client's frame on arrival. This is worth a card for the bat folk / cave owner.
+
+**Not checked:**
+- **Talking to a folk (A-93):** it needs input, which the overlay doesn't drive.
+- **Gear and clothing on the other player (P-28):** the network look the overlay reads carries the body and coat only. A side-by-side shot check would need the client to take shots per stop; this run's client took one (its stop name doesn't change as it follows). Both are for a playtest or a later overlay.
+
+**Tooling for job 50b** (lagged, `-netsim`, after P-31): the same q101.sh with the client's flag added. Before then:
+- tpcompare will pair checks by wall clock rather than the last line of each stop. Pairing by last line made one hour comparison look 1.2 h out when it wasn't.
+- The client will take a shot at each host stop.
+
+Files (Punchy-wt results): q101run1/ (run 1), q101.out, q101logs/ (host, client1, client2), q101-compare.txt, q101-shots/.
+
+Cost: laptop total $802 (laptop session 0a48ccdb; 1 build, 2 runs).
+
 ## Job 51: R-13 row 2, visual ranges by screen size (lod/screen-size d9634f37 vs main 0477dd07), 2026-11-12 (q100.job): within noise except the village, which is +0.2–0.4
 **Setup:**
 - Profile builds, 1920x1080, uncapped, `-weatherseed 4`, `-body default`, 3 rounds rotated per preset.
