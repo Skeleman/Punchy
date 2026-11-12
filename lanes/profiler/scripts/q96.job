@@ -9,3 +9,6 @@ arm() { case $1 in tess) echo "Profile-25954f2 -waterfieldtess 1";; cuts4) echo 
   cuts2) echo "Profile-25954f2 -waterfieldcuts 2";; off) echo "Profile-25954f2 -waterfield 0";; esac; }
 ROUNDS=3; GFX="High Medium"; REF=off; BAR=0.3
 after() { grep -h 'WaterTess\|tessellat' "$R/build-Profile-25954f2.log" | grep -i 'error' | head -5; grep -h 'tessellat' "$R"/q-$Q-*tess*-1.log | head -2; }
+# Stop before any game if the tessellated shader didn't compile (the tess arm would silently fall back to a CPU cut of 2).
+before() { if grep -q "Shader error in 'Hidden/Punchy/WaterTess'" "$R/build-Profile-25954f2.log"; then
+  grep "Shader error in 'Hidden/Punchy/WaterTess'" "$R/build-Profile-25954f2.log" | sort -u | head -5; echo "WaterTess failed to compile"; exit 1; fi; }
