@@ -6128,3 +6128,22 @@ Waiting on job 62. Row 4 is only needed if job 62 puts the field step above 0.1 
 - **Pins:** not touched.
 - **BENCH request (R-17):** GPU ms over open sea from the beach and from about 300 m up, branch vs main. Pass: within 0.1 ms.
 - **QUEUE-animal:** WaterSwell.hlsl changed, and the `_PunchySwellGroups` and `_PunchySwellWarp` globals were removed (nothing in the animal lane read them).
+
+## R-18: no more white bloom circles (#282, rule 24)
+
+### Row 1: Stop NaN on the main camera, from code (render/nan-guard 1912c4f6)
+
+- **What it does:** a new static `NanGuard` (Scripts/Camera/NanGuard.cs) sets URP's Stop NaN on the rig's camera at start-up and after each scene load.
+  - No scene, renderer, URP asset, QualitySettings or ProjectSettings edit. It is in its own file, not in ThirdPersonCamera.cs (player lane).
+  - `-stopnan 0` turns it off, at launch or live via `RunOptions` (parsed in DebugControls.ApplyOptions). Checked in play: on with no flag, off after `-stopnan 0`, back on after a run without it.
+  - SparkleProbe's own camera sets `stopNaN = false`, so the probe still reads the raw frame.
+- **Forced NaN test:** an untracked probe quad whose shader writes NaN, a few pixels on screen at 40 m.
+  - Guard on: a black dot, no halo. `-stopnan 0`: the same dot with a white bloom halo. Shots in PunchyMilestones/R-18: `r18-row1-forced-nan-guard-on.png`, `r18-row1-forced-nan-stopnan0.png`, and the side-by-side crop `r18-row1-pair-crop.png`.
+  - With the guard on, sparkleprobe still counted it: 36 bad pixels a frame, 831 over 20 frames.
+- **Two probe gotchas (for row 3's doc lines):**
+  - `x / x` on a material value folds to 1 under the compiler's fast maths, so it doesn't make a NaN. `asfloat(0x7FC00000u)` does.
+  - An offscreen `camera.Render()` into an ARGB32 target texture showed no halo either way; only the game view did. Shots that hunt bloom circles must come from the game view or a build.
+- **Suite:** PlayMode 28/28 passed, 0 failed, about 300 s by my poll (the status command doesn't print skips).
+- **lod-lint:** clean. **Pins:** not touched.
+- **BENCH request (R-18 row 1):** GPU ms with Stop NaN on vs `-stopnan 0` at Ultra, on the hilltop view (-3460,2425, 18:00, Clear, weatherseed 4) and a forest at noon. Pass: within +0.3 ms GPU.
+- **Row 2:** waits on job 65a (the RenderDoc pixel history at the hilltop). W-149 runs meanwhile.
