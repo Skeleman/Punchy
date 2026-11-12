@@ -36,6 +36,44 @@ float4 _PunchySwellWaves[PunchySwellMaxWaves];
 TEXTURE2D(_PunchySwellShore);
 float4 _PunchySwellShoreAt;
 
+// R-17 (#280): the swell noise, a small tileable texture baked from the seed (WaterSwells.cs), read at two scales whose
+// ratio isn't a simple fraction, each turned its own way and drifting with the shared clock, so the sea's set heights,
+// phase warp and crest bends never repeat where you can see them, even from high up. Read texel by texel and blended
+// by hand (as PunchySwellOnshore), so it is exactly WaterSwells.Noise.
+#define PunchySwellNoiseSize 256
+TEXTURE2D(_PunchySwellNoise);
+// Each tap: xy its turn (cos, sin), z texels per metre, w 1 once the noise is built (0: no noise, everything flat).
+float4 _PunchySwellNoiseTaps[2];
+// xy tap 0's drift, zw tap 1's (texels per second, in its turned frame).
+float4 _PunchySwellNoiseDrift;
+// Each tap's weight per channel, gains folded in: r the set height (-1..1 after clamping), g the phase warp (times
+// _PunchySwellLimits.z), b the crest bend (m each wave's crest moves along it).
+float4 _PunchySwellNoiseWeights[2];
+
+// One tap of the swell noise at xz: the texture turned, scaled and drifted, blended bilinearly by hand (wrapping).
+float4 PunchySwellNoiseTap(float2 xz, float4 tap, float2 drift, float t)
+{
+    float2 u = float2(tap.x * xz.x - tap.y * xz.y, tap.y * xz.x + tap.x * xz.y) * tap.z + drift * t;
+    float2 i0 = floor(u);
+    float2 f = u - i0;
+    int2 a = (int2)i0 & (PunchySwellNoiseSize - 1);
+    int2 b = (a + 1) & (PunchySwellNoiseSize - 1);
+    float4 h00 = LOAD_TEXTURE2D_LOD(_PunchySwellNoise, a, 0);
+    float4 h10 = LOAD_TEXTURE2D_LOD(_PunchySwellNoise, int2(b.x, a.y), 0);
+    float4 h01 = LOAD_TEXTURE2D_LOD(_PunchySwellNoise, int2(a.x, b.y), 0);
+    float4 h11 = LOAD_TEXTURE2D_LOD(_PunchySwellNoise, b, 0);
+    return lerp(lerp(h00, h10, f.x), lerp(h01, h11, f.x), f.y);
+}
+
+// The swell noise at xz and time t (both taps weighted): r set height, g phase warp, b crest bend (m). 0 until built.
+float4 PunchySwellNoise(float2 xz, float t)
+{
+    [branch] if (_PunchySwellNoiseTaps[0].w < 1)
+        return 0;
+    return PunchySwellNoiseTap(xz, _PunchySwellNoiseTaps[0], _PunchySwellNoiseDrift.xy, t) * _PunchySwellNoiseWeights[0]
+         + PunchySwellNoiseTap(xz, _PunchySwellNoiseTaps[1], _PunchySwellNoiseDrift.zw, t) * _PunchySwellNoiseWeights[1];
+}
+
 // The water's quality policy (refactor 3.4, WaterQuality.cs): tiers by how big a metre of water looks on screen.
 // x reference pixels a metre spans 1 m from the camera (0 until set: everything at full), yzw the near, mid and far tier
 // boundaries (pixels a metre spans).

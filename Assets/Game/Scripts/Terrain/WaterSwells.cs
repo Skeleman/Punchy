@@ -47,6 +47,16 @@ namespace Punchy.Terrain
             public int Size;
         }
 
+        /// <summary>R-17: the swell noise as Burst reads it (texels as the shader's texture, taps, drift and weights as
+        /// the shader's globals of those names).</summary>
+        struct NoiseField
+        {
+            public UnsafeList<float4> Texels;
+            public float4 Tap0, Tap1, Drift, Weight0, Weight1;
+            /// <summary>Texels across; 0 until the noise is built (no noise: the shader's taps say the same).</summary>
+            public int Size;
+        }
+
         /// <summary>What Burst code reads, kept apart: Burst can't run this class's managed static setup.</summary>
         static class Shared
         {
@@ -57,6 +67,7 @@ namespace Punchy.Terrain
             struct ShoreKey { }
             struct WarpKey { }
             struct WindKey { }
+            struct NoiseKey { }
             /// <summary>x 1 on / 0 off, y the sea level, z the wind 0..1, w the shared clock (s).</summary>
             public static readonly SharedStatic<float4> State = SharedStatic<float4>.GetOrCreate<StateKey>();
             /// <summary>The wave table, as in Table.</summary>
@@ -68,6 +79,7 @@ namespace Punchy.Terrain
             public static readonly SharedStatic<ShoreField> Shore = SharedStatic<ShoreField>.GetOrCreate<ShoreKey>();
             /// <summary>xy the way the wind blows (unit xz, followed slowly), z how far it turns the swell from onshore.</summary>
             public static readonly SharedStatic<float4> Wind = SharedStatic<float4>.GetOrCreate<WindKey>();
+            public static readonly SharedStatic<NoiseField> Noise = SharedStatic<NoiseField>.GetOrCreate<NoiseKey>();
         }
 
         static readonly int SwellId = Shader.PropertyToID("_PunchySwell");
@@ -84,6 +96,10 @@ namespace Punchy.Terrain
         static readonly int GroupsId = Shader.PropertyToID("_PunchySwellGroups");
         static readonly int ShoreId = Shader.PropertyToID("_PunchySwellShore");
         static readonly int ShoreAtId = Shader.PropertyToID("_PunchySwellShoreAt");
+        static readonly int NoiseId = Shader.PropertyToID("_PunchySwellNoise");
+        static readonly int NoiseTapsId = Shader.PropertyToID("_PunchySwellNoiseTaps");
+        static readonly int NoiseDriftId = Shader.PropertyToID("_PunchySwellNoiseDrift");
+        static readonly int NoiseWeightsId = Shader.PropertyToID("_PunchySwellNoiseWeights");
 
         /// <summary>The shader's room for waves (PunchySwellMaxWaves in WaterSwell.hlsl: the global array's size only).
         /// Unity fixes a global array's length the first time it's set, so the upload is always this long.</summary>
@@ -140,6 +156,28 @@ namespace Punchy.Terrain
         /// <summary>Extra room (m) round the furthest the swell can reach, for the render bounds.</summary>
         const float BoundsMargin = 0.5f;
 
+        /// <summary>
+        /// R-17 (#280, from high up the sea's displacement tiled): the swell noise, a tileable texture baked once from
+        /// the seed. Texels across (PunchySwellNoiseSize in WaterSwell.hlsl), and the value-noise lattice cells across it
+        /// in its first layer (the second has twice as many); per channel, how much of the second, finer layer it has
+        /// (r the set height is blotchy, g and b, the warp and the bend, stay smooth so they never bend a wave too hard).
+        /// </summary>
+        const int NoiseSize = 256, NoiseCells = 16;
+        static readonly float4 NoiseFine = new float4(0.35f, 0f, 0f, 0.35f);
+        /// <summary>The two taps: metres one lattice cell spans (ratio not a simple fraction), how each is turned
+        /// (radians), and how each drifts (m/s, and its heading in radians), so the noise never sits still or lines up.
+        /// The broad tap's cell is 2 km, not 1.5: at 1.5 km the warp's steepest slope came to 5% of a wave's wavenumber.
+        /// </summary>
+        static readonly float2 NoiseCell = new float2(2000f, 550f), NoiseTurn = new float2(0.61f, 2.17f);
+        static readonly float4 NoiseDrift = new float4(0.6f, 0.3f, 3f, -2.4f);
+        /// <summary>Each tap's share per channel (r set height, g warp, b bend; normalised so each channel keeps a spread
+        /// of 1): the sets come mostly from the finer tap, the warp only from the broad one.</summary>
+        static readonly float4 NoiseShare0 = new float4(0.35f, 1f, 0.9f, 0f), NoiseShare1 = new float4(0.95f, 0f, 0.45f, 0f);
+        /// <summary>How hard the noise raises and lowers the sets (times GroupDepth, clamped to +-1: the same range and
+        /// spread as the two group sines it replaces), and how far (m) it moves each wave's crest along it, which turns
+        /// the crests up to about +-6 degrees where it changes fastest.</summary>
+        const float NoiseSets = 0.5f, NoiseBend = 13f;
+
         /// <summary>The shore field: cells across, and how far past the world's edge it reaches (m).</summary>
         const int ShoreCells = 160;
         const float ShoreBeyond = 450f;
@@ -186,6 +224,13 @@ namespace Punchy.Terrain
             Shader.SetGlobalVector(WarpId, Shared.Warp.Data);
             Shader.SetGlobalVectorArray(GroupsId, groupsUpload);
             UpdateShore(terrain);
+            UpdateNoise(terrain);
+            noiseTaps[0].w = noiseTaps[1].w = noiseReady ? 1f : 0f;
+            Shader.SetGlobalVectorArray(NoiseTapsId, noiseTaps);
+            Shader.SetGlobalVector(NoiseDriftId, Shared.Noise.Data.Drift);
+            Shader.SetGlobalVectorArray(NoiseWeightsId, noiseWeights);
+            if (noiseTexture != null)
+                Shader.SetGlobalTexture(NoiseId, noiseTexture);
             Shader.SetGlobalVector(ShoreAtId, shoreReady ? new Vector4(shore.Origin.x, shore.Origin.y, shore.CellsPerMetre, shore.Size) : Vector4.zero);
             if (shoreTexture != null)
                 Shader.SetGlobalTexture(ShoreId, shoreTexture);
@@ -243,6 +288,7 @@ namespace Punchy.Terrain
             Shared.Groups.Data = new float4x2(Group(GroupA), Group(GroupB));
             groupsUpload[0] = Shared.Groups.Data.c0;
             groupsUpload[1] = Shared.Groups.Data.c1;
+            BuildNoiseShape();
         }
 
         /// <summary>A wave group as the maths wants it: heading x z, wavenumber, angular speed.</summary>
@@ -250,6 +296,195 @@ namespace Punchy.Terrain
         {
             var k = 2f * math.PI / g.z;
             return new float4(math.normalize(g.xy), k, k * g.w);
+        }
+
+        // ---------------------------------------------------------------- the swell noise (R-17)
+
+        static readonly Vector4[] noiseTaps = new Vector4[2];
+        static readonly Vector4[] noiseWeights = new Vector4[2];
+        static bool noiseReady, noiseBuilding;
+        static uint noiseSeed, noiseBuildingSeed;
+        static JobHandle noiseJob;
+        static NativeArray<float4> noiseTexels;
+        static Texture2D noiseTexture;
+
+        /// <summary>The taps, drift and weights (once: they never change; only the texels follow the seed).</summary>
+        static void BuildNoiseShape()
+        {
+            var field = Shared.Noise.Data;
+            var drift = new float4();
+            for (int i = 0; i < 2; i++)
+            {
+                math.sincos(NoiseTurn[i], out var sn, out var cs);
+                var perMetre = NoiseCells / NoiseCell[i];
+                var tap = new float4(cs, sn, perMetre, 0f);
+                // (A feature moving at v across the sea sits still at turn * (xz - v t): its texels drift by -turn * v.)
+                math.sincos(NoiseDrift[i * 2 + 1], out var hs, out var hc);
+                var v = NoiseDrift[i * 2] * new float2(hc, hs);
+                var d = -new float2(cs * v.x - sn * v.y, sn * v.x + cs * v.y) * perMetre;
+                if (i == 0) { field.Tap0 = tap; drift.xy = d; } else { field.Tap1 = tap; drift.zw = d; }
+                noiseTaps[i] = tap;
+            }
+            field.Drift = drift;
+            var norm = math.rsqrt(math.max(NoiseShare0 * NoiseShare0 + NoiseShare1 * NoiseShare1, 1e-6f));
+            var gain = new float4(NoiseSets, 1f, NoiseBend, 0f);
+            field.Weight0 = NoiseShare0 * norm * gain;
+            field.Weight1 = NoiseShare1 * norm * gain;
+            noiseWeights[0] = field.Weight0;
+            noiseWeights[1] = field.Weight1;
+            Shared.Noise.Data = field;
+        }
+
+        /// <summary>
+        /// Starts baking the noise when the seed is new and takes it up once baked (a frame or more later: a background
+        /// job, never waited on in the frame it starts). Until then there is no noise (flat sets, no warp or bend), on
+        /// the CPU and in the shader alike.
+        /// </summary>
+        static void UpdateNoise(in TerrainSource terrain)
+        {
+            var seed = terrain.World.Seed;
+            if (noiseBuilding)
+            {
+                if (!noiseJob.IsCompleted)
+                    return;
+                noiseJob.Complete();
+                if (seed == noiseBuildingSeed)
+                    TakeNoise();
+                DropNoiseJob();
+                return;
+            }
+            if (noiseReady && seed == noiseSeed)
+                return;
+            noiseTexels = new NativeArray<float4>(NoiseSize * NoiseSize, Allocator.Persistent);
+            noiseJob = new NoiseJob { Seed = seed, Fine = NoiseFine, Texels = noiseTexels }.Schedule();
+            noiseBuilding = true;
+            noiseBuildingSeed = seed;
+            Application.quitting -= DropNoiseJob;
+            Application.quitting += DropNoiseJob;
+        }
+
+        /// <summary>Copies the baked noise into the Burst copy and the shader's texture.</summary>
+        static void TakeNoise()
+        {
+            var field = Shared.Noise.Data;
+            // (Made once and overwritten in place, never freed while a swimmer's job may read it.)
+            if (!field.Texels.IsCreated)
+                field.Texels = new UnsafeList<float4>(NoiseSize * NoiseSize, Allocator.Persistent);
+            field.Texels.Resize(NoiseSize * NoiseSize);
+            for (int i = 0; i < NoiseSize * NoiseSize; i++)
+                field.Texels[i] = noiseTexels[i];
+            field.Size = NoiseSize;
+            Shared.Noise.Data = field;
+            if (noiseTexture == null)
+                noiseTexture = new Texture2D(NoiseSize, NoiseSize, TextureFormat.RGBAFloat, false, true)
+                    { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Repeat, name = "SwellNoise", hideFlags = HideFlags.DontSave };
+            noiseTexture.SetPixelData(noiseTexels, 0);
+            noiseTexture.Apply(false, false);
+            noiseReady = true;
+            noiseSeed = noiseBuildingSeed;
+        }
+
+        /// <summary>Waits for a bake still in flight and frees its array (taken, stale or quitting).</summary>
+        static void DropNoiseJob()
+        {
+            Application.quitting -= DropNoiseJob;
+            if (!noiseBuilding)
+                return;
+            noiseJob.Complete();
+            noiseTexels.Dispose();
+            noiseBuilding = false;
+        }
+
+        /// <summary>
+        /// Bakes the swell noise from the seed: per channel, tileable value noise (quintic fade) on NoiseCells lattice
+        /// cells, plus some of a layer on twice as many, then each channel shifted and scaled to a mean of 0 and a
+        /// spread of 1. A seed-only hash (no Unity random), so every machine bakes the same texels.
+        /// </summary>
+        [BurstCompile]
+        struct NoiseJob : IJob
+        {
+            public uint Seed;
+            public float4 Fine;
+            public NativeArray<float4> Texels;
+
+            public void Execute()
+            {
+                var n = NoiseSize;
+                var sum = new double4();
+                var sumSq = new double4();
+                for (int y = 0; y < n; y++)
+                    for (int x = 0; x < n; x++)
+                    {
+                        var v = new float4();
+                        for (int c = 0; c < 4; c++)
+                            v[c] = (1f - Fine[c]) * Value(x, y, NoiseCells, c * 2) + Fine[c] * Value(x, y, NoiseCells * 2, c * 2 + 1);
+                        Texels[y * n + x] = v;
+                        var dv = (double4)v;
+                        sum += dv;
+                        sumSq += dv * dv;
+                    }
+                var count = (double)(n * n);
+                var mean = sum / count;
+                var spread = math.sqrt(math.max(sumSq / count - mean * mean, 1e-12));
+                var m = (float4)mean;
+                var inv = (float4)(1.0 / spread);
+                for (int i = 0; i < n * n; i++)
+                    Texels[i] = (Texels[i] - m) * inv;
+            }
+
+            /// <summary>Value noise at texel x, y on a lattice of the given cells across (wrapping), -1..1.</summary>
+            float Value(int x, int y, int cells, int layer)
+            {
+                var p = new float2(x, y) * cells / NoiseSize;
+                var i0 = (int2)math.floor(p);
+                var f = p - i0;
+                f = f * f * f * (f * (f * 6f - 15f) + 10f);
+                var i1 = (i0 + 1) % cells;
+                return math.lerp(math.lerp(Corner(i0.x, i0.y, cells, layer), Corner(i1.x, i0.y, cells, layer), f.x),
+                                 math.lerp(Corner(i0.x, i1.y, cells, layer), Corner(i1.x, i1.y, cells, layer), f.x), f.y);
+            }
+
+            float Corner(int x, int y, int cells, int layer)
+            {
+                var h = Mix(Seed * 0x9E3779B9u ^ Mix((uint)(x + y * cells) ^ ((uint)layer << 20)));
+                return (h >> 8) * (2f / 16777215f) - 1f;
+            }
+
+            /// <summary>A full-avalanche integer mix (lowbias32): math.hash alone doesn't scatter neighbouring inputs.</summary>
+            static uint Mix(uint x)
+            {
+                x ^= x >> 16;
+                x *= 0x7feb352du;
+                x ^= x >> 15;
+                x *= 0x846ca68bu;
+                x ^= x >> 16;
+                return x;
+            }
+        }
+
+        /// <summary>The swell noise at xz now (r set height, g phase warp, b crest bend in m; 0 until baked). As
+        /// PunchySwellNoise; for probes and the swell's maths.</summary>
+        public static float4 Noise(float2 xz) => Noise(xz, Shared.State.Data.w);
+
+        static float4 Noise(float2 xz, float t)
+        {
+            var f = Shared.Noise.Data;
+            if (f.Size < 1)
+                return 0f;
+            return NoiseTap(f, f.Tap0, f.Drift.xy, xz, t) * f.Weight0 + NoiseTap(f, f.Tap1, f.Drift.zw, xz, t) * f.Weight1;
+        }
+
+        /// <summary>One tap of the noise, as PunchySwellNoiseTap.</summary>
+        static float4 NoiseTap(in NoiseField f, float4 tap, float2 drift, float2 xz, float t)
+        {
+            var u = new float2(tap.x * xz.x - tap.y * xz.y, tap.y * xz.x + tap.x * xz.y) * tap.z + drift * t;
+            var i0 = math.floor(u);
+            var r = u - i0;
+            var a = (int2)i0 & (NoiseSize - 1);
+            var b = (a + 1) & (NoiseSize - 1);
+            var h = f.Texels;
+            return math.lerp(math.lerp(h[a.y * NoiseSize + a.x], h[a.y * NoiseSize + b.x], r.x),
+                             math.lerp(h[b.y * NoiseSize + a.x], h[b.y * NoiseSize + b.x], r.x), r.y);
         }
 
         // ---------------------------------------------------------------- the shore field
