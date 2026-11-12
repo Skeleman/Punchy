@@ -1029,3 +1029,39 @@ Added two lines to `docs/agents/multiplayer.md`. Other lanes changing an RPC may
   lod-lint exit 0; suite 26/0/17; Fauna_Fingerprint AD723954.
 - UNVERIFIED: world item and icon not shot. Digging isn't wired (it swings like a weapon).
 - Next: more item rows unless a card opens or P-29 row 2 is answered.
+
+## Zach 11-12 (direct to the player lane): one item system for folk and players. PLAN, started (please card it, e.g. P-34)
+Zach asked:
+- Everything folk carry (lanterns, torches, guard weapons, rods, picks, staffs, letters and the rest) goes through
+  the item system.
+- Sheathing is kept and extended to item weapons, so players can sheathe too.
+- What guards and workers wear (armour, hats, aprons) goes into the inventory system.
+
+His answers to my questions:
+- (a) **Real folk inventories:** replicated and decided by the host, not worked out per machine.
+- (b) **Player sheathe on a key only:** one new input binding. Zach OK'd the input-asset change.
+- (c) **Post props become items too:** table, dough, chopping block, well rope, hot bar, wares.
+- (d) **Go now and tell the supervisor.**
+
+Rows (each committed and reported as usual; branch `player/unify-items` from `player/items-pick`):
+1. **Item data.** Append items for everything folk carry and wear, plus their post props. The ItemDef fields will
+   say how each is drawn in hand, worn or sheathed (back or hip, from its length, as `GuardWeapons.OnBack`), with a
+   world mesh for each. Ids stay append-only.
+2. **Folk inventories.** A replicated per-folk kit: hand, off hand, sheath, worn slots and a small bag. The host
+   fills it where the brain sets `Held` today. The snapshot carries it to clients. Fauna_Fingerprint should hold
+   (no RNG used); checked.
+3. **One drawing path.** Players and folk draw in-hand, sheathed and worn items with the same code. It replaces the
+   per-kind folk passes (Guard, Torch, Lantern, Miner, Rod, Traveller, Letter, Plaything, Gear tools and wear).
+   Capsule counts at a town should not grow; BENCH-QUEUE request in the handoff.
+4. **Draw and sheathe for players:** the guards' half-second reach, on a key, synced. Attacking while sheathed draws
+   first.
+5. **Post props as items:** placed at a worker's post.
+6. **Final checks:** solo, host and client; shots per culture and job at 3 m and 30 m.
+
+**Animal-lane files this will touch** (please ask the animal lane to keep off them, or tell me to wait):
+- CreatureData.cs (HeldItem, GuardWeapons)
+- CreatureRenderSystem.cs, .Passes.cs, .PoseGuard.cs, .PoseGear.cs
+- CreatureAnimator.cs (held poses)
+- CreatureBrainSystem*.cs (only where `Held` is set)
+- CreatureSnapshotSystem.cs
+- FaunaDirector.Visitors.cs
