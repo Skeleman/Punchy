@@ -5891,3 +5891,23 @@ Branch `world/mountain-tunnels` at f6217674 (pushed), on a149c17f. One commit: C
 - **For the supervisor:**
   1. This seed has too few of some kinds for the shots. Row 2 asks for 3 cave lakes and 2 white pools; there are 4 lake halls but only 1 white pool. Row 4 asks for 2 lava and 2 toxic pools; there is 1 cave lava pool, and no ToxicGeyser or VolcanoCone. Unless you say otherwise, I will take the missing kinds from the debug switches (`-whitepools` marks every cave pool white; this changes the look only, not the bake) and say which shots used them. Toxic and crater lava may need another seed. Tell me which one to use if you have a preference.
   2. `FloraSystem.BasinRange` is a fixed 80 m range, which breaks rule 20. It goes away in row 3, when the fountain basins become real water.
+
+### Row 2: cave lakes and white pools are ordinary water (#277)
+- **Commit:** world/no-water-discs 445bb489 (pushed). Three files: Water.shader, CaveSystem.cs, CaveSystem.Water.cs. 10 lines added, 48 removed.
+- **Change:** white pools no longer get a second submesh drawn with `_SoftRim`. That property, the faded rim and the darkened middle are gone from the water shader. White pools are now the same baked cave water tiles with the milky `WhitePoolWater` look, so they swim, wade and splash like any cave water. Cave lakes were already basin-fitted tiles, so nothing changes for them.
+- **Probe** (untracked `W148Probe.Run`): the player is dropped at the pool centre for the swim check, and at a spot 0.5-1.1 m deep for the wade check. The probe reads feet height after 3 s.
+
+| Pool | Swim: feet vs surface (bed) | Wade: feet vs surface (spot depth) | caveWater | Field presses |
+|---|---|---|---|---|
+| Lake hall #1 | -1.30 (bed -2.68) | -0.89 (0.87) | yes | 1 |
+| Lake hall #2 | -1.30 (bed -2.40) | -0.99 (0.95) | yes | 1 |
+| Lake hall #12 | -1.30 (bed -2.68) | -0.86 (0.87) | yes | 1 |
+| White pool #4 (bat folk) | -1.30 (bed -2.68) | -1.07 (1.07) | yes | 1 |
+| White pool #12 (`-whitepools`) | -1.30 (bed -2.68) | -0.86 (0.87) | yes | 1 |
+
+- A swim reading of -1.30 is the swim depth (SwimDepth 1.3), so the player is swimming in every pool. The field presses show that splashes reach the water field.
+- **Shots:** W-148/r2-lake1, r2-lake2, r2-lake12 and r2-white4, each at -3m and -15m. The second white pool is in r2-white12-3m-whitepools and r2-white12-15m-whitepools. r2-lake13-3m is an extra. Every eye is a full 3 m or 15 m out. I checked all the shots at small size.
+- **Second white pool:** this seed has only one bat folk white pool, so the second one is lake hall #12 turned white with the `-whitepools` switch. That switch changes the look only, not the bake. The shot names say so.
+- **Look note for the supervisor:** the deep white pool (#4) now reads as an opaque, flat, milky sheet with a hard edge like other water. The old soft fade at the rim and the darker middle are gone, as the card asks. Shallow parts are still see-through. If Zach wants it less solid, the change is a data change: lower the murk/opacity in `WhitePoolWater`.
+- **Checks:** lod-lint shows no hits. Line endings are unchanged (CaveSystem.Water.cs LF, the other two files CRLF). Compile is clean, with no shader errors in Editor.log. No timing. The pins (Landmarks_V3, Fauna_Fingerprint) are not touched, because no bake or placement data changed.
+- **Rejected:** pool rooms #13 and #15 cannot be used for the swim check, because the player lands on a stepping post at the centre (feet +0.16).
