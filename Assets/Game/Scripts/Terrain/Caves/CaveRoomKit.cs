@@ -67,6 +67,14 @@ namespace Punchy.Terrain
             public readonly List<Glow> Glows = new List<Glow>();
             public readonly List<Spot> Spots = new List<Spot>();
             public readonly List<Solid> Solids = new List<Solid>();
+            /// <summary>W-135 row 4: parts before this are the room's shell (tiles, trims, the doorway), the rest its set.</summary>
+            public int SetFrom;
+            /// <summary>W-135 row 4: where its set touches the floor (world space), for the seam darkening round them.</summary>
+            public readonly List<ContactShade.Contact> Contacts = new List<ContactShade.Contact>();
+            /// <summary>W-135 row 5: the part each contact belongs to (its index in Parts).</summary>
+            public readonly List<int> ContactPart = new List<int>();
+            /// <summary>The room's floor height (world y).</summary>
+            public float Floor;
         }
 
         /// <summary>The cave shader's rock tones per room type (grotto, lake, roost, ruin) for the stone and trim groups.</summary>
@@ -320,6 +328,7 @@ namespace Punchy.Terrain
             };
             Spots(m);
             Shell(m);
+            m.K.SetFrom = m.K.Parts.Count;
             switch ((CaveRoomType)room.Type)
             {
                 case CaveRoomType.Lake: Lake(m); break;
@@ -328,7 +337,127 @@ namespace Punchy.Terrain
                 default: Grotto(m); break;
             }
             Finish(m);
+            FloorContacts(m.K, room);
             return m.K;
+        }
+
+        /// <summary>How near the floor (m, below or above it) a set piece's foot must be to count as standing on it.</summary>
+        const float FloorBelow = 0.35f, FloorAbove = 0.2f;
+        /// <summary>W-135 row 5: how far (m) a foot may stray past a raised part's top and still stand on it, how near the
+        /// floor a top counts as the floor itself, and the highest top above the floor anything is stood on.</summary>
+        const float OnMargin = 0.05f, OnFloor = 0.05f, OnHighest = 1.2f;
+
+        /// <summary>
+        /// W-135 row 4: the footprints where the room's set stands (crystals by their foot, drums upright by their bottom
+        /// cap, boxes by their face nearest down), for the seam darkening on the tiles and the rock round them.
+        /// W-135 row 5: a drum on its side (a fallen ruin drum, a bone) touches along its lowest line, and a piece stands
+        /// on the floor or on the raised part under it (pool coping, a pillar's base, a step), whichever top its foot is
+        /// nearest above; <see cref="BuildMeshes"/> darkens that part's top round it too. Parts stacked on a like part (a
+        /// guano mound's crown, a rope coil's turns), hung over a smaller one or fixed to a wall aren't counted.
+        /// </summary>
+        static void FloorContacts(Kit kit, in CaveRoom room)
+        {
+            var floor = room.Origin.y;
+            kit.Floor = floor;
+            for (int i = kit.SetFrom; i < kit.Parts.Count; i++)
+            {
+                var p = kit.Parts[i];
+                var contact = ContactShade.PartFoot(p.Shape, p.Centre, p.Rotation, p.Half, out var foot);
+                // What it stands on: the floor, or the highest raised top under its foot that it's no wider than.
+                var rise = foot.y - floor;
+                var best = rise >= -FloorBelow && rise <= FloorAbove ? floor : float.NegativeInfinity;
+                var own = Top(p);
+                var size = math.cmax(contact.Half) + contact.Radius;
+                for (int j = 0; j < kit.Parts.Count; j++)
+                {
+                    var q = kit.Parts[j];
+                    if (j == i || !Raised(q, out var top, out var span))
+                        continue;
+                    if (top <= floor + OnFloor || top > floor + OnHighest || top <= best || own <= top + OnMargin)
+                        continue;
+                    var gap = foot.y - top;
+                    if (gap < -FloorBelow || gap > FloorAbove || size > span + OnMargin || !Over(q, contact.Base.xz, OnMargin))
+                        continue;
+                    if (p.Shape == 2 && q.Shape == 2 && p.Group == q.Group)
+                        continue;
+                    best = top;
+                }
+                if (best == float.NegativeInfinity)
+                    continue;
+                if (best > floor)
+                    contact.Base.y = best;
+                kit.Contacts.Add(contact);
+                kit.ContactPart.Add(i);
+            }
+        }
+
+        /// <summary>W-135 row 5: the height of a part's highest point.</summary>
+        static float Top(in Part p)
+        {
+            var x = math.mul(p.Rotation, new float3(1f, 0f, 0f));
+            var y = math.mul(p.Rotation, new float3(0f, 1f, 0f));
+            var z = math.mul(p.Rotation, new float3(0f, 0f, 1f));
+            switch (p.Shape)
+            {
+                case 1:
+                    return p.Centre.y + math.max(0f, y.y * p.Half.y);
+                case 2:
+                    var rz = p.Half.z > 0f ? p.Half.z : p.Half.x;
+                    return p.Centre.y + math.abs(y.y) * p.Half.y + math.sqrt(math.square(x.y * p.Half.x) + math.square(z.y * rz));
+                default:
+                    return p.Centre.y + math.abs(x.y) * p.Half.x + math.abs(y.y) * p.Half.y + math.abs(z.y) * p.Half.z;
+            }
+        }
+
+        /// <summary>W-135 row 5: whether others can stand on a part (a box lying level or a drum upright), the height of
+        /// its top, and the half width of its narrower side there.</summary>
+        static bool Raised(in Part p, out float top, out float span)
+        {
+            top = Top(p);
+            span = 0f;
+            if (p.Shape == 2)
+            {
+                span = math.min(p.Half.x, p.Half.z > 0f ? p.Half.z : p.Half.x);
+                return math.abs(math.mul(p.Rotation, new float3(0f, 1f, 0f)).y) > 0.9f;
+            }
+            if (p.Shape != 0)
+                return false;
+            for (int k = 0; k < 3; k++)
+            {
+                var a = float3.zero;
+                a[k] = 1f;
+                if (math.abs(math.mul(p.Rotation, a).y) > 0.9f)
+                {
+                    span = math.min(p.Half[(k + 1) % 3], p.Half[(k + 2) % 3]);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>W-135 row 5: whether a point (x, z) lies over a raised part's top, grown by margin.</summary>
+        static bool Over(in Part p, float2 at, float margin)
+        {
+            var d = at - p.Centre.xz;
+            if (p.Shape == 2)
+            {
+                var u = math.mul(p.Rotation, new float3(1f, 0f, 0f)).xz;
+                var w = math.mul(p.Rotation, new float3(0f, 0f, 1f)).xz;
+                var rz = p.Half.z > 0f ? p.Half.z : p.Half.x;
+                var e = new float2(math.dot(d, u) / (p.Half.x + margin), math.dot(d, w) / (rz + margin));
+                return math.lengthsq(e) <= 1f;
+            }
+            for (int k = 0; k < 3; k++)
+            {
+                var a = float3.zero;
+                a[k] = 1f;
+                var ax = math.mul(p.Rotation, a);
+                if (math.abs(ax.y) > 0.9f)
+                    continue;
+                if (math.abs(math.dot(d, math.normalizesafe(ax.xz))) > p.Half[k] * math.length(ax.xz) + margin)
+                    return false;
+            }
+            return true;
         }
 
         /// <summary>The room's socket spots, laid first so the props keep clear of them.</summary>
@@ -948,13 +1077,36 @@ namespace Punchy.Terrain
         // ------------------------------------------------------------------------------------------- meshes
 
         /// <summary>One mesh per material group (null where the room has none), in the cave walls' vertex layout.
-        /// Openness is the vertex colour alpha: 0 deep in the cave (rooms), 1 out in daylight (tunnel portals).</summary>
-        public static Mesh[] BuildMeshes(Kit kit, float openness = 0f)
+        /// Openness is the vertex colour alpha: 0 deep in the cave (rooms), 1 out in daylight (tunnel portals).
+        /// W-135 row 4: with contacts, the shell's tiles are darkened round them (ContactShade, the seam where a prop
+        /// stands on the floor), their faces there cut finer so it falls off smoothly.
+        /// W-135 row 5: the set's own raised tops (pool coping, a pillar's base, a step, floor tiles) are darkened round
+        /// the pieces standing on them too; other set parts are left as they are.</summary>
+        public static Mesh[] BuildMeshes(Kit kit, float openness = 0f, List<ContactShade.Contact> contacts = null)
         {
             var builders = new Builder[Groups];
-            foreach (var p in kit.Parts)
+            if (contacts != null && contacts.Count == 0)
+                contacts = null;
+            var onTop = new List<ContactShade.Contact>();
+            var near = new List<ContactShade.Contact>();
+            for (int i = 0; i < kit.Parts.Count; i++)
             {
+                var p = kit.Parts[i];
                 var b = builders[p.Group] ??= new Builder();
+                b.Contacts = null;
+                if (contacts != null && i < kit.SetFrom)
+                {
+                    // W-136 row 3: only the contacts that can reach this tile (by its bounds).
+                    near.Clear();
+                    var size = math.length(p.Half) + (p.Shape == 1 ? p.Half.y : 0f);
+                    foreach (var c in contacts)
+                        if (math.distance(c.Base, p.Centre) <= size + c.Extent)
+                            near.Add(c);
+                    if (near.Count > 0)
+                        b.Contacts = near;
+                }
+                else if (contacts != null && i >= kit.SetFrom && StoodOn(kit, i, contacts, onTop))
+                    b.Contacts = onTop;
                 switch (p.Shape)
                 {
                     case 1: b.Prism(p.Centre, p.Rotation, p.Half.x, p.Half.y, p.Tint); break;
@@ -968,19 +1120,72 @@ namespace Punchy.Terrain
             return meshes;
         }
 
+        /// <summary>W-135 row 5: the contacts that darken set part j's top (others standing on it or beside it at its
+        /// height, rising above it), into list; false if there are none or j isn't a raised top. W-136 row 3: contacts
+        /// past the kit's own (the cave plants and dungeon boxes in the room) count too, by their height alone.</summary>
+        static bool StoodOn(Kit kit, int j, List<ContactShade.Contact> contacts, List<ContactShade.Contact> list)
+        {
+            list.Clear();
+            var q = kit.Parts[j];
+            if (!Raised(q, out var top, out _) || top > kit.Floor + OnHighest)
+                return false;
+            for (int k = 0; k < kit.Contacts.Count; k++)
+            {
+                var i = kit.ContactPart[k];
+                var c = kit.Contacts[k];
+                if (i == j || math.abs(c.Base.y - top) > OnFloor + 0.01f || Top(kit.Parts[i]) <= top + OnMargin)
+                    continue;
+                if (Over(q, c.Base.xz, math.length(c.Half) + c.Radius + c.Reach))
+                    list.Add(c);
+            }
+            for (int k = kit.Contacts.Count; k < contacts.Count; k++)
+            {
+                var c = contacts[k];
+                if (math.abs(c.Base.y - top) <= OnFloor + 0.01f && Over(q, c.Base.xz, math.length(c.Half) + c.Radius + c.Reach))
+                    list.Add(c);
+            }
+            return list.Count > 0;
+        }
+
         class Builder
         {
             readonly List<Vector3> positions = new List<Vector3>();
             readonly List<Vector3> normals = new List<Vector3>();
             readonly List<Vector4> data = new List<Vector4>();
             readonly List<int> indices = new List<int>();
+            /// <summary>The contacts darkening the parts being added now (null: none).</summary>
+            public List<ContactShade.Contact> Contacts;
+            /// <summary>The finest a face near a contact is cut (m), and the most cuts along a side.</summary>
+            const float ShadeStep = 0.2f;
+            const int ShadeCuts = 12;
+
+            /// <summary>The seam darkening at p: the darkest any contact gives it.</summary>
+            float ShadeAt(float3 p)
+            {
+                var shade = 1f;
+                if (Contacts != null)
+                    foreach (var c in Contacts)
+                        shade = math.min(shade, c.ShadeAt(p, 0f, 0f, ContactShade.Strength, ContactShade.ReachScale));
+                return shade;
+            }
+
+            /// <summary>Whether a contact darkens anywhere within radius of p.</summary>
+            bool Near(float3 p, float radius)
+            {
+                if (Contacts != null)
+                    foreach (var c in Contacts)
+                        if (c.Near(p, radius, ContactShade.ReachScale))
+                            return true;
+                return false;
+            }
 
             void Vertex(float3 p, float3 n, float tint)
             {
                 positions.Add(p);
                 normals.Add(math.normalizesafe(n, new float3(0f, 1f, 0f)));
-                // x terrain blend 0, y tint, z style slot 0 (the material's own colours), w rib shade 0.
-                data.Add(new Vector4(0f, tint, 0f, 0f));
+                // x terrain blend 0, y tint, z style slot 0 (the material's own colours), w rib shade: none, but the
+                // seam darkening round the set (W-135 row 4).
+                data.Add(new Vector4(0f, tint, 0f, CaveSystem.SeamRib(0f, ShadeAt(p))));
             }
 
             void Quad(float3 a, float3 b, float3 c, float3 d, float3 n, float tint)
@@ -1011,7 +1216,21 @@ namespace Punchy.Terrain
                     var wn = math.mul(rotation, n);
                     var faceTint = wn.y < -0.5f ? tint * 0.6f : tint;
                     float3 P(float su, float sv) => centre + math.mul(rotation, (n + u * su + v * sv) * half);
-                    Quad(P(-1f, -1f), P(1f, -1f), P(1f, 1f), P(-1f, 1f), wn, faceTint);
+                    // Near a contact, cut into cells of about ShadeStep so the darkening falls off across the face.
+                    float sizeU = math.dot(u, half) * 2f, sizeV = math.dot(v, half) * 2f;
+                    int cu = 1, cv = 1;
+                    if (Contacts != null && Near(P(0f, 0f), math.sqrt(sizeU * sizeU + sizeV * sizeV) * 0.5f))
+                    {
+                        cu = math.clamp((int)math.ceil(sizeU / ShadeStep), 1, ShadeCuts);
+                        cv = math.clamp((int)math.ceil(sizeV / ShadeStep), 1, ShadeCuts);
+                    }
+                    for (int i = 0; i < cu; i++)
+                        for (int j = 0; j < cv; j++)
+                        {
+                            float u0 = -1f + 2f * i / cu, u1 = -1f + 2f * (i + 1) / cu;
+                            float v0 = -1f + 2f * j / cv, v1 = -1f + 2f * (j + 1) / cv;
+                            Quad(P(u0, v0), P(u1, v0), P(u1, v1), P(u0, v1), wn, faceTint);
+                        }
                 }
             }
 

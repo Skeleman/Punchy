@@ -598,6 +598,12 @@ half4 Frag(Varyings input, bool frontFace : SV_IsFrontFace) : SV_Target
         half breakUp = PunchyValueNoise(p * 2.3 + float2(t * 0.21, -t * 0.13)) * 0.6 + PunchyValueNoise(p * 6.1 - t * 0.3) * 0.4;
         swellFoam = saturate(caps * smoothstep(0.5, 0.72, breakUp) * 1.6) * distanceFade;
     }
+    // W-134 row 4 fix: from the air, the underside only shows through a sheet's open edge, where it ends over
+    // a drop or past a ledge (a chute's lip, a cascade's step), seen from below as a dark slit of flat water
+    // colour along the rock. Water seen from beside reads as what lies behind it, so the underside is only
+    // drawn with the lens under water (Underwater sets _PunchyUnderwater.w there).
+    [branch] if (!frontFace && _PunchyUnderwater.w <= 0)
+        discard;
     if (!frontFace)
     {
         n = -n;

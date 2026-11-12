@@ -156,7 +156,10 @@ namespace Punchy.Terrain
                 lakesBefore.Dispose();
                 FillRiverPits(settings, source.World.SeaLevel, down, order, lakes, width, bed, water);
                 if (settings.Smooth && meander)
+                {
                     CutDams(source, source.World.SeaLevel, points, down, lakes, lakeLevel, width, bed, water);
+                    SettleLakeRivers(settings, source.World.SeaLevel, down, order, lakes, lakeLevel, width, bed, water);
+                }
 
                 var builder = new BlobBuilder(Allocator.Temp);
                 ref var root = ref builder.ConstructRoot<RiverMapBlob>();
@@ -431,6 +434,40 @@ namespace Punchy.Terrain
             }
             newFloor.Dispose();
             touched.Dispose();
+        }
+
+        /// <summary>
+        /// W-138: a river through a lake lies at the lake's surface. ReshapeLoweredLakes raises each cell's water to the
+        /// water it drains into, so a lowered lake's cells took the outlet's level (the outlet not yet cut), and CutDams
+        /// then cut the outlet down but leaves lake cells alone: the river stood about a metre over the lake as a flat
+        /// sheet, its stepped cell edges drawn as falling water (a white zig-zag across the lake). Downstream first, each
+        /// lake cell's water goes back to its lake's level, and a cell upstream of a lowered one drops with it, never
+        /// below its own level (bed less a quarter of its depth, or the sea). Drawn map only, like CutDams.
+        /// </summary>
+        static void SettleLakeRivers(in RiverSettings settings, float seaLevel, NativeArray<int> down, NativeList<int> order,
+                                     NativeArray<float> lakes, NativeArray<float> lakeLevel, NativeArray<float> width,
+                                     NativeArray<float> bed, NativeArray<float> water)
+        {
+            var lowered = new NativeArray<bool>(water.Length, Allocator.Temp);
+            for (int k = 0; k < order.Length; k++)
+            {
+                var c = order[k];
+                if (width[c] <= 0f)
+                    continue;
+                var old = water[c];
+                if (lakes[c] > 0f)
+                    water[c] = math.min(water[c], lakeLevel[c]);
+                else
+                {
+                    var d = down[c];
+                    if (d < 0 || !lowered[d] || water[c] <= water[d])
+                        continue;
+                    var own = bed[c] < seaLevel ? seaLevel : bed[c] - RiverSampling.Depth(width[c], settings) * 0.25f;
+                    water[c] = math.min(water[c], math.max(own, water[d]));
+                }
+                lowered[c] = water[c] < old - 0.001f;
+            }
+            lowered.Dispose();
         }
 
         /// <summary>

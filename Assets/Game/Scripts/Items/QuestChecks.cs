@@ -53,6 +53,9 @@ namespace Punchy.Items
         bool CheckHandIn(int player, int board, int slot)
         {
             var q = Def(board, slot);
+            // (Nothing to carry for a visit: the player's word for having been there, as with what they've seen.)
+            if (q.type == "visit")
+                return true;
             var id = ItemId(q.item);
             var need = math.max(q.count, 1);
             var have = id >= 0 ? Carries(player, (byte)id) : 0;

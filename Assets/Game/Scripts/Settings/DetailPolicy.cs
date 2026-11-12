@@ -332,6 +332,45 @@ namespace Punchy.Settings
             return Reach(size, pixels / math.max(view.Detail, 0.1f), perMetre);
         }
 
+        /// <summary>
+        /// A-99 (rule 20): the creature extras by how big they look, not by fixed metres. Sizes in m, boundaries in
+        /// reference pixels at Detail 1, each tuned so the 60 degree view at 1080 lines gets the old range (x Detail, as
+        /// GraphicsSettings.DetailRange scaled it): torch flame 0.35 m at 150 m, a bat colony 1 m at 45 m, a swarm
+        /// 1.5 m at 40 m, a deer's (1.5 m) footprints at 40 m, a sand worm's mark (its 8 m drawn disc) at 150 m, a
+        /// ripple ring (8.4 m across) at 40 m, another player (1.8 m) breathing at 80 m, a critter (0.15 m) at 70 m,
+        /// and a deer kept behind the camera inside 25 m. Bigger things reach further, a narrower view further too.
+        /// </summary>
+        public const float TorchFlamePixels = 2.182f;
+        public const float ColonySize = 1f, ColonyPixels = 20.78f;
+        public const float SwarmSize = 1.5f, SwarmPixels = 35.07f;
+        public const float TracePixels = 35.07f;
+        public const float BurrowMarkSize = 8f, BurrowMarkPixels = 49.88f;
+        public const float RippleSize = 8.4f, RipplePixels = 196.4f;
+        public const float OtherPlayerSize = 1.8f, BreathPixels = 21.04f;
+        public const float CritterSize = 0.15f, CritterPixels = 2.004f;
+        /// <summary>Behind the camera a creature is still posed while bigger than this (reference pixels, no Detail):
+        /// its shadow falls into view. A deer inside 25 m, as before; a 6 m beast inside 100 m.</summary>
+        public const float BehindPixels = 56.12f;
+
+        /// <summary>How far something this big keeps this many reference pixels at the current view, Detail included
+        /// (<see cref="SetView"/> first; before any view, the reference one at the current Detail).</summary>
+        public static float ExtraReach(float size, float pixels)
+        {
+            var view = Current.Data;
+            var perMetre = view.PixelsPerMetre > 0f ? view.PixelsPerMetre : PixelsPerMetreAt(ReferenceFov);
+            var detail = view.PixelsPerMetre > 0f ? view.Detail : GraphicsSettings.Detail;
+            return Reach(size, pixels / math.max(detail, 0.1f), perMetre);
+        }
+
+        /// <summary>Rule 2 for something kept by a reach: inside it counts as in, and something that was in stays in
+        /// until it's past the reach that Hysteresis fewer pixels give (<see cref="Holds"/> in metres).</summary>
+        public static bool Within(float distance, float reach, bool was)
+            => distance < reach || was && distance < reach / (1f - Hysteresis);
+
+        /// <summary>The same in Burst, from a view handed in.</summary>
+        public static float ExtraReach(float size, float pixels, in View view)
+            => view.PixelsPerMetre > 0f ? Reach(size, pixels / math.max(view.Detail, 0.1f), view.PixelsPerMetre) : Reach(size, pixels, PixelsPerMetreAt(ReferenceFov));
+
         /// <summary>What a flora model is, for its rule (refactor 3.5c, from FloraModel.Static and the form).</summary>
         public enum FloraClass : byte { Tree, Plant, Rock, Debris, Structure }
 
@@ -372,6 +411,57 @@ namespace Punchy.Settings
         /// in by WaterFallFull, so it never pops; each quad of it is cut until a piece looks about WaterFallPiece across.
         /// </summary>
         public const float WaterFallOn = 300f, WaterFallFull = 520f, WaterFallPiece = 24f;
+
+        /// <summary>
+        /// W-135 row 1: from the surface, a cave chunk is drawn only near an opening (its walls open to the sky) that is in
+        /// view and looks bigger than this, held by Hysteresis. Small: an opening this size is a few pixels, so a
+        /// cave's walls come in long before they could show through it.
+        /// </summary>
+        public const float CaveOpeningPixels = 4f;
+
+        /// <summary>
+        /// W-135 row 2: cave wall levels. A chunk's walls are built at 0.5 m while a metre at its nearest point looks
+        /// bigger than Near, at 1 m while bigger than Mid, else at 2 m: at 1080p and 60° that is 0.5 m to about 47 m and
+        /// 1 m to about 94 m, so a voxel never grows past about 10 px.
+        /// </summary>
+        public const float CaveWallSize = 1f;
+        public static readonly Thresholds CaveWall = new Thresholds(20f, 10f, 0f);
+
+        /// <summary>
+        /// W-135 row 3 (rule 20): cave detail by how big it looks, not by fixed metres. Sizes in m, boundaries in reference
+        /// pixels, each tuned so the 60 degree view at 1080 lines gets the old range: plants (1 m) drawn to 60 m and at
+        /// their finest to 20 m, drips (1 m) to 25 m, a cave fall's spray (4 m) to 120 m and a pool's fish (0.3 m) to 35 m
+        /// past its rim, all x Detail as GraphicsSettings.DetailRange scaled them. With no Detail (they were fixed metres):
+        /// a room's flame (0.32 m) to 60 m, the surface hidden from 25 m to 45 m from a mouth (6 m), the world's glow
+        /// fading from 240 m to 320 m (8 m, its typical reach; never past the far map's edge) and a mouth's spill of light
+        /// from 60 m to 85 m (4 m; never past its scan radius). Pools and streams are drawn while their width is a couple
+        /// of pixels, inside the cave streaming radius.
+        /// </summary>
+        public const float CavePlantSize = 1f, CavePlantPixels = 15.59f, CavePlantFinestPixels = 46.77f;
+        public const float CaveDripSize = 1f, CaveDripPixels = 37.41f;
+        public const float CaveFallSize = 4f, CaveFallPixels = 31.18f;
+        public const float CaveFishSize = 0.3f, CaveFishPixels = 8.017f;
+        public const float RoomFlameSize = 0.32f, RoomFlamePixels = 4.988f;
+        public const float CaveMouthSize = 6f, SurfaceHiddenPixels = 124.7f, SurfaceShownPixels = 224.5f;
+        public const float WorldGlowSize = 8f, WorldGlowFromPixels = 31.18f, WorldGlowToPixels = 23.38f;
+        public const float SpillSize = 4f, SpillFromPixels = 62.35f, SpillToPixels = 44.01f;
+        public const float CaveWaterPixels = 2f;
+
+        /// <summary>How far something this big keeps this many reference pixels at the current view, Detail left out:
+        /// for what used fixed metres (<see cref="ExtraReach(float, float)"/> without the x Detail).</summary>
+        public static float ViewReach(float size, float pixels)
+        {
+            var view = Current.Data;
+            return Reach(size, pixels, view.PixelsPerMetre > 0f ? view.PixelsPerMetre : PixelsPerMetreAt(ReferenceFov));
+        }
+
+        /// <summary>A fade's two ends by size (<see cref="ViewReach"/>), both scaled down together so the far one never
+        /// passes the cap (what the faded thing covers): a fade that runs from near to far.</summary>
+        public static float2 FadeReach(float size, float nearPixels, float farPixels, float cap)
+        {
+            var fade = new float2(ViewReach(size, nearPixels), ViewReach(size, farPixels));
+            return fade * math.min(1f, cap / math.max(fade.y, 1e-3f));
+        }
 
         public static Rule FloraRule(FloraClass c)
         {

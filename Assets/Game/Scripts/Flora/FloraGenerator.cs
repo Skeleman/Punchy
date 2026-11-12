@@ -76,6 +76,12 @@ namespace Punchy.Flora
         /// <summary>Refactor 3.5: nothing in it moves but door leaves (FloraMeshBuilder.Moves), so it draws with the static
         /// shader variant, which skips the wind and the other vertex motions.</summary>
         public bool Static;
+        /// <summary>
+        /// W-136: where it meets the ground, as capsules fitted to its mesh's cross-section just above its base (before
+        /// the plant's own rotation and scale), each with the width of the part it belongs to (a post's, a wall's, a
+        /// boulder's). The ground, rock or tile under it darkens round them (ContactShade.ModelFeet). Empty for ground-layer plants.
+        /// </summary>
+        public readonly List<Punchy.Terrain.ContactShade.Contact> Feet = new List<Punchy.Terrain.ContactShade.Contact>();
 
         /// <summary>Forms that cast no shadow (see CastsShadows).</summary>
         public static bool Shadowless(FloraForm form) =>
@@ -123,6 +129,12 @@ namespace Punchy.Flora
             foreach (var b in Pending)
                 if (b != null && b.Moves())
                     Static = false;
+            if (Species != null && Species.Layer != FloraLayer.Ground && Pending.Length > 0 && Pending[0] != null)
+            {
+                var segments = new List<Vector4>();
+                Pending[0].Slice(Punchy.Terrain.ContactShade.SliceHeight, segments);
+                Punchy.Terrain.ContactShade.FitFeet(segments, Feet);
+            }
             for (int lod = 0; lod < Pending.Length; lod++)
                 Lods[lod] = Pending[lod].MakeMesh($"{MeshName} LOD{lod}");
             Pending = null;

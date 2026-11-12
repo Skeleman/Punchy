@@ -24,9 +24,13 @@ namespace Punchy.Fauna
         /// <summary>How long a ripple spreads before it's gone (s); a new one each Spacing metres gone, or each Still
         /// seconds keeping still.</summary>
         const float RippleTime = 3f, Spacing = 0.5f, Still = 0.5f;
-        /// <summary>How far from the camera swimmers are sent (m); and the band round the surface they're in to count
-        /// (above it, for a duck; below, for a fish near the top or a swimmer's feet).</summary>
-        const float Range = 40f, Above = 0.8f, Below = 1.6f;
+        /// <summary>The band round the surface a swimmer is in to count (m: above it, for a duck; below, for a fish near
+        /// the top or a swimmer's feet).</summary>
+        const float Above = 0.8f, Below = 1.6f; // gameplay: who is at the surface, not how far it's drawn
+        /// <summary>How far from the camera swimmers are sent (A-99): while a ripple's ring (DetailPolicy.RippleSize)
+        /// is RipplePixels across at the view, eased (40 m at the 60 degree view, x Detail); a swimmer that rippled
+        /// last time held a little past it.</summary>
+        float range;
 
         static readonly int SwimmersId = Shader.PropertyToID("_PunchySwimmers");
         static readonly int CountId = Shader.PropertyToID("_PunchySwimmerCount");
@@ -46,6 +50,16 @@ namespace Punchy.Fauna
         }
 
         readonly System.Collections.Generic.List<Ripple> ripples = new System.Collections.Generic.List<Ripple>();
+        /// <summary>How many live ripples are within a distance of a spot (the play-mode tests, W-134).</summary>
+        public int RipplesNear(float2 at, float distance)
+        {
+            var n = 0;
+            foreach (var r in ripples)
+                if (math.distance(r.At, at) <= distance)
+                    n++;
+            return n;
+        }
+
         /// <summary>Per swimmer: where and when it dropped its last ripple.</summary>
         NativeHashMap<Entity, float3> lastRipple;
 
@@ -75,6 +89,7 @@ namespace Punchy.Fauna
             [ReadOnly] public NativeArray<Entity> Entities;
             [ReadOnly] public TerrainSource Terrain;
             public float3 Camera;
+            public float Range;
             public int Frame;
             public float Now;
             public NativeHashMap<Entity, bool> Wet;
@@ -87,7 +102,7 @@ namespace Punchy.Fauna
                 {
                     var s = States[i];
                     var d = math.distance(s.Position, Camera);
-                    if (d > Range || s.Gone || s.Fly > 0.5f)
+                    if (!Punchy.Settings.DetailPolicy.Within(d, Range, LastRipple.ContainsKey(Entities[i])) || s.Gone || s.Fly > 0.5f)
                         continue;
                     // (Only what can be in the water: swimmers, floaters, animals that cross it, folk, players' bodies.)
                     ref var b = ref Bodies[i].Blob.Value;
@@ -98,7 +113,8 @@ namespace Punchy.Fauna
                     var e = Entities[i];
                     if (!Wet.TryGetValue(e, out var atSurface) || (e.Index + Frame) % Stagger == 0)
                     {
-                        var g = Terrain.SampleGround(s.Position.xz);
+                        // (The float3 sample: in a cave pool or stream it is that water's, W-134.)
+                        var g = Terrain.SampleGround(s.Position);
                         var under = g.HasWater ? g.WaterSurface - s.Position.y : float.MaxValue;
                         atSurface = g.HasWater && g.WaterSurface - g.Height >= 0.15f && under >= -Above && under <= Below;
                         Wet[e] = atSurface;
@@ -131,6 +147,14 @@ namespace Punchy.Fauna
                 if (now - ripples[i].Born < RippleTime)
                     ripples[kept++] = ripples[i];
             ripples.RemoveRange(kept, ripples.Count - kept);
+            if (cam != null)
+            {
+                Punchy.Settings.DetailPolicy.SetView(cam);
+                range = Punchy.Settings.DetailPolicy.EasedReach(range, Punchy.Settings.DetailPolicy.ExtraReach(
+                    Punchy.Settings.DetailPolicy.RippleSize, Punchy.Settings.DetailPolicy.RipplePixels), SystemAPI.Time.DeltaTime);
+            }
+            // (Ripples already made stay drawn out to the held reach.)
+            var held = range / (1f - Punchy.Settings.DetailPolicy.Hysteresis);
             if (cam != null && SystemAPI.TryGetSingleton<TerrainSource>(out var terrain))
             {
                 float3 camAt = cam.transform.position;
@@ -139,7 +163,7 @@ namespace Punchy.Fauna
                 var dropped = new NativeList<Ripple>(16, Allocator.TempJob);
                 Unity.Jobs.IJobExtensions.Run(new SwimJob
                 {
-                    States = states, Bodies = bodies, Entities = entities, Terrain = terrain, Camera = camAt, Frame = frame,
+                    States = states, Bodies = bodies, Entities = entities, Terrain = terrain, Camera = camAt, Range = range, Frame = frame,
                     Now = now, Wet = wet, LastRipple = lastRipple, Ripples = dropped
                 });
                 for (int i = 0; i < dropped.Length; i++)
@@ -148,7 +172,7 @@ namespace Punchy.Fauna
                 foreach (var r in ripples)
                 {
                     var d = math.distance(r.At, camAt.xz);
-                    if (d > Range)
+                    if (d > held)
                         continue;
                     // (Kept to the nearest 48: a full list gives way to anything nearer than its furthest.)
                     var slot = count;
@@ -175,7 +199,7 @@ namespace Punchy.Fauna
             for (int k = count; k < MaxSwimmers; k++)
                 slots[k] = Vector4.zero;
             // (A ripple's ring spreads to 4.2 m and fades out within 5 m of where it was made: Water.shader.)
-            mask.Begin(cam != null ? ((float3)cam.transform.position).xz : float2.zero, Range + 5f);
+            mask.Begin(cam != null ? ((float3)cam.transform.position).xz : float2.zero, held + 5f);
             for (int k = 0; k < count; k++)
                 mask.Mark(new float2(slots[k].x, slots[k].z), 5f);
             mask.Upload();

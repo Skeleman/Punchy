@@ -198,7 +198,7 @@ namespace Punchy.Terrain
                 var mainEnds = new int3(-1);
 
                 // The entrance: starting just outside the face, so the passage cuts cleanly into it.
-                var start = inst.Position - forward * (radius * type.Edge * 0.5f + r * 0.6f);
+                var start = MouthAt(inst, type);
                 var mouth = new float3(start.x, floor + r * 0.4f, start.y);
                 var previous = AddNode(mouth, r, CaveNodeKind.Passage);
                 var heading = math.atan2(forward.y, forward.x);
@@ -429,6 +429,12 @@ namespace Punchy.Terrain
             PlaceStreams(withCaves, caves, nodes, segments, styles, extras);
             UnityEngine.Debug.Log($"[cave-streams] ends: pool {EndCounts[0]}, hole {EndCounts[1]}, left out {EndCounts[2]}; kept {extras.Streams.Count}");
             Step("streams");
+            // W-134 row 3: underground lakes last of the water, in spots of their own (nothing placed before moves).
+            PlaceLakes(withCaves, caves, nodes, kinds, segments, styles, extras);
+            Step("lakes");
+            // W-134 row 4: river chambers after the lakes, in spots of their own again.
+            PlaceRivers(withCaves, caves, nodes, kinds, segments, styles, extras);
+            Step("rivers");
             bare.Dispose();
             var withWater = BuildBlob(caves, nodes, kinds, segments, extras, Allocator.Persistent);
             withCaves.Caves = withWater;
@@ -441,16 +447,24 @@ namespace Punchy.Terrain
             Step("plants");
             PlaceFittings(withCaves, caves, nodes, kinds, segments, styles, CaveFloraTable.Collect(types), extras);
             Step("fittings");
+            PlaceLakeDetails(withCaves, caves, styles, CaveFloraTable.Collect(types), extras);
+            Step("lake details");
+            PlaceRiverDetails(withCaves, caves, styles, CaveFloraTable.Collect(types), extras);
+            Step("river details");
             FinishRooms(caves, extras);
             withWater.Dispose();
             // W-110: road tunnels last, appended after the landmarks' caves (whose indices, seeds and extras stay as
-            // they were), then their lamps and frames against the caves with them.
+            // they were), then their details, lamps and frames against the caves with them.
             if (tunnelRuns.Count > 0)
             {
                 AddTunnels(source, palette, styles, tunnelRuns, caves, nodes, kinds, segments);
                 var withTunnels = BuildBlob(caves, nodes, kinds, segments, extras, Allocator.Persistent);
                 withCaves.Caves = withTunnels;
-                PlaceTunnelFittings(withCaves, caves, nodes, segments, styles, CaveFloraTable.Collect(types), extras);
+                // W-138 row 4: the shrine, marker stones and fallen stones first, so the lamps keep clear of them.
+                // (Stones sit below shoulder height, so the lamps' wall probes don't need them in the blob.)
+                var tunnelFlora = CaveFloraTable.Collect(types);
+                var keepClear = PlaceTunnelDetails(withCaves, caves, nodes, segments, styles, tunnelFlora, extras);
+                PlaceTunnelFittings(withCaves, caves, nodes, segments, styles, tunnelFlora, extras, keepClear);
                 withTunnels.Dispose();
                 Step("tunnels");
             }
@@ -470,6 +484,11 @@ namespace Punchy.Terrain
             public readonly List<CaveSpeleothem> Speleothems = new List<CaveSpeleothem>();
             public readonly List<CavePlant> Plants = new List<CavePlant>();
             public readonly List<CaveRoom> Rooms = new List<CaveRoom>();
+            /// <summary>W-134 row 3: the lakes kept, for their details.</summary>
+            public readonly List<Lake> Lakes = new List<Lake>();
+            /// <summary>W-134 row 4: river chambers, and the seed and stream of each for its details.</summary>
+            public readonly List<CaveChamber> Chambers = new List<CaveChamber>();
+            public readonly List<River> Rivers = new List<River>();
         }
 
         /// <summary>
@@ -673,7 +692,10 @@ namespace Punchy.Terrain
             var roomArray = builder.Allocate(ref root.Rooms, extras.Rooms.Count);
             for (int i = 0; i < extras.Rooms.Count; i++)
                 roomArray[i] = extras.Rooms[i];
-            BuildGrid(builder, ref root, caves, nodes, segments, extras.Rooms);
+            var chamberArray = builder.Allocate(ref root.Chambers, extras.Chambers.Count);
+            for (int i = 0; i < extras.Chambers.Count; i++)
+                chamberArray[i] = extras.Chambers[i];
+            BuildGrid(builder, ref root, caves, nodes, segments, extras.Rooms, pools, extras.Chambers);
             BuildSpeleothemGrid(builder, ref root, speleothems);
             var blob = builder.CreateBlobAssetReference<CaveSetBlob>(allocator);
             builder.Dispose();
@@ -1281,7 +1303,7 @@ namespace Punchy.Terrain
         {
             foreach (var s in rods)
                 if (s.Carve == 0f && math.all(p >= s.Min - 0.6f) && math.all(p <= s.Max + 0.6f) &&
-                    (s.Block != 0f ? CaveSampling.Block(s, p) : CaveSampling.Rod(s, p)) < 0.6f)
+                    CaveSampling.Shape(s, p) < 0.6f)
                     return true;
             return false;
         }
@@ -1359,6 +1381,17 @@ namespace Punchy.Terrain
             return false;
         }
 
+        /// <summary>Where a cave's entrance passage starts, just outside its face (W-138: roads lead here too).</summary>
+        public static float2 MouthAt(in LandmarkInstance inst, LandmarkType type)
+            => inst.Position - inst.Facing * (type.Radius * inst.Scale * type.Edge * 0.5f + type.CaveRadius * inst.Scale * 0.6f);
+
+        /// <summary>The style a cave is dug in, from the same roll Build uses (W-138: a road picks out the mines by it).</summary>
+        public static CaveStyle StyleOf(in TerrainSource source, IReadOnlyList<BiomeDefinition> palette, LandmarkType type, in LandmarkInstance inst)
+        {
+            var rng = new Random(math.hash(new uint2(inst.Key, 7717u)) | 1u);
+            return PickStyle(source, palette, type, inst.Position, ref rng);
+        }
+
         /// <summary>
         /// One of the type's styles listed for the biome the cave opens in (chosen by the cave's own roll when several
         /// are), else one listed for anywhere, else the first; none if the type lists no styles.
@@ -1397,7 +1430,7 @@ namespace Punchy.Terrain
         /// stay grouped by cave (sampling relies on it).
         /// </summary>
         static void BuildGrid(BlobBuilder builder, ref CaveSetBlob root, List<CaveData> caves, List<CaveNode> nodes, List<CaveSegment> segments,
-                              List<CaveRoom> rooms)
+                              List<CaveRoom> rooms, List<CavePool> pools, List<CaveChamber> chambers)
         {
             float2 min = float.MaxValue, max = float.MinValue;
             for (int i = 0; i < segments.Count; i++)
@@ -1419,6 +1452,28 @@ namespace Punchy.Terrain
                         seg.Min = math.min(seg.Min, lo - 1f);
                         seg.Max = math.max(seg.Max, hi + 1f);
                     }
+                // W-134 row 3: a passage beside a lake reaches over its whole hall, so the hall's air is sampled.
+                for (int k = c.FirstPool; k < c.FirstPool + c.PoolCount; k++)
+                {
+                    LakeBox(pools[k], CaveSampling.SegmentMargin + CaveSampling.WallReach(c), out var lo, out var hi);
+                    if (pools[k].Hall > 0f && math.all(seg.Min <= hi + 2f) && math.all(seg.Max >= lo - 2f))
+                    {
+                        seg.Min = math.min(seg.Min, lo);
+                        seg.Max = math.max(seg.Max, hi);
+                    }
+                }
+                // W-134 row 4: and a passage by a river chamber's gallery reaches over the whole chamber.
+                foreach (var ch in chambers)
+                {
+                    if (ch.Cave != seg.Cave)
+                        continue;
+                    var margin = CaveSampling.SegmentMargin + CaveSampling.WallReach(c);
+                    if (math.all(seg.Min <= ch.Max + margin + 2f) && math.all(seg.Max >= ch.Min - margin - 2f))
+                    {
+                        seg.Min = math.min(seg.Min, ch.Min - margin);
+                        seg.Max = math.max(seg.Max, ch.Max + margin);
+                    }
+                }
                 segments[i] = seg;
                 min = math.min(min, seg.Min.xz);
                 max = math.max(max, seg.Max.xz);

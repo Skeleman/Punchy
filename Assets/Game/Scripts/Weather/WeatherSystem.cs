@@ -475,7 +475,9 @@ namespace Punchy.Weather
             var origin = cam != null ? cam.transform.position : Vector3.zero;
             Shader.SetGlobalVector(HazeOriginId, origin);
             hazeLutMaterial.SetVector(HazeLutSizeId, new Vector2(HazeLutWidth, HazeLutHeight));
-            Graphics.Blit(null, hazeLut, hazeLutMaterial);
+            // Pass 0 only (R-12): with no pass given, Blit draws every pass, so the sky-direction pass below (8 km
+            // rays at true height) was drawn over the table, and every distance read the whole shaft.
+            Graphics.Blit(null, hazeLut, hazeLutMaterial, 0);
             Shader.SetGlobalTexture(HazeLutId, hazeLut);
 
             // The same volumes against the sky, per view direction (R-8): the skybox reads this instead of marching

@@ -44,8 +44,6 @@ namespace Punchy.Ambience
         public float BreathThreshold = 0.35f;
         [Tooltip("Height of the mouth above the feet, and how far in front of the body's centre.")]
         public Vector2 Mouth = new Vector2(1.5f, 0.3f);
-        [Tooltip("Other players' breath and footprints show within this distance of the camera.")]
-        public float OthersRange = 80f;
 
         /// <summary>0..1 conditions where the player is (for debugging and other systems).</summary>
         public float Heat { get; private set; }
@@ -366,7 +364,10 @@ namespace Punchy.Ambience
                 if (em.HasComponent<Unity.NetCode.GhostOwnerIsLocal>(e) && em.IsComponentEnabled<Unity.NetCode.GhostOwnerIsLocal>(e))
                     continue;
                 var t = em.GetComponentData<LocalTransform>(e);
-                if (math.lengthsq(t.Position) < 1e-6f || math.distancesq(t.Position, camera) > Punchy.Settings.GraphicsSettings.DetailRange(OthersRange) * Punchy.Settings.GraphicsSettings.DetailRange(OthersRange))
+                // (Their breath and footprints while they're DetailPolicy.BreathPixels tall at the view, A-99: 80 m at the
+                // 60 degree view, x Detail; held a little past it for those shown last frame.)
+                if (math.lengthsq(t.Position) < 1e-6f || !Punchy.Settings.DetailPolicy.Within(math.distance(t.Position, camera),
+                        Punchy.Settings.DetailPolicy.ExtraReach(Punchy.Settings.DetailPolicy.OtherPlayerSize, Punchy.Settings.DetailPolicy.BreathPixels), others.ContainsKey(e)))
                     continue;
                 if (!others.TryGetValue(e, out var b))
                     others[e] = b = new Breather { BreathTimer = UnityEngine.Random.Range(0f, BreathInterval) };
