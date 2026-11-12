@@ -1019,3 +1019,13 @@ Added two lines to `docs/agents/multiplayer.md`. Other lanes changing an RPC may
 - My lantern row's PlayMode suite started after the 23:16 hold file existed. I had checked STATE, not the file. Sorry.
 - No Unity of mine is running now. From now on every start (build, player, suite) goes through a check that refuses
   while `D:/Unity/PunchyBench/HOLD` exists. Until it is gone: code only, no editor.
+
+## Item row: the shovel (11-12, standing order). DONE, `player/items-pick` 697d5b7f
+- Item 35 "Shovel", `CreatureWeapon.Shovel` = 9: dmg 5, reach 1.3 m, 0.9 swings/s, 1.8 kg, hand slot.
+- Held: a 0.95 m haft, a cross grip at the butt, a flat iron blade at the head (3 of the 7 weapon capsules). World item:
+  the same lying flat. Coded during the 23:30 hold (no editor), built and checked after the file went (00:20).
+- Checked: `D:/Unity/PunchyMilestones/Items/shovel-front/-side/-swing1..4/-far.png`, sheet `shovel-sheet.jpg`.
+  Log: "table of 36", "[gear] swing: Shovel, damage 5, reach 1.3 m", body weapon 9. 0 exceptions.
+  lod-lint exit 0; suite 26/0/17; Fauna_Fingerprint AD723954.
+- UNVERIFIED: world item and icon not shot. Digging isn't wired (it swings like a weapon).
+- Next: more item rows unless a card opens or P-29 row 2 is answered.
