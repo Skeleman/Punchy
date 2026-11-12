@@ -84,8 +84,9 @@ namespace Punchy.Terrain
             public bool CastsShadows;
             /// <summary>Wholly under the ground and well away from every mouth: nothing outside a cave can see it.</summary>
             public bool Buried;
-            /// <summary>On a road tunnel's straight run from a portal (InPortalSight): seen down the bore from outside
-            /// however deep it lies, so it's never buried and the surface skip leaves it to the screen test.</summary>
+            /// <summary>On a road tunnel's straight run from a portal (InPortalSight) or a cave's run in from its mouth
+            /// (W-145, mouthSight): seen from outside however deep it lies, so it's never buried and the surface skip
+            /// leaves it to the screen test.</summary>
             public bool InSight;
             /// <summary>Which caves' walls reach it, as bits (cave index mod 64; a shared bit only ever draws more).</summary>
             public ulong Caves;
@@ -329,6 +330,8 @@ namespace Punchy.Terrain
             ReleaseContacts();
             columns.Clear();
             chunkCaves.Clear();
+            mouthSight.Clear();
+            mouthRuns.Clear();
             DisposeIndex();
             indexed = false;
             ReleaseLandmarkPools();
@@ -1456,9 +1459,11 @@ namespace Punchy.Terrain
                     maxLevel++;
                 indexSeen = new NativeHashMap<int3, ulong>(1024, Allocator.Persistent);
                 indexKeys = new NativeList<int3>(1024, Allocator.Persistent);
+                indexSight = new NativeHashMap<int3, int>(256, Allocator.Persistent);
                 indexJob = new IndexJob
                 {
-                    Source = source, ChunkSize = chunkSize, ChunkVoxel = chunkVoxel, Seen = indexSeen, Keys = indexKeys
+                    Source = source, ChunkSize = chunkSize, ChunkVoxel = chunkVoxel, Seen = indexSeen, Keys = indexKeys,
+                    Sight = indexSight
                 }.Schedule();
                 indexing = true;
                 return false;
@@ -1473,6 +1478,7 @@ namespace Punchy.Terrain
                 ys.Add(key.y);
                 chunkCaves[key] = indexSeen[key];
             }
+            FindMouthRuns(source);
             DisposeIndex();
             indexed = true;
             return true;
@@ -1485,6 +1491,7 @@ namespace Punchy.Terrain
             indexJob.Complete();
             indexSeen.Dispose();
             indexKeys.Dispose();
+            indexSight.Dispose();
             indexing = false;
         }
 
@@ -1492,6 +1499,7 @@ namespace Punchy.Terrain
         JobHandle indexJob;
         NativeHashMap<int3, ulong> indexSeen;
         NativeList<int3> indexKeys;
+        NativeHashMap<int3, int> indexSight;
         /// <summary>Each indexed chunk's cave bits (Built.Caves).</summary>
         readonly Dictionary<int3, ulong> chunkCaves = new Dictionary<int3, ulong>();
 
@@ -1507,8 +1515,16 @@ namespace Punchy.Terrain
             public float ChunkSize, ChunkVoxel;
             public NativeHashMap<int3, ulong> Seen;
             public NativeList<int3> Keys;
+            /// <summary>W-145: indexed chunk -> the natural cave whose mouth sees into it (FindSight).</summary>
+            public NativeHashMap<int3, int> Sight;
 
             public void Execute()
+            {
+                Index();
+                FindSight();
+            }
+
+            void Index()
             {
                 ref var set = ref Source.Caves.Value;
                 for (int i = 0; i < set.Segments.Length; i++)
@@ -1539,6 +1555,96 @@ namespace Punchy.Terrain
                         }
                     }
                 }
+            }
+
+            /// <summary>
+            /// W-145 row 2: which of a natural cave's passages can be seen through its mouth from outside. A node is
+            /// seen if a line from one of a few eyes across the mouth reaches it through the air (FieldClear); a segment
+            /// with a seen node lists the indexed chunks its seen part's walls reach. A straight passage or a hall opening
+            /// behind the mouth is seen deep; a winding one stops at its first bend, as BuriedReach assumed for all.
+            /// </summary>
+            void FindSight()
+            {
+                ref var set = ref Source.Caves.Value;
+                // 0 untested, 1 hidden, 2 seen.
+                var seen = new NativeArray<byte>(set.Nodes.Length, Allocator.Temp);
+                for (int i = 0; i < set.Segments.Length; i++)
+                {
+                    ref var seg = ref set.Segments[i];
+                    ref var cave = ref set.Caves[seg.Cave];
+                    if (cave.Tunnel != 0 || cave.NodeCount < 2)
+                        continue;
+                    var seenA = NodeSeen(ref set, ref seen, cave, seg.A);
+                    var seenB = NodeSeen(ref set, ref seen, cave, seg.B);
+                    if (!seenA && !seenB)
+                        continue;
+                    var a = set.Nodes[seg.A];
+                    var b = set.Nodes[seg.B];
+                    var from = seenA ? a.Position : b.Position;
+                    var to = seenB ? b.Position : a.Position;
+                    var reach = math.max(seenA ? a.Radius : 0f, seenB ? b.Radius : 0f) * math.cmax(cave.Profile) + MouthSightPad;
+                    var c0 = (int3)math.floor((math.min(from, to) - reach) / ChunkSize);
+                    var c1 = (int3)math.floor((math.max(from, to) + reach) / ChunkSize);
+                    for (int z = c0.z; z <= c1.z; z++)
+                    for (int y = c0.y; y <= c1.y; y++)
+                    for (int x = c0.x; x <= c1.x; x++)
+                    {
+                        var key = new int3(x, y, z);
+                        if (Sight.ContainsKey(key) || !Seen.ContainsKey(key))
+                            continue;
+                        var min = (float3)key * ChunkSize;
+                        if (BoxToSegment(min, min + ChunkSize, from, to) < reach)
+                            Sight.Add(key, seg.Cave);
+                    }
+                }
+                seen.Dispose();
+            }
+
+            /// <summary>Whether a node of this cave is seen from outside its mouth: from the mouth's middle or one of
+            /// four eyes half way to its walls (a camera outside looks in at every angle the mouth allows).</summary>
+            bool NodeSeen(ref CaveSetBlob set, ref NativeArray<byte> seen, in CaveData cave, int node)
+            {
+                if (seen[node] != 0)
+                    return seen[node] == 2;
+                var mouth = set.Nodes[cave.FirstNode];
+                var axis = math.normalizesafe(set.Nodes[cave.FirstNode + 1].Position - mouth.Position, new float3(0f, 0f, 1f));
+                var side = math.normalizesafe(math.cross(axis, new float3(0f, 1f, 0f)), new float3(1f, 0f, 0f));
+                var up = math.cross(side, axis);
+                var across = side * (mouth.Radius * cave.Profile.x * MouthEyeSpread);
+                var high = up * (mouth.Radius * cave.Profile.y * MouthEyeSpread);
+                var target = set.Nodes[node].Position;
+                var clear = false;
+                for (int e = 0; e < 5 && !clear; e++)
+                {
+                    var eye = mouth.Position + (e == 1 ? across : e == 2 ? -across : e == 3 ? high : e == 4 ? -high : float3.zero);
+                    clear = SightClear(ref set, cave, eye, target);
+                }
+                seen[node] = (byte)(clear ? 2 : 1);
+                return clear;
+            }
+
+            /// <summary>Whether a line stays in the air all the way: the cave's (the field at most SightSlack into the
+            /// rock) or the open air over the ground (the mouth's throat is outside the field). Marched by the field's own
+            /// distance to the walls, scaled down by its steepest slope so it never steps past one.</summary>
+            bool SightClear(ref CaveSetBlob set, in CaveData cave, float3 from, float3 to)
+            {
+                var length = math.distance(from, to);
+                if (length < 1e-3f)
+                    return true;
+                var dir = (to - from) / length;
+                var slope = CaveSampling.SlopeLimit(cave);
+                var t = 0f;
+                for (int i = 0; i < MaxSightSteps; i++)
+                {
+                    if (t >= length)
+                        return true;
+                    var p = from + dir * t;
+                    var d = CaveSampling.Distance(ref set, p, out _);
+                    if (d > SightSlack && p.y < Source.SampleHeight(p.xz))
+                        return false;
+                    t += math.max(-d / slope, SightStep);
+                }
+                return false;
             }
         }
 
@@ -1625,6 +1731,7 @@ namespace Punchy.Terrain
                     rebuilding++;
                 }
             }
+            UpdateMouthRuns(camPos);
             var budget = fast ? 1 : MaxBuilding;
             var started = 0;
             for (; started < BuildsPerFrame && building < budget && wanted.Count > 0; started++, building++)
@@ -1666,7 +1773,7 @@ namespace Punchy.Terrain
                     var stale = b.Mesh != null && b.ContactHash != ChunkContactHash(kv.Key);
                     if (!stale && (level == b.Level || b.Mesh == null && (level > b.Level || b.Clear)))
                         continue;
-                    var distance = ChunkDistance(kv.Key, camPos);
+                    var distance = LevelDistance(kv.Key, camPos);
                     if (!stale && level > b.Level)
                     {
                         if (distance < coarseDistance)
@@ -1754,7 +1861,7 @@ namespace Punchy.Terrain
                 return math.min(ForceLevel, maxLevel);
             var view = DetailPolicy.Current.Data;
             var ppm = view.PixelsPerMetre > 0f ? view.PixelsPerMetre : DetailPolicy.PixelsPerMetreAt(DetailPolicy.ReferenceFov);
-            var pixels = DetailPolicy.ScreenSize(DetailPolicy.CaveWallSize, ChunkDistance(key, camPos), ppm);
+            var pixels = DetailPolicy.ScreenSize(DetailPolicy.CaveWallSize, LevelDistance(key, camPos), ppm);
             var tiers = view.Detail > 0f ? DetailPolicy.CaveWall.Scaled(view.Detail) : DetailPolicy.CaveWall;
             return math.min(DetailPolicy.Tier(pixels, tiers, previous), maxLevel);
         }
@@ -1809,7 +1916,7 @@ namespace Punchy.Terrain
                 b.CastsShadows = min.y + chunkSize + chunkVoxel > lowestGround - 4f || NearMouth(source, min, min + chunkSize, MouthLight);
                 // Buried: wholly a few metres under the ground and out of sight of every mouth (a view in through a
                 // mouth reaches a winding passage only so far), so it's skipped while the camera is outside caves.
-                b.InSight = InPortalSight(source, min, min + chunkSize);
+                b.InSight = InPortalSight(source, min, min + chunkSize) || mouthSight.ContainsKey(key);
                 b.Buried = min.y + chunkSize + chunkVoxel < lowestGround - 4f && !NearMouth(source, min, min + chunkSize, BuriedReach) && !b.InSight;
                 b.Opens = math.all(b.Opening[0] <= b.Opening[1]);
                 if (b.Opens)
@@ -1904,6 +2011,103 @@ namespace Punchy.Terrain
                 }
             }
             return false;
+        }
+
+        /// <summary>W-145: how far under the ground a camera outside every cave's air must be to count as in the rock (m,
+        /// collision-like: it only stops a trailing camera's dip into a hillside reading as outside).</summary>
+        const float CameraInRock = 0.5f;
+        /// <summary>How far past a seen node's wall a chunk may lie and still hold some of its walls (wall noise, the
+        /// apron, a voxel or two).</summary>
+        const float MouthSightPad = 3f;
+        /// <summary>How far across the mouth (of its half width and height) the side eyes of the sight test sit.</summary>
+        const float MouthEyeSpread = 0.5f;
+        /// <summary>How far into the rock (field units, m) a line of sight may graze and still count as clear: wall noise
+        /// and speleothem tips (visibility test, not a detail range).</summary>
+        const float SightSlack = 1f;
+        /// <summary>The sight march's shortest step (m) and most steps: a 1 km line in a tight passage still ends.</summary>
+        const float SightStep = 0.5f;
+        const int MaxSightSteps = 2048;
+
+        /// <summary>W-145: a cave's run in from its mouth (FindMouthRuns): the chunks on it are in mouthSight.</summary>
+        struct MouthRun
+        {
+            public float3 Mouth;
+            public bool Near;
+        }
+        readonly List<MouthRun> mouthRuns = new List<MouthRun>();
+        /// <summary>W-145: chunk -> its mouth run (index into mouthRuns).</summary>
+        readonly Dictionary<int3, int> mouthSight = new Dictionary<int3, int>();
+
+        /// <summary>
+        /// W-145 row 2: a natural cave's mouth is seen into much further than BuriedReach when its passage runs straight
+        /// in or opens into a hall (row 1: 18 chunks of the c5 hall counted as buried, were skipped from outside, and
+        /// drew in one frame as the camera went in). IndexJob.FindSight lists the chunks seen through each mouth; this
+        /// makes one run per cave of them. Once per baked world.
+        /// </summary>
+        void FindMouthRuns(in TerrainSource source)
+        {
+            mouthSight.Clear();
+            mouthRuns.Clear();
+            if (!source.Caves.IsCreated || !indexSight.IsCreated)
+                return;
+            ref var set = ref source.Caves.Value;
+            var runOf = new Dictionary<int, int>();
+            foreach (var kv in indexSight)
+            {
+                if (!runOf.TryGetValue(kv.Value, out var run))
+                {
+                    runOf[kv.Value] = run = mouthRuns.Count;
+                    mouthRuns.Add(new MouthRun { Mouth = set.Nodes[set.Caves[kv.Value].FirstNode].Position });
+                }
+                mouthSight[kv.Key] = run;
+            }
+        }
+
+        /// <summary>
+        /// W-145 row 2: a run is Near while its mouth, seen from the camera, already wants walls at 1 m or finer
+        /// (DetailPolicy.CaveWall's Mid, held by Hysteresis). Then its chunks are built at the level they need from the
+        /// mouth (LevelDistance), so walking in finds them finished: the work starts earlier, under the same caps.
+        /// </summary>
+        void UpdateMouthRuns(float3 camPos)
+        {
+            if (mouthRuns.Count == 0)
+                return;
+            var view = DetailPolicy.Current.Data;
+            var ppm = view.PixelsPerMetre > 0f ? view.PixelsPerMetre : DetailPolicy.PixelsPerMetreAt(DetailPolicy.ReferenceFov);
+            var tiers = view.Detail > 0f ? DetailPolicy.CaveWall.Scaled(view.Detail) : DetailPolicy.CaveWall;
+            for (int i = 0; i < mouthRuns.Count; i++)
+            {
+                var r = mouthRuns[i];
+                var pixels = DetailPolicy.ScreenSize(DetailPolicy.CaveWallSize, math.distance(r.Mouth, camPos), ppm);
+                r.Near = ForceLevel < 0 && DetailPolicy.Holds(pixels, tiers.Mid, r.Near);
+                mouthRuns[i] = r;
+            }
+        }
+
+        /// <summary>The distance a chunk's wall level is picked by: from the camera, or from its mouth while the camera is
+        /// near that mouth (W-145 row 2), whichever is nearer.</summary>
+        float LevelDistance(int3 key, float3 camPos)
+        {
+            var distance = ChunkDistance(key, camPos);
+            if (mouthSight.TryGetValue(key, out var run) && mouthRuns[run].Near)
+                distance = math.min(distance, ChunkDistance(key, mouthRuns[run].Mouth));
+            return distance;
+        }
+
+        /// <summary>A box's distance to a segment: the box's nearest point to it, refined a few times (exact enough for
+        /// a reach of metres).</summary>
+        static float BoxToSegment(float3 min, float3 max, float3 a, float3 b)
+        {
+            var ab = b - a;
+            var lengthSq = math.max(math.lengthsq(ab), 1e-4f);
+            var t = 0.5f;
+            for (int i = 0; i < 4; i++)
+            {
+                var q = math.clamp(a + ab * t, min, max);
+                t = math.saturate(math.dot(q - a, ab) / lengthSq);
+            }
+            var p = a + ab * t;
+            return math.distance(math.clamp(p, min, max), p);
         }
 
         /// <summary>A road tunnel's (W-110) second portal: its last node (Mouth is the first).</summary>
@@ -2509,7 +2713,9 @@ namespace Punchy.Terrain
         /// </summary>
         void Draw(TerrainSource source, float3 camPos, Camera cam)
         {
-            var outside = source.CaveDistance(camPos) >= 0f;
+            // W-145: a camera pushed into the rock over a passage (it trails the player) is not outside: before, that
+            // read as outside for a frame or two and the buried chunks round it blinked out and back.
+            var outside = source.CaveDistance(camPos) >= 0f && camPos.y > source.SampleHeight(camPos.xz) - CameraInRock;
             // The caves around the camera: those whose air box holds it, then any whose box touches one of those.
             var rooms = ~0ul;
             if (!outside && !NoRoomCull && SurfaceHidden >= 0.99f)
