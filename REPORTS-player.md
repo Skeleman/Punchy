@@ -1104,3 +1104,36 @@ Rows (each committed and reported as usual; branch `player/unify-items` from `pl
 
 **Next:** row 2, replicated folk inventories (a kit per folk body, filled by the host where the brain sets `Held`, sent
 in the snapshot).
+
+## Unify items row 2 (Zach 11-12): folk kits, the host's and replicated. DONE, `player/unify-items` a57115ef
+- **The kit:** each of the folk carries one (`FolkKit` on CreatureState): hand, off hand, sheath, head, body, back,
+  neck and a bag of four. Slots hold item ids + 1, so 0 means nothing.
+- **Filling it:** the host fills it every frame after the brain (`FolkKitSystem`, Burst) from what the folk is and is
+  doing (`FolkKits.Fill`):
+  - Guards own their folk's weapon (in hand when drawn, else sheathed), helmet, armour and sash.
+  - Hunters, miners and travellers keep their spear, pick, or pack and staff.
+  - What the brain puts in a hand goes in the kit.
+  - Workers' tools are in hand at work and in the bag off it, with their job's apron, hat and satchel.
+- **Replication:** the kit rides in `CreatureNet` as eleven bytes.
+- **Item ids:** ItemTable has a constant for every item a kit uses, checked against the item names at start.
+
+**Checked** (Dev build; host plus client at `-warp town 0`, a dwarf mining camp, with `-kitlog`):
+- Noon:
+  - A guard has its axe sheathed, horned helm, breastplate and sash.
+  - A smith wears a leather apron, with its hammer and tongs in the bag (off work).
+  - A baker wears its cap and apron; a healer carries a satchel with the bowl in the bag.
+  - Miners have their picks sheathed; a traveller has staff in hand and pack on its back; one carries a letter.
+- 21:00: the guard holds a torch with its axe sheathed. Lanterns are in the off hand, and a traveller holds both staff
+  and lantern.
+- The client's kits match the host's for every individual both logged: 8 of 8 at noon, 12 of 12 at night. 0
+  exceptions, 0 deserialize errors, 0 item-id errors.
+- lod-lint exit 0. Suite 26 passed, 0 failed, 17 skipped; Fauna_Fingerprint AD723954.
+
+**UNVERIFIED / known:**
+- Only a dwarf camp was logged, so the other folk's guard kits come from code reading, not a run.
+- Kits follow what folk are doing. Nothing yet takes an item out of a kit (looting or dropping is later work on top of
+  this).
+- Bandwidth: delta-compressed and mostly unchanged, but not measured (rule 21: profiler's).
+
+**Next:** row 3, folk drawn from their kits through the player's drawing path (the per-kind folk passes go), and
+sheathed items drawn on the back or hip for every body.
