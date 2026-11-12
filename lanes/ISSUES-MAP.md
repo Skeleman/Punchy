@@ -50,3 +50,6 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #81 #58 | Cave FPS, CreatureState split | A-53 (#81 CPU fine in editor; build GPU check bench job 22), A-53b (#58) |
 | #87 | Flat house plots | W-80 |
 | #88 | Lake shelf rework (bay, mountain side, falls follow the edge) | W-81 |
+| #272 | Shadow darkness jumps between tiers, far shimmer (Zach 11-12) | R-16 |
+| #273 | Cave pop on entry (Zach 11-12) | W-145 |
+| #274 | Crystal caves far darker (Zach 11-12) | W-146 |
