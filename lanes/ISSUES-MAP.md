@@ -24,6 +24,7 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 ## Open -> card
 | Issue | Title | Card |
 |---|---|---|
+| #261 | Caves: gentle water trickling down walls from slits | W-141 (after W-134) |
 | #57 | Creature perf: staggered searches, fair flee check | A-46 row 2 |
 | #85 | Camera underground | P-7 rows 1-3 |
 | #99 | Crash hosting a second time | P-8 row 0 (known issue in v0.12.0 notes) |
