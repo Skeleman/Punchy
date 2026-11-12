@@ -5927,3 +5927,17 @@ Branch `world/mountain-tunnels` at f6217674 (pushed), on a149c17f. One commit: C
 - **Notes:**
   - At this view, landmark pool water shows out to kilometres: CaveWaterPixels is 2 px, and big pools reach 145 cells across. The old discs were limited to LoadRadius. This is a cost check for BENCH-QUEUE.
   - The well's water draws with the terrain's look, so it reads bluer than the old dark blob.
+
+### Row 4: lava and toxic pools (#277)
+- **Commit:** world/no-water-discs 6a880eed (pushed). lod-lint clean.
+- **Cave lava pools:** they now join the cave water bake as a fourth kind, with the lava look and lava glow, so the water shader's lava path glows and crusts by the real depth over the carved basin. The shared disc mesh and MakePoolMesh are gone. The header line in CaveSystem.Water.cs ("keep their smooth disc") is corrected.
+  - Lava water is cut at OverLava's radius. The water reach (two radii plus 1.5 m) would otherwise have laid a thin crust on the low floor round the basin, where a player could walk without harm.
+  - Dry lattice points inside a lava pool stay flat. When they sank, as water's do, ledges inside the pool tore square notches out of it (seen in a first shot, fixed).
+  - The glow light per lava pool still goes to LightBudget as before. CaveData's water query still skips lava, so there is no swimming in lava.
+- **Landmark lava and toxic pools:** row 3 already bakes them on the lattice with their type's look and glow; this row changes nothing there.
+- **Harm probe** (`W148Probe.Harm`): a grid out to 1.6 radii and from 3 m below to 2 m above the surface, 11,979 points round the lava pool. Before and after (the row 4 edits set aside and then put back): OverLava 1842, cave water query 0, SampleGround cave water 0. Unchanged.
+- **Shots** (W-148/):
+  - `r4-cavelava-3m` and `r4-cavelava-15m`, with `-before` versions: the one cave lava pool on this seed, (-210,2,-2729), r 1.6 m. Before is a dark disc over a sloped bowl; after fills the bowl, glowing in the middle and crusted where it is shallow. The 15 m view looks down a passage, so the pool is small in it.
+  - This seed has no ToxicGeyser or VolcanoCone and only that one cave lava pool. For the card's two lava and two toxic pools, I gave four MudPits pools ToxicGeyser's and VolcanoCone's water look and glow, in memory only (`W148Probe.Restyle`), and let them rebake: `r4-toxic1/2-3m/15m` and `r4-lava1/2-3m/15m`. All follow their basins with no disc rim; toxic keeps its green and its glow, and lava glows and crusts. Harm for landmark lava is unchanged (no code there touched).
+- **Pins:** Landmarks_V3 and Fauna_Fingerprint are not touched (no bake or placement data changed).
+- **For the supervisor:** a seed that has a ToxicGeyser and a VolcanoCone would let a later check shoot real ones.
