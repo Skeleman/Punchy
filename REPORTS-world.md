@@ -6147,3 +6147,128 @@ Waiting on job 62. Row 4 is only needed if job 62 puts the field step above 0.1 
 - **lod-lint:** clean. **Pins:** not touched.
 - **BENCH request (R-18 row 1):** GPU ms with Stop NaN on vs `-stopnan 0` at Ultra, on the hilltop view (-3460,2425, 18:00, Clear, weatherseed 4) and a forest at noon. Pass: within +0.3 ms GPU.
 - **Row 2:** waits on job 65a (the RenderDoc pixel history at the hilltop). W-149 runs meanwhile.
+
+## W-149: large-geometry cliffs, a design study (#281, no game code)
+
+Study only: no game commits. Numbers from an untracked probe on seed 8121 (land sampled on a 4 m grid through
+`TerrainSource.SampleHeight`, slope from central differences, connected steep patches classed by what is near them).
+Shots in PunchyMilestones/W-149/ (six faces, each from 20 m and 150 m, plus w149-sheet.jpg). The weather stayed
+stormy in the shots; the shapes still read.
+
+### Row 1: where the heightmap fails
+
+Over 50 deg: 4.19% of land (2.09 km2) in 3813 patches. Over 65 deg: 1.33% (0.66 km2); on a 2 m grid 1.63%, so the
+4 m grid hides little. Face height = top minus foot of each connected patch.
+
+| Kind | Patches | Area > 50 deg | Face p50 / p90 / max | Tallest (x,z) | Current look |
+|---|---|---|---|---|---|
+| Sea cliff | 286 | 20.1 ha | 15 / 32 / 79 m | (-1718,3726) 79 m | smooth flat grey slab down to the sea |
+| Lake shelf | 155 | 5.0 ha | 18 / 30 / 79 m | (-538,1006) 79 m, ~65 deg | rounded grassy slope, not a cliff |
+| River gorge | 215 | 7.3 ha | 18 / 34 / 71 m | (-2822,442) 71 m | rounded slope |
+| Range flank | 8 | 0.1 ha | max 38 m | - | ranges are tapered: few steep cells |
+| Mesa / canyon | 362 | 58.7 ha | 23 / 38 / 151 m | (2134,1462) 151 m; (2266,-434) 92 m, ~69 deg | strong vertical streaks; mesa tops read as mounds |
+| Other (mostly mountains) | 1270 | 114.2 ha | 19 / 39 / 234 m | (-3130,2878) 234 m, ~62 deg; (-586,362) 196 m | streaked rock |
+
+Why it fails, from the code: the terrain mesh is one height per vertex (LOD0 1 m spacing, 64 quads per 64 m chunk),
+so nothing can lean past vertical, and a 70 deg face stretches its triangles ~3x in height. The surface shader maps
+its textures by `positionWS.xz` (top-down), which gives every steep face the vertical streaks seen in the canyon and
+mountain shots. The height field is also smooth by design (tapered ranges, v3), so sea cliffs, gorges and lake
+shelves come out as 30-65 deg ramps, not walls with a lip. No face anywhere has an overhang, a ledge or a flat
+shelf partway up.
+
+### Row 2: options costed
+
+**(A) Cliff kit.** Seeded slab and pillar pieces (10-60 m; a few dozen base meshes with per-instance scale, tilt and
+strata tint) set against the steep patches the probe finds, and pushed back so the heightmap face hides behind them,
+the way RuinKit and StructureKit place pieces now.
+- Look: the best of the three. Real lips, overhangs, stacked slabs and cracks; the strata tint can match the mesa
+  bands. Risk: seams where a slab meets the heightmap at its foot and top (needs a blend strip and a ground tint).
+- Draw cost: instanced. About 1 piece per 15-25 m of face gives ~10-20k pieces island-wide, a few hundred in view.
+  LOD by `DetailPolicy.ScreenSize` per piece (rule 20): full mesh, a 3-4x simpler mesh, then nothing. The heightmap
+  face stays underneath as the far LOD, so popping is mild.
+- Collision: a box or convex hull per piece (fits v3's box collision), with the heightmap under it.
+- FloorUnder and placement: pieces with a walkable top or an overhang join `Deck()` as a new source (the same path as
+  icebergs, the salt tower and the ribcage), and `CeilingOver` learns the overhangs. Plant, rock and creature
+  placement must skip cells under an overhang or behind a slab (a per-cell "cliff-covered" mask baked with the
+  pieces).
+- Multiplayer kind: seed-derived; nothing sent.
+- Memory: the shared meshes are small; records ~16-24 bytes per piece, ~0.5 MB.
+- Bake time: placement over the steep mask, in parallel. Estimate well under a second; to be confirmed by a bench
+  job, not a lane.
+- Pins: the placement fingerprint changes; landmark hashes stay if pieces take no landmark spots; plants and rocks
+  near cliffs move (cells under slabs drop out).
+
+**(B) Cliff skin.** For terrain chunks with steep cells, a second mesh over the steep faces only, rebuilt from the
+heightmap with vertices pushed out along the normal by seeded noise (ledges from banded noise, 1-6 m), textured
+triplanar.
+- Look: fixes the streaks and adds relief, but no overhang deeper than the push, and a ledge is only as flat as the
+  noise. On the 30-50 deg sea cliffs and shelves it reads as a bumpy ramp.
+- Draw cost: one extra mesh per steep chunk (about a third of land chunks touch a steep cell), with the terrain's LOD
+  steps; triplanar adds ~3 texture reads on those pixels only.
+- Collision: a mesh collider per chunk, or keep the heightmap collider (the skin sits within 1-6 m, so feet float or
+  sink a little).
+- FloorUnder and placement: the easiest of the three, because the skin stays nearly a function of (x,z). The
+  pushed-out cells need a small offset table so `FloorUnder` and plant feet match.
+- Multiplayer kind: seed-derived. Memory: extra meshes for steep chunks, ~10-20 MB at LOD0 round the player.
+- Bake time: per chunk, inside the existing chunk mesh jobs. Pins: terrain look only; no placement change while the
+  offset stays small.
+
+**(C) Walls field for chosen crags.** Pick 20-40 crags (the tallest mesa and mountain faces, a few sea cliffs) and
+mesh them as signed-distance volumes with the cave mesher (voxel chunks, as caves are now), cut back into the hill.
+- Look: true 3D, with arches, overhangs, caves opening in the face and ledges anywhere. The best hero cliffs, and
+  they match the cave look and lighting.
+- Draw cost: like a cave room per crag. Voxel meshes are heavy (tens of thousands of triangles each), so screen-size
+  LOD needs a far mesh (a decimated copy or the heightmap face), and the near mesh streams like cave chunks.
+- Collision: mesh colliders per voxel chunk, as in caves.
+- FloorUnder and placement: the cave path already handles a solid with overhangs (the `CaveDistance` march), so a
+  crag is a cave turned inside out. Placement must avoid the inside of the wall, and the hill's heightmap must be cut
+  (the cave clip already does this at portals).
+- Multiplayer kind: seed-derived. Memory: the heaviest. A few MB of voxel data per crag while near, 50-100 MB if all
+  were resident, so they must stream.
+- Bake time: voxel meshing per crag, about one cave room each; only near ones are built.
+- Pins: crags are new landmark-like spots. Landmark hashes stay only if crags take their own spots (as new landmark
+  types do since 5b).
+
+### Row 3: climbing and shelves
+
+Each option gives the A-101 grades as baked records, not shader guesses:
+- (A) kit: every piece carries its grade (smooth slab 5, cracked or stacked 4) and its ledges as a short list of
+  segments (start, end, height, depth) in the piece's own space. Shimmy ledges are data, so climbing reads them
+  without sampling the mesh. Slab tops and overhang roofs give flat shelves of 3-15 m: room for a ruin, a nest, a
+  hermit hut or a mountaintop settlement plot (Zach's "settlements and ruins in the mountaintops").
+- (B) skin: a grade per cell from the steep mask and noise band (5 where smooth, 4 where banded). Ledges only where
+  the banded noise flattens, so shelves are narrow (1-3 m) and too small for buildings.
+- (C) crags: a grade per voxel face from the SDF. Ledges must be found by a pass over the mesh at bake (costly, but
+  rich). Big shelves and ledges wherever the SDF puts them.
+
+Heightmap faces outside any option keep a grade from slope alone (a cell-slope rule, no records).
+
+### Row 4: world-file fit (rule 22, #260)
+
+What a world-file record holds:
+- (A) per piece: kit id (byte), position (3 floats), yaw and tilt (2 halves), scale (half3), strata tint (byte),
+  grade (byte). Ledges come from the kit id, so only overrides are stored. A map editor can add, move or delete
+  pieces like any landmark. The best fit.
+- (B) per chunk: a noise seed and an amplitude. Editable only as a "skin on/off and strength" brush.
+- (C) per crag: centre, size and an SDF recipe (a few primitives and noise seeds). Editable, but the result is hard
+  to predict, and every edit needs a voxel bake.
+
+### Row 5: recommendation and phased plan
+
+**(A) cliff kit, with (B)'s triplanar texture done first, on its own.**
+1. Phase 0 (small render card): triplanar rock on terrain pixels steeper than ~45 deg in TerrainSurface, so the
+   streaks go everywhere at once. Look change only, no placement effect. BENCH: GPU ms at the canyon (2266,-434) and
+   the mountain (-3130,2878), branch vs main.
+2. Phase 1 (world): kit pieces on the sea cliffs and the mesa and canyon faces (the most area at 79 ha, and the
+   worst looks), with box collision, screen-size LOD and the cliff-covered mask. Placement effect: plants and rocks
+   leave the cells under slabs; landmark hashes unchanged; the placement fingerprint changes. BENCH: draw calls,
+   triangles and GPU ms at the canyon from 20 m and 150 m, and a sea cliff from the beach.
+3. Phase 2 (world + player): piece tops into `Deck()`, overhangs into `CeilingOver`, grades and ledge records for
+   A-101 climbing, shelves offered to ruins and settlement plots. BENCH: a climb walk.
+4. Phase 3 (optional): (C) for a handful of hero crags (the 151 m mesa, the 234 m peak) if Zach wants arches and
+   cliff caves, each a landmark taking its own spot.
+
+(C) everywhere is too heavy, and (B) alone fixes the texture but not the shapes Zach asked about.
+
+Decisions for Zach: whether phase 0 ships on its own; whether cliff shelves may hold settlements (the settlement
+plot rules would have to accept a raised deck).
