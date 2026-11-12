@@ -29,6 +29,7 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #263 | Wispy ground fog that reacts to movement | R-14 (rendering lane) |
 | #265 | Small shallow natural pools in the temperate lands | W-143 (world lane, after W-141) |
 | #266 | Fishing: the player can fish | P-33 (player lane, after P-32) + A-100 (animal lane, after A-99) |
+| #267 | Caves: climbable walls in vertical sections | W-144 (world lane, after W-143) + A-101 (animal lane, after A-100) |
 | #57 | Creature perf: staggered searches, fair flee check | A-46 row 2 |
 | #85 | Camera underground | P-7 rows 1-3 |
 | #99 | Crash hosting a second time | P-8 row 0 (known issue in v0.12.0 notes) |
