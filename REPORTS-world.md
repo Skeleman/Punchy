@@ -5800,3 +5800,23 @@ Branch `world/mountain-tunnels` at f6217674 (pushed), on a149c17f. One commit: C
 - **Strip (checked at small size):** D:/Unity/PunchyMilestones/R-16/R16-row2-walkin.png, at 200/100/70/50/30 m. The tone holds and the brown band is gone.
 - **BENCH-QUEUE:** job added for the receiver's cost. It now reads the wide map (4 taps) and the ambient probe per pixel in the cache band.
 - **Not done yet:** the 30 s walk-in clip. Row 3 has the motion checks.
+
+## R-16 row 3: far shadows stop crawling (done, commit 8d7e5cde on render/shadow-tiers)
+
+- **What changed:**
+  - **Crossfade.** The wide map and the flora shadow cache keep the old map in the back texture and blend the new one in over it: 2 s for wide (`-wideblend`), 1 s for the cache. Sun and flora redraws wait for the blend to finish. A jump past RedrawMove/CacheMove, a caster change or a new near range still redraws at once.
+  - **Texel snap.** The cache's view centre now snaps to its texels in the sun's view. The wide map already did this.
+  - **Steady candidates (found while measuring).** With the sun paused and the camera still, the wide map still redrew every 1.5 s. The cause was its candidate scan: mantrap leaves sway about 10% in size and crossed the screen-size threshold on alternate scans. A caster already in the map now stays in until it is DetailPolicy.Hysteresis (15%) under the size (rule 20 still holds). After the fix, a still camera with the sun paused had 0 wide redraws in 25 s.
+  - WideShadow.LastReason names what started each redraw (first/casters/candidates/moved/flora/sun).
+- **Check (still camera at 90 m, 20 shots about 1 s apart over 18 s, sun running):**
+
+| | far half changed | near half changed | wide redraws |
+|---|---|---|---|
+| before row 2 | 4.5-6.3%, alternating | 0.6-2.1% | 8 |
+| row 3 | 2.1-2.4%, flat | 0.4-0.6% | 4 (all sun) |
+
+  The shadow-edge rings in the before diff are gone. What is left is swaying twigs on the far hills, the river and the near tree's sway.
+- **Slow walk (1 m/s):** about 15% of pixels change per shot, which is just the camera moving. Blends on 14-16% against blends off 15-16%, with no spikes at redraws. Frame diff cannot separate crawl from motion while walking, so the walk claim rests on the snap math (as the wide map's) and on no ghost or doubled shadows in the frames (checked).
+- **Strip:** D:/Unity/PunchyMilestones/R-16/R16-row3-crawl.png (before/after pixel-change masks over 1 s).
+- **Cost:** while blending, every wide-shadow reader and the cache receiver take 4 more taps. Added as an addendum to BENCH-QUEUE job 63 (no timing here).
+- **Shader warnings:** none new (Terrain/Flora/Impostor only show the old uninitialised-variable warnings).

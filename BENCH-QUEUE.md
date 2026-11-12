@@ -629,3 +629,4 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
 - Views: (a) the densest forest at noon, camera on the ground; (b) a hilltop looking down over forest with the cache band filling most of the screen.
 - Record: GPU ms for the FloraShadowCache draw (Frame Debugger/GPU markers) and whole-frame GPU and CPU ms.
 - Pass: B's FloraShadowCache draw within 0.1 ms of A's, and no whole-frame GPU change past noise.
+- **Addendum (R-16 row 3, 8d7e5cde):** take B at 8d7e5cde or newer. For about 1 s after each cache redraw and 2 s after each wide redraw, the cache receiver and every wide-shadow reader (terrain, flora, impostors) read the old map too (4 more taps per pixel). Record GPU ms for a still camera with the sun running, which is blending about half the time, and with `-wideblend 0`. Pass: within 0.1 ms. The wide candidate scan now builds a small HashSet every 90 frames; check WideShadow's CPU marker if you can see it.
