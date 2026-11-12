@@ -1137,3 +1137,65 @@ in the snapshot).
 
 **Next:** row 3, folk drawn from their kits through the player's drawing path (the per-kind folk passes go), and
 sheathed items drawn on the back or hip for every body.
+
+## Unify items row 3 (Zach 11-12): folk drawn from their kits, sheathed items for every body. DONE, `player/unify-items` bc54466c
+
+**What changed:**
+- **Folk wear and tools through the player's passes:** `FolkKits.Dress` turns a kit into looks, and the Weapon and Armour
+  passes draw them, as on a player:
+  - Guards: helmets, breastplate or cuirass with pads, sash, an ogre's hide cape, a goblin's shield (off hand).
+  - Workers: hats, aprons, a healer's satchel, and the tool or ware in hand at work (it swings along the arm as Gear
+    held it); tongs and buckets in the off hand.
+  - Bat folk: goggles.
+- **What keeps its own pass:** what moves its own way. PoseGuard keeps only the torch (its flame) and the weapon's
+  half-second draw and sheathe. Gear keeps only the post props (table and loaf, hot iron, chopping block, well rope;
+  row 5 makes them items). The Goggles pass is gone. Lanterns, rods, a hunter's spear, a miner's pick, staffs,
+  letters and playthings are unchanged.
+- **Sheath block, any body:** `FolkKits.Sheathed` draws a kit's sheathed weapon or tool on the back or at the hip by
+  the guards' rule, wherever no own pass draws it. The player's sheathing (row 4) uses the same block.
+- **Fixed on the way:** a guard holding a lantern, or nothing, used to be drawn with no helmet, armour, sash or weapon
+  (PoseGuard ran only with a spear or torch out). It now wears its whole kit.
+- **Matching the old look:** folk helmets hide the hair under them and take the folk's armour colour (GuardArmour);
+  sashes and elf crests take GuardSash. The shared sash now lies on a flattened chest as PoseGuard laid it (players'
+  sashes too).
+- **Kit change:** a bat folk carrying ore no longer has a pick in its sheath (the Miner pass never drew one).
+- **Burst tables:** looks, lengths and sheath places are Burst switches, checked against the item table at start (0
+  errors in every run).
+
+**Checked** (Dev build; same shot list before (row 2 build) and after, towns 0, 2, 3 and 4 at noon and 0 and 2 at 22:00;
+`D:/Unity/PunchyMilestones/Unify/u3-*`, sheets `u3-r3-guards.jpg` and `u3-r3-workers.jpg`):
+- Guards:
+  - Dwarf: horned helm, gold plate and pads, blue sash on the chest, axe sheathed on its back. Before: none of it.
+  - Human: kettle hat, plate, red sash, spear.
+  - Goblin: pot helm, cuirass, yellow sash, club on its back, shield on its forearm.
+  - Night dwarf: lantern, its gear and sheathed axe.
+  - Night elf: crested helm, bow on its back, torch with its flame lit.
+- Workers:
+  - Dwarf smith: hammer, tongs, leather apron.
+  - Baker: cap and apron.
+  - Gatekeeper: upright spear.
+  - Elf healer: bent over its bowl.
+- Host plus client at town 0:
+  - Client shot: the dwarf guard is drawn from the replicated kit (helm, plate, pads, sash).
+  - Kits matched 8 of 8 at noon and 10 of 11 at 21:00. The one difference was a miner whose Held also differed
+    between the two log lines (logged a moment apart).
+  - 0 exceptions, 0 deserialize errors in every run.
+- lod-lint exit 0. Suite 26 passed, 0 failed, 17 skipped; Fauna_Fingerprint AD723954.
+
+**UNVERIFIED / known:**
+- **Capsule budget per folk body changed** (empty slots are still instances):
+  - Guard with weapon or torch out: 18 → 21 (goblin 28).
+  - Guard with lantern or nothing: 0 → 20.
+  - Worker at work: 8 → 24-27.
+  - Worker off work with a hat or apron: 8 → 17.
+  - The worn block now takes only the sub-blocks a body uses, but the Armour block is 17 slots for any piece.
+  - BENCH-QUEUE request: a town view, origin/main vs bc54466c, creature instance count and pose/draw GPU ms (rule 21,
+    I didn't time it). If it shows, compacting the Armour block for folk is the follow-up.
+- Small looks lost: the sash's knot tail and the ogre cape's wind sway (PoseGuard's Hanging); folk tool colours are
+  now the item's own (a little lighter wood and iron than Gear's).
+- Watch framing missed some jobs: no fisher, hermit or trader was near the warp spots, so those are unshot. Goggles
+  (now on the head's last segment, not its first) are unshot.
+- The hot iron is placed as before but sat inside the anvil in the one smith shot.
+
+**Next:** row 4, the player's sheathe key (Zach approved the binding): a sheathed flag in CreatureOutfit, synced; the
+half-second draw and sheathe; attacking while sheathed draws first.
