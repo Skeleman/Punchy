@@ -1301,3 +1301,10 @@ Rows (on `player/take-items`, from `player/unify-items`):
    wait for that row.
 4. **Checks.** Solo, host and client: take a spare, see the worker go to the merchant and the spare return, from
    both machines.
+
+**Addendum to the taking-folk-items plan, row 3 (Zach 11-12):** "They may go to a guard to report it missing, too,
+depending on their personality." So by FolkMood (from the Individual hash, the same on every machine): a grumpy
+worker first walks to the nearest guard on patrol, stops beside it for a few seconds as if telling it, and then goes
+to the merchant. A cheerful one goes straight to the merchant. A plain one does either, by its hash. For now the
+report is only seen, not acted on: guards have no theft reaction yet. A logged "[take] reported to a guard" line
+leaves room for one later.
