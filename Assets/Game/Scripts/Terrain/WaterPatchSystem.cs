@@ -255,7 +255,8 @@ namespace Punchy.Terrain
                     var hadY = LastAt.TryGetValue(e, out var lastAt);
                     var lastY = lastAt.y;
                     LastAt[e] = s.Position;
-                    var g = Terrain.SampleGround(s.Position.xz);
+                    // (The float3 sample: in a cave pool or stream it is that water's, W-134.)
+                    var g = Terrain.SampleGround(s.Position);
                     if (!g.HasWater || g.WaterSurface - g.Height < 0.15f)
                         continue;
                     var under = g.WaterSurface - s.Position.y;
@@ -345,6 +346,8 @@ namespace Punchy.Terrain
         int2 tierCorner = NoCorner;
         /// <summary>Indices in the sheet on show (for probes and the R-9 bench).</summary>
         public int SheetIndices { get; private set; }
+        /// <summary>How many presses creatures made on the field at its last step (the play-mode tests, W-134).</summary>
+        public int Presses { get; private set; }
         /// <summary>The field's corner (texels follow the square), texels it still has to move, and time not yet stepped.</summary>
         int2 fieldCorner = NoCorner;
         int2 pendingShift;
@@ -761,6 +764,7 @@ namespace Punchy.Terrain
                     lastAt.Clear();
                 // (Dimples first, splashes after: later steps leave the splashes out, as they knock the surface once.)
                 var pressCount = presses.Length;
+                Presses = pressCount;
                 var count = math.min(MaxSources, pressCount + splashes.Length);
                 for (int i = 0; i < count; i++)
                     sourceArray[i] = i < pressCount ? presses[i] : splashes[i - pressCount];

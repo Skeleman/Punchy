@@ -300,9 +300,7 @@ namespace Punchy.Terrain
                 if (l.Light != null) Destroy(l.Light.gameObject);
             otherLanterns.Clear();
             Punchy.Settings.LightBudget.ClearSlots();
-            foreach (var m in streamMeshes)
-                if (m != null) Destroy(m);
-            streamMeshes.Clear();
+            ReleaseCaveWater();
             ReleasePlants();
             if (floraMaterial != null)
                 Destroy(floraMaterial);
@@ -394,7 +392,7 @@ namespace Punchy.Terrain
         // Comparers made once: List.Sort(Comparison) wraps the delegate in a new comparer on every call, every frame.
         static readonly Comparer<(float distance, int pool)> PoolsByDistance =
             Comparer<(float distance, int pool)>.Create((a, b) => a.distance.CompareTo(b.distance));
-        static Mesh lavaPoolMesh, waterPoolMesh, whitePoolMesh;
+        static Mesh lavaPoolMesh;
         /// <summary>Cave water's look in the water vertex layout: dark, clear and cold (rgb, murk).</summary>
         static readonly float4 CaveWater = new float4(0.1f, 0.28f, 0.3f, 0.1f);
         /// <summary>
@@ -426,24 +424,20 @@ namespace Punchy.Terrain
         /// carry their own white pools in TerrainSource.BatFolk). Drawing only, so it changes nothing that is baked.
         /// </summary>
         public static bool WhitePools = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-whitepools") >= 0;
-        /// <summary>Switches the white pool look at runtime (editor previews): the pool meshes rebuild on the next draw.</summary>
+        /// <summary>Switches the white pool look at runtime (editor previews): baked cave water rebuilds on the next draw.</summary>
         public static void SetWhitePools(bool on)
         {
             WhitePools = on;
-            lavaPoolMesh = null;
-            waterPoolMesh = null;
-            whitePoolMesh = null;
+            waterLooks++;
         }
         // Streams run shallow over dark rock: darker and greener than the pools, a little murkier.
         static readonly float4 CaveStreamWater = new float4(0.04f, 0.13f, 0.12f, 0.15f);
-        /// <summary>One mesh per stream, built when the world's caves are first drawn (streams are few and fixed).</summary>
-        readonly List<Mesh> streamMeshes = new List<Mesh>();
         EntityQuery configQuery;
 
         /// <summary>
-        /// Draws every pool and stream within LoadRadius with the terrain's own water material (lava is its lava path):
-        /// pools with one shared disc mesh each for water and lava, streams with a ribbon mesh each. Uploads the nearest
-        /// lava pools so the cave shader can light the walls round them warmly without real lights.
+        /// Draws cave water within LoadRadius with the terrain's own water material: pools and streams baked like chunk
+        /// water (CaveSystem.Water, W-134), lava pools with one shared disc mesh (lava is its lava path). Uploads the
+        /// nearest lava pools so the cave shader can light the walls round them warmly without real lights.
         /// </summary>
         void DrawPools(in TerrainSource source, float3 camPos)
         {
@@ -452,61 +446,33 @@ namespace Punchy.Terrain
             for (int i = 0; i < set.Pools.Length; i++)
             {
                 var d = math.distance(set.Pools[i].Centre, camPos);
-                if (d < LoadRadius)
+                if (d < LoadRadius && set.Pools[i].Lava > 0.5f)
                     nearPools.Add((d, i));
             }
             var water = UnderRockWater(configQuery.IsEmpty ? null : configQuery.GetSingleton<TerrainConfig>().WaterMaterial.Value);
-            // W-18: bat folk chambers' pools are white (per pool, from the bat folk stage); -whitepools turns them all white.
-            var batFolk = source.BatFolk.IsCreated && source.BatFolk.Value.WhitePools.Length == set.Pools.Length;
-            if (nearPools.Count > 0)
-            {
-                if (lavaPoolMesh == null)
-                {
-                    lavaPoolMesh = MakePoolMesh(new float4(1f, 0.33f, 0.05f, 0.2f), 1f);
-                    waterPoolMesh = MakePoolMesh(CaveWater, 0f);
-                    whitePoolMesh = MakePoolMesh(WhitePoolWater, new float2(WhitePoolGlow, 0f));
-                }
-                nearPools.Sort(PoolsByDistance);
-                foreach (var (_, i) in nearPools)
-                {
-                    ref var pool = ref set.Pools[i];
-                    if (water != null)
-                    {
-                        var rp = new RenderParams(water)
-                        {
-                            worldBounds = new Bounds(pool.Centre, new Vector3(pool.Radius * 2f, 1f, pool.Radius * 2f)),
-                            shadowCastingMode = ShadowCastingMode.Off,
-                            receiveShadows = false
-                        };
-                        // White pools fade out towards their rim (W-16: the edge read as a hard glowing disc).
-                        var white = pool.Lava <= 0.5f && (WhitePools || (batFolk && source.BatFolk.Value.WhitePools[i] != 0));
-                        if (white)
-                            rp.matProps = SoftRimProps;
-                        var mesh = pool.Lava > 0.5f ? lavaPoolMesh : white ? whitePoolMesh : waterPoolMesh;
-                        Graphics.RenderMesh(rp, mesh, 0, Matrix4x4.TRS(pool.Centre, Quaternion.identity, new Vector3(pool.Radius, 1f, pool.Radius)));
-                    }
-                    if (pool.Lava > 0.5f)
-                    {
-                        var reach = LavaLight;
-                        reach.w = pool.Radius * 5f + 4f;
-                        // (LightBudget decides by its on-screen reach whether it takes a glow slot: refactor 3.1.)
-                        Punchy.Settings.LightBudget.AddStill(Punchy.Settings.LightKind.AmbientGlow, (Vector3)pool.Centre + Vector3.up * 0.3f, reach);
-                    }
-                }
-            }
-
-            if (set.Streams.Length == 0 || water == null)
+            DrawCaveWater(source, camPos, water);
+            if (nearPools.Count == 0)
                 return;
-            if (streamMeshes.Count == 0)
-                for (int s = 0; s < set.Streams.Length; s++)
-                    streamMeshes.Add(MakeStreamMesh(ref set, s));
-            for (int s = 0; s < streamMeshes.Count; s++)
+            if (lavaPoolMesh == null)
+                lavaPoolMesh = MakePoolMesh(new float4(1f, 0.33f, 0.05f, 0.2f), 1f);
+            nearPools.Sort(PoolsByDistance);
+            foreach (var (_, i) in nearPools)
             {
-                var bounds = streamMeshes[s].bounds;
-                if (math.distance((float3)bounds.ClosestPoint(camPos), camPos) > LoadRadius)
-                    continue;
-                var rp = new RenderParams(water) { worldBounds = bounds, shadowCastingMode = ShadowCastingMode.Off, receiveShadows = false };
-                Graphics.RenderMesh(rp, streamMeshes[s], 0, Matrix4x4.identity);
+                ref var pool = ref set.Pools[i];
+                if (water != null)
+                {
+                    var rp = new RenderParams(water)
+                    {
+                        worldBounds = new Bounds(pool.Centre, new Vector3(pool.Radius * 2f, 1f, pool.Radius * 2f)),
+                        shadowCastingMode = ShadowCastingMode.Off,
+                        receiveShadows = false
+                    };
+                    Graphics.RenderMesh(rp, lavaPoolMesh, 0, Matrix4x4.TRS(pool.Centre, Quaternion.identity, new Vector3(pool.Radius, 1f, pool.Radius)));
+                }
+                var reach = LavaLight;
+                reach.w = pool.Radius * 5f + 4f;
+                // (LightBudget decides by its on-screen reach whether it takes a glow slot: refactor 3.1.)
+                Punchy.Settings.LightBudget.AddStill(Punchy.Settings.LightKind.AmbientGlow, (Vector3)pool.Centre + Vector3.up * 0.3f, reach);
             }
         }
 
@@ -775,98 +741,6 @@ namespace Punchy.Terrain
             plantInstances = plantVisible = plantArgs = null;
             plantsFrom = plantsGrowing = null;
             plantsAround = new float3(float.MaxValue);
-        }
-
-        /// <summary>
-        /// A stream's water surface: a ribbon along its points, in world space, flowing from first to last. Shallow at
-        /// the banks; rapids where the surface drops quickly, so the water shader's river look carries over.
-        /// </summary>
-        static Mesh MakeStreamMesh(ref CaveSetBlob set, int index)
-        {
-            ref var stream = ref set.Streams[index];
-            var vertices = new List<WaterVertex>();
-            var indices = new List<int>();
-            var points = new List<CaveStreamPoint>();
-            for (int k = 0; k < stream.PointCount; k++)
-                points.Add(set.StreamPoints[stream.FirstPoint + k]);
-            // A stream that ends in a pool (CaveBaking puts one on its last point) stops at the pool's rim, full width,
-            // where the rim is wide enough to take it, instead of running on into the middle as a lighter tongue drawn
-            // over the pool's water (Z-34).
-            var intoPool = false;
-            var end = points[points.Count - 1].Position;
-            for (int i = 0; i < set.Pools.Length && !intoPool && points.Count >= 3; i++)
-            {
-                ref var pool = ref set.Pools[i];
-                if (pool.Lava > 0f || math.distance(pool.Centre, end) > 0.05f)
-                    continue;
-                // Far enough in that the ribbon's square end lies inside the disc across its whole width, and at most
-                // half way out: the disc's outer ring tucks under the floor that holds it, so the open water is smaller.
-                var half = points[points.Count - 1].Width * 0.58f;
-                var stop = math.min(math.sqrt(math.max(pool.Radius * pool.Radius * 0.98f - half * half, 0f)), pool.Radius * 0.5f);
-                var last = points.Count - 1;
-                while (last > 1 && math.distance(points[last - 1].Position.xz, pool.Centre.xz) < stop)
-                    last--;
-                // The crossing on the segment from the last point outside the rim to the next one in.
-                var outside = points[last - 1];
-                var inside = points[last];
-                var a = math.distance(outside.Position.xz, pool.Centre.xz);
-                var b = math.distance(inside.Position.xz, pool.Centre.xz);
-                if (a < stop)
-                    break;
-                var cross = inside;
-                cross.Position = math.lerp(outside.Position, inside.Position, math.saturate((a - stop) / math.max(a - b, 1e-3f)));
-                cross.Position.y = pool.Centre.y;
-                points.RemoveRange(last, points.Count - last);
-                points.Add(cross);
-                intoPool = true;
-            }
-            var count = points.Count;
-            for (int k = 0; k < count; k++)
-            {
-                var p = points[k];
-                var prev = points[math.max(k - 1, 0)].Position;
-                var next = points[math.min(k + 1, count - 1)].Position;
-                var along = math.normalizesafe((next - prev).xz, new float2(1f, 0f));
-                // Narrowing to a trickle at both ends, rather than stopping square (but full width into a pool).
-                var fromEnd = intoPool ? 2 : count - 1 - k;
-                var taper = math.lerp(0.15f, 1f, math.saturate(math.min(k, fromEnd) / 2f));
-                // A little past where the banks rise out of the water (the edges tuck under them), so it fills the channel.
-                var side = new float2(-along.y, along.x) * p.Width * 0.58f * taper;
-                // The drop is measured over five points (about 6 m), not one step either side, so the water quickens into
-                // a steep step and slows after it rather than switching to white at one point (W-98).
-                var k0 = math.max(k - 2, 0);
-                var k1 = math.min(k + 2, count - 1);
-                var run = 0f;
-                for (int j = k0; j < k1; j++)
-                    run += math.distance(points[j].Position.xz, points[j + 1].Position.xz);
-                var drop = (points[k0].Position.y - points[k1].Position.y) / math.max(run, 0.1f);
-                // Cave streams run steep all the way, so only the steepest steps churn white; but a brook is never still.
-                var rapids = math.max(math.saturate(drop * 1.5f - 0.15f), 0.2f);
-                foreach (var edge in new[] { -1f, 0f, 1f })
-                    vertices.Add(new WaterVertex
-                    {
-                        Position = p.Position + new float3(side.x, 0f, side.y) * edge,
-                        // White water breaks against the banks more than mid-channel (G-28).
-                        Data = new float4(along, edge == 0f ? p.Depth : 0.05f, edge == 0f ? rapids * 0.6f : math.min(rapids + 0.15f, 1f)),
-                        Look = CaveStreamWater,
-                        Glow = float2.zero
-                    });
-                if (k == 0)
-                    continue;
-                var a = (k - 1) * 3;
-                var b = k * 3;
-                for (int e = 0; e < 2; e++)
-                {
-                    indices.Add(a + e); indices.Add(b + e); indices.Add(a + e + 1);
-                    indices.Add(a + e + 1); indices.Add(b + e); indices.Add(b + e + 1);
-                }
-            }
-            var mesh = new Mesh { name = "Cave stream" };
-            mesh.SetVertexBufferParams(vertices.Count, WaterVertex.Layout);
-            mesh.SetVertexBufferData(vertices, 0, 0, vertices.Count);
-            mesh.SetIndices(indices, MeshTopology.Triangles, 0);
-            mesh.RecalculateBounds();
-            return mesh;
         }
 
         /// <summary>

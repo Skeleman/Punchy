@@ -404,19 +404,22 @@ namespace Punchy.Ambience
                     // A cave's waterfall: a small curtain from its notch in the wall into its pool, churning white
                     // water and a foam patch where it lands, and mist over them, lit as under rock.
                     var fall = source.Caves.Value.Waterfalls[-i - 1];
+                    var fallReach = fall.Reach > 0f ? fall.Reach : FallReach;
                     var curtain = new Emitter
                     {
                         Position = fall.Lip,
                         Seed = math.frac(-i * 0.618f),
                         Color = new float4(0.3f, 0.43f, 0.47f, 0f),
-                        Shape = new float4(FallReach, fall.Width, 0.6f, 2f),
+                        Shape = new float4(fallReach, fall.Width, 0.6f, 2f),
                         Timing = new float4(0f, 0.25f, 0.75f, 20f),
                         Out = fall.Out,
                         Drop = fall.Drop,
                         UnderRock = 1f
                     };
+                    // W-134 row 4 fix: a river chamber's chute pours as a curtain too, from its lip down to its foot (the
+                    // cave water bake ends the stream's flat water at both).
                     falls.Add(curtain);
-                    var landing = fall.Lip + new float3(fall.Out.x, 0f, fall.Out.y) * FallReach - new float3(0f, fall.Drop, 0f);
+                    var landing = fall.Lip + new float3(fall.Out.x, 0f, fall.Out.y) * fallReach - new float3(0f, fall.Drop, 0f);
                     plumes.Add(new Emitter
                     {
                         Position = landing,

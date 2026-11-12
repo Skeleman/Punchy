@@ -1307,6 +1307,104 @@ namespace Punchy.Debugging
             System.Array.Sort(spread);
             return new float[] { members.Count, centre.x, centre.y, centre.z, spread[(int)(spread.Length * 0.8f)], spread[spread.Length - 1] };
         }
+
+        static bool SameGround(in GroundSample a, in GroundSample b) =>
+            a.Height == b.Height && a.River == b.River && a.WaterDepth == b.WaterDepth && a.WaterSurface == b.WaterSurface &&
+            math.all(a.Flow == b.Flow) && a.Rapids == b.Rapids && a.CaveWater == b.CaveWater;
+
+        /// <summary>
+        /// W-134: the float3 SampleGround against the float2 one. Over n seeded spots across the island: at the ground,
+        /// and 5 m over it, the answers must match exactly (the surface pays one compare and nothing else), and 30 m
+        /// under it too wherever that isn't cave water. Then every water pool under the ground, 0.3 m under its surface
+        /// at the middle, and the middle point of every stream, 0.1 m under: each must read as cave water at its own
+        /// level. Returns {spots, surface mismatches, deep spots, deep mismatches, pools, pools read, streams, streams
+        /// read, the worst level error in metres}.
+        /// </summary>
+        public static float[] CaveWaterQuery(int n)
+        {
+            if (!Source(out var source) || !source.Caves.IsCreated)
+                return new float[9];
+            var rng = new Unity.Mathematics.Random(0x134u);
+            var half = source.World.WorldSize * 0.5f;
+            int mismatches = 0, deep = 0, deepMismatches = 0;
+            for (int i = 0; i < n; i++)
+            {
+                var xz = rng.NextFloat2(-half, half);
+                var flat = source.SampleGround(xz);
+                if (!SameGround(flat, source.SampleGround(new float3(xz.x, flat.Height, xz.y))) ||
+                    !SameGround(flat, source.SampleGround(new float3(xz.x, flat.Height + 5f, xz.y))))
+                    mismatches++;
+                var under = source.SampleGround(new float3(xz.x, flat.Height - 30f, xz.y));
+                if (!under.CaveWater)
+                {
+                    deep++;
+                    if (!SameGround(flat, under))
+                        deepMismatches++;
+                }
+            }
+            ref var set = ref source.Caves.Value;
+            int pools = 0, poolsRead = 0, streams = 0, streamsRead = 0;
+            var worst = 0f;
+            for (int i = 0; i < set.Pools.Length; i++)
+            {
+                var c = set.Pools[i].Centre;
+                if (set.Pools[i].Lava > 0.5f || c.y >= source.SampleHeight(c.xz))
+                    continue;
+                pools++;
+                var g = source.SampleGround(c - new float3(0f, 0.3f, 0f));
+                if (g.CaveWater && g.WaterSurface - g.Height > 0.15f)
+                    poolsRead++;
+                worst = math.max(worst, g.CaveWater ? math.abs(g.WaterSurface - c.y) : 99f);
+            }
+            for (int s = 0; s < set.Streams.Length; s++)
+            {
+                ref var stream = ref set.Streams[s];
+                var c = set.StreamPoints[stream.FirstPoint + stream.PointCount / 2].Position;
+                if (c.y >= source.SampleHeight(c.xz))
+                    continue;
+                streams++;
+                var g = source.SampleGround(c - new float3(0f, 0.1f, 0f));
+                if (g.CaveWater && g.River > 0.5f)
+                    streamsRead++;
+                worst = math.max(worst, g.CaveWater ? math.abs(g.WaterSurface - c.y) : 99f);
+            }
+            return new float[] { n, mismatches, deep, deepMismatches, pools, poolsRead, streams, streamsRead, worst };
+        }
+
+        /// <summary>
+        /// W-134: what the water does round the player (stood in a cave pool by the test): {the float3 sample there reads
+        /// cave water (1/0), its depth there, ripples CreatureWakeSystem holds within 3 m, presses WaterPatchSystem made on
+        /// the field at its last step}.
+        /// </summary>
+        public static float[] CaveWaterStir()
+        {
+            if (!Source(out var source))
+                return new float[4];
+            float3 at = PlayerPosition();
+            var g = source.SampleGround(at + new float3(0f, 0.2f, 0f));
+            var world = World.DefaultGameObjectInjectionWorld;
+            var wake = world.GetExistingSystemManaged<CreatureWakeSystem>();
+            var patch = world.GetExistingSystemManaged<WaterPatchSystem>();
+            return new float[]
+            {
+                g.CaveWater ? 1f : 0f, g.CaveWater ? g.WaterSurface - g.Height : 0f,
+                wake != null ? wake.RipplesNear(at.xz, 3f) : -1f, patch != null ? patch.Presses : -1f
+            };
+        }
+
+        /// <summary>
+        /// The camera following the player again after a test posed it ("-place prop:" frames its find and leaves the
+        /// camera there): ripples and other near-camera work only run round the camera.
+        /// </summary>
+        public static bool FreeCamera()
+        {
+            var cam = UnityEngine.Camera.main;
+            if (cam == null)
+                return false;
+            foreach (var b in cam.GetComponents<UnityEngine.MonoBehaviour>())
+                b.enabled = true;
+            return true;
+        }
     }
 }
 #endif
