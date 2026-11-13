@@ -3954,3 +3954,23 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
   - In towns, most members are "away", because only about 12 of about 100 spawn near the player.
   - The code has no farm houses yet. Row 2 asks for a farm dusk shot.
 - Next: row 2, going home to their own house at dusk.
+
+### Row 1b: gendered names and the BeastResponse flake (done, verified, fauna/households 3ab1bd31)
+
+- Gendered names, derived: the household draw gives each member a sex (head from the draw, partner the opposite,
+  others their own bit). The member's Individual is nudged until `FolkNames.Feminine` matches it. Names come from
+  feminine, masculine and either lists in folk-names.json, and `Kinsfolk.Feminine` drives the row 3 role words
+  (wife/husband, daughter/son, mother/father). Every folk on the island now has a sex-matched name, so all names
+  change from main, the same on every machine.
+- Check: town 73 `-households`: 38 houses, 101 members, every name matches its f/m mark. Fauna_Fingerprint stays
+  6A9E28E5.
+- Flake root cause: the hook took the nearest talker. At HumanVillage that is often a leashed folk (Tend, Watch,
+  Rest; leash 7) about 81 m off. KeepToLeash clamps its 30 m flee target onto the leash circle, so it reaches the
+  target and calms to Idle inside 2 s. That matches the past "Idle 81.x" failures. Or it runs round the circle
+  instead of away, which matches the past "got no further off" failures. The brain is behaving as designed, so this
+  is not a game bug.
+- Fix: `TestHooks.BeastRespond` now only picks folk whose response target lies inside their leash, mirroring
+  KeepToLeash. The test is unchanged. A calm folk still flees for 3 s, so the 2 s sample keeps a 1 s margin.
+- Suite after the last change: run 1 `40 passed, 0 failed, 17 skipped in 360s`, run 2
+  `40 passed, 0 failed, 17 skipped in 315s`. Both runs picked a hunter (leash 268) to flee.
+- Next: row 2 (dusk homegoing to each folk's own house).
