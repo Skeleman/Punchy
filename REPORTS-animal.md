@@ -3658,3 +3658,20 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - Suite: PlayMode 35 of 35 passed, in my editor, after the last code change (3 new FishLureTests).
 - Risks / for row 3: a hovering fish circles slowly at about 0.5 m/s, which may read as busy; the nibble timings, the 8 m reach and the 3-fish cap are first guesses.
 - Next: row 3 (tune with Zach) waits on P-33 being playable. Starting A-102 (breath) on fauna/breath.
+
+## A-102: breath and diving (#37), branch fauna/breath
+
+### Row 1: breath, one meter for every body (done, verified)
+- Commit 47a60b7e on fauna/breath (from main 7552dcf3, pushed). New: `Fauna/Breath.cs` (the meter: Use, DefaultHold, Head), `Debugging/DebugControls.Breath.cs` (`-breathtest`), `Tests/PlayMode/BreathMeterTests.cs`. Small edits: CreatureSpecies/CreatureData (species `BreathesWater` and `HoldBreath`, baked into the creature blob; CreatureMind gains BreathUsed and Gasping), CreatureBrainSystem (Breathe after each think step), PlayerComponents/PlayerMovementSystem (PlayerMotion.BreathUsed/Gasping, PlayerBody.BreathesWater/HoldBreath), FaunaDirector.Avatar (copies the species' values to the player body), NetPlayer (BreathUsed byte), FishFolk.asset (BreathesWater on), GLOSSARY (Breath).
+- Model: breath is kept as how much is used (0 full, 1 empty). It drains over the hold time while the head is under water and refills in air within a fifth of the hold time (at least 2 s). Emptied, the body gasps until a quarter is back. Hold times when the asset leaves 0: folk 30 s, animals that cross water 20, waterfowl 12, land animals 8, fliers 6. Swimming species, FishFolk, ghosts, held bodies and fliers in the air never use it.
+- Creatures: simulated on the host. A gasping creature is pushed up at 1.5 m/s until its head is 0.1 m out, then may sink back at 1 m/s (row 2 adds real diving on top).
+- Player: local player state, sent with the avatar as a byte (NetPlayerCommand.BreathUsed, `[GhostField] NetPlayerLook.BreathUsed`), so P-34 and other players can read it. Row 1 only fills the value; the push up and the dive lock come in row 3.
+- Play check (v3, `-island v3 -place lake -breathtest`, solo): water 4.2 m deep. Human (hold 30 s) emptied at 30 s and Cat (hold 8 s) at 8 s; each rose at 1.5 m/s until its head was out, caught a quarter back, then sank again (they are puppets on the bed, so they repeat this). FishFolk and Carp used 0. The player on the shore stayed at 1.00. Result line: `BreathTest: PASS: Human: most used 1.00, emptied True, came up True (ok); Cat: ... (ok); FishFolk: most used 0.00 ... (ok); Carp: most used 0.00 ... (ok); others out of breath 0 of 225`.
+- No shots for this row; the card asks for logged values.
+- Pins: Fauna_Fingerprint AD723954 before, 151753F3 after, re-pinned in WorldTests. Reason: the creature blob gains two fields (BreathesWater, HoldBreath) and blob bytes are hashed. No data, landmark or placement change.
+- Suite: PlayMode 33 of 33 passed, in my editor, after the last change (5 new BreathMeterTests). One earlier full run had LiveFolk_BeastResponse fail once (the fleeing folk was already Idle 81 m off after 2 s). It passed alone twice and in the final full run; Breathe never changes a creature's mode, so it looks like a flake.
+- For other lanes:
+  - A-103: sea folk should set `BreathesWater: 1` on their species asset. FishFolk stands in for them until then.
+  - Player lane: a small body like a cat walks fully under water up to 1.3 m deep, because the swim depth doesn't scale with body size. Its breath now drains there.
+  - Net: NetPlayerLook gains one GhostField and NetPlayerCommand one field.
+- Next: row 2, folk dive.
