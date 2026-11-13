@@ -158,6 +158,7 @@ namespace Punchy.Debugging
             wallRequest = false;
             climbBandGrade = Climbing.None;
             ClimbBands.Clear();
+            ClimbLedges.Clear();
             Punchy.Player.PlayerInputSystem.TestCamera = null;
             shotDir = null;
             shotLines.Clear();

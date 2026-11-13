@@ -577,6 +577,7 @@ namespace Punchy.Debugging
                     Destroy(mark);
             climbMarks.Clear();
             ClimbBands.Clear();
+            ClimbLedges.Clear();
             huntShotTaken = false;
             huntShotLogged = false;
             staleHunter = huntHunter;

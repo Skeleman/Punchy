@@ -22,6 +22,8 @@ namespace Punchy.Debugging
         void ApplyOptions(string[] args)
         {
             optionsAt = Time.timeSinceLevelLoad;
+            // "-place ledge:lip[:Body]" and "-ledgepiece" (A-101 row 1b): the ledge lip test (LedgeLipTest).
+            LedgeLipOptions(args);
             // "-breathtest" (A-102 row 1): air and water breathers held on a lake bed, their breath logged (BreathTest).
             breathTest = System.Array.IndexOf(args, "-breathtest") >= 0;
             // "-divetest [Human|FishFolk]" (A-102 row 2): a person and a fish folk out swimming and diving (DiveTest).

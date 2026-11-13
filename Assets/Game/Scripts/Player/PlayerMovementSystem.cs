@@ -211,6 +211,9 @@ namespace Punchy.Player
                 // stepping onto it from its top. It needs no wall behind it (a mine drop's face doesn't stop a walk).
                 if (body.ClimbSkill > Punchy.Fauna.Climbing.None && LadderClimb(ref t, ref m, body, input, terrain, settings, from, facing, swimming, dt))
                     continue;
+                // A-101 row 1b: hanging from a ledge's lip and shimmying along it, part of the same wall latch (LedgeHang).
+                if (body.ClimbSkill > Punchy.Fauna.Climbing.None && Punchy.Fauna.LedgeHang.Step(ref t, ref m, body, input, settings, from, facing, climbsWall, swimming, dt))
+                    continue;
                 if (m.OnWall && climbsWall)
                 {
                     var into = math.mul(t.Rotation, new float3(0f, 0f, 1f)).xz;
