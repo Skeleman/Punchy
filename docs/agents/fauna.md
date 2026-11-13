@@ -92,3 +92,8 @@ Read before changing creatures, behaviour, poses, the player's body, settlements
   The brain skips riders, so their ModeTime stands still while they ride; time a ride from when it is seen. Dungeon
   posts (DungeonPost) never ride: DungeonPostSystem sends them back. A host's player is where its client last said, so
   after teleporting the player wait a few seconds before spawning near it, or FaunaDirector lets the spawn go.
+- A-104 row 3: a riding player has PlayerRide; PlayerRideSystem (each machine, for its own player) seats it on its
+  mount every frame and PlayerMovementSystem skips it. Who it rides goes out as NetPlayerLook.Mount (the mount's
+  ghost id: a creature's, or the ridden player's NetPlayer), checked on arrival (a live ghost, not itself, not a pair).
+  Other machines seat that player's puppet from it (SeatOthers). The ridden one keeps control; the server isn't told,
+  so its creatures don't know a player sits on them (a town's pet can still climb onto that mount: it gets down).

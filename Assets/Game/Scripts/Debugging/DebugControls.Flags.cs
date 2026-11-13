@@ -30,6 +30,10 @@ namespace Punchy.Debugging
             rideTest = System.Array.IndexOf(args, "-ridetest") >= 0;
             // "-ridelife" (A-104 row 2): the rides a town makes by itself, then each way of getting down (RideLifeTest).
             rideLife |= System.Array.IndexOf(args, "-ridelife") >= 0;   // (Kept on through -camlook lines for its shots.)
+            // "-rideplayer [rider|mount]" (A-104 row 3): the player rides a dog, or another player (RidePlayerTest).
+            var rp = System.Array.IndexOf(args, "-rideplayer");
+            if (rp >= 0)
+                ridePlayer = rp + 1 < args.Length && (args[rp + 1] == "rider" || args[rp + 1] == "mount") ? args[rp + 1] : "";
             // "-divetest [Human|FishFolk]" (A-102 row 2): a person and a fish folk out swimming and diving (DiveTest).
             var diveArg = System.Array.IndexOf(args, "-divetest");
             diveTest = diveArg >= 0 ? (diveArg + 1 < args.Length && !args[diveArg + 1].StartsWith("-") ? args[diveArg + 1] : "") : null;

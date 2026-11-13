@@ -44,6 +44,8 @@ namespace Punchy.Net
         public byte BreathUsed;
         /// <summary>A-103 row 5: what the owner has over their eyes (an Eyewear value: none, glasses, glow goggles).</summary>
         public byte Eyewear;
+        /// <summary>A-104 row 3: the ghost id of what the owner rides (a creature or another player), 0 when not.</summary>
+        public int Mount;
     }
 
     /// <summary>What other players need to draw this one's body: replicated from the owner via the server.</summary>
@@ -63,6 +65,12 @@ namespace Punchy.Net
         [GhostField] public byte BreathUsed;
         /// <summary>A-103 row 5: what it has over its eyes (an Eyewear value), drawn on its body (NetAvatars).</summary>
         [GhostField] public byte Eyewear;
+        /// <summary>
+        /// A-104 row 3: the ghost id of what it rides (a creature ghost or another NetPlayer), 0 when not. The server
+        /// only passes on a live ghost that isn't this player and isn't riding this player; clients seat its body on
+        /// that ghost (PlayerRideSystem) and leave it on its own pose when the id doesn't resolve.
+        /// </summary>
+        [GhostField] public int Mount;
     }
 
     /// <summary>Client singleton: the local player's species in the playable table (set by NetAvatars).</summary>
@@ -202,6 +210,9 @@ namespace Punchy.Net
             // How our body looks, so the others draw the same individual.
             var hasSpecies = SystemAPI.TryGetSingleton<LocalPlayerSpecies>(out var species);
             command.Eyewear = hasSpecies ? species.Eyewear : (byte)0;
+            // A-104 row 3: what we ride, by ghost id (0 when not riding, or riding something with no ghost).
+            foreach (var ride in SystemAPI.Query<RefRO<PlayerRide>>().WithAll<PlayerTag>())
+                command.Mount = ride.ValueRO.MountGhost > 0 ? ride.ValueRO.MountGhost : 0;
             if (hasSpecies && species.Index >= 0)
                 foreach (var (avatar, body) in SystemAPI.Query<RefRO<CreatureState>, RefRO<CreatureBody>>().WithAll<PlayerAvatar>())
                 {
@@ -241,15 +252,46 @@ namespace Punchy.Net
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            foreach (var (command, transform, look) in SystemAPI.Query<RefRO<NetPlayerCommand>, RefRW<LocalTransform>, RefRW<NetPlayerLook>>().WithAll<NetPlayer>())
+            // A-104 row 3: what each player asks to ride and what it rode last tick, by its own ghost id, so a mount
+            // is only passed on when it is a live ghost, not the player itself, and not riding that player.
+            var live = new NativeHashSet<int>(256, Allocator.Temp);
+            foreach (var ghost in SystemAPI.Query<RefRO<GhostInstance>>())
+                live.Add(ghost.ValueRO.ghostId);
+            var asked = new NativeHashMap<int, int>(8, Allocator.Temp);
+            var rode = new NativeHashMap<int, int>(8, Allocator.Temp);
+            foreach (var (command, look, ghost) in SystemAPI.Query<RefRO<NetPlayerCommand>, RefRO<NetPlayerLook>, RefRO<GhostInstance>>().WithAll<NetPlayer>())
+            {
+                asked[ghost.ValueRO.ghostId] = command.ValueRO.Mount;
+                rode[ghost.ValueRO.ghostId] = look.ValueRO.Mount;
+            }
+            foreach (var (command, transform, look, entity) in SystemAPI.Query<RefRO<NetPlayerCommand>, RefRW<LocalTransform>, RefRW<NetPlayerLook>>().WithAll<NetPlayer>().WithEntityAccess())
             {
                 var c = command.ValueRO;
                 if (!c.Valid)
                     continue;
+                var self = SystemAPI.HasComponent<GhostInstance>(entity) ? SystemAPI.GetComponent<GhostInstance>(entity).ghostId : 0;
+                var mount = MountFor(c.Mount, self, live, asked, rode);
                 transform.ValueRW.Position = c.Position;
                 transform.ValueRW.Rotation = quaternion.RotateY(c.Yaw);
-                look.ValueRW = new NetPlayerLook { Species = c.Species, Individual = c.Individual, Coat = c.Coat, Grounded = c.Grounded, Climbing = c.Climbing, Rim = c.Rim, Pose = c.Pose, BreathUsed = c.BreathUsed, Eyewear = c.Eyewear };
+                look.ValueRW = new NetPlayerLook { Species = c.Species, Individual = c.Individual, Coat = c.Coat, Grounded = c.Grounded, Climbing = c.Climbing, Rim = c.Rim, Pose = c.Pose, BreathUsed = c.BreathUsed, Eyewear = c.Eyewear, Mount = mount };
             }
+        }
+
+        /// <summary>
+        /// The mount to pass on for a player (its ghost id self) asking to ride wanted: 0 unless wanted is a live ghost
+        /// other than itself and that ghost doesn't ride it. When two players ask for each other in the same tick, the
+        /// one already riding keeps its seat, or else the lower ghost id does.
+        /// </summary>
+        static int MountFor(int wanted, int self, NativeHashSet<int> live, NativeHashMap<int, int> asked, NativeHashMap<int, int> rode)
+        {
+            if (wanted <= 0 || wanted == self || self <= 0 || !live.Contains(wanted))
+                return 0;
+            if (rode.TryGetValue(wanted, out var theirs) && theirs == self)
+                return 0;
+            if (asked.TryGetValue(wanted, out var theirAsk) && theirAsk == self
+                && !(rode.TryGetValue(self, out var mine) && mine == wanted) && self > wanted)
+                return 0;
+            return wanted;
         }
     }
 
