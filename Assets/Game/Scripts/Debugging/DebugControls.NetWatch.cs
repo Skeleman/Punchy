@@ -58,6 +58,8 @@ namespace Punchy.Debugging
                 bodies.Dispose();
             }
             var others = "";
+            // (Row 4: each other player's body too, by its Playable Species index, so a host/client run shows the folk bodies arriving.)
+            var avatars = FindAnyObjectByType<NetAvatars>();
             using (var players = em.CreateEntityQuery(ComponentType.ReadOnly<NetPlayer>(), ComponentType.ReadOnly<LocalTransform>()))
             {
                 var pe = players.ToEntityArray(Allocator.Temp);
@@ -67,7 +69,13 @@ namespace Punchy.Debugging
                         continue;
                     var p = em.GetComponentData<LocalTransform>(e).Position;
                     var g = terrain.SampleGround(p.xz);
-                    others += $" player at ({p.x:F0}, {p.y:F1}, {p.z:F0})" + (g.HasWater ? $" feet {g.WaterSurface - p.y:F2} m under water;" : " on land;");
+                    var bodyName = "?";
+                    if (em.HasComponent<NetPlayerLook>(e) && avatars != null)
+                    {
+                        var s = em.GetComponentData<NetPlayerLook>(e).Species;
+                        bodyName = s >= 0 && s < avatars.PlayableSpecies.Count && avatars.PlayableSpecies[s] != null ? avatars.PlayableSpecies[s].name : $"#{s}";
+                    }
+                    others += $" player ({bodyName}) at ({p.x:F0}, {p.y:F1}, {p.z:F0})" + (g.HasWater ? $" feet {g.WaterSurface - p.y:F2} m under water;" : " on land;");
                 }
                 pe.Dispose();
             }
