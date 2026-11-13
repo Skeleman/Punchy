@@ -3899,3 +3899,26 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
     - post-merge build (b1aa418b), client without -goto: host 1, client 1, both ghost 150.
   - The earlier client count of 2 didn't come back in any run. That run had no per-ghost listing and counted 2 for its whole length, so it wasn't a single count taken mid-spawn. Its cause is unknown. If it comes back, the new listing shows whether it's a duplicate ghost or a stray local spawn.
 - Ready for the PR.
+
+## A-104
+
+### Row 1: rider/mount pairs (done, #278)
+- Commit on fauna/riding (pushed, from origin/main b1aa418b): 8868e495.
+- New Riding.cs adds:
+  - a mass check: rider x 1.5 <= mount. Winged mounts and busy mounts are refused;
+  - a seat per body plan: a quadruped's back, or an upright body's shoulders;
+  - a rider pose per body plan: straddle, shoulder-sit, cling or sit.
+- How it runs:
+  - new CreatureMode.Ride;
+  - RideSystem (server or solo) seats the rider after the brain every sim frame;
+  - RideSeatSystem (client presentation) re-seats rider ghosts on the interpolated mount just before drawing.
+- Ghost fields: none added. Holder (already a GhostField) holds minus the mount's ghost id while riding; solo uses a sentinel. Holder != 0 already means "not huntable or comforted", so riders are left alone.
+- `-ridetest` (host, 60 s walk at 1.1 m/s round 3 m circles), PASS:
+  - Cat on Dog: rider 5.9 kg x 1.5 = 8.8 kg vs mount 17.6 kg, mounted, pose Cling. Max offset 0.04 cm (sim), 0.05 cm (drawn, 3331 frames).
+  - HumanChild on Human: 24.2 x 1.5 = 36.4 kg vs 75.7 kg, mounted, pose Shoulders. Max offset 0.09 cm (sim), 0.04 cm (drawn).
+  - Dog on Cat: 24.2 x 1.5 = 36.3 kg vs 4.7 kg, REFUSED (TooHeavy), logged.
+  - A second host run, a solo run and the shot run also passed, with sim max <= 0.13 cm.
+- Known limit: in the first second, when the ghosts arrive, a client can draw the rider up to about 3 cm off for one frame (0.44 cm for the cat, 2.87 cm for the child). HeldPoseSystem's "needed" flag lags one frame, the same as for held animals today. The test reports this window separately.
+- Shots in D:/Unity/PunchyMilestones/A-104/ (800x450, checked): cat-on-dog, child-on-adult, dog-refused-on-cat.
+- Pins: Fauna_Fingerprint is EC02D9B0 before and after, unchanged (no species or spawn rows). No placement, landmark, ProjectSettings or renderer change.
+- Suite: full PlayMode run after the last change: "total 40, passed 40, failed 0, skipped 0" (296 s).
