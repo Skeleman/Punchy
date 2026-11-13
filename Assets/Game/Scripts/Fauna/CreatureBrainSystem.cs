@@ -888,7 +888,7 @@ namespace Punchy.Fauna
                         break;
 
                     case CreatureMode.Swim:
-                        Swimming(ref s, ref b, ref rng, dt, walk, idleLook, ref targetSpeed, ref moving, ref desiredLook);
+                        Swimming(ref s, ref b, ref rng, dt, walk, idleLook, ref targetSpeed, ref moving, ref desiredLook, ref vertical);
                         break;
 
                     case CreatureMode.Patrol:

@@ -360,6 +360,7 @@ namespace Punchy.Debugging
             MantrapShot();
             MimicShot();
             BreathTest();
+            DiveTest();
             ShotCam();
         }
 

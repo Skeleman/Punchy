@@ -730,6 +730,10 @@ namespace Punchy.Fauna
         /// some back. Brain only, like the needs.</summary>
         public float BreathUsed;
         public bool Gasping;
+        /// <summary>A-102 row 2, folk out swimming: how far under their floating height they are (m), how far they are
+        /// making for (0: up to the surface), and how long before they turn again (s: a rest at the surface, or a water
+        /// breather's time at a depth). Brain only (clients see the dive in Position and Vertical).</summary>
+        public float Dive, DiveTo, DiveWait;
         /// <summary>A-71: how uncomfortable the weather has made it (0..1: builds while out of its comfort, fades in
         /// comfort or shelter), why (the worst reason last seen), and how hard the weather pressed at the last check.</summary>
         public float Discomfort, ComfortPressure;
