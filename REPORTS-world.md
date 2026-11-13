@@ -6452,6 +6452,41 @@ plot rules would have to accept a raised deck).
 - BENCH-QUEUE request: CPU and GPU ms, branch vs main, at the canyon (2266,-434) from 20 m and 150 m, and at the sea cliff seen from the beach. Also the island bake time on a cache miss. Compare with row 1's request; draws should fall sharply in the red country.
 - Rows 2 and 3 not started (they wait).
 
+### Row 2: walk, stand, climb records (#281), branch world/cliff-kit (main 7552dcf3 merged in as 522a585d), commit 0941bfcc - done (verified; climbing by probe, since A-101 isn't on main)
+- What it does:
+  - Piece tops go into TerrainSource.Deck(): the highest box top within 0.6 m below the body, above the ground and with 1.8 m headroom.
+  - Piece undersides go into CeilingOver, in open air only. In cave air the cave answers alone, so cave drips and bakes keep their numbers.
+  - Each piece's grade (A-101 scale: fallen 3, buttress/overhang 4, slab/stacked faces 5) is readable by GradeAt(p, reach), from the nearest side face within 1 m.
+  - Shimmy ledges are baked into the CliffKit blob as CliffLedge records: A, B, outward, piece, grade, kind (lip 3 / overhang lip 4). PieceLedges gives each piece's run, and LedgeNear(p, reach) finds them.
+  - A ledge is a box's top front edge, at most 19 degrees off level, with at least a 1.5 m drop out of the face and no box sitting on it. Only the longest run of 1 m or more counts.
+  - All of it is seed-derived bake data (rule 22). Placement is unchanged.
+- Bake: 2227 pieces in 1539 groups (same counts as 1b), 3506 ledges. The ledges add 47 ms (BakeParallel per piece), on an island-cache miss only.
+- Probe over all pieces (W150Probe.Stats, untracked):
+  - grades: 489 at 3, 726 at 4, 1012 at 5
+  - ledges: 3290 lip (grade 3) and 216 overhang (grade 4), on 2123 pieces. Length 1.0-13.6 m (mean 5.7), drop mean 12.5 m.
+  - stand: 2880 of 3475 box tops stand a body. The other 595 are roofed by another box, and 426 of those are buried.
+  - overhang: 205 of 209 lips read CeilingOver = the box bottom (mean headroom 13.2 m).
+  - grade: 3434 of 3475 faces read their own piece's grade (41 read a neighbour's).
+  - ledges: 3505 of 3506 found by LedgeNear from 0.5 m out.
+- Play-mode checks (mesa, near 2134,1462):
+  - stand: placed 0.5 m over buttress #2064's top, 6.2 m over the ground. The player settled at dy +0.04 and stayed there. FloorUnder 158.89 = the top.
+  - walk: held a move from 4 m up the slope onto slab #1953, released past its front. The player rests on the slab top (dy +0.07) with the ground 16 m below (FloorUnder 148.12).
+  - overhang: stood under overhang #1930's lip. CeilingOver 133.85 = the box bottom (5.8 m headroom).
+  - climb/shimmy: A-101 isn't merged, so this is the probe listing. Example: #2007 buttress grade 4 has lip ledges of 7.7, 7.4 and 5.9 m at y 142.7/147.3/150.8; #2009 slab grade 5 has 5.1 and 4.3 m ledges.
+- Shots in D:/Unity/PunchyMilestones/W-150/, checked at small size:
+  - w150r2-stand-shelf: the player on a buttress top
+  - w150r2-walk-slab: the player on the slab after walking onto it
+  - w150r2-under-overhang: the player in the overhang's shadow, the lip above
+- Hashes (measures): landmark hash FA8F24B1 / TestHooks 117 689D5348, both unchanged. The flora removed set wasn't re-measured: Covered() and placement are untouched, so it should still be 0089FCB8.
+- Suite: "completed: 28/28 passed" on 0941bfcc (the last code change). lod-lint is clean on 0941bfcc.
+- NaN probe: not applicable (no shader, material or mesh change).
+- Risks:
+  - Deck() now also checks the kit cell, which costs a little on every FloorUnder/Deck call.
+  - The kit is baked last, so cave and anchor bakes still see no kit (intended).
+  - 41 faces read a neighbour's grade where pieces touch.
+- BENCH-QUEUE request: frame cost branch vs main at the canyon (2266,-434) and mesa (2134,1462) with fauna about, since every FloorUnder/Deck now checks one kit grid cell.
+- Next: W-150 1c waits for PR #285.
+
 ## W-151
 
 ### Row 1: big first after a jump (#287), branch world/load-order, commit ce2f386e (+ cf0eceb4 comment only)
