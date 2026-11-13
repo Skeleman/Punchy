@@ -382,7 +382,9 @@ namespace Punchy.Fauna
         ShieldEyes,
         // A-71: out in the weather with no shelter in reach (DecideWeatherPose): panting in the heat, shivering with
         // arms hugged in the cold, hunched over against a storm or the wind.
-        Pant, Shiver, Hunch
+        Pant, Shiver, Hunch,
+        // A-103 row 3: a turtle child's belly-slide across the snow (DecideFolkLife; ChildLife moves it).
+        Slide
     }
 
     public enum GallopStyle : byte

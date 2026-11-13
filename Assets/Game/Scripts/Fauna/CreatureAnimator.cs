@@ -256,6 +256,12 @@ namespace Punchy.Fauna
                 else
                     height -= act * 0.15f * b.StandHeight * scale;
             }
+            // A-103 row 3: a turtle child's belly-slide: down flat on its front, head up (ActionPose has the limbs).
+            else if (s.Action == IdleAction.Slide)
+            {
+                pitch += act * 1.45f;
+                height = math.lerp(height, 0.16f * scale, act);
+            }
             // A-103 row 2b: a sea folk out of the water stoops, more as it walks (it trudges, uncomfortable).
             if (b.Upright && FolkState.OutOfWater(s.Position, b.WalksBed, terrain))
                 pitch += 0.14f + 0.08f * move;
@@ -1120,6 +1126,16 @@ namespace Punchy.Fauna
                     if (part.Role == LimbRole.Arm && joint == 1) return new float3(-1.4f * e, 0f, 0f);
                     if (part.Role == LimbRole.Ear || part.Role == LimbRole.Tail) return new float3(0.7f * e, 0f, 0f);
                     break;
+                case IdleAction.Slide:
+                    // A-103 row 3, on its front: head and neck lifted to see ahead, arms back along its sides, legs
+                    // straight out behind, the feet kicking a little.
+                    if (part.Role == LimbRole.Head) return new float3(-0.8f * e, 0f, 0f);
+                    if (part.Role == LimbRole.Neck) return new float3(-0.5f * e / n, 0f, 0f);
+                    if (part.Role == LimbRole.Arm && joint == 0) return new float3(0.25f * e, 0f, -0.15f * e * part.Side);
+                    if (part.Role == LimbRole.Arm && joint == 1) return new float3(-0.15f * e, 0f, 0f);
+                    if (part.Role == LimbRole.Leg && joint == 0) return new float3(0.1f * e * math.sin(t * 40f + part.Side), 0f, 0f);
+                    if (part.Role == LimbRole.Leg && joint == 1) return new float3(0.3f * e * math.max(0f, math.sin(t * 40f + part.Side)), 0f, 0f);
+                    break;
                 case IdleAction.ShieldEyes:
                     // Bat folk from a light (#35): the right arm raised and folded so the forearm lies across the eyes
                     // (the elbow out to the side), the head bowed and turned a little away, the left hand up at the chest.
@@ -1188,6 +1204,8 @@ namespace Punchy.Fauna
         public const byte HearthStand = 5, HearthGround = 6, HearthSeat = 7;
         /// <summary>Sitting-mode stage of a child sitting in a play ring on a green (with its stick or stone).</summary>
         public const byte PlayRing = 8;
+        /// <summary>Play-mode stage of a sea folk child running after a fish (A-103 row 3): no partner playing back.</summary>
+        public const byte ChaseFish = 9;
         /// <summary>Idle-mode stages of one of the townsfolk a messenger bird has come to: waiting for it (the forearm
         /// up for it to land on), taking the message from its leg, reading it.</summary>
         public const byte MessageWait = 60, MessageTake = 61, MessageRead = 62;
