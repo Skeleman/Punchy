@@ -1,296 +1,85 @@
 # Coordination
 
-Three Claude sessions work on Punchy at once: two on Zach's main PC, one on the less powerful PC. This file says
-who owns what so they don't collide. It lives on the `coordination` branch; read it with
-`git fetch origin coordination && git show origin/coordination:COORDINATION.md`. Zach approved this light process
-on 2026-10-27 (see J-016 in `JUDGMENT_CALLS.md` on the same branch).
+How the Claude sessions on Punchy stay out of each other's way. Lives on the `coordination` branch.
 
-The supervisor is the Claude session **claude-41 [21fe18]**. Message it with SendMessage. It doesn't write
-feature code, and it never edits files in another session's checkout.
+**This file is the core: read it once per card.** Detail is in the modules named in the rules table; read only
+those your card lists. Don't read JUDGMENT_CALLS.md, SUPERVISOR-HANDOFF.md, REFACTOR-ROADMAP.md, ROADMAP-IDEAS.md
+or another lane's REPORTS unless your card names a section.
 
-## What we are building (Zach, 2026-11-13)
+The supervisor hands out cards, reviews and merges. It writes no feature code and never edits another session's
+tree. Reach it by SendMessage (main account) or through your REPORTS file (other accounts).
 
-"I am looking for a world that feels expansive, yet full of life and detail. Fidelity of distant views is very
-important, wanting to make sure the whole island feels grounded in beautiful nature."
+## Aim (Zach, 11-13)
 
-Every card is weighed against this. In order: (1) the far view: the whole island in sight, grounded in nature;
-(2) life and small details, near and far; (3) foundations that let both scale (one lighting path, one detail policy,
-one item and save model); (4) new feature lines. A card says in its Why which of these it serves. When work competes
-for a lane, a file or the profiler, the lower number goes first. Programme: issue #298, rules 25-28.
+A world that feels expansive, yet full of life and detail. Distant views matter most: the whole island should feel
+grounded in beautiful nature.
 
-## The supervisor's responsibilities
+Priority when work competes for a lane, a file or the profiler: (1) the far view; (2) life and small details, near
+and far; (3) shared foundations (one lighting path, one detail policy, one item and save model); (4) new feature
+lines. A card's Why says which it serves. Programme: #298.
 
-1. **Lanes and ownership:** each file has one owner. It approves edits outside a lane and every change to a
-   shared file.
-2. **Handing out work:** it relays Zach's direction and gives each session its next task.
-3. **Judgment calls:** it checks `JUDGMENT_CALLS.md` before asking Zach, asks with the question tool, and records
-   the answer.
-4. **Reporting:** one-screen updates for Zach, idle tracking of the local sessions, and the milestone page for
-   complete features.
-5. **Resources:** it watches free memory on the main PC (two editors run at once; see J-015).
+The island's layout is a test bed. Systems and procedural generation come before the map; the world may change
+(`lanes/shared/world-data.md`).
 
-## Rules for every session
+## Lanes
 
-1. Read this file and `JUDGMENT_CALLS.md` before each new task.
-2. Work inside your lane. Ask the supervisor before touching anything outside it.
-3. Commit small and often, and push. Merging another lane's branch into yours is fine (J-016); never rewrite
-   pushed history.
-4. Report to the supervisor when a task is done or blocked: DONE / FAILED / BLOCKED / NEXT. Screenshots only for
-   complete features (J-005).
-5. Never discard, reset or overwrite work you didn't write. If you find uncommitted work outside your lane,
-   stop and report it.
-6. Send questions for Zach to the supervisor, not to Zach, unless Zach must confirm something to you directly.
-7. Use the terms in `GLOSSARY.md`.
-8. **Batch related changes (Zach, 2026-10-27):** implement related items together, evaluate them in one shot-list
-   session, and send one report and one compare sheet. Keep separate commits per item. Split a batch only for risk
-   or a decision Zach must make.
-9. **Everyone has a destination (Zach, 2026-10-28):** NPCs, messenger birds and wandering animals always head
-   for an identifiable goal (door, well, field, seat, gate, next town or landmark, water, lair, roost); no aimless
-   random-point wandering over distance. Most important for folk and messenger birds.
-10. Main PC memory: restart your Unity editor (after committing) when it grows past about 10 GB or after heavy
-   recompile runs. Keep Play-mode tests short and exit when done. Ask the supervisor before opening a player or
-   build next to the two editors.
-11. **Push without asking (Zach, 2026-10-28):** push your own lane's commits as soon as they compile, your checks pass
-   and your shots are taken; then report. The supervisor reviews after the fact and files follow-ups. Still ask
-   first for: shared or unowned files, network tables (ghost fields, enums sent over the wire, `PlayableSpecies`),
-   anything that changes landmark placement or the world fingerprint, merges with conflicts in another lane's
-   files, and releases.
-12. **Shot rules:** 16:9 at the true aspect (set `cam.aspect`); fixed noon and clear weather unless the feature
-   needs otherwise; the player avatar out of frame and out of the camera's line (the reveal cone cuts holes);
-   before and after from the same camera, seed, time and coats; light dark scenes so the feature is visible;
-   frame the feature tightly, 3-8 m away, whole subject in frame. At most 3 images per report, 800 px on the long
-   edge (a sheet at most 1200 px; crop a detail rather than raising resolution) (a sheet counts as one). No images for changes you can't see (culling, audio, networking, perf): give numbers.
-12a. **Who looks at what (Zach, 2026-10-28):** check your own shots at about 480 px while iterating. Send the
-   supervisor one 800 px final only for a finished, visible feature meant for the milestone page; for fixes,
-   follow-ups and interim steps send your own written check instead (what you looked for, what you saw, caveats).
-   The supervisor relays those without opening images.
-12b. **Full-res gallery (Zach, 2026-10-28):** besides the reviewed shots, save a fuller set for Zach to browse in
-   `D:\Unity\PunchyMilestones\<lane>\<feature>\gallery\`: full resolution, more angles, before/after sets, short
-   sequences if handy. Never open or view these yourself (no token cost), and don't send them to the supervisor;
-   just mention the folder in the report. Keep each gallery under about 40 images.
-14. **Fixed build paths (Zach, 2026-10-29):** Windows Firewall rules are per executable path, so every new build
-   folder raises a new prompt. Always build or copy the runnable build to the same path and overwrite it:
-   main PC `Builds/Windows/Punchy.exe` (player) and `Builds/Dev/Punchy.exe` (development); kind-possum its own two
-   fixed paths. To keep an older build, archive a copy elsewhere, but run only from the fixed path. Never click or
-   change firewall prompts or rules yourself.
-12c. **Bench cadence (Zach via the animal session, 2026-10-29):** kind-possum runs one short smoke bench (town walk
-   plus glide: avg and 1% lows) per lane batch push, not per feature. Full profiles only when a smoke bench
-   regresses, then bisect between batches. Full multiplayer and GPU passes before each release candidate. Reports
-   are numbers only unless something regressed. Bench stops must use fixed, named places that exist on every
-   island version, or compare same-island builds only (tonight's v0.7.0 vs RC compare was apples to oranges).
-13. **Waiting on someone:** before blocking on another session, ask that session whether you actually need to
-   wait. If they don't answer within the hour, ask the supervisor.
-14. **Editors and RAM (Zach, 2026-11-03):** close your Unity editor at the end of a card unless your lane's next
-   card is already queued. Before opening one, check free RAM is at least 6 GB; if not, wait. Never close or kill
-   another lane's editor. Idle import workers are set to shut down (standby 0) as each lane merges main.
-15. **Editors (Zach 2026-11-03, relaxed 2026-11-09 after the RAM upgrade to 64 GB):** no queue. Before opening an
-   editor, check free RAM: at least 6 GB, open it (through tools/start-quiet.ps1); under 6 GB, tell the supervisor
-   instead of waiting. Keep your editor open across rows and tests of the same card; don't restart it per test.
-   Close it (by your own PID) only when the suite needs it closed, when you hand the card back, or before you stop.
-   EDITOR-QUEUE.md is retired: don't write to it.
-16. **Handoff after every row (Zach, 2026-11-04):** as soon as a row is finished and verified, commit and push it,
-   then append it to your REPORTS-<lane>.md and push that: verified, UNVERIFIED, and what's next. Do this before
-   starting the next row, so a usage limit never loses work. On the main account the `handoff` skill does all of it.
-17. **Don't steal Zach's focus (Zach, 2026-11-04):** start every Unity editor and every build window through
-   `tools/start-quiet.ps1` (in the coordination tree), run in the background:
-   `powershell -ExecutionPolicy Bypass -File <coordination>/tools/start-quiet.ps1 -Exe "<exe>" -ArgLine "<args>"`.
-   It starts the program minimized without focus, and for the life of the process it hands focus back if the program
-   grabs it on its own (load finished, play mode entered). In each editor, also set the Game view's play-mode
-   dropdown to Play Unfocused before the first play-mode test. Batch-mode runs (`-batchmode`) don't need this.
-18. **Every process must end on its own (Zach, 2026-11-07):** on Windows, when a Monitor, background task or agent stops, only
-   its top shell dies. Children such as `tail -f`, `grep --line-buffered`, `while true` loops, sleep and Punchy.exe keep running. On
-   11-06, 180 orphaned watchers and their greps had piled up this way. So: wrap every Monitor/background command in `timeout <s>`
-   (for example `timeout 1800 tail -f log | grep --line-buffered X`, which stops tail and lets grep exit), and give every loop an
-   end time (`end=$((SECONDS+1700)); while [ $SECONDS -lt $end ]`). Run one watcher at a time, and stop the old one before
-   starting a new one. Launch every Unity/Punchy run with `timeout` and kill it by its own PID, never by name: other lanes'
-   games and benches share the machine. After a test, check `tasklist | grep -c bash` has not grown.
-19. **Lean suite, no rework (supervisor, 2026-11-09):** every card assumes these; a report that misses one goes back.
-   (a) Shot, plan-map and look tests are `[Explicit]` (the runner prints SKIP); the default suite holds only fast checks with
-   numbers, and a new default test runs under about 30 s. (b) Re-run the full suite after your last code change, before the
-   report, and quote its line (passed / failed / skipped, seconds). (c) Cost limits in a card are measured on the same spot
-   before and after, and quoted as numbers. (d) Shots: use the shared screenshot tool (T-1, once merged; see docs/agents) and
-   quote its written checks. If a shot can't be made to show the change, say UNVERIFIED with the reason and move on: don't
-   loop on retakes; Zach judges the look in the playtest.
-20. **LOD by screen size, never fixed metres (Zach, 2026-11-10):** every visual detail choice (fade, cull, tier, shells, seams,
-   effects, impostor hand-offs, light reach) uses `DetailPolicy.ScreenSize` (object size over distance in reference pixels,
-   FOV and resolution aware) with a per-kind threshold in DetailPolicy, plus hysteresis. A fixed-metre visual range in new
-   code goes back. Gameplay and simulation ranges (senses, AI, collision, streaming) are not LOD and may stay in metres.
-   Old code counts too: a file you touch that still has a metre visual range gets converted in that branch, or listed in your
-   handoff for R-13. Mark a metre range that is truly gameplay with a `// gameplay:` (or sim/streaming/collision) comment.
-   The supervisor runs `tools/lod-lint.sh <branch>` on every branch before merge; unexplained hits go back.
-21. **Only the profiler profiles (Zach, 2026-11-10):** lane agents never measure frame times, ms tables, bench runs or RenderDoc
-   captures, whatever an older card says. The profiler's weaker, isolated machine gives the real and steady numbers. A lane
-   row that needs a cost check instead ends with a BENCH-QUEUE request in its handoff: branch, commit, spots (-goto coords),
-   arms (main vs branch, any flags) and the pass line. The supervisor queues it. Cheap counts you get anyway (triangles, draw
-   calls, index counts, memory from a script) are fine to report; no timing.
-   **Temporary exception (Zach, 2026-11-11, J-045), until the laptop queue holds only its own jobs:** one main-account
-   bench agent on the main PC (tree Punchy-release, builds to its Builds/Bench-A and Bench-B) runs branch-vs-main jobs whose
-   pass line is "within noise / no slower than main" and which are not near a budget. Same method as the laptop
-   (lanes/profiler/scripts: job.sh, report.py, ABBA, Profile builds, 1920x1080, uncapped, 300 frames). It times only
-   while no other Unity editor or player runs on this PC (lane editors pause at a save point, never killed; the supervisor
-   opens a window with the file D:/Unity/PunchyBench/HOLD, see lanes/shared/unity.md "Bench hold"). Pass on the
-   main PC: within noise or under ~2% of frame ms; above that, the job goes back to the laptop queue before the merge.
-   Reports go in BENCH-REPORTS.md marked "main PC, provisional"; the profiler re-checks one now and then. Laptop-only:
-   budget and preset decisions (rule 23), water/lights/clouds, two-machine tests, LOD reach. Lane agents still never time.
-22. **Placement is data, ready for a world file (Zach, 2026-11-11, #260):** there will be one designed island: one day it is generated once
-   at design time, saved to a file, hand-edited and loaded by the game. No layouts are final yet, but new and changed world code must stay
-   compatible: (a) every placed thing (landmark, cave, dungeon, tunnel, road/river waypoint, settlement, building, colossus spot,
-   hermitage, lone NPC, fence/sign/light) comes out of its bake step as a plain record (kind, position, rotation, size, params) with
-   a stable id, held in a blob or list, not only as a mesh, entity or side effect; (b) later steps and runtime systems read those
-   records, never re-run an earlier placement or its RNG to ask what is there; (c) placement RNG runs only in the bake. Runtime
-   may scatter visuals (flora, small details, chunk meshes) from the records, ground and seed, but nothing gameplay places at
-   runtime; (d) a bake step depends only on its inputs (seed, settings, earlier records), with no editor, scene or frame state.
-   Old code that breaks this is fine until touched; list what you notice in your handoff.
-23. **Profiling targets (Zach, 2026-11-11, J-044):** the supervisor writes every BENCH pass line from this rule; a handoff may ask
-   for an exception ("Ultra feature"), Zach may override. (a) Reference: the profiler laptop, 1920x1080, Profile builds for GPU;
-   the main PC is never the reference. (b) Per preset, on the laptop: Low 1% low >= 50 fps (budget); Medium, the default,
-   1% low >= 30 fps (budget, J-006); High 1% low >= 25 fps (soft, a miss is a note); Ultra no floor, report only.
-   (c) A feature on at Medium: <= +0.3 ms GPU, CPU within noise, at its worst spot; over ~+0.5 ms it gets cheaper, justifies
-   itself, or moves to a higher preset. On only at High: <= +1 ms. Ultra-only: priced and reported, never held, but it must
-   cost nothing at Medium and below. (d) Hitches have no Ultra allowance: on any preset no new frame over 2x median and none
-   over 100 ms on a walk or flight; load and first-arrival spikes are tracked apart. (e) Refactors and no-look-change work:
-   within noise of main at every spot. (f) A miss is a note and a fix card; a merge is held only for a big, repeatable miss
-   (> ~1 ms at Medium, a new hitch, a preset under its floor). (g) A feature moves to a higher preset through the existing
-   preset values (view/detail/shadows, DetailPolicy thresholds) or its own runtime graphics setting, never ProjectSettings,
-   QualitySettings or the URP asset.
-24. **NaN-safe rendering (Zach, 2026-11-12, #282):** white bloom circles are NaN pixels spread by bloom. (a) The main camera
-   runs URP Stop NaN (set from code, R-18); it is a safety net, not a fix, so NaN still counts as a bug. (b) Shader and mesh
-   maths stay NaN-safe: SafeNormal or a guarded normalize for anything that can be zero length (tiny triangles, differences,
-   crosses), divisions by a value that can be 0 get `max(d, 1e-5)`, `pow`/`sqrt` take saturated or non-negative input,
-   derivatives (ddx/ddy/fwidth) never inside a branch. (c) Every card that touches a shader, a material or generated mesh
-   adds to its done-when: `-sparkleprobe` NaN count 0 on its views with `-stopnan 0`. (d) The profiler reports any NaN count
-   above 0 seen on a bench route, with the view.
-25. **Far view first (Zach, 2026-11-13, #298):** anything a player can see from a ridge or from the air must read from far
-   away, not only up close. (a) A new or changed thing that is big enough to see at distance (landforms, forest, water,
-   buildings, towns, large creatures, herds, lights, smoke, weather) ships with its far form: a stand-in, an impostor, a
-   tint in the far ground or canopy map, a light or a plume, picked by `DetailPolicy.ScreenSize` (rule 20) with no pop at
-   the hand-over. (b) Its done-when includes a far shot from the fixed vantage points of R-22 row 0 (once they exist), next
-   to the close shot. (c) Nothing visual is cut at the edge of the streamed terrain or tied to the draw distance: haze is
-   atmosphere, not a curtain. (d) Far forms are drawn only: no entities, colliders or network cost, and they are built
-   from the same placement data as the real thing (rule 22), so what is seen far off is what is met there. (e) Nature
-   first: a far view is judged on landform, forest, water, sky and light before anything built.
-26. **One lighting path, one atmosphere (supervisor, 2026-11-13; REFACTOR-ROADMAP 3.6, R-23):** surface shaders do not put
-   lighting together by hand. Shadows (cascades, shadow cache, wide map), cloud shadow, glow lights, wetness and haze come
-   from the shared includes, in the shared order. Until R-23 lands: no new surface shader, and no new lighting or haze
-   term added to one shader only; ask the supervisor, who routes it to the render lane. After R-23: a forward pass that
-   calls URP lighting or PunchyAtmosphere outside the shared function goes back.
-27. **Foundations before stand-ins (supervisor, 2026-11-13; P-35, #26):** until the item and saved-state design is agreed
-   with Zach, no card adds a new stand-in for an item, a worn thing, ownership or state that must outlive the session
-   (a key press that pretends to be an item, a host-only list that should be saved). Existing stand-ins stay. A card that
-   needs one says so in its handoff and stops at that row.
-28. **Refactors have right of way (Zach, 2026-11-13: "cut lanes out for necessary refactoring"):** (a) the render lane owns
-   the shared shader includes (`Shaders/*.hlsl`), the surface lighting path and `DetailPolicy`; other lanes ask before
-   editing them. (b) A refactor card changes no look and no behaviour: it proves it with pixel-diffs or fingerprints,
-   and lists every intended difference. (c) Refactor branches merge first; feature lanes rebase onto them, not the other
-   way round. While a refactor row holds a file, feature rows that need the same file wait or take another row. (d) No
-   new code goes into a file over 2500 lines: add a partial or a new file beside it. (e) A feature card that finds
-   the same logic in two places reports it in its handoff instead of adding a third.
-
-## Sessions and lanes
-
-| Session | Machine and checkout | Branch | Lane |
+| Lane | Tree | Cards | Owns (under `Assets/Game/`) |
 |---|---|---|---|
-| **Animal behavior manager** | Main PC, `D:\Unity\Punchy` | `animal-behaviours` | Creatures: behaviour, Needs, Traces, Lairs, Domestic animals, flight, interactions |
-| **world feature manager** | Main PC, `D:\Unity\Punchy-world` (worktree) | `world-features` | Caves, landmarks, settlements, roads, water surfaces, world events |
-| **windows-7l945c9-kind-possum** | Other PC | `b/*` (e.g. `b/bench`, `b/weather-perf`) | Profiling, code quality, streaming readiness. Reviews both branches; doesn't edit their files |
+| world | `D:/Unity/Punchy-world` | W, some R | `Scripts/Terrain/{Caves,Anchors,Landmarks,Settlements}/**`, water surfaces, `Shaders/Cave.shader`, landmark, cave-style, settlement and glacier assets, `WORLD.md` |
+| folk | `D:/Unity/Punchy-folk` | A (folk, races, households) | `Scripts/Fauna/**` and `Fauna/**`, shared with fauna and split by card |
+| fauna | `D:/Unity/Punchy-fauna` | A (creatures, far life) | as folk; also `Resources/Domestics.asset`, `Scripts/Debugging/DebugControls.cs`, `Scripts/Audio/**`, `Scripts/Ambience/`, Sun handling in `WeatherSystem.cs`, `Scripts/Player/PlayerMovementSystem.cs`, `GLOSSARY.md` |
+| render | `D:/Unity/Punchy-render` | R (refactors, rule 28) | `Shaders/*.hlsl`, the surface lighting path, `DetailPolicy` |
+| player (2nd account) | `D:/Unity/Punchy-player` | P | `Scripts/Settings/**`, `Scripts/UI/**`, `Scripts/Camera/ThirdPersonCamera.cs`; interiors, doors, pickups, inventory (#26) |
+| profiler (other PC) | its own | BENCH-QUEUE jobs | `Scripts/Debugging/BenchmarkRoute.cs`, `b/*` branches; small measured perf or crash fixes on `b/fix-*` (`lanes/shared/bench.md`) |
 
-**Lanes as of 2026-11-13** (the table above is the original three; cards and QUEUE files are the source of truth):
-world lane (`D:/Unity/Punchy-world`: W and R cards on terrain, water, far view), folk lane (`D:/Unity/Punchy-folk`:
-A cards on folk, races, households), fauna lane (`D:/Unity/Punchy-fauna`: A cards on creatures, far life), render
-lane (`D:/Unity/Punchy-render`, new 11-13: refactors under rule 28: R-20, R-23, R-24), player lane (second account,
-`D:/Unity/Punchy-player`: P cards), profiler (other PC, BENCH-QUEUE only). The supervisor reviews and merges.
+- **Shared, additive only, tell the other owner:** `Flora/FloraGenerator.cs`, `FloraPlacement.cs`, `FloraSystem.cs`,
+  biome assets (landmark lists), `Water.shader`, `TerrainSource.cs` and `TerrainAuthoring.cs` (entry points and bake calls).
+- **No owner, through the supervisor:** `CLAUDE.md`, `MULTIPLAYER.md`, `.gitignore`, scenes, `ProjectSettings/`,
+  `Packages/`, renderer assets.
 
-## File ownership
+## Rules
 
-Paths are under `Assets/Game/`.
+Numbers are stable; cards cite them. Rules with no module are complete as written here.
 
-| Owner | Paths |
-|---|---|
-| Animal behavior manager | `Scripts/Fauna/**`, `Fauna/**` assets, `Resources/Domestics.asset`, `Scripts/Debugging/DebugControls.cs` (shared test flags), `Scripts/Weather/WeatherSystem.cs` Sun handling, `GLOSSARY.md`, `Scripts/Audio/**` (shared sound system; others call its API), `Scripts/Ambience/` butterflies and fireflies |
-| world feature manager | `Scripts/Terrain/Caves/**`, `Scripts/Terrain/Anchors/**`, `Scripts/Terrain/Landmarks/**`, `Scripts/Terrain/Settlements/**`, `Scripts/Editor/CaveTools.cs`, `Biomes/Glacier.asset`, `Biomes/Surfaces/GlacierIce.asset`, `Landmarks/*.asset`, cave style and settlement assets, `Shaders/Cave.shader`, `WORLD.md` |
-| kind-possum | `Scripts/Debugging/BenchmarkRoute.cs` and its own `b/*` branches |
-| kind-possum, perf fixes (Zach approved 11-04) | May fix perf, crash and stall bugs it found and measured, in any file, on a `b/fix-*` branch cut from current main, when: the file isn't touched by a running card (check the open branches' diff vs main and batches/), the fix is small (no features, no design changes), and it ships with before/after numbers. The supervisor reviews and merges like any lane. If the file is busy, or the fix is a redesign, report it and the supervisor cards it |
-| player lane (2nd account, 11-03) | `Scripts/Settings/**`, `Scripts/UI/**`, `Scripts/Camera/ThirdPersonCamera.cs`, branch `player-client`; later interiors, doors, lights, pickups, inventory (#26) |
-
-**Shared, additive only (tell the other owner):** `Flora/FloraGenerator.cs`, `Flora/FloraPlacement.cs`,
-`Flora/FloraSystem.cs`, biome assets (landmark lists only), `Water.shader` (world session is doing the surface
-work; animal session gets told first), `TerrainSource.cs` and `TerrainAuthoring.cs` (entry points and bake calls only).
-
-**No owner, changes go through the supervisor:** `CLAUDE.md`, `MULTIPLAYER.md`, `.gitignore`, scenes,
-`ProjectSettings/`, `Packages/`.
-
-## Current tasks
-
-| Session | Task | State |
+| # | Rule | Module (`lanes/shared/`) |
 |---|---|---|
-| Animal behavior manager | Interactions: pet and carry done (bbb3194), hunt next (J-017); then swallows and glow moths | In progress |
-| world feature manager | Phase 4 towns: SettlementLayout design first | In progress |
-| kind-possum | Route determinism, WeatherField MapJob fix, round 5 | In progress |
+| 1 | Per card, read: this file, your lane's STATE.md, the card, the modules it names. Nothing more | `../README.md` |
+| 2 | Work inside your lane. Ask the supervisor before touching anything outside it | |
+| 3 | Commit small and often, and push. Merge, never rebase or rewrite pushed history | git.md |
+| 4 | Report DONE / FAILED / BLOCKED / NEXT when a task ends or blocks | report.md |
+| 5 | Never discard, reset or overwrite work you didn't write. Uncommitted work outside your lane: stop and report | |
+| 6 | Questions for Zach go to the supervisor | |
+| 7 | Use the terms in `GLOSSARY.md` | |
+| 8 | Batch related changes: one evaluation, one report, separate commits | checks.md |
+| 9 | Every NPC and animal heads for an identifiable goal | design.md |
+| 11 | Push your own lane without asking. Ask first for the listed exceptions | git.md |
+| 12 | Shot rules, who looks at what, the full-res gallery (12, 12a, 12b) | checks.md |
+| 13 | Before blocking on another session, ask it whether you need to wait; no answer in an hour, ask the supervisor | |
+| 14 | Fixed build paths | unity.md |
+| 15 | Editors and RAM | unity.md |
+| 16 | Hand off after every verified row | report.md |
+| 17 | Don't steal Zach's focus: start-quiet.ps1 | unity.md |
+| 18 | Every process ends on its own | unity.md |
+| 19 | Lean test suite, no rework | checks.md |
+| 20 | LOD by screen size, never fixed metres | rendering.md |
+| 21 | Only the profiler profiles | bench.md |
+| 22 | Placement is data, ready for a world file | world-data.md |
+| 23 | Profiling targets per preset | bench.md |
+| 24 | NaN-safe rendering | rendering.md |
+| 25 | Far view first | rendering.md |
+| 26 | One lighting path, one atmosphere | rendering.md |
+| 27 | Foundations before stand-ins | design.md |
+| 28 | Refactors have right of way | design.md |
+| 29 | Docs: one home per fact, paraphrase, size limits | `../README.md` |
 
-## Long-term goals (Zach, 2026-10-28): fill gaps with intermediate steps
+Rules 10 and 12c are retired (replaced by 15 and by 21 + 23).
 
-1. **Enterable buildings:** doors that open (world: hinged door part; animal: NPCs opening them at night and
-   morning), clutter outside (rugs, pots, vases, weapon racks, tapestries, chairs), then hollow interiors.
-2. **One large city per architecture:** (a) more building types per culture; (b) settlements on non-flat terrain
-   (hills, terraces, canyons); (c) more NPC jobs (farming, well water, carts, groups, prisoners, carrying goods).
-4. **Hermits:** lone folk at lone huts, cave camps and points of interest; some endlessly chased by a creature
-   (world: spots and anchors; animal: behaviour).
-5. **New folk races:** fish folk in the sea (reef or underwater settlement) and snow folk in the cold (igloo
-   villages). Animal session: races; world session: settlements.
-3. **Equipment layers** (animal session): head, torso, back and hand slots on folk and the player; tools and gear
-   picked per job (rod, rake, bucket, axe, spear, torch); per-culture loadouts; a replicated equipment mask.
+## Who decides what (Zach, 11-13)
 
-6. **Tree add-ons and weird-biome flourishes** (world session; beetles: animal session): bracket fungus, vines, moss, cocoons, crystal growths, glowing seams; pulsing veins, blinking bark faces, trees and fronds that bend toward or away from the player, breathing mushrooms. Optional FloraParts and shader motion from _PunchyClock; no new landmark types.
+- Lanes ask the supervisor for everything on rule 11's ask-first list.
+- The supervisor decides without waiting for Zach: placement, landmark, river-course and fingerprint changes;
+  releases; `ProjectSettings/`; renderer assets. Each renderer or settings change is its own commit with a BENCH job
+  before merge.
+- Zach decides: design direction and look approvals the card marks as his. The supervisor sends him the shots.
 
-## Shared-file queue
-
-| # | File | Session | Why | State |
-|---|---|---|---|---|
-| 1 | `CLAUDE.md` | Animal behavior manager | Pointer to `GLOSSARY.md` (J-004) | Committed on Zach's direct word (2026-10-29); ships with the post-RC push |
-| 2 | `TerrainSurface.shader`, `BuildChunkMeshJob.cs` | world feature manager | Wet band above the waterline (3b), additive, animal session OK'd | Done (5e971a1) |
-| 3 | `Scenes/World.unity` | Animal behavior manager | Remove the placeholder Body/Visor capsule from Player (feedback A-3) | Done (9887b9a) |
-| 4 | `Grass.shader`, `GroundDetail.hlsl`, `GroundDetailSystem.cs` | world feature manager | Glow on grass (W-18), noise wind and density (19b/c); animal session told | Done (709aad7) |
-| 5 | `FloraSystem.cs`, `Flora.hlsl`, flora culling compute | world feature manager | Tilt field for rocks (W-16), one commit, animal session told | Lent |
-| 6 | URP renderer asset | world feature manager | SSAO tuning (W-14, J-024) | Done (c776a88) |
-| 7 | `TerrainStreamingSystem.cs` | world feature manager | Per-frame chunk-mesh cap while moving (perf batch) | Lent |
-| 10 | `Flora/FloraPlacement.cs` | world feature manager | Biome-border flora compatibility (19e) | Lent |
-| 11 | Sky shader, `WeatherSystem` moon parts | world feature manager | Moon phases and the second blue moon; Sun stays the animal session's | Lent |
-| 9 | `Scripts/Player/PlayerMovementSystem.cs` | animal feature manager | Back to animal after PR #89 (box collision, #79). World lane: ask before editing | Owned |
-| 8 | Shader/PSO warm-up at load, `Weather/WeatherField` redraw rate | kind-possum | Glide hitches, weather job cost; own b/ branch | Lent |
-
-## Open questions
-
-(none; see `JUDGMENT_CALLS.md`)
-
-## Gotchas
-
-- A merge that changes a scene can raise Unity's "reload the scene?" dialog, which silently blocks the editor and
-  the CLI. Check for it if the editor seems hung after a merge.
-- **Adding a landmark type to a biome list reshuffles the whole island** (LandmarkBaking places from one sequential random stream): caves change style, towns move, every bench coordinate goes stale. Flag it to the supervisor and kind-possum before pushing one; prefer props on existing landmarks where that works.
-- Watch line endings in shaders and assets; the world session added a pre-commit check after two accidents.
-- **A Punchy.exe with no path, 0 threads and 0 MB is a dead process entry, not another account's game.** Every lane runs as the same Windows user, so check the command line and its -logFile folder (which session ran it) before reporting someone else is using your build.
-- **No Unity API calls in static field initialisers of any type Burst code reads** (DetailPolicy, policy/tuning classes). Burst runs those initialisers; `Shader.PropertyToID` there failed the compile (BC1091) and silently dropped every job to managed code (terrain 60-100 s per shot instead of ~5 s, R-13 2bcbbba9). Put such IDs in a nested class Burst never touches. If shots suddenly crawl, check the console for Burst errors first.
-
-## Log
-
-- 2026-10-27: Lanes written down from the working arrangement. Light process adopted (J-016). Shared docs on the
-  `coordination` branch (J-014). Both editors stay open (J-015).
-- 2026-10-27: Animal session listed earlier additive edits outside Fauna, all pushed: Ambience (dive splashes),
-  CreatureGhosts (Net), NetMenu stats line, ThirdPersonCamera watch mode, the Flora placement split. Accepted;
-  further edits outside the lane go through the supervisor. Traces done (5a4dd10); b/weather-mapjob merged (a90cfd4).
-- 2026-10-27: World session's lane gains Terrain/Anchors/**, Glacier.asset, GlacierIce.asset; TerrainAuthoring.cs is
-  shared (bake calls). On record: World.unity (one line, Glacier in the biome list, ab49284), PlayerMovementSystem
-  (lava block added 575986b, removed e9df26b, net zero), Water.shader (lava block). Main PC memory: commit 58/64 GB;
-  animal editor restart requested; world session blocked on its subscene load until memory clears.
-- 2026-10-27: Both editors restarted (animal 16.4 to about 7 GB, world 9.6 to 4.6 GB); commit 58.9 to 37 GB. Rule 8 added.
-- 2026-10-27: Friend's repo (anweather/5e-compatible-game) has no licence: ideas only, no copied code or assets
-  without the author's permission.
-- 2026-10-27: Animal session's additive edits to Net/NetPlayer.cs and Net/World/CreatureGhosts.cs (carry
-  replication) accepted; it wrote both. Multiplayer carry test goes on the other PC by Relay, between benchmark runs.
-- 2026-11-03: #24 dungeons: `DungeonSocket` contract pushed on player-client d7ed5eb (Assets/Game/Scripts/Dungeon/DungeonSocket.cs:
-  buffer element; SocketKind, SocketSize, SocketTags flags, DungeonSocket.MakeSeed). Animal lane: start the spawner from it.
-  Changes to it get a heads-up here first.
-- 2026-11-04: #24 socket buffer live on player-client be6d005 (Dungeon/TempleSockets.cs): TempleSocketSystem makes one entity per world
-  "Dungeon (sunken temple)" with DungeonInfo {Id, Type=DungeonTypes.SunkenTemple (1), Sockets, Hash} and a DynamicBuffer<DungeonSocket>
-  (68 on seed 8121: creature 15, chest 8, wall decor 15, interactable 15, clutter 15; hash 9C11B352, same every run). Biome is 0 for now.
-  A-50 spawner: read it, never write it. F9 / -sockets draws them.
+History before 11-13 (old session table, task table, shared-file queue, log): `git show fac41bfb:COORDINATION.md`.

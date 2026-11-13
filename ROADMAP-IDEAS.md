@@ -1,142 +1,87 @@
-# Long-term ideas (Zach)
+# Roadmap ideas (Zach)
 
-Not scheduled. The supervisor adds Zach's long-range ideas here; lanes pull from it when planning past the
-current release. Lane: A = animal, W = world.
+Zach's long-range ideas, paraphrased; one entry per idea. His own wording is on the issue named. The supervisor
+keeps this file; lanes read it only when a card names a section. Before carding an entry, check the issue,
+`lanes/ISSUES-MAP.md`, cards in flight and main.
+
+Standing: the aim and its priorities are in COORDINATION.md. The layout is a test bed and may change
+(`lanes/shared/world-data.md`). Core tenet: small, varied, seeded details everywhere, kept sparse.
+
+## World and far view
+- **Far views (#298).** The whole island in sight: ground to the horizon, far forest, far life. Cards R-22, R-23,
+  A-108, A-109.
+- **Haze by weather (#298, R-22 row 2).** Cloudier and more humid days are hazier; heavy storms far more so.
+  Approved 11-13.
+- **Cliffs (#281, W-155, DESIGN-cliffs.md).** Cliffs built as the ground itself, not pieces on a slope: mountain
+  edges, canyons, road and river cuts, washes, city terraces. Some shelves hold settlements, hermit homes, ruins
+  or flora, for the views.
+- **Rivers (#301, W-153).** No kinks, dead ends or water walls. Reorder the generator if routing is the cause.
+- **Waterfalls (#284, R-21).** One builder for every shape and angle of fall; a subdivided mesh with gentle,
+  uneven curves; vertex displacement for turbulence at the lip and ripples at the base.
+- **Lava and toxic pools (#303, W-154).** Real liquids with their own viscosity; a better lava look.
+- **Lights (#302, R-25).** No light switches on as you approach.
+- **Shadows (#286, R-20).** No flicker. 4096 main shadow map approved.
+- **Stylized realism (#304, R-26).** Less cartoon in bark and cave cracks; cave and terrain detail should match.
+- **Floating islands (#256).** Off the coast, walkable, some with caves, one with a new kind of town. Far islands
+  draw simply, with collision only near the player. Reached by flying for now.
+- **World file (#260).** One day the island is generated once, saved, hand-edited and loaded. Far off; rule 22
+  keeps code ready.
+- **Plant fidelity (#21)** experiments. **Cluster culling (#270)** waits for profiler numbers; individual
+  billboards come first.
+
+## Settlements
+- **Castle walls (#254).** Modular walls, towers, a gatehouse with a working, synced portcullis, interior halls.
+  Rings a city or stands alone; the ruined form is the "old fort" dungeon.
+- **Port town (#255).** One dock town gets a large pier, a boardable galleon (deck, cabins, hold) and a busy main
+  road with stalls and carts.
+- **Sea folk city (#37).** Built and populated (A-103). Next: far town life (A-109).
+
+## Folk and races
+- **Playable races (#291).** Sea folk, bat folk and turtle folk. Bat folk see everything brighter: caves easy,
+  the surface hard, and glasses give them normal sight. Other races get the bat view from glow goggles. Sea folk
+  never run out of breath; on land they keep near water or complain about the dryness. Turtle folk are tall,
+  ancient and magical.
+- **Breath (A-102, P-34).** Works like stamina; air breathers are forced to resurface.
+- **Households and ownership (DESIGN-npc-ownership.md).** Specific folk live in each house, go home to it, and
+  speak of family by name. Later, after P-35: owned items, and theft that angers owners and guards.
+- **Conversation (#25).** What an NPC says depends on personality, skills and culture. First: short lines as you
+  pass. Emotes start a conversation and are how you interact with animals. Later: dialogue options. Text lives in
+  a hand-editable archive outside the build, reloaded live, with fill-in slots filled from the NPC's stats,
+  culture and background.
+- **Skills and attributes.** A small shared template for players and NPCs that grows as features need it.
+  Humanoids start at climb skill 2.
 
 ## Creatures
-- (A) Rare gold variants of creatures. (2026-10-29) Done for v0.10 (1 in 400).
-- (A/W) Sand worm and snow worm (2026-10-30): enormous worms that usually move underground (a ripple or trail
-  in the sand or snow) and periodically burst out in flat, duney areas (desert and glass desert dunes, snowfields).
-  Needs a long segmented body, a ground-disturbance effect from the world side, and rules for where they may surface.
-- Climbable colossi (2026-11-12): sections of a colossus graded on the shared climbability scale (A-101), maybe a fur section to climb; the climb rides the colossus as it moves (#276).
-- Rideable creatures (2026-11-12): any creature can ride another at least 50% heavier than itself (rider mass x 1.5 <= mount mass), so a child can ride an adult, a cat a dog. Players can ride each other in multiplayer: the one being ridden keeps control, the rider is carried (#278).
+- **Sand and snow worms.** Huge worms that travel underground (a ripple or trail) and burst out in dunes and
+  snowfields. Needs a long segmented body, a ground-disturbance effect and surfacing rules.
+- **Riding (#278, A-104).** Any creature may ride one at least 50% heavier. A ridden player keeps control.
+- **Climbable colossi (#276).** Sections graded on the shared climb scale, perhaps a fur section; the climber is
+  carried as the colossus moves.
+- **Gold variants.** Shipped: 1 in 400.
 
-## Dungeons: caves and ruins as expansive dungeons (2026-10-29)
-- Ruin types from different ancient cultures:
-  - old forts;
-  - ancient temples;
-  - a sky civilisation's ruins that fell to the earth;
-  - ancient sand temples;
-  - salt-people temples in the salt flats.
-- They can start big, but the goal is sprawling corridors and rooms.
-- Groundwork that helps, in rough order:
-  - (W/A) Interactive world objects: gates and doors that open and close, torches you light and put out. Their state
-    is synced in multiplayer.
-  - (W) Basic interiors (already on the roadmap), with smart culling: portals or rooms, so only what's visible draws.
-  - (W) Room-and-corridor layout generation, building on cave networks and anchors.
+## Dungeons, items, quests
+- **Dungeons (#24).** Caves and ruins as sprawling corridors and rooms. Ruin cultures: old forts, ancient temples,
+  a fallen sky civilisation, sand temples, salt-people temples in the salt flats. Two phases: set pieces (player
+  lane), then random spawn sockets for creatures and items (animal lanes). Groundwork: synced interactive objects
+  (gates, doors, torches), interiors with room or portal culling, room-and-corridor generation from cave networks.
+- **Items and inventory (#26, P-35).** Player and container inventories; moved objects keep their place, saved and
+  synced, without bloating the world. Plants, animals, crystals and ore yield items; harvestable flora is tagged
+  apart from clutter. One item definition and ID scheme, designed once (rule 27).
+- **Quests (#27).** Built from objective types: fetch and deliver, clear creatures from an area, lead an NPC or
+  animal somewhere, find a rare item. Needs items, places and dialogue; text shares the dialogue archive; progress
+  is synced.
 
-## NPCs and characters (2026-10-29)
-- (A) NPC conversations: what an NPC says depends on its personality, skills and culture modifiers.
-  - Stage 1: short lines an NPC says as you walk by, shown as text.
-  - Emotes start a conversation, and are also how you interact with animals.
-  - Later: dialogue options.
-  - The text lives in an archive outside the build that Zach can edit by hand (for example JSON, YAML or CSV in
-    StreamingAssets, reloaded live).
-  - Lines use fill-in-the-blank slots ({culture_greeting}, {trade}, {home_town}...) that are filled from that NPC's
-    stats, culture and background, with per-culture word lists.
-- (A) Character skills and attributes: start with a small template (health, a few attributes) that grows as features
-  make skills relevant. Shared by players and NPCs.
+## Seasons
+- A generic calendar: day-of-year counter, configurable year length and season count, synced. Values follow
+  curves over the year and never jump at a boundary.
+- Global: sun and moon arcs and day length change through the year.
+- Per biome, a profile by day of year: temperature offset, weather odds, flora look (colour, leaf drop, bloom,
+  snow, dormancy), fauna spawn numbers, water (desert rivers dry most of the year and fill in a monsoon; frozen
+  lakes, spring floods, shrinking ponds).
+- Animals and folk never read the season. Their behaviour changes only through light, temperature and storms
+  (builds on A-71).
 
-## Items and inventory (2026-10-29)
-- Items you can pick up, which are tracked and stored:
-  - a player inventory;
-  - object inventories (chests, carts, shelves);
-  - smart management of objects that can be moved permanently: they keep their position and are saved and synced,
-    without bloating the world.
-- (W/A) Every plant and animal yields items, as do crystals and ore veins.
-  - (W) Tag flora so harvestable plants are told apart from clutter such as rocks and debris.
-- Note: items, inventory and harvesting share a single item definition (asset) and an ID scheme. That should be
-  designed once, before either lane builds on it, and probably counts as a network table change (rule 11).
-
-## Quests (2026-10-29)
-- A quest system built from objective types:
-  - fetch item X and bring it to place Y;
-  - make Z creatures leave an area;
-  - lead an NPC or animal to a special place;
-  - find a rare item.
-- Depends on items/inventory, anchors (places) and NPC dialogue (who gives the quest). Quest text can use the same
-  editable archive and fill-in slots as dialogue. Progress is synced in multiplayer.
-
-## Fire revamp (2026-11-04)
-
-- Ember Forest catches fire at night. Each night it burns in one colour, picked at random (seeded per night, the same for
-  every player): orange (standard, the most common), golden, silver, violet, emerald, crimson, black.
-- One standard fire effect (flame, glow, light, embers, smoke) with a colour setting, used by everything that burns:
-  torches, campfires, ruin sconces, braziers, the forest. Build the shared effect first, then move the existing fires onto it.
-- 2026-11-05: both parts shipped (#131 closed, PRs #152, #153). Zach: passable for now, wants to tweak fire further later.
-  The forest uses 4 colours (Wood, Blue, Green, Violet), not the 7 listed above.
-
-## Seasons (long term, 2026-11-04)
-
-- Generic, not tied to Earth: a world calendar with a day-of-year counter and a configurable year length and number of
-  seasons. Values change gradually day by day (curves over the year), never jumping at a season boundary. Synced in multiplayer.
-- Global: the sun and moon arcs (height, rising and setting points) and the length of day versus night change across the year.
-- Per biome, a season profile driven by the day of the year:
-  - temperature offset;
-  - weather odds (rain, snow, storms, fog, wind);
-  - flora appearance (colour shifts, leaf drop, bloom, snow cover, dormant plants);
-  - fauna spawn rates (which species appear, and how many). Spawn numbers only, no behaviour.
-  - water: desert rivers are dry beds most of the year (cracked mud, stranded driftwood) and flow in a monsoon season,
-    filling gradually. Other seasonal water could follow the same idea (frozen lakes, spring floods, shrinking ponds).
-- No season-driven tasks or scripted seasonal behaviour for animals or humanoids. They never read the season. Any change
-  in what they do emerges only from their response to the environment it changes: light, temperature and storms.
-  This builds on the weather comfort work (A-71).
-
-## Settlements and places (2026-11-10)
-- (W) Castle walls (#254): modular wall segments, towers and a gatehouse with a working portcullis (state synced in
-  multiplayer), plus interior halls. Used to ring a city or as a standalone fort. A ruined version covers the
-  "old forts" dungeon type.
-- (W/A) Port town (#255): one dock town gets a larger pier with a galleon you can board (deck, cabins, hold), and a
-  bustling main road (more folk, stalls, carts). Builds on #36 and the pier networks.
-- (W) Floating islands (#256): off the coast over the ocean, walkable, some with caves inside; one carries a new kind
-  of town. Asked for before (11-09 audit, W-113 "floating archipelago") but never logged until now. Far islands
-  draw simply; collision only near the player. Reached by flying for now (Zach 11-10).
-- (W) Cliff and mountain geometry beyond the heightmap (#281, 2026-11-12): big separate rock pieces on cliffs and
-  mountain faces with real texture, strata, overhangs and ledges, which the heightmap can't do. Ties into climbing
-  (grades, shimmy ledges) and gives shelves for mountaintop settlements and ruins. Design study first (W-149).
-  Zach 11-12: shelves can hold settlements, hermit homes, ruins, even flora; not all, but some, for the views.
-  Carded: R-19 (triplanar rock on steep ground), W-150 (cliff kit, shelves offered to places).
-
-
-## Current roadmap (snapshot 2026-11-12, from open GitHub issues)
-
-Done from Zach's 2026-11-03 order: the modular kit and colossi (#40), fishing villages (#36), bat folk and cave
-pygmies (#35, #10), turtle folk (#38). Core rule throughout: small, varied, seeded details everywhere, kept sparse.
-
-### Open, not yet started
-- Far views (#298). Zach 11-13: "I am looking for a world that feels expansive, yet full of life and detail. Fidelity of
-  distant views is very important, wanting to make sure the whole island feels grounded in beautiful nature."
-  Review of main found: ground drawn to 2-3 km on a 9 km island, haze tied to the draw edge, no far forest, no far life.
-  Carded: R-22 (whole-island ground, atmosphere, canopy map, terrain LOD by screen size), R-23 (one surface lighting
-  path), A-108 (herds, flocks, town life at a distance). P-35: item definition and saved state designed once (#26).
-  Until P-35's design is agreed, no new feature that needs items, ownership or saved state gets a stand-in of its own.
-- Sea folk underwater city in the central lake (#37): the city, landing pier and road exist; nobody lives there yet (A-103).
-  Zach 11-12: the next big item. NPCs swim under water; a breath meter that works like stamina; sea folk never use breath
-  under water; NPCs that do are forced to resurface. Carded: A-102 (diving, breath), P-34 (meter).
-  Zach 11-12: the city already exists, it's just not populated; the turtle folk igloos in the mountains are empty too.
-  Carded: A-103 (turtle folk and sea folk races, residents in the igloos and shell domes).
-  Zach 11-12: "Seafolk and bat folk should both be playable. The bat folk should see everything brighter, making caves easy but the surface difficult." #291, carded A-103 rows 4-5.
-  Zach 11-12: "Turtle folk are also playable." Added to A-103 row 4.
-  Zach 11-12: "The bat folk can put on glasses to see normally on the surface." Added to A-103 row 5.
-  Zach 11-12: "Seafolk NPCs don't like being in the surface, but they can be found on cities and on the surface complaining about how dry it is or staying near water." Carded A-103 row 2b.
-  Zach 11-12: "Other races can put on glow goggles to see like the bat people." Added to A-103 row 5.
-  Zach 11-12: the turtle folk are tall, ancient, and magical (A-103 row 1).
-- Castle walls: modular walls, towers, a working portcullis, interior halls (#254).
-- Dock town with a big pier, a boardable galleon and a busy main road (#255).
-- Floating islands off the coast, walkable, with caves and a new kind of town (#256).
-- Climbable colossi, maybe a fur section (#276), after unified climbing (A-101, W-144, W-147).
-- Rideable creatures: anything rides a creature 50% heavier; the ridden player steers (#278).
-- Cliff and mountain geometry: overhangs, ledges, strata as separate rock pieces (#281); W-149 done, R-19 and W-150 carded.
-- Zach 11-13, problems he keeps running into: water kinks and dead ends (#301, W-153), lights switching on as you approach (#302, R-25), shadow flicker (#286, R-20), lava look (#303, W-154), cartoon bark and cave cracks plus cave/terrain detail contrast (#304, R-26).
-- Weather-set haze (Zach 11-13): cloudier, more humid days thicker; heavy storms dramatically thicker (#298, R-22 row 2). Haze change approved.
-
-### Open, partly done
-- Dungeons (#24), NPCs (#25), items and gear (#26), quests (#27): player lane cards in flight.
-- Plant fidelity experiments (#21).
-- Cluster culling (#270): waits for profiler numbers.
-- World layout is free to change (Zach 11-13; applies to W-155, W-153, W-154 and later world cards): "The game is still in early development, so the actual design of the world needs to come far second to the development of systems, including procedural generation. The final game will have a very different layout. My only concern about making world adjustments is the impact on profiling and the requirement of new test scripts. I am not attached to anything regarding the current layout. Feel free to make dramatic modifications to the world."
-- Better cliffs (Zach 11-13, #281; description in DESIGN-cliffs.md on the coordination branch, not carded): "The current generator has very uniform faces. There is an effort started to use real geometry to improve them, but the results are lackluster, not blending well or looking like a real cliff face and instead some bricks wedged into the ground. I need a solid description of how to make better looking cliffs: mountain edges, canyons, road and river cuts, washes, and even ledges for stepped terrain in cities."
-- River generator order and one waterfall method (Zach 11-13, #301, #284; carded as W-153 row 1b and R-21 row 4): "Not sure if there's a more sensible order of operations in the generator rules to mitigate River issues if the routing is a big part of the problem, but I'd like a unified waterfall methodology that is robust to different shapes and angles of falls".
-- Waterfall geometry (Zach 11-13, #284, #301; carded as R-21 row 4): "Part of the issue with river geometry is the waterfalls. They should subdivide the mesh for gentler curves and less uniformity. Ideally they would use vertex displacement on the top of the fall to simulate turbulence and again at the base of the fall to ripple in response to the falling cascade".
-
-Before carding any of these, check the issue, lanes/ISSUES-MAP.md, in-flight cards and main so it isn't already done.
+## Fire
+- One shared fire effect with a colour setting, used by everything that burns; Ember Forest burns one seeded
+  colour per night. Shipped (#131) with 4 colours of the 7 asked for (orange, golden, silver, violet, emerald,
+  crimson, black). Zach wants further tweaks later.

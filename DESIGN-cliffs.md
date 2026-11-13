@@ -1,12 +1,8 @@
 # DESIGN: cliffs that look like cliffs (#281)
 
-Zach 11-13: "The current generator has very uniform faces. There is an effort started to use real geometry to improve
-them, but the results are lackluster, not blending well or looking like a real cliff face and instead some bricks
-wedged into the ground. I need a solid description of how to make better looking cliffs: mountain edges, canyons, road
-and river cuts, washes, and even ledges for stepped terrain in cities."
-
-Status: carded as W-155 (11-13). It replaces the approach of W-150 (the
-cliff kit); R-19's steep-rock shading stays and is reused.
+Asked for by Zach 11-13: how to make cliffs that look real, for mountain edges, canyons, road and river cuts,
+washes and city terraces. Built by W-155. R-19's steep-rock shading is the skin's material. From W-150 (the cliff
+kit) the ledge, ground, ceiling and shelf records carry over; its placed slabs remain only as fallen and rim blocks.
 
 ## Why the two attempts so far fall short
 
@@ -103,16 +99,3 @@ arches where a buttress has been cut off, no scree.
 5. **Far test:** from R-22's fixed vantage points the cliff reads as a cliff, and its outline does not change on approach.
 6. **Belonging test:** rubble below, life on ledges, set-back plants at the rim, matching beds across a canyon.
 7. Walkable, climbable and standing-under all agree with what is seen.
-
-## What this means for work already done
-
-- R-19 (steep rock shading, PR #285): kept; it becomes the skin's material.
-- W-150 (cliff kit): its records for ledges, ground and ceiling queries and shelves carry over; its placed slab
-  pieces are dropped, except as fallen and rim blocks.
-- Placement: true steps in the height field move ground, so plots, flora and some landmarks near scarps will move and
-  the fingerprint will change. Zach 11-13: the layout is free to change; each such row re-pins hashes, fixes tests and vantage points, and tells the profiler.
-
-## Suggested first step (not started)
-
-One builder, two test scarps at opposite ends of the range (a canyon wall and a river cut), shown to Zach as clay
-shots first, then with the material. Only then the other kinds, the generator step, and distance tiers.
