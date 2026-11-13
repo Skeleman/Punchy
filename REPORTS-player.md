@@ -1450,3 +1450,47 @@ Results:
   - the CreatureNet bandwidth from wider kit ids (10 ushort per folk, delta-compressed): the profiler's to measure;
   - the lag cost of host-checked equips (estimated from P-31 numbers, not tried).
 - **Next:** P-33 row 3's rebuild and checks are running; then the P-33 row 3 report.
+
+## P-33 row 3 (#266): real catches and fish at the bobber. DONE, `player/fishing` ef77443b (origin/main ed4e6aa1 merged)
+- **Catches:** `FaunaFishSource` rolls them through A-100's `FishCatch.Roll` (kind of water, rarity, hour, biome).
+  StubFishSource is kept for tests. Junk gets `FishBite.Junk` and is reeled in and thrown back, not put in the
+  inventory. Names read "an old boot", "a trout". Catches per spot (solo, Dev build, `-fishplay`):
+  - sea at the beach: flounder 42 cm, sea bream 36 and 29;
+  - river at the crossing: trout 30, missed;
+  - cave pool: blind cavefish 11 and 10, ghost sturgeon 104, all three snapped;
+  - sparkle forest lake (`-place lake`): perch 25, carp 47;
+  - joined client at the beach: mackerel 29, then "reeled in an old boot (junk, thrown back)".
+- **The bobber (A-100 row 2 hooks)**, on the host or solo, keyed by the caster's network id (0 solo):
+  - FishLure.Cast on the wait;
+  - Bite at the bite;
+  - Scatter on a miss or snap;
+  - Clear on a catch or reel-in.
+  - A joined client's bite wait reaches the host in a **new `FishWaitRpc { float Wait }`**, a new struct with no
+    existing RPC grown. Host log: "player 2's bite in 4.5 s: fish come to its bobber", then "player 2: a bite /
+    hooked / caught".
+- **Checks:**
+  - host + client: exceptions 0 and deserialize 0 on both;
+  - solo runs: exceptions 0;
+  - suite `40 passed, 0 failed, 17 skipped in 369s`;
+  - lod-lint rc 0;
+  - Fauna_Fingerprint held: it's in the suite, with no fauna change.
+  - Shots in PunchyMilestones/P-33/ (fish3-<spot>-<play>-NN): 38 beach, 38 river, 45 cave pool, 43 lake.
+- **FINDING for the animal lane (A-100 row 3):** in normal play no fish was within reach of a bobber. A new log line
+  counts swimming creatures within 3 m at each bite. Every bite logged 0, with the nearest fish:
+  - beach 102-124 m;
+  - river 63 m;
+  - cave pool 6141 m (no fish in the cave);
+  - A-100's own lake shore 35-36 m.
+
+  FishLure only draws the nearest 3 within 8 m, so nobody sees fish come to the bobber yet. The fish side needs fish
+  where people cast: a wider reach, or fish spawned near a cast bobber, the animal lane's call.
+- **UNVERIFIED:** fish visible at the bobber in a shot. None were in reach (above), and the camera is too far to see
+  under water anyway.
+- **Known:**
+  - the "clearlake" place classifies as sea (surface 0.00), so it catches mackerel and cod: a place-name quirk, not
+    the tables;
+  - junk rolls a size ("an old boot (31 cm)") in the wait line only.
+- **Next:**
+  - P-33 row 4 waits for Zach's feel comments;
+  - P-35 row 1 design is up (section above), waiting on Zach's answers;
+  - P-34 waits for A-102 row 3.
