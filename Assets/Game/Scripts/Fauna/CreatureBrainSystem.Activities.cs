@@ -390,7 +390,7 @@ namespace Punchy.Fauna
                 var lounge = b.Upright && b.Hands && s.Leash > 0f && sleepy < 0.3f && Night < 0.3f && s.Task != CreatureTask.Patrol ? 0.2f * awake : 0f;
                 // Townsfolk now and then go for a swim, in the warm middle of the day.
                 // (Water folk wade and swim in the shallows near home far more often: #10.)
-                var swim = b.Upright && b.Hands && s.Leash > 0f && sleepy < 0.2f && Night < 0.2f && s.Task != CreatureTask.Patrol ? (0.12f + b.Wades * 1.2f) * awake : 0f;
+                var swim = b.Upright && b.Hands && s.Leash > 0f && sleepy < 0.2f && Night < 0.2f && s.Task != CreatureTask.Patrol && !b.WalksBed ? (0.12f + b.Wades * 1.2f) * awake : 0f;
                 if (climb > 0f && sleepy > 0.5f)
                     sleep *= 0.2f;
                 // Web spinners spend most of their time in their web.

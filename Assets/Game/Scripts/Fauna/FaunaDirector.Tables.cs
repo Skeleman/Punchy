@@ -17,7 +17,9 @@ namespace Punchy.Fauna
         /// <summary>A-89 row 3: the marsh folk village's frogs on lily pads, its heron in the shallows, its dragonflies.</summary>
         MarshFrog, MarshHeron, MarshDragonfly,
         /// <summary>A-103 row 1: the turtle folk households, one per igloo of a turtle village (Count: folk per igloo).</summary>
-        TurtleHousehold
+        TurtleHousehold,
+        /// <summary>A-103 row 2: the sea folk households, one per shell dome of the lake village (Count: folk per dome).</summary>
+        SeaHousehold
     }
 
     /// <summary>

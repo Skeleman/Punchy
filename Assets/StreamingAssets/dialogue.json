@@ -374,6 +374,36 @@
         { "text": "I have outlived many rude ones. I will outlive you.", "stance": "Annoyed" }
       ]
     },
+    "SeaFolk": {
+      "words": {
+        "culture_greeting": ["Bright water to you", "Ah! A dry one", "Welcome down, air-breather"],
+        "trade.Fish": ["fisher of the shallows", "line-caster"],
+        "town_start": ["Pearl", "Kelp", "Shell", "Deep", "Glim"],
+        "town_end": ["reef", "hollow", "bed", "dome", "spire"]
+      },
+      "lines": [
+        "{culture_greeting}.",
+        "You came down without a dome? Brave. Or silly.",
+        "Up there the water just... stops? How do you bear it?",
+        "Mind the clam beds. They nip.",
+        "The glow stones were planted by our grandmothers' grandmothers.",
+        { "text": "Sometimes I walk up the bank just to feel heavy. Then I come back.", "weight": 2 },
+        { "text": "The fish school circles the spire at noon. Every day. Nobody knows why.", "weight": 2 },
+        { "text": "Your hair is so still. Doesn't it get bored?", "mood": "Cheerful" },
+        { "text": "Bubbles everywhere, every time one of you visits.", "mood": "Grumpy" },
+        { "text": "The shallows are warm today. The fish come up to see.", "trade": "Fish" },
+        { "text": "A good bite off the raft! Don't tell the others.", "trade": "Fish", "mood": "Cheerful" },
+        { "text": "The dry ones on the pier scare off everything. Shoo.", "trade": "Fish", "mood": "Grumpy" },
+        { "text": "The light's going green. Home soon, down by the domes.", "when": "evening" },
+        { "text": "The glow stones are bright tonight. Hush, the little ones sleep.", "when": "night" },
+        { "text": "Sunbeams through the water. Best part of the day.", "when": "morning" },
+        { "text": "A wave! We wave like this down here. Slower.", "emote": "Wave" },
+        { "text": "Oh, a bow. My fins thank you.", "emote": "Bow" },
+        { "text": "You dance like a crab. That's a compliment.", "emote": ["Cheer", "Dance"] },
+        { "text": "You stir up the silt, {player}. Walk gently.", "stance": "Wary" },
+        { "text": "Back up to your air, {player}.", "stance": "Annoyed" }
+      ]
+    },
     "Ghost": {
       "lines": [
         "You're new. I can tell. You still flicker.",
@@ -624,6 +654,18 @@
       "news": [{ "text": "The runes on the old stones flicker at night. Something stirs under the ice.", "curiosity": ["mid", "high"], "offer": "rumour:ice" }],
       "bye": [{ "text": "Go slowly, quick one.", "gesture": "Bow" }]
     },
+    "SeaFolk": {
+      "who": ["Born under the third dome. Never been dry for long.", { "text": "A {trade}. I bring the fish down to the domes.", "job": true }],
+      "how": [
+        { "text": "Wet, warm and well. Like always.", "mood": "Cheerful" },
+        { "text": "My gills itch. Silt from the stream again.", "mood": "Grumpy" },
+        { "text": "Rain on the surface sounds like music from down here.", "state": "weather", "weather": "Rain" }
+      ],
+      "work": [{ "text": "Fish up top, home down below. The walk keeps me young.", "job": true }],
+      "town": ["The domes grow a little every year. We feed them shell."],
+      "news": [{ "text": "Something big sleeps in the wreck past the reef. The fish won't go near it.", "curiosity": ["mid", "high"], "offer": "rumour:wreck" }],
+      "bye": [{ "text": "Bright water, dry one.", "gesture": "Wave" }]
+    },
     "Hermit": {
       "who": ["Nobody. That's the point."],
       "how": ["Alone. As I like it."],
@@ -754,6 +796,12 @@
       "puzzled": ["You look at me as if I know something. I usually do."],
       "awed": ["Ah. An old one, like me."],
       "bye": ["Go slowly, little beast."]
+    },
+    "SeaFolk": {
+      "pet": [{ "text": "A little dry thing! Does it swim? No? Poor dear.", "gesture": "Pet" }],
+      "puzzled": ["You blink so much. Is the air in your eyes?"],
+      "awed": ["Bigger than the old pike. Bigger than the wreck, nearly."],
+      "bye": ["Off you go, dry one."]
     },
     "Hermit": {
       "pet": ["Only the animals come by. Suits me. Sit, if you like."],

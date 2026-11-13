@@ -17,7 +17,8 @@
  "alias": {
   "Hermit": "Grumpy",
   "Pygmy": "Cheerful",
-  "TurtleFolk": "Proud"
+  "TurtleFolk": "Proud",
+  "SeaFolk": "FishFolk"
  },
  "lines": {
   "Hot": {

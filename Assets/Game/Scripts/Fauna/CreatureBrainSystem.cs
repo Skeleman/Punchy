@@ -527,11 +527,14 @@ namespace Punchy.Fauna
             /// <summary>This creature's CreatureMind while it ticks (#58: a copy, written back after, so every helper
             /// reaches it without passing it along; the job struct is each worker's own, as with Dt and Step).</summary>
             CreatureMind M;
+            /// <summary>This creature walks the lake bed (A-103 sea folk): deep water is ground to it (Walkable).</summary>
+            bool BedWalk;
 
             void Run(Entity self, ref CreatureState s, ref CreatureMind mind, in CreatureBody body)
             {
                 var started = Timed ? Unity.Profiling.LowLevel.Unsafe.ProfilerUnsafeUtility.Timestamp : 0L;
                 M = mind;
+                BedWalk = body.Blob.Value.WalksBed;
                 Tick(self, ref s, in body);
                 mind = M;
                 if (Timed)

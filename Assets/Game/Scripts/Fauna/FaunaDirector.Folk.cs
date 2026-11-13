@@ -250,6 +250,7 @@ namespace Punchy.Fauna
                 SpawnLakeLife(source, landmarks[inst.Type], inst, i, radius);   // (A-88 row 2: the sea folk lake's fish)
                 SpawnMarshLife(source, landmarks[inst.Type], inst, i, radius);  // (A-89 row 3: the marsh folk village's frogs, heron, dragonflies)
                 SpawnTurtleFolk(source, landmarks[inst.Type], inst, i, radius); // (A-103 row 1: a turtle folk household in each igloo)
+                SpawnSeaFolk(source, landmarks[inst.Type], inst, i, radius);    // (A-103 row 2: a sea folk household in each dome, workers at the landing)
                 // Village jobs (A-29): free grown townsfolk take the posts this landmark's anchors offer (a baker at the
                 // hearth, a herder by the yard, a fisher at the nearest water...), more the bigger the village, at least
                 // one left free. Sized from the residents' smallest counts and no rng drawn, so every spawn draw stays.

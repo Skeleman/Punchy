@@ -780,7 +780,7 @@ namespace Punchy.Fauna
                     return depth >= 0.7f;
                 if (habitat == Habitat.Floats)
                     return depth >= 0.3f;
-                return depth <= 0.15f && !Terrain.IsCaveHole(xz);
+                return (depth <= 0.15f || BedWalk) && !Terrain.IsCaveHole(xz);
             }
 
             float SlopeAhead(float2 from, float2 to)
