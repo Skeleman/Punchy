@@ -109,6 +109,7 @@ Shader "Punchy/Water"
             {
                 float4 positionCS : SV_POSITION;
                 float2 restXZ     : TEXCOORD0;   // where the point is before the swell moves it
+                float3 positionWS : TEXCOORD1;   // where it ends up (R-21: is it behind a river curtain)
             };
 
             DepthVaryings DepthVert(DepthAttributes input)
@@ -119,10 +120,11 @@ Shader "Punchy/Water"
                 float3 rest = TransformObjectToWorld(input.positionOS);
                 o.restXZ = rest.xz;
             #ifdef _WATER_FIELD
-                o.positionCS = TransformWorldToHClip(PunchyWaterPatchVertex(rest, input.data, input.parent, input.parentY, _PunchyClock, swell));
+                o.positionWS = PunchyWaterPatchVertex(rest, input.data, input.parent, input.parentY, _PunchyClock, swell);
             #else
-                o.positionCS = TransformWorldToHClip(PunchySwellVertex(rest, input.data.z, _PunchyClock, swell));
+                o.positionWS = PunchySwellVertex(rest, input.data.z, _PunchyClock, swell);
             #endif
+                o.positionCS = TransformWorldToHClip(o.positionWS);
                 return o;
             }
 
@@ -132,6 +134,8 @@ Shader "Punchy/Water"
                 // (The fine sheet stands in for the chunk water near the player; cave water is never under it.)
                 clip(PunchyWaterInPatch(input.restXZ) && _UnderRock < 0.5 ? -1 : 1);
             #endif
+                // (R-21: a river fall's face is drawn by its curtain, LandmarkEffectSystem.cs.)
+                clip(_UnderRock < 0.5 && PunchyWaterUnderCurtain(input.positionWS) ? -1 : 1);
                 return 0;
             }
             ENDHLSL
@@ -533,6 +537,8 @@ Shader "Punchy/Water"
                 // (R-9: the fine sheet stands in for the chunk water near the player; cave water is never under it.)
                 clip(PunchyWaterInPatch(input.restXZ) && _UnderRock < 0.5 ? -1 : 1);
             #endif
+                // (R-21: a river fall's face, here or on the fine sheet, is drawn by its curtain, LandmarkEffectSystem.cs.)
+                clip(_UnderRock < 0.5 && PunchyWaterUnderCurtain(input.positionWS) ? -1 : 1);
                 float t = _PunchyClock;   // the shared clock, so every player sees the same ripples
                 float2 p = input.positionWS.xz;
                 float2 flow = input.data.xy;

@@ -63,8 +63,19 @@ Shader "Punchy/Landmark Waterfall"
                 float foam = saturate(uv.y * lerp(0.9, 0.6, e.underRock) + (streak - 0.5) * 0.8);
 
                 float edges = smoothstep(0, 0.12, uv.x) * smoothstep(1, 0.88, uv.x);
+                // R-21: in the open the sides are cut by noise, in metres, over a band that widens down the fall, and
+                // thin threads of water hang in it where the sheet has broken up.
+                float wide = e.shape.y * (1 - 0.12 * uv.y);
+                float fromEdge = min(uv.x, 1 - uv.x) * wide;
+                float fray = (0.25 + 1.4 * uv.y) * clamp(wide * 0.15, 1, 3);   // (wider falls break up over more)
+                float cut = PunchyValueNoise(float2(uv.x * wide * 0.7 + 5.0, along * 0.35));
+                float strand = smoothstep(0.6, 0.8, PunchyValueNoise(float2(uv.x * wide * 3.0 + 31.0, along * 0.25)));
+                float openEdges = max(smoothstep(0, fray, fromEdge - (cut - 0.35) * fray), strand * 0.8) * smoothstep(0, 0.06, fromEdge);
+                edges = lerp(openEdges, edges, e.underRock);
                 float ragged = smoothstep(0.25, 0.55, streak + 0.35 - abs(uv.x - 0.5) * 0.6);
-                half alpha = e.timing.z * edges * lerp(lerp(0.55, 0.12, e.underRock), 1, streak) * lerp(ragged, 1, 0.5) * smoothstep(0, 0.03, uv.y);
+                half alpha = e.timing.z * edges * lerp(lerp(0.55, 0.12, e.underRock), 1, streak) * lerp(ragged, 1, lerp(0.8, 0.5, e.underRock)) * smoothstep(0, 0.03, uv.y);
+                // The open sheet thins as it falls.
+                alpha *= lerp(1, 1 - 0.22 * uv.y, 1 - e.underRock);
                 // Under rock the top frays out of the notch rather than starting on a straight edge.
                 alpha *= lerp(1, smoothstep(0, 0.12, uv.y + (streak - 0.5) * 0.1), e.underRock);
                 clip(alpha - 0.01);
