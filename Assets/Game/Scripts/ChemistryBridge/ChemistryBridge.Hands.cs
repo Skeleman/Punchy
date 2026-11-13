@@ -17,12 +17,12 @@ namespace Punchy.Chemistry
     /// screen centre, pulled back to the gesture's range, and cast into the window like the keys' spells. Holding d-pad up
     /// opens an element radial: the right stick picks, and letting go attunes the hand whose trigger is held (else the
     /// left; one element attuned is on both hands). The pad rumbles as a hand charges, at each level and as it goes off.
-    /// The actions are the bridge's own map, so Punchy's InputSystem_Actions is untouched. Local only, like the bridge.
+    /// The actions are the bridge's own map, so Punchy's InputSystem_Actions is untouched. Every hand command is a request on
+    /// the session's combos channel (ChemistryBridge.Lockstep.cs): the hands' state is the shared world's, so it lands on
+    /// the same tick on every peer, and only this peer aims what its own wizard (Me) sets off.
     /// </summary>
     public partial class ChemistryBridge
     {
-        /// <summary>The wizard's name in the core (one local player).</summary>
-        public const string Me = "me";
         // How long d-pad up is held before the radial opens (shorter is a tap: Punchy's wave).
         public const float RadialHold = 0.25f;
         const float StickPick = 0.5f;
@@ -90,12 +90,11 @@ namespace Punchy.Chemistry
             mergeShown = lastMerge = null;
         }
 
+        // Asked of the host, so taken or not is known a tick or so later: what the core won't take does nothing there.
         bool Send(ComboCommand command)
         {
-            bool taken = world.ApplyCombo(command);
-            if (!taken)
-                Debug.Log($"[Chemistry] hands: the core refused {command.Kind} (hand {command.Step}{(command.Element != null ? ", " + command.Element : "")})");
-            return taken;
+            session.Request(combos, command);
+            return true;
         }
 
         void Hands(TerrainSource terrain, float3 playerPos)
@@ -112,9 +111,9 @@ namespace Punchy.Chemistry
                 if (handHeld[hand] && (still || !ButtonDown(hand)))
                 {
                     handHeld[hand] = false;
-                    // (A merge goes off on either hand's release: the other's button is already let go in the core.)
-                    if (world.HandsOf(Me).Down[hand])
-                        Send(ComboCommand.HandUp(Me, hand));
+                    // (Always, though a merge may have let this hand go in the core already: its HandDown may not have
+                    // landed yet either, and a HandUp the core doesn't take does nothing.)
+                    Send(ComboCommand.HandUp(Me, hand));
                 }
             if (!still)
             {
@@ -277,18 +276,14 @@ namespace Punchy.Chemistry
             bool merged = fired.Name != null && rules.Sim.Hold.Hands.Find(fired.Spell).slot?.Contains('+') == true;
             if (merged)
                 (mergeFlashAt, mergeShown) = (Time.unscaledTime, fired.Spell);
-            world.Cast(new CastCommand(fired.Spell, x, y, dir ?? 2, fired.Charge, aimX, aimY, Me));
+            session.Request(casts, new CastCommand(fired.Spell, x, y, dir ?? 2, fired.Charge, aimX, aimY, Me));
             LastHandSpell = fired.Spell;
             LastHandCharge = fired.Charge;
             LastHandCell = new Vector2Int(x, y);
             LastHandMerged = merged;
             HandCasts++;
-            var cell = world.At(x, y);
             Debug.Log($"[Chemistry] hands: {(merged ? "both hands" : "a hand")} cast {s.Name} (charge {fired.Charge}, range {fired.Range}) at cell ({x}, {y}) " +
-                      $"seeded {KindName(seeded[y * Size + x])}, aimed ({hx}, {hy}): now {cell.T}, fire {cell.Fire}, water {cell.Water}, frozen {cell.Frozen}. Log: {LastLog()}");
-            shownTick = -1;   // show the cast at once
-            UpdateMap();
-            shownTick = world.Tick;
+                      $"seeded {KindName(seeded[y * Size + x])}, aimed ({hx}, {hy}): asked for (tick {session.NetTick})");
         }
 
         // Fine steps per cell of an aim's vector (World.SnapAim's).

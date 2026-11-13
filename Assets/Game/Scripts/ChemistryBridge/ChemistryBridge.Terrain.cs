@@ -61,7 +61,7 @@ namespace Punchy.Chemistry
             deltas ??= new float[Size * Size];
             for (int y = 0; y < Size; y++)
                 for (int x = 0; x < Size; x++)
-                    seededSteps[y * Size + x] = shownSteps[y * Size + x] = world.At(x, y).Height;
+                    seededSteps[y * Size + x] = shownSteps[y * Size + x] = seeded[y * Size + x] == KindWater ? -2 : 0;   // (RegionSource's)
             Array.Clear(deltas, 0, deltas.Length);
             movedCells = 0;
         }

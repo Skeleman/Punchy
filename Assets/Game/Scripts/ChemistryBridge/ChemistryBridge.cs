@@ -1,5 +1,8 @@
 using System.Diagnostics;
 using System.IO;
+using Chem;
+using Chem.Lockstep;
+using Punchy.Net;
 using Punchy.Player;
 using Punchy.Terrain;
 using Unity.Burst;
@@ -46,12 +49,13 @@ namespace Punchy.Chemistry
         static readonly int OnId = Shader.PropertyToID("_PunchyChemOn");
 
         Chem.Rules rules;
-        Chem.World world;
+        Chem.World viewWorld;     // the world the view was last set up for (a snapshot or a reset replaces it)
         int2 corner;              // world XZ (m) of cell (0, 0)
         byte[] seeded;            // the kind each cell was seeded as
         Texture2D map, map2;
         Color32[] texels, texels2;
         float[] heights;          // the ground (or water surface) at each cell's centre, for the flames and puffs
+        float[] baseHeights;      // as sampled, before any height edit
         readonly ChemistryEffects effects = new ChemistryEffects();
         // Last map's state per cell (bit 0 frozen, 1 burning, 2 steam) and water, to count what changed.
         byte[] lastState;
@@ -59,7 +63,6 @@ namespace Punchy.Chemistry
         // What the chemistry did since the window was seeded, as the map saw it change (README: "reactions").
         int melted, doused, boiled, steamed, condensed;
         int shownTick = -1;
-        float tickClock;
         float nextReport;
         double tickMsThisSecond, mapMsThisSecond, fxMsThisSecond;
         int framesThisSecond;
@@ -109,6 +112,7 @@ namespace Punchy.Chemistry
                 return;
             }
             StartHands();
+            HookLockstep();
         }
 
         void OnDisable()
@@ -125,12 +129,13 @@ namespace Punchy.Chemistry
             if (seedHeights.IsCreated)
                 seedHeights.Dispose();
             effects.Dispose();
-            ForgetLand();
+            DropSession();
             DisposeLand();
         }
 
         void OnDestroy()
         {
+            GameBootstrap.WorldsReplacing -= OnWorldsReplacing;
             if (map != null)
                 Destroy(map);
             if (map2 != null)
@@ -156,10 +161,24 @@ namespace Punchy.Chemistry
 
         void Update()
         {
+            if (dropSession)
+                DropSession();
             if (!EnsureQueries() || !terrainQuery.TryGetSingleton<TerrainSource>(out var terrain)
                 || !playerQuery.TryGetSingleton<LocalTransform>(out var player))
                 return;
             var playerXZ = player.Position.xz;
+            var role = CurrentRole();
+            if (role == null)
+                return;
+            if (session != null && role != sessionRole)
+                DropSession();
+            if (role == LockstepRole.Client && session == null)
+                StartClient();
+
+            // The session first, every frame, whatever the view is doing: only the host's clock paces the ticks.
+            watch.Restart();
+            session?.Update(Time.deltaTime, () => watch.Elapsed.TotalMilliseconds > TickBudgetMs);
+            tickMsThisSecond += watch.Elapsed.TotalMilliseconds;
 
             if (seeding)
             {
@@ -168,33 +187,33 @@ namespace Punchy.Chemistry
                 else
                     return;
             }
-            // (Also when the terrain itself changes: at start-up the first TerrainSource is a stand-in whose surfaces
-            // aren't baked yet, so a window seeded from it has the wrong grass.)
-            if (world == null || !terrain.Equals(seededSource) || math.distance(playerXZ, (float2)(corner + Size / 2)) > RecentreDistance)
+            if (role == LockstepRole.Client)
             {
-                StartSeed(terrain, playerXZ);
+                // The host's region came in the hello; the heights under it are sampled here, for the view alone.
+                if (region == null || !session.Synced)
+                    return;
+                if (heights == null || !terrain.Equals(seededSource))
+                {
+                    StartSeed(terrain, region.Corner, true);
+                    return;
+                }
+            }
+            // (Also when the terrain itself changes: at start-up the first TerrainSource is a stand-in whose surfaces
+            // aren't baked yet, so a region seeded from it has the wrong grass. A host with peers keeps its region, and
+            // only solo follows the player: a shared region stays where it was filled.)
+            else if (world == null || (!terrain.Equals(seededSource) && (role == LockstepRole.Solo || net == null || net.Peers.Count == 0))
+                     || (role == LockstepRole.Solo && math.distance(playerXZ, (float2)(corner + Size / 2)) > RecentreDistance))
+            {
+                StartSeed(terrain, (int2)math.floor(playerXZ) - Size / 2, false);
                 return;
             }
+            if (world != viewWorld)
+                NewView();
 
             HandleInput(terrain, playerXZ);
             Hands(terrain, player.Position);
             if (demo && !demoDone && Time.unscaledTime >= demoAt)
                 Demo(player.Position);
-
-            watch.Restart();
-            tickClock += Time.deltaTime;
-            var tickLength = 1f / Mathf.Max(1, rules.Sim.TicksPerSecond);
-            // (After a long hitch, catch up at most a second of ticks.)
-            tickClock = Mathf.Min(tickClock, 1f);
-            while (tickClock >= tickLength || world.TickInProgress)
-            {
-                if (!world.StepSome(() => watch.Elapsed.TotalMilliseconds > TickBudgetMs))
-                    break;
-                tickClock -= tickLength;
-                if (watch.Elapsed.TotalMilliseconds > TickBudgetMs)
-                    break;
-            }
-            tickMsThisSecond += watch.Elapsed.TotalMilliseconds;
 
             if (world.Tick != shownTick && !world.TickInProgress)
             {
@@ -214,10 +233,15 @@ namespace Punchy.Chemistry
 
         // ------------------------------------------------------------------------------------------------ seeding
 
-        void StartSeed(TerrainSource terrain, float2 playerXZ)
+        // The seed sampling: the region's kinds and heights (host and solo), or the heights alone (a client).
+        bool seedHeightsOnly;
+
+        void StartSeed(TerrainSource terrain, int2 at, bool heightsOnly)
         {
             ForgetLand();   // (what moved is forgotten, and the seed samples Punchy's own ground)
-            seedCorner = (int2)math.floor(playerXZ) - Size / 2;
+            viewWorld = null;
+            seedCorner = at;
+            seedHeightsOnly = heightsOnly;
             seedSourcePending = terrain;
             if (!seedKinds.IsCreated)
                 seedKinds = new NativeArray<byte>(Size * Size, Allocator.Persistent);
@@ -231,13 +255,44 @@ namespace Punchy.Chemistry
         {
             seedJob.Complete();
             seeding = false;
-            corner = seedCorner;
             seededSource = seedSourcePending;
+            baseHeights = seedHeights.ToArray();
+            heights = (float[])baseHeights.Clone();
             demoAt = Time.unscaledTime + DemoDelay;
-            world = new Chem.World(rules, Size, Size, 1, "dirt");
+            var kinds = seedKinds.ToArray();
+            if (seedHeightsOnly)
+            {
+                if (region == null || !region.Corner.Equals(seedCorner))
+                {
+                    heights = null;   // (the host's region moved on while sampling: sample again)
+                    return;
+                }
+                // The float risk, measured: how many cells this machine would have seeded otherwise.
+                int differ = 0;
+                for (int i = 0; i < kinds.Length; i++)
+                    if (kinds[i] != seeded[i])
+                        differ++;
+                Debug.Log($"[Chemistry] lockstep: heights sampled under the host's region; {differ} of {kinds.Length} cells would seed differently here");
+                return;
+            }
+            corner = seedCorner;
+            seeded = kinds;
+            StartSession(CurrentRole() ?? LockstepRole.Solo, corner, kinds);
+            int grass = 0, water = 0, rock = 0;
+            foreach (var k in kinds)
+            {
+                if (k == KindGrass) grass++;
+                else if (k == KindWater) water++;
+                else if (k == KindRock) rock++;
+            }
+            Debug.Log($"[Chemistry] region at ({corner.x}, {corner.y}) to ({corner.x + Size}, {corner.y + Size}): {grass} grass, {water} water, {rock} rock cells; {region.Encoded.Length} chars in the hello");
+        }
+
+        // A world the view hasn't seen (a new region, a snapshot loaded, a reset): what it shows starts again from it.
+        void NewView()
+        {
+            viewWorld = world;
             NewHandsWorld();
-            seeded = seedKinds.ToArray();
-            heights = seedHeights.ToArray();
             lastState = new byte[Size * Size];
             lastWater = new int[Size * Size];
             melted = doused = boiled = steamed = condensed = 0;
@@ -246,37 +301,12 @@ namespace Punchy.Chemistry
             effects.Smoke.Clear();
             effects.Melted.Clear();
             effects.Doused.Clear();
-            int grass = 0, water = 0, rock = 0;
-            for (int y = 0; y < Size; y++)
-                for (int x = 0; x < Size; x++)
-                {
-                    var c = world.At(x, y);
-                    switch (seeded[y * Size + x])
-                    {
-                        case KindGrass:
-                            c.T = "grass";
-                            grass++;
-                            break;
-                        case KindWater:
-                            // A pool two height steps down, filled to just under the bank, so the water stays put
-                            // (cells all start level: the overlay doesn't model Punchy's slopes).
-                            c.Height = -2;
-                            c.Water = 6;
-                            water++;
-                            break;
-                        case KindRock:
-                            c.T = "rock";
-                            rock++;
-                            break;
-                    }
-                }
+            System.Array.Copy(baseHeights, heights, heights.Length);
             SeedLand();
             shownTick = -1;
-            tickClock = 0f;
             EnsureMap();
             Shader.SetGlobalVector(RectId, new Vector4(corner.x, corner.y, 1f / Size, 1f / Size));
             Shader.SetGlobalFloat(OnId, 1f);
-            Debug.Log($"[Chemistry] window at ({corner.x}, {corner.y}) to ({corner.x + Size}, {corner.y + Size}): {grass} grass, {water} water, {rock} rock cells");
         }
 
         /// <summary>Samples the ground on the window's 1 m grid (at cell centres) and decides each cell's kind.</summary>
@@ -381,7 +411,7 @@ namespace Punchy.Chemistry
         /// <summary>The running bridge, for test scripts (null when off).</summary>
         public static ChemistryBridge Instance { get; private set; }
         /// <summary>Whether the window is built and ticking.</summary>
-        public bool Ready => world != null && !seeding;
+        public bool Ready => world != null && !seeding && heights != null && viewWorld == world;
         public int Burning => burningCount;
         public int Burnt => burntCount;
         public int Ice => iceCount;
@@ -396,7 +426,7 @@ namespace Punchy.Chemistry
         public int2 Corner => corner;
         public bool SeededGrass(int x, int y) => seeded[y * Size + x] == KindGrass;
         public bool SeededWater(int x, int y) => seeded[y * Size + x] == KindWater;
-        public int Tick => world?.Tick ?? 0;
+        public int Tick => session?.NetTick ?? 0;
 
         /// <summary>Casts a spell at a world point (the keys use the ground under the screen centre), facing a way.</summary>
         public void CastAt(string spell, Vector3 at, Vector3 facing)
@@ -405,6 +435,7 @@ namespace Punchy.Chemistry
                 Cast(spell, at, facing);
         }
 
+        // A cast is a request on the session's casts channel: the host stamps it, and every peer runs it on that tick.
         void Cast(string spell, float3 at, Vector3 facing)
         {
             int x = (int)math.floor(at.x) - corner.x, y = (int)math.floor(at.z) - corner.y;
@@ -424,30 +455,16 @@ namespace Punchy.Chemistry
                 charge = 3;
                 int fromX = math.clamp(x - (int)math.round(heading.x * 6f), 0, Size - 1);
                 int fromY = math.clamp(y - (int)math.round(heading.y * 6f), 0, Size - 1);
-                world.Cast(spell, fromX, fromY, Chem.World.DirOf(aimX, aimY), charge, aimX, aimY);
+                session.Request(casts, new CastCommand(spell, fromX, fromY, Chem.World.DirOf(aimX, aimY), charge, aimX, aimY, Me));
             }
             else
             {
                 // Create Water charged once more (5 x 5 instead of 3 x 3), enough to douse a stretch of the fire front.
                 if (spell == "create-water")
                     charge = 2;
-                world.Cast(spell, x, y, 0, charge);
+                session.Request(casts, new CastCommand(spell, x, y, 0, charge, 0, 0, Me));
             }
-            var cell = world.At(x, y);
-            Debug.Log($"[Chemistry] cast {spell} at ({at.x:F1}, {at.y:F1}, {at.z:F1}), cell ({x}, {y}) seeded {KindName(seeded[y * Size + x])}: now {cell.T}, fire {cell.Fire}, water {cell.Water}, frozen {cell.Frozen}. Log: {LastLog()}");
-            shownTick = -1;   // show the cast at once
-            UpdateMap();
-            shownTick = world.Tick;
-        }
-
-        string LastLog()
-        {
-            var log = world.Log;
-            int from = math.max(0, log.Count - 3);
-            var text = "";
-            for (int i = from; i < log.Count; i++)
-                text += (text.Length > 0 ? " | " : "") + log[i].Text;
-            return text;
+            Debug.Log($"[Chemistry] cast {spell} at ({at.x:F1}, {at.y:F1}, {at.z:F1}), cell ({x}, {y}) seeded {KindName(seeded[y * Size + x])}: asked for (tick {session.NetTick})");
         }
 
         static string KindName(byte k) => k == KindGrass ? "grass" : k == KindWater ? "water" : k == KindRock ? "rock" : "dirt";
@@ -585,7 +602,7 @@ namespace Punchy.Chemistry
         {
             nextReport = Time.unscaledTime + 1f;
             if (burningCount > 0 || burntCount > 0 || iceCount > 0 || frostCount > 0 || landWaterCount > 0 || effects.Steam.Count > 0 || movedCells > 0)
-                Debug.Log($"[Chemistry] tick {world.Tick}: {burningCount} burning, {burntCount} burnt, {iceCount} ice, {frostCount} frost, " +
+                Debug.Log($"[Chemistry] tick {session.NetTick}: {burningCount} burning, {burntCount} burnt, {iceCount} ice, {frostCount} frost, " +
                           $"{landWaterCount} water on land, {effects.Steam.Count} steam, {effects.Smoke.Count} smoke, {movedCells} moved; {effects.PuffCount} puffs; " +
                           $"so far {melted} melted, {doused} doused, {boiled} boiled, {steamed} steamed, {condensed} condensed; " +
                           $"bridge {((tickMsThisSecond + mapMsThisSecond + fxMsThisSecond + landMsThisSecond) / math.max(1, framesThisSecond)):F2} ms a frame " +
