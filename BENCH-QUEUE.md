@@ -661,7 +661,7 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
 - Pixel history on that pixel: name the draw (shader, pass, mesh or impostor), and the first event where it turns NaN. If you can, step to the Ultra setting that turns it on (flora shadows, far trees, flora detail) by switching one `-gfxset` at a time back to its High value.
 - Report in REPORTS-profiler under 'R-18'. No fix from your side; R-18 row 2 fixes it.
 
-## Job 66 (2026-11-12, NEXT on the laptop, before 64 (Zach 11-12 wants it now); supervisor, for R-19 rows 1-1c, #281): steep rock cost
+## Job 66 (2026-11-12, RUNNING 11-13 (q108.job, runner -benchface on b/bench-stress); supervisor, for R-19 rows 1-1c, #281): steep rock cost
 - Zach 11-12: "I'll probably want significant changes in the cliffs, but I do want this version profiled so we can have a baseline check that it's a feasible implementation."
   So this is a baseline, not only a pass/fail: report the full GPU ms of B over A per view and preset, and say which part of the shader costs most (add a RenderDoc pass timing at the canyon 20 m view, High).
 - (A) main vs (B) `render/steep-triplanar` b30c967f. Profile builds, 1920x1080, Medium and High, uncapped, ABBA, 300 frames each.

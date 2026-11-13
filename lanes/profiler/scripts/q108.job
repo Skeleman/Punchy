@@ -1,0 +1,17 @@
+# Job 66 (Zach 11-12: a baseline, "a feasible implementation" check): R-19 steep rock, render/steep-triplanar b30c967f
+# against its base on main, b66b4c2a. Views: the canyon face (2266,-434) and the mountain face (-3130,2878), each from
+# 20 m and 150 m out, downhill of the face, facing it (-benchface, runner b/bench-stress), noon, Clear. Medium and High.
+# Pass: <= +0.3 ms GPU at Medium on every view. Then (after) a NaN check per view on the branch: -stopnan 0
+# -sparkleprobe r19, unmeasured.
+Q=q108; TITLE="job 66 steep rock"
+BUILDS="b30c967 b66b4c2"
+OUT_b66b4c2=Profile-b66b4c2f    # a fresh build of main: the old Profile-b66b4c2 lacks -benchface
+VIEWS="canyon20 canyon150 mountain20 mountain150"
+view() { case $1 in
+  canyon20)    echo "-goto 2266,-434 -benchstops face -benchface 2266,-434,20 -benchhour 12 -benchweather Clear";;
+  canyon150)   echo "-goto 2266,-434 -benchstops face -benchface 2266,-434,150 -benchhour 12 -benchweather Clear";;
+  mountain20)  echo "-goto -3130,2878 -benchstops face -benchface -3130,2878,20 -benchhour 12 -benchweather Clear";;
+  mountain150) echo "-goto -3130,2878 -benchstops face -benchface -3130,2878,150 -benchhour 12 -benchweather Clear";; esac; }
+ARMS="branch main"
+arm() { case $1 in branch) echo "Profile-b30c967";; main) echo "Profile-b66b4c2f";; esac; }
+ROUNDS=3; GFX="Medium High"; REF=main; BAR=0.3
