@@ -6473,3 +6473,28 @@ plot rules would have to accept a raised deck).
 - NaN probe: not needed (no shader, material or mesh change).
 - BENCH-QUEUE request: frame cost in the 5 s jump window, branch vs main, after a cold load and after an F6 warp to OgreCamp #1 (budget is 4x, trees 75%). Also the frame cost of a colossus keep-out replant, which is now targeted instead of island-wide.
 - Row 2 (load veil) not started, nor W-150 1c, 2 or 3.
+
+### Row 2: load veil (#287), branch world/load-veil (from origin/main), commits c23fb8c6 (+ 5c0a54fc comment only) - done (verified)
+- What it does: a full-screen veil in the fog colour, local only (LoadVeil.cs, cosmetic per player: it reads only this machine's camera and streaming and sends nothing). It goes up on the first load, on a client's join (the island bakes again), and when the camera moves more than 300 m in one frame (F5-F8 warps, -goto, a far respawn or join). It snaps on: a fade-in would show the pop it is meant to hide. It fades out over 0.35 s once the near ring is in (terrain chunks, buildings, trees and shrubs within 150 m: new TerrainStreamingSystem.MissingNear(at, radius) and FloraSystem.NearReady(at, radius)), or 4 s after the island is up at the latest. While the island bakes there is nothing to show, so it holds and reads "Raising the island...".
+- Decisions: there's no island name in the code, so the veil is plain fog colour. Cave enter/exit stays at the same xz, so it is not a jump, and deep in a cave counts as ready (not tried in a cave). I found no respawn system; the generic camera-jump check covers it. -noveil turns it off for benches. ShotTool.Ready waits for the veil to clear, so no shot is ever of the veil.
+- Bug found while verifying: the first version disabled itself after fading out (to skip IMGUI), which also stopped its jump check, so the warp didn't veil. Fixed by splitting it in two. The watch (one camera distance a frame) always runs. The IMGUI painter (LoadVeilPainter) is enabled only while the veil shows, so there is still no IMGUI pass the rest of the time (P-20).
+- Time from key to veil off (single runs, from the log, not a timing claim):
+  - solo cold load: 3.89 s / 3.82 s after the island was up (near ring in); one run hit the 4 s cap (4.03 s, 16 ground tiles still to come)
+  - solo F6 warp to OgreCamp #1 (3867 m): 1.86 s, near ring in
+  - host F6 warp to DwarfMiningCamp #6 (2059 m): 2.45 s, near ring in
+- Fast flight: the player was moved at 150 m/s for 10 s (W151Fly probe), and the veil showed on 0 frames.
+- Host and client, each veiling on their own: editor as host (GameBootstrap.Host; it veiled on its own reload, 4 s cap with 2 terrain chunks left), dev build joined with -join 127.0.0.1.
+  - The client veiled on its own load: off after 5.38 s total, 1.95 s after its island was up, near ring in.
+  - The host logged no veil when the client joined.
+  - After the host warped 2059 m, the host veiled and the client did not (the client's log shows the nearest player at 2061 m and no veil line). Client log: raw/mp-client.log.
+- Shots at D:/Unity/PunchyMilestones/W-151/:
+  - veil-cold.jpg: cold load, veiled until about 4 s, then the island
+  - veil-warp.jpg: F6 warp, every 5 frames for 3 s; fully veiled to 1.87 s, then it lifts onto a finished camp
+  - veil-lift.jpg: the lift moment, warp +1.87 to +2.29 s
+  - For before/after, compare with row 1's warp-after.jpg / cold-after.jpg (no veil). I checked the haze after the cold lift against row 1's no-veil run: same brightness and contrast, so it's the snowy spawn scene, not a stuck veil.
+- Suite: "completed: 28/28 passed" on c23fb8c6 (the last code change; 5c0a54fc is a comment). lod-lint is clean on 5c0a54fc.
+- NaN probe: not applicable (IMGUI only, no shader, material or mesh change).
+- Note: the veil lifts about 1 s later than row 1's "trees in" on the warp (1.86 s vs 0.75 s) because it also waits for terrain chunks out to 150 m. Lowering NearRadius or dropping the terrain wait would lift it sooner. Zach's call if it feels long.
+- The client test used a dev build in Punchy-world Builds/Dev. It includes the untracked probe; test only.
+- BENCH-QUEUE request: none needed for frame cost (one camera distance a frame while idle). Optionally, the frame cost while the veil is up (MissingNear scans the 150 m ring every frame), branch vs main, during an F6 warp.
+- Next: W-150 1c waits for PR #285.
