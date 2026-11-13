@@ -72,6 +72,9 @@ namespace Punchy.Player
         /// </summary>
         public float BreathUsed;
         public bool Gasping;
+        /// <summary>A-102 row 3: how far under the swim depth a swimming body has dived (m, 0 at the surface). Local
+        /// player state; the others see it in the avatar's position.</summary>
+        public float Dive;
     }
 
     /// <summary>
