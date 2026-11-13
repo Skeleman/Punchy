@@ -13,7 +13,7 @@ namespace Punchy.Flora
     public partial class FloraSystem
     {
         /// <summary>A camera move longer than this in one frame is a jump (the terrain treats shorter moves as heading).</summary>
-        const float JumpDistance = 200f;
+        const float JumpDistance = 200f; // streaming: detects a jump (warp/teleport), not a visual range
         /// <summary>Big-first ordering lasts at most this long after a jump, in real seconds (or until the trees are in).</summary>
         const float JumpWindow = 5f;
         /// <summary>The share of the boosted budget the first layer (trees) may take in the jump window; the rest flows on.</summary>
