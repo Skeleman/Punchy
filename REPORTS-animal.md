@@ -3639,3 +3639,22 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
   - Most fish looks share one 0.32 m body, so sizes come from scale alone. Long fish (sturgeon, tuna) look like stretched trout.
   - The rarity weights and the junk share (3-9%) are first guesses, for row 3.
 - Next: row 2, fish noticing the bobber.
+
+### Row 2: fish notice the bobber (done, verified)
+- Commit 67010496 on fauna/fishing-catch (pushed). New: `Fauna/FishLure.cs` (the bobber list), `Fauna/CreatureBrainSystem.Lure.cs` (the fish's side), `Tests/PlayMode/FishLureTests.cs`. Small edits: CreatureBrainSystem.cs (hands the list to BrainJob; fish near a bobber skip the far brain LOD), SensesMovement.cs (the swim depth pulled out as `SwimHeight`, no behaviour change), DebugControls (`-fishlure approach|nibble|bite|scatter`).
+- Behaviour: the nearest 3 swimming fish within 8 m of a bobber, on the same water, turn and drift over and hang off it (nearest closest, each swaying its own way). The nearest darts in twice before the bite, 1.7 s and 0.85 s before it (nose to the bobber, rising to just under the surface so its wake rings show; no nibble when the bite comes within 1 s of the cast). Once bitten it holds at the bobber thrashing while the others back off. A scatter (a miss or a lost fish) or a splash sends every fish in reach fleeing. Lava fish and breaching fish ignore bobbers; threatened fish flee as before.
+- Network: fish are simulated state, so a joined client sees all of this in the snapshots. FishLure is only written on the host or solo; nothing new is sent.
+- Rule 20: no new distance numbers for looks. The wake rings stay ranged by DetailPolicy screen size, and the brain LOD only keeps fish within 10 m of a bobber thinking every frame (a behaviour radius, not a visual LOD).
+- P-33 hook request (no IFishSource change). In Fishing.cs, on the host or solo, with `key` = the caster's network id:
+  - on cast: `Punchy.Fauna.FishLure.Cast(key, line.Target, bite.Wait);`
+  - at the bite: `FishLure.Bite(key);`
+  - on a miss or a lost fish: `FishLure.Scatter(key);`
+  - reeled in or caught: `FishLure.Clear(key);`
+  - optional, anything thrown in the water: `FishLure.Splash(at);`
+  Until P-33 calls these, nothing changes in game.
+- Play check (v3, lake shore in the sparkle forest, -place lake): fish 3.0 m off turned and came in at 0.5 m/s, reached its spot (0.7-0.85 m off) after 5 s; held at the nibble peak it was 0.25 m off and 0.1 m under the surface; on the scatter both fish in reach went to Flee. At the poison river pool the water is too murky for shots, so the shots are at the lake.
+- Shots, in D:/Unity/PunchyMilestones/A-100/ (bobber at frame centre; there's no bobber model until P-33): lure-1-approach-800.jpg, lure-2-nibble-800.jpg, lure-3-scatter-800.jpg. Full-size PNGs are beside them.
+- Pins: Fauna_Fingerprint AD723954 before and after. No landmark or placement changes.
+- Suite: PlayMode 35 of 35 passed, in my editor, after the last code change (3 new FishLureTests).
+- Risks / for row 3: a hovering fish circles slowly at about 0.5 m/s, which may read as busy; the nibble timings, the 8 m reach and the 3-fish cap are first guesses.
+- Next: row 3 (tune with Zach) waits on P-33 being playable. Starting A-102 (breath) on fauna/breath.
