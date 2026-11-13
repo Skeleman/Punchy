@@ -362,6 +362,10 @@ namespace Punchy.Debugging
             WalkerShot();
             MantrapShot();
             MimicShot();
+            BreathTest();
+            DiveTest();
+            PlayerDiveTest();
+            NetWatch();
             ShotCam();
         }
 

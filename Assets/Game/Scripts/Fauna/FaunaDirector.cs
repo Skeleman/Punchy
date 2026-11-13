@@ -340,6 +340,7 @@ namespace Punchy.Fauna
                     SpawnChamberBands(source);
                     SpawnWildFolk(source);
                     SpawnCrossingFishers(source);
+                    SpawnSeaVisitors(source);
                 }
             }
             using (CrittersMarker.Auto())

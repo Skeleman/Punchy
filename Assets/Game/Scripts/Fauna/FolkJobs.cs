@@ -20,6 +20,9 @@ namespace Punchy.Fauna
         Baker, Healer, Herder, Farmer, Trader,
         // Bat folk chamber jobs (per chamber from its props), taken by the chamber folk (the blind cave pygmies, #10).
         RoostKeeper, Tanner, Forager, PoolFisher,
+        // Turtle folk igloo jobs (A-103): fishing through the ice, cutting and carrying ice blocks, tending the
+        // village's spirit fire (a conjured flame: no hearth prop yet), and an elder at its porch.
+        IceFisher, IceCutter, FireTender, Elder,
     }
 
     /// <summary>A folk's temper, for flavouring its lines: from its Individual hash, so every machine agrees.</summary>
@@ -48,6 +51,19 @@ namespace Punchy.Fauna
         }
 
         /// <summary>This folk's job: the one it was handed, else the one its task implies.</summary>
+        /// <summary>A-103: a turtle folk's igloo job from its task, for joined clients (Job is local, not a ghost field):
+        /// fishing an ice fisher, chopping an ice cutter, tending a fire tender; None for any other task.</summary>
+        public static FolkJob FromTurtleTask(CreatureTask task)
+        {
+            switch (task)
+            {
+                case CreatureTask.Fish: return FolkJob.IceFisher;
+                case CreatureTask.Chop: return FolkJob.IceCutter;
+                case CreatureTask.Tend: return FolkJob.FireTender;
+                default: return FolkJob.None;
+            }
+        }
+
         public static FolkJob Of(in CreatureState s) => s.Job != 0 ? (FolkJob)s.Job : FromTask(s.Task);
 
         /// <summary>The job's name as dialogue.json tags it ("Baker"), or null for none.</summary>
