@@ -2,6 +2,22 @@
 
 Newest first.
 
+## Job 49e rerun: R-12 warp bake (b/r12-warp-bake 9887361f), 2026-11-13 (q105b.job): saves 0.6-1.2 ms GPU in storms, but the look is wrong: the rims become vertical streaks. Recommend option 1
+**Setup:** as q105 (job 49's storm views, High, 3 rounds, 1920x1080, uncapped), with the sampler fix; HazeLut compiles and nothing draws magenta. Arms: bake (default), per-read (`-warpbake 0`, R-12 as merged), main db9ca83e.
+
+| view | per-read | bake | main | bake vs per-read |
+|---|---|---|---|---|
+| storm noon, 4 km | 19.07 | 18.47 | 19.07 | **-0.60** |
+| storm near, 2 km | 19.9 | 18.73 | 19.7 | **-1.17** |
+| storm night | 20.0 | 19.3 | 19.67 | **-0.70** |
+| under the storm's shadow | 15.27 | 15.37 | 15.37 | +0.10 |
+
+- Per-read and main agree (main has R-12's per-read warp), so the bake would win back most of R-12's +0.55-1.35 ms.
+- **The look (results/sheets/r12_bake_rims.jpg, crops of the storm noon and near clouds; full frames in r12_bake.jpg):** the baked maps lose the warp's lean with height, as expected, but worse: every column of the cloud is re-read from one point, so the rims come out as **vertical streaks and curtains** (storm noon especially), and the billowed rim is gone. Per-read and main look the same and keep the billows.
+- **Recommendation (Zach's rule, "if the look isn't good, then we'll go with 1"):** option 1, keep R-12's per-read warp and take the cloud shadow map (job 49c). The bake stays on b/r12-warp-bake as a prototype; I don't see a cheap fix for the streaks, since a single warp per column is what saves the time. Zach to confirm from the sheet.
+
+Cost: laptop total $845 (laptop session e163d8ab; 1 build, 36 games).
+
 ## Crash on main b66b4c2a during job 66 (11-13): a 129 TB "Shader" allocation a few seconds after load
 - **Where:** Profile build of main b66b4c2a (with the bench overlay), Medium, 1920x1080, `-goto 2266,-434 -benchface 2266,-434,20`, noon, Clear, `-weatherseed 4`, `-body default`. Game 4 of job 66 (round 2 of main); rounds 1 of both arms and round 2 of the branch at the same view were fine.
 - **What:** "Could not allocate memory: System out of memory! Trying to allocate: 129219889222144B with 16 alignment. MemoryLabel: Shader" (Allocators.h:156), on the main thread, about 1-3 s after "BenchRoute: world ready at 8.9 s". The last game lines before it: "WaterSwells: shore field built (160x160, 57 m cells)" and a CreatureSnapshotSystem buffer grow. Native stack only (UnityPlayer, no managed frames); memory in use was normal (default 508 MB).
