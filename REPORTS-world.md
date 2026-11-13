@@ -6533,3 +6533,34 @@ plot rules would have to accept a raised deck).
 - The client test used a dev build in Punchy-world Builds/Dev. It includes the untracked probe; test only.
 - BENCH-QUEUE request: none needed for frame cost (one camera distance a frame while idle). Optionally, the frame cost while the veil is up (MissingNear scans the 150 m ring every frame), branch vs main, during an F6 warp.
 - Next: W-150 1c waits for PR #285.
+
+## W-147
+
+### Row 1: ladders on structures (#275), branch world/climbs-surface (from origin/main 659b60af), commits f474ef31 (+ ca69eea4 comment only) - done (verified; climbing out not tried, since A-101 isn't on main)
+- What it does: ladders only on structures that already exist, each a grade-1 climb (A-101 scale: 1 ladder). Nothing new is placed on its own spot.
+  - Docks and piers: a water ladder at the end, plus 1 side ladder (2 on piers over 14 m), feet under the surface and tops at the deck, so a swimmer can climb out.
+  - Fishing villages: rope ladders on stilt houses and wharves.
+  - Houses: kit houses get a roof ladder (flat roofs 50%, pitched 20%, tiered none); town huts and stone houses get one about 1 in 4, up a side wall to the eave, clear of windows, door and quoins.
+  - Mines: a ladder up each shaft from the chamber floor, against the shaft wall, and down floor drops of over 1.5 m between levels. The new MineLadder species (5 variants, 2-4 m pieces) is set on the Mine cave style; pieces stack end to end.
+- Records: each ladder is a ClimbLadder (foot, top, out side, grade), baked from the seed (rule 22). Buildings keep theirs on the flora model (FloraBlob.Ladders); mines in CaveSetBlob.Ladders. FloraPlacement.NearLadders(point, radius) returns all of them in world space, Burst-safe, for A-101 to read.
+- Branch independence: the branch does not merge world/cliff-kit. Ladders carry their own Grade byte (StructureKit.LadderGrade = 1) instead of using row 2's GradeAt, so it merges on its own.
+- Probe counts (W147Probe, untracked): water 12, all 12 pass; land 11, all 11 pass (10 are roof ladders in the town near (-3300, 1570)); mine 1, passes (blob 1). Flora records 37, full lists 0. Checks: water feet are 0.3 m under the surface with tops 0.3 m above it; land feet are on the ground and climb more than 1.5 m; the mine foot is on the cave floor (FloorUnder).
+- Landmarks_V3: "landmarks 117 689D5348" (unchanged; no landmark spot moved). Game hash FA8F24B1 unchanged.
+- Fauna_Fingerprint: re-pinned AD723954 -> D19AD249. The fingerprint hashes the flora blob byte for byte, and this row adds the ladder records and the MineLadder species to it. That is expected; no placement change.
+- Suite: "completed: 35/35 passed" on f474ef31, the last code change (ca69eea4 is comment only). The first run failed only Fauna_Fingerprint (34/35) before the re-pin.
+- lod-lint is clean on ca69eea4: the 3 placement distances are marked gameplay. nan-lint lists only existing shader lines; no shader changed.
+- NaN (rule 24): -sparkleprobe not run (it's a player-build flag). Instead, W147Probe.MeshNaN grew every Hut, StoneHouse and KitBuilding variant, all LODs: "meshes 1098, ladders 42, bad vertices/normals 0".
+- Bug found while verifying: the mine ladder was invisible because its pieces used variants up to 9, past the cave's 5 drawn models per species (CaveSystem.PlantVariants). Capped at 5 (LadderPieces 5, asset Variants 5) and fixed the stacking to match.
+- Shots at D:/Unity/PunchyMilestones/W-147/:
+  - w147_water_15m.png: a dock with its end ladder
+  - w147_water_3m.png: the ladder under the deck edge
+  - w147_roof_15m.png, w147_roof_3m.png: a stone house's side ladder to the eave
+  - w147_mine_3m.png: the shaft ladder from the chamber floor
+  - w147_mine_1m.png: the same ladder, close up
+- Known issues:
+  - A wall torch sits right behind the mine shaft ladder.
+  - The ladder's top passes through the shaft's collar timber.
+  - Only 1 mine ladder on the island (the level drop ladders fell away with the 1.5 m drop limit).
+  - The probe finds roof ladders in only 1 town; other towns' houses rolled none, or the probe's grid missed them.
+- Not verified: a swimmer actually climbing out at sampled docks. That needs A-101; the records are ready for it.
+- BENCH-QUEUE request: none needed. Ladders are part of existing flora models and cave plants; NearLadders runs only on query.
