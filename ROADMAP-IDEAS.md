@@ -112,6 +112,7 @@ pygmies (#35, #10), turtle folk (#38). Core rule throughout: small, varied, seed
   Zach 11-12: "Seafolk and bat folk should both be playable. The bat folk should see everything brighter, making caves easy but the surface difficult." #291, carded A-103 rows 4-5.
   Zach 11-12: "Turtle folk are also playable." Added to A-103 row 4.
   Zach 11-12: "The bat folk can put on glasses to see normally on the surface." Added to A-103 row 5.
+  Zach 11-12: "Seafolk NPCs don't like being in the surface, but they can be found on cities and on the surface complaining about how dry it is or staying near water." Carded A-103 row 2b.
   Zach 11-12: "Other races can put on glow goggles to see like the bat people." Added to A-103 row 5.
   Zach 11-12: the turtle folk are tall, ancient, and magical (A-103 row 1).
 - Castle walls: modular walls, towers, a working portcullis, interior halls (#254).
