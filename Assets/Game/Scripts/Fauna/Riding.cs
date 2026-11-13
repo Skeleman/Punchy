@@ -1,3 +1,4 @@
+using Punchy.Flora;
 using Punchy.Terrain;
 using Unity.Burst;
 using Unity.Collections;
@@ -9,12 +10,91 @@ using Unity.NetCode;
 namespace Punchy.Fauna
 {
     /// <summary>
-    /// A-104: a creature riding another (sim world only: the mount it rides). Added by Riding.Mount, taken off by
-    /// Riding.Dismount (or by RideSystem when the mount is gone).
+    /// A-104: a creature riding another (sim world only: the mount it rides, why, and for how long). Added by
+    /// Riding.Mount or RideLifeSystem, taken off by Riding.Dismount or by RideSystem when something gets it down.
     /// </summary>
     public struct Rider : IComponentData
     {
         public Entity Mount;
+        /// <summary>Seconds left on this ride (RideSystem counts it down); 0 or less rides till something else gets it down.</summary>
+        public float Left;
+        public RideKind Kind;
+    }
+
+    /// <summary>Why a creature is riding (A-104).</summary>
+    public enum RideKind : byte
+    {
+        /// <summary>Put there (a test, or later a player).</summary>
+        Placed,
+        /// <summary>A village child on a grown-up's shoulders on the walk home (row 2): down near the door.</summary>
+        WalkHome,
+        /// <summary>A small pet on a bigger tame animal's back for a while (row 2).</summary>
+        Pet
+    }
+
+    /// <summary>Why a rider got down (A-104 row 2; RideLog).</summary>
+    public enum RideOff : byte
+    {
+        None,
+        /// <summary>The mount is gone: killed, caught or despawned.</summary>
+        Death,
+        /// <summary>The mount swims, or wades in past its belly.</summary>
+        Swim,
+        /// <summary>The mount climbs (a trunk, a web, its burrow, a roost) or takes off.</summary>
+        Climb,
+        /// <summary>The mount lies down to sleep or rest.</summary>
+        Sleep,
+        /// <summary>The mount hunts, flees or plays chase.</summary>
+        Fight,
+        /// <summary>Someone picked the mount up.</summary>
+        Held,
+        /// <summary>A child's ride home: the grown-up is nearly at its door (or has given up going home).</summary>
+        Home,
+        /// <summary>The ride's time is up.</summary>
+        Done
+    }
+
+    /// <summary>
+    /// A-104 row 2: counts of rides begun and ended, and the last few ended, for the debug tests (-ridelife). Written
+    /// only while On, by the one RideSystem or RideLifeSystem job running; read on the main thread.
+    /// </summary>
+    public struct RideLog
+    {
+        /// <summary>One ride's end.</summary>
+        public struct Off
+        {
+            public RideOff Why;
+            public RideKind Kind;
+            /// <summary>Where the rider landed, and where its mount was (its last place, if it's gone).</summary>
+            public float3 At, Mount;
+            /// <summary>Room between the two bodies sideways (m: centres apart less both radii, above 0 is clear of the
+            /// mount); how far the rider stands over the floor there (0 = on it, never below).</summary>
+            public float Room, Floor;
+            /// <summary>Which side it got down on (Riding.Clear: 0 right, 1 left, 2 behind, 3 in front, 4.. further out;
+            /// -1 where it was, the mount being gone from the world).</summary>
+            public int Side;
+            /// <summary>The rider's Individual.</summary>
+            public uint Rider;
+        }
+
+        public int On;
+        public int Begun, Ended;
+        public FixedList512Bytes<Off> Offs;
+
+        public static readonly SharedStatic<RideLog> Data = SharedStatic<RideLog>.GetOrCreate<RideLog, Key>();
+        struct Key { }
+
+        /// <summary>Notes a ride's end (when On; the oldest drops off a full list).</summary>
+        public static void Note(in Off off)
+        {
+            ref var log = ref Data.Data;
+            if (log.On == 0)
+                return;
+            log.Ended++;
+            if (log.Offs.Length == log.Offs.Capacity)
+                log.Offs.RemoveAt(0);
+            log.Offs.Add(off);
+        }
     }
 
     /// <summary>How a rider sits on its mount (in CreatureState.Stage while riding, A-104).</summary>
@@ -187,16 +267,8 @@ namespace Punchy.Fauna
             var refusal = Check(ref rBody.Blob.Value, r, ref mBody.Blob.Value, m);
             if (refusal != RideRefusal.None)
                 return refusal;
-            var pose = PoseFor(ref rBody.Blob.Value, r, ref mBody.Blob.Value, m);
-            r.Mode = CreatureMode.Ride;
-            r.Stage = (byte)pose;
-            r.Sit = pose == RidePose.Cling ? 0f : 1f;
-            r.Lie = pose == RidePose.Cling ? 1f : 0f;
-            r.Speed = r.GaitSpeed = 0f;
-            r.Fly = r.Vertical = 0f;
-            r.Holder = em.HasComponent<GhostInstance>(mount) && em.GetComponentData<GhostInstance>(mount).ghostId != 0
-                ? -em.GetComponentData<GhostInstance>(mount).ghostId : SoloMount;
-            Place(ref rBody.Blob.Value, ref r, rBody.Coat, ref mBody.Blob.Value, m, mBody.Coat, terrain);
+            var ghostId = em.HasComponent<GhostInstance>(mount) ? em.GetComponentData<GhostInstance>(mount).ghostId : 0;
+            Begin(ref rBody.Blob.Value, ref r, rBody.Coat, ref mBody.Blob.Value, m, mBody.Coat, ghostId, terrain);
             em.SetComponentData(rider, r);
             if (em.HasComponent<Rider>(rider))
                 em.SetComponentData(rider, new Rider { Mount = mount });
@@ -205,32 +277,172 @@ namespace Punchy.Fauna
             return RideRefusal.None;
         }
 
-        /// <summary>Gets a rider down (sim world, main thread): beside its mount on the floor there, idle.</summary>
+        /// <summary>A rider's state once on its mount (Check has allowed it): posed for the mount, no mind of its own,
+        /// Holder naming the mount's ghost (0: none yet), and on the seat.</summary>
+        public static void Begin(ref CreatureBlob rb, ref CreatureState r, int riderCoat, ref CreatureBlob mb, in CreatureState m, int mountCoat,
+                                 int mountGhostId, in TerrainSource terrain)
+        {
+            var pose = PoseFor(ref rb, r, ref mb, m);
+            r.Mode = CreatureMode.Ride;
+            r.Stage = (byte)pose;
+            r.ModeTime = r.StageTime = 0f;
+            r.Sit = pose == RidePose.Cling ? 0f : 1f;
+            r.Lie = pose == RidePose.Cling ? 1f : 0f;
+            r.Speed = r.GaitSpeed = 0f;
+            r.Fly = r.Vertical = r.Curl = r.Bow = r.HeadDown = 0f;
+            r.Holder = mountGhostId != 0 ? -mountGhostId : SoloMount;
+            Place(ref rb, ref r, riderCoat, ref mb, m, mountCoat, terrain);
+        }
+
+        /// <summary>Gets a rider down (sim world, main thread): clear of its mount (Clear) on the floor there, idle.</summary>
         public static void Dismount(EntityManager em, Entity rider, in TerrainSource terrain)
         {
             var r = em.GetComponentData<CreatureState>(rider);
-            var right = new float3(math.cos(r.Yaw), 0f, -math.sin(r.Yaw));
-            Down(ref r, r.Position + right * 0.6f, terrain);
-            em.SetComponentData(rider, r);
+            var at = r.Position;
             if (em.HasComponent<Rider>(rider))
+            {
+                var mount = em.GetComponentData<Rider>(rider).Mount;
+                if (em.HasComponent<CreatureState>(mount))
+                {
+                    var rBody = em.GetComponentData<CreatureBody>(rider);
+                    var mBody = em.GetComponentData<CreatureBody>(mount);
+                    var query = em.CreateEntityQuery(ComponentType.ReadOnly<FloraLookup>());
+                    var flora = query.TryGetSingleton<FloraLookup>(out var f) ? f.Blob : default;
+                    at = Clear(ref rBody.Blob.Value, r, ref mBody.Blob.Value, em.GetComponentData<CreatureState>(mount), terrain, flora, out _);
+                }
                 em.RemoveComponent<Rider>(rider);
+            }
+            Down(ref r, at, terrain);
+            em.SetComponentData(rider, r);
         }
 
-        /// <summary>A rider's state once off its mount, at `at` (dropped to the floor under it).</summary>
+        /// <summary>A rider's state once off its mount, at `at` (on the floor there: a deck, a cave's floor, the ground).</summary>
         public static void Down(ref CreatureState r, float3 at, in TerrainSource terrain)
         {
             at.y = terrain.FloorUnder(at + new float3(0f, 0.5f, 0f), out _);
             r.Position = at;
             r.Mode = CreatureMode.Idle;
             r.Stage = 0;
+            r.ModeTime = r.StageTime = 0f;
             r.Sit = r.Lie = 0f;
+            r.Speed = r.GaitSpeed = 0f;
             r.Holder = 0;
+        }
+
+        /// <summary>How wide a body is from its middle (m): its broader end's radius.</summary>
+        public static float Radius(ref CreatureBlob b, float scale) => math.max(b.RearRadius, b.FrontRadius) * scale;
+
+        /// <summary>How far a body reaches fore or aft of its middle (m): half its length and an end's radius, or for an
+        /// upright body (whose length is up) just its radius.</summary>
+        static float Reach(ref CreatureBlob b, float scale) =>
+            b.Upright ? Radius(ref b, scale) : b.BodyLength * 0.5f * scale + Radius(ref b, scale);
+
+        /// <summary>Room between a rider's and a mount's bodies sideways (m): centres apart less both radii (RideLog).</summary>
+        public static float Room(ref CreatureBlob rb, in CreatureState r, ref CreatureBlob mb, in CreatureState m) =>
+            math.distance(r.Position.xz, m.Position.xz) - Radius(ref rb, r.Scale) - Radius(ref mb, m.Scale);
+
+        /// <summary>
+        /// Where a rider gets down from this mount, falling clear (row 2): beside it to the right, else the left, else
+        /// behind or in front, else further out; far enough that the two bodies don't meet, never inside a building's
+        /// walls (flora, when there is one) or up onto a ledge; dry if any side is, else where the water's shallowest.
+        /// On the floor there (Down puts it on it, so never in the ground).
+        /// </summary>
+        public static float3 Clear(ref CreatureBlob rb, in CreatureState r, ref CreatureBlob mb, in CreatureState m, in TerrainSource terrain,
+                                   BlobAssetReference<FloraBlob> flora, out int side)
+        {
+            const float Margin = 0.15f;
+            var right = new float3(math.cos(m.Yaw), 0f, -math.sin(m.Yaw));
+            var forward = new float3(math.sin(m.Yaw), 0f, math.cos(m.Yaw));
+            var across = Radius(ref mb, m.Scale) + Radius(ref rb, r.Scale) + Margin;
+            var along = Reach(ref mb, m.Scale) + Reach(ref rb, r.Scale) + Margin;
+            var mountFloor = terrain.FloorUnder(m.Position + new float3(0f, 0.5f, 0f), out _);
+            var rr = Radius(ref rb, r.Scale);
+            var best = m.Position + right * across;
+            var bestScore = float.MaxValue;
+            side = 0;
+            // (Sides then ends, near then far; past those, eight ways round at two wider rings, for a mount backed into a wall.)
+            for (int i = 0; i < 24; i++)
+            {
+                float3 at;
+                if (i < 8)
+                {
+                    var k = i & 3;
+                    var offset = k == 0 ? right * across : k == 1 ? -right * across : k == 2 ? -forward * along : forward * along;
+                    at = m.Position + offset * (i < 4 ? 1f : 1.7f);
+                }
+                else
+                {
+                    var a = m.Yaw + (i & 7) * (math.PI / 4f);
+                    at = m.Position + new float3(math.cos(a), 0f, -math.sin(a)) * math.max(across, along) * (i < 16 ? 2.6f : 4f);
+                }
+                if (flora.IsCreated && FloraPlacement.Blocked(ref flora.Value, terrain, at.xz, rr))
+                    continue;
+                var floor = terrain.FloorUnder(new float3(at.x, mountFloor + 0.5f, at.z), out _);
+                // (Not up onto a ledge or a wall's top: a step it could take, no more.)
+                var climb = floor - mountFloor;
+                if (climb > 0.45f)
+                    continue;
+                var g = terrain.SampleGround(at.xz);
+                var depth = g.HasWater ? math.max(0f, g.WaterSurface - floor) : 0f;
+                // (Dry and level first, near sides before far, then the shallowest water.)
+                var score = (depth > 0.1f ? 100f + depth * 10f : 0f) + math.abs(climb) + i * 0.01f;
+                if (score < bestScore)
+                {
+                    bestScore = score;
+                    best = new float3(at.x, floor, at.z);
+                    side = i;
+                }
+                if (score < 1f)
+                    break;
+            }
+            return best;
+        }
+
+        /// <summary>Why a mount's rider must get down now (None: it rides on), by what the mount is doing (A-104 row 2).</summary>
+        public static RideOff Reason(ref CreatureBlob mb, in CreatureState m, in Rider ride, in TerrainSource terrain)
+        {
+            if (m.Gone)
+                return RideOff.Death;
+            switch (m.Mode)
+            {
+                case CreatureMode.Swim:
+                    return RideOff.Swim;
+                case CreatureMode.Climb:
+                case CreatureMode.Web:
+                case CreatureMode.Burrow:
+                case CreatureMode.Roost:
+                    return RideOff.Climb;
+                case CreatureMode.Sleep:
+                case CreatureMode.Rest:
+                    return RideOff.Sleep;
+                case CreatureMode.Hunt:
+                case CreatureMode.Flee:
+                case CreatureMode.Play:
+                    return RideOff.Fight;
+                case CreatureMode.Held:
+                case CreatureMode.Ride:
+                    return RideOff.Held;
+                case CreatureMode.Home:
+                    if (m.Stage >= 1 || ride.Kind == RideKind.WalkHome && math.distancesq(m.Position.xz, m.Anchor.xz) < 2.5f * 2.5f)
+                        return RideOff.Home;
+                    break;
+            }
+            if (m.Fly > 0.3f)
+                return RideOff.Climb;
+            // (Wading in past its belly: the rider would be in the water too.)
+            var g = terrain.SampleGround(m.Position.xz);
+            if (g.HasWater && g.WaterSurface - g.Height > 0.45f * mb.StandHeight * m.Scale)
+                return RideOff.Swim;
+            // (A child's ride home ends if the grown-up turns aside: stops to talk, goes to work. A puppet is held where it is.)
+            return ride.Kind == RideKind.WalkHome && m.Mode != CreatureMode.Home && m.Mode != CreatureMode.Puppet ? RideOff.Home : RideOff.None;
         }
     }
 
     /// <summary>
     /// A-104: puts every rider on its mount's seat each frame, after the brain and any push have moved the mounts and
-    /// before their state goes out to clients (solo, or on the server). A rider whose mount is gone gets down where it is.
+    /// before their state goes out to clients (solo, or on the server). Gets a rider down, falling clear (Riding.Clear),
+    /// when its mount swims, climbs, sleeps, fights, is picked up or dies, when a child's ride home nears the door, or
+    /// when the ride's time is up (row 2; Riding.Reason). A rider whose mount has left the world gets down where it is.
     /// </summary>
     [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation | WorldSystemFilterFlags.ServerSimulation)]
     [UpdateInGroup(typeof(SimulationSystemGroup))]
@@ -268,6 +480,7 @@ namespace Punchy.Fauna
                 Bodies = bodies,
                 Ghosts = ghosts,
                 Terrain = SystemAPI.GetSingleton<TerrainSource>(),
+                Flora = SystemAPI.TryGetSingleton<FloraLookup>(out var flora) ? flora.Blob : default,
                 Dt = SystemAPI.Time.DeltaTime,
                 Commands = ecb
             }.Schedule(state.Dependency);
@@ -281,26 +494,59 @@ namespace Punchy.Fauna
             [ReadOnly] public ComponentLookup<CreatureBody> Bodies;
             [ReadOnly] public ComponentLookup<GhostInstance> Ghosts;
             [ReadOnly] public TerrainSource Terrain;
+            public BlobAssetReference<Punchy.Flora.FloraBlob> Flora;
             public float Dt;
             public EntityCommandBuffer Commands;
 
-            void Execute(Entity self, ref CreatureState s, in CreatureBody body, in Rider rider)
+            void Execute(Entity self, ref CreatureState s, in CreatureBody body, ref Rider rider)
             {
                 var mount = rider.Mount;
-                if (!States.HasComponent(mount) || States[mount].Gone || s.Mode != CreatureMode.Ride)
+                if (s.Mode != CreatureMode.Ride)
                 {
-                    if (s.Mode == CreatureMode.Ride)
-                        Riding.Down(ref s, s.Position, Terrain);
-                    Commands.RemoveComponent<Rider>(self);
+                    // (Someone else took it off: picked up, or got down by Riding.Dismount. Logged as None, the side
+                    // holding the mode it was put in, for the tests.)
+                    Off(self, RideOff.None, rider.Kind, s, s.Position, (int)s.Mode, s.Holder, s.ModeTime);
+                    return;
+                }
+                if (!States.HasComponent(mount))
+                {
+                    var was = s.Position;
+                    Riding.Down(ref s, s.Position, Terrain);
+                    Off(self, RideOff.Death, rider.Kind, s, was, -1, s.Position.y - Terrain.FloorUnder(s.Position + new float3(0f, 0.5f, 0f), out _), 0f);
                     return;
                 }
                 var m = States[mount];
                 var mBody = Bodies[mount];
+                var why = Riding.Reason(ref mBody.Blob.Value, m, rider, Terrain);
+                if (why == RideOff.None && rider.Left > 0f)
+                {
+                    rider.Left -= Dt;
+                    if (rider.Left <= 0f)
+                        why = RideOff.Done;
+                }
+                if (why != RideOff.None)
+                {
+                    var at = Riding.Clear(ref body.Blob.Value, s, ref mBody.Blob.Value, m, Terrain, Flora, out var side);
+                    Riding.Down(ref s, at, Terrain);
+                    var room = Riding.Room(ref body.Blob.Value, s, ref mBody.Blob.Value, m);
+                    var floor = s.Position.y - Terrain.FloorUnder(s.Position + new float3(0f, 0.5f, 0f), out _);
+                    Off(self, why, rider.Kind, s, m.Position, side, floor, room);
+                    return;
+                }
                 s.Clock += Dt;
                 s.Speed = s.GaitSpeed = 0f;
                 var ghostId = Ghosts.HasComponent(mount) ? Ghosts[mount].ghostId : 0;
                 s.Holder = ghostId != 0 ? -ghostId : Riding.SoloMount;
                 Riding.Place(ref body.Blob.Value, ref s, body.Coat, ref mBody.Blob.Value, m, mBody.Coat, Terrain);
+            }
+
+            void Off(Entity self, RideOff why, RideKind kind, in CreatureState s, float3 mountAt, int side, float floor, float room)
+            {
+                Commands.RemoveComponent<Rider>(self);
+                RideLog.Note(new RideLog.Off
+                {
+                    Why = why, Kind = kind, At = s.Position, Mount = mountAt, Room = room, Floor = floor, Side = side, Rider = s.Individual
+                });
             }
         }
     }

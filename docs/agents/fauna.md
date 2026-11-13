@@ -86,3 +86,9 @@ Read before changing creatures, behaviour, poses, the player's body, settlements
 - A-94: past 4x a person ShapeFor keeps growing breath (one curve, up to 8x more: bigger, slower, longer-lived, seen
   further). Colossi breathe through StoneColossi.ColdBreath (size measured off their meshes) and AmbienceSystem's puffs,
   so only in the cold and near the camera. Fliers breathe each exhale out in one burst (ExhaleFor), so no dotted trail.
+- A-104: a rider's Holder is minus its mount's ghost id (SoloMount solo); RideSystem gets it down on its mount's swim,
+  climb, sleep, fight, being picked up or death (Riding.Reason), to a clear spot (Riding.Clear). A mode written from the
+  main thread can be swapped by the brain before RideSystem sees it, so test the reasons with Riding.Reason directly.
+  The brain skips riders, so their ModeTime stands still while they ride; time a ride from when it is seen. Dungeon
+  posts (DungeonPost) never ride: DungeonPostSystem sends them back. A host's player is where its client last said, so
+  after teleporting the player wait a few seconds before spawning near it, or FaunaDirector lets the spawn go.

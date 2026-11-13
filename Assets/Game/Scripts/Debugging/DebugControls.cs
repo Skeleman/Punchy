@@ -367,6 +367,7 @@ namespace Punchy.Debugging
             MimicShot();
             BreathTest();
             RideTest();
+            RideLifeTest();
             DiveTest();
             PlayerDiveTest();
             NetWatch();
