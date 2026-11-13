@@ -31,6 +31,8 @@ namespace Punchy.Debugging
             var playerDiveArg = System.Array.IndexOf(args, "-playerdive");
             playerDive = playerDiveArg >= 0;
             pdWater = playerDive && playerDiveArg + 1 < args.Length && args[playerDiveArg + 1] == "water";
+            // ("-playerdive [water] follow": the player's own camera follows the dive rather than the side shot camera.)
+            pdFollow = playerDive && System.Array.IndexOf(args, "follow", playerDiveArg) > playerDiveArg;
             landmarkPlacePending = null; // (a later shot's options replace an earlier -place still being retried)
             if (!drawCalls.Valid)
             {

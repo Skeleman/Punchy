@@ -13,6 +13,10 @@ namespace Punchy.Debugging
         /// <summary>"-playerdive water": the player's body is made a water breather (PlayerBody.BreathesWater) as it goes
         /// in, standing in for a sea folk body until one is playable (A-103).</summary>
         bool pdWater;
+        /// <summary>"-playerdive [water] follow" (A-102 row 3b): the player's own camera (ThirdPersonCamera) follows the
+        /// dive, no side shot camera, and each second's log says whether its lens is under (Underwater.LensUnder).</summary>
+        bool pdFollow;
+        float pdLensDeep;
         /// <summary>When the test put the player in (Time.time), and what it saw: the deepest dive in the first crouch,
         /// whether jump brought it back up, when it first gasped, how deep it was when it caught its breath, whether its dive ever
         /// grew while gasping, whether it dived again after catching its breath, the most breath used, and the water there.</summary>
@@ -121,10 +125,12 @@ namespace Punchy.Debugging
             var camXZ = pdSpot + new float2(6f, 0f);
             shotCamFrom = new Vector3(camXZ.x, math.max(pdSurface + 2f, source.SampleHeight(camXZ) + 1f), camXZ.y);
             shotCamTo = new Vector3(t.Position.x, t.Position.y + 0.5f, t.Position.z);
-            shotCamOn = true;
+            shotCamOn = !pdFollow;
+            pdLensDeep = math.max(pdLensDeep, Punchy.CameraRig.Underwater.LensDepth);
             if (Mathf.FloorToInt(since) != Mathf.FloorToInt(since - Time.deltaTime))
                 Debug.Log($"PlayerDive {since:F0} s: dive {m.Dive:F2} m, feet {pdSurface - t.Position.y:F2} m under, breath {1f - m.BreathUsed:F2}" +
-                          $"{(m.Gasping ? " gasping" : "")}, crouch {PlayerInputSystem.TestCrouch}, jump {PlayerInputSystem.TestClimb}");
+                          $"{(m.Gasping ? " gasping" : "")}, crouch {PlayerInputSystem.TestCrouch}, jump {PlayerInputSystem.TestClimb}" +
+                          $"{(pdFollow ? $", lens under {Punchy.CameraRig.Underwater.LensUnder} ({Punchy.CameraRig.Underwater.LensDepth:F2} m, {Punchy.CameraRig.Underwater.LensWater}), lens y {(Camera.main != null ? Camera.main.transform.position.y - pdSurface : float.NaN):F2} vs surface" : "")}");
             if (since < PdEnd)
                 return;
             pdDone = true;
@@ -138,7 +144,7 @@ namespace Punchy.Debugging
             pass &= !pdNaN;
             Debug.Log($"PlayerDive: {(pass ? "PASS" : "FAIL")}: {(body.BreathesWater ? "water" : "air")} breather, deepest {pdDeep:F2} m, rose on jump {pdRose}, " +
                       $"most breath used {pdUsed:F2}, gasped at {pdGaspAt:F0} s, dive when it caught its breath {pdAfterGasp:F2} m, grew while gasping {pdGrewGasping}, " +
-                      $"dived again {pdDivedAgain}, NaN {pdNaN}");
+                      $"dived again {pdDivedAgain}, NaN {pdNaN}{(pdFollow ? $", deepest lens {pdLensDeep:F2} m" : "")}");
         }
     }
 }
