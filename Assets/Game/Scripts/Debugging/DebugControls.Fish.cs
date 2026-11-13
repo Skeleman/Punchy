@@ -29,6 +29,16 @@ namespace Punchy.Debugging
         const float Gap = 0.12f;
         float3 lineupBase;
         float lineupYaw;
+        /// <summary>"-fishlure approach|nibble|bite|scatter" (per line; A-100 row 2): a bobber dropped in front of the
+        /// nearest fish in a lake or river pool, held at that moment of a cast (null: off).</summary>
+        string fishLure;
+        /// <summary>The fish the bobber went in for, when (Time.time), where, and whether the scatter has been called.</summary>
+        Entity lureFish;
+        float lureCastAt;
+        float3 lureAt;
+        bool lureCam, lureScattered;
+        /// <summary>The debug line's key in FishLure (players' lines use their own).</summary>
+        const int DebugLureKey = -77;
 
         /// <summary>The line-up, small to big, by name in <see cref="FishCatch.Table"/>: the small half, then the big.</summary>
         static readonly string[] SmallNames = { "Minnow", "Blind cavefish", "Perch", "Herring", "Trout", "Mackerel", "Koi" };
@@ -206,6 +216,136 @@ namespace Punchy.Debugging
                 c.Clock += Time.deltaTime;
                 em.SetComponentData(fish, c);
             }
+        }
+
+        /// <summary>
+        /// "-fishlure approach|nibble|bite|scatter": once the world has settled, a bobber (FishLure) dropped 3 m in front
+        /// of the nearest wild fish within 80 m in a lake, river pool or swamp (where the water there is 0.7 m deep or
+        /// more), and the shot camera pinned 4 m to its side and 2.5 m up, looking down at it. approach: no bite comes;
+        /// nibble: from 6 s on, held at the peak of the second nibble; bite: bitten at 6 s; scatter: scattered 0.5 s
+        /// before the shot is taken. Logs where the fish is each second. Cleared (and the camera freed) by a line
+        /// without the flag.
+        /// </summary>
+        void FishLurePose()
+        {
+            if (fishLure == null)
+            {
+                if (lureFish != Entity.Null || lureCam)
+                {
+                    FishLure.Clear(DebugLureKey);
+                    lureFish = Entity.Null;
+                    if (lureCam)
+                        shotCamOn = lureCam = false;
+                }
+                return;
+            }
+            if (Time.timeSinceLevelLoad - optionsAt < settle || !EnsureLocations(out var source) ||
+                !playerQuery.TryGetSingleton<LocalTransform>(out var player))
+                return;
+            var em = queryWorld.EntityManager;
+            if (lureFish == Entity.Null || !em.Exists(lureFish))
+            {
+                using var query = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
+                using var fishes = query.ToEntityArray(Allocator.Temp);
+                var bestD = 80f;
+                var best = Entity.Null;
+                var bestAt = float3.zero;
+                foreach (var e in fishes)
+                {
+                    if (em.HasComponent<PosedForTest>(e))
+                        continue;
+                    var c = em.GetComponentData<CreatureState>(e);
+                    ref var b = ref em.GetComponentData<CreatureBody>(e).Blob.Value;
+                    if (c.Gone || b.Habitat != Habitat.Swims || b.LavaDweller || b.Breaches)
+                        continue;
+                    var d = math.distance(c.Position.xz, player.Position.xz);
+                    if (d >= bestD)
+                        continue;
+                    var g = source.SampleGround(c.Position.xz);
+                    if (!g.HasWater || g.WaterSurface <= g.Height)
+                        continue;
+                    var kind = FishCatch.Classify(source, g, new float3(c.Position.x, g.WaterSurface, c.Position.z));
+                    if (kind != FishWater.Lake && kind != FishWater.RiverPool && kind != FishWater.Swamp)
+                        continue;
+                    // 3 m ahead of it (or to one side), where the water is deep enough and is the same water.
+                    for (int k = 0; k < 8; k++)
+                    {
+                        var a = c.Yaw + k * math.PI * 0.25f;
+                        var xz = c.Position.xz + new float2(math.sin(a), math.cos(a)) * 3f;
+                        var at = source.SampleGround(xz);
+                        if (at.HasWater && at.WaterSurface - at.Height >= 0.7f && math.abs(at.WaterSurface - g.WaterSurface) < 0.3f)
+                        {
+                            bestD = d;
+                            best = e;
+                            bestAt = new float3(xz.x, at.WaterSurface, xz.y);
+                            break;
+                        }
+                    }
+                }
+                if (best == Entity.Null)
+                {
+                    if (Time.frameCount % 120 == 0)
+                        Debug.Log($"FishLure: no wild fish in a lake or pool within 80 m of ({player.Position.x:F0}, {player.Position.z:F0})");
+                    return;
+                }
+                lureFish = best;
+                lureAt = bestAt;
+                lureCastAt = Time.time;
+                lureScattered = false;
+                FishLure.Cast(DebugLureKey, lureAt, 1e4f);
+                var fishAt = em.GetComponentData<CreatureState>(best).Position;
+                var side = math.normalizesafe(new float2(lureAt.z - fishAt.z, fishAt.x - lureAt.x), new float2(1f, 0f));
+                var camXZ = lureAt.xz + side * 2.5f;
+                var camY = math.max(lureAt.y + 3.5f, source.SampleHeight(camXZ) + 1f);
+                shotCamFrom = new Vector3(camXZ.x, camY, camXZ.y);
+                shotCamTo = new Vector3(lureAt.x, lureAt.y - 0.2f, lureAt.z);
+                shotCamOn = lureCam = true;
+                Debug.Log($"FishLure: {fishLure}: bobber at ({lureAt.x:F1}, {lureAt.y:F2}, {lureAt.z:F1}) for the fish at " +
+                          $"({fishAt.x:F1}, {fishAt.y:F2}, {fishAt.z:F1}), {math.distance(fishAt, lureAt):F1} m off");
+            }
+            var since = Time.time - lureCastAt;
+            ref var list = ref FishLure.Data.Data;
+            for (int i = 0; i < list.Length; i++)
+            {
+                if (list[i].Key != DebugLureKey)
+                    continue;
+                var l = list[i];
+                if (fishLure == "nibble" && since >= 6f && l.Stage == FishLure.Stage.Waiting)
+                    l.Age = l.BiteIn - FishLure.SecondNibble + FishLure.NibbleTime * 0.5f;
+                if (fishLure == "bite" && since >= 6f && l.Stage == FishLure.Stage.Waiting)
+                    l.Stage = FishLure.Stage.Bite;
+                list[i] = l;
+            }
+            if (fishLure == "scatter" && !lureScattered && shotStarted >= 0f && since >= 6f &&
+                Time.realtimeSinceStartup >= shotStarted + shotWait - 0.5f)
+            {
+                lureScattered = true;
+                FishLure.Scatter(DebugLureKey);
+                Debug.Log("FishLure: scattered");
+            }
+            if (Mathf.FloorToInt(since) != Mathf.FloorToInt(since - Time.deltaTime) && em.Exists(lureFish))
+            {
+                var c = em.GetComponentData<CreatureState>(lureFish);
+                Debug.Log($"FishLure: {since:F0} s: fish {math.distance(c.Position.xz, lureAt.xz):F2} m off, {lureAt.y - c.Position.y:F2} m down, " +
+                          $"mode {c.Mode}, speed {c.Speed:F2}; " + FishNearLure());
+            }
+        }
+
+        /// <summary>The swimming fish within FishLure.Reach of the debug bobber, nearest first (distance, mode), for the log.</summary>
+        string FishNearLure()
+        {
+            var em = queryWorld.EntityManager;
+            using var query = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
+            using var states = query.ToComponentDataArray<CreatureState>(Allocator.Temp);
+            var near = new System.Collections.Generic.List<(float d, CreatureMode m)>();
+            foreach (var c in states)
+            {
+                var d = math.distance(c.Position.xz, lureAt.xz);
+                if (!c.Gone && d < FishLure.Reach && math.abs(c.Position.y - lureAt.y) < 3f)
+                    near.Add((d, c.Mode));
+            }
+            near.Sort((x, y) => x.d.CompareTo(y.d));
+            return "near: " + string.Join(", ", near.ConvertAll(n => $"{n.d:F2} {n.m}"));
         }
     }
 }

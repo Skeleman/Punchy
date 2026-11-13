@@ -170,6 +170,7 @@ namespace Punchy.Fauna
             state.RequireForUpdate<TerrainSource>();
             state.RequireForUpdate<CreatureState>();
             Shelters.Data = default;   // (A-71: the shelter totals count from this play's start; statics outlive plays)
+            FishLure.ClearAll();       // (A-100: no bobber outlives the play it was cast in)
             creatures = SystemAPI.QueryBuilder().WithAll<CreatureState, CreatureBody>().Build();
             thinkers = SystemAPI.QueryBuilder().WithAllRW<CreatureState, CreatureMind>().WithAll<CreatureBody>()
                 .WithNone<PlayerAvatar, RemoteAvatar, PosedForTest>().Build();
@@ -374,6 +375,9 @@ namespace Punchy.Fauna
             // A-70 row 2: one creature per index, handed out to the workers 8 at a time, in place of whole chunks (a chunk
             // holds over a hundred, so a few busy chunks left most workers idle while one or two ran on).
             var thinking = thinkers.ToEntityArray(Allocator.TempJob);
+            // A-100 row 2: the bobbers in the water, aged here (the brain runs once a frame, in the one world that
+            // simulates fish) and handed to the job as a copy.
+            FishLure.Tick(SystemAPI.Time.DeltaTime);
             Shelters.Data.ThisFrame = 0;   // (A-71: the shelter search cap is per frame)
             // A-77: last frame's colossus columns (ColossusPushSystem hands them over), taken here and freed after the job.
             var colossi = SystemAPI.TryGetSingletonRW<ColossusSnapshot>(out var colossusSnap) ? colossusSnap.ValueRO : default;
@@ -413,6 +417,7 @@ namespace Punchy.Fauna
                 Frame = ++frame,
                 Night = SystemAPI.TryGetSingleton<FaunaClock>(out var clock) ? clock.Night : 0f,
                 Hour = SystemAPI.TryGetSingleton<FaunaClock>(out var hourClock) ? hourClock.Hour : 12f,
+                Lures = FishLure.Data.Data,
                 Entities = entities,
                 States = states,
                 Bodies = bodies,
@@ -507,6 +512,8 @@ namespace Punchy.Fauna
             public float Now, Step;
             /// <summary>This frame's number, for whose turn it is to think far off (#59).</summary>
             public uint Frame;
+            /// <summary>The bobbers in the water (A-100 row 2, FishLure): fish near one come over to it.</summary>
+            public FixedList512Bytes<FishLure.Lure> Lures;
             [ReadOnly] public NativeArray<Entity> Entities;
 
             /// <summary>Whether this creature's staggered searches run this frame: its slot of SearchPeriod came round.</summary>
@@ -564,6 +571,10 @@ namespace Punchy.Fauna
                     CreatureMotion.ApparentSize(s, ref body.Blob.Value), Punchy.Settings.DetailPolicy.CreatureThinkPixels) / BrainLodDefault.x);
                 for (int p = 0; p < Players.Length && far; p++)
                     far = math.distancesq(Players[p].xz, s.Position.xz) > lodRange * lodRange;
+                // (A fish near a bobber thinks every frame: its nibbles are what the player reads. The bobber is near its
+                // caster anyway, so this only matters for a long cast on a low setting.)
+                for (int l = 0; l < Lures.Length && far; l++)
+                    far = math.distancesq(Lures[l].At.xz, s.Position.xz) > (FishLure.Reach + 2f) * (FishLure.Reach + 2f);
                 // (The phase is mixed first: math.hash alone doesn't spread its low bits well, and only those pick the frame.)
                 var phase = math.hash(new uint2(s.Individual, 0x59u));
                 phase ^= phase >> 16;
@@ -735,7 +746,9 @@ namespace Punchy.Fauna
                 var idleLook = watchPlayer ? lookAtPlayer : math.sin(s.Clock * 0.7f + s.Seed % 7) * 0.5f;
 
                 // Following a player (Follow.Start) takes the place of its own mode while it lasts.
-                if (!Following(ref s, ref b, ref rng, dt, walk, run, ref targetSpeed, ref moving, ref desiredLook))
+                // (So does a fish come over to a bobber: A-100 row 2.)
+                if (!Following(ref s, ref b, ref rng, dt, walk, run, ref targetSpeed, ref moving, ref desiredLook) &&
+                    !Lured(self, ref s, ref b, ref rng, dt, walk, run, threatened, ref targetSpeed, ref moving, ref custom))
                 switch (s.Mode)
                 {
                     case CreatureMode.Idle:

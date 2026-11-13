@@ -468,6 +468,9 @@ namespace Punchy.Debugging
             fishLineup = lineupArg >= 0;
             fishLineupGroup = lineupArg >= 0 && lineupArg + 1 < args.Length && (args[lineupArg + 1] == "small" || args[lineupArg + 1] == "big")
                 ? args[lineupArg + 1] : null;
+            // "-fishlure approach|nibble|bite|scatter" (A-100 row 2): a bobber in front of the nearest fish, at that moment.
+            var lureArg = System.Array.IndexOf(args, "-fishlure");
+            fishLure = lureArg >= 0 ? (lureArg + 1 < args.Length && !args[lureArg + 1].StartsWith("-") ? args[lureArg + 1] : "approach") : null;
             // "-skyoff n" (a bit mask, to price the sky's parts): see _PunchySkyOff in Sky.hlsl. Per shot line.
             var skyOffArg = System.Array.IndexOf(args, "-skyoff");
             if (skyOffArg >= 0 && skyOffArg + 1 < args.Length && float.TryParse(args[skyOffArg + 1], out var skyOff))

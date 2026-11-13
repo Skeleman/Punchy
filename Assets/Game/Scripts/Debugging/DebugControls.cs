@@ -288,6 +288,7 @@ namespace Punchy.Debugging
             Pose();
             FishProbe();
             FishLineup();
+            FishLurePose();
             Interact();
             ShotList();
             SolidStatsLog();
