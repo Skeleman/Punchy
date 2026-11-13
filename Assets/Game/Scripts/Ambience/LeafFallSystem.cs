@@ -128,7 +128,7 @@ namespace Punchy.Ambience
             float3 eye = cam.transform.position;
             var reach = DetailPolicy.ExtraReach(LeafSize, LeafPixels);
             LastReach = reach;
-            if (Time.time >= nextGather || math.distancesq(eye, gatheredAt) > 36f)
+            if (Time.time >= nextGather || math.distancesq(eye, gatheredAt) > 36f) // sim: re-gather sources after 6 m of travel, not a draw range
             {
                 nextGather = Time.time + 1f;
                 gatheredAt = eye;
@@ -229,7 +229,7 @@ namespace Punchy.Ambience
                     sources.Add(new Source
                     {
                         Crown = plant.Position - new float3(0f, length * 0.35f, 0f),
-                        Radius = 0.45f * plant.Scale,
+                        Radius = 0.45f * plant.Scale, // sim: the curtain's spawn spread, not a draw range
                         Depth = length * 0.3f,
                         Rate = 0.15f,
                         A = Color.Lerp(s.Foliage, s.Bark, 0.5f),
@@ -292,7 +292,7 @@ namespace Punchy.Ambience
                     Floor = source.FloorUnder(at, out _),
                     Age = 0f,
                     Rest = rng.NextFloat(4f, 9f),
-                    Fade = 1f,
+                    Fade = 1f, // sim: opacity left, not a distance
                     Color = c,
                     Kind = src.Kind,
                     State = 1
@@ -338,7 +338,7 @@ namespace Punchy.Ambience
                         d.State = 2;
                         d.Age = 0f;
                     }
-                    else if (d.Age > 40f)
+                    else if (d.Age > 40f) // sim: a time-out in seconds
                         d.State = 0;   // caught on something it never reached the floor of
                 }
                 else
