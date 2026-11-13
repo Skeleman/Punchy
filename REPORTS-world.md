@@ -6966,6 +6966,97 @@ half3 PunchySurfaceFinish(half3 color, PunchySurface s, half reach);            
 - **Risk:** the foam at the foot is subtle on the pale snow rock. The wet band is easiest to see on darker rock. Adding the include to TerrainSurface set off a long shader variant compile (about 2 min, 43 compiler processes) on first load. Not timed (rule 21).
 - **Next:** R-22 row 0 (#298, world/far-view).
 
+## 2026-11-13 W-153 row 1b: generator order round water, note only, no code (#301)
+
+- **Recommendation: order C below.** Split each river into a course (decided early) and a profile (solved late, on the finished ground), build falls from that profile, and put still water (ponds, paddies) last on the carved ground. Scarps (W-155 row 4) go in before the courses.
+- **Order today** (TerrainAuthoring.BuildPlaces, then TerrainSource.SampleGround per point):
+  1. Bare ground: base height, archipelago, sea.
+  2. Rivers, baked twice on the bare ground (RiverBaking.Build): a jittered map and a drawn (meandered) map. Inside each: rain and flow, priority flood, widths, path points, lakes, base levels, beds made downhill, breached lakes lowered, pits filled, dams cut, then falls picked from bed steps (drops under 3 m removed, thin falls within 60 m merged).
+  3. Landmarks, placed against the jittered map. Settlements, roadside looks, salt tower.
+  4. Swap to the drawn map. Caves, fishing villages, turtle, sea folk, ribcage, marsh folk, bat folk, anchors, icebergs.
+  5. Grand falls overlay.
+  6. River roughness and ponds switched on, pond mask built. Ponds know nothing of rivers.
+  - Per point, SampleGround applies: base, archipelago, sea, river carve and river surface, lake (dropped where the ground is more than its depth + 2 m under the surface), bay fill, landmark shape and pool water, grand falls, ponds and paddies, settlement levelling.
+- **Which step causes which defect** (counts from row 1):
+  | Defect | Count | Step that causes it | Kind of cause |
+  |---|---|---|---|
+  | Ground raised back over a carved river, with a pool on top: pool walls (1114), pool steps (229), the 6 worst dry runs, all 7 downstream rises, the 3 worst tilts | about 1360 | Step 6. A paddy's level is the bare ground at its cell centre (BaseHeight, before any carve), and it is applied after the river carve. A paddy cell that reaches over a gorge or a cliff edge refills it. The pond mask only drops small ponds; it never looks at rivers or slope. | Order + pond rule |
+  | Water held at the upper level over the lower pool's bowl at a fall: river walls by a fall (549), river steps by a fall (605), fall heads over 3 m deep (47), most of deep (42) | about 1240 | Step 2, falls. A fall is a bed step found after the beds are made; the carve switches to the lower bowl at one point and the water level at another, so one of the two stands proud for up to 20 m. | Fall description |
+  | River walls and steps away from a fall (136 + 341) | 477 | Not traced to one step yet. Suspect: bed steps whose fall was removed (under 3 m) or merged (within 60 m), which keep the step and lose the fall. Row 2 confirms with a per-hit dump. | Fall description (suspected) |
+  | Holes inside lakes with walls: lake walls (188), lake above river (11) | 199 | Step 2 lake levels come from the 16 m bare-ground grid; the per-point rule then drops the lake wherever the real ground is deeper than the lake's depth + 2 m. | Lake level vs final ground |
+  | Bed rising under flat water (uphillGraph 31) and drowned channels (rest of deep) | about 45 | Step 2: beds are made downhill before lakes are lowered and rivers settled to lake level; the later steps move the water and leave the bed. | Order inside the river bake |
+  | Bends tighter than the width allows (80) | 80 | Step 2 path points and meander: the curve radius is not limited by the river's width. | Course |
+  | Landing water missing or off the foot (4) | 4 | Step 2 falls: the landing is whatever water happens to be there. | Fall description |
+  | Landmarks sited against a river that is not the final one | not counted | Step 3 uses the jittered map, step 4 swaps to the drawn one. | Order |
+- **Candidate orders:**
+  - **A. Keep the order, add guards.** Ponds skip river corridors and cliff edges and take the carved ground as their level; lakes fill their holes; each fall gets a head ramp.
+    - Cures: the pond class (about 1360) and lake holes (199). Softens fall heads; the fall stays a found bed step, so new shapes of fall can still break.
+    - Moves: swamp ponds near rivers and cliffs. No landmark or course moves.
+    - Work: 2 rows. No new test scripts beyond lowering the baseline.
+  - **B. All water last, one solve.** Every ground-shaping step first (landmarks, plots, scarps, grand falls), then one hydrology pass on the finished ground at fine grid: flood, lakes, beds, falls, ponds together.
+    - Cures: every class at the source.
+    - Problem: landmarks, settlements and bridges are sited by the rivers, so rivers must exist before them. It needs a provisional river pass anyway, and then the final rivers can differ from the ones the sites were chosen for.
+    - Moves: every river, lake, fall and everything sited by them. Work: 6+ rows, longest bake, all river tests and vantage points redone.
+  - **C. Course early, profile late (recommended).**
+    1. Ground forms: base, archipelago, scarps (W-155 row 4 lands here, so a river meets a real cliff line).
+    2. Courses: routing on that ground, one map only, bend radius limited by width. A course is a line with widths; no levels yet.
+    3. Sites: landmarks, settlements, caves, coast places against that one course map.
+    4. Profiles: after every ground edit, each river gets a long profile solved downhill on the finished ground. A fall is a described reach: upper pool level, lip line, drop, slope, plunge pool, landing. Lakes are levelled against the finished ground in the same pass. R-21 row 4's one builder reads this description.
+    5. Still water last: ponds and paddies on the carved ground, kept out of river corridors and off edges, each pool checked for a rim.
+    6. Gate: WaterTruth runs at the end of the bake and logs its counts.
+    - Cures: pond class and landmark mismatch by order (steps 3, 5); fall heads, feet, deep and uphill by the profile (step 4); bends by the course rule (step 2); lake holes by step 4.
+    - Moves: falls (along the same courses, new heights), lake outlines a little, ponds near rivers and cliffs, landmarks that were sited by the jittered map. Courses move only at the 57 tight bends.
+    - Work: about 5 rows: (i) ponds last on carved ground, (ii) one course map + bend limit, (iii) profile solve with fall descriptions, (iv) lakes against finished ground, (v) bake gate. Each row re-pins and gives one BENCH-QUEUE line. Row (i) alone removes about 1360 of the 3173 wall and step samples.
+    - Tests: the existing river tests keep working (same hooks); Water_TruthCounts is the gate and its baseline drops each row.
+- **Why C over A:** A leaves the fall as an accident of the bed, which is the case that keeps breaking and the one R-21 row 4 must build on. C gives the one fall description the supervisor's routing note asks for, and costs three rows more. C's first row is A's pond guard, so nothing is wasted if it stops early.
+- **For W-155 row 4:** scarps go in step 1, before courses.
+- Asks: rule 11 tell: order C's first row (ponds last on carved ground) moves swamp ponds near rivers and cliffs and will change the world pin. Supervisor picks A, B or C before W-153 row 2 starts.
+- NEXT: R-21 row 4.
+
+## 2026-11-13 W-153 row 1: water truth probe, counts and causes, no fixes (#301), water/truth b571d174
+- DONE: #301 a probe (WaterTruth, editor only, reads TerrainSource and changes nothing) that walks every river cell, source, fall and a 4 m grid of the whole island (6,553,600 samples, 3,605,203 wet) and counts where water breaks physical rules. It stays as the test Water_TruthCounts with today's counts as the ceiling, so a later row can only lower them.
+- Counts (samples, then distinct places):
+  | Kind | What it means | Samples | Places |
+  |---|---|---|---|
+  | bend | turn too tight for the river's width (inside bank folds) | 80 | 57 |
+  | widthJump | width jumps between neighbouring cells | 0 | 0 |
+  | deadEnd | river ends away from sea, lake or another river | 0 | 0 |
+  | source | river starts with no spring, lake or slope above | 0 | 0 |
+  | dryRun | river centreline stands above its own water | 21 | 17 |
+  | uphillGraph | bed rises to the next cell downstream | 31 | 29 |
+  | uphillSampled | water surface rises downstream | 7 | 7 |
+  | wall | water standing over 1 m above dry ground one sample away | 1987 | 300 |
+  | deep | river water far deeper than its channel was dug | 42 | 33 |
+  | tilt | surface differs bank to bank | 35 | 31 |
+  | step | two water bodies side by side at different levels, no fall between | 1186 | 212 |
+  | fallHead | water over 3 m deep right behind a fall lip | 47 | 43 |
+  | fallFoot | landing water missing or off the foot | 4 | 4 |
+- Card's four classes: (a) kinks = bend 80. (b) dead ends and sourceless starts = 0; rivers that run dry on their own line = 21. (c) against gravity = uphill 31 + 7, walls 1987, steps 1186, tilt 35, deep 42, fall heads 47. The water walls at the R22 and R23 falls are caught: fall 23 has 18.8 m of water behind its lip, fall 67 22.0 m, fall 74 18.9 m, fall 61 15.3 m. (d) seams: lake and sea joins are in step (lake above river 11, pool above sea 9, river above sea 32); fall sheet joins are fallHead and fallFoot; chunk borders below.
+- Walls and steps by type: walls = pool above dry ground 1114 (42 by a fall), river above dry ground 685 (549 by a fall), lake above dry ground 188. Steps = river above river 914 (589 by a fall), pool above river 158, pool above pool 62, river above sea 32, lake above river 11, pool above sea 9.
+- Cause per kind (course = the generator's data is wrong; mesh = the data is fine and the drawing is wrong):
+  - bend: course. The meander does not limit curve radius by width. Worst: 46 deg turn in a 21 m river at (-2747, 514), inside bank 7.2 m short.
+  - Pool walls, pool steps, the 6 worst dry runs, all 7 downstream rises, the 3 worst tilts (about 1360 samples): course, one cause, confirmed in code. A swamp paddy takes its level from the bare ground before the river carve and is applied after the carve, so a paddy cell that reaches over a gorge or cliff edge refills it with a pillar of ground and a pool on top. Worst: pool at 89.8 m beside a river at 36.2 m at (-474, 682), a 53.6 m step.
+  - River walls and steps by a fall, fall heads, most of deep (about 1240): course. The fall's upper water level is held over the lower pool's bowl for up to 20 m.
+  - River walls and steps away from a fall (477): course, not traced to one step. Suspect falls that were removed or merged while their bed step stayed.
+  - Lake walls (188): course. A lake is dropped wherever the real ground is deeper than its depth + 2 m, leaving a dry hole with water walls inside its outline. Worst 37.8 m at (-2986, 2730).
+  - uphillGraph (31): course. Beds are made downhill before rivers are flattened to lake level; the bed keeps a rise of up to 9.6 m under flat water.
+  - fallFoot (4): course. Falls 16, 25, 78 land on no water; fall 76 lands 2.7 m off.
+  - 3 dry runs within 21 m of a fall lip (falls 33, 38, 52) are the fall's own carve; one at (-779, 1041) is 280 m from any fall and untraced.
+  - Mesh: no fold or overlap is possible in the drawn water (one height per grid point), so none of the kinds above is a mesh fault. The one mesh fault found is at chunk borders, next line.
+- Chunk-border seams (TestHooks.WaterSeams, loaded chunks within 3 chunks of 11 places): 627 borders, 22,447 wet border vertices compared, 27 gaps over 5 cm, 44 open ends (water above ground that the neighbour chunk does not continue), largest gap 6.64 m. All gaps and open ends are at the places with pool walls or steps (worst wall/step place 9 gaps and 10 open ends; worst bend 6 gaps, 6.64 m). Smooth water has none: fall 67 head, fall 16 foot, the sea mouth and the second-worst bend are 0 gaps and 0 open ends; the lake hole has 0 gaps and 4 open ends. So the mesh joins correctly where the data is continuous and tears where the data steps; suspected mechanism is neighbours at different detail sampling a stepped level, not confirmed. This spot check is not in the suite (it needs the player moved to each place).
+- Checks: full PlayMode suite after the last code change, completed: 41/41 passed (40 before + Water_TruthCounts). Pins unchanged (world 117 689D5348, fauna 6A9E28E5): the probe only reads. Probe run twice, same counts. No frame timing.
+- Shots: 90 in PunchyMilestones/W-153/ named <kind>-NN.png, NN = rank in the worst-ten list (uphillSampled has 6, fallFoot 4). I opened 12:
+  - dryRun-01, wall-01, tilt-01, uphillSampled-01: looked for the cause of the 30-50 m walls. Saw tall dark rock pillars with flat green swamp water on top standing in and beside a river gorge, a normal river running past below. This is the paddy cause and it is the ugliest thing in the set.
+  - deep-01: looked for the drowned channel at fall 23. Saw a chain of square water blocks standing proud of the slope like stacked boxes, sheets on their sides: the upper level held over the lower bowl.
+  - fallFoot-01: night shot, fall sheet ends on a block of water above the ground; readable but dark.
+  - bend-01, bend-03: kinked bank on the inside of the turn; bend-03 is a cascade chain inside a tight bend.
+  - wall-04 (lake): flat lake with small square steps of ground showing through the surface; the 37.8 m wall itself is not in frame. UNVERIFIED as a shot of the lake wall.
+  - fallHead-01, step-04: night, too dark to judge. uphillGraph-01: rain blur over flat water; the rising bed is under water and cannot show. All three UNVERIFIED.
+  - The other 78 are unviewed. Time of day and weather were not fixed for the loop; row 2's before/after pairs will pin noon and clear weather.
+- NOT DONE / UNVERIFIED: the 477 river walls and steps away from falls and one dry run have no traced cause. Streams are covered only as far as they are river cells in the river map. The far water form was not probed (row 4).
+- Asks: none for this row. Old code noticed: the generator keeps two river maps (jittered and drawn) and sites landmarks against the first; see row 1b.
+- NEXT: R-21 row 4 (supervisor's order), then W-153 row 2 after the supervisor picks an order from row 1b.
+
 ## R-21 row 3: fall sheet as white water, quick defects (#284), world/waterfall-sheets d1f01dd3, done (verified; 3 of 6 defects fixed, 3 need row 4 / W-153)
 
 - **What changed (LandmarkWaterfall.shader only, cave falls unchanged):**
