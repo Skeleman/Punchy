@@ -4118,3 +4118,36 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
   - A hermit backs away from a player within 4.5 m (existing Wary step), so it won't do its doorstep chore with the player standing on its step.
   - Re-running DebugControls.RunOptions (as shot tools do) clears `-hermittalk`, as it does for the other flags.
 - Next: row 3 (kin deaths on clients).
+
+### Row 3: kin deaths on clients, no-wire version (done, verified, #25, fauna/harsh-work 107e583e)
+
+- What: a joined client now marks a housed folk lost when its ghost vanishes within 150 m of the client's own player. Its family then speaks of it as lost, as on the host. This works because the host only lets a housed folk go when it is beyond DespawnDistance from every player, or when it has died. Nothing new is sent: no RPC, ghost field or wire enum (`FaunaDirector.KinLost.cs`).
+- Guards against other ways a ghost drops:
+  - The player jumps more than 20 m in one look (teleport, respawn): the watch holds off for 3 s while the host catches up.
+  - Not connected or not in game, or no player of our own: the watch starts over.
+  - More than 3 housed ghosts vanish at once: treated as a reset, not deaths.
+  - A marked folk whose ghost comes back has its mark cleared.
+  - Leaving client mode (fallen back to solo, or a teardown) takes the client's marks back and resets the watch.
+- Test driver: a new build flag, `-kincmd <file>` (`DebugControls.KinWatch.cs`), runs lines appended to a text file twice a second: `ask n`, `move dx dz`, `kill` (where folk are simulated), `mark` (client test mark) and `count`. One host build and one client build at town 73 (`-households -body Human`).
+- Results (run 4, final code except the teardown reset):
+  - Baseline: client lost 0, back 0.
+  - Teleport 450 m away and back: lost 0, so no false deaths.
+  - Host kill: host `killed Wren ... 1 m from us` / `[households] died Wren Child of house at (2963.1, -864.3) landmark 73: bed left empty`. Client `[households] client: died Wren Child of house at (2963.1, -864.3) landmark 73: ghost gone 4 m from us`, lost 1.
+  - Same family line after the death:
+    - Host: `talk Edda Partner of house at (2963.1, -864.3) landmark 73: "We lost my son Wren. The house is too quiet now." names Wren Child (child, died)`.
+    - Client: `talk Corin Head of house at (2963.1, -864.3) landmark 73: "I still set a place for my son Wren. Silly, I know." names Wren Child (child, died)`.
+    - The wording is picked per machine at random. Same house, same member, same `(child, died)`. Run 2 had the same pair, with the speakers swapped.
+  - Ghost returns: `mark` on a folk in view, then `client: back Wystan Head ... not lost` on the next look. Lost 2, back 1.
+  - Host disconnect: `Net (client): connection 2 disconnected (Timeout)`, then no `client: died` line. The count stays 2/1. The client falls back to solo; Teardown rebuilt the households, so the marks went with them.
+  - No exceptions in either log, in any run.
+- The P-35 gap, for the saved-state design: a client never learns of a death it didn't see. That covers deaths farther than 150 m from it, deaths during its own teleport hold, deaths before it joined, and folk who died while their ghost was already out of its relevance range. The host's `Household.Lost` list is state that should outlive the session. When P-35 designs it, the wire part would be:
+  - an RPC host -> all clients on each HouseMemberDied, carrying the dead member's `uint` Individual (households derive from the seed, so the Individual alone names house and member);
+  - the full list of lost Individuals sent to each connection on join (or on load of a save).
+  The client's vanish guess can then go, or stay as a fallback.
+- Numbers: the suite ran after the last change: Passed, total=57, passed=40, failed=0, skipped=17 (Fauna_Fingerprint passed). Fingerprint 6A9E28E5 (WorldTests.Fauna_Fingerprint). A player build logs 00000000 for the fingerprint, so check it in the editor or suite. No placement, landmark, ghost field or wire change.
+- Rules 25-28: nothing is visible at distance (talk only). No shader or lighting work. No new item, ownership or save stand-ins; the list of the dead is left to P-35, as above. All touched files are under 2500 lines (FaunaDirector.cs 763, Households 624, DebugControls.cs 530); the new code is in two new partials.
+- Risks:
+  - A folk that despawns for some other reason within 150 m of a client would be wrongly marked lost until its ghost comes back. No such path is known: the host's only reasons are distance and death.
+  - When the client's position reaches the host late (lag over 3 s), the 150 m margin against DespawnDistance is what protects it.
+  - `-kincmd` is a test flag in builds, like the other launch flags. It does nothing without the flag.
+- Next: card end (A-106 done).
