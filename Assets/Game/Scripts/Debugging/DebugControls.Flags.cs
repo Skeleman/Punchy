@@ -462,6 +462,12 @@ namespace Punchy.Debugging
             // "-oldtrace" (#81): TraceSystem's managed per-creature ground lookups, as before W-66.
             Punchy.Fauna.TraceSystem.OldTrace = System.Array.IndexOf(args, "-oldtrace") >= 0;
             perfLog = System.Array.IndexOf(args, "-perflog") >= 0;
+            // "-fishprobe" / "-fishlineup" (A-100): the catch-table probe and the catch line-up (DebugControls.Fish.cs).
+            fishProbe = System.Array.IndexOf(args, "-fishprobe") >= 0;
+            var lineupArg = System.Array.IndexOf(args, "-fishlineup");
+            fishLineup = lineupArg >= 0;
+            fishLineupGroup = lineupArg >= 0 && lineupArg + 1 < args.Length && (args[lineupArg + 1] == "small" || args[lineupArg + 1] == "big")
+                ? args[lineupArg + 1] : null;
             // "-skyoff n" (a bit mask, to price the sky's parts): see _PunchySkyOff in Sky.hlsl. Per shot line.
             var skyOffArg = System.Array.IndexOf(args, "-skyoff");
             if (skyOffArg >= 0 && skyOffArg + 1 < args.Length && float.TryParse(args[skyOffArg + 1], out var skyOff))
