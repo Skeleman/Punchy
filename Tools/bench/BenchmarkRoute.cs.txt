@@ -236,6 +236,16 @@ namespace Punchy.Debugging
                 }
             }
 
+            // -benchface x,z,dist: also measure a steep face (job 66, R-19) as stop "face". The face's downhill direction is
+            // the lowest of 32 ground samples 12 m round x,z; the player stands dist m out along it, facing the face, with
+            // the camera pitched up at the face point. Logs the pose so a later run can repeat it.
+            var faceArg = System.Array.IndexOf(args, "-benchface");
+            if (faceArg >= 0 && faceArg + 1 < args.Length)
+            {
+                var v = System.Array.ConvertAll(args[faceArg + 1].Split(','), s => float.Parse(s, System.Globalization.CultureInfo.InvariantCulture));
+                yield return Stop("face", () => FaceAt(new float2(v[0], v[1]), v.Length > 2 ? v[2] : 20f) && SetWeather("Partly cloudy", 18));
+            }
+
             // -benchline x0,z0,x1,z1,speed,height: also a straight run as stop "line" (job 44: the W-129 shrub walk and glide).
             // Settles at x0,z0 facing x1,z1, then is carried along the line at speed m/s, height m over the ground (or over
             // the sea where that's higher); the measured part is the line's length over the speed. -hitchms N logs where.
@@ -1528,6 +1538,40 @@ namespace Punchy.Debugging
             var pitch = pitchArg >= 0 && pitchArg + 1 < args.Length ? float.Parse(args[pitchArg + 1], System.Globalization.CultureInfo.InvariantCulture) : 12f;
             if (cam != null)
                 cam.SetView(yaw, pitch);
+            return true;
+        }
+
+        /// <summary>-benchface: stands dist m out from the steep face at xz (downhill of it), facing it, camera pitched at it.</summary>
+        static bool FaceAt(float2 xz, float dist)
+        {
+            if (!TryGetWorld(out var em, out var player))
+                return false;
+            using var terrainQuery = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
+            if (terrainQuery.IsEmpty)
+                return false;
+            var source = terrainQuery.GetSingleton<TerrainSource>();
+            var top = source.SampleHeight(xz);
+            float2 down = new float2(1f, 0f);
+            var lowest = float.MaxValue;
+            for (var i = 0; i < 32; i++)
+            {
+                var a = i * math.PI * 2f / 32f;
+                var d = new float2(math.sin(a), math.cos(a));
+                var h = source.SampleHeight(xz + d * 12f);
+                if (h < lowest) { lowest = h; down = d; }
+            }
+            var stand = xz + down * dist;
+            var ground = math.max(source.SampleHeight(stand), source.World.SeaLevel);
+            var yaw = Yaw(new float3(-down.x, 0f, -down.y));
+            // Up at the face point (ThirdPersonCamera: a negative pitch looks up), kept within -40..12.
+            var pitch = math.clamp(-math.degrees(math.atan2(top - ground - 1.7f, dist)), -40f, 12f);
+            em.SetComponentData(player, new LocalTransform { Position = new float3(stand.x, ground + 0.1f, stand.y), Rotation = quaternion.RotateY(math.radians(yaw)), Scale = 1f });
+            em.SetComponentData(player, new PlayerMotion { Grounded = true });
+            var cam = FindAnyObjectByType<ThirdPersonCamera>();
+            if (cam != null)
+                cam.SetView(yaw, pitch);
+            Debug.Log($"BenchRoute: face at {xz.x:F0},{xz.y:F0} (ground {top:F1}, 12 m downhill drop {top - lowest:F1}): standing {dist:F0} m out at " +
+                      $"{stand.x:F0},{ground:F1},{stand.y:F0}, yaw {yaw:F0}, pitch {pitch:F0}");
             return true;
         }
 
