@@ -3676,6 +3676,15 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
   - Net: NetPlayerLook gains one GhostField and NetPlayerCommand one field.
 - Next: row 2, folk dive.
 
+### Row 2: folk dive (0b8ce793)
+- Folk out swimming now dive. An air breather goes down only with full breath, no deeper than `Breath.MaxDive` (about 7 m for folk) or the water allows. It swims about down there and turns up while it still has enough breath to reach the surface with 0.15 left (`Breath.TimeToRise`), then rests at the surface 3-10 s after its breath comes back. Water breathers (`BreathesWater`; FishFolk stands in for sea folk until A-103 row 2) roam the whole water column for 4-12 s at each depth and come up now and then. The body pitches head down going down and head up coming up (Vertical, already a GhostField). Under water the swim pose brings the head in line with the body instead of raised. No new GhostFields: clients see the dive through Position and Vertical. The new state is brain only (`CreatureMind.Dive/DiveTo/DiveWait`).
+- Check: `-island v3 -place lake -time 12 -weather Clear -divetest` (water 4.2 m deep) printed "DiveTest: PASS: Human: deepest 2.46 m, most breath used 0.85, gasped False, dives 3, longest under 25 s (ok); FishFolk: deepest 3.84 m, most breath used 0.00, gasped False, dives 4, longest under 49 s (ok); NaN probe most 0". The NaN probe counts creatures on the whole island with a non-finite position, Vertical or dive value; it read 0 of 211-230 on every 2 s tick.
+- Shots in D:/Unity/PunchyMilestones/A-102/ (800x450, full-size PNGs beside them): dive-1-person-down-800.jpg (a person a couple of metres under, bubbles rising), dive-2-person-surfaced-800.jpg (back up, head raised, breaststroke), dive-3-seafolk-deep-800.jpg (a fish folk deep in the lake). The shot camera stays put rather than following, so the swimmers are small. Two of the 28 candidates showed a horizontal band in the water render. That is the existing water shader, not this row.
+- Pins: Fauna_Fingerprint 151753F3 before and after (mind fields aren't hashed). No landmark or placement change.
+- Suite: "completed: 33/33 passed" (PlayMode), the full run after the last change.
+- Branch: only new commits on fauna/breath from here (A-103 merged 47a60b7e).
+- Next: row 3, the player dives.
+
 ## A-103: folk homes, people in the turtle igloos and the sea folk city, branch fauna/folk-homes
 
 ### Row 1: turtle folk (done, verified)
