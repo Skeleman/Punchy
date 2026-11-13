@@ -350,6 +350,7 @@ namespace Punchy.Terrain
                 Destroy(caveWater);
             caveWater = null;
             ReleaseBatFolk();
+            ReleaseClimbs();
             ReleaseRooms();
             Shader.SetGlobalVector(LanternId, Vector4.zero);
         }
@@ -1341,6 +1342,7 @@ namespace Punchy.Terrain
             DrawPools(source, camPos);
             marks[3] = clock.Elapsed.TotalMilliseconds;
             DrawBatFolk(source, camPos);
+            DrawClimbs(source, camPos);
             DrawRooms(source, camPos);
             marks[4] = clock.Elapsed.TotalMilliseconds;
             DrawPlants(source, camPos);

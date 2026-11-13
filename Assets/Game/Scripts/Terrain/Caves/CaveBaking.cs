@@ -453,6 +453,9 @@ namespace Punchy.Terrain
             Step("lake details");
             PlaceRiverDetails(withCaves, caves, styles, CaveFloraTable.Collect(types), extras);
             Step("river details");
+            // W-144: climb routes and ledges last, against the finished rock (they change none, so nothing moves).
+            PlaceClimbs(withCaves, caves, nodes, kinds, segments, styles, extras);
+            Step("climbs");
             FinishRooms(caves, extras);
             withWater.Dispose();
             // W-110: road tunnels last, appended after the landmarks' caves (whose indices, seeds and extras stay as
@@ -493,6 +496,10 @@ namespace Punchy.Terrain
             public readonly List<River> Rivers = new List<River>();
             /// <summary>W-147: mines' ladder climbs.</summary>
             public readonly List<ClimbLadder> Ladders = new List<ClimbLadder>();
+            /// <summary>W-144: natural caves' climb routes, their pieces and the ledges on the drops' rims.</summary>
+            public readonly List<CaveClimb> Climbs = new List<CaveClimb>();
+            public readonly List<ClimbPoint> ClimbPoints = new List<ClimbPoint>();
+            public readonly List<CaveLedge> Ledges = new List<CaveLedge>();
         }
 
         /// <summary>
@@ -702,6 +709,15 @@ namespace Punchy.Terrain
             var ladderArray = builder.Allocate(ref root.Ladders, extras.Ladders.Count);
             for (int i = 0; i < extras.Ladders.Count; i++)
                 ladderArray[i] = extras.Ladders[i];
+            var climbArray = builder.Allocate(ref root.Climbs, extras.Climbs.Count);
+            for (int i = 0; i < extras.Climbs.Count; i++)
+                climbArray[i] = extras.Climbs[i];
+            var climbPointArray = builder.Allocate(ref root.ClimbPoints, extras.ClimbPoints.Count);
+            for (int i = 0; i < extras.ClimbPoints.Count; i++)
+                climbPointArray[i] = extras.ClimbPoints[i];
+            var ledgeArray = builder.Allocate(ref root.Ledges, extras.Ledges.Count);
+            for (int i = 0; i < extras.Ledges.Count; i++)
+                ledgeArray[i] = extras.Ledges[i];
             BuildGrid(builder, ref root, caves, nodes, segments, extras.Rooms, pools, extras.Chambers);
             BuildSpeleothemGrid(builder, ref root, speleothems);
             var blob = builder.CreateBlobAssetReference<CaveSetBlob>(allocator);

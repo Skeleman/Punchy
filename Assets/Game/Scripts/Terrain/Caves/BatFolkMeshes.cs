@@ -27,7 +27,8 @@ namespace Punchy.Terrain
             new float3(0.8f, 0.94f, 0.95f), new float3(0.94f, 0.82f, 1f), new float3(1.06f, 0.4f, 1f), new float3(1.1f, 0f, 1f)
         };
 
-        class Builder
+        /// <summary>Builds one mesh from lathed, woven, boxed and (W-144) tube pieces; also used for the cave climb routes.</summary>
+        internal class Builder
         {
             public readonly List<Vector3> Positions = new List<Vector3>();
             public readonly List<Vector3> Normals = new List<Vector3>();
@@ -140,6 +141,40 @@ namespace Punchy.Terrain
                     }
                     Indices.Add(start); Indices.Add(start + 1); Indices.Add(start + 2);
                     Indices.Add(start); Indices.Add(start + 2); Indices.Add(start + 3);
+                }
+            }
+
+            /// <summary>
+            /// W-144: an open tube from a (radius ra) to b (radius rb), sides round: a root, vine or rope strand, or a
+            /// crack line's dark groove. Consecutive tubes meet at shared points, so a strand reads as one bent line.
+            /// </summary>
+            public void Tube(float3 a, float3 b, float ra, float rb, float tint, int sides)
+            {
+                var dir = b - a;
+                if (math.lengthsq(dir) < 1e-8f || !math.all(math.isfinite(a)) || !math.all(math.isfinite(b)))
+                    return;
+                dir = math.normalize(dir);
+                var side = math.abs(dir.y) < 0.95f ? new float3(0f, 1f, 0f) : new float3(1f, 0f, 0f);
+                var u = math.normalize(math.cross(dir, side));
+                var v = math.cross(dir, u);
+                var start = Positions.Count;
+                for (int r = 0; r < 2; r++)
+                {
+                    var centre = r == 0 ? a : b;
+                    var radius = r == 0 ? ra : rb;
+                    for (int s = 0; s <= sides; s++)
+                    {
+                        var angle = s * math.PI * 2f / sides;
+                        var n = u * math.cos(angle) + v * math.sin(angle);
+                        Vertex(centre + n * radius, n, tint);
+                    }
+                }
+                for (int s = 0; s < sides; s++)
+                {
+                    var i = start + s;
+                    var j = i + sides + 1;
+                    Indices.Add(i); Indices.Add(j); Indices.Add(i + 1);
+                    Indices.Add(i + 1); Indices.Add(j); Indices.Add(j + 1);
                 }
             }
 

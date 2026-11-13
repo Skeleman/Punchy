@@ -300,6 +300,11 @@ namespace Punchy.Terrain
         public BlobArray<CaveChamber> Chambers;
         /// <summary>W-147: mines' ladder climbs (up shafts, between levels), in the world; a handful an island, so scanned whole.</summary>
         public BlobArray<ClimbLadder> Ladders;
+        /// <summary>W-144: natural caves' climb routes (CaveClimbs queries them), the pieces that show them, and the shimmy
+        /// ledges along the drops' rims; a few dozen an island, so scanned whole.</summary>
+        public BlobArray<CaveClimb> Climbs;
+        public BlobArray<ClimbPoint> ClimbPoints;
+        public BlobArray<CaveLedge> Ledges;
         public float2 GridOrigin;
         public float CellSize;
         public int2 GridSize;
