@@ -1213,6 +1213,11 @@ namespace Punchy.Fauna
         public const byte MinerAtFace = 101;
         /// <summary>Sitting-mode stages at the town's fire: standing by it, sitting on the ground by it, on a seat near it.</summary>
         public const byte HearthStand = 5, HearthGround = 6, HearthSeat = 7;
+
+        /// <summary>The work pose a hermit's Stage at work stands for: its garden (2) and its biome chores (3 broom, 4
+        /// shovel, 6 rope, 7 sand shovel; A-106 row 2, posed as the job FolkJobs.Shown reads) tend, 5 hammers, the rest chop.</summary>
+        static CreatureTask HermitTask(byte stage) =>
+            stage == 5 ? CreatureTask.Hammer : stage == 2 || stage == 3 || stage == 4 || stage == 6 || stage == 7 ? CreatureTask.Tend : CreatureTask.Chop;
         /// <summary>Sitting-mode stage of a child sitting in a play ring on a green (with its stick or stone).</summary>
         public const byte PlayRing = 8;
         /// <summary>Play-mode stage of a sea folk child running after a fish (A-103 row 3): no partner playing back.</summary>
@@ -1247,7 +1252,7 @@ namespace Punchy.Fauna
         /// </summary>
         static float3 SwingBody(ref CreaturePart part, in CreatureState s, int joint)
         {
-            var job = s.Task == CreatureTask.Hermit ? (s.Stage == 2 || s.Stage == 3 ? CreatureTask.Tend : s.Stage == 5 ? CreatureTask.Hammer : CreatureTask.Chop) : s.Task;
+            var job = s.Task == CreatureTask.Hermit ? HermitTask(s.Stage) : s.Task;
             if (s.Task == CreatureTask.Tend)
                 return TendBody(ref part, in s, joint);
             if (job != CreatureTask.Chop && job != CreatureTask.Hammer && !(job == CreatureTask.Mine && s.Stage == MinerAtFace))
@@ -1279,7 +1284,7 @@ namespace Punchy.Fauna
             if (!torso && !head)
                 return float3.zero;
             var t = s.Clock + (s.Individual % 100) * 0.13f;
-            switch (FolkJobs.Of(in s))
+            switch (FolkJobs.Shown(in s))
             {
                 case FolkJob.Baker:
                     return new float3(torso ? 0.28f + 0.08f * (Knead(t, true) + Knead(t, false) - 1f) : 0.3f, 0f, 0f);
@@ -1307,6 +1312,14 @@ namespace Punchy.Fauna
             return new float3(0f, 0f, -0.75f *math.clamp(1.5f * math.sin(t * 0.32f), -1f, 1f));
         }
 
+        /// <summary>A-106: where a sweeper is in its broom stroke (0..1, one stroke there and back), so the ash puffs
+        /// (WorkDust) land on the stroke.</summary>
+        public static float SweepPhase(in CreatureState s) => math.frac((s.Clock + (s.Individual % 100) * 0.13f) * 0.55f);
+
+        /// <summary>A-106: where a shoveller is in its scoop, lift and toss (0..1; the toss is at about 0.7), shared with
+        /// WorkDust and the gear.</summary>
+        public static float ShovelPhase(in CreatureState s) => math.frac((s.Clock + (s.Individual % 100) * 0.13f) * 0.3f);
+
         static float3 TaskPose(ref CreaturePart part, in CreatureState s, int joint)
         {
             if (part.Role == LimbRole.Arm && joint <= 1 && s.Mode == CreatureMode.Hunt && s.Task == CreatureTask.Hunt)
@@ -1325,7 +1338,7 @@ namespace Punchy.Fauna
             var right = part.Side > 0f;
             var t = s.Clock + (s.Individual % 100) * 0.13f;
             // (A hermit's chores take a woodcutter's or a tender's pose: its stage says which.)
-            var job = s.Task == CreatureTask.Hermit ? (s.Stage == 2 || s.Stage == 3 ? CreatureTask.Tend : s.Stage == 5 ? CreatureTask.Hammer : CreatureTask.Chop) : s.Task;
+            var job = s.Task == CreatureTask.Hermit ? HermitTask(s.Stage) : s.Task;
             switch (job)
             {
                 case CreatureTask.Hammer:
@@ -1350,7 +1363,7 @@ namespace Punchy.Fauna
                     return new float3(joint == 0 ? -0.45f - 1.9f * raise : -0.9f + raise * (0.1f - 0.9f * beckon), 0f, 0f);
                 }
                 case CreatureTask.Tend:
-                    switch (FolkJobs.Of(in s))
+                    switch (FolkJobs.Shown(in s))
                     {
                         case FolkJob.Baker:
                         {
@@ -1375,6 +1388,29 @@ namespace Punchy.Fauna
                             var circle = t * 0.7f + (right ? math.PI : 0f);
                             var feed = math.smoothstep(0.75f, 0.9f, 0.5f + 0.5f * math.sin(t * 0.21f));
                             return new float3(joint == 0 ? -1.05f - 0.12f * math.sin(circle) - 0.3f * feed : -0.75f + 0.18f * math.cos(circle), 0f, 0f);
+                        }
+                        case FolkJob.AshSweeper:
+                        {
+                            // (A-106) Sweeping ash: both hands low on the broom, short strokes side to side (the lower
+                            // hand reaches further).
+                            var stroke = math.sin(SweepPhase(in s) * 2f * math.PI);
+                            return new float3(joint == 0 ? (right ? -0.35f : -0.6f) - 0.22f * stroke : -0.3f + 0.1f * stroke, 0f, 0f);
+                        }
+                        case FolkJob.SnowShoveller:
+                        case FolkJob.SandClearer:
+                        {
+                            // (A-106) Shovelling: push the blade in low, lift the load, toss it aside, back down.
+                            var p = ShovelPhase(in s);
+                            var lift = math.smoothstep(0.4f, 0.62f, p) * (1f - math.smoothstep(0.8f, 0.96f, p));
+                            var toss = math.smoothstep(0.66f, 0.74f, p) * (1f - math.smoothstep(0.74f, 0.88f, p));
+                            var low = right ? 0f : 0.15f;
+                            return new float3(joint == 0 ? -0.45f + low - 0.85f * lift - 0.5f * toss : -0.3f - 0.45f * lift + 0.35f * toss, 0f, 0f);
+                        }
+                        case FolkJob.Roofer:
+                        {
+                            // (A-106) Tying the roof down: hauling the rope up at the eave hand over hand, arms high.
+                            var reach = Haul(t * 0.8f, right);
+                            return new float3(joint == 0 ? -1.5f - 0.9f * reach : -0.35f + 0.2f * reach, 0f, 0f);
                         }
                         default:
                             return new float3(joint == 0 ? -0.65f + 0.22f * math.sin(t * 1.5f + (right ? 0f : 1.4f)) : -0.55f, 0f, 0f);

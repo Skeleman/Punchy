@@ -9,7 +9,8 @@ namespace Punchy.Fauna
     /// are handed by the host's FaunaDirector to free townsfolk, at a post by a matching anchor, and kept in
     /// CreatureState.Job. Local only, never sent: CreatureState.Job is not a ghost field, so a joined client sees the
     /// job its Task implies (a baker tends, so it reads as a well-keeper there). A synced version would need Job as a
-    /// ghost field on CreatureGhost (a network table change, rule 11).
+    /// ghost field on CreatureGhost (a network table change, rule 11). The harsh-biome jobs (A-106) are the exception
+    /// that needs no new field: each works at its own Stage (WorkStage), and a client reads the job back from that.
     /// </summary>
     public enum FolkJob : byte
     {
@@ -25,6 +26,10 @@ namespace Punchy.Fauna
         IceFisher, IceCutter, FireTender, Elder,
         // Sea folk bed keepers (A-103 row 3): one tends a clam bed, one keeps the glow stones round the spire.
         ClamTender, GlowKeeper,
+        // Harsh-biome work (A-106 row 1), from the settlement's biome's FolkWorkSet: sweeping ash off paths and doorsteps,
+        // shovelling snow from a door, shovelling drifted sand clear, tying a roof down against the storm, mending
+        // armour and tools at a bench.
+        AshSweeper, SnowShoveller, SandClearer, Roofer, Mender,
     }
 
     /// <summary>A folk's temper, for flavouring its lines: from its Individual hash, so every machine agrees.</summary>
@@ -65,8 +70,27 @@ namespace Punchy.Fauna
             }
         }
 
-        /// <summary>This folk's job: the one it was handed, else the one its task implies.</summary>
-        public static FolkJob Of(in CreatureState s) => s.Job != 0 ? (FolkJob)s.Job : FromTask(s.Task);
+        /// <summary>This folk's job: the one it was handed, else the one its task implies. A hermit is always a Hermit
+        /// here (its biome chore, row 2 of A-106, only shows at work; see <see cref="Shown"/>), so it talks as a hermit.</summary>
+        public static FolkJob Of(in CreatureState s) =>
+            s.Task == CreatureTask.Hermit ? FolkJob.Hermit : s.Job != 0 ? (FolkJob)s.Job : FromTask(s.Task);
+
+        /// <summary>A-106 row 2: the job a folk's look shows (its pose, tool, pile and dust). The same as Of, except a
+        /// hermit at work shows the biome chore its Stage codes (WorkStage turned back), which host and client both see.</summary>
+        public static FolkJob Shown(in CreatureState s)
+        {
+            if (s.Task != CreatureTask.Hermit || s.Mode != CreatureMode.Work)
+                return Of(s);
+            switch (s.Stage)
+            {
+                case 3: return FolkJob.AshSweeper;
+                case 4: return FolkJob.SnowShoveller;
+                case 5: return FolkJob.Mender;
+                case 6: return FolkJob.Roofer;
+                case 7: return FolkJob.SandClearer;
+                default: return FolkJob.Hermit;
+            }
+        }
 
         /// <summary>The job's name as dialogue.json tags it ("Baker"), or null for none.</summary>
         public static string Name(FolkJob job) => job == FolkJob.None ? null : job.ToString();
@@ -95,6 +119,39 @@ namespace Punchy.Fauna
             (AnchorKind.Stall, FolkJob.Trader, CreatureTask.Gesture, 4, 0f),
             (AnchorKind.Gate, FolkJob.Guard, CreatureTask.Patrol, 5, 0f),
         };
+
+        /// <summary>A-106: the task whose work loop a harsh-biome job uses (a mender hammers, the rest tend).</summary>
+        public static CreatureTask TaskOf(FolkJob job) => job == FolkJob.Mender ? CreatureTask.Hammer : CreatureTask.Tend;
+
+        /// <summary>
+        /// A-106: the Stage a posted worker shows at its post. Job is local, so a harsh-biome job travels in the Stage it
+        /// works at (the existing ghost field; W-57's hermit chores already do this): the hermit's tool codes, 3 broom,
+        /// 4 shovel, 5 hammer, then 6 rope and 7 sand shovel. Every other job works at 1.
+        /// </summary>
+        public static byte WorkStage(FolkJob job)
+        {
+            switch (job)
+            {
+                case FolkJob.AshSweeper: return 3;
+                case FolkJob.SnowShoveller: return 4;
+                case FolkJob.Mender: return 5;
+                case FolkJob.Roofer: return 6;
+                case FolkJob.SandClearer: return 7;
+                default: return 1;
+            }
+        }
+
+        /// <summary>A-106: on a joined client, the harsh-biome job a worker's task and Stage at its post mean (WorkStage
+        /// turned back), or None.</summary>
+        public static FolkJob FromWorkStage(CreatureTask task, byte stage)
+        {
+            if (task == CreatureTask.Hammer)
+                return stage == 5 ? FolkJob.Mender : FolkJob.None;
+            if (task != CreatureTask.Tend)
+                return FolkJob.None;
+            return stage == 3 ? FolkJob.AshSweeper : stage == 4 ? FolkJob.SnowShoveller : stage == 6 ? FolkJob.Roofer :
+                   stage == 7 ? FolkJob.SandClearer : FolkJob.None;
+        }
 
         /// <summary>The job a bat folk would hold by each prop of its chamber (hut, rack, basket), and by its pool.</summary>
         public static FolkJob BatJob(BatFolkPropKind kind) =>

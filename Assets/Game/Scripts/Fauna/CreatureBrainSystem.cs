@@ -1516,8 +1516,9 @@ namespace Punchy.Fauna
                     if (math.distance(s.Position.xz, s.WorkSpot) < 0.4f)
                     {
                         // (A hermit's chores: chopping at its woodpile is stage 1, stooped over its garden or the
-                        // water stage 2, so every machine poses it right.)
-                        s.Stage = (byte)(s.Task == CreatureTask.Hermit && s.AnchorSide >= 2 ? s.AnchorSide : 1);
+                        // water stage 2, so every machine poses it right. A-106: a harsh-biome job works at its own
+                        // stage, so a client knows the job from it.)
+                        s.Stage = (byte)(s.Task == CreatureTask.Hermit && s.AnchorSide >= 2 ? s.AnchorSide : FolkJobs.WorkStage((FolkJob)s.Job));
                         s.StageTime = 0f;
                     }
                 }

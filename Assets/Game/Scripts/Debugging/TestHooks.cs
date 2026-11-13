@@ -702,6 +702,18 @@ namespace Punchy.Debugging
             return "";
         }
 
+        /// <summary>A-106 row 2: a stand-in hermit living out in the open at a spot (FaunaDirector.SpawnHermitAt), its chore
+        /// from the biome there; returns its job's name, or "none" if it couldn't be made.</summary>
+        public static string HermitAt(float x, float z)
+        {
+            var director = Object.FindAnyObjectByType<FaunaDirector>();
+            var e = director != null ? director.SpawnHermitAt(new float2(x, z)) : Entity.Null;
+            if (e == Entity.Null)
+                return "none";
+            var job = (FolkJob)director.SimWorld.EntityManager.GetComponentData<CreatureState>(e).Job;
+            return job.ToString();
+        }
+
         /// <summary>
         /// A-105 row 2: the housed folk nearest the player dies (nothing kills folk yet, so this stands in for whatever
         /// will): it's marked Gone, Despawn takes it and its house keeps its bed empty. Returns its Individual, or 0.

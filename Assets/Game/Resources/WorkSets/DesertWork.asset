@@ -1,0 +1,37 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1a0f974c856d8a6448cefd4ea2d5904b, type: 3}
+  m_Name: DesertWork
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Fauna.FolkWorkSet
+  Biomes:
+  - {fileID: 11400000, guid: 3c3b1f5dd38bdb84f949fc2b75db975a, type: 2}
+  - {fileID: 11400000, guid: 85ee83dd85b5ba542b880bbcf85da039, type: 2}
+  - {fileID: 11400000, guid: 2643950432d89264cafbe718d23c0c4e, type: 2}
+  - {fileID: 11400000, guid: fa4ebbcc3834f4c47afc7a79abe40ad7, type: 2}
+  - {fileID: 11400000, guid: f2273bc3afbd8bb4e8b35abb71398bb7, type: 2}
+  Jobs:
+  - Job: 29
+    Kind: 0
+    MinFree: 2
+    Beyond: 0
+    Dust: {r: 0.82, g: 0.7, b: 0.5, a: 0.8}
+  - Job: 30
+    Kind: 0
+    MinFree: 3
+    Beyond: 0
+    Dust: {r: 0, g: 0, b: 0, a: 0}
+  AloneLines:
+  - "Sand in the bread, sand in the bed. At least it's my sand."
+  - "Hot by day, cold by night, and not a soul to argue with about which is worse."
+  - "Shovel it out, {name}. The dunes will walk right in if you let them."
+  - "Haven't seen a face in a month. Saw a lizard. It blinked first."
+  - "The quiet out here is big. You learn to fill it with your own voice."

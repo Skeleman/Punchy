@@ -17,6 +17,41 @@ namespace Punchy.Fauna
     // FaunaDirector.cs as they were.
     public partial class FaunaDirector
     {
+        /// <summary>A-106 row 2: the chore a hermit at this spot takes from its biome's work set (the set's first post),
+        /// or None in a biome with no set. Local (Job is not a ghost field): its Stage at work carries it to clients.</summary>
+        FolkJob HermitChoreAt(in TerrainSource source, float2 at)
+        {
+            var ground = source.SampleGround(at).Biomes.Dominant();
+            var set = ground >= 0 && ground < biomes.Length ? FolkWorkSets.For(biomes[ground]) : null;
+            return set != null && set.Jobs.Length > 0 ? set.Jobs[0].Job : FolkJob.None;
+        }
+
+        /// <summary>
+        /// A-106 row 2, for tests and shots: a stand-in hermit living at a spot with no shelter (an open one: it sleeps
+        /// out on the ground there), set up like a placed one, its chore from the biome there. The world places no hermit
+        /// shelter in some biomes (no tundra hut), so this shows one there without touching placement. Host only.
+        /// </summary>
+        public Entity SpawnHermitAt(float2 at)
+        {
+            if (simWorld == null || !built)
+                return Entity.Null;
+            var hermit = TableSpecies(OverworldSlot.Hermit, 0);
+            if (hermit < 0)
+                hermit = TableSpecies(OverworldSlot.Camper, 0);
+            if (hermit < 0)
+                return Entity.Null;
+            var em = simWorld.EntityManager;
+            var e = Spawn(hermit, new float3(at.x, lastSource.SampleHeight(at), at.y));
+            var st = em.GetComponentData<CreatureState>(e);
+            st.Task = CreatureTask.Hermit;
+            st.Home = at;
+            st.Leash = 35f;
+            st.Anchor = new float3(at.x, lastSource.SampleHeight(at), at.y);
+            st.Job = (byte)HermitChoreAt(lastSource, at);
+            em.SetComponentData(e, st);
+            return e;
+        }
+
         /// <summary>
         /// The folk of the wild places near players: a hermit at each hermit's shelter (its Home anchor) within 120 m of
         /// one, while none lives there; and, from late afternoon, now and then a traveller walking in from the road to a
@@ -52,6 +87,7 @@ namespace Punchy.Fauna
                     st.Home = home.Position.xz;
                     st.Leash = 35f;
                     st.Anchor = home.Position;
+                    st.Job = (byte)HermitChoreAt(source, home.Position.xz);
                     // (A-105: the head of the hut by its shelter, if it has one.)
                     if (home.InLandmark)
                     {
@@ -267,7 +303,10 @@ namespace Punchy.Fauna
                 foreach (var r in landmarks[inst.Type].Residents)
                     if (FreeFolk(r))
                         freeFolk += math.max(0, r.Count.x);
-                VillagePosts(source, inst.Position, radius, freeFolk, posts);
+                // (A-106: a harsh biome's settlement also takes its work set's posts, from the biome under its centre.)
+                var ground = source.SampleGround(inst.Position).Biomes.Dominant();
+                var workSet = ground >= 0 && ground < biomes.Length ? FolkWorkSets.For(biomes[ground]) : null;
+                VillagePosts(source, inst.Position, radius, freeFolk, workSet, posts);
                 var nextPost = 0;
                 jobCounts.Clear();
                 var stayFree = 0;
@@ -379,18 +418,30 @@ namespace Punchy.Fauna
         /// <summary>
         /// The village posts (FolkJobs.VillagePosts) a landmark can staff with this many free folk: each by the
         /// nearest unused anchor of its kind. Standing a step from the anchor, toward the village centre, facing it;
-        /// a fisher at the water's edge (its brain finds the shore from there).
+        /// a fisher at the water's edge (its brain finds the shore from there). A-106: a harsh biome's work set adds its
+        /// posts after the usual ones that need as many free folk; a door job stands on the doorstep facing the door.
+        /// No rng, and with no work set the posts are exactly the usual ones.
         /// </summary>
-        static void VillagePosts(in TerrainSource source, float2 centre, float radius, int free, List<Post> into)
+        static void VillagePosts(in TerrainSource source, float2 centre, float radius, int free, FolkWorkSet workSet, List<Post> into)
         {
             into.Clear();
             if (!source.Anchors.IsCreated || free < 2)
                 return;
+            postOrder.Clear();
+            postOrder.AddRange(FolkJobs.VillagePosts);
+            if (workSet != null)
+                foreach (var e in workSet.Jobs)
+                {
+                    var at2 = 0;
+                    while (at2 < postOrder.Count && postOrder[at2].MinFree <= e.MinFree)
+                        at2++;
+                    postOrder.Insert(at2, (e.Kind, e.Job, FolkJobs.TaskOf(e.Job), e.MinFree, e.Beyond));
+                }
             ref var set = ref source.Anchors.Value;
             var near = new NativeList<int>(16, Allocator.Temp);
             var used = new NativeList<int>(8, Allocator.Temp);
             var at = new float3(centre.x, source.SampleHeight(centre), centre.y);
-            foreach (var p in FolkJobs.VillagePosts)
+            foreach (var p in postOrder)
             {
                 if (free < p.MinFree)
                     continue;
@@ -418,12 +469,23 @@ namespace Punchy.Fauna
                 var spot = set.Anchors[best].Position.xz;
                 var toCentre = centre - spot;
                 var dir = math.lengthsq(toCentre) > 0.01f ? math.normalize(toCentre) : new float2(0f, 1f);
+                if (p.Kind == AnchorKind.Door)
+                {
+                    // (The door anchor already stands outside the door, facing out: work a step further out, facing in.)
+                    var outward = set.Anchors[best].Facing;
+                    outward = math.lengthsq(outward) > 0.01f ? math.normalize(outward) : dir;
+                    into.Add(new Post { Job = p.Job, Task = p.Task, Stand = spot + outward * 0.9f, Face = spot - outward });
+                    continue;
+                }
                 var stand = p.Task == CreatureTask.Fish || p.Task == CreatureTask.Patrol ? spot : spot + dir * 1.2f;
                 into.Add(new Post { Job = p.Job, Task = p.Task, Stand = stand, Face = p.Task == CreatureTask.Fish ? spot - dir : spot });
             }
             near.Dispose();
             used.Dispose();
         }
+
+        static readonly List<(AnchorKind Kind, FolkJob Job, CreatureTask Task, int MinFree, float Beyond)> postOrder =
+            new List<(AnchorKind, FolkJob, CreatureTask, int, float)>();
 
         // (The chambers last logged, by count and first centre: the v1 bake comes first and can have none, then v2's.)
         float4 batJobsLogged = new float4(-1f);

@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1a0f974c856d8a6448cefd4ea2d5904b, type: 3}
+  m_Name: SnowWork
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Fauna.FolkWorkSet
+  Biomes:
+  - {fileID: 11400000, guid: efa1fb2872ceb1d45b6ee561e78c8774, type: 2}
+  - {fileID: 11400000, guid: 20ddf4d9933283446b410b041eced8ef, type: 2}
+  Jobs:
+  - Job: 28
+    Kind: 0
+    MinFree: 2
+    Beyond: 0
+    Dust: {r: 0.95, g: 0.97, b: 1, a: 0.85}
+  - Job: 31
+    Kind: 16
+    MinFree: 4
+    Beyond: 0
+    Dust: {r: 0, g: 0, b: 0, a: 0}
+  AloneLines:
+  - "Snow on the step, snow on the roof, snow in my boots. Nobody to complain to but the snow."
+  - "Out here the quiet has a sound. A sort of hum. I like it."
+  - "Dig out the door, {name}. Nobody's coming to do it for you."
+  - "Talked to a fox yesterday. Didn't say much. Better company than most."
+  - "When the wind drops you can hear the ice crack a mile off. That's my news for the day."
