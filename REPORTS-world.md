@@ -6427,3 +6427,27 @@ plot rules would have to accept a raised deck).
 - Suite: "completed: 28/28 passed" on 18dfbd78. 9dd8ff37 is comment-only.
 - BENCH-QUEUE request: CPU and GPU ms, branch vs main, at the canyon (2266,-434) from 20 m and 150 m, and at the sea cliff seen from the beach. Also the island bake time on a cache miss (expect about +2.9 s).
 - Rows 2 and 3 not started.
+
+### Row 1b: chunky, buried, grouped cliff pieces; far groups (#281), branch world/cliff-kit, commit 8a295735
+- Shape: every kit box is now at least ~40% as deep and tall as it is wide, and sunk 30-50% into the face. Each corner gets its own bevel (15-45% of the smallest half) and a small nudge, so the edges read chipped. Slabs have a risen chunk at one end and are turned and tipped further off the face.
+- Groups: pieces are placed as groups on a 26 m grid: ledge runs of 2-3 slabs along the contour, a buttress with 1-2 fallen blocks at its foot, stacked blocks or an overhang (sometimes with a fallen block). Bake: 2227 pieces in 1539 groups (was 4024 pieces): sea cliff 734, mesa/canyon 1493; slab 796, stacked 331, overhang 216, buttress 395, fallen 489. 6 kept out. Bake about 2.9 s, on a cache miss only.
+- Colour: sampled from the face at each 1 m height band (8 m when far), with the face's normal, so the strata run on through a piece. Snow and grass are off, the piece is 0.8x the face, and tops are 0.6x darker again.
+- Far cost: once a whole 4x4 square of regions (512 m) is past the near size, it draws as one plain mesh. A group keeps drawing until its regions are built, so nothing blinks. Still DetailPolicy.ScreenSize only (rule 20); lod-lint is clean on 8a295735.
+- Draws and tris per shot (CliffKitSystem.Stats; row 1 in brackets):
+  - canyon: 20 m 54,204 tris in 65 draws (96,204 in 300); 150 m 55,612 in 85 (99,404 in 300)
+  - mesa: 20 m 51,224 in 76 (86,700 in 295); 150 m 55,008 in 76 (91,660 in 295)
+  - lakeshelf: 43,008 in 52 (63,780 in 276)
+  - gorge: 6,192 in 24 (9,168 in 80)
+  - sea cliff: 20 m 3,800 in 25 (4,588 in 51); 150 m 3,672 in 25
+  - mountain: 20 m 4,848 in 23; 150 m 3,140 in 24 (3,432 in 54)
+- Fingerprint (flora cleared by kit boxes): ground 452 instances (278,014 cells covered), shrubs 1,809 (34,025 cells), trees 155 (6,682 cells), 46 of them rocks/tilted. Removed-set hash 0089FCB8 (row 1 A9A3CA10). It moved because there are fewer, chunkier pieces. Landmark hash FA8F24B1 (unchanged). Nothing else moved.
+- Shots: the same 12 at D:/Unity/PunchyMilestones/W-150/w150-after1b-*.png, checked at small size. The weather differs from the row 1 set (it is a live sky).
+  - Canyon 20 m: the pale plank is gone. Chunky red blocks sit on the rim in the face's own red.
+  - Mesa: the slab is gone, and the pieces read as rock.
+  - Canyon and sea cliff 150 m: no pale planks on the rim, and the sea cliff's white specks are mostly gone (a few faint marks are left).
+  - Hue check (mean RGB, piece vs face beside it): canyon 20 m piece hue 19, face 15 (the piece is lighter because the sampled face sits in shadow). Sea cliff 20 m piece (83,80,87) vs face (75,84,94): same lightness (0.33), but the piece is less blue (saturation 0.04 vs 0.11).
+  - Not fully solved: the sea cliff 20 m ledge run (two slabs near the top, seen from below) still reads as two flat fronts against the fine-grained face, though no longer pale. The face's steep grain comes from the shader, which the pieces don't get yet. R-19's steep-rock look (PR #285, still OPEN) should close most of that, and I'll rebase when it merges.
+- NaN: sparkleprobe bad 0 on all 12 shots (-stopnan 0).
+- Suite: "completed: 28/28 passed" on 8a295735 (the last code change).
+- BENCH-QUEUE request: CPU and GPU ms, branch vs main, at the canyon (2266,-434) from 20 m and 150 m, and at the sea cliff seen from the beach. Also the island bake time on a cache miss. Compare with row 1's request; draws should fall sharply in the red country.
+- Rows 2 and 3 not started (they wait).
