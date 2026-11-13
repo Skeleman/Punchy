@@ -177,6 +177,7 @@ namespace Punchy.Fauna
                 if (floraEntity != Entity.Null && em.Exists(floraEntity))
                     em.DestroyEntity(floraEntity);
             }
+            ClimbLadders.Flora.Data = default; // A-101: before the blob it points at is freed
             if (floraBlob.IsCreated)
                 floraBlob.Dispose();
             floraBlob = default;
@@ -257,7 +258,7 @@ namespace Punchy.Fauna
                 // A-55 (#102): the flora lookup's shape-only grows were ~0.6 s of the island-ready frame. Start them on
                 // workers and build once they're done (a few frames later; nothing spawns before), or after 10 s regardless.
                 // (-syncshapes: the old way, all in the build frame, for A/B.)
-                if (simWorld != null && pendingShapes == null && System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-syncshapes") < 0)
+                if (pendingShapes == null && System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-syncshapes") < 0)
                 {
                     pendingShapes = Punchy.Flora.FloraPlacement.StartObstacleShapes(palette);
                     shapesSince = Time.realtimeSinceStartup;

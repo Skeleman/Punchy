@@ -397,6 +397,121 @@ namespace Punchy.Debugging
                 propPending = null;
         }
 
+        static string ladderPending;
+        static float ladderPendingUntil;
+        /// <summary>A-101: the climb test is up a world ladder ("-place ladder:"), not a wall: no push across it.</summary>
+        static bool climbOnLadder;
+
+        /// <summary>A-101: retries a waiting "-place ladder:" each frame until the flora lookup is up, as for props.</summary>
+        void PlaceLadderPending()
+        {
+            if (ladderPending == null)
+                return;
+            if (Time.unscaledTime > ladderPendingUntil)
+            {
+                Debug.LogWarning($"DebugControls: -place ladder:{ladderPending} gave up; the flora lookup never came up");
+                ladderPending = null;
+            }
+            else if (EnsureLocations(out var source) && PlaceByLadder(source, ladderPending))
+                ladderPending = null;
+        }
+
+        /// <summary>
+        /// "-place ladder:roof[#n]" or "-place ladder:mine[#n]" (A-101 row 1 + W-147): the player a couple of metres out
+        /// from the nth nearest real ladder, a town building's roof ladder (2-7 m, standing on the ground) or a mine's drop
+        /// ladder (0.5-1.3 m), facing it, the camera off to one side. With "-autowalk" the climb test runs on it: up,
+        /// step off at the top, back down, every other lap letting go partway (ClimbTest). Logs the five nearest.
+        /// </summary>
+        /// <remarks>Returns false while the flora lookup or the player isn't up yet, so the request can wait.</remarks>
+        bool PlaceByLadder(in TerrainSource source, string spec)
+        {
+            var director = FindAnyObjectByType<FaunaDirector>();
+            if (director == null || !director.FloraPlacementBlob.IsCreated || !playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
+                return false;
+            var pick = 1;
+            var hash = spec.IndexOf('#');
+            if (hash >= 0)
+            {
+                int.TryParse(spec.Substring(hash + 1), out pick);
+                spec = spec.Substring(0, hash);
+            }
+            var mine = spec.StartsWith("mine", System.StringComparison.OrdinalIgnoreCase);
+            var em = queryWorld.EntityManager;
+            var t = em.GetComponentData<LocalTransform>(player);
+            var found = new List<ClimbLadder>();
+            if (mine)
+            {
+                if (source.Caves.IsCreated)
+                {
+                    ref var ladders = ref source.Caves.Value.Ladders;
+                    for (int i = 0; i < ladders.Length; i++)
+                        if (ladders[i].Top.y - ladders[i].Foot.y is var rise && rise >= 0.5f && rise <= 1.3f)
+                            found.Add(ladders[i]);
+                }
+            }
+            else if (source.Settlements.IsCreated)
+            {
+                ref var towns = ref source.Settlements.Value;
+                ref var flora = ref director.FloraPlacementBlob.Value;
+                var plots = new List<int>();
+                for (int k = 0; k < towns.Plots.Length; k++)
+                    if (towns.Plots[k].Building >= 0)
+                        plots.Add(k);
+                var all = towns.Plots.ToArray();
+                var at = t.Position.xz;
+                plots.Sort((a, b) => math.distancesq(all[a].Centre, at).CompareTo(math.distancesq(all[b].Centre, at)));
+                for (int k = 0; k < plots.Count && found.Count < 8; k++)
+                {
+                    var near = new FixedList512Bytes<ClimbLadder>();
+                    FloraPlacement.NearLadders(ref flora, source, all[plots[k]].Centre, 12f, ref near);
+                    for (int i = 0; i < near.Length; i++)
+                    {
+                        var l = near[i];
+                        var rise = l.Top.y - l.Foot.y;
+                        // (A roof ladder: off the ground, 2-7 m, not one already found from the next plot.)
+                        if (rise >= 2f && rise <= 7f && math.abs(l.Foot.y - source.SampleHeight(l.Foot.xz)) < 0.6f &&
+                            !found.Exists(o => math.distance(o.Foot, l.Foot) < 0.1f))
+                            found.Add(l);
+                    }
+                }
+            }
+            if (found.Count == 0)
+            {
+                Debug.LogWarning($"DebugControls: -place ladder:{spec}: no such ladder");
+                return true;
+            }
+            var from = t.Position;
+            found.Sort((a, b) => math.distancesq(a.Foot, from).CompareTo(math.distancesq(b.Foot, from)));
+            for (int k = 0; k < math.min(5, found.Count); k++)
+                Debug.Log($"DebugControls: ladder {k + 1}: foot ({V(found[k].Foot.x)}, {V(found[k].Foot.y)}, {V(found[k].Foot.z)}), top ({V(found[k].Top.x)}, {V(found[k].Top.y)}, {V(found[k].Top.z)}), " +
+                          $"{V(found[k].Top.y - found[k].Foot.y)} m, grade {found[k].Grade}, {V(math.distance(found[k].Foot, from))} m off");
+            var ladder = found[math.clamp(pick - 1, 0, found.Count - 1)];
+            var o = math.normalizesafe(ladder.Out.xz, new float2(0f, 1f));
+            var side = new float2(o.y, -o.x);
+            var height = ladder.Top.y - ladder.Foot.y;
+            var homeXZ = ladder.Foot.xz + o * (mine ? 1.5f : 2.2f);
+            var homeY = mine ? source.FloorUnder(new float3(homeXZ.x, ladder.Foot.y + 0.8f, homeXZ.y), out _) : source.SampleHeight(homeXZ);
+            t.Position = new float3(homeXZ.x, homeY + 0.05f, homeXZ.y);
+            t.Rotation = quaternion.RotateY(math.atan2(-o.x, -o.y));
+            em.SetComponentData(player, t);
+            em.SetComponentData(player, new PlayerMotion { Grounded = true });
+            var lookAt = new float3(ladder.Foot.x, ladder.Foot.y + height * 0.5f, ladder.Foot.z);
+            StartClimbTest(t.Position, ladder.Top, lookAt, false,
+                $"{(mine ? "mine" : "roof")} ladder at ({V(ladder.Foot.x)}, {V(ladder.Foot.y)}, {V(ladder.Foot.z)}), {V(height)} m up, grade {ladder.Grade}; skill {ClimbSkillNow()}");
+            climbWall = true;
+            climbOnLadder = true;
+            climbBandGrade = ladder.Grade;
+            climbWallTop = height;
+            // (From in front and off to one side, so the rungs, the climber and the top it steps onto all show; nearer
+            // in a mine, whose passages are a few metres across.)
+            var eyeXZ = ladder.Foot.xz + o * (mine ? 3.2f : 7f) + side * (mine ? 1.2f : 3f);
+            var eyeY = mine ? ladder.Foot.y + 1.4f : math.max(source.SampleHeight(eyeXZ) + 1.6f, ladder.Foot.y + height * 0.5f);
+            var eye = new Vector3(eyeXZ.x, eyeY, eyeXZ.y);
+            PoseCamera(eye, Quaternion.LookRotation((Vector3)lookAt - eye));
+            Debug.Log($"DebugControls: ladder camera: -camlook {V(eye.x)},{V(eye.y)},{V(eye.z)},{V(lookAt.x)},{V(lookAt.y)},{V(lookAt.z)}");
+            return true;
+        }
+
         /// <summary>
         /// "-place prop:Bench" (any plant species, wherever it's placed: a landmark's props, a town's buildings, or the
         /// biome's own scatter): logs the eight nearest with their coordinates and puts the player in front of the
@@ -733,8 +848,20 @@ namespace Punchy.Debugging
             var grids = holder != Entity.Null ? em.GetComponentData<SupportGrids>(holder) : default;
             if (!grids.Set.IsCreated || em.GetBuffer<FloraSupport>(holder, true).Length == 0)
             {
-                // (The tops load a little after the world: give them a while.)
-                if (Time.timeSinceLevelLoad - optionsAt > settle + 20f)
+                // (The tops load a little after the world: give them a while. On a first play after a domain reload the
+                // world is found again after the jump, and the nearest settlement may have moved: jump there once more.)
+                if (!ledgeRejumped && Time.timeSinceLevelLoad - optionsAt > settle + 15f)
+                {
+                    ledgeRejumped = true;
+                    var town = locations.FindIndex(l => l.Name.StartsWith("Nearest settlement"));
+                    if (town >= 0)
+                    {
+                        current = town - 1;
+                        Jump(1);
+                        Debug.Log("DebugControls: -place ledge: no props yet, to the nearest settlement again");
+                    }
+                }
+                if (Time.timeSinceLevelLoad - optionsAt > settle + 45f)
                 {
                     Debug.LogWarning("DebugControls: -place ledge: no props with tops near");
                     ledgeRequest = false;
@@ -857,6 +984,20 @@ namespace Punchy.Debugging
                 var wallOut = math.normalizesafe(bestHit.EdgeNormal, math.normalizesafe(t.Position.xz - rim.xz, new float2(0f, -1f)));
                 var wallSide = new float2(wallOut.y, -wallOut.x);
                 var wallHeight = rim.y - bestFeet.y;
+                climbWallTop = wallHeight;
+                // (A-101 row 1, "-place climb": a marked band on the face, centred on the rim the player faces, from
+                // its foot to its top; logged as a flag a joined client marks the same band with.)
+                if (climbBandGrade > Climbing.None)
+                {
+                    var band = new ClimbBand
+                    {
+                        Base = new float3(rim.x, bestFeet.y, rim.z), Out = wallOut,
+                        HalfWidth = climbBandGrade == Climbing.Ladder ? 0.45f : 1.5f, Height = wallHeight + 0.5f, Grade = climbBandGrade
+                    };
+                    ClimbBands.Add(band);
+                    MarkClimbBand(band);
+                    Debug.Log($"DebugControls: climb band: grade {climbBandGrade}, {V(band.HalfWidth * 2f)} m wide, {V(wallHeight)} m up; for a client: -climbband {ClimbBandArg(band)}");
+                }
                 var eyeXZ = rim.xz + wallOut * 9f + wallSide * 1.5f;
                 var eyeY = math.max(source.SampleHeight(eyeXZ) + 1.6f, bestFeet.y + 1.8f);
                 var wallEye = new Vector3(eyeXZ.x, eyeY, eyeXZ.y);

@@ -378,6 +378,9 @@
       "words": {
         "culture_greeting": ["Bright water to you", "Ah! A dry one", "Welcome down, air-breather"],
         "trade.Fish": ["fisher of the shallows", "line-caster"],
+        "trade.ClamTender": ["clam tender", "keeper of the beds"],
+        "trade.GlowKeeper": ["glow keeper", "stone-polisher"],
+        "trade.Tend": ["bed-tender", "keeper of the glow"],
         "town_start": ["Pearl", "Kelp", "Shell", "Deep", "Glim"],
         "town_end": ["reef", "hollow", "bed", "dome", "spire"]
       },
@@ -676,7 +679,7 @@
         { "text": "Parched. My fins are curling at the edges.", "state": "dry", "mood": "Grumpy" },
         { "text": "Not bad for a dry day. I keep close to the water.", "state": "dry", "mood": "Cheerful" }
       ],
-      "work": [{ "text": "Fish up top, home down below. The walk keeps me young.", "job": true }],
+      "work": [{ "text": "Fish up top, home down below. The walk keeps me young.", "job": true }, { "text": "A clam bed wants turning every tide, and a glow stone wants rubbing or it sulks dim.", "job": true }],
       "town": ["The domes grow a little every year. We feed them shell.", { "text": "Your towns are nice. Dusty, but nice. The fountains are the best part.", "state": "dry" }],
       "news": [{ "text": "Something big sleeps in the wreck past the reef. The fish won't go near it.", "curiosity": ["mid", "high"], "offer": "rumour:wreck" }],
       "bye": [{ "text": "Bright water, dry one.", "gesture": "Wave" }, { "text": "I'm off back to the water. You should try it sometime.", "state": "dry", "gesture": "Wave" }]

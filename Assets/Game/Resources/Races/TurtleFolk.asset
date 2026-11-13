@@ -16,6 +16,7 @@ MonoBehaviour:
   Order: 11
   Species:
   - TurtleFolk
+  - TurtleChild
   Traits: 3
   Minds: 1
   Heat: {x: -0.2, y: 0.55}

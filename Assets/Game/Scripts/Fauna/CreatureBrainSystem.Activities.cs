@@ -207,6 +207,7 @@ namespace Punchy.Fauna
             /// forced   Patrol       guard on shift / night guard by day                        always               StartPatrol / Home, Sleep
             /// forced   Hermit       hermit, its day at the shelter                             HermitDay            HermitDay
             /// forced   Camper       traveller, its night at camp                               CamperNight          CamperNight
+            /// forced   FolkLife     turtle child / old turtle at midday / sea folk child       50% / 5% / 35%       slide / lie in the sun / chase a fish
             ///          (a fisher with no spot looks for one; none, and it's townsfolk)
             /// forced   Rooted       rooted                                                     always               Sleep / Idle
             /// forced   Disguised    passes for a plant                                         asleep, or 85%       Sleep / Rest
@@ -251,7 +252,7 @@ namespace Punchy.Fauna
             enum DecideStep : byte
             {
                 // forced, before the senses
-                Shield, Flit, Breach, Patrol, Hermit, Camper, FisherSpot, Rooted, Disguised,
+                Shield, Flit, Breach, Patrol, Hermit, Camper, FolkLife, FisherSpot, Rooted, Disguised,
                 // the senses and the weights
                 Senses,
                 // forced, after the senses
@@ -306,6 +307,7 @@ namespace Punchy.Fauna
                     case DecideStep.Patrol: return DecidePatrol(ref s, ref rng);
                     case DecideStep.Hermit: return s.Task == CreatureTask.Hermit && HermitDay(ref s, ref b, ref rng, sleepy);
                     case DecideStep.Camper: return s.Task == CreatureTask.Camper && CamperNight(ref s, ref rng);
+                    case DecideStep.FolkLife: return (b.TurtleJobs || BedWalk && b.Child) && DecideFolkLife(ref s, ref b, ref rng, sleepy);
                     case DecideStep.FisherSpot:
                         // (A fisher finds its spot the first time: none within reach, and it's just one of the townsfolk.)
                         if (s.Task == CreatureTask.Fish && sleepy < 0.5f && math.all(s.WorkSpot == float2.zero) && !FindFishingSpot(ref s))
@@ -385,7 +387,7 @@ namespace Punchy.Fauna
                 if (prey != Entity.Null && Lookup.TryGetValue(prey, out var preyAt) && math.distance(States[preyAt].Position.xz, s.Position.xz) < 20f)
                     hunt *= 1.5f;
                 // Climbers go up trees to sit, and to sleep (they sleep up there, not on the ground).
-                var climb = b.Climbing > 0f && HasFlora && !flier ? b.Climbing * (sleepy > 0.5f ? 8f : 2.5f) : 0f;
+                var climb = b.Climbing > 0f && Climbing.CanClimb(b.ClimbSkill, Climbing.Tree) && HasFlora && !flier ? b.Climbing * (sleepy > 0.5f ? 8f : 2.5f) : 0f;
                 // Townsfolk sit a while by the well, or lie back on the ground near it, by day.
                 var lounge = b.Upright && b.Hands && s.Leash > 0f && sleepy < 0.3f && Night < 0.3f && s.Task != CreatureTask.Patrol ? 0.2f * awake : 0f;
                 // Townsfolk now and then go for a swim, in the warm middle of the day.
@@ -933,6 +935,12 @@ namespace Punchy.Fauna
             void Play(Entity self, ref CreatureState s, ref CreatureBlob b, ref Random rng,
                       ref float targetSpeed, ref float desiredLook, ref float bow, ref bool moving)
             {
+                // (A-103 row 3: a sea folk child after a fish has no partner playing back.)
+                if (s.Stage == CreatureAnimator.ChaseFish)
+                {
+                    ChaseFish(ref s, ref b, ref rng, ref targetSpeed, ref desiredLook, ref moving);
+                    return;
+                }
                 s.Timer -= Dt;
                 if (!Lookup.TryGetValue(s.Partner, out var p) || s.Timer <= 0f ||
                     s.ModeTime > 1.5f && (States[p].Mode != CreatureMode.Play || States[p].Partner != self))

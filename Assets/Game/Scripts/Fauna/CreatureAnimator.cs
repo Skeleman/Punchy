@@ -204,8 +204,12 @@ namespace Punchy.Fauna
                 height = math.lerp(height + s.Sit * b.StandHeight * scale * 0.3f, hips, s.Sit);
                 pitch -= 1.5f * s.Lie;
             }
-            // Climbing a trunk or sitting up tall (up), diving or hanging head down in a web (down).
-            pitch -= s.Vertical * math.PI * 0.47f;
+            // Climbing a trunk or sitting up tall (up), diving or hanging head down in a web (down). Folk are upright
+            // already: climbing, they only lean into the face a little (ClimbPose has the limbs, A-101).
+            if (b.Upright && s.Vertical > 0f)
+                pitch += 0.12f * s.Vertical;
+            else
+                pitch -= s.Vertical * math.PI * 0.47f;
             var still = 1f - move;
             var breath = 0.5f + 0.5f * math.sin(s.Clock * (s.Curl > 0.5f ? 1.3f : 2.2f));
             height += breath * 0.01f * scale * still * (0.3f + s.Lie);
@@ -256,6 +260,12 @@ namespace Punchy.Fauna
                 else
                     height -= act * 0.15f * b.StandHeight * scale;
             }
+            // A-103 row 3: a turtle child's belly-slide: down flat on its front, head up (ActionPose has the limbs).
+            else if (s.Action == IdleAction.Slide)
+            {
+                pitch += act * 1.45f;
+                height = math.lerp(height, 0.16f * scale, act);
+            }
             // A-103 row 2b: a sea folk out of the water stoops, more as it walks (it trudges, uncomfortable).
             if (b.Upright && FolkState.OutOfWater(s.Position, b.WalksBed, terrain))
                 pitch += 0.14f + 0.08f * move;
@@ -280,7 +290,12 @@ namespace Punchy.Fauna
                 : sprint * 0.08f * scale * (0.5f + 0.5f * math.cos(4f * math.PI * s.Phase)));
             // Hanging head down in a web, the body sits right at its anchor (the web's centre).
             var hang = s.Mode == CreatureMode.Web || s.Mode == CreatureMode.Roost ? math.saturate(-s.Vertical) : 0f;
-            var rootPos = new float3(s.Position.x, ground, s.Position.z) + new float3(0f, lift * (1f - up - hang), 0f) - forward * lift * up;
+            // (Folk climbing stay upright, their hips at standing height over their feet on the face.)
+            var rootUp = b.Upright ? 0f : up;
+            var rootPos = new float3(s.Position.x, ground, s.Position.z) + new float3(0f, lift * (1f - rootUp - hang), 0f) - forward * lift * rootUp;
+            // (Folk on a ladder climb it hand over hand, straight up; on any other face, reaching for holds.)
+            var onLadder = b.Upright && up > 0f && WorldClimbs.At(s.Position + forward * 0.5f * scale, 0.6f, out var climbGrade) &&
+                           climbGrade == Climbing.Ladder;
             // A snake on the ground or swimming: its body starts on its serpentine track (below), where the chain joins the
             // head, not on the straight line it travels. Laid out from the line instead, the whole body swung from side
             // to side about it as each wave passed through, a wag that quickened with speed. (The head itself keeps to the
@@ -630,6 +645,8 @@ namespace Punchy.Fauna
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle] + SitPose(ref part, in s, j), s.Sit);
                     if (b.Upright && s.Lie > 0f)
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle] + LiePose(ref part, in s, j), s.Lie);
+                    if (b.Upright && up > 0f)
+                        a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle] + ClimbPose(ref part, in s, j, onLadder), up);
                     if (b.Upright && part.Role == LimbRole.Arm && j <= 1 && s.Mode == CreatureMode.Sit && s.Stage >= HearthStand && s.Stage <= HearthSeat)
                         a = HearthPose(ref part, in s, j, a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle]);
                     // (Upright bodies have no idle actions of their own, but players' bodies take interaction poses.)
@@ -1120,6 +1137,16 @@ namespace Punchy.Fauna
                     if (part.Role == LimbRole.Arm && joint == 1) return new float3(-1.4f * e, 0f, 0f);
                     if (part.Role == LimbRole.Ear || part.Role == LimbRole.Tail) return new float3(0.7f * e, 0f, 0f);
                     break;
+                case IdleAction.Slide:
+                    // A-103 row 3, on its front: head and neck lifted to see ahead, arms back along its sides, legs
+                    // straight out behind, the feet kicking a little.
+                    if (part.Role == LimbRole.Head) return new float3(-0.8f * e, 0f, 0f);
+                    if (part.Role == LimbRole.Neck) return new float3(-0.5f * e / n, 0f, 0f);
+                    if (part.Role == LimbRole.Arm && joint == 0) return new float3(0.25f * e, 0f, -0.15f * e * part.Side);
+                    if (part.Role == LimbRole.Arm && joint == 1) return new float3(-0.15f * e, 0f, 0f);
+                    if (part.Role == LimbRole.Leg && joint == 0) return new float3(0.1f * e * math.sin(t * 40f + part.Side), 0f, 0f);
+                    if (part.Role == LimbRole.Leg && joint == 1) return new float3(0.3f * e * math.max(0f, math.sin(t * 40f + part.Side)), 0f, 0f);
+                    break;
                 case IdleAction.ShieldEyes:
                     // Bat folk from a light (#35): the right arm raised and folded so the forearm lies across the eyes
                     // (the elbow out to the side), the head bowed and turned a little away, the left hand up at the chest.
@@ -1188,6 +1215,8 @@ namespace Punchy.Fauna
         public const byte HearthStand = 5, HearthGround = 6, HearthSeat = 7;
         /// <summary>Sitting-mode stage of a child sitting in a play ring on a green (with its stick or stone).</summary>
         public const byte PlayRing = 8;
+        /// <summary>Play-mode stage of a sea folk child running after a fish (A-103 row 3): no partner playing back.</summary>
+        public const byte ChaseFish = 9;
         /// <summary>Idle-mode stages of one of the townsfolk a messenger bird has come to: waiting for it (the forearm
         /// up for it to land on), taking the message from its leg, reading it.</summary>
         public const byte MessageWait = 60, MessageTake = 61, MessageRead = 62;
@@ -1473,6 +1502,36 @@ namespace Punchy.Fauna
                     return float3.zero;
                 case LimbRole.Head:
                     return new float3(0.25f, 0f, 0f);
+                default:
+                    return float3.zero;
+            }
+        }
+
+        /// <summary>
+        /// A-101: folk climbing a face (s.Vertical up): hands up on the holds and feet on the face, the reaching hand and
+        /// the stepping foot crossing (right hand with left foot) through the climb's gait. On a ladder (ladder), hands
+        /// on the rungs at head height and the knees drawn up in short steps, straight up.
+        /// </summary>
+        static float3 ClimbPose(ref CreaturePart part, in CreatureState s, int joint, bool ladder)
+        {
+            var reach = math.sin(2f * math.PI * s.Phase) * part.Side;
+            switch (part.Role)
+            {
+                case LimbRole.Arm:
+                    if (ladder)
+                        return joint == 0 ? new float3(-2.0f - 0.3f * reach, 0f, part.Side * 0.15f) : joint == 1 ? new float3(-1.0f + 0.35f * reach, 0f, 0f) : float3.zero;
+                    return joint == 0 ? new float3(-2.6f - 0.35f * reach, 0f, part.Side * 0.35f) : joint == 1 ? new float3(-0.55f + 0.3f * reach, 0f, 0f) : float3.zero;
+                case LimbRole.Leg:
+                {
+                    // (The foot opposite the reaching hand steps up: thigh lifted, knee bent.)
+                    var step = 0.5f - 0.5f * reach;
+                    var thigh = ladder ? -0.5f - 0.5f * step : -0.45f - 0.6f * step;
+                    var knee = ladder ? 0.7f + 0.8f * step : 0.6f + 1.0f * step;
+                    return joint == 0 ? new float3(thigh, 0f, part.Side * (ladder ? 0.05f : 0.2f)) : joint == 1 ? new float3(knee, 0f, 0f) : float3.zero;
+                }
+                case LimbRole.Head:
+                    // (Looking up the face for the next hold.)
+                    return new float3(-0.35f, 0f, 0f);
                 default:
                     return float3.zero;
             }
