@@ -6923,3 +6923,27 @@ half3 PunchySurfaceFinish(half3 color, PunchySurface s, half reach);            
 
 - Not checked: nothing was run. Whether the lantern is also a URP light (which decides drift 6), and whether creatures underground are dimmed some other way (drift 7), are not confirmed. No timing (rule 21).
 - Next: R-20 row 1 (the render editor is importing main), R-24 row 1 inventory meanwhile.
+
+## R-21 row 1: river falls as one curved sheet (#284), world/waterfall-sheets 2712e179, done (verified, one leftover noted)
+
+- **What changed:** river falls are curtains again, drawn by LandmarkEffectSystem, instead of the river surface's stepped chunk faces (W-98).
+  - Each fall's real face is measured on the water: where it drops away, where it lands, and how wide the wet lip is. The width is walked out from the middle until the water ends.
+  - The nearest 32 falls get a curtain. Water.shader clips the chunk face inside each curtain's box (lip, pour direction, reach, pool level), so a face is never hidden without its curtain.
+  - The open sheet bows out at the middle (up to 15%), narrows and thins as it falls. Its sides are noise-cut over a band that widens with drop and with width, and thin strands peel off. Cave falls keep their old look.
+- **Include edits (world-owned, per main):** WaterField.hlsl gets the curtain globals and `PunchyWaterUnderCurtain`. LandmarkEffects.hlsl BuildWaterfall gets the bow, the taper and the edge splay.
+- **Other files:** LandmarkEffectSystem.cs, LandmarkWaterfall.shader (edge fray, thinning), Water.shader (DepthVaryings carries positionWS; both passes clip under curtains).
+- **Fingerprint before/after:** WorldTests pins hold, landmarks 117 689D5348 and fingerprint 6A9E28E5. No placement, landmark or river path change.
+- **Suite (editor out of play mode):** 39/40. The one failure is the known A-92 (#231) `LyingTests.Lying_LegsStayAboveGround_FlatAndSlope` (BoneStag -0.071 m on the 0.33 slope), animal posing, not touched here.
+- **Lints:** lod-lint clean. nan-lint flags only the tangent normalize, which is safe (reach > 0) and marked nan-safe.
+- **Shots** (High, noon, before/after at matching poses, NaN bad 0 on all), in D:/Unity/PunchyMilestones/R-21/:
+  - r21-{before,after}-snowpeak-150m.png
+  - r21-{before,after}-fall22-20m.png
+  - r21-{before,after}-fall22-5m-foot.png
+- **What the shots show:**
+  - At 20 m, fall R22's stepped face is gone. One translucent sheet runs from the lip to the pool, with frayed sides.
+  - At 5 m at the foot, the camera stands inside the sheet's spray, so the frame reads mostly white. Row 2's foam and mist will change this view.
+- **Leftover (not R-21's to fix):** bluish slabs still show beside R22 and R23, in the 20 m shot (upper left) and the snowpeak shot (right).
+  - I ray-marched them. They are standing water walls, not fall faces: the water surface holds the upper pool's level over ground far below. Beside R23 that is 200.6 m of water over 181.8 m of ground, about 6.8 m behind the lip and 7.6 m to the side. Beside R22 it is 191.8 over 178.4.
+  - That is the river surface's own data, and the card rules out river changes. Suggest a W card to clamp the river water surface to the ground near falls (it may move the fingerprint).
+- **Risk:** 32 curtains at most; a fall beyond the 32 nearest keeps its chunk face until it comes nearer. Clipping costs one rect test per water pixel, plus a loop only inside the rect. Not timed (rule 21). Bench check can go to BENCH-QUEUE if wanted.
+- **Next:** R-21 row 2 (foam, mist, wet rock band, lip spray, LOD by screen size, 400 m shot).
