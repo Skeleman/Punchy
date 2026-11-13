@@ -6947,3 +6947,21 @@ half3 PunchySurfaceFinish(half3 color, PunchySurface s, half reach);            
   - That is the river surface's own data, and the card rules out river changes. Suggest a W card to clamp the river water surface to the ground near falls (it may move the fingerprint).
 - **Risk:** 32 curtains at most; a fall beyond the 32 nearest keeps its chunk face until it comes nearer. Clipping costs one rect test per water pixel, plus a loop only inside the rect. Not timed (rule 21). Bench check can go to BENCH-QUEUE if wanted.
 - **Next:** R-21 row 2 (foam, mist, wet rock band, lip spray, LOD by screen size, 400 m shot).
+
+## R-21 row 2: river fall foam, mist, wet rock and lip spray (#284), world/waterfall-sheets ea49d158, done (verified, foot foam subtle)
+
+- **What changed:**
+  - LandmarkWaterfall.shader: the open sheet's foot whitens where it lands. By screen size (pixels per metre at the pixel, rule 20), far away that is only a soft whitening, so the fall still reads as one sheet. Close up the foam churns and breaks the edge, and sparse spray streaks show at the lip.
+  - LandmarkEffectSystem: curtains now come in by DetailPolicy screen size (16 px; a 6 m fall still reaches 350 m at Detail 1, the old fixed range, and bigger falls reach further) instead of `RiverFallRange`. Mist at the foot, foam and lip spray are a separate tier at 35 px (-(RiverSprayBase + index)), sized by the measured width and drop. Both tiers use hysteresis.
+- **Include edits (world-owned):** new RiverCurtains.hlsl holds the curtain globals and `PunchyWaterUnderCurtain` (moved out of WaterField.hlsl), plus `PunchyFallWet`, a wavering wet band about 3 m round each curtain. WaterField.hlsl now just includes it.
+- **For the render lane / R-23 (main approved):** TerrainSurface.shader has two lines: `#include "RiverCurtains.hlsl"` after WideShadow.hlsl, and `shore = max(shore, PunchyFallWet(...) * ...)` after the shore band. They are in the wetness inputs only, not the light block. Please carry both through R-23's move. No film quad.
+- **Fingerprint before/after:** unchanged. The WorldTests pins hold (landmarks 117 689D5348, fingerprint 6A9E28E5). No placement, landmark or river path change.
+- **Suite (editor out of play mode):** 40/40 run passed, 17 skipped (explicit Detail shot tests). The A-92 Lying test passed this run.
+- **Lints:** lod-lint rc 0. Its one printed line is row 1's width walk in metres along the profile, which is measurement, not LOD. The NaN grep on the diff found only the perMetre divide, which is guarded with max(dist, 0.1). nan-lint's other hits are in files this row doesn't touch.
+- **Shots** (High, noon, NaN bad 0), in D:/Unity/PunchyMilestones/R-21/:
+  - r21-row2-snowpeak-150m.png
+  - r21-row2-fall22-20m.png: the foot is whiter and mist rises at the pool.
+  - r21-row2-fall22-5m-foot.png: the camera is still inside the spray, so it looks nearly the same as row 1. I added r21-row2-fall22-12m-foot.png (8 m to the side), which shows the foot whitening, mist and the darker wet rock to the right of the sheet.
+  - r21-row2-fall22-400m.png (380 m out, 140 m up, because from 25 m up the valley wall hides the fall): the R22 chain of falls each reads as one sheet with a soft foot.
+- **Risk:** the foam at the foot is subtle on the pale snow rock. The wet band is easiest to see on darker rock. Adding the include to TerrainSurface set off a long shader variant compile (about 2 min, 43 compiler processes) on first load. Not timed (rule 21).
+- **Next:** R-22 row 0 (#298, world/far-view).
