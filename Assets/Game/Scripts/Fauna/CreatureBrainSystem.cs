@@ -559,6 +559,9 @@ namespace Punchy.Fauna
             void Tick(Entity self, ref CreatureState s, in CreatureBody body)
             {
                 using var ticked = TickMarker.Auto();
+                // A-104: a rider has no mind of its own while it rides; RideSystem puts it on its mount.
+                if (s.Mode == CreatureMode.Ride)
+                    return;
                 // #59 brain LOD: far from every player it thinks only on its turn, for the time since its last think; on
                 // the frames between, anything moving coasts along its heading (taken back before it next thinks, so the
                 // think moves it the whole way): a walker on open ground follows the ground, a flier or swimmer keeps its

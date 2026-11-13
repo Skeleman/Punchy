@@ -26,6 +26,8 @@ namespace Punchy.Debugging
             LedgeLipOptions(args);
             // "-breathtest" (A-102 row 1): air and water breathers held on a lake bed, their breath logged (BreathTest).
             breathTest = System.Array.IndexOf(args, "-breathtest") >= 0;
+            // "-ridetest" (A-104 row 1): three rider/mount pairs, one refused, walked for a minute (RideTest).
+            rideTest = System.Array.IndexOf(args, "-ridetest") >= 0;
             // "-divetest [Human|FishFolk]" (A-102 row 2): a person and a fish folk out swimming and diving (DiveTest).
             var diveArg = System.Array.IndexOf(args, "-divetest");
             diveTest = diveArg >= 0 ? (diveArg + 1 < args.Length && !args[diveArg + 1].StartsWith("-") ? args[diveArg + 1] : "") : null;

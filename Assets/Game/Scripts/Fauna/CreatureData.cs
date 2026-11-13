@@ -405,7 +405,12 @@ namespace Punchy.Fauna
         /// weather is bad), then waiting there facing Focus (1) till the weather lets up or its time runs out. What the
         /// shelter is (a ShelterNeed bit) rides in TargetHeight.
         /// </summary>
-        Shelter
+        Shelter,
+        /// <summary>
+        /// A-104: riding another creature (Riding): no mind of its own while it rides, put on its mount's seat each frame
+        /// (RideSystem). How it sits (a RidePose) is in Stage; what it rides is in Holder (minus the mount's ghost id).
+        /// </summary>
+        Ride
     }
 
     /// <summary>What a worker does at its post (posed by CreatureAnimator).</summary>

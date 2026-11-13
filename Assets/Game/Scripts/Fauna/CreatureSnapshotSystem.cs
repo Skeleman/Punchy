@@ -199,7 +199,7 @@ namespace Punchy.Fauna
                 States[i] = s;
                 Bodies[i] = b;
                 Entities[i] = e;
-                if (s.Mode == CreatureMode.Held || s.CarryWidth != 0f)
+                if (s.Mode == CreatureMode.Held || s.Mode == CreatureMode.Ride || s.CarryWidth != 0f)
                     Holding.Value++;
             }
         }

@@ -199,7 +199,7 @@ namespace Punchy.Fauna
                 // (Legs out, leaning back a little on its hands; cross-legged or on a seat, sitting up. On a seat the
                 // hips are at the seat's height, which comes in Anchor.)
                 var seated = Seated(in s);
-                pitch += s.Sit * (0.5f - (seated || CrossLegged(in s) ? 0.05f : 0.25f));
+                pitch += s.Sit * (0.5f - (seated || CrossLegged(in s) || Riding(in s) ? 0.05f : 0.25f));
                 var hips = seated ? math.max(s.Anchor.y - s.Position.y, 0f) + 0.1f * scale : 0.16f * scale;
                 height = math.lerp(height + s.Sit * b.StandHeight * scale * 0.3f, hips, s.Sit);
                 pitch -= 1.5f * s.Lie;
@@ -684,7 +684,7 @@ namespace Punchy.Fauna
                 // rests on the ground under it, wherever that is (on a slope too), rather than the leg running into it.
                 var laid = b.Upright && part.Role == LimbRole.Leg && part.Parent < 0 && part.SegmentCount >= 3 &&
                             part.FirstSegment + part.SegmentCount <= MaxSegments
-                    ? math.max(s.Sit * (CrossLegged(in s) || Seated(in s) ? 0f : 1f), s.Lie) : 0f;
+                    ? math.max(s.Sit * (CrossLegged(in s) || Seated(in s) || Riding(in s) ? 0f : 1f), s.Lie * (Riding(in s) ? 0f : 1f)) : 0f;
                 if (laid > 0.01f)
                 {
                     var fs = part.FirstSegment + part.SegmentCount - 1;
@@ -708,7 +708,7 @@ namespace Punchy.Fauna
                 }
 
                 if (part.Role == LimbRole.Leg && part.Parent < 0 && part.SegmentCount >= 2 && part.FirstSegment + part.SegmentCount <= MaxSegments &&
-                    detail && !busyLeg && s.Fly < 0.5f && up < 0.5f && !crawling && (!b.Upright || s.Sit + s.Lie < 0.3f))
+                    detail && !busyLeg && s.Fly < 0.5f && up < 0.5f && !crawling && s.Mode != CreatureMode.Ride && (!b.Upright || s.Sit + s.Lie < 0.3f))
                 {
                     // Where the ground would be under this foot if it were the flat, sloped plane the body is
                     // standing on, versus where it really is: bend the leg by the difference.
@@ -1397,6 +1397,26 @@ namespace Punchy.Fauna
         /// </summary>
         static float3 SitPose(ref CreaturePart part, in CreatureState s, int joint)
         {
+            // A-104: riding. Astride a four-legged mount: thighs down and apart round its barrel, shins down its flanks,
+            // hands forward on its neck. On an upright one's shoulders: thighs forward and wide round its head, shins
+            // down its chest, hands holding its head.
+            if (Riding(in s))
+            {
+                var shoulders = s.Stage == (byte)RidePose.Shoulders;
+                switch (part.Role)
+                {
+                    case LimbRole.Leg:
+                        return shoulders
+                            ? (joint == 0 ? new float3(-1.35f, part.Side * 0.55f, 0f) : joint == 1 ? new float3(1.45f, 0f, 0f) : float3.zero)
+                            : (joint == 0 ? new float3(-0.75f, part.Side * 0.6f, 0f) : joint == 1 ? new float3(1.0f, 0f, 0f) : float3.zero);
+                    case LimbRole.Arm:
+                        return shoulders
+                            ? (joint == 0 ? new float3(-1.9f, 0f, part.Side * 0.35f) : joint == 1 ? new float3(-1.0f, 0f, 0f) : float3.zero)
+                            : (joint == 0 ? new float3(-0.8f, 0f, part.Side * 0.1f) : joint == 1 ? new float3(-0.5f, 0f, 0f) : float3.zero);
+                    default:
+                        return float3.zero;
+                }
+            }
             // On a seat: thighs out level along it, shins down to the ground, hands on the thighs.
             if (Seated(in s))
                 switch (part.Role)
@@ -1465,6 +1485,9 @@ namespace Punchy.Fauna
 
         /// <summary>Sitting on a seat (a bench, a log, a stump...), at the height in Anchor, rather than on the ground.</summary>
         static bool Seated(in CreatureState s) => s.Mode == CreatureMode.Sit && (s.Stage == 4 || s.Stage == HearthSeat);
+
+        /// <summary>A-104: riding another creature (how, a RidePose, in Stage).</summary>
+        static bool Riding(in CreatureState s) => s.Mode == CreatureMode.Ride;
 
         /// <summary>Whether this one sits on the ground cross-legged rather than with its legs out (fixed for life).</summary>
         static bool CrossLegged(in CreatureState s) => CreatureBlob.Trait(s.Individual, 29) > 0.1f;
