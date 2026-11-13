@@ -3922,3 +3922,35 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - Shots in D:/Unity/PunchyMilestones/A-104/ (800x450, checked): cat-on-dog, child-on-adult, dog-refused-on-cat.
 - Pins: Fauna_Fingerprint is EC02D9B0 before and after, unchanged (no species or spawn rows). No placement, landmark, ProjectSettings or renderer change.
 - Suite: full PlayMode run after the last change: "total 40, passed 40, failed 0, skipped 0" (296 s).
+
+## A-105
+
+### Row 1: derived households (done, verified, #25)
+- Commit on fauna/households (pushed, from origin/main 2078f16c): 50dfe549.
+- New FaunaDirector.Households.cs. Every house gets a household from its placement hash, the same on every machine, with nothing sent or stored:
+  - one person, a couple, a couple with 1-3 children, or a couple with an elder and children;
+  - members are Head, Partner, Elder and Child, each with a derived Individual, a name from folk-names.json (no two alike in one house) and a word for row 3 (wife/husband, mother/father, daughter/son).
+- Houses covered: town house plots, hermit huts and fishing-village doors, and A-103's igloos and sea folk domes. All share the same code. The igloo and dome sizes come from the overworld household rows.
+- Housed folk who spawn take a free member's Individual, and that house's door becomes their Home (OwnDoor). Children go to a house with an adult in. Ghost fields: none added. Individual and OwnDoor already sync.
+- `-households`: one line per house in each peopled town (house, size, role, name, in or away), plus a "seen" line for each housed folk near the player, on any machine.
+- Island total: 157 houses, 463 folk, 15 landmarks.
+- Town logs (all 0 at the wrong door):
+  - HumanVillage 73: 38 houses, 101 members, 12 spawned, 12 seen;
+  - DwarfHold 78: 35 houses, 109 members, 12 spawned, 12 seen;
+  - GoblinCamp 75: 23 houses, 71 members, 15 spawned, 15 seen;
+  - turtle village 110: 5 igloos, 15 members, 11 spawned (the A-103 count of 12 folk and 1 child is unchanged);
+  - sea village 113: 6 domes, 18 members, 14 spawned.
+- Host and build client at town 73: both logged the same 11 seen folk, with the same names, roles and doors (diff empty). Example: house 9 at (2963, -864) is Head Vesna, Partner Emmet, Child Ilsa on both.
+- Pins:
+  - Fauna_Fingerprint is 6A9E28E5 before and after;
+  - no spawn draw, landmark or placement change;
+  - no ProjectSettings or renderer change;
+  - no timing.
+- Suite: the full PlayMode run gave "39 passed, 1 failed, 17 skipped in 312s". The failure was LiveFolk_BeastResponse, the known flake; run alone it gave "1 passed, 0 failed".
+- Risks and notes:
+  - Housed folk now get new Individuals, so their looks, traits and Individual-keyed draws change from main, on host and clients alike.
+  - Names aren't gendered, so a name and its role word can clash (e.g. "Head Garrick (f)"). Names also repeat across houses in a village.
+  - Igloo and dome sizes only roughly match the spawn counts. Spare spawns stay lodgers (they keep the old door and Individual).
+  - In towns, most members are "away", because only about 12 of about 100 spawn near the player.
+  - The code has no farm houses yet. Row 2 asks for a farm dusk shot.
+- Next: row 2, going home to their own house at dusk.
