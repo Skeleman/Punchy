@@ -95,6 +95,7 @@ namespace Punchy.Player
                 // by the current until it's down in it.)
                 var swimming = Floor(terrain, position, settings.SwimDepth, out var swimFloor, out var inCave) && position.y < swimFloor + 0.3f;
                 m.LatchCooldown = math.max(m.LatchCooldown - dt, 0f);
+                Breathe(ref m, body, terrain, position, swimming, swimFloor, inCave, settings.SwimDepth, size, dt);
 
                 // A flying body: off with a jump, and on the wing until it comes down on something.
                 if (!body.Flies)
@@ -1345,6 +1346,37 @@ namespace Punchy.Player
         /// What the player stands on: the ground (or a cave floor), or in water deeper than SwimDepth, a point
         /// SwimDepth below the surface (so they swim with their head above water). Returns whether they're swimming.
         /// </summary>
+        /// <summary>How high a body's head is over its feet, for a body of size 1 (m): A-102 breath.</summary>
+        const float HeadHeight = 1.6f;
+
+        /// <summary>
+        /// A-102 breath (Punchy.Fauna.Breath), the same model as the creatures': used up while the head is under water,
+        /// back in air. Swimming at the swim depth the head is held out; walking on the bottom of water too shallow to
+        /// swim in, a small body's head can be under. Water breathers (a fish body, water and sea folk), ghosts and
+        /// fliers on the wing are always full. Only the value for now: the push up when it empties comes with diving.
+        /// </summary>
+        static void Breathe(ref PlayerMotion m, in PlayerBody body, in TerrainSource terrain, float3 position, bool swimming,
+                            float swimFloor, bool inCave, float swimDepth, float size, float dt)
+        {
+            if (body.Swims || body.BreathesWater || body.Hovers || m.Flying || !math.isfinite(position.y))
+            {
+                m.BreathUsed = 0f;
+                m.Gasping = false;
+                return;
+            }
+            bool under;
+            if (swimming)
+                under = position.y < swimFloor - 0.05f && position.y + HeadHeight * size < swimFloor + swimDepth;
+            else
+            {
+                var g = inCave ? terrain.SampleGround(position) : terrain.SampleGround(position.xz);
+                under = (inCave ? g.CaveWater : g.HasWater && g.WaterSurface > g.Height) && position.y + HeadHeight * size < g.WaterSurface;
+            }
+            if (!under && m.BreathUsed <= 0f && !m.Gasping)
+                return;
+            m.BreathUsed = Punchy.Fauna.Breath.Use(m.BreathUsed, ref m.Gasping, under, body.HoldBreath, dt);
+        }
+
         static bool Floor(in TerrainSource terrain, float3 position, float swimDepth, out float floor, out bool inCave)
         {
             floor = terrain.FloorUnder(position, out inCave);
