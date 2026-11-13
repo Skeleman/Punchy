@@ -3886,3 +3886,16 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - Pins: Fauna_Fingerprint 6DCC36A3 -> 1078FBC3, re-pinned in WorldTests. It moved because of the two new species (species sort by name, so later indices shift) and their spawn rows. No landmark, placement, ProjectSettings or renderer change.
 - Suite: "40 passed, 0 failed, 17 skipped in 443s (Unity exit 0)", the full run after the last change.
 - Next: merge origin/main once, re-pin the combined fingerprint, suite.
+
+### Main merge and TurtleChild recount (done)
+- Commit on fauna/folk-homes (pushed): 838948fc merges origin/main b1aa418b (W-147 ladders #293, A-101 climbing #294). The only conflict was the fingerprint pin.
+- Pins: Fauna_Fingerprint is 6A9E28E5, re-pinned in WorldTests. It's A-103 row 3 (1078FBC3) combined with main (EC02D9B0), because both sides add rows to the same species and blob tables. No placement change.
+- Suite: "40 passed, 0 failed, 17 skipped in 409s (Unity exit 0)", the full run after the last change.
+- TurtleChild count:
+  - `-netwatch` now lists each watched creature by entity, ghost id (or "local" if it isn't a ghost) and position.
+  - Three host and build-client runs (160 to 190 s each), at the turtle village, 0 exceptions:
+    - pre-merge build, client with -goto: host 1, client 1, both ghost 149, same positions every 10 s;
+    - pre-merge build, client without -goto (the flags of the run that counted 2): host 1, client 1, both ghost 149;
+    - post-merge build (b1aa418b), client without -goto: host 1, client 1, both ghost 150.
+  - The earlier client count of 2 didn't come back in any run. That run had no per-ghost listing and counted 2 for its whole length, so it wasn't a single count taken mid-spawn. Its cause is unknown. If it comes back, the new listing shows whether it's a duplicate ghost or a stray local spawn.
+- Ready for the PR.
