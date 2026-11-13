@@ -20,10 +20,12 @@ namespace Punchy.Chemistry
     /// Punchy's ground is a function of position with no stored layer that can change, so the chemistry runs as an
     /// overlay: a 256 x 256 cell world (1 m cells) in a window centred on the player, seeded from TerrainSource on the
     /// 1 m grid (grass, water, rock, dirt) and ticked at the rules' tick rate. Cell (x, y) is Punchy's (x, z) plus the
-    /// window's corner. H casts Fireball (Shift+H Fire Bolt) and J casts Frost (Shift+J Sleet Storm) at the ground
-    /// under the screen centre, found by marching a ray against TerrainSource (the terrain has no colliders). What the
-    /// cells do (burning, burnt, ice, frost) goes into a 256 x 256 map that the grass, terrain and water shaders read
-    /// (ChemistryOverlay.hlsl). Local and cosmetic only: no network, no saving. -nochemistry turns it off.
+    /// window's corner. H casts Fireball (Shift+H Fire Bolt), J Frost (Shift+J Sleet Storm) and L Create Water (Shift+L
+    /// Wave) at the ground under the screen centre, found by marching a ray against TerrainSource (the terrain has no
+    /// colliders). What the cells do goes into two 256 x 256 maps that the grass, terrain and water shaders read
+    /// (ChemistryOverlay.hlsl: burning, burnt, ice, frost; water on land, steam, smoke), and ChemistryEffects draws
+    /// flames on burning cells and puffs of steam and smoke from the gas. Local and cosmetic only: no network, no
+    /// saving. -nochemistry turns it off.
     /// </summary>
     public class ChemistryBridge : MonoBehaviour
     {
@@ -38,6 +40,7 @@ namespace Punchy.Chemistry
         const byte KindDirt = 0, KindGrass = 1, KindWater = 2, KindRock = 3;
 
         static readonly int MapId = Shader.PropertyToID("_PunchyChemMap");
+        static readonly int Map2Id = Shader.PropertyToID("_PunchyChemMap2");
         static readonly int RectId = Shader.PropertyToID("_PunchyChemRect");
         static readonly int OnId = Shader.PropertyToID("_PunchyChemOn");
 
@@ -45,12 +48,19 @@ namespace Punchy.Chemistry
         Chem.World world;
         int2 corner;              // world XZ (m) of cell (0, 0)
         byte[] seeded;            // the kind each cell was seeded as
-        Texture2D map;
-        Color32[] texels;
+        Texture2D map, map2;
+        Color32[] texels, texels2;
+        float[] heights;          // the ground (or water surface) at each cell's centre, for the flames and puffs
+        readonly ChemistryEffects effects = new ChemistryEffects();
+        // Last map's state per cell (bit 0 frozen, 1 burning, 2 steam) and water, to count what changed.
+        byte[] lastState;
+        int[] lastWater;
+        // What the chemistry did since the window was seeded, as the map saw it change (README: "reactions").
+        int melted, doused, boiled, steamed, condensed;
         int shownTick = -1;
         float tickClock;
         float nextReport;
-        double tickMsThisSecond, mapMsThisSecond;
+        double tickMsThisSecond, mapMsThisSecond, fxMsThisSecond;
         int framesThisSecond;
         readonly Stopwatch watch = new Stopwatch();
 
@@ -64,6 +74,7 @@ namespace Punchy.Chemistry
         // The seed sampling in flight (a Burst job, picked up a frame or more later).
         JobHandle seedJob;
         NativeArray<byte> seedKinds;
+        NativeArray<float> seedHeights;
         bool seeding;
         int2 seedCorner;
         TerrainSource seededSource, seedSourcePending;
@@ -107,12 +118,17 @@ namespace Punchy.Chemistry
             }
             if (seedKinds.IsCreated)
                 seedKinds.Dispose();
+            if (seedHeights.IsCreated)
+                seedHeights.Dispose();
+            effects.Dispose();
         }
 
         void OnDestroy()
         {
             if (map != null)
                 Destroy(map);
+            if (map2 != null)
+                Destroy(map2);
         }
 
         bool EnsureQueries()
@@ -178,6 +194,9 @@ namespace Punchy.Chemistry
                 mapMsThisSecond += watch.Elapsed.TotalMilliseconds;
                 shownTick = world.Tick;
             }
+            watch.Restart();
+            effects.Frame(corner, Size, heights, rules.Sim.Gas.MaxAmount, Camera.main);
+            fxMsThisSecond += watch.Elapsed.TotalMilliseconds;
             framesThisSecond++;
             if (Time.unscaledTime >= nextReport)
                 Report();
@@ -191,7 +210,9 @@ namespace Punchy.Chemistry
             seedSourcePending = terrain;
             if (!seedKinds.IsCreated)
                 seedKinds = new NativeArray<byte>(Size * Size, Allocator.Persistent);
-            seedJob = new SeedJob { Source = terrain, Corner = seedCorner, Kinds = seedKinds }.Schedule(Size * Size, 256);
+            if (!seedHeights.IsCreated)
+                seedHeights = new NativeArray<float>(Size * Size, Allocator.Persistent);
+            seedJob = new SeedJob { Source = terrain, Corner = seedCorner, Kinds = seedKinds, Heights = seedHeights }.Schedule(Size * Size, 256);
             seeding = true;
         }
 
@@ -204,6 +225,15 @@ namespace Punchy.Chemistry
             demoAt = Time.unscaledTime + DemoDelay;
             world = new Chem.World(rules, Size, Size, 1, "dirt");
             seeded = seedKinds.ToArray();
+            heights = seedHeights.ToArray();
+            lastState = new byte[Size * Size];
+            lastWater = new int[Size * Size];
+            melted = doused = boiled = steamed = condensed = 0;
+            effects.Burning.Clear();
+            effects.Steam.Clear();
+            effects.Smoke.Clear();
+            effects.Melted.Clear();
+            effects.Doused.Clear();
             int grass = 0, water = 0, rock = 0;
             for (int y = 0; y < Size; y++)
                 for (int x = 0; x < Size; x++)
@@ -243,6 +273,7 @@ namespace Punchy.Chemistry
             public TerrainSource Source;
             public int2 Corner;
             [WriteOnly] public NativeArray<byte> Kinds;
+            [WriteOnly] public NativeArray<float> Heights;
 
             public void Execute(int i)
             {
@@ -251,8 +282,10 @@ namespace Punchy.Chemistry
                 if (ground.HasWater && !ground.CaveWater && ground.WaterSurface > ground.Height + 0.1f)
                 {
                     Kinds[i] = KindWater;
+                    Heights[i] = ground.WaterSurface;
                     return;
                 }
+                Heights[i] = ground.Height;
                 var normal = Source.SampleNormal(xz, 1f);
                 var surface = Source.SampleSurface(xz, ground, normal);
                 // As GroundDetailSystem decides where blades grow.
@@ -268,8 +301,8 @@ namespace Punchy.Chemistry
             var keyboard = Keyboard.current;
             if (keyboard == null)
                 return;
-            bool fire = keyboard.hKey.wasPressedThisFrame, frost = keyboard.jKey.wasPressedThisFrame;
-            if (!fire && !frost)
+            bool fire = keyboard.hKey.wasPressedThisFrame, frost = keyboard.jKey.wasPressedThisFrame, water = keyboard.lKey.wasPressedThisFrame;
+            if (!fire && !frost && !water)
                 return;
             bool shift = keyboard.shiftKey.isPressed;
             var cam = Camera.main;
@@ -280,8 +313,10 @@ namespace Punchy.Chemistry
             }
             if (fire)
                 Cast(shift ? "fire-bolt" : "fireball", hit, cam.transform.forward);
-            else
+            else if (frost)
                 Cast(shift ? "sleet-storm" : "frost", hit, cam.transform.forward);
+            else
+                Cast(shift ? "wave" : "create-water", hit, cam.transform.forward);
         }
 
         /// <summary>-chem-demo: casts a Fireball on the grass cell nearest the player that is at least 6 m away.</summary>
@@ -338,6 +373,16 @@ namespace Punchy.Chemistry
         public int Burnt => burntCount;
         public int Ice => iceCount;
         public int Frost => frostCount;
+        public int LandWater => landWaterCount;
+        public int SteamCells => effects.Steam.Count;
+        /// <summary>Reactions seen since the window was seeded: ice melted, fires doused, water boiled, new steam, condensed.</summary>
+        public (int melted, int doused, int boiled, int steamed, int condensed) Reactions => (melted, doused, boiled, steamed, condensed);
+        public int Puffs => effects.PuffCount;
+        /// <summary>The world point at a cell's centre, on the ground (or the water surface).</summary>
+        public Vector3 CellCentre(int x, int y) => new Vector3(corner.x + x + 0.5f, heights != null ? heights[y * Size + x] : 0f, corner.y + y + 0.5f);
+        public int2 Corner => corner;
+        public bool SeededGrass(int x, int y) => seeded[y * Size + x] == KindGrass;
+        public bool SeededWater(int x, int y) => seeded[y * Size + x] == KindWater;
         public int Tick => world?.Tick ?? 0;
 
         /// <summary>Casts a spell at a world point (the keys use the ground under the screen centre), facing a way.</summary>
@@ -370,6 +415,9 @@ namespace Punchy.Chemistry
             }
             else
             {
+                // Create Water charged once more (5 x 5 instead of 3 x 3), enough to douse a stretch of the fire front.
+                if (spell == "create-water")
+                    charge = 2;
                 world.Cast(spell, x, y, 0, charge);
             }
             var cell = world.At(x, y);
@@ -405,24 +453,42 @@ namespace Punchy.Chemistry
             };
             texels = new Color32[Size * Size];
             Shader.SetGlobalTexture(MapId, map);
+            map2 = new Texture2D(Size, Size, TextureFormat.RGBA32, false, true)
+            {
+                name = "ChemistryMap2",
+                filterMode = FilterMode.Bilinear,
+                wrapMode = TextureWrapMode.Clamp,
+            };
+            texels2 = new Color32[Size * Size];
+            Shader.SetGlobalTexture(Map2Id, map2);
         }
 
-        int burningCount, burntCount, iceCount, frostCount;
+        int burningCount, burntCount, iceCount, frostCount, landWaterCount;
 
-        /// <summary>Renders the cells into the map: r burning, g burnt, b ice, a frost (ChemistryOverlay.hlsl).</summary>
+        /// <summary>
+        /// Renders the cells into the maps (ChemistryOverlay.hlsl): r burning, g burnt, b ice, a frost; and r water on
+        /// land, g steam, b smoke. Also lists the cells the effects draw from, and counts what changed since last time.
+        /// </summary>
         void UpdateMap()
         {
-            int burning = 0, burnt = 0, ice = 0, frost = 0;
+            int burning = 0, burnt = 0, ice = 0, frost = 0, landWater = 0;
+            var steamId = rules.Sim.WaterBoils;
+            int maxGas = math.max(1, rules.Sim.Gas.MaxAmount);
+            effects.Burning.Clear();
+            effects.Steam.Clear();
+            effects.Smoke.Clear();
             for (int y = 0; y < Size; y++)
                 for (int x = 0; x < Size; x++)
                 {
                     int i = y * Size + x;
                     var c = world.At(x, y);
                     byte r = 0, g = 0, b = 0, a = 0;
+                    byte wr = 0, wg = 0, wb = 0;
                     if (c.Fire > 0)
                     {
                         r = (byte)math.min(255, 110 + c.Fire * 50);
                         burning++;
+                        effects.Burning.Add(new ChemistryEffects.Spot { Index = i, Amount = c.Fire });
                     }
                     if (seeded[i] == KindGrass && c.T != "grass")
                     {
@@ -440,24 +506,77 @@ namespace Punchy.Chemistry
                         a = 255;
                         frost++;
                     }
+                    // Water standing on land (a pond's own water is Punchy's): over half from the first unit, so the
+                    // shaders' soft edge (at 0.5) falls round every wet cell, deeper water a little more.
+                    if (seeded[i] != KindWater && c.Water > 0 && !c.Frozen)
+                    {
+                        wr = (byte)math.min(255, 150 + c.Water * 12);
+                        landWater++;
+                    }
+                    bool steam = false;
+                    if (c.Gas != null && c.GasAmt > 0)
+                    {
+                        var amount = (byte)math.min(255, c.GasAmt * 255 / maxGas);
+                        if (c.Gas == steamId)
+                        {
+                            steam = true;
+                            wg = amount;
+                            effects.Steam.Add(new ChemistryEffects.Spot { Index = i, Amount = c.GasAmt });
+                        }
+                        else if (c.Gas == "smoke")
+                        {
+                            wb = amount;
+                            effects.Smoke.Add(new ChemistryEffects.Spot { Index = i, Amount = c.GasAmt });
+                        }
+                    }
                     texels[i] = new Color32(r, g, b, a);
+                    texels2[i] = new Color32(wr, wg, wb, 0);
+
+                    // What changed since the last map (the reactions in reactions.json, as their results show).
+                    var was = lastState[i];
+                    bool wasFrozen = (was & 1) != 0, wasBurning = (was & 2) != 0, wasSteam = (was & 4) != 0;
+                    if (wasFrozen && !c.Frozen)
+                    {
+                        melted++;   // fire-ice
+                        effects.Melted.Add(new ChemistryEffects.Spot { Index = i, Amount = 1 });
+                    }
+                    if (wasBurning && c.Fire <= 0 && (c.Water > 0 || steam || c.DampUntil > world.Tick))
+                    {
+                        doused++;   // water-fire
+                        effects.Doused.Add(new ChemistryEffects.Spot { Index = i, Amount = 1 });
+                    }
+                    if (steam && !wasSteam)
+                    {
+                        steamed++;
+                        if (c.Water < lastWater[i])
+                            boiled++;   // fire-water
+                    }
+                    if (wasSteam && !steam && c.Water > lastWater[i])
+                        condensed++;   // cold-steam
+                    lastState[i] = (byte)((c.Frozen ? 1 : 0) | (c.Fire > 0 ? 2 : 0) | (steam ? 4 : 0));
+                    lastWater[i] = c.Water;
                 }
             map.SetPixels32(texels);
             map.Apply(false);
+            map2.SetPixels32(texels2);
+            map2.Apply(false);
             burningCount = burning;
             burntCount = burnt;
             iceCount = ice;
             frostCount = frost;
+            landWaterCount = landWater;
         }
 
         void Report()
         {
             nextReport = Time.unscaledTime + 1f;
-            if (burningCount > 0 || burntCount > 0 || iceCount > 0 || frostCount > 0)
-                Debug.Log($"[Chemistry] tick {world.Tick}: {burningCount} burning, {burntCount} burnt, {iceCount} ice, {frostCount} frost; " +
-                          $"bridge {((tickMsThisSecond + mapMsThisSecond) / math.max(1, framesThisSecond)):F2} ms a frame " +
-                          $"(ticking {tickMsThisSecond:F1} ms, map {mapMsThisSecond:F1} ms this second, {framesThisSecond} frames)");
-            tickMsThisSecond = mapMsThisSecond = 0;
+            if (burningCount > 0 || burntCount > 0 || iceCount > 0 || frostCount > 0 || landWaterCount > 0 || effects.Steam.Count > 0)
+                Debug.Log($"[Chemistry] tick {world.Tick}: {burningCount} burning, {burntCount} burnt, {iceCount} ice, {frostCount} frost, " +
+                          $"{landWaterCount} water on land, {effects.Steam.Count} steam, {effects.Smoke.Count} smoke; {effects.PuffCount} puffs; " +
+                          $"so far {melted} melted, {doused} doused, {boiled} boiled, {steamed} steamed, {condensed} condensed; " +
+                          $"bridge {((tickMsThisSecond + mapMsThisSecond + fxMsThisSecond) / math.max(1, framesThisSecond)):F2} ms a frame " +
+                          $"(ticking {tickMsThisSecond:F1} ms, map {mapMsThisSecond:F1} ms, effects {fxMsThisSecond:F1} ms this second, {framesThisSecond} frames)");
+            tickMsThisSecond = mapMsThisSecond = fxMsThisSecond = 0;
             framesThisSecond = 0;
         }
     }
