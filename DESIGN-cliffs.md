@@ -5,7 +5,7 @@ them, but the results are lackluster, not blending well or looking like a real c
 wedged into the ground. I need a solid description of how to make better looking cliffs: mountain edges, canyons, road
 and river cuts, washes, and even ledges for stepped terrain in cities."
 
-Status: a description for Zach to read. Nothing here is carded or built yet. It replaces the approach of W-150 (the
+Status: carded as W-155 (11-13). It replaces the approach of W-150 (the
 cliff kit); R-19's steep-rock shading stays and is reused.
 
 ## Why the two attempts so far fall short
@@ -110,7 +110,7 @@ arches where a buttress has been cut off, no scree.
 - W-150 (cliff kit): its records for ledges, ground and ceiling queries and shelves carry over; its placed slab
   pieces are dropped, except as fallen and rim blocks.
 - Placement: true steps in the height field move ground, so plots, flora and some landmarks near scarps will move and
-  the fingerprint will change. That needs Zach's OK before any build (v3 rule: hashes are measures, but he is told first).
+  the fingerprint will change. Zach 11-13: the layout is free to change; each such row re-pins hashes, fixes tests and vantage points, and tells the profiler.
 
 ## Suggested first step (not started)
 

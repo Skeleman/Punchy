@@ -58,7 +58,7 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #277 | No water discs: cave lakes, white pools, fountains (Zach 11-12) | W-148 |
 | #278 | Rideable creatures, players ride players | A-104, merged #297 (closed) |
 | #280 | Sea swell tiles when seen from high up (Zach 11-12) | R-17 (rendering lane) |
-| #281 | Roadmap: cliff and mountain geometry (overhangs, ledges, strata) | W-149 study done; R-19 (steep rock), W-150 (cliff kit + shelves); DESIGN-cliffs.md (11-13: scarp builder replaces the kit; waits on Zach) |
+| #281 | Roadmap: cliff and mountain geometry (overhangs, ledges, strata) | W-149 study done; R-19 (steep rock), W-150 (cliff kit + shelves); DESIGN-cliffs.md + W-155 (11-13: scarp builder replaces the kit) |
 | #282 | White bloom circles keep coming back (NaN), global guard (Zach 11-12) | R-18 (rendering lane), rule 24 |
 | #284 | Waterfall sheets show flat stepped quads | R-21 (world lane) |
 | #286 | Shadow flicker at medium distance; far cloud shadows unstable (Zach 11-12) | R-20 (rendering lane), after R-16 |
