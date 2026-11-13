@@ -4099,3 +4099,22 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
   - The sand clearer shot was taken before the sand pile was darkened, so its pile reads pale. A noon reshoot failed: at a paused desert noon the clearer shelters from heat (existing Comfort behaviour) and doesn't return to work.
   - The Mender and Roofer posts only appear when a settlement has enough free folk, so OgreCamp lost no existing post.
 - Next: row 2 (hermit work and routine).
+
+### Row 2: hermits work their biome's chore (done, verified, #69, fauna/harsh-work 310ff13a)
+
+- What: a hermit in harsh country gets its biome's work set. In about a third of its daytime decisions it does its chore: sweeping ash, or shovelling snow or sand. It works on its doorstep facing out; with no door, out in front of its shelter; a mender works at its seat. On arrival its Stage becomes the job's work stage. Clients read the job from that through `FolkJobs.Shown`, so the pose, tool and dust match with nothing new sent. Its round also has a lookout of its own: the highest dry spot 18-26 m out, where it sits facing outward. Its plot and fire (garden, pool and hearth anchors) still work as before.
+- Talk lines: each work set gained a list of lines about living alone (`AloneLines`: ash 5, snow 5, desert 5, storm 4). A new `WildAlone` set (5 lines) covers every other biome. All lines are original text. `HermitTalkSystem` says one, with `{name}` replaced by the hermit's own name, when it sets to work, sits down, or now and then while working or sitting near the player. It works on clients too, from synced state.
+- Logged (`-hermittalk`):
+  - `HermitTalk: Yorick (EmberForest, working, AshSweeper) at (137, -545): No neighbours to borrow a broom from. No neighbours to steal one, either.`
+  - `HermitTalk: Marek (Tundra, musing, SnowShoveller) at (838, -1): Out here the quiet has a sound. A sort of hum. I like it.`
+  - `HermitTalk: Marek (Tundra, musing, SnowShoveller) at (838, -1): Talked to a fox yesterday. Didn't say much. Better company than most.`
+- Shots (D:/Unity/PunchyMilestones/A-106/, 800x450, noon, clear):
+  - row2-ash-hermit.png: the EmberForest hermit (the world's only placed hut) sweeping ash outward from its doorstep.
+  - row2-snow-hermit.png: a test hermit (`TestHooks.HermitAt`) on open Tundra at (840, 0), shovelling, with its snow pile and spray. No hermit hut is placed in snow, and placement must not change.
+- Numbers: fingerprint 6A9E28E5, unchanged. No ghost field, wire enum, placement or landmark change.
+- Rules 25-28: nothing new reads at distance (the chores are person-sized details), there are no shader or lighting edits, no new stand-ins, and every touched file is under 2500 lines.
+- Risks and notes:
+  - The unplaced W-57 hut work stages 3 and 4 now use the posted sweeper and shoveller looks (broom or shovel, dust).
+  - A hermit backs away from a player within 4.5 m (existing Wary step), so it won't do its doorstep chore with the player standing on its step.
+  - Re-running DebugControls.RunOptions (as shot tools do) clears `-hermittalk`, as it does for the other flags.
+- Next: row 3 (kin deaths on clients).
