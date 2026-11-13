@@ -667,3 +667,9 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
 - Views: the canyon (2266,-434) and the mountain (-3130,2878), each from 20 m and 150 m, facing the steep face, 12:00 Clear.
 - Record: whole-frame GPU ms per view; add `-sparkleprobe r19` (NaN count should be 0).
 - Pass: <= +0.3 ms GPU at Medium on every view. 1c adds about 5 noise samples per close rock pixel.
+
+## Job 67 (2026-11-12, QUEUED after 66 (same cliffs, so one trip); supervisor, for W-150 rows 1-2, #281): cliff kit pieces and the ground query
+- (A) main vs (B) `world/cliff-kit` 0941bfcc. Profile builds, 1920x1080, Medium and High, uncapped, ABBA, 300 frames each.
+- Views: the canyon (2266,-434) and the mesa (2134,1462), 12:00 Clear, standing and a 30 m walk along the face; also a fresh start's island-ready time (the ledge bake adds about 47 ms on a cache miss).
+- Record: whole-frame GPU and main-thread ms, and the FloorUnder/Deck share if the profile shows it (every ground query now also checks the cliff pieces in its cell). Draw calls and pieces drawn.
+- Zach 11-12 expects big cliff changes later, so this is a baseline: give the cost of the pieces themselves (draw) and of the ground query separately.
