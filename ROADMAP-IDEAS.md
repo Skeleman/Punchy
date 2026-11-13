@@ -42,6 +42,8 @@ Standing: the aim and its priorities are in COORDINATION.md. The layout is a tes
   never run out of breath; on land they keep near water or complain about the dryness. Turtle folk are tall,
   ancient and magical.
 - **Breath (A-102, P-34).** Works like stamina; air breathers are forced to resurface.
+- **One population (#298, A-110).** A town's far figures are its real people, in about the real number, on
+  simple low-rate brains; nobody vanishes or is swapped as you approach.
 - **Households and ownership (DESIGN-npc-ownership.md).** Specific folk live in each house, go home to it, and
   speak of family by name. Later, after P-35: owned items, and theft that angers owners and guards.
 - **Conversation (#25).** What an NPC says depends on personality, skills and culture. First: short lines as you
