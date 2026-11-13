@@ -695,3 +695,4 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
 - Views: a forest and a town, standing and a 30 m walk.
 - Record: whole-frame GPU and main-thread ms. Rule 23 applies at Medium.
 - If time allows, a third arm: main-light shadow map 4096 (a local change to PC_RPAsset, not committed) with the High filter, same views, so Zach can weigh it for the 30-60 m crawl that the filter does not cure.
+- Job 71 update (supervisor 11-13): Zach OK'd the 4096 map ("4096 map OK"). The render lane commits it on `render/shadow-still` as its own commit; the hash follows here. The 4096 arm is then required, not optional: three arms (filter low, filter default, filter default + 4096), and it gates the merge.
