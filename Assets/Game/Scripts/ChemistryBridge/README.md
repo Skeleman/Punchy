@@ -47,7 +47,8 @@ reference silently here (no error, no warning).
 | Shift+J | Sleet Storm (a burst of cold, radius 5: freezes a pond) |
 
 F, G, R, T and V are the door key choices, so the bridge stays off them. `-nochemistry` on the command line turns
-the bridge off.
+the bridge off. `-chem-demo` casts a Fireball on the nearest grass (6 m or more from the player) 8 s after
+the window is seeded, once, for smoke runs without keys.
 
 ## Removing it
 

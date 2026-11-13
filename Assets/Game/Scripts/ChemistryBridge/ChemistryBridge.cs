@@ -54,6 +54,13 @@ namespace Punchy.Chemistry
         int framesThisSecond;
         readonly Stopwatch watch = new Stopwatch();
 
+        // -chem-demo: a Fireball on the nearest grass a few metres from the player, once, DemoDelay s after the
+        // window's last seed (the first seed is from a stand-in terrain, so it waits for the real one).
+        const float DemoDelay = 8f;
+        readonly bool demo = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-chem-demo") >= 0;
+        bool demoDone;
+        float demoAt = float.MaxValue;
+
         // The seed sampling in flight (a Burst job, picked up a frame or more later).
         JobHandle seedJob;
         NativeArray<byte> seedKinds;
@@ -146,6 +153,8 @@ namespace Punchy.Chemistry
             }
 
             HandleInput(terrain, playerXZ);
+            if (demo && !demoDone && Time.unscaledTime >= demoAt)
+                Demo(player.Position);
 
             watch.Restart();
             tickClock += Time.deltaTime;
@@ -192,6 +201,7 @@ namespace Punchy.Chemistry
             seeding = false;
             corner = seedCorner;
             seededSource = seedSourcePending;
+            demoAt = Time.unscaledTime + DemoDelay;
             world = new Chem.World(rules, Size, Size, 1, "dirt");
             seeded = seedKinds.ToArray();
             int grass = 0, water = 0, rock = 0;
@@ -272,6 +282,32 @@ namespace Punchy.Chemistry
                 Cast(shift ? "fire-bolt" : "fireball", hit, cam.transform.forward);
             else
                 Cast(shift ? "sleet-storm" : "frost", hit, cam.transform.forward);
+        }
+
+        /// <summary>-chem-demo: casts a Fireball on the grass cell nearest the player that is at least 6 m away.</summary>
+        void Demo(float3 playerPos)
+        {
+            demoDone = true;
+            int px = (int)math.floor(playerPos.x) - corner.x, py = (int)math.floor(playerPos.z) - corner.y;
+            int best = -1, bestD = int.MaxValue;
+            for (int y = 0; y < Size; y++)
+                for (int x = 0; x < Size; x++)
+                {
+                    int d = (x - px) * (x - px) + (y - py) * (y - py);
+                    if (seeded[y * Size + x] == KindGrass && d >= 36 && d < bestD)
+                    {
+                        bestD = d;
+                        best = y * Size + x;
+                    }
+                }
+            if (best < 0)
+            {
+                Debug.Log("[Chemistry] -chem-demo: no grass in the window");
+                return;
+            }
+            var at = new float3(corner.x + best % Size + 0.5f, playerPos.y, corner.y + best / Size + 0.5f);
+            Debug.Log("[Chemistry] -chem-demo: fireball on the nearest grass");
+            Cast("fireball", at, Vector3.forward);
         }
 
         /// <summary>Marches a ray against TerrainSource (ground or water surface, whichever is higher).</summary>
