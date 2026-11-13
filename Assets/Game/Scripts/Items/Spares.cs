@@ -67,14 +67,74 @@ namespace Punchy.Items
                     var item = k == 0 ? a : b;
                     if (item < 0)
                         continue;
-                    // (Beside it and a little ahead, one either side, where it can reach them.)
-                    var at = s.Position + right * (k == 0 ? 0.8f : -0.8f) + forward * 0.5f;
+                    // (Behind it, one to either side: in front is its work, a forge's fire or a baker's hearth, where
+                    // a stand ended up in the flames.)
+                    var at = s.Position + right * (k == 0 ? 0.7f : -0.7f) - forward * 0.8f;
                     var uid = nextSpare++;
                     Add(uid, (byte)item, 1, at);
                     list.Add(((byte)item, uid));
                 }
                 sparesOf[s.Individual] = list;
                 Debug.Log($"[take] {FolkJobs.Of(in s)} {s.Individual:X8} stocked its post: {string.Join(", ", list.ConvertAll(x => ItemTable.Items[x.Item1].Name))}");
+            }
+        }
+
+        /// <summary>
+        /// Zach 11-12 ("a finished sword on a rack"): spares stand at the post rather than lie on the floor, a long tool or
+        /// weapon leaning on a rack, anything smaller on a little table. The stand is cosmetic, worked out on each peer from the
+        /// spare itself (its uid, item and place, which every peer has), and stays when the spare is taken, so an empty
+        /// rack shows what's missing. Kept by place (a restocked spare reuses its stand), for this session only.
+        /// </summary>
+        readonly Dictionary<int3, (float3 pos, float yaw, bool rack)> stands = new Dictionary<int3, (float3, float, bool)>();
+        MaterialPropertyBlock standWood, standDark;
+        static readonly Color StandWood = new Color(0.42f, 0.29f, 0.17f), StandDark = new Color(0.27f, 0.18f, 0.1f);
+
+        /// <summary>A spare long enough to lean on a rack's crossbar (anything shorter goes on a little table).</summary>
+        static bool OnRack(Mesh m) => m.bounds.size.z > 0.75f;
+
+        /// <summary>Stands a just-drawn spare on its stand (noting the stand the first time): leaning on a rack's crossbar
+        /// with its head up, or lying on a little table's top.</summary>
+        void StandSpare(int uid, in WorldItem it, GameObject go, Mesh mesh)
+        {
+            var key = (int3)math.round(it.Pos * 4f);
+            if (!stands.TryGetValue(key, out var stand))
+                stands[key] = stand = (it.Pos, uid * 37 % 360, OnRack(mesh));
+            var yaw = Quaternion.Euler(0f, stand.yaw, 0f);
+            if (stand.rack)
+            {
+                // (Tipped 70 degrees up, its head toward the crossbar; its butt on the ground where the lean meets the bar.)
+                const float Tip = 70f;
+                var up = Mathf.Sin(Tip * Mathf.Deg2Rad);
+                var back = Mathf.Cos(Tip * Mathf.Deg2Rad);
+                var butt = mesh.bounds.min.z;
+                var standOff = -(ItemMeshes.RackBar / up) * back - 0.03f;
+                var local = new Vector3(0f, 0.02f - butt * up, standOff - butt * back);
+                go.transform.SetPositionAndRotation((Vector3)stand.pos + yaw * local, yaw * Quaternion.Euler(-Tip, 0f, 0f));
+            }
+            else
+                go.transform.SetPositionAndRotation((Vector3)stand.pos + Vector3.up * ItemMeshes.TableTop, yaw * Quaternion.Euler(0f, uid * 53 % 90, 0f));
+        }
+
+        /// <summary>Each frame: the stands within DrawRange of the camera.</summary>
+        void DrawStands(Vector3 cam)
+        {
+            if (stands.Count == 0 || itemMaterial == null)
+                return;
+            if (standWood == null)
+            {
+                standWood = new MaterialPropertyBlock();
+                standWood.SetColor(BaseColorId, StandWood);
+                standDark = new MaterialPropertyBlock();
+                standDark.SetColor(BaseColorId, StandDark);
+            }
+            foreach (var s in stands.Values)
+            {
+                if (((Vector3)s.pos - cam).sqrMagnitude > DrawRange * DrawRange)
+                    continue;
+                var mesh = s.rack ? ItemMeshes.Rack() : ItemMeshes.Table();
+                var m = Matrix4x4.TRS(s.pos, Quaternion.Euler(0f, s.yaw, 0f), Vector3.one);
+                Graphics.RenderMesh(new RenderParams(itemMaterial) { matProps = standWood }, mesh, 0, m);
+                Graphics.RenderMesh(new RenderParams(itemMaterial) { matProps = standDark }, mesh, 1, m);
             }
         }
 

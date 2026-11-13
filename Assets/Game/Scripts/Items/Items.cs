@@ -1111,8 +1111,11 @@ namespace Punchy.Items
                     block.SetColor(BaseColorId, ItemTable.Items[it.Item].Accent);
                     r.SetPropertyBlock(block, 1);
                 }
+                if (uid >= SpareBase)
+                    StandSpare(uid, it, go, mesh);
                 shown[uid] = go;
             }
+            DrawStands(cam.transform.position);
         }
 
         // P-20 (profiler finding 11): drawn through a GuiHook, on only while there is something to draw, so this

@@ -65,6 +65,51 @@ namespace Punchy.Items
             return splash;
         }
 
+        static Mesh rack, table;
+
+        /// <summary>Zach 11-12: a post's stand for spare tools and weapons, two posts 0.8 m apart along x, a crossbar at
+        /// RackBar for them to lean on, a foot bar along the ground behind (part 0 wood, part 1 the darker crossbar).</summary>
+        public static Mesh Rack()
+        {
+            if (rack != null)
+                return rack;
+            var k = new Kit();
+            k.Tube(0, new Vector3(-0.4f, 0f, 0f), new Vector3(-0.4f, RackBar + 0.06f, 0f), 0.03f, 0.025f, 5);
+            k.Tube(0, new Vector3(0.4f, 0f, 0f), new Vector3(0.4f, RackBar + 0.06f, 0f), 0.03f, 0.025f, 5);
+            k.Tube(1, new Vector3(-0.44f, RackBar, 0f), new Vector3(0.44f, RackBar, 0f), 0.025f, 0.025f, 5);
+            k.Tube(1, new Vector3(-0.44f, 0.03f, 0f), new Vector3(0.44f, 0.03f, 0f), 0.025f, 0.025f, 5);
+            rack = k.ToMesh();
+            rack.name = "Rack";
+            rack.hideFlags = HideFlags.DontSave;
+            return rack;
+        }
+
+        /// <summary>A rack's crossbar height, what a spare leans on.</summary>
+        public const float RackBar = 0.62f;
+
+        /// <summary>Zach 11-12: a post's stand for small spares (food, wares, a bowl): a little round table TableTop high
+        /// on four legs (part 0 the top, part 1 the darker legs).</summary>
+        public static Mesh Table()
+        {
+            if (table != null)
+                return table;
+            var k = new Kit();
+            k.Tube(0, new Vector3(0f, TableTop - 0.04f, 0f), new Vector3(0f, TableTop, 0f), 0.28f, 0.28f, 10);
+            for (int i = 0; i < 4; i++)
+            {
+                var a = (i + 0.5f) * Mathf.PI * 0.5f;
+                var foot = new Vector3(Mathf.Cos(a) * 0.2f, 0f, Mathf.Sin(a) * 0.2f);
+                k.Tube(1, foot, new Vector3(foot.x * 0.8f, TableTop - 0.04f, foot.z * 0.8f), 0.025f, 0.022f, 5);
+            }
+            table = k.ToMesh();
+            table.name = "Spare table";
+            table.hideFlags = HideFlags.DontSave;
+            return table;
+        }
+
+        /// <summary>A spare table's top, what a spare sits on.</summary>
+        public const float TableTop = 0.42f;
+
         /// <summary>This item's icon, 64 px with a clear background (made the first time it's asked for).</summary>
         public static Texture2D Icon(byte item)
         {
