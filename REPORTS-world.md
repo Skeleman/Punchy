@@ -6628,7 +6628,7 @@ plot rules would have to accept a raised deck).
 - Sparkle probe (rule 24c, the probe camera runs with stopNaN off), 90 frames per view, "other bad" (NaN) 0 on all of them:
   - c13 fan, 3 m and 7.5 m. The 7.5 m view had hot 1 per frame: one pixel over cap 16, not NaN, probably pool or splash glint.
   - c13 sheet, 3 m and 7.5 m.
-  - c16 thread, 15 m; c17 thread, 3 m and 15 m; c20 thread, 3 m.
+  - From before 612dbeff: trickles #16 (c16 thread) and #20 (c19 thread) at 15 m and 3 m, plus the old c17 fan and sheet (now superseded) at 3 m and 15 m.
 - Shots, all checked at small size, in D:/Unity/PunchyMilestones/W-141/:
   - Wet cave c13: w141-fan-wet-c13-3m.png and w141-fan-wet-c13-7m.png (the fan beside the pool, slit on top); w141-sheet-wet-c13-3m.png, w141-sheet-wet-c13-7m.png (side-on) and w141-sheet-wet-c13-15m.png
   - Dry caves: w141-thread-dry-c16-3m.png, w141-thread-dry-c16-15m.png, w141-thread-dry-c19-3m.png and w141-overhang-dry-c19-3m.png
