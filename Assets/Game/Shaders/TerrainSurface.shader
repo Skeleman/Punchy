@@ -406,6 +406,15 @@ Shader "Punchy/Terrain Surface"
                 half dip = smoothstep(0.0, 0.08, input.hollow.x) * (1 - 0.65 * porosity);
                 half puddle = smoothstep(0.82, 0.9, dip * 0.4 + puddleNoise * 0.6 + wet * 0.15) * flatness * smoothstep(0.1, 0.3, wet)
                             * (1 - 0.6 * input.extra.y);   // grass pokes through, but meadow dips still pool
+                // Spell chemistry (ChemistryOverlay.hlsl): water poured on land (Create Water, a Wave) stands as a sheet
+                // that reads like a puddle on any slope, with a soft, wandering edge and damp ground round it; frozen
+                // water on land is ice (both 0 with no bridge).
+                half4 chem = PunchyChemAt(p);
+                half chemWet = PunchyChem2At(p).r;
+                half chemWater = PunchyChemSoft(chemWet, p);
+                half chemIceRim;
+                half chemIce = PunchyChemSoft(chem.b, p, chemIceRim);
+                puddle = max(puddle, chemWater * (1 - chemIce));
                 half sheen = max(wet * (1 - 0.85 * porosity), shore * 0.6) * (1 - 0.8 * input.extra.y) * (1 - smoothstep(120, 450, distance));
 
                 half relief = 0.45 * (1 - puddle);   // (the octaves' fades are already in micro)
@@ -532,12 +541,14 @@ Shader "Punchy/Terrain Surface"
                 }
                 albedo *= lerp(1, 0.55, shore * (1 - 0.4 * input.extra.y));
                 // Spell chemistry (ChemistryOverlay.hlsl): scorched ground where grass burned off, white frost where it
-                // glazed over, and burning ground glows below (no change with no bridge).
-                half4 chem = PunchyChemAt(p);
-                albedo = lerp(albedo, half3(0.045, 0.04, 0.035) + albedo * 0.12, chem.g * 0.9);
-                albedo = lerp(albedo, half3(0.78, 0.86, 0.93), chem.a * 0.75);
+                // glazed over, damp ground round poured water, ice, and burning ground glows below (soft edges, no
+                // change with no bridge).
+                albedo = lerp(albedo, half3(0.045, 0.04, 0.035) + albedo * 0.12, PunchyChemSoft(chem.g, p) * 0.9);
+                albedo = lerp(albedo, half3(0.78, 0.86, 0.93), PunchyChemSoft(chem.a, p) * 0.75);
+                albedo *= lerp(1, 0.6, saturate(chemWet * 2.5));
+                albedo = lerp(albedo, lerp(half3(0.62, 0.78, 0.88), half3(0.88, 0.94, 0.98), PunchyChemNoise(p * 0.35) * 0.6 + chemIceRim * 0.4), chemIce);
                 surface.albedo = lerp(albedo, albedo * 0.6, puddle);
-                surface.smoothness = lerp(lerp(input.surface.a, max(input.surface.a, 0.45), sheen), 0.92, puddle);
+                surface.smoothness = lerp(lerp(lerp(input.surface.a, max(input.surface.a, 0.45), max(sheen, saturate(chemWet * 2.5))), 0.92, puddle), 0.8, chemIce);
                 surface.metallic = input.extra.x;
                 surface.occlusion = 1;
                 surface.emission = input.emission * _EmissionScale + PunchyChemFireGlow(chem.r, p, _PunchyClock) * 0.6;
@@ -565,6 +576,9 @@ Shader "Punchy/Terrain Surface"
                     half glint = pow(saturate(dot(r, sun.direction)), 600) * sun.shadowAttenuation * 3;
                     half3 film = lerp(body, PunchySkyColor(r, false, true), fresnel) + sun.color * glint;
                     color.rgb = lerp(color.rgb, film, puddle);
+                    // Spell chemistry: poured water is deeper than a rain puddle, so it takes a blue-green body
+                    // instead of reading as a pale glaze (0 with no bridge).
+                    color.rgb = lerp(color.rgb, color.rgb * half3(0.45, 0.62, 0.72), chemWater * (1 - chemIce) * 0.7);
                 }
 
                 // Cloud shadows and, past the real shadows, the wide cached ones of the huge things (R-5): dim the share

@@ -1068,16 +1068,20 @@ Shader "Punchy/Water"
                     alpha = lerp(alpha, 1, lava);
                 }
 
-                // Spell chemistry (ChemistryOverlay.hlsl): frozen water is an opaque sheet of pale ice with faint cracks,
-                // lit like the ground (skipped with no bridge: the overlay reads 0).
-                half ice = PunchyChemAt(p).b;
-                [branch] if (ice > 0.002)
+                // Spell chemistry (ChemistryOverlay.hlsl): frozen water is a sheet of pale ice with faint cracks, lit like
+                // the ground, its edge soft and wandering (PunchyChemSoft) with a bright, thinner lip where it meets open
+                // water (skipped with no bridge: the overlay reads 0).
+                half iceRead = PunchyChemAt(p).b;
+                [branch] if (iceRead > 0.002)
                 {
+                    half iceRim;
+                    half ice = PunchyChemSoft(iceRead, p, iceRim);
                     float cracks = abs(PunchyValueNoise(p * 0.9) - 0.5) + abs(PunchyValueNoise(p * 2.7 + 3.1) - 0.5) * 0.5;
                     half3 iceAlbedo = lerp(half3(0.62, 0.78, 0.88), half3(0.86, 0.93, 0.98), PunchyValueNoise(p * 0.35)) * lerp(0.7, 1.0, smoothstep(0.0, 0.06, cracks));
+                    iceAlbedo = lerp(iceAlbedo, half3(0.95, 0.98, 1.0), iceRim * 0.6);
                     half3 iceColor = iceAlbedo * (ambient + light.color * shadow * saturate(light.direction.y) * 0.9);
-                    color = lerp(color, iceColor, ice);
-                    alpha = lerp(alpha, 1, ice);
+                    color = lerp(color, iceColor, ice * (1 - 0.25 * iceRim));
+                    alpha = lerp(alpha, 1, ice * (1 - 0.35 * iceRim));
                 }
 
                 alpha *= rim;
