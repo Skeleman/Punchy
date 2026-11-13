@@ -641,6 +641,7 @@ Purpose: find which part of water costs what, before any water or architecture w
 - Pass: measures only. Report the top three water costs by view, and say whether the field step is over 0.1 ms.
 
 ## Job 63 (2026-11-12, QUEUED; world lane, for R-16 row 2, #272): cache shadow receiver cost
+**11-13: R-16 MERGED as #300. Take B = main 934f6691 or newer, A = main 87c27cfe.**
 R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shadow receiver now also reads the wide shadow map (4 taps) and the ambient probe for each pixel in the 25-120 m cache band, so it can keep the darker of the tiers instead of stacking them.
 - Arms: (A) origin/main; (B) `render/shadow-tiers` at 1fcccf58 or newer. Profile builds, 1920x1080, High, uncapped, ABBA, 300 frames each.
 - Views: (a) the densest forest at noon, camera on the ground; (b) a hilltop looking down over forest with the cache band filling most of the screen.
