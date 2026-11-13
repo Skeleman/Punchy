@@ -116,6 +116,8 @@ namespace Punchy.Fauna
             var p = home + r.NextFloat2Direction() * 0.5f;
             var y = source.SampleHeight(p);
             var yaw = math.atan2(centre.x - p.x, centre.y - p.y);
+            // (A-105: its place in its home's household, or another house of its village with a grown-up in.)
+            var slot = HousedFolk(index, out var child) ? TakeDoorSlot(door, child) : -1;
             Enqueue(index, new float3(p.x, y, p.y), SpawnTier.Settled, e =>
             {
                 var em = simWorld.EntityManager;
@@ -123,6 +125,7 @@ namespace Punchy.Fauna
                 state.Home = home;
                 state.Leash = leash;
                 state.OwnDoor = door;
+                Settle(ref state, slot);
                 em.SetComponentData(e, state);
             }, yaw);
             return true;

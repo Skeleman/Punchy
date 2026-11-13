@@ -163,6 +163,7 @@ namespace Punchy.Fauna
         {
             // (The settling job reads the flora blob disposed below.)
             EndSettling();
+            TeardownHouses();
             critterCells.Clear();
             pendingSpawns.Clear();
             System.Array.Clear(pendingTiers, 0, pendingTiers.Length);
@@ -280,6 +281,7 @@ namespace Punchy.Fauna
             var clock = new FaunaClock { Night = Cycle != null ? Cycle.Night : 0f, Hour = Cycle != null ? Cycle.TimeOfDay : 12f };
             queryWorld.EntityManager.SetComponentData(settingsEntity, clock);
             Comfort.Hour.Data = new float2(clock.Hour, Cycle != null ? 1f : 0f);
+            WatchHouses(source);   // (A-105 -households: on a client too)
             if (simWorld == null)
                 return;
             // A-83 (#62): the rest writes the simulation world (its clock, spawns and despawns), so it runs in

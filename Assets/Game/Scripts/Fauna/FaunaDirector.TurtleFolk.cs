@@ -36,6 +36,57 @@ namespace Punchy.Fauna
         static readonly FolkJob[] SecondJobs = { FolkJob.IceCutter, FolkJob.IceFisher, FolkJob.Elder, FolkJob.IceFisher, FolkJob.IceCutter };
 
         readonly List<string> turtleLog = new List<string>();
+        readonly List<IglooSeat> turtleSeats = new List<IglooSeat>();
+
+        /// <summary>Where one of a turtle village's igloos stands as placed, and its door (xz, its outward yaw in w).</summary>
+        struct IglooSeat
+        {
+            public float2 At, ToCentre;
+            public float Angle, Porch;
+            public bool Placed;
+            public float4 Door;
+        }
+
+        /// <summary>
+        /// A turtle village's igloos in placing order, each where FloraPlacement really seats it (the same call, no
+        /// draws: it may move an igloo a few metres and turn it up to 30 degrees off the centre, or leave it out).
+        /// Shared by its households (A-105) and its folk.
+        /// </summary>
+        void IglooSeats(in TerrainSource source, in LandmarkInstance inst, float radius, List<IglooSeat> into)
+        {
+            into.Clear();
+            ref var f = ref floraBlob.Value;
+            if (inst.Type * 3 + 2 >= f.PropRanges.Length)
+                return;
+            var centre = inst.Position;
+            for (int l = 0; l < 3; l++)
+            {
+                var placed = f.PropRanges[inst.Type * 3 + l];
+                for (int e = placed.x; e < placed.x + placed.y; e++)
+                {
+                    var prop = f.Props[e];
+                    if (prop.Species < 0 || prop.Species >= floraSpecies.Count || floraSpecies[prop.Species] == null ||
+                        floraSpecies[prop.Species].name != IglooName)
+                        continue;
+                    var porch = f.Rules[prop.Species].Porch;
+                    for (int k = 0; k < prop.Count; k++)
+                    {
+                        var seat = new IglooSeat { Angle = prop.Angle + k * 360f / math.max(1, prop.Count), Porch = porch };
+                        var ring = LandmarkSampling.ToWorld(inst, LandmarkLayout.Spot(prop.Ring.x, seat.Angle), radius);
+                        var yaw = math.atan2(-(centre - ring).x, (centre - ring).y);
+                        if (porch > 0f && FloraPlacement.IglooSpot(source, ring, centre, porch, ref yaw, out var seated) >= 0)
+                        {
+                            seat.Placed = true;
+                            seat.At = seated.xz;
+                            seat.ToCentre = new float2(-math.sin(yaw), math.cos(yaw));   // the door's way out (the model's +Z)
+                            var doorAt = seat.At + seat.ToCentre * math.max(IglooDoor, (porch - 2.2f) * 0.8f);
+                            seat.Door = new float4(doorAt.x, 0f, doorAt.y, math.atan2(seat.ToCentre.x, seat.ToCentre.y));
+                        }
+                        into.Add(seat);
+                    }
+                }
+            }
+        }
 
         /// <summary>Peoples a turtle village's igloos (nothing for any other landmark).</summary>
         void SpawnTurtleFolk(in TerrainSource source, LandmarkType type, in LandmarkInstance inst, int index, float radius)
@@ -48,65 +99,48 @@ namespace Punchy.Fauna
                 return;
             var r = new Unity.Mathematics.Random(math.hash(new int2(index, (int)TurtleSalt)) | 1u);
             var centre = inst.Position;
-            var igloo = 0;
             var total = 0;
             turtleLog.Clear();
             turtleDoors.Clear();
             turtleIgloos.Clear();
-            for (int l = 0; l < 3; l++)
+            IglooSeats(source, inst, radius, turtleSeats);
+            for (int igloo = 0; igloo < turtleSeats.Count; igloo++)
             {
-                var placed = f.PropRanges[inst.Type * 3 + l];
-                for (int e = placed.x; e < placed.x + placed.y; e++)
+                var seat = turtleSeats[igloo];
+                if (!seat.Placed)
                 {
-                    var prop = f.Props[e];
-                    if (prop.Species < 0 || prop.Species >= floraSpecies.Count || floraSpecies[prop.Species] == null ||
-                        floraSpecies[prop.Species].name != IglooName)
-                        continue;
-                    var porch = f.Rules[prop.Species].Porch;
-                    for (int k = 0; k < prop.Count; k++, igloo++)
+                    turtleLog.Add($"igloo {igloo} not placed");
+                    continue;
+                }
+                var at = seat.At;
+                var toCentre = seat.ToCentre;
+                var side = new float2(toCentre.y, -toCentre.x);
+                var door = seat.Door;
+                turtleDoors.Add(door);
+                turtleIgloos.Add(new float3(at, seat.Porch));
+                var jobs = new System.Text.StringBuilder();
+                var residents = 0;
+                foreach (var ri in rows)
+                {
+                    var row = overworld.Rows[ri];
+                    var count = r.NextInt(math.max(0, row.Count.x), math.max(row.Count.x, row.Count.y) + 1);
+                    for (int n = 0; n < count; n++)
                     {
-                        var angle = prop.Angle + k * 360f / math.max(1, prop.Count);
-                        var ring = LandmarkSampling.ToWorld(inst, LandmarkLayout.Spot(prop.Ring.x, angle), radius);
-                        // Where the igloo really stands: FloraPlacement seats it with the same call (no draws), which may
-                        // move it a few metres and turn it up to 30 degrees off the centre, or leave it out (no household).
-                        var yaw = math.atan2(-(centre - ring).x, (centre - ring).y);
-                        if (porch <= 0f || FloraPlacement.IglooSpot(source, ring, centre, porch, ref yaw, out var seated) < 0)
-                        {
-                            turtleLog.Add($"igloo {igloo} not placed");
+                        var job = n == 0 ? FirstJobs[igloo % FirstJobs.Length] : n == 1 ? SecondJobs[igloo % SecondJobs.Length] : FolkJob.Elder;
+                        var sideSign = (n & 1) == 0 ? 1f : -1f;
+                        if (!TurtlePost(source, inst, radius, at, seat.Angle, toCentre, side * sideSign, job, ref r, out var post))
                             continue;
-                        }
-                        var at = seated.xz;
-                        var toCentre = new float2(-math.sin(yaw), math.cos(yaw));   // the door's way out (the model's +Z)
-                        var side = new float2(toCentre.y, -toCentre.x);
-                        var doorAt = at + toCentre * math.max(IglooDoor, (porch - 2.2f) * 0.8f);
-                        var door = new float4(doorAt.x, 0f, doorAt.y, math.atan2(toCentre.x, toCentre.y));
-                        turtleDoors.Add(door);
-                        turtleIgloos.Add(new float3(at, porch));
-                        var jobs = new System.Text.StringBuilder();
-                        var residents = 0;
-                        foreach (var ri in rows)
+                        if (SpawnTurtle(source, row, post, door, ref r))
                         {
-                            var row = overworld.Rows[ri];
-                            var count = r.NextInt(math.max(0, row.Count.x), math.max(row.Count.x, row.Count.y) + 1);
-                            for (int n = 0; n < count; n++)
-                            {
-                                var job = n == 0 ? FirstJobs[igloo % FirstJobs.Length] : n == 1 ? SecondJobs[igloo % SecondJobs.Length] : FolkJob.Elder;
-                                var sideSign = (n & 1) == 0 ? 1f : -1f;
-                                if (!TurtlePost(source, inst, radius, at, angle, toCentre, side * sideSign, job, ref r, out var post))
-                                    continue;
-                                if (SpawnTurtle(source, row, post, door, ref r))
-                                {
-                                    residents++;
-                                    jobs.Append(jobs.Length > 0 ? ", " : "").Append(job);
-                                }
-                            }
+                            residents++;
+                            jobs.Append(jobs.Length > 0 ? ", " : "").Append(job);
                         }
-                        total += residents;
-                        turtleLog.Add($"igloo {igloo} residents {residents} ({jobs})");
                     }
                 }
+                total += residents;
+                turtleLog.Add($"igloo {igloo} residents {residents} ({jobs})");
             }
-            Debug.Log($"[turtlefolk] village {index} at ({centre.x:F0}, {centre.y:F0}): {igloo} igloos, {total} folk; " + string.Join("; ", turtleLog));
+            Debug.Log($"[turtlefolk] village {index} at ({centre.x:F0}, {centre.y:F0}): {turtleSeats.Count} igloos, {total} folk; " + string.Join("; ", turtleLog));
             // Row 3: its children, from their own rng.
             SpawnTurtleChildren(source, type, inst, index);
         }
@@ -165,6 +199,8 @@ namespace Punchy.Fauna
             var leash = worker ? 7f : math.max(2f, row.Range * 0.5f);
             var timer = r.NextFloat(40f, 120f);
             var yaw = math.atan2(post.Face.x - p.x, post.Face.y - p.y);
+            // (A-105: its place in its igloo's household, if one's free.)
+            var slot = HousedFolk(index, out var child) ? TakeDoorSlot(door, child) : -1;
             Enqueue(index, new float3(p.x, y, p.y), SpawnTier.Settled, e =>
             {
                 var em = simWorld.EntityManager;
@@ -172,6 +208,7 @@ namespace Punchy.Fauna
                 state.Home = post.Stand;
                 state.Leash = leash;
                 state.OwnDoor = door;
+                Settle(ref state, slot);
                 state.Job = (byte)post.Job;
                 if (worker)
                 {
