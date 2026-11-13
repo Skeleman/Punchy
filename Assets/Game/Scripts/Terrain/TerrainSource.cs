@@ -661,7 +661,7 @@ namespace Punchy.Terrain
             if (UsesHeightmap)
             {
                 SampleBiomes(xz, out _, out var heightmapShape);
-                return Settle(xz, Ponds(xz, heightmapShape, Heightmap.Value.Sample(xz)));
+                return TerrainEditLayer.Add(xz, Settle(xz, Ponds(xz, heightmapShape, Heightmap.Value.Sample(xz))));   // Spell chemistry: + edits
             }
             SampleBiomes(xz, out _, out var shape);
             var h = ShapeHeight(xz, shape);
@@ -673,7 +673,7 @@ namespace Punchy.Terrain
                 h = LandmarkSampling.Shape(ref Landmarks.Value, xz, h);
             if (GrandFalls.IsCreated)
                 h = Punchy.Terrain.GrandFalls.Shape(ref GrandFalls.Value, xz, h, out _, out _, out _, out _);
-            return Settle(xz, Ponds(xz, shape, h));
+            return TerrainEditLayer.Add(xz, Settle(xz, Ponds(xz, shape, h)));   // Spell chemistry: + edits (TerrainEdits)
         }
 
         /// <summary>
@@ -853,6 +853,7 @@ namespace Punchy.Terrain
                 g.Height = dug;   // a stepped pool's bank, a little above the ground
             // Settlements keep clear of water, so their levelling doesn't change the water rules above.
             g.Height = Settle(xz, g.Height);
+            g.Height = TerrainEditLayer.Add(xz, g.Height);   // Spell chemistry: + edits (TerrainEdits), after the water's rules
 
             g.WaterSurface = water;
             g.Flow = flow;

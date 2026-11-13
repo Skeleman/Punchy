@@ -179,6 +179,7 @@ namespace Punchy.Terrain
                     loaded[coord] = chunk;
                 }
             }
+            FlagMoved(config.ChunkSize);
 
             // Deep in a cave (CaveSystem.SurfaceHidden) the surface is out of sight: chunks beyond the camera's own
             // neighbourhood stop drawing, and nothing new streams in until the surface comes back into view.
@@ -259,6 +260,26 @@ namespace Punchy.Terrain
                 count++;
             }
             StartBuild(config, source, count);
+        }
+
+        // Spell chemistry: ground that moved (TerrainEdits), as (min x, min z, max x, max z) in metres.
+        static readonly List<float4> movedRects = new List<float4>();
+
+        /// <summary>Spell chemistry: the ground in this rectangle moved (TerrainEdits); its chunks re-mesh, nearest first.</summary>
+        public static void FlagRebuild(float2 min, float2 max) => movedRects.Add(new float4(min, max));
+
+        // Applied only between batches (a batch in flight would put its chunk's old LOD back when it lands).
+        void FlagMoved(float size)
+        {
+            foreach (var r in movedRects)
+                for (int z = (int)math.floor((r.y - 2f) / size); z <= (int)math.floor((r.w + 2f) / size); z++)
+                    for (int x = (int)math.floor((r.x - 2f) / size); x <= (int)math.floor((r.z + 2f) / size); x++)
+                        if (loaded.TryGetValue(new int2(x, z), out var chunk))
+                        {
+                            chunk.Lod = -1;
+                            loaded[new int2(x, z)] = chunk;
+                        }
+            movedRects.Clear();
         }
 
         /// <summary>The graphics settings' View distance (GraphicsSettings.View) last applied, and one waiting to be.</summary>

@@ -762,6 +762,22 @@ namespace Punchy.Flora
         /// </summary>
         public static bool Replant;
 
+        // Spell chemistry: ground that moved a metre or more (TerrainEdits), as (min x, min z, max x, max z) in metres: the
+        // tiles on it are dropped and placed again, so their plants sit on the new ground (or aren't placed, where too steep).
+        static readonly List<float4> movedRects = new List<float4>();
+
+        /// <summary>Spell chemistry: the ground in this rectangle moved; the plants on it are placed again on the new ground.</summary>
+        public static void FlagRebuild(float2 min, float2 max) => movedRects.Add(new float4(min, max));
+
+        static bool OnMovedGround(Layer l, int2 c)
+        {
+            float2 min = (float2)c * l.Settings.TileSize, max = min + l.Settings.TileSize;
+            foreach (var m in movedRects)
+                if (min.x <= m.z && max.x >= m.x && min.y <= m.w && max.y >= m.y)
+                    return true;
+            return false;
+        }
+
         void Stream(in TerrainSource source, float2 camXZ)
         {
             // Tiles stream by ground distance on purpose (R-6 row 0): the cull measures 3D distance to each plant,
@@ -780,7 +796,8 @@ namespace Punchy.Flora
                 var refar = l.FarTiles.Count > 0 && (ppm > l.FarPpm * 1.1f || ppm < l.FarPpm * 0.8f);
                 foreach (var kv in l.Tiles)
                 {
-                    var gone = replant && UnderChangedKeepOut(l, kv.Key) || math.distance(TileCentre(l, kv.Key), camXZ) > keep;
+                    var gone = replant && UnderChangedKeepOut(l, kv.Key) || math.distance(TileCentre(l, kv.Key), camXZ) > keep
+                        || movedRects.Count > 0 && OnMovedGround(l, kv.Key);   // Spell chemistry
                     if (!gone && l.FarTiles.TryGetValue(kv.Key, out var from))
                     {
                         var d = TileNearest(l, kv.Key, camXZ);
@@ -805,6 +822,7 @@ namespace Punchy.Flora
                     obstaclesDirty |= l.Index > 0;
                 }
             }
+            movedRects.Clear();
 
             // Placement runs in the background: collect each layer's finished batch, then start the next one with the
             // nearest missing tiles, within a shared per-frame budget (near layers first).

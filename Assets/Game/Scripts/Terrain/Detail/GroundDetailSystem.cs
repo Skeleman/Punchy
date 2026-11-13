@@ -129,8 +129,17 @@ namespace Punchy.Terrain
         float commandLineDensity = -1f;
         int MaxPebbles => (int)(TileSize * TileSize * PebblesPerSquareMetre);
 
+        // Spell chemistry: ground that moved (TerrainEdits), as (min x, min z, max x, max z) in metres, and the tiles on it,
+        // scattered again nearest first while their old blades still draw.
+        static readonly List<float4> movedRects = new List<float4>();
+        readonly HashSet<int2> stale = new HashSet<int2>();
+
+        /// <summary>Spell chemistry: the ground in this rectangle moved (TerrainEdits); its tiles are scattered again.</summary>
+        public static void FlagRebuild(float2 min, float2 max) => movedRects.Add(new float4(min, max));
+
         void OnDisable()
         {
+            stale.Clear();
             DropPending();
             foreach (var t in tiles.Values)
                 t.Dispose();
@@ -211,6 +220,11 @@ namespace Punchy.Terrain
         {
             if (hasPending)
                 Finish();
+            foreach (var m in movedRects)
+                foreach (var key in tiles.Keys)
+                    if (key.x * TileSize <= m.z + 1f && (key.x + 1) * TileSize >= m.x - 1f && key.y * TileSize <= m.w + 1f && (key.y + 1) * TileSize >= m.y - 1f)
+                        stale.Add(key);
+            movedRects.Clear();
             scratch.Clear();
             var r = (int)math.ceil(radius / TileSize) + 1;
             var centre = (int2)math.floor(camXZ / TileSize);
@@ -219,13 +233,15 @@ namespace Punchy.Terrain
             {
                 var c = centre + new int2(x, z);
                 var min = (float2)c * TileSize;
-                if (!tiles.ContainsKey(c) && math.distance(math.clamp(camXZ, min, min + TileSize), camXZ) < radius)
+                if ((!tiles.ContainsKey(c) || stale.Contains(c)) && math.distance(math.clamp(camXZ, min, min + TileSize), camXZ) < radius)
                     scratch.Add(c);
             }
             if (scratch.Count == 0)
                 return;
             scratch.Sort((a, b) => math.distancesq(TileCentre(a), camXZ).CompareTo(math.distancesq(TileCentre(b), camXZ)));
             var count = math.min(scratch.Count, MaxTileBuildsPerFrame);
+            for (int i = 0; i < count; i++)
+                stale.Remove(scratch[i]);
 
             var g = GridSamples;
             var origins = new NativeArray<float2>(count, Allocator.TempJob);
@@ -330,6 +346,8 @@ namespace Punchy.Terrain
                     tile.Pebbles.SetData(pebbles, i * maxPebbles, 0, tile.PebbleCount);
                     tile.PebbleProps.SetBuffer(PebblesId, tile.Pebbles);
                 }
+                if (tiles.TryGetValue(pending.Coords[i], out var old))
+                    old.Dispose();   // (a tile scattered again: FlagRebuild)
                 tiles[pending.Coords[i]] = tile;
             }
             DropPending();
