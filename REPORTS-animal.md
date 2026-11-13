@@ -3771,3 +3771,29 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - Pins: Fauna_Fingerprint B9ADEB35 before and after. The A-102 merge doesn't change it (its blob fields were already in at 711ff92b) and visitors add no species or spawn rows. Landmarks 117 689D5348, unchanged; no placement change.
 - Suite: "33 passed, 0 failed, 17 skipped in 306s (Unity exit 0)", the full run after the last change. An earlier full run had 1 fail, `LiveFolk_BeastResponse` ("Flee 74.0 -> Idle 81.0"); it passed alone and on the rerun. The test sends the nearest folk off, and who that is varies (a human child alone, a patrolling guard on the rerun). The hook now logs who it picked. Watch it: if it fails again with a SeaFolk named, the cause is the visitor's 7 m leash.
 - Next: row 4, playable SeaFolk, BatFolk and TurtleFolk.
+
+### Row 4: sea, bat and turtle folk playable (done, verified, including a joined client)
+- Commit on fauna/folk-homes (pushed): 289bdf14.
+- SeaFolk, BatFolk and TurtleFolk are added to NetAvatars.PlayableSpecies in SampleScene, all in the Humanoid class. FaunaDirector.Avatar already copies the body values to PlayerBody, so SeaFolk brings `BreathesWater` with it. No new body code was needed.
+- Body sizes against the human (PlayerBody.Size, with eye height = camera pivot 1.6 x size):
+  - TurtleFolk 1.26, eye 2.01 m;
+  - SeaFolk 1.08;
+  - Human 1.00, eye 1.60 m;
+  - BatFolk 0.72, eye 1.15 m.
+  - The turtle stays tall, as Zach describes it. I left its size alone because Ogre (1.44) is already playable and taller.
+- Camera and doors: in cave 19, first person was on for all three bodies, with the eye inside the cave. The camera already lowers its pivot under low ceilings. Movement collision goes by radius, not head height, so a tall turtle is never blocked at a door.
+- Character tab: the folk colouring names (e.g. "Glacier robe, olive skin") overflowed the panel. Colourings now go two to a row when the longest name is over 14 characters; short-name species keep four to a row.
+- `-pickspecies TurtleFolk` and `-pickspecies SeaFolk` work ("[character] restored body TurtleFolk"). BatFolk was checked via the tab and via `-body BatFolk` in the build.
+- Sea folk dive (`-pickspecies SeaFolk -playerdive follow`): "PlayerDive: PASS: water breather, deepest 3.50 m, most breath used 0.00", never gasped, NaN False. Breath was 1.00 at 60 s.
+- Host and joined client (player build of this branch at its fixed path, host `-body TurtleFolk`, client `-join 127.0.0.1 -body BatFolk`, no -screen-* flags). `-netwatch` now names each other player's body:
+  - host: `NetWatch (host) ... player (BatFolk) at (-1793, 44.8, -561)`;
+  - client: `NetWatch (joined) ... player (TurtleFolk) at (-1795, 44.9, -562)`;
+  - no capsule warnings.
+- Shots in D:/Unity/PunchyMilestones/A-103/ (checked at 480):
+  - r4_tab.png: the Character tab with the three new bodies, next to the turtle player from behind;
+  - r4_bodies.png: sea, bat and turtle folk in third person by a lake;
+  - r4_seadive.png: the sea folk on the lake bed at 60 s. The shot uses -nohud, so the meter isn't visible; the log shows breath 1.00.
+- No ghost field change. The body already travels as NetPlayerLook.Species.
+- Pins: Fauna_Fingerprint was B9ADEB35 and is now 6DCC36A3, re-pinned in WorldTests. It moved because the carry table (one row per playable body) gains three rows; the reference arm height is still the human's. No landmark or placement change.
+- Suite: "40 passed, 0 failed, 17 skipped in 309s (Unity exit 0)", the full run after the last change. The run before it also failed the known flake LiveFolk_BeastResponse ("Idle 81.5"), along with the pin before the re-pin.
+- Next: row 5, vision per body and glasses/goggles. I'll ask about the wearable ghost field first.
