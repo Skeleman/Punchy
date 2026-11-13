@@ -2,6 +2,31 @@
 
 Newest first.
 
+## Job 49e: R-12 warp bake, 2026-11-12 (q105.job): INVALID, the bake build drew magenta; fixed (b/r12-warp-bake 9887361f), rerun queued as q105b
+- **What went wrong:** 26e26ec1's HazeLut pass 3 didn't compile ("Unrecognized sampler 'sampler_srcweathermap'"). That pass samples `_SrcCloudMap` with the weather map's sampler, and the weather map isn't read in that pass, so the compiler strips both. In the game, HazeLut is "not supported on this GPU", and the terrain and water draw magenta in **both** of that build's arms (bake and `-warpbake 0`). The sheet shows it (`results/sheets/r12_bake.jpg`).
+- **So the numbers below aren't the bake's cost:** bake -1.6 to -2.7 ms and perread equal to main come from broken frames. Main db9ca83e is fine (stormnoon 19.55, stormnear ~20-23 with one stalled round, stormnight 19.83, shadow 15.0).
+- **Fix:** 9887361f on b/r12-warp-bake (profiler prototype) uses `sampler_SrcCloudMap` for both passes; it's read in both. **q105b** reruns the same views and arms after job 66, with shots for Zach.
+
+## Job 45k: far wave field, old rings retired (b/water-rows-fixes 9357db50), 2026-11-12 (q106.job): Medium FAIL on the swim (+1.3 ms GPU; the far field alone +0.8); shore and cave pass; High shore lost to stalls
+**Setup:** Profile build of 9357db50; arms far (default: cuts 4 fine field plus the far field), nofar (`-waterfar 0`: fine field only, rings off), off (`-waterfield 0`: the old rings); High and Medium, 3 rounds, 1920x1080, uncapped. Bar: far field <= +0.3 ms GPU over off at Medium.
+
+| view | preset | off | nofar (fine only) | far (default) | far vs off |
+|---|---|---|---|---|---|
+| lake swim (40 m line) | Medium | 17.57 | 18.1 (+0.53) | 18.87 | **+1.30 FAIL** |
+| lake swim | High | 19.65 | 19.6 (-0.05) | 21.03 | **+1.38** |
+| lake shore | Medium | 20.0 | 19.93 | 19.9 | -0.10 PASS |
+| lake shore | High | (stalled) | (stalled) | (stalled) | — |
+| cave pool | Medium | 13.9 | 14.0 | 13.9 | 0.00 PASS |
+| cave pool | High | 16.4 | 16.7 | 16.1 | -0.30 |
+
+- **The far field costs ~0.8 ms (Medium) to ~1.4 ms (High) GPU while a trail is in view** (far vs nofar on the swim); with no swimmer near (shore, cave) it costs nothing. At Medium, the fine field alone is +0.53 on the swim this time (job 45i read ~0; the swim view and build differ).
+- **Feel:** the swim's 1% low is far better with the fields (Medium 31 fps far, 29 nofar, 6 off; High 11 / 16 / 3.5): the old rings arm stutters.
+- **Stalls (not the water):** from 20:34 to 22:25 every view had games with single 56-61 s frames, in all three arms, and the High shore games ran at 0.4-7 fps (main thread 280-450 ms) in all arms, including `-waterfield 0`. Medium at the same spot was normal (20 ms). Yesterday afternoon three Unity.exe processes were open on the laptop besides the bench; I can't tell what ran during these games. **The High shore row needs a rerun on a quiet laptop.**
+- **Shots for Zach:** `results/sheets/far_field_high.jpg` and `far_field_medium.jpg` (rows swim, shore, cave; columns far, fine only, old rings). On the swim the fine and far arms look the same at the shot's moment (the trail is still inside the 32 m square at the line's end), and the old rings arm shows the rings. A trail beyond 32 m needs a longer line.
+- **Suggested next step (for the supervisor/Zach):** the far field misses the Medium bar by ~0.5 ms. Options: run it at a lower rate or resolution (15 Hz, 0.5 m texels now), only at High, or only while the trail actually extends past the fine square.
+
+Cost: laptop total $842 (laptop sessions 0a48ccdb, e163d8ab; 49e: 2 builds, 36 games; 45k: 1 build, 54 games).
+
 ## Job 64: where start-up time and start-up hitches go (main b66b4c2a), 2026-11-12 (q104.sh, startup.py): benches at the default spawn measure while the world is still streaming; two main-thread builds make the 1-3 s frames; culling isn't the start's cost
 **Setup:** one Profile build of main b66b4c2a; 1920x1080, High, uncapped, noon, Clear, `-body default`. Per start: one warm-up launch (discarded), 3 cache-hit launches, 1 `-freshisland` launch. Each game is the bench's `here` stop (10 s settle, 60 s measured). The first hit and the fresh launch of each start also had the Profiler on from process start.
 

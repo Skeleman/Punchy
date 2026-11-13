@@ -1,0 +1,17 @@
+# Job 49e rerun: 26e26ec1 failed to compile HazeLut pass 3 (sampler_SrcWeatherMap unused there), so its arms drew magenta
+# terrain and water. 9887361f shares one sampler between the passes; otherwise the same as q105.
+# Zach 11-12: R-12 option 2, the cloud warp baked into the maps (Punchy b/r12-warp-bake 26e26ec1, on main db9ca83e).
+# Arms: bake (default), perread (-warpbake 0: R-12 as merged), and main db9ca83e (the same game without the bake code).
+# Views: job 49's storm at night and noon 4 km off, the ground under its shadow, and a closer storm (2 km) at noon so
+# Zach can judge the rims. Shots of every arm on round 1. High, 3 rounds rotated.
+Q=q105b; TITLE="R-12 warp bake rerun (sampler fix 9887361f)"
+BUILDS="9887361 db9ca83"
+VIEWS="stormnight stormnoon stormnear shadow"
+view() { case $1 in
+  stormnight) echo "-goto 1489,-897 -shotcam 1489,88,-897,1889,98,-897 -benchweather Storm -benchweatherat 5489,-897 -benchhour 22 -benchstops here";;
+  stormnoon)  echo "-goto 1489,-897 -shotcam 1489,88,-897,1889,98,-897 -benchweather Storm -benchweatherat 5489,-897 -benchhour 12 -benchstops here";;
+  stormnear)  echo "-goto 1489,-897 -shotcam 1489,88,-897,1889,120,-897 -benchweather Storm -benchweatherat 3489,-897 -benchhour 12 -benchstops here";;
+  shadow)     echo "-goto 1489,-897 -shotcam 1489,30,-897,1889,25,-600 -benchweather Storm -benchweatherat 1700,-1900 -benchhour 12 -benchstops here";; esac; }
+ARMS="bake perread main"
+arm() { case $1 in bake) echo "Profile-9887361";; perread) echo "Profile-9887361 -warpbake 0";; main) echo "Profile-db9ca83";; esac; }
+ROUNDS=3; GFX=High; REF=perread
