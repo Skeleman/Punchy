@@ -6737,3 +6737,30 @@ plot rules would have to accept a raised deck).
   - Cost: up to 6 more trickles in reach, and up to 6 fire-tier light requests that LightBudget caps.
 - BENCH job 69 spots so far: fissure crack -goto -805,-3398; lava cave 4 at -208,2,-2727 (3 seeps, 2 lava vents and a pool, the busiest spot); cave 14 at 615,11,-2758. The final list comes in the 3b handoff.
 - Next: row 3b, cobwebs.
+
+### Row 3b: cobwebs (#262), branch world/ambient-details, commit c1988411 - done (verified)
+- What it is: dangling cobwebs as bake records (rule 22) in CaveSetBlob.Webs (CaveWeb: three anchors, kind, place, sway, strand length, seed), placed by CaveBaking.Webs.cs from each cave's, room's or tunnel's own seed, every draw of a try made before any test. They carve nothing, so nothing placed before them moves.
+  - Kinds: corner (a sheet where ceiling meets wall), torn, strand, cluster, and dusty with a dead leaf. Torn and dusty webs trail a loose strand.
+  - Where: natural caves (many when dry, a few when wet, none when hot); cave rooms (ruins 3-6, grottos and roosts 0-2, lakes none, halved in wet caves); road tunnels and their niches (dark ones some, lit ones few and at least 3 m from any lamp).
+  - Room webs are laid against the room kit's own faces, because the rock field can't see the kit. Corners use the nook where the wall, the cornice's underside and a corner pilaster meet; long-wall webs are slung from the cornice's front edge to the wall. All keep clear of a grown ruin's inner walls. (The first version anchored to the rock box and hid inside the pilasters and cornice.)
+  - Sway: more within 12 m of a cave mouth or 6 m of a vent.
+- Looks (Cave Web shader, no mesh, Graphics.RenderPrimitives, 216 vertices a web): spokes and rings of thin translucent silk. Each web sways on the shared clock with its own phase, so neighbours never swing together. Light comes from the sky's ambient (mostly shut out underground), the lantern, torches and glows, the last three strongest from behind the silk.
+- LOD: drawn down to 6 reference pixels via DetailPolicy.ExtraReach (about 95 m at Detail 1), fading over the last third, held by DetailPolicy.Within. The nearest 96 are drawn. Off below Detail 0.75 (Low).
+- Network: cosmetic, seed-derived, nothing sent.
+- Counts (main world, WebProbe): 84 webs. By place: cave 63, room 9, tunnel 12. By kind: corner 15, torn 9, strand 27, cluster 24, dusty 9.
+  - Caves: 63 in dry 2 / wet 19 caves; 3 hot caves skipped. Tunnels: 12, all in lit tunnels (caves 24-28), none near a lamp.
+- Pins: fingerprint 7B361633 and landmarks 117 689D5348, both unchanged.
+- Suite: "completed: 40/40 passed" after the last code change.
+- lod-lint is clean.
+- Shots, checked at small size, in D:/Unity/PunchyMilestones/W-142/:
+  - web-cave-2m.png and web-cave-8m.png: cave 2 (dry), dusty web 4 at (-1941, 101, 2343). Faint but visible at 8 m.
+  - web-room-2m.png and web-room-8m.png: a cave 10 room, corner web 41 in the pilaster/cornice nook at (-2205, 279, 984).
+  - web-tunnel-2m.png and web-tunnel-8m.png: road tunnel (cave 24), corner web 72 at (-2935, 118, 67), with tunnel lamps further along. Faint at 8 m.
+  - web-swing-0/1/2.png and web-swing-strip.png: three frames about 0.5-1 s apart of dusty web 83 (sway 0.82) in a cave 28 tunnel at (-2474, 260, 895). The sheet and its strand visibly change shape between frames.
+- Risks:
+  - Webs are deliberately faint; at 8 m they are hard to spot, more so in the bright, lit tunnels.
+  - Cave 10 renders icy and bluish (existing look, not from this row).
+  - Not covered by the bake: bridges, piers, derelict buildings. A follow-up could reuse TryRoomSheet with those kits' faces.
+  - Strands in ruin rooms aren't checked against the ruin cells' pillars and blocks (only against the inner walls).
+  - Cost: up to 96 webs x 216 vertices in one draw, plus a 96-entry buffer upload each frame.
+- BENCH job 69 spots (final list for rows 1-3b): fissure crack -goto -805,-3398; lava cave 4 at -208,2,-2727; cave 14 at 615,11,-2758; cobwebs: cave 2 at -1941,101,2343 (dry cave, several webs), cave 10 room at -2205,279,984, tunnel cave 24 at -2935,118,67, tunnel cave 28 at -2474,260,895.
