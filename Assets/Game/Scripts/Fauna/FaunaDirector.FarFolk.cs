@@ -31,6 +31,11 @@ namespace Punchy.Fauna
         internal bool Walker;
         internal float WalkerBlend;
         internal int SeenFrame;
+        /// <summary>Drawn side only: whether it looks too big to show (DetailPolicy.FarFigureMaxPixels), and how far
+        /// it has faded out for that.</summary>
+        internal bool Capped;
+        internal float CapBlend;
+        internal int CapFrame;
     }
 
     /// <summary>A landmark with houses and its far figures (A-109).</summary>
@@ -48,6 +53,8 @@ namespace Punchy.Fauna
         internal bool Drawn;
         /// <summary>The largest a far figure of this town has looked on screen while shown (reference pixels; ruling 5).</summary>
         public float MaxPixels;
+        /// <summary>The same since the last log line (the -farfolk log resets it).</summary>
+        public float NowPixels;
     }
 
     /// <summary>

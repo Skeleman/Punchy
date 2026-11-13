@@ -89,7 +89,14 @@ namespace Punchy.Fauna
                     var near = math.lerp(1f, math.saturate((distance - (CreatureFadeFar - CreatureFadeRange)) / CreatureFadeRange), town.RealBlend);
                     // (Ruling 4: under the mote size, thinned by dither, gone at half of it.)
                     var thin = math.saturate(pixels / (FarFolkMotePixels * 0.5f) - 1f);
-                    var faded = 1f - shown * near * thin;
+                    // (The size cap: too big to pass for a person, it fades out over half a second, and comes back
+                    // once it is Hysteresis smaller. Straight to it when it wasn't weighed the frame before, or when it
+                    // is far over the cap, which no walk does in half a second: the camera jumped into the town.)
+                    f.Capped = DetailPolicy.Holds(pixels, DetailPolicy.FarFigureMaxPixels, f.Capped);
+                    var capNow = f.CapFrame != frame - 1 || pixels > DetailPolicy.FarFigureMaxPixels * 1.5f;
+                    f.CapBlend = capNow ? f.Capped ? 1f : 0f : math.saturate(f.CapBlend + (f.Capped ? dt : -dt) * 2f);
+                    f.CapFrame = frame;
+                    var faded = 1f - shown * near * thin * (1f - f.CapBlend);
                     if (faded >= 0.99f)
                         continue;
                     f.Walker = DetailPolicy.Holds(pixels, FarFolkWalkerPixels, f.Walker);
@@ -97,7 +104,11 @@ namespace Punchy.Fauna
                     // (Half a second between walker and mote; straight to it when it wasn't in view the frame before.)
                     f.WalkerBlend = f.SeenFrame == frame - 1 ? math.saturate(f.WalkerBlend + (f.Walker ? dt : -dt) * 2f) : target;
                     f.SeenFrame = frame;
-                    town.MaxPixels = math.max(town.MaxPixels, pixels);
+                    if (!f.Capped) // (One over the cap is on its half-second way out.)
+                    {
+                        town.MaxPixels = math.max(town.MaxPixels, pixels);
+                        town.NowPixels = math.max(town.NowPixels, pixels);
+                    }
                     farShown.Add(new FarShown
                     {
                         Position = position,
@@ -130,8 +141,11 @@ namespace Punchy.Fauna
                 var line = new System.Text.StringBuilder();
                 foreach (var town in FarFolk.Towns)
                     if (town.Drawn)
+                    {
                         line.Append($" [{town.Name} #{town.Landmark} ({town.Centre.x:F0},{town.Centre.z:F0}) r {town.Radius:F0} at {math.distance(cam, town.Centre):F0} m: " +
-                                    $"{town.Figures.Count} figures, real {(town.Real ? "yes" : "no")}, largest {town.MaxPixels:F1} px]");
+                                    $"{town.Figures.Count} figures, real {(town.Real ? "yes" : "no")}, largest {town.MaxPixels:F1} px, {town.NowPixels:F1} px since the last line]");
+                        town.NowPixels = 0f;
+                    }
                 Debug.Log($"[farfolk] hour {hour:F2}: {FarFolk.Towns.Count} towns, {drawnTowns} in view, {walkers} walkers, {motes} motes, {parts} capsules;{line}");
             }
             return parts;

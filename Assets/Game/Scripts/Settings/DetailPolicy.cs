@@ -348,6 +348,9 @@ namespace Punchy.Settings
         public const float RippleSize = 8.4f, RipplePixels = 196.4f;
         public const float OtherPlayerSize = 1.8f, BreathPixels = 21.04f;
         public const float CritterSize = 0.15f, CritterPixels = 2.004f;
+        /// <summary>A-109: a town's drawn-only far figure is not shown while it looks taller than this (reference pixels):
+        /// up close it is a few capsules, and the real folk are what belongs there. A 1.7 m figure inside about 75 m.</summary>
+        public const float FarFigureMaxPixels = 24f;
         /// <summary>Behind the camera a creature is still posed while bigger than this (reference pixels, no Detail):
         /// its shadow falls into view. A deer inside 25 m, as before; a 6 m beast inside 100 m.</summary>
         public const float BehindPixels = 56.12f;
