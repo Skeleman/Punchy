@@ -141,6 +141,8 @@ namespace Punchy.Debugging
             flyRoute.Clear();
             flyPending = null;
             propPending = null;
+            ladderPending = null;
+            climbOnLadder = false;
             rockWatchFor = 0f;
             rockWatchSince = -1f;
             untilWork = 0f;

@@ -282,19 +282,23 @@ namespace Punchy.Debugging
                 var wm = queryWorld.EntityManager.GetComponentData<PlayerMotion>(wallSelf);
                 var look = math.normalizesafe(PlayerInputSystem.TestCamera ?? new float2(0f, 1f), new float2(0f, 1f));
                 // (Early in the climb, 1.5-3.5 s after -place wall: it reaches the top in about 4 s.)
-                var sideways = phase >= 1.5f && phase < 3.5f && wm.OnWall;
+                // (Not up a ladder, "-place ladder:": a ladder is climbed straight.)
+                var sideways = !climbOnLadder && phase >= 1.5f && phase < 3.5f && wm.OnWall;
                 if (sideways)
                     PlayerInputSystem.TestMove = new float2(look.y, -look.x);
                 // Up / top-out / step-down events, each logged once per cycle.
                 if (phase < 0.5f)
                     wallStage = 0;
                 var rise = player.Position.y - climbHomeY;
-                if (wallStage == 0 && (wm.OnWall || wm.OnTrunk) && rise > 0.5f)
+                // (Up and over: a metre, or most of a shorter climb, a mine's drop ladder.)
+                var upBy = math.min(0.5f, climbWallTop * 0.4f);
+                var overBy = math.min(1f, climbWallTop * 0.6f);
+                if (wallStage == 0 && (wm.OnWall || wm.OnTrunk) && rise > upBy)
                 {
                     wallStage = 1;
                     Debug.Log($"DebugControls: wall test: UP, on the {(wm.OnTrunk ? "round wall" : "wall")} {V(rise)} m above the start at {V(phase)} s");
                 }
-                if (wallStage <= 1 && !wm.OnWall && wm.Grounded && rise > 1f && toward)
+                if (wallStage <= 1 && !wm.OnWall && wm.Grounded && rise > overBy && toward)
                 {
                     wallStage = 2;
                     Debug.Log($"DebugControls: wall test: TOP-OUT, standing on the top {V(rise)} m above the start at {V(phase)} s");
@@ -304,7 +308,7 @@ namespace Punchy.Debugging
                     wallStage = 3;
                     Debug.Log($"DebugControls: wall test: STEP-DOWN, over the edge and on the wall at {V(rise)} m at {V(phase)} s");
                 }
-                if (wallStage == 3 && !toward && !wm.OnWall && wm.Grounded && rise < 0.5f)
+                if (wallStage == 3 && !toward && !wm.OnWall && wm.Grounded && rise < upBy)
                 {
                     wallStage = 4;
                     Debug.Log($"DebugControls: wall test: DOWN, back on the ground at {V(phase)} s");

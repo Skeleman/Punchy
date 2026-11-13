@@ -282,6 +282,7 @@ namespace Punchy.Debugging
             FlyCave();
             DungeonWalk();
             PlacePropPending();
+            PlaceLadderPending();
             PlaceAtLandmarkPending();
             PickSpeciesPending();
             PlaceAtBatFolkPending();

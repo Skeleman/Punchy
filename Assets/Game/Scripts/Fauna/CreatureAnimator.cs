@@ -288,7 +288,7 @@ namespace Punchy.Fauna
             var rootUp = b.Upright ? 0f : up;
             var rootPos = new float3(s.Position.x, ground, s.Position.z) + new float3(0f, lift * (1f - rootUp - hang), 0f) - forward * lift * rootUp;
             // (Folk on a ladder climb it hand over hand, straight up; on any other face, reaching for holds.)
-            var onLadder = b.Upright && up > 0f && ClimbBands.At(s.Position + forward * 0.5f * scale, 0.6f, out _, out var climbGrade) &&
+            var onLadder = b.Upright && up > 0f && WorldClimbs.At(s.Position + forward * 0.5f * scale, 0.6f, out var climbGrade) &&
                            climbGrade == Climbing.Ladder;
             // A snake on the ground or swimming: its body starts on its serpentine track (below), where the chain joins the
             // head, not on the straight line it travels. Laid out from the line instead, the whole body swung from side

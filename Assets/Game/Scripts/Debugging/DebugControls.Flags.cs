@@ -378,6 +378,14 @@ namespace Punchy.Debugging
                     if (EnsureLocations(out var propSource) && PlaceByProp(propSource, propPending))
                         propPending = null;
                 }
+                else if (args[i] == "-place" && args[i + 1].StartsWith("ladder:", System.StringComparison.OrdinalIgnoreCase))
+                {
+                    // (A-101 + W-147: a real ladder; waits for the flora lookup, as props do.)
+                    ladderPending = args[i + 1].Substring(7);
+                    ladderPendingUntil = Time.unscaledTime + PropWait;
+                    if (EnsureLocations(out var ladderSource) && PlaceByLadder(ladderSource, ladderPending))
+                        ladderPending = null;
+                }
                 else if (args[i] == "-place" && args[i + 1].StartsWith("cavelava", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var lavaSource))
                     PlaceInCavePool(lavaSource, args[i + 1].Substring(8), lava: true);
                 else if (args[i] == "-place" && args[i + 1].StartsWith("cavepool", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var poolSource))

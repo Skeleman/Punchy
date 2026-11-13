@@ -202,10 +202,15 @@ namespace Punchy.Player
                 var facing = math.normalizesafe(math.mul(t.Rotation, new float3(0f, 0f, 1f)).xz, new float2(0f, 1f));
                 // (On the wall, the grade of the wall it faces: pushing back to climb down probed away from it, row 1.)
                 var wallReach = settings.Radius + 0.5f;
-                var wallGrade = Punchy.Fauna.Climbing.WallGrade(new Punchy.Fauna.ClimbBands(), from,
+                var wallGrade = Punchy.Fauna.Climbing.WallGrade(new Punchy.Fauna.WorldClimbs(), from,
                                                                 m.OnWall ? facing : math.normalizesafe(input.MoveDirection, facing), wallReach);
                 var climbsWall = Punchy.Fauna.Climbing.CanClimb(body.ClimbSkill, wallGrade);
                 var wallSpeed = Punchy.Fauna.Climbing.Speed(body.ClimbSpeed, body.ClimbSkill, wallGrade);
+                // A-101 + W-147: a ladder (on a building, in a mine) is climbed straight up its rungs to its top and
+                // stepped off there, by any body with the skill for it: from the ground or the water at its foot, or
+                // stepping onto it from its top. It needs no wall behind it (a mine drop's face doesn't stop a walk).
+                if (body.ClimbSkill > Punchy.Fauna.Climbing.None && LadderClimb(ref t, ref m, body, input, terrain, settings, from, facing, swimming, dt))
+                    continue;
                 if (m.OnWall && climbsWall)
                 {
                     var into = math.mul(t.Rotation, new float3(0f, 0f, 1f)).xz;
@@ -223,7 +228,7 @@ namespace Punchy.Player
                     if (wallSide != 0f)
                     {
                         var besideAt = from + new float3(across.x, 0f, across.y) * (math.sign(wallSide) * settings.Radius);
-                        if (!Punchy.Fauna.Climbing.CanClimb(body.ClimbSkill, Punchy.Fauna.Climbing.WallGrade(new Punchy.Fauna.ClimbBands(), besideAt, facing, wallReach)))
+                        if (!Punchy.Fauna.Climbing.CanClimb(body.ClimbSkill, Punchy.Fauna.Climbing.WallGrade(new Punchy.Fauna.WorldClimbs(), besideAt, facing, wallReach)))
                             wallSide = 0f;
                     }
                     wallSideNow = wallSide;
@@ -925,6 +930,97 @@ namespace Punchy.Player
         /// The stick as the player pushes it on the screen: forward (+, up a surface) and right (+), from the world-space
         /// move and where the camera looks. A test's move with no camera reads as forward.
         /// </summary>
+        /// <summary>
+        /// A-101 + W-147: a ladder climb, for a body with the skill for its grade (ClimbLadders, round the players). On:
+        /// pushing into its rungs from its Out side (standing, swimming or falling slowly), or walking off its top
+        /// toward its Out side. Up and down with the stick (as on a wall), held on its rungs' line; at its top, stepped
+        /// off onto its landing; at its foot, standing (or let go into the water under a water ladder); a jump leaps
+        /// off. False when no ladder holds the body, so the walk and the wall climb go on as before.
+        /// </summary>
+        static bool LadderClimb(ref LocalTransform t, ref PlayerMotion m, in PlayerBody body, in PlayerInput input,
+                                in TerrainSource terrain, in PlayerMotor settings, float3 from, float2 facing, bool swimming, float dt)
+        {
+            var reach = settings.Radius + 0.5f;
+            var pushing = math.lengthsq(input.MoveDirection) > 0.04f;
+            var push = math.normalizesafe(input.MoveDirection, facing);
+            Punchy.Terrain.ClimbLadder l;
+            byte grade;
+            var rising = 0f;
+            if (m.OnWall)
+            {
+                // (Still on: the ladder it faces.)
+                if (!Punchy.Fauna.ClimbLadders.At(from + new float3(facing.x, 0f, facing.y) * settings.Radius, reach, out l, out grade) ||
+                    !Punchy.Fauna.Climbing.CanClimb(body.ClimbSkill, grade))
+                    return false;
+                if (input.JumpPressed)
+                {
+                    // Leaping off: up and back from it.
+                    var back = math.normalizesafe(l.Out.xz, -facing);
+                    m.OnWall = false;
+                    m.VerticalVelocity = settings.JumpSpeed * 0.8f;
+                    m.LatchCooldown = 0.5f;
+                    t.Position = new float3(from.x + back.x * 0.4f, from.y, from.z + back.y * 0.4f);
+                    return true;
+                }
+                StickOnSurface(input, out rising, out _);
+                // (The camera looking away from the ladder: pushing on, away from it, climbs down.)
+                var into = -math.normalizesafe(l.Out.xz, -facing);
+                if (math.dot(math.normalizesafe(input.CameraForward, into), into) < 0f)
+                    rising = -rising;
+            }
+            else
+            {
+                if (!pushing || input.JumpPressed || m.Mantle > 0f ||
+                    !Punchy.Fauna.ClimbLadders.At(from + new float3(push.x, 0f, push.y) * settings.Radius, reach, out l, out grade) ||
+                    !Punchy.Fauna.Climbing.CanClimb(body.ClimbSkill, grade))
+                    return false;
+                var o = math.normalizesafe(l.Out.xz, -push);
+                var at = Punchy.Fauna.ClimbLadders.Local(l, from);
+                var height = l.Top.y - l.Foot.y;
+                var settled = m.Grounded || swimming || m.VerticalVelocity > -LatchFall && m.LatchCooldown <= 0f;
+                if (math.dot(push, -o) > 0.5f && at.y > -0.1f && at.z < height - 0.3f && settled)
+                    rising = 1f;   // (from its foot, or its side: up)
+                else if (math.dot(push, o) > 0.5f && m.Grounded && at.y < 0.3f && math.abs(at.z - height) < 0.6f)
+                    from.y = l.Top.y - 0.5f;   // (from its top, over the edge onto it, to climb down)
+                else
+                    return false;
+            }
+            var outward = math.normalizesafe(l.Out.xz, -facing);
+            var speed = Punchy.Fauna.Climbing.Speed(body.ClimbSpeed, body.ClimbSkill, grade);
+            var y = from.y + rising * speed * dt;
+            var line = Punchy.Fauna.ClimbLadders.LineAt(l, math.min(y, l.Top.y));
+            var hold = line + outward * (settings.Radius + 0.1f);
+            if (rising > 0f && y >= l.Top.y)
+            {
+                // At its top: stepped off onto its landing, past the rungs.
+                var landing = Punchy.Fauna.ClimbLadders.LineAt(l, l.Top.y) - outward * (settings.Radius + 0.25f);
+                m.OnWall = false;
+                m.Mantle = 1e-4f;
+                m.MantleFrom = new float3(hold.x, from.y, hold.y);
+                m.MantleTo = new float3(landing.x, l.Top.y, landing.y);
+                m.VerticalVelocity = 0f;
+                t.Position = m.MantleFrom;
+                return true;
+            }
+            if (rising < 0f && y <= l.Foot.y + 0.05f)
+            {
+                // At its foot: standing, or let go into the water under a water ladder.
+                var floored = Floor(terrain, new float3(from.x, y, from.z), settings.SwimDepth, out var floor, out _);
+                m.OnWall = false;
+                m.Grounded = !floored && floor >= l.Foot.y - 0.3f;
+                m.VerticalVelocity = 0f;
+                t.Position = new float3(from.x, m.Grounded ? floor : y, from.z);
+                return true;
+            }
+            m.OnWall = true;
+            m.Grounded = false;
+            m.VerticalVelocity = 0f;
+            var xz = math.lerp(from.xz, hold, math.min(1f, dt * 12f));
+            t.Position = new float3(xz.x, y, xz.y);
+            t.Rotation = quaternion.LookRotationSafe(new float3(-outward.x, 0f, -outward.y), math.up());
+            return true;
+        }
+
         static void StickOnSurface(in PlayerInput input, out float forward, out float right)
         {
             var look = math.normalizesafe(input.CameraForward, new float2(0f, 1f));
@@ -935,7 +1031,7 @@ namespace Punchy.Player
         /// <summary>A-101: the grade of a trunk's bark at a point on it: a marked section's there, else by its width
         /// (a tree, or a hut's round wall graded a smooth wall).</summary>
         static byte TrunkGradeAt(float radius, float3 bark) =>
-            Punchy.Fauna.ClimbBands.At(bark, 0.3f, out _, out var marked) ? marked : Punchy.Fauna.Climbing.TrunkGrade(radius);
+            Punchy.Fauna.WorldClimbs.At(bark, 0.3f, out var marked) ? marked : Punchy.Fauna.Climbing.TrunkGrade(radius);
 
         /// <summary>The centre (x, z) of the trunk a body holds, at a height: as drawn, leaning or bending as it may.</summary>
         public static float2 TrunkCentre(in PlayerMotion m, float y) =>

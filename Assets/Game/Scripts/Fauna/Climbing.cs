@@ -1,6 +1,8 @@
 using Unity.Burst;
 using Unity.Collections;
+using Unity.Entities;
 using Unity.Mathematics;
+using Unity.Transforms;
 
 namespace Punchy.Fauna
 {
@@ -117,8 +119,8 @@ namespace Punchy.Fauna
     /// <summary>
     /// A-101 row 1: the sections source until the world lane's are on main: the bands "-place climb" marks on a test wall
     /// (DebugControls), and a joined client the same from "-climbband". A shared list, so Burst movement reads it.
-    /// TODO(A-101, W-147): ladders from FloraPlacement.NearLadders(point, radius) (ClimbLadder records, grade 1) once
-    /// world/climbs-surface is on main; TODO(A-101, W-144): marked cave routes and their grades. Both join the bands here.
+    /// The world's ladders are ClimbLadders (W-147); WorldClimbs reads both. TODO(A-101, W-144): marked cave routes and
+    /// their grades join them.
     /// </summary>
     public struct ClimbBands : IClimbSections
     {
@@ -155,5 +157,124 @@ namespace Punchy.Fauna
         }
 
         public static void Clear() => List.Data.Clear();
+    }
+
+    /// <summary>
+    /// A-101 + W-147: the world's ladders near the players this frame (FloraPlacement.NearLadders: roof, rope and water
+    /// ladders on buildings, and the mines' shaft and drop ladders), gathered by ClimbLadderSystem round every player,
+    /// the joined ones too (for their pose). A shared list, so Burst movement and the animator read it.
+    /// </summary>
+    public struct ClimbLadders : IClimbSections
+    {
+        public static readonly SharedStatic<FixedList512Bytes<Punchy.Terrain.ClimbLadder>> List =
+            SharedStatic<FixedList512Bytes<Punchy.Terrain.ClimbLadder>>.GetOrCreate<ClimbLadders, ListKey>();
+        class ListKey { }
+
+        /// <summary>How far round each player ladders are gathered (m): past a climb's reach and a step off its top.</summary>
+        public const float Gather = 4f;
+        /// <summary>How far either side of a ladder's rails a climber still holds it (m).</summary>
+        public const float Side = 0.2f;
+
+        public bool GradeNear(float3 point, float radius, out byte grade) => At(point, radius, out _, out grade);
+
+        /// <summary>The ladder holding point (within reach of its rungs, either side, and between its foot and a little
+        /// over its top), the easiest if several, and its grade.</summary>
+        public static bool At(float3 point, float reach, out Punchy.Terrain.ClimbLadder ladder, out byte grade)
+        {
+            ladder = default;
+            grade = Climbing.None;
+            if (!math.all(math.isfinite(point)))
+                return false;
+            ref var list = ref List.Data;
+            for (int i = 0; i < list.Length; i++)
+            {
+                var l = Local(list[i], point);
+                var height = list[i].Top.y - list[i].Foot.y;
+                if (list[i].Grade > Climbing.None && math.abs(l.x) <= Punchy.Terrain.StructureKit.LadderWidth * 0.5f + Side &&
+                    math.abs(l.y) <= reach + 0.6f && l.z >= -0.6f && l.z <= height + reach &&
+                    (grade == Climbing.None || list[i].Grade < grade))
+                {
+                    ladder = list[i];
+                    grade = list[i].Grade;
+                }
+            }
+            return grade != Climbing.None;
+        }
+
+        /// <summary>The ladder's line (its rungs, xz) at a height: a roof ladder leans, so it runs from its foot to its top.</summary>
+        public static float2 LineAt(in Punchy.Terrain.ClimbLadder l, float y)
+        {
+            var span = l.Top.y - l.Foot.y;
+            return math.lerp(l.Foot.xz, l.Top.xz, span > 1e-3f ? math.saturate((y - l.Foot.y) / span) : 0f);
+        }
+
+        /// <summary>Point in the ladder's frame: across its rungs (right of a climber facing it), out from them (its Out
+        /// side positive), and up from its foot.</summary>
+        public static float3 Local(in Punchy.Terrain.ClimbLadder l, float3 point)
+        {
+            var o = math.normalizesafe(l.Out.xz, new float2(0f, 1f));
+            var d = point.xz - LineAt(l, point.y);
+            return new float3(d.x * -o.y + d.y * o.x, d.x * o.x + d.y * o.y, point.y - l.Foot.y);
+        }
+    }
+
+    /// <summary>A-101: every graded section source at once: the marked bands (tests) and the world's ladders.</summary>
+    public struct WorldClimbs : IClimbSections
+    {
+        public bool GradeNear(float3 point, float radius, out byte grade) => At(point, radius, out grade);
+
+        public static bool At(float3 point, float reach, out byte grade)
+        {
+            var banded = ClimbBands.At(point, reach, out _, out var bandGrade);
+            var laddered = ClimbLadders.At(point, reach, out _, out var ladderGrade);
+            grade = banded && laddered ? (byte)math.min((int)bandGrade, (int)ladderGrade) : banded ? bandGrade : ladderGrade;
+            return banded || laddered;
+        }
+    }
+
+    /// <summary>
+    /// A-101 + W-147: gathers the world's ladders round every player, the local one and the joined ones, into
+    /// ClimbLadders before the player moves. Only where the player moves (a client or host's client world): the list is
+    /// shared by every world in the process.
+    /// </summary>
+    [UpdateInGroup(typeof(SimulationSystemGroup))]
+    [UpdateBefore(typeof(Punchy.Player.PlayerMovementSystem))]
+    public partial struct ClimbLadderSystem : ISystem
+    {
+        [BurstCompile]
+        public void OnCreate(ref SystemState state)
+        {
+            state.RequireForUpdate<Punchy.Player.PlayerInput>();
+            state.RequireForUpdate<Punchy.Terrain.TerrainSource>();
+        }
+
+        [BurstCompile]
+        public void OnUpdate(ref SystemState state)
+        {
+            ref var list = ref ClimbLadders.List.Data;
+            list.Clear();
+            if (!SystemAPI.TryGetSingleton<Punchy.Flora.FloraLookup>(out var flora) || !flora.Blob.IsCreated)
+                return;
+            var terrain = SystemAPI.GetSingleton<Punchy.Terrain.TerrainSource>();
+            foreach (var t in SystemAPI.Query<RefRO<LocalTransform>>().WithAll<Punchy.Player.PlayerTag>())
+                Gather(ref flora.Blob.Value, terrain, t.ValueRO.Position, ref list);
+            foreach (var t in SystemAPI.Query<RefRO<LocalTransform>>().WithAll<Punchy.Net.NetPlayerLook>())
+                Gather(ref flora.Blob.Value, terrain, t.ValueRO.Position, ref list);
+        }
+
+        static void Gather(ref Punchy.Flora.FloraBlob f, in Punchy.Terrain.TerrainSource terrain, float3 at,
+                           ref FixedList512Bytes<Punchy.Terrain.ClimbLadder> list)
+        {
+            var near = new FixedList512Bytes<Punchy.Terrain.ClimbLadder>();
+            Punchy.Flora.FloraPlacement.NearLadders(ref f, terrain, at.xz, ClimbLadders.Gather, ref near);
+            for (int i = 0; i < near.Length && list.Length < list.Capacity; i++)
+            {
+                var seen = false;
+                for (int k = 0; k < list.Length && !seen; k++)
+                    seen = math.all(list[k].Foot == near[i].Foot) && math.all(list[k].Top == near[i].Top);
+                if (!seen)
+                    list.Add(near[i]);
+            }
+        }
     }
 }
