@@ -65,29 +65,34 @@ namespace Punchy.Terrain
         {
             var rng = new Random(seed | 1u);
             var twist = rng.NextFloat(-1f, 1f);
+            // Row 1b: every box at least ~40% as deep and tall as it is wide, and sunk 30-50% of its depth behind the
+            // face (Position sits on the face), so a piece reads as rock standing out of the cliff, not a board on it.
             switch (kit)
             {
                 case Slab:
-                    // A thick ledge of rock, its back sunk well into the face.
-                    list.Add(Box(new float3(0f, -0.6f, 0.4f), new float3(5f, 1.6f, 3f), quaternion.RotateZ(twist * 0.05f)));
+                    // A thick ledge of rock, ~40% of it buried, rolled off the level and with a broken chunk risen at one
+                    // end, so its front never reads as one straight plank.
+                    var side = twist < 0f ? -1f : 1f;
+                    list.Add(Box(new float3(0f, -0.5f, 0.5f), new float3(3.4f, 2.1f, 3f), quaternion.RotateZ(twist * 0.12f)));
+                    list.Add(Box(new float3(side * 2.6f, 0.9f, 0.9f), new float3(1.8f, 1.6f, 2.4f), math.mul(quaternion.RotateY(twist * 0.3f), quaternion.RotateZ(-twist * 0.2f))));
                     break;
                 case Stacked:
-                    list.Add(Box(new float3(0f, -2.6f, 0.9f), new float3(3.8f, 1.8f, 3f), quaternion.RotateY(twist * 0.08f)));
-                    list.Add(Box(new float3(0.5f, 0.7f, 0f), new float3(3.2f, 1.6f, 2.6f), quaternion.RotateY(twist * 0.18f)));
-                    list.Add(Box(new float3(-0.4f, 3.6f, -1.1f), new float3(2.6f, 1.5f, 2.3f), quaternion.RotateY(-twist * 0.15f)));
+                    list.Add(Box(new float3(0f, -2.6f, 0.6f), new float3(3.6f, 1.8f, 3f), quaternion.RotateY(twist * 0.08f)));
+                    list.Add(Box(new float3(0.5f, 1f, 0.3f), new float3(3f, 1.7f, 2.8f), quaternion.RotateY(twist * 0.18f)));
+                    list.Add(Box(new float3(-0.4f, 3.9f, -0.4f), new float3(2.4f, 1.5f, 2.4f), quaternion.RotateY(-twist * 0.15f)));
                     break;
                 case Overhang:
-                    // An upper slab tipped up at its lip over a block set back into the face.
-                    list.Add(Box(new float3(0f, 1.4f, 1.4f), new float3(4.8f, 1.3f, 3.6f), math.mul(quaternion.RotateX(-0.18f), quaternion.RotateZ(twist * 0.04f))));
-                    list.Add(Box(new float3(0f, -2.6f, -0.8f), new float3(3.8f, 2.6f, 2.6f), quaternion.RotateY(twist * 0.1f)));
+                    // An upper slab tipped up at its lip, a third of it buried, over a block set back into the face.
+                    list.Add(Box(new float3(0f, 1.6f, 1.2f), new float3(4.4f, 1.8f, 3.6f), math.mul(quaternion.RotateX(-0.18f), quaternion.RotateZ(twist * 0.04f))));
+                    list.Add(Box(new float3(0f, -2.6f, -0.9f), new float3(3.6f, 2.6f, 2.6f), quaternion.RotateY(twist * 0.1f)));
                     break;
                 case Buttress:
-                    list.Add(Box(new float3(0f, -3f, 0.6f), new float3(2.6f, 7f, 2.4f), quaternion.RotateY(twist * 0.3f)));
+                    list.Add(Box(new float3(0f, -3f, 0.5f), new float3(2.6f, 7f, 2.6f), quaternion.RotateY(twist * 0.3f)));
                     break;
                 default:
                     // A block fallen to the foot: rolled and turned any way.
                     var roll = rng.NextFloat(-0.3f, 0.3f);
-                    list.Add(Box(float3.zero, new float3(2.8f, 2.1f, 2.5f), math.mul(quaternion.RotateY(twist * math.PI), quaternion.RotateZ(roll))));
+                    list.Add(Box(float3.zero, new float3(2.6f, 2.2f, 2.4f), math.mul(quaternion.RotateY(twist * math.PI), quaternion.RotateZ(roll))));
                     break;
             }
         }
@@ -188,7 +193,9 @@ namespace Punchy.Terrain
         const int BlockCells = 4;
         /// <summary>Steeper than this (rise over run, tan 50 degrees) counts as a cliff face; under tan 30 the foot is reached.</summary>
         static readonly float Steep = math.tan(math.radians(50f)), Foot = math.tan(math.radians(30f));
-        const float MinRelief = 8f, Chance = 0.85f, Spacing = 10f;
+        const float MinRelief = 8f, Chance = 0.5f;
+        /// <summary>Metres from any piece before a new group starts; metres between pieces of a group.</summary>
+        const float GroupSpacing = 26f, MemberSpacing = 6f;
         /// <summary>Metres between neighbouring 16 m blocks before a block's 4 m cells are looked at.</summary>
         const float CoarseStep = 10f;
         const byte SeaFace = 0, MesaFace = 1, NoFace = 255;
@@ -304,15 +311,94 @@ namespace Punchy.Terrain
                 }
             });
             var blocksMs = watch.ElapsedMilliseconds;
-            // In block order, so every machine accepts the same pieces.
+            // In block order, so every machine accepts the same pieces. Row 1b: fewer, bigger pieces in groups (a ledge
+            // run along the contour, a buttress with blocks fallen at its foot, a stack or an overhang with a block
+            // below), each group well clear of the last.
             var stream = StreamSeed(source.World.Seed);
             var pieces = new List<CliffPiece>();
-            var taken = new int[bn * bn];
-            System.Array.Fill(taken, -1);
-            int steep = 0, keptOut = 0;
+            var near = new Dictionary<int2, List<int>>();
+            int steep = 0, keptOut = 0, groups = 0;
             var kits = new int[CliffKit.KitCount];
             int seaCount = 0, mesaCount = 0;
             var boxes = new FixedList512Bytes<Punchy.Flora.KitBox>();
+
+            // Whether any piece already stands within this many metres (cells of GroupSpacing, so 3x3 covers it).
+            bool Crowded(float2 xz, float within)
+            {
+                var c = (int2)math.floor(xz / GroupSpacing);
+                for (int dz = -1; dz <= 1; dz++)
+                for (int dx = -1; dx <= 1; dx++)
+                    if (near.TryGetValue(c + new int2(dx, dz), out var list))
+                        foreach (var i in list)
+                            if (math.distance(pieces[i].Position.xz, xz) < within)
+                                return true;
+                return false;
+            }
+
+            void Add(ref Random rng, byte kit, float3 at, float2 dir, float angle, float size, byte face)
+            {
+                if (KeptOut(src, at.xz))
+                {
+                    keptOut++;
+                    return;
+                }
+                if (Crowded(at.xz, MemberSpacing))
+                    return;
+                float tilt;
+                switch (kit)
+                {
+                    case CliffKit.Buttress: tilt = -(math.PI * 0.5f - angle) * 0.7f; break;
+                    case CliffKit.Overhang: tilt = 0f; break;
+                    case CliffKit.Fallen: tilt = rng.NextFloat(-0.25f, 0.25f); break;
+                    // A slab tipped and turned well off the face, so its front shows a side and never reads flat.
+                    case CliffKit.Slab: tilt = rng.NextFloat(-0.15f, 0.15f); break;
+                    default: tilt = rng.NextFloat(-0.06f, 0.06f); break;
+                }
+                var piece = new CliffPiece
+                {
+                    Position = at,
+                    Yaw = math.atan2(dir.x, dir.y) + rng.NextFloat(-0.15f, 0.15f) * (kit == CliffKit.Slab ? 2.4f : 1f),
+                    Tilt = tilt,
+                    Scale = size * rng.NextFloat3(0.88f, 1.12f),
+                    Tint = rng.NextFloat(0.85f, 1.1f),
+                    Seed = rng.NextUInt(),
+                    Kit = kit,
+                    Grade = CliffKit.GradeOf(kit),
+                    Face = face
+                };
+                if (kit == CliffKit.Fallen)
+                    piece.Position.y += 0.35f * 2.2f * piece.Scale.y;
+                boxes.Clear();
+                CliffKit.Boxes(piece, ref boxes);
+                var reach = 0f;
+                for (int k = 0; k < boxes.Length; k++)
+                    reach = math.max(reach, math.distance(boxes[k].Centre.xz, piece.Position.xz) + boxes[k].Reach);
+                piece.Reach = reach;
+                var cell = (int2)math.floor(piece.Position.xz / GroupSpacing);
+                if (!near.TryGetValue(cell, out var inCell))
+                    near.Add(cell, inCell = new List<int>());
+                inCell.Add(pieces.Count);
+                pieces.Add(piece);
+                kits[kit]++;
+                if (face == SeaFace) seaCount++; else mesaCount++;
+            }
+
+            // Blocks fallen at the face's foot, spread along it.
+            void Fallen(ref Random rng, in Candidate cand, int count, float size)
+            {
+                if (!FindFoot(src, cand.Position, cand.Dir, sea, out var foot))
+                    return;
+                var along = new float2(-cand.Dir.y, cand.Dir.x);
+                for (int i = 0; i < count; i++)
+                {
+                    var q = foot.xz + along * rng.NextFloat(-6f, 6f) + cand.Dir * rng.NextFloat(0f, 4f);
+                    var g = src.SampleGround(q);
+                    if (g.River > 0.05f || (g.HasWater && g.WaterSurface - g.Height > 1.5f))
+                        continue;
+                    Add(ref rng, CliffKit.Fallen, new float3(q.x, g.Height, q.y), cand.Dir, cand.Angle, size * rng.NextFloat(0.6f, 0.95f), cand.Face);
+                }
+            }
+
             for (int b = 0; b < found.Length; b++)
             {
                 var cand = found[b];
@@ -321,67 +407,50 @@ namespace Punchy.Terrain
                 steep++;
                 int bx = b % bn, bz = b / bn;
                 var rng = new Random(BiomeSampling.Scramble(stream ^ math.hash(new int2(bx, bz))) | 1u);
-                if (rng.NextFloat() > Chance)
+                if (rng.NextFloat() > Chance || Crowded(cand.Position, GroupSpacing))
                     continue;
-                var roll = rng.NextFloat();
-                var kit = roll < 0.3f ? CliffKit.Slab : roll < 0.52f ? CliffKit.Stacked : roll < 0.7f ? CliffKit.Overhang : roll < 0.85f ? CliffKit.Buttress : CliffKit.Fallen;
-                var scale = rng.NextFloat(0.7f, 1.3f) * rng.NextFloat3(0.85f, 1.15f);
-                var at = new float3(cand.Position.x, cand.Height, cand.Position.y);
-                float tilt;
-                if (kit == CliffKit.Fallen)
-                {
-                    if (FindFoot(src, cand.Position, cand.Dir, sea, out var foot))
-                        at = new float3(foot.x, foot.y + 0.35f * 2.1f * scale.y, foot.z);
-                    else
-                        kit = CliffKit.Slab;
-                }
-                switch (kit)
-                {
-                    case CliffKit.Buttress: tilt = -(math.PI * 0.5f - cand.Angle) * 0.7f; break;
-                    case CliffKit.Overhang: tilt = 0f; break;
-                    case CliffKit.Fallen: tilt = rng.NextFloat(-0.25f, 0.25f); break;
-                    default: tilt = rng.NextFloat(-0.06f, 0.06f); break;
-                }
-                if (KeptOut(src, at.xz))
+                if (KeptOut(src, cand.Position))
                 {
                     keptOut++;
                     continue;
                 }
-                // Not on top of a piece in the blocks round it.
-                var crowded = false;
-                for (int dz = -1; dz <= 1 && !crowded; dz++)
-                for (int dx = -1; dx <= 1 && !crowded; dx++)
+                groups++;
+                var roll = rng.NextFloat();
+                var grow = rng.NextFloat(1f, 1.4f);
+                var at = new float3(cand.Position.x, cand.Height, cand.Position.y);
+                if (roll < 0.4f)
                 {
-                    int ox = bx + dx, oz = bz + dz;
-                    if (ox < 0 || oz < 0 || ox >= bn || oz >= bn || (dx == 0 && dz == 0))
-                        continue;
-                    var t = taken[oz * bn + ox];
-                    crowded = t >= 0 && math.distance(pieces[t].Position.xz, at.xz) < Spacing;
+                    // A ledge run: two or three slabs along the contour, each on the face where it reaches that height.
+                    var count = rng.NextFloat() < 0.5f ? 2 : 3;
+                    var along = new float2(-cand.Dir.y, cand.Dir.x);
+                    for (int i = 0; i < count; i++)
+                    {
+                        var q = cand.Position + along * ((i - (count - 1) * 0.5f) * 8.5f * grow);
+                        var hq = src.SampleHeight(q);
+                        var nq = src.SampleNormal(q, 2f);
+                        if (math.abs(hq - cand.Height) > 6f || nq.y > math.cos(math.radians(45f)))
+                            continue;
+                        var dq = math.normalizesafe(nq.xz, cand.Dir);
+                        Add(ref rng, CliffKit.Slab, new float3(q.x, hq + rng.NextFloat(-1f, 1f), q.y), dq, cand.Angle, grow, cand.Face);
+                    }
                 }
-                if (crowded)
-                    continue;
-                var piece = new CliffPiece
+                else if (roll < 0.65f)
                 {
-                    Position = at,
-                    Yaw = math.atan2(cand.Dir.x, cand.Dir.y) + rng.NextFloat(-0.15f, 0.15f),
-                    Tilt = tilt,
-                    Scale = scale,
-                    Tint = rng.NextFloat(0.85f, 1.1f),
-                    Seed = rng.NextUInt(),
-                    Kit = kit,
-                    Grade = CliffKit.GradeOf(kit),
-                    Face = cand.Face
-                };
-                boxes.Clear();
-                CliffKit.Boxes(piece, ref boxes);
-                var reach = 0f;
-                for (int k = 0; k < boxes.Length; k++)
-                    reach = math.max(reach, math.distance(boxes[k].Centre.xz, at.xz) + boxes[k].Reach);
-                piece.Reach = reach;
-                taken[b] = pieces.Count;
-                pieces.Add(piece);
-                kits[kit]++;
-                if (cand.Face == SeaFace) seaCount++; else mesaCount++;
+                    Add(ref rng, CliffKit.Buttress, at, cand.Dir, cand.Angle, grow, cand.Face);
+                    Fallen(ref rng, cand, rng.NextFloat() < 0.5f ? 1 : 2, grow);
+                }
+                else if (roll < 0.85f)
+                {
+                    Add(ref rng, CliffKit.Stacked, at, cand.Dir, cand.Angle, grow, cand.Face);
+                    if (rng.NextFloat() < 0.4f)
+                        Fallen(ref rng, cand, 1, grow);
+                }
+                else
+                {
+                    Add(ref rng, CliffKit.Overhang, at, cand.Dir, cand.Angle, grow, cand.Face);
+                    if (rng.NextFloat() < 0.4f)
+                        Fallen(ref rng, cand, 1, grow);
+                }
             }
 
             var acceptMs = watch.ElapsedMilliseconds;
@@ -427,7 +496,7 @@ namespace Punchy.Terrain
             var kitText = new System.Text.StringBuilder();
             for (int k = 0; k < CliffKit.KitCount; k++)
                 kitText.Append(k == 0 ? "" : ", ").Append(KitNames[k]).Append(' ').Append(kits[k]);
-            LastLog = $"[cliffkit] {pieces.Count} pieces (sea cliff {seaCount}, mesa/canyon {mesaCount}; {kitText}) from {steep} steep blocks, {keptOut} kept out, {watch.ElapsedMilliseconds} ms ({looked} blocks looked at; heights {coarseMs}, faces {blocksMs - coarseMs}, accept {acceptMs - blocksMs}, grid {watch.ElapsedMilliseconds - acceptMs})";
+            LastLog = $"[cliffkit] {pieces.Count} pieces in {groups} groups (sea cliff {seaCount}, mesa/canyon {mesaCount}; {kitText}) from {steep} steep blocks, {keptOut} kept out, {watch.ElapsedMilliseconds} ms ({looked} blocks looked at; heights {coarseMs}, faces {blocksMs - coarseMs}, accept {acceptMs - blocksMs}, grid {watch.ElapsedMilliseconds - acceptMs})";
             return blob;
         }
 

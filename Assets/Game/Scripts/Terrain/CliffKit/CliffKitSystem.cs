@@ -11,10 +11,11 @@ namespace Punchy.Terrain
 {
     /// <summary>
     /// Draws the cliff kit (W-150 row 1): the pieces of each 128 m region merged into one mesh in the terrain's own
-    /// vertex layout and material, coloured from the ground they stand in (SampleSurface on their tops and sides, times
-    /// the piece's tint), so they carry the cliff's rock and strata. Two levels by on-screen size (rule 20): chamfered,
-    /// jittered boxes up close, plain boxes further out, none once a piece is a few pixels. Meshes are built lazily, a
-    /// couple of regions a frame, and dropped when out of sight. Cosmetic; the pieces are seed-derived, so every
+    /// vertex layout and material, coloured from the face they stand in (SampleSurface per height band, times the
+    /// piece's tint, tops darker), so they carry the cliff's rock and strata. Two levels by on-screen size (rule 20):
+    /// chipped, jittered boxes up close, plain boxes further out, none once a piece is a few pixels; far off, a 4x4
+    /// group of regions draws as one plain mesh (row 1b). Meshes are built lazily, a couple a frame, and dropped when
+    /// out of sight. Cosmetic; the pieces are seed-derived, so every
     /// client draws the same.
     /// </summary>
     [UpdateInGroup(typeof(PresentationSystemGroup))]
@@ -22,6 +23,9 @@ namespace Punchy.Terrain
     public partial class CliffKitSystem : SystemBase
     {
         const float RegionSize = 128f;
+        /// <summary>Regions per side of a far group: once none of its regions can be near, its 4x4 regions draw as one
+        /// plain mesh (row 1b: the red country drew ~300 regions one call each).</summary>
+        const int GroupRegions = 4;
         /// <summary>A piece's typical size (m) for its on-screen size.</summary>
         const float PieceSize = 10f;
         const int BuildsPerFrame = 2;
@@ -39,8 +43,18 @@ namespace Punchy.Terrain
             public Mesh Near, Far;
         }
 
+        /// <summary>A 512 m square of regions: one plain mesh while every region in it is far, else its regions.</summary>
+        class FarGroup
+        {
+            public List<Region> Regions = new List<Region>();
+            public Bounds Bounds;
+            public int Tier = -1;
+            public Mesh Far;
+        }
+
         BlobAssetReference<CliffKitSetBlob> builtFrom;
         readonly List<Region> regions = new List<Region>();
+        readonly List<FarGroup> farGroups = new List<FarGroup>();
         EntityQuery configQuery;
 
         protected override void OnCreate()
@@ -65,45 +79,89 @@ namespace Punchy.Terrain
             var view = DetailPolicy.Current.Data;
             var ppm = view.PixelsPerMetre > 0f ? view.PixelsPerMetre : DetailPolicy.PixelsPerMetreAt(DetailPolicy.ReferenceFov);
             var tiers = view.Detail > 0f ? PieceTiers.Scaled(view.Detail) : PieceTiers;
-            int builds = 0, tris = 0, draws = 0, near = 0, far = 0;
-            foreach (var r in regions)
+            int builds = 0, tris = 0, draws = 0, near = 0, far = 0, grouped = 0;
+            var renderParams = new RenderParams(material) { shadowCastingMode = ShadowCastingMode.On, receiveShadows = true };
+            void Draw(Mesh mesh, Bounds bounds)
             {
-                var distance = math.sqrt(r.Bounds.SqrDistance(view.Camera));
-                r.Tier = DetailPolicy.Tier(DetailPolicy.ScreenSize(PieceSize, distance, ppm), tiers, r.Tier);
-                Mesh mesh = null;
-                if (r.Tier == 0)
-                {
-                    if (r.Near == null && builds < BuildsPerFrame)
-                    {
-                        r.Near = Build(source, r, true);
-                        builds++;
-                    }
-                    mesh = r.Near ?? r.Far;
-                    near++;
-                }
-                else if (r.Tier == 1)
-                {
-                    if (r.Far == null && builds < BuildsPerFrame)
-                    {
-                        r.Far = Build(source, r, false);
-                        builds++;
-                    }
-                    mesh = r.Far ?? r.Near;
-                    far++;
-                    Drop(ref r.Near);
-                }
-                else
-                {
-                    Drop(ref r.Near);
-                    Drop(ref r.Far);
-                }
-                if (mesh == null)
-                    continue;
-                Graphics.RenderMesh(new RenderParams(material) { worldBounds = r.Bounds, shadowCastingMode = ShadowCastingMode.On, receiveShadows = true }, mesh, 0, Matrix4x4.identity);
+                renderParams.worldBounds = bounds;
+                Graphics.RenderMesh(renderParams, mesh, 0, Matrix4x4.identity);
                 tris += (int)mesh.GetIndexCount(0) / 3;
                 draws++;
             }
-            Stats = $"cliff kit: {builtFrom.Value.Pieces.Length} pieces in {regions.Count} regions; near {near}, far {far}; {tris} tris in {draws} draws";
+            foreach (var g in farGroups)
+            {
+                // The group by its nearest point: plain as one mesh only when even that is past the near size.
+                var groupDistance = math.sqrt(g.Bounds.SqrDistance(view.Camera));
+                g.Tier = DetailPolicy.Tier(DetailPolicy.ScreenSize(PieceSize, groupDistance, ppm), tiers, g.Tier);
+                if (g.Tier >= 1)
+                {
+                    foreach (var r in g.Regions)
+                    {
+                        r.Tier = -1;
+                        Drop(ref r.Near);
+                        Drop(ref r.Far);
+                    }
+                    if (g.Tier >= 2)
+                    {
+                        Drop(ref g.Far);
+                        continue;
+                    }
+                    if (g.Far == null && builds < BuildsPerFrame)
+                    {
+                        g.Far = Build(source, g.Regions, g.Bounds);
+                        builds++;
+                    }
+                    if (g.Far != null)
+                    {
+                        Draw(g.Far, g.Bounds);
+                        grouped++;
+                    }
+                    continue;
+                }
+                var drewAll = true;
+                foreach (var r in g.Regions)
+                {
+                    var distance = math.sqrt(r.Bounds.SqrDistance(view.Camera));
+                    r.Tier = DetailPolicy.Tier(DetailPolicy.ScreenSize(PieceSize, distance, ppm), tiers, r.Tier);
+                    Mesh mesh = null;
+                    if (r.Tier == 0)
+                    {
+                        if (r.Near == null && builds < BuildsPerFrame)
+                        {
+                            r.Near = Build(source, r.Pieces, r.Bounds, true);
+                            builds++;
+                        }
+                        mesh = r.Near ?? r.Far;
+                        near++;
+                    }
+                    else if (r.Tier == 1)
+                    {
+                        if (r.Far == null && builds < BuildsPerFrame)
+                        {
+                            r.Far = Build(source, r.Pieces, r.Bounds, false);
+                            builds++;
+                        }
+                        mesh = r.Far ?? r.Near;
+                        far++;
+                        Drop(ref r.Near);
+                    }
+                    else
+                    {
+                        Drop(ref r.Near);
+                        Drop(ref r.Far);
+                    }
+                    if (mesh != null)
+                        Draw(mesh, r.Bounds);
+                    else if (r.Tier <= 1)
+                        drewAll = false;
+                }
+                // Keep the group mesh until its regions all draw, so stepping closer never blinks a cliff bare.
+                if (drewAll)
+                    Drop(ref g.Far);
+                else if (g.Far != null)
+                    Draw(g.Far, g.Bounds);
+            }
+            Stats = $"cliff kit: {builtFrom.Value.Pieces.Length} pieces in {regions.Count} regions; near {near}, far {far}, far groups {grouped}; {tris} tris in {draws} draws";
         }
 
         protected override void OnDestroy() => Clear();
@@ -115,7 +173,10 @@ namespace Punchy.Terrain
                 Drop(ref r.Near);
                 Drop(ref r.Far);
             }
+            foreach (var g in farGroups)
+                Drop(ref g.Far);
             regions.Clear();
+            farGroups.Clear();
         }
 
         static void Drop(ref Mesh mesh)
@@ -147,28 +208,62 @@ namespace Punchy.Terrain
                 for (int k = 0; k < boxes.Length; k++)
                     r.Bounds.Encapsulate(new Bounds(boxes[k].Centre, Vector3.one * (2f * boxes[k].Reach)));
             }
+            var groups = new Dictionary<int2, FarGroup>();
+            foreach (var pair in byKey)
+            {
+                var key = (int2)math.floor((float2)pair.Key / GroupRegions);
+                if (!groups.TryGetValue(key, out var g))
+                {
+                    g = new FarGroup { Bounds = pair.Value.Bounds };
+                    groups.Add(key, g);
+                    farGroups.Add(g);
+                }
+                g.Regions.Add(pair.Value);
+                g.Bounds.Encapsulate(pair.Value.Bounds);
+            }
         }
 
         // ------------------------------------------------------------------------------------------- meshes
 
         readonly List<TerrainVertex> verts = new List<TerrainVertex>();
         readonly List<int> indices = new List<int>();
-        readonly Vector3[] corners = new Vector3[8];
+        readonly Dictionary<int, SurfaceProps> bands = new Dictionary<int, SurfaceProps>();
 
-        Mesh Build(in TerrainSource source, Region r, bool chamfered)
+        Mesh Build(in TerrainSource source, List<int> pieces, Bounds bounds, bool chamfered)
         {
             verts.Clear();
             indices.Clear();
             ref var set = ref source.CliffKit.Value;
             var boxes = new FixedList512Bytes<KitBox>();
-            foreach (var i in r.Pieces)
-            {
-                var piece = set.Pieces[i];
-                boxes.Clear();
-                CliffKit.Boxes(piece, ref boxes);
-                for (int k = 0; k < boxes.Length; k++)
-                    AddBox(source, piece, boxes[k], (uint)k, chamfered);
-            }
+            foreach (var i in pieces)
+                AddPiece(source, set.Pieces[i], ref boxes, chamfered);
+            return Finish(bounds, chamfered);
+        }
+
+        /// <summary>A far group's one plain mesh: every piece of its regions.</summary>
+        Mesh Build(in TerrainSource source, List<Region> group, Bounds bounds)
+        {
+            verts.Clear();
+            indices.Clear();
+            ref var set = ref source.CliffKit.Value;
+            var boxes = new FixedList512Bytes<KitBox>();
+            foreach (var r in group)
+                foreach (var i in r.Pieces)
+                    AddPiece(source, set.Pieces[i], ref boxes, false);
+            return Finish(bounds, false);
+        }
+
+        void AddPiece(in TerrainSource source, in CliffPiece piece, ref FixedList512Bytes<KitBox> boxes, bool chamfered)
+        {
+            bands.Clear();
+            boxes.Clear();
+            CliffKit.Boxes(piece, ref boxes);
+            for (int k = 0; k < boxes.Length; k++)
+                AddBox(source, piece, boxes[k], (uint)k, chamfered);
+        }
+
+        Mesh Finish(Bounds bounds, bool chamfered)
+        {
             var mesh = new Mesh { name = chamfered ? "Cliff kit (near)" : "Cliff kit (far)", indexFormat = IndexFormat.UInt32 };
             mesh.SetVertexBufferParams(verts.Count, TerrainVertex.Layout);
             mesh.SetVertexBufferData(verts, 0, 0, verts.Count);
@@ -176,14 +271,14 @@ namespace Punchy.Terrain
             mesh.SetIndexBufferData(indices, 0, 0, indices.Count);
             mesh.subMeshCount = 1;
             mesh.SetSubMesh(0, new SubMeshDescriptor(0, indices.Count), MeshUpdateFlags.DontRecalculateBounds);
-            mesh.bounds = r.Bounds;
+            mesh.bounds = bounds;
             return mesh;
         }
 
         /// <summary>
         /// One box: plain (12 triangles) or chamfered (its faces inset, bevelled edges and cut corners: 44 triangles),
-        /// its corners nudged by the piece's seed so no two look machined. Flat shaded. The ground's surface is sampled
-        /// once for its top and once for its sides.
+        /// its corners cut and nudged by the piece's seed so no two look machined. Flat shaded. The face's surface is
+        /// sampled per height band, so its strata run on through the piece.
         /// </summary>
         void AddBox(in TerrainSource source, in CliffPiece piece, in KitBox box, uint index, bool chamfered)
         {
@@ -193,31 +288,52 @@ namespace Punchy.Terrain
             var centre = box.Centre;
             var rotation = box.Rotation;
             var small = math.cmin(h);
-            var bevel = chamfered ? small * 0.22f : 0f;
-            // Jittered corner offsets, shared by the three faces at each corner so the box stays closed.
+            // Chipped: each corner cut by its own bevel (15-45% of the box's smallest half) and nudged, so no two edges
+            // read machined. The three faces at a corner share its points, so the box stays closed.
+            var bevel = new float[8];
             var jitter = new float3[8];
             for (int c = 0; c < 8; c++)
-                jitter[c] = chamfered ? rng.NextFloat3(-1f, 1f) * (small * 0.1f) : 0f;
+            {
+                bevel[c] = chamfered ? small * rng.NextFloat(0.15f, 0.45f) : 0f;
+                jitter[c] = chamfered ? rng.NextFloat3(-1f, 1f) * (small * 0.14f) : 0f;
+            }
 
-            // Coloured from the face the piece stands in (its anchor, with the face's own normal for the sides), not the
-            // ground under the box, which may be the flat foot below the cliff.
+            // Coloured from the face the piece stands in (its anchor, with the face's own normal), not the ground under
+            // the box, which may be the flat foot below the cliff; at each face's own height, so the face's strata run
+            // on through the piece. Snow and grass off (they read as pale boards stuck on the cliff), a little darker
+            // than the face as rock standing out of it sits in its own shade, and the tops darker still (row 1b: a
+            // sunlit top read as a pale plank).
             var anchor = piece.Position.xz;
             var ground = source.SampleGround(anchor);
             var faceNormal = source.SampleNormal(anchor, 2f);
-            // One rock for every face: an up normal would give the tops the ground's snow or grass, which read as pale
-            // boards stuck on the cliff. A little darker than the face, as rock standing out of it sits in its own shade.
-            var wall = source.SampleSurface(anchor, ground, faceNormal);
-            wall.Albedo *= piece.Tint * 0.85f;
-            wall.Snow = 0f;
-            wall.Grass = 0f;
-            wall.Bump = math.max(wall.Bump, 1f);
-            var top = wall;
+            var tint = piece.Tint;
+            var src = source;
+            var cache = bands;
+            // Strata can't show on plain boxes: coarser bands keep a far group's build cheap.
+            var bandSize = chamfered ? 1f : 8f;
+
+            SurfaceProps Rock(float y)
+            {
+                // One sample per band per piece (the cache is cleared per piece).
+                var band = (int)math.floor(y / bandSize);
+                if (cache.TryGetValue(band, out var cached))
+                    return cached;
+                var at = ground;
+                at.Height = (band + 0.5f) * bandSize;
+                var rock = src.SampleSurface(anchor, at, faceNormal);
+                rock.Albedo *= tint * 0.8f;
+                rock.Snow = 0f;
+                rock.Grass = 0f;
+                rock.Bump = math.max(rock.Bump, 1f);
+                cache.Add(band, rock);
+                return rock;
+            }
 
             // V(corner, axis): the corner's point on the face across that axis, pulled in from the other two by the bevel.
             float3 V(int c, int axis)
             {
                 var s = new float3((c & 1) != 0 ? 1f : -1f, (c & 2) != 0 ? 1f : -1f, (c & 4) != 0 ? 1f : -1f);
-                var p = s * (h - bevel);
+                var p = s * (h - bevel[c]);
                 p[axis] = s[axis] * h[axis];
                 return centre + math.mul(rotation, p + jitter[c]);
             }
@@ -229,7 +345,9 @@ namespace Punchy.Terrain
                 var n = math.normalizesafe(quad ? math.cross(c - a, d - b) : math.cross(b - a, c - a));
                 if (math.dot(n, centroid - centre) < 0f)
                     n = -n;
-                var surface = n.y > 0.6f ? top : wall;
+                var surface = Rock(centroid.y);
+                if (n.y > 0.6f)
+                    surface.Albedo *= 0.6f;
                 var start = verts.Count;
                 Add(a, n, surface);
                 Add(b, n, surface);
