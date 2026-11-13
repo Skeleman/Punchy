@@ -3675,3 +3675,19 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
   - Player lane: a small body like a cat walks fully under water up to 1.3 m deep, because the swim depth doesn't scale with body size. Its breath now drains there.
   - Net: NetPlayerLook gains one GhostField and NetPlayerCommand one field.
 - Next: row 2, folk dive.
+
+## A-103: folk homes, people in the turtle igloos and the sea folk city, branch fauna/folk-homes
+
+### Row 1: turtle folk (done, verified)
+- Commit 07eb52df on fauna/folk-homes (from main 28b33134, pushed). New: `FaunaDirector.TurtleFolk.cs` (one household per igloo, posts per job), `Fauna/TurtleFolk.asset`, `Resources/Races/TurtleFolk.asset`, 10 Turtle* limbs (beak, brow, shell plus pale and dark shells, moss, runes, robe arm, hand glow). Edits: FolkJobs (IceFisher, IceCutter, FireTender, Elder), PoseGear (spirit flame, ice saw, ice rod, elder staff), CreatureAnimator (idle spell gesture), FolkWork, CreatureData (OwnDoor), Overworld spawn table row, dialogue.json and weather-lines.json lines.
+- Look (Zach 11-12, "tall, ancient, and magical"): about 2.5 m, roughly 1.45 times the human avatar. The igloo doors are 3.4 m, so they fit and the igloos are unchanged. The portrait shot puts one beside the human.
+- Residents (v3, village 111 at (-2504, 376)): 5 igloos, 14 folk. Igloo 0: IceFisher, IceCutter, Elder. Igloo 1: IceCutter, IceFisher, Elder. Igloo 2: FireTender, Elder. Igloo 3: Elder, IceFisher, Elder. Igloo 4: IceFisher, IceCutter, Elder. Each household owns its igloo door, goes in at night and comes out by day; every folk has a work spot or home as its destination (rule 9).
+- Solo, host and client: solo and host in my editor. The joined client (a build) saw 197 to 368 ghosts with bodies, petted a TurtleFolk 0.9 m off, and the folk talked in their own jobs' lines (IceCutter, Elder). 0 exceptions.
+  - Found and fixed on the way: Job is local (A-29), so clients guessed jobs from the task, and a fire tender showed a well-keeper's bucket and lines. Now `CreatureBlob.TurtleJobs` lets the client replica read Fish, Chop and Tend as the igloo jobs. Off work it keeps the last one. No ghost field change (rule 11 not touched). The recheck had 0 wrong-job lines.
+  - Other job folk (bakers, healers and so on) still have this client fallback; it's older than this card. A Job ghost field would fix it for everyone, but it needs your OK.
+- NaN: `-sparkleprobe turtle -stopnan 0` with a posed TurtleFolk: 360 frames, creature marked 0, other bad 0.
+- Shots in D:/Unity/PunchyMilestones/A-103/ (800x450, checked at 480): day.png (village at noon, folk at work), dusk.png (households going in at their doors), portrait.png (turtle folk beside the human).
+- Pins: Fauna_Fingerprint AD723954 before, 7D44629E after, re-pinned in WorldTests. Reason: the new species, its limbs, the spawn table row and the TurtleJobs blob flag (blob bytes are hashed). Landmarks 117 689D5348, unchanged; no placement change.
+- Suite: "28 passed, 0 failed, 17 skipped in 309s (Unity exit 0)", the full run after the last change.
+- For other lanes: world lane could add a hearth and an ice-hole prop by the igloos. The fire tenders and ice fishers now work at bare spots.
+- Next: row 2, sea folk. I will use A-102's `BreathesWater` flag for the "never needs air" flag (A-102 suggested sea folk set `BreathesWater: 1`), so there are not two flags.
