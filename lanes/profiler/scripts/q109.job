@@ -1,0 +1,18 @@
+# Job 67 (W-150 rows 1-2, #281, a baseline: Zach expects big cliff changes later): the cliff kit pieces and the ground
+# query. world/cliff-kit 0941bfcc against its base on main, 7552dcf3. Views: the canyon face (2266,-434) and the mesa
+# face (2134,1462), 20 m out downhill of the face (-benchface), standing and on a 30 m walk along it (2 m/s, facing the
+# face), noon, Clear. Medium and High. Then (after) one -freshisland start per arm for island-ready (the ledge bake,
+# ~+47 ms expected on a miss). Draw calls and pieces drawn: from the branch's own log lines if it prints them.
+Q=q109; TITLE="job 67 cliff kit"
+BUILDS="0941bfc 7552dcf"
+VIEWS="canyon canyonwalk mesa mesawalk"
+view() { case $1 in
+  canyon)     echo "-goto 2266,-434 -benchstops face -benchface 2266,-434,20,30 -benchhour 12 -benchweather Clear";;
+  canyonwalk) echo "-goto 2266,-434 -benchstops facewalk -benchface 2266,-434,20,30 -benchhour 12 -benchweather Clear";;
+  mesa)       echo "-goto 2134,1462 -benchstops face -benchface 2134,1462,20,30 -benchhour 12 -benchweather Clear";;
+  mesawalk)   echo "-goto 2134,1462 -benchstops facewalk -benchface 2134,1462,20,30 -benchhour 12 -benchweather Clear";;
+  fresh)      echo "-freshisland -goto 2266,-434 -benchstops face -benchface 2266,-434,20 -benchhour 12 -benchweather Clear";; esac; }
+ARMS="branch main"
+arm() { case $1 in branch) echo "Profile-0941bfc";; main) echo "Profile-7552dcf";; esac; }
+ROUNDS=3; GFX="Medium High"; REF=main; BAR=0.3
+after() { for a in $ARMS; do game High fresh $a 1; grep -h '\[island\].*ready at' "$R/q-$Q-high-fresh-$a-cs100-1.log" | head -1; done; }
