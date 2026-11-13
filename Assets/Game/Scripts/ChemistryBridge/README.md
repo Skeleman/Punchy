@@ -121,6 +121,43 @@ the window is seeded, once, for smoke runs without keys.
   and Sleet Storm through steam).
 - Cost: about 1.05 ms a frame on average (max 1.17) with a 200-cell fire front and 1000 puffs; no console errors.
 
+## Height changes (2026-11-13)
+
+The core's cells have a height in half-metre steps that spells change: Fireball and Meteor blow craters (1 m and 1.5 m
+deep in the middle), Molten Boulder and Falling Star small ones, Lower Earth and Earthen Trench dig, Raise Earth, Move
+Earth (a tapered hill), Wall of Stone and Stone Ramp raise (the core's `World.Terraform.cs`; the sim's range is -6 to 8
+steps). `ChemistryBridge.Terrain.cs` lays them over Punchy's ground:
+
+- The cells keep the steps they're seeded with (0 on land, -2 under water). Seeding Punchy's slopes into the core's
+  14-step range would make every cell 1.5 m above the window's lowest a wall (the sim's `blockAt` is 3), so only the
+  change is carried over: each map walk compares every cell's height with what was last laid, and a cell's edit is
+  (steps now - steps seeded) x 0.5 m. Punchy's own detail stays under it.
+- `TerrainEdits` (`Terrain/TerrainEdits.cs`) is a 256 x 256 window of metres, one at each whole metre's centre, sampled
+  bilinearly, 0 outside, held in a Burst `SharedStatic` (not a field of `TerrainSource`: systems compare
+  `TerrainSource` to find a new world and rebuild everything, and jobs carry copies). `TerrainSource.SampleHeight` and
+  `SampleGround` add it last, so every height in the game follows (walking, camera, grass, aim, and `SampleNormal`,
+  which is taken from heights). Off, it returns the height untouched: bit-identical (`HeightCheck()`, below).
+- The bridge fills one of two buffers and swaps it in, at most every 0.25 s; the one it fills was last laid a swap
+  before, so nothing frees memory a job reads, and the rebuild flags below only take effect between batches, after
+  any job that read the old ground.
+- It flags the changed rectangle (plus a metre) to `TerrainStreamingSystem.FlagRebuild` (the chunks re-mesh, nearest
+  first, keeping their old mesh until then), `GroundDetailSystem.FlagRebuild` (the grass tiles scatter again, the old
+  blades drawing until then) and, for a change of a metre or more, `FloraSystem.FlagRebuild`: the flora tiles on it
+  are dropped and placed again by Punchy's own placement (as a changed keep-out circle replants them), so plants
+  re-sit on the new ground, or aren't placed where it's now too steep. Re-placing was the cheaper clean option over
+  hiding (no per-plant mask), at the price of the tile's plants popping out for a few frames.
+- Recentring the window forgets what moved (the ground goes back, flagged the same way); so does the bridge going off.
+
+Checked (Editor, 1280 x 720): `HeightCheck()` samples 131,072 points (SampleHeight and SampleGround, in Burst) with
+the edits on and off: 0 differ with nothing cast; after nine casts 126 differ, all where the edits are non-zero. A
+Fireball crater 1 m deep the player walks down into (its y follows the ground 0.75 m below the rim); a Meteor crater
+1.5 m deep (the chunk mesh's vertex there 1.12 m down, as the edits say); three Lower Earths on a chunk border
+(x = -192): the vertices of both chunks equal `SampleHeight` (no seam), and the grass is scattered again into the pit
+(its blades 1.2 m lower); Create Water poured in stays (16 units in each pit cell 25 s later); Move Earth's hill
+walked up. Wall of Stone raises 3.5 m of rock, but Punchy's terrain never blocks by slope (only props and cave floors
+do), so the player walks up and over it. The ground costs nothing measurable a frame (the compare rides on the map
+walk; a swap is a 256 KB copy, a few a second at most); the bridge stays about 0.75 ms a frame.
+
 ## Removing it
 
 0. Undo the pad rebinds (each is marked "Spell chemistry"): `UseKey` back to RB in `Interact/Doors.cs`, the inventory
@@ -133,6 +170,11 @@ the window is seeded, once, for smoke runs without keys.
 3. Delete `Assets/Game/Shaders/ChemistryOverlay.hlsl` and its hooks (each is marked "Spell chemistry"): the include
    and two lines in `GroundDetail.hlsl`, three lines in `Grass.shader`, the include and the chem lines in
    `TerrainSurface.shader`, the include and the ice block in `Water.shader`.
+4. Delete `Assets/Game/Scripts/Terrain/TerrainEdits.cs` and the height hooks (each is marked "Spell chemistry"): the
+   `TerrainEditLayer.Add` on SampleHeight's two returns and the line after `Settle` in SampleGround
+   (`Terrain/TerrainSource.cs`); `FlagRebuild`, `FlagMoved` and its call in `Terrain/TerrainStreamingSystem.cs`;
+   `FlagRebuild`, `stale` and their four uses in `Terrain/Detail/GroundDetailSystem.cs`; `FlagRebuild`,
+   `OnMovedGround`, the `|| movedRects...` in `Stream` and its `Clear` in `Flora/FloraSystem.cs`.
 
 With the bridge gone or off, `_PunchyChemOn` is never set (an unset global float is 0), so the overlay reads 0 and
-every shader draws exactly as before.
+every shader draws exactly as before; and `TerrainEdits` is off, so every height is exactly as before.

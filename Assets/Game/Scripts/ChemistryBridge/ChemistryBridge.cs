@@ -125,6 +125,8 @@ namespace Punchy.Chemistry
             if (seedHeights.IsCreated)
                 seedHeights.Dispose();
             effects.Dispose();
+            ForgetLand();
+            DisposeLand();
         }
 
         void OnDestroy()
@@ -201,6 +203,7 @@ namespace Punchy.Chemistry
                 mapMsThisSecond += watch.Elapsed.TotalMilliseconds;
                 shownTick = world.Tick;
             }
+            PublishLand();
             watch.Restart();
             effects.Frame(corner, Size, heights, rules.Sim.Gas.MaxAmount, Camera.main);
             fxMsThisSecond += watch.Elapsed.TotalMilliseconds;
@@ -213,6 +216,7 @@ namespace Punchy.Chemistry
 
         void StartSeed(TerrainSource terrain, float2 playerXZ)
         {
+            ForgetLand();   // (what moved is forgotten, and the seed samples Punchy's own ground)
             seedCorner = (int2)math.floor(playerXZ) - Size / 2;
             seedSourcePending = terrain;
             if (!seedKinds.IsCreated)
@@ -266,6 +270,7 @@ namespace Punchy.Chemistry
                             break;
                     }
                 }
+            SeedLand();
             shownTick = -1;
             tickClock = 0f;
             EnsureMap();
@@ -490,6 +495,7 @@ namespace Punchy.Chemistry
                 {
                     int i = y * Size + x;
                     var c = world.At(x, y);
+                    NoteLand(x, y, i, c.Height);
                     byte r = 0, g = 0, b = 0, a = 0;
                     byte wr = 0, wg = 0, wb = 0;
                     if (c.Fire > 0)
@@ -578,13 +584,13 @@ namespace Punchy.Chemistry
         void Report()
         {
             nextReport = Time.unscaledTime + 1f;
-            if (burningCount > 0 || burntCount > 0 || iceCount > 0 || frostCount > 0 || landWaterCount > 0 || effects.Steam.Count > 0)
+            if (burningCount > 0 || burntCount > 0 || iceCount > 0 || frostCount > 0 || landWaterCount > 0 || effects.Steam.Count > 0 || movedCells > 0)
                 Debug.Log($"[Chemistry] tick {world.Tick}: {burningCount} burning, {burntCount} burnt, {iceCount} ice, {frostCount} frost, " +
-                          $"{landWaterCount} water on land, {effects.Steam.Count} steam, {effects.Smoke.Count} smoke; {effects.PuffCount} puffs; " +
+                          $"{landWaterCount} water on land, {effects.Steam.Count} steam, {effects.Smoke.Count} smoke, {movedCells} moved; {effects.PuffCount} puffs; " +
                           $"so far {melted} melted, {doused} doused, {boiled} boiled, {steamed} steamed, {condensed} condensed; " +
-                          $"bridge {((tickMsThisSecond + mapMsThisSecond + fxMsThisSecond) / math.max(1, framesThisSecond)):F2} ms a frame " +
-                          $"(ticking {tickMsThisSecond:F1} ms, map {mapMsThisSecond:F1} ms, effects {fxMsThisSecond:F1} ms this second, {framesThisSecond} frames)");
-            tickMsThisSecond = mapMsThisSecond = fxMsThisSecond = 0;
+                          $"bridge {((tickMsThisSecond + mapMsThisSecond + fxMsThisSecond + landMsThisSecond) / math.max(1, framesThisSecond)):F2} ms a frame " +
+                          $"(ticking {tickMsThisSecond:F1} ms, map {mapMsThisSecond:F1} ms, effects {fxMsThisSecond:F1} ms, ground {landMsThisSecond:F1} ms this second, {framesThisSecond} frames)");
+            tickMsThisSecond = mapMsThisSecond = fxMsThisSecond = landMsThisSecond = 0;
             framesThisSecond = 0;
         }
     }
