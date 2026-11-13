@@ -54,9 +54,9 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #273 | Cave pop on entry (Zach 11-12) | W-145 |
 | #274 | Crystal caves far darker (Zach 11-12) | W-146 |
 | #275 | Ladders (docks, mines, roofs), cliff climbs (Zach 11-12) | W-147 |
-| #276 | Roadmap: climbable colossi | roadmap |
+| #276 | Roadmap: climbable colossi | A-107 (fauna lane) |
 | #277 | No water discs: cave lakes, white pools, fountains (Zach 11-12) | W-148 |
-| #278 | Roadmap: rideable creatures, players ride players | roadmap |
+| #278 | Rideable creatures, players ride players | A-104, merged #297 (closed) |
 | #280 | Sea swell tiles when seen from high up (Zach 11-12) | R-17 (rendering lane) |
 | #281 | Roadmap: cliff and mountain geometry (overhangs, ledges, strata) | W-149 study done; R-19 (steep rock), W-150 (cliff kit + shelves) |
 | #282 | White bloom circles keep coming back (NaN), global guard (Zach 11-12) | R-18 (rendering lane), rule 24 |

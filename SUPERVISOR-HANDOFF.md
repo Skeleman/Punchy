@@ -245,3 +245,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-13 Rule 11: approved A-104 row 3 ghost field NetPlayerLook.Mount (int ghost id) via NetPlayerCommand.Mount; appended, validated on receive, no self/mutual mounts; changes the network layout (old builds can't join).
 - 11-13 supervisor: #296 (A-105, fauna/households 10b90029) merged as 867bdec7. #25 commented, kept open for the player half. Folk lane idle: next card below.
 - 11-13 supervisor: W-144 row 1 accepted (world/cave-climbs 2549d000, 40/40, pins 689D5348/6A9E28E5). Shots read poorly at 15 m, so row 1b (route readability) goes before row 2 (tune with Zach).
+- 11-13 supervisor: #297 (A-104, fauna/riding 4386877e) merged as 8d1e6f1c, #278 closed. Fauna lane next: A-107 climbable colossi (#276), A-101 row 2 folded in as row 3.
