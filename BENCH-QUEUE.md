@@ -683,3 +683,7 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
 - (A) main vs (B) `world/ambient-details`, using the head the supervisor names when it releases this job (rows 1-3b: leaves, smoke vents, lava seeps, cobwebs). Profile builds, 1920x1080, Medium and High, uncapped, ABBA, 300 frames each, 12:00.
 - Views: the marsh (`-goto -3492,3,-1716`) on a 30 m walk under the canopy; the root cave (`-goto -2198,9,-1572`); plus the hot-cave and vent spots that rows 2-3 name.
 - Rule 23: Medium ≤ +0.3 ms GPU for all of W-142 together. Report the total and each effect's share if the profile names them.
+
+## Job 70 (2026-11-13, QUEUED after 69, low priority; supervisor, for A-101 row 1): joined-client flora build
+- (A) main vs (B) `fauna/route-climbing` a485b9a5. Build host plus a build joined client, High, uncapped.
+- Measure the joined client's island-load hitch: the time and the GC alloc of FaunaDirector's ladders-only flora blob build (B only), and the total load time on A vs B. Three loads each.
