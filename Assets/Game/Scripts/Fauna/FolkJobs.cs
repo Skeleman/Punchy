@@ -23,6 +23,8 @@ namespace Punchy.Fauna
         // Turtle folk igloo jobs (A-103): fishing through the ice, cutting and carrying ice blocks, tending the
         // village's spirit fire (a conjured flame: no hearth prop yet), and an elder at its porch.
         IceFisher, IceCutter, FireTender, Elder,
+        // Sea folk bed keepers (A-103 row 3): one tends a clam bed, one keeps the glow stones round the spire.
+        ClamTender, GlowKeeper,
     }
 
     /// <summary>A folk's temper, for flavouring its lines: from its Individual hash, so every machine agrees.</summary>
@@ -50,7 +52,6 @@ namespace Punchy.Fauna
             }
         }
 
-        /// <summary>This folk's job: the one it was handed, else the one its task implies.</summary>
         /// <summary>A-103: a turtle folk's igloo job from its task, for joined clients (Job is local, not a ghost field):
         /// fishing an ice fisher, chopping an ice cutter, tending a fire tender; None for any other task.</summary>
         public static FolkJob FromTurtleTask(CreatureTask task)
@@ -64,6 +65,7 @@ namespace Punchy.Fauna
             }
         }
 
+        /// <summary>This folk's job: the one it was handed, else the one its task implies.</summary>
         public static FolkJob Of(in CreatureState s) => s.Job != 0 ? (FolkJob)s.Job : FromTask(s.Task);
 
         /// <summary>The job's name as dialogue.json tags it ("Baker"), or null for none.</summary>

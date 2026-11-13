@@ -16,6 +16,7 @@ MonoBehaviour:
   Order: 12
   Species:
   - SeaFolk
+  - SeaChild
   Traits: 9
   Minds: 1
   Heat: {x: 0.1, y: 0.75}

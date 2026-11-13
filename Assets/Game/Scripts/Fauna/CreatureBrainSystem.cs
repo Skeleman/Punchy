@@ -974,6 +974,7 @@ namespace Punchy.Fauna
                 // posture it needs.
                 Fidget(self, body.Species, ref s, ref b, ref rng, dt, perched, ref sit, ref vertical, ref bow, ref desiredLook);
                 ChildPlay(ref s, ref b, ref rng, dt);
+                ChildLife(ref s, dt, ref custom);
                 KeepToLeash(ref s, moving, ref targetSpeed);
 
                 var urgent = s.Mode == CreatureMode.Flee || s.Mode == CreatureMode.Hunt || s.Mode == CreatureMode.Play ||
@@ -1377,6 +1378,10 @@ namespace Punchy.Fauna
                 var crawlTo = b.Crawls && CaveWalker(s, ref b);
                 if (crawlTo ? math.distance(s.Position, new float3(s.Target.x, s.TargetHeight, s.Target.y)) < 0.4f
                             : math.distance(s.Position.xz, s.Target) < arrive)
+                    Pause(ref s, ref b, ref rng);
+                // (A-103: long at it and standing still, it's wedged against something (a turtle child stood 230 s by an
+                // igloo, its target past the wall): it gives that one up.)
+                else if (s.ModeTime > 45f && s.Speed < 0.05f)
                     Pause(ref s, ref b, ref rng);
             }
 

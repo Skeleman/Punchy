@@ -509,6 +509,9 @@ namespace Punchy.Fauna
     public static class CreatureWorn
     {
         public const byte Hat = 1, Pack = 2;
+        /// <summary>A-103 row 5: a player's eyewear (Eyewear): a small dark pair of glasses, or chunky glow goggles. Eyes
+        /// is both, the bits NetAvatars owns (Items' gear keeps them).</summary>
+        public const byte Glasses = 4, Goggles = 8, Eyes = Glasses | Goggles;
     }
 
     public enum HeldItem : byte
