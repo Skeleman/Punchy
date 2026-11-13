@@ -4028,3 +4028,21 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - Full suite after the last change: result="Passed" total=57 passed=40 failed=0 skipped=17.
 - Shots (town 73 at dusk, as the coordinator asked instead of a farm): PunchyMilestones/A-105/town-dusk-1.png (wide, a child walking home), town-dusk-2.png (Wren Head, a woodcutter, crossing town toward its house), town-dusk-3.png (the same woodcutter near its door, lamps lit).
 - Risks: in fishing villages the housed heads are hermits (Task Hermit) and keep the hermit day: by the hearth in the evening, indoors from 21.5h, not at dusk. The empty bed is host-only and lasts one session; a joined client sees the folk gone but keeps no bed record. Housed folk now quit work at dusk, so dusk streets are busier and work spots empty earlier than on main.
+
+### Row 3: folk talk about their family by name (done, verified, fauna/households 10b90029)
+
+- New talk topic "How's your family?". Housed folk name a household member with a sex-matched word (wife/husband, son/daughter, mother/father, grandmother, son-in-law, sister...). The lines are in dialogue.json under the new `kin` / `gone` keys, in Any, HumanChild, TurtleFolk and SeaFolk, with 3 to 7 lines per relation in Any. "How are you?" sometimes names one too, but a folk's condition (hot, hungry...) still comes first. A folk with no other member at home says a "just me" line.
+- Talk sample, town 73 at noon (`-households`): 10 answers, 9 naming kin. Every name and relation matches the house log, e.g. house 10 (2995.3, -886.8) is Head Jory (m), Partner Ulla (f), Children Lark (m), Cass (f), Quill (f):
+  - Ulla: "Jory, my husband. All these years and still laughs at my jokes."
+  - Jory: "Ulla, my wife. ..." and in another run "My daughter Quill wants to go adventuring."
+  - Cass (Child): "My mother Ulla says I have to be home before dark!"
+  - Lark: "My sister Cass is SO annoying."
+- Sample conversation, house 9 (2963.1, -864.3): Head Corin (m), Partner Edda (f), Child Wren (m):
+  - Corin: "My son Wren found a frog in the well and named it after me."
+  - Edda: "Corin, my husband. All these years and still laughs at my jokes."
+  - Wren: "My father Corin still tells me to wrap up warm."
+- Gone check: after TestHooks.KillHousedFolk ("died Wren Child of house at (2963.1, -864.3)"), Corin said "I still set a place for my son Wren. Silly, I know." and Edda said "We lost my son Wren. The house is too quiet now." Both were logged `(child, died)`. The other houses kept their living-kin lines.
+- Fixed in passing: dialogue.json and weather-lines.json edits were not picked up after a play restart without a domain reload. The static next-check time outlived the restarted clock. A check more than a second away now counts as stale (DialogueArchive, WeatherLines).
+- Fauna_Fingerprint 6A9E28E5 before and after. No placement, spawn draw, ghost field, ProjectSettings or renderer changes.
+- Full suite after the last change: result="Passed" total=57 passed=40 failed=0 skipped=17.
+- Risks: Lost (who died) is host-only, so a joined client never says gone lines and still names the dead member as living. The rest is derived, so names and relations are the same on every machine. Talk is local per machine. Kin lines on "How are you?" are rare whenever a condition applies.
