@@ -31,7 +31,7 @@ namespace Punchy.Interact
     /// ends it. Played as an animal there's no window: the folk's reaction goes up as a line over its head, and it does
     /// what the reaction says. The words are each machine's own and nothing about them is sent; what the folk does (stop
     /// and face the player, gesture, respond to an animal) goes to the host, which runs its brain (FolkTalkRpc). Names
-    /// come from StreamingAssets/folk-names.json, picked by Individual, so every machine calls a folk the same.
+    /// come from FolkNames, picked by Individual, so every machine calls a folk the same.
     /// </summary>
     public partial class FolkTalk : MonoBehaviour
     {
@@ -42,7 +42,6 @@ namespace Punchy.Interact
         const float WalkAwayPush = 0.5f, CameraPull = 3f;
         const float PromptDrop = 0.7f;
         const int GiftCount = 3;
-        const string NamesFile = "folk-names.json";
 
         /// <summary>How far the folk the player could talk to is (float.MaxValue: none): the Use key goes to the nearest of it, a door and an item.</summary>
         public static float TargetDistance = float.MaxValue;
@@ -73,12 +72,8 @@ namespace Punchy.Interact
         readonly HashSet<uint> met = new HashSet<uint>();
         readonly HashSet<uint> gifted = new HashSet<uint>();
         readonly HashSet<uint> holds = new HashSet<uint>();
-        string[] names = System.Array.Empty<string>();
         GUIStyle boxStyle, textStyle, promptStyle;
         bool testPress;
-
-        [System.Serializable]
-        class NameFile { public string[] names; }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Init()
@@ -89,25 +84,11 @@ namespace Punchy.Interact
             DontDestroyOnLoad(go);
             go.hideFlags = HideFlags.HideInHierarchy;
             instance = go.AddComponent<FolkTalk>();
-            instance.LoadNames();
             instance.TestArgs();
         }
 
         void Start() => GuiHook.Add(gameObject, DrawGui, () => talking || prompt != null && !Overlay.AnyOpen, false);
 
-        void LoadNames()
-        {
-            try
-            {
-                var read = JsonUtility.FromJson<NameFile>(File.ReadAllText(Path.Combine(Application.streamingAssetsPath, NamesFile)));
-                if (read?.names != null)
-                    names = read.names;
-            }
-            catch (System.Exception e)
-            {
-                Debug.LogWarning($"FolkTalk: couldn't read {NamesFile}: {e.Message}");
-            }
-        }
 
         bool Hosting => server != null && server.IsCreated && server.IsServer();
         bool Joined => !Hosting && client != null && client.IsCreated && client.IsClient();
@@ -255,7 +236,7 @@ namespace Punchy.Interact
         string NameOf(in FolkTalker talker)
         {
             var job = talker.Job ?? talker.Trade ?? DialogueArchive.Spoken(talker.Species);
-            var name = names.Length > 0 ? names[BiomeSampling.Scramble(talker.Individual ^ 0x4E414D45u) % (uint)names.Length] : null;
+            var name = FolkNames.Of(talker.Individual);
             return name != null ? $"{name}, {job?.ToLowerInvariant()}" : job;
         }
 

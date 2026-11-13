@@ -897,9 +897,10 @@ namespace Punchy.Fauna
                         s.Target = door;
                         targetSpeed = walk;
                         moving = true;
+                        // (A-105: the walk home to its own house can be a long one, in from the fields, a pier or the mine.)
                         if (math.distance(s.Position.xz, door) < 0.4f)
                             NextStage(ref s);
-                        else if (s.ModeTime > 60f)
+                        else if (s.ModeTime > (HasOwnDoor(s) ? 240f : 60f))
                             Pause(ref s, ref b, ref rng);
                         break;
                     case 1:
@@ -917,7 +918,7 @@ namespace Punchy.Fauna
                         custom = true;
                         s.Speed = 0f;
                         s.ActionTime = 1f;
-                        if (SleepTime(ref b) < 0.5f)
+                        if (!Homeward(s, ref b))
                             s.Timer -= dt;
                         // (A guard comes out when its watch begins, however long it meant to stay in: a night guard
                         // asleep through the day is out again at dusk.)

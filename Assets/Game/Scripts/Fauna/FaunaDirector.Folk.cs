@@ -52,6 +52,12 @@ namespace Punchy.Fauna
                     st.Home = home.Position.xz;
                     st.Leash = 35f;
                     st.Anchor = home.Position;
+                    // (A-105: the head of the hut by its shelter, if it has one.)
+                    if (home.InLandmark)
+                    {
+                        EnsureHouses(source);
+                        Settle(ref st, PinHut(home.OwnerIndex, home.Position.xz));
+                    }
                     em.SetComponentData(e, st);
                     hermits[i] = e;
                     settledCount++;
@@ -246,6 +252,9 @@ namespace Punchy.Fauna
                 occupied.Add(i);
                 var place = inst;
                 var radius = set.Types[inst.Type].Radius * inst.Scale;
+                // (A-105: its houses' households, empty till its folk spawn into them.)
+                EnsureHouses(source);
+                ResetHouses(i);
                 SpawnDomestics(source, landmarks[inst.Type], inst.Position, radius);
                 SpawnLakeLife(source, landmarks[inst.Type], inst, i, radius);   // (A-88 row 2: the sea folk lake's fish)
                 SpawnMarshLife(source, landmarks[inst.Type], inst, i, radius);  // (A-89 row 3: the marsh folk village's frogs, heron, dragonflies)
@@ -309,12 +318,15 @@ namespace Punchy.Fauna
                             jobCounts[job] = (jobCounts.TryGetValue(job, out var had) ? had : 0) + 1;
                         var myHome = posted ? post.Stand : home;
                         var myLeash = posted ? post.Task == CreatureTask.Patrol ? radius * 0.8f : 7f : leash;
+                        // (A-105: a folk takes the next free place in one of the landmark's houses.)
+                        var slot = HousedFolk(index, out var child) ? TakeHouseSlot(i, child) : -1;
                         Enqueue(index, new float3(p.x, g.Height, p.y), SpawnTier.Settled, e =>
                         {
                             var em = simWorld.EntityManager;
                             var state = em.GetComponentData<CreatureState>(e);
                             state.Home = myHome;
                             state.Leash = myLeash;
+                            Settle(ref state, slot);
                             if (scale > 0f)
                                 state.Scale = scale;
                             if (worker)
@@ -345,6 +357,7 @@ namespace Punchy.Fauna
                         line.Append(line.Length > 0 ? ", " : "").Append(pair.Key).Append(' ').Append(pair.Value);
                     Debug.Log($"FolkJobs: {landmarks[inst.Type].name} at ({inst.Position.x:F0}, {inst.Position.y:F0}) radius {radius:F0}: {line}, free {stayFree}");
                 }
+                LogLandmarkHouses(i, landmarks[inst.Type].name, inst.Position);
             }
         }
 
