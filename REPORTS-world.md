@@ -6966,6 +6966,27 @@ half3 PunchySurfaceFinish(half3 color, PunchySurface s, half reach);            
 - **Risk:** the foam at the foot is subtle on the pale snow rock. The wet band is easiest to see on darker rock. Adding the include to TerrainSurface set off a long shader variant compile (about 2 min, 43 compiler processes) on first load. Not timed (rule 21).
 - **Next:** R-22 row 0 (#298, world/far-view).
 
+## R-21 row 3: fall sheet as white water, quick defects (#284), world/waterfall-sheets d1f01dd3, done (verified; 3 of 6 defects fixed, 3 need row 4 / W-153)
+
+- **What changed (LandmarkWaterfall.shader only, cave falls unchanged):**
+  - Defect 1 (glass pane): the open sheet's core is now opaque white water with the streaks in it. Only the noise-cut edges stay see-through. Fixed; it still reads flat, which is row 4's geometry.
+  - Defect 3 (bright pole down the side): the edge strand is gone and the outer edge always fades. Fixed. A thin slanted pole still stands right of fall 51 in the 12 m and 20 m shots: it is a solid, shaded prop beyond the fall, not water. Not touched.
+  - Defect 6 (no foot foam at 12 m on snow): the foot band is wider and whiter. Fixed (r21-row3c-fall22-12m-foot.png).
+- **Not fixed, with the cause:**
+  - Defects 2 and 4 (box above the lip, pane above the cliff top, shards at the top centre) and defect 5 (mixed looks in one chain) are not the curtain. They are the river's own water mesh standing as walls above its banks: at R22 the water is at 192 over ground at 178-182. A scan of TerrainSource finds 56 of the 79 river falls with water more than 3 m deep just above the lip (R22 13 m above its banks, R23 19, R24 16, R61 15, R67 22, R73 17, R74 15).
+  - Likely cause: in RiverSampling.Consider the fall's upper water (FallWater) overrides the surface, but the ground carve stays the lower pool's bowl, which reaches back under the upper river. This is W-153 row 1 class (c); I measure it there and fix it in W-153 row 2 or row 4 of this card.
+  - The stippled squares at the top centre look like chunk LOD crossfade pieces of those walls.
+- **Pins:** unchanged, asserted by the suite (landmarks 117 689D5348, fingerprint 6A9E28E5). No placement, landmark or course change.
+- **Suite (after the last code change, editor out of play mode):** "completed: 40/40 passed".
+- **Sparkleprobe:** NaN bad 0 on all seven shots.
+- **Shots** (High, noon), in D:/Unity/PunchyMilestones/R-21/, each checked by me:
+  - r21-row3c-snowpeak-150m.png, r21-row3c-fall22-400m.png: chain still reads as sheets at range; water walls visible above the lips.
+  - r21-row3c-fall22-20m.png, r21-row3c-fall22-12m-foot.png, r21-row3c-fall22-5m-foot.png: white core, frayed edges, foot foam.
+  - r21-row3c-fall51-12m-foot.png: the dark-rock fall, reads well.
+  - r21-row3c-fall51-20m.png: UNVERIFIED as a view. The camera sits too close to another curtain of the chain, which fills the lower half. I retake it in row 4.
+- **Branch note:** the local branch had been rebased onto main da573e16 while the remote held the older rows 1-2 (same patches). A force push was refused, so I merged the remote tip in instead (no content change); the history shows rows 1-2 twice.
+- **Next:** W-153 rows 1 and 1b on water/truth.
+
 ## R-20 row 1: medium-distance shadow flicker, cause named, part fixed (#286)
 
 - Lane: render. Branch `render/shadow-still`, commit 1a380545 (on main 934f6691, so R-16 is in). PARTIAL: 10-30 m fixed, 30-60 m about halved, see "left over".
