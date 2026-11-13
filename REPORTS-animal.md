@@ -3731,3 +3731,28 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - Pins: Fauna_Fingerprint C5B450EF (after the A-102 merge) before, B9ADEB35 after, re-pinned in WorldTests. Reason: the new species, its Sea* limbs, the SeaHousehold spawn rows and the blob's WalksBed flag. Landmarks 117 689D5348, unchanged; no placement change.
 - Suite: "33 passed, 0 failed, 17 skipped in 311s (Unity exit 0)", the full run after the last change.
 - Next: row 2b (sea folk visiting towns and rivers by day, grumbling about the dryness).
+
+## A-101 (#267): climbing by skill and grade, branch fauna/route-climbing
+
+### Row 0: one climbing skill against a grade (done, verified solo; client UNVERIFIED)
+- Commit 884a3297 on fauna/route-climbing (from main 659b60af, pushed). New `Fauna/Climbing.cs`: grades 1 ladder, 2 assisted, 3 tree, 4 craggy, 5 smooth. A body climbs a section when skill >= grade, 10% faster for each grade of margin. ClimbAbility and PlayerBody's Climbs/ClimbsTrees/ClimbsWalls are gone; the player's movement and the creature brain (tree-sit and sleep) use the same `Climbing.CanClimb`.
+- Species map: None 0, Trees 3, AnySurface 5, hands bodies (humanoids) 2. `CreatureSpecies.ClimbSkill` -1 means automatic. BlackBear sets 3. `-climbskill N` overrides the player's skill, and the climb and wall test log lines now print it.
+- Ladders and vines sit behind `IClimbSections` (`NoClimbSections` for now), with TODOs naming FloraPlacement.NearLadders (world/climbs-surface, not merged), W-147 and W-144. Cliff grades (W-150) not touched.
+- Check (shot list, `-autowalk`, same hut at (-2003.6, 252.7, 654.4), 2.7 m):
+  - Lizard (5) at `-place wall`: takes hold, TOP-OUT at 2.1 s, steps down at 10.2 s, back down at 12.0 s. Same as on main.
+  - Human (2) at the same wall: never takes hold (bare wall, grade 5).
+  - Monkey (3) at `-place tree:Oak`: "skill 3, took hold of a trunk", radius 0.3. Same as on main.
+  - Human (2) at the same Oak: never takes hold (tree is grade 3).
+  - Human with `-climbskill 5` at the wall: "skill 5, took hold", TOP-OUT at 2.0 s, down at 11.8 s.
+  - Not shown yet: a human at 2 climbing a ladder or vine band. Nothing marks one until row 1's `-place climb` wall.
+- Behaviour changes from main:
+  - Trunks wider than 0.7 m (round huts, which the movement treats as trunks) are graded 5 now, so monkey and other tree climbers (3) no longer go up hut walls. Wall climbers still do.
+  - A BlackBear player now pulls up onto ledges (skill 3).
+  - Lizards climb trees about 20% faster (margin 2 over a tree).
+  - Hands bodies at 2 still pull up onto ledges (any skill >= 1), as Climbs did before.
+- Solo, host and client: solo and host in my editor. The joined client is UNVERIFIED: it needs a player build, and builds go only to the world tree. No ghost field change. PlayerBody is set locally by FaunaDirector and movement is client-authoritative, so the client runs the same check.
+- Test notes: launch options run before the world rebuild, so `-place wall` and `-place tree:X` must go in a `-shotlist` line, not in PlayArgs. StartClimbTest only drives the stick with `-autowalk` on the launch line. The first shot line runs about 70 s into the world build, so put a throwaway line first.
+- Shots in D:/Unity/PunchyMilestones/A-101/ (800x450): r0-1-lizard-wall.jpg, r0-2-human-skill2-wall.jpg, r0-3-monkey-oak.jpg.
+- Pins: Fauna_Fingerprint AD723954 before, B1C0CD10 after, re-pinned in WorldTests (the play-mode island read 151753F3 before, B1C0CD10 after). Reason: the blob's climb kind became a ClimbSkill byte, and hands bodies now bake 2. No landmark or placement change.
+- Suite: "completed: 35/35 passed" (PlayMode), the full run after the last change. One run before that failed only LiveFolk_BeastResponse ("Idle 81.1", not "Flee"), which had passed on the same brain code the run before. Flaky, not this change.
+- Next: row 1, marked climb surfaces with the #33 controls, and the `-place climb` test wall.
