@@ -51,6 +51,8 @@ namespace Punchy.Fauna
             var igloo = 0;
             var total = 0;
             turtleLog.Clear();
+            turtleDoors.Clear();
+            turtleIgloos.Clear();
             for (int l = 0; l < 3; l++)
             {
                 var placed = f.PropRanges[inst.Type * 3 + l];
@@ -78,6 +80,8 @@ namespace Punchy.Fauna
                         var side = new float2(toCentre.y, -toCentre.x);
                         var doorAt = at + toCentre * math.max(IglooDoor, (porch - 2.2f) * 0.8f);
                         var door = new float4(doorAt.x, 0f, doorAt.y, math.atan2(toCentre.x, toCentre.y));
+                        turtleDoors.Add(door);
+                        turtleIgloos.Add(new float3(at, porch));
                         var jobs = new System.Text.StringBuilder();
                         var residents = 0;
                         foreach (var ri in rows)
@@ -103,6 +107,8 @@ namespace Punchy.Fauna
                 }
             }
             Debug.Log($"[turtlefolk] village {index} at ({centre.x:F0}, {centre.y:F0}): {igloo} igloos, {total} folk; " + string.Join("; ", turtleLog));
+            // Row 3: its children, from their own rng.
+            SpawnTurtleChildren(source, type, inst, index);
         }
 
         /// <summary>

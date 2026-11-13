@@ -198,7 +198,7 @@ namespace Punchy.Net
                 c.Scale = n.Scale > 0f ? n.Scale : 1f;
                 c.Mode = (CreatureMode)n.Mode;
                 c.Task = (CreatureTask)n.Task;
-                if (b.TurtleJobs)
+                if (b.TurtleJobs && !b.Child)
                 {
                     // A-103: Job is local, so read the igloo job off the task; off work it keeps its last job (an elder until it has worked).
                     var job = FolkJobs.FromTurtleTask(c.Task);

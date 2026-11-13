@@ -19,7 +19,9 @@ namespace Punchy.Fauna
         /// <summary>A-103 row 1: the turtle folk households, one per igloo of a turtle village (Count: folk per igloo).</summary>
         TurtleHousehold,
         /// <summary>A-103 row 2: the sea folk households, one per shell dome of the lake village (Count: folk per dome).</summary>
-        SeaHousehold
+        SeaHousehold,
+        /// <summary>A-103 row 3: a folk village's children (Count: children per village), at play in its middle.</summary>
+        FolkChild
     }
 
     /// <summary>

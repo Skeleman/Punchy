@@ -42,6 +42,8 @@ namespace Punchy.Net
         public byte Pose;
         /// <summary>A-102: how much breath the owner has used under water (PlayerMotion.BreathUsed), 0 (full) to 255.</summary>
         public byte BreathUsed;
+        /// <summary>A-103 row 5: what the owner has over their eyes (an Eyewear value: none, glasses, glow goggles).</summary>
+        public byte Eyewear;
     }
 
     /// <summary>What other players need to draw this one's body: replicated from the owner via the server.</summary>
@@ -59,12 +61,16 @@ namespace Punchy.Net
         [GhostField] public byte Pose;
         /// <summary>A-102: how much breath it has used under water, 0 (full) to 255 (NetPlayerCommand.BreathUsed).</summary>
         [GhostField] public byte BreathUsed;
+        /// <summary>A-103 row 5: what it has over its eyes (an Eyewear value), drawn on its body (NetAvatars).</summary>
+        [GhostField] public byte Eyewear;
     }
 
     /// <summary>Client singleton: the local player's species in the playable table (set by NetAvatars).</summary>
     public struct LocalPlayerSpecies : IComponentData
     {
         public int Index;
+        /// <summary>A-103 row 5: what the local player has over their eyes (an Eyewear value), sent on the command.</summary>
+        public byte Eyewear;
     }
 
     /// <summary>Points at the NetPlayer ghost prefab; baked into the world subscene.</summary>
@@ -194,7 +200,9 @@ namespace Punchy.Net
                 command.Valid = true;
             }
             // How our body looks, so the others draw the same individual.
-            if (SystemAPI.TryGetSingleton<LocalPlayerSpecies>(out var species) && species.Index >= 0)
+            var hasSpecies = SystemAPI.TryGetSingleton<LocalPlayerSpecies>(out var species);
+            command.Eyewear = hasSpecies ? species.Eyewear : (byte)0;
+            if (hasSpecies && species.Index >= 0)
                 foreach (var (avatar, body) in SystemAPI.Query<RefRO<CreatureState>, RefRO<CreatureBody>>().WithAll<PlayerAvatar>())
                 {
                     command.Species = species.Index;
@@ -240,7 +248,7 @@ namespace Punchy.Net
                     continue;
                 transform.ValueRW.Position = c.Position;
                 transform.ValueRW.Rotation = quaternion.RotateY(c.Yaw);
-                look.ValueRW = new NetPlayerLook { Species = c.Species, Individual = c.Individual, Coat = c.Coat, Grounded = c.Grounded, Climbing = c.Climbing, Rim = c.Rim, Pose = c.Pose, BreathUsed = c.BreathUsed };
+                look.ValueRW = new NetPlayerLook { Species = c.Species, Individual = c.Individual, Coat = c.Coat, Grounded = c.Grounded, Climbing = c.Climbing, Rim = c.Rim, Pose = c.Pose, BreathUsed = c.BreathUsed, Eyewear = c.Eyewear };
             }
         }
     }

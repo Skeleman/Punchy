@@ -47,6 +47,8 @@ namespace Punchy.Fauna
         {
             seaDoors.Clear();
             seaReefs.Clear();
+            seaClams.Clear();
+            seaGlows.Clear();
             ref var f = ref floraBlob.Value;
             if (inst.Type * 3 + 2 >= f.PropRanges.Length)
                 return false;
@@ -59,14 +61,15 @@ namespace Punchy.Fauna
                     if (prop.Species < 0 || prop.Species >= floraSpecies.Count || floraSpecies[prop.Species] == null)
                         continue;
                     var name = floraSpecies[prop.Species].name;
-                    if (name != SeaDomeName && name != SeaReefName)
+                    if (name != SeaDomeName && name != SeaReefName && name != SeaClamName && name != SeaGlowName)
                         continue;
                     for (int k = 0; k < prop.Count; k++)
                     {
                         var at = LandmarkSampling.ToWorld(inst, LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / math.max(1, prop.Count)), radius);
-                        if (name == SeaReefName)
+                        if (name != SeaDomeName)
                         {
-                            seaReefs.Add(at);
+                            // (Row 3: the clam beds and glow stones, for their keepers.)
+                            (name == SeaReefName ? seaReefs : name == SeaClamName ? seaClams : seaGlows).Add(at);
                             continue;
                         }
                         var toCentre = math.normalizesafe(inst.Position - at, new float2(0f, 1f));
@@ -140,6 +143,8 @@ namespace Punchy.Fauna
                 seaLog.Add($"dome {d} residents {residents}");
             }
             Debug.Log($"[seafolk] village {index} at ({spire.x:F0}, {spire.y:F0}): {seaDoors.Count} domes, {total} folk; " + string.Join("; ", seaLog));
+            // Row 3: its children and keepers, from their own rng.
+            SpawnSeaLife(source, type, inst, index, overworld.Rows[rows[0]]);
         }
 
         void SpawnSeaLanding(in TerrainSource source, in LandmarkInstance inst, int index)

@@ -97,8 +97,9 @@ namespace Punchy.Fauna
                                                   task == CreatureTask.Gesture || task == CreatureTask.Fish || task == CreatureTask.Hermit ||
                                                   task == CreatureTask.Watch;
         static int GearCount(CreatureTask task) => HasGear(task) ? GearParts : 0;
-        /// <summary>Capsules for what a player's body has on (P-23): a hat's brim and crown, a pack.</summary>
-        const int WornParts = 3;
+        /// <summary>Capsules for what a player's body has on (P-23): a hat's brim and crown, a pack; and (A-103 row 5) its
+        /// eyewear, two lenses and a bridge or strap.</summary>
+        const int WornParts = 6;
         static int WornCount(byte worn) => worn != 0 ? WornParts : 0;
         /// <summary>Where a held item's light comes from among its capsules (the lantern's glass, the torch's flame).</summary>
         static int LightPart(HeldItem held) => held == HeldItem.Lantern ? 2 : held == HeldItem.Torch ? 0 : -1;
