@@ -6965,3 +6965,31 @@ half3 PunchySurfaceFinish(half3 color, PunchySurface s, half reach);            
   - r21-row2-fall22-400m.png (380 m out, 140 m up, because from 25 m up the valley wall hides the fall): the R22 chain of falls each reads as one sheet with a soft foot.
 - **Risk:** the foam at the foot is subtle on the pale snow rock. The wet band is easiest to see on darker rock. Adding the include to TerrainSurface set off a long shader variant compile (about 2 min, 43 compiler processes) on first load. Not timed (rule 21).
 - **Next:** R-22 row 0 (#298, world/far-view).
+
+## R-20 row 1: medium-distance shadow flicker, cause named, part fixed (#286)
+
+- Lane: render. Branch `render/shadow-still`, commit 1a380545 (on main 934f6691, so R-16 is in). PARTIAL: 10-30 m fixed, 30-60 m about halved, see "left over".
+- How measured: own editor, play mode, Medium, day type Sunny, still camera in a forest clearing (-1324, 3329 looking north-west), grass off, 30 game frames a second. Frame-diff counts by distance band: "blink" = a pixel that steps over 6 grey levels and comes straight back the next frame, share of the band's pixels per frame.
+- R-16 alone does not remove it. Sun paused: 0.002-0.003% (nothing moves). Sun running on main: 0.05-0.13% at 10-60 m, 20-50 times the paused level.
+- **Cause: cascade edge shimmer.** As the sun turns, the real-time cascades' shadow edges land on other shadow texels every frame. Proof: the same view with the flora cache and the wide map both off blinks the same (0.069 / 0.027 / 0.075 / 0.050% at 10-20 / 20-30 / 30-40 / 40-60 m, against 0.061 / 0.034 / 0.106 / 0.067% with them on). The cache redraws (every 0.5 degrees) and wide redraws show no burst in the per-frame counts; the cache/sharp hand-over band and impostor shadows show nothing either. Past the cascades (60 m+) the view is as quiet as paused.
+- Why it is this strong: the sun light in SampleScene asks for URP's Low soft-shadow filter (the pipeline asset says High, the light overrides it).
+- Fix: new `Rendering/SunShadowFilter.cs` sets the sun's filter to High at run time from the Medium preset up; the Low preset keeps the scene's value. `-sunshadowfilter scene|low|medium|high` overrides (command line; `SunShadowFilter.Override` from eval). No scene, asset, cascade count, distance or shadow map size change. One line added to docs/agents/rendering.md.
+- Before / after, 10 s still, sun running (blink share per frame, first 5 s; the second 5 s agree):
+
+| Band | main | with the fix |
+|---|---|---|
+| 10-20 m | 0.131% | 0.007% |
+| 20-30 m | 0.051% | 0.011% |
+| 30-40 m | 0.130% | 0.056% |
+| 40-60 m | 0.052% | 0.053% |
+| 60-90 m | 0.010% | 0.022% |
+| 90-150 m | 0.008% | 0.010% |
+
+- **Intended look change:** near shadow edges are softer (a wider blur on every real-time shadow from Medium up). Zach should see the pair before merge.
+- **Left over, not fixed:** at 30-60 m (the last of Medium's three cascades, about 15-50 m) shadow outlines on the ground and a dotted pattern on sunlit tree crowns still crawl; with the cache and wide map off it is the same, so it is that cascade's texel size, not the far tiers. What would remove it is outside this card or my permissions, so listed, not done: (a) main-light shadow map 2048 -> 4096 in PC_RPAsset (asset change; halves every cascade's texel); (b) different cascade splits (the card forbids); (c) turning the sun's shadow direction in small steps (I expect a pulse at every step; not recommended). Say which, if any.
+- Shots in `PunchyMilestones/R-20/`: `row1-still-before.png`, `row1-still-after.png` (frame 100 of each), `row1-still-*-mask.png` (10 s frame-diff masks), `row1-still-*-blinkmap.png` (cyan = blinking pixels, crop round the 30 m tree).
+- Not checked: the slow walk and the pan (frame diffs of a moving camera were swamped by parallax; cache and wide on or off gave the same counts, 0.59% vs 0.59% at 10-20 m, so they add nothing I can measure, but "no visible flicker on a walk" is UNVERIFIED by eye); the High preset (`-gfx` is read from the command line only, my run stayed at Medium); the hilltop view of job 56; a player build; the test suite (the change compiles and runs in play mode). No shader changed, so no NaN probe run. Overcast and stormy day types show almost no shimmer at either setting (shadow strength 0.64).
+- Also seen, by reading only: a flora cache redraw started by walking 10 m while the last 1 s blend is still running snaps that blend to its end. Not measured, not changed.
+- BENCH request (rule 21): cost of the High against the Low sun shadow filter at Medium and High, forest and town views: `-sunshadowfilter low` against the default on render/shadow-still.
+- R-23 note: drift (3) (no fade at the shadow distance on hand-lit shaders) did not show as part of #286 in this view; it stays with R-23.
+- Next: R-20 row 2 (cloud shadow screen-size LOD).
