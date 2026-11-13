@@ -698,3 +698,10 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
 - Job 71 update (supervisor 11-13): Zach OK'd the 4096 map ("4096 map OK"). The render lane commits it on `render/shadow-still` as its own commit; the hash follows here. The 4096 arm is then required, not optional: three arms (filter low, filter default, filter default + 4096), and it gates the merge.
 - Job 71 hashes (supervisor 11-13): filter arms on 1a380545; the 4096 arm is `render/shadow-still` 9b01da13 (one line in PC_RPAsset, 2048 -> 4096). PC has one pipeline asset for all presets, so Low gets 4096 too: add a Low run of 1a380545 vs 9b01da13 at the forest view. Pass: rule 23 at Medium, Low stays over its 50 fps floor; also report shadow-map memory if the build shows it. If Low fails, the map size becomes a per-preset run-time setting before merge.
 - Supervisor 11-13, note for the profiler (Zach: "My only concern about making world adjustments is the impact on profiling and the requirement of new test scripts"): world cards W-153 and W-155 may now move terrain, rivers, landmarks and the fingerprint. Each such merge will add a line here naming the old and new hashes and the bench views that changed, so a job after it is compared only with a fresh baseline on the new world.
+
+## Job 72 (2026-11-13, QUEUED after 71; supervisor, for A-109 row 2, #298): far town figures
+- Main da573e16 (A) vs `fauna/far-towns` 6b5d8c5d (B). Profile builds, 1920x1080, Medium, uncapped, ABBA, 300 frames, noon.
+- Views: standing 200 m north of town 73 (`-goto 2972,-685`, facing the town), and a walk from there to the centre (2972, -885).
+- Record: whole-frame GPU and main-thread ms, and any frame over 2x median on the walk (the far-to-real swap near 120-140 m).
+- Points of interest: `WatchFarFolk` every 0.2 s over all creatures; `GatherFarFolk` per frame over 6 towns.
+- Pass (rule 23): at most +0.3 ms GPU, CPU within noise, no new hitch. Main-PC bench agent may take it (J-045).
