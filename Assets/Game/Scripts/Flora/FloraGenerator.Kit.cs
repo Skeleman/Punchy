@@ -116,6 +116,12 @@ namespace Punchy.Flora
                 case Punchy.Terrain.KitShape.SandHouse:
                     storeys = 1;
                     parts = Punchy.Terrain.StructureKit.HazardHouse(seed, trim, shape, width, depth);
+                    // W-147 row 1b: a roof ladder too, its foot past the stone skin and the drift's toe. Not the snow
+                    // house: its drift is a ramp half up the wall already, and a ladder would stand in the snow.
+                    if (shape != Punchy.Terrain.KitShape.SnowHouse)
+                        Punchy.Terrain.StructureKit.RoofLadder(parts, seed, trim, width, depth, storeys, g.Variant,
+                            shape == Punchy.Terrain.KitShape.AshHouse ? 0.45f : shape == Punchy.Terrain.KitShape.SandHouse ? 0.4f : 0f,
+                            shape == Punchy.Terrain.KitShape.AshHouse ? 1.0f : shape == Punchy.Terrain.KitShape.SandHouse ? 1.55f : 0f);
                     break;
                 case Punchy.Terrain.KitShape.SlabShelter:   // W-95 (#69): Bark is the local rock, the accent its cap (snow, ash, sand)
                     storeys = 1;
@@ -129,7 +135,7 @@ namespace Punchy.Flora
                 default:
                     parts = Punchy.Terrain.StructureKit.House(seed, trim, width, depth, storeys, ruined ? g.Range(0.45f, 0.9f) : 0f);
                     if (!ruined)   // W-147: some folk's houses have a ladder up to the roof (its own draws)
-                        Punchy.Terrain.StructureKit.RoofLadder(parts, seed, trim, width, depth, storeys);
+                        Punchy.Terrain.StructureKit.RoofLadder(parts, seed, trim, width, depth, storeys, g.Variant);
                     break;
             }
             var house = Punchy.Terrain.StructureKit.HouseLike(shape) && shape != Punchy.Terrain.KitShape.SlabShelter ||   // a slab shelter is walked into
@@ -429,14 +435,15 @@ namespace Punchy.Flora
         }
 
         /// <summary>
-        /// W-147: whether this town house (Hut, StoneHouse) has a ladder up to its roof, about one in four; and a second
-        /// draw for where. Straight from the species' seed and the variant, not the grower's draws, so the house is as it was.
+        /// W-147: whether this town house (Hut, StoneHouse) has a ladder up to its roof: one variant in four (row 1b: a
+        /// roll over four variants often gave a species none), and a draw for where, straight from the species' seed and
+        /// the variant, not the grower's draws, so the house is as it was.
         /// </summary>
         static bool HouseLadderRoll(Grower g, out float pick)
         {
             var h = Mix((uint)g.S.Seed * 0x9E3779B9u ^ (uint)g.Variant * 0x85EBCA6Bu ^ 0x3ADDu);
             pick = (Mix(h) & 0xFFFF) / 65535f;
-            return (h & 0xFFFF) / 65535f < 0.25f;
+            return g.Variant % 4 == 3;
         }
 
         /// <summary>A full-avalanche mix of a uint (math.hash of one uint doesn't spread its bits).</summary>

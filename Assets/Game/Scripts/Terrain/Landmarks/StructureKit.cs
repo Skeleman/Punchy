@@ -531,42 +531,52 @@ namespace Punchy.Terrain
         }
 
         /// <summary>
-        /// W-147: a share of plain houses, by their folk's roof, get a ladder up to the roof: a flat roof half the time,
-        /// up a side wall to the roof behind its parapet; one pitched roof in five, up the back wall to the eave.
-        /// Tiered roofs never. Its own draws from the seed (the house is as it was). Wood.
+        /// W-147: a share of plain houses, by their folk's roof, get a ladder up to the roof: a flat roof on every second
+        /// variant, up a side wall to the roof behind its parapet; a pitched roof on one variant in four, up the back wall
+        /// to the eave; a tiered roof on one in four, up the back wall to the first tier's ledge. By the variant, not a
+        /// draw (row 1b: a species with few variants often rolled none), so every species with four or more has some;
+        /// where from the seed's own draws (the house is as it was). <paramref name="skin"/> is a second wall skin's depth
+        /// and <paramref name="bank"/> how far a drift banked against it runs out (hazard houses): the foot stands past
+        /// both, leaning in. Wood.
         /// </summary>
-        public static void RoofLadder(List<KitPart> parts, uint seed, CultureTrim t, float width, float depth, int storeys)
+        public static void RoofLadder(List<KitPart> parts, uint seed, CultureTrim t, float width, float depth, int storeys, int variant, float skin = 0f, float bank = 0f)
         {
+            if (variant % (t.Roof == KitRoof.Flat ? 2 : 4) != 1)
+                return;
             var hash = Scramble(seed ^ 0x2ADDu);
-            var roll = (hash & 0xFFFF) / 65535f;   // straight from the hash: System.Random's first draw follows its seed
             var rng = new System.Random((int)(Scramble(hash) & 0x7FFFFFFF));
             var top = Mathf.Max(1, storeys) * t.Storey;
             switch (t.Roof)
             {
                 case KitRoof.Flat:
                 {
-                    if (roll > 0.5f)
-                        return;
                     // Up a side wall, at a bay joint (the windows sit mid-bay).
                     var side = rng.Next(2) == 0 ? -1f : 1f;
                     var bays = Mathf.Max(1, Mathf.RoundToInt(depth / t.Bay));
                     var z = bays > 1 ? -depth * 0.5f + (1 + rng.Next(bays - 1)) * depth / bays : -depth * 0.5f + 0.5f;
-                    var x = side * (width * 0.5f + Thick * 0.5f + 0.1f);
-                    Ladder(parts, new Vector3(x, 0f, z), new Vector3(x, top + 0.7f, z), new Vector3(side, 0f, 0f), false);
+                    var x = side * (width * 0.5f + Thick * 0.5f + 0.1f + skin);
+                    Ladder(parts, new Vector3(x + side * bank, 0f, z), new Vector3(x, top + 0.7f, z), new Vector3(side, 0f, 0f), false);
                     break;
                 }
                 case KitRoof.Gable:
                 case KitRoof.Steep:
                 {
-                    if (roll > 0.2f)
-                        return;
                     // Up the back wall, its foot a little out, leaning in to the eave's edge.
                     const float eave = 0.45f, slab = 0.2f;
                     var pitch = Mathf.Max(t.Pitch, 20f) * Mathf.Deg2Rad;
                     var edge = top + slab - eave * Mathf.Tan(pitch);
                     var x = (rng.NextDouble() < 0.5 ? -1f : 1f) * width * 0.25f;
                     var z = -(depth * 0.5f + eave + 0.1f);
-                    Ladder(parts, new Vector3(x, 0f, z - 0.35f), new Vector3(x, edge, z), Vector3.back, false);
+                    Ladder(parts, new Vector3(x, 0f, z - Mathf.Max(0.35f, skin + bank - eave)), new Vector3(x, edge, z), Vector3.back, false);
+                    break;
+                }
+                case KitRoof.Tiered:
+                {
+                    // Up the back wall to the first tier's slab, which overhangs the walls by two eaves: a ledge to stand on.
+                    const float eave = 0.45f;
+                    var x = (rng.NextDouble() < 0.5 ? -1f : 1f) * width * 0.25f;
+                    var z = -(depth * 0.5f + eave * 2f + 0.1f);
+                    Ladder(parts, new Vector3(x, 0f, z - 0.4f), new Vector3(x, top + 0.34f, z), Vector3.back, false);
                     break;
                 }
             }
