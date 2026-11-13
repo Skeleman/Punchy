@@ -104,6 +104,12 @@ Done from Zach's 2026-11-03 order: the modular kit and colossi (#40), fishing vi
 pygmies (#35, #10), turtle folk (#38). Core rule throughout: small, varied, seeded details everywhere, kept sparse.
 
 ### Open, not yet started
+- Far views (#298). Zach 11-13: "I am looking for a world that feels expansive, yet full of life and detail. Fidelity of
+  distant views is very important, wanting to make sure the whole island feels grounded in beautiful nature."
+  Review of main found: ground drawn to 2-3 km on a 9 km island, haze tied to the draw edge, no far forest, no far life.
+  Carded: R-22 (whole-island ground, atmosphere, canopy map, terrain LOD by screen size), R-23 (one surface lighting
+  path), A-108 (herds, flocks, town life at a distance). P-35: item definition and saved state designed once (#26).
+  Until P-35's design is agreed, no new feature that needs items, ownership or saved state gets a stand-in of its own.
 - Sea folk underwater city in the central lake (#37): the city, landing pier and road exist; nobody lives there yet (A-103).
   Zach 11-12: the next big item. NPCs swim under water; a breath meter that works like stamina; sea folk never use breath
   under water; NPCs that do are forced to resurface. Carded: A-102 (diving, breath), P-34 (meter).

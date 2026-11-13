@@ -33,3 +33,4 @@ Waiting on the profiler: cave-chunk 256e6a9 (item 15), blocked-cache 3d874dc (it
      otherwise.
 - Not now: G-22 and G-32 (wait on Zach for a spot), the gold-leaf leak (ask Zach which build and where).
 - No landmark placement changes before v0.10 ships.
+- Supervisor 11-13 (#298, Zach: far views matter most): after R-21 comes **R-22** (far view: whole-island ground, atmosphere, canopy map, terrain LOD by screen size). **R-23** (one surface lighting path) follows R-16 + R-20 on main.

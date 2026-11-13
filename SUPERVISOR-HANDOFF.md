@@ -247,3 +247,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-13 supervisor: W-144 row 1 accepted (world/cave-climbs 2549d000, 40/40, pins 689D5348/6A9E28E5). Shots read poorly at 15 m, so row 1b (route readability) goes before row 2 (tune with Zach).
 - 11-13 supervisor: #297 (A-104, fauna/riding 4386877e) merged as 8d1e6f1c, #278 closed. Fauna lane next: A-107 climbable colossi (#276), A-101 row 2 folded in as row 3.
 - 11-13 supervisor: W-144 row 1b accepted (world/cave-climbs d5749485); sheet sent to Zach for row 2. World lane next: R-21 waterfall sheets (#284).
+- 11-13 supervisor: project review for Zach ("intervene as prudent"). #298 opened; carded R-22 (far view, world lane after R-21), R-23 (one surface lighting path, after R-16 + R-20), A-108 (far life, fauna lane after A-107), P-35 (item + save design, player lane). R-22 row 2 (haze) merges only after Zach sees the pairs.
