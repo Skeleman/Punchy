@@ -1920,7 +1920,7 @@ namespace Punchy.Flora
                         {
                             var spot = LandmarkSampling.ToWorld(set.Instances[landmark.Instance],
                                 LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / prop.Count), landmark.Radius);
-                            if (math.distance(spot, near) > 25f + radius)
+                            if (math.distance(spot, near) > 25f + radius)   // gameplay: a prop building's reach, for the climb query
                                 continue;
                             Ladders(ref f, Place(ref f, source, (int2)math.floor(spot / f.CellSizes[l]), l), near, radius, ref ladders);
                         }

@@ -501,7 +501,7 @@ namespace Punchy.Terrain
                     boat = Mathf.Sign(parts[i].Centre.x);
             var side = boat != 0f ? -boat : (rng.Next(2) == 0 ? -1f : 1f);
             var gaps = posts - 1;
-            var count = length > 14f ? 2 : 1;
+            var count = length > 14f ? 2 : 1;   // gameplay: side ladders on long piers
             var used = -1;
             for (int n = 0; n < count && gaps >= 3; n++)
             {

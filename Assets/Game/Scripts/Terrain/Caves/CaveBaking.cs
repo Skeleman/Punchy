@@ -1171,7 +1171,7 @@ namespace Punchy.Terrain
                         for (var y = floor + 2.5f; y < ground - 0.5f; y += 0.5f)
                         {
                             var t = 0f;
-                            for (var r = 0.2f; r < 12f; r += 0.05f)
+                            for (var r = 0.2f; r < 12f; r += 0.05f)   // gameplay: bake-time wall search
                                 if (terrain.CaveDistance(new float3(axis.x, y, axis.y) + new float3(dir.x, 0f, dir.y) * r) >= 0f) { t = r; break; }
                             if (t <= 0f) { reach = 0f; break; }
                             reach = math.min(reach, t);
