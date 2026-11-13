@@ -243,7 +243,26 @@ namespace Punchy.Debugging
             if (faceArg >= 0 && faceArg + 1 < args.Length)
             {
                 var v = System.Array.ConvertAll(args[faceArg + 1].Split(','), s => float.Parse(s, System.Globalization.CultureInfo.InvariantCulture));
-                yield return Stop("face", () => FaceAt(new float2(v[0], v[1]), v.Length > 2 ? v[2] : 20f) && SetWeather("Partly cloudy", 18));
+                var faceXz = new float2(v[0], v[1]);
+                var faceDist = v.Length > 2 ? v[2] : 20f;
+                yield return Stop("face", () => FaceAt(faceXz, faceDist, 0f, out _) && SetWeather("Partly cloudy", 18));
+                // -benchface x,z,dist,walk (job 67): also stop "facewalk", carried sideways along the face at 2 m/s over walk
+                // metres (centred on the face stop's spot), still facing the face; measured for the walk's length.
+                if (v.Length > 3 && v[3] > 0f)
+                {
+                    var walkFrom = float3.zero;
+                    var walkAlong = float3.zero;
+                    yield return Stop("facewalk", () =>
+                                      {
+                                          if (!FaceAt(faceXz, faceDist, -v[3] * 0.5f, out var along))
+                                              return false;
+                                          walkAlong = new float3(along.x, 0f, along.y);
+                                          if (TryGetWorld(out var em2, out var p2))
+                                              walkFrom = em2.GetComponentData<LocalTransform>(p2).Position;
+                                          return SetWeather("Partly cloudy", 18);
+                                      },
+                                      measure: v[3] / 2f, drive: t => Line(walkFrom, walkAlong, 2f, 0.1f, t));
+                }
             }
 
             // -benchline x0,z0,x1,z1,speed,height: also a straight run as stop "line" (job 44: the W-129 shrub walk and glide).
@@ -1541,9 +1560,11 @@ namespace Punchy.Debugging
             return true;
         }
 
-        /// <summary>-benchface: stands dist m out from the steep face at xz (downhill of it), facing it, camera pitched at it.</summary>
-        static bool FaceAt(float2 xz, float dist)
+        /// <summary>-benchface: stands dist m out from the steep face at xz (downhill of it), facing it, camera pitched at it;
+        /// 'side' m along the face from there (along: the direction along the face, for a walk).</summary>
+        static bool FaceAt(float2 xz, float dist, float side, out float2 along)
         {
+            along = new float2(1f, 0f);
             if (!TryGetWorld(out var em, out var player))
                 return false;
             using var terrainQuery = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
@@ -1560,7 +1581,8 @@ namespace Punchy.Debugging
                 var h = source.SampleHeight(xz + d * 12f);
                 if (h < lowest) { lowest = h; down = d; }
             }
-            var stand = xz + down * dist;
+            along = new float2(down.y, -down.x);
+            var stand = xz + down * dist + along * side;
             var ground = math.max(source.SampleHeight(stand), source.World.SeaLevel);
             var yaw = Yaw(new float3(-down.x, 0f, -down.y));
             // Up at the face point (ThirdPersonCamera: a negative pitch looks up), kept within -40..12.
