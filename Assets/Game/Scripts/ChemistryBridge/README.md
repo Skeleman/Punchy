@@ -1,8 +1,8 @@
 # Chemistry bridge (experiment)
 
 A proof of concept: the spell-chemistry core from Spell Chemistry Valley (the `com.anweather.chemistry-core`
-package, its rules in `Assets/StreamingAssets/ChemistryRules/`) running inside Punchy's world. Local and cosmetic
-only: nothing is networked or saved.
+package, its rules in `Assets/StreamingAssets/ChemistryRules/`) running inside Punchy's world. Played alone, as a
+host or as a joined client, in lockstep through the core's `LockstepSession` (below); nothing is saved.
 
 ## What it does
 
@@ -34,6 +34,35 @@ only: nothing is networked or saved.
   water on land, steam, smoke), the reactions it has seen change the cells since the window was seeded (ice melted,
   fires doused, water boiled to steam, new steam, steam condensed) and its own cost per frame (`[Chemistry]` in the
   console).
+
+## Multiplayer: lockstep (D19 step 3, 2026-11-13)
+
+The cells are shared state, run in lockstep by the core (Spell Chemistry Valley's ADR 0019): one `LockstepSession` a
+process (`ChemistryBridge.Lockstep.cs`) steps the world, and every peer runs the same batches, so every peer's cells
+are the host's. Solo runs the same session over the core's loopback.
+
+- **The transport** is `NfeLockstepTransport.cs` (about 250 lines): the session's bytes as `ChemMsgRpc` pieces (two
+  `FixedBytes510`, 1020 bytes, and a sequence number per link), sent from `NetWorlds.Server` to each connection or from
+  the client to its one, at most 24 pieces a link a frame. What arrives is handed to the session from the pump's
+  Update, in each link's order. On the host every connection in game but its own client's is a peer (PeerId = its
+  NetworkId); its own client takes nothing. The session goes with the worlds (`GameBootstrap.WorldsReplacing`) and a
+  new one starts on host, join or solo.
+- **One shared region** (256 x 256 cells) instead of a window per player. The host (or solo) fills it from
+  `TerrainSource` as before and sends the cells' kinds in the hello (run-length coded, about 14 KB); a client builds the
+  same cells from them (`RegionSource`) and samples only the heights under them, for the flames and puffs. A joiner
+  loads the host's snapshot (the cells' changes against the region) and runs the batches after it. Solo still
+  re-centres on the player 96 m out; a host's region stays where it was filled (once a peer is in, not even a new
+  `TerrainSource` moves it). The host's chunk plan (`ChunkPlanner`) follows every player's cell, stamped each tick.
+- **Casts and the hands are requests** on the session's `casts` and `combos` channels, never input-component fields:
+  the host names the player (`p0` the host, `p` and the NetworkId a client), stamps them, and every peer runs them on
+  the same tick. The hands' state is the world's, so its HUD and rumble are the same on every peer for each wizard;
+  only the peer whose wizard set a spell off aims it. Effects (flames, steam, ice, craters) follow from the cells.
+- **Desync:** the host sends a hash window every 30 ticks; a client that differs logs `desync: ...` (the parts that
+  differ) and loads a fresh snapshot. Every peer logs `lockstep <role> tick <t> at <time> sum <hash> ... desync=False`
+  every 60 ticks, and each cast as it lands.
+- **What differs from solo:** a cast lands on the host's next tick (up to a sixth of a second later, plus the trip to
+  the host on a client) instead of at once; a frame behind the batches by more than 6 ticks may tick for 8 ms instead of
+  2 to catch up.
 
 ## Where the core comes from
 
