@@ -61,6 +61,8 @@ namespace Punchy.Flora
         public readonly List<Vector3> Perches = new List<Vector3>();
         /// <summary>Its chimneys' flue tops (W-43c, where smoke rises), before the plant's own rotation and scale.</summary>
         public readonly List<Vector3> Chimneys = new List<Vector3>();
+        /// <summary>W-147: its ladders (grade-1 climbs), before the plant's own rotation and scale (see FloraPlacement.NearLadders).</summary>
+        public readonly List<Punchy.Terrain.ClimbLadder> Ladders = new List<Punchy.Terrain.ClimbLadder>();
         /// <summary>W-128: where its moored boats' undersides sit (a keel plank's middle), before the plant's own
         /// rotation and scale, for the waterline check.</summary>
         public readonly List<Vector3> Boats = new List<Vector3>();
@@ -341,6 +343,7 @@ namespace Punchy.Flora
                     model.ColliderBase.AddRange(g.ColliderBase);
                     model.Perches.AddRange(g.Perches);
                     model.Chimneys.AddRange(g.Chimneys);
+                    model.Ladders.AddRange(g.Ladders);
                     model.Boats.AddRange(g.Boats);
                     model.Windows.AddRange(g.Windows);
                     model.Pools.AddRange(g.Pools);
@@ -430,6 +433,7 @@ namespace Punchy.Flora
             public readonly List<float> ColliderBase = new List<float>();
             public readonly List<Vector3> Perches = new List<Vector3>();
             public readonly List<Vector3> Chimneys = new List<Vector3>();
+            public readonly List<Punchy.Terrain.ClimbLadder> Ladders = new List<Punchy.Terrain.ClimbLadder>();
             public readonly List<Vector3> Boats = new List<Vector3>();
             public readonly List<Vector4> Windows = new List<Vector4>();
             public readonly List<Vector4> Pools = new List<Vector4>();

@@ -137,6 +137,18 @@ namespace Punchy.Terrain
     /// A plant on a cave floor (a glowing mushroom, a crystal, a mossy shrub): placed at bake time from the seed, and
     /// drawn by CaveSystem with the flora system's meshes and material.
     /// </summary>
+    /// <summary>
+    /// W-147: a ladder a climber can go up (A-101 Climbability grade 1): from its foot to its top (where a climber steps
+    /// off), climbed from the Out side (horizontal, unit). On a flora model it's before the plant's own rotation and
+    /// scale (FloraModel.Ladders); in CaveSetBlob.Ladders and from FloraPlacement.NearLadders it's in the world.
+    /// Baked from the seed with everything else (rule 22).
+    /// </summary>
+    public struct ClimbLadder
+    {
+        public float3 Foot, Top, Out;
+        public byte Grade;
+    }
+
     public struct CavePlant
     {
         public float3 Position;
@@ -286,6 +298,8 @@ namespace Punchy.Terrain
         public BlobArray<CaveRoom> Rooms;
         /// <summary>W-134 row 4: river chambers (each names its cave; a handful an island, so scanned whole).</summary>
         public BlobArray<CaveChamber> Chambers;
+        /// <summary>W-147: mines' ladder climbs (up shafts, between levels), in the world; a handful an island, so scanned whole.</summary>
+        public BlobArray<ClimbLadder> Ladders;
         public float2 GridOrigin;
         public float CellSize;
         public int2 GridSize;
