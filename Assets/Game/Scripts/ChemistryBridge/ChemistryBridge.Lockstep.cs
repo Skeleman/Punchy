@@ -53,6 +53,9 @@ namespace Punchy.Chemistry
 
         public LockstepSession Session => session;
 
+        /// <summary>Ticks this peer's world is behind what it holds: the host's own stamps, or a client's batches.</summary>
+        int Behind => session == null ? 0 : (session.IsHost ? session.HostTick : session.KnownUpTo) - session.NetTick;
+
         void HookLockstep() => GameBootstrap.WorldsReplacing += OnWorldsReplacing;
 
         void UnhookLockstep()
@@ -182,8 +185,8 @@ namespace Punchy.Chemistry
             foreach (var c in batch.Casts)
                 Debug.Log($"[Chemistry] lockstep: tick {batch.Tick}: {c.By} cast {c.Spell} (charge {c.Charge}) at cell ({c.X}, {c.Y})");
             if (batch.Tick % SumEvery == 0)
-                Debug.Log($"[Chemistry] lockstep {sessionRole} tick {batch.Tick} sum {Fnv1a64.Hash(session.Checksum()):x16} " +
-                          $"burning {burningCount} burnt {burntCount} ice {iceCount} peers {(net != null ? net.Peers.Count : 0)} desync={session.DesyncSeen} desyncs={desyncs}");
+                Debug.Log($"[Chemistry] lockstep {sessionRole} tick {batch.Tick} at {DateTime.Now:HH:mm:ss.f} sum {Fnv1a64.Hash(session.Checksum()):x16} " +
+                          $"burning {burningCount} burnt {burntCount} ice {iceCount} behind {Behind} peers {(net != null ? net.Peers.Count : 0)} desync={session.DesyncSeen} desyncs={desyncs}");
         }
 
         // Host: the chunks follow each player's reach (its own and every NetPlayer on the server), stamped on the tick.

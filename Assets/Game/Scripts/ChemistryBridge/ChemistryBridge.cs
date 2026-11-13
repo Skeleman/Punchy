@@ -38,6 +38,10 @@ namespace Punchy.Chemistry
         const float RecentreDistance = 96f;
         // How long a frame may spend ticking (ms); a tick that doesn't fit carries on next frame (World.StepSome).
         const double TickBudgetMs = 2.0;
+        // Behind the batches by more than CatchUpTicks (a slow start, a joiner's first seconds), a frame may tick for
+        // CatchUpBudgetMs: at 10 fps the 2 ms alone runs fewer ticks than the host stamps, and casts land seconds late.
+        const int CatchUpTicks = 6;
+        const double CatchUpBudgetMs = 8.0;
         const float AimRange = 300f, AimStep = 0.5f;
 
         // Seeded cell kinds.
@@ -177,7 +181,8 @@ namespace Punchy.Chemistry
 
             // The session first, every frame, whatever the view is doing: only the host's clock paces the ticks.
             watch.Restart();
-            session?.Update(Time.deltaTime, () => watch.Elapsed.TotalMilliseconds > TickBudgetMs);
+            var budget = session != null && Behind > CatchUpTicks ? CatchUpBudgetMs : TickBudgetMs;
+            session?.Update(Time.deltaTime, () => watch.Elapsed.TotalMilliseconds > budget);
             tickMsThisSecond += watch.Elapsed.TotalMilliseconds;
 
             if (seeding)
@@ -605,7 +610,7 @@ namespace Punchy.Chemistry
                 Debug.Log($"[Chemistry] tick {session.NetTick}: {burningCount} burning, {burntCount} burnt, {iceCount} ice, {frostCount} frost, " +
                           $"{landWaterCount} water on land, {effects.Steam.Count} steam, {effects.Smoke.Count} smoke, {movedCells} moved; {effects.PuffCount} puffs; " +
                           $"so far {melted} melted, {doused} doused, {boiled} boiled, {steamed} steamed, {condensed} condensed; " +
-                          $"bridge {((tickMsThisSecond + mapMsThisSecond + fxMsThisSecond + landMsThisSecond) / math.max(1, framesThisSecond)):F2} ms a frame " +
+                          $"behind {Behind}; bridge {((tickMsThisSecond + mapMsThisSecond + fxMsThisSecond + landMsThisSecond) / math.max(1, framesThisSecond)):F2} ms a frame " +
                           $"(ticking {tickMsThisSecond:F1} ms, map {mapMsThisSecond:F1} ms, effects {fxMsThisSecond:F1} ms, ground {landMsThisSecond:F1} ms this second, {framesThisSecond} frames)");
             tickMsThisSecond = mapMsThisSecond = fxMsThisSecond = landMsThisSecond = 0;
             framesThisSecond = 0;
