@@ -6639,3 +6639,33 @@ plot rules would have to accept a raised deck).
   - The overhang's source is the lip, not a slit.
 - Not verified: hearing the sound (there is no audio capture in the shots).
 - BENCH-QUEUE request: (A) main vs (B) world/cave-trickles 612dbeff, wet cave c13 near the fan room, -goto 1572,8,-2635, facing west (-x) at the wall. Second spot: c22 (1630,104,1036), with 4 trickles including an overhang. Profile builds, Medium and High, 12:00, plus -sparkleprobe w141. Expect a small cost: a few alpha quads per trickle and one more loop in Cave.shader.
+
+## W-142
+
+### Row 1: falling leaves (#262), branch world/ambient-details (c2da8340 + merge of origin/main 98549567 as d7970f9b), commits d15b9774 (+ ec8c90d6 comment only) - done (verified)
+- What it is: LeafFallSystem (new, Ambience). It drifts things down near the camera:
+  - leaves from tall broadleaf and hive trees, which flutter, tumble and settle on the ground, then fade;
+  - needles from conifers;
+  - flakes from big mushroom caps;
+  - rootlet bits from cave root curtains (underground, rate 0.15, spawned down the curtain so they don't start at the ceiling).
+- Drawing: one quad per drop, posed on the CPU and shaped by kind in LeafFall.shader. Leaves have a pointed outline with midrib and veins. Lit on both sides with sun shining through from behind; underground it is lit by the lantern, torches and molten glow. The ground fade is a dither, so the shader is opaque.
+- Limits: at most 32 live drops, wind-drifted (Climate wind). Reach by screen size (DetailPolicy.ExtraReach), off when Detail < 0.75 (Low).
+- Network: cosmetic and local. Nothing is placed or sent; drops come from the flora and cave plant records already baked (rule 22 kept).
+- Counts:
+  - Marsh (-3492, 3, -1716): 45 leaf trees in range, 32 live (the cap).
+  - Temperate oak spot (-1084, 66, 2802): 14 leaf trees and 20 conifers, 6-8 live.
+  - Root cave (pose -2198.5, 8.9, -1572): 3 curtains, about 12 live.
+- Pins: Landmarks_V3 "landmarks 117 689D5348", fingerprint 7B361633 (both unchanged).
+- Suite: "completed: 40/40 passed" after the last code change. ec8c90d6 adds comments only.
+- lod-lint is clean.
+- Shots, checked at small size, in D:/Unity/PunchyMilestones/W-142/:
+  - w142_marsh_a.png (10 leaves on screen), w142_marsh_b.png (a falling leaf at 3 m)
+  - w142_oak_a.png, w142_oak_b.png (an oak leaf at 2.5 m)
+  - w142_cave_a.png: 3 rootlets. The white specks are another existing effect.
+- Risks: the CPU steps up to 32 drops per frame and gathers sources about every few seconds or after 6 m of travel. There is one RenderPrimitives draw.
+- BENCH-QUEUE request: (A) main vs (B) world/ambient-details ec8c90d6.
+  - Forest walk: the marsh at -goto -3492,3,-1716.
+  - Cave: the root cave at -2198,9,-1572.
+  - Profile builds, Medium and High, 12:00.
+  - Rule 23: Medium ≤ +0.3 ms GPU for all of W-142 together.
+- Next: row 2, smoke vents.
