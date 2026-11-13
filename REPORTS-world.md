@@ -6705,3 +6705,35 @@ plot rules would have to accept a raised deck).
   - Cost: up to 2 emitters per vent in reach, through the existing landmark-effect draw.
 - BENCH job 69 spots (rows 1-3b together; final list comes in the 3b handoff): fissure crack -goto -805,-3398, and lava cave 4 at -208,2,-2727.
 - Next: row 3, lava seeps.
+
+### Row 3: lava seeps (#262), branch world/ambient-details, commit 15353bb4 - done (verified)
+- What it is: W-141's slit and streak in lava. Seeps are CaveTrickle records with a new Lava field, placed at bake by CaveBaking.Seeps.cs (rule 22: each cave's own seed, every draw of a try made before any test). They are appended after the water trickles, so those keep their indices, and they carve nothing.
+  - Where: hot caves (a style with lava pools) want 1-3; caves whose nodes sit under at least 60% volcanic biome want 0-1. Seven in ten tries start by a lava pool.
+  - Kinds: mostly a thick thread or a sheet, sometimes a fan or drops off an overhang. They sit in the lower half of the trickle height band.
+  - Landing: in the cave's lava pool when one is under the seep (new LiquidOver), otherwise on a small glowing puddle.
+- Looks:
+  - Trickle shader: a slow ooze (a tenth of water's speed), dark crust patches drifting over it, hot cracks through the crust, and a pulsing molten glow where it lands. No spray, no rings.
+  - Cave rock (CaveTrickles.hlsl, kinds 4-7): a glowing slit in a dark crust ring, a dark basalt streak with hot cracks near the top, and a molten puddle with a dark rim. The glow is added through a new emissive output in Cave.shader (CRLF kept).
+  - Light: each drawn seep calls LightBudget.AddStill(LightKind.Fire, ...), so R-10 decides by on-screen reach whether it gets a glow slot.
+  - Sound: silent (there is no fitting sound yet).
+- LOD: the trickles' screen-size reach (DetailPolicy.ExtraReach), so near zero at Low as for water trickles.
+- Network: cosmetic, seed-derived, nothing sent.
+- Counts (main world): 6 seeps against 30 water trickles (the water trickles are unchanged).
+  - Hot caves 3 (6 seeps): cave 4 has 3, cave 14 has 2, cave 18 has 1. Volcanic caves 1 (0 seeps).
+  - Kinds: thread 4, fan 1, sheet 1, overhang 0.
+  - Misses: floor 1, wall 1, steep 2, low 3.
+- Pins: fingerprint 7B361633 and landmarks 117 689D5348, both unchanged.
+- Suite: "completed: 40/40 passed" after the last code change.
+- lod-lint is clean.
+- Shots, checked at small size, in D:/Unity/PunchyMilestones/W-142/:
+  - w142r3-cave4-3m.png and w142r3-cave4-15m.png: cave 4, a thread seep at (-213, 6, -2725). At 15 m a second seep shows on the left; a crystal hides part of the near one.
+  - w142r3-cave14-3m.png: cave 14, a fan seep at (624, 11, -2773) with crust between the threads and a glowing puddle.
+  - w142r3-cave14-7m.png: cave 14, the thread seep at (607, 12, -2744). Cave 14 has no 15 m sight line to either seep (a probe swept bearings and heights), so its far shot is 7 m.
+  - w142r3-cave18-3m.png and w142r3-cave18-15m.png: cave 18, a thread seep at (-241, 11, -3200). At 15 m it is small and far down a passage.
+- Risks:
+  - The ooze reads yellow-orange and very bright up close. Row 4 may want it redder or dimmer.
+  - A flat glowing cap shows at the top of the ooze, where the trickle sheet meets the slit.
+  - Seeps don't keep clear of the lava vents. Cave 4 has both near its pool.
+  - Cost: up to 6 more trickles in reach, and up to 6 fire-tier light requests that LightBudget caps.
+- BENCH job 69 spots so far: fissure crack -goto -805,-3398; lava cave 4 at -208,2,-2727 (3 seeps, 2 lava vents and a pool, the busiest spot); cave 14 at 615,11,-2758. The final list comes in the 3b handoff.
+- Next: row 3b, cobwebs.
