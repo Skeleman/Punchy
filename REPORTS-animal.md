@@ -3685,6 +3685,16 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - Branch: only new commits on fauna/breath from here (A-103 merged 47a60b7e).
 - Next: row 3, the player dives.
 
+### Row 3: the player dives (4ef9b787)
+- Swimming, crouch held takes the player down (1.6 m/s) and jump held brings it up (2 m/s). With neither held it drifts slowly up. Its feet stay just off the bed. When the breath meter empties (Gasping) it is pushed up at 1.5 m/s and can't go down again until a quarter of the breath is back (about 1 s at the surface). Water breathers (`PlayerBody.BreathesWater`) never drain. No damage. Under water a jump press only rises (no leap out from below).
+- State: `PlayerMotion.Dive` (m under the swim depth), next to `BreathUsed` and `Gasping`. P-34 can read all three on the local player. Other players' breath is in the replicated `NetPlayerLook.BreathUsed`. Dive is local player state like the rest of PlayerMotion (movement is client-authoritative), so it runs the same solo, as host and on a joined client. Others see the dive through the avatar's position. No new GhostFields in this row.
+- Check: `-island v3`, shot list `-place lake -time 12 -weather Clear -playerdive` (water 4.2 m deep), air breather: "PlayerDive: PASS: air breather, deepest 2.73 m, rose on jump True, most breath used 1.00, gasped at 36 s, dive when it caught its breath 0.03 m, grew while gasping False, dived again True, NaN False". With `-playerdive water` (sets the body's BreathesWater): "PlayerDive: PASS: water breather, deepest 2.73 m, ... most breath used 0.00, gasped at -1 s, ... NaN False". The editor's saved character body was Horse, so both runs were a horse.
+- Shots in D:/Unity/PunchyMilestones/A-102/ (800x450): row3-1-surface.jpg (at the swim depth), row3-2-dived.jpg (about 2.7 m down, a faint shape under the water), row3-3-rising.jpg (drifting back up). The camera never goes under the water, so dived bodies show only faintly. An underwater view would be its own card.
+- Not done: a joined-client clip. It needs a player build of this branch (row 1 changed the ghost layout), and builds go only to the world tree, which I don't write in. The code path is the same local-player one on every machine. Supervisor: build fauna/breath and join it, or card the clip.
+- FishFolk isn't a playable body, so `-setbody FishFolk` does nothing. A sea folk player waits on A-103 adding a playable SeaFolk; the test's `water` mode stands in for it until then.
+- Pins: Fauna_Fingerprint 151753F3 before and after. No landmark or placement change.
+- Suite: "completed: 33/33 passed" (PlayMode), the full run after the last change.
+
 ## A-103: folk homes, people in the turtle igloos and the sea folk city, branch fauna/folk-homes
 
 ### Row 1: turtle folk (done, verified)
