@@ -1307,6 +1307,14 @@ namespace Punchy.Fauna
             return new float3(0f, 0f, -0.75f *math.clamp(1.5f * math.sin(t * 0.32f), -1f, 1f));
         }
 
+        /// <summary>A-106: where a sweeper is in its broom stroke (0..1, one stroke there and back), so the ash puffs
+        /// (WorkDust) land on the stroke.</summary>
+        public static float SweepPhase(in CreatureState s) => math.frac((s.Clock + (s.Individual % 100) * 0.13f) * 0.55f);
+
+        /// <summary>A-106: where a shoveller is in its scoop, lift and toss (0..1; the toss is at about 0.7), shared with
+        /// WorkDust and the gear.</summary>
+        public static float ShovelPhase(in CreatureState s) => math.frac((s.Clock + (s.Individual % 100) * 0.13f) * 0.3f);
+
         static float3 TaskPose(ref CreaturePart part, in CreatureState s, int joint)
         {
             if (part.Role == LimbRole.Arm && joint <= 1 && s.Mode == CreatureMode.Hunt && s.Task == CreatureTask.Hunt)
@@ -1375,6 +1383,29 @@ namespace Punchy.Fauna
                             var circle = t * 0.7f + (right ? math.PI : 0f);
                             var feed = math.smoothstep(0.75f, 0.9f, 0.5f + 0.5f * math.sin(t * 0.21f));
                             return new float3(joint == 0 ? -1.05f - 0.12f * math.sin(circle) - 0.3f * feed : -0.75f + 0.18f * math.cos(circle), 0f, 0f);
+                        }
+                        case FolkJob.AshSweeper:
+                        {
+                            // (A-106) Sweeping ash: both hands low on the broom, short strokes side to side (the lower
+                            // hand reaches further).
+                            var stroke = math.sin(SweepPhase(in s) * 2f * math.PI);
+                            return new float3(joint == 0 ? (right ? -0.35f : -0.6f) - 0.22f * stroke : -0.3f + 0.1f * stroke, 0f, 0f);
+                        }
+                        case FolkJob.SnowShoveller:
+                        case FolkJob.SandClearer:
+                        {
+                            // (A-106) Shovelling: push the blade in low, lift the load, toss it aside, back down.
+                            var p = ShovelPhase(in s);
+                            var lift = math.smoothstep(0.4f, 0.62f, p) * (1f - math.smoothstep(0.8f, 0.96f, p));
+                            var toss = math.smoothstep(0.66f, 0.74f, p) * (1f - math.smoothstep(0.74f, 0.88f, p));
+                            var low = right ? 0f : 0.15f;
+                            return new float3(joint == 0 ? -0.45f + low - 0.85f * lift - 0.5f * toss : -0.3f - 0.45f * lift + 0.35f * toss, 0f, 0f);
+                        }
+                        case FolkJob.Roofer:
+                        {
+                            // (A-106) Tying the roof down: hauling the rope up at the eave hand over hand, arms high.
+                            var reach = Haul(t * 0.8f, right);
+                            return new float3(joint == 0 ? -1.5f - 0.9f * reach : -0.35f + 0.2f * reach, 0f, 0f);
                         }
                         default:
                             return new float3(joint == 0 ? -0.65f + 0.22f * math.sin(t * 1.5f + (right ? 0f : 1.4f)) : -0.55f, 0f, 0f);

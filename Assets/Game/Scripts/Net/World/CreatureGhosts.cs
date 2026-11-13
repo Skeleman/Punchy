@@ -205,6 +205,14 @@ namespace Punchy.Net
                     if (job != FolkJob.None) c.Job = (byte)job;
                     else if (c.Job == 0) c.Job = (byte)FolkJob.Elder;
                 }
+                // (StageTime is local: count it here, so a client's timed stage looks (a growing snow pile) match.)
+                c.StageTime = n.Stage == c.Stage ? c.StageTime + dt : 0f;
+                // A-106: a harsh-biome job works at its own stage, so read the job off it (kept once known).
+                if (c.Mode == CreatureMode.Work && (c.Job == 0 || c.Job >= (byte)FolkJob.AshSweeper))
+                {
+                    var harsh = FolkJobs.FromWorkStage(c.Task, n.Stage);
+                    if (harsh != FolkJob.None) c.Job = (byte)harsh;
+                }
                 c.Stage = n.Stage;
                 c.Speed = n.Speed;
                 c.Look = n.Look;

@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1a0f974c856d8a6448cefd4ea2d5904b, type: 3}
+  m_Name: AshWork
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Fauna.FolkWorkSet
+  Biomes:
+  - {fileID: 11400000, guid: 46ea94191e2f71c4a8446135874892e0, type: 2}
+  - {fileID: 11400000, guid: 93ff6be7202cac44c92738804e0eb5f3, type: 2}
+  - {fileID: 11400000, guid: 3abd880b4b52a0d45ac7f2b3a687cee8, type: 2}
+  Jobs:
+  - Job: 27
+    Kind: 0
+    MinFree: 2
+    Beyond: 0
+    Dust: {r: 0.45, g: 0.43, b: 0.42, a: 0.8}
+  - Job: 31
+    Kind: 16
+    MinFree: 3
+    Beyond: 0
+    Dust: {r: 0, g: 0, b: 0, a: 0}
+  AloneLines: []
