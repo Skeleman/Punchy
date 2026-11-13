@@ -28,7 +28,7 @@ namespace Punchy.Terrain
         /// <summary>The veil lifts after this long (real seconds) even if the near ring isn't in.</summary>
         const float Cap = 4f;
         /// <summary>Fade out time (real seconds).</summary>
-        const float FadeOut = 0.35f;
+        const float FadeOut = 0.35f; // sim: a time in seconds, not a range
 
         static LoadVeil instance;
         static readonly bool Off = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-noveil") >= 0;
