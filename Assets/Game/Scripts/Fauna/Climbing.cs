@@ -170,6 +170,13 @@ namespace Punchy.Fauna
             SharedStatic<FixedList512Bytes<Punchy.Terrain.ClimbLadder>>.GetOrCreate<ClimbLadders, ListKey>();
         class ListKey { }
 
+        /// <summary>The flora blob the ladders come from, set by FaunaDirector where it builds the Flora Lookup and
+        /// cleared before it frees it. The lookup lives only in the sim world (the server world when hosting), while
+        /// the player moves in the client world, so ClimbLadderSystem falls back to this one.</summary>
+        public static readonly SharedStatic<BlobAssetReference<Punchy.Flora.FloraBlob>> Flora =
+            SharedStatic<BlobAssetReference<Punchy.Flora.FloraBlob>>.GetOrCreate<ClimbLadders, FloraKey>();
+        class FloraKey { }
+
         /// <summary>How far round each player ladders are gathered (m): past a climb's reach and a step off its top.</summary>
         public const float Gather = 4f;
         /// <summary>How far either side of a ladder's rails a climber still holds it (m).</summary>
@@ -253,13 +260,15 @@ namespace Punchy.Fauna
         {
             ref var list = ref ClimbLadders.List.Data;
             list.Clear();
-            if (!SystemAPI.TryGetSingleton<Punchy.Flora.FloraLookup>(out var flora) || !flora.Blob.IsCreated)
+            // This world's Flora Lookup when it has one (solo), else the sim world's (a host's client world).
+            var blob = SystemAPI.TryGetSingleton<Punchy.Flora.FloraLookup>(out var flora) ? flora.Blob : ClimbLadders.Flora.Data;
+            if (!blob.IsCreated)
                 return;
             var terrain = SystemAPI.GetSingleton<Punchy.Terrain.TerrainSource>();
             foreach (var t in SystemAPI.Query<RefRO<LocalTransform>>().WithAll<Punchy.Player.PlayerTag>())
-                Gather(ref flora.Blob.Value, terrain, t.ValueRO.Position, ref list);
+                Gather(ref blob.Value, terrain, t.ValueRO.Position, ref list);
             foreach (var t in SystemAPI.Query<RefRO<LocalTransform>>().WithAll<Punchy.Net.NetPlayerLook>())
-                Gather(ref flora.Blob.Value, terrain, t.ValueRO.Position, ref list);
+                Gather(ref blob.Value, terrain, t.ValueRO.Position, ref list);
         }
 
         static void Gather(ref Punchy.Flora.FloraBlob f, in Punchy.Terrain.TerrainSource terrain, float3 at,
