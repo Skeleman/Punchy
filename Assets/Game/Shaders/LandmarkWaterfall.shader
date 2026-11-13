@@ -76,6 +76,20 @@ Shader "Punchy/Landmark Waterfall"
                 half alpha = e.timing.z * edges * lerp(lerp(0.55, 0.12, e.underRock), 1, streak) * lerp(ragged, 1, lerp(0.8, 0.5, e.underRock)) * smoothstep(0, 0.03, uv.y);
                 // The open sheet thins as it falls.
                 alpha *= lerp(1, 1 - 0.22 * uv.y, 1 - e.underRock);
+                // R-21 row 2: the open sheet's foot turns to white water where it hits its pool or ledge, and its lip
+                // throws sparse spray streaks. By screen size (rule 20, the pixels a metre covers here): far away the
+                // foot is only a soft whitening, so the fall still reads as one sheet; close up the foam churns and
+                // breaks its edge, and the spray shows.
+                float open = 1 - e.underRock;
+                float perMetre = _ScreenParams.y * 0.5 * UNITY_MATRIX_P._m11 / max(distance(input.positionWS, GetCameraPositionWS()), 0.1);
+                float near = smoothstep(4, 10, perMetre) * open;
+                float churn = PunchyValueNoise(float2(uv.x * wide * 1.2 + 71.0, along * 0.9 + _Time.y * 0.7));
+                float footBand = smoothstep(0.8 - 0.12 * churn * near, 0.97, uv.y) * open;
+                foam = max(foam, footBand * lerp(0.7, 0.55 + 0.6 * churn, near));
+                alpha = max(alpha, e.timing.z * edges * footBand * lerp(0.75, 0.65 + 0.35 * churn, near));
+                float spray = smoothstep(0.78, 0.92, PunchyValueNoise(float2(uv.x * wide * 2.5 + 17.0, along * 0.6))) * (1 - smoothstep(0.02, 0.22, uv.y)) * near;
+                foam = max(foam, spray);
+                alpha = max(alpha, e.timing.z * edges * spray * 0.85);
                 // Under rock the top frays out of the notch rather than starting on a straight edge.
                 alpha *= lerp(1, smoothstep(0, 0.12, uv.y + (streak - 0.5) * 0.1), e.underRock);
                 clip(alpha - 0.01);
