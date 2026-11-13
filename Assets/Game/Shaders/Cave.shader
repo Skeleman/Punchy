@@ -23,6 +23,9 @@ Shader "Punchy/Cave"
         // A-91: what a room kit copy of this material is made of: -1 as is (crystals, bone), 0 bare rock (damp,
         // drips, mineral veins), 1 dressed stone (blocks, flagstones), 2 wood, 3 iron.
         [HideInInspector] _Dressed ("Dressed", Float) = 0
+        // W-144 row 1b: extra light on things drawn in front of glowing walls (climb vines, chalk), set per draw from
+        // the cave style's glow; 0 for everything else.
+        [HideInInspector] _WallLight ("Light from glowing walls", Color) = (0, 0, 0, 0)
     }
 
     SubShader
@@ -38,6 +41,7 @@ Shader "Punchy/Cave"
             half4 _DarkColor;
             half _Darkness;
             half _Dressed;
+            half4 _WallLight;
         CBUFFER_END
 
         struct CaveAttributes
@@ -413,7 +417,7 @@ Shader "Punchy/Cave"
 
                 // Daylight reaches only near the entrance. Openness is per vertex, so this branch is coherent: deep
                 // inside, whole wavefronts skip the sun's shadow taps.
-                half3 light = SampleSH(n) * lerp(_Darkness, 1, openness);
+                half3 light = SampleSH(n) * lerp(_Darkness, 1, openness) + _WallLight.rgb;
                 if (openness > 0.001)
                 {
                     Light sun = GetMainLight(TransformWorldToShadowCoord(p));
