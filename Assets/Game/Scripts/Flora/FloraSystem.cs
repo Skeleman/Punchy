@@ -756,7 +756,10 @@ namespace Punchy.Flora
             return math.max(2, math.round(config.ViewRadiusChunks * Punchy.Settings.GraphicsSettings.View)) * config.ChunkSize;
         }
 
-        /// <summary>Set when a flora keep-out circle changes (a colossus placed): every streamed tile is dropped once and re-placed.</summary>
+        /// <summary>
+        /// Set when a flora keep-out circle changes (a colossus placed or its loop widened): the streamed tiles under the
+        /// circles that changed are dropped once and re-placed (ChangedKeepOuts, FloraSystem.Jump.cs).
+        /// </summary>
         public static bool Replant;
 
         void Stream(in TerrainSource source, float2 camXZ)
@@ -764,8 +767,8 @@ namespace Punchy.Flora
             // Tiles stream by ground distance on purpose (R-6 row 0): the cull measures 3D distance to each plant,
             // which is never shorter than the ground distance, so the ground ring always holds every plant the cull
             // could draw, and climbing doesn't drop and re-place tiles.
-            // Unload tiles that fell out of range (or every tile once, when a keep-out circle changed: see Replant).
-            var all = Replant;
+            // Unload tiles that fell out of range (or under a keep-out circle that changed: see Replant).
+            var replant = Replant && ChangedKeepOuts();
             Replant = false;
             foreach (var l in layers)
             {
@@ -777,7 +780,7 @@ namespace Punchy.Flora
                 var refar = l.FarTiles.Count > 0 && (ppm > l.FarPpm * 1.1f || ppm < l.FarPpm * 0.8f);
                 foreach (var kv in l.Tiles)
                 {
-                    var gone = all || math.distance(TileCentre(l, kv.Key), camXZ) > keep;
+                    var gone = replant && UnderChangedKeepOut(l, kv.Key) || math.distance(TileCentre(l, kv.Key), camXZ) > keep;
                     if (!gone && l.FarTiles.TryGetValue(kv.Key, out var from))
                     {
                         var d = TileNearest(l, kv.Key, camXZ);
@@ -806,12 +809,16 @@ namespace Punchy.Flora
             // Placement runs in the background: collect each layer's finished batch, then start the next one with the
             // nearest missing tiles, within a shared per-frame budget (near layers first).
             // W-75: larger batches while the world first loads (no frame to protect before the player spawns).
-            var budget = Punchy.Terrain.TerrainStreamingSystem.Loading ? CellsPerFrame * 4 : CellsPerFrame;
+            // W-151: after a jump (the load, or a warp) the trees and buildings go first, with most of a boosted budget
+            // (FloraSystem.Jump.cs); at walking speed the order stays ground, shrubs, trees.
+            var bigFirst = JumpUpdate(camXZ);
+            var budget = Punchy.Terrain.TerrainStreamingSystem.Loading || bigFirst ? CellsPerFrame * 4 : CellsPerFrame;
             // (R-6 row 4: two passes, every layer's tiles inside its radius first, then the far tiles with what's left,
             // so the shrubs' far ring never holds up the trees' near tiles.)
             for (int pass = 0; pass < 2; pass++)
-            foreach (var l in layers)
+            for (int k = 0; k < layers.Length; k++)
             {
+                var l = layers[bigFirst ? layers.Length - 1 - k : k];
                 if (l.ModelCount == 0)
                     continue;
                 var cellsPerSide = (int)math.round(l.Settings.TileSize / l.Settings.CellSize);
@@ -845,7 +852,8 @@ namespace Punchy.Flora
                 tileOrder.TileSize = l.Settings.TileSize;
                 tileOrder.Eye = camXZ;
                 scratch.Sort(tileOrder);
-                var count = math.min(scratch.Count, math.max(1, budget / perTile));
+                var allowed = bigFirst && pass == 0 && k == 0 ? (int)(budget * JumpTreeShare) : budget;
+                var count = math.min(scratch.Count, math.max(1, allowed / perTile));
                 budget -= count * perTile;
 
                 l.PlacingTiles = new NativeArray<int2>(count, Allocator.Persistent);
