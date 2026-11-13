@@ -12,7 +12,14 @@ namespace Punchy.Terrain
         /// not a box. Centre: the middle of the wall's top; Size: x along the wall, y how far it hangs down each face, z the
         /// wall's thickness it wraps over.
         /// </summary>
-        MossCap
+        MossCap,
+        /// <summary>
+        /// W-147: a ladder (Climbability grade 1), drawn as two rails and rungs (wood, or rope rails with wood rungs in
+        /// Net). Its local +Y runs up the ladder, +Z is the side a climber stands on, X across. Centre and Size cover the
+        /// rails, which reach a grab (StructureKit.LadderGrab) past the landing; StructureKit.LadderFoot and LadderLanding
+        /// read the ends back. Decor: no collision.
+        /// </summary>
+        Ladder
     }
 
     /// <summary>Which of a culture's trim-set colours a part is drawn in.</summary>
@@ -102,7 +109,10 @@ namespace Punchy.Terrain
         MarshWalk,
         /// <summary>W-127: a street light (the species' Fixture Style) that a settlement puts by doors, along streets and
         /// at piers (SettlementLayout.Fixtures, LandmarkType.Fixtures), lit after dark.</summary>
-        Fixture
+        Fixture,
+        /// <summary>W-147: a free-standing ladder from its foot (the origin) up StructureKit.LadderPieceHeight(variant),
+        /// climbed from +Z: the mines' ladders between levels and up shafts.</summary>
+        Ladder
     }
 
     /// <summary>
@@ -385,6 +395,183 @@ namespace Punchy.Terrain
         /// <summary>W-128: how deep a moored boat's hull sits in the water, underside to waterline.</summary>
         public const float BoatDraft = 0.18f;
 
+        // ------------------------------------------------------------------------------------------------ ladders (W-147)
+
+        /// <summary>W-147: how far a ladder's rails reach above its landing (something to hold stepping off).</summary>
+        public const float LadderGrab = 0.9f;
+        /// <summary>W-147: a ladder's width, rail to rail.</summary>
+        public const float LadderWidth = 0.55f;
+        /// <summary>W-147: how far a water ladder's foot reaches under the water.</summary>
+        public const float LadderWet = 1.4f;
+        /// <summary>W-147: a ladder's Climbability grade (A-101: 5 smooth wall .. 1 ladder).</summary>
+        public const byte LadderGrade = 1;
+        /// <summary>
+        /// W-147: the mine ladder pieces (KitShape.Ladder) by variant: 2 m to 4 m in 0.5 m steps. No more than the cave's
+        /// models per species (CaveSystem.PlantVariants, 5): a variant past those has no model and isn't drawn.
+        /// </summary>
+        public const int LadderPieces = 5;
+        public static float LadderPieceHeight(int variant) => 2f + Mathf.Clamp(variant, 0, LadderPieces - 1) * 0.5f;
+
+        /// <summary>
+        /// W-147: adds a ladder from <paramref name="foot"/> up to <paramref name="landing"/> (where a climber steps off),
+        /// climbed from the <paramref name="outward"/> side (horizontal). The rails reach <paramref name="grab"/> past the
+        /// landing. Rope rails (with wood rungs) at fishing villages, wood elsewhere.
+        /// </summary>
+        public static void Ladder(List<KitPart> parts, Vector3 foot, Vector3 landing, Vector3 outward, bool rope, float grab = LadderGrab)
+        {
+            var axis = landing - foot;
+            var length = axis.magnitude;
+            if (length < 0.3f)
+                return;
+            var up = axis / length;
+            outward.y = 0f;
+            var forward = outward - up * Vector3.Dot(outward, up);
+            if (forward.sqrMagnitude < 1e-4f)
+                forward = Vector3.Cross(up, Vector3.right);
+            var total = length + grab;
+            parts.Add(new KitPart
+            {
+                Piece = KitPiece.Ladder, Material = rope ? KitMaterial.Net : KitMaterial.Wood,
+                Centre = foot + up * (total * 0.5f), Size = new Vector3(LadderWidth, total, 0.08f),
+                Rotation = Quaternion.LookRotation(forward.normalized, up), Solid = false, Afloat = foot.y < -0.01f   // (a water ladder keeps its foot: no skirt)
+            });
+        }
+
+        /// <summary>W-147: a ladder part's foot (the bottom of its rails).</summary>
+        public static Vector3 LadderFoot(in KitPart p) => p.Centre - p.Rotation * Vector3.up * (p.Size.y * 0.5f);
+        /// <summary>W-147: a ladder part's landing (where a climber steps off, <paramref name="grab"/> below the rails' tops).</summary>
+        public static Vector3 LadderLanding(in KitPart p, float grab = LadderGrab) => p.Centre + p.Rotation * Vector3.up * (p.Size.y * 0.5f - grab);
+
+        /// <summary>
+        /// W-147: a mine's ladder piece, <paramref name="height"/> tall from its foot at the origin, climbed from +Z (the
+        /// rock it stands against is at -Z). No grab past the top: pieces stack up a shaft, and the bake ends the top
+        /// piece LadderGrab above the landing.
+        /// </summary>
+        public static List<KitPart> LadderPiece(float height)
+        {
+            var parts = new List<KitPart>();
+            Ladder(parts, Vector3.zero, Vector3.up * height, Vector3.forward, false, 0f);
+            return parts;
+        }
+
+        /// <summary>
+        /// W-147: the long rail on one side (<paramref name="side"/> -1 or 1, its x sign) of a Platform built along Z,
+        /// split round a gap at <paramref name="z"/> so a ladder can come up through it.
+        /// </summary>
+        static void SplitRail(List<KitPart> parts, float side, float z, float gap = 0.9f)
+        {
+            for (int i = 0; i < parts.Count; i++)
+            {
+                var p = parts[i];
+                if (p.Piece != KitPiece.Rail || p.Size.z < 2f || Mathf.Sign(p.Centre.x) != side || p.Rotation != Quaternion.identity)
+                    continue;
+                float z0 = p.Centre.z - p.Size.z * 0.5f, z1 = p.Centre.z + p.Size.z * 0.5f;
+                if (z <= z0 || z >= z1)
+                    continue;
+                var a = new Vector2(z0, z - gap * 0.5f);
+                var b = new Vector2(z + gap * 0.5f, z1);
+                p.Centre.z = (a.x + a.y) * 0.5f;
+                p.Size.z = a.y - a.x;
+                parts[i] = p;
+                p.Centre.z = (b.x + b.y) * 0.5f;
+                p.Size.z = b.y - b.x;
+                parts.Add(p);
+                return;
+            }
+        }
+
+        /// <summary>
+        /// W-147: the ladders on a dock or pier (a Platform along +Z from the origin, <paramref name="length"/> long, its
+        /// deck <paramref name="deck"/> up, the water at <paramref name="water"/>): one down into the water off the far
+        /// end, and one or two on the sides between posts, clear of what's on the deck there (crab pots, lamps) and off
+        /// the side a boat is moored. Its own draws, after the structure's, so the rest is as it was. Parts from
+        /// <paramref name="detailsFrom"/> on are the things to keep clear of.
+        /// </summary>
+        static void WaterLadders(List<KitPart> parts, uint seed, float length, float width, float deck, float water, int posts, int detailsFrom, bool rope)
+        {
+            var rng = new System.Random((int)(Scramble(seed ^ 0x1ADDu) & 0x7FFFFFFF));
+            var foot = water - LadderWet;
+            // The far end, a little off the middle (a dock's lantern stands at +X).
+            var endX = -width * (0.12f + 0.1f * (float)rng.NextDouble());
+            Ladder(parts, new Vector3(endX, foot, length + 0.12f), new Vector3(endX, deck, length + 0.12f), Vector3.forward, rope);
+            // The sides: the side away from a moored boat, else either.
+            var boat = 0f;
+            for (int i = detailsFrom; i < parts.Count; i++)
+                if (parts[i].Keel)
+                    boat = Mathf.Sign(parts[i].Centre.x);
+            var side = boat != 0f ? -boat : (rng.Next(2) == 0 ? -1f : 1f);
+            var gaps = posts - 1;
+            var count = length > 14f ? 2 : 1;
+            var used = -1;
+            for (int n = 0; n < count && gaps >= 3; n++)
+            {
+                // Bays from the second to the second last (not by the ramp, not by the end ladder), from a random start.
+                var start = rng.Next(gaps - 2);
+                for (int t = 0; t < gaps - 2; t++)
+                {
+                    var k = 1 + (start + t) % (gaps - 2);
+                    if (used >= 0 && Mathf.Abs(k - used) < 2)
+                        continue;
+                    var z = (k + 0.5f) * length / gaps;
+                    var edge = new Vector3(side * (width * 0.5f + 0.1f), deck, z);
+                    var clear = true;
+                    for (int i = detailsFrom; i < parts.Count && clear; i++)
+                        if (parts[i].Piece != KitPiece.Ladder && !parts[i].Keel && parts[i].Centre.y > deck - 0.3f &&
+                            new Vector2(parts[i].Centre.x - edge.x, parts[i].Centre.z - edge.z).magnitude < 1.1f)
+                            clear = false;
+                    if (!clear)
+                        continue;
+                    SplitRail(parts, side, z);
+                    Ladder(parts, new Vector3(edge.x, foot, z), edge, new Vector3(side, 0f, 0f), rope);
+                    used = k;
+                    break;
+                }
+                side = -side;   // a second one on the other side
+            }
+        }
+
+        /// <summary>
+        /// W-147: a share of plain houses, by their folk's roof, get a ladder up to the roof: a flat roof half the time,
+        /// up a side wall to the roof behind its parapet; one pitched roof in five, up the back wall to the eave.
+        /// Tiered roofs never. Its own draws from the seed (the house is as it was). Wood.
+        /// </summary>
+        public static void RoofLadder(List<KitPart> parts, uint seed, CultureTrim t, float width, float depth, int storeys)
+        {
+            var hash = Scramble(seed ^ 0x2ADDu);
+            var roll = (hash & 0xFFFF) / 65535f;   // straight from the hash: System.Random's first draw follows its seed
+            var rng = new System.Random((int)(Scramble(hash) & 0x7FFFFFFF));
+            var top = Mathf.Max(1, storeys) * t.Storey;
+            switch (t.Roof)
+            {
+                case KitRoof.Flat:
+                {
+                    if (roll > 0.5f)
+                        return;
+                    // Up a side wall, at a bay joint (the windows sit mid-bay).
+                    var side = rng.Next(2) == 0 ? -1f : 1f;
+                    var bays = Mathf.Max(1, Mathf.RoundToInt(depth / t.Bay));
+                    var z = bays > 1 ? -depth * 0.5f + (1 + rng.Next(bays - 1)) * depth / bays : -depth * 0.5f + 0.5f;
+                    var x = side * (width * 0.5f + Thick * 0.5f + 0.1f);
+                    Ladder(parts, new Vector3(x, 0f, z), new Vector3(x, top + 0.7f, z), new Vector3(side, 0f, 0f), false);
+                    break;
+                }
+                case KitRoof.Gable:
+                case KitRoof.Steep:
+                {
+                    if (roll > 0.2f)
+                        return;
+                    // Up the back wall, its foot a little out, leaning in to the eave's edge.
+                    const float eave = 0.45f, slab = 0.2f;
+                    var pitch = Mathf.Max(t.Pitch, 20f) * Mathf.Deg2Rad;
+                    var edge = top + slab - eave * Mathf.Tan(pitch);
+                    var x = (rng.NextDouble() < 0.5 ? -1f : 1f) * width * 0.25f;
+                    var z = -(depth * 0.5f + eave + 0.1f);
+                    Ladder(parts, new Vector3(x, 0f, z - 0.35f), new Vector3(x, edge, z), Vector3.back, false);
+                    break;
+                }
+            }
+        }
+
         /// <summary>W-119: how much more often a trade's own details turn up on its shore.</summary>
         static float TradeWeight(CoastDetail kind, int trade) => trade switch
         {
@@ -433,6 +620,10 @@ namespace Punchy.Terrain
             var walk = StiltWalkMin + (Scramble(seed ^ 0x3A1C5u) & 0xFF) / 255f * StiltWalkSpread;
             Platform(parts, new Vector3(doorX, 0f, porchEnd + walk * 0.5f), 0f, 1.6f, walk, stilts, true);
             Stair(parts, new Vector3(doorX, 0f, porchEnd + walk + steps * 0.15f + 0.5f), 180f, stilts, 1.3f);
+            // W-147: a rope ladder off the deck's seaward (back) edge, down into the water (no draws).
+            var backX = doorX + ((Scramble(seed ^ 0x3ADDu) & 0xFF) / 255f - 0.5f) * width * 0.6f;
+            var backZ = -(depth + 1.6f) * 0.5f - 0.12f;
+            Ladder(parts, new Vector3(backX, -LadderWet - 0.5f, backZ), new Vector3(backX, stilts, backZ), Vector3.back, true);
             // Everything moves back so the stair's foot is at the origin; posts down to the ground become piles.
             var foot = porchEnd + walk + 0.65f + steps * 0.3f;
             for (int i = 0; i < parts.Count; i++)
@@ -794,6 +985,7 @@ namespace Punchy.Terrain
             Add(parts, KitPiece.Platform, KitMaterial.Wood, new Vector3(0f, (deck - rampDrop) * 0.5f, -rampRun * 0.5f) - down, new Vector3(width * 0.8f, 0.16f, slope), 0f, false, pitch);
             for (int k = 1; k < 5; k++)
                 Add(parts, KitPiece.Trim, KitMaterial.Wood, new Vector3(0f, deck - rise * k / 5f + 0.02f, -rampRun * k / 5f), new Vector3(width * 0.78f, 0.05f, 0.08f), 0f, false);
+            var details = parts.Count;
             Detail(parts, CoastDetail.Lantern, new Vector3(width * 0.35f, deck, length - 0.4f), 0f, rng, t);
             // W-59d: the crab pots stand along the deck's left edge, their row turned along the dock and the buoy on the
             // outside, so a walk lane down the middle stays clear (they used to sit across the centre line). Same draws.
@@ -801,6 +993,8 @@ namespace Punchy.Terrain
                 Detail(parts, CoastDetail.CrabPots, new Vector3(-width * 0.5f + 0.42f, deck, length * (0.4f + 0.4f * (float)rng.NextDouble())), 270f + ((float)rng.NextDouble() - 0.5f) * 8f, rng, t);
             if (rng.NextDouble() < 0.75)   // moored alongside, riding at the water
                 Detail(parts, CoastDetail.Boat, new Vector3((rng.Next(2) == 0 ? -1f : 1f) * (width * 0.5f + 1.1f), -DockWater, length * (0.45f + 0.35f * (float)rng.NextDouble())), 0f, rng, t, true);
+            // W-147: rope ladders down into the water off the end and a side, so a swimmer can climb out.
+            WaterLadders(parts, seed, length, width, deck, -DockWater, Mathf.Max(2, Mathf.RoundToInt(length / 2.2f) + 1), details, true);
             return parts;
         }
 
@@ -1014,11 +1208,9 @@ namespace Punchy.Terrain
                         outward = new Vector3(0f, 0f, m.z >= length ? 1f : -1f);
                     else
                         outward = new Vector3(Mathf.Sign(m.x == 0f ? 1f : m.x), 0f, 0f);
+                    // W-147: the kit's rope ladder (grade 1), from under the water up to the deck.
                     var foot = m + outward * 0.2f;
-                    foreach (var s in new[] { -0.3f, 0.3f })
-                        Add(parts, KitPiece.Trim, KitMaterial.Wood, foot + dir * s + Vector3.up * (deck - 0.9f), new Vector3(0.08f, deck + 2.6f, 0.08f), 0f, false);
-                    for (var y = deck - 0.25f; y > -1.6f; y -= 0.35f)
-                        Add(parts, KitPiece.Trim, KitMaterial.Wood, foot + Vector3.up * y, Mathf.Abs(dir.x) > 0.5f ? new Vector3(0.6f, 0.05f, 0.05f) : new Vector3(0.05f, 0.05f, 0.6f), 0f, false);
+                    Ladder(parts, foot + Vector3.up * (-DockWater - LadderWet), foot + Vector3.up * deck, outward, true);
                 }
                 else
                     pieces.Add((a, b));
@@ -1561,6 +1753,7 @@ namespace Punchy.Terrain
             var down = Quaternion.Euler(pitch, 0f, 0f) * Vector3.up * 0.08f;
             Add(parts, KitPiece.Platform, KitMaterial.Wood, new Vector3(0f, (deck - rampDrop) * 0.5f, -rampRun * 0.5f) - down, new Vector3(width * 0.8f, 0.16f, slope), 0f, false, pitch);
             // Shell lamps on every other rail post, glowing at dusk.
+            var details = parts.Count;
             for (int k = 1, n = Mathf.RoundToInt(length / 6f); k <= n; k++)
             {
                 var side = k % 2 == 0 ? -1f : 1f;
@@ -1571,6 +1764,8 @@ namespace Punchy.Terrain
                 Add(parts, KitPiece.Column, KitMaterial.Trim, new Vector3(side * (width * 0.5f + 0.1f), deck + 1.6f, length - 0.3f), new Vector3(0.36f, 3.2f, 0.36f), (float)rng.NextDouble() * 30f, false);
             Add(parts, KitPiece.Arch, KitMaterial.Trim, new Vector3(0f, deck + 3.3f, length - 0.3f), new Vector3(width + 0.9f, 0.4f, 0.4f), 0f, false);
             Add(parts, KitPiece.Chimney, KitMaterial.Rune, new Vector3(0f, deck + 3.8f, length - 0.3f), new Vector3(0.5f, 0.5f, 0.5f), 45f, false, 45f);
+            // W-147: wooden ladders down into the lake off the end and the sides.
+            WaterLadders(parts, seed, length, width, deck, -DockWater, Mathf.Max(2, Mathf.RoundToInt(length / 2.2f) + 1), details, false);
             return parts;
         }
 
