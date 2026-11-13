@@ -493,18 +493,22 @@ namespace Punchy.Fauna
             return Take(best, m);
         }
 
-        static int FreeMember(Household house, bool child, bool needAdult)
+        static int FreeMember(Household house, bool child, bool needAdult) => FreeMember(house, house.Taken, child, needAdult);
+
+        /// <summary>The first free place of that kind in a house, by a tally of the places taken (the house's own, or
+        /// the far figures' (A-109), who are placed by the same rule without touching it).</summary>
+        static int FreeMember(Household house, uint taken, bool child, bool needAdult)
         {
             if (needAdult)
             {
                 var adultIn = false;
                 for (int m = 0; m < house.Members.Length; m++)
-                    adultIn |= house.Members[m].Role != Kin.Child && (house.Taken >> m & 1u) != 0;
+                    adultIn |= house.Members[m].Role != Kin.Child && (taken >> m & 1u) != 0;
                 if (!adultIn)
                     return -1;
             }
             for (int m = 0; m < house.Members.Length; m++)
-                if ((house.Members[m].Role == Kin.Child) == child && (house.Taken >> m & 1u) == 0)
+                if ((house.Members[m].Role == Kin.Child) == child && (taken >> m & 1u) == 0)
                     return m;
             return -1;
         }
@@ -610,6 +614,7 @@ namespace Punchy.Fauna
         void TeardownHouses()
         {
             Households.Clear();
+            TeardownFarFolk();   // (A-109: the far figures are built from these houses)
             housesSeen.Clear();
             housesInside.Clear();
             houseArrivals = houseWrongDoor = 0;

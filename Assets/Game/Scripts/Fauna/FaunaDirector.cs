@@ -283,6 +283,7 @@ namespace Punchy.Fauna
             Comfort.Hour.Data = new float2(clock.Hour, Cycle != null ? 1f : 0f);
             WatchHouses(source);   // (A-105 -households: on a client too)
             WatchKinLost(source);  // (A-106 row 3: a joined client only)
+            WatchFarFolk(source);  // (A-109 row 2: the towns' far figures, on every machine)
             if (simWorld == null)
                 return;
             // A-83 (#62): the rest writes the simulation world (its clock, spawns and despawns), so it runs in
