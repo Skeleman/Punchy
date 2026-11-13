@@ -5,6 +5,8 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 
 | Issue | What to check | Where | Shipped |
 |---|---|---|---|
+| v0.14.0 release | Everything in the notes: talking to folk, gear, quests, road tunnels, bigger dungeons, beacon towers, new water and storms, the load veil after jumps. Hosting from this build shows a Windows firewall prompt the first time | https://github.com/Skeleman/Punchy/releases/tag/v0.14.0 | 11-12, tag on rc/v0.14.0 56b15b8c |
+| #287 load order and veil | After a long jump or a fresh start, trees and buildings come first, then small plants; a short veil covers the pop-in (up to 4 s). `-noveil` turns it off | Any long jump | 11-12, #288 #289 |
 | #282 white bloom circles | No white dot on tree tops or anywhere else at Ultra, the hilltop at sunset especially; grass looks the same | Hilltop -3460,2425 at 18:00, Ultra | 11-12, #283 |
 | Marsh wildlife, colossi | Frogs on lily pads, a heron in the shallows, dragonflies darting low at marsh folk villages; magma, ember and spore colossi glow at night; fewer hitches when the plant, salt and magma colossi appear. New pins Landmarks_V3 112 A955AFE0, Fauna 83902658 | Foggy marsh villages; colossi at night | PR #193, 2026-11-07 |
 | Marsh folk | Stilt villages over the water: reed huts, plank walks, a smoke hut; drying frames, eel traps, totems; a nest raft of eggs with a hatchling behind the smoke hut | Foggy marsh villages | PR #192, 2026-11-07 |
