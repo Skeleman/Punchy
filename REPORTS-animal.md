@@ -3844,3 +3844,23 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - Pins: Fauna_Fingerprint 6DCC36A3 before and after (no species or spawn changes). No landmark, placement, ProjectSettings or renderer asset change.
 - Suite: "40 passed, 0 failed, 17 skipped in 470s (Unity exit 0)", the full run after the last change.
 - Next: row 3, sparse village life (turtle children sliding, an elder basking, sea folk clam and glow-stone tenders, a child chasing the fish school).
+
+### Row 3: village life (done, verified, including a joined client)
+- Commit on fauna/folk-homes (pushed): 521f4840.
+- Turtle villages: one or two TurtleChild on the open snow 5 to 9 m from the middle, who now and then belly-slide (IdleAction.Slide). Turtle elders sometimes (5 %) nap at their porch in the midday sun.
+- Sea folk village: a SeaChild by the spire who runs along under the fish school, a clam tender (FolkJob ClamTender) and a glow keeper (GlowKeeper) at the clam beds and glow stones. Log: "village 113: 6 domes, 14 folk ... 1 children; clam tender at -1628,-520 glow keeper at -1626,-513".
+- The children come from two FolkChild rows in the overworld table. Each village draws from its own rng, so no other spawn's draws move and nothing is placed.
+- General fix: a ground creature in Wander that has stood still for over 45 s gives up its target. A turtle child had stood 230 s against an igloo wall.
+- No ghost layout change. CreatureGhosts only gains the two species' poses, which travel through the existing fields.
+- Host and joined client (this branch's build, no -screen-* flags, -netwatch), 0 exceptions on both sides:
+  - SeaChild: host 1, client 1.
+  - TurtleFolk control: 14 and 14.
+  - TurtleChild: host 1, and the editor joined as a client also saw 1 over several minutes. **Open observation:** the build client counted 2 for the whole run. It didn't reproduce in the editor client. It may be a duplicate or stale replica in NetWatch's count; not chased further.
+- Rule 24: sparkle probe on a sliding TurtleChild, NaN 0. The low-cap check confirms the probe saw the body.
+- Shots in D:/Unity/PunchyMilestones/A-103/ (16:9, -nohud, checked at 480):
+  - r3-turtle-child-slide, r3-turtle-elder-sun;
+  - r3-sea-clam-tender, r3-sea-glow-keeper;
+  - r3-sea-child-fish: the child is mid-chase and small in frame. The school swims about 13 m over the bed, so it's out of frame.
+- Pins: Fauna_Fingerprint 6DCC36A3 -> 1078FBC3, re-pinned in WorldTests. It moved because of the two new species (species sort by name, so later indices shift) and their spawn rows. No landmark, placement, ProjectSettings or renderer change.
+- Suite: "40 passed, 0 failed, 17 skipped in 443s (Unity exit 0)", the full run after the last change.
+- Next: merge origin/main once, re-pin the combined fingerprint, suite.
