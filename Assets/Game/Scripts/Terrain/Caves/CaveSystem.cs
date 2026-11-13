@@ -332,6 +332,7 @@ namespace Punchy.Terrain
             surfaceGlow.Release();
             ReleaseDrips();
             ReleaseTrickles();
+            ReleaseWebs();
             lastCameraChunk = new int3(int.MinValue);
             Underground = 0f;
             SurfaceHidden = 0f;
@@ -1348,6 +1349,7 @@ namespace Punchy.Terrain
             marks[5] = clock.Elapsed.TotalMilliseconds;
             DrawDrips(source, camPos);
             DrawTrickles(source, camPos);
+            DrawWebs(source, camPos);
             marks[6] = clock.Elapsed.TotalMilliseconds;
             UploadGlowing(cam);
             marks[7] = clock.Elapsed.TotalMilliseconds;

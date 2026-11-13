@@ -463,6 +463,9 @@ namespace Punchy.Terrain
             PlaceSeeps(withCaves, palette, caves, nodes, kinds, styles, extras);
             Step("seeps");
             FinishRooms(caves, extras);
+            // W-142 row 3b: cobwebs in natural caves and rooms, from their own seeds (they change no rock either).
+            PlaceWebs(withCaves, caves, nodes, kinds, styles, extras);
+            Step("webs");
             withWater.Dispose();
             // W-110: road tunnels last, appended after the landmarks' caves (whose indices, seeds and extras stay as
             // they were), then their details, lamps and frames against the caves with them.
@@ -476,6 +479,8 @@ namespace Punchy.Terrain
                 var tunnelFlora = CaveFloraTable.Collect(types);
                 var keepClear = PlaceTunnelDetails(withCaves, caves, nodes, segments, styles, tunnelFlora, extras);
                 PlaceTunnelFittings(withCaves, caves, nodes, segments, styles, tunnelFlora, extras, keepClear);
+                // W-142 row 3b: the tunnels' cobwebs, after the lamps so they keep away from them.
+                PlaceTunnelWebs(withCaves, caves, nodes, segments, styles, tunnelFlora, extras);
                 withTunnels.Dispose();
                 Step("tunnels");
             }
@@ -506,6 +511,8 @@ namespace Punchy.Terrain
             public readonly List<ClimbLadder> Ladders = new List<ClimbLadder>();
             /// <summary>W-142 row 2: smoke vents.</summary>
             public readonly List<CaveVent> Vents = new List<CaveVent>();
+            /// <summary>W-142 row 3b: dangling cobwebs.</summary>
+            public readonly List<CaveWeb> Webs = new List<CaveWeb>();
         }
 
         /// <summary>
@@ -721,6 +728,9 @@ namespace Punchy.Terrain
             var ventArray = builder.Allocate(ref root.Vents, extras.Vents.Count);
             for (int i = 0; i < extras.Vents.Count; i++)
                 ventArray[i] = extras.Vents[i];
+            var webArray = builder.Allocate(ref root.Webs, extras.Webs.Count);
+            for (int i = 0; i < extras.Webs.Count; i++)
+                webArray[i] = extras.Webs[i];
             BuildGrid(builder, ref root, caves, nodes, segments, extras.Rooms, pools, extras.Chambers);
             BuildSpeleothemGrid(builder, ref root, speleothems);
             var blob = builder.CreateBlobAssetReference<CaveSetBlob>(allocator);

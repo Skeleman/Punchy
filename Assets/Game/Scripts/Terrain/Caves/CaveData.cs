@@ -316,6 +316,49 @@ namespace Punchy.Terrain
         Mine
     }
 
+    /// <summary>
+    /// W-142 row 3b (#262): a dangling cobweb. A sheet stretched across a corner between three anchors on the rock, or
+    /// loose strands hanging from one. Placed in the cave bake (rule 22) from each cave's own seed: more in dry caves,
+    /// old ruin rooms and dark road tunnels, few or none in wet caves, hot caves and by tunnel lamps. CaveSystem draws
+    /// them from these fields alone, swaying a little (more in a draught).
+    /// </summary>
+    public struct CaveWeb
+    {
+        /// <summary>A sheet's three anchors on the rock. A strand or cluster hangs from A (B and C equal A).</summary>
+        public float3 A, B, C;
+        /// <summary>Its cave's index.</summary>
+        public int Cave;
+        public WebKind Kind;
+        public WebPlace Place;
+        /// <summary>How hard a draught moves it (0 still air to 1 by a cave mouth or vent), the length of its hanging
+        /// strand(s) in metres (0 for none), and a seed for its look and timing.</summary>
+        public float Sway, Strand, Seed;
+    }
+
+    public enum WebKind : byte
+    {
+        /// <summary>A whole web across a corner.</summary>
+        Corner,
+        /// <summary>A web with a piece torn out and a loose strand hanging from it.</summary>
+        Torn,
+        /// <summary>One strand hanging from the ceiling.</summary>
+        Strand,
+        /// <summary>A few strands hanging together.</summary>
+        Cluster,
+        /// <summary>An old web, grey with dust, a dead leaf caught in it.</summary>
+        Dusty
+    }
+
+    public enum WebPlace : byte
+    {
+        /// <summary>A natural cave's ceiling or crevice.</summary>
+        Cave,
+        /// <summary>A destination room (ruin, grotto or roost).</summary>
+        Room,
+        /// <summary>A road tunnel or its niches.</summary>
+        Tunnel
+    }
+
     /// <summary>One capsule of a passage, between two nodes, with the box its influence reaches.</summary>
     public struct CaveSegment
     {
@@ -383,6 +426,8 @@ namespace Punchy.Terrain
         public BlobArray<ClimbLadder> Ladders;
         /// <summary>W-142 row 2: smoke vents, in the open and in caves; a few dozen an island, so scanned whole.</summary>
         public BlobArray<CaveVent> Vents;
+        /// <summary>W-142 row 3b: dangling cobwebs (grouped by cave; natural caves and rooms, then road tunnels).</summary>
+        public BlobArray<CaveWeb> Webs;
         public float2 GridOrigin;
         public float CellSize;
         public int2 GridSize;
