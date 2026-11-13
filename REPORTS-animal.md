@@ -4250,3 +4250,29 @@ Where A-109 differs from A-108: herds are anonymous and seeded per 512 m cell fr
 - Bench request (rule 21, not timed by me): main da573e16 vs fauna/far-towns 6b5d8c5d, standing 200 m from town 73 and walking in to the centre. Points of interest: `WatchFarFolk` runs every 0.2 s and reads every creature's state to mark peopled towns; `GatherFarFolk` runs per frame over 6 towns' figures. I have not edited BENCH-QUEUE.md (shared file); please queue it.
 - Vantage points: town 73 at (2972, -885), camera north of it. If a world merge moves the town, these are re-picked.
 - Next: row 3 (HomeSign as narrowed), then row 4.
+
+## A-107
+
+### Row 1: graded climb sections on colossi (done, verified, #276, fauna/colossus-climb b2ad690b)
+
+- Branch fauna/colossus-climb from origin/main 8d1e6f1c.
+- Sections are data per kind: each of the 18 ColossusDefinition assets lists ClimbSections (look, grade on the A-101 scale, arc around the body, height band). 34 sections in all. Looks: Moss 2, Fur 2 (IceMammoth, the fur section Zach asked about), Vines 3, Ledges 3, Cracks 4.
+- Climbing.cs answers the climbability query for colossus collision: a wall column inside a section has the section's grade, outside it none. CanClimb is unchanged, so a humanoid (skill 2) climbs moss and fur today and needs more skill for vines, ledges and cracks.
+- New Fauna/ColossusClimb.cs (534 lines): section lookup, routes and peaks, the climb details (ColossusClimbDetails) and the carry (row 2). The details draw only while the colossus holds enough screen size (DetailPolicy.ScreenSize / Holds, rule 20); no metre ranges for looks. The two metre values in it are marked gameplay.
+- Standing and sleeping colossi only in this row's checks. The carry code for a walking colossus is in the same commit but is verified in row 2.
+- Probe (-colossusclimb all, new DebugControls.ColossusClimb.cs): sets the player's skill to each section's grade, climbs the section, and passes when the player stands on a top. Result: 34 passed, 0 failed, none stuck. Tops reached are 13.7 to 49.8 m up. 9 of the 34 topped out and then walked off the far side of a narrow top (still a pass; the fall is the normal one).
+- Fixes found by the probe:
+  - a start column on a short toe sent the climber under the belly (GiantTortoise): routes now start on tall columns first;
+  - a low first top stalled the climb (HermitCrab, MesaTortoise): the probe steers to the section's peak after a stall or a drop. This is probe steering only, not player code.
+- Multiplayer: no ghost field, no wire enum. Sections come from the asset and the seed, so every peer has the same grades. Host and client climbs are checked in row 2 with the carry.
+- Pins:
+  - PlayMode suite: 40 passed, 0 failed. Fauna_Fingerprint passes (6A9E28E5, unchanged);
+  - no landmark, placement or salt change; no ProjectSettings or renderer change; no timing;
+  - rules 25 to 28: colossi keep their existing far form (ColossusLod) and each shot set has a far shot; no shader change; no item, ownership or save stand-in; no file over 2500 lines touched (largest touched is PlayerMovementSystem.cs, 1602).
+- Shots (noon, Clear), in PunchyMilestones/A-107/, 21 files: KneelingTitan, HalfBuriedHead and RockGolem, each with -far, -sN-section and -sN-top for sections 0 to 2. Full-resolution copies are in PunchyMilestones/A-107/gallery/row1/ (not viewed, rule 12b).
+  - Checked on small contact sheets only: KneelingTitan shows crack marks, HalfBuriedHead shows moss patches and the climber on the head's top.
+  - RockGolem's section details can't be told apart at that size (boulders with pale vine lines). Worth a look in the gallery.
+- Risks and notes:
+  - Section looks are simple meshes (patches, lines, ledges). They read up close; from afar they drop out by screen size, so a section isn't visible in the far form.
+  - Question for the supervisor before row 2's client check: A-74 lets each peer stop a walker locally for up to 30 s, so a rider on one peer's colossus can sit away from where another peer draws that colossus. Row 2 moves only the local player, so no data is added, but a second player may see the rider off the body while the lag lasts. Matching that needs either a ghost field (which player a walker waits for) or dropping the local stop while someone rides. I will measure the gap in row 2 and report it, and add no field without an OK.
+- Next: row 2 (climb while it walks, stand while it turns, shake-off, host and client).
