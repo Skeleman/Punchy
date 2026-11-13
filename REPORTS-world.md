@@ -6564,3 +6564,40 @@ plot rules would have to accept a raised deck).
   - The probe finds roof ladders in only 1 town; other towns' houses rolled none, or the probe's grid missed them.
 - Not verified: a swimmer actually climbing out at sampled docks. That needs A-101; the records are ready for it.
 - BENCH-QUEUE request: none needed. Ladders are part of existing flora models and cave plants; NearLadders runs only on query.
+
+### Row 1b: the four known issues (#275), branch world/climbs-surface, commits 22995b21 (+ 69a83be9 fingerprint re-pin) - done (verified)
+- Issue 1, roof ladders in only 1 town. There were 3 causes:
+  - The 25% roll drew from 4 variants, so some towns rolled none.
+  - Hazard houses (sand, ash) never called RoofLadder.
+  - Tiered roofs were skipped.
+  - Fix: about 1 in 4 houses of every roof variant gets a ladder, now including hazard houses and tiered roofs.
+  - Result: land ladders went from 11 to 29, all passing.
+  - Per town:
+    - T0 Ogre camp: 1
+    - T1 (2972, -885): 10, including hazard houses
+    - T2 (-3300, -1311): 2
+    - T3 (-3276, 1578): 10
+    - T4 elf town (-2511, -1518): 5
+    - T5 hamlet (-1966, 651): 0. It has only 5 single plots, and its SnowShelterHouse has no wall to climb.
+- Issue 2, mine drop ladders gone. Measured the worst step in each passage segment:
+  - Cave 23 (the only shafted mine): 17 drops of 0.4-0.6 m, 6 of 0.6-0.8 m, and 0.87 m and 1.09 m.
+  - Mines 26 and 29: nothing over 0.6 m (theirs are 0.4-0.6 m, which a player can jump).
+  - Fix: since the player steps up 0.4 m, the limit is now 0.6 m (it was 1.5 m).
+  - Result: 5 mine ladders, all passing: 1 shaft (up 10.32 m) and 4 drops (0.70, 0.70, 1.12 and 0.70 m). The other 4 drops over 0.6 m are skipped by the 3 m spacing or by clearance.
+- Issues 3 and 4, torch and timber. The "collar" turned out to be a passage MineFrame lintel near the chamber, not a shaft collar. The torch sat 1.56 m straight behind the old ladder.
+  - Fix: new Clearway check. A spot is skipped if a torch is on the wall behind or beside the ladder, or a frame post or lintel (timber thickness included) is within 0.6 m of the climber's line, 0.3 m out from the rungs.
+  - A blocked shaft tries its next side; a blocked drop goes without a ladder.
+  - Result: the shaft ladder now stands on a clear side, foot (-2147.4, 179.1, 468.1), facing out (0.93, 0, 0.36), top at 189.45.
+- Probe: water 12 of 12 ok, land 29 of 29 ok, mine 5 of 5 ok (blob 5). Flora records 59, full lists 0.
+- Landmarks_V3: "landmarks 117 689D5348" (unchanged).
+- Fauna_Fingerprint: re-pinned D19AD249 -> 06A92F3A. More houses now carry roof ladders, so more flora models hold ladder records. No placement change. Mine ladders live in the cave blob, which this hash doesn't cover.
+- Suite: "completed: 35/35 passed" on 69a83be9, after the last change. The first run failed only Fauna_Fingerprint (34/35) before the re-pin.
+- lod-lint is clean on 22995b21. nan-lint lists only existing shader lines; no shader changed.
+- Shots, re-taken at the same distances, at D:/Unity/PunchyMilestones/W-147/:
+  - w147_mine_3m.png, w147_mine_1m.png: the shaft ladder on its clear side, with no torch or timber in its way
+  - w147_mine_drop_3m.png: the 1.12 m drop ladder
+  - w147_roof_3m.png: a T1 hazard-house ladder past the stone skin
+  - w147_roof_15m.png: a T1 stone house's ladder up to its crenellated roof
+- Editor: 38364 died when its start wrapper's 4 h timeout ran out. The restart hung on a "Recovering Scene Backups" dialog. I moved the backup (Temp/__Backupscenes/0.backup, a play-mode scene) to my scratchpad and removed the empty folder. The new editor is PID 79696.
+- Not verified: actually climbing. That needs A-101; the records are ready for it.
+- BENCH-QUEUE request: none needed.
