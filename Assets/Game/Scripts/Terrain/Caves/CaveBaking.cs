@@ -456,6 +456,9 @@ namespace Punchy.Terrain
             // W-141: trickles down the walls, last, from their own seeds (they change no rock, so nothing else moves).
             PlaceTrickles(withCaves, caves, nodes, kinds, styles, extras);
             Step("trickles");
+            // W-142 row 2: smoke vents, from their own seeds (they change no rock either).
+            PlaceVents(withCaves, palette, types, caves, nodes, kinds, styles, extras);
+            Step("vents");
             FinishRooms(caves, extras);
             withWater.Dispose();
             // W-110: road tunnels last, appended after the landmarks' caves (whose indices, seeds and extras stay as
@@ -498,6 +501,8 @@ namespace Punchy.Terrain
             public readonly List<CaveTrickle> Trickles = new List<CaveTrickle>();
             /// <summary>W-147: mines' ladder climbs.</summary>
             public readonly List<ClimbLadder> Ladders = new List<ClimbLadder>();
+            /// <summary>W-142 row 2: smoke vents.</summary>
+            public readonly List<CaveVent> Vents = new List<CaveVent>();
         }
 
         /// <summary>
@@ -710,6 +715,9 @@ namespace Punchy.Terrain
             var ladderArray = builder.Allocate(ref root.Ladders, extras.Ladders.Count);
             for (int i = 0; i < extras.Ladders.Count; i++)
                 ladderArray[i] = extras.Ladders[i];
+            var ventArray = builder.Allocate(ref root.Vents, extras.Vents.Count);
+            for (int i = 0; i < extras.Vents.Count; i++)
+                ventArray[i] = extras.Vents[i];
             BuildGrid(builder, ref root, caves, nodes, segments, extras.Rooms, pools, extras.Chambers);
             BuildSpeleothemGrid(builder, ref root, speleothems);
             var blob = builder.CreateBlobAssetReference<CaveSetBlob>(allocator);

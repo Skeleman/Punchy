@@ -274,6 +274,45 @@ namespace Punchy.Terrain
         Overhang
     }
 
+    /// <summary>
+    /// W-142 row 2 (#262): a smoke vent, a crack in hot ground breathing a thin, slow plume: fissures in volcanic ground
+    /// (outdoors, Cave -1), cave floors by lava, rock round hot springs and the foot of a mine shaft or two. Placed in the
+    /// cave bake (rule 22) from seeds of their own; LandmarkEffectSystem draws the smoke from these fields alone.
+    /// </summary>
+    public struct CaveVent
+    {
+        /// <summary>The vent's mouth, on the ground.</summary>
+        public float3 Position;
+        /// <summary>Its cave's index, or -1 for a vent in the open (where the wind bends its smoke).</summary>
+        public int Cave;
+        public VentKind Kind;
+        public VentPlace Place;
+        /// <summary>How much smoke (0.5 to 1) and a seed for its look and timing.</summary>
+        public float Strength, Seed;
+    }
+
+    public enum VentKind : byte
+    {
+        /// <summary>A steady wisp.</summary>
+        Wisp,
+        /// <summary>Puffs every few seconds.</summary>
+        Puff,
+        /// <summary>A faint wisp that now and then hisses out a stronger jet.</summary>
+        Hiss
+    }
+
+    public enum VentPlace : byte
+    {
+        /// <summary>A fissure in volcanic ground.</summary>
+        Fissure,
+        /// <summary>A cave floor by a lava pool.</summary>
+        Lava,
+        /// <summary>Rock round a hot spring.</summary>
+        Spring,
+        /// <summary>The foot of a mine shaft.</summary>
+        Mine
+    }
+
     /// <summary>One capsule of a passage, between two nodes, with the box its influence reaches.</summary>
     public struct CaveSegment
     {
@@ -339,6 +378,8 @@ namespace Punchy.Terrain
         public BlobArray<CaveTrickle> Trickles;
         /// <summary>W-147: mines' ladder climbs (up shafts, between levels), in the world; a handful an island, so scanned whole.</summary>
         public BlobArray<ClimbLadder> Ladders;
+        /// <summary>W-142 row 2: smoke vents, in the open and in caves; a few dozen an island, so scanned whole.</summary>
+        public BlobArray<CaveVent> Vents;
         public float2 GridOrigin;
         public float CellSize;
         public int2 GridSize;

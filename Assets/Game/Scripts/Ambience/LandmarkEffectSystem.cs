@@ -35,6 +35,12 @@ namespace Punchy.Ambience
         /// </summary>
         const float ChimneyRange = 220f, SmokeShare = 0.42f;
         const int ChimneyBase = 3000000, SmokeParticles = 14;
+        /// <summary>
+        /// W-142 row 2 smoke vents (index offset VentBase): drawn while a plume of VentSize metres looks at least
+        /// VentPixels big (about 150 m at Medium, held by Hysteresis), and not at all below VentOffBelowDetail.
+        /// </summary>
+        const float VentSize = 4f, VentPixels = 31.18f, VentOffBelowDetail = 0.75f;
+        const int VentBase = 4000000, VentParticles = 28;
         /// <summary>Last chimney gather: "smoking/total chimney buildings in range, particles, ms" (for the world probe).</summary>
         public static string LastChimneyLog = "";
         World floraWorld;
@@ -338,6 +344,7 @@ namespace Punchy.Ambience
                         nearby.Add(-(GrandFallBase + k));
             }
             NearChimneys(source, cam);
+            NearVents(source, camera);
             if (nearby.Count == lastNearby.Count && nearby.TrueForAll(lastNearby.Contains))
                 return;
             lastNearby.Clear();
@@ -352,6 +359,11 @@ namespace Punchy.Ambience
             float3 min = float.MaxValue, max = float.MinValue;
             foreach (var i in nearby)
             {
+                if (i <= -VentBase)
+                {
+                    VentSmoke(source.Caves.Value.Vents[-i - VentBase], -i - VentBase, ref min, ref max);
+                    continue;
+                }
                 if (i <= -ChimneyBase)
                 {
                     ChimneySmoke(source, -i - ChimneyBase, ref min, ref max);
@@ -616,6 +628,71 @@ namespace Punchy.Ambience
                 max = math.max(max, tops[k] + new float3(6f, 12f, 6f));
             }
             maxParticles = math.max(maxParticles, SmokeParticles);
+        }
+
+        /// <summary>W-142 row 2: the smoke vents near enough to look a few pixels big, as -(VentBase + index); none at Low.</summary>
+        void NearVents(in TerrainSource source, float3 camera)
+        {
+            if (!source.Caves.IsCreated || Punchy.Settings.GraphicsSettings.Detail < VentOffBelowDetail)
+                return;
+            ref var vents = ref source.Caves.Value.Vents;
+            var reach = Punchy.Settings.DetailPolicy.ExtraReach(VentSize, VentPixels);
+            for (int k = 0; k < vents.Length; k++)
+                if (Punchy.Settings.DetailPolicy.Within(math.distance(vents[k].Position + new float3(0f, 2f, 0f), camera), reach, lastNearby.Contains(-(VentBase + k))))
+                    nearby.Add(-(VentBase + k));
+        }
+
+        /// <summary>
+        /// W-142 row 2: one vent's smoke. A wisp breathes a thin steady plume, a puffer comes and goes every few seconds,
+        /// and a hisser keeps a faint wisp and now and then throws up a taller, thicker burst. Outdoors the wind bends it
+        /// (LandmarkEffects.hlsl); in a cave (UnderRock) it rises straight and is lit as underground.
+        /// </summary>
+        void VentSmoke(in CaveVent vent, int index, ref float3 min, ref float3 max)
+        {
+            var under = vent.Cave >= 0 ? 1f : 0f;
+            var s = vent.Strength;
+            // Warm grey near lava, paler steam at a spring, a dusty grey up a mine shaft.
+            var color = vent.Place switch
+            {
+                VentPlace.Lava => new float4(0.42f, 0.4f, 0.4f, 0f),
+                VentPlace.Spring => new float4(0.82f, 0.84f, 0.86f, 0f),
+                VentPlace.Mine => new float4(0.5f, 0.48f, 0.46f, 0f),
+                _ => new float4(0.55f, 0.54f, 0.53f, 0f)
+            };
+            var seed = math.frac(vent.Seed + index * 0.618f);
+            var period = 3f + 3f * vent.Seed;
+            var wisp = new Emitter
+            {
+                Position = vent.Position, Seed = seed, Color = color,
+                Shape = new float4(4f + 3f * s, 0.2f, 0.45f + 0.3f * s, 6f + 2f * s),
+                Timing = new float4(0f, 0.25f, 0.2f + 0.08f * s, VentParticles), UnderRock = under
+            };
+            switch (vent.Kind)
+            {
+                case VentKind.Puff:
+                    // Puffs: a thicker plume on half of a three-to-six second breath.
+                    wisp.Shape = new float4(3.5f + 3f * s, 0.25f, 0.6f + 0.3f * s, 4.5f);
+                    wisp.Timing = new float4(period, 0.5f, 0.3f + 0.08f * s, VentParticles);
+                    plumes.Add(wisp);
+                    break;
+                case VentKind.Hiss:
+                    // A faint wisp all the time, and every 20 to 40 s a short, taller, denser burst.
+                    wisp.Timing.z *= 0.6f;
+                    plumes.Add(wisp);
+                    plumes.Add(new Emitter
+                    {
+                        Position = vent.Position, Seed = math.frac(seed + 0.41f), Color = color,
+                        Shape = new float4(8f + 4f * s, 0.3f, 0.8f + 0.3f * s, 3f),
+                        Timing = new float4(20f + 20f * vent.Seed, 0.13f, 0.45f, VentParticles), UnderRock = under
+                    });
+                    break;
+                default:
+                    plumes.Add(wisp);
+                    break;
+            }
+            min = math.min(min, vent.Position - 6f);
+            max = math.max(max, vent.Position + new float3(6f, 14f, 6f));
+            maxParticles = math.max(maxParticles, VentParticles);
         }
 
         static void Upload(ref GraphicsBuffer buffer, List<Emitter> emitters, ref MaterialPropertyBlock props)

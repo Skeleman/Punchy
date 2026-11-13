@@ -109,7 +109,8 @@ PlumeVertex BuildPlume(uint vertex, uint instance)
     float rise = 1 - (1 - age) * (1 - age);
     float angle = EffectHash(r * 5.3) * 6.2832;
     float2 out2 = float2(cos(angle), sin(angle)) * e.shape.y * (0.15 + age) * sqrt(EffectHash(r * 9.1));
-    float2 drift = _PunchyWindDirection * (0.3 + _PunchyWind) * age * life * 0.8;
+    // Wind bends a plume outdoors; under rock (W-142 vents, cave falls' mist) there is no wind, so it rises straight.
+    float2 drift = _PunchyWindDirection * (0.3 + _PunchyWind) * age * life * 0.8 * (1 - saturate(e.underRock));
     float3 centre = e.position + float3(out2.x + drift.x, e.shape.x * rise * lerp(0.6, 1.0, EffectHash(r * 2.9)), out2.y + drift.y);
 
     float size = e.shape.z * (0.35 + 1.1 * age) * lerp(0.7, 1.3, EffectHash(r * 4.7));
