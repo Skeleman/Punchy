@@ -207,6 +207,40 @@ namespace Punchy.Debugging
         int wallStage;
         float3 wallLast;
 
+        /// <summary>"-climbwatch" (A-101 row 1, the joined-client check): every second, how high each other player's
+        /// body stands and how far it is into the climb pose (CreatureState.Vertical, driven by NetPlayerLook.Climbing),
+        /// and once, the first time one is seen up a climb (posed and over a metre above the lowest it was seen).</summary>
+        void ClimbWatch()
+        {
+            if (System.Array.IndexOf(LaunchArgs, "-climbwatch") < 0 || queryWorld == null || !queryWorld.IsCreated ||
+                Time.time < climbWatchAt)
+                return;
+            climbWatchAt = Time.time + 1f;
+            var em = queryWorld.EntityManager;
+            using var q = em.CreateEntityQuery(ComponentType.ReadOnly<RemoteAvatar>(), ComponentType.ReadOnly<CreatureState>());
+            using var states = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
+            for (int i = 0; i < states.Length; i++)
+            {
+                var s = states[i];
+                if (!math.all(math.isfinite(s.Position)))
+                    continue;
+                // (From the lowest it has been seen: the first sight may be partway up a climb.)
+                if (!climbWatchFrom.HasValue || s.Position.y < climbWatchFrom.Value)
+                    climbWatchFrom = s.Position.y;
+                var rise = s.Position.y - climbWatchFrom.Value;
+                Debug.Log($"DebugControls: climb watch: other player {i} at ({V(s.Position.x)}, {V(s.Position.y)}, {V(s.Position.z)}), " +
+                          $"{V(rise)} m over the lowest seen, climb pose {V(s.Vertical)}");
+                if (!climbWatchSaw && s.Vertical > 0.8f && rise > 1f)
+                {
+                    climbWatchSaw = true;
+                    Debug.Log($"DebugControls: climb watch: SAW A CLIMB, other player {i} posed {V(s.Vertical)} at {V(rise)} m up");
+                }
+            }
+        }
+        float climbWatchAt;
+        float? climbWatchFrom;
+        bool climbWatchSaw;
+
         void ClimbTest()
         {
             if (!climbTarget.HasValue || interactRequest != null || !EnsureLocations(out _) ||

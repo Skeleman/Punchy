@@ -273,6 +273,7 @@ namespace Punchy.Debugging
             SpawnRequested();
             PlaceByLedge();
             ClimbTest();
+            ClimbWatch();
             ActionTest();
             Watch();
             SettleGoto();
