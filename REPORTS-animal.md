@@ -3710,3 +3710,14 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - Suite: "28 passed, 0 failed, 17 skipped in 309s (Unity exit 0)", the full run after the last change.
 - For other lanes: world lane could add a hearth and an ice-hole prop by the igloos. The fire tenders and ice fishers now work at bare spots.
 - Next: row 2, sea folk. I will use A-102's `BreathesWater` flag for the "never needs air" flag (A-102 suggested sea folk set `BreathesWater: 1`), so there are not two flags.
+
+### Row 2: sea folk (done, verified solo; client UNVERIFIED)
+- Commit 3453e0f1 on fauna/folk-homes (pushed). It sits on the fauna/breath merge 711ff92b (A-102 at 47a60b7e), so **fauna/breath lands first**. Breath.cs and the brain's Breathe step are untouched; sea folk set A-102's `BreathesWater: 1` (one flag, not two).
+- New: `FaunaDirector.SeaFolkHomes.cs` (one household per shell dome, plus landing workers), `Fauna/SeaFolk.asset`, `Resources/Races/SeaFolk.asset`, 15 Sea* limbs (head, gills, crest rays, scales, freckles, tail fin, glowing lure, arm and leg, kelp locks, shell and coral pendants, three kelp wraps). Edits: CreatureData/CreatureSpecies (`WalksBed` flag: walk the lake bed, no 3D swim, no surface swim), the brain (bed walking, no swim urge), Shelter (over its head the lake counts as water and roof, so they don't flee the "rain"), FaunaDirector.Folk/Tables, Overworld spawn rows, dialogue.json and weather-lines.json culture lines.
+- Residents: 6 domes, 14 folk walking the bed between the domes, the spire and the reef, plus 2 workers on the landing; a knee-deep fisher at the landing's edge. Every folk has a home or work spot (rule 9).
+- NaN: `-sparkleprobe` on a posed SeaFolk with `-stopnan 0`: creature marked 0. The few odd sparkle segments the probe lists are older than this card (also there on main).
+- Shots in D:/Unity/PunchyMilestones/A-103/ (800x450, checked at 480): city-bed.png (the city from the lake bed, folk about), landing.png (the landing with folk on the pier), sea-portrait.png.
+- Client: UNVERIFIED. A joined client needs a player build of this branch, and builds go only to the world tree. No ghost field change, so clients see them through the same Position/Vertical as other folk.
+- Pins: Fauna_Fingerprint C5B450EF (after the A-102 merge) before, B9ADEB35 after, re-pinned in WorldTests. Reason: the new species, its Sea* limbs, the SeaHousehold spawn rows and the blob's WalksBed flag. Landmarks 117 689D5348, unchanged; no placement change.
+- Suite: "33 passed, 0 failed, 17 skipped in 311s (Unity exit 0)", the full run after the last change.
+- Next: row 2b (sea folk visiting towns and rivers by day, grumbling about the dryness).
