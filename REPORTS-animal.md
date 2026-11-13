@@ -3974,3 +3974,13 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - Suite after the last change: run 1 `40 passed, 0 failed, 17 skipped in 360s`, run 2
   `40 passed, 0 failed, 17 skipped in 315s`. Both runs picked a hunter (leash 268) to flee.
 - Next: row 2 (dusk homegoing to each folk's own house).
+
+### Row 2: home to their own door at dusk (done, verified, fauna/households 0be4d780)
+
+- Housed folk stop work and walk to their own house's door when evening comes. Children with a house go home from 17:00 game time; adults go when the night curve rises (18.1-18.3h), so arrival depends on how far they walked out. Folk without a house keep the old sleepy rule.
+- Arrivals, town 73 (dusk run from 16.6h, -households log): 17 home at their own door, 0 at a wrong door. Children in at 17.84h, adults 18.70h to 22.88h. Shot session from 18.15h: 4 home, 0 wrong (Wren Child 18.87, Edda Partner 19.04, Wren Head 19.12, Cass Child 19.12).
+- Empty bed: TestHooks.KillHousedFolk at town 73 logged "died Wren Child of house at (2963.1, -864.3) landmark 73: bed left empty"; after warping away to FV107 and back, the house listed "Child Wren (m, died, bed empty)" and nobody took the bed. KillHousedFolk stands in for a death because nothing kills folk yet.
+- Fauna_Fingerprint 6A9E28E5 before and after. No placement, spawn draw, ghost field, ProjectSettings or renderer changes.
+- Full suite after the last change: result="Passed" total=57 passed=40 failed=0 skipped=17.
+- Shots (town 73 at dusk, as the coordinator asked instead of a farm): PunchyMilestones/A-105/town-dusk-1.png (wide, a child walking home), town-dusk-2.png (Wren Head, a woodcutter, crossing town toward its house), town-dusk-3.png (the same woodcutter near its door, lamps lit).
+- Risks: in fishing villages the housed heads are hermits (Task Hermit) and keep the hermit day: by the hearth in the evening, indoors from 21.5h, not at dusk. The empty bed is host-only and lasts one session; a joined client sees the folk gone but keeps no bed record. Housed folk now quit work at dusk, so dusk streets are busier and work spots empty earlier than on main.
