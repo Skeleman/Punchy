@@ -3603,3 +3603,39 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
   - Colossi are view-only apart from the mammoth's trunk sway.
   - Colossus builders set static rig fields, so colossi load only in edit mode and unload when play mode starts.
   - Colossi draw with their game materials, so they look paler than creatures.
+
+## A-100: fish that take the bait (#266), branch fauna/fishing-catch
+
+### Row 1: catch tables (done, verified)
+- Commit 6321e404 on fauna/fishing-catch (pushed), from main 28b33134. New: `Fauna/FishCatch.cs`, `Debugging/DebugControls.Fish.cs`, `Tests/PlayMode/FishCatchTests.cs`; two flag lines in DebugControls.Flags.cs and two calls in DebugControls.cs.
+- Water kinds: FishCatch.Classify reads TerrainSource and the ground sample and returns one of SeaShore, SeaDeep (6 m and deeper), Harbour (near a settlement), Lake, RiverPool, RiverRapids, Swamp, CavePool, CaveStream, SmallPool.
+- Each row has a name, its waters, rarity (Common 60 / Uncommon 25 / Rare 8 / Legendary 1), a size range in cm, a fight strength from 0 to 1, a look (an existing fish species and coat, so no new assets), and optional hours (Day, Night, Twilight) and biomes:
+  - Sea: Mackerel (day), Herring, Sea bream, Flounder, Cod, Tuna 80-200, Conger eel (night), Moonfish (rare, night), Ice cod (cold).
+  - Lake: Carp, Perch, Bream, Pike (twilight), Lake sturgeon (rare, 90-220), Arctic char (cold), Koi and Golden koi (legendary; sparkle forest only), Sunfish (warm or temperate), Spore carp (fungal), Ember trout (ember).
+  - River: Trout, Chub, Salmon (rapids), Grayling, Catfish (night).
+  - Swamp: Mudfish, Bowfin, Glow eel (night), Bog eel (poison).
+  - Cave: Blind cavefish, Pale loach, Ghost sturgeon (rare).
+  - Small pools: Minnow, Stickleback, and an empty row, so a puddle sometimes gives nothing.
+  - Junk and treasure: Old boot, Driftwood, Rope tangle, Lost ring (rare), Glass float (rare).
+- Rolls are seeded (cast seed, Scramble, then hour), so solo, host and client get the same catch for the same seed. A missing catch returns false. All rolls are NaN-safe.
+- P-33: no IFishSource change needed. This adapter is all P-33 needs:
+  `sealed class FaunaFishSource : IFishSource { public bool Next(in TerrainSource t, in GroundSample w, float3 at, uint seed, out FishBite bite) { var ok = Punchy.Fauna.FishCatch.Roll(t, w, at, seed, Punchy.Fauna.FishCatch.Hour(), out var r); bite = new FishBite { Wait = r.Wait, Name = r.Name, Size = r.Size, Strength = r.Strength }; return ok; } }`
+- Probe (`-fishprobe`), 100 casts per water kind over a whole day (temperate; the swamp is marsh):
+  - SeaShore: Sea bream 39, Herring 32, Mackerel 11, Flounder 9, junk 9; mean fish 26 cm.
+  - SeaDeep: Cod 41, Mackerel 21, Tuna 21, Conger 9, Moonfish 3, junk 5; mean 68 cm.
+  - Harbour: Sea bream 31, Herring 19, Mackerel 17, Cod 16, Flounder 10, Conger 4, junk 3; mean 35 cm.
+  - Lake: Bream 23, Sunfish 22, Perch 21, Carp 14, Lake sturgeon 5, Catfish 4, Pike 2, junk 9; mean 36 cm.
+  - RiverPool: Carp 19, Chub 17, Sunfish 14, Minnow 12, Perch 12, Trout 12, Pike 5, Catfish 2, junk 7; mean 26 cm.
+  - RiverRapids: Trout 41, Grayling 35, Salmon 19, Driftwood 5; mean 38 cm.
+  - Swamp: Mudfish 34, Bowfin 33, Carp 21, Driftwood 6, Catfish 4, Glow eel 2; mean 38 cm.
+  - CavePool: Blind cavefish 79, Ghost sturgeon 8, Glow eel 8, Lost ring 5; mean 24 cm.
+  - CaveStream: Pale loach 62, Blind cavefish 38; mean 10 cm.
+  - SmallPool: Stickleback 29, Minnow 28, nothing 43; mean 5 cm.
+- World check (v3, start spot): within 600 m the probe found Swamp, SeaShore, RiverPool, RiverRapids and SeaDeep (6.6 m deep), each classified and rolled through the full path (Bowfin 42 cm, Sea bream 24, Chub 25, Trout 25, Cod 50). All five read biome Poison, since the v3 start is beside the poison swamp; the biome hashes match AmbientLife. Lake, Harbour and SmallPool were not within 600 m. Cave water is covered by the table rolls only, because a cave sample needs a float3 under the ground.
+- Shots, in D:/Unity/PunchyMilestones/A-100/: fish-lineup-small-800.jpg (Minnow 7 cm to Koi 51 cm) and fish-lineup-big-800.jpg (Carp to Lake sturgeon 188 cm), each a nose-to-tail row under a pinned side-on camera (`-fishlineup small|big`). The minnow is honestly tiny at that scale. Full-size PNGs are beside them.
+- Pins: Fauna_Fingerprint AD723954 before and after (no species assets added). No landmark or placement changes.
+- Suite: PlayMode 32 of 32 passed, in my editor, after the last code change (4 new FishCatchTests).
+- Risks:
+  - Most fish looks share one 0.32 m body, so sizes come from scale alone. Long fish (sturgeon, tuna) look like stretched trout.
+  - The rarity weights and the junk share (3-9%) are first guesses, for row 3.
+- Next: row 2, fish noticing the bobber.
