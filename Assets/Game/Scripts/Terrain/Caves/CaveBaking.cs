@@ -447,6 +447,8 @@ namespace Punchy.Terrain
             Step("plants");
             PlaceFittings(withCaves, caves, nodes, kinds, segments, styles, CaveFloraTable.Collect(types), extras);
             Step("fittings");
+            PlaceLadders(withCaves, caves, nodes, kinds, segments, styles, CaveFloraTable.Collect(types), extras);
+            Step("ladders");
             PlaceLakeDetails(withCaves, caves, styles, CaveFloraTable.Collect(types), extras);
             Step("lake details");
             PlaceRiverDetails(withCaves, caves, styles, CaveFloraTable.Collect(types), extras);
@@ -494,6 +496,8 @@ namespace Punchy.Terrain
             public readonly List<River> Rivers = new List<River>();
             /// <summary>W-141: trickles down the walls.</summary>
             public readonly List<CaveTrickle> Trickles = new List<CaveTrickle>();
+            /// <summary>W-147: mines' ladder climbs.</summary>
+            public readonly List<ClimbLadder> Ladders = new List<ClimbLadder>();
         }
 
         /// <summary>
@@ -703,6 +707,9 @@ namespace Punchy.Terrain
             var trickleArray = builder.Allocate(ref root.Trickles, extras.Trickles.Count);
             for (int i = 0; i < extras.Trickles.Count; i++)
                 trickleArray[i] = extras.Trickles[i];
+            var ladderArray = builder.Allocate(ref root.Ladders, extras.Ladders.Count);
+            for (int i = 0; i < extras.Ladders.Count; i++)
+                ladderArray[i] = extras.Ladders[i];
             BuildGrid(builder, ref root, caves, nodes, segments, extras.Rooms, pools, extras.Chambers);
             BuildSpeleothemGrid(builder, ref root, speleothems);
             var blob = builder.CreateBlobAssetReference<CaveSetBlob>(allocator);
@@ -1096,6 +1103,196 @@ namespace Punchy.Terrain
                             continue;
                         var at = shoulder + new float3(dir.x, 0f, dir.y) * (t - 0.12f);
                         extras.Plants.Add(new CavePlant { Position = at, Yaw = math.atan2(dir.x, -dir.y), Scale = 1f, Species = torch, Variant = rng.NextInt(3), Random = rng.NextFloat() });
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// W-147: ladders in dug caves whose style has them (mines): up each shaft from its chamber's floor to the surface,
+        /// against the shaft's wall, and down every drop of over 0.6 m in the passages (between levels), against the
+        /// drop's face. Pieces (the style's Ladder species, its variants by height) stack end to end; each climb is one
+        /// ClimbLadder record. Its own draws (per cave), after every other fitting, so nothing placed before moves; and
+        /// clear of those fittings (row 1b): a spot with a torch or a frame's post or lintel in the ladder's way is
+        /// passed over (a shaft tries its next side, a drop goes without).
+        /// </summary>
+        static void PlaceLadders(in TerrainSource source, List<CaveData> caves, List<CaveNode> nodes, List<CaveNodeKind> kinds,
+                                 List<CaveSegment> segments, List<CaveStyle> styles, List<Punchy.Flora.FloraSpecies> flora, Extras extras)
+        {
+            // Row 1b: the mines' real level drops are 0.4-1.1 m; a player steps up 0.4 m, so anything over 0.6 m gets one.
+            const float Drop = 0.6f, Back = 0.12f, Apart = 3f, Clear = 0.6f, Climber = 0.3f;
+            for (int c = 0; c < caves.Count; c++)
+            {
+                var cave = caves[c];
+                var style = cave.Style > 0 ? styles[cave.Style - 1] : null;
+                if (style == null || style.Ladder == null)
+                    continue;
+                var species = flora.IndexOf(style.Ladder);
+                if (species < 0)
+                    continue;
+                var terrain = source;
+                var rng = new Random(math.hash(new uint2(cave.Key, 0x1ADDu)) | 1u);
+                var placed = new List<float3>();
+                var frame = style.Frame != null ? flora.IndexOf(style.Frame) : -1;
+                var torch = style.Torch != null ? flora.IndexOf(style.Torch) : -1;
+                var timber = frame >= 0 ? math.max(style.Frame.Thickness, 0.02f) * 1.1f : 0f;   // as MineFrame's lintel, per unit of Scale
+
+                // Whether a ladder from foot up to top (plus its grab), standing against rock that lies along dir, keeps
+                // clear of the torches and timber frames already placed: no torch on the wall behind it or beside it
+                // within Clear of its sides, and no frame post or lintel within Clear of the climber's line (Climber
+                // out from the rungs), the timber's own thickness added.
+                bool Clearway(float3 foot, float top, float2 dir)
+                {
+                    var high = top + StructureKit.LadderGrab;
+                    var climber = foot.xz - dir * Climber;
+                    foreach (var p in extras.Plants)
+                    {
+                        if (p.Species == torch && torch >= 0)
+                        {
+                            var v = p.Position.xz - foot.xz;
+                            var depth = math.dot(v, dir);   // into the rock behind the ladder
+                            var side = math.abs(v.x * dir.y - v.y * dir.x);
+                            if (p.Position.y > foot.y - 0.5f && p.Position.y < high + 0.3f && depth > -Clear && depth < 3f
+                                && side < StructureKit.LadderWidth * 0.5f + Clear)
+                                return false;
+                        }
+                        else if (p.Species == frame && frame >= 0)
+                        {
+                            // As MineFrame: posts at model X = +-1, the lintel at 1.02 x its height, out to X = +-1.12;
+                            // all times Scale. Model X lies across the passage: +-(cos yaw, sin yaw).
+                            var tall = Punchy.Flora.FloraGenerator.MineFrameHeights[math.clamp(p.Variant, 0, Punchy.Flora.FloraGenerator.MineFrameHeights.Length - 1)];
+                            var across = new float2(math.cos(p.Yaw), math.sin(p.Yaw)) * p.Scale;
+                            var lintel = p.Position.y + 1.02f * tall * p.Scale;
+                            var room = Clear + timber * p.Scale;
+                            if (lintel < foot.y - room || p.Position.y > high)
+                                continue;
+                            var e0 = p.Position.xz - across * 1.12f;
+                            var span = across * 2.24f;
+                            var t = math.saturate(math.dot(climber - e0, span) / math.max(math.lengthsq(span), 1e-4f));
+                            if (lintel < high + room && math.distance(climber, e0 + span * t) < room)
+                                return false;
+                            if (math.distance(climber, p.Position.xz + across) < room || math.distance(climber, p.Position.xz - across) < room)
+                                return false;
+                        }
+                    }
+                    return true;
+                }
+
+                // Stacks pieces from foot up past the landing by a grab; dir points into the rock it stands against.
+                void Stack(float3 foot, float landing, float2 dir)
+                {
+                    var height = landing + StructureKit.LadderGrab - foot.y;
+                    if (height < 1.5f)
+                        return;
+                    var tallest = StructureKit.LadderPieceHeight(StructureKit.LadderPieces - 1);
+                    // As few pieces as reach, all one height but the lowest few a step taller, so the top ends under
+                    // half a metre past the grab.
+                    var count = (int)math.ceil(height / tallest);
+                    var variant = math.clamp((int)math.floor((height / count - 2f) / 0.5f), 0, StructureKit.LadderPieces - 1);
+                    var taller = math.clamp((int)math.ceil((height - count * StructureKit.LadderPieceHeight(variant)) / 0.5f - 1e-3f), 0, count);
+                    var yaw = math.atan2(dir.x, -dir.y);   // +Z of the piece out of the rock (as the torches)
+                    var y = 0f;
+                    for (int k = 0; k < count; k++)
+                    {
+                        var v = math.min(variant + (k < taller ? 1 : 0), StructureKit.LadderPieces - 1);
+                        extras.Plants.Add(new CavePlant { Position = foot + new float3(0f, y, 0f), Yaw = yaw, Scale = 1f, Species = species, Variant = v, Random = rng.NextFloat() });
+                        y += StructureKit.LadderPieceHeight(v);
+                    }
+                    extras.Ladders.Add(new ClimbLadder { Foot = foot, Top = new float3(foot.x, landing, foot.z), Out = new float3(-dir.x, 0f, -dir.y), Grade = StructureKit.LadderGrade });
+                    placed.Add(foot);
+                }
+
+                // Up the shafts: from a chamber joined to a shaft node, against the shaft's wall all the way up.
+                for (int si = cave.FirstSegment; si < cave.FirstSegment + cave.SegmentCount; si++)
+                {
+                    var seg = segments[si];
+                    int chamber, shaft;
+                    if (kinds[seg.A] == CaveNodeKind.Chamber && kinds[seg.B] == CaveNodeKind.Shaft) { chamber = seg.A; shaft = seg.B; }
+                    else if (kinds[seg.B] == CaveNodeKind.Chamber && kinds[seg.A] == CaveNodeKind.Shaft) { chamber = seg.B; shaft = seg.A; }
+                    else continue;
+                    var centre = nodes[chamber].Position;
+                    var floor = terrain.FloorUnder(centre, out var inCave);
+                    if (!inCave)
+                        continue;
+                    var axis = nodes[shaft].Position.xz;
+                    var ground = terrain.SampleGround(axis).Height;
+                    var start = rng.NextFloat(math.PI * 2f);
+                    for (int tries = 0; tries < 6; tries++)
+                    {
+                        var a = start + tries * math.PI / 3f;
+                        var dir = new float2(math.cos(a), math.sin(a));
+                        // The nearest the wall comes to the axis at any height up the shaft (above head height in the chamber).
+                        var reach = float.MaxValue;
+                        for (var y = floor + 2.5f; y < ground - 0.5f; y += 0.5f)
+                        {
+                            var t = 0f;
+                            for (var r = 0.2f; r < 12f; r += 0.05f)   // gameplay: bake-time wall search
+                                if (terrain.CaveDistance(new float3(axis.x, y, axis.y) + new float3(dir.x, 0f, dir.y) * r) >= 0f) { t = r; break; }
+                            if (t <= 0f) { reach = 0f; break; }
+                            reach = math.min(reach, t);
+                        }
+                        if (reach < 0.6f || reach == float.MaxValue)
+                            continue;
+                        var at = axis + dir * (reach - Back);
+                        var footFloor = terrain.FloorUnder(new float3(at.x, centre.y, at.y), out var footInCave);
+                        if (!footInCave || math.abs(footFloor - floor) > 1.5f)
+                            continue;
+                        // The landing: the ground at the rim, just behind the ladder.
+                        var rim = axis + dir * (reach + 0.4f);
+                        var shaftFoot = new float3(at.x, footFloor, at.y);
+                        var landing = terrain.SampleGround(rim).Height;
+                        if (!Clearway(shaftFoot, landing, dir))
+                            continue;
+                        Stack(shaftFoot, landing, dir);
+                        break;
+                    }
+                }
+
+                // Down the drops: along the passages, a floor that falls more than Drop within half a metre.
+                for (int si = cave.FirstSegment; si < cave.FirstSegment + cave.SegmentCount; si++)
+                {
+                    var seg = segments[si];
+                    if (kinds[seg.A] == CaveNodeKind.Shaft || kinds[seg.B] == CaveNodeKind.Shaft)
+                        continue;
+                    var a = nodes[seg.A].Position;
+                    var b = nodes[seg.B].Position;
+                    var length = math.distance(a.xz, b.xz);
+                    if (length < 1f)
+                        continue;
+                    var along = math.normalize((b - a).xz);
+                    float FloorAt(float2 q, float near, out bool ok) => terrain.FloorUnder(new float3(q.x, near + 0.5f, q.y), out ok);
+                    var prevQ = a.xz;
+                    var prev = FloorAt(prevQ, a.y, out var prevOk);
+                    for (var d = 0.5f; d <= length; d += 0.5f)
+                    {
+                        var q = a.xz + along * d;
+                        var here = FloorAt(q, math.lerp(a.y, b.y, d / length) + math.max(0f, prev - math.lerp(a.y, b.y, d / length)), out var ok);
+                        if (ok && prevOk && math.abs(here - prev) > Drop)
+                        {
+                            // Low side and high side; find the face between them.
+                            var down = here < prev;
+                            float2 lowQ = down ? q : prevQ, highQ = down ? prevQ : q;
+                            float low = math.min(here, prev), high = math.max(here, prev);
+                            for (int k = 0; k < 5; k++)
+                            {
+                                var m = (lowQ + highQ) * 0.5f;
+                                var f = FloorAt(m, high, out var mok);
+                                if (mok && f > low + Drop * 0.5f) highQ = m; else lowQ = m;
+                            }
+                            var dir = math.normalize(highQ - lowQ);
+                            var foot2 = highQ - dir * (Back + 0.05f);
+                            var footFloor = FloorAt(foot2, low, out var fok);
+                            var near = false;
+                            foreach (var p in placed)
+                                if (math.distance(p.xz, foot2) < Apart)
+                                    near = true;
+                            if (fok && !near && math.abs(footFloor - low) < 0.4f && terrain.CaveDistance(new float3(foot2.x, footFloor + 1f, foot2.y)) < 0f
+                                && Clearway(new float3(foot2.x, footFloor, foot2.y), high, dir))
+                                Stack(new float3(foot2.x, footFloor, foot2.y), high, dir);
+                        }
+                        prevQ = q;
+                        prev = here;
+                        prevOk = ok;
                     }
                 }
             }
