@@ -678,3 +678,8 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
 - (A) main vs (B) `world/cave-trickles` 612dbeff. Profile builds, 1920x1080, High, uncapped, ABBA, 300 frames each.
 - Views: wet cave c13 (`-goto 1572,8,-2635`) facing the fan, and c22 (`-goto 1630,104,1036`), standing.
 - Record: whole-frame GPU and main-thread ms, draw calls, and the trickle draws if the profile names them. The branch is based on 659b60af (before #292), so A is 659b60af too.
+
+## Job 69 (2026-11-13, HOLD until W-142 row 3b's handoff, then QUEUED after 68; supervisor, for W-142, #262): ambient details together
+- (A) main vs (B) `world/ambient-details`, using the head the supervisor names when it releases this job (rows 1-3b: leaves, smoke vents, lava seeps, cobwebs). Profile builds, 1920x1080, Medium and High, uncapped, ABBA, 300 frames each, 12:00.
+- Views: the marsh (`-goto -3492,3,-1716`) on a 30 m walk under the canopy; the root cave (`-goto -2198,9,-1572`); plus the hot-cave and vent spots that rows 2-3 name.
+- Rule 23: Medium ≤ +0.3 ms GPU for all of W-142 together. Report the total and each effect's share if the profile names them.
