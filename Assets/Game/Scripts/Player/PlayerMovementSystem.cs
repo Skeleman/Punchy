@@ -199,8 +199,10 @@ namespace Punchy.Player
                 // A-101 (#267): one climbing model. The wall ahead has a grade (a marked section's, ladders and routes,
                 // else smooth) and the body climbs it when its skill is at least that, faster the more it has to spare.
                 var facing = math.normalizesafe(math.mul(t.Rotation, new float3(0f, 0f, 1f)).xz, new float2(0f, 1f));
-                var wallGrade = Punchy.Fauna.Climbing.WallGrade(new Punchy.Fauna.NoClimbSections(), from,
-                                                                math.normalizesafe(input.MoveDirection, facing), settings.Radius + 0.5f);
+                // (On the wall, the grade of the wall it faces: pushing back to climb down probed away from it, row 1.)
+                var wallReach = settings.Radius + 0.5f;
+                var wallGrade = Punchy.Fauna.Climbing.WallGrade(new Punchy.Fauna.ClimbBands(), from,
+                                                                m.OnWall ? facing : math.normalizesafe(input.MoveDirection, facing), wallReach);
                 var climbsWall = Punchy.Fauna.Climbing.CanClimb(body.ClimbSkill, wallGrade);
                 var wallSpeed = Punchy.Fauna.Climbing.Speed(body.ClimbSpeed, body.ClimbSkill, wallGrade);
                 if (m.OnWall && climbsWall)
@@ -214,8 +216,16 @@ namespace Punchy.Player
                         wallUp = -wallUp;
                         wallSide = -wallSide;
                     }
-                    wallSideNow = wallSide;
                     var across = new float2(into.y, -into.x);
+                    // (Along a marked band only as far as it runs: where the wall beside is a grade it can't climb, the
+                    // sideways push stops at the band's edge.)
+                    if (wallSide != 0f)
+                    {
+                        var besideAt = from + new float3(across.x, 0f, across.y) * (math.sign(wallSide) * settings.Radius);
+                        if (!Punchy.Fauna.Climbing.CanClimb(body.ClimbSkill, Punchy.Fauna.Climbing.WallGrade(new Punchy.Fauna.ClimbBands(), besideAt, facing, wallReach)))
+                            wallSide = 0f;
+                    }
+                    wallSideNow = wallSide;
                     move = into + across * wallSide * wallSpeed / math.max(speed, 0.1f);
                 }
                 position.xz += move * speed * dt;
@@ -231,7 +241,9 @@ namespace Punchy.Player
                 // (not too fast, and not just after leaping off one) catches hold of it.
                 var walkingInto = m.Grounded && math.lengthsq(input.MoveDirection) > 0.25f;
                 var fallingPast = !m.Grounded && m.VerticalVelocity > -LatchFall && m.LatchCooldown <= 0f;
-                if (Punchy.Fauna.Climbing.CanClimb(body.ClimbSkill, Punchy.Fauna.Climbing.Tree) && obstacles.IsCreated && (walkingInto || fallingPast) &&
+                // (Any climber at all: a marked section on a trunk or a hut's round wall may be easier than a tree, A-101.)
+                if (Punchy.Fauna.Climbing.Mantles(body.ClimbSkill) &&
+                    obstacles.IsCreated && (walkingInto || fallingPast) &&
                     GrabTrunk(obstacles, from, input.MoveDirection, settings.Radius, body.ClimbSkill, !walkingInto, ref m))
                 {
                     m.Grounded = false;
@@ -803,13 +815,16 @@ namespace Punchy.Player
             for (int i = 0; i < obstacles.Length; i++)
             {
                 var o = obstacles[i];
-                // (A tree climber takes only a tree-sized trunk; a hut's round wall is graded a smooth wall, A-101.)
                 var top = o.Position.y + (inAir ? o.Height - 0.3f : 1f);
-                if (o.Radius < 0.08f || o.Height < 2f || at.y + 0.5f < o.Position.y || at.y > top ||
-                    !Punchy.Fauna.Climbing.CanClimb(skill, Punchy.Fauna.Climbing.TrunkGrade(o.Radius)))
+                if (o.Radius < 0.08f || o.Height < 2f || at.y + 0.5f < o.Position.y || at.y > top)
                     continue;
                 // (Round the trunk as drawn at the body's height: a leaning tree's trunk isn't over its foot.)
                 var to = FloraObstacle.CentreAt(o.Position, o.Height, o.LeanMid, o.LeanTop, at.y) - at.xz;
+                // (A tree climber takes only a tree-sized trunk; a hut's round wall is graded a smooth wall, unless the
+                // bark where it takes hold is a marked section, A-101.)
+                var hold = at.xz + to - math.normalizesafe(to) * o.Radius;
+                if (!Punchy.Fauna.Climbing.CanClimb(skill, TrunkGradeAt(o.Radius, new float3(hold.x, at.y, hold.y))))
+                    continue;
                 var gap = math.length(to) - o.Radius - radius;
                 if (inAir ? gap > 0.3f : gap > 0.5f || math.dot(math.normalizesafe(to), way) < 0.7f)
                     continue;
@@ -844,7 +859,8 @@ namespace Punchy.Player
                 t.Position += new float3(outward.x, 0f, outward.y) * 0.5f;
                 return;
             }
-            var speed = Punchy.Fauna.Climbing.Speed(body.ClimbSpeed, body.ClimbSkill, Punchy.Fauna.Climbing.TrunkGrade(m.TrunkRadius));
+            var speed = Punchy.Fauna.Climbing.Speed(body.ClimbSpeed, body.ClimbSkill,
+                                                    TrunkGradeAt(m.TrunkRadius, new float3(TrunkCentre(m, t.Position.y) + outward * m.TrunkRadius, t.Position.y).xzy));
             var inward = -outward;
             var round = new float2(-outward.y, outward.x);
             // (The stick against the surface, not the world: forward is up, back is down, and right is to the body's
@@ -858,7 +874,12 @@ namespace Punchy.Player
             // moment from where it took hold. (Held out at the body's radius, as before, the climbing monkey hung clear
             // of the trunk, a gap of half a metre and more.)
             var reach = math.max(m.TrunkRadius + 0.03f, math.distance(t.Position.xz, TrunkCentre(m, t.Position.y)) - dt);
-            m.TrunkAngle += side * speed * dt / math.max(reach, 0.1f);
+            // (Round it only as far as the bark stays climbable: off the end of a marked section on a wall too hard
+            // for the body, it stops there, A-101.)
+            var angle = m.TrunkAngle + side * speed * dt / math.max(reach, 0.1f);
+            var roundTo = TrunkCentre(m, t.Position.y) + new float2(math.cos(angle), math.sin(angle)) * m.TrunkRadius;
+            if (side == 0f || Punchy.Fauna.Climbing.CanClimb(body.ClimbSkill, TrunkGradeAt(m.TrunkRadius, new float3(roundTo.x, t.Position.y, roundTo.y))))
+                m.TrunkAngle = angle;
             Floor(terrain, t.Position, settings.SwimDepth, out var ground, out _);
             if (y <= ground && up < 0f)
             {
@@ -903,6 +924,11 @@ namespace Punchy.Player
             forward = math.dot(input.MoveDirection, look);
             right = math.dot(input.MoveDirection, new float2(look.y, -look.x));
         }
+
+        /// <summary>A-101: the grade of a trunk's bark at a point on it: a marked section's there, else by its width
+        /// (a tree, or a hut's round wall graded a smooth wall).</summary>
+        static byte TrunkGradeAt(float radius, float3 bark) =>
+            Punchy.Fauna.ClimbBands.At(bark, 0.3f, out _, out var marked) ? marked : Punchy.Fauna.Climbing.TrunkGrade(radius);
 
         /// <summary>The centre (x, z) of the trunk a body holds, at a height: as drawn, leaning or bending as it may.</summary>
         public static float2 TrunkCentre(in PlayerMotion m, float y) =>

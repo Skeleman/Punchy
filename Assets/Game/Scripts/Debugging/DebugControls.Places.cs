@@ -733,8 +733,20 @@ namespace Punchy.Debugging
             var grids = holder != Entity.Null ? em.GetComponentData<SupportGrids>(holder) : default;
             if (!grids.Set.IsCreated || em.GetBuffer<FloraSupport>(holder, true).Length == 0)
             {
-                // (The tops load a little after the world: give them a while.)
-                if (Time.timeSinceLevelLoad - optionsAt > settle + 20f)
+                // (The tops load a little after the world: give them a while. On a first play after a domain reload the
+                // world is found again after the jump, and the nearest settlement may have moved: jump there once more.)
+                if (!ledgeRejumped && Time.timeSinceLevelLoad - optionsAt > settle + 15f)
+                {
+                    ledgeRejumped = true;
+                    var town = locations.FindIndex(l => l.Name.StartsWith("Nearest settlement"));
+                    if (town >= 0)
+                    {
+                        current = town - 1;
+                        Jump(1);
+                        Debug.Log("DebugControls: -place ledge: no props yet, to the nearest settlement again");
+                    }
+                }
+                if (Time.timeSinceLevelLoad - optionsAt > settle + 45f)
                 {
                     Debug.LogWarning("DebugControls: -place ledge: no props with tops near");
                     ledgeRequest = false;
@@ -857,6 +869,20 @@ namespace Punchy.Debugging
                 var wallOut = math.normalizesafe(bestHit.EdgeNormal, math.normalizesafe(t.Position.xz - rim.xz, new float2(0f, -1f)));
                 var wallSide = new float2(wallOut.y, -wallOut.x);
                 var wallHeight = rim.y - bestFeet.y;
+                climbWallTop = wallHeight;
+                // (A-101 row 1, "-place climb": a marked band on the face, centred on the rim the player faces, from
+                // its foot to its top; logged as a flag a joined client marks the same band with.)
+                if (climbBandGrade > Climbing.None)
+                {
+                    var band = new ClimbBand
+                    {
+                        Base = new float3(rim.x, bestFeet.y, rim.z), Out = wallOut,
+                        HalfWidth = climbBandGrade == Climbing.Ladder ? 0.45f : 1.5f, Height = wallHeight + 0.5f, Grade = climbBandGrade
+                    };
+                    ClimbBands.Add(band);
+                    MarkClimbBand(band);
+                    Debug.Log($"DebugControls: climb band: grade {climbBandGrade}, {V(band.HalfWidth * 2f)} m wide, {V(wallHeight)} m up; for a client: -climbband {ClimbBandArg(band)}");
+                }
                 var eyeXZ = rim.xz + wallOut * 9f + wallSide * 1.5f;
                 var eyeY = math.max(source.SampleHeight(eyeXZ) + 1.6f, bestFeet.y + 1.8f);
                 var wallEye = new Vector3(eyeXZ.x, eyeY, eyeXZ.y);

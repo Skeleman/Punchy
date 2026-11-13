@@ -1,3 +1,5 @@
+using Unity.Burst;
+using Unity.Collections;
 using Unity.Mathematics;
 
 namespace Punchy.Fauna
@@ -84,18 +86,74 @@ namespace Punchy.Fauna
         bool GradeNear(float3 point, float radius, out byte grade);
     }
 
-    /// <summary>
-    /// A-101 row 0: the sections source until the world lane's marked sections are on main: none, so every wall is
-    /// graded smooth (Climbing.WallGrade) and every trunk by its width.
-    /// TODO(A-101, W-147): ladders: answer from FloraPlacement.NearLadders(point, radius) (ClimbLadder records, grade 1)
-    /// once world/climbs-surface is on main; TODO(A-101, W-144): marked cave routes and their grades.
-    /// </summary>
-    public struct NoClimbSections : IClimbSections
+    /// <summary>A marked climbing band on a wall face (ClimbBands): its foot, which way the face looks, how wide and
+    /// high it runs, and its grade.</summary>
+    public struct ClimbBand
     {
-        public bool GradeNear(float3 point, float radius, out byte grade)
+        /// <summary>The middle of the band's foot, on the face (world).</summary>
+        public float3 Base;
+        /// <summary>The face's outward normal (xz, unit).</summary>
+        public float2 Out;
+        public float HalfWidth, Height;
+        public byte Grade;
+
+        /// <summary>The band's own frame at point: across the face (right of a climber facing it), out from the face,
+        /// and up from its foot.</summary>
+        public float3 Local(float3 point)
         {
-            grade = Climbing.None;
-            return false;
+            var d = point - Base;
+            return new float3(d.x * -Out.y + d.z * Out.x, d.x * Out.x + d.z * Out.y, d.y);
         }
+
+        /// <summary>Whether point is on the band: across within its width, out within reach of the face either side
+        /// (a probe point ahead of a climber is inside the wall), up within its height (and a little over).</summary>
+        public bool Holds(float3 point, float reach)
+        {
+            var l = Local(point);
+            return math.abs(l.x) <= HalfWidth && math.abs(l.y) <= reach + 0.6f && l.z >= -0.5f && l.z <= Height + reach;
+        }
+    }
+
+    /// <summary>
+    /// A-101 row 1: the sections source until the world lane's are on main: the bands "-place climb" marks on a test wall
+    /// (DebugControls), and a joined client the same from "-climbband". A shared list, so Burst movement reads it.
+    /// TODO(A-101, W-147): ladders from FloraPlacement.NearLadders(point, radius) (ClimbLadder records, grade 1) once
+    /// world/climbs-surface is on main; TODO(A-101, W-144): marked cave routes and their grades. Both join the bands here.
+    /// </summary>
+    public struct ClimbBands : IClimbSections
+    {
+        /// <summary>The marked bands (a test's few; cleared with the test).</summary>
+        public static readonly SharedStatic<FixedList512Bytes<ClimbBand>> List = SharedStatic<FixedList512Bytes<ClimbBand>>.GetOrCreate<ClimbBands, ListKey>();
+        class ListKey { }
+
+        public bool GradeNear(float3 point, float radius, out byte grade) => At(point, radius, out var band, out grade);
+
+        /// <summary>The band holding point (within reach of its face), the easiest if bands overlap, and its grade.</summary>
+        public static bool At(float3 point, float reach, out ClimbBand band, out byte grade)
+        {
+            band = default;
+            grade = Climbing.None;
+            if (!math.all(math.isfinite(point)))
+                return false;
+            ref var list = ref List.Data;
+            for (int i = 0; i < list.Length; i++)
+                if (list[i].Grade > Climbing.None && list[i].Holds(point, reach) && (grade == Climbing.None || list[i].Grade < grade))
+                {
+                    band = list[i];
+                    grade = list[i].Grade;
+                }
+            return grade != Climbing.None;
+        }
+
+        /// <summary>Marks a band (main thread); a full list drops the oldest.</summary>
+        public static void Add(ClimbBand band)
+        {
+            ref var list = ref List.Data;
+            if (list.Length >= list.Capacity)
+                list.RemoveAt(0);
+            list.Add(band);
+        }
+
+        public static void Clear() => List.Data.Clear();
     }
 }

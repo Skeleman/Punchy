@@ -77,6 +77,14 @@ namespace Punchy.Debugging
             var climbSkillArg = System.Array.IndexOf(args, "-climbskill");
             if (climbSkillArg >= 0 && climbSkillArg + 1 < args.Length && int.TryParse(args[climbSkillArg + 1], out var climbSkill))
                 SetClimbSkill(climbSkill);
+            // "-climbband x,y,z,ox,oz,halfwidth,height,grade" (A-101 row 1): marks a climbing band, as "-place climb" logs
+            // it, so a joined client's player climbs the same band and sees the same marking.
+            var climbBandArg = System.Array.IndexOf(args, "-climbband");
+            if (climbBandArg >= 0 && climbBandArg + 1 < args.Length && ParseClimbBand(args[climbBandArg + 1], out var markedBand))
+            {
+                ClimbBands.Add(markedBand);
+                MarkClimbBand(markedBand);
+            }
             // "-shotonhunt": one shot the moment a land hunter enters its sprint, camera framing hunter and prey (#9).
             shotOnHunt = System.Array.IndexOf(args, "-shotonhunt") >= 0;
             var huntSideArg = System.Array.IndexOf(args, "-huntside");
@@ -369,12 +377,26 @@ namespace Punchy.Debugging
                     PlaceByCrossing(crossingSource);
                 else if (args[i] == "-place" && string.Equals(args[i + 1], "clearlake", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var lakeSource))
                     PlaceByClearLake(lakeSource);
-                else if (args[i] == "-place" && (string.Equals(args[i + 1], "ledge", System.StringComparison.OrdinalIgnoreCase) || args[i + 1].StartsWith("wall", System.StringComparison.OrdinalIgnoreCase)))
+                else if (args[i] == "-place" && (string.Equals(args[i + 1], "ledge", System.StringComparison.OrdinalIgnoreCase) || args[i + 1].StartsWith("wall", System.StringComparison.OrdinalIgnoreCase) ||
+                                                 args[i + 1].StartsWith("climb", System.StringComparison.OrdinalIgnoreCase)))
                 {
+                    // ("climb[:grade][:Body]", A-101 row 1: the wall test with a marked band on the wall, grade 2 vines
+                    // unless given, 1 a ladder; for the human's climb, whose skill climbs no unmarked wall.)
+                    var climbBand = args[i + 1].StartsWith("climb", System.StringComparison.OrdinalIgnoreCase);
                     // ("wall": the same, for a wall-climbing body: the nearest wall of a building or rock, not a rim to mantle.)
-                    wallRequest = args[i + 1].StartsWith("wall", System.StringComparison.OrdinalIgnoreCase);
+                    wallRequest = climbBand || args[i + 1].StartsWith("wall", System.StringComparison.OrdinalIgnoreCase);
+                    climbBandGrade = climbBand ? Climbing.Assisted : Climbing.None;
+                    if (climbBand)
+                    {
+                        var parts = args[i + 1].Split(':');
+                        for (int k = 1; k < parts.Length; k++)
+                            if (byte.TryParse(parts[k], out var bandGrade))
+                                climbBandGrade = (byte)math.clamp((int)bandGrade, (int)Climbing.Ladder, (int)Climbing.Most);
+                            else
+                                SetBody(parts[k]);
+                    }
                     // ("wall:Lizard": as that body; A-13 #33.)
-                    if (wallRequest && args[i + 1].IndexOf(':') > 0)
+                    else if (wallRequest && args[i + 1].IndexOf(':') > 0)
                         SetBody(args[i + 1].Substring(args[i + 1].IndexOf(':') + 1));
                     // To the nearest settlement first: its buildings, wells and stalls have the ledges (PlaceByLedge,
                     // once their tops have loaded round the player).
@@ -385,6 +407,7 @@ namespace Punchy.Debugging
                         Jump(1);
                     }
                     ledgeRequest = true;
+                    ledgeRejumped = false;
                     wallVisited.Clear();
                     wallTallest = 0f;
                     wallSearchAt = 0f;
