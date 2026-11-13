@@ -6810,3 +6810,30 @@ plot rules would have to accept a raised deck).
   - 13 of the 20 routes are in cave 5; most other caves have one short route.
   - Five editor-noise .mat files (Cave, Water, Colossus, IcebergIce, TempleGlow) were restored in the world tree on main's request. Their diff is kept outside the repo in case anyone needs it.
 - Next: W-144 row 2 per the card. Making the routes read better is suggested first.
+
+## W-144 row 1b: climb routes read in cave light (#267), world/cave-climbs d5749485
+
+- Branch: world/cave-climbs at d5749485 (after merging origin/main as e42e6d5d). merge-tree against origin/main is clean.
+- Changes: CaveSystem.Climbs.cs and Cave.shader. Only the look changed: climb logic, placement and the bake are the same ("routes 20, points 2460", 23 ledges).
+  - Vines are 2.2x thicker, roots 1.3x and ropes 1.5x. 40% of vine joints carry a small pale leaf.
+  - Crag holds have a pale worn top, a worn lip on the outer face (the part you see from below), and a chalk-like scuff above 70% of holds.
+  - Every non-rope route has a small cairn of three pale stones at its foot. A rope's hanging end already marks its foot.
+  - The chalk, lips and cairns are one mesh per route with their own screen-size LOD (ChalkPixels 60, rule 20), so they drop out before the route does.
+  - The row 1b details use their own rng stream, so the row 1 hold shapes are unchanged.
+  - Strands no longer cast shadows. Thin tubes were shadowing themselves dark.
+- Cave.shader (a shared shader) gets a new `_WallLight` colour, added to ambient light. It defaults to 0, so every other user is unchanged.
+  - Climbs set `_WallLight` per route through a MaterialPropertyBlock: a faint grey (0.1) plus the cave style's glow colour times min(1, Glow x max(GlowEverywhere, 0.1) x 6).
+  - The value is read on every draw, so editing a style in play mode shows at once.
+  - Without this the strands drew near-black against the crystal walls, which light themselves through their own glow term.
+- Network: cosmetic and seed-derived only. Nothing is sent.
+- Pins: 117 689D5348 and fingerprint 6A9E28E5, unchanged. Suite: "completed: 40/40 passed" after the last code change, with the editor out of play mode.
+- Lints: lod-lint is clean. nan-lint lists only shader lines that were already there.
+- Shots: before and after at the same poses and the same clear weather, checked at small size and in crops. They are in D:/Unity/PunchyMilestones/W-144/1b/ (w144b-<shot>-before/after.png; w144b-sheet.jpg holds all six pairs).
+  - vines-5m and vines-15m (cave 5 needed vines): the broken black slivers are now continuous olive-green strands that read against the wall. Verified at both distances. Leaves are too small to pick out at 15 m.
+  - crag-5m and shaft-up (cave 5 grade-4 crag shaft): pale lips now outline the holds, and a trail of pale scuffs traces the lower route where the holds are wall-coloured. Verified, though the effect is modest.
+  - shaft-15m-down: almost no visible change from above, because the worn tops are small at that range. UNVERIFIED.
+  - vines-c20-15m: the route is not in frame in either shot (the pose shows the passage mouth). UNVERIFIED.
+- Risks:
+  - The rule 23 GPU cost was not measured: one extra small mesh draw per route within reach (at most 20 in the world), and no shadow pass for strands. The cost check is for BENCH-QUEUE if wanted.
+  - In Ice caves `_WallLight` is strongly blue (share capped at 1). Untested in shots.
+- Next: W-144 row 2 per the card, after Zach looks at the 1b pairs.

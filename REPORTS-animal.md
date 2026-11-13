@@ -4063,3 +4063,39 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - Fauna_Fingerprint 6A9E28E5 before and after. No placement, spawn draw, ghost field, ProjectSettings or renderer changes.
 - Full suite after the last change: result="Passed" total=57 passed=40 failed=0 skipped=17.
 - Risks: Lost (who died) is host-only, so a joined client never says gone lines and still names the dead member as living. The rest is derived, so names and relations are the same on every machine. Talk is local per machine. Kin lines on "How are you?" are rare whenever a condition applies.
+
+## A-106
+
+### Row 1: per-biome work sets (done, verified, #69, fauna/harsh-work 9d5a1d4a)
+
+- Branch fauna/harsh-work from origin/main 867bdec7.
+- New FolkWorkSet assets in Resources/WorkSets (content is data). Each lists posts (job, anchor kind, min free folk, dust colour) and AloneLines for row 2:
+  - AshWork (Ashlands, EmberForest, Volcano): AshSweeper at a door, Mender at a seat;
+  - SnowWork (Tundra, Glacier): SnowShoveller at a door, Mender;
+  - DesertWork (Sonoran, Dunes, GlassDesert, SaltFlat, MesaCanyonlands): SandClearer at a door, Roofer;
+  - StormWork (ElectricWastelands): Roofer, Mender. No settlement sits there in this world yet.
+  - Swamp has no free-folk settlement, so it has no set yet.
+- A settlement takes its dominant biome's set. Those posts merge into the usual VillagePosts with no rng drawn. Temperate and fungal towns keep their posts exactly.
+- Details: door jobs stand outside facing in. The broom sweeps the ground and the spade digs and tosses. A pile (ash, snow or sand) grows with time at work, and the work kicks up pooled dust puffs (WorkDust) in the set's colour. Each job has 4 new trade talk lines.
+- Job log per settlement (FolkJobs line, before -> after):
+  - OgreCamp (ash): Baker, Healer, Gatekeeper, Merchant 2 -> + AshSweeper, Mender
+  - HumanVillage (Sonoran): Baker, Healer, Smith, Gatekeeper, Woodcutter, WellKeeper -> + SandClearer, Roofer
+  - DwarfHold (snow): Baker, Healer, Guard, Smith -> + SnowShoveller, Mender
+  - DwarfMiningCamp (snow): Baker, Healer, Guard, Smith -> + SnowShoveller, Mender
+  - GoblinCamp (temperate): Baker, Healer, Guard, Gatekeeper, Merchant 2 -> unchanged
+  - ElfGrove (FungalForest): Healer, Guard, WellKeeper, Gatekeeper -> unchanged
+  - The "free N" count varies run to run on main too, because of the director's shared rng, so the job lists are the measure.
+- Multiplayer: no ghost field or wire enum added. A client reads the job back from the existing Stage field (each harsh job has its own work stage) and counts StageTime locally for the pile and stroke.
+- Pins:
+  - Fauna_Fingerprint is 6A9E28E5 before and after (editor log);
+  - no landmark, placement or shelter-shape change;
+  - no ProjectSettings or renderer change;
+  - no timing.
+- Shots (noon, Clear), in PunchyMilestones/A-106/:
+  - r1-ash-sweeper.png (OgreCamp: broom on the ground, dark ash pile);
+  - r1-snow-shoveller.png (DwarfHold: spade, puff, snow pile by the door);
+  - r1-desert-sand-clearer.png (HumanVillage).
+- Risks and notes:
+  - The sand clearer shot was taken before the sand pile was darkened, so its pile reads pale. A noon reshoot failed: at a paused desert noon the clearer shelters from heat (existing Comfort behaviour) and doesn't return to work.
+  - The Mender and Roofer posts only appear when a settlement has enough free folk, so OgreCamp lost no existing post.
+- Next: row 2 (hermit work and routine).
