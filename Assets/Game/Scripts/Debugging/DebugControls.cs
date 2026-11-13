@@ -286,6 +286,9 @@ namespace Punchy.Debugging
             PlaceAtBatFolkPending();
             RockWatch();
             Pose();
+            FishProbe();
+            FishLineup();
+            FishLurePose();
             Interact();
             ShotList();
             SolidStatsLog();
@@ -359,6 +362,10 @@ namespace Punchy.Debugging
             WalkerShot();
             MantrapShot();
             MimicShot();
+            BreathTest();
+            DiveTest();
+            PlayerDiveTest();
+            NetWatch();
             ShotCam();
         }
 

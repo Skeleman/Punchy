@@ -99,6 +99,12 @@ namespace Punchy.Fauna
         [Min(0.1f)] public float SwimDepth = 0.6f;
         [Tooltip("Swimmers: leaps out of the water per minute.")]
         [Min(0f)] public float Leaps;
+        [Tooltip("Breathes water (water folk, sea folk): never runs out of breath under water (A-102). Swimmers (fish) " +
+                 "always do.")]
+        public bool BreathesWater;
+        [Tooltip("How long it can hold its breath under water, in seconds, before it must come up for air (A-102). 0 = " +
+                 "worked out (Breath.DefaultHold): folk 30, animals that swim across water 20, waterfowl 12, others 8.")]
+        [Min(0f)] public float HoldBreath;
 
         [Header("Activities (each species' own, variants included)")]
         [Tooltip("When it's awake: it sleeps through the rest of the day. Always = naps now and then.")]
@@ -158,6 +164,12 @@ namespace Punchy.Fauna
         [Tooltip("Light shunners only: how keen it is to walk up out of its cave now and then (goggles on by day, bare at " +
                  "night). 0: never leaves.")]
         [Range(0f, 1f)] public float SurfaceTrips;
+        [Tooltip("Turtle folk (A-103): its work reads as the igloo jobs (fishing an ice fisher, chopping an ice cutter, " +
+                 "tending a fire tender, none an elder). Jobs are local, so a joined client gets them from the task.")]
+        public bool TurtleJobs;
+        [Tooltip("Sea folk (A-103): walks the lake bed as if it were dry ground (deep water is walkable, it stays on the " +
+                 "bottom and never swims). Pair it with BreathesWater.")]
+        public bool WalksBed;
         [Tooltip("Crawls on any surface (lizards, spiders): steep rock faces outside, walls and ceilings in caves, its body " +
                  "turned to lie on the surface.")]
         public bool Crawls;

@@ -22,6 +22,21 @@ namespace Punchy.Debugging
         void ApplyOptions(string[] args)
         {
             optionsAt = Time.timeSinceLevelLoad;
+            // "-breathtest" (A-102 row 1): air and water breathers held on a lake bed, their breath logged (BreathTest).
+            breathTest = System.Array.IndexOf(args, "-breathtest") >= 0;
+            // "-divetest [Human|FishFolk]" (A-102 row 2): a person and a fish folk out swimming and diving (DiveTest).
+            var diveArg = System.Array.IndexOf(args, "-divetest");
+            diveTest = diveArg >= 0 ? (diveArg + 1 < args.Length && !args[diveArg + 1].StartsWith("-") ? args[diveArg + 1] : "") : null;
+            // "-playerdive [water]" (A-102 row 3): the player dives, rises and runs out of breath (PlayerDiveTest).
+            var playerDiveArg = System.Array.IndexOf(args, "-playerdive");
+            playerDive = playerDiveArg >= 0;
+            pdWater = playerDive && playerDiveArg + 1 < args.Length && args[playerDiveArg + 1] == "water";
+            // ("-playerdive [water] follow": the player's own camera follows the dive rather than the side shot camera.)
+            pdFollow = playerDive && System.Array.IndexOf(args, "follow", playerDiveArg) > playerDiveArg;
+            // "-netwatch [Species]" (A-103 row 2b): that species (default SeaFolk) and other players' depth, every 10 s (NetWatch).
+            var netWatchArg = System.Array.IndexOf(args, "-netwatch");
+            netWatchSpecies = netWatchArg < 0 ? null
+                : netWatchArg + 1 < args.Length && !args[netWatchArg + 1].StartsWith("-") ? args[netWatchArg + 1] : "SeaFolk";
             landmarkPlacePending = null; // (a later shot's options replace an earlier -place still being retried)
             if (!drawCalls.Valid)
             {
@@ -232,6 +247,9 @@ namespace Punchy.Debugging
             CreatureRenderSystem.Surfaces = System.Array.IndexOf(args, "-nosurfaces") < 0;
             // "-nobloom" (A-96): bloom off in the volumes' own copies of their profiles (the asset is untouched).
             Punchy.Debugging.SparkleProbe.NoBloom(System.Array.IndexOf(args, "-nobloom") >= 0);
+            // "-stopnan 0" (R-18): the main camera without URP's Stop NaN guard (a bench arm; hunting NaN by eye).
+            var stopNan = System.Array.IndexOf(args, "-stopnan");
+            Punchy.CameraRig.NanGuard.Set(!(stopNan >= 0 && stopNan + 1 < args.Length && args[stopNan + 1] == "0"));
             // "-solidsoff" (A-44): wild animals ignore cave walls, towers and carved ground as before, for before numbers
             // from the same build. "-solidstats": log their contacts, sink and floating every 60 s (SolidStatsLog).
             CreatureMotion.SolidsOff.Data = System.Array.IndexOf(args, "-solidsoff") >= 0 ? 1 : 0;
@@ -454,9 +472,24 @@ namespace Punchy.Debugging
             // "-nocavewalls" (no cave walls drawn, to price them), "-perflog" (frame costs over the last 3 s of the wait).
             CaveSystem.NoRoomCull = ThirdPersonCamera.OldProbe = System.Array.IndexOf(args, "-oldcave") >= 0;
             CaveSystem.NoWalls = System.Array.IndexOf(args, "-nocavewalls") >= 0;
+            // "-nocaveskip" (W-135): from the surface, every unburied cave chunk drawn, as before the opening test.
+            CaveSystem.NoSurfaceSkip = System.Array.IndexOf(args, "-nocaveskip") >= 0;
+            // "-cavelevel n" (W-135 row 2): every cave chunk built at wall level n (0: 0.5 m, 1: 1 m, 2: 2 m).
+            int caveLevelAt = System.Array.IndexOf(args, "-cavelevel");
+            if (caveLevelAt >= 0 && caveLevelAt + 1 < args.Length && int.TryParse(args[caveLevelAt + 1], out var caveLevel))
+                CaveSystem.ForceLevel = caveLevel;
             // "-oldtrace" (#81): TraceSystem's managed per-creature ground lookups, as before W-66.
             Punchy.Fauna.TraceSystem.OldTrace = System.Array.IndexOf(args, "-oldtrace") >= 0;
             perfLog = System.Array.IndexOf(args, "-perflog") >= 0;
+            // "-fishprobe" / "-fishlineup" (A-100): the catch-table probe and the catch line-up (DebugControls.Fish.cs).
+            fishProbe = System.Array.IndexOf(args, "-fishprobe") >= 0;
+            var lineupArg = System.Array.IndexOf(args, "-fishlineup");
+            fishLineup = lineupArg >= 0;
+            fishLineupGroup = lineupArg >= 0 && lineupArg + 1 < args.Length && (args[lineupArg + 1] == "small" || args[lineupArg + 1] == "big")
+                ? args[lineupArg + 1] : null;
+            // "-fishlure approach|nibble|bite|scatter" (A-100 row 2): a bobber in front of the nearest fish, at that moment.
+            var lureArg = System.Array.IndexOf(args, "-fishlure");
+            fishLure = lureArg >= 0 ? (lureArg + 1 < args.Length && !args[lureArg + 1].StartsWith("-") ? args[lureArg + 1] : "approach") : null;
             // "-skyoff n" (a bit mask, to price the sky's parts): see _PunchySkyOff in Sky.hlsl. Per shot line.
             var skyOffArg = System.Array.IndexOf(args, "-skyoff");
             if (skyOffArg >= 0 && skyOffArg + 1 < args.Length && float.TryParse(args[skyOffArg + 1], out var skyOff))

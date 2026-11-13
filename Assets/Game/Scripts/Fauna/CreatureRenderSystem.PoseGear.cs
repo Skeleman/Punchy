@@ -625,7 +625,19 @@ namespace Punchy.Fauna
                         ? Piece(top - side * 0.12f * scale, along, side, 0.14f * scale, 0.05f * scale, 0.08f * scale, 0.12f, iron, faded, SegmentMaterial.Metal)
                         : Piece(top - along * 0.045f * scale, along, side, 0.09f * scale, 0.024f * scale, 0.024f * scale, 1f, iron, faded, SegmentMaterial.Metal);
                 }
-                else if (atWork && offHand >= 0 && state.Task == CreatureTask.Tend)
+                else if (atWork && tend && job == FolkJob.FireTender && hand >= 0 && offHand >= 0)
+                {
+                    // (A-103: a turtle folk elder tending the village's spirit fire.) No hearth prop: the flame is
+                    // conjured, a small pale-green tongue of light between its raised hands, flickering, and a faint
+                    // glowing ember on the snow under it.
+                    var flicker = 0.85f + 0.15f * Unity.Mathematics.math.sin(state.Clock * 7.3f + (state.Individual % 50) * 0.4f);
+                    var spirit = new Unity.Mathematics.float4(0.55f, 0.95f, 0.86f, 0.9f);
+                    var flameAt = between + forward * 0.12f * scale - up * 0.1f * scale;
+                    Output[at + k++] = Piece(flameAt, up, forward, 0.2f * flicker * scale, 0.05f * scale, 0.004f * scale, 1f, spirit, faded, SegmentMaterial.Body);
+                    Output[at + k++] = Piece(state.Position + forward * 0.7f * scale, up, forward, 0.04f * scale, 0.12f * scale, 0.09f * scale, 0.5f,
+                                             new Unity.Mathematics.float4(0.45f, 0.85f, 0.78f, 0.5f), faded, SegmentMaterial.Body);
+                }
+                else if (atWork && offHand >= 0 && state.Task == CreatureTask.Tend && job != FolkJob.FireTender)
                 {
                     // A bucket hanging from the other hand.
                     var h = Output[offset + offHand];
@@ -720,12 +732,16 @@ namespace Punchy.Fauna
                 }
                 else if (atWork && state.Task == CreatureTask.Chop && job != FolkJob.Farmer)
                 {
-                    // A chopping block in front with a log stood on it, and a split piece beside.
+                    // A chopping block in front with a log stood on it, and a split piece beside. (A turtle folk ice
+                    // cutter's, A-103: a packed snow block with a clear ice block on it, and a cut slab beside.)
+                    var ice = job == FolkJob.IceCutter;
                     var block = ground + forward * 0.75f * scale;
-                    var bark = new Unity.Mathematics.float4(0.32f, 0.22f, 0.14f, 0f);
-                    Output[at + k++] = Piece(block, up, forward, 0.35f * scale, 0.2f * scale, 0.2f * scale, 1f, bark, faded, SegmentMaterial.Wood);
-                    Output[at + k++] = Piece(block + up * 0.35f * scale, up, forward, 0.3f * scale, 0.1f * scale, 0.1f * scale, 1f, new Unity.Mathematics.float4(0.7f, 0.56f, 0.36f, 0f), faded, SegmentMaterial.Wood);
-                    Output[at + k++] = Piece(block + right * 0.35f * scale + up * 0.05f * scale, Unity.Mathematics.math.normalize(forward + right * 0.5f), up, 0.3f * scale, 0.06f * scale, 0.06f * scale, 0.6f, bark, faded, SegmentMaterial.Wood);
+                    var bark = ice ? new Unity.Mathematics.float4(0.86f, 0.9f, 0.94f, 0f) : new Unity.Mathematics.float4(0.32f, 0.22f, 0.14f, 0f);
+                    var log = ice ? new Unity.Mathematics.float4(0.62f, 0.8f, 0.9f, 0f) : new Unity.Mathematics.float4(0.7f, 0.56f, 0.36f, 0f);
+                    var grain = ice ? SegmentMaterial.Cloth : SegmentMaterial.Wood;
+                    Output[at + k++] = Piece(block, up, forward, 0.35f * scale, 0.2f * scale, 0.2f * scale, ice ? 0.8f : 1f, bark, faded, grain);
+                    Output[at + k++] = Piece(block + up * 0.35f * scale, up, forward, 0.3f * scale, 0.1f * scale, 0.1f * scale, ice ? 0.7f : 1f, log, faded, grain);
+                    Output[at + k++] = Piece(block + right * 0.35f * scale + up * 0.05f * scale, Unity.Mathematics.math.normalize(forward + right * 0.5f), up, 0.3f * scale, 0.06f * scale, 0.06f * scale, 0.6f, ice ? log : bark, faded, grain);
                 }
                 else if (atWork && state.Task == CreatureTask.Gesture && hand >= 0)
                 {

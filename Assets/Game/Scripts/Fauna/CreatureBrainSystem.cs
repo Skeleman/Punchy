@@ -170,6 +170,7 @@ namespace Punchy.Fauna
             state.RequireForUpdate<TerrainSource>();
             state.RequireForUpdate<CreatureState>();
             Shelters.Data = default;   // (A-71: the shelter totals count from this play's start; statics outlive plays)
+            FishLure.ClearAll();       // (A-100: no bobber outlives the play it was cast in)
             creatures = SystemAPI.QueryBuilder().WithAll<CreatureState, CreatureBody>().Build();
             thinkers = SystemAPI.QueryBuilder().WithAllRW<CreatureState, CreatureMind>().WithAll<CreatureBody>()
                 .WithNone<PlayerAvatar, RemoteAvatar, PosedForTest>().Build();
@@ -374,6 +375,9 @@ namespace Punchy.Fauna
             // A-70 row 2: one creature per index, handed out to the workers 8 at a time, in place of whole chunks (a chunk
             // holds over a hundred, so a few busy chunks left most workers idle while one or two ran on).
             var thinking = thinkers.ToEntityArray(Allocator.TempJob);
+            // A-100 row 2: the bobbers in the water, aged here (the brain runs once a frame, in the one world that
+            // simulates fish) and handed to the job as a copy.
+            FishLure.Tick(SystemAPI.Time.DeltaTime);
             Shelters.Data.ThisFrame = 0;   // (A-71: the shelter search cap is per frame)
             // A-77: last frame's colossus columns (ColossusPushSystem hands them over), taken here and freed after the job.
             var colossi = SystemAPI.TryGetSingletonRW<ColossusSnapshot>(out var colossusSnap) ? colossusSnap.ValueRO : default;
@@ -413,6 +417,7 @@ namespace Punchy.Fauna
                 Frame = ++frame,
                 Night = SystemAPI.TryGetSingleton<FaunaClock>(out var clock) ? clock.Night : 0f,
                 Hour = SystemAPI.TryGetSingleton<FaunaClock>(out var hourClock) ? hourClock.Hour : 12f,
+                Lures = FishLure.Data.Data,
                 Entities = entities,
                 States = states,
                 Bodies = bodies,
@@ -507,6 +512,8 @@ namespace Punchy.Fauna
             public float Now, Step;
             /// <summary>This frame's number, for whose turn it is to think far off (#59).</summary>
             public uint Frame;
+            /// <summary>The bobbers in the water (A-100 row 2, FishLure): fish near one come over to it.</summary>
+            public FixedList512Bytes<FishLure.Lure> Lures;
             [ReadOnly] public NativeArray<Entity> Entities;
 
             /// <summary>Whether this creature's staggered searches run this frame: its slot of SearchPeriod came round.</summary>
@@ -527,11 +534,14 @@ namespace Punchy.Fauna
             /// <summary>This creature's CreatureMind while it ticks (#58: a copy, written back after, so every helper
             /// reaches it without passing it along; the job struct is each worker's own, as with Dt and Step).</summary>
             CreatureMind M;
+            /// <summary>This creature walks the lake bed (A-103 sea folk): deep water is ground to it (Walkable).</summary>
+            bool BedWalk;
 
             void Run(Entity self, ref CreatureState s, ref CreatureMind mind, in CreatureBody body)
             {
                 var started = Timed ? Unity.Profiling.LowLevel.Unsafe.ProfilerUnsafeUtility.Timestamp : 0L;
                 M = mind;
+                BedWalk = body.Blob.Value.WalksBed;
                 Tick(self, ref s, in body);
                 mind = M;
                 if (Timed)
@@ -564,6 +574,10 @@ namespace Punchy.Fauna
                     CreatureMotion.ApparentSize(s, ref body.Blob.Value), Punchy.Settings.DetailPolicy.CreatureThinkPixels) / BrainLodDefault.x);
                 for (int p = 0; p < Players.Length && far; p++)
                     far = math.distancesq(Players[p].xz, s.Position.xz) > lodRange * lodRange;
+                // (A fish near a bobber thinks every frame: its nibbles are what the player reads. The bobber is near its
+                // caster anyway, so this only matters for a long cast on a low setting.)
+                for (int l = 0; l < Lures.Length && far; l++)
+                    far = math.distancesq(Lures[l].At.xz, s.Position.xz) > (FishLure.Reach + 2f) * (FishLure.Reach + 2f);
                 // (The phase is mixed first: math.hash alone doesn't spread its low bits well, and only those pick the frame.)
                 var phase = math.hash(new uint2(s.Individual, 0x59u));
                 phase ^= phase >> 16;
@@ -594,6 +608,9 @@ namespace Punchy.Fauna
                     M.LodCoast = float2.zero;
                 }
                 System.Threading.Interlocked.Increment(ref Searches.Data.Thinks);
+                var thinkY = s.Position.y;
+                var thinkDt = Dt;
+                var thinkStep = Step;
                 Think(self, ref s, in body);
                 Dt = frameDt;
                 Step = frameStep;
@@ -607,6 +624,7 @@ namespace Punchy.Fauna
                     if (s.Position.y - ground > 0.1f)
                         s.Position.y = ground;
                 }
+                Breathe(ref s, ref body.Blob.Value, thinkY, thinkStep, thinkDt);
                 if (!s.Gone && CreatureMotion.StatsOn.Data != 0)
                     CountSolids(s, ref body.Blob.Value);
                 // (The legs' pose follows whatever speed it ended the tick at, whichever way it got there; its feet are
@@ -619,6 +637,48 @@ namespace Punchy.Fauna
                     using (EaseMarker.Auto())
                         CreatureMotion.EaseGait(ref s, ref body.Blob.Value, Dt, near);
                 }
+            }
+
+            /// <summary>
+            /// A-102 breath (Breath), after the think has moved it: an air breather whose head is under water uses up
+            /// its breath over its hold time (elapsed: the time the think covered) and gets it back in air. Emptied, it
+            /// is pushed up at a swimmer's pace (from where it was before the think, wherever the think put it) until
+            /// its head is out, and kept there until it has caught some breath back; then, while its breath isn't full,
+            /// it sinks back no faster than SinkSpeed rather than dropping to the bottom at once. A head under the
+            /// ground (a cave under a lake) isn't under that water. Water breathers, ghosts and anything flying or held
+            /// are always full. In everyday life no air breather's head goes under, so this costs one ground sample.
+            /// </summary>
+            void Breathe(ref CreatureState s, ref CreatureBlob b, float before, float elapsed, float dt)
+            {
+                if (s.Gone || s.Mode == CreatureMode.Held || b.BreathesWater || b.Haunts || s.Fly > 0.5f)
+                {
+                    M.BreathUsed = 0f;
+                    M.Gasping = false;
+                    return;
+                }
+                var g = Terrain.SampleGround(s.Position.xz);
+                var head = Breath.Head(s, ref b);
+                var water = g.HasWater && g.WaterSurface > g.Height && head > g.Height - 0.5f;
+                // First where it may be (the think doesn't know its breath, so a walker is back on the bottom each
+                // tick), then whether that puts its head under. (Where it is when its head is just out: surfaced.)
+                if (water && (M.Gasping || M.BreathUsed > 0f) && math.isfinite(before))
+                {
+                    var surfaced = s.Position.y + g.WaterSurface + Breath.HeadOut * s.Scale - head;
+                    var y = s.Position.y;
+                    if (M.Gasping)
+                    {
+                        if (y < surfaced)
+                            y = math.min(surfaced, math.max(y, before + Breath.RiseSpeed * dt));
+                    }
+                    else if (y < before - Breath.SinkSpeed * dt)
+                        y = math.min(before, surfaced) - Breath.SinkSpeed * dt;
+                    head += y - s.Position.y;
+                    s.Position.y = y;
+                }
+                var under = water && head < g.WaterSurface;
+                if (!under && M.BreathUsed <= 0f && !M.Gasping)
+                    return;
+                M.BreathUsed = Breath.Use(M.BreathUsed, ref M.Gasping, under, b.HoldBreath, elapsed);
             }
 
             void Think(Entity self, ref CreatureState s, in CreatureBody body)
@@ -727,6 +787,12 @@ namespace Punchy.Fauna
                 var pace = 1f + CreatureBlob.Trait(s.Individual, 5) * 0.08f;
                 var walk = b.WalkSpeed * s.Scale * pace;
                 var run = b.RunSpeed * s.Scale * pace;
+                // A-103 row 2b: a sea folk out of the water trudges (slower, stooped in CreatureAnimator).
+                if (FolkState.OutOfWater(s.Position, b.WalksBed, Terrain))
+                {
+                    walk *= 0.7f;
+                    run *= 0.75f;
+                }
 
                 // Keep an eye on a nearby player (busy feeding or drinking, only a close one).
                 var watchPlayer = b.FleeDistance > 0f && playerDistance < b.FleeDistance * 2.5f;
@@ -735,7 +801,9 @@ namespace Punchy.Fauna
                 var idleLook = watchPlayer ? lookAtPlayer : math.sin(s.Clock * 0.7f + s.Seed % 7) * 0.5f;
 
                 // Following a player (Follow.Start) takes the place of its own mode while it lasts.
-                if (!Following(ref s, ref b, ref rng, dt, walk, run, ref targetSpeed, ref moving, ref desiredLook))
+                // (So does a fish come over to a bobber: A-100 row 2.)
+                if (!Following(ref s, ref b, ref rng, dt, walk, run, ref targetSpeed, ref moving, ref desiredLook) &&
+                    !Lured(self, ref s, ref b, ref rng, dt, walk, run, threatened, ref targetSpeed, ref moving, ref custom))
                 switch (s.Mode)
                 {
                     case CreatureMode.Idle:
@@ -842,7 +910,7 @@ namespace Punchy.Fauna
                         break;
 
                     case CreatureMode.Swim:
-                        Swimming(ref s, ref b, ref rng, dt, walk, idleLook, ref targetSpeed, ref moving, ref desiredLook);
+                        Swimming(ref s, ref b, ref rng, dt, walk, idleLook, ref targetSpeed, ref moving, ref desiredLook, ref vertical);
                         break;
 
                     case CreatureMode.Patrol:

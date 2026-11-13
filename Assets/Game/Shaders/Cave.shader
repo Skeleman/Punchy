@@ -10,6 +10,11 @@ Shader "Punchy/Cave"
     // fine surface detail from one shared texture, a floor material (ground facing up: sand, gravel, ash, frost crust)
     // and glowing cracks in sparse patches. One shader and one material for every style. Slot 0 is no style, drawn
     // with this material's own colours.
+    //
+    // W-138 row 4b: a road tunnel's walls carry 32 x a tunnel code on top of the slot (1 + 1 if its road is paved + 2
+    // if it's built: lamps or timber frames), and their rib shade channel carries the road's share of the floor
+    // (negative: a fallen stone's share). Tunnels draw their road as cobbles or packed grit and their walls as rough
+    // rock, with cut stone courses where built, all in the cave's own light; no veins, cracks or ribs.
     Properties
     {
         _RockColor ("Rock", Color) = (0.48, 0.44, 0.4, 1)
@@ -40,7 +45,7 @@ Shader "Punchy/Cave"
             float3 positionOS : POSITION;
             float3 normalOS : NORMAL;
             float4 color : COLOR;
-            float4 data : TEXCOORD0;   // x terrain blend, y rock tint, z style slot
+            float4 data : TEXCOORD0;   // x terrain blend, y rock tint, z style slot (+ 32 x tunnel code), w rib shade / road share
         };
         ENDHLSL
 
@@ -66,7 +71,7 @@ Shader "Punchy/Cave"
                 float3 positionWS : TEXCOORD0;
                 float3 normalWS : TEXCOORD1;
                 float4 color : TEXCOORD2;
-                float3 data : TEXCOORD3;   // x terrain blend, y rock tint, z rib shade
+                float3 data : TEXCOORD3;   // x terrain blend, y rock tint, z rib shade (a tunnel: road share, negative a stone's)
                 nointerpolation float style : TEXCOORD4;
             };
 
@@ -144,7 +149,13 @@ Shader "Punchy/Cave"
                 float openness = saturate(input.color.a);
 
                 // The cave's style (slot 0: this material's colours, plain rock).
-                int slot = clamp((int)round(input.style), 0, 31);
+                int raw = max((int)round(input.style), 0);
+                int slot = raw & 31;
+                // A road tunnel's code (0: a cave): paved road, built (lamps or frames).
+                int code = raw >> 5;
+                bool tunnel = code > 0;
+                bool paved = tunnel && ((code - 1) & 1) != 0;
+                bool built = tunnel && ((code - 1) & 2) != 0;
                 float4 s0 = float4(_RockColor.rgb, 0.3), s1 = float4(_DarkColor.rgb, 0.366), s2 = 0, s3 = 0, s4 = float4(1, 0, 0, 0);
                 float4 s5 = float4(_RockColor.rgb * 0.8, 0.3), s6 = float4(_DarkColor.rgb, 0), s7 = float4(0.3, 1, 0, 0), s8 = 0;
                 if (slot > 0)
@@ -199,12 +210,115 @@ Shader "Punchy/Cave"
                 half3 floorTone = lerp(s6.rgb, s5.rgb, saturate(blotch * 0.7 + detail.b * 0.5));
                 floorTone *= lerp(1, 0.6 + 0.8 * detail.a, s5.w);
                 rock = lerp(rock, floorTone, floorShare);
+
+                // A road tunnel (W-138 row 4b): rough rock walls, cut stone courses where it's built, its fallen stones
+                // pale, and its road carried through as cobbles or packed grit, all lit like the walls.
+                float roadShare = 0;
+                if (tunnel)
+                {
+                    float stoneShare = saturate(-input.data.z);
+                    roadShare = saturate(input.data.z) * smoothstep(0.5, 0.75, shape.y) * (1 - terrain);
+                    float bareWall = (1 - stoneShare) * (1 - roadShare) * (1 - terrain);
+                    // Cut stone courses on the side walls of a built tunnel, ending raggedly where the vault and the
+                    // floor take over.
+                    float courses = built ? (1 - smoothstep(0.35, 0.55, abs(shape.y) + (PunchyValueNoise(p.xz * 0.7 + p.y * 0.5 + 19) - 0.5) * 0.25)) * bareWall : 0;
+                    // Rough rock: a coarse read of the shared detail, so the bare rock breaks into knobs and hollows
+                    // at arm's length (flatter where it's cut stone).
+                    float3 coarseNudge;
+                    float4 coarse = Detail(p, shape, s7.y * 0.23, coarseNudge);
+                    n = normalize(n + coarseNudge * 0.6 * bareWall * (1 - 0.6 * courses));
+                    rock *= lerp(1, 0.75 + 0.5 * coarse.b, bareWall);
+                    [branch] if (courses > 0)
+                    {
+                        // Rows 0.42 m high, each set off along the wall by its own share of a block, joints where the
+                        // wall crosses the x or z planes it runs across (both on a slanting wall).
+                        const float rowHeight = 0.42, blockLength = 0.95;
+                        float row = floor(p.y / rowHeight);
+                        float fy = frac(p.y / rowHeight);
+                        float joint = min(fy, 1 - fy) * rowHeight;
+                        float offset = frac(row * 0.618) * blockLength;
+                        bool acrossX = abs(shape.x) < 0.75, acrossZ = abs(shape.z) < 0.75;
+                        float bx = (p.x + offset) / blockLength, bz = (p.z + offset) / blockLength;
+                        if (acrossX) joint = min(joint, min(frac(bx), 1 - frac(bx)) * blockLength);
+                        if (acrossZ) joint = min(joint, min(frac(bz), 1 - frac(bz)) * blockLength);
+                        int3 block = int3(row, acrossX ? floor(bx) : 0, acrossZ ? floor(bz) : 0);
+                        float blockTone = 0.8 + 0.4 * (FacetHash(block).x + 0.5);
+                        float mortar = 1 - smoothstep(0.012, 0.03, joint);
+                        float bevel = 1 - smoothstep(0.03, 0.09, joint);
+                        rock = lerp(rock, rock * blockTone * (1 - bevel * 0.25), courses);
+                        rock = lerp(rock, rock * 0.45, mortar * courses);
+                    }
+                    // Fallen stones: pale grey, darker where they sit in the floor.
+                    half3 stone = half3(0.62, 0.6, 0.56) * (0.7 + 0.6 * detail.b) * (0.8 + 0.4 * coarse.b) * input.data.y;
+                    rock = lerp(rock, stone, smoothstep(0.5, 0.9, stoneShare));
+                    rock *= 1 - stoneShare * (1 - stoneShare) * 4 * 0.45;
+                    // The road: its own colour (vertex rgb), as cobbles (rounded setts with dark joints, each its own
+                    // tone) or packed grit, a damp dark gutter along each side.
+                    [branch] if (roadShare > 0)
+                    {
+                        half3 road = input.color.rgb;
+                        float3 roadNormal = n;
+                        if (paved)
+                        {
+                            const float sett = 0.32;
+                            float2 q = p.xz / sett;
+                            int2 c = int2(floor(q));
+                            float f1 = 9, f2 = 9;
+                            float2 centre = q;
+                            int2 id = c;
+                            for (int y = -1; y <= 1; y++)
+                            for (int x = -1; x <= 1; x++)
+                            {
+                                int2 cell = c + int2(x, y);
+                                float2 at = float2(cell) + 0.5 + FacetHash(int3(cell, 7)).xy * 0.8;
+                                float d = distance(q, at);
+                                if (d < f1) { f2 = f1; f1 = d; centre = at; id = cell; }
+                                else if (d < f2) f2 = d;
+                            }
+                            float edge = (f2 - f1) * sett;
+                            float joint = 1 - smoothstep(0.012, 0.035, edge);
+                            float settTone = 0.78 + 0.44 * (FacetHash(int3(id, 11)).x + 0.5);
+                            road *= settTone * (0.85 + 0.3 * detail.b) * (1 - joint * 0.65) * (1 - (1 - smoothstep(0.03, 0.08, edge)) * 0.2);
+                            float2 dome = (q - centre) * 0.55;
+                            roadNormal = normalize(float3(dome.x, 1, dome.y) + nudge * 0.3);
+                        }
+                        else
+                        {
+                            // Packed grit: small pebbles (about 6 cm) in a darker bed, each its own tone, patchy
+                            // at half a metre. Drawn in world xz so it stays crisp at arm's length, where the
+                            // shared detail smears along the bore.
+                            const float pebble = 0.06;
+                            float2 q = p.xz / pebble;
+                            int2 c = int2(floor(q));
+                            float f1 = 9, f2 = 9;
+                            int2 id = c;
+                            for (int y = -1; y <= 1; y++)
+                            for (int x = -1; x <= 1; x++)
+                            {
+                                int2 cell = c + int2(x, y);
+                                float d = distance(q, float2(cell) + 0.5 + FacetHash(int3(cell, 5)).xy * 0.9);
+                                if (d < f1) { f2 = f1; f1 = d; id = cell; }
+                                else if (d < f2) f2 = d;
+                            }
+                            float bed = 1 - smoothstep(0.04, 0.2, f2 - f1);
+                            float pebbleTone = 0.75 + 0.5 * (FacetHash(int3(id, 13)).x + 0.5);
+                            float patch = 0.8 + 0.4 * PunchyValueNoise(p.xz * 2 + 31);
+                            road *= 0.8 * pebbleTone * patch * (1 - bed * 0.45);
+                            roadNormal = normalize(shape + float3(FacetHash(int3(id, 17)).x, 0, FacetHash(int3(id, 19)).x) * 0.35 * (1 - bed));
+                        }
+                        float gutter = smoothstep(0.5, 0.6, shape.y) * (1 - smoothstep(0.68, 0.82, shape.y));
+                        road *= 1 - gutter * 0.4;
+                        rock = lerp(rock, road, roadShare);
+                        n = normalize(lerp(n, roadNormal, roadShare));
+                        gloss = lerp(gloss, lerp(0.08, 0.6, gutter), roadShare);
+                    }
+                }
                 // Moss: patches on anything facing up (floors, ledges, the tops of fallen rocks), thickest where daylight
                 // comes in, a little on the lower walls; matte, so it also dulls the rock's gloss.
                 if (s7.w > 0)
                 {
                     float clump = PunchyValueNoise(p.xz * 0.6 + p.y * 0.3 + 71) * 0.7 + detail.b * 0.3;
-                    float moss = smoothstep(0.55, 0.7, clump + s7.w * 0.35 + openness * 0.25) * saturate(shape.y * 1.6 + 0.2) * s7.w;
+                    float moss = smoothstep(0.55, 0.7, clump + s7.w * 0.35 + openness * 0.25) * saturate(shape.y * 1.6 + 0.2) * s7.w * (1 - roadShare * 0.85);
                     rock = lerp(rock, s8.rgb * (0.7 + 0.6 * detail.b), moss);
                     gloss *= 1 - moss;
                 }
@@ -224,11 +338,12 @@ Shader "Punchy/Cave"
                     rock *= lerp(1, 0.6, damp);
                     gloss = lerp(gloss, 0.8, damp * 0.85);
                     // Mineral veins in sparse patches: thin bands where a slow noise crosses its middle, calcite white
-                    // in some caves' stretches and iron rust in others.
+                    // in some caves' stretches and iron rust in others. Not in a road tunnel: on its bored rock they
+                    // read as white squiggles (W-138 row 4b).
                     float veinPatch = PunchyValueNoise(p.xz * 0.06 + p.y * 0.08 + 401);
                     float veinLine = PunchyValueNoise(p.xy * 0.7 + p.z * 0.55 + 3) * 0.6 + PunchyValueNoise(p.zy * 1.9 - p.x * 0.4) * 0.4;
                     float vein = (1 - smoothstep(0.0, 0.03, abs(veinLine - 0.5))) * smoothstep(0.62, 0.72, veinPatch)
-                               * (1 - floorShare * 0.7) * bare;
+                               * (1 - floorShare * 0.7) * bare * (tunnel ? 0 : 1);
                     float calcite = step(0.5, PunchyValueNoise(p.xz * 0.015 + 77));
                     half3 mineral = lerp(half3(0.5, 0.25, 0.11), half3(0.88, 0.86, 0.8), calcite);
                     rock = lerp(rock, mineral * (0.8 + 0.4 * detail.b), vein * 0.85);
@@ -341,7 +456,7 @@ Shader "Punchy/Cave"
                 half3 color = diffuse * light + specColor * shine + s0.rgb * through * translucency * 0.6;
                 // Ribs: their hollows darker and crests lighter, whatever look the wall has (rock, ice or the terrain's
                 // skin in a shallow cave), so they read in flat light.
-                half ribs = 1 - clamp(input.data.z * 2.4, -0.3, 0.75);
+                half ribs = tunnel ? 1 : 1 - clamp(input.data.z * 2.4, -0.3, 0.75);
                 color *= ribs;
                 // Sheen: a soft rim where the wall turns away, lit by whatever light reaches it, with a faint floor of
                 // its own so even near-black rock (obsidian) keeps its shape out of the lantern's reach.
@@ -403,7 +518,8 @@ Shader "Punchy/Cave"
                 // Light the rock gives off: a share everywhere (ice, faintly lit crystal), the rest in cracks. Cracks are
                 // borders between random 3D cells, warped so they wander, small, and only in sparse patches (the style's
                 // Cracks share of the wall), never on the floor. They may also darken the rock (dark fissures in ice).
-                if (any(s2.rgb > 0) || s4.w > 0)
+                // Not in a road tunnel: its glowing crack net read as a white mesh over bored rock (W-138 row 4b).
+                if (!tunnel && (any(s2.rgb > 0) || s4.w > 0))
                 {
                     // The mask first: the 27-cell crack search only runs where the mask leaves any crack to draw.
                     float g = s4.x;

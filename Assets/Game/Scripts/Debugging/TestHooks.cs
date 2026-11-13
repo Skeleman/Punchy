@@ -93,6 +93,124 @@ namespace Punchy.Debugging
             return $"{lines.Count} {h:X8}";
         }
 
+        /// <summary>Collects the island blobs of a source, boxed, so another source's blobs can be checked against them.</summary>
+        struct BlobList : IslandCache.IBlobVisitor
+        {
+            public List<object> Blobs;
+            public List<byte[]> Bytes;
+            public void Visit<T>(string name, ref BlobAssetReference<T> blob) where T : unmanaged
+            {
+                Blobs?.Add(blob);
+                Bytes?.Add(IslandCache.BlobBytes(blob));
+            }
+        }
+
+        static List<byte[]> IslandBlobBytes(ref TerrainSource source)
+        {
+            var list = new BlobList { Bytes = new List<byte[]>() };
+            IslandCache.Each(ref source, ref list);
+            return list.Bytes;
+        }
+
+        static List<string> IslandBlobNames()
+        {
+            var names = new NameList { Names = new List<string>() };
+            var none = default(TerrainSource);
+            IslandCache.Each(ref none, ref names);
+            return names.Names;
+        }
+
+        struct NameList : IslandCache.IBlobVisitor
+        {
+            public List<string> Names;
+            public void Visit<T>(string name, ref BlobAssetReference<T> blob) where T : unmanaged => Names.Add(name);
+        }
+
+        /// <summary>
+        /// W-140: bakes the island fresh from the inputs the live island started from, and checks it byte for byte against
+        /// the live island (loaded from the cache or baked, whichever this launch did) and against a write and read of the
+        /// island file, plus the landmark hash all three ways. "" when all match, else what differs. Takes a bake (~14 s).
+        /// </summary>
+        public static string IslandCacheRoundTrip()
+        {
+            var pal = Palette();
+            if (!Source(out var live) || pal == null || IslandV2.ActiveVersion < 2) return "no v2/v3 island";
+            int version = IslandV2.ActiveVersion;
+            var types = IslandV2System.LandmarkTypes(pal);
+            var fresh = IslandCache.LastInputs;
+            IslandV2System.Bake(ref fresh, pal, types, version);
+            var problems = new List<string>();
+            var names = IslandBlobNames();
+            var freshBytes = IslandBlobBytes(ref fresh);
+            var liveBytes = IslandBlobBytes(ref live);
+            var path = System.IO.Path.Combine(Application.temporaryCachePath, $"island-roundtrip-{System.Diagnostics.Process.GetCurrentProcess().Id}.bin");
+            var loaded = IslandCache.LastInputs;
+            bool parsed = false;
+            try
+            {
+                const string key = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+                if (!IslandCache.WriteFile(path, ref fresh, version, key)) problems.Add("file not written");
+                else if (!(parsed = IslandCache.Parse(System.IO.File.ReadAllBytes(path), ref loaded, version, key, out var why))) problems.Add("file not read: " + why);
+                // A key that differs by one byte must miss.
+                if (parsed && IslandCache.Parse(System.IO.File.ReadAllBytes(path), ref live, version, "f" + key.Substring(1), out _)) problems.Add("a changed key still loaded");
+                var loadedBytes = parsed ? IslandBlobBytes(ref loaded) : null;
+                for (int i = 0; i < names.Count; i++)
+                {
+                    if (freshBytes[i] == null) problems.Add(names[i] + " unreadable after a fresh bake");
+                    if (!Same(freshBytes[i], liveBytes[i])) problems.Add($"{names[i]} live != fresh {Diff(liveBytes[i], freshBytes[i])}");
+                    if (loadedBytes != null && !Same(freshBytes[i], loadedBytes[i])) problems.Add($"{names[i]} loaded != fresh {Diff(loadedBytes[i], freshBytes[i])}");
+                }
+                if (live.BiomeKind != fresh.BiomeKind) problems.Add("biome kind");
+                if (!Same(StructBytes(live.RiverSettings), StructBytes(fresh.RiverSettings))) problems.Add("river settings live");
+                if (parsed && !Same(StructBytes(loaded.RiverSettings), StructBytes(fresh.RiverSettings))) problems.Add("river settings loaded");
+                var hFresh = IslandV2System.LandmarkHash(ref fresh, types);
+                var hLive = IslandV2System.LandmarkHash(ref live, types);
+                if (hFresh != hLive) problems.Add($"landmark hash live {hLive} != fresh {hFresh}");
+                if (parsed) { var hLoaded = IslandV2System.LandmarkHash(ref loaded, types); if (hLoaded != hFresh) problems.Add($"landmark hash loaded {hLoaded} != fresh {hFresh}"); }
+            }
+            finally
+            {
+                IslandCache.Free(ref fresh);
+                if (parsed) IslandCache.Free(ref loaded);
+                try { System.IO.File.Delete(path); } catch (System.Exception) { }
+            }
+            return string.Join("; ", problems);
+        }
+
+        static byte[] StructBytes<T>(T value) where T : unmanaged =>
+            System.Runtime.InteropServices.MemoryMarshal.AsBytes(System.Runtime.InteropServices.MemoryMarshal.CreateSpan(ref value, 1)).ToArray();
+
+        /// <summary>Where two byte strings first differ (lengths, first offset, and the bytes there).</summary>
+        static string Diff(byte[] a, byte[] b)
+        {
+            if (a == null || b == null) return "(unreadable)";
+            int n = System.Math.Min(a.Length, b.Length), at = 0, count = 0;
+            while (at < n && a[at] == b[at]) at++;
+            for (int i = at; i < n; i++) if (a[i] != b[i]) count++;
+            return $"({a.Length} vs {b.Length} bytes, {count} differ from {at}: {(at < n ? a[at] + " vs " + b[at] : "-")})";
+        }
+
+        static bool Same(byte[] a, byte[] b)
+        {
+            if (a == null || b == null || a.Length != b.Length) return false;
+            for (int i = 0; i < a.Length; i++)
+                if (a[i] != b[i]) return false;
+            return true;
+        }
+
+        /// <summary>W-140: every blob field of TerrainSource that the island file neither saves nor names as not cached
+        /// ("" when none): a new blob the bake fills must join IslandCache.Each, or a cache hit would leave it empty.</summary>
+        public static string IslandCacheMissingBlobs()
+        {
+            var known = new HashSet<string>(IslandBlobNames());
+            known.UnionWith(IslandCache.NotCached);
+            var missing = new List<string>();
+            foreach (var f in typeof(TerrainSource).GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic))
+                if (f.FieldType.IsGenericType && f.FieldType.GetGenericTypeDefinition() == typeof(BlobAssetReference<>) && !known.Contains(f.Name))
+                    missing.Add(f.Name);
+            return string.Join(", ", missing);
+        }
+
         /// <summary>
         /// River bends: the turn (degrees) at each river cell between the segment in and the segment out, over rivers at
         /// least minWidth wide. [cells, largest turn, 99th percentile turn].
@@ -537,6 +655,7 @@ namespace Punchy.Debugging
             var from = s.Position + math.normalizesafe(at - s.Position, new float3(1f, 0f, 0f)) * 3f;
             var ok = FolkConversation.Respond(best, new Answer { Reaction = BeastReaction.Scared, Response = kind }, from);
             BeastRespondFolk = s.Individual;
+            UnityEngine.Debug.Log($"BeastRespond: {response} to species {EM.GetComponentData<CreatureBody>(best).Species} ({UnityEngine.Object.FindAnyObjectByType<FaunaDirector>()?.SpeciesName(EM.GetComponentData<CreatureBody>(best).Species)}) task {s.Task} leash {s.Leash:F0} at {bestD:F1} m");
             return new float[] { s.Individual, ok ? 1f : 0f };
         }
 

@@ -26,7 +26,11 @@ namespace Punchy.Tests
             yield return null;
         }
 
-        /// <summary>Target: 112 landmarks, probe hash A955AFE0 since W-122 row 1 (the MarshFolkVillage entry appended; the other
+        /// <summary>Target: 117 landmarks, probe hash 689D5348 since W-138 row 3a (bores capped at 800 m and kept out from
+        /// under towns: the west roads re-routed, so three roadside campsites are new and the C0a swamp waystation moved 65 m).
+        /// 114 00D16E22 since W-138 row 2b (the two C0a waystations added; the roadside
+        /// picks re-drawn on the new road net: inns, shrines, campsites, monuments and a ruin moved). 112 / A5D1D048 since W-138 row 2a (the sea folk landing 2 m and village 16 m
+        /// moved: their spots are now found before the roads; the other 110 unmoved). A955AFE0 since W-122 row 1 (the MarshFolkVillage entry appended; the other
         /// 111 hash to 3BDF705F unchanged). 111 / 3BDF705F since W-114 (the Ashlands ribcage on its own spot; the other 110
         /// unmoved). 110 / 09EAC0FE since W-105 row 3 (stilt houses out over the shallows; village
         /// placement asks for a stilt house spot). Before that, on main after PR #148 (W-104 row 1 repinned it): 109 / C96F266F
@@ -36,7 +40,7 @@ namespace Punchy.Tests
         {
             var hash = Game.Hook<string>("LandmarkHash");
             LogWatch.Measure($"landmarks {hash}; game line: {LogWatch.Last("[island]")}");
-            Assert.AreEqual("112 A955AFE0", hash);
+            Assert.AreEqual("117 689D5348", hash);
             yield return null;
         }
 
@@ -57,7 +61,7 @@ namespace Punchy.Tests
         {
             var line = LogWatch.Last("fingerprint") ?? "no fingerprint line";
             LogWatch.Measure("fauna " + line);
-            StringAssert.Contains("fingerprint AD723954", line);   // A-97 row 3 re-pin: paw limb feet are now coat-coloured Paw segments, a little wider (no placement change). 66320C7C since the W-128 re-pin: the inn rebuilt from kit pieces (cce82b69) bakes new anchor rows. B15790ED since W-127 (was 7D75BB04, W-126 before it F0EF4BD5): the flora blob the build bakes gains the beacon fixture species and the fixture rows' MinPlots
+            StringAssert.Contains("fingerprint B9ADEB35", line);   // A-103 row 2 re-pin: the sea folk species, its Sea* limbs, the SeaHousehold spawn rows and the blob's WalksBed flag (no placement change). C5B450EF since the A-103 + A-102 merge re-pin: A-103 row 1 (7D44629E: the turtle folk species, limbs, spawn row and the blob's TurtleJobs flag) with A-102 row 1 (151753F3: the blob gains BreathesWater and HoldBreath); no placement change. AD723954 since the A-97 row 3 re-pin: paw limb feet are now coat-coloured Paw segments, a little wider (no placement change). 66320C7C since the W-128 re-pin: the inn rebuilt from kit pieces (cce82b69) bakes new anchor rows. B15790ED since W-127 (was 7D75BB04, W-126 before it F0EF4BD5): the flora blob the build bakes gains the beacon fixture species and the fixture rows' MinPlots
             yield return null;
         }
 
@@ -263,6 +267,27 @@ namespace Punchy.Tests
             }
             LogWatch.Measure("flora placement cost: " + line + $"total {total:F0} ms");
             Assert.Greater(total, 0f);
+            yield return null;
+        }
+
+        /// <summary>W-140: the island this launch has (loaded from the island cache, or baked) is byte for byte a fresh bake
+        /// of the same inputs, and so is a write and read of the island file; the landmark hash is the same all ways.
+        /// Run last: it bakes the island once more (~14 s).</summary>
+        [UnityTest, Order(90)]
+        public IEnumerator IslandCache_LoadedEqualsFresh()
+        {
+            var problems = Game.Hook<string>("IslandCacheRoundTrip");
+            LogWatch.Measure($"island {LogWatch.Last("[island] cache") ?? "no cache line"}; round trip: {(problems == "" ? "all blobs byte-equal, landmark hash the same" : problems)}");
+            Assert.AreEqual("", problems);
+            yield return null;
+        }
+
+        /// <summary>W-140: every blob in TerrainSource is saved by the island cache or named as not the bake's, so a new
+        /// blob can't come back empty on a cache hit.</summary>
+        [UnityTest, Order(90)]
+        public IEnumerator IslandCache_SavesEveryBlob()
+        {
+            Assert.AreEqual("", Game.Hook<string>("IslandCacheMissingBlobs"));
             yield return null;
         }
 
