@@ -731,6 +731,34 @@ namespace Punchy.Debugging
             return s.Individual;
         }
 
+        /// <summary>
+        /// A-105 row 3: asks up to count housed folk nearest the player after their family (topic family, or how), the
+        /// player in its own body. With -households each answer that names a member is logged with its house. Returns one
+        /// line per folk: its name, then the answer.
+        /// </summary>
+        public static string AskHousedFolk(int count = 10, string topic = FolkConversation.Family)
+        {
+            var at = (float3)PlayerPosition();
+            using var q = EM.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>());
+            using var entities = q.ToEntityArray(Allocator.Temp);
+            var housed = new System.Collections.Generic.List<(float d, Entity e)>();
+            foreach (var e in entities)
+            {
+                var c = EM.GetComponentData<CreatureState>(e);
+                if (!c.Gone && Households.Of(c.Individual, out _, out _))
+                    housed.Add((math.distance(c.Position, at), e));
+            }
+            housed.Sort((a, b) => a.d.CompareTo(b.d));
+            var sb = new System.Text.StringBuilder();
+            for (int i = 0; i < housed.Count && i < count; i++)
+            {
+                var e = housed[i].e;
+                var answer = FolkConversation.Ask(e, topic);
+                sb.Append(FolkNames.Of(EM.GetComponentData<CreatureState>(e).Individual)).Append(": ").Append(answer.Text).Append('\n');
+            }
+            return sb.ToString();
+        }
+
         static uint beastLiveFolk;
 
         /// <summary>

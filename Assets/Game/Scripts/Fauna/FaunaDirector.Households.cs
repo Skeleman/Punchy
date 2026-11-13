@@ -11,6 +11,10 @@ namespace Punchy.Fauna
     /// <summary>A household member's place in it (A-105): the head, the head's partner, an elder, or a child.</summary>
     public enum Kin : byte { Head, Partner, Elder, Child }
 
+    /// <summary>What one household member is to another (A-105 row 3), for family talk: dialogue.json's "kin" key names
+    /// these in lower case ("partner", "child", "inlaw"...). None: not kin (itself).</summary>
+    public enum KinRelation : byte { None, Partner, Child, Parent, Grandparent, Grandchild, Sibling, InLaw }
+
     /// <summary>One member of a household: who it is (the Individual it's given when it spawns), its role, and whether
     /// its family words are feminine (daughter, wife, grandmother) or not (son, husband, grandfather).</summary>
     public struct Kinsfolk
@@ -46,6 +50,49 @@ namespace Punchy.Fauna
             Kin.Child => k.Feminine ? "daughter" : "son",
             _ => "head"
         };
+
+        /// <summary>Whether a member has died this session (host only: a client never marks one).</summary>
+        public bool Gone(int member) => (Lost >> member & 1u) != 0;
+
+        /// <summary>What member other is to member speaker. Elders are the head's parents, children the head's and the
+        /// partner's, so an elder's partner is the other elder.</summary>
+        public KinRelation Relation(int speaker, int other)
+        {
+            if (speaker == other || speaker < 0 || other < 0 || speaker >= Members.Length || other >= Members.Length)
+                return KinRelation.None;
+            var me = Members[speaker].Role;
+            var them = Members[other].Role;
+            switch (me)
+            {
+                case Kin.Head:
+                    return them == Kin.Partner ? KinRelation.Partner : them == Kin.Elder ? KinRelation.Parent : them == Kin.Child ? KinRelation.Child : KinRelation.None;
+                case Kin.Partner:
+                    return them == Kin.Head ? KinRelation.Partner : them == Kin.Elder ? KinRelation.InLaw : them == Kin.Child ? KinRelation.Child : KinRelation.None;
+                case Kin.Elder:
+                    return them == Kin.Head ? KinRelation.Child : them == Kin.Partner ? KinRelation.InLaw : them == Kin.Child ? KinRelation.Grandchild : KinRelation.Partner;
+                default:
+                    return them == Kin.Elder ? KinRelation.Grandparent : them == Kin.Child ? KinRelation.Sibling : KinRelation.Parent;
+            }
+        }
+
+        /// <summary>The family word member speaker uses for member other ("my daughter", "my mother-in-law"), sex-matched by
+        /// other's Feminine; null when other is no kin of speaker.</summary>
+        public string WordFor(int speaker, int other)
+        {
+            var f = Members[other].Feminine;
+            switch (Relation(speaker, other))
+            {
+                case KinRelation.Partner: return f ? "wife" : "husband";
+                case KinRelation.Child: return f ? "daughter" : "son";
+                case KinRelation.Parent: return f ? "mother" : "father";
+                case KinRelation.Grandparent: return f ? "grandmother" : "grandfather";
+                case KinRelation.Grandchild: return f ? "granddaughter" : "grandson";
+                case KinRelation.Sibling: return f ? "sister" : "brother";
+                case KinRelation.InLaw:
+                    return Members[speaker].Role == Kin.Elder ? (f ? "daughter-in-law" : "son-in-law") : (f ? "mother-in-law" : "father-in-law");
+                default: return null;
+            }
+        }
     }
 
     /// <summary>
