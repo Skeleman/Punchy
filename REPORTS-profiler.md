@@ -2,6 +2,12 @@
 
 Newest first.
 
+## Crash on main b66b4c2a during job 66 (11-13): a 129 TB "Shader" allocation a few seconds after load
+- **Where:** Profile build of main b66b4c2a (with the bench overlay), Medium, 1920x1080, `-goto 2266,-434 -benchface 2266,-434,20`, noon, Clear, `-weatherseed 4`, `-body default`. Game 4 of job 66 (round 2 of main); rounds 1 of both arms and round 2 of the branch at the same view were fine.
+- **What:** "Could not allocate memory: System out of memory! Trying to allocate: 129219889222144B with 16 alignment. MemoryLabel: Shader" (Allocators.h:156), on the main thread, about 1-3 s after "BenchRoute: world ready at 8.9 s". The last game lines before it: "WaterSwells: shore field built (160x160, 57 m cells)" and a CreatureSnapshotSystem buffer grow. Native stack only (UnityPlayer, no managed frames); memory in use was normal (default 508 MB).
+- **Reading:** a garbage size reaching a shader-labelled native allocation (a GraphicsBuffer or a material/shader property array created from an uninitialised count is the usual way). First time I've seen it in the bench logs. Log kept as results/q-q108-medium-canyon20-main-cs100-2.log on the laptop.
+- **Job 66:** stopped at the crash (the runner's rule); it reruns in full after the 49e rerun (q105b, building now). If it recurs, I'll report the rate.
+
 ## Job 49e: R-12 warp bake, 2026-11-12 (q105.job): INVALID, the bake build drew magenta; fixed (b/r12-warp-bake 9887361f), rerun queued as q105b
 - **What went wrong:** 26e26ec1's HazeLut pass 3 didn't compile ("Unrecognized sampler 'sampler_srcweathermap'"). That pass samples `_SrcCloudMap` with the weather map's sampler, and the weather map isn't read in that pass, so the compiler strips both. In the game, HazeLut is "not supported on this GPU", and the terrain and water draw magenta in **both** of that build's arms (bake and `-warpbake 0`). The sheet shows it (`results/sheets/r12_bake.jpg`).
 - **So the numbers below aren't the bake's cost:** bake -1.6 to -2.7 ms and perread equal to main come from broken frames. Main db9ca83e is fine (stormnoon 19.55, stormnear ~20-23 with one stalled round, stormnight 19.83, shadow 15.0).
