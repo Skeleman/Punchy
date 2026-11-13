@@ -188,6 +188,27 @@ namespace Punchy.Fauna
             float SleepTime(ref CreatureBlob b) =>
                 b.Active == ActiveTime.Day ? Night : b.Active == ActiveTime.Night ? 1f - Night : 0f;
 
+            /// <summary>Whether it has a house of its own (A-103/A-105: its household's door, not just any door near).</summary>
+            static bool HasOwnDoor(in CreatureState s) => math.lengthsq(s.OwnDoor.xz) > 0f;
+
+            /// <summary>
+            /// Whether a folk should be going home for the night, or staying in: past half its sleeping time (SleepTime)
+            /// for most; one with a house of its own heads home as the sun sets (A-105), and a child of a house is called
+            /// in an hour before that, from ChildHomeHour, and stays in till full day.
+            /// </summary>
+            bool Homeward(in CreatureState s, ref CreatureBlob b)
+            {
+                var sleepy = SleepTime(ref b);
+                if (!HasOwnDoor(s))
+                    return sleepy > 0.5f;
+                if (b.Child && b.Active == ActiveTime.Day && Hour >= ChildHomeHour)
+                    return true;
+                return sleepy > (b.Child ? 0.25f : 0.4f);
+            }
+
+            /// <summary>The hour a housed child is called in (A-105): an hour before the 18:00 sunset.</summary>
+            const float ChildHomeHour = 17f;
+
             /// <summary>
             /// The weighted activities, in the order the roll is spent on them. Those marked * can fail to start (no
             /// water, tree, web or flight found); then the roll, already spent, falls to the next * one that has any
@@ -424,12 +445,14 @@ namespace Punchy.Fauna
                 if (posted && sleepy > 0.5f && !dayWork)
                     sleep = 0f;
                 // Townsfolk go indoors through their door: for the night (all but the watch), and now and then by day.
+                // (A-105: a housed child is called in earlier, at the first of the dusk, and stays in till full day.)
                 var home = 0f;
                 if (b.Upright && s.Leash > 0f && s.Task != CreatureTask.Watch && FindDoor(ref s))
                 {
-                    home = sleepy > 0.5f ? 14f : 0.15f * awake;
-                    if (sleepy > 0.5f)
-                        work = sleep = 0f;
+                    var homeward = Homeward(s, ref b);
+                    home = homeward ? 14f : 0.15f * awake;
+                    if (homeward)
+                        work = sleep = play = 0f;
                 }
                 w[(int)Weighted.Work] = work;
                 w[(int)Weighted.Home] = home;

@@ -24,7 +24,8 @@ namespace Punchy.Fauna
     /// A house and the folk who live in it (A-105 row 1): its door (xz, its outward yaw in w), what kind of home it is
     /// ("house" in a town or fishing village, "hut" for a hermit, "igloo", "dome") and its members. All of it comes from
     /// the door's spot, so it is the same on every machine with nothing sent or stored. Taken marks the members out in
-    /// the world just now (host only: the rest are away, or not yet spawned).
+    /// the world just now (host only: the rest are away, or not yet spawned). Lost marks the members who have died (A-105
+    /// row 2, host only, for this session): their beds stay empty, so nobody new moves in yet.
     /// </summary>
     public sealed class Household
     {
@@ -33,7 +34,7 @@ namespace Punchy.Fauna
         public uint Key;
         public string Kind;
         public Kinsfolk[] Members;
-        internal uint Taken, Pinned;
+        internal uint Taken, Pinned, Lost;
 
         public string NameOf(int member) => FolkNames.Of(Members[member].Individual) ?? "?";
 
@@ -168,6 +169,8 @@ namespace Punchy.Fauna
         World houseQueryWorld;
         float nextHouseWatch;
         readonly HashSet<uint> housesSeen = new HashSet<uint>();
+        readonly Dictionary<uint, bool> housesInside = new Dictionary<uint, bool>();
+        int houseArrivals, houseWrongDoor;
 
         bool LogHouses
         {
@@ -349,13 +352,30 @@ namespace Punchy.Fauna
             return h;
         }
 
-        /// <summary>A landmark's houses all empty again (when it's peopled anew); hermits keep their huts.</summary>
+        /// <summary>
+        /// A landmark's houses all empty again (when it's peopled anew); hermits keep their huts, and the dead's beds stay
+        /// empty (A-105 row 2).
+        /// </summary>
         void ResetHouses(int landmark)
         {
             if (!Households.ByLandmark.TryGetValue(landmark, out var list))
                 return;
             foreach (var h in list)
-                Households.All[h].Taken = Households.All[h].Pinned;
+                Households.All[h].Taken = Households.All[h].Pinned | Households.All[h].Lost;
+        }
+
+        /// <summary>
+        /// A housed folk has died (Despawn, host): its place in its house is kept empty, so its household has an empty
+        /// bed and the folk peopling the landmark next go to other houses or lodge, as before.
+        /// </summary>
+        void HouseMemberDied(in CreatureState s)
+        {
+            if (!Households.Of(s.Individual, out var house, out var m))
+                return;
+            house.Lost |= 1u << m;
+            house.Taken |= 1u << m;
+            if (LogHouses)
+                Debug.Log($"[households] died {FolkNames.Of(s.Individual)} {house.Members[m].Role} of {house.Kind} at ({house.Door.x:F1}, {house.Door.z:F1}) landmark {house.Landmark}: bed left empty");
         }
 
         /// <summary>The next free place in one of a landmark's houses for a folk spawning there, or -1 (a lodger).</summary>
@@ -482,10 +502,11 @@ namespace Punchy.Fauna
                 for (int m = 0; m < house.Members.Length; m++)
                 {
                     var k = house.Members[m];
-                    var taken = (house.Taken >> m & 1u) != 0;
+                    var lost = (house.Lost >> m & 1u) != 0;
+                    var taken = !lost && (house.Taken >> m & 1u) != 0;
                     home += taken ? 1 : 0;
                     sb.Append(m > 0 ? ", " : "").Append(k.Role).Append(' ').Append(FolkNames.Of(k.Individual))
-                      .Append(k.Feminine ? " (f, " : " (m, ").Append(taken ? "in)" : "away)");
+                      .Append(k.Feminine ? " (f, " : " (m, ").Append(lost ? "died, bed empty)" : taken ? "in)" : "away)");
                 }
                 folk += house.Members.Length;
                 Debug.Log($"[households] {typeName} {landmark} house {h} {house.Kind} at ({house.Door.x:F1}, {house.Door.z:F1}) size {house.Members.Length}: {sb}");
@@ -511,7 +532,23 @@ namespace Punchy.Fauna
             var states = houseQuery.ToComponentDataArray<CreatureState>(Allocator.Temp);
             foreach (var s in states)
             {
-                if (!Households.Of(s.Individual, out var house, out var m) || !housesSeen.Add(s.Individual))
+                if (!Households.Of(s.Individual, out var house, out var m))
+                    continue;
+                // (A-105 row 2: each going in at a door, from the synced mode and stage, and whether that door is its
+                // own house's: the inside spot is 0.7 m in from the door it used.)
+                var inside = s.Mode == CreatureMode.Home && s.Stage >= 1;
+                housesInside.TryGetValue(s.Individual, out var was);
+                housesInside[s.Individual] = inside;
+                if (inside && !was)
+                {
+                    var own = math.distance(s.Position.xz, house.Door.xz) < 1.5f;
+                    houseArrivals++;
+                    houseWrongDoor += own ? 0 : 1;
+                    Debug.Log($"[households] home {FolkNames.Of(s.Individual)} {house.Members[m].Role} of {house.Kind} at ({house.Door.x:F1}, {house.Door.z:F1}) " +
+                              $"landmark {house.Landmark}: {(own ? "own door" : $"WRONG door ({s.Position.x:F1}, {s.Position.z:F1})")} " +
+                              $"at {FishCatch.Hour():F2}h; {houseArrivals} home, {houseWrongDoor} at a wrong door");
+                }
+                if (!housesSeen.Add(s.Individual))
                     continue;
                 var k = house.Members[m];
                 Debug.Log($"[households] seen {FolkNames.Of(k.Individual)} {k.Role} of {house.Kind} at ({house.Door.x:F1}, {house.Door.z:F1}) " +
@@ -525,6 +562,8 @@ namespace Punchy.Fauna
         {
             Households.Clear();
             housesSeen.Clear();
+            housesInside.Clear();
+            houseArrivals = houseWrongDoor = 0;
             houseQueryWorld = null;
             houseQuery = default;
         }

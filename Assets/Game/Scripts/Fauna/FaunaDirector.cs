@@ -439,7 +439,10 @@ namespace Punchy.Fauna
                 if ((players.Count == 0 || NearestPlayer(xz) > letGo || states[i].Gone) && states[i].Mode != CreatureMode.Held)
                 {
                     if (states[i].Gone)
+                    {
                         Caught++;
+                        HouseMemberDied(states[i]);
+                    }
                     far.Add(entities[i]);
                     continue;
                 }

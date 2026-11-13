@@ -702,6 +702,35 @@ namespace Punchy.Debugging
             return "";
         }
 
+        /// <summary>
+        /// A-105 row 2: the housed folk nearest the player dies (nothing kills folk yet, so this stands in for whatever
+        /// will): it's marked Gone, Despawn takes it and its house keeps its bed empty. Returns its Individual, or 0.
+        /// </summary>
+        public static uint KillHousedFolk()
+        {
+            var at = (float3)PlayerPosition();
+            using var q = EM.CreateEntityQuery(ComponentType.ReadWrite<CreatureState>());
+            using var entities = q.ToEntityArray(Allocator.Temp);
+            var best = Entity.Null;
+            var bestD = float.MaxValue;
+            foreach (var e in entities)
+            {
+                var c = EM.GetComponentData<CreatureState>(e);
+                var d = math.distance(c.Position, at);
+                if (d < bestD && Households.Of(c.Individual, out _, out _))
+                {
+                    best = e;
+                    bestD = d;
+                }
+            }
+            if (best == Entity.Null)
+                return 0;
+            var s = EM.GetComponentData<CreatureState>(best);
+            s.Gone = true;
+            EM.SetComponentData(best, s);
+            return s.Individual;
+        }
+
         static uint beastLiveFolk;
 
         /// <summary>
