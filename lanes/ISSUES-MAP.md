@@ -65,3 +65,7 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #37 #38 | Sea folk city and turtle igloos are empty; diving and breath (Zach 11-12) | A-103 (folk lane: races + residents; rows 4-5 playable sea and bat folk, #291), A-102 (fauna lane: diving, breath), P-34 (player: meter) |
 | #298 | Roadmap: far views, the whole island in sight (Zach 11-13) | R-22 (world lane, after R-21), R-23 (rendering, after R-16 + R-20), A-108 (fauna lane, after A-107) |
 | #287 | Load order on jumps: big things first, short load veil (Zach 11-12) | W-151 (world lane, after W-150 1b) |
+| #301 | Water meshes: kinks, dead ends, not following reality (Zach 11-13) | W-153 (world lane, after R-22) |
+| #302 | Lights switch on as you approach (Zach 11-13) | R-25 (render lane, after R-20; finishes R-10) |
+| #303 | Lava does not look like lava (Zach 11-13) | W-154 (world lane, after W-153 row 2) |
+| #304 | Cartoon bark and cave cracks; cave vs terrain detail contrast (Zach 11-13) | R-26 (render lane, after R-23 rows 1-2) |

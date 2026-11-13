@@ -127,6 +127,8 @@ pygmies (#35, #10), turtle folk (#38). Core rule throughout: small, varied, seed
 - Climbable colossi, maybe a fur section (#276), after unified climbing (A-101, W-144, W-147).
 - Rideable creatures: anything rides a creature 50% heavier; the ridden player steers (#278).
 - Cliff and mountain geometry: overhangs, ledges, strata as separate rock pieces (#281); W-149 done, R-19 and W-150 carded.
+- Zach 11-13, problems he keeps running into: water kinks and dead ends (#301, W-153), lights switching on as you approach (#302, R-25), shadow flicker (#286, R-20), lava look (#303, W-154), cartoon bark and cave cracks plus cave/terrain detail contrast (#304, R-26).
+- Weather-set haze (Zach 11-13): cloudier, more humid days thicker; heavy storms dramatically thicker (#298, R-22 row 2). Haze change approved.
 
 ### Open, partly done
 - Dungeons (#24), NPCs (#25), items and gear (#26), quests (#27): player lane cards in flight.
