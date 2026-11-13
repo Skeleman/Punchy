@@ -1,5 +1,10 @@
 # Fauna: creatures, the player's body, folk and workers
 
+**Life at a distance (Zach, 2026-11-13):** the world should feel full of life from far off as well as near. Wild
+animals are simulated only close to players, so large or grouped kinds (herds, flocks, big single animals, folk in
+towns) need a drawn-only far form seeded from the same spawn tables, which hands over to real creatures without a pop
+or a double. Far forms cost no entities and nothing on the network.
+
 Read before changing creatures, behaviour, poses, the player's body, settlements' residents or workers.
 
 - `Fauna/` — `LimbType` (segments plus seven key poses), `CreatureSpecies` (body plus slots; can be a recoloured

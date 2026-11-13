@@ -1,5 +1,10 @@
 # World: terrain, biomes, landmarks, caves
 
+**Far view (Zach, 2026-11-13):** a landform, forest, water body, town or landmark must read from kilometres away, not
+only up close. When you add or change one, give it a far form (far-ground tint, canopy map entry, stand-in, light or
+plume) built from the same placement records, and check it from a summit and from the air. Nature first: landform,
+forest, water, sky and light carry the far view; built things sit inside it.
+
 Read before changing terrain, biomes, rivers, landmarks, settlements, roads or caves.
 
 - **`TerrainSource` is the single source of truth** for the ground: height, biome weights, rivers, lakes, water
