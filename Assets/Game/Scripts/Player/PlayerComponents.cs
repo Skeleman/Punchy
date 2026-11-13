@@ -65,6 +65,16 @@ namespace Punchy.Player
         public float TrunkRadius, TrunkHeight, TrunkAngle;
         /// <summary>How the trunk leans from its foot, at half its height and at its height (FloraObstacle.LeanMid/Top).</summary>
         public float2 TrunkLeanMid, TrunkLeanTop;
+        /// <summary>
+        /// A-102 breath (Punchy.Fauna.Breath): how much is used up under water (0 full, 1 empty; 0 by default, so a new
+        /// body starts full), and whether, having emptied it, the body hasn't yet caught enough back. Local player
+        /// state, sent to the others with the avatar (NetPlayerLook.BreathUsed).
+        /// </summary>
+        public float BreathUsed;
+        public bool Gasping;
+        /// <summary>A-102 row 3: how far under the swim depth a swimming body has dived (m, 0 at the surface). Local
+        /// player state; the others see it in the avatar's position.</summary>
+        public float Dive;
     }
 
     /// <summary>
@@ -92,6 +102,10 @@ namespace Punchy.Player
         public bool Hovers;
         /// <summary>How fast it climbs (m/s) a section at its own skill; quicker on easier ones (Climbing.Speed).</summary>
         public float ClimbSpeed;
+        /// <summary>A-102: never runs out of breath under water (water and sea folk; a fish body too), else how long it
+        /// holds its breath (s): its species' (CreatureBlob.BreathesWater, HoldBreath).</summary>
+        public bool BreathesWater;
+        public float HoldBreath;
     }
 
     /// <summary>Singleton written by PlayerInputSystem each frame. MoveDirection is world-space XZ, length 0..1.</summary>

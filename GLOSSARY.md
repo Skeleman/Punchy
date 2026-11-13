@@ -93,6 +93,10 @@ it real. To add or change a term, edit this file in the same commit as the code 
   for real places. Animals head for what their Needs ask for (water, grazing, lair, a sunny rock, a roost); short local
   milling while grazing is fine. The current goal shows in the `-watch` log. Existing wandering is retrofitted
   gradually, folk first.
+- **Breath** (A-102): `Breath`, a 0-1 meter every body has, worked like stamina: used up while its head is under water
+  (over the species' `HoldBreath`), back quickly in air; emptied, the body is pushed up until its head is out and
+  can't go down again until it has caught some back. **Water breathers** (`BreathesWater`: fish, water and sea folk)
+  never use it. Creatures' is simulated (`CreatureMind`); the player's is local (`PlayerMotion`), sent with the avatar.
 - **Need** (new): a drive that rises over time (hunger, thirst, rest, safety, social). Needs give animals agency
   instead of wandering.
 - **Lair** (new): an animal's home: nest, den, burrow, roost, web. Seed-derived lairs persist (cheap to regenerate);
