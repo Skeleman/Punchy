@@ -459,6 +459,9 @@ namespace Punchy.Terrain
             // W-142 row 2: smoke vents, from their own seeds (they change no rock either).
             PlaceVents(withCaves, palette, types, caves, nodes, kinds, styles, extras);
             Step("vents");
+            // W-142 row 3: lava seeps, trickles with Lava set, appended after the water ones (their own seeds too).
+            PlaceSeeps(withCaves, palette, caves, nodes, kinds, styles, extras);
+            Step("seeps");
             FinishRooms(caves, extras);
             withWater.Dispose();
             // W-110: road tunnels last, appended after the landmarks' caves (whose indices, seeds and extras stay as

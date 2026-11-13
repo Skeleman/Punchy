@@ -5,6 +5,8 @@ Shader "Punchy/Cave Trickle"
     // a seeping sheet, or drops falling off an overhang), with a slow shimmer running down it on the shared clock and a
     // glint of the lantern. Where it lands, rings on the puddle or pool and a little spray. No meshes: 62 quads per
     // trickle from SV_VertexID, read from a structured buffer; the slit, wet streak and puddle are in the rock (Cave).
+    // W-142 row 3: a lava seep (the fourth header row's z set) is the same sheet as a slow glowing ooze, crusting dark
+    // in drifting patches with hot cracks through the crust, and a molten glow where it lands instead of rings and spray.
     SubShader
     {
         Tags { "RenderType" = "Transparent" "Queue" = "Transparent" "RenderPipeline" = "UniversalPipeline" }
@@ -26,7 +28,7 @@ Shader "Punchy/Cave Trickle"
             #include "Glow.hlsl"
 
             // Per trickle 84 float4s: (kind, width, seed, threads), (land xyz, puddle), (out x, 0, out z, drop),
-            // (flow, 1 on water, 0, 0), then 16 rows x 5 columns of points down the wall (w: unused).
+            // (flow, 1 on water, 1 lava, 0), then 16 rows x 5 columns of points down the wall (w: unused).
             StructuredBuffer<float4> _Trickles;
             float _TrickleFade[12];
             float _SplashFade[12];
@@ -44,6 +46,7 @@ Shader "Punchy/Cave Trickle"
                 nointerpolation float4 info : TEXCOORD2;   // x part (0 wall, 1 rings, 2 spray), y kind, z seed, w threads
                 nointerpolation float4 more : TEXCOORD3;   // x drop (m), y fade, z flow, w 1 on water
                 float3 normalWS   : TEXCOORD4;
+                nointerpolation float lava : TEXCOORD5;   // 1 for a lava seep
             };
 
             float3 SafeNormal(float3 v, float3 fallback)
@@ -89,6 +92,7 @@ Shader "Punchy/Cave Trickle"
                 Varyings o;
                 o.info = float4(0, kind, head.z, head.w);
                 o.more = float4(max(outward.w, 0.1), _TrickleFade[instanceID], extra.x, extra.y);
+                o.lava = extra.z;
                 float3 p;
                 if (quad < 60)
                 {
@@ -185,7 +189,9 @@ Shader "Punchy/Cave Trickle"
 
             half4 Frag(Varyings input) : SV_Target
             {
-                float t = _PunchyClock;
+                bool lava = input.lava > 0.5;
+                // Lava oozes at a tenth of water's pace.
+                float t = _PunchyClock * (lava ? 0.1 : 1);
                 int part = (int)round(input.info.x);
                 int kind = (int)round(input.info.y);
                 float seed = input.info.z;
@@ -230,6 +236,36 @@ Shader "Punchy/Cave Trickle"
                     float drops = step(0.72, Noise(input.uv * 5 + float2(seed * 31, -t * 7)));
                     mask = smoothstep(1, 0.2, r) * (0.04 + drops) * 0.35;
                     shimmer = drops;
+                }
+
+                if (lava)
+                {
+                    // A slow glowing ooze: thicker and opaque, dark crust drifting down it in patches with hot cracks
+                    // between, brightest at the slit; where it lands a molten glow (no rings, no spray).
+                    half3 hot = half3(1.0, 0.36, 0.06);
+                    if (part == 2)
+                    {
+                        clip(-1);
+                        return 0;
+                    }
+                    if (part == 0)
+                    {
+                        float y = input.uv.y * input.more.x;
+                        float crust = smoothstep(0.45, 0.7, Noise(float2(input.uv.x * 4 + seed * 9, (y - t * 0.9) * 1.6)));
+                        crust = max(crust, smoothstep(0.6, 1.0, input.uv.y) * 0.6);
+                        float crack = 1 - smoothstep(0.0, 0.06, abs(Noise(float2(input.uv.x * 11 + seed * 5, (y - t * 0.9) * 5)) - 0.5));
+                        float heat = lerp(1, crack * 0.8, crust) * lerp(1.6, 0.9, input.uv.y);
+                        half3 crustColor = half3(0.07, 0.05, 0.045) * min(light, 1.5);
+                        half3 ooze = lerp(crustColor, hot * 2.2, saturate(heat)) + hot * shimmer * 0.4 * (1 - crust);
+                        float oa = saturate(min(mask * 1.6, 1) * 0.92 * input.more.y);
+                        clip(oa - 0.01);
+                        return half4(ooze, oa);
+                    }
+                    float r = length(input.uv);
+                    float pulse = 0.8 + 0.2 * sin(_PunchyClock * 0.7 + seed * 6.3);
+                    float glowA = smoothstep(1, 0.1, r) * 0.55 * pulse * input.more.y;
+                    clip(glowA - 0.01);
+                    return half4(hot * 2.5 * saturate(1.2 - r), glowA);
                 }
 
                 float3 halfway = SafeNormal(SafeNormal(toLantern, n) + toEye, n);

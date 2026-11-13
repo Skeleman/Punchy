@@ -335,6 +335,7 @@ Shader "Punchy/Cave"
                 float streak = smoothstep(0.7, 0.8, PunchyValueNoise(float2((p.x - p.z) * 2.3, p.y * 0.16 + 5)))
                              * smoothstep(0.45, 0.6, dampMask) * wall;
                 float damp = max(smoothstep(0.58, 0.7, dampMask) * saturate(shape.y * 0.8 + 0.5), streak * 0.8) * bare;
+                half3 trickleGlow = 0;   // W-142 row 3: lava seeps' glowing slit, cracks and puddle
                 if (dressed > -0.5 && dressed < 0.5)
                 {
                     rock *= lerp(1, 0.6, damp);
@@ -350,7 +351,7 @@ Shader "Punchy/Cave"
                     half3 mineral = lerp(half3(0.5, 0.25, 0.11), half3(0.88, 0.86, 0.8), calcite);
                     rock = lerp(rock, mineral * (0.8 + 0.4 * detail.b), vein * 0.85);
                     gloss = lerp(gloss, 0.55, vein * calcite);
-                    PunchyTrickleWet(p, shape, rock, gloss);
+                    PunchyTrickleWet(p, shape, rock, gloss, trickleGlow);
                 }
                 else if (dressed > 0.5 && dressed < 1.5)
                 {
@@ -461,6 +462,7 @@ Shader "Punchy/Cave"
                 // skin in a shallow cave), so they read in flat light.
                 half ribs = tunnel ? 1 : 1 - clamp(input.data.z * 2.4, -0.3, 0.75);
                 color *= ribs;
+                color += trickleGlow;
                 // Sheen: a soft rim where the wall turns away, lit by whatever light reaches it, with a faint floor of
                 // its own so even near-black rock (obsidian) keeps its shape out of the lantern's reach.
                 color += lerp(s0.rgb, 1, 0.3) * pow(1 - saturate(dot(n, view)), 3) * s7.z * (light * 0.5 + 0.035);

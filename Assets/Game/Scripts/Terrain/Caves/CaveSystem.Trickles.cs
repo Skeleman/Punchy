@@ -13,8 +13,9 @@ namespace Punchy.Terrain
     /// trickle's wall down from its slit (a grid of points hugging the rock, so the water stays on the wall however it
     /// bulges), then the nearest few are drawn by the Cave Trickle shader with no mesh, fading out as they shrink on
     /// screen. The slit, the dark wet streak and the puddle are painted into the rock by the cave shader from a short
-    /// global list, so they stay in the rock's colour at any distance. The nearest two murmur quietly. Seed-derived and
-    /// cosmetic: every player sees the same trickles and nothing is sent.
+    /// global list, so they stay in the rock's colour at any distance. The nearest two murmur quietly. W-142 row 3: lava
+    /// seeps are trickles with Lava set, drawn the same way in a slow glowing look (silent), each drawn one asking
+    /// LightBudget for a fire-tier glow. Seed-derived and cosmetic: every player sees the same trickles and nothing is sent.
     /// </summary>
     public partial class CaveSystem
     {
@@ -35,6 +36,8 @@ namespace Punchy.Terrain
         /// <summary>The murmur: the two nearest, heard within a few metres (sim: audio reach).</summary>
         const int MaxTrickleSounds = 2;
         const float TrickleHeard = 14f;   // sim: audio reach
+        /// <summary>A lava seep's glow (rgb x intensity, as the lava pools' LavaLight but dimmer) and its reach (m).</summary>
+        static readonly Vector4 SeepLight = new Vector4(1f * 1.4f, 0.4f * 1.4f, 0.08f * 1.4f, 4f);
 
         BlobAssetReference<CaveSetBlob> tricklesFrom;
         System.Threading.Tasks.Task<float4[]> trickleTask;
@@ -100,6 +103,18 @@ namespace Punchy.Terrain
             TrickleSounds(camPos);
             if (trickleCount == 0)
                 return;
+            // Lava seeps glow through the light rule at the fire tier (R-10): LightBudget decides by on-screen reach
+            // whether each takes a glow slot. From a little out of the wall, a third of the way down the ooze.
+            for (int i = 0; i < trickleCount; i++)
+            {
+                var b = trickleDrawn[i] * TrickleStride;
+                if (trickleData[b + 3].z < 0.5f)
+                    continue;
+                var slit = trickleData[b + 4 + TrickleColumns / 2].xyz;
+                var foot = trickleData[b + 4 + (TrickleRows - 1) * TrickleColumns + TrickleColumns / 2].xyz;
+                var at = math.lerp(slit, foot, 0.35f) + trickleData[b + 2].xyz * 0.4f;
+                LightBudget.AddStill(LightKind.Fire, at, SeepLight);
+            }
             if (trickleMaterial == null)
             {
                 trickleMaterial = Resources.Load<Material>("CaveTrickle");
@@ -181,7 +196,8 @@ namespace Punchy.Terrain
                 var slit = trickleData[b + 4 + TrickleColumns / 2];
                 var foot = trickleData[b + 4 + (TrickleRows - 1) * TrickleColumns + TrickleColumns / 2];
                 wetUpload[i * 3] = new Vector4(slit.x, slit.y, slit.z, head.y);
-                wetUpload[i * 3 + 1] = new Vector4(outward.x, outward.z, outward.w, head.x);
+                // Kind 4-7: the same shapes in lava (a glowing slit, a dark crust, a glowing puddle).
+                wetUpload[i * 3 + 1] = new Vector4(outward.x, outward.z, outward.w, head.x + (trickleData[b + 3].z > 0.5f ? 4f : 0f));
                 // The puddle sits under the foot of the water (not where the bake probed), at the landing height.
                 wetUpload[i * 3 + 2] = new Vector4(foot.x, land.y, foot.z, land.w);
             }
@@ -222,7 +238,8 @@ namespace Punchy.Terrain
             {
                 var i = nearTrickles[k].index;
                 var d = math.distance(camPos, trickleMiddle[i]);
-                if (d < TrickleHeard)
+                // Lava oozes silently (there's no fitting sound yet).
+                if (d < TrickleHeard && trickleData[i * TrickleStride + 3].z < 0.5f)
                     trickleHeard.Add((d, i));
             }
             trickleHeard.Sort((a, b) => a.distance.CompareTo(b.distance));
@@ -254,7 +271,7 @@ namespace Punchy.Terrain
 
         /// <summary>
         /// Each trickle's header and wall grid (pure: runs on a worker). Header: (kind, width, seed, threads),
-        /// (land xyz, puddle), (out x, 0, out z, drop), (flow, 1 on water, 0, 0). Grid: 16 rows from the slit to the
+        /// (land xyz, puddle), (out x, 0, out z, drop), (flow, 1 on water, 1 lava, 0). Grid: 16 rows from the slit to the
         /// landing height, 5 columns across the water's spread (a fan and a sheet widen downwards), each a point just off
         /// the rock found by marching in from the air; where no wall is found it keeps the row above's depth.
         /// </summary>
@@ -273,7 +290,7 @@ namespace Punchy.Terrain
                 data[b] = new float4((float)tr.Kind, tr.Width, tr.Seed, tr.Threads);
                 data[b + 1] = new float4(tr.Land, tr.Puddle);
                 data[b + 2] = new float4(out3.x, 0f, out3.z, tr.Drop);
-                data[b + 3] = new float4(tr.Flow, onWater, 0f, 0f);
+                data[b + 3] = new float4(tr.Flow, onWater, tr.Lava, 0f);
                 var bottom = tr.Land.y + 0.02f;
                 for (int c = 0; c < TrickleColumns; c++)
                 {

@@ -103,7 +103,7 @@ namespace Punchy.Terrain
                     }
                     var dir = new float2(math.cos(angle), math.sin(angle));
                     var pick = shape < 0.3f ? TrickleKind.Thread : shape < 0.55f ? TrickleKind.Fan : shape < 0.78f ? TrickleKind.Sheet : TrickleKind.Overhang;
-                    if (TryTrickle(source, extras, c, cave, from, dir, height, pick, threads, size, flow, seed, keepClear, out var trickle))
+                    if (TryTrickle(source, extras, c, cave, from, dir, height, pick, threads, size, flow, seed, keepClear, false, out var trickle))
                     {
                         extras.Trickles.Add(trickle);
                         byKind[(int)trickle.Kind]++;
@@ -133,14 +133,14 @@ namespace Punchy.Terrain
         /// its lip). The water lands at the wall's foot, on cave water when there is some right there.
         /// </summary>
         static bool TryTrickle(in TerrainSource source, Extras extras, int c, in CaveData cave, float3 from, float2 dir, float height,
-                               TrickleKind pick, int threads, float size, float flow, float seed, List<float3> keepClear, out CaveTrickle trickle)
+                               TrickleKind pick, int threads, float size, float flow, float seed, List<float3> keepClear, bool lava, out CaveTrickle trickle)
         {
             trickle = default;
             var up = new float3(0f, 1f, 0f);
             var floor = source.FloorUnder(from + up * 0.5f, out var inCave);
             if (!inCave)
                 return TrickleMiss(0);
-            var baseY = WaterOver(source, new float3(from.x, floor, from.z), floor);
+            var baseY = LiquidOver(source, extras, cave, lava, new float3(from.x, floor, from.z), floor);
             var hip = new float3(from.x, baseY + 1f, from.z);
             if (source.CaveDistance(hip) >= 0f)
                 return TrickleMiss(0);
@@ -171,7 +171,7 @@ namespace Punchy.Terrain
             var footFloor = source.FloorUnder(footProbe, out inCave);
             if (!inCave)
                 return TrickleMiss(0);
-            var land = new float3(footProbe.x, WaterOver(source, new float3(footProbe.x, footFloor, footProbe.z), footFloor), footProbe.z);
+            var land = new float3(footProbe.x, LiquidOver(source, extras, cave, lava, new float3(footProbe.x, footFloor, footProbe.z), footFloor), footProbe.z);
             var drop = slit.y - land.y;
             if (drop < TrickleMinDrop)
                 return TrickleMiss(3);
@@ -211,7 +211,7 @@ namespace Punchy.Terrain
             if (kind == TrickleKind.Overhang)
             {
                 var lipFloor = source.FloorUnder(lip, out _);
-                land = new float3(lip.x, WaterOver(source, new float3(lip.x, lipFloor, lip.z), lipFloor), lip.z);
+                land = new float3(lip.x, LiquidOver(source, extras, cave, lava, new float3(lip.x, lipFloor, lip.z), lipFloor), lip.z);
                 drop = slit.y - land.y;
             }
 
@@ -260,9 +260,27 @@ namespace Punchy.Terrain
                 Kind = kind,
                 Threads = kind == TrickleKind.Fan ? threads : kind == TrickleKind.Overhang ? math.max(threads - 1, 1) : 1,
                 Flow = flow,
-                Seed = seed
+                Seed = seed,
+                Lava = lava ? 1f : 0f
             };
             return true;
+        }
+
+        /// <summary>What a trickle lands on: for water, the cave water's surface (WaterOver); for a lava seep, a lava pool's
+        /// surface in its cave when the point is over one and the surface is higher, else the floor.</summary>
+        static float LiquidOver(in TerrainSource source, Extras extras, in CaveData cave, bool lava, float3 onFloor, float floor)
+        {
+            if (!lava)
+                return WaterOver(source, onFloor, floor);
+            var level = floor;
+            for (int p = cave.FirstPool; p < cave.FirstPool + cave.PoolCount; p++)
+            {
+                var pool = extras.Pools[p];
+                if (pool.Lava >= 0.5f && pool.Centre.y > level && math.distance(pool.Centre.xz, onFloor.xz) < pool.Radius &&
+                    onFloor.y < pool.Centre.y + 1f)
+                    level = pool.Centre.y;
+            }
+            return level;
         }
 
         /// <summary>The cave water's surface over a floor point when it is higher, else the floor.</summary>

@@ -5,11 +5,13 @@
 // narrow dark crack with a pale lip; the darker, glossier wet streak running down below it (short under an overhang,
 // where the water drips off instead), widening as a fan spreads; and a puddle at the foot. Painted into the rock's own
 // colour, so they hold at any distance. CaveSystem uploads the nearest 16 (a slit, out of the wall and a puddle each).
+// W-142 row 3: kinds 4-7 are the same shapes in lava: the slit glows, a dark cooling crust rings it and darkens the
+// streak (hot cracks glowing through near the top), and the puddle is molten. The glow comes out in emit.
 // Needs PunchyValueNoise (Sky.hlsl).
 float4 _PunchyTrickles[48];   // per trickle: (slit xyz, width), (out x, out z, drop, kind), (foot x, landing height, foot z, puddle radius)
 int _PunchyTrickleCount;
 
-void PunchyTrickleWet(float3 p, float3 shape, inout half3 rock, inout float gloss)
+void PunchyTrickleWet(float3 p, float3 shape, inout half3 rock, inout float gloss, inout half3 emit)
 {
     for (int k = 0; k < _PunchyTrickleCount; k++)
     {
@@ -24,6 +26,9 @@ void PunchyTrickleWet(float3 p, float3 shape, inout half3 rock, inout float glos
         float width = max(a.w, 0.05);
         float drop = max(b.z, 0.1);
         int kind = (int)round(b.w);
+        bool lava = kind >= 4;
+        kind -= lava ? 4 : 0;
+        const half3 hot = half3(1.0, 0.36, 0.06);
         [branch] if (abs(across) < width * 1.6 + 1.0 && below > -0.3 && below < drop + 0.3 && abs(depth) < 1.5)
         {
             float facing = smoothstep(0.1, 0.3, dot(shape.xz, outward)) * step(abs(depth), 0.6);
@@ -33,8 +38,20 @@ void PunchyTrickleWet(float3 p, float3 shape, inout half3 rock, inout float glos
             float slit = smoothstep(1, 0.6, dot(lens, lens)) * facing;
             float2 lipLens = float2(across / (width * 0.6), (rel.y - ragged - 0.03) / 0.035);
             float lip = smoothstep(1, 0.4, dot(lipLens, lipLens)) * facing * (1 - slit);
-            rock *= lerp(1, 0.12, slit) * (1 + 0.22 * lip);
-            gloss = lerp(gloss, 0.7, slit * 0.5);
+            if (lava)
+            {
+                // A wider ring of dark crust round the glowing slit.
+                float2 crustLens = float2(across / (width * 0.75 + 0.15), rel.y / (ragged * 3 + 0.12));
+                float crust = smoothstep(1, 0.5, dot(crustLens, crustLens)) * facing;
+                rock *= lerp(1, 0.18, max(crust, slit));
+                gloss = lerp(gloss, 0.3, crust);
+                emit += hot * slit * 2.5;
+            }
+            else
+            {
+                rock *= lerp(1, 0.12, slit) * (1 + 0.22 * lip);
+                gloss = lerp(gloss, 0.7, slit * 0.5);
+            }
 
             // The wet streak below it, spreading as the kind does, ragged at the edges.
             float down = saturate(below / drop);
@@ -45,16 +62,37 @@ void PunchyTrickleWet(float3 p, float3 shape, inout half3 rock, inout float glos
                       * facing * (1 - slit);
             if (kind == 3)
                 wet *= smoothstep(0.3, 0.1, below);
-            rock *= lerp(1, 0.55, wet);
-            gloss = lerp(gloss, 0.92, wet);
+            if (lava)
+            {
+                // Cooled basalt crust down the streak, a little glassy, with hot cracks glowing through near the top.
+                float crack = 1 - smoothstep(0.0, 0.05, abs(PunchyValueNoise(float2(across * 6 + k * 3, p.y * 3.1)) - 0.5));
+                rock *= lerp(1, 0.2, wet);
+                gloss = lerp(gloss, 0.45, wet);
+                emit += hot * wet * crack * (1 - down) * 1.2;
+            }
+            else
+            {
+                rock *= lerp(1, 0.55, wet);
+                gloss = lerp(gloss, 0.92, wet);
+            }
 
             // The puddle at the foot, on floor only (none where it lands in a pool).
             float2 fromFoot = p.xz - c.xz;
             float radius = c.w * (0.85 + 0.3 * PunchyValueNoise(fromFoot * 3 + k * 5));
             float onFloor = smoothstep(0.6, 0.8, shape.y) * step(abs(p.y - c.y), 0.15) * step(0.01, c.w);
             float puddle = smoothstep(radius, radius * 0.75, length(fromFoot)) * onFloor;
-            rock *= lerp(1, 0.5, puddle);
-            gloss = lerp(gloss, 0.95, puddle);
+            if (lava)
+            {
+                // A molten puddle with a dark crusted rim.
+                float rim = smoothstep(radius * 1.25, radius, length(fromFoot)) * onFloor;
+                rock *= lerp(1, 0.15, rim);
+                emit += hot * puddle * (1.2 + 0.8 * PunchyValueNoise(fromFoot * 6 + k * 3));
+            }
+            else
+            {
+                rock *= lerp(1, 0.5, puddle);
+                gloss = lerp(gloss, 0.95, puddle);
+            }
         }
     }
 }

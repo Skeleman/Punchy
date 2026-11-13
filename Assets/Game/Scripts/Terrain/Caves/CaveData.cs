@@ -260,6 +260,9 @@ namespace Punchy.Terrain
         public TrickleKind Kind;
         public int Threads;
         public float Flow, Seed;
+        /// <summary>W-142 row 3: 1 = a lava seep (slow glowing ooze with a dark crust, landing on a lava pool or a glowing
+        /// puddle), 0 = water.</summary>
+        public float Lava;
     }
 
     public enum TrickleKind
