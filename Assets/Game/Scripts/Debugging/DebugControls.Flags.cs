@@ -33,6 +33,10 @@ namespace Punchy.Debugging
             pdWater = playerDive && playerDiveArg + 1 < args.Length && args[playerDiveArg + 1] == "water";
             // ("-playerdive [water] follow": the player's own camera follows the dive rather than the side shot camera.)
             pdFollow = playerDive && System.Array.IndexOf(args, "follow", playerDiveArg) > playerDiveArg;
+            // "-netwatch [Species]" (A-103 row 2b): that species (default SeaFolk) and other players' depth, every 10 s (NetWatch).
+            var netWatchArg = System.Array.IndexOf(args, "-netwatch");
+            netWatchSpecies = netWatchArg < 0 ? null
+                : netWatchArg + 1 < args.Length && !args[netWatchArg + 1].StartsWith("-") ? args[netWatchArg + 1] : "SeaFolk";
             landmarkPlacePending = null; // (a later shot's options replace an earlier -place still being retried)
             if (!drawCalls.Valid)
             {
