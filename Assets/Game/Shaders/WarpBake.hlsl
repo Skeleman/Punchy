@@ -4,7 +4,9 @@
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 #include "Sky.hlsl"
 
-TEXTURE2D(_SrcWeatherMap); SAMPLER(sampler_SrcWeatherMap);
+// (One sampler for both maps: pass 3 never reads _SrcWeatherMap, so its own sampler would be stripped there and the
+// pass fails to compile. _SrcCloudMap is read in both passes; both maps are bilinear, clamped.)
+TEXTURE2D(_SrcWeatherMap);
 TEXTURE2D(_SrcCloudMap);   SAMPLER(sampler_SrcCloudMap);
 float2 _WarpMapSize;   // texels across, down
 
@@ -33,5 +35,5 @@ half4 Frag(Varyings input) : SV_Target
     float4 fallback = float4(_PunchyClimate.xy, 0, 0);
 #endif
     // (Past the map's edge the source fades to the climate as PunchyWeatherAt / PunchyCloudShapeAt do.)
-    return lerp(fallback, SAMPLE_TEXTURE2D_LOD(PUNCHY_WARP_PASS_MAP, sampler_SrcWeatherMap, at, 0), PunchyMapInside(at));
+    return lerp(fallback, SAMPLE_TEXTURE2D_LOD(PUNCHY_WARP_PASS_MAP, sampler_SrcCloudMap, at, 0), PunchyMapInside(at));
 }
