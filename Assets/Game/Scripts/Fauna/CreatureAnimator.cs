@@ -1247,6 +1247,9 @@ namespace Punchy.Fauna
                     return new float3(torso ? 0.55f : 0.35f, 0f, 0f);
                 case FolkJob.WellKeeper:
                     return new float3(torso ? -0.12f - 0.05f * Haul(t, true) : -0.15f, 0f, 0f);
+                case FolkJob.FireTender:
+                    // Upright, head bowed a little over the flame.
+                    return new float3(torso ? 0.04f : 0.22f, 0f, 0f);
                 default:
                     return float3.zero;
             }
@@ -1323,6 +1326,15 @@ namespace Punchy.Fauna
                             // Hauling the rope hand over hand: each hand reaches up and pulls down in turn.
                             var reach = Haul(t, right);
                             return new float3(joint == 0 ? -0.9f - 1.3f * reach : -0.5f + 0.25f * reach, 0f, 0f);
+                        }
+                        case FolkJob.FireTender:
+                        {
+                            // (A-103) Conjuring the spirit fire: both hands raised before the chest, palms out, slowly
+                            // circling round the flame between them (the right a half turn behind the left), now and then
+                            // lifting together as the flame is fed.
+                            var circle = t * 0.7f + (right ? math.PI : 0f);
+                            var feed = math.smoothstep(0.75f, 0.9f, 0.5f + 0.5f * math.sin(t * 0.21f));
+                            return new float3(joint == 0 ? -1.05f - 0.12f * math.sin(circle) - 0.3f * feed : -0.75f + 0.18f * math.cos(circle), 0f, 0f);
                         }
                         default:
                             return new float3(joint == 0 ? -0.65f + 0.22f * math.sin(t * 1.5f + (right ? 0f : 1.4f)) : -0.55f, 0f, 0f);

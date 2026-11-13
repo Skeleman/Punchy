@@ -62,6 +62,8 @@ namespace Punchy.Fauna
         /// keen it is on walks to the surface (SurfaceTrips, a Decide weight).</summary>
         public bool ShunsLight;
         public float SurfaceTrips;
+        /// <summary>Turtle folk (A-103): a joined client reads its replicated task as an igloo job (FolkJobs.FromTurtleTask).</summary>
+        public bool TurtleJobs;
         /// <summary>Its town guards' kit (helmet, weapon) and the colours of their armour and sash (linear).</summary>
         public GuardKit GuardKit;
         public float4 GuardArmour, GuardSash;
@@ -618,6 +620,11 @@ namespace Punchy.Fauna
         /// the usual swim just under the surface. Set at spawn (FaunaDirector.SpawnLakeFish).</summary>
         public float SwimAbove;
         /// <summary>
+        /// A-103: a folk's own door where no Door anchor marks one (a turtle folk's igloo tunnel): xz the spot it steps in
+        /// from, y unused, w the outward yaw. Zero for none (FindDoor then looks for anchors). Set at spawn; local, not sent.
+        /// </summary>
+        public float4 OwnDoor;
+        /// <summary>
         /// Two folk stopped to talk (CreatureBrainSystem.Chatting; local, host only, not sent): seconds before this one
         /// starts or joins another talk; its part in one (1 started it, 2 the one it stopped, 3 a child standing by);
         /// what it was doing before, to carry on after (ChatWalk 1 walking: ChatResume its target; 2 on its way to its
@@ -936,6 +943,7 @@ namespace Punchy.Fauna
             root.Wades = species.Wades;
             root.ShunsLight = species.ShunsLight;
             root.SurfaceTrips = species.ShunsLight ? species.SurfaceTrips : 0f;
+            root.TurtleJobs = species.TurtleJobs;
             root.Roosts = species.Roosts;
             root.Friendly = species.Friendly;
             root.CrossesWater = species.CrossesWater && species.Habitat == Habitat.Land;

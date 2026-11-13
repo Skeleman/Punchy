@@ -333,6 +333,47 @@
         { "text": "Keep it down!", "emote": ["Cheer", "Dance"] }
       ]
     },
+    "TurtleFolk": {
+      "words": {
+        "culture_greeting": ["Slow greetings, young one", "Mmm. Welcome, quick one", "The snow knows you"],
+        "trade.Fish": ["ice fisher", "watcher of the hole"],
+        "trade.Chop": ["ice cutter", "wall builder"],
+        "trade.Tend": ["flame keeper", "keeper of the pale fire"],
+        "town_start": ["Hoar", "Rime", "Shel", "Glim", "Old"],
+        "town_end": ["dome", "drift", "shell", "rest", "hollow"]
+      },
+      "lines": [
+        "{culture_greeting}.",
+        "Mmm. Do not hurry. The mountain does not.",
+        "I have seen this snow fall many times. It is always new.",
+        "You walk so fast. Where is it all going?",
+        "The old songs keep the igloos warm.",
+        { "text": "Three hundred winters on this shell, and still it itches.", "weight": 2 },
+        { "text": "The runes glow brighter when the cold comes. They remember.", "weight": 2 },
+        { "text": "Sit a while. There is no shame in sitting.", "trade": "Elder" },
+        { "text": "Mm? I was not asleep. I was listening to the ice.", "trade": "Elder", "mood": "Cheerful" },
+        { "text": "In my day the drifts came up to the dome tops. Twice.", "trade": "Elder", "mood": "Grumpy" },
+        { "text": "The fish below are patient. So am I.", "trade": ["IceFisher", "Fish"] },
+        { "text": "Shh. Something nibbles, far down.", "trade": ["IceFisher", "Fish"], "mood": "Cheerful" },
+        { "text": "Cold hands, cold line, cold fish. As it should be.", "trade": ["IceFisher", "Fish"], "mood": "Grumpy" },
+        { "text": "Each block is cut slow. A slow wall stands long.", "trade": ["IceCutter", "Chop"] },
+        { "text": "Clear ice, this. You can see the old snow inside it.", "trade": ["IceCutter", "Chop"], "mood": "Cheerful" },
+        { "text": "Another crack in the north wall. Always the north wall.", "trade": ["IceCutter", "Chop"], "mood": "Grumpy" },
+        { "text": "The pale fire burns no wood. Only a little of me.", "trade": ["FireTender", "Tend"] },
+        { "text": "Warm your hands, quick one. It does not bite.", "trade": ["FireTender", "Tend"], "mood": "Cheerful" },
+        { "text": "Do not breathe on it. It sulks.", "trade": ["FireTender", "Tend"], "mood": "Grumpy" },
+        { "text": "The stars are out. Time to go in, slowly.", "when": "evening" },
+        { "text": "Late, late. Even the old ones sleep.", "when": "night" },
+        { "text": "Morning light on the snow. Mmm.", "when": "morning" },
+        { "text": "Mmm. A wave. I will wave back, in a moment.", "emote": "Wave" },
+        { "text": "A bow! Few remember the old courtesies.", "emote": "Bow" },
+        { "text": "Such energy. I remember having that.", "emote": ["Cheer", "Dance"] },
+        { "text": "Mm. You have the look of someone who breaks things, {player}.", "stance": "Wary" },
+        { "text": "Gently, {player}. The snow remembers footsteps.", "stance": "Wary" },
+        { "text": "Go, {player}. Slowly, but go.", "stance": "Annoyed" },
+        { "text": "I have outlived many rude ones. I will outlive you.", "stance": "Annoyed" }
+      ]
+    },
     "Ghost": {
       "lines": [
         "You're new. I can tell. You still flicker.",
@@ -571,6 +612,18 @@
       "town": [{ "text": "{home_town} good. Big rocks.", "home": true }],
       "bye": ["Bye, small one."]
     },
+    "TurtleFolk": {
+      "who": ["Old. Older than the igloos. Not so old as the mountain.", { "text": "A {trade}, these last two hundred winters.", "job": true }],
+      "how": [
+        { "text": "Slow and warm. That is all one needs.", "mood": "Cheerful" },
+        { "text": "My shell aches. Snow coming.", "mood": "Grumpy" },
+        { "text": "Cold. Good cold, though.", "state": "weather", "weather": "Cold" }
+      ],
+      "work": [{ "text": "Fish below, ice above, fire between. That is the work.", "job": true }],
+      "town": ["We built the domes when the glacier was young. One block a day."],
+      "news": [{ "text": "The runes on the old stones flicker at night. Something stirs under the ice.", "curiosity": ["mid", "high"], "offer": "rumour:ice" }],
+      "bye": [{ "text": "Go slowly, quick one.", "gesture": "Bow" }]
+    },
     "Hermit": {
       "who": ["Nobody. That's the point."],
       "how": ["Alone. As I like it."],
@@ -695,6 +748,12 @@
       "puzzled": ["Hm. You lost, little beast?"],
       "scared": ["Ogre not scared! ...ogre little bit scared."],
       "awed": ["Big! Bigger than ogre! Good!"]
+    },
+    "TurtleFolk": {
+      "pet": [{ "text": "Mmm. A small warm thing. Rest by the fire, little one.", "gesture": "Pet" }],
+      "puzzled": ["You look at me as if I know something. I usually do."],
+      "awed": ["Ah. An old one, like me."],
+      "bye": ["Go slowly, little beast."]
     },
     "Hermit": {
       "pet": ["Only the animals come by. Suits me. Sit, if you like."],

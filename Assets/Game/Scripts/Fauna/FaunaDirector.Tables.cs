@@ -15,7 +15,9 @@ namespace Punchy.Fauna
         /// <summary>A-88 row 2 (#37): the sea folk lake's dome schools and its big fish near the bed.</summary>
         LakeSchool, LakeBed,
         /// <summary>A-89 row 3: the marsh folk village's frogs on lily pads, its heron in the shallows, its dragonflies.</summary>
-        MarshFrog, MarshHeron, MarshDragonfly
+        MarshFrog, MarshHeron, MarshDragonfly,
+        /// <summary>A-103 row 1: the turtle folk households, one per igloo of a turtle village (Count: folk per igloo).</summary>
+        TurtleHousehold
     }
 
     /// <summary>

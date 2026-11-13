@@ -787,6 +787,13 @@ namespace Punchy.Fauna
             /// </summary>
             bool FindDoor(ref CreatureState s)
             {
+                // (A-103: its own door first, when it has one no anchor marks: a turtle folk's igloo tunnel.)
+                if (math.lengthsq(s.OwnDoor.xz) > 0f)
+                {
+                    s.Anchor = new float3(s.OwnDoor.x, Terrain.SampleHeight(s.OwnDoor.xz), s.OwnDoor.z);
+                    s.AnchorYaw = s.OwnDoor.w;
+                    return true;
+                }
                 if (!Terrain.Anchors.IsCreated)
                     return false;
                 ref var set = ref Terrain.Anchors.Value;

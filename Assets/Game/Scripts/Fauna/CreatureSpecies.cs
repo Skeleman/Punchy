@@ -158,6 +158,9 @@ namespace Punchy.Fauna
         [Tooltip("Light shunners only: how keen it is to walk up out of its cave now and then (goggles on by day, bare at " +
                  "night). 0: never leaves.")]
         [Range(0f, 1f)] public float SurfaceTrips;
+        [Tooltip("Turtle folk (A-103): its work reads as the igloo jobs (fishing an ice fisher, chopping an ice cutter, " +
+                 "tending a fire tender, none an elder). Jobs are local, so a joined client gets them from the task.")]
+        public bool TurtleJobs;
         [Tooltip("Crawls on any surface (lizards, spiders): steep rock faces outside, walls and ceilings in caves, its body " +
                  "turned to lie on the surface.")]
         public bool Crawls;
