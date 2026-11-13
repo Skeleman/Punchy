@@ -286,6 +286,9 @@ namespace Punchy.Debugging
             PlaceAtBatFolkPending();
             RockWatch();
             Pose();
+            FishProbe();
+            FishLineup();
+            FishLurePose();
             Interact();
             ShotList();
             SolidStatsLog();
