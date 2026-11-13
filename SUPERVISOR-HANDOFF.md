@@ -234,3 +234,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-13: W-142 row 3 (lava seeps) accepted at world/ambient-details 15353bb4: 6 seeps in hot caves 4, 14 and 18, pins unchanged. Shots sent. Row 3b is next, then job 69 is released.
 - 11-13: A-103 row 3 (details) accepted at fauna/folk-homes 521f4840, fp 1078FBC3. Shots sent. Before the PR, the agent rechecks the build client's TurtleChild count (2 vs the host's 1).
 - 11-13: merged PR #294 (A-101 rows 0-1b, main b1aa418b, fp EC02D9B0). A-101 row 2 waits on W-144 (not started). Carded A-104 (riding, #278) for the fauna lane. folk-homes has to merge main again before its PR.
+- 11-13: merged PR #295 (A-103, main 2078f16c, fp 6A9E28E5). Closed #291. #37 stays open for P-34 (meter). Carded A-105 (households, going home, family talk; the animal half of DESIGN-npc-ownership) for the folk lane. Card the player half (owner tags, theft) when the player lane frees up.
