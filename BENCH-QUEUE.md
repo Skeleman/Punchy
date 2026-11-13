@@ -615,7 +615,7 @@ W-135 row 6 on `world/ground-contact-shade` (dc65c63b): cave chunk rebuilds (ano
 - Pass: B shows no frame over 2x the median that A doesn't also show; B's worst frame near C's.
 - Note for the jc.views crystal spot (f): the path is valid, but `here` was missing from `-benchstops`, so the stop never ran. Use `-benchstops here,hereentry`.
 
-## Job 64 (2026-11-12, QUEUED NEXT on the laptop, before 62; supervisor, for Zach): where start-up time and start-up hitches go
+## Job 64 (2026-11-12, REPORTED 11-12 in REPORTS-profiler.md (q104.sh); supervisor, for Zach): where start-up time and start-up hitches go
 Why (Zach 11-12): profiler runs keep showing start-up hitches. A faster, quieter start speeds up every job and removes noise that has nothing to do with what is being tested. With the island cache (W-140) island-ready is ~4.8 s on a hit; this job finds what the rest of the start costs and whether tiered culling (#270) would help it. Main only, measures only.
 - Arm: origin/main, Profile build, 1920x1080, High, uncapped, 3 launches with a cache hit (warm one launch first and check the log says `hit`), plus 1 launch with `-freshisland` for reference.
 - Starts: (a) the default spawn; (b) the town start used by the `herewarm` views; (c) a dense forest start.

@@ -2,6 +2,48 @@
 
 Newest first.
 
+## Job 64: where start-up time and start-up hitches go (main b66b4c2a), 2026-11-12 (q104.sh, startup.py): benches at the default spawn measure while the world is still streaming; two main-thread builds make the 1-3 s frames; culling isn't the start's cost
+**Setup:** one Profile build of main b66b4c2a; 1920x1080, High, uncapped, noon, Clear, `-body default`. Per start: one warm-up launch (discarded), 3 cache-hit launches, 1 `-freshisland` launch. Each game is the bench's `here` stop (10 s settle, 60 s measured). The first hit and the fresh launch of each start also had the Profiler on from process start.
+
+**Time line (seconds from process start; cache hits are the mean of 3):**
+
+| start | island ready | player in | `[stream] world ready` | measured 1% low (fps) | fresh: island / player / world ready |
+|---|---|---|---|---|---|
+| default spawn | 9.4 | 11.0 | **63.6** (60.9-67.3) | **3.0, 8.6, 8.3** (fresh 2.4) | 33.5 / 34.7 / 86.8 |
+| town (`-place HumanVillage`) | 9.5 | 10.9 | 45.3 | 22.3, 23.7, 21.3 | 33.2 / 34.4 / 69.8 |
+| forest (`-place OakGrove`) | 8.0 | 9.3 | 35.8 (32-42) | 22.3, 28.0, 29.4 | 27.4 / 28.3 / 51.6 |
+
+- **Island ready on a hit is ~8-9.5 s here, not ~4.8 s.** The cache read itself takes 1.4 s ("cache hit ... 24.43 MB 1367 ms"); the rest comes before it. A miss adds ~24 s.
+- **The player is in at ~10 s, but streaming runs on to 35-67 s.** At the default spawn the bench's measured window starts before `world ready`, so the spawn numbers include the end of loading. Town and forest mostly finish before measuring starts.
+
+**The 1-3 s frames (all at the default spawn, inside the measured window, none at town or forest):**
+1. **A terrain stream batch applied in one frame:** "[stream] batch of 96 chunks applied in 2448 ms", then the 3413 ms frame (spawn hit 1, at 65.6 s, 2 s before `world ready`; load boost 6x).
+2. **Colossus LOD builds on the main thread:** "[colossi] lod MagmaSerpent ... built in 1291 ms" then a 1291 ms frame (hit 3); hit 1 logged LOD builds of 0.8-1.8 s (WalkingOak 1394, CharredTreant 1621, SkyWhale 1799). The colossus slot builds and "made solid" steps also cost 30-200 ms each, one slot per frame over ~20 frames.
+- Spawn fresh had four 1.2-2.6 s frames at 78-85 s, just before its `world ready` at 87 s, with no build line next to them (most likely the same two causes).
+
+**Hitch causes in the Profiler captures (frames over 2x the settled median; the quit frame is left out):**
+
+| cause | frames | ms (sum) | where |
+|---|---|---|---|
+| ParticleSystem.EndUpdateAll | 8 + 4 | 421 + 208 | spawn |
+| Render loop (cull/draw) | 2-7 per start | 91-356 | everywhere |
+| TerrainStreamingSystem | 1-5 per start | 50-269 | spawn, town |
+| FloraSystem.LateUpdate | 1-4 per start | 42-190 | everywhere |
+| FaunaSpawnGroup / ColossusWalker | 2 / 3 | 95 / 153 | spawn |
+
+- **Caveat:** each capture holds 2,000 frames (about 48 s) at its 1 GB memory cap and starts at frame ~278, so the first seconds after the first frame aren't in it. Splash and first-frame times weren't taken from these logs.
+- **Tiered culling (#270):** the cull and draw work in hitch frames is 2-7 frames of ~50 ms per start, against 1-3 s for the builds above. **Region or cluster culling wouldn't shorten the start or remove its big hitches; the cost is in building and applying content on the main thread.** Visible draws and instances per frame and the CPU culling ms weren't logged in this run.
+
+**Recommended bench warm-up:** start measuring at `[stream] world ready` + 5 s rather than a fixed time after the player is in. With a warm cache that's about 70 s at the default spawn, 50 s at the town and 40 s at the forest; double those for a fresh island. Until the runner does that, avoid the default spawn for measured stops (town and forest starts measured clean).
+
+**Small fixes to card:**
+- Cap the chunks applied per frame while the load boost is on (one batch took 2.4 s in one frame).
+- Build colossus LODs off the main thread, or one part per frame (0.8-1.8 s each now).
+- Runner: `here` waits for `[stream] world ready` before its settle (profiler-side; I can do it on b/bench-stress if the supervisor agrees).
+
+**Note:** for most of this job, about 12 duplicate `freezesample.sh` samplers (left over since 11-11) were running, each polling the game every 5 s. They're stopped now (one left). Absolute ms may be a little high; the spawn-vs-town-vs-forest differences stand.
+Cost: laptop total $839 (laptop sessions 0a48ccdb, e163d8ab; 1 build, 15 games).
+
 ## Job 56: W-132 far-lite (world/far-lite 4eabc7c7 vs main cc835cf6), 2026-11-12 (q102.job, q103.job): flight -6 ms GPU, ground within noise or better, hilltop +0.3/+0.5 (FAIL, small); skirt PASS, far disc saves 2.2-2.4 ms
 **Setup:** Profile builds, 1920x1080, uncapped, `-body default`, `-weatherseed 4`, arms alternated, 3 rounds each.
 - Views: (a) ground, `-place meadow`, noon; (b) hilltop `-3460,2425` facing west, 18:00, Clear; (c) a 1.5 km line west from `-3000,2425` at 300 m and 25 m/s (land, then sea), noon.
