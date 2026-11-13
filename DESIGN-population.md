@@ -70,8 +70,12 @@ outdoors, not excepted, and its creature is absent or faded out on this machine.
   HomeSign digests in row 2. Row 6 replaces A-106's -kincmd checks with a late-joining client learning of a death.
 - New default tests (numbers only): Whereabouts continuity over a day in 3 towns, host and client digests equal,
   far count plus creature count equals outdoor count.
-## 8. Open points for your ruling
-1. Own tier with cap 80 for housed members, or keep them inside MaxSettled.
-2. Exceptions sent as a bit mask or as entries; at join and on change, or by nearness.
-3. Indoor members are not entities, so a player who enters a house (player lane interiors) finds nobody home.
-4. Later card: igloos, domes, hermit huts need their own named places; bat folk cave routes; wharf folk piers.
+## 8. Rulings (supervisor, 11-13)
+1. Own tier, cap 80, for housed members; MaxSettled 60 stays for domestics and visitors. Provisional: row 2 logs
+   the real outdoor peak per town, the row 5 BENCH job sets the final number. Over the cap the nearest win.
+2. Bit mask, one message per town (landmark index plus four ulongs), to a client at join for every non-empty
+   town and to all clients on change. Not by nearness. A town over 256 members is a build-time error, not a clip.
+3. Indoor members are not entities on this card. Someone home when a player walks in waits for player-lane
+   interiors; keep Whereabouts able to answer who is in which house.
+4. Later card (supervisor writes it): igloos, domes, hermit huts, bat folk cave routes, wharf and pier folk.
+5. Section 4's weak point is accepted. The near-to-far offset is memory only, never sent or saved.
