@@ -62,6 +62,10 @@ namespace Punchy.Fauna
         /// keen it is on walks to the surface (SurfaceTrips, a Decide weight).</summary>
         public bool ShunsLight;
         public float SurfaceTrips;
+        /// <summary>Turtle folk (A-103): a joined client reads its replicated task as an igloo job (FolkJobs.FromTurtleTask).</summary>
+        public bool TurtleJobs;
+        /// <summary>Sea folk (A-103): water of any depth is walkable ground; it stays on the bottom and never swims.</summary>
+        public bool WalksBed;
         /// <summary>Its town guards' kit (helmet, weapon) and the colours of their armour and sash (linear).</summary>
         public GuardKit GuardKit;
         public float4 GuardArmour, GuardSash;
@@ -110,6 +114,10 @@ namespace Punchy.Fauna
         public bool Disguised;
         /// <summary>Its taste in weather (A-71): what makes it uncomfortable and what shelter it seeks.</summary>
         public ComfortProfile Comfort;
+        /// <summary>A-102 breath (Breath): never runs short under water (fish, water and sea folk); else how long it
+        /// holds its breath (s, CreatureSpecies.HoldBreath or Breath.DefaultHold).</summary>
+        public bool BreathesWater;
+        public float HoldBreath;
 
         public BlobArray<CreaturePart> Parts;
         public BlobArray<CreatureSegment> Segments;
@@ -618,6 +626,11 @@ namespace Punchy.Fauna
         /// the usual swim just under the surface. Set at spawn (FaunaDirector.SpawnLakeFish).</summary>
         public float SwimAbove;
         /// <summary>
+        /// A-103: a folk's own door where no Door anchor marks one (a turtle folk's igloo tunnel): xz the spot it steps in
+        /// from, y unused, w the outward yaw. Zero for none (FindDoor then looks for anchors). Set at spawn; local, not sent.
+        /// </summary>
+        public float4 OwnDoor;
+        /// <summary>
         /// Two folk stopped to talk (CreatureBrainSystem.Chatting; local, host only, not sent): seconds before this one
         /// starts or joins another talk; its part in one (1 started it, 2 the one it stopped, 3 a child standing by);
         /// what it was doing before, to carry on after (ChatWalk 1 walking: ChatResume its target; 2 on its way to its
@@ -721,6 +734,15 @@ namespace Punchy.Fauna
         // activity that meets them; what it decides to do next is weighted by them. Only the brain reads them (#58:
         // moved here from CreatureState); what others see is CreatureState.Cue.
         public float Hunger, Thirst, Tired, Lonely;
+        /// <summary>A-102 breath (Breath): how much of it is used up under water (0 full, 1 empty; 0 by default, so a
+        /// new creature starts full), and whether, having emptied it, it is making for the surface until it has caught
+        /// some back. Brain only, like the needs.</summary>
+        public float BreathUsed;
+        public bool Gasping;
+        /// <summary>A-102 row 2, folk out swimming: how far under their floating height they are (m), how far they are
+        /// making for (0: up to the surface), and how long before they turn again (s: a rest at the surface, or a water
+        /// breather's time at a depth). Brain only (clients see the dive in Position and Vertical).</summary>
+        public float Dive, DiveTo, DiveWait;
         /// <summary>A-71: how uncomfortable the weather has made it (0..1: builds while out of its comfort, fades in
         /// comfort or shelter), why (the worst reason last seen), and how hard the weather pressed at the last check.</summary>
         public float Discomfort, ComfortPressure;
@@ -936,6 +958,8 @@ namespace Punchy.Fauna
             root.Wades = species.Wades;
             root.ShunsLight = species.ShunsLight;
             root.SurfaceTrips = species.ShunsLight ? species.SurfaceTrips : 0f;
+            root.TurtleJobs = species.TurtleJobs;
+            root.WalksBed = species.WalksBed;
             root.Roosts = species.Roosts;
             root.Friendly = species.Friendly;
             root.CrossesWater = species.CrossesWater && species.Habitat == Habitat.Land;
@@ -959,6 +983,9 @@ namespace Punchy.Fauna
             root.Rooted = species.Rooted;
             root.Disguised = species.Disguised;
             root.Comfort = ComfortProfiles.For(variant, home ?? new Vector2(-1f, -1f));
+            root.BreathesWater = species.BreathesWater || species.Habitat == Habitat.Swims;
+            root.HoldBreath = species.HoldBreath > 0f ? species.HoldBreath
+                : Breath.DefaultHold(root.Upright && root.Hands, root.CrossesWater, species.Habitat);
             root.Nests = species.Nests;
             root.WebSize = species.WebSize * sizeScale * size;
             root.FlightHeight = new float2(species.FlightHeight.x, math.max(species.FlightHeight.x, species.FlightHeight.y));

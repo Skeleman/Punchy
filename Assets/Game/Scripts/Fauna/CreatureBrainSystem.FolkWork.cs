@@ -249,11 +249,12 @@ namespace Punchy.Fauna
             /// <summary>
             /// Out for a swim: to the bank (0), in and swimming about from point to point in the deep water round Focus
             /// at a gentle breaststroke (1), back to the bank when the time's up or the day draws in (2), and standing
-            /// on the bank a while drying off, looking about (3).
+            /// on the bank a while drying off, looking about (3). Out in the deep water they dive (Diving).
             /// </summary>
             void Swimming(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, float walk, float idleLook,
-                          ref float targetSpeed, ref bool moving, ref float desiredLook)
+                          ref float targetSpeed, ref bool moving, ref float desiredLook, ref float vertical)
             {
+                Diving(ref s, ref b, ref rng, dt, s.Stage == 1, ref vertical);
                 switch (s.Stage)
                 {
                     case 0:
@@ -306,6 +307,58 @@ namespace Punchy.Fauna
                             Pause(ref s, ref b, ref rng);
                         break;
                 }
+            }
+
+            /// <summary>
+            /// A-102 row 2: folk out swimming dive (CreatureMind.Dive, below the height they float at; Advance puts them
+            /// there). An air breather goes down only with its breath full, as deep as Breath.MaxDive allows and the
+            /// water has room for, swims about down there, and turns for the surface while what's left still gets it up
+            /// (Breath.TimeToRise), then rests at the surface until its breath is back and a while more. A water
+            /// breather (sea folk) dives as deep as the water goes, stays a while at each depth and sometimes comes up.
+            /// Head down going down, up coming up (Vertical, which clients get). Only out in the deep water (dive is
+            /// false wading in and out, so they come up first); gasping (Breathe), always up.
+            /// </summary>
+            void Diving(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, bool dive, ref float vertical)
+            {
+                var room = WaterDepth(s.Position.xz) - 0.6f * s.Scale;
+                var sea = b.BreathesWater;
+                if (!math.isfinite(M.Dive + M.DiveTo + M.DiveWait))
+                    M.Dive = M.DiveTo = M.DiveWait = 0f;
+                if (!dive || M.Gasping || room < 0.6f * s.Scale)
+                    M.DiveTo = 0f;
+                else if (M.DiveTo <= 0f)
+                {
+                    // At the surface (or on the way up): resting till its breath is back, then down again.
+                    if (M.Dive < 0.05f)
+                        M.DiveWait -= dt;
+                    var most = sea ? room : math.min(room, Breath.MaxDive(b.HoldBreath));
+                    if (M.Dive < 0.05f && M.DiveWait <= 0f && (sea || M.BreathUsed <= 0f) && most >= 0.6f * s.Scale)
+                    {
+                        M.DiveTo = rng.NextFloat(math.min(0.6f * s.Scale, most), most);
+                        M.DiveWait = rng.NextFloat(4f, 12f);
+                    }
+                }
+                else
+                {
+                    M.DiveTo = math.min(M.DiveTo, room);
+                    if (!sea && Breath.TimeToRise(M.BreathUsed, M.Dive, b.HoldBreath))
+                    {
+                        M.DiveTo = 0f;
+                        M.DiveWait = rng.NextFloat(3f, 10f);
+                    }
+                    else if (sea && math.abs(M.Dive - M.DiveTo) < 0.1f && (M.DiveWait -= dt) <= 0f)
+                    {
+                        // Somewhere else in the water column; now and then back up for a look about.
+                        M.DiveTo = rng.NextFloat() < 0.3f ? 0f : rng.NextFloat(0.3f, 1f) * room;
+                        M.DiveWait = rng.NextFloat(4f, 12f);
+                    }
+                }
+                var speed = (M.Gasping ? Breath.RiseSpeed : Breath.DiveSpeed) * dt;
+                var way = math.clamp(M.DiveTo - M.Dive, -speed, speed);
+                M.Dive = math.max(0f, M.Dive + way);
+                // (Pitched along the way it's going, levelling off as it gets there.)
+                if (speed > 0f && math.abs(way) > 1e-5f)
+                    vertical = -0.55f * way / speed * math.saturate(math.abs(M.DiveTo - M.Dive) / 0.4f + 0.3f);
             }
 
             // ------------------------------------------------------------------------------- fishers
@@ -787,6 +840,13 @@ namespace Punchy.Fauna
             /// </summary>
             bool FindDoor(ref CreatureState s)
             {
+                // (A-103: its own door first, when it has one no anchor marks: a turtle folk's igloo tunnel.)
+                if (math.lengthsq(s.OwnDoor.xz) > 0f)
+                {
+                    s.Anchor = new float3(s.OwnDoor.x, Terrain.SampleHeight(s.OwnDoor.xz), s.OwnDoor.z);
+                    s.AnchorYaw = s.OwnDoor.w;
+                    return true;
+                }
                 if (!Terrain.Anchors.IsCreated)
                     return false;
                 ref var set = ref Terrain.Anchors.Value;

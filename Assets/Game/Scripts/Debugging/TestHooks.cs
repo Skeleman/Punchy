@@ -655,6 +655,7 @@ namespace Punchy.Debugging
             var from = s.Position + math.normalizesafe(at - s.Position, new float3(1f, 0f, 0f)) * 3f;
             var ok = FolkConversation.Respond(best, new Answer { Reaction = BeastReaction.Scared, Response = kind }, from);
             BeastRespondFolk = s.Individual;
+            UnityEngine.Debug.Log($"BeastRespond: {response} to species {EM.GetComponentData<CreatureBody>(best).Species} ({UnityEngine.Object.FindAnyObjectByType<FaunaDirector>()?.SpeciesName(EM.GetComponentData<CreatureBody>(best).Species)}) task {s.Task} leash {s.Leash:F0} at {bestD:F1} m");
             return new float[] { s.Individual, ok ? 1f : 0f };
         }
 

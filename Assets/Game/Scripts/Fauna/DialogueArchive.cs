@@ -34,6 +34,9 @@ namespace Punchy.Fauna
             public string[] Stances;
             /// <summary>Only from folk of one of these tempers (FolkMood names: Cheerful, Plain, Grumpy), or null for any (A-29).</summary>
             public string[] Moods;
+            /// <summary>"state": "dry" or "!dry": only from a sea folk out of the water, or only from one in it (A-103 row
+            /// 2b); null for either.</summary>
+            public bool? Dry;
             /// <summary>Kept for later (dialogue options): the raw object, so new keys need no format change.</summary>
             public JObject Raw;
         }
@@ -53,6 +56,8 @@ namespace Punchy.Fauna
             /// <summary>Its job (a FolkJob name, "Baker") and temper (a FolkMood name), or null (A-29).</summary>
             public string Job, Mood;
             public float Hour;
+            /// <summary>A water breather out on dry land (FolkState.OutOfWater, A-103 row 2b).</summary>
+            public bool Dry;
         }
 
         public readonly Dictionary<string, Culture> Cultures = new Dictionary<string, Culture>(StringComparer.OrdinalIgnoreCase);
@@ -147,6 +152,7 @@ namespace Punchy.Fauna
                                     Emotes = o["emote"] != null ? Strings(o["emote"]) : null,
                                     Stances = o["stance"] != null ? Strings(o["stance"]) : null,
                                     Moods = o["mood"] != null ? Strings(o["mood"]) : null,
+                                    Dry = DryOf(o["state"]),
                                     Weight = o["weight"] != null ? (float)o["weight"] : 1f,
                                     Raw = o
                                 });
@@ -154,6 +160,14 @@ namespace Punchy.Fauna
                     archive.Cultures[pair.Key] = culture;
                 }
             return archive;
+        }
+
+        /// <summary>A culture line's "state": "dry" (true), "!dry" (false), anything else or none (null).</summary>
+        static bool? DryOf(JToken t)
+        {
+            var s = t != null && t.Type == JTokenType.String ? ((string)t).Trim() : null;
+            return string.Equals(s, "dry", StringComparison.OrdinalIgnoreCase) ? true
+                : string.Equals(s, "!dry", StringComparison.OrdinalIgnoreCase) ? false : (bool?)null;
         }
 
         static string[] Strings(JToken t) =>
@@ -298,8 +312,11 @@ namespace Punchy.Fauna
         }
 
         /// <summary>A line's chance; Any's lines come up less for a culture with lines of its own, so folk sound like themselves.</summary>
-        static float Weight(Line line, bool own, HashSet<Line> shared) => Mathf.Max(line.Weight, 0f) * (own && shared.Contains(line) ? AnyShare : 1f);
+        static float Weight(Line line, bool own, HashSet<Line> shared) =>
+            Mathf.Max(line.Weight, 0f) * (own && shared.Contains(line) ? AnyShare : 1f) * (line.Dry == true ? DryShare : 1f);
         const float AnyShare = 0.3f;
+        /// <summary>A sea folk out of the water mostly grumbles about it (a dry line only fits one that is).</summary>
+        const float DryShare = 2.5f;
 
         static bool Fits(Line line, Speaker who)
         {
@@ -307,6 +324,8 @@ namespace Punchy.Fauna
                 (who.Job == null || Array.IndexOf(line.Trades, who.Job) < 0))
                 return false;
             if (line.Moods != null && line.Moods.Length > 0 && Array.IndexOf(line.Moods, who.Mood) < 0)
+                return false;
+            if (line.Dry.HasValue && line.Dry.Value != who.Dry)
                 return false;
             return string.IsNullOrEmpty(line.When) || InHours(line.When, who.Hour);
         }
