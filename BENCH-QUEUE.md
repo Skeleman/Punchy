@@ -673,3 +673,8 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
 - Views: the canyon (2266,-434) and the mesa (2134,1462), 12:00 Clear, standing and a 30 m walk along the face; also a fresh start's island-ready time (the ledge bake adds about 47 ms on a cache miss).
 - Record: whole-frame GPU and main-thread ms, and the FloorUnder/Deck share if the profile shows it (every ground query now also checks the cliff pieces in its cell). Draw calls and pieces drawn.
 - Zach 11-12 expects big cliff changes later, so this is a baseline: give the cost of the pieces themselves (draw) and of the ground query separately.
+
+## Job 68 (2026-11-13, QUEUED after 67; supervisor, for W-141 row 1, #261): cave wall trickles
+- (A) main vs (B) `world/cave-trickles` 612dbeff. Profile builds, 1920x1080, High, uncapped, ABBA, 300 frames each.
+- Views: wet cave c13 (`-goto 1572,8,-2635`) facing the fan, and c22 (`-goto 1630,104,1036`), standing.
+- Record: whole-frame GPU and main-thread ms, draw calls, and the trickle draws if the profile names them. The branch is based on 659b60af (before #292), so A is 659b60af too.
