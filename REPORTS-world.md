@@ -6669,3 +6669,39 @@ plot rules would have to accept a raised deck).
   - Profile builds, Medium and High, 12:00.
   - Rule 23: Medium ≤ +0.3 ms GPU for all of W-142 together.
 - Next: row 2, smoke vents.
+
+### Row 2: smoke vents (#262), branch world/ambient-details, commit 6e3939a1 - done (verified)
+- What it is: vents placed at bake (CaveBaking.Vents.cs) as rule-22 records (CaveVent: position, cave, kind, place, strength, seed) in the cave blob. Runtime only reads them.
+  - Fissures: cracks of 1-3 vents in volcanic biomes, kept away from landmarks and towns, at least 70 m apart.
+  - Lava: cave floors 1-4 m from a lava pool, dry, with 2.5 m or more headroom.
+  - Springs: 1-2 vents on the rock ring of each hot spring (a Bubbles effect without glow).
+  - Mines: up to 2 mines with ladder shafts get a wisp under the lowest shaft node.
+- Looks, all drawn by LandmarkEffectSystem (no new shader):
+  - Wisp: a steady thin plume.
+  - Puff: breathes every 3-6 s.
+  - Hiss: a fainter wisp plus a taller burst every 20-40 s.
+  - Colour by place: dark over lava, near white over springs, grey-brown elsewhere.
+  - Outdoors the plume bends with Climate wind. Under rock it rises straight.
+- Shader change: wind drift now scales by (1 - underRock), one line in LandmarkEffects.hlsl. This also stops the existing cave-fall mist drifting with surface wind underground, which is correct but is a small change to an old effect.
+- LOD: reach by screen size (DetailPolicy.ExtraReach, 4 m plume), off when Detail < 0.75 (Low), 28 particles per emitter.
+- Network: cosmetic, seed-derived, nothing sent.
+- Counts (main world): 154 vents.
+  - By place: fissure 147 (70 cracks), lava 2, spring 4, mine 1.
+  - By kind: wisp 82, puff 42, hiss 30.
+  - By biome: Ashlands 77, EmberForest 35, ElectricWastelands 35.
+  - By cave: cave 4 has 2 lava vents (it is the only cave with a lava pool); cave 23 has 1 mine vent (the only mine with a shaft).
+  - Bake misses: not volcanic 427, water 5, steep 1, near a place 3, crowded 9, cave floor 8.
+- Pins: fingerprint 7B361633 and landmarks 117 689D5348, both unchanged.
+- Suite: "completed: 40/40 passed" after the last code change.
+- lod-lint is clean.
+- Shots, checked at small size, in D:/Unity/PunchyMilestones/W-142/:
+  - vent-wisp-3m.png, vent-wisp-20m.png: fissure crack at (-810, 14, -3404).
+  - vent-puff-3m.png, vent-puff-20m.png: (436, 14, -2376). The puff is faint at 20 m.
+  - vent-hiss-3m.png, vent-hiss-20m.png: burst mid-hiss, same crack as the wisp.
+  - vent-lava-3m.png, vent-lava-5m.png: cave 4 at (-208, 2, -2727), rising straight. The chamber is only about 5 m across, so there is no 20 m cave shot. The plume is faint at 5 m.
+- Risks:
+  - Lava and mine vents are rare, because this seed has one lava cave and one shafted mine.
+  - There is no ground mark at a vent; a fissure decal could follow later.
+  - Cost: up to 2 emitters per vent in reach, through the existing landmark-effect draw.
+- BENCH job 69 spots (rows 1-3b together; final list comes in the 3b handoff): fissure crack -goto -805,-3398, and lava cave 4 at -208,2,-2727.
+- Next: row 3, lava seeps.
