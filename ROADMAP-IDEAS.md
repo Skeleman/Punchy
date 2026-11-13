@@ -104,9 +104,11 @@ Done from Zach's 2026-11-03 order: the modular kit and colossi (#40), fishing vi
 pygmies (#35, #10), turtle folk (#38). Core rule throughout: small, varied, seeded details everywhere, kept sparse.
 
 ### Open, not yet started
-- Sea folk underwater city in the central lake (#37): the landing pier and its road exist (W-138); the city does not.
+- Sea folk underwater city in the central lake (#37): the city, landing pier and road exist; nobody lives there yet (A-103).
   Zach 11-12: the next big item. NPCs swim under water; a breath meter that works like stamina; sea folk never use breath
-  under water; NPCs that do are forced to resurface. Carded: A-102 (diving, breath), P-34 (meter), W-152 (city).
+  under water; NPCs that do are forced to resurface. Carded: A-102 (diving, breath), P-34 (meter).
+  Zach 11-12: the city already exists, it's just not populated; the turtle folk igloos in the mountains are empty too.
+  Carded: A-103 (turtle folk and sea folk races, residents in the igloos and shell domes).
 - Castle walls: modular walls, towers, a working portcullis, interior halls (#254).
 - Dock town with a big pier, a boardable galleon and a busy main road (#255).
 - Floating islands off the coast, walkable, with caves and a new kind of town (#256).
