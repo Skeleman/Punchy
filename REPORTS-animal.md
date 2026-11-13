@@ -3797,3 +3797,26 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - Pins: Fauna_Fingerprint was B9ADEB35 and is now 6DCC36A3, re-pinned in WorldTests. It moved because the carry table (one row per playable body) gains three rows; the reference arm height is still the human's. No landmark or placement change.
 - Suite: "40 passed, 0 failed, 17 skipped in 309s (Unity exit 0)", the full run after the last change. The run before it also failed the known flake LiveFolk_BeastResponse ("Idle 81.5"), along with the pin before the re-pin.
 - Next: row 5, vision per body and glasses/goggles. I'll ask about the wearable ghost field first.
+
+### Row 5: bat eyes, glasses and glow goggles (done, verified, including a joined client)
+- Commit on fauna/folk-homes (pushed): 35e45a9a.
+- **Ghost layout changed again**: NetPlayerLook gains one `byte Eyewear` (approved under rule 11). Its values live in Fauna/Eyewear.cs (None 0, Glasses 1, Goggles 2), so the inventory can put a pair on later without another layout change. Old builds can't join new ones.
+- Bat eyes: CreatureSpecies.Vision (0..1, not baked; BatFolk 1). Camera/BatVision.cs drives a runtime global volume (exposure, contrast, bloom) plus the haze globals. Caves and night are lifted bright; the open noon sun is a glare that eases under trees, at dusk and underground. Zach approved the bright look on 11-13. The constants are untouched since then.
+- Glasses over bat eyes give a normal view. Glow goggles over any other body give bat eyes. Every machine draws the pair on the head (CreatureWorn.Glasses/Goggles bits); only the wearer's view changes. G toggles the pair, and `-eyewear` starts with it on. The pad has no binding yet.
+- Fixes found on the way:
+  - the head segment is now `FirstSegment + SegmentCount - 1`, and the glasses are bigger, so they sit on the face;
+  - Gear.cs keeps the eye bits when it rebuilds the worn mask.
+- NetWatch also logs each other player's eyewear.
+- Host and joined client (this branch's build at its fixed path, no -screen-* flags):
+  - the host saw "player (BatFolk, glasses)";
+  - the client saw "player (Human, glow goggles)";
+  - the two BatVision logs read vision 0.00 and 1.00;
+  - neither log had exceptions.
+- Rule 24: `-sparkleprobe` NaN 0 with the pairs on.
+- Shots in D:/Unity/PunchyMilestones/A-103/ (16:9, -nohud, checked at 480):
+  - r5_BatFolk_{cave,midnight,noon_open,noon_trees} beside r5_Human_{same four};
+  - r5_BatFolk_glasses_noon_open, r5_Human_goggles_cave;
+  - r5_BatFolk_glasses_worn and r5_Human_goggles_worn (the pair on the body).
+- Pins: Fauna_Fingerprint 6DCC36A3 before and after (no species or spawn changes). No landmark, placement, ProjectSettings or renderer asset change.
+- Suite: "40 passed, 0 failed, 17 skipped in 470s (Unity exit 0)", the full run after the last change.
+- Next: row 3, sparse village life (turtle children sliding, an elder basking, sea folk clam and glow-stone tenders, a child chasing the fish school).
