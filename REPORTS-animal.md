@@ -4224,3 +4224,29 @@ Where A-109 differs from A-108: herds are anonymous and seeded per 512 m cell fr
 - Not checked: a landmark is peopled only within 120 m of its centre, so a town wider than that would show far figures at close range from its edge. Row 2 would log the largest on-screen size a far figure reaches per town.
 - Cost is not measured (rule 21); a BENCH job after row 2, as the card says.
 - Next: waiting for your OK before row 2.
+
+### A-109 row 2: far figures, done (verified, with weak points named below)
+
+- Commit on fauna/far-towns (pushed, from origin/main da573e16): 6b5d8c5d. New `FaunaDirector.FarFolk.cs` (placement) and `CreatureRenderSystem.FarFolk.cs` (drawing); hooks of a few lines in `FaunaDirector.cs`, `FaunaDirector.Households.cs` and `CreatureRenderSystem.cs`; three lines in docs/agents/fauna.md.
+- What it does: one far figure per household member who is sure to spawn, placed from household records, resident rows and the shared clock with no random draw. Drawn through the creature instanced draw: a six-capsule walker at 6 px and up, a one-capsule mote below, held at 2 px and thinned by dither to 1 px (rulings 2 and 4; pixel constants in the new partial, read through DetailPolicy.ScreenSize and Holds). Hand-over is option A: where the town has real folk, far figures fade in over 140-165 m from the camera, eased over 1.2 s. No entities, no ghosts, nothing sent or stored, no spawn change.
+- Pins: Fauna_Fingerprint 6A9E28E5; landmarks 117 689D5348; play-mode tests 40 passed, 0 failed, 17 skipped.
+- Real folk count: HumanVillage 73 logs 38 houses, 101 members, 12 out in the world, 12 seen (A-105 baseline: 12 spawned, 12 seen). Unchanged.
+- `-sparkleprobe` with 10 far walkers in view: 360 frames, 0 with markers, bad 0, hot 0. (The probe's "segments odd" count is the same with the far figures hidden, so it is not theirs.)
+- Shots, 1920x1080, noon, town 73, in PunchyMilestones/A-109/:
+  - t73_150m.png (camera 30 m up): 10 walkers, largest 12 px. They read as small people: one in blue by a house, one red-brown by the well. About 4 of the 10 are in sight; the others stand at posts inside or behind buildings.
+  - t73_400m.png, with t73_400m_off.png (far figures hidden) for comparison: 10 motes, largest 4.1 px. They are there, but in a still they are dark specks that are hard to tell from fence posts and chimneys. This is the weak shot.
+  - t73_1km.png, with t73_1km_off.png: 8 motes of 10 (the children drop out under 1 px). The two shots differ in about 6 pixels at 4 figure positions, so motes are drawn at 1 km, but nobody would see them without the comparison; the town is in haze.
+- Walk-in strip: walkin_strip.png (six frames from 30 m up at 200, 165, 140, 125, 110 and 70 m from the centre; single frames walkup_*.png). Log per frame: 9 walkers and 1 mote at 200 and 165 m; 10 walkers at 140 and 125 m, real no; at 110 m real yes and 1 far walker left (the one 161 m from the camera, beyond the real folk's range); at 70 m no far figures, real folk only. I see no double in any frame. The ground-level frames (walk_*.png) show almost nothing, because the houses hide the figures from the north; the raised strip is the one to look at.
+- What stills cannot show: the swap itself takes 1.2 s. During it, the far set fades out and the real set fades in at different places (real folk spawn where the spawner puts them, not where the far figures stand). It is a cross-fade, not a pop, but a watcher at 120 m sees figures change places. Option B would cure it and is not on this card.
+- Ruling 5, largest on-screen size per town: walking in, the largest far figure at town 73 is 17.5 px, reached just before the real folk appear at 120 m. No town is wider than 120 m (widest: ElfGrove 79, radius 96 m). At a wide town's edge the gap is real, though: a player 121-140 m from the centre has no real folk yet, and a far figure on the near edge can be about 25 m away, which works out to about 80 px of capsule figure. I did not visit ElfGrove for a shot.
+- Found while counting: arriving inside a town by teleport or spawn shows far figures at close range (189 px at 7 m) for the few seconds before the real folk spawn. A cap on far figure size (fade out above about 24 px, by ScreenSize) would cure both this and the edge case, at the price of an empty near edge. I have not added it, because it changes the approved hand-over; say the word and it goes in with row 3.
+- Other open points:
+  - Only members who are sure to spawn get a far figure: 10 in a town of 38 houses and 101 members. From afar the town is thinly peopled. More figures would need option B or a ruling that far figures may outnumber real folk.
+  - Commutes are straight lines and can cross buildings; at mote size it does not show.
+  - A far figure's house may differ from the house its real counterpart takes.
+  - Nobody is drawn at night (they are indoors); row 3's HomeSign is what the night view needs.
+- Rule 25, visible at distance with no far form: sea folk domes, turtle igloos, bat folk, hermit huts, the fishing village and the wharf have no far figures.
+- Rule 28: all new code is in two new partials (187 and 404 lines). Duplication to report: the creature fade range (165 m, 25 m) was a pair of literals in the pose job set-up; it is now one pair of constants used by both.
+- Bench request (rule 21, not timed by me): main da573e16 vs fauna/far-towns 6b5d8c5d, standing 200 m from town 73 and walking in to the centre. Points of interest: `WatchFarFolk` runs every 0.2 s and reads every creature's state to mark peopled towns; `GatherFarFolk` runs per frame over 6 towns' figures. I have not edited BENCH-QUEUE.md (shared file); please queue it.
+- Vantage points: town 73 at (2972, -885), camera north of it. If a world merge moves the town, these are re-picked.
+- Next: row 3 (HomeSign as narrowed), then row 4.
