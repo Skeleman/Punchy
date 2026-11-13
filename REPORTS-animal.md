@@ -3757,6 +3757,30 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - Suite: "completed: 35/35 passed" (PlayMode), the full run after the last change. One run before that failed only LiveFolk_BeastResponse ("Idle 81.1", not "Flee"), which had passed on the same brain code the run before. Flaky, not this change.
 - Next: row 1, marked climb surfaces with the #33 controls, and the `-place climb` test wall.
 
+### Row 1: marked climb surfaces and the world's ladders (done, verified solo, host and joined client)
+- Commits on fauna/route-climbing (pushed): e337f2f5 (marked surfaces, climb pose, `-place climb`), b152a8e6 (`-climbwatch` for the client check), 9148530b (merge of origin/main: #292 breath, #293 W-147 ladders, re-pin), c21a5aa0 (ClimbLadderSystem, WorldClimbs, LadderClimb: `IClimbSections` wired to FloraPlacement.NearLadders, which covers the roof, rope and water ladders and the mines' drop and shaft ladders; `-place ladder:roof|mine[#n]`), a485b9a5 (ladders when hosting or joined, below).
+- Band wall (`-place climb`, Human, skill 2, `-autowalk`): UP 0.7 s, TOP-OUT 4.2 s, STEP-DOWN about 10-16 s, DOWN 12.0-20.5 s; on the let-go lap DROP 1.6 m up at 17.4 s, landed 18.1 s. Lizard on an unmarked wall: TOP-OUT 2.1 s, DOWN 12.0 s, same as main. Human on a bare wall: never takes hold.
+- Real ladders, Human skill 2 (grade 1):
+  - Mine drop ladder, 0.7 m at (-2040.9, 213.9, 483.4): UP 0.7, TOP-OUT 2.1, STEP-DOWN 16.0, DOWN 16.3 s. Once it briefly took hold again just after topping out.
+  - Town roof ladder, 4.3 m at (-2497.4, 12.4, -1455.6): UP 1.5, TOP-OUT 7.7, STEP-DOWN 16.0, DOWN 21.7 s; lap 2 let go 2.6 m up and landed.
+- Host and client:
+  - Bug found and fixed (a485b9a5): the Flora Lookup lives only in the sim world (the server world when hosting), but the player moves in the client world, so a host's player never found a ladder. A joined client never built the flora blob at all. FaunaDirector now builds the blob on a joined client too (ladders only: no wharf spots, gulls or lookup entity) and shares it through `ClimbLadders.Flora`; ClimbLadderSystem falls back to it when its world has no lookup. Solo is unchanged.
+  - Editor host + lane build client watching the roof ladder: host UP 2.8 s, TOP-OUT 7.2 s, DOWN 21.7 s; the client logged "climb watch: SAW A CLIMB, other player 0 posed 1.0 at 1.6 m up" and followed it to 4.2 m (pose 1.0), then pose 0.0 standing on the roof. No exceptions.
+  - Lane build host + editor joined client climbing the roof ladder itself: UP 1.8 s, TOP-OUT 8.0 s, STEP-DOWN 16.0 s, DOWN 21.7 s.
+  - Band wall, editor host + build client: "SAW A CLIMB, other player 0 posed 1.0 at 1.1 m up", watched rising 0.6 to 2.8 m (topped out).
+  - No ghost field change: remote climbs show through the existing `NetPlayerLook.Climbing`.
+- Behaviour changes: skill-1 and skill-2 bodies now run the trunk scan but grab only marked bark. ClimbTest thresholds now scale with climbWallTop.
+- Notes:
+  - The boulder's collider is smaller than its mesh, so a climber sinks into it a little.
+  - A build-hosted `-place climb` found a flat wall with no collision, so the editor hosted the band check.
+  - A saved body overrides the species; tests need `-body Human`.
+  - Not mine, existing code: PlayerMovementSystem's Fly reads FloraLookup from its own world, so it has the same gap on a host's (and a joined client's) player. Could use `ClimbLadders.Flora` too; the player lane's call.
+  - A joined client now runs the flora placement build once at island load. Not timed (rule 21): a BENCH-QUEUE candidate if the coordinator wants the cost.
+- Shots in D:/Unity/PunchyMilestones/A-101/ (800x450): r1-1-human-band-climb.jpg, r1-3-human-mine-ladder.jpg, r1-4-human-roof-ladder.jpg.
+- Pins: Fauna_Fingerprint B1C0CD10 (branch) and 7B361633 (main) before, EC02D9B0 after, re-pinned at the merge. Reason: A-101's ClimbSkill byte combined with main's W-147 ladder records. No landmark or placement change (landmarks 117 689D5348). The host/client fix doesn't move it.
+- Suite: "completed: 40/40 passed" (PlayMode), the full run after the last change. Earlier runs: Lying_PlayerStandsBeforeMoving flaked once. A pre-merge run was 33/35 (a Follow test and Place_PropFindsAndFramesWharf), and neither came back.
+- Next: row 1b, ledge shimmy. Row 2 waits on W-144.
+
 ### Row 2b: sea folk on the surface (done, verified, including a joined client)
 - Commits on fauna/folk-homes (pushed): c47e8728 (the row), 963e8b59 (merge of fauna/breath at c91c6dec, A-102 rows 2 to 3b, no conflicts, which brings A-102's `-playerdive` for the client check; **fauna/breath lands first**), 24de7dbe (`-netwatch` debug flag for the joined-client check; BeastRespond test hook logs the folk it picked).
 - New `FaunaDirector.SeaVisitors.cs`: by day, while a player is within 120 m, a sea folk visitor stands at about a third of town wells and fountains and a quarter of river banks that have no fisher, with at least one river bank always. Spots come from the bake's own wells and crossings, rolled from fixed hashes (no director rng draw, no placement). Each visitor keeps a 7 m leash round its water. At dusk it walks off (into the river, or out of town) and the despawn takes it. This island: "SeaVisitors: 3 spots (towns 2 of 4 wells, rivers 1 of 7 banks)".
