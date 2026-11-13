@@ -6993,3 +6993,31 @@ half3 PunchySurfaceFinish(half3 color, PunchySurface s, half reach);            
 - BENCH request (rule 21): cost of the High against the Low sun shadow filter at Medium and High, forest and town views: `-sunshadowfilter low` against the default on render/shadow-still.
 - R-23 note: drift (3) (no fade at the shadow distance on hand-lit shaders) did not show as part of #286 in this view; it stays with R-23.
 - Next: R-20 row 2 (cloud shadow screen-size LOD).
+
+## R-22 row 0: far-view reference shots (#298), world/far-view at origin/main 934f6691, done (verified, no code)
+
+- 36 shots, 6 vantages x noon clear / dusk / overcast x Medium / High, 1280 px, in `PunchyMilestones/R-22/row0` (`r22-<preset>-<light>-<vantage>.png`), with one contact sheet per preset (`sheet-Medium.jpg`, `sheet-High.jpg`: rows noon, dusk, overcast; columns in vantage order below). Light set by `-time 12 -weather Clear`, `-time 18.5 -weather Clear`, `-time 12 -weather Overcast`, 15 s settle before each shot.
+- Vantages (eye x, z, height; target x, y, z). Island land spans x -4128..4368, z -4128..4272, top 294 m at (-2496, 960).
+  - summit: (-2496, 960), ground +20 m, looking at (-1300, 0, -2600). The top is cold land (aurora term 1).
+  - coast: (-116, -3900), +3 m, looking inland at the centroid (-116, 60, 136).
+  - lake: (-342, 560), +3 m, at (-500, 30, -400). The island has no big lake: the largest pond is 21 cells near (-342, 365).
+  - town: (2800, -850), +3 m beside HumanVillage (2972, -885), looking at the summit (-2496, 250, 960).
+  - fly300: world (2200, 300, -2600), at (-1200, 50, 900).
+  - fly1000: world (3800, 1000, -3800), at (-500, 0, 500).
+- Numbers. Ground and tree reach are the same at every vantage and light. Trees = the far flora layer (draw / far radius); the near layers are 70 and 520 m on Medium, 105 and 676 m on High. Haze share is the base fog term from Sky.hlsl with that frame's globals (density 1.98 / draw distance).
+
+| Preset | Ground drawn | Trees drawn | Haze density | Light | Haze at 1 km | 2 km | 4 km |
+|---|---|---|---|---|---|---|---|
+| Medium | 1536 m | 1500 / 1536 m | 1.29 /km | noon clear (clear day 1) | 66% (summit 81%, lake 68%) | 100% | 100% |
+| Medium | 1536 m | 1500 / 1536 m | 1.29 /km | dusk, overcast (clear day 0) | 81% | 100% | 100% |
+| High | 2976 m | 1950 / 1984 m | 0.665 /km | noon clear (clear day 1) | 14% (summit 36%, lake 17%) | 70% (summit 83%, lake 72%) | 100% |
+| High | 2976 m | 1950 / 1984 m | 0.665 /km | dusk, overcast (clear day 0) | 36% | 83% | 100% |
+
+- What the shots show:
+  - Haze is tied to draw distance, not weather: overcast and a clear dusk get exactly the same fog, and on Medium nothing past 2 km exists, so fly300 is mostly fog and fly1000 is all fog (the island is not visible from 1 km up on either preset; on High a faint coast shows at 1000 m noon).
+  - The summit, a clear-day view, is hazed as a dusk day: cold land sets the aurora term to 1, which turns the clear-day haze off (`clearDay = _PunchyHazeClear * (1 - _PunchyAurora)`). A row 2 question.
+  - High trees stop at ~1950 m while ground runs to 2976 m: from fly300 the last km of land is bare.
+  - Dusk at 18.5 h renders as deep blue night with aurora at the summit and lake, not a warm dusk. I kept the card's dusk slot at 18.5 for comparability; a later dusk (e.g. 17.5-18.0) may be the better reference for Zach.
+  - Town view: HumanVillage sits behind the camera's desert foreground; the mountains read only as a pale band at 4 km+ on Medium.
+- NaN probe (`R18Probe.Bad` after the run): bad 0. Pins not checked (no code).
+- Next: R-21 row 3 quick defects (world/waterfall-sheets), then W-153 rows 1 + 1b, then R-21 row 4.
