@@ -1428,3 +1428,25 @@ Results:
   (small, within the 60 m item range, same as world items).
 - Next: row 3 (restock walk, guard report by mood) still waits for the supervisor's go on the animal-lane brain files.
   P-34 waits for A-102 row 3 on main; P-33 rows 3-4 for A-100.
+
+## P-35 row 1 (#26): item and saved-state design. DONE, `DESIGN-items-save.md` (coordination)
+- **The note covers:**
+  - one item definition (an asset per item, a stable string key, an append-only ushort id registry, an ItemBlob
+    for Burst, a catalog hash checked at join);
+  - ItemStack {Item, Count, Data, Owner};
+  - one kit layout for players and folk (two hands, sheath, worn places with a new Face place, and the bag);
+  - ownership (nobody, household, settlement or player; derived while in place, carried once moved);
+  - ids for world things from placement records (rule 22), with only diffs saved;
+  - the host's world save and each player's profile file.
+- **Host and client roles:** the host holds every kit, players' too. Clients send move requests. Solo is its own host.
+- **Stand-ins:** 20 listed with where each moves; 13 of them are player-lane.
+- **Network changes for one rule 11 approval:** 5 new RPCs, 6 replaced, 3 retired. Ghost fields: NetPlayerKit new;
+  NetPlayerLook gains Hair, HairColour, Sheathed and Block and loses Eyewear; the folk kit goes to ushort. Old builds
+  can't join new ones, once.
+- **Open questions for Zach (section 10):** 7. They cover a character's items between worlds, fish item shape,
+  loose items rotting, fencing stolen goods, bat folk glasses, stats per world, and save slots.
+- **Suggested rows after the answers:** 6, the first changing nothing in play.
+- **UNVERIFIED:**
+  - the CreatureNet bandwidth from wider kit ids (10 ushort per folk, delta-compressed): the profiler's to measure;
+  - the lag cost of host-checked equips (estimated from P-31 numbers, not tried).
+- **Next:** P-33 row 3's rebuild and checks are running; then the P-33 row 3 report.
