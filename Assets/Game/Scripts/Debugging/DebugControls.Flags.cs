@@ -22,6 +22,8 @@ namespace Punchy.Debugging
         void ApplyOptions(string[] args)
         {
             optionsAt = Time.timeSinceLevelLoad;
+            // "-breathtest" (A-102 row 1): air and water breathers held on a lake bed, their breath logged (BreathTest).
+            breathTest = System.Array.IndexOf(args, "-breathtest") >= 0;
             landmarkPlacePending = null; // (a later shot's options replace an earlier -place still being retried)
             if (!drawCalls.Valid)
             {

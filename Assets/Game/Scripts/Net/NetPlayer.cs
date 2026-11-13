@@ -40,6 +40,8 @@ namespace Punchy.Net
         public int Coat;
         /// <summary>The pose the owner's body is in (an IdleAction: Pet, Carry, Throw, an emote, or None).</summary>
         public byte Pose;
+        /// <summary>A-102: how much breath the owner has used under water (PlayerMotion.BreathUsed), 0 (full) to 255.</summary>
+        public byte BreathUsed;
     }
 
     /// <summary>What other players need to draw this one's body: replicated from the owner via the server.</summary>
@@ -55,6 +57,8 @@ namespace Punchy.Net
         [GhostField] public byte Rim;
         /// <summary>Petting, carrying or an emote (an IdleAction), so the others see it.</summary>
         [GhostField] public byte Pose;
+        /// <summary>A-102: how much breath it has used under water, 0 (full) to 255 (NetPlayerCommand.BreathUsed).</summary>
+        [GhostField] public byte BreathUsed;
     }
 
     /// <summary>Client singleton: the local player's species in the playable table (set by NetAvatars).</summary>
@@ -184,6 +188,7 @@ namespace Punchy.Net
                 command.Yaw = math.atan2(forward.x, forward.z);
                 command.Grounded = motion.ValueRO.Grounded;
                 command.Climbing = motion.ValueRO.OnTrunk || motion.ValueRO.OnWall;
+                command.BreathUsed = (byte)math.clamp((int)math.round(motion.ValueRO.BreathUsed * 255f), 0, 255);
                 if (mantling)
                     command.Rim = RimToByte(motion.ValueRO.MantleTo.y - t.ValueRO.Position.y);
                 command.Valid = true;
@@ -235,7 +240,7 @@ namespace Punchy.Net
                     continue;
                 transform.ValueRW.Position = c.Position;
                 transform.ValueRW.Rotation = quaternion.RotateY(c.Yaw);
-                look.ValueRW = new NetPlayerLook { Species = c.Species, Individual = c.Individual, Coat = c.Coat, Grounded = c.Grounded, Climbing = c.Climbing, Rim = c.Rim, Pose = c.Pose };
+                look.ValueRW = new NetPlayerLook { Species = c.Species, Individual = c.Individual, Coat = c.Coat, Grounded = c.Grounded, Climbing = c.Climbing, Rim = c.Rim, Pose = c.Pose, BreathUsed = c.BreathUsed };
             }
         }
     }

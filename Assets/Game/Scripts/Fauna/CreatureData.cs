@@ -112,6 +112,10 @@ namespace Punchy.Fauna
         public bool Disguised;
         /// <summary>Its taste in weather (A-71): what makes it uncomfortable and what shelter it seeks.</summary>
         public ComfortProfile Comfort;
+        /// <summary>A-102 breath (Breath): never runs short under water (fish, water and sea folk); else how long it
+        /// holds its breath (s, CreatureSpecies.HoldBreath or Breath.DefaultHold).</summary>
+        public bool BreathesWater;
+        public float HoldBreath;
 
         public BlobArray<CreaturePart> Parts;
         public BlobArray<CreatureSegment> Segments;
@@ -728,6 +732,11 @@ namespace Punchy.Fauna
         // activity that meets them; what it decides to do next is weighted by them. Only the brain reads them (#58:
         // moved here from CreatureState); what others see is CreatureState.Cue.
         public float Hunger, Thirst, Tired, Lonely;
+        /// <summary>A-102 breath (Breath): how much of it is used up under water (0 full, 1 empty; 0 by default, so a
+        /// new creature starts full), and whether, having emptied it, it is making for the surface until it has caught
+        /// some back. Brain only, like the needs.</summary>
+        public float BreathUsed;
+        public bool Gasping;
         /// <summary>A-71: how uncomfortable the weather has made it (0..1: builds while out of its comfort, fades in
         /// comfort or shelter), why (the worst reason last seen), and how hard the weather pressed at the last check.</summary>
         public float Discomfort, ComfortPressure;
@@ -967,6 +976,9 @@ namespace Punchy.Fauna
             root.Rooted = species.Rooted;
             root.Disguised = species.Disguised;
             root.Comfort = ComfortProfiles.For(variant, home ?? new Vector2(-1f, -1f));
+            root.BreathesWater = species.BreathesWater || species.Habitat == Habitat.Swims;
+            root.HoldBreath = species.HoldBreath > 0f ? species.HoldBreath
+                : Breath.DefaultHold(root.Upright && root.Hands, root.CrossesWater, species.Habitat);
             root.Nests = species.Nests;
             root.WebSize = species.WebSize * sizeScale * size;
             root.FlightHeight = new float2(species.FlightHeight.x, math.max(species.FlightHeight.x, species.FlightHeight.y));

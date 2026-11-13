@@ -594,6 +594,9 @@ namespace Punchy.Fauna
                     M.LodCoast = float2.zero;
                 }
                 System.Threading.Interlocked.Increment(ref Searches.Data.Thinks);
+                var thinkY = s.Position.y;
+                var thinkDt = Dt;
+                var thinkStep = Step;
                 Think(self, ref s, in body);
                 Dt = frameDt;
                 Step = frameStep;
@@ -607,6 +610,7 @@ namespace Punchy.Fauna
                     if (s.Position.y - ground > 0.1f)
                         s.Position.y = ground;
                 }
+                Breathe(ref s, ref body.Blob.Value, thinkY, thinkStep, thinkDt);
                 if (!s.Gone && CreatureMotion.StatsOn.Data != 0)
                     CountSolids(s, ref body.Blob.Value);
                 // (The legs' pose follows whatever speed it ended the tick at, whichever way it got there; its feet are
@@ -619,6 +623,48 @@ namespace Punchy.Fauna
                     using (EaseMarker.Auto())
                         CreatureMotion.EaseGait(ref s, ref body.Blob.Value, Dt, near);
                 }
+            }
+
+            /// <summary>
+            /// A-102 breath (Breath), after the think has moved it: an air breather whose head is under water uses up
+            /// its breath over its hold time (elapsed: the time the think covered) and gets it back in air. Emptied, it
+            /// is pushed up at a swimmer's pace (from where it was before the think, wherever the think put it) until
+            /// its head is out, and kept there until it has caught some breath back; then, while its breath isn't full,
+            /// it sinks back no faster than SinkSpeed rather than dropping to the bottom at once. A head under the
+            /// ground (a cave under a lake) isn't under that water. Water breathers, ghosts and anything flying or held
+            /// are always full. In everyday life no air breather's head goes under, so this costs one ground sample.
+            /// </summary>
+            void Breathe(ref CreatureState s, ref CreatureBlob b, float before, float elapsed, float dt)
+            {
+                if (s.Gone || s.Mode == CreatureMode.Held || b.BreathesWater || b.Haunts || s.Fly > 0.5f)
+                {
+                    M.BreathUsed = 0f;
+                    M.Gasping = false;
+                    return;
+                }
+                var g = Terrain.SampleGround(s.Position.xz);
+                var head = Breath.Head(s, ref b);
+                var water = g.HasWater && g.WaterSurface > g.Height && head > g.Height - 0.5f;
+                // First where it may be (the think doesn't know its breath, so a walker is back on the bottom each
+                // tick), then whether that puts its head under. (Where it is when its head is just out: surfaced.)
+                if (water && (M.Gasping || M.BreathUsed > 0f) && math.isfinite(before))
+                {
+                    var surfaced = s.Position.y + g.WaterSurface + Breath.HeadOut * s.Scale - head;
+                    var y = s.Position.y;
+                    if (M.Gasping)
+                    {
+                        if (y < surfaced)
+                            y = math.min(surfaced, math.max(y, before + Breath.RiseSpeed * dt));
+                    }
+                    else if (y < before - Breath.SinkSpeed * dt)
+                        y = math.min(before, surfaced) - Breath.SinkSpeed * dt;
+                    head += y - s.Position.y;
+                    s.Position.y = y;
+                }
+                var under = water && head < g.WaterSurface;
+                if (!under && M.BreathUsed <= 0f && !M.Gasping)
+                    return;
+                M.BreathUsed = Breath.Use(M.BreathUsed, ref M.Gasping, under, b.HoldBreath, elapsed);
             }
 
             void Think(Entity self, ref CreatureState s, in CreatureBody body)
