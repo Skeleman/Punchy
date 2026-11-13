@@ -6764,3 +6764,49 @@ plot rules would have to accept a raised deck).
   - Strands in ruin rooms aren't checked against the ruin cells' pillars and blocks (only against the inner walls).
   - Cost: up to 96 webs x 216 vertices in one draw, plus a 96-entry buffer upload each frame.
 - BENCH job 69 spots (final list for rows 1-3b): fissure crack -goto -805,-3398; lava cave 4 at -208,2,-2727; cave 14 at 615,11,-2758; cobwebs: cave 2 at -1941,101,2343 (dry cave, several webs), cave 10 room at -2205,279,984, tunnel cave 24 at -2935,118,67, tunnel cave 28 at -2474,260,895.
+
+
+## W-144 row 1: cave climb routes and ledges (#267), done (shots partly UNVERIFIED)
+
+- Branch world/cave-climbs, commit 2549d000, cut from origin/main 2078f16c. PlayerMovementSystem.cs was not touched.
+- What it bakes (CaveBaking.Climbs.cs, CaveClimbs.cs, CaveSystem.Climbs.cs): seed-derived climb routes in vertical cave sections, plus LedgeHang lips. They are plain records with stable ids, built on A-101's climb grades, ready for A-101 row 2 to hook up. Three kinds of route:
+  - shafts up to the surface
+  - needed drops (the only way on)
+  - optional drops
+- Grades:
+  - crag and crack are grade 4; vines, roots and rope are grade 2.
+  - Any needed way out is grade 2 or easier (a needed band that would be harder is drawn as vines, roots or rope).
+  - No ladders: those stay in structures and mines, as the card says.
+- Face-cover rule (new): a band needs at least 40% of its pieces on rock. A band whose face is mostly missing (an opening or a deep undercut) is dropped if optional and turned into a rope if needed. In the main world this dropped 6 bands and turned 1 into a rope.
+- Bake log (main world): shafts 3, needed drops 16, optional drops 7, chutes 0, ledges 23, drops left bare 3; bare bands dropped 6, turned to rope 1; routes 20, points 2460.
+  - The climbs step takes 355 ms of the cave bake (off-thread). Cost of the bake is not timed here; that goes to BENCH-QUEUE.
+- Network: routes are cosmetic and seed-derived, drawn the same for every player; nothing is sent. ClimbSkill (A-101) is the synced part.
+- Probe (W144Probe, untracked): routes per cave, with height and what's at the top.
+
+| Cave | Routes | Kinds (height m, leads to) |
+|---|---|---|
+| 0 | 1 | rope 4.7 to a passage (needed) |
+| 3 | 1 | rope 2.0 to a passage (needed) |
+| 5 | 13 | shafts to the surface: roots 38.7, crag (g4) 24.7, vines 19.4. Needed routes: vines 14.8 / 12.6 / 6.4 / 9.0 (the 9.0 goes to a dead end), roots 2.5 / 4.4 / 2.1, rope 2.9 / 23.2 / 10.2 |
+| 16 | 1 | roots 2.9 to a passage (needed) |
+| 17 | 1 | vines 3.8 to a dead end (optional) |
+| 20 | 2 | vines 8.1 and rope 6.5 to a passage (both needed) |
+| 21 | 1 | rope 2.7 to a passage (needed) |
+
+  - Ledges: 23 in all (16 at grade 2, 7 at grade 3). Cave 5 has 11, cave 17 has 3, cave 20 has 2, and caves 0, 1, 3, 15, 16, 19 and 21 have 1 each.
+- Pins: landmarks 117 689D5348 and fingerprint 6A9E28E5, both unchanged (asserted by WorldTests).
+- Suite: "completed: 40/40 passed" after the last code change.
+- lod-lint and nan-lint exit 0 on world/cave-climbs (nan-lint lists only existing shader lines).
+- Shots, checked at small size, in D:/Unity/PunchyMilestones/W-144/ (contact-sheet.jpg holds all eight):
+  - w144-rope-c0-3m.png: cave 0, needed rope at (-1814, 47, -169). The rope reads clearly. Verified.
+  - w144-rope-c0-15m.png: UNVERIFIED. The rope is too thin to see at 15 m; the shot shows only the passage mouth it leads to.
+  - w144-crag-c5-3m.png and w144-crag-c5-15m-down.png: cave 5 crag shaft at (-2772, 36, -618), looking up and then 15 m up looking down the shaft. The holds show only as small dark chips. UNVERIFIED as "reads as climbable".
+  - w144-vines-c5-3m.png and w144-vines-c5-15m.png: cave 5 needed vines at (-2712, 23, -688). The vines show as thin dark strands. Weak; UNVERIFIED.
+  - w144-vines-c20-3m.png and w144-vines-c20-15m.png: cave 20 vines and rope at (-2152, 40, -1087). The rope/root reads at 3 m; the vines at 15 m only as faint strands. Partly verified.
+- Risks:
+  - Readability is the open problem: vines and crag holds are too thin and dark to read as climbable, above all at 15 m. A follow-up should make them thicker and lighter (or add a pale chalk/wear band) before Zach reviews.
+  - Only one grade-4 route is left in the main world (the cave 5 crag shaft), and no crack route at all after the face-cover rule.
+  - Leads-to values are surface, passage and dead end only. No route ends in a hidden chamber yet.
+  - 13 of the 20 routes are in cave 5; most other caves have one short route.
+  - Five editor-noise .mat files (Cave, Water, Colossus, IcebergIce, TempleGlow) were restored in the world tree on main's request. Their diff is kept outside the repo in case anyone needs it.
+- Next: W-144 row 2 per the card. Making the routes read better is suggested first.
