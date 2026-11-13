@@ -73,8 +73,10 @@ namespace Punchy.Player
             foreach (var avatar in SystemAPI.Query<RefRO<Punchy.Fauna.CreatureState>>().WithAll<Punchy.Fauna.PlayerAvatar>())
                 down = math.max(avatar.ValueRO.Lie, avatar.ValueRO.Sit);
 
+            // (A rider is carried, not moved: PlayerRideSystem puts it on its mount, A-104 row 3.)
             foreach (var (transform, motor, motion) in
-                     SystemAPI.Query<RefRW<LocalTransform>, RefRO<PlayerMotor>, RefRW<PlayerMotion>>().WithAll<PlayerTag>())
+                     SystemAPI.Query<RefRW<LocalTransform>, RefRO<PlayerMotor>, RefRW<PlayerMotion>>().WithAll<PlayerTag>()
+                         .WithNone<Punchy.Fauna.PlayerRide>())
             {
                 ref var t = ref transform.ValueRW;
                 ref var m = ref motion.ValueRW;

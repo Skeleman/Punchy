@@ -405,7 +405,12 @@ namespace Punchy.Fauna
         /// weather is bad), then waiting there facing Focus (1) till the weather lets up or its time runs out. What the
         /// shelter is (a ShelterNeed bit) rides in TargetHeight.
         /// </summary>
-        Shelter
+        Shelter,
+        /// <summary>
+        /// A-104: riding another creature (Riding): no mind of its own while it rides, put on its mount's seat each frame
+        /// (RideSystem). How it sits (a RidePose) is in Stage; what it rides is in Holder (minus the mount's ghost id).
+        /// </summary>
+        Ride
     }
 
     /// <summary>What a worker does at its post (posed by CreatureAnimator).</summary>
@@ -692,7 +697,9 @@ namespace Punchy.Fauna
         public bool Gone;
         /// <summary>The cave it roosts in (-1 = none), and the passage node its roost is at.</summary>
         public short LairCave, LairNode;
-        /// <summary>Who is petting or carrying it (see Interactions.HolderId; 0 = nobody).</summary>
+        /// <summary>Who is petting or carrying it, or what it rides (A-104). Positive: its holder (Interactions.HolderId).
+        /// Negative: it is riding, and this is minus the mount's ghost id (Riding.SoloMount in a solo world, which has no
+        /// ghosts). 0 = neither. Read it through Riding.Mount/Dismount rather than by hand.</summary>
         public int Holder;
         /// <summary>What it has in hand (folk: a lantern at night). Replicated; each machine draws it.</summary>
         public HeldItem Held;

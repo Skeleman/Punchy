@@ -90,7 +90,7 @@ namespace Punchy.Fauna
             for (int i = 0; i < states.Length; i++)
             {
                 var s = states[i];
-                if (bodies[i].Species != index || s.Gone || s.Mode == CreatureMode.Puppet || s.Mode == CreatureMode.Held ||
+                if (bodies[i].Species != index || s.Gone || s.Mode == CreatureMode.Puppet || s.Mode == CreatureMode.Held || s.Mode == CreatureMode.Ride ||
                     s.Mode == CreatureMode.Sleep || s.Mode == CreatureMode.Home && s.Stage >= 2)
                     continue;
                 var d = math.distancesq(s.Position, at);
