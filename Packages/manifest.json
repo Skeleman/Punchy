@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "com.anweather.chemistry-core": "file:C:/Users/Andrew/AppData/Local/Temp/claude/8cf7a8f1927a623b/0b0b720c-4852-4c99-b1c5-988caebb58e5/scratchpad/core/packages/com.anweather.chemistry-core",
+    "com.anweather.chemistry-core": "file:C:/Users/Andrew/Development/5e-compatible-game/packages/com.anweather.chemistry-core",
     "com.unity.entities": "6.5.0",
     "com.unity.entities.graphics": "6.5.0",
     "com.unity.ide.rider": "3.0.38",
