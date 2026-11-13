@@ -442,7 +442,8 @@
       "Traits (each low, mid or high, or a list): warmth (cold to kind), trust, curiosity, courage, pride, beasts (fears animals to loves them).",
       "state: tired, busy, hungry, thirsty, lonely, scared, hurt, weather (a list; !busy for not). weather: Hot, Dry, Cold, Rain, Snow, Storm, Bright, Wind. mood: Cheerful, Plain, Grumpy (its temper today). stance: Kin, Warm, Rival, Wary, Annoyed. trade: a job (Smith, Baker, Farmer...) or task. when: day, night, dawn, morning, afternoon, evening.",
       "true or false: home (lives in a town), job (has one), need (wants a quest done), willing (will do a favour: trust and warmth against stance and how often it was asked lately), pestered (asked twice in the last few minutes: never willing then).",
-      "gesture: an emote it makes (Wave, Bow, Cheer, Dance, Pet, LookAround...) or a word the talk window shows. offer: quest, item:<item name>, directions, rumour:<what about>, discount:<percent>, refuses. ends: true closes the talk. weight: default 1."
+      "gesture: an emote it makes (Wave, Bow, Cheer, Dance, Pet, LookAround...) or a word the talk window shows. offer: quest, item:<item name>, directions, rumour:<what about>, discount:<percent>, refuses. ends: true closes the talk. weight: default 1.",
+      "family (A-105): kin is the household member a line is about, by what it is to the speaker: partner, child, parent, grandparent, grandchild, sibling, inlaw (one or a list), or none for a folk with nobody else at home. {kin_name} and {kin_word} name that member and what the speaker calls it (daughter, husband, grandmother). gone: true for a member who has died (the line misses them), false or left out for the living. A line with a kin slot and no kin key is about anyone living in the house."
     ],
     "topics": {
       "who": "Who are you?",
@@ -452,6 +453,7 @@
       "news": "Heard any news?",
       "favour": "Can you help me?",
       "help": "Do you need anything?",
+      "family": "How's your family?",
       "bye": "Goodbye."
     },
     "Any": {
@@ -474,6 +476,9 @@
         { "text": "What, you don't know? Everyone knows me.", "pride": "high", "warmth": ["mid", "high"] }
       ],
       "how": [
+        { "text": "Well enough. My {kin_word} {kin_name} had us up half the night, mind.", "kin": "child", "weight": 0.4 },
+        { "text": "Can't complain. {kin_name}, my {kin_word}, does the complaining for both of us.", "kin": "partner", "weight": 0.4 },
+        { "text": "Not so good. I keep thinking of my {kin_word} {kin_name}.", "gone": true, "weight": 0.6 },
         "Can't complain.",
         { "text": "Very well, thank you!", "mood": "Cheerful", "gesture": "Cheer" },
         { "text": "Never better. Lovely day for it.", "mood": "Cheerful", "when": "day" },
@@ -590,6 +595,39 @@
         { "text": "Mind the dark.", "when": "night" },
         { "text": "Off you go, then.", "pride": "high" },
         { "text": "Take care of yourself, friend.", "warmth": "high", "gesture": "Wave" }
+      ],
+      "family": [
+        { "text": "Just me. Suits me fine.", "kin": "none" },
+        { "text": "No family to speak of. The neighbours make up for it.", "kin": "none", "warmth": ["mid", "high"] },
+        { "text": "My {kin_word} {kin_name} keeps the house running. I only live in it.", "kin": "partner" },
+        { "text": "{kin_name}, my {kin_word}. All these years and still laughs at my jokes.", "kin": "partner", "mood": "Cheerful" },
+        { "text": "My {kin_word} {kin_name} snores like a bellows. Otherwise, fine.", "kin": "partner", "mood": "Grumpy" },
+        { "text": "My {kin_word} {kin_name} wants to go adventuring. Like you, I suppose.", "kin": "child", "curiosity": ["mid", "high"] },
+        { "text": "My {kin_word} {kin_name} is the clever one in our house. Don't tell the others.", "kin": "child" },
+        { "text": "Have you seen my {kin_word} {kin_name}? Never home when there's work to do.", "kin": "child", "mood": "Grumpy" },
+        { "text": "My {kin_word} {kin_name} says I work too hard. Probably right.", "kin": "parent" },
+        { "text": "My {kin_word} {kin_name} still tells me to wrap up warm.", "kin": "parent" },
+        { "text": "My {kin_word} {kin_name} remembers when the road was mud. Mentions it often.", "kin": "grandparent" },
+        { "text": "My {kin_word} {kin_name} runs rings round me these days.", "kin": "grandchild" },
+        { "text": "My {kin_word} {kin_name} has opinions about how I cook.", "kin": "inlaw" },
+        { "text": "My {kin_word} {kin_name}? Took my spot by the fire again.", "kin": "sibling" },
+        { "text": "{kin_name} and I argue about the roof every spring. Then we fix it together.", "kin": "partner" },
+        { "text": "My {kin_word} {kin_name} is out more than in. I keep the soup warm anyway.", "kin": "partner" },
+        { "text": "You'd like my {kin_word} {kin_name}. Everyone does. It's very annoying.", "kin": "partner" },
+        { "text": "My {kin_word} {kin_name} grows a hand taller every time I look away.", "kin": "child" },
+        { "text": "My {kin_word} {kin_name} found a frog in the well and named it after me.", "kin": "child" },
+        { "text": "{kin_name}, my {kin_word}, will run this place one day. Heaven help it.", "kin": "child" },
+        { "text": "My {kin_word} {kin_name} still thinks I'm ten. I let it slide.", "kin": "parent" },
+        { "text": "My {kin_word} {kin_name} taught me everything I know. Mostly what not to do.", "kin": "parent" },
+        { "text": "My {kin_word} {kin_name} is well, thanks. Stubborn as ever.", "kin": "parent" },
+        { "text": "My {kin_word} {kin_name} falls asleep mid-story. Best part, usually.", "kin": "grandparent" },
+        { "text": "My {kin_word} {kin_name} asks a hundred questions a day. I answer about ten.", "kin": "grandchild" },
+        { "text": "My {kin_word} {kin_name} and I get on. Mostly. On good days.", "kin": "inlaw" },
+        { "text": "My {kin_word} {kin_name} borrowed my boots. That was a year ago.", "kin": "sibling" },
+        { "text": "Seen my {kin_word} {kin_name} about? Tell them supper's on.", "kin": "partner" },
+        { "text": "We lost my {kin_word} {kin_name}. The house is too quiet now.", "gone": true, "weight": 2 },
+        { "text": "I still set a place for my {kin_word} {kin_name}. Silly, I know.", "gone": true, "weight": 2, "warmth": ["mid", "high"] },
+        { "text": "My {kin_word} {kin_name} is gone. Don't ask me more than that.", "gone": true, "weight": 2, "mood": "Grumpy" }
       ]
     },
     "Human": {
@@ -616,7 +654,13 @@
         { "text": "No! Mine!", "willing": false, "offer": "refuses" }
       ],
       "help": [{ "text": "Can you {quest}? I'm too little.", "need": true, "offer": "quest" }],
-      "bye": [{ "text": "Bye bye!", "gesture": "Wave" }]
+      "bye": [{ "text": "Bye bye!", "gesture": "Wave" }],
+      "family": [
+        { "text": "My {kin_word} {kin_name} says I have to be home before dark!", "kin": "parent" },
+        { "text": "My {kin_word} {kin_name} is SO annoying.", "kin": "sibling" },
+        { "text": "My {kin_word} {kin_name} gives me honey cakes. Don't tell.", "kin": "grandparent" },
+        { "text": "I miss my {kin_word} {kin_name}. Nobody tells stories like that now.", "gone": true, "weight": 2 }
+      ]
     },
     "Dwarf": {
       "who": [
@@ -667,7 +711,14 @@
       "work": [{ "text": "Fish below, ice above, fire between. That is the work.", "job": true }],
       "town": ["We built the domes when the glacier was young. One block a day."],
       "news": [{ "text": "The runes on the old stones flicker at night. Something stirs under the ice.", "curiosity": ["mid", "high"], "offer": "rumour:ice" }],
-      "bye": [{ "text": "Go slowly, quick one.", "gesture": "Bow" }]
+      "bye": [{ "text": "Go slowly, quick one.", "gesture": "Bow" }],
+      "family": [
+        { "text": "My {kin_word} {kin_name} and I have shared this igloo three hundred winters. Still surprises me.", "kin": "partner" },
+        { "text": "{kin_name}, my {kin_word}. Barely a century old. Still learning to sit still.", "kin": "child" },
+        { "text": "My {kin_word} {kin_name} hums to the ice. The ice hums back.", "kin": ["parent", "grandparent"] },
+        { "text": "My {kin_word} {kin_name} remembers this mountain before it had snow.", "kin": "grandparent" },
+        { "text": "My {kin_word} {kin_name} has gone into the long sleep. The runes still say the name at night.", "gone": true, "weight": 2 }
+      ]
     },
     "SeaFolk": {
       "who": ["Born under the third dome. Never been dry for long.", { "text": "Sea folk, from the lake. Visiting. Briefly, I hope.", "state": "dry" }, { "text": "A {trade}. I bring the fish down to the domes.", "job": true }],
@@ -682,7 +733,14 @@
       "work": [{ "text": "Fish up top, home down below. The walk keeps me young.", "job": true }, { "text": "A clam bed wants turning every tide, and a glow stone wants rubbing or it sulks dim.", "job": true }],
       "town": ["The domes grow a little every year. We feed them shell.", { "text": "Your towns are nice. Dusty, but nice. The fountains are the best part.", "state": "dry" }],
       "news": [{ "text": "Something big sleeps in the wreck past the reef. The fish won't go near it.", "curiosity": ["mid", "high"], "offer": "rumour:wreck" }],
-      "bye": [{ "text": "Bright water, dry one.", "gesture": "Wave" }, { "text": "I'm off back to the water. You should try it sometime.", "state": "dry", "gesture": "Wave" }]
+      "bye": [{ "text": "Bright water, dry one.", "gesture": "Wave" }, { "text": "I'm off back to the water. You should try it sometime.", "state": "dry", "gesture": "Wave" }],
+      "family": [
+        { "text": "My {kin_word} {kin_name} hasn't been dry in a week. Good.", "kin": "partner" },
+        { "text": "My {kin_word} {kin_name} keeps sneaking up to the surface. Gills like sand, after.", "kin": "child" },
+        { "text": "My {kin_word} {kin_name} always said the surface makes you slow. Look at me, here.", "kin": ["parent", "grandparent"], "state": "dry" },
+        { "text": "My {kin_word} {kin_name} saw the wreck go down. Says the fish were bigger then.", "kin": "grandparent" },
+        { "text": "My {kin_word} {kin_name} went to the deep water. We sing for them at low tide.", "gone": true, "weight": 2 }
+      ]
     },
     "Hermit": {
       "who": ["Nobody. That's the point."],

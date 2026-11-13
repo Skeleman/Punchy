@@ -1531,7 +1531,8 @@ namespace Punchy.Fauna
                     if (SleepTime(ref b) > 0.5f)
                         headDown = 0.35f;
                 }
-                if (s.Timer <= 0f)
+                // (A-105: one with a house of its own downs tools at dusk and goes home, rather than dozing at its post.)
+                if (s.Timer <= 0f || HasOwnDoor(s) && Homeward(s, ref b) && s.Task != CreatureTask.Watch)
                     Pause(ref s, ref b, ref rng);
             }
 

@@ -630,33 +630,60 @@ namespace Punchy.Debugging
         /// A-93 row 3: the live folk nearest the player sent off with a beast response (Flee, BackOff, Approach) as if the
         /// player were an animal right there: [its Individual, 1 if FolkConversation.Respond took it]. FolkMode then
         /// tells how its brain took it.
+        /// A-105 row 1b: only folk whose response target lies inside their leash count. A leashed folk (Tend, Watch,
+        /// Rest: leash 7) has its 30 m flee target clamped to the leash by KeepToLeash, reaches it at once and calms to
+        /// Idle, or runs round the leash circle rather than away; that is the brain working as meant, but it made
+        /// LiveFolk_BeastResponse flake whenever such a folk happened to be the nearest one.
         /// </summary>
         public static float[] BeastRespond(string response)
         {
             var world = World.DefaultGameObjectInjectionWorld;
             var at = (float3)PlayerPosition();
+            if (!System.Enum.TryParse(response, true, out BeastResponse kind))
+                return new float[] { 0f, 0f };
             using var q = EM.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
             using var entities = q.ToEntityArray(Allocator.Temp);
             var best = Entity.Null;
             var bestD = float.MaxValue;
             foreach (var e in entities)
             {
-                var d = math.distance(EM.GetComponentData<CreatureState>(e).Position, at);
-                if (d < bestD && FolkConversation.TryTalker(world, e, null, out _))
+                var c = EM.GetComponentData<CreatureState>(e);
+                var d = math.distance(c.Position, at);
+                if (d < bestD && TargetInLeash(c, AnimalAt(c, at), kind) && FolkConversation.TryTalker(world, e, null, out _))
                 {
                     best = e;
                     bestD = d;
                 }
             }
-            if (best == Entity.Null || !System.Enum.TryParse(response, true, out BeastResponse kind))
+            if (best == Entity.Null)
                 return new float[] { 0f, 0f };
             var s = EM.GetComponentData<CreatureState>(best);
-            // (The "animal" stands 3 m off it, toward the player.)
-            var from = s.Position + math.normalizesafe(at - s.Position, new float3(1f, 0f, 0f)) * 3f;
+            var from = AnimalAt(s, at);
             var ok = FolkConversation.Respond(best, new Answer { Reaction = BeastReaction.Scared, Response = kind }, from);
             BeastRespondFolk = s.Individual;
             UnityEngine.Debug.Log($"BeastRespond: {response} to species {EM.GetComponentData<CreatureBody>(best).Species} ({UnityEngine.Object.FindAnyObjectByType<FaunaDirector>()?.SpeciesName(EM.GetComponentData<CreatureBody>(best).Species)}) task {s.Task} leash {s.Leash:F0} at {bestD:F1} m");
             return new float[] { s.Individual, ok ? 1f : 0f };
+        }
+
+        // (The "animal" stands 3 m off the folk, toward the player.)
+        static float3 AnimalAt(in CreatureState s, float3 player) =>
+            s.Position + math.normalizesafe(player - s.Position, new float3(1f, 0f, 0f)) * 3f;
+
+        // Whether the target FolkConversation.Respond would set lies inside the folk's leash (no leash: anywhere), so
+        // KeepToLeash leaves it alone.
+        static bool TargetInLeash(in CreatureState s, float3 animal, BeastResponse kind)
+        {
+            if (s.Leash <= 0f)
+                return true;
+            var from = animal.xz;
+            var dir = math.normalizesafe(s.Position.xz - from, new float2(1f, 0f));
+            var target = kind switch
+            {
+                BeastResponse.Flee => s.Position.xz + dir * 30f,
+                BeastResponse.BackOff => s.Position.xz + dir * 5f,
+                _ => from + dir * 1.2f,
+            };
+            return math.distance(target, s.Home) <= s.Leash;
         }
 
         public static uint BeastRespondFolk;
@@ -673,6 +700,63 @@ namespace Punchy.Debugging
                     return System.FormattableString.Invariant($"{s.Mode} {math.distance(s.Position, (float3)PlayerPosition()):F1}");
             }
             return "";
+        }
+
+        /// <summary>
+        /// A-105 row 2: the housed folk nearest the player dies (nothing kills folk yet, so this stands in for whatever
+        /// will): it's marked Gone, Despawn takes it and its house keeps its bed empty. Returns its Individual, or 0.
+        /// </summary>
+        public static uint KillHousedFolk()
+        {
+            var at = (float3)PlayerPosition();
+            using var q = EM.CreateEntityQuery(ComponentType.ReadWrite<CreatureState>());
+            using var entities = q.ToEntityArray(Allocator.Temp);
+            var best = Entity.Null;
+            var bestD = float.MaxValue;
+            foreach (var e in entities)
+            {
+                var c = EM.GetComponentData<CreatureState>(e);
+                var d = math.distance(c.Position, at);
+                if (d < bestD && Households.Of(c.Individual, out _, out _))
+                {
+                    best = e;
+                    bestD = d;
+                }
+            }
+            if (best == Entity.Null)
+                return 0;
+            var s = EM.GetComponentData<CreatureState>(best);
+            s.Gone = true;
+            EM.SetComponentData(best, s);
+            return s.Individual;
+        }
+
+        /// <summary>
+        /// A-105 row 3: asks up to count housed folk nearest the player after their family (topic family, or how), the
+        /// player in its own body. With -households each answer that names a member is logged with its house. Returns one
+        /// line per folk: its name, then the answer.
+        /// </summary>
+        public static string AskHousedFolk(int count = 10, string topic = FolkConversation.Family)
+        {
+            var at = (float3)PlayerPosition();
+            using var q = EM.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>());
+            using var entities = q.ToEntityArray(Allocator.Temp);
+            var housed = new System.Collections.Generic.List<(float d, Entity e)>();
+            foreach (var e in entities)
+            {
+                var c = EM.GetComponentData<CreatureState>(e);
+                if (!c.Gone && Households.Of(c.Individual, out _, out _))
+                    housed.Add((math.distance(c.Position, at), e));
+            }
+            housed.Sort((a, b) => a.d.CompareTo(b.d));
+            var sb = new System.Text.StringBuilder();
+            for (int i = 0; i < housed.Count && i < count; i++)
+            {
+                var e = housed[i].e;
+                var answer = FolkConversation.Ask(e, topic);
+                sb.Append(FolkNames.Of(EM.GetComponentData<CreatureState>(e).Individual)).Append(": ").Append(answer.Text).Append('\n');
+            }
+            return sb.ToString();
         }
 
         static uint beastLiveFolk;
