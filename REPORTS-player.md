@@ -1411,3 +1411,20 @@ Results:
   - Left-hand swings over the network: the host's left held a shield, which doesn't swing.
   - The pad's Use and Jump sharing, and Alt+click, with a real pad and mouse: the tests drive flags, not devices.
   - The animal-body lunge (animal lane) also fires on Alt+click while empty-handed.
+
+## Taking folk items row 2b: spares on racks and tables. DONE, `player/take-items` 487dd137 (Zach 11-12)
+- Zach's "a finished sword on a rack": a long spare (over 0.75 m: sword, hoe, pickaxe, rod) leans on a wooden rack;
+  anything smaller (smith's hammer, bread, bowl, jar, apple) sits on a little round table. Cosmetic, worked out on each
+  peer from the spare's uid/item/place, so no new message; the stand stays after the spare is taken (an empty rack shows
+  what's missing) and is keyed by place, so row 3's restocked spare reuses it.
+- Spares moved behind the worker (±0.7 m right, 0.8 m back): in front, a baker's stand had landed in the hearth fire.
+- Shots `D:/Unity/PunchyMilestones/Take/t3-smith-before.png` (sword on its rack, the hammer's table already emptied by
+  `-pickupspares`), `t3-tend-before.png` (two loaves on tables behind the baker, clear of the fire).
+- Solo: exceptions 0; `[take]` stocked smith/miners/baker/healer, 2 taken. Host+client: exceptions 0, deser 0, 8 spares
+  seen each side, client's take marked on the host.
+- Suite 26 passed / 0 failed / 17 skipped; fingerprint AD723954; lod-lint clean.
+- UNVERIFIED: the stand's spot behind a worker against a wall or inside stonework (none seen in these shots); a
+  hammer actually lying on its table (it was taken before the shot); stands are drawn as item meshes with no LOD
+  (small, within the 60 m item range, same as world items).
+- Next: row 3 (restock walk, guard report by mood) still waits for the supervisor's go on the animal-lane brain files.
+  P-34 waits for A-102 row 3 on main; P-33 rows 3-4 for A-100.
