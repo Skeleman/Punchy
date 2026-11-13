@@ -3923,6 +3923,50 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - Pins: Fauna_Fingerprint is EC02D9B0 before and after, unchanged (no species or spawn rows). No placement, landmark, ProjectSettings or renderer change.
 - Suite: full PlayMode run after the last change: "total 40, passed 40, failed 0, skipped 0" (296 s).
 
+### Row 2: NPC riding (done, verified, #278)
+- Commit on fauna/riding (pushed): 35d06abd. Before it: c4f0c761 documents Holder's sign where Holder is declared (positive is a holder, negative is the mount's ghost id), and d5885880 merges main 2078f16c.
+- New RideLifeSystem (RideLife.cs), solo or server, once a second, after the brain and before RideSystem:
+  - a village grown-up setting off home (WalkHome) takes a child of its folk near it onto its shoulders, 30% of the time. The child gets down near the door;
+  - a small pet climbs onto a bigger animal near it for 20 to 60 s, in 8% of its half-minute spells;
+  - the rolls come from each creature's Individual and the time it set off, so they repeat run to run. The result goes out through the ride's existing ghost fields (Holder, Mode). Ghost fields: none added.
+- Dismounts (Riding.Reason): on sleep or rest, fight (hunt, flee, play), climb (climb, roost, flying), swim, wading past 0.45 x the mount's stand height, being picked up, and the mount's death or removal. Riding.Clear puts the rider down beside the mount: right, left, behind, in front, further out, then (new) eight ways round at two wider rings for a mount backed into a wall. It is never inside a building's walls (flora), never up a ledge, and dry if any side is, on the floor there.
+- `-ridelife` (host, town 73 HumanVillage, dusk). Run 12 PASS:
+  - Town part: 150 s in the village middle with every roll forced to pass. A child rode a grown-up's shoulders home: WalkHome, Shoulders, mount at (2971.3, 9.21, -882.4). Shot below.
+  - Reason table 18/18, e.g. Sleep -> Sleep, Hunt -> Fight, Gone -> Death, wading 0.75 m -> Swim, child 2 m from the door -> Home, 10 m -> stay on.
+  - Dismount cases, each a placed ride forced into the mode (room = gap between the bodies, floor = height above the floor there):
+
+    | case | why | rider down at | mount at | side | room | floor |
+    |---|---|---|---|---|---|---|
+    | sleep | Sleep | (2977.37, 9.22, -895.38) | (2977.06, 9.21, -895.38) | 0 | 0.15 | 0.000 |
+    | hunt | Sleep (brain changed the mode first) | (2980.31, 9.29, -895.58) | (2980.06, 9.28, -895.38) | 0 | 0.15 | 0.000 |
+    | flee | Fight | (2983.20, 9.23, -895.72) | (2983.06, 9.23, -895.38) | 0 | 0.15 | 0.000 |
+    | climb | Climb | (2976.83, 9.21, -892.67) | (2977.06, 9.21, -892.38) | 0 | 0.15 | 0.000 |
+    | swim | Swim | (2979.73, 9.21, -892.45) | (2980.06, 9.21, -892.38) | 0 | 0.15 | 0.000 |
+    | picked up | Held | (2980.06, 9.28, -895.38) | (2979.77, 10.26, -895.61) | 0 | 0.15 | 0.000 |
+    | killed | Death | (2976.88, 9.21, -889.06) | (2977.06, 9.21, -889.38) | 0 | 0.15 | 0.000 |
+    | removed | Death | (2980.04, 9.21, -889.37) | (2980.04, 9.90, -889.37) | -1 (where it was) | 0.00 | 0.000 |
+    | wade | Swim | (2462.89, -0.39, -895.15) | (2465.06, -0.75, -895.38) | 13 | 1.98 | 0.000, in 0.39 m of water |
+
+  - None is in walls, in the mount, or in the ground.
+  - Run 11 failed one case: sleep put the rider in a wall, because all eight near spots were blocked and Clear fell back blind. The wider rings fixed it. The wade case in run 12 used them too (side 13).
+- NaN probe: 0 (ridelife and ridecases probes, 360 frames each: 632 lines, all "creature marked 0").
+- Shot in D:/Unity/PunchyMilestones/A-104/ (800x450, checked): a104-row2-shoulders.png, a village child on a grown-up's shoulders with a lantern, walking home at dusk.
+- Pins: Fauna_Fingerprint is 6A9E28E5 before and after, unchanged (no species or spawn rows). No placement, landmark, ProjectSettings or renderer change. No timing.
+- Suite: full PlayMode run after the last change: "total 40, passed 40, failed 0, skipped 0" (303 s), including WorldTests.Fauna_Fingerprint.
+- Known limits:
+  - In the first second a client can draw the rider about 3 cm off for one frame (row 1).
+  - No parent link on this branch: the child is a nearby same-race village child, not the walker's own. A-105's households (fauna/households) can supply it once both merge.
+  - A rider is set straight onto its seat (no climb-up animation).
+  - Riding.Clear calls FloraPlacement.Blocked up to 24 times per dismount (rare). The cost is a question for the supervisor (rule 21).
+  - The brain can change a test's forced mode before RideSystem sees it (hunt came down as Sleep). The dismount is still right.
+  - Dungeon guards and drinkers never ride: DungeonPostSystem sends them back.
+  - The test re-warps to the town and moves into the village middle, because the start warp can be stale.
+  - Pet rides are rare (8%). One was logged in run 9, none framed.
+  - GhostSendSystem logs one "entity does not exist" exception (Burst) after the test destroys its case creatures from a MonoBehaviour. It is the same pattern as FaunaDirector's despawn and is not new to this row.
+  - A killed mount can be despawned by FaunaDirector before RideSystem sees it. Its rider then gets down where it was (side -1). That is accepted for the killed case.
+  - On a host, the player's position is where its client last reported. After a teleport the test waits 4 s before spawning near it, or FaunaDirector lets the spawn go (noted in docs/agents/fauna.md).
+- Next: row 3 (players riding players), per the card.
+
 ## A-105
 
 ### Row 1: derived households (done, verified, #25)
