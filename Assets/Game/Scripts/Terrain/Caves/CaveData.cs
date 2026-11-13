@@ -225,6 +225,43 @@ namespace Punchy.Terrain
         public float3 Min, Max;
     }
 
+    /// <summary>
+    /// W-141 (#261): a trickle of water down a steep cave wall, out of a narrow slit in the rock, wetting a dark glossy
+    /// streak below it and ending in a small splash on a puddle or on cave water. Placed in the bake (rule 22) from its
+    /// cave's own seed; CaveSystem draws the water and the rock shader the slit, streak and puddle from these fields.
+    /// </summary>
+    public struct CaveTrickle
+    {
+        /// <summary>Its cave's index.</summary>
+        public int Cave;
+        /// <summary>The middle of the slit, on the wall's surface.</summary>
+        public float3 Slit;
+        /// <summary>Flat unit direction out of the wall into the air.</summary>
+        public float2 Out;
+        /// <summary>The slit's width along the wall (m), and how far the water falls from it to where it lands (m).</summary>
+        public float Width, Drop;
+        /// <summary>Where the water lands (on the floor at the wall's foot, or on cave water's surface).</summary>
+        public float3 Land;
+        /// <summary>The puddle's radius on the floor there (m; 0 when it lands on cave water).</summary>
+        public float Puddle;
+        /// <summary>The water's shape (TrickleKind), how many threads, how much water (0 to 1) and a seed for its look.</summary>
+        public TrickleKind Kind;
+        public int Threads;
+        public float Flow, Seed;
+    }
+
+    public enum TrickleKind
+    {
+        /// <summary>One thin thread down the wall.</summary>
+        Thread,
+        /// <summary>Two to four threads spreading down the wall from one slit.</summary>
+        Fan,
+        /// <summary>A wide, thin sheet seeping down the wall.</summary>
+        Sheet,
+        /// <summary>Drips off an overhang, falling clear of the wall below.</summary>
+        Overhang
+    }
+
     /// <summary>One capsule of a passage, between two nodes, with the box its influence reaches.</summary>
     public struct CaveSegment
     {
@@ -286,6 +323,8 @@ namespace Punchy.Terrain
         public BlobArray<CaveRoom> Rooms;
         /// <summary>W-134 row 4: river chambers (each names its cave; a handful an island, so scanned whole).</summary>
         public BlobArray<CaveChamber> Chambers;
+        /// <summary>W-141: trickles down the walls (grouped by cave, in cave order).</summary>
+        public BlobArray<CaveTrickle> Trickles;
         public float2 GridOrigin;
         public float CellSize;
         public int2 GridSize;

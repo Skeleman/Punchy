@@ -82,6 +82,8 @@ Shader "Punchy/Cave"
             // The nearest glowing things (lava pools, glowing plants): they light the walls round them in the shader
             // instead of with real lights (the list is declared in Glow.hlsl, shared with the terrain and plants).
             #include "Glow.hlsl"
+            // W-141: wall trickles' slits, wet streaks and puddles.
+            #include "CaveTrickles.hlsl"
             // Shared tiling detail (CaveSystem makes it once): rg a fine normal, b a height, a a sparkle.
             TEXTURE2D(_PunchyCaveDetail);
             SAMPLER(sampler_PunchyCaveDetail);
@@ -348,6 +350,7 @@ Shader "Punchy/Cave"
                     half3 mineral = lerp(half3(0.5, 0.25, 0.11), half3(0.88, 0.86, 0.8), calcite);
                     rock = lerp(rock, mineral * (0.8 + 0.4 * detail.b), vein * 0.85);
                     gloss = lerp(gloss, 0.55, vein * calcite);
+                    PunchyTrickleWet(p, shape, rock, gloss);
                 }
                 else if (dressed > 0.5 && dressed < 1.5)
                 {

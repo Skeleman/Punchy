@@ -451,6 +451,9 @@ namespace Punchy.Terrain
             Step("lake details");
             PlaceRiverDetails(withCaves, caves, styles, CaveFloraTable.Collect(types), extras);
             Step("river details");
+            // W-141: trickles down the walls, last, from their own seeds (they change no rock, so nothing else moves).
+            PlaceTrickles(withCaves, caves, nodes, kinds, styles, extras);
+            Step("trickles");
             FinishRooms(caves, extras);
             withWater.Dispose();
             // W-110: road tunnels last, appended after the landmarks' caves (whose indices, seeds and extras stay as
@@ -489,6 +492,8 @@ namespace Punchy.Terrain
             /// <summary>W-134 row 4: river chambers, and the seed and stream of each for its details.</summary>
             public readonly List<CaveChamber> Chambers = new List<CaveChamber>();
             public readonly List<River> Rivers = new List<River>();
+            /// <summary>W-141: trickles down the walls.</summary>
+            public readonly List<CaveTrickle> Trickles = new List<CaveTrickle>();
         }
 
         /// <summary>
@@ -695,6 +700,9 @@ namespace Punchy.Terrain
             var chamberArray = builder.Allocate(ref root.Chambers, extras.Chambers.Count);
             for (int i = 0; i < extras.Chambers.Count; i++)
                 chamberArray[i] = extras.Chambers[i];
+            var trickleArray = builder.Allocate(ref root.Trickles, extras.Trickles.Count);
+            for (int i = 0; i < extras.Trickles.Count; i++)
+                trickleArray[i] = extras.Trickles[i];
             BuildGrid(builder, ref root, caves, nodes, segments, extras.Rooms, pools, extras.Chambers);
             BuildSpeleothemGrid(builder, ref root, speleothems);
             var blob = builder.CreateBlobAssetReference<CaveSetBlob>(allocator);
