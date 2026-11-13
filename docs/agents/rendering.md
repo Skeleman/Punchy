@@ -67,3 +67,6 @@ Read before changing any shader, material or render setting.
   hollow depth (BuildChunkMeshJob, Strata.z) is capped by twice the lowest rise round the point, so slopes and
   downhill gullies get none. `TerrainSurface.Porosity` (vertex TEXCOORD4.x) makes sand soak rain up: it darkens,
   barely glazes, and pools only in its deepest spots.
+- The sun's real-time shadow filter is set at run time by `Rendering/SunShadowFilter.cs` (wide from the Medium preset
+  up; the scene's own value at Low; `-sunshadowfilter scene|low|medium|high`). With the narrow filter the cascades'
+  edges crawl as the sun turns (R-20, #286). Sunny day types show it; overcast ones hide it, so test under `Sunny`.
