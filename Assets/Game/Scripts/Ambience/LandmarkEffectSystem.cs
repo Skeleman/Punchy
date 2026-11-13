@@ -26,9 +26,16 @@ namespace Punchy.Ambience
         const float FlameRange = 150f;
         /// <summary>How far a cave's waterfall carries out from its notch as it falls (m).</summary>
         const float FallReach = Punchy.Terrain.CaveWaterfall.NotchReach;
-        /// <summary>River waterfalls: how far the water carries out as it falls (m), the distance they are drawn from, and the index offset.</summary>
-        const float RiverFallReach = 1.6f, RiverFallRange = 350f;
-        const int RiverFallBase = 1000000, GrandFallBase = 2000000;
+        /// <summary>River waterfalls: how far the water carries out as it falls (m), and the index offsets.</summary>
+        const float RiverFallReach = 1.6f;
+        const int RiverFallBase = 1000000, RiverSprayBase = 1500000, GrandFallBase = 2000000;
+        /// <summary>
+        /// R-21 row 2 (rule 20): a river fall's curtain is drawn while the fall (its size the larger of its drop and its
+        /// width) is at least RiverFallPixels reference pixels, so a 6 m fall reaches 350 m at Detail 1 as the old fixed
+        /// range did and a bigger one further; its mist, foam and lip spray come in at RiverSprayPixels (a 6 m fall's
+        /// inside 160 m), as -(RiverSprayBase + index). Held by Hysteresis.
+        /// </summary>
+        const float RiverFallPixels = 16f, RiverSprayPixels = 35f;
         /// <summary>
         /// W-43c chimney smoke: plots within this distance whose building has a chimney may smoke (index offset
         /// ChimneyBase); a seeded share of buildings smoke, the same ones on every machine.
@@ -418,21 +425,29 @@ namespace Punchy.Ambience
                     if (Punchy.Settings.DetailPolicy.Within(FallDistance(caveFalls[k].Lip, caveFalls[k].Drop, camera), caveReach, lastNearby.Contains(-(k + 1))))
                         nearby.Add(-(k + 1));
             }
-            // River waterfalls (version 2 rivers) within sight, the nearest MaxRiverCurtains, as -(RiverFallBase + index).
+            // River waterfalls (version 2 rivers) while they look big enough, the nearest MaxRiverCurtains, as
+            // -(RiverFallBase + index), and their spray while they look bigger, as -(RiverSprayBase + index).
             if (source.Rivers.IsCreated && source.RiverSettings.FallDrop > 0f)
             {
                 ref var riverFalls = ref source.Rivers.Value.Falls;
                 riverNear.Clear();
                 for (int k = 0; k < riverFalls.Length; k++)
                 {
+                    var size = math.max(riverFalls[k].Drop, riverFalls[k].Width);
                     var d = FallDistance(riverFalls[k].Lip, riverFalls[k].Drop, camera);
-                    if (d < Punchy.Settings.GraphicsSettings.DetailRange(RiverFallRange))
+                    if (Punchy.Settings.DetailPolicy.Within(d, Punchy.Settings.DetailPolicy.ExtraReach(size, RiverFallPixels), lastNearby.Contains(-(RiverFallBase + k))))
                         riverNear.Add((k, d));
                 }
                 if (riverNear.Count > MaxRiverCurtains)
                     riverNear.Sort((a, b) => a.distance.CompareTo(b.distance));
                 for (int k = 0; k < riverNear.Count && k < MaxRiverCurtains; k++)
-                    nearby.Add(-(RiverFallBase + riverNear[k].index));
+                {
+                    var index = riverNear[k].index;
+                    nearby.Add(-(RiverFallBase + index));
+                    var size = math.max(riverFalls[index].Drop, riverFalls[index].Width);
+                    if (Punchy.Settings.DetailPolicy.Within(riverNear[k].distance, Punchy.Settings.DetailPolicy.ExtraReach(size, RiverSprayPixels), lastNearby.Contains(-(RiverSprayBase + index))))
+                        nearby.Add(-(RiverSprayBase + index));
+                }
             }
             // The grand falls' tiers (W-29) are big: seen from the whole view range, as -(GrandFallBase + index).
             if (source.GrandFalls.IsCreated)
@@ -467,10 +482,40 @@ namespace Punchy.Ambience
                     GrandTier(ref source.GrandFalls.Value.Tiers[-i - GrandFallBase], math.frac(-i * 0.618f), ref min, ref max);
                     continue;
                 }
+                if (i <= -RiverSprayBase)
+                {
+                    // A near river waterfall's spray (R-21 row 2): mist and foam where it lands and white water thrown
+                    // off its lip, each as wide as the measured sheet, the mist rising higher off a taller drop.
+                    var rf = source.Rivers.Value.Falls[-i - RiverSprayBase];
+                    var seed = math.frac((-i - RiverSprayBase + RiverFallBase) * 0.618f);
+                    RiverCurtain(source, rf, out var lip, out var pour, out var reach, out var drop, out var width);
+                    var foot = lip + new float3(pour.x, 0f, pour.y) * reach - new float3(0f, drop, 0f);
+                    plumes.Add(new Emitter
+                    {
+                        Position = foot, Seed = math.frac(seed + 0.31f), Color = new float4(0.95f, 0.97f, 1f, 0f),
+                        Shape = new float4(math.clamp(1.5f + drop * 0.15f, 2f, 6f), width * 0.9f, 0.9f, 1.4f + math.min(drop * 0.03f, 0.8f)),
+                        Timing = new float4(0f, 0.25f, 0.6f, 24f)
+                    });
+                    plumes.Add(new Emitter
+                    {
+                        Position = foot + new float3(0f, 0.1f, 0f), Seed = math.frac(seed + 0.62f), Color = new float4(0.92f, 0.94f, 0.96f, 0f),
+                        Shape = new float4(0.3f, width * 1.3f, 1.2f, 2.2f), Timing = new float4(0f, 0.25f, 0.6f, 24f)
+                    });
+                    plumes.Add(new Emitter
+                    {
+                        Position = lip + new float3(pour.x, -0.3f, pour.y) * 0.8f, Seed = math.frac(seed + 0.9f), Color = new float4(0.94f, 0.96f, 1f, 0f),
+                        Shape = new float4(1.2f, width * 0.8f, 1.1f, 1.4f), Timing = new float4(0f, 0.25f, 0.4f, 24f)
+                    });
+                    maxParticles = math.max(maxParticles, 24);
+                    min = math.min(min, foot - 6f);
+                    max = math.max(max, lip + 6f);
+                    continue;
+                }
                 if (i <= -RiverFallBase)
                 {
                     // A river waterfall (R-21): one curved curtain from the water's real lip down to its pool, over the
-                    // face the river's surface leaves out, white water at the lip and spray and foam at the foot.
+                    // face the river's surface leaves out; its foot whitens in the shader, and up close its spray is
+                    // added (-(RiverSprayBase + index), above).
                     var rf = source.Rivers.Value.Falls[-i - RiverFallBase];
                     var seed = math.frac(-i * 0.618f);
                     RiverCurtain(source, rf, out var lip, out var pour, out var reach, out var drop, out var width);
@@ -492,22 +537,6 @@ namespace Punchy.Ambience
                         curtainCount++;
                     }
                     var foot = lip + new float3(pour.x, 0f, pour.y) * reach - new float3(0f, drop, 0f);
-                    plumes.Add(new Emitter
-                    {
-                        Position = foot, Seed = math.frac(seed + 0.31f), Color = new float4(0.95f, 0.97f, 1f, 0f),
-                        Shape = new float4(2.5f, rf.Width * 0.9f, 0.9f, 1.4f), Timing = new float4(0f, 0.25f, 0.6f, 24f)
-                    });
-                    plumes.Add(new Emitter
-                    {
-                        Position = foot + new float3(0f, 0.1f, 0f), Seed = math.frac(seed + 0.62f), Color = new float4(0.92f, 0.94f, 0.96f, 0f),
-                        Shape = new float4(0.3f, rf.Width * 1.3f, 1.2f, 2.2f), Timing = new float4(0f, 0.25f, 0.6f, 24f)
-                    });
-                    plumes.Add(new Emitter
-                    {
-                        Position = lip + new float3(pour.x, -0.3f, pour.y) * 0.8f, Seed = math.frac(seed + 0.9f), Color = new float4(0.94f, 0.96f, 1f, 0f),
-                        Shape = new float4(1.2f, rf.Width * 0.8f, 1.1f, 1.4f), Timing = new float4(0f, 0.25f, 0.4f, 24f)
-                    });
-                    maxParticles = math.max(maxParticles, 24);
                     min = math.min(min, foot - 6f);
                     max = math.max(max, lip + 6f);
                     continue;

@@ -1,6 +1,9 @@
 #ifndef PUNCHY_WATER_FIELD_INCLUDED
 #define PUNCHY_WATER_FIELD_INCLUDED
 
+// (R-21: the river curtains' boxes, whose faces the water leaves out.)
+#include "RiverCurtains.hlsl"
+
 // R-9: the water deforms under what swims, wades or lands in it. Near the player, WaterPatchSystem.cs draws the water
 // again as a fine sheet (quads down to 12.5 cm, by screen size, a few metres round them in a 32 m square) and steps a wave field over the same square
 // (WaterField.compute): the fine sheet's vertices rise and fall by it, and its normals follow. The chunk water clips
@@ -41,33 +44,6 @@ bool PunchyWaterInPatch(float2 restXZ)
     if (any(restXZ < _PunchyWaterPatchRect.xy) || any(restXZ >= _PunchyWaterPatchRect.zw))
         return false;
     return LOAD_TEXTURE2D(_PunchyWaterPatchMask, (int2)floor(restXZ - _PunchyWaterPatchRect.xy)).r > 0.5;
-}
-
-// R-21: the river falls drawn as curtains (LandmarkEffectSystem.cs), whose faces the water leaves out. Each one's lip
-// (xyz, top middle) and half width (w); which way it pours (xy), how far out it reaches (z) and its pool's level (w).
-// The rectangle round them all (x min, z min, x max, z max) lets water far from any skip the test.
-#define PUNCHY_RIVER_CURTAINS 32
-float4 _PunchyRiverCurtainLip[PUNCHY_RIVER_CURTAINS];
-float4 _PunchyRiverCurtainPour[PUNCHY_RIVER_CURTAINS];
-float _PunchyRiverCurtainCount;
-float4 _PunchyRiverCurtainRect;
-
-// Whether a point of the water is on a river fall's face, below its lip and above its pool, inside a curtain's box.
-bool PunchyWaterUnderCurtain(float3 p)
-{
-    if (_PunchyRiverCurtainCount < 0.5 || any(p.xz < _PunchyRiverCurtainRect.xy) || any(p.xz > _PunchyRiverCurtainRect.zw))
-        return false;
-    [loop] for (int k = 0; k < (int)_PunchyRiverCurtainCount; k++)
-    {
-        float4 a = _PunchyRiverCurtainLip[k];
-        float4 b = _PunchyRiverCurtainPour[k];
-        float2 d = p.xz - a.xz;
-        float along = dot(d, b.xy);
-        float across = abs(dot(d, float2(-b.y, b.x)));
-        if (along > -1.5 && along < b.z && across < a.w && p.y < a.y - 0.15 && p.y > b.w + 0.15)
-            return true;
-    }
-    return false;
 }
 
 // How much the field shows here: 1 well inside the fine sheet, easing to 0 at its edge, so it meets the chunk water
