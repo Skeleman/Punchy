@@ -360,6 +360,9 @@ namespace Punchy.Player
                     continue;
                 }
 
+                // A-102 row 3: diving (crouch down, jump up), and up when out of breath.
+                Dive(ref m, terrain, position, swimming, swimFloor, size, ref input, dt);
+
                 if (m.Grounded && input.JumpPressed)
                 {
                     // (As high as the body jumps next to a human: its height goes with the square of the speed.)
@@ -367,7 +370,10 @@ namespace Punchy.Player
                     m.Grounded = false;
                 }
 
-                Floor(terrain, position, settings.SwimDepth, out var ground, out var caveHere);
+                var swimHere = Floor(terrain, position, settings.SwimDepth, out var ground, out var caveHere);
+                // Dived: the swim floor is that much lower, but never into the bed (A-102 row 3).
+                if (swimHere && m.Dive > 0f)
+                    ground = math.max(ground - m.Dive, math.min(ground, terrain.FloorUnder(position, out _) + DiveBedClear * size));
                 // Standing on a prop's top, if it's higher than the ground there; slid off it where it's steep.
                 var wasOnProp = m.OnProp;
                 m.OnProp = false;
@@ -1353,7 +1359,7 @@ namespace Punchy.Player
         /// A-102 breath (Punchy.Fauna.Breath), the same model as the creatures': used up while the head is under water,
         /// back in air. Swimming at the swim depth the head is held out; walking on the bottom of water too shallow to
         /// swim in, a small body's head can be under. Water breathers (a fish body, water and sea folk), ghosts and
-        /// fliers on the wing are always full. Only the value for now: the push up when it empties comes with diving.
+        /// fliers on the wing are always full. Emptied, it pushes the body up (Dive).
         /// </summary>
         static void Breathe(ref PlayerMotion m, in PlayerBody body, in TerrainSource terrain, float3 position, bool swimming,
                             float swimFloor, bool inCave, float swimDepth, float size, float dt)
@@ -1375,6 +1381,37 @@ namespace Punchy.Player
             if (!under && m.BreathUsed <= 0f && !m.Gasping)
                 return;
             m.BreathUsed = Punchy.Fauna.Breath.Use(m.BreathUsed, ref m.Gasping, under, body.HoldBreath, dt);
+        }
+
+        /// <summary>A-102 row 3 diving: how fast crouch takes a swimmer down and jump brings it up (m/s), how fast it
+        /// drifts up with neither held, and how far over the bed its feet stay (m, times its size).</summary>
+        const float DiveDown = 1.6f, DiveUp = 2f, DiveDrift = 0.3f, DiveBedClear = 0.1f;
+
+        /// <summary>
+        /// A-102 row 3: diving (PlayerMotion.Dive, how far under the swim floor the body is). Swimming, crouch held takes
+        /// it down and jump held brings it up; with neither it drifts slowly back up. Never onto the bed. Out of breath
+        /// (Gasping, Breathe) it is pushed up at Breath.RiseSpeed and can't go down again until it has caught some back
+        /// (Breath.CatchBreath); a water breather never runs out, so it dives as long as it likes. Under water a jump
+        /// press only rises (no leap out from down there). Out of swimming water it is back to 0.
+        /// </summary>
+        static void Dive(ref PlayerMotion m, in TerrainSource terrain, float3 position, bool swimming, float swimFloor, float size,
+                         ref PlayerInput input, float dt)
+        {
+            if (!math.isfinite(m.Dive) || !swimming || !math.isfinite(swimFloor + position.y))
+            {
+                m.Dive = 0f;
+                return;
+            }
+            var room = math.max(swimFloor - terrain.FloorUnder(position, out _) - DiveBedClear * size, 0f);
+            var rate = m.Gasping ? -Punchy.Fauna.Breath.RiseSpeed
+                     : input.JumpHeld ? -DiveUp
+                     : input.CrouchHeld ? DiveDown
+                     : -DiveDrift;
+            m.Dive = math.clamp(m.Dive + rate * math.max(dt, 0f), 0f, room);
+            if (!math.isfinite(m.Dive))
+                m.Dive = 0f;
+            if (m.Dive > 0.05f)
+                input.JumpPressed = false;
         }
 
         static bool Floor(in TerrainSource terrain, float3 position, float swimDepth, out float floor, out bool inCave)

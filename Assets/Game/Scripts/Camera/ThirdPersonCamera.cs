@@ -266,8 +266,12 @@ namespace Punchy.CameraRig
                     // the arm where it meets the ground (+ clearance) is found by halving; only when that leaves less than
                     // MinSlideArm (a small body, a steep bank) does the camera rise and look down at the head as before.
                     var slid = false;
+                    // A-102 (row 3b): a diving body's pivot is under the water; rising over the bank would lift the lens
+                    // out of it, so the camera slides in along its arm the same way and stays under, with the diver.
+                    var pivotWater = terrain.SampleGround(new Unity.Mathematics.float2(target.x, target.z));
+                    var diving = pivotWater.HasWater && target.y < pivotWater.WaterSurface && target.y > pivotWater.Height + GroundClearance;
                     // (Only against bare ground: over a roof, rock or rim the ground height says nothing about the prop.)
-                    if (orbitPitch < 0f && target.y > minY && minY <= groundMinY + 0.01f)
+                    if ((orbitPitch < 0f && target.y > minY || diving) && minY <= groundMinY + 0.01f)
                     {
                         var arm = position - target;
                         float lo = 0f, hi = 1f;

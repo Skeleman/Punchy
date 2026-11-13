@@ -24,6 +24,18 @@ namespace Punchy.Fauna
         public const float RiseSpeed = 1.5f, SinkSpeed = 1f;
         /// <summary>How far out of the water a surfaced head is held (m, times the body's scale).</summary>
         public const float HeadOut = 0.1f;
+        /// <summary>Folk diving: how fast they go down and come up (m/s), and the breath they keep in hand for the way
+        /// up (of 1).</summary>
+        public const float DiveSpeed = 0.8f, DiveSpare = 0.15f;
+
+        /// <summary>How deep an air breather dives (m) on a breath held for hold seconds: down and back up at DiveSpeed
+        /// in under a third of it each way, so there's time to swim about down there.</summary>
+        public static float MaxDive(float hold) => DiveSpeed * math.max(hold, 0f) * 0.3f;
+
+        /// <summary>Whether an air breather depth metres down, with used of its breath gone, must start up now to reach
+        /// the surface at DiveSpeed with DiveSpare left.</summary>
+        public static bool TimeToRise(float used, float depth, float hold) =>
+            !(used + math.max(depth, 0f) / DiveSpeed / math.max(hold, 0.5f) + DiveSpare < 1f);
 
         /// <summary>The hold time (s) a species gets when its asset leaves HoldBreath at 0.</summary>
         public static float DefaultHold(bool folk, bool crossesWater, Habitat habitat)

@@ -377,6 +377,8 @@ namespace Punchy.Fauna
                             var deep = math.smoothstep(b.StandHeight * s.Scale * 0.6f, b.StandHeight * s.Scale * 0.9f, g.WaterSurface - g.Height);
                             // (Low: the back a hand's breadth under, only the shoulders and the raised head out.)
                             var floatAt = g.WaterSurface - 0.24f * s.Scale + math.sin(s.Clock * 1.9f) * 0.02f * s.Scale;
+                            // Diving (A-102 row 2): CreatureMind.Dive under that, but never onto the bed.
+                            floatAt = math.max(floatAt - M.Dive, math.min(floatAt, g.Height + 0.3f * s.Scale));
                             s.Position.y = math.lerp(g.Height, floatAt, deep);
                         }
                     }

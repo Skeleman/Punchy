@@ -24,6 +24,15 @@ namespace Punchy.Debugging
             optionsAt = Time.timeSinceLevelLoad;
             // "-breathtest" (A-102 row 1): air and water breathers held on a lake bed, their breath logged (BreathTest).
             breathTest = System.Array.IndexOf(args, "-breathtest") >= 0;
+            // "-divetest [Human|FishFolk]" (A-102 row 2): a person and a fish folk out swimming and diving (DiveTest).
+            var diveArg = System.Array.IndexOf(args, "-divetest");
+            diveTest = diveArg >= 0 ? (diveArg + 1 < args.Length && !args[diveArg + 1].StartsWith("-") ? args[diveArg + 1] : "") : null;
+            // "-playerdive [water]" (A-102 row 3): the player dives, rises and runs out of breath (PlayerDiveTest).
+            var playerDiveArg = System.Array.IndexOf(args, "-playerdive");
+            playerDive = playerDiveArg >= 0;
+            pdWater = playerDive && playerDiveArg + 1 < args.Length && args[playerDiveArg + 1] == "water";
+            // ("-playerdive [water] follow": the player's own camera follows the dive rather than the side shot camera.)
+            pdFollow = playerDive && System.Array.IndexOf(args, "follow", playerDiveArg) > playerDiveArg;
             landmarkPlacePending = null; // (a later shot's options replace an earlier -place still being retried)
             if (!drawCalls.Valid)
             {
