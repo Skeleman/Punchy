@@ -26,6 +26,9 @@ namespace Punchy.Fauna
     /// after their brains move them. Seed-derived like the colossi themselves, so every machine has the same columns.
     /// W-105 row 6: the columns are kept relative to the colossus's root (its spot and heading), and follow it when the
     /// root moves, so the walking colossi (ColossusWalker) are solid where they are, not where they were built.
+    /// A-107 (#276): each column also has a climbing grade, from its definition's climb sections (<see cref="Mark"/>);
+    /// ColossusClimbSystem hands the columns near the players to movement (ColossusClimbs), which climbs them like trunks
+    /// and stands on their tops.
     /// </summary>
     public static class ColossusCollision
     {
@@ -48,6 +51,17 @@ namespace Punchy.Fauna
             public Vector3 PosedAt;
             public Quaternion PosedAs;
             public int Moves, MovesSeen;
+            // A-107: each column's climbing grade (Smooth where no section marks it) and section (-1 for none), the
+            // sections, and each grid cell's column as built (to place the sections' details on the meshes).
+            public byte[] Grades = new byte[0];
+            public sbyte[] InSection = new sbyte[0];
+            public ColossusClimbSection[] Sections = new ColossusClimbSection[0];
+            public readonly Dictionary<int2, int> Cells = new Dictionary<int2, int>();
+            // A-107 row 2: the root's place and heading when the climb columns were last gathered, to carry a climber on
+            // by how far it has walked and turned since (Carry).
+            public float3 GatheredAt;
+            public quaternion GatheredAs = quaternion.identity;
+            public bool Gathered;
         }
 
         /// <summary>The root's heading only (a walker's sway and lean leave its columns upright).</summary>
@@ -128,6 +142,7 @@ namespace Punchy.Fauna
             foreach (var kv in cells)
             {
                 var xz = ((float2)kv.Key + 0.5f) * Cell;
+                g.Cells[kv.Key] = g.Columns.Count;
                 g.Columns.Add(new ColossusCylinder { Base = new float3(xz.x, kv.Value.x, xz.y), Radius = ColumnRadius, Height = kv.Value.y - kv.Value.x });
                 g.Reach = math.max(g.Reach, math.distance(xz, g.Centre) + ColumnRadius);
             }
@@ -141,6 +156,13 @@ namespace Punchy.Fauna
             foreach (var c in g.Columns)
                 g.Local.Add(new ColossusCylinder { Base = math.mul(back, c.Base - from), Radius = c.Radius, Height = c.Height });
             g.LocalCentre = math.mul(back, new float3(g.Centre.x - from.x, 0f, g.Centre.y - from.z)).xz;
+            g.Grades = new byte[g.Columns.Count];
+            g.InSection = new sbyte[g.Columns.Count];
+            for (int i = 0; i < g.Columns.Count; i++)
+            {
+                g.Grades[i] = Climbing.Smooth;
+                g.InSection[i] = -1;
+            }
             groups[slot] = g;
             version++;
             Debug.Log($"ColossusCollision: {name} solid, {g.Columns.Count} columns of {Cell:F0} m within {g.Reach:F0} m of ({g.Centre.x:F0}, {g.Centre.y:F0}){(moving != null ? $", plus a rolling ball of {movingRadius:F0} m" : "")}");
@@ -158,6 +180,230 @@ namespace Punchy.Fauna
                 var cell = (int2)math.floor(new float2(p.x, p.z) / Cell);
                 cells[cell] = cells.TryGetValue(cell, out var span) ? new float2(math.min(span.x, p.y), math.max(span.y, p.y)) : new float2(p.y, p.y);
             }
+        }
+
+        /// <summary>The way a climb section points, from the colossus's middle (local x right, z forward; unit).</summary>
+        static float2 SectionDir(in ColossusClimbSection s)
+        {
+            var yaw = math.radians(s.Yaw);
+            return new float2(math.sin(yaw), math.cos(yaw));
+        }
+
+        /// <summary>
+        /// A-107: grades slot's columns by its climb sections: a column whose middle is in a section's wedge (seen from
+        /// the colossus's middle) or within a column of the wedge's middle line takes its grade, the easiest if several;
+        /// the rest are smooth walls. Once after <see cref="Register"/> (seed-derived, so every machine marks the same).
+        /// </summary>
+        public static void Mark(int slot, ColossusClimbSection[] sections)
+        {
+            if (!groups.TryGetValue(slot, out var g))
+                return;
+            g.Sections = sections ?? new ColossusClimbSection[0];
+            var counts = new int[g.Sections.Length];
+            for (int s = 0; s < g.Sections.Length && s < sbyte.MaxValue; s++)
+            {
+                var sec = g.Sections[s];
+                var grade = (byte)math.clamp(sec.Grade, Climbing.Ladder, Climbing.Smooth);
+                var dir = SectionDir(sec);
+                var half = math.radians(math.clamp(sec.Arc, 0f, 360f) * 0.5f);
+                for (int i = 0; i < g.Local.Count; i++)
+                {
+                    var d = g.Local[i].Base.xz - g.LocalCentre;
+                    var along = math.dot(d, dir);
+                    var across = math.abs(d.x * dir.y - d.y * dir.x);
+                    var inWedge = math.atan2(across, along) <= half;
+                    var onLine = along > -Cell && across <= Cell * 0.9f;
+                    if ((inWedge || onLine) && grade < g.Grades[i])
+                    {
+                        g.Grades[i] = grade;
+                        g.InSection[i] = (sbyte)s;
+                    }
+                }
+            }
+            for (int i = 0; i < g.InSection.Length; i++)
+                if (g.InSection[i] >= 0)
+                    counts[g.InSection[i]]++;
+            var line = new System.Text.StringBuilder();
+            for (int s = 0; s < g.Sections.Length; s++)
+                line.Append($"{(s > 0 ? ", " : "")}{g.Sections[s].Look} grade {g.Sections[s].Grade} at {g.Sections[s].Yaw:F0} degrees ({counts[s]} columns)");
+            Debug.Log($"ColossusCollision: {g.Name} climb sections: {(g.Sections.Length == 0 ? "none" : line.ToString())}");
+        }
+
+        /// <summary>A-107: slot's climb sections (empty when it has none or isn't solid).</summary>
+        public static ColossusClimbSection[] SectionsOf(int slot) => groups.TryGetValue(slot, out var g) ? g.Sections : new ColossusClimbSection[0];
+
+        /// <summary>A-107: the climb section of the column over a world point, at the pose slot was built in (for placing
+        /// its details right after it is marked); -1 for none.</summary>
+        public static int SectionAt(int slot, Vector3 point)
+        {
+            if (!groups.TryGetValue(slot, out var g))
+                return -1;
+            var cell = (int2)math.floor(new float2(point.x, point.z) / Cell);
+            return g.Cells.TryGetValue(cell, out var i) && i < g.InSection.Length ? g.InSection[i] : -1;
+        }
+
+        /// <summary>
+        /// A-107: where a climb of slot's section starts and ends, for probes and shots: a step out from one of its columns
+        /// that stands on the ground (xz; y that column's foot), the way in (xz, unit), and the highest top of its columns.
+        /// The column is the outermost low one whose way in from the step out is not crossed by any other column (a smooth
+        /// one in front, or a shoulder's column overhead, would make the climb start somewhere else), a tall one (a leg)
+        /// before a short one (a toe, from which the way on may lead under a belly). False when the slot or section has no
+        /// columns.
+        /// </summary>
+        public static bool SectionRoute(int slot, int section, out float3 start, out float2 inward, out float summit)
+        {
+            start = default;
+            inward = default;
+            summit = float.MinValue;
+            if (!groups.TryGetValue(slot, out var g) || section < 0 || section >= g.Sections.Length || !Shown(g))
+                return false;
+            Follow(g);
+            var q = Heading(g.Root.rotation);
+            var sd = SectionDir(g.Sections[section]);
+            var dir = math.mul(q, new float3(sd.x, 0f, sd.y)).xz;
+            var lowest = float.MaxValue;
+            for (int i = 0; i < g.Columns.Count; i++)
+                if (g.InSection[i] == section)
+                {
+                    var c = g.Columns[i];
+                    summit = math.max(summit, c.Base.y + c.Height);
+                    lowest = math.min(lowest, c.Base.y);
+                }
+            if (lowest == float.MaxValue)
+                return false;
+            // (Outermost first, among those whose feet are within a step of the section's lowest.)
+            var order = new List<int>();
+            for (int i = 0; i < g.Columns.Count; i++)
+                if (g.InSection[i] == section && g.Columns[i].Base.y <= lowest + 1.5f)
+                    order.Add(i);
+            order.Sort((x, y) => math.dot(g.Columns[y].Base.xz - g.Centre, dir).CompareTo(math.dot(g.Columns[x].Base.xz - g.Centre, dir)));
+            var tall = lowest + 0.5f * (summit - lowest);
+            for (int pass = 0; pass < 2; pass++)
+            foreach (var i in order)
+            {
+                var c = g.Columns[i];
+                if (pass == 0 && c.Base.y + c.Height < tall)
+                    continue;
+                var way = math.normalizesafe(c.Base.xz - g.Centre, dir);
+                var from = c.Base.xz + way * (c.Radius + 1f);
+                if (Crossed(g, i, from, c.Base.xz + way * c.Radius, c.Base.y))
+                    continue;
+                start = new float3(from.x, c.Base.y, from.y);
+                inward = -way;
+                return true;
+            }
+            // (Every way in crossed: the outermost, as it is.)
+            var o = g.Columns[order[0]];
+            var xz = o.Base.xz + dir * (o.Radius + 1f);
+            start = new float3(xz.x, o.Base.y, xz.y);
+            inward = -dir;
+            return true;
+        }
+
+        /// <summary>A-107: where slot's section is highest now (the top middle of its tallest column) and the body's
+        /// middle now (xz), for probes walking up a moving colossus. False when the slot or section has no columns.</summary>
+        public static bool SectionPeak(int slot, int section, out float3 peak, out float2 middle)
+        {
+            peak = default;
+            middle = default;
+            if (!groups.TryGetValue(slot, out var g) || section < 0 || section >= g.Sections.Length)
+                return false;
+            Follow(g);
+            middle = g.Centre;
+            var best = float.MinValue;
+            for (int i = 0; i < g.Columns.Count; i++)
+                if (g.InSection[i] == section && g.Columns[i].Base.y + g.Columns[i].Height > best)
+                {
+                    var c = g.Columns[i];
+                    best = c.Base.y + c.Height;
+                    peak = new float3(c.Base.x, best, c.Base.z);
+                }
+            return best > float.MinValue;
+        }
+
+        /// <summary>Whether a column of g other than <paramref name="skip"/>, standing within a body's height of
+        /// <paramref name="feet"/>, comes within a body's width of the line from a to b (xz).</summary>
+        static bool Crossed(Group g, int skip, float2 a, float2 b, float feet)
+        {
+            var ab = b - a;
+            var len = math.max(math.lengthsq(ab), 1e-6f);
+            for (int i = 0; i < g.Columns.Count; i++)
+            {
+                if (i == skip)
+                    continue;
+                var c = g.Columns[i];
+                if (c.Base.y > feet + 1.8f || c.Base.y + c.Height < feet)
+                    continue;
+                var t = math.saturate(math.dot(c.Base.xz - a, ab) / len);
+                if (math.distance(a + ab * t, c.Base.xz) < c.Radius + 0.4f)
+                    return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// A-107: adds every shown colossus column within <paramref name="range"/> of any of <paramref name="near"/>
+        /// (xz) to <paramref name="list"/>, with its grade, while there is room (main thread; ColossusClimbSystem).
+        /// </summary>
+        public static void GatherClimb(ref FixedList4096Bytes<ColossusClimbColumn> list, in FixedList128Bytes<float2> near, float range)
+        {
+            if (near.Length == 0)
+                return;
+            foreach (var g in groups.Values)
+            {
+                if (!Shown(g))
+                    continue;
+                Follow(g);
+                g.GatheredAt = g.Root.position;
+                g.GatheredAs = Heading(g.Root.rotation);
+                g.Gathered = true;
+                var close = false;
+                for (int p = 0; p < near.Length && !close; p++)
+                    close = math.distance(g.Centre, near[p]) <= range + g.Reach;
+                if (!close)
+                    continue;
+                var slot = (byte)SlotOf(g);
+                for (int i = 0; i < g.Columns.Count && list.Length < list.Capacity; i++)
+                {
+                    var c = g.Columns[i];
+                    for (int p = 0; p < near.Length; p++)
+                        if (math.distance(c.Base.xz, near[p]) <= range + c.Radius)
+                        {
+                            list.Add(new ColossusClimbColumn { Base = c.Base, Radius = c.Radius, Height = c.Height, Grade = i < g.Grades.Length ? g.Grades[i] : Climbing.Smooth, Slot = slot });
+                            break;
+                        }
+                }
+            }
+        }
+
+        static int SlotOf(Group g)
+        {
+            foreach (var kv in groups)
+                if (kv.Value == g)
+                    return kv.Key;
+            return 255;
+        }
+
+        /// <summary>
+        /// A-107 row 2: how a point on slot's body has moved since the climb columns were last gathered (the walker has
+        /// walked and turned under it): where it is now, and the turn (radians about up). False when the colossus has not
+        /// moved or is not gathered; then moved is point and turn 0.
+        /// </summary>
+        public static bool Carry(int slot, float3 point, out float3 moved, out float turn)
+        {
+            moved = point;
+            turn = 0f;
+            if (!groups.TryGetValue(slot, out var g) || !g.Gathered || !Shown(g))
+                return false;
+            var at = (float3)g.Root.position;
+            var heading = Heading(g.Root.rotation);
+            if (math.all(at == g.GatheredAt) && math.all(heading.value == g.GatheredAs.value))
+                return false;
+            var delta = math.mul(heading, math.inverse(g.GatheredAs));
+            moved = at + math.mul(delta, point - g.GatheredAt);
+            var f = math.mul(delta, new float3(0f, 0f, 1f));
+            turn = math.atan2(f.x, f.z);
+            return math.all(math.isfinite(moved));
         }
 
         /// <summary>One line per solid colossus (slot, name, columns, circle), for probes.</summary>

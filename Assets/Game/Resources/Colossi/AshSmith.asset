@@ -28,3 +28,12 @@ MonoBehaviour:
   CollisionFollow: 
   CollisionFollowRadius: 0
   CollisionLeave: 
+  ClimbSections:
+  - Look: 0
+    Grade: 4
+    Yaw: 90
+    Arc: 45
+  - Look: 2
+    Grade: 3
+    Yaw: 270
+    Arc: 45

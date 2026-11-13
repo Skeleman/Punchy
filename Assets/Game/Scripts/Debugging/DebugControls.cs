@@ -275,6 +275,7 @@ namespace Punchy.Debugging
             ClimbTest();
             ClimbWatch();
             LedgeLipTest();
+            ColossusClimbTest();
             ActionTest();
             Watch();
             SettleGoto();

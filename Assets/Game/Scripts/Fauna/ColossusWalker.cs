@@ -42,6 +42,8 @@ namespace Punchy.Fauna
         public static bool Log;
         /// <summary>"-walkerphase walk|rest|stab|seconds" (DebugControls, for shots): shift each walker's clock once so it is mid-walk, mid-rest or that far into its cycle ("stab" is mid-rest with the heron held at the bottom of a stab).</summary>
         public static string Phase;
+        /// <summary>A-107 (the colossus climb probe, DebugControls): hold every walker still where it is, unturned, so a still body is climbed first.</summary>
+        public static bool Freeze;
 
         /// <summary>How each kind walks.</summary>
         struct Gait
@@ -100,6 +102,8 @@ namespace Punchy.Fauna
 
         const float Ramp = 5f, AwakeRange = 600f, FarPeriod = 0.5f, ShakeRange = 120f, ShakeTime = 0.35f, DustRange = 300f;
         /// <summary>A-74 stop and look: reach past its body (m), ease time (s), most it may fall behind the clock (s), how much faster it catches up, and how far (degrees) the body and head turn.</summary>
+        /// <summary>A-107 row 2: how fast a ridden walker turns back off its turn toward the rider (degrees/s).</summary>
+        const float RideUnturn = 10f;
         const float LookRange = 40f, HoldTime = 2f, MaxLag = 30f, CatchUp = 1.5f, BodyTurn = 70f, HeadTurn = 35f;
         const float TownClear = 150f, MaxSlope = 0.35f, Tilt = 8f, SettleTime = 6f;
         const int Checks = 48, Table = 256;
@@ -133,6 +137,12 @@ namespace Punchy.Fauna
             /// <summary>The clock at its last pose, its own clock (shared clock less Lag), and its head's turn this frame (degrees).</summary>
             public double Clock = double.NaN, Own;
             public float Look;
+            /// <summary>A-107: the turn toward the player last taken (degrees), held while they are on its body.</summary>
+            public float Aim;
+            /// <summary>A-107 row 2: this frame's step of the clock (s), to ease the held turn off while ridden.</summary>
+            public float Tick;
+            /// <summary>A-107: its own clock when <see cref="Freeze"/> came on (NaN while not frozen).</summary>
+            public double FrozenAt = double.NaN;
         }
 
         public static ColossusWalker Instance { get; private set; }
@@ -532,7 +542,9 @@ namespace Punchy.Fauna
                 w.Bored = true;
             if (gap > w.G.Body + LookRange + 20f)
                 w.Bored = false;
-            var near = gap < w.G.Body + LookRange && !w.Bored;
+            // A-107 row 2: ridden (the local player holds or stands on it), it walks on under them and does not stop.
+            var near = gap < w.G.Body + LookRange && !w.Bored && ColossusClimbSystem.Riding != w.G.Slot;
+            w.Tick = dt;
             w.Hold = math.saturate(w.Hold + (near ? dt : -dt) / HoldTime);
             var rate = near || w.Hold > 0f ? 1f - w.Hold : w.Lag > 0f ? CatchUp : 1f;
             w.Lag = math.clamp(w.Lag + (1f - rate) * dt, 0f, MaxLag);
@@ -547,6 +559,15 @@ namespace Punchy.Fauna
             var g = w.G;
             var rate = Hold(w, t, viewer);
             t = w.Own;
+            if (Freeze)
+            {
+                if (double.IsNaN(w.FrozenAt))
+                    w.FrozenAt = t;
+                t = w.FrozenAt;
+                rate = 0f;
+            }
+            else
+                w.FrozenAt = double.NaN;
             if (Phase != w.PhaseDone)
             {
                 // -walkerphase (shots only): move this walker's clock once so it is where the shot wants it in its cycle.
@@ -566,6 +587,15 @@ namespace Punchy.Fauna
             w.Pace *= math.min(rate, 1f);
             var toward = viewer.xz - at;
             var aim = math.lengthsq(toward) > 1f ? math.degrees(DeltaAngle(w.Heading, math.atan2(toward.x, toward.y))) * w.Hold : 0f;
+            // A-107: a player up on its body (climbing it, on its back) is not turned to: aimed at from right under it,
+            // the turn would swing the body round under their feet. It keeps the turn it had as they came on.
+            if (Freeze)
+                aim = 0f;
+            else if (ColossusClimbSystem.Riding == g.Slot)
+                aim = w.Aim - math.clamp(w.Aim, -RideUnturn * w.Tick, RideUnturn * w.Tick);  // ridden: eases back onto its path
+            else if (math.lengthsq(toward) < (g.Body + 3f) * (g.Body + 3f))
+                aim = w.Aim;
+            w.Aim = aim;
             var turn = math.clamp(aim * 0.6f, -BodyTurn, BodyTurn);
             w.Look = math.clamp(aim - turn, -HeadTurn, HeadTurn);
             // Fit to the ground under its whole footprint: the mean height, tilted (a little) with the slope.

@@ -5,6 +5,26 @@ namespace Punchy.Fauna
     /// <summary>Which body rig <see cref="ColossusRig"/> gives a walking colossus while it is awake (None: it walks unrigged or stands still).</summary>
     public enum ColossusRigType { None, Saguaro, Golem, Tortoise, MesaTortoise, Heron, Stag }
 
+    /// <summary>A-107: how a climbable section of a colossus looks (its details: ColossusClimbDetails). Append only.</summary>
+    public enum ClimbLook { Cracks, Vines, Ledges, Fur, Moss }
+
+    /// <summary>
+    /// A-107 (#276): one climbable section of a colossus, graded on the shared climbability scale (Climbing): a wedge of
+    /// its body seen from above, from its middle out past its edge, Yaw degrees round from the way it faces (90 to its
+    /// right) and Arc degrees wide, at least a column wide all the way in, so every section reaches its top.
+    /// </summary>
+    [System.Serializable]
+    public struct ColossusClimbSection
+    {
+        public ClimbLook Look;
+        [Tooltip("Climbing grade (Climbing: 2 assisted, fur or moss; 3 tree-like, vines or ledges; 4 craggy, cracked stone).")]
+        public int Grade;
+        [Tooltip("Degrees round from the colossus's forward, clockwise from above (90: its right flank, 180: its rear).")]
+        public float Yaw;
+        [Tooltip("The wedge's width (degrees).")]
+        public float Arc;
+    }
+
     /// <summary>
     /// A-81 row 1 (#40): one stone colossus as data, in Resources/Colossi. <see cref="StoneColossi"/> loads them all and
     /// gives each primary one a slot of its own (by <see cref="Order"/>); a kept kind (Primary off) only stands when a
@@ -45,5 +65,7 @@ namespace Punchy.Fauna
         public float KeepApart;
         [Tooltip("A-88: the name of a landmark it lives on (its middle); its biomes are the fallback when the world has none. Empty for none.")]
         public string Landmark = "";
+        [Tooltip("A-107: its climbable sections (the rest of it is a smooth wall, grade 5). Empty: nothing on it to climb.")]
+        public ColossusClimbSection[] ClimbSections = new ColossusClimbSection[0];
     }
 }
