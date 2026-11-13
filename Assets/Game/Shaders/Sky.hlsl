@@ -32,7 +32,7 @@ float4 _PunchyUnderwaterShafts;  // under water, x light shaft march steps (0 of
 
 float3 _PunchySunDirection;    // towards the sun
 float3 _PunchyMoonDirection;   // towards the moon
-float _PunchySkyOff;           // test only (-skyoff n, to price the sky's parts): 1 no cloud march, 2 no far clouds, 4 no sky colour, 8 no weather volumes, 16 old even steps, 32 steps-per-pixel overlay, 64 always four sun samples, 128 cloud edges before R-4, 256 cloud light before R-4, 512 one cloud type everywhere (before R-4), 1024 cloud maps read straight (before R-12)
+float _PunchySkyOff;           // test only (-skyoff n, to price the sky's parts): 1 no cloud march, 2 no far clouds, 4 no sky colour, 8 no weather volumes, 16 old even steps, 32 steps-per-pixel overlay, 64 always four sun samples, 128 cloud edges before R-4, 256 cloud light before R-4, 512 one cloud type everywhere (before R-4), 1024 cloud maps read straight (before R-12), 2048 cloud shadow edge sharp at any distance (before R-20)
 float4 _PunchyMoonPhase;       // phase (0 new, 0.5 full), lit share
 float3 _PunchyBlueMoon;        // towards the second, blue moon
 static const float PunchyBlueMoonRadius = 0.22;    // radians (about 25 degrees across): 6.5x its v0.11.0 size, a sister planet (Zach, #34)
@@ -656,6 +656,20 @@ half PunchyCloudCoverAlong(float3 dir, out half darkness)
 
 // 0..1: how much a point on the ground is shaded from the sun by the clouds above it (one sample at the clouds'
 // lower middle, along the sun direction — matches the volumetric clouds' shapes).
+// R-20 row 2 (#286): how sharp the cloud shadow's edge is drawn at a point, by on-screen size (rule 20). The shadow's
+// finest edge is about one texel of the shape noise wide. Near the camera that edge covers hundreds of pixels and
+// keeps its full sharpness (1). Far off it covers a few, and every small step in the weather maps (8 bits, redrawn
+// five times a second) makes the steep edge jump a whole band of pixels at once, so there the edge is drawn soft (0):
+// the same step then moves it a third as much. Pixels are reference pixels (1080 lines), as DetailPolicy.ScreenSize.
+#define PUNCHY_CLOUD_SHADOW_EDGE 60.0   // metres
+half PunchyCloudShadowSharpness(float3 positionWS)
+{
+    if (((uint)_PunchySkyOff & 2048u) != 0 || unity_OrthoParams.w > 0.5)
+        return 1;
+    float pixels = PUNCHY_CLOUD_SHADOW_EDGE * 540.0 * abs(UNITY_MATRIX_P._m11) / max(distance(positionWS, _WorldSpaceCameraPos), 1.0);
+    return smoothstep(40.0, 240.0, pixels);
+}
+
 half PunchyCloudShadow(float3 positionWS)
 {
     float3 toSun = _PunchySunDirection;
@@ -668,7 +682,7 @@ half PunchyCloudShadow(float3 positionWS)
     half4 weather = PunchyWeatherAt(mapXZ);
     punchyCloudStyle = PunchyCloudStyleAt(p.xz);
     float density = PunchyCloudDensity(p, weather, PunchyCloudShapeAt(mapXZ), 0);
-    return saturate(density * 3) * lerp(0.5, 0.95, saturate(shape.y / 3000));
+    return saturate(density * lerp(1.0, 3.0, PunchyCloudShadowSharpness(positionWS))) * lerp(0.5, 0.95, saturate(shape.y / 3000));
 }
 
 // ------------------------------------------------------------------------------------------------ cirrus, sky
