@@ -33,6 +33,9 @@ namespace Punchy.Debugging
             var index = director != null ? director.SpeciesIndex(netWatchSpecies) : -1;
             var em = queryWorld.EntityManager;
             int count = 0, under = 0, moving = 0;
+            // (A-103 row 3: up to 4 of them listed by entity, ghost id (or "local": not a ghost, spawned on this machine)
+            // and place, so a count that differs between machines shows whether it's a duplicate ghost or a stray spawn.)
+            var each = "";
             if (index >= 0)
             {
                 using var q = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
@@ -45,6 +48,10 @@ namespace Punchy.Debugging
                         continue;
                     count++;
                     var p = states[i].Position;
+                    if (count <= 4)
+                        each += $" [{entities[i].Index}:{entities[i].Version} " +
+                                (em.HasComponent<GhostInstance>(entities[i]) ? $"ghost {em.GetComponentData<GhostInstance>(entities[i]).ghostId}" : "local") +
+                                $" at ({p.x:F1}, {p.y:F1}, {p.z:F1})]";
                     var g = terrain.SampleGround(p.xz);
                     if (!g.HasWater || g.WaterSurface < p.y + 1.5f)
                         continue;
@@ -84,7 +91,7 @@ namespace Punchy.Debugging
                 pe.Dispose();
             }
             var role = ServerExists() ? "host" : queryWorld.IsClient() ? "joined" : "solo";
-            Debug.Log($"NetWatch ({role}) {netWatchSpecies}: {count} seen, {under} under water, {moving} of them moving;{(others.Length > 0 ? others : " no other players")}");
+            Debug.Log($"NetWatch ({role}) {netWatchSpecies}: {count} seen{each}, {under} under water, {moving} of them moving;{(others.Length > 0 ? others : " no other players")}");
         }
 
         static bool ServerExists()

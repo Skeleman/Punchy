@@ -273,6 +273,8 @@ namespace Punchy.Debugging
             SpawnRequested();
             PlaceByLedge();
             ClimbTest();
+            ClimbWatch();
+            LedgeLipTest();
             ActionTest();
             Watch();
             SettleGoto();
@@ -281,6 +283,7 @@ namespace Punchy.Debugging
             FlyCave();
             DungeonWalk();
             PlacePropPending();
+            PlaceLadderPending();
             PlaceAtLandmarkPending();
             PickSpeciesPending();
             PlaceAtBatFolkPending();

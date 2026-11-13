@@ -204,7 +204,7 @@ MonoBehaviour:
   ColdBlooded: 0
   Role: 0
   Hooves: 1
-  ClimbsAs: 0
+  ClimbSkill: -1
   EmoteReaction: 2
   Tunnels: 0
   Voice: 0

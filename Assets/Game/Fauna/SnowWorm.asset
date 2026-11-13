@@ -92,7 +92,7 @@ MonoBehaviour:
   ColdBlooded: 1
   Role: 0
   Hooves: 0
-  ClimbsAs: 0
+  ClimbSkill: -1
   Tunnels: 1
   Voice: 0
   CaveAffinity: 0

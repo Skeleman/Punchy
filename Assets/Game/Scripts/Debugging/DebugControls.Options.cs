@@ -73,7 +73,7 @@ namespace Punchy.Debugging
         /// down again a while later, as if the keys were pressed (alone, hosting or joined).</summary>
         static string interactRequest;
         /// <summary>"-place ledge": waiting for the settlement's props to load round the player, then put by a rim.</summary>
-        static bool ledgeRequest;
+        static bool ledgeRequest, ledgeRejumped;
         /// <summary>
         /// With "-autowalk" after "-place tree:X" or "-place ledge": the player heads at the trunk (climbs it) or over the
         /// rim (jumps at it: mantles) for a while, then back to where it started, over and over, so a client that joins
@@ -141,6 +141,8 @@ namespace Punchy.Debugging
             flyRoute.Clear();
             flyPending = null;
             propPending = null;
+            ladderPending = null;
+            climbOnLadder = false;
             rockWatchFor = 0f;
             rockWatchSince = -1f;
             untilWork = 0f;
@@ -149,10 +151,14 @@ namespace Punchy.Debugging
             poseRequest = null;
             interactRequest = null;
             ledgeRequest = false;
+            ledgeRejumped = false;
             climbTarget = null;
             liftHeight = 0f;
             actionTest = null;
             wallRequest = false;
+            climbBandGrade = Climbing.None;
+            ClimbBands.Clear();
+            ClimbLedges.Clear();
             Punchy.Player.PlayerInputSystem.TestCamera = null;
             shotDir = null;
             shotLines.Clear();
