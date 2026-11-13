@@ -62,3 +62,4 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #282 | White bloom circles keep coming back (NaN), global guard (Zach 11-12) | R-18 (rendering lane), rule 24 |
 | #284 | Waterfall sheets show flat stepped quads | water lane, not carded yet |
 | #286 | Shadow flicker at medium distance; far cloud shadows unstable (Zach 11-12) | R-20 (rendering lane), after R-16 |
+| #287 | Load order on jumps: big things first, short load veil (Zach 11-12) | W-151 (world lane, after W-150 1b) |
