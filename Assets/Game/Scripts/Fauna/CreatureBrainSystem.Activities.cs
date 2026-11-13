@@ -385,7 +385,7 @@ namespace Punchy.Fauna
                 if (prey != Entity.Null && Lookup.TryGetValue(prey, out var preyAt) && math.distance(States[preyAt].Position.xz, s.Position.xz) < 20f)
                     hunt *= 1.5f;
                 // Climbers go up trees to sit, and to sleep (they sleep up there, not on the ground).
-                var climb = b.Climbing > 0f && HasFlora && !flier ? b.Climbing * (sleepy > 0.5f ? 8f : 2.5f) : 0f;
+                var climb = b.Climbing > 0f && Climbing.CanClimb(b.ClimbSkill, Climbing.Tree) && HasFlora && !flier ? b.Climbing * (sleepy > 0.5f ? 8f : 2.5f) : 0f;
                 // Townsfolk sit a while by the well, or lie back on the ground near it, by day.
                 var lounge = b.Upright && b.Hands && s.Leash > 0f && sleepy < 0.3f && Night < 0.3f && s.Task != CreatureTask.Patrol ? 0.2f * awake : 0f;
                 // Townsfolk now and then go for a swim, in the warm middle of the day.
