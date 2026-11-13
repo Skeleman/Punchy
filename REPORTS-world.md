@@ -6966,6 +6966,14 @@ half3 PunchySurfaceFinish(half3 color, PunchySurface s, half reach);            
 - **Risk:** the foam at the foot is subtle on the pale snow rock. The wet band is easiest to see on darker rock. Adding the include to TerrainSurface set off a long shader variant compile (about 2 min, 43 compiler processes) on first load. Not timed (rule 21).
 - **Next:** R-22 row 0 (#298, world/far-view).
 
+## 2026-11-13 R-21 row 4 note: one fall builder (before code)
+- Description (one struct, FallShape): lip middle on the water, pour direction, width along the lip, drop, run (how far out the foot is, so run over drop is the slope from sheer to cascade), skew (oblique lip), bow (curved lip), landing (pool, ledge, rapids, sea), seed, under rock.
+- Cases it must draw: sheer and slanted faces, 1 m to 50 m+, narrow and wide, curved and oblique lips, chains (each step its own shape, landing on a ledge), single drops, cliff plunges into the sea, cave notches and chutes, grand tiers, landmark falls.
+- Paths that fold in: the four emitter constructions in LandmarkEffectSystem (landmark effect, grand tier, river fall, cave fall) and RiverCurtain's measuring all become FallShape constructors plus one AddFall; BuildWaterfall draws every kind from the same fields; the single-fall PunchyWaterFallOffset (fine sheet only) gives way to one displacement over every fall's box, used by chunk water and the fine sheet alike.
+- Shared functions that change (rule 28 tell): LandmarkEffects.hlsl LandmarkEmitter (+ float4 fall) and BuildWaterfall; RiverCurtains.hlsl (+ foot array, + PunchyFallWater); WaterField.hlsl PunchyWaterPatchPoint and PunchyWaterFallOffset; Water.shader vertex stages (both passes add PunchyFallWater on chunk water) and the fragment's fall foam and slope (additive). No lighting or haze term changes; TerrainSurface.shader untouched this row.
+- Grid by screen size (rule 20): a fall that looks big draws a fine grid, the rest a coarse one; ripples on the water fade with the pixels a metre covers.
+- No fall moves in this row as planned; if the measuring shifts a lip I report it, pins checked at the end.
+
 ## 2026-11-13 W-153 row 1b: generator order round water, note only, no code (#301)
 
 - **Recommendation: order C below.** Split each river into a course (decided early) and a profile (solved late, on the finished ground), build falls from that profile, and put still water (ponds, paddies) last on the carved ground. Scarps (W-155 row 4) go in before the courses.
