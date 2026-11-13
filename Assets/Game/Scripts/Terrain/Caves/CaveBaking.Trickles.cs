@@ -228,10 +228,10 @@ namespace Punchy.Terrain
 
             // Clear of the other trickles, the lamps and frames, and the rooms (dressed walls).
             for (int i = 0; i < extras.Trickles.Count; i++)
-                if (math.distance(extras.Trickles[i].Slit, slit) < 3.5f)
+                if (math.distance(extras.Trickles[i].Slit, slit) < 3.5f)   // sim: bake spacing, not a view range
                     return TrickleMiss(5);
             foreach (var p in keepClear)
-                if (math.distance(p.xz, slit.xz) < 1.4f && p.y > land.y - 0.5f && p.y < slit.y + 0.5f)
+                if (math.distance(p.xz, slit.xz) < 1.4f && p.y > land.y - 0.5f && p.y < slit.y + 0.5f)   // sim: bake spacing
                     return TrickleMiss(5);
             for (int r = cave.FirstRoom; r < cave.FirstRoom + cave.RoomCount; r++)
             {
