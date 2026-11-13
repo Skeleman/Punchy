@@ -776,6 +776,12 @@ namespace Punchy.Fauna
                 var pace = 1f + CreatureBlob.Trait(s.Individual, 5) * 0.08f;
                 var walk = b.WalkSpeed * s.Scale * pace;
                 var run = b.RunSpeed * s.Scale * pace;
+                // A-103 row 2b: a sea folk out of the water trudges (slower, stooped in CreatureAnimator).
+                if (FolkState.OutOfWater(s.Position, b.WalksBed, Terrain))
+                {
+                    walk *= 0.7f;
+                    run *= 0.75f;
+                }
 
                 // Keep an eye on a nearby player (busy feeding or drinking, only a close one).
                 var watchPlayer = b.FleeDistance > 0f && playerDistance < b.FleeDistance * 2.5f;

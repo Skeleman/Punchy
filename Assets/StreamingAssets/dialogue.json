@@ -382,26 +382,38 @@
         "town_end": ["reef", "hollow", "bed", "dome", "spire"]
       },
       "lines": [
-        "{culture_greeting}.",
-        "You came down without a dome? Brave. Or silly.",
-        "Up there the water just... stops? How do you bear it?",
-        "Mind the clam beds. They nip.",
-        "The glow stones were planted by our grandmothers' grandmothers.",
-        { "text": "Sometimes I walk up the bank just to feel heavy. Then I come back.", "weight": 2 },
-        { "text": "The fish school circles the spire at noon. Every day. Nobody knows why.", "weight": 2 },
+        { "text": "{culture_greeting}.", "state": "!dry" },
+        { "text": "You came down without a dome? Brave. Or silly.", "state": "!dry" },
+        { "text": "Up there the water just... stops? How do you bear it?", "state": "!dry" },
+        { "text": "Mind the clam beds. They nip.", "state": "!dry" },
+        { "text": "The glow stones were planted by our grandmothers' grandmothers.", "state": "!dry" },
+        { "text": "Sometimes I walk up the bank just to feel heavy. Then I come back.", "weight": 2, "state": "!dry" },
+        { "text": "The fish school circles the spire at noon. Every day. Nobody knows why.", "weight": 2, "state": "!dry" },
         { "text": "Your hair is so still. Doesn't it get bored?", "mood": "Cheerful" },
-        { "text": "Bubbles everywhere, every time one of you visits.", "mood": "Grumpy" },
+        { "text": "Bubbles everywhere, every time one of you visits.", "mood": "Grumpy", "state": "!dry" },
         { "text": "The shallows are warm today. The fish come up to see.", "trade": "Fish" },
         { "text": "A good bite off the raft! Don't tell the others.", "trade": "Fish", "mood": "Cheerful" },
         { "text": "The dry ones on the pier scare off everything. Shoo.", "trade": "Fish", "mood": "Grumpy" },
-        { "text": "The light's going green. Home soon, down by the domes.", "when": "evening" },
-        { "text": "The glow stones are bright tonight. Hush, the little ones sleep.", "when": "night" },
-        { "text": "Sunbeams through the water. Best part of the day.", "when": "morning" },
+        { "text": "The light's going green. Home soon, down by the domes.", "when": "evening", "state": "!dry" },
+        { "text": "The glow stones are bright tonight. Hush, the little ones sleep.", "when": "night", "state": "!dry" },
+        { "text": "Sunbeams through the water. Best part of the day.", "when": "morning", "state": "!dry" },
         { "text": "A wave! We wave like this down here. Slower.", "emote": "Wave" },
         { "text": "Oh, a bow. My fins thank you.", "emote": "Bow" },
         { "text": "You dance like a crab. That's a compliment.", "emote": ["Cheer", "Dance"] },
-        { "text": "You stir up the silt, {player}. Walk gently.", "stance": "Wary" },
-        { "text": "Back up to your air, {player}.", "stance": "Annoyed" }
+        { "text": "You stir up the silt, {player}. Walk gently.", "stance": "Wary", "state": "!dry" },
+        { "text": "Back up to your air, {player}.", "stance": "Annoyed", "state": "!dry" },
+        { "text": "Up here, {player}? We're both a long way from where we'd rather be.", "stance": "Annoyed", "state": "dry" },
+        { "text": "So dry. How do you breathe this? It scratches.", "state": "dry" },
+        { "text": "My scales are flaking. Is there a bucket anywhere?", "state": "dry" },
+        { "text": "Air, air, nothing but air. I miss the weight of the water.", "state": "dry" },
+        { "text": "I only came up for the market. Then straight back down.", "state": "dry" },
+        { "text": "Don't mind me, I'm just standing by the water. Breathing it in. Sort of.", "state": "dry" },
+        { "text": "The sun up here! It cooks you from the top down.", "state": "dry", "when": "day" },
+        { "text": "My gills are sticking together. Talk fast.", "state": "dry", "mood": "Grumpy" },
+        { "text": "Rain, please. Just a little. Is that too much to ask?", "state": "dry", "mood": "Grumpy" },
+        { "text": "You lot walk so fast up here. I feel like a stranded clam.", "state": "dry", "mood": "Cheerful" },
+        { "text": "The river tastes of mud and cows. Still better than dust.", "state": "dry" },
+        { "text": "Dry one, how do you stand it? Your skin must be leather.", "state": "dry" }
       ]
     },
     "Ghost": {
@@ -655,16 +667,19 @@
       "bye": [{ "text": "Go slowly, quick one.", "gesture": "Bow" }]
     },
     "SeaFolk": {
-      "who": ["Born under the third dome. Never been dry for long.", { "text": "A {trade}. I bring the fish down to the domes.", "job": true }],
+      "who": ["Born under the third dome. Never been dry for long.", { "text": "Sea folk, from the lake. Visiting. Briefly, I hope.", "state": "dry" }, { "text": "A {trade}. I bring the fish down to the domes.", "job": true }],
       "how": [
         { "text": "Wet, warm and well. Like always.", "mood": "Cheerful" },
         { "text": "My gills itch. Silt from the stream again.", "mood": "Grumpy" },
-        { "text": "Rain on the surface sounds like music from down here.", "state": "weather", "weather": "Rain" }
+        { "text": "Rain on the surface sounds like music from down here.", "state": "weather", "weather": "Rain" },
+        { "text": "Dry. Very, very dry. Thank you for asking.", "state": "dry" },
+        { "text": "Parched. My fins are curling at the edges.", "state": "dry", "mood": "Grumpy" },
+        { "text": "Not bad for a dry day. I keep close to the water.", "state": "dry", "mood": "Cheerful" }
       ],
       "work": [{ "text": "Fish up top, home down below. The walk keeps me young.", "job": true }],
-      "town": ["The domes grow a little every year. We feed them shell."],
+      "town": ["The domes grow a little every year. We feed them shell.", { "text": "Your towns are nice. Dusty, but nice. The fountains are the best part.", "state": "dry" }],
       "news": [{ "text": "Something big sleeps in the wreck past the reef. The fish won't go near it.", "curiosity": ["mid", "high"], "offer": "rumour:wreck" }],
-      "bye": [{ "text": "Bright water, dry one.", "gesture": "Wave" }]
+      "bye": [{ "text": "Bright water, dry one.", "gesture": "Wave" }, { "text": "I'm off back to the water. You should try it sometime.", "state": "dry", "gesture": "Wave" }]
     },
     "Hermit": {
       "who": ["Nobody. That's the point."],
