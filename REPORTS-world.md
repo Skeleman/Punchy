@@ -6451,3 +6451,25 @@ plot rules would have to accept a raised deck).
 - Suite: "completed: 28/28 passed" on 8a295735 (the last code change).
 - BENCH-QUEUE request: CPU and GPU ms, branch vs main, at the canyon (2266,-434) from 20 m and 150 m, and at the sea cliff seen from the beach. Also the island bake time on a cache miss. Compare with row 1's request; draws should fall sharply in the red country.
 - Rows 2 and 3 not started (they wait).
+
+## W-151
+
+### Row 1: big first after a jump (#287), branch world/load-order, commit ce2f386e (+ cf0eceb4 comment only)
+- What changed: a jump is the Loading phase, or the camera moving more than 200 m in one frame. For 5 s after a jump, flora gets 4x its usual budget and streams the big layers first: trees and kit buildings, then shrubs, then ground. Trees get 75% of the first pass. At walking speed the order and budget are the same as before. Terrain rings and landmarks already came first, so they are unchanged. Every jump writes a log line: "[flora] after the load / after a jump: trees in at ... (s, frames after); shrubs ...; ground ...".
+- Found and fixed while measuring: every colossus placed after the load (they arrive a few at a time) set Replant, which dropped every streamed flora tile on the island. That is why the trees round the player vanished about 6 s after a cold load and came back later, on main as well. Now only the tiles under keep-out circles that changed are dropped and re-placed (ChangedKeepOuts / UnderChangedKeepOut in FloraSystem.Jump.cs). If more than the list holds changes at once, it falls back to replanting everything.
+- Times (from when flora is built; cold load, then an F6 warp to OgreCamp #1):
+  - cold, before: ground 6.5 s, shrubs 7.2 s, trees 8.3 s; world ready 49.4 s
+  - cold, after: first trees in 3.8 s, ground 3.3 s, shrubs 3.6 s (log: trees 3.5 s / 23 frames after the load). The edge refills at 6.2 s for 2 frames. World ready 39.1 s (single runs, not a timing claim).
+  - warp, before: ground 0.13 s (7 frames), shrubs 0.78 s (46), trees 1.95 s (116)
+  - warp, after: trees 0.74 s (43 frames; log 0.4 s / 23), ground 0.49 s (28), shrubs 0.67 s (39)
+- Sheets (every 5 frames for 3 s, then every 30 frames on the cold runs) at D:/Unity/PunchyMilestones/W-151/: cold-before.jpg, cold-after.jpg, warp-before.jpg, warp-after.jpg. Raw frames and csvs are in raw/ (also order-only runs from before the replant fix).
+  - Cold after: the near tree stays visible from frame 0 to 14.6 s. Before, it vanishes at about 6 s.
+  - Warp after: the boulder and back buildings are in by frames 5-15 (before: frames 55-80).
+- Fingerprint unchanged. Placement is still seed-derived; only when tiles go in has changed.
+  - OgreCamp: ground and tree hashes identical old vs new (B87C720A, E759D8B2). The shrubs' sorted dump is identical (826 plants; only the order within a tile differs).
+  - IceMammoth clearing and spawn ring: tree, shrub, spawn-tree and ground dumps identical old vs new.
+  - The landmark hash is untouched (no landmark code changed).
+- Suite: "completed: 28/28 passed" on the final code. Two comment-only edits came after it. lod-lint is clean on cf0eceb4 (the jump distance is marked streaming).
+- NaN probe: not needed (no shader, material or mesh change).
+- BENCH-QUEUE request: frame cost in the 5 s jump window, branch vs main, after a cold load and after an F6 warp to OgreCamp #1 (budget is 4x, trees 75%). Also the frame cost of a colossus keep-out replant, which is now targeted instead of island-wide.
+- Row 2 (load veil) not started, nor W-150 1c, 2 or 3.
