@@ -3781,6 +3781,28 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - Suite: "completed: 40/40 passed" (PlayMode), the full run after the last change. Earlier runs: Lying_PlayerStandsBeforeMoving flaked once. A pre-merge run was 33/35 (a Follow test and Place_PropFindsAndFramesWharf), and neither came back.
 - Next: row 1b, ledge shimmy. Row 2 waits on W-144.
 
+### Row 1b: ledge hang and shimmy (done, verified solo, host and joined client)
+- Commit on fauna/route-climbing (pushed): 82e4392a.
+- What it does: a ledge's lip is a graded section (`ClimbLedges`, Fauna/LedgeHang.cs). A body with skill >= the lip's grade catches it from a fall or a jump and hangs. Sideways shimmies along it and round inner and outer corners onto the next lip; up pulls onto it when there's room (else tops out over the rim like the wall climb); down lets go. You can pass from a lip onto a climbable face (a marked band) and back. It's the same #33 latch: `OnWall` plus a `Hang` byte in PlayerMotion, no new ghost field. Wall climbers never hang (a lip whose wall they can climb is just wall), so their climb is unchanged.
+- PlayerMovementSystem, the only lines changed, 214-216 (CRLF kept), after the LadderClimb `continue;` and before `if (m.OnWall && climbsWall)`:
+  ```
+  // A-101 row 1b: hanging from a ledge's lip and shimmying along it, part of the same wall latch (LedgeHang).
+  if (body.ClimbSkill > Punchy.Fauna.Climbing.None && Punchy.Fauna.LedgeHang.Step(ref t, ref m, body, input, settings, from, facing, climbsWall, swimming, dt))
+      continue;
+  ```
+  PlayerComponents.cs: `public byte Hang;` (with its summary comment) after `Dive` in PlayerMotion. Nothing else in the player lane's files.
+- Test piece `-place ledge:lip[:Body]`: a solid L (two boxes, 3.3 m) with three joined lips (Assisted, grade 2) round an inner and an outer corner, plus a marked band at one end. `-ledgepiece` rebuilds it on a client, and `-lipwait` holds the test until a client joins. I added this as its own piece rather than extending the `-place ledge` rim search: that search finds world rims with no lip records.
+- Human (skill 2), editor: HANG from lip 0 at try 1, hands 3.3 m up; round the inner corner 2.2 s, round the outer corner 10.4 s, end of lip 2; back round the outer and inner corners (4 corners in all); ONTO FACE (band), back ONTO LEDGE; DROP 1.2 m up; HANG again; PULL-UP; ON TOP 3.3 m; PASS. Same in all three runs.
+- Fix along the way: the stick held into the wall from the jump read as "up", so a grab pulled up at once. A 0.4 s grab hold (LatchCooldown) now holds off the pull-up.
+- Wall climber (Lizard, skill 5) on the same piece: latched (no hang), TOP-OUT 3.3 m at 2.2 s, STEP-DOWN, DOWN; never hung; PASS.
+  - Corner note: today's wall climb does not wrap side corners. Pushed sideways along the L, a Lizard stops in the inner corner. That's unchanged by this row (LedgeHang steps aside for climbers), so "wraps corners as today" holds only in that sense. Wall-face corner wrapping for climbers would be its own row if wanted.
+- Regressions unchanged: `-place wall:Lizard` UP 0.7, TOP-OUT 1.9, STEP-DOWN 10.2, DOWN 12.0 s. `-place climb` (Human band) UP 1.0, TOP-OUT 4.1, STEP-DOWN 16.2, DOWN 19.8 s; lap 2 DROP 1.6 m, landed. `-place ladder:roof` UP 1.8, TOP-OUT 6.7, STEP-DOWN 16.0, DOWN 21.7 s.
+- Host + client (editor host `-lipwait`, lane build client `-join 127.0.0.1 -climbwatch -ledgepiece ...`): the host passed every stage as above. The client built the piece and followed the hanging player in climb pose 1.0 the whole way: along lip 1 (z -3.6 to 0.1), round onto lip 2 (x to 130.1), back round both corners along lip 0 (x to 134.2), then up to 53.1 m standing on top (pose 0.0). The "SAW A CLIMB" line didn't fire: its "over a metre above the lowest seen" check started from the hang, because the client first saw the player already hanging. No client exceptions.
+- Shots (800x450, D:/Unity/PunchyMilestones/A-101/): r1b-1-hang-inner-corner.jpg, r1b-2-outer-corner.jpg, r1b-3-pull-up.jpg. Rain shows despite `-weather Clear` in the camera re-run (cosmetic).
+- Pins: Fauna_Fingerprint EC02D9B0 before and after (passes); nothing seed-derived changed. No landmark or placement change.
+- Suite: "completed: 40/40 passed" (PlayMode), after the last code change. The only later edit converted the two new files from CRLF to LF, to match their neighbours.
+- Next: row 2 waits on W-144.
+
 ### Row 2b: sea folk on the surface (done, verified, including a joined client)
 - Commits on fauna/folk-homes (pushed): c47e8728 (the row), 963e8b59 (merge of fauna/breath at c91c6dec, A-102 rows 2 to 3b, no conflicts, which brings A-102's `-playerdive` for the client check; **fauna/breath lands first**), 24de7dbe (`-netwatch` debug flag for the joined-client check; BeastRespond test hook logs the folk it picked).
 - New `FaunaDirector.SeaVisitors.cs`: by day, while a player is within 120 m, a sea folk visitor stands at about a third of town wells and fountains and a quarter of river banks that have no fisher, with at least one river bank always. Spots come from the bake's own wells and crossings, rolled from fixed hashes (no director rng draw, no placement). Each visitor keeps a 7 m leash round its water. At dusk it walks off (into the river, or out of town) and the despawn takes it. This island: "SeaVisitors: 3 spots (towns 2 of 4 wells, rivers 1 of 7 banks)".
