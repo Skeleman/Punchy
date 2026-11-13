@@ -84,6 +84,28 @@ namespace Punchy.Tests
         const float MaxTurnAll = 130f, MaxTurnWide = 130f;
 
         /// <summary>
+        /// W-153 row 1 (#301): where the island's water breaks physical rules, counted by WaterTruth over every river
+        /// cell, every fall and a 4 m grid of the whole island. The baseline is the count of each kind when the probe
+        /// was written; a kind may only fall. Lower its number when a fix lands, until every one is 0.
+        /// </summary>
+        [UnityTest, Order(3)]
+        public IEnumerator Water_TruthCounts()
+        {
+            var counts = Game.Hook<int[]>("WaterTruthCounts");
+            LogWatch.Measure($"water truth ({string.Join(", ", WaterTruthKinds)}): {string.Join(", ", counts)}");
+            Assert.AreEqual(WaterTruthBaseline.Length, counts.Length, "the probe's kinds changed: update the baseline");
+            for (int k = 0; k < counts.Length; k++)
+                Assert.LessOrEqual(counts[k], WaterTruthBaseline[k], $"more '{WaterTruthKinds[k]}' water defects than the baseline");
+            yield return null;
+        }
+
+        static readonly string[] WaterTruthKinds =
+        {
+            "bend", "widthJump", "deadEnd", "source", "dryRun", "uphillGraph", "uphillSampled", "wall", "deep", "tilt", "step", "fallHead", "fallFoot"
+        };
+        static readonly int[] WaterTruthBaseline = { 80, 0, 0, 0, 21, 31, 7, 1987, 42, 35, 1186, 47, 4 };
+
+        /// <summary>
         /// Butterflies round the player in a meadow at noon, clear sky. No range was ever set: CritterSystem clips at 8
         /// per 100 m² (MaxDensity); the band is today's value (0.30 on main
         /// 69ca891) with a tolerance.
