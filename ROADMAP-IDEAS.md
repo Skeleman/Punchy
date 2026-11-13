@@ -134,6 +134,7 @@ pygmies (#35, #10), turtle folk (#38). Core rule throughout: small, varied, seed
 - Dungeons (#24), NPCs (#25), items and gear (#26), quests (#27): player lane cards in flight.
 - Plant fidelity experiments (#21).
 - Cluster culling (#270): waits for profiler numbers.
+- River generator order and one waterfall method (Zach 11-13, #301, #284; carded as W-153 row 1b and R-21 row 4): "Not sure if there's a more sensible order of operations in the generator rules to mitigate River issues if the routing is a big part of the problem, but I'd like a unified waterfall methodology that is robust to different shapes and angles of falls".
 - Waterfall geometry (Zach 11-13, #284, #301; carded as R-21 row 4): "Part of the issue with river geometry is the waterfalls. They should subdivide the mesh for gentler curves and less uniformity. Ideally they would use vertex displacement on the top of the fall to simulate turbulence and again at the base of the fall to ripple in response to the falling cascade".
 
 Before carding any of these, check the issue, lanes/ISSUES-MAP.md, in-flight cards and main so it isn't already done.
