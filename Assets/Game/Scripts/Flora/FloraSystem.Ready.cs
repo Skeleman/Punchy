@@ -37,18 +37,7 @@ namespace Punchy.Flora
                     waiting = $"flora upload (layer {l.Index})";
                     return false;
                 }
-                int missing = 0;
-                var size = l.Settings.TileSize;
-                var r = (int)math.ceil(l.Radius / size) + 1;
-                var centre = (int2)math.floor(camXZ / size);
-                for (int z = -r; z <= r; z++)
-                for (int x = -r; x <= r; x++)
-                {
-                    var c = centre + new int2(x, z);
-                    var min = (float2)c * size;
-                    if (!l.Tiles.ContainsKey(c) && math.distance(math.clamp(camXZ, min, min + size), camXZ) < l.Radius)
-                        missing++;
-                }
+                var missing = MissingNear(l, camXZ);
                 if (missing > 0)
                 {
                     waiting = $"flora tiles {missing} missing (layer {l.Index})";
@@ -61,6 +50,24 @@ namespace Punchy.Flora
                 return false;
             }
             return true;
+        }
+
+        /// <summary>How many of a layer's tiles inside its radius round this point aren't placed yet (also W-151's jump log).</summary>
+        int MissingNear(Layer l, float2 camXZ)
+        {
+            int missing = 0;
+            var size = l.Settings.TileSize;
+            var r = (int)math.ceil(l.Radius / size) + 1;
+            var centre = (int2)math.floor(camXZ / size);
+            for (int z = -r; z <= r; z++)
+            for (int x = -r; x <= r; x++)
+            {
+                var c = centre + new int2(x, z);
+                var min = (float2)c * size;
+                if (!l.Tiles.ContainsKey(c) && math.distance(math.clamp(camXZ, min, min + size), camXZ) < l.Radius)
+                    missing++;
+            }
+            return missing;
         }
     }
 }
