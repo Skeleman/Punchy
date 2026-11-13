@@ -4151,3 +4151,76 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
   - When the client's position reaches the host late (lag over 3 s), the 150 m margin against DespawnDistance is what protects it.
   - `-kincmd` is a test flag in builds, like the other launch flags. It does nothing without the flag.
 - Next: card end (A-106 done).
+
+## A-109
+
+### Row 1: design note, towns alive from afar (done, no code, #298 #25, branch fauna/far-towns not yet pushed: no commits)
+
+Read for this: FaunaDirector.Households and .Folk (SpawnResidents), the brain's hours, CreatureRenderSystem.SkyBirds, LandmarkEffectSystem (chimneys), SurfaceGlow.World, Flora.shader's window code, DetailPolicy, batches A-108 and R-25. There is no A-108 row 1 note in this file yet, so the shared mechanism below is proposed for both cards.
+
+**What the code gives us today**
+- Households are the same on every machine: each house's members, roles and door come from the door's spot (`Households.All`, built by `EnsureHouses`). Village posts come from anchors and work sets, also the same everywhere.
+- What is not the same everywhere: how many folk a landmark gets and where they first stand. `SpawnResidents` draws both from the host's runtime rng when a player comes within 120 m of the landmark's centre. Houses fill from the middle out, so the adults who do spawn are always the first ones in house order.
+- Real folk dither in over 1.2 s when made, and dither out between 140 and 165 m from the camera (`CreatureRenderSystem`, FadeInTime, FadeFar).
+- Hours in the brain: housed adults head home as the sun sets (about 17:48), children are called in at 17:00, most are abed by about 21:30 to 22:10 (per folk), and the day starts at 06:00 to 06:30.
+- Windows today light by a per-pane hash in `Flora.shader` (each pane its own hour, a few lit all night). Chimneys smoke for a seeded 42% of chimney buildings within 220 m (`LandmarkEffectSystem`). Neither looks at households.
+- A 1.7 m figure is about 13 reference pixels at 120 m, 4 at 400 m, 2 at 800 m and 1.6 at 1 km.
+
+**The mechanism (proposed for A-108 too)**
+1. A pure function. Everything far is worked out from records, the island seed and the shared clock (the day count and hour SkyBirds already uses). No state is kept, sent or saved, so solo, host and client agree.
+2. Drawn only, in the creature pass. A new partial, `CreatureRenderSystem.FarFolk.cs`, gathers capsules into the same instanced draw SkyBirds uses. No entities, ghosts or colliders, no new shader and no new lighting term (rule 26).
+3. Forms by `DetailPolicy.ScreenSize` of the figure, with `DetailPolicy.Holds` (15%) and a dithered crossfade across each boundary. No metre ranges.
+4. Far yields to real. A far figure is never drawn where this machine shows real ones of the same source; the swap is a dither crossfade timed to the real ones' own 1.2 s fade-in.
+
+Where A-109 differs from A-108: herds are anonymous and seeded per 512 m cell from spawn tables; town figures are one per household member, placed from records, so they need no cells.
+
+**Figures (row 2)**
+- Who: a landmark's "certain" members only, meaning the first adults and children in house order up to the residents' smallest counts. These are the ones the host is sure to spawn, so a far crowd is never bigger than the real one. Members marked lost on this machine are left out.
+- Where and when, per member, from its Individual and the day:
+  - adults leave between 06:00 and 06:45, walk door to station, stay there with one or two errands, and walk home from about 17:45;
+  - stations are the landmark's posts (work anchors, work-set posts in harsh biomes, the water spot for a fisher), then seeded loiter spots on streets and the square;
+  - elders keep a short day near their door; children play near the door or square from 08:00 to 17:00;
+  - at night nobody is drawn except a night guard (row 4's lantern).
+- Not drawn: sea folk in their domes and bat folk in caves (not seen from afar); the sea folk landing's surface workers are. The hermit keeps its hours as they are.
+- Forms, by on-screen height of the figure:
+  - walker (about 5 capsules, legs swinging, the species' own colours): 6 px and up;
+  - mote (one upright capsule with a bob): 2 to 6 px;
+  - under 2 px: see question 4.
+- The hours come from the brain's own constants (read only; if one needs exposing it becomes `internal const` with no behaviour change).
+
+**Hand-over, with no spawn change (option A, what row 2 would build)**
+- A landmark is "real" on a machine while any real folk of that landmark is in its view world (works the same for solo, host and a client's ghosts). Otherwise it is "far".
+- Far to real: when the first real folk appear, the landmark's far figures dither out over the same 1.2 s the real ones dither in.
+- Real to far: real folk dither out at 140 to 165 m as today. The far figures dither in only once none of that landmark's real folk is still drawn. So there is never a double.
+- Stationed workers hand over in place: the host spawns a worker within 0.2 m of its post, which is where its far figure stands in work hours.
+- Honest limits of option A:
+  - free folk spawn at random spots, so for them the crossfade is a crowd that rearranges over 1.2 s, not a figure that stays put;
+  - the host spawns folk outdoors whatever the hour, so a town reached at night goes from no figures to folk standing outside who then walk home (today's behaviour, unchanged);
+  - walking away, the town is briefly thin between the real ones fading and the far ones fading in.
+- Option B removes all three: the host places each housed folk at its far figure's spot for the hour (indoors at night), keeping every rng draw so the fingerprint should hold. That is a spawn change, which this card pins, so I am not building it. It needs your call (and Zach's, by rule 11).
+
+**Home signs (row 3): what I supply**
+- One pure function per house, `HomeSign(house, day, hour)`, giving lit 0..1 and smoke 0..1, keyed by the household's stable key and door:
+  - lit from when its first member is home (17:00 with a child, else about 17:45) until its own bed hour (21:30 to 22:10), and a short spell before its dawn start;
+  - dark when asleep, when every member is lost, and on evenings the household is away (a seeded few per day, about 1 in 12);
+  - smoke at meal hours (about 06:30, 12:00, 18:30, each for 40 minutes) and all the waking day in cold biomes.
+- It uses the clock and seed at every distance, never the live simulation, so nothing switches as you approach (R-25's aim).
+- What R-25 and the render lane own: how that value reaches the pane (`Flora.shader`'s per-pane hash would give way to it), the impostor's emissive, and the glow maps. The world glow map is baked once, so it cannot follow hours as it stands. I need one float per building instance; I will not touch `Flora.shader`, `Glow.hlsl` or `DetailPolicy`.
+- Chimneys: `LandmarkEffectSystem` would take smoke from `HomeSign` for houses with a household and keep its seeded share for other buildings. That file is not in the ownership table; see question 3.
+
+**Details (row 4)**: a night guard's lantern along a road, a fisher's boat at dawn where a household has a fisher, washing on a line by a house with children, a figure waving from a pier. All from the same function.
+
+**Questions for you**
+1. Hand-over: build option A now and card option B separately, or wait for B?
+2. Thresholds: may the render lane add a `FarFolk` rule to `DetailPolicy` (6 px and 2 px proposed)? Until then I would keep them as named pixel constants in my partial.
+3. Row 3 routing: who gives the per-building "home light" value a path to the panes (R-25?), and may I edit `LandmarkEffectSystem`'s chimney part (and convert its 220 m to screen size, which needs a `DetailPolicy` entry)?
+4. Row 2's 1 km shot: a figure is 1.6 px there. Either figures stop at 2 px (about 800 m) and the town reads by smoke, lights and boats, or motes are held at 2 px and thinned by dither out to 1 px (about 1.6 km). I lean to the second.
+
+**Rules 25-28 and findings**
+- Rule 25: this card is the far form of folk. Sea folk and bat folk get none (not visible from afar).
+- Rule 27: no saved or sent state. A client's far figures and windows know only the deaths it saw (the P-35 gap from A-106).
+- Rule 28: new code goes in new partials; `FloraPlacement.cs` (2960 lines) is not touched.
+- Rule 20, metre visual ranges seen in files this card may touch, for R-13: `CreatureRenderSystem` FadeFar 165 and FadeOutRange 25 (tied to the despawn distance), SkyRange 900; `LandmarkEffectSystem` Range 700, ChimneyRange 220, FlameRange 150, RiverFallRange 350.
+- Not checked: a landmark is peopled only within 120 m of its centre, so a town wider than that would show far figures at close range from its edge. Row 2 would log the largest on-screen size a far figure reaches per town.
+- Cost is not measured (rule 21); a BENCH job after row 2, as the card says.
+- Next: waiting for your OK before row 2.
