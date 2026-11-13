@@ -6,8 +6,9 @@ using UnityEngine;
 namespace Punchy.Chemistry
 {
     /// <summary>
-    /// The hands' HUD, in IMGUI through a GuiHook like Punchy's other HUD pieces: two hand icons at the bottom of the
-    /// screen, each in its element's colour with its buttons above it (InputGlyphs' icons for the pad in use) and a ring
+    /// The hands' HUD, in IMGUI through a GuiHook like Punchy's other HUD pieces: while casting (a hand held, winding up,
+    /// cooling down or attuning, a merge, or the radial open), and fading out shortly after, two hand icons at the bottom
+    /// of the screen, each in its element's colour with its buttons above it (InputGlyphs' icons for the pad in use) and a ring
     /// round it that fills as its gesture winds up and charges (white, then gold, then orange at each level), greys while
     /// the hand cools down and pulses while it attunes. While both hands make one spell the merge's name shows between
     /// them, and a merge flashes as it starts and as it goes off. Holding d-pad up shows the element radial round the
@@ -16,6 +17,8 @@ namespace Punchy.Chemistry
     public partial class ChemistryBridge
     {
         const float MergeFlash = 0.6f;
+        // The hands show only while casting, and fade out this long after the last hand goes quiet.
+        const float HudLinger = 0.8f, HudFade = 0.4f;
         const int RingDots = 28;
 
         static readonly Color Fire = new Color(1f, 0.45f, 0.12f), Water = new Color(0.25f, 0.6f, 1f),
@@ -27,6 +30,7 @@ namespace Punchy.Chemistry
             InputGlyphs.Token("<Gamepad>/rightTrigger") + " " + InputGlyphs.Token("<Gamepad>/rightShoulder"),
         };
 
+        float handsBusyAt = float.NegativeInfinity;
         Texture2D disc;
         GUIStyle label, small, shadow, smallShadow, big, bigShadow;
 
@@ -80,10 +84,14 @@ namespace Punchy.Chemistry
             // (Wide apart, so Punchy's own prompt, centred above the bottom edge, shows between them.)
             float cx = Screen.width * 0.5f, cy = Screen.height - 84f;
             var h = world.HandsOf(Me);
-            for (int hand = 0; hand < HandsDef.Count; hand++)
-                DrawHand(h, hand, new Vector2(cx + (hand == HandsDef.Left ? -190f : 190f), cy));
             var merge = world.CastOf(Me)?.Merge;
             float flash = 1f - (Time.unscaledTime - mergeFlashAt) / MergeFlash;
+            if (radialOpen || merge != null || flash > 0f || HandsBusy(h))
+                handsBusyAt = Time.unscaledTime;
+            float shown = 1f - Mathf.Clamp01((Time.unscaledTime - handsBusyAt - HudLinger) / HudFade);
+            if (shown > 0f)
+                for (int hand = 0; hand < HandsDef.Count; hand++)
+                    DrawHand(h, hand, new Vector2(cx + (hand == HandsDef.Left ? -190f : 190f), cy), shown);
             if (flash > 0f)
             {
                 float r = Mathf.Lerp(260f, 60f, flash);
@@ -104,7 +112,17 @@ namespace Punchy.Chemistry
             GUI.color = keep;
         }
 
-        void DrawHand(PlayerHands h, int hand, Vector2 at)
+        bool HandsBusy(PlayerHands h)
+        {
+            if (h.AttuneLeft > 0)
+                return true;
+            for (int hand = 0; hand < HandsDef.Count; hand++)
+                if (h.Down[hand] || h.Gesture[hand] != HandsDef.NoGesture || world.HandCooling(Me, hand) > 0)
+                    return true;
+            return false;
+        }
+
+        void DrawHand(PlayerHands h, int hand, Vector2 at, float alpha)
         {
             var holds = world.HandHolds(Me, hand);
             bool own = h.Holds[hand] != null;
@@ -134,22 +152,23 @@ namespace Punchy.Chemistry
                 float a = i / (float)RingDots * Mathf.PI * 2f;
                 var p = at + new Vector2(Mathf.Sin(a), -Mathf.Cos(a)) * ring;
                 bool lit = i < fill * RingDots;
-                GUI.color = lit ? ringColour : new Color(0f, 0f, 0f, 0.35f);
+                GUI.color = Faded(lit ? ringColour : new Color(0f, 0f, 0f, 0.35f), alpha);
                 float s = lit ? 7f : 5f;
                 GUI.DrawTexture(new Rect(p.x - s * 0.5f, p.y - s * 0.5f, s, s), disc);
             }
-            GUI.color = new Color(0f, 0f, 0f, 0.45f);
+            GUI.color = Faded(new Color(0f, 0f, 0f, 0.45f), alpha);
             GUI.DrawTexture(new Rect(at.x - r - 3f, at.y - r - 3f, (r + 3f) * 2f, (r + 3f) * 2f), disc);
             var c = ColourOf(holds);
             // A hand that holds nothing of its own wears the other's element, paler (one element is on both hands).
-            GUI.color = own ? c : Color.Lerp(c, new Color(0.2f, 0.2f, 0.2f), 0.45f);
+            GUI.color = Faded(own ? c : Color.Lerp(c, new Color(0.2f, 0.2f, 0.2f), 0.45f), alpha);
             float grow = h.Down[hand] ? 1f + 0.04f * Mathf.Sin(Time.unscaledTime * 14f) : 1f;
             GUI.DrawTexture(new Rect(at.x - r * grow, at.y - r * grow, r * 2f * grow, r * 2f * grow), disc);
-            GUI.color = Color.white;
+            GUI.color = Faded(Color.white, alpha);
             Text(new Rect(at.x - 50f, at.y - 10f, 100f, 20f), holds ?? "empty", label, shadow);
             var gesture = HandsDef.GestureName(h.Gesture[hand]);
             var below = gesture != null ? (h.Down[hand] ? $"{gesture}  charge {world.HandCharge(Me, hand)}" : gesture) : Side(hand);
             Text(new Rect(at.x - 70f, at.y + ring + 6f, 140f, 18f), below, small, smallShadow);
+            GUI.color = Faded(Color.white, alpha);
             Prompts.Draw(new Rect(at.x - 60f, at.y - ring - 30f, 120f, 22f), HandButtons[hand], small, true, smallShadow);
         }
 
@@ -178,6 +197,8 @@ namespace Punchy.Chemistry
             Text(new Rect(cx - 90f, cy - 20f, 180f, 20f), $"attune the {Side(hand)} hand", small, smallShadow);
             Prompts.Draw(new Rect(cx - 90f, cy + 2f, 180f, 20f), $"{InputGlyphs.Token("<Gamepad>/rightTrigger")} right hand", small, true, smallShadow);
         }
+
+        static Color Faded(Color c, float alpha) => new Color(c.r, c.g, c.b, c.a * alpha);
 
         static void Text(Rect rect, string text, GUIStyle style, GUIStyle under)
         {
