@@ -109,6 +109,7 @@ pygmies (#35, #10), turtle folk (#38). Core rule throughout: small, varied, seed
   under water; NPCs that do are forced to resurface. Carded: A-102 (diving, breath), P-34 (meter).
   Zach 11-12: the city already exists, it's just not populated; the turtle folk igloos in the mountains are empty too.
   Carded: A-103 (turtle folk and sea folk races, residents in the igloos and shell domes).
+  Zach 11-12: the turtle folk are tall, ancient, and magical (A-103 row 1).
 - Castle walls: modular walls, towers, a working portcullis, interior halls (#254).
 - Dock town with a big pier, a boardable galleon and a busy main road (#255).
 - Floating islands off the coast, walkable, with caves and a new kind of town (#256).
