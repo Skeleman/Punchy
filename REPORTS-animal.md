@@ -3695,6 +3695,16 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
 - Pins: Fauna_Fingerprint 151753F3 before and after. No landmark or placement change.
 - Suite: "completed: 33/33 passed" (PlayMode), the full run after the last change.
 
+### Row 3b: the camera follows the dive under the water (c91c6dec)
+- Correction to row 3: Underwater.cs and ThirdPersonCamera already let the lens go under (P-19). What kept it up in the row 3 check was the lake's bank. The camera sits 8 m behind the player, and at that lake that spot is over the shore, so the ground clamp (ground + GroundClearance) lifted the lens to 1.58 m above the water ("-camlog": arm 8.45 m against 8 wanted, ground 0.5 m under the lens). Over open water it would have gone under.
+- Fix (add-only, ThirdPersonCamera, 4 lines plus a comment): when the pivot is under water (SampleGround at the pivot: HasWater, below WaterSurface, above the bed), the camera slides in along its arm, using the existing P-20 slide, instead of rising over the bank. The lens stays under, with the diver. Cosmetic and local, the same solo, host and client.
+- Check: `-island v3 -camlog`, shot list `-place lake ... -setbody Human -playerdive water follow` (a new `follow` option: the player's own camera, no side shot camera, and the lens is logged each second). Before: "lens under False (0.00 m, none), lens y 1.58 vs surface" at a 2.73 m dive. After: "lens under True (0.32 m, a lake or river), lens y -0.32 vs surface", arm 6.2 m. The body in the shot is the editor's saved one (pivot 2.42 m), not a human; `-setbody Human` didn't take.
+- Shot: D:/Unity/PunchyMilestones/A-102/row3b-under.jpg (800x450). Under the lake: Underwater's tint and motes, the surface and the shore above, the diver ahead.
+- For P-lane: the lens only goes about 0.3 m under at a bank, because the slide keeps GroundClearance above the bed. Over open water it goes as deep as the orbit puts it.
+- Test note: `LiveFolk_BeastResponse` fails while Temp/PlayArgs.txt holds a shot list, and `Place_PropFindsAndFramesWharf` fails on any second suite run in the same editor session (LogWatch keeps the identical "FishWharf found in all" line from the run before). Both pass after clearing the args and a domain reload. A "Connection Lost" dialog also blocked the editor's main thread once after a test run, until it was closed.
+- Pins: Fauna_Fingerprint 151753F3 before and after. No landmark or placement change.
+- Suite: "completed: 33/33 passed" (PlayMode), the full run after the last change.
+
 ## A-103: folk homes, people in the turtle igloos and the sea folk city, branch fauna/folk-homes
 
 ### Row 1: turtle folk (done, verified)
