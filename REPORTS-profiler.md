@@ -2,6 +2,26 @@
 
 Newest first.
 
+## Job 66: R-19 steep rock baseline (render/steep-triplanar b30c967f vs its base, main b66b4c2a), 2026-11-13 (q108.job): canyon within the bar, mountain FAIL (+2.4 ms GPU at Medium, 20 m)
+**Setup:** Profile builds, 1920x1080, uncapped, noon, Clear, `-weatherseed 4`, `-body default`, arms alternated, 3 rounds each, Medium and High. Views from the runner's new `-benchface x,z,dist` (b/bench-stress 65c3b0ce): the player stands dist m downhill of the face point, facing it, camera pitched up at it (the logged poses below repeat exactly). The first attempt stopped on a crash on main (reported below); this is the full rerun, with no crash in 48 games.
+
+| view (pose) | Medium main | Medium R-19 | **delta** | High main | High R-19 | delta |
+|---|---|---|---|---|---|---|
+| canyon 20 m (2258,-452, yaw 23, pitch -40) | 7.67 | 7.53 | -0.13 | 9.5 | 9.53 | +0.03 |
+| canyon 150 m (2209,-573, yaw 23, pitch -22) | 11.53 | 11.97 | **+0.43** | 14.57 | 15.4 | **+0.83** |
+| mountain 20 m (-3126,2898, yaw -169, pitch -40) | 5.47 | 7.9 | **+2.43** | 6.73 | 8.4 | **+1.67** |
+| mountain 150 m (-3101,3025, yaw -169, pitch -40) | 6.73 | 7.93 | **+1.20** | 8.7 | 8.17 | -0.53 |
+
+(GPU ms, mean of 3 rounds; rounds agree within 0.3-0.5 ms. CPU moves with the GPU, under 1 ms.)
+- **Pass line (<= +0.3 ms GPU at Medium on every view): FAIL** on canyon 150 m (+0.43) and both mountain views (+1.2, +2.4).
+- **Baseline answer to Zach's "feasible?":** where steep rock fills the screen, R-19 1c costs about **+2.4 ms GPU at Medium** on the laptop (5.5 -> 7.9 ms, +44%). Where it's a part of the frame (the canyon), it's ~0-0.4 ms. So it's affordable as a look, but not at Medium as it stands.
+- **Which part costs:** not measured by pass (the laptop's GPU pass timers read nothing, and a RenderDoc capture only puts it all in the terrain draw). By elimination: the cost is largest where the 1c slab noise is strongest. The mountain faces carry the slabs at full strength; on the canyon and mesa strata faces, R-19 damps beds and slabs to 40% (row 1b), and the canyon 20 m view costs nothing. That points at **1c's value-noise slabs (about 5 noise samples per close rock pixel) and the 1b beds**, not the triplanar base. Mountain 150 m at High costing less than main fits too: High's main build draws more of main's per-pixel micro detail there, which R-19 fades out on faces.
+- **Cheap options for the render lane:** slabs and beds at High and up only (Medium keeps the triplanar rock colour), or one noise octave instead of two, or fade the slabs out sooner with screen size. A per-option A/B on the mountain 20 m pose is 20 minutes for me once a branch has switches.
+- **Look:** `results/sheets/r19_medium.jpg` (main | R-19, the four Medium views): the canyon wall loses its vertical smears; the mountain's bright speckle field turns to soft slabs.
+- **Not done yet:** the NaN check (`-stopnan 0 -sparkleprobe r19` at the four poses). Next time the laptop is between jobs (after job 67), with a line here.
+
+Cost: laptop total $848 (laptop session e163d8ab; 2 builds, 48 + 3 games).
+
 ## Job 49e rerun: R-12 warp bake (b/r12-warp-bake 9887361f), 2026-11-13 (q105b.job): saves 0.6-1.2 ms GPU in storms, but the look is wrong: the rims become vertical streaks. Recommend option 1
 **Setup:** as q105 (job 49's storm views, High, 3 rounds, 1920x1080, uncapped), with the sampler fix; HazeLut compiles and nothing draws magenta. Arms: bake (default), per-read (`-warpbake 0`, R-12 as merged), main db9ca83e.
 
