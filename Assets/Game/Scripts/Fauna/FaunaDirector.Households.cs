@@ -29,7 +29,8 @@ namespace Punchy.Fauna
     /// ("house" in a town or fishing village, "hut" for a hermit, "igloo", "dome") and its members. All of it comes from
     /// the door's spot, so it is the same on every machine with nothing sent or stored. Taken marks the members out in
     /// the world just now (host only: the rest are away, or not yet spawned). Lost marks the members who have died (A-105
-    /// row 2, host only, for this session): their beds stay empty, so nobody new moves in yet.
+    /// row 2, for this session): their beds stay empty, so nobody new moves in yet. A joined client marks the deaths it
+    /// saw (A-106 row 3), so its folk speak of them as lost too.
     /// </summary>
     public sealed class Household
     {
@@ -51,7 +52,8 @@ namespace Punchy.Fauna
             _ => "head"
         };
 
-        /// <summary>Whether a member has died this session (host only: a client never marks one).</summary>
+        /// <summary>Whether a member has died this session (the host marks each; a joined client the ones it saw go,
+        /// A-106 row 3: FaunaDirector.WatchKinLost).</summary>
         public bool Gone(int member) => (Lost >> member & 1u) != 0;
 
         /// <summary>What member other is to member speaker. Elders are the head's parents, children the head's and the
@@ -613,6 +615,10 @@ namespace Punchy.Fauna
             houseArrivals = houseWrongDoor = 0;
             houseQueryWorld = null;
             houseQuery = default;
+            // (A joined client's lost marks lived in these houses: its kin watch starts over too.)
+            kinMarked.Clear();
+            kinSeen.Clear();
+            kinWorld = null;
         }
     }
 }
