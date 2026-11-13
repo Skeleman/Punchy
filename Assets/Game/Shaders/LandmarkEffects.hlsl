@@ -134,7 +134,9 @@ struct FallVertex
     float fallLength;   // metres of fall, for streak scale
 };
 
-/// A curtain of water: leaves the lip horizontally and falls on a parabola, widening a little as it drops.
+/// A curtain of water: leaves the lip horizontally and falls on a parabola. In the open (R-21) it is one curved sheet:
+/// its middle carries further out than its sides, it narrows a little as it thins, and its edge columns peel away as
+/// strands; a cave's leaves a narrow notch and spreads as it drops.
 FallVertex BuildWaterfall(uint vertex, uint instance)
 {
     LandmarkEmitter e = _LandmarkEmitters[instance];
@@ -146,13 +148,18 @@ FallVertex BuildWaterfall(uint vertex, uint instance)
 
     float3 outDir = float3(e.outDir.x, 0, e.outDir.y);
     float3 across = normalize(cross(float3(0, 1, 0), outDir));
-    // A cave's fall leaves a narrow notch and spreads more as it drops.
-    float width = e.shape.y * lerp(1 + 0.3 * t, 0.55 + 0.75 * t, e.underRock);
-    float3 p = e.position + outDir * e.shape.x * t - float3(0, e.drop * t * t, 0) + across * (u - 0.5) * width;
+    float open = 1 - e.underRock;
+    float side = u * 2 - 1;
+    // The sheet bows: its middle carries up to 15% further out than its sides.
+    float reach = e.shape.x * (1 + 0.15 * open * (1 - side * side));
+    float width = e.shape.y * lerp(1 - 0.12 * t, 0.55 + 0.75 * t, e.underRock);
+    float3 p = e.position + outDir * reach * t - float3(0, e.drop * t * t, 0) + across * (u - 0.5) * width;
+    // The outer columns splay outwards as they fall, strands peeling off the sheet's sides.
+    p += across * sign(side) * smoothstep(0.75, 1, abs(side)) * t * t * min(0.08 * e.drop, 1.2) * open;
     // Ripple the sheet so it isn't a perfect surface.
     p += outDir * sin(u * 9.0 + t * 4.0 + _PunchyClock * 1.7) * 0.15 * t;
 
-    float3 tangent = normalize(outDir * e.shape.x - float3(0, 2 * e.drop * t, 0));
+    float3 tangent = normalize(outDir * reach - float3(0, 2 * e.drop * t, 0));   // nan-safe: reach > 0
     FallVertex o;
     o.positionWS = p;
     o.normalWS = normalize(cross(across, tangent));
