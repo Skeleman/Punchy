@@ -37,3 +37,26 @@ Handoffs from the release subagent (tree Punchy-release). Earlier R-10 merge and
 - Risks:
   - The Medium look loses lanterns, items and rooms nearer than before, as intended. Job 51 checks the cost.
   - Caves are W-135 and creature extras are A-99; this row left both alone.
+
+## v0.14.0 candidate (11-12, release subagent, branch rc/v0.14.0)
+- rc commit: 56b15b8c "Release v0.14.0: bundleVersion 0.14.0" on main 7552dcf3 (load veil, PR #289). Only ProjectSettings
+  bundleVersion changed (0.1.0 to 0.14.0; no earlier release had bumped it). Pushed; not tagged, not published.
+- Suite (rule 19, full PlayMode on 56b15b8c): 28 passed, 0 failed, 0 skipped. Before the rebase, a run on the old rc
+  commit failed only LiveFolk_BeastResponse (43.9 vs > 44, the known flaky threshold). It passed on 2 isolated reruns.
+- Pins for v0.14.0: Landmarks_V3 117 689D5348; Fauna_Fingerprint AD723954 (both match main's W-138 quote).
+- Build: Builds/Windows/Punchy.exe in the release tree, Windows 64-bit, non-development. BuildPlayer result Succeeded,
+  0 errors, 20 warnings, one scene (SampleScene). No old build was there to archive. The editor is closed and the tree is clean.
+- Smoke, solo: launched with no -screen flags. It reached the island (shot 'solo-spawn' good), went to 530,958, walked
+  30 m east and arrived (shot 'solo-walk' good), then quit by itself with a clean shutdown. Player.log: 0 exceptions,
+  0 errors. Only 2 notable lines: "[grand falls] none: lake not found, top 140.4" (world-gen info) and
+  "Releasing render texture that is set to be RenderTexture.active!" (a Unity warning while the debug contact sheet was written).
+- Smoke, host/join: SKIPPED. There is no firewall rule for Builds\Windows\Punchy.exe (rules exist only for Builds\Dev and
+  Builds\Bench), and -host listens on all interfaces, so a prompt would appear. Zach's first host from this build will
+  get the Windows firewall prompt.
+- Zip: Punchy-v0.14.0-windows.zip, 235 files, 55,589,642 bytes (53 MB). SHA-256
+  0096dea4d08d8da8a8d198f1fb861d50c271d69c81d8412babcc07c1234bea99. Checks: no backslashes, no DoNotShip, Punchy.exe present.
+- Notes: release/release-notes-v0.14.0.md (b9ca6d65), with the load veil line under "Faster and steadier".
+- Hold? Nothing blocks. Watch-outs:
+  - Multiplayer between builds is gated only by the Netcode protocol hash (no game-version check).
+  - The host/join smoke is untested on this exe.
+  - LiveFolk_BeastResponse is still flaky at its threshold.
