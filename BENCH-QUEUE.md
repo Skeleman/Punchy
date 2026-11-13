@@ -689,3 +689,9 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
 ## Job 70 (2026-11-13, QUEUED after 69, low priority; supervisor, for A-101 row 1): joined-client flora build
 - (A) main vs (B) `fauna/route-climbing` a485b9a5. Build host plus a build joined client, High, uncapped.
 - Measure the joined client's island-load hitch: the time and the GC alloc of FaunaDirector's ladders-only flora blob build (B only), and the total load time on A vs B. Three loads each.
+
+## Job 71 (2026-11-13, QUEUED after 69; supervisor, for R-20 row 1, #286): sun shadow filter
+- One build of `render/shadow-still` 1a380545: `-sunshadowfilter low` (A, as main) vs the default (B, High filter from the Medium preset up). Profile builds, 1920x1080, Medium and High, uncapped, ABBA, 300 frames each, 12:00 Sunny.
+- Views: a forest and a town, standing and a 30 m walk.
+- Record: whole-frame GPU and main-thread ms. Rule 23 applies at Medium.
+- If time allows, a third arm: main-light shadow map 4096 (a local change to PC_RPAsset, not committed) with the High filter, same views, so Zach can weigh it for the 30-60 m crawl that the filter does not cure.
