@@ -50,6 +50,16 @@ namespace Punchy.Fauna
         }
 
         readonly System.Collections.Generic.List<Ripple> ripples = new System.Collections.Generic.List<Ripple>();
+        /// <summary>How many live ripples are within a distance of a spot (the play-mode tests, W-134).</summary>
+        public int RipplesNear(float2 at, float distance)
+        {
+            var n = 0;
+            foreach (var r in ripples)
+                if (math.distance(r.At, at) <= distance)
+                    n++;
+            return n;
+        }
+
         /// <summary>Per swimmer: where and when it dropped its last ripple.</summary>
         NativeHashMap<Entity, float3> lastRipple;
 
@@ -103,7 +113,8 @@ namespace Punchy.Fauna
                     var e = Entities[i];
                     if (!Wet.TryGetValue(e, out var atSurface) || (e.Index + Frame) % Stagger == 0)
                     {
-                        var g = Terrain.SampleGround(s.Position.xz);
+                        // (The float3 sample: in a cave pool or stream it is that water's, W-134.)
+                        var g = Terrain.SampleGround(s.Position);
                         var under = g.HasWater ? g.WaterSurface - s.Position.y : float.MaxValue;
                         atSurface = g.HasWater && g.WaterSurface - g.Height >= 0.15f && under >= -Above && under <= Below;
                         Wet[e] = atSurface;

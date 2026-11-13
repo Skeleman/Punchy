@@ -101,20 +101,23 @@ namespace Punchy.Fauna
             // What the body can do, for player movement: its pace next to a human's, and flight.
             var human = RoleIndex(DirectorRole.Folk);
             var humanRun = human >= 0 ? blobs[human].Value.RunSpeed * (blobs[human].Value.Size.x + blobs[human].Value.Size.y) * 0.5f : 0f;
+            // (Its climbing skill: the species', or "-climbskill N".)
+            var climbSkill = Climbing.SkillOverride >= 0 ? (byte)math.min(Climbing.SkillOverride, Climbing.Most) : b.ClimbSkill;
             var abilities = new Punchy.Player.PlayerBody
             {
                 SpeedFactor = humanRun > 0f ? math.clamp(b.RunSpeed * size / humanRun, 0.35f, 2.5f) : 1f,
                 Flies = b.Habitat == Habitat.Flies,
                 FlySpeed = PlayerSpecies.PlayerFlySpeed > 0f ? PlayerSpecies.PlayerFlySpeed
                          : PlayerSpecies.Body.PlayerFlySpeed > 0f ? PlayerSpecies.Body.PlayerFlySpeed : b.FlySpeed * 2f,
-                Climbs = b.Hands || b.Climbing > 0f || b.Crawls,
-                ClimbsTrees = b.ClimbsAs != ClimbAbility.None,
-                ClimbsWalls = b.ClimbsAs == ClimbAbility.AnySurface,
+                ClimbSkill = climbSkill,
                 // (A lizard scurries up; a tree climber as nimbly as it's keen: a monkey quick, a cat less, a bear hauling.)
-                ClimbSpeed = b.ClimbsAs == ClimbAbility.AnySurface ? 1.4f : math.min(0.6f + 1.6f * b.Climbing, 1.6f),
+                ClimbSpeed = Climbing.BaseSpeed(climbSkill, b.Climbing),
                 // (A lava swimmer walks on land as a player; only fish swim and flop.)
                 Swims = b.Habitat == Habitat.Swims && !b.LavaDweller,
                 Hovers = b.Haunts,
+                // (A-102: its breath under water, as the same species' creatures have it.)
+                BreathesWater = b.BreathesWater,
+                HoldBreath = b.HoldBreath,
                 Size = human >= 0 && blobs[human].Value.StandHeight > 0f
                     ? math.clamp(b.StandHeight * size / (blobs[human].Value.StandHeight * (blobs[human].Value.Size.x + blobs[human].Value.Size.y) * 0.5f), 0.25f, 3f)
                     : 1f
@@ -122,7 +125,7 @@ namespace Punchy.Fauna
             // (Its jump: the species' own, else as high as it's big next to a human, a climber springier.)
             var jump = PlayerSpecies.PlayerJump > 0f ? PlayerSpecies.PlayerJump : PlayerSpecies.Body.PlayerJump;
             if (jump <= 0f)
-                jump = math.clamp(math.sqrt(math.max(abilities.Size, 0.01f)), 0.45f, 1.4f) * (b.Climbing > 0.5f || b.ClimbsAs != ClimbAbility.None ? 1.25f : 1f);
+                jump = math.clamp(math.sqrt(math.max(abilities.Size, 0.01f)), 0.45f, 1.4f) * (b.Climbing > 0.5f || b.ClimbSkill >= Climbing.Tree ? 1.25f : 1f);
             abilities.JumpFactor = jump;
             using var bodyQuery = em.CreateEntityQuery(typeof(Punchy.Player.PlayerBody));
             if (!bodyQuery.TryGetSingletonEntity<Punchy.Player.PlayerBody>(out var bodyEntity))

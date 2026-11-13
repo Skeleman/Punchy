@@ -163,6 +163,7 @@ namespace Punchy.Fauna
         {
             // (The settling job reads the flora blob disposed below.)
             EndSettling();
+            TeardownHouses();
             critterCells.Clear();
             pendingSpawns.Clear();
             System.Array.Clear(pendingTiers, 0, pendingTiers.Length);
@@ -177,6 +178,7 @@ namespace Punchy.Fauna
                 if (floraEntity != Entity.Null && em.Exists(floraEntity))
                     em.DestroyEntity(floraEntity);
             }
+            ClimbLadders.Flora.Data = default; // A-101: before the blob it points at is freed
             if (floraBlob.IsCreated)
                 floraBlob.Dispose();
             floraBlob = default;
@@ -257,7 +259,7 @@ namespace Punchy.Fauna
                 // A-55 (#102): the flora lookup's shape-only grows were ~0.6 s of the island-ready frame. Start them on
                 // workers and build once they're done (a few frames later; nothing spawns before), or after 10 s regardless.
                 // (-syncshapes: the old way, all in the build frame, for A/B.)
-                if (simWorld != null && pendingShapes == null && System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-syncshapes") < 0)
+                if (pendingShapes == null && System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-syncshapes") < 0)
                 {
                     pendingShapes = Punchy.Flora.FloraPlacement.StartObstacleShapes(palette);
                     shapesSince = Time.realtimeSinceStartup;
@@ -279,6 +281,8 @@ namespace Punchy.Fauna
             var clock = new FaunaClock { Night = Cycle != null ? Cycle.Night : 0f, Hour = Cycle != null ? Cycle.TimeOfDay : 12f };
             queryWorld.EntityManager.SetComponentData(settingsEntity, clock);
             Comfort.Hour.Data = new float2(clock.Hour, Cycle != null ? 1f : 0f);
+            WatchHouses(source);   // (A-105 -households: on a client too)
+            WatchKinLost(source);  // (A-106 row 3: a joined client only)
             if (simWorld == null)
                 return;
             // A-83 (#62): the rest writes the simulation world (its clock, spawns and despawns), so it runs in
@@ -340,6 +344,7 @@ namespace Punchy.Fauna
                     SpawnChamberBands(source);
                     SpawnWildFolk(source);
                     SpawnCrossingFishers(source);
+                    SpawnSeaVisitors(source);
                 }
             }
             using (CrittersMarker.Auto())
@@ -435,7 +440,10 @@ namespace Punchy.Fauna
                 if ((players.Count == 0 || NearestPlayer(xz) > letGo || states[i].Gone) && states[i].Mode != CreatureMode.Held)
                 {
                     if (states[i].Gone)
+                    {
                         Caught++;
+                        HouseMemberDied(states[i]);
+                    }
                     far.Add(entities[i]);
                     continue;
                 }

@@ -74,6 +74,12 @@ namespace Punchy.Fauna
             return true;
         }
 
+        /// <summary>
+        /// M-05: the builder of a kind, or null when none registered; the Model Lab builds one in edit mode with it. Only
+        /// call it outside play mode or from StoneColossi: builders set the kind's static rig fields.
+        /// </summary>
+        public static Builder BuilderFor(Kind kind) => builders != null && builders.TryGetValue(kind, out var b) ? b : null;
+
         /// <summary>The definition standing in each slot (a kept one when a "-colossus" flag swapped it in).</summary>
         static ColossusDefinition[] defs = new ColossusDefinition[0];
 

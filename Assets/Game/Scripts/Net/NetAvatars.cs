@@ -14,7 +14,9 @@ namespace Punchy.Net
     /// travels as its index here, so every machine must have the same list in the same order (append, never reorder).
     /// For each remote NetPlayer this spawns a creature puppet of their species, coat and individual, which
     /// PlayerAvatarSystem drives from the interpolated ghost; it also tells the network which body the local player
-    /// has (FaunaDirector's Player Species), and the menu's Multiplayer tab can switch it.
+    /// has (FaunaDirector's Player Species), and the menu's Multiplayer tab can switch it. It also owns the local player's
+    /// eyewear (A-103 row 5): G puts the pair on or takes it off (glasses over bat eyes, glow goggles over any other),
+    /// it's drawn on every body that wears it, and LocalVision is how the local view takes the light (BatVision).
     /// </summary>
     public class NetAvatars : MonoBehaviour
     {
@@ -41,6 +43,17 @@ namespace Punchy.Net
 
         /// <summary>The colouring the local player picked on the Character tab (-1: the one their individual draws).</summary>
         public int LocalCoat = -1;
+
+        /// <summary>Whether the local player has their eyewear on (G; "-eyewear" starts with it on).</summary>
+        public bool Wearing;
+
+        /// <summary>The local player's eyewear (an Eyewear value): which pair, if Wearing, depends on their body.</summary>
+        public byte LocalEyewear => Wearing ? Eyewear.For(BodyVision) : Eyewear.None;
+
+        float BodyVision => Fauna != null && Fauna.PlayerSpecies != null ? Fauna.PlayerSpecies.Vision : 0f;
+
+        /// <summary>How the local view takes the light (0 normal, 1 a bat's): the body's own, replaced by what's worn.</summary>
+        public static float LocalVision { get; private set; }
 
         void OnEnable() => Punchy.UI.MainMenu.AddTab("Character", 5, nav => CharacterTab.Draw(this, nav));
 
@@ -70,6 +83,22 @@ namespace Punchy.Net
             for (int i = 0; i < args.Length - 1; i++)
                 if (args[i] == "-body")
                     SetLocalSpecies(PlayableSpecies.FindIndex(s => s != null && s.name == args[i + 1]));
+            Wearing = System.Array.IndexOf(args, "-eyewear") >= 0;
+            // (How that sees: the view's exposure, bloom and haze, made at runtime beside this.)
+            if (GetComponent<Punchy.CameraRig.BatVision>() == null)
+                gameObject.AddComponent<Punchy.CameraRig.BatVision>();
+        }
+
+        /// <summary>G, when no panel is open, puts the eyewear on or takes it off. (No pad binding yet: the d-pad is the
+        /// emotes'.)</summary>
+        void UpdateEyewearKey()
+        {
+            var keyboard = UnityEngine.InputSystem.Keyboard.current;
+            if (keyboard == null || Punchy.UI.Overlay.AnyOpen || !keyboard.gKey.wasPressedThisFrame)
+                return;
+            Wearing = !Wearing;
+            var pair = Eyewear.For(BodyVision) == Eyewear.Glasses ? "glasses" : "glow goggles";
+            Debug.Log($"NetAvatars: {(Wearing ? "put on" : "took off")} {pair}");
         }
 
         void OnDisable()
@@ -94,6 +123,9 @@ namespace Punchy.Net
 
         void Update()
         {
+            UpdateEyewearKey();
+            var eyewear = LocalEyewear;
+            LocalVision = Eyewear.Vision(BodyVision, eyewear);
             // The client world, or the local world when playing alone (our own look applies there too).
             var client = NetWorlds.Client;
             if (client == null || !client.IsCreated)
@@ -122,9 +154,9 @@ namespace Punchy.Net
                 Debug.LogWarning($"NetAvatars: the player's species '{Fauna.PlayerSpecies.name}' isn't in Playable Species, so other players see a capsule.");
             }
             if (speciesQuery.IsEmpty)
-                em.CreateSingleton(new LocalPlayerSpecies { Index = local }, "LocalPlayerSpecies");
+                em.CreateSingleton(new LocalPlayerSpecies { Index = local, Eyewear = eyewear }, "LocalPlayerSpecies");
             else
-                speciesQuery.SetSingleton(new LocalPlayerSpecies { Index = local });
+                speciesQuery.SetSingleton(new LocalPlayerSpecies { Index = local, Eyewear = eyewear });
 
             // Our own body wears our look (FaunaDirector respawns it whenever it rebuilds).
             if (individual != 0 && avatarQuery.TryGetSingletonEntity<PlayerAvatar>(out var avatar))
@@ -136,9 +168,11 @@ namespace Punchy.Net
                 var coat = blob.Coats.Length == 0 ? body.Coat
                     : LocalCoat >= 0 ? math.min(LocalCoat, blob.Coats.Length - 1)
                     : blob.PickCoat(((individual * 2654435761u) >> 8) / 16777216f);
-                if (state.Individual != individual || body.Coat != coat)
+                var worn = (byte)((state.Worn & ~CreatureWorn.Eyes) | Eyewear.WornBits(eyewear));
+                if (state.Individual != individual || body.Coat != coat || state.Worn != worn)
                 {
                     state.Individual = individual;
+                    state.Worn = worn;
                     em.SetComponentData(avatar, state);
                     body.Coat = coat;
                     em.SetComponentData(avatar, body);
@@ -162,7 +196,17 @@ namespace Punchy.Net
                 var has = remote.Puppet != Entity.Null && em.Exists(remote.Puppet);
                 var same = has && remote.Look.Species == look.Species && remote.Look.Coat == look.Coat && remote.Look.Individual == look.Individual;
                 if (wants && same)
+                {
+                    // Their eyewear, as they have it on (the rest of what they wear is each machine's: Items' gear).
+                    var rs = em.GetComponentData<CreatureState>(remote.Puppet);
+                    var rworn = (byte)((rs.Worn & ~CreatureWorn.Eyes) | Eyewear.WornBits(look.Eyewear));
+                    if (rs.Worn != rworn)
+                    {
+                        rs.Worn = rworn;
+                        em.SetComponentData(remote.Puppet, rs);
+                    }
                     continue;
+                }
                 if (has)
                     em.DestroyEntity(remote.Puppet);
                 if (wants)

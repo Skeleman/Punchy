@@ -586,6 +586,8 @@ Shader "Punchy/Flora"
                     float h = input.windowHour;
                     float late = saturate(-_PunchySunDirection.y * 1.6);
                     float on = smoothstep(0.25, 0.55, _PunchyNight) * (h > 0.85 ? 1 : step(late, 0.3 + 0.7 * h));
+                    // Underground there is no day: a cave's lamps (a tunnel's wall lanterns) stay lit.
+                    on = max(on, _FloraInCave);
                     color += windowLight * on * 2.2;
                 }
 

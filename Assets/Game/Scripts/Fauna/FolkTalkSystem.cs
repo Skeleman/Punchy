@@ -243,7 +243,8 @@ namespace Punchy.Fauna
                     PlayerSpecies = playerKind != null && playerKind == species?.Body.name ? null : playerSpecies,
                     // (The same stance the host's brain works out: a hash of who it is and the player's body.)
                     Stance = Stance(b.Upright && b.Hands && !b.Haunts ? b.StanceToward(playerIndex, s.Individual) : FolkStance.Neutral),
-                    Hour = hour
+                    Hour = hour,
+                    Dry = FolkState.OutOfWater(s.Position, b.WalksBed, terrain)
                 };
                 var text = archive.Pick(who, ref rng, answering ? emoted.ToString() : null);
                 if (string.IsNullOrEmpty(text))
@@ -464,7 +465,7 @@ namespace Punchy.Fauna
         }
 
         /// <summary>Townsfolk awake and about: upright, with hands, not a ghost or a player's body, not asleep, fleeing or at home.</summary>
-        static bool CanTalk(in CreatureState s, ref CreatureBlob b) =>
+        public static bool CanTalk(in CreatureState s, ref CreatureBlob b) =>
             b.Upright && b.Hands && !b.Haunts &&
             s.Mode != CreatureMode.Puppet && s.Mode != CreatureMode.Sleep && s.Mode != CreatureMode.Flee && s.Mode != CreatureMode.Rest &&
             s.Mode != CreatureMode.Home;   // (indoors, or on the way: not through the walls)
@@ -479,7 +480,7 @@ namespace Punchy.Fauna
         public static bool Walled(in DynamicBuffer<Punchy.Flora.KitBox> kit, in CreatureState s, ref CreatureBlob b, float3 player) =>
             Punchy.Flora.KitCollision.Blocks(kit, s.Position + new float3(0f, b.StandHeight * s.Scale * 0.9f, 0f), player + new float3(0f, 1.5f, 0f));
 
-        static float3 Head(in CreatureState s, ref CreatureBlob b) => s.Position + new float3(0f, b.StandHeight * s.Scale + 0.45f, 0f);
+        public static float3 Head(in CreatureState s, ref CreatureBlob b) => s.Position + new float3(0f, b.StandHeight * s.Scale + 0.45f, 0f);
 
         void Tidy(float now)
         {

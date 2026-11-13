@@ -61,6 +61,8 @@ namespace Punchy.Flora
         public readonly List<Vector3> Perches = new List<Vector3>();
         /// <summary>Its chimneys' flue tops (W-43c, where smoke rises), before the plant's own rotation and scale.</summary>
         public readonly List<Vector3> Chimneys = new List<Vector3>();
+        /// <summary>W-147: its ladders (grade-1 climbs), before the plant's own rotation and scale (see FloraPlacement.NearLadders).</summary>
+        public readonly List<Punchy.Terrain.ClimbLadder> Ladders = new List<Punchy.Terrain.ClimbLadder>();
         /// <summary>W-128: where its moored boats' undersides sit (a keel plank's middle), before the plant's own
         /// rotation and scale, for the waterline check.</summary>
         public readonly List<Vector3> Boats = new List<Vector3>();
@@ -76,6 +78,12 @@ namespace Punchy.Flora
         /// <summary>Refactor 3.5: nothing in it moves but door leaves (FloraMeshBuilder.Moves), so it draws with the static
         /// shader variant, which skips the wind and the other vertex motions.</summary>
         public bool Static;
+        /// <summary>
+        /// W-136: where it meets the ground, as capsules fitted to its mesh's cross-section just above its base (before
+        /// the plant's own rotation and scale), each with the width of the part it belongs to (a post's, a wall's, a
+        /// boulder's). The ground, rock or tile under it darkens round them (ContactShade.ModelFeet). Empty for ground-layer plants.
+        /// </summary>
+        public readonly List<Punchy.Terrain.ContactShade.Contact> Feet = new List<Punchy.Terrain.ContactShade.Contact>();
 
         /// <summary>Forms that cast no shadow (see CastsShadows).</summary>
         public static bool Shadowless(FloraForm form) =>
@@ -123,6 +131,12 @@ namespace Punchy.Flora
             foreach (var b in Pending)
                 if (b != null && b.Moves())
                     Static = false;
+            if (Species != null && Species.Layer != FloraLayer.Ground && Pending.Length > 0 && Pending[0] != null)
+            {
+                var segments = new List<Vector4>();
+                Pending[0].Slice(Punchy.Terrain.ContactShade.SliceHeight, segments);
+                Punchy.Terrain.ContactShade.FitFeet(segments, Feet);
+            }
             for (int lod = 0; lod < Pending.Length; lod++)
                 Lods[lod] = Pending[lod].MakeMesh($"{MeshName} LOD{lod}");
             Pending = null;
@@ -329,6 +343,7 @@ namespace Punchy.Flora
                     model.ColliderBase.AddRange(g.ColliderBase);
                     model.Perches.AddRange(g.Perches);
                     model.Chimneys.AddRange(g.Chimneys);
+                    model.Ladders.AddRange(g.Ladders);
                     model.Boats.AddRange(g.Boats);
                     model.Windows.AddRange(g.Windows);
                     model.Pools.AddRange(g.Pools);
@@ -418,6 +433,7 @@ namespace Punchy.Flora
             public readonly List<float> ColliderBase = new List<float>();
             public readonly List<Vector3> Perches = new List<Vector3>();
             public readonly List<Vector3> Chimneys = new List<Vector3>();
+            public readonly List<Punchy.Terrain.ClimbLadder> Ladders = new List<Punchy.Terrain.ClimbLadder>();
             public readonly List<Vector3> Boats = new List<Vector3>();
             public readonly List<Vector4> Windows = new List<Vector4>();
             public readonly List<Vector4> Pools = new List<Vector4>();

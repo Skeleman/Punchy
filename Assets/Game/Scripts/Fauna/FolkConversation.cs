@@ -73,6 +73,10 @@ namespace Punchy.Fauna
         public FolkState State;
         /// <summary>How it takes the player's body (CreatureBlob.StanceToward).</summary>
         public FolkStance Stance;
+        /// <summary>The house it lives in and its place in it (A-105: Households.Of), or null for a folk with no house; its
+        /// family lines name the other members.</summary>
+        public Household House;
+        public int Member;
     }
 
     /// <summary>
@@ -87,6 +91,8 @@ namespace Punchy.Fauna
         public const string Who = "who", How = "how", Work = "work", Town = "town", News = "news", Favour = "favour", Help = "help", Bye = "bye";
         /// <summary>An animal player's one topic: going up to the folk (A-93 row 3).</summary>
         public const string Meet = "meet";
+        /// <summary>Asking after its family (A-105 row 3): a topic dialogue.json adds, answered from its household.</summary>
+        public const string Family = "family";
 
         /// <summary>The topics in menu order, with their labels (dialogue.json's conversation.topics can relabel them).</summary>
         public static readonly (string Id, string Label)[] AllTopics =
@@ -159,10 +165,14 @@ namespace Punchy.Fauna
                     night = clock.Night;
                 }
             string town = null;
-            if (s.Task != CreatureTask.Travel && s.Task != CreatureTask.Camper)
-                using (var tq = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>()))
-                    if (tq.TryGetSingleton<TerrainSource>(out var terrain))
+            var dry = false;
+            using (var tq = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>()))
+                if (tq.TryGetSingleton<TerrainSource>(out var terrain))
+                {
+                    if (s.Task != CreatureTask.Travel && s.Task != CreatureTask.Camper)
                         town = world.GetExistingSystemManaged<FolkTalkSystem>()?.TownOf(s, terrain);
+                    dry = FolkState.OutOfWater(s.Position, b.WalksBed, terrain);
+                }
 
             var hasMind = em.HasComponent<CreatureMind>(folk);
             var mind = hasMind ? em.GetComponentData<CreatureMind>(folk) : default;
@@ -183,6 +193,9 @@ namespace Punchy.Fauna
                 State = FolkState.Of(s, ref b, hasMind, mind, hour, night),
                 Stance = b.StanceToward(playerIndex, s.Individual),
             };
+            if (dry)
+                who.State.Flags |= FolkCondition.Dry;
+            Households.Of(s.Individual, out who.House, out who.Member);
             return true;
         }
 
@@ -243,9 +256,11 @@ namespace Punchy.Fauna
                 Stance = who.Stance == FolkStance.Neutral ? null : who.Stance.ToString(),
                 Mood = ctx.Mood,
                 Hour = who.State.Hour,
+                Dry = who.State.Has(FolkCondition.Dry),
             };
             TalkLine line = null;
             string text = null;
+            kinPicked = -1;
             var known = Array.Exists(AllTopics, t => t.Id == topic) || topic == Meet || archive?.Talk != null && archive.Talk.Labels.ContainsKey(topic);
             if (!known)
                 topic = Who;
@@ -265,6 +280,8 @@ namespace Punchy.Fauna
             if (answer.Gesture != null && Enum.TryParse(answer.Gesture, true, out IdleAction action))
                 answer.Action = action;
             answer.Offer = OfferOf(line, ctx);
+            if (kinPicked >= 0 && who.House != null && HouseholdLog)
+                LogKin(who, answer.Text);
             if (reaction != BeastReaction.None)
             {
                 answer.Reaction = reaction;
@@ -492,7 +509,7 @@ namespace Punchy.Fauna
                     if (roll < 0f)
                         break;
                 }
-                var text = Fill(fits[k].Text, archive, speaker, ctx, ref rng);
+                var text = Fill(fits[k], archive, speaker, ctx, ref rng);
                 if (text != null)
                 {
                     chosen = fits[k];
@@ -536,15 +553,38 @@ namespace Punchy.Fauna
                 return false;
             if (l.Job.HasValue && l.Job.Value != (who.Job != null || who.Trade != null))
                 return false;
+            if ((l.Kin != null || l.Gone) && !HasKin(who, l))
+                return false;
             return string.IsNullOrEmpty(l.When) || DialogueArchive.InHours(l.When, who.State.Hour);
         }
 
-        /// <summary>A line's text with its slots filled: {quest} (the quest it offers, in a few words) here, the rest by the
-        /// archive ({trade}, {home_town}, {player}, its culture's words); without an archive, only lines with no other slot.</summary>
-        static string Fill(string text, DialogueArchive archive, DialogueArchive.Speaker speaker, in Context ctx, ref Unity.Mathematics.Random rng)
+        /// <summary>A line's text with its slots filled: {quest} (the quest it offers, in a few words) and {kin_name} /
+        /// {kin_word} (a household member the line fits, A-105) here, the rest by the archive ({trade}, {home_town},
+        /// {player}, its culture's words); without an archive, only lines with no other slot.</summary>
+        static string Fill(TalkLine line, DialogueArchive archive, DialogueArchive.Speaker speaker, in Context ctx, ref Unity.Mathematics.Random rng)
         {
+            var text = line.Text;
             if (text == null)
                 return null;
+            if (text.IndexOf("{kin_", StringComparison.Ordinal) >= 0)
+            {
+                var who = ctx.Who;
+                var count = 0;
+                if (who.House != null)
+                    for (int m = 0; m < who.House.Members.Length; m++)
+                        if (KinFits(who, line, m))
+                            count++;
+                if (count == 0)
+                    return null;
+                var pick = rng.NextInt(count);
+                for (int m = 0; m < who.House.Members.Length; m++)
+                    if (KinFits(who, line, m) && pick-- == 0)
+                    {
+                        kinPicked = m;
+                        text = text.Replace("{kin_name}", who.House.NameOf(m)).Replace("{kin_word}", who.House.WordFor(who.Member, m));
+                        break;
+                    }
+            }
             if (text.IndexOf("{quest}", StringComparison.Ordinal) >= 0)
             {
                 if (ctx.Quest == null)
@@ -554,6 +594,46 @@ namespace Punchy.Fauna
             if (archive != null)
                 return archive.Fill(text, speaker, ref rng, 0);
             return text.IndexOf('{') >= 0 ? null : text;
+        }
+
+        // ---- Family (A-105 row 3) ----
+
+        /// <summary>The household member the last answer's line named, or -1.</summary>
+        static int kinPicked = -1;
+
+        /// <summary>Whether household member m is one a line can be about: kin of the talker, of a relation its "kin" key
+        /// names (any when it has none), living or, for a "gone" line, died.</summary>
+        static bool KinFits(in FolkTalker who, TalkLine l, int m)
+        {
+            var rel = who.House.Relation(who.Member, m);
+            if (rel == KinRelation.None || who.House.Gone(m) != l.Gone)
+                return false;
+            return l.Kin == null || Array.IndexOf(l.Kin, RelationName(rel)) >= 0;
+        }
+
+        /// <summary>Whether a line's kin key fits the talker's house: "none" when nobody else living is there, else some
+        /// member the line can be about.</summary>
+        static bool HasKin(in FolkTalker who, TalkLine l)
+        {
+            var none = l.Kin != null && Array.IndexOf(l.Kin, "none") >= 0;
+            var any = false;
+            if (who.House != null)
+                for (int m = 0; m < who.House.Members.Length && !any; m++)
+                    any = none ? m != who.Member && !who.House.Gone(m) : KinFits(who, l, m);
+            return none ? !any : any;
+        }
+
+        /// <summary>A relation as dialogue.json's kin key says it: "partner", "child", "inlaw"...</summary>
+        public static string RelationName(KinRelation r) => r.ToString().ToLowerInvariant();
+
+        /// <summary>The -households launch flag: family talk lines are logged with the house they came from.</summary>
+        static bool HouseholdLog => Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-households") >= 0;
+
+        static void LogKin(in FolkTalker who, string text)
+        {
+            var h = who.House;
+            Debug.Log($"[households] talk {h.NameOf(who.Member)} {h.Members[who.Member].Role} of {h.Kind} at ({h.Door.x:F1}, {h.Door.z:F1}) landmark {h.Landmark}: " +
+                      $"\"{text}\" names {h.NameOf(kinPicked)} {h.Members[kinPicked].Role} ({RelationName(h.Relation(who.Member, kinPicked))}{(h.Gone(kinPicked) ? ", died" : "")})");
         }
 
         static OfferKind OfferOf(string s, out string id)
@@ -735,6 +815,10 @@ namespace Punchy.Fauna
             public bool Ends;
             /// <summary>beastTalk: what the folk does with this line, or null for its reaction's usual response.</summary>
             public BeastResponse? Response;
+            /// <summary>Family talk (A-105): the household relations the line fits ("partner", "child"..., "none" for a folk
+            /// with nobody else at home), or null; Gone: it's about a member who has died.</summary>
+            public string[] Kin;
+            public bool Gone;
             /// <summary>How many things it's keyed on (traits, conditions): a more particular line is more likely.</summary>
             public int Keys;
         }
@@ -768,7 +852,9 @@ namespace Punchy.Fauna
         /// "directions", "rumour", "discount", "refuses"), "ends", "weight". The beastTalk section reads the same, its topics
         /// the reactions ("pet", "puzzled", "wary", "scared", "repelled", "awed") and "bye", with "groups" (group → species
         /// names) and two more keys for a line: "group" (the animal player's groups) and "response" ("approach", "feed",
-        /// "backoff", "flee", "none").
+        /// "backoff", "flee", "none"). Family lines (A-105) add "kin" (the household relations: "partner", "child",
+        /// "parent", "grandparent", "grandchild", "sibling", "inlaw", or "none") and "gone" (about a member who died), and
+        /// fill {kin_name} and {kin_word}.
         /// </summary>
         public static TalkBook Parse(JToken section)
         {
@@ -839,6 +925,8 @@ namespace Punchy.Fauna
                 Home = Bool(o["home"]),
                 Job = Bool(o["job"]),
                 Ends = o["ends"] != null && (bool)o["ends"],
+                Kin = Strings(o["kin"]),
+                Gone = o["gone"] != null && (bool)o["gone"],
             };
             line.OfferKind = OfferOf((string)o["offer"], out line.OfferId);
             if (o["response"] != null && Enum.TryParse((string)o["response"], true, out BeastResponse response))
@@ -874,6 +962,8 @@ namespace Punchy.Fauna
             if (line.Weather != null || line.Moods != null || line.Trades != null)
                 line.Keys++;
             if (line.Groups != null)
+                line.Keys++;
+            if (line.Kin != null || line.Gone)
                 line.Keys++;
             return line;
         }

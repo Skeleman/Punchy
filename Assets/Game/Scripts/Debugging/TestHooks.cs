@@ -93,6 +93,124 @@ namespace Punchy.Debugging
             return $"{lines.Count} {h:X8}";
         }
 
+        /// <summary>Collects the island blobs of a source, boxed, so another source's blobs can be checked against them.</summary>
+        struct BlobList : IslandCache.IBlobVisitor
+        {
+            public List<object> Blobs;
+            public List<byte[]> Bytes;
+            public void Visit<T>(string name, ref BlobAssetReference<T> blob) where T : unmanaged
+            {
+                Blobs?.Add(blob);
+                Bytes?.Add(IslandCache.BlobBytes(blob));
+            }
+        }
+
+        static List<byte[]> IslandBlobBytes(ref TerrainSource source)
+        {
+            var list = new BlobList { Bytes = new List<byte[]>() };
+            IslandCache.Each(ref source, ref list);
+            return list.Bytes;
+        }
+
+        static List<string> IslandBlobNames()
+        {
+            var names = new NameList { Names = new List<string>() };
+            var none = default(TerrainSource);
+            IslandCache.Each(ref none, ref names);
+            return names.Names;
+        }
+
+        struct NameList : IslandCache.IBlobVisitor
+        {
+            public List<string> Names;
+            public void Visit<T>(string name, ref BlobAssetReference<T> blob) where T : unmanaged => Names.Add(name);
+        }
+
+        /// <summary>
+        /// W-140: bakes the island fresh from the inputs the live island started from, and checks it byte for byte against
+        /// the live island (loaded from the cache or baked, whichever this launch did) and against a write and read of the
+        /// island file, plus the landmark hash all three ways. "" when all match, else what differs. Takes a bake (~14 s).
+        /// </summary>
+        public static string IslandCacheRoundTrip()
+        {
+            var pal = Palette();
+            if (!Source(out var live) || pal == null || IslandV2.ActiveVersion < 2) return "no v2/v3 island";
+            int version = IslandV2.ActiveVersion;
+            var types = IslandV2System.LandmarkTypes(pal);
+            var fresh = IslandCache.LastInputs;
+            IslandV2System.Bake(ref fresh, pal, types, version);
+            var problems = new List<string>();
+            var names = IslandBlobNames();
+            var freshBytes = IslandBlobBytes(ref fresh);
+            var liveBytes = IslandBlobBytes(ref live);
+            var path = System.IO.Path.Combine(Application.temporaryCachePath, $"island-roundtrip-{System.Diagnostics.Process.GetCurrentProcess().Id}.bin");
+            var loaded = IslandCache.LastInputs;
+            bool parsed = false;
+            try
+            {
+                const string key = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+                if (!IslandCache.WriteFile(path, ref fresh, version, key)) problems.Add("file not written");
+                else if (!(parsed = IslandCache.Parse(System.IO.File.ReadAllBytes(path), ref loaded, version, key, out var why))) problems.Add("file not read: " + why);
+                // A key that differs by one byte must miss.
+                if (parsed && IslandCache.Parse(System.IO.File.ReadAllBytes(path), ref live, version, "f" + key.Substring(1), out _)) problems.Add("a changed key still loaded");
+                var loadedBytes = parsed ? IslandBlobBytes(ref loaded) : null;
+                for (int i = 0; i < names.Count; i++)
+                {
+                    if (freshBytes[i] == null) problems.Add(names[i] + " unreadable after a fresh bake");
+                    if (!Same(freshBytes[i], liveBytes[i])) problems.Add($"{names[i]} live != fresh {Diff(liveBytes[i], freshBytes[i])}");
+                    if (loadedBytes != null && !Same(freshBytes[i], loadedBytes[i])) problems.Add($"{names[i]} loaded != fresh {Diff(loadedBytes[i], freshBytes[i])}");
+                }
+                if (live.BiomeKind != fresh.BiomeKind) problems.Add("biome kind");
+                if (!Same(StructBytes(live.RiverSettings), StructBytes(fresh.RiverSettings))) problems.Add("river settings live");
+                if (parsed && !Same(StructBytes(loaded.RiverSettings), StructBytes(fresh.RiverSettings))) problems.Add("river settings loaded");
+                var hFresh = IslandV2System.LandmarkHash(ref fresh, types);
+                var hLive = IslandV2System.LandmarkHash(ref live, types);
+                if (hFresh != hLive) problems.Add($"landmark hash live {hLive} != fresh {hFresh}");
+                if (parsed) { var hLoaded = IslandV2System.LandmarkHash(ref loaded, types); if (hLoaded != hFresh) problems.Add($"landmark hash loaded {hLoaded} != fresh {hFresh}"); }
+            }
+            finally
+            {
+                IslandCache.Free(ref fresh);
+                if (parsed) IslandCache.Free(ref loaded);
+                try { System.IO.File.Delete(path); } catch (System.Exception) { }
+            }
+            return string.Join("; ", problems);
+        }
+
+        static byte[] StructBytes<T>(T value) where T : unmanaged =>
+            System.Runtime.InteropServices.MemoryMarshal.AsBytes(System.Runtime.InteropServices.MemoryMarshal.CreateSpan(ref value, 1)).ToArray();
+
+        /// <summary>Where two byte strings first differ (lengths, first offset, and the bytes there).</summary>
+        static string Diff(byte[] a, byte[] b)
+        {
+            if (a == null || b == null) return "(unreadable)";
+            int n = System.Math.Min(a.Length, b.Length), at = 0, count = 0;
+            while (at < n && a[at] == b[at]) at++;
+            for (int i = at; i < n; i++) if (a[i] != b[i]) count++;
+            return $"({a.Length} vs {b.Length} bytes, {count} differ from {at}: {(at < n ? a[at] + " vs " + b[at] : "-")})";
+        }
+
+        static bool Same(byte[] a, byte[] b)
+        {
+            if (a == null || b == null || a.Length != b.Length) return false;
+            for (int i = 0; i < a.Length; i++)
+                if (a[i] != b[i]) return false;
+            return true;
+        }
+
+        /// <summary>W-140: every blob field of TerrainSource that the island file neither saves nor names as not cached
+        /// ("" when none): a new blob the bake fills must join IslandCache.Each, or a cache hit would leave it empty.</summary>
+        public static string IslandCacheMissingBlobs()
+        {
+            var known = new HashSet<string>(IslandBlobNames());
+            known.UnionWith(IslandCache.NotCached);
+            var missing = new List<string>();
+            foreach (var f in typeof(TerrainSource).GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic))
+                if (f.FieldType.IsGenericType && f.FieldType.GetGenericTypeDefinition() == typeof(BlobAssetReference<>) && !known.Contains(f.Name))
+                    missing.Add(f.Name);
+            return string.Join(", ", missing);
+        }
+
         /// <summary>
         /// River bends: the turn (degrees) at each river cell between the segment in and the segment out, over rivers at
         /// least minWidth wide. [cells, largest turn, 99th percentile turn].
@@ -512,32 +630,60 @@ namespace Punchy.Debugging
         /// A-93 row 3: the live folk nearest the player sent off with a beast response (Flee, BackOff, Approach) as if the
         /// player were an animal right there: [its Individual, 1 if FolkConversation.Respond took it]. FolkMode then
         /// tells how its brain took it.
+        /// A-105 row 1b: only folk whose response target lies inside their leash count. A leashed folk (Tend, Watch,
+        /// Rest: leash 7) has its 30 m flee target clamped to the leash by KeepToLeash, reaches it at once and calms to
+        /// Idle, or runs round the leash circle rather than away; that is the brain working as meant, but it made
+        /// LiveFolk_BeastResponse flake whenever such a folk happened to be the nearest one.
         /// </summary>
         public static float[] BeastRespond(string response)
         {
             var world = World.DefaultGameObjectInjectionWorld;
             var at = (float3)PlayerPosition();
+            if (!System.Enum.TryParse(response, true, out BeastResponse kind))
+                return new float[] { 0f, 0f };
             using var q = EM.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
             using var entities = q.ToEntityArray(Allocator.Temp);
             var best = Entity.Null;
             var bestD = float.MaxValue;
             foreach (var e in entities)
             {
-                var d = math.distance(EM.GetComponentData<CreatureState>(e).Position, at);
-                if (d < bestD && FolkConversation.TryTalker(world, e, null, out _))
+                var c = EM.GetComponentData<CreatureState>(e);
+                var d = math.distance(c.Position, at);
+                if (d < bestD && TargetInLeash(c, AnimalAt(c, at), kind) && FolkConversation.TryTalker(world, e, null, out _))
                 {
                     best = e;
                     bestD = d;
                 }
             }
-            if (best == Entity.Null || !System.Enum.TryParse(response, true, out BeastResponse kind))
+            if (best == Entity.Null)
                 return new float[] { 0f, 0f };
             var s = EM.GetComponentData<CreatureState>(best);
-            // (The "animal" stands 3 m off it, toward the player.)
-            var from = s.Position + math.normalizesafe(at - s.Position, new float3(1f, 0f, 0f)) * 3f;
+            var from = AnimalAt(s, at);
             var ok = FolkConversation.Respond(best, new Answer { Reaction = BeastReaction.Scared, Response = kind }, from);
             BeastRespondFolk = s.Individual;
+            UnityEngine.Debug.Log($"BeastRespond: {response} to species {EM.GetComponentData<CreatureBody>(best).Species} ({UnityEngine.Object.FindAnyObjectByType<FaunaDirector>()?.SpeciesName(EM.GetComponentData<CreatureBody>(best).Species)}) task {s.Task} leash {s.Leash:F0} at {bestD:F1} m");
             return new float[] { s.Individual, ok ? 1f : 0f };
+        }
+
+        // (The "animal" stands 3 m off the folk, toward the player.)
+        static float3 AnimalAt(in CreatureState s, float3 player) =>
+            s.Position + math.normalizesafe(player - s.Position, new float3(1f, 0f, 0f)) * 3f;
+
+        // Whether the target FolkConversation.Respond would set lies inside the folk's leash (no leash: anywhere), so
+        // KeepToLeash leaves it alone.
+        static bool TargetInLeash(in CreatureState s, float3 animal, BeastResponse kind)
+        {
+            if (s.Leash <= 0f)
+                return true;
+            var from = animal.xz;
+            var dir = math.normalizesafe(s.Position.xz - from, new float2(1f, 0f));
+            var target = kind switch
+            {
+                BeastResponse.Flee => s.Position.xz + dir * 30f,
+                BeastResponse.BackOff => s.Position.xz + dir * 5f,
+                _ => from + dir * 1.2f,
+            };
+            return math.distance(target, s.Home) <= s.Leash;
         }
 
         public static uint BeastRespondFolk;
@@ -554,6 +700,75 @@ namespace Punchy.Debugging
                     return System.FormattableString.Invariant($"{s.Mode} {math.distance(s.Position, (float3)PlayerPosition()):F1}");
             }
             return "";
+        }
+
+        /// <summary>A-106 row 2: a stand-in hermit living out in the open at a spot (FaunaDirector.SpawnHermitAt), its chore
+        /// from the biome there; returns its job's name, or "none" if it couldn't be made.</summary>
+        public static string HermitAt(float x, float z)
+        {
+            var director = Object.FindAnyObjectByType<FaunaDirector>();
+            var e = director != null ? director.SpawnHermitAt(new float2(x, z)) : Entity.Null;
+            if (e == Entity.Null)
+                return "none";
+            var job = (FolkJob)director.SimWorld.EntityManager.GetComponentData<CreatureState>(e).Job;
+            return job.ToString();
+        }
+
+        /// <summary>
+        /// A-105 row 2: the housed folk nearest the player dies (nothing kills folk yet, so this stands in for whatever
+        /// will): it's marked Gone, Despawn takes it and its house keeps its bed empty. Returns its Individual, or 0.
+        /// </summary>
+        public static uint KillHousedFolk()
+        {
+            var at = (float3)PlayerPosition();
+            using var q = EM.CreateEntityQuery(ComponentType.ReadWrite<CreatureState>());
+            using var entities = q.ToEntityArray(Allocator.Temp);
+            var best = Entity.Null;
+            var bestD = float.MaxValue;
+            foreach (var e in entities)
+            {
+                var c = EM.GetComponentData<CreatureState>(e);
+                var d = math.distance(c.Position, at);
+                if (d < bestD && Households.Of(c.Individual, out _, out _))
+                {
+                    best = e;
+                    bestD = d;
+                }
+            }
+            if (best == Entity.Null)
+                return 0;
+            var s = EM.GetComponentData<CreatureState>(best);
+            s.Gone = true;
+            EM.SetComponentData(best, s);
+            return s.Individual;
+        }
+
+        /// <summary>
+        /// A-105 row 3: asks up to count housed folk nearest the player after their family (topic family, or how), the
+        /// player in its own body. With -households each answer that names a member is logged with its house. Returns one
+        /// line per folk: its name, then the answer.
+        /// </summary>
+        public static string AskHousedFolk(int count = 10, string topic = FolkConversation.Family)
+        {
+            var at = (float3)PlayerPosition();
+            using var q = EM.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>());
+            using var entities = q.ToEntityArray(Allocator.Temp);
+            var housed = new System.Collections.Generic.List<(float d, Entity e)>();
+            foreach (var e in entities)
+            {
+                var c = EM.GetComponentData<CreatureState>(e);
+                if (!c.Gone && Households.Of(c.Individual, out _, out _))
+                    housed.Add((math.distance(c.Position, at), e));
+            }
+            housed.Sort((a, b) => a.d.CompareTo(b.d));
+            var sb = new System.Text.StringBuilder();
+            for (int i = 0; i < housed.Count && i < count; i++)
+            {
+                var e = housed[i].e;
+                var answer = FolkConversation.Ask(e, topic);
+                sb.Append(FolkNames.Of(EM.GetComponentData<CreatureState>(e).Individual)).Append(": ").Append(answer.Text).Append('\n');
+            }
+            return sb.ToString();
         }
 
         static uint beastLiveFolk;
@@ -1306,6 +1521,104 @@ namespace Punchy.Debugging
                 spread[i] = math.distance(members[i].xz, centre.xz);
             System.Array.Sort(spread);
             return new float[] { members.Count, centre.x, centre.y, centre.z, spread[(int)(spread.Length * 0.8f)], spread[spread.Length - 1] };
+        }
+
+        static bool SameGround(in GroundSample a, in GroundSample b) =>
+            a.Height == b.Height && a.River == b.River && a.WaterDepth == b.WaterDepth && a.WaterSurface == b.WaterSurface &&
+            math.all(a.Flow == b.Flow) && a.Rapids == b.Rapids && a.CaveWater == b.CaveWater;
+
+        /// <summary>
+        /// W-134: the float3 SampleGround against the float2 one. Over n seeded spots across the island: at the ground,
+        /// and 5 m over it, the answers must match exactly (the surface pays one compare and nothing else), and 30 m
+        /// under it too wherever that isn't cave water. Then every water pool under the ground, 0.3 m under its surface
+        /// at the middle, and the middle point of every stream, 0.1 m under: each must read as cave water at its own
+        /// level. Returns {spots, surface mismatches, deep spots, deep mismatches, pools, pools read, streams, streams
+        /// read, the worst level error in metres}.
+        /// </summary>
+        public static float[] CaveWaterQuery(int n)
+        {
+            if (!Source(out var source) || !source.Caves.IsCreated)
+                return new float[9];
+            var rng = new Unity.Mathematics.Random(0x134u);
+            var half = source.World.WorldSize * 0.5f;
+            int mismatches = 0, deep = 0, deepMismatches = 0;
+            for (int i = 0; i < n; i++)
+            {
+                var xz = rng.NextFloat2(-half, half);
+                var flat = source.SampleGround(xz);
+                if (!SameGround(flat, source.SampleGround(new float3(xz.x, flat.Height, xz.y))) ||
+                    !SameGround(flat, source.SampleGround(new float3(xz.x, flat.Height + 5f, xz.y))))
+                    mismatches++;
+                var under = source.SampleGround(new float3(xz.x, flat.Height - 30f, xz.y));
+                if (!under.CaveWater)
+                {
+                    deep++;
+                    if (!SameGround(flat, under))
+                        deepMismatches++;
+                }
+            }
+            ref var set = ref source.Caves.Value;
+            int pools = 0, poolsRead = 0, streams = 0, streamsRead = 0;
+            var worst = 0f;
+            for (int i = 0; i < set.Pools.Length; i++)
+            {
+                var c = set.Pools[i].Centre;
+                if (set.Pools[i].Lava > 0.5f || c.y >= source.SampleHeight(c.xz))
+                    continue;
+                pools++;
+                var g = source.SampleGround(c - new float3(0f, 0.3f, 0f));
+                if (g.CaveWater && g.WaterSurface - g.Height > 0.15f)
+                    poolsRead++;
+                worst = math.max(worst, g.CaveWater ? math.abs(g.WaterSurface - c.y) : 99f);
+            }
+            for (int s = 0; s < set.Streams.Length; s++)
+            {
+                ref var stream = ref set.Streams[s];
+                var c = set.StreamPoints[stream.FirstPoint + stream.PointCount / 2].Position;
+                if (c.y >= source.SampleHeight(c.xz))
+                    continue;
+                streams++;
+                var g = source.SampleGround(c - new float3(0f, 0.1f, 0f));
+                if (g.CaveWater && g.River > 0.5f)
+                    streamsRead++;
+                worst = math.max(worst, g.CaveWater ? math.abs(g.WaterSurface - c.y) : 99f);
+            }
+            return new float[] { n, mismatches, deep, deepMismatches, pools, poolsRead, streams, streamsRead, worst };
+        }
+
+        /// <summary>
+        /// W-134: what the water does round the player (stood in a cave pool by the test): {the float3 sample there reads
+        /// cave water (1/0), its depth there, ripples CreatureWakeSystem holds within 3 m, presses WaterPatchSystem made on
+        /// the field at its last step}.
+        /// </summary>
+        public static float[] CaveWaterStir()
+        {
+            if (!Source(out var source))
+                return new float[4];
+            float3 at = PlayerPosition();
+            var g = source.SampleGround(at + new float3(0f, 0.2f, 0f));
+            var world = World.DefaultGameObjectInjectionWorld;
+            var wake = world.GetExistingSystemManaged<CreatureWakeSystem>();
+            var patch = world.GetExistingSystemManaged<WaterPatchSystem>();
+            return new float[]
+            {
+                g.CaveWater ? 1f : 0f, g.CaveWater ? g.WaterSurface - g.Height : 0f,
+                wake != null ? wake.RipplesNear(at.xz, 3f) : -1f, patch != null ? patch.Presses : -1f
+            };
+        }
+
+        /// <summary>
+        /// The camera following the player again after a test posed it ("-place prop:" frames its find and leaves the
+        /// camera there): ripples and other near-camera work only run round the camera.
+        /// </summary>
+        public static bool FreeCamera()
+        {
+            var cam = UnityEngine.Camera.main;
+            if (cam == null)
+                return false;
+            foreach (var b in cam.GetComponents<UnityEngine.MonoBehaviour>())
+                b.enabled = true;
+            return true;
         }
     }
 }

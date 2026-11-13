@@ -50,6 +50,17 @@ namespace Punchy.Terrain
                  "flame and a warm light near the camera.")]
         public Punchy.Flora.FloraSpecies Torch;
         [Min(2f)] public float TorchSpacing = 10f;
+        [Tooltip("W-138: a road tunnel's marker stones (flora form Spire), one each side of the road where the land " +
+                 "above changes biome.")]
+        public Punchy.Flora.FloraSpecies Marker;
+        [Tooltip("W-138: a small shrine (flora form Shrine) in a side niche of long road tunnels.")]
+        public Punchy.Flora.FloraSpecies Shrine;
+        [Tooltip("W-138 row 4c: the lamp road tunnels hang on their walls in place of the Torch: a Fixture kit species, " +
+                 "lit as its Fixture Style says (a Wall Lantern is a lantern turned low). None = the Torch.")]
+        public Punchy.Flora.FloraSpecies TunnelLamp;
+        [Tooltip("W-147: the ladder pieces (a Ladder kit species, its variants by height) dug caves stand up their shafts " +
+                 "and down drops in their passages. None = no ladders.")]
+        public Punchy.Flora.FloraSpecies Ladder;
         [Tooltip("How flat the floor is: 1 = a level floor halfway down the passage, 0 = the passage's own round bottom.")]
         [Range(0f, 1f)] public float FloorFlatness = 0.85f;
         [Tooltip("How many ledges and steps the floor has.")]
@@ -223,7 +234,19 @@ namespace Punchy.Terrain
                     species.Add(style.Frame);
                 if (style.Torch != null && !species.Contains(style.Torch))
                     species.Add(style.Torch);
+                if (style.Marker != null && !species.Contains(style.Marker))
+                    species.Add(style.Marker);
+                if (style.Shrine != null && !species.Contains(style.Shrine))
+                    species.Add(style.Shrine);
             }
+            // W-138 row 4c: tunnel lamps after every other species, so the indices cave plants already store hold.
+            foreach (var style in CaveStyleTable.Collect(types))
+                if (style.TunnelLamp != null && !species.Contains(style.TunnelLamp))
+                    species.Add(style.TunnelLamp);
+            // W-147: ladders after those, for the same reason.
+            foreach (var style in CaveStyleTable.Collect(types))
+                if (style.Ladder != null && !species.Contains(style.Ladder))
+                    species.Add(style.Ladder);
             return species;
         }
     }

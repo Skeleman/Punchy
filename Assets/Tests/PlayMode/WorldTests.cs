@@ -26,7 +26,11 @@ namespace Punchy.Tests
             yield return null;
         }
 
-        /// <summary>Target: 112 landmarks, probe hash A955AFE0 since W-122 row 1 (the MarshFolkVillage entry appended; the other
+        /// <summary>Target: 117 landmarks, probe hash 689D5348 since W-138 row 3a (bores capped at 800 m and kept out from
+        /// under towns: the west roads re-routed, so three roadside campsites are new and the C0a swamp waystation moved 65 m).
+        /// 114 00D16E22 since W-138 row 2b (the two C0a waystations added; the roadside
+        /// picks re-drawn on the new road net: inns, shrines, campsites, monuments and a ruin moved). 112 / A5D1D048 since W-138 row 2a (the sea folk landing 2 m and village 16 m
+        /// moved: their spots are now found before the roads; the other 110 unmoved). A955AFE0 since W-122 row 1 (the MarshFolkVillage entry appended; the other
         /// 111 hash to 3BDF705F unchanged). 111 / 3BDF705F since W-114 (the Ashlands ribcage on its own spot; the other 110
         /// unmoved). 110 / 09EAC0FE since W-105 row 3 (stilt houses out over the shallows; village
         /// placement asks for a stilt house spot). Before that, on main after PR #148 (W-104 row 1 repinned it): 109 / C96F266F
@@ -36,7 +40,7 @@ namespace Punchy.Tests
         {
             var hash = Game.Hook<string>("LandmarkHash");
             LogWatch.Measure($"landmarks {hash}; game line: {LogWatch.Last("[island]")}");
-            Assert.AreEqual("112 A955AFE0", hash);
+            Assert.AreEqual("117 689D5348", hash);
             yield return null;
         }
 
@@ -57,7 +61,7 @@ namespace Punchy.Tests
         {
             var line = LogWatch.Last("fingerprint") ?? "no fingerprint line";
             LogWatch.Measure("fauna " + line);
-            StringAssert.Contains("fingerprint AD723954", line);   // A-97 row 3 re-pin: paw limb feet are now coat-coloured Paw segments, a little wider (no placement change). 66320C7C since the W-128 re-pin: the inn rebuilt from kit pieces (cce82b69) bakes new anchor rows. B15790ED since W-127 (was 7D75BB04, W-126 before it F0EF4BD5): the flora blob the build bakes gains the beacon fixture species and the fixture rows' MinPlots
+            StringAssert.Contains("fingerprint 6A9E28E5", line);   // A-103 + main merge re-pin: A-103 row 3 (1078FBC3 on the branch: the TurtleChild and SeaChild species and spawn rows) with main b1aa418b (EC02D9B0: A-101 climbing, the blob's ClimbSkill byte, on top of 7B361633: W-147's roof, dock, rope and mine ladder records with main's A-103 row 2 sea folk) give 6A9E28E5; no placement change, landmarks 117 689D5348. 1078FBC3 since the A-103 row 3 re-pin: the TurtleChild and SeaChild species and their FolkChild spawn rows (species sort by name, so later indices shift); no placement change. 6DCC36A3 since the A-103 row 4 re-pin: SeaFolk, BatFolk and TurtleFolk join PlayableSpecies, so the carry table has three more rows (no placement change). B9ADEB35 since the A-103 row 2 re-pin: the sea folk species, its Sea* limbs, the SeaHousehold spawn rows and the blob's WalksBed flag (no placement change). C5B450EF since the A-103 + A-102 merge re-pin: A-103 row 1 (7D44629E: the turtle folk species, limbs, spawn row and the blob's TurtleJobs flag) with A-102 row 1 (151753F3: the blob gains BreathesWater and HoldBreath); no placement change. AD723954 since the A-97 row 3 re-pin: paw limb feet are now coat-coloured Paw segments, a little wider (no placement change). 66320C7C since the W-128 re-pin: the inn rebuilt from kit pieces (cce82b69) bakes new anchor rows. B15790ED since W-127 (was 7D75BB04, W-126 before it F0EF4BD5): the flora blob the build bakes gains the beacon fixture species and the fixture rows' MinPlots
             yield return null;
         }
 
@@ -200,6 +204,43 @@ namespace Punchy.Tests
         }
 
         /// <summary>
+        /// W-134 row 1: one water query for a point that may be underground (TerrainSource.SampleGround(float3)). At and
+        /// over the ground it must answer exactly as the float2 query (the surface water as on main), and 30 m under it
+        /// too away from cave water; every water pool and stream under the ground must read as cave water at its own
+        /// level. Then, stood in the deepest cave pool ("-place cavepool"), the player's body must leave ripples
+        /// (CreatureWakeSystem) and press the R-9 field (WaterPatchSystem) within 5 s: both saw no water there before.
+        /// </summary>
+        [UnityTest, Order(9)]
+        public IEnumerator CaveWater_SurfaceMatchesAndPoolStirs()
+        {
+            var q = Game.Hook<float[]>("CaveWaterQuery", 4000);
+            LogWatch.Measure($"cave water query: {q[1]} of {q[0]} surface spots differ, {q[3]} of {q[2]} deep; pools read {q[5]} of {q[4]}, streams {q[7]} of {q[6]}, worst level error {q[8]:F3} m");
+            Assert.AreEqual(0f, q[1], "the float3 query changed a surface answer");
+            Assert.AreEqual(0f, q[3], "the float3 query changed an answer under the ground away from cave water");
+            Assert.Greater(q[4], 0f, "no water pools under the ground to check");
+            Assert.AreEqual(q[4], q[5], "a cave water pool didn't read as cave water");
+            Assert.AreEqual(q[6], q[7], "a cave stream didn't read as cave water");
+            Assert.Less(q[8], 0.01f, "a cave water level read wrong");
+
+            // (Ripples are made only near the camera: an earlier test may have left it posed elsewhere.)
+            Game.Hook<bool>("FreeCamera");
+            yield return TestSceneSetup.Place("cavepool", 4f);
+            var best = new float[4];
+            var start = Time.realtimeSinceStartup;
+            while ((best[2] <= 0f || best[3] <= 0f) && Time.realtimeSinceStartup - start < 5f)
+            {
+                var s = Game.Hook<float[]>("CaveWaterStir");
+                for (int i = 0; i < 4; i++)
+                    best[i] = Mathf.Max(best[i], s[i]);
+                yield return null;
+            }
+            LogWatch.Measure($"in a cave pool at {Game.Hook<Vector3>("PlayerPosition")}: cave water {best[0]}, {best[1]:F2} m deep, {best[2]} ripples near, {best[3]} field presses");
+            Assert.AreEqual(1f, best[0], "the player's spot in the cave pool didn't read as cave water");
+            Assert.Greater(best[2], 0f, "no ripples from the player's body in the cave pool");
+            Assert.Greater(best[3], 0f, "no R-9 field presses from the player's body in the cave pool");
+        }
+
+        /// <summary>
         /// W-126: flora placement cost, measured only (no limit): the managed Place over 3 squares of 160 m round biome spots, best
         /// of three. Baseline on main acd0cad5 is in the W-126 report; row 1 must stay within +10%.
         /// </summary>
@@ -226,6 +267,27 @@ namespace Punchy.Tests
             }
             LogWatch.Measure("flora placement cost: " + line + $"total {total:F0} ms");
             Assert.Greater(total, 0f);
+            yield return null;
+        }
+
+        /// <summary>W-140: the island this launch has (loaded from the island cache, or baked) is byte for byte a fresh bake
+        /// of the same inputs, and so is a write and read of the island file; the landmark hash is the same all ways.
+        /// Run last: it bakes the island once more (~14 s).</summary>
+        [UnityTest, Order(90)]
+        public IEnumerator IslandCache_LoadedEqualsFresh()
+        {
+            var problems = Game.Hook<string>("IslandCacheRoundTrip");
+            LogWatch.Measure($"island {LogWatch.Last("[island] cache") ?? "no cache line"}; round trip: {(problems == "" ? "all blobs byte-equal, landmark hash the same" : problems)}");
+            Assert.AreEqual("", problems);
+            yield return null;
+        }
+
+        /// <summary>W-140: every blob in TerrainSource is saved by the island cache or named as not the bake's, so a new
+        /// blob can't come back empty on a cache hit.</summary>
+        [UnityTest, Order(90)]
+        public IEnumerator IslandCache_SavesEveryBlob()
+        {
+            Assert.AreEqual("", Game.Hook<string>("IslandCacheMissingBlobs"));
             yield return null;
         }
 

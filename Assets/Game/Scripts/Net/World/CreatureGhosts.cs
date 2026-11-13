@@ -39,7 +39,8 @@ namespace Punchy.Net
         /// <summary>Its lair, if it has one (a burrow's mouth, a web's centre) and how big: drawn on every machine.</summary>
         [GhostField(Quantization = 100)] public float3 Anchor;
         [GhostField(Quantization = 100)] public float AnchorSize;
-        /// <summary>Who is petting or carrying it (Interactions.HolderId; 0 = nobody).</summary>
+        /// <summary>CreatureState.Holder: positive = its holder (Interactions.HolderId); negative = it rides, and this is
+        /// minus the mount's ghost id (A-104, Riding); 0 = neither.</summary>
         [GhostField] public int Holder;
         [GhostField] public byte Held;
         /// <summary>The need cue it shows (CreatureState.Cue, a NeedCue), so clients draw it too (#64).</summary>
@@ -198,6 +199,21 @@ namespace Punchy.Net
                 c.Scale = n.Scale > 0f ? n.Scale : 1f;
                 c.Mode = (CreatureMode)n.Mode;
                 c.Task = (CreatureTask)n.Task;
+                if (b.TurtleJobs && !b.Child)
+                {
+                    // A-103: Job is local, so read the igloo job off the task; off work it keeps its last job (an elder until it has worked).
+                    var job = FolkJobs.FromTurtleTask(c.Task);
+                    if (job != FolkJob.None) c.Job = (byte)job;
+                    else if (c.Job == 0) c.Job = (byte)FolkJob.Elder;
+                }
+                // (StageTime is local: count it here, so a client's timed stage looks (a growing snow pile) match.)
+                c.StageTime = n.Stage == c.Stage ? c.StageTime + dt : 0f;
+                // A-106: a harsh-biome job works at its own stage, so read the job off it (kept once known).
+                if (c.Mode == CreatureMode.Work && (c.Job == 0 || c.Job >= (byte)FolkJob.AshSweeper))
+                {
+                    var harsh = FolkJobs.FromWorkStage(c.Task, n.Stage);
+                    if (harsh != FolkJob.None) c.Job = (byte)harsh;
+                }
                 c.Stage = n.Stage;
                 c.Speed = n.Speed;
                 c.Look = n.Look;

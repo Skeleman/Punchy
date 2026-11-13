@@ -1,0 +1,14 @@
+{
+  "_readme": "Folk's personal names (P-26), edited by hand. A folk's sex and name are picked from its Individual (A-105), so every machine calls it the same: a feminine folk from feminine + either, a masculine one from masculine + either.",
+  "feminine": [
+    "Anneke", "Brenna", "Dagny", "Edda", "Elspeth", "Fenna", "Greta", "Hestia", "Ilsa", "Juna", "Katrin",
+    "Maren", "Nessa", "Orla", "Rhosyn", "Saoirse", "Tamsin", "Ulla", "Vesna", "Yara", "Zella"
+  ],
+  "masculine": [
+    "Aldous", "Arlo", "Bram", "Corin", "Dorrin", "Emmet", "Garrick", "Hale", "Ivo", "Kael", "Lorcan",
+    "Marek", "Nils", "Odo", "Pell", "Perrin", "Roland", "Sten", "Tobin", "Wystan", "Yorick"
+  ],
+  "either": [
+    "Cass", "Finch", "Jory", "Lark", "Quill", "Wren"
+  ]
+}

@@ -18,6 +18,9 @@ namespace Punchy.Fauna
     /// player's body takes: petting while an animal is being petted by them, carrying while they hold one.
     /// Emotes too (keys 1–4, or the d-pad: wave, bow, cheer, dance): a pose held a moment (dancing, until they move),
     /// which folk and animals near them react to (the brain reads it from the pose).
+    /// Riding (A-104 row 3): the button on a creature or another player heavy enough to carry them (Riding.Check) asks
+    /// PlayerRideSystem to get them on (a tap when there's nothing to pet, a hold on a pettable animal that can't be picked
+    /// up); riding, the button or jump asks to get down, and nothing else is offered.
     /// </summary>
     [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation | WorldSystemFilterFlags.ClientSimulation)]
     [UpdateInGroup(typeof(SimulationSystemGroup))]
@@ -43,8 +46,8 @@ namespace Punchy.Fauna
         double lungeUntil;
         /// <summary>The prompt as last built, and what it was built for (species, can carry, device switches).</summary>
         string lastPrompt;
-        (int, bool, int) lastPromptKey = (int.MinValue, false, -1);
-        EntityQuery creatures;
+        (int, bool, int, int) lastPromptKey = (int.MinValue, false, -1, 0);
+        EntityQuery creatures, others;
         FaunaDirector director;
         /// <summary>
         /// The reach scan, read a frame late (A-51, #62): each frame takes last frame's result and schedules the next
@@ -63,6 +66,7 @@ namespace Punchy.Fauna
                 All = new[] { ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>() },
                 None = new[] { ComponentType.ReadOnly<PlayerAvatar>(), ComponentType.ReadOnly<RemoteAvatar>() }
             });
+            others = GetEntityQuery(ComponentType.ReadOnly<RemoteAvatar>(), ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
         }
 
         protected override void OnStartRunning()
@@ -86,7 +90,9 @@ namespace Punchy.Fauna
         {
             Best = Interactions.Reach,
             LungeBest = Interactions.LungeReach,
-            TargetSpecies = -1
+            TargetSpecies = -1,
+            RideBest = Interactions.Reach,
+            RideSpecies = -1
         };
 
         protected override void OnUpdate()
@@ -111,10 +117,16 @@ namespace Punchy.Fauna
             // (An animal body can't carry: it nuzzles instead, so no "pick up" for it.)
             var folk = Interactions.CanHold(SystemAPI.TryGetSingleton<CarryTable>(out var table) ? table : default,
                                             SystemAPI.TryGetSingleton<Punchy.Net.LocalPlayerSpecies>(out var local) ? local.Index : -1);
+            // (Riding, A-104 row 3: what our body could ride, offered on the ground with empty hands, not while riding.)
+            var riding = EntityManager.HasComponent<PlayerRide>(playerEntity);
+            SystemAPI.TryGetSingletonEntity<PlayerAvatar>(out var avatar);
             Dependency = new ReachJob
             {
                 Me = me,
                 Folk = folk,
+                Avatar = riding ? Entity.Null : avatar,
+                States = SystemAPI.GetComponentLookup<CreatureState>(true),
+                Bodies = SystemAPI.GetComponentLookup<CreatureBody>(true),
                 Terrain = SystemAPI.GetSingleton<Punchy.Terrain.TerrainSource>(),
                 Player = player.Position,
                 ReachPoint = player.Position + forward * (Interactions.Reach * 0.45f),
@@ -127,9 +139,13 @@ namespace Punchy.Fauna
             var petting = found.Petting;
             var targetCarry = found.TargetCarry;
             var targetSpecies = found.TargetSpecies;
+            var rideTarget = found.Ride;
+            var ridePlayer = false;
+            if (riding)
+                target = lungeTarget = Entity.Null;
 
             var lunging = SystemAPI.Time.ElapsedTime < lungeUntil;
-            UpdateEmote(held != Entity.Null || lunging || petting);
+            UpdateEmote(held != Entity.Null || lunging || petting || riding);
             // Sitting and lying: up again on moving, jumping, leaving the ground, an emote or an animal in hand. Any push
             // of the stick past its dead zone counts (A-92, #231: a gentle one used to crawl off still lying, legs
             // dragging); PlayerMovementSystem then holds the player until the body has stood.
@@ -137,37 +153,51 @@ namespace Punchy.Fauna
             var moving = move != null && move.ReadValue<Vector2>().sqrMagnitude > 0.0025f ||
                          PlayerInputSystem.TestMove.HasValue && math.lengthsq(PlayerInputSystem.TestMove.Value) > 0.0025f;
             var onGround = motion.Grounded && !motion.Flying && motion.Mantle <= 0f;
+            if (riding || held != Entity.Null || !onGround)
+                rideTarget = Entity.Null;
+            else if (!others.IsEmpty && avatar != Entity.Null)
+                rideTarget = NearestPlayerMount(avatar, player.Position + forward * (Interactions.Reach * 0.45f), player.Position.y,
+                                                rideTarget, found.RideBest, ref ridePlayer);
             if (moving || !onGround)
                 movedAt = SystemAPI.Time.ElapsedTime;
-            if (rest != IdleAction.None && (moving || !onGround || emote != IdleAction.None || held != Entity.Null || petting ||
+            if (rest != IdleAction.None && (moving || !onGround || emote != IdleAction.None || held != Entity.Null || petting || riding ||
                                             jump != null && jump.WasPressedThisFrame()))
                 rest = IdleAction.None;
             var terrain = SystemAPI.GetSingleton<Punchy.Terrain.TerrainSource>();
             var nearSeat = terrain.Anchors.IsCreated && Seats.Nearest(ref terrain.Anchors.Value, player.Position, 1.6f, out _, out _);
             // (Offered by a seat, or once they've stood still a moment; the button works anywhere on the ground.)
-            var offerRest = onGround && held == Entity.Null && target == Entity.Null &&
+            var offerRest = onGround && !riding && held == Entity.Null && target == Entity.Null && rideTarget == Entity.Null &&
                             (rest != IdleAction.None || nearSeat || SystemAPI.Time.ElapsedTime - movedAt > 1.5);
-            request.Pose = held != Entity.Null ? IdleAction.Carry : lunging ? IdleAction.Throw : petting ? IdleAction.Pet :
+            request.Pose = riding ? IdleAction.None : held != Entity.Null ? IdleAction.Carry : lunging ? IdleAction.Throw : petting ? IdleAction.Pet :
                            emote != IdleAction.None ? emote : rest;
             // Named by the button on whatever was used last (InputGlyphs: E on the keyboard, Y or Triangle on a pad).
             // (The text is only rebuilt when what it says changes, not every frame.)
             var device = InputGlyphs.Version;
-            var promptKey = held != Entity.Null ? (-2, false, device) : target != Entity.Null ? (targetSpecies, targetCarry, device) :
-                            offerRest ? (rest == IdleAction.SitDown ? -4 : rest == IdleAction.LieBack ? -5 : -3, false, device) : (-1, false, device);
+            // (The last part: what riding offers. 0 nothing, -1 getting down, -2 a player, 1 + species a creature.)
+            var rides = riding ? -1 : rideTarget == Entity.Null ? 0 : ridePlayer ? -2 : 1 + found.RideSpecies + (rideTarget == target ? 100000 : 0);
+            var promptKey = riding ? (-6, false, device, rides) : held != Entity.Null ? (-2, false, device, 0) :
+                            target != Entity.Null ? (targetSpecies, targetCarry, device, rides) : rideTarget != Entity.Null ? (-7, false, device, rides) :
+                            offerRest ? (rest == IdleAction.SitDown ? -4 : rest == IdleAction.LieBack ? -5 : -3, false, device, 0) : (-1, false, device, 0);
             if (promptKey != lastPromptKey)
             {
                 lastPromptKey = promptKey;
                 // (A token, drawn as the button's icon where there's one: see UI.Prompts.)
                 var key = InputGlyphs.ActionToken("Player/Interact") ?? "Interact";
-                if (held != Entity.Null)
+                if (director == null)
+                    director = Object.FindAnyObjectByType<FaunaDirector>();
+                if (riding)
+                    lastPrompt = $"{key}  get down";
+                else if (held != Entity.Null)
                     lastPrompt = $"{key}  put down";
                 else if (target != Entity.Null)
                 {
-                    if (director == null)
-                        director = Object.FindAnyObjectByType<FaunaDirector>();
                     var name = director != null ? director.SpeciesName(targetSpecies) : "animal";
-                    lastPrompt = $"{key}  pet the {name}" + (targetCarry ? $"        hold {key}  pick up" : "");
+                    lastPrompt = $"{key}  pet the {name}" + (targetCarry ? $"        hold {key}  pick up" :
+                                                             rideTarget == target ? $"        hold {key}  ride" : "");
                 }
+                else if (rideTarget != Entity.Null)
+                    lastPrompt = ridePlayer ? $"{key}  ride on them" :
+                                 $"{key}  ride the {(director != null ? director.SpeciesName(found.RideSpecies) : "animal")}";
                 else if (offerRest)
                     lastPrompt = rest == IdleAction.SitDown ? $"{key}  lie back" : rest == IdleAction.LieBack ? $"{key}  get up" : $"{key}  sit";
                 else
@@ -177,7 +207,18 @@ namespace Punchy.Fauna
             InteractionPrompt.Show(Prompt != null);
 
             // The button: a tap pets, a hold picks up; holding one, a press puts it down.
-            if (interact != null && !Punchy.UI.Overlay.AnyOpen)
+            if (riding && !Punchy.UI.Overlay.AnyOpen)
+            {
+                // Riding: the button (on its release) or jump gets down; nothing else.
+                if (interact != null && interact.WasPressedThisFrame())
+                    pressUsed = false;
+                if (interact != null && !pressUsed && interact.WasReleasedThisFrame() || jump != null && jump.WasPressedThisFrame())
+                {
+                    pressUsed = true;
+                    AskRide(playerEntity, Entity.Null, true);
+                }
+            }
+            else if (interact != null && !Punchy.UI.Overlay.AnyOpen)
             {
                 if (interact.WasPressedThisFrame())
                 {
@@ -193,9 +234,21 @@ namespace Punchy.Fauna
                     Send(ref request, InteractAct.PickUp, target);
                     pressUsed = true;
                 }
+                // (A hold on what can be petted but not picked up gets on it, if it can carry us.)
+                if (!pressUsed && interact.WasPerformedThisFrame() && target != Entity.Null && rideTarget == target)
+                {
+                    AskRide(playerEntity, target, false);
+                    pressUsed = true;
+                }
                 if (!pressUsed && interact.WasReleasedThisFrame() && target != Entity.Null)
                 {
                     Send(ref request, InteractAct.Pet, target);
+                    pressUsed = true;
+                }
+                // (Nothing to pet, but something to ride: a tap gets on.)
+                if (!pressUsed && interact.WasReleasedThisFrame() && rideTarget != Entity.Null)
+                {
+                    AskRide(playerEntity, rideTarget, false);
                     pressUsed = true;
                 }
                 // Nothing to pet or hold: sit down (on the nearest seat, if one's close), then lie back, then get up.
@@ -215,7 +268,7 @@ namespace Punchy.Fauna
                 }
             }
             // Attack: a lunge at the animal in front (it bolts; harmless for now). Empty-handed only.
-            if (attack != null && !Punchy.UI.Overlay.AnyOpen && held == Entity.Null && attack.WasPressedThisFrame() && !lunging)
+            if (attack != null && !Punchy.UI.Overlay.AnyOpen && held == Entity.Null && !riding && attack.WasPressedThisFrame() && !lunging)
             {
                 lungeUntil = SystemAPI.Time.ElapsedTime + 0.6;
                 if (lungeTarget != Entity.Null)
@@ -268,6 +321,53 @@ namespace Punchy.Fauna
             _ => 0f
         };
 
+        /// <summary>Asks PlayerRideSystem to get the player on target, or down (off).</summary>
+        void AskRide(Entity playerEntity, Entity target, bool off)
+        {
+            var ask = new PlayerRideAsk { Target = target, Off = off };
+            if (EntityManager.HasComponent<PlayerRideAsk>(playerEntity))
+                EntityManager.SetComponentData(playerEntity, ask);
+            else
+                EntityManager.AddComponentData(playerEntity, ask);
+        }
+
+        /// <summary>A test's way in (-rideplayer): as if the button had been used on target (Null: to get down).</summary>
+        public void TestRide(Entity target)
+        {
+            if (SystemAPI.TryGetSingletonEntity<PlayerTag>(out var playerEntity))
+                AskRide(playerEntity, target, target == Entity.Null);
+        }
+
+        /// <summary>
+        /// The nearest other player's body in reach that ours could ride (Riding.Check; not one that rides), if nearer
+        /// than the creature the reach scan found (best: how far that was). PlayerRideSystem checks the rest.
+        /// </summary>
+        Entity NearestPlayerMount(Entity avatar, float3 reachPoint, float playerY, Entity creature, float best, ref bool isPlayer)
+        {
+            var rBody = EntityManager.GetComponentData<CreatureBody>(avatar);
+            var r = EntityManager.GetComponentData<CreatureState>(avatar);
+            using var entities = others.ToEntityArray(Allocator.Temp);
+            var pick = creature;
+            foreach (var e in entities)
+            {
+                var m = EntityManager.GetComponentData<CreatureState>(e);
+                var mBody = EntityManager.GetComponentData<CreatureBody>(e);
+                ref var b = ref mBody.Blob.Value;
+                if (math.abs(m.Position.y - playerY) > 1.5f)
+                    continue;
+                var d = math.distance(m.Position.xz, reachPoint.xz) - b.BodyLength * m.Scale * 0.5f;
+                if (d >= best || Riding.Check(ref rBody.Blob.Value, r, ref b, m) != RideRefusal.None)
+                    continue;
+                var net = EntityManager.GetComponentData<RemoteAvatar>(e).Ghost;
+                if (!EntityManager.HasComponent<Punchy.Net.NetPlayerLook>(net) || EntityManager.GetComponentData<Punchy.Net.NetPlayerLook>(net).Mount != 0)
+                    continue;
+                best = d;
+                pick = e;
+                isPlayer = true;
+            }
+            return pick;
+        }
+
         /// <summary>A test's way in ("-emote Wave"): as if its key had been pressed.</summary>
         public static IdleAction Requested;
 
@@ -278,6 +378,10 @@ namespace Punchy.Fauna
             public bool Petting, TargetCarry;
             public float Best, LungeBest;
             public int TargetSpecies;
+            /// <summary>The nearest creature in reach our body could ride (A-104 row 3), how far, and its species.</summary>
+            public Entity Ride;
+            public float RideBest;
+            public int RideSpecies;
         }
 
         [BurstCompile]
@@ -288,6 +392,10 @@ namespace Punchy.Fauna
             public Punchy.Terrain.TerrainSource Terrain;
             public float3 Player, ReachPoint;
             public NativeReference<ReachScan> Result;
+            /// <summary>Our body (Null: no riding offered), and where to read it and the creatures' bodies.</summary>
+            public Entity Avatar;
+            [ReadOnly] public ComponentLookup<CreatureState> States;
+            [ReadOnly] public ComponentLookup<CreatureBody> Bodies;
 
             void Execute(Entity entity, in CreatureState s, in CreatureBody body)
             {
@@ -314,6 +422,22 @@ namespace Punchy.Fauna
                         r.Target = entity;
                         r.TargetCarry = carry;
                         r.TargetSpecies = body.Species;
+                    }
+                }
+                // Something to ride: heavy enough to carry our body, not busy, and doing nothing that would throw us off.
+                if (Avatar != Entity.Null && !s.Gone && math.abs(s.Position.y - Player.y) <= 1.5f)
+                {
+                    var d = math.distance(s.Position.xz, ReachPoint.xz) - b.BodyLength * s.Scale * 0.5f;
+                    if (d < r.RideBest && Bodies.HasComponent(Avatar))
+                    {
+                        var rb = Bodies[Avatar];
+                        if (Riding.Check(ref rb.Blob.Value, States[Avatar], ref b, s) == RideRefusal.None &&
+                            Riding.Reason(ref b, s, new Rider { Kind = RideKind.Placed }, Terrain) == RideOff.None)
+                        {
+                            r.RideBest = d;
+                            r.Ride = entity;
+                            r.RideSpecies = body.Species;
+                        }
                     }
                 }
                 Result.Value = r;
@@ -358,7 +482,7 @@ namespace Punchy.Fauna
         void OnGUI()
         {
             var text = InteractionInputSystem.Prompt;
-            if (Hidden || string.IsNullOrEmpty(text))
+            if (Hidden || Punchy.UI.Overlay.Talking || string.IsNullOrEmpty(text))
                 return;
             if (style == null)
             {

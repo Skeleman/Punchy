@@ -2,6 +2,15 @@
 
 Read before changing any shader, material or render setting.
 
+- **Far views come first (Zach, 2026-11-13).** The aim is an island seen whole, grounded in nature. Judge a rendering
+  change from far as well as near: from a summit, the coast and the air, at noon, dusk and under cloud. Haze is
+  atmosphere (distance and height), not a curtain at the draw edge. Every visual hand-over (mesh, impostor, far form,
+  gone) is picked by `DetailPolicy.ScreenSize` with hysteresis; a fixed-metre visual range is a bug.
+- **One lighting path.** Don't assemble lighting in a forward pass by hand. Cascades, the flora shadow cache, the wide
+  shadow map, cloud shadow, glow lights, wetness and `PunchyAtmosphere` come from the shared includes in the shared
+  order. A new term goes into the shared code so every surface gets it; a new surface shader is rare and is agreed
+  first.
+
 - **Every opaque custom shader needs a `DepthNormals` pass** (as well as `DepthOnly` and `ShadowCaster`). SSAO
   uses depth + normals, so URP builds the camera depth texture from the depth-normals prepass; anything without
   the pass is missing from it, and effects that read depth (heat haze, soft particles, SSAO) treat it as the
@@ -38,6 +47,10 @@ Read before changing any shader, material or render setting.
 - Flora impostors only pay where the mesh they replace is heavy (shrub clumps, trees): a rock's coarsest mesh beats the impostor quad, which writes depth and blends three frames (R-11). Each baked model costs about 0.66 MB of atlas (8x8 frames of 32 px, 3 mips, two targets), so trim what gets a slice.
 - Unity fixes a global array's length the first time it's set in a session; the editor needs a restart after a slot-count change.
 - A white bloom blob on a procedural mesh is usually a zero normal: `Vector3.normalized` returns zero below magnitude 1e-5 (tiny triangles, e.g. 4 mm tooth tips), the shader normalizes it to NaN and bloom spreads it. Use `math.normalizesafe` with a fallback (A-10c, #41).
+- NaN-safe maths (rule 24, R-18): the main camera runs URP Stop NaN from code (`NanGuard`; `-stopnan 0` turns it off) as a safety net only, so a missed NaN shows as a black dot, not a circle. Keep the maths safe at the source:
+  `SafeNormalize` / `math.normalizesafe` (or `+ 1e-5`) on any difference or `cross`; `max(d, 1e-5)` under any divide by a length, dot, distance or `.w`; `saturate` or `max(x, 0)` before `pow` and `sqrt` (a negative base is NaN); take `ddx`/`ddy`/`fwidth` before any `if` (undefined in divergent flow). `tools/nan-lint.sh [ref]` in the coordination tree lists the lines to look at (hints, not a gate; mark a checked line `nan-safe`). Shader/material/mesh cards add `-sparkleprobe` NaN count 0 under `-stopnan 0` to done-when; SparkleProbe's own camera keeps Stop NaN off.
+  Gotchas: fxc folds `x/x` and `0/0` to 1 under fast maths, so a probe needs `asfloat(0x7FC00000u)` to make a NaN; and an offscreen `cam.Render` into an ARGB32 target shows no bloom halo, so judge circles from a game-view capture.
+  Procedural geometry that fades by scaling to 0 (grass blades, GroundDetail.hlsl) still draws flat triangles; a vertex whose normal comes from that size (the blade tip) must keep a floor (`max(height, 1e-4)`), or a zero-height blade lying on the ground turns every pixel it covers into NaN (the R-18 hilltop circle, Ultra only because Ultra grass reaches further).
 - Blue moon (Sky.hlsl PunchyBlueMoonFace): radius 0.13 rad, one thin wandering crack, maria + craters at two scales;
   its disc/corona tint must stay strongly blue (b channel > 2). Pin with `-bluemoondays 0`, then `-time 21` puts it
   43 degrees up in the east, `-time 19` low in the east (compute with DayNightCycle.Evaluate).

@@ -14,10 +14,17 @@ namespace Punchy.Terrain
     /// </summary>
     public partial class CaveSystem
     {
-        /// <summary>Within this of the camera a room's flames are drawn (m); its lights go to LightBudget, which decides.</summary>
-        const float RoomFlameRange = 60f;
+        /// <summary>How far a room's flames are drawn (m: DetailPolicy.RoomFlamePixels, no Detail; 60 m at the reference
+        /// view); its lights go to LightBudget, which decides.</summary>
+        static float RoomFlameRange => Punchy.Settings.DetailPolicy.ViewReach(Punchy.Settings.DetailPolicy.RoomFlameSize, Punchy.Settings.DetailPolicy.RoomFlamePixels);
+        /// <summary>The rooms whose flames were drawn last frame (DetailPolicy.Within holds them).</summary>
+        readonly HashSet<int> roomFlamesOn = new HashSet<int>();
         /// <summary>Per room (index into the cave set's Rooms): its meshes by group, built the first time it is in range.</summary>
         readonly Dictionary<int, Mesh[]> roomMeshes = new Dictionary<int, Mesh[]>();
+        /// <summary>W-135 row 4, W-136 row 3: per room, the tileContactsVersion its tiles were darkened at and the hash of
+        /// the contacts then, so its tiles are rebuilt when the cave plants grow, a dungeon filled later puts boxes in it
+        /// or the tunables change.</summary>
+        readonly Dictionary<int, (int version, uint hash)> roomTileContacts = new Dictionary<int, (int, uint)>();
         /// <summary>Per room type and group, a copy of the cave material in that group's colours.</summary>
         Material[] roomMaterials;
         /// <summary>A-91: Cave.shader's _Dressed (what a kit copy is made of: -1 as is, 0 bare rock, 1 stone, 2 wood, 3 iron).</summary>
@@ -45,16 +52,41 @@ namespace Punchy.Terrain
                         roomMaterials[t * CaveRoomKit.Groups + g] = mat;
                     }
             }
+            var flameRange = RoomFlameRange;
             for (int i = 0; i < set.Rooms.Length; i++)
             {
                 var room = set.Rooms[i];
                 var distance = math.distance(room.Centre, camPos);
+                var flames = Punchy.Settings.DetailPolicy.Within(distance, flameRange, roomFlamesOn.Contains(i));
+                if (flames)
+                    roomFlamesOn.Add(i);
+                else
+                    roomFlamesOn.Remove(i);
                 if (distance > LoadRadius)
                     continue;
-                if (!roomMeshes.TryGetValue(i, out var meshes))
+                var kit = CaveRoomKit.Get(room);
+                if (roomMeshes.TryGetValue(i, out var meshes) && roomTileContacts.TryGetValue(i, out var seen) && seen.version != tileContactsVersion)
                 {
-                    meshes = CaveRoomKit.BuildMeshes(CaveRoomKit.Get(room));
+                    var hash = ContactShade.Hash(RoomTileContacts(room, kit));
+                    if (hash != seen.hash)
+                    {
+                        foreach (var mesh in meshes)
+                            if (mesh != null)
+                                Destroy(mesh);
+                        roomMeshes.Remove(i);
+                        meshes = null;
+                    }
+                    else
+                        roomTileContacts[i] = (tileContactsVersion, hash);
+                }
+                if (meshes == null)
+                {
+                    // Its tiles darkened round its own set and any cave plants and dungeon boxes standing in it.
+                    var contacts = RoomTileContacts(room, kit);
+                    meshes = CaveRoomKit.BuildMeshes(kit, 0f, contacts);
+                    Counts.RoomTiles++;
                     roomMeshes[i] = meshes;
+                    roomTileContacts[i] = (tileContactsVersion, ContactShade.Hash(contacts));
                 }
                 var type = math.clamp(room.Type, 0, 3);
                 for (int g = 0; g < meshes.Length; g++)
@@ -68,11 +100,10 @@ namespace Punchy.Terrain
                     };
                     Graphics.RenderMesh(rp, mesh, 0, Matrix4x4.identity);
                 }
-                var kit = CaveRoomKit.Get(room);
                 for (int k = 0; k < kit.Glows.Count; k++)
                 {
                     var glow = kit.Glows[k];
-                    if (glow.Flame && distance <= RoomFlameRange)
+                    if (glow.Flame && flames)
                         Punchy.Ambience.FireSystem.AddFlame(glow.At, 0.32f, (int)(room.Seed + (uint)k), Punchy.Ambience.FireSystem.Wood);
                     Punchy.Settings.LightBudget.AddStill(Punchy.Settings.LightKind.Fixture, glow.At, glow.Light);
                 }
@@ -86,6 +117,7 @@ namespace Punchy.Terrain
                     if (mesh != null)
                         Destroy(mesh);
             roomMeshes.Clear();
+            roomTileContacts.Clear();
             if (roomMaterials != null)
                 foreach (var mat in roomMaterials)
                     if (mat != null)

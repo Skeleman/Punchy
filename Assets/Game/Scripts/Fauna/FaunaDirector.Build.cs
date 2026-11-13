@@ -192,7 +192,8 @@ namespace Punchy.Fauna
                 simWorld.EntityManager.SetName(simClockEntity, "Fauna Clock");
                 simWorld.EntityManager.AddComponentData(simClockEntity, new CarryTable { Blob = carryBlob });
             }
-            if (simWorld != null)
+            // A-101: a joined client (no sim world) builds the flora blob too, for the world's ladders only: it moves
+            // its own player, so it climbs them itself. No wharf spots, gulls or Flora Lookup entity there.
             {
                 // The tree grid must match FloraSystem's (its tree layer's cell size), so animals find the trees drawn.
                 var flora = FindAnyObjectByType<Punchy.Flora.FloraSystem>();
@@ -202,21 +203,26 @@ namespace Punchy.Fauna
                                  Punchy.Flora.FloraPlacement.CellSize(flora.Trees.TileSize, flora.Trees.CellSize))
                     : new float3(0.7f, 2f, 4.5f);
                 floraBlob = Punchy.Flora.FloraPlacement.Build(palette, cells, floraSpecies, obstacles: true, grownShapes: pendingShapes);
-                // (A-73: where fishing folk stand on the wharves, from the same grown shapes.)
-                wharfBlob = WharfSpots.Build(floraSpecies, floraBlob, pendingShapes);
-                stages.Append(' ').Append(WharfSpots.LastLog);
-                WharfSpots.GullSpots(ref floraBlob.Value, source, ref wharfBlob.Value, gullCells);
-                var gulls = 0;
-                foreach (var list in gullCells.Values)
-                    gulls += list.Count;
-                stages.Append(" gulls ").Append(gulls).Append(" (").Append(WharfSpots.MastGulls.Count).Append(" on buoy masts)");
+                if (simWorld != null)
+                {
+                    // (A-73: where fishing folk stand on the wharves, from the same grown shapes.)
+                    wharfBlob = WharfSpots.Build(floraSpecies, floraBlob, pendingShapes);
+                    stages.Append(' ').Append(WharfSpots.LastLog);
+                    WharfSpots.GullSpots(ref floraBlob.Value, source, ref wharfBlob.Value, gullCells);
+                    var gulls = 0;
+                    foreach (var list in gullCells.Values)
+                        gulls += list.Count;
+                    stages.Append(" gulls ").Append(gulls).Append(" (").Append(WharfSpots.MastGulls.Count).Append(" on buoy masts)");
+                    floraEntity = simWorld.EntityManager.CreateEntity();
+                    simWorld.EntityManager.SetName(floraEntity, "Flora Lookup");
+                    simWorld.EntityManager.AddComponentData(floraEntity, new Punchy.Flora.FloraLookup { Blob = floraBlob });
+                    simWorld.EntityManager.AddComponentData(floraEntity, new WharfSpotLookup { Blob = wharfBlob });
+                }
                 if (pendingShapes != null)
                     stages.Append(" (shapes waited ").Append(shapeFrames).Append(" frames)");
                 pendingShapes = null;
-                floraEntity = simWorld.EntityManager.CreateEntity();
-                simWorld.EntityManager.SetName(floraEntity, "Flora Lookup");
-                simWorld.EntityManager.AddComponentData(floraEntity, new Punchy.Flora.FloraLookup { Blob = floraBlob });
-                simWorld.EntityManager.AddComponentData(floraEntity, new WharfSpotLookup { Blob = wharfBlob });
+                // A-101: for whichever world the player moves in, which may hold no lookup (a host's or joined client's).
+                ClimbLadders.Flora.Data = floraBlob;
                 Stage("flora");
             }
             Debug.Log($"[fauna build] {species.Count} species, ms:{stages} fingerprint {BuildFingerprint():X8}");

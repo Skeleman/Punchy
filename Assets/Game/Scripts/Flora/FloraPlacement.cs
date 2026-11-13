@@ -114,6 +114,8 @@ namespace Punchy.Flora
         public int FirstPerch, PerchCount;
         /// <summary>Its chimneys' flue tops (W-43c, for smoke): its points in FloraBlob.Chimneys.</summary>
         public int FirstChimney, ChimneyCount;
+        /// <summary>W-147: its ladders (grade-1 climbs): its entries in FloraBlob.Ladders.</summary>
+        public int FirstLadder, LadderCount;
     }
 
     /// <summary>
@@ -162,6 +164,8 @@ namespace Punchy.Flora
         public BlobArray<float3> Perches;
         /// <summary>Chimneys' flue tops (FloraModel.Chimneys), unturned and unscaled. Only built for the animals' tables, like Perches.</summary>
         public BlobArray<float3> Chimneys;
+        /// <summary>W-147: ladders (FloraModel.Ladders), unturned and unscaled. Only built for the animals' tables, like Perches.</summary>
+        public BlobArray<Punchy.Terrain.ClimbLadder> Ladders;
         /// <summary>Grid spacing of the ground, shrub and tree layers.</summary>
         public float3 CellSizes;
     }
@@ -282,6 +286,7 @@ namespace Punchy.Flora
             var walls = new List<float4>();
             var perches = new List<float3>();
             var chimneys = new List<float3>();
+            var ladders = new List<Punchy.Terrain.ClimbLadder>();
             for (int i = 0; i < species.Count; i++)
             {
                 var s = species[i];
@@ -368,6 +373,9 @@ namespace Punchy.Flora
                         foreach (var c in model.Chimneys)
                             chimneys.Add(c);
                         shape.ChimneyCount = chimneys.Count - shape.FirstChimney;
+                        shape.FirstLadder = ladders.Count;
+                        ladders.AddRange(model.Ladders);
+                        shape.LadderCount = ladders.Count - shape.FirstLadder;
                         model.Destroy();
                     }
                     else if (obstacles && IsAnchorRock(s))
@@ -391,6 +399,9 @@ namespace Punchy.Flora
             var chimneyArray = builder.Allocate(ref root.Chimneys, chimneys.Count);
             for (int i = 0; i < chimneys.Count; i++)
                 chimneyArray[i] = chimneys[i];
+            var ladderArray = builder.Allocate(ref root.Ladders, ladders.Count);
+            for (int i = 0; i < ladders.Count; i++)
+                ladderArray[i] = ladders[i];
             var glow = builder.Allocate(ref root.Glow, species.Count);
             for (int i = 0; i < species.Count; i++)
                 glow[i] = GlowLight(species[i]);
@@ -630,6 +641,9 @@ namespace Punchy.Flora
                 if (street.Road == 0 || street.Road == SettlementSampling.TunnelRoad || math.any(xz < street.Min - radius) || math.any(xz > street.Max + radius))
                     continue;
                 if (SettlementSampling.Across(street, xz, out _) < street.Width * 0.5f + radius)
+                    return true;
+                // W-138 row 3: a tunnel portal's cutting and its mouth stay clear too.
+                if (SettlementSampling.InPortalCut(street, xz, radius))
                     return true;
             }
             return false;
@@ -1854,6 +1868,91 @@ namespace Punchy.Flora
         }
 
         /// <summary>
+        /// W-147: every ladder (a grade-1 climb, in the world) whose foot or top is within <paramref name="radius"/> of a
+        /// point: on towns' buildings (houses' roof ladders, stilt houses' and wharves' rope ladders, docks' and piers'
+        /// water ladders), on buildings landmarks place, and in mines (CaveSetBlob.Ladders). Placed as they're drawn, by
+        /// the same pure functions. Burst-safe; the list is filled until it's full. Cheap away from towns, landmarks and mines.
+        /// </summary>
+        public static void NearLadders(ref FloraBlob f, in TerrainSource source, float2 near, float radius, ref FixedList512Bytes<Punchy.Terrain.ClimbLadder> ladders)
+        {
+            if (source.Caves.IsCreated)
+            {
+                ref var mines = ref source.Caves.Value.Ladders;
+                for (int i = 0; i < mines.Length && ladders.Length < ladders.Capacity; i++)
+                    if (math.distance(mines[i].Foot.xz, near) <= radius || math.distance(mines[i].Top.xz, near) <= radius)
+                        ladders.Add(mines[i]);
+            }
+            if (f.Ladders.Length == 0)
+                return;
+            if (source.Settlements.IsCreated && f.SettlementSpecies.Length > 0)
+            {
+                ref var towns = ref source.Settlements.Value;
+                var townCell = SettlementSampling.Cell(ref towns, near);
+                if (townCell >= 0)
+                {
+                    var plots = towns.PlotCells[townCell];
+                    for (int k = plots.x; k < plots.x + plots.y; k++)
+                    {
+                        ref var plot = ref towns.Plots[towns.PlotItems[k]];
+                        if (plot.Building < 0 || plot.Building >= f.SettlementSpecies.Length ||
+                            math.any(near < plot.Min - radius - 4f) || math.any(near > plot.Max + radius + 4f))
+                            continue;
+                        var building = PlotSpecies(ref f, ref towns, plot);
+                        if (building.x < 0 || building.y < 0)
+                            continue;
+                        var cell = (int2)math.floor(plot.Centre / f.CellSizes[building.y]);
+                        Ladders(ref f, Place(ref f, source, cell, building.y), near, radius, ref ladders);
+                    }
+                }
+            }
+            if (source.Landmarks.IsCreated && LandmarkSampling.Find(ref source.Landmarks.Value, near, out var landmark) && landmark.Type < f.LandmarkTypeCount)
+            {
+                ref var set = ref source.Landmarks.Value;
+                for (int l = 0; l < 3; l++)
+                {
+                    var placed = f.PropRanges[landmark.Type * 3 + l];
+                    for (int e = placed.x; e < placed.x + placed.y; e++)
+                    {
+                        var prop = f.Props[e];
+                        if (prop.Count == 0 || f.Models[f.Rules[prop.Species].FirstModel].LadderCount == 0)
+                            continue;
+                        for (int k = 0; k < prop.Count; k++)
+                        {
+                            var spot = LandmarkSampling.ToWorld(set.Instances[landmark.Instance],
+                                LandmarkLayout.Spot(prop.Ring.x, prop.Angle + k * 360f / prop.Count), landmark.Radius);
+                            if (math.distance(spot, near) > 25f + radius)   // gameplay: a prop building's reach, for the climb query
+                                continue;
+                            Ladders(ref f, Place(ref f, source, (int2)math.floor(spot / f.CellSizes[l]), l), near, radius, ref ladders);
+                        }
+                    }
+                }
+            }
+        }
+
+        /// <summary>A placed plant's ladders near a point, in the world (see NearLadders).</summary>
+        static void Ladders(ref FloraBlob f, in FloraSystem.FloraInstance plant, float2 near, float radius, ref FixedList512Bytes<Punchy.Terrain.ClimbLadder> ladders)
+        {
+            if (plant.Model < 0 || plant.Model >= f.Models.Length)
+                return;
+            var shape = f.Models[plant.Model];
+            float c = math.cos(plant.Yaw), sn = math.sin(plant.Yaw);
+            float3 at = plant.Position;
+            var scale = plant.Scale;
+            float3 World(float3 p) => at + new float3(p.x * c - p.z * sn, p.y, p.x * sn + p.z * c) * scale;
+            for (int i = shape.FirstLadder; i < shape.FirstLadder + shape.LadderCount; i++)
+            {
+                var l = f.Ladders[i];
+                var foot = World(l.Foot);
+                var top = World(l.Top);
+                if (math.distance(foot.xz, near) > radius && math.distance(top.xz, near) > radius)
+                    continue;
+                if (ladders.Length == ladders.Capacity)
+                    return;
+                ladders.Add(new Punchy.Terrain.ClimbLadder { Foot = foot, Top = top, Out = new float3(l.Out.x * c - l.Out.z * sn, 0f, l.Out.x * sn + l.Out.z * c), Grade = l.Grade });
+            }
+        }
+
+        /// <summary>
         /// W-43c: the chimney tops (world) of the settlement building on one plot, if it has any. Placement is the
         /// same pure function the drawing uses, so the smoke sits on the drawn flue.
         /// </summary>
@@ -2323,8 +2422,10 @@ namespace Punchy.Flora
                                 // posts in the shallows, instead of leaving its plot empty (no draws moved).
                                 if (placedRule.House == 2 && LandmarkSampling.StiltHouseSpot(source, set.Instances[landmark.Instance].Position, spot, out var stiltPlot, out _))
                                     spot = stiltPlot;
+                                // W-138: a pier stays where a road ends on it: the landing spur stops at its ramp foot,
+                                // so the road walks straight onto the deck.
                                 if (OnBuiltPlot(ref f, source, spot, placedRule.Footprint * prop.Scale.y) ||
-                                    OnRoad(source, spot, placedRule.Footprint * prop.Scale.y))
+                                    (placedRule.PierReach <= 0f && OnRoad(source, spot, placedRule.Footprint * prop.Scale.y)))
                                     return none;
                                 // W-59d: a shore cluster reaches about 5 m (2.5 m spread plus half a pulled-up boat):
                                 // none within that of a dock's walk lane, so nothing stands on the ramp or deck.

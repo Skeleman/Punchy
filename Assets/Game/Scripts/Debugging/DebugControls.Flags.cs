@@ -22,6 +22,31 @@ namespace Punchy.Debugging
         void ApplyOptions(string[] args)
         {
             optionsAt = Time.timeSinceLevelLoad;
+            // "-place ledge:lip[:Body]" and "-ledgepiece" (A-101 row 1b): the ledge lip test (LedgeLipTest).
+            LedgeLipOptions(args);
+            // "-breathtest" (A-102 row 1): air and water breathers held on a lake bed, their breath logged (BreathTest).
+            breathTest = System.Array.IndexOf(args, "-breathtest") >= 0;
+            // "-ridetest" (A-104 row 1): three rider/mount pairs, one refused, walked for a minute (RideTest).
+            rideTest = System.Array.IndexOf(args, "-ridetest") >= 0;
+            // "-ridelife" (A-104 row 2): the rides a town makes by itself, then each way of getting down (RideLifeTest).
+            rideLife |= System.Array.IndexOf(args, "-ridelife") >= 0;   // (Kept on through -camlook lines for its shots.)
+            // "-rideplayer [rider|mount]" (A-104 row 3): the player rides a dog, or another player (RidePlayerTest).
+            var rp = System.Array.IndexOf(args, "-rideplayer");
+            if (rp >= 0)
+                ridePlayer = rp + 1 < args.Length && (args[rp + 1] == "rider" || args[rp + 1] == "mount") ? args[rp + 1] : "";
+            // "-divetest [Human|FishFolk]" (A-102 row 2): a person and a fish folk out swimming and diving (DiveTest).
+            var diveArg = System.Array.IndexOf(args, "-divetest");
+            diveTest = diveArg >= 0 ? (diveArg + 1 < args.Length && !args[diveArg + 1].StartsWith("-") ? args[diveArg + 1] : "") : null;
+            // "-playerdive [water]" (A-102 row 3): the player dives, rises and runs out of breath (PlayerDiveTest).
+            var playerDiveArg = System.Array.IndexOf(args, "-playerdive");
+            playerDive = playerDiveArg >= 0;
+            pdWater = playerDive && playerDiveArg + 1 < args.Length && args[playerDiveArg + 1] == "water";
+            // ("-playerdive [water] follow": the player's own camera follows the dive rather than the side shot camera.)
+            pdFollow = playerDive && System.Array.IndexOf(args, "follow", playerDiveArg) > playerDiveArg;
+            // "-netwatch [Species]" (A-103 row 2b): that species (default SeaFolk) and other players' depth, every 10 s (NetWatch).
+            var netWatchArg = System.Array.IndexOf(args, "-netwatch");
+            netWatchSpecies = netWatchArg < 0 ? null
+                : netWatchArg + 1 < args.Length && !args[netWatchArg + 1].StartsWith("-") ? args[netWatchArg + 1] : "SeaFolk";
             landmarkPlacePending = null; // (a later shot's options replace an earlier -place still being retried)
             if (!drawCalls.Valid)
             {
@@ -73,6 +98,18 @@ namespace Punchy.Debugging
             var bodyArg = System.Array.IndexOf(args, "-setbody");
             if (bodyArg >= 0 && bodyArg + 1 < args.Length)
                 SetBody(args[bodyArg + 1]);
+            // "-climbskill N" (A-101): the player climbs with skill N (0-5) whatever its body, until "-climbskill -1".
+            var climbSkillArg = System.Array.IndexOf(args, "-climbskill");
+            if (climbSkillArg >= 0 && climbSkillArg + 1 < args.Length && int.TryParse(args[climbSkillArg + 1], out var climbSkill))
+                SetClimbSkill(climbSkill);
+            // "-climbband x,y,z,ox,oz,halfwidth,height,grade" (A-101 row 1): marks a climbing band, as "-place climb" logs
+            // it, so a joined client's player climbs the same band and sees the same marking.
+            var climbBandArg = System.Array.IndexOf(args, "-climbband");
+            if (climbBandArg >= 0 && climbBandArg + 1 < args.Length && ParseClimbBand(args[climbBandArg + 1], out var markedBand))
+            {
+                ClimbBands.Add(markedBand);
+                MarkClimbBand(markedBand);
+            }
             // "-shotonhunt": one shot the moment a land hunter enters its sprint, camera framing hunter and prey (#9).
             shotOnHunt = System.Array.IndexOf(args, "-shotonhunt") >= 0;
             var huntSideArg = System.Array.IndexOf(args, "-huntside");
@@ -142,6 +179,8 @@ namespace Punchy.Debugging
             Comfort.Off.Data = cfArg >= 0 && cfArg + 1 < args.Length && args[cfArg + 1] == "off" ? 1 : 0;
             // "-weathertalk": log each weather line folk say, with its cell and how many are up there (A-71 row 4).
             WeatherTalkSystem.LogLines = System.Array.IndexOf(args, "-weathertalk") >= 0;
+            // "-hermittalk": log each line a hermit says to itself (A-106 row 2).
+            HermitTalkSystem.LogLines = System.Array.IndexOf(args, "-hermittalk") >= 0;
             // "-comfortheat -0.3": shifts the comfort grid's heat (a forced cold snap or heat wave for comfort shots).
             var chArg = System.Array.IndexOf(args, "-comfortheat");
             Comfort.HeatShift.Data = chArg >= 0 && chArg + 1 < args.Length && float.TryParse(args[chArg + 1], System.Globalization.NumberStyles.Float,
@@ -232,6 +271,9 @@ namespace Punchy.Debugging
             CreatureRenderSystem.Surfaces = System.Array.IndexOf(args, "-nosurfaces") < 0;
             // "-nobloom" (A-96): bloom off in the volumes' own copies of their profiles (the asset is untouched).
             Punchy.Debugging.SparkleProbe.NoBloom(System.Array.IndexOf(args, "-nobloom") >= 0);
+            // "-stopnan 0" (R-18): the main camera without URP's Stop NaN guard (a bench arm; hunting NaN by eye).
+            var stopNan = System.Array.IndexOf(args, "-stopnan");
+            Punchy.CameraRig.NanGuard.Set(!(stopNan >= 0 && stopNan + 1 < args.Length && args[stopNan + 1] == "0"));
             // "-solidsoff" (A-44): wild animals ignore cave walls, towers and carved ground as before, for before numbers
             // from the same build. "-solidstats": log their contacts, sink and floating every 60 s (SolidStatsLog).
             CreatureMotion.SolidsOff.Data = System.Array.IndexOf(args, "-solidsoff") >= 0 ? 1 : 0;
@@ -348,6 +390,14 @@ namespace Punchy.Debugging
                     if (EnsureLocations(out var propSource) && PlaceByProp(propSource, propPending))
                         propPending = null;
                 }
+                else if (args[i] == "-place" && args[i + 1].StartsWith("ladder:", System.StringComparison.OrdinalIgnoreCase))
+                {
+                    // (A-101 + W-147: a real ladder; waits for the flora lookup, as props do.)
+                    ladderPending = args[i + 1].Substring(7);
+                    ladderPendingUntil = Time.unscaledTime + PropWait;
+                    if (EnsureLocations(out var ladderSource) && PlaceByLadder(ladderSource, ladderPending))
+                        ladderPending = null;
+                }
                 else if (args[i] == "-place" && args[i + 1].StartsWith("cavelava", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var lavaSource))
                     PlaceInCavePool(lavaSource, args[i + 1].Substring(8), lava: true);
                 else if (args[i] == "-place" && args[i + 1].StartsWith("cavepool", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var poolSource))
@@ -362,12 +412,26 @@ namespace Punchy.Debugging
                     PlaceByCrossing(crossingSource);
                 else if (args[i] == "-place" && string.Equals(args[i + 1], "clearlake", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var lakeSource))
                     PlaceByClearLake(lakeSource);
-                else if (args[i] == "-place" && (string.Equals(args[i + 1], "ledge", System.StringComparison.OrdinalIgnoreCase) || args[i + 1].StartsWith("wall", System.StringComparison.OrdinalIgnoreCase)))
+                else if (args[i] == "-place" && (string.Equals(args[i + 1], "ledge", System.StringComparison.OrdinalIgnoreCase) || args[i + 1].StartsWith("wall", System.StringComparison.OrdinalIgnoreCase) ||
+                                                 args[i + 1].StartsWith("climb", System.StringComparison.OrdinalIgnoreCase)))
                 {
+                    // ("climb[:grade][:Body]", A-101 row 1: the wall test with a marked band on the wall, grade 2 vines
+                    // unless given, 1 a ladder; for the human's climb, whose skill climbs no unmarked wall.)
+                    var climbBand = args[i + 1].StartsWith("climb", System.StringComparison.OrdinalIgnoreCase);
                     // ("wall": the same, for a wall-climbing body: the nearest wall of a building or rock, not a rim to mantle.)
-                    wallRequest = args[i + 1].StartsWith("wall", System.StringComparison.OrdinalIgnoreCase);
+                    wallRequest = climbBand || args[i + 1].StartsWith("wall", System.StringComparison.OrdinalIgnoreCase);
+                    climbBandGrade = climbBand ? Climbing.Assisted : Climbing.None;
+                    if (climbBand)
+                    {
+                        var parts = args[i + 1].Split(':');
+                        for (int k = 1; k < parts.Length; k++)
+                            if (byte.TryParse(parts[k], out var bandGrade))
+                                climbBandGrade = (byte)math.clamp((int)bandGrade, (int)Climbing.Ladder, (int)Climbing.Most);
+                            else
+                                SetBody(parts[k]);
+                    }
                     // ("wall:Lizard": as that body; A-13 #33.)
-                    if (wallRequest && args[i + 1].IndexOf(':') > 0)
+                    else if (wallRequest && args[i + 1].IndexOf(':') > 0)
                         SetBody(args[i + 1].Substring(args[i + 1].IndexOf(':') + 1));
                     // To the nearest settlement first: its buildings, wells and stalls have the ledges (PlaceByLedge,
                     // once their tops have loaded round the player).
@@ -378,6 +442,7 @@ namespace Punchy.Debugging
                         Jump(1);
                     }
                     ledgeRequest = true;
+                    ledgeRejumped = false;
                     wallVisited.Clear();
                     wallTallest = 0f;
                     wallSearchAt = 0f;
@@ -450,9 +515,24 @@ namespace Punchy.Debugging
             // "-nocavewalls" (no cave walls drawn, to price them), "-perflog" (frame costs over the last 3 s of the wait).
             CaveSystem.NoRoomCull = ThirdPersonCamera.OldProbe = System.Array.IndexOf(args, "-oldcave") >= 0;
             CaveSystem.NoWalls = System.Array.IndexOf(args, "-nocavewalls") >= 0;
+            // "-nocaveskip" (W-135): from the surface, every unburied cave chunk drawn, as before the opening test.
+            CaveSystem.NoSurfaceSkip = System.Array.IndexOf(args, "-nocaveskip") >= 0;
+            // "-cavelevel n" (W-135 row 2): every cave chunk built at wall level n (0: 0.5 m, 1: 1 m, 2: 2 m).
+            int caveLevelAt = System.Array.IndexOf(args, "-cavelevel");
+            if (caveLevelAt >= 0 && caveLevelAt + 1 < args.Length && int.TryParse(args[caveLevelAt + 1], out var caveLevel))
+                CaveSystem.ForceLevel = caveLevel;
             // "-oldtrace" (#81): TraceSystem's managed per-creature ground lookups, as before W-66.
             Punchy.Fauna.TraceSystem.OldTrace = System.Array.IndexOf(args, "-oldtrace") >= 0;
             perfLog = System.Array.IndexOf(args, "-perflog") >= 0;
+            // "-fishprobe" / "-fishlineup" (A-100): the catch-table probe and the catch line-up (DebugControls.Fish.cs).
+            fishProbe = System.Array.IndexOf(args, "-fishprobe") >= 0;
+            var lineupArg = System.Array.IndexOf(args, "-fishlineup");
+            fishLineup = lineupArg >= 0;
+            fishLineupGroup = lineupArg >= 0 && lineupArg + 1 < args.Length && (args[lineupArg + 1] == "small" || args[lineupArg + 1] == "big")
+                ? args[lineupArg + 1] : null;
+            // "-fishlure approach|nibble|bite|scatter" (A-100 row 2): a bobber in front of the nearest fish, at that moment.
+            var lureArg = System.Array.IndexOf(args, "-fishlure");
+            fishLure = lureArg >= 0 ? (lureArg + 1 < args.Length && !args[lureArg + 1].StartsWith("-") ? args[lureArg + 1] : "approach") : null;
             // "-skyoff n" (a bit mask, to price the sky's parts): see _PunchySkyOff in Sky.hlsl. Per shot line.
             var skyOffArg = System.Array.IndexOf(args, "-skyoff");
             if (skyOffArg >= 0 && skyOffArg + 1 < args.Length && float.TryParse(args[skyOffArg + 1], out var skyOff))

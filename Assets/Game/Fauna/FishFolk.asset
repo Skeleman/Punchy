@@ -594,6 +594,8 @@ MonoBehaviour:
   Habitat: 0
   SwimDepth: 0.6
   Leaps: 0
+  BreathesWater: 1
+  HoldBreath: 0
   Active: 0
   Grazing: 0
   Thirst: 0

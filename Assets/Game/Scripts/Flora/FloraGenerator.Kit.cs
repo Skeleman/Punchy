@@ -116,6 +116,12 @@ namespace Punchy.Flora
                 case Punchy.Terrain.KitShape.SandHouse:
                     storeys = 1;
                     parts = Punchy.Terrain.StructureKit.HazardHouse(seed, trim, shape, width, depth);
+                    // W-147 row 1b: a roof ladder too, its foot past the stone skin and the drift's toe. Not the snow
+                    // house: its drift is a ramp half up the wall already, and a ladder would stand in the snow.
+                    if (shape != Punchy.Terrain.KitShape.SnowHouse)
+                        Punchy.Terrain.StructureKit.RoofLadder(parts, seed, trim, width, depth, storeys, g.Variant,
+                            shape == Punchy.Terrain.KitShape.AshHouse ? 0.45f : shape == Punchy.Terrain.KitShape.SandHouse ? 0.4f : 0f,
+                            shape == Punchy.Terrain.KitShape.AshHouse ? 1.0f : shape == Punchy.Terrain.KitShape.SandHouse ? 1.55f : 0f);
                     break;
                 case Punchy.Terrain.KitShape.SlabShelter:   // W-95 (#69): Bark is the local rock, the accent its cap (snow, ash, sand)
                     storeys = 1;
@@ -123,8 +129,13 @@ namespace Punchy.Flora
                     trim.Trim = g.HasAccent ? g.Accent : g.Bark * 1.1f;
                     parts = Punchy.Terrain.StructureKit.SlabShelter(seed, trim, width, depth);
                     break;
+                case Punchy.Terrain.KitShape.Ladder:    // W-147: a mine's ladder piece, its height from the variant
+                    parts = Punchy.Terrain.StructureKit.LadderPiece(Punchy.Terrain.StructureKit.LadderPieceHeight(g.Variant));
+                    break;
                 default:
                     parts = Punchy.Terrain.StructureKit.House(seed, trim, width, depth, storeys, ruined ? g.Range(0.45f, 0.9f) : 0f);
+                    if (!ruined)   // W-147: some folk's houses have a ladder up to the roof (its own draws)
+                        Punchy.Terrain.StructureKit.RoofLadder(parts, seed, trim, width, depth, storeys, g.Variant);
                     break;
             }
             var house = Punchy.Terrain.StructureKit.HouseLike(shape) && shape != Punchy.Terrain.KitShape.SlabShelter ||   // a slab shelter is walked into
@@ -147,6 +158,7 @@ namespace Punchy.Flora
                 var p = parts[i];
                 var small = p.Piece == Punchy.Terrain.KitPiece.Trim || p.Piece == Punchy.Terrain.KitPiece.Rail ||
                             p.Piece == Punchy.Terrain.KitPiece.Rubble || p.Piece == Punchy.Terrain.KitPiece.Moss || p.Piece == Punchy.Terrain.KitPiece.MossCap ||
+                            p.Piece == Punchy.Terrain.KitPiece.Ladder && shape != Punchy.Terrain.KitShape.Ladder ||
                             (p.Piece == Punchy.Terrain.KitPiece.Window && p.Material != Punchy.Terrain.KitMaterial.Opening);
                 if (small && g.Lod >= 2)
                     continue;
@@ -157,8 +169,8 @@ namespace Punchy.Flora
                 top = Mathf.Max(top, high);
                 // W-67 (#79): every part is a solid box unless it's decor (moss, trim, windows, lamps and runes): the
                 // collision is the art. Only LOD 0 keeps them (that's the one FloraModel copies).
-                var decor = p.Piece == Punchy.Terrain.KitPiece.Moss || p.Piece == Punchy.Terrain.KitPiece.Trim ||
-                            p.Piece == Punchy.Terrain.KitPiece.Window || p.Material == Punchy.Terrain.KitMaterial.Lamp ||
+                var decor = p.Piece == Punchy.Terrain.KitPiece.Moss || p.Piece == Punchy.Terrain.KitPiece.Trim || p.Piece == Punchy.Terrain.KitPiece.Ladder ||
+                            p.Piece == Punchy.Terrain.KitPiece.Window || p.Material == Punchy.Terrain.KitMaterial.Lamp || p.Material == Punchy.Terrain.KitMaterial.Flame ||
                             p.Material == Punchy.Terrain.KitMaterial.Rune || p.Material == Punchy.Terrain.KitMaterial.Moss;
                 // W-113 (item 10): a ruin's plinth course (trim, but a 0.5 m slab under the whole floor) is solid too, so a
                 // body walks up onto the platform rather than sinking to the ground through it. The door step (a low, small
@@ -230,6 +242,18 @@ namespace Punchy.Flora
             foreach (var p in parts)   // W-128: each moored boat's underside, for the waterline check
                 if (p.Keel)
                     g.Boats.Add(p.Centre - Vector3.up * (p.Size.y * 0.5f));
+            foreach (var p in parts)   // W-147: each ladder, a grade-1 climb (rule 22: from the seed, like the rest)
+                if (p.Piece == Punchy.Terrain.KitPiece.Ladder)
+                {
+                    var outward = p.Rotation * Vector3.forward;
+                    g.Ladders.Add(new Punchy.Terrain.ClimbLadder
+                    {
+                        Foot = Punchy.Terrain.StructureKit.LadderFoot(p),
+                        Top = Punchy.Terrain.StructureKit.LadderLanding(p, shape == Punchy.Terrain.KitShape.Ladder ? 0f : Punchy.Terrain.StructureKit.LadderGrab),
+                        Out = new Vector3(outward.x, 0f, outward.z).normalized,
+                        Grade = Punchy.Terrain.StructureKit.LadderGrade
+                    });
+                }
             b.Recolor(first, (p, c) => p.y < 0.5f ? c * 0.82f : c);   // darker footing
             if (ruined && g.Lod < 2)
                 RuinSand(g, parts, width, depth, seed);
@@ -266,6 +290,11 @@ namespace Punchy.Flora
                 b.MossSheet(p.Centre, p.Size, p.Rotation, c, (uint)i * 2654435761u ^ seed);
                 return false;
             }
+            if (p.Piece == Punchy.Terrain.KitPiece.Ladder)
+            {
+                DrawLadder(g, p, trim, jitter);
+                return true;
+            }
             // W-99: planks, shingles or thatch on the folk's timber walls and roofs, fine grain on bare timber.
             var look = ruined ? Punchy.Terrain.KitSurface.Plain : p.Material == Punchy.Terrain.KitMaterial.Wall ? looks.Wall :
                        p.Material == Punchy.Terrain.KitMaterial.Roof ? looks.Roof : Punchy.Terrain.KitSurface.Plain;
@@ -290,11 +319,39 @@ namespace Punchy.Flora
                 b.BandedBox(p.Centre, p.Size, p.Rotation, c, FloraPart.Bark, contacts, Mathf.Min(0.5f, p.Size.y * 0.3f), 0.7f);
             else
                 b.Box(p.Centre, p.Size, p.Rotation, c, p.Material == Punchy.Terrain.KitMaterial.Moss ? FloraPart.Foliage :
-                                                       p.Material == Punchy.Terrain.KitMaterial.Lamp || p.Material == Punchy.Terrain.KitMaterial.Rune ? FloraPart.Window : FloraPart.Bark);
+                                                       p.Material == Punchy.Terrain.KitMaterial.Lamp || p.Material == Punchy.Terrain.KitMaterial.Flame ||
+                                                       p.Material == Punchy.Terrain.KitMaterial.Rune ? FloraPart.Window : FloraPart.Bark);
             b.Surface = 0;
             b.Wood = false;
             b.Unfounded = false;
             return true;
+        }
+
+        /// <summary>
+        /// W-147: a ladder part as two rails up its local Y and rungs across every 30 cm (wood rails, or rope cords with
+        /// wood rungs). Far LODs keep the rails and every other rung.
+        /// </summary>
+        static void DrawLadder(Grower g, in Punchy.Terrain.KitPart p, in Punchy.Terrain.CultureTrim trim, float jitter)
+        {
+            var b = g.B;
+            var rope = p.Material == Punchy.Terrain.KitMaterial.Net;
+            var wood = Punchy.Terrain.StructureKit.Colour(trim, Punchy.Terrain.KitMaterial.Wood);
+            wood = Color.Lerp(wood * 0.94f, wood * 1.08f, jitter);
+            var cord = rope ? Punchy.Terrain.StructureKit.Colour(trim, Punchy.Terrain.KitMaterial.Net) : wood;
+            var r = p.Rotation;
+            var up = r * Vector3.up;
+            var foot = p.Centre - up * (p.Size.y * 0.5f);
+            var rail = rope ? 0.035f : 0.06f;
+            var half = p.Size.x * 0.5f - 0.03f;
+            b.Wood = true;
+            b.Unfounded = p.Afloat;
+            foreach (var side in new[] { -1f, 1f })
+                b.Box(p.Centre + r * new Vector3(side * half, 0f, 0f), new Vector3(rail, p.Size.y, rail), r, cord, FloraPart.Bark);
+            var step = g.Lod >= 1 ? 0.6f : 0.3f;
+            for (var y = 0.3f; y < p.Size.y - 0.1f; y += step)
+                b.Box(foot + up * y, new Vector3(half * 2f, 0.04f, 0.05f), r, wood, FloraPart.Bark);
+            b.Wood = false;
+            b.Unfounded = false;
         }
 
         static void StoneHouse(Grower g)
@@ -367,6 +424,53 @@ namespace Punchy.Flora
             for (int k = 0; k < 4; k++)
                 g.Colliders.Add(new Vector4((k & 1) == 0 ? -half * 0.5f : half * 0.5f, (k & 2) == 0 ? -half * 0.5f : half * 0.5f, half * 0.55f, wall));
             DoorMat(g, half + 0.02f, Mathf.Min(half * 0.6f, 1.25f));
+            // W-147: some have a ladder up a side wall to the eave (clear of the mid-wall window and the corner quoins).
+            if (HouseLadderRoll(g, out var pick))
+            {
+                var side = pick < 0.5f ? -1f : 1f;
+                var eave = half * 1.2f;   // the pyramid roof's edge, its square turned to the walls
+                var z = -half * 0.55f;
+                HouseLadder(g, new Vector3(side * (eave + 0.35f), 0f, z), new Vector3(side * (eave + 0.05f), wall - 0.14f, z), new Vector3(side, 0f, 0f));
+            }
+        }
+
+        /// <summary>
+        /// W-147: whether this town house (Hut, StoneHouse) has a ladder up to its roof: one variant in four (row 1b: a
+        /// roll over four variants often gave a species none), and a draw for where, straight from the species' seed and
+        /// the variant, not the grower's draws, so the house is as it was.
+        /// </summary>
+        static bool HouseLadderRoll(Grower g, out float pick)
+        {
+            var h = Mix((uint)g.S.Seed * 0x9E3779B9u ^ (uint)g.Variant * 0x85EBCA6Bu ^ 0x3ADDu);
+            pick = (Mix(h) & 0xFFFF) / 65535f;
+            return g.Variant % 4 == 3;
+        }
+
+        /// <summary>A full-avalanche mix of a uint (math.hash of one uint doesn't spread its bits).</summary>
+        static uint Mix(uint x)
+        {
+            x ^= x >> 16; x *= 0x7FEB352Du;
+            x ^= x >> 15; x *= 0x846CA68Bu;
+            x ^= x >> 16;
+            return x;
+        }
+
+        /// <summary>W-147: draws a wood ladder from foot to landing (climbed from outward) and records its grade-1 climb.</summary>
+        static void HouseLadder(Grower g, Vector3 foot, Vector3 landing, Vector3 outward)
+        {
+            var parts = new List<Punchy.Terrain.KitPart>();
+            Punchy.Terrain.StructureKit.Ladder(parts, foot, landing, outward, false);
+            if (parts.Count == 0)
+                return;
+            var p = parts[0];
+            DrawLadder(g, p, Punchy.Terrain.StructureKit.For(g.S.KitCulture), 0.5f);
+            g.Ladders.Add(new Punchy.Terrain.ClimbLadder
+            {
+                Foot = Punchy.Terrain.StructureKit.LadderFoot(p),
+                Top = Punchy.Terrain.StructureKit.LadderLanding(p),
+                Out = new Vector3(outward.x, 0f, outward.z).normalized,
+                Grade = Punchy.Terrain.StructureKit.LadderGrade
+            });
         }
 
         /// <summary>

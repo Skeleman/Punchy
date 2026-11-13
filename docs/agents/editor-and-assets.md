@@ -25,6 +25,8 @@ Read before editing assets or scenes, driving the editor from the CLI, or commit
 - A shot that moves `Camera.main` and calls `cam.Render()` in the same eval shows no plants, rocks or ruins near the
   new pose, only their shadows: FloraSystem culls in LateUpdate for the pose the camera had that frame, and the shadow
   cache doesn't depend on the view. Move the camera, let a frame pass (a second eval), then render (W-108).
+- An editor started from the CLI can open with no scene loaded: entering Play mode then builds no world, and probes
+  wait forever. Open it first: `EditorSceneManager.OpenScene("Assets/Scenes/SampleScene.unity")` (W-138).
 - An editor killed while in Play mode leaves `Temp/__Backupscenes`, and the next start sits at a modal "Recovering
   Scene Backups" dialog that the CLI can't see (100 MB, no log). Delete that folder before restarting (W-108).
 - Closing Unity: if a "scene modified" dialog appears, save or discard through script (EditorSceneManager) before

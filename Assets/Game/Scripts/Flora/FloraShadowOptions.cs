@@ -44,9 +44,10 @@ namespace Punchy.Rendering
         /// nothing at all, so a forest seen from afar had no shadows).</summary>
         public static float CacheRange = Number("-shadowcachefar", 120f);
 
-        /// <summary>How much a cached shadow darkens what it falls on (0-1, -shadowcachedark, times the sun's shadow
-        /// strength). W-112: 0.62, about what a real-time shadow takes away at midday (was 0.42, far shadows read pale).</summary>
-        public static float CacheDarkness = Number("-shadowcachedark", 0.62f);
+        /// <summary>How much of the direct sunlight a cached shadow takes (0-1, -shadowcachedark, times the sun's shadow
+        /// strength). R-16: 1, as the real-time and wide shadows (was 0.62 of the whole colour, which took the ambient
+        /// light too, so the cache band read brown and about twice as dark as the tiers either side).</summary>
+        public static float CacheDarkness = Number("-shadowcachedark", 1f);
 
         /// <summary>The cache is redrawn when the sun has turned this far (degrees) or the camera moved this far (m).</summary>
         public static float CacheSunDegrees = 0.5f, CacheMove = 10f;

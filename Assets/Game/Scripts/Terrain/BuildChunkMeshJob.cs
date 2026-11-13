@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using Unity.Burst;
 using Unity.Collections;
+using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
@@ -69,6 +70,8 @@ namespace Punchy.Terrain
         /// <summary>Whether a coarser LOD exists to morph towards.</summary>
         public bool CanMorph;
         public float2 MorphRange;
+        /// <summary>W-136: the nearest a chunk of this LOD gets to the camera (m), for the ground contacts' screen gate.</summary>
+        public float Near;
     }
 
     /// <summary>
@@ -87,6 +90,11 @@ namespace Punchy.Terrain
         public float ChunkSize;
         public float NormalEpsilon;
         public float SkirtDepth;
+        /// <summary>W-136: placed plants and their feet, darkening the ground where they meet it (unset: no darkening).</summary>
+        public BlobAssetReference<Punchy.Flora.FloraBlob> Flora;
+        public BlobAssetReference<GroundContacts.Table> Contacts;
+        public float4 ContactStrength, ContactReach;
+        public float ContactPixelsPerMetre;
         /// <summary>Output: (min, max) local Y of the terrain mesh, for bounds.</summary>
         public NativeArray<float2> HeightRanges;
         /// <summary>Output: (min, max) Y of the water mesh; x &gt; y when the chunk has no water.</summary>
@@ -114,6 +122,16 @@ namespace Punchy.Terrain
             // Cave entrances: each vertex carries its distance to cave air, and the terrain shader cuts away the
             // surface just inside the cave's edge (per pixel, so the opening follows the cave, not the grid).
             var cutHoles = request.Lod <= 1 && Source.Caves.IsCreated;
+            // W-136: darkening where trunks, rocks, walls and props meet the ground, multiplied into the albedo.
+            var shaded = Flora.IsCreated && Contacts.IsCreated;
+            var shade = new NativeArray<float>(shaded ? v * v : 1, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+            if (shaded)
+            {
+                for (int i = 0; i < shade.Length; i++)
+                    shade[i] = 1f;
+                GroundContacts.Rasterise(ref Flora.Value, ref Contacts.Value, Source, request.Origin, v, step, request.Near,
+                                         ContactPixelsPerMetre, ContactStrength, ContactReach, shade);
+            }
 
             for (int z = 0; z < v; z++)
             for (int x = 0; x < v; x++)
@@ -129,6 +147,8 @@ namespace Punchy.Terrain
 
                 var vertex = new TerrainVertex { Position = new float3(local.x, h, local.y), Normal = normal };
                 var surface = Source.SampleSurface(world, ground, normal);
+                if (shaded)
+                    surface.Albedo *= shade[z * v + x];
                 vertex.SetSurface(surface);
                 // Ground just above the water stays wet (a dark band along shores); stored as a negative skirt drop.
                 if (ground.HasWater)

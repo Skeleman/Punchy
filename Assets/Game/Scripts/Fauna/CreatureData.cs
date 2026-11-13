@@ -62,6 +62,10 @@ namespace Punchy.Fauna
         /// keen it is on walks to the surface (SurfaceTrips, a Decide weight).</summary>
         public bool ShunsLight;
         public float SurfaceTrips;
+        /// <summary>Turtle folk (A-103): a joined client reads its replicated task as an igloo job (FolkJobs.FromTurtleTask).</summary>
+        public bool TurtleJobs;
+        /// <summary>Sea folk (A-103): water of any depth is walkable ground; it stays on the bottom and never swims.</summary>
+        public bool WalksBed;
         /// <summary>Its town guards' kit (helmet, weapon) and the colours of their armour and sash (linear).</summary>
         public GuardKit GuardKit;
         public float4 GuardArmour, GuardSash;
@@ -96,8 +100,8 @@ namespace Punchy.Fauna
         public bool Slithers;
         /// <summary>Walks on hooves (CreatureSpecies.Hooves): a clop on hard ground.</summary>
         public bool Hooves;
-        /// <summary>What a player in this body can climb (CreatureSpecies.ClimbsAs, or from Crawls and Climbing).</summary>
-        public ClimbAbility ClimbsAs;
+        /// <summary>Its climbing skill (Climbing, 0-5): CreatureSpecies.ClimbSkill, or from Crawls, Climbing and hands.</summary>
+        public byte ClimbSkill;
         /// <summary>Its answer to someone emoting near it (CreatureSpecies.EmoteReaction, Default worked out).</summary>
         public EmoteReaction Reaction;
         /// <summary>Tunnels through the ground (CreatureSpecies.Tunnels): a sand or snow worm.</summary>
@@ -110,6 +114,10 @@ namespace Punchy.Fauna
         public bool Disguised;
         /// <summary>Its taste in weather (A-71): what makes it uncomfortable and what shelter it seeks.</summary>
         public ComfortProfile Comfort;
+        /// <summary>A-102 breath (Breath): never runs short under water (fish, water and sea folk); else how long it
+        /// holds its breath (s, CreatureSpecies.HoldBreath or Breath.DefaultHold).</summary>
+        public bool BreathesWater;
+        public float HoldBreath;
 
         public BlobArray<CreaturePart> Parts;
         public BlobArray<CreatureSegment> Segments;
@@ -397,7 +405,12 @@ namespace Punchy.Fauna
         /// weather is bad), then waiting there facing Focus (1) till the weather lets up or its time runs out. What the
         /// shelter is (a ShelterNeed bit) rides in TargetHeight.
         /// </summary>
-        Shelter
+        Shelter,
+        /// <summary>
+        /// A-104: riding another creature (Riding): no mind of its own while it rides, put on its mount's seat each frame
+        /// (RideSystem). How it sits (a RidePose) is in Stage; what it rides is in Holder (minus the mount's ghost id).
+        /// </summary>
+        Ride
     }
 
     /// <summary>What a worker does at its post (posed by CreatureAnimator).</summary>
@@ -490,6 +503,15 @@ namespace Punchy.Fauna
         Goblin,
         /// <summary>A skull for a cap, a great club over the shoulder.</summary>
         Ogre
+    }
+
+    /// <summary>Bits of CreatureState.Worn.</summary>
+    public static class CreatureWorn
+    {
+        public const byte Hat = 1, Pack = 2;
+        /// <summary>A-103 row 5: a player's eyewear (Eyewear): a small dark pair of glasses, or chunky glow goggles. Eyes
+        /// is both, the bits NetAvatars owns (Items' gear keeps them).</summary>
+        public const byte Glasses = 4, Goggles = 8, Eyes = Glasses | Goggles;
     }
 
     public enum HeldItem : byte
@@ -612,6 +634,11 @@ namespace Punchy.Fauna
         /// the usual swim just under the surface. Set at spawn (FaunaDirector.SpawnLakeFish).</summary>
         public float SwimAbove;
         /// <summary>
+        /// A-103: a folk's own door where no Door anchor marks one (a turtle folk's igloo tunnel): xz the spot it steps in
+        /// from, y unused, w the outward yaw. Zero for none (FindDoor then looks for anchors). Set at spawn; local, not sent.
+        /// </summary>
+        public float4 OwnDoor;
+        /// <summary>
         /// Two folk stopped to talk (CreatureBrainSystem.Chatting; local, host only, not sent): seconds before this one
         /// starts or joins another talk; its part in one (1 started it, 2 the one it stopped, 3 a child standing by);
         /// what it was doing before, to carry on after (ChatWalk 1 walking: ChatResume its target; 2 on its way to its
@@ -670,10 +697,14 @@ namespace Punchy.Fauna
         public bool Gone;
         /// <summary>The cave it roosts in (-1 = none), and the passage node its roost is at.</summary>
         public short LairCave, LairNode;
-        /// <summary>Who is petting or carrying it (see Interactions.HolderId; 0 = nobody).</summary>
+        /// <summary>Who is petting or carrying it, or what it rides (A-104). Positive: its holder (Interactions.HolderId).
+        /// Negative: it is riding, and this is minus the mount's ghost id (Riding.SoloMount in a solo world, which has no
+        /// ghosts). 0 = neither. Read it through Riding.Mount/Dismount rather than by hand.</summary>
         public int Holder;
         /// <summary>What it has in hand (folk: a lantern at night). Replicated; each machine draws it.</summary>
         public HeldItem Held;
+        /// <summary>What a player's body has on besides (CreatureWorn bits, P-23). Not sent: each machine sets it (Items.ApplyGear).</summary>
+        public byte Worn;
 
         /// <summary>The need cue it shows (NeedCue: none, tired, hungry, thirsty, lonely): its strongest need past 0.6,
         /// set by the brain (CreatureBrainSystem.Needs) and replicated as one byte, so clients draw the same cue (#64).</summary>
@@ -713,6 +744,15 @@ namespace Punchy.Fauna
         // activity that meets them; what it decides to do next is weighted by them. Only the brain reads them (#58:
         // moved here from CreatureState); what others see is CreatureState.Cue.
         public float Hunger, Thirst, Tired, Lonely;
+        /// <summary>A-102 breath (Breath): how much of it is used up under water (0 full, 1 empty; 0 by default, so a
+        /// new creature starts full), and whether, having emptied it, it is making for the surface until it has caught
+        /// some back. Brain only, like the needs.</summary>
+        public float BreathUsed;
+        public bool Gasping;
+        /// <summary>A-102 row 2, folk out swimming: how far under their floating height they are (m), how far they are
+        /// making for (0: up to the surface), and how long before they turn again (s: a rest at the surface, or a water
+        /// breather's time at a depth). Brain only (clients see the dive in Position and Vertical).</summary>
+        public float Dive, DiveTo, DiveWait;
         /// <summary>A-71: how uncomfortable the weather has made it (0..1: builds while out of its comfort, fades in
         /// comfort or shelter), why (the worst reason last seen), and how hard the weather pressed at the last check.</summary>
         public float Discomfort, ComfortPressure;
@@ -855,6 +895,15 @@ namespace Punchy.Fauna
         {
             var species = variant.Body;
             var parts = Expand(species);
+            // M-05: the Model Lab's adjustments for this species (null: none). Every multiplier defaults to 1 and is
+            // applied as a plain multiply, which for 1 is exact, so an untuned species bakes byte for byte as before.
+            var tune = CreatureTunables.For(species.name);
+            var bodyLength = species.BodyLength * (tune?.BodyLength ?? 1f);
+            var speed = tune?.Speed ?? 1f;
+            var size = tune?.Size ?? 1f;
+            var neckScale = tune?.Neck ?? 1f;
+            var tailScale = tune?.Tail ?? 1f;
+            var swing = tune?.Swing ?? 1f;
 
             var segmentCount = 1;
             foreach (var p in parts)
@@ -862,20 +911,20 @@ namespace Punchy.Fauna
 
             var builder = new BlobBuilder(Allocator.Temp);
             ref var root = ref builder.ConstructRoot<CreatureBlob>();
-            root.BodyLength = species.BodyLength;
+            root.BodyLength = bodyLength;
             // (Short bodies bound, longer ones gallop, unless the species says.)
-            root.Bounds = species.Gallop == GallopStyle.Bound || species.Gallop == GallopStyle.Auto && species.BodyLength < 0.5f;
+            root.Bounds = species.Gallop == GallopStyle.Bound || species.Gallop == GallopStyle.Auto && bodyLength < 0.5f;
             root.LeapingRun = species.Gallop == GallopStyle.Leap;
             // A variant's own proportions (a child's big head, chunky limbs and short legs) on the body it's based on.
             var own = variant != species;
-            var headScale = own ? variant.VariantHead : 1f;
-            var thickness = own ? variant.VariantThickness : 1f;
-            var legScale = own ? variant.VariantLegs : 1f;
+            var headScale = (own ? variant.VariantHead : 1f) * (tune?.Head ?? 1f);
+            var thickness = (own ? variant.VariantThickness : 1f) * (tune?.Thickness ?? 1f);
+            var legScale = (own ? variant.VariantLegs : 1f) * (tune?.Legs ?? 1f);
             root.FrontRadius = species.BodyRadius * thickness;
             root.RearRadius = species.BodyRadius * species.BodyTaper * thickness;
             root.BodyFlatten = species.BodyFlatten;
-            root.WalkSpeed = species.WalkSpeed;
-            root.RunSpeed = math.max(species.RunSpeed, species.WalkSpeed * 1.3f);
+            root.WalkSpeed = species.WalkSpeed * speed;
+            root.RunSpeed = math.max(species.RunSpeed * speed, species.WalkSpeed * speed * 1.3f);
             root.Bob = new float2(species.Bob.x, species.Bob.y);
             root.BobsPerCycle = new float2(species.BobsPerCycle.x, species.BobsPerCycle.y);
             root.RunRock = math.radians(species.RunRock);
@@ -883,8 +932,6 @@ namespace Punchy.Fauna
             root.ColdBlooded = species.ColdBlooded;
             root.Hooves = species.Hooves;
             root.Tunnels = species.Tunnels;
-            root.ClimbsAs = species.ClimbsAs != ClimbAbility.None ? species.ClimbsAs
-                          : species.Crawls ? ClimbAbility.AnySurface : species.Climbing > 0f ? ClimbAbility.Trees : ClimbAbility.None;
             root.Reaction = species.EmoteReaction != EmoteReaction.Default ? species.EmoteReaction
                           : species.Friendly ? EmoteReaction.Wags : species.FleeDistance > 0f ? EmoteReaction.Flees : EmoteReaction.Ignores;
             root.Habitat = species.Habitat;
@@ -896,7 +943,7 @@ namespace Punchy.Fauna
             root.TurnRate = math.radians(species.TurnRate);
             root.IdleTime = new float2(species.IdleTime.x, species.IdleTime.y);
             var sizeScale = variant != species ? variant.VariantScale : 1f;
-            root.Size = new float2(species.Size.x, species.Size.y) * sizeScale;
+            root.Size = new float2(species.Size.x, species.Size.y) * sizeScale * size;
             root.Active = variant.Active;
             root.Grazing = variant.Grazing;
             root.Thirst = variant.Thirst;
@@ -919,6 +966,8 @@ namespace Punchy.Fauna
             root.Wades = species.Wades;
             root.ShunsLight = species.ShunsLight;
             root.SurfaceTrips = species.ShunsLight ? species.SurfaceTrips : 0f;
+            root.TurtleJobs = species.TurtleJobs;
+            root.WalksBed = species.WalksBed;
             root.Roosts = species.Roosts;
             root.Friendly = species.Friendly;
             root.CrossesWater = species.CrossesWater && species.Habitat == Habitat.Land;
@@ -937,13 +986,17 @@ namespace Punchy.Fauna
             root.Breaches = species.Breaches && species.Habitat == Habitat.Swims;
             root.RaidsHives = species.RaidsHives;
             root.Hands = species.Parts.Exists(p => p != null && p.Limb != null && p.Limb.Role == LimbRole.Arm);
+            root.ClimbSkill = Climbing.SpeciesSkill(species.ClimbSkill, species.Crawls, species.Climbing, root.Hands);
             root.Child = variant.Child;
-            root.SeenFrom = species.SeenFrom * sizeScale;
+            root.SeenFrom = species.SeenFrom * sizeScale * size;
             root.Rooted = species.Rooted;
             root.Disguised = species.Disguised;
             root.Comfort = ComfortProfiles.For(variant, home ?? new Vector2(-1f, -1f));
+            root.BreathesWater = species.BreathesWater || species.Habitat == Habitat.Swims;
+            root.HoldBreath = species.HoldBreath > 0f ? species.HoldBreath
+                : Breath.DefaultHold(root.Upright && root.Hands, root.CrossesWater, species.Habitat);
             root.Nests = species.Nests;
-            root.WebSize = species.WebSize * sizeScale;
+            root.WebSize = species.WebSize * sizeScale * size;
             root.FlightHeight = new float2(species.FlightHeight.x, math.max(species.FlightHeight.x, species.FlightHeight.y));
             root.FlySpeed = species.FlySpeed;
             root.FlapRate = species.FlapRate;
@@ -986,7 +1039,7 @@ namespace Punchy.Fauna
 
             segArray[0] = new CreatureSegment
             {
-                Length = math.max(0f, species.BodyLength - root.RearRadius - root.FrontRadius),
+                Length = math.max(0f, bodyLength - root.RearRadius - root.FrontRadius),
                 RadiusStart = root.RearRadius,
                 RadiusEnd = root.FrontRadius,
                 Flatten = species.BodyFlatten
@@ -1005,7 +1058,8 @@ namespace Punchy.Fauna
                 onHead[i] = limb.Role == LimbRole.Head || e.Parent >= 0 && onHead[e.Parent];
                 if (e.Parent >= 0 && onHead[e.Parent])
                     socket *= headScale;
-                var lengthScale = onHead[i] ? headScale : limb.Role == LimbRole.Leg ? legScale : 1f;
+                var lengthScale = onHead[i] ? headScale : limb.Role == LimbRole.Leg ? legScale
+                                : limb.Role == LimbRole.Neck ? neckScale : limb.Role == LimbRole.Tail ? tailScale : 1f;
                 var radiusScale = onHead[i] ? headScale : thickness;
                 // (The head's own neck, before its last segment, only thickens: a big head, not a long neck.)
                 var neck = limb.Role == LimbRole.Head ? limb.Segments.Count - 1 : 0;
@@ -1013,7 +1067,7 @@ namespace Punchy.Fauna
                 {
                     // Body units → metres: across the radius at that point along the body, along the half-length.
                     var radius = math.lerp(root.RearRadius, root.FrontRadius, socket.z * 0.5f + 0.5f);
-                    socket = new float3(socket.x * radius, socket.y * radius * species.BodyFlatten, socket.z * species.BodyLength * 0.5f);
+                    socket = new float3(socket.x * radius, socket.y * radius * species.BodyFlatten, socket.z * bodyLength * 0.5f);
                 }
                 socket.x *= side;
                 var dir = (float3)slot.Direction;
@@ -1053,7 +1107,13 @@ namespace Punchy.Fauna
                     };
                     for (int k = 0; k < CreatureBlob.PoseCount; k++)
                     {
-                        var a = math.radians((float3)poses[k][s]);
+                        var deg = (float3)poses[k][s];
+                        // (M-05: the walk and run keys swung further from, or closer to, the idle pose; then any nudges.)
+                        if (swing != 1f && k != 0)
+                            deg = (float3)poses[0][s] + (deg - (float3)poses[0][s]) * swing;
+                        if (tune != null && tune.Nudge(e.SlotIndex, s, k, out var nudge))
+                            deg += (float3)nudge;
+                        var a = math.radians(deg);
                         poseArray[cursor * CreatureBlob.PoseCount + k] = new float3(a.x, a.y * side, a.z * side);
                     }
                     cursor++;

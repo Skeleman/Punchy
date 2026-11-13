@@ -37,7 +37,9 @@ namespace Punchy.Fauna
         {
             get
             {
-                if (loaded == null || Time.realtimeSinceStartup >= nextCheck)
+                // (The clock restarts with each play session but this static doesn't: a check more than a second
+                // away is a stale one from the last session, so check now.)
+                if (loaded == null || Time.realtimeSinceStartup >= nextCheck || nextCheck - Time.realtimeSinceStartup > 1f)
                 {
                     nextCheck = Time.realtimeSinceStartup + 1f;
                     try

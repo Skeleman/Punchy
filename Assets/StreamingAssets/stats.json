@@ -1,0 +1,28 @@
+{
+  "_readme": [
+    "The player's stats (P-27). Edited by hand, outside the build; read again a second after it changes.",
+    "stats: id, name, about, and the range a value is held to.",
+    "bodies: one per kind of body (human, small, medium, big), values in the same order as stats.",
+    "derived: what a stat gives: start + per x the stat, written with format (a C# number format).",
+    "enforceCarry: true makes the carry limit stop pick-ups; false shows the number and changes nothing."
+  ],
+  "enforceCarry": false,
+  "stats": [
+    { "id": "strength", "name": "Strength", "about": "How much you can carry.", "min": 1, "max": 20 },
+    { "id": "agility", "name": "Agility", "about": "How quick you are on your feet.", "min": 1, "max": 20 },
+    { "id": "endurance", "name": "Endurance", "about": "How long you can keep going.", "min": 1, "max": 20 },
+    { "id": "charm", "name": "Charm", "about": "How folk take to you.", "min": 1, "max": 20 },
+    { "id": "wits", "name": "Wits", "about": "How much you notice.", "min": 1, "max": 20 }
+  ],
+  "bodies": [
+    { "body": "human", "values": [ 10, 10, 10, 10, 10 ] },
+    { "body": "small", "values": [ 3, 14, 6, 10, 8 ] },
+    { "body": "medium", "values": [ 8, 12, 10, 10, 6 ] },
+    { "body": "big", "values": [ 18, 8, 14, 8, 6 ] }
+  ],
+  "derived": [
+    { "id": "carry", "name": "Carry limit", "from": "strength", "start": 40, "per": 3, "format": "0 kg" },
+    { "id": "run", "name": "Run bonus", "from": "agility", "start": -0.1, "per": 0.01, "format": "+0%;-0%;0%" },
+    { "id": "talk", "name": "Talk bonus", "from": "charm", "start": -0.1, "per": 0.01, "format": "+0%;-0%;0%" }
+  ]
+}

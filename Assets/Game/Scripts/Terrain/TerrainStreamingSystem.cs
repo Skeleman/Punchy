@@ -34,6 +34,8 @@ namespace Punchy.Terrain
             public Entity WaterEntity;   // Entity.Null when the chunk is dry
             public Mesh WaterMesh;
             public BatchMeshID WaterMeshId;
+            /// <summary>R-9: bumped each time the chunk is meshed, so a copy of its water (WaterPatchSystem) knows to redo it.</summary>
+            public int Built;
         }
 
         struct BuildItem
@@ -86,6 +88,8 @@ namespace Punchy.Terrain
         // The batch being built in the background.
         readonly List<BuildItem> building = new List<BuildItem>();
         JobHandle buildHandle;
+        /// <summary>W-136: the GroundContacts.Version + ContactShade.Version the loaded chunks were built with.</summary>
+        int contactVersion;
         int buildFrames;
 
         /// <summary>True while a batch of chunks is meshing in the background, so other background work (the weather
@@ -161,6 +165,20 @@ namespace Punchy.Terrain
             }
 
             config = ApplyViewDistance(config);
+
+            // W-136: placed plants (re)published their ground contacts, so every loaded chunk re-meshes once with them.
+            if (GroundContacts.Version + ContactShade.Version != contactVersion)
+            {
+                contactVersion = GroundContacts.Version + ContactShade.Version;
+                scratchCoords.Clear();
+                scratchCoords.AddRange(loaded.Keys);
+                foreach (var coord in scratchCoords)
+                {
+                    var chunk = loaded[coord];
+                    chunk.Lod = -1;
+                    loaded[coord] = chunk;
+                }
+            }
 
             // Deep in a cave (CaveSystem.SurfaceHidden) the surface is out of sight: chunks beyond the camera's own
             // neighbourhood stop drawing, and nothing new streams in until the surface comes back into view.
@@ -385,7 +403,9 @@ namespace Punchy.Terrain
                     Quads = quads,
                     Lod = item.Lod,
                     CanMorph = item.Lod < config.LodLevels - 1 && quads > 1,
-                    MorphRange = config.MorphRange(item.Lod)
+                    MorphRange = config.MorphRange(item.Lod),
+                    // The LOD band's start, less a chunk (LODs go by the chunk's centre): its nearest approach.
+                    Near = item.Lod == 0 ? 0f : math.max(0f, config.Lod0Distance * (1 << (item.Lod - 1)) - config.ChunkSize)
                 };
 
                 var data = buildData[i];
@@ -405,9 +425,15 @@ namespace Punchy.Terrain
                 NormalEpsilon = config.ChunkSize / config.Lod0Quads,
                 SkirtDepth = config.SkirtDepth,
                 HeightRanges = buildRanges,
-                WaterRanges = buildWaterRanges
+                WaterRanges = buildWaterRanges,
+                Flora = GroundContacts.Flora,
+                Contacts = GroundContacts.Contacts,
+                ContactStrength = ContactShade.Strength,
+                ContactReach = ContactShade.ReachScale,
+                ContactPixelsPerMetre = Punchy.Settings.DetailPolicy.Current.Data.PixelsPerMetre * Punchy.Settings.GraphicsSettings.Detail
             };
             buildHandle = IJobParallelForExtensions.Schedule(job, count, 1);
+            GroundContacts.Readers = buildHandle;   // freed only once this build is done reading them
             buildFrames = 0;
             Meshing = true;
             JobHandle.ScheduleBatchedJobs();
@@ -481,6 +507,7 @@ namespace Punchy.Terrain
                     EntityManager.SetComponentData(chunk.Entity, new RenderBounds { Value = terrainBounds });
                 }
                 chunk.Lod = item.Lod;
+                chunk.Built = ++builtStamp;
 
                 // Water entities come and go as a chunk's water appears or disappears.
                 var canDrawWater = hasWater && waterMaterialId != BatchMaterialID.Null;
@@ -626,6 +653,35 @@ namespace Punchy.Terrain
             EntityManager.SetName(entity, name);
 #endif
             return entity;
+        }
+
+        int builtStamp;
+
+        /// <summary>
+        /// R-9: a loaded chunk's water mesh (chunk-local, CPU-readable; one vertex per grid point, triangles only on wet
+        /// quads), its detail level and a stamp that changes whenever it is meshed again. False when the chunk isn't
+        /// loaded or has no water drawn. For WaterPatchSystem's fine copy near the player; read it, never change it.
+        /// </summary>
+        public bool TryGetWater(int2 coord, out Mesh mesh, out int lod, out int built)
+        {
+            mesh = null;
+            lod = -1;
+            built = 0;
+            if (!loaded.TryGetValue(coord, out var chunk))
+                return false;
+            lod = chunk.Lod;
+            built = chunk.Built;
+            if (chunk.WaterEntity == Entity.Null)
+                return false;
+            mesh = chunk.WaterMesh;
+            return true;
+        }
+
+        /// <summary>Whether a chunk is loaded (with or without water), and its detail level.</summary>
+        public bool TryGetLod(int2 coord, out int lod)
+        {
+            lod = loaded.TryGetValue(coord, out var chunk) ? chunk.Lod : -1;
+            return lod >= 0;
         }
 
         /// <summary>Unloads a chunk; its entities go on the dead list, destroyed together by the caller.</summary>
