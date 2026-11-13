@@ -6456,7 +6456,7 @@ plot rules would have to accept a raised deck).
 - What it does:
   - Piece tops go into TerrainSource.Deck(): the highest box top within 0.6 m below the body, above the ground and with 1.8 m headroom.
   - Piece undersides go into CeilingOver, in open air only. In cave air the cave answers alone, so cave drips and bakes keep their numbers.
-  - Each piece's grade (A-101 scale: fallen 3, buttress/overhang 4, slab/stacked faces 5) is readable by GradeAt(p, reach), from the nearest side face within 1 m.
+  - Each piece's grade (A-101 scale: fallen 3, buttress/stacked 4, slab/overhang faces 5) is readable by GradeAt(p, reach), from the nearest side face within 1 m.
   - Shimmy ledges are baked into the CliffKit blob as CliffLedge records: A, B, outward, piece, grade, kind (lip 3 / overhang lip 4). PieceLedges gives each piece's run, and LedgeNear(p, reach) finds them.
   - A ledge is a box's top front edge, at most 19 degrees off level, with at least a 1.5 m drop out of the face and no box sitting on it. Only the longest run of 1 m or more counts.
   - All of it is seed-derived bake data (rule 22). Placement is unchanged.
