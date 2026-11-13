@@ -1116,6 +1116,12 @@ namespace Punchy.Terrain
                 deck = room;
                 onDeck = true;
             }
+            // W-150 row 2: a cliff kit piece's top (a shelf, a slab, a fallen block) stands bodies too.
+            if (CliffKit.IsCreated && Punchy.Terrain.CliffKit.Deck(this, p, out var shelf) && (!onDeck || shelf > deck))
+            {
+                deck = shelf;
+                onDeck = true;
+            }
             return onDeck;
         }
 
@@ -1210,10 +1216,19 @@ namespace Punchy.Terrain
         }
 
         /// <summary>
-        /// The cave ceiling straight above a point in cave air (sphere-traced up to rock); the point's own height if
-        /// it isn't in cave air.
+        /// The cave ceiling straight above a point in cave air (sphere-traced up to rock). Out of cave air, the underside
+        /// of a cliff kit piece hanging over it (W-150 row 2: an overhang), else the point's own height.
         /// </summary>
         public float CeilingOver(float3 p)
+        {
+            var cave = CaveCeilingOver(p);
+            // Cave air answers alone (cave drips and bakes keep their numbers); the kit only roofs open air.
+            if (cave == p.y && CliffKit.IsCreated && Punchy.Terrain.CliffKit.Ceiling(this, p, out var roof))
+                return roof;
+            return cave;
+        }
+
+        float CaveCeilingOver(float3 p)
         {
             // Up by part of the distance to rock (as FloorUnder marches down): angular or ribbed walls make the
             // field rise faster than the true distance, and a longer step would end up inside the ceiling. Then
