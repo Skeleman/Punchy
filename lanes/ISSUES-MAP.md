@@ -37,7 +37,7 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #99 | Crash hosting a second time | P-8 row 0 (known issue in v0.12.0 notes) |
 | #58-#64 | ECS code-health review | A-45/A-47 after perf |
 | #68 | Character selection tab: class -> species -> colour | A-46 (animal lane owns the player's body) |
-| #69 #70 #71 #72 | Zach playtest: hermit shelters, wasteland rock collision, great mushroom, biome campgrounds | W-57 (after W-56) |
+| #69 #70 #71 #72 | Zach playtest: hermit shelters, wasteland rock collision, great mushroom, biome campgrounds | W-57 (after W-56)  ; A-106 (folk lane: harsh-biome work, hermit work) |
 | #31 | Laptop: houses lit wrong | Needs the laptop |
 | #21 #22 | Plant fidelity, underwater camera (design) | backlog |
 | #24 | Dungeons: caves and ruins | Phase 1: P-7 rows 4-5 (sockets in the sunken temple rooms; pool rooms need a world tile later), A-50 spawner + behaviours; merged PR #104; host/client check bench job 21 |
