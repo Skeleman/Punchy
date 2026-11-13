@@ -210,12 +210,20 @@ namespace Punchy.Fauna
             var breath = 0.5f + 0.5f * math.sin(s.Clock * (s.Curl > 0.5f ? 1.3f : 2.2f));
             height += breath * 0.01f * scale * still * (0.3f + s.Lie);
             // Folk out swimming, in water deep enough: lying forward at the surface (their head held up, below).
+            // Diving (A-102 row 2: how far under its floating height it is, 0..1 by half a metre down), the head
+            // comes down in line with the body.
             var swimming = 0f;
+            var under = 0f;
             if (b.Upright && s.Mode == CreatureMode.Swim)
             {
                 var water = terrain.SampleGround(s.Position.xz);
                 if (water.HasWater)
+                {
                     swimming = math.smoothstep(b.StandHeight * scale * 0.6f, b.StandHeight * scale * 0.9f, water.WaterSurface - water.Height);
+                    under = math.saturate((water.WaterSurface - 0.24f * scale - s.Position.y) / (0.5f * scale));
+                    if (!math.isfinite(under))
+                        under = 0f;
+                }
                 pitch += 1.35f * swimming;
                 height = math.lerp(height, 0.05f * scale, swimming);
             }
@@ -248,6 +256,9 @@ namespace Punchy.Fauna
                 else
                     height -= act * 0.15f * b.StandHeight * scale;
             }
+            // A-103 row 2b: a sea folk out of the water stoops, more as it walks (it trudges, uncomfortable).
+            if (b.Upright && FolkState.OutOfWater(s.Position, b.WalksBed, terrain))
+                pitch += 0.14f + 0.08f * move;
 
             // A player's roll: a forward somersault (a full turn of the body), tucked up off the ground as it goes over.
             if (s.Roll > 0f)
@@ -614,7 +625,7 @@ namespace Punchy.Fauna
                         a += HairSway(in s, j, run);
                     a += TaskPose(ref part, in s, j);
                     if (swimming > 0f)
-                        a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle] + SwimPose(ref part, in s, j), swimming);
+                        a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle] + SwimPose(ref part, in s, j, under), swimming);
                     if (b.Upright && s.Sit > 0f)
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle] + SitPose(ref part, in s, j), s.Sit);
                     if (b.Upright && s.Lie > 0f)
@@ -1247,6 +1258,9 @@ namespace Punchy.Fauna
                     return new float3(torso ? 0.55f : 0.35f, 0f, 0f);
                 case FolkJob.WellKeeper:
                     return new float3(torso ? -0.12f - 0.05f * Haul(t, true) : -0.15f, 0f, 0f);
+                case FolkJob.FireTender:
+                    // Upright, head bowed a little over the flame.
+                    return new float3(torso ? 0.04f : 0.22f, 0f, 0f);
                 default:
                     return float3.zero;
             }
@@ -1323,6 +1337,15 @@ namespace Punchy.Fauna
                             // Hauling the rope hand over hand: each hand reaches up and pulls down in turn.
                             var reach = Haul(t, right);
                             return new float3(joint == 0 ? -0.9f - 1.3f * reach : -0.5f + 0.25f * reach, 0f, 0f);
+                        }
+                        case FolkJob.FireTender:
+                        {
+                            // (A-103) Conjuring the spirit fire: both hands raised before the chest, palms out, slowly
+                            // circling round the flame between them (the right a half turn behind the left), now and then
+                            // lifting together as the flame is fed.
+                            var circle = t * 0.7f + (right ? math.PI : 0f);
+                            var feed = math.smoothstep(0.75f, 0.9f, 0.5f + 0.5f * math.sin(t * 0.21f));
+                            return new float3(joint == 0 ? -1.05f - 0.12f * math.sin(circle) - 0.3f * feed : -0.75f + 0.18f * math.cos(circle), 0f, 0f);
                         }
                         default:
                             return new float3(joint == 0 ? -0.65f + 0.22f * math.sin(t * 1.5f + (right ? 0f : 1.4f)) : -0.55f, 0f, 0f);
@@ -1458,9 +1481,9 @@ namespace Punchy.Fauna
         /// <summary>
         /// Breaststroke, for a body lying forward in the water: the arms reach out ahead, sweep round and out, and come
         /// back in under the chest bent; the legs draw up and kick back out together, a beat behind; the head held up
-        /// to see ahead.
+        /// to see ahead, or (under, 0..1) in line with the body when diving.
         /// </summary>
-        static float3 SwimPose(ref CreaturePart part, in CreatureState s, int joint)
+        static float3 SwimPose(ref CreaturePart part, in CreatureState s, int joint, float under)
         {
             var p = 2f * math.PI * s.Phase;
             switch (part.Role)
@@ -1475,9 +1498,9 @@ namespace Punchy.Fauna
                     return joint == 0 ? new float3(-0.45f * draw, part.Side * 0.25f * draw, 0f) : joint == 1 ? new float3(1.3f * draw, 0f, 0f) : float3.zero;
                 }
                 case LimbRole.Neck:
-                    return new float3(-0.75f / math.max(part.SegmentCount, 1), 0f, 0f);
+                    return new float3(-0.75f * (1f - 0.85f * under) / math.max(part.SegmentCount, 1), 0f, 0f);
                 case LimbRole.Head:
-                    return new float3(-0.9f, 0f, 0f);
+                    return new float3(-0.9f * (1f - 0.85f * under), 0f, 0f);
                 default:
                     return float3.zero;
             }

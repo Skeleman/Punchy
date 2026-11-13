@@ -159,10 +159,14 @@ namespace Punchy.Fauna
                     night = clock.Night;
                 }
             string town = null;
-            if (s.Task != CreatureTask.Travel && s.Task != CreatureTask.Camper)
-                using (var tq = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>()))
-                    if (tq.TryGetSingleton<TerrainSource>(out var terrain))
+            var dry = false;
+            using (var tq = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>()))
+                if (tq.TryGetSingleton<TerrainSource>(out var terrain))
+                {
+                    if (s.Task != CreatureTask.Travel && s.Task != CreatureTask.Camper)
                         town = world.GetExistingSystemManaged<FolkTalkSystem>()?.TownOf(s, terrain);
+                    dry = FolkState.OutOfWater(s.Position, b.WalksBed, terrain);
+                }
 
             var hasMind = em.HasComponent<CreatureMind>(folk);
             var mind = hasMind ? em.GetComponentData<CreatureMind>(folk) : default;
@@ -183,6 +187,8 @@ namespace Punchy.Fauna
                 State = FolkState.Of(s, ref b, hasMind, mind, hour, night),
                 Stance = b.StanceToward(playerIndex, s.Individual),
             };
+            if (dry)
+                who.State.Flags |= FolkCondition.Dry;
             return true;
         }
 
@@ -243,6 +249,7 @@ namespace Punchy.Fauna
                 Stance = who.Stance == FolkStance.Neutral ? null : who.Stance.ToString(),
                 Mood = ctx.Mood,
                 Hour = who.State.Hour,
+                Dry = who.State.Has(FolkCondition.Dry),
             };
             TalkLine line = null;
             string text = null;

@@ -115,6 +115,9 @@ namespace Punchy.Fauna
                 // (A lava swimmer walks on land as a player; only fish swim and flop.)
                 Swims = b.Habitat == Habitat.Swims && !b.LavaDweller,
                 Hovers = b.Haunts,
+                // (A-102: its breath under water, as the same species' creatures have it.)
+                BreathesWater = b.BreathesWater,
+                HoldBreath = b.HoldBreath,
                 Size = human >= 0 && blobs[human].Value.StandHeight > 0f
                     ? math.clamp(b.StandHeight * size / (blobs[human].Value.StandHeight * (blobs[human].Value.Size.x + blobs[human].Value.Size.y) * 0.5f), 0.25f, 3f)
                     : 1f
