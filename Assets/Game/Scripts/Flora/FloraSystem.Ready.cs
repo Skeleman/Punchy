@@ -52,19 +52,54 @@ namespace Punchy.Flora
             return true;
         }
 
+        /// <summary>Whether the island's flora is set up (the tables built); before that nothing can be placed.</summary>
+        public bool Built => built;
+
+        /// <summary>
+        /// W-151 row 2: whether the plants within <paramref name="radius"/> of this point are placed and uploaded, in every
+        /// layer (a layer that reaches less far counts out to its own range). The load veil lifts on this; read only.
+        /// </summary>
+        public bool NearReady(Vector3 at, float radius, out string waiting)
+        {
+            waiting = null;
+            if (!built)
+            {
+                waiting = "flora not built";
+                return false;
+            }
+            if (Punchy.Terrain.CaveSystem.SurfaceHidden >= 0.99f)
+                return true;
+            var xz = new float2(at.x, at.z);
+            foreach (var l in layers)
+            {
+                if (l == null || l.ModelCount == 0)
+                    continue;
+                var missing = MissingNear(l, xz, math.min(radius, l.Radius));
+                if (missing > 0 || l.Dirty)
+                {
+                    waiting = missing > 0 ? $"{LayerNames[l.Index]} {missing} tiles" : $"{LayerNames[l.Index]} upload";
+                    return false;
+                }
+            }
+            return true;
+        }
+
         /// <summary>How many of a layer's tiles inside its radius round this point aren't placed yet (also W-151's jump log).</summary>
-        int MissingNear(Layer l, float2 camXZ)
+        int MissingNear(Layer l, float2 camXZ) => MissingNear(l, camXZ, l.Radius);
+
+        /// <summary>How many of a layer's tiles within <paramref name="radius"/> of this point aren't placed yet.</summary>
+        int MissingNear(Layer l, float2 camXZ, float radius)
         {
             int missing = 0;
             var size = l.Settings.TileSize;
-            var r = (int)math.ceil(l.Radius / size) + 1;
+            var r = (int)math.ceil(radius / size) + 1;
             var centre = (int2)math.floor(camXZ / size);
             for (int z = -r; z <= r; z++)
             for (int x = -r; x <= r; x++)
             {
                 var c = centre + new int2(x, z);
                 var min = (float2)c * size;
-                if (!l.Tiles.ContainsKey(c) && math.distance(math.clamp(camXZ, min, min + size), camXZ) < l.Radius)
+                if (!l.Tiles.ContainsKey(c) && math.distance(math.clamp(camXZ, min, min + size), camXZ) < radius)
                     missing++;
             }
             return missing;

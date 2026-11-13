@@ -132,6 +132,11 @@ namespace Punchy.Debugging
                 waiting = extra;
                 return false;
             }
+            if (LoadVeil.Showing)
+            {
+                waiting = "load veil";   // W-151: never a picture of the veil (or of it fading out)
+                return false;
+            }
             var terrain = world.GetExistingSystemManaged<TerrainStreamingSystem>();
             if (terrain != null && !terrain.ShotIdle)
             {
