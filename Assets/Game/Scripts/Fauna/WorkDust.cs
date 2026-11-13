@@ -9,7 +9,8 @@ namespace Punchy.Fauna
     /// A-106 row 1: the dust harsh-biome work kicks up. A sweeper's broom puffs grey ash at the end of each stroke; a
     /// shoveller's toss throws a spray of snow or sand onto its pile. Coloured by the job's work set (FolkWorkSets.DustOf)
     /// and drifting with the wind. Cosmetic: timed off each folk's own stroke (CreatureAnimator.SweepPhase/ShovelPhase,
-    /// from its shared clock and Individual) and its job, which clients read off its Stage, so nothing new is sent. One
+    /// from its shared clock and Individual) and its job, which clients read off its Stage, so nothing new is sent (a
+    /// hermit at its biome chore too, row 2: FolkJobs.Shown). One
     /// pooled particle system, made on first use; with no such worker near it only looks every couple of seconds.
     /// </summary>
     public class WorkDust : MonoBehaviour
@@ -61,7 +62,7 @@ namespace Punchy.Fauna
                 nextFind = Time.time + FindEvery;
                 workers.Clear();
                 for (int i = 0; i < states.Length; i++)
-                    if (states[i].Mode == CreatureMode.Work && states[i].Stage != 0 && Dusty(FolkJobs.Of(states[i])) &&
+                    if (states[i].Mode == CreatureMode.Work && states[i].Stage != 0 && Dusty(FolkJobs.Shown(states[i])) &&
                         math.distancesq(states[i].Position, eye) < Range * Range)
                         workers.Add(entities[i]);
                 if (lastPhase.Count > 64)
@@ -73,7 +74,7 @@ namespace Punchy.Fauna
                     if (!workers.Contains(entities[i]))
                         continue;
                     var s = states[i];
-                    var job = FolkJobs.Of(s);
+                    var job = FolkJobs.Shown(s);
                     if (s.Mode != CreatureMode.Work || s.Stage == 0 || !Dusty(job))
                         continue;
                     var sweep = job == FolkJob.AshSweeper;

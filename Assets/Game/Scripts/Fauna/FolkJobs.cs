@@ -70,8 +70,27 @@ namespace Punchy.Fauna
             }
         }
 
-        /// <summary>This folk's job: the one it was handed, else the one its task implies.</summary>
-        public static FolkJob Of(in CreatureState s) => s.Job != 0 ? (FolkJob)s.Job : FromTask(s.Task);
+        /// <summary>This folk's job: the one it was handed, else the one its task implies. A hermit is always a Hermit
+        /// here (its biome chore, row 2 of A-106, only shows at work; see <see cref="Shown"/>), so it talks as a hermit.</summary>
+        public static FolkJob Of(in CreatureState s) =>
+            s.Task == CreatureTask.Hermit ? FolkJob.Hermit : s.Job != 0 ? (FolkJob)s.Job : FromTask(s.Task);
+
+        /// <summary>A-106 row 2: the job a folk's look shows (its pose, tool, pile and dust). The same as Of, except a
+        /// hermit at work shows the biome chore its Stage codes (WorkStage turned back), which host and client both see.</summary>
+        public static FolkJob Shown(in CreatureState s)
+        {
+            if (s.Task != CreatureTask.Hermit || s.Mode != CreatureMode.Work)
+                return Of(s);
+            switch (s.Stage)
+            {
+                case 3: return FolkJob.AshSweeper;
+                case 4: return FolkJob.SnowShoveller;
+                case 5: return FolkJob.Mender;
+                case 6: return FolkJob.Roofer;
+                case 7: return FolkJob.SandClearer;
+                default: return FolkJob.Hermit;
+            }
+        }
 
         /// <summary>The job's name as dialogue.json tags it ("Baker"), or null for none.</summary>
         public static string Name(FolkJob job) => job == FolkJob.None ? null : job.ToString();

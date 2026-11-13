@@ -29,4 +29,9 @@ MonoBehaviour:
     MinFree: 3
     Beyond: 0
     Dust: {r: 0, g: 0, b: 0, a: 0}
-  AloneLines: []
+  AloneLines:
+  - "Sand in the bread, sand in the bed. At least it's my sand."
+  - "Hot by day, cold by night, and not a soul to argue with about which is worse."
+  - "Shovel it out, {name}. The dunes will walk right in if you let them."
+  - "Haven't seen a face in a month. Saw a lizard. It blinked first."
+  - "The quiet out here is big. You learn to fill it with your own voice."

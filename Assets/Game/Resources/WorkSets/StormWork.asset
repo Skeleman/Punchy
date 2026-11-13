@@ -25,4 +25,8 @@ MonoBehaviour:
     MinFree: 3
     Beyond: 0
     Dust: {r: 0, g: 0, b: 0, a: 0}
-  AloneLines: []
+  AloneLines:
+  - "Tie it down, tie it down again. The wind and I have an understanding."
+  - "Another blow coming. Nobody to hold the ladder, so I'll hold it myself."
+  - "{name}, talking to yourself again. Well, who else would listen?"
+  - "Lightning on the ridge last night. Lit up the whole valley. Shame nobody else saw it."

@@ -1213,6 +1213,11 @@ namespace Punchy.Fauna
         public const byte MinerAtFace = 101;
         /// <summary>Sitting-mode stages at the town's fire: standing by it, sitting on the ground by it, on a seat near it.</summary>
         public const byte HearthStand = 5, HearthGround = 6, HearthSeat = 7;
+
+        /// <summary>The work pose a hermit's Stage at work stands for: its garden (2) and its biome chores (3 broom, 4
+        /// shovel, 6 rope, 7 sand shovel; A-106 row 2, posed as the job FolkJobs.Shown reads) tend, 5 hammers, the rest chop.</summary>
+        static CreatureTask HermitTask(byte stage) =>
+            stage == 5 ? CreatureTask.Hammer : stage == 2 || stage == 3 || stage == 4 || stage == 6 || stage == 7 ? CreatureTask.Tend : CreatureTask.Chop;
         /// <summary>Sitting-mode stage of a child sitting in a play ring on a green (with its stick or stone).</summary>
         public const byte PlayRing = 8;
         /// <summary>Play-mode stage of a sea folk child running after a fish (A-103 row 3): no partner playing back.</summary>
@@ -1247,7 +1252,7 @@ namespace Punchy.Fauna
         /// </summary>
         static float3 SwingBody(ref CreaturePart part, in CreatureState s, int joint)
         {
-            var job = s.Task == CreatureTask.Hermit ? (s.Stage == 2 || s.Stage == 3 ? CreatureTask.Tend : s.Stage == 5 ? CreatureTask.Hammer : CreatureTask.Chop) : s.Task;
+            var job = s.Task == CreatureTask.Hermit ? HermitTask(s.Stage) : s.Task;
             if (s.Task == CreatureTask.Tend)
                 return TendBody(ref part, in s, joint);
             if (job != CreatureTask.Chop && job != CreatureTask.Hammer && !(job == CreatureTask.Mine && s.Stage == MinerAtFace))
@@ -1279,7 +1284,7 @@ namespace Punchy.Fauna
             if (!torso && !head)
                 return float3.zero;
             var t = s.Clock + (s.Individual % 100) * 0.13f;
-            switch (FolkJobs.Of(in s))
+            switch (FolkJobs.Shown(in s))
             {
                 case FolkJob.Baker:
                     return new float3(torso ? 0.28f + 0.08f * (Knead(t, true) + Knead(t, false) - 1f) : 0.3f, 0f, 0f);
@@ -1333,7 +1338,7 @@ namespace Punchy.Fauna
             var right = part.Side > 0f;
             var t = s.Clock + (s.Individual % 100) * 0.13f;
             // (A hermit's chores take a woodcutter's or a tender's pose: its stage says which.)
-            var job = s.Task == CreatureTask.Hermit ? (s.Stage == 2 || s.Stage == 3 ? CreatureTask.Tend : s.Stage == 5 ? CreatureTask.Hammer : CreatureTask.Chop) : s.Task;
+            var job = s.Task == CreatureTask.Hermit ? HermitTask(s.Stage) : s.Task;
             switch (job)
             {
                 case CreatureTask.Hammer:
@@ -1358,7 +1363,7 @@ namespace Punchy.Fauna
                     return new float3(joint == 0 ? -0.45f - 1.9f * raise : -0.9f + raise * (0.1f - 0.9f * beckon), 0f, 0f);
                 }
                 case CreatureTask.Tend:
-                    switch (FolkJobs.Of(in s))
+                    switch (FolkJobs.Shown(in s))
                     {
                         case FolkJob.Baker:
                         {

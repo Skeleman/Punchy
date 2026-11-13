@@ -17,6 +17,41 @@ namespace Punchy.Fauna
     // FaunaDirector.cs as they were.
     public partial class FaunaDirector
     {
+        /// <summary>A-106 row 2: the chore a hermit at this spot takes from its biome's work set (the set's first post),
+        /// or None in a biome with no set. Local (Job is not a ghost field): its Stage at work carries it to clients.</summary>
+        FolkJob HermitChoreAt(in TerrainSource source, float2 at)
+        {
+            var ground = source.SampleGround(at).Biomes.Dominant();
+            var set = ground >= 0 && ground < biomes.Length ? FolkWorkSets.For(biomes[ground]) : null;
+            return set != null && set.Jobs.Length > 0 ? set.Jobs[0].Job : FolkJob.None;
+        }
+
+        /// <summary>
+        /// A-106 row 2, for tests and shots: a stand-in hermit living at a spot with no shelter (an open one: it sleeps
+        /// out on the ground there), set up like a placed one, its chore from the biome there. The world places no hermit
+        /// shelter in some biomes (no tundra hut), so this shows one there without touching placement. Host only.
+        /// </summary>
+        public Entity SpawnHermitAt(float2 at)
+        {
+            if (simWorld == null || !built)
+                return Entity.Null;
+            var hermit = TableSpecies(OverworldSlot.Hermit, 0);
+            if (hermit < 0)
+                hermit = TableSpecies(OverworldSlot.Camper, 0);
+            if (hermit < 0)
+                return Entity.Null;
+            var em = simWorld.EntityManager;
+            var e = Spawn(hermit, new float3(at.x, lastSource.SampleHeight(at), at.y));
+            var st = em.GetComponentData<CreatureState>(e);
+            st.Task = CreatureTask.Hermit;
+            st.Home = at;
+            st.Leash = 35f;
+            st.Anchor = new float3(at.x, lastSource.SampleHeight(at), at.y);
+            st.Job = (byte)HermitChoreAt(lastSource, at);
+            em.SetComponentData(e, st);
+            return e;
+        }
+
         /// <summary>
         /// The folk of the wild places near players: a hermit at each hermit's shelter (its Home anchor) within 120 m of
         /// one, while none lives there; and, from late afternoon, now and then a traveller walking in from the road to a
@@ -52,6 +87,7 @@ namespace Punchy.Fauna
                     st.Home = home.Position.xz;
                     st.Leash = 35f;
                     st.Anchor = home.Position;
+                    st.Job = (byte)HermitChoreAt(source, home.Position.xz);
                     // (A-105: the head of the hut by its shelter, if it has one.)
                     if (home.InLandmark)
                     {

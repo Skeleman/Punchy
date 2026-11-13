@@ -27,4 +27,9 @@ MonoBehaviour:
     MinFree: 3
     Beyond: 0
     Dust: {r: 0, g: 0, b: 0, a: 0}
-  AloneLines: []
+  AloneLines:
+  - "Ash again. Sweep it out, it falls back in. Still, nobody else's footprints in it."
+  - "The mountain grumbles, and I grumble back. That's conversation enough."
+  - "{name}, you old fool, you could have lived somewhere green."
+  - "No neighbours to borrow a broom from. No neighbours to steal one, either."
+  - "Warm ground, quiet nights. The smoke keeps the visitors off. Mostly."

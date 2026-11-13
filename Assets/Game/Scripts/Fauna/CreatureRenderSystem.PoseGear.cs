@@ -124,16 +124,18 @@ namespace Punchy.Fauna
                 var wood = new Unity.Mathematics.float4(0.36f, 0.24f, 0.13f, 0f);
                 var iron = new Unity.Mathematics.float4(0.3f, 0.31f, 0.33f, 0f);
                 var atWork = state.Mode == CreatureMode.Work && state.Stage != 0;
-                var job = FolkJobs.Of(in state);
+                var job = FolkJobs.Shown(in state);
                 var tend = state.Task == CreatureTask.Tend;
+                // (A-106 row 2: a hermit at its biome chore carries the posted worker's gear, from its Stage.)
+                var chore = state.Task == CreatureTask.Hermit && atWork;
                 var baker = tend && job == FolkJob.Baker;
                 var healer = tend && job == FolkJob.Healer;
                 var wellKeeper = tend && job == FolkJob.WellKeeper;
                 // (A-106: the harsh-biome jobs, from the settlement's work set.)
-                var sweeper = tend && job == FolkJob.AshSweeper;
-                var shoveller = tend && (job == FolkJob.SnowShoveller || job == FolkJob.SandClearer);
-                var roofer = tend && job == FolkJob.Roofer;
-                var mender = state.Task == CreatureTask.Hammer && job == FolkJob.Mender;
+                var sweeper = (tend || chore) && job == FolkJob.AshSweeper;
+                var shoveller = (tend || chore) && (job == FolkJob.SnowShoveller || job == FolkJob.SandClearer);
+                var roofer = (tend || chore) && job == FolkJob.Roofer;
+                var mender = (state.Task == CreatureTask.Hammer || chore) && job == FolkJob.Mender;
                 var cloth = new Unity.Mathematics.float4(0.86f, 0.84f, 0.78f, 0f);
                 // (A hand's tip, and the point between both hands.)
                 var tip = hand >= 0 ? Tip(Output[offset + hand]) : state.Position;
@@ -175,7 +177,7 @@ namespace Punchy.Fauna
                     var bucketAt = state.Position + forward * 0.6f * scale + up * (0.25f + 0.2f * Unity.Mathematics.math.sin(state.Clock * 0.4f)) * scale;
                     Output[at + k++] = Piece(bucketAt, up, forward, 0.2f * scale, 0.08f * scale, 0.095f * scale, 1f, new Unity.Mathematics.float4(0.42f, 0.3f, 0.18f, 0f), faded, SegmentMaterial.Wood);
                 }
-                else if (atWork && hand >= 0 && (state.Task == CreatureTask.Hammer || state.Task == CreatureTask.Chop || state.Task == CreatureTask.Hermit && state.Stage != 2 || sweeper || shoveller))
+                else if (atWork && hand >= 0 && (state.Task == CreatureTask.Hammer || state.Task == CreatureTask.Chop || state.Task == CreatureTask.Hermit && state.Stage != 2 && !roofer || sweeper || shoveller))
                 {
                     var h = Output[offset + hand];
                     var along = Unity.Mathematics.math.mul(h.Rotation, new Unity.Mathematics.float3(0f, 0f, 1f));

@@ -8,7 +8,8 @@ namespace Punchy.Fauna
     /// A-106 row 1: the work a harsh biome gives its settlements, as data in Resources/WorkSets. Folk in a settlement whose
     /// ground is mostly one of <see cref="Biomes"/> take these posts alongside the usual village posts (FolkJobs.VillagePosts):
     /// sweeping ash, shovelling snow or sand from a door, tying a roof down, mending at a seat. A biome with no set (a
-    /// temperate one) keeps the usual posts exactly. Hermits in these biomes work from the same set (row 2).
+    /// temperate one) keeps the usual posts exactly. Hermits in these biomes work from the same set (row 2), and every hermit
+    /// talks to itself from its biome's set's AloneLines; a set with no biomes (WildAlone) holds the lines for anywhere else.
     /// </summary>
     [CreateAssetMenu(menuName = "Punchy/Folk Work Set", fileName = "WorkSet")]
     public class FolkWorkSet : ScriptableObject
@@ -54,6 +55,19 @@ namespace Punchy.Fauna
                     if (b == biome)
                         return set;
             return null;
+        }
+
+        /// <summary>A-106 row 2: what a hermit in this biome says to itself about living alone: its set's lines, else
+        /// those of the set that lists no biomes (the wild fallback). Empty if there are none.</summary>
+        public static string[] AloneLinesFor(BiomeDefinition biome)
+        {
+            var set = For(biome);
+            if (set != null && set.AloneLines.Length > 0)
+                return set.AloneLines;
+            foreach (var s in All)
+                if (s.Biomes.Length == 0 && s.AloneLines.Length > 0)
+                    return s.AloneLines;
+            return System.Array.Empty<string>();
         }
 
         /// <summary>The dust colour of a harsh-biome job (from the first set that lists it), alpha 0 for none.</summary>

@@ -26,4 +26,9 @@ MonoBehaviour:
     MinFree: 4
     Beyond: 0
     Dust: {r: 0, g: 0, b: 0, a: 0}
-  AloneLines: []
+  AloneLines:
+  - "Snow on the step, snow on the roof, snow in my boots. Nobody to complain to but the snow."
+  - "Out here the quiet has a sound. A sort of hum. I like it."
+  - "Dig out the door, {name}. Nobody's coming to do it for you."
+  - "Talked to a fox yesterday. Didn't say much. Better company than most."
+  - "When the wind drops you can hear the ice crack a mile off. That's my news for the day."
