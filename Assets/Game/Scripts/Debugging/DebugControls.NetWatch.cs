@@ -72,8 +72,12 @@ namespace Punchy.Debugging
                     var bodyName = "?";
                     if (em.HasComponent<NetPlayerLook>(e) && avatars != null)
                     {
-                        var s = em.GetComponentData<NetPlayerLook>(e).Species;
+                        var look = em.GetComponentData<NetPlayerLook>(e);
+                        var s = look.Species;
                         bodyName = s >= 0 && s < avatars.PlayableSpecies.Count && avatars.PlayableSpecies[s] != null ? avatars.PlayableSpecies[s].name : $"#{s}";
+                        // (Row 5: and what it wears over its eyes, as the ghost carries it.)
+                        if (look.Eyewear != Eyewear.None)
+                            bodyName += look.Eyewear == Eyewear.Glasses ? ", glasses" : ", glow goggles";
                     }
                     others += $" player ({bodyName}) at ({p.x:F0}, {p.y:F1}, {p.z:F0})" + (g.HasWater ? $" feet {g.WaterSurface - p.y:F2} m under water;" : " on land;");
                 }

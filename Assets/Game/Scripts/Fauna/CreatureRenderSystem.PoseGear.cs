@@ -17,7 +17,8 @@ namespace Punchy.Fauna
         partial struct PoseJob
         {
             /// <summary>A worker's gear (see GearParts): its tool while at work, and its apron or hat.</summary>
-            /// <summary>What a player's body has on (P-23): a hat on the crown of the head, a pack on the back.</summary>
+            /// <summary>What a player's body has on (P-23): a hat on the crown of the head, a pack on the back; and its
+            /// eyewear (A-103 row 5): a small dark pair of glasses, or chunky glow goggles with a strap.</summary>
             void Worn(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded)
             {
                 for (int i = 0; i < WornParts; i++)
@@ -52,6 +53,47 @@ namespace Punchy.Fauna
                     var up = new Unity.Mathematics.float3(0f, 1f, 0f);
                     var at0 = mid - forward * (Unity.Mathematics.math.max(c.RadiusStart, c.RadiusEnd) + 0.08f * scale) - up * 0.2f * scale;
                     Output[at + 2] = Piece(at0, up, forward, 0.42f * scale, 0.16f * scale, 0.14f * scale, 0.7f, new Unity.Mathematics.float4(0.42f, 0.33f, 0.2f, 0f), faded, SegmentMaterial.Leather);
+                }
+                if ((state.Worn & CreatureWorn.Eyes) != 0)
+                    WornEyewear(state, ref b, offset, at + 3, faded);
+            }
+
+            /// <summary>
+            /// A player's eyewear (A-103 row 5), at the eye line of the head itself (the head part's last segment, past
+            /// any neck, as the hat finds it). Glasses: two round dark lenses just off the face and a thin bridge.
+            /// Glow goggles: two chunky lenses standing out from the face, a faint green glow in the glass (Color.w), and
+            /// a strap round the head.
+            /// </summary>
+            void WornEyewear(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded)
+            {
+                int head = -1;
+                for (int i = 0; i < b.Parts.Length && head < 0; i++)
+                    if (b.Parts[i].Role == LimbRole.Head)
+                        head = b.Parts[i].FirstSegment + b.Parts[i].SegmentCount - 1;
+                if (head < 0)
+                    return;
+                var h = Output[offset + head];
+                var forward = new Unity.Mathematics.float3(Unity.Mathematics.math.sin(state.Yaw), 0f, Unity.Mathematics.math.cos(state.Yaw));
+                var right = new Unity.Mathematics.float3(forward.z, 0f, -forward.x);
+                var up = new Unity.Mathematics.float3(0f, 1f, 0f);
+                var r = Unity.Mathematics.math.max(h.RadiusStart, h.RadiusEnd);
+                var eyes = h.Position + Unity.Mathematics.math.mul(h.Rotation, new Unity.Mathematics.float3(0f, 0f, h.Length * 0.55f));
+                if ((state.Worn & CreatureWorn.Goggles) != 0)
+                {
+                    var lens = new Unity.Mathematics.float4(0.32f, 0.85f, 0.45f, 0.35f);
+                    var strap = new Unity.Mathematics.float4(0.2f, 0.17f, 0.14f, 0f);
+                    for (int k = 0; k < 2; k++)
+                        Output[at + k] = Piece(eyes + forward * r * 0.8f + right * r * (k == 0 ? 0.42f : -0.42f), forward, up,
+                                               r * 0.32f, r * 0.31f, r * 0.27f, 1f, lens, faded, SegmentMaterial.Cloth);
+                    Output[at + 2] = Piece(eyes - right * r * 1.04f, right, up, r * 2.08f, r * 0.13f, r * 0.13f, 1f, strap, faded, SegmentMaterial.Leather);
+                }
+                else
+                {
+                    var glass = new Unity.Mathematics.float4(0.04f, 0.04f, 0.05f, 0f);
+                    for (int k = 0; k < 2; k++)
+                        Output[at + k] = Piece(eyes + forward * r * 0.88f + right * r * (k == 0 ? 0.4f : -0.4f), forward, up,
+                                               r * 0.1f, r * 0.27f, r * 0.27f, 1f, glass, faded, SegmentMaterial.Cloth);
+                    Output[at + 2] = Piece(eyes + forward * r * 0.92f - right * r * 0.2f, right, up, r * 0.4f, r * 0.06f, r * 0.06f, 1f, glass, faded, SegmentMaterial.Cloth);
                 }
             }
 

@@ -105,6 +105,9 @@ namespace Punchy.Fauna
         [Tooltip("How long it can hold its breath under water, in seconds, before it must come up for air (A-102). 0 = " +
                  "worked out (Breath.DefaultHold): folk 30, animals that swim across water 20, waterfowl 12, others 8.")]
         [Min(0f)] public float HoldBreath;
+        [Tooltip("How its eyes take the light as a player's body (A-103 row 5, BatVision): 0 normal; 1 a bat's, caves and " +
+                 "night bright but the open midday sun a glare. Glasses (Eyewear) make it 0, glow goggles 1. Not baked.")]
+        [Range(0f, 1f)] public float Vision;
 
         [Header("Activities (each species' own, variants included)")]
         [Tooltip("When it's awake: it sleeps through the rest of the day. Always = naps now and then.")]
