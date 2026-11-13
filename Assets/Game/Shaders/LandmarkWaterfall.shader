@@ -1,6 +1,6 @@
 Shader "Punchy/Landmark Waterfall"
 {
-    // Waterfall curtains: a translucent sheet with streaks rushing down it, whitening into foam as it falls.
+    // Waterfall curtains: a sheet, solid white water in the open and see-through at its edges, with streaks rushing down it, whitening into foam as it falls.
     SubShader
     {
         Tags { "RenderType" = "Transparent" "Queue" = "Transparent" "RenderPipeline" = "UniversalPipeline" }
@@ -63,19 +63,25 @@ Shader "Punchy/Landmark Waterfall"
                 float foam = saturate(uv.y * lerp(0.9, 0.6, e.underRock) + (streak - 0.5) * 0.8);
 
                 float edges = smoothstep(0, 0.12, uv.x) * smoothstep(1, 0.88, uv.x);
-                // R-21: in the open the sides are cut by noise, in metres, over a band that widens down the fall, and
-                // thin threads of water hang in it where the sheet has broken up.
+                // R-21: in the open the sides are cut by noise, in metres, over a band that widens down the fall. Row 3:
+                // two octaves, the finer one rushing faster, so no edge runs as a straight line down the sheet.
                 float wide = e.shape.y * (1 - 0.12 * uv.y);
                 float fromEdge = min(uv.x, 1 - uv.x) * wide;
                 float fray = (0.25 + 1.4 * uv.y) * clamp(wide * 0.15, 1, 3);   // (wider falls break up over more)
-                float cut = PunchyValueNoise(float2(uv.x * wide * 0.7 + 5.0, along * 0.35));
-                float strand = smoothstep(0.6, 0.8, PunchyValueNoise(float2(uv.x * wide * 3.0 + 31.0, along * 0.25)));
-                float openEdges = max(smoothstep(0, fray, fromEdge - (cut - 0.35) * fray), strand * 0.8) * smoothstep(0, 0.06, fromEdge);
+                float cut = PunchyValueNoise(float2(uv.x * wide * 0.7 + 5.0, along * 0.35)) * 0.65 +
+                            PunchyValueNoise(float2(uv.x * wide * 2.1 + 19.0, along * 1.1)) * 0.35;
+                // (The outermost few percent always fade out, so a splayed side seen edge-on never shows as a bright line.)
+                float openEdges = smoothstep(0, fray, fromEdge - (cut - 0.35) * fray) * smoothstep(0.02, 0.07, min(uv.x, 1 - uv.x));
                 edges = lerp(openEdges, edges, e.underRock);
                 float ragged = smoothstep(0.25, 0.55, streak + 0.35 - abs(uv.x - 0.5) * 0.6);
                 half alpha = e.timing.z * edges * lerp(lerp(0.55, 0.12, e.underRock), 1, streak) * lerp(ragged, 1, lerp(0.8, 0.5, e.underRock)) * smoothstep(0, 0.03, uv.y);
                 // The open sheet thins as it falls.
                 alpha *= lerp(1, 1 - 0.22 * uv.y, 1 - e.underRock);
+                // R-21 row 3: the open sheet's middle is solid white water, not a pane: opaque, streaked white, its
+                // border wandering with the edge noise; only the outer band is see-through.
+                float core = smoothstep(0.1, 0.2, min(uv.x, 1 - uv.x) + (cut - 0.5) * 0.08) * (1 - e.underRock);
+                alpha = lerp(alpha, e.timing.z * lerp(0.85, 1.0, streak) * smoothstep(0, 0.03, uv.y), core);
+                foam = lerp(foam, max(foam * 0.6, 0.15 + 0.8 * smoothstep(0.45, 0.85, streak)), core);
                 // R-21 row 2: the open sheet's foot turns to white water where it hits its pool or ledge, and its lip
                 // throws sparse spray streaks. By screen size (rule 20, the pixels a metre covers here): far away the
                 // foot is only a soft whitening, so the fall still reads as one sheet; close up the foam churns and
@@ -84,12 +90,10 @@ Shader "Punchy/Landmark Waterfall"
                 float perMetre = _ScreenParams.y * 0.5 * UNITY_MATRIX_P._m11 / max(distance(input.positionWS, GetCameraPositionWS()), 0.1);
                 float near = smoothstep(4, 10, perMetre) * open;
                 float churn = PunchyValueNoise(float2(uv.x * wide * 1.2 + 71.0, along * 0.9 + _Time.y * 0.7));
-                float footBand = smoothstep(0.8 - 0.12 * churn * near, 0.97, uv.y) * open;
-                foam = max(foam, footBand * lerp(0.7, 0.55 + 0.6 * churn, near));
-                alpha = max(alpha, e.timing.z * edges * footBand * lerp(0.75, 0.65 + 0.35 * churn, near));
-                float spray = smoothstep(0.78, 0.92, PunchyValueNoise(float2(uv.x * wide * 2.5 + 17.0, along * 0.6))) * (1 - smoothstep(0.02, 0.22, uv.y)) * near;
-                foam = max(foam, spray);
-                alpha = max(alpha, e.timing.z * edges * spray * 0.85);
+                // (Row 3: a wider, denser band, near white, so it reads on pale rock; the lip's spray is its own emitter.)
+                float footBand = smoothstep(0.7 - 0.14 * churn * near, 0.93, uv.y) * open;
+                foam = max(foam, footBand * lerp(0.85, 0.8 + 0.25 * churn, near));
+                alpha = max(alpha, e.timing.z * edges * footBand * lerp(0.9, 0.85 + 0.15 * churn, near));
                 // Under rock the top frays out of the notch rather than starting on a straight edge.
                 alpha *= lerp(1, smoothstep(0, 0.12, uv.y + (streak - 0.5) * 0.1), e.underRock);
                 clip(alpha - 0.01);
