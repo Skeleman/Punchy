@@ -6837,3 +6837,89 @@ plot rules would have to accept a raised deck).
   - The rule 23 GPU cost was not measured: one extra small mesh draw per route within reach (at most 20 in the world), and no shadow pass for strands. The cost check is for BENCH-QUEUE if wanted.
   - In Ice caves `_WallLight` is strongly blue (share capped at 1). Untested in shots.
 - Next: W-144 row 2 per the card, after Zach looks at the 1b pairs.
+
+## R-23 row 1: inventory of the surface lighting terms and the PunchySurface proposal (#298), no code
+
+- Lane: render. Read from source at main 934f6691 (R-16 merged). No code, no branch, nothing run: every line below is by reading, not by shot.
+- Scope: the forward passes of the ten shaders the card names, plus the flora shadow cache's full-screen pass (Resources/FloraShadowCache.shader), since it is the fourth place the shadow tiers are blended.
+
+### Table: which terms each forward pass applies
+
+| Shader | Lit by | Real-time sun shadow | Wide shadow | Cloud shadow | Ambient | Glow lights | Lantern / other lights | Grounding / AO | Wet | Atmosphere |
+|---|---|---|---|---|---|---|---|---|---|---|
+| TerrainSurface | UniversalFragmentPBR | URP, with URP's fade at the shadow distance; shadow point lifted on skirts | yes, real normal; `min(realtime, 1 - wide)` | exact: takes only the sun's share (`direct - kept` over `direct + ambient`), after PBR | SampleSH(n) in bakedGI | GlowLight + GlowWorld, in bakedGI | URP additional lights (cluster loop, cookies, light layers) | SSAO keyword only | albedo, smoothness, puddle film, sheen | last |
+| Flora | own wrap (0.8/0.2; leaves 0.6/0.4 + light through) | `GetMainLight(shadowCoord)`: no fade at the shadow distance | yes, normal fixed up | in the shadow term (sun only) | SampleSH(n) x underground/in-cave dim (0.06) | GlowLight, added to ambient | `_PunchyLantern` by hand (diffuse, gloss, glass) | vertex AO x PunchyGrounding; underside ambient; 40% of AO also on the sun | albedo by part, gloss | last |
+| FloraImpostor | as Flora (no metal, glass, underside) | as Flora | as Flora | as Flora | as Flora | as Flora | lantern diffuse only | baked occlusion x PunchyGrounding | albedo | last |
+| Creature | own wrap per surface kind; gear via Material() | `GetMainLight(shadowCoord)`: no fade | **no** | in the shadow term | SampleSH(n) x (1 + rim) x ground; **no underground dim** | GlowLight, not grounded | **none** | PunchyCreatureGrounding: all of ambient, half of sun | albedo x 0.75 | last, after the glow parts |
+| Colossus | UniversalFragmentPBR, smoothness 0.08 | URP with fade | **no** | `color *= 1 - 0.6 * cloud` (dims ambient and highlight too) | SampleSH(n) | **no** | none (no additional-light keywords) | none | no | last, own glow added before it |
+| Cave walls | own lambert, URP additional-light loop | `GetMainLight(shadowCoord)` x openness | **no** | **no** | SampleSH(n) x lerp(_Darkness, 1, openness) (+ _WallLight) | own loop over `_PunchyCaveHeat` (not Glow.hlsl) | URP additional lights with shine and light-through | ribs | only on the ground share | lerp by openness |
+| Cave ground share | UniversalFragmentPBR, as terrain | URP with fade | **no** | exact (terrain's formula, without the wide term) | SampleSH(shape) x darkness | GlowLight (no GlowWorld) | none in this share | ribs x openness | albedo, smoothness | lerp by openness |
+| Grass | own wrap 0.6/0.4 + light through | `GetMainLight(shadowCoord)`: no fade | **no** | in the shadow term | SampleSH(n), **no underground dim** | GlowLight | none | tuft base darkening in albedo | albedo x 0.8 | last |
+| Pebbles | UniversalFragmentPBR | URP with fade | **no** | `color *= 1 - 0.6 * cloud` | SampleSH(n) | **no** | none | none | albedo, smoothness | last |
+| SunkenTemple | UniversalFragmentPBR, smoothness 0.08 | URP with fade | **no** | `color *= 1 - 0.6 * cloud`, applied **after** the torch light, so clouds dim torches | SampleSH(n) | GlowLight x albedo, after PBR | none | none | no | last |
+| Water (lit part) | own (sky reflection, refraction, foam) | `GetMainLight(shadowCoord)`: no fade | yes, normal fixed up | in the shadow term | SampleSH(n) x underground dim; reflections x 0.04 under rock | **no** | `_PunchyLantern` by hand, with glint | none | rain rings (PunchyWetnessAt.g) | lerp by underground; the refracted floor hazed separately |
+| FloraShadowCache (full screen, multiplies every opaque pixel) | - | URP, fade applied by hand | yes | not read | Luminance(SampleSH(n)) | - | - | - | - | - |
+
+Order is the same everywhere it applies: albedo and wetness, then sun x shadow tiers, then ambient + glow + lantern, then the shader's own extras, then atmosphere last. The PBR shaders differ in one way: cloud (and on terrain the wide shadow) is taken off after lighting instead of inside the sun term.
+
+### Where they differ
+
+By drift, as far as the source shows (each would be a visible change to fix, so each needs a yes or no):
+1. **Wide shadow** is read by terrain, flora, impostors and water only. Creatures, grass, pebbles, the temple and cave-mouth ground stay sunlit inside a colossus's or a mountain's far shadow, past the cascades.
+2. **Cloud shadow has three formulas.** (a) terrain and cave ground remove exactly the sun's share; (b) the hand-lit shaders multiply the sun term, which comes to the same thing; (c) colossi, pebbles and the temple multiply the finished colour by `1 - 0.6 * cloud`, which also dims ambient, the highlight and (temple) the torches. Under a cloud a pebble is darker than the ground it lies on. Cave walls take no cloud shadow while the ground share beside them does.
+3. **Fade at the shadow distance.** The PBR shaders get URP's fade; the hand-lit ones (flora, impostors, creatures, grass, water, cave walls) call `GetMainLight(shadowCoord)`, which has no fade, so their real-time shadow ends at a hard line where the terrain's fades. R-16 found the same in the cache receiver and fades it by hand. A possible part of #286; R-20 row 1 will show.
+4. **Wide shadow normal**: terrain passes its own normal, flora and water pass straight up.
+5. **Glow lights**: missing on colossi, pebbles and water; the temple adds them after PBR (x albedo) where terrain puts them in bakedGI (so terrain's also feed its highlight); only terrain adds PunchyGlowWorld.
+6. **Lantern**: three hand-written copies (flora, impostor, water), URP's light loop on terrain and cave walls, nothing on creatures, grass, pebbles, colossi and the temple.
+7. **Underground dim of the sky's ambient** (x 0.06): flora, impostors, water; not creatures, grass or pebbles.
+8. **Soft shadow keywords**: Cave declares only `_SHADOWS_SOFT`; the rest declare all four levels.
+9. **Fixed metres (rule 20, for row 4)**: beyond the card's list (Creature 3-9 m and 4-14 m, bark relief), also Flora leaf detail 40-90 m, sheen 30-120 m (also in the impostor), glow pulse 80-100 m, cell rim 4-10 m; TerrainSurface sheen 120-450 m, cobbles 30-80, steep 40-90, mouth 30-60, grain 6-22, puddle rain 20-60.
+
+On purpose (stay, as inputs or flags): wrap amounts and light through leaves and blades; grounding and the underside ambient; metal, glass and the glowing bark parts; cave openness and darkness; the cave's own heat loop and light-through for ice; water's reflection and refraction; the terrain skirt's lifted shadow point; colossi not reading the wide map (they cast it and would shade themselves).
+
+### Proposal: Surface.hlsl (render lane's file)
+
+Three small steps, each shader calling the same three in the same order, so a tier fix lands once:
+
+```
+struct PunchySurface            // filled by the shader
+{
+    float3 positionWS;
+    float3 shadowPositionWS;    // = positionWS, but the terrain skirt's lifted point
+    half3  normalWS;
+    half3  wideNormalWS;        // the normal the wide map's bias uses (today: own on terrain, up elsewhere)
+    half3  viewWS;
+    half   sunReach;            // 1 outside; (1 - underground) * (1 - inCave) on flora; openness in caves
+    half   skyReach;            // 1 outside; lerp(1, 0.06, underground) on flora; lerp(_Darkness, 1, openness) in caves
+};
+struct PunchyLit                // returned by PunchySurfaceLight(s)
+{
+    half3 sunColor; half3 sunDirection;
+    half  realtime;             // URP's shadow, with its fade at the shadow distance
+    half  wide;                 // PunchyWideShadow
+    half  cloud;                // PunchyCloudShadow
+    half  shadow;               // min(realtime, 1 - wide) * (1 - cloud) * sunReach: the one tier blend
+    half3 ambient;              // SampleSH(n) * skyReach
+    half3 glow;                 // PunchyGlowLight (+ PunchyGlowWorld when asked)
+    half3 lantern;              // the hand-lit lantern term, one copy
+};
+PunchyLit PunchySurfaceLight(PunchySurface s);
+half3 PunchySurfacePBR(PunchySurface s, PunchyLit lit, InputData inputData, SurfaceData surface);  // UniversalFragmentPBR, then the exact sun-share dim (terrain's formula)
+half3 PunchySurfaceFinish(half3 color, PunchySurface s, half reach);                               // PunchyAtmosphere, lerped by reach
+```
+
+- Hand-lit shaders (flora, impostor, creature, grass, water, cave walls) keep their own diffuse, sheen and special parts and read `lit.shadow`, `lit.ambient`, `lit.glow`, `lit.lantern`. PBR shaders (terrain, cave ground, colossus, pebbles, temple) call PunchySurfacePBR.
+- Flags are compile-time defines set before the include, not new keywords, so the variant count does not grow: `PUNCHY_SURFACE_NO_WIDE`, `PUNCHY_SURFACE_NO_GLOW`, `PUNCHY_SURFACE_GLOW_WORLD`, `PUNCHY_SURFACE_NO_LANTERN`, `PUNCHY_SURFACE_SHADOW_FADE` (off = today's hard end), `PUNCHY_SURFACE_CLOUD_FLAT` (today's `1 - 0.6 * cloud`).
+- Rows 2 and 3 as a pure move: every drift above is kept behind its flag, so the pixel-diff against main should be empty but for rounding. Each drift fix is then one flag flipped, with its own before/after pair, only where the supervisor says yes.
+- The cache receiver would call the same tier helper (`min(realtime, 1 - wide)` with the fade) instead of its copy. It sits in Resources/, outside `Shaders/*.hlsl`: say if it is mine to touch.
+- Row 3's Atmosphere.hlsl split: 21 files include Sky.hlsl and 18 call the haze; PunchyAtmosphere and the haze LUT code (Sky.hlsl from about line 1140) move out, and Sky.hlsl includes the new file so nobody's includes break.
+- R-21 note taken: WaterField.hlsl and LandmarkEffects.hlsl stay with the world lane; Water.shader's lit part is only its light block and the final atmosphere line.
+
+### Questions for the supervisor (row 2 waits on the OK)
+
+1. OK on the struct, the three functions and compile-time flags?
+2. Which drift fixes do you want in rows 2-3, each shown as its own pair: (1) wide shadow on creatures, grass, pebbles, temple; (2c) the flat cloud dim to the exact one; (3) the fade at the shadow distance on hand-lit shaders; (5) glow lights on pebbles and colossi; (7) underground dim on creatures and grass? My suggestion: 1, 2c and 3 (they are what makes shadow darkness differ by surface and distance), the rest left as is.
+3. May the render lane edit Resources/FloraShadowCache.shader for the shared tier helper?
+
+- Not checked: nothing was run. Whether the lantern is also a URP light (which decides drift 6), and whether creatures underground are dimmed some other way (drift 7), are not confirmed. No timing (rule 21).
+- Next: R-20 row 1 (the render editor is importing main), R-24 row 1 inventory meanwhile.
