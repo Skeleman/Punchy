@@ -16,7 +16,8 @@ namespace Punchy.Fauna
     /// shows it (InteractionPrompt), and turns the Interact button into a request (see Interactions): a tap pets, a
     /// hold picks up (small, tame animals), and with an animal in the arms a press puts it down. Also sets the pose the
     /// player's body takes: petting while an animal is being petted by them, carrying while they hold one.
-    /// Emotes too (keys 1–4, or the d-pad: wave, bow, cheer, dance): a pose held a moment (dancing, until they move),
+    /// Emotes too (keys 1–4, or the d-pad: a tap of up waves, right cheers, left dances; Spell chemistry took d-pad down
+    /// for the inventory and a hold of up for its element radial, so bow is key 2 only): a pose held a moment (dancing, until they move),
     /// which folk and animals near them react to (the brain reads it from the pose).
     /// </summary>
     [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation | WorldSystemFilterFlags.ClientSimulation)]
@@ -37,6 +38,8 @@ namespace Punchy.Fauna
         /// <summary>The emote the player is doing (an IdleAction, Wave to Dance), and when it ends.</summary>
         IdleAction emote;
         double emoteUntil;
+        /// <summary>When d-pad up last went down (a tap waves, a hold is the element radial).</summary>
+        float dpadUpAt = float.NegativeInfinity;
         /// <summary>This press of the button has already done its thing (picked up, put down).</summary>
         bool pressUsed;
         /// <summary>When the lunge pose ends.</summary>
@@ -181,8 +184,9 @@ namespace Punchy.Fauna
             {
                 if (interact.WasPressedThisFrame())
                 {
-                    pressUsed = false;
-                    if (held != Entity.Null)
+                    // (A pad's Y that a door, a folk or an item took as Use is theirs: Doors.UseKey.ClaimedPress.)
+                    pressUsed = Punchy.Interact.UseKey.ClaimedPress;
+                    if (!pressUsed && held != Entity.Null)
                     {
                         Send(ref request, InteractAct.PutDown, held);
                         pressUsed = true;
@@ -232,16 +236,20 @@ namespace Punchy.Fauna
         {
             var now = SystemAPI.Time.ElapsedTime;
             var moving = move != null && move.ReadValue<Vector2>().sqrMagnitude > 0.1f;
+            var pad = Gamepad.current;
+            // D-pad up waves on a tap: held, it's Spell chemistry's element radial (ChemistryBridge.RadialHold).
+            if (pad != null && pad.dpad.up.wasPressedThisFrame)
+                dpadUpAt = UnityEngine.Time.unscaledTime;
+            var waveTap = pad != null && pad.dpad.up.wasReleasedThisFrame && UnityEngine.Time.unscaledTime - dpadUpAt < Punchy.Chemistry.ChemistryBridge.RadialHold;
             if (emote != IdleAction.None && (now > emoteUntil || moving || busy))
                 emote = IdleAction.None;
             if (busy || Punchy.UI.Overlay.AnyOpen)
                 return;
             var keys = Keyboard.current;
-            var pad = Gamepad.current;
             var pick = IdleAction.None;
-            if (keys != null && keys.digit1Key.wasPressedThisFrame || pad != null && pad.dpad.up.wasPressedThisFrame)
+            if (keys != null && keys.digit1Key.wasPressedThisFrame || waveTap)
                 pick = IdleAction.Wave;
-            else if (keys != null && keys.digit2Key.wasPressedThisFrame || pad != null && pad.dpad.down.wasPressedThisFrame)
+            else if (keys != null && keys.digit2Key.wasPressedThisFrame)
                 pick = IdleAction.Bow;
             else if (keys != null && keys.digit3Key.wasPressedThisFrame || pad != null && pad.dpad.right.wasPressedThisFrame)
                 pick = IdleAction.Cheer;

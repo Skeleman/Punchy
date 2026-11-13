@@ -124,7 +124,8 @@ namespace Punchy.Interact
                 return;
             }
             FindTarget();
-            var used = UseKey.WasPressed() || testPress;
+            // (Asked only with a folk to talk to: a press Use answers is claimed from Interact, which shares Y.)
+            var used = target != Entity.Null && UseKey.WasPressed() || testPress;
             testPress = false;
             if (used && target != Entity.Null && !Overlay.AnyOpen)
                 Begin();

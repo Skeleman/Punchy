@@ -68,20 +68,32 @@ namespace Punchy.Settings
         class Watcher : MonoBehaviour
         {
             InputAction options;
-            bool wasDown;
-            float shownUntil;
+            bool wasDown, padPress;
+            float shownUntil, downAt;
+
+            void Step()
+            {
+                Next();
+                shownUntil = Time.unscaledTime + 2f;
+            }
             GUIStyle style;
 
             void Update()
             {
                 options ??= InputSystem.actions?.FindAction("Player/Options");
-                // (On the press itself, from the held state: whichever input update the press arrived in.)
+                // (On the press itself, from the held state: whichever input update the press arrived in. A pad's Select
+                // counts on a short release instead, as holding it is the weather: WeatherKey.LongPress.)
                 var down = options != null && options.IsPressed();
+                var onPad = down && options.activeControl?.device is Gamepad;
                 if (down && !wasDown)
                 {
-                    Next();
-                    shownUntil = Time.unscaledTime + 2f;
+                    downAt = Time.unscaledTime;
+                    padPress = onPad;
+                    if (!padPress)
+                        Step();
                 }
+                if (!down && wasDown && padPress && Time.unscaledTime - downAt < WeatherKey.LongPress)
+                    Step();
                 wasDown = down;
             }
 

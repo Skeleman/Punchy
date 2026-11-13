@@ -119,7 +119,8 @@ namespace Punchy.CameraRig
             if (Cursor.lockState == CursorLockMode.Locked)
             {
                 var look = Mouse.current != null ? Mouse.current.delta.ReadValue() * MouseSensitivity : Vector2.zero;
-                if (Gamepad.current != null)
+                // (Spell chemistry: the element radial has the right stick while it's open.)
+                if (Gamepad.current != null && !Punchy.Chemistry.ChemistryBridge.RadialOpen)
                     look += Gamepad.current.rightStick.ReadValue() * (StickSensitivity * Time.deltaTime);
                 yaw += look.x;
                 pitch = Mathf.Clamp(pitch + (InvertY ? look.y : -look.y), FirstPerson ? -FirstPersonMaxPitch : underground ? UndergroundMinPitch : OpenMinPitch,

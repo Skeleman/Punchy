@@ -8,7 +8,8 @@ using UnityEngine.InputSystem;
 namespace Punchy.Settings
 {
     /// <summary>
-    /// The weather shortcut (P-20, item 29): K on the keyboard or RT on a pad puts the next weather type (WeatherSystem's
+    /// The weather shortcut (P-20, item 29): K on the keyboard or a long press of Select (View) on a pad (Spell chemistry
+    /// took RT for a hand; a short press of Select is still the frame cap's Options) puts the next weather type (WeatherSystem's
     /// presets in order, then back to clear) over the player, through WeatherSystem.ForceAt, the same forcing the ] debug
     /// key and the "-weather" test flag use. Listed in the Keys tab. Local only: on a joined client the host's weather
     /// comes back with the next sync (WeatherSystem.Remote), so it's a solo and host shortcut.
@@ -17,8 +18,11 @@ namespace Punchy.Settings
     /// </summary>
     public class WeatherKey : MonoBehaviour
     {
-        public const string KeyboardName = "K", PadName = "RT", PadPath = "<Gamepad>/rightTrigger";
+        public const string KeyboardName = "K", PadName = "hold Select", PadPath = "<Gamepad>/select";
+        /// <summary>How long Select is held for the weather (shorter is Options: FrameRateCap).</summary>
+        public const float LongPress = 0.5f;
         int next = 1;
+        float selectAt = -1f;
         float every, pressAt, shotAt;
         string shotDir, shotName;
         int presses;
@@ -45,8 +49,14 @@ namespace Punchy.Settings
         {
             var keyboard = Keyboard.current;
             var pad = Gamepad.current;
+            // Select held past LongPress: once a hold.
+            if (pad != null && pad.selectButton.wasPressedThisFrame)
+                selectAt = Time.unscaledTime;
+            var held = pad != null && selectAt >= 0f && pad.selectButton.isPressed && Time.unscaledTime - selectAt >= LongPress;
+            if (held || pad == null || !pad.selectButton.isPressed)
+                selectAt = -1f;
             var pressed = !Punchy.UI.Overlay.AnyOpen && GUIUtility.keyboardControl == 0 &&
-                          (keyboard != null && keyboard.kKey.wasPressedThisFrame || pad != null && pad.rightTrigger.wasPressedThisFrame);
+                          (keyboard != null && keyboard.kKey.wasPressedThisFrame || held);
             var test = every > 0f && Time.realtimeSinceStartup >= pressAt;
             if (test)
                 pressAt = Time.realtimeSinceStartup + every;

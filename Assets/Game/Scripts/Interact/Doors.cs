@@ -15,7 +15,9 @@ namespace Punchy.Interact
     /// <summary>
     /// The Use key (#25, P-10): doors now, later items and chests. Its own key, apart from Interact (E: pet, pick up,
     /// sit, the animal lane's), so using a door never sits the player down. F on the keyboard (changeable in the menu's
-    /// Keys tab, kept per machine), RB on a pad.
+    /// Keys tab, kept per machine), Y on a pad (Spell chemistry: the bumpers are the hands' throws now), which it shares
+    /// with Interact: a press Use takes (there was something to use) is claimed, and Interact leaves it alone. In the
+    /// inventory panel, a menu, the pad's Use is still RB.
     /// </summary>
     public static class UseKey
     {
@@ -32,8 +34,8 @@ namespace Punchy.Interact
         }
 
         /// <summary>
-        /// The Use button's name for prompts, on the device in use (P-20, item 28): the key, or the pad's RB (in the pad's
-        /// own name: R1 on a PlayStation pad).
+        /// The Use button's name for prompts, on the device in use (P-20, item 28): the key, or the pad's Y (in the pad's
+        /// own name: Triangle on a PlayStation pad).
         /// </summary>
         public static string Name
         {
@@ -43,7 +45,7 @@ namespace Punchy.Interact
                 // (Kept until the device, the pad or the key changes: asked for every frame by the prompts.)
                 var key = (InputGlyphs.Version, InputGlyphs.Gamepad, Current);
                 if (name == null || !nameFor.Equals(key))
-                    (name, nameFor) = (InputGlyphs.Gamepad ? InputGlyphs.Path(PadPath) ?? "RB" : Current.ToString(), key);
+                    (name, nameFor) = (InputGlyphs.Gamepad ? InputGlyphs.Path(PadPath) ?? "Y" : Current.ToString(), key);
                 return name;
             }
         }
@@ -51,17 +53,40 @@ namespace Punchy.Interact
         static string name;
         static (int, bool, Key) nameFor;
 
-        public const string PadPath = "<Gamepad>/rightShoulder";
+        public const string PadPath = "<Gamepad>/buttonNorth";
+        /// <summary>The pad's Use in the inventory panel (a menu: the bumpers are its buttons).</summary>
+        public const string PanelPadPath = "<Gamepad>/rightShoulder";
 
-        /// <summary>Pressed this frame (the key, or RB), and no menu open.</summary>
+        /// <summary>
+        /// Pressed this frame (the key, or Y), and no menu open. Ask only when there is something to use: a pad press
+        /// it answers is claimed, so Interact (also Y) doesn't sit the player down or pet as well (ClaimedPress).
+        /// </summary>
         public static bool WasPressed()
         {
             if (Punchy.UI.Overlay.AnyOpen)
                 return false;
             var keyboard = Keyboard.current;
             var pad = Gamepad.current;
+            if (pad != null && pad.buttonNorth.wasPressedThisFrame)
+            {
+                claimedFrame = Time.frameCount;
+                return true;
+            }
+            return keyboard != null && keyboard[Current].wasPressedThisFrame;
+        }
+
+        /// <summary>The inventory panel's Use: the key, or RB (the panel is a menu, so the bumpers stay its buttons).</summary>
+        public static bool WasPressedInPanel()
+        {
+            var keyboard = Keyboard.current;
+            var pad = Gamepad.current;
             return keyboard != null && keyboard[Current].wasPressedThisFrame || pad != null && pad.rightShoulder.wasPressedThisFrame;
         }
+
+        static int claimedFrame = -1;
+
+        /// <summary>This frame's pad Y went to Use (a door, a folk, an item), so Interact leaves it (Use runs first: MonoBehaviours update before the systems).</summary>
+        public static bool ClaimedPress => claimedFrame == Time.frameCount;
 
         static void Next()
         {
@@ -107,13 +132,19 @@ namespace Punchy.Interact
             yield return ("Roll", Bound("Player/Crouch", false, "C"), Bound("Player/Crouch", true, "B"));
             yield return ("Interact (pet, sit)", Bound("Player/Interact", false, "E"), Bound("Player/Interact", true, "Y"));
             yield return ("Use: doors, lamps, pick up, chests", Current.ToString(), Pad(PadPath));
-            yield return ("Inventory and quest log", "Tab / I", Pad("<Gamepad>/leftShoulder"));
-            yield return ("Inventory: drop / move an item", $"{Current} / click", $"{Pad("<Gamepad>/buttonSouth")} / {Pad(PadPath)}");
-            yield return ("Inventory: close", "Tab / I / Esc", $"{Pad("<Gamepad>/leftShoulder")} / {Pad("<Gamepad>/buttonEast")}");
-            yield return ("Creature actions 1-4", "1 2 3 4", "d-pad");
-            yield return ("Cycle the weather", Punchy.Settings.WeatherKey.KeyboardName, Pad(Punchy.Settings.WeatherKey.PadPath));
+            yield return ("Inventory and quest log", "Tab / I", Pad("<Gamepad>/dpad/down"));
+            yield return ("Inventory: drop / move an item", $"{Current} / click", $"{Pad("<Gamepad>/buttonSouth")} / {Pad(PanelPadPath)}");
+            yield return ("Inventory: close", "Tab / I / Esc", Pad("<Gamepad>/buttonEast"));
+            yield return ("Emotes: wave, bow, cheer, dance", "1 2 3 4", $"tap {Pad("<Gamepad>/dpad/up")}, -, {Pad("<Gamepad>/dpad/right")}, {Pad("<Gamepad>/dpad/left")}");
+            yield return ("Cycle the weather", Punchy.Settings.WeatherKey.KeyboardName, $"hold {Pad(Punchy.Settings.WeatherKey.PadPath)}");
+            // Spell chemistry (ChemistryBridge): the hands.
+            yield return ("Spells: left hand thrust / throw", "-", $"{Pad("<Gamepad>/leftTrigger")} / {Pad("<Gamepad>/leftShoulder")}");
+            yield return ("Spells: right hand thrust / throw", "-", $"{Pad("<Gamepad>/rightTrigger")} / {Pad("<Gamepad>/rightShoulder")}");
+            yield return ("Spells: sweep / charge / merge", "-", "trigger + bumper / hold / both hands");
+            yield return ("Spells: attune a hand", "-", $"hold {Pad("<Gamepad>/dpad/up")}, right stick");
+            yield return ("Spells: fire / frost / water", "H / J / L (Shift: more)", "-");
             yield return ("Menu", "Esc", Pad("<Gamepad>/start"));
-            yield return ("Menu tabs", "Q / E", $"{Pad("<Gamepad>/leftShoulder")} / {Pad(PadPath)}");
+            yield return ("Menu tabs", "Q / E", $"{Pad("<Gamepad>/leftShoulder")} / {Pad("<Gamepad>/rightShoulder")}");
             yield return ("Options", Bound("Player/Options", false, "F4"), Bound("Player/Options", true, "View"));
         }
 

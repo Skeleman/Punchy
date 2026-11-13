@@ -284,8 +284,8 @@ namespace Punchy.Interact
                 // (A door or item nearer than a folk that has wandered takes the press: stand before it again.)
                 for (int tries = 0; tries < 6 && !talking; tries++)
                 {
-                    yield return Tap(GamepadButton.RightShoulder);
-                    Debug.Log($"[talk] pad: RB try {tries}: window {talking}, folk {TargetDistance:F2} m, door {Doors.FacingDistance:F2} m, item {Items.Items.TargetDistance:F2} m");
+                    yield return Tap(GamepadButton.North);
+                    Debug.Log($"[talk] pad: Y try {tries}: window {talking}, folk {TargetDistance:F2} m, door {Doors.FacingDistance:F2} m, item {Items.Items.TargetDistance:F2} m");
                     if (talking)
                         break;
                     StandBefore(World.DefaultGameObjectInjectionWorld.EntityManager.GetComponentData<CreatureState>(e));
