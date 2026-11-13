@@ -25,9 +25,10 @@ namespace Punchy.Chemistry
     /// colliders). What the cells do goes into two 256 x 256 maps that the grass, terrain and water shaders read
     /// (ChemistryOverlay.hlsl: burning, burnt, ice, frost; water on land, steam, smoke), and ChemistryEffects draws
     /// flames on burning cells and puffs of steam and smoke from the gas. Local and cosmetic only: no network, no
-    /// saving. -nochemistry turns it off.
+    /// saving. -nochemistry turns it off. On a pad the wizard's hands cast (D16, ChemistryBridge.Hands.cs): LT / LB the
+    /// left hand's thrust / throw, RT / RB the right's, hold to charge.
     /// </summary>
-    public class ChemistryBridge : MonoBehaviour
+    public partial class ChemistryBridge : MonoBehaviour
     {
         public const int Size = 256;
         // Past this distance from the window's centre (m) the window is rebuilt round the player (what burned is lost).
@@ -105,12 +106,15 @@ namespace Punchy.Chemistry
             {
                 Debug.LogWarning($"[Chemistry] couldn't load the rules from {dir}, bridge off: {e.Message}");
                 enabled = false;
+                return;
             }
+            StartHands();
         }
 
         void OnDisable()
         {
             Shader.SetGlobalFloat(OnId, 0f);
+            StopHands();
             if (seeding)
             {
                 seedJob.Complete();
@@ -129,6 +133,8 @@ namespace Punchy.Chemistry
                 Destroy(map);
             if (map2 != null)
                 Destroy(map2);
+            if (disc != null)
+                Destroy(disc);
         }
 
         bool EnsureQueries()
@@ -169,6 +175,7 @@ namespace Punchy.Chemistry
             }
 
             HandleInput(terrain, playerXZ);
+            Hands(terrain, player.Position);
             if (demo && !demoDone && Time.unscaledTime >= demoAt)
                 Demo(player.Position);
 
@@ -224,6 +231,7 @@ namespace Punchy.Chemistry
             seededSource = seedSourcePending;
             demoAt = Time.unscaledTime + DemoDelay;
             world = new Chem.World(rules, Size, Size, 1, "dirt");
+            NewHandsWorld();
             seeded = seedKinds.ToArray();
             heights = seedHeights.ToArray();
             lastState = new byte[Size * Size];

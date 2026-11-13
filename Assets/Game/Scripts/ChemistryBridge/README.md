@@ -51,7 +51,51 @@ reference silently here (no error, no warning).
 - Cost: about 0.75 ms a frame on average (a tick about 5 ms, sliced to 2 ms a frame; the map about 2 ms, 6
   times a second). No console errors or warnings.
 
+## On a pad: the hands (D16)
+
+Spell Chemistry Valley's one way to cast (its ADR 0016, `docs/design/unified-casting.md`), driven through the core's own
+hand logic: `ChemistryBridge.Hands.cs` sends the core's `HandDown` / `HandUp` / `Attune` commands
+(`World.ApplyCombo`), the core runs each hand's meter and charge from the rules' hand table (`hold.json` "hands"), and
+what it sets off (`FiredCastsHeard`) is aimed at the ground under the screen centre, pulled back to the gesture's range,
+and cast into the window. The actions are a map of the bridge's own, built in code; Punchy's `InputSystem_Actions` is
+untouched.
+
+| Pad | What it does |
+|---|---|
+| LT / LB | The left hand's thrust / throw |
+| RT / RB | The right hand's thrust / throw |
+| A hand's trigger + bumper (inside the window, about 0.7 s) | That hand's sweep |
+| Hold a hand's button | It charges (a level every half second, up to 3; the pad hums, and pulses at each level); let go to fire. A tap is charge 1 |
+| Both hands on one gesture | They merge into their pair's spell (fire + water thrust: Scalding Steam; throw: Geyser) |
+| Hold d-pad up | The element radial: the right stick picks (fire top, water right, earth bottom, air left); let go to attune the hand whose trigger is held, else the left. One element attuned is on both hands. A tap of d-pad up still waves |
+
+The hands start as the rules' table has them: water in the left, fire in the right, so out of the box:
+
+| Hand, gesture | Spell |
+|---|---|
+| Right (fire): thrust / throw / sweep | Burning Hands / Fire Bolt / Flame Wave |
+| Left (water): thrust / throw / sweep | Create Water / Ray of Frost / Sleet Storm |
+| Both (fire + water): thrust / throw | Scalding Steam / Geyser |
+
+The HUD (`ChemistryBridge.Hud.cs`, IMGUI through a `GuiHook`) shows two hand icons at the bottom of the screen in
+their element's colour, with their buttons (InputGlyphs' icons for the pad in use) and a ring that fills as the gesture
+winds up and charges (white, gold, orange by level), greys while the hand cools down and fills in the new element's
+colour while it attunes. A merge shows its spell's name between the hands and flashes as it starts and as it goes off.
+
+What Punchy's pad lost to the hands, and where it went:
+
+| Was | Now |
+|---|---|
+| LB: inventory | D-pad down opens it (B or Tab closes it; inside, d-pad moves between the slots, RB still drops / moves) |
+| RB: Use (doors, lamps, talk, pick up, chests) | Y, shared with Interact: a press Use takes (there was something to use) is claimed, and Interact doesn't sit or pet as well (`UseKey.ClaimedPress`) |
+| RT: cycle the weather | A long press (half a second) of Select / View; a short press is still Options (the frame cap) |
+| D-pad up / down: wave / bow | A tap of d-pad up waves (a hold is the radial); bow is key 2 only |
+
+Menus keep LB / RB for their tabs. The Keys tab of the menu lists all of it (`UseKey.Table`).
+
 ## Keys
+
+The keyboard has no hands yet: H, J and L cast straight into the window, as before.
 
 | Key | Spell |
 |---|---|
@@ -78,6 +122,11 @@ the window is seeded, once, for smoke runs without keys.
 - Cost: about 1.05 ms a frame on average (max 1.17) with a 200-cell fire front and 1000 puffs; no console errors.
 
 ## Removing it
+
+0. Undo the pad rebinds (each is marked "Spell chemistry"): `UseKey` back to RB in `Interact/Doors.cs`, the inventory
+   back to LB in `Items/Items.cs`, the weather back to RT in `Settings/WeatherKey.cs` and Options in
+   `Settings/FrameRateCap.cs`, the d-pad emotes in `Fauna/InteractionInputSystem.cs`, the right stick in
+   `Camera/ThirdPersonCamera.cs`, and the Y in `Interact/FolkTalk.cs` and `FolkTalk.Test.cs`.
 
 1. Delete this folder (`Assets/Game/Scripts/ChemistryBridge/`) and `Assets/StreamingAssets/ChemistryRules/`.
 2. Remove the `com.anweather.chemistry-core` line from `Packages/manifest.json`.
