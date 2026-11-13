@@ -63,6 +63,10 @@ namespace Punchy.Terrain
                         spots.Add(chamber.B);
                         spots.Add((chamber.A + chamber.B) * 0.5f);
                     }
+                // Lake rooms get their pools in FinishRooms, after this, so they count by the room itself.
+                foreach (var room in extras.Rooms)
+                    if (room.Cave == c && room.Type == (int)CaveRoomType.Lake)
+                        spots.Add(room.Centre);
                 var isWet = spots.Count > 0;
 
                 // Lamps and frames in this cave (by its box), which a trickle keeps clear of.
