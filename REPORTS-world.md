@@ -7042,3 +7042,71 @@ half3 PunchySurfaceFinish(half3 color, PunchySurface s, half reach);            
   - Town view: HumanVillage sits behind the camera's desert foreground; the mountains read only as a pale band at 4 km+ on Medium.
 - NaN probe (`R18Probe.Bad` after the run): bad 0. Pins not checked (no code).
 - Next: R-21 row 3 quick defects (world/waterfall-sheets), then W-153 rows 1 + 1b, then R-21 row 4.
+
+## R-20 row 1 addition: sun shadow map 4096 (#286)
+
+- Lane: render. Branch `render/shadow-still`, commit 9b01da13 on 1a380545, pushed. One line: `m_MainLightShadowmapResolution` 2048 -> 4096 in `Assets/Settings/PC_RPAsset.asset` (LF kept). Nothing else in the asset, no cascade, distance, renderer or ProjectSettings change. **Hash for BENCH job 71: 9b01da13.**
+- **Finding: there is one PC pipeline asset for every preset**, so Low gets the 4096 map too (Low keeps the scene's shadow filter from 1a380545). Mobile_RPAsset is untouched. If Low should stay at 2048 it needs a run-time setting per preset; say so and I add it.
+- How measured: as the first row 1 handoff (own editor, play mode, still camera, forest clearing (-1324, 3329) looking north-west, day type Sunny, grass off, sun running). Blink = a pixel that steps over 6 grey levels and comes straight back, share of the band's pixels per frame. The level with the sun paused is 0.002-0.003%.
+
+Medium, clearing, 10 s:
+
+| Band | main (2048, scene filter) | 2048 + filter (1a380545) | 4096 + filter (9b01da13) |
+|---|---|---|---|
+| 10-20 m | 0.143% | 0.0068% | 0.0017% |
+| 20-30 m | 0.069% | 0.019% | 0.0058% |
+| 30-40 m | 0.122% | 0.064% | 0.012% |
+| 40-60 m | 0.070% | 0.052% | 0.025% |
+| 60-90 m | 0.0075% | 0.0078% | 0.0061% |
+| 90-150 m | 0.014% | 0.017% | 0.0074% |
+
+High, clearing, 5 s:
+
+| Band | main | 2048 + filter | 4096 + filter |
+|---|---|---|---|
+| 10-20 m | 0.100% | 0.0084% | 0.0025% |
+| 20-30 m | 0.092% | 0.024% | 0.0062% |
+| 30-40 m | 0.059% | 0.022% | 0.0040% |
+| 40-60 m | 0.126% | 0.037% | 0.029% |
+| 60-90 m | 0.0044% | 0.0030% | 0.0024% |
+| 90-150 m | 0.047% | 0.0087% | 0.0044% |
+
+Hilltop (the view of job 56), Medium, 5 s:
+
+| Band | main | 2048 + filter | 4096 + filter |
+|---|---|---|---|
+| 10-20 m | 0.0000% | 0.0038% | 0.0000% |
+| 20-30 m | 0.0001% | 0.0017% | 0.0000% |
+| 40-60 m | 0.016% | 0.0060% | 0.0017% |
+| 60-90 m | 0.013% | 0.0015% | 0.0030% |
+| 90-150 m | 0.017% | 0.0027% | 0.0025% |
+
+- Read: with both commits the 10-40 m bands are 10 to 80 times quieter than main at Medium and High. The hilltop was already quiet near the camera; its 40-150 m bands drop 5 to 10 times.
+- **Left over:** 40-60 m stays at 0.025-0.03%, about ten times the paused level (the last cascade's far end). Note only, no code: if that still shows, the flora shadow cache could take over from about 40 m instead of the cascade's end, so the last cascade's coarsest texels are never seen. That is a hand-over distance by screen size inside the R-16 blend; I'd do it only if Zach still sees crawl there.
+- Suite (rule 19), in the lane's editor after the last change: `40 total, 40 passed, 0 failed` (TestResultCollector line; this route prints no seconds or skipped count). It ran on 9b01da13 plus one uncommitted shader edit (the row 2 try, now parked, see below); 9b01da13 itself is the asset line only.
+- Shots in `PunchyMilestones/R-20/`: `row1-still-4096.png`, `row1-still-4096-mask.png` (10 s frame-diff mask), `row1-still-4096-blinkmap.png`, `row1-still-2048-filter.png` (same frame number, filter only).
+- Not checked: cost (rule 21, job 71); a player build; the walk and pan by eye (UNVERIFIED, as before); Low preset by measurement; shadow map memory. No shader changed, so no NaN probe for this commit.
+
+## R-20 row 2: far cloud shadows, NOT verified, change parked (#286)
+
+- Lane: render. Nothing added to `render/shadow-still`. The try is parked on `render/cloud-shadow-soft`, commit 560d14e7 (on 9b01da13, pushed, **not for merge**): `Sky.hlsl` only, `PunchyCloudShadowSharpness` draws the cloud shadow's edge soft by on-screen size (a 60 m feature: full edge above 240 reference px, about 234 m at fov 60; fully soft below 40 px, about 1400 m). `-skyoff 2048` gives the old edge.
+- **Result: I could not reproduce unstable far cloud shadows, and the change shows no measurable effect.** FAILED as a verified row.
+  - Flight view (eye (-1324, 330, 3329) looking at (400, 0, 1200), High, 13:00-14:30), weather forced to PartlyCloudy over the looked-at ground, old edge against soft edge, 151 frames each, back to back. Per frame, by distance band:
+
+    | Band | step share, old / soft | up-and-down pixels | mean diff (grey levels) |
+    |---|---|---|---|
+    | 0-500 m | 0.0201 / 0.0204% | 0.70 / 0.78% | 0.050 / 0.048 |
+    | 500-1000 m | 0.0226 / 0.0221% | 0.81 / 0.83% | 0.036 / 0.035 |
+    | 1000-2000 m | 0.0123 / 0.0123% | 0.48 / 0.49% | 0.012 / 0.012 |
+
+  - Same view, sun paused, single frames old / soft / old: soft against old differs by 0.161 grey levels over the ground half, old against old by 0.180. So the soft edge changes nothing on the ground there beyond what the weather moves by itself.
+  - An earlier pair under day type Changeable (cover 0.04 at the camera) had the mean diff halved with the soft edge (0-500 m 0.097 -> 0.051). The forced-weather retake did not repeat it, so I read that as weather drift between the two captures, not the change.
+  - Peak view (summit +20 m): no cloud shadow lay on the ground in either capture; what changes there is the river.
+  - In all views the pixels over the threshold are swaying trees, water and one striped water patch, not ground shadow.
+- Near shape: unchanged by construction within about 234 m, and measured in the clearing at 3 m eye height (soft against old equals old against old: 0.239 against 0.244 grey levels).
+- NaN probe (SparkleProbe from eval, NaN guard off, 360 frames at the flight view, with the change): other bad 0, hot 0, creature marked 0. The probe's "segments odd 35" are all-zero creature segments, there on main too, not from this change.
+- Read from code only, not measured: the weather and cloud maps are 8-bit, 256x256, redrawn every 0.2 s (WeatherField.cs), and the shadow multiplies cloud density by 3 before clamping, so each one-level map step can move a far edge by a band of pixels. If that is what Zach saw, the fix sits in WeatherField's redraw (lent to another session), not in the shadow's edge.
+- **Needed to go on:** where Zach saw it: weather, hour, preset, and roughly where he stood or flew. With that I retake once and either merge the parked commit or drop it.
+- Shots in `PunchyMilestones/R-20/raw/`: `fly2-pair.jpg` (old over soft, frame 100), `tog-diff.jpg` (soft minus old, x12: only the sky differs), `far-chg-mask-pair.jpg`, `peak-mask-pair.jpg`.
+- Not checked: the 300 m moving flight (only the still flight view), dusk and low sun (long cloud shadows), Medium, a player build, cost (no BENCH request while the change is parked).
+- Next: R-25 row 1.
