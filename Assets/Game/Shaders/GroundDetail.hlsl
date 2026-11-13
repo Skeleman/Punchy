@@ -39,6 +39,7 @@ TEXTURE2D(_PunchyCaveDetail);
 SAMPLER(sampler_PunchyCaveDetail);
 float _PunchyCaveDetailReady;
 #include "SharedClock.hlsl"
+#include "ChemistryOverlay.hlsl"
 
 // Fraction of a tile's instances kept at a distance (matches GroundDetailSystem.Thinning): all of them within _DetailFull.
 float DetailThinning(float distance)
@@ -99,6 +100,9 @@ void BuildBladeVertex(Blade blade, uint instance, uint vertex, out float3 positi
     uint row = BladeRow[vertex];
     t = BladeT[row];
     float height = blade.height * visibility;
+    // Spell chemistry (ChemistryOverlay.hlsl): burnt grass is short stubble and burning grass shrivels (x 1 with no bridge).
+    half4 chem = PunchyChemAt(blade.position.xz);
+    height *= 1 - 0.85 * max(chem.g, chem.r * 0.5);
     // Thinned-out blades grow wider so distant grass keeps its coverage.
     float width = blade.width * BladeWidth[row] * BladeSide[vertex] * min(rsqrt(keep), 2.5);
 

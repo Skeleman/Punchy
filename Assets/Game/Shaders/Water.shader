@@ -165,6 +165,7 @@ Shader "Punchy/Water"
             #include "WideShadow.hlsl"
             #include "SharedClock.hlsl"
             #include "WaterSwell.hlsl"
+            #include "ChemistryOverlay.hlsl"
             // R-9: on for the fine sheet near the player (WaterPatchSystem.cs, WaterField.hlsl).
             #pragma multi_compile_local _ _WATER_FIELD
             #include "WaterField.hlsl"
@@ -1065,6 +1066,18 @@ Shader "Punchy/Water"
                     }
                     color = lerp(color, lavaColor, lava);
                     alpha = lerp(alpha, 1, lava);
+                }
+
+                // Spell chemistry (ChemistryOverlay.hlsl): frozen water is an opaque sheet of pale ice with faint cracks,
+                // lit like the ground (skipped with no bridge: the overlay reads 0).
+                half ice = PunchyChemAt(p).b;
+                [branch] if (ice > 0.002)
+                {
+                    float cracks = abs(PunchyValueNoise(p * 0.9) - 0.5) + abs(PunchyValueNoise(p * 2.7 + 3.1) - 0.5) * 0.5;
+                    half3 iceAlbedo = lerp(half3(0.62, 0.78, 0.88), half3(0.86, 0.93, 0.98), PunchyValueNoise(p * 0.35)) * lerp(0.7, 1.0, smoothstep(0.0, 0.06, cracks));
+                    half3 iceColor = iceAlbedo * (ambient + light.color * shadow * saturate(light.direction.y) * 0.9);
+                    color = lerp(color, iceColor, ice);
+                    alpha = lerp(alpha, 1, ice);
                 }
 
                 alpha *= rim;

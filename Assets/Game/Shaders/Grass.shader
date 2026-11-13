@@ -45,6 +45,9 @@ Shader "Punchy/Grass Blades"
                 o.positionCS = TransformWorldToHClip(o.positionWS);
                 o.normalWS = normal;
                 o.color = half4(blade.color.rgb, t);
+                // Spell chemistry: burnt stubble is charred black, frosted blades whiten (no change with no bridge).
+                half4 chem = PunchyChemAt(blade.position.xz);
+                o.color.rgb = lerp(lerp(o.color.rgb, half3(0.035, 0.03, 0.025), chem.g), half3(0.8, 0.88, 0.95), chem.a * 0.7);
                 return o;
             }
 
@@ -65,6 +68,8 @@ Shader "Punchy/Grass Blades"
                 half through = pow(saturate(dot(-v, light.direction)), 4) * t * 0.6;   // sunlight through the blade
                 // Glowing plants and molten pools nearby light the grass round them too.
                 half3 color = albedo * (light.color * shadow * (wrap + through) + SampleSH(n) + PunchyGlowLight(input.positionWS, n));
+                // Spell chemistry: burning blades glow (adds 0 with no bridge).
+                color += PunchyChemFireGlow(PunchyChemAt(input.positionWS.xz).r, input.positionWS.xz, _PunchyClock) * (0.4 + 0.6 * t);
 
                 color = PunchyAtmosphere(color, input.positionWS);
                 return half4(color, 1);

@@ -42,6 +42,7 @@ Shader "Punchy/Terrain Surface"
             #include "Sky.hlsl"
             #include "Glow.hlsl"
             #include "WideShadow.hlsl"
+            #include "ChemistryOverlay.hlsl"
             // x how much the ground under grass takes the blades' colour, y the grass radius (GroundDetailSystem).
             float4 _PunchyGrassTint;
             // The shared fine detail CaveSystem makes (rg a normal, b a height): grain on rock faces up close.
@@ -530,11 +531,16 @@ Shader "Punchy/Terrain Surface"
                     albedo = lerp(albedo, shingle, bandMix * shore * (1 - input.extra.y));
                 }
                 albedo *= lerp(1, 0.55, shore * (1 - 0.4 * input.extra.y));
+                // Spell chemistry (ChemistryOverlay.hlsl): scorched ground where grass burned off, white frost where it
+                // glazed over, and burning ground glows below (no change with no bridge).
+                half4 chem = PunchyChemAt(p);
+                albedo = lerp(albedo, half3(0.045, 0.04, 0.035) + albedo * 0.12, chem.g * 0.9);
+                albedo = lerp(albedo, half3(0.78, 0.86, 0.93), chem.a * 0.75);
                 surface.albedo = lerp(albedo, albedo * 0.6, puddle);
                 surface.smoothness = lerp(lerp(input.surface.a, max(input.surface.a, 0.45), sheen), 0.92, puddle);
                 surface.metallic = input.extra.x;
                 surface.occlusion = 1;
-                surface.emission = input.emission * _EmissionScale;
+                surface.emission = input.emission * _EmissionScale + PunchyChemFireGlow(chem.r, p, _PunchyClock) * 0.6;
                 surface.alpha = 1;
 
                 half4 color = UniversalFragmentPBR(inputData, surface);
