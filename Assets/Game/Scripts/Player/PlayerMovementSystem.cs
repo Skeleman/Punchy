@@ -196,7 +196,14 @@ namespace Punchy.Player
                 var wallUp = 0f;
                 var wallSideNow = 0f;
                 var move = input.MoveDirection;
-                if (m.OnWall && body.ClimbsWalls)
+                // A-101 (#267): one climbing model. The wall ahead has a grade (a marked section's, ladders and routes,
+                // else smooth) and the body climbs it when its skill is at least that, faster the more it has to spare.
+                var facing = math.normalizesafe(math.mul(t.Rotation, new float3(0f, 0f, 1f)).xz, new float2(0f, 1f));
+                var wallGrade = Punchy.Fauna.Climbing.WallGrade(new Punchy.Fauna.NoClimbSections(), from,
+                                                                math.normalizesafe(input.MoveDirection, facing), settings.Radius + 0.5f);
+                var climbsWall = Punchy.Fauna.Climbing.CanClimb(body.ClimbSkill, wallGrade);
+                var wallSpeed = Punchy.Fauna.Climbing.Speed(body.ClimbSpeed, body.ClimbSkill, wallGrade);
+                if (m.OnWall && climbsWall)
                 {
                     var into = math.mul(t.Rotation, new float3(0f, 0f, 1f)).xz;
                     StickOnSurface(input, out wallUp, out var wallSide);
@@ -209,7 +216,7 @@ namespace Punchy.Player
                     }
                     wallSideNow = wallSide;
                     var across = new float2(into.y, -into.x);
-                    move = into + across * wallSide * math.max(body.ClimbSpeed, 0.3f) / math.max(speed, 0.1f);
+                    move = into + across * wallSide * wallSpeed / math.max(speed, 0.1f);
                 }
                 position.xz += move * speed * dt;
                 if (swimming)
@@ -224,8 +231,8 @@ namespace Punchy.Player
                 // (not too fast, and not just after leaping off one) catches hold of it.
                 var walkingInto = m.Grounded && math.lengthsq(input.MoveDirection) > 0.25f;
                 var fallingPast = !m.Grounded && m.VerticalVelocity > -LatchFall && m.LatchCooldown <= 0f;
-                if (body.ClimbsTrees && obstacles.IsCreated && (walkingInto || fallingPast) &&
-                    GrabTrunk(obstacles, from, input.MoveDirection, settings.Radius, body.ClimbsWalls, !walkingInto, ref m))
+                if (Punchy.Fauna.Climbing.CanClimb(body.ClimbSkill, Punchy.Fauna.Climbing.Tree) && obstacles.IsCreated && (walkingInto || fallingPast) &&
+                    GrabTrunk(obstacles, from, input.MoveDirection, settings.Radius, body.ClimbSkill, !walkingInto, ref m))
                 {
                     m.Grounded = false;
                     m.VerticalVelocity = 0f;
@@ -242,7 +249,7 @@ namespace Punchy.Player
                 var blocked = false;
                 // (#33: a wall climber counts anything it can't step onto as a wall, however far above its own head the
                 // top is; with head height a lizard never met a garden wall, whose only surface is its top.)
-                var wallHead = body.ClimbsWalls ? WallClimbHead : 1.7f * size;
+                var wallHead = climbsWall ? WallClimbHead : 1.7f * size;
                 if (tops)
                     position.xz = KeepOutOfPropWalls(ref grids.Set.Value, props, from, position.xz, stepUp, wallHead, out blocked);
                 if (hasKit)   // W-67 (#79): kit walls, slid along the same way.
@@ -261,7 +268,7 @@ namespace Punchy.Player
                 // The salt tower's body and its steps from below (W-27): slid along the same way.
                 position.xz = KeepOutOfTower(terrain, from, position.xz, stepUp, 1.7f * size, ref blocked);
                 // (#33 probe, -place wall only: every term of the wall latch below, and what stopped the move first.)
-                if (WallProbe.Data == 1 && body.ClimbsWalls)
+                if (WallProbe.Data == 1 && climbsWall)
                 {
                     var anyTop = float.MinValue;
                     var anyWall = tops && PropSupport.Wall(ref grids.Set.Value, props, new float3(probeWanted.x, from.y, probeWanted.y), stepUp, 50f, out anyTop);
@@ -276,7 +283,7 @@ namespace Punchy.Player
 
                 // A ledge within reach ahead: climbed onto, for a jump at it (or reaching it in the air, pressing on).
                 var pressing = math.lengthsq(move) > 0.04f;
-                if (tops && body.Climbs && !swimming && pressing && (input.JumpPressed || !m.Grounded && blocked) &&
+                if (tops && Punchy.Fauna.Climbing.Mantles(body.ClimbSkill) && !swimming && pressing && (input.JumpPressed || !m.Grounded && blocked) &&
                     PropSupport.Ledge(ref grids.Set.Value, props, from, math.normalize(input.MoveDirection),
                                       m.OnWall ? math.max(0.9f * size, WallLedgeReach) : 0.9f * size, stepUp,
                                       MantleReach * size, out var ledge) &&
@@ -307,7 +314,7 @@ namespace Punchy.Player
                     m.LatchCooldown = 0.5f;
                     position.xz = from.xz - math.normalizesafe(math.mul(t.Rotation, new float3(0f, 0f, 1f)).xz) * 0.4f;
                 }
-                else if (wasOnWall && body.ClimbsWalls && (tops || hasKit) && wallUp >= 0f && !swimming &&
+                else if (wasOnWall && climbsWall && (tops || hasKit) && wallUp >= 0f && !swimming &&
                          TopUnder(tops, grids, props, hasKit, kitBoxes, from, 0.3f, stepUp, out var perch) &&
                          perch.Height >= from.y - 0.3f && perch.Height <= from.y + stepUp)
                 {
@@ -318,7 +325,7 @@ namespace Punchy.Player
                     t.Position = position;
                     continue;
                 }
-                else if (body.ClimbsWalls && blocked && pressing && !swimming && !input.JumpPressed &&
+                else if (climbsWall && blocked && pressing && !swimming && !input.JumpPressed &&
                          (m.Grounded || wasOnWall || m.VerticalVelocity > -LatchFall && m.LatchCooldown <= 0f))
                 {
                     m.OnWall = true;
@@ -342,7 +349,7 @@ namespace Punchy.Player
                         t.Position = from;
                         continue;
                     }
-                    position.y = from.y + rising * math.max(body.ClimbSpeed, 0.3f) * dt;
+                    position.y = from.y + rising * wallSpeed * dt;
                     if (wasOnWall && rising < 0f && Floor(terrain, position, settings.SwimDepth, out var foot, out _) && position.y <= foot)
                     {
                         // Down at the foot of it: off, standing.
@@ -390,7 +397,7 @@ namespace Punchy.Player
                 }
                 // A wall climber walking off a top's edge goes over onto the wall, turned to face it, and climbs down
                 // (#33: it used to let go and fall). Its feet start just below the rim, so the wall holds it.
-                if (body.ClimbsWalls && (tops || hasKit) && wasOnProp && !m.OnProp && m.Grounded && pressing && !input.JumpPressed && !swimming &&
+                if (climbsWall && (tops || hasKit) && wasOnProp && !m.OnProp && m.Grounded && pressing && !input.JumpPressed && !swimming &&
                     position.y - ground > math.max(settings.GroundSnapDistance + speed * dt, stepUp))
                 {
                     var off = math.normalizesafe(position.xz - from.xz, input.MoveDirection);
@@ -790,15 +797,16 @@ namespace Punchy.Player
 
         /// <param name="inAir">Falling past rather than walking into it: anywhere up its height, whichever way it faces,
         /// as long as it's right beside it.</param>
-        static bool GrabTrunk(in DynamicBuffer<FloraObstacle> obstacles, float3 at, float2 move, float radius, bool anySurface, bool inAir, ref PlayerMotion m)
+        static bool GrabTrunk(in DynamicBuffer<FloraObstacle> obstacles, float3 at, float2 move, float radius, int skill, bool inAir, ref PlayerMotion m)
         {
             var way = math.normalizesafe(move);
             for (int i = 0; i < obstacles.Length; i++)
             {
                 var o = obstacles[i];
-                // (A tree climber takes only a tree-sized trunk; a hut's round wall is for the wall-climbers.)
+                // (A tree climber takes only a tree-sized trunk; a hut's round wall is graded a smooth wall, A-101.)
                 var top = o.Position.y + (inAir ? o.Height - 0.3f : 1f);
-                if (o.Radius < 0.08f || o.Height < 2f || at.y + 0.5f < o.Position.y || at.y > top || !anySurface && o.Radius > 0.7f)
+                if (o.Radius < 0.08f || o.Height < 2f || at.y + 0.5f < o.Position.y || at.y > top ||
+                    !Punchy.Fauna.Climbing.CanClimb(skill, Punchy.Fauna.Climbing.TrunkGrade(o.Radius)))
                     continue;
                 // (Round the trunk as drawn at the body's height: a leaning tree's trunk isn't over its foot.)
                 var to = FloraObstacle.CentreAt(o.Position, o.Height, o.LeanMid, o.LeanTop, at.y) - at.xz;
@@ -836,7 +844,7 @@ namespace Punchy.Player
                 t.Position += new float3(outward.x, 0f, outward.y) * 0.5f;
                 return;
             }
-            var speed = math.max(body.ClimbSpeed, 0.3f);
+            var speed = Punchy.Fauna.Climbing.Speed(body.ClimbSpeed, body.ClimbSkill, Punchy.Fauna.Climbing.TrunkGrade(m.TrunkRadius));
             var inward = -outward;
             var round = new float2(-outward.y, outward.x);
             // (The stick against the surface, not the world: forward is up, back is down, and right is to the body's

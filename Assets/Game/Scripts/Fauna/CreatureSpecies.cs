@@ -171,9 +171,11 @@ namespace Punchy.Fauna
         [Tooltip("Walks on hooves (horses, deer, goats, cattle): a clop on hard ground. Others' feet are padded or shod. " +
                  "Variants take their body's.")]
         public bool Hooves;
-        [Tooltip("What a player in this body can climb: trees (monkeys, cats, bears, squirrels) or any surface (lizards, " +
-                 "spiders). Left at None it follows Crawls (any surface) and Climbing (trees). Variants take their body's.")]
-        public ClimbAbility ClimbsAs;
+        [Tooltip("Its climbing skill (A-101, Climbing): it climbs a section whose grade is at most this, faster the more it " +
+                 "has to spare. 5 any surface (lizards, spiders), 4 craggy rock, 3 trees (monkeys, cats, bears, squirrels), " +
+                 "2 vines and ropes (humanoids), 1 ladders, 0 nothing. Left at -1 it follows Crawls (5), Climbing (3) and " +
+                 "hands (2). Variants take their body's.")]
+        [Range(-1, 5)] public int ClimbSkill = -1;
         [Tooltip("What it does when someone near emotes at it (a wave, a bow, a cheer, a dance). Default: friendly ones " +
                  "come over wagging, ones that run from people run sooner, the rest pay no heed.")]
         public EmoteReaction EmoteReaction;
@@ -323,8 +325,6 @@ namespace Punchy.Fauna
     /// The idle action an animal is doing now (one of IdleActions, by number), or a pose a player's body takes for an
     /// interaction (Pet, Carry, Throw: not idle actions any species picks for itself).
     /// </summary>
-    /// <summary>What a body can climb (CreatureSpecies.ClimbsAs).</summary>
-    public enum ClimbAbility : byte { None, Trees, AnySurface }
 
     /// <summary>What a species' body is covered in; the Coat surface of its parts resolves to this.</summary>
     public enum CoatKind : byte { Fur, Feathers, Scales, Skin, Chitin }

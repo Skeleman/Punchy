@@ -93,6 +93,13 @@ namespace Punchy.Debugging
             climbSince = Time.time;
         }
 
+        /// <summary>The player's climbing skill now (A-101), for the climb tests' log lines; -1 with no body yet.</summary>
+        int ClimbSkillNow()
+        {
+            using var bodyQuery = queryWorld.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<PlayerBody>());
+            return bodyQuery.TryGetSingleton<PlayerBody>(out var body) ? body.ClimbSkill : -1;
+        }
+
         static string V(float v) => v.ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
 
         float climbNextJump;
@@ -133,7 +140,7 @@ namespace Punchy.Debugging
                 // Each time it takes hold: where the trunk it holds stands, against the spot logged for it, and which side
                 // of it the player is on (to settle which side it climbs).
                 if (!climbHolding)
-                    Debug.Log($"DebugControls: climb test: took hold of a trunk at ({V(motion.TrunkBase.x)}, {V(motion.TrunkBase.z)}), radius {V(motion.TrunkRadius)}, " +
+                    Debug.Log($"DebugControls: climb test: skill {ClimbSkillNow()}, took hold of a trunk at ({V(motion.TrunkBase.x)}, {V(motion.TrunkBase.z)}), radius {V(motion.TrunkRadius)}, " +
                               $"{V(math.distance(motion.TrunkBase.xz, climbTarget.Value))} m from the spot logged; player at ({V(player.Position.x)}, {V(player.Position.z)}), " +
                               $"on its {(math.abs(math.cos(motion.TrunkAngle)) > math.abs(math.sin(motion.TrunkAngle)) ? (math.cos(motion.TrunkAngle) > 0f ? "east" : "west") : (math.sin(motion.TrunkAngle) > 0f ? "north" : "south"))} side");
                 climbHolding = true;
@@ -183,7 +190,7 @@ namespace Punchy.Debugging
                     var dtLog = math.max(Time.time - wallLastAt, 0.01f);
                     wallLast = player.Position;
                     wallLastAt = Time.time;
-                    Debug.Log($"DebugControls: wall test: test move {PlayerInputSystem.TestMove}, {V(distance)} m from the rim; stick {stick}, OnWall {wm.OnWall}, grounded {wm.Grounded}, player at ({V(player.Position.x)}, {V(player.Position.y)}, {V(player.Position.z)}), vertical {V(step.y / dtLog)} m/s, along {V(math.length(step.xz) / dtLog)} m/s");
+                    Debug.Log($"DebugControls: wall test: skill {ClimbSkillNow()}, test move {PlayerInputSystem.TestMove}, {V(distance)} m from the rim; stick {stick}, OnWall {wm.OnWall}, grounded {wm.Grounded}, player at ({V(player.Position.x)}, {V(player.Position.y)}, {V(player.Position.z)}), vertical {V(step.y / dtLog)} m/s, along {V(math.length(step.xz) / dtLog)} m/s");
                 }
             }
             if (toward && climbJumps && distance > 0.5f && distance < 2f && Time.time >= climbNextJump)
@@ -225,6 +232,29 @@ namespace Punchy.Debugging
                 Debug.LogWarning($"DebugControls: no playable body '{name}'");
             else
                 avatars.SetLocalSpecies(index);
+        }
+
+        /// <summary>
+        /// "-climbskill N" (A-101): the player's ClimbSkill held at N (-1 lets go), from the next body on and for the body
+        /// it's in now, its climb speed with it (a skill 5 body scurries, Climbing.BaseSpeed). Letting go takes effect with
+        /// the next body (FaunaDirector works the species' skill out from its blob).
+        /// </summary>
+        void SetClimbSkill(int skill)
+        {
+            Climbing.SkillOverride = math.clamp(skill, -1, Climbing.Most);
+            if (Climbing.SkillOverride < 0 || queryWorld == null || !queryWorld.IsCreated)
+                return;
+            var em = queryWorld.EntityManager;
+            using var bodyQuery = em.CreateEntityQuery(typeof(PlayerBody));
+            if (!bodyQuery.TryGetSingletonEntity<PlayerBody>(out var bodyEntity))
+                return;
+            var body = em.GetComponentData<PlayerBody>(bodyEntity);
+            var director = FindAnyObjectByType<FaunaDirector>();
+            var species = director != null && director.PlayerSpecies != null ? director.PlayerSpecies.Body : null;
+            body.ClimbSkill = (byte)Climbing.SkillOverride;
+            body.ClimbSpeed = Climbing.BaseSpeed(body.ClimbSkill, species != null ? species.Climbing : 0f);
+            em.SetComponentData(bodyEntity, body);
+            Debug.Log($"DebugControls: climb skill {body.ClimbSkill}, climb speed {body.ClimbSpeed:0.00}");
         }
 
         void ActionTest()

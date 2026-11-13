@@ -61,7 +61,7 @@ namespace Punchy.Tests
         {
             var line = LogWatch.Last("fingerprint") ?? "no fingerprint line";
             LogWatch.Measure("fauna " + line);
-            StringAssert.Contains("fingerprint AD723954", line);   // A-97 row 3 re-pin: paw limb feet are now coat-coloured Paw segments, a little wider (no placement change). 66320C7C since the W-128 re-pin: the inn rebuilt from kit pieces (cce82b69) bakes new anchor rows. B15790ED since W-127 (was 7D75BB04, W-126 before it F0EF4BD5): the flora blob the build bakes gains the beacon fixture species and the fixture rows' MinPlots
+            StringAssert.Contains("fingerprint B1C0CD10", line);   // A-101 row 0 re-pin: the blob's climb kind became a ClimbSkill byte (0-5), hands bodies now 2 (no placement change). AD723954 since the A-97 row 3 re-pin: paw limb feet are now coat-coloured Paw segments, a little wider (no placement change). 66320C7C since the W-128 re-pin: the inn rebuilt from kit pieces (cce82b69) bakes new anchor rows. B15790ED since W-127 (was 7D75BB04, W-126 before it F0EF4BD5): the flora blob the build bakes gains the beacon fixture species and the fixture rows' MinPlots
             yield return null;
         }
 

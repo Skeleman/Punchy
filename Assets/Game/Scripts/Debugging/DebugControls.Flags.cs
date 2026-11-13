@@ -73,6 +73,10 @@ namespace Punchy.Debugging
             var bodyArg = System.Array.IndexOf(args, "-setbody");
             if (bodyArg >= 0 && bodyArg + 1 < args.Length)
                 SetBody(args[bodyArg + 1]);
+            // "-climbskill N" (A-101): the player climbs with skill N (0-5) whatever its body, until "-climbskill -1".
+            var climbSkillArg = System.Array.IndexOf(args, "-climbskill");
+            if (climbSkillArg >= 0 && climbSkillArg + 1 < args.Length && int.TryParse(args[climbSkillArg + 1], out var climbSkill))
+                SetClimbSkill(climbSkill);
             // "-shotonhunt": one shot the moment a land hunter enters its sprint, camera framing hunter and prey (#9).
             shotOnHunt = System.Array.IndexOf(args, "-shotonhunt") >= 0;
             var huntSideArg = System.Array.IndexOf(args, "-huntside");

@@ -96,8 +96,8 @@ namespace Punchy.Fauna
         public bool Slithers;
         /// <summary>Walks on hooves (CreatureSpecies.Hooves): a clop on hard ground.</summary>
         public bool Hooves;
-        /// <summary>What a player in this body can climb (CreatureSpecies.ClimbsAs, or from Crawls and Climbing).</summary>
-        public ClimbAbility ClimbsAs;
+        /// <summary>Its climbing skill (Climbing, 0-5): CreatureSpecies.ClimbSkill, or from Crawls, Climbing and hands.</summary>
+        public byte ClimbSkill;
         /// <summary>Its answer to someone emoting near it (CreatureSpecies.EmoteReaction, Default worked out).</summary>
         public EmoteReaction Reaction;
         /// <summary>Tunnels through the ground (CreatureSpecies.Tunnels): a sand or snow worm.</summary>
@@ -900,8 +900,6 @@ namespace Punchy.Fauna
             root.ColdBlooded = species.ColdBlooded;
             root.Hooves = species.Hooves;
             root.Tunnels = species.Tunnels;
-            root.ClimbsAs = species.ClimbsAs != ClimbAbility.None ? species.ClimbsAs
-                          : species.Crawls ? ClimbAbility.AnySurface : species.Climbing > 0f ? ClimbAbility.Trees : ClimbAbility.None;
             root.Reaction = species.EmoteReaction != EmoteReaction.Default ? species.EmoteReaction
                           : species.Friendly ? EmoteReaction.Wags : species.FleeDistance > 0f ? EmoteReaction.Flees : EmoteReaction.Ignores;
             root.Habitat = species.Habitat;
@@ -954,6 +952,7 @@ namespace Punchy.Fauna
             root.Breaches = species.Breaches && species.Habitat == Habitat.Swims;
             root.RaidsHives = species.RaidsHives;
             root.Hands = species.Parts.Exists(p => p != null && p.Limb != null && p.Limb.Role == LimbRole.Arm);
+            root.ClimbSkill = Climbing.SpeciesSkill(species.ClimbSkill, species.Crawls, species.Climbing, root.Hands);
             root.Child = variant.Child;
             root.SeenFrom = species.SeenFrom * sizeScale * size;
             root.Rooted = species.Rooted;
