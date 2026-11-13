@@ -4251,6 +4251,15 @@ Where A-109 differs from A-108: herds are anonymous and seeded per 512 m cell fr
 - Vantage points: town 73 at (2972, -885), camera north of it. If a world merge moves the town, these are re-picked.
 - Next: row 3 (HomeSign as narrowed), then row 4.
 
+## 2026-11-13 A-109 row 3: HomeSign and the far figure size cap
+- DONE: #298 #25 HomeSign, a pure function saying what a house shows of its family (hearth smoke, window lamp, how many are in) from the household record, the day and the hour (fauna/far-towns bbb88e14). Nothing is drawn for players yet: the render and world lanes read it; `-homesign` logs digests and draws debug markers only.
+- DONE: #298 a far figure hides while it would look taller than 24 px (DetailPolicy.FarFigureMaxPixels, read through ScreenSize and Holds), so nobody sees a giant capsule after a teleport or at a wide town's edge (fauna/far-towns f54d8941, its own commit as approved).
+- NOT DONE / UNVERIFIED: HomeSign ignores deaths, and its dusk and dawn hours are fixed, not seasonal. Host and client digests came from the same binary. Landmarks with no far town log "?" as their name. At noon no figure at ElfGrove reached the cap, so the cap is shown biting only by the teleport case. No sparkle probe was run for the cap (no mesh or shader change).
+- Checks: play-mode suite 40 passed / 0 failed / 17 skipped, 301 s, at f54d8941; Fauna_Fingerprint 6A9E28E5, landmarks unchanged. HomeSign: host and joined client `[homesign]` digests equal for all 15 landmarks at two hours (town 73 BF04DC57 / 8DFC48F1, 75 DD269ADE / DF65F35B, 78 D7C98A66 / BEEB17AF); `-sparkleprobe` with markers on, bad 0. Cap, editor play at noon, Clear, `-farfolk`: teleport from 178 m to town 73's centre, largest shown far figure 10.2 px before and after, 0 far walkers once real folk are there (511.9 px before the fix); five stops 128 m from ElfGrove 79's centre, largest 14.4, 14.8, 20.8, 14.1, 16.2 px, 8 figures, no real folk, nothing above 24 px.
+- Shots (PunchyMilestones/A-109/): cap_t73_teleport.png, the square just after the teleport: one small real figure, no large capsule. cap_elf_120.png, ElfGrove from 128 m: mushroom trees, no large far figure. homesign_t73_22h.png, debug markers at 22 h: lamps and smoke marked on houses whose family is in.
+- Asks: bench job 72 (row 2) now also covers f54d8941; the cap adds one ScreenSize test per far figure per frame. Rule 28: one constant added to DetailPolicy.cs (render lane's file), nothing else there. Rule 28 duplication: the wharf spot lookup would be copied by the details row; noted for A-110 row 7, not added. Rule 25, still no far form: sea folk domes, turtle igloos, bat folk, hermit huts, fishing village, wharf.
+- NEXT: A-109 row 4 moved to A-110 row 7 (a draft is kept out of the tree). A-110 row 1: DESIGN-population.md is on coordination; branch fauna/one-population is pushed with no commits of its own. I build nothing until the ruling.
+
 ## A-107
 
 ### Row 1: graded climb sections on colossi (done, verified, #276, fauna/colossus-climb b2ad690b)
