@@ -35,7 +35,7 @@ namespace Punchy.Fauna
         public Kinsfolk[] Members;
         internal uint Taken, Pinned;
 
-        public string NameOf(int member) => FolkNames.Of(Members[member].Individual);
+        public string NameOf(int member) => FolkNames.Of(Members[member].Individual) ?? "?";
 
         /// <summary>The family word for a member ("daughter", "husband", "grandmother"...), as the head would say it.</summary>
         public static string Word(in Kinsfolk k) => k.Role switch
@@ -102,33 +102,51 @@ namespace Punchy.Fauna
     }
 
     /// <summary>
-    /// Folk names (P-26) for the households: folk-names.json read once, and the same pick FolkTalk makes from a folk's
-    /// Individual, so a household's log and its talk name each member as the folk's own talk title does.
+    /// Folk names (P-26): a folk's sex and name, both picked from its Individual, so every machine calls it the same
+    /// with nothing sent. FolkTalk's titles and the households (A-105) use this one pick: a household draws each
+    /// member's sex and nudges its Individual until the Individual gives that sex, so its name and its family words
+    /// (daughter, husband) agree. Names come from StreamingAssets/folk-names.json, read once: a feminine folk's from
+    /// the feminine and either lists, a masculine one's from the masculine and either lists.
     /// </summary>
     public static class FolkNames
     {
         [System.Serializable]
-        class NameFile { public string[] names; }
+        class NameFile { public string[] feminine, masculine, either; }
 
-        static string[] names;
+        static string[] feminine, masculine;
+
+        /// <summary>Whether a folk is feminine (she) or masculine (he), from its Individual.</summary>
+        public static bool Feminine(uint individual) => (BiomeSampling.Scramble(individual ^ 0x53455821u) & 1u) != 0;
 
         public static string Of(uint individual)
         {
-            if (names == null)
+            if (feminine == null)
+                Load();
+            var list = Feminine(individual) ? feminine : masculine;
+            return list.Length > 0 ? list[BiomeSampling.Scramble(individual ^ 0x4E414D45u) % (uint)list.Length] : null;
+        }
+
+        static void Load()
+        {
+            feminine = masculine = System.Array.Empty<string>();
+            try
             {
-                names = System.Array.Empty<string>();
-                try
-                {
-                    var read = JsonUtility.FromJson<NameFile>(File.ReadAllText(Path.Combine(Application.streamingAssetsPath, "folk-names.json")));
-                    if (read?.names != null)
-                        names = read.names;
-                }
-                catch (System.Exception e)
-                {
-                    Debug.LogWarning($"FolkNames: couldn't read folk-names.json: {e.Message}");
-                }
+                var read = JsonUtility.FromJson<NameFile>(File.ReadAllText(Path.Combine(Application.streamingAssetsPath, "folk-names.json")));
+                var either = read?.either ?? System.Array.Empty<string>();
+                feminine = Concat(read?.feminine, either);
+                masculine = Concat(read?.masculine, either);
             }
-            return names.Length > 0 ? names[BiomeSampling.Scramble(individual ^ 0x4E414D45u) % (uint)names.Length] : "?";
+            catch (System.Exception e)
+            {
+                Debug.LogWarning($"FolkNames: couldn't read folk-names.json: {e.Message}");
+            }
+        }
+
+        static string[] Concat(string[] a, string[] b)
+        {
+            var list = new List<string>(a ?? System.Array.Empty<string>());
+            list.AddRange(b);
+            return list.ToArray();
         }
     }
 
@@ -271,8 +289,9 @@ namespace Punchy.Fauna
 
         /// <summary>
         /// One house's household, from its door's spot: the mix rolled from its key, then held to the grown-ups and
-        /// children its kind of home can hold. Each member's Individual is hashed from the key, nudged until no two in
-        /// the house share a name.
+        /// children its kind of home can hold. Each member's sex is drawn from the key too (a couple is a man and a
+        /// woman), and its Individual is hashed from the key, nudged until it gives that sex and no two in the house share
+        /// a name.
         /// </summary>
         static void AddHouse(List<Household> into, int landmark, float4 door, string kind, int minAdults, int maxAdults, int maxChildren)
         {
@@ -307,9 +326,10 @@ namespace Punchy.Fauna
                 var role = k < adults.Count ? adults[k] : Kin.Child;
                 var feminine = role == Kin.Head ? headFeminine : role == Kin.Partner ? !headFeminine : (bits >> (9 + k) & 1u) != 0;
                 var individual = BiomeSampling.Scramble(key ^ (uint)(k + 1) * 0x9E3779B9u) | 1u;
-                for (int tries = 0; tries < 32; tries++)
+                // (Nudged until it gives the drawn sex, so the name fits the family word, and no name repeats in the house.)
+                for (int tries = 0; tries < 64; tries++)
                 {
-                    var clash = false;
+                    var clash = FolkNames.Feminine(individual) != feminine;
                     for (int j = 0; j < k; j++)
                         clash |= members[j].Individual == individual || FolkNames.Of(members[j].Individual) == FolkNames.Of(individual);
                     if (!clash)
