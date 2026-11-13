@@ -3967,6 +3967,23 @@ and InteractionInput, then CreatureBrain. Then LateUpdate. Then Presentation: Sn
   - On a host, the player's position is where its client last reported. After a teleport the test waits 4 s before spawning near it, or FaunaDirector lets the spawn go (noted in docs/agents/fauna.md).
 - Next: row 3 (players riding players), per the card.
 
+### Row 3: players ride (done, verified, fauna/riding 4386877e, #278)
+
+- The player gets on a creature or another player that passes the mass rule (rider x 1.5 <= mount). Press interact on the target to get on; interact or jump gets down. The mount keeps its own movement (Zach: a ridden player keeps control). The rider is carried, keeps the camera and look, and can't move (PlayerMovementSystem skips PlayerRide).
+- **Ghost field (approved, rule 11):** `NetPlayerLook.Mount` (int ghost id, 0 when not riding), added after Eyewear with no reordering. It is filled from NetPlayerCommand.Mount the same way Eyewear is. Apply only accepts a live ghost, refuses self, and refuses a pair that would ride each other. With a bad id the rider stays where it is: no warp, no NaN. **The network layout changed, so old builds can't join new ones.** GLOSSARY doesn't list riding, so there is no GLOSSARY line.
+- **Solo, player on a dog:** max offset 0.30 cm, 0 NaN frames. Get down (None), swim (Swim), climb (Climb) and mount removed (Death) all dismount correctly.
+- **Host, player on a creature:** max offset 0.00 cm, player from its body 0.00 cm, 0 NaN frames. All four dismount cases ok, floor 0.00 m.
+- **Host carries client** (editor host Human, build client Cat): the client got on at 3 s (pose Cling) and was carried while the host walked. Seat in the mount's frame was (0, 1.2-1.47, 0.04-0.11) in both views, agreeing to about 1 mm; the host saw the rider's Mount id. The host trying to ride its rider was refused (TooHeavy). The host lay down and the client got down (Sleep). Re-mounted at 28 s, got down on request at 34 s. 0 NaN frames both sides, no exceptions.
+- **Client carries host** (build host Cat rider, editor client Human mount): the same sequence passed. Seat (0, 1.50, 0.043) in both views, refused TooHeavy, Sleep dismount at 23.4 s, re-mount at 28 s, asked down at 34 s, 0 NaN frames.
+- Fauna_Fingerprint 6A9E28E5 before and after (unchanged). PlayMode suite 40/40 passed.
+- Shots: D:/Unity/PunchyMilestones/A-104/row3-solo-dog.jpg, row3-host-carries-client.jpg, row3-client-carries-host.jpg (the rider is small in frame). Full-resolution gallery (not viewed): D:/Unity/PunchyMilestones/A-104/riding/gallery/.
+- Risks and limits:
+  - The server isn't told about player rides, so an NPC pet may still climb onto a player-ridden mount (it then gets down).
+  - Clients see one frame of seat lag.
+  - The "can't mount each other" refusal tested as TooHeavy (the mass rule). The pair check exists in Apply and PlayerRideSystem but the run didn't reach it.
+  - The first pair test ran in town (`-warp town 1`) and the second away from town.
+  - The first host creature run stalled once and was not seen again on rerun (a per-second waiting line now logs this).
+
 ## A-105
 
 ### Row 1: derived households (done, verified, #25)
