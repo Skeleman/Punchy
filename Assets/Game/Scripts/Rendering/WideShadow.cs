@@ -48,6 +48,10 @@ namespace Punchy.Rendering
         public static float RedrawDegrees = 1f, RedrawMove = 300f;
         /// <summary>A flora re-stream asks for a redraw at most this often (s).</summary>
         public static float FloraWait = 5f;
+        /// <summary>R-16 row 3: a new map blends in over the old one over this long (s, "-wideblend"; 0 swaps at once).
+        /// Shorter than the sun takes to turn RedrawDegrees (about 4 s on the 24 min day), so one blend ends before the
+        /// next redraw is due.</summary>
+        public static float BlendSeconds = Number("-wideblend", 2f);
         public const int Size = 2048, RedrawFrames = 4;
 
         /// <summary>GPU memory the map holds (both textures and the flora's wide cull), in bytes.</summary>
@@ -56,6 +60,8 @@ namespace Punchy.Rendering
         public static int Redraws, DirtyRects;
         /// <summary>Last finished redraw: casters, CPU and GPU time, centre, sun.</summary>
         public static string LastLog = "";
+        /// <summary>What started the last redraw (first, casters, candidates, moved, flora or sun).</summary>
+        public static string LastReason = "";
         /// <summary>Last dirty rect: its size in texels and its CPU and GPU time.</summary>
         public static string LastDirtyLog = "";
         /// <summary>Debug: the next redraws count their casters by kind into <see cref="KindsLog"/> (the flora's count is a GPU sync).</summary>
@@ -80,6 +86,10 @@ namespace Punchy.Rendering
         static readonly int MatrixId = Shader.PropertyToID("_WideShadowMatrix");
         static readonly int ParamsId = Shader.PropertyToID("_WideShadowParams");
         static readonly int FadeId = Shader.PropertyToID("_WideShadowFade");
+        static readonly int OldTexId = Shader.PropertyToID("_WideShadowOldTex");
+        static readonly int OldMatrixId = Shader.PropertyToID("_WideShadowOldMatrix");
+        static readonly int OldEyeId = Shader.PropertyToID("_WideShadowOldEye");
+        static readonly int OldSunId = Shader.PropertyToID("_WideShadowOldSun");
 
         /// <summary>A mesh a landmark offers every frame it draws, with its tier from the last redraw (-1: none yet).</summary>
         struct Caster
@@ -118,6 +128,11 @@ namespace Punchy.Rendering
         Matrix4x4 backVP, frontVP, backUv, frontUv;
         Vector3 backSun, frontSun, laidSun, backEye, frontEye;
         float backInvRange, frontInvRange;
+        // The map before the last swap (it stays in the back texture until the next redraw starts) and when the swap was.
+        Matrix4x4 oldUv;
+        Vector3 oldSun, oldEye;
+        float oldInvRange, swappedAt = -1e6f;
+        bool oldReady;
         float3 laidAt;
         float laidTime;
 
@@ -126,6 +141,7 @@ namespace Punchy.Rendering
         readonly List<Draw> draws = new List<Draw>(64);
         // The scene's renderers that could ever pass the rule (big enough at the real shadows' end), from the last scan.
         List<Renderer> candidates = new List<Renderer>(64), scanned = new List<Renderer>(64);
+        readonly HashSet<Renderer> wasCandidate = new HashSet<Renderer>();
         readonly List<GameObject> rootObjects = new List<GameObject>(256);
         readonly List<Renderer> found = new List<Renderer>(256);
         // Each renderer's tier at the last redraw (the rule's hysteresis), swapped with the next redraw's.
@@ -226,10 +242,17 @@ namespace Punchy.Rendering
             }
 
             var floraDue = FloraOn && flora.WideVersion != laidFloraVersion && Time.unscaledTime - laidTime > FloraWait;
+            // R-16 row 3: the sun's and the flora's redraws wait for the last blend to finish (the old map sits in the
+            // back texture the next redraw draws into); a jump across the map or a caster coming or going does not.
+            var blending = Blend() < 1f;
             if (step < 0 && fieldReady && !fieldPending &&
-                (!ready || castersChanged || candidatesChanged || floraDue || Vector3.Angle(dir, laidSun) > RedrawDegrees ||
-                 math.distance(eye.xz, laidAt.xz) > RedrawMove))
+                (!ready || castersChanged || candidatesChanged || math.distance(eye.xz, laidAt.xz) > RedrawMove ||
+                 !blending && (floraDue || Vector3.Angle(dir, laidSun) > RedrawDegrees)))
+            {
+                LastReason = !ready ? "first" : castersChanged ? "casters" : candidatesChanged ? "candidates" :
+                    math.distance(eye.xz, laidAt.xz) > RedrawMove ? "moved" : floraDue ? "flora" : "sun";
                 StartRedraw(eye, dir, handOver);
+            }
             if (step >= 0)
                 DrawSlice();
             else if (ready)
@@ -422,6 +445,9 @@ namespace Punchy.Rendering
             var least = DetailPolicy.Reach(1f, DetailPolicy.Huge.WideShadow * q * (1f - DetailPolicy.Hysteresis), view.PixelsPerMetre);
             var smallest = handOver / math.max(least, 1e-3f);   // m: the size that is just big enough at handOver
             scanned.Clear();
+            wasCandidate.Clear();
+            foreach (var r in candidates)
+                wasCandidate.Add(r);
             for (int s = 0; s < SceneManager.sceneCount; s++)
                 ScanScene(SceneManager.GetSceneAt(s), smallest);
             ScanScene(gameObject.scene, smallest);   // DontDestroyOnLoad's scene
@@ -445,8 +471,11 @@ namespace Punchy.Rendering
                 if (!root.activeInHierarchy)
                     continue;
                 root.GetComponentsInChildren(false, found);
+                // R-16 row 3: a caster already in the map stays in until it is DetailPolicy.Hysteresis under the size, or
+                // a swaying one (the mantraps' leaves, about 10% either way) came and went every scan with a still
+                // camera and redrew the whole map each second and a half.
                 foreach (var r in found)
-                    if (MeshOf(r) != null && Extent(r.bounds) >= smallest)
+                    if (MeshOf(r) != null && Extent(r.bounds) >= (wasCandidate.Contains(r) ? smallest * (1f - DetailPolicy.Hysteresis) : smallest))
                         scanned.Add(r);
             }
         }
@@ -664,6 +693,12 @@ namespace Punchy.Rendering
             cpuMax = math.max(cpuMax, ms);
             if (++step < RedrawFrames)
                 return;
+            oldReady = ready;
+            oldUv = frontUv;
+            oldSun = frontSun;
+            oldEye = frontEye;
+            oldInvRange = frontInvRange;
+            swappedAt = Time.unscaledTime;
             (front, back) = (back, front);
             frontVP = backVP;
             frontUv = backUv;
@@ -816,10 +851,18 @@ namespace Punchy.Rendering
             Shader.SetGlobalMatrix(MatrixId, frontUv);
             Shader.SetGlobalVector(FrontSunId, frontSun);
             Shader.SetGlobalVector(FrontEyeId, new Vector4(frontEye.x, frontEye.y, frontEye.z, frontInvRange));
-            Shader.SetGlobalVector(ParamsId, new Vector4(Darkness * sun.shadowStrength * up, 0f, 0f, 0f));
+            var blend = Blend();
+            Shader.SetGlobalVector(ParamsId, new Vector4(Darkness * sun.shadowStrength * up, blend, 0f, 0f));
+            Shader.SetGlobalTexture(OldTexId, blend < 1f ? back : front);
+            Shader.SetGlobalMatrix(OldMatrixId, oldUv);
+            Shader.SetGlobalVector(OldSunId, oldSun);
+            Shader.SetGlobalVector(OldEyeId, new Vector4(oldEye.x, oldEye.y, oldEye.z, oldInvRange));
             // In over the real shadows' last quarter (the shaders take the darker of the two there, so it can't double).
             Shader.SetGlobalVector(FadeId, new Vector4(shadowDistance * 0.75f, shadowDistance, 0f, 0f));
         }
+
+        /// <summary>How far the last swapped-in map has blended over the one before (1 when done or there was none).</summary>
+        float Blend() => !oldReady || step >= 0 || BlendSeconds <= 0f ? 1f : math.saturate((Time.unscaledTime - swappedAt) / BlendSeconds);
 
         void Release()
         {
