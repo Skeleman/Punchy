@@ -6601,3 +6601,41 @@ plot rules would have to accept a raised deck).
 - Editor: 38364 died when its start wrapper's 4 h timeout ran out. The restart hung on a "Recovering Scene Backups" dialog. I moved the backup (Temp/__Backupscenes/0.backup, a play-mode scene) to my scratchpad and removed the empty folder. The new editor is PID 79696.
 - Not verified: actually climbing. That needs A-101; the records are ready for it.
 - BENCH-QUEUE request: none needed.
+
+## W-141
+
+### Row 1: wall trickles (#261), done (verified)
+- Branch world/cave-trickles, from origin/main at 659b60af. #292 has merged since, so the branch needs a rebase or merge before it lands. Commits, all pushed:
+  - f0085c32: water trickling down cave walls
+  - ca080586: lod-lint tags on the two bake spacing checks
+  - 612dbeff: lake rooms count as wet. FinishRooms gives lake rooms their pools after PlaceTrickles runs, so caves whose only water was a lake room came out dry (c17 had been labelled dry). The bake order is unchanged.
+- What it is:
+  - A slit: a dark crack in the rock, painted in Cave.shader through CaveTrickles.hlsl.
+  - Below it, a darker, glossier wet streak in the rock colour.
+  - A thin animated film (CaveTrickle.shader, reflective shimmer) that ends in a splash ring and a shallow puddle.
+  - Four kinds: thread, fan of 2-4 threads, sheet, and overhang. An overhang drips off a lip at irregular intervals. Its source is the lip, so it has no painted slit.
+- Placement: seed-derived bake records (rule 22), placed last in the cave bake from each cave's own seed, so no rock or other record moves.
+  - Wet caves get 2-4 trickles and dry caves 1-2. A cave counts as wet when it has non-lava pools, streams, river chambers or lake rooms.
+  - None in frozen or molten styles, and none in road tunnels (tunnels 24-29 have 0).
+- Bake: "kept 30: dry caves 7 (10), wet caves 11 (20); thread 18, fan 5, sheet 4, overhang 3; misses: floor 19, wall 38, steep 213, low 97, broken 42, crowded 22".
+- Count per cave (w = wet, d = dry): 0d:1 1d:1 3w:1 5w:1 8d:1 9w:2 11w:2 12w:1 13w:4 15w:2 16d:1 17w:1 19d:2 20w:2 21d:2 22w:4 23d:2. Caves 2, 4, 6, 7, 10, 14 and 18 have 0.
+- LOD by screen size (rule 20, for R-13): DetailPolicy.ExtraReach with TrickleSize 3 / TricklePixels 62.35 for the film, SplashSize 0.5 / SplashPixels 23.4 for the splash, and WetPixels 15 for the streak and slit. The streak stays in the rock colour.
+- Audio: there is no trickle SoundId. It reuses the existing hook, GameAudio.StartLoop(SoundId.WaterfallRush, pitch 1.7), quiet (0.06-0.16), heard within 14 m, at the two nearest trickles. A real trickle clip would be a small audio-lane follow-up.
+- Network: cosmetic and seed-derived. Solo, host and client all see the same trickles, and nothing is sent.
+- Pins: Landmarks_V3 "landmarks 117 689D5348" (unchanged); Fauna_Fingerprint AD723954 (unchanged).
+- Suite: "completed: 35/35 passed" on 612dbeff, after the last change. My first run on it never started because the editor was still in play mode; I reran it out of play mode.
+- lod-lint is clean. nan-lint lists none of the new files (CaveTrickle.shader, CaveTrickles.hlsl); its Cave.shader hits are existing lines.
+- Sparkle probe (rule 24c, the probe camera runs with stopNaN off), 90 frames per view, "other bad" (NaN) 0 on all of them:
+  - c13 fan, 3 m and 7.5 m. The 7.5 m view had hot 1 per frame: one pixel over cap 16, not NaN, probably pool or splash glint.
+  - c13 sheet, 3 m and 7.5 m.
+  - c16 thread, 15 m; c17 thread, 3 m and 15 m; c20 thread, 3 m.
+- Shots, all checked at small size, in D:/Unity/PunchyMilestones/W-141/:
+  - Wet cave c13: w141-fan-wet-c13-3m.png and w141-fan-wet-c13-7m.png (the fan beside the pool, slit on top); w141-sheet-wet-c13-3m.png, w141-sheet-wet-c13-7m.png (side-on) and w141-sheet-wet-c13-15m.png
+  - Dry caves: w141-thread-dry-c16-3m.png, w141-thread-dry-c16-15m.png, w141-thread-dry-c19-3m.png and w141-overhang-dry-c19-3m.png
+  - superseded/: the old c17 fan and sheet shots. Those placements no longer exist after 612dbeff.
+- Shortfalls against "done when":
+  - The c13 passage is narrow and winding, so the wet fan's far view is 7.5 m, not 15 m. A clean 15 m line of sight there shows the tunnel but the fan is out of view.
+  - Facing it, the c13 sheet at 3 m reads mostly as a wet glossy streak with sparkle under a sharp slit. The film itself is faint (flow 0.46); side-on at 7.5 m it shows clearly. If the sheet should read more strongly facing it, that is a one-line opacity tweak in row 2.
+  - The overhang's source is the lip, not a slit.
+- Not verified: hearing the sound (there is no audio capture in the shots).
+- BENCH-QUEUE request: (A) main vs (B) world/cave-trickles 612dbeff, wet cave c13 near the fan room, -goto 1572,8,-2635, facing west (-x) at the wall. Second spot: c22 (1630,104,1036), with 4 trickles including an overhang. Profile builds, Medium and High, 12:00, plus -sparkleprobe w141. Expect a small cost: a few alpha quads per trickle and one more loop in Cave.shader.
