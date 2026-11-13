@@ -8,6 +8,16 @@ on 2026-10-27 (see J-016 in `JUDGMENT_CALLS.md` on the same branch).
 The supervisor is the Claude session **claude-41 [21fe18]**. Message it with SendMessage. It doesn't write
 feature code, and it never edits files in another session's checkout.
 
+## What we are building (Zach, 2026-11-13)
+
+"I am looking for a world that feels expansive, yet full of life and detail. Fidelity of distant views is very
+important, wanting to make sure the whole island feels grounded in beautiful nature."
+
+Every card is weighed against this. In order: (1) the far view: the whole island in sight, grounded in nature;
+(2) life and small details, near and far; (3) foundations that let both scale (one lighting path, one detail policy,
+one item and save model); (4) new feature lines. A card says in its Why which of these it serves. When work competes
+for a lane, a file or the profiler, the lower number goes first. Programme: issue #298, rules 25-28.
+
 ## The supervisor's responsibilities
 
 1. **Lanes and ownership:** each file has one owner. It approves edits outside a lane and every change to a
@@ -150,6 +160,31 @@ feature code, and it never edits files in another session's checkout.
    derivatives (ddx/ddy/fwidth) never inside a branch. (c) Every card that touches a shader, a material or generated mesh
    adds to its done-when: `-sparkleprobe` NaN count 0 on its views with `-stopnan 0`. (d) The profiler reports any NaN count
    above 0 seen on a bench route, with the view.
+25. **Far view first (Zach, 2026-11-13, #298):** anything a player can see from a ridge or from the air must read from far
+   away, not only up close. (a) A new or changed thing that is big enough to see at distance (landforms, forest, water,
+   buildings, towns, large creatures, herds, lights, smoke, weather) ships with its far form: a stand-in, an impostor, a
+   tint in the far ground or canopy map, a light or a plume, picked by `DetailPolicy.ScreenSize` (rule 20) with no pop at
+   the hand-over. (b) Its done-when includes a far shot from the fixed vantage points of R-22 row 0 (once they exist), next
+   to the close shot. (c) Nothing visual is cut at the edge of the streamed terrain or tied to the draw distance: haze is
+   atmosphere, not a curtain. (d) Far forms are drawn only: no entities, colliders or network cost, and they are built
+   from the same placement data as the real thing (rule 22), so what is seen far off is what is met there. (e) Nature
+   first: a far view is judged on landform, forest, water, sky and light before anything built.
+26. **One lighting path, one atmosphere (supervisor, 2026-11-13; REFACTOR-ROADMAP 3.6, R-23):** surface shaders do not put
+   lighting together by hand. Shadows (cascades, shadow cache, wide map), cloud shadow, glow lights, wetness and haze come
+   from the shared includes, in the shared order. Until R-23 lands: no new surface shader, and no new lighting or haze
+   term added to one shader only; ask the supervisor, who routes it to the render lane. After R-23: a forward pass that
+   calls URP lighting or PunchyAtmosphere outside the shared function goes back.
+27. **Foundations before stand-ins (supervisor, 2026-11-13; P-35, #26):** until the item and saved-state design is agreed
+   with Zach, no card adds a new stand-in for an item, a worn thing, ownership or state that must outlive the session
+   (a key press that pretends to be an item, a host-only list that should be saved). Existing stand-ins stay. A card that
+   needs one says so in its handoff and stops at that row.
+28. **Refactors have right of way (Zach, 2026-11-13: "cut lanes out for necessary refactoring"):** (a) the render lane owns
+   the shared shader includes (`Shaders/*.hlsl`), the surface lighting path and `DetailPolicy`; other lanes ask before
+   editing them. (b) A refactor card changes no look and no behaviour: it proves it with pixel-diffs or fingerprints,
+   and lists every intended difference. (c) Refactor branches merge first; feature lanes rebase onto them, not the other
+   way round. While a refactor row holds a file, feature rows that need the same file wait or take another row. (d) No
+   new code goes into a file over 2500 lines: add a partial or a new file beside it. (e) A feature card that finds
+   the same logic in two places reports it in its handoff instead of adding a third.
 
 ## Sessions and lanes
 
@@ -158,6 +193,12 @@ feature code, and it never edits files in another session's checkout.
 | **Animal behavior manager** | Main PC, `D:\Unity\Punchy` | `animal-behaviours` | Creatures: behaviour, Needs, Traces, Lairs, Domestic animals, flight, interactions |
 | **world feature manager** | Main PC, `D:\Unity\Punchy-world` (worktree) | `world-features` | Caves, landmarks, settlements, roads, water surfaces, world events |
 | **windows-7l945c9-kind-possum** | Other PC | `b/*` (e.g. `b/bench`, `b/weather-perf`) | Profiling, code quality, streaming readiness. Reviews both branches; doesn't edit their files |
+
+**Lanes as of 2026-11-13** (the table above is the original three; cards and QUEUE files are the source of truth):
+world lane (`D:/Unity/Punchy-world`: W and R cards on terrain, water, far view), folk lane (`D:/Unity/Punchy-folk`:
+A cards on folk, races, households), fauna lane (`D:/Unity/Punchy-fauna`: A cards on creatures, far life), render
+lane (`D:/Unity/Punchy-render`, new 11-13: refactors under rule 28: R-20, R-23, R-24), player lane (second account,
+`D:/Unity/Punchy-player`: P cards), profiler (other PC, BENCH-QUEUE only). The supervisor reviews and merges.
 
 ## File ownership
 

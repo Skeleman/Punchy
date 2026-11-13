@@ -24,3 +24,4 @@ Done since v0.10: test hooks (3025dbf), brain-sample markers (item 13/14 capture
 
 - **Rule 24 (11-12, #282):** NaN-safe shader/mesh maths; every shader, material or generated-mesh row adds `-sparkleprobe` NaN count 0 (with `-stopnan 0` once R-18 lands) to its done-when. R-18 (world agent, rendering) turns on Stop NaN for the main camera and hunts the horizon/mountain-edge NaN left over from A-96.
 - Supervisor 11-13 (#298): fauna lane, after A-107 comes **A-108** (life in the distance: herds, flocks, town life; drawn only, no sim or network change).
+- Supervisor 11-13: new rules 25-28 in COORDINATION.md (far view first; one lighting path; no new item/save stand-ins until P-35; refactors have right of way). Read "What we are building" before your next card.
