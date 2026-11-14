@@ -24,6 +24,7 @@ Worktree D:/Unity/Punchy-world. Read the card and REPORTS-world.md's newest entr
 3c3. W-161 (Zach 11-14: elf towns have no wood; signs, fences, docks and props in stone or metal; #326).
 3d. W-158 (Zach 11-14: darkened seams where built faces meet, beacon stair first).
 3e. W-162 (Zach 11-14: cliffs and caves share rock surface, climb grades and ground blend; after W-155 merges; #327).
+3f. W-163 (Zach 11-14: original procedural wood grain for all planks and timber; static strangler roots on swamp trunks and some cave walls; no copied Shadertoy code; #330).
 4. W-141 fix row, W-154 (row 2 now also asks for finer normals: rough, coarse dark crust, smooth bright veins; see batches/W-154.md), R-22 row 2.
 
 ## Tools and gotchas

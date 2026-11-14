@@ -88,3 +88,4 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #327 | world (render shared surface) | W-162 cliff and cave rock walls blended |
 | #328 | render R-32 | steady sun shadows; grass shaded in mid shadow tiers |
 | #329 | fauna A-118 | four-legged lying height, folded legs |
+| #330 | world | W-163 wood grain on planks; static strangler roots |
