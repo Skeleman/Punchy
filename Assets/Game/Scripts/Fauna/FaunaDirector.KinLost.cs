@@ -32,6 +32,9 @@ namespace Punchy.Fauna
         const float KinLostJump = 20f, KinLostSettle = 3f;
         /// <summary>More housed ghosts than this vanishing in one look is a reset, not deaths.</summary>
         const int KinLostMaxAtOnce = 3;
+        /// <summary>A-111 row 1: seconds between looks over the ghosts, unless the set of ghosts changed first. A kin
+        /// death still reaches its family well within a second.</summary>
+        const float KinLookEvery = 0.25f;
 
         /// <summary>Tests ("-households" logs too): housed folk this client has marked lost, and marks cleared again.</summary>
         public static int ClientKinLost, ClientKinBack;
@@ -64,17 +67,47 @@ namespace Punchy.Fauna
 
         World kinWorld;
         EntityQuery kinReplicaQuery, kinConnectionQuery;
-        readonly Dictionary<Entity, (uint Individual, float3 Position)> kinSeen = new Dictionary<Entity, (uint, float3)>();
-        readonly Dictionary<Entity, (uint Individual, float3 Position)> kinNow = new Dictionary<Entity, (uint, float3)>();
+        // (A-111 row 1: two dictionaries kept and swapped each look, not copied; nothing allocated once they've grown.)
+        Dictionary<Entity, (uint Individual, float3 Position)> kinSeen = new Dictionary<Entity, (uint, float3)>();
+        Dictionary<Entity, (uint Individual, float3 Position)> kinNow = new Dictionary<Entity, (uint, float3)>();
         readonly HashSet<uint> kinMarked = new HashSet<uint>();
         float3 kinPlayer;
-        float kinHoldUntil;
+        float kinHoldUntil, kinNextLook;
+        int kinOrderVersion = -1;
+        /// <summary>Tests ("-households" logs them): looks over the ghosts, frames watched, and managed bytes the watch
+        /// allocated, since the last log line.</summary>
+        int kinLooks, kinFrames;
+        long kinBytes;
+        float kinLogAt;
 
         /// <summary>
-        /// A joined client (no simulation world here) each frame: marks housed folk whose ghosts vanished near its player
-        /// as lost in their household, and clears the mark of one whose ghost is back.
+        /// A joined client (no simulation world here) a few times a second, or as soon as the ghosts come or go: marks
+        /// housed folk whose ghosts vanished near its player as lost in their household, and clears the mark of one whose
+        /// ghost is back.
         /// </summary>
         void WatchKinLost(in TerrainSource source)
+        {
+            if (!LogHouses)
+            {
+                WatchKinLostNow(source);
+                return;
+            }
+            // (-households: what the watch costs in looks and managed allocations, every 10 s. No timing: rule 21.)
+            var before = System.GC.GetAllocatedBytesForCurrentThread();
+            WatchKinLostNow(source);
+            kinBytes += System.GC.GetAllocatedBytesForCurrentThread() - before;
+            kinFrames++;
+            if (Time.time >= kinLogAt)
+            {
+                if (simWorld == null && kinFrames > 0)
+                    Debug.Log($"[households] client kin watch: {kinLooks} looks in {kinFrames} frames, {kinBytes} bytes allocated, {kinSeen.Count} housed ghosts");
+                kinLooks = kinFrames = 0;
+                kinBytes = 0;
+                kinLogAt = Time.time + 10f;
+            }
+        }
+
+        void WatchKinLostNow(in TerrainSource source)
         {
             if (simWorld != null || queryWorld == null || !queryWorld.IsCreated)
             {
@@ -92,6 +125,7 @@ namespace Punchy.Fauna
                 kinSeen.Clear();
                 ClearKinMarks();
                 kinHoldUntil = Time.time + KinLostSettle;
+                kinOrderVersion = -1;
             }
             // (Not connected and in game, or no player of our own: nothing can be told; start over once we are.)
             if (kinConnectionQuery.IsEmpty || playerQuery.CalculateEntityCount() != 1)
@@ -105,6 +139,14 @@ namespace Punchy.Fauna
             if (math.distance(player.xz, kinPlayer.xz) > KinLostJump)
                 kinHoldUntil = Time.time + KinLostSettle;
             kinPlayer = player;
+
+            // (A-111 row 1: look again only when due, or when ghosts came or went since the last look.)
+            var order = kinReplicaQuery.GetCombinedComponentOrderVersion(false);
+            if (Time.time < kinNextLook && order == kinOrderVersion)
+                return;
+            kinNextLook = Time.time + KinLookEvery;
+            kinOrderVersion = order;
+            kinLooks++;
 
             kinNow.Clear();
             var entities = kinReplicaQuery.ToEntityArray(Allocator.Temp);
@@ -148,9 +190,7 @@ namespace Punchy.Fauna
                                       $"ghost gone {math.distance(seen.Value.Position.xz, player.xz):F0} m from us");
                     }
             }
-            kinSeen.Clear();
-            foreach (var now in kinNow)
-                kinSeen[now.Key] = now.Value;
+            (kinSeen, kinNow) = (kinNow, kinSeen);
         }
     }
 }
