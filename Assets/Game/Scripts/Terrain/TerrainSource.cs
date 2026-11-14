@@ -136,6 +136,8 @@ namespace Punchy.Terrain
         public BlobAssetReference<GrandFallsBlob> GrandFalls;
         /// <summary>The archipelago off the dune coast (W-30, v2 only, baked after every place): islets raised out of the sea floor.</summary>
         public BlobAssetReference<ArchipelagoBlob> Archipelago;
+        /// <summary>The scarps (W-155, baked after every place): rim lines where the ground is cut to a true step, each drawn by a skin mesh.</summary>
+        public BlobAssetReference<ScarpSetBlob> Scarps;
         /// <summary>Set when every place is baked: biome ponds are dug only after that, so they never move a landmark, road, cave or anchor.</summary>
         public bool PondsOn;
         /// <summary>W-43c: set with <see cref="PondsOn"/>: riverbanks get their seeded width, slope and shoreline wobble (v2 rivers only).</summary>
@@ -673,6 +675,8 @@ namespace Punchy.Terrain
                 h = LandmarkSampling.Shape(ref Landmarks.Value, xz, h);
             if (GrandFalls.IsCreated)
                 h = Punchy.Terrain.GrandFalls.Shape(ref GrandFalls.Value, xz, h, out _, out _, out _, out _);
+            if (Scarps.IsCreated)
+                h = ScarpSet.Shape(ref Scarps.Value, xz, h);
             return Settle(xz, Ponds(xz, shape, h));
         }
 
@@ -824,6 +828,9 @@ namespace Punchy.Terrain
                     ruleDepth = math.max(ruleDepth, fallWater - g.Height);
                 }
             }
+            // W-155: scarps cut the ground to a step along their rims (dry ground only: the bake keeps them above water).
+            if (Scarps.IsCreated && !UsesHeightmap)
+                g.Height = ScarpSet.Shape(ref Scarps.Value, xz, g.Height);
             // Biome ponds (a swamp's pools): water was decided above from the ground without them, so a pond is wet only
             // where it digs below the water level the biome already has (sea level in the lowlands).
             var dug = Ponds(xz, shape, g.Height, out var terrace);
@@ -1352,6 +1359,6 @@ namespace Punchy.Terrain
         public bool Equals(TerrainSource o) =>
             World.Equals(o.World) && HeightKind == o.HeightKind && Heightmap == o.Heightmap && Island == o.Island &&
             BiomeKind == o.BiomeKind && BiomeNoise.Equals(o.BiomeNoise) && BiomeMap == o.BiomeMap && Biomes == o.Biomes && BiomeCells == o.BiomeCells &&
-            RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks && Settlements == o.Settlements && Caves == o.Caves && BatFolk == o.BatFolk && Icebergs == o.Icebergs && GrandFalls == o.GrandFalls && Archipelago == o.Archipelago && Anchors == o.Anchors && PondMask == o.PondMask && V3Ground == o.V3Ground;
+            RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks && Settlements == o.Settlements && Caves == o.Caves && BatFolk == o.BatFolk && Icebergs == o.Icebergs && GrandFalls == o.GrandFalls && Archipelago == o.Archipelago && Scarps == o.Scarps && Anchors == o.Anchors && PondMask == o.PondMask && V3Ground == o.V3Ground;
     }
 }
