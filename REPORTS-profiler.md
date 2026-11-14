@@ -2,6 +2,28 @@
 
 Newest first.
 
+## Job 69: W-142 ambient details together (world/ambient-details 45897a75 vs main 2078f16c), 2026-11-13/14 (q112, q112b, q112c): FAIL at the lava cave (+0.6 ms GPU Medium, +0.8 High); everything else within ~0.3
+**Setup:** Profile builds, 1920x1080, uncapped, noon, arms alternated, 3 rounds, Medium and High. The marsh is a 30 m walk east at 2 m/s (`-benchline`); the rest stand where `-goto x,y,z` puts the player (shots checked: each lands in its cave or spot; the branch's smoke vent shows at the fissure). The 11-13 run (q112) was stopped at lava4 by a low-memory reap of its shell; q112b/q112c resumed it from there with the same builds.
+
+| view | Medium main | Medium W-142 | **delta** | High main | High W-142 | delta |
+|---|---|---|---|---|---|---|
+| marsh walk (leaves) | 19.43 | 19.4 | -0.03 | 23.83 | 24.03 | +0.20 |
+| root cave | 6.37 | 6.7 | **+0.33** | 8.47 | 8.1 | -0.37 |
+| fissure (smoke vent) | 9.67 | 9.93 | +0.27 | 13.2 | 13.0 | -0.20 |
+| lava cave 4 (seeps; busiest) | 4.37 | 5.0 | **+0.63** | 4.97 | 5.77 | **+0.80** |
+| cave 14 | 9.0 | 8.93 | -0.07 | 12.57 | 12.83 | +0.27 |
+| cobwebs, cave 2 | 8.93 | 9.23 | +0.30 | 13.43 | 13.53 | +0.10 |
+| cobwebs, cave 10 room | 7.73 | 7.77 | +0.03 | 9.23 | 9.27 | +0.03 |
+| cobwebs, tunnel 24 | 6.9 | 6.9 | 0.00 | 8.67 | 8.83 | +0.17 |
+| cobwebs, tunnel 28 | 8.87 | 8.87 | 0.00 | 12.07 | 12.13 | +0.07 |
+
+(GPU ms, mean of 3 rounds.)
+- **Rule 23 (Medium <= +0.3 for all of W-142): FAIL at lava cave 4** (+0.63; rounds 4.8-5.4 vs 4.2-4.5), so the **lava seeps** are the one effect over the bar; at High +0.80. The root cave's +0.33 is at the bar (High reads the other way, -0.37), and the fissure's vent and the cave 2 cobwebs sit at +0.27-0.30. Leaves and the other cobwebs cost nothing measurable.
+- **Each effect's share:** one effect dominates each spot, so the table is the split: seeps ~0.6-0.8, vent ~0.3 at Medium, leaves ~0, cobwebs 0-0.3.
+- **CPU:** within noise at Medium. At High, the cobweb tunnels show branch CPU up to +2.5 ms and 1% lows down (tunnel 24: 35 -> 9 fps), but that's **start-up work landing in the measured window**, not cobwebs: 0.5-0.6 s frames right after "[stream] batch of 96 chunks applied in 1371 ms" and a 679 ms colossus LOD build (job 64's two causes). Main has them too in the other cobweb caves (cave 2: 6 such frames on main, 9 on the branch; tunnel 28: 7 and 8). Job 64's warm-up recommendation would remove this noise.
+
+Cost: laptop total $866 (laptop session e163d8ab; 2 builds, 19 + 36 + 54 games).
+
 ## Job 68: W-141 cave wall trickles (world/cave-trickles 612dbeff vs its base 659b60af), 2026-11-13 (q110.job, q110b.job): c13 +0.73 ms GPU at High (FAIL); c22 not measured (the player doesn't land in the cave); bake +1.6 s on a cache miss
 **Setup:** Profile builds, High, 1920x1080, uncapped, noon, arms alternated, 3 rounds.
 

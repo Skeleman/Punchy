@@ -680,7 +680,7 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
 - Views: wet cave c13 (`-goto 1572,8,-2635`) facing the fan, and c22 (`-goto 1630,104,1036`), standing.
 - Record: whole-frame GPU and main-thread ms, draw calls, and the trickle draws if the profile names them. The branch is based on 659b60af (before #292), so A is 659b60af too.
 
-## Job 69 (2026-11-13, QUEUED after 68; supervisor, for W-142, #262): ambient details together
+## Job 69 (2026-11-13, REPORTED 11-14 in REPORTS-profiler.md (q112, q112b, q112c); supervisor, for W-142, #262): ambient details together
 - (A) main 2078f16c vs (B) `world/ambient-details` 45897a75 (rows 1-3b: leaves, smoke vents, lava seeps, cobwebs). Profile builds, 1920x1080, Medium and High, uncapped, ABBA, 300 frames each, 12:00.
 - Views: the marsh (`-goto -3492,3,-1716`) on a 30 m walk under the canopy; the root cave (`-goto -2198,9,-1572`); fissure crack `-goto -805,-3398`; lava cave 4 `-goto -208,2,-2727` (the busiest spot); cave 14 `-goto 615,11,-2758`; cobwebs: cave 2 `-goto -1941,101,2343`, cave 10 room `-goto -2205,279,984`, tunnel cave 24 `-goto -2935,118,67`, tunnel cave 28 `-goto -2474,260,895`.
 - Spots are final (row 3b). B is main 2078f16c plus W-142 rows 1-3b, so the difference is only W-142.
