@@ -445,6 +445,9 @@ namespace Punchy.Settings
         public const float CaveMouthSize = 6f, SurfaceHiddenPixels = 124.7f, SurfaceShownPixels = 224.5f;
         public const float WorldGlowSize = 8f, WorldGlowFromPixels = 31.18f, WorldGlowToPixels = 23.38f;
         public const float SpillSize = 4f, SpillFromPixels = 62.35f, SpillToPixels = 44.01f;
+        /// <summary>A far town's glow map (R-25 row 3) fades in while a street light's 9 m of lit ground shrinks from
+        /// 33.67 to 25.51 pixels: 250 m to 330 m at the reference view, never past where the far map's own end.</summary>
+        public const float TownGlowSize = 9f, TownGlowFromPixels = 33.67f, TownGlowToPixels = 25.51f;
         public const float CaveWaterPixels = 2f;
 
         /// <summary>How far something this big keeps this many reference pixels at the current view, Detail left out:

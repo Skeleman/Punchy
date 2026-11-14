@@ -46,8 +46,10 @@ namespace Punchy.Terrain
                 if (SurfaceGlow.TownGlowEnabled && surfaceGlow.TownMap != null)
                 {
                     Shader.SetGlobalTexture(GlowTownId, surfaceGlow.TownMap);
+                    // (Rule 20: by a street light's lit ground on screen, as the world glow above; R-25 row 3.)
+                    var townFade = DetailPolicy.FadeReach(DetailPolicy.TownGlowSize, DetailPolicy.TownGlowFromPixels, DetailPolicy.TownGlowToPixels, TownGlowEdge);
                     Shader.SetGlobalVector(GlowTownParamsId, new Vector4(windowsOn * (1f - Underground) * TownGlowStrength,
-                                                                         TownGlowLevelOff, TownGlowFadeFrom, TownGlowFadeTo));
+                                                                         TownGlowLevelOff, townFade.x, townFade.y));
                     Shader.SetGlobalVector(GlowTownColorId, TownGlowColor);
                     if (weather == null && Time.unscaledTime >= nextWeatherLookup)
                     {
@@ -128,7 +130,8 @@ namespace Punchy.Terrain
         }
 
         /// <summary>Within this of the camera (m) street lights come from the near scan (every layer, fresh every 4 m);
-        /// past it, from the far scan's list.</summary>
+        /// past it, from the far scan's list. A seam between two lists of the same lights (same keys, same request
+        /// either side), inside the near scan's radius: streaming, not a look, so it stays in metres (R-25 row 3).</summary>
         const float NearFixtures = 40f;
 
         static void AddStreetLight(Vector3 position, Vector4 light, float windowsOn)
@@ -155,12 +158,13 @@ namespace Punchy.Terrain
         static readonly int GlowTownId = Shader.PropertyToID("_PunchyGlowTown");
         static readonly int GlowTownParamsId = Shader.PropertyToID("_PunchyGlowTownParams");
         static readonly int GlowTownColorId = Shader.PropertyToID("_PunchyGlowTownColor");
-        /// <summary>R-10 row 4: the town map's brightness, how hard a dense town levels off, the camera distance (m) it
-        /// fades in over (the far map's edge, where its street lights fade out) and its warm colour. Row 4b: about three
+        /// <summary>R-10 row 4: the town map's brightness, how hard a dense town levels off and its warm colour. It fades
+        /// in by screen size (DetailPolicy.TownGlow*), at the far map's edge, where its street lights fade out. Row 4b: about three
         /// times as bright (was 0.12), so the glow sits on the town rather than in the sky. Row 4c: 0.22 (was 0.35; Zach:
         /// the town a little less intense), so with the far lights a town reads 20-30% dimmer.</summary>
         public static float TownGlowStrength = 0.22f;
-        const float TownGlowLevelOff = 0.15f, TownGlowFadeFrom = 250f, TownGlowFadeTo = 330f;
+        const float TownGlowLevelOff = 0.15f;
+        const float TownGlowEdge = 330f; // streaming: just past the far map's coverage, not a look
         static readonly Vector4 TownGlowColor = new Vector4(1f, 0.6f, 0.28f, 0f);
         Punchy.Weather.WeatherSystem weather;
         float nextWeatherLookup;
