@@ -76,15 +76,20 @@ Shader "Punchy/FloraShadowCache"
             {
                 float2 uv = input.positionCS.xy / _ScaledScreenParams.xy;
                 float raw = SampleSceneDepth(uv);
+            #if !UNITY_REVERSED_Z
+                raw = lerp(UNITY_NEAR_CLIP_VALUE, 1, raw);
+            #endif
+                float3 positionWS = ComputeWorldSpacePosition(uv, raw, UNITY_MATRIX_I_VP);
+                // R-27: derivatives are taken before any early return; after one they're undefined (a neighbour that
+                // already left the shader feeds them garbage, a likely source of speckle along cache edges).
+                float3 dpdx = ddx(positionWS), dpdy = ddy(positionWS);
             #if UNITY_REVERSED_Z
                 if (raw <= 1e-6)
                     return 1;
             #else
-                raw = lerp(UNITY_NEAR_CLIP_VALUE, 1, raw);
                 if (raw >= 1 - 1e-6)
                     return 1;
             #endif
-                float3 positionWS = ComputeWorldSpacePosition(uv, raw, UNITY_MATRIX_I_VP);
                 float d = distance(positionWS, _FloraCacheParams.xyz);   // 3D, as FloraCull hands trees over (R-6 row 0)
                 float fade = smoothstep(_FloraCacheFade.x, _FloraCacheFade.y, d) * (1 - smoothstep(_FloraCacheFade.z, _FloraCacheFade.w, d));
                 if (fade <= 0)
@@ -98,7 +103,7 @@ Shader "Punchy/FloraShadowCache"
                 // shade themselves in bands (shadow acne): within a texel and the taps' spread the cached depth changes by
                 // more than 0.4 m there. The surface's normal, rebuilt from the depth across neighbouring pixels, scales the
                 // bias by the slope against the sun; a face turned away from the sun is dark from its own lighting already.
-                float3 normalWS = normalize(cross(ddy(positionWS), ddx(positionWS)));
+                float3 normalWS = normalize(cross(dpdy, dpdx));
                 if (dot(normalWS, GetCameraPositionWS() - positionWS) < 0)
                     normalWS = -normalWS;
                 float facing = dot(normalWS, -_FloraReceiveSun.xyz);
