@@ -309,3 +309,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-14: R-31 row 2 adds prototype (d), GoT-style Bezier blades and Voronoi clumps (MIT reference, keep notice).
 - 11-14: R-28 row 2 done (render/cobble-depth 4cd4edd8): bevel cobbles, ribs fixed. BENCH job 86; merge after. Render flagged landmark bake alternating island hashes (FA8F24B1/A30264B9): passed to world.
 - 11-14: R-35 carded (#333): cloud reference (MIT) audit for look and cost; render after R-34 row 1. Reference in references/.
+- 11-14: A-110 row 7b done (fauna/one-population dcd89d0c): Kael/Quill/Marek fixed, stuck 0. Host+client run owed: port 7979 held by fauna editor play mode; asked fauna for a gap. Folk now on A-111. Follow-up: upright Steer ignores building walls (A-44).
