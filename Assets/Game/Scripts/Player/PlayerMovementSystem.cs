@@ -413,6 +413,9 @@ namespace Punchy.Player
                     if (m.Grounded && top.Normal.y < SlideSlope && math.lengthsq(top.Normal.xz) > 1e-6f)
                         position.xz += math.normalize(top.Normal.xz) * SlideSpeed * dt;
                 }
+                // A-107: standing on a colossus (a column's top under the feet, its back or head).
+                if (Punchy.Fauna.ColossusClimbs.FloorUnder(position, settings.Radius * 0.6f, stepUp, out var back) && back > ground)
+                    ground = back;
                 // A-95: standing on a dungeon chest or stand-in. A body whose middle is already inside one (set down there,
                 // or slipped in off its top) is lifted onto it: walls let a body inside a box move freely, so a small one
                 // between a box and a step too high for it was pinned there.
@@ -823,6 +826,8 @@ namespace Punchy.Player
         /// </summary>
         /// <summary>Falling faster than this (m/s), a climber can't catch hold of a trunk or wall going past.</summary>
         const float LatchFall = 8f;
+        /// <summary>A-107: how far over the feet a colossus column's foot may hang and still be taken hold of (m).</summary>
+        const float ColumnReach = 2.3f;
 
         /// <param name="inAir">Falling past rather than walking into it: anywhere up its height, whichever way it faces,
         /// as long as it's right beside it.</param>
@@ -832,15 +837,20 @@ namespace Punchy.Player
             for (int i = 0; i < obstacles.Length; i++)
             {
                 var o = obstacles[i];
-                var top = o.Position.y + (inAir ? o.Height - 0.3f : 1f);
-                if (o.Radius < 0.08f || o.Height < 2f || at.y + 0.5f < o.Position.y || at.y > top)
+                // (A colossus's column, A-107, is taken anywhere up its height: a climber goes up a flank column by
+                // column, topping out on one and taking hold of the next; its foot may hang up to an arm's reach over the
+                // feet, a shell's rim or a belly, reached by a jump from under it.)
+                var column = Punchy.Fauna.ColossusClimbs.IsColumn(o.Position, o.Radius);
+                var top = o.Position.y + (inAir || column ? o.Height - 0.3f : 1f);
+                if (o.Radius < 0.08f || o.Height < 2f || at.y + (column ? ColumnReach : 0.5f) < o.Position.y || at.y > top)
                     continue;
                 // (Round the trunk as drawn at the body's height: a leaning tree's trunk isn't over its foot.)
                 var to = FloraObstacle.CentreAt(o.Position, o.Height, o.LeanMid, o.LeanTop, at.y) - at.xz;
                 // (A tree climber takes only a tree-sized trunk; a hut's round wall is graded a smooth wall, unless the
                 // bark where it takes hold is a marked section, A-101.)
                 var hold = at.xz + to - math.normalizesafe(to) * o.Radius;
-                if (!Punchy.Fauna.Climbing.CanClimb(skill, TrunkGradeAt(o.Radius, new float3(hold.x, at.y, hold.y))))
+                // (Graded at its foot when that hangs over the feet.)
+                if (!Punchy.Fauna.Climbing.CanClimb(skill, TrunkGradeAt(o.Radius, new float3(hold.x, math.max(at.y, o.Position.y), hold.y))))
                     continue;
                 var gap = math.length(to) - o.Radius - radius;
                 if (inAir ? gap > 0.3f : gap > 0.5f || math.dot(math.normalizesafe(to), way) < 0.7f)
@@ -877,7 +887,7 @@ namespace Punchy.Player
                 return;
             }
             var speed = Punchy.Fauna.Climbing.Speed(body.ClimbSpeed, body.ClimbSkill,
-                                                    TrunkGradeAt(m.TrunkRadius, new float3(TrunkCentre(m, t.Position.y) + outward * m.TrunkRadius, t.Position.y).xzy));
+                                                    TrunkGradeAt(m.TrunkRadius, new float3(TrunkCentre(m, t.Position.y) + outward * m.TrunkRadius, math.max(t.Position.y, m.TrunkBase.y)).xzy));
             var inward = -outward;
             var round = new float2(-outward.y, outward.x);
             // (The stick against the surface, not the world: forward is up, back is down, and right is to the body's
@@ -895,9 +905,12 @@ namespace Punchy.Player
             // for the body, it stops there, A-101.)
             var angle = m.TrunkAngle + side * speed * dt / math.max(reach, 0.1f);
             var roundTo = TrunkCentre(m, t.Position.y) + new float2(math.cos(angle), math.sin(angle)) * m.TrunkRadius;
-            if (side == 0f || Punchy.Fauna.Climbing.CanClimb(body.ClimbSkill, TrunkGradeAt(m.TrunkRadius, new float3(roundTo.x, t.Position.y, roundTo.y))))
+            if (side == 0f || Punchy.Fauna.Climbing.CanClimb(body.ClimbSkill, TrunkGradeAt(m.TrunkRadius, new float3(roundTo.x, math.max(t.Position.y, m.TrunkBase.y), roundTo.y))))
                 m.TrunkAngle = angle;
             Floor(terrain, t.Position, settings.SwimDepth, out var ground, out _);
+            // (Down a colossus's column onto a lower one's top: standing there, A-107.)
+            if (Punchy.Fauna.ColossusClimbs.FloorUnder(t.Position, settings.Radius * 0.6f, 0.05f, out var lower) && lower > ground)
+                ground = lower;
             if (y <= ground && up < 0f)
             {
                 // Down at the foot: off it, standing (stepped back to clear the trunk, so nothing shoves it out).
@@ -909,17 +922,27 @@ namespace Punchy.Player
             var highest = m.TrunkBase.y + m.TrunkHeight - 0.3f;
             y = math.min(y, highest);
             outward = new float2(math.cos(m.TrunkAngle), math.sin(m.TrunkAngle));
-            // At the top of something with a top to stand on (a hut's roof, a tower's), pushing on: up onto it.
-            if (tops && up > 0.3f && y >= highest - 0.05f)
+            // At the top of something with a top to stand on (a hut's roof, a tower's, a colossus's column), pushing on:
+            // up onto it.
+            if (up > 0.3f && y >= highest - 0.05f)
             {
                 var over = m.TrunkBase.xz + outward * math.max(m.TrunkRadius - 0.5f, 0f);
-                if (PropSupport.Sample(ref grids, props, new float3(over.x, y, over.y), settings.Radius * 0.6f, 1.2f, out var roof) &&
+                if (tops && PropSupport.Sample(ref grids, props, new float3(over.x, y, over.y), settings.Radius * 0.6f, 1.2f, out var roof) &&
                     roof.Height > y - 0.5f)
                 {
                     t.Position = new float3(over.x, roof.Height, over.y);
                     m.OnTrunk = false;
                     m.Grounded = true;
                     m.OnProp = true;
+                    m.VerticalVelocity = 0f;
+                    return;
+                }
+                if (Punchy.Fauna.ColossusClimbs.FloorUnder(new float3(over.x, y, over.y), settings.Radius * 0.6f, 1.2f, out var column) &&
+                    column > y - 0.5f)
+                {
+                    t.Position = new float3(over.x, column, over.y);
+                    m.OnTrunk = false;
+                    m.Grounded = true;
                     m.VerticalVelocity = 0f;
                     return;
                 }
