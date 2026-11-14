@@ -340,3 +340,41 @@ with main d95e7ff1); compiles, no suite run yet.
   added) and terrain mesh memory (+4 B per vertex from row 1). Review/merge after that.
 - NEXT: R-32 rows 1-2 (branch render/steady-shadows), then R-34 row 1, R-32 rows 3-4, R-20 row 4, R-30 row 1,
   R-31, R-33, R-29.
+
+## R-32 row 1 (#328): steady near sun shadows. Branch render/steady-shadows, head 67039809 (from main 1746d62a)
+- DONE:
+  - Cause confirmed: the sun turning. Still camera at the stable yard (2972,-891), noon, High, `-fixeddt`,
+    pixels changed per 10 frames:
+    - Clock frozen: board 0, bench 0, stair about 15.
+    - Clock running: board 205-5725, bench 2275-3847, stair 623-1185, every frame pair.
+  - Fix in WeatherSystem: the Sun's direction is held until the true direction is 0.1 degrees away, then moved
+    in one step (about every 0.4 s at the default day length). Colour and strength stay smooth. Big jumps
+    (sun-moon swap, clock set) are taken at once. Running after the fix: changes only on step frames, held in
+    between (board 843/0/521/692/0).
+  - Cascades, WideShadow and the flora cache: no code change needed. The stable fit already holds the cascade
+    still for a still camera (frozen = 0), and the flora cache logged no redraws in the shots.
+  - Editor versus player on main (fauna build of 11-13, main 1746d62a plus stables, which already has R-27
+    #319), same spot, noon, High, same camera, shots about 2 s apart with the clock running:
+    - The player's near shadows move between shots too (board 0.7-1.3%, stair 1.0-1.1% of pixels per pair;
+      the bench crop also has a chicken in it). Editor on main over a similar span: board 6.2%, stair 2.1%.
+      Frozen editor: 0. So the crawl is the sun turning in both, not an editor-only effect.
+    - R-27 isn't the difference: the build has it, and so does this tree.
+    - The player ran at 1920x1080, the editor game view at 2560x1600. Each shadow-texel step covers more
+      screen pixels in the editor, and editors sharing the GPU pace frames unevenly. That probably explains why
+      the crawl looked worse there. Not timed (rule 21).
+- NOT DONE:
+  - The player can't capture frame by frame (shot lists wait at least 1.5 s per line), so the player figures
+    are per shot, not per frame. A/B of the fix in a player needs a build with this branch.
+- Checks:
+  - Compile clean. NaN `[sparkle] r32row1 summary: 360 frames, 0 with markers` (High).
+  - Suite after the last change: `completed: 38/40 passed, 2 failed`. The failures are WalkBy_NeverThroughWall
+    and Place_PropFindsAndFramesWharf, the known flakes (REPORTS-world).
+  - Dusk (18:40) holds between steps. The cave 1 mouth renders correctly. Slow dolly walk: shadows steady.
+- Shots (milestones folder R-32/row1): `still-strip-before-after.png` (6 frames, board and stair crops),
+  `still-before-full.png`, `still-after-full.png`, `walk-after-00..05.png`, `dusk-after.png`,
+  `cave-mouth-after.png`, `player/p0..p5.png` and `player/contact-sheet.jpg` (player on main).
+  The stable in these shots is on the animal lane's A-117 work, not on main. The paving-wide diff is
+  polluted by a dog and the fire, so the crops are the measure.
+- Asks: none. Merge when convenient. The next step for Zach to see it is a player build with this branch.
+- NEXT: R-19 -rockhighonly default commit on render/steep-triplanar, then R-20 row 1 (High-only 4096 map and
+  wide filter), then R-32 rows 2-4.
