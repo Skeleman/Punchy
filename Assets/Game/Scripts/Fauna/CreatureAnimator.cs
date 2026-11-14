@@ -80,6 +80,24 @@ namespace Punchy.Fauna
         /// the owner found the legs going near horizontal; about 30° back from that).</summary>
         public const float LeapHipEase = 0.52f;
 
+        /// <summary>
+        /// A-114: an arm's shoulder (j 0) and elbow (j 1) away from standing for the hand at a PocketPlace (inwards is
+        /// +z on the right arm, so mirrored by side): the hip pocket at its own side, the belt pouch in front, the chest
+        /// of the coat across, up over the shoulder to the back, or just lower down by the side.
+        /// </summary>
+        static float3 PocketPose(PocketPlace place, float side, int j)
+        {
+            switch (place)
+            {
+                case PocketPlace.Hip: return j == 0 ? new float3(0.3f, 0f, -0.3f * side) : new float3(-1.25f, 0f, 0f);
+                case PocketPlace.Pouch: return j == 0 ? new float3(-0.45f, 0f, 0.5f * side) : new float3(-1.6f, 0f, 0f);
+                case PocketPlace.Chest: return j == 0 ? new float3(-0.55f, 0f, 0.6f * side) : new float3(-2f, 0f, 0f);
+                case PocketPlace.Shoulder: return j == 0 ? new float3(-2.4f, 0f, -0.35f * side) : new float3(-1.4f, 0f, 0f);
+                case PocketPlace.Low: return j == 0 ? new float3(0.3f, 0f, -0.2f * side) : float3.zero;
+                default: return float3.zero;
+            }
+        }
+
         /// <summary>A leaping run's hip at one extreme (gathered or in the leap): the run key's swing pushed out by
         /// gain, then its fore-and-aft swing (x) drawn LeapHipEase back towards the rest pose.</summary>
         public static float3 LeapHip(float3 idle, float3 key, float gain)
@@ -94,8 +112,11 @@ namespace Punchy.Fauna
         /// slope, each foot reaching for the ground, tipped with it, rolling heel to toe). Further off, where none of
         /// that shows, they keep to the body's plane, saving the ground samples.</param>
         /// <param name="seams">The seams between segments (MarkJoints): only where they can show, at the full capsule (A-97).</param>
+        /// <param name="pocket">A-114: an upright body's hand reaching to put an item away or take one out (drawn only,
+        /// from CreatureRenderSystem.PocketMove).</param>
         public static void Evaluate(ref CreatureBlob b, in CreatureState s, int coat, in TerrainSource terrain,
-                                    NativeArray<SegmentInstance> output, int offset, bool detail = true, bool seams = true)
+                                    NativeArray<SegmentInstance> output, int offset, bool detail = true, bool seams = true,
+                                    in PocketReach pocket = default)
         {
             var scale = s.Scale;
             // (Posed for the eased speed, so a sudden start or stop doesn't swap the pose under a planted foot.)
@@ -652,6 +673,11 @@ namespace Punchy.Fauna
                     // (Upright bodies have no idle actions of their own, but players' bodies take interaction poses.)
                     if (s.Action != IdleAction.None && (!b.Upright || s.Action >= IdleAction.Pet))
                         a += ActionPose(ref part, in s, j, act, b.Hands);
+                    // A-114: the hand to a pocket, pouch, chest or shoulder and back, putting an item away or taking one
+                    // out. Eased to the place itself, not added, so the arm is in the same spot whatever the item when it
+                    // shows or hides there.
+                    if (b.Upright && pocket.Amount > 0f && part.Role == LimbRole.Arm && j <= 1 && (pocket.Side == 0 || pocket.Side * part.Side > 0f))
+                        a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle] + PocketPose(pocket.Place, part.Side, j), pocket.Amount);
                     // An upright body's elbow bends one way only (negative pitch, forward): never past straight, nor
                     // folded beyond 150°, however much swing, sprint or pose is added up.
                     if (b.Upright && part.Role == LimbRole.Arm && j == 1)
