@@ -62,6 +62,25 @@ are the host's. Solo runs the same session over the core's loopback.
   and a client never samples a float for the cells (only heights, for its view). A joiner loads the host's snapshot:
   every filled chunk's ground and its changes. A teleport is a reach that jumps: its chunk is filled and active within
   a tick or two. A cast where nothing is filled yet is refused on the peer that cast it (logged) and not sent.
+- **Fills off the main thread** (`ChemistryBridge.Fills.cs`, 2026-11-13). A chunk's ground is one Burst `GroundJob` over
+  the workers, started as soon as a reach wants the chunk (checked each frame a character changes chunk, nearest first,
+  16 under way at most) and, for the bridge's own teleports (the script's goto, hop and back), round the destination
+  before the player is moved. The bridge does the planner's stamping itself (`StampOpen`, as `OpenWorldPlanner.Attach`
+  would) and lets the planner take, each tick, only the nearest unfilled chunks whose jobs are done, so the fills keep
+  the planner's order (nearest, then by key). A chunk still waiting is not filled yet, as before. The jobs read the
+  height edits (`TerrainEdits`), so the bridge waits for any under way before it writes the next edits buffer.
+  A chunk costs about 12 ms of Burst work on one thread (3 us a cell: SampleGround, SampleNormal's heights,
+  SampleSurface), 2.6 ms waited for across 15 workers; the same code managed is 330 ms, and making the `ChunkGround`
+  from the kinds is 0.1 ms. So it was the work itself, done on the main thread's wait, not managed calls or garbage.
+  A client's own teleport isn't known to the host before the client's player has moved: the host starts those jobs the
+  frame it sees the player in a new chunk. `-chem-sync-fills` samples on the main thread as before (A/B runs);
+  `-chem-fillcheck n` compares the jobs' ground with the main thread's on n chunks round the player, half in each layer.
+  Checked (Windows, Mono development player, with two Editors open): 300 chunks (150 a layer, by a cave pool), 0 cells
+  differ. Solo, five teleports 1.4-2.9 km into new ground: the fills' main-thread work in the worst frame went from
+  40-245 ms to 2.4-3.8 ms (most of it making and stamping up to 16 fills a tick); the worst whole frame stayed
+  45-430 ms either way, which is Punchy's own streaming (a teleport back to filled ground costs the same). The first
+  cast after a teleport landed 0.26-0.57 s after it (0.35-0.54 s before). Two peers 2 km apart, a teleport each way
+  and one into new ground each: 19 of 19 sums agree over 3 minutes, `desync=False`.
 - **Start-up:** the first fill waits for the terrain to stay the same for 3 s (the first `TerrainSource` is a stand-in).
   A terrain that changes before any cast (and with no peers) starts the session again; after that, filled chunks keep
   the ground they were filled with.
@@ -74,8 +93,10 @@ are the host's. Solo runs the same session over the core's loopback.
   every 60 ticks, and each cast as it lands.
 - **Tests without keys:** `-chem-script "25:demo; 55:walk 320,0,30; 125:hop 2000,0; 125:cast fire-bolt; 160:quit"`
   (`ChemistryBridge.Script.cs`): timed steps from the session's start (demo, lake, cast, goto, hop, back, walk, quit).
-  Every 60 ticks the sum line also gives the chunks filled, active and unpacked, how many were sampled and Unity's
-  reserved memory.
+  Every 60 ticks the sum line also gives the chunks filled, active and unpacked, how many were sampled, the ground jobs
+  started, the worst frame and the worst frame's fill work on the main thread since the last line, and Unity's
+  reserved memory. Five seconds after each of the script's teleports a line gives the worst frame, the frames over
+  16.7 ms and the fills' main-thread worst; the first cast of this peer's wizard to land after one says how long after.
 - **What differs from solo:** a cast lands on the host's next tick (up to a sixth of a second later, plus the trip to
   the host on a client) instead of at once; a frame behind the batches by more than 6 ticks may tick for 8 ms instead of
   2 to catch up.
