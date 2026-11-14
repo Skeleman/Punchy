@@ -15,7 +15,7 @@ Worktree D:/Unity/Punchy-world. Read the card and REPORTS-world.md's newest entr
 
 ## Queue
 
-1. W-155 row 2 (row 1b done 4b38a42c, shots with Zach); supervisor 11-14: the low river bank also gets broken ledges and turf over the rim in row 2, reported on its own line with his colour note (row 1 done: bake 89 ms, aim under 2 s). Row 5 leftovers: no ground clip beyond LOD2, skin proud at the canyon cap on LOD1/2, river cut bank does not read at 400 m.
+1. W-155 row 2 part 2 (part 1 done b45c79a5: colour fit, turf, scree, river bank; row 1b 4b38a42c with Zach): ScarpDebris as my own Scarps system reading flora rock meshes, screen-size LOD, placed from the scarp record, skipping cells flora rocks fill; FloraPlacement rim mask as one additive default-off-safe call (merge origin/main first, tell fauna for A-113, note plant hash change); life on ledges; the six DESIGN-cliffs checks. Row 5 leftovers: no ground clip beyond LOD2, skin proud at the canyon cap on LOD1/2, river cut bank does not read at 400 m.
 2. W-153 row 2b: keep more hillside swamp pools (36 of 322 cells hold one now) without raising wall or step counts.
 3. W-153 rows 3-6 with W-155 row 4. Carried in: water walls beside falls 22 and 67 and in front of 46 and 51; fall 13's notch; cave falls without lip dip and foot ripples; the fine sheet reading FallShape; 109 fall and landmark head-pool walls; retake fall 46 and 51 fronts and the snowpeak landmark fall.
 4. W-156 (audit 11-13: far clip restore, nearest cave water first).

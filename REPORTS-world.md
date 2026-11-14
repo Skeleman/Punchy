@@ -6966,6 +6966,17 @@ half3 PunchySurfaceFinish(half3 color, PunchySurface s, half reach);            
 - **Risk:** the foam at the foot is subtle on the pale snow rock. The wet band is easiest to see on darker rock. Adding the include to TerrainSurface set off a long shader variant compile (about 2 min, 43 compiler processes) on first load. Not timed (rule 21).
 - **Next:** R-22 row 0 (#298, world/far-view).
 
+## 2026-11-14 W-155 row 2 part 1 done: face colour, turf, scree, river bank (#281)
+
+- Branch world/scarps b45c79a5 (on 4b38a42c). Suite 40/40, pins unchanged (landmarks 117 689D5348). SparkleProbe at the canyon face: 0 bad pixels over 240 frames.
+- Colour fit (Zach 11-14 note on colour and fidelity mismatch): each bed's tone is now taken from the ground 2.5 m behind the rim and 2.5 m past the foot, blended by height, lighter for hard beds, darker for soft, a little warmer or cooler per layer. A grassy ground lends its earth, not its green. Slot and underside grime halved, streaks softer, moss mixed with the ground tone. Canyon face now reads as the same tan-grey as the slopes round it; before it was cold blue-grey with a green toe.
+- Turf and soil: a ragged turf cap runs right over the rim (no seam fade) with a darker soil band under it; the cut itself scoops under the turf lip (ScarpSet.Turf).
+- Scree: where the face lies back into the toe, rubble tinted between the bed rock and the foot ground's earth, with Pebbles on.
+- River bank (own line, per supervisor): beds stand out more (Push 0.5 to 1.1), benches more often (Bench 0.3 to 0.6), deeper turf lip (0.3-0.55 m). Ledge log: 0.4 to 0.8 ledges per column, median width 0.19 to 0.29 m, longest band 3 m, none over 8 m. It still reads dark because the ash ground round it is near black (albedo 0.09); the sand starts 6 m out. That is faithful, not a bug.
+- Detail density: the skin uses the terrain's own material and Bump, so it matches the ground at the same distance.
+- Open: the blue in the shaded flutes is the sky ambient on steep faces, same as shaded ground; not touched (rule 26/28, render's). Part 2 next: ScarpDebris (own system, flora rock meshes, no stacking), the FloraPlacement rim mask (one additive call; fauna told first), life on ledges, the six DESIGN-cliffs checks.
+- Shots: Assets/Temp/shots/c2c-* (before: c2a-*). BENCH-QUEUE: none yet; part 2 debris will get one line.
+
 ## 2026-11-14 W-155 row 1b done: stripes broken, varied ledges, ledge log (#281)
 
 Branch `world/scarps` 4b38a42c (on b02b4f90 WIP and row 1 feab6870). Suite 40/40 after the last code change. Pins unchanged (landmarks 117 689D5348, fauna 6A9E28E5); the scarp blob layout is unchanged, so there is no IslandCache Format bump.
