@@ -815,3 +815,10 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
 - Record: GPU and main-thread ms per view; draw calls and triangles for ScarpDebrisSystem (373 blocks in 16 groups,
   screen-size LOD) and ScarpSkinSystem; ground detail instance counts near the scarps (B leaves a bare margin).
 - Pass (rule 23): B within 0.3 ms GPU of A at each view, or name what to trim (debris LOD0 first).
+
+## Job 86 (2026-11-14, QUEUED after 85; render lane, R-28 row 2, #312): cobble bevel parallax and stone normals
+- main 1746d62a (A) vs `render/cobble-depth` 4cd4edd8 (B). Profile builds, 1920x1080, Medium and High, uncapped,
+  12:00, Clear, `-weatherseed 4`, ABBA, 3 rounds, 300 frames each.
+- Views: desert town square `-benchspot -342,560`; town 73 centre `-benchspot 2972,-885`.
+- Record: whole-frame and terrain GPU ms per view and preset; terrain mesh memory (B adds 4 B per vertex).
+- Pass (rule 23): B within +0.1 ms terrain GPU of A at Medium (2 parallax steps); report High (3) for reference.
