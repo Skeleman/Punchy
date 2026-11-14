@@ -749,6 +749,8 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
   so they build fresh), A vs B; then 300 frames looking along the canyon from its rim: GPU and main-thread ms.
 - Pass: Zach wants a baseline that real cliffs are feasible, not a gate. Report the numbers; flag anything over
   +0.3 ms per frame or a bake over 250 ms.
+- Added 11-14: if the job hasn't started, also run row 1b (`world/scarps` 4b38a42c) as C in the same rounds (ABCA
+  order is fine). If B was already taken, run only C against the same A.
 
 ## Job 78 (2026-11-14, QUEUED after 77; supervisor, audit 11-13, #311): night town light cost
 - Main (latest). Profile build, 1920x1080, Medium and Ultra, uncapped, midnight, Clear, `-weatherseed 4`.
