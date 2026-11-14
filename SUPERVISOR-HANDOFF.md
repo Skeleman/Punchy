@@ -296,3 +296,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-14: R-31 (#325) grass: bald-spot causes, continuous fields, grass vs dirt fine texture. Render order: R-28, R-20 row 4, R-30 row 1, R-31, R-29.
 - 11-14: A-110 row 5 (legs) done f1747057, BENCH 83; folk on row 6, then 7, then 7b (Marek/Kael/Quill old stalls).
 - 11-14: W-161 (#326) elf towns no wood; world queue after W-160, before W-158.
+- 11-14: A-113 rows 1-3 done (flora/tree-variety ac7880fc), BENCH 84; fauna on A-117 (SettlementLayout additive, world told).

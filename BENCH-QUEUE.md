@@ -797,3 +797,12 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
 - Record: GPU and main-thread ms per view; main-thread samples for the creature brains (CreatureMind) and the host
   director; the `[members]` line's legs and full counts (about 27 on legs expected at the centre).
 - Pass (rule 23): B no worse than A on main thread at both views; report the saving.
+
+## Job 84 (2026-11-14, QUEUED after 83; fauna lane, A-113 rows 1-3, #313): denser, more varied temperate woods
+- main 1746d62a (A) vs `flora/tree-variety` ac7880fc (B). Profile builds, 1920x1080, Medium, uncapped, 10:00, Clear,
+  `-weatherseed 4`, ABBA, 3 rounds, 300 frames each.
+- Views: inside a temperate wood with willow by water and a beech grove in view; a 30 m rise over mixed wood; a far
+  vantage over temperate woods (R-22 vantage). The lane's shot poses in PunchyMilestones/A-113 name spots.
+- Record: GPU and main-thread ms per view; flora draw calls and triangles; shadow cache and impostor bake time at load.
+  B has about 21% more trees, a willow is about 20k triangles at LOD0, a tulip tree about 21.5k.
+- Pass (rule 23): B within 0.3 ms GPU of A at each view, or name the species to trim (willow LOD0 first).
