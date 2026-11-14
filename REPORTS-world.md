@@ -6966,6 +6966,15 @@ half3 PunchySurfaceFinish(half3 color, PunchySurface s, half reach);            
 - **Risk:** the foam at the foot is subtle on the pale snow rock. The wet band is easiest to see on darker rock. Adding the include to TerrainSurface set off a long shader variant compile (about 2 min, 43 compiler processes) on first load. Not timed (rule 21).
 - **Next:** R-22 row 0 (#298, world/far-view).
 
+## 2026-11-14 W-153 row 2 closed: suite 41/41 on water/truth a8fe44e5 (#301)
+
+- DONE: full PlayMode suite 41/41 on a8fe44e5 after the pause (fresh editor, no code change since the commit). Row 2 is closed; everything else stands as in the entry below.
+- DONE: BENCH job 74 has its two `-benchspot` lines (fall 22 front, water below fall 74); computed from the falls' data, not tried in a build.
+- DONE: BENCH job 75 added: fresh-cache island bake and swamp chunk cost, main vs a8fe44e5.
+- DONE: lanes/world/STATE.md rewritten for the current queue.
+- NOT DONE: more pools on hillside swamps (36 of 322 is too few, per the supervisor): planned as a short row 2b after W-155 rows 1-2, with what it takes and one hillside swamp before/after; wall and step ceilings stay.
+- NEXT: W-155 rows 1-2 on `world/scarps`.
+
 ## 2026-11-14 W-153 row 2: still water last, PAUSED before the suite (#301), water/truth a8fe44e5
 
 - STOPPED HERE (pause asked): code, counts, pins and shots are done and pushed; the full suite has NOT run on this commit (my editor died during the usage pause, mid-suite, result lost). Next step on resume: run the suite on a8fe44e5, then close the row.
