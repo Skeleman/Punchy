@@ -4316,3 +4316,25 @@ Where A-109 differs from A-108: herds are anonymous and seeded per 512 m cell fr
 
 - W-144 is not on origin/main (d95e7ff1), so A-101 row 2 is still waiting, as the card says.
 - Still owed from the ruling: one more pass on RockGolem's section details so vines read apart from boulders at mid range.
+
+### 2026-11-14 A-107 row 2b: paused part-way (not a finished row)
+
+Stopped at the coordinator's pause. Pushed as work in progress: fauna/colossus-climb af23b5e9.
+
+- Done in code: every machine holds and turns a walker for the nearest player it knows, with nothing sent
+  (on by default, `-walkerholdown` turns it off); walker pace and turn changes are eased; a ridden body's lurch is
+  measured by the walker's clock rather than frame time.
+- Checked so far: compiles; build made from it (before the last probe change); solo editor run at the skill limit
+  (margin 0): 3 sections shaken off at the limit, 0 NaN, 10 shake-offs, all at footfalls (0.72 to 1.35 m/s).
+- Walk-up mount, two machines, on the code before the easing: 120 one-second samples, 95.0% under 0.5 m, none over
+  2.5 m (largest 1.74 m). Host and client lag differed by about 0.3 s during the hold and both returned to 0, so the
+  differences decay and do not add up. This run must be repeated on the final code; the one attempt so far gave no
+  mount, because the resting walker turned toward the client and the probe's fixed approach missed the flank.
+- Shake-off cause: solo was shaken off by walker motion steps, not by footfalls alone (catch-up rate step, start
+  from the lag cap, the ridden unturn starting at full rate, the held turn dropping in one frame). These are eased
+  away; the host and client comparison at margin 0 is still to run.
+- Not done: probe approach fix (steer to the section's live foot before the first hold), the valid two-machine run
+  on the final code, host/client shake-off comparison, client clip from that run, suite and fingerprint check.
+- No ghost field added. No timing taken.
+- Machine state: my editor closed by PID, no player of mine running, play args cleared, no loops or monitors left.
+- Clips from the earlier run (unviewed): D:/Unity/PunchyMilestones/A-107/gallery/row2b/.
