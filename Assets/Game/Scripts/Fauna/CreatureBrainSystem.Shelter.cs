@@ -311,6 +311,17 @@ namespace Punchy.Fauna
             /// burrow, roosting, up a tree or perched.</summary>
             ShelterNeed CoverNow(in CreatureState s, ref CreatureBlob b)
             {
+                // A-103: a lake bed walker (the sea folk) with the lake over its head is out of the sky as under a roof,
+                // and in the water; wading, it is in the water (no dry heat, and cooler).
+                if (b.WalksBed)
+                {
+                    var g = Terrain.SampleGround(s.Position.xz);
+                    var depth = g.HasWater ? g.WaterSurface - s.Position.y : 0f;
+                    if (depth > 2f * s.Scale)   // (over a grown one's head)
+                        return ShelterNeed.Water | ShelterNeed.Roof;
+                    if (depth > 0.3f)
+                        return ShelterNeed.Water;
+                }
                 switch (s.Mode)
                 {
                     case CreatureMode.Shelter:

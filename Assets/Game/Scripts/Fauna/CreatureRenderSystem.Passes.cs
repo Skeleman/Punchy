@@ -339,7 +339,7 @@ namespace Punchy.Fauna
             var fur = Punchy.Settings.DetailPolicy.Tier(
                 Punchy.Settings.DetailPolicy.ScreenSize(Punchy.Settings.DetailPolicy.CreatureFurSize, distance, view.PixelsPerMetre),
                 Punchy.Settings.DetailPolicy.CreatureFur.Scaled(quality), first ? -1 : previous.Fur);
-            if (state.Mode == CreatureMode.Puppet || state.Mode == CreatureMode.Held)
+            if (state.Mode == CreatureMode.Puppet || state.Mode == CreatureMode.Held || state.Mode == CreatureMode.Ride)
                 return Punchy.Settings.DetailPolicy.Decision.Of(0, 0, true).With(fur, true);
             var size = CreatureMotion.ApparentSize(state, ref body.Blob.Value);
             var activity = math.max(math.saturate(state.Speed / math.max(size, 0.3f) / 3f), state.Fly > 0.5f ? 0.5f : 0f);

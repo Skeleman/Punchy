@@ -151,7 +151,10 @@ namespace Punchy.Fauna
             /// <summary>
             /// What a hermit does next, by the time of day, all round its shelter (its Home is the Home anchor): asleep in
             /// its shelter at night (in by its door, or curled up in an open one); by its fire in the evening; by day
-            /// chopping at its woodpile, tending its garden, fetching water, or sitting by its door. False to let it wander.
+            /// chopping at its woodpile, tending its garden, fetching water, or sitting by its door. A-106 row 2: a hermit
+            /// in a harsh biome (its local Job, from its biome's work set) also does that biome's chore at its own door,
+            /// sweeping ash or shovelling snow or sand there (or mending at its seat), and now and then walks out to a
+            /// lookout, the highest dry ground a short way off, to sit and look out over its country. False to let it wander.
             /// </summary>
             bool HermitDay(ref CreatureState s, ref CreatureBlob b, ref Random rng, float sleepy)
             {
@@ -196,6 +199,9 @@ namespace Punchy.Fauna
                 }
                 var roll = rng.NextFloat();
                 int a;
+                // A-106 row 2: its biome's chore, about a third of its days' turns, before the rest of its round.
+                if ((FolkJob)s.Job >= FolkJob.AshSweeper && rng.NextFloat() < 0.3f && HermitChore(ref s, ref rng))
+                    return true;
                 if (roll < 0.35f && (a = NearestAnchor(AnchorKind.Work, s.Home, 15f)) >= 0)
                 {
                     SetMode(ref s, CreatureMode.Work);
@@ -226,6 +232,8 @@ namespace Punchy.Fauna
                     s.Timer = rng.NextFloat(10f, 20f);
                     return true;
                 }
+                if (roll < 0.8f && HermitLookout(ref s, ref rng))
+                    return true;
                 if (roll < 0.9f && (a = NearestAnchor(AnchorKind.Sit, s.Home, 10f)) >= 0)
                 {
                     SetMode(ref s, CreatureMode.Sit);
@@ -241,6 +249,86 @@ namespace Punchy.Fauna
                 SetMode(ref s, CreatureMode.Wander);
                 s.Target = s.Home + rng.NextFloat2Direction() * rng.NextFloat(3f, 10f);
                 s.Timer = rng.NextFloat(10f, 25f);
+                return true;
+            }
+
+            /// <summary>
+            /// A-106 row 2: a hermit's biome chore (its local Job). A door job (sweeping, shovelling, tying the roof) is
+            /// done on its doorstep, facing out, or out in front of an open shelter facing it; a mender works stood at
+            /// its seat. Arriving there its Stage becomes the job's work stage (AnchorSide), which clients read its look from.
+            /// </summary>
+            bool HermitChore(ref CreatureState s, ref Random rng)
+            {
+                ref var set = ref Terrain.Anchors.Value;
+                var job = (FolkJob)s.Job;
+                float2 spot, face;
+                if (job == FolkJob.Mender)
+                {
+                    var seat = NearestAnchor(AnchorKind.Sit, s.Home, 10f);
+                    if (seat < 0)
+                        return false;
+                    var c = set.Anchors[seat];
+                    spot = c.Position.xz + c.Facing * 1.2f;
+                    face = c.Position.xz;
+                }
+                else
+                {
+                    var door = NearestAnchor(AnchorKind.Door, s.Home, 8f);
+                    if (door >= 0)
+                    {
+                        var d = set.Anchors[door];
+                        // (On its step, sweeping or digging outward, away from its door.)
+                        spot = d.Position.xz + d.Facing * 1.3f;
+                        face = d.Position.xz + d.Facing * 4f;
+                    }
+                    else
+                    {
+                        // (No door: out in front of its shelter, a side of its own from its Individual, facing it.)
+                        var angle = (s.Individual % 360u) * math.PI / 180f;
+                        spot = s.Home + new float2(math.sin(angle), math.cos(angle)) * 3f;
+                        face = s.Home;
+                    }
+                }
+                SetMode(ref s, CreatureMode.Work);
+                s.WorkSpot = spot;
+                s.WorkFace = face;
+                s.AnchorSide = FolkJobs.WorkStage(job);
+                s.Timer = rng.NextFloat(40f, 90f);
+                return true;
+            }
+
+            /// <summary>
+            /// A-106 row 2: a hermit's walk out to a lookout: of a few spots 18 to 26 m out (round a side of its own from
+            /// its Individual), the highest that isn't under water, where it sits on the ground looking on outward.
+            /// </summary>
+            bool HermitLookout(ref CreatureState s, ref Random rng)
+            {
+                var baseAngle = (BiomeSampling.Scramble(s.Individual ^ 0x4C4F4F4Bu) % 360u) * math.PI / 180f;
+                var best = float2.zero;
+                var bestDir = float2.zero;
+                var bestHeight = float.MinValue;
+                for (int k = 0; k < 5; k++)
+                {
+                    var angle = baseAngle + rng.NextFloat(-1.2f, 1.2f);
+                    var dir = new float2(math.sin(angle), math.cos(angle));
+                    var at = s.Home + dir * rng.NextFloat(18f, 26f);
+                    var ground = Terrain.SampleGround(at);
+                    if (ground.HasWater && ground.WaterSurface > ground.Height - 0.1f)
+                        continue;
+                    if (ground.Height > bestHeight)
+                    {
+                        bestHeight = ground.Height;
+                        best = at;
+                        bestDir = dir;
+                    }
+                }
+                if (bestHeight == float.MinValue)
+                    return false;
+                SetMode(ref s, CreatureMode.Sit);
+                s.Target = best;
+                s.Focus = best + bestDir * 10f;
+                s.TargetHeight = 1f;
+                s.Timer = rng.NextFloat(40f, 90f);
                 return true;
             }
 

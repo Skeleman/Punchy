@@ -139,10 +139,15 @@ namespace Punchy.Net
                 return;
             GUILayout.Space(6);
             GUILayout.Label("Colour");
-            for (int row = 0; row < current.Coats.Count; row += 4)
+            // (Long names, like the folk's "Glacier robe, olive skin", go two to a row so none runs off the panel.)
+            var longest = 0;
+            foreach (var coat in current.Coats)
+                longest = Mathf.Max(longest, coat.Name != null ? coat.Name.Length : 0);
+            var perRow = longest > 14 ? 2 : 4;
+            for (int row = 0; row < current.Coats.Count; row += perRow)
             {
                 GUILayout.BeginHorizontal();
-                for (int k = row; k < row + 4 && k < current.Coats.Count; k++)
+                for (int k = row; k < row + perRow && k < current.Coats.Count; k++)
                 {
                     var label = current.Coats[k].Name;
                     if (nav.Button(k == avatars.LocalCoat ? "[" + label + "]" : label))

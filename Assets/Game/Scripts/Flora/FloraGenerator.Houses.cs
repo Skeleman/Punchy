@@ -75,6 +75,13 @@ namespace Punchy.Flora
             // On the wall itself: its radius at that height (between the bulge and the top).
             Windows(g, radius * Mathf.Lerp(1.02f, 0.98f, 0.16f), wall * 0.58f, 4, 0.55f, 40f, sides);
             DoorMat(g, radius * 1.05f + 0.4f, doorWidth);
+            // W-147: some have a ladder leaning to the thatch's eave, at a side or the back (between the windows, off the porch).
+            if (HouseLadderRoll(g, out var pick))
+            {
+                var a = (pick < 0.34f ? 0f : pick < 0.67f ? 180f : 270f) * Mathf.Deg2Rad;
+                var dir = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
+                HouseLadder(g, dir * (overhang + 0.4f), dir * (overhang + 0.05f) + Vector3.up * (wall - 0.2f), dir);
+            }
         }
 
 

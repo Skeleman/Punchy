@@ -243,7 +243,8 @@ namespace Punchy.Fauna
                     PlayerSpecies = playerKind != null && playerKind == species?.Body.name ? null : playerSpecies,
                     // (The same stance the host's brain works out: a hash of who it is and the player's body.)
                     Stance = Stance(b.Upright && b.Hands && !b.Haunts ? b.StanceToward(playerIndex, s.Individual) : FolkStance.Neutral),
-                    Hour = hour
+                    Hour = hour,
+                    Dry = FolkState.OutOfWater(s.Position, b.WalksBed, terrain)
                 };
                 var text = archive.Pick(who, ref rng, answering ? emoted.ToString() : null);
                 if (string.IsNullOrEmpty(text))
