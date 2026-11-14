@@ -293,3 +293,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-14: W-158 (#321, seam shade, beacon stair first) and W-159 (#322, river flow as normals) carded on the world queue as 4d and 4c. R-28 row 2: Zach says parallax height must sit on the stone edges, not the base; card updated, render told.
 - 11-14: Zach: plants read toon, wants leaf clusters (layering, cut-outs, bent-normal cards). R-30 (#323, render) after R-28, row 1 before R-29; row 1 is options for Zach to pick.
 - 11-14: R-20 row 4 (blocky cloud shadows: maps already bilinear; smooth-texel/bicubic plus penumbra, not on hold). W-160 (#324) shoreline wander, world after W-159.
+- 11-14: R-31 (#325) grass: bald-spot causes, continuous fields, grass vs dirt fine texture. Render order: R-28, R-20 row 4, R-30 row 1, R-31, R-29.

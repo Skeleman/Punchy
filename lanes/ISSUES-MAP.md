@@ -83,3 +83,4 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #322 | world W-159 | river flow as normals, not white streaks |
 | #323 | render R-30 | foliage realism: leaf clusters, not toon blobs |
 | #324 | world | W-160 shoreline wander |
+| #325 | render R-31 | continuous grass fields; grass vs dirt fine texture |
