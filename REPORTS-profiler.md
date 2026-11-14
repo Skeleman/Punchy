@@ -2,6 +2,28 @@
 
 Newest first.
 
+## Job 75: W-153 row 2 still water (water/truth a8fe44e5 vs main d95e7ff1), 2026-11-14 (q117.job): bake FAIL (+1.9 s, paddies 1.1-1.35 s); frames faster on the branch
+**Setup:** Profile builds, High, 1920x1080, uncapped, noon, Clear, arms alternated, 3 rounds. Fresh starts use `-freshisland` (the island cache is bypassed, so every launch bakes). Swamp: a 60 m walk east at 4 m/s from (-20, 62) and from (-1180, -3008), so chunks build on the move.
+
+**Bake (3 fresh starts each):**
+| | island ready (s since start) | `[paddies]` |
+|---|---|---|
+| main | 31.2, 31.1, 30.8 (mean 31.0) | — |
+| still water | 33.2, 33.5, 31.9 (mean 32.9) | 36 pools; 1354, 1115, 1336 ms |
+
+- **Pass line (bake within +0.5 s): FAIL**, +1.9 s. The paddies step alone is **1.1-1.35 s** on the laptop (the editor logged 358 ms for ~160k cells); the rest of the difference is spread over the bake.
+
+**Frame cost (GPU ms; main thread ms):**
+| view | main | still water | delta | main thread (main / still water) |
+|---|---|---|---|---|
+| swamp walk at (-20, 62) | 19.47 | 17.33 | -2.13 | 18.33 / 16.60 |
+| swamp walk at (-1180, -3008) | 18.87 | 16.93 | -1.93 | 19.10 / 17.57 |
+| fresh start, spawn | 17.6 | 16.17 | -1.43 | — |
+
+- **Frames: within the bar, and ~2 ms faster on the branch** (GPU and main thread both). That's more than "expected no slower" explains; the branch changes the water layout (W-153 may move the fingerprint), so the two arms aren't drawing the same water. I wouldn't bank the saving without a like-for-like view.
+
+Cost: laptop total $877 (laptop session e163d8ab; 2 builds, 18 games).
+
 ## Job 74: R-21 one waterfall builder (world/waterfall-sheets 54fcdf64 vs main d95e7ff1), 2026-11-14 (q116.job): FAIL at fall 22 (+1.6 ms GPU Medium, +0.8 High); fall 74's spot sits behind water walls
 **Setup:** Profile builds, 1920x1080, uncapped, noon, Clear, arms alternated, 3 rounds, Medium and High. The world lane's `-benchspot` lines; shots checked (results/sheets/falls.jpg).
 
