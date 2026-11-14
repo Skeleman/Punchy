@@ -1689,6 +1689,11 @@ namespace Punchy.Debugging
             return new float[0];
         }
 
+        /// <summary>A town's harsh-biome work (A-106, A-110): [1 if its biome has a work set, how many of its posts
+        /// are that set's].</summary>
+        public static float[] TownWork(int landmark) =>
+            Whereabouts.Towns.TryGetValue(landmark, out var town) ? new float[] { town.WorkSet != null ? 1f : 0f, town.WorkSetPosts } : new float[0];
+
         /// <summary>A town's centre: [x, z, radius].</summary>
         public static float[] TownCentre(int landmark) =>
             Whereabouts.Towns.TryGetValue(landmark, out var town) ? new float[] { town.Centre.x, town.Centre.y, town.Radius } : new float[0];

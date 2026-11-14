@@ -79,6 +79,29 @@ namespace Punchy.Tests
         }
 
         /// <summary>
+        /// Target: at least one town in a harsh biome, and each of them has posts from its biome's work set (A-106).
+        /// The same figures are in a build's "[farfolk] plan" line (work set, the set's posts): the work sets once
+        /// matched no biome in a build, which no editor test could see.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator HarshTown_HasItsWorkSet()
+        {
+            yield return Plans();
+            var towns = Game.Hook<float[]>("TownPlans");
+            var harsh = 0;
+            for (int i = 1; i < towns.Length; i++)
+            {
+                var w = Game.Hook<float[]>("TownWork", (int)towns[i]);
+                if (w.Length < 2 || w[0] < 1f)
+                    continue;
+                harsh++;
+                LogWatch.Measure($"whereabouts: town {towns[i]:F0} is in a harsh biome: {w[1]:F0} posts from its work set");
+                Assert.Greater(w[1], 0f, $"town {towns[i]:F0} is in a harsh biome but has no post from its work set");
+            }
+            Assert.Greater(harsh, 0, "no town is in a biome with a work set");
+        }
+
+        /// <summary>
         /// Target: equal. In the morning, at noon and at night, from 400 m off the human village, the far figures
         /// placed are exactly the members Whereabouts counts outdoors at that moment.
         /// </summary>

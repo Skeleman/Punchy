@@ -296,6 +296,13 @@ namespace Punchy.Fauna
             var ground = source.SampleGround(centre).Biomes.Dominant();
             var workSet = ground >= 0 && ground < biomes.Length ? FolkWorkSets.For(biomes[ground]) : null;
             VillagePosts(source, centre, radius, workers, workSet, planPosts);
+            plan.WorkSet = workSet != null ? workSet.name : null;
+            plan.WorkSetPosts = 0;
+            if (workSet != null)
+                foreach (var post in planPosts)
+                    foreach (var entry in workSet.Jobs)
+                        if (entry.Job == post.Job)
+                            plan.WorkSetPosts++;
             foreach (var post in planPosts)
             {
                 // (The guard keeps the gate: the watch's place by night.)
@@ -490,7 +497,7 @@ namespace Punchy.Fauna
                         $"{plan.Social.Count} to meet at, {plan.Errands.Count} errands, {benches} benches), gate {(plan.Gate >= 0 ? "yes" : "no")}, " +
                         $"watch {plan.Watch.Count}, settlement {(settlement >= 0 ? "yes" : "no")}, " +
                         $"ground {(ground >= 0 && ground < biomes.Length && biomes[ground] != null ? biomes[ground].name : "none")}, " +
-                        $"work set {(workSet != null ? workSet.name : "none")} of {FolkWorkSets.All.Count}, {planPosts.Count} posts";
+                        $"work set {(workSet != null ? workSet.name : "none")} of {FolkWorkSets.All.Count}, {planPosts.Count} posts ({plan.WorkSetPosts} the set's)";
             return true;
         }
     }

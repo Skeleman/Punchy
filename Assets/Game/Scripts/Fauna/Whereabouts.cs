@@ -133,6 +133,9 @@ namespace Punchy.Fauna
         public int Overruns;
         /// <summary>A line about how it was put together, for the logs.</summary>
         public string Made;
+        /// <summary>Its harsh biome's work set by name (null: a gentle biome), and how many of its posts are that set's.</summary>
+        public string WorkSet;
+        public int WorkSetPosts;
 
         /// <summary>The ground at a point, from the grid.</summary>
         public float Ground(float2 at)
