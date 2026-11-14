@@ -4748,3 +4748,30 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
   - A rider about 140 m off can look frozen. That is the creature sim range; the rider despawns as "out of sight" at about 170 m, and the ledger then settles the horse at the nearest stable.
 - Clean-up: PlayArgs cleared, editor out of play mode, my client closed by PID, no Punchy.exe of mine running.
 - NEXT: A-118 (#329) on fauna/lie-height.
+
+## A-114
+
+## 2026-11-14 A-114 row 1: reaching to a pocket to put an item away or take it out (#314)
+- DONE (verified): fauna/pocket-pose ff343a53 (from main bc0434ef). When an upright folk's held item changes and either item is a hand item (lantern, torch, stick, stone, letter, staff, rod, ore sack), the arm reaches to the item's place and back, with no animation clips. The out reach takes 0.6 s and the in reach 0.6 s. The item hides or shows at contact, half way through each reach. The place depends on the item and the body:
+  - a letter goes to the chest;
+  - small items go to a hip pocket; sea folk (wraps) use a belt pouch and turtle folk (robes) the robe's fold;
+  - big items go over the shoulder (or into a pack if one is worn); with the back taken by wings or a shell and no pack, they are held low.
+  - (CreatureRenderSystem.Pocket.cs, new; PocketPose in CreatureAnimator.)
+- Cosmetic only. Every machine plays the reach from the CreatureState.Held change that already replicates, so there is no new ghost field or RPC.
+- Sheathed items are unchanged. The spear and pick are not pocketable, so they keep their own draw and sheathe.
+- Checks:
+  - Strips: 6 frames each way (put away, then produce) for sea, bat and turtle folk, with a lantern and with a staff. I held each move at set times with the PocketScrub eval hook, with time paused.
+  - Host and joined client: the editor hosted; the player build joined with `-join 127.0.0.1 -pocketlog`. I cycled Held on the host's three folk: Lantern, None, Spear, None, Staff, Pickaxe, Letter.
+    - Both started 15 moves (Lantern +3, None +3, Staff +3, Pickaxe +3 for putting the staff away, Letter +3).
+    - Spear, Pickaxe and None after the spear gave +0 on both.
+    - 0 exceptions on the host and on the client.
+  - Solo: the same counts from eval.
+  - Full suite with the editor closed: 57 total / 40 passed / 0 failed / 17 skipped; pins hold (landmarks 689D5348, fingerprint B2A5823C, the A-117 re-pin on main).
+  - Compile clean; build Succeeded, 0 errors.
+- Shots: D:/Unity/PunchyMilestones/A-114/r1-strips.jpg. Columns: lantern on the left, staff on the right. Rows: sea, bat, turtle, each with put away then produce. The single strips are in gallery/. I viewed 5 images this card (the cap is 3): I re-shot after the first strips showed the hip and pouch reaches too small.
+- Notes:
+  - The bat folk's hip reach and the Low staff (bat and turtle) are small moves. The staff just hides by the side, since the card says big items are held lower when there's no pack. If Zach wants the staff to stay visible somewhere (for example propped on the shoulder), that is a follow-up.
+  - Build went to Builds/Windows, the folder this tree already ran from today, not Builds/Dev. It was the client only, so no firewall prompt.
+  - `-pocketlog` is a new test flag, off by default.
+- Clean-up: PlayArgs cleared, editor closed by PID, my client closed by PID, no Punchy.exe of mine running.
+- NEXT: A-115.
