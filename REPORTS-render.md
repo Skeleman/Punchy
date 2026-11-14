@@ -2,6 +2,36 @@
 
 Newest first.
 
+## 2026-11-13 R-25 row 2: R-10 on main behind switches, surface glow out of CaveSystem.cs
+Branch render/far-lights a40a4ae6 (b/r10-trims a1cb1899 merged with main d95e7ff1, 0 behind main), pushed.
+- DONE: R-10 sits on main by a merge, not a rebase (pushed history is never rewritten); the CaveSystem.cs conflict
+  is resolved. With defaults the player sees R-10's night: far towns, street lights, fires, glowing plants and
+  crystals as points of light, the town glow map, pooled real street lights near.
+- DONE: item 7. The surface glow's frame update moved unchanged into the new partial CaveSystem.SurfaceGlow.cs
+  (rule 28). CaveSystem.cs 2719 -> 2548 lines (main: 2654); still over 2500, but every R-10 addition is now in a
+  partial and the file is smaller than main's.
+- DONE: item 1, switches. Existing: `-townglow 0` (town map, window and street-light points, domes), `-towndome 1`
+  (dome, off by default), `-lightbudget N`, `-realreach 0`, `-floraglowworld 0`, `-lightlog`. New: `-farlights 0`
+  (SurfaceGlow.FarLightsEnabled) turns every far point off; before, fire, plant and crystal points had no switch.
+- DONE: R-10's shots against its last handoff (row 4c), High, 22:00, Clear, on = defaults, off = town glow and far
+  points off. Warm px / bright px (2560x1600 frame): town 500 m 2174 on, 4 off / 2193, 138; town 1500 m 353, 261 /
+  10866, 7062; Ember Forest 500 m 196, 1 / 22939, 6741; Ember Forest 1500 m 315, 17 / 25895, 4038. On the sheet the
+  town is a warm cluster of points at 500 m (a pale patch with the switches off) and the forest a wide field of
+  points, as 4c described.
+- NOT DONE / UNVERIFIED: my reading of the card: row 2 is items 7 and 1 plus verification; items 2-6 (campfire
+  far kind, ground hand-over, impostor window emissive, Ember Forest colour, cluster variants) are row 3. The
+  forest's far points read blue-white, not flame-coloured (item 5). The Ember Forest vantages are re-picked (the
+  layout moved since 4c: now about -261,-3393), so the match is by look, not pixel-diff; 4c's fungal (F) and BOTH
+  shots not retaken. Not checked: Medium and Low, the `-lightbudget 0` arm, the `-farlights 0` launch flag itself
+  (the on/off shots set the same statics from the editor), pixel-diff against main. No timing (rule 21).
+- Checks: compiles, 0 errors. NaN probe in the town at night 0 of 360 frames. Full PlayMode suite after the last
+  code change: `Run finished: 40 total, 40 passed, 0 failed` (this route prints no skips or seconds).
+- Shots: PunchyMilestones/R-25/row2-far-on-off-sheet.png (1200 px, on left, off right); frames in R-25/row2/.
+- Asks: the branch carries R-10's change to Settings/GraphicsSettings.cs (RealLights per preset, OwnRealLights),
+  a folder the player lane owns: say if it should be split out or cleared with that lane before merge. No BENCH
+  job yet; it comes with row 3 (item 6 changes the cost).
+- NEXT: R-25 row 3 (items 2-6, walk-in strips for the five cases).
+
 ## 2026-11-13 R-19 row 2: three steep-rock cost switches, defaults unchanged
 Branch render/steep-triplanar 1e556c4b (on b30c967f), pushed. For PR #285 / bench job 66.
 - DONE: three switches, all off by default, in TerrainSurface.shader (reads `_PunchyRockCost`) and the new
