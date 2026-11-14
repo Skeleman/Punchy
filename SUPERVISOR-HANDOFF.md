@@ -298,3 +298,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-14: W-161 (#326) elf towns no wood; world queue after W-160, before W-158.
 - 11-14: A-113 rows 1-3 done (flora/tree-variety ac7880fc), BENCH 84; fauna on A-117 (SettlementLayout additive, world told).
 - 11-14: Zach rejected W-155 clay-ab sheet: after cliff untextured (flat clay face + bare apron past toe). World told to fix + reshoot; W-155 merge held.
+- 11-14: W-162 carded (#327), world after W-155 merges; render owns shared rock surface.

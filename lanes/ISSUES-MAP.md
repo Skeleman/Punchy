@@ -85,3 +85,4 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #324 | world | W-160 shoreline wander |
 | #325 | render R-31 | continuous grass fields; grass vs dirt fine texture |
 | #326 | world | W-161 elf towns with no wood |
+| #327 | world (render shared surface) | W-162 cliff and cave rock walls blended |

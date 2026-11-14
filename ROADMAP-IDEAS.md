@@ -93,3 +93,4 @@ Foliage realism (Zach 11-14): crowns as leaf clusters (cut-out cards, layering, 
 - Shorelines wander instead of ruled lines: lapping, noise lift, ragged wet band (W-160, #324).
 - Continuous grass swathes without bald spots; grass ground textured with blades, dirt speckled and grainy (R-31, #325).
 - Elven cities have no wood: signs, fences and props in stone or metal (W-161, #326).
+- Cliffs and caves share one rock wall look, climbable grades and the ground blend at cave mouths (W-162, #327).
