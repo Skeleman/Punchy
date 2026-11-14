@@ -55,6 +55,8 @@ namespace Punchy.Chemistry
         readonly List<(Vector3 a, Vector3 b, float from, float until, bool frost, float thick)> bolts = new List<(Vector3, Vector3, float, float, bool, float)>();
         // Timed flames (a cone of flame, a falling star): where, how high, from, until, and for a falling one, where it starts.
         readonly List<(Vector3 at, float size, float from, float until, Vector3 fall)> flames = new List<(Vector3, float, float, float, Vector3)>();
+        int uploaded;
+        bool plumesDirty;
         float flashUntil, flashBright;
         Vector3 flashAt;
         Vector3 lavaCentre;
@@ -181,6 +183,7 @@ namespace Punchy.Chemistry
                 return;
             statePlumes.Clear();
             arcs.Clear();
+            plumesDirty = true;
             if (Lava.Count == 0 && Stars.Count == 0 && Charged.Count == 0 && Quenched.Count == 0 && Grown.Count == 0)
                 return;
             EnsureSpellFx();
@@ -437,17 +440,26 @@ namespace Punchy.Chemistry
             drawn.AddRange(statePlumes);
             for (int k = shots.Count - 1; k >= 0; k--)
                 if (now >= shots[k].until)
+                {
                     shots.RemoveAt(k);
+                    plumesDirty = true;
+                }
                 else if (drawn.Count < MaxPlumes)
                     drawn.Add(shots[k].e);
             if (drawn.Count == 0 || plumeMaterial == null)
                 return;
+            // (Uploaded only when the set changed: the state plumes at each map, a one-shot added or ended.)
+            bool changed = drawn.Count != uploaded || plumesDirty;
             if (plumeBuffer == null || plumeBuffer.count < drawn.Count)
             {
                 plumeBuffer?.Release();
                 plumeBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, MaxPlumes, Marshal.SizeOf<LandmarkEffectSystem.Emitter>());
+                changed = true;
             }
-            plumeBuffer.SetData(drawn);
+            if (changed || plumeProps == null)
+                plumeBuffer.SetData(drawn);
+            uploaded = drawn.Count;
+            plumesDirty = false;
             plumeProps ??= new MaterialPropertyBlock();
             plumeProps.SetBuffer(EmittersId, plumeBuffer);
             int most = 1;
@@ -540,8 +552,8 @@ namespace Punchy.Chemistry
             var dt = Time.deltaTime;
             int budget = SpellPuffsPerFrame;
             // Fog: big, slow, low puffs of the gas-cloud material that thin out with the fog, and white veils.
-            budget -= EmitGas(Fog, steamPuffs, 1.2f, maxGas, budget, corner, size, heights, dt, 0.3f, 3.2f, 0.12f, 6f, new Color(0.9f, 0.92f, 0.94f, 0.35f), wind * 0.5f);
-            EmitVeils(Fog, 0.08f, corner, size, heights, dt, 1.5f, new Color(0.92f, 0.94f, 0.96f, 0.14f));
+            budget -= EmitGas(Fog, steamPuffs, 0.5f, maxGas, budget, corner, size, heights, dt, 0.3f, 3.2f, 0.12f, 6f, new Color(0.9f, 0.92f, 0.94f, 0.35f), wind * 0.5f);
+            EmitVeils(Fog, 0.035f, corner, size, heights, dt, 1.5f, new Color(0.92f, 0.94f, 0.96f, 0.14f));
             // Dust: the breath-puff material in dust's colour, swirling, and dust veils as the weather's dust storms have.
             budget -= EmitGas(Dust, softPuffs, 1.5f, maxGas, budget, corner, size, heights, dt, 0.8f, 1.8f, 0.6f, 3f, new Color(0.72f, 0.58f, 0.38f, 0.45f), wind * 1.5f);
             EmitVeils(Dust, 0.06f, corner, size, heights, dt, 1.5f, new Color(0.8f, 0.65f, 0.45f, 0.16f));
@@ -647,6 +659,7 @@ namespace Punchy.Chemistry
             e.Timing.y = math.saturate(seconds / period);
             e.Seed = 1f - math.frac(clock / period);
             shots.Add((e, Time.time + period * 0.98f));
+            plumesDirty = true;
         }
 
         void Flash(Vector3 at, float bright, float seconds)
