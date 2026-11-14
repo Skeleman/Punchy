@@ -178,7 +178,7 @@ namespace Punchy.Fauna
                 }
                 if (log)
                     memberLine.Append($" [{plan.Name} #{plan.Landmark}: outdoors {outdoors}, creatures {live} ({liveIn} walking in, {liveLate} late in), no creature yet {inRange}, " +
-                                      $"waiting {waiting}, at a door {atDoor}, in early {goneIn}]");
+                                      $"waiting {waiting}, at a door {atDoor}, in early {goneIn}{MemberTiers(plan.Landmark)}]");
             }
             memberAsks.Sort((a, b) => a.Distance != b.Distance ? a.Distance.CompareTo(b.Distance)
                                     : a.Plan.Landmark != b.Plan.Landmark ? a.Plan.Landmark.CompareTo(b.Plan.Landmark) : a.Index.CompareTo(b.Index));
@@ -284,7 +284,8 @@ namespace Punchy.Fauna
                 // On its working leg: at its post, as a landmark's own worker is.
                 st.Task = job.Task;
                 st.Job = (byte)job.Job;
-                st.WorkSpot = job.At;
+                // (Row 5: on the spot its day has it at there, its far figure's, so going on legs leaves it standing.)
+                st.WorkSpot = w.Outdoors && w.Doing == Doing.Work ? w.Position.xz : job.At;
                 st.WorkFace = job.WorkFace;
                 st.Home = job.At;
                 st.Leash = job.Task == CreatureTask.Patrol ? plan.Radius * 0.8f : 7f;

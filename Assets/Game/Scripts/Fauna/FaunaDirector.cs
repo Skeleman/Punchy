@@ -343,6 +343,7 @@ namespace Punchy.Fauna
                 {
                     SpawnResidents(source);
                     SendMembersIn();       // (A-110 row 4: a member whose day takes it indoors goes in at its door)
+                    MembersLegs();         // (A-110 row 5: far members only follow their day, on low-rate legs)
                     SpawnMembers(source);  // (A-110 row 3: each town household member as itself)
                     SpawnCaveDwellers(source);
                     SpawnChamberBands(source);

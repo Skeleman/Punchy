@@ -158,7 +158,7 @@ namespace Punchy.Fauna
 
         /// <summary>
         /// Row 4 (d): a shop's job title, from its plot, so its keeper is known by a trade (its dialogue lines, its
-        /// FolkJobs count) and not left blank. No task: what it does at the shop is row 5. The seat (the leader's hall)
+        /// FolkJobs count) and not left blank; an outdoor stall's task is its pose there, row 5. The seat (the leader's hall)
         /// stays untitled: no trade fits it, and a steward would want lines of its own.
         /// </summary>
         static void PlanShopJob(TownPlan plan, int place, PlotRole role)
@@ -174,8 +174,16 @@ namespace Punchy.Fauna
                 PlotRole.Shrine => FolkJob.Healer,
                 _ => FolkJob.None
             };
+            // (Row 5: what it does there, the village posts' poses: a stall keeper leans on its counter, a stable hand
+            // tends. The indoor shops have no creature while their keeper is in, so no task.)
+            var task = role switch
+            {
+                PlotRole.Market => CreatureTask.Gesture,
+                PlotRole.Stable => CreatureTask.Tend,
+                _ => CreatureTask.None
+            };
             if (job != FolkJob.None)
-                PlanWork(plan, place, CreatureTask.None, job, plan.Places[place].Face);
+                PlanWork(plan, place, task, job, plan.Places[place].Face);
         }
 
         static bool PlanPlaceNear(TownPlan plan, float2 at, float within)
@@ -401,8 +409,8 @@ namespace Punchy.Fauna
                         firstGarden = place;
                     if (place - firstGarden < 6)
                     {
-                        // (A garden someone works is a farmer's, row 4 (d); its hoeing is row 5.)
-                        PlanWork(plan, place, CreatureTask.None, FolkJob.Farmer, plan.Places[place].Face);
+                        // (A garden someone works is a farmer's, row 4 (d), tending its beds with both hands, row 5.)
+                        PlanWork(plan, place, CreatureTask.Tend, FolkJob.Farmer, plan.Places[place].Face);
                         planJobs.Add(place);
                     }
                 }

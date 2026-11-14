@@ -769,6 +769,13 @@ namespace Punchy.Fauna
         /// the spot to the side it heads for, and how long it keeps to it (s) before making for the player again.</summary>
         public float2 FollowDetour;
         public float FollowDetourTime;
+        /// <summary>A-110 row 5, a town household member far from every player: 1 while it only follows its Whereabouts
+        /// (CreatureBrainSystem.Legs) instead of thinking; where its day has it (LegsAt, at the creature's Clock LegsSet),
+        /// how fast that spot moves (m/s) and which way it faces at rest. Set by FaunaDirector.MembersLegs, cleared by
+        /// the brain when it wakes. Host only, never sent.</summary>
+        public byte Legs;
+        public float2 LegsAt, LegsVel, LegsFace;
+        public float LegsSet;
     }
 
     /// <summary>The need cue a creature shows (CreatureState.Cue), strongest need first.</summary>
