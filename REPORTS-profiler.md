@@ -2,6 +2,21 @@
 
 Newest first.
 
+## Job 72: A-109 far town figures (fauna/far-towns f54d8941 vs its base, main da573e16), 2026-11-14 (q114.job): PASS
+**Setup:** laptop (the main-PC agent hadn't taken it). Profile builds, Medium, 1920x1080, uncapped, Clear, arms alternated, 3 rounds. Views: 200 m north of town 73 facing it (`-benchspot 2972,-685,180`) at noon and at dusk 18:30 (home lights, smoke), and the 200 m walk south to the centre at 4 m/s with `-hitchms 40`.
+
+| view | main | far towns | delta |
+|---|---|---|---|
+| 200 m, noon | 13.07 | 12.93 | -0.13 |
+| 200 m, dusk 18:30 | 12.27 | 12.17 | -0.10 |
+| walk in (200 m) | 12.45 | 12.7 | +0.25 |
+
+(GPU ms, mean of 3 rounds; one main walk round had a stall and is left out.)
+- **Rule 23: PASS** (GPU at most +0.25; CPU 15.7-16.0 on both arms; main thread 11.96 vs 12.11 ms averaged over every game).
+- **No new hitch on the walk** (the far-to-real swap): frames over 40 ms, all 3 rounds: main 14 (4 over 100 ms), far towns 4 (2 over 100 ms). The branch's 1% low on the walk is better (29.1 vs 24.6 fps).
+
+Cost: laptop total $870 (laptop session e163d8ab; 2 builds, 18 games).
+
 ## Job 71: R-20 sun shadow filter and the 4096 sun shadow map (render/shadow-still 1a380545, 9b01da13), 2026-11-14 (q113.job): FAIL at Medium: the wide filter +0.33-0.50 ms GPU, with the 4096 map +0.43-0.83
 **Setup:** Profile builds, 1920x1080, uncapped, noon, Clear (the bench's weather presets; "Sunny" is a day type), arms alternated, 3 rounds. Arms: **low** = 1a380545 `-sunshadowfilter low` (as main), **filter** = 1a380545 default (wide filter from Medium up), **4096** = 9b01da13 (wide filter + 4096 map). Views: the oak grove (1740,3390, job 64's forest start) and the human village (3066,-913), standing and a 30 m walk east at 2 m/s.
 
