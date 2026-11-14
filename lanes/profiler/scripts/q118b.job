@@ -1,0 +1,13 @@
+# Job 76, the campfire and the beacon: standing 12 m from the fire (-benchspot 151.8,17.7,-547.1,-80), and 1 km out,
+# 40 m up at (2044, -1261) facing the beacon at (2968, -878): a 3 m -benchline toward it at 0.2 m/s, 40 m over the ground,
+# so the measured part is 15 s at a hold. Arms A, B, C (the card asks A vs B at the beacon; C there too, as it's one
+# game per round). 22:00, Clear, -lightlog, Medium and High, 3 rounds.
+Q=q118b; TITLE="job 76 far lights, campfire and beacon"
+BUILDS="697e565 1717782 768ff9a"
+VIEWS="campfire beacon"
+view() { case $1 in
+  campfire) echo "-goto 151.8,17.7,-547.1 -benchstops spot -benchspot 151.8,17.7,-547.1,-80 -benchhour 22 -benchweather Clear -lightlog";;
+  beacon)   echo "-goto 2044,-1261 -benchstops line -benchline 2044,-1261,2046.8,-1259.9,0.2,40 -benchhour 22 -benchweather Clear -lightlog";; esac; }
+ARMS="A B C"
+arm() { case $1 in A) echo "Profile-697e565";; B) echo "Profile-1717782";; C) echo "Profile-768ff9a";; esac; }
+ROUNDS=3; GFX="Medium High"; REF=A; BAR=0.5

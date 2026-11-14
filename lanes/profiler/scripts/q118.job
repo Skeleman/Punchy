@@ -1,0 +1,13 @@
+# Job 76 (R-25 row 3, #302): far lights within budget. A main 697e565f; B render/far-lights 17177829; B -farlights 0;
+# C render/far-lights 768ff9ae (item 6 dropped: grass, pebbles and the temple back on the cluster variant).
+# Town at 2988.8,-920, yaw 0 and yaw 201; 22:00, Clear, -lightlog. Medium and High, 3 rounds. Campfire and beacon
+# views are q118b.job.
+Q=q118; TITLE="job 76 far lights, town"
+BUILDS="697e565 1717782 768ff9a"
+VIEWS="town0 town201"
+view() { case $1 in
+  town0)   echo "-goto 2988.8,-920 -benchstops spot -benchspot 2988.8,-920,0 -benchhour 22 -benchweather Clear -lightlog";;
+  town201) echo "-goto 2988.8,-920 -benchstops spot -benchspot 2988.8,-920,201 -benchhour 22 -benchweather Clear -lightlog";; esac; }
+ARMS="A B Boff C"
+arm() { case $1 in A) echo "Profile-697e565";; B) echo "Profile-1717782";; Boff) echo "Profile-1717782 -farlights 0";; C) echo "Profile-768ff9a";; esac; }
+ROUNDS=3; GFX="Medium High"; REF=A; BAR=0.5
