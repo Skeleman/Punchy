@@ -317,3 +317,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-14: folk/a111-row1-parked = 185922c1 (on main 1746d62a), never compiled or run: verify before any merge.
 - 11-14: job 71 ruled: wide filter + 4096 map at High+ only (runtime resolution per preset), after R-32 row 1, separate commit and strip. Zach asked about Gemini shadow fixes (res, distance/cascades, soft): already 2048/4 cascades/50 m/soft High on PC asset.
 - 11-14: Zach saw a crop plot sinking into a mountainside in the folk test: W-164 (#334), world queue 3b2. World also owes R-21 foot-box + W-153 paddies fixes.
+- 11-14: Zach: farm fields outside towns with biome crops: W-165 (#335), world 3b3 after W-164; folk work card follows its row 3.

@@ -93,3 +93,4 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #332 | render R-34 | wet-stone look trial (dry and wet) on boulders, cliff, cave, wall |
 | #333 | render R-35 | cloud ideas from a reference shader (look and cost) |
 | #334 | world | W-164 gardens level on slopes |
+| #335 | world (folk follow-up) | W-165 farm fields and biome crops |
