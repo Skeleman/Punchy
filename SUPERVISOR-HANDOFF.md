@@ -333,3 +333,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-14: opened and merged #346 (bake determinism, synchronous Burst for 14 bake jobs) -> 02c2b3b8; hashes unchanged. Cross-CPU risk noted in W-168 row 2. World next: W-168 row 1.
 - 11-14: opened and merged #347 (A-114 pocket reach) -> 4006cab3; #314 closed. Follow-up for folk: pocketSeen never drops despawned bodies (small leak); build went to Builds/Windows not Builds/Dev. Folk next: A-115 (#315).
 - 11-14: fresh folk-lane agent a588d47eb549dba91 started on A-115 -> A-116 -> A-120 (old folk agent a3109fe0 finished).
+- 11-14: approved A-115 cross-lane hooks (LampRoutes gate in SurfaceGlow scans, FloraPlacement.TownFixtureSpots, Flora.shader lamp head behind a count of 0 = old). Conditions: additive, hashes unchanged, one commit per foreign file, far rescan capped, BENCH line via me. World and render told. Watch merges vs render/far-lights, render/one-surface, world/scarps.
