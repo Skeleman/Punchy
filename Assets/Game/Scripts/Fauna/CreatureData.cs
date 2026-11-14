@@ -22,6 +22,12 @@ namespace Punchy.Fauna
         public float WalkStride, RunStride;
         /// <summary>Height of the body's centre above the ground when standing (from the idle pose).</summary>
         public float StandHeight;
+        /// <summary>A-118: height of the body's centre above the ground lying down, on its folded legs or its belly,
+        /// whichever needs more (m, at size 1), and how far its nose tips up then (radians) when its folded front legs
+        /// stand taller than its hind ones.</summary>
+        public float LieHeight, LiePitch;
+        /// <summary>A-118: it stands on two front and two hind legs that fold under it (LieFold), and lies on them.</summary>
+        public bool LiesOnFold;
         /// <summary>Where its mouth is, at the end of its head, from the body's centre in the body's frame (m, at size 1,
         /// idle pose); HasMouth false for a body with no head part.</summary>
         public float3 Mouth;
@@ -138,6 +144,48 @@ namespace Punchy.Fauna
             var r = scale / mid;
             return Weight * r * r * r;
         }
+
+        /// <summary>
+        /// A-118: the joint angle (pitch, radians) a leg hanging beneath a four-legged body adds at one joint when it is
+        /// fully folded lying down; positive swings back. Front legs fold back under the chest; a hoofed animal's with
+        /// the knee forward and the cannon folded flat beneath the forearm. Hind legs fold forward under the belly, the
+        /// thigh forward, the shank back down to the hock on the ground and the foot forward again, so no hind leg
+        /// ever lies straight out behind.
+        /// </summary>
+        public static float LieFold(int joint, int count, bool hind, bool hooves)
+        {
+            if (hind)
+            {
+                if (count == 1)
+                    return -0.9f;
+                if (count == 2)
+                    return joint == 0 ? -0.9f : 1.8f;
+                if (count == 3)
+                    return joint == 0 ? -0.9f : joint == 1 ? 1.5f : -1.4f;
+                return joint == 0 ? -0.9f : joint == 1 ? 1.3f : joint == 2 ? -1.9f : 0.3f;
+            }
+            if (hooves && count >= 3)
+                return joint == 0 ? 0.55f : joint == 1 ? -1.85f : joint == 2 ? 2.8f : 0f;
+            return SitFold(joint, count);
+        }
+
+        /// <summary>The older fold, still used for sitting and for a carried animal's tucked legs: each leg's
+        /// first joint back, the next forward, the next back.</summary>
+        public static float SitFold(int joint, int count)
+        {
+            if (count == 1)
+                return 0.9f;
+            if (count == 2)
+                return joint == 0 ? 1.1f : -2.2f;
+            return joint == 0 ? 1f : joint == 1 ? -2.1f : joint == 2 ? 1.4f : 0f;
+        }
+
+        /// <summary>A-118: how far a hoofed animal's folded hind leg rolls out about the hip, lying (radians toward the
+        /// side it lies on): the leg on that side out flat beside the belly, the other under the belly toward it.</summary>
+        public static float HindRoll(bool downside) => downside ? 1f : 0.5f;
+
+        /// <summary>A-118: a hoofed animal lying tips this far onto the side its hind legs fold to (radians).</summary>
+        public const float LieTip = 0.12f;
 
         public static float Trait(uint individual, int trait) =>
             math.hash(new uint2(individual, (uint)trait * 2654435761u + 17u)) / (float)uint.MaxValue * 2f - 1f;
@@ -1243,6 +1291,79 @@ namespace Punchy.Fauna
             for (int i = 0; i < b.Parts.Length; i++)
                 chain |= b.Parts[i].FollowGround && b.Parts[i].Parent < 0;
             b.Slithers = legs == 0 && chain;
+            MeasureLie(ref b);
+        }
+
+        /// <summary>
+        /// A-118: how high the body lies. Each leg that folds (hanging beneath a four-legged body) is posed fully folded
+        /// (CreatureBlob.LieFold, a hoofed hind leg rolled under the belly as it lies) and its lowest point below the
+        /// body's centre found: the body's front and rear must lie at least that high, and at least on the belly. The
+        /// body lies at the mean of the two, its nose tipped up by the difference over the span between the hips and
+        /// shoulders. (Before, it lay on the belly's radius alone: long legs had no room under it and sprawled.)
+        /// </summary>
+        static void MeasureLie(ref CreatureBlob b)
+        {
+            var belly = b.FrontRadius * b.BodyFlatten * 0.9f;
+            float front = 0f, hind = 0f, frontZ = 0f, hindZ = 0f, sideX = 0f;
+            int fronts = 0, hinds = 0;
+            for (int i = 0; i < b.Parts.Length; i++)
+            {
+                ref var part = ref b.Parts[i];
+                if (b.Upright || part.Role != LimbRole.Leg || part.Parent >= 0 || math.mul(part.Rest, new float3(0f, 0f, 1f)).y >= -0.7f)
+                    continue;
+                var isHind = part.Socket.z < 0f;
+                sideX = math.max(sideX, math.abs(part.Socket.x));
+                var pos = part.Socket;
+                var rot = part.Rest;
+                var low = 0f;
+                for (int s = 0; s < part.SegmentCount; s++)
+                {
+                    var seg = part.FirstSegment + s;
+                    var a = b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle];
+                    a.x += CreatureBlob.LieFold(s, part.SegmentCount, isHind, b.Hooves);
+                    rot = math.mul(rot, quaternion.EulerZXY(a));
+                    var start = pos;
+                    pos += math.mul(rot, new float3(0f, 0f, b.Segments[seg].Length));
+                    var end = pos;
+                    if (isHind && b.Hooves)
+                    {
+                        var roll = quaternion.AxisAngle(new float3(0f, 0f, 1f), CreatureBlob.HindRoll(false));
+                        start = part.Socket + math.mul(roll, start - part.Socket);
+                        end = part.Socket + math.mul(roll, end - part.Socket);
+                    }
+                    var r = math.max(b.Segments[seg].RadiusStart, b.Segments[seg].RadiusEnd) * b.Segments[seg].Flatten;
+                    low = math.max(low, math.max(-start.y, -end.y) + r);
+                }
+                if (isHind)
+                {
+                    hind = math.max(hind, low);
+                    hindZ += part.Socket.z;
+                    hinds++;
+                }
+                else
+                {
+                    front = math.max(front, low);
+                    frontZ += part.Socket.z;
+                    fronts++;
+                }
+            }
+            // (Only a body on four folding legs or more lies on the fold; birds and the rest lie on the belly as before.)
+            b.LiesOnFold = fronts >= 2 && hinds >= 2;
+            if (!b.LiesOnFold)
+            {
+                b.LieHeight = math.min(b.StandHeight, belly);
+                b.LiePitch = 0f;
+                return;
+            }
+            front = math.min(b.StandHeight, math.max(belly, front));
+            hind = math.min(b.StandHeight, math.max(b.RearRadius * b.BodyFlatten * 0.9f, hind));
+            frontZ /= fronts;
+            hindZ /= hinds;
+            var tilt = (front - hind) / math.max(frontZ - hindZ, 0.05f);
+            // (The body pitches about its centre, not midway between the hips and shoulders, so the height there is
+            // what puts both at their heights; a hoofed body also tips onto one side, dropping its low-side legs.)
+            b.LieHeight = math.min(b.StandHeight, front - frontZ * tilt + (b.Hooves ? math.sin(CreatureBlob.LieTip) * sideX : 0f));
+            b.LiePitch = math.atan(tilt);
         }
 
         /// <summary>End of a body-attached part's chain in the body frame, at one key pose.</summary>
