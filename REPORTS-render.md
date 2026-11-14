@@ -266,3 +266,38 @@ with main d95e7ff1); compiles, no suite run yet.
 - Shots (milestones folder R-27): ab1/, ab2/ (towndusk retake), sheet-a.jpg (contact sheet of the a shots).
 - Asks: review/merge `render/shadowcache-ddx`.
 - NEXT: R-28 row 1 (cobble grout), then row 2, then R-20 row 3 (#308).
+
+## R-28 row 1 (2026-11-14): cobble grout from the ground under the paving (#312)
+- Branch `render/cobble-depth` fc00aa06, on main 1746d62a. 5 files, +50/-14: TerrainSource.cs, BiomeData.cs,
+  BuildChunkMeshJob.cs, TerrainSurface.hlsl, TerrainSurface.shader.
+- DONE:
+  - `SurfaceProps.Under`: `SampleSurface` keeps the biome ground's albedo from before landmark paving is painted on.
+    It rides the spare yzw of the porosity vertex stream (half4, +4 B per vertex). The grout is that ground,
+    darkened and dirtied, so gaps read as sand in the desert town and wet soil in the fungal town. Moss only stays
+    where the ground under is green. Hand-built SurfaceProps (scarp skin, debris, ScarpClay) leave Under at 0, and
+    the shader then falls back to the albedo (the coordinator's ruling). The shader reads Under only under the cobble mask.
+  - The cobble fade now uses screen size (`_PunchyTerrainDetailPpm`) instead of metres. Flagstones fade at twice the
+    cobble distance. With the policy off it falls back to the old 30-80 m.
+  - No fingerprint change: surface data only, and the landmark hash is unchanged (`landmarks 117 689D5348`).
+- NOT DONE:
+  - There is no cobbled temperate or ash town, so the fungal town (-2511,-1530) stands in for the damp, green case.
+    The tundra town's street sits on soil, not snow, so its gaps are soil up close (lighter and snowier at 30 m).
+  - Metre ranges still in the cobble path, left for row 2 or later: steep 40-90, mouth 30-60, sheen 120-450, rain
+    ripple, grain 6-22, detailFade.
+- Checks:
+  - Compile clean, 0 shader messages. NaN `[sparkle] r28 summary: 360 frames, 0 with markers` (High).
+  - merge-tree clean against origin/main and origin/world/scarps. Whoever merges second fixes the one adjacent line
+    after SampleSurface in BuildChunkMeshJob.
+  - Suite after the last change: `completed: 38/40 passed, 2 failed`. FolkTalkTests.WalkBy_NeverThroughWall ("no
+    walk-by lines came up") and WorldTests.Place_PropFindsAndFramesWharf (stale LogWatch line). Both are the known
+    flakes on a rerun in the same editor domain (REPORTS-world). It was the third PlayMode run in this editor in 35 min.
+  - Crow cave (passed this run, no world changes on the branch): worst frame 725 ms, hitch 700 ms.
+  - Other PlayMode suite runs (not mine) ran in the render editor during the shot runs (about 12:20-12:48). The first
+    desert and fungal after shots came out cyan or white with no terrain, and I retook them once (`after_streamfail/`).
+- Shots (milestones folder R-28/row1): `before/`, `after/`, `ba-Clear.jpg` and `ba-Rain.jpg` (before beside after,
+  9 rows each), `C-check.jpg` (tundra: before / first factor / final), `rain-check.jpg`. The desert and fungal
+  after shots use the first grout darkening factor. The final one differs only slightly in the desert (about 0.64 vs
+  0.68 brightness), and the fungal town is unchanged.
+- Asks: the +4 B per vertex goes into the row 2 BENCH ask (terrain mesh memory and GPU ms in a town, A = main,
+  B = branch). Don't merge yet: row 2 adds commits to this branch.
+- NEXT: R-28 row 2 (bevel-height parallax, stone normal replaces the ground normals under the mask), then R-20 row 4.
