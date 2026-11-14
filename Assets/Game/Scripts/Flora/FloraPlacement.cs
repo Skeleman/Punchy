@@ -2675,7 +2675,8 @@ namespace Punchy.Flora
             var slope = math.degrees(math.acos(math.saturate(normal.y)));
             var elevation = ground.Height - source.World.SeaLevel;
             var nearWater = 1f - math.smoothstep(1.5f, 8f, -ground.WaterDepth);
-            var dry = 1f - math.saturate(ground.River * 1.5f);
+            // W-155: a bare strip behind a scarp's rim, ledges only on its face, scree fans past its foot (1 elsewhere).
+            var dry = (1f - math.saturate(ground.River * 1.5f)) * ScarpLife.PlantRoom(source, xz);
             var aspect = SunFacing(normal);
             var relief = 0f;
             var reliefKnown = false;
