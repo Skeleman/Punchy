@@ -7,8 +7,9 @@ namespace Punchy.Terrain
     /// Stepped pools (a hillside swamp's paddies), the last water a bake places (W-153 row 2, "still water last").
     /// A pond that stays above sea level is cut into paddy cells about <see cref="PaddySize"/> across (a warped,
     /// jittered cell grid, W-25). Each cell that can hold water gets one level, taken from the finished ground
-    /// (rivers, gorges, landmarks and falls already cut) at its centre, and baked into <see cref="Paddies"/>. A cell
-    /// on a slope too steep for a pool, over other water or at the sea's edge gets none and stays plain ground.
+    /// (rivers, gorges, landmarks and falls already cut) at its centre, or on a hillside cell from its lowest ground
+    /// (row 2b), and baked into <see cref="Paddies"/>. A cell on a slope too steep for a pool, over other water or at
+    /// the sea's edge gets none and stays plain ground.
     /// At run time the pool only follows the ground it stands on: it is a shallow cut along the contour at its level
     /// with a low rim on the downhill side, so it can never refill a gorge or stand as a wall above its surroundings.
     /// </summary>
@@ -28,11 +29,18 @@ namespace Punchy.Terrain
         const float PaddyDrop = 0.15f;
         /// <summary>
         /// Gates of a cell (see BuildPaddies): the ground is checked on a grid of PaddyProbeStep out to PaddyProbeReach
-        /// from the centre; two neighbouring probes may differ by PaddyMaxStep at most (about a 17 % slope: steeper, and a pool one rim high would stand as a wall), the lowest
+        /// from the centre; two neighbouring probes may differ by PaddyMaxStep at most (about a 50 % slope), the lowest
         /// must be PaddySeaClear above the sea, and the pond must cover the centre by PaddyMinCover.
         /// </summary>
-        const float PaddyProbeStep = 3.5f, PaddyProbeReach = 12.5f, PaddyMaxStep = 0.6f, PaddySeaClear = 1f, PaddyMinCover = 0.3f;
+        const float PaddyProbeStep = 3.5f, PaddyProbeReach = 12.5f, PaddySeaClear = 1f, PaddyMinCover = 0.3f, PaddyMaxStep = 1.8f;
         const int PaddyProbes = 9;
+        /// <summary>
+        /// W-153 row 2b, hillside pools: on a cell steeper than PaddyHillStep between two probes (about 17 %; a level
+        /// taken at the centre would stand a rim's height above the downhill side, a wall) the pool sits low instead,
+        /// PaddyHillLift above the lowest ground within PaddyHillReach of the centre. It is then a small pool on the
+        /// downhill side of the cell, cut into the slope above it, and never higher than the ground below it.
+        /// </summary>
+        const float PaddyHillStep = 0.6f, PaddyHillReach = 7f, PaddyHillLift = 0.1f;
 
         /// <summary>A point in paddy cell units. The grid is warped so cells aren't rows of boxes.</summary>
         static float2 PaddyPoint(float2 xz) =>
@@ -169,6 +177,7 @@ namespace Punchy.Terrain
                         continue;
                     // The ground round the centre: no other water, clear of the sea, and gentle enough for a level pool.
                     bool isWet = false, isLow = false, isSteep = false;
+                    var steepest = 0f;
                     for (int i = 0; i < heights.Length; i++)
                     {
                         var offset = (new float2(i % PaddyProbes, i / PaddyProbes) - (PaddyProbes - 1) * 0.5f) * PaddyProbeStep;
@@ -184,15 +193,29 @@ namespace Punchy.Terrain
                     {
                         if (float.IsNaN(heights[i]))
                             continue;
-                        if (i % PaddyProbes > 0 && math.abs(heights[i] - heights[i - 1]) > PaddyMaxStep)   // NaN compares false
-                            isSteep = true;
-                        if (i >= PaddyProbes && math.abs(heights[i] - heights[i - PaddyProbes]) > PaddyMaxStep)
-                            isSteep = true;
+                        // A neighbour outside the reach is NaN and skipped.
+                        if (i % PaddyProbes > 0 && !float.IsNaN(heights[i - 1]))
+                            steepest = math.max(steepest, math.abs(heights[i] - heights[i - 1]));
+                        if (i >= PaddyProbes && !float.IsNaN(heights[i - PaddyProbes]))
+                            steepest = math.max(steepest, math.abs(heights[i] - heights[i - PaddyProbes]));
+                        isSteep = steepest > PaddyMaxStep;
                     }
                     if (isWet) { System.Threading.Interlocked.Increment(ref wet); continue; }
                     if (isLow) { System.Threading.Interlocked.Increment(ref low); continue; }
                     if (isSteep) { System.Threading.Interlocked.Increment(ref steep); continue; }
                     var level = heights[heights.Length / 2] - PaddyDrop;
+                    if (steepest > PaddyHillStep)
+                    {
+                        // A hillside cell: the pool sits on its downhill side (see PaddyHillStep).
+                        var lowest = float.MaxValue;
+                        for (int i = 0; i < heights.Length; i++)
+                        {
+                            var offset = (new float2(i % PaddyProbes, i / PaddyProbes) - (PaddyProbes - 1) * 0.5f) * PaddyProbeStep;
+                            if (!float.IsNaN(heights[i]) && math.length(offset) <= PaddyHillReach)
+                                lowest = math.min(lowest, heights[i]);
+                        }
+                        level = lowest + PaddyHillLift;
+                    }
                     levels[z * n + x] = (ushort)math.clamp((int)math.round((level - sea) / PaddyLevelStep), 1, ushort.MaxValue);
                     System.Threading.Interlocked.Increment(ref kept);
                 }
