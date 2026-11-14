@@ -331,3 +331,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-14: Zach asked if colossi use the library: no (Colossus.shader, flat vertex colour). W-166 now includes them; fauna owns the colossus calls.
 - 11-14: merged #285 (R-19 steep rock, High+ by default) -> 1c9a0111; #281 reopened (geometry still open). Render next: R-36 row 1, R-20 row 1.
 - 11-14: opened and merged #346 (bake determinism, synchronous Burst for 14 bake jobs) -> 02c2b3b8; hashes unchanged. Cross-CPU risk noted in W-168 row 2. World next: W-168 row 1.
+- 11-14: opened and merged #347 (A-114 pocket reach) -> 4006cab3; #314 closed. Follow-up for folk: pocketSeen never drops despawned bodies (small leak); build went to Builds/Windows not Builds/Dev. Folk next: A-115 (#315).
