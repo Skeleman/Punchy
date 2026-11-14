@@ -4347,6 +4347,26 @@ Where A-109 differs from A-108: herds are anonymous and seeded per 512 m cell fr
 - Asks: none. BENCH: none (no per-frame cost added; one RPC per change).
 - NEXT: row 7, details (tenet) and A-109 row 4: lantern at night, dawn boat, washing, pier wave; then row 7b.
 
+## 2026-11-14 A-110 row 7: far town details (lanterns, a dawn rower, washing lines) and A-109 row 4
+- DONE: #298 #25 From a distance, towns now show small signs of their real people. After dark, a resident's far figure on its way somewhere carries a lit lantern. At dawn, a town's moored boat is rowed out with its lamp lit, by a real resident whom Whereabouts keeps at home that morning (a fisher if the town has one, otherwise a grown worker). By day, houses hang washing on a line. A fisher's far figure waves from the shore. All of it is drawn only, built from the TownPlan and household records, costs no entities and sends nothing. Modules: CreatureRenderSystem.FarDetails (new partial: boat, rower, washing), CreatureRenderSystem.FarFolk (lanterns, waves), CreatureRenderSystem (hook-up) (fauna/one-population 137377ad)
+- Thresholds: the new pieces use named pixel sizes read through DetailPolicy.ScreenSize. No DetailPolicy or LandmarkEffectSystem edit.
+- Checks:
+  - Suite (batchmode PlayMode, own project path, editor closed): 61 total, 44 passed, 0 failed, 17 skipped; Fauna_Fingerprint 6A9E28E5 (unchanged). Landmarks unchanged.
+  - -fardetails log: 56 washing lines over 157 houses; 4 boat places; at 4.87 h "4 boats (1 rowed, 1 lamps)": the DwarfHold boat, rowed by worker 0 (house 70); town 73 at 22 h: 3 lanterns, 0 waving.
+- NOT DONE / UNVERIFIED:
+  - No waves can be seen in this world: no town with a TownPlan has a fisher. Fishers live in fishing villages, which have no far town plan yet. Waves (and fisher rowers) need fishing-village far forms in a later card.
+  - The boats at #106, #108 and #109 stay unmanned because those places have no plan. The DwarfHold boat's out point is only about 9 m from its mooring, so the row out is short.
+  - Up close the rower is a far body only. A rower whose creature is live is hidden, not handed over. Live creatures' far figures carry no lantern.
+  - The rower is Inside by Whereabouts, so HomeSign may show the house as lived in while the boat is out.
+  - Washing lines are subtle at 150 m.
+- Rule 25: nothing new is visible at distance without a far form.
+- Shots (PunchyMilestones/A-110/; full size in gallery/):
+  - r7-lanterns-night.jpg: town 73 at 22 h, residents walking home with lanterns.
+  - r7-dawn-boat.jpg: (centre crop) the DwarfHold boat at 4.87 h, rowed by a resident, lamp lit.
+  - r7-washing-day.jpg: town 73 at 10 h, washing on lines between houses.
+- Asks: none. No BENCH request (drawn-only instances; job 83 covers row 5).
+- NEXT: A-110 row 7b (Marek, Kael, Quill: cause and fix each, one dusk run with stuck 0), started. No editor, build, loop or Punchy.exe of mine is running.
+
 ## A-107
 
 ### Row 1: graded climb sections on colossi (done, verified, #276, fauna/colossus-climb b2ad690b)
