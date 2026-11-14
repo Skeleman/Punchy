@@ -306,3 +306,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-14: W-163 carded (#330): wood grain + static strangler roots, world 3f; references are NC-SA, reimplement only.
 - 11-14: R-33 carded (#331): cracked salt crust, render after R-31; W-163 row 3 cracked bark shares the cell search.
 - 11-14: R-34 carded (#332): wet-stone trial sheet, render after R-32 rows 1-2; check the sheet before sending.
+- 11-14: R-31 row 2 adds prototype (d), GoT-style Bezier blades and Voronoi clumps (MIT reference, keep notice).
