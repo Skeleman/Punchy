@@ -16,6 +16,7 @@ struct LandmarkEmitter
     float2 outDir;   // waterfall: horizontal direction the water travels
     float drop;      // waterfall: height of the fall
     float underRock; // 1 for a cave's waterfall: no sun, a trace of sky, lit by the lantern and glowing things
+    float4 fall;     // waterfall: lip skew, lip bow (m), cascade 0..1, what it lands on (FallLanding)
 };
 
 StructuredBuffer<LandmarkEmitter> _LandmarkEmitters;
@@ -39,7 +40,7 @@ half3 PunchyEffectLight(LandmarkEmitter e, float3 p, half3 n, half3 sun, half3 s
     return lerp(light, dot(light, half3(0.3, 0.5, 0.2)) * half3(0.82, 0.95, 1.12), 0.6) + half3(0.02, 0.03, 0.04);
 }
 uint _MaxParticles;
-float4 _WaterfallGrid;   // columns, rows
+float4 _WaterfallGrid;   // columns, rows, the first emitter of the draw
 float2 _PunchyWindDirection;
 half _PunchyWind;
 
@@ -130,41 +131,77 @@ struct FallVertex
 {
     float3 positionWS;
     float3 normalWS;
-    float2 uv;      // across 0..1, down 0..1
+    float2 uv;      // across 0..1, down the fall 0..1
     float fallLength;   // metres of fall, for streak scale
+    float lipIn;    // 0 on the water behind the lip, 1 once over it
+    uint emitter;   // which emitter the sheet is
 };
 
-/// A curtain of water: leaves the lip horizontally and falls on a parabola. In the open (R-21) it is one curved sheet:
-/// its middle carries further out than its sides, it narrows a little as it thins, and its edge columns peel away as
-/// strands; a cave's leaves a narrow notch and spreads as it drops.
-FallVertex BuildWaterfall(uint vertex, uint instance)
-{
-    LandmarkEmitter e = _LandmarkEmitters[instance];
-    uint columns = (uint)_WaterfallGrid.x;
-    uint quad = vertex / 6;
-    float2 corner = EffectCorner[vertex % 6] * 0.5 + 0.5;
-    float u = ((quad % columns) + corner.x) / _WaterfallGrid.x;
-    float t = ((quad / columns) + corner.y) / _WaterfallGrid.y;
+/// An uneven line along a lip (-1..1): two waves across it, the fall's own.
+float FallLipWave(float x, float seed) { return sin(x * 1.3 + seed * 37.0) * 0.6 + sin(x * 3.1 + seed * 91.0) * 0.4; }
 
+/// R-21 row 4, the one fall builder: a point of a fall's sheet from its description alone (the emitter: lip, pour
+/// direction, run, drop, width, lip skew and bow, cascade). u runs across it, f from behind its lip to its foot. In
+/// the open the first of f is the water rolling over the lip: it starts flat on the water a little behind the lip
+/// line (an oblique or bowed line, uneven along its length) and curves over; the rest (tau, 0..1) falls, thrown
+/// clear on a parabola when sheer and nearer a straight slide, in bumps, when a cascade. The middle carries further
+/// out than the sides, the reach and the width waver, and the edge columns peel away as strands. A cave's fall
+/// leaves a narrow notch on a plain parabola and spreads as it drops.
+float3 FallPoint(LandmarkEmitter e, float u, float f, out float tau, out float lipIn)
+{
     float3 outDir = float3(e.outDir.x, 0, e.outDir.y);
     float3 across = normalize(cross(float3(0, 1, 0), outDir));
     float open = 1 - e.underRock;
     float side = u * 2 - 1;
-    // The sheet bows: its middle carries up to 15% further out than its sides.
-    float reach = e.shape.x * (1 + 0.15 * open * (1 - side * side));
-    float width = e.shape.y * lerp(1 - 0.12 * t, 0.55 + 0.75 * t, e.underRock);
-    float3 p = e.position + outDir * reach * t - float3(0, e.drop * t * t, 0) + across * (u - 0.5) * width;
-    // The outer columns splay outwards as they fall, strands peeling off the sheet's sides.
-    p += across * sign(side) * smoothstep(0.75, 1, abs(side)) * t * t * min(0.08 * e.drop, 1.2) * open;
-    // Ripple the sheet so it isn't a perfect surface.
-    p += outDir * sin(u * 9.0 + t * 4.0 + _PunchyClock * 1.7) * 0.15 * t;
+    float x = (u - 0.5) * e.shape.y;
+    float runIn = 0.12 * open;
+    lipIn = runIn > 0 ? saturate(f / runIn) : 1;
+    tau = saturate((f - runIn) / (1 - runIn));
 
-    float3 tangent = normalize(outDir * reach - float3(0, 2 * e.drop * t, 0));   // nan-safe: reach > 0
+    float lipShift = (e.fall.x * side * 0.5 - e.fall.y * side * side + FallLipWave(x, e.seed) * min(0.6, e.shape.y * 0.08)) * open;
+    float run = e.shape.x * (1 + open * (0.15 * (1 - side * side) + 0.1 * FallLipWave(x * 0.7 + 11.0, e.seed + 0.37)));
+    float dip = 0.15 * open;
+    float down = dip * lipIn * lipIn + (e.drop - dip) * pow(tau, lerp(2.0, 1.15, e.fall.z));
+    float along = lipShift - 1.5 * (1 - lipIn) * open + run * tau;
+    float width = e.shape.y * lerp(1 - 0.12 * tau, 0.55 + 0.75 * tau, e.underRock) * (1 + open * 0.06 * sin(tau * 5.0 + e.seed * 20.0));
+
+    float3 p = e.position + outDir * along - float3(0, down, 0) + across * (u - 0.5) * width;
+    // A cascade breaks over the steps of its slope.
+    p += outDir * e.fall.z * 0.3 * sin(tau * (e.drop + run) * 0.9 + x * 0.8 + e.seed * 17.0) * sin(3.14159 * tau);
+    // The outer columns splay outwards as they fall, strands peeling off the sheet's sides.
+    p += across * sign(side) * smoothstep(0.75, 1, abs(side)) * tau * tau * min(0.08 * e.drop, 1.2) * open;
+    // Ripple the sheet so it isn't a perfect surface.
+    p += outDir * sin(u * 9.0 + tau * 4.0 + _PunchyClock * 1.7) * 0.15 * tau;
+    return p;
+}
+
+/// A fall's sheet, on the grid the draw gives (rule 20: a fine one for the falls that look big, a coarse one for
+/// the rest, LandmarkEffectSystem.FallTiers).
+FallVertex BuildWaterfall(uint vertex, uint instance)
+{
+    uint index = instance + (uint)_WaterfallGrid.z;
+    LandmarkEmitter e = _LandmarkEmitters[index];
+    uint columns = (uint)_WaterfallGrid.x;
+    uint quad = vertex / 6;
+    float2 corner = EffectCorner[vertex % 6] * 0.5 + 0.5;
+    float u = ((quad % columns) + corner.x) / _WaterfallGrid.x;
+    float f = ((quad / columns) + corner.y) / _WaterfallGrid.y;
+
+    float tau, lipIn, tau2, lipIn2;
+    float3 p = FallPoint(e, u, f, tau, lipIn);
+    // The normal from the sheet's own shape (steps taken inwards, so the last row and column have one too).
+    float du = u > 0.5 ? -0.02 : 0.02, df = f > 0.5 ? -0.02 : 0.02;
+    float3 dPu = (FallPoint(e, u + du, f, tau2, lipIn2) - p) * sign(du);
+    float3 dPf = (FallPoint(e, u, f + df, tau2, lipIn2) - p) * sign(df);
+    float3 n = cross(dPu, dPf);
+
     FallVertex o;
     o.positionWS = p;
-    o.normalWS = normalize(cross(across, tangent));
-    o.uv = float2(u, t);
+    o.normalWS = n / max(length(n), 1e-5);   // nan-safe
+    o.uv = float2(u, tau);
     o.fallLength = e.drop + e.shape.x;
+    o.lipIn = lipIn;
+    o.emitter = index;
     return o;
 }
 

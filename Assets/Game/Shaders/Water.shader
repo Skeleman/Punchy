@@ -123,6 +123,10 @@ Shader "Punchy/Water"
                 o.positionWS = PunchyWaterPatchVertex(rest, input.data, input.parent, input.parentY, _PunchyClock, swell);
             #else
                 o.positionWS = PunchySwellVertex(rest, input.data.z, _PunchyClock, swell);
+                // R-21 row 4: the water dips above a fall's lip and heaves at its foot (the same move as the main pass's).
+                float fallChurn;
+                float2 fallSlope;
+                o.positionWS.y += PunchyFallWater(rest, _PunchyClock, 0, fallChurn, fallSlope);
             #endif
                 o.positionCS = TransformWorldToHClip(o.positionWS);
                 return o;
@@ -256,6 +260,11 @@ Shader "Punchy/Water"
                 pos.positionWS = PunchyWaterPatchVertex(pos.positionWS, input.data, input.parent, input.parentY, _PunchyClock, o.swell);
             #else
                 pos.positionWS = PunchySwellVertex(pos.positionWS, input.data.z, _PunchyClock, o.swell);
+                // R-21 row 4: the water dips above a fall's lip and heaves at its foot (broad moves only: this mesh
+                // is too coarse for the short waves, which the fine sheet and the fragment's slope carry).
+                float fallChurnV;
+                float2 fallSlopeV;
+                pos.positionWS.y += PunchyFallWater(float3(o.restXZ.x, pos.positionWS.y, o.restXZ.y), _PunchyClock, 0, fallChurnV, fallSlopeV);
             #endif
                 pos.positionCS = TransformWorldToHClip(pos.positionWS);
                 o.positionCS = pos.positionCS;
@@ -655,6 +664,16 @@ Shader "Punchy/Water"
                     wakeFoam = max(wakeFoam, (half)(fallChurn * 0.7));
                 }
             #endif
+                // R-21 row 4: round every fall the water tilts with its dip, its turbulence above the lip and the
+                // rings spreading from its foot, and whitens where it is churned (the short waves fade out by the
+                // pixels a metre covers, rule 20).
+                {
+                    float fallWaterChurn;
+                    float2 fallWaterSlope;
+                    PunchyFallWater(float3(input.restXZ.x, input.positionWS.y, input.restXZ.y), t, smoothstep(3, 9, pixelsPerMetre), fallWaterChurn, fallWaterSlope);
+                    wakeSlope += fallWaterSlope;
+                    wakeFoam = max(wakeFoam, (half)(fallWaterChurn * 0.7));
+                }
                 // Murky water barely ripples; thick water instead heaves in slow, broad swells and bubbles.
                 slope *= 1 - 0.75 * murk;
                 float3 bubbles = 0;

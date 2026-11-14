@@ -38,7 +38,7 @@ namespace Punchy.Terrain
 
         /// <summary>One fall's sheet: the rectangle round it, and what the shader is told of it (its lip and drop, which
         /// way it pours and its half width, and how far along its flow the sheet starts, the foot is, and it ends).</summary>
-        struct FallShape
+        struct FallSheetShape
         {
             public int2 Corner, Extent;
             public float3 Middle;
@@ -54,7 +54,7 @@ namespace Punchy.Terrain
         readonly Dictionary<int2, byte> fallLevels = new Dictionary<int2, byte>(), fallNextLevels = new Dictionary<int2, byte>();
         /// <summary>The fall chosen (held while it still looks big enough), the one on show, and the one being cut.</summary>
         int fallChosen = -1, fallShown = -1, fallCut = -1;
-        FallShape fallShape, shownFallShape, cutFallShape;
+        FallSheetShape fallShape, shownFallShape, cutFallShape;
         int shownFallBuilds, cutFallBuilds;
         float shownFallCamera, cutFallCamera, shownFallDetail, cutFallDetail;
         Bounds shownFallBounds, cutFallBounds;
@@ -217,11 +217,11 @@ namespace Punchy.Terrain
         /// <summary>A cave waterfall's sheet: its run-in from just inside the notch, and its curtain out and down to the pool
         /// (the foot where it lands). Its rectangle is centred on the lip, only so the shader's rectangle holds it: its cells
         /// are the sheet's own (CaveQuads), not the ground's.</summary>
-        static FallShape CaveShape(CaveWaterfall f)
+        static FallSheetShape CaveShape(CaveWaterfall f)
         {
             var o = math.normalizesafe(f.Out, new float2(0f, 1f));
             float reach = f.Carry;
-            return new FallShape
+            return new FallSheetShape
             {
                 Corner = (int2)math.floor(f.Lip.xz) - FallWidth / 2,
                 Extent = new int2(FallWidth, FallWidth),
@@ -235,7 +235,7 @@ namespace Punchy.Terrain
         /// <summary>A cave waterfall's quads: across its width in metre columns, and along it a short run-in at the lip
         /// (0.4 m) then the curtain in rows of about 2 m from the lip to where it lands, all standing in for chunk water
         /// cells of the shape's rectangle (columns along x, rows along z, so they wind as the ground's do).</summary>
-        void CaveQuads(CaveWaterfall f, in FallShape shape)
+        void CaveQuads(CaveWaterfall f, in FallSheetShape shape)
         {
             var o = math.normalizesafe(f.Out, new float2(0f, 1f));
             var across = new float3(o.y, 0f, -o.x);
@@ -267,7 +267,7 @@ namespace Punchy.Terrain
 
         /// <summary>A fall's sheet: from 5 m above the lip to 10 m past the foot (where the water first lies at the pool's
         /// level), and its width and 2 m more either side, in a rectangle of cells round that.</summary>
-        static FallShape Shape(ref TerrainSource source, RiverFall f)
+        static FallSheetShape Shape(ref TerrainSource source, RiverFall f)
         {
             var o = math.normalizesafe(f.Out, new float2(0f, 1f));
             var across = new float2(-o.y, o.x);
@@ -293,7 +293,7 @@ namespace Punchy.Terrain
             var extent = math.min((int2)math.ceil(hi) - corner, FallWidth);
             var spare = (int2)math.ceil(hi) - corner - extent;
             corner += spare / 2;
-            return new FallShape
+            return new FallSheetShape
             {
                 Corner = corner,
                 Extent = extent,

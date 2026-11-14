@@ -24,10 +24,7 @@ namespace Punchy.Ambience
         public float Range = 700f;
         /// <summary>Flame effects are lit within this distance (they're small; FireSystem draws them each frame).</summary>
         const float FlameRange = 150f;
-        /// <summary>How far a cave's waterfall carries out from its notch as it falls (m).</summary>
-        const float FallReach = Punchy.Terrain.CaveWaterfall.NotchReach;
-        /// <summary>River waterfalls: how far the water carries out as it falls (m), and the index offsets.</summary>
-        const float RiverFallReach = 1.6f;
+        /// <summary>The index offsets of river falls, their spray and the grand falls' tiers in the nearby list.</summary>
         const int RiverFallBase = 1000000, RiverSprayBase = 1500000, GrandFallBase = 2000000;
         /// <summary>
         /// R-21 row 2 (rule 20): a river fall's curtain is drawn while the fall (its size the larger of its drop and its
@@ -59,24 +56,41 @@ namespace Punchy.Ambience
             public float2 Out;      // waterfall: horizontal direction the water travels
             public float Drop;      // waterfall: height of the fall
             public float UnderRock; // 1 for a cave's waterfall (lit as underground)
+            public float4 Fall;     // waterfall: its lip's skew and bow (m), how much it is a cascade, what it lands on
         }
 
-        const int WaterfallColumns = 16, WaterfallRows = 24;
+        /// <summary>
+        /// R-21 row 4 (rule 20): a fall's sheet is the fine grid (its lip rolling over, its edges and thin places in
+        /// small steps) while the fall looks at least FallFinePixels reference pixels big, and the coarse one beyond,
+        /// where it is one cheap sheet. Held by Hysteresis.
+        /// </summary>
+        const float FallFinePixels = 90f;
+        const int FineColumns = 32, FineRows = 48, CoarseColumns = 12, CoarseRows = 16;
 
         readonly List<Emitter> plumes = new List<Emitter>();
+        /// <summary>Every fall in range, and the one description each was built from (FallShape), in step.</summary>
         readonly List<Emitter> falls = new List<Emitter>();
+        readonly List<FallShape> fallShapes = new List<FallShape>();
+        /// <summary>The falls as drawn: the first fineCount on the fine grid, the rest on the coarse one.</summary>
+        readonly List<Emitter> fallDraw = new List<Emitter>();
+        HashSet<float3> fineFalls = new HashSet<float3>(), fineNow = new HashSet<float3>();
+        int fineCount;
         /// <summary>
         /// R-21: river waterfalls are curtains again, one curved sheet over each drop, and the river's own surface leaves
-        /// its stepped face out under them (Water.shader, WaterField.hlsl). Each curtain's box for the water shader: its
-        /// lip (top middle) and half width, then which way it pours, how far out its foot is and the pool's level. Only the
-        /// nearest MaxRiverCurtains falls are drawn (and boxed), so a face is never hidden without its curtain.
+        /// its stepped face out under them (Water.shader, WaterField.hlsl). Each fall's box for the water and the ground
+        /// (RiverCurtains.hlsl): its lip (top middle) and half width; which way it pours, how far out its foot is and the
+        /// pool's level; its lip line's skew and bow, how far behind the lip the water is left out (0: not at all) and
+        /// its seed. Only the nearest MaxRiverCurtains river falls are drawn (and boxed), so a face is never hidden
+        /// without its curtain.
         /// </summary>
         const int MaxRiverCurtains = 32;
-        readonly Vector4[] curtainLip = new Vector4[MaxRiverCurtains], curtainPour = new Vector4[MaxRiverCurtains];
+        readonly Vector4[] curtainLip = new Vector4[MaxRiverCurtains], curtainPour = new Vector4[MaxRiverCurtains],
+            curtainFoot = new Vector4[MaxRiverCurtains];
         readonly List<(int index, float distance)> riverNear = new List<(int, float)>();
         int curtainCount;
         static readonly int CurtainLipId = Shader.PropertyToID("_PunchyRiverCurtainLip");
         static readonly int CurtainPourId = Shader.PropertyToID("_PunchyRiverCurtainPour");
+        static readonly int CurtainFootId = Shader.PropertyToID("_PunchyRiverCurtainFoot");
         static readonly int CurtainCountId = Shader.PropertyToID("_PunchyRiverCurtainCount");
         static readonly int CurtainRectId = Shader.PropertyToID("_PunchyRiverCurtainRect");
         /// <summary>Nearby landmarks' flames (position, size; seed, palette), handed to FireSystem every frame.</summary>
@@ -87,7 +101,7 @@ namespace Punchy.Ambience
         static readonly int NightId = Shader.PropertyToID("_PunchyNight");
         readonly List<int> nearby = new List<int>(), lastNearby = new List<int>();
         GraphicsBuffer plumeBuffer, fallBuffer;
-        MaterialPropertyBlock plumeProps, fallProps;
+        MaterialPropertyBlock plumeProps, fallProps, fallCoarseProps;
         int maxParticles;
         Bounds bounds;
         World queryWorld;
@@ -105,6 +119,7 @@ namespace Punchy.Ambience
             fallBuffer?.Release();
             plumeBuffer = fallBuffer = null;
             lastNearby.Clear();
+            fineFalls.Clear();
             // (No curtains drawn: the water draws its falls' faces again.)
             Shader.SetGlobalFloat(CurtainCountId, 0f);
             foreach (var handle in fallLoops.Values)
@@ -131,7 +146,8 @@ namespace Punchy.Ambience
             if (Time.unscaledTime >= nextCheck)
             {
                 nextCheck = Time.unscaledTime + 0.5f;
-                Gather(source, palette.Landmarks, cam.transform.position);
+                var rebuilt = Gather(source, palette.Landmarks, cam.transform.position);
+                FallTiers(cam.transform.position, rebuilt);
             }
             var eye = cam.transform.position;
             FallSounds(eye);
@@ -261,23 +277,14 @@ namespace Punchy.Ambience
         void GrandTier(ref GrandFallTier t, float seed, ref float3 min, ref float3 max)
         {
             var main = t.Drop > 30f;
-            var reach = main ? 3f + t.Drop * 0.06f : RiverFallReach + t.Drop * 0.05f;
+            var reach = 0f;
             var out3 = new float3(t.Out.x, 0f, t.Out.y);
-            var side = new float3(-t.Out.y, 0f, t.Out.x);
             int curtains = main && !t.Shelf ? 3 : 1; // a lake shelf stretch is one sheet, as wide as its chord of the lip (W-81)
             for (int c = 0; c < curtains; c++)
             {
-                var offset = curtains == 1 ? 0f : (c - 1) * t.Width * 0.3f;
-                falls.Add(new Emitter
-                {
-                    Position = t.Lip + side * offset,
-                    Seed = math.frac(seed + c * 0.37f),
-                    Color = new float4(0.6f, 0.72f, 0.76f, 0f),
-                    Shape = new float4(reach, t.Width * (t.Shelf ? 1f : main ? 0.4f : 0.85f), main ? 2.4f : 1.3f, main ? 3.4f : 1.9f),
-                    Timing = new float4(0f, 0.25f, 0.85f, 24f),
-                    Out = t.Out,
-                    Drop = t.Drop
-                });
+                var shape = FallShape.Grand(t, seed, c, curtains);
+                reach = shape.Run;
+                AddFall(shape, new float4(0.6f, 0.72f, 0.76f, 0f), main ? 2.4f : 1.3f, main ? 3.4f : 1.9f, 0.85f, ref min, ref max);
             }
             var foot = t.Lip + out3 * reach - new float3(0f, t.Drop, 0f);
             plumes.Add(new Emitter
@@ -291,11 +298,7 @@ namespace Punchy.Ambience
                 Position = new float3(t.Pool.x, t.Pool.y + 0.1f, t.Pool.z), Seed = math.frac(seed + 0.62f), Color = new float4(0.92f, 0.94f, 0.96f, 0f),
                 Shape = new float4(0.3f, t.PoolRadius * 1.3f, main ? 2f : 1.2f, 2.4f), Timing = new float4(0f, 0.25f, 0.6f, 24f)
             });
-            plumes.Add(new Emitter
-            {
-                Position = t.Lip + out3 * 0.8f - new float3(0f, 0.3f, 0f), Seed = math.frac(seed + 0.9f), Color = new float4(0.94f, 0.96f, 1f, 0f),
-                Shape = new float4(1.2f, t.Width * 0.8f, 1.1f, 1.4f), Timing = new float4(0f, 0.25f, 0.4f, 24f)
-            });
+            LipSpray(t.Lip, t.Out, t.Width * 0.8f, math.frac(seed + 0.9f), 1f, 0.4f);
             if (main)
             {
                 // Mist: two big soft plumes rising from the pool, the higher one drifting up the face.
@@ -316,86 +319,95 @@ namespace Punchy.Ambience
         }
 
         /// <summary>
-        /// R-21: where a river fall's face really is on the water, which the fall's lip (its river cell's middle) only
-        /// roughly gives: the face starts where the water first drops away below the lip and ends where it reaches the
-        /// pool, and is as wide as the wet water just above it. Out come the curtain's lip (top middle, on the water), which
-        /// way it pours, how far out its foot lands, its drop and its width.
+        /// R-21 row 4: one fall, whatever made it, from its description alone: its sheet's emitter (the shader builds
+        /// the sheet from it), its description kept beside it for the water's boxes and the fine/coarse choice.
         /// </summary>
-        static void RiverCurtain(in TerrainSource source, in RiverFall f, out float3 lip, out float2 pour, out float reach,
-            out float drop, out float width)
+        void AddFall(in FallShape s, float4 color, float size, float lifetime, float opacity, ref float3 min, ref float3 max)
         {
-            var o = math.normalizesafe(f.Out, new float2(0f, 1f));
-            var across = new float2(-o.y, o.x);
-            var top = f.Lip.y;
-            var pool = f.Lip.y - f.Drop;
-            float start = 0f, foot = 4f;
-            var started = false;
-            for (float s = -4f; s < 14f; s += 0.25f)
+            falls.Add(new Emitter
             {
-                var w = source.SampleGround(f.Lip.xz + o * s).WaterSurface;
-                if (!started && w < top - 0.25f)
-                {
-                    start = s;
-                    started = true;
-                }
-                if (w < pool + 0.4f)
-                {
-                    foot = s;
-                    break;
-                }
-            }
-            foot = math.max(foot, start + 0.5f);
-            // The wet width just above the face (water over the ground at about the lip's level), and its middle.
-            var above = f.Lip.xz + o * (start - 0.5f);
-            // (Walked out from the middle until the water ends, so a pool spilling over the whole step is covered.)
-            var half = f.Width * 0.5f + 16f;
-            float lo = float.MaxValue, hi = float.MinValue;
-            for (int dir = -1; dir <= 1; dir += 2)
-                for (float c = 0f; c <= half; c += 0.5f)
-                {
-                    var g = source.SampleGround(above + across * (c * dir));
-                    if (!(g.HasWater && g.WaterSurface > g.Height + 0.02f && math.abs(g.WaterSurface - top) < 1.5f))
-                    {
-                        if (c > f.Width * 0.5f)
-                            break;
-                        continue;
-                    }
-                    lo = math.min(lo, c * dir);
-                    hi = math.max(hi, c * dir);
-                }
-            if (lo > hi)
-            {
-                lo = -f.Width * 0.5f;
-                hi = f.Width * 0.5f;
-            }
-            var mid = above + across * ((lo + hi) * 0.5f) + o * 0.2f;
-            var level = source.SampleGround(mid).WaterSurface;
-            if (!(math.abs(level - top) < 1.5f))
-                level = top;
-            lip = new float3(mid.x, level + 0.05f, mid.y);
-            pour = o;
-            reach = math.max(foot - start + 0.3f, 0.6f);
-            drop = math.max(lip.y - pool, 1f);
-            width = math.max(hi - lo + 0.5f, 2f);
+                Position = s.Lip,
+                Seed = s.Seed,
+                Color = color,
+                Shape = new float4(s.Run, s.Width, size, lifetime),
+                Timing = new float4(0f, 0.25f, opacity, 20f),
+                Out = s.Out,
+                Drop = s.Drop,
+                UnderRock = s.UnderRock ? 1f : 0f,
+                Fall = new float4(s.Skew, s.Bow, s.Cascade, (float)s.Landing)
+            });
+            fallShapes.Add(s);
+            min = math.min(min, s.Foot - 6f);
+            max = math.max(max, s.Lip + 6f);
         }
 
-        /// <summary>R-21: hands the river curtains' boxes to the water shader, with a rectangle round them all so water
-        /// far from every fall skips the test.</summary>
+        /// <summary>White water thrown off a fall's lip (Z-35): a low plume just out from it, as wide as given.</summary>
+        void LipSpray(float3 lip, float2 pour, float width, float seed, float scale, float opacity)
+        {
+            plumes.Add(new Emitter
+            {
+                Position = lip + new float3(pour.x, -0.3f, pour.y) * 0.8f, Seed = seed, Color = new float4(0.94f, 0.96f, 1f, 0f),
+                Shape = new float4(1.2f * scale, width, 1.1f * scale, 1.4f), Timing = new float4(0f, 0.25f, opacity, 24f)
+            });
+            maxParticles = math.max(maxParticles, 24);
+        }
+
+        /// <summary>
+        /// R-21: hands the open falls' boxes to the water and ground shaders (RiverCurtains.hlsl), with a rectangle round
+        /// them all so anything far from every fall skips the test. River falls go first (the water leaves their faces
+        /// out, so none may be dropped); a cave's fall has none, its water being the cave bake's.
+        /// </summary>
         void SetCurtainBoxes()
         {
+            curtainCount = 0;
             var rect = new Vector4(1f, 1f, -1f, -1f);
-            for (int k = 0; k < curtainCount; k++)
-            {
-                var a = curtainLip[k];
-                var r = a.w + curtainPour[k].z + 1.5f;
-                rect = k == 0
-                    ? new Vector4(a.x - r, a.z - r, a.x + r, a.z + r)
-                    : new Vector4(math.min(rect.x, a.x - r), math.min(rect.y, a.z - r), math.max(rect.z, a.x + r), math.max(rect.w, a.z + r));
-            }
+            for (int pass = 0; pass < 2; pass++)
+                foreach (var s in fallShapes)
+                {
+                    if (s.UnderRock || (s.ClipBack > 0f) != (pass == 0) || curtainCount >= MaxRiverCurtains)
+                        continue;
+                    // (The box reaches a little past the sheet, whose frayed edges are thinner than the face.)
+                    var a = new Vector4(s.Lip.x, s.Lip.y, s.Lip.z, s.Width * 0.5f + 1f);
+                    curtainLip[curtainCount] = a;
+                    curtainPour[curtainCount] = new Vector4(s.Out.x, s.Out.y, s.Run + 1.5f, s.Lip.y - s.Drop);
+                    curtainFoot[curtainCount] = new Vector4(s.Skew, s.Bow, s.ClipBack, s.Seed);
+                    var r = a.w + s.Run + 3f + math.abs(s.Skew) + math.abs(s.Bow);
+                    rect = curtainCount == 0
+                        ? new Vector4(a.x - r, a.z - r, a.x + r, a.z + r)
+                        : new Vector4(math.min(rect.x, a.x - r), math.min(rect.y, a.z - r), math.max(rect.z, a.x + r), math.max(rect.w, a.z + r));
+                    curtainCount++;
+                }
             Shader.SetGlobalVectorArray(CurtainLipId, curtainLip);
             Shader.SetGlobalVectorArray(CurtainPourId, curtainPour);
+            Shader.SetGlobalVectorArray(CurtainFootId, curtainFoot);
             Shader.SetGlobalFloat(CurtainCountId, curtainCount);
             Shader.SetGlobalVector(CurtainRectId, rect);
+        }
+
+        /// <summary>
+        /// R-21 row 4 (rule 20): which falls look big enough for the fine sheet. The draw list is rebuilt (fine falls
+        /// first) only when the falls or that choice changed.
+        /// </summary>
+        void FallTiers(float3 camera, bool rebuilt)
+        {
+            fineNow.Clear();
+            foreach (var s in fallShapes)
+                if (Punchy.Settings.DetailPolicy.Within(FallDistance(s.Lip, s.Drop, camera),
+                        Punchy.Settings.DetailPolicy.ExtraReach(s.Size, FallFinePixels), fineFalls.Contains(s.Lip)))
+                    fineNow.Add(s.Lip);
+            if (!rebuilt && fineNow.SetEquals(fineFalls))
+                return;
+            (fineFalls, fineNow) = (fineNow, fineFalls);
+            fallDraw.Clear();
+            for (int pass = 0; pass < 2; pass++)
+            {
+                for (int k = 0; k < falls.Count; k++)
+                    if (fineFalls.Contains(fallShapes[k].Lip) == (pass == 0))
+                        fallDraw.Add(falls[k]);
+                if (pass == 0)
+                    fineCount = fallDraw.Count;
+            }
+            Upload(ref fallBuffer, fallDraw, ref fallProps);
         }
 
         /// <summary>R-6 row 0: how far the camera is from a fall, in 3D, to the nearest point of its drop (lip down to the
@@ -403,7 +415,8 @@ namespace Punchy.Ambience
         static float FallDistance(float3 lip, float drop, float3 camera)
             => math.distance(new float3(lip.x, math.clamp(camera.y, lip.y - math.max(drop, 0f), lip.y), lip.z), camera);
 
-        void Gather(in TerrainSource source, LandmarkType[] types, Vector3 camera)
+        /// <summary>Rebuilds the emitters when the set of nearby effects changed; whether it did.</summary>
+        bool Gather(in TerrainSource source, LandmarkType[] types, Vector3 camera)
         {
             ref var set = ref source.Landmarks.Value;
             nearby.Clear();
@@ -459,13 +472,13 @@ namespace Punchy.Ambience
             }
             NearChimneys(source, cam);
             if (nearby.Count == lastNearby.Count && nearby.TrueForAll(lastNearby.Contains))
-                return;
+                return false;
             lastNearby.Clear();
             lastNearby.AddRange(nearby);
 
             plumes.Clear();
             falls.Clear();
-            curtainCount = 0;
+            fallShapes.Clear();
             fires.Clear();
             fireLights.Clear();
             maxParticles = 1;
@@ -488,8 +501,8 @@ namespace Punchy.Ambience
                     // off its lip, each as wide as the measured sheet, the mist rising higher off a taller drop.
                     var rf = source.Rivers.Value.Falls[-i - RiverSprayBase];
                     var seed = math.frac((-i - RiverSprayBase + RiverFallBase) * 0.618f);
-                    RiverCurtain(source, rf, out var lip, out var pour, out var reach, out var drop, out var width);
-                    var foot = lip + new float3(pour.x, 0f, pour.y) * reach - new float3(0f, drop, 0f);
+                    var shape = FallShape.River(source, rf, seed);
+                    var (lip, drop, width, foot) = (shape.Lip, shape.Drop, shape.Width, shape.Foot);
                     plumes.Add(new Emitter
                     {
                         Position = foot, Seed = math.frac(seed + 0.31f), Color = new float4(0.95f, 0.97f, 1f, 0f),
@@ -501,44 +514,18 @@ namespace Punchy.Ambience
                         Position = foot + new float3(0f, 0.1f, 0f), Seed = math.frac(seed + 0.62f), Color = new float4(0.92f, 0.94f, 0.96f, 0f),
                         Shape = new float4(0.3f, width * 1.3f, 1.2f, 2.2f), Timing = new float4(0f, 0.25f, 0.6f, 24f)
                     });
-                    plumes.Add(new Emitter
-                    {
-                        Position = lip + new float3(pour.x, -0.3f, pour.y) * 0.8f, Seed = math.frac(seed + 0.9f), Color = new float4(0.94f, 0.96f, 1f, 0f),
-                        Shape = new float4(1.2f, width * 0.8f, 1.1f, 1.4f), Timing = new float4(0f, 0.25f, 0.4f, 24f)
-                    });
-                    maxParticles = math.max(maxParticles, 24);
+                    LipSpray(lip, shape.Out, width * 0.8f, math.frac(seed + 0.9f), 1f, 0.4f);
                     min = math.min(min, foot - 6f);
                     max = math.max(max, lip + 6f);
                     continue;
                 }
                 if (i <= -RiverFallBase)
                 {
-                    // A river waterfall (R-21): one curved curtain from the water's real lip down to its pool, over the
+                    // A river waterfall (R-21): one curved sheet from the water's real lip down to its pool, over the
                     // face the river's surface leaves out; its foot whitens in the shader, and up close its spray is
                     // added (-(RiverSprayBase + index), above).
                     var rf = source.Rivers.Value.Falls[-i - RiverFallBase];
-                    var seed = math.frac(-i * 0.618f);
-                    RiverCurtain(source, rf, out var lip, out var pour, out var reach, out var drop, out var width);
-                    falls.Add(new Emitter
-                    {
-                        Position = lip,
-                        Seed = seed,
-                        Color = new float4(0.55f, 0.68f, 0.72f, 0f),
-                        Shape = new float4(reach, width, 1.1f, 1.8f),
-                        Timing = new float4(0f, 0.25f, 0.92f, 20f),
-                        Out = pour,
-                        Drop = drop
-                    });
-                    if (curtainCount < MaxRiverCurtains)
-                    {
-                        // (The box reaches a little past the sheet, whose frayed edges are thinner than the face.)
-                        curtainLip[curtainCount] = new Vector4(lip.x, lip.y, lip.z, width * 0.5f + 1f);
-                        curtainPour[curtainCount] = new Vector4(pour.x, pour.y, reach + 1.5f, lip.y - drop);
-                        curtainCount++;
-                    }
-                    var foot = lip + new float3(pour.x, 0f, pour.y) * reach - new float3(0f, drop, 0f);
-                    min = math.min(min, foot - 6f);
-                    max = math.max(max, lip + 6f);
+                    AddFall(FallShape.River(source, rf, math.frac(-i * 0.618f)), new float4(0.55f, 0.68f, 0.72f, 0f), 1.1f, 1.8f, 0.92f, ref min, ref max);
                     continue;
                 }
                 if (i < 0)
@@ -546,22 +533,11 @@ namespace Punchy.Ambience
                     // A cave's waterfall: a small curtain from its notch in the wall into its pool, churning white
                     // water and a foam patch where it lands, and mist over them, lit as under rock.
                     var fall = source.Caves.Value.Waterfalls[-i - 1];
-                    var fallReach = fall.Reach > 0f ? fall.Reach : FallReach;
-                    var curtain = new Emitter
-                    {
-                        Position = fall.Lip,
-                        Seed = math.frac(-i * 0.618f),
-                        Color = new float4(0.3f, 0.43f, 0.47f, 0f),
-                        Shape = new float4(fallReach, fall.Width, 0.6f, 2f),
-                        Timing = new float4(0f, 0.25f, 0.75f, 20f),
-                        Out = fall.Out,
-                        Drop = fall.Drop,
-                        UnderRock = 1f
-                    };
                     // W-134 row 4 fix: a river chamber's chute pours as a curtain too, from its lip down to its foot (the
                     // cave water bake ends the stream's flat water at both).
-                    falls.Add(curtain);
-                    var landing = fall.Lip + new float3(fall.Out.x, 0f, fall.Out.y) * fallReach - new float3(0f, fall.Drop, 0f);
+                    var caveShape = FallShape.Cave(fall, math.frac(-i * 0.618f));
+                    AddFall(caveShape, new float4(0.3f, 0.43f, 0.47f, 0f), 0.6f, 2f, 0.75f, ref min, ref max);
+                    var landing = caveShape.Foot;
                     plumes.Add(new Emitter
                     {
                         Position = landing,
@@ -590,8 +566,6 @@ namespace Punchy.Ambience
                         UnderRock = 1f
                     });
                     maxParticles = math.max(maxParticles, 24);
-                    min = math.min(min, landing - 3f);
-                    max = math.max(max, fall.Lip + 3f);
                     continue;
                 }
                 ref var inst = ref set.Instances[i];
@@ -636,34 +610,12 @@ namespace Punchy.Ambience
                         // From the lip, out (towards -X) and down to whatever lies below: pool or ground. The lip is
                         // where the ground first reaches the cliff's top, going in (+X) from the offset, since a rough
                         // rim can dip where the offset lands and the water then started low down the face (F-48).
-                        var outDir = -inst.Facing;
-                        var lipHeight = ground.Height;
-                        var rim = lipHeight;
-                        for (var d = 0.5f; d <= 10f; d += 0.5f)
-                            rim = math.max(rim, source.SampleHeight(at + inst.Facing * d));
-                        for (var d = 0f; d <= 10f && lipHeight < rim - 0.5f; d += 0.5f)
-                        {
-                            lipHeight = source.SampleHeight(at + inst.Facing * d);
-                            emitter.Position.xz = at + inst.Facing * d;
-                        }
-                        var landing = emitter.Position.xz + outDir * effect.Height * inst.Scale;
-                        var below = source.SampleGround(landing);
-                        var bottom = below.HasWater ? math.max(below.Height, below.WaterSurface) : below.Height;
-                        emitter.Position.y = lipHeight + 0.2f;
-                        emitter.Out = outDir;
-                        emitter.Drop = math.max(emitter.Position.y - bottom, 1f);
-                        falls.Add(emitter);
-                        top = emitter.Position.y;
+                        var shape = FallShape.Landmark(source, at, inst.Facing, effect.Height * inst.Scale, effect.Width * inst.Scale, emitter.Seed);
+                        AddFall(shape, emitter.Color, emitter.Shape.z, emitter.Shape.w, effect.Opacity, ref min, ref max);
+                        emitter.Position = shape.Lip;
+                        top = shape.Lip.y;
                         // White water breaking over the lip (Z-35; the landing's spray is the type's own plume).
-                        plumes.Add(new Emitter
-                        {
-                            Position = emitter.Position + new float3(outDir.x, -0.3f, outDir.y) * 0.8f,
-                            Seed = math.frac(math.abs(inst.Seed) * 0.53f + e * 0.29f),
-                            Color = new float4(0.94f, 0.96f, 1f, 0f),
-                            Shape = new float4(1.2f * inst.Scale, effect.Width * inst.Scale, 1.1f * inst.Scale, 1.4f),
-                            Timing = new float4(0f, 0.25f, 0.35f, 24f)
-                        });
-                        maxParticles = math.max(maxParticles, 24);
+                        LipSpray(shape.Lip, shape.Out, shape.Width, math.frac(math.abs(inst.Seed) * 0.53f + e * 0.29f), inst.Scale, 0.35f);
                     }
                     else
                     {
@@ -682,7 +634,7 @@ namespace Punchy.Ambience
             bounds = new Bounds((min + max) * 0.5f, max - min);
             SetCurtainBoxes();
             Upload(ref plumeBuffer, plumes, ref plumeProps);
-            Upload(ref fallBuffer, falls, ref fallProps);
+            return true;
         }
 
         /// <summary>The animals' placement tables (FloraLookup), which carry the buildings' chimney tops.</summary>
@@ -783,11 +735,21 @@ namespace Punchy.Ambience
                 var rp = new RenderParams(PlumeMaterial) { worldBounds = bounds, matProps = plumeProps };
                 Graphics.RenderPrimitives(rp, MeshTopology.Triangles, 6, plumes.Count * maxParticles);
             }
-            if (falls.Count > 0)
+            // The falls that look big on the fine grid, the rest on the coarse one, from the one buffer (the grid's
+            // third number is the first emitter of the draw).
+            if (fineCount > 0)
             {
-                fallProps.SetVector(GridId, new Vector4(WaterfallColumns, WaterfallRows, 0f, 0f));
+                fallProps.SetVector(GridId, new Vector4(FineColumns, FineRows, 0f, 0f));
                 var rp = new RenderParams(WaterfallMaterial) { worldBounds = bounds, matProps = fallProps };
-                Graphics.RenderPrimitives(rp, MeshTopology.Triangles, WaterfallColumns * WaterfallRows * 6, falls.Count);
+                Graphics.RenderPrimitives(rp, MeshTopology.Triangles, FineColumns * FineRows * 6, fineCount);
+            }
+            if (fallDraw.Count > fineCount)
+            {
+                fallCoarseProps ??= new MaterialPropertyBlock();
+                fallCoarseProps.SetBuffer(EmittersId, fallBuffer);
+                fallCoarseProps.SetVector(GridId, new Vector4(CoarseColumns, CoarseRows, fineCount, 0f));
+                var rp = new RenderParams(WaterfallMaterial) { worldBounds = bounds, matProps = fallCoarseProps };
+                Graphics.RenderPrimitives(rp, MeshTopology.Triangles, CoarseColumns * CoarseRows * 6, fallDraw.Count - fineCount);
             }
         }
     }

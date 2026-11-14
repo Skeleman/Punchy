@@ -29,7 +29,7 @@ Shader "Punchy/Landmark Waterfall"
                 float3 positionWS : TEXCOORD0;
                 float3 normalWS : TEXCOORD1;
                 float2 uv : TEXCOORD2;
-                float fallLength : TEXCOORD3;
+                float2 fallLength : TEXCOORD3;   // metres of fall; 0 behind the lip to 1 over it
                 nointerpolation uint emitter : TEXCOORD4;
             };
 
@@ -41,8 +41,8 @@ Shader "Punchy/Landmark Waterfall"
                 o.positionCS = TransformWorldToHClip(f.positionWS);
                 o.normalWS = f.normalWS;
                 o.uv = f.uv;
-                o.fallLength = f.fallLength;
-                o.emitter = instance;
+                o.fallLength = float2(f.fallLength, f.lipIn);
+                o.emitter = f.emitter;
                 return o;
             }
 
@@ -50,13 +50,18 @@ Shader "Punchy/Landmark Waterfall"
             {
                 LandmarkEmitter e = _LandmarkEmitters[input.emitter];
                 float2 uv = input.uv;
+                float fallLength = input.fallLength.x;
+                float open = 1 - e.underRock;
+                // Row 4: the open sheet starts on the water behind its lip and thickens as it rolls over (a cave's
+                // starts at its notch).
+                float top = lerp(input.fallLength.y * input.fallLength.y, smoothstep(0, 0.03, uv.y), e.underRock);
                 // A cave's fall is small and seen close: finer, faster streaks with gaps between them.
                 float fine = lerp(1.0, 3.5, e.underRock);
                 // A landmark's or river's fall runs its whole length in half the effect's Lifetime (Z-35: it used to
                 // crawl at a fixed rate whatever its height; W-22 #13: twice as fast again); a cave's keeps its own pace.
-                float speed = e.underRock > 0.5 ? 1.62 : 2.0 * input.fallLength / 3.0 / max(e.shape.w, 0.3);
+                float speed = e.underRock > 0.5 ? 1.62 : 2.0 * fallLength / 3.0 / max(e.shape.w, 0.3);
                 // Streaks: narrow across, long down, rushing downwards.
-                float along = uv.y * input.fallLength / 3.0 * lerp(1.0, 1.3, e.underRock) - _Time.y * speed;
+                float along = uv.y * fallLength / 3.0 * lerp(1.0, 1.3, e.underRock) - _Time.y * speed;
                 float streak = PunchyValueNoise(float2(uv.x * e.shape.y * 1.6 * fine, along)) * 0.6 +
                                PunchyValueNoise(float2(uv.x * e.shape.y * 4.0 * fine + 13.0, along * 2.3)) * 0.4;
                 streak = lerp(streak, smoothstep(0.3, 0.75, streak), e.underRock);
@@ -74,24 +79,30 @@ Shader "Punchy/Landmark Waterfall"
                 float openEdges = smoothstep(0, fray, fromEdge - (cut - 0.35) * fray) * smoothstep(0.02, 0.07, min(uv.x, 1 - uv.x));
                 edges = lerp(openEdges, edges, e.underRock);
                 float ragged = smoothstep(0.25, 0.55, streak + 0.35 - abs(uv.x - 0.5) * 0.6);
-                half alpha = e.timing.z * edges * lerp(lerp(0.55, 0.12, e.underRock), 1, streak) * lerp(ragged, 1, lerp(0.8, 0.5, e.underRock)) * smoothstep(0, 0.03, uv.y);
+                half alpha = e.timing.z * edges * lerp(lerp(0.55, 0.12, e.underRock), 1, streak) * lerp(ragged, 1, lerp(0.8, 0.5, e.underRock)) * top;
                 // The open sheet thins as it falls.
                 alpha *= lerp(1, 1 - 0.22 * uv.y, 1 - e.underRock);
                 // R-21 row 3: the open sheet's middle is solid white water, not a pane: opaque, streaked white, its
                 // border wandering with the edge noise; only the outer band is see-through.
                 float core = smoothstep(0.1, 0.2, min(uv.x, 1 - uv.x) + (cut - 0.5) * 0.08) * (1 - e.underRock);
-                alpha = lerp(alpha, e.timing.z * lerp(0.85, 1.0, streak) * smoothstep(0, 0.03, uv.y), core);
+                // Row 4: the sheet is not one thickness: a few columns of it, the fall's own, run thin (more of them
+                // lower down, where it breaks up), showing the rock behind.
+                float thin = smoothstep(0.62 - 0.25 * uv.y, 0.8, PunchyValueNoise(float2(uv.x * wide * 0.45 + e.seed * 53.0, along * 0.12))) * open;
+                core *= 1 - 0.85 * thin;
+                alpha = lerp(alpha, e.timing.z * lerp(0.85, 1.0, streak) * top, core);
+                alpha *= 1 - 0.6 * thin;
                 foam = lerp(foam, max(foam * 0.6, 0.15 + 0.8 * smoothstep(0.45, 0.85, streak)), core);
                 // R-21 row 2: the open sheet's foot turns to white water where it hits its pool or ledge, and its lip
                 // throws sparse spray streaks. By screen size (rule 20, the pixels a metre covers here): far away the
                 // foot is only a soft whitening, so the fall still reads as one sheet; close up the foam churns and
                 // breaks its edge, and the spray shows.
-                float open = 1 - e.underRock;
                 float perMetre = _ScreenParams.y * 0.5 * UNITY_MATRIX_P._m11 / max(distance(input.positionWS, GetCameraPositionWS()), 0.1);
                 float near = smoothstep(4, 10, perMetre) * open;
                 float churn = PunchyValueNoise(float2(uv.x * wide * 1.2 + 71.0, along * 0.9 + _Time.y * 0.7));
                 // (Row 3: a wider, denser band, near white, so it reads on pale rock; the lip's spray is its own emitter.)
-                float footBand = smoothstep(0.7 - 0.14 * churn * near, 0.93, uv.y) * open;
+                // (Row 4: water landing on a ledge, not a pool, breaks white a little higher up.)
+                float ledge = step(0.5, e.fall.w) * step(e.fall.w, 1.5);
+                float footBand = smoothstep(0.7 - 0.1 * ledge - 0.14 * churn * near, 0.93, uv.y) * open;
                 foam = max(foam, footBand * lerp(0.85, 0.8 + 0.25 * churn, near));
                 alpha = max(alpha, e.timing.z * edges * footBand * lerp(0.9, 0.85 + 0.15 * churn, near));
                 // Under rock the top frays out of the notch rather than starting on a straight edge.
