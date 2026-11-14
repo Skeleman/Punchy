@@ -136,6 +136,9 @@ namespace Punchy.Terrain
         public BlobAssetReference<GrandFallsBlob> GrandFalls;
         /// <summary>The archipelago off the dune coast (W-30, v2 only, baked after every place): islets raised out of the sea floor.</summary>
         public BlobAssetReference<ArchipelagoBlob> Archipelago;
+        /// <summary>The herds (A-108 row 2, v2 only, baked last; animal lane): read by fauna alone, never by the ground. Left out of
+        /// Equals on purpose: it is rebuilt with the blobs above, so they already tell one bake from another.</summary>
+        public BlobAssetReference<Punchy.Fauna.HerdSetBlob> Herds;
         /// <summary>Set when every place is baked: biome ponds are dug only after that, so they never move a landmark, road, cave or anchor.</summary>
         public bool PondsOn;
         /// <summary>W-43c: set with <see cref="PondsOn"/>: riverbanks get their seeded width, slope and shoreline wobble (v2 rivers only).</summary>
