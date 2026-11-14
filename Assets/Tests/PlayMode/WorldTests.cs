@@ -103,7 +103,10 @@ namespace Punchy.Tests
         {
             "bend", "widthJump", "deadEnd", "source", "dryRun", "uphillGraph", "uphillSampled", "wall", "deep", "tilt", "step", "fallHead", "fallFoot"
         };
-        static readonly int[] WaterTruthBaseline = { 80, 0, 0, 0, 21, 31, 7, 1987, 42, 35, 1186, 47, 4 };
+        // W-153 row 2 (still water last): dryRun 21 -> 10, uphillSampled 7 -> 0, wall 1987 -> 988, tilt 35 -> 31, step 1186 -> 959.
+        // No stepped pool is left in a wall or a step: the 109 'pool' walls still counted are fall and landmark
+        // head pools, which stand with ponds off (rows 3-6).
+        static readonly int[] WaterTruthBaseline = { 80, 0, 0, 0, 10, 31, 0, 988, 42, 31, 959, 47, 4 };
 
         /// <summary>
         /// Butterflies round the player in a meadow at noon, clear sky. No range was ever set: CritterSystem clips at 8

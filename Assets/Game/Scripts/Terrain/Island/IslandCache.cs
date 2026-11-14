@@ -59,6 +59,7 @@ namespace Punchy.Terrain
             v.Visit(nameof(s.Archipelago), ref s.Archipelago);
             v.Visit(nameof(s.Anchors), ref s.Anchors);
             v.Visit(nameof(s.PondMask), ref s.PondMask);
+            v.Visit(nameof(s.Paddies), ref s.Paddies);
         }
 
         struct Sizer : IBlobVisitor

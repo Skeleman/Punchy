@@ -143,7 +143,7 @@ namespace Punchy.Terrain
 
         /// <summary>Rivers, landmarks, settlements, caves and anchors, in that order: the part of a bake that follows the ground.</summary>
         public static void BuildPlaces(ref TerrainSource source, List<BiomeDefinition> palette, List<LandmarkType> landmarkTypes,
-                                       List<PlacedLandmark> placed, List<RoadsideLandmark> roadsideTypes, Allocator allocator, bool villages = false)
+                                       List<PlacedLandmark> placed, List<RoadsideLandmark> roadsideTypes, Allocator allocator, bool villages = false, bool paddies = true)
         {
             // W-14: each stage's time goes to the "[bake] stages" log line (island v2 rebuilds all of this at launch).
             var watch = System.Diagnostics.Stopwatch.StartNew();
@@ -152,6 +152,7 @@ namespace Punchy.Terrain
             source.PondsOn = false;
             source.RiverRoughOn = false;
             source.PondMask = default;
+            source.Paddies = default;
             // W-53 (W-37, option b): wide rivers on island v2 meander in bends that scale with width, but every place
             // (landmarks, settlements, the salt tower) is chosen against the jittered rivers they were always placed
             // by, so no landmark moves. Two river maps are baked; the jittered one is dropped once places are set.
@@ -271,6 +272,14 @@ namespace Punchy.Terrain
             // W-14: one labelling pass gives the mask and the log (the two extra PondCount passes cost ~2.8 s each).
             source.PondMask = source.BuildPondMask(allocator, out var dropped, out var pondReport);
             Stage("pondmask");
+            // W-153: still water last. Stepped pools take their levels from the finished ground (a caller that
+            // cuts more ground after this, such as the island bake's grand falls, builds them itself).
+            if (paddies)
+            {
+                source.Paddies = source.BuildPaddies(allocator, out var paddyReport);
+                Stage("paddies");
+                UnityEngine.Debug.Log($"[paddies] {paddyReport}");
+            }
             UnityEngine.Debug.Log($"[ponds] {pondReport}. Dropped {dropped} cells.");
             UnityEngine.Debug.Log(stages.ToString());
         }
@@ -366,6 +375,7 @@ namespace Punchy.Terrain
                 if (source.Icebergs.IsCreated) AddBlobAsset(ref source.Icebergs, out _);
                 if (source.Anchors.IsCreated) AddBlobAsset(ref source.Anchors, out _);
                 if (source.PondMask.IsCreated) AddBlobAsset(ref source.PondMask, out _);
+                if (source.Paddies.IsCreated) AddBlobAsset(ref source.Paddies, out _);
                 AddComponent(entity, source);
             }
 

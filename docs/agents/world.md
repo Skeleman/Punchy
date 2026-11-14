@@ -108,10 +108,13 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
   a new pond rule goes through the mask, not more erosion or threshold tuning.
   With a biome map (island v2) the core test uses the map's sharp weights: the blurred shape weights never pass
   0.4 in its small swamp patches, which left v2 with no ponds at all.
-  Ponds above sea level are stepped pools (W-24/W-25, `TerrainSource.Terrace`): irregular ~15 m paddy cells, each
-  level at its centre's `BaseHeight`, with a bank 0.3 m above the higher neighbour. Contour bands (W-24) were ~1-6 m
-  wide and read as mud lines; cells keep the paddies wide on any slope. The 16 m pond
-  grid labels on the pre-terrace dig (`PondDig`), or the banks split every pond and the mask drops them.
+  Ponds above sea level are stepped pools (`TerrainSource.Paddies.cs`): irregular ~15 m paddy cells (W-25). Still
+  water goes last (W-153 row 2): `BuildPaddies` runs at the very end of a bake, on the finished ground with ponds
+  off, and bakes one level per cell into the `Paddies` blob; a cell that is too steep (over ~17 %), over other
+  water or at the sea's edge gets no pool. At run time `Terrace` only cuts a shallow bed along the contour and
+  adds rims: it never lifts ground more than a rim, so a pool cannot stand as a wall or refill a gorge. Anything
+  that carves ground after `BuildPaddies` must run before it instead. The 16 m pond grid labels on the
+  pre-terrace dig (`PondDig`), or the banks split every pond and the mask drops them.
 - Roads (W-16): the A* routes run in parallel on a managed copy of the cost grid with a precomputed wander array; Emit and bridge sampling run in parallel and are added serially in pair order, so output is identical. W-138: `SettlementBaking` finds the sea folk pair early (`SeaFolkBaking.Place`) and keeps it
   in `SettlementBaking.LastSeaFolk`; the late pass in TerrainAuthoring reuses those spots (found again there, the
   spur's grading moved the landing 15 m off the road's end) and  `RoadBaking.Destinations` adds it, every mine, caves with chambers and ridge-mountain grottos (a footpath end) as
