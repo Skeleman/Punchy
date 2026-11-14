@@ -14,7 +14,7 @@ namespace Punchy.Chemistry
     /// a hand's trigger and bumper together (inside the table's window) are its sweep. A button held charges in the core,
     /// and its release sets the hand off at the charge it reached (a tap is charge 1); both hands making the same gesture
     /// merge into their pair's spell (fire + water: Scalding Steam). What the core sets off is aimed at the ground under the
-    /// screen centre, pulled back to the gesture's range, and cast into the window like the keys' spells. Holding d-pad up
+    /// screen centre, pulled back to the gesture's range, and cast like the keys' spells. Holding d-pad up
     /// opens an element radial: the right stick picks, and letting go attunes the hand whose trigger is held (else the
     /// left; one element attuned is on both hands). The pad rumbles as a hand charges, at each level and as it goes off.
     /// The actions are the bridge's own map, so Punchy's InputSystem_Actions is untouched. Every hand command is a request on
@@ -197,7 +197,7 @@ namespace Punchy.Chemistry
         public string AttuneTo(int hand, string element)
         {
             if (world == null)
-                return "no chemistry window yet";
+                return "no chemistry world yet";
             var h = world.HandsOf(Me);
             string why = null;
             if (h.Holds[hand] == element)
@@ -247,8 +247,8 @@ namespace Punchy.Chemistry
             var s = rules.Spell(fired.Spell);
             if (s == null)
                 return;
-            int mx = (int)math.floor(from.x) - corner.x, my = (int)math.floor(from.z) - corner.y;
-            int hx = (int)math.floor(hit.x) - corner.x, hy = (int)math.floor(hit.z) - corner.y;
+            int mx = (int)math.floor(from.x), my = (int)math.floor(from.z);
+            int hx = (int)math.floor(hit.x), hy = (int)math.floor(hit.z);
             var (tx, ty) = HandsDef.Within(mx, my, hx, hy, fired.Range);
             int aimX = 0, aimY = 0;
             if (s.Shape == "line" || s.Shape == "cone")
@@ -268,28 +268,25 @@ namespace Punchy.Chemistry
                     (x, y) = (mx + dx, my + dy);
                 }
             }
-            if (x < 0 || y < 0 || x >= Size || y >= Size)
-            {
-                Debug.Log($"[Chemistry] hands: {s.Name} at cell ({x}, {y}) is outside the chemistry window");
+            if (!Filled(x, y, "hands: " + s.Name))
                 return;
-            }
             bool merged = fired.Name != null && rules.Sim.Hold.Hands.Find(fired.Spell).slot?.Contains('+') == true;
             if (merged)
                 (mergeFlashAt, mergeShown) = (Time.unscaledTime, fired.Spell);
-            session.Request(casts, new CastCommand(fired.Spell, x, y, dir ?? 2, fired.Charge, aimX, aimY, Me));
+            session.Request(casts, new CastCommand(fired.Spell, x, ChunkKey.Row(viewLayer, y), dir ?? 2, fired.Charge, aimX, aimY, Me));
             LastHandSpell = fired.Spell;
             LastHandCharge = fired.Charge;
             LastHandCell = new Vector2Int(x, y);
             LastHandMerged = merged;
             HandCasts++;
             Debug.Log($"[Chemistry] hands: {(merged ? "both hands" : "a hand")} cast {s.Name} (charge {fired.Charge}, range {fired.Range}) at cell ({x}, {y}) " +
-                      $"seeded {KindName(seeded[y * Size + x])}, aimed ({hx}, {hy}): asked for (tick {session.NetTick})");
+                      $"in layer {viewLayer}, ground {GroundName(x, y)}, aimed ({hx}, {hy}): asked for (tick {session.NetTick})");
         }
 
         // Fine steps per cell of an aim's vector (World.SnapAim's).
         const int AimSteps = 16;
 
-        // 0 = y-1, 1 = x+1, 2 = y+1, 3 = x-1 (the core's directions; the window's y is Punchy's z).
+        // 0 = y-1, 1 = x+1, 2 = y+1, 3 = x-1 (the core's directions; a cell's y is Punchy's z).
         static int? DirFrom(int ax, int ay, int bx, int by)
         {
             int dx = bx - ax, dy = by - ay;

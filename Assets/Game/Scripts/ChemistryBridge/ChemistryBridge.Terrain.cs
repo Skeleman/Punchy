@@ -12,9 +12,11 @@ namespace Punchy.Chemistry
 {
     /// <summary>
     /// Height changes (README "Height changes"): the core's cells have a height in half-metre steps that spells dig
-    /// (craters) and raise (Raise Earth, Move Earth, Wall of Stone). The cells keep the steps they were seeded with
+    /// (craters) and raise (Raise Earth, Move Earth, Wall of Stone). The cells keep the steps their chunk was filled with
     /// (0 on land, -2 under water: the overlay doesn't model Punchy's slopes), so a cell's change is its steps now less
-    /// those, times 0.5 m, laid over Punchy's own ground through TerrainEdits (one hook in TerrainSource's samples).
+    /// those, times 0.5 m, laid over Punchy's own ground through TerrainEdits (one hook in TerrainSource's samples). The
+    /// edits are the view's window's, on the surface only: walking on re-lays them under the new window (from the cells,
+    /// which keep their heights), and in a cave the surface above stays as it is.
     /// Every height in the game follows: the player walks into a crater, the camera and grass sit in it. The ground's
     /// chunks, grass tiles and (for a metre or more) the plants on what moved are rebuilt by Punchy's own systems.
     /// </summary>
@@ -54,17 +56,20 @@ namespace Punchy.Chemistry
             everMoved = landDirty = false;
         }
 
-        void SeedLand()
+        // A new view: no cell's ground known yet (SeedLand gives each as its chunk turns up filled).
+        void ResetLand()
         {
             seededSteps ??= new int[Size * Size];
             shownSteps ??= new int[Size * Size];
             deltas ??= new float[Size * Size];
-            for (int y = 0; y < Size; y++)
-                for (int x = 0; x < Size; x++)
-                    seededSteps[y * Size + x] = shownSteps[y * Size + x] = seeded[y * Size + x] == KindWater ? -2 : 0;   // (RegionSource's)
+            Array.Clear(seededSteps, 0, seededSteps.Length);
+            Array.Clear(shownSteps, 0, shownSteps.Length);
             Array.Clear(deltas, 0, deltas.Length);
             movedCells = 0;
         }
+
+        // A window cell's ground height (steps) as its chunk was filled (0 on land, -2 under water).
+        void SeedLand(int i, int steps) => seededSteps[i] = shownSteps[i] = steps;
 
         /// <summary>One cell, from the map's walk: notes a change of height since it was last laid over the ground.</summary>
         void NoteLand(int x, int y, int i, int steps)
