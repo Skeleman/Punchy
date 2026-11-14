@@ -34,6 +34,9 @@ namespace Punchy.Debugging
         float ccJumpAt;
         PlayerMotion ccMotion;
         int ccPassed, ccFailed, ccSkillWas = -1;
+        /// <summary>Row 2: sections a lurch shook the climber off at their limit (expected, not a failure), and the
+        /// shake-off count when the section began.</summary>
+        int ccShaken, ccShakenBefore, ccSpare, ccTries;
         /// <summary>Row 2's ride: on, the skill to spare, and the ride so far (frames on the body and in all, NaN frames,
         /// where it began, the heading it began at and the turn since).</summary>
         bool ccRide;
@@ -55,6 +58,7 @@ namespace Punchy.Debugging
         /// <summary>The probe's flag (ApplyOptions): "-colossusclimb [Kind|all]".</summary>
         void ColossusClimbOptions(string[] args)
         {
+            ColossusClimbSystem.LogPeers = System.Array.IndexOf(args, "-ccpeers") >= 0;
             var i = System.Array.IndexOf(args, "-colossusclimb");
             var ride = System.Array.IndexOf(args, "-colossusride");
             ccRide = ride >= 0;
@@ -126,6 +130,7 @@ namespace Punchy.Debugging
         /// <summary>Moves on to the next section, or the next wanted slot's first, or ends the probe.</summary>
         void CcNext()
         {
+            ccTries = 0;
             if (ccSlot >= 0 && ccSection + 1 < ColossusCollision.SectionsOf(ccSlot).Length)
             {
                 ccSection++;
@@ -138,7 +143,7 @@ namespace Punchy.Debugging
             if (ccSlot >= StoneColossi.Placed.Length)
             {
                 Debug.Log($"DebugControls: colossus climb: DONE, {ccPassed} passed, {ccFailed} failed" +
-                          (ccRide ? $", {ccNaN} NaN frames, shaken off {ColossusClimbSystem.ShakenOff} times, biggest kick ridden {V(ColossusClimbSystem.BiggestKick)} m/s" : ""));
+                          (ccRide ? $", {ccShaken} shaken off at the limit, {ccNaN} NaN frames, shaken off {ColossusClimbSystem.ShakenOff} times, biggest kick ridden {V(ColossusClimbSystem.BiggestKick)} m/s" : ""));
                 ColossusClimbSystem.LogRide = false;
                 ccRequest = false;
                 PlayerInputSystem.TestMove = null;
@@ -153,9 +158,28 @@ namespace Punchy.Debugging
 
         void CcResult(bool pass, string why, float3 at)
         {
+            var sec = ColossusCollision.SectionsOf(ccSlot)[ccSection];
+            // (Row 2: a climber with no skill to spare whom a lurch shook off did what the rule says.)
+            if (!pass && ccRide && ccSpare < 1 && ColossusClimbSystem.ShakenOff > ccShakenBefore)
+            {
+                ccShaken++;
+                Debug.Log($"DebugControls: colossus climb: {StoneColossi.Placed[ccSlot]} section {ccSection} {sec.Look} grade {sec.Grade}: SHAKEN OFF at the limit " +
+                          $"(skill to spare {ccSpare}, {ColossusClimbSystem.ShakenOff - ccShakenBefore} lurches), {why}; highest feet {V(ccHighest - ccStart.y)} m up, {V(Time.time - ccStageAt)} s");
+                PlayerInputSystem.TestMove = float2.zero;
+                CcNext();
+                return;
+            }
+            // (Row 2: a walking body's leg can stride away before the climber reaches it: try again from where it is now.)
+            if (!pass && ccRide && why == "no hold" && ccTries < 2)
+            {
+                ccTries++;
+                Debug.Log($"DebugControls: colossus climb: {StoneColossi.Placed[ccSlot]} section {ccSection}: no hold (it walked on), try {ccTries + 1}");
+                PlayerInputSystem.TestMove = float2.zero;
+                CcStage(1);
+                return;
+            }
             if (pass) ccPassed++;
             else ccFailed++;
-            var sec = ColossusCollision.SectionsOf(ccSlot)[ccSection];
             Debug.Log($"DebugControls: colossus climb: {StoneColossi.Placed[ccSlot]} section {ccSection} {sec.Look} grade {sec.Grade}: " +
                       $"{(pass ? "PASS" : "FAIL")} {why}; highest feet {V(ccHighest - ccStart.y)} m up, stood on a top {V(ccStood - ccStart.y)} m up " +
                       $"(section summit {V(ccSummit - ccStart.y)} m), at ({V(at.x)}, {V(at.y)}, {V(at.z)}), {V(Time.time - ccStageAt)} s");
@@ -300,7 +324,11 @@ namespace Punchy.Debugging
                         em.SetComponentData(self, t);
                         em.SetComponentData(self, new PlayerMotion { Grounded = true });
                         var grade = ColossusCollision.SectionsOf(ccSlot)[ccSection].Grade;
-                        SetClimbSkill(ccRide ? math.clamp(grade + ccMargin, 0, Climbing.Smooth) : grade);
+                        // (Riding: never the top skill, which takes hold of the smooth columns between the sections too.)
+                        var skill = ccRide ? math.clamp(grade + ccMargin, 0, Climbing.Craggy) : grade;
+                        ccSpare = skill - grade;
+                        ccShakenBefore = ColossusClimbSystem.ShakenOff;
+                        SetClimbSkill(skill);
                         PlayerInputSystem.TestMove = float2.zero;
                         PlayerInputSystem.TestCamera = ccInward;
                         var eye = ccStart + new float3(-ccInward.x * 12f + ccInward.y * 6f, 5f, -ccInward.y * 12f - ccInward.x * 6f);
@@ -428,10 +456,11 @@ namespace Punchy.Debugging
                     ccYaw = yaw;
                     if (stageTime > RideTime * 0.5f && stageTime < RideTime * 0.5f + 1f && ccShotTaking == null)
                         CcShot($"s{ccSection}-riding", t.Position + new float3(-14f, 8f, -14f), t.Position);
-                    if (stageTime > RideTime)
+                    var carried = math.distance(t.Position.xz, ccRideFrom.xz);
+                    // (A walker rests between walks: wait for it to set off, up to three ride times.)
+                    if (stageTime > RideTime && (carried > 1f || stageTime > RideTime * 3f))
                     {
                         var share = ccOnFrames / (float)math.max(ccFrames, 1);
-                        var carried = math.distance(t.Position.xz, ccRideFrom.xz);
                         var ok = share > 0.98f && ccNaN == 0 && carried > 1f;
                         Debug.Log($"DebugControls: colossus climb: RIDE {(ok ? "PASS" : "FAIL")} {StoneColossi.Placed[ccSlot]} section {ccSection}: on the body {share * 100f:F1}% of {ccFrames} frames, " +
                                   $"{ccNaN} NaN frames, carried {V(carried)} m, turned {V(ccTurned)} deg, now ({V(t.Position.x)}, {V(t.Position.y)}, {V(t.Position.z)})");

@@ -119,8 +119,22 @@ namespace Punchy.Fauna
         public const float LurchKick = 0.6f;
         /// <summary>"-colossusclimb" (DebugControls): log the ride once a second (place, speed, biggest kick, turn).</summary>
         public static bool LogRide;
+        /// <summary>"-ccpeers" (DebugControls): log once a second how far each joined player is drawn off the nearest
+        /// colossus column here (0: on its top or at its side), for the host and client check of a ride.</summary>
+        public static bool LogPeers;
+        float peersAt;
+        static readonly int ClockId = UnityEngine.Shader.PropertyToID("_PunchyClock");
         /// <summary>The colossus the local player rides this frame (its slot), or -1; ColossusWalker keeps walking under them.</summary>
         public static int Riding = -1;
+        /// <summary>The colossi any player is up on this frame, the joined ones too (a bit per slot), told on this machine
+        /// from the players' places it already has: a walker with a rider does not stop to look at anyone (A-74), on any
+        /// machine, so the rider stays on the body in every view. Nothing is sent.</summary>
+        static ulong ridden;
+        public static bool AnyRider(int slot) => slot == Riding || slot >= 0 && slot < 64 && (ridden >> slot & 1) != 0;
+        /// <summary>Up on a body: this far over a column's foot (m), and within this of its side (m), wider once on (a
+        /// joined rider is drawn a little behind, and the body may be a little off its place on their machine).
+        /// // gameplay: who counts as a rider, not what is drawn.</summary>
+        const float RiderLift = 2.5f, RiderNear = 1.5f, RiderKeep = 4f;
         /// <summary>Lurches that shook the local player off, and the biggest kick ridden through, since the start (probes).</summary>
         public static int ShakenOff;
         public static float BiggestKick;
@@ -150,6 +164,70 @@ namespace Punchy.Fauna
             Add(players, ref near);
             Add(joined, ref near);
             ColossusCollision.GatherClimb(ref list, near, ColossusClimbs.Gather);
+            var now = 0ul;
+            Riders(players, ref list, ref now);
+            Riders(joined, ref list, ref now);
+            ridden = now;
+            if (LogPeers && UnityEngine.Time.time >= peersAt && !joined.IsEmpty)
+            {
+                peersAt = UnityEngine.Time.time + 1f;
+                using var at = joined.ToComponentDataArray<LocalTransform>(Allocator.Temp);
+                for (int p = 0; p < at.Length; p++)
+                {
+                    var feet = at[p].Position;
+                    var off = float.MaxValue;
+                    var slot = -1;
+                    for (int i = 0; i < list.Length; i++)
+                    {
+                        var c = list[i];
+                        // (Off its side by more than a body's width, or over its top.)
+                        var gap = math.length(new float2(math.max(math.distance(feet.xz, c.Base.xz) - c.Radius - 0.5f, 0f),
+                                                         math.max(math.max(feet.y - (c.Base.y + c.Height), c.Base.y - feet.y), 0f)));
+                        if (gap < off)
+                        {
+                            off = gap;
+                            slot = c.Slot;
+                        }
+                    }
+                    var on = float3.zero;
+                    var body = slot >= 0 && ColossusCollision.OnBody(slot, feet, out on);
+                    // (Too far off for any column: the nearest gathered body all the same, to tell how far.)
+                    for (int other = 0; slot < 0 && other < 64; other++)
+                        if (ColossusCollision.OnBody(other, feet, out var from) && (!body || math.lengthsq(from) < math.lengthsq(on)))
+                        {
+                            on = from;
+                            body = true;
+                        }
+                    Debug.Log($"ColossusClimbSystem: carry: peer {p} at ({feet.x:F1}, {feet.y:F1}, {feet.z:F1}): " +
+                              (slot < 0 ? "no column within reach" : $"off slot {slot} by {off:F2} m, rider there {AnyRider(slot)}") +
+                              (body ? $", on its body at ({on.x:F2}, {on.y:F2}, {on.z:F2})" : "") +
+                              $", clock {UnityEngine.Shader.GetGlobalFloat(ClockId):F1} s");
+                }
+            }
+        }
+
+        /// <summary>Marks the colossi these players are up on: beside or on a column, well over its foot.</summary>
+        static void Riders(EntityQuery query, ref FixedList4096Bytes<ColossusClimbColumn> list, ref ulong now)
+        {
+            if (query.IsEmpty)
+                return;
+            using var at = query.ToComponentDataArray<LocalTransform>(Allocator.Temp);
+            for (int p = 0; p < at.Length; p++)
+            {
+                var feet = at[p].Position;
+                if (!math.all(math.isfinite(feet)))
+                    continue;
+                for (int i = 0; i < list.Length; i++)
+                {
+                    var c = list[i];
+                    if (c.Slot >= 64)
+                        continue;
+                    var reach = (ridden >> c.Slot & 1) != 0 ? RiderKeep : RiderNear;
+                    if (feet.y >= c.Base.y + RiderLift && feet.y <= c.Base.y + c.Height + reach &&
+                        math.distance(feet.xz, c.Base.xz) <= c.Radius + reach)
+                        now |= 1ul << c.Slot;
+                }
+            }
         }
 
         /// <summary>

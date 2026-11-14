@@ -406,6 +406,17 @@ namespace Punchy.Fauna
             return math.all(math.isfinite(moved));
         }
 
+        /// <summary>A-107 row 2 (probes): point in slot's body frame as last gathered (its root's place and heading), so
+        /// two machines can compare where each draws a rider on the body. False when it is not gathered.</summary>
+        public static bool OnBody(int slot, float3 point, out float3 local)
+        {
+            local = point;
+            if (!groups.TryGetValue(slot, out var g) || !g.Gathered || !Shown(g))
+                return false;
+            local = math.mul(math.inverse(g.GatheredAs), point - g.GatheredAt);
+            return true;
+        }
+
         /// <summary>One line per solid colossus (slot, name, columns, circle), for probes.</summary>
         public static string Summary()
         {

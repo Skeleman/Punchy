@@ -542,8 +542,9 @@ namespace Punchy.Fauna
                 w.Bored = true;
             if (gap > w.G.Body + LookRange + 20f)
                 w.Bored = false;
-            // A-107 row 2: ridden (the local player holds or stands on it), it walks on under them and does not stop.
-            var near = gap < w.G.Body + LookRange && !w.Bored && ColossusClimbSystem.Riding != w.G.Slot;
+            // A-107 row 2: ridden (any player holds or stands on it, the joined ones too), it walks on under them and does
+            // not stop for anyone, so every machine keeps it on the shared clock under the rider.
+            var near = gap < w.G.Body + LookRange && !w.Bored && !ColossusClimbSystem.AnyRider(w.G.Slot);
             w.Tick = dt;
             w.Hold = math.saturate(w.Hold + (near ? dt : -dt) / HoldTime);
             var rate = near || w.Hold > 0f ? 1f - w.Hold : w.Lag > 0f ? CatchUp : 1f;
@@ -591,7 +592,7 @@ namespace Punchy.Fauna
             // the turn would swing the body round under their feet. It keeps the turn it had as they came on.
             if (Freeze)
                 aim = 0f;
-            else if (ColossusClimbSystem.Riding == g.Slot)
+            else if (ColossusClimbSystem.AnyRider(g.Slot))
                 aim = w.Aim - math.clamp(w.Aim, -RideUnturn * w.Tick, RideUnturn * w.Tick);  // ridden: eases back onto its path
             else if (math.lengthsq(toward) < (g.Body + 3f) * (g.Body + 3f))
                 aim = w.Aim;
