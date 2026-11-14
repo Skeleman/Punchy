@@ -4391,6 +4391,8 @@ Where A-109 differs from A-108: herds are anonymous and seeded per 512 m cell fr
 - NOT DONE / UNVERIFIED: not compiled or run. A-110 row 6 (f137777a) deletes FaunaDirector.KinLost.cs; its TownExceptions RPC has no per-frame scan, so row 1 goes away once A-110 merges. Left out of fauna/folk-scans, per the coordinator.
 - NEXT: row 2 (hermit talk and work dust).
 
+- W-164 lead (the sinking crop plot Zach saw in my editor): my A-111 row 2 test spot was the EmberForest ash hermit's shelter at about x 137, z -545 (the hermit works around x 140, z -551; the player stood at x 143, z -540). I did not see the plot myself, so this is the likely place, not a confirmed one.
+
 ## A-107
 
 ### Row 1: graded climb sections on colossi (done, verified, #276, fauna/colossus-climb b2ad690b)
