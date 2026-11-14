@@ -5,16 +5,16 @@ namespace Punchy.Rendering
 {
     /// <summary>
     /// R-19 row 2 (#281): cost switches for the layered rock the terrain shader draws on steep faces, for the bench
-    /// to compare where rock fills the view. All off by default, which is the full rock. They only drop or thin the
-    /// shader's noise: "-rockhighonly" keeps the beds and slabs for the High preset and up (below it a face keeps
-    /// its colour and grain), "-rockoctaves 1" reads one noise octave where the beds, their wander and the slabs
-    /// read two or more, and "-rockslabpx n" shows the slabs only once a 2.5 m slab spans n reference pixels
+    /// to compare where rock fills the view. They only drop or thin the shader's noise. The beds and slabs are drawn
+    /// from the High preset up by default (BENCH job 73: Low and Medium keep a face's colour and grain only);
+    /// "-rockhighonly 0" draws them at every preset again. "-rockoctaves 1" reads one noise octave where the beds,
+    /// their wander and the slabs read two or more, and "-rockslabpx n" shows the slabs only once a 2.5 m slab spans n reference pixels
     /// (DetailPolicy.ScreenSize's measure; the default is 2). Cosmetic and local.
     /// </summary>
     public class SteepRockCost : MonoBehaviour
     {
-        /// <summary>Beds and slabs only from the High preset up.</summary>
-        public static bool HighOnly = Flag("-rockhighonly");
+        /// <summary>Beds and slabs only from the High preset up (the default; "-rockhighonly 0" turns it off).</summary>
+        public static bool HighOnly = Number("-rockhighonly", 1f) >= 0.5f;
         /// <summary>One noise octave instead of two.</summary>
         public static bool OneOctave = Number("-rockoctaves", 2f) < 1.5f;
         /// <summary>Reference pixels a 2.5 m slab spans where slabs begin to show; 0 keeps the shader's 2.</summary>
@@ -45,13 +45,6 @@ namespace Punchy.Rendering
             Shader.SetGlobalVector(CostId, Vector4.zero);
             if (instance == this)
                 instance = null;
-        }
-
-        static bool Flag(string arg)
-        {
-            var args = System.Environment.GetCommandLineArgs();
-            var i = System.Array.IndexOf(args, arg);
-            return i >= 0 && !(i + 1 < args.Length && args[i + 1] == "0");
         }
 
         static float Number(string arg, float fallback)
