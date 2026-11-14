@@ -27,6 +27,7 @@ namespace Punchy.Chemistry
     /// - <c>castat spell dx,dz[,charge]</c>: a spell from the player at a point that far away;
     /// - <c>face dx,dz</c>: turns the camera that way;
     /// - <c>gowater</c>: onto the shore of the nearest water, facing it; <c>castwater spell [charge]</c>: a spell on it;
+    /// - <c>rec s</c>: s seconds of frames at 30 a second of game time, as JPEGs (for a demo clip);
     /// - <c>shot name</c>: a screenshot (into -chem-shots' folder);
     /// - <c>quit</c>: ends the process.
     /// Only the local player moves (Punchy's movement is client-authoritative), so on a client it's the client's own.
@@ -36,6 +37,8 @@ namespace Punchy.Chemistry
         readonly List<(float at, string what)> steps = new List<(float, string)>();
         int nextStep;
         float scriptStart = -1f;
+        // The script's clock: real time, but game time while recording (Time.captureFramerate), so a clip's steps keep their spacing.
+        float scriptClock;
         // A walk in progress: from, by, how long each way, since when.
         float3 walkFrom;
         float2 walkBy;
@@ -65,8 +68,10 @@ namespace Punchy.Chemistry
                 return;
             if (scriptStart < 0f)
                 scriptStart = Time.unscaledTime;
+            else
+                scriptClock += Time.captureFramerate > 0 ? Time.deltaTime : Time.unscaledDeltaTime;
             Walk(terrain);
-            if (nextStep >= steps.Count || Time.unscaledTime - scriptStart < steps[nextStep].at)
+            if (nextStep >= steps.Count || scriptClock < steps[nextStep].at)
                 return;
             var what = steps[nextStep].what;
             var words = what.Split(' ');
@@ -160,6 +165,12 @@ namespace Punchy.Chemistry
                     if (done)
                         CastFrom(words[1], player, waterAim.Value, words.Length > 2 && int.TryParse(words[2], out var wch) ? wch : 1);
                     break;
+                case "rec":
+                    // rec s: s seconds of frames, 30 a second of game time (Time.captureFramerate), as JPEGs into -chem-shots'
+                    // folder: the game's own image, whatever windows are over it (for a demo clip).
+                    var recFor = Floats(words.Length > 1 ? words[1] : "");
+                    StartCoroutine(Record(recFor.Length > 0 ? recFor[0] : 10f));
+                    break;
                 case "shot":
                     // shot name: a screenshot into -chem-shots' folder (or the player's data folder).
                     var dir = ShotDir();
@@ -172,7 +183,7 @@ namespace Punchy.Chemistry
             }
             if (!done)
                 return;
-            Debug.Log($"[Chemistry] script: {what} (at {Time.unscaledTime - scriptStart:F1} s, from ({player.x:F0}, {player.y:F0}, {player.z:F0}) in layer {viewLayer}; {FilledChunks} chunks filled)");
+            Debug.Log($"[Chemistry] script: {what} (at {scriptClock:F1} s, from ({player.x:F0}, {player.y:F0}, {player.z:F0}) in layer {viewLayer}; {FilledChunks} chunks filled)");
             nextStep++;
         }
 
@@ -206,6 +217,23 @@ namespace Punchy.Chemistry
                 m.VerticalVelocity = 0f;
                 em.SetComponentData(player, m);
             }
+        }
+
+        System.Collections.IEnumerator Record(float seconds)
+        {
+            const int Fps = 30;
+            var dir = ShotDir();
+            Time.captureFramerate = Fps;
+            var frames = (int)(seconds * Fps);
+            for (int k = 0; k < frames; k++)
+            {
+                yield return new WaitForEndOfFrame();
+                var tex = ScreenCapture.CaptureScreenshotAsTexture();
+                System.IO.File.WriteAllBytes(System.IO.Path.Combine(dir, $"rec{k:0000}.jpg"), tex.EncodeToJPG(92));
+                Destroy(tex);
+            }
+            Time.captureFramerate = 0;
+            Debug.Log($"[Chemistry] script: recorded {frames} frames");
         }
 
         static string ShotDir()
