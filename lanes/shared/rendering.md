@@ -1,4 +1,4 @@
-# Rendering rules (20, 24, 25, 26)
+# Rendering rules (20, 24, 25, 26, 30)
 
 The render lane owns `Shaders/*.hlsl`, the surface lighting path and `DetailPolicy`: ask before editing them.
 
@@ -28,6 +28,11 @@ The render lane owns `Shaders/*.hlsl`, the surface lighting path and `DetailPoli
 - Until R-23 lands: no new surface shader, and no lighting or haze term added to one shader only. Ask the
   supervisor.
 - After R-23: a forward pass that calls URP lighting or PunchyAtmosphere outside the shared function goes back.
+
+## One effects kit (rule 30, R-29)
+- Fire, electricity, steam, smoke, sparks, water spray and wind each have one shared effect (asset, draw path and
+  presets), as StandardFire does. New uses call the kit. No one-off particle systems or effect shaders; if the kit
+  lacks something, extend it or ask the render lane.
 
 ## NaN-safe (rule 24, #282)
 White bloom circles are NaN pixels spread by bloom. URP Stop NaN on the main camera is a net, not a fix.

@@ -71,6 +71,7 @@ Numbers are stable; cards cite them. Rules with no module are complete as writte
 | 27 | Foundations before stand-ins | design.md |
 | 28 | Refactors have right of way | design.md |
 | 29 | Docs: one home per fact, paraphrase, size limits | `../README.md` |
+| 30 | One effects kit: effects come from the shared kit, never one-offs | rendering.md |
 
 Rules 10 and 12c are retired (replaced by 15 and by 21 + 23).
 
