@@ -4285,6 +4285,14 @@ Where A-109 differs from A-108: herds are anonymous and seeded per 512 m cell fr
 - Asks: gaps for rows 4 and 5, seen but not fixed. Creatures of members who have since gone indoors stay until they leave range, so after an hour creatures exceed Whereabouts' outdoors by about 30%. The old brain drifts creatures off their spots. Doors are unused. Garden and shop jobs have no creature task. The FolkJobs log line no longer appears for member towns.
 - NEXT: on resume: the full suite on 526f5143, fix any moved tests, check the fingerprint, then close row 3. No editor, build, loop or Punchy.exe of mine is running.
 
+## 2026-11-14 A-110 row 3 closed: suite passes on 526f5143, no test moved
+- DONE: #25 #298 row 3 as reported above, now checked by the full suite (fauna/one-population 526f5143, no new commit: nothing needed fixing).
+- NOT DONE / UNVERIFIED: none on row 3. The gaps listed above (creatures staying after their member goes in, drifting brain, doors unused, garden and shop tasks, FolkJobs line) go to rows 4 and 5.
+- Checks: full suite on 526f5143: 44 passed / 0 failed / 17 skipped of 61, 315 s (the 17 skips are the on-demand bench and shot tests). Fauna_Fingerprint re-read: 6A9E28E5, unchanged, so nothing to re-pin or tell the profiler. No test pinned the old randomly drawn housed folk: the folk tests that used live villagers now find members (BeastRespond picked a human with leash 71, which is town 73's member leash; LiveFolk answer and talk lines unchanged in kind). Whereabouts: town 73 day 0 digest E0187F72, peak 52 at 16.50 h; at 22.03 h 3 placed = 3 outdoors = 3 shown.
+- Shots: none new.
+- Asks: none.
+- NEXT: A-110 row 4, first gap: a member going indoors walks to its door and its creature is let go there; FolkJobs line back for member towns.
+
 ## A-107
 
 ### Row 1: graded climb sections on colossi (done, verified, #276, fauna/colossus-climb b2ad690b)
