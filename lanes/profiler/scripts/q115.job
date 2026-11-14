@@ -1,0 +1,20 @@
+# Job 73 (R-19 row 2, #281): the steep-rock cost switches on render/steep-triplanar 1e556c4b (on main b66b4c2a), at
+# job 66's mountain poses (-benchface: 20 m and 150 m), Medium, noon, Clear. Main b66b4c2a runs alongside (the same
+# build as job 66's main arm, Profile-b66b4c2f), so each arm's delta is against main in the same session.
+Q=q115; TITLE="job 73 steep rock switches"
+BUILDS="1e556c4 b66b4c2"
+OUT_b66b4c2=Profile-b66b4c2f
+VIEWS="mountain20 mountain150"
+view() { case $1 in
+  mountain20)  echo "-goto -3130,2878 -benchstops face -benchface -3130,2878,20 -benchhour 12 -benchweather Clear";;
+  mountain150) echo "-goto -3130,2878 -benchstops face -benchface -3130,2878,150 -benchhour 12 -benchweather Clear";; esac; }
+ARMS="main default highonly oct1 slab40 slab150 oct1slab40"
+arm() { case $1 in
+  main)       echo "Profile-b66b4c2f";;
+  default)    echo "Profile-1e556c4";;
+  highonly)   echo "Profile-1e556c4 -rockhighonly";;
+  oct1)       echo "Profile-1e556c4 -rockoctaves 1";;
+  slab40)     echo "Profile-1e556c4 -rockslabpx 40";;
+  slab150)    echo "Profile-1e556c4 -rockslabpx 150";;
+  oct1slab40) echo "Profile-1e556c4 -rockoctaves 1 -rockslabpx 40";; esac; }
+ROUNDS=3; GFX=Medium; REF=main; BAR=0.3
