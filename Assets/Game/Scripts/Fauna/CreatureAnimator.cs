@@ -840,11 +840,13 @@ namespace Punchy.Fauna
                     rot = math.mul(turn, rot);
                     // (No angle frees the ball of the hip itself, which the belly rests on, nor quite all of a long leg on a
                     // slope, judged on a plane: lift what is left against the real ground up into the flank, at most the hip's
-                    // own radius, so no leg stays in the ground.)
+                    // own radius plus the lying body's height, so no leg stays in the ground and none rises above the back.
+                    // (Bony, near-bellyless bodies have hips too thin for the radius alone to clear curved slopes.)
                     var left = LowestLegOnGround(ref b, ref part, ref segPos, ref segRot, in terrain, s.Position.y, scale);
                     if (left < 0f)
                     {
-                        var rise = new float3(0f, math.min(-left, b.Segments[part.FirstSegment].RadiusStart * scale) * weight, 0f);
+                        var reach = b.Segments[part.FirstSegment].RadiusStart * scale + height;
+                        var rise = new float3(0f, math.min(-left, reach) * weight, 0f);
                         for (int j = 0; j < part.SegmentCount; j++)
                             segPos[part.FirstSegment + j] += rise;
                         pos += rise;
