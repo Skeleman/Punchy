@@ -100,3 +100,4 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #339 | fauna | A-119 rider and mount share one size for LOD and sim |
 | #340 | folk | A-120 household pets; folk pet animals; children carry pets in |
 | #342 | fauna | A-121 walkers go round fires; all fires give heat |
+| #345 | world | W-168 bake terrain, cliff, cave and building meshes for faster starts |

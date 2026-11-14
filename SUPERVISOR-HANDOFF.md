@@ -324,3 +324,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-14: merged #341 (A-117 rows 1-2, 11ba8e42), fauna fingerprint now B2A5823C (profiler told). Fires: A-121 (#342), fauna after A-118, before A-119. R-32 row 1 done (render/steady-shadows 67039809, sun steps every 0.1 deg): render to open a PR. R-36 goes after render's R-19 default commit, before R-20 row 1.
 - 11-14: merged #343 (R-32 row 1, sun turns in 0.1 deg steps). Goes in tonight's candidate; checklist shadow line covers it.
 - 11-14: merged #344 (A-111 row 2, hermit talk and work dust scans cached; local effects only, so host+client was skipped). Folk on A-114.
+- 11-14: Zach asked about baking more for faster starts: W-168 (#345), world after bake determinism. Job 64's two quick fixes (chunk cap per frame, colossus LOD off main thread) are folded into its row 1.
