@@ -204,7 +204,7 @@ namespace Punchy.Chemistry
                 Debug.Log($"[Chemistry] lockstep {sessionRole} tick {batch.Tick} at {DateTime.Now:HH:mm:ss.f} sum {Fnv1a64.Hash(session.Checksum()):x16} " +
                           $"burning {burningCount} burnt {burntCount} ice {iceCount} behind {Behind} peers {(net != null ? net.Peers.Count : 0)} " +
                           $"filled {w.Filled.Count} active {w.ActiveKeys.Count} unpacked {w.UnpackedCount} sampled {sampled} ({sampleMs:F0} ms) " +
-                          $"mem {System.Diagnostics.Process.GetCurrentProcess().PrivateMemorySize64 >> 20} MB gc {GC.GetTotalMemory(false) >> 20} MB " +
+                          $"mem {UnityEngine.Profiling.Profiler.GetTotalReservedMemoryLong() >> 20} MB reserved gc {GC.GetTotalMemory(false) >> 20} MB " +
                           $"desync={session.DesyncSeen} desyncs={desyncs}");
             }
         }

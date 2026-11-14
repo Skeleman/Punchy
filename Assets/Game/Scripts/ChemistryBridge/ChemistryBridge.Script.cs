@@ -18,7 +18,8 @@ namespace Punchy.Chemistry
     /// - <c>demo</c>: a Fireball on the nearest grass 6 m or more away (as -chem-demo);
     /// - <c>lake</c>: a Sleet Storm on the nearest water 6 m or more away;
     /// - <c>cast spell</c>: that spell 5 m north of the player, in its layer;
-    /// - <c>goto x,z</c>: a teleport there, onto the ground;
+    /// - <c>goto x,z</c>: a teleport there, onto the ground; <c>hop dx,dz</c>: a teleport that far from here; <c>back</c>:
+    ///   to where the last goto or hop left from, exactly (into a cave again);
     /// - <c>walk dx,dz,s</c>: walks that far in s seconds (on the ground, the player carried), then back the same way;
     /// - <c>quit</c>: ends the process.
     /// Only the local player moves (Punchy's movement is client-authoritative), so on a client it's the client's own.
@@ -32,6 +33,7 @@ namespace Punchy.Chemistry
         float3 walkFrom;
         float2 walkBy;
         float walkFor, walkSince = -1f;
+        float3? leftFrom;
 
         void StartScript()
         {
@@ -77,7 +79,22 @@ namespace Punchy.Chemistry
                 case "goto":
                     var xz = Floats(words.Length > 1 ? words[1] : "");
                     if (xz.Length >= 2)
+                    {
+                        leftFrom = player;
                         Put(terrain, new float3(xz[0], 0f, xz[1]));
+                    }
+                    break;
+                case "hop":
+                    var by = Floats(words.Length > 1 ? words[1] : "");
+                    if (by.Length >= 2)
+                    {
+                        leftFrom = player;
+                        Put(terrain, player + new float3(by[0], 0f, by[1]));
+                    }
+                    break;
+                case "back":
+                    if (leftFrom is float3 was)
+                        Put(terrain, was, false);
                     break;
                 case "walk":
                     var w = Floats(words.Length > 1 ? words[1] : "");
@@ -96,7 +113,7 @@ namespace Punchy.Chemistry
             }
             if (!done)
                 return;
-            Debug.Log($"[Chemistry] script: {what} (at {Time.unscaledTime - scriptStart:F0} s; {FilledChunks} chunks filled)");
+            Debug.Log($"[Chemistry] script: {what} (at {Time.unscaledTime - scriptStart:F1} s, from ({player.x:F0}, {player.y:F0}, {player.z:F0}) in layer {viewLayer}; {FilledChunks} chunks filled)");
             nextStep++;
         }
 
@@ -115,14 +132,14 @@ namespace Punchy.Chemistry
             Put(terrain, walkFrom + new float3(walkBy.x * f, 0f, walkBy.y * f));
         }
 
-        // The local player onto the ground at a point.
-        void Put(TerrainSource terrain, float3 at)
+        // The local player onto the ground at a point (or at the point itself).
+        void Put(TerrainSource terrain, float3 at, bool onGround = true)
         {
             if (!playerQuery.TryGetSingletonEntity<LocalTransform>(out var player))
                 return;
             var em = queryWorld.EntityManager;
             var tr = em.GetComponentData<LocalTransform>(player);
-            tr.Position = new float3(at.x, terrain.SampleHeight(at.xz) + 0.05f, at.z);
+            tr.Position = onGround ? new float3(at.x, terrain.SampleHeight(at.xz) + 0.05f, at.z) : at;
             em.SetComponentData(player, tr);
             if (em.HasComponent<PlayerMotion>(player))
             {
