@@ -131,7 +131,8 @@ half3 PunchyGlowLight(float3 p, half3 n)
 // with the glow slots' fall-off: a real light of colour c and range r lights like a glow of c x PunchyRealToGlow and
 // reach r x PunchyRealToGlowReach (LightBudget.RealToGlow, which sizes a pooled light from its glow the other way round),
 // so a light handed between a real light and a glow slot looks the same in both. Without Forward+ (the cluster keyword
-// off) there are none: the glow slots light everything, as before.
+// off) there are none: the glow slots light everything, as before. A shader that stays out of Forward+ for its cost
+// (R-25, profiler job 45j) reads the best 16 of them from a list instead (PUNCHY_NEAR_REAL_LIST).
 #if defined(USE_CLUSTER_LIGHT_LOOP) && defined(LIGHT_LOOP_BEGIN)
     #if USE_CLUSTER_LIGHT_LOOP
         #define PUNCHY_REAL_LIGHTS 1
@@ -142,6 +143,11 @@ half3 PunchyGlowLight(float3 p, half3 n)
 #endif
 float _PunchyFloraGlowWorldOff;  // profiler pricing (-floraglowworld 0): plants skip PunchyGlowWorld
 float _PunchyRealLightReach;   // how far from the camera (m) any real light reaches (LightBudget): past it, none
+// R-25: the 16 real lights that matter most, as glows, for a shader that leaves Forward+ out (it defines
+// PUNCHY_NEAR_REAL_LIST before including this file): grass, pebbles, the sunken temple. Unshadowed.
+float4 _PunchyNearReal[16];        // xyz position
+float4 _PunchyNearRealColor[16];   // rgb light (linear) x its real level, w reach (m)
+int _PunchyNearRealCount;
 static const float PunchyRealToGlow = 0.28;
 static const float PunchyRealToGlowReach = 0.75;
 
@@ -189,6 +195,20 @@ half3 PunchyRealLights(float3 p, half3 n, float4 positionCS)
         // Shadowed only in shaders with the additional-light shadow keyword (the few lights LightBudget lets cast them).
         light += lit * (saturate(dot(n, direction) * 0.7 + 0.3) * AdditionalLightRealtimeShadow(lightIndex, p, direction));
     LIGHT_LOOP_END
+#elif defined(PUNCHY_NEAR_REAL_LIST)
+    [branch] if (distance(p, GetCameraPositionWS()) > _PunchyRealLightReach)
+        return light;
+    for (int k = 0; k < _PunchyNearRealCount; k++)
+    {
+        float4 hc = _PunchyNearRealColor[k];
+        float3 to = _PunchyNearReal[k].xyz - p;
+        float dist = length(to);
+        [branch] if (dist < hc.w)
+        {
+            float fall = saturate(1 - dist / hc.w);
+            light += hc.rgb * fall * fall * saturate(dot(n, to / max(dist, 1e-3)) * 0.7 + 0.3);
+        }
+    }
 #endif
     return light;
 }

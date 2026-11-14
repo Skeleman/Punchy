@@ -45,6 +45,9 @@ namespace Punchy.Settings
         static readonly int HeatColorId = Shader.PropertyToID("_PunchyCaveHeatColor");
         static readonly int HeatCountId = Shader.PropertyToID("_PunchyCaveHeatCount");
         static readonly int RealReachId = Shader.PropertyToID("_PunchyRealLightReach");
+        static readonly int NearRealId = Shader.PropertyToID("_PunchyNearReal");
+        static readonly int NearRealColorId = Shader.PropertyToID("_PunchyNearRealColor");
+        static readonly int NearRealCountId = Shader.PropertyToID("_PunchyNearRealCount");
         /// <summary>Profiler trial (11-11, R-10's town cost): "-realreach 0" turns off the reach cut below (every pixel
         /// walks the Forward+ light loop, as before).</summary>
         static bool reachCut = true;
@@ -87,6 +90,12 @@ namespace Punchy.Settings
         // The glow slots: what goes up, and each slot's fade bookkeeping (as CaveSystem's glow list had it).
         static readonly Vector4[] heat = new Vector4[GlowSlots];
         static readonly Vector4[] heatColor = new Vector4[GlowSlots];
+        // R-25: the real lights that matter most, as glows, for the shaders left out of Forward+ (grass, pebbles, the
+        // sunken temple: Glow.hlsl's PUNCHY_NEAR_REAL_LIST), each with a weight eased in and out of the list.
+        static readonly Vector4[] nearReal = new Vector4[GlowSlots];
+        static readonly Vector4[] nearRealColor = new Vector4[GlowSlots];
+        static Dictionary<Vector4, float> nearWeight = new Dictionary<Vector4, float>();
+        static Dictionary<Vector4, float> nearNextWeight = new Dictionary<Vector4, float>();
         static readonly Dictionary<Vector4, float> heatAge = new Dictionary<Vector4, float>();
         static readonly Dictionary<Vector4, float> heatNextAge = new Dictionary<Vector4, float>();
         /// <summary>Lights that have left the slots, still fading out where they were last: colour, position, time left.</summary>
@@ -205,6 +214,8 @@ namespace Punchy.Settings
             heatLeaving.Clear();
             heatLast.Clear();
             Shader.SetGlobalInt(HeatCountId, 0);
+            Shader.SetGlobalInt(NearRealCountId, 0);
+            nearWeight.Clear();
             foreach (var key in pooled.Keys)
                 realLevel.Remove(key);
             pooled.Clear();
@@ -449,6 +460,38 @@ namespace Punchy.Settings
                     realReach = math.max(realReach, Vector3.Distance(r.Position, eyeAt) + math.abs(r.Light.w) * 1.5f + 2f);
             }
             Shader.SetGlobalFloat(RealReachId, reachCut ? realReach : 1e9f);
+
+            // The same real lights as glows, best first, for the shaders that don't read Forward+ (R-25): a light's
+            // share here is its real level, so with its glow slot (which takes the rest) it adds up to one light.
+            ranked.Clear();
+            for (int i = 0; i < requests.Count; i++)
+            {
+                var r = requests[i];
+                if (r.OwnsLight && realLevel.TryGetValue(r.Key, out var lit) && lit > 0f)
+                    ranked.Add((nearWeight.ContainsKey(r.Key) ? r.Score * Stickiness : r.Score, i));
+            }
+            ranked.Sort(ByScore);
+            nearNextWeight.Clear();
+            var nearCount = 0;
+            for (int k = 0; k < ranked.Count; k++)
+            {
+                var r = requests[ranked[k].index];
+                if (nearNextWeight.ContainsKey(r.Key))
+                    continue;
+                var weight = nearWeight.TryGetValue(r.Key, out var w) ? w : 0f;
+                weight = k < GlowSlots ? math.min(weight + dt / FadeIn, 1f) : math.max(weight - dt / FadeOut, 0f);
+                if (weight <= 0f || nearCount >= GlowSlots)
+                    continue;
+                nearNextWeight[r.Key] = weight;
+                var share = weight * realLevel[r.Key];
+                nearReal[nearCount] = r.Position;
+                nearRealColor[nearCount] = new Vector4(r.Light.x * share, r.Light.y * share, r.Light.z * share, math.abs(r.Light.w));
+                nearCount++;
+            }
+            (nearWeight, nearNextWeight) = (nearNextWeight, nearWeight);
+            Shader.SetGlobalVectorArray(NearRealId, nearReal);
+            Shader.SetGlobalVectorArray(NearRealColorId, nearRealColor);
+            Shader.SetGlobalInt(NearRealCountId, nearCount);
 
             // Totals, and the log.
             Requested = requests.Count;
