@@ -527,6 +527,11 @@ namespace Punchy.Fauna
         static readonly Color MossGreen = new Color(0.28f, 0.42f, 0.18f, 1f);
         static readonly Color VineGreen = new Color(0.22f, 0.36f, 0.14f, 1f);
         static readonly Color Twig = new Color(0.36f, 0.27f, 0.17f, 1f);
+        static readonly Color Chalk = new Color(0.66f, 0.63f, 0.57f, 1f);
+
+        /// <summary>Stone worn pale by hands and feet. Mixed toward chalk rather than only brightened, so it still
+        /// stands out on a dark body (RockGolem's boulders), where a brighter shade of near-black stays near-black.</summary>
+        static Color Worn(Color stone, float by) => Color.Lerp(stone, Chalk, by);
 
         /// <summary>A dark crack in the stone, a worn knob of a handhold beside it, and sometimes moss in it.</summary>
         static void Crack(DunesColossus.MeshBuilder mb, Vector3 at, Vector3 normal, Color stone, float size, ref Unity.Mathematics.Random rng)
@@ -534,10 +539,13 @@ namespace Punchy.Fauna
             Across(normal, out var u, out var v);
             var turn = rng.NextFloat(Mathf.PI);
             var along = u * Mathf.Cos(turn) + v * Mathf.Sin(turn);
-            var length = rng.NextFloat(0.6f, 1.6f) * size;
-            mb.Limb(at - along * length * 0.5f - normal * 0.02f * size, at + along * length * 0.5f - normal * 0.02f * size, 0.07f * size, 0.03f * size, Shade(stone, 0.35f), 5);
-            var knob = at + Vector3.Cross(along, normal) * 0.3f * size + normal * 0.05f * size;
-            mb.Ellipsoid(knob, new Vector3(0.16f, 0.1f, 0.16f) * size, Quaternion.LookRotation(normal, along), Shade(stone, 1.15f), 6, 3);
+            var length = rng.NextFloat(0.9f, 2.2f) * size;
+            var across = Vector3.Cross(along, normal);
+            mb.Limb(at - along * length * 0.5f - normal * 0.02f * size, at + along * length * 0.5f - normal * 0.02f * size, 0.09f * size, 0.03f * size, Shade(stone, 0.35f), 5);
+            // (A worn pale lip along one side: what tells a crack from afar, more than the dark line itself.)
+            mb.Limb(at - along * length * 0.4f + across * 0.12f * size, at + along * length * 0.4f + across * 0.12f * size, 0.06f * size, 0.03f * size, Worn(stone, 0.4f), 4);
+            var knob = at + across * 0.3f * size + normal * 0.05f * size;
+            mb.Ellipsoid(knob, new Vector3(0.2f, 0.12f, 0.2f) * size, Quaternion.LookRotation(normal, along), Worn(stone, 0.5f), 6, 3);
             if (rng.NextFloat() < 0.4f)
                 mb.Ellipsoid(at + normal * 0.02f * size, new Vector3(0.18f, 0.05f, 0.12f) * size, Quaternion.LookRotation(along, normal), MossGreen, 6, 3);
         }
@@ -570,13 +578,15 @@ namespace Punchy.Fauna
             if (flat == Vector3.zero)
                 flat = normal;
             var side = Vector3.Cross(up, flat).normalized;
-            var length = rng.NextFloat(1.2f, 2.4f) * size;
-            var depth = rng.NextFloat(0.3f, 0.45f) * size;
+            var length = rng.NextFloat(1.6f, 3.2f) * size;
+            var depth = rng.NextFloat(0.4f, 0.6f) * size;
             var slab = at + flat * depth * 0.5f;
-            mb.Ellipsoid(slab, new Vector3(length * 0.5f, 0.12f * size, depth), Quaternion.LookRotation(flat, up), Shade(stone, 1.08f), 8, 3);
+            // (Pale worn top over a dark underside: a level bright bar with a shadow line, unlike moss or a crack.)
+            mb.Ellipsoid(slab - up * 0.1f * size, new Vector3(length * 0.48f, 0.12f * size, depth * 0.9f), Quaternion.LookRotation(flat, up), Shade(stone, 0.45f), 8, 3);
+            mb.Ellipsoid(slab, new Vector3(length * 0.5f, 0.1f * size, depth), Quaternion.LookRotation(flat, up), Worn(stone, 0.45f), 8, 3);
             if (!nest)
                 return;
-            var bowl = slab + up * 0.12f * size;
+            var bowl = slab + up * 0.1f * size;
             for (int i = 0; i < 7; i++)
             {
                 var a = i * Mathf.PI * 2f / 7f;
@@ -607,9 +617,10 @@ namespace Punchy.Fauna
         static void Moss(DunesColossus.MeshBuilder mb, Vector3 at, Vector3 normal, Color stone, float size, ref Unity.Mathematics.Random rng)
         {
             Across(normal, out var u, out _);
-            var r = rng.NextFloat(0.3f, 0.7f) * size;
-            mb.Ellipsoid(at, new Vector3(r, 0.06f * size, r * rng.NextFloat(0.6f, 1f)), Quaternion.LookRotation(u, normal),
-                         Color.Lerp(MossGreen, stone, rng.NextFloat(0.1f, 0.35f)), 7, 3);
+            var r = rng.NextFloat(0.45f, 1f) * size;
+            // (Little stone mixed in: on a dark body a moss patch has to stay green to read as moss.)
+            mb.Ellipsoid(at, new Vector3(r, 0.07f * size, r * rng.NextFloat(0.6f, 1f)), Quaternion.LookRotation(u, normal),
+                         Color.Lerp(MossGreen, stone, rng.NextFloat(0.05f, 0.2f)), 7, 3);
         }
     }
 
