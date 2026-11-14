@@ -1,0 +1,13 @@
+# Job 72 (A-109 rows 2-3, #298): far town figures. fauna/far-towns f54d8941 vs its base, main da573e16. Medium.
+# Views: 200 m north of town 73 facing it (-benchspot 2972,-685,180) at noon and at dusk (18:30, home lights and smoke),
+# and the 200 m walk south to the centre (2972,-885) at 4 m/s, where figures swap from far to real near 120-140 m.
+Q=q114; TITLE="job 72 far town figures"
+BUILDS="f54d894 da573e1"
+VIEWS="stand dusk walk"
+view() { case $1 in
+  stand) echo "-goto 2972,-685 -benchstops spot -benchspot 2972,-685,180 -benchhour 12 -benchweather Clear";;
+  dusk)  echo "-goto 2972,-685 -benchstops spot -benchspot 2972,-685,180 -benchhour 18.5 -benchweather Clear";;
+  walk)  echo "-goto 2972,-685 -benchstops line -benchline 2972,-685,2972,-885,4,0.1 -benchhour 12 -benchweather Clear -hitchms 40";; esac; }
+ARMS="branch main"
+arm() { case $1 in branch) echo "Profile-f54d894";; main) echo "Profile-da573e1";; esac; }
+ROUNDS=3; GFX=Medium; REF=main; BAR=0.3
