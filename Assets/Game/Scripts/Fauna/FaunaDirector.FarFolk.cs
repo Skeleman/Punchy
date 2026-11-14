@@ -87,6 +87,9 @@ namespace Punchy.Fauna
     public partial class FaunaDirector
     {
         readonly HashSet<int> farReal = new HashSet<int>();
+        /// <summary>The members whose creatures were here at the last look and at this one (row 4: one gone from here
+        /// while going indoors went in at its door).</summary>
+        List<(TownPlan Plan, Resident Member)> farSeen = new List<(TownPlan, Resident)>(), farSeenNow = new List<(TownPlan, Resident)>();
         /// <summary>Landmarks whose plan was started ahead of their turn (a town near the camera goes first).</summary>
         readonly HashSet<int> farTried = new HashSet<int>();
         EntityQuery farQuery;
@@ -112,6 +115,7 @@ namespace Punchy.Fauna
             if (key != farKey)
             {
                 farKey = key;
+                farSeen.Clear();
                 farNext = 0;
                 farTried.Clear();
                 planPending = null;
@@ -196,10 +200,39 @@ namespace Punchy.Fauna
                 r.LiveTime = now;
                 r.LiveIndoors = s.Mode == CreatureMode.Home && s.Stage >= 1;
                 r.LiveScan = FarFolk.Scan;
+                farSeenNow.Add((plan, r));
                 if (!known && FarFolk.Log)
                     LogMemberSeen(plan, r, s);
             }
             states.Dispose();
+            // Row 4: a member whose creature went from here while going in at a door is in there (the host lets it go
+            // once inside, as a joined client sees by its ghost going): its far figure stays hidden till Whereabouts has
+            // it come out. (The host notes it as it lets it go; this is the same note on every machine.)
+            if (farSeen.Count > 0)
+            {
+                var noted = false;
+                int day = 0;
+                float hour = 0f;
+                double seconds = 0;
+                foreach (var (plan, r) in farSeen)
+                {
+                    // (The host noted it already as it let it go; noting it again here gives the same place and leg.)
+                    if (r.LiveScan == FarFolk.Scan || !r.LiveIndoors)
+                        continue;
+                    if (!noted)
+                    {
+                        MemberClock(out day, out hour, out seconds);
+                        noted = true;
+                    }
+                    if (!Whereabouts.Built(plan, r.Index, day, hour))
+                        continue;
+                    var w = Whereabouts.Of(plan, r.Index, day, hour, seconds);
+                    r.GoneInTo = Whereabouts.IndoorEnd(plan, w);
+                    r.GoneInLeg = w.Leg;
+                }
+            }
+            (farSeen, farSeenNow) = (farSeenNow, farSeen);
+            farSeenNow.Clear();
             foreach (var town in FarFolk.Towns)
                 town.Real = farReal.Contains(town.Landmark);
         }
@@ -216,6 +249,9 @@ namespace Punchy.Fauna
             farNext = 0;
             farQueryWorld = null;
             farQuery = default;
+            farSeen.Clear();
+            farSeenNow.Clear();
+            folkJobsLogged.Clear();
         }
 
         /// <summary>The ground a far figure stands on: the terrain, or wading depth where that is under water.</summary>

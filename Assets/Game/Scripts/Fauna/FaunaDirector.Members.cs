@@ -112,7 +112,10 @@ namespace Punchy.Fauna
             {
                 if (NearestPlayer(plan.Centre) > Radius + plan.Radius + 20f)
                     continue;
-                int inRange = 0, live = 0, waiting = 0, atDoor = 0;
+                LogFolkJobs(plan);
+                // (Logged: outdoors is every member Whereabouts has out within Radius, with or without its creature;
+                // liveIn counts creatures whose member is not, which row 4 sends in at a door.)
+                int inRange = 0, live = 0, waiting = 0, atDoor = 0, outdoors = 0, liveIn = 0, goneIn = 0;
                 for (int i = 0; i < plan.Residents.Count; i++)
                 {
                     var r = plan.Residents[i];
@@ -125,6 +128,14 @@ namespace Punchy.Fauna
                     if (memberLive.Contains(r.Seed))
                     {
                         live++;
+                        if (log && Whereabouts.Built(plan, i, day, hour))
+                        {
+                            var lw = Whereabouts.Of(plan, i, day, hour, seconds);
+                            if (lw.Outdoors && Whereabouts.IndoorEnd(plan, lw) < 0 && NearestPlayer(lw.Position.xz) <= Radius)
+                                outdoors++;
+                            else if (!lw.Outdoors || Whereabouts.IndoorEnd(plan, lw) >= 0)
+                                liveIn++;
+                        }
                         continue;
                     }
                     if (!Whereabouts.Built(plan, i, day, hour))
@@ -134,12 +145,21 @@ namespace Punchy.Fauna
                         budget--;
                     }
                     var w = Whereabouts.Of(plan, i, day, hour, seconds);
+                    // (Row 4: its creature went in at a door ahead of its day; it comes out when its day does.)
+                    if (Whereabouts.StillIn(r, w))
+                    {
+                        if (w.Outdoors)
+                            goneIn++;
+                        continue;
+                    }
                     if (!w.Outdoors)
                         continue;
                     var d = NearestPlayer(w.Position.xz);
                     if (d > Radius)
                         continue;
                     inRange++;
+                    if (Whereabouts.IndoorEnd(plan, w) < 0)
+                        outdoors++;
                     // (Stepping out of a door or in at one: its far figure is part shown; it is made once clear.)
                     if (w.Shown < 1f)
                     {
@@ -154,7 +174,8 @@ namespace Punchy.Fauna
                     memberAsks.Add(new MemberAsk { Distance = d, Plan = plan, Index = i, At = w });
                 }
                 if (log)
-                    memberLine.Append($" [{plan.Name} #{plan.Landmark}: outdoors in range {inRange} more, creatures {live}, waiting {waiting}, at a door {atDoor}]");
+                    memberLine.Append($" [{plan.Name} #{plan.Landmark}: outdoors {outdoors}, creatures {live} ({liveIn} going in), no creature yet {inRange}, " +
+                                      $"waiting {waiting}, at a door {atDoor}, in early {goneIn}]");
             }
             memberAsks.Sort((a, b) => a.Distance != b.Distance ? a.Distance.CompareTo(b.Distance)
                                     : a.Plan.Landmark != b.Plan.Landmark ? a.Plan.Landmark.CompareTo(b.Plan.Landmark) : a.Index.CompareTo(b.Index));
@@ -181,7 +202,9 @@ namespace Punchy.Fauna
             if (log)
             {
                 nextMemberLog = now + 5f;
-                Debug.Log($"[members] day {day} hour {hour:F2}: housed {housedCount} of {MaxHoused}, settled {settledCount}, asked {asked}, capped {capped};{memberLine}");
+                Debug.Log($"[members] day {day} hour {hour:F2}: housed {housedCount} of {MaxHoused}, settled {settledCount}, asked {asked}, capped {capped}, " +
+                          $"went in {membersWentIn}, stuck {membersStuck};{memberLine}");
+                membersWentIn = membersStuck = 0;
             }
         }
 

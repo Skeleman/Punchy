@@ -140,7 +140,9 @@ namespace Punchy.Fauna
                             Whereabouts.Prepare(plan, i, day, Whereabouts.Turn);
                         }
                         w = Whereabouts.Of(plan, i, day, hour, t);
-                        if (!w.Outdoors)
+                        // (Row 4: its creature went in at its door ahead of its day; it stays in till its day takes it
+                        // out of there.)
+                        if (!w.Outdoors || Whereabouts.StillIn(f, w))
                             continue;
                     }
                     placed++;

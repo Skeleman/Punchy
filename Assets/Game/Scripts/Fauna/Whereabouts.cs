@@ -74,6 +74,14 @@ namespace Punchy.Fauna
         /// <summary>Host only: when its creature was last asked for (Time.time), so it isn't asked for twice while it
         /// is being made.</summary>
         internal float Asked = float.MinValue;
+        /// <summary>
+        /// Row 4: the indoor town place its creature went in at (-1: none), on this machine. Its far figure stays
+        /// hidden, and the host makes no creature for it, until Whereabouts has it leave that place, so it comes out
+        /// of the door it went in at. Memory only: each machine notes it from the creature it saw go in.
+        /// </summary>
+        internal int GoneInTo = -1;
+        /// <summary>Row 4: the leg (Whereabout.Leg) it went in on; a later leg to the same place is a new trip.</summary>
+        internal double GoneInLeg;
     }
 
     /// <summary>One stop of a day: a place, when the member gets there and when it leaves, and the way to it.</summary>
@@ -113,6 +121,9 @@ namespace Punchy.Fauna
         /// <summary>The ends of its leg (town places): where it is or was last, and where it is going (the same when it
         /// is stopped).</summary>
         public int From, To;
+        /// <summary>When the leg it is walking set off, or the stop it is at began (folk day * 24 + hour): which trip
+        /// this is, so a note made on one trip is not read on a later one to the same place.</summary>
+        public double Leg;
     }
 
     /// <summary>
@@ -607,6 +618,30 @@ namespace Punchy.Fauna
         }
 
         /// <summary>
+        /// Row 4: the indoor place a member is in or on its way into at this moment (a house or a shop worked inside),
+        /// or -1 when it is out and staying out for now. Its creature goes to that place's door.
+        /// </summary>
+        public static int IndoorEnd(TownPlan town, in Whereabout w) =>
+            w.To >= 0 && w.To < town.Places.Count && town.Places[w.To].Indoors ? w.To : -1;
+
+        /// <summary>
+        /// Row 4: whether a member whose creature went indoors (Resident.GoneInTo) is still in there, or still on its
+        /// way there by Whereabouts on the same leg (its creature walked faster than its day). False, and the note
+        /// dropped, once Whereabouts has it on any other leg or stop: set off somewhere else, it is shown stepping out
+        /// of that door; stopped inside, Whereabouts hides it itself; and a later trip back to the same place (after a
+        /// clock jump, or while nobody drew the town) is not mistaken for this one.
+        /// </summary>
+        internal static bool StillIn(Resident r, in Whereabout w)
+        {
+            if (r.GoneInTo < 0)
+                return false;
+            if (w.To == r.GoneInTo && w.Leg == r.GoneInLeg)
+                return true;
+            r.GoneInTo = -1;
+            return false;
+        }
+
+        /// <summary>
         /// Where a member is at this hour (0 to 24) of this day. seconds: the shared clock, for its small steps about
         /// a place it has stopped at.
         /// </summary>
@@ -620,7 +655,7 @@ namespace Punchy.Fauna
             while (k > 0 && hour < stops[k].Arrive)
                 k--;
             var stop = stops[k];
-            var w = new Whereabout { Inside = -1, From = stop.Place, To = stop.Place, Facing = new float2(0f, 1f) };
+            var w = new Whereabout { Inside = -1, From = stop.Place, To = stop.Place, Facing = new float2(0f, 1f), Leg = day * 24.0 + stop.Arrive };
             var place = town.Places[stop.Place];
             if (k < stops.Count - 1 && hour >= stop.Leave)
             {
@@ -640,6 +675,7 @@ namespace Punchy.Fauna
                 w.Doing = next.Carry ? Doing.Carry : Doing.Walk;
                 w.Walked = gone;
                 w.To = next.Place;
+                w.Leg = day * 24.0 + stop.Leave;
                 // (Out of a door, or in at one: shown over the first and last metre and a half.)
                 w.Shown = (place.Indoors ? math.saturate(gone / 1.5f) : 1f) *
                           (town.Places[next.Place].Indoors ? math.saturate((next.Length - gone) / 1.5f) : 1f);

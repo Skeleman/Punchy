@@ -342,6 +342,7 @@ namespace Punchy.Fauna
                 using (ResidentsMarker.Auto())
                 {
                     SpawnResidents(source);
+                    SendMembersIn();       // (A-110 row 4: a member whose day takes it indoors goes in at its door)
                     SpawnMembers(source);  // (A-110 row 3: each town household member as itself)
                     SpawnCaveDwellers(source);
                     SpawnChamberBands(source);

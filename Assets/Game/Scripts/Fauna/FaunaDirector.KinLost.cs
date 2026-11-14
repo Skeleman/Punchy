@@ -23,6 +23,8 @@ namespace Punchy.Fauna
         // what is near it), the connection going or not yet in game, and many vanishing at once (a reset, not deaths).
         // A lost folk's ghost that comes back clears its mark. Deaths this client didn't see (away from it, or before
         // it joined) stay unknown to it: the host's list of the dead belongs with the saved world state (P-35).
+        // A-110 row 4: the host also lets a town's household member go when it steps in at a door, so a ghost last
+        // seen going indoors (on its way in at a door, or stepping through) went in and did not die.
 
         /// <summary>How near the client's player a vanished ghost counts as died (m): well inside DespawnDistance, as
         /// the host sees the player a little late.</summary>
@@ -64,8 +66,8 @@ namespace Punchy.Fauna
 
         World kinWorld;
         EntityQuery kinReplicaQuery, kinConnectionQuery;
-        readonly Dictionary<Entity, (uint Individual, float3 Position)> kinSeen = new Dictionary<Entity, (uint, float3)>();
-        readonly Dictionary<Entity, (uint Individual, float3 Position)> kinNow = new Dictionary<Entity, (uint, float3)>();
+        readonly Dictionary<Entity, (uint Individual, float3 Position, bool Indoors)> kinSeen = new Dictionary<Entity, (uint, float3, bool)>();
+        readonly Dictionary<Entity, (uint Individual, float3 Position, bool Indoors)> kinNow = new Dictionary<Entity, (uint, float3, bool)>();
         readonly HashSet<uint> kinMarked = new HashSet<uint>();
         float3 kinPlayer;
         float kinHoldUntil;
@@ -114,7 +116,7 @@ namespace Punchy.Fauna
                 var s = states[i];
                 if (s.Individual == 0 || !Households.Of(s.Individual, out var house, out var m))
                     continue;
-                kinNow[entities[i]] = (s.Individual, s.Position);
+                kinNow[entities[i]] = (s.Individual, s.Position, s.Mode == CreatureMode.Home);
                 if (kinMarked.Remove(s.Individual))
                 {
                     // Back after all: whatever took it from view, it lives.
@@ -131,12 +133,12 @@ namespace Punchy.Fauna
             {
                 var vanished = 0;
                 foreach (var seen in kinSeen)
-                    if (!kinNow.ContainsKey(seen.Key))
+                    if (!kinNow.ContainsKey(seen.Key) && !seen.Value.Indoors)
                         vanished++;
                 if (vanished > 0 && vanished <= KinLostMaxAtOnce)
                     foreach (var seen in kinSeen)
                     {
-                        if (kinNow.ContainsKey(seen.Key) || math.distance(seen.Value.Position.xz, player.xz) > KinLostReach)
+                        if (kinNow.ContainsKey(seen.Key) || seen.Value.Indoors || math.distance(seen.Value.Position.xz, player.xz) > KinLostReach)
                             continue;
                         if (!Households.Of(seen.Value.Individual, out var house, out var m) || house.Gone(m))
                             continue;
