@@ -53,11 +53,24 @@ namespace Punchy.Terrain
             public static readonly int Fire = Shader.PropertyToID("_FarFireColor");
         }
 
+        /// <summary>"-farlights 0" turns every far light point off (R-25 row 2), for shots and benches with and
+        /// without them. "-townglow 0" still turns off the town's alone.</summary>
+        public static bool FarLightsEnabled = true;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        static void ReadFarLightsFlag()
+        {
+            // Set both ways: play mode starts without a domain reload, so a static would keep the last run's value.
+            var args = Punchy.Debugging.DebugControls.LaunchArgs;
+            var at = System.Array.IndexOf(args, "-farlights");
+            FarLightsEnabled = !(at >= 0 && at + 1 < args.Length && args[at + 1] == "0");
+        }
+
         /// <summary>Draws the far lights for this frame: <paramref name="on"/> the windows' night light (0 by day, and
         /// underground). Uploads the bake's points the first frame after each bake.</summary>
         public void DrawFarLights(float on, Vector3 camPos)
         {
-            if (farLightsMissing || on <= 0f || FarLightPolicy.Brightness <= 0f || !WorldReady)
+            if (!FarLightsEnabled || farLightsMissing || on <= 0f || FarLightPolicy.Brightness <= 0f || !WorldReady)
                 return;
             if (farLightMaterial == null)
             {
