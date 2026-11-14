@@ -4636,3 +4636,29 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
   - Aerial: dark fir stands and denser broadleaf. The 1 km pair is nearly identical; at that distance only the impostor tint changes.
 - **For the world and render lanes:** three flora assets added and three entries appended to Temperate's flora list. FloraGenerator and FloraPlacement are untouched.
 - A-113 rows 1-3 are done. NEXT: A-117 on fauna/folk-riders.
+
+## A-117 (#317) row 1: stables (fauna/folk-riders 812824a3)
+
+- **What:** towns with at least 15 plots get a Stable on their outermost green plot: a shed with stalls, hay and a trough, and a fenced paddock with a gate gap. It is a new flora form (Stable 59, plus HitchRail 60) with town lamps.
+  - The stable is the home of a "stable" household (its door is the paddock gate). It keeps 2-3 horses, picked from its key. They spawn when the town is peopled, after the residents and with no rng drawn, leashed to the paddock.
+  - Smaller human, dwarf and elf towns and the mining camps may get a HitchRail (MinPlots 0), but only on a free green plot.
+- **World-lane code, additions only as approved:** SettlementLayout gains MinPlots; SettlementBaking gains PlaceStable (edge-most green plot). Layout assets: two entries appended to HumanVillage, DwarfHold and ElfGrove, and a HitchRail entry to both mining camps.
+- **Hashes:**
+  - Layout: old 421 E44636F6, new 421 28DB5D55.
+  - Landmarks: 117 689D5348, unchanged.
+  - Fauna fingerprint: 6A9E28E5 with the code alone, which matches main's WorldTests pin. It is E99E8FCB with the layout entries (the stable plots and households). The household and horse code itself moves nothing.
+- **Towns:**
+
+  | Town | Plots | Stable | Horses | Keeper household |
+  |---|---|---|---|---|
+  | HumanVillage (2972,-885) | 40 | yes | 2 | 1 |
+  | DwarfHold (-3276,1578) | 38 | yes | 2 | 4 |
+  | ElfGrove (-2511,-1518) | 18 | yes | 3 | 4 |
+  | OgreCamp (912,-3837) | 10 | no (no entries) | - | - |
+  | GoblinCamp (-3300,-1311) | 25 | no (no entries) | - | - |
+  | DwarfMiningCamp (-1966,651) | 4 | no, and no hitch rail (no green plot) | - | - |
+
+  - Totals: 160 houses, 472 folk, 15 landmarks.
+- **Sync:** horses are ordinary host-spawned settled creatures, so they need no new ghost field.
+- **Shots:** D:/Unity/PunchyMilestones/A-117/gallery/r1-stable-human.png, r1-stable-dwarf.png and r1-stable-elf.png (10:30, clear). All passed ShotTool checks.
+- NEXT: row 2 (riders).
