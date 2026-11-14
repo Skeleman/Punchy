@@ -11,15 +11,47 @@ namespace Punchy.Terrain
     /// and the soil under it spill over the rim, the toe at the foot is the ground past it (with scree fans in its
     /// earth), and soil and grass gather on ledge tops. The rock's tone stays on the face: nothing paints the ground.
     /// All of it is laid over the terrain's own surface at that point (the same triplanar rock steep ground gets) and
-    /// fades out towards the seams, so skin and ground meet in one colour.
+    /// fades out over a wide ragged band towards the seams and the strip ends (<see cref="Seam"/>, <see cref="End"/>),
+    /// so skin and ground meet in one colour.
     /// </summary>
     public static class ScarpPaint
     {
-        /// <summary>Height over which the paint fades in from each seam (m), and width over which it fades in from
-        /// where the skin starts at a strip end.</summary>
-        public const float SeamFade = 1.5f, EndFade = 6f;
+        /// <summary>Most height over which the skin blends into the ground at the rim and at the foot (m; less on a
+        /// low face), and the strip width over which it blends in from where the skin starts at a strip end.</summary>
+        public const float SeamBand = 3.5f, EndBand = 12f;
 
         static float Lum(float3 c) => math.dot(c, new float3(0.3f, 0.59f, 0.11f));
+
+        /// <summary>
+        /// How much of the ground a face point at height y still is (row 2b): 1 on the seams, 0 on the open face. The
+        /// band it fades over wanders along the rim (0.6 to 1.4 of its width) and its edge is torn by finer noise, so
+        /// rock and ground meet in a wide ragged band, not on one row. top says whether the rim side (not the foot)
+        /// is the nearer, for which seam's normal the point blends towards.
+        /// </summary>
+        public static float Seam(ref Scarp sc, in ScarpAt at, float y, out bool top)
+        {
+            float drop = math.max(at.RimY - at.FootY, 0.01f);
+            float seed = sc.Seed % 977u * 1.37f;
+            // At least SeamBand, a tenth of the drop on a tall wall (about 6 m on a 60 m canyon), never over 0.3 of it.
+            float band = math.min(math.max(SeamBand, 0.1f * drop), 0.3f * drop);
+            float bandTop = band * (0.6f + 0.8f * math.saturate(0.5f + 0.5f * noise.snoise(new float2(at.S / 9f, seed + 120f))));
+            float bandFoot = band * (0.6f + 0.8f * math.saturate(0.5f + 0.5f * noise.snoise(new float2(at.S / 11f, seed + 125f))));
+            float ragTop = 0.35f * bandTop * noise.snoise(new float2(at.S / 1.7f, y / 1.3f + seed + 130f));
+            float ragFoot = 0.35f * bandFoot * noise.snoise(new float2(at.S / 1.9f, y / 1.1f + seed + 135f));
+            float wTop = 1f - math.smoothstep(0f, bandTop, math.max(at.RimY - y + ragTop, 0f));
+            float wFoot = 1f - math.smoothstep(0f, bandFoot, math.max(y - at.FootY + ragFoot, 0f));
+            top = wTop > wFoot;
+            return math.max(wTop, wFoot);
+        }
+
+        /// <summary>How much of the ground the skin still is towards a strip end: 1 where it starts (strip width
+        /// start), 0 once the strip is a band's width wider, with the band's length wandering per scarp end.</summary>
+        public static float End(ref Scarp sc, in ScarpAt at, float start)
+        {
+            float seed = sc.Seed % 977u * 1.37f;
+            float band = EndBand * (0.6f + 0.8f * math.saturate(0.5f + 0.5f * noise.snoise(new float2(at.S / 25f, seed + 140f))));
+            return 1f - math.smoothstep(start, start + band, at.W);
+        }
 
         /// <summary>The earth under a ground colour: a green (grassy) colour becomes a warm grey of the same
         /// lightness, so a meadow at the foot or on the top gives soil and rock its tone, not its green.</summary>
@@ -151,6 +183,11 @@ namespace Punchy.Terrain
             // The ground's strata bands are projected from above, so on a near-vertical face they smear into
             // vertical stripes: drop them faster than the colour fades in, so strip ends do not show them.
             result.Strata = surface.Strata * (1f - math.saturate(4f * fade));
+            // Row 2b striping: the shader's fine relief (Bump) is read from above too, so on the open face it smears
+            // into the same vertical stripes; keep it only where the skin lies back as ground (toe, ledges, seams).
+            // The shader's steep-rock grain is read three ways and carries the face's fine detail instead.
+            float flat = math.smoothstep(0.5f, 0.8f, normal.y);
+            result.Bump = surface.Bump * math.max(1f - math.saturate(4f * fade), flat);
             return result;
         }
     }

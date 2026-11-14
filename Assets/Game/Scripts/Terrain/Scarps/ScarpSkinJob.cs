@@ -122,26 +122,35 @@ namespace Punchy.Terrain
                 int i = r * cols + c;
                 var vertex = verts[i];
                 bool seam = r <= 1 || r >= rows - 2;
+                var at = columns[c];
+                float y = vertex.Position.y, ground01 = 1f;
                 if (!seam)
                 {
                     var down = verts[(r + 1) * cols + c].Position - verts[(r - 1) * cols + c].Position;
                     var side = verts[r * cols + math.min(c + 1, cols - 1)].Position - verts[r * cols + math.max(c - 1, 0)].Position;
                     var n = math.normalizesafe(math.cross(down, side), new float3(0f, 1f, 0f));
-                    vertex.Normal = flip ? -n : n;
+                    n = flip ? -n : n;
+                    // Row 2b: near each seam and towards the strip ends the face is still partly ground, over a wide
+                    // ragged band: its normal turns from the face's own to the seam's (the ground's there) and,
+                    // towards an end, to the ground's own under it, so light and surface hand over smoothly instead
+                    // of switching from one row to the next.
+                    float seamW = ScarpPaint.Seam(ref sc, at, y, out bool top);
+                    float endW = ScarpPaint.End(ref sc, at, ScarpSet.ClipSteps * NormalEpsilon);
+                    var seamN = verts[(top ? 1 : face) * cols + c].Normal;
+                    n = math.normalizesafe(math.lerp(n, seamN, seamW * seamW * (3f - 2f * seamW)), n);
+                    n = math.normalizesafe(math.lerp(n, Source.SampleNormal(vertex.Position.xz, NormalEpsilon), endW), n);
+                    vertex.Normal = n;
+                    ground01 = math.max(seamW, endW);
                 }
                 var xz = vertex.Position.xz;
                 var ground = Source.SampleGround(xz);
-                ground.Height = vertex.Position.y;
+                ground.Height = y;
                 var surface = Clay ? ScarpClay.Surface() : Source.SampleSurface(xz, ground, vertex.Normal);
                 if (!Clay && !seam)
                 {
-                    // The face's own colour, fading out towards each seam and towards where the skin starts at a
-                    // strip end, so the skin meets the ground in the ground's colour.
-                    var at = columns[c];
-                    float y = vertex.Position.y;
-                    float fade = math.smoothstep(0f, ScarpPaint.SeamFade, at.RimY - y)
-                                 * math.smoothstep(0f, ScarpPaint.SeamFade, y - at.FootY)
-                                 * math.smoothstep(ScarpSet.ClipSteps * NormalEpsilon, ScarpSet.ClipSteps * NormalEpsilon + ScarpPaint.EndFade, at.W);
+                    // The face's own colour, fading out over the same band towards each seam and each strip end,
+                    // so the skin meets the ground in the ground's colour.
+                    float fade = 1f - ground01;
                     surface = ScarpPaint.Paint(ref sc, at, columnCracks[c], y, vertex.Normal, fade, rimTones[c], footTones[c], surface);
                 }
                 vertex.SetSurface(surface);

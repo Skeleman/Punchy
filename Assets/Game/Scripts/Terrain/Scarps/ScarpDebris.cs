@@ -84,6 +84,7 @@ namespace Punchy.Terrain
                     float drop = at.RimY - at.FootY;
                     // Every roll is drawn whatever happens, so one choice never shifts the next.
                     float4 r0 = rng.NextFloat4(), r1 = rng.NextFloat4(), r2 = rng.NextFloat4(), r3 = rng.NextFloat4();
+                    EndOutcrop(ref sc, seg, k, at, rim, dir, group0);
                     if (drop < 1f || at.W < 1f || at.S < 3f || at.S > sc.Length - 3f)
                         continue;
                     var along = new float2(-dir.y, dir.x);
@@ -140,6 +141,35 @@ namespace Punchy.Terrain
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// Row 2b: where a strip tapers out at an end, the wall does not just stop: it breaks up into outcrops and
+        /// boulders of its rock, standing out of the slope along where the face would run and sunk deeper the lower
+        /// the face gets, until only their backs show. Rolled from their own stream per column, so they never shift
+        /// the rest of the debris.
+        /// </summary>
+        void EndOutcrop(ref Scarp sc, int seg, int k, in ScarpAt at, float2 rim, float2 dir, int group0)
+        {
+            float start = ScarpSet.ClipSteps;
+            if (at.W < 0.3f || at.W > start + 8f || at.W > 0.7f * sc.Width)
+                return;
+            var rng = new Unity.Mathematics.Random(math.hash(new uint3(sc.Seed, (uint)seg, (uint)k)) | 1u);
+            float4 q = rng.NextFloat4(), p = rng.NextFloat4();
+            float end = 1f - math.smoothstep(start, start + 8f, at.W);   // 1 where the skin stops, 0 a band in
+            if (q.x >= Step * (0.2f + 0.4f * end))
+                return;
+            bool earth = sc.Kind == ScarpKind.RiverCut;
+            float drop = math.max(at.RimY - at.FootY, 0.3f);
+            var along = new float2(-dir.y, dir.x);
+            // Across the strip, mostly in its lower half (where the wall's foot would be), a little along the rim.
+            var xz = rim + dir * (at.W * (0.2f + 0.8f * q.y)) + along * (q.z - 0.5f) * 1.5f;
+            float h = math.clamp(drop * (0.35f + 0.4f * p.x), 0.25f, earth ? 0.8f : 2.2f);
+            var half = new float3(h * (0.9f + 0.6f * p.y), h * (0.6f + 0.3f * p.z), h * (0.8f + 0.4f * p.w));
+            var cracks = ScarpSet.Cracks(ref sc, at.S);
+            var tones = Tones(ref sc, at, cracks, at.FootY + (0.3f + 0.6f * q.w) * drop, rim, dir);
+            Add(ref sc, xz, half, q.w, p.xy * 0.5f, tones.Tone, 0.35f + 0.4f * sc.Age, earth ? 0.6f : 0.4f,
+                0.35f + 0.3f * end, at.S, false, group0);
         }
 
         ScarpPaint.BedTone Tones(ref Scarp sc, in ScarpAt at, float3 cracks, float y, float2 rim, float2 dir)
