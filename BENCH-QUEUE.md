@@ -822,3 +822,5 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
 - Views: desert town square `-benchspot -342,560`; town 73 centre `-benchspot 2972,-885`.
 - Record: whole-frame and terrain GPU ms per view and preset; terrain mesh memory (B adds 4 B per vertex).
 - Pass (rule 23): B within +0.1 ms terrain GPU of A at Medium (2 parallax steps); report High (3) for reference.
+
+- 11-14 note (supervisor): #341 merged to main (11ba8e42). Fauna fingerprint re-pinned E99E8FCB -> B2A5823C (stables and hitch rails are now obstacles); landmarks 689D5348 and layout 28DB5D55 unchanged. Re-pin your baseline if a job compares it.

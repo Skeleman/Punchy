@@ -104,3 +104,4 @@ Foliage realism (Zach 11-14): crowns as leaf clusters (cut-out cards, layering, 
 - 11-14 (Zach): towers sized so a stair and rooms could fit, storeys readable from outside (W-167, #337).
 - 11-14 (Zach): household pets; folk pet animals by personality; children carry small animals inside (A-120, #340).
 - 11-14 (Zach): a rider and mount should share one size for LOD (A-119, #339).
+- 11-14 (Zach): no one walks through a campfire; every fire gives heat that comfort uses (A-121, #342).
