@@ -62,6 +62,10 @@ Shader "Punchy/Terrain Surface"
             // R-6: reference pixels a metre spans 1 m from the camera, times Detail (TerrainStreamingSystem). Each fine-relief
             // octave fades by its own on-screen size from this. Negative: the old fixed fade at _PunchyTerrainDetailFar.
             float _PunchyTerrainDetailPpm;
+            // R-19 row 2: the steep rock's cost switches (SteepRockCost), all 0 by default = the full rock.
+            // x 1: no beds and no slabs (grain only). y 1: one noise octave where the beds, their wander and the slabs
+            // use two or more. z: reference pixels a 2.5 m slab must span before it shows (0: the default 2).
+            float4 _PunchyRockCost;
             // Where the marks are, coarsely (CreatureBurrowSystem's MarkMask): a cell 1 where some mark reaches into it,
             // and (x, z of the map's corner, cells per metre, cells across).
             TEXTURE2D(_PunchyBurrowMask);
@@ -466,29 +470,43 @@ Shader "Punchy/Terrain Surface"
                     float pxm = ppm / max(distance, 0.01);
                     half thickF = saturate((6.0 * pxm - 2) / 2), thinF = saturate((1.4 * pxm - 2) / 2);
                     half fineF = saturate((2.0 * pxm - 2) / 2), coarseF = saturate((12.0 * pxm - 2) / 2);
-                    float y = input.positionWS.y + (PunchyValueNoise(p * 0.013 + 5.1) - 0.5) * 8
-                                                 + (PunchyValueNoise(p * 0.07 + 1.7) - 0.5) * 1.6;
-                    const float ey = 0.2;
-                    float2 thick = float2(PunchyValueNoise(float2(y / 6.0, 19.7)), PunchyValueNoise(float2((y + ey) / 6.0, 19.7)));
-                    float2 thin = float2(PunchyValueNoise(float2(y / 1.4, 23.1)), PunchyValueNoise(float2((y + ey) / 1.4, 23.1)));
-                    float2 bed = (thick - 0.5) * thickF + (thin - 0.5) * 0.5 * thinF;
-                    rockBand = bed.x;
-                    half rise = (bed.y - bed.x) / ey;
-                    normalWS = normalize(normalWS + half3(0, saturate(rise) * 0.5 * rockFace, 0));
-                    rockLedge = saturate(-rise * 0.5);   // the underside of a bed lip sits in its own shade
+                    bool rockNoise = _PunchyRockCost.x < 0.5, rockTwo = _PunchyRockCost.y < 0.5;
+                    float y = input.positionWS.y;
+                    [branch] if (rockNoise)
+                    {
+                        y += (PunchyValueNoise(p * 0.013 + 5.1) - 0.5) * 8;
+                        [branch] if (rockTwo)
+                            y += (PunchyValueNoise(p * 0.07 + 1.7) - 0.5) * 1.6;
+                        const float ey = 0.2;
+                        float2 bed = (float2(PunchyValueNoise(float2(y / 6.0, 19.7)), PunchyValueNoise(float2((y + ey) / 6.0, 19.7))) - 0.5) * thickF;
+                        [branch] if (rockTwo)
+                            bed += (float2(PunchyValueNoise(float2(y / 1.4, 23.1)), PunchyValueNoise(float2((y + ey) / 1.4, 23.1))) - 0.5) * 0.5 * thinF;
+                        rockBand = bed.x;
+                        half rise = (bed.y - bed.x) / ey;
+                        normalWS = normalize(normalWS + half3(0, saturate(rise) * 0.5 * rockFace, 0));
+                        rockLedge = saturate(-rise * 0.5);   // the underside of a bed lip sits in its own shade
+                    }
                     // Slabs (1c): patches of lighter and darker stone, wide along the beds and short across them, of
                     // mixed sizes. Soft-thresholded value noise on a warped domain, so there are no cell edges, no grid
                     // and no straight seams (cells read as brickwork). Read along x and along z with the bed height,
                     // so a face of any heading gets them. Softer far off: at distance they are mottling, not blocks.
-                    half blockF = saturate((2.5 * pxm - 2) / 2);
+                    // Row 2: the slabs show once a 2.5 m slab spans slabPx reference pixels, full at twice that.
+                    half slabPx = _PunchyRockCost.z > 0 ? _PunchyRockCost.z : 2;
+                    half blockF = rockNoise ? saturate((2.5 * pxm - slabPx) / slabPx) : 0;
                     [branch] if (blockF > 0.001)
                     {
                         float2 xz = input.positionWS.xz;
-                        float wy = y + (PunchyValueNoise(xz * 0.21 + 2.9) - 0.5) * 1.2;
-                        half sA = PunchyValueNoise(float2(xz.x * 0.22 + PunchyValueNoise(xz * 0.09) * 2.5, wy * 0.75));
-                        half sB = PunchyValueNoise(float2(xz.y * 0.22 + PunchyValueNoise(xz * 0.09 + 4.1) * 2.5, wy * 0.75 + 31.7));
-                        half sC = PunchyValueNoise(float2((xz.x + xz.y) * 0.5, wy * 1.6 + 9.3));
-                        half s = (sA + sB) * 0.35 + sC * 0.3;
+                        half s;
+                        [branch] if (rockTwo)
+                        {
+                            float wy = y + (PunchyValueNoise(xz * 0.21 + 2.9) - 0.5) * 1.2;
+                            half sA = PunchyValueNoise(float2(xz.x * 0.22 + PunchyValueNoise(xz * 0.09) * 2.5, wy * 0.75));
+                            half sB = PunchyValueNoise(float2(xz.y * 0.22 + PunchyValueNoise(xz * 0.09 + 4.1) * 2.5, wy * 0.75 + 31.7));
+                            half sC = PunchyValueNoise(float2((xz.x + xz.y) * 0.5, wy * 1.6 + 9.3));
+                            s = (sA + sB) * 0.35 + sC * 0.3;
+                        }
+                        else   // one read across both headings, one warp: 2 noise reads instead of 6
+                            s = PunchyValueNoise(float2((xz.x + xz.y) * 0.22 + PunchyValueNoise(xz * 0.09) * 2.5, y * 0.75));
                         half far = lerp(0.45, 1, saturate((1.0 * pxm - 2) / 3));
                         rockBlock = (smoothstep(0.36, 0.64, s) - 0.5) * 0.9 * blockF * far;
                     }
