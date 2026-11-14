@@ -729,3 +729,14 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
 - Record: island ready time on a fresh cache (delete the island cache first), A and B, and the `[paddies]` log line on B (the editor logged 358 ms for about 160k cells).
 - Record: main-thread ms walking the swamp round (-20, 62) and (-1180, -3008), where terrain chunks sample the pools (run-time Terrace no longer calls BaseHeight; expected no slower).
 - Pass: bake within +0.5 s of main; frame cost within noise.
+
+## Job 76 (2026-11-14, QUEUED after 74; render lane, for R-25 row 3, #302): far lights within budget
+- Main 697e565f (A) vs `render/far-lights` 17177829 (B), and B with item 6 dropped: `render/far-lights` 768ff9ae
+  (C, flora as on B but grass, pebbles and the temple back on the Forward+ cluster variant). Profile builds,
+  1920x1080, Medium and High, uncapped, 22:00, Clear, `-weatherseed 4`, ABBA, 3 rounds, 300 frames each.
+- Town view: `-benchspot 2988.8,-920`, yaw 0 and yaw 201. Arms: A; B; B `-farlights 0`; C.
+- Campfire arm: standing 12 m from the fire, `-benchspot 151.8,17.7,-547.1,-80`. A vs B vs C.
+- Beacon arm: 1 km out, 40 m up at (2044, -1261), facing the beacon at (2968, -878) (yaw about 68). A vs B.
+- Record: whole-frame GPU and main-thread ms per arm, view and preset; with `-lightlog`, one `[lights]` line per view.
+- Pass (rule 23, card row 3): B at most +0.5 ms GPU over A at the town view, Medium. C - B is item 6's saving; if
+  it saves nothing, item 6 is dropped alone.

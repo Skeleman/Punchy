@@ -2,6 +2,51 @@
 
 Newest first.
 
+## 2026-11-14 R-25 row 3: pooled fire lights, campfire far point, screen-size town glow, flora off the cluster variant
+Branch render/far-lights 17177829 (6 commits on a40a4ae6), pushed. BENCH job 76 queued (below).
+- DONE: 96cb62ca: LightBudget's street-light gap applies to Fixture requests only.
+- DONE: 5a3afa22 (own commit, the two allowed calls only): LandmarkEffectSystem.cs:138 and .Beacons.cs:64 use
+  `AddPooled`, so campfires and the beacon get a pooled real light near the camera at night.
+- DONE: 0577702e: new Campfire far-light kind. A landmark flame shows as a point in its own colour from past where
+  its flames are drawn; beacons keep kind Fire. Pooled flame lights fade by DetailPolicy screen size, no metres.
+- DONE: 5c3c7853: the town glow map fades in by screen size (new TownGlow constants in DetailPolicy), not metres.
+- DONE: 768ff9ae: fix for R-10's light log. With the log on and a pooled light granted it threw
+  IndexOutOfRangeException every frame (indexed by a key's z, a world position for pooled lights), and requests were
+  never cleared. Real lights are now counted by the request's kind.
+- DONE: 17177829, item 6: grass, pebbles and the sunken temple leave the Forward+ cluster variant (job 45j: half
+  of R-10's town cost was the variant). They take real lights from a list of the 16 best, unshadowed. Flora and
+  creatures stay on the variant. Side-by-side at High, 22:00: grass beside the campfire and tufts and ground beside
+  the lamp read lit the same; campfire strip warm px at 12 m 44633 vs 46552 without it.
+- Dropped: item 5 (burning-only species glow in the fire channel, guarded so shared species stay normal). The
+  Ember Forest strips with and without it matched, so it did nothing visible; not committed. Ember Forest far
+  points still read blue-white, and red ground bands under the blue flames at 1200-850 m remain; their source is
+  not the plant-glow path and was not found (noted on the card as open). Item 4 skipped as not needed (on the card).
+- Light log, High, 22:00, Clear: FirePit pose requests 145, glow slots 16/16, real 1/48 (the pooled campfire),
+  dropped 78 (the Fire kind: 93 requests, the Ember Forest's). Town: requests 142-147, slots 16/16, real 48/48,
+  dropped 26-33, indoor 11 (Fixture: 80 requests, 46 real, about 30 dropped; Fire: 2 real). The two pooled fires
+  push about 30 street lights out of the real budget; budget not raised. Does the hand-over hide it: on the town
+  strip yes, no step from 1200 m to 12 m; a dropped lamp keeps its lit lantern and the town glow map's pool, but
+  loses its real lit radius on walls and creatures. Which lamps drop near the square was not checked side by side.
+  Ember Forest: 282 Fire requests, real 0; burning trees stay on glow slots as asked.
+- Walk-ins (bearing 205 town, 100 campfire; High 22:00 Clear): no visible step on either. Town strip warm px,
+  replacing row 1's: 1200 m 0, 600 2, 420 23, 300 53, 150 20, 105 55, 74 522, 52 2913 (a boulder leaves the
+  frame at 62-52 m, not a light step), 31 3077, 22 3758, 12 5750. Campfire: warm point from 600-420 m (5, 151 px),
+  flames from about 26 m (5852), 12 m 46552. Lamp and Ember Forest strips also taken.
+- `-farlights 0` launch flag (Temp/PlayArgs.txt in the editor): FarLightsEnabled reads false in play. Medium,
+  town walk-in off/on, warm px: 600 m 15/112, 300 m 84/435, 150 m 123/819.
+- NOT DONE / UNVERIFIED: pebbles by a lamp not resolved at shot size (item 6). Low preset not looked at. Beacon
+  view not walked in. CaveSystem.cs still 2548 lines (nothing in this row fell out of it). No pixel-diff vs main
+  (row 3 changes the look by design). LightBudget, LightPolicy and FarLightPolicy sit in Scripts/Settings (player
+  lane's folder); LandmarkEffectSystem's `FlameRange = 150f` is a fixed-metre flame cut this lane may not edit.
+  No timing (rule 21).
+- Checks: compiles, 0 errors. NaN probe in the town at night, Medium: 0 of 360 frames with markers (53 hot, no
+  NaN). Full PlayMode suite on 17177829: `Run finished: 40 total, 40 passed, 0 failed` (no skips or seconds on
+  this route).
+- Shots: PunchyMilestones/R-25/row3/B-town-strip.png, B-fire-strip.png (1200 px), D-medium-farlights-off-on.png
+  (off top, on bottom); side-by-sides and frames in R-25/row3/ and R-25/raw/.
+- Asks: BENCH job 76 (town far points on/off, campfire, beacon, item 6 as its own arm). Merge after it passes.
+- NEXT: R-25 row 4 (night vantage shots on/off), then R-23 rows 2-4, R-26, R-24.
+
 ## 2026-11-13 R-25 row 2: R-10 on main behind switches, surface glow out of CaveSystem.cs
 Branch render/far-lights a40a4ae6 (b/r10-trims a1cb1899 merged with main d95e7ff1, 0 behind main), pushed.
 - DONE: R-10 sits on main by a merge, not a rebase (pushed history is never rewritten); the CaveSystem.cs conflict
