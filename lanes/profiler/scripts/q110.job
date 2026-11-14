@@ -1,0 +1,12 @@
+# Job 68 (W-141 row 1, #261): cave wall trickles. world/cave-trickles 612dbeff vs its base 659b60af (A). Views: wet cave
+# c13 by the fan room facing west at the wall (-benchspot 1572,8,-2635,-90, the floor under that point) and cave c22
+# (1630,104,1036; 4 trickles incl. an overhang), standing. High, 3 rounds. Draws and trickle counts from the logs.
+Q=q110; TITLE="job 68 cave trickles"
+BUILDS="612dbef 659b60a"
+VIEWS="c13 c22"
+view() { case $1 in
+  c13) echo "-goto 1572,8,-2635 -benchstops spot -benchspot 1572,8,-2635,-90 -benchhour 12";;
+  c22) echo "-goto 1630,104,1036 -benchstops spot -benchspot 1630,104,1036,0 -benchhour 12";; esac; }
+ARMS="branch main"
+arm() { case $1 in branch) echo "Profile-612dbef";; main) echo "Profile-659b60a";; esac; }
+ROUNDS=3; GFX=High; REF=main; BAR=0.3

@@ -1,0 +1,14 @@
+# Job 66's NaN check (rule 24): R-19 b30c967f at job 66's four poses with the NaN guard off and the bad-pixel probe on
+# (-stopnan 0 -sparkleprobe r19). One game each, High, not measured for ms (the probe costs time). Bad count should be 0.
+Q=q108n; TITLE="job 66 NaN check"
+BUILDS="b30c967"
+VIEWS="canyon20 canyon150 mountain20 mountain150"
+view() { case $1 in
+  canyon20)    echo "-goto 2266,-434 -benchstops face -benchface 2266,-434,20 -benchhour 12 -benchweather Clear";;
+  canyon150)   echo "-goto 2266,-434 -benchstops face -benchface 2266,-434,150 -benchhour 12 -benchweather Clear";;
+  mountain20)  echo "-goto -3130,2878 -benchstops face -benchface -3130,2878,20 -benchhour 12 -benchweather Clear";;
+  mountain150) echo "-goto -3130,2878 -benchstops face -benchface -3130,2878,150 -benchhour 12 -benchweather Clear";; esac; }
+ARMS="probe"
+arm() { case $1 in probe) echo "Profile-b30c967 -stopnan 0 -sparkleprobe r19";; esac; }
+ROUNDS=1; GFX=High
+after() { grep -a -h -i "sparkle" $R/q-$Q-*-cs100-1.log | grep -av "^Unity\|^Punchy\." | tail -12; }
