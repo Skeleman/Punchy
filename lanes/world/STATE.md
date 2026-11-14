@@ -19,6 +19,7 @@ Worktree D:/Unity/Punchy-world. Read the card and REPORTS-world.md's newest entr
 2. W-153 rows 3-6 with W-155 row 4. Carried in: water walls beside falls 22 and 67 and in front of 46 and 51; fall 13's notch; cave falls without lip dip and foot ripples; the fine sheet reading FallShape; 109 fall and landmark head-pool walls; retake fall 46 and 51 fronts and the snowpeak landmark fall.
 3. W-156 (audit 11-13: far clip restore, nearest cave water first).
 3b. W-157 (Zach 11-14: taller hanging lanterns, stone lantern columns).
+3b2. W-164 (Zach 11-14: gardens and crop plots sit level on slopes, no sinking; small; #334).
 3c. W-159 (Zach 11-14: river flow streaks become normal and vertex ripples, no white overlay; small, may go before 4b).
 3c2. W-160 (Zach 11-14: shorelines wander: noise lift and lapping on water vertices, ragged shore fade; after W-159).
 3c3. W-161 (Zach 11-14: elf towns have no wood; signs, fences, docks and props in stone or metal; #326).

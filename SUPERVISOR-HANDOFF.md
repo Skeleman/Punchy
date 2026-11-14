@@ -316,3 +316,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-14: A-111 row 1 dropped as obsolete once A-110 merges (row 6 removes KinLost scan); parked on folk/a111-row1-parked in case A-110 slips. Folk doing row 2 only.
 - 11-14: folk/a111-row1-parked = 185922c1 (on main 1746d62a), never compiled or run: verify before any merge.
 - 11-14: job 71 ruled: wide filter + 4096 map at High+ only (runtime resolution per preset), after R-32 row 1, separate commit and strip. Zach asked about Gemini shadow fixes (res, distance/cascades, soft): already 2048/4 cascades/50 m/soft High on PC asset.
+- 11-14: Zach saw a crop plot sinking into a mountainside in the folk test: W-164 (#334), world queue 3b2. World also owes R-21 foot-box + W-153 paddies fixes.
