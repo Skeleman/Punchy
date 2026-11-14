@@ -4505,3 +4505,16 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
   - Rides: 3 begun, 2 ended, all pets (chicken on dog). No grown-up went home near a child in the window, so no shoulders ride; the 0 differing picks shows the cell search makes the same choices as main.
   - Reason table 18/18 and all nine dismount cases ok, as on main.
 - NEXT: row 2 (PlayerRideSystem sync point, found and fixed, host + client check next).
+
+### Row 2: PlayerRideSystem sync point (done, verified, #311)
+- Commit on fauna/ride-search (pushed): b402f0ea.
+- **Found:** PlayerRideSystem (PlayerRide.cs) calls `state.CompleteDependency()`, which waits for the creatures' jobs. Its early-out skipped that only when no other player was in the game (no RemoteAvatar at all). So on a host or client with anyone else joined, it waited on the creature jobs every frame, even with nobody riding.
+- **Fix:** it now skips while this player is on foot and no NetPlayerLook names a mount. SeatOthers only acts on a look that names a mount, so nothing it did is lost. Reading the looks waits only on their own writer (the net look copy), not on the creature jobs. Ghost fields: none.
+- **Still there, on purpose:** the wait happens on frames where this player rides or asks to, or another player rides. Seating needs that frame's mount pose, so the wait can't go any later without a frame of seat lag. Whether that wait costs anything is a profiler question (rule 21); I timed nothing.
+- **Host + client** (editor host `-rideplayer mount -body Human`, build client `-rideplayer rider -body Cat`, fresh build of this branch): passed, the same as A-104.
+  - The client got on at 3 s and was carried round the circle. Both views put the seat at (0, 1.39-1.50, 0.04-0.12) in the mount's frame, agreeing to about 1 cm while walking and to under 1 mm once stopped.
+  - The host trying to ride its rider was refused. The host lay down, and the client got down for Sleep at 16.7 s.
+  - The client got back on at 28 s and got down on request at 34 s. The host saw the rider's Mount id (71) the whole time it rode, and 0 after.
+  - 0 NaN frames and 0 exceptions on either side.
+- Clean-up: my client closed by PID, PlayArgs cleared, no Punchy.exe of mine running.
+- NEXT: A-113 (#313).
