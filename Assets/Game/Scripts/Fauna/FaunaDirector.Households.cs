@@ -29,8 +29,8 @@ namespace Punchy.Fauna
     /// ("house" in a town or fishing village, "hut" for a hermit, "igloo", "dome") and its members. All of it comes from
     /// the door's spot, so it is the same on every machine with nothing sent or stored. Taken marks the members out in
     /// the world just now (host only: the rest are away, or not yet spawned). Lost marks the members who have died (A-105
-    /// row 2, for this session): their beds stay empty, so nobody new moves in yet. A joined client marks the deaths it
-    /// saw (A-106 row 3), so its folk speak of them as lost too.
+    /// row 2, for this session): their beds stay empty, so nobody new moves in yet. A joined client sets a town's from
+    /// the host's town exceptions (A-110 row 6), so its folk speak of them as lost too.
     /// </summary>
     public sealed class Household
     {
@@ -52,8 +52,8 @@ namespace Punchy.Fauna
             _ => "head"
         };
 
-        /// <summary>Whether a member has died this session (the host marks each; a joined client the ones it saw go,
-        /// A-106 row 3: FaunaDirector.WatchKinLost).</summary>
+        /// <summary>Whether a member has died this session (the host marks each; a joined client a town's from the
+        /// host's town exceptions, A-110 row 6).</summary>
         public bool Gone(int member) => (Lost >> member & 1u) != 0;
 
         /// <summary>What member other is to member speaker. Elders are the head's parents, children the head's and the
@@ -423,6 +423,7 @@ namespace Punchy.Fauna
                 return;
             house.Lost |= 1u << m;
             house.Taken |= 1u << m;
+            TownMemberDied(house, m);   // (A-110 row 6: its town's list, sent to the clients)
             if (LogHouses)
                 Debug.Log($"[households] died {FolkNames.Of(s.Individual)} {house.Members[m].Role} of {house.Kind} at ({house.Door.x:F1}, {house.Door.z:F1}) landmark {house.Landmark}: bed left empty");
         }
@@ -620,10 +621,7 @@ namespace Punchy.Fauna
             houseArrivals = houseWrongDoor = 0;
             houseQueryWorld = null;
             houseQuery = default;
-            // (A joined client's lost marks lived in these houses: its kin watch starts over too.)
-            kinMarked.Clear();
-            kinSeen.Clear();
-            kinWorld = null;
+            TeardownTownExceptions();   // (A-110 row 6: the list goes back into the rebuilt houses)
         }
     }
 }

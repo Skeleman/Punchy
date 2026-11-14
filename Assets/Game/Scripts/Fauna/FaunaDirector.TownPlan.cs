@@ -316,6 +316,10 @@ namespace Punchy.Fauna
                         workers++;
                 }
             }
+            // (A-110 row 6: the town exceptions send one bit per member in this order, TownExceptions.MaxMembers at
+            // most. A bigger town is a mistake in its landmark asset, not something to clip.)
+            if (plan.Residents.Count > TownExceptions.MaxMembers)
+                Debug.LogError($"[town plan] town {plan.Landmark} has {plan.Residents.Count} members, over the {TownExceptions.MaxMembers} the town exceptions can carry: trim its houses or households");
 
             // Jobs, in the order they are handed out: the resident rows' workers, the village posts, the shops and
             // halls, then a few gardens.

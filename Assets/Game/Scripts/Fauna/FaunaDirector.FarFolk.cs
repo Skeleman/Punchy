@@ -157,6 +157,7 @@ namespace Punchy.Fauna
                 {
                     ref var inst = ref set.Instances[plan.Landmark];
                     Whereabouts.Towns[plan.Landmark] = plan;
+                    TownPlanBuilt(plan.Landmark);   // (A-110 row 6: its dead go to the clients again)
                     FarFolk.Towns.Add(new FarTown
                     {
                         Landmark = plan.Landmark,

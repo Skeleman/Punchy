@@ -755,7 +755,7 @@ namespace Punchy.Fauna
             foreach (var index in town.HouseResidents[local])
             {
                 var r = town.Residents[index];
-                if (r.Child || r.Role == Kin.Elder)
+                if (r.Child || r.Role == Kin.Elder || Dead(r))
                     continue;
                 var stops = DayOf(town, r, day).Stops;
                 if (stops.Count > 1 && stops[0].Place == r.Home)
@@ -778,7 +778,7 @@ namespace Punchy.Fauna
             var house = town.Houses[local];
             foreach (var index in town.HouseResidents[local])
             {
-                if (Of(town, index, day, hour, 0.0).Inside != house)
+                if (Dead(town.Residents[index]) || Of(town, index, day, hour, 0.0).Inside != house)
                     continue;
                 home++;
                 if (!town.Residents[index].Child)
@@ -793,10 +793,15 @@ namespace Punchy.Fauna
         {
             var count = 0;
             for (int i = 0; i < town.Residents.Count; i++)
-                if (Of(town, i, day, hour, 0.0).Outdoors)
+                if (!Dead(town.Residents[i]) && Of(town, i, day, hour, 0.0).Outdoors)
                     count++;
             return count;
         }
+
+        /// <summary>Whether a resident has died this session (A-110 row 6: the town exceptions set Household.Lost on
+        /// every machine), so it has no figure, is never counted in, and keeps no hours.</summary>
+        public static bool Dead(Resident r) =>
+            r.House >= 0 && r.House < Households.All.Count && Households.All[r.House].Gone(r.Member);
 
         /// <summary>The shared clock's seconds at an hour of a day.</summary>
         public static double Seconds(int day, float hour) => (day * 24.0 + hour) * SecondsPerHour;
