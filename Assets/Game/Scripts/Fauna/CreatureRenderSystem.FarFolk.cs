@@ -14,6 +14,9 @@ namespace Punchy.Fauna
     /// by what it is doing) while it looks FarFolkWalkerPixels tall or more, and as a mote (one capsule) below that. Under FarFolkMotePixels a mote is held at that size and thinned by dither
     /// until it is gone at half of it, so a town a kilometre off still has a few specks moving in it. Where the town's
     /// real folk are in the world, the far figures give way to them over the same range the real ones fade in.
+    /// Row 7 (details): after dark a far figure out of doors carries a lantern, which stays in sight a little further
+    /// than the figure does, and a fisher at its post waves now and then, turned towards the camera. Both are only
+    /// ever on a real resident's figure (boats and washing are in CreatureRenderSystem.FarDetails).
     /// </summary>
     public partial class CreatureRenderSystem
     {
@@ -25,6 +28,10 @@ namespace Punchy.Fauna
         const float CreatureFadeFar = 165f, CreatureFadeRange = 25f;
         const int FarWalkerParts = 6;
 
+        /// <summary>Row 7 (details): the hours a figure out of doors carries a lantern, and how long a fisher's wave
+        /// lasts in every FarWaveEvery seconds at its post.</summary>
+        const float LanternFrom = 20.5f, LanternTo = 4.5f, FarWaveEvery = 14f, FarWaveFor = 5f;
+
         struct FarShown
         {
             public float3 Position;
@@ -32,11 +39,16 @@ namespace Punchy.Fauna
             public float Walked, Scale, Faded, Walker, Pixels, Phase;
             public Doing Doing;
             public float4 Body, Limbs;
+            /// <summary>Row 7: the right arm held up (radians from hanging; 0 for the usual swing) and how far it shakes
+            /// (a wave), and the lantern's fade (1: none). Figure: false when only the lantern is left in sight.</summary>
+            public float Raise, Shake, Light;
+            public bool Figure;
         }
 
         readonly List<FarShown> farShown = new List<FarShown>();
         bool farLog, farLogRead;
         float farLogNext;
+        int farLanterns, farWaves;
 
         bool FarLog
         {
@@ -78,6 +90,9 @@ namespace Punchy.Fauna
             var beforeTurn = hour >= Whereabouts.Turn - 1f && hour < Whereabouts.Turn;
             var parts = 0;
             int walkers = 0, motes = 0, drawnTowns = 0;
+            farLanterns = farWaves = 0;
+            // (Row 7: after dark everyone out of doors carries a lantern; it eases in and out over a quarter hour.)
+            var night = hour > 12f ? math.saturate((hour - LanternFrom) / 0.25f) : math.saturate((LanternTo - hour) / 0.25f);
             foreach (var town in FarFolk.Towns)
             {
                 var nearest = math.max(math.distance(cam, town.Centre) - town.Radius, 1f);
@@ -161,10 +176,40 @@ namespace Punchy.Fauna
                     var capNow = f.CapFrame != frame - 1 || pixels > DetailPolicy.FarFigureMaxPixels * 1.5f;
                     f.CapBlend = capNow ? f.Capped ? 1f : 0f : math.saturate(f.CapBlend + (f.Capped ? dt : -dt) * 2f);
                     f.CapFrame = frame;
-                    var faded = 1f - w.Shown * near * thin * (1f - f.CapBlend);
+                    var shown = w.Shown * near * (1f - f.CapBlend);
+                    var faded = 1f - shown * thin;
+                    // (Row 7: a light carries further than a figure. The lantern thins out as a mote does, at a quarter
+                    // of its size, so a town's watch still shows as points of light once the figures are gone. Not on
+                    // a member's creature: a guard's creature carries its own torch.)
+                    var lit = f.LiveScan == FarFolk.Scan ? 0f : night;
+                    var light = 1f - lit * shown * math.saturate(pixels / (FarFolkMotePixels * 0.125f) - 1f);
                     if (faded >= 0.99f)
+                    {
+                        if (light >= 0.99f)
+                            continue;
+                        farShown.Add(new FarShown { Position = position, Facing = w.Facing, Scale = f.Scale, Pixels = pixels, Faded = 1f, Light = light });
+                        parts++;
+                        farLanterns++;
                         continue;
+                    }
                     drawn++;
+                    // (Row 7: a fisher at its post turns to whoever is looking and waves now and then.)
+                    float raise = 0f, shake = 0f;
+                    var facing = w.Facing;
+                    var doing = w.Doing;
+                    if (lit <= 0f && f.LiveScan != FarFolk.Scan && w.Remaining <= 0f && w.To >= 0 && w.To < plan.Places.Count && doing == Doing.Work &&
+                        (plan.Places[w.To].Task == CreatureTask.Fish || plan.Places[w.To].Job == FolkJob.Fisher) &&
+                        (t + FarFolk.Hash01(f.Seed, 45) * FarWaveEvery) % FarWaveEvery < FarWaveFor)
+                    {
+                        raise = 2.75f;
+                        shake = 0.4f;
+                        doing = Doing.Idle;
+                        if (distance < 600f)
+                            facing = math.normalizesafe(cam.xz - position.xz, facing);
+                        farWaves++;
+                    }
+                    else if (lit > 0f)
+                        raise = 1.25f; // (The lantern held out in front.)
                     f.Walker = DetailPolicy.Holds(pixels, FarFolkWalkerPixels, f.Walker);
                     var target = f.Walker ? 1f : 0f;
                     // (Half a second between walker and mote; straight to it when it wasn't in view the frame before.)
@@ -178,17 +223,26 @@ namespace Punchy.Fauna
                     farShown.Add(new FarShown
                     {
                         Position = position,
-                        Facing = w.Facing,
+                        Facing = facing,
                         Walked = w.Walked,
-                        Doing = w.Doing,
+                        Doing = doing,
                         Scale = f.Scale,
                         Faded = faded,
                         Walker = f.WalkerBlend,
                         Pixels = pixels,
                         Phase = 1f + FarFolk.Hash01(f.Seed, 21) * 6f,
                         Body = f.Body,
-                        Limbs = f.Limbs
+                        Limbs = f.Limbs,
+                        Raise = raise,
+                        Shake = shake,
+                        Light = light,
+                        Figure = true
                     });
+                    if (light < 0.99f)
+                    {
+                        parts++;
+                        farLanterns++;
+                    }
                     if (f.WalkerBlend > 0f)
                     {
                         parts += FarWalkerParts;
@@ -237,7 +291,7 @@ namespace Punchy.Fauna
                                     $"overruns {plan.Overruns}, creatures {town.Live}, largest {town.MaxPixels:F1} px, {town.NowPixels:F1} px since the last line]");
                         town.NowPixels = 0f;
                     }
-                Debug.Log($"[farfolk] day {day} hour {hour:F2}: {FarFolk.Towns.Count} towns, {drawnTowns} in view, {walkers} walkers, {motes} motes, {parts} capsules;{line}");
+                Debug.Log($"[farfolk] day {day} hour {hour:F2}: {FarFolk.Towns.Count} towns, {drawnTowns} in view, {walkers} walkers, {motes} motes, {farLanterns} lanterns, {farWaves} waving, {parts} capsules;{line}");
             }
             return parts;
         }
@@ -254,7 +308,9 @@ namespace Punchy.Fauna
                 var forward = new float3(f.Facing.x, 0f, f.Facing.y);
                 var right = math.cross(up, forward);
                 var s = f.Scale;
-                if (f.Walker > 0f)
+                // (Row 7: where the lantern hangs: the right hand of a walker held out, or in front of a mote's top.)
+                var lantern = f.Position + up * 1.05f * s + forward * 0.45f * s + right * 0.24f * s;
+                if (f.Figure && f.Walker > 0f)
                 {
                     var faded = math.max(f.Faded, 1f - f.Walker);
                     // Legs and arms swing with the ground covered (a 1.4 m stride). At work the arms go up and down;
@@ -277,12 +333,17 @@ namespace Punchy.Fauna
                         output[at++] = Part(root + up * 0.86f * s + right * side * 0.09f * s, quaternion.LookRotationSafe(leg, forward),
                                             0.8f * s, 0.075f * s, 0.06f * s, 1f, f.Limbs, faded);
                         var b = together ? arms : arms * side;
+                        // (Row 7: the right arm held up, waving when it shakes.)
+                        if (side > 0 && f.Raise > 0f)
+                            b = f.Raise + f.Shake * math.sin(time * 9f + f.Phase);
                         var arm = math.normalize(-up * math.cos(b) + forward * math.sin(b));
-                        output[at++] = Part(root + up * 1.36f * s + right * side * 0.24f * s, quaternion.LookRotationSafe(arm, forward),
-                                            0.55f * s, 0.055f * s, 0.045f * s, 1f, f.Body, faded);
+                        var shoulder = root + up * 1.36f * s + right * side * 0.24f * s;
+                        output[at++] = Part(shoulder, quaternion.LookRotationSafe(arm, forward), 0.55f * s, 0.055f * s, 0.045f * s, 1f, f.Body, faded);
+                        if (side > 0)
+                            lantern = math.lerp(lantern, shoulder + arm * 0.6f * s, f.Walker);
                     }
                 }
-                if (f.Walker < 1f)
+                if (f.Figure && f.Walker < 1f)
                 {
                     // A mote: one upright capsule, never under the mote size tall nor under that wide (a figure's true
                     // width is under a pixel long before its height is, and a sliver that thin is lost against the ground).
@@ -291,6 +352,12 @@ namespace Punchy.Fauna
                     var height = FarFolk.FigureHeight * s * math.max(1f, FarFolkMotePixels / math.max(f.Pixels, 0.01f));
                     output[at++] = Part(f.Position + up * radius, quaternion.LookRotationSafe(up, forward),
                                         math.max(height - 2f * radius, 0.05f), radius, radius * 0.8f, 1f, f.Body, math.max(f.Faded, f.Walker));
+                }
+                if (f.Light < 0.99f)
+                {
+                    // A glowing ball, never under the mote size wide.
+                    var radius = math.max(0.1f * s, FarFolkMotePixels * 0.5f * math.distance(camera, lantern) * metresPerPixel);
+                    output[at++] = Part(lantern, quaternion.identity, 0.02f, radius, radius, 1f, new float4(1f, 0.78f, 0.32f, 1f), f.Light);
                 }
             }
             return at;
