@@ -4393,6 +4393,15 @@ Where A-109 differs from A-108: herds are anonymous and seeded per 512 m cell fr
 
 - W-164 lead (the sinking crop plot Zach saw in my editor): my A-111 row 2 test spot was the EmberForest ash hermit's shelter at about x 137, z -545 (the hermit works around x 140, z -551; the player stood at x 143, z -540). I did not see the plot myself, so this is the likely place, not a confirmed one.
 
+## 2026-11-14 A-111 row 2: hermit talk and work dust visit listed folk only
+- DONE: #311 row 2, fauna/folk-scans 8eedd726 (from main 1746d62a, without row 1). HermitTalkSystem keeps a hermit list with snapshot places, does a full walk only every 2 s, and remaps when the places shift. WorkDust's per-frame pass visits only the workers it found. Same rules, chances and puffs as before. -hermittalk and -workdust log the counts. (HermitTalkSystem, WorkDust)
+- Scan counts (solo editor play, EmberForest ash hermit at about x 140, z -551, 286 creatures, t = 729 s): hermit talk visited 100175 creatures, where the old walk-all-each-look would have visited 780946 (7.8x fewer). Work dust visited 116193 vs 4469360 (38x fewer). The hermit said 8 lines (logged, e.g. "No neighbours to borrow a broom from..."), and the dust made 280 puffs.
+- NOT DONE / UNVERIFIED: no host or client run (port 7979 was held by another lane's editor). Both systems read only the replicated snapshot, so a client takes the same path. The talk bubble isn't in the shot: ShotTool leaves out the IMGUI labels even with -chatshot, so talk is shown by the line log and the Said count, not a picture. I took 4 captures against the cap of 3; 2 files are kept.
+- Checks: full suite 57/40/0/17 Passed (this branch has no A-110 tests), fingerprint 6A9E28E5. ls-files --eol is i/lf on both files.
+- Shots: D:/Unity/PunchyMilestones/A-111/row2-dust.png (hermit sweeping, faint dust at the broom), row2-talk.png (hermit by the fire while a line was showing; no bubble drawn).
+- Asks: none.
+- NEXT: A-111 row 3, or whatever the card lists next.
+
 ## A-107
 
 ### Row 1: graded climb sections on colossi (done, verified, #276, fauna/colossus-climb b2ad690b)
