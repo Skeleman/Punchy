@@ -2,6 +2,37 @@
 
 Newest first.
 
+## 2026-11-14 R-25 row 4: night vantage shots, far lights on and off (no code)
+Branch render/far-lights 17177829, unchanged (no code this row, so no new suite run; row 3's 40/40 stands).
+- DONE: on/off pairs at 22:00 Clear, High, clock paused, for the six R-22 row 0 vantages plus two new ones. "Off" turns
+  off both far points and the town glow (`-farlights 0 -townglow 0` equivalents); near real lights stay.
+  Shots: D:/Unity/PunchyMilestones/R-25/row4/ (six R-22 vantages, sheet row4-vantages-sheet.png) and row4c/ (retakes
+  with a 40 s settle plus the two new vantages, sheet row4c-sheet.png). Left = on, right = off.
+- Vantages re-picked: the R-22 "town" vantage (2800,-850) looks west, away from the town, so no lit town is in frame.
+  Added "townfar" (2044,-1261, 52 m absolute, looking at 2968,15,-878: the town 1 km off) and "emberlava"
+  (-500,-2600, 300 m absolute, looking at -530,20,-3395: Ember Forest, with the lava fissure about 19 deg left).
+  The first summit and town pairs differed in geometry between on and off (streaming 4 s apart); the 40 s retakes match.
+- What reads (lit pixels on/off, warm / bright, 2560x1600):
+  - fly300 231/14904 vs 23/4950, fly1000 70/2990 vs 0/3: a field of far points across the island at night; off, the
+    far view is dark. This is the clearest win.
+  - summit 42/40156 vs 0/38574: town and plain points along the far edge on, gone off.
+  - emberlava 277/22713 vs 0/3399: Ember Forest reads as a dense field of blue-white points; off, only near plants glow.
+  - townfar 66/3886 vs 32/3192: the town at 1 km is a small white cluster on the horizon; it reads but small, and white
+    rather than warm.
+  - coast 35/17145 vs 6/10782, lake 59/10992 vs 24/10964: nearly the same on and off (little lit in those views).
+- NOT DONE / does not read: lava. No orange glow at the fissure from 800 m in emberlava (crop checked), on or off.
+  Lava's far form is missing or too dim at night; proposed as a follow-up item on the card, not fixed here.
+- Observation, UNVERIFIED: in emberlava the far points 300-500 m out look larger and brighter than the same plants'
+  own glow in the off shot. From 300 m up their screen size is small, so this may be the far tier working as meant;
+  a ground-level walk-in would tell whether a step shows at the hand-over.
+- Red ground: the red blotches under the blue-flame plants show in both on and off shots (emberlava and townfar), so
+  they are not from far points or the town glow. Stays the open item on the card.
+- Drift (card list): glow on pebbles, colossi and water not judged from these vantages; nothing obvious in frame.
+- HomeSign: not wired; A-109 row 3 is not on main.
+- Checks: night confirmed (clock 22, paused, read during the run). No NaN probe: no shader or mesh change this row.
+- Asks: none. Proposal for the card: a lava far-form follow-up, and warmer town far points (the town reads white at 1 km).
+- NEXT: R-23 row 2 on render/one-surface from origin/main.
+
 ## 2026-11-14 R-25 row 3: pooled fire lights, campfire far point, screen-size town glow, flora off the cluster variant
 Branch render/far-lights 17177829 (6 commits on a40a4ae6), pushed. BENCH job 76 queued (below).
 - DONE: 96cb62ca: LightBudget's street-light gap applies to Fixture requests only.
