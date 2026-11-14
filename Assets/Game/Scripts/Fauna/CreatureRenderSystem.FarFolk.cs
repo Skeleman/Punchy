@@ -9,9 +9,9 @@ using UnityEngine;
 namespace Punchy.Fauna
 {
     /// <summary>
-    /// The towns' far figures (A-109 row 2), drawn only: each household member FarFolk places is drawn as a walker (a
-    /// coarse body of six capsules, legs and arms swinging as it goes) while it looks FarFolkWalkerPixels tall or more,
-    /// and as a mote (one capsule) below that. Under FarFolkMotePixels a mote is held at that size and thinned by dither
+    /// The towns' far figures (A-109 row 2, A-110 row 2), drawn only: each household member Whereabouts puts outdoors
+    /// is drawn where it puts it, as a walker (a coarse body of six capsules: striding, carrying, working or sitting
+    /// by what it is doing) while it looks FarFolkWalkerPixels tall or more, and as a mote (one capsule) below that. Under FarFolkMotePixels a mote is held at that size and thinned by dither
     /// until it is gone at half of it, so a town a kilometre off still has a few specks moving in it. Where the town's
     /// real folk are in the world, the far figures give way to them over the same range the real ones fade in.
     /// </summary>
@@ -29,8 +29,8 @@ namespace Punchy.Fauna
         {
             public float3 Position;
             public float2 Facing;
-            public float Walked, Scale, Faded, Walker, Pixels, Work;
-            public bool Walking;
+            public float Walked, Scale, Faded, Walker, Pixels, Phase;
+            public Doing Doing;
             public float4 Body, Limbs;
         }
 
@@ -64,6 +64,12 @@ namespace Punchy.Fauna
             var dt = SystemAPI.Time.DeltaTime;
             var frame = UnityEngine.Time.frameCount;
             var perHour = skyCycle != null ? skyCycle.DayLengthMinutes * 2.5f : 60f;
+            var day = skyCycle != null ? skyCycle.Day : 0;
+            Whereabouts.SecondsPerHour = perHour;
+            // (A member's day is built the first time it is asked for: a few a frame, the rest wait their turn.)
+            var budget = 12;
+            // (The hour before the folk day turns, the next day is built beside this one, so nobody blinks at the turn.)
+            var beforeTurn = hour >= Whereabouts.Turn - 1f && hour < Whereabouts.Turn;
             var parts = 0;
             int walkers = 0, motes = 0, drawnTowns = 0;
             foreach (var town in FarFolk.Towns)
@@ -76,12 +82,35 @@ namespace Punchy.Fauna
                 if (!town.Drawn)
                     continue;
                 drawnTowns++;
-                foreach (var f in town.Figures)
+                var plan = town.Plan;
+                int placed = 0, drawn = 0, gone = 0, unbuilt = 0;
+                for (int i = 0; i < plan.Residents.Count; i++)
                 {
-                    if (f.House >= 0 && f.Member >= 0 && (f.House >= Households.All.Count || Households.All[f.House].Gone(f.Member)))
+                    var f = plan.Residents[i];
+                    if (f.House >= Households.All.Count || Households.All[f.House].Gone(f.Member))
+                    {
+                        gone++;
                         continue;
-                    if (!FarFolk.Place(f, hour, t, perHour, out var position, out var facing, out var walked, out var shown, out var walking))
+                    }
+                    if (!Whereabouts.Built(plan, i, day, hour))
+                    {
+                        if (budget <= 0)
+                        {
+                            unbuilt++;
+                            continue;
+                        }
+                        budget--;
+                    }
+                    else if (beforeTurn && budget > 0 && !Whereabouts.Built(plan, i, day, Whereabouts.Turn))
+                    {
+                        budget--;
+                        Whereabouts.Prepare(plan, i, day, Whereabouts.Turn);
+                    }
+                    var w = Whereabouts.Of(plan, i, day, hour, t);
+                    if (!w.Outdoors)
                         continue;
+                    placed++;
+                    var position = w.Position;
                     var distance = math.distance(cam, position);
                     var pixels = DetailPolicy.ScreenSize(FarFolk.FigureHeight * f.Scale, distance, pixelsPerMetre);
                     // Near the camera a peopled town's real folk are drawn (they fade out from 140 m to 165 m): the far
@@ -96,9 +125,10 @@ namespace Punchy.Fauna
                     var capNow = f.CapFrame != frame - 1 || pixels > DetailPolicy.FarFigureMaxPixels * 1.5f;
                     f.CapBlend = capNow ? f.Capped ? 1f : 0f : math.saturate(f.CapBlend + (f.Capped ? dt : -dt) * 2f);
                     f.CapFrame = frame;
-                    var faded = 1f - shown * near * thin * (1f - f.CapBlend);
+                    var faded = 1f - w.Shown * near * thin * (1f - f.CapBlend);
                     if (faded >= 0.99f)
                         continue;
+                    drawn++;
                     f.Walker = DetailPolicy.Holds(pixels, FarFolkWalkerPixels, f.Walker);
                     var target = f.Walker ? 1f : 0f;
                     // (Half a second between walker and mote; straight to it when it wasn't in view the frame before.)
@@ -112,14 +142,14 @@ namespace Punchy.Fauna
                     farShown.Add(new FarShown
                     {
                         Position = position,
-                        Facing = facing,
-                        Walked = walked,
-                        Walking = walking,
+                        Facing = w.Facing,
+                        Walked = w.Walked,
+                        Doing = w.Doing,
                         Scale = f.Scale,
                         Faded = faded,
                         Walker = f.WalkerBlend,
                         Pixels = pixels,
-                        Work = f.Posted && !walking ? 1f + FarFolk.Hash01(f.Seed, 21) * 6f : 0f,
+                        Phase = 1f + FarFolk.Hash01(f.Seed, 21) * 6f,
                         Body = f.Body,
                         Limbs = f.Limbs
                     });
@@ -134,6 +164,13 @@ namespace Punchy.Fauna
                         motes++;
                     }
                 }
+                town.StatDay = day;
+                town.StatHour = hour;
+                town.StatFrame = frame;
+                town.Placed = placed;
+                town.Shown = drawn;
+                town.Gone = gone;
+                town.Unbuilt = unbuilt;
             }
             if (FarLog && UnityEngine.Time.time >= farLogNext)
             {
@@ -142,11 +179,28 @@ namespace Punchy.Fauna
                 foreach (var town in FarFolk.Towns)
                     if (town.Drawn)
                     {
+                        var plan = town.Plan;
+                        if (!town.MadeLogged)
+                        {
+                            town.MadeLogged = true;
+                            Debug.Log($"[farfolk] plan {town.Name} #{town.Landmark}: {plan.Made}");
+                        }
+                        // (The day's peak and digest once a day per town, once every day in it is built: asking
+                        // earlier would build them all in this one frame.)
+                        if (town.PeakDay != day && town.Unbuilt == 0)
+                        {
+                            town.PeakDay = day;
+                            town.Digest = Whereabouts.Digest(plan, day, out town.Peak, out town.PeakHour);
+                        }
+                        // (Outdoors is Whereabouts' own count at this moment; placed is what the drawing loop found.)
                         line.Append($" [{town.Name} #{town.Landmark} ({town.Centre.x:F0},{town.Centre.z:F0}) r {town.Radius:F0} at {math.distance(cam, town.Centre):F0} m: " +
-                                    $"{town.Figures.Count} figures, real {(town.Real ? "yes" : "no")}, largest {town.MaxPixels:F1} px, {town.NowPixels:F1} px since the last line]");
+                                    $"{plan.Residents.Count} members, outdoors {(town.Unbuilt == 0 ? Whereabouts.Outdoors(plan, day, hour).ToString() : "?")}, " +
+                                    $"placed {town.Placed}, shown {town.Shown}, gone {town.Gone}, unbuilt {town.Unbuilt}, " +
+                                    (town.PeakDay == day ? $"day {day} peak {town.Peak} at {town.PeakHour:F2} h digest {town.Digest:X8}, " : "") +
+                                    $"overruns {plan.Overruns}, real {(town.Real ? "yes" : "no")}, largest {town.MaxPixels:F1} px, {town.NowPixels:F1} px since the last line]");
                         town.NowPixels = 0f;
                     }
-                Debug.Log($"[farfolk] hour {hour:F2}: {FarFolk.Towns.Count} towns, {drawnTowns} in view, {walkers} walkers, {motes} motes, {parts} capsules;{line}");
+                Debug.Log($"[farfolk] day {day} hour {hour:F2}: {FarFolk.Towns.Count} towns, {drawnTowns} in view, {walkers} walkers, {motes} motes, {parts} capsules;{line}");
             }
             return parts;
         }
@@ -166,21 +220,28 @@ namespace Punchy.Fauna
                 if (f.Walker > 0f)
                 {
                     var faded = math.max(f.Faded, 1f - f.Walker);
-                    // Legs and arms swing with the ground covered (a 1.4 m stride); at work the arms go up and down.
-                    var swing = f.Walking ? math.sin(f.Walked * 2f * math.PI / (1.4f * s)) * 0.55f : 0f;
-                    var arms = f.Work > 0f ? 0.7f + 0.5f * math.sin(time * 3.1f + f.Work) : -swing * 0.8f;
+                    // Legs and arms swing with the ground covered (a 1.4 m stride). At work the arms go up and down;
+                    // carrying, both are held out in front; sitting, it is lower and its legs are out in front.
+                    var sit = f.Doing == Doing.Sit;
+                    var work = f.Doing == Doing.Work;
+                    var carry = f.Doing == Doing.Carry;
+                    var moving = f.Doing == Doing.Walk || carry || f.Doing == Doing.Play;
+                    var swing = moving ? math.sin(f.Walked * 2f * math.PI / (1.4f * s)) * 0.55f : 0f;
+                    var arms = work ? 0.7f + 0.5f * math.sin(time * 3.1f + f.Phase) : carry ? 0.9f : sit ? 0.5f : -swing * 0.8f;
+                    var together = work || carry || sit;
+                    var root = f.Position - up * (sit ? 0.38f * s : 0f);
                     var upright = quaternion.LookRotationSafe(up, forward);
-                    output[at++] = Part(f.Position + up * 0.84f * s, upright, 0.56f * s, 0.17f * s, 0.19f * s, 1f, f.Body, faded);
-                    output[at++] = Part(f.Position + up * 1.52f * s, upright, 0.06f * s, 0.115f * s, 0.115f * s, 1f, f.Limbs, faded);
+                    output[at++] = Part(root + up * 0.84f * s, upright, 0.56f * s, 0.17f * s, 0.19f * s, 1f, f.Body, faded);
+                    output[at++] = Part(root + up * 1.52f * s, upright, 0.06f * s, 0.115f * s, 0.115f * s, 1f, f.Limbs, faded);
                     for (int side = -1; side <= 1; side += 2)
                     {
-                        var a = swing * side;
+                        var a = sit ? 1.3f : swing * side;
                         var leg = math.normalize(-up * math.cos(a) + forward * math.sin(a));
-                        output[at++] = Part(f.Position + up * 0.86f * s + right * side * 0.09f * s, quaternion.LookRotationSafe(leg, forward),
+                        output[at++] = Part(root + up * 0.86f * s + right * side * 0.09f * s, quaternion.LookRotationSafe(leg, forward),
                                             0.8f * s, 0.075f * s, 0.06f * s, 1f, f.Limbs, faded);
-                        var b = f.Work > 0f ? arms : arms * side;
+                        var b = together ? arms : arms * side;
                         var arm = math.normalize(-up * math.cos(b) + forward * math.sin(b));
-                        output[at++] = Part(f.Position + up * 1.36f * s + right * side * 0.24f * s, quaternion.LookRotationSafe(arm, forward),
+                        output[at++] = Part(root + up * 1.36f * s + right * side * 0.24f * s, quaternion.LookRotationSafe(arm, forward),
                                             0.55f * s, 0.055f * s, 0.045f * s, 1f, f.Body, faded);
                     }
                 }

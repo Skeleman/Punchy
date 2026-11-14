@@ -1620,6 +1620,78 @@ namespace Punchy.Debugging
                 b.enabled = true;
             return true;
         }
+
+        /// <summary>The towns with a plan (A-110 row 2): [0] 1 once every plan is built, then each town's landmark
+        /// index, largest town first.</summary>
+        public static float[] TownPlans()
+        {
+            var towns = new List<TownPlan>(Whereabouts.Towns.Values);
+            towns.Sort((a, b) => a.Residents.Count != b.Residents.Count ? b.Residents.Count.CompareTo(a.Residents.Count) : a.Landmark.CompareTo(b.Landmark));
+            var result = new float[towns.Count + 1];
+            result[0] = FarFolk.Complete ? 1f : 0f;
+            for (int i = 0; i < towns.Count; i++)
+                result[i + 1] = towns[i].Landmark;
+            return result;
+        }
+
+        /// <summary>The clock Whereabouts goes by: [day, hour].</summary>
+        public static float[] TownClock()
+        {
+            var sky = Object.FindAnyObjectByType<Punchy.Weather.DayNightCycle>();
+            return sky == null ? new float[0] : new float[] { sky.Day, sky.TimeOfDay };
+        }
+
+        /// <summary>
+        /// One town's day by Whereabouts: [members, breaks (steps where a member moved further than its speed allows,
+        /// over the day and into the next), the worst such step as a multiple of what was allowed, the most outdoors
+        /// at once, the hour of that, legs that overran their time, the day's digest low 16 bits, high 16 bits].
+        /// </summary>
+        public static float[] TownDay(int landmark, int day)
+        {
+            if (!Whereabouts.Towns.TryGetValue(landmark, out var town))
+                return new float[0];
+            var breaks = Whereabouts.Breaks(town, day, out var worst);
+            var digest = Whereabouts.Digest(town, day, out var peak, out var peakHour);
+            return new float[] { town.Residents.Count, breaks, worst, peak, peakHour, town.Overruns, digest & 0xFFFFu, digest >> 16 };
+        }
+
+        /// <summary>
+        /// The town's plan built a second time from the records, as a machine that just joined would build it:
+        /// [the published plan's digest for the day low, high, the fresh plan's low, high, members in each].
+        /// </summary>
+        public static float[] TownRebuilt(int landmark, int day)
+        {
+            var director = Object.FindAnyObjectByType<FaunaDirector>();
+            if (director == null || !Source(out var source) || !Whereabouts.Towns.TryGetValue(landmark, out var town))
+                return new float[0];
+            var fresh = director.BuildTownPlanNow(source, landmark);
+            if (fresh == null)
+                return new float[0];
+            var a = Whereabouts.Digest(town, day, out _, out _);
+            var b = Whereabouts.Digest(fresh, day, out _, out _);
+            return new float[] { a & 0xFFFFu, a >> 16, b & 0xFFFFu, b >> 16, town.Residents.Count, fresh.Residents.Count };
+        }
+
+        /// <summary>
+        /// The far figures of one town the last frame it was drawn: [placed (members drawn from as outdoors), what
+        /// Whereabouts counts outdoors at that same day and hour, left out as dead, waiting for their day to be
+        /// built, frames since, shown after the fades, the day, the hour]. Empty when it has not been drawn.
+        /// </summary>
+        public static float[] TownFarCount(int landmark)
+        {
+            foreach (var town in FarFolk.Towns)
+                if (town.Landmark == landmark && town.StatFrame >= 0)
+                    return new float[]
+                    {
+                        town.Placed, Whereabouts.Outdoors(town.Plan, town.StatDay, town.StatHour), town.Gone, town.Unbuilt,
+                        Time.frameCount - town.StatFrame, town.Shown, town.StatDay, town.StatHour
+                    };
+            return new float[0];
+        }
+
+        /// <summary>A town's centre: [x, z, radius].</summary>
+        public static float[] TownCentre(int landmark) =>
+            Whereabouts.Towns.TryGetValue(landmark, out var town) ? new float[] { town.Centre.x, town.Centre.y, town.Radius } : new float[0];
     }
 }
 #endif

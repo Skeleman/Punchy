@@ -77,8 +77,8 @@ namespace Punchy.Fauna
                 return 0;
             var day = skyCycle != null ? skyCycle.Day : 0;
             var houses = Households.All;
-            // (Wait for the far towns to be built, so the log can name them: a few seconds at most.)
-            if (homeLogged != houses.Count && UnityEngine.Time.timeSinceLevelLoad > 15f)
+            // (Wait for every town's plan to be built: the sign reads them, and the log names the towns.)
+            if (homeLogged != houses.Count && FarFolk.Complete)
             {
                 homeLogged = houses.Count;
                 homeHeights.Clear();
