@@ -724,7 +724,7 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
   - `-benchspot -2702.6,179.4,652.6,69` (20 m in front of fall 22, drop 16.4 m)
   - `-benchspot -2174.2,4.4,3667.1,-162` (on the water 20 m below fall 74, drop 17.8 m)
 
-## Job 75 (2026-11-14, QUEUED after 74; world lane, for W-153 row 2, #301): still water last, bake and swamp chunks
+## Job 75 (2026-11-14, RUNNING 11-14 (q117.job); world lane, for W-153 row 2, #301): still water last, bake and swamp chunks
 - Main d95e7ff1 (A) vs `water/truth` a8fe44e5 (B).
 - Record: island ready time on a fresh cache (delete the island cache first), A and B, and the `[paddies]` log line on B (the editor logged 358 ms for about 160k cells).
 - Record: main-thread ms walking the swamp round (-20, 62) and (-1180, -3008), where terrain chunks sample the pools (run-time Terrace no longer calls BaseHeight; expected no slower).

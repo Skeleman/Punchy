@@ -1,0 +1,15 @@
+# Job 75 (W-153 row 2, #301): still water last, bake and swamp chunks. water/truth a8fe44e5 vs main d95e7ff1.
+# Fresh starts (-freshisland: the island cache is bypassed, so every launch bakes): island ready time and the branch's
+# [paddies] line, 3 per arm. Swamp chunks: a 60 m walk at 4 m/s at each swamp spot, (-20, 62) and (-1180, -3008), so
+# terrain chunks build as the player moves; main-thread ms. High, noon, Clear.
+Q=q117; TITLE="job 75 still water"
+BUILDS="a8fe44e d95e7ff"
+VIEWS="fresh swampA swampB"
+view() { case $1 in
+  fresh)  echo "-freshisland -benchstops here -benchhour 12 -benchweather Clear";;
+  swampA) echo "-goto -20,62 -benchstops line -benchline -20,62,40,62,4,0.1 -benchhour 12 -benchweather Clear";;
+  swampB) echo "-goto -1180,-3008 -benchstops line -benchline -1180,-3008,-1120,-3008,4,0.1 -benchhour 12 -benchweather Clear";; esac; }
+ARMS="branch main"
+arm() { case $1 in branch) echo "Profile-a8fe44e";; main) echo "Profile-d95e7ff";; esac; }
+ROUNDS=3; GFX=High; REF=main; BAR=0.3
+after() { for f in $R/q-$Q-fresh-*-cs100-*.log; do echo "$(basename $f): $(grep -a -h '\[island\].*ready at\|\[paddies\]' $f | cut -c1-160 | tr '\n' ' ')"; done; }
