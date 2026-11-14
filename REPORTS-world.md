@@ -6966,6 +6966,29 @@ half3 PunchySurfaceFinish(half3 color, PunchySurface s, half reach);            
 - **Risk:** the foam at the foot is subtle on the pale snow rock. The wet band is easiest to see on darker rock. Adding the include to TerrainSurface set off a long shader variant compile (about 2 min, 43 compiler processes) on first load. Not timed (rule 21).
 - **Next:** R-22 row 0 (#298, world/far-view).
 
+## 2026-11-13 R-21 row 4: one fall builder, lip and foot water (#284), world/waterfall-sheets 54fcdf64
+
+- DONE: every fall (river step, cave fall, grand tier, landmark waterfall) is described by one plain record, `FallShape` (lip, out, width, drop, run, skew, bow, cascade, landing, seed), and drawn by one builder (`BuildWaterfall` / `FallPoint` in LandmarkEffects.hlsl). The sheet is subdivided (32x48 near, 12x16 far, chosen by `DetailPolicy.ExtraReach` / `Within`, rule 20), bowed, with a rounded lip, uneven width and thin see-through columns. The water surface dips and churns over the last 6 m above each lip and mounds and rings within 12 m of each foot (`PunchyFallWater`).
+- DONE: no fall, river or landmark moved. Pins unchanged: 117 689D5348, fingerprint 6A9E28E5.
+- Shared functions changed (as listed in the row 4 note, accepted): LandmarkEffects.hlsl (`LandmarkEmitter.fall`, `FallPoint`, `FallLipWave`, `BuildWaterfall`); RiverCurtains.hlsl (`PunchyFallWater`, `PunchyFallLipShift`, `PunchyWaterUnderCurtain`, `PunchyFallWet`, foot boxes, up to 32); WaterField.hlsl (`PunchyWaterPatchPoint` calls `PunchyFallWater`); Water.shader (three additive blocks: vertex stages and the fragment's fall foam and slope). No lighting or haze term added. The render lane carries these through R-23.
+- NOT DONE / UNVERIFIED:
+  - Water walls remain (W-153 class): flat streaked slabs of river water standing beside or above lips still show next to falls 22 and 67, and from 22 m in front of falls 46 and 51 the camera is inside or behind such a slab, so those two front views show no fall at all. This row cannot cure it; W-153 rows 3-6 do.
+  - Befores exist only for falls 22 and 51 at 20 m and 12 m (r21-row3c-*). No side befores, and none for falls 67 and 13.
+  - Cave falls use the builder but get no lip dip or foot ripples. The near fine sheet (WaterPatchSystem.Falls) still measures its own span rather than reading FallShape.
+  - The lip dip moves water vertices, so coarse water chunks may crack at T-junctions near a lip. I saw none in these shots but did not hunt for them.
+  - The snowpeak landmark waterfall retake timed out (eval 504) and was not retried; landmark falls are covered only by the suite.
+  - fall51-20m was retaken as a side view only; its front view is blocked by a water wall.
+- Checks: suite 40/40 (PlayMode, after the last code change). NaN count 0 on all 32 shots (R18Probe.Bad). `git ls-files --eol` unchanged on all nine files (LandmarkEffects.hlsl and Water.shader stay CRLF). No .mat, Temp or probe files committed.
+- Shots (D:/Unity/PunchyMilestones/R-21/, High preset, noon; the sky came out overcast although Clear was asked):
+  - r21-row4c-three.jpg: falls 22 (stepped chain), 67 (27 m single drop), 13 (wide fall on dark fungal rock), each at 20 m, 12 m and from the side. Looked for: a curved, broken sheet instead of a flat pane. Saw: all three read as falling water; white streaked sheets with gaps and a wavy top edge; the side views show the sheet arcing out from the lip and landing in churned pool. Fall 13 has one dark upright notch at its right end where the sheet stops short of the wall. The slabs beside 22 and 67 are the water walls above.
+  - r21-row4c-sheet8.jpg: falls 61, 74, 3, 27, 46, 51, 9, 35, front and side. Saw: 61, 74, 3, 27, 9 and 35 read as falls from both angles (35 is a clean single plunge into a pool); 46 and 51 front are the blocked views named above, their side views are fine.
+  - r21-row4c-strip.jpg: six frames of fall 22 from 14 m. Frame-to-frame change is clear at the lip, on the sheet and strongest in the pool, and near zero on dry ground, so lip and foot move.
+  - Also there, not in the three: r21-row4c-fall67-400m.png (reads as one white sheet at 400 m, checked), r21-row4a-fall22-400m.png, and the 32 single frames.
+- Probe note: the fall set follows Camera.main every 0.5 s, and my shot probe moved the camera only on the shot itself, so the first frame after a teleport showed the bare water face with no sheet. Set row4b has that fault and should be ignored; row4c takes a warm-up frame first. This is the probe, not the game.
+- Editor note: my old editor had died mid-row and lingered holding the project lock; I ended it (my PID only) and restarted through start-quiet.
+- Asks: one BENCH-QUEUE line, please: main vs `world/waterfall-sheets` 54fcdf64, Medium and High, standing 20 m in front of fall 22 (a chain, several falls in view) and at the lake below fall 74; whole-frame GPU and main ms. Points of interest: `PunchyFallWater` loops up to 32 boxes in the water fragment inside the falls' rectangle plus 12 m; fine sheets are 32x48 quads per near fall. Rule 23 at Medium.
+- NEXT: W-153 row 2 (still water last), then W-155 rows 1-2.
+
 ## 2026-11-13 R-21 row 4 note: one fall builder (before code)
 - Description (one struct, FallShape): lip middle on the water, pour direction, width along the lip, drop, run (how far out the foot is, so run over drop is the slope from sheer to cascade), skew (oblique lip), bow (curved lip), landing (pool, ledge, rapids, sea), seed, under rock.
 - Cases it must draw: sheer and slanted faces, 1 m to 50 m+, narrow and wide, curved and oblique lips, chains (each step its own shape, landing on a ledge), single drops, cliff plunges into the sea, cave notches and chutes, grand tiers, landmark falls.
