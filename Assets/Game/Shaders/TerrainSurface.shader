@@ -175,6 +175,7 @@ Shader "Punchy/Terrain Surface"
                 half   strata     : TEXCOORD8;
                 half2  paving     : TEXCOORD9;   // paving amount, flagstones (W-108)
                 half2  hollow     : TEXCOORD10;  // hollow depth (m), porosity (item 22)
+                half3  under      : TEXCOORD11;  // R-28: ground albedo under the paving (0 where unset)
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -343,6 +344,7 @@ Shader "Punchy/Terrain Surface"
                 o.strata = input.strata.x;
                 o.paving = input.strata.yw;
                 o.hollow = half2(input.strata.z, input.soak.x);
+                o.under = input.soak.yzw;
                 return o;
             }
 
@@ -409,14 +411,19 @@ Shader "Punchy/Terrain Surface"
 
                 half relief = 0.45 * (1 - puddle);   // (the octaves' fades are already in micro)
                 normalWS = normalize(normalWS - half3(micro.x, 0, micro.y) * relief);
-                half cobbleFade = smoothstep(0.3, 0.55, input.paving.x) * (1 - smoothstep(30, 80, distance));
-                // W-108: paving above 1 is wear (SettlementSampling.Ground: the ruts down a cobbled road), and paving
-                // a little under 1 (a road's verge, the fade at a town's edge) lets the grass in between the stones.
-                half wear = saturate(input.paving.x - 1);
-                half sparse = 1 - smoothstep(0.6, 1, input.paving.x);
                 // W-108 (#39): a town's square is laid with big flagstones (the same stones at twice the size, flatter),
                 // with a hard line where they meet the kerb.
                 half slab = step(0.5, input.paving.y);
+                // R-28 (rule 20): the stones fade by their own size on screen (DetailPolicy.ScreenSize), from 13 to 5
+                // reference pixels across a stone (0.42 m, flagstones twice that): 30-80 m for cobbles at fov 60, as
+                // before. Metres only when the policy is off.
+                half cobbleNear = _PunchyTerrainDetailPpm < 0 ? 1 - smoothstep(30, 80, distance)
+                                : smoothstep(4.9, 13.1, 0.42 * (1 + slab) * _PunchyTerrainDetailPpm / max(distance, 0.01));
+                half cobbleFade = smoothstep(0.3, 0.55, input.paving.x) * cobbleNear;
+                // W-108: paving above 1 is wear (SettlementSampling.Ground: the ruts down a cobbled road), and paving
+                // a little under 1 (a road's verge, the fade at a town's edge) lets the ground in between the stones.
+                half wear = saturate(input.paving.x - 1);
+                half sparse = 1 - smoothstep(0.6, 1, input.paving.x);
                 float4 cb = float4(0, 0, 0, 0);
                 half cbHue = 0, cbDome = 1, cbSunk = 0;
                 [branch] if (cobbleFade > 0.001)
@@ -477,7 +484,7 @@ Shader "Punchy/Terrain Surface"
                 {
                     // W-34: stones paler and greyer than the ground, each its own shade and a little warmer or cooler,
                     // darker at the rim where they turn down into the gap, with broad patches of wear so the paving
-                    // isn't one even tone from 30 m. The gaps hold dark earth with tufts of moss and grass.
+                    // isn't one even tone from 30 m. R-28: the gaps hold the ground the stones were set in (below).
                     half grey = dot(albedo, half3(0.3, 0.5, 0.2));
                     half patch = PunchyValueNoise(p * 0.21 + 4.7) - 0.5;
                     half3 stone = lerp(albedo, grey.xxx, 0.45) * (1.2 + cb.x * 0.55 + patch * 0.25)
@@ -489,8 +496,18 @@ Shader "Punchy/Terrain Surface"
                     half tuft = smoothstep(0.5 - sparse * 0.3, 0.72 - sparse * 0.2,
                                            PunchyValueNoise(p * 2.6 + 12.1) * 0.7 + PunchyValueNoise(p * 9.3) * 0.3)
                               * (1 - wear);   // nothing grows where the wheels run
-                    half3 gap = lerp(albedo * half3(0.34, 0.29, 0.22), half3(0.10, 0.16, 0.05), tuft);
-                    gap = lerp(gap, albedo * half3(0.62, 0.52, 0.4), wear);   // packed dust tamped into the joints
+                    // R-28: the grout is the biome ground under the paving (the mesh's under colour: snow in a frost
+                    // town, sand in a desert, ash, soil), darkened and dirtied down in the joint, bright ground less so
+                    // (packed snow stays snow). Where tufts gather the fill rises nearer the ground's own colour. Moss
+                    // and green grit only where that ground is itself green, more so in the wet. Props built by hand
+                    // leave the under colour 0: those take the old darkened stone colour.
+                    half3 under = dot(input.under, half3(1, 1, 1)) > 0.003 ? input.under : albedo * half3(0.62, 0.53, 0.42);
+                    half underGrey = dot(under, half3(0.3, 0.5, 0.2));
+                    half3 dirt = lerp(under, underGrey * half3(1.0, 0.86, 0.68), 0.3) * lerp(0.48, 0.92, smoothstep(0.1, 0.75, underGrey));
+                    half3 gap = lerp(dirt, under * 0.86, tuft * 0.45);
+                    half green = saturate((under.g - max(under.r, under.b)) / max(under.g, 0.02) * 3);
+                    gap = lerp(gap, half3(0.10, 0.16, 0.05) * (0.7 + underGrey), tuft * green * lerp(0.6, 1, wet));
+                    gap = lerp(gap, lerp(under, underGrey.xxx, 0.25) * 0.8, wear);   // packed dust tamped into the joints
                     albedo = lerp(albedo, lerp(stone, gap, cb.y), cobbleFade);
                 }
                 // Rock strata (mesa cliffs, canyon walls): bands of darker red and paler cream rock by height, a thick
@@ -534,6 +551,17 @@ Shader "Punchy/Terrain Surface"
                 surface.smoothness = lerp(lerp(input.surface.a, max(input.surface.a, 0.45), sheen), 0.92, puddle);
                 surface.metallic = input.extra.x;
                 surface.occlusion = 1;
+                // R-28: the joints are rough and dull when dry and hold the water after rain (a wet sheen down in the
+                // gaps, before the stone tops), and the sky reaches less of them: occlusion down the stones' rims and
+                // in the gaps, softer in the worn ruts and under puddles.
+                [branch] if (cobbleFade > 0.001)
+                {
+                    half joint = cb.y * cobbleFade;
+                    half wetJoint = saturate(wet * 1.6) * (1 - 0.85 * porosity);
+                    surface.smoothness = lerp(surface.smoothness, lerp(surface.smoothness * 0.45, max(surface.smoothness, 0.62), wetJoint), joint * (1 - puddle));
+                    half rimOcclusion = lerp(lerp(0.72, 1, cbDome), 0.58, cb.y);
+                    surface.occlusion = lerp(1, rimOcclusion, cobbleFade * (1 - 0.5 * wear) * (1 - puddle));
+                }
                 surface.emission = input.emission * _EmissionScale;
                 surface.alpha = 1;
 

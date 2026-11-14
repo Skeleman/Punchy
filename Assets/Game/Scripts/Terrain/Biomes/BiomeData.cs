@@ -30,6 +30,9 @@ namespace Punchy.Terrain
         public float Slabs;
         /// <summary>How much rain soaks in (TerrainSurface.Porosity): sand darkens rather than pooling.</summary>
         public float Porosity;
+        /// <summary>R-28: the biome ground's albedo before paving painted over it (TerrainSource.SampleSurface), so the
+        /// shader's grout reads the snow, sand, ash or soil the stones sit in. 0 where nothing set it.</summary>
+        public float3 Under;
 
         public static SurfaceProps Lerp(in SurfaceProps a, in SurfaceProps b, float t) => new SurfaceProps
         {
@@ -44,7 +47,8 @@ namespace Punchy.Terrain
             Strata = math.lerp(a.Strata, b.Strata, t),
             Paving = math.lerp(a.Paving, b.Paving, t),
             Slabs = math.lerp(a.Slabs, b.Slabs, t),
-            Porosity = math.lerp(a.Porosity, b.Porosity, t)
+            Porosity = math.lerp(a.Porosity, b.Porosity, t),
+            Under = math.lerp(a.Under, b.Under, t)
         };
 
         public void AddScaled(in SurfaceProps s, float w)
@@ -61,6 +65,7 @@ namespace Punchy.Terrain
             Paving += s.Paving * w;
             Slabs += s.Slabs * w;
             Porosity += s.Porosity * w;
+            Under += s.Under * w;
         }
     }
 

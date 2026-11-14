@@ -20,7 +20,7 @@ namespace Punchy.Terrain
         public half4 Emission;  // emission rgb (linear HDR), geomorph offset (coarse height − height)
         public float4 Morph;    // geomorph start / complete distance from the focus; z surface bumpiness; w distance to cave air
         public half4 Strata;    // rock strata amount, cobble paving amount, hollow depth (m, for puddles), flagstones (W-108)
-        public half2 Soak;      // porosity (how much rain soaks in, item 22), unused
+        public half4 Soak;      // porosity (how much rain soaks in, item 22), ground albedo under paving (R-28)
 
         public static readonly VertexAttributeDescriptor[] Layout =
         {
@@ -31,7 +31,7 @@ namespace Punchy.Terrain
             new VertexAttributeDescriptor(VertexAttribute.TexCoord1, VertexAttributeFormat.Float16, 4),
             new VertexAttributeDescriptor(VertexAttribute.TexCoord2, VertexAttributeFormat.Float32, 4),
             new VertexAttributeDescriptor(VertexAttribute.TexCoord3, VertexAttributeFormat.Float16, 4),
-            new VertexAttributeDescriptor(VertexAttribute.TexCoord4, VertexAttributeFormat.Float16, 2)
+            new VertexAttributeDescriptor(VertexAttribute.TexCoord4, VertexAttributeFormat.Float16, 4)
         };
 
         public void SetSurface(in SurfaceProps s)
@@ -40,7 +40,7 @@ namespace Punchy.Terrain
             Extra = new half4(new float4(s.Metallic, s.Grass, s.Snow, 0f));
             Emission = new half4(new float4(s.Emission, 0f));
             Strata = new half4(new float4(s.Strata, s.Paving, 0f, s.Slabs));
-            Soak = new half2(new float2(s.Porosity, 0f));
+            Soak = new half4(new float4(s.Porosity, s.Under));
         }
     }
 

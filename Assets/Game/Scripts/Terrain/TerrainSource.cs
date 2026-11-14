@@ -1282,12 +1282,14 @@ namespace Punchy.Terrain
             if (V3Ground.IsCreated && context.WaterDepth < 0.3f)
                 Punchy.Terrain.V3Ground.Apply(ref V3Ground.Value, xz, math.max(context.Slope, FieldSlope(xz)),
                     Island.IsCreated ? math.max(Island.Value.Sample(xz), 0f) : 0f, context.EdgeNoise, ref result);
+            var under = result.Albedo;   // R-28: the biome ground before any paving, for the grout between stones
             if (Landmarks.IsCreated)
                 LandmarkSampling.Ground(ref Landmarks.Value, xz, context.EdgeNoise, context.ColorNoise, ref result);
             if (Settlements.IsCreated)
                 SettlementSampling.Ground(ref Settlements.Value, xz, context.EdgeNoise, context.ColorNoise, ref result);
             if (Landmarks.IsCreated)
                 LandmarkSampling.TroddenGround(ref Landmarks.Value, xz, context.EdgeNoise, ref result);
+            result.Under = under;
             return result;
         }
 
