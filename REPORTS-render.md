@@ -2,6 +2,34 @@
 
 Newest first.
 
+## 2026-11-13 R-19 row 2: three steep-rock cost switches, defaults unchanged
+Branch render/steep-triplanar 1e556c4b (on b30c967f), pushed. For PR #285 / bench job 66.
+- DONE: three switches, all off by default, in TerrainSurface.shader (reads `_PunchyRockCost`) and the new
+  Rendering/SteepRockCost.cs (sets it from the command line). With none set the player sees what b30c967f showed;
+  the default path does the same arithmetic.
+  - `-rockhighonly`: beds and slabs at High and up only; Low and Medium keep the grain alone.
+  - `-rockoctaves 1`: one noise octave for beds and slabs instead of two.
+  - `-rockslabpx n`: slabs fade out below n reference pixels per 2.5 m slab (DetailPolicy-style screen size, rule
+    20; default 2).
+- DONE: sheet of six panels at the mountain 20 m pose (-3126,2898; player y 194; view yaw -169, pitch -40), Medium,
+  12:00, Clear. Difference against the default frame (mean abs level, share of pixels changed):
+  high-only 4.54, 47.7 %; one octave 4.92, 39.7 %; slab 40 px 0.04, 0.1 %; slab 150 px 1.49; one octave + slab 40
+  px 4.92, 39.6 %. All arms still read as grey layered rock. High-only is the flattest (no beds, no slabs); one
+  octave keeps the broad beds and loses the thin ones.
+- NOT DONE / UNVERIFIED: slab 40 px changes nothing at this pose (every rock pixel is within about 58 m), so its
+  saving has to be measured at a farther pose. Not checked: other poses, High preset (high-only should equal
+  default there, not shot), fov 90. No timing done (rule 21).
+- Checks: compiles, 0 errors. NaN probe 0 of 360 frames (one octave + slab 40). Full PlayMode suite after the last
+  code change: `Run finished: 28 total, 28 passed, 0 failed` (this route prints no skips or seconds). The first
+  suite attempt ended in an editor crash on leaving play mode, inside Unity's own scene-backup restore
+  (ExitPlayMode -> RestoreSceneBackups); no frame of this row's code in the stack, not seen again in the second run.
+- Shots: PunchyMilestones/R-19/row2-switches-sheet.png (1200 px); frames in PunchyMilestones/R-19/row2/.
+- Asks: BENCH-QUEUE job on render/steep-triplanar 1e556c4b, GPU ms at the mountain 20 m pose (-3126,2898, yaw
+  -169, pitch -40, 12:00 Clear, Medium), six arms: default; `-rockhighonly`; `-rockoctaves 1`; `-rockslabpx 40`;
+  `-rockslabpx 150`; `-rockoctaves 1 -rockslabpx 40`. A second pose with rock at 100-300 m would show what the slab
+  fade saves. The supervisor picks the default from the numbers.
+- NEXT: R-25 row 2 on render/far-lights, CaveSystem surface-glow partial first.
+
 ## 2026-11-13 R-25 row 1: night walk-in survey, main against R-10 (no code)
 Filed by the supervisor from the lane's hand-back. Branch render/far-lights ef41491d (b/r10-trims a1cb1899 merged
 with main d95e7ff1); compiles, no suite run yet.
