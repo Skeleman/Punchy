@@ -130,7 +130,12 @@ namespace Punchy.Fauna
         /// from the players' places it already has: a walker with a rider does not stop to look at anyone (A-74), on any
         /// machine, so the rider stays on the body in every view. Nothing is sent.</summary>
         static ulong ridden;
-        public static bool AnyRider(int slot) => slot == Riding || slot >= 0 && slot < 64 && (ridden >> slot & 1) != 0;
+        /// <summary>Row 2b: with ColossusWalker.HoldAll the local player counts as up on a body by the same rule as the
+        /// joined ones (not from its first hold), so every machine lets the walker walk on at the same moment.</summary>
+        public static bool AnyRider(int slot) => !ColossusWalker.HoldAll && slot == Riding || slot >= 0 && slot < 64 && (ridden >> slot & 1) != 0;
+        /// <summary>Row 2b: where every player this machine knows stands (the local one and the joined ones), as last
+        /// gathered: ColossusWalker stops and turns for the nearest of them, so all machines hold a walker back alike.</summary>
+        public static FixedList128Bytes<float2> Players;
         /// <summary>Up on a body: this far over a column's foot (m), and within this of its side (m), wider once on (a
         /// joined rider is drawn a little behind, and the body may be a little off its place on their machine).
         /// // gameplay: who counts as a rider, not what is drawn.</summary>
@@ -141,6 +146,9 @@ namespace Punchy.Fauna
 
         int rode = -1;
         float3 lastVelocity;
+        double lastClock;
+        bool paced;
+        int logSteps, logFrames, logSkill, logGrade;
         float logAt, logKick, logTurn;
 
         protected override void OnCreate()
@@ -163,6 +171,7 @@ namespace Punchy.Fauna
             var near = new FixedList128Bytes<float2>();
             Add(players, ref near);
             Add(joined, ref near);
+            Players = near;
             ColossusCollision.GatherClimb(ref list, near, ColossusClimbs.Gather);
             var now = 0ul;
             Riders(players, ref list, ref now);
@@ -269,19 +278,38 @@ namespace Punchy.Fauna
             }
             var slot = list[on].Slot;
             Riding = slot;
-            var dt = SystemAPI.Time.DeltaTime;
-            if (!ColossusCollision.Carry(slot, t.Position, out var moved, out var turn) || dt <= 0f)
+            ColossusCollision.Carry(slot, t.Position, out var moved, out var turn);
+            // The kick: how far the hold's speed is off its speed over the last tenth of a second. Row 2b: speed by the
+            // walker's clock, not the frame's time. A joined machine's clock steps with the server tick, so a frame
+            // has none, one or two steps of walk in it; by frame time the same walk read as kicks of several m/s on
+            // a fast client and the climber was shaken (or not) by frame rate. By the clock it kicks alike solo, as
+            // host and as client. A frame with no step has no walk in it and leaves the kick as it was.
+            var clock = ColossusWalker.PosedClock;
+            var carried = math.distance(moved, t.Position);
+            var step = rode == slot ? (float)(clock - lastClock) : 0f;
+            var kick = 0f;
+            var velocity = lastVelocity;
+            if (rode != slot)
             {
-                // (Not moving: standing at rest, or not posed this frame. The next frame starts the kick afresh.)
-                rode = -1;
-                return;
+                velocity = lastVelocity = float3.zero;
+                paced = false;
             }
-            // The kick: how far the hold's speed is off its speed over the last tenth of a second (smoothed, so the same
-            // footfall kicks alike at any frame rate).
-            var velocity = (moved - t.Position) / dt;
-            var kick = rode == slot ? math.length(velocity - lastVelocity) : 0f;
-            lastVelocity = rode == slot ? math.lerp(lastVelocity, velocity, math.saturate(dt / 0.1f)) : velocity;
+            else if (step > 1e-5f && step < 1f)
+            {
+                velocity = (moved - t.Position) / step;
+                // (The first step on a body sets its pace: getting on a walking body is no lurch.)
+                if (!paced)
+                    lastVelocity = velocity;
+                paced = true;
+                kick = math.length(velocity - lastVelocity);
+                lastVelocity = math.lerp(lastVelocity, velocity, math.saturate(step / 0.1f));
+                logSteps++;
+            }
+            // (The first frame on a body only notes the clock: its speed is not known yet, and no kick comes of it.
+            // Not carried, the body stands still: moved is where it was, and a stop is a kick like any other.)
             rode = slot;
+            lastClock = clock;
+            logFrames++;
             t.Position = moved;
             t.Rotation = math.mul(quaternion.RotateY(turn), t.Rotation);
             if (m.OnTrunk)
@@ -289,14 +317,17 @@ namespace Punchy.Fauna
                 ColossusCollision.Carry(slot, m.TrunkBase, out m.TrunkBase, out _);
                 // (Its place round the column turns with the body: TrunkAngle runs the other way to a yaw.)
                 m.TrunkAngle -= turn;
+                // (PlayerBody is this machine's one body, the local player's own: joined players' bodies have none.)
                 var skill = bodies.TryGetSingleton<Punchy.Player.PlayerBody>(out var body) ? body.ClimbSkill : Climbing.HumanoidSkill;
+                logSkill = skill;
+                logGrade = grade;
                 if (kick > LurchKick && grade > Climbing.None && skill - grade < 1)
                 {
                     // Shaken off: let go.
                     m.OnTrunk = false;
                     m.LatchCooldown = 1f;
                     ShakenOff++;
-                    Debug.Log($"ColossusClimbSystem: carry: a lurch of {kick:F2} m/s shook the climber off a grade {grade} hold (skill {skill})");
+                    Debug.Log($"ColossusClimbSystem: carry: a lurch of {kick:F2} m/s shook the climber off a grade {grade} hold (skill {skill}); step {step:F4} s, moved {carried:F3} m, turned {math.degrees(turn):F2} deg, pace {math.length(lastVelocity):F2} m/s; walker: {ColossusWalker.Describe(slot)}");
                 }
                 else
                     BiggestKick = math.max(BiggestKick, kick);
@@ -314,8 +345,10 @@ namespace Punchy.Fauna
             {
                 logAt = UnityEngine.Time.time + 1f;
                 Debug.Log($"ColossusClimbSystem: carry: on slot {slot} {(m.OnTrunk ? "climbing" : "standing")}, at ({t.Position.x:F1}, {t.Position.y:F1}, {t.Position.z:F1}), " +
-                          $"speed {math.length(velocity):F2} m/s, biggest kick {logKick:F2} m/s, turned {logTurn:F1} deg");
+                          $"speed {math.length(velocity):F2} m/s, biggest kick {logKick:F2} m/s, turned {logTurn:F1} deg, " +
+                          $"skill {logSkill} on grade {logGrade}, {logSteps} clock steps in {logFrames} frames");
                 logKick = logTurn = 0f;
+                logSteps = logFrames = 0;
             }
         }
 

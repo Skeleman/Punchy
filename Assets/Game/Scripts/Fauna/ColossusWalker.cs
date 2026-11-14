@@ -44,6 +44,12 @@ namespace Punchy.Fauna
         public static string Phase;
         /// <summary>A-107 (the colossus climb probe, DebugControls): hold every walker still where it is, unturned, so a still body is climbed first.</summary>
         public static bool Freeze;
+        /// <summary>A-107 row 2b: a walker stops and turns (A-74) for the nearest player this machine knows, the joined
+        /// ones too, so all machines hold it back alike with nothing sent. "-walkerholdown" turns it off: then it
+        /// stops only for this machine's own player, as before.</summary>
+        public static bool HoldAll = true;
+        /// <summary>The clock the walkers were last posed at (s): ColossusClimbSystem measures a ridden body's speed by it.</summary>
+        public static double PosedClock;
 
         /// <summary>How each kind walks.</summary>
         struct Gait
@@ -104,6 +110,10 @@ namespace Punchy.Fauna
         /// <summary>A-74 stop and look: reach past its body (m), ease time (s), most it may fall behind the clock (s), how much faster it catches up, and how far (degrees) the body and head turn.</summary>
         /// <summary>A-107 row 2: how fast a ridden walker turns back off its turn toward the rider (degrees/s).</summary>
         const float RideUnturn = 10f;
+        /// <summary>Row 2b: its turn toward a player never steps: the most it turns (degrees a second) and how fast that
+        /// builds (degrees a second, a second), gently with a player on its body (a hold swings metres out from its
+        /// middle, so a turn that starts at once is a lurch that shakes them off), briskly otherwise.</summary>
+        const float RideTurnPush = 12f, FreeTurn = 120f, FreeTurnPush = 600f;
         const float LookRange = 40f, HoldTime = 2f, MaxLag = 30f, CatchUp = 1.5f, BodyTurn = 70f, HeadTurn = 35f;
         const float TownClear = 150f, MaxSlope = 0.35f, Tilt = 8f, SettleTime = 6f;
         const int Checks = 48, Table = 256;
@@ -139,6 +149,8 @@ namespace Punchy.Fauna
             public float Look;
             /// <summary>A-107: the turn toward the player last taken (degrees), held while they are on its body.</summary>
             public float Aim;
+            /// <summary>Row 2b: how fast that turn is changing (degrees a second), and the rate its own clock runs at (eased).</summary>
+            public float AimSpeed, Rate = 1f;
             /// <summary>A-107 row 2: this frame's step of the clock (s), to ease the held turn off while ridden.</summary>
             public float Tick;
             /// <summary>A-107: its own clock when <see cref="Freeze"/> came on (NaN while not frozen).</summary>
@@ -173,6 +185,7 @@ namespace Punchy.Fauna
             CreatureBrainSystem.ColossusZones.Data = float4x4.zero;   // (statics outlive a play with domain reload off)
             CreatureBrainSystem.ColossusFlees.Data = 0;
             Log = System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-walkerlog") >= 0;
+            HoldAll = System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-walkerholdown") < 0;
             gaveUp = Time.realtimeSinceStartup + 120f;
         }
 
@@ -208,6 +221,7 @@ namespace Punchy.Fauna
 
             var clock = Shader.GetGlobalFloat(ClockId);
             double t = clock > 0f ? clock : Time.time;
+            PosedClock = t;
             var eye = cam != null ? (float3)cam.transform.position : float3.zero;
             var viewer = Viewer(eye);
             // The awake one: the nearest walker in view range, the only one moved every frame.
@@ -538,7 +552,9 @@ namespace Punchy.Fauna
             var dt = double.IsNaN(w.Clock) ? 0f : (float)math.clamp(t - w.Clock, 0.0, 1.0);
             w.Clock = t;
             var gap = math.distance(viewer.xz, w.Position.xz);
-            if (w.Lag >= MaxLag - 0.01f)
+            // (Bored a little short of MaxLag: it eases back to its pace, which adds lag. Stopped right at the cap it went
+            // from still to full pace in one frame, a lurch for anyone holding on.)
+            if (w.Lag >= MaxLag - 1.5f)
                 w.Bored = true;
             if (gap > w.G.Body + LookRange + 20f)
                 w.Bored = false;
@@ -547,7 +563,11 @@ namespace Punchy.Fauna
             var near = gap < w.G.Body + LookRange && !w.Bored && !ColossusClimbSystem.AnyRider(w.G.Slot);
             w.Tick = dt;
             w.Hold = math.saturate(w.Hold + (near ? dt : -dt) / HoldTime);
-            var rate = near || w.Hold > 0f ? 1f - w.Hold : w.Lag > 0f ? CatchUp : 1f;
+            // Row 2b: its pace never steps. Catching up comes on and goes off as eased as the stop does (it stepped from
+            // 1 to CatchUp as the stop let go: a lurch of half its pace), and tails off over the last second of lag.
+            var want = near || w.Hold > 0f ? 1f - w.Hold : 1f + (CatchUp - 1f) * math.saturate(w.Lag);
+            w.Rate += math.clamp(want - w.Rate, -dt / HoldTime, dt / HoldTime);
+            var rate = w.Rate;
             w.Lag = math.clamp(w.Lag + (1f - rate) * dt, 0f, MaxLag);
             w.Own = t - w.Lag;
             return rate;
@@ -558,6 +578,22 @@ namespace Punchy.Fauna
         void Pose(Walker w, in TerrainSource source, double t, float3 viewer)
         {
             var g = w.G;
+            // Row 2b: it stops and turns for the nearest player this machine knows, not only its own, so every machine
+            // holds it back alike and a rider is drawn on its body in every view. Nothing is sent.
+            if (HoldAll)
+            {
+                var all = ColossusClimbSystem.Players;
+                var best = math.distancesq(viewer.xz, w.Position.xz);
+                for (int i = 0; i < all.Length; i++)
+                {
+                    var d = math.distancesq(all[i], w.Position.xz);
+                    if (d < best)
+                    {
+                        best = d;
+                        viewer = new float3(all[i].x, viewer.y, all[i].y);
+                    }
+                }
+            }
             var rate = Hold(w, t, viewer);
             t = w.Own;
             if (Freeze)
@@ -590,12 +626,30 @@ namespace Punchy.Fauna
             var aim = math.lengthsq(toward) > 1f ? math.degrees(DeltaAngle(w.Heading, math.atan2(toward.x, toward.y))) * w.Hold : 0f;
             // A-107: a player up on its body (climbing it, on its back) is not turned to: aimed at from right under it,
             // the turn would swing the body round under their feet. It keeps the turn it had as they came on.
+            // Ridden, it eases back onto its path. Row 2b: every change of the turn is eased, in speed too: the turn used
+            // to start, stop and (let go of by a bored walker, or as a low climber came out from under it) jump in one
+            // frame, and each was a lurch of metres a second at a hold.
+            var ridden = ColossusClimbSystem.AnyRider(g.Slot);
+            var held = ridden || ColossusClimbSystem.Riding == g.Slot;
             if (Freeze)
+            {
                 aim = 0f;
-            else if (ColossusClimbSystem.AnyRider(g.Slot))
-                aim = w.Aim - math.clamp(w.Aim, -RideUnturn * w.Tick, RideUnturn * w.Tick);  // ridden: eases back onto its path
-            else if (math.lengthsq(toward) < (g.Body + 3f) * (g.Body + 3f))
-                aim = w.Aim;
+                w.AimSpeed = 0f;
+            }
+            else
+            {
+                if (ridden)
+                    aim = 0f;
+                else if (held || math.lengthsq(toward) < (g.Body + 3f) * (g.Body + 3f))
+                    aim = w.Aim;
+                float most = held ? RideUnturn : FreeTurn, push = held ? RideTurnPush : FreeTurnPush;
+                var off = aim - w.Aim;
+                // (No faster than it can still stop from: it comes to rest on the turn it wants.)
+                var speed = math.sign(off) * math.min(most, math.sqrt(2f * push * math.abs(off)));
+                w.AimSpeed += math.clamp(speed - w.AimSpeed, -push * w.Tick, push * w.Tick);
+                var next = w.Aim + w.AimSpeed * w.Tick;
+                aim = (aim - next) * off <= 0f ? aim : next;
+            }
             w.Aim = aim;
             var turn = math.clamp(aim * 0.6f, -BodyTurn, BodyTurn);
             w.Look = math.clamp(aim - turn, -HeadTurn, HeadTurn);
@@ -754,6 +808,16 @@ namespace Punchy.Fauna
         }
 
         /// <summary>-walkerlog: each walker's state, the flees it caused, and its place by the server's and the client's clock.</summary>
+        /// <summary>Probes: slot's walker this frame in a line (its stop, lag, pace and turn), for the shake-off log.</summary>
+        public static string Describe(int slot)
+        {
+            if (Instance != null)
+                foreach (var w in Instance.walkers)
+                    if (w != null && w.G.Slot == slot)
+                        return $"hold {w.Hold:F2}, lag {w.Lag:F2} s, bored {w.Bored}, pace {w.Pace:F2}, aim {w.Aim:F1} deg, tick {w.Tick:F4} s, awake {System.Array.IndexOf(Instance.walkers, w) == Instance.awake}";
+            return "no walker";
+        }
+
         void LogWalkers(in TerrainSource source, double t)
         {
             var server = double.NaN;

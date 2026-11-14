@@ -445,8 +445,11 @@ namespace Punchy.Debugging
                         ccEntered = true;
                     }
                     CcFrame("ride", 15f);
-                    ccFrames++;
                     var on = m.OnTrunk || m.Grounded && ColossusClimbs.FloorUnder(t.Position, 0.3f, 0.3f, out var under) && t.Position.y - under < 0.3f;
+                    // (The watch starts once it stands: a climb that ended a step off a narrow top's far side is still
+                    // dropping to the next top as the ride begins, up to 3 s, and that is the probe's steering, not the carry.)
+                    if (ccFrames > 0 || on || stageTime > 3f)
+                        ccFrames++;
                     if (on)
                         ccOnFrames++;
                     var fwd = math.mul(t.Rotation, new float3(0f, 0f, 1f));
