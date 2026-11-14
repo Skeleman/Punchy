@@ -225,17 +225,29 @@ namespace Punchy.Fauna
         }
     }
 
-    /// <summary>A-101: every graded section source at once: the marked bands (tests) and the world's ladders.</summary>
+    /// <summary>A-101: every graded section source at once: the marked bands (tests), the world's ladders and (A-107)
+    /// the colossi's climb sections; the easiest grade where several answer.</summary>
     public struct WorldClimbs : IClimbSections
     {
         public bool GradeNear(float3 point, float radius, out byte grade) => At(point, radius, out grade);
 
         public static bool At(float3 point, float reach, out byte grade)
         {
-            var banded = ClimbBands.At(point, reach, out _, out var bandGrade);
-            var laddered = ClimbLadders.At(point, reach, out _, out var ladderGrade);
-            grade = banded && laddered ? (byte)math.min((int)bandGrade, (int)ladderGrade) : banded ? bandGrade : ladderGrade;
-            return banded || laddered;
+            grade = Climbing.None;
+            var any = false;
+            if (ClimbBands.At(point, reach, out _, out var bandGrade))
+                Easiest(ref grade, ref any, bandGrade);
+            if (ClimbLadders.At(point, reach, out _, out var ladderGrade))
+                Easiest(ref grade, ref any, ladderGrade);
+            if (ColossusClimbs.At(point, reach, out var colossusGrade))
+                Easiest(ref grade, ref any, colossusGrade);
+            return any;
+        }
+
+        static void Easiest(ref byte grade, ref bool any, byte found)
+        {
+            grade = any ? (byte)math.min((int)grade, (int)found) : found;
+            any = true;
         }
     }
 
