@@ -6975,7 +6975,7 @@ half3 PunchySurfaceFinish(half3 color, PunchySurface s, half reach);            
 - **Ends:** the face fades to the ground's normal and surface over the last 12 m of each strip, with the sinking outcrops breaking the line.
 - **Striping source (one line):** TerrainSurface's fine relief (MicroDetail) is read from above in world xz, so on near-vertical skin it smeared into vertical stripes; ScarpPaint now keeps Bump only where the skin lies back as ground. No shader change.
 - **DESIGN-cliffs checks:**
-  - Clay: pass. With the clay look the canyon and river cut still read as cliffs (clay-ab.png).
+  - Clay: pass. With the clay look the canyon and river cut still read as cliffs (clay-check-labelled.png: right column is the debug -clay view, off in game; normal-look after views are in toe-ba.png).
   - Side-on: pass. Faces, varied ledges and the turf lip scooping under the rim; top edge sharp.
   - Seam: pass near and at 30 m (toe, top, ends); ends fade into the slope, none stop.
   - Sameness: pass in the canyon views (row 1b broke the stripes; three sizes of in-and-out in the plan). The river cut is short, so it repeats less than it varies.
@@ -6983,7 +6983,7 @@ half3 PunchySurfaceFinish(half3 color, PunchySurface s, half reach);            
   - Belonging: rubble below, plants set back at the rim, ledge plants only where ledges are wide enough. Matching beds across a canyon is not tested yet (one side only).
   - Walk/climb: the ground cut is the collider, so walking agrees with the face; skin proud at the canyon cap on LOD1/2 (row 5 leftover). Standing under an overhang not tested.
 - **Files:** Scarps/ScarpDebris.cs, ScarpDebrisSystem.cs, ScarpLife.cs (new); Scarps/ScarpPaint.cs, ScarpSkinJob.cs, ScarpSet.cs; shared additive: Flora/FloraPlacement.cs, Terrain/Detail/GroundDetailSystem.cs. Merged origin/main (8d097c11).
-- **Shots** (D:/Unity/PunchyMilestones/W-155/row2b/): before beside after sheets stripe.png (near, 30 m, 100 m), toe-ba.png and rtoe-ba.png (noon, dusk, overcast), ends-ba.png, bank-ba.png (banks unchanged but for the fixes), clay-ab.png; singles a2-*, b0-*, cl0-*, cl1-*.
+- **Shots** (D:/Unity/PunchyMilestones/W-155/row2b/): before beside after sheets stripe.png (near, 30 m, 100 m), toe-ba.png and rtoe-ba.png (noon, dusk, overcast), ends-ba.png, bank-ba.png (banks unchanged but for the fixes), clay-check-labelled.png; singles a2-*, b0-*, cl0-*, cl1-*.
 - **Checks:** pins unchanged (landmarks 117 689D5348, fauna 6A9E28E5). PlayMode suite 39/40 twice, each failure passing in the other run: run 1 fauna's LyingTests (an animal moved while down, 1.07 m/s; passed at 0.000 in run 2), run 2 WorldTests.Place_PropFindsAndFramesWharf (it compares the new wharf line with the last one logged, and the second run in one editor session logs the identical line; passed in run 1).
 - **BENCH:** Job 85 (debris and outcrops, A 19012b1f vs B 13fbd5cf).
 - **Branch:** world/scarps 13fbd5cf (pushed).
