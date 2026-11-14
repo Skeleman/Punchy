@@ -18,7 +18,7 @@ Newest first.
 
 (GPU ms, mean of 3 rounds; one High forest-walk round of "low" had a stall and is left out.)
 - **Rule 23 at Medium (<= +0.3): FAIL** for both: the wide filter alone costs **+0.33-0.50 ms**, and with the 4096 map **+0.43-0.83 ms** (the map adds ~0.1-0.35 on top). At High (bar +1.0 for a High-only feature, but the filter is on from Medium up) both are within +1.0.
-- **Low with the 4096 map (Low keeps the scene filter):** forest 9.87 -> 10.07 ms GPU (+0.2); 1% low 30.8 -> 31.2 fps. **Low's 50 fps 1% low floor fails in both arms** at this forest start (median frame 12.8 ms, so it's the start-up hitches of job 64, not the map); the 4096 map doesn't make it worse.
+- **Low with the 4096 map (Low keeps the scene filter):** forest 9.87 -> 10.07 ms GPU (+0.2); 1% low 30.8 -> 31.2 fps. **Low's 50 fps 1% low floor fails in both arms** at this forest start (median frame 12.8 ms, so slow frames rather than the average; I haven't checked whether they're job 64's start-up hitches); the 4096 map doesn't make it worse.
 - **Memory:** the 4096 map adds **+24 MB** of graphics memory at Medium/High (662 -> 686 MB) and +12 MB at Low (611 -> 623).
 - **Options if Zach wants the look within the bar:** the wide filter from High only (Medium keeps "low": 0 cost at Medium), or the 4096 map from High only (it needs a second pipeline asset, since PC has one for all presets).
 
