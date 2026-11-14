@@ -6966,6 +6966,21 @@ half3 PunchySurfaceFinish(half3 color, PunchySurface s, half reach);            
 - **Risk:** the foam at the foot is subtle on the pale snow rock. The wet band is easiest to see on darker rock. Adding the include to TerrainSurface set off a long shader variant compile (about 2 min, 43 compiler processes) on first load. Not timed (rule 21).
 - **Next:** R-22 row 0 (#298, world/far-view).
 
+## 2026-11-14 W-155 row 1 STOPPED (usage limit): code in, not verified, nothing pushed (#281)
+
+- Stopped on your call. Branch world/scarps (from main d95e7ff1) has two LOCAL commits, not pushed because
+  the row is not verified: 1ba69675 shared hooks (TerrainSource, IslandV2, IslandCache Format 2, chunk strip clip,
+  far ring) and 464cee2c Scripts/Terrain/Scarps/ (record, bake, ground cut, skin job and system).
+- Working: canyon wall drop 50.9 m, river cut bank 3.5 m, bake 89 ms, skins 45895 vertices built off the main
+  thread in about 1 s. Clay shots read as layered rock with benches, slanted gullies and jointed beds, visible at
+  400 m. Game hash FA8F24B1 and fauna fingerprint 6A9E28E5 unchanged so far.
+- Open bug at the canyon strip ends: a narrow crease or slot runs down the slope from the end of the face. Making the
+  floor's reach shrink with the strip did not remove it, so the next suspect is the strip clip / mesh blend near
+  W ~ 2.5 m, not the ground shape.
+- Not done yet: strip-end fix and the from-below shot, river cut shots, seam test, chunk-hash diff against main
+  away from the strips, NaN probe, measure hash, milestone copies, suite, push, bench ask.
+- Editor closed, no loops or monitors running. Waiting for your message.
+
 ## 2026-11-14 W-155 row 1 note (before code): two test scarps cut into the ground, files outside my folders (#281)
 
 Told first, as world-data.md asks. Branch `world/scarps` from origin/main d95e7ff1. No code is committed yet.
