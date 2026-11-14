@@ -98,3 +98,4 @@ Foliage realism (Zach 11-14): crowns as leaf clusters (cut-out cards, layering, 
 - 11-14 (Zach): procedural wood grain on planks and static strangler-fig roots on swamp trunks and cave walls (W-163, #330).
 - 11-14 (Zach): caked, cracked dry ground on salt flats and cracked bark (R-33 #331, W-163 row 3).
 - 11-14 (Zach): wet-stone look trial on in-game stone (R-34 #332).
+- 11-14 (Zach): explore a reference cumulus shader for cheaper or better clouds: R-35, #333.

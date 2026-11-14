@@ -308,3 +308,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-14: R-34 carded (#332): wet-stone trial sheet, render after R-32 rows 1-2; check the sheet before sending.
 - 11-14: R-31 row 2 adds prototype (d), GoT-style Bezier blades and Voronoi clumps (MIT reference, keep notice).
 - 11-14: R-28 row 2 done (render/cobble-depth 4cd4edd8): bevel cobbles, ribs fixed. BENCH job 86; merge after. Render flagged landmark bake alternating island hashes (FA8F24B1/A30264B9): passed to world.
+- 11-14: R-35 carded (#333): cloud reference (MIT) audit for look and cost; render after R-34 row 1. Reference in references/.
