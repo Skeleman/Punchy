@@ -768,3 +768,14 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
   tunnel exit (#279 spot); fast flight jump of 1 km with the #288 flora boost.
 - Every main frame over 8 ms: its top three samples (cave water tile build, TraceSystem, flora cells, terrain
   chunks, structures). Say whether two streaming systems spike in the same frame (decides #270's scheduler).
+
+## Job 81 (2026-11-14, QUEUED after 80; fauna lane, A-108 row 2, #298): herds' far form and the live hand-over
+- Main 697e565f (A) vs `fauna/far-life` d0524eaa (B). Profile builds, 1920x1080, Medium and High, uncapped, 10:00,
+  Clear, `-weatherseed 4`, ABBA, 3 rounds, 300 frames each.
+- Herd vantage (summit, many herds in view): `-benchspot -2496,294,960,55`.
+- Hand-over: `-benchspot 3570.2,-973.1`, yaw 99, 130 m from the town-e herd (11 animals), so it is live and its far
+  form gone; then walk in from 460 m to 35 m (or teleport to 150 m and stand) to catch the wake frame.
+- Record: GPU and main-thread ms per view; main-thread samples for CreatureRenderSystem (GatherHerds/WriteHerds) and
+  FaunaDirector (UpdateHerds); the wake frame's main ms (11 animals made at once). B with `-herdlog` gives a
+  `Herds:` line every 5 s (herds and members drawn).
+- Pass (rule 23): B within +0.3 ms main and +0.3 ms GPU of A at both views, Medium; no wake frame over 8 ms.
