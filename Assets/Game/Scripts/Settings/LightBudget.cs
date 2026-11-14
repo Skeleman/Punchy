@@ -425,7 +425,8 @@ namespace Punchy.Settings
             for (int i = 0; i < requests.Count; i++)
             {
                 var r = requests[i];
-                if (!r.Pooled || r.Tier > LightTier.Glow || heatNextAge.ContainsKey(r.Key)
+                // (Street lights only: a pooled fire, R-25, is not in the night map, so it must not pull the map nearer.)
+                if (!r.Pooled || r.Kind != LightKind.Fixture || r.Tier > LightTier.Glow || heatNextAge.ContainsKey(r.Key)
                     || (realLevel.TryGetValue(r.Key, out var lit) && lit >= 0.999f))
                     continue;
                 nearestGap = math.min(nearestGap, Vector3.Distance(r.Position, eyeAt));
