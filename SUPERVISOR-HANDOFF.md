@@ -304,3 +304,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-14: R-32 row 4: blue-moon nights about 1 in 10 (now 5.3-day round, wide glow).
 - 11-14: A-118 carded (#329): quadrupeds lie too low, legs sprawl; fauna after current A-117 row.
 - 11-14: W-163 carded (#330): wood grain + static strangler roots, world 3f; references are NC-SA, reimplement only.
+- 11-14: R-33 carded (#331): cracked salt crust, render after R-31; W-163 row 3 cracked bark shares the cell search.

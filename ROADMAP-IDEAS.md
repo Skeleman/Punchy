@@ -96,3 +96,4 @@ Foliage realism (Zach 11-14): crowns as leaf clusters (cut-out cards, layering, 
 - Cliffs and caves share one rock wall look, climbable grades and the ground blend at cave mouths (W-162, #327).
 - Blue moon casts the shadows on blue-moon nights, so its blue light reads as coming from it (R-32 row 3, #328).
 - 11-14 (Zach): procedural wood grain on planks and static strangler-fig roots on swamp trunks and cave walls (W-163, #330).
+- 11-14 (Zach): caked, cracked dry ground on salt flats and cracked bark (R-33 #331, W-163 row 3).
