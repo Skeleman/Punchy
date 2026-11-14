@@ -6,13 +6,20 @@ host or as a joined client, in lockstep through the core's `LockstepSession` (be
 
 ## What it does
 
-- Once the player has spawned, `ChemistryBridge` (created by itself at scene load, no scene edits) builds a
-  256 x 256 cell world, 1 m cells, in a window centred on the player. It seeds it from `TerrainSource` on the 1 m
-  grid in a Burst job: grass where blades grow (as `GroundDetailSystem` decides), water where there's water, rock
-  on steep slopes, dirt elsewhere. Cell (x, y) is Punchy's (x, z) plus the window's corner. Walk more than 96 m
-  from the window's centre and it's rebuilt round you (what burned there is forgotten).
+- Once the player has spawned and the terrain has settled (3 s unchanged), `ChemistryBridge` (created by itself at
+  scene load, no scene edits) starts the core's **open world** (Spell Chemistry Valley's ADR 0020): 1 m cells on
+  Punchy's own grid, cell (x, y) = floor of the absolute x, z (Punchy never shifts its origin), in 64 x 64 chunks keyed
+  by layer and place. A chunk exists once it's **filled**: as a player reaches ground never filled, the host (or solo)
+  samples it from `TerrainSource` in a Burst job (grass where blades grow, as `GroundDetailSystem` decides; water
+  where there's water; rock on steep slopes; dirt elsewhere) and the core stamps the fill on a tick. Chunks round each
+  player (the rules' reach, 2) are active; further ones are inactive and packed, and keep what happened to them. There
+  is no size and no rebuild: walk away and back, or teleport, and what burned is still there.
+- **Layers:** the surface is layer 0; a player more than 2 m under the surface in a cave's (or the sunken temple's)
+  air is in layer 1, whose ground is the caves' floors (dirt, cave pools as water, rock where there's no cave). The
+  layers never touch.
 - It ticks the chemistry at the rules' rate (6 a second), at most 2 ms a frame (a tick can span frames).
-- Each tick it renders the cells into two 256 x 256 maps (`_PunchyChemMap`: r burning, g burnt, b ice, a frost;
+- The view is a 256 x 256 window (4 x 4 chunks) round the player, in its layer, moved a chunk at a time as the player
+  walks (only the view moves). Each tick it renders the window's filled chunks, active or not, into two 256 x 256 maps (`_PunchyChemMap`: r burning, g burnt, b ice, a frost;
   `_PunchyChemMap2`: r water standing on land, g steam, b smoke; with `_PunchyChemRect`, `_PunchyChemOn`) that the
   shaders read through `Shaders/ChemistryOverlay.hlsl`. The maps are bilinear and `PunchyChemSoft` thresholds them
   near 0.5 with a noise-wandered edge, so ice, scorch, frost and water show soft, organic edges rather than 1 m squares:
@@ -47,12 +54,17 @@ are the host's. Solo runs the same session over the core's loopback.
   Update, in each link's order. On the host every connection in game but its own client's is a peer (PeerId = its
   NetworkId); its own client takes nothing. The session goes with the worlds (`GameBootstrap.WorldsReplacing`) and a
   new one starts on host, join or solo.
-- **One shared region** (256 x 256 cells) instead of a window per player. The host (or solo) fills it from
-  `TerrainSource` as before and sends the cells' kinds in the hello (run-length coded, about 14 KB); a client builds the
-  same cells from them (`RegionSource`) and samples only the heights under them, for the flames and puffs. A joiner
-  loads the host's snapshot (the cells' changes against the region) and runs the batches after it. Solo still
-  re-centres on the player 96 m out; a host's region stays where it was filled (once a peer is in, not even a new
-  `TerrainSource` moves it). The host's chunk plan (`ChunkPlanner`) follows every player's cell, stamped each tick.
+- **The open world, shared** (D20, 2026-11-13; it replaced D19 step 3's one 256 x 256 region). The host (or solo) is
+  the core's `IOpenGround` (`PunchyGround`): `Characters()` is every player's layer and cell (each `NetPlayer` on the
+  server, or the one player in solo) and `Sample(key)` is a chunk's ground from `TerrainSource`. The core's
+  `OpenWorldPlanner` (attached to the session) stamps fills on the `fills` channel and switches on `chunks` as players
+  reach new ground, 16 chunks a tick at most, so every peer makes the same chunk from the same bytes on the same tick
+  and a client never samples a float for the cells (only heights, for its view). A joiner loads the host's snapshot:
+  every filled chunk's ground and its changes. A teleport is a reach that jumps: its chunk is filled and active within
+  a tick or two. A cast where nothing is filled yet is refused on the peer that cast it (logged) and not sent.
+- **Start-up:** the first fill waits for the terrain to stay the same for 3 s (the first `TerrainSource` is a stand-in).
+  A terrain that changes before any cast (and with no peers) starts the session again; after that, filled chunks keep
+  the ground they were filled with.
 - **Casts and the hands are requests** on the session's `casts` and `combos` channels, never input-component fields:
   the host names the player (`p0` the host, `p` and the NetworkId a client), stamps them, and every peer runs them on
   the same tick. The hands' state is the world's, so its HUD and rumble are the same on every peer for each wizard;
@@ -60,6 +72,10 @@ are the host's. Solo runs the same session over the core's loopback.
 - **Desync:** the host sends a hash window every 30 ticks; a client that differs logs `desync: ...` (the parts that
   differ) and loads a fresh snapshot. Every peer logs `lockstep <role> tick <t> at <time> sum <hash> ... desync=False`
   every 60 ticks, and each cast as it lands.
+- **Tests without keys:** `-chem-script "25:demo; 55:walk 320,0,30; 125:hop 2000,0; 125:cast fire-bolt; 160:quit"`
+  (`ChemistryBridge.Script.cs`): timed steps from the session's start (demo, lake, cast, goto, hop, back, walk, quit).
+  Every 60 ticks the sum line also gives the chunks filled, active and unpacked, how many were sampled and Unity's
+  reserved memory.
 - **What differs from solo:** a cast lands on the host's next tick (up to a sixth of a second later, plus the trip to
   the host on a client) instead of at once; a frame behind the batches by more than 6 ticks may tick for 8 ms instead of
   2 to catch up.
