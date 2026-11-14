@@ -67,6 +67,8 @@ namespace Punchy.Terrain
             var indices = mesh.GetIndexData<uint>();
             int cols = Columns(ref sc), rows = Rows(ref sc), face = rows - 2;
             var wide = new NativeArray<bool>(cols, Allocator.Temp);
+            var columns = new NativeArray<ScarpAt>(cols, Allocator.Temp);
+            var columnCracks = new NativeArray<float3>(cols, Allocator.Temp);
 
             for (int c = 0; c < cols; c++)
             {
@@ -76,6 +78,8 @@ namespace Punchy.Terrain
                 // The skin starts where the nearest terrain mesh leaves the strip to it.
                 wide[c] = at.W >= ScarpSet.ClipSteps * NormalEpsilon;
                 var cracks = ScarpSet.Cracks(ref sc, at.S);
+                columns[c] = at;
+                columnCracks[c] = cracks;
                 float drop = at.RimY - at.FootY;
                 for (int k = 0; k < face; k++)
                 {
@@ -123,6 +127,17 @@ namespace Punchy.Terrain
                 var ground = Source.SampleGround(xz);
                 ground.Height = vertex.Position.y;
                 var surface = Clay ? ScarpClay.Surface() : Source.SampleSurface(xz, ground, vertex.Normal);
+                if (!Clay && !seam)
+                {
+                    // The face's own colour, fading out towards each seam and towards where the skin starts at a
+                    // strip end, so the skin meets the ground in the ground's colour.
+                    var at = columns[c];
+                    float y = vertex.Position.y;
+                    float fade = math.smoothstep(0f, ScarpPaint.SeamFade, at.RimY - y)
+                                 * math.smoothstep(0f, ScarpPaint.SeamFade, y - at.FootY)
+                                 * math.smoothstep(ScarpSet.ClipSteps * NormalEpsilon, ScarpSet.ClipSteps * NormalEpsilon + ScarpPaint.EndFade, at.W);
+                    surface = ScarpPaint.Paint(ref sc, at, columnCracks[c], y, vertex.Normal, fade, surface);
+                }
                 vertex.SetSurface(surface);
                 // No geomorph (the skin is one mesh at every distance) and no cave cut.
                 vertex.Morph = new float4(1e9f, 2e9f, surface.Bump, 100f);
@@ -150,6 +165,8 @@ namespace Punchy.Terrain
                 }
             }
             wide.Dispose();
+            columns.Dispose();
+            columnCracks.Dispose();
         }
     }
 }

@@ -229,20 +229,35 @@ namespace Punchy.Terrain
             float hard = Hardness(ref sc, bedY);
             // Each bed stands out or weathers back by its own amount.
             float push = sc.Push * (0.65f + 0.7f * math.frac(math.sin(bed * 12.9898f + seed) * 43758.5453f));
-            // Narrow slots in otherwise flat faces: gullies the height of the wall, joints that stop at their bed.
-            // Gullies are widest at the top and missing along some stretches (cracks.z); a bed is jointed along
-            // parts of its run only, so no two beds break up alike.
-            float gully = math.abs(noise.snoise(new float2((at.S + 0.14f * u) / 22f, seed)));
-            float joint = math.abs(noise.snoise(new float2((at.S - 0.08f * u) / 13f, seed + 31f + 7.3f * bed)));
-            float open = math.lerp(0.4f, 0.12f, math.saturate(u / math.max(at.RimY - at.FootY, 1f)));
-            float jointed = math.saturate(0.6f + 1.4f * math.sin(at.S * 0.07f + bed * 2.4f + seed));
-            float slots = -sc.Crack * (4.5f * cracks.z * (1f - math.smoothstep(0f, open, gully))
-                                       + 0.9f * hard * jointed * (1f - math.smoothstep(0f, 0.22f, joint)));
+            var slot = Slots(ref sc, at, cracks, u, bed);
+            float slots = -sc.Crack * (4.5f * slot.x + 0.9f * hard * slot.y);
             float body = q * (roll * (sc.Setback + push * (hard - 0.5f) + cracks.x + slots) + lean);
             if (sc.Notch > 0f)
                 body -= sc.Notch * q * math.smoothstep(0.1f, 0.5f, up) * (1f - math.smoothstep(0.8f, 1.3f, up));
             float toe = (at.W - up / sc.Toe) * roll;
             return math.clamp(math.max(body, toe), 0f, at.W);
+        }
+
+        /// <summary>
+        /// The narrow slots in otherwise flat faces, 0 none to 1 full depth: x, gullies the height of the wall
+        /// (widest at the top, missing along some stretches, cracks.z); y, joints that stop at their bed (a bed is
+        /// jointed along parts of its run only, so no two beds break up alike). u is the depth below the rim.
+        /// </summary>
+        public static float2 Slots(ref Scarp sc, in ScarpAt at, float3 cracks, float u, float bed)
+        {
+            float seed = sc.Seed % 977u * 1.37f;
+            float gully = math.abs(noise.snoise(new float2((at.S + 0.14f * u) / 22f, seed)));
+            float joint = math.abs(noise.snoise(new float2((at.S - 0.08f * u) / 13f, seed + 31f + 7.3f * bed)));
+            float open = math.lerp(0.4f, 0.12f, math.saturate(u / math.max(at.RimY - at.FootY, 1f)));
+            float jointed = math.saturate(0.6f + 1.4f * math.sin(at.S * 0.07f + bed * 2.4f + seed));
+            return new float2(cracks.z * (1f - math.smoothstep(0f, open, gully)), jointed * (1f - math.smoothstep(0f, 0.22f, joint)));
+        }
+
+        /// <summary>Which bed a height is in, counted up through every repeat of the stack.</summary>
+        public static float Bed(ref Scarp sc, float y)
+        {
+            Run(ref sc, y, out var bed);
+            return bed;
         }
 
         /// <summary>How far the beds below a height carry the face outwards in all (it rises with height, so the
