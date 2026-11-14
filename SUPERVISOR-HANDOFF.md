@@ -310,3 +310,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-14: R-28 row 2 done (render/cobble-depth 4cd4edd8): bevel cobbles, ribs fixed. BENCH job 86; merge after. Render flagged landmark bake alternating island hashes (FA8F24B1/A30264B9): passed to world.
 - 11-14: R-35 carded (#333): cloud reference (MIT) audit for look and cost; render after R-34 row 1. Reference in references/.
 - 11-14: A-110 row 7b done (fauna/one-population dcd89d0c): Kael/Quill/Marek fixed, stuck 0. Host+client run owed: port 7979 held by fauna editor play mode; asked fauna for a gap. Folk now on A-111. Follow-up: upright Steer ignores building walls (A-44).
+- 11-14 Zach: R-20 row 2 dropped (row 4 covers far shimmer), reminder memory deleted. He wants a build candidate tonight; checklist release/checklist-v0.15-candidate.md (since v0.14, v0.14, v0.13). Cut from main about 21:00 in Punchy-release; jobs 73-75 failed so R-19/R-21/W-153 are not in it.
