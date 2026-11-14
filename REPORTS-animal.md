@@ -4328,6 +4328,25 @@ Where A-109 differs from A-108: herds are anonymous and seeded per 512 m cell fr
 - Asks: BENCH, please queue town 73 by day, with members on legs against row 4's 3d0c8df2 (the brain cost of about 27 legs creatures against full brains). Rule 11: none. No wire data, no ghost field, no saved state, and Breath.cs and the Breathe step are untouched (legs call the same Breathe). Old code noticed: (1) Marek (D33DD24D) stalls in Home stage 0, 44.7 m from his door at speed 0, for about 90 game minutes. It also happens on row 4's build (dusk6 run, 99.9 min), so it is not legs; most likely his walk home is blocked and the detour doesn't free him. (2) Kael (DD1AA217, elder) sat in Shelter at 0.7 m from his own door for about an hour and went in 60.9 min late. Shelter isn't calm, so he is never sent in. (3) The Quill case above. I can take these as a small row of their own if you want.
 - NEXT: A-110 row 6 (the per-town exceptions list on the wire), not started. No editor, build, loop or Punchy.exe of mine is running.
 
+## 2026-11-14 A-110 row 6: town exceptions (the host's list of each town's dead, sent to clients)
+- DONE: #298 #25 A joined client that missed a death now agrees with the host: the dead member has no far figure, their bed stays dark, and their kin speak of them as lost. The host keeps each town's list and sends it as one message per town (landmark plus a 256-bit mask) at join and to all clients on change. A-106's client-side marking (FaunaDirector.KinLost) is removed. Modules: FaunaDirector.TownExceptions (new partial), Whereabouts.Dead, FaunaDirector.Households/FarFolk/TownPlan, DebugControls.KinWatch (`count` command) (fauna/one-population f137777a)
+- Wire: new IRpcCommand TownExceptionsRpc, the only wire addition (Zach OK 11-13). Old builds can't join. No ghost field.
+- Record: TownExceptions.ByTown (landmark -> dead member indices, in TownPlan.Residents order), host-owned, plain data a save could carry (rule 22). Session only until saving exists. A town over 256 members logs an error at plan build; none does today (town 73: 101).
+- Checks:
+  - Suite (batchmode PlayMode, own project path, editor closed): 61 total, 44 passed, 0 failed, 17 skipped; Fauna_Fingerprint 6A9E28E5 (unchanged).
+  - Host + late client (player builds, port 7979 checked free, client joined my own host): host "town 73: Corin died; 1 in its list", then "sent 1 towns' lists to a joining client (1 exceptions)"; later "Brenna died; 2 in its list, 2 on the island", "sent to 2 clients". Client: "town 73 applied, 1 dead", then "2 dead"; `count` 1 then 2; far folk line "gone 2"; family talk on the client: Wren, "I still set a place for my daughter Brenna" (child, died), 3 times in 8 asks.
+  - Solo: list 1, far folk "gone 1", nothing sent.
+  - List sizes: largest 2 (test kills); 0 in normal play until something dies.
+  - Home signs: InHouse skips the dead; smoke counts host and client match at matching hours (22 h: 22, then 1). Town 73 digests differed host and client only by timing (host logged before the death, client after).
+- NOT DONE / UNVERIFIED: no night shot of the dark bed (checked through the HomeSign counts, not by eye). Igloos, domes, bat folk and hermits have no TownPlan member order, so nothing is sent for them: their deaths are kept on the host's record only. A later card needs a member order (TownPlan or a lighter plan) for each so the mask can index them.
+- Editor reminder (render editor run 12:20-12:48): not mine. My editor was PID 38572, port 7803, D:/Unity/Punchy-folk; every eval used --pid 38572; the suite runs batchmode with my project path and my editor closed.
+- Shots (PunchyMilestones/A-110/; full size in gallery/):
+  - r6_far400.jpg: town 73 from 400 m at 16.7 h, 39 walkers, 41 of 47 outdoors shown.
+  - r6_far150.jpg: from 150 m, legs and the full mix on the streets.
+  - r6_near.jpg: on the square, 44 creatures and 2 far figures behind them.
+- Asks: none. BENCH: none (no per-frame cost added; one RPC per change).
+- NEXT: row 7, details (tenet) and A-109 row 4: lantern at night, dawn boat, washing, pier wave; then row 7b.
+
 ## A-107
 
 ### Row 1: graded climb sections on colossi (done, verified, #276, fauna/colossus-climb b2ad690b)
