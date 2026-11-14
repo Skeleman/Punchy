@@ -4454,3 +4454,27 @@ Branch fauna/lying-legs, commit ad18b332 (one file, CreatureAnimator.cs).
 - Test not widened and not pinned. PlayMode suite 40/40 passed, including Lying_LegsStayAboveGround_FlatAndSlope and Fauna_Fingerprint (fingerprint 6A9E28E5, unchanged).
 - Shots: none. It is a clearance fix, and the measured numbers are the check.
 - NEXT: A-108 row 2 on fauna/far-life, starting with the bake step in its own commit.
+
+### 2026-11-14 A-108 row 2: herds and flocks seen far away (#298)
+
+Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a (TerrainSource.Herds, own commit), d0524eaa (far form + live hand-over). All LF.
+
+- **What it does.** Herds are baked records (rule 22): 1127 herds, 4264 animals island-wide, bake 530 ms, built last after every other blob. HerdClock places each herd from its record and the shared day/night clock, so every machine draws the same herds with nothing sent (no new ghost fields or messages). Far members are drawn by on-screen size alone (rule 20): dot, then body and head, then legs, fading out below 0.35 px. The host or solo machine creates a herd's live animals when a player comes within 150 m of it and removes them beyond 175 m (`// gameplay:`). Each live animal gets its far twin's size and coat (Coat already rides the creature ghost), and the far form crossfades out by distance and over at least 1.5 s. Herding species no longer spawn one by one.
+- **Pins.** Landmarks 117 689D5348 before and after; terrain mesh untouched; Fauna_Fingerprint 6A9E28E5 unchanged. Island cache Format 1 -> 2 (old caches re-bake once).
+- **Tests.** PlayMode 40/40 (343 s); WorldTests 13/13.
+- **Members drawn by vantage (R-22 row 0 spots, editor 16:10):** summit 184 herds / 559 members (273 on screen; 258 dots, 15 bodies); lake 198/606; town 113/324; coast 99/258; fly300 120/321; fly1000 21/54. In the 1920x1080 builds the summit's NE view showed 39 herds / 131 members, and town-e 14/40.
+- **Walk-in, no pop** (herd of 11 east of town, 460 m to 35 m at 12 m/s): it wakes at 150 m and the far form fades over about 50 frames. Centre-region frame change at the hand-over peaked at 3.59, against a walk median of 2.55 and p99 of 9.34.
+- **Host and client agree** (two builds, `-herdlog`): at the summit both show 39/131 with set 0DB8B19A, and both switch to 40/132 with set 830A1F63 at hour 10.6; at town-e both show 14/40 with set 825E360C. Both players quit by themselves after their shot lists. None of my Punchy.exe is running.
+- **Gallery (unviewed, rule 12b):** D:\Unity\PunchyMilestones\animal\A-108-herds\gallery\: 10 vantage PNGs and contact-sheet.jpg, walk-in-town-e-460-35m.mp4 with walk-in-town-e.csv, net\host\ and net\client\ (summit-ne, town-e, town-e-2 and a contact sheet each).
+- **BENCH:** Job 81 queued (main 697e565f vs d0524eaa, summit herd view and the 130 m hand-over spot). No timing done here (rule 21).
+- **Known issues:**
+  1. A live animal that wanders far from its spot can show beside its own far twin until the herd goes far.
+  2. On a client, live animals lag their positions briefly at the hand-over.
+  3. When a herd goes far, its members snap back to their clock spots behind the fade.
+  4. Live herd members count toward MaxWild.
+  5. The dot tier's width uses Camera.main.
+  6. Ash crabs are 482 of the 1127 herds, mostly drawn as dots. If the views read as a carpet rather than sparse, the fix is a density cut for crabs (one number).
+- **For the render lane:** DetailPolicy gains HerdSpeciesPixels 2, HerdLegsPixels 6, HerdBodyPixels 1.5, HerdDotPixels 1.5, HerdFadePixels 0.5, HerdGonePixels 0.35 (additive, as ruled). No shader change.
+- **For the world lane:** TerrainSource gains a Herds blob (fauna reads it; it is left out of Equals, and the ground does not read it), IslandV2 builds it last, and the island cache is now Format 2.
+- **For Zach (look):** whether the summit and lake views are sparse enough (see issue 6).
+- NEXT: A-112 (#311), then A-113 (#313), then A-117 (#317).
