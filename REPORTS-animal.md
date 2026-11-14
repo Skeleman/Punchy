@@ -4518,3 +4518,24 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
   - 0 NaN frames and 0 exceptions on either side.
 - Clean-up: my client closed by PID, PlayArgs cleared, no Punchy.exe of mine running.
 - NEXT: A-113 (#313).
+
+## A-113
+
+### Row 3: saguaro imperfection (done, verified, #313)
+- Commit on flora/tree-variety (pushed, new from main 1746d62a): 753301c1. Change is in the Saguaro grower (FloraGenerator.Plants.cs) only.
+- Each saguaro now draws its own:
+  - girth (0.85-1.2x);
+  - lean that grows toward the top (3 in 10 nearly plumb, the rest 3-9% of height);
+  - bow, with a 1 in 4 chance of an S-bend;
+  - swell or pinch somewhere along the middle;
+  - narrowing tip.
+- Each arm draws a kind:
+  - stub, about 15%;
+  - drooping arm whose tip turns back up, about 17%;
+  - classic arm: short or long, low or high, with its upright part curling a little.
+- Collision follows the lean through TrunkAxis.
+- **Budget:** point counts and sides are unchanged. The colour, lean and arm-count draws keep their old order, so every plant keeps its arm count. Over 8 variants the triangles are **identical**: LOD0/1/2 totals 9696/4752/2718 before and after (0% change).
+- **Walking saguaro:** does not share the change. The colossus has its own mesh builder, and only flora saguaros change. No placement or terrain change, so no hash moves.
+- Shots (edit-mode lineup, 8 variants, front and side): D:/Unity/PunchyMilestones/A-113/gallery/row3-saguaro-{before,after}-{front,side}.png.
+- Note: Saguaro.asset has Variants 4, so only variants 0-3 appear in game. Raising it to 8 would show all the new shapes but adds models (a BENCH question), so I left it.
+- NEXT: row 1 (tall emergents), then row 2.
