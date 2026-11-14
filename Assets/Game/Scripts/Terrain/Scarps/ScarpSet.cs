@@ -213,25 +213,26 @@ namespace Punchy.Terrain
         /// <summary>
         /// How far out from the rim the rock face stands at height y: 0 at the rim, the strip's width at the foot.
         /// The face steps back from the rim, then goes down the beds: near vertical through a hard bed, out along a
-        /// bench through a soft one, weathered back under the hard bed above it (an overhang). Gullies run the height
-        /// of the face on a slant, joints break each hard bed into slabs of its own, and it ends in a toe: scree
-        /// for a canyon wall, a flat wash under an undercut for a river bank.
+        /// bench through a soft one, weathered back under the hard bed above it (an overhang). Nothing holds along
+        /// the rim for long (row 1b): beds thicken, thin and wander (<see cref="BedY"/>), each bed juts out or sinks
+        /// back in blocks of its own length with sharp or rounded corners, benches widen, narrow and break off
+        /// (<see cref="Vary"/>). Gullies and chimneys run the height of the face on a slant, joints break each hard
+        /// bed into slabs of its own, and it ends in a toe: scree for a canyon wall, a flat wash under an undercut
+        /// for a river bank.
         /// </summary>
         public static float Face(ref Scarp sc, in ScarpAt at, float3 cracks, float y)
         {
             float u = at.RimY - y, up = y - at.FootY, q = math.saturate(at.W / sc.Width);
             // The top edge is rounded over a height that grows with age.
             float roll = math.smoothstep(0f, 0.4f + 1.2f * sc.Age, u);
-            float seed = sc.Seed % 977u * 1.37f;
-            // Beds aren't level: they tilt and roll along the rim (cracks.y).
-            float bedY = y + cracks.y;
-            float lean = Run(ref sc, at.RimY + cracks.y, out _) - Run(ref sc, bedY, out var bed);
-            float hard = Hardness(ref sc, bedY);
-            // Each bed stands out or weathers back by its own amount.
-            float push = sc.Push * (0.65f + 0.7f * math.frac(math.sin(bed * 12.9898f + seed) * 43758.5453f));
+            // Beds aren't level or even: they tilt, roll and swell along the rim.
+            float bedY = BedY(ref sc, at.S, y, cracks), topY = BedY(ref sc, at.S, at.RimY, cracks);
+            float lean = Run(ref sc, at.S, math.min(bedY, topY), topY);
+            // How far the bed here stands out (hard, pushed out by its own amount along this stretch) or weathers back.
+            float stand = Stand(ref sc, at.S, bedY, out var bed, out var hard);
             var slot = Slots(ref sc, at, cracks, u, bed);
             float slots = -sc.Crack * (4.5f * slot.x + 0.9f * hard * slot.y);
-            float body = q * (roll * (sc.Setback + push * (hard - 0.5f) + cracks.x + slots) + lean);
+            float body = q * (roll * (sc.Setback + sc.Push * stand + cracks.x + slots) + lean);
             if (sc.Notch > 0f)
                 body -= sc.Notch * q * math.smoothstep(0.1f, 0.5f, up) * (1f - math.smoothstep(0.8f, 1.3f, up));
             float toe = (at.W - up / sc.Toe) * roll;
@@ -240,8 +241,9 @@ namespace Punchy.Terrain
 
         /// <summary>
         /// The narrow slots in otherwise flat faces, 0 none to 1 full depth: x, gullies the height of the wall
-        /// (widest at the top, missing along some stretches, cracks.z); y, joints that stop at their bed (a bed is
-        /// jointed along parts of its run only, so no two beds break up alike). u is the depth below the rim.
+        /// (widest at the top, missing along some stretches, cracks.z) and the odd chimney (a narrow slot the full
+        /// height, anywhere); y, joints that stop at their bed (a bed is jointed along parts of its run only, so no
+        /// two beds break up alike). u is the depth below the rim.
         /// </summary>
         public static float2 Slots(ref Scarp sc, in ScarpAt at, float3 cracks, float u, float bed)
         {
@@ -250,82 +252,205 @@ namespace Punchy.Terrain
             float joint = math.abs(noise.snoise(new float2((at.S - 0.08f * u) / 13f, seed + 31f + 7.3f * bed)));
             float open = math.lerp(0.4f, 0.12f, math.saturate(u / math.max(at.RimY - at.FootY, 1f)));
             float jointed = math.saturate(0.6f + 1.4f * math.sin(at.S * 0.07f + bed * 2.4f + seed));
-            return new float2(cracks.z * (1f - math.smoothstep(0f, open, gully)), jointed * (1f - math.smoothstep(0f, 0.22f, joint)));
+            // Chimneys: about one cell in three along the rim has one, at its own place, width and slant.
+            float scale = Scale(ref sc), cell = 16f * scale, c = math.floor(at.S / cell);
+            float chimney = 0f;
+            if (Rand(sc.Seed, 7001, c, 0) > 0.65f)
+            {
+                float mid = (c + 0.2f + 0.6f * Rand(sc.Seed, 7001, c, 1)) * cell;
+                float half = (0.5f + 1.1f * Rand(sc.Seed, 7001, c, 2)) * scale;
+                float off = math.abs(at.S + 0.1f * u * (Rand(sc.Seed, 7001, c, 3) - 0.5f) - mid);
+                chimney = 0.7f * (1f - math.smoothstep(0.35f * half, half, off));
+            }
+            float gullies = cracks.z * (1f - math.smoothstep(0f, open, gully));
+            return new float2(math.max(gullies, chimney), jointed * (1f - math.smoothstep(0f, 0.22f, joint)));
         }
 
-        /// <summary>Which bed a height is in, counted up through every repeat of the stack.</summary>
-        public static float Bed(ref Scarp sc, float y)
+        /// <summary>The height a point of the face reads its bed from: its own height lifted by the beds' tilt and
+        /// roll at this place along the rim (cracks.y), and warped along the rim at two sizes so beds thicken and
+        /// thin from place to place. The warp never folds (it rises with height), so the beds keep their order.</summary>
+        public static float BedY(ref Scarp sc, float s, float y, float3 cracks)
         {
-            Run(ref sc, y, out var bed);
+            float span = math.max(sc.LayerSpan, 0.5f), seed = sc.Seed % 977u * 1.37f;
+            float a = 0.06f * span;
+            float big = noise.snoise(new float2(s / math.max(1.1f * span, 6f), y / (0.35f * span) + seed + 130f));
+            float small = noise.snoise(new float2(s / math.max(0.3f * span, 2f), y / (0.2f * span) + seed + 170f));
+            return y + cracks.y + a * (big + 0.5f * small);
+        }
+
+        /// <summary>Which bed a bed height (<see cref="BedY"/>) is in, counted up through every repeat of the
+        /// stack.</summary>
+        public static float Bed(ref Scarp sc, float bedY)
+        {
+            Locate(ref sc, bedY, out var bed, out _, out _);
             return bed;
         }
 
-        /// <summary>How far the beds below a height carry the face outwards in all (it rises with height, so the
-        /// difference between two heights is the run between them): a hard bed is near vertical (Lean), a soft one
-        /// a bench (Bench). Also which bed the height is in, counted up through every repeat of the stack.</summary>
-        static float Run(ref Scarp sc, float y, out float bed)
+        /// <summary>Hardness of the bed at a bed height, eased into the next bed over a width that changes along
+        /// the rim (sharp corners in places, rounded ones in others).</summary>
+        public static float Hardness(ref Scarp sc, float s, float bedY)
+        {
+            Stand(ref sc, s, bedY, out _, out var hard);
+            return hard;
+        }
+
+        /// <summary>
+        /// How far the bed at a bed height stands out from the face, in units of the scarp's Push: a hard bed
+        /// stands out by its own amount along this stretch of rim, a soft one weathers back. Eased into the bed
+        /// above and below over a width of their own (a narrow ease makes a square ledge or overhang, a wide one a
+        /// sloped shelf or a rounded nose). Also the bed and its hardness, eased the same way.
+        /// </summary>
+        static float Stand(ref Scarp sc, float s, float bedY, out float bed, out float hard)
         {
             ref var layers = ref sc.Layers;
             int n = layers.Length;
-            bed = 0f;
-            if (n == 0 || sc.LayerSpan <= 0f)
-                return sc.Lean * y;
-            float total = 0f;
-            for (int i = 0; i < n; i++)
-                total += layers[i].Thickness * math.lerp(sc.Bench, sc.Lean, math.smoothstep(0.3f, 0.7f, layers[i].Hardness));
-            float stack = math.floor(y / sc.LayerSpan), e = y - sc.LayerSpan * stack, run = stack * total;
-            for (int i = 0; i < n; i++)
+            Locate(ref sc, bedY, out bed, out var i, out var into);
+            if (n == 0)
             {
-                float thick = layers[i].Thickness, slope = math.lerp(sc.Bench, sc.Lean, math.smoothstep(0.3f, 0.7f, layers[i].Hardness));
-                if (e < thick || i == n - 1)
-                {
-                    bed = stack * n + i;
-                    return run + slope * e;
-                }
-                run += slope * thick;
-                e -= thick;
+                hard = 0.5f;
+                return 0f;
+            }
+            float thick = layers[i].Thickness, left = thick - into;
+            hard = layers[i].Hardness;
+            var vary = Vary(ref sc, bed, s, bedY);
+            float stand = vary.x * (hard - 0.5f);
+            // Ease to the bed below (over this bed's own width) or above (over the width of the one above).
+            int below = (i + n - 1) % n, above = (i + 1) % n;
+            float easeLo = math.min(vary.z, 0.45f * math.min(thick, layers[below].Thickness));
+            if (into < easeLo)
+            {
+                float other = layers[below].Hardness, k = 0.5f + 0.5f * into / easeLo;
+                float otherStand = Vary(ref sc, bed - 1f, s, bedY).x * (other - 0.5f);
+                hard = math.lerp(other, hard, k);
+                return math.lerp(otherStand, stand, k);
+            }
+            var up = Vary(ref sc, bed + 1f, s, bedY);
+            float easeHi = math.min(up.z, 0.45f * math.min(thick, layers[above].Thickness));
+            if (left < easeHi)
+            {
+                float other = layers[above].Hardness, k = 0.5f + 0.5f * math.max(left, 0f) / easeHi;
+                hard = math.lerp(other, hard, k);
+                return math.lerp(up.x * (other - 0.5f), stand, k);
+            }
+            return stand;
+        }
+
+        /// <summary>
+        /// What one bed does at one place along the rim, seeded per scarp and bed (rule 22): x, how far it stands
+        /// out (0.1 to 2 times Push, in blocks a few metres long that start and stop with a corner, sharp or
+        /// rounded, plus a small wobble); y, how wide its bench is if it is soft (0 none, where the bench pinches
+        /// out, to 1.6 times Bench), breaking off every few metres; z, the height it eases into the next bed over.
+        /// </summary>
+        static float3 Vary(ref Scarp sc, float bed, float s, float bedY)
+        {
+            float scale = Scale(ref sc);
+            int b = (int)bed;
+            // Block ends lean, each bed its own way, so blocks are not boxes and their ends do not line up.
+            float cut = s + 1.6f * (Rand(sc.Seed, b, 0f, 20) - 0.5f) * bedY;
+            // Blocks: each bed has its own block length and phase; each block its own push and corner.
+            float len = (3f + 7f * Rand(sc.Seed, b, 0f, 11)) * scale;
+            float x = cut / len + 7f * Rand(sc.Seed, b, 0f, 12), c = math.floor(x), f = x - c;
+            float corner = 0.12f + 0.4f * Rand(sc.Seed, b, c, 13);
+            float v = math.lerp(Rand(sc.Seed, b, c, 14), Rand(sc.Seed, b, c + 1f, 14), math.smoothstep(1f - corner, 1f, f));
+            float push = (0.1f + 1.9f * v * math.sqrt(v)) * (0.6f + 0.8f * Rand(sc.Seed, b, 0f, 15));
+            push = math.max(push + 0.25f * (2f * Smooth(sc.Seed, b, s / (1.5f * scale), 16) - 1f), 0f);
+            float r = Rand(sc.Seed, b, c, 19);
+            float ease = (0.08f + 0.9f * r * r) * scale;
+            return new float3(push, Bench(ref sc, b, s), ease);
+        }
+
+        /// <summary>How wide a soft bed's bench is here, 0 (pinched out) to 1.6 times Bench: wide in places, gone
+        /// in others, at two sizes.</summary>
+        static float Bench(ref Scarp sc, int b, float s)
+        {
+            float scale = Scale(ref sc);
+            float n = 0.75f * Smooth(sc.Seed, b, s / (6f * scale), 17) + 0.25f * Smooth(sc.Seed, b, s / (2f * scale), 18);
+            return 1.6f * math.smoothstep(0.32f, 0.68f, n);
+        }
+
+        /// <summary>The run of the face between two bed heights (lo below hi): through each bed its slope times
+        /// the height of it in between, near vertical for a hard bed (Lean), a bench for a soft one (Bench times
+        /// how wide it is here, <see cref="Vary"/>, so a bench pinches out where that is 0).</summary>
+        static float Run(ref Scarp sc, float s, float lo, float hi)
+        {
+            ref var layers = ref sc.Layers;
+            int n = layers.Length;
+            if (n == 0 || sc.LayerSpan <= 0f || hi <= lo)
+                return sc.Lean * math.max(hi - lo, 0f);
+            Locate(ref sc, lo, out var bed, out var i, out var into);
+            float y = lo, run = 0f;
+            for (int guard = 0; guard < 256 && y < hi; guard++)
+            {
+                float top = y - into + layers[i].Thickness;
+                float k = math.smoothstep(0.3f, 0.7f, layers[i].Hardness);
+                float soft = k < 1f ? sc.Lean + (sc.Bench - sc.Lean) * Bench(ref sc, (int)bed, s) : sc.Lean;
+                float slope = math.lerp(soft, sc.Lean, k);
+                run += slope * (math.min(top, hi) - y);
+                y = top;
+                into = 0f;
+                bed += 1f;
+                i = (i + 1) % n;
             }
             return run;
         }
 
-        /// <summary>Hardness of the bed at a height. Beds are level and repeat up the stack; the change from one bed
-        /// to the next is eased over a quarter metre.</summary>
-        public static float Hardness(ref Scarp sc, float y)
+        /// <summary>Which bed a bed height is in (counted up through every repeat of the stack), which layer of
+        /// the stack that is, and how far up into it the height is.</summary>
+        static void Locate(ref Scarp sc, float y, out float bed, out int layer, out float into)
         {
             ref var layers = ref sc.Layers;
             int n = layers.Length;
+            bed = 0f;
+            layer = 0;
+            into = 0f;
             if (n == 0 || sc.LayerSpan <= 0f)
-                return 0.5f;
-            float e = y - sc.LayerSpan * math.floor(y / sc.LayerSpan), bottom = 0f;
-            const float blend = 0.25f;
+                return;
+            float stack = math.floor(y / sc.LayerSpan), e = y - sc.LayerSpan * stack;
             for (int i = 0; i < n; i++)
             {
-                float thick = layers[i].Thickness;
-                if (e < bottom + thick || i == n - 1)
+                if (e < layers[i].Thickness || i == n - 1)
                 {
-                    float into = e - bottom, left = thick - into, hard = layers[i].Hardness;
-                    if (into < blend)
-                        return math.lerp(0.5f * (layers[(i + n - 1) % n].Hardness + hard), hard, into / blend);
-                    if (left < blend)
-                        return math.lerp(0.5f * (layers[(i + 1) % n].Hardness + hard), hard, math.max(left, 0f) / blend);
-                    return hard;
+                    bed = stack * n + i;
+                    layer = i;
+                    into = math.min(e, layers[i].Thickness);
+                    return;
                 }
-                bottom += thick;
+                e -= layers[i].Thickness;
             }
-            return 0.5f;
+        }
+
+        /// <summary>How big the along-rim pieces are for this scarp: full size on a canyon wall, smaller on a low
+        /// bank (but not so small they turn to noise).</summary>
+        static float Scale(ref Scarp sc) => math.lerp(0.35f, 1f, math.saturate(sc.Width / 32f));
+
+        /// <summary>A repeatable draw in [0, 1) from a scarp seed, a bed (or other key), a cell and a channel
+        /// (a full-avalanche integer hash, so neighbouring cells don't correlate).</summary>
+        static float Rand(uint seed, int key, float cell, int channel)
+        {
+            uint h = seed * 0x9E3779B1u ^ (uint)key * 0x85EBCA77u ^ (uint)(int)cell * 0xC2B2AE3Du ^ (uint)channel * 0x27D4EB2Fu;
+            h ^= h >> 16; h *= 0x7FEB352Du; h ^= h >> 15; h *= 0x846CA68Bu; h ^= h >> 16;
+            return (h >> 8) * (1f / 16777216f);
+        }
+
+        /// <summary>Smooth value noise in [0, 1] along x, its own for each seed, key and channel.</summary>
+        static float Smooth(uint seed, int key, float x, int channel)
+        {
+            float c = math.floor(x), f = x - c;
+            return math.lerp(Rand(seed, key, c, channel), Rand(seed, key, c + 1f, channel), f * f * (3f - 2f * f));
         }
 
         /// <summary>What a column of the face takes from its place along the rim alone: x, how far the wall swings
-        /// in and out there (bays, and roughness); y, how far the beds are lifted there (their tilt and roll);
-        /// z, how deep gullies cut there (0 none).</summary>
+        /// in and out there (bays, and roughness); y, how far the beds are lifted there (their tilt and roll, at
+        /// two sizes); z, how deep gullies cut there (0 none).</summary>
         public static float3 Cracks(ref Scarp sc, float s)
         {
             float seed = sc.Seed % 977u * 1.37f;
             float bay = noise.snoise(new float2(s / 45f, seed + 5f));
             float fine = noise.snoise(new float2(s / 1.2f, seed + 67f));
             float roll = noise.snoise(new float2(s / 35f, seed + 11f));
+            float wave = noise.snoise(new float2(s / (12f * Scale(ref sc)), seed + 13f));
             float cut = math.saturate(0.5f + 1.2f * noise.snoise(new float2(s / 60f, seed + 90f)));
-            return new float3(sc.Crack * (2.5f * bay + 0.3f * fine), sc.Dip * (s - 0.5f * sc.Length) + 3f * sc.Crack * roll, cut);
+            return new float3(sc.Crack * (2.5f * bay + 0.3f * fine), sc.Dip * (s - 0.5f * sc.Length) + sc.Crack * (3f * roll + 1.2f * wave), cut);
         }
 
         /// <summary>

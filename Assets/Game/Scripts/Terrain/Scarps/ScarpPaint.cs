@@ -26,8 +26,8 @@ namespace Punchy.Terrain
                 return surface;
             float drop = math.max(at.RimY - at.FootY, 0.01f), u = at.RimY - y, up = y - at.FootY;
             float seed = sc.Seed % 977u * 1.37f;
-            float bedY = y + cracks.y;
-            float bed = ScarpSet.Bed(ref sc, bedY), hard = ScarpSet.Hardness(ref sc, bedY);
+            float bedY = ScarpSet.BedY(ref sc, at.S, y, cracks);
+            float bed = ScarpSet.Bed(ref sc, bedY), hard = ScarpSet.Hardness(ref sc, at.S, bedY);
             int n = math.max(sc.Layers.Length, 1);
             float layer = bed - n * math.floor(bed / n);
 
