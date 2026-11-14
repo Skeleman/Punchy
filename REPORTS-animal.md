@@ -4577,3 +4577,43 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
   - The haze difference in the 1 km pair is weather, not flora.
 - **For the world and render lanes:** two flora assets added and two entries appended to Temperate's flora list. FloraGenerator and FloraPlacement are untouched.
 - NEXT: row 2 (more temperate kinds: willow, beech, fir).
+
+### Row 2: willow, beech and fir (done, verified, #313)
+- Commit on flora/tree-variety (pushed): ac7880fc. Data only: three new species assets plus three entries appended to Temperate.asset. No code change.
+- **Willow** (broadleaf, 8-13 m, hanging strands): only near water, on stream and pond banks. Density 1.5, because the near-water filter makes it rare anyway.
+- **Beech** (broadleaf, 13-18 m, smooth grey bark, dense crown): groves of about 17-20 on sheltered lowland. Density 0.45.
+- **Fir** (conifer, 14-24 m, dark and narrow): stands of about 10 on cooler high slopes, 30-180 m up, and it tolerates snow. Density 0.3.
+- **Hashes:** landmarks unchanged at 117 689D5348. Fauna fingerprint went from 50FA697A (row 1) to A6EFF2EE (row 2).
+  - The WorldTests pin of 6A9E28E5 was already stale on main before A-113 (main's base is 61E668D4). It is not my test; the supervisor decides whether to re-pin.
+- **Species per km2 of Temperate** (5.89 km2, every 2nd tree cell):
+
+  | Species | Row 1 only | Row 2 |
+  |---|---|---|
+  | Oak | 1687 | 1718 |
+  | Birch | 544 | 581 |
+  | Pine | 870 | 854 |
+  | TulipTree | 97 | 96 |
+  | WhitePine | 66 | 67 |
+  | Beech | - | 409 |
+  | Fir | - | 209 |
+  | Willow | - | 24 |
+
+  - Total trees went from about 3264 to 3958 per km2, which is +21%.
+  - Existing kinds barely move: they keep their cells, and the small shifts are sampling.
+- **Budget, for BENCH** (LOD0 / LOD1 / LOD2 triangles over 4 variants):
+
+  | Species | LOD0 | LOD1 | LOD2 | Notes |
+  |---|---|---|---|---|
+  | Willow | 81k | 19k | 448 | about 20k each at LOD0, from the leafy hanging strands; trimmed from 135k; rare |
+  | Beech | 17k | 3.9k | 448 | |
+  | Fir | 5.4k | 3.5k | 816 | |
+
+  - Please add to the BENCH request: the +21% tree count in temperate woods, plus Willow and TulipTree LOD0.
+- **Shots:** D:/Unity/PunchyMilestones/A-113/gallery/row2-*.
+  - The 6-shot before/after sheet: thicket, meadow, edge, pines, aerial, 1 km. The small sheet is row2-ab-small.jpg.
+  - Ground and mid shots of each species, plus edit-mode lineups.
+  - The edge pose was moved, because the old one sat inside a crown. Its before shot was retaken on row 1 data (fingerprint 50FA697A confirmed). That before shot is partly blocked by a near white pine.
+  - Sky and cloud differences between before and after are weather, not flora.
+  - Aerial: dark fir stands and denser broadleaf. The 1 km pair is nearly identical; at that distance only the impostor tint changes.
+- **For the world and render lanes:** three flora assets added and three entries appended to Temperate's flora list. FloraGenerator and FloraPlacement are untouched.
+- A-113 rows 1-3 are done. NEXT: A-117 on fauna/folk-riders.
