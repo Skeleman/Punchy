@@ -4435,3 +4435,14 @@ Why: wild animals exist only within 120 m (Radius) of a player and go at 170 m (
 **What row 2 needs from the supervisor:** (1) OK on the bake step (or the runtime-seed fallback); (2) OK on the herding-species cut; (3) R-22's vantage points for the 300 m to 1.5 km shots; (4) the render lane to add the far-herd thresholds to DetailPolicy, or OK for me to add them; (5) a BENCH job once herds are drawn (extra capsules across the cells in view).
 
 - NEXT: wait for the OK before A-108 row 2. A-107 row 3 still waits on W-144. The lying-legs fix waits on the look call above.
+
+### 2026-11-14 Lying legs: fixed by option (a), as ruled
+
+Branch fauna/lying-legs, commit ad18b332 (one file, CreatureAnimator.cs).
+
+- What changed: after the lying fold, a leg still in the ground is lifted by at most the hip's radius plus the lying body's height. Before, the cap was the hip radius alone. So no leg stays in the ground, and none rises above the back.
+- (1941, 2188), 0.33 slope, all species via TestHooks.LieClearance: every one between -0.005 and +0.003 m (limit -0.01). The six that failed: BoneHound 0.000, BoneStag 0.000, OcotilloMimic -0.005, Camel 0.000, Deer 0.000, Pronghorn 0.000.
+- OcotilloMimic did not need a thicker hip. The working code takes the lying height with the side-slope raise, which my earlier trial (-0.022) left out. No asset changed.
+- Test not widened and not pinned. PlayMode suite 40/40 passed, including Lying_LegsStayAboveGround_FlatAndSlope and Fauna_Fingerprint (fingerprint 6A9E28E5, unchanged).
+- Shots: none. It is a clearance fix, and the measured numbers are the check.
+- NEXT: A-108 row 2 on fauna/far-life, starting with the bake step in its own commit.
