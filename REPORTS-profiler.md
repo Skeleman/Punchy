@@ -2,6 +2,23 @@
 
 Newest first.
 
+## Job 74: R-21 one waterfall builder (world/waterfall-sheets 54fcdf64 vs main d95e7ff1), 2026-11-14 (q116.job): FAIL at fall 22 (+1.6 ms GPU Medium, +0.8 High); fall 74's spot sits behind water walls
+**Setup:** Profile builds, 1920x1080, uncapped, noon, Clear, arms alternated, 3 rounds, Medium and High. The world lane's `-benchspot` lines; shots checked (results/sheets/falls.jpg).
+
+| view | preset | main | waterfall builder | **delta** | main thread (main / builder) |
+|---|---|---|---|---|---|
+| 20 m in front of fall 22 | Medium | 15.53 | 17.1 | **+1.57** | 14.90 / 14.90 |
+| 20 m in front of fall 22 | High | 18.9 | 19.73 | **+0.83** | 17.13 / 17.77 |
+| 20 m below fall 74 | Medium | 30.0 | 30.0 | 0.00 | 15.80 / 15.97 |
+| 20 m below fall 74 | High | 33.1 | 35.55 | +2.45 (rounds 30.5-36.6: noisy) | 19.03 / 18.37 |
+
+(GPU ms, mean of 3 rounds; stalled rounds left out.)
+- **Rule 23 (Medium +0.3, High +0.5): FAIL at fall 22**, clearly (rounds 16.9-17.3 vs 15.4-15.7), where the new sheet fills the middle of the frame. The card's points of interest fit: the near-fall sheets are 32x48 and `PunchyFallWater` loops up to 32 foot boxes per water pixel within the falls' rectangle + 12 m, and here the pool and the sheet are both on screen. CPU within noise at Medium; +0.6 ms main thread at High.
+- **Fall 74's spot doesn't show the fall well:** the player lands low on the water and the frame is full of the big flat water walls (the W-153 issue), on both arms, at 30-33 ms GPU. Its 0.0 (Medium) and +2.45 (High, rounds 30.5-36.6 on main) don't say much about the builder. A spot on the bank facing the fall would.
+- **Look:** at fall 22 the builder's sheet reads as one soft wide pour where main shows stacked flat panels.
+
+Cost: laptop total $876 (laptop session e163d8ab; 2 builds, 24 games).
+
 ## Job 73: R-19 steep rock cost switches (render/steep-triplanar 1e556c4b, on main b66b4c2a), 2026-11-14 (q115.job): only `-rockhighonly` passes both poses
 **Setup:** one Profile build of 1e556c4b plus main b66b4c2a (job 66's main build) in the same session; Medium, 1920x1080, uncapped, noon, Clear, arms rotated, 3 rounds. Job 66's mountain poses via `-benchface` (20 m: -3126,2898; 150 m: -3101,3025; yaw -169, pitch -40).
 
