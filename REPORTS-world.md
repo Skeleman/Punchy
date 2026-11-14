@@ -6966,6 +6966,39 @@ half3 PunchySurfaceFinish(half3 color, PunchySurface s, half reach);            
 - **Risk:** the foam at the foot is subtle on the pale snow rock. The wet band is easiest to see on darker rock. Adding the include to TerrainSurface set off a long shader variant compile (about 2 min, 43 compiler processes) on first load. Not timed (rule 21).
 - **Next:** R-22 row 0 (#298, world/far-view).
 
+## 2026-11-14 W-155 row 1 done: two scarps cut as true steps with a rock skin, pins unchanged (#281)
+
+- Branch world/scarps (from main d95e7ff1), pushed as two commits: 11b2753a shared hooks (TerrainSource Scarps
+  field and Shape in SampleHeight/SampleGround, IslandV2, IslandCache Format 2, chunk strip clip at LOD 0-2, `Clay`
+  launch flag through TerrainStreamingSystem and FarRing; additive only) and feab6870 Scripts/Terrain/Scarps/
+  (record, bake, ground cut, skin job and system). Replaces the stop note below.
+- **Strip-end crease fixed:** each end is now an eased cap at least as long as the wall is high (at least 12 m, at
+  most 45% of the rim). Strip width and drop die away together, so the foot curves back to the rim. The shots from
+  below at the canyon end show no slot.
+- **Log lines:** bake `[scarps] 2 scarps; canyon: rim 211 m, 106 nodes, drop up to 47.8 m; river cut: rim 84 m,
+  43 nodes, drop 3.5 m; 89.3 ms` (inside the island bake, 12.3 s in total on a cache miss). Skins `[scarps] 2 skins,
+  43369 vertices; 730-929 ms off the main thread` over four loads.
+- **Pins, old and new: unchanged.** Game "117 landmarks, hash FA8F24B1", measure 689D5348, fauna 6A9E28E5. No river
+  course or settlement moved: scarps bake last and each foot is held above water.
+- **Mesh matches main outside the strips (stated check):** chunk vertex hashes dumped for every streamed chunk on main
+  and on the branch from the same pose. Canyon: 12 chunks differ, all inside its bounds (x -1664..-1472,
+  z 1664..1856). River cut: 3 differ, all inside its bounds. One stray chunk near x -128 (1.3 km away) flipped once; a
+  repeat run flipped a different one there, and SampleHeight, SampleGround and surface albedo compared with and
+  without scarps over that chunk differ by 0, so it is build-order noise, not this change.
+- **Seams (walkable, no holes):** a probe emulates the chunk mesh height and clip field at every skin column. LOD0:
+  canyon rim dy -0.87..0.10 m, foot -0.22..0.14 m; the ground reaches within 0.03 m of each seam and the skin's tuck
+  covers 0.7 m. River cut rim -0.53..-0.01, foot 0.00..0.01. LOD1/2: no holes (the ground overlaps past the seam by up
+  to 2.3 / 13.7 m), but at the canyon cap the skin stands up to 2.6 / 4.7 m proud of the coarse ground.
+- **NaN probe:** 0 bad in four views (default pose, canyon face, canyon strip end from below, river cut).
+- **Suite (editor out of play mode):** PlayMode 40/40 passed.
+- **Shots** (clay via `-scarpclay`, noon), in D:/Unity/PunchyMilestones/W-155/: row1-c-canyon-{near,100,400,side,rim,
+  end,below-end,below-end2}.png and row1-c-river-{near,100,400,side,below-end}.png.
+- **Leftovers for row 5 (far and middle tiers):** beyond LOD2 the ground is not clipped; the skin stands proud at the
+  cap on LOD1/2; the river cut's 3.5 m bank does not read at 400 m.
+- **Bench ask:** world/scarps feab6870 against main d95e7ff1: scarp bake ms and total island bake on a fresh island
+  cache, and chunk build time for the chunks inside the canyon bounds (x -1664..-1472, z 1664..1856).
+- **Next:** W-155 row 2.
+
 ## 2026-11-14 W-155 row 1 STOPPED (usage limit): code in, not verified, nothing pushed (#281)
 
 - Stopped on your call. Branch world/scarps (from main d95e7ff1) has two LOCAL commits, not pushed because
