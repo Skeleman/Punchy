@@ -1,0 +1,18 @@
+# Job 71 (R-20 row 1, #286): the sun's shadow filter and the 4096 sun shadow map. render/shadow-still: 1a380545 with
+# -sunshadowfilter low (as main) and with its default (the wide filter from Medium up), and 9b01da13 (the same plus the
+# sun shadow map 2048 -> 4096, one pipeline asset for every preset). Views: the oak grove (the job 64 forest start,
+# 1740,3390) and the human village (3066,-913), standing and a 30 m walk east at 2 m/s. Noon, Clear (the bench's
+# weather presets; the card's "Sunny" is a day type, not a preset). Medium and High, 3 rounds. Then (after) Low at the
+# forest, 1a380545 vs 9b01da13, 3 rounds: Low must stay over its 50 fps 1% low floor with the 4096 map.
+Q=q113; TITLE="job 71 sun shadow filter and 4096 map"
+BUILDS="1a38054 9b01da1"
+VIEWS="forest forestwalk town townwalk"
+view() { case $1 in
+  forest)     echo "-place OakGrove -benchstops here -benchhour 12 -benchweather Clear";;
+  forestwalk) echo "-goto 1740,3390 -benchstops line -benchline 1740,3390,1770,3390,2,0.1 -benchhour 12 -benchweather Clear";;
+  town)       echo "-place HumanVillage -benchstops here -benchhour 12 -benchweather Clear";;
+  townwalk)   echo "-goto 3066,-913 -benchstops line -benchline 3066,-913,3096,-913,2,0.1 -benchhour 12 -benchweather Clear";; esac; }
+ARMS="low filter map4096"
+arm() { case $1 in low) echo "Profile-1a38054 -sunshadowfilter low";; filter) echo "Profile-1a38054";; map4096) echo "Profile-9b01da1";; esac; }
+ROUNDS=3; GFX="Medium High"; REF=low; BAR=0.3
+after() { for r in 1 2 3; do for a in $(rot $r filter map4096); do game Low forest $a $r; done; done; }
