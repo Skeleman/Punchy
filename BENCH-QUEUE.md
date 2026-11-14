@@ -706,3 +706,10 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
 - Points of interest: `WatchFarFolk` every 0.2 s over all creatures; `GatherFarFolk` per frame over 6 towns.
 - Pass (rule 23): at most +0.3 ms GPU, CPU within noise, no new hitch. Main-PC bench agent may take it (J-045).
 - 11-13 widening: time arm B at fauna/far-towns f54d8941 or newer (row 3 home signs, 24 px figure size cap). Add a dusk view (18:30) at the 200 m spot for the home lights and smoke.
+
+## Job 73 (2026-11-13, QUEUED after 72; supervisor, for R-19 row 2, #281): steep rock cost switches
+- `render/steep-triplanar` 1e556c4b, one Profile build, 1920x1080, Medium, uncapped, noon, Clear, `-weatherseed 4`, arms alternated, 3 rounds.
+- Poses (job 66's): mountain 20 m (-3126,2898, yaw -169, pitch -40) and mountain 150 m (-3101,3025, yaw -169, pitch -40).
+- Arms: default; `-rockhighonly`; `-rockoctaves 1`; `-rockslabpx 40`; `-rockslabpx 150`; `-rockoctaves 1 -rockslabpx 40`.
+- Record: GPU ms per arm and pose; the delta of each arm against job 66's main reading (5.47 / 6.73 ms).
+- Pass (rule 23): an arm within +0.3 ms of main at Medium on both poses. The supervisor picks the Medium default from the table; PR #285 merges after.
