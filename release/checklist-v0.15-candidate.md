@@ -13,7 +13,7 @@ line if you already saw it there.
 - [ ] **Climbing**: ladders on docks, roofs and in mines; folk climb ladders and marked walls; ledge hang and shimmy.
 - [ ] **Fishing**: fish notice the bobber; catches depend on the water.
 - [ ] **Harsh-place work**: hermit chores and talk in harsh biomes.
-- [ ] **Shadows**: one shadow darkness at every distance (no darker or lighter bands as you look farther out).
+- [ ] **Shadows**: one shadow darkness at every distance (no darker or lighter bands as you look farther out). Near shadow edges flicker less when you walk; note any that still crawl, with place, time and preset.
 - Anything merged before the build goes in this list (I'll update it when I cut the build).
 
 ## v0.14.0 (11-12)

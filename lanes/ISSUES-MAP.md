@@ -94,3 +94,4 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #333 | render R-35 | cloud ideas from a reference shader (look and cost) |
 | #334 | world | W-164 gardens level on slopes |
 | #335 | world (folk follow-up) | W-165 farm fields and biome crops |
+| #336 | world | W-166 material library: every kit piece states its material, one include per family |

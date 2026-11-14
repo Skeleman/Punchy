@@ -20,13 +20,14 @@ Worktree D:/Unity/Punchy-world. Read the card and REPORTS-world.md's newest entr
 3. W-156 (audit 11-13: far clip restore, nearest cave water first).
 3b. W-157 (Zach 11-14: taller hanging lanterns, stone lantern columns).
 3b2. W-164 (Zach 11-14: gardens and crop plots sit level on slopes, no sinking; small; #334).
+3b2a. W-166 row 1 (Zach 11-14: material library audit, no code; rows 2-4 after W-165 row 1 and take in W-163 row 1; #336).
 3b3. W-165 (Zach 11-14: farm fields outside towns, crops for each biome; after W-164; #335).
 3c. W-159 (Zach 11-14: river flow streaks become normal and vertex ripples, no white overlay; small, may go before 4b).
 3c2. W-160 (Zach 11-14: shorelines wander: noise lift and lapping on water vertices, ragged shore fade; after W-159).
 3c3. W-161 (Zach 11-14: elf towns have no wood; signs, fences, docks and props in stone or metal; #326).
 3d. W-158 (Zach 11-14: darkened seams where built faces meet, beacon stair first).
 3e. W-162 (Zach 11-14: cliffs and caves share rock surface, climb grades and ground blend; after W-155 merges; #327).
-3f. W-163 (Zach 11-14: original procedural wood grain for all planks and timber; static strangler roots on swamp trunks and some cave walls; no copied Shadertoy code; #330).
+3f. W-163 (Zach 11-14: original procedural wood grain for all planks and timber; static strangler roots on swamp trunks and some cave walls; no copied Shadertoy code; #330; row 1 ships inside W-166 row 2).
 4. W-141 fix row, W-154 (row 2 now also asks for finer normals: rough, coarse dark crust, smooth bright veins; see batches/W-154.md), R-22 row 2.
 
 ## Tools and gotchas
