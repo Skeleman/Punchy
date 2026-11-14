@@ -20,7 +20,7 @@ Worktree D:/Unity/Punchy-world. Read the card and REPORTS-world.md's newest entr
 3. W-153 rows 3-6 with W-155 row 4. Carried in: water walls beside falls 22 and 67 and in front of 46 and 51; fall 13's notch; cave falls without lip dip and foot ripples; the fine sheet reading FallShape; 109 fall and landmark head-pool walls; retake fall 46 and 51 fronts and the snowpeak landmark fall.
 4. W-156 (audit 11-13: far clip restore, nearest cave water first).
 4b. W-157 (Zach 11-14: taller hanging lanterns, stone lantern columns).
-5. W-141 fix row, W-154, R-22 row 2.
+5. W-141 fix row, W-154 (row 2 now also asks for finer normals: rough, coarse dark crust, smooth bright veins; see batches/W-154.md), R-22 row 2.
 
 ## Tools and gotchas
 
