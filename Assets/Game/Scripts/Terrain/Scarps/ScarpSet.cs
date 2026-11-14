@@ -503,5 +503,24 @@ namespace Punchy.Terrain
             }
             return found;
         }
+
+        /// <summary>
+        /// Distance from xz to the nearest scarp strip's edge (negative inside the strip), or 100 away from any. For
+        /// scatters laid on a coarse height grid (grass, pebbles): heights interpolated across the step float off the
+        /// face, so they stay out of the strip and a margin round it.
+        /// </summary>
+        public static float Edge(ref ScarpSetBlob set, float2 xz)
+        {
+            float edge = 100f;
+            if (!Inside(set.Bounds, xz))
+                return edge;
+            for (int i = 0; i < set.Scarps.Length; i++)
+            {
+                ref var sc = ref set.Scarps[i];
+                if (Inside(sc.Bounds, xz) && Locate(ref sc, xz, out var at))
+                    edge = math.min(edge, math.max(-at.D, at.D - at.W));
+            }
+            return edge;
+        }
     }
 }
