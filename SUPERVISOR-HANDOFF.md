@@ -291,3 +291,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-14: R-28 grout: approved render editing unowned Terrain-root files (SurfaceProps.Under, TerrainVertex.Soak half4, +4 B/vertex 76->80); cost folded into R-28 row 2 BENCH. world/scarps also touches BuildChunkMeshJob/TerrainSource; second merge rebases. World told.
 - 11-14: Zach: spire arcs static, want erratic paths; effects unified like fire. R-29 (render, after R-28, #320), rule 30 added (rendering.md).
 - 11-14: W-158 (#321, seam shade, beacon stair first) and W-159 (#322, river flow as normals) carded on the world queue as 4d and 4c. R-28 row 2: Zach says parallax height must sit on the stone edges, not the base; card updated, render told.
+- 11-14: Zach: plants read toon, wants leaf clusters (layering, cut-outs, bent-normal cards). R-30 (#323, render) after R-28, row 1 before R-29; row 1 is options for Zach to pick.

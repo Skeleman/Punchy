@@ -81,3 +81,4 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #320 | render R-29 | one effects kit: erratic arcs, then steam, smoke, sparks, spray, wind |
 | #321 | world W-158 | darkened seams where built faces meet |
 | #322 | world W-159 | river flow as normals, not white streaks |
+| #323 | render R-30 | foliage realism: leaf clusters, not toon blobs |
