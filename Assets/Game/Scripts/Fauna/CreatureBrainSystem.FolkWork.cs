@@ -211,6 +211,56 @@ namespace Punchy.Fauna
                 return d;
             }
 
+            /// <summary>
+            /// A-117: WalkOn for a horse led or ridden through a town, and the one leading it: never into a building's,
+            /// stall's or fence's walls by its body's width (a horse at least 0.55 m either side, folk 0.3 m). Walled off,
+            /// it slides along the wall as MoveBody does, but right up to where it's going (a stable's gate is narrow);
+            /// boxed in, it waits. FaunaDirector hands it the way (gate, then streets) a waypoint at a time.
+            /// </summary>
+            float LeadOn(ref CreatureState s, ref CreatureBlob b, float3 target, float speed, float dt)
+            {
+                var before = s.Position.xz;
+                var yawBefore = s.Yaw;
+                var d = WalkOn(ref s, ref b, target, speed, dt);
+                if (!HasFlora)
+                    return d;
+                var to = s.Position.xz;
+                var radius = Riding.LeadRadius(ref b, s.Scale);
+                if (LeadFits(ref b, s.Scale, to, s.Yaw, radius) || !LeadFits(ref b, s.Scale, before, yawBefore, radius))
+                    return d;
+                var step = math.max(math.distance(to, before), 0.02f);
+                var heading = math.atan2(target.x - before.x, target.z - before.y);
+                var moved = false;
+                for (int k = 1; k <= 7 && !moved; k++)
+                    for (int side = -1; side <= 1; side += 2)
+                    {
+                        var angle = heading + side * k * 0.45f;
+                        var slide = before + new float2(math.sin(angle), math.cos(angle)) * step;
+                        // (Turned only part way, as it can in one step.)
+                        var yaw = yawBefore + math.clamp(WrapAngle(angle - yawBefore), -b.TurnRate * dt, b.TurnRate * dt);
+                        if (LeadFits(ref b, s.Scale, slide, yaw, radius))
+                        {
+                            to = slide;
+                            s.Yaw = yaw;
+                            moved = true;
+                            break;
+                        }
+                    }
+                if (!moved)
+                {
+                    to = before;
+                    s.Yaw = yawBefore;
+                    s.Speed = 0f;
+                }
+                s.Position.xz = to;
+                s.Position.y = Terrain.FloorUnder(new float3(to.x, s.Position.y + 0.8f, to.y), out _);
+                return d;
+            }
+
+            /// <summary>A-117: its middle and, for a horse, its hindquarters both clear of every wall by its width.</summary>
+            bool LeadFits(ref CreatureBlob b, float scale, float2 at, float yaw, float radius) =>
+                !Walled(at, radius) && (b.Upright || !Walled(Riding.LeadRear(ref b, scale, at, yaw), radius));
+
             // ------------------------------------------------------------------------------- swimming
 
             /// <summary>

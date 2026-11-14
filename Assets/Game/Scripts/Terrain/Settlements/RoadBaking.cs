@@ -706,7 +706,7 @@ namespace Punchy.Terrain
             return (first, new List<float2> { path[path.Count - 1], path[path.Count - 1] });
         }
 
-        [BurstCompile]
+        [BurstCompile(CompileSynchronously = true)] // seed-derived: never the managed copy (BakeBurst)
         struct GroundJob : IJobParallelFor
         {
             public TerrainSource Source;
@@ -986,7 +986,7 @@ namespace Punchy.Terrain
         }
 
         /// <summary>W-138 row 2b: the ground's height on a square grid (FindBores' fine grid).</summary>
-        [BurstCompile]
+        [BurstCompile(CompileSynchronously = true)] // seed-derived: never the managed copy (BakeBurst)
         struct HeightJob : IJobParallelFor
         {
             public TerrainSource Source;

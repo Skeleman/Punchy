@@ -332,6 +332,7 @@ namespace Punchy.Fauna
                     Despawn();
             }
             DrainSpawns();
+            UpdateRiders(source);
             if (players.Count == 0)
                 return;
             if (Time.time >= nextResidentCheck)

@@ -648,7 +648,9 @@ namespace Punchy.Terrain
                     Take(order, rng.NextBool() ? 0 : order.Count - 1, PlotRole.Shrine);
                 foreach (var b in layout.Buildings)
                 {
-                    if (b.Role == PlotRole.House || b.Role == PlotRole.Landscaping || b.Role == PlotRole.Seat || b.Role == PlotRole.Shrine)
+                    // (A-117: stables are placed after the layout, by PlaceStable, so they draw nothing here.)
+                    if (b.Role == PlotRole.House || b.Role == PlotRole.Landscaping || b.Role == PlotRole.Seat || b.Role == PlotRole.Shrine ||
+                        b.Role == PlotRole.Stable)
                         continue;
                     var central = b.Role == PlotRole.Inn || b.Role == PlotRole.Market;
                     for (int k = 0; k < b.Count && order.Count > 0; k++)
@@ -669,6 +671,62 @@ namespace Punchy.Terrain
                 }
                 PlaceStyle();
                 PlaceShelters();
+                PlaceStable();
+            }
+
+            /// <summary>
+            /// A-117: the settlement's stable (or, in a smaller one, a hitching rail): the Stable entry with the biggest
+            /// MinPlots its building plots reach, on the green plot furthest out (where the roads come in), or the house plot
+            /// furthest out if there is no green plot (a hitching rail only takes a green one). Plots the building fits on
+            /// come first. Done after the layout with no rng drawn, so plots, roles and landmarks never move.
+            /// </summary>
+            void PlaceStable()
+            {
+                int built = 0;
+                for (int p = firstPlot; p < plots.Count; p++)
+                    if (plots[p].Role <= PlotRole.Workshop && plots[p].Role != PlotRole.Landscaping)
+                        built++;
+                var pick = -1;
+                for (int i = 0; i < layout.Buildings.Count; i++)
+                {
+                    var b = layout.Buildings[i];
+                    if (b.Role == PlotRole.Stable && b.Species != null && b.MinPlots <= built &&
+                        (pick < 0 || b.MinPlots > layout.Buildings[pick].MinPlots))
+                        pick = i;
+                }
+                if (pick < 0)
+                    return;
+                var species = layout.Buildings[pick].Species;
+                // (A stable wants a whole plot; a hitching rail goes on a green, never in place of a home.)
+                var housesToo = species.Form == Punchy.Flora.FloraForm.Stable;
+                var half = (species.Height.x + math.max(species.Height.x, species.Height.y)) * 0.25f * species.Spread * layout.BuildingScale;
+                var best = -1;
+                var bestScore = float.MaxValue;
+                for (int pass = 0; pass < 2 && best < 0; pass++)
+                    for (int p = firstPlot; p < plots.Count; p++)
+                    {
+                        var plot = plots[p];
+                        if (plot.Role != PlotRole.Landscaping && !(housesToo && plot.Role == PlotRole.House))
+                            continue;
+                        // Out at the edge, where the roads come in (gates are laid later, by RoadBaking), so riders
+                        // hand their horses in before the streets.
+                        var score = -math.distance(plot.Centre, inst.Position);
+                        // Greens before houses; plots the building fits on before tight ones (the second pass takes any).
+                        score += plot.Role == PlotRole.House ? 1000f : 0f;
+                        if (pass == 0 && math.cmin(plot.Half) < half * 0.9f)
+                            continue;
+                        if (score < bestScore)
+                        {
+                            bestScore = score;
+                            best = p;
+                        }
+                    }
+                if (best < 0)
+                    return;
+                var at = plots[best];
+                at.Role = PlotRole.Stable;
+                at.Building = firstBuilding + pick;
+                plots[best] = at;
             }
 
             /// <summary>
