@@ -299,14 +299,49 @@ namespace Punchy.Fauna
                 st.Target = plan.Places[w.To].At;
                 st.Timer = 6f;
             }
+            // (Row 7b: a far figure walks its day's straight lines, through a house's corner now and then; one made
+            // there stood in the walls, unable to step any way, till its brain gave its door up an hour and a half
+            // later. It starts on the nearest clear ground instead.)
+            var moved = 0f;
+            if (w.Outdoors && st.Mode != CreatureMode.Home && OutOfWalls(ref st.Position, 0.35f, out moved))
+            {
+                if (st.Mode == CreatureMode.Work)
+                    st.WorkSpot = st.Position.xz;
+            }
             em.SetComponentData(e, st);
             em.SetComponentData(e, body);
+            if (FarFolk.Log && moved > 0f)
+                Debug.Log($"[members] spawn {FolkNames.Of(r.Seed)} id {r.Seed:X8}: far figure's spot was inside walls, made {moved:F1} m off it");
             if (em.HasComponent<LocalTransform>(e))
                 em.SetComponentData(e, LocalTransform.FromPosition(st.Position));
             if (FarFolk.Log)
                 Debug.Log($"[members] spawn {FolkNames.Of(r.Seed)} id {r.Seed:X8} {house.Members[r.Member].Role} {species[r.Species].name} of {plan.Name} #{plan.Landmark} " +
                           $"at ({st.Position.x:F1}, {st.Position.y:F1}, {st.Position.z:F1}), far figure at ({w.Position.x:F1}, {w.Position.y:F1}, {w.Position.z:F1}), " +
                           $"apart {math.distance(st.Position, w.Position):F2} m, {w.Doing}{(st.Task != CreatureTask.None ? " task " + st.Task : "")}, hour {hour:F2}");
+        }
+
+        /// <summary>Row 7b: if a body of this radius at p is inside a building's or prop's walls, moves p to the nearest
+        /// clear spot (rings half a metre apart, out to 8 m) and says how far. False if p was clear or nothing near is. // sim:</summary>
+        bool OutOfWalls(ref float3 p, float radius, out float moved)
+        {
+            moved = 0f;
+            if (!floraBlob.IsCreated || !Punchy.Flora.FloraPlacement.Blocked(ref floraBlob.Value, lastSource, p.xz, radius))
+                return false;
+            for (var ring = 1; ring <= 16; ring++)
+            {
+                var d = ring * 0.5f;
+                for (var k = 0; k < 12; k++)
+                {
+                    var a = (k + 0.5f * (ring & 1)) * (math.PI * 2f / 12f);
+                    var at = p.xz + new float2(math.sin(a), math.cos(a)) * d;
+                    if (Punchy.Flora.FloraPlacement.Blocked(ref floraBlob.Value, lastSource, at, radius))
+                        continue;
+                    moved = d;
+                    p = new float3(at.x, lastSource.SampleHeight(at), at.y);
+                    return true;
+                }
+            }
+            return false;
         }
 
         /// <summary>-farfolk: a member's creature first seen on this machine (the host's own, a joined client's ghost),

@@ -923,6 +923,18 @@ namespace Punchy.Fauna
                         }
                         else if (s.ModeTime > (HasOwnDoor(s) ? 240f : 60f))
                             Pause(ref s, ref b, ref rng);
+                        // (A-110 row 7b: held far from its door. Steer gives upright folk no wall block, so its detour
+                        // never fires, and the wall slide can pin it in a building's inner corner, pulled to the door and
+                        // slid back, for a game hour. It backs off sideways a few metres, the side flipping every ten
+                        // seconds, then makes for the door again from there. // sim: metres of walking room)
+                        else if (toDoor > 8f && s.Speed < 0.2f && s.ModeTime > 5f && M.FollowHolder == 0 && M.FollowDetourTime <= 0f)
+                        {
+                            var toward = (door - s.Position.xz) / toDoor;
+                            var side = ((uint)(s.ModeTime / 10f) + s.Individual) % 2u == 0u ? 1f : -1f;
+                            var way = math.normalize(new float2(-toward.y, toward.x) * side - toward * 0.6f);
+                            M.FollowDetour = s.Position.xz + way * (2.5f * s.Scale + 2.5f);
+                            M.FollowDetourTime = 3f;
+                        }
                         break;
                     case 1:
                     {

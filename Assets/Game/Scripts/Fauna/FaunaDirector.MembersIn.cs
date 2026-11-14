@@ -160,7 +160,14 @@ namespace Punchy.Fauna
                     // (Still out 20 s after its far figure went in: where it is, to see what holds it up.)
                     if (FarFolk.Log && r.InSince >= 0f && now - r.InSince >= 20f && now - r.InSince < 20.5f)
                         Debug.Log($"[members] still out {FolkNames.Of(r.Seed)} id {r.Seed:X8}: stage {s.Stage}, {math.distance(s.Position.xz, door):F1} m " +
-                                  $"from its door, speed {s.Speed:F2}, target {math.distance(s.Target, door):F1} m from it, mode time {s.ModeTime:F0} s");
+                                  $"from its door, speed {s.Speed:F2}, target {math.distance(s.Target, door):F1} m from it, mode time {s.ModeTime:F0} s, " +
+                                  $"at ({s.Position.x:F1}, {s.Position.z:F1}){(floraBlob.IsCreated && Punchy.Flora.FloraPlacement.Blocked(ref floraBlob.Value, lastSource, s.Position.xz, 0.35f) ? " inside walls" : "")}");
+                    // (Held up on its way, far from the door: where, every 10 s, to see what holds it.)
+                    if (FarFolk.Log && s.Stage == 0 && s.Speed < 0.15f && math.distance(s.Position.xz, door) > 8f && s.ModeTime % 10f < 0.5f)
+                        Debug.Log($"[members] held {FolkNames.Of(r.Seed)} id {r.Seed:X8}: {math.distance(s.Position.xz, door):F1} m from its door at " +
+                                  $"({door.x:F1}, {door.y:F1}), at ({s.Position.x:F1}, {s.Position.y:F1}, {s.Position.z:F1}), target ({s.Target.x:F1}, {s.Target.y:F1}), " +
+                                  $"yaw {math.degrees(s.Yaw):F0}, speed {s.Speed:F2}, mode time {s.ModeTime:F0} s" +
+                                  $"{(floraBlob.IsCreated && Punchy.Flora.FloraPlacement.Blocked(ref floraBlob.Value, lastSource, s.Position.xz, 0.35f) ? " inside walls" : "")}");
                     // On its way to a door already (its own idea, or ours): the one Whereabouts has it go in at.
                     if (math.distance(s.Anchor.xz, door) > 1f)
                     {
@@ -170,8 +177,10 @@ namespace Punchy.Fauna
                     }
                     continue;
                 }
-                // (Busy with something that isn't its day, a talk, a fright, a meal: it goes once that is over.)
-                if (!Calm(s))
+                // (Busy with something that isn't its day, a talk, a fright, a meal: it goes once that is over.
+                // Row 7b: not out of the rain under its eaves, though: it had stood there at its door till the shower
+                // ended, an hour late. Calm itself is left as it is, legs read it too.)
+                if (!Calm(s) && s.Mode != CreatureMode.Shelter)
                     continue;
                 // (Row 4 (c): sent when its own walk to the door and step through take as long as its far figure's
                 // walk still does, so the two go in together; at once if its far figure is in already. Its own walk is
@@ -200,6 +209,12 @@ namespace Punchy.Fauna
                 s.Anchor = new float3(door.x, place.Height, door.y);
                 s.AnchorYaw = math.atan2(outward.x, outward.y);
                 s.Timer = 600f;
+                // (Row 7b: a guard sent in at its shift's end is off watch. Its brain's shift runs by the light, not by
+                // its day, so a day guard still "on shift" at dusk stepped straight back out of the door, inside for
+                // a frame, before it could be let go: sent three times. Its creature is let go inside; the next one
+                // made for it takes its post from its day again.)
+                if (s.Task == CreatureTask.Patrol)
+                    s.Task = CreatureTask.None;
                 em.SetComponentData(entities[i], s);
             }
             if (gone.Length > 0)
