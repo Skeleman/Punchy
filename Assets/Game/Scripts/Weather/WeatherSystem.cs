@@ -27,6 +27,11 @@ namespace Punchy.Weather
         public Light Sun;
         LightShadows baseSunShadows = LightShadows.Soft;
         bool sunShadowsOff;
+        // Steady near shadows (R-32): the shadow-casting light turns in small held steps instead of every frame, so
+        // shadows stand still between steps rather than crawling. Colour and strength stay smooth.
+        const float ShadowStepDegrees = 0.1f;
+        Vector3 heldLightDirection;
+        bool heldLightValid;
         [Tooltip("Shader for rain, snow, hail and dust particles. Referenced here so builds include it.")]
         public Shader PrecipitationShader;
         [Tooltip("Shader that marches the rain and dust haze into a small table once a frame (HazeLut). Referenced here so builds include it.")]
@@ -633,7 +638,7 @@ namespace Punchy.Weather
                 var strength = Cycle != null ? Cycle.LightStrength : 1f;
                 if (Cycle != null)
                 {
-                    Sun.transform.rotation = Quaternion.LookRotation(-Cycle.LightDirection);
+                    Sun.transform.rotation = Quaternion.LookRotation(-SteppedLightDirection(Cycle.LightDirection));
                     Sun.color = Color.Lerp(Cycle.LightColor, DustColor(), s.Dust * 0.6f);
                 }
                 Sun.intensity = baseSunIntensity * strength * (1f - 0.7f * s.Dust);
@@ -649,6 +654,24 @@ namespace Punchy.Weather
                 if (Sun.shadows != shadows)
                     Sun.shadows = shadows;
             }
+        }
+
+        /// <summary>
+        /// The shadow-casting light direction, held until the true direction has turned ShadowStepDegrees away
+        /// (about every 0.4 s at the default day length), then moved to it in one step (R-32).
+        /// </summary>
+        Vector3 SteppedLightDirection(Vector3 target)
+        {
+            if (!heldLightValid)
+            {
+                heldLightDirection = target;
+                heldLightValid = true;
+                return target;
+            }
+            var angle = Vector3.Angle(heldLightDirection, target);
+            if (angle >= ShadowStepDegrees) // also takes any big jump (sun-moon swap, clock set) in one go
+                heldLightDirection = target;
+            return heldLightDirection;
         }
 
         /// <summary>
