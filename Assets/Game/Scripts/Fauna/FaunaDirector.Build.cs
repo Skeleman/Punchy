@@ -225,6 +225,7 @@ namespace Punchy.Fauna
                 ClimbLadders.Flora.Data = floraBlob;
                 Stage("flora");
             }
+            BuildHerdKinds();
             Debug.Log($"[fauna build] {species.Count} species, ms:{stages} fingerprint {BuildFingerprint():X8}");
             lastSource = source;
             configStamp = ConfigStamp();
