@@ -4378,6 +4378,12 @@ Where A-109 differs from A-108: herds are anonymous and seeded per 512 m cell fr
 - Asks: none under rule 11. Old code noticed: Steer's nearSolids still excludes upright folk, for the A-44 cost reason, so other upright walks (not Home) can still slide into building corners. Worth a look if it shows up again.
 - NEXT: A-111 (#311)
 
+## 2026-11-14 A-110 row 7b addendum: host+client dusk run
+- DONE: the host+client dusk run that row 7b owed, once fauna's editor freed port 7979 (fauna/one-population dcd89d0c build)
+- Checks: host at 2972,-885 from 17 h for 330 s, with a joined client from about 40 s in. Host: stuck 0 in all 64 summaries, worst late 10.0 min, 3 late entries in all; Kael DD1AA217, Quill 936ED9A9 and Marek D33DD24D all "in early ... sent"; 0 exceptions. Client: connected and in game as player 2 (world check 7AABABF9), saw 99 folk with 99 bodies at the town, households logging homecomings, 0 exceptions
+- Follow-up: Steer still gives upright folk no building walls (the A-44 cost reason), so upright walks other than going home can still slide into building corners. Not fixed here, per the coordinator
+- NEXT: A-111 (#311)
+
 ## A-107
 
 ### Row 1: graded climb sections on colossi (done, verified, #276, fauna/colossus-climb b2ad690b)
