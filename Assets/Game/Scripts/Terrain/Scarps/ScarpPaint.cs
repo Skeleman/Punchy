@@ -29,6 +29,45 @@ namespace Punchy.Terrain
             return math.lerp(c, lum * new float3(1.1f, 1f, 0.86f), math.saturate((c.y - c.x) * 10f));
         }
 
+        /// <summary>A bed's colours at one height of the face (<see cref="Bed"/>): the ground tones it is drawn from,
+        /// the bed's rock base and finished tone, and which bed it is.</summary>
+        public struct BedTone
+        {
+            public float3 RimEarth, FootEarth, Ground, RockBase, Tone;
+            public float Bed, Hard, Pick;
+        }
+
+        /// <summary>
+        /// The colour of the bed at height y: the ground's colour (the slope below's towards the foot, the top's
+        /// towards the rim) made lighter for a hard bed and darker for a soft one, nudged warmer or cooler per layer
+        /// of the stack (so a bed keeps its colour each time the stack repeats), with a slight drift along the rim.
+        /// Pulled towards the ground's own grey, so a green or snowy top does not tint rock. Shared by the face and
+        /// by the debris fallen from it (<see cref="ScarpDebris"/>).
+        /// </summary>
+        public static BedTone Bed(ref Scarp sc, in ScarpAt at, float3 cracks, float y, float3 rimTone, float3 footTone)
+        {
+            float drop = math.max(at.RimY - at.FootY, 0.01f), up = y - at.FootY;
+            float seed = sc.Seed % 977u * 1.37f;
+            float bedY = ScarpSet.BedY(ref sc, at.S, y, cracks);
+            var b = new BedTone { Bed = ScarpSet.Bed(ref sc, bedY), Hard = ScarpSet.Hardness(ref sc, at.S, bedY) };
+            int n = math.max(sc.Layers.Length, 1);
+            float layer = b.Bed - n * math.floor(b.Bed / n);
+            b.RimEarth = Earth(rimTone);
+            b.FootEarth = Earth(footTone);
+            b.Ground = math.lerp(b.FootEarth, b.RimEarth, math.smoothstep(0.1f, 0.9f, up / drop));
+            b.Pick = math.frac(math.sin(layer * 7.13f + seed * 3.1f) * 43758.5453f);
+            float drift = 0.5f + 0.5f * noise.snoise(new float2(at.S / 70f, seed + 3f + layer));
+            float lum = Lum(b.Ground);
+            b.RockBase = math.lerp(b.Ground, new float3(lum, lum, lum) * new float3(1.04f, 1f, 0.94f), 0.35f);
+            float bright = math.lerp(0.86f, 1.14f, math.smoothstep(0.3f, 0.7f, b.Hard)) * (0.94f + 0.12f * drift);
+            var tint = 1f + 0.07f * (b.Pick - 0.5f) * new float3(1f, 0.1f, -1f);
+            b.Tone = b.RockBase * bright * tint;
+            return b;
+        }
+
+        /// <summary>The scree colour for a bed: its rock half in the earth of the slope below.</summary>
+        public static float3 Scree(in BedTone b) => math.lerp(b.RockBase, b.FootEarth, 0.5f) * (0.9f + 0.15f * b.Pick);
+
         /// <summary>
         /// Paints one skin vertex. y is its height, normal its own (from the skin grid), fade 0 at the seams to 1 on
         /// the open face; rimTone is the ground's colour behind the rim, foot the ground's surface past the foot.
@@ -36,29 +75,14 @@ namespace Punchy.Terrain
         public static SurfaceProps Paint(ref Scarp sc, in ScarpAt at, float3 cracks, float y, float3 normal, float fade,
                                          float3 rimTone, in SurfaceProps foot, SurfaceProps surface)
         {
-            var footTone = foot.Albedo;
             float drop = math.max(at.RimY - at.FootY, 0.01f), u = at.RimY - y, up = y - at.FootY;
             float seed = sc.Seed % 977u * 1.37f;
             bool earth = sc.Kind == ScarpKind.RiverCut;
-            float bedY = ScarpSet.BedY(ref sc, at.S, y, cracks);
-            float bed = ScarpSet.Bed(ref sc, bedY), hard = ScarpSet.Hardness(ref sc, at.S, bedY);
-            int n = math.max(sc.Layers.Length, 1);
-            float layer = bed - n * math.floor(bed / n);
-
-            // The ground's colour here: the slope below's towards the foot, the top's towards the rim.
-            var rimEarth = Earth(rimTone);
-            var footEarth = Earth(footTone);
-            var groundTone = math.lerp(footEarth, rimEarth, math.smoothstep(0.1f, 0.9f, up / drop));
-            // Bed colour: the ground's colour made lighter for a hard bed and darker for a soft one, nudged warmer or
-            // cooler per layer of the stack (so a bed keeps its colour each time the stack repeats), with a slight
-            // drift along the rim. Pulled towards the ground's own grey, so a green or snowy top does not tint rock.
-            float pick = math.frac(math.sin(layer * 7.13f + seed * 3.1f) * 43758.5453f);
-            float drift = 0.5f + 0.5f * noise.snoise(new float2(at.S / 70f, seed + 3f + layer));
-            float lum = Lum(groundTone);
-            var rockBase = math.lerp(groundTone, new float3(lum, lum, lum) * new float3(1.04f, 1f, 0.94f), 0.35f);
-            float bright = math.lerp(0.86f, 1.14f, math.smoothstep(0.3f, 0.7f, hard)) * (0.94f + 0.12f * drift);
-            var tint = 1f + 0.07f * (pick - 0.5f) * new float3(1f, 0.1f, -1f);
-            var tone = rockBase * bright * tint;
+            var b = Bed(ref sc, at, cracks, y, rimTone, foot.Albedo);
+            float bed = b.Bed, hard = b.Hard;
+            var rimEarth = b.RimEarth;
+            var groundTone = b.Ground;
+            var tone = b.Tone;
             // The face reads as the rock of this ground, with the terrain's own steep-ground shading under it.
             var albedo = math.lerp(surface.Albedo, tone, earth ? 0.85f : 0.75f);
 
@@ -100,7 +124,7 @@ namespace Punchy.Terrain
             float toe = lie * (1f - math.smoothstep(0.5f * climb, climb, up + ragToe));
             // Scree: rubble fans spilling down the toe from the wall here and there, in the earth of the slope below,
             // thickest near the wall and thinning out downhill in ragged tongues.
-            float tongue = noise.snoise(new float2(at.S / 9f, seed + 97f)) + 0.3f * noise.snoise(new float2(at.S / 2f, up / 1.5f + seed + 99f));
+            float tongue = ScarpLife.Fan(ref sc, at.S) + 0.3f * noise.snoise(new float2(at.S / 2f, up / 1.5f + seed + 99f));
             float scree = toe * math.saturate(2f * tongue + 0.8f * up / climb - 0.4f) * (earth ? 0.5f : 1f);
 
             // Ledge tops hold soil and grass.
@@ -115,7 +139,7 @@ namespace Punchy.Terrain
             // is the foot's ground all the way down to it.
             var result = SurfaceProps.Lerp(surface, painted, fade);
             var ground = foot;
-            ground.Albedo = math.lerp(foot.Albedo, math.lerp(rockBase, footEarth, 0.5f) * (0.9f + 0.15f * pick), 0.8f * scree);
+            ground.Albedo = math.lerp(foot.Albedo, Scree(b), 0.8f * scree);
             ground.Grass = foot.Grass * (1f - scree);
             ground.Pebbles = math.max(foot.Pebbles, scree);
             ground.Strata = 0f;
