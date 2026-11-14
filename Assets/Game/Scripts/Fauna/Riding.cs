@@ -29,7 +29,10 @@ namespace Punchy.Fauna
         /// <summary>A village child on a grown-up's shoulders on the walk home (row 2): down near the door.</summary>
         WalkHome,
         /// <summary>A small pet on a bigger tame animal's back for a while (row 2).</summary>
-        Pet
+        Pet,
+        /// <summary>A-117: a traveller on a stable horse along the roads: down where the horse's road ends (Home), and
+        /// on along the road on foot if it has to get down sooner (RideSystem).</summary>
+        Travel
     }
 
     /// <summary>Why a rider got down (A-104 row 2; RideLog).</summary>
@@ -145,6 +148,16 @@ namespace Punchy.Fauna
         public const float MassRatio = 1.5f;
         /// <summary>CreatureState.Holder of a rider whose mount has no ghost id (solo, or before the first snapshot).</summary>
         public const int SoloMount = int.MinValue + 1;
+
+        /// <summary>A-117: how far a led or ridden horse (or the one leading it) keeps from walls, by its body: a horse
+        /// at least 0.55 m, folk 0.3 m (CreatureBrainSystem.LeadOn, and FaunaDirector's clearance check).</summary>
+        public static float LeadRadius(ref CreatureBlob b, float scale) =>
+            math.max(b.FrontRadius * scale, b.Upright ? 0.3f : 0.55f);
+
+        /// <summary>A-117: where a four-legged body's hindquarters are (its rump circle, radius LeadRadius too), behind its
+        /// middle along its yaw; folk stand on one spot, so for them it's the spot itself.</summary>
+        public static float2 LeadRear(ref CreatureBlob b, float scale, float2 at, float yaw) =>
+            b.Upright ? at : at - new float2(math.sin(yaw), math.cos(yaw)) * b.BodyLength * scale * 0.4f;
 
         /// <summary>Whether this rider may ride this mount, and if not why.</summary>
         public static RideRefusal Check(ref CreatureBlob rider, in CreatureState r, ref CreatureBlob mount, in CreatureState m)
@@ -335,6 +348,27 @@ namespace Punchy.Fauna
             r.Holder = 0;
         }
 
+        /// <summary>
+        /// A-117: a traveller just down from its horse (Down has put it on its feet). At the road's end (Home) it's a
+        /// visitor in the town there, its streets its home for a while (as the brain's Arrived); got down sooner (the
+        /// horse shied, swam, lay down), it walks on along the stretch the horse was on, or idles there if there's none.
+        /// </summary>
+        public static void Afoot(ref CreatureState r, in CreatureState m, RideOff why)
+        {
+            if (why != RideOff.Home && m.Task == CreatureTask.Travel && m.Stage == 0)
+            {
+                r.Task = CreatureTask.Travel;
+                r.Mode = CreatureMode.Work;
+                r.TargetHeight = m.TargetHeight;
+                r.AnchorSide = m.AnchorSide;
+                r.Leash = 0f;
+                return;
+            }
+            r.Task = CreatureTask.None;
+            r.Home = r.Position.xz;
+            r.Leash = 30f;
+        }
+
         /// <summary>How wide a body is from its middle (m): its broader end's radius.</summary>
         public static float Radius(ref CreatureBlob b, float scale) => math.max(b.RearRadius, b.FrontRadius) * scale;
 
@@ -439,6 +473,9 @@ namespace Punchy.Fauna
             var g = terrain.SampleGround(m.Position.xz);
             if (g.HasWater && g.WaterSurface - g.Height > 0.45f * mb.StandHeight * m.Scale)
                 return RideOff.Swim;
+            // (A-117: a traveller's ride ends where the horse's road does: it has stopped travelling.)
+            if (ride.Kind == RideKind.Travel && m.Task != CreatureTask.Travel && m.Mode != CreatureMode.Puppet)
+                return RideOff.Home;
             // (A child's ride home ends if the grown-up turns aside: stops to talk, goes to work. A puppet is held where it is.)
             return ride.Kind == RideKind.WalkHome && m.Mode != CreatureMode.Home && m.Mode != CreatureMode.Puppet ? RideOff.Home : RideOff.None;
         }
@@ -518,6 +555,8 @@ namespace Punchy.Fauna
                 {
                     var was = s.Position;
                     Riding.Down(ref s, s.Position, Terrain);
+                    if (rider.Kind == RideKind.Travel)
+                        Riding.Afoot(ref s, default, RideOff.Death);
                     Off(self, RideOff.Death, rider.Kind, s, was, -1, s.Position.y - Terrain.FloorUnder(s.Position + new float3(0f, 0.5f, 0f), out _), 0f);
                     return;
                 }
@@ -534,6 +573,8 @@ namespace Punchy.Fauna
                 {
                     var at = Riding.Clear(ref body.Blob.Value, s, ref mBody.Blob.Value, m, Terrain, Flora, out var side);
                     Riding.Down(ref s, at, Terrain);
+                    if (rider.Kind == RideKind.Travel)
+                        Riding.Afoot(ref s, m, why);
                     var room = Riding.Room(ref body.Blob.Value, s, ref mBody.Blob.Value, m);
                     var floor = s.Position.y - Terrain.FloorUnder(s.Position + new float3(0f, 0.5f, 0f), out _);
                     Off(self, why, rider.Kind, s, m.Position, side, floor, room);

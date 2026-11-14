@@ -389,6 +389,7 @@ namespace Punchy.Fauna
                         });
                     }
                 }
+                SpawnStableHorses(source, i);   // (A-117: after the residents, so none of their draws move)
                 if (jobCounts.Count > 0 || stayFree > 0)
                 {
                     var line = new System.Text.StringBuilder();
