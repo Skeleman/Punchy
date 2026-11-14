@@ -6,7 +6,7 @@ Worktree D:/Unity/Punchy-world. Read the card and REPORTS-world.md's newest entr
 
 - `world/waterfall-sheets` 54fcdf64: R-21 row 4 (one fall builder). Look accepted; merges after BENCH job 74.
 - `water/truth` a8fe44e5: W-153 rows 1, 1b, 2 (water truth probe; still water last). Suite 41/41.
-- `world/scarps` 4b38a42c: W-155 rows 1 and 1b (two test scarps, ground cut and rock skin, varied ledges; shared hooks in 11b2753a). Suite 40/40. Row 1b shots wait on Zach's look.
+- `world/scarps` 19012b1f: W-155 row 2 part 1 plus the colour-border fix (toe takes the foot ground; NaN 0, suite 40/40); rows 1 and 1b (two test scarps, ground cut and rock skin, varied ledges; shared hooks in 11b2753a). Suite 40/40. Row 1b shots wait on Zach's look.
 
 ## Pins
 

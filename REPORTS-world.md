@@ -6966,6 +6966,15 @@ half3 PunchySurfaceFinish(half3 color, PunchySurface s, half reach);            
 - **Risk:** the foam at the foot is subtle on the pale snow rock. The wet band is easiest to see on darker rock. Adding the include to TerrainSurface set off a long shader variant compile (about 2 min, 43 compiler processes) on first load. Not timed (rule 21).
 - **Next:** R-22 row 0 (#298, world/far-view).
 
+## 2026-11-14 W-155 row 2 colour-border fix done (#281)
+
+- **What changed:** the cliff colour no longer spreads onto the ground past the foot as a rounded border. The toe, where the face lies back into the slope, now takes the foot ground's own surface (read 2.5 m past the foot), so a meadow stays green right up to the wall. How far up the toe the ground reaches wanders along the rim and its edge is broken by noise, not a height or radius. Scree fans stay, in the slope's earth. The flute blue is left alone (render's).
+- **Files:** Scarps/ScarpPaint.cs, Scarps/ScarpSkinJob.cs (foot tone is now the full ground surface).
+- **Shots:** before beside after from the foot, at 30 m and at 100 m on the canyon and the river cut: D:/Unity/PunchyMilestones/W-155/row2-border-before-after.png, singles row2-border-{before,after}-{cfoot,c30,c100,rfoot,r30,r100}.png. No border in any after view.
+- **Checks:** SparkleProbe NaN 0 (w155border). PlayMode suite 40/40. Pins unchanged (landmarks 117 689D5348, fauna 6A9E28E5): no placement change.
+- **Branch:** world/scarps 19012b1f.
+- **Next:** row 2 part 2 (debris, rim mask, life on ledges, DESIGN-cliffs checks). Row 4b noted, after row 4.
+
 ## 2026-11-14 W-155 row 2 part 1 done: face colour, turf, scree, river bank (#281)
 
 - Branch world/scarps b45c79a5 (on 4b38a42c). Suite 40/40, pins unchanged (landmarks 117 689D5348). SparkleProbe at the canyon face: 0 bad pixels over 240 frames.
