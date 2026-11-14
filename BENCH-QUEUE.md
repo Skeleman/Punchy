@@ -740,3 +740,12 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
 - Record: whole-frame GPU and main-thread ms per arm, view and preset; with `-lightlog`, one `[lights]` line per view.
 - Pass (rule 23, card row 3): B at most +0.5 ms GPU over A at the town view, Medium. C - B is item 6's saving; if
   it saves nothing, item 6 is dropped alone.
+
+## Job 77 (2026-11-14, QUEUED after 76; supervisor, for W-155 row 1, cliffs baseline): scarp bake and canyon chunks
+- Main 697e565f (A) vs `world/scarps` feab6870 (B). Profile builds, 1920x1080, Medium, uncapped, noon, Clear,
+  `-weatherseed 4`, ABBA, 3 rounds.
+- Bake: delete the island cache before each run; record the `[scarps]` bake line and total island bake time, A vs B.
+- Canyon chunks: chunk build time for the chunks inside x -1664..-1472, z 1664..1856 (walk in or teleport from 1 km
+  so they build fresh), A vs B; then 300 frames looking along the canyon from its rim: GPU and main-thread ms.
+- Pass: Zach wants a baseline that real cliffs are feasible, not a gate. Report the numbers; flag anything over
+  +0.3 ms per frame or a bake over 250 ms.
