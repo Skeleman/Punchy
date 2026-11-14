@@ -286,3 +286,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-14: Zach: big cliffs much better, river banks excellent; fine vertical striping on big faces reads as uniform noise. W-155 row 2b (find the source, then vary it), sent to world.
 - 11-14: Zach: small rocks float where scarps carved the river bank away (scatter reads the pre-carve height). Added to W-155 row 2b, sent to world.
 - 11-14: Zach: big cliff base still has a clear line round its rounded toe (blend much better otherwise). W-155 row 2b, sent to world.
+- 11-14: Zach: cobble grout adds grass in snow/desert; grout must come from the ground it replaces. R-28 row 1, sent to render.
