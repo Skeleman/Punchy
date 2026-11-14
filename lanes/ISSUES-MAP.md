@@ -95,3 +95,4 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #334 | world | W-164 gardens level on slopes |
 | #335 | world (folk follow-up) | W-165 farm fields and biome crops |
 | #336 | world | W-166 material library: every kit piece states its material, one include per family |
+| #337 | world | W-167 towers sized for a stair and usable rooms |

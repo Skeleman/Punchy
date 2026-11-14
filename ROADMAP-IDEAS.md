@@ -101,3 +101,4 @@ Foliage realism (Zach 11-14): crowns as leaf clusters (cut-out cards, layering, 
 - 11-14 (Zach): explore a reference cumulus shader for cheaper or better clouds: R-35, #333.
 - 11-14 (Zach): farm fields outside towns, crops for every biome, e.g. snow potatoes, agave-like ferns (W-165, #335).
 - 11-14 (Zach): one material library: every built piece states what it is made of, families share look rules, kinds vary colour (W-166, #336).
+- 11-14 (Zach): towers sized so a stair and rooms could fit, storeys readable from outside (W-167, #337).

@@ -319,3 +319,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-14: Zach saw a crop plot sinking into a mountainside in the folk test: W-164 (#334), world queue 3b2. World also owes R-21 foot-box + W-153 paddies fixes.
 - 11-14: Zach: farm fields outside towns with biome crops: W-165 (#335), world 3b3 after W-164; folk work card follows its row 3.
 - 11-14: Zach asked for material homogeneity across built pieces: W-166 (#336), world; row 1 audit after W-164; W-163 row 1 folds into row 2. Fauna's A-117 row 2 host+client run passed, port 7979 is free. Checklist has a shadow-flicker line.
+- 11-14: Zach: towers too small for a stair or rooms: W-167 (#337), world; audit after W-166 row 1.

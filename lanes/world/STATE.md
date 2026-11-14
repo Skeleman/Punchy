@@ -21,6 +21,7 @@ Worktree D:/Unity/Punchy-world. Read the card and REPORTS-world.md's newest entr
 3b. W-157 (Zach 11-14: taller hanging lanterns, stone lantern columns).
 3b2. W-164 (Zach 11-14: gardens and crop plots sit level on slopes, no sinking; small; #334).
 3b2a. W-166 row 1 (Zach 11-14: material library audit, no code; rows 2-4 after W-165 row 1 and take in W-163 row 1; #336).
+3b2b. W-167 row 1 (Zach 11-14: towers sized for a stair and usable rooms; audit after W-166 row 1; row 2 after W-165 row 1; #337).
 3b3. W-165 (Zach 11-14: farm fields outside towns, crops for each biome; after W-164; #335).
 3c. W-159 (Zach 11-14: river flow streaks become normal and vertex ripples, no white overlay; small, may go before 4b).
 3c2. W-160 (Zach 11-14: shorelines wander: noise lift and lapping on water vertices, ragged shore fade; after W-159).
