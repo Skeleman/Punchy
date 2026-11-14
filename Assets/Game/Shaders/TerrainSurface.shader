@@ -547,11 +547,17 @@ Shader "Punchy/Terrain Surface"
                 albedo = lerp(albedo, half3(0.78, 0.86, 0.93), PunchyChemSoft(chem.a, p) * 0.75);
                 albedo *= lerp(1, 0.6, saturate(chemWet * 2.5));
                 albedo = lerp(albedo, lerp(half3(0.62, 0.78, 0.88), half3(0.88, 0.94, 0.98), PunchyChemNoise(p * 0.35) * 0.6 + chemIceRim * 0.4), chemIce);
+                // Spell chemistry: lava, the rock it sets into, mud, a slick, sand, new growth and thorns (no change with no bridge).
+                half4 chem4 = PunchyChem4At(p);
+                half chemGloss, chemLava;
+                albedo = PunchyChemGroundAlbedo(albedo, PunchyChem3At(p), chem4, p, chemGloss, chemLava);
                 surface.albedo = lerp(albedo, albedo * 0.6, puddle);
                 surface.smoothness = lerp(lerp(lerp(input.surface.a, max(input.surface.a, 0.45), max(sheen, saturate(chemWet * 2.5))), 0.92, puddle), 0.8, chemIce);
+                surface.smoothness = max(surface.smoothness, chemGloss);   // Spell chemistry (0 with no bridge)
                 surface.metallic = input.extra.x;
                 surface.occlusion = 1;
-                surface.emission = input.emission * _EmissionScale + PunchyChemFireGlow(chem.r, p, _PunchyClock) * 0.6;
+                surface.emission = input.emission * _EmissionScale + PunchyChemFireGlow(chem.r, p, _PunchyClock) * 0.6
+                                 + PunchyChemLavaGlow(chemLava, chem4.a, p, _PunchyClock);   // Spell chemistry
                 surface.alpha = 1;
 
                 half4 color = UniversalFragmentPBR(inputData, surface);

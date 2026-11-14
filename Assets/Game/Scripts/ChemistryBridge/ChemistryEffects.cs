@@ -16,7 +16,7 @@ namespace Punchy.Chemistry
     /// night). The bridge hands it the cell lists after
     /// each tick; it adds the flames every frame and emits a capped number of puffs a frame. Cosmetic and local only.
     /// </summary>
-    public sealed class ChemistryEffects
+    public sealed partial class ChemistryEffects
     {
         /// <summary>A cell that shows something: its window index and how strong (fire level, gas amount).</summary>
         public struct Spot
@@ -39,7 +39,8 @@ namespace Punchy.Chemistry
         bool madePuffs;
 
         /// <summary>Puffs alive now (steam and smoke).</summary>
-        public int PuffCount => (steamPuffs != null ? steamPuffs.particleCount : 0) + (smokePuffs != null ? smokePuffs.particleCount : 0);
+        public int PuffCount => (steamPuffs != null ? steamPuffs.particleCount : 0) + (smokePuffs != null ? smokePuffs.particleCount : 0)
+                              + (softPuffs != null ? softPuffs.particleCount : 0) + (rain != null ? rain.particleCount : 0) + (veils != null ? veils.particleCount : 0);
 
         public void Dispose()
         {
@@ -49,6 +50,7 @@ namespace Punchy.Chemistry
                 Object.Destroy(smokePuffs.gameObject);
             steamPuffs = smokePuffs = null;
             madePuffs = false;
+            DisposeSpells();
         }
 
         /// <summary>Adds this frame's flames and emits this frame's puffs. heights: the ground (or water) at each cell.</summary>

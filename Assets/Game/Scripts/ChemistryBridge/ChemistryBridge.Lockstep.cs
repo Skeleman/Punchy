@@ -201,6 +201,7 @@ namespace Punchy.Chemistry
                 castsLanded++;
                 var (layer, y) = ChunkKey.OfRow(c.Y);
                 Debug.Log($"[Chemistry] lockstep: tick {batch.Tick}: {c.By} cast {c.Spell} (charge {c.Charge}) at cell ({c.X}, {y}) in layer {layer}{SinceTeleport(c.By)}");
+                SpellLanded(c);
             }
             if (batch.Tick % SumEvery == 0)
             {

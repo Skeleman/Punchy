@@ -21,6 +21,11 @@ namespace Punchy.Chemistry
     /// - <c>goto x,z</c>: a teleport there, onto the ground; <c>hop dx,dz</c>: a teleport that far from here; <c>back</c>:
     ///   to where the last goto or hop left from, exactly (into a cave again);
     /// - <c>walk dx,dz,s</c>: walks that far in s seconds (on the ground, the player carried), then back the same way;
+    /// - <c>all</c>: every spell the bridge casts, in turn, 1.5 s apart, round the player (ChemistryBridge.Spells.cs);
+    /// - <c>big</c>: the big scene: grease and water over a meadow 20 m north, a fog, then a Meteor into it;
+    /// - <c>measure s</c>: logs the frame times over the next s seconds;
+    /// - <c>castat spell dx,dz[,charge]</c>: a spell from the player at a point that far away;
+    /// - <c>face dx,dz</c>: turns the camera that way;
     /// - <c>quit</c>: ends the process.
     /// Only the local player moves (Punchy's movement is client-authoritative), so on a client it's the client's own.
     /// </summary>
@@ -111,6 +116,28 @@ namespace Punchy.Chemistry
                         walkFor = math.max(1f, w[2]);
                         walkSince = Time.unscaledTime;
                     }
+                    break;
+                case "all":
+                    done = QueueAll(player);
+                    break;
+                case "big":
+                    done = QueueBig(player);
+                    break;
+                case "measure":
+                    var secs = Floats(words.Length > 1 ? words[1] : "");
+                    StartMeasure(secs.Length > 0 ? secs[0] : 10f);
+                    break;
+                case "castat":
+                    // castat spell dx,dz[,charge]: a spell from the player at a point that far away.
+                    var off = Floats(words.Length > 2 ? words[2] : "");
+                    done = Ready && words.Length > 2 && off.Length >= 2
+                        && CastFrom(words[1], player, player + new float3(off[0], 0f, off[1]), off.Length > 2 ? (int)off[2] : 1);
+                    break;
+                case "face":
+                    // face dx,dz: turns the camera that way (for the clip's shots).
+                    var f = Floats(words.Length > 1 ? words[1] : "");
+                    if (f.Length >= 2)
+                        Face(new float2(f[0], f[1]));
                     break;
                 case "quit":
                     Debug.Log("[Chemistry] script: quit");

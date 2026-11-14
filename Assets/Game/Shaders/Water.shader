@@ -1083,6 +1083,24 @@ Shader "Punchy/Water"
                     color = lerp(color, iceColor, ice * (1 - 0.25 * iceRim));
                     alpha = lerp(alpha, 1, ice * (1 - 0.35 * iceRim));
                 }
+                // Spell chemistry: rock that lava set into on the water (dark basalt), vines across it, a slick of grease or
+                // oil (an amber film with a sheen) and a blue-white flicker where lightning runs through it (skipped with no
+                // bridge: the overlay reads 0).
+                half4 chemW3 = PunchyChem3At(p), chemW4 = PunchyChem4At(p);
+                [branch] if (chemW3.a + chemW3.b + chemW4.r + chemW4.a > 0.004)
+                {
+                    half3 chemLit = ambient + light.color * shadow * saturate(light.direction.y) * 0.9;
+                    half crustW = PunchyChemSoft(chemW3.a, p);
+                    float crustCracks = abs(PunchyValueNoise(p * 1.3) - 0.5) + abs(PunchyValueNoise(p * 3.1 + 5.7) - 0.5) * 0.5;
+                    color = lerp(color, half3(0.07, 0.065, 0.065) * lerp(0.6, 1.1, smoothstep(0.0, 0.08, crustCracks)) * chemLit, crustW);
+                    half vinesW = PunchyChemSoft(chemW4.r, p) * 0.9;
+                    color = lerp(color, half3(0.12, 0.28, 0.07) * (0.75 + 0.5 * PunchyValueNoise(p * 2.2)) * chemLit, vinesW);
+                    alpha = lerp(alpha, 1, max(crustW, vinesW));
+                    half slickW = PunchyChemSoft(chemW3.b, p) * 0.7;
+                    half3 chemSheen = 0.5 + 0.5 * cos(6.2832 * (PunchyValueNoise(p * 0.9) * 1.5 + half3(0.0, 0.33, 0.67)));
+                    color = lerp(color, color * half3(0.6, 0.5, 0.25) + chemSheen * 0.08, slickW);
+                    color += half3(1.2, 1.7, 3.0) * chemW4.a * (0.6 + 0.4 * sin(_PunchyClock * 47.0 + p.x * 3.1 + p.y * 2.3));
+                }
 
                 alpha *= rim;
 

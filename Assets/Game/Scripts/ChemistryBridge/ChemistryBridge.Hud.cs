@@ -110,6 +110,9 @@ namespace Punchy.Chemistry
             if (radialOpen)
                 DrawRadial();
             GUI.color = keep;
+            var keyName = KeySpellShown;
+            if (keyName != null)
+                Text(new Rect(cx - 160f, cy - 70f, 320f, 24f), $"M: {keyName}", label, shadow);
         }
 
         bool HandsBusy(PlayerHands h)
@@ -172,31 +175,53 @@ namespace Punchy.Chemistry
             Prompts.Draw(new Rect(at.x - 60f, at.y - ring - 30f, 120f, 22f), HandButtons[hand], small, true, smallShadow);
         }
 
+        // The spell radial (the core's SpellRadial): the groups round the centre in their colours, the highlighted
+        // group's spells out round it as an arc, and the spell (or group) pointed at in the middle.
         void DrawRadial()
         {
-            var elements = rules.Combos.Elements;
+            var radial = Radial();
+            var groups = radial.Layout.Groups;
             float cx = Screen.width * 0.5f, cy = Screen.height * 0.5f;
-            const float reach = 92f, r = 28f;
+            const float reach = 96f, r = 26f, arcReach = 190f, sr = 17f;
             GUI.color = new Color(0f, 0f, 0f, 0.35f);
             GUI.DrawTexture(new Rect(cx - reach - r - 14f, cy - reach - r - 14f, (reach + r + 14f) * 2f, (reach + r + 14f) * 2f), disc);
-            int hand = RadialHand();
-            for (int i = 0; i < elements.Count; i++)
+            for (int i = 0; i < groups.Count; i++)
             {
-                float a = i / (float)elements.Count * Mathf.PI * 2f;
+                float a = (float)RadialGeometry.WedgeCentre(i, groups.Count) * Mathf.Deg2Rad;
                 var p = new Vector2(cx + Mathf.Sin(a) * reach, cy - Mathf.Cos(a) * reach);
-                bool picked = i == radialPick;
+                bool picked = i == radial.Element;
                 float s = picked ? r * 1.3f : r;
                 GUI.color = picked ? Color.white : new Color(1f, 1f, 1f, 0.5f);
                 GUI.DrawTexture(new Rect(p.x - s - 4f, p.y - s - 4f, (s + 4f) * 2f, (s + 4f) * 2f), disc);
-                GUI.color = ColourOf(elements[i]);
+                GUI.color = GroupColour(groups[i].Color);
                 GUI.DrawTexture(new Rect(p.x - s, p.y - s, s * 2f, s * 2f), disc);
                 GUI.color = Color.white;
-                Text(new Rect(p.x - 50f, p.y - 10f, 100f, 20f), elements[i], label, shadow);
+                Text(new Rect(p.x - 60f, p.y - 10f, 120f, 20f), groups[i].Name, small, smallShadow);
+            }
+            if (radial.State == RadialState.Spells && radial.Element >= 0)
+            {
+                var g = groups[radial.Element];
+                for (int k = 0; k < g.SpellIds.Count; k++)
+                {
+                    float a = (float)RadialGeometry.SlotCentre(radial.Element, groups.Count, k, g.SpellIds.Count, radial.Tuning) * Mathf.Deg2Rad;
+                    var p = new Vector2(cx + Mathf.Sin(a) * arcReach, cy - Mathf.Cos(a) * arcReach);
+                    bool picked = k == radial.Spell;
+                    float s = picked ? sr * 1.35f : sr;
+                    GUI.color = new Color(0f, 0f, 0f, picked ? 0.6f : 0.4f);
+                    GUI.DrawTexture(new Rect(p.x - s - 3f, p.y - s - 3f, (s + 3f) * 2f, (s + 3f) * 2f), disc);
+                    GUI.color = Faded(GroupColour(g.Color), picked ? 1f : 0.75f);
+                    GUI.DrawTexture(new Rect(p.x - s, p.y - s, s * 2f, s * 2f), disc);
+                    GUI.color = picked ? Color.white : new Color(1f, 1f, 1f, 0.8f);
+                    Text(new Rect(p.x - 70f, p.y + s + 1f, 140f, 18f), rules.Spell(g.SpellIds[k])?.Name ?? g.SpellIds[k], small, smallShadow);
+                }
             }
             GUI.color = Color.white;
-            Text(new Rect(cx - 90f, cy - 20f, 180f, 20f), $"attune the {Side(hand)} hand", small, smallShadow);
-            Prompts.Draw(new Rect(cx - 90f, cy + 2f, 180f, 20f), $"{InputGlyphs.Token("<Gamepad>/rightTrigger")} right hand", small, true, smallShadow);
+            var shown = radial.HighlightedSpell ?? (radial.Element >= 0 ? radial.RememberedSpell(radial.Element) : null);
+            Text(new Rect(cx - 90f, cy - 22f, 180f, 22f), shown != null ? rules.Spell(shown)?.Name ?? shown : "pick a group", label, shadow);
+            Prompts.Draw(new Rect(cx - 110f, cy + 2f, 220f, 20f), $"hold {InputGlyphs.Token("<Gamepad>/leftTrigger")} or {InputGlyphs.Token("<Gamepad>/rightTrigger")}: attune", small, true, smallShadow);
         }
+
+        static Color GroupColour(string hex) => ColorUtility.TryParseHtmlString(hex, out var c) ? c : Empty;
 
         static Color Faded(Color c, float alpha) => new Color(c.r, c.g, c.b, c.a * alpha);
 

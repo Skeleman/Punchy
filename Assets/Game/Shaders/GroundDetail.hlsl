@@ -103,6 +103,11 @@ void BuildBladeVertex(Blade blade, uint instance, uint vertex, out float3 positi
     // Spell chemistry (ChemistryOverlay.hlsl): burnt grass is short stubble and burning grass shrivels (x 1 with no bridge).
     half4 chem = PunchyChemAt(blade.position.xz);
     height *= 1 - 0.85 * max(PunchyChemSoft(chem.g, blade.position.xz), chem.r * 0.5);
+    // Spell chemistry: lava and the rock it leaves take the blades, mud and sand flatten them, a slick mats them down,
+    // thorns bristle tall and new growth stands lush (x 1 with no bridge).
+    half4 chem3 = PunchyChem3At(blade.position.xz), chem4 = PunchyChem4At(blade.position.xz);
+    height *= 1 - max(max(PunchyChemSoft(max(chem3.r, chem3.a), blade.position.xz), 0.85 * PunchyChemSoft(max(chem3.g, chem4.b), blade.position.xz)), 0.45 * PunchyChemSoft(chem3.b, blade.position.xz));
+    height *= 1 + 0.7 * PunchyChemSoft(chem4.g, blade.position.xz) + 0.35 * PunchyChemSoft(chem4.r, blade.position.xz);
     // Thinned-out blades grow wider so distant grass keeps its coverage.
     float width = blade.width * BladeWidth[row] * BladeSide[vertex] * min(rsqrt(keep), 2.5);
 

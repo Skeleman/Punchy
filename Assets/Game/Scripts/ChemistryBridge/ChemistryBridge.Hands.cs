@@ -15,8 +15,9 @@ namespace Punchy.Chemistry
     /// and its release sets the hand off at the charge it reached (a tap is charge 1); both hands making the same gesture
     /// merge into their pair's spell (fire + water: Scalding Steam). What the core sets off is aimed at the ground under the
     /// screen centre, pulled back to the gesture's range, and cast like the keys' spells. Holding d-pad up
-    /// opens an element radial: the right stick picks, and letting go attunes the hand whose trigger is held (else the
-    /// left; one element attuned is on both hands). The pad rumbles as a hand charges, at each level and as it goes off.
+    /// opens the spell radial (the core's SpellRadial, ChemistryBridge.Spells.cs): the right stick picks a group (the top
+    /// ring), then rests or pushes out to its spells; letting go casts the spell picked, or with a trigger held attunes
+    /// that hand to the group's element (one element attuned is on both hands). The pad rumbles as a hand charges, at each level and as it goes off.
     /// The actions are the bridge's own map, so Punchy's InputSystem_Actions is untouched. Every hand command is a request on
     /// the session's combos channel (ChemistryBridge.Lockstep.cs): the hands' state is the shared world's, so it lands on
     /// the same tick on every peer, and only this peer aims what its own wizard (Me) sets off.
@@ -25,7 +26,6 @@ namespace Punchy.Chemistry
     {
         // How long d-pad up is held before the radial opens (shorter is a tap: Punchy's wave).
         public const float RadialHold = 0.25f;
-        const float StickPick = 0.5f;
 
         InputActionMap padMap;
         InputAction thrustLeft, throwLeft, thrustRight, throwRight, attune, pick;
@@ -35,7 +35,6 @@ namespace Punchy.Chemistry
 
         float attuneDownAt = -1f;
         bool radialOpen;
-        int radialPick = -1;
 
         // The rumble: a hum while a hand charges, a pulse at each level, a thump as a hand goes off.
         int rumbleLevel;
@@ -150,48 +149,43 @@ namespace Punchy.Chemistry
 
         // ------------------------------------------------------------------------------------------------ attuning
 
+        // The spell radial on d-pad up (held past RadialHold; a tap is Punchy's wave), run by the core's SpellRadial.
         void Radial(bool off)
         {
+            var radial = Radial();
             if (off)
             {
                 attuneDownAt = -1f;
+                if (radialOpen)
+                    radial.Feed(RadialInput.Stick(0, 0, true, Time.unscaledTime, cancel: true));
                 radialOpen = false;
                 return;
             }
             if (attune.WasPressedThisFrame())
-            {
                 attuneDownAt = Time.unscaledTime;
-                radialPick = -1;
-            }
             if (attuneDownAt < 0f)
                 return;
-            if (!radialOpen && attune.IsPressed() && Time.unscaledTime - attuneDownAt >= RadialHold)
+            bool held = attune.IsPressed();
+            if (!radialOpen && held && Time.unscaledTime - attuneDownAt >= RadialHold)
                 radialOpen = true;
             if (radialOpen)
             {
                 var stick = pick.ReadValue<Vector2>();
-                if (stick.magnitude > StickPick)
-                    radialPick = PickOf(stick, rules.Combos.Elements.Count);
-            }
-            if (attune.IsPressed())
+                var result = radial.Feed(RadialInput.Stick(stick.x, stick.y, held, Time.unscaledTime));
+                if (result.Outcome == RadialOutcome.Selected && result.SpellId != null)
+                    PickedFromRadial(result.SpellId);
+                if (!radial.IsOpen || !held)
+                {
+                    if (radial.IsOpen)
+                        radial.Feed(RadialInput.Stick(0, 0, true, Time.unscaledTime, cancel: true));
+                    radialOpen = false;
+                    attuneDownAt = -1f;
+                }
                 return;
-            if (radialOpen && radialPick >= 0)
-                AttuneTo(RadialHand(), rules.Combos.Elements[radialPick]);
-            attuneDownAt = -1f;
-            radialOpen = false;
+            }
+            if (!held)
+                attuneDownAt = -1f;
         }
-
-        // The radial's elements go round clockwise from the top.
-        static int PickOf(Vector2 stick, int count)
-        {
-            var angle = Mathf.Atan2(stick.x, stick.y) * Mathf.Rad2Deg;
-            if (angle < 0f)
-                angle += 360f;
-            return Mathf.RoundToInt(angle / (360f / count)) % count;
-        }
-
-        /// <summary>The hand the radial attunes: the one whose trigger is held, else the left.</summary>
-        int RadialHand() => thrustRight.IsPressed() && !thrustLeft.IsPressed() ? HandsDef.Right : HandsDef.Left;
 
         /// <summary>Attunes a hand to an element (it takes the rules' short moment); null if it went in, else why not.</summary>
         public string AttuneTo(int hand, string element)
@@ -244,43 +238,17 @@ namespace Punchy.Chemistry
         // is) and starts beside the caster; a burst from the caster is on the caster; anything else lands on the target.
         void CastHand(ComboFired fired, float3 from, float3 hit)
         {
-            var s = rules.Spell(fired.Spell);
-            if (s == null)
-                return;
-            int mx = (int)math.floor(from.x), my = (int)math.floor(from.z);
-            int hx = (int)math.floor(hit.x), hy = (int)math.floor(hit.z);
-            var (tx, ty) = HandsDef.Within(mx, my, hx, hy, fired.Range);
-            int aimX = 0, aimY = 0;
-            if (s.Shape == "line" || s.Shape == "cone")
-            {
-                var d = hit - from;
-                (aimX, aimY) = World.SnapAim((int)math.round(d.x * AimSteps), (int)math.round(d.z * AimSteps));
-            }
-            int? dir = aimX != 0 || aimY != 0 ? World.DirOf(aimX, aimY) : DirFrom(mx, my, tx, ty);
-            int x = tx, y = ty;
-            if (s.Origin == "self")
-            {
-                if (s.Shape == "burst")
-                    (x, y) = (mx, my);
-                else
-                {
-                    var (dx, dy) = Step(dir ?? 2);
-                    (x, y) = (mx + dx, my + dy);
-                }
-            }
-            if (!Filled(x, y, "hands: " + s.Name))
-                return;
             bool merged = fired.Name != null && rules.Sim.Hold.Hands.Find(fired.Spell).slot?.Contains('+') == true;
+            if (!CastAimed(fired.Spell, fired.Charge, fired.Range, from, hit, merged ? "hands: both hands" : "hands: a hand"))
+                return;
             if (merged)
                 (mergeFlashAt, mergeShown) = (Time.unscaledTime, fired.Spell);
-            session.Request(casts, new CastCommand(fired.Spell, x, ChunkKey.Row(viewLayer, y), dir ?? 2, fired.Charge, aimX, aimY, Me));
             LastHandSpell = fired.Spell;
             LastHandCharge = fired.Charge;
-            LastHandCell = new Vector2Int(x, y);
+            var (_, y) = ChunkKey.OfRow(lastCastRow);
+            LastHandCell = new Vector2Int(lastCastX, y);
             LastHandMerged = merged;
             HandCasts++;
-            Debug.Log($"[Chemistry] hands: {(merged ? "both hands" : "a hand")} cast {s.Name} (charge {fired.Charge}, range {fired.Range}) at cell ({x}, {y}) " +
-                      $"in layer {viewLayer}, ground {GroundName(x, y)}, aimed ({hx}, {hy}): asked for (tick {session.NetTick})");
         }
 
         // Fine steps per cell of an aim's vector (World.SnapAim's).

@@ -48,6 +48,12 @@ Shader "Punchy/Grass Blades"
                 // Spell chemistry: burnt stubble is charred black, frosted blades whiten (no change with no bridge).
                 half4 chem = PunchyChemAt(blade.position.xz);
                 o.color.rgb = lerp(lerp(o.color.rgb, half3(0.035, 0.03, 0.025), PunchyChemSoft(chem.g, blade.position.xz)), half3(0.8, 0.88, 0.95), PunchyChemSoft(chem.a, blade.position.xz) * 0.7);
+                // Spell chemistry: muddy, greased, bramble-dark (thorns) or lush (new growth) blades (no change with no bridge).
+                half4 chem3 = PunchyChem3At(blade.position.xz), chem4 = PunchyChem4At(blade.position.xz);
+                o.color.rgb = lerp(o.color.rgb, half3(0.1, 0.07, 0.04), PunchyChemSoft(chem3.g, blade.position.xz) * 0.8);
+                o.color.rgb = lerp(o.color.rgb, o.color.rgb * half3(0.6, 0.5, 0.22), PunchyChemSoft(chem3.b, blade.position.xz) * 0.8);
+                o.color.rgb = lerp(o.color.rgb, half3(0.17, 0.15, 0.05), PunchyChemSoft(chem4.g, blade.position.xz) * 0.85);
+                o.color.rgb = lerp(o.color.rgb, o.color.rgb * half3(0.75, 1.25, 0.6), PunchyChemSoft(chem4.r, blade.position.xz) * 0.8);
                 return o;
             }
 

@@ -50,6 +50,8 @@ namespace Punchy.Chemistry
 
         static readonly int MapId = Shader.PropertyToID("_PunchyChemMap");
         static readonly int Map2Id = Shader.PropertyToID("_PunchyChemMap2");
+        static readonly int Map3Id = Shader.PropertyToID("_PunchyChemMap3");
+        static readonly int Map4Id = Shader.PropertyToID("_PunchyChemMap4");
         static readonly int RectId = Shader.PropertyToID("_PunchyChemRect");
         static readonly int OnId = Shader.PropertyToID("_PunchyChemOn");
 
@@ -59,8 +61,8 @@ namespace Punchy.Chemistry
         int viewLayer;            // the layer the window shows (the player's)
         byte[] seeded = new byte[Size * Size];   // each window cell's ground kind (KindNone: not filled)
         readonly bool[] known = new bool[WindowChunks * WindowChunks];   // the window's chunks whose ground is in seeded
-        Texture2D map, map2;
-        Color32[] texels, texels2;
+        Texture2D map, map2, map3, map4;
+        Color32[] texels, texels2, texels3, texels4;
         float[] heights;          // the ground (or water surface, or cave floor) at each cell's centre, for the flames and puffs
         float[] baseHeights;      // as sampled, before any height edit
         readonly ChemistryEffects effects = new ChemistryEffects();
@@ -155,6 +157,10 @@ namespace Punchy.Chemistry
                 Destroy(map);
             if (map2 != null)
                 Destroy(map2);
+            if (map3 != null)
+                Destroy(map3);
+            if (map4 != null)
+                Destroy(map4);
             if (disc != null)
                 Destroy(disc);
         }
@@ -210,6 +216,7 @@ namespace Punchy.Chemistry
             var budget = Behind > CatchUpTicks ? CatchUpBudgetMs : TickBudgetMs;
             session.Update(Time.deltaTime, () => watch.Elapsed.TotalMilliseconds > budget);
             tickMsThisSecond += watch.Elapsed.TotalMilliseconds;
+            double frameMs = watch.Elapsed.TotalMilliseconds;
 
             if (seeding)
             {
@@ -232,8 +239,11 @@ namespace Punchy.Chemistry
             if (world != viewWorld)
                 NewView();
 
+            lastPlayer = player.Position;
             HandleInput(terrain);
+            SpellKeys(terrain);
             Hands(terrain, player.Position);
+            SpellQueue(player.Position);
             if (demo && !demoDone && demoAt == float.MaxValue && world.IsFilled(ChunkKey.OfCell(viewLayer, (int)math.floor(player.Position.x), (int)math.floor(player.Position.z))))
                 demoAt = Time.unscaledTime + DemoDelay;
             if (demo && !demoDone && Time.unscaledTime >= demoAt)
@@ -244,12 +254,15 @@ namespace Punchy.Chemistry
                 watch.Restart();
                 UpdateMap();
                 mapMsThisSecond += watch.Elapsed.TotalMilliseconds;
+                frameMs += watch.Elapsed.TotalMilliseconds;
                 shownTick = world.Tick;
             }
             PublishLand();
             watch.Restart();
             effects.Frame(corner, Size, heights, rules.Sim.Gas.MaxAmount, Camera.main);
+            effects.SpellsFrame(corner, Size, heights, rules.Sim.Gas.MaxAmount, Camera.main);
             fxMsThisSecond += watch.Elapsed.TotalMilliseconds;
+            MeasureBridge(frameMs + watch.Elapsed.TotalMilliseconds);
             framesThisSecond++;
             if (Time.unscaledTime >= nextReport)
                 Report();
@@ -296,6 +309,7 @@ namespace Punchy.Chemistry
             effects.Smoke.Clear();
             effects.Melted.Clear();
             effects.Doused.Clear();
+            NewSpellsView();
             System.Array.Copy(baseHeights, heights, heights.Length);
             System.Array.Fill(seeded, KindNone);
             System.Array.Clear(known, 0, known.Length);
@@ -304,6 +318,8 @@ namespace Punchy.Chemistry
             EnsureMap();
             System.Array.Clear(texels, 0, texels.Length);
             System.Array.Clear(texels2, 0, texels2.Length);
+            System.Array.Clear(texels3, 0, texels3.Length);
+            System.Array.Clear(texels4, 0, texels4.Length);
             Shader.SetGlobalVector(RectId, new Vector4(corner.x, corner.y, 1f / Size, 1f / Size));
             // (The overlay is the surface's: in a cave the surface above mustn't show the cave's fires.)
             Shader.SetGlobalFloat(OnId, viewLayer == SurfaceLayer ? 1f : 0f);
@@ -535,6 +551,31 @@ namespace Punchy.Chemistry
             };
             texels2 = new Color32[Size * Size];
             Shader.SetGlobalTexture(Map2Id, map2);
+            map3 = NewMap("ChemistryMap3");
+            texels3 = new Color32[Size * Size];
+            Shader.SetGlobalTexture(Map3Id, map3);
+            map4 = NewMap("ChemistryMap4");
+            texels4 = new Color32[Size * Size];
+            Shader.SetGlobalTexture(Map4Id, map4);
+        }
+
+        static Texture2D NewMap(string name) => new Texture2D(Size, Size, TextureFormat.RGBA32, false, true)
+        {
+            name = name,
+            filterMode = FilterMode.Bilinear,
+            wrapMode = TextureWrapMode.Clamp,
+        };
+
+        void UploadMaps()
+        {
+            map.SetPixels32(texels);
+            map.Apply(false);
+            map2.SetPixels32(texels2);
+            map2.Apply(false);
+            map3.SetPixels32(texels3);
+            map3.Apply(false);
+            map4.SetPixels32(texels4);
+            map4.Apply(false);
         }
 
         int burningCount, burntCount, iceCount, frostCount, landWaterCount;
@@ -553,6 +594,7 @@ namespace Punchy.Chemistry
             effects.Burning.Clear();
             effects.Steam.Clear();
             effects.Smoke.Clear();
+            StartSpellsMap();
             bool surface = viewLayer == SurfaceLayer;
             for (int by = 0; by < WindowChunks; by++)
                 for (int bx = 0; bx < WindowChunks; bx++)
@@ -590,7 +632,8 @@ namespace Punchy.Chemistry
                                 burning++;
                                 effects.Burning.Add(new ChemistryEffects.Spot { Index = i, Amount = c.Fire });
                             }
-                            if (seeded[i] == KindGrass && c.T != "grass")
+                            // (Grass that went to new growth, mud, sand, lava or rock shows as that, not as burnt.)
+                            if (seeded[i] == KindGrass && c.T != "grass" && !NotBurnt(c, seeded[i]))
                             {
                                 g = 255;
                                 if (c.Fire <= 0)
@@ -629,6 +672,8 @@ namespace Punchy.Chemistry
                                     effects.Smoke.Add(new ChemistryEffects.Spot { Index = i, Amount = c.GasAmt });
                                 }
                             }
+                            // The cells-only spells' looks and lists (ChemistryBridge.Spells.cs); embers glow faintly.
+                            SpellsCell(c, i, steam, ref r);
                             texels[i] = new Color32(r, g, bl, a);
                             texels2[i] = new Color32(wr, wg, wb, 0);
 
@@ -653,15 +698,13 @@ namespace Punchy.Chemistry
                             }
                             if (wasSteam && !steam && c.Water > lastWater[i])
                                 condensed++;   // cold-steam
-                            lastState[i] = (byte)((c.Frozen ? 1 : 0) | (c.Fire > 0 ? 2 : 0) | (steam ? 4 : 0));
+                            lastState[i] = (byte)((c.Frozen ? 1 : 0) | (c.Fire > 0 ? 2 : 0) | (steam ? 4 : 0) | SpellsState(c, i));
                             lastWater[i] = c.Water;
                         }
                     }
                 }
-            map.SetPixels32(texels);
-            map.Apply(false);
-            map2.SetPixels32(texels2);
-            map2.Apply(false);
+            UploadMaps();
+            FinishSpellsMap();
             burningCount = burning;
             burntCount = burnt;
             iceCount = ice;
@@ -672,6 +715,7 @@ namespace Punchy.Chemistry
         void Report()
         {
             nextReport = Time.unscaledTime + 1f;
+            SpellsReport();
             if (burningCount > 0 || burntCount > 0 || iceCount > 0 || frostCount > 0 || landWaterCount > 0 || effects.Steam.Count > 0 || movedCells > 0)
                 Debug.Log($"[Chemistry] tick {session.NetTick}: {burningCount} burning, {burntCount} burnt, {iceCount} ice, {frostCount} frost, " +
                           $"{landWaterCount} water on land, {effects.Steam.Count} steam, {effects.Smoke.Count} smoke, {movedCells} moved; {effects.PuffCount} puffs; " +
