@@ -2,6 +2,28 @@
 
 Newest first.
 
+## Job 71: R-20 sun shadow filter and the 4096 sun shadow map (render/shadow-still 1a380545, 9b01da13), 2026-11-14 (q113.job): FAIL at Medium: the wide filter +0.33-0.50 ms GPU, with the 4096 map +0.43-0.83
+**Setup:** Profile builds, 1920x1080, uncapped, noon, Clear (the bench's weather presets; "Sunny" is a day type), arms alternated, 3 rounds. Arms: **low** = 1a380545 `-sunshadowfilter low` (as main), **filter** = 1a380545 default (wide filter from Medium up), **4096** = 9b01da13 (wide filter + 4096 map). Views: the oak grove (1740,3390, job 64's forest start) and the human village (3066,-913), standing and a 30 m walk east at 2 m/s.
+
+| view | preset | low (as main) | filter | **delta** | filter + 4096 | **delta** |
+|---|---|---|---|---|---|---|
+| forest | Medium | 12.5 | 12.83 | +0.33 | 12.93 | +0.43 |
+| forest walk | Medium | 13.03 | 13.53 | +0.50 | 13.87 | +0.83 |
+| town | Medium | 12.93 | 13.33 | +0.40 | 13.6 | +0.67 |
+| town walk | Medium | 12.2 | 12.57 | +0.37 | 12.77 | +0.57 |
+| forest | High | 16.5 | 16.83 | +0.33 | 16.93 | +0.43 |
+| forest walk | High | 16.65 | 17.2 | +0.55 | 17.63 | +0.98 |
+| town | High | 16.83 | 17.17 | +0.33 | 17.67 | +0.83 |
+| town walk | High | 16.2 | 16.73 | +0.53 | 16.9 | +0.70 |
+
+(GPU ms, mean of 3 rounds; one High forest-walk round of "low" had a stall and is left out.)
+- **Rule 23 at Medium (<= +0.3): FAIL** for both: the wide filter alone costs **+0.33-0.50 ms**, and with the 4096 map **+0.43-0.83 ms** (the map adds ~0.1-0.35 on top). At High (bar +1.0 for a High-only feature, but the filter is on from Medium up) both are within +1.0.
+- **Low with the 4096 map (Low keeps the scene filter):** forest 9.87 -> 10.07 ms GPU (+0.2); 1% low 30.8 -> 31.2 fps. **Low's 50 fps 1% low floor fails in both arms** at this forest start (median frame 12.8 ms, so it's the start-up hitches of job 64, not the map); the 4096 map doesn't make it worse.
+- **Memory:** the 4096 map adds **+24 MB** of graphics memory at Medium/High (662 -> 686 MB) and +12 MB at Low (611 -> 623).
+- **Options if Zach wants the look within the bar:** the wide filter from High only (Medium keeps "low": 0 cost at Medium), or the 4096 map from High only (it needs a second pipeline asset, since PC has one for all presets).
+
+Cost: laptop total $869 (laptop session e163d8ab; 2 builds, 78 games).
+
 ## Job 69: W-142 ambient details together (world/ambient-details 45897a75 vs main 2078f16c), 2026-11-13/14 (q112, q112b, q112c): FAIL at the lava cave (+0.6 ms GPU Medium, +0.8 High); everything else within ~0.3
 **Setup:** Profile builds, 1920x1080, uncapped, noon, arms alternated, 3 rounds, Medium and High. The marsh is a 30 m walk east at 2 m/s (`-benchline`); the rest stand where `-goto x,y,z` puts the player (shots checked: each lands in its cave or spot; the branch's smoke vent shows at the fissure). The 11-13 run (q112) was stopped at lava4 by a low-memory reap of its shell; q112b/q112c resumed it from there with the same builds.
 
