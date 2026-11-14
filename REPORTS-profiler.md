@@ -2,6 +2,24 @@
 
 Newest first.
 
+## Job 67: W-150 cliff kit (world/cliff-kit 0941bfcc vs its base, main 7552dcf3), 2026-11-13 (q109.job): draws and ground query small (+0.1-0.5 ms GPU, main thread +0.1-0.3); **the bake takes 13.8 s on a cache miss**
+**Setup:** Profile builds, 1920x1080, uncapped, noon, Clear, arms alternated, 3 rounds, Medium and High. Views from `-benchface x,z,20,30` (b/bench-stress b68dd844): standing 20 m downhill of the face, facing it (stop face), and a 30 m sideways walk along the face at 2 m/s still facing it (stop facewalk). Canyon pose 2258,-452 yaw 23; mesa pose 2147,1484 yaw -113.
+
+| view | Medium main | Medium kit | **delta** | High main | High kit | delta | main thread (main / kit, Medium) |
+|---|---|---|---|---|---|---|---|
+| canyon, standing | 6.67 | 7.17 | **+0.50** | 8.77 | 9.1 | +0.33 | 10.57 / 10.83 |
+| canyon, 30 m walk | 6.7 | 7.07 | **+0.37** | 8.73 | 8.87 | +0.13 | 10.47 / 10.57 |
+| mesa, standing | 8.37 | 8.47 | +0.10 | 10.63 | 9.77 | -0.87 | 11.93 / 11.93 |
+| mesa, 30 m walk | 8.3 | 8.23 | -0.07 | 9.77 | 9.9 | +0.13 | 11.73 / 11.67 |
+
+(GPU ms, mean of 3 rounds. High mesa standing: main's rounds 10.3-11.2, so its -0.87 is mostly one slow main round.)
+- **Draws:** +0.4-0.5 ms GPU at Medium at the canyon (just over the 0.3 bar), ~0 at the mesa. The canyon pose has more pieces in view.
+- **Ground query:** main thread within +0.1-0.3 ms of main on every view, walking or standing. No hitch over 2x median on the walks. A Profiler capture would split out FloorUnder/Deck; at this size I didn't spend one.
+- **Draw calls and pieces drawn:** the branch doesn't log them at runtime, so they're not counted here. W-150's own counts (canyon 20 m 54k tris in 65 draws) stand.
+- **The bake (the big one):** on a `-freshisland` start, "[cliffkit] 2227 pieces ... from 7057 steep blocks ... **13839 ms** (35781 blocks looked at; heights 8826, faces 3992, accept 775, ...)". Island ready: **41.9 s vs 27.8 s on main** (one fresh start each). The card expected ~47 ms (the ledge part, 239 ms here); the steep-block scan's height sampling (8.8 s) and face fitting (4.0 s) are the cost. On a cache hit the kit loads from the cache (CliffKit blob 414 KB) and costs nothing. Every cache miss (a new seed, a new build that changes the island) pays it, on the main thread before the world is ready. **Worth a card for the world lane:** run the scan as a Burst job or in parallel, or sample heights on a coarser grid first and refine only near steep cells.
+
+Cost: laptop total $850 (laptop session e163d8ab; 2 builds, 50 games).
+
 ## Job 66: R-19 steep rock baseline (render/steep-triplanar b30c967f vs its base, main b66b4c2a), 2026-11-13 (q108.job): canyon within the bar, mountain FAIL (+2.4 ms GPU at Medium, 20 m)
 **Setup:** Profile builds, 1920x1080, uncapped, noon, Clear, `-weatherseed 4`, `-body default`, arms alternated, 3 rounds each, Medium and High. Views from the runner's new `-benchface x,z,dist` (b/bench-stress 65c3b0ce): the player stands dist m downhill of the face point, facing it, camera pitched up at it (the logged poses below repeat exactly). The first attempt stopped on a crash on main (reported below); this is the full rerun, with no crash in 48 games.
 
