@@ -328,3 +328,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-14: Zach asked if gear uses a material library and could share with animals: W-166 widened (gear via SegmentMaterial, dropped items via ItemMeshes, creature horn/shell/hide parts; fur and feathers stay creature-only). Fauna and player make the calls in their files.
 - 11-14: Zach asked if all caves build at start: no (walls stream within 400 m, plan cached). W-168 row 1 now checks deferring buried chunks and a screen-size radius.
 - 11-14: Zach: one unified library, fur/feathers/scales/skin included for future furniture. W-166 updated; fauna owns those four includes.
+- 11-14: Zach asked if colossi use the library: no (Colossus.shader, flat vertex colour). W-166 now includes them; fauna owns the colossus calls.
