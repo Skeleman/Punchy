@@ -10,8 +10,9 @@ namespace Punchy.Settings
     /// - GlowPlant: glowing mushrooms and other glowing plants (the fungal forest).
     /// - Crystal: glass crystals' faint inner glow.
     /// - Creature: glowing eyes and markings, colossus lanterns (in the table, not drawn as far points yet: they move).
+    /// - Campfire: a landmark's own flame (a camp's fire, a shrine's strange fire), in its own colour (R-25 row 3).
     /// </summary>
-    public enum FarLightKind : byte { Window, StreetLight, Fire, GlowPlant, Crystal, Creature }
+    public enum FarLightKind : byte { Window, StreetLight, Fire, GlowPlant, Crystal, Creature, Campfire }
 
     /// <summary>How strong a kind of light reads far off, strongest first (Zach 11-10: lights aren't equal).</summary>
     public enum FarLightTier : byte { Fire, Glow, Faint }
@@ -29,7 +30,7 @@ namespace Punchy.Settings
     /// </summary>
     public static class FarLightPolicy
     {
-        public const int KindCount = 6;
+        public const int KindCount = 7;
 
         public struct Rule
         {
@@ -79,6 +80,10 @@ namespace Punchy.Settings
                 // Soft natural glows: smaller, thinned a little more by the haze, and handed off from the glow maps' reach.
                 case FarLightKind.GlowPlant:
                     return new Rule { Tier = FarLightTier.Glow, Size = 1.2f, MinPixels = 4f, HaloReach = 4f, HaloShare = 0.2f, HazeShare = 0.08f, Reach = 8f, FadeFrom = 56f, FadeTo = 30f };
+                // One small fire. Its flames stop being drawn at the flame range (150 m at the default view, which is
+                // 56 px of its 9 m reach), so the point is full by then: it fades in from 90 px (94 m) to 60 px (140 m).
+                case FarLightKind.Campfire:
+                    return new Rule { Tier = FarLightTier.Fire, Size = 1.2f, MinPixels = 4f, HaloReach = 4f, HaloShare = 0.15f, HazeShare = 0.05f, Reach = 9f, FadeFrom = 90f, FadeTo = 60f };
                 case FarLightKind.Crystal:
                     return new Rule { Tier = FarLightTier.Faint, Size = 1f, MinPixels = 3f, HaloReach = 3f, HaloShare = 0.15f, HazeShare = 0.1f, Reach = 6f, FadeFrom = 56f, FadeTo = 30f };
                 default:

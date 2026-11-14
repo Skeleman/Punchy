@@ -38,9 +38,9 @@ Shader "Punchy/Far Lights"
             StructuredBuffer<FarPoint> _FarLights;
             // Per kind (FarLightPolicy.Pack): brightness (on and tier folded in); core size, least pixels, halo reach,
             // halo share; haze share, reach (m), fade from, fade to (reference pixels).
-            float4 _FarLightBright[6];
-            float4 _FarLightShape[6];
-            float4 _FarLightFade[6];
+            float4 _FarLightBright[7];
+            float4 _FarLightShape[7];
+            float4 _FarLightFade[7];
             float4 _FarLightParams;                 // x reference pixels a metre at 1 m (DetailPolicy)
             float4 _FarFireColor;                   // tonight's forest fire colour (its brightest channel 1)
             float _PunchyHazeDensity;               // (Sky.hlsl) the haze per metre
@@ -69,7 +69,7 @@ Shader "Punchy/Far Lights"
             {
                 static const float2 Corners[6] = { float2(-1, -1), float2(1, -1), float2(-1, 1), float2(-1, 1), float2(1, -1), float2(1, 1) };
                 FarPoint p = _FarLights[vertex / 6];
-                uint kind = min((uint)p.color.w, 5u);
+                uint kind = min((uint)p.color.w, 6u);
                 float4 shape = _FarLightShape[kind];
                 float4 fadeRule = _FarLightFade[kind];
                 float2 corner = Corners[vertex % 6];

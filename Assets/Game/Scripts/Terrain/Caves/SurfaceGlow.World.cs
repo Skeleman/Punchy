@@ -172,6 +172,7 @@ namespace Punchy.Terrain
                 FarPoints.Clear();
                 for (int i = 0; i < farPoints.Length; i++)
                     FarPoints.Add(farPoints[i]);
+                AddLandmarkFires(source);
                 domesDirty = true;
                 farLightsDirty = true;
                 WorldReady = true;

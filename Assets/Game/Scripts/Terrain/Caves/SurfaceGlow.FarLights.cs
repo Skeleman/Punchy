@@ -15,7 +15,7 @@ namespace Punchy.Terrain
     /// (<see cref="FarPoints"/>). How bright, big, hazed and faded in each kind is comes from one table,
     /// <see cref="FarLightPolicy"/>; the fade-in is by screen size (rule 20), where the near lights and glow maps hand
     /// over. Windows and street lights are lit with the windows and off with "-townglow 0"; fires with tonight's forest
-    /// fire, in its colour; plants and crystals after dark. All off underground.
+    /// fire, in its colour; plants, crystals and landmark flames (R-25 row 3) after dark. All off underground.
     ///
     /// Static and cosmetic: no light, nothing sent.
     /// </summary>
@@ -126,6 +126,42 @@ namespace Punchy.Terrain
                 receiveShadows = false
             };
             Graphics.RenderPrimitives(rp, MeshTopology.Triangles, 6 * farLightCount, 1);
+        }
+
+        /// <summary>How strong a landmark flame of width 1 m reads far off (a burning crown is 0.5, a beacon 1.5).</summary>
+        const float FarCampfireLight = 0.6f;
+
+        /// <summary>
+        /// R-25 row 3: every landmark flame (a camp's fire, a shrine's strange fire) as a far point in its own colour,
+        /// so it reads from past where its flames are drawn. On the main thread at the bake's pick-up: the effects
+        /// are on the palette's landmark types. Placed as LandmarkEffectSystem places the flame's light.
+        /// </summary>
+        void AddLandmarkFires(in TerrainSource source)
+        {
+            var types = from != null ? from.Landmarks : null;
+            if (types == null || !source.Landmarks.IsCreated)
+                return;
+            ref var set = ref source.Landmarks.Value;
+            for (int i = 0; i < set.Instances.Length; i++)
+            {
+                ref var inst = ref set.Instances[i];
+                var type = inst.Type < types.Length ? types[inst.Type] : null;
+                if (type == null || type.Effects == null)
+                    continue;
+                var radius = set.Types[inst.Type].Radius * inst.Scale;
+                foreach (var effect in type.Effects)
+                {
+                    if (effect == null || effect.Kind != LandmarkEffectKind.Flame)
+                        continue;
+                    var at = LandmarkSampling.ToWorld(inst, effect.Offset, radius);
+                    var ground = source.SampleGround(at);
+                    var y = ground.HasWater ? math.max(ground.Height, ground.WaterSurface) : ground.Height;
+                    var wide = math.clamp(effect.Width * inst.Scale, 0.3f, 4f);
+                    var glow = (float4)Punchy.Ambience.FireSystem.Light((int)effect.Flame);
+                    FarPoints.Add(NewFarPoint(new float3(at.x, y + 0.05f + effect.Size * inst.Scale * 0.6f, at.y),
+                                              FarCampfireLight * math.clamp(0.6f + 0.4f * wide, 0.7f, 1.8f), FarColor(glow.xyz), FarLightKind.Campfire));
+                }
+            }
         }
 
         static FarPoint NewFarPoint(float3 at, float light, float4 color, FarLightKind kind)
