@@ -6966,6 +6966,29 @@ half3 PunchySurfaceFinish(half3 color, PunchySurface s, half reach);            
 - **Risk:** the foam at the foot is subtle on the pale snow rock. The wet band is easiest to see on darker rock. Adding the include to TerrainSurface set off a long shader variant compile (about 2 min, 43 compiler processes) on first load. Not timed (rule 21).
 - **Next:** R-22 row 0 (#298, world/far-view).
 
+## 2026-11-14 W-155 row 2 part 2 and 2b done: debris, plant room, toe, ends, no stripes (#281)
+
+- **Debris (own system, as decided):** Scarps/ScarpDebris places scree, fallen blocks, rim blocks and ledge stones from the scarp record on a worker thread; Scarps/ScarpDebrisSystem draws them with the terrain material per rim stretch, LOD by DetailPolicy.ScreenSize. 373 blocks in 16 groups on the two test scarps. End outcrops (ScarpDebris.EndOutcrop) sink into the ground to carry each end's taper.
+- **Plant room (shared, as decided):** Scarps/ScarpLife says where plants have room: a bare strip behind the rim, ledges only on the face, fans thinning plants at the foot. FloraPlacement reads it with one additive call on land plants (072cc617); off a scarp it returns full room, so nothing else moves. Plant placement changes only near the two test scarps; fauna told for A-113 (its plant hash moves again on merge).
+- **Floating:** ground detail interpolated heights across a 1 m grid, so where a scarp steps the ground it bridged the step and left pebbles up to 8.7 m off the face. ScarpSet.Edge gives the distance to the nearest strip; GroundDetailSystem (shared, additive) treats the strip plus a feathered margin as bare. Float probe, instances more than 0.2 m off the drawn ground: 0 for flora, pebbles, grass and debris at both scarps (was 41 and 302 pebbles, 2 blades).
+- **Toe cause:** the skin kept the face normal and rock paint right down to the seam while the ground beside it lit with its own normal, so a hard light and colour line ran along the foot. Now the normal turns to the seam's and then the ground's, and the paint hands over, across a wide ragged band (at least 3.5 m, a tenth of the drop, at most 0.3 of it). The top edge takes the same band. Checked at noon, dusk and overcast.
+- **Ends:** the face fades to the ground's normal and surface over the last 12 m of each strip, with the sinking outcrops breaking the line.
+- **Striping source (one line):** TerrainSurface's fine relief (MicroDetail) is read from above in world xz, so on near-vertical skin it smeared into vertical stripes; ScarpPaint now keeps Bump only where the skin lies back as ground. No shader change.
+- **DESIGN-cliffs checks:**
+  - Clay: pass. With the clay look the canyon and river cut still read as cliffs (clay-ab.png).
+  - Side-on: pass. Faces, varied ledges and the turf lip scooping under the rim; top edge sharp.
+  - Seam: pass near and at 30 m (toe, top, ends); ends fade into the slope, none stop.
+  - Sameness: pass in the canyon views (row 1b broke the stripes; three sizes of in-and-out in the plan). The river cut is short, so it repeats less than it varies.
+  - Far: partial. The canyon reads from 100 m; the river cut bank still does not read at 400 m (row 5 leftover).
+  - Belonging: rubble below, plants set back at the rim, ledge plants only where ledges are wide enough. Matching beds across a canyon is not tested yet (one side only).
+  - Walk/climb: the ground cut is the collider, so walking agrees with the face; skin proud at the canyon cap on LOD1/2 (row 5 leftover). Standing under an overhang not tested.
+- **Files:** Scarps/ScarpDebris.cs, ScarpDebrisSystem.cs, ScarpLife.cs (new); Scarps/ScarpPaint.cs, ScarpSkinJob.cs, ScarpSet.cs; shared additive: Flora/FloraPlacement.cs, Terrain/Detail/GroundDetailSystem.cs. Merged origin/main (8d097c11).
+- **Shots** (D:/Unity/PunchyMilestones/W-155/row2b/): before beside after sheets stripe.png (near, 30 m, 100 m), toe-ba.png and rtoe-ba.png (noon, dusk, overcast), ends-ba.png, bank-ba.png (banks unchanged but for the fixes), clay-ab.png; singles a2-*, b0-*, cl0-*, cl1-*.
+- **Checks:** pins unchanged (landmarks 117 689D5348, fauna 6A9E28E5). PlayMode suite 39/40 twice, each failure passing in the other run: run 1 fauna's LyingTests (an animal moved while down, 1.07 m/s; passed at 0.000 in run 2), run 2 WorldTests.Place_PropFindsAndFramesWharf (it compares the new wharf line with the last one logged, and the second run in one editor session logs the identical line; passed in run 1).
+- **BENCH:** Job 85 (debris and outcrops, A 19012b1f vs B 13fbd5cf).
+- **Branch:** world/scarps 13fbd5cf (pushed).
+- **Next:** W-153 row 2b (water/truth).
+
 ## 2026-11-14 W-155 row 2 colour-border fix done (#281)
 
 - **What changed:** the cliff colour no longer spreads onto the ground past the foot as a rounded border. The toe, where the face lies back into the slope, now takes the foot ground's own surface (read 2.5 m past the foot), so a meadow stays green right up to the wall. How far up the toe the ground reaches wanders along the rim and its edge is broken by noise, not a height or radius. Scree fans stay, in the slope's earth. The flute blue is left alone (render's).

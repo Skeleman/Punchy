@@ -806,3 +806,12 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
 - Record: GPU and main-thread ms per view; flora draw calls and triangles; shadow cache and impostor bake time at load.
   B has about 21% more trees, a willow is about 20k triangles at LOD0, a tulip tree about 21.5k.
 - Pass (rule 23): B within 0.3 ms GPU of A at each view, or name the species to trim (willow LOD0 first).
+
+## Job 85 (2026-11-14, QUEUED after 84; world lane, W-155 row 2, #281): scarp debris and end outcrops
+- `world/scarps` 19012b1f (A, row 2 part 1 plus the border fix) vs 13fbd5cf (B, row 2 part 2 and 2b). Profile
+  builds, 1920x1080, Medium, uncapped, 10:00, Clear, `-weatherseed 4`, ABBA, 3 rounds, 300 frames each.
+- Views: canyon toe `-goto -1530,1790` facing the cliff; river cut `-goto -878,-1462` facing the bank; one far
+  vantage with both test scarps in view (R-22 vantage).
+- Record: GPU and main-thread ms per view; draw calls and triangles for ScarpDebrisSystem (373 blocks in 16 groups,
+  screen-size LOD) and ScarpSkinSystem; ground detail instance counts near the scarps (B leaves a bare margin).
+- Pass (rule 23): B within 0.3 ms GPU of A at each view, or name what to trim (debris LOD0 first).
