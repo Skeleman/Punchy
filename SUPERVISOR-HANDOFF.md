@@ -281,3 +281,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-14: Zach's notes carded: cobble grout + parallax R-28 (#312); cave cracks as normals into R-26 row 2 (#304); lava crust normals into W-154 row 2 (#303); temperate tall trees + saguaro imperfection A-113 (#313, fauna, after A-112); folk pocket reach A-114 (#314, after A-111).
 - 11-14: Zach's lantern note: W-157 (forms and heights, world, after W-156) and A-115 (lamplighter, folk, after A-114), #315.
 - 11-14: Zach's notes: notice board life A-116 (folk, after A-115, #316); stables and riders A-117 (fauna, after A-113, #317).
+- 11-14: A-108 row 2 (far herds, fauna/far-life d0524eaa) reviewed, clean; merge after BENCH 81 + Zach on crab density. Island cache format 2. W-155 row 2: Zach saw cliff tint bleeding onto ground (rounded border); world fixing before part 2.
