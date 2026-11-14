@@ -294,3 +294,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-14: Zach: plants read toon, wants leaf clusters (layering, cut-outs, bent-normal cards). R-30 (#323, render) after R-28, row 1 before R-29; row 1 is options for Zach to pick.
 - 11-14: R-20 row 4 (blocky cloud shadows: maps already bilinear; smooth-texel/bicubic plus penumbra, not on hold). W-160 (#324) shoreline wander, world after W-159.
 - 11-14: R-31 (#325) grass: bald-spot causes, continuous fields, grass vs dirt fine texture. Render order: R-28, R-20 row 4, R-30 row 1, R-31, R-29.
+- 11-14: A-110 row 5 (legs) done f1747057, BENCH 83; folk on row 6, then 7, then 7b (Marek/Kael/Quill old stalls).
