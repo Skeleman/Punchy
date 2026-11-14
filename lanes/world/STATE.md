@@ -6,7 +6,7 @@ Worktree D:/Unity/Punchy-world. Read the card and REPORTS-world.md's newest entr
 
 - `world/waterfall-sheets` 54fcdf64: R-21 row 4 (one fall builder). Look accepted; merges after BENCH job 74.
 - `water/truth` a8fe44e5: W-153 rows 1, 1b, 2 (water truth probe; still water last). Suite 41/41.
-- `world/scarps` feab6870: W-155 row 1 (two test scarps, ground cut and rock skin; shared hooks in 11b2753a). Suite 40/40. Bench ask in the handoff.
+- `world/scarps` 4b38a42c: W-155 rows 1 and 1b (two test scarps, ground cut and rock skin, varied ledges; shared hooks in 11b2753a). Suite 40/40. Row 1b shots wait on Zach's look.
 
 ## Pins
 
@@ -15,7 +15,7 @@ Worktree D:/Unity/Punchy-world. Read the card and REPORTS-world.md's newest entr
 
 ## Queue
 
-1. W-155 row 1b (Zach 11-14: break the stripes, varied ledges), then row 2 with his colour note (row 1 done: bake 89 ms, aim under 2 s). Row 5 leftovers: no ground clip beyond LOD2, skin proud at the canyon cap on LOD1/2, river cut bank does not read at 400 m.
+1. W-155 row 2 (row 1b done 4b38a42c, shots with Zach) with his colour note (row 1 done: bake 89 ms, aim under 2 s). Row 5 leftovers: no ground clip beyond LOD2, skin proud at the canyon cap on LOD1/2, river cut bank does not read at 400 m.
 2. W-153 row 2b: keep more hillside swamp pools (36 of 322 cells hold one now) without raising wall or step counts.
 3. W-153 rows 3-6 with W-155 row 4. Carried in: water walls beside falls 22 and 67 and in front of 46 and 51; fall 13's notch; cave falls without lip dip and foot ripples; the fine sheet reading FallShape; 109 fall and landmark head-pool walls; retake fall 46 and 51 fronts and the snowpeak landmark fall.
 4. W-156 (audit 11-13: far clip restore, nearest cave water first).

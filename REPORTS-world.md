@@ -6966,6 +6966,35 @@ half3 PunchySurfaceFinish(half3 color, PunchySurface s, half reach);            
 - **Risk:** the foam at the foot is subtle on the pale snow rock. The wet band is easiest to see on darker rock. Adding the include to TerrainSurface set off a long shader variant compile (about 2 min, 43 compiler processes) on first load. Not timed (rule 21).
 - **Next:** R-22 row 0 (#298, world/far-view).
 
+## 2026-11-14 W-155 row 1b done: stripes broken, varied ledges, ledge log (#281)
+
+Branch `world/scarps` 4b38a42c (on b02b4f90 WIP and row 1 feab6870). Suite 40/40 after the last code change. Pins unchanged (landmarks 117 689D5348, fauna 6A9E28E5); the scarp blob layout is unchanged, so there is no IslandCache Format bump.
+
+What changed (ScarpSet.cs, ScarpPaint.cs, new ScarpLedges.cs):
+- Each bed is cut into blocks seeded per segment (rule 22), 3-10 m long scaled to the scarp, with slanted ends and rounded corners of varied size. Each block juts or sits back by its own amount, so ledges start, stop and pinch out.
+- Beds wander up and down along the face and ease into their neighbours, so shelves slope and merge or split instead of running flat.
+- Benches (the walkable shelves) come and go along the rim on two noise scales.
+- Rare chimneys (slanted, shallow) join the gullies. Cracks now have a long-wave term as well.
+- ScarpLedges.Log reads the live face and prints per-scarp ledge stats.
+
+Ledge log (ledge = a shelf at least 0.1 m wide; band = width and height steady):
+- Canyon (seed 15501), 420 columns over 211 m: 2.6 ledges per column. Run along rim: median 1.5 m, p90 6.0 m, max 19.0 m (211 runs). Width: min 0.15, p10 0.21, median 0.89, p90 3.02, max 5.22 m. Longest straight band 3.0 m; bands over 8 m: 0.
+- River cut (seed 15502), 168 columns over 84 m: 0.4 ledges per column. Run: median 1.0, p90 2.0, max 5.5 m. Width 0.15-0.76 m, median 0.19 m. Longest straight band 2.0 m; bands over 8 m: 0.
+- No row 1 log: row 1 benches were constant per bed by construction, so each band ran the full rim except at gullies.
+
+Checks:
+- Seam: rim, ends and foot stay welded in every view (clay shots).
+- NaN: SparkleProbe w155-1b, 60 frames, other bad 0, creature 0.
+- Scarp record bake still 89 ms. The skin log line says 1.1 s off the main thread (43k vertices). That's a log line, not a timing; cost goes to BENCH with row 2.
+
+Shots for Zach (clay): D:/Unity/PunchyMilestones/W-155/row1b-before-after-canyon.png (row 1 left, 1b right: near, 100 m, side), row1b-river.png, and singles row1b-c-canyon-{near,100,side,rim,end,below-end,400} and row1b-c-river-{near,side,100,below-end,400}.
+
+Notes:
+- The river bank is low (3.5 m), so it still reads as a soft bulge with few, narrow ledges, as in row 1. 400 m reading is a row 5 item.
+- Max ledge width is 5.2 m, above the card's about 3 m; p90 is 3.0 m.
+
+Next: W-155 row 2 (colour fit to the neighbouring ground, then R-19 rock detail), after Zach's look on 1b.
+
 ## 2026-11-14 W-155 row 1 done: two scarps cut as true steps with a rock skin, pins unchanged (#281)
 
 - Branch world/scarps (from main d95e7ff1), pushed as two commits: 11b2753a shared hooks (TerrainSource Scarps
