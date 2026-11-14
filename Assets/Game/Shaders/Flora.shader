@@ -38,6 +38,8 @@ Shader "Punchy/Flora"
             #include "Metal.hlsl"
             #include "Glow.hlsl"
             #include "SharedClock.hlsl"
+            #define PUNCHY_SURFACE_LANTERN
+            #include "Surface.hlsl"
 
             /// How much of a detail octave of this period (m) to keep, given how many metres one pixel covers: all of it
             /// while a period spans eight pixels or more, none once it's down to three (where it would shimmer).
@@ -96,7 +98,7 @@ Shader "Punchy/Flora"
             /// laid as geometry (only its tiles here; key: the course's own colour, which staggers its joints). Worked out in
             /// the plant's own frame: rows climb the face (on a slope measured along it, so a course keeps its size on any
             /// pitch) and "across" runs level along it. Each scale drops out as it gets too fine for the pixels.
-            half PunchySurface(int look, float3 p, float3 nOS, float footprint, half3 key)
+            half PunchyBuiltLook(int look, float3 p, float3 nOS, float footprint, half3 key)
             {
                 float slope = sqrt(saturate(1 - nOS.y * nOS.y));
                 float across = slope < 0.3 ? p.x : dot(p.xz, normalize(float2(-nOS.z, nOS.x) + float2(1e-4, 0)));
@@ -308,7 +310,7 @@ Shader "Punchy/Flora"
                 if (detail && wood)
                     albedo *= look == 0 ? PunchyWoodGrain(input.grainPos, input.grainAxis, footprint)
                                         : look == 5 ? PunchyLogEnd(input.grainPos, footprint)
-                                        : PunchySurface(look, input.grainPos, facetOS, footprint, input.color.rgb);
+                                        : PunchyBuiltLook(look, input.grainPos, facetOS, footprint, input.color.rgb);
                 // Cloth: a linen weave (W-99).
                 // Hide (Cloth + 0.45, W-113): leather instead.
                 if (detail && part == 10)
@@ -433,15 +435,20 @@ Shader "Punchy/Flora"
                 // Wet darkens. Bark and leaves (items 27-28) soak it up, so they darken more and shine far less (below).
                 albedo *= lerp(1, bark ? 0.5 : part == 0 ? 0.62 : leafy ? 0.7 : 0.82, wet);
 
-                Light light = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
-                // Past the real shadows the wide cached ones of the huge things (R-5) take over, never doubling them.
-                half shadow = min(light.shadowAttenuation, 1 - PunchyWideShadow(input.positionWS, half3(0, 1, 0))) * (1 - PunchyCloudShadow(input.positionWS));
+                // Past the real shadows the wide cached ones of the huge things (R-5) take over, never doubling them
+                // (Surface.hlsl; the wide map's bias along straight up, as for every plant).
                 // Underground (cave plants, seen from a cave) the sun and sky don't reach; the player's lantern does.
                 // Cave plants are underground whatever the camera's depth: no direct sun (nor light through leaves, nor
                 // sheen, which made roots flare against the sun from near a mouth), and only a little of the sky's
                 // ambient (the daylight spilling in at a mouth).
-                shadow *= (1 - _PunchyUnderground) * (1 - _FloraInCave);
-                half3 sky = SampleSH(n) * lerp(1, 0.06, max(_PunchyUnderground, _FloraInCave * 0.75));
+                PunchySurface ps = PunchySurfaceAt(input.positionWS, n);
+                ps.wideNormalWS = half3(0, 1, 0);
+                ps.sunReach = (1 - _PunchyUnderground) * (1 - _FloraInCave);
+                ps.skyReach = lerp(1, 0.06, max(_PunchyUnderground, _FloraInCave * 0.75));
+                PunchyLit lit = PunchySurfaceLight(ps);
+                Light light = lit.sun;
+                half shadow = lit.shadow;
+                half3 sky = lit.ambient;
                 // Roof undersides, eaves and overhangs on built things see the ground, not the sky (Grounding.hlsl).
                 half under = part == 0 && built ? PunchyUnderside(n.y) : 0;
                 if (under > 0)
@@ -450,13 +457,8 @@ Shader "Punchy/Flora"
                     albedo *= lerp(1, PunchyUndersideAlbedo, under);
                 }
                 // Glowing plants and molten pools nearby (their own glow included, softly).
-                sky += PunchyGlowLight(input.positionWS, n);
-                if (_PunchyLantern.w > 0)
-                {
-                    float3 toLantern = _PunchyLantern.xyz - input.positionWS;
-                    float reach = saturate(1 - length(toLantern) / _PunchyLanternColor.w);
-                    sky += _PunchyLanternColor.rgb * _PunchyLantern.w * reach * reach * saturate(dot(n, normalize(toLantern)) * 0.7 + 0.3);
-                }
+                sky += lit.glow;
+                sky += lit.lantern;
                 half ndl = dot(n, light.direction);
                 half diffuse = leafy ? saturate(ndl * 0.6 + 0.4) : saturate(ndl * 0.8 + 0.2);
                 half through = leafy ? pow(saturate(dot(-v, light.direction)), 4) * 0.55 : 0;
@@ -612,7 +614,7 @@ Shader "Punchy/Flora"
                     }
                 }
 
-                color = PunchyAtmosphere(color, input.positionWS);
+                color = PunchySurfaceFinish(color, ps);
                 return half4(color, 1);
             }
             ENDHLSL

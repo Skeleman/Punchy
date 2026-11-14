@@ -67,3 +67,9 @@ Read before changing any shader, material or render setting.
   hollow depth (BuildChunkMeshJob, Strata.z) is capped by twice the lowest rise round the point, so slopes and
   downhill gullies get none. `TerrainSurface.Porosity` (vertex TEXCOORD4.x) makes sand soak rain up: it darkens,
   barely glazes, and pools only in its deepest spots.
+- Shader A/B in play (R-23): setting `material.shader` on a material Entities Graphics has registered (the terrain)
+  breaks its per-instance data, even with an exact copy; flora and impostors (RenderMeshIndirect) swap fine. Put both
+  paths in a throwaway build behind a global float instead. Cyan ground right after a shader reimport is Unity's
+  async-compile placeholder: wait until `ShaderUtil.anythingCompiling` is false before a shot.
+- `DayNightCycle.TimeOfDay` can be set back to 12 while paused (sky sync from WorldSync); set it and `Evaluate()` again
+  right before each capture and log the hour.

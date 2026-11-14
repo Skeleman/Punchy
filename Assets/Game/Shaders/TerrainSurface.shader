@@ -42,6 +42,8 @@ Shader "Punchy/Terrain Surface"
             #include "Sky.hlsl"
             #include "Glow.hlsl"
             #include "WideShadow.hlsl"
+            #define PUNCHY_SURFACE_GLOW_WORLD
+            #include "Surface.hlsl"
             // x how much the ground under grass takes the blades' colour, y the grass radius (GroundDetailSystem).
             float4 _PunchyGrassTint;
             // The shared fine detail CaveSystem makes (rg a normal, b a height): grain on rock faces up close.
@@ -454,11 +456,14 @@ Shader "Punchy/Terrain Surface"
                 inputData.normalWS = normalWS;
                 inputData.viewDirectionWS = GetWorldSpaceNormalizeViewDir(input.positionWS);
                 // Skirts take their shadowing from the surface edge they hang from.
-                inputData.shadowCoord = TransformWorldToShadowCoord(input.positionWS + float3(0, max(input.extra.w, 0), 0));
+                PunchySurface ps = PunchySurfaceAt(input.positionWS, normalWS);
+                ps.shadowPositionWS = input.positionWS + float3(0, max(input.extra.w, 0), 0);
+                PunchyLit lit = PunchySurfaceLight(ps);
+                inputData.shadowCoord = TransformWorldToShadowCoord(ps.shadowPositionWS);
                 inputData.fogCoord = InitializeInputDataFog(float4(input.positionWS, 1.0), input.fogFactor);
-                inputData.bakedGI = SampleSH(inputData.normalWS);
+                inputData.bakedGI = lit.ambient;
                 // Glowing plants and molten pools nearby light the ground round them.
-                inputData.bakedGI += PunchyGlowLight(input.positionWS, inputData.normalWS) + PunchyGlowWorld(input.positionWS, inputData.normalWS);
+                inputData.bakedGI += lit.glow;
                 inputData.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(input.positionCS);
                 inputData.shadowMask = half4(1, 1, 1, 1);
 
@@ -555,7 +560,7 @@ Shader "Punchy/Terrain Surface"
                     // water's 2%: puddles must read as sky even when looked down on.)
                     half fresnel = 0.35 + 0.65 * pow(1 - saturate(dot(n, v)), 5);
                     half3 body = color.rgb * half3(0.42, 0.47, 0.5);
-                    Light sun = GetMainLight(inputData.shadowCoord);
+                    Light sun = lit.sun;
                     half glint = pow(saturate(dot(r, sun.direction)), 600) * sun.shadowAttenuation * 3;
                     half3 film = lerp(body, PunchySkyColor(r, false, true), fresnel) + sun.color * glint;
                     color.rgb = lerp(color.rgb, film, puddle);
@@ -563,21 +568,10 @@ Shader "Punchy/Terrain Surface"
 
                 // Cloud shadows and, past the real shadows, the wide cached ones of the huge things (R-5): dim the share
                 // of the light that comes straight from the sun. The wide shadow takes the darker of itself and the real
-                // shadow where they overlap, so it never doubles.
-                float3 shadowAt = input.positionWS + float3(0, max(input.extra.w, 0), 0);
-                half cloudShadow = PunchyCloudShadow(shadowAt);
-                half wideShadow = PunchyWideShadow(shadowAt, inputData.normalWS);
-                if (cloudShadow > 0 || wideShadow > 0)
-                {
-                    Light mainLight = GetMainLight(inputData.shadowCoord);
-                    half sunlit = Luminance(mainLight.color) * saturate(dot(inputData.normalWS, mainLight.direction));
-                    half direct = sunlit * mainLight.shadowAttenuation;
-                    half kept = sunlit * min(mainLight.shadowAttenuation, 1 - wideShadow) * (1 - cloudShadow);
-                    half ambient = Luminance(inputData.bakedGI);
-                    color.rgb *= 1 - (direct - kept) / max(direct + ambient, 1e-3);
-                }
+                // shadow where they overlap, so it never doubles (Surface.hlsl).
+                color.rgb = PunchySurfaceSunDim(color.rgb, ps, lit, inputData.bakedGI);
 
-                color.rgb = PunchyAtmosphere(color.rgb, input.positionWS);
+                color.rgb = PunchySurfaceFinish(color.rgb, ps);
                 return color;
             }
             ENDHLSL

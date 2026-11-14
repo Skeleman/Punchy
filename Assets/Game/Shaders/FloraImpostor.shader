@@ -121,6 +121,8 @@ Shader "Punchy/FloraImpostor"
             #include "Flora.hlsl"
             #include "Grounding.hlsl"
             #include "Glow.hlsl"
+            #define PUNCHY_SURFACE_LANTERN
+            #include "Surface.hlsl"
             #define FLORA_IMPOSTOR_DRAW
             #include "FloraImpostor.hlsl"
 
@@ -163,17 +165,17 @@ Shader "Punchy/FloraImpostor"
                 }
                 albedo *= lerp(1, leafy ? 0.82 : 0.62, wet);
 
-                Light light = GetMainLight(TransformWorldToShadowCoord(positionWS));
-                half shadow = min(light.shadowAttenuation, 1 - PunchyWideShadow(positionWS, half3(0, 1, 0))) * (1 - PunchyCloudShadow(positionWS));
-                shadow *= (1 - _PunchyUnderground) * (1 - _FloraInCave);
-                half3 sky = SampleSH(n) * lerp(1, 0.06, max(_PunchyUnderground, _FloraInCave * 0.75));
-                sky += PunchyGlowLight(positionWS, n);
-                if (_PunchyLantern.w > 0)
-                {
-                    float3 toLantern = _PunchyLantern.xyz - positionWS;
-                    float reach = saturate(1 - length(toLantern) / _PunchyLanternColor.w);
-                    sky += _PunchyLanternColor.rgb * _PunchyLantern.w * reach * reach * saturate(dot(n, normalize(toLantern)) * 0.7 + 0.3);
-                }
+                // The mesh's lighting (Flora.shader, through Surface.hlsl), from the baked normal.
+                PunchySurface ps = PunchySurfaceAt(positionWS, n);
+                ps.wideNormalWS = half3(0, 1, 0);
+                ps.sunReach = (1 - _PunchyUnderground) * (1 - _FloraInCave);
+                ps.skyReach = lerp(1, 0.06, max(_PunchyUnderground, _FloraInCave * 0.75));
+                PunchyLit lit = PunchySurfaceLight(ps);
+                Light light = lit.sun;
+                half shadow = lit.shadow;
+                half3 sky = lit.ambient;
+                sky += lit.glow;
+                sky += lit.lantern;
                 half ndl = dot(n, light.direction);
                 half diffuse = leafy ? saturate(ndl * 0.6 + 0.4) : saturate(ndl * 0.8 + 0.2);
                 half through = leafy ? pow(saturate(dot(-v, light.direction)), 4) * 0.55 : 0;
@@ -187,7 +189,7 @@ Shader "Punchy/FloraImpostor"
                     half sheenFar = lerp(0.25, 1, smoothstep(30, 120, distance(positionWS, GetCameraPositionWS())));
                     color += SampleSH(reflect(-v, n)) * fresnel * 0.35 * sheenFar * ao * lerp(1, 0.06, _PunchyUnderground);
                 }
-                color = PunchyAtmosphere(color, positionWS);
+                color = PunchySurfaceFinish(color, ps);
                 return half4(color, 1);
             }
             ENDHLSL
