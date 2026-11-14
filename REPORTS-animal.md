@@ -4539,3 +4539,28 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Shots (edit-mode lineup, 8 variants, front and side): D:/Unity/PunchyMilestones/A-113/gallery/row3-saguaro-{before,after}-{front,side}.png.
 - Note: Saguaro.asset has Variants 4, so only variants 0-3 appear in game. Raising it to 8 would show all the new shapes but adds models (a BENCH question), so I left it.
 - NEXT: row 1 (tall emergents), then row 2.
+
+### Row 1: tall emergent trees (done, verified, #313)
+- Commit on flora/tree-variety (pushed): 6d16b508. Data only: two new species assets plus two entries appended to Temperate.asset's flora list. No code change.
+- **TulipTree** (broadleaf, 22-30 m, about 25-28 m grown, oak is 12-16 m). Grows in stands of about 3 on stream banks and clearing edges (NearWater, EdgeAffinity, Shelter). Density 0.12.
+- **WhitePine** (conifer, 26-36 m, about 30-33 m grown). Grows in stands of about 5 on exposed ridges (Exposure 0.8). Density 0.1.
+- **Placement:** placement draws an absolute roll per cell, so appended species fill only cells that were empty before. Every existing tree keeps its spot. A biome asset edit re-bakes, but the terrain inputs are unchanged.
+- **Seen in play:** [frame] lines counted 65-87 TulipTrees and 72-82 WhitePines in reach at the test poses.
+- **Impostors:** checked with a probe of the live atlas.
+  - Reach comes from radius through DetailPolicy.ImpostorReach: TulipTree 0.8-0.9, WhitePine 1.0-1.1, against oak 0.4-0.6 and pine 0.6-0.7.
+  - The slice dumps (8x8 views per model) show no clipping at the top or sides at any angle.
+  - The far shots at 300 m (tulip stand) and 600 m (white pine stand) show the stands standing above the canopy, with shadows on the ground.
+- **Budget, for BENCH:**
+  - WhitePine is cheap: LOD0 about 1.2k triangles per variant.
+  - TulipTree LOD0 is about 21.5k triangles per variant over 4 variants (v3 17.5k). Oak is about 6.6k.
+  - The cause is the shared broadleaf grower's giant rule: blob detail gets +1 at 20 m and taller. I trimmed Fullness and Branches by 20% (it was 26.9k) and left the shared code alone.
+  - LOD1 is 5.4k and LOD2 112, so only near trees pay. A BENCH job is requested via the supervisor.
+- **Shots:** D:/Unity/PunchyMilestones/A-113/gallery/row1-*:
+  - before and after pairs from inside a thicket, a meadow, a wood edge, pines, aerial and 1 km;
+  - ground, mid and aerial shots of each species;
+  - edit-mode lineups;
+  - impostor slices;
+  - far impostor shots at 300 m and 600 m.
+  - The haze difference in the 1 km pair is weather, not flora.
+- **For the world and render lanes:** two flora assets added and two entries appended to Temperate's flora list. FloraGenerator and FloraPlacement are untouched.
+- NEXT: row 2 (more temperate kinds: willow, beech, fir).
