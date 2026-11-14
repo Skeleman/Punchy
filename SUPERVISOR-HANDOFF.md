@@ -288,3 +288,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-14: Zach: big cliff base still has a clear line round its rounded toe (blend much better otherwise). W-155 row 2b, sent to world.
 - 11-14: Zach: cobble grout adds grass in snow/desert; grout must come from the ground it replaces. R-28 row 1, sent to render.
 - 11-14: Zach: cliff sides (ends) very stark; blend only did the base. Taper ends + rim band added to W-155 row 2b, sent to world.
+- 11-14: R-28 grout: approved render editing unowned Terrain-root files (SurfaceProps.Under, TerrainVertex.Soak half4, +4 B/vertex 76->80); cost folded into R-28 row 2 BENCH. world/scarps also touches BuildChunkMeshJob/TerrainSource; second merge rebases. World told.
