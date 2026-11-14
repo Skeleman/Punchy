@@ -107,3 +107,4 @@ Foliage realism (Zach 11-14): crowns as leaf clusters (cut-out cards, layering, 
 - 11-14 (Zach): no one walks through a campfire; every fire gives heat that comfort uses (A-121, #342).
 - 11-14 (Zach): move more generation into a one-time bake shipped with the game so starts are faster (W-168, #345).
 - 11-14 (Zach): gear, dropped items and animal parts (horn, shell, hide) share the material library (W-166, #336).
+- 11-14 (Zach): one material library for everything, fur, feathers, scales and skin included, so furniture and gear can use them later (W-166, #336).
