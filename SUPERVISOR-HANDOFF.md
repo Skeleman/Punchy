@@ -329,4 +329,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-14: Zach asked if all caves build at start: no (walls stream within 400 m, plan cached). W-168 row 1 now checks deferring buried chunks and a screen-size radius.
 - 11-14: Zach: one unified library, fur/feathers/scales/skin included for future furniture. W-166 updated; fauna owns those four includes.
 - 11-14: Zach asked if colossi use the library: no (Colossus.shader, flat vertex colour). W-166 now includes them; fauna owns the colossus calls.
-- 11-14: merged #285 (R-19 steep rock, High+ by default) -> 1c9a0111; closed #281. Render next: R-36 row 1, R-20 row 1.
+- 11-14: merged #285 (R-19 steep rock, High+ by default) -> 1c9a0111; #281 reopened (geometry still open). Render next: R-36 row 1, R-20 row 1.
