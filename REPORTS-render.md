@@ -243,3 +243,26 @@ with main d95e7ff1); compiles, no suite run yet.
 - Asks: review/merge `render/one-surface` after BENCH job 82 (queued after 81: main vs branch, 3 views, Medium and
   High, ABBA, 3 rounds). Row 3 will add its commit as arm C before the job runs.
 - NEXT: R-27 (#311, shadow-cache ddx), then R-28, then R-20 row 3 (#308).
+
+## R-27 (2026-11-14): shadow-cache receiver takes its derivatives before the early returns (#311)
+- Branch `render/shadowcache-ddx` 9906a3a9, on main 3eeb72d4. `FloraShadowCache.shader` only (+8/-3): `ddx`/`ddy`
+  of the rebuilt world position now come before the sky, fade and out-of-cache returns. The normal is rebuilt from them as before.
+- DONE: the change, with an A/B pixel diff against main's version and NaN 0.
+- Checks:
+  - A/B in one play session: main's receiver as a throwaway copy, swapped on the runtime material. a = new, a2 =
+    new again (noise), b = main's, a3 = new after b. Max channel difference per pixel, mean over the frame, High:
+    - townday: noise 0.0478, diff 0.0448 (max 8). forestday 0.0813 / 0.0856. forestdusk 0.1024 / 0.1055.
+    - hillday 0.0513 / 0.0525. hilldusk 0.0870 / 0.0895.
+    - towndusk: the first take drifted (a vs b 6.88, b vs a3 0.21). Retaken after a warm-up view: noise 0.0661,
+      diff 0.0647 (max 17).
+    - Explanation: nothing visible changed. The forest views have cached tree shadows on the ground in frame. The
+      town and hillside views have few trees in the 25-120 m cache band, so they show less.
+  - NaN: `[sparkle] r27 summary: 360 frames, 0 with markers` (town, High, -stopnan off).
+  - Suite (also the rerun the coordinator asked for): `completed: 39/40 passed, 1 failed`. Both earlier flakes
+    (WalkBy_NeverThroughWall, Place_PropFindsAndFramesWharf) passed. The fail looks like
+    WorldTests.Player_CrowFliesOutOfCaveThroughHitches: its measure line says "3 stuck", worst frame 722 ms. That's a
+    cave flight test, not the shader.
+- NOT DONE: no player-build check. No BENCH job, since the cost doesn't change (same instructions, moved).
+- Shots (milestones folder R-27): ab1/, ab2/ (towndusk retake), sheet-a.jpg (contact sheet of the a shots).
+- Asks: review/merge `render/shadowcache-ddx`.
+- NEXT: R-28 row 1 (cobble grout), then row 2, then R-20 row 3 (#308).
