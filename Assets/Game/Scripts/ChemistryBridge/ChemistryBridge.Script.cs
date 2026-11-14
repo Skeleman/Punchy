@@ -81,6 +81,7 @@ namespace Punchy.Chemistry
                     if (xz.Length >= 2)
                     {
                         leftFrom = player;
+                        Teleporting(new float3(xz[0], terrain.SampleHeight(new float2(xz[0], xz[1])), xz[1]));
                         Put(terrain, new float3(xz[0], 0f, xz[1]));
                     }
                     break;
@@ -89,12 +90,17 @@ namespace Punchy.Chemistry
                     if (by.Length >= 2)
                     {
                         leftFrom = player;
+                        var to = player.xz + new float2(by[0], by[1]);
+                        Teleporting(new float3(to.x, terrain.SampleHeight(to), to.y));
                         Put(terrain, player + new float3(by[0], 0f, by[1]));
                     }
                     break;
                 case "back":
                     if (leftFrom is float3 was)
+                    {
+                        Teleporting(was);
                         Put(terrain, was, false);
+                    }
                     break;
                 case "walk":
                     var w = Floats(words.Length > 1 ? words[1] : "");

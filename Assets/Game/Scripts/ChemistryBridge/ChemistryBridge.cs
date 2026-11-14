@@ -79,6 +79,15 @@ namespace Punchy.Chemistry
         // first up with the player's chunk filled.
         const float DemoDelay = 8f;
         readonly bool demo = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-chem-demo") >= 0;
+        // -chem-fillcheck n: the ground jobs checked against the main thread's sample on n chunks, once (ChemistryBridge.Fills.cs).
+        int fillCheck = FillCheckCount();
+
+        static int FillCheckCount()
+        {
+            var args = System.Environment.GetCommandLineArgs();
+            int k = System.Array.IndexOf(args, "-chem-fillcheck");
+            return k >= 0 && k + 1 < args.Length && int.TryParse(args[k + 1], out var n) ? n : 0;
+        }
         bool demoDone;
         float demoAt = float.MaxValue;
 
@@ -189,6 +198,12 @@ namespace Punchy.Chemistry
                     return;
             }
             Script(terrain, player.Position);
+            if (fillCheck > 0 && role != LockstepRole.Client && TerrainSettled)
+            {
+                FillCheck(player.Position, fillCheck);
+                fillCheck = 0;
+            }
+            FillFrame();
 
             // The session first, every frame, whatever the view is doing: only the host's clock paces the ticks.
             watch.Restart();

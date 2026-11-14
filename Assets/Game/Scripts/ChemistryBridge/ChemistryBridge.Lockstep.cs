@@ -101,6 +101,7 @@ namespace Punchy.Chemistry
             session = null;
             port = null;
             planner = null;
+            CancelGround();
             viewWorld = null;
             if (net != null)
                 Destroy(net);
@@ -121,6 +122,7 @@ namespace Punchy.Chemistry
             terrainNow = terrain;
             terrainKnown = true;
             terrainSince = Time.unscaledTime;
+            CancelGround();   // (a job under way samples the old terrain)
             if (session == null || !session.IsHost)
                 return;
             if (castsLanded == 0 && (net == null || net.Peers.Count == 0))
@@ -149,7 +151,9 @@ namespace Punchy.Chemistry
             }
             NewSession(role, transport);
             session.MapId = "punchy-open";
-            planner = OpenWorldPlanner.Attach(session, new PunchyGround(this), fills, chunks);
+            // (The planner's own Attach, but each tick's fills held to the chunks whose ground jobs are done: StampOpen.)
+            planner = new OpenWorldPlanner(new PunchyGround(this));
+            session.Stamping += StampOpen;
         }
 
         /// <summary>A client: a session that joins from the host's snapshot (the filled chunks) and runs its batches.</summary>
@@ -196,7 +200,7 @@ namespace Punchy.Chemistry
             {
                 castsLanded++;
                 var (layer, y) = ChunkKey.OfRow(c.Y);
-                Debug.Log($"[Chemistry] lockstep: tick {batch.Tick}: {c.By} cast {c.Spell} (charge {c.Charge}) at cell ({c.X}, {y}) in layer {layer}");
+                Debug.Log($"[Chemistry] lockstep: tick {batch.Tick}: {c.By} cast {c.Spell} (charge {c.Charge}) at cell ({c.X}, {y}) in layer {layer}{SinceTeleport(c.By)}");
             }
             if (batch.Tick % SumEvery == 0)
             {
@@ -204,8 +208,10 @@ namespace Punchy.Chemistry
                 Debug.Log($"[Chemistry] lockstep {sessionRole} tick {batch.Tick} at {DateTime.Now:HH:mm:ss.f} sum {Fnv1a64.Hash(session.Checksum()):x16} " +
                           $"burning {burningCount} burnt {burntCount} ice {iceCount} behind {Behind} peers {(net != null ? net.Peers.Count : 0)} " +
                           $"filled {w.Filled.Count} active {w.ActiveKeys.Count} unpacked {w.UnpackedCount} sampled {sampled} ({sampleMs:F0} ms) " +
+                          $"jobs {groundJobs} frame worst {frameWorstMs:F1} ms fills worst {fillWorstMs:F2} ms " +
                           $"mem {UnityEngine.Profiling.Profiler.GetTotalReservedMemoryLong() >> 20} MB reserved gc {GC.GetTotalMemory(false) >> 20} MB " +
                           $"desync={session.DesyncSeen} desyncs={desyncs}");
+                frameWorstMs = fillWorstMs = 0;
             }
         }
 
@@ -219,7 +225,7 @@ namespace Punchy.Chemistry
         }
 
         // Host and solo: every player's layer and cell (absolute, 1 m cells): each NetPlayer on a server, else the one here.
-        IEnumerable<(string who, int layer, int x, int y)> Characters()
+        List<(string who, int layer, int x, int y)> Characters()
         {
             var list = new List<(string, int, int, int)>();
             if (!TerrainSettled)
@@ -243,13 +249,25 @@ namespace Punchy.Chemistry
             return list;
         }
 
-        // Host and solo: a chunk's ground, sampled from the terrain in a Burst job (the core asks once a chunk).
+        // Host and solo, -chem-sync-fills (or a chunk with no job under way): a chunk's ground sampled now, on the main thread.
         ChunkGround SampleChunk(ChunkKey key)
         {
             sampleWatch.Restart();
             var kinds = new NativeArray<byte>(Chunks.Area, Allocator.TempJob);
-            var at = new int2(key.X * Chunks.Size, key.Y * Chunks.Size);
-            new GroundJob { Source = terrainNow, Corner = at, Cave = key.Layer != SurfaceLayer, Kinds = kinds }.Schedule(Chunks.Area, 256).Complete();
+            GroundJobFor(key, kinds).Schedule(Chunks.Area, 256).Complete();
+            var g = GroundOf(kinds);
+            kinds.Dispose();
+            sampled++;
+            sampleMs += sampleWatch.Elapsed.TotalMilliseconds;
+            return g;
+        }
+
+        GroundJob GroundJobFor(ChunkKey key, NativeArray<byte> kinds) =>
+            new GroundJob { Source = terrainNow, Corner = new int2(key.X * Chunks.Size, key.Y * Chunks.Size), Cave = key.Layer != SurfaceLayer, Kinds = kinds };
+
+        // A chunk's ground from its cells' kinds (GroundJob's).
+        static ChunkGround GroundOf(NativeArray<byte> kinds)
+        {
             var g = new ChunkGround("dirt");
             for (int i = 0; i < Chunks.Area; i++)
                 switch (kinds[i])
@@ -265,9 +283,6 @@ namespace Punchy.Chemistry
                         g.SetAt(i, "rock");
                         break;
                 }
-            kinds.Dispose();
-            sampled++;
-            sampleMs += sampleWatch.Elapsed.TotalMilliseconds;
             return g;
         }
 
@@ -276,8 +291,8 @@ namespace Punchy.Chemistry
         {
             readonly ChemistryBridge bridge;
             public PunchyGround(ChemistryBridge bridge) => this.bridge = bridge;
-            public IEnumerable<(string who, int layer, int x, int y)> Characters() => bridge.Characters();
-            public ChunkGround Sample(ChunkKey key) => bridge.SampleChunk(key);
+            public IEnumerable<(string who, int layer, int x, int y)> Characters() => bridge.charactersNow ?? bridge.Characters();
+            public ChunkGround Sample(ChunkKey key) => bridge.TakeGround(key);
         }
 
         /// <summary>

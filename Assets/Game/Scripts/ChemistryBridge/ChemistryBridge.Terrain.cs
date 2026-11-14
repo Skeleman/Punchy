@@ -99,6 +99,7 @@ namespace Punchy.Chemistry
             if (!landDirty || Time.unscaledTime < nextPublish)
                 return;
             watch.Restart();
+            CompleteGround();   // (a ground job may read the edits: none is under way while they change)
             var k = 1 - front;
             if (!buffers[k].IsCreated)
                 buffers[k] = new UnsafeList<float>(Size * Size, Allocator.Persistent);
@@ -133,6 +134,7 @@ namespace Punchy.Chemistry
 
         void DisposeLand()
         {
+            CompleteGround();
             TerrainEditLayer.Current = default;
             for (int k = 0; k < buffers.Length; k++)
                 if (buffers[k].IsCreated)
@@ -154,6 +156,7 @@ namespace Punchy.Chemistry
         {
             if (!EnsureQueries() || !terrainQuery.TryGetSingleton<TerrainSource>(out var terrain) || !Ready)
                 return (0, 0, 0);
+            CompleteGround();
             ref var e = ref TerrainEditLayer.Current;
             var saved = e;
             if (!e.On)
