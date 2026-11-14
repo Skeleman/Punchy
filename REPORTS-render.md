@@ -378,3 +378,15 @@ with main d95e7ff1); compiles, no suite run yet.
 - Asks: none. Merge when convenient. The next step for Zach to see it is a player build with this branch.
 - NEXT: R-19 -rockhighonly default commit on render/steep-triplanar, then R-20 row 1 (High-only 4096 map and
   wide filter), then R-32 rows 2-4.
+
+## R-19 (#281): -rockhighonly is the default (2026-11-14)
+
+- DONE: render/steep-triplanar head 2439c116 (PR #285). SteepRockCost.HighOnly now defaults on: steep-face beds
+  and slabs from High up, Low and Medium keep colour and grain (BENCH job 73). "-rockhighonly 0" turns it off.
+  One small commit. main (1746d62a) was merged into the branch (56ff0584) instead of a rebase, because the branch
+  was already pushed and rebasing would rewrite it.
+- Checks: compiles, 0 errors; _PunchyRockCost.x is 1 at Medium. NaN probe at Medium, 360 frames: 0 marked.
+  Suite: completed: 39/40 passed, 1 failed (Place_PropFindsAndFramesWharf, a known flake).
+- Shots: none (no change from what job 73 measured with the flag).
+- Asks: none. Ready to merge for the 21:00 build.
+- NEXT: R-36 row 1 (cloud shadows in caves), then R-20 row 1.
