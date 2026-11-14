@@ -4708,3 +4708,34 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - **Sync:** horses are ordinary host-spawned settled creatures, so they need no new ghost field.
 - **Shots:** D:/Unity/PunchyMilestones/A-117/gallery/r1-stable-human.png, r1-stable-dwarf.png and r1-stable-elf.png (10:30, clear). All passed ShotTool checks.
 - NEXT: row 2 (riders).
+
+## A-117 (#317) row 2: riders (fauna/folk-riders 12411751)
+
+- **What:** at a town stable (only when at least 2 horses are in), a traveller fetches a horse, leads it out through the paddock gate, gets on and rides the nearest road away from town. The ride ends at the road's end, or sooner at a hitching rail, and the rider gets down. A horse left at another stable is a guest there and is taken home off-screen after 5 game hours. New files: FaunaDirector.Riders.cs (rides, ledger, clearance check) and FaunaDirector.RiderPaths.cs (routes).
+- **Zach's 11-14 clipping note:** led and ridden horses now route around every structure and use the gate, keeping horse-width clearance (LeadRadius plus 0.3 m).
+  - How: a visibility graph over the wall corners. If that finds nothing, a grid A* (0.75 m cells) takes over, and either result is string-pulled. A ride stuck for 4 s replans from where the horse is.
+  - The horse only moves on to the next leg when its line there is clear. This fixed a horse at 73 that cut a corner into the fence and slid back and forth.
+- **For the flora/world lane:** FloraPlacement.IsBuilding now includes Stable and HitchRail, so their walls go into the obstacle walls that creatures avoid. That is 2 lines extending an existing switch arm, in a file over 2500 lines; I added no new code there.
+- **Proof:**
+  - 3 folk fetched horses and rode out of 2 towns with the new code:
+    - 73 HumanVillage: r73-b-01..16;
+    - 79 ElfGrove: r79-b-01..14 and r79-c-01..10.
+  - Each strip runs from the horse held at the gate, through the lead-out and the ride, to the road.
+  - Clearance check (every frame, horse and rider against the building walls): 6 rides, 44,366 frames, **0 overlap frames, 0 overlaps**.
+  - Also r73-ride-01..03, plus the earlier r2-depart, r2-arrive and r2-dismount strips.
+  - r73-a and r79-a were taken before the fix; ignore them.
+  - All shots are in D:/Unity/PunchyMilestones/animal/A-117/gallery/.
+- **Stable balance:** over 53 game hours (with time jumps to bring horses home), horses in plus horses under way always equalled each stable's count. The 3 stables have 7 horses in all. 2 horses were taken home, and each stable's away and guest counts went back to 0 or matched a ride under way.
+- **Host + client** (editor host at 79, build client `-join 127.0.0.1 -body Cat -netwatch Horse`, fresh build of this branch in Builds/Windows): the client saw the same 4 horses (ghosts 143, 162-164). It tracked ghost 143 down the host's route within a few metres at each 10 s sample.
+  - The rider's Holder was -143 in both the server and the client world, so the seat goes through the existing Holder and needs no new ghost field.
+  - Client log: 0 exceptions.
+  - Two earlier joins timed out ("Couldn't reach") after I closed the first client by PID while it was connected. A fresh host play session joined at once.
+- **Hashes:**
+  - Landmarks: 117 689D5348, unchanged.
+  - Layout: 421 28DB5D55, as in row 1.
+  - Fauna fingerprint: E99E8FCB (row 1) to **B2A5823C**. The cause is the IsBuilding change: the stable and hitching rail walls are now baked into the flora blob the fingerprint hashes. No placement moved.
+- **Notes:**
+  - Route search runs on the main thread, once per ride leg or replan; it is not per frame. Cost is for the profiler if wanted.
+  - A rider about 140 m off can look frozen. That is the creature sim range; the rider despawns as "out of sight" at about 170 m, and the ledger then settles the horse at the nearest stable.
+- Clean-up: PlayArgs cleared, editor out of play mode, my client closed by PID, no Punchy.exe of mine running.
+- NEXT: A-118 (#329) on fauna/lie-height.
