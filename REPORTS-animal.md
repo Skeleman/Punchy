@@ -4285,3 +4285,34 @@ Where A-109 differs from A-108: herds are anonymous and seeded per 512 m cell fr
   - Section looks are simple meshes (patches, lines, ledges). They read up close; from afar they drop out by screen size, so a section isn't visible in the far form.
   - Question for the supervisor before row 2's client check: A-74 lets each peer stop a walker locally for up to 30 s, so a rider on one peer's colossus can sit away from where another peer draws that colossus. Row 2 moves only the local player, so no data is added, but a second player may see the rider off the body while the lag lasts. Matching that needs either a ghost field (which player a walker waits for) or dropping the local stop while someone rides. I will measure the gap in row 2 and report it, and add no field without an OK.
 - Next: row 2 (climb while it walks, stand while it turns, shake-off, host and client).
+
+### Row 2: ride a walking colossus (carry verified; peer view NOT matching after a stop, #276, fauna/colossus-climb 2db05a25)
+
+- DONE: the local player is carried with a walking colossus, climbing or standing, and turns with it. Only the local player entity moves on each machine; no ghost field, nothing sent.
+- DONE (supervisor's ruling): a walker skips its local stop (A-74) while any player holds or stands on it, joined players too. Each machine tells this from the player places it already has (ColossusClimbSystem.AnyRider). Its held turn eases off at 10 deg/s while ridden.
+- NOT DONE: the client view does not match while a stop made before the mount unwinds. This is the stop-and-report case from the ruling; nothing was added. Numbers below.
+- UNVERIFIED: shake-off on a joined client. Solo and host shake a climber off at the skill limit (5 or 6 times a run). The riding client logged kicks of 5 to 9.9 m/s for a few seconds while its walker caught up and was shaken off 0 times. Not explained yet.
+- Checks:
+  - PlayMode suite: 40 passed, 0 failed, 0 skipped. Fauna_Fingerprint passes (6A9E28E5, unchanged). No landmark, placement, salt, ProjectSettings or renderer change; no timing.
+  - Solo (editor, -colossusride RockGolem 1), final code: 5 passed, 1 failed, 0 NaN frames, shaken off 5 times, biggest kick ridden 1.2 m/s. Rides: section 0 on the body 100.0% of 2399 frames, carried 55.5 m, turned -96.7 deg; section 1 99.9% of 2292 frames, 35.3 m, -76.5 deg. The fail is section 2: the probe climber walked off the far side of the narrow top as the ride watch began, fell to the ground and was carried at the foot (96.7% of 2398 frames; pass needs 98%). The same section rode at 100% in the earlier solo run and on the client below, so I read it as probe steering, not the carry.
+  - Earlier solo run, both walkers (before the any-rider change): 10 passed, 0 failed, 0 NaN frames, 1 shaken off at the limit.
+  - Host rides (editor host on GiantTortoise, build client parked 122 m off): 6 passed, 0 failed, 0 NaN frames, biggest kick ridden 3.1 m/s.
+  - Client rides (build client on RockGolem, editor host parked 140 m off): 6 passed, 0 failed, 0 NaN frames. Rides: 100.0% of 8552 frames (38.1 m, -63.8 deg), 99.9% of 6937 (49.1 m, -66.5 deg), 100.0% of 8454 (40.1 m, -38.2 deg).
+  - Peer gap, client rides, 304 one-second samples (-ccpeers: the rider's place in the colossus body frame on each machine, paired by shared clock):
+    - settled: the host draws the rider 0.00 to 0.35 m from where the rider is on its own machine (two single samples of 1.1 and 1.4 m at a mantle). Under the half-metre line.
+    - after a stop: the probe climber walked round the golem on the ground first, so the client's walker stopped for it and fell the full 30 s behind the shared clock (MaxLag). The host's walker did not stop. When the climber got on, the host drew it about 40 m from the body, climbing in the air. The gap closed at about 0.8 m/s as the client's walker caught up, and reached 0.3 m after 64 s. 101 of 304 samples were over 0.5 m.
+    - next section, short stop: 2.2 to 2.4 m for 3 s, then under 0.5 m.
+    - host rides (earlier run, column distance only): up to 3.5 m while a 2 to 4 s lag unwound, 0.04 m settled.
+  - A walk-up mount is the normal case, so the gap is the usual one, not a corner case: worst case is lag times pace, 45 m for the golem, 18 m for the tortoise.
+- Asks:
+  - Decision needed on the peer gap. An option that sends nothing: every machine counts every player, joined ones too, for the A-74 stop and the turn toward the viewer, so all machines hold a walker back alike. That changes A-74 from a local nicety to a shared one (a walker would stop for a far player's friend). I tried it behind a flag, did not get a valid two-machine run of it, and removed it from the commit.
+  - Other routes need data (which player a walker waits for, or its lag), so they wait for an OK (rule 11).
+  - Builds for the two-machine runs went to the fauna tree's Builds/Windows, the path used in A-104.
+  - The shared Editor.log was cut short by another editor mid-run; one host/client run was lost to it and redone.
+- Shots: clips in PunchyMilestones/A-107/ride/ (not viewed at full size): RockGolem-s1-climb.mp4 (climb while it walks), RockGolem-s2-ride.mp4 (stand on its back while it turns), GiantTortoise-s1-ride.mp4. Copies in PunchyMilestones/A-107/gallery/row2/ (rule 12b). They are solo and host views from before the any-rider change; no clip of the client view yet.
+- NEXT: the supervisor's call on the peer gap, then the client shake-off.
+
+### Row 3: A-101 row 2 (waiting)
+
+- W-144 is not on origin/main (d95e7ff1), so A-101 row 2 is still waiting, as the card says.
+- Still owed from the ruling: one more pass on RockGolem's section details so vines read apart from boulders at mid range.
