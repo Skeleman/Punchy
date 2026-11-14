@@ -277,3 +277,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-14 supervisor: Zach saw near shadow edges crawl on benches and buildings in a desert town (render editor, main). #308, card R-20 row 3; render does it after R-23 row 2. Magenta foliage was passing (gone when Zach looked again); render checks its log.
 - 11-14: render window showed white/lavender impostor squares. Cause: shader import in play mode wipes the impostor materials' runtime properties (frames 0, no atlas). Issue #309, fix carded to render (render/impostor-props) ahead of R-23 row 2.
 - 11-14 supervisor: #310 (render/impostor-props, #309 impostor squares after a shader reimport) merged, main 3eeb72d4; #309 closed. Adds one line to shared FloraSystem.cs: world told.
+- 11-14: audit 11-13 triaged (REFACTOR-ROADMAP 'Audit 11-13', #311): cards W-156, R-27, A-111, A-112; bench jobs 78-80. Zach's cliff note (stripes, varied ledges, colour fit) is W-155 row 1b and row 2.

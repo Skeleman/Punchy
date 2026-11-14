@@ -749,3 +749,20 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
   so they build fresh), A vs B; then 300 frames looking along the canyon from its rim: GPU and main-thread ms.
 - Pass: Zach wants a baseline that real cliffs are feasible, not a gate. Report the numbers; flag anything over
   +0.3 ms per frame or a bake over 250 ms.
+
+## Job 78 (2026-11-14, QUEUED after 77; supervisor, audit 11-13, #311): night town light cost
+- Main (latest). Profile build, 1920x1080, Medium and Ultra, uncapped, midnight, Clear, `-weatherseed 4`.
+- The largest town at night, 300 frames from the square and 300 from 200 m out: GPU ms, main ms, and the samples
+  for the glow pass (Glow.hlsl loop) and `LightBudget.Resolve`; count active glow slots and light requests.
+- Report only; flag Glow over 0.5 ms GPU or Resolve over 0.2 ms main.
+
+## Job 79 (2026-11-14, QUEUED after 78; supervisor, audit 11-13, #311, W3): cloud cost
+- Main. Profile build, 1080p, Medium and Ultra, uncapped, noon; Clear vs Overcast; clouds on vs off (existing
+  switch, or `-benchtune` if none). Two views: coast looking inland, peak looking out.
+- GPU ms per case and the cloud pass's share. Report only.
+
+## Job 80 (2026-11-14, QUEUED after 79; supervisor, audit 11-13, #311, #270): streaming spikes
+- Main. Profile build, 1080p, Medium, uncapped. Three routes: walk into the nearest cave with water from 300 m;
+  tunnel exit (#279 spot); fast flight jump of 1 km with the #288 flora boost.
+- Every main frame over 8 ms: its top three samples (cave water tile build, TraceSystem, flora cells, terrain
+  chunks, structures). Say whether two streaming systems spike in the same frame (decides #270's scheduler).

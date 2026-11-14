@@ -71,3 +71,4 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #303 | Lava does not look like lava (Zach 11-13) | W-154 (world lane, after W-153 row 2) |
 | #304 | Cartoon bark and cave cracks; cave vs terrain detail contrast (Zach 11-13) | R-26 (render lane, after R-23 rows 1-2) |
 | #309 | render | impostor props fix, render/impostor-props |
+| #311 | world W-156, render R-27, folk A-111, fauna A-112 | audit 11-13 follow-ups |

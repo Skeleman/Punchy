@@ -363,6 +363,22 @@ Large generated rock pieces (10-40 m slabs and columns) placed on steep ground b
 ### Next rendering targets (11-09)
 Sky: low-resolution buffer, R-1 in progress. Depth priming: job 35 found the prepass is forced depth priming, not SSAO's.
 
+## Audit 11-13 (outside scalability audit of main d95e7ff, #311)
+Checked against main by the supervisor. Where each point went:
+- **Carded (confirmed bugs or clear costs):** far clip raised but never lowered, cave water nearest first and its
+  main-thread tile build (W-156); flora shadow cache derivatives after early returns (R-27); client kin watch every
+  frame, hermit talk and work dust scans (A-111); ride searches O(N^2), PlayerRideSystem sync point (A-112).
+- **Bench first (rule 21):** night-town glow loop and light ranking (job 78); clouds (job 79); streaming spikes:
+  cave water builds, tunnel exit #279, the #288 flora jump window (job 80). R-16 blend and Stop NaN are jobs 63 and
+  65; R-19 is job 73.
+- **Already covered:** shared streaming scheduler and frame budget (#270), cluster/HLOD after billboards (#270, 3.7),
+  far views (#298), DetailPolicy as the one detail rule (3.7).
+- **Not taken now:** projected-bounds screen size and per-view DetailPolicy (only matters with split screen or
+  shadow views; revisit with R-23); water field source partition and gradient sample skip (stay in 3.4 until a
+  bench names the field).
+- **Scheduler stance:** a quota registry first (Phase 5); an adaptive scheduler only if job 80 shows systems
+  colliding in the same frames. #270 and item 5 below now say the same.
+
 ## Keep as is (ChatGPT agrees)
 GPU-driven flora, TerrainSource as the single ground contract, deterministic generation, terrain streaming budgets,
 BlobAssets for static world data, procedural creature animation, the river flow-map water, the fire draw-batching
@@ -373,7 +389,7 @@ approach (a single draw).
 2. **Assembly definitions everywhere:** Entities and Burst source generators run per assembly; DebugControls and the test flags reach into nearly every system (cycles); and parallel lanes would fight over file moves. Worth it only slowly, as in 4.1; the payoff is mainly compile time and enforced boundaries.
 3. **Gerstner waves with real vertex displacement:** the water mesh is flat, per terrain chunk, and gameplay reads a flat surface from TerrainSource (swimming, the underwater lens test, foam, wakes). Moving the surface means the CPU must evaluate the same waves to keep TerrainSource the source of truth. Big and cross-cutting for a mostly visual gain; normal-only waves already read well. Skip unless boats or floating objects arrive.
 4. **FFT oceans and shallow-water simulation:** ChatGPT rules them out too.
-5. **An adaptive, frame-time-driven work scheduler:** high design risk; the quota registry (Phase 5) gets most of the value.
+5. **An adaptive, frame-time-driven work scheduler:** high design risk; the quota registry (Phase 5) gets most of the value. Reopen only if a bench (job 80) shows streaming systems spiking in the same frames.
 6. **Fire propagation and fuel simulation:** no gameplay needs it yet, and it would be a feature during the freeze.
 
 ## Playtest feedback, 2026-11-07 (tabled until after the refactor; on v0.13.0)
