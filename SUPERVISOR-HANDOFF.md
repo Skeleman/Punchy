@@ -283,3 +283,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-14: Zach's notes: notice board life A-116 (folk, after A-115, #316); stables and riders A-117 (fauna, after A-113, #317).
 - 11-14: A-108 row 2 (far herds, fauna/far-life d0524eaa) reviewed, clean; merge after BENCH 81 + Zach on crab density. Island cache format 2. W-155 row 2: Zach saw cliff tint bleeding onto ground (rounded border); world fixing before part 2.
 - 11-14: merged #318 (A-112, fauna/ride-search) and #319 (R-27, render/shadowcache-ddx); main 1746d62a. Fauna next A-113 then A-117; render next R-28 (cobble fade to screen size in the same branch). R-27 suite fail: WorldTests.Player_CrowFliesOutOfCaveThroughHitches (3 stuck, 722 ms hitch), not shader; watch.
+- 11-14: Zach: big cliffs much better, river banks excellent; fine vertical striping on big faces reads as uniform noise. W-155 row 2b (find the source, then vary it), sent to world.
