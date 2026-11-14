@@ -179,3 +179,29 @@ with main d95e7ff1); compiles, no suite run yet.
 - Asks: no renderer or ProjectSettings change needed (PC_Renderer is already Forward+ on main). Folk lane's
   FarFigureMaxPixels in DetailPolicy: no clash. Rule 20 leftovers: NearFixtures 40 m, TownGlowFadeFrom/To 250/330.
 - NEXT: R-19 row 2, then R-25 row 2.
+
+## #309 impostor squares (render/impostor-props f38e10bf), 2026-11-14
+
+- DONE: cause proven. Reimporting FloraImpostor.shader during play reset the impostor draw materials' code-set
+  values: frames went from 8 to 0 and the atlases were dropped. Impostors then drew as big lit squares. This is
+  on main; the atlases themselves were never harmed.
+- DONE: the fix, in two parts.
+  - FloraImpostor.shader now declares the atlases, frames, full, pixels and model base in Properties.
+  - FloraSystem.Impostors.cs gets SetImpostorMaterial, moved out of StartImpostors, and KeepImpostorMaterial,
+    which sets every value again when _ImpostorFrames reads 0.
+  - FloraSystem.cs gets one added line, the per-layer call in the cull loop. World lane: I touched your file
+    with this single line only.
+- Checks:
+  - Repro on the branch: a forced reimport during play left frames at 8, and the window showed trees drawn
+    normally.
+  - The fallback path: I zeroed frames and the atlas from eval. The next frame logged "values were reset ...
+    set again" for layers 1 and 2, and frames was back to 8.
+  - WorldTests: Run finished: 40 total, 40 passed, 0 failed.
+  - Shader has no errors, and the scripts compile.
+- NOT DONE: no pixel diff. The values are the same when nothing resets them, so no look change is expected.
+  Not tested in a player build.
+- Shots (milestones folder R-23/i309): before-reimport.png, after-reimport.png, after-forced-reset.png.
+- Note: the first proof of the cause (a reimport in play on main) put the squares on Zach's screen without
+  warning. From now on I'll ask first before breaking a rule on purpose.
+- Asks: merge render/impostor-props. No BENCH job: the cost is one float read per layer per frame.
+- NEXT: R-23 row 2, then R-20 row 3 (#308).
