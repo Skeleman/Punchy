@@ -6966,6 +6966,32 @@ half3 PunchySurfaceFinish(half3 color, PunchySurface s, half reach);            
 - **Risk:** the foam at the foot is subtle on the pale snow rock. The wet band is easiest to see on darker rock. Adding the include to TerrainSurface set off a long shader variant compile (about 2 min, 43 compiler processes) on first load. Not timed (rule 21).
 - **Next:** R-22 row 0 (#298, world/far-view).
 
+## 2026-11-14 W-155 row 1 note (before code): two test scarps cut into the ground, files outside my folders (#281)
+
+Told first, as world-data.md asks. Branch `world/scarps` from origin/main d95e7ff1. No code is committed yet.
+
+- **What moves:** two test scarps placed by record, one canyon wall of 40 m or more and one river cut of 2-6 m. The
+  ground changes only inside each scarp's strip and its cut reach on the down side (the cut only lowers ground, never
+  below water plus a margin, and never makes a closed pit). No river course, lake, landmark or settlement is meant to
+  move; sites are picked clear of them. Landmark and fauna pins are read before and after and both go in the handoff.
+- **The builder:** a scarp record (rim line, drop along it, down side, kind, layer stack, age, seed) baked into a blob
+  on TerrainSource. One face function gives the rock boundary at each height from the layer stack, cracks at three
+  sizes and wear; the height field takes its upper envelope and the skin mesh takes the whole of it (so overhangs
+  and recesses are in the skin, ledges in both). The skin is in the terrain's vertex layout, drawn with the terrain's
+  own material, its first and last rows taken from the terrain. Terrain inside the strip is clipped with the cave
+  mouth's existing clip value, so no shader or include is edited.
+- **Files outside the world lane's folders I need to edit (asking):**
+  - `TerrainSource.cs` (shared, additive): a `Scarps` blob field, one Shape call after GrandFalls in SampleHeight and
+    in SampleGround, the blob in Equals.
+  - `Island/IslandV2.cs`, `Island/IslandCache.cs`: bake call with a timed `[scarps]` log line, dispose/apply, cache visit.
+  - `BuildChunkMeshJob.cs`, `TerrainStreamingSystem.cs`, `.FarRing.cs`: inside a strip, the clip value and a straight
+    rim-to-foot height so the cut edges meet the skin; a clay switch (flat grey surface data, launch flag) for the
+    card's clay shots.
+  - New files go in `Scripts/Terrain/Scarps/`. No ProjectSettings, renderer asset, shader or shared include.
+- **Not in this row:** material, debris and rim plants (row 2), walk and climb queries (row 3), the generator (row 4),
+  the far and middle tiers and their hand-over (row 5). Row 1's far form is the stepped height field itself.
+- **While waiting** I write only the new Scarps files and a site probe; the edits listed above wait for the answer.
+
 ## 2026-11-14 W-153 row 2 closed: suite 41/41 on water/truth a8fe44e5 (#301)
 
 - DONE: full PlayMode suite 41/41 on a8fe44e5 after the pause (fresh editor, no code change since the commit). Row 2 is closed; everything else stands as in the entry below.
