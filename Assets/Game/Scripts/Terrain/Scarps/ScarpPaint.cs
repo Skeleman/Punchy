@@ -8,9 +8,10 @@ namespace Punchy.Terrain
     /// foot (lighter for a hard bed, darker for a soft one, a little warmer or cooler per bed, so colour bands line up
     /// with the ledges they make without leaving the ground's palette). Slots and overhang undersides are darker,
     /// water streaks run down from the rim and from each ledge, moss sits low on the damp shaded side, the turf cap
-    /// and the soil under it spill over the rim, scree at the foot takes the colour of the slope below, and soil and
-    /// grass gather on ledge tops. All of it is laid over the terrain's own surface at that point (the same
-    /// triplanar rock steep ground gets) and fades out towards the seams, so skin and ground meet in one colour.
+    /// and the soil under it spill over the rim, the toe at the foot is the ground past it (with scree fans in its
+    /// earth), and soil and grass gather on ledge tops. The rock's tone stays on the face: nothing paints the ground.
+    /// All of it is laid over the terrain's own surface at that point (the same triplanar rock steep ground gets) and
+    /// fades out towards the seams, so skin and ground meet in one colour.
     /// </summary>
     public static class ScarpPaint
     {
@@ -30,11 +31,12 @@ namespace Punchy.Terrain
 
         /// <summary>
         /// Paints one skin vertex. y is its height, normal its own (from the skin grid), fade 0 at the seams to 1 on
-        /// the open face; rimTone and footTone are the ground's colour behind the rim and past the foot.
+        /// the open face; rimTone is the ground's colour behind the rim, foot the ground's surface past the foot.
         /// </summary>
         public static SurfaceProps Paint(ref Scarp sc, in ScarpAt at, float3 cracks, float y, float3 normal, float fade,
-                                         float3 rimTone, float3 footTone, SurfaceProps surface)
+                                         float3 rimTone, in SurfaceProps foot, SurfaceProps surface)
         {
+            var footTone = foot.Albedo;
             float drop = math.max(at.RimY - at.FootY, 0.01f), u = at.RimY - y, up = y - at.FootY;
             float seed = sc.Seed % 977u * 1.37f;
             bool earth = sc.Kind == ScarpKind.RiverCut;
@@ -88,21 +90,36 @@ namespace Punchy.Terrain
             float soil = (1f - cap) * (1f - math.smoothstep(depth + 0.3f, depth + (earth ? 0.8f : 0.7f), u + rag));
             albedo = math.lerp(albedo, rimEarth * 0.7f * new float3(1.05f, 0.95f, 0.85f), 0.7f * soil);
 
-            // Scree at the foot: where the face lies back into the toe, rubble the colour of the slope below.
-            float scree = math.smoothstep(0.35f, 0.7f, normal.y) * (1f - math.smoothstep(0.15f * drop, 0.45f * drop, up)) * (earth ? 0.4f : 1f);
-            albedo = math.lerp(albedo, math.lerp(rockBase, footEarth, 0.5f) * (0.9f + 0.15f * pick), 0.7f * scree);
+            // The toe: where the face lies back into the slope at its foot it is ground, not wall, so it takes the
+            // ground's own surface from past the foot (a green meadow stays green right up the toe) and the rock's
+            // tone never runs down onto it. How far up the toe the ground reaches wanders along the rim, and its
+            // edge is broken by noise along the rim, not set by a height or a radius.
+            float lie = math.smoothstep(0.4f, 0.75f, normal.y);
+            float climb = drop * (0.1f + 0.25f * math.saturate(0.5f + noise.snoise(new float2(at.S / 16f, seed + 90f))));
+            float ragToe = climb * 0.3f * noise.snoise(new float2(at.S / 2.5f, y / 2f + seed + 95f));
+            float toe = lie * (1f - math.smoothstep(0.5f * climb, climb, up + ragToe));
+            // Scree: rubble fans spilling down the toe from the wall here and there, in the earth of the slope below,
+            // thickest near the wall and thinning out downhill in ragged tongues.
+            float tongue = noise.snoise(new float2(at.S / 9f, seed + 97f)) + 0.3f * noise.snoise(new float2(at.S / 2f, up / 1.5f + seed + 99f));
+            float scree = toe * math.saturate(2f * tongue + 0.8f * up / climb - 0.4f) * (earth ? 0.5f : 1f);
 
             // Ledge tops hold soil and grass.
-            float ledge = math.smoothstep(0.55f, 0.85f, normal.y) * (1f - 0.5f * hard) * (1f - scree);
+            float ledge = math.smoothstep(0.55f, 0.85f, normal.y) * (1f - 0.5f * hard) * (1f - toe);
 
             var painted = surface;
             painted.Albedo = albedo;
             painted.Smoothness = surface.Smoothness + 0.05f * streaks;
             painted.Grass = math.max(surface.Grass, ledge);
-            painted.Pebbles = math.max(surface.Pebbles, scree);
             painted.Strata = 0f;
-            // The paint fades in from the seams, except the turf cap, which runs right to the rim.
+            // The paint fades in from the seams, except the turf cap, which runs right to the rim, and the toe, which
+            // is the foot's ground all the way down to it.
             var result = SurfaceProps.Lerp(surface, painted, fade);
+            var ground = foot;
+            ground.Albedo = math.lerp(foot.Albedo, math.lerp(rockBase, footEarth, 0.5f) * (0.9f + 0.15f * pick), 0.8f * scree);
+            ground.Grass = foot.Grass * (1f - scree);
+            ground.Pebbles = math.max(foot.Pebbles, scree);
+            ground.Strata = 0f;
+            result = SurfaceProps.Lerp(result, ground, toe);
             var turf = surface;
             turf.Albedo = rimTone;
             turf.Grass = math.max(surface.Grass, 1f);

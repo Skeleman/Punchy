@@ -70,7 +70,7 @@ namespace Punchy.Terrain
             var columns = new NativeArray<ScarpAt>(cols, Allocator.Temp);
             var columnCracks = new NativeArray<float3>(cols, Allocator.Temp);
             var rimTones = new NativeArray<float3>(cols, Allocator.Temp);
-            var footTones = new NativeArray<float3>(cols, Allocator.Temp);
+            var footTones = new NativeArray<SurfaceProps>(cols, Allocator.Temp);
 
             for (int c = 0; c < cols; c++)
             {
@@ -85,7 +85,7 @@ namespace Punchy.Terrain
                 // The ground's own colour a little behind the rim and a little past the foot (as flat ground), which
                 // the face's beds are tinted from so the face sits in the colours of the land round it (row 2).
                 rimTones[c] = Tone(rim - dir * ToneOut, new float3(0f, 1f, 0f));
-                footTones[c] = Tone(rim + dir * (at.W + ToneOut), new float3(0f, 1f, 0f));
+                footTones[c] = Ground(rim + dir * (at.W + ToneOut), new float3(0f, 1f, 0f));
                 float drop = at.RimY - at.FootY;
                 for (int k = 0; k < face; k++)
                 {
@@ -180,10 +180,12 @@ namespace Punchy.Terrain
         /// <summary>How far behind the rim and past the foot the neighbouring ground's colour is read (m).</summary>
         const float ToneOut = 2.5f;
 
-        float3 Tone(float2 xz, float3 normal)
+        float3 Tone(float2 xz, float3 normal) => Ground(xz, normal).Albedo;
+
+        SurfaceProps Ground(float2 xz, float3 normal)
         {
             var ground = Source.SampleGround(xz);
-            return Source.SampleSurface(xz, ground, normal).Albedo;
+            return Source.SampleSurface(xz, ground, normal);
         }
     }
 }
