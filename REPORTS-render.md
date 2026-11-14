@@ -205,3 +205,41 @@ with main d95e7ff1); compiles, no suite run yet.
   warning. From now on I'll ask first before breaking a rule on purpose.
 - Asks: merge render/impostor-props. No BENCH job: the cost is one float read per layer per frame.
 - NEXT: R-23 row 2, then R-20 row 3 (#308).
+
+## R-23 row 2 (2026-11-14): terrain, flora and impostors light through Surface.hlsl
+- Branch `render/one-surface` 88719cc9, on main 3eeb72d4. New `Shaders/Surface.hlsl` (108 lines):
+  `PunchySurfaceAt`, `PunchySurfaceLight` (sun, ambient, glow), `PunchySurfaceSunDim` (cloud and wide shadow) and
+  `PunchySurfaceFinish` (haze). TerrainSurface, Flora and FloraImpostor call these instead of building the light
+  by hand. 5 files, +164/-45. Nothing else changed.
+- DONE: the move, with pixel-diff proof (rule 28) and NaN 0.
+- Checks:
+  - A/B in one play session: both paths in a throwaway build behind a global float. a = old path, a2 = old path
+    again (noise), b = new path, a3 = old path after b (drift bracket). Max channel difference per pixel, mean over
+    the frame:
+    - neardusk: noise 0.0124, rewire 0.0134 (max 19). nearnight 0.0017 / 0.0017. nearrain 0.0023 / 0.0021.
+    - farday 0.0013 / 0.0013. fardusk 0.0012 / 0.0012. farnight 0.0061 / 0.0057. farrain 0.0085 / 0.0083.
+    - nearday: the first take drifted (terrain was still streaming in; a vs a3 17.3, b vs a3 5.1). Retaken with the
+      world settled: noise 0.0107, rewire 0.0105 (max 12).
+    - Explanation: no real difference. What's left is rain, particles and weather noise, the same size as a vs a2.
+    - Positive control: a deliberate magenta break showed 52702 px, so the capture would catch a real change.
+  - NaN: `[sparkle] r23row2 summary: 360 frames, 0 with markers`.
+  - ShaderHasError is False for all 3 shaders.
+  - Suite: Run finished: 40 total, 38 passed, 2 failed. The two fails are the known flakes
+    FolkTalkTests.WalkBy_NeverThroughWall ("no walk-by lines came up") and
+    WorldTests.Place_PropFindsAndFramesWharf (stale LogWatch [measure] line), both logged in REPORTS-world.
+    Neither touches shaders. A rerun of just those two didn't start: `test run --filter` gives 0/0 in this CLI.
+- NOT DONE:
+  - No player-build check.
+  - The BENCH job is queued, not run.
+- Shots (milestones folder R-23/row2): ab4/ (8 views x a, a2, b, a3), ab5/ (nearday retake), abctl*/ (magenta
+  control), main-a, main-b.
+- Notes:
+  - Merge note: the world lane's TerrainSurface edit (RiverCurtains include, `shore = max(shore,
+    PunchyFallWet(p))`) is not on main yet. Whoever merges second has to carry it into the new call order.
+  - My A/B runs briefly showed cyan terrain in my editor window. That's Unity's async-compile placeholder after a
+    shader reimport, not a bug. If Zach saw it on screen, that's what it was.
+  - rendering.md has two new gotchas. Swapping `material.shader` on a material Entities Graphics has registered (the
+    terrain) breaks its per-instance data. `DayNightCycle.TimeOfDay` gets set back to 12 while paused.
+- Asks: review/merge `render/one-surface` after BENCH job 82 (queued after 81: main vs branch, 3 views, Medium and
+  High, ABBA, 3 rounds). Row 3 will add its commit as arm C before the job runs.
+- NEXT: R-27 (#311, shadow-cache ddx), then R-28, then R-20 row 3 (#308).

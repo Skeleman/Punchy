@@ -779,3 +779,13 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
   FaunaDirector (UpdateHerds); the wake frame's main ms (11 animals made at once). B with `-herdlog` gives a
   `Herds:` line every 5 s (herds and members drawn).
 - Pass (rule 23): B within +0.3 ms main and +0.3 ms GPU of A at both views, Medium; no wake frame over 8 ms.
+
+## Job 82 (2026-11-14, QUEUED after 81; render lane, for R-23 rows 2-3, #298): one surface lighting path
+- Main 3eeb72d4 (A) vs `render/one-surface` 88719cc9 (B, row 2: terrain, flora and impostors light through
+  Surface.hlsl). Profile builds, 1920x1080, Medium and High, uncapped, 12:00, Clear, `-weatherseed 4`, ABBA,
+  3 rounds, 300 frames each. When row 3 lands I'll add its commit as arm C here before the job runs.
+- Views: desert town `-benchspot -342,560`; forest and town `-benchspot 2988.8,-920`, yaw 0; summit far view
+  `-benchspot -2496,294,960,55`.
+- Record: whole-frame GPU and main-thread ms per view and preset; shader variant count for TerrainSurface, Flora
+  and FloraImpostor from the build log.
+- Pass (rule 23): a pure move, so B within +0.1 ms GPU of A at every view, Medium; no new variants.
