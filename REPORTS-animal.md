@@ -4492,3 +4492,16 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - **For the world lane:** TerrainSource gains a Herds blob (fauna reads it; it is left out of Equals, and the ground does not read it), IslandV2 builds it last, and the island cache is now Format 2.
 - **For Zach (look):** whether the summit and lake views are sparse enough (see issue 6).
 - NEXT: A-112 (#311), then A-113 (#313), then A-117 (#317).
+
+## A-112
+
+### Row 1: RideLife searches by cell (done, verified, #311)
+- Commit on fauna/ride-search (pushed, new from main 3eeb72d4): 83a4233e.
+- RideLifeSystem (RideLife.cs) buckets every creature by 16 m cell, once per tick and only when someone searches that tick. A search then looks at the 3 x 3 cells round the searcher; searches reach 12 m at most, so nobody it could pick is left out. Candidates are visited in All's order, so a tie goes the same way as before. The pairing rules are the old filters, unchanged, moved into ChildCandidate and PetCandidate.
+- RideLog (Riding.cs) gains Ticks, Searches, Checks, WholeChecks and Mismatches. Force 8 runs the old whole scan beside each search and counts picks that differ. `-ridelife` turns it on for the town part. Ghost fields: none.
+- `-ridelife` in the editor (solo, town 73 HumanVillage, every roll forced to pass): PASS. Over the 150 s town part:
+  - 135 searches in 138 ticks; picks that differ from the whole scan: **0 of 135**.
+  - Pair checks per tick: **17 after, 104 before** (18 a search against about 106, the sim world's creature count there). That's 6x fewer here, and the gap grows with the creature count: a whole scan costs the full count per search, the cell search only the neighbours.
+  - Rides: 3 begun, 2 ended, all pets (chicken on dog). No grown-up went home near a child in the window, so no shoulders ride; the 0 differing picks shows the cell search makes the same choices as main.
+  - Reason table 18/18 and all nine dismount cases ok, as on main.
+- NEXT: row 2 (PlayerRideSystem sync point, found and fixed, host + client check next).
