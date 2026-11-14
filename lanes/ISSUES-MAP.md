@@ -79,3 +79,5 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #316 | folk A-116 | notice board readers and posters |
 | #317 | fauna A-117 | stables, folk riders |
 | #320 | render R-29 | one effects kit: erratic arcs, then steam, smoke, sparks, spray, wind |
+| #321 | world W-158 | darkened seams where built faces meet |
+| #322 | world W-159 | river flow as normals, not white streaks |
