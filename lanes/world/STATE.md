@@ -19,6 +19,7 @@ Worktree D:/Unity/Punchy-world. Read the card and REPORTS-world.md's newest entr
 2. W-153 row 2b: keep more hillside swamp pools (36 of 322 cells hold one now) without raising wall or step counts.
 3. W-153 rows 3-6 with W-155 row 4. Carried in: water walls beside falls 22 and 67 and in front of 46 and 51; fall 13's notch; cave falls without lip dip and foot ripples; the fine sheet reading FallShape; 109 fall and landmark head-pool walls; retake fall 46 and 51 fronts and the snowpeak landmark fall.
 4. W-156 (audit 11-13: far clip restore, nearest cave water first).
+4b. W-157 (Zach 11-14: taller hanging lanterns, stone lantern columns).
 5. W-141 fix row, W-154, R-22 row 2.
 
 ## Tools and gotchas

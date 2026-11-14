@@ -75,3 +75,4 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #312 | render R-28 | cobble grout and cheap parallax |
 | #313 | fauna A-113 | temperate tall trees and variety, saguaro imperfection |
 | #314 | folk A-114 | pocket and produce reach |
+| #315 | world W-157, folk A-115 | lantern forms and heights, lamplighter |
