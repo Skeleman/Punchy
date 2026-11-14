@@ -135,7 +135,7 @@ namespace Punchy.Ambience
                 var wide = math.clamp(f.width, 0.3f, 4f);
                 var light = FireSystem.Light(f.palette, flicker * strength * math.clamp(0.6f + 0.4f * wide, 0.7f, 1.8f));
                 light.w *= math.clamp(0.6f + 0.5f * wide, 0.8f, 2.2f);
-                Punchy.Settings.LightBudget.Add(Punchy.Settings.LightKind.Fire, f.seed, f.at, light);
+                Punchy.Settings.LightBudget.AddPooled(Punchy.Settings.LightKind.Fire, f.at, light);
             }
             ForestFires(source, palette, eye, lit);
             Beacons(source, eye, lit, flameRange);
