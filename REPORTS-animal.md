@@ -4384,6 +4384,13 @@ Where A-109 differs from A-108: herds are anonymous and seeded per 512 m cell fr
 - Follow-up: Steer still gives upright folk no building walls (the A-44 cost reason), so upright walks other than going home can still slide into building corners. Not fixed here, per the coordinator
 - NEXT: A-111 (#311)
 
+## A-111
+
+## 2026-11-14 A-111 row 1: parked (A-110 row 6 removes the code it changes)
+- PARKED: #311 client kin watch on a budget, on its own branch for a merge only if A-110 slips: folk/a111-row1-parked 185922c1 (from main 1746d62a). WatchKinLost looks every 0.25 s or at once when the ghost set changes (query order version), the two dictionaries are swapped instead of copied, and -households logs looks, frames and managed bytes every 10 s. (FaunaDirector.KinLost)
+- NOT DONE / UNVERIFIED: not compiled or run. A-110 row 6 (f137777a) deletes FaunaDirector.KinLost.cs; its TownExceptions RPC has no per-frame scan, so row 1 goes away once A-110 merges. Left out of fauna/folk-scans, per the coordinator.
+- NEXT: row 2 (hermit talk and work dust).
+
 ## A-107
 
 ### Row 1: graded climb sections on colossi (done, verified, #276, fauna/colossus-climb b2ad690b)
