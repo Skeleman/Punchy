@@ -561,9 +561,11 @@ namespace Punchy.Terrain
                 bakeText = $"v{version} loaded from the island cache in {watch.ElapsedMilliseconds} ms";
             else
             {
+                bool burst = BakeBurst.Check();
                 var baked = Bake(ref source, palette, types, version);
                 bakeText = $"{baked.Report}; baked in {baked.TotalMs} ms (generate {baked.GenerateMs}, places {baked.TotalMs - baked.GenerateMs}: grand falls {baked.FallsMs}, archipelago {baked.ArchipelagoMs})";
-                if (key != null) IslandCache.Save(ref source, version, key);
+                // A managed bake differs from a Burst one: never save it for later launches.
+                if (key != null && burst) IslandCache.Save(ref source, version, key);
             }
             Debug.Log($"[island] cache {(hit ? "hit" : "miss")} {reason} {watch.ElapsedMilliseconds} ms");
             EntityManager.SetComponentData(entity, source);
