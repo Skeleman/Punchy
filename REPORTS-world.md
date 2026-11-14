@@ -6966,6 +6966,19 @@ half3 PunchySurfaceFinish(half3 color, PunchySurface s, half reach);            
 - **Risk:** the foam at the foot is subtle on the pale snow rock. The wet band is easiest to see on darker rock. Adding the include to TerrainSurface set off a long shader variant compile (about 2 min, 43 compiler processes) on first load. Not timed (rule 21).
 - **Next:** R-22 row 0 (#298, world/far-view).
 
+## 2026-11-14 W-153 row 2b done: hillside swamp pools kept, counts at the ceiling (#301), water/truth b4ec2efb
+
+- **What changed (TerrainSource.Paddies.cs only):** a stepped pool on a slope used to be dropped when its step to the ground was too tall. It now levels to the lowest ground within 7 m plus 0.1 m (PaddyHillReach, PaddyHillLift), with a 0.6 m hillside step (PaddyHillStep). The step cap is PaddyMaxStep 1.8 m. The steepest-ground check is NaN-guarded.
+- **Result:** 113 pools instead of 36 (x3.1). The water truth counts are exactly at the ceiling 80,0,0,0,10,31,0,988,42,31,959,47,4: no extra walls or steps.
+- **Gate sweep (why these numbers):** a plain taller gate is safe only up to 1.05 m (76 pools). With the hillside level, gate 2.1 gave +2 walls, 2.4 gave +1, 3.0 gave +1 (159 pools), and a 5 m reach at 3.0 gave +6. The chosen setting is the largest that adds nothing.
+- **Suite:** 41/41 on editor 9284 after the last edit (Landmarks_V3 689D5348, Fauna 6A9E28E5, Water_TruthCounts passed). The header comment was edited after the first run, so I reran the whole suite.
+- **Shots** (High, noon), in D:/Unity/PunchyMilestones/W-153/row2b/, one hillside swamp near x -1060, z -3040:
+  - w153b-before-a.png and w153b-after-a.png (from the south, 40 m up);
+  - w153b-before-b.png and w153b-after-b.png (from the north-east, 30 m up).
+- **Risk:** more pools may add to the paddies bake time that bench 75 flagged (1.1-1.35 s). The paddies speed-up row comes next after the bake-determinism fix and R-21's foot boxes. Not timed (rule 21).
+- **Gotcha:** my suite script called `play stop`, which isn't a command on this editor (it's `editor.playmode stop`), so one run hung in play mode at the bootstrap scene. Fixed.
+- **Next:** bake determinism (world/bake-determinism), then R-21 foot boxes and the fall 74 spot, then the paddies speed-up.
+
 ## 2026-11-14 W-155 row 2 part 2 and 2b done: debris, plant room, toe, ends, no stripes (#281)
 
 - **Debris (own system, as decided):** Scarps/ScarpDebris places scree, fallen blocks, rim blocks and ledge stones from the scarp record on a worker thread; Scarps/ScarpDebrisSystem draws them with the terrain material per rim stretch, LOD by DetailPolicy.ScreenSize. 373 blocks in 16 groups on the two test scarps. End outcrops (ScarpDebris.EndOutcrop) sink into the ground to carry each end's taper.
