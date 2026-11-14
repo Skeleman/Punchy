@@ -1,0 +1,20 @@
+# Job 69 resumed 11-14 after the 11-13 run (q112) was stopped at lava4 r1 by a low-memory reap of its shell.
+# Job 69 (W-142, #262): ambient details together (leaves, smoke vents, lava seeps, cobwebs). world/ambient-details
+# 45897a75 vs its base, main 2078f16c. Medium and High, 3 rounds, noon. The marsh is a 30 m walk east under the canopy
+# at 2 m/s (-benchline); every other spot stands where -goto x,y,z puts the player (caves: the floor under the point).
+Q=q112b; TITLE="job 69 resumed, Medium caves"
+BUILDS="45897a7 2078f16"
+VIEWS="lava4 cave14 web2 web10 web24 web28"
+view() { case $1 in
+  marsh)    echo "-goto -3492,3,-1716 -benchstops line -benchline -3492,-1716,-3462,-1716,2,0.1 -benchhour 12";;
+  rootcave) echo "-goto -2198,9,-1572 -benchstops here -benchhour 12";;
+  fissure)  echo "-goto -805,-3398 -benchstops here -benchhour 12";;
+  lava4)    echo "-goto -208,2,-2727 -benchstops here -benchhour 12";;
+  cave14)   echo "-goto 615,11,-2758 -benchstops here -benchhour 12";;
+  web2)     echo "-goto -1941,101,2343 -benchstops here -benchhour 12";;
+  web10)    echo "-goto -2205,279,984 -benchstops here -benchhour 12";;
+  web24)    echo "-goto -2935,118,67 -benchstops here -benchhour 12";;
+  web28)    echo "-goto -2474,260,895 -benchstops here -benchhour 12";; esac; }
+ARMS="branch main"
+arm() { case $1 in branch) echo "Profile-45897a7";; main) echo "Profile-2078f16";; esac; }
+ROUNDS=3; GFX="Medium"; REF=main; BAR=0.3
