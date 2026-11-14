@@ -45,9 +45,12 @@ outdoors, not excepted, and its creature is absent or faded out on this machine.
 - Far residents cost the host nothing at any distance or count. Indoor members are not entities.
 - Spawning is per person, not per town: only outdoor members within 120 m of some player become creatures.
 - Housed members get their own tier (proposed cap 80), so domestics and visitors keep MaxSettled 60 as it is.
-- Planned outdoor share of a town: night 1 to 3 people (the watch), dawn and evening up to 30%, working day 35
-  to 45%. Town 73 (38 houses, 101 members): about 35 to 45 creatures at the busiest hour with a player in the
-  square, about half that from the edge, 1 to 3 at night. These are estimates; row 2 logs the real peak per town.
+- Outdoor share of a town: night 1 to 3 people (the watch), dawn and evening up to 30%, peak up to about 55%
+  in the afternoon (ruled after row 2: far views full of life come first). Town 73 (38 houses, 101 members):
+  row 2 measured a peak of 52 at 16.50 h, 3 at night. If the housed cap of 80 bites at a peak, report it; the
+  plan is not tuned down for it.
+- Members only go to places within a 90 m street walk of their own door.
+- The watch is the heads of the six houses with the shortest street walk to the gate.
 - Over the cap (players in two or three big towns at once), the members farthest from any player stay far
   figures. Far figures hide above 24 px (about 75 m), so the cap must keep everyone inside 80 m a creature.
 - Row 5 lowers the cost per creature: beyond talk range a housed folk only follows its legs, at a low rate.
