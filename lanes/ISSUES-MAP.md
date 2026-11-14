@@ -72,3 +72,6 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #304 | Cartoon bark and cave cracks; cave vs terrain detail contrast (Zach 11-13) | R-26 (render lane, after R-23 rows 1-2) |
 | #309 | render | impostor props fix, render/impostor-props |
 | #311 | world W-156, render R-27, folk A-111, fauna A-112 | audit 11-13 follow-ups |
+| #312 | render R-28 | cobble grout and cheap parallax |
+| #313 | fauna A-113 | temperate tall trees and variety, saguaro imperfection |
+| #314 | folk A-114 | pocket and produce reach |
