@@ -86,3 +86,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-14: #310 merged (closes #309): far trees no longer turn into big lit squares after a shader changes while the game runs in the editor. Players never saw it. Nothing to check in play.
 - 11-14: #318 merged (A-112): animal pairs (young and parent, pet and owner) find each other with a local search, and riding no longer stalls each frame while friends are in the game but nobody rides. Nothing new on the wire. Check: join a friend, both on foot near herds; then one rides a horse.
 - 11-14: #319 merged (R-27): tree shadow cache takes its slope before skipping pixels (fewer specks along cache edges). Check: dusk in a forest, watch shadow edges at 50-150 m.
+- 11-14: closed #281 (steep terrain reads as layered rock), #285 merged; beds and slabs from High up.

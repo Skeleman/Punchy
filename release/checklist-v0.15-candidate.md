@@ -14,6 +14,7 @@ line if you already saw it there.
 - [ ] **Fishing**: fish notice the bobber; catches depend on the water.
 - [ ] **Harsh-place work**: hermit chores and talk in harsh biomes.
 - [ ] **Shadows**: one shadow darkness at every distance (no darker or lighter bands as you look farther out). Near shadow edges flicker less when you walk; note any that still crawl, with place, time and preset.
+- [ ] **Cliffs and steep slopes** read as layered rock with beds and slabs at High and above (Low and Medium keep colour and grain).
 - Anything merged before the build goes in this list (I'll update it when I cut the build).
 
 ## v0.14.0 (11-12)
