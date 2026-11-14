@@ -84,3 +84,4 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #323 | render R-30 | foliage realism: leaf clusters, not toon blobs |
 | #324 | world | W-160 shoreline wander |
 | #325 | render R-31 | continuous grass fields; grass vs dirt fine texture |
+| #326 | world | W-161 elf towns with no wood |

@@ -92,3 +92,4 @@ Standing: the aim and its priorities are in COORDINATION.md. The layout is a tes
 Foliage realism (Zach 11-14): crowns as leaf clusters (cut-out cards, layering, bent normals) instead of solid toon shapes; #323, R-30.
 - Shorelines wander instead of ruled lines: lapping, noise lift, ragged wet band (W-160, #324).
 - Continuous grass swathes without bald spots; grass ground textured with blades, dirt speckled and grainy (R-31, #325).
+- Elven cities have no wood: signs, fences and props in stone or metal (W-161, #326).
