@@ -4367,6 +4367,17 @@ Where A-109 differs from A-108: herds are anonymous and seeded per 512 m cell fr
 - Asks: none. No BENCH request (drawn-only instances; job 83 covers row 5).
 - NEXT: A-110 row 7b (Marek, Kael, Quill: cause and fix each, one dusk run with stuck 0), started. No editor, build, loop or Punchy.exe of mine is running.
 
+## 2026-11-14 A-110 row 7b: the three old bugs (Kael, Quill, Marek) fixed, dusk run stuck 0
+- DONE: Kael (DD1AA217, the elder) no longer waits out a shower under his eaves. Cause: MembersIn only sent members in when they were Calm, and a folk sheltering from rain isn't Calm, so he wasn't sent till the shower ended, 61 min late. Fix: a member that is sheltering is sent in too. Calm itself is unchanged because legs read it. Noon run: he went in early at 11.59 h (fauna/one-population dcd89d0c)
+- DONE: Quill (936ED9A9, a day guard) goes in once and stays in. Cause: the brain shifts a day guard by the light, so a guard sent in on Patrol stepped straight back out. He was sent three times and counted stuck. Fix: sending a member in clears Patrol. Dusk run: sent once at 19.04 h, stuck 0 (dcd89d0c)
+- DONE: Marek (D33DD24D) gets home. Cause, two parts: (1) his far figure's spot cut through a house corner, so his body was made inside the walls; (2) Steer gives upright folk no wall block (nearSolids needs !Upright), so the Home stage 0 detour never fired. The Advance wall slide then pinned him in a building's inner corner, pulled toward his door and slid back, for about a game hour: 90 min late before this row, and still 46 min late, in at the wrong door, after the spawn part alone. Held trail: speed 0-0.08, yaw 57-71 deg against a door bearing of about 162 deg, from mode time 20 to 55 s. Fix: (1) SetUpMember moves an outdoor spawn to the nearest clear ground (rings 0.5 m apart, out to 8 m); (2) in GoIndoors stage 0, a folk held under 0.2 m/s more than 8 m from its door backs off sideways about 5 m through the existing FollowDetour, the side flipping every 10 s, then makes for its door again. Dusk run: in early at 17.81 h, no held lines at all (dcd89d0c)
+- DONE: a [members] "held" log (FarFolk.Log only) every 10 s says where a member stuck far from its door stands
+- NOT DONE / UNVERIFIED: all runs were solo. Port 7979 was held the whole time by another lane's editor (PID 80428), so I ran no host+client pass. Nothing new touches the network: it is host-side brain and director work. A host+client dusk run is still owed.
+- Checks: suite 61 total / 44 passed / 0 failed / 17 skipped, Passed, fingerprint 6A9E28E5. Dusk solo run at 2972,-885, 17-22.1 h: stuck 0 in all 61 summaries, worst late 10.5 min (Quill 0E3CD4F3 the child and Cass 5E4813C5, both walking in from about 9 m), Kael, Quill and Marek all "in early ... sent", 2 spawns moved 0.5 m out of walls. Noon solo run before the Marek part: stuck 0. New metre ranges are marked // sim:
+- Shots: none (behaviour row; the numbers are in the log)
+- Asks: none under rule 11. Old code noticed: Steer's nearSolids still excludes upright folk, for the A-44 cost reason, so other upright walks (not Home) can still slide into building corners. Worth a look if it shows up again.
+- NEXT: A-111 (#311)
+
 ## A-107
 
 ### Row 1: graded climb sections on colossi (done, verified, #276, fauna/colossus-climb b2ad690b)
