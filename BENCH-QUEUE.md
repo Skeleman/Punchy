@@ -789,3 +789,11 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
 - Record: whole-frame GPU and main-thread ms per view and preset; shader variant count for TerrainSurface, Flora
   and FloraImpostor from the build log.
 - Pass (rule 23): a pure move, so B within +0.1 ms GPU of A at every view, Medium; no new variants.
+
+## Job 83 (2026-11-14, QUEUED after 82; folk lane, A-110 row 5): far town folk on low-rate brains
+- `fauna/one-population` 3d0c8df2 (A, row 4) vs f1747057 (B, row 5). Profile builds, 1920x1080, Medium, uncapped,
+  10:00, Clear, `-weatherseed 4`, ABBA, 3 rounds, 300 frames each.
+- Views: town 73 centre `-benchspot 2972,-885`; and 200 m north `-goto 2972,-685` facing the town (most members far).
+- Record: GPU and main-thread ms per view; main-thread samples for the creature brains (CreatureMind) and the host
+  director; the `[members]` line's legs and full counts (about 27 on legs expected at the centre).
+- Pass (rule 23): B no worse than A on main thread at both views; report the saving.
