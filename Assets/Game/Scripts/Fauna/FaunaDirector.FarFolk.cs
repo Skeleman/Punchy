@@ -19,7 +19,6 @@ namespace Punchy.Fauna
         /// <summary>Whether its real folk are in the world on this machine just now (the far figures then give way to
         /// them near the camera).</summary>
         public bool Real;
-        internal float RealBlend;
         internal bool Drawn;
         /// <summary>The largest a far figure of this town has looked on screen while shown (reference pixels; ruling 5).</summary>
         public float MaxPixels;
@@ -29,6 +28,8 @@ namespace Punchy.Fauna
         /// how many of those were drawn after the fades (Shown), how many were left out as dead (Gone), and how many
         /// were waiting for their day to be built (Unbuilt). StatFrame is that frame's number (-1: never drawn).</summary>
         public int StatDay, Placed, Shown, Gone, Unbuilt, StatFrame = -1;
+        /// <summary>How many members had their own creature in the world on this machine that frame (row 3).</summary>
+        public int Live;
         public float StatHour;
         /// <summary>The -farfolk log's figures for a day: the most outdoors at once, when, and the day's digest.</summary>
         internal int PeakDay = int.MinValue, Peak;
@@ -50,6 +51,24 @@ namespace Punchy.Fauna
         public static readonly List<FarTown> Towns = new List<FarTown>();
         /// <summary>Whether every town's plan has been built (they are built one at a time after the world loads).</summary>
         public static bool Complete;
+        /// <summary>The number of the director's latest look at the creatures in the world (row 3): a member whose
+        /// LiveScan is this has its creature here now.</summary>
+        public static int Scan;
+
+        static bool logRead, log;
+        /// <summary>The -farfolk launch flag: the far figures' and the members' log lines.</summary>
+        public static bool Log
+        {
+            get
+            {
+                if (!logRead)
+                {
+                    logRead = true;
+                    log = System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-farfolk") >= 0;
+                }
+                return log;
+            }
+        }
 
         internal static void Clear()
         {
@@ -61,12 +80,15 @@ namespace Punchy.Fauna
             (BiomeSampling.Scramble(seed ^ (uint)(k + 1) * 0x9E3779B9u) & 0xFFFFFFu) / 16777216f;
     }
 
-    // A-109 row 2, A-110 row 2: has each town's plan built (FaunaDirector.TownPlan) and tells whether its real folk
-    // are about. On every machine (a joined client too): all of it is derived, none of it touches the simulation, the
-    // spawn draws or the network.
+    // A-109 row 2, A-110 rows 2 and 3: has each town's plan built (FaunaDirector.TownPlan) and notes, member by
+    // member, whose creature is in the world here (the far figure gives way to it). On every machine (a joined client
+    // too): all of it is derived or read from creature state the machine already has; none of it touches the
+    // simulation or the network.
     public partial class FaunaDirector
     {
         readonly HashSet<int> farReal = new HashSet<int>();
+        /// <summary>Landmarks whose plan was started ahead of their turn (a town near the camera goes first).</summary>
+        readonly HashSet<int> farTried = new HashSet<int>();
         EntityQuery farQuery;
         World farQueryWorld;
         float nextFarWatch;
@@ -91,16 +113,39 @@ namespace Punchy.Fauna
             {
                 farKey = key;
                 farNext = 0;
+                farTried.Clear();
                 planPending = null;
+                planNear = false;
                 FarFolk.Clear();
                 Whereabouts.Clear();
             }
+            // A town near the camera first (row 3: its members can't spawn as themselves till its plan is built); a
+            // plan holds the same whatever order the plans are built in.
+            if (planPending == null && !FarFolk.Complete && Camera.main != null)
+            {
+                var eye = ((float3)Camera.main.transform.position).xz;
+                for (int i = 0; i < set.Instances.Length && planPending == null; i++)
+                {
+                    if (i < farNext || farTried.Contains(i) || math.distance(set.Instances[i].Position, eye) > 500f)
+                        continue;
+                    farTried.Add(i);
+                    planPending = StartTownPlan(source, i);
+                    planCursor = 0;
+                    planNear = planPending != null;
+                }
+            }
             for (int tries = 0; planPending == null && tries < 24 && farNext < set.Instances.Length; tries++)
             {
+                if (farTried.Contains(farNext))
+                {
+                    farNext++;
+                    continue;
+                }
                 planPending = StartTownPlan(source, farNext++);
                 planCursor = 0;
+                planNear = false;
             }
-            if (planPending != null && FillTownGrid(source, planPending, ref planCursor, 600))
+            if (planPending != null && FillTownGrid(source, planPending, ref planCursor, planNear ? 2400 : 600))
             {
                 var plan = planPending;
                 planPending = null;
@@ -125,11 +170,35 @@ namespace Punchy.Fauna
                 farQueryWorld = queryWorld;
                 farQuery = queryWorld.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>());
             }
+            // Whose creature is here (row 3): each member's own, where it is and how it moves, so its far figure
+            // gives way to it and stands where it stands while it fades.
             farReal.Clear();
+            FarFolk.Scan++;
+            var now = Time.time;
             var states = farQuery.ToComponentDataArray<CreatureState>(Allocator.Temp);
             foreach (var s in states)
-                if (s.Individual != 0 && Households.Of(s.Individual, out var house, out _))
-                    farReal.Add(house.Landmark);
+            {
+                if (s.Individual == 0 || !Households.Of(s.Individual, out var house, out var m))
+                    continue;
+                farReal.Add(house.Landmark);
+                if (!Whereabouts.Towns.TryGetValue(house.Landmark, out var plan) || !plan.LocalOf.TryGetValue(house, out var local) ||
+                    m >= plan.HouseResidents[local].Count)
+                    continue;
+                var r = plan.Residents[plan.HouseResidents[local][m]];
+                var known = r.LiveScan == FarFolk.Scan - 1 && now > r.LiveTime;
+                r.LiveVelocity = known ? (s.Position - r.LivePosition) / (now - r.LiveTime) : float3.zero;
+                // (A jump, not a walk: a rider set down, a test moving it.)
+                if (math.lengthsq(r.LiveVelocity) > 100f)
+                    r.LiveVelocity = float3.zero;
+                r.LivePosition = s.Position;
+                r.LiveFacing = new float2(math.sin(s.Yaw), math.cos(s.Yaw));
+                r.LiveClock = s.Clock;
+                r.LiveTime = now;
+                r.LiveIndoors = s.Mode == CreatureMode.Home && s.Stage >= 1;
+                r.LiveScan = FarFolk.Scan;
+                if (!known && FarFolk.Log)
+                    LogMemberSeen(plan, r, s);
+            }
             states.Dispose();
             foreach (var town in FarFolk.Towns)
                 town.Real = farReal.Contains(town.Landmark);
@@ -141,6 +210,8 @@ namespace Punchy.Fauna
             FarFolk.Clear();
             Whereabouts.Clear();
             planPending = null;
+            planNear = false;
+            farTried.Clear();
             farKey = 0;
             farNext = 0;
             farQueryWorld = null;
@@ -154,19 +225,35 @@ namespace Punchy.Fauna
             return g.HasWater && g.WaterSurface > g.Height ? math.max(g.Height, g.WaterSurface - 0.4f) : g.Height;
         }
 
-        /// <summary>A figure's body and limb colours: its species' (one of its coats, picked by its seed).</summary>
-        static void FarColours(CreatureSpecies species, uint seed, out float4 body, out float4 limbs)
+        /// <summary>A figure's body and limb colours: its species' (one of its coats, picked by its seed with the
+        /// coats' weights, as CreatureBlob.PickCoat does). Returns the coat, which its creature wears too (row 3).</summary>
+        static int FarColours(CreatureSpecies species, uint seed, out float4 body, out float4 limbs)
         {
             var b = species.Base;
             var a = species.Accent;
+            var picked = 0;
             if (species.Coats != null && species.Coats.Count > 0)
             {
-                var coat = species.Coats[(int)(BiomeSampling.Scramble(seed ^ 0xC0A7u) % (uint)species.Coats.Count)];
-                b = coat.Base;
-                a = coat.Accent;
+                var total = 0f;
+                foreach (var c in species.Coats)
+                    total += math.max(c.Weight, 0f);
+                var pick = FarFolk.Hash01(seed, 41) * total;
+                picked = species.Coats.Count - 1;
+                for (int i = 0; i < species.Coats.Count; i++)
+                {
+                    pick -= math.max(species.Coats[i].Weight, 0f);
+                    if (pick <= 0f)
+                    {
+                        picked = i;
+                        break;
+                    }
+                }
+                b = species.Coats[picked].Base;
+                a = species.Coats[picked].Accent;
             }
             body = new float4(b.linear.r, b.linear.g, b.linear.b, 0f);
             limbs = new float4(a.linear.r, a.linear.g, a.linear.b, 0f);
+            return picked;
         }
     }
 }

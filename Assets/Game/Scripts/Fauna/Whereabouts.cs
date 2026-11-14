@@ -25,6 +25,11 @@ namespace Punchy.Fauna
         public bool Indoors;
         /// <summary>The street node its paths start from (-1: none near), and for a Home or Step its household.</summary>
         public int Node, House;
+        /// <summary>For a job's post (row 3): the task and village job its worker does there as a creature, and what it
+        /// faces as it works (None for a place with no task of its own).</summary>
+        public CreatureTask Task;
+        public FolkJob Job;
+        public float2 WorkFace;
     }
 
     /// <summary>One household member of a town (A-110): who it is, where it lives and works, and its cached day.</summary>
@@ -39,6 +44,9 @@ namespace Punchy.Fauna
         public uint Seed;
         public float Scale, Speed;
         public float4 Body, Limbs;
+        /// <summary>Its species (the director's index) and which of that species' coats it wears: its creature is made
+        /// with both, and its far figure is coloured from them.</summary>
+        public int Species, Coat;
         /// <summary>Its own door, the step in front of it, and its job's place (-1: none), as town places.</summary>
         public int Home, Step, Job;
         /// <summary>Its day, and one more kept beside it (the day before or after, or one a check asked for).</summary>
@@ -52,6 +60,20 @@ namespace Punchy.Fauna
         internal bool Capped;
         internal float CapBlend;
         internal int CapFrame;
+        /// <summary>
+        /// Its creature on this machine (row 3), as last seen by the director's watch (a few times a second): which
+        /// watch saw it (LiveScan; FarFolk.Scan when it is here now), where it was, how fast it was going, how long it
+        /// had existed, when that was (Time.time), and whether it was indoors. Read from creature state every machine
+        /// already has: nothing sent or stored.
+        /// </summary>
+        internal int LiveScan = -1;
+        internal float3 LivePosition, LiveVelocity;
+        internal float2 LiveFacing;
+        internal float LiveClock, LiveTime;
+        internal bool LiveIndoors;
+        /// <summary>Host only: when its creature was last asked for (Time.time), so it isn't asked for twice while it
+        /// is being made.</summary>
+        internal float Asked = float.MinValue;
     }
 
     /// <summary>One stop of a day: a place, when the member gets there and when it leaves, and the way to it.</summary>
@@ -292,6 +314,12 @@ namespace Punchy.Fauna
         const float MinStay = 0.3f;
         /// <summary>How long a game hour lasts (s): the shared clock's rate, set by whoever reads the clock.</summary>
         public static float SecondsPerHour = 60f;
+        /// <summary>The moment the far figures were last drawn at (row 3): the day, the hour, the seconds on the
+        /// shared clock and the frame. The director places a member's creature by the same moment, so the creature
+        /// and its far figure are at one spot (a paused clock runs on the drawing world's own time).</summary>
+        public static int ClockDay, ClockFrame = -1;
+        public static float ClockHour;
+        public static double ClockSeconds;
 
         /// <summary>Every town's plan, by landmark.</summary>
         public static readonly Dictionary<int, TownPlan> Towns = new Dictionary<int, TownPlan>();

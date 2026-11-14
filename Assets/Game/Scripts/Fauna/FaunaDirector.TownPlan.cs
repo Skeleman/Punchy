@@ -19,6 +19,9 @@ namespace Punchy.Fauna
         readonly List<int> planOrder = new List<int>();
         TownPlan planPending;
         int planCursor;
+        /// <summary>Whether the plan being built is of a town near the camera, taken ahead of its turn (row 3): it
+        /// is given more of each look, so its members can spawn as themselves sooner.</summary>
+        bool planNear;
 
         /// <summary>The ground grid's cell (m), and how far past the landmark's radius it reaches.</summary>
         const float PlanCell = 4f, PlanMargin = 20f;
@@ -143,6 +146,16 @@ namespace Punchy.Fauna
             return plan.Places.Count - 1;
         }
 
+        /// <summary>Marks a place as a job's post: what its worker does there as a creature (row 3).</summary>
+        static void PlanWork(TownPlan plan, int place, CreatureTask task, FolkJob job, float2 face)
+        {
+            var p = plan.Places[place];
+            p.Task = task;
+            p.Job = job;
+            p.WorkFace = face;
+            plan.Places[place] = p;
+        }
+
         static bool PlanPlaceNear(TownPlan plan, float2 at, float within)
         {
             foreach (var p in plan.Places)
@@ -262,7 +275,9 @@ namespace Punchy.Fauna
                         Step = step,
                         Job = -1
                     };
-                    FarColours(species[child ? childSpecies : grownSpecies], r.Seed, out r.Body, out r.Limbs);
+                    // (Its creature is this species in this coat, so the far figure and the creature are one colour.)
+                    r.Species = child ? childSpecies : grownSpecies;
+                    r.Coat = FarColours(species[r.Species], r.Seed, out r.Body, out r.Limbs);
                     plan.Residents.Add(r);
                     plan.HouseResidents[local].Add(r.Index);
                     if (!child)
@@ -290,6 +305,7 @@ namespace Punchy.Fauna
                 }
                 var count = math.max(0, r.Count.x);
                 var place = PlanPlace(source, plan, PlaceKind.Post, at, face, count > 1 ? 1f : 0f, false, -1, at);
+                PlanWork(plan, place, r.Task, FolkJob.None, face);
                 for (int k = 0; k < count; k++)
                     planJobs.Add(place);
             }
@@ -309,6 +325,7 @@ namespace Punchy.Fauna
                 var patrol = post.Task == CreatureTask.Patrol;
                 var place = PlanPlace(source, plan, patrol ? PlaceKind.Gate : PlaceKind.Post, post.Stand,
                                       patrol ? post.Stand + (post.Stand - centre) : post.Face, 0f, false, -1, post.Stand);
+                PlanWork(plan, place, post.Task, post.Job, post.Face);
                 if (patrol && plan.Gate < 0)
                     plan.Gate = place;
                 planJobs.Add(place);

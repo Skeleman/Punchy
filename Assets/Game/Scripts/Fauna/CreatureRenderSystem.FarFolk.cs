@@ -58,14 +58,20 @@ namespace Punchy.Fauna
         int GatherFarFolk(float3 cam, double t, float hour)
         {
             farShown.Clear();
-            if (CaveSystem.SurfaceHidden >= 0.99f || FarFolk.Towns.Count == 0 || !Households.Ready)
-                return 0;
-            var pixelsPerMetre = DetailPolicy.Current.Data.PixelsPerMetre;
-            var dt = SystemAPI.Time.DeltaTime;
             var frame = UnityEngine.Time.frameCount;
             var perHour = skyCycle != null ? skyCycle.DayLengthMinutes * 2.5f : 60f;
             var day = skyCycle != null ? skyCycle.Day : 0;
             Whereabouts.SecondsPerHour = perHour;
+            // (Row 3: the moment these figures are drawn at, which the director places a member's creature by.)
+            Whereabouts.ClockDay = day;
+            Whereabouts.ClockHour = hour;
+            Whereabouts.ClockSeconds = t;
+            Whereabouts.ClockFrame = frame;
+            if (CaveSystem.SurfaceHidden >= 0.99f || FarFolk.Towns.Count == 0 || !Households.Ready)
+                return 0;
+            var pixelsPerMetre = DetailPolicy.Current.Data.PixelsPerMetre;
+            var dt = SystemAPI.Time.DeltaTime;
+            var now = UnityEngine.Time.time;
             // (A member's day is built the first time it is asked for: a few a frame, the rest wait their turn.)
             var budget = 12;
             // (The hour before the folk day turns, the next day is built beside this one, so nobody blinks at the turn.)
@@ -74,8 +80,6 @@ namespace Punchy.Fauna
             int walkers = 0, motes = 0, drawnTowns = 0;
             foreach (var town in FarFolk.Towns)
             {
-                // (Its real folk fade in over 1.2 s, PoseJob.FadeInTime: the far figures near them leave as slowly.)
-                town.RealBlend = math.saturate(town.RealBlend + (town.Real ? dt : -dt) / 1.2f);
                 var nearest = math.max(math.distance(cam, town.Centre) - town.Radius, 1f);
                 town.Drawn = DetailPolicy.Holds(DetailPolicy.ScreenSize(FarFolk.FigureHeight, nearest, pixelsPerMetre),
                                                 FarFolkMotePixels * 0.5f, town.Drawn);
@@ -83,7 +87,7 @@ namespace Punchy.Fauna
                     continue;
                 drawnTowns++;
                 var plan = town.Plan;
-                int placed = 0, drawn = 0, gone = 0, unbuilt = 0;
+                int placed = 0, drawn = 0, gone = 0, unbuilt = 0, live = 0;
                 for (int i = 0; i < plan.Residents.Count; i++)
                 {
                     var f = plan.Residents[i];
@@ -92,30 +96,57 @@ namespace Punchy.Fauna
                         gone++;
                         continue;
                     }
-                    if (!Whereabouts.Built(plan, i, day, hour))
+                    // Row 3, one person at one place: a member whose creature is in the world here is drawn as that
+                    // creature. Its far figure stands where the creature stands and shows only as much as the creature
+                    // doesn't: while it fades in (1.2 s, PoseJob.FadeInTime) and where it fades out with distance
+                    // (140 m to 165 m). A member with no creature here keeps its far figure where Whereabouts has it.
+                    Whereabout w;
+                    var near = 1f;
+                    if (f.LiveScan == FarFolk.Scan)
                     {
-                        if (budget <= 0)
-                        {
-                            unbuilt++;
+                        live++;
+                        if (f.LiveIndoors)
                             continue;
-                        }
-                        budget--;
+                        var age = math.clamp(now - f.LiveTime, 0f, 0.4f);
+                        var moving = math.lengthsq(f.LiveVelocity.xz) > 0.04f;
+                        w = new Whereabout
+                        {
+                            Outdoors = true,
+                            Position = f.LivePosition + f.LiveVelocity * age,
+                            Facing = f.LiveFacing,
+                            Doing = moving ? Doing.Walk : Doing.Idle,
+                            Walked = moving ? (float)(t % 1000.0) * math.length(f.LiveVelocity.xz) : 0f,
+                            Shown = 1f,
+                            From = -1,
+                            To = -1
+                        };
+                        var there = math.distance(cam, w.Position);
+                        near = 1f - math.saturate((f.LiveClock + age) / 1.2f) * math.saturate((CreatureFadeFar - there) / CreatureFadeRange);
                     }
-                    else if (beforeTurn && budget > 0 && !Whereabouts.Built(plan, i, day, Whereabouts.Turn))
+                    else
                     {
-                        budget--;
-                        Whereabouts.Prepare(plan, i, day, Whereabouts.Turn);
+                        if (!Whereabouts.Built(plan, i, day, hour))
+                        {
+                            if (budget <= 0)
+                            {
+                                unbuilt++;
+                                continue;
+                            }
+                            budget--;
+                        }
+                        else if (beforeTurn && budget > 0 && !Whereabouts.Built(plan, i, day, Whereabouts.Turn))
+                        {
+                            budget--;
+                            Whereabouts.Prepare(plan, i, day, Whereabouts.Turn);
+                        }
+                        w = Whereabouts.Of(plan, i, day, hour, t);
+                        if (!w.Outdoors)
+                            continue;
                     }
-                    var w = Whereabouts.Of(plan, i, day, hour, t);
-                    if (!w.Outdoors)
-                        continue;
                     placed++;
                     var position = w.Position;
                     var distance = math.distance(cam, position);
                     var pixels = DetailPolicy.ScreenSize(FarFolk.FigureHeight * f.Scale, distance, pixelsPerMetre);
-                    // Near the camera a peopled town's real folk are drawn (they fade out from 140 m to 165 m): the far
-                    // figures fade in over that stretch. A town with no real folk here keeps its far figures throughout.
-                    var near = math.lerp(1f, math.saturate((distance - (CreatureFadeFar - CreatureFadeRange)) / CreatureFadeRange), town.RealBlend);
                     // (Ruling 4: under the mote size, thinned by dither, gone at half of it.)
                     var thin = math.saturate(pixels / (FarFolkMotePixels * 0.5f) - 1f);
                     // (The size cap: too big to pass for a person, it fades out over half a second, and comes back
@@ -171,6 +202,7 @@ namespace Punchy.Fauna
                 town.Shown = drawn;
                 town.Gone = gone;
                 town.Unbuilt = unbuilt;
+                town.Live = live;
             }
             if (FarLog && UnityEngine.Time.time >= farLogNext)
             {
@@ -197,7 +229,7 @@ namespace Punchy.Fauna
                                     $"{plan.Residents.Count} members, outdoors {(town.Unbuilt == 0 ? Whereabouts.Outdoors(plan, day, hour).ToString() : "?")}, " +
                                     $"placed {town.Placed}, shown {town.Shown}, gone {town.Gone}, unbuilt {town.Unbuilt}, " +
                                     (town.PeakDay == day ? $"day {day} peak {town.Peak} at {town.PeakHour:F2} h digest {town.Digest:X8}, " : "") +
-                                    $"overruns {plan.Overruns}, real {(town.Real ? "yes" : "no")}, largest {town.MaxPixels:F1} px, {town.NowPixels:F1} px since the last line]");
+                                    $"overruns {plan.Overruns}, creatures {town.Live}, largest {town.MaxPixels:F1} px, {town.NowPixels:F1} px since the last line]");
                         town.NowPixels = 0f;
                     }
                 Debug.Log($"[farfolk] day {day} hour {hour:F2}: {FarFolk.Towns.Count} towns, {drawnTowns} in view, {walkers} walkers, {motes} motes, {parts} capsules;{line}");
