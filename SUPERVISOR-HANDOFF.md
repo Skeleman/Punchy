@@ -332,3 +332,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-14: merged #285 (R-19 steep rock, High+ by default) -> 1c9a0111; #281 reopened (geometry still open). Render next: R-36 row 1, R-20 row 1.
 - 11-14: opened and merged #346 (bake determinism, synchronous Burst for 14 bake jobs) -> 02c2b3b8; hashes unchanged. Cross-CPU risk noted in W-168 row 2. World next: W-168 row 1.
 - 11-14: opened and merged #347 (A-114 pocket reach) -> 4006cab3; #314 closed. Follow-up for folk: pocketSeen never drops despawned bodies (small leak); build went to Builds/Windows not Builds/Dev. Folk next: A-115 (#315).
+- 11-14: fresh folk-lane agent a588d47eb549dba91 started on A-115 -> A-116 -> A-120 (old folk agent a3109fe0 finished).
