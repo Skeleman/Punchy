@@ -86,3 +86,4 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #325 | render R-31 | continuous grass fields; grass vs dirt fine texture |
 | #326 | world | W-161 elf towns with no wood |
 | #327 | world (render shared surface) | W-162 cliff and cave rock walls blended |
+| #328 | render R-32 | steady sun shadows; grass shaded in mid shadow tiers |
