@@ -458,6 +458,8 @@ namespace Punchy.Settings
             for (int i = 0; i < requests.Count; i++)
             {
                 var r = requests[i];
+                if (log && realGranted.Contains(r.Key))
+                    logReal[(int)r.Kind]++;   // (by the request's kind: a pooled light's key is its position, not its kind)
                 if (r.Tier > LightTier.Glow || realGranted.Contains(r.Key) || heatNextAge.ContainsKey(r.Key))
                     continue;
                 Dropped++;
@@ -465,11 +467,7 @@ namespace Punchy.Settings
                     logDropped[(int)r.Kind]++;
             }
             if (log)
-            {
-                foreach (var key in realGranted)
-                    logReal[(int)key.z]++;
                 Log(budget);
-            }
             requests.Clear();
         }
 
