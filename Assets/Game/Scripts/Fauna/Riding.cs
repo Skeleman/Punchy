@@ -79,6 +79,12 @@ namespace Punchy.Fauna
 
         public int On;
         public int Begun, Ended;
+        /// <summary>A-112: RideLifeSystem's ticks, searches (a child or pet looking for its pair), pair checks made in
+        /// them, and with -ridelife's check (RideLifeSystem.Force 8) searches whose pick differs from a whole scan's.</summary>
+        public int Ticks, Searches, Mismatches;
+        public long Checks;
+        /// <summary>What the same searches would have cost scanning everyone, as before A-112 (creatures per search).</summary>
+        public long WholeChecks;
         public FixedList512Bytes<Off> Offs;
 
         public static readonly SharedStatic<RideLog> Data = SharedStatic<RideLog>.GetOrCreate<RideLog, Key>();
