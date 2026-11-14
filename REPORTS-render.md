@@ -301,3 +301,42 @@ with main d95e7ff1); compiles, no suite run yet.
 - Asks: the +4 B per vertex goes into the row 2 BENCH ask (terrain mesh memory and GPU ms in a town, A = main,
   B = branch). Don't merge yet: row 2 adds commits to this branch.
 - NEXT: R-28 row 2 (bevel-height parallax, stone normal replaces the ground normals under the mask), then R-20 row 4.
+
+## R-28 row 2 (2026-11-14): bevel-height cobble parallax, stone normal under the mask (#312)
+- Branch `render/cobble-depth` 4cd4edd8 (on fc00aa06, main 1746d62a). 2 files: TerrainSurface.shader, DetailPolicy.cs.
+- DONE:
+  - Height comes from the stone mask's edge-distance bevel: tops high and fairly flat (own height, slight lean,
+    faint lumps), a sharp fall at a 1-2.5 cm rim (never under 1.5 pixels, so no sparkle), grout low and flat.
+  - Offset parallax up close: steps from `DetailPolicy.TerrainParallaxSteps` (Low 0, Medium 2, High 3, Ultra 4).
+    It fades in by the stones' size on screen (40-80 px across) and goes flat under puddles.
+  - Rib fix (Zach's 11-14 note): a linear search, then the bracket is refined twice (regula falsi) and closed
+    with a secant. Grazing views take up to twice the steps (8 at most), and each pixel's first step is dithered
+    by a fixed screen pattern, so it can't crawl. The ribs on the stone rims are gone in the grazing shot.
+  - Under the stone mask the stone normal replaces the ground's base and detail normals. The grout keeps the
+    ground normal plus its own 2 cm grit, crossing over at the rim. Stone albedo comes from the paving colour,
+    not the ground grain, so no ground pattern crosses a stone.
+  - The remaining metre ranges in the paving path (steep/detail fade, mouth, grain, rain ripple, sheen) now use
+    screen size (`_PunchyTerrainDetailPpm`). With the policy off they fall back to the old metres.
+- NOT DONE:
+  - No valid close (2 m) before shot of the pre-fix parallax survived: those runs came out cyan or white while
+    the shader was still compiling. The close shot is after only. The grazing before beside after is valid.
+  - No GPU cost number yet (BENCH ask below).
+- Checks:
+  - Compile clean, 0 shader messages. NaN `[sparkle] r28ribs summary: 360 frames, 0 with markers` (High).
+  - merge-tree clean against origin/main 1746d62a.
+  - Suite after the last change: `completed: 34/40 passed`. Failures:
+    - LiveFolk_Answer, LiveFolk_BeastResponse and Player_CrowFliesOutOfCaveThroughHitches: BlobAssetReference
+      "not valid" exceptions on a rerun in the same editor domain.
+    - WalkBy_NeverThroughWall and Place_PropFindsAndFramesWharf: the known same-domain flakes (REPORTS-world).
+    - Landmarks_V3 got `117 358257FC` instead of `689D5348`. Fresh bakes of the same code in this editor
+      alternate between island hashes FA8F24B1 and A30264B9, so the bake looks nondeterministic. The branch's only
+      script changes are row 1's Under/Soak (passed 689D5348 at row 1) and one DetailPolicy global. For world.
+  - Transient: the first two rib-fix shot runs drew no terrain (async compile). The next run drew it, with no
+    code change in between.
+- Shots (milestones folder R-28/row2): `*-before-after.png` (row 2 against row 1, 10 views), `walk-00..05.png`,
+  `graze-ribs-before-after.png` (rib fix, crop), `close-2m-ribfix-after.png`, `B-graze-ribfix-after.png`. The
+  sun differs between the rib before and after (cloud cover), not the paving.
+- Asks: BENCH job, Medium in a town, A = main, B = render/cobble-depth: terrain GPU ms (target < 0.1 ms
+  added) and terrain mesh memory (+4 B per vertex from row 1). Review/merge after that.
+- NEXT: R-32 rows 1-2 (branch render/steady-shadows), then R-34 row 1, R-32 rows 3-4, R-20 row 4, R-30 row 1,
+  R-31, R-33, R-29.
