@@ -87,3 +87,4 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #326 | world | W-161 elf towns with no wood |
 | #327 | world (render shared surface) | W-162 cliff and cave rock walls blended |
 | #328 | render R-32 | steady sun shadows; grass shaded in mid shadow tiers |
+| #329 | fauna A-118 | four-legged lying height, folded legs |
