@@ -287,6 +287,15 @@ eaten (acid).
 `castat spell dx,dz[,charge]`, `face dx,dz`, `gowater`, `castwater spell [charge]`, `shot name` (into `-chem-shots`).
 `-chem-plain` turns all of this off (the look before it, for A/B frame times).
 
+Checked (Windows, Mono development player, 1280 x 720, a meadow): `-chem-script "12:all"` cast all 28, 0 exceptions.
+Reactions seen: Lava Pool on Create Water set into rock in a burst of steam; Fire Bolt lit a grease slick; Lightning Bolt
+ran through a sheet of Create Water (80 water cells charged at once); a Rain Cloud put out 34 burning cells; Fire Bolt lit
+Spike Growth's thorns (78); Acid Splash ate a slick (16 cells); shoots came up through ash. Two peers (`-host`, `-join
+127.0.0.1`) each casting a mix every 9 s: 19 of 19 sums agree over 3 minutes, `desync=False`. The big scene (`big`:
+grease over a 16 x 16 m meadow, flooded, a fog, a Meteor into it), 10 s from the Meteor, uncapped: frame 11.8 ms on
+average (p95 16.3) with `-chem-plain`, 12.3 ms (p95 20.5) with these effects; the bridge 0.78 -> 1.12 ms a frame.
+Punchy's play-mode tests: 35 of 35.
+
 Left out of this round, as the brief says: ground shaping, pushes, Misty Step, Shapeshift, Hasten Time, Control
 Weather, Light, and Punchy's weather lightning (#222).
 
