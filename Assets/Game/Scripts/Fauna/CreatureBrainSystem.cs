@@ -1747,7 +1747,9 @@ namespace Punchy.Fauna
                 {
                     s.Speed *= 0.5f;
                     // (A-88 row 1: one following a player veers too, for a moment, rather than crawl into it.)
-                    var following = M.FollowHolder != 0 && M.FollowDetourTime <= 0f;
+                    // (A-110 row 4: so does one walking to its door, which stood against a wall or a bank before, far
+                    // out of its town, till its brain gave the door up: GoIndoors keeps to the spot as Follow does.)
+                    var following = (M.FollowHolder != 0 || s.Mode == CreatureMode.Home && s.Stage == 0) && M.FollowDetourTime <= 0f;
                     if (s.Mode == CreatureMode.Flee || s.Mode == CreatureMode.Play && s.Stage == 1 || following)
                     {
                         // Running, it veers along whatever's in the way: to the side its run leans to (head-on, its

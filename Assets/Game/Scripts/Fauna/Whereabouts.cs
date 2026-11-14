@@ -82,6 +82,32 @@ namespace Punchy.Fauna
         internal int GoneInTo = -1;
         /// <summary>Row 4: the leg (Whereabout.Leg) it went in on; a later leg to the same place is a new trip.</summary>
         internal double GoneInLeg;
+        /// <summary>Host, row 4: when Whereabouts first had it fully in while its creature was still out (Time.time;
+        /// -1: not so), so how late the creature is through its door can be logged.</summary>
+        internal float InSince = -1f;
+        /// <summary>Host, row 4: when its creature got in at its door while Whereabouts still had it walking there
+        /// (Time.time; -1: not so). It waits inside, unseen, till Whereabouts has it in too.</summary>
+        internal float WaitSince = -1f;
+        /// <summary>
+        /// Row 4, leaving range: where its creature was last seen against where Whereabouts had it then, when that
+        /// creature went from this machine without going in at a door (out of range, a ghost no longer sent). Its far
+        /// figure starts there and eases back onto its day over LeftEase seconds from LeftTime (Time.time). Memory
+        /// only, never sent or saved (DESIGN-population.md section 8).
+        /// </summary>
+        internal float3 LeftOffset;
+        internal float LeftTime, LeftEase;
+
+        /// <summary>How far its far figure still stands off its day at now (Time.time) after its creature left range.</summary>
+        internal float3 LeftNow(float now)
+        {
+            var easing = LeftEase > 0f ? 1f - math.saturate((now - LeftTime) / LeftEase) : 0f;
+            if (easing <= 0f)
+            {
+                LeftEase = 0f;
+                return float3.zero;
+            }
+            return LeftOffset * math.smoothstep(0f, 1f, easing);
+        }
     }
 
     /// <summary>One stop of a day: a place, when the member gets there and when it leaves, and the way to it.</summary>
@@ -124,6 +150,8 @@ namespace Punchy.Fauna
         /// <summary>When the leg it is walking set off, or the stop it is at began (folk day * 24 + hour): which trip
         /// this is, so a note made on one trip is not read on a later one to the same place.</summary>
         public double Leg;
+        /// <summary>Metres still to walk on its leg (0 when stopped): with its speed, how soon it gets there.</summary>
+        public float Remaining;
     }
 
     /// <summary>
@@ -676,6 +704,7 @@ namespace Punchy.Fauna
                 w.Walked = gone;
                 w.To = next.Place;
                 w.Leg = day * 24.0 + stop.Leave;
+                w.Remaining = next.Length - gone;
                 // (Out of a door, or in at one: shown over the first and last metre and a half.)
                 w.Shown = (place.Indoors ? math.saturate(gone / 1.5f) : 1f) *
                           (town.Places[next.Place].Indoors ? math.saturate((next.Length - gone) / 1.5f) : 1f);

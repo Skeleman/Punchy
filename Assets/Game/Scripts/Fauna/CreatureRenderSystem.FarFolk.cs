@@ -144,6 +144,9 @@ namespace Punchy.Fauna
                         // out of there.)
                         if (!w.Outdoors || Whereabouts.StillIn(f, w))
                             continue;
+                        // (Row 4: its creature went out of range here; it starts where that stood and eases back onto
+                        // its day.)
+                        w.Position += f.LeftNow(now);
                     }
                     placed++;
                     var position = w.Position;

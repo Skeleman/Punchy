@@ -156,6 +156,28 @@ namespace Punchy.Fauna
             plan.Places[place] = p;
         }
 
+        /// <summary>
+        /// Row 4 (d): a shop's job title, from its plot, so its keeper is known by a trade (its dialogue lines, its
+        /// FolkJobs count) and not left blank. No task: what it does at the shop is row 5. The seat (the leader's hall)
+        /// stays untitled: no trade fits it, and a steward would want lines of its own.
+        /// </summary>
+        static void PlanShopJob(TownPlan plan, int place, PlotRole role)
+        {
+            var job = role switch
+            {
+                PlotRole.Smithy => FolkJob.Smith,
+                PlotRole.Workshop => FolkJob.Smith,
+                PlotRole.Inn => FolkJob.Baker,
+                PlotRole.Store => FolkJob.Merchant,
+                PlotRole.Market => FolkJob.Trader,
+                PlotRole.Stable => FolkJob.Herder,
+                PlotRole.Shrine => FolkJob.Healer,
+                _ => FolkJob.None
+            };
+            if (job != FolkJob.None)
+                PlanWork(plan, place, CreatureTask.None, job, plan.Places[place].Face);
+        }
+
         static bool PlanPlaceNear(TownPlan plan, float2 at, float within)
         {
             foreach (var p in plan.Places)
@@ -349,6 +371,7 @@ namespace Punchy.Fauna
                         case PlotRole.Workshop:
                         {
                             var place = PlanPlace(source, plan, PlaceKind.Shop, front, front + plot.Facing, 0f, true, -1, front + plot.Facing * 4f);
+                            PlanShopJob(plan, place, plot.Role);
                             plan.Errands.Add(place);
                             planJobs.Add(place);
                             break;
@@ -357,6 +380,7 @@ namespace Punchy.Fauna
                         case PlotRole.Stable:
                         {
                             var place = PlanPlace(source, plan, PlaceKind.Shop, front + plot.Facing, plot.Centre, 1.5f, false, -1, front + plot.Facing * 4f);
+                            PlanShopJob(plan, place, plot.Role);
                             plan.Errands.Add(place);
                             planJobs.Add(place);
                             break;
@@ -376,7 +400,11 @@ namespace Punchy.Fauna
                     if (firstGarden < 0)
                         firstGarden = place;
                     if (place - firstGarden < 6)
+                    {
+                        // (A garden someone works is a farmer's, row 4 (d); its hoeing is row 5.)
+                        PlanWork(plan, place, CreatureTask.None, FolkJob.Farmer, plan.Places[place].Face);
                         planJobs.Add(place);
+                    }
                 }
                 if (math.lengthsq(data.Water.xz) > 0.01f && !PlanPlaceNear(plan, data.Water.xz, 3f))
                     plan.Wells.Add(PlanPlace(source, plan, PlaceKind.Well, data.Water.xz, data.Water.xz, 2.4f, false, -1, data.Water.xz));

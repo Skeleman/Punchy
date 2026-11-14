@@ -149,8 +149,10 @@ namespace Punchy.Fauna
                 if ((Force & 1) == 0 && Roll(m.Individual, (uint)math.max(0f, m.Clock - m.ModeTime), 0x51u) >= ChildChance)
                     return;
                 ref var mb = ref Bodies[mount].Blob.Value;
-                // (No family ties yet: the nearest child of the grown-up's folk and village (their home rounds overlap: a
-                // grown-up with a post lives at it, not at the village's middle), in reach and at a loose end.)
+                // (The nearest child of the grown-up's folk and village (their home rounds overlap: a grown-up with a post
+                // lives at it, not at the village's middle), in reach and at a loose end. A child with a house of its own
+                // (A-105) rides only with a grown-up of that house: carried to another family's door it was left far
+                // from its own after dark, A-110 row 4.)
                 var best = Entity.Null;
                 var bestD = 12f * 12f;
                 for (int i = 0; i < All.Length; i++)
@@ -162,7 +164,8 @@ namespace Punchy.Fauna
                     ref var rb = ref Bodies[e].Blob.Value;
                     if (!rb.Child || !rb.Hands || !rb.Upright || r.Gone || r.Holder != 0 || r.ChatRole != 0 || r.Fly > 0.3f ||
                         rb.Comfort.Race != mb.Comfort.Race || r.Leash <= 0f ||
-                        math.distance(r.Home, m.Home) > r.Leash + m.Leash)
+                        math.distance(r.Home, m.Home) > r.Leash + m.Leash ||
+                        math.lengthsq(r.OwnDoor.xz) > 0f && math.any(r.OwnDoor.xz != m.OwnDoor.xz))
                         continue;
                     if (r.Mode != CreatureMode.Idle && r.Mode != CreatureMode.Wander && r.Mode != CreatureMode.Play &&
                         !(r.Mode == CreatureMode.Home && r.Stage == 0))

@@ -115,7 +115,7 @@ namespace Punchy.Fauna
                 LogFolkJobs(plan);
                 // (Logged: outdoors is every member Whereabouts has out within Radius, with or without its creature;
                 // liveIn counts creatures whose member is not, which row 4 sends in at a door.)
-                int inRange = 0, live = 0, waiting = 0, atDoor = 0, outdoors = 0, liveIn = 0, goneIn = 0;
+                int inRange = 0, live = 0, waiting = 0, atDoor = 0, outdoors = 0, liveIn = 0, liveLate = 0, goneIn = 0;
                 for (int i = 0; i < plan.Residents.Count; i++)
                 {
                     var r = plan.Residents[i];
@@ -133,7 +133,9 @@ namespace Punchy.Fauna
                             var lw = Whereabouts.Of(plan, i, day, hour, seconds);
                             if (lw.Outdoors && Whereabouts.IndoorEnd(plan, lw) < 0 && NearestPlayer(lw.Position.xz) <= Radius)
                                 outdoors++;
-                            else if (!lw.Outdoors || Whereabouts.IndoorEnd(plan, lw) >= 0)
+                            else if (!lw.Outdoors)
+                                liveLate++;
+                            else if (Whereabouts.IndoorEnd(plan, lw) >= 0)
                                 liveIn++;
                         }
                         continue;
@@ -160,8 +162,9 @@ namespace Punchy.Fauna
                     inRange++;
                     if (Whereabouts.IndoorEnd(plan, w) < 0)
                         outdoors++;
-                    // (Stepping out of a door or in at one: its far figure is part shown; it is made once clear.)
-                    if (w.Shown < 1f)
+                    // (Stepping in at a door: its far figure is part shown and goes in; no creature for that. Stepping
+                    // out of one, row 4: its creature is made in the doorway and steps out as the far figure would.)
+                    if (w.Shown < 1f && !SteppingOut(plan, w))
                     {
                         atDoor++;
                         continue;
@@ -174,7 +177,7 @@ namespace Punchy.Fauna
                     memberAsks.Add(new MemberAsk { Distance = d, Plan = plan, Index = i, At = w });
                 }
                 if (log)
-                    memberLine.Append($" [{plan.Name} #{plan.Landmark}: outdoors {outdoors}, creatures {live} ({liveIn} going in), no creature yet {inRange}, " +
+                    memberLine.Append($" [{plan.Name} #{plan.Landmark}: outdoors {outdoors}, creatures {live} ({liveIn} walking in, {liveLate} late in), no creature yet {inRange}, " +
                                       $"waiting {waiting}, at a door {atDoor}, in early {goneIn}]");
             }
             memberAsks.Sort((a, b) => a.Distance != b.Distance ? a.Distance.CompareTo(b.Distance)
@@ -192,7 +195,7 @@ namespace Punchy.Fauna
                 var r = plan.Residents[index];
                 r.Asked = now;
                 asked++;
-                Enqueue(r.Species, ask.At.Position, SpawnTier.Housed, e => SetUpMember(e, plan, index),
+                Enqueue(r.Species, ask.At.Position + r.LeftNow(now), SpawnTier.Housed, e => SetUpMember(e, plan, index),
                         math.atan2(ask.At.Facing.x, ask.At.Facing.y));
             }
             // (The cap biting is to be reported, not tuned round: said once each time it starts to bite.)
@@ -203,10 +206,17 @@ namespace Punchy.Fauna
             {
                 nextMemberLog = now + 5f;
                 Debug.Log($"[members] day {day} hour {hour:F2}: housed {housedCount} of {MaxHoused}, settled {settledCount}, asked {asked}, capped {capped}, " +
-                          $"went in {membersWentIn}, stuck {membersStuck};{memberLine}");
+                          $"went in {membersWentIn} (waited inside at most {inEarlyMost:F1} min, late by at most {inLateMost:F1} min), stuck {membersStuck};{memberLine}");
                 membersWentIn = membersStuck = 0;
+                inEarlyMost = inLateMost = 0f;
             }
         }
+
+        /// <summary>Row 4: whether a member is just stepping out of an indoor place's door (within the 1.5 m its far
+        /// figure fades in over), not stepping in at one.</summary>
+        static bool SteppingOut(TownPlan plan, in Whereabout w) =>
+            w.Outdoors && w.From >= 0 && w.From < plan.Places.Count && w.From != w.To && plan.Places[w.From].Indoors &&
+            math.distance(w.Position.xz, plan.Places[w.From].At) < 1.6f;
 
         /// <summary>
         /// A member's creature, just made: itself (its Individual, its house's door, its coat and size from its member
@@ -239,14 +249,37 @@ namespace Punchy.Fauna
             var w = Whereabouts.Of(plan, index, day, hour, seconds);
             if (w.Outdoors)
             {
-                st.Position = w.Position;
+                // (Plus what is left of its leaving offset, row 4 (b), when it is made again before its far figure
+                // has eased back onto its day: it starts where that figure is drawn.)
+                st.Position = w.Position + r.LeftNow(Time.time);
                 st.Yaw = math.atan2(w.Facing.x, w.Facing.y);
             }
             st.Home = plan.Centre;
             st.Leash = plan.Radius * 0.8f;
             var walking = w.Outdoors && (w.Doing == Doing.Walk || w.Doing == Doing.Carry) && w.To >= 0 && w.To < plan.Places.Count;
             var job = r.Job >= 0 && r.Job < plan.Places.Count ? plan.Places[r.Job] : default;
-            if (job.Task != CreatureTask.None && w.To == r.Job)
+            // (A post with a title but no task yet, a shop or a garden: the creature still holds its job, row 4 (d).)
+            if (job.Job != FolkJob.None && w.To == r.Job)
+                st.Job = (byte)job.Job;
+            if (SteppingOut(plan, w))
+            {
+                // Coming out at a door (row 4): made in the doorway, it steps out as the far figure would have, the
+                // brain's own step-out (GoIndoors' last stage). Its far figure stays hidden while it is in the doorway
+                // (LiveIndoors), so there is never a double.
+                var from = plan.Places[w.From];
+                var outward = math.normalizesafe(from.Face - from.At, new float2(0f, 1f));
+                st.Mode = CreatureMode.Home;
+                st.ModeTime = 0f;
+                st.Stage = 3;
+                st.StageTime = 0f;
+                st.ActionTime = 1f;
+                st.Anchor = new float3(from.At.x, from.Height, from.At.y);
+                st.AnchorYaw = math.atan2(outward.x, outward.y);
+                st.Position = new float3(from.At.x - outward.x * 0.7f, from.Height, from.At.y - outward.y * 0.7f);
+                st.Yaw = st.AnchorYaw;
+                st.Timer = 0f;
+            }
+            else if (job.Task != CreatureTask.None && w.To == r.Job)
             {
                 // On its working leg: at its post, as a landmark's own worker is.
                 st.Task = job.Task;

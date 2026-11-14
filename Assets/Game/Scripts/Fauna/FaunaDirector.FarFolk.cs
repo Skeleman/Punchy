@@ -216,8 +216,7 @@ namespace Punchy.Fauna
                 double seconds = 0;
                 foreach (var (plan, r) in farSeen)
                 {
-                    // (The host noted it already as it let it go; noting it again here gives the same place and leg.)
-                    if (r.LiveScan == FarFolk.Scan || !r.LiveIndoors)
+                    if (r.LiveScan == FarFolk.Scan)
                         continue;
                     if (!noted)
                     {
@@ -227,8 +226,25 @@ namespace Punchy.Fauna
                     if (!Whereabouts.Built(plan, r.Index, day, hour))
                         continue;
                     var w = Whereabouts.Of(plan, r.Index, day, hour, seconds);
-                    r.GoneInTo = Whereabouts.IndoorEnd(plan, w);
-                    r.GoneInLeg = w.Leg;
+                    if (r.LiveIndoors)
+                    {
+                        // (The host noted it already as it let it go; noting it again here gives the same place and leg.)
+                        r.GoneInTo = Whereabouts.IndoorEnd(plan, w);
+                        r.GoneInLeg = w.Leg;
+                        continue;
+                    }
+                    // Row 4, leaving range: gone from here out of doors. Its far figure takes over where the creature
+                    // last stood (and where it was heading, for the moments since) and walks back onto its day at its
+                    // own pace, so there is no jump.
+                    if (!w.Outdoors)
+                        continue;
+                    var last = r.LivePosition + r.LiveVelocity * math.clamp(now - r.LiveTime, 0f, 0.4f);
+                    r.LeftOffset = last - w.Position;
+                    r.LeftTime = now;
+                    r.LeftEase = math.clamp(math.length(r.LeftOffset.xz) / math.max(r.Speed, 0.5f), 1f, 30f);
+                    if (FarFolk.Log)
+                        Debug.Log($"[members] left {FolkNames.Of(r.Seed)} id {r.Seed:X8} of {plan.Name} #{plan.Landmark} at ({last.x:F1}, {last.y:F1}, {last.z:F1}), " +
+                                  $"{math.length(r.LeftOffset.xz):F2} m off its day, back on it in {r.LeftEase:F1} s, hour {hour:F2}");
                 }
             }
             (farSeen, farSeenNow) = (farSeenNow, farSeen);
