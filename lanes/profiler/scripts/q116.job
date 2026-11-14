@@ -1,0 +1,13 @@
+# Job 74 (R-21 row 4, #284): one waterfall builder. world/waterfall-sheets 54fcdf64 vs main d95e7ff1. Medium and High,
+# noon, Clear, 3 rounds. The world lane's spots (x,y,z,yaw; 20 m in front of fall 22, and on the water 20 m below
+# fall 74). Shots of round 1 are checked before the numbers are trusted (-benchspot x,y,z took the floor under the
+# point at c22 in job 68).
+Q=q116; TITLE="job 74 waterfall builder"
+BUILDS="54fcdf6 d95e7ff"
+VIEWS="fall22 fall74"
+view() { case $1 in
+  fall22) echo "-goto -2702.6,179.4,652.6 -benchstops spot -benchspot -2702.6,179.4,652.6,69 -benchhour 12 -benchweather Clear";;
+  fall74) echo "-goto -2174.2,4.4,3667.1 -benchstops spot -benchspot -2174.2,4.4,3667.1,-162 -benchhour 12 -benchweather Clear";; esac; }
+ARMS="branch main"
+arm() { case $1 in branch) echo "Profile-54fcdf6";; main) echo "Profile-d95e7ff";; esac; }
+ROUNDS=3; GFX="Medium High"; REF=main; BAR=0.3

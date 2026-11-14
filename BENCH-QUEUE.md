@@ -714,7 +714,7 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
 - Record: GPU ms per arm and pose; the delta of each arm against job 66's main reading (5.47 / 6.73 ms).
 - Pass (rule 23): an arm within +0.3 ms of main at Medium on both poses. The supervisor picks the Medium default from the table; PR #285 merges after.
 
-## Job 74 (2026-11-14, QUEUED after 73; supervisor, for R-21 row 4, #284): one waterfall builder
+## Job 74 (2026-11-14, RUNNING 11-14 (q116.job; job 70 after it); supervisor, for R-21 row 4, #284): one waterfall builder
 - Main d95e7ff1 (A) vs `world/waterfall-sheets` 54fcdf64 (B). Profile builds, 1920x1080, Medium and High, uncapped, noon, Clear, ABBA, 3 rounds.
 - Views: standing 20 m in front of fall 22 (a chain, several falls in view), and at the lake below fall 74. The world lane adds the `-benchspot` lines for both below before this job starts.
 - Record: whole-frame GPU and main-thread ms per view and preset.
