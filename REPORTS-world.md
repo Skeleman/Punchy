@@ -6966,6 +6966,16 @@ half3 PunchySurfaceFinish(half3 color, PunchySurface s, half reach);            
 - **Risk:** the foam at the foot is subtle on the pale snow rock. The wet band is easiest to see on darker rock. Adding the include to TerrainSurface set off a long shader variant compile (about 2 min, 43 compiler processes) on first load. Not timed (rule 21).
 - **Next:** R-22 row 0 (#298, world/far-view).
 
+## 2026-11-14 Bake determinism done: island bake jobs always run as Burst, world/bake-determinism 812b25a5
+
+- **Cause:** after each domain reload Burst compiles in the background, so a bake that started before it finished ran the managed job copies. Their float maths (noise, sincos) differ, and the river network comes out different: 21 sources and 83 falls with hash A30264B9, instead of 23 sources, 79 falls and FA8F24B1. A probe that bakes from the same inputs with Burst on, off, on gave FA8F24B1, A30264B9, FA8F24B1, with river beds C699EEAC, F70D64DC, C699EEAC. That happens on main too.
+- **Fix:** all 14 seed-derived bake jobs are marked `[BurstCompile(CompileSynchronously = true)]`: 9 river, 2 road, 1 landmark evaluate, 1 salt tower and 1 iceberg classify. With Burst switched off entirely, the new BakeBurst.Check warns once per bake, and IslandV2 doesn't save the island cache from that bake.
+- **Proof:** three fresh bakes on main, each after deleting the island cache and recompiling, then entering play right away. All three gave FA8F24B1 with 23 sources and 79 falls. The landmark pins are unchanged (689D5348 / FA8F24B1 is the Burst result).
+- **Suite:** 40/40 on main with the fix (main has no Water_TruthCounts test).
+- **Host/client risk (not fixed here):** editor Burst targets the host CPU. Player builds compile ahead of time and pick code by CPU features (SSE4/AVX2), so two machines might still bake slightly different floats. That needs a check: the same seed on an AVX2 and a non-AVX2 machine, or a host and client comparing landmark hashes on join. The runtime per-chunk jobs (chunk mesh, caves, ground detail, water patches) keep plain `[BurstCompile]`. They are rebuilt per frame and are only visual.
+- **Gotcha:** switching branches in an open editor can leave Burst unable to create a SharedStatic ("editor needs to be restarted"). Bake jobs then read nulls: 0 rivers, a stream of EvaluateJob NullReferenceExceptions, an editor crash, and a broken island cache with 2697 landmarks. Restart the editor after a branch switch that changes Burst structs, and delete Library/IslandCache.
+- **Next:** W-168 row 1 (measure start-up by producer), then R-21 foot boxes and the fall 74 spot, then the paddies speed-up.
+
 ## 2026-11-14 W-153 row 2b done: hillside swamp pools kept, counts at the ceiling (#301), water/truth b4ec2efb
 
 - **What changed (TerrainSource.Paddies.cs only):** a stepped pool on a slope used to be dropped when its step to the ground was too tall. It now levels to the lowest ground within 7 m plus 0.1 m (PaddyHillReach, PaddyHillLift), with a 0.6 m hillside step (PaddyHillStep). The step cap is PaddyMaxStep 1.8 m. The steepest-ground check is NaN-guarded.
