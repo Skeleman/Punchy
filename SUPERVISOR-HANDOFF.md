@@ -301,3 +301,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-14: W-162 carded (#327), world after W-155 merges; render owns shared rock surface.
 - 11-14: R-32 carded (#328): sun shadow jiggle (sun turns every frame) + grass unshaded in mid tiers; render next. R-28 row 2: fix ribbed parallax edges or halve depth. A-117: riders/horses must path round structures.
 - 11-14: R-32 row 3: blue moon becomes the main shadow light on blue-moon nights.
+- 11-14: R-32 row 4: blue-moon nights about 1 in 10 (now 5.3-day round, wide glow).
