@@ -21,6 +21,7 @@ Worktree D:/Unity/Punchy-world. Read the card and REPORTS-world.md's newest entr
 4. W-156 (audit 11-13: far clip restore, nearest cave water first).
 4b. W-157 (Zach 11-14: taller hanging lanterns, stone lantern columns).
 4c. W-159 (Zach 11-14: river flow streaks become normal and vertex ripples, no white overlay; small, may go before 4b).
+4c2. W-160 (Zach 11-14: shorelines wander: noise lift and lapping on water vertices, ragged shore fade; after W-159).
 4d. W-158 (Zach 11-14: darkened seams where built faces meet, beacon stair first).
 5. W-141 fix row, W-154 (row 2 now also asks for finer normals: rough, coarse dark crust, smooth bright veins; see batches/W-154.md), R-22 row 2.
 

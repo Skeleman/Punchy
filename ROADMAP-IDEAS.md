@@ -90,3 +90,4 @@ Standing: the aim and its priorities are in COORDINATION.md. The layout is a tes
   crimson, black). Zach wants further tweaks later.
 - Effects as reusable systems (11-14): electricity, steam, smoke, sparks, gushing water and wind each one shared effect like fire, so new places reuse them as systems grow. R-29, rule 30.
 Foliage realism (Zach 11-14): crowns as leaf clusters (cut-out cards, layering, bent normals) instead of solid toon shapes; #323, R-30.
+- Shorelines wander instead of ruled lines: lapping, noise lift, ragged wet band (W-160, #324).
