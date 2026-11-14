@@ -133,7 +133,7 @@ untouched.
 | A hand's trigger + bumper (inside the window, about 0.7 s) | That hand's sweep |
 | Hold a hand's button | It charges (a level every half second, up to 3; the pad hums, and pulses at each level); let go to fire. A tap is charge 1 |
 | Both hands on one gesture | They merge into their pair's spell (fire + water thrust: Scalding Steam; throw: Geyser) |
-| Hold d-pad up | The element radial: the right stick picks (fire top, water right, earth bottom, air left); let go to attune the hand whose trigger is held, else the left. One element attuned is on both hands. A tap of d-pad up still waves |
+| Hold d-pad up | The spell radial (README "Spells"): the right stick picks a group, then its spell; let go to cast it, or with a trigger held to attune that hand to the group's element. One element attuned is on both hands. A tap of d-pad up still waves |
 
 The hands start as the rules' table has them: water in the left, fire in the right, so out of the box:
 
@@ -171,6 +171,8 @@ The keyboard has no hands yet: H, J and L cast straight into the window, as befo
 | Shift+J | Sleet Storm (a burst of cold, radius 5: freezes a pond) |
 | L | Create Water, charged once (5 x 5): douses fire in a hiss of steam, stands on land as a sheet of water |
 | Shift+L | Wave (a line of water rolling out through the aimed cell) |
+| Comma / period | Step through the bridge's 28 spells (the name shows above the hands) |
+| M | Cast that spell at the ground under the screen centre (Shift+M charged to 3) |
 
 F, G, R, T and V are the door key choices and K is the weather key, so the bridge stays off them (hence L for water). `-nochemistry` on the command line turns
 the bridge off. `-chem-demo` casts a Fireball on the nearest grass (6 m or more from the player) 8 s after
@@ -224,6 +226,70 @@ walked up. Wall of Stone raises 3.5 m of rock, but Punchy's terrain never blocks
 do), so the player walks up and over it. The ground costs nothing measurable a frame (the compare rides on the map
 walk; a swap is a 256 KB copy, a few a second at most); the bridge stays about 0.75 ms a frame.
 
+## Spells (2026-11-14): every cells-only spell, drawn with Punchy's effects
+
+`ChemistryBridge.Spells.cs` and `ChemistryEffects.Spells.cs`. The bridge casts 28 spells: the six it began with and the
+22 whose effect is only on cells (Spell Chemistry Valley's brief `punchy-cell-spells`). What each does to the cells is
+the core's; the bridge only draws it, from what the cells are, with Punchy's own effects.
+
+**Casting.** The pad's radial (hold d-pad up) is now the core's `SpellRadial`: the groups are its top ring (fire, water
+and ice, storm, earth, nature, arcane, time and weather, in their colours), and resting on one or pushing the stick out
+opens its spells round it. Letting go casts the spell picked at the ground under the screen centre (a line or cone from
+the hands, the rest pulled back to the hand table's range); with a trigger held it attunes that hand to the group's
+element instead (fire, water, earth, storm = air), as the old element radial did. On the keyboard, comma and period
+step through the 28 and M casts the one shown (Shift+M charged to 3). Every cast is still a request on the session's
+casts channel.
+
+**What each looks like** (Punchy asset, or the overlay's new channels):
+
+| Spell | Cells | Drawn with |
+|---|---|---|
+| Burning Hands, Flame Wave | fire in a cone | a cone of the standard fire (`FireSystem`) rolling out from the hands; Flame Wave's gust of smoke puffs |
+| Meteor, Fireball | fire, a crater | the fumarole field's embers thrown up (`LandmarkPlume`), its smoke column, a ring of dust puffs, a flash (`LightBudget`) |
+| Falling Star | a star's mark, then fire | sparks over the mark (`LandmarkPlume`), a star of the standard fire falling onto it as it lands |
+| Scalding Steam | steam | the hot springs' steam (`LandmarkPlume`), then the steam puffs (`SkunkGas`) |
+| Lava Pool | lava, then rock | overlay: dark crust split by churning glowing seams; the hot springs' bubbles glowing orange and the fumarole's embers (`LandmarkPlume`); a fire light |
+| Ray of Frost | ice, frost | a pale, straight arc bolt (`ArcBolt`, a tinted copy) and frost puffs |
+| Flood, Wave, Create Water | water | the waterfall's landing spray (`LandmarkPlume`) along it; the water sheet as before |
+| Geyser | steam out of water | the geyser landmark's spout, erupting once, its base steam and its bubbles (`LandmarkPlume`) |
+| Iceberg, Sleet Storm, Frost | ice | the ice overlay as before, frost puffs |
+| Lightning Bolt | charge through water and metal | a bolt from the hands to the nearest charged cell (`ArcBolt`), arcs between charged cells, a flash |
+| Shocking Grasp | charge, a spark | a short bolt and a burst of glowing sparks (`LandmarkPlume`) |
+| Thunder Strike | charge, fire | sparks over the mark, then a column of bolts from the sky onto the cells it charged |
+| Rain Cloud | cloud gas, water | dark cloud puffs (`AmbienceSystem.PuffMaterial`) and grey veils high up, the weather's rain streaks (`WeatherSystem.PrecipitationShader`) falling from it |
+| Dust Storm | dust gas | dust puffs and the weather's dust veils |
+| Sand Blast | sand | sand puffs flying along the line, a dust veil; overlay: pale grit, grass flattened |
+| Mud | mud | overlay: dark wet earth, glossy, grass flattened and muddied; brown splashes |
+| Acid Splash | covers eaten | acid-green bubbles and sparks (`LandmarkPlume`) |
+| Plant Growth | shoots, saplings, vines | the fairy ring's green sparkles (`LandmarkPlume`); overlay: lush green ground and taller grass, vines over water |
+| Spike Growth | thorns | overlay: grass bristling tall and bramble-dark; a puff of dust |
+| Grease | a slick | overlay: an amber film with an oily sheen, grass matted; on water a sheen |
+| Fog Cloud | fog gas | big slow gas-cloud puffs (`SkunkGas`) and the weather's white veils |
+
+New code but no new assets: the plumes are our own buffer of `LandmarkEffectSystem.Emitter`s drawn with its
+`PlumeMaterial` (a one-shot is a plume whose period starts now, so it erupts once); the bolts are `FloraSystem.BoltMesh`
+with `Resources/ArcBolt`; rain and veils are particle systems on `WeatherSystem.PrecipitationShader`, as the weather
+makes its own. The only new looks are the overlay's: `_PunchyChemMap3` (r lava, g mud, b a slick, a rock lava set into)
+and `_PunchyChemMap4` (r new growth, g thorns, b sand, a charge), read by `PunchyChemGroundAlbedo` and
+`PunchyChemLavaGlow` in `ChemistryOverlay.hlsl` and hooked into the terrain, grass and water shaders beside the old
+lines. Burnt grass that comes back as shoots, or turns to mud, sand, lava or rock, is no longer drawn as burnt.
+
+**The same on every peer:** every look comes from the cells (the maps, lava blocks, charged cells, gas cells, a star's
+mark) or from a cast's cells, which every peer runs on the same tick (`SpellLanded`, from the session's applied
+batches, through `World.SpellCells`). Where in a cell a plume or a puff starts is a hash of the cell; only a puff's
+drift is left to chance.
+
+**Counted reactions** (`[Chemistry] spells:` once a second): lava quenched to rock in water, lava cooled, slicks and
+thorns that caught fire, fires a rain cloud put out, water cells lightning ran through, growth that came up, slicks
+eaten (acid).
+
+**Script steps:** `all` (every spell in turn round the player), `big` (the big scene below), `measure s`,
+`castat spell dx,dz[,charge]`, `face dx,dz`, `gowater`, `castwater spell [charge]`, `shot name` (into `-chem-shots`).
+`-chem-plain` turns all of this off (the look before it, for A/B frame times).
+
+Left out of this round, as the brief says: ground shaping, pushes, Misty Step, Shapeshift, Hasten Time, Control
+Weather, Light, and Punchy's weather lightning (#222).
+
 ## Removing it
 
 0. Undo the pad rebinds (each is marked "Spell chemistry"): `UseKey` back to RB in `Interact/Doors.cs`, the inventory
@@ -234,8 +300,8 @@ walk; a swap is a 256 KB copy, a few a second at most); the bridge stays about 0
 1. Delete this folder (`Assets/Game/Scripts/ChemistryBridge/`) and `Assets/StreamingAssets/ChemistryRules/`.
 2. Remove the `com.anweather.chemistry-core` line from `Packages/manifest.json`.
 3. Delete `Assets/Game/Shaders/ChemistryOverlay.hlsl` and its hooks (each is marked "Spell chemistry"): the include
-   and two lines in `GroundDetail.hlsl`, three lines in `Grass.shader`, the include and the chem lines in
-   `TerrainSurface.shader`, the include and the ice block in `Water.shader`.
+   and the chem lines in `GroundDetail.hlsl` and `Grass.shader`, the include and the chem lines in
+   `TerrainSurface.shader`, the include, the ice block and the spells block in `Water.shader`.
 4. Delete `Assets/Game/Scripts/Terrain/TerrainEdits.cs` and the height hooks (each is marked "Spell chemistry"): the
    `TerrainEditLayer.Add` on SampleHeight's two returns and the line after `Settle` in SampleGround
    (`Terrain/TerrainSource.cs`); `FlagRebuild`, `FlagMoved` and its call in `Terrain/TerrainStreamingSystem.cs`;

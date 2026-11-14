@@ -651,7 +651,7 @@ namespace Punchy.Chemistry
                             }
                             // Water standing on land (a pond's own water is Punchy's): over half from the first unit, so
                             // the shaders' soft edge (at 0.5) falls round every wet cell, deeper water a little more.
-                            if (seeded[i] != KindWater && c.Water > 0 && !c.Frozen)
+                            if (seeded[i] != KindWater && c.Water > 0 && !c.Frozen && (Plain || c.T != "mud"))   // (mud's own water is the mud)
                             {
                                 wr = (byte)math.min(255, 150 + c.Water * 12);
                                 landWater++;

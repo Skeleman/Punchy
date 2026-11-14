@@ -638,13 +638,15 @@ namespace Punchy.Chemistry
 
         void OneShot(LandmarkEffectSystem.Emitter e, float seconds)
         {
-            // An eruption that starts now and lasts `seconds`: a long period whose phase is 0 at this moment.
-            const float period = 600f;
+            // An eruption that starts now and lasts `seconds`: a period just longer than the eruption and its puffs' lives,
+            // whose phase is 0 at this moment (the shader's Eruption ramps in over 4% of it), dropped before it comes round.
+            var life = math.abs(e.Shape.w);
+            var period = (seconds + life) * 1.05f;
             var clock = Shader.GetGlobalFloat(ClockId);
             e.Timing.x = period;
             e.Timing.y = math.saturate(seconds / period);
             e.Seed = 1f - math.frac(clock / period);
-            shots.Add((e, Time.time + seconds + e.Shape.w));
+            shots.Add((e, Time.time + period * 0.98f));
         }
 
         void Flash(Vector3 at, float bright, float seconds)
