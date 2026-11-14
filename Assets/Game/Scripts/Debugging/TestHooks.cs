@@ -93,6 +93,58 @@ namespace Punchy.Debugging
             return $"{lines.Count} {h:X8}";
         }
 
+        /// <summary>
+        /// A-117: every settlement plot as "role building x z" (the building by its index within its layout), FNV-1a
+        /// hashed: the layout hash ("plots hash"); with <paramref name="towns"/>, a line per town after it: its type, centre,
+        /// building plots (roles up to Stable, no green plots) and what stands on its stable plot, or "none".
+        /// </summary>
+        public static string LayoutHash(bool towns = false)
+        {
+            var pal = Palette();
+            if (!Source(out var s) || !s.Settlements.IsCreated || pal == null)
+                return "none";
+            ref var set = ref s.Settlements.Value;
+            var all = new List<LandmarkType>(pal.Landmarks);
+            LandmarkBaking.AddLooks(all);
+            var h = 2166136261u;
+            for (int i = 0; i < set.Plots.Length; i++)
+            {
+                var p = set.Plots[i];
+                // The building as its layout's own index, and the extra slots (well, signpost, ...) counted from the list's
+                // end, so appending a layout entry alone doesn't change the hash.
+                ref var lay = ref set.Layouts[set.Settlements[p.Settlement].Layout];
+                var local = p.Building < 0 ? "-" : p.Building - lay.FirstBuilding >= lay.BuildingCount - SettlementBaking.ExtraSlots
+                    ? "x" + (p.Building - lay.FirstBuilding - lay.BuildingCount + SettlementBaking.ExtraSlots)
+                    : (p.Building - lay.FirstBuilding).ToString();
+                foreach (var ch in $"{(int)p.Role} {local} {p.Centre.x:F1} {p.Centre.y:F1}")
+                    h = (h ^ ch) * 16777619u;
+            }
+            var sb = new System.Text.StringBuilder($"{set.Plots.Length} {h:X8}");
+            if (!towns)
+                return sb.ToString();
+            for (int t = 0; t < set.Settlements.Length; t++)
+            {
+                var town = set.Settlements[t];
+                var type = town.Type < all.Count ? all[town.Type] : null;
+                var layout = type != null ? type.Settlement : null;
+                int built = 0;
+                var stable = "none";
+                for (int i = town.FirstPlot; i < town.FirstPlot + town.PlotCount; i++)
+                {
+                    var p = set.Plots[i];
+                    if (p.Role <= PlotRole.Stable && p.Role != PlotRole.Landscaping)
+                        built++;
+                    if (p.Role != PlotRole.Stable)
+                        continue;
+                    var local = p.Building - set.Layouts[town.Layout].FirstBuilding;
+                    stable = layout != null && local >= 0 && local < layout.Buildings.Count && layout.Buildings[local].Species != null
+                        ? layout.Buildings[local].Species.name : "empty";
+                }
+                sb.Append($"\n{(type != null ? type.name : town.Type.ToString())} ({town.Centre.x:F0}, {town.Centre.y:F0}) plots {built} stable {stable}");
+            }
+            return sb.ToString();
+        }
+
         /// <summary>Collects the island blobs of a source, boxed, so another source's blobs can be checked against them.</summary>
         struct BlobList : IslandCache.IBlobVisitor
         {

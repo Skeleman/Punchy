@@ -102,3 +102,6 @@ Read before changing creatures, behaviour, poses, the player's body, settlements
   ghost id: a creature's, or the ridden player's NetPlayer), checked on arrival (a live ghost, not itself, not a pair).
   Other machines seat that player's puppet from it (SeatOthers). The ridden one keeps control; the server isn't told,
   so its creatures don't know a player sits on them (a town's pet can still climb onto that mount: it gets down).
+- A-117: a town's stable is a "stable" household (FaunaDirector.Stables) whose door is the paddock gate; its horses
+  (2-3 from its key) spawn after the residents with no rng drawn, leashed to the paddock, and get no OwnDoor. StableAt
+  must match FloraGenerator.Stable's frame. A hitching rail needs a green plot, so tiny towns may have none.

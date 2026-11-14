@@ -88,7 +88,7 @@ namespace Punchy.Flora
         /// <summary>Forms that cast no shadow (see CastsShadows).</summary>
         public static bool Shadowless(FloraForm form) =>
             form is FloraForm.Pen or FloraForm.Palisade or FloraForm.Signpost or FloraForm.Garden or FloraForm.Woodpile
-                 or FloraForm.Stall or FloraForm.Flowers or FloraForm.Bedroll or FloraForm.RailFence;
+                 or FloraForm.Stall or FloraForm.Flowers or FloraForm.Bedroll or FloraForm.RailFence or FloraForm.HitchRail;
 
         /// <summary>
         /// Refactor 3.5c: its detail rule's class (DetailPolicy.FloraRule). By form, then for growing things by whether it
@@ -103,7 +103,7 @@ namespace Punchy.Flora
                 case FloraForm.Well: case FloraForm.Hall: case FloraForm.Shrine: case FloraForm.Garden: case FloraForm.Lodge:
                 case FloraForm.Signpost: case FloraForm.Bridge: case FloraForm.Palisade: case FloraForm.RailFence:
                 case FloraForm.MineFrame: case FloraForm.HazardShelter: case FloraForm.KitBuilding: case FloraForm.KitRuin:
-                case FloraForm.Ruin:
+                case FloraForm.Ruin: case FloraForm.Stable: case FloraForm.HitchRail:
                     return Punchy.Settings.DetailPolicy.FloraClass.Structure;
                 case FloraForm.Boulder: case FloraForm.Spire: case FloraForm.Crystal: case FloraForm.Den: case FloraForm.Columns:
                 case FloraForm.IceArch: case FloraForm.Fulgurite: case FloraForm.ArcSpire: case FloraForm.FloatingRock:
@@ -298,6 +298,8 @@ namespace Punchy.Flora
                     case FloraForm.Stall: Stall(g); break;
                     case FloraForm.Inn: Inn(g); break;
                     case FloraForm.Smithy: Smithy(g); break;
+                    case FloraForm.Stable: Stable(g); break;
+                    case FloraForm.HitchRail: HitchRail(g); break;
                     case FloraForm.Forum: Forum(g); break;
                     case FloraForm.Fountain: Fountain(g); break;
                     case FloraForm.Woodpile: Woodpile(g); break;

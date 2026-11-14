@@ -39,6 +39,8 @@ namespace Punchy.Fauna
         public uint Key;
         public string Kind;
         public Kinsfolk[] Members;
+        /// <summary>A-117: the horses a "stable" household keeps (from its key; 0 for every other home).</summary>
+        public int Horses;
         internal uint Taken, Pinned, Lost;
 
         public string NameOf(int member) => FolkNames.Of(Members[member].Individual) ?? "?";
@@ -253,6 +255,12 @@ namespace Punchy.Fauna
                     for (int p = town.FirstPlot; p < town.FirstPlot + town.PlotCount; p++)
                     {
                         var plot = set.Plots[p];
+                        // (A-117: a town's stable is the stablekeeper household's home, its door the paddock gate.)
+                        if (StableAt(buildings, plot, scale, out var gate, out _, out _))
+                        {
+                            AddStable(list, town.Landmark, gate);
+                            continue;
+                        }
                         if (plot.Role != PlotRole.House || plot.Building < 0)
                             continue;
                         var species = plot.Building < buildings.Count ? buildings[plot.Building].Species : null;
