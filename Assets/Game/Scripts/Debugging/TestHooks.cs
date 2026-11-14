@@ -766,6 +766,18 @@ namespace Punchy.Debugging
             return job.ToString();
         }
 
+        /// <summary>A-117 row 2: the rides so far, every stable's paddock count and the walls clearance check
+        /// (FaunaDirector.RiderReport).</summary>
+        public static string Riders() =>
+            Object.FindAnyObjectByType<FaunaDirector>()?.RiderReport() ?? "no director";
+
+        /// <summary>A-117 row 2: someone rides out of the stable nearest the player now; false if none could.</summary>
+        public static bool RideOut()
+        {
+            var director = Object.FindAnyObjectByType<FaunaDirector>();
+            return director != null && director.ForceDeparture();
+        }
+
         /// <summary>
         /// A-105 row 2: the housed folk nearest the player dies (nothing kills folk yet, so this stands in for whatever
         /// will): it's marked Gone, Despawn takes it and its house keeps its bed empty. Returns its Individual, or 0.

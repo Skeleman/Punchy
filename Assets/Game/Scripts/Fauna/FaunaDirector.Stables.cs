@@ -82,7 +82,9 @@ namespace Punchy.Fauna
                         continue;
                     var leash = math.max(1f, room);
                     var spawned = 0;
-                    for (int k = 0; k < keeper.Horses && settledCount < MaxSettled; k++)
+                    // (What the paddock holds now: its own horses less those away, plus guests ridden in, A-117 row 2.)
+                    var present = math.clamp(keeper.Present, 0, keeper.Horses + 3);
+                    for (int k = 0; k < present && settledCount < MaxSettled; k++)
                     {
                         var bits = BiomeSampling.Scramble(keeper.Key ^ (uint)(k + 1) * 0x85EBCA6Bu);
                         var angle = (bits & 0xFFFF) / 65535f * 2f * math.PI;
@@ -101,7 +103,7 @@ namespace Punchy.Fauna
                         }, yaw);
                         spawned++;
                     }
-                    Debug.Log($"[stable] landmark {landmark} at ({paddock.x:F0}, {paddock.y:F0}): {spawned}/{keeper.Horses} horses, " +
+                    Debug.Log($"[stable] landmark {landmark} at ({paddock.x:F0}, {paddock.y:F0}): {spawned}/{keeper.Horses} horses (away {keeper.Away}, guests {keeper.Guests}), " +
                                   $"keeper household of {keeper.Members.Length}, leash {leash:F1} m");
                 }
             }

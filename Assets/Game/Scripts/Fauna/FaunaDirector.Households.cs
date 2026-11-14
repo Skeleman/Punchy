@@ -41,6 +41,11 @@ namespace Punchy.Fauna
         public Kinsfolk[] Members;
         /// <summary>A-117: the horses a "stable" household keeps (from its key; 0 for every other home).</summary>
         public int Horses;
+        /// <summary>A-117 row 2: of those, how many are out under travellers or at other stables (Away), and how many
+        /// other stables' horses stand here for now (Guests). Host only (FaunaDirector.Riders).</summary>
+        public int Away, Guests;
+        /// <summary>The horses in its paddock now.</summary>
+        public int Present => Horses - Away + Guests;
         internal uint Taken, Pinned, Lost;
 
         public string NameOf(int member) => FolkNames.Of(Members[member].Individual) ?? "?";
