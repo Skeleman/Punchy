@@ -414,7 +414,8 @@ Shader "Punchy/Terrain Surface"
                 half chemWater = PunchyChemSoft(chemWet, p);
                 half chemIceRim;
                 half chemIce = PunchyChemSoft(chem.b, p, chemIceRim);
-                puddle = max(puddle, chemWater * (1 - chemIce));
+                half4 chem3 = PunchyChem3At(p);   // (rock that lava set into stands out of the water on it)
+                puddle = max(puddle, chemWater * (1 - chemIce) * (1 - PunchyChemSoft(chem3.a, p)));
                 half sheen = max(wet * (1 - 0.85 * porosity), shore * 0.6) * (1 - 0.8 * input.extra.y) * (1 - smoothstep(120, 450, distance));
 
                 half relief = 0.45 * (1 - puddle);   // (the octaves' fades are already in micro)
@@ -550,7 +551,7 @@ Shader "Punchy/Terrain Surface"
                 // Spell chemistry: lava, the rock it sets into, mud, a slick, sand, new growth and thorns (no change with no bridge).
                 half4 chem4 = PunchyChem4At(p);
                 half chemGloss, chemLava;
-                albedo = PunchyChemGroundAlbedo(albedo, PunchyChem3At(p), chem4, p, chemGloss, chemLava);
+                albedo = PunchyChemGroundAlbedo(albedo, chem3, chem4, p, chemGloss, chemLava);
                 surface.albedo = lerp(albedo, albedo * 0.6, puddle);
                 surface.smoothness = lerp(lerp(lerp(input.surface.a, max(input.surface.a, 0.45), max(sheen, saturate(chemWet * 2.5))), 0.92, puddle), 0.8, chemIce);
                 surface.smoothness = max(surface.smoothness, chemGloss);   // Spell chemistry (0 with no bridge)

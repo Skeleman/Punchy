@@ -34,7 +34,7 @@ namespace Punchy.Chemistry
                                    Charged = new List<Spot>(), Stars = new List<Spot>(), Quenched = new List<Spot>(), Grown = new List<Spot>();
 
         // At most this many plumes, arcs, puffs a frame for the new effects.
-        const int MaxPlumes = 160, MaxArcs = 220, SpellPuffsPerFrame = 40, RainPerFrame = 160, VeilsPerFrame = 6;
+        const int MaxPlumes = 160, MaxArcs = 140, SpellPuffsPerFrame = 40, CloudPuffsPerFrame = 24, RainPerFrame = 300, VeilsPerFrame = 6;
         const int LavaLightId = 0x4C4156, FlashLightId = 0x464C53;
 
         Material plumeMaterial, boltMaterial, frostMaterial, rainMaterial, veilMaterial;
@@ -120,7 +120,7 @@ namespace Punchy.Chemistry
                 rainMaterial.SetFloat("_Shape", 1f);
                 veilMaterial = new Material(precipitation) { name = "ChemistryVeils" };
                 veilMaterial.SetFloat("_Shape", 2f);
-                rain = CreateWeatherParticles("ChemistryRain", rainMaterial, ParticleSystemRenderMode.Stretch, 4000, false);
+                rain = CreateWeatherParticles("ChemistryRain", rainMaterial, ParticleSystemRenderMode.Stretch, 6000, false);
                 veils = CreateWeatherParticles("ChemistryVeils", veilMaterial, ParticleSystemRenderMode.Billboard, 400, true);
             }
             var ambience = Object.FindAnyObjectByType<AmbienceSystem>();
@@ -248,7 +248,7 @@ namespace Punchy.Chemistry
                         continue;
                     var a = At(corner, size, heights, c.Index, 0.15f + 0.3f * Frac(h, 11));
                     var b = At(corner, size, heights, ny * size + nx, 0.15f + 0.3f * Frac(h, 12 + (uint)k));
-                    arcs.Add(Matrix4x4.TRS(a, Quaternion.LookRotation(b - a), new Vector3(1.4f, 1.4f, Vector3.Distance(a, b))));
+                    arcs.Add(Matrix4x4.TRS(a, Quaternion.LookRotation(b - a), new Vector3(0.9f, 0.9f, Vector3.Distance(a, b))));
                 }
             }
         }
@@ -546,19 +546,20 @@ namespace Punchy.Chemistry
             budget -= EmitGas(Dust, softPuffs, 1.5f, maxGas, budget, corner, size, heights, dt, 0.8f, 1.8f, 0.6f, 3f, new Color(0.72f, 0.58f, 0.38f, 0.45f), wind * 1.5f);
             EmitVeils(Dust, 0.06f, corner, size, heights, dt, 1.5f, new Color(0.8f, 0.65f, 0.45f, 0.16f));
             // A rain cloud: dark puffs a few metres up, and the weather's rain streaks falling from it.
-            EmitGas(Cloud, softPuffs, 0.6f, maxGas, budget, corner, size, heights, dt, 3.8f, 2.6f, 0.1f, 4f, new Color(0.42f, 0.44f, 0.5f, 0.55f), wind * 0.3f);
+            EmitGas(Cloud, softPuffs, 1.2f, maxGas, CloudPuffsPerFrame, corner, size, heights, dt, 4.6f, 3.6f, 0.1f, 5f, new Color(0.34f, 0.36f, 0.42f, 0.75f), wind * 0.3f);
+            EmitVeils(Cloud, 0.05f, corner, size, heights, dt, 4.2f, new Color(0.45f, 0.47f, 0.53f, 0.2f));
             if (rain != null && Cloud.Count > 0)
             {
-                var due = Cloud.Count * 10f * dt;
+                var due = Cloud.Count * 25f * dt;
                 var count = math.min(RainPerFrame, (int)due + (Random.value < due - (int)due ? 1 : 0));
                 for (int i = 0; i < count; i++)
                 {
                     var s = Cloud[Random.Range(0, Cloud.Count)];
-                    var at = CellPoint(corner, size, heights, s.Index, 3.6f);
+                    var at = CellPoint(corner, size, heights, s.Index, 4.2f);
                     rain.Emit(new ParticleSystem.EmitParams
                     {
-                        position = at, velocity = new Vector3(wind.x, -12f, wind.z), startSize = 0.025f, startLifetime = 0.3f,
-                        startColor = new Color(0.85f, 0.9f, 1f, 0.45f), applyShapeToPosition = false
+                        position = at, velocity = new Vector3(wind.x, -13f, wind.z), startSize = 0.04f, startLifetime = 0.32f,
+                        startColor = new Color(0.85f, 0.9f, 1f, 0.6f), applyShapeToPosition = false
                     }, 1);
                 }
             }

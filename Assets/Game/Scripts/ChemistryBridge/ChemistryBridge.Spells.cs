@@ -325,8 +325,12 @@ namespace Punchy.Chemistry
 
         // ------------------------------------------------------------------------------------------------ the maps
 
+        // Window cells already rock that lava set into (so a quench counts once).
+        readonly bool[] crustSeen = new bool[Size * Size];
+
         void NewSpellsView()
         {
+            System.Array.Clear(crustSeen, 0, crustSeen.Length);
             effects.ClearSpells();
             columns.Clear();
             shedSeen = world.Tick;
@@ -439,7 +443,9 @@ namespace Punchy.Chemistry
             var was = lastState[i];
             bool wasBurning = (was & 2) != 0, wasLava = (was & 8) != 0, wasSlick = (was & 16) != 0, wasGrowth = (was & 32) != 0,
                  wasCharged = (was & 64) != 0, wasThorns = (was & 128) != 0;
-            if (wasLava && !lava)
+            // (Lava that lands in water sets at once, so it may never be seen as lava: rock that's new here, with water or steam
+            // on it, is lava quenched too.)
+            if ((wasLava && !lava) || (crust && !crustSeen[i] && shownTick >= 0 && (c.Water > 0 || steam)))
             {
                 if (c.Water > 0 || steam || seeded[i] == KindWater)
                 {
@@ -449,6 +455,7 @@ namespace Punchy.Chemistry
                 else
                     cooled++;
             }
+            crustSeen[i] = crust;
             if (sb != 0 && c.Fire > 0 && !wasBurning)
                 slicksLit++;   // fire-oil, lightning-oil
             if (wasThorns && c.Fire > 0 && !wasBurning)

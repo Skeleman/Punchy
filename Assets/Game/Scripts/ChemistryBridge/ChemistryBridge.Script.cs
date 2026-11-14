@@ -26,6 +26,8 @@ namespace Punchy.Chemistry
     /// - <c>measure s</c>: logs the frame times over the next s seconds;
     /// - <c>castat spell dx,dz[,charge]</c>: a spell from the player at a point that far away;
     /// - <c>face dx,dz</c>: turns the camera that way;
+    /// - <c>gowater</c>: onto the shore of the nearest water, facing it; <c>castwater spell [charge]</c>: a spell on it;
+    /// - <c>shot name</c>: a screenshot (into -chem-shots' folder);
     /// - <c>quit</c>: ends the process.
     /// Only the local player moves (Punchy's movement is client-authoritative), so on a client it's the client's own.
     /// </summary>
@@ -39,6 +41,7 @@ namespace Punchy.Chemistry
         float2 walkBy;
         float walkFor, walkSince = -1f;
         float3? leftFrom;
+        Vector3? waterAim;
 
         void StartScript()
         {
@@ -139,6 +142,29 @@ namespace Punchy.Chemistry
                     if (f.Length >= 2)
                         Face(new float2(f[0], f[1]));
                     break;
+                case "gowater":
+                    // gowater: onto the shore 10 m south of the nearest water, facing it.
+                    var wi = Ready ? Nearest(player, KindWater) : -1;
+                    done = wi >= 0;
+                    if (done)
+                    {
+                        var wc = CellCentre(wi % Size, wi / Size);
+                        Put(terrain, new float3(wc.x, 0f, wc.z - 10f));
+                        Face(new float2(0f, 1f));
+                        waterAim = wc;
+                    }
+                    break;
+                case "castwater":
+                    // castwater spell [charge]: that spell on the water gowater found, from where the player stands.
+                    done = Ready && waterAim.HasValue && words.Length > 1;
+                    if (done)
+                        CastFrom(words[1], player, waterAim.Value, words.Length > 2 && int.TryParse(words[2], out var wch) ? wch : 1);
+                    break;
+                case "shot":
+                    // shot name: a screenshot into -chem-shots' folder (or the player's data folder).
+                    var dir = ShotDir();
+                    ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(dir, (words.Length > 1 ? words[1] : "shot") + ".png"));
+                    break;
                 case "quit":
                     Debug.Log("[Chemistry] script: quit");
                     Application.Quit();
@@ -180,6 +206,13 @@ namespace Punchy.Chemistry
                 m.VerticalVelocity = 0f;
                 em.SetComponentData(player, m);
             }
+        }
+
+        static string ShotDir()
+        {
+            var args = System.Environment.GetCommandLineArgs();
+            int k = System.Array.IndexOf(args, "-chem-shots");
+            return k >= 0 && k + 1 < args.Length ? args[k + 1] : Application.persistentDataPath;
         }
 
         static float[] Floats(string text)
