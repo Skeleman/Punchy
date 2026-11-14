@@ -707,7 +707,7 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
 - Pass (rule 23): at most +0.3 ms GPU, CPU within noise, no new hitch. Main-PC bench agent may take it (J-045).
 - 11-13 widening: time arm B at fauna/far-towns f54d8941 or newer (row 3 home signs, 24 px figure size cap). Add a dusk view (18:30) at the 200 m spot for the home lights and smoke.
 
-## Job 73 (2026-11-13, RUNNING 11-14 (q115.job); supervisor, for R-19 row 2, #281): steep rock cost switches
+## Job 73 (2026-11-13, REPORTED 11-14 in REPORTS-profiler.md (q115.job); supervisor, for R-19 row 2, #281): steep rock cost switches
 - `render/steep-triplanar` 1e556c4b, one Profile build, 1920x1080, Medium, uncapped, noon, Clear, `-weatherseed 4`, arms alternated, 3 rounds.
 - Poses (job 66's): mountain 20 m (-3126,2898, yaw -169, pitch -40) and mountain 150 m (-3101,3025, yaw -169, pitch -40).
 - Arms: default; `-rockhighonly`; `-rockoctaves 1`; `-rockslabpx 40`; `-rockslabpx 150`; `-rockoctaves 1 -rockslabpx 40`.

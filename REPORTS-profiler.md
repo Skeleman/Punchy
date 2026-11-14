@@ -2,6 +2,26 @@
 
 Newest first.
 
+## Job 73: R-19 steep rock cost switches (render/steep-triplanar 1e556c4b, on main b66b4c2a), 2026-11-14 (q115.job): only `-rockhighonly` passes both poses
+**Setup:** one Profile build of 1e556c4b plus main b66b4c2a (job 66's main build) in the same session; Medium, 1920x1080, uncapped, noon, Clear, arms rotated, 3 rounds. Job 66's mountain poses via `-benchface` (20 m: -3126,2898; 150 m: -3101,3025; yaw -169, pitch -40).
+
+| arm | mountain 20 m | delta vs main | mountain 150 m | delta vs main | rule 23 |
+|---|---|---|---|---|---|
+| main | 5.87 | | 8.17 | | |
+| default | 7.4 | +1.53 | 8.8 | +0.63 | FAIL |
+| **`-rockhighonly`** | 5.93 | **+0.07** | 8.37 | **+0.20** | **PASS** |
+| `-rockoctaves 1` | 6.77 | +0.90 | 8.27 | +0.10 | FAIL (20 m) |
+| `-rockslabpx 40` | 7.63 | +1.77 | 8.7 | +0.53 | FAIL |
+| `-rockslabpx 150` | 7.2 | +1.33 | 8.6 | +0.43 | FAIL |
+| `-rockoctaves 1 -rockslabpx 40` | 6.67 | +0.80 | 8.07 | -0.10 | FAIL (20 m) |
+
+(GPU ms at Medium, mean of 3 rounds; rounds within ~0.5.)
+- **Pick for the Medium default: `-rockhighonly`** (beds and slabs at High and up; Medium keeps the triplanar rock colour and grain): +0.07 and +0.20 ms, inside the bar on both poses.
+- One octave halves the close cost (+0.9 at 20 m) and is enough at 150 m, but not up close. The slab screen-size fades don't help at 20 m (the slabs are big on screen there anyway; 40 px even reads above default, within noise of it).
+- Main read 5.87 / 8.17 today vs 5.47 / 6.73 in job 66 (another session; 150 m reads differently, so deltas here are only against today's main).
+
+Cost: laptop total $872 (laptop session e163d8ab; 1 build, 42 games).
+
 ## Job 72: A-109 far town figures (fauna/far-towns f54d8941 vs its base, main da573e16), 2026-11-14 (q114.job): PASS
 **Setup:** laptop (the main-PC agent hadn't taken it). Profile builds, Medium, 1920x1080, uncapped, Clear, arms alternated, 3 rounds. Views: 200 m north of town 73 facing it (`-benchspot 2972,-685,180`) at noon and at dusk 18:30 (home lights, smoke), and the 200 m walk south to the centre at 4 m/s with `-hitchms 40`.
 
