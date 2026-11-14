@@ -319,7 +319,11 @@ namespace Punchy.Debugging
                             return;
                         }
                         ccStart.y = source.SampleHeight(ccStart.xz);
-                        t.Position = ccStart + new float3(0f, 0.3f, 0f);
+                        // (Riding: from a dozen metres further out, walking up to it as a player does. Set down at a turned
+                        // walker's foot, the climber is seen there a moment later on the other machines, which then hold
+                        // the body at a slightly different turn.)
+                        var from = ccRide ? ccStart.xz - ccInward * 12f : ccStart.xz;
+                        t.Position = new float3(from.x, source.SampleHeight(from) + 0.3f, from.y);
                         t.Rotation = quaternion.LookRotationSafe(new float3(ccInward.x, 0f, ccInward.y), math.up());
                         em.SetComponentData(self, t);
                         em.SetComponentData(self, new PlayerMotion { Grounded = true });
@@ -371,6 +375,15 @@ namespace Punchy.Debugging
                             ccInward = math.normalizesafe(peak.xz - t.Position.xz, ccInward);
                         else if (ccRide)
                             ccInward = math.normalizesafe(middle - t.Position.xz, ccInward);
+                    }
+                    // (Riding, before the first hold: a walker that stopped for the climber has turned toward them since the
+                    // route was picked, so the section's foot has swung round. Sidestep to the foot as it stands now, then in.)
+                    if (ccRide && !ccHeld && !ccFell && ccToppedAt < 0f &&
+                        ColossusCollision.SectionRoute(ccSlot, ccSection, out var foot, out var into, out _))
+                    {
+                        var off = foot.xz - t.Position.xz;
+                        var side = off - into * math.dot(off, into);
+                        ccInward = math.lengthsq(side) > 1f ? math.normalize(side) : into;
                     }
                     PlayerInputSystem.TestMove = ccInward;
                     PlayerInputSystem.TestCamera = ccInward;
