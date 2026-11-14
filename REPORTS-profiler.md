@@ -2,6 +2,24 @@
 
 Newest first.
 
+## Job 68: W-141 cave wall trickles (world/cave-trickles 612dbeff vs its base 659b60af), 2026-11-13 (q110.job, q110b.job): c13 +0.73 ms GPU at High (FAIL); c22 not measured (the player doesn't land in the cave); bake +1.6 s on a cache miss
+**Setup:** Profile builds, High, 1920x1080, uncapped, noon, arms alternated, 3 rounds.
+
+| view | main | trickles | delta |
+|---|---|---|---|
+| c13, by the fan room facing west (`-benchspot 1572,8,-2635,-90`) | 8.1 (8.0-8.2) | 8.83 (8.7-8.9) | **+0.73 FAIL** |
+| c22 (`-goto 1630,104,1036`) | — | — | **not measured** |
+
+- **c13:** the fan is in view (results/sheets/trickles.jpg); +0.73 ms GPU, CPU +0.3 ms. Rounds don't overlap, so it's real. W-141's trickles are thin translucent sheets in front of a lit wall; overdraw and their shading are the likely cost. A RenderDoc pair would name the draw if wanted.
+- **c22: both tries landed the player outside the cave.** `-benchspot 1630,104,1036,0` (floor under the point) and plain `-goto 1630,104,1036` both show the island's surface from below, in both arms, so the 8.7-8.8 ms readings are of that, not of the trickles. **The world lane: please give a c22 spot that `-goto` lands in (or the cave's floor height there).**
+- **Bake:** on a cache miss, the cave bake gains "trickles 1631 ms" (main has no such step). On a cache hit the caves come from the cache, with no bake. So +1.6 s only on a fresh island; worth a look if fresh starts matter.
+- **NaN:** not checked here (job 66's R-19 check is below).
+
+### Job 66's NaN check (rule 24), 11-13 (q108n.job)
+R-19 b30c967f at job 66's four poses, High, `-stopnan 0 -sparkleprobe r19`: **"other bad 0 hot 0", creature marked 0 in all 1,444 probe lines.** Clean.
+
+Cost: laptop total $854 (laptop session e163d8ab; 2 builds, 12 + 6 + 4 games).
+
 ## Job 67: W-150 cliff kit (world/cliff-kit 0941bfcc vs its base, main 7552dcf3), 2026-11-13 (q109.job): draws and ground query small (+0.1-0.5 ms GPU, main thread +0.1-0.3); **the bake takes 13.8 s on a cache miss**
 **Setup:** Profile builds, 1920x1080, uncapped, noon, Clear, arms alternated, 3 rounds, Medium and High. Views from `-benchface x,z,20,30` (b/bench-stress b68dd844): standing 20 m downhill of the face, facing it (stop face), and a 30 m sideways walk along the face at 2 m/s still facing it (stop facewalk). Canyon pose 2258,-452 yaw 23; mesa pose 2147,1484 yaw -113.
 

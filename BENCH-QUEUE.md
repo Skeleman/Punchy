@@ -661,7 +661,7 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
 - Pixel history on that pixel: name the draw (shader, pass, mesh or impostor), and the first event where it turns NaN. If you can, step to the Ultra setting that turns it on (flora shadows, far trees, flora detail) by switching one `-gfxset` at a time back to its High value.
 - Report in REPORTS-profiler under 'R-18'. No fix from your side; R-18 row 2 fixes it.
 
-## Job 66 (2026-11-12, REPORTED 11-13 in REPORTS-profiler.md (q108.job; NaN check to follow); supervisor, for R-19 rows 1-1c, #281): steep rock cost
+## Job 66 (2026-11-12, REPORTED 11-13 in REPORTS-profiler.md (q108.job; NaN check q108n clean); supervisor, for R-19 rows 1-1c, #281): steep rock cost
 - Zach 11-12: "I'll probably want significant changes in the cliffs, but I do want this version profiled so we can have a baseline check that it's a feasible implementation."
   So this is a baseline, not only a pass/fail: report the full GPU ms of B over A per view and preset, and say which part of the shader costs most (add a RenderDoc pass timing at the canyon 20 m view, High).
 - (A) main vs (B) `render/steep-triplanar` b30c967f. Profile builds, 1920x1080, Medium and High, uncapped, ABBA, 300 frames each.
@@ -675,7 +675,7 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
 - Record: whole-frame GPU and main-thread ms, and the FloorUnder/Deck share if the profile shows it (every ground query now also checks the cliff pieces in its cell). Draw calls and pieces drawn.
 - Zach 11-12 expects big cliff changes later, so this is a baseline: give the cost of the pieces themselves (draw) and of the ground query separately.
 
-## Job 68 (2026-11-13, RUNNING 11-13 (q110.job); supervisor, for W-141 row 1, #261): cave wall trickles
+## Job 68 (2026-11-13, REPORTED 11-13 in REPORTS-profiler.md (q110.job, q110b.job; c22 needs a spot); supervisor, for W-141 row 1, #261): cave wall trickles
 - (A) main vs (B) `world/cave-trickles` 612dbeff. Profile builds, 1920x1080, High, uncapped, ABBA, 300 frames each.
 - Views: wet cave c13 (`-goto 1572,8,-2635`) facing the fan, and c22 (`-goto 1630,104,1036`), standing.
 - Record: whole-frame GPU and main-thread ms, draw calls, and the trickle draws if the profile names them. The branch is based on 659b60af (before #292), so A is 659b60af too.
