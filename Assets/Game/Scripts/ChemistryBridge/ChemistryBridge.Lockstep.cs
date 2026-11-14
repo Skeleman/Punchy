@@ -244,9 +244,19 @@ namespace Punchy.Chemistry
             for (int k = 0; k < ts.Length; k++)
             {
                 var p = ts[k].Position;
-                list.Add(("player" + k, LayerOf(terrainNow, p), ChunkKey.CellOf(p.x, 1), ChunkKey.CellOf(p.z, 1)));
+                list.Add((PlayerName(k), LayerOf(terrainNow, p), ChunkKey.CellOf(p.x, 1), ChunkKey.CellOf(p.z, 1)));
             }
             return list;
+        }
+
+        static readonly List<string> playerNames = new List<string>();
+
+        // (Made once each: Characters is asked every frame.)
+        static string PlayerName(int k)
+        {
+            while (playerNames.Count <= k)
+                playerNames.Add("player" + playerNames.Count);
+            return playerNames[k];
         }
 
         // Host and solo, -chem-sync-fills (or a chunk with no job under way): a chunk's ground sampled now, on the main thread.

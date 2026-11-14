@@ -46,12 +46,15 @@ namespace Punchy.Chemistry
         List<(string who, int layer, int x, int y)> charactersNow;
         int groundJobs;
         bool warnedNoJob;
-        double fillMsFrame;
+        // The characters' chunks last frame, and whether the jobs wanted then were more than could start.
+        readonly List<ChunkKey> characterKeys = new List<ChunkKey>();
+        bool groundBacklog;
+        double fillMsFrame, stampMsFrame;
         // The worst frame and the worst frame's fill work (main thread) since the last sum line, in ms.
         double frameWorstMs, fillWorstMs;
         // The last of the bridge's own teleports: when, and the worst since.
         float teleportAt = -1f;
-        double teleportFrameWorst, teleportFillWorst;
+        double teleportFrameWorst, teleportFillWorst, teleportStampWorst;
         int teleportSlowFrames;
         bool teleportCastSeen;
 
@@ -65,11 +68,14 @@ namespace Punchy.Chemistry
             frameWorstMs = Math.Max(frameWorstMs, dt);
             fillWorstMs = Math.Max(fillWorstMs, fillMsFrame);
             WatchTeleport(dt);
-            fillMsFrame = 0;
+            fillMsFrame = stampMsFrame = 0;
             if (syncFills || planner == null || world == null)
                 return;
             fillWatch.Restart();
-            StartGround(Wanted(world, Characters()), Time.unscaledTime + GroundKeep);
+            // (Only when a character has moved to another chunk, or jobs are waiting to start: the stamping asks each tick too.)
+            var chars = Characters();
+            if (groundBacklog || CharacterKeysChanged(chars))
+                StartGround(Wanted(world, chars), Time.unscaledTime + GroundKeep);
             var now = Time.unscaledTime;
             List<ChunkKey> done = null;
             foreach (var t in groundTasks)
@@ -118,6 +124,7 @@ namespace Punchy.Chemistry
             }
             foreach (var s in plan.Switches)
                 session.Stamp(chunks, s);
+            stampMsFrame += fillWatch.Elapsed.TotalMilliseconds;
             fillMsFrame += fillWatch.Elapsed.TotalMilliseconds;
         }
 
@@ -157,6 +164,19 @@ namespace Punchy.Chemistry
                 .OrderBy(a => a.Value).ThenBy(a => a.Key).Select(a => a.Key).ToList();
         }
 
+        bool CharacterKeysChanged(List<(string who, int layer, int x, int y)> characters)
+        {
+            bool changed = characters.Count != characterKeys.Count;
+            for (int k = 0; k < characters.Count && !changed; k++)
+                changed = !characterKeys[k].Equals(ChunkKey.OfCell(characters[k].layer, characters[k].x, characters[k].y));
+            if (!changed)
+                return false;
+            characterKeys.Clear();
+            foreach (var c in characters)
+                characterKeys.Add(ChunkKey.OfCell(c.layer, c.x, c.y));
+            return true;
+        }
+
         static void Around(Dictionary<ChunkKey, int> around, ChunkKey c, int distance)
         {
             for (int dy = -distance; dy <= distance; dy++)
@@ -179,6 +199,7 @@ namespace Punchy.Chemistry
                 if (!t.Job.IsCompleted)
                     running++;
             bool started = false;
+            groundBacklog = false;
             foreach (var key in keys)
             {
                 if (groundTasks.TryGetValue(key, out var had))
@@ -187,7 +208,10 @@ namespace Punchy.Chemistry
                     continue;
                 }
                 if (running >= MostGroundJobs)
+                {
+                    groundBacklog = true;
                     break;
+                }
                 var kinds = new NativeArray<byte>(Chunks.Area, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
                 groundTasks[key] = new GroundTask { Job = GroundJobFor(key, kinds).Schedule(Chunks.Area, 256), Kinds = kinds, Until = until };
                 running++;
@@ -245,7 +269,7 @@ namespace Punchy.Chemistry
         {
             AskAhead(to);
             teleportAt = lastTeleport = Time.unscaledTime;
-            teleportFrameWorst = teleportFillWorst = 0;
+            teleportFrameWorst = teleportFillWorst = teleportStampWorst = 0;
             teleportSlowFrames = 0;
             teleportCastSeen = false;
         }
@@ -259,13 +283,14 @@ namespace Punchy.Chemistry
             {
                 teleportFrameWorst = Math.Max(teleportFrameWorst, frameMs);
                 teleportFillWorst = Math.Max(teleportFillWorst, fillMsFrame);
+                teleportStampWorst = Math.Max(teleportStampWorst, stampMsFrame);
                 if (frameMs > 1000.0 / 60.0)
                     teleportSlowFrames++;
             }
             if (Time.unscaledTime - teleportAt < TeleportWatch)
                 return;
             Debug.Log($"[Chemistry] script: after the teleport: worst frame {teleportFrameWorst:F1} ms, {teleportSlowFrames} frames over 16.7 ms, " +
-                      $"fills' main-thread worst {teleportFillWorst:F2} ms a frame{(syncFills ? " (sync fills)" : "")}");
+                      $"fills' main-thread worst {teleportFillWorst:F2} ms a frame ({teleportStampWorst:F2} ms of it the stamping){(syncFills ? " (sync fills)" : "")}");
             teleportAt = -1f;
         }
 
