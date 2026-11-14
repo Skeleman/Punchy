@@ -62,6 +62,8 @@ Shader "Punchy/Terrain Surface"
             // R-6: reference pixels a metre spans 1 m from the camera, times Detail (TerrainStreamingSystem). Each fine-relief
             // octave fades by its own on-screen size from this. Negative: the old fixed fade at _PunchyTerrainDetailFar.
             float _PunchyTerrainDetailPpm;
+            // R-28: steps of the paving's offset parallax (DetailPolicy.TerrainParallaxSteps; 0 at Low: none).
+            float _PunchyTerrainParallax;
             // Where the marks are, coarsely (CreatureBurrowSystem's MarkMask): a cell 1 where some mark reaches into it,
             // and (x, z of the map's corner, cells per metre, cells across).
             TEXTURE2D(_PunchyBurrowMask);
@@ -208,9 +210,9 @@ Shader "Punchy/Terrain Surface"
 
             // Cobbles (W-34; rows of rounded boxes in W-09/W-10): rugged field stones, no grid. A jittered Voronoi on a
             // 0.42 m lattice with a size weight per stone (multiplicatively weighted, so the borders bow and stones
-            // run from about 0.25 to 0.6 m), its input warped at two scales so the outlines wander. Each stone is a
-            // dome that rises over 6-16 cm from its edge, with its own height, a lean and a lumpy top; between them,
-            // gaps of varying width.
+            // run from about 0.25 to 0.6 m), its input warped at two scales so the outlines wander. R-28 row 2 (Zach):
+            // each stone stands high with a fairly flat top (its own height, a slight lean, faint lumps) and falls
+            // sharply at its rim, a bevel 1-2.5 cm wide; the gaps between, of varying width, are low and flat.
             uint CobbleHash(int2 c)
             {
                 uint h = (uint)c.x * 73856093u ^ (uint)c.y * 19349663u;
@@ -218,9 +220,10 @@ Shader "Punchy/Terrain Surface"
                 return h ^ (h >> 16);
             }
 
-            // Height of the paving at p in metres (0 in the gaps, up to about 4 cm on a stone); id = the stone's hash,
-            // edge = distance into the stone (m, about; <= 0 in the gap).
-            float CobbleHeight(float2 p, out uint id, out float edge)
+            // Height of the paving at p in metres (0 in the gaps, about 3.5-5 cm on a stone); id = the stone's hash,
+            // edge = distance into the stone (m, about; <= 0 in the gap). bevelMin: the narrowest the rim may be (m), so
+            // its fall never gets under a couple of pixels and sparkles.
+            float CobbleHeight(float2 p, float bevelMin, out uint id, out float edge)
             {
                 float2 pw = p + (float2(PunchyValueNoise(p * 2.3), PunchyValueNoise(p * 2.3 + 7.7)) - 0.5) * 0.14
                               + (float2(PunchyValueNoise(p * 7.1 + 3.1), PunchyValueNoise(p * 7.1 + 9.4)) - 0.5) * 0.045;
@@ -252,25 +255,25 @@ Shader "Punchy/Terrain Surface"
                 float gap = 0.015 + PunchyValueNoise(p * 3.7 + 1.3) * 0.025;
                 edge = border * 0.42 * 0.5 * w1 - gap;
                 float rnd = ((id >> 8) & 255u) / 255.0;
-                float dome = saturate(edge / (0.07 + rnd * 0.1));
-                dome = sqrt(dome * (2 - dome));   // a rounded shoulder (a quarter circle) up from the gap
-                float lean = dot(o1, float2(((id >> 3) & 15u) / 15.0 - 0.5, ((id >> 13) & 15u) / 15.0 - 0.5)) * 0.35;
-                float lumps = (PunchyValueNoise(p * 9.0 + rnd * 31) - 0.5) * 0.35 + (PunchyValueNoise(p * 23.0) - 0.5) * 0.12;
-                return 0.05 * dome * (0.6 + ((id >> 16) & 15u) / 15.0 * 0.6 + lean + lumps);
+                float rim = smoothstep(0, max(0.01 + rnd * 0.015, bevelMin), edge);   // the bevel: a sharp fall from the top
+                float lean = dot(o1, float2(((id >> 3) & 15u) / 15.0 - 0.5, ((id >> 13) & 15u) / 15.0 - 0.5)) * 0.12;
+                float lumps = (PunchyValueNoise(p * 9.0 + rnd * 31) - 0.5) * 0.12;
+                return 0.045 * rim * (0.75 + ((id >> 16) & 15u) / 15.0 * 0.4 + lean + lumps);
             }
 
             // The paving at p: x = the stone's shade (-0.5..0.5), y = gap share (1 = gap), zw = slope (dh/dx, dh/dz).
             // hue: a warm/cool tint per stone (-0.5..0.5); dome: 0 at a stone's rim to 1 on top (dark rims).
             // W-108 (#39): about one stone in thirty is missing (its hole shows the gap's earth and grass) and one in
             // fifteen has sunk (flatter, darker, a puddle of shade); sunk = 1 for those.
-            float4 Cobbles(float2 p, out half hue, out half dome, out half sunk)
+            // bevelMin as CobbleHeight's (the slope is taken over half of it, never under 5 mm).
+            float4 Cobbles(float2 p, float bevelMin, out half hue, out half dome, out half sunk)
             {
                 uint id; float edge;
-                const float e = 0.015;
-                float h = CobbleHeight(p, id, edge);
+                float e = max(0.005, bevelMin * 0.5);
+                float h = CobbleHeight(p, bevelMin, id, edge);
                 uint idx, idz; float ex, ez;
-                float hx = CobbleHeight(p + float2(e, 0), idx, ex);
-                float hz = CobbleHeight(p + float2(0, e), idz, ez);
+                float hx = CobbleHeight(p + float2(e, 0), bevelMin, idx, ex);
+                float hz = CobbleHeight(p + float2(0, e), bevelMin, idz, ez);
                 uint tone = CobbleHash(int2((int)id, 91));   // (id's low bits also set the jitter)
                 hue = (tone & 255u) / 255.0 - 0.5;
                 dome = saturate(h / 0.03);
@@ -355,7 +358,11 @@ Shader "Punchy/Terrain Surface"
 
                 float distance = length(input.positionWS - GetCameraPositionWS());
                 half3 normalWS = NormalizeNormalPerPixel(input.normalWS);
+                half3 baseNormal = normalWS;   // (R-28: the stones sit on this, not on the ground's relief)
                 float2 p = input.positionWS.xz;
+                // Reference pixels a metre spans here (DetailPolicy.ScreenSize): the near-only touches below fade by it.
+                // With the policy off, the reference view's (fov 60, Detail 1), so the old metre ranges come back.
+                float metrePixels = (_PunchyTerrainDetailPpm > 0 ? _PunchyTerrainDetailPpm : 935) / max(distance, 0.01);
                 half burrowDarken = 0;
                 // (Worms' marks only out to _PunchyBurrowRange, as far as the feeder sends them, and only in the mask's
                 // cells a mark reaches into: the rest of the terrain skips the loop.)
@@ -377,7 +384,9 @@ Shader "Punchy/Terrain Surface"
                 // range, W-101: 110 m at Detail 1) still bounds the sand grains below.
                 float detailFar = _PunchyTerrainDetailFar > 0 ? _PunchyTerrainDetailFar : 70;
                 half detailMask = input.bump * (input.extra.w <= 0.01);
-                half detailFade = (1 - smoothstep(detailFar * 0.36, detailFar, distance)) * detailMask;
+                // (R-28: by screen size, 8.5-23.6 pixels a metre: 110-40 m at the reference view, as before.)
+                half detailFade = (_PunchyTerrainDetailPpm < 0 ? 1 - smoothstep(detailFar * 0.36, detailFar, distance)
+                                                               : smoothstep(8.5, 23.6, metrePixels)) * detailMask;
                 float3 octaves = MicroFades(distance, detailFar) * detailMask;
                 float3 micro = max(octaves.x, max(octaves.y, octaves.z)) > 0.001 ? MicroDetail(p, octaves) : float3(0, 0, 0.5);
 
@@ -407,7 +416,8 @@ Shader "Punchy/Terrain Surface"
                 half dip = smoothstep(0.0, 0.08, input.hollow.x) * (1 - 0.65 * porosity);
                 half puddle = smoothstep(0.82, 0.9, dip * 0.4 + puddleNoise * 0.6 + wet * 0.15) * flatness * smoothstep(0.1, 0.3, wet)
                             * (1 - 0.6 * input.extra.y);   // grass pokes through, but meadow dips still pool
-                half sheen = max(wet * (1 - 0.85 * porosity), shore * 0.6) * (1 - 0.8 * input.extra.y) * (1 - smoothstep(120, 450, distance));
+                half sheen = max(wet * (1 - 0.85 * porosity), shore * 0.6) * (1 - 0.8 * input.extra.y)
+                           * smoothstep(2.08, 7.8, metrePixels);   // (450-120 m at the reference view)
 
                 half relief = 0.45 * (1 - puddle);   // (the octaves' fades are already in micro)
                 normalWS = normalize(normalWS - half3(micro.x, 0, micro.y) * relief);
@@ -417,8 +427,8 @@ Shader "Punchy/Terrain Surface"
                 // R-28 (rule 20): the stones fade by their own size on screen (DetailPolicy.ScreenSize), from 13 to 5
                 // reference pixels across a stone (0.42 m, flagstones twice that): 30-80 m for cobbles at fov 60, as
                 // before. Metres only when the policy is off.
-                half cobbleNear = _PunchyTerrainDetailPpm < 0 ? 1 - smoothstep(30, 80, distance)
-                                : smoothstep(4.9, 13.1, 0.42 * (1 + slab) * _PunchyTerrainDetailPpm / max(distance, 0.01));
+                half stonePixels = 0.42 * (1 + slab) * metrePixels;
+                half cobbleNear = _PunchyTerrainDetailPpm < 0 ? 1 - smoothstep(30, 80, distance) : smoothstep(4.9, 13.1, stonePixels);
                 half cobbleFade = smoothstep(0.3, 0.55, input.paving.x) * cobbleNear;
                 // W-108: paving above 1 is wear (SettlementSampling.Ground: the ruts down a cobbled road), and paving
                 // a little under 1 (a road's verge, the fade at a town's edge) lets the ground in between the stones.
@@ -428,19 +438,73 @@ Shader "Punchy/Terrain Surface"
                 half cbHue = 0, cbDome = 1, cbSunk = 0;
                 [branch] if (cobbleFade > 0.001)
                 {
-                    cb = Cobbles(p * (1 - 0.5 * slab), cbHue, cbDome, cbSunk);
+                    float2 cq = p * (1 - 0.5 * slab);
+                    // The rim's bevel never narrower than 1.5 pixels (in the stones' own coordinates).
+                    float bevelMin = 1.5 / metrePixels * (1 - 0.5 * slab);
+                    // R-28 row 2: parallax up close (none at Low), so the stones stand proud of the gaps and hide their
+                    // far side. The mesh is the stone tops (5.2 cm); the view ray goes down through them in
+                    // _PunchyTerrainParallax even steps and stops between the last two where it meets the paving (a
+                    // linear search, not a fixed point: the bevel is too steep for one to converge). Zach 11-14: a few
+                    // even steps showed on the rims as stacked sheets, so the bracket is refined twice (regula falsi)
+                    // before the last secant, grazing views take up to twice the steps, and each pixel starts its
+                    // steps a fixed dithered fraction in (still on screen, so it can't crawl), which turns any band
+                    // left into grain. It fades in by the stones' size on screen, 40-80 pixels across (5-10 m for
+                    // cobbles at the reference view), and goes flat under a puddle's water.
+                    half parallax = smoothstep(40, 80, stonePixels) * (1 - puddle) * (_PunchyTerrainParallax > 0);
+                    [branch] if (parallax > 0.001)
+                    {
+                        float3 v = normalize(GetCameraPositionWS() - input.positionWS);
+                        float2 dir = -v.xz / max(v.y, 0.3) * (1 - 0.5 * slab) / (1 - 0.4 * slab) * parallax;
+                        const float top = 0.052;   // the tallest stone (CobbleHeight's 4.5 cm x 1.15), so tops barely slide
+                        uint pid; float pedge;
+                        // Grazing (view under ~30 degrees from the ground) adds steps, up to double, 8 at most.
+                        float steps = min(round(_PunchyTerrainParallax * (1 + saturate(1 - v.y * 2))), 8);
+                        float jit = frac(52.9829189 * frac(dot(input.positionCS.xy, float2(0.06711056, 0.00583715))));
+                        float tPrev = 0, t = 0, tHit = top, dHit = -1;
+                        float dPrev = top - CobbleHeight(cq, bevelMin, pid, pedge);   // ray depth under the paving (> 0: above it)
+                        bool hit = dPrev <= 0, onTop = hit;
+                        [loop] for (int i = 1; i <= 8; i++)
+                            [branch] if (!hit && i <= (int)steps)
+                            {
+                                t = top * min((i - jit * (i < steps)) / steps, 1);
+                                float d = top - CobbleHeight(cq + dir * t, bevelMin, pid, pedge) - t;
+                                if (d <= 0) { tHit = t; dHit = d; hit = true; }
+                                else { tPrev = t; dPrev = d; }
+                            }
+                        if (hit && !onTop)
+                        {
+                            [unroll] for (int r = 0; r < 2; r++)
+                            {
+                                float tm = tPrev + (tHit - tPrev) * dPrev / max(dPrev - dHit, 1e-5);
+                                float dm = top - CobbleHeight(cq + dir * tm, bevelMin, pid, pedge) - tm;
+                                if (dm > 0) { tPrev = tm; dPrev = dm; } else { tHit = tm; dHit = dm; }
+                            }
+                            t = tPrev + (tHit - tPrev) * dPrev / max(dPrev - dHit, 1e-5);
+                        }
+                        else t = onTop ? 0 : top;
+                        cq += dir * t;
+                    }
+                    cb = Cobbles(cq, bevelMin, cbHue, cbDome, cbSunk);
                     cb.zw *= 1 - 0.4 * slab;
                     cbDome = lerp(cbDome, sqrt(cbDome), slab);   // broad flat tops, only their edges darken
-                    normalWS = normalize(normalWS - half3(cb.z, 0, cb.w) * cobbleFade * (1 - puddle * 0.7) * (1 - 0.6 * wear));
+                    // R-28 (Zach): a stone's face takes only its own shape on the plane the paving is laid on, none of
+                    // the ground's relief, worms or furrows; the grout keeps the ground's normal and a fine grit of its
+                    // own (2 cm, gone under 4 pixels). They cross where the stone's rim meets the gap.
+                    float2 slope = cb.zw * (1 - puddle * 0.7) * (1 - 0.6 * wear);
+                    half3 stoneNormal = normalize(baseNormal - half3(slope.x, 0, slope.y));
+                    half grit = smoothstep(2, 4, 0.02 * metrePixels) * 0.25;
+                    half3 groutNormal = normalize(normalWS + half3(PunchyValueNoise(p * 50) - 0.5, 0, PunchyValueNoise(p * 50 + 17.1) - 0.5) * grit * 2);
+                    normalWS = normalize(lerp(normalWS, lerp(stoneNormal, groutNormal, cb.y), cobbleFade));
                 }
                 // Rock faces (steep ground) up close: the caves' shared grain and fine relief, read three ways, so cliffs
                 // carry the same detail as cave walls.
                 half rockShade = 1;
-                half steep = (1 - smoothstep(0.55, 0.8, normalWS.y)) * (1 - smoothstep(40, 90, distance)) * (input.extra.w <= 0.01);
+                // (R-28: up close by screen size, 10.4-23.4 pixels a metre: 90-40 m at the reference view.)
+                half steep = (1 - smoothstep(0.55, 0.8, normalWS.y)) * smoothstep(10.4, 23.4, metrePixels) * (input.extra.w <= 0.01);
                 // W-112: round a cave mouth (its cut field under 8 m) any ground takes the walls' grain at the walls' own
                 // scale, so the terrain doesn't turn smooth where it meets the finer cave rock. Only there: the rest of
                 // the ground pays nothing.
-                half mouth = (1 - smoothstep(1.5, 8, input.cave)) * (1 - smoothstep(30, 60, distance));
+                half mouth = (1 - smoothstep(1.5, 8, input.cave)) * smoothstep(15.6, 31.2, metrePixels);   // (60-30 m)
                 steep = max(steep, mouth * 0.7);
                 if (steep > 0.01 && _PunchyCaveDetailReady > 0)
                 {
@@ -476,7 +540,7 @@ Shader "Punchy/Terrain Surface"
                 if (detailFade > 0.001)
                 {
                     half grain = Grain(p * 37) * 0.6 + Grain(float2(p.x * 0.866 - p.y * 0.5, p.x * 0.5 + p.y * 0.866) * 15 + 11.3) * 0.4;   // turned: no grid
-                    albedo *= 1 + grain * 0.5 * (1 - smoothstep(6, 22, distance)) * (1 - input.extra.y) * detailFade;
+                    albedo *= 1 + grain * 0.5 * smoothstep(42.5, 155.8, metrePixels) * (1 - input.extra.y) * detailFade;   // (22-6 m)
                 }
                 // Paved ground (settlement streets and squares): cobbles up close, fading to plain stone grey before
                 // the gaps could shimmer; the stones' domes catch the light.
@@ -485,9 +549,12 @@ Shader "Punchy/Terrain Surface"
                     // W-34: stones paler and greyer than the ground, each its own shade and a little warmer or cooler,
                     // darker at the rim where they turn down into the gap, with broad patches of wear so the paving
                     // isn't one even tone from 30 m. R-28: the gaps hold the ground the stones were set in (below).
-                    half grey = dot(albedo, half3(0.3, 0.5, 0.2));
+                    // (R-28: from the paving's plain colour, not the ground's grain and clods, so no ground pattern
+                    // runs across a stone.)
+                    half3 paved = input.surface.rgb;
+                    half grey = dot(paved, half3(0.3, 0.5, 0.2));
                     half patch = PunchyValueNoise(p * 0.21 + 4.7) - 0.5;
-                    half3 stone = lerp(albedo, grey.xxx, 0.45) * (1.2 + cb.x * 0.55 + patch * 0.25)
+                    half3 stone = lerp(paved, grey.xxx, 0.45) * (1.2 + cb.x * 0.55 + patch * 0.25)
                                 * half3(1 + cbHue * 0.16, 1 + cbHue * 0.03, 1 - cbHue * 0.16) * lerp(0.6, 1, cbDome);
                     // W-108: worn stones in the ruts are rubbed flat and smooth: greyer, a touch darker, their rims
                     // less dark; sunk stones sit in shade with dirt washed over them.
@@ -574,7 +641,7 @@ Shader "Punchy/Terrain Surface"
                 if (puddle > 0.01)
                 {
                     float3 v = inputData.viewDirectionWS;
-                    half rain = PunchyWetnessAt(p).g * (1 - smoothstep(20, 60, distance));
+                    half rain = PunchyWetnessAt(p).g * smoothstep(15.6, 46.75, metrePixels);   // (60-20 m at the reference view)
                     float2 ripple = rain > 0.01 ? PuddleRings(p, _PunchyClock) * rain * 0.35 : float2(0, 0);
                     float3 n = normalize(float3(-ripple.x, 1, -ripple.y));
                     float3 r = reflect(-v, n);
