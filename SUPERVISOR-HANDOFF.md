@@ -320,3 +320,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-14: Zach: farm fields outside towns with biome crops: W-165 (#335), world 3b3 after W-164; folk work card follows its row 3.
 - 11-14: Zach asked for material homogeneity across built pieces: W-166 (#336), world; row 1 audit after W-164; W-163 row 1 folds into row 2. Fauna's A-117 row 2 host+client run passed, port 7979 is free. Checklist has a shadow-flicker line.
 - 11-14: Zach: towers too small for a stair or rooms: W-167 (#337), world; audit after W-166 row 1.
+- 11-14: Zach: cloud shadows on a cave floor (render tree): R-36 (#338), render after current R-28 row, before R-32 row 1. Rider/mount one LOD size: A-119 (#339), fauna after A-118. Pets: A-120 (#340), folk after A-115. A-111 row 2 done (fauna/folk-scans 8eedd726, no host+client yet): folk to PR it, then A-114. World W-153 row 2b done (water/truth b4ec2efb, pools 36 -> 113), next bake determinism.
