@@ -6966,6 +6966,28 @@ half3 PunchySurfaceFinish(half3 color, PunchySurface s, half reach);            
 - **Risk:** the foam at the foot is subtle on the pale snow rock. The wet band is easiest to see on darker rock. Adding the include to TerrainSurface set off a long shader variant compile (about 2 min, 43 compiler processes) on first load. Not timed (rule 21).
 - **Next:** R-22 row 0 (#298, world/far-view).
 
+## 2026-11-14 W-153 row 2: still water last, PAUSED before the suite (#301), water/truth a8fe44e5
+
+- STOPPED HERE (pause asked): code, counts, pins and shots are done and pushed; the full suite has NOT run on this commit (my editor died during the usage pause, mid-suite, result lost). Next step on resume: run the suite on a8fe44e5, then close the row.
+- DONE: stepped pools (paddies) are the last water a bake places. `BuildPaddies` (new file TerrainSource.Paddies.cs) runs at the very end of the island bake, after falls and the archipelago, on the finished ground with ponds off, and bakes one level per paddy cell into a new `Paddies` blob (cached with the island). A cell gets no pool when its ground is steeper than about 17 %, when other water (river corridor, lake, fall pool) is within 12.5 m, or when it is within 1 m of sea level. At run time a pool is a shallow cut along the contour at its level with low rims (shared rim between two pools, wider where levels differ); nothing lifts the ground more than a rim.
+- DONE: water truth counts 80,0,0,0,10,31,0,988,42,31,959,47,4 (was 80,0,0,0,21,31,7,1987,42,35,1186,47,4): wall 1987 -> 988, step 1186 -> 959, dryRun 21 -> 10, uphillSampled 7 -> 0, tilt 35 -> 31. Stepped pools in a wall: 0. Stepped pools in a step: 0 (every pool-above-river, pool-above-pool and pool-above-sea step is gone). Test ceiling lowered to the new counts.
+- DONE: pins unchanged, old = new: landmarks 117 689D5348, fauna fingerprint 6A9E28E5. No landmark moved. The ground and water moved only inside above-sea swamp ponds.
+- NOT DONE / UNVERIFIED:
+  - Full suite not run (see top). Only Water_TruthCounts' numbers and the two pins were read by hand in the editor.
+  - 109 walls typed "pool" remain. They are not ponds or paddies (they stand with ponds off): a landmark waterfall's head pool at about (-1674, 3430), level 75.2, and stepped fall water at level 63.6 round (-506..-422, 774..830). They belong to rows 3-6; the probe could type fall and landmark pools apart from ponds.
+  - Only 36 of 322 candidate cells keep a pool (212 too steep, 72 over other water, 2 at the sea's edge): the hillside swamps are mostly too steep for level water, so they now read as wet ground with a few pools. If more pools are wanted, the profile row could grade swamp ground gentler; I did not do that here.
+  - Of the 36, eight read dry at the cell centre (bed not below the level there); not chased.
+  - BENCH job 74's two `-benchspot` lines are not added yet: they need the editor, which the pause stopped. First thing on resume.
+- Shared files touched (additive, tell the other owner): TerrainSource.cs (struct made partial; old Terrace and paddy constants moved out to the new partial; Equals compares Paddies) and TerrainAuthoring.cs (BuildPlaces gains `bool paddies = true`, builds and bakes the blob). Also IslandV2.cs, IslandCache.cs, WorldTests.cs, docs/agents/world.md. Merged origin/main d95e7ff1 into the branch.
+- Checks: NaN count 0 on all 5 after shots. `git ls-files --eol` unchanged (the three CRLF files stay CRLF). No .mat, Temp or probe files committed. Bake log: "[paddies] 36 pools; no pool on 212 steep cells, 72 over other water, 2 at the sea's edge; 358 ms".
+- Shots (D:/Unity/PunchyMilestones/W-153/, High, noon; sky overcast although Clear was asked), before/after of the same three views, checked as a 480 px sheet:
+  - w153-before/after-gorge (-474, 682): before, dark slabs of pool bank and water stood in the canyon up to 53 m above the floor; after, the canyon is open with the river on its floor and no slabs.
+  - w153-before/after-ridge (-2082, 234): before, tall dark pillars on the hillside; after, a plain grassy slope with the river below.
+  - w153-before/after-coast (278, 14): before, the same walls along the cliff top; after, a clean cliff face and ledge.
+  - Extras, not before/after: w153-after-pools (-20, 62) and w153-after-pools2 (-1180, -3008) show surviving pools as small green pools set into gentle ground, no rims standing proud.
+- Asks: one BENCH-QUEUE line: island bake on a fresh cache, main vs water/truth a8fe44e5 (BuildPaddies logged 358 ms, about 160k cells visited), and terrain chunk build time in a swamp (run-time Terrace no longer calls BaseHeight, expected no slower).
+- NEXT (after the pause is lifted): suite on a8fe44e5; job 74 benchspot lines; then W-155 rows 1-2, W-141 fix row behind W-153/W-155.
+
 ## 2026-11-13 R-21 row 4: one fall builder, lip and foot water (#284), world/waterfall-sheets 54fcdf64
 
 - DONE: every fall (river step, cave fall, grand tier, landmark waterfall) is described by one plain record, `FallShape` (lip, out, width, drop, run, skew, bow, cascade, landing, seed), and drawn by one builder (`BuildWaterfall` / `FallPoint` in LandmarkEffects.hlsl). The sheet is subdivided (32x48 near, 12x16 far, chosen by `DetailPolicy.ExtraReach` / `Within`, rule 20), bowed, with a rounded lip, uneven width and thin see-through columns. The water surface dips and churns over the last 6 m above each lip and mounds and rings within 12 m of each foot (`PunchyFallWater`).
