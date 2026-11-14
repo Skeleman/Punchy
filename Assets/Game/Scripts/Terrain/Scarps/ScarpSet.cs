@@ -233,6 +233,11 @@ namespace Punchy.Terrain
             var slot = Slots(ref sc, at, cracks, u, bed);
             float slots = -sc.Crack * (4.5f * slot.x + 0.9f * hard * slot.y);
             float body = q * (roll * (sc.Setback + sc.Push * stand + cracks.x + slots) + lean);
+            // Row 2: the turf cap juts out a little over the soil under it, which weathers back (a small overhang
+            // along the rim), broken where the turf has slumped away.
+            float turf = Turf(ref sc, at.S, out var depth);
+            body += q * turf * (math.smoothstep(0f, 0.12f, u) * (1f - math.smoothstep(depth, depth + 0.25f, u))
+                                - 0.8f * math.smoothstep(depth, depth + 0.3f, u) * (1f - math.smoothstep(depth + 0.5f, depth + 1.2f, u)));
             if (sc.Notch > 0f)
                 body -= sc.Notch * q * math.smoothstep(0.1f, 0.5f, up) * (1f - math.smoothstep(0.8f, 1.3f, up));
             float toe = (at.W - up / sc.Toe) * roll;
@@ -422,6 +427,21 @@ namespace Punchy.Terrain
         /// <summary>How big the along-rim pieces are for this scarp: full size on a canyon wall, smaller on a low
         /// bank (but not so small they turn to noise).</summary>
         static float Scale(ref Scarp sc) => math.lerp(0.35f, 1f, math.saturate(sc.Width / 32f));
+
+        /// <summary>
+        /// The turf cap at this place along the rim (row 2): how far it juts out over the soil under it (m, 0 where
+        /// it has slumped away) and how deep the turf and root mat is (depth, m). Thicker and more broken on a river
+        /// bank (earth over rock), thin on a rocky wall. Seeded per scarp (rule 22).
+        /// </summary>
+        public static float Turf(ref Scarp sc, float s, out float depth)
+        {
+            bool earth = sc.Kind == ScarpKind.RiverCut;
+            float seed = sc.Seed % 977u * 1.37f;
+            float n = noise.snoise(new float2(s / (earth ? 3.5f : 9f), seed + 61f));
+            float fine = noise.snoise(new float2(s / 0.9f, seed + 67f));
+            depth = (earth ? 0.3f : 0.15f) + (earth ? 0.25f : 0.1f) * (0.5f + 0.5f * fine);
+            return (earth ? 0.4f : 0.18f) * math.smoothstep(-0.35f, 0.25f, n + 0.25f * fine);
+        }
 
         /// <summary>A repeatable draw in [0, 1) from a scarp seed, a bed (or other key), a cell and a channel
         /// (a full-avalanche integer hash, so neighbouring cells don't correlate).</summary>

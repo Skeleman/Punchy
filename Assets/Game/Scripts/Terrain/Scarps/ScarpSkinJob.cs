@@ -69,6 +69,8 @@ namespace Punchy.Terrain
             var wide = new NativeArray<bool>(cols, Allocator.Temp);
             var columns = new NativeArray<ScarpAt>(cols, Allocator.Temp);
             var columnCracks = new NativeArray<float3>(cols, Allocator.Temp);
+            var rimTones = new NativeArray<float3>(cols, Allocator.Temp);
+            var footTones = new NativeArray<float3>(cols, Allocator.Temp);
 
             for (int c = 0; c < cols; c++)
             {
@@ -80,6 +82,10 @@ namespace Punchy.Terrain
                 var cracks = ScarpSet.Cracks(ref sc, at.S);
                 columns[c] = at;
                 columnCracks[c] = cracks;
+                // The ground's own colour a little behind the rim and a little past the foot (as flat ground), which
+                // the face's beds are tinted from so the face sits in the colours of the land round it (row 2).
+                rimTones[c] = Tone(rim - dir * ToneOut, new float3(0f, 1f, 0f));
+                footTones[c] = Tone(rim + dir * (at.W + ToneOut), new float3(0f, 1f, 0f));
                 float drop = at.RimY - at.FootY;
                 for (int k = 0; k < face; k++)
                 {
@@ -136,7 +142,7 @@ namespace Punchy.Terrain
                     float fade = math.smoothstep(0f, ScarpPaint.SeamFade, at.RimY - y)
                                  * math.smoothstep(0f, ScarpPaint.SeamFade, y - at.FootY)
                                  * math.smoothstep(ScarpSet.ClipSteps * NormalEpsilon, ScarpSet.ClipSteps * NormalEpsilon + ScarpPaint.EndFade, at.W);
-                    surface = ScarpPaint.Paint(ref sc, at, columnCracks[c], y, vertex.Normal, fade, surface);
+                    surface = ScarpPaint.Paint(ref sc, at, columnCracks[c], y, vertex.Normal, fade, rimTones[c], footTones[c], surface);
                 }
                 vertex.SetSurface(surface);
                 // No geomorph (the skin is one mesh at every distance) and no cave cut.
@@ -167,6 +173,17 @@ namespace Punchy.Terrain
             wide.Dispose();
             columns.Dispose();
             columnCracks.Dispose();
+            rimTones.Dispose();
+            footTones.Dispose();
+        }
+
+        /// <summary>How far behind the rim and past the foot the neighbouring ground's colour is read (m).</summary>
+        const float ToneOut = 2.5f;
+
+        float3 Tone(float2 xz, float3 normal)
+        {
+            var ground = Source.SampleGround(xz);
+            return Source.SampleSurface(xz, ground, normal).Albedo;
         }
     }
 }

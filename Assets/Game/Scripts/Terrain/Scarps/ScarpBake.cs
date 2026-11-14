@@ -28,8 +28,10 @@ namespace Punchy.Terrain
             }
             else
             {
-                sc.Width = 3.2f; sc.Reach = 14f; sc.Apron = 0.05f; sc.Setback = 0.5f; sc.Lean = 0.12f; sc.Bench = 0.3f; sc.Dip = 0.01f;
-                sc.Push = 0.5f; sc.Crack = 0.25f; sc.Toe = 0.12f; sc.Notch = 0.45f;
+                // Row 2: beds stand out further and benches come and go more, so the low bank breaks into ledges
+                // like the canyon wall does instead of reading as one soft bulge.
+                sc.Width = 3.2f; sc.Reach = 14f; sc.Apron = 0.05f; sc.Setback = 0.3f; sc.Lean = 0.12f; sc.Bench = 0.6f; sc.Dip = 0.02f;
+                sc.Push = 1.1f; sc.Crack = 0.45f; sc.Toe = 0.12f; sc.Notch = 0.45f;
             }
         }
 
