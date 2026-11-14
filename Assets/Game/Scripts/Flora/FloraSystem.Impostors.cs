@@ -287,6 +287,22 @@ namespace Punchy.Flora
         {
             var atlas = layer.Impostors;
             atlas.Material = new Material(impostorMaterial) { name = $"Flora impostors {layer.Index}" };
+            SetImpostorMaterial(layer);
+            // A model without a slice keeps reach 0, so the cull never hands it to the impostor draw.
+            for (int m = 0; m < layer.ModelCount; m++)
+            {
+                var model = models[layer.ModelBase + m];
+                layer.ImpostorReach[m] = atlas.Slices[m] < 0 ? 0f : Punchy.Settings.DetailPolicy.ImpostorReach(
+                    Punchy.Settings.DetailPolicy.FloraRule(model.DetailClass()), model.Radius * 2f);
+            }
+            layer.ImpostorBuffer.SetData(layer.ImpostorReach);
+        }
+
+        /// <summary>Everything the layer's impostor draw material holds: its atlases, grid, slice and sway buffers, and
+        /// the plant buffers.</summary>
+        void SetImpostorMaterial(Layer layer)
+        {
+            var atlas = layer.Impostors;
             atlas.Material.SetTexture(ImpostorAlbedoId, atlas.Albedo);
             atlas.Material.SetTexture(ImpostorDataId, atlas.Data);
             atlas.Material.SetFloat(ImpostorFramesId, atlas.Frames);
@@ -296,14 +312,21 @@ namespace Punchy.Flora
             atlas.Material.SetBuffer(ImpostorSliceId, atlas.SliceBuffer);
             atlas.Material.SetBuffer(ImpostorSwayId, atlas.SwayBuffer);
             SetImpostorBuffers(layer);
-            // A model without a slice keeps reach 0, so the cull never hands it to the impostor draw.
-            for (int m = 0; m < layer.ModelCount; m++)
-            {
-                var model = models[layer.ModelBase + m];
-                layer.ImpostorReach[m] = atlas.Slices[m] < 0 ? 0f : Punchy.Settings.DetailPolicy.ImpostorReach(
-                    Punchy.Settings.DetailPolicy.FloraRule(model.DetailClass()), model.Radius * 2f);
-            }
-            layer.ImpostorBuffer.SetData(layer.ImpostorReach);
+        }
+
+        /// <summary>
+        /// #309: a reimport of FloraImpostor.shader in Play mode (an edit to it or an include) resets the draw material's
+        /// values set from code, and the impostors then draw as big lit squares. _ImpostorFrames is never 0 once set
+        /// (declared 0 in the shader's Properties), so a 0 means they were lost: all are set again. One float read a
+        /// layer a frame.
+        /// </summary>
+        void KeepImpostorMaterial(Layer layer)
+        {
+            var material = layer.Impostors?.Material;
+            if (material == null || material.GetFloat(ImpostorFramesId) > 0f)
+                return;
+            SetImpostorMaterial(layer);
+            Debug.Log($"[flora] impostors layer {layer.Index}: draw material values were reset (shader reimport), set again");
         }
 
         /// <summary>The layer's plant buffers onto its impostor material (again whenever they're made anew).</summary>
