@@ -5120,3 +5120,12 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Cosmetic animator pose from replicated state, so solo, host and client draw the same. No bake data changed, so no fingerprint change.
 - Shares: CreatureAnimator root pitch (the shared body-pose path every creature uses). No parallel found.
 - NEXT: row 1 (turtle robe follows the legs), then row 3.
+
+## 11-15 A-127 row 1 (#368): turtle robe follows the legs - done (verified)
+- Branch folk/playtest-1114 @ 9ddeb940 (pushed). The robe was one static tube that the walking legs poked through. It is now a short waist piece plus two TurtleRobePanel parts (one per side). A new limb flag, FollowsLeg, makes CreatureAnimator copy each panel segment's pose from the same-side leg after the parts pass (CreatureAnimator.FollowLegs), so the cloth swings with the stride and the legs can't come out through it. The feet and ankles show below the hem.
+- Shots (ModelLab walk at cycle 0/0.25/0.5/0.75, front then side): D:/Unity/PunchyMilestones/A-127/strip-turtle-before.png and strip-turtle-after.png; singles turtle-after-c*-y*.png. Before: legs out front and back. After: no poke-through in any frame.
+- Fauna fingerprint re-pinned 43D1F778 -> 859112C9 (WorldTests.Fauna_Fingerprint passes). Only limb data changed: the FollowsLeg field, the robe split and the new panel limb. No placement moved. Please tell the profiler.
+- This is a cosmetic animator pose from replicated state, so solo, host and client all draw the same.
+- Other robed folk: none. TurtleRobe is the only robe limb. Two other cloth pieces don't follow the legs and weren't changed: the PoseGear apron (CreatureRenderSystem.PoseGear.cs) and the ogre guard cape (PoseGuard.cs).
+- Shares: extended the shared limb data (LimbType -> CreaturePart) and the CreatureAnimator segment pass with a generic FollowsLeg flag, so any species can hang skirt, kilt or robe panels on its legs as data. Parallels not folded in: the apron and the cape above, which are drawn by separate gear paths.
+- NEXT: row 3 (no upward drift under water).
