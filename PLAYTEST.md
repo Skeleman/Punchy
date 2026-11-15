@@ -91,3 +91,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-14: #348 merged (W-168 row 1): a one-line start report ([start]) in the log at world ready; no visible change.
 - 11-14: #349 merged (A-118): four-legged animals lie on folded legs (hoofed ones tuck forelegs, hind legs to one side); no leg sticks out behind. #329 closed. Check: horses, deer and cattle lying in a field, side and front.
 - 11-14: #350 merged (R-36 row 1): cave interiors no longer catch sunlight or drifting cloud shadows through the roof; mouths and the outside unchanged. #338 stays open for later rows. Check: a shallow tunnel on a cloudy noon, walls should stay still.
+- 11-14: #351 merged (Doors.IsOpen, player lane 11-10): read-only door state; no visible change until A-122 (#352) wires it into sound.

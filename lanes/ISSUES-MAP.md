@@ -101,3 +101,4 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #340 | folk | A-120 household pets; folk pet animals; children carry pets in |
 | #342 | fauna | A-121 walkers go round fires; all fires give heat |
 | #345 | world | W-168 bake terrain, cliff, cave and building meshes for faster starts |
+| #352 | fauna | A-122 shut doors block sound, open doors let it through (uses Doors.IsOpen, #351) |
