@@ -7638,3 +7638,119 @@ Branch world/waterfall-sheets, commits f42cfaba (merge main afea013c) and 21b228
 - **Cost:** one extra landmark cell lookup per ground sample. BENCH job 90 queued; profiler told (island/landmark
   pins unchanged, ground under one garden moves).
 - Next: W-166 row 1.
+
+## W-166 row 1: material library audit (no code; for the supervisor to confirm)
+
+Read from the code at origin/main 3b192717 (world tree). "Built" means a Flora mesh with a dirt band (founded), which
+Flora.shader weathers (PunchyWeathering: 0.3 m block rows, mottling, streaks) wherever it is Bark and not flagged.
+
+**How a built piece gets its look today (four separate paths):**
+- **Flora.shader** (houses, kit buildings, props, fences, tents): `FloraMeshBuilder.Wood` (Bark + 0.02) turns on
+  PunchyWoodGrain, and `Surface` 1-5 picks planks, shingles, thatch, shingle course or log end; `Cloth` gives
+  PunchyLinen, `Hide` gives PunchyHide; Metal uses Metal.hlsl. Anything else that is Bark and built is
+  **weathered plaster**, whatever it is meant to be (stone, log, hide, bone). Each builder sets the flags by hand
+  (b.Wood on and off around single boxes, about 45 places in 7 files).
+- **StructureKit** (kit buildings, inns, stilt houses, igloos, beacon towers, piers): a KitMaterial per part
+  (Wall, Trim, Roof, Wood, Stone, Ice, Copper, Sand, ...). Only Wall and Roof take a look (Surfaces(culture, seed)),
+  only KitMaterial.Wood takes grain; Stone, Ice, Copper and Trim are colour plus plaster weathering. Ruined kits drop
+  every look to Plain.
+- **Cave.shader** (cave rooms, dungeon props and posts, tunnel portals): `_Dressed` per group, 0 raw rock,
+  1 dressed stone (blocks, flagstones), 2 wood (its own grain and plank seams, line 378), 3 iron.
+- **Own shaders:** SunkenTemple.shader (ashlar, fluted drums, floor tiles: the only real cut-stone look),
+  Colossus.shader (flat vertex colour: colossi, salt tower, ribcage, driftwood, mantrap), URP Lit (items on the
+  ground, interior furniture, salt tower basalt), Creature.shader (worn gear: metal via Metal.hlsl, its own leather,
+  cloth, wood and bone; A-97 fur, feathers, scales, skin).
+
+**Audit table** (piece: path; made of; look today):
+
+| Piece | Drawn by | Made of | Looks today |
+|---|---|---|---|
+| Human, elf, dwarf kit houses | StructureKit -> Flora | plaster or stone walls, shingle or plank roof, timber trim | walls plaster-weathered, roof surface, Wood parts grain, trim flat |
+| Fish, marsh, goblin, ogre, snowfolk kit houses | StructureKit -> Flora | plank walls, thatch roof | planks and thatch surfaces |
+| Turtle, bat, seafolk, dwarf (all Plain) | StructureKit -> Flora | shell, stone, clay | plaster weathering only |
+| Kit ruins | StructureKit -> Flora | stone | Plain (no blocks, no grain) |
+| Hut (FloraForm.Hut) | Flora Houses | daub walls, thatch | thatch surface; walls plaster |
+| Inn | StructureKit.Inn -> Flora | as kit culture | as kit houses |
+| Hall, Stable, Pen, Stall, HitchRail | Flora Village, Stable | timber | Wood grain (flagged) |
+| Tower (FloraForm.Tower) | Flora Village | timber or daub walls, thatch roof | walls plaster-weathered Bark; **roof and porch roof are Foliage** (leaf shading) |
+| Lodge (big folk) | Flora Town | poles, hides, bone | poles plain Bark; **hide panels are Bark (plaster)**; flap is linen; tusks and skulls Bark in accent colour |
+| Tent | Flora Village | poles, hide | hide is PunchyHide; poles plain Bark |
+| Palisade | Flora Town | sharpened logs | **plaster-weathered Bark**, no grain |
+| Signpost, Bridge, Woodpile, chopping block, anvil block, bench | Flora Town, Props | timber | grain |
+| Smithy | Flora Town | stone, timber, iron | stone plaster, posts grain, anvil Metal |
+| Well, Fountain, Shrine, Forum | Flora Town, Village | stone (plus timber roof on the shrine) | plaster weathering; **shrine timber unflagged**; forum columns plain |
+| Garden fence | Flora Village | wattle posts and rails | plain Bark, no grain |
+| MineFrame, Torch | Flora Props | timber | plain Bark (bark relief only) |
+| Seat log, stump, driftwood prop | Flora Props | log | living-bark path (fine) |
+| Piers, docks, stilts, ladders, rail fences | Kit -> Flora | timber | grain (ladders and kit fences timber throughout) |
+| Igloo | StructureKit.Igloo -> Flora | snow and ice blocks | KitMaterial.Ice: colour plus plaster weathering, no block joints |
+| Hazard and slab shelters, camp shelters | Flora Crystals, Kit | local rock, poles, hides | rock as Bark (plaster); hides as Bark |
+| Beacon towers | KitBuilding (FixtureBeacon) | stone or timber | as kit |
+| Tunnel portals | TunnelPortalKit -> Cave.shader | ashlar | dressed stone (Cave) |
+| Cave set pieces, dungeon props and posts | CaveRoomKit -> Cave.shader | stone, trim, wood, iron | dressed stone, own wood grain, iron |
+| Sunken temple | SunkenTemple.shader | sandstone | ashlar courses, drums, tiles |
+| Salt tower | Colossus.shader + SaltTowerBasalt (URP Lit) | salt, basalt | flat colour; basalt on URP Lit |
+| Colossi (stone, ice mammoth, salt crystal, lantern stag), ribcage, mantrap, driftwood | Colossus.shader | stone, ice, salt, bone, wood | flat vertex colour |
+| Items on the ground, icons | ItemMeshes, ItemMaterial (URP Lit) | anything | flat two-colour, no material |
+| Interior furniture | Interiors, ItemMaterial (URP Lit) | timber, stone | flat colour |
+| Worn and held gear | Creature.shader Material() | metal, leather, cloth, wood, bone | own looks per SegmentMaterial (metal shared) |
+| Fur, feathers, scales, skin | Creature.shader (A-97) | body cover | own looks |
+
+**Families and kinds** (a kind is a row of parameters in one table; a family is one function):
+- **Wood:** oak, pine, driftwood, dark, bleached. Kinds set hue, grain contrast, knot rate, weathering grey.
+- **Brick:** fired, mud. Kinds set brick size, colour spread, mortar colour.
+- **Stone:** cut block (ashlar), rubble, flagstone, cobble, elf stone. Kinds set course height, joint depth, block
+  spread, pitting.
+- **Thatch and reed:** straw, reed, palm. Kinds set strand length, colour.
+- **Plaster and adobe:** lime, daub, adobe. Kinds set mottling, streaks, crack rate.
+- **Metal:** iron, copper, bronze, gold (Metal.hlsl is already shared). Kinds set tint, rust or verdigris.
+- **Cloth and leather:** linen, wool, hide, leather. Kinds set weave scale, mottle, stitch.
+- **Ice and glass:** snow block, clear ice, glass. Kinds set block joints, tint, clarity.
+- **Bone and chitin:** bone, ivory, horn, chitin. Kinds set tint, pitting, sheen.
+- **Body cover** (fauna-owned, listed so there is one table): fur, feathers, scales, skin.
+
+**One rule per family** (must have / may vary):
+- **Wood:** must have grain along the piece's long axis, darker end grain on cut ends, plank seams on boards;
+  may vary hue, contrast, knots, greying. Every timber part names its family, never "plain Bark".
+- **Brick:** must have courses with offset joints and recessed mortar; may vary size, colour spread, mortar.
+- **Stone:** must have readable units (blocks, slabs or rubble) with joints at every range a wall shows; may vary
+  pattern and pitting. Never plaster weathering alone.
+- **Thatch and reed:** must have strands along the slope in layered courses; may vary length and colour. Never Foliage.
+- **Plaster and adobe:** must have mottling and streaks, no unit joints; may vary tint and cracks. Today's
+  PunchyWeathering becomes this family's look, not the default for everything.
+- **Metal:** Metal.hlsl everywhere (Flora, Creature, Cave iron); may vary tint and patina.
+- **Cloth and leather:** cloth must have a weave, leather a grain with mottle and seams; may vary scale and colour.
+  Hides are always leather.
+- **Ice and glass:** must have block joints (built) or inner depth (natural); may vary tint.
+- **Bone and chitin:** must have a waxy sheen and pits (Creature's bone today); may vary tint.
+- **Every family:** one function in one shared include, called alike by Flora, Cave, Creature, Colossus and the item
+  shader; lighting and haze still come from the shared path (rules 26, 28). Far forms keep the family's average
+  colour, so nothing shifts at the hand-over.
+
+**Worst ten mismatches:**
+1. **Stone in Flora is plaster:** wells, shrines, the forum, the smithy, stone kit walls and kit ruins show
+   PunchyWeathering only, while tunnel portals and the sunken temple, in the same world, have real courses. Three
+   stone looks, and one of them is not stone.
+2. **Wood is written three times** (Flora PunchyWoodGrain, Cave.shader line 378, Creature.shader line 293) with
+   different scales and seams, so a pier, a cave plank and a carried club don't match.
+3. **Lodge hide panels are plaster** (Bark, not b.Hide), next to tents whose hides are leather; the door flap is
+   linen.
+4. **Tower roofs and porch roofs are Foliage** (leaf shading on a roof), while huts use the thatch surface.
+5. **Palisade logs are plaster-weathered** (no grain), unlike every other log.
+6. **Timber left unflagged:** shrine timber, garden fence posts, tower walls, mine frames, torches, lodge and tent
+   poles draw as plain Bark next to grained timber in the same town.
+7. **Items and interior furniture are flat URP Lit** (no material, and URP fog instead of the shared haze): a table
+   indoors has no wood, a stone on the ground no stone.
+8. **Colossi, the ribcage, driftwood and the salt tower are flat vertex colour:** driftwood props in Flora get bark,
+   driftwood from DriftwoodSystem doesn't; colossus stone has no stone.
+9. **Igloos are colour only:** no snow-block joints (KitMaterial.Ice is Plain).
+10. **Ruined kits drop to Plain:** a ruined plank house loses its planks; ruins look like fresh plaster.
+
+**Row 2 proposal (to confirm):** a shared include `Shaders/Materials/Materials.hlsl` with one function per family
+and a kinds table (data: a const table baked into a buffer), and a family + kind id on every built part.
+StructureKit.KitMaterial maps onto it; FloraMeshBuilder gets `b.Material(family, kind)` in place of the Wood and
+Surface toggles; CaveRoomKit groups map one to one. Flora.shader first (it draws most pieces), then Cave.shader;
+the Creature and Colossus calls go through fauna and the ItemMeshes calls through player, via the supervisor.
+Colours stay (unify only); placement and hashes don't move. Cost goes to BENCH (one branch per family in the
+fragment, as today).
+- Next: W-167 row 1.
