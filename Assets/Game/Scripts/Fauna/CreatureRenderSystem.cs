@@ -310,6 +310,10 @@ namespace Punchy.Fauna
             // Birds high overhead (geese and cranes in a V, soarers on a thermal), drawn only, from the shared clock.
             var skyClock = SkyClock(out var skyHour);
             extraCount += GatherSkyBirds(camAt0, skyClock, skyHour, terrain);
+            // The towns' far figures (A-109), drawn only, from the households and the shared clock.
+            extraCount += GatherFarFolk(camAt0, skyClock, skyHour);
+            // (-homesign: the debug markers of what each house shows, A-109 row 3.)
+            extraCount += GatherHomeSigns(terrain, camAt0, skyHour);
             // Fish in the caves' pools near the camera, drawn only.
             extraCount += GatherCaveFish(terrain, camAt0) * FishParts;
             // Footprints and feathers (TraceSystem).
@@ -470,9 +474,9 @@ namespace Punchy.Fauna
                 ForceCues = ForceNeedCues,
                 CameraPosition = cam.transform.position,
                 FadeInTime = 1.2f,
-                FadeOutRange = 25f,
+                FadeOutRange = CreatureFadeRange,
                 // A little short of FaunaDirector's despawn distance (170 m), so it's gone before it's removed.
-                FadeFar = 165f,
+                FadeFar = CreatureFadeFar,
                 Night = night,
                 PrevOutput = usePrev ? prevPosed.Instances : noSegments,
                 PrevOffsets = usePrev ? prevPosed.Offsets : noOffsets,
@@ -514,6 +518,8 @@ namespace Punchy.Fauna
             foreach (var critter in critters)
                 at = Critter(critter, (float)SystemAPI.Time.ElapsedTime, extras, at);
             at = WriteSkyBirds(skyClock, extras, at);
+            at = WriteFarFolk(skyClock, extras, at);
+            at = WriteHomeSigns(extras, at);
             at = WriteCaveFish(skyClock, extras, at);
             if (traceCount > 0)
                 at = traces.Write(extras, at, (float)SystemAPI.Time.ElapsedTime);

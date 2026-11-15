@@ -5,6 +5,10 @@ animals are simulated only close to players, so large or grouped kinds (herds, f
 towns) need a drawn-only far form seeded from the same spawn tables, which hands over to real creatures without a pop
 or a double. Far forms cost no entities and nothing on the network.
 
+- Town far figures (A-109): `FaunaDirector.FarFolk.cs` places one figure per household member who is sure to spawn,
+  from household records and the shared clock, with no random draw; `CreatureRenderSystem.FarFolk.cs` draws them as
+  walkers (6 px and up) or motes and fades them out where the town has real folk. `-farfolk` logs counts and sizes.
+
 Read before changing creatures, behaviour, poses, the player's body, settlements' residents or workers.
 
 - `Fauna/` — `LimbType` (segments plus seven key poses), `CreatureSpecies` (body plus slots; can be a recoloured
