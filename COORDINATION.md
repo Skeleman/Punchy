@@ -72,6 +72,7 @@ Numbers are stable; cards cite them. Rules with no module are complete as writte
 | 28 | Refactors have right of way | design.md |
 | 29 | Docs: one home per fact, paraphrase, size limits | `../README.md` |
 | 30 | One effects kit: effects come from the shared kit, never one-offs | rendering.md |
+| 31 | No branch goes unmerged: the supervisor opens a PR (draft if it waits) for every branch with a DONE handoff, and sweeps unmerged branches daily (`BRANCH-TRIAGE.md`) | |
 
 Rules 10 and 12c are retired (replaced by 15 and by 21 + 23).
 
