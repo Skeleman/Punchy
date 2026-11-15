@@ -1,25 +1,47 @@
 # Unmerged branch triage (11-15)
 
-None of these is on main (checked with merge-tree against origin/main). chemistry-*, rc/*, wip/*, tmp/*, test/* and active 11-14 branches are left out.
+Every unlanded branch on origin, checked with merge-tree against origin/main on 11-15. Only chemistry-* is left out (Zach: not this project). The first pass covered 36 branches and missed the 11-13 to 11-15 ones.
 
-## Land: rebase, open a PR, card to the owning lane after RESUME
-| Branch | Card | Size | Note |
+## Merged 11-15 (catch-up)
+far-towns #373, lamplighter #374, notice-board-life #362, fire-heat #375, door-sound #376, scarps #377, level-gardens #378,
+cave-entry #379, no-water-discs #380, puddle-edges #381, swell-noise #382.
+
+## Land: the owning lane merges main in, re-pins, verifies, hands off "ready for PR"
+| Branch | Card | Owner | Note |
 |---|---|---|---|
-| world/scarps | W-155 rows 1-2b, merges clean; missed in the first pass (added 11-15), first for world |
-| fauna/far-towns | A-109 | +929 | Job 72 PASS, merges clean. First. |
-| world/cliff-kit | W-150 r1-2 | +1294 | Merges clean; 1c waited on #285 (merged). |
-| world/no-water-discs | W-148 r5-6 | +849/-229 | Merges clean. |
-| world/cave-entry | W-145 | +265 | Merges clean. |
-| player/netsim | P-31 | +249 | Debug lag flag, merges clean. |
-| render/audit-fixes | R-15 r1-3 | +141/-70 | Waited on R-18; merges clean. |
-| render/swell-noise | R-17 | +296/-52 | Merges clean. |
-| b/cloud-shadow-map | profiler | +141 | Saves 0.8-1.3 ms over forest; render reviews. |
-| b/fix-swapchain-stall | profiler | +20 | Small fix; render reviews. |
-| world/ambient-details | W-142 | +3309 | Job 69 FAIL at lava cave (+0.6 ms): fix lava seeps first. |
-| world/cave-climbs | W-144 | +1163 | Conflicts; waited on Zach's look at the 1b pairs. |
-| player/fishing | P-33 | +2161 | Conflicts; row 4 waits on Zach's feel notes. |
-| world/far-lite | W-132 | +539/-80 | Conflicts; flight -6 ms GPU. Check overlap with R-22/R-23 first. |
-| world/cave-trickles | W-141 | +1070 | Job 68 FAIL (+0.73 ms): needs a cheaper version. |
+| fauna/body-reads | A-123 | fauna | Birds and dogs. EmberFox.asset + pin. First. |
+| fauna/individual-builds | A-124 r1 | fauna | Stacked on body-reads. |
+| flora/tree-variety | A-113 | fauna | Saguaro and temperate trees. Pin only. |
+| fauna/far-life | A-108 r2 | fauna | Conflicts in animator and island files. |
+| fauna/one-population | A-110 to r7b | fauna | RideLife.cs. |
+| fauna/lying-legs | - | fauna | CreatureAnimator.cs. |
+| folk/a111-row1-parked | A-111 r1 | folk | Parked; only if A-110 slips. |
+| world/cliff-kit | W-150 r1-2 | world | IslandV2, TerrainSource. |
+| world/world-pack | W-168 r2 | world | IslandCache, IslandV2. |
+| water/truth | bench 75 | world | IslandV2, TerrainSource. |
+| world/waterfall-sheets | R-21 | world | LandmarkEffectSystem. |
+| world/log-bark | W-170 r1 | world | Clean; confirm verified. |
+| world/ambient-details | W-142 | world | Job 69 FAIL at lava cave: fix seeps first. |
+| world/cave-trickles | W-141 | world | Job 68 FAIL: cheaper version. |
+| world/far-lite | W-132 | world | Check overlap with R-22/R-23. |
+| world/cave-climbs | W-144 | world | Waits on Zach's look at 1b pairs. |
+| render/far-lights | R-25 r3 | render | CaveSystem, SurfaceGlow vs lamplighter. |
+| render/audit-fixes | R-15 r1-3 | render | WaterPatchSystem. |
+| render/cobble-depth | R-28 r2 | render | Terrain shader vs puddle-edges. |
+| render/one-surface | R-23 r2 | render | Doc only. |
+| render/shadow-bias-test | R-37 | render | Test hook; waits on Zach's bias pick. |
+| render/stone-trial | R-34 | render | In flight. |
+| b/cloud-shadow-map, b/fix-swapchain-stall | profiler | render | Clean; render reviews. |
+| player/netsim | P-31 | player | Merge main, re-check -netsim. |
+| player/fishing | P-33 | player | Row 4 waits on Zach's feel notes. |
+| fauna/folk-pets, fauna/playtest-1114 | A-120, A-126 | folk, fauna | In flight. |
+
+## Bench only (never merge)
+b/bench, b/bench-lod, b/bench-stress, b/bench-job84, b/bench-job92b1.
+
+## Stale, archive once Zach OKs
+rc-test/* (6 depth-priming tests, 10-29), wip/* (world-v09-v010, world-g18-roads, brain-sample*, brain-blocked*, z07-play),
+tmp/animal-slot6, test/playtest-1108, render/ssao-source, rc/v0.10.0, rc/v0.14.0.
 
 ## Folded into other work
 - player/clothing, hair, unify-items, items-pick, items-axe: inside take-items (P-38).

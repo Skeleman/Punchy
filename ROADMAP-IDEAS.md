@@ -15,8 +15,7 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
   terrain ring to about 3 km (W-131), tree and shrub impostors (R-7, R-11). Next: R-22 (whole-island ground,
   far forest, weather haze, approved 11-13), R-23 (one lighting path), A-108, A-110.
 - **Cliffs (#281, DESIGN-cliffs.md).** Cliffs built as the ground itself. Shipped: steep ground reads as layered
-  rock (R-19), mountain tunnels (W-138). In flight: the scarp builder W-155 (big cliffs and river banks, which
-  Zach liked on 11-14) on world/scarps, being landed now; walk and climb (row 3) and the shared rock wall with
+  rock (R-19), mountain tunnels (W-138). Shipped: the scarp builder W-155 (big cliffs and river banks, PR #377); walk and climb (row 3) and the shared rock wall with
   caves (W-162, #327) come after. Shelves with homes, ruins and flora are later.
 - **Rivers (#301, W-153).** No kinks, dead ends or water walls. Rows 1-2 done; rows 3-6 next (one course map,
   profiles and lakes on the finished ground). Shorelines that wander (W-160, #324) next.
@@ -24,7 +23,7 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
   water, river falls and rapids (R-9). In flight: R-21 rows 3-4, folded into W-153.
 - **Lava and toxic pools (#303, W-154).** Shipped: first lava look and per-fluid underwater (PR #213). Next: W-154
   coarse crust normals and the far form.
-- **Lights (#302, R-25).** No light switches on as you approach. Next: R-25 rebases the old far-light work.
+- **Lights (#302, R-25).** No light switches on as you approach. In flight: R-25 (far-lights branch, landing). Shipped: the lamplighter lights towns at dusk (A-115, PR #374).
 - **Shadows (#286).** Shipped: one shadow darkness (R-16), steady near and high-preset sun shadows (R-20 row 1,
   R-32), blue moon shadows (R-32), no sun or cloud shadow through cave roofs (R-36). In flight: R-20 remaining rows.
 - **Stylized realism (#304, R-26), foliage (#323, R-30), grass fields (#325, R-31), salt-flat cracks (#331,
@@ -41,8 +40,8 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
 - **Plant fidelity (#21)** experiments. **Cluster culling (#270)** waits for profiler numbers.
 
 ## Settlements
-- **Sea folk city and turtle folk villages (#37).** Shipped: built and populated (A-103). Far town life is A-109
-  (ready to land).
+- **Sea folk city and turtle folk villages (#37).** Shipped: built and populated (A-103). Far town figures fade by
+  screen size (A-109, PR #373).
 - **Fishing and marsh villages, stables, ladders.** Shipped (W-119, W-122, A-117, W-147).
 - **Farm fields (#335, W-165), one material library (#336, W-166), towers with real storeys (#337, W-167),
   elf towns without wood (#326, W-161), wood grain and strangler roots (#330, W-163).** Next, world lane.
@@ -52,8 +51,8 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
 ## Folk and races
 - **Playable races (#291).** Shipped (A-103): sea, bat and turtle folk; bat eyes see brighter.
 - **Breath (A-102).** Shipped: works like stamina; air breathers resurface; sea folk never run out.
-- **Households (#25, A-105).** Shipped: own homes, going home at dusk, family talk. In flight: household pets
-  (#340, A-120). Later, after items (P-35): owned items, and theft that angers owners and guards.
+- **Households (#25, A-105).** Shipped: own homes, going home at dusk, family talk. Shipped: notice board (A-116), fire heat (A-121), doors and sound (A-122). In flight: household
+  pets (#340, A-120). Later, after items (P-35): owned items, and theft that angers owners and guards.
 - **Conversation (#25).** Shipped: personalities, a conversation API, reactions to an animal player (A-93),
   hermit chores and talk (A-106), the player talk system (P-28). Later: dialogue options, a hand-editable text
   archive reloaded live.
