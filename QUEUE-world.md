@@ -44,3 +44,4 @@ Waiting on the profiler: cave-chunk 256e6a9 (item 15), blocked-cache 3d874dc (it
   3. Village buildings (#399): roof collision follows the slope at -1955,265.1,643; remove the stray beam at -1969,262.7,630. Report which buildings are kit-built and what moving the rest to kits would take (Zach asks; design note, no move yet).
   4. Sunken temple (#405): ground cut away by a landmark is gone for every sampler (spawns, physics, pathing, flora; a goblin stood on it). Close the entrance gaps with vertex-matched seams; share the pass with W-162's rock wall (rule 33).
   Shots before/after per row; re-pin if placement moves.
+- Supervisor 11-15: **W-174 (#406), one ground-edit system** (Zach's biggest recurring problem): natural cutaways for every cut and one seam method for every mesh that replaces the ground. Goes first, ahead of W-173. W-173 rows 2 (#403) and 4 (#405) fold into W-174; W-173 keeps rows 1 and 3. Card: batches/W-174.md.

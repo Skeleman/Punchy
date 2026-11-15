@@ -120,3 +120,4 @@ Foliage realism (Zach 11-14): crowns as leaf clusters (cut-out cards, layering, 
 - 11-14 (Zach): one material library for everything, fur, feathers, scales and skin included, so furniture and gear can use them later (W-166, #336).
 - 11-15 (Zach): every building from kit pieces so collision is predictable (#399, W-173 row 3 note first).
 - 11-15 (Zach): Start for out-of-world things (settings, character, multiplayer), Select for in-world (items, quests, status, stats) (#397, P-39).
+- 11-15 (Zach): one ground-edit system: natural cutaways for every levelling or cut, one seam method wherever a mesh replaces the heightmap (W-174, #406). Top concern.
