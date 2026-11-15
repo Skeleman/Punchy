@@ -7546,3 +7546,30 @@ Branch world/waterfall-sheets, commits f42cfaba (merge main afea013c) and 21b228
   first).
 - **BENCH request:** rerun job 75 on water/truth 479c46c5 (the paddies bake step against the +0.5 s bar).
 - Next: W-168 row 2 on world/world-pack.
+
+## W-168 row 2: cave sockets baked, first-view world ready, island file in every build (done, verified; sizing to BENCH 89)
+
+- Branch `world/world-pack` a74f9c2a (pushed).
+- **Cave sockets in the island file:** new `Terrain/Caves/CaveSocketSet.cs` builds every cave's dungeon sockets once at
+  the end of the bake. They are saved as a keyed part of the island file (IslandCache format 2, about 33 KB of a
+  24.46 MB file). CaveSocketSystem reads the saved set and builds the sockets itself when the set is missing (an older
+  file, `-freshisland`). Bake step: 2004 ms (editor). Hash 4726CC7A on both the miss and the hit; the `[dungeon]` line
+  says "from the island, 4 ms over 1 frame". New test `CaveSockets_BakedEqualsBuilt` (saved set equals a fresh build).
+- **First-view world ready (TerrainStreamingSystem.Ready.cs):** wanted chunks inside the camera frustum, plus a
+  2-chunk ring around the player, load first. `[stream] world ready` fires once those chunks and the far tiles in view
+  are in. The load boost then drops to `LoadBoostBehind` = 2 (provisional) until a new `[stream] all chunks in` line.
+  Editor numbers, not timing: ready at 868 chunks with 2156 behind the view; all in at 3024 chunks, about 10 s later.
+- **Island file in every build (IslandCacheBuildStep):** release builds now ship the file too, so no build bakes the
+  shipped seed on its own CPU (the Burst AVX2 point). If nothing was copied, the build step warns: play once in the
+  editor, then build again. This adds about 24.5 MB to a release build. Documented in docs/agents/build-release.md and
+  performance.md (waits that need the whole disc should read Loading or ShotIdle, not world ready).
+- **Proposal (not world-owned, for main):** mix the island's landmark hash from the bake into WorldSync.Signature, so a
+  client whose own bake differs is refused with a clear message, or rebakes from the host's version.
+- **Shots:** Assets/Temp/shots/w168-ready.png (0.8 s after the veil lifts, before all chunks are in) and
+  Assets/Temp/shots/w168-allin.png. Same view, same terrain, no hole or pop in view.
+- Suite (rule 19): `completed: 41/41 passed` after the last code change, CaveSockets_BakedEqualsBuilt included.
+- **Risks:** if the player turns quickly before all chunks are in, chunks behind them (outside the 2-chunk ring) can
+  show holes. LoadBoostBehind and the boost cap are not sized yet, because job 87 has not run. The card asked for
+  sizing before finishing, so the cap stays provisional until job 87 or 89 runs.
+- **BENCH request:** job 89 (queued) on a74f9c2a, plus job 87 as queued.
+- Next: W-164.
