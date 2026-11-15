@@ -142,6 +142,8 @@ namespace Punchy.Fauna
                                             SystemAPI.TryGetSingleton<Punchy.Net.LocalPlayerSpecies>(out var local) ? local.Index : -1);
             // (Riding, A-104 row 3: what our body could ride, offered on the ground with empty hands, not while riding.)
             var riding = EntityManager.HasComponent<PlayerRide>(playerEntity);
+            // (A-126 row 4: steering a creature, jump is the creature's jump; only the button gets down.)
+            var steering = riding && EntityManager.GetComponentData<PlayerRide>(playerEntity).Steering;
             SystemAPI.TryGetSingletonEntity<PlayerAvatar>(out var avatar);
             Dependency = new ReachJob
             {
@@ -236,10 +238,10 @@ namespace Punchy.Fauna
             // The button: a tap pets, a hold picks up; holding one, a press puts it down.
             if (riding && !Punchy.UI.Overlay.AnyOpen)
             {
-                // Riding: the button (on its release) or jump gets down; nothing else.
+                // Riding: the button (on its release) or jump gets down (steering, the button only); nothing else.
                 if (interact != null && interact.WasPressedThisFrame())
                     pressUsed = false;
-                if (interact != null && !pressUsed && interact.WasReleasedThisFrame() || jump != null && jump.WasPressedThisFrame())
+                if (interact != null && !pressUsed && interact.WasReleasedThisFrame() || !steering && jump != null && jump.WasPressedThisFrame())
                 {
                     pressUsed = true;
                     AskRide(playerEntity, Entity.Null, true);
