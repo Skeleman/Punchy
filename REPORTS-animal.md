@@ -5077,3 +5077,13 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Row 3 carry seen in solo at Human Village: child e688 carried pet e693 32 m home with the folk Holder encoding and 0.0 m hand gap, went in (pet faded at Stage 1), came out, and the pet squirmed free. No code change since 5bd77a06 (still WIP). Shots: a120-r3-carry-1-carry.png and -3-inside.png.
 - Bug found: on a second carry (e690 with e738, during rain) the child stayed in Home stage 2 for more than 4 minutes, so the pet stayed held and hidden the whole time. The fix is to cap the carry's indoor stay (or free the pet on a timer when the child stays in), then re-shoot the door, out and free frames.
 - NEXT: that fix, host+client check, delete PetProbe, suite, handoff. Then A-127 (#368).
+
+## 11-15 A-126 row 1 (#367): ladders climb briskly - done (verified)
+- Branch fauna/playtest-1114 @ 24dbb2d5 (pushed): Climbing.Speed gives Ladder grade x2.5, at least 1.4 m/s. Walls and trunks unchanged. Ready for PR (the commit title still says WIP; the code is the verified version).
+- Same 4.3 m roof ladder, skill 2, `-climbskill 2 -autowalk -place ladder:roof`: up 6.4 s -> 2.9 s (about 0.6 -> 1.5-1.8 m/s on the rungs), down 5.7 s -> 2.3 s. A 6 m ladder works out to about 10 s -> 4 s.
+- Number check, no shot. Solo only. Climbing is shared player movement code with no new fields, so host and client run the same speed.
+- Risk: a Ladder-grade ledge shimmy (LedgeHang) also gets the x2.5.
+- Test note: the ladder test only walks with `-autowalk`. Without it, it logs "climb test" and then stands still.
+- CreatureBlob.Style parity: Individuals are odd and math.hash keeps the low bit, so even option counts never draw the odd options (HairColor and others). Options: (a) scramble before the modulo, which changes every creature's look and means one fingerprint re-pin; (b) shift the input (individual >> 1), which moves only those draws; (c) document it. My pick is (a). Your call.
+- Archive check: archive/refactor/pose-by-size is covered on main (CreatureMotion screen-size pose). archive/fix/salt-ball-far-shadow is superseded by Rendering/WideShadow.cs. Nothing else is uncovered.
+- NEXT: your 11-15 order. Merge main into fauna/playtest-1114, then body-reads, individual-builds, flora/tree-variety, far-life, one-population, lying-legs. far-life conflicts in world-owned Terrain/Island files (IslandCache, IslandV2, TerrainSource), so I will ask before I resolve those.
