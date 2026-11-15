@@ -4830,6 +4830,17 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Risks: distant FloraImpostor lantern glass isn't darkened yet (far lamps off a lit impostor read lit early). In the near shot a sign stands in front of the lantern at that angle.
 - NEXT: A-115 row 2 (role lines, kids follow, hurry in rain).
 
+## 2026-11-14 A-115 row 2: lamplighter lines, children trail it, it hurries in rain (#315)
+- DONE (verified, solo): fauna/lamplighter 8349b1a9 (one commit on top of row 1, folk files only). This row is for life and detail.
+  - dialogue.json: nine Lamplighter role lines (some evening/night only). Folk with a job say role lines 70% of the time (A-29).
+  - TrailLamplighter (CreatureBrainSystem.Lamplighter.cs): on two evenings in five (rolled per child and day), a child that is wandering, playing, idle or sat about the square, within 20 m of a lamplighter on its round, trails it a few steps behind, offset to one side by seed, and watches each lamp. It stops when the child's bedtime sends it home. Host-sim like the rest of the brain; no new ghost field.
+  - Rain: on its round it no longer breaks off for shelter (Shelter.cs, one condition). When rain plus storm is over 0.3 it runs between lamps. This reads the sky itself, not discomfort, because the first try never fired for a hardy lamplighter.
+- Numbers: HumanVillage (town 1, route 1, 40 lamps). Probe at 18.8-20.0 h: 2 of 2 nearby children trailing at 5-8 m in most samples. Forced rain (0.60 rain, 0.13 storm): top speed between lamps 4.5 / 3.5 m/s against 1.1-1.6 m/s dry. Town 0 has no children (HumanChild is only in the village and mining camp tables).
+- Shots (D:/Unity/PunchyMilestones/A-115/): talk_1-3.png + talk_strip.png (role-line bubbles), follow_1-3.png + follow_strip.png (two children trailing the lamplighter between lamps, wide side view). Viewed: talk_strip, follow_strip (small).
+- Host/client: not run as two processes. By the code, only the host decides; children's positions and the lamplighter's stage replicate as any folk, and talk lines come from the replicated job.
+- Risks: two trailing children with the same seed parity walk on the same side and overlap. This is cosmetic; a per-child side would need another seed bit.
+- NEXT: A-116 (#316, notice board life) on fauna/notice-board-life from main, then A-120 (#340).
+
 ## A-121
 
 ## 2026-11-14 A-121 row 1: walkers keep out of fires (#342)
