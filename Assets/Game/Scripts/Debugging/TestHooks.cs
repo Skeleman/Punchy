@@ -93,6 +93,58 @@ namespace Punchy.Debugging
             return $"{lines.Count} {h:X8}";
         }
 
+        /// <summary>
+        /// A-117: every settlement plot as "role building x z" (the building by its index within its layout), FNV-1a
+        /// hashed: the layout hash ("plots hash"); with <paramref name="towns"/>, a line per town after it: its type, centre,
+        /// building plots (roles up to Stable, no green plots) and what stands on its stable plot, or "none".
+        /// </summary>
+        public static string LayoutHash(bool towns = false)
+        {
+            var pal = Palette();
+            if (!Source(out var s) || !s.Settlements.IsCreated || pal == null)
+                return "none";
+            ref var set = ref s.Settlements.Value;
+            var all = new List<LandmarkType>(pal.Landmarks);
+            LandmarkBaking.AddLooks(all);
+            var h = 2166136261u;
+            for (int i = 0; i < set.Plots.Length; i++)
+            {
+                var p = set.Plots[i];
+                // The building as its layout's own index, and the extra slots (well, signpost, ...) counted from the list's
+                // end, so appending a layout entry alone doesn't change the hash.
+                ref var lay = ref set.Layouts[set.Settlements[p.Settlement].Layout];
+                var local = p.Building < 0 ? "-" : p.Building - lay.FirstBuilding >= lay.BuildingCount - SettlementBaking.ExtraSlots
+                    ? "x" + (p.Building - lay.FirstBuilding - lay.BuildingCount + SettlementBaking.ExtraSlots)
+                    : (p.Building - lay.FirstBuilding).ToString();
+                foreach (var ch in $"{(int)p.Role} {local} {p.Centre.x:F1} {p.Centre.y:F1}")
+                    h = (h ^ ch) * 16777619u;
+            }
+            var sb = new System.Text.StringBuilder($"{set.Plots.Length} {h:X8}");
+            if (!towns)
+                return sb.ToString();
+            for (int t = 0; t < set.Settlements.Length; t++)
+            {
+                var town = set.Settlements[t];
+                var type = town.Type < all.Count ? all[town.Type] : null;
+                var layout = type != null ? type.Settlement : null;
+                int built = 0;
+                var stable = "none";
+                for (int i = town.FirstPlot; i < town.FirstPlot + town.PlotCount; i++)
+                {
+                    var p = set.Plots[i];
+                    if (p.Role <= PlotRole.Stable && p.Role != PlotRole.Landscaping)
+                        built++;
+                    if (p.Role != PlotRole.Stable)
+                        continue;
+                    var local = p.Building - set.Layouts[town.Layout].FirstBuilding;
+                    stable = layout != null && local >= 0 && local < layout.Buildings.Count && layout.Buildings[local].Species != null
+                        ? layout.Buildings[local].Species.name : "empty";
+                }
+                sb.Append($"\n{(type != null ? type.name : town.Type.ToString())} ({town.Centre.x:F0}, {town.Centre.y:F0}) plots {built} stable {stable}");
+            }
+            return sb.ToString();
+        }
+
         /// <summary>Collects the island blobs of a source, boxed, so another source's blobs can be checked against them.</summary>
         struct BlobList : IslandCache.IBlobVisitor
         {
@@ -733,6 +785,18 @@ namespace Punchy.Debugging
                 return "none";
             var job = (FolkJob)director.SimWorld.EntityManager.GetComponentData<CreatureState>(e).Job;
             return job.ToString();
+        }
+
+        /// <summary>A-117 row 2: the rides so far, every stable's paddock count and the walls clearance check
+        /// (FaunaDirector.RiderReport).</summary>
+        public static string Riders() =>
+            Object.FindAnyObjectByType<FaunaDirector>()?.RiderReport() ?? "no director";
+
+        /// <summary>A-117 row 2: someone rides out of the stable nearest the player now; false if none could.</summary>
+        public static bool RideOut()
+        {
+            var director = Object.FindAnyObjectByType<FaunaDirector>();
+            return director != null && director.ForceDeparture();
         }
 
         /// <summary>
@@ -1391,6 +1455,93 @@ namespace Punchy.Debugging
                         }
                     }
                 lines.Append(sp.name).Append(' ').Append(low.ToString("0.000")).Append(' ').Append(worst).Append('\n');
+                output.Dispose();
+                blob.Dispose();
+            }
+            return lines.ToString();
+        }
+
+        /// <summary>
+        /// A-118 row 1: the same species as LieClearance, posed by CreatureAnimator.Evaluate at x, z (heading 0, size 1)
+        /// with the lie weight stepped 0 to 1 by 0.02. One line per species: "name ext back pop @step/segment nan body", where ext is
+        /// the most any leg reaches lying (hip to foot over the leg's length, 1 = straight), back how far a foot lies
+        /// behind its hip (over the leg's length, 1 = straight out behind), pop the biggest jump of any segment between
+        /// steps (over the body length), nan the segments that came out NaN, and body the lying body's height over the
+        /// standing one.
+        /// </summary>
+        public static string LieExtension(float x, float z)
+        {
+            var director = Object.FindAnyObjectByType<FaunaDirector>();
+            if (director == null || !Source(out var source))
+                return "";
+            var lines = new System.Text.StringBuilder();
+            var seen = new HashSet<string>();
+            for (int i = 0; i < director.SpeciesCount; i++)
+            {
+                var sp = director.SpeciesAt(i);
+                if (sp == null || !seen.Add(sp.name))
+                    continue;
+                var blob = CreatureBlobBuilder.Build(sp);
+                ref var b = ref blob.Value;
+                var legs = 0;
+                for (int p = 0; p < b.Parts.Length; p++)
+                    if (b.Parts[p].Role == LimbRole.Leg && b.Parts[p].Parent < 0)
+                        legs++;
+                if (b.Upright || legs < 4 || b.Habitat != Habitat.Land || b.Tunnels)
+                {
+                    blob.Dispose();
+                    continue;
+                }
+                var output = new NativeArray<SegmentInstance>(b.Segments.Length, Allocator.Temp);
+                var last = new NativeArray<float3>(b.Segments.Length, Allocator.Temp);
+                float ext = 0f, back = 0f, pop = 0f, body = 1f;
+                int nan = 0, popAt = 0;
+                var ground = source.SampleHeight(new float2(x, z));
+                for (int step = 0; step <= 50; step++)
+                {
+                    var lie = step / 50f;
+                    var s = new CreatureState
+                    {
+                        Position = new float3(x, ground, z), Yaw = 0f, Scale = 1f, Mode = CreatureMode.Rest, Lie = lie, Clock = 1f
+                    };
+                    CreatureAnimator.Evaluate(ref b, in s, 0, in source, output, 0);
+                    for (int g = 0; g < output.Length; g++)
+                    {
+                        var at = output[g].Position;
+                        if (math.any(math.isnan(at)) || math.any(math.isnan(output[g].Rotation.value)))
+                            nan++;
+                        else if (step > 0 && math.distance(at, last[g]) / math.max(b.BodyLength, 0.05f) > pop)
+                        {
+                            pop = math.distance(at, last[g]) / math.max(b.BodyLength, 0.05f);
+                            popAt = step * 1000 + g;
+                        }
+                        last[g] = at;
+                    }
+                    if (step == 50 && b.Segments.Length > 0)
+                        body = (output[0].Position.y - ground) / math.max(b.StandHeight, 1e-3f);
+                    if (lie < 0.98f)
+                        continue;
+                    var forward = new float3(math.sin(s.Yaw), 0f, math.cos(s.Yaw));
+                    for (int p = 0; p < b.Parts.Length; p++)
+                    {
+                        ref var part = ref b.Parts[p];
+                        if (part.Role != LimbRole.Leg || part.Parent >= 0)
+                            continue;
+                        var hip = output[part.FirstSegment].Position;
+                        var lastSeg = output[part.FirstSegment + part.SegmentCount - 1];
+                        var foot = lastSeg.Position + math.mul(lastSeg.Rotation, new float3(0f, 0f, lastSeg.Length));
+                        var length = 0f;
+                        for (int j = 0; j < part.SegmentCount; j++)
+                            length += output[part.FirstSegment + j].Length;
+                        if (length <= 1e-4f)
+                            continue;
+                        ext = math.max(ext, math.distance(hip, foot) / length);
+                        back = math.max(back, -math.dot(foot - hip, forward) / length);
+                    }
+                }
+                lines.Append(sp.name).Append(' ').Append(ext.ToString("0.00")).Append(' ').Append(back.ToString("0.00"))
+                     .Append(' ').Append(pop.ToString("0.000")).Append(" @").Append(popAt / 1000).Append('/').Append(popAt % 1000).Append(' ').Append(nan).Append(' ').Append(body.ToString("0.00")).Append('\n');
+                last.Dispose();
                 output.Dispose();
                 blob.Dispose();
             }

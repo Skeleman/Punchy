@@ -133,8 +133,8 @@ namespace Punchy.Fauna
                 var states = wildQuery.ToComponentDataArray<CreatureState>(Allocator.Temp);
                 var travelling = 0;
                 for (int i = 0; i < states.Length; i++)
-                    if (states[i].Task == CreatureTask.Travel)
-                        travelling++;
+                    if (states[i].Task == CreatureTask.Travel && states[i].Mode != CreatureMode.Ride)
+                        travelling++;   // (a rider and its horse count once: A-117)
                 states.Dispose();
                 if (travelling >= 2)
                     return;
@@ -146,6 +146,9 @@ namespace Punchy.Fauna
             if (set.Streets.Length == 0)
                 return;
             var player = players[rng.NextInt(players.Count)];
+            // (Half the time, when a stable near this player can spare a horse, someone rides out of town on it: A-117.)
+            if (SpawnDeparture(source, player))
+                return;
             // (Every road stretch in the ring round the player, outside the towns; one of them at random.)
             var candidates = new List<int>();
             for (int k = 0; k < set.Streets.Length; k++)
@@ -178,6 +181,7 @@ namespace Punchy.Fauna
             state.Leash = 0f;
             state.Timer = 900f;
             em.SetComponentData(e, state);
+            MaybeMount(source, e);
         }
 
         /// <summary>

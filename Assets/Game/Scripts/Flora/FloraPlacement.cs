@@ -184,7 +184,7 @@ namespace Punchy.Flora
         public TreeKind Kind;
     }
 
-    public static class FloraPlacement
+    public static partial class FloraPlacement
     {
         public const int TreeLayer = 2;
         static int Gcd(int a, int b)
@@ -1713,7 +1713,9 @@ namespace Punchy.Flora
             FloraForm.Smithy or FloraForm.Forum or FloraForm.Fountain or FloraForm.Woodpile or FloraForm.Well or
             FloraForm.Hall or FloraForm.Shrine or FloraForm.Columns or FloraForm.Lodge or FloraForm.Palisade or
             FloraForm.Bench or FloraForm.Log or FloraForm.Stump or FloraForm.FirePit or FloraForm.Ruin or FloraForm.RailFence or
-            FloraForm.HazardShelter or FloraForm.KitBuilding or FloraForm.KitRuin => true,
+            FloraForm.HazardShelter or FloraForm.KitBuilding or FloraForm.KitRuin or
+            // A-117: a stable's walls and paddock fence (its gate left open) and a hitching rail; horses and riders use the gate
+            FloraForm.Stable or FloraForm.HitchRail => true,
             _ => false
         };
 
@@ -2675,7 +2677,8 @@ namespace Punchy.Flora
             var slope = math.degrees(math.acos(math.saturate(normal.y)));
             var elevation = ground.Height - source.World.SeaLevel;
             var nearWater = 1f - math.smoothstep(1.5f, 8f, -ground.WaterDepth);
-            var dry = 1f - math.saturate(ground.River * 1.5f);
+            // W-155: a bare strip behind a scarp's rim, ledges only on its face, scree fans past its foot (1 elsewhere).
+            var dry = (1f - math.saturate(ground.River * 1.5f)) * ScarpLife.PlantRoom(source, xz);
             var aspect = SunFacing(normal);
             var relief = 0f;
             var reliefKnown = false;
