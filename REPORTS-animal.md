@@ -5169,3 +5169,18 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Tests only, no game code; solo/host/client unaffected.
 - Shares: the one shared PlayMode harness (LogWatch + TestSceneSetup.Spawn), used by every spawn-based test. No parallel found.
 - NEXT: folk/spawn-wait-fix is ready for PR. folk/playtest-1114 is ready for PR too (A-127 rows 1-3). Nothing else queued.
+
+## 11-15 landing list: flora/tree-variety (A-113, #313) merged with main, done (verified)
+- flora/tree-variety f92b1fef: main merged in. WorldTests.cs pin conflict fixed: fingerprint re-pinned 43D1F778 -> 5C5EEF47 (A-113's five tree species join the flora blob; 970 plant variants pregrown, was 950). Island hash FA8F24B1 unchanged, landmarks 117 689D5348.
+- Proof: PlayMode WorldTests 13/13 passed (the first run failed only on the PENDING placeholder from before the recompile).
+- Shares: the one flora species table (FloraGenerator.Plants). No parallel found.
+- NEXT: flora/tree-variety is ready for PR.
+
+## 11-15 landing list: fauna/far-life (A-108 r2, #298), plan only, branch stopped
+- Merging main into it conflicts in 3 world-lane files. All three are append collisions with main's W-150/W-155 scarps and cliff kit:
+  - IslandCache.cs: both sides bump Format 1 -> 2. Plan: Format = 3 ("3: A-108 herds"), and add Visit(Herds) after main's Scarps/CliffKit visits.
+  - TerrainSource.cs: add the Herds blob field after main's Scarps/CliffKit. It stays out of Equals, as on the branch.
+  - IslandV2.cs: add `source.Herds = default` to main's reset line and `Free(ref baked.Herds)` to the free line. The HerdBaking.Build call stays last.
+- Fauna-side conflicts (CreatureAnimator.cs, FaunaDirector.cs) are mine and get resolved on the merge.
+- Ask: OK for me to make these three world-file edits on the far-life merge (rule 11), or should the world lane do them? A cache format bump forces one island rebake for everyone.
+- Shares: the one island cache and TerrainSource blob set (herds just add a blob). No parallel found.
