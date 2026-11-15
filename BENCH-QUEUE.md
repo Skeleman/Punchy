@@ -942,3 +942,12 @@ Take the queue in this order. Anything not changed here runs as written in its j
 - View: the camp at -2894,46.9,-653 (seat log, woodpile) from about 10 m, then a gravel bar at -2667,175.8,629.
   Record: GPU ms and the Flora draw's GPU time if the profile build can split it.
 - Pass (rule 23): Medium at most +0.3 ms GPU, High at most +0.5 ms.
+
+## Job 95 (2026-11-15, QUEUED after 94; fauna lane, A-124 row 1 #358): one build per person, crowd cost
+- Arm: fauna/individual-builds dcc36fe8 (B) against its base main (A). Profile builds, 1920x1080, Medium, uncapped,
+  Clear, noon, ABBA, 3 rounds.
+- What changed: folk bake up to 16 build blobs per species (separate blobs keyed by build), and builds split draw batches.
+- View: the biggest town on Medium, loaded fresh, then held in view.
+  Record: the town's load time (FaunaDirector blob bakes, ms and frame spikes), CreatureRenderSystem ms and draw calls
+  with the town in view, and blob memory.
+- Pass: load +50 ms or less, frame +0.2 ms or less.
