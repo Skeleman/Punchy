@@ -7872,3 +7872,22 @@ Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl
 - **BENCH request:** job 94 (queued) on c5d49a53.
 - Next: W-172 (playtest fixes) on world/playtest-1114. W-170 row 2 (per-part sway, drafted) waits until after
   W-172; then W-171.
+
+## W-172 row 1: no paddy spikes or perched paddy water on slopes (#301) (verified)
+
+- **Branch:** world/playtest-1114 b7f041d3, ready for PR (rule 31). TerrainSource.cs only.
+- **Cause:** terrace paddies formed on steep slopes. A pool held level on a slope stood above the ground just
+  downhill (the floating strips), and its bank took the height of a neighbouring pool far up the slope, so ridges
+  stood 10-20 m above the natural ground (the spikes). Pools also overrode river and landmark reshaping.
+- **Fix:** paddies form only on gentle, uncarved ground (`TerraceFit`: base slope 0.18-0.32 fade, within 0.5-2 m of
+  the natural height). Banks fade out where the neighbouring pool is more than 2-4 m higher or lower; both sides see
+  the same step, so the ground stays continuous. PondDig is untouched.
+- **Counts** (whole island, 4 m grid, same probe before/after): spikes above the natural ground 180 -> 32; open
+  hanging water 326 -> 251, of it paddy-like 125 -> 48. The ~2980 other "spikes" belong to the natural base shape
+  (rocky biomes), not terracing. About 200 hanging spots at lake and landmark edges stay; they come from another
+  system (ground at base height beside still water), not paddies.
+- **Shots:** D:/Unity/PunchyMilestones/W-172/w172-r1-before.png and -after.png, same camera over -65,57,40. Written
+  check: the spires are gone except one; a few thin green strips remain on 1 m banks the water mesh can't resolve.
+- **Checks:** landmarks 117, hash 689D5348 (#301 pin unchanged), game hash FA8F24B1. PlayMode suite
+  `completed: 40/40 passed` after the last code change.
+- Next: merge origin/main into this tree, compile, suite (coordinator order), then the land list.
