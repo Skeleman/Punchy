@@ -5218,3 +5218,12 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Editor: Burst SharedStatic hang after the branch switch again; killed my own PID, the fauna editor is now PID 25700.
 - Shares: the one CreatureAnimator lying path (LowestLegOnGround). No parallel.
 - NEXT: landing list done except far-life (waits on the rule 11 ask above). fauna/lying-legs is ready for PR. Starting A-125 (#360) on fauna/swimmer-splash.
+
+## 11-15 A-129 row 1 (#393): text archives reload live, bad entries named - done (verified)
+- folk/dialogue-archive 9ccb9b5b (from main 37750588). New LiveJsonFile: re-reads a hand-edited JSON file when its write time changes (checked once a second) or on Reload(). A version that won't parse or has a bad entry is turned down whole, the last good one is kept, and one warning lists every bad entry by JSON path and line.
+- Checked: missing/empty text, unbalanced {slots}, unknown talk-line keys (typos), unknown gesture/when/weather/kin/offer/response/trait band/state, wrong value types, non-text word lists. "mood" takes bands and the talk mood names.
+- Number check, no shot: new test Archive_BadEntriesNamed_OldLinesKept. The shipped dialogue.json and weather-lines.json name 0 problems. On a scratch copy: read 351 lines; 5 planted faults -> 5 named (e.g. `cultures.Any.lines[165].when (line 834): "when": "midnight" isn't one of ...`), 351 lines kept; fixed copy read again, 351. FolkConversationTests 7/7, full PlayMode suite 41/41 (fingerprint pin included).
+- Build: in a player, a dialogue.json / weather-lines.json beside the exe wins over StreamingAssets, and the same poll reloads it. Code-checked only: no build run (UNVERIFIED in a build).
+- No debug key (input belongs to the player lane): the file watch covers live editing. Solo/host/client: local text only, nothing sent; each machine reads its own file.
+- Shares: LiveJsonFile + JsonProblems are the one reloader/validator for hand-edited JSON; DialogueArchive and WeatherLines both moved onto it (their own copies of the poll are gone). Parallel not folded in: quests.json (FolkConversation.LoadQuests has its own stamp check) and stats.json (PlayerStats) could join; quests.json isn't folk-owned.
+- NEXT: row 2, moving the hard-coded folk lines (beast topic labels, quest phrasings) into dialogue.json.
