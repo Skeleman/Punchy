@@ -87,11 +87,21 @@ namespace Punchy.Fauna
                 var underground = underRock || s.Position.y < Terrain.SampleHeight(s.Position.xz) - 2f;
                 var cover = CoverNow(in s, ref b);
                 M.Cover = cover;
-                var pressure = Comfort.Pressure(in b.Comfort, s.Individual, in w, Night, underground, cover, out var kind);
+                // A-121 row 2: the heat of any lit fire near (felt whether or not it came for it), and the berth it keeps.
+                var hottest = default(FireSpot);
+                var fireHeat = Fires.On ? Fires.HeatAt(s.Position.xz, Night, out hottest, out _) : 0f;
+                M.FireKeep = FireKeepFor(in s, ref b, in w, underground, fireHeat > 0f ? hottest.Heat : 0f);
+                var pressure = Comfort.Pressure(in b.Comfort, s.Individual, in w, Night, underground, cover, fireHeat, out var kind);
                 M.ComfortPressure = pressure;
                 M.ShelterRetry -= dt;
-                // Row 2: sheltering, it goes on its way once the weather out in the open lets up.
-                if (s.Mode == CreatureMode.Shelter && s.Stage >= 1 && s.StageTime > 8f &&
+                // A-121 row 2: too near a lit fire for its liking, it backs off; a fire-lover drifts back to one.
+                if (FireStep(ref s, ref b, fireHeat))
+                {
+                }
+                // Row 2: sheltering, it goes on its way once the weather out in the open lets up (a fire-lover sitting
+                // by a fire stays its while).
+                else if (s.Mode == CreatureMode.Shelter && s.Stage >= 1 && s.StageTime > 8f &&
+                    !(b.Comfort.LovesFire && (ShelterNeed)(byte)s.TargetHeight == ShelterNeed.Fire) &&
                     Comfort.Pressure(in b.Comfort, s.Individual, in w, Night, underground, ShelterNeed.None, out _) < 0.05f)
                 {
                     var rested = new Random(math.hash(new uint2(s.Individual, (uint)(Now * 10f))) | 1u);

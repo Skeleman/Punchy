@@ -811,6 +811,9 @@ namespace Punchy.Fauna
         /// looks for shelter again after a search that found none (s).</summary>
         public ShelterNeed Cover;
         public float ShelterRetry;
+        /// <summary>A-121 row 2: how far past a lit fire's flames it keeps (m): its species' and its own shyness, or the
+        /// distance where the fire's heat gets too much for it. Set at each comfort check.</summary>
+        public float FireKeep;
         /// <summary>A-71 row 6: the player it's following on a lead quest (their Holder id, Interactions.HolderId; 0 for
         /// none) and how long before it gives up (s). Set by Follow.Start and Follow.Stop on the host.</summary>
         public int FollowHolder;
