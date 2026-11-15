@@ -7,6 +7,7 @@ Worktree D:/Unity/Punchy-world. Read the card and REPORTS-world.md's newest entr
 - `world/waterfall-sheets` 54fcdf64: R-21 row 4 (one fall builder). Look accepted; merges after BENCH job 74.
 - `water/truth` b4ec2efb (pushed): W-153 rows 1, 1b, 2, 2b (water truth probe; still water last; hillside pools 36 to 113 at the ceiling). Suite 41/41.
 - `world/bake-determinism` 812b25a5 (pushed, from main 1746d62a): bake jobs CompileSynchronously, BakeBurst.Check, no cache save from a managed bake. 3 fresh bakes all FA8F24B1. Suite 40/40.
+- `world/world-pack` 13ae82d3 (pushed, from main 02c2b3b8): W-168 row 1, StartLedger `[start]` line; proposal in REPORTS-world (bake cave sockets ~36 KB; no mesh bakes; world ready waits for the first view only). BENCH job asked; row 2 waits for main's OK. Suite 40/40.
 - `world/scarps` 13fbd5cf (pushed): W-155 rows 1, 1b, 2 parts 1 and 2, 2b (debris, plant room via one FloraPlacement call, bare margin in GroundDetailSystem, toe/ends/top hand-over, no stripes). Float probe 0, pins unchanged. BENCH job 85.
 
 ## Pins
@@ -16,7 +17,7 @@ Worktree D:/Unity/Punchy-world. Read the card and REPORTS-world.md's newest entr
 
 ## Queue
 
-1. W-168 row 1 (#345: measure launch to world ready by producer; timings via BENCH). Then R-21 foot boxes per tile + fall 74 bank spot (bench 74), then paddies bake to Burst or a coarse first pass (bench 75); ask main for reruns.
+1. R-21 foot boxes per tile + fall 74 bank spot (bench 74), then paddies bake to Burst or a coarse first pass (bench 75); ask main for reruns.
 2. W-153 rows 3-6 with W-155 row 4. Carried in: water walls beside falls 22 and 67 and in front of 46 and 51; fall 13's notch; cave falls without lip dip and foot ripples; the fine sheet reading FallShape; 109 fall and landmark head-pool walls; retake fall 46 and 51 fronts and the snowpeak landmark fall.
 3. W-156 (audit 11-13: far clip restore, nearest cave water first).
 3b. W-157 (Zach 11-14: taller hanging lanterns, stone lantern columns).

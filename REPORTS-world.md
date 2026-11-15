@@ -7432,3 +7432,79 @@ Hilltop (the view of job 56), Medium, 5 s:
 - Shots in `PunchyMilestones/R-20/raw/`: `fly2-pair.jpg` (old over soft, frame 100), `tog-diff.jpg` (soft minus old, x12: only the sky differs), `far-chg-mask-pair.jpg`, `peak-mask-pair.jpg`.
 - Not checked: the 300 m moving flight (only the still flight view), dusk and low sun (long cloud shadows), Medium, a player build, cost (no BENCH request while the change is parked).
 - Next: R-25 row 1.
+
+## W-168 row 1: where a start's time goes, and what to bake (#345), measured shape only, numbers to BENCH
+
+- Lane: world. Branch `world/world-pack` 13ae82d3 (on main 02c2b3b8, pushed, not for merge until row 2).
+- **What landed (timers only, as the card allows):** `Terrain/StartLedger.cs` prints one `[start]` line at
+  `[stream] world ready` and then stops. It has stage stamps (island start, island ready), the main-thread ms and the
+  in-flight ms of the world's own producers (terrain chunk batches, far ground, caves, island cache or bake), and the
+  top 30 Profiler markers whose names match world, flora, fauna, colossus, water and particle systems (main-thread sum,
+  worst frame, all threads). Markers only exist in Profile builds and the editor; a release build says so in the line.
+  Hooks: TerrainStreamingSystem (+FarRing), CaveSystem.Counts (`NoteFrame`, replacing the 3-line slow-frame log in
+  CaveSystem.cs, net -2 lines there), IslandV2 (stamps). It costs one marker scan a second while loading, nothing
+  after world ready.
+- Also in the commit: the branch-switch SharedStatic gotcha in `docs/agents/editor-and-assets.md` (asked by main).
+
+**Shape of a start (lane editor, default spawn, one warm and one stamp-miss run: a function check of the ledger, not a
+measurement, rule 21; the BENCH job gives the real table):**
+
+| producer | owner | main thread | worker / in flight | warm or cold | as a file |
+|---|---|---|---|---|---|
+| island layout (W-140 cache read) | world | ~1.0 s load | - | warm | 24.4 MB today (rivers 19.2 MB of it) |
+| island bake on a miss | world | ~12.5 s | Burst inside | cold only | is the file above |
+| island audits on a miss | world | ~25 s | - | cold, only with the audit switch | none: debug only (see note) |
+| terrain chunks, 3024 at spawn | world | apply ~40-57 ms in total, start ~11-16 ms | **~11 s of batches in flight** | both | LOD0 7 GB raw / ~400 MB packed heights for the island; LOD2 570 MB / 27 MB. Not worth it |
+| far ground, 224 tiles | world | ~5 ms | ~2.7 s in flight | both | small, but the far ring is cheap already |
+| caves near spawn | world | stream ~10-20 ms, rest of frame ~300-400 ms over ~100 frames | 0 builds before world ready at spawn | both | walls: none needed at spawn |
+| **cave dungeon sockets** (CaveSocketSystem) | world | **~1.6 s, one frame up to ~0.8 s** | - | both | 748 sockets x ~48 B = **~36 KB** |
+| creatures (CreatureRenderSystem, FaunaDirector, spawn groups, DungeonSpawn) | fauna | ~2.5 s render + ~0.4 s dungeon spawn + ~0.2-0.5 s spawn | - | both | not a bake: live state |
+| colossus LODs (job 64: 0.8-1.8 s frames in player builds) | fauna | not in the editor's top 30 here | - | both | meshes 4-12 MB each in memory (about 120 MB all told): too big; thread them instead |
+| plants (FloraSystem draw, shadow cache, impostor bake) | flora | ~0.1 s | jobs | both | placement is cheap on the main thread; not a win |
+| buildings and kits (settlement meshes) | flora (FloraPlacement) | not in the top 30 | - | both | ~100 MB of kit meshes in memory (FishWharf 16, KitHouse 12.6, boardwalks 12.3 ...): too big |
+| landmark systems (Ribcage, SunkenTemple, Iceberg, SaltTower) | world | ~70 ms one frame (Ribcage), 15-40 ms others | - | both | small, low priority |
+| water patches | world | ~12-30 ms | - | both | not a win |
+
+- Warm in the editor: island ready 2.6 s, world ready 17.6 s (the editor's play starts the clock late, so a player
+  build's launch-to-ready is longer: job 64 had 35-64 s). Cold: island ready 61 s, world ready 74 s.
+- **Read:** the island layout, the one big generation step, is already baked. What is left is (1) meshing ~3000
+  terrain chunks on the workers, about 11 s of the warm start, (2) a few main-thread builds that make the long
+  frames. Terrain meshes as a file would be hundreds of MB even packed, and the field they mesh from is already
+  in the 24 MB file, so baking them trades a few seconds for a huge download. Colossus and kit meshes are the same.
+- Note: in this editor the audits ran on a miss although `-islandaudit` was not given and PUNCHY_ISLANDAUDIT is not set
+  in the user or machine environment; I did not find where it comes from. A player build without the switch skips them.
+  Not a start cost for players; I will check the switch at row 2.
+
+**Proposal for row 2 (for the supervisor to confirm):**
+1. **Bake cave dungeon sockets into the island file** (~36 KB, saves ~1.6 s main-thread and a ~0.8 s frame). Same key
+   and stamp as W-140; a test compares baked against built (the cave socket hash 4726CC7A already exists for that).
+2. **Don't bake terrain, kit or colossus meshes.** Cut the start instead: world ready waits for all 3024 chunks inside
+   the stream radius; let it wait only for the chunks the first view needs (the rest stream in as now), and cap the
+   chunks applied per frame while the load boost is on (job 64's 2.4 s apply frame; world-owned, row 2).
+3. **Small fixes for other lanes:** colossus LOD builds off the main thread or one part per frame (fauna, job 64);
+   CreatureRenderSystem's ~2.5 s during load (fauna) wants a look once BENCH confirms it in a player build.
+4. **File budget:** the island file stays under 25 MB plus ~0.1 MB for sockets. If rivers (19.2 MB) ever need trimming,
+   that is the place, not new parts.
+5. **Keying:** sockets go in as one more part with its own digest in `.parts` (W-140's per-part digests), so a cave
+   change rebakes only that part's inputs and a socket rule change rebakes only sockets (#260, rule 22).
+6. **Cross-CPU:** sockets are plain C# (not Burst) over the baked cave plan, so they don't vary by CPU; the landmark-hash
+   compare on join stays as the card says.
+
+**Caves (Zach's two questions):**
+- Buried chunks: CaveSystem streams every wall chunk within 400 m of the camera by 3D distance, buried or not
+  (CaveSystem.Stream). At the default spawn none were built before world ready, so they do not delay the start; they
+  cost worker time and memory while walking above caves. A chunk with no mouth, shaft or room within reach could wait
+  until the camera is inside or near a mouth: worth a row of its own, not part of the start.
+- LoadRadius 400 m is fixed metres (rule 20). Walls are only seen through a mouth, so the reach should come from the
+  mouth's on-screen size (`DetailPolicy.CaveMouthSize`, as the surface fade already does) when outside, and from the
+  cave's own extent when inside. DetailPolicy is render's (rule 28): a world row can use the existing constant.
+
+- Suite (rule 19): `completed: 40/40 passed` in the lane editor after the last change (commit 13ae82d3).
+- BENCH request (job for the supervisor to queue): main plus this branch's commit, Profile build, 1920x1080, High,
+  uncapped, noon, Clear. One warm-up launch, then 3 cache-hit launches and 1 `-freshisland` launch per start: default
+  spawn, town (`-place HumanVillage`), forest (`-place OakGrove`). Record the `[start]` line from each Player.log plus
+  launch-to-first-frame and launch-to-`[stream] world ready`. Report the producer table per start (main-thread ms,
+  worst frame, in flight ms) and whether the stream's apply and the colossus builds show in the top markers.
+- Not checked: a player build (markers there come from the BENCH run); town and forest in the editor; shots (nothing
+  visible changed).
+- Next: R-21 foot boxes and the fall 74 bank spot.
