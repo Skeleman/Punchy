@@ -17,3 +17,4 @@ Read before building a player, running benches or preparing a release.
 - Launch test builds only from the tree's fixed bench path. Windows keys firewall rules by exe path, so an exe
   started from a new folder raises a firewall prompt that stalls every later run until someone answers it.
 - Benches: a smoke run can say NOT CLEAN from round order alone; an ABBA run decides.
+- Every Windows build ships the editor's island file when it was baked under the build's stamp (W-168): play once after a code or asset change before building. A build without it warns `no island file shipped`, and each player then bakes on its own CPU (Burst picks code by CPU, so islands can differ slightly).
