@@ -621,6 +621,23 @@ namespace Punchy.Fauna
                             a.x += s.Stage == ChatListen ? 0.22f * math.max(0f, math.sin(s.Clock * 4.5f)) * math.saturate(math.sin(s.Clock * 0.8f) * 3f)
                                                          : 0.07f * math.sin(s.Clock * 6.3f);
                     }
+                    // At a notice board (A-116): the head going slowly along the sheets and down them; the one pointing a
+                    // notice out raises its right hand to it now and then, and lowers it again (the lean is the brain's Bow).
+                    if (b.Upright && s.Mode == CreatureMode.Sit && (s.Stage == BoardRead || s.Stage == BoardPoint))
+                    {
+                        var t = s.Clock + (s.Individual % 64) * 0.37f;
+                        if (part.Role == LimbRole.Head && j == 0)
+                        {
+                            a.x += 0.1f + 0.07f * math.sin(t * 0.45f);
+                            a.z += 0.3f * math.sin(t * 0.8f) * (s.Stage == BoardPoint ? 0.5f : 1f);
+                        }
+                        if (s.Stage == BoardPoint && part.Role == LimbRole.Arm && part.Side > 0f && j <= 1)
+                        {
+                            var raise = math.smoothstep(0.25f, 0.65f, math.sin(t * 0.6f) * 0.5f + 0.5f);
+                            a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.9f * raise);
+                            a += (j == 0 ? new float3(-1.4f, 0f, -0.12f) : new float3(-0.25f, 0f, 0f)) * raise;
+                        }
+                    }
                     // One of the folk at a hive: the stick hand up over the head jabbing at the comb, the other half up
                     // to shield the face; running off with it, that free arm flapping at the bees.
                     if (b.Upright && part.Role == LimbRole.Arm && s.Mode == CreatureMode.Work && j <= 1)
@@ -1287,6 +1304,9 @@ namespace Punchy.Fauna
         public const byte PlayRing = 8;
         /// <summary>Play-mode stage of a sea folk child running after a fish (A-103 row 3): no partner playing back.</summary>
         public const byte ChaseFish = 9;
+        /// <summary>Sitting-mode stages, standing, at a town's notice board (A-116): reading it (the head going along the
+        /// sheets, leant in), and pointing a notice out to the one beside it, reading it aloud.</summary>
+        public const byte BoardRead = 10, BoardPoint = 11;
         /// <summary>Idle-mode stages of one of the townsfolk a messenger bird has come to: waiting for it (the forearm
         /// up for it to land on), taking the message from its leg, reading it.</summary>
         public const byte MessageWait = 60, MessageTake = 61, MessageRead = 62;

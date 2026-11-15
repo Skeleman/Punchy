@@ -34,6 +34,16 @@
         "temple_kind": ["Sunken Temple", "Drowned Shrine"]
       },
       "lines": [
+        { "text": "\"Lost: one grey goat, answers to Biscuit.\" Again?", "trade": "Board" },
+        { "text": "Look here, someone wants wolves seen to.", "trade": "Board" },
+        { "text": "\"Help wanted at the mill.\" Not me, I've a bad back.", "trade": "Board" },
+        { "text": "Says here the road north's washed out.", "trade": "Board" },
+        { "text": "Who keeps pinning these up crooked?", "trade": "Board" },
+        { "text": "\"Found: a boot.\" Just the one?", "trade": "Board" },
+        { "text": "There's a notice for you, if you're after work.", "trade": "Board" },
+        { "text": "Read that one out, my eyes aren't what they were.", "trade": "Board" },
+        { "text": "\"Market moved to the fifth day.\" Since when?", "trade": "Board" },
+        { "text": "Somebody's lost a ring down the well. Again.", "trade": "Board" },
         "Mind how you go.",
         "{time_of_day}'s a {weather_word} one.",
         { "text": "Is that a {player}? Odd company.", "weight": 0.5 },

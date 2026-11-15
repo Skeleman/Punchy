@@ -912,6 +912,9 @@ namespace Punchy.Fauna
 
                     case CreatureMode.Sit:
                         Sitting(self, ref s, ref b, ref rng, dt, walk, idleLook, ref targetSpeed, ref moving, ref lie, ref sit, ref desiredLook);
+                        // (Leant in a little, reading the notice board: A-116.)
+                        if (s.Mode == CreatureMode.Sit && AtBoard(s.Stage))
+                            bow = 0.25f;
                         break;
 
                     case CreatureMode.Swim:
@@ -1464,10 +1467,10 @@ namespace Punchy.Fauna
                     var toFace = s.Focus - s.Position.xz;
                     var wantedYaw = WrapAngle(math.atan2(toFace.x, toFace.y) - s.Yaw);
                     s.Yaw = WrapAngle(s.Yaw + math.clamp(wantedYaw, -b.TurnRate * dt, b.TurnRate * dt));
-                    // (At the town's fire, some stand.)
+                    // (At the town's fire, some stand; at the notice board, all do.)
                     if (s.Stage == 3)
                         lie = 1f;
-                    else if (s.Stage != CreatureAnimator.HearthStand)
+                    else if (s.Stage != CreatureAnimator.HearthStand && !AtBoard(s.Stage))
                         sit = 1f;
                     desiredLook = s.Stage == 3 ? 0f : idleLook;
                     var hearth = AtHearth(s.Stage);

@@ -997,10 +997,11 @@ namespace Punchy.Fauna
                 return found;
             }
 
-            /// <summary>Another place of the same kind, for one beaten to its spot: at the fire, in the play ring, or to lounge.</summary>
+            /// <summary>Another place of the same kind, for one beaten to its spot: at the fire, in the play ring, at the board, or to lounge.</summary>
             bool Resettle(Entity self, ref CreatureState s, ref Random rng) =>
                 AtHearth(s.TargetHeight) ? StartHearth(self, ref s, ref rng) :
-                s.TargetHeight == CreatureAnimator.PlayRing ? StartPlayRing(self, ref s, ref rng) : StartLounge(self, ref s, ref rng);
+                s.TargetHeight == CreatureAnimator.PlayRing ? StartPlayRing(self, ref s, ref rng) :
+                AtBoard(s.TargetHeight) ? StartBoard(self, ref s, ref rng) : StartLounge(self, ref s, ref rng);
 
             /// <summary>
             /// A place in the children's play ring: on the green nearest its home (the same green for every child of the
