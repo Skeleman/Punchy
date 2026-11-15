@@ -34,6 +34,11 @@ namespace Punchy.Fauna
     {
         public const byte Fur = 0, Feathers = 1, Scales = 2, Skin = 3, Chitin = 4, Hoof = 5, Claw = 6, Pad = 7, Eye = 8, Horn = 9, Paw = 10;
 
+        /// <summary>A-123 row 3: a feather code's high nibble, which way its feathers lie: FeatherBody on the body, neck
+        /// and head (segments that run towards the head, so the tips point back down -z), FeatherFlight on wings and tails
+        /// (long flight feathers, tips out along +z); 0 elsewhere (tips along +z). Creature.shader decodes the same.</summary>
+        public const byte FeatherBody = 1, FeatherFlight = 2;
+
         public static byte Of(CoatKind coat, SegmentSurface surface, FurLength length)
         {
             if (surface == SegmentSurface.Paw)

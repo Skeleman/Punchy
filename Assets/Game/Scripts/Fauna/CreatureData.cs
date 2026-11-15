@@ -921,7 +921,7 @@ namespace Punchy.Fauna
             foreach (var p in parts)
                 count += p.Slot.Limb.Segments.Count;
             var looks = new byte[count];
-            looks[0] = SurfaceLook.Of(species.Coat, SegmentSurface.Coat, species.FurLength);
+            looks[0] = Lie(SurfaceLook.Of(species.Coat, SegmentSurface.Coat, species.FurLength), LimbRole.Head);
             var cursor = 1;
             foreach (var p in parts)
                 foreach (var seg in p.Slot.Limb.Segments)
@@ -929,10 +929,17 @@ namespace Punchy.Fauna
                     var length = p.Slot.FurLength != FurLengthOverride.Default ? p.Slot.FurLength
                                : seg.FurLength != FurLengthOverride.Default ? seg.FurLength
                                : FurLengthOverride.Default;
-                    looks[cursor++] = SurfaceLook.Of(species.Coat, seg.Surface,
-                        length == FurLengthOverride.Default ? species.FurLength : SurfaceLook.Length(length));
+                    looks[cursor++] = Lie(SurfaceLook.Of(species.Coat, seg.Surface,
+                        length == FurLengthOverride.Default ? species.FurLength : SurfaceLook.Length(length)), p.Slot.Limb.Role);
                 }
             return looks;
+
+            // A-123 row 3: which way a feathered segment's feathers lie (the body counts as running towards the head).
+            static byte Lie(byte code, LimbRole role) =>
+                code != SurfaceLook.Feathers ? code
+                : role is LimbRole.Head or LimbRole.Neck ? (byte)(code | SurfaceLook.FeatherBody << 4)
+                : role is LimbRole.Wing or LimbRole.Tail ? (byte)(code | SurfaceLook.FeatherFlight << 4)
+                : code;
         }
 
         /// <summary>
@@ -1122,8 +1129,11 @@ namespace Punchy.Fauna
                     var radius = math.lerp(root.RearRadius, root.FrontRadius, socket.z * 0.5f + 0.5f);
                     socket = new float3(socket.x * radius, socket.y * radius * species.BodyFlatten, socket.z * bodyLength * 0.5f);
                 }
-                socket.x *= side;
                 var dir = (float3)slot.Direction;
+                if (root.Upright && limb.Role == LimbRole.Arm && e.Parent >= 0 && parts[e.Parent].Slot.Limb.Role == LimbRole.Feature)
+                    FitShoulder(segArray, partArray[e.Parent], limb, slot.Scale * slot.Thickness * radiusScale, slot.Scale,
+                                ref socket, ref dir);
+                socket.x *= side;
                 partArray[i] = new CreaturePart
                 {
                     Parent = e.Parent,
@@ -1250,6 +1260,98 @@ namespace Punchy.Fauna
                 if (species.Parts[i].Limb != null && species.Parts[i].StyleGroup == group && group > 0)
                     n++;
             return n;
+        }
+
+        /// <summary>A-123: how far an upright arm's shoulder joint sits outside its torso's surface, in arm radii (0: the
+        /// joint on the surface; 1: the arm just touching it). Part of the shoulder's ball sinks into the torso, so it reads
+        /// as one continuous shoulder.</summary>
+        const float ShoulderOut = 0.55f;
+        /// <summary>A-123: the least room, in arm radii, left between a hanging forearm or hand and the torso; the upper arm
+        /// may sink in up to <see cref="UpperArmSink"/> of its radius below the shoulder.</summary>
+        const float ForearmRoom = 0.15f, UpperArmSink = 0.3f;
+        /// <summary>A-123: the most an arm is splayed out from the body (degrees) to clear a torso that widens below the shoulder.</summary>
+        const float MaxSplay = 14f;
+
+        /// <summary>
+        /// A-123 (Zach, 11-14): fits an upright arm to its torso from the body's own sizes, so goblins' arms don't float
+        /// out from the body, humans' don't barely touch it and ogres' don't sink into it. The socket's distance out from
+        /// the torso's axis becomes the torso's radius at the shoulder (its last segment, as built) plus
+        /// <see cref="ShoulderOut"/> arm radii; then, where the torso widens below the shoulder (a barrel chest, a child's
+        /// round middle), the arm's rest is splayed out (up to <see cref="MaxSplay"/>) just enough that it hangs clear.
+        /// The hang is worked out straight down the torso's segments from the socket: near enough for the check, not a pose.
+        /// <paramref name="socket"/> is the slot's, before mirroring (x out to the arm's side); <paramref name="dir"/> its
+        /// rest in degrees, before mirroring.
+        /// </summary>
+        static void FitShoulder(BlobBuilderArray<CreatureSegment> segs, CreaturePart torso, LimbType limb, float radiusScale,
+                                float lengthScale, ref float3 socket, ref float3 dir)
+        {
+            var top = segs[torso.FirstSegment + torso.SegmentCount - 1];
+            if (top.Length <= 1e-4f || limb.Segments.Count == 0)
+                return;
+            var armRadius = limb.Segments[0].RadiusStart * radiusScale;
+            var flatten = math.max(top.Flatten, 0.05f);
+            var along = math.clamp(top.Length + socket.z, 0f, top.Length);
+            var below = torso.SegmentCount > 1 ? segs[torso.FirstSegment + torso.SegmentCount - 2] : default;
+            var torsoRadius = TorsoRadius(top, below, along);
+            var reach = torsoRadius + ShoulderOut * armRadius;
+            var upright = socket.y / flatten;
+            socket.x = math.sqrt(math.max(reach * reach - upright * upright, 0f));
+
+            // The splay: down the arm, the torso beside it (the segment below the top one once past its start).
+            var need = 0f;
+            var armLength = 0f;
+            for (int s = 0; s < limb.Segments.Count; s++)
+                armLength += limb.Segments[s].Length * lengthScale;
+            var upperLength = limb.Segments[0].Length * lengthScale;
+            const int Steps = 12;
+            for (int k = 1; k <= Steps; k++)
+            {
+                var d = armLength * k / Steps;
+                if (d < upperLength * 0.5f)
+                    continue;
+                var z = along - d;
+                if (z < -below.Length)
+                    break;
+                var beside = TorsoRadius(top, below, z);
+                // (The arm's own radius at that point along it.)
+                float run = d, r = armRadius;
+                for (int s = 0; s < limb.Segments.Count; s++)
+                {
+                    var len = limb.Segments[s].Length * lengthScale;
+                    if (run <= len || s == limb.Segments.Count - 1)
+                    {
+                        var seg = limb.Segments[s];
+                        r = math.lerp(seg.RadiusStart, seg.RadiusEnd, math.saturate(run / math.max(len, 1e-4f))) * radiusScale;
+                        break;
+                    }
+                    run -= len;
+                }
+                var room = d <= upperLength ? -UpperArmSink * armRadius : ForearmRoom * armRadius;
+                var outBy = beside + r + room - socket.x;
+                if (outBy > 0f)
+                    need = math.max(need, math.degrees(math.atan2(outBy, d)));
+            }
+            // (Out from the body: for an arm hanging down (pitch about 180), a negative yaw before mirroring.)
+            dir.y -= math.min(need, MaxSplay);
+        }
+
+        /// <summary>A-123: how far the torso's surface is out from its axis at <paramref name="z"/> metres up its top segment
+        /// (negative: down into the one below), the round ends included: a barrel chest's end bulges past its taper.</summary>
+        static float TorsoRadius(CreatureSegment top, CreatureSegment below, float z)
+        {
+            var r = Width(top, z);
+            if (below.Length > 1e-4f)
+                r = math.max(r, Width(below, below.Length + z));
+            return r;
+        }
+
+        /// <summary>One tapered capsule's radius at <paramref name="z"/> along it, its round ends reaching past either end.</summary>
+        static float Width(CreatureSegment s, float z)
+        {
+            var r = z >= 0f && z <= s.Length ? math.lerp(s.RadiusStart, s.RadiusEnd, z / math.max(s.Length, 1e-4f)) : 0f;
+            r = math.max(r, math.sqrt(math.max(s.RadiusStart * s.RadiusStart - z * z, 0f)));
+            var e = s.Length - z;
+            return math.max(r, math.sqrt(math.max(s.RadiusEnd * s.RadiusEnd - e * e, 0f)));
         }
 
         /// <summary>Rest orientation from degrees; the mirror image flips yaw and roll.</summary>
