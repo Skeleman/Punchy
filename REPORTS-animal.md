@@ -5092,3 +5092,8 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Main after the batch merges (fauna/playtest-1114 @ 6bda6b7a, pushed): it compiles, the suite passes 40/40 (Setup_SpawnRainAndShot timed out once on a cold first start, then passed alone in 27 s), and the fauna pin DDE01A70 is unchanged. Main needs no fix.
 - fauna/body-reads @ 58f7e26e (pushed), #356: merged main in. EmberFox now has main's FurLength lines plus the branch's nose limb. Re-pinned the fauna fingerprint to 43D1F778 (A-123 plus the A-121 fire tempers); landmarks 117 689D5348; suite 40/40. Ready for PR.
 - NEXT: fauna/individual-builds (#358), then fauna/style-parity, then A-126 rows 2-4.
+
+## 11-15 A-124 row 1 (#358) individual-builds: ready for PR
+- fauna/individual-builds @ HEAD (pushed): it sits on top of body-reads, so I merged the now-merged fauna/body-reads in rather than main directly. No conflicts. Pin 43D1F778 holds, landmarks 117 689D5348, suite 40/40. Merge body-reads (#356) first, then this branch.
+- Shares: no new system. This merges existing branches.
+- NEXT: fauna/style-parity, then A-126 rows 2-4 (row 4 steering will reuse the player's own body control path, per rule 33).
