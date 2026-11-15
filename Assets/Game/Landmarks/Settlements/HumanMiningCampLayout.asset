@@ -191,6 +191,13 @@ MonoBehaviour:
     - {fileID: 11400000, guid: fa4ebbcc3834f4c47afc7a79abe40ad7, type: 2}
     - {fileID: 11400000, guid: 2643950432d89264cafbe718d23c0c4e, type: 2}
     Style: 
+  - Role: 9
+    Species: {fileID: 11400000, guid: 203b815692a7a9449ab214fd42e1f7b8, type: 2}
+    Weight: 1
+    Count: 1
+    OnlyIn: []
+    Style: 
+    MinPlots: 0
   Fixtures:
   - Species: {fileID: 11400000, guid: 6f24de5e36cf147439155babe25ce34e, type: 2}
     Spot: 1

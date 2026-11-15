@@ -671,6 +671,16 @@ half PunchyCloudShadow(float3 positionWS)
     return saturate(density * 3) * lerp(0.5, 0.95, saturate(shape.y / 3000));
 }
 
+// R-36: what a lit colour keeps of the sun's share once the sky over it has its say. skyOverhead is how much open sky
+// stands over the point (1 out in the open, 0 under a cave roof): the sun's share is kept only there, and cloud shadow
+// dims what is kept. direct and ambient are the luminances of the sun's and the ambient share; multiply the colour by
+// the result. With skyOverhead 1 it is the plain cloud-shadow dimming the surfaces had before.
+half PunchySkyShade(half cloudShadow, half skyOverhead, half direct, half ambient)
+{
+    half kept = saturate(skyOverhead) * (1 - cloudShadow);
+    return 1 - (1 - kept) * direct / max(direct + ambient, 1e-3);
+}
+
 // ------------------------------------------------------------------------------------------------ cirrus, sky
 
 // Thin, wispy high cloud, stretched along the wind.

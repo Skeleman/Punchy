@@ -160,6 +160,9 @@ namespace Punchy.Fauna
         struct SpreadOnKey { }
         /// <summary>Per job worker (ThreadIndex): busy ticks, first start, last end, of the last brain job.</summary>
         NativeArray<long> spreadTicks;
+        /// <summary>A-121: empty stand-ins for FireSpots in a world without the list (a job can't carry unmade ones).</summary>
+        NativeArray<FireSpot> noFires;
+        NativeParallelMultiHashMap<int2, int> noFireCells;
         /// <summary>A-70: settlements and landmarks are baked once a player is within this (m) of their edge: past the
         /// brain LOD's range, so a creature that thinks every frame near a player always finds its walls baked.</summary>
         const float FootprintRange = 200f;
@@ -181,6 +184,8 @@ namespace Punchy.Fauna
             footprintTowns = new NativeHashSet<int>(16, Allocator.Persistent);
             footprintLandmarkSet = new NativeHashSet<int>(64, Allocator.Persistent);
             spreadTicks = new NativeArray<long>(Unity.Jobs.LowLevel.Unsafe.JobsUtility.ThreadIndexCount * 3, Allocator.Persistent);
+            noFires = new NativeArray<FireSpot>(0, Allocator.Persistent);
+            noFireCells = new NativeParallelMultiHashMap<int2, int>(1, Allocator.Persistent);
         }
 
         [BurstCompile]
@@ -201,6 +206,10 @@ namespace Punchy.Fauna
                 footprintLandmarkSet.Dispose();
             if (spreadTicks.IsCreated)
                 spreadTicks.Dispose();
+            if (noFires.IsCreated)
+                noFires.Dispose();
+            if (noFireCells.IsCreated)
+                noFireCells.Dispose();
         }
 
         /// <summary>A-70 row 2: adds the last brain job's spread over the workers to Spread, and clears it for this one.</summary>
@@ -368,6 +377,8 @@ namespace Punchy.Fauna
             var hasFlora = SystemAPI.TryGetSingleton<FloraLookup>(out var flora) && flora.Blob.IsCreated;
             var wharves = default(WharfSpotLookup);
             var hasWharves = hasFlora && SystemAPI.TryGetSingleton(out wharves) && wharves.Blob.IsCreated;
+            var lamps = default(LampRouteLookup);
+            var hasLamps = hasFlora && SystemAPI.TryGetSingleton(out lamps) && lamps.Blob.IsCreated;
             // (The last brain job is done: the snapshot above waited for its CreatureState.)
             FoldSpread();
             var terrain = SystemAPI.GetSingleton<TerrainSource>();
@@ -395,6 +406,8 @@ namespace Punchy.Fauna
             {
                 Terrain = terrain,
                 Footprints = footprints,
+                Fires = SystemAPI.TryGetSingleton<FireSpots>(out var fires) && fires.Spots.IsCreated && fires.Cells.IsCreated
+                    ? fires : new FireSpots { Spots = noFires, Cells = noFireCells, On = false },
                 ColossusColumns = colossi.Columns,
                 ColossusCircles = colossi.Circles,
                 ColossusRanges = colossi.Ranges,
@@ -404,6 +417,8 @@ namespace Punchy.Fauna
                 HasFlora = hasFlora,
                 Wharves = hasWharves ? wharves.Blob : default,
                 HasWharves = hasWharves,
+                Lamps = hasLamps ? lamps.Blob : default,
+                HasLamps = hasLamps,
                 Players = players.AsArray(),
                 PlayerIds = playerIds.AsArray(),
                 PlayerYaws = playerYaws.AsArray(),
@@ -417,12 +432,14 @@ namespace Punchy.Fauna
                 Frame = ++frame,
                 Night = SystemAPI.TryGetSingleton<FaunaClock>(out var clock) ? clock.Night : 0f,
                 Hour = SystemAPI.TryGetSingleton<FaunaClock>(out var hourClock) ? hourClock.Hour : 12f,
+                Day = hourClock.Day,
                 Lures = FishLure.Data.Data,
                 Entities = entities,
                 States = states,
                 Bodies = bodies,
                 Lookup = lookup,
                 Grid = grid,
+                Ghosts = SystemAPI.GetComponentLookup<Unity.NetCode.GhostInstance>(true),
                 Hunters = hunters.AsArray(),
                 Thinking = thinking,
                 StateRW = SystemAPI.GetComponentLookup<CreatureState>(false),
@@ -485,6 +502,8 @@ namespace Punchy.Fauna
             public TerrainSource Terrain;
             /// <summary>A-70: buildings' and landmark props' walls, placed once (Walled and BuildingSink ask it).</summary>
             public BuildingFootprints Footprints;
+            /// <summary>A-121: the fires walkers keep out of (FireSpotSystem's list, by 16 m cell).</summary>
+            public FireSpots Fires;
             /// <summary>A-77: the colossi's columns, each colossus's circle (xy centre, z reach) and its run of columns
             /// (ColossusCollision.Snapshot, a frame old): Steer bends a ground walker's way round them.</summary>
             [ReadOnly] public NativeArray<ColossusCylinder> ColossusColumns;
@@ -508,6 +527,8 @@ namespace Punchy.Fauna
             [ReadOnly] public NativeArray<float> PlayerSpeeds;
             public CarryTable Carry;
             public float Dt, Night, Hour;
+            /// <summary>The day count (FaunaClock): which sheets are due on the notice board.</summary>
+            public int Day;
             /// <summary>The shared clock and this frame's raw step, for staggered searches (#57).</summary>
             public float Now, Step;
             /// <summary>This frame's number, for whose turn it is to think far off (#59).</summary>
@@ -528,6 +549,8 @@ namespace Punchy.Fauna
             [ReadOnly] public NativeArray<CreatureBody> Bodies;
             [ReadOnly] public NativeHashMap<Entity, int> Lookup;
             [ReadOnly] public NativeParallelMultiHashMap<int2, int> Grid;
+            /// <summary>A-120: ghost ids (a server's creatures), for the Holder key of one of the folk petting or carrying.</summary>
+            [ReadOnly] public ComponentLookup<Unity.NetCode.GhostInstance> Ghosts;
             /// <summary>Snapshot indices of the hunters out after game now (FolkHunting stages).</summary>
             [ReadOnly] public NativeArray<int> Hunters;
 
@@ -660,7 +683,7 @@ namespace Punchy.Fauna
                     return;
                 }
                 var g = Terrain.SampleGround(s.Position.xz);
-                var head = Breath.Head(s, ref b);
+                var head = Breath.Head(s, ref b, g.WaterSurface - g.Height);
                 var water = g.HasWater && g.WaterSurface > g.Height && head > g.Height - 0.5f;
                 // First where it may be (the think doesn't know its breath, so a walker is back on the bottom each
                 // tick), then whether that puts its head under. (Where it is when its head is just out: surfaced.)
@@ -755,7 +778,9 @@ namespace Punchy.Fauna
                             s.Task == CreatureTask.Messenger;
                 // Settlements' animals are used to people: they let them come close (not predators, though).
                 // (A-88 row 2: not the sea folk's lake fish, though: a school scatters from a swimmer overhead.)
-                var tame = s.Leash > 0f && !b.Upright && s.SwimAbove <= 0f ? 0.3f : 1f;
+                // (A-117: and so is a stable horse out on the road, Leash 0 while it travels: a player walking by
+                // shouldn't throw its rider.)
+                var tame = (s.Leash > 0f || s.Task == CreatureTask.Travel) && !b.Upright && s.SwimAbove <= 0f ? 0.3f : 1f;
 
                 var away = s.Position.xz - player.xz;
                 var playerDistance = math.distance(s.Position, player);   // (3D: high overhead is far)
@@ -803,9 +828,14 @@ namespace Punchy.Fauna
                 var lookAtPlayer = math.clamp(WrapAngle(math.atan2(-away.x, -away.y) - s.Yaw), -1.2f, 1.2f);
                 var idleLook = watchPlayer ? lookAtPlayer : math.sin(s.Clock * 0.7f + s.Seed % 7) * 0.5f;
 
+                // (A-115: a lamplighter leaves whatever it's at when its round is due.)
+                if (RoundCalls(s))
+                    StartRound(ref s);
+
                 // Following a player (Follow.Start) takes the place of its own mode while it lasts.
                 // (So does a fish come over to a bobber: A-100 row 2.)
                 if (!Following(ref s, ref b, ref rng, dt, walk, run, ref targetSpeed, ref moving, ref desiredLook) &&
+                    !TrailLamplighter(ref s, ref b, dt, walk, run, ref targetSpeed, ref moving, ref desiredLook) &&
                     !Lured(self, ref s, ref b, ref rng, dt, walk, run, threatened, ref targetSpeed, ref moving, ref custom))
                 switch (s.Mode)
                 {
@@ -910,6 +940,9 @@ namespace Punchy.Fauna
 
                     case CreatureMode.Sit:
                         Sitting(self, ref s, ref b, ref rng, dt, walk, idleLook, ref targetSpeed, ref moving, ref lie, ref sit, ref desiredLook);
+                        // (Leant in a little, reading the notice board: A-116.)
+                        if (s.Mode == CreatureMode.Sit && AtBoard(s.Stage))
+                            bow = 0.25f;
                         break;
 
                     case CreatureMode.Swim:
@@ -1313,6 +1346,17 @@ namespace Punchy.Fauna
                     desiredLook = 0f;
                     return;
                 }
+                // A-120 rows 2-3: going over to an animal, petting it, shooing it off, or fetching it to carry (Petting.cs).
+                if (s.Stage >= CreatureAnimator.PetGo && s.Stage <= CreatureAnimator.PetFetch)
+                {
+                    if (Petting(self, ref s, ref b, ref rng, dt))
+                    {
+                        targetSpeed = walk;
+                        moving = true;
+                    }
+                    desiredLook = 0f;
+                    return;
+                }
                 if (s.Stage >= MessageWait)
                 {
                     Receiving(ref s, ref b, ref rng, dt);
@@ -1322,7 +1366,7 @@ namespace Punchy.Fauna
                 if (s.Action == IdleAction.None)
                     s.Timer -= dt;
                 desiredLook = idleLook;
-                if (s.Timer <= 0f)
+                if (s.Timer <= 0f && !NoticePlayerAnimal(ref s, ref b, ref rng))
                     Decide(self, ref s, ref b, species, ref rng, perched, player);
             }
 
@@ -1462,13 +1506,15 @@ namespace Punchy.Fauna
                     var toFace = s.Focus - s.Position.xz;
                     var wantedYaw = WrapAngle(math.atan2(toFace.x, toFace.y) - s.Yaw);
                     s.Yaw = WrapAngle(s.Yaw + math.clamp(wantedYaw, -b.TurnRate * dt, b.TurnRate * dt));
-                    // (At the town's fire, some stand.)
+                    // (At the town's fire, some stand; at the notice board, all do.)
                     if (s.Stage == 3)
                         lie = 1f;
-                    else if (s.Stage != CreatureAnimator.HearthStand)
+                    else if (s.Stage != CreatureAnimator.HearthStand && !AtBoard(s.Stage))
                         sit = 1f;
                     desiredLook = s.Stage == 3 ? 0f : idleLook;
                     var hearth = AtHearth(s.Stage);
+                    if (s.Stage == CreatureAnimator.BoardPin)
+                        Pinning(ref s);
                     if (s.Timer <= 0f || hearth && !Gathering(in s, ref b) || Contested(self, in s) && !Resettle(self, ref s, ref rng))
                         Pause(ref s, ref b, ref rng);
                 }
@@ -1496,6 +1542,10 @@ namespace Punchy.Fauna
                     Messenger(ref s, ref b, ref rng, dt, ref vertical);
                     return;
                 }
+                // (A-115: a lamplighter's round, lamp to lamp.)
+                if (s.Job == (byte)FolkJob.Lamplighter &&
+                    LampRound(ref s, ref b, ref rng, dt, walk, run, ref targetSpeed, ref moving, ref desiredLook))
+                    return;
                 // (A-73: out along a wharf's deck, off the terrain's floor: PierWork walks it.)
                 if (s.Task == CreatureTask.Fish && s.PierSpot > 0 &&
                     PierWork(ref s, ref b, ref rng, dt, walk, ref targetSpeed, ref moving, ref custom, ref desiredLook))
@@ -1701,6 +1751,7 @@ namespace Punchy.Fauna
                 var landBound = (b.Habitat == Habitat.Land || flier) && !CaveWalker(s, ref b);
                 var blocked = b.Crawls && CaveWalker(s, ref b) ? false : CaveWalker(s, ref b) ? s.Speed > 0.05f && !CaveFloor(ahead, s.Position.y)
                                             : s.Speed > 0.05f && !Walkable(ahead, b.Habitat);
+                if (blocked && landBound && SteerRoundFire(ref s, ref b, forward, ahead, dt)) blocked = false;   // A-121
                 // Folk out swimming keep to the water while they swim, and wade out onto the bank when they're done.
                 if (s.Mode == CreatureMode.Swim && s.Stage >= 1)
                 {
@@ -1820,15 +1871,20 @@ namespace Punchy.Fauna
                 // Folk out and about after dark carry a lantern: lit at dusk, put away at dawn (with a margin either way so
                 // it doesn't flicker at the turn), and not asleep, indoors, dozing at a post, or in someone's arms.
                 // (A guard by day has its weapon, worn or drawn: Patrol works out which.)
-                if (s.Task == CreatureTask.Patrol && s.Mode == CreatureMode.Patrol)
+                if (s.Job == (byte)FolkJob.Lamplighter && s.Mode == CreatureMode.Work && s.Stage >= FolkJobs.RoundWalk)
+                    s.Held = HeldItem.Staff;   // (A-115: its lamp pole)
+                else if (s.Task == CreatureTask.Patrol && s.Mode == CreatureMode.Patrol)
                     s.Held = Night > 0.5f ? HeldItem.Torch : s.Held == HeldItem.SpearDrawn ? HeldItem.SpearDrawn : HeldItem.Spear;
                 else if (s.Task == CreatureTask.Fish && s.Mode == CreatureMode.Work && s.Stage >= 1)
                     s.Held = !OnPier(in s) ? HeldItem.Rod : s.Stage == PierCarry ? HeldItem.OreSack : s.Stage == PierNets || s.Stage == PierSetDown ? HeldItem.None : HeldItem.Rod;
                 // A traveller has its staff by day, a lantern after dark.
-                else if (s.Task == CreatureTask.Travel && s.Mode == CreatureMode.Work)
+                else if (s.Task == CreatureTask.Travel && s.Mode == CreatureMode.Work && b.Hands)
                     s.Held = Night > 0.5f ? HeldItem.Lantern : HeldItem.Staff;
                 // Reading a message just taken from a messenger bird. (The bird's own letter, Messenger sees to.)
                 else if (s.Mode == CreatureMode.Idle && s.Stage == MessageRead && b.Hands)
+                    s.Held = HeldItem.Letter;
+                // A sheet for the notice board, on its way to be pinned up (A-116).
+                else if (CarryingSheet(in s) && b.Hands)
                     s.Held = HeldItem.Letter;
                 // (A miner at work has its pick, or a sack of ore: Mining says which.)
                 else if (s.Task == CreatureTask.Mine && s.Mode == CreatureMode.Work)

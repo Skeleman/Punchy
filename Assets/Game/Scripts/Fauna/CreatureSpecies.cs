@@ -25,6 +25,9 @@ namespace Punchy.Fauna
         [Min(0.1f)] public float VariantThickness = 1f;
         [Tooltip("Variants only: leg length relative to the body it's based on (children: shorter, about 0.8).")]
         [Min(0.1f)] public float VariantLegs = 1f;
+        [Tooltip("A-124: how far one individual's build strays from this species' (or variant's) own: picked per " +
+                 "individual on every machine. Narrow for animals; folk wider, their children about half.")]
+        public BuildRange BuildRange = BuildRange.Narrow;
 
         [Header("Body")]
         [Tooltip("Length of the torso, nose-end to tail-end of the trunk, in metres.")]
@@ -209,6 +212,11 @@ namespace Punchy.Fauna
         public bool Friendly;
         [Tooltip("Lives in lava (with habitat Swims): keeps to lava, never water, and comes up to bask at its surface.")]
         public bool LavaDweller;
+        [Tooltip("A-121 row 2: how it takes to a lit fire. Auto: folk use fires, friendly animals (dogs) keep a short way " +
+                 "off, cold-blooded ones bask a few metres out, other wild animals keep well away (by personality). Shy " +
+                 "and Wary set the berth outright; Loves lingers by it (cinder and ember kin); Ignores pays it no heed " +
+                 "but for the heat. Heat it can't bear sends any of them back a step whatever this says.")]
+        public FireTemper FireTemper;
         [Tooltip("A ghost: drifts above the ground (and water), half seen and faintly glowing, only at night; drifts closer " +
                  "to watch a person, and is gone when they come near, to appear again further off.")]
         public bool Haunts;
@@ -346,6 +354,9 @@ namespace Punchy.Fauna
 
     /// <summary>A part a species plays for FaunaDirector (CreatureSpecies.Role).</summary>
     public enum DirectorRole : byte { None, Folk, Hermit, Messenger }
+
+    /// <summary>How a species takes to a lit fire (A-121 row 2, CreatureSpecies.FireTemper; ComfortProfile.FireShy).</summary>
+    public enum FireTemper : byte { Auto, Ignores, Wary, Shy, Basks, Loves }
 
     /// <summary>An animal's answer to someone emoting near it (CreatureSpecies.EmoteReaction).</summary>
     public enum EmoteReaction : byte

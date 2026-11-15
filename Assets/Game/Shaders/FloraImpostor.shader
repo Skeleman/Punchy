@@ -6,6 +6,15 @@ Shader "Punchy/FloraImpostor"
     {
         // Not a real setting: keeps these draws off the SRP Batcher, as Flora.shader's.
         [HideInInspector] _FloraNoBatcher("", Float) = 0
+        // #309: set from code (FloraSystem.SetImpostorMaterial), declared so a reimport in Play mode keeps them where it
+        // can; frames is 0 until set, which is how FloraSystem.KeepImpostorMaterial spots a reset. (The buffers can't be
+        // declared: it sets those again.)
+        [HideInInspector] _ImpostorAlbedo("", 2DArray) = "" {}
+        [HideInInspector] _ImpostorData("", 2DArray) = "" {}
+        [HideInInspector] _ImpostorFrames("", Float) = 0
+        [HideInInspector] _ImpostorFull("", Float) = 0
+        [HideInInspector] _ImpostorPixels("", Float) = 0
+        [HideInInspector] _ImpostorModelBase("", Integer) = 0
     }
     SubShader
     {
