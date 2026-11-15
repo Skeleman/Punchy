@@ -390,3 +390,28 @@ with main d95e7ff1); compiles, no suite run yet.
 - Shots: none (no change from what job 73 measured with the flag).
 - Asks: none. Ready to merge for the 21:00 build.
 - NEXT: R-36 row 1 (cloud shadows in caves), then R-20 row 1.
+
+## R-36 row 1 (#338): no cloud shadows or sunlight under cave roofs (2026-11-14)
+
+- DONE: render/cave-cloudshadow 41254017, from origin/main. Cave.shader and Sky.hlsl only.
+  - Cause: Cave.shader's terrain share (the ground skin it blends in) was lit by the full sun and dimmed by
+    the cloud shadow at any openness. In a shallow tunnel (cave 6, about 6 m under the ground) a wall glowed
+    orange and showed drifting cloud shadows.
+  - Fix: a shared `PunchySkyShade` in Sky.hlsl keeps the sun's share only as far as the sky is overhead
+    (cave openness), cloud-shadowed. The cave's own daylight term takes the same single cloud read. Mouths fade
+    with openness, so they keep sun and cloud.
+  - TerrainSurface, Grass and Pebbles are unchanged: they showed no leak (they sit on open ground).
+- Checks:
+  - Same sequence for before and after (fresh play, noon pinned, Overcast). The cloud field was shifted about
+    540 m by a hook, so only clouds differ.
+    - Cave 12 walls: change 1.12 -> 0.05 grey levels (upper third), 1.35 -> 0.03 (right wall).
+    - Cave 6 tunnel: the sunlit wall is gone (before against after, mean 13 levels). The cloud change is
+      below 1 level on the walls. What is left is cave water, which animates over time.
+    - Cave 6 mouth: unchanged, before against after mean 0.49 levels (wind). Outside cloud shadows unchanged.
+  - NaN: `[sparkle] r36 summary: 360 frames, 0 with markers`.
+  - Suite after the last change: `completed: 40/40 passed`.
+- Shots (milestones folder R-36): `R36-c6-before-after.png`, `R36-c12-before-after.png`,
+  `R36-m6-before-after.png`. Top row before, bottom row after: 4 frames about 6 s apart, and on the right the
+  cloud-shift difference (grey means no change).
+- Asks: none. Merge when convenient.
+- NEXT: R-20 row 1 (High-only 4096 map and wide filter, new branch from origin/main).
