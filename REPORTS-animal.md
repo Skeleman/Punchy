@@ -5018,3 +5018,16 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
   - The dwarf beetle is shadowed by the tundra check at DwarfHold.
   - Bat folk have no Households, so they get no pet.
 - NEXT: row 2. Folk petting animals; Holder = folk needs a rule 11 check.
+
+## 2026-11-14 A-123 row 3: feathers (#356)
+- DONE (verified in play mode, -pose specimens at noon): fauna/body-reads 1ec8c459. Creature.shader, CreatureData.Looks, SurfaceLook.
+  - The feather branch is split from scales (scales unchanged). Contour feathers lie in staggered rows of rounded vanes pointing back along the body, with a thin darker edge on each tip and no hard row seam. Wings and tails get longer, narrower flight feathers with a shaft. Thin parts keep at least 6 (flight 10) feathers around, so flat wings don't tile.
+  - Gloss is low. Dark plumage gets a faint cool lift on each vane's edge and a soft sheen, so the crow reads as layered feathers, not leather.
+  - Which way feathers lie rides the feather code's free high nibble (SurfaceLook.FeatherBody on body/neck/head, FeatherFlight on wings and tails). No new data or wire fields. Pattern and bump fade by the cell's on-screen pixel width.
+- Shots: D:/Unity/PunchyMilestones/A-123/row3-feathers-sheet.jpg shows Crow, Osprey, Duck and Chicken before/after at 2 m side and 6 m back-3/4, plus after at 20 m. Full PNGs are in gallery/row3p-*-{before,after}.png. Zach's read is the pass. The Chicken's coat is random per spawn, so its before and after colours differ (white vs brown).
+- Checks: no shimmer or pattern noise at 6 m or 20 m; the pattern is gone at 20 m. Suite 40 passed, 0 failed, 17 skipped. Fauna pin unchanged at 6C032AE3. NaN 0. No shader errors in the batch log.
+- Render lane: Creature.shader is render-owned; this row edits only its feather branch.
+- BENCH request: the feather branch now does two Noise3 per pixel, was one. Please time Creature pass GPU ms, main vs 1ec8c459, at a bird-heavy spot (a coast with gulls, or a farm with chickens) on Medium and High. Pass: at most +0.1 ms.
+- Host/client: shader and species data on every machine.
+- Risks: the editor reported 2 shader messages just before close, and I could not read them. The batch run showed none. Bird LOD and impostor tiers keep their old flat colour.
+- NEXT: A-124 row 1, per-person builds.
