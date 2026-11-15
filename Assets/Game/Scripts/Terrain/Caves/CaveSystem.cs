@@ -1114,14 +1114,6 @@ namespace Punchy.Terrain
             dripsFrom = default;
         }
 
-        void ReleaseLandmarkPools()
-        {
-            foreach (var pool in landmarkPools)
-                Destroy(pool.Mesh);
-            landmarkPools.Clear();
-            landmarkPoolsFrom = default;
-        }
-
         // The frame timer and its section marks, reused so Update allocates nothing (W-117 GC).
         readonly System.Diagnostics.Stopwatch frameClock = new System.Diagnostics.Stopwatch();
         readonly double[] frameMarks = new double[8];
