@@ -657,7 +657,10 @@ namespace Punchy.Terrain
             return ShapeHeight(xz, shape);
         }
 
-        public float SampleHeight(float2 xz)
+        public float SampleHeight(float2 xz) => Beds(xz, Unbedded(xz));
+
+        /// <summary>The ground height before W-164's garden beds (what a bed levels to, at its centre).</summary>
+        float Unbedded(float2 xz)
         {
             // A loaded heightmap already contains carved channels and landmark shapes.
             if (UsesHeightmap)
@@ -698,6 +701,31 @@ namespace Punchy.Terrain
         }
 
         float Settle(float2 xz, float h) => Settlements.IsCreated ? SettlementSampling.Height(ref Settlements.Value, xz, h) : h;
+
+        /// <summary>
+        /// W-164: landmarks' garden beds levelled into the ground (LandmarkBeds), after everything else, towards the
+        /// unbedded height at each bed's centre, so applying it again changes nothing and a garden set at its spot's
+        /// height sits flat.
+        /// </summary>
+        float Beds(float2 xz, float h)
+        {
+            if (!Landmarks.IsCreated || Landmarks.Value.Beds.Length == 0)
+                return h;
+            ref var set = ref Landmarks.Value;
+            var range = LandmarkSampling.CellRange(ref set, xz);
+            for (int k = range.x; k < range.x + range.y; k++)
+            {
+                ref var inst = ref set.Instances[set.Items[k]];
+                ref var type = ref set.Types[inst.Type];
+                for (int b = 0; b < type.BedCount; b++)
+                {
+                    ref var bed = ref set.Beds[type.FirstBed + b];
+                    if (LandmarkBeds.Reach(inst, type.Radius * inst.Scale, bed, xz, out var centre, out var distance, out var ring))
+                        h = LandmarkBeds.Level(h, Unbedded(centre), distance, bed.Radius, ring);
+                }
+            }
+            return h;
+        }
 
         /// <summary>Height plus biome, river and water information, computed together.</summary>
         public GroundSample SampleGround(float2 xz)
@@ -859,7 +887,7 @@ namespace Punchy.Terrain
             else if (dug > g.Height)
                 g.Height = dug;   // a stepped pool's bank, a little above the ground
             // Settlements keep clear of water, so their levelling doesn't change the water rules above.
-            g.Height = Settle(xz, g.Height);
+            g.Height = Beds(xz, Settle(xz, g.Height));
 
             g.WaterSurface = water;
             g.Flow = flow;
