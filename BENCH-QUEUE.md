@@ -776,6 +776,9 @@ Take the queue in this order. Anything not changed here runs as written in its j
 - **Shelf:** after Zach's playtest I'll shelve the remaining arms on the main PC: 697e565f, 3eeb72d4, 88719cc9,
   c828df2a, 1746d62a, 4cd4edd8, c378a480, 6375c738, 9a1694eb, 3d0c8df2, f1747057, 19012b1f, 13fbd5cf. `shelf.sh get`
   is tried first anyway, so check the shelf before building anything yourself.
+- **Filled 11-15 03:00:** 12 of the 13 are on the shelf. **4cd4edd8 failed** (Burst BC1091 in R-28 row 2: a
+  Shader.PropertyToID call in a static constructor); later commits build fine. Skip arms on 4cd4edd8 or use the next
+  render commit, and say which in your report.
 
 ## Job 77 (2026-11-14, REPORTED 11-14 in REPORTS-profiler.md (q119.job; rim view needs a pose); supervisor, for W-155 row 1, cliffs baseline): scarp bake and canyon chunks
 - Main 697e565f (A) vs `world/scarps` feab6870 (B). Profile builds, 1920x1080, Medium, uncapped, noon, Clear,
