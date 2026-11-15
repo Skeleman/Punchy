@@ -835,3 +835,13 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
   bar: this picks what W-168 row 2 bakes.
 
 - 11-14 note (supervisor): #349 merged to main (5140b48e). Fauna fingerprint re-pinned B2A5823C -> E483FBF0 (creature blob gained lying fields; no placement moved); landmarks 689D5348 unchanged. Re-pin your baseline if a job compares it.
+
+- 11-14 note (supervisor): #353 merged to main (3b192717): at High and Ultra the sun now uses the wide soft-shadow filter and a 4096 map (set at run time; Medium and Low unchanged). Shadow cost at High moves; re-baseline High if a job compares across it.
+
+## Job 88 (2026-11-14, QUEUED after 87; render lane, R-20 row 1, #286): wide sun filter + 4096 map at High
+- main 4df85493 (A) vs main 3b192717 (B, includes #353). Profile builds, 1920x1080, Medium and High, uncapped,
+  12:00, Clear, `-weatherseed 4`, ABBA, 3 rounds, 300 frames each.
+- Views: town 73 centre `-benchspot 2972,-885`; a forest edge `-place OakGrove`; the spawn view.
+- Record: whole-frame GPU ms, the main-light shadow pass ms, shadow map memory, per view and preset.
+- Pass (rule 23): Medium unchanged within noise (B must not touch it); High reported, flag if B adds more than 1.0 ms
+  whole-frame GPU on any view. Also try `-sunshadowfilter medium` at High once on town 73 for a cheaper fallback.
