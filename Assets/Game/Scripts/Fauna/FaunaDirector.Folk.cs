@@ -95,6 +95,7 @@ namespace Punchy.Fauna
                         Settle(ref st, PinHut(home.OwnerIndex, home.Position.xz));
                     }
                     em.SetComponentData(e, st);
+                    ApplyBuild(em, e, false); // (A-124: the hut's Individual now, so its build.)
                     hermits[i] = e;
                     settledCount++;
                 }
@@ -391,6 +392,7 @@ namespace Punchy.Fauna
                     }
                 }
                 SpawnStableHorses(source, i);   // (A-117: after the residents, so none of their draws move)
+                SpawnHouseholdPets(source, i);  // (A-120 row 1: the same, from each house's key)
                 if (jobCounts.Count > 0 || stayFree > 0)
                 {
                     var line = new System.Text.StringBuilder();

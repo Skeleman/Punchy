@@ -70,13 +70,18 @@ namespace Punchy.Fauna
                 }
                 DropAvatar();
             }
+            // (A-124: a new build or height from the Character tab, a new body.)
+            else if (PlayerBuild != avatarBuild && avatarSpecies != null)
+                DropAvatar();
             if (PlayerSpecies == null)
                 return;
             if (avatarQuery.CalculateEntityCount() > 0)
                 return;
             if (!avatarBlob.IsCreated)
-                avatarBlob = CreatureBlobBuilder.Build(PlayerSpecies);
+                avatarBlob = CreatureBlobBuilder.Build(PlayerSpecies, build: PlayerBuild >= 0
+                    ? BodyBuilds.Of(PlayerSpecies.BuildRange, BodyBuilds.PlayerBuild((byte)PlayerBuild)) : BodyBuild.Own);
             avatarSpecies = PlayerSpecies;
+            avatarBuild = PlayerBuild;
             ref var b = ref avatarBlob.Value;
             var e = em.CreateEntity(typeof(CreatureState), typeof(CreatureBody), typeof(PlayerAvatar));
             em.SetName(e, "PlayerBody");
@@ -87,8 +92,8 @@ namespace Punchy.Fauna
                 SegmentCount = b.Segments.Length,
                 Coat = b.PickCoat(rng.NextFloat())
             });
-            // (At the species' middle size: a cat body is cat-sized, an osprey osprey-sized.)
-            var size = (b.Size.x + b.Size.y) * 0.5f;
+            // (At the species' middle size: a cat body is cat-sized, an osprey osprey-sized. A-124: or the height picked.)
+            var size = PlayerBuild >= 0 ? BodyBuilds.PlayerScale(b.Size, (byte)PlayerBuild) : (b.Size.x + b.Size.y) * 0.5f;
             em.SetComponentData(e, new CreatureState
             {
                 Position = player.Position,
@@ -133,6 +138,11 @@ namespace Punchy.Fauna
             em.SetComponentData(bodyEntity, abilities);
         }
 
+        /// <summary>A-124: the local player's build (BodyBuilds.Player), set by NetAvatars from the Character tab; -1 for
+        /// the species' own at its middle size (before NetAvatars has said).</summary>
+        public int PlayerBuild = -1;
+        int avatarBuild = -1;
+
         void DropAvatar()
         {
             if (queryWorld != null && queryWorld.IsCreated)
@@ -168,7 +178,8 @@ namespace Punchy.Fauna
             foreach (var e in ghosts)
             {
                 var net = em.GetComponentData<CreatureNet>(e);
-                var blob = blobs[net.Species];
+                // (A-124: the build its Individual draws, as on the server; its height is in the ghost's Scale.)
+                var blob = BlobFor(net.Species, net.Individual);
                 ref var b = ref blob.Value;
                 var t = em.GetComponentData<LocalTransform>(e);
                 var forward = math.mul(t.Rotation, new float3(0f, 0f, 1f));

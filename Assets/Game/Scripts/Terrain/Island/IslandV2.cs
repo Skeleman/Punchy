@@ -621,7 +621,7 @@ namespace Punchy.Terrain
             source.V3Ground = gen.V3Ground;
             source.BiomeCells = default;
             source.RiverSettings = version == IslandV3.Version ? IslandV3.Rivers(source.RiverSettings) : IslandV2.Rivers(source.RiverSettings);
-            source.Rivers = default; source.Landmarks = default; source.Settlements = default; source.Caves = default; source.BatFolk = default; source.Icebergs = default; source.GrandFalls = default; source.Archipelago = default; source.Scarps = default; source.Anchors = default; source.PondMask = default;
+            source.Rivers = default; source.Landmarks = default; source.Settlements = default; source.Caves = default; source.BatFolk = default; source.Icebergs = default; source.GrandFalls = default; source.Archipelago = default; source.Scarps = default; source.CliffKit = default; source.Anchors = default; source.PondMask = default;
             TerrainAuthoring.BuildPlaces(ref source, biomes, types, palette.Placed ?? new List<PlacedLandmark>(), palette.Roadside ?? new List<RoadsideLandmark>(), Allocator.Persistent, villages: true);
             // #72 (W-87): "-campsitetest <look>" adds one test campsite (debug only; nothing without the flag).
             CampsiteTest.Add(ref source, biomes, types, Allocator.Persistent);
@@ -637,6 +637,9 @@ namespace Punchy.Terrain
             // W-155: scarps last of all, cut into the finished ground, so no place, river or cave is laid out on them.
             source.Scarps = ScarpBake.Build(source, Allocator.Persistent);
             Debug.Log(ScarpBake.LastLog);
+            // W-150: the cliff kit after the scarps, on the finished ground; its own stream, so no place sees it.
+            source.CliffKit = CliffKitBaking.Build(source, biomes, Allocator.Persistent);
+            Debug.Log(CliffKitBaking.LastLog);
             return new BakeResult { Report = gen.Report, TotalMs = watch.ElapsedMilliseconds, GenerateMs = genMs, FallsMs = fallsMs, ArchipelagoMs = archMs };
         }
 
@@ -695,7 +698,7 @@ namespace Punchy.Terrain
                     Free(ref baked.BiomeMap); Free(ref baked.Island); Free(ref baked.V3Ground);
                     Free(ref baked.Rivers); Free(ref baked.Landmarks); Free(ref baked.Settlements); Free(ref baked.Caves);
                     Free(ref baked.BatFolk); Free(ref baked.Icebergs); Free(ref baked.GrandFalls); Free(ref baked.Archipelago); Free(ref baked.Scarps);
-                    Free(ref baked.Anchors); Free(ref baked.PondMask);
+                    Free(ref baked.Anchors); Free(ref baked.PondMask); Free(ref baked.CliffKit);
                 }
                 bakes.Clear();
             }
@@ -728,6 +731,7 @@ namespace Punchy.Terrain
                 source.PondsOn = baked.PondsOn;
                 source.RiverRoughOn = baked.RiverRoughOn;
                 source.PondMask = baked.PondMask;
+                source.CliffKit = baked.CliffKit;
             }
         }
     }
