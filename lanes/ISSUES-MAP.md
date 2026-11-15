@@ -104,3 +104,5 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #352 | fauna | A-122 shut doors block sound, open doors let it through (uses Doors.IsOpen, #351) |
 | #354 | render | R-37 sun shadow bias test sheet (depth vs normal bias, 5 s clips) |
 | #356 | fauna | A-123 folk shoulder joins, dog face, bird feathers (Zach play notes) |
+| #357 | world | W-169 soft puddle edges (graded rim, damp margin) |
+| #358 | fauna | A-124 per-person folk build and gait (one NetPlayerLook field, approved) |

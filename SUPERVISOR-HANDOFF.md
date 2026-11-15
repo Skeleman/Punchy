@@ -343,3 +343,5 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-14: Zach kept the 0.4 s sun step (faster steps still show artifacts); R-32b dropped. Carded R-37 (#354) bias test sheet, 5 s clips per Zach; render does it after R-32 row 2, before rows 3-4.
 - 11-14: opened and merged #355 (R-32 row 2, grass in every shadow tier) -> 244805ae; BENCH job 91 queued. Render next: R-37, then R-32 rows 3-4.
 - 11-14: Zach's look notes (dog face unclear; folk shoulders: goblin arms float, human barely touch, orc sunk; crows leathery) carded as A-123 (#356) for fauna, after A-121 row 2, before A-119.
+- 11-14: Zach: puddles now sit in recesses but edges are hard; carded W-169 (#357) for world (graded rim), queue 3b4.
+- 11-14: Zach said yes to per-person build and gait; carded A-124 (#358) for fauna after A-123. Adds one NetPlayerLook build field (approved; old builds can't join, note for release).
