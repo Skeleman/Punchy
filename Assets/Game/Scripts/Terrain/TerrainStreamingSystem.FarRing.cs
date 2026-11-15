@@ -299,7 +299,8 @@ namespace Punchy.Terrain
                 NormalEpsilon = config.ChunkSize / config.Lod0Quads,
                 SkirtDepth = config.SkirtDepth,
                 HeightRanges = farRanges,
-                WaterRanges = farWaterRanges
+                WaterRanges = farWaterRanges,
+                Clay = ScarpClay.On
             };
             farHandle = IJobParallelForExtensions.Schedule(job, count, 1);
             JobHandle.ScheduleBatchedJobs();
