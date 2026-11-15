@@ -291,6 +291,16 @@ namespace Punchy.Tests
             yield return null;
         }
 
+        /// <summary>W-168: the cave sockets the island file keeps are the ones CaveSockets.Build makes now, cave for cave.</summary>
+        [UnityTest, Order(90)]
+        public IEnumerator CaveSockets_BakedEqualsBuilt()
+        {
+            var problems = Game.Hook<string>("CaveSocketsMatchBuild");
+            LogWatch.Measure($"{LogWatch.Last("[dungeon] caves:") ?? "no dungeon line"}; baked vs built: {(problems == "" ? "every cave the same" : problems)}");
+            Assert.AreEqual("", problems);
+            yield return null;
+        }
+
         /// <summary>The "(x, y, z)" after " at " in a DebugControls line.</summary>
         static Vector3 ParseAt(string line)
         {

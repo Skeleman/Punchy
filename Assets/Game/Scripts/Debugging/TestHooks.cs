@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using Punchy.Ambience;
+using Punchy.Dungeon;
 using Punchy.Fauna;
 using Punchy.Flora;
 using Punchy.Player;
@@ -248,6 +249,34 @@ namespace Punchy.Debugging
             for (int i = 0; i < a.Length; i++)
                 if (a[i] != b[i]) return false;
             return true;
+        }
+
+        /// <summary>W-168: the island's baked cave sockets against CaveSockets.Build run now for each cave: "" when every
+        /// cave's sockets match byte for byte (and tunnels have none), else the first caves that differ.</summary>
+        public static string CaveSocketsMatchBuild()
+        {
+            if (!Source(out var s) || !s.Caves.IsCreated) return "no caves";
+            if (!s.CaveSockets.IsCreated) return "no baked cave sockets";
+            ref var set = ref s.Caves.Value;
+            ref var baked = ref s.CaveSockets.Value;
+            if (baked.Caves.Length != set.Caves.Length) return $"{baked.Caves.Length} ranges for {set.Caves.Length} caves";
+            var problems = new List<string>();
+            for (int cave = 0; cave < set.Caves.Length && problems.Count < 5; cave++)
+            {
+                var range = baked.Caves[cave];
+                if (set.Caves[cave].Tunnel != 0)
+                {
+                    if (range.Count != 0 || range.Tunnel == 0) problems.Add($"tunnel {cave} has sockets");
+                    continue;
+                }
+                var built = CaveSockets.Build(s, cave, s.World.Seed, out var chambers, out var deadEnds);
+                bool same = built.Count == range.Count && chambers == range.Chambers && deadEnds == range.DeadEnds
+                    && TempleSockets.Hash(built) == range.Hash;
+                for (int j = 0; same && j < built.Count; j++)
+                    same = Same(StructBytes(built[j]), StructBytes(baked.Sockets[range.First + j]));
+                if (!same) problems.Add($"cave {cave}: baked {range.Count} sockets hash {range.Hash:X8}, built {built.Count} hash {TempleSockets.Hash(built):X8}");
+            }
+            return string.Join("; ", problems);
         }
 
         /// <summary>W-140: every blob field of TerrainSource that the island file neither saves nor names as not cached

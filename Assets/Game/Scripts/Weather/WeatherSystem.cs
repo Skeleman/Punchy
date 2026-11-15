@@ -32,6 +32,10 @@ namespace Punchy.Weather
         const float ShadowStepDegrees = 0.1f;
         Vector3 heldLightDirection;
         bool heldLightValid;
+        // R-38 row 0 (trial): "-sunstep 0.1" steps the light by time instead, every that many seconds ("-sunstep 0":
+        // every frame). Unset, the angle step above. Read once, on the first step.
+        float sunStepSeconds = -1f, heldLightTime;
+        const float SunJumpDegrees = 2f;
         // R-32 row 3: whether the blue moon is the shadow-casting light, and the shadows' fade for the hand-over.
         const float BlueMoonHandOverSeconds = 2.5f;
         // The blue moon takes the shadows only on a strongly blue night (R-32 row 4): its light must pass this as well
@@ -730,20 +734,38 @@ namespace Punchy.Weather
 
         /// <summary>
         /// The shadow-casting light direction, held until the true direction has turned ShadowStepDegrees away
-        /// (about every 0.4 s at the default day length), then moved to it in one step (R-32).
+        /// (about every 0.4 s at the default day length), then moved to it in one step (R-32). With "-sunstep" (R-38 trial)
+        /// it steps by time instead; a jump of SunJumpDegrees or more is still taken at once.
         /// </summary>
         Vector3 SteppedLightDirection(Vector3 target)
         {
             if (!heldLightValid)
             {
+                sunStepSeconds = SunStepArg();
                 heldLightDirection = target;
+                heldLightTime = Time.time;
                 heldLightValid = true;
                 return target;
             }
             var angle = Vector3.Angle(heldLightDirection, target);
-            if (angle >= ShadowStepDegrees) // also takes any big jump (sun-moon swap, clock set) in one go
+            var step = sunStepSeconds < 0f
+                ? angle >= ShadowStepDegrees // also takes any big jump (sun-moon swap, clock set) in one go
+                : Time.time - heldLightTime >= sunStepSeconds || angle >= SunJumpDegrees;
+            if (step)
+            {
                 heldLightDirection = target;
+                heldLightTime = Time.time;
+            }
             return heldLightDirection;
+        }
+
+        /// <summary>"-sunstep seconds" (R-38 row 0 trial), or -1 (unset: the angle step).</summary>
+        static float SunStepArg()
+        {
+            var args = Punchy.Debugging.DebugControls.LaunchArgs;
+            var i = System.Array.IndexOf(args, "-sunstep");
+            return i >= 0 && i + 1 < args.Length && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var v) ? Mathf.Max(0f, v) : -1f;
         }
 
         /// <summary>
