@@ -505,3 +505,35 @@ with main d95e7ff1); compiles, no suite run yet.
 - Asks: Zach's pick from the clips; the supervisor sets PC_RPAsset. My read: none of the three changes the look
   in stills, so if he sees no difference in the clips, keep 0.1/0.5.
 - NEXT: R-32 rows 3-4 (blue moon as the shadow light, blue-moon nights about one in ten), new branch from origin/main.
+
+## R-32 rows 3-4: blue moon as the shadow light, blue nights about one in ten - DONE (hand-over strip UNVERIFIED)
+- Branch `render/blue-moon-shadow-2`, commit f3cdb4e8 (off origin/main 244805ae; DayNightCycle.cs, WeatherSystem.cs).
+  Not merged.
+  - Row 4: `BlueMoonDays` default 5.3 -> 10. The blue light now follows `BlueMoonStrength` = (cosine fullness of
+    the blue round)^`BlueMoonSharpness` (20), so only the full-blue night is strongly blue. Deterministic from the
+    world clock. The sky disc (BlueMoonLit) is unchanged.
+  - Row 3: when the blue light's luminance beats the big moon's (floor 0.08, about 45% of a full blue moon; 10%
+    hysteresis), the shadowed main light and the unshadowed extra slot swap. Shadow strength fades out over 2.5 s,
+    the swap happens at zero, then it fades back in. During the fade the main intensity eases halfway toward the
+    extra slot's wrapped term (Glow.hlsl 0.85 N.L + 0.15) to hide the swap.
+- Checks:
+  - 30-night table (strength / peak glow): nights 10, 20 and 30 are 1.00. The nights either side peak at 0.22-0.25,
+    nights 1, 9 and 11 are about 0.13, and all others are 0. That's 3 strong nights in 30.
+  - Full blue, big moon new, from 18:00: the swap comes at about 18:30 (blue glow about 0.7). After it, the sun
+    light points along the blue moon (intensity 1.84, colour 0.09/0.19/1) and shadows follow it all night.
+  - Ordinary night (glow 0): the big moon casts, as before. Night before full (glow 0.13): the big moon keeps the
+    shadows (the floor stops a faint blue moon taking them).
+  - Hand-over clip (town, still camera, 120 frames at 10 fps game time). Mean frame-to-frame change at the swap
+    frame against the clip median of 0.82: no ease 7.88 (blue drops 6.4 levels), full ease 6.67 (blue rises 1.6,
+    mostly on walls and roofs facing the moon), half ease (committed) 3.03 (blue drops 2.2). It's a small, soft
+    step, but still a step, and I'd used my one retake, so the strip is UNVERIFIED. Interpolating the three runs
+    puts the zero at about 0.8 of the ease (a one-number change, not yet run).
+  - NaN: `SparkleProbe` with Stop NaN off, across the hand-over: 360 frames, other bad 0 (hot 2).
+  - Suite after the last change: `completed: 40/40 passed`.
+- Shots (milestones folder R-32): `before-/after-town-bluemoon.png`, `before-/after-town-ordinary.png`,
+  `before-/after-trees-bluemoon.png`, `after-town-nightbefore.png`, `after-bluemoonrise-handover.mp4`,
+  `after-handover-strip.png` (frames 44, 64, 74, 83, 84 (swap), 94, 114).
+- Asks: (1) the bench scripts final.sh, look-d3d12.sh and visual.sh pin `-moonphase 0.5 -bluemoondays 0` (full
+  blue), so with this branch the blue moon becomes the shadow light in those benches. The profiler should
+  re-baseline or pin a non-blue day. (2) Should I take the ease to 0.8 and re-clip as a follow-up row?
+- NEXT: R-34 row 1 (wet-stone switch, default off; sheet to the coordinator first).
