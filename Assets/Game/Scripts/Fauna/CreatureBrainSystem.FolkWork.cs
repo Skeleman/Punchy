@@ -1129,6 +1129,54 @@ namespace Punchy.Fauna
             /// <summary>Where the player with this Holder id is, and which way they face (false if they've gone).</summary>
             bool FindHolder(int holder, out float3 position, out float yaw) => FindHolder(holder, out position, out yaw, out _);
 
+            /// <summary>
+            /// A-120: as below, and one of the folk too (a negative Holder, Interactions.FolkHolder), looked for in the
+            /// grid cells round `near` (the animal's own place: its folk is beside it). A folk carrier's species is -1, so
+            /// Hands falls back to the human's hold.
+            /// </summary>
+            bool FindHolder(int holder, float2 near, out float3 position, out float yaw, out int species)
+            {
+                if (!Interactions.ByFolk(holder))
+                    return FindHolder(holder, out position, out yaw, out species);
+                species = -1;
+                if (FindFolkHolder(holder, near, out var j))
+                {
+                    position = States[j].Position;
+                    yaw = States[j].Yaw;
+                    return true;
+                }
+                position = default;
+                yaw = 0f;
+                return false;
+            }
+
+            /// <summary>A-120: the snapshot index of the folk with this Holder key near a place (false if none).</summary>
+            bool FindFolkHolder(int holder, float2 near, out int index)
+            {
+                var c = Cell(near);
+                for (int z = -1; z <= 1; z++)
+                for (int x = -1; x <= 1; x++)
+                {
+                    if (!Grid.TryGetFirstValue(c + new int2(x, z), out var j, out var it))
+                        continue;
+                    do
+                    {
+                        var e = Entities[j];
+                        if (Interactions.FolkHolder(e, Ghosts.HasComponent(e) ? Ghosts[e].ghostId : 0) == holder && !States[j].Gone)
+                        {
+                            index = j;
+                            return true;
+                        }
+                    }
+                    while (Grid.TryGetNextValue(out j, ref it));
+                }
+                index = -1;
+                return false;
+            }
+
+            /// <summary>A-120: this folk's own Holder key, for an animal it pets or carries.</summary>
+            int FolkKey(Entity self) => Interactions.FolkHolder(self, Ghosts.HasComponent(self) ? Ghosts[self].ghostId : 0);
+
             bool FindHolder(int holder, out float3 position, out float yaw, out int species)
             {
                 for (int p = 0; p < PlayerIds.Length; p++)

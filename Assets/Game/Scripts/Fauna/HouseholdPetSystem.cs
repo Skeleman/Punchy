@@ -3,6 +3,8 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
+using Unity.NetCode;
+using Punchy.Terrain;
 
 namespace Punchy.Fauna
 {
@@ -19,6 +21,11 @@ namespace Punchy.Fauna
         /// <summary>The member of its household it is following about, if any, and for how much longer (s).</summary>
         public Entity Following;
         public float FollowLeft;
+        /// <summary>A-120 row 2: the folk coming over to pet it (or crouched petting it), whether the petting has been
+        /// done to it yet, and how long before anyone else will try (s).</summary>
+        public Entity Petter;
+        public bool Petted;
+        public float PetCool;
     }
 
     /// <summary>
@@ -27,6 +34,10 @@ namespace Punchy.Fauna
     /// Individual and the second) picks up one of its own folk near it and follows them about for a minute or few. The
     /// search looks only at the 3 x 3 cells round the pet (the A-112 lazy grid, made the first tick anyone searches),
     /// never the whole world.
+    /// A-120 row 2: by day, folk near a pet may go over and pet it, by their Beasts trait (FolkPersona.BeastsOf: the
+    /// fonder, the likelier; its own household's folk three times as likely, and from further off); those who can't
+    /// abide animals shoo it off instead. The petting itself is done here, to the pet (Interactions.Apply, with the folk's
+    /// key as its Holder: Interactions.FolkHolder), once the folk is crouched by it (the brain's Petting walks it there).
     /// </summary>
     [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation | WorldSystemFilterFlags.ServerSimulation)]
     [UpdateInGroup(typeof(SimulationSystemGroup))]
@@ -39,14 +50,22 @@ namespace Punchy.Fauna
         /// <summary>How near its folk must be to be picked up (m), and how far they may get before it gives up (m).</summary>
         const float FollowPick = 15f, FollowLose = 40f;
         const float CellSize = 16f;
+        /// <summary>A-120 row 2: per second, the chance a folk near a pet (within PetPick, its own folk OwnPetPick) goes
+        /// over to pet it, at the top of the Beasts trait (it goes with the trait squared, and three times for its own
+        /// folk); and the chance one in the bottom band shoos it, when it's within ShooPick.</summary>
+        public const float PetChance = 1f / 40f, ShooChance = 1f / 40f;
+        const float PetPick = 12f, OwnPetPick = 20f, ShooPick = 5f;
+        /// <summary>How long after being petted or shooed before anyone else tries (s).</summary>
+        const float PetCoolMin = 30f, PetCoolMax = 60f;
 
-        /// <summary>Debug tests: 1 every follow roll passes.</summary>
+        /// <summary>Debug tests: 1 every follow roll passes, 2 every petting (or shooing) roll.</summary>
         public static readonly SharedStatic<int> Force = SharedStatic<int>.GetOrCreate<ForceKey>();
         struct ForceKey { }
 
         ComponentLookup<CreatureState> states;
         ComponentLookup<HouseholdPet> pets;
         ComponentLookup<CreatureBody> bodies;
+        ComponentLookup<GhostInstance> ghosts;
         EntityQuery petQuery, creatures;
         float wait;
 
@@ -57,9 +76,11 @@ namespace Punchy.Fauna
             creatures = SystemAPI.QueryBuilder().WithAll<CreatureState, CreatureBody>().WithNone<DungeonPost>().Build();
             state.RequireForUpdate(petQuery);
             state.RequireForUpdate<FaunaClock>();
+            state.RequireForUpdate<TerrainSource>();
             states = state.GetComponentLookup<CreatureState>();
             pets = state.GetComponentLookup<HouseholdPet>();
             bodies = state.GetComponentLookup<CreatureBody>(true);
+            ghosts = state.GetComponentLookup<GhostInstance>(true);
         }
 
         [BurstCompile]
@@ -72,6 +93,7 @@ namespace Punchy.Fauna
             states.Update(ref state);
             pets.Update(ref state);
             bodies.Update(ref state);
+            ghosts.Update(ref state);
             var petList = petQuery.ToEntityListAsync(state.WorldUpdateAllocator, state.Dependency, out var a);
             var all = creatures.ToEntityListAsync(state.WorldUpdateAllocator, state.Dependency, out var b);
             state.Dependency = new PetJob
@@ -81,6 +103,8 @@ namespace Punchy.Fauna
                 States = states,
                 PetData = pets,
                 Bodies = bodies,
+                Ghosts = ghosts,
+                Terrain = SystemAPI.GetSingleton<TerrainSource>(),
                 Night = SystemAPI.GetSingleton<FaunaClock>().Night,
                 Force = Force.Data
             }.Schedule(JobHandle.CombineDependencies(a, b, state.Dependency));
@@ -93,6 +117,8 @@ namespace Punchy.Fauna
             public ComponentLookup<CreatureState> States;
             public ComponentLookup<HouseholdPet> PetData;
             [ReadOnly] public ComponentLookup<CreatureBody> Bodies;
+            [ReadOnly] public ComponentLookup<GhostInstance> Ghosts;
+            [ReadOnly] public TerrainSource Terrain;
             public float Night;
             public int Force;
 
@@ -105,10 +131,25 @@ namespace Punchy.Fauna
                     var e = Pets[i];
                     var s = States[e];
                     var p = PetData[e];
-                    if (s.Gone || s.Holder != 0 || Busy(s))
+                    p.PetCool = math.max(p.PetCool - Every, 0f);
+                    // (Being gone over to, or petted, by one of the folk: its own step, before Busy, as Petted is busy.)
+                    if (p.Petter != Entity.Null)
+                    {
+                        Tend(e, ref s, ref p);
+                        States[e] = s;
+                        PetData[e] = p;
                         continue;
+                    }
+                    if (s.Gone || s.Holder != 0 || Busy(s))
+                    {
+                        PetData[e] = p;
+                        continue;
+                    }
                     if (Night > 0.5f)
                         Bedtime(ref s, ref p);
+                    else if (p.PetCool <= 0f && Pottering(s) && Petters(e, ref s, ref p, ref grid, near))
+                    {
+                    }
                     else if (p.Following != Entity.Null)
                         Follow(ref s, ref p);
                     else if ((Force & 1) != 0 || Roll(s.Individual, (uint)s.Clock, 0x46u) < FollowChance)
@@ -247,6 +288,114 @@ namespace Punchy.Fauna
                     return;
                 p.Following = best;
                 p.FollowLeft = 60f + Roll(s.Individual, (uint)s.Clock, 0x47u) * 120f;
+            }
+
+            /// <summary>One of the folk who could stop for an animal: about on its own (walking or standing, not talking,
+            /// keeping a post, reading a letter), with hands, not a ghost. (One on its way to a seat may stop too: it
+            /// decides afresh after. Not one walking to work: a chat keeps that walk to pick up again, this can't.)</summary>
+            static bool PetFree(in CreatureState m, ref CreatureBlob b) =>
+                b.Upright && b.Hands && !b.Haunts && !m.Gone && m.Leash > 0f && m.ChatRole == 0 &&
+                m.Task != CreatureTask.Patrol && m.Task != CreatureTask.Watch && m.Held != HeldItem.Letter &&
+                (m.Mode == CreatureMode.Wander || m.Mode == CreatureMode.Idle && m.Stage < CreatureAnimator.MessageWait ||
+                 m.Mode == CreatureMode.Sit && m.Stage == 0);
+
+            /// <summary>
+            /// A-120 row 2: whether any of the folk near it (3 x 3 cells) stops for it this second, by their Beasts trait:
+            /// the nearest whose roll passes goes over to pet it (the pet waits for them), or, one in the bottom band and
+            /// not its own folk, shoos it off. True when someone did.
+            /// </summary>
+            bool Petters(Entity self, ref CreatureState s, ref HouseholdPet p, ref NativeParallelMultiHashMap<int2, int> grid, NativeList<int> near)
+            {
+                Near(s.Position.xz, ref grid, near);
+                var best = Entity.Null;
+                var bestD = float.MaxValue;
+                var shoo = false;
+                for (int k = 0; k < near.Length; k++)
+                {
+                    var o = All[near[k]];
+                    if (o == self)
+                        continue;
+                    var m = States[o];
+                    var body = Bodies[o];
+                    if (!PetFree(in m, ref body.Blob.Value))
+                        continue;
+                    var own = !math.all(m.OwnDoor.xz == float2.zero) && math.all((int2)math.round(m.OwnDoor.xz * 2f) == p.Door);
+                    var d = math.distancesq(m.Position.xz, s.Position.xz);
+                    var reach = own ? OwnPetPick : PetPick;
+                    if (d > reach * reach || d >= bestD)
+                        continue;
+                    var beasts = FolkPersona.BeastsOf(m.Individual);
+                    var hates = FolkPersona.Band(beasts) == 0 && !own;
+                    if (hates && d > ShooPick * ShooPick)
+                        continue;
+                    var chance = hates ? ShooChance * (1f - 3f * beasts) : PetChance * beasts * beasts * (own ? 3f : 1f);
+                    if ((Force & 2) == 0 && Roll(m.Individual, (uint)s.Clock, 0x50u) >= chance)
+                        continue;
+                    best = o;
+                    bestD = d;
+                    shoo = hates;
+                }
+                if (best == Entity.Null)
+                    return false;
+                var f = States[best];
+                SetMode(ref f, CreatureMode.Idle);
+                f.Partner = self;
+                if (shoo)
+                {
+                    // Flapped off: it scuttles a few metres away, and leaves people be a while.
+                    f.Stage = CreatureAnimator.PetShoo;
+                    f.Timer = 2.5f;
+                    SetMode(ref s, CreatureMode.Flee);
+                    var away = math.normalizesafe(s.Position.xz - f.Position.xz, new float2(1f, 0f));
+                    s.Target = s.Position.xz + away * 7f;
+                    s.Focus = f.Position.xz;
+                    s.Timer = 3f;
+                    p.PetCool = PetCoolMin + Roll(s.Individual, (uint)s.Clock, 0x51u) * (PetCoolMax - PetCoolMin);
+                }
+                else
+                {
+                    // Over to it; the pet stops where it is and waits for them (Tend keeps it waiting).
+                    f.Stage = CreatureAnimator.PetGo;
+                    f.Timer = 20f;
+                    SetMode(ref s, CreatureMode.Idle);
+                    s.Timer = 5f;
+                    p.Petter = best;
+                    p.Petted = false;
+                }
+                States[best] = f;
+                return true;
+            }
+
+            /// <summary>
+            /// A-120 row 2: one of the folk on its way to pet it, or crouched by it. Waiting for them; once they're down by
+            /// it, the petting (Interactions.Apply, Holder their key: a wary pet may walk off instead); and when they've
+            /// stood again, or gone off to something else, free (and left alone a while).
+            /// </summary>
+            void Tend(Entity self, ref CreatureState s, ref HouseholdPet p)
+            {
+                var gone = !States.HasComponent(p.Petter);
+                var f = gone ? default : States[p.Petter];
+                var busy = !gone && !f.Gone && f.Mode == CreatureMode.Idle && f.Partner == self &&
+                           (f.Stage == CreatureAnimator.PetGo || f.Stage == CreatureAnimator.PetCrouch);
+                if (!busy)
+                {
+                    p.Petter = Entity.Null;
+                    p.PetCool = PetCoolMin + Roll(s.Individual, (uint)s.Clock, 0x52u) * (PetCoolMax - PetCoolMin);
+                    return;
+                }
+                if (f.Stage == CreatureAnimator.PetGo)
+                {
+                    // (Waiting where it is, unless something else took it: it isn't held to it.)
+                    if (s.Mode == CreatureMode.Idle)
+                        s.Timer = math.max(s.Timer, 2f);
+                    return;
+                }
+                if (p.Petted || f.ActionTime < 0.1f || s.Gone || s.Holder != 0 || s.Mode == CreatureMode.Flee || s.Mode == CreatureMode.Held)
+                    return;
+                p.Petted = true;
+                var key = Interactions.FolkHolder(p.Petter, Ghosts.HasComponent(p.Petter) ? Ghosts[p.Petter].ghostId : 0);
+                var body = Bodies[self];
+                Interactions.Apply(ref s, ref body.Blob.Value, Terrain, InteractAct.Pet, key, f.Position, f.Yaw, true);
             }
 
             /// <summary>A roll 0..1 from an individual and a moment (seconds, whole).</summary>

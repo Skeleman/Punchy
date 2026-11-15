@@ -746,8 +746,9 @@ namespace Punchy.Fauna
         /// <summary>The cave it roosts in (-1 = none), and the passage node its roost is at.</summary>
         public short LairCave, LairNode;
         /// <summary>Who is petting or carrying it, or what it rides (A-104). Positive: its holder (Interactions.HolderId).
-        /// Negative: it is riding, and this is minus the mount's ghost id (Riding.SoloMount in a solo world, which has no
-        /// ghosts). 0 = neither. Read it through Riding.Mount/Dismount rather than by hand.</summary>
+        /// Negative: in Mode Ride, it is riding, and this is minus the mount's ghost id (Riding.SoloMount in a solo world,
+        /// which has no ghosts); in Mode Held or Petted, one of the folk has it, and this is minus that folk's ghost id
+        /// (Interactions.FolkHolder; A-120). 0 = neither. Read it through Riding.Mount/Dismount rather than by hand.</summary>
         public int Holder;
         /// <summary>What it has in hand (folk: a lantern at night). Replicated; each machine draws it.</summary>
         public HeldItem Held;

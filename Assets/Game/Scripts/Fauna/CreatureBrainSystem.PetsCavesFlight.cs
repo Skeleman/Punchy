@@ -24,7 +24,7 @@ namespace Punchy.Fauna
             void Petted(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, ref float sit, ref float bow, ref float desiredLook)
             {
                 s.Timer -= dt;
-                var hasPerson = FindHolder(s.Holder, out var person, out _);
+                var hasPerson = FindHolder(s.Holder, s.Position.xz, out var person, out _, out _);
                 if (s.Timer <= 0f || !hasPerson || math.distance(person.xz, s.Position.xz) > Interactions.Reach + 1.5f)
                 {
                     s.Holder = 0;
@@ -73,7 +73,7 @@ namespace Punchy.Fauna
             void Held(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt)
             {
                 s.Speed = 0f;
-                if (!FindHolder(s.Holder, out var holder, out var yaw, out var holderSpecies))
+                if (!FindHolder(s.Holder, s.Position.xz, out var holder, out var yaw, out var holderSpecies))
                 {
                     Interactions.PutDown(ref s, Terrain, s.Position, ref rng);
                     return;
