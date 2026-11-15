@@ -46,8 +46,12 @@ namespace Punchy.Weather
         [Tooltip("Days from one full moon to the next. Day 0 (a fresh launch) is a full moon.")]
         [Range(2, 30)] public int LunarDays = 8;
         [Tooltip("The second, smaller blue moon: days for it to come round to the same place against the sun again " +
-                 "(so it is full, new and beside the big moon at its own pace).")]
-        [Range(2f, 30f)] public float BlueMoonDays = 5.3f;
+                 "(so it is full, new and beside the big moon at its own pace). About ten, so a blue night comes " +
+                 "about one night in ten (Zach 11-14).")]
+        [Range(2f, 30f)] public float BlueMoonDays = 10f;
+        [Tooltip("How steeply the blue moon's light rises towards full: its light is its fullness to this power, so " +
+                 "only the night of the full blue moon is strongly blue and the nights either side get little (R-32 row 4).")]
+        [Range(1f, 60f)] public float BlueMoonSharpness = 20f;
         [Tooltip("How far the blue moon's path tilts from the sun's (degrees), so it rides higher or lower than the big moon.")]
         [Range(0f, 40f)] public float BlueMoonTilt = 18f;
         [Tooltip("The blue moon's faint light at night (added to the ambient when it's up and full).")]
@@ -82,7 +86,8 @@ namespace Punchy.Weather
         public Vector3 BlueMoonDirection { get; private set; }
         /// <summary>The share of the blue moon's face lit by the sun (from where it is against the sun), 0..1.</summary>
         public float BlueMoonLit { get; private set; }
-        /// <summary>How much the blue moon lights the night: its lit share while it's above the horizon, 0..1.</summary>
+        /// <summary>How much the blue moon lights the night, 0..1: its fullness to the power BlueMoonSharpness (so only
+        /// the night round the full blue moon is strongly blue), while it's above the horizon.</summary>
         public float BlueMoonGlow { get; private set; }
 
         /// <summary>Command line: -moonphase 0..1 pins the big moon's phase and -bluemoondays d the blue moon's place
@@ -151,7 +156,7 @@ namespace Punchy.Weather
             var blueLocal = new Vector3(Mathf.Cos(blueAngle), Mathf.Sin(blueAngle) * Mathf.Cos(tilt), -Mathf.Sin(blueAngle) * Mathf.Sin(tilt));
             BlueMoonDirection = (Quaternion.Euler(0f, SunriseAzimuth - 90f, 0f) * Quaternion.Euler(BlueMoonTilt, 0f, 0f) * blueLocal).normalized;
             BlueMoonLit = 0.5f - 0.5f * Vector3.Dot(BlueMoonDirection, SunDirection);
-            BlueMoonGlow = BlueMoonLit * Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0f, 0.15f, BlueMoonDirection.y));
+            BlueMoonGlow = BlueMoonStrength(blueDays) * Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0f, 0.15f, BlueMoonDirection.y));
 
             var key = SunDirection.y * 0.5f + 0.5f;
             ClearZenith = Zenith.Evaluate(key);
@@ -180,6 +185,18 @@ namespace Punchy.Weather
                 LightColor = MoonColor;
                 LightStrength = moonStrength;
             }
+        }
+
+        /// <summary>
+        /// R-32 row 4 (Zach 11-14): how strongly the blue moon lights the land at a moment (days since the start),
+        /// before its height in the sky: 1 at full, falling steeply either side, so a strongly blue night comes about
+        /// once a round. Only the world clock goes in, so every player gets the same nights. The disc in the sky still
+        /// shows its true lit share (BlueMoonLit).
+        /// </summary>
+        public float BlueMoonStrength(float blueDays)
+        {
+            var fullness = 0.5f + 0.5f * Mathf.Cos(Mathf.PI * 2f * blueDays / BlueMoonDays);
+            return Mathf.Pow(fullness, BlueMoonSharpness);
         }
 
         static Gradient Make(params (float time, Color color)[] keys)
