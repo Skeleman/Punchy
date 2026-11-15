@@ -6,6 +6,7 @@ keeps this file; lanes read it only when a card names a section. Before carding 
 
 Standing: the aim and its priorities are in COORDINATION.md. The layout is a test bed and may change
 (`lanes/shared/world-data.md`). Core tenet: small, varied, seeded details everywhere, kept sparse.
+One system per kind of thing (rule 33): every entry below extends an existing system and its whole family.
 
 Status words: **Shipped** (on main), **In flight** (a card or branch is working on it), **Next** (carded or
 asked, not started), **Later** (idea only). Updated 11-15 against main and merged PRs.

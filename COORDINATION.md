@@ -74,6 +74,7 @@ Numbers are stable; cards cite them. Rules with no module are complete as writte
 | 30 | One effects kit: effects come from the shared kit, never one-offs | rendering.md |
 | 31 | No branch goes unmerged: the supervisor opens a PR (draft if it waits) for every branch with a DONE handoff, and sweeps unmerged branches daily (`BRANCH-TRIAGE.md`) | |
 | 32 | Issues stay true: every card and handoff names its issue; the supervisor, in the same turn as each merge, closes the issue or comments what is left, updates the ROADMAP-IDEAS status and logs PLAYTEST.md; when Zach reports something, search open issues first and comment on a match rather than open a duplicate; epics close once the base ships, with the rest moved to ROADMAP-IDEAS or a child issue; the `punchy-sync` audit runs after every merge batch and at least daily | lanes/ISSUES-MAP.md |
+| 33 | One system per kind of thing: what appears in several places shares one implementation; cards name the system they extend and carry a feature across its whole family | design.md |
 
 Rules 10 and 12c are retired (replaced by 15 and by 21 + 23).
 
