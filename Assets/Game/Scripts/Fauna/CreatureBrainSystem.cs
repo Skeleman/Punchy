@@ -160,6 +160,9 @@ namespace Punchy.Fauna
         struct SpreadOnKey { }
         /// <summary>Per job worker (ThreadIndex): busy ticks, first start, last end, of the last brain job.</summary>
         NativeArray<long> spreadTicks;
+        /// <summary>A-121: empty stand-ins for FireSpots in a world without the list (a job can't carry unmade ones).</summary>
+        NativeArray<FireSpot> noFires;
+        NativeParallelMultiHashMap<int2, int> noFireCells;
         /// <summary>A-70: settlements and landmarks are baked once a player is within this (m) of their edge: past the
         /// brain LOD's range, so a creature that thinks every frame near a player always finds its walls baked.</summary>
         const float FootprintRange = 200f;
@@ -181,6 +184,8 @@ namespace Punchy.Fauna
             footprintTowns = new NativeHashSet<int>(16, Allocator.Persistent);
             footprintLandmarkSet = new NativeHashSet<int>(64, Allocator.Persistent);
             spreadTicks = new NativeArray<long>(Unity.Jobs.LowLevel.Unsafe.JobsUtility.ThreadIndexCount * 3, Allocator.Persistent);
+            noFires = new NativeArray<FireSpot>(0, Allocator.Persistent);
+            noFireCells = new NativeParallelMultiHashMap<int2, int>(1, Allocator.Persistent);
         }
 
         [BurstCompile]
@@ -201,6 +206,10 @@ namespace Punchy.Fauna
                 footprintLandmarkSet.Dispose();
             if (spreadTicks.IsCreated)
                 spreadTicks.Dispose();
+            if (noFires.IsCreated)
+                noFires.Dispose();
+            if (noFireCells.IsCreated)
+                noFireCells.Dispose();
         }
 
         /// <summary>A-70 row 2: adds the last brain job's spread over the workers to Spread, and clears it for this one.</summary>
@@ -395,6 +404,8 @@ namespace Punchy.Fauna
             {
                 Terrain = terrain,
                 Footprints = footprints,
+                Fires = SystemAPI.TryGetSingleton<FireSpots>(out var fires) && fires.Spots.IsCreated && fires.Cells.IsCreated
+                    ? fires : new FireSpots { Spots = noFires, Cells = noFireCells, On = false },
                 ColossusColumns = colossi.Columns,
                 ColossusCircles = colossi.Circles,
                 ColossusRanges = colossi.Ranges,
@@ -485,6 +496,8 @@ namespace Punchy.Fauna
             public TerrainSource Terrain;
             /// <summary>A-70: buildings' and landmark props' walls, placed once (Walled and BuildingSink ask it).</summary>
             public BuildingFootprints Footprints;
+            /// <summary>A-121: the fires walkers keep out of (FireSpotSystem's list, by 16 m cell).</summary>
+            public FireSpots Fires;
             /// <summary>A-77: the colossi's columns, each colossus's circle (xy centre, z reach) and its run of columns
             /// (ColossusCollision.Snapshot, a frame old): Steer bends a ground walker's way round them.</summary>
             [ReadOnly] public NativeArray<ColossusCylinder> ColossusColumns;
@@ -1703,6 +1716,7 @@ namespace Punchy.Fauna
                 var landBound = (b.Habitat == Habitat.Land || flier) && !CaveWalker(s, ref b);
                 var blocked = b.Crawls && CaveWalker(s, ref b) ? false : CaveWalker(s, ref b) ? s.Speed > 0.05f && !CaveFloor(ahead, s.Position.y)
                                             : s.Speed > 0.05f && !Walkable(ahead, b.Habitat);
+                if (blocked && landBound && SteerRoundFire(ref s, ref b, forward, ahead, dt)) blocked = false;   // A-121
                 // Folk out swimming keep to the water while they swim, and wade out onto the bank when they're done.
                 if (s.Mode == CreatureMode.Swim && s.Stage >= 1)
                 {
