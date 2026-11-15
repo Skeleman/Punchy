@@ -2,6 +2,22 @@
 
 Newest first.
 
+## Job 85: W-155 row 2 scarp debris and end outcrops (world/scarps 13fbd5cf = B vs 19012b1f = A), 2026-11-15 (q127.job): PASS on GPU at the canyon toe (-0.27); main thread +0.64 there; my river view was under water
+**Setup:** shelf builds (runner checked), Medium, 1920x1080, uncapped, 10:00, Clear, arms alternated, 3 rounds. Views: the canyon toe via `-benchface -1530,1790,10` (standing at -1522,1784, yaw -56, pitch -21, facing the wall), the river cut via `-benchface -878,-1462,15`, and a far view 300 m over (800,164) facing west with both scarps in frame. Shots: results/sheets/scarp_debris.jpg.
+
+| view | A GPU | B GPU | **delta** | A main | B main | **main delta** |
+|---|---|---|---|---|---|---|
+| canyon toe, 10 m | 10.23 | 9.97 | -0.27 | 11.13 | 11.77 | **+0.64** |
+| river cut, 15 m | 12.1 | 12.0 | -0.10 | 12.63 | 12.77 | +0.14 |
+| far, 300 m up | 9.4 | 9.57 | +0.17 | 11.23 | 11.57 | +0.34 |
+
+- **Rule 23 (B within 0.3 ms GPU of A): PASS** at every view. At the toe the debris blocks fill the foreground on B (the sheet) and GPU reads lower, not higher.
+- **Main thread +0.64 ms at the toe** (+0.34 far): not part of the card's bar, but worth a look; ScarpDebrisSystem has no marker of its own in these runs, so a Profiler pass would be needed to name it.
+- **River cut: not a real view.** `-benchface` stood the player 15 m "downhill" of the bank, which is in the river: the shot is under water. Treat its numbers as a non-reading; a bank-top spot facing across would do.
+- **Bake and counts (logs):** B "373 debris blocks in 16 groups"; scarps bake 136 ms on B vs 147 ms on A. Draw calls and triangles for ScarpDebrisSystem / ScarpSkinSystem aren't printed at run time; ground detail counts near the scarps aren't either.
+
+Cost: laptop total $918 (laptop session e163d8ab; 0 builds (shelf), 18 games).
+
 ## Job 84: A-113 denser, more varied temperate woods (flora/tree-variety ac7880fc = B vs main 1746d62a = A), 2026-11-15 (q126.job): FAIL in the oak grove (+0.7 ms GPU); my other spots aren't good temperate-wood views
 **Setup:** Medium, 1920x1080, uncapped, 10:00, Clear, arms alternated, 3 rounds. A from the shelf, B built here. The card names its spots only in the lane's shots (no coordinates), so I chose: inside the oak grove (`-place OakGrove`), the lakeshore meadow (`-benchspot 470,1840`), 30 m over (1740,3390), and 280 m over (2200,-2600) facing R-22's fly300 target. Shots: results/sheets/woods.jpg.
 
