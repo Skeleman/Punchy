@@ -46,6 +46,12 @@ namespace Punchy.Fauna
         public int Away, Guests;
         /// <summary>The horses in its paddock now.</summary>
         public int Present => Horses - Away + Guests;
+        /// <summary>A-120 row 1: the pet the household keeps (its species' name, null for none), the word its folk call
+        /// it by ("cat", "hen"), and its Individual, all from the key (FaunaDirector.AssignPets), so every machine knows
+        /// it by the same name.</summary>
+        public string Pet, PetWord;
+        public uint PetIndividual;
+        public string PetName => FolkNames.PetOf(PetIndividual) ?? "?";
         internal uint Taken, Pinned, Lost;
 
         public string NameOf(int member) => FolkNames.Of(Members[member].Individual) ?? "?";
@@ -168,9 +174,17 @@ namespace Punchy.Fauna
     public static class FolkNames
     {
         [System.Serializable]
-        class NameFile { public string[] feminine, masculine, either; }
+        class NameFile { public string[] feminine, masculine, either, pets; }
 
-        static string[] feminine, masculine;
+        static string[] feminine, masculine, pets;
+
+        /// <summary>A-120: a household pet's name, from its Individual (the pets list).</summary>
+        public static string PetOf(uint individual)
+        {
+            if (feminine == null)
+                Load();
+            return pets.Length > 0 ? pets[BiomeSampling.Scramble(individual ^ 0x50455421u) % (uint)pets.Length] : null;
+        }
 
         /// <summary>Whether a folk is feminine (she) or masculine (he), from its Individual.</summary>
         public static bool Feminine(uint individual) => (BiomeSampling.Scramble(individual ^ 0x53455821u) & 1u) != 0;
@@ -185,11 +199,12 @@ namespace Punchy.Fauna
 
         static void Load()
         {
-            feminine = masculine = System.Array.Empty<string>();
+            feminine = masculine = pets = System.Array.Empty<string>();
             try
             {
                 var read = JsonUtility.FromJson<NameFile>(File.ReadAllText(Path.Combine(Application.streamingAssetsPath, "folk-names.json")));
                 var either = read?.either ?? System.Array.Empty<string>();
+                pets = read?.pets ?? System.Array.Empty<string>();
                 feminine = Concat(read?.feminine, either);
                 masculine = Concat(read?.masculine, either);
             }
@@ -331,6 +346,7 @@ namespace Punchy.Fauna
                 var d = math.distancesq(x.Door.xz, c).CompareTo(math.distancesq(y.Door.xz, c));
                 return d != 0 ? d : x.Key.CompareTo(y.Key);
             });
+            AssignPets(source, list);   // (A-120 row 1)
             Households.Set(list);
             var members = 0;
             foreach (var h in list)
