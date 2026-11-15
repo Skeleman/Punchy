@@ -15,6 +15,12 @@ MonoBehaviour:
   Role: 0
   VariantOf: {fileID: 0}
   VariantScale: 1
+  BuildRange:
+    Height: 0.05
+    Girth: 0.12
+    Limbs: 0.06
+    Head: 0.06
+    Shoulders: 0.1
   BodyLength: 0.24
   BodyRadius: 0.12
   BodyTaper: 1
@@ -431,3 +437,4 @@ MonoBehaviour:
     Value: -0.4
     Rival: 0
   RegardToAll: -0.3
+  Vision: 1

@@ -424,6 +424,10 @@ namespace Punchy.Fauna
             ColossusCollision.Register(slot, roots[slot], def.Kind.ToString(), follow, def.CollisionFollowRadius, leave);
             // R-6 row 2: far levels by the size-on-screen rule, built on workers from the meshes just made.
             ColossusLod.Attach(roots[slot], def.Kind.ToString(), GlowMaterial);
+            // A-107 (#276): its climb sections graded on the columns, and drawn on the meshes (after the far levels are
+            // built, which leave the details out: they're drawn only near).
+            ColossusCollision.Mark(slot, def.ClimbSections);
+            ColossusClimbDetails.Build(slot, roots[slot], (uint)source.World.Seed ^ def.Salt, follow, leave);
             Debug.Log($"StoneColossi: {def.Kind} placed at ({spot.x:F0}, {Positions[slot].y:F1}, {spot.y:F0}), facing {pickYaw[slot]:F0} degrees, region {pickCells[slot]} cells, relief {Relief(source, spot, def.KeepRadius * 0.7f):F1} m");
         }
 

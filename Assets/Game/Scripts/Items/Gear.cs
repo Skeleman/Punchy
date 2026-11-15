@@ -393,7 +393,8 @@ namespace Punchy.Items
             ref var blob = ref em.GetComponentData<CreatureBody>(body).Blob.Value;
             var wears = blob.Upright && blob.Hands;
             var held = wears ? HeldFor(hand) : HeldItem.None;
-            var bits = wears ? WornBits(g.Head, g.Back) : (byte)0;
+            // (A player's eyewear bits are NetAvatars', kept as they are: A-103 row 5.)
+            var bits = (byte)((wears ? WornBits(g.Head, g.Back) : 0) | (s.Worn & CreatureWorn.Eyes));
             var outfit = wears ? new CreatureOutfit { Head = Look(g.Head), Body = Look(g.Body), Legs = Look(g.Legs), Feet = Look(g.Feet), Back = Look(g.Back), Neck = Look(g.Neck) } : default;
             var weapon = wears && hand != Nothing ? ItemTable.Items[hand].Weapon : CreatureWeapon.None;
             var swing = weapon != CreatureWeapon.None ? SwingByte(swung, ItemTable.Items[hand].Speed) : (byte)0;

@@ -11,7 +11,7 @@ namespace Punchy.Debugging
         /// <summary>"-playerdive" (A-102 row 3): the player put in deep water dives, rises and runs out of breath.</summary>
         bool playerDive;
         /// <summary>"-playerdive water": the player's body is made a water breather (PlayerBody.BreathesWater) as it goes
-        /// in, standing in for a sea folk body until one is playable (A-103).</summary>
+        /// in; "-pickspecies SeaFolk -playerdive" tests a real sea folk body (A-103 row 4).</summary>
         bool pdWater;
         /// <summary>"-playerdive [water] follow" (A-102 row 3b): the player's own camera (ThirdPersonCamera) follows the
         /// dive, no side shot camera, and each second's log says whether its lens is under (Underwater.LensUnder).</summary>

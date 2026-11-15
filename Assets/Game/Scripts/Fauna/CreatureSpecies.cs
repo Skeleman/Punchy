@@ -25,6 +25,9 @@ namespace Punchy.Fauna
         [Min(0.1f)] public float VariantThickness = 1f;
         [Tooltip("Variants only: leg length relative to the body it's based on (children: shorter, about 0.8).")]
         [Min(0.1f)] public float VariantLegs = 1f;
+        [Tooltip("A-124: how far one individual's build strays from this species' (or variant's) own: picked per " +
+                 "individual on every machine. Narrow for animals; folk wider, their children about half.")]
+        public BuildRange BuildRange = BuildRange.Narrow;
 
         [Header("Body")]
         [Tooltip("Length of the torso, nose-end to tail-end of the trunk, in metres.")]
@@ -105,6 +108,9 @@ namespace Punchy.Fauna
         [Tooltip("How long it can hold its breath under water, in seconds, before it must come up for air (A-102). 0 = " +
                  "worked out (Breath.DefaultHold): folk 30, animals that swim across water 20, waterfowl 12, others 8.")]
         [Min(0f)] public float HoldBreath;
+        [Tooltip("How its eyes take the light as a player's body (A-103 row 5, BatVision): 0 normal; 1 a bat's, caves and " +
+                 "night bright but the open midday sun a glare. Glasses (Eyewear) make it 0, glow goggles 1. Not baked.")]
+        [Range(0f, 1f)] public float Vision;
 
         [Header("Activities (each species' own, variants included)")]
         [Tooltip("When it's awake: it sleeps through the rest of the day. Always = naps now and then.")]
@@ -183,9 +189,11 @@ namespace Punchy.Fauna
         [Tooltip("Walks on hooves (horses, deer, goats, cattle): a clop on hard ground. Others' feet are padded or shod. " +
                  "Variants take their body's.")]
         public bool Hooves;
-        [Tooltip("What a player in this body can climb: trees (monkeys, cats, bears, squirrels) or any surface (lizards, " +
-                 "spiders). Left at None it follows Crawls (any surface) and Climbing (trees). Variants take their body's.")]
-        public ClimbAbility ClimbsAs;
+        [Tooltip("Its climbing skill (A-101, Climbing): it climbs a section whose grade is at most this, faster the more it " +
+                 "has to spare. 5 any surface (lizards, spiders), 4 craggy rock, 3 trees (monkeys, cats, bears, squirrels), " +
+                 "2 vines and ropes (humanoids), 1 ladders, 0 nothing. Left at -1 it follows Crawls (5), Climbing (3) and " +
+                 "hands (2). Variants take their body's.")]
+        [Range(-1, 5)] public int ClimbSkill = -1;
         [Tooltip("What it does when someone near emotes at it (a wave, a bow, a cheer, a dance). Default: friendly ones " +
                  "come over wagging, ones that run from people run sooner, the rest pay no heed.")]
         public EmoteReaction EmoteReaction;
@@ -204,6 +212,11 @@ namespace Punchy.Fauna
         public bool Friendly;
         [Tooltip("Lives in lava (with habitat Swims): keeps to lava, never water, and comes up to bask at its surface.")]
         public bool LavaDweller;
+        [Tooltip("A-121 row 2: how it takes to a lit fire. Auto: folk use fires, friendly animals (dogs) keep a short way " +
+                 "off, cold-blooded ones bask a few metres out, other wild animals keep well away (by personality). Shy " +
+                 "and Wary set the berth outright; Loves lingers by it (cinder and ember kin); Ignores pays it no heed " +
+                 "but for the heat. Heat it can't bear sends any of them back a step whatever this says.")]
+        public FireTemper FireTemper;
         [Tooltip("A ghost: drifts above the ground (and water), half seen and faintly glowing, only at night; drifts closer " +
                  "to watch a person, and is gone when they come near, to appear again further off.")]
         public bool Haunts;
@@ -335,14 +348,15 @@ namespace Punchy.Fauna
     /// The idle action an animal is doing now (one of IdleActions, by number), or a pose a player's body takes for an
     /// interaction (Pet, Carry, Throw: not idle actions any species picks for itself).
     /// </summary>
-    /// <summary>What a body can climb (CreatureSpecies.ClimbsAs).</summary>
-    public enum ClimbAbility : byte { None, Trees, AnySurface }
 
     /// <summary>What a species' body is covered in; the Coat surface of its parts resolves to this.</summary>
     public enum CoatKind : byte { Fur, Feathers, Scales, Skin, Chitin }
 
     /// <summary>A part a species plays for FaunaDirector (CreatureSpecies.Role).</summary>
     public enum DirectorRole : byte { None, Folk, Hermit, Messenger }
+
+    /// <summary>How a species takes to a lit fire (A-121 row 2, CreatureSpecies.FireTemper; ComfortProfile.FireShy).</summary>
+    public enum FireTemper : byte { Auto, Ignores, Wary, Shy, Basks, Loves }
 
     /// <summary>An animal's answer to someone emoting near it (CreatureSpecies.EmoteReaction).</summary>
     public enum EmoteReaction : byte
@@ -379,7 +393,9 @@ namespace Punchy.Fauna
         ShieldEyes,
         // A-71: out in the weather with no shelter in reach (DecideWeatherPose): panting in the heat, shivering with
         // arms hugged in the cold, hunched over against a storm or the wind.
-        Pant, Shiver, Hunch
+        Pant, Shiver, Hunch,
+        // A-103 row 3: a turtle child's belly-slide across the snow (DecideFolkLife; ChildLife moves it).
+        Slide
     }
 
     public enum GallopStyle : byte

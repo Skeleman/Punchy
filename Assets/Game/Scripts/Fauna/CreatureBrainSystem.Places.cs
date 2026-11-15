@@ -913,6 +913,13 @@ namespace Punchy.Fauna
                 b.Upright && b.Hands && s.Leash > 0f && s.Task != CreatureTask.Patrol && s.Task != CreatureTask.Watch &&
                 s.Task != CreatureTask.Travel && Hour >= 17.8f && Hour < 21.95f + 0.2f * CreatureBlob.Trait(s.Individual, 41);
 
+            /// <summary>
+            /// Whether a place lies inside its home range, a step short of the edge. KeepToLeash clamps every walk to that
+            /// edge, so a place beyond it would leave the folk sitting at nothing metres short of the fire.
+            /// </summary>
+            static bool InHomeRange(in CreatureState s, float2 spot) =>
+                s.Leash <= 0f || math.distance(spot, s.Home) < s.Leash - 1.5f;
+
             static bool AtHearth(float stage) => stage >= CreatureAnimator.HearthStand && stage <= CreatureAnimator.HearthSeat;
 
             /// <summary>
@@ -949,7 +956,7 @@ namespace Punchy.Fauna
                         var k = (first + i) % slots;
                         math.sincos(k * 2f * math.PI / slots + (a.Owner & 7) * 0.4f, out var sin, out var cos);
                         var spot = fire + new float2(sin, cos) * (a.Size + (stand ? 0.1f : 0.25f));
-                        if (!Walkable(spot, Habitat.Land) || Taken(self, spot, 0.9f))
+                        if (!InHomeRange(in s, spot) || !Walkable(spot, Habitat.Land) || Taken(self, spot, 0.9f))
                             continue;
                         SetMode(ref s, CreatureMode.Sit);
                         s.Target = spot;
@@ -982,7 +989,7 @@ namespace Punchy.Fauna
                     {
                         var k = (first + i) % slots;
                         var spot = a.Position.xz + across * ((k - (slots - 1) * 0.5f) * a.Size);
-                        if (Taken(self, spot, math.max(a.Size * 0.8f, 0.3f)))
+                        if (!InHomeRange(in s, spot) || Taken(self, spot, math.max(a.Size * 0.8f, 0.3f)))
                             continue;
                         SetMode(ref s, CreatureMode.Sit);
                         s.Target = spot;
@@ -997,10 +1004,11 @@ namespace Punchy.Fauna
                 return found;
             }
 
-            /// <summary>Another place of the same kind, for one beaten to its spot: at the fire, in the play ring, or to lounge.</summary>
+            /// <summary>Another place of the same kind, for one beaten to its spot: at the fire, in the play ring, at the board, or to lounge.</summary>
             bool Resettle(Entity self, ref CreatureState s, ref Random rng) =>
                 AtHearth(s.TargetHeight) ? StartHearth(self, ref s, ref rng) :
-                s.TargetHeight == CreatureAnimator.PlayRing ? StartPlayRing(self, ref s, ref rng) : StartLounge(self, ref s, ref rng);
+                s.TargetHeight == CreatureAnimator.PlayRing ? StartPlayRing(self, ref s, ref rng) :
+                AtBoard(s.TargetHeight) ? StartBoard(self, ref s, ref rng) : StartLounge(self, ref s, ref rng);
 
             /// <summary>
             /// A place in the children's play ring: on the green nearest its home (the same green for every child of the
@@ -1044,9 +1052,12 @@ namespace Punchy.Fauna
                 return false;
             }
 
-            /// <summary>Another on its way to the same spot to sit or lie, that took it first (the lower entity index).</summary>
+            /// <summary>Another on its way to the same spot to sit or lie, that took it first (the lower entity index). A
+            /// poster at the notice board gives way only to another poster: a reader just beside its pin spot is no
+            /// reason to walk off with the sheet still in hand.</summary>
             bool Contested(Entity self, in CreatureState s)
             {
+                var poster = s.TargetHeight == CreatureAnimator.BoardPin;
                 var c = Cell(s.Target);
                 for (int z = -1; z <= 1; z++)
                 for (int x = -1; x <= 1; x++)
@@ -1055,7 +1066,8 @@ namespace Punchy.Fauna
                         continue;
                     do
                     {
-                        if (Entities[j].Index < self.Index && States[j].Mode == CreatureMode.Sit && math.distance(States[j].Target, s.Target) < 0.9f)
+                        if (Entities[j].Index < self.Index && States[j].Mode == CreatureMode.Sit && math.distance(States[j].Target, s.Target) < 0.9f &&
+                            (!poster || States[j].TargetHeight == CreatureAnimator.BoardPin))
                             return true;
                     } while (Grid.TryGetNextValue(out j, ref it));
                 }

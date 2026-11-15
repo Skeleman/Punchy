@@ -79,3 +79,5 @@ the same build. The world fingerprint in `WorldSync` refuses mismatched joiners.
 - After adding fields to an RPC, a player build can keep the old layout in its Burst code (`Library/BurstCache`
   stale): the receiver logs "RpcSystem failed to deserialize ... bits read did not match expected" and drops the
   connection (InvalidRpc). `--burst-disable-compilation` on the player confirms it; delete `Library/BurstCache` and rebuild.
+- `CreatureGhost.Holder` by Mode: positive = a player holds or pets it (NetworkId+1); negative in Ride = minus the
+  mount's ghost id; negative in Held or Petted = minus the ghost id of the folk who has it (`Interactions.FolkHolder`).
