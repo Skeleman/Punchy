@@ -5113,3 +5113,10 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Suite on the merged branch: 39/40. The one failure is Follow_ArrivesWithinFourMetres, and it is a harness artifact: TestSceneSetup.Spawn waits for a *new* "DebugControls: spawned 1 Dog" line by comparing the text with the last one, and LogWatch keeps lines across runs in one editor session. A second run of that test in the same session never sees a change, so it times out. Run alone it passes, both on main and on the merged branch. Suggested fix (shared test harness, so your call): compare line counts instead of text. LiveFolk_BeastResponse passed this run (a known flake).
 - Shares: extended Interactions PickUp/Holder (FolkHolder key) and HeldPoseSystem, the same path as the player's carry. A parallel I found but didn't fold in: PoseGear carried items/gear draw by a separate path.
 - NEXT: A-127 (#368) on folk/playtest-1114.
+
+## 11-15 A-127 row 2 (#368): sea folk stand upright on land - done (verified)
+- Branch folk/playtest-1114 @ ac327a7e (pushed, from origin/main 19bdb274). The A-103 out-of-water stoop (pitch +0.14 standing, +0.22 walking) is now only +0.03 at full walking speed. The swim lean (head below the surface) is untouched.
+- Shots (ModelLab, side view, standing and walking): D:/Unity/PunchyMilestones/A-127/strip-sea-before-after.png (before stand, before walk, after stand, after walk); singles sea-before-*.png and sea-after-*.png.
+- Cosmetic animator pose from replicated state, so solo, host and client draw the same. No bake data changed, so no fingerprint change.
+- Shares: CreatureAnimator root pitch (the shared body-pose path every creature uses). No parallel found.
+- NEXT: row 1 (turtle robe follows the legs), then row 3.
