@@ -221,21 +221,25 @@ namespace Punchy.Terrain
             var budget = fast ? VertexBudget / 4 : VertexBudget;
             // A new island (IslandV2 resets its version while it bakes) loads in large batches again.
             if (Punchy.Terrain.IslandV2.ActiveVersion == 0)
+            {
                 Loading = true;
+                viewReady = false;
+            }
             // The first batch stays small so the island's first frame isn't held up (#102); the boost starts once
-            // the nearest chunks are in.
-            var boost = Loading && LoadBoostOn && (loaded.Count > 0 || !SmallFirstBatch) ? LoadBoost : 1;
+            // the nearest chunks are in, and shrinks once the first view is (W-168: the player is looking).
+            var boost = Loading && LoadBoostOn && (loaded.Count > 0 || !SmallFirstBatch) ? (viewReady ? LoadBoostBehind : LoadBoost) : 1;
             budget *= boost;
 
             UnloadDistantChunks(config, focus);
             CollectWantedChunks(config, focus);
+            TakeView(focus, config.ChunkSize);
+            CheckFirstView(config, focus);
             if (wanted.Count == 0)
             {
-                if (Loading && Punchy.Terrain.IslandV2.ActiveVersion != 0 && building.Count == 0)
+                if (Loading && viewReady && building.Count == 0)
                 {
                     Loading = false;
-                    UnityEngine.Debug.Log($"[stream] world ready at {UnityEngine.Time.realtimeSinceStartup:F1} s since start, {loaded.Count} chunks (load boost {(LoadBoostOn ? LoadBoost : 1)}x, {World.Name})");
-                    StartLedger.Report(loaded.Count, World.Name);
+                    UnityEngine.Debug.Log($"[stream] all chunks in at {UnityEngine.Time.realtimeSinceStartup:F1} s since start, {loaded.Count} chunks ({World.Name})");
                 }
                 return;
             }
@@ -251,6 +255,8 @@ namespace Punchy.Terrain
                     w.Distance *= 1f - 0.4f * ahead;
                     wanted[i] = w;
                 }
+            if (Loading)
+                FirstViewFirst(config, focus);
             wanted.Sort((a, b) => a.Distance.CompareTo(b.Distance));
             var count = 0;
             var vertices = 0;
