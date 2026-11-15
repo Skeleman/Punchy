@@ -421,6 +421,7 @@ namespace Punchy.Fauna
                 Frame = ++frame,
                 Night = SystemAPI.TryGetSingleton<FaunaClock>(out var clock) ? clock.Night : 0f,
                 Hour = SystemAPI.TryGetSingleton<FaunaClock>(out var hourClock) ? hourClock.Hour : 12f,
+                Day = hourClock.Day,
                 Lures = FishLure.Data.Data,
                 Entities = entities,
                 States = states,
@@ -512,6 +513,8 @@ namespace Punchy.Fauna
             [ReadOnly] public NativeArray<float> PlayerSpeeds;
             public CarryTable Carry;
             public float Dt, Night, Hour;
+            /// <summary>The day count (FaunaClock): which sheets are due on the notice board.</summary>
+            public int Day;
             /// <summary>The shared clock and this frame's raw step, for staggered searches (#57).</summary>
             public float Now, Step;
             /// <summary>This frame's number, for whose turn it is to think far off (#59).</summary>
@@ -921,6 +924,9 @@ namespace Punchy.Fauna
 
                     case CreatureMode.Sit:
                         Sitting(self, ref s, ref b, ref rng, dt, walk, idleLook, ref targetSpeed, ref moving, ref lie, ref sit, ref desiredLook);
+                        // (Leant in a little, reading the notice board: A-116.)
+                        if (s.Mode == CreatureMode.Sit && AtBoard(s.Stage))
+                            bow = 0.25f;
                         break;
 
                     case CreatureMode.Swim:
@@ -1473,13 +1479,15 @@ namespace Punchy.Fauna
                     var toFace = s.Focus - s.Position.xz;
                     var wantedYaw = WrapAngle(math.atan2(toFace.x, toFace.y) - s.Yaw);
                     s.Yaw = WrapAngle(s.Yaw + math.clamp(wantedYaw, -b.TurnRate * dt, b.TurnRate * dt));
-                    // (At the town's fire, some stand.)
+                    // (At the town's fire, some stand; at the notice board, all do.)
                     if (s.Stage == 3)
                         lie = 1f;
-                    else if (s.Stage != CreatureAnimator.HearthStand)
+                    else if (s.Stage != CreatureAnimator.HearthStand && !AtBoard(s.Stage))
                         sit = 1f;
                     desiredLook = s.Stage == 3 ? 0f : idleLook;
                     var hearth = AtHearth(s.Stage);
+                    if (s.Stage == CreatureAnimator.BoardPin)
+                        Pinning(ref s);
                     if (s.Timer <= 0f || hearth && !Gathering(in s, ref b) || Contested(self, in s) && !Resettle(self, ref s, ref rng))
                         Pause(ref s, ref b, ref rng);
                 }
@@ -1846,6 +1854,9 @@ namespace Punchy.Fauna
                     s.Held = Night > 0.5f ? HeldItem.Lantern : HeldItem.Staff;
                 // Reading a message just taken from a messenger bird. (The bird's own letter, Messenger sees to.)
                 else if (s.Mode == CreatureMode.Idle && s.Stage == MessageRead && b.Hands)
+                    s.Held = HeldItem.Letter;
+                // A sheet for the notice board, on its way to be pinned up (A-116).
+                else if (CarryingSheet(in s) && b.Hands)
                     s.Held = HeldItem.Letter;
                 // (A miner at work has its pick, or a sack of ore: Mining says which.)
                 else if (s.Task == CreatureTask.Mine && s.Mode == CreatureMode.Work)

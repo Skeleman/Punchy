@@ -533,6 +533,8 @@ namespace Punchy.Fauna
         public float Night;
         /// <summary>The time of day, 0 to 24 (18 at sunset).</summary>
         public float Hour;
+        /// <summary>Whole days since the start (the cycle's count, shared world state): the notice board's posts.</summary>
+        public int Day;
     }
 
     /// <summary>
