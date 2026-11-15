@@ -5,6 +5,7 @@ None of these is on main (checked with merge-tree against origin/main). chemistr
 ## Land: rebase, open a PR, card to the owning lane after RESUME
 | Branch | Card | Size | Note |
 |---|---|---|---|
+| world/scarps | W-155 rows 1-2b, merges clean; missed in the first pass (added 11-15), first for world |
 | fauna/far-towns | A-109 | +929 | Job 72 PASS, merges clean. First. |
 | world/cliff-kit | W-150 r1-2 | +1294 | Merges clean; 1c waited on #285 (merged). |
 | world/no-water-discs | W-148 r5-6 | +849/-229 | Merges clean. |
