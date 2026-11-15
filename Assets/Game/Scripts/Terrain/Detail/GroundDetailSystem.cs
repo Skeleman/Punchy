@@ -421,11 +421,21 @@ namespace Punchy.Terrain
                 var surface = Source.SampleSurface(xz, ground, normal);
                 // Nothing grows over a cave entrance, nor right at its edge (a blade there would hang over the opening).
                 var bare = Source.MouthCut(xz, ground.Height) < 0.15f;
+                // W-155: nor on a scarp's stepped strip (the skin's, not the grid's) or within a cell of it, where
+                // heights interpolated across the step would leave blades and stones floating off the face.
+                // Past that margin blades and stones thin in over a ragged band rather than starting at a line (row 2b).
+                float thin = 1f;
+                if (Source.Scarps.IsCreated)
+                {
+                    float edge = ScarpSet.Edge(ref Source.Scarps.Value, xz), margin = 0.75f * Spacing;
+                    bare |= edge < margin;
+                    thin = math.smoothstep(margin, margin + 1f + 3f * math.saturate(0.5f + 0.6f * noise.snoise(xz / 4f)), edge);
+                }
                 Points[i] = new GroundPoint
                 {
                     Height = ground.Height,
-                    Grass = bare ? 0f : surface.Grass,
-                    Pebbles = bare ? 0f : surface.Pebbles,
+                    Grass = bare ? 0f : surface.Grass * thin,
+                    Pebbles = bare ? 0f : surface.Pebbles * thin,
                     Snow = surface.Snow,
                     Albedo = surface.Albedo,
                     Slope = normal.y,
