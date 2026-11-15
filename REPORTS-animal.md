@@ -5072,3 +5072,8 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - BENCH request (crowd cost): folk now bake up to 16 build blobs per species, and builds split draw batches. Please time, at the biggest town on Medium, main vs dcc36fe8: the town's load (FaunaDirector blob bakes, ms and frame spikes), CreatureRenderSystem ms and draw calls with the town in view, and blob memory. Pass: load +50 ms or less, frame +0.2 ms or less.
 - Harness note: the lineup draws all 8 people per race only with the fade-in clock advanced; without it, late spawns are still faded out.
 - NEXT: A-126 (#367) on fauna/playtest-1114, then A-125. A-124 row 2 (gait, designed above) is queued after them.
+
+## 2026-11-15 A-120 paused again for HOLD (#340)
+- Row 3 carry seen in solo at Human Village: child e688 carried pet e693 32 m home with the folk Holder encoding and 0.0 m hand gap, went in (pet faded at Stage 1), came out, and the pet squirmed free. No code change since 5bd77a06 (still WIP). Shots: a120-r3-carry-1-carry.png and -3-inside.png.
+- Bug found: on a second carry (e690 with e738, during rain) the child stayed in Home stage 2 for more than 4 minutes, so the pet stayed held and hidden the whole time. The fix is to cap the carry's indoor stay (or free the pet on a timer when the child stays in), then re-shoot the door, out and free frames.
+- NEXT: that fix, host+client check, delete PetProbe, suite, handoff. Then A-127 (#368).
