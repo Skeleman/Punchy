@@ -557,3 +557,25 @@ with main d95e7ff1); compiles, no suite run yet.
   Noted: BENCH-QUEUE note 93 (profiler pins an ordinary night in the three bench scripts, plus a blue-night
   baseline). I'm not touching the bench scripts.
 - NEXT: R-34 row 1 (wet-stone switch, default off; sheet to the coordinator first).
+
+### R-32 row 5: hand-over crossfade - DONE
+- Branch `render/blue-moon-shadow-2`, commit 493499fd (WeatherSystem.cs + Glow.hlsl). Not merged; rows 3-5 merge
+  together. It replaces the 0.8 ease.
+- How: as the shadows fade out, the main light fades out with them and the same moon fades into a new unshadowed
+  slot in Glow.hlsl (`_PunchyHandOverLight*`, shaded like the blue moon's term). At the bottom of the fade both
+  moons are in unshadowed slots, so the swap only relabels them. The slot is 0 outside a hand-over, so the shader
+  cost is one uniform branch. All eight PunchyGlowLight users get it (rule 26).
+- Checks:
+  - Same town clip, 120 frames. Clip noise is median 0.78, p95 0.88. The fade bottom (luma minimum) is frame 65;
+    the steps into and out of it are 0.65 and 0.65. Every step from frame 2 to 119 is 0.90 or less (the largest
+    is frame 33, mid fade-down). The swap step was 3.2 with the 0.8 ease and 7.88 with no ease. Frames 0-1 (1.30)
+    are the clip start right after the time jump. The swap frame is inferred from the fade bottom; the probe's
+    per-frame shadow log wasn't kept.
+  - Ordinary night (moon phase 0.5, blue 5 days): hand-over slot reads 0. Town shot against the rows 3-4 shot
+    differs by mean 4.14; a rerun of the same build against itself differs by 4.81, so it's within run noise.
+  - NaN across a hand-over (SparkleProbe r32r5, 360 frames): 0 bad.
+  - Suite after the last code change: `completed: 40/40 passed`.
+- Shots (milestones folder R-32): `after-bluemoonrise-handover.mp4` and `after-handover-strip.png` (frames 40,
+  52, 60, 64, 65 (fade bottom), 66, 70, 78, 90) are replaced by the row 5 run.
+- Asks: none.
+- NEXT: R-34 row 1 (wet-stone switch, default off; sheet to the coordinator first).
