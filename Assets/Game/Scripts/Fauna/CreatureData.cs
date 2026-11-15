@@ -191,8 +191,11 @@ namespace Punchy.Fauna
             math.hash(new uint2(individual, (uint)trait * 2654435761u + 17u)) / (float)uint.MaxValue * 2f - 1f;
 
         /// <summary>Which option of a style group an individual shows.</summary>
+        /// <remarks>Scrambled before the modulo: individuals are odd and math.hash keeps the low bit, so with an even
+        /// option count the raw hash only ever drew every other option.</remarks>
         public static int Style(uint individual, int group, int count) =>
-            (int)(math.hash(new uint2(individual, (uint)group * 40503u + 101u)) % (uint)math.max(count, 1));
+            (int)(SpawnTable.Scramble(math.hash(new uint2(individual, (uint)group * 40503u + 101u)))
+                  % (uint)math.max(count, 1));
 
         /// <summary>An individual's hair colour (rgb), or the segment's own if the species has none.</summary>
         public float4 HairColor(uint individual, float4 fallback) =>
