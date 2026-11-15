@@ -297,6 +297,8 @@ namespace Punchy.Debugging
                     Cycle.TimeOfDay = Mathf.Repeat(hours, 24f);
                 if (args[i] == "-watch")
                     watchSpecies = args[i + 1];
+                if (args[i] == "-splashshot" && int.TryParse(args[i + 1], out var splashShots))
+                    splashShotsLeft = splashShots;
                 // "-viewpitch 60": the player's own camera looking down from that angle (-20: up), as if the mouse moved.
                 if (args[i] == "-viewpitch" && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var viewPitch))
                 {

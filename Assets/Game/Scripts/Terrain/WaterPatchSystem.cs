@@ -103,6 +103,8 @@ namespace Punchy.Terrain
         /// <summary>Geyser vents inside the square, and the splashes they gave, when the field last stepped, and all the
         /// splashes vents have given (probe).</summary>
         public int VentsInField, VentSplashes, VentSplashTotal;
+        /// <summary>All the splashes swimmers have made dropping in (x) and breaking out (y) (A-125 probe).</summary>
+        public int2 SwimmerSplashTotal;
 
         static readonly int FieldId = Shader.PropertyToID("_PunchyWaterField");
         static readonly int FieldAtId = Shader.PropertyToID("_PunchyWaterFieldAt");
@@ -300,6 +302,8 @@ namespace Punchy.Terrain
             public float Clock, LastClock;
             /// <summary>x vents inside the square, y splashes they gave.</summary>
             public NativeReference<int2> VentCount;
+            /// <summary>Swimmer splashes this step: x in, y out (A-125 probe).</summary>
+            public NativeReference<int2> SwimmerSplashes;
             /// <summary>One-off knocks this step (world x, z, radius m, depth m), and how thick the liquid is at each of the
             /// square's metre corners (0..255).</summary>
             [ReadOnly] public NativeArray<float4> Knocks;
@@ -424,8 +428,37 @@ namespace Punchy.Terrain
                         Splashes.Add(new float4(at, -radius, 0.035f * math.min(s.Speed, 2.5f) * size));
                     // A splash where it has just come down through the surface (a jump, a fall, a fish breaching).
                     var fall = hadY ? (s.Position.y - lastY) / math.max(DeltaTime, 1e-3f) : 0f;
-                    if (hadY && lastY - g.WaterSurface > 0.05f && -under <= 0.05f && fall < -1.5f && Splashes.Length < MaxSources)
-                        Splashes.Add(new float4(at, -radius * 1.5f, math.clamp(-fall * 0.03f, 0.04f, 0.2f) * size));
+                    if (upright)
+                    {
+                        // (The player and waders: as before.)
+                        if (hadY && lastY - g.WaterSurface > 0.05f && -under <= 0.05f && fall < -1.5f && Splashes.Length < MaxSources)
+                            Splashes.Add(new float4(at, -radius * 1.5f, math.clamp(-fall * 0.03f, 0.04f, 0.2f) * size));
+                        continue;
+                    }
+                    // A-125 row 1: a swimmer splashes both ways, breaking out and dropping back in, all sized by its body:
+                    // how fast it must cross, the ring's width and its knock. A trout's hop makes a ring a hand across; a
+                    // dolphin's leap one over two metres.
+                    var body = s.Scale * b.FrontRadius;
+                    var gate = math.clamp(0.6f + body * 4f, 0.6f, 1.5f);
+                    var ring = math.clamp(body * 5f, 0.12f, 1.5f) * TexelsPerMetre;
+                    var knock = math.clamp(body * 6f, 0.15f, 1.5f);
+                    if (!hadY || Splashes.Length >= MaxSources)
+                        continue;
+                    // (Its climb over the time since it was last seen here, the sources' own interval, so the rate
+                    // holds at any frame rate.)
+                    var climb = (s.Position.y - lastY) / math.max(Time - LastTime, 1e-3f);
+                    // (Through the surface itself between two samples, fast: one step of a leap can be a few
+                    // centimetres, and the speed gate keeps a swimmer idling at the top from ringing.)
+                    if (lastY > g.WaterSurface && under >= 0f && climb < -gate)
+                    {
+                        Splashes.Add(new float4(at, -ring, math.clamp(-climb * 0.03f, 0.02f, 0.2f) * knock));
+                        SwimmerSplashes.Value += new int2(1, 0);
+                    }
+                    else if (lastY < g.WaterSurface && under <= 0f && climb > gate)
+                    {
+                        Splashes.Add(new float4(at, -ring * 0.8f, math.clamp(climb * 0.025f, 0.02f, 0.16f) * knock));
+                        SwimmerSplashes.Value += new int2(0, 1);
+                    }
                 }
             }
         }
@@ -975,6 +1008,7 @@ namespace Punchy.Terrain
                 for (int v = 0; v < Vents.Count; v++)
                     vents[v] = Vents[v];
                 var ventCount = new NativeReference<int2>(Allocator.TempJob);
+                var swimmerSplashes = new NativeReference<int2>(Allocator.TempJob);
                 var knocks = new NativeArray<float4>(Knocks.Count, Allocator.TempJob);
                 for (int k = 0; k < Knocks.Count; k++)
                     knocks[k] = Knocks[k];
@@ -984,7 +1018,7 @@ namespace Punchy.Terrain
                 {
                     States = states, Bodies = bodies, Entities = entities, Terrain = SystemAPI.GetSingleton<TerrainSource>(),
                     Corner = fieldCorner, DeltaTime = math.max(dt, StepTime), Time = now, LastTime = lastSourceTime, LastAt = lastAt, Presses = presses, Splashes = splashes,
-                    Vents = vents, Clock = clock, LastClock = lastClock, VentCount = ventCount, Knocks = knocks, Viscosity = viscosityField
+                    Vents = vents, Clock = clock, LastClock = lastClock, VentCount = ventCount, SwimmerSplashes = swimmerSplashes, Knocks = knocks, Viscosity = viscosityField
                 }.Run();
                 knocks.Dispose();
                 CreatureSnapshotSystem.Release(World, states, bodies, entities);
@@ -993,6 +1027,8 @@ namespace Punchy.Terrain
                 VentSplashTotal += VentSplashes;
                 vents.Dispose();
                 ventCount.Dispose();
+                SwimmerSplashTotal += swimmerSplashes.Value;
+                swimmerSplashes.Dispose();
                 lastSourceTime = now;
                 lastClock = clock;
                 if (lastAt.Count > 2000)
