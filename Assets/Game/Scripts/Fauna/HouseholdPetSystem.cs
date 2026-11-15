@@ -67,6 +67,9 @@ namespace Punchy.Fauna
         /// long they stay in with it (s).</summary>
         public const float CarryChance = 1f / 3f;
         const float CarryReach = 1.3f, ChildCarry = 20f, CarryInMin = 6f, CarryInMax = 12f;
+        /// <summary>The longest a carried pet stays indoors (s): a child kept in (rain, night) lets it back out the door
+        /// after this (the brain's Held).</summary>
+        public const float CarryInCap = 25f;
 
         /// <summary>Debug tests: 1 every follow roll passes, 2 every petting (or shooing) roll, 4 every child's carry roll.</summary>
         public static readonly SharedStatic<int> Force = SharedStatic<int>.GetOrCreate<ForceKey>();

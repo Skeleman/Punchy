@@ -53,7 +53,9 @@ namespace Punchy.Fauna
                 var type = h.Landmark >= 0 && h.Landmark < lm.Instances.Length && inst.Type < landmarks.Length ? landmarks[inst.Type] : null;
                 var typeName = type != null ? type.name : null;
                 var b = source.SampleGround(h.Door.xz).Biomes.Dominant();
-                var biome = biomes != null && b >= 0 && b < biomes.Length && biomes[b] != null ? biomes[b].name : null;
+                var def = biomes != null && b >= 0 && b < biomes.Length ? biomes[b] : null;
+                var biome = def != null ? def.name : null;
+                var family = def != null ? def.Family : Punchy.Terrain.BiomeFamily.None;
                 // (An outlying town house, past two thirds of its landmark's reach: a farmstead.)
                 var outlying = h.Kind == "house" && type != null &&
                                math.distance(h.Door.xz, inst.Position) > 0.65f * lm.Types[inst.Type].Radius * inst.Scale;
@@ -61,12 +63,12 @@ namespace Punchy.Fauna
                 if (h.Kind == "stable") { pet = "Dog"; word = "dog"; }
                 else if (h.Kind == "igloo") { pet = "ArcticFox"; word = "fox"; }
                 else if (h.Kind == "dome") { pet = "Frog"; word = "frog"; }
-                else if (NameHas(biome, "Dune", "Sonoran", "GlassDesert", "SaltFlat", "Mesa"))
+                else if (family == Punchy.Terrain.BiomeFamily.Arid)
                 {
                     if (pick < 50) { pet = "Lizard"; word = "lizard"; }
                     else { pet = "CollaredLizard"; word = "lizard"; }
                 }
-                else if (NameHas(biome, "Glacier", "Tundra"))
+                else if (family == Punchy.Terrain.BiomeFamily.Cold)
                 {
                     if (pick < 40) { pet = "ArcticFox"; word = "fox"; }
                     else { pet = "Dog"; word = "dog"; }

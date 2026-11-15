@@ -82,14 +82,29 @@ namespace Punchy.Fauna
                 s.Yaw = yaw + math.PI * 0.5f;
                 s.YawRate = 0f;
                 // A-120 row 3: carried by one of the folk through their door, it goes (Stage 1, fading by ActionTime as they
-                // do: CreatureRenderSystem) and comes back out with them, and then soon squirms free.
+                // do: CreatureRenderSystem) and comes back out with them, and then soon squirms free. If the child stays in
+                // (rain, night), the pet is let back out of the door after HouseholdPetSystem.CarryInCap.
                 if (Interactions.ByFolk(s.Holder) && FindFolkHolder(s.Holder, s.Position.xz, out var carrier))
                 {
                     var c = States[carrier];
                     if (c.Mode == CreatureMode.Home && c.Stage >= 1)
                     {
+                        if (s.Stage != 1)
+                            s.Timer = math.min(s.Timer, HouseholdPetSystem.CarryInCap);
                         s.Stage = 1;
                         s.ActionTime = c.Stage == 2 ? 1f : c.ActionTime;
+                        s.Timer -= dt;
+                        if (s.Timer <= 0f)
+                        {
+                            // Let out: on the doorstep, outside, and off about its business (no bolt: nobody grabbed it).
+                            var outward = new float2(math.sin(c.AnchorYaw), math.cos(c.AnchorYaw));
+                            var step = c.Anchor.xz + outward * 0.8f;
+                            Interactions.PutDown(ref s, Terrain, new float3(step.x, c.Anchor.y, step.y), ref rng);
+                            s.Stage = 0;
+                            s.ActionTime = 0f;
+                            s.Yaw = c.AnchorYaw;
+                        }
+                        return;
                     }
                     else if (s.Stage == 1)
                     {
