@@ -1,0 +1,17 @@
+# Job 77 (W-155 rows 1 and 1b, cliffs baseline): scarps. A main 697e565f, B world/scarps feab6870, C row 1b 4b38a42c.
+# Medium, noon, Clear, 3 rounds, arms rotated. Views:
+#  fresh:    a -freshisland start (every launch bakes): [scarps] line and island-ready time.
+#  approach: a 1 km run south into the canyon box (x -1664..-1472, z 1664..1856) at 25 m/s on the ground, from
+#            (-1568, 2856) to its north edge, so its chunks build fresh on arrival ([stream] batch lines, main ms).
+#  rim:      standing at the box's north edge (-1568, 1856) facing south (yaw 180), along the canyon: GPU, main ms.
+Q=q119; TITLE="job 77 scarps"
+BUILDS="697e565 feab687 4b38a42"
+VIEWS="fresh approach rim"
+view() { case $1 in
+  fresh)    echo "-freshisland -benchstops here -benchhour 12 -benchweather Clear";;
+  approach) echo "-goto -1568,2856 -benchstops line -benchline -1568,2856,-1568,1856,25,0.1 -benchhour 12 -benchweather Clear -hitchms 40";;
+  rim)      echo "-goto -1568,1856 -benchstops spot -benchspot -1568,1856,180 -benchhour 12 -benchweather Clear";; esac; }
+ARMS="A B C"
+arm() { case $1 in A) echo "Profile-697e565";; B) echo "Profile-feab687";; C) echo "Profile-4b38a42";; esac; }
+ROUNDS=3; GFX=Medium; REF=A; BAR=0.3
+after() { for f in $R/q-$Q-fresh-*-cs100-*.log; do echo "$(basename $f): $(grep -a -h '\[scarps\]\|\[island\].*ready at' $f | cut -c1-200 | tr '\n' ' ')"; done; }

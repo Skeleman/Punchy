@@ -755,7 +755,7 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
   coordination first: `get` now unzips with Windows' own tar (`C:\Windows\System32\tar.exe`); Git Bash's tar can't
   read zip and would have failed (coordination c74c5a62). 244805ae (job 91 B) is being shelved next.
 
-## Job 77 (2026-11-14, QUEUED after 76; supervisor, for W-155 row 1, cliffs baseline): scarp bake and canyon chunks
+## Job 77 (2026-11-14, RUNNING 11-14 (q119.job; A, B and C); supervisor, for W-155 row 1, cliffs baseline): scarp bake and canyon chunks
 - Main 697e565f (A) vs `world/scarps` feab6870 (B). Profile builds, 1920x1080, Medium, uncapped, noon, Clear,
   `-weatherseed 4`, ABBA, 3 rounds.
 - Bake: delete the island cache before each run; record the `[scarps]` bake line and total island bake time, A vs B.
