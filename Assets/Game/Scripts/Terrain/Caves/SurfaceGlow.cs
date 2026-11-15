@@ -120,7 +120,8 @@ namespace Punchy.Terrain
                 MapCorner = farCorner;
                 MapReady = true;
             }
-            if (!farRunning && math.distancesq(camPos.xz, farScannedAt.xz) > MoveBeforeFarRescan * MoveBeforeFarRescan)
+            // (A-115: and as the lamplighters light the towns or put them out, LampsChanged.)
+            if (!farRunning && (math.distancesq(camPos.xz, farScannedAt.xz) > MoveBeforeFarRescan * MoveBeforeFarRescan || LampsChanged()))
             {
                 farScannedAt = camPos;
                 farCorner = math.floor(camPos.xz / MapTexel) * MapTexel - MapSize * MapTexel * 0.5f;
@@ -132,7 +133,8 @@ namespace Punchy.Terrain
                     Corner = farCorner,
                     CellSizes = cellSizes,
                     Plants = farPlants,
-                    Windows = farWindows
+                    Windows = farWindows,
+                    Dark = FillDark()
                 }.Schedule();
                 farClock = System.Diagnostics.Stopwatch.StartNew();
                 farRunning = true;
@@ -199,6 +201,7 @@ namespace Punchy.Terrain
             }
             ReleaseWorld();
             ReleaseSpill();
+            ReleaseLamps();
             if (farPlants.IsCreated)
                 farPlants.Dispose();
             if (farWindows.IsCreated)
@@ -296,6 +299,8 @@ namespace Punchy.Terrain
             public float2 Corner;
             public float3 CellSizes;
             public NativeArray<float4> Plants, Windows;
+            /// <summary>A-115: how lit the route lamps not fully lit are, by foot (LampRoutes.Key); others in full.</summary>
+            [ReadOnly] public NativeHashMap<int2, float> Dark;
 
             public void Execute()
             {
@@ -333,6 +338,12 @@ namespace Punchy.Terrain
                         var reach = FloraPlacement.GlowReach(glow.w) * math.sqrt(scale);
                         var wide = math.max(reach * 1.6f, 12f);
                         var light = glow.xyz * (reach * reach / (wide * wide) * step * step);
+                        if (fixture && Dark.TryGetValue((int2)math.floor(plant.Position.xz * 4f), out var lit))
+                        {
+                            if (lit <= 0f)
+                                continue;
+                            light *= lit;
+                        }
                         var lift = fixture ? StructureKit.FixtureLightHeight : 0.4f;
                         Splat(fixture ? Windows : Plants, plant.Position + new float3(0f, lift * scale, 0f), light, wide);
                     }

@@ -7,7 +7,7 @@
 //   TEXCOORD1  rgb = emission (HDR), w = geomorph offset (coarse-LOD height − height)
 //   TEXCOORD2  xy = distance from the terrain focus where the geomorph starts / completes, z = surface bumpiness
 //   TEXCOORD3  x = rock strata amount, y = cobble paving, z = hollow depth (puddles gather where it's positive)
-//   TEXCOORD4  x = porosity (how much rain soaks in: sand darkens rather than pooling), y unused
+//   TEXCOORD4  x = porosity (how much rain soaks in: sand darkens rather than pooling), y = the coarser LOD's hollow depth
 // Grass density and snow depth are read by the (future) grass and snow-trail systems, not by this shader.
 
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
@@ -28,7 +28,7 @@ struct TerrainAttributes
     half4  emission   : TEXCOORD1;
     float4 morph      : TEXCOORD2;   // xy geomorph range, z surface bumpiness, w distance to cave air
     half4  strata     : TEXCOORD3;   // x rock strata amount, y cobble paving, z hollow depth (m, below the ground round it)
-    half2  soak       : TEXCOORD4;   // x porosity
+    half2  soak       : TEXCOORD4;   // x porosity, y the next-coarser LOD's hollow depth (W-169)
     UNITY_VERTEX_INPUT_INSTANCE_ID
 };
 
@@ -42,13 +42,24 @@ void TerrainCaveClip(float mouthCut)
 
 // Geomorphing: vertices slide onto the next-coarser LOD's surface as they approach the distance where their
 // chunk switches LOD, so the switch itself changes nothing on screen. Every pass must use this.
+float TerrainMorph(TerrainAttributes input)
+{
+    float3 positionWS = TransformObjectToWorld(input.positionOS);
+    return smoothstep(input.morph.x, input.morph.y, distance(positionWS.xz, _TerrainFocus.xy));
+}
+
 float3 TerrainPositionOS(TerrainAttributes input)
 {
     float3 positionOS = input.positionOS;
-    float3 positionWS = TransformObjectToWorld(positionOS);
-    float t = smoothstep(input.morph.x, input.morph.y, distance(positionWS.xz, _TerrainFocus.xy));
-    positionOS.y += input.emission.w * t;
+    positionOS.y += input.emission.w * TerrainMorph(input);
     return positionOS;
+}
+
+// W-169: the hollow depth (puddles) morphs alongside, onto the coarser LOD's (0 where that LOD carries none), so no
+// puddle stops at a chunk edge where the LOD changes.
+half TerrainHollow(TerrainAttributes input)
+{
+    return lerp(input.strata.z, input.soak.y, (half)TerrainMorph(input));
 }
 
 #endif
