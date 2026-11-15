@@ -890,3 +890,14 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
   full-screen pass over blade pixels only (stencil).
 - Record: whole-frame GPU ms; grass ForwardLit pass ms; the two FloraShadowCache passes' ms.
 - Pass (rule 23): Medium at most +0.3 ms GPU at its worst view, CPU within noise; High reported.
+
+## Job 92 (2026-11-14, QUEUED after 91; folk lane, A-115 row 1 #315 and A-116 rows 1-2 #316): lamplighter glow and notice boards
+- Arms: fauna/lamplighter a96f48d8 (B1) and fauna/notice-board-life 9a1694eb (B2), each against its base main (A). Profile
+  builds, 1920x1080, Medium and High, uncapped, Clear, ABBA, 3 rounds.
+- B1, SurfaceGlow: the far-map rescan now also fires when TownLights' LitCount changes (at most once a second while a
+  town's lamps light or go out). View: the biggest town from about 100 m at dusk (`-time 19.2`; the lamps light
+  street by street). Record: SurfaceGlow rescan count and ms per frame, plus the worst frame.
+- B2, NoticeSheets.Tick: its ms per frame at a town board, at noon, over 60 s.
+- B2, brain: CreatureBrainSystem ms with board readers and posters active at the same town, against A. The Board stage
+  runs per nearby folk through the A-112 lazy grid.
+- Pass (rule 23): frame within noise; each new system at most 0.1 ms on Medium.
