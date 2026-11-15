@@ -4964,3 +4964,17 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
   - A reader can point with nobody else reading, when a poster or a leaving folk counts as company. This is minor.
   - Folk with a large leash may walk about 120 m to read; they give up after 60 s.
 - NEXT: A-120 household pets (#340) on fauna/folk-pets.
+
+## A-123
+
+## 2026-11-14 A-123 row 1: arms meet the shoulders (#356)
+- DONE (verified, edit-mode turntable): fauna/body-reads 62170f0b.
+  - CreatureBlobBuilder.FitShoulder (CreatureData.cs): an upright arm whose parent is the torso gets its socket on the torso's real surface, including the chest capsule's rounded end, set ShoulderOut 0.55 of the arm's radius outside it. Its rest pose splays out just enough (max 14 degrees) to clear the chest and hip. All sizes come from the body; no per-species numbers.
+  - ModelLab: CaptureClose, CaptureHead, PoseTask, ArmReport and EyeReport hooks for close checks.
+- Numbers (ArmReport, idle, every playable and folk species at smallest and largest spawn sizes plus children): shoulder overlap 0.55 everywhere except Ogre 0.50 (it was -0.30, a gap). Upper arm clearance -0.012 to -0.057 (just touching). Hand clearance >= 0.013 except Goblin -0.011: the hand brushes the hip by about 1 cm, accepted. Walk and run are similar. ModelLab can't show the Chop pose.
+- Shots: D:/Unity/PunchyMilestones/A-123/row1-shoulders-before.jpg and row1-shoulders-after.jpg, same framing.
+- NaN: 0 across 125 species' blob sockets and rests.
+- Suite: 39 passed, 17 skipped; the one failure was the fauna pin. Re-pinned E483FBF0 -> 3530F2AD because the blob's arm parts move. Landmarks unchanged at 117 689D5348, so no placement moved.
+- Host/client: shape comes from the species blob on every machine; no ghost field.
+- Risks: arms in a swing (Chop) not checked in the lab.
+- NEXT: row 2, dog and canine faces.
