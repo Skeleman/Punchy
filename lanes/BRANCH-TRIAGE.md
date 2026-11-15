@@ -40,7 +40,6 @@ cave-entry #379, no-water-discs #380, puddle-edges #381, swell-noise #382.
 b/bench, b/bench-lod, b/bench-stress, b/bench-job84, b/bench-job92b1.
 
 ## Stale, archive once Zach OKs
-rc-test/* (6 depth-priming tests, 10-29), wip/* (world-v09-v010, world-g18-roads, brain-sample*, brain-blocked*, z07-play),
 tmp/animal-slot6, test/playtest-1108, render/ssao-source, rc/v0.10.0, rc/v0.14.0.
 
 ## Folded into other work
@@ -51,6 +50,7 @@ tmp/animal-slot6, test/playtest-1108, render/ssao-source, rc/v0.10.0, rc/v0.14.0
 ## Superseded: archived and deleted 11-15 (Zach OK)
 Each is kept as tag `archive/<branch>`. Owners check theirs on resume; restore with
 `git push origin archive/<branch>:refs/heads/<branch>`.
+- rc-test/* (8) and wip/* (43): archived and deleted 11-15 (Zach OK), tags archive/rc-test/*, archive/wip/*.
 light/forwardplus, b/r10-trims, b/r10-nocluster (R-10, redone in far-lights work); lod/screen-size (ScreenSize is on main);
 render/cloud-shadow-soft, shadow-still (R-20 row 2 parked); b/r12-trims, b/r12-warp-bake (looked wrong);
 b/water-rows-fixes, b/fix-waterfield-step, water/fine-grid (water trials); refactor/pose-by-size, fix/salt-ball-far-shadow;
