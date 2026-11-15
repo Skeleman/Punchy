@@ -1,0 +1,17 @@
+# Job 85 (W-155 row 2, #281): scarp debris and end outcrops. world/scarps 13fbd5cf (B, row 2 part 2 and 2b) vs 19012b1f
+# (A, row 2 part 1 + border fix). Shelf builds. Medium, 10:00, Clear, 3 rounds. Views:
+#  toe:   the canyon toe, standing 10 m downhill of (-1530,1790) facing up the cliff (-benchface)
+#  river: the river cut bank, 15 m downhill of (-878,-1462) facing the bank (-benchface)
+#  far:   both test scarps in view (the card's R-22 vantage has no pose that holds both): 300 m over (800,164) facing west;
+#         the scarps sit about 39 degrees either side of the view's centre, 2.6 km out
+Q=q127; TITLE="job 85 scarp debris"
+BUILDS="13fbd5c 19012b1"
+VIEWS="toe river far"
+view() { case $1 in
+  toe)   echo "-goto -1530,1790 -benchstops face -benchface -1530,1790,10 -benchhour 10 -benchweather Clear";;
+  river) echo "-goto -878,-1462 -benchstops face -benchface -878,-1462,15 -benchhour 10 -benchweather Clear";;
+  far)   echo "-goto 800,164 -benchstops line -benchline 800,164,797,164,0.2,300 -benchhour 10 -benchweather Clear";; esac; }
+ARMS="B A"
+arm() { case $1 in B) echo "Profile-13fbd5c";; A) echo "Profile-19012b1";; esac; }
+ROUNDS=3; GFX=Medium; REF=A; BAR=0.3
+after() { for a in B A; do echo "$a: $(grep -a -h -i '\[scarp' $R/q-$Q-toe-$a-cs100-1.log | head -4 | cut -c1-200 | tr '\n' ' ')"; done; }

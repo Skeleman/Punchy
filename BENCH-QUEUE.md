@@ -837,7 +837,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
   director; the `[members]` line's legs and full counts (about 27 on legs expected at the centre).
 - Pass (rule 23): B no worse than A on main thread at both views; report the saving.
 
-## Job 84 (2026-11-14, NEXT on the laptop, chained after 83 (q126.job; spots chosen by the profiler, see the spec); fauna lane, A-113 rows 1-3, #313): denser, more varied temperate woods
+## Job 84 (2026-11-14, RUNNING 11-15, chained after 83 (q126.job; spots chosen by the profiler, see the spec); fauna lane, A-113 rows 1-3, #313): denser, more varied temperate woods
 - main 1746d62a (A) vs `flora/tree-variety` ac7880fc (B). Profile builds, 1920x1080, Medium, uncapped, 10:00, Clear,
   `-weatherseed 4`, ABBA, 3 rounds, 300 frames each.
 - Views: inside a temperate wood with willow by water and a beech grove in view; a 30 m rise over mixed wood; a far
@@ -846,7 +846,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
   B has about 21% more trees, a willow is about 20k triangles at LOD0, a tulip tree about 21.5k.
 - Pass (rule 23): B within 0.3 ms GPU of A at each view, or name the species to trim (willow LOD0 first).
 
-## Job 85 (2026-11-14, QUEUED after 84; world lane, W-155 row 2, #281): scarp debris and end outcrops
+## Job 85 (2026-11-14, NEXT on the laptop, chained after 84 (q127.job); world lane, W-155 row 2, #281): scarp debris and end outcrops
 - `world/scarps` 19012b1f (A, row 2 part 1 plus the border fix) vs 13fbd5cf (B, row 2 part 2 and 2b). Profile
   builds, 1920x1080, Medium, uncapped, 10:00, Clear, `-weatherseed 4`, ABBA, 3 rounds, 300 frames each.
 - Views: canyon toe `-goto -1530,1790` facing the cliff; river cut `-goto -878,-1462` facing the bank; one far
