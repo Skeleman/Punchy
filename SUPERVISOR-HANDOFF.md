@@ -353,3 +353,9 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - Release gotcha: BProfileTools.Build sets productName to PunchyBench (moves saves and prefs). Release builds use a plain BuildPipeline.BuildPlayer call instead; check Punchy_Data/app.info reads Punchy before zipping.
 - 11-14: Zach will try the v0.15.0 candidate before it is published; publish and merge rc/v0.15.0 only after his OK.
 - 11-14: merged #363 (R-32 rows 3-5, blue-moon shadows); #328 closed. Bench note 93 is now live: night benches pin a full blue moon.
+
+## 11-14 23:00 playtest pause
+- Zach is playtesting on the main PC. D:/Unity/PunchyBench/HOLD exists, and every lane editor is closed. Remove HOLD only after he says he's done, then resume each lane by SendMessage to its agent id.
+- WIP pushed, unverified: world/log-bark c5d49a53 (W-170 row 1); render/stone-trial c2b2c0d1 (R-34 row 1, not yet compiled); fauna/folk-pets 5bd77a06 (A-120 row 3); fauna/individual-builds dcc36fe8 (A-124 row 1, needs a player rebuild and the host/client check).
+- After HOLD: shelve the 13 arms listed in BENCH-QUEUE "Queue trim" (01f85e11). The bench-only merges are b/bench-job84 and b/bench-job92b1.
+- To card: CreatureBlob.Style parity bias. With an even number of options, odd-indexed hair colours and styles never appear (found by fauna; A-124 avoids it by scrambling).
