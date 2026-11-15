@@ -5202,3 +5202,11 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Fits the coming shared item definitions (CLAUDE.md "items use the shared definitions"): a HeldItem entry would carry its side, width and grip, so a new carried thing is data. Cost is small: about 3 files, render and pose only, no net change.
 - Shares: names HandGrip as the shared grip layer for HeldItem kit + HeldPoseSystem; folds in Pocket.PocketSide. Not done here (design only).
 - NEXT: folk/cloth-legs is ready for PR (A-128 rows 1-2). Queue empty: next card from STATE.md.
+
+## 11-15 landing list: fauna/one-population merged with main (#298 follow-up) - done (verified)
+- fauna/one-population 70d27698. RideLife.cs conflict: kept main's Near/ChildCandidate structure. ChildCandidate also rejects a rider from another household (both OwnDoor set and different), which is the branch's rule.
+- Village_CreatureDensity: the cap goes 40 -> 50 (measured 44). Cause: on the branch, outdoor members spawn as themselves (26 folk at noon, main had 15), and main's household pets (lizards in town 73) are added on top. Stables add a keeper household of 1 with no double spawn. Not a leak.
+- Fingerprint 43D1F778 unchanged. WhereaboutsTests 4/4, full PlayMode suite 44/44.
+- Solo/host/client: spawn counts are server-side; clients get the same ghosts.
+- Shares: the one RideLife ChildCandidate path (main's), now with the household check. No parallel.
+- NEXT: fauna/one-population is ready for PR. lying-legs merge next. The fauna editor hung on Burst SharedStatic twice after a branch switch; restarted by my PID only.
