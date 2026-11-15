@@ -27,13 +27,16 @@ half PunchyStoneWet() { return _PunchyStoneTrial > 1.5 ? 1 : 0; }
 // 0 when a feature of this period (m) is under a few pixels, 1 once it spans eight.
 half PunchyStoneFade(float period, float footprint) { return smoothstep(3, 8, period / max(footprint, 1e-5)); }
 
-// One octave: the detail texture read three ways at this scale, blended by the facing weights w.
-half4 PunchyStoneOctave(float3 p, float3 w, float scale)
+// One octave: the detail texture read three ways at this scale, blended by the facing weights w. The mip comes from
+// the footprint (the texture is 256 px a tile), not from derivatives, so it is safe inside the callers' branches
+// (rule 24).
+half4 PunchyStoneOctave(float3 p, float3 w, float scale, float footprint)
 {
     float3 q = p * scale;
-    return SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, q.zy) * w.x
-         + SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, q.xz) * w.y
-         + SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, q.xy) * w.z;
+    float mip = log2(max(footprint * scale * 256, 1));
+    return SAMPLE_TEXTURE2D_LOD(_PunchyCaveDetail, sampler_PunchyCaveDetail, q.zy, mip) * w.x
+         + SAMPLE_TEXTURE2D_LOD(_PunchyCaveDetail, sampler_PunchyCaveDetail, q.xz, mip) * w.y
+         + SAMPLE_TEXTURE2D_LOD(_PunchyCaveDetail, sampler_PunchyCaveDetail, q.xy, mip) * w.z;
 }
 
 // A height folded into a ridge and squared (1 on the fold, 0 in the valleys), eased back to its mean as it fades.
@@ -44,14 +47,14 @@ half PunchyStoneRidge(half b, half fade) { half r = 1 - abs(b * 2 - 1); return l
 void PunchyStoneSurface(float3 p, float footprint, half wet, half rainWet, inout half3 albedo, inout half3 n, out half crevice)
 {
     float3 w = pow(abs(n), 4);
-    w /= w.x + w.y + w.z;
+    w /= max(w.x + w.y + w.z, 1e-5);
     // Periods about 2.2 m, 0.6 m and 0.18 m; the finest is skipped once it is gone.
     half f1 = PunchyStoneFade(2.2, footprint), f2 = PunchyStoneFade(0.6, footprint), f3 = PunchyStoneFade(0.18, footprint);
-    half4 d1 = PunchyStoneOctave(p, w, 0.45);
-    half4 d2 = PunchyStoneOctave(p + 17.3, w, 1.7);
+    half4 d1 = PunchyStoneOctave(p, w, 0.45, footprint);
+    half4 d2 = PunchyStoneOctave(p + 17.3, w, 1.7, footprint);
     half4 d3 = 0.5;
     [branch] if (f3 > 0)
-        d3 = PunchyStoneOctave(p - 5.1, w, 5.5);
+        d3 = PunchyStoneOctave(p - 5.1, w, 5.5, footprint);
     // Ridged multifractal: each octave weighted by the one below it, so fine ridges sit on the big ones' crests.
     half s1 = PunchyStoneRidge(d1.b, f1);
     half w2 = saturate(s1 * 2);
@@ -81,7 +84,7 @@ void PunchyStoneSurface(float3 p, float footprint, half wet, half rainWet, inout
 // sit on the ridges' flanks. Nothing when dry.
 half PunchyStoneSpec(half3 n, half3 n0, half3 v, half3 l, half crevice, half wet)
 {
-    half3 h = normalize(l + v);
+    half3 h = SafeNormalize(l + v);
     half3 bent = normalize(n + (n - n0) * 0.8);
     half broad = pow(saturate(dot(n, h)), 12) * 0.22;
     half sharp = pow(saturate(dot(bent, h)), 90) * 1.1;

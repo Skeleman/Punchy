@@ -615,8 +615,9 @@ Shader "Punchy/Terrain Surface"
                     PunchyStoneSurface(input.positionWS, max(distance, 0.01) / ppmS, stoneWet, wet, stoneAlbedo, stoneN, stoneCrevice);
                     albedo = lerp(albedo, stoneAlbedo, rockFace);
                     normalWS = normalize(lerp(normalWS, stoneN, rockFace));
+                    // (Only the sky term follows the new normal: a second inline copy of the glow loops crashed FXC.)
+                    inputData.bakedGI += SampleSH(normalWS) - SampleSH(inputData.normalWS);
                     inputData.normalWS = normalWS;
-                    inputData.bakedGI = SampleSH(normalWS) + PunchyGlowLight(input.positionWS, normalWS) + PunchyGlowWorld(input.positionWS, normalWS);
                 }
                 albedo *= rockShade;
                 albedo *= 1 - burrowDarken;
