@@ -18,7 +18,8 @@ line if you already saw it there.
 - [ ] **Putting items away**: folk reach to a pocket, pouch, coat or over the shoulder when they put an item away or take one out.
 - [ ] **Animals lying down** fold their legs under them (horses, deer, cattle); no leg sticks out straight behind.
 - [ ] **Caves**: no sunlight or moving cloud shadows on walls inside caves and shallow tunnels; mouths still lit.
-- Anything merged before the build goes in this list (I'll update it when I cut the build).
+- [ ] **Grass shadows**: grass blades in mid-distance shadow are shaded too, not lit bright inside a tree's shadow.
+- Built from main 244805ae (11-14 evening). Not in it yet: steep-rock layering tweaks still on test (R-19 follow-ups), waterfall sheets (R-21), water fixes (W-153), per-person folk builds (A-124).
 
 ## v0.14.0 (11-12)
 - [ ] **Talk to folk** (Use): topics, names, personalities, second greetings, quests and small gifts.
