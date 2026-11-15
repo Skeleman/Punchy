@@ -294,9 +294,10 @@ namespace Punchy.Fauna
                 pitch += act * 1.45f;
                 height = math.lerp(height, 0.16f * scale, act);
             }
-            // A-103 row 2b: a sea folk out of the water stoops, more as it walks (it trudges, uncomfortable).
+            // A-103 row 2b, A-127 row 2: a sea folk out of the water stands upright, with only a slight forward
+            // set as it walks (it trudges, uncomfortable). In the water it leans into its swim as before.
             if (b.Upright && FolkState.OutOfWater(s.Position, b.WalksBed, terrain))
-                pitch += 0.14f + 0.08f * move;
+                pitch += 0.03f * move;
 
             // A player's roll: a forward somersault (a full turn of the body), tucked up off the ground as it goes over.
             if (s.Roll > 0f)
