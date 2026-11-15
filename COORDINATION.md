@@ -87,3 +87,9 @@ Rules 10 and 12c are retired (replaced by 15 and by 21 + 23).
 - Zach decides: design direction and look approvals the card marks as his. The supervisor sends him the shots.
 
 History before 11-13 (old session table, task table, shared-file queue, log): `git show fac41bfb:COORDINATION.md`.
+
+## Rule 34: the board and resumable cards (Zach 11-15)
+- `lanes/BOARD.md` has one line per open card. Every handoff updates the lane's own line (status, branch@sha, next step).
+- When usage runs low, or before any long run that could be cut off, commit the work in progress to the lane branch
+  (`WIP:` subject), push, and set the line to **resumable** with the exact next step. Nothing is left only on disk.
+- On resume, read your board line and your card before anything else.
