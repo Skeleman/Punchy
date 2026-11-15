@@ -17,6 +17,7 @@ line if you already saw it there.
 - [ ] **Cliffs and steep slopes** read as layered rock with beds and slabs at High and above (Low and Medium keep colour and grain).
 - [ ] **Putting items away**: folk reach to a pocket, pouch, coat or over the shoulder when they put an item away or take one out.
 - [ ] **Animals lying down** fold their legs under them (horses, deer, cattle); no leg sticks out straight behind.
+- [ ] **Caves**: no sunlight or moving cloud shadows on walls inside caves and shallow tunnels; mouths still lit.
 - Anything merged before the build goes in this list (I'll update it when I cut the build).
 
 ## v0.14.0 (11-12)

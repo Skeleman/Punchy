@@ -90,3 +90,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-14: #347 merged (A-114): folk reach to a hip pocket, belt pouch, coat chest or over the shoulder to put an item away or take one out; drawn on each machine from the held item, nothing new on the wire. #314 closed. Check: watch a lamplighter or miner swap items; play as sea or turtle folk.
 - 11-14: #348 merged (W-168 row 1): a one-line start report ([start]) in the log at world ready; no visible change.
 - 11-14: #349 merged (A-118): four-legged animals lie on folded legs (hoofed ones tuck forelegs, hind legs to one side); no leg sticks out behind. #329 closed. Check: horses, deer and cattle lying in a field, side and front.
+- 11-14: #350 merged (R-36 row 1): cave interiors no longer catch sunlight or drifting cloud shadows through the roof; mouths and the outside unchanged. #338 stays open for later rows. Check: a shallow tunnel on a cloudy noon, walls should stay still.
