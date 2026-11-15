@@ -444,3 +444,34 @@ with main d95e7ff1); compiles, no suite run yet.
 - Asks: BENCH job for the cost of the 4096 map plus the wide filter at High (rule 21, not timed here). Merge when
   convenient.
 - NEXT: R-32 row 2 (grass in every shadow tier), then rows 3-4, from a new branch off origin/main.
+
+## R-32 row 2 (#328): grass blades take every shadow tier (2026-11-14)
+
+- DONE: render/grass-shadow-tiers, from origin/main 3b192717, one commit 34f1b684 (two shaders only):
+  - Grass.shader: blades now use URP's faded real-time shadow (the 3-argument GetMainLight) and the darker of that
+    and WideShadow, as the ground does. The ForwardLit pass marks blade pixels with stencil bit 8.
+  - Resources/FloraShadowCache.shader: the receiver code is shared. It has a second pass for blade pixels (stencil
+    bit 8) that uses the ground's up normal, not a normal rebuilt from the blades' depth, which flips from pixel to
+    pixel and made the cache's bias and facing test speckle. Every other pixel goes through the old pass, unchanged.
+  - FloraSystem.ShadowCache.cs was not changed: RenderPrimitives draws both passes. So there is no world-lane note.
+    Placement and hashes were not touched. The far tone is unchanged (rule 25).
+- Checks:
+  - A/B at the lakeshore meadow (470, 1840): a fresh play session per side, -weather Clear, two views
+    (tree shadows on grass at about 20-110 m), 16:00 and 12:00, 1920x1080. After minus before: mean -0.2 to -0.8
+    levels, and 3-6% of pixels move by more than 8 levels. The heat maps show that change is clouds, wind on the
+    blades and a few animals that moved. No banding, no seam where the shadow tiers hand over, nothing brighter or
+    darker over a whole area.
+  - The blade pass runs: a temporary red tint on that pass alone turned every grass blade red, and only the blades
+    (reverted, and the file matches the commit).
+  - Not shown: the shaded-grass speckle getting less. On shaded grass in the middle distance a high-frequency
+    measure is the same before and after, within 1% (a16 7.61/7.63, b16 13.08/13.18). These views have few
+    cache-band shadows on grass, so the row's proof is weak. It needs Zach's eye where he saw it, or a spot with
+    cliff shadow at about 60 m.
+  - NaN: `-sparkleprobe` with Stop NaN off, meadow view: 360 frames, other bad 0, hot 0.
+  - Suite after the last change: `completed: 40/40 passed`.
+- Shots (milestones folder R-32): `row2-grass-shadow-ab.png` (left before, right after; top a16, bottom b12), and
+  each view at full size as `row2-<view>-before/after.png`.
+- Asks: a BENCH job for the blades' cost: two extra WideShadow taps per blade pixel, and the second full-screen
+  receiver pass drawn over blade pixels only (rule 21, not timed here). Merge when convenient.
+- NEXT: R-32 rows 3-4 (blue moon as the shadow light; blue-moon nights about one in ten), new branch from
+  origin/main.
