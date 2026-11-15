@@ -32,6 +32,13 @@ namespace Punchy.Weather
         const float ShadowStepDegrees = 0.1f;
         Vector3 heldLightDirection;
         bool heldLightValid;
+        // R-32 row 3: whether the blue moon is the shadow-casting light, and the shadows' fade for the hand-over.
+        const float BlueMoonHandOverSeconds = 2.5f;
+        // The blue moon takes the shadows only on a strongly blue night (R-32 row 4): its light must pass this as well
+        // as the big moon's (linear luminance; a full blue moon high in a clear sky gives about 0.18).
+        const float BlueMoonShadowFloor = 0.08f;
+        bool blueMoonCasts;
+        float handOverFade = 1f;
         [Tooltip("Shader for rain, snow, hail and dust particles. Referenced here so builds include it.")]
         public Shader PrecipitationShader;
         [Tooltip("Shader that marches the rain and dust haze into a small table once a frame (HazeLut). Referenced here so builds include it.")]
@@ -620,8 +627,45 @@ namespace Punchy.Weather
             if (Cycle != null && Cycle.BlueMoonGlow > 0f)
                 blueLight = Cycle.BlueMoonLamp * (Cycle.BlueMoonGlow * Cycle.Night * (1f - 0.8f * s.Coverage)
                                                   * (1f - Punchy.Terrain.CaveSystem.Underground));
-            Shader.SetGlobalVector(BlueLightDirectionId, Cycle != null ? (Vector4)Cycle.BlueMoonDirection : Vector4.zero);
-            Shader.SetGlobalVector(BlueLightColorId, (Vector4)blueLight);
+            // The Sun light's colour and strength as the day and the big moon give them.
+            var mainColor = Sun != null ? Sun.color : Color.white;
+            var mainIntensity = 0f;
+            var mainDirection = Cycle != null ? Cycle.LightDirection : Vector3.up;
+            if (Sun != null && baseSunIntensity >= 0f)
+            {
+                if (Cycle != null)
+                    mainColor = Color.Lerp(Cycle.LightColor, DustColor(), s.Dust * 0.6f);
+                mainIntensity = baseSunIntensity * (Cycle != null ? Cycle.LightStrength : 1f) * (1f - 0.7f * s.Dust);
+            }
+            // R-32 row 3 (Zach 11-14): when the blue moon outshines the big moon it becomes the shadow-casting light.
+            // URP casts shadows from the main light only, so the two swap places: the Sun light takes the blue moon's
+            // direction and colour, and the big moon goes to Glow.hlsl's unshadowed extra term at its own strength.
+            // The swap happens while the shadows are faded right out (BlueMoonHandOver), so nothing pops.
+            var extraDirection = Cycle != null ? Cycle.BlueMoonDirection : Vector3.zero;
+            var extraLight = blueLight;
+            var bigMoonLight = mainColor.linear * mainIntensity;   // URP's main light colour (linear intensity)
+            var shadowFade = BlueMoonHandOver(LinearLuminance(blueLight), Mathf.Max(LinearLuminance(bigMoonLight), BlueMoonShadowFloor));
+            if (blueMoonCasts && Cycle != null)
+            {
+                extraDirection = Cycle.LightDirection;
+                extraLight = bigMoonLight * (1f - Punchy.Terrain.CaveSystem.Underground);
+                mainDirection = Cycle.BlueMoonDirection;
+                mainIntensity = Mathf.Max(blueLight.maxColorComponent, 1e-4f);
+                mainColor = (blueLight * (1f / mainIntensity)).gamma;
+                mainColor.a = 1f;
+            }
+            // Glow.hlsl's extra term wraps round (0.85 N.L + 0.15) where the main light doesn't, so a low moon lights flat
+            // ground more as the extra light than as the main one, while walls facing the moon get about the same. While
+            // the shadows are faded for the hand-over, ease the main light halfway to the flat-ground wrapped strength,
+            // which splits the difference between the two, so the swap itself barely shows, then ease back.
+            if (shadowFade < 1f)
+            {
+                var y = Mathf.Max(mainDirection.y, 0.05f);
+                var wrapRatio = Mathf.Min((0.85f * y + 0.15f) / y, 3f);
+                mainIntensity *= Mathf.Lerp(1f, 0.5f * (1f + wrapRatio), 1f - shadowFade);
+            }
+            Shader.SetGlobalVector(BlueLightDirectionId, (Vector4)extraDirection);
+            Shader.SetGlobalVector(BlueLightColorId, (Vector4)extraLight);
             RenderSettings.ambientSkyColor = ambientZenith * ambientScale + moonFloor;
             // At sunrise and sunset the side light warms with the sky's twilight band (Sky.hlsl), so the land matches it.
             var equator = ambientHorizon;
@@ -635,14 +679,13 @@ namespace Punchy.Weather
 
             if (Sun != null && baseSunIntensity >= 0f)
             {
-                var strength = Cycle != null ? Cycle.LightStrength : 1f;
                 if (Cycle != null)
                 {
-                    Sun.transform.rotation = Quaternion.LookRotation(-SteppedLightDirection(Cycle.LightDirection));
-                    Sun.color = Color.Lerp(Cycle.LightColor, DustColor(), s.Dust * 0.6f);
+                    Sun.transform.rotation = Quaternion.LookRotation(-SteppedLightDirection(mainDirection));
+                    Sun.color = mainColor;
                 }
-                Sun.intensity = baseSunIntensity * strength * (1f - 0.7f * s.Dust);
-                Sun.shadowStrength = math.lerp(0.25f, 1f, 1f - s.Coverage * 0.6f) * (1f - 0.6f * s.Dust);
+                Sun.intensity = mainIntensity;
+                Sun.shadowStrength = math.lerp(0.25f, 1f, 1f - s.Coverage * 0.6f) * (1f - 0.6f * s.Dust) * shadowFade;
                 // Deep in a cave no sunlight reaches anything, so skip the sun's shadow pass (several ms of shadow
                 // draws for nothing); with a margin either way, so it doesn't flicker at a cave's mouth.
                 var underground = Punchy.Terrain.CaveSystem.Underground;
@@ -655,6 +698,29 @@ namespace Punchy.Weather
                     Sun.shadows = shadows;
             }
         }
+
+        /// <summary>
+        /// R-32 row 3: which moon casts the night's shadows, and how far the shadows are faded in (0..1). When the
+        /// blue moon's light passes the big moon's (with a 10% margin either way, so it doesn't flip back and forth)
+        /// the shadows fade out, the lights swap, and the shadows fade back in, BlueMoonHandOverSeconds each way.
+        /// Driven by the world clock through the two strengths, so every player sees the same moon cast them.
+        /// </summary>
+        float BlueMoonHandOver(float blue, float big)
+        {
+            var want = blueMoonCasts ? blue > big * 0.9f : blue > big * 1.1f;
+            var step = Time.unscaledDeltaTime / BlueMoonHandOverSeconds;
+            if (want != blueMoonCasts)
+            {
+                handOverFade = Mathf.Max(0f, handOverFade - step);
+                if (handOverFade <= 0f)
+                    blueMoonCasts = want;
+            }
+            else
+                handOverFade = Mathf.Min(1f, handOverFade + step);
+            return handOverFade;
+        }
+
+        static float LinearLuminance(Color c) => 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
 
         /// <summary>
         /// The shadow-casting light direction, held until the true direction has turned ShadowStepDegrees away
