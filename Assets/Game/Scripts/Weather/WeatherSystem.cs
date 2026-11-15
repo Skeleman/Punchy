@@ -37,8 +37,6 @@ namespace Punchy.Weather
         // The blue moon takes the shadows only on a strongly blue night (R-32 row 4): its light must pass this as well
         // as the big moon's (linear luminance; a full blue moon high in a clear sky gives about 0.18).
         const float BlueMoonShadowFloor = 0.08f;
-        // How far the hand-over eases the main light toward the extra slot's wrapped strength (see the lighting update).
-        const float BlueMoonHandOverEase = 0.8f;
         bool blueMoonCasts;
         float handOverFade = 1f;
         [Tooltip("Shader for rain, snow, hail and dust particles. Referenced here so builds include it.")]
@@ -86,6 +84,8 @@ namespace Punchy.Weather
         static readonly int BlueMoonId = Shader.PropertyToID("_PunchyBlueMoon");
         static readonly int BlueLightDirectionId = Shader.PropertyToID("_PunchyBlueLightDirection");
         static readonly int BlueLightColorId = Shader.PropertyToID("_PunchyBlueLightColor");
+        static readonly int HandOverLightDirectionId = Shader.PropertyToID("_PunchyHandOverLightDirection");
+        static readonly int HandOverLightColorId = Shader.PropertyToID("_PunchyHandOverLightColor");
         static readonly int BlueMoonGlowId = Shader.PropertyToID("_PunchyBlueMoonGlow");
         static readonly int SunColorId = Shader.PropertyToID("_PunchySunColor");
         static readonly int ZenithId = Shader.PropertyToID("_PunchySkyZenith");
@@ -656,20 +656,22 @@ namespace Punchy.Weather
                 mainColor = (blueLight * (1f / mainIntensity)).gamma;
                 mainColor.a = 1f;
             }
-            // Glow.hlsl's extra term wraps round (0.85 N.L + 0.15) where the main light doesn't, so a low moon lights flat
-            // ground more as the extra light than as the main one, while walls facing the moon get about the same. While
-            // the shadows are faded for the hand-over, ease the main light most of the way (BlueMoonHandOverEase) to the
-            // flat-ground wrapped strength, which roughly balances the mean of a town view at the swap, then ease back.
-            // (Measured on the town clip: no ease dims at the swap, the full ratio brightens, 0.8 sits between; walls
-            // facing the moon still brighten while flat ground darkens, so one scalar can't hide the swap entirely.)
+            // R-32 row 5: a crossfade, so the swap itself changes nothing on screen. The main light and Glow.hlsl's extra
+            // term shade differently (the extra one wraps round), so swapping their moons in one frame stepped walls one
+            // way and flat ground the other. Instead, as the shadows fade out, the main light fades out with them and the
+            // same moon fades into a second unshadowed slot (the hand-over slot). At the bottom of the fade both moons are
+            // in the unshadowed slots, so swapping which slot holds which changes nothing, and the fade back in moves the
+            // new main moon back out of the hand-over slot. Outside a hand-over (every ordinary night) the slot is empty.
+            var handOverLight = Color.black;
             if (shadowFade < 1f)
             {
-                var y = Mathf.Max(mainDirection.y, 0.05f);
-                var wrapRatio = Mathf.Min((0.85f * y + 0.15f) / y, 3f);
-                mainIntensity *= Mathf.Lerp(1f, Mathf.Lerp(1f, wrapRatio, BlueMoonHandOverEase), 1f - shadowFade);
+                handOverLight = mainColor.linear * (mainIntensity * (1f - shadowFade));
+                mainIntensity *= shadowFade;
             }
             Shader.SetGlobalVector(BlueLightDirectionId, (Vector4)extraDirection);
             Shader.SetGlobalVector(BlueLightColorId, (Vector4)extraLight);
+            Shader.SetGlobalVector(HandOverLightDirectionId, (Vector4)mainDirection);
+            Shader.SetGlobalVector(HandOverLightColorId, (Vector4)handOverLight);
             RenderSettings.ambientSkyColor = ambientZenith * ambientScale + moonFloor;
             // At sunrise and sunset the side light warms with the sky's twilight band (Sky.hlsl), so the land matches it.
             var equator = ambientHorizon;
