@@ -4868,6 +4868,41 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Risks: lava rims use the water glow test (depth under 0.3 m, glow over 0.5); this probe did not cover a lava field.
 - NEXT: A-122 (#352, door sound) on fauna/door-sound, as the coordinator ordered, then A-121 row 2 (heat), then A-119.
 
+## 2026-11-14 A-121 row 2: fires give heat (#342)
+- DONE (verified, solo): fauna/fire-heat 41efe4a4, on row 1 (20efe9be). This row is for life and detail.
+  - FireSpots is now also the heat-source list. HeatAt gives the warmth a lit fire adds at a spot, falling off with distance (HeatReach and Felt), and creature comfort adds it on top of the weather (Comfort.Pressure takes fireHeat). A NightOnly camp fire is unlit by day, so it gives no heat and needs no berth then.
+  - Species gain FireTemper (Auto, Ignores, Wary, Shy, Basks, Loves). Auto means: folk Ignores, friendly animals Wary, cold-blooded Basks, other wild animals Shy. CinderLizard, EmberFox, CharcoalBeetle and AshCrab are set to Loves. Unity re-saved those four assets with their missing default fields, which moves no values.
+  - Each creature gets a berth past the flame edge, CreatureMind.FireKeep. It comes from temper times personality (trait 7103, fire shyness), and it is widened to wherever the fire's heat stops pushing the creature over its hot line. So furred and hot-climate animals, and folk at noon, stand back further. A creature inside its berth walks out to the edge (FireStep, counted in Shelters.FireBacked).
+  - Cold creatures seeking warmth go to the nearest lit fire and stand just outside their berth (StartShelter). Fire-lovers drift to a lit fire within 30 m (FireDrawn) and do not leave it when comfortable.
+  - Row 1's walk checks (Walkable, SteerRoundFire, KeepOutOfFire) now use the per-creature berth.
+- Probe: FireWatch.Gather (editor only) set every walking creature and folk within 60-80 m in a ring 1-3 m past the flame edge. FireWatch then counted the average number per frame in each band, at 0-2 / 2-5 / 5-10 m past the edge, over 90 s. Columns are band: distinct / 0-2 / 2-5 / 5-10.
+
+| Site, hour | shy | basks | wary | folk | backed off |
+|---|---|---|---|---|---|
+| CampsiteSnow 00:30 (cold night, lit) | 6: 0.00/1.65/0.40 | - | - | 1: 1.00/0.00/0.00 | 3 |
+| CampsiteSnow 12:00 (warm noon, NightOnly fire unlit) | 6: 1.72/0.07/0.62 | - | - | 3: 0.06/0.19/0.21 | 0 |
+| Village 20:30 (evening) | 7: 0.00/1.37/0.65 | 5: 1.00/3.76/0.24 | 1: 1.00/0.00/0.00 | 17: 0.75/1.52/3.01 | 8 |
+| Village 12:00 (noon; the hearth burns all day) | 7: 0.00/2.03/4.67 | 4: 0.00/2.55/0.69 | 2: 0.00/0.44/1.10 | 4: 0.00/0.00/3.14 | 32 |
+| Village 00:30 | 6: 0.00/1.08/0.70 | 3: 0.00/3.00/0.00 | 2: 0.00/2.00/0.00 | 0 (all gone to bed) | 17 |
+
+  - Reading: shy animals leave the inner ring whenever a fire burns, and stay in it when the camp fire is out. Folk stay at the fire on a cold or cool evening and keep 5-10 m back at noon. Baskers sit 2-5 m off. Wary animals sit near at night and further out at noon.
+  - Lovers: no fire-loving species lives near a camp or town fire, so the lover band read 0 everywhere and FireDrawn stayed 0. That path is untested in play.
+- Shots (not viewed, rule 12b): D:/Unity/PunchyMilestones/A-121/
+  - snow-night-gather-1..4.png: CampsiteSnow at 21:00, about 25 s apart. The camp has only one folk person; they stay at the fire while 10 shy animals move out to 2-10 m.
+  - village-evening-gather-1..4.png: the village fire at 20:30, 15 folk, with 0.6-1.1 per frame inside 2 m and the rest at 2-10 m.
+  - All 8 shots passed the shot tool's check (all "good").
+- NaN: 228 creatures, 0 NaN.
+- Suite (editor closed): 40 passed / 0 failed / 17 skipped after the re-pin.
+  - The fauna fingerprint moved from E483FBF0 to DDE01A70. The creature blob's ComfortProfile gains FireShy and LovesFire, and the species asset gains FireTemper.
+  - No placement moved: landmarks are 117 689D5348, the same as before.
+- Host/client: no new wire state. Heat and berths are read from the same landmark data on the machine that simulates the creature, which is the host or solo. Clients see the replicated positions.
+- BENCH line wanted (rule 21): the brain job cost of HeatAt plus FireKeepFor per ComfortCheck and FireStep, in a busy town at dusk (HumanVillage, about 25 creatures within 50 m of the fire), compared with main.
+- Risks:
+  - Torches, braziers that are not ground flames, and lava are not heat sources.
+  - Colossi (CinderSnail, MagmaSerpent) may not run the brain, so they don't linger at fires.
+  - The village counts at 00:30 mostly show bedtime, not heat.
+- NEXT: A-123 (#356) on fauna/body-reads, then A-124 (#358) on fauna/individual-builds, then A-119, as the coordinator ordered.
+
 ## A-122
 
 ## 2026-11-14 A-122 row 1: shut doors muffle, open doors let sound in (#352)
