@@ -1,5 +1,7 @@
 # Supervisor resume point (11-15, end of day)
 
+Update 11-15 late: steps 1-2 done. Merged #407-#411; lanes restarted as background agents (world, render, fauna, folk, plus a main-account agent on P-41 in Punchy-player). Far-life rule 11 answered YES. Step 3 handed to render to check from the air.
+
 State: v0.16.0 released and playtested. All lanes stopped, no editors open. Feedback carded (PLAYTEST.md 11-15 lines).
 
 Next, in order:
