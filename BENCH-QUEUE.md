@@ -819,7 +819,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
   `Herds:` line every 5 s (herds and members drawn).
 - Pass (rule 23): B within +0.3 ms main and +0.3 ms GPU of A at both views, Medium; no wake frame over 8 ms.
 
-## Job 82 (2026-11-14, QUEUED after 81; render lane, for R-23 rows 2-3, #298): one surface lighting path
+## Job 82 (2026-11-14, NEXT on the laptop, chained after 81 (q124.job; a row 3 arm C must land before 81 ends to be included); render lane, for R-23 rows 2-3, #298): one surface lighting path
 - Main 3eeb72d4 (A) vs `render/one-surface` 88719cc9 (B, row 2: terrain, flora and impostors light through
   Surface.hlsl). Profile builds, 1920x1080, Medium and High, uncapped, 12:00, Clear, `-weatherseed 4`, ABBA,
   3 rounds, 300 frames each. When row 3 lands I'll add its commit as arm C here before the job runs.

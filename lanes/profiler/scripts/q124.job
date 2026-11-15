@@ -1,0 +1,15 @@
+# Job 82 (R-23 rows 2-3, #298): one surface lighting path. render/one-surface 88719cc9 (B) vs main 3eeb72d4 (A).
+# Both from the shelf. Medium and High, noon, Clear, 3 rounds. Views: the desert town (-benchspot -342,560, yaw 0),
+# the R-25 town (2988.8,-920, yaw 0), and the summit far view (-2496,294,960, yaw 55). Shader variant counts come
+# from the builds' logs if the shelf ships them (it doesn't keep build logs; then from a local Profile build log).
+# (If row 3 lands as arm C before this starts, add it: ARMS and arm().)
+Q=q124; TITLE="job 82 one surface lighting path"
+BUILDS="88719cc 3eeb72d"
+VIEWS="desert town summit"
+view() { case $1 in
+  desert) echo "-goto -342,560 -benchstops spot -benchspot -342,560,0 -benchhour 12 -benchweather Clear";;
+  town)   echo "-goto 2988.8,-920 -benchstops spot -benchspot 2988.8,-920,0 -benchhour 12 -benchweather Clear";;
+  summit) echo "-goto -2496,294,960 -benchstops spot -benchspot -2496,294,960,55 -benchhour 12 -benchweather Clear";; esac; }
+ARMS="B A"
+arm() { case $1 in B) echo "Profile-88719cc";; A) echo "Profile-3eeb72d";; esac; }
+ROUNDS=3; GFX="Medium High"; REF=A; BAR=0.1
