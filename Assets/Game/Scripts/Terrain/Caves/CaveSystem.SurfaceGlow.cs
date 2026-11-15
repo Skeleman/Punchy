@@ -136,7 +136,8 @@ namespace Punchy.Terrain
 
         static void AddStreetLight(Vector3 position, Vector4 light, float windowsOn)
         {
-            var l = new Vector4(light.x, light.y, light.z, 0f) * windowsOn;
+            // (A-115: a town's street light only once its lamplighter has lit it; LitAt is 1 for any other.)
+            var l = new Vector4(light.x, light.y, light.z, 0f) * (windowsOn * Punchy.Fauna.LampRoutes.LitAt(new float2(position.x, position.z)));
             l.w = Punchy.Flora.FloraPlacement.GlowReach(light.w);
             Punchy.Settings.LightBudget.AddPooled(Punchy.Settings.LightKind.Fixture, position, l);
         }

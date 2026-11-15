@@ -81,6 +81,9 @@ namespace Punchy.Settings
         static UniversalRenderPipelineAsset pipeline;
         static float baseShadowDistance;
         static int baseCascades;
+        static int baseShadowMap;
+        // The sun's shadow map at High and above (R-20 row 1): half-width texels crawl less; Medium and Low keep the asset's.
+        const int WideShadowMap = 4096;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         static void Init()
@@ -97,6 +100,7 @@ namespace Punchy.Settings
             {
                 baseShadowDistance = pipeline.shadowDistance;
                 baseCascades = pipeline.shadowCascadeCount;
+                baseShadowMap = pipeline.mainLightShadowmapResolution;
             }
             Application.quitting -= RestorePipeline;
             Application.quitting += RestorePipeline;
@@ -189,6 +193,7 @@ namespace Punchy.Settings
                 return;
             pipeline.shadowDistance = baseShadowDistance * Shadows;
             pipeline.shadowCascadeCount = Cascades;
+            pipeline.mainLightShadowmapResolution = Cascades >= 4 ? Mathf.Max(baseShadowMap, WideShadowMap) : baseShadowMap;
         }
 
         /// <summary>
@@ -210,6 +215,7 @@ namespace Punchy.Settings
                 return;
             pipeline.shadowDistance = baseShadowDistance;
             pipeline.shadowCascadeCount = baseCascades;
+            pipeline.mainLightShadowmapResolution = baseShadowMap;
         }
 
         /// <summary>

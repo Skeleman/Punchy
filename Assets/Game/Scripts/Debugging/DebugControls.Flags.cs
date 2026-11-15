@@ -24,6 +24,9 @@ namespace Punchy.Debugging
             optionsAt = Time.timeSinceLevelLoad;
             // "-place ledge:lip[:Body]" and "-ledgepiece" (A-101 row 1b): the ledge lip test (LedgeLipTest).
             LedgeLipOptions(args);
+            // "-colossusclimb [Kind[,Kind...]|all]" (A-107 row 1): the colossus climb probe (ColossusClimbTest).
+            // "-colossusride [Kind[,Kind...]|all] [margin]" (A-107 row 2): the same climbing walking colossi, then riding.
+            ColossusClimbOptions(args);
             // "-breathtest" (A-102 row 1): air and water breathers held on a lake bed, their breath logged (BreathTest).
             breathTest = System.Array.IndexOf(args, "-breathtest") >= 0;
             // "-ridetest" (A-104 row 1): three rider/mount pairs, one refused, walked for a minute (RideTest).

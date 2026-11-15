@@ -11,6 +11,7 @@ namespace Punchy.Terrain
         public float Height, ShapeRadius, Edge, Flatten, Roughness;
         public int FirstPool, PoolCount;
         public int FirstTrodden, TroddenCount;
+        public int FirstBed, BedCount;
         public int OverrideWater;
         /// <summary>rgb colour (linear), a murk.</summary>
         public float4 Water;
@@ -42,6 +43,13 @@ namespace Punchy.Terrain
         public float Radius;    // metres
     }
 
+    /// <summary>W-164: a level garden bed under one of a landmark's placed gardens (LandmarkBeds).</summary>
+    public struct LandmarkBedData
+    {
+        public float2 Offset;   // the garden's spot, in radii, landmark frame
+        public float Radius;    // metres: flat out to here (past the garden's corners)
+    }
+
     /// <summary>One placed landmark.</summary>
     public struct LandmarkInstance
     {
@@ -70,6 +78,7 @@ namespace Punchy.Terrain
         public BlobArray<LandmarkTypeData> Types;
         public BlobArray<LandmarkPoolData> Pools;
         public BlobArray<LandmarkTroddenData> Trodden;
+        public BlobArray<LandmarkBedData> Beds;
         public BlobArray<LandmarkInstance> Instances;
         public float2 GridOrigin;
         public float CellSize;

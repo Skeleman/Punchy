@@ -31,6 +31,10 @@ float4 _PunchyGlowTownParams;      // x strength x windows on (0 by day or off),
 float4 _PunchyGlowTownColor;       // rgb the warm light of a lit town
 float4 _PunchyBlueLightDirection;  // xyz towards the blue moon
 float4 _PunchyBlueLightColor;      // rgb its light (linear; 0 when it gives none)
+// R-32 row 5: the main light's moon while it hands the shadows over (WeatherSystem), shaded like the blue moon's
+// term; rgb 0 outside the few seconds of a hand-over, so it costs one uniform branch.
+float4 _PunchyHandOverLightDirection;
+float4 _PunchyHandOverLightColor;
 
 // The far tier's light on a surface at p with normal n.
 half3 PunchyGlowFar(float3 p, half3 n)
@@ -123,6 +127,8 @@ half3 PunchyGlowLight(float3 p, half3 n)
     // The blue moon: a little wrap, so faces turned just past it aren't cut off hard.
     [branch] if (_PunchyBlueLightColor.b > 0)
         light += _PunchyBlueLightColor.rgb * saturate(dot(n, _PunchyBlueLightDirection.xyz) * 0.85 + 0.15);
+    [branch] if (_PunchyHandOverLightColor.r + _PunchyHandOverLightColor.g + _PunchyHandOverLightColor.b > 0)
+        light += _PunchyHandOverLightColor.rgb * saturate(dot(n, _PunchyHandOverLightDirection.xyz) * 0.85 + 0.15);
     return light;
 }
 

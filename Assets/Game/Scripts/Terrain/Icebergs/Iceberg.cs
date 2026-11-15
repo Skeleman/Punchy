@@ -278,7 +278,7 @@ namespace Punchy.Terrain
         /// <summary>The stage's own stream: the world seed with "icebergs" mixed in.</summary>
         static uint StreamSeed(uint seed) => BiomeSampling.Scramble(seed ^ 0x1CEB3A65u);
 
-        [BurstCompile]
+        [BurstCompile(CompileSynchronously = true)] // seed-derived: never the managed copy (BakeBurst)
         struct ClassifyJob : IJobParallelFor
         {
             public TerrainSource Source;

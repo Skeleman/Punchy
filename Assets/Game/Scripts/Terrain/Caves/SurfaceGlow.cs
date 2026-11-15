@@ -133,7 +133,8 @@ namespace Punchy.Terrain
                 MapCorner = farCorner;
                 MapReady = true;
             }
-            if (!farRunning && math.distancesq(camPos.xz, farScannedAt.xz) > MoveBeforeFarRescan * MoveBeforeFarRescan)
+            // (A-115: and as the lamplighters light the towns or put them out, LampsChanged.)
+            if (!farRunning && (math.distancesq(camPos.xz, farScannedAt.xz) > MoveBeforeFarRescan * MoveBeforeFarRescan || LampsChanged()))
             {
                 farScannedAt = camPos;
                 farCorner = math.floor(camPos.xz / MapTexel) * MapTexel - MapSize * MapTexel * 0.5f;
@@ -147,7 +148,8 @@ namespace Punchy.Terrain
                     Plants = farPlants,
                     Windows = farWindows,
                     FixtureAt = farFixtureAt,
-                    FixtureLight = farFixtureLight
+                    FixtureLight = farFixtureLight,
+                    Dark = FillDark()
                 }.Schedule();
                 farClock = System.Diagnostics.Stopwatch.StartNew();
                 farRunning = true;
@@ -223,6 +225,7 @@ namespace Punchy.Terrain
             ReleaseWorld();
             ReleaseSpill();
             ReleaseDomes();
+            ReleaseLamps();
             if (farPlants.IsCreated)
                 farPlants.Dispose();
             if (farWindows.IsCreated)
@@ -331,6 +334,8 @@ namespace Punchy.Terrain
             public NativeArray<float4> Plants, Windows;
             /// <summary>The tree layer's street lights (not strided), laid out as ScanJob's Positions and Colors.</summary>
             public NativeList<float4> FixtureAt, FixtureLight;
+            /// <summary>A-115: how lit the route lamps not fully lit are, by foot (LampRoutes.Key); others in full.</summary>
+            [ReadOnly] public NativeHashMap<int2, float> Dark;
 
             public void Execute()
             {
@@ -370,6 +375,12 @@ namespace Punchy.Terrain
                         var reach = FloraPlacement.GlowReach(glow.w) * math.sqrt(scale);
                         var wide = fixture ? math.max(reach, MapTexel * 2.5f) : math.max(reach * 1.6f, 12f);
                         var light = glow.xyz * (reach * reach / (wide * wide) * step * step);
+                        if (fixture && Dark.TryGetValue((int2)math.floor(plant.Position.xz * 4f), out var lit))
+                        {
+                            if (lit <= 0f)
+                                continue;
+                            light *= lit;
+                        }
                         var lift = fixture ? StructureKit.FixtureLightHeight : 0.4f;
                         if (fixture && step == 1)
                         {
