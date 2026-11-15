@@ -30,7 +30,7 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
 - **Stylized realism (#304, R-26), foliage (#323, R-30), grass fields (#325, R-31), salt-flat cracks (#331,
   R-33), wet stone (#332, R-34, in flight), clouds from a reference shader (#333, R-35).** Next, render lane.
 - **Sun moves smoothly (R-38, 11-15).** Sun position every 0.1 s as a trial. In flight.
-- **Caves.** Shipped: screen-size cave LOD, cave water, dungeon texturing and collision. In flight: playtest
+- **Caves.** Shipped: screen-size cave LOD, cave water, dungeon texturing and collision. Shipped: no paddy spikes on slopes (W-172 row 1, PR #384). In flight: playtest
   fixes, tunnel variety and cave walls that fit the place (W-172 rows 5 and 7: moss only near light or damp,
   glowing fungi deep, carvings near ruins, fossils in sedimentary rock, frost, salt crust, flowstone, tide
   marks, soot near camps, roots under forest). Later: small-animal passages to secret rooms and river-carved
@@ -73,6 +73,7 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
   climb by the cliff method (W-162).
 - **Fishing (A-100, P-33).** Shipped: catch tables, fish notice the bobber. In flight: player fishing (P-33).
 - **Individual builds and gaits (A-124).** In flight.
+- **Bodies read clearly (A-123, #356).** Shipped (PR #385): arms meet the torso, canine faces, feathered birds.
 - **Gold variants.** Shipped: 1 in 400.
 
 ## Dungeons, items, quests

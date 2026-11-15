@@ -9,8 +9,7 @@ cave-entry #379, no-water-discs #380, puddle-edges #381, swell-noise #382.
 ## Land: the owning lane merges main in, re-pins, verifies, hands off "ready for PR"
 | Branch | Card | Owner | Note |
 |---|---|---|---|
-| fauna/body-reads | A-123 | fauna | Birds and dogs. EmberFox.asset + pin. First. |
-| fauna/individual-builds | A-124 r1 | fauna | Stacked on body-reads. |
+| fauna/individual-builds | A-124 r1 | fauna | Next; body-reads landed as #385. BENCH job 95. |
 | flora/tree-variety | A-113 | fauna | Saguaro and temperate trees. Pin only. |
 | fauna/far-life | A-108 r2 | fauna | Conflicts in animator and island files. |
 | fauna/one-population | A-110 to r7b | fauna | RideLife.cs. |
@@ -35,7 +34,7 @@ cave-entry #379, no-water-discs #380, puddle-edges #381, swell-noise #382.
 | player/netsim | P-31 | player | Merge main, re-check -netsim. |
 | player/fishing | P-33 | player | Row 4 waits on Zach's feel notes. |
 | player/take-items | P-38 (#372) | player | Rows 1-2b DONE but never PR'd (11-15 audit): merge main in, hand off ready for PR. Holds unify-items, items-pick, items-axe, hair, clothing. |
-| fauna/folk-pets, fauna/playtest-1114 | A-120, A-126 | folk, fauna | In flight. |
+| fauna/folk-pets, fauna/playtest-1114, world/playtest-1114 | A-120, A-126 rows 2-4, W-172 rows 2+ | folk, fauna | In flight. |
 
 ## Bench only (never merge)
 b/bench, b/bench-lod, b/bench-stress, b/bench-job84, b/bench-job92b1.
