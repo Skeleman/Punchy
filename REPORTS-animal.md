@@ -4856,3 +4856,28 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - BENCH line wanted (rule 21): FireSpotSystem build cost at load, and the brain job cost of the extra Fires.Near checks in Walkable/Advance in a busy town at dusk (village, about 24 creatures within 50 m), compared with main.
 - Risks: lava rims use the water glow test (depth under 0.3 m, glow over 0.5); this probe did not cover a lava field.
 - NEXT: A-122 (#352, door sound) on fauna/door-sound, as the coordinator ordered, then A-121 row 2 (heat), then A-119.
+
+## A-122
+
+## 2026-11-14 A-122 row 1: shut doors muffle, open doors let sound in (#352)
+- DONE (verified, solo + world switches): fauna/door-sound 1a58e972, from main 5140b48e. This row is for life and detail.
+  - GameAudioOcclusion: on the main thread, each check builds a TempJob list of open door anchors within 60 m of the ear. It reads Doors.IsOpen with the door numbered as Doors numbers it, which is its rank among Door anchors. The Burst job only reads that list and never calls Doors.
+  - In the job, an open door's leaf box (within 1.5 m of an open anchor) is a gap for both the straight line and the way round. A way round through a shut leaf is muffled to 0.88 (KnownShut). Before, every leaf counted as half shut (0.5).
+  - With no Doors in the scene, behaviour is the old one (0.5 per leaf).
+  - The door-rank map is dropped when the terrain goes away (#259) and rebuilt when the anchor set changes. Nothing new on the wire: a joined client reads the host-broadcast open set through Doors.IsOpen.
+- Probe: door 40 at (3013, 9, -866). Ear inside the house, 3 m in from the door at head height. TownMurmur loops at three outside points. The numbers are occlusion (0 = clear, 1 = walled).
+
+| Case | A off-axis outside | B on doorway axis | C round the corner |
+|---|---|---|---|
+| Door shut | 0.88, routed | 0.88, routed | 1.00, not routed |
+| Door open | 0.23, routed via doorway | 0.00, direct | 1.00 |
+| Before (old code, open or shut) | 0.50 | 0.50 | 1.00 |
+
+- Cave mouth (cave 0, mouth (-1795, 52, -203), sound 29 m in): 0.22 routed, both with and without Doors, so unchanged.
+- World switches: host and back to solo three times, with 0 errors and warnings logged. The door probe afterwards gave the same numbers, so the rank map rebuilt.
+- NaN: 24 voices, 0 NaN.
+- Suite (editor closed): 40 passed / 0 failed / 17 skipped. Landmarks 117 689D5348.
+- Not done: recorded clips. The card asked for clips in D:/Unity/PunchyMilestones/A-122/, but the editor capture path has no audio, so this entry gives only the occlusion numbers above. No two-process client join was run either; the client path only reads Doors.IsOpen, which already syncs.
+- BENCH line wanted (rule 21): GameAudio.Occlusion average ms in a village with doors (HumanVillage, ear indoors and outdoors), compared with main.
+- Risks: a leaf counts as open if it is within 1.5 m of an open anchor (xz), so two doors less than 1.5 m apart would share a state. No kit has doors that close together.
+- NEXT: A-121 row 2 (fires give heat) on fauna/fire-heat, then A-119.
