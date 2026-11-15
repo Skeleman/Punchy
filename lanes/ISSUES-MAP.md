@@ -106,5 +106,6 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #356 | fauna | A-123 folk shoulder joins, dog face, bird feathers (Zach play notes) |
 | #357 | world | W-169 puddles cut off at chunk borders (hollow depth LOD0-1 only), then graded rim |
 | #358 | fauna | A-124 per-person folk build and gait (one NetPlayerLook field, approved) |
-| #359 | world | W-170 lying logs: rigid, bark furrows along the log (upright trunk furrows wrapped round them) |
+| #359 | world | W-170 lying logs: rigid, bark furrows along the log; row 2 nothing wooden sways (garden fences) |
 | #360 | fauna | A-125 fish and dolphins splash on exit and entry, sized by body; droplets and foam from the serpent kit |
+| #361 | world | W-171 fence kit: runs round any outline, styles by culture; gardens, pens, yards on it, any size |

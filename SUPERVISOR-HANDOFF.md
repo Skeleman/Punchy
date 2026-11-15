@@ -348,3 +348,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-14: Zach clarified: puddles stop dead at a terrain square's border. Cause found: hollow depth written only for LOD0-1 chunks (BuildChunkMeshJob ~168). W-169 row 1 is now the seam fix; the graded rim is row 2.
 - 11-14: Zach: a lone log's wood runs the wrong way. Cause: FallenLog/Driftwood/SeatLog have Flexibility 0.4, so they sway, draw as living and take upright trunk furrows that ring a lying log. Carded W-170 (#359) for world, first after its current row.
 - 11-14: Zach said yes to swimmer splashes; carded A-125 (#360) for fauna after A-124, before A-119.
+- 11-14: Zach: garden fence posts sway in the wind; asked for a fence kit so gardens and farms vary in size. W-170 row 2 (sway per part, wood never sways); carded W-171 (#361) fence kit, before W-165.

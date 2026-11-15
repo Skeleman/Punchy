@@ -19,12 +19,13 @@ Worktree D:/Unity/Punchy-world. Read the card and REPORTS-world.md's newest entr
 
 1. R-21 foot boxes per tile + fall 74 bank spot (bench 74), then paddies bake to Burst or a coarse first pass (bench 75); ask main for reruns.
 2. W-153 rows 3-6 with W-155 row 4. Carried in: water walls beside falls 22 and 67 and in front of 46 and 51; fall 13's notch; cave falls without lip dip and foot ripples; the fine sheet reading FallShape; 109 fall and landmark head-pool walls; retake fall 46 and 51 fronts and the snowpeak landmark fall.
-2z. W-170 (Zach 11-14: a lone log's bark runs the wrong way; logs sway as living plants and take upright trunk furrows; small, first after the row in hand; #359).
+2z. W-170 (Zach 11-14: a lone log's bark runs the wrong way; logs sway as living plants and take upright trunk furrows; small, first after the row in hand; #359). Row 2: garden fence posts sway with the crops; sway per part, wood never sways.
 3. W-156 (audit 11-13: far clip restore, nearest cave water first).
 3b. W-157 (Zach 11-14: taller hanging lanterns, stone lantern columns).
 3b2. W-164 (Zach 11-14: gardens and crop plots sit level on slopes, no sinking; small; #334).
 3b2a. W-166 row 1 (Zach 11-14: material library audit, no code; rows 2-4 after W-165 row 1 and take in W-163 row 1; #336).
 3b2b. W-167 row 1 (Zach 11-14: towers sized for a stair and usable rooms; audit after W-166 row 1; row 2 after W-165 row 1; #337).
+3b2c. W-171 (Zach 11-14: fence kit for any outline; gardens, pens, yards on it, any size; after W-164 and W-170, before W-165; #361).
 3b3. W-165 (Zach 11-14: farm fields outside towns, crops for each biome; after W-164; #335).
 3b4. W-169 (Zach 11-14: puddles cut off at terrain chunk borders; hollow depth only on LOD0-1; row 2 graded rim; #357).
 3c. W-159 (Zach 11-14: river flow streaks become normal and vertex ripples, no white overlay; small, may go before 4b).
