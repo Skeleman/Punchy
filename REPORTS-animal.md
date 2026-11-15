@@ -4775,3 +4775,18 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
   - `-pocketlog` is a new test flag, off by default.
 - Clean-up: PlayArgs cleared, editor closed by PID, my client closed by PID, no Punchy.exe of mine running.
 - NEXT: A-115.
+
+## A-115
+
+## 2026-11-14 A-115 row 1: a lamplighter lights each town street by street (#315)
+- DONE (verified, solo): fauna/lamplighter a96f48d8, from main 4006cab3. Four commits: 4ceb4508 FloraPlacement (shared, additive: partial + TownLights lookups), 2eef05e4 folk files, e4fcc98e world lane files (CaveSystem, SurfaceGlow), a96f48d8 render lane file (Flora.shader part 6). This row is for life and detail, near and far.
+  - LampRoutes: seeded rounds per town from the flora blob, built on every machine; each lamp's lit level comes from the clock and its time on the round. No new ghost field or wire enum. Log: 9 rounds, 195 lamps over 6 towns (big towns get two rounds and two lamplighters).
+  - The lamplighter comes from a real household. It walks with its pole (Staff) in stage 8, reaches up in stage 9 just before each lamp is due, the lamp lights at the top of the reach, then it walks on. At dawn it walks the round again and puts them out. A lamp it can't reach in time follows the clock anyway; it runs when late.
+  - Clients read the job from the replicated stage (FromWorkStage 8/9). Lamps off a round behave exactly as before (LitAt returns 1).
+  - Schedule tuned to the real folk walk (~1.1 m/s): schedule walk 0.95 m/s, 4 s per lamp, window 1-4 h, sets off 0.5 h early. Track of route 0 (5 lamps): it reached every lamp before it lit, no late lamps.
+- Numbers: landmarks 117 689D5348 (TestHooks.LandmarkHash), fauna fingerprint B2A5823C (unchanged). Town 4 lit count at dusk 8% / 45% / 90% of its window: 22 / 101 / 177 lamps; mid-dawn 95.
+- Shots (D:/Unity/PunchyMilestones/A-115/): hill_dusk_early/mid/late.png, hill_dawn_mid.png (town 4 from 100 m), near_before.png (pole up, lamp dark), near_after.png (lit). Viewed: hill_dusk_mid, near_before, near_after.
+- Host/client: not run as two processes (no Builds/Dev build yet). By the code: rounds are seed-derived from the flora blob and the scene's day length; the hour comes from WorldState; stage and held item replicate. Ask before syncing kill/delay.
+- BENCH line wanted (rule 21): SurfaceGlow far-map rescan now also fires when LitCount changes (at most once a second during dusk/dawn windows); cost of the extra rescans in a big town at dusk.
+- Risks: distant FloraImpostor lantern glass isn't darkened yet (far lamps off a lit impostor read lit early). In the near shot a sign stands in front of the lantern at that angle.
+- NEXT: A-115 row 2 (role lines, kids follow, hurry in rain).
