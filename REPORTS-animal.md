@@ -5087,3 +5087,8 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - CreatureBlob.Style parity: Individuals are odd and math.hash keeps the low bit, so even option counts never draw the odd options (HairColor and others). Options: (a) scramble before the modulo, which changes every creature's look and means one fingerprint re-pin; (b) shift the input (individual >> 1), which moves only those draws; (c) document it. My pick is (a). Your call.
 - Archive check: archive/refactor/pose-by-size is covered on main (CreatureMotion screen-size pose). archive/fix/salt-ball-far-shadow is superseded by Rendering/WideShadow.cs. Nothing else is uncovered.
 - NEXT: your 11-15 order. Merge main into fauna/playtest-1114, then body-reads, individual-builds, flora/tree-variety, far-life, one-population, lying-legs. far-life conflicts in world-owned Terrain/Island files (IslandCache, IslandV2, TerrainSource), so I will ask before I resolve those.
+
+## 11-15 Main merged and checked; A-123 (#356) body-reads ready for PR
+- Main after the batch merges (fauna/playtest-1114 @ 6bda6b7a, pushed): it compiles, the suite passes 40/40 (Setup_SpawnRainAndShot timed out once on a cold first start, then passed alone in 27 s), and the fauna pin DDE01A70 is unchanged. Main needs no fix.
+- fauna/body-reads @ 58f7e26e (pushed), #356: merged main in. EmberFox now has main's FurLength lines plus the branch's nose limb. Re-pinned the fauna fingerprint to 43D1F778 (A-123 plus the A-121 fire tempers); landmarks 117 689D5348; suite 40/40. Ready for PR.
+- NEXT: fauna/individual-builds (#358), then fauna/style-parity, then A-126 rows 2-4.
