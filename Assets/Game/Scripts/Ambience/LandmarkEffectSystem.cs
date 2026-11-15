@@ -483,7 +483,6 @@ namespace Punchy.Ambience
             falls.Clear();
             fallShapes.Clear();
             WaterPatchSystem.Vents.Clear();
-            heardFalls.Clear();
             fires.Clear();
             fireLights.Clear();
             maxParticles = 1;
