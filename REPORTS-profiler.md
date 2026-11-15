@@ -21,7 +21,7 @@ Newest first.
 | town jump | 17.1 ms | 170 | 79 | 56 | 30 | 34 | **47** |
 
 - **For #270's scheduler: yes, they stack.** The most common pairs are **terrain chunks + colossus builds** (town jump: 1.1-1.3 s frames) and **cave + colossi** (tunnel: 1.7-1.9 s frames; the cave sockets and CaveSystem.Update at 1.36-1.39 s). The worst tunnel frame (4.15 s) has cave work and terrain chunks together.
-- **Caveat:** each capture starts at launch, so its first frames are loading (Init FMOD 1.4-1.5 s, CaveSystem.OnEnable 0.65-0.7 s, IslandV2System 1.2-1.4 s); those are in the counts. The pairs above are from frames after the world was up (the colossus slot builds come after "world ready").
+- **Caveat:** each capture starts at launch, so its first frames are loading (Init FMOD 1.4-1.5 s, CaveSystem.OnEnable 0.65-0.7 s, IslandV2System 1.2-1.4 s); those are in the counts. I didn't split the counts by time, so some pairs may be from the load; a rerun with \`-skip\` past world-ready would separate them.
 
 Cost: laptop total $900 (laptop session e163d8ab; 0 builds (shelf), 9 games, 3 analyses).
 
