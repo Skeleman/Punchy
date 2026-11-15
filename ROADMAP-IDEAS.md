@@ -55,8 +55,8 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
 ## Folk and races
 - **Playable races (#291).** Shipped (A-103): sea, bat and turtle folk; bat eyes see brighter.
 - **Breath (A-102).** Shipped: works like stamina; air breathers resurface; sea folk never run out.
-- **Households (#25, A-105).** Shipped: own homes, going home at dusk, family talk. Shipped: notice board (A-116), fire heat (A-121), doors and sound (A-122). In flight: household
-  pets (#340, A-120). Later, after items (P-35): owned items, and theft that angers owners and guards.
+- **Households (#25, A-105).** Shipped: own homes, going home at dusk, family talk. Shipped: notice board (A-116), fire heat (A-121), doors and sound (A-122). Shipped: household
+  pets (#340, A-120, PR #389). Later, after items (P-35): owned items, and theft that angers owners and guards.
 - **Conversation (#25).** Shipped: personalities, a conversation API, reactions to an animal player (A-93),
   hermit chores and talk (A-106), the player talk system (P-28). Later: dialogue options, a hand-editable text
   archive reloaded live.
@@ -72,7 +72,7 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
   (A-126 row 1, PR #383). In flight: A-126 rows 2-4 (ledge hands, shimmy prompt, steering ridden animals); cave routes
   climb by the cliff method (W-162).
 - **Fishing (A-100, P-33).** Shipped: catch tables, fish notice the bobber. In flight: player fishing (P-33).
-- **Individual builds and gaits (A-124).** In flight.
+- **Individual builds and gaits (A-124).** Shipped: row 1 builds (PR #387) and the style draw that really varies (PR #388). In flight: later rows.
 - **Bodies read clearly (A-123, #356).** Shipped (PR #385): arms meet the torso, canine faces, feathered birds.
 - **Gold variants.** Shipped: 1 in 400.
 

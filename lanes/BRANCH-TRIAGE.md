@@ -4,12 +4,12 @@ Every unlanded branch on origin, checked with merge-tree against origin/main on 
 
 ## Merged 11-15 (catch-up)
 far-towns #373, lamplighter #374, notice-board-life #362, fire-heat #375, door-sound #376, scarps #377, level-gardens #378,
-cave-entry #379, no-water-discs #380, puddle-edges #381, swell-noise #382.
+cave-entry #379, no-water-discs #380, puddle-edges #381, swell-noise #382, cliff-kit #386,
+individual-builds #387, style-parity #388, folk-pets #389.
 
 ## Land: the owning lane merges main in, re-pins, verifies, hands off "ready for PR"
 | Branch | Card | Owner | Note |
 |---|---|---|---|
-| fauna/individual-builds | A-124 r1 | fauna | Next; body-reads landed as #385. BENCH job 95. |
 | flora/tree-variety | A-113 | fauna | Saguaro and temperate trees. Pin only. |
 | fauna/far-life | A-108 r2 | fauna | Conflicts in animator and island files. |
 | fauna/one-population | A-110 to r7b | fauna | RideLife.cs. |
@@ -32,7 +32,7 @@ cave-entry #379, no-water-discs #380, puddle-edges #381, swell-noise #382.
 | player/netsim | P-31 | player | Merge main, re-check -netsim. |
 | player/fishing | P-33 | player | Row 4 waits on Zach's feel notes. |
 | player/take-items | P-38 (#372) | player | Rows 1-2b DONE but never PR'd (11-15 audit): merge main in, hand off ready for PR. Holds unify-items, items-pick, items-axe, hair, clothing. |
-| fauna/folk-pets, fauna/playtest-1114, world/playtest-1114 | A-120, A-126 rows 2-4, W-172 rows 2+ | folk, fauna | In flight. |
+| folk/playtest-1114, fauna/playtest-1114, world/playtest-1114 | A-127, A-126 rows 2-4, W-172 rows 2+ | folk, fauna, world | In flight. |
 
 ## Bench only (never merge)
 b/bench, b/bench-lod, b/bench-stress, b/bench-job84, b/bench-job92b1.
