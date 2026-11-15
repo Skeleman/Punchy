@@ -467,6 +467,7 @@ namespace Punchy.Terrain
             var water = BaseHeight(siteA * PaddySize);
             var bed = water - TerraceDepth;
             var g = bed;
+            var steep = 0f;   // W-172: 0..1, how near this is to a border with a much higher or lower pool
             // Then a bank towards every neighbour whose border is close: the ground rises from this pool's bed to the
             // bank on top of the border (the same height from both sides, so the ground stays continuous).
             for (int j = 0; j < 9; j++)
@@ -475,11 +476,19 @@ namespace Punchy.Terrain
                 var e = (math.distance(p, s) - dA) * 0.5f * PaddySize;   // metres to that border (approx.)
                 if (e <= 0f || e > 6f)
                     continue;
-                var top = math.max(water, BaseHeight(s * PaddySize)) + TerraceBank;
+                var other = BaseHeight(s * PaddySize);
+                var top = math.max(water, other) + TerraceBank;
+                // W-172: a neighbour metres higher (a pool centre up a cliff) made a bank ridge standing as a spike.
+                // Both sides see the same step, so fading towards the border keeps the ground continuous.
+                steep = math.max(steep, math.smoothstep(TerraceStep - 2f, TerraceStep, math.abs(other - water)) * (1f - math.smoothstep(0f, 6f, e)));
                 var w = math.clamp((top - bed) * 0.8f, 1.2f, 6f);   // a tall riser is wider, so it isn't a wall
                 g = math.max(g, math.lerp(top, bed, math.smoothstep(0f, w, e)));
             }
             var bank = water + TerraceBank;
+            // W-172 (#301): paddies only on gentle, uncarved ground. On a steep slope a cell's level pool sat metres
+            // above the downhill ground (water strips standing in the air) and a neighbour's centre far up the slope
+            // made a bank spike; where a river or landmark had reshaped the ground the pool also undid that.
+            cover *= TerraceFit(xz, h) * (1f - steep);
             // Out towards the pond's edge the paddy blends back into the natural ground: a rim at bank height first,
             // so the pool ends against it, not in mid air.
             var rim = math.lerp(h, math.max(h, bank), math.smoothstep(0f, 0.3f, cover));
@@ -489,6 +498,23 @@ namespace Punchy.Terrain
                 level = water;
             return g;
         }
+
+        /// <summary>
+        /// W-172: 1 where the ground suits paddies, fading to 0 by the natural slope (over ~8 m) and by how far rivers or
+        /// landmarks have moved the ground (h) from the natural ground. Continuous in xz, so the fade has no seams.
+        /// </summary>
+        float TerraceFit(float2 xz, float h)
+        {
+            var b = BaseHeight(xz);
+            var slope = math.length(new float2(BaseHeight(xz + new float2(TerraceSlopeStep, 0f)) - b,
+                                               BaseHeight(xz + new float2(0f, TerraceSlopeStep)) - b)) / TerraceSlopeStep;
+            return (1f - math.smoothstep(TerraceSlopeMin, TerraceSlopeMax, slope)) * (1f - math.smoothstep(0.5f, 2f, math.abs(h - b)));
+        }
+
+        /// <summary>W-172: paddies fade out between these natural slopes (rise per metre), measured over this step (m).</summary>
+        public const float TerraceSlopeMin = 0.18f, TerraceSlopeMax = 0.32f, TerraceSlopeStep = 8f;
+        /// <summary>W-172: a border between pools further apart in level than this (m) has no paddies at it.</summary>
+        public const float TerraceStep = 4f;
 
         /// <summary>W-25: a paddy cell's centre, in cell units (jittered inside its grid square).</summary>
         static float2 PaddySite(int2 c)
