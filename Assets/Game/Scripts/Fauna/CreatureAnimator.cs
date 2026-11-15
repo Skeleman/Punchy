@@ -621,6 +621,23 @@ namespace Punchy.Fauna
                             a.x += s.Stage == ChatListen ? 0.22f * math.max(0f, math.sin(s.Clock * 4.5f)) * math.saturate(math.sin(s.Clock * 0.8f) * 3f)
                                                          : 0.07f * math.sin(s.Clock * 6.3f);
                     }
+                    // At a notice board (A-116): the head going slowly along the sheets and down them; the one pointing a
+                    // notice out raises its right hand to it now and then, and lowers it again (the lean is the brain's Bow).
+                    if (b.Upright && s.Mode == CreatureMode.Sit && (s.Stage == BoardRead || s.Stage == BoardPoint))
+                    {
+                        var t = s.Clock + (s.Individual % 64) * 0.37f;
+                        if (part.Role == LimbRole.Head && j == 0)
+                        {
+                            a.x += 0.1f + 0.07f * math.sin(t * 0.45f);
+                            a.z += 0.3f * math.sin(t * 0.8f) * (s.Stage == BoardPoint ? 0.5f : 1f);
+                        }
+                        if (s.Stage == BoardPoint && part.Role == LimbRole.Arm && part.Side > 0f && j <= 1)
+                        {
+                            var raise = math.smoothstep(0.25f, 0.65f, math.sin(t * 0.6f) * 0.5f + 0.5f);
+                            a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.9f * raise);
+                            a += (j == 0 ? new float3(-1.4f, 0f, -0.12f) : new float3(-0.25f, 0f, 0f)) * raise;
+                        }
+                    }
                     // One of the folk at a hive: the stick hand up over the head jabbing at the comb, the other half up
                     // to shield the face; running off with it, that free arm flapping at the bees.
                     if (b.Upright && part.Role == LimbRole.Arm && s.Mode == CreatureMode.Work && j <= 1)
@@ -654,6 +671,19 @@ namespace Punchy.Fauna
                     }
                     if (b.Upright && s.Held == HeldItem.Letter && part.Role == LimbRole.Head)
                         a.x += 0.3f;
+                    // Pinning a sheet to a notice board (A-116 row 2): both arms reaching up and out to the board's face,
+                    // the sheet held flat in them, then the hands pressing it on; the head up to it, not bent.
+                    if (b.Upright && s.Mode == CreatureMode.Sit && s.Stage == BoardPin)
+                    {
+                        if (part.Role == LimbRole.Arm && j <= 1)
+                        {
+                            var press = 0.06f * math.sin(s.Clock * 5f + part.Side);
+                            a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.9f);
+                            a += j == 0 ? new float3(-1.55f - press, 0f, part.Side * 0.18f) : new float3(-0.55f + press, 0f, 0f);
+                        }
+                        if (part.Role == LimbRole.Head && j == 0)
+                            a.x -= s.Held == HeldItem.Letter ? 0.4f : 0.15f;
+                    }
                     // A sack of ore carried in both arms against the chest.
                     if (part.Role == LimbRole.Arm && s.Held == HeldItem.OreSack)
                     {
@@ -1287,6 +1317,12 @@ namespace Punchy.Fauna
         public const byte PlayRing = 8;
         /// <summary>Play-mode stage of a sea folk child running after a fish (A-103 row 3): no partner playing back.</summary>
         public const byte ChaseFish = 9;
+        /// <summary>Sitting-mode stages, standing, at a town's notice board (A-116): reading it (the head going along the
+        /// sheets, leant in), and pointing a notice out to the one beside it, reading it aloud.</summary>
+        public const byte BoardRead = 10, BoardPoint = 11;
+        /// <summary>Sitting-mode stage, standing close in at a town's notice board, pinning a new sheet up (A-116 row 2):
+        /// both hands up against the board, holding the sheet (HeldItem.Letter) until it goes up.</summary>
+        public const byte BoardPin = 12;
         /// <summary>Idle-mode stages of one of the townsfolk a messenger bird has come to: waiting for it (the forearm
         /// up for it to land on), taking the message from its leg, reading it.</summary>
         public const byte MessageWait = 60, MessageTake = 61, MessageRead = 62;
@@ -1394,6 +1430,16 @@ namespace Punchy.Fauna
                 return LookAbout(in s);
             if (s.Mode != CreatureMode.Work || s.Stage == 0 || s.Task == CreatureTask.None)
                 return float3.zero;
+            // (A-115: a lamplighter on its round walks easy, its pole in the right hand (the staff's arm); at a lamp it
+            // raises the pole up to it, the arm high and nearly straight, the left hand on its hip.)
+            if (s.Task == CreatureTask.Tend && (s.Stage == FolkJobs.RoundWalk || s.Stage == FolkJobs.RoundReach))
+            {
+                if (s.Stage != FolkJobs.RoundReach || part.Role != LimbRole.Arm || joint > 1)
+                    return float3.zero;
+                var up = math.smoothstep(0f, 0.35f, s.StageTime);
+                return part.Side > 0f ? new float3(joint == 0 ? -2.1f * up : 0.55f * up, 0f, 0f)
+                                      : new float3(joint == 0 ? 0.25f * up : -1.1f * up, 0f, part.Side * 0.35f * up);
+            }
             // (Swinging an axe, a hammer or a pick, the whole body goes into it: SwingBody.)
             if (part.Role != LimbRole.Arm || joint > 1)
                 return SwingBody(ref part, in s, joint);

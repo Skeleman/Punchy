@@ -83,6 +83,30 @@ namespace Punchy.Fauna
         }
 
         /// <summary>
+        /// Forgets bodies not kept this frame (despawned, or out of view): an entry only counts when it's from the frame
+        /// before (TrackPocket), and one coming back is written afresh, so dropping them changes nothing. A move whose
+        /// body is gone is dropped once it would be long over (never while scrubbing a strip). After CompactJob is done.
+        /// </summary>
+        void PrunePockets(int frame, float time)
+        {
+            if (!pocketSeen.IsEmpty)
+            {
+                var seen = pocketSeen.GetKeyValueArrays(Allocator.Temp);
+                for (int i = 0; i < seen.Length; i++)
+                    if (seen.Values[i].Frame < frame)
+                        pocketSeen.Remove(seen.Keys[i]);
+                seen.Dispose();
+            }
+            if (PocketScrub >= 0f || pocketMoves.IsEmpty)
+                return;
+            var moves = pocketMoves.GetKeyValueArrays(Allocator.Temp);
+            for (int i = 0; i < moves.Length; i++)
+                if (time - moves.Values[i].Start > 4f * PocketTime)
+                    pocketMoves.Remove(moves.Keys[i]);
+            moves.Dispose();
+        }
+
+        /// <summary>
         /// Items put away by hand. Sheathed ones (a spear or pick on the back or belt) keep their own Draw and Sheathe;
         /// honey and goggles aren't held in a hand.
         /// </summary>
