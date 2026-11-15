@@ -26,6 +26,10 @@ namespace Punchy.Terrain
             public int Building, Wanted;
             /// <summary>Rebuilds (another level or contact list) in flight at the end of streaming.</summary>
             public int Rebuilding;
+            /// <summary>W-145, what came onto the screen (the chunk ones only while CountReveals is on): chunks drawn in
+            /// the frustum again after being skipped, chunks drawn for the first time there, wall levels swapped in view;
+            /// cave plants coming into range and switching their finest model; cave water bakes finished and tiles shown; room kit flames lit.</summary>
+            public int Revealed, FirstDraws, VisibleSwaps, PlantsShown, PlantsFine, WaterBakes, WaterShown, FlamesShown;
         }
 
         /// <summary>This frame's counts so far.</summary>

@@ -972,7 +972,7 @@ namespace Punchy.Fauna
                             s.Timer -= dt;
                         // (A guard comes out when its watch begins, however long it meant to stay in: a night guard
                         // asleep through the day is out again at dusk.)
-                        if (s.Timer <= 0f || OnShift(s))
+                        if (s.Timer <= 0f || OnShift(s) || s.Job == (byte)FolkJob.Lamplighter && OnRound(s))
                             NextStage(ref s);
                         break;
                     default:
