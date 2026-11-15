@@ -130,8 +130,12 @@ namespace Punchy.Terrain
         public BlobAssetReference<AnchorSetBlob> Anchors;
         /// <summary>Bat folk settlements (#35, baked after caves, read by nothing else): their chambers and which cave pools are white.</summary>
         public BlobAssetReference<BatFolkSetBlob> BatFolk;
+        /// <summary>W-168: every cave's dungeon sockets (baked last, kept in the island file); unset on v1, where CaveSocketSystem builds them.</summary>
+        public BlobAssetReference<CaveSocketSetBlob> CaveSockets;
         /// <summary>Icebergs off the cold coasts (W-28, baked last, scenery with its own seed stream) and the one berg's ice cave.</summary>
         public BlobAssetReference<IcebergSetBlob> Icebergs;
+        /// <summary>W-150: the cliff kit pieces on sea cliff and mesa faces (CliffKitBaking), built after every place.</summary>
+        public BlobAssetReference<CliffKitSetBlob> CliffKit;
         /// <summary>The grand falls (W-29, v2 only, baked after every place): a stepped mountain stream into the central lake.</summary>
         public BlobAssetReference<GrandFallsBlob> GrandFalls;
         /// <summary>The archipelago off the dune coast (W-30, v2 only, baked after every place): islets raised out of the sea floor.</summary>
@@ -1175,6 +1179,12 @@ namespace Punchy.Terrain
                 deck = room;
                 onDeck = true;
             }
+            // W-150 row 2: a cliff kit piece's top (a shelf, a slab, a fallen block) stands bodies too.
+            if (CliffKit.IsCreated && Punchy.Terrain.CliffKit.Deck(this, p, out var shelf) && (!onDeck || shelf > deck))
+            {
+                deck = shelf;
+                onDeck = true;
+            }
             return onDeck;
         }
 
@@ -1269,10 +1279,19 @@ namespace Punchy.Terrain
         }
 
         /// <summary>
-        /// The cave ceiling straight above a point in cave air (sphere-traced up to rock); the point's own height if
-        /// it isn't in cave air.
+        /// The cave ceiling straight above a point in cave air (sphere-traced up to rock). Out of cave air, the underside
+        /// of a cliff kit piece hanging over it (W-150 row 2: an overhang), else the point's own height.
         /// </summary>
         public float CeilingOver(float3 p)
+        {
+            var cave = CaveCeilingOver(p);
+            // Cave air answers alone (cave drips and bakes keep their numbers); the kit only roofs open air.
+            if (cave == p.y && CliffKit.IsCreated && Punchy.Terrain.CliffKit.Ceiling(this, p, out var roof))
+                return roof;
+            return cave;
+        }
+
+        float CaveCeilingOver(float3 p)
         {
             // Up by part of the distance to rock (as FloorUnder marches down): angular or ribbed walls make the
             // field rise faster than the true distance, and a longer step would end up inside the ceiling. Then
@@ -1413,6 +1432,6 @@ namespace Punchy.Terrain
         public bool Equals(TerrainSource o) =>
             World.Equals(o.World) && HeightKind == o.HeightKind && Heightmap == o.Heightmap && Island == o.Island &&
             BiomeKind == o.BiomeKind && BiomeNoise.Equals(o.BiomeNoise) && BiomeMap == o.BiomeMap && Biomes == o.Biomes && BiomeCells == o.BiomeCells &&
-            RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks && Settlements == o.Settlements && Caves == o.Caves && BatFolk == o.BatFolk && Icebergs == o.Icebergs && GrandFalls == o.GrandFalls && Archipelago == o.Archipelago && Scarps == o.Scarps && Anchors == o.Anchors && PondMask == o.PondMask && V3Ground == o.V3Ground;
+            RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks && Settlements == o.Settlements && Caves == o.Caves && BatFolk == o.BatFolk && Icebergs == o.Icebergs && GrandFalls == o.GrandFalls && Archipelago == o.Archipelago && Scarps == o.Scarps && CliffKit == o.CliffKit && Anchors == o.Anchors && PondMask == o.PondMask && V3Ground == o.V3Ground;
     }
 }

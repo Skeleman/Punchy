@@ -25,41 +25,26 @@ MonoBehaviour:
     Hair: 0
     Surface: 0
     FurLength: 0
-  - Length: 0.36
-    RadiusStart: 0.2
-    RadiusEnd: 0.27
-    Flatten: 0.85
-    Accent: 0
-    UseFixedColor: 0
-    FixedColor: {r: 0.1, g: 0.08, b: 0.07, a: 1}
-    Glow: 0
-    Hair: 0
-    Surface: 0
-    FurLength: 0
   Spring: 0
   JointPhaseStep: 0
   FollowGround: 0
+  FollowsLeg: 0
   Idle:
     Joints:
-    - {x: 0, y: 0, z: 0}
     - {x: 0, y: 0, z: 0}
   WalkReach:
     Joints:
     - {x: 0, y: 0, z: 0}
-    - {x: 0, y: 0, z: 0}
   WalkPush:
     Joints:
-    - {x: 0, y: 0, z: 0}
     - {x: 0, y: 0, z: 0}
   WalkLift:
     Joints: []
   RunReach:
     Joints:
     - {x: 0, y: 0, z: 0}
-    - {x: 0, y: 0, z: 0}
   RunPush:
     Joints:
-    - {x: 0, y: 0, z: 0}
     - {x: 0, y: 0, z: 0}
   RunLift:
     Joints: []
