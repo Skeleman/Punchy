@@ -354,7 +354,8 @@ namespace Punchy.Ambience
 
         /// <summary>
         /// R-21: hands the open falls' boxes to the water and ground shaders (RiverCurtains.hlsl), with a rectangle round
-        /// them all so anything far from every fall skips the test. River falls go first (the water leaves their faces
+        /// them all so anything far from every fall skips the test, and a grid of which boxes reach where (FallCells) so
+        /// a point tests only the falls near it. River falls go first (the water leaves their faces
         /// out, so none may be dropped); a cave's fall has none, its water being the cave bake's.
         /// </summary>
         void SetCurtainBoxes()
@@ -382,6 +383,7 @@ namespace Punchy.Ambience
             Shader.SetGlobalVectorArray(CurtainFootId, curtainFoot);
             Shader.SetGlobalFloat(CurtainCountId, curtainCount);
             Shader.SetGlobalVector(CurtainRectId, rect);
+            FallCells.Set(curtainLip, curtainPour, curtainFoot, curtainCount);
         }
 
         /// <summary>

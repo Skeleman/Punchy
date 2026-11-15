@@ -18,6 +18,33 @@ float4 _PunchyRiverCurtainFoot[PUNCHY_RIVER_CURTAINS];
 float _PunchyRiverCurtainCount;
 float4 _PunchyRiverCurtainRect;
 
+// Bench 74: which boxes reach each cell of a grid over that rectangle (grown by the ripples' reach), so a point
+// tests only the few falls near it instead of all of them. A cell's set is 32 bits as two 16-bit halves (floats
+// hold those exactly); each float4 holds two cells (xy, zw). The grid's corner (xy) and cells per metre (zw).
+#define PUNCHY_FALL_GRID 16
+float4 _PunchyRiverCurtainCells[PUNCHY_FALL_GRID * PUNCHY_FALL_GRID / 2];
+float4 _PunchyRiverCurtainGrid;
+
+// The boxes that may reach this point (bit k: box k). Outside the grid: none.
+uint PunchyFallCell(float2 xz)
+{
+    float2 g = (xz - _PunchyRiverCurtainGrid.xy) * _PunchyRiverCurtainGrid.zw;
+    if (any(g < 0) || any(g >= PUNCHY_FALL_GRID))
+        return 0;
+    int i = (int)g.y * PUNCHY_FALL_GRID + (int)g.x;
+    float4 v = _PunchyRiverCurtainCells[i >> 1];
+    float2 h = (i & 1) ? v.zw : v.xy;
+    return (uint)h.x | ((uint)h.y << 16);
+}
+
+// Takes the lowest box out of a cell's set and gives its index (exact: a power of two's log2 is a whole float).
+int PunchyFallNext(inout uint set)
+{
+    uint low = set & (0u - set);
+    set ^= low;
+    return (int)round(log2((float)low));
+}
+
 // How far round a curtain's box the spray wets the rock (m), past its sides and below its lip.
 #define PUNCHY_FALL_WET_REACH 3.0
 // How far from a fall's foot its ripples reach over the pool (m).
@@ -37,8 +64,10 @@ bool PunchyWaterUnderCurtain(float3 p)
 {
     if (_PunchyRiverCurtainCount < 0.5 || any(p.xz < _PunchyRiverCurtainRect.xy) || any(p.xz > _PunchyRiverCurtainRect.zw))
         return false;
-    [loop] for (int k = 0; k < (int)_PunchyRiverCurtainCount; k++)
+    uint set = PunchyFallCell(p.xz);
+    [loop] while (set != 0)
     {
+        int k = PunchyFallNext(set);
         float4 a = _PunchyRiverCurtainLip[k];
         float4 b = _PunchyRiverCurtainPour[k];
         float4 c = _PunchyRiverCurtainFoot[k];
@@ -68,8 +97,10 @@ float PunchyFallWater(float3 p, float t, float fine, out float churn, out float2
     if (_PunchyRiverCurtainCount < 0.5 || any(p.xz < _PunchyRiverCurtainRect.xy - grow) || any(p.xz > _PunchyRiverCurtainRect.zw + grow))
         return 0;
     float height = 0;
-    [loop] for (int k = 0; k < (int)_PunchyRiverCurtainCount; k++)
+    uint set = PunchyFallCell(p.xz);
+    [loop] while (set != 0)
     {
+        int k = PunchyFallNext(set);
         float4 a = _PunchyRiverCurtainLip[k];
         float4 b = _PunchyRiverCurtainPour[k];
         float4 c = _PunchyRiverCurtainFoot[k];
@@ -135,8 +166,10 @@ half PunchyFallWet(float3 p)
     if (_PunchyRiverCurtainCount < 0.5 || any(p.xz < _PunchyRiverCurtainRect.xy - grow) || any(p.xz > _PunchyRiverCurtainRect.zw + grow))
         return 0;
     half wet = 0;
-    [loop] for (int k = 0; k < (int)_PunchyRiverCurtainCount; k++)
+    uint set = PunchyFallCell(p.xz);
+    [loop] while (set != 0)
     {
+        int k = PunchyFallNext(set);
         float4 a = _PunchyRiverCurtainLip[k];
         float4 b = _PunchyRiverCurtainPour[k];
         float2 d = p.xz - a.xz;
