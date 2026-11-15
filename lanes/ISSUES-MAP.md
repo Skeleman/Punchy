@@ -107,3 +107,4 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #357 | world | W-169 puddles cut off at chunk borders (hollow depth LOD0-1 only), then graded rim |
 | #358 | fauna | A-124 per-person folk build and gait (one NetPlayerLook field, approved) |
 | #359 | world | W-170 lying logs: rigid, bark furrows along the log (upright trunk furrows wrapped round them) |
+| #360 | fauna | A-125 fish and dolphins splash on exit and entry, sized by body; droplets and foam from the serpent kit |
