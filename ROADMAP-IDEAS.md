@@ -25,7 +25,7 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
 - **Lava and toxic pools (#303, W-154).** Shipped: first lava look and per-fluid underwater (PR #213). Next: W-154
   coarse crust normals and the far form.
 - **Lights (#302, R-25).** No light switches on as you approach. In flight: R-25 (far-lights branch, landing). Shipped: the lamplighter lights towns at dusk (A-115, PR #374).
-- **Shadows (#286 closed; bias on #354).** Shipped: one shadow darkness (R-16), steady near and high-preset sun shadows (R-20 row 1,
+- **Shadows (#286 closed; bias #354 closed 11-15: no visible difference, stays 0.1/0.5).** Shipped: one shadow darkness (R-16), steady near and high-preset sun shadows (R-20 row 1,
   R-32), blue moon shadows (R-32), no sun or cloud shadow through cave roofs (R-36). In flight: R-20 remaining rows.
 - **Stylized realism (#304, R-26), foliage (#323, R-30), grass fields (#325, R-31), salt-flat cracks (#331,
   R-33), wet stone (#332, R-34, in flight), clouds from a reference shader (#333, R-35).** Next, render lane.

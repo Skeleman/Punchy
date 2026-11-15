@@ -28,7 +28,6 @@ cave-entry #379, no-water-discs #380, puddle-edges #381, swell-noise #382.
 | render/audit-fixes | R-15 r1-3 | render | WaterPatchSystem. |
 | render/cobble-depth | R-28 r2 | render | Terrain shader vs puddle-edges. |
 | render/one-surface | R-23 r2 | render | Doc only. |
-| render/shadow-bias-test | R-37 | render | Test hook; waits on Zach's bias pick. |
 | render/stone-trial | R-34 | render | In flight. |
 | b/cloud-shadow-map, b/fix-swapchain-stall | profiler | render | Clean; render reviews. |
 | player/netsim | P-31 | player | Merge main, re-check -netsim. |
@@ -51,6 +50,7 @@ tmp/animal-slot6, test/playtest-1108, render/ssao-source, rc/v0.10.0, rc/v0.14.0
 Each is kept as tag `archive/<branch>`. Owners check theirs on resume; restore with
 `git push origin archive/<branch>:refs/heads/<branch>`.
 - rc-test/* (8) and wip/* (43): archived and deleted 11-15 (Zach OK), tags archive/rc-test/*, archive/wip/*.
+- render/shadow-bias-test (R-37): archived 11-15, Zach saw no difference; bias stays 0.1/0.5.
 light/forwardplus, b/r10-trims, b/r10-nocluster (R-10, redone in far-lights work); lod/screen-size (ScreenSize is on main);
 render/cloud-shadow-soft, shadow-still (R-20 row 2 parked); b/r12-trims, b/r12-warp-bake (looked wrong);
 b/water-rows-fixes, b/fix-waterfield-step, water/fine-grid (water trials); refactor/pose-by-size, fix/salt-ball-far-shadow;
