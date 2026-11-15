@@ -95,6 +95,29 @@ namespace Punchy.Fauna
             RideSpecies = -1
         };
 
+        /// <summary>
+        /// A-126 row 3: the hang's moves, named by the controls in use: the stick on a pad, the move keys (as bound) on a
+        /// keyboard. Up pulls up onto the top, down lets go, left and right shimmy along the lip.
+        /// </summary>
+        static string HangPrompt()
+        {
+            if (InputGlyphs.Gamepad)
+                return "[[<Gamepad>/leftStick]]  left, right  shimmy        up  climb        down  let go";
+            return $"{MoveKey("left")} {MoveKey("right")}  shimmy        {MoveKey("up")}  climb        {MoveKey("down")}  let go";
+        }
+
+        /// <summary>The key bound to one direction of the Move composite on the keyboard, as a prompt token (InputGlyphs
+        /// skips composite parts), or the direction's name when none is.</summary>
+        static string MoveKey(string part)
+        {
+            var action = UnityEngine.InputSystem.InputSystem.actions?.FindAction("Player/Move");
+            if (action != null)
+                foreach (var binding in action.bindings)
+                    if (binding.isPartOfComposite && binding.name == part && binding.groups != null && binding.groups.Contains("Keyboard&Mouse"))
+                        return InputGlyphs.Token(binding.effectivePath);
+            return part;
+        }
+
         protected override void OnUpdate()
         {
             Prompt = null;
@@ -175,7 +198,9 @@ namespace Punchy.Fauna
             var device = InputGlyphs.Version;
             // (The last part: what riding offers. 0 nothing, -1 getting down, -2 a player, 1 + species a creature.)
             var rides = riding ? -1 : rideTarget == Entity.Null ? 0 : ridePlayer ? -2 : 1 + found.RideSpecies + (rideTarget == target ? 100000 : 0);
-            var promptKey = riding ? (-6, false, device, rides) : held != Entity.Null ? (-2, false, device, 0) :
+            // (A-126 row 3: hanging from a ledge's lip, the moves it has, which players weren't finding: shimmy, climb, let go.)
+            var hanging = !riding && motion.Hang > 0 && motion.Mantle <= 0f;
+            var promptKey = riding ? (-6, false, device, rides) : hanging ? (-8, false, device, 0) : held != Entity.Null ? (-2, false, device, 0) :
                             target != Entity.Null ? (targetSpecies, targetCarry, device, rides) : rideTarget != Entity.Null ? (-7, false, device, rides) :
                             offerRest ? (rest == IdleAction.SitDown ? -4 : rest == IdleAction.LieBack ? -5 : -3, false, device, 0) : (-1, false, device, 0);
             if (promptKey != lastPromptKey)
@@ -187,6 +212,8 @@ namespace Punchy.Fauna
                     director = Object.FindAnyObjectByType<FaunaDirector>();
                 if (riding)
                     lastPrompt = $"{key}  get down";
+                else if (hanging)
+                    lastPrompt = HangPrompt();
                 else if (held != Entity.Null)
                     lastPrompt = $"{key}  put down";
                 else if (target != Entity.Null)

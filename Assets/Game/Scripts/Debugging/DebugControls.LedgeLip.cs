@@ -36,6 +36,8 @@ namespace Punchy.Debugging
 
         /// <summary>The lip test's flags (ApplyOptions): "-place ledge:lip[:Body]" and "-ledgepiece x,y,z,yaw,height,grade"
         /// ("-lipwait" holds the test for a joined player).</summary>
+        bool lipPromptSeen;
+
         void LedgeLipOptions(string[] args)
         {
             for (int i = 0; i < args.Length - 1; i++)
@@ -240,6 +242,14 @@ namespace Punchy.Debugging
                     break;
                 case 1:   // Shimmying right: in round the inner corner, out round the outer one, to the open end.
                     PlayerInputSystem.TestMove = right;
+                    // (A-126 row 3: the hang's prompt, logged, and shot with "-promptshot", once it has taken hold.)
+                    if (stageTime >= 0.3f && !lipPromptSeen)
+                    {
+                        lipPromptSeen = true;
+                        Debug.Log($"DebugControls: lip test: hang prompt \"{InputGlyphs.Plain(InteractionInputSystem.Prompt) ?? "(none)"}\"");
+                        if (System.Array.IndexOf(LaunchArgs, "-promptshot") >= 0)
+                            ScreenCapture.CaptureScreenshot($"Assets/Temp/shots/a126-hang-prompt{(InputGlyphs.Gamepad ? "-pad" : "")}.png");
+                    }
                     if (m.Hang == 0)
                         LipFail("let go shimmying right");
                     else if (stageTime > 1f && lipStillFor > 0.5f)
