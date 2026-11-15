@@ -5053,3 +5053,7 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Stopped before the host/client check. The player build to Builds/Windows was cancelled partway (stuck on shader variants), so that folder holds a half-written build. Rebuild it before use.
 - Row 2 (gait): design only, no code yet. Each build carries a gait style (even for most; heavy, brisk, ambling, or a slight limp for one build in 16) as walk and run key-pose swing in the build blob. No new wire data. With one biped foot planted at a time, StepPhase gives the limp's uneven timing while feet stay planted.
 - NEXT after HOLD: rebuild, host/client [look] check, the full row 1 report (BENCH crowd-cost request; old builds can't join), then row 2.
+
+## 2026-11-14 A-120 paused for HOLD (#340)
+- Row 3 code is pushed as WIP, unverified: fauna/folk-pets 5bd77a06. A child may carry a household pet: its own household's at full chance, a neighbour's at half, because Human Village's 3 kids live in pet-less houses and only human, turtle and sea villages have children. It carries the pet in through its own door and back out, where the pet squirms free. Holder = carrier, 0 new ghost fields. It compiles and play loads Human Village clean (26 pets, NaN 0); the carry itself is not seen yet.
+- NEXT after HOLD: Force(6) carry check plus strip at Human Village, the host+client held-pose check, delete PetProbe.cs (untracked), suite + fingerprint, then the row 3 handoff.
