@@ -339,3 +339,6 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-14: opened and merged #350 (R-36 row 1) -> 4df85493. Render next: R-20 row 1 (render/shadow-high: wide filter + 4096 map at High and above, the GraphicsSettings.cs exception per job 71 ruling). Zach asked about path audio: routing through doors and cave mouths is built; Doors.IsOpen never landed (offered to card it).
 - 11-14: Zach said yes to door-aware sound. Found player/doors-open (IsOpen, built 11-10, never merged): merged #351 -> b4ec4553. Carded A-122 (#352) for fauna, before A-119.
 - 11-14: merged #353 (R-20 row 1) -> 3b192717; BENCH job 88 queued. Render next: R-32 row 2 (grass in every shadow tier); approved FloraSystem.ShadowCache.cs line as shared-additive, tell world.
+- 11-14: shelf runner fixed: shelf.sh overlays Tools/bench from origin/b/bench-stress (profiler's request); the old main-runner loop was killed before any upload. Rebuilding 3b19271, 4df8549, d0524ea (log D:/Unity/PunchyBench/shelf-put.log).
+- 11-14: Zach kept the 0.4 s sun step (faster steps still show artifacts); R-32b dropped. Carded R-37 (#354) bias test sheet, 5 s clips per Zach; render does it after R-32 row 2, before rows 3-4.
+- 11-14: opened and merged #355 (R-32 row 2, grass in every shadow tier) -> 244805ae; BENCH job 91 queued. Render next: R-37, then R-32 rows 3-4.

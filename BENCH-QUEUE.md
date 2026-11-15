@@ -877,3 +877,13 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
   and the worst chunk-apply ms per frame during the first stream.
 - Then 60 s at `-benchspot 140,22,-548,30` (the hermit garden, looking at the hill) and at the default spawn: CPU
   and GPU ms. Pass: bake within +0.2 s, chunk stage within +3 %, frame within rule 23.
+
+## Job 91 (2026-11-14, QUEUED after 90; render lane, R-32 row 2, #328): grass blades in every shadow tier
+- main 244805ae (B, #355) vs main 3b192717 (A; on the shelf soon). Profile builds, 1920x1080, Medium and High,
+  uncapped, 16:00, Clear, `-weatherseed 4`, ABBA, 3 rounds, 300 frames each.
+- Views: the lakeshore meadow `-benchspot 470,1840` facing the trees (dense grass with tree shadows 20-110 m);
+  `-place OakGrove`.
+- Cost to price: each blade pixel takes two more WideShadow taps, and the flora cache receiver draws a second
+  full-screen pass over blade pixels only (stencil).
+- Record: whole-frame GPU ms; grass ForwardLit pass ms; the two FloraShadowCache passes' ms.
+- Pass (rule 23): Medium at most +0.3 ms GPU at its worst view, CPU within noise; High reported.
