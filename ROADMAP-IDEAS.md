@@ -32,6 +32,7 @@ Standing: the aim and its priorities are in COORDINATION.md. The layout is a tes
 - **Small-animal passages (#370, 11-14):** cave passages only small animals can fit through, leading to secret rooms.
 - **River-carved tunnels (#370, 11-14):** rivers that cut tunnels through a cliff, with a channel or ledge you can follow inside.
 - **Tunnel variety (11-14):** dead ends, chambers with a bench or a camper, side branches, roots and mushrooms. Carded as W-172 row 5.
+- **Cave walls that fit the place (11-15):** moss on walls, bracket fungi growing out of the rock, rare carvings, bones set in the rock. Each only where the biome and cave type fit. Added: moss only near light or in damp caves; glowing fungi deep down; carvings near ruins or old roads, in a nearby culture's style; fossil layers in sedimentary or badlands rock, and ossuary niches near ruins; frost and icicles in cold caves; salt crust in desert caves; flowstone in limestone; tide marks in river caves; soot and old sconces near camps; roots through the ceiling under forest. Carded as W-172 row 7.
 
 ## Settlements
 - **Castle walls (#254).** Modular walls, towers, a gatehouse with a working, synced portcullis, interior halls.
