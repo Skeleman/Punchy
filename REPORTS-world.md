@@ -7841,3 +7841,14 @@ Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl
   has high ground). After a fresh bake the world matches main's pins again, so that was a stale cached bake and not
   this change.
 - Next: W-170 row 1 (log bark), W-170 row 2 (per-part sway), W-169 row 2, then W-171 before W-165.
+
+## W-170 row 1: paused for Zach's playtest (WIP, unverified)
+
+- **Where I stopped:** world/log-bark c5d49a53, marked "WIP, unverified". Lying logs, driftwood and bedrolls no
+  longer sway; seat logs, driftwood and woodpile logs carry bark furrows that run along the piece. It compiles, and
+  Punchy/Flora shows 0 errors (3 existing warnings from the shared includes).
+- **Shots:** before and after at 3 m and 10 m in D:/Unity/PunchyMilestones/W-170/ for the woodpile, gravel-bar
+  driftwood, a fallen log (-711, 1979) and the forest. The seat log has before shots only; its after shots were cut
+  short by the pause.
+- **Next, once HOLD is gone:** seat log after shots, a storm check that no log moves, the full suite, then the
+  proper W-170 row 1 handoff (tell render, BENCH request). After that: W-170 row 2.
