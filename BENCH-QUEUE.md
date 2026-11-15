@@ -819,7 +819,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
   `Herds:` line every 5 s (herds and members drawn).
 - Pass (rule 23): B within +0.3 ms main and +0.3 ms GPU of A at both views, Medium; no wake frame over 8 ms.
 
-## Job 82 (2026-11-14, NEXT on the laptop, chained after 81 (q124.job; a row 3 arm C must land before 81 ends to be included); render lane, for R-23 rows 2-3, #298): one surface lighting path
+## Job 82 (2026-11-14, RUNNING 11-15, chained after 81 (q124.job; a row 3 arm C must land before 81 ends to be included); render lane, for R-23 rows 2-3, #298): one surface lighting path
 - Main 3eeb72d4 (A) vs `render/one-surface` 88719cc9 (B, row 2: terrain, flora and impostors light through
   Surface.hlsl). Profile builds, 1920x1080, Medium and High, uncapped, 12:00, Clear, `-weatherseed 4`, ABBA,
   3 rounds, 300 frames each. When row 3 lands I'll add its commit as arm C here before the job runs.
@@ -829,7 +829,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
   and FloraImpostor from the build log.
 - Pass (rule 23): a pure move, so B within +0.1 ms GPU of A at every view, Medium; no new variants.
 
-## Job 83 (2026-11-14, QUEUED after 82; folk lane, A-110 row 5): far town folk on low-rate brains
+## Job 83 (2026-11-14, NEXT on the laptop, chained after 82 (q125.job); folk lane, A-110 row 5): far town folk on low-rate brains
 - `fauna/one-population` 3d0c8df2 (A, row 4) vs f1747057 (B, row 5). Profile builds, 1920x1080, Medium, uncapped,
   10:00, Clear, `-weatherseed 4`, ABBA, 3 rounds, 300 frames each.
 - Views: town 73 centre `-benchspot 2972,-885`; and 200 m north `-goto 2972,-685` facing the town (most members far).
