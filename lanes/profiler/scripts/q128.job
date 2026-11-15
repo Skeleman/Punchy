@@ -1,0 +1,13 @@
+# Job 86 (R-28 row 2, #312): cobble bevel parallax and stone normals. render/cobble-depth 4cd4edd8 (B) vs main 1746d62a
+# (A, shelf). Medium and High, noon, Clear, 3 rounds. Views: the desert town square (-benchspot -342,560, yaw 0) and
+# town 73 centre (-benchspot 2972,-885, yaw 0). Whole-frame GPU here; terrain GPU needs a pass split (RenderDoc), not
+# taken by this spec. Terrain mesh memory from the runner's "mesh N MB" field.
+Q=q128; TITLE="job 86 cobble parallax"
+BUILDS="4cd4edd 1746d62"
+VIEWS="desert town"
+view() { case $1 in
+  desert) echo "-goto -342,560 -benchstops spot -benchspot -342,560,0 -benchhour 12 -benchweather Clear";;
+  town)   echo "-goto 2972,-885 -benchstops spot -benchspot 2972,-885,0 -benchhour 12 -benchweather Clear";; esac; }
+ARMS="B A"
+arm() { case $1 in B) echo "Profile-4cd4edd";; A) echo "Profile-1746d62";; esac; }
+ROUNDS=3; GFX="Medium High"; REF=A; BAR=0.1
