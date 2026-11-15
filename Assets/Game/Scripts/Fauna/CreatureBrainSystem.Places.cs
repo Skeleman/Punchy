@@ -1045,9 +1045,12 @@ namespace Punchy.Fauna
                 return false;
             }
 
-            /// <summary>Another on its way to the same spot to sit or lie, that took it first (the lower entity index).</summary>
+            /// <summary>Another on its way to the same spot to sit or lie, that took it first (the lower entity index). A
+            /// poster at the notice board gives way only to another poster: a reader just beside its pin spot is no
+            /// reason to walk off with the sheet still in hand.</summary>
             bool Contested(Entity self, in CreatureState s)
             {
+                var poster = s.TargetHeight == CreatureAnimator.BoardPin;
                 var c = Cell(s.Target);
                 for (int z = -1; z <= 1; z++)
                 for (int x = -1; x <= 1; x++)
@@ -1056,7 +1059,8 @@ namespace Punchy.Fauna
                         continue;
                     do
                     {
-                        if (Entities[j].Index < self.Index && States[j].Mode == CreatureMode.Sit && math.distance(States[j].Target, s.Target) < 0.9f)
+                        if (Entities[j].Index < self.Index && States[j].Mode == CreatureMode.Sit && math.distance(States[j].Target, s.Target) < 0.9f &&
+                            (!poster || States[j].TargetHeight == CreatureAnimator.BoardPin))
                             return true;
                     } while (Grid.TryGetNextValue(out j, ref it));
                 }

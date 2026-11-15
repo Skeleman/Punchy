@@ -238,7 +238,7 @@ namespace Punchy.Fauna
                     // (A handed-out job speaks for itself: a baker tends, but it isn't a well-keeper.)
                     Trade = s.Task != CreatureTask.None && s.Job == 0 ? s.Task.ToString() : null,
                     // (At the notice board, whatever its job, it reads a notice out: A-116.)
-                    Job = s.Mode == CreatureMode.Sit && (s.Stage == CreatureAnimator.BoardRead || s.Stage == CreatureAnimator.BoardPoint)
+                    Job = s.Mode == CreatureMode.Sit && (s.Stage == CreatureAnimator.BoardRead || s.Stage == CreatureAnimator.BoardPoint || s.Stage == CreatureAnimator.BoardPin)
                         ? "Board" : FolkJobs.Name(FolkJobs.Of(s)),
                     Mood = Mood(s, b.Upright && b.Hands && !b.Haunts ? b.StanceToward(playerIndex, s.Individual) : FolkStance.Neutral),
                     HomeTown = s.Task == CreatureTask.Travel || s.Task == CreatureTask.Camper ? null : HomeTown(s, terrain),

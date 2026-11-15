@@ -417,6 +417,7 @@ namespace Punchy.Fauna
                 Frame = ++frame,
                 Night = SystemAPI.TryGetSingleton<FaunaClock>(out var clock) ? clock.Night : 0f,
                 Hour = SystemAPI.TryGetSingleton<FaunaClock>(out var hourClock) ? hourClock.Hour : 12f,
+                Day = hourClock.Day,
                 Lures = FishLure.Data.Data,
                 Entities = entities,
                 States = states,
@@ -508,6 +509,8 @@ namespace Punchy.Fauna
             [ReadOnly] public NativeArray<float> PlayerSpeeds;
             public CarryTable Carry;
             public float Dt, Night, Hour;
+            /// <summary>The day count (FaunaClock): which sheets are due on the notice board.</summary>
+            public int Day;
             /// <summary>The shared clock and this frame's raw step, for staggered searches (#57).</summary>
             public float Now, Step;
             /// <summary>This frame's number, for whose turn it is to think far off (#59).</summary>
@@ -1474,6 +1477,8 @@ namespace Punchy.Fauna
                         sit = 1f;
                     desiredLook = s.Stage == 3 ? 0f : idleLook;
                     var hearth = AtHearth(s.Stage);
+                    if (s.Stage == CreatureAnimator.BoardPin)
+                        Pinning(ref s);
                     if (s.Timer <= 0f || hearth && !Gathering(in s, ref b) || Contested(self, in s) && !Resettle(self, ref s, ref rng))
                         Pause(ref s, ref b, ref rng);
                 }
@@ -1834,6 +1839,9 @@ namespace Punchy.Fauna
                     s.Held = Night > 0.5f ? HeldItem.Lantern : HeldItem.Staff;
                 // Reading a message just taken from a messenger bird. (The bird's own letter, Messenger sees to.)
                 else if (s.Mode == CreatureMode.Idle && s.Stage == MessageRead && b.Hands)
+                    s.Held = HeldItem.Letter;
+                // A sheet for the notice board, on its way to be pinned up (A-116).
+                else if (CarryingSheet(in s) && b.Hands)
                     s.Held = HeldItem.Letter;
                 // (A miner at work has its pick, or a sack of ore: Mining says which.)
                 else if (s.Task == CreatureTask.Mine && s.Mode == CreatureMode.Work)

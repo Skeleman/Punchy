@@ -278,8 +278,9 @@ namespace Punchy.Fauna
             KeepAvatar();
             GiveReplicasBodies();
 
-            var clock = new FaunaClock { Night = Cycle != null ? Cycle.Night : 0f, Hour = Cycle != null ? Cycle.TimeOfDay : 12f };
+            var clock = new FaunaClock { Night = Cycle != null ? Cycle.Night : 0f, Hour = Cycle != null ? Cycle.TimeOfDay : 12f, Day = Cycle != null ? Cycle.Day : 0 };
             queryWorld.EntityManager.SetComponentData(settingsEntity, clock);
+            NoticeSheets.Tick(source, clock.Day, clock.Hour, Camera.main);   // (A-116 row 2: cosmetic, on a client too)
             Comfort.Hour.Data = new float2(clock.Hour, Cycle != null ? 1f : 0f);
             WatchHouses(source);   // (A-105 -households: on a client too)
             WatchKinLost(source);  // (A-106 row 3: a joined client only)

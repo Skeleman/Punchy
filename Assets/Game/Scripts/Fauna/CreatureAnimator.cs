@@ -671,6 +671,19 @@ namespace Punchy.Fauna
                     }
                     if (b.Upright && s.Held == HeldItem.Letter && part.Role == LimbRole.Head)
                         a.x += 0.3f;
+                    // Pinning a sheet to a notice board (A-116 row 2): both arms reaching up and out to the board's face,
+                    // the sheet held flat in them, then the hands pressing it on; the head up to it, not bent.
+                    if (b.Upright && s.Mode == CreatureMode.Sit && s.Stage == BoardPin)
+                    {
+                        if (part.Role == LimbRole.Arm && j <= 1)
+                        {
+                            var press = 0.06f * math.sin(s.Clock * 5f + part.Side);
+                            a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.9f);
+                            a += j == 0 ? new float3(-1.55f - press, 0f, part.Side * 0.18f) : new float3(-0.55f + press, 0f, 0f);
+                        }
+                        if (part.Role == LimbRole.Head && j == 0)
+                            a.x -= s.Held == HeldItem.Letter ? 0.4f : 0.15f;
+                    }
                     // A sack of ore carried in both arms against the chest.
                     if (part.Role == LimbRole.Arm && s.Held == HeldItem.OreSack)
                     {
@@ -1307,6 +1320,9 @@ namespace Punchy.Fauna
         /// <summary>Sitting-mode stages, standing, at a town's notice board (A-116): reading it (the head going along the
         /// sheets, leant in), and pointing a notice out to the one beside it, reading it aloud.</summary>
         public const byte BoardRead = 10, BoardPoint = 11;
+        /// <summary>Sitting-mode stage, standing close in at a town's notice board, pinning a new sheet up (A-116 row 2):
+        /// both hands up against the board, holding the sheet (HeldItem.Letter) until it goes up.</summary>
+        public const byte BoardPin = 12;
         /// <summary>Idle-mode stages of one of the townsfolk a messenger bird has come to: waiting for it (the forearm
         /// up for it to land on), taking the message from its leg, reading it.</summary>
         public const byte MessageWait = 60, MessageTake = 61, MessageRead = 62;

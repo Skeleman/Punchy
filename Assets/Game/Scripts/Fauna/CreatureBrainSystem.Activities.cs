@@ -239,7 +239,8 @@ namespace Punchy.Fauna
             /// urgent   PlayRing     child by day, homed                                        30%                  StartPlayRing
             /// urgent   Hearth       townsfolk at dusk, room at the fire                        80%                  StartHearth
             ///          (the roll is drawn here)
-            /// urgent   Board        grown townsfolk by day, room at the board (A-116)          25% morning, 7%      StartBoard
+            /// urgent   Board        grown townsfolk by day, room at the board (A-116)          sheet due: always    StartPoster
+            ///                                                                                  else 25% morning, 7% StartBoard
             /// urgent   Greet        friendly, a person near its range, awake                   35% + lonely 60%     Greet
             /// urgent   Roost        roosting species                                           always               StartRoost / NightLoop
             /// urgent   Burrow       burrower in its sleeping time with sleep weight            has or digs one      Burrow
@@ -382,8 +383,10 @@ namespace Punchy.Fauna
                                                c.W[(int)Weighted.Swim] + c.W[(int)Weighted.Lounge] + c.W[(int)Weighted.Surface]);
                         return false;
                     case DecideStep.Board:
-                        // Townsfolk by day now and then stop at the notice board to read it (after the roll, so its draw stays where it was).
-                        return BoardTime(in s, ref b, sleepy) && rng.NextFloat() < BoardChance && StartBoard(self, ref s, ref rng);
+                        // Townsfolk by day now and then stop at the notice board to read it (after the roll, so its draw stays where it was);
+                        // with a sheet of the town's due up, the first free to goes and pins it (A-116 row 2).
+                        return BoardTime(in s, ref b, sleepy) &&
+                               (StartPoster(self, ref s) || rng.NextFloat() < BoardChance && StartBoard(self, ref s, ref rng));
                     case DecideStep.Greet: return DecideGreet(ref s, ref b, ref rng, sleepy, c.Player);
                     case DecideStep.Roost: return DecideRoost(ref s, ref b, ref rng, sleepy);
                     case DecideStep.Burrow: return DecideBurrow(ref s, ref b, ref rng, sleepy, c.W[(int)Weighted.Sleep]);
