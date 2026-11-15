@@ -60,6 +60,7 @@ namespace Punchy.Terrain
             v.Visit(nameof(s.Scarps), ref s.Scarps);
             v.Visit(nameof(s.Anchors), ref s.Anchors);
             v.Visit(nameof(s.PondMask), ref s.PondMask);
+            v.Visit(nameof(s.CliffKit), ref s.CliffKit);
         }
 
         struct Sizer : IBlobVisitor
