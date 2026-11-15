@@ -697,3 +697,10 @@ with main d95e7ff1); compiles, no suite run yet.
   Every surface shader picks it up through the shared include. Parallel found, not folded: Water.shader doesn't
   include Glow.hlsl, so water gets no glow-map light.
 - NEXT: R-34 row 2.
+
+## R-20 row 4 (no open issue; #286 closed) - blocky cloud shadows - done (verified, effect small at test spots)
+- Branch `render/cloud-blocks` a0311856 (from main 37750588), Sky.hlsl only. PunchyMapSmoothUV: one tap per read, the read point eased inside its texel (quintic), used by PunchyWeatherAt, PunchyCloudShapeAt, PunchyWetnessAt and PunchyCloudStyleAt, so sky and shadow stay aligned. Cloud shadow edge: smoothstep penumbra widening ~9 m per km of cloud height. `-skyoff 2048` = old. No BENCH needed (no extra taps).
+- Shots: D:/Unity/PunchyMilestones/R-20/row4/run1 (noon and 17:00; top 900 m, ground 30 m, sky; _before = skyoff 2048), pairs_t12.jpg, pairs_t17.jpg. Sky volume unchanged in shape (diff mean 1.5/255). NaN lint: no hits on the new lines. Variant-compile magenta on first play only (q1), clean on rerun.
+- Finding: under forced PartlyCloudy, cloud shadows on the ground are faint at every spot scanned (6 top views, scan/), so the edge change shows little. The big square/stair-step blocks seen from the air are static terrain geometry (unchanged with clouds, weather volumes and maps off: vol/sheet.jpg at 0,0) - world/scarp (W-162), not cloud shadow. Worth asking Zach which view showed him the squares.
+- Shares: extends the shared Sky.hlsl map reads (one fix serves sky march, cloud shadow, wetness, puddles); parked render/cloud-shadow-soft 560d14e7 not folded in (screen-size sharpness, also unmeasurable).
+- NEXT: R-30 row 1.
