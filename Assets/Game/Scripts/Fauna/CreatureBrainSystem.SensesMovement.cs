@@ -342,6 +342,9 @@ namespace Punchy.Fauna
                         }
                     }
                 }
+                // A-121: no walker goes through a fire, near a player or not, and even on its last metres to a target.
+                if (Fires.On && !keepHeight && s.Fly < 0.5f && b.Habitat == Habitat.Land && !b.Haunts && s.Mode != CreatureMode.Held && !underRock)
+                    to = KeepOutOfFire(ref s, ref b, to, dt);
                 // A-44: near a player, cave walls, towers and icebergs are solid too: it slides along them by its own
                 // body's size, and one already in one is pushed out sideways.
                 if (nearSolids && !keepHeight && s.Fly < 0.5f && s.Mode != CreatureMode.Held && !b.CaveDweller && !underRock)
@@ -778,7 +781,10 @@ namespace Punchy.Fauna
             /// <summary>Somewhere to go on foot or to land: walkable ground that isn't inside a building's walls.</summary>
             bool OpenGround(float2 xz) => Walkable(xz, Habitat.Land) && !(HasFlora && Walled(xz, 0.3f));
 
-            bool Walkable(float2 xz, Habitat habitat)
+            bool Walkable(float2 xz, Habitat habitat) => Walkable(xz, habitat, true);
+
+            /// <param name="fires">False: ground walkable but for a fire's flames still counts (A-121, steering round).</param>
+            bool Walkable(float2 xz, Habitat habitat, bool fires)
             {
                 var g = Terrain.SampleGround(xz);
                 var depth = g.HasWater ? g.WaterSurface - g.Height : -1f;
@@ -786,7 +792,10 @@ namespace Punchy.Fauna
                     return depth >= 0.7f;
                 if (habitat == Habitat.Floats)
                     return depth >= 0.3f;
-                return (depth <= 0.15f || BedWalk) && !Terrain.IsCaveHole(xz);
+                if (!(depth <= 0.15f || BedWalk) || Terrain.IsCaveHole(xz))
+                    return false;
+                // A-121: not in a fire's flames, nor on a lava pool's shallow rim.
+                return !InFireOrLava(xz, in g, depth, fires);
             }
 
             float SlopeAhead(float2 from, float2 to)
