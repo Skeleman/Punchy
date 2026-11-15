@@ -5047,3 +5047,9 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Host/client: shader and species data on every machine.
 - Risks: the editor reported 2 shader messages just before close, and I could not read them. The batch run showed none. Bird LOD and impostor tiers keep their old flat colour.
 - NEXT: A-124 row 1, per-person builds.
+
+## 2026-11-14 A-124 paused for HOLD (#358)
+- Row 1 code is done and pushed: fauna/individual-builds dcc36fe8, stacked on fauna/body-reads because it needs A-123's FitShoulder. Lineup sheets are in D:/Unity/PunchyMilestones/A-124/ShotSheet-{crowd,ends}.jpg; Ghosts are hidden by day by design, so their tile is empty. Suite 40/0/17, pin 6C032AE3, NaN 0.
+- Stopped before the host/client check. The player build to Builds/Windows was cancelled partway (stuck on shader variants), so that folder holds a half-written build. Rebuild it before use.
+- Row 2 (gait): design only, no code yet. Each build carries a gait style (even for most; heavy, brisk, ambling, or a slight limp for one build in 16) as walk and run key-pose swing in the build blob. No new wire data. With one biped foot planted at a time, StepPhase gives the limp's uneven timing while feet stay planted.
+- NEXT after HOLD: rebuild, host/client [look] check, the full row 1 report (BENCH crowd-cost request; old builds can't join), then row 2.
