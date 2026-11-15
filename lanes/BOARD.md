@@ -36,3 +36,4 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | P-40 | #396 | player | next | - | Dismount on size change, jump off |
 | Job 96 | #400 | profiler | next | - | Tunnel hitch on v0.16 |
 | Jobs 94, 95 | - | profiler | queued | - | Log bark; one build per person |
+| P-41 | #266 | player | next (first) | player/take-items 487dd137, player/fishing ef77443b | Land take-items then fishing on main; rods in start pack and at docks |
