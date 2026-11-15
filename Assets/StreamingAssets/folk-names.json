@@ -10,5 +10,10 @@
   ],
   "either": [
     "Cass", "Finch", "Jory", "Lark", "Quill", "Wren"
+  ],
+  "pets": [
+    "Acorn", "Biscuit", "Bramble", "Button", "Cinder", "Clover", "Crumb", "Dumpling", "Fidget", "Gorse", "Hob",
+    "Juniper", "Kettle", "Mittens", "Moss", "Nettle", "Pebble", "Pip", "Puddle", "Rusk", "Sorrel", "Sprout",
+    "Thistle", "Tuft", "Whisker"
   ]
 }

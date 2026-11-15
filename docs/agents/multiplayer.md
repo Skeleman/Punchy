@@ -76,3 +76,5 @@ the same build. The world fingerprint in `WorldSync` refuses mismatched joiners.
   slow host (see `InteractRpc`).
 - `CreatureState` fields are local (ghosts copy fields one by one), so adding one isn't a network change.
   `SoundId`s are stored by number: append only.
+- `CreatureGhost.Holder` by Mode: positive = a player holds or pets it (NetworkId+1); negative in Ride = minus the
+  mount's ghost id; negative in Held or Petted = minus the ghost id of the folk who has it (`Interactions.FolkHolder`).

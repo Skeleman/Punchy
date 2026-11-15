@@ -39,8 +39,9 @@ namespace Punchy.Net
         /// <summary>Its lair, if it has one (a burrow's mouth, a web's centre) and how big: drawn on every machine.</summary>
         [GhostField(Quantization = 100)] public float3 Anchor;
         [GhostField(Quantization = 100)] public float AnchorSize;
-        /// <summary>CreatureState.Holder: positive = its holder (Interactions.HolderId); negative = it rides, and this is
-        /// minus the mount's ghost id (A-104, Riding); 0 = neither.</summary>
+        /// <summary>CreatureState.Holder: positive = its holder (Interactions.HolderId); negative in Mode Ride = it rides,
+        /// minus the mount's ghost id (A-104, Riding); negative in Mode Held or Petted = minus the ghost id of the folk who
+        /// has it (Interactions.FolkHolder, A-120); 0 = neither.</summary>
         [GhostField] public int Holder;
         [GhostField] public byte Held;
         /// <summary>The need cue it shows (CreatureState.Cue, a NeedCue), so clients draw it too (#64).</summary>

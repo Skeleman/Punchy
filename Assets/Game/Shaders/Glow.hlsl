@@ -32,6 +32,27 @@ float4 _PunchyBlueLightColor;      // rgb its light (linear; 0 when it gives non
 float4 _PunchyHandOverLightDirection;
 float4 _PunchyHandOverLightColor;
 
+// R-38 row 3: a smooth (cubic B-spline) read of a coarse light map, from four bilinear reads. The glow maps' texels
+// are many metres wide, and one bilinear read shows them as squares and diamonds across a lit town from afar.
+// size is the map's width in texels, passed in (no GetDimensions, which broke some variants): keep it in step with
+// SurfaceGlow.MapSize and SurfaceGlow.WorldMapSize.
+#define PUNCHY_GLOW_MAP_SIZE 160.0
+#define PUNCHY_GLOW_WORLD_SIZE 512.0
+float4 PunchySampleSmooth(TEXTURE2D_PARAM(map, mapSampler), float2 uv, float size)
+{
+    float2 st = uv * size - 0.5;
+    float2 i = floor(st);
+    float2 f = st - i;
+    float2 f2 = f * f, f3 = f2 * f;
+    float2 w0 = (1 - 3 * f + 3 * f2 - f3) / 6, w1 = (4 - 6 * f2 + 3 * f3) / 6;
+    float2 w2 = (1 + 3 * f + 3 * f2 - 3 * f3) / 6, w3 = f3 / 6;
+    float2 g0 = w0 + w1, g1 = w2 + w3;
+    // Each pair of weights as one bilinear read placed between its two texels.
+    float2 h0 = (i - 0.5 + w1 / g0) / size, h1 = (i + 1.5 + w3 / g1) / size;
+    return g0.y * (g0.x * SAMPLE_TEXTURE2D_LOD(map, mapSampler, float2(h0.x, h0.y), 0) + g1.x * SAMPLE_TEXTURE2D_LOD(map, mapSampler, float2(h1.x, h0.y), 0))
+         + g1.y * (g0.x * SAMPLE_TEXTURE2D_LOD(map, mapSampler, float2(h0.x, h1.y), 0) + g1.x * SAMPLE_TEXTURE2D_LOD(map, mapSampler, float2(h1.x, h1.y), 0));
+}
+
 // The far tier's light on a surface at p with normal n.
 half3 PunchyGlowFar(float3 p, half3 n)
 {
@@ -42,11 +63,11 @@ half3 PunchyGlowFar(float3 p, half3 n)
     half3 light = 0;
     [branch] if (fade > 0)
     {
-        float4 a = SAMPLE_TEXTURE2D_LOD(_PunchyGlowMap, sampler_PunchyGlowMap, uv, 0);
+        float4 a = PunchySampleSmooth(TEXTURE2D_ARGS(_PunchyGlowMap, sampler_PunchyGlowMap), uv, PUNCHY_GLOW_MAP_SIZE);
         // (Lit windows' layer: off since their light is indoor, P-21 item 31; CaveSystem sends y = 0.)
         float4 b = 0;
         [branch] if (_PunchyGlowMapParams.y > 0)
-            b = SAMPLE_TEXTURE2D_LOD(_PunchyGlowMapNight, sampler_PunchyGlowMap, uv, 0) * _PunchyGlowMapParams.y;
+            b = PunchySampleSmooth(TEXTURE2D_ARGS(_PunchyGlowMapNight, sampler_PunchyGlowMap), uv, PUNCHY_GLOW_MAP_SIZE) * _PunchyGlowMapParams.y;
         float3 rgb = a.rgb + b.rgb;
         float weight = rgb.r + rgb.g + rgb.b;
         // Its sources' height, weighted by their light (interpolates cleanly where lit and dark texels meet): a cliff
@@ -64,7 +85,7 @@ half3 PunchyGlowFar(float3 p, half3 n)
 }
 
 // The whole island's static glow (R-2, SurfaceGlow.World), for terrain only: r how much fire burns there (tinted with
-// tonight's fire), gba the fixed light of plants and lava. One read a pixel, past where the nearer tiers end.
+// tonight's fire), gba the fixed light of plants and lava. One smooth read a pixel, past where the nearer tiers end.
 half3 PunchyGlowWorld(float3 p, half3 n)
 {
     half3 light = 0;
@@ -76,7 +97,7 @@ half3 PunchyGlowWorld(float3 p, half3 n)
         float plantFade = smoothstep(_PunchyGlowWorldParams.z, _PunchyGlowWorldParams.w, d);
         [branch] if (fireFade + plantFade > 0 && uv.x > 0 && uv.x < 1 && uv.y > 0 && uv.y < 1)
         {
-            float4 t = SAMPLE_TEXTURE2D_LOD(_PunchyGlowWorld, sampler_PunchyGlowMap, uv, 0);
+            float4 t = PunchySampleSmooth(TEXTURE2D_ARGS(_PunchyGlowWorld, sampler_PunchyGlowMap), uv, PUNCHY_GLOW_WORLD_SIZE);
             // Soft cap: a dense forest sums high, and should level off rather than floodlight the ground.
             float3 rgb = _PunchyGlowWorldFire.rgb * (t.r / (1 + t.r * 2)) * fireFade
                        + t.gba / (1 + (t.g + t.b + t.a) * 2.5) * _PunchyGlowWorldParams.y * plantFade;

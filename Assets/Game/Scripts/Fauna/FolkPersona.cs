@@ -72,6 +72,9 @@ namespace Punchy.Fauna
             return p;
         }
 
+        /// <summary>A-120: its Beasts trait alone, the same draw as Of but Burst-safe (no managed table), for the brain.</summary>
+        public static float BeastsOf(uint individual) => (BiomeSampling.Scramble(individual ^ 0x5BE0CD19u) >> 8) / 16777216f;
+
         /// <summary>A trait's band: 0 low (below a third), 1 mid, 2 high (two thirds and up).</summary>
         public int Band(PersonaTrait t) => Band(this[t]);
         public static int Band(float v) => v < 1f / 3f ? 0 : v < 2f / 3f ? 1 : 2;
