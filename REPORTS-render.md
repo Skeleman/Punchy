@@ -587,3 +587,29 @@ with main d95e7ff1); compiles, no suite run yet.
   pieces), TerrainSurface (rock faces) and Cave (walls).
 - NEXT once HOLD is gone: compile check, then off == main pixel diff, the four-stone sheet (current / dry / wet, 2 m
   and 15 m, noon and low sun, plus a far view), NaN probe and suite. After that, the handoff.
+
+### R-34 row 1 (#332): wet-stone trial - DONE (verified)
+- Branch `render/stone-trial`, f6c80956 (on top of the earlier WIP commits 1c12cd97, c2b2c0d1 and 2bfad516). Not merged.
+  `-stonetrial 0/1/2` (off by default, dry, wet) sets `_PunchyStoneTrial`, a cosmetic, local global.
+- Fixes since the WIP: an FXC crash in Terrain Surface ForwardLit (a second inline copy of the glow loops; now only
+  the sky term follows the stone normal), explicit mips from the footprint so the octaves are safe inside branches,
+  and guarded weights and half vector (rule 24).
+- Checks (pinned clouds, local helper only, not committed):
+  - Off == main: stone poses (cliff, cave, far) differ by a mean of 0.1-1.0 /255. Boulder and wall poses differ by
+    0.8-5.4, from grass, sway and animals rather than stone.
+  - Far view: no tone shift. Off vs dry is 1.5 (luma 153.4 -> 154.3); off vs wet is 2.6 (-> 153.7).
+  - Biggest change: the close cliff (dry 14.7, wet 27.2) and wet cave at 2 m (luma 38 -> 52.5, lantern gloss). Walls
+    barely change.
+  - Sparkle probe, wet, NaN guard off, 4 close poses x 360 frames: 0 marked, 0 bad, 0 hot.
+  - Suite: 40 passed, 0 failed, 17 skipped.
+- Sheet: milestones folder R-34, `stone-sheet.jpg`. Rows are boulder, cliff, cave and wall at 2 m and 15 m, plus a far
+  view; columns are off, dry and wet, at noon and 17:30. Raw shots are in `R-34/off|dry|wet|main/`, probes in `R-34/wet/`.
+- For Zach / row 2: the trial thins boulder moss when dry and removes it when wet (wet reads as glossy bare stone).
+- Cost class: 3 octaves x 3 triplanar taps (the finest one skipped when sub-pixel), plus two spec lobes when wet. Off
+  costs one uniform branch. BENCH ask: dry and wet against off at the cliff and boulder poses.
+- World lane: Cave.shader has a small hook (the walls call PunchyStoneSurface behind the global). Tell them before
+  they touch cave walls.
+- Shares: Stone.hlsl is one stone include shared by TerrainSurface (rock faces), Flora (boulders, built stone) and
+  Cave (walls). It should become, or fold into, W-166's stone family include once that lands; W-166 has no code yet.
+  "Built stone" is picked inside Flora (non-living, non-timber part 0) until W-166 states materials per kit piece.
+- NEXT: merge origin/main into render/stone-trial, then R-38 row 0 (sun step trial).
