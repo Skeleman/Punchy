@@ -21,12 +21,12 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
 - **Rivers (#301, W-153).** No kinks, dead ends or water walls. Rows 1-2 done; rows 3-6 next (one course map,
   profiles and lakes on the finished ground). Shorelines that wander (W-160, #324) next.
 - **Waterfalls (#284, R-21).** One builder for every shape of fall, a subdivided curved sheet. Shipped: deforming
-  water, river falls and rapids (R-9). In flight: R-21 rows 3-4, folded into W-153.
+  water, river falls and rapids (R-9), one builder with curved curtain sheets (R-21, PR #411).
 - **Lava and toxic pools (#303, W-154).** Shipped: first lava look and per-fluid underwater (PR #213). Next: W-154
   coarse crust normals and the far form.
 - **Lights (#302, R-25).** No light switches on as you approach. In flight: R-25 (far-lights branch, landing). Shipped: the lamplighter lights towns at dusk (A-115, PR #374).
 - **Shadows (#286 closed; bias #354 closed 11-15: no visible difference, stays 0.1/0.5).** Shipped: one shadow darkness (R-16), steady near and high-preset sun shadows (R-20 row 1,
-  R-32), blue moon shadows (R-32), no sun or cloud shadow through cave roofs (R-36). In flight: R-20 remaining rows.
+  R-32), blue moon shadows (R-32), no sun or cloud shadow through cave roofs (R-36), smooth cloud shadow reads (R-20 row 4, PR #410).
 - **Stylized realism (#304, R-26), foliage (#323, R-30), grass fields (#325, R-31), salt-flat cracks (#331,
   R-33), wet stone (#332, R-34, in flight), clouds from a reference shader (#333, R-35).** Next, render lane.
 - **Sun moves smoothly (R-38, 11-15).** Sun position every 0.1 s as a trial. In flight.
@@ -37,7 +37,7 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
   tunnels (#370).
 - **Floating islands (#256).** Later. Walkable, some with caves, one with a new kind of town; reached by flying.
 - **World file (#260, #345).** Shipped: the baked island is saved and loaded instead of rebuilt (W-140), start
-  ledger (W-168 row 1). Next: bake meshes into the shipped file (#345). Hand-editing is far off; rule 22.
+  ledger (W-168 row 1), cave sockets and the island file in every build (W-168 row 2, PR #407). Next: bake meshes into the shipped file (#345). Hand-editing is far off; rule 22.
 - **Plant fidelity (#21)** experiments. **Cluster culling (#270)** waits for profiler numbers.
 
 ## Settlements

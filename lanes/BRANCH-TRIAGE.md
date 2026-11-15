@@ -5,7 +5,8 @@ Every unlanded branch on origin, checked with merge-tree against origin/main on 
 ## Merged 11-15 (catch-up)
 far-towns #373, lamplighter #374, notice-board-life #362, fire-heat #375, door-sound #376, scarps #377, level-gardens #378,
 cave-entry #379, no-water-discs #380, puddle-edges #381, swell-noise #382, cliff-kit #386,
-individual-builds #387, style-parity #388, folk-pets #389, folk/playtest-1114 #390, spawn-wait-fix #391, cloth-legs #394.
+individual-builds #387, style-parity #388, folk-pets #389, folk/playtest-1114 #390, spawn-wait-fix #391, cloth-legs #394,
+world-pack #407, swimmer-splash #408, render/playtest-1114 #409 (R-38 rows 0-4; branch continues), cloud-blocks #410, waterfall-sheets #411.
 
 ## Land: the owning lane merges main in, re-pins, verifies, hands off "ready for PR"
 | Branch | Card | Owner | Note |
@@ -15,9 +16,7 @@ individual-builds #387, style-parity #388, folk-pets #389, folk/playtest-1114 #3
 | fauna/one-population | A-110 to r7b | fauna | RideLife.cs. |
 | fauna/lying-legs | - | fauna | CreatureAnimator.cs. |
 | folk/a111-row1-parked | A-111 r1 | folk | Parked; only if A-110 slips. |
-| world/world-pack | W-168 r2 | world | IslandCache, IslandV2. |
 | water/truth | bench 75 | world | IslandV2, TerrainSource. |
-| world/waterfall-sheets | R-21 | world | LandmarkEffectSystem. |
 | world/log-bark | W-170 r1 | world | Clean; confirm verified. |
 | world/ambient-details | W-142 | world | Job 69 FAIL at lava cave: fix seeps first. |
 | world/cave-trickles | W-141 | world | Job 68 FAIL: cheaper version. |
