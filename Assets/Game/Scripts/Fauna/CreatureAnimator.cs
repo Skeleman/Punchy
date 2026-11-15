@@ -1306,8 +1306,9 @@ namespace Punchy.Fauna
         /// <summary>Idle stages: two folk stopped to talk, the one talking (hands going) and the one listening (nodding). A-26.</summary>
         public const byte ChatTalk = 70, ChatListen = 71;
         /// <summary>Idle stages of one of the folk and an animal (A-120 row 2): going over to it, crouched petting it
-        /// (Partner the animal, or Focus a player in an animal's body), shooing it off.</summary>
-        public const byte PetGo = 72, PetCrouch = 73, PetShoo = 74;
+        /// (Partner the animal, or Focus a player in an animal's body), shooing it off; and (row 3) a child going over to
+        /// its own pet to pick it up and carry it indoors.</summary>
+        public const byte PetGo = 72, PetCrouch = 73, PetShoo = 74, PetFetch = 75;
         /// <summary>Work-mode stages of a bear raiding a wild hive: on its way, reared up at the comb, making off.
         /// (The bees mob it while it's at the comb: CreatureRenderSystem's Swarm.)</summary>
         public const byte RaidWalk = 150, RaidAtComb = 151, RaidLeave = 152, RaidLick = 153;

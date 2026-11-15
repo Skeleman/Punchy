@@ -1318,8 +1318,8 @@ namespace Punchy.Fauna
                     desiredLook = 0f;
                     return;
                 }
-                // A-120 row 2: going over to an animal, petting it, or shooing it off (Petting.cs).
-                if (s.Stage >= CreatureAnimator.PetGo && s.Stage <= CreatureAnimator.PetShoo)
+                // A-120 rows 2-3: going over to an animal, petting it, shooing it off, or fetching it to carry (Petting.cs).
+                if (s.Stage >= CreatureAnimator.PetGo && s.Stage <= CreatureAnimator.PetFetch)
                 {
                     if (Petting(self, ref s, ref b, ref rng, dt))
                     {

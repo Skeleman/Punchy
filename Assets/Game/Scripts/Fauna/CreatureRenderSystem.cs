@@ -692,6 +692,9 @@ namespace Punchy.Fauna
                 // Stepping through a door: dithered out going in, gone indoors, dithered back in coming out.
                 if (state.Mode == CreatureMode.Home && state.Stage >= 1)
                     faded = Unity.Mathematics.math.max(faded, state.Stage == 2 ? 1f : state.ActionTime);
+                // (A-120 row 3: an animal carried through a door in someone's arms goes with them: the brain's Held.)
+                else if (state.Mode == CreatureMode.Held && state.Stage == 1)
+                    faded = Unity.Mathematics.math.max(faded, state.ActionTime);
                 // A ghost is only half there (shimmering), and not there at all by day.
                 if (body.Blob.Value.Haunts)
                 {

@@ -26,6 +26,8 @@ namespace Punchy.Fauna
         public Entity Petter;
         public bool Petted;
         public float PetCool;
+        /// <summary>A-120 row 3: the Petter is a child come to carry it into its house, not to pet it.</summary>
+        public bool Carry;
     }
 
     /// <summary>
@@ -38,6 +40,9 @@ namespace Punchy.Fauna
     /// fonder, the likelier; its own household's folk three times as likely, and from further off); those who can't
     /// abide animals shoo it off instead. The petting itself is done here, to the pet (Interactions.Apply, with the folk's
     /// key as its Holder: Interactions.FolkHolder), once the folk is crouched by it (the brain's Petting walks it there).
+    /// A-120 row 3: a child going over to it (its own household's most likely, a neighbour's at half the chance) may
+    /// instead pick it up and carry it into the child's house and out again, where it squirms free (Carried; the
+    /// brain's Held does the door and the squirm).
     /// </summary>
     [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation | WorldSystemFilterFlags.ServerSimulation)]
     [UpdateInGroup(typeof(SimulationSystemGroup))]
@@ -57,8 +62,13 @@ namespace Punchy.Fauna
         const float PetPick = 12f, OwnPetPick = 20f, ShooPick = 5f;
         /// <summary>How long after being petted or shooed before anyone else tries (s).</summary>
         const float PetCoolMin = 30f, PetCoolMax = 60f;
+        /// <summary>A-120 row 3: the share of its own household's children going over to it who pick it up and carry it
+        /// indoors instead of petting it (half that for a neighbour's child); how near they must be to lift it (m); the heaviest a child will try (kg); and how
+        /// long they stay in with it (s).</summary>
+        public const float CarryChance = 1f / 3f;
+        const float CarryReach = 1.3f, ChildCarry = 20f, CarryInMin = 6f, CarryInMax = 12f;
 
-        /// <summary>Debug tests: 1 every follow roll passes, 2 every petting (or shooing) roll.</summary>
+        /// <summary>Debug tests: 1 every follow roll passes, 2 every petting (or shooing) roll, 4 every child's carry roll.</summary>
         public static readonly SharedStatic<int> Force = SharedStatic<int>.GetOrCreate<ForceKey>();
         struct ForceKey { }
 
@@ -310,6 +320,7 @@ namespace Punchy.Fauna
                 var best = Entity.Null;
                 var bestD = float.MaxValue;
                 var shoo = false;
+                var bestOwn = false;
                 for (int k = 0; k < near.Length; k++)
                 {
                     var o = All[near[k]];
@@ -334,6 +345,7 @@ namespace Punchy.Fauna
                     best = o;
                     bestD = d;
                     shoo = hates;
+                    bestOwn = own;
                 }
                 if (best == Entity.Null)
                     return false;
@@ -354,13 +366,19 @@ namespace Punchy.Fauna
                 }
                 else
                 {
-                    // Over to it; the pet stops where it is and waits for them (Tend keeps it waiting).
-                    f.Stage = CreatureAnimator.PetGo;
+                    // Over to it; the pet stops where it is and waits for them (Tend keeps it waiting). Row 3: a child may
+                    // come to scoop it up and take it into its own house instead, if it's light enough: its own household's
+                    // pet most likely, a neighbour's now and then (few houses with children have a pet of their own).
+                    var carry = Bodies[best].Blob.Value.Child && !math.all(f.OwnDoor.xz == float2.zero) &&
+                                Bodies[self].Blob.Value.WeightAt(s.Scale) <= ChildCarry &&
+                                ((Force & 4) != 0 || Roll(f.Individual, (uint)s.Clock, 0x53u) < CarryChance * (bestOwn ? 1f : 0.5f));
+                    f.Stage = carry ? CreatureAnimator.PetFetch : CreatureAnimator.PetGo;
                     f.Timer = 20f;
                     SetMode(ref s, CreatureMode.Idle);
                     s.Timer = 5f;
                     p.Petter = best;
                     p.Petted = false;
+                    p.Carry = carry;
                 }
                 States[best] = f;
                 return true;
@@ -375,6 +393,11 @@ namespace Punchy.Fauna
             {
                 var gone = !States.HasComponent(p.Petter);
                 var f = gone ? default : States[p.Petter];
+                if (p.Carry)
+                {
+                    Carried(self, ref s, ref p, gone, f);
+                    return;
+                }
                 var busy = !gone && !f.Gone && f.Mode == CreatureMode.Idle && f.Partner == self &&
                            (f.Stage == CreatureAnimator.PetGo || f.Stage == CreatureAnimator.PetCrouch);
                 if (!busy)
@@ -396,6 +419,54 @@ namespace Punchy.Fauna
                 var key = Interactions.FolkHolder(p.Petter, Ghosts.HasComponent(p.Petter) ? Ghosts[p.Petter].ghostId : 0);
                 var body = Bodies[self];
                 Interactions.Apply(ref s, ref body.Blob.Value, Terrain, InteractAct.Pet, key, f.Position, f.Yaw, true);
+            }
+
+            /// <summary>
+            /// A-120 row 3: a child come to carry it into its house. Waiting for them; once they're by it,
+            /// picked up (Interactions.Apply, Holder their key: a wary pet may still walk off) and the child sent home with
+            /// it, in at its own door (Home mode) for a few seconds and out again. While they're through the door it fades
+            /// with them, and once they're out it squirms free: both the brain's Held. Free again (and left alone a while)
+            /// when it's out of their arms, or they went off to something else before they got it.
+            /// </summary>
+            void Carried(Entity self, ref CreatureState s, ref HouseholdPet p, bool gone, CreatureState f)
+            {
+                var key = Interactions.FolkHolder(p.Petter, Ghosts.HasComponent(p.Petter) ? Ghosts[p.Petter].ghostId : 0);
+                if (!gone && !f.Gone && f.Mode == CreatureMode.Idle && f.Partner == self && f.Stage == CreatureAnimator.PetFetch)
+                {
+                    if (s.Mode == CreatureMode.Idle)
+                        s.Timer = math.max(s.Timer, 2f);
+                    if (math.distancesq(f.Position.xz, s.Position.xz) > CarryReach * CarryReach || s.Gone || s.Holder != 0 || Busy(s))
+                        return;
+                    var body = Bodies[self];
+                    Interactions.Apply(ref s, ref body.Blob.Value, Terrain, InteractAct.PickUp, key, f.Position, f.Yaw, true);
+                    if (s.Mode != CreatureMode.Held)
+                    {
+                        // (It wouldn't be picked up: the child shrugs and goes on.)
+                        SetMode(ref f, CreatureMode.Idle);
+                        f.Timer = 2f;
+                        States[p.Petter] = f;
+                        Free(ref s, ref p);
+                        return;
+                    }
+                    // Settled in their arms until they're in and out again (the brain then lets it squirm free).
+                    s.Timer = 1e6f;
+                    SetMode(ref f, CreatureMode.Home);
+                    f.Anchor = new float3(f.OwnDoor.x, Terrain.SampleHeight(f.OwnDoor.xz), f.OwnDoor.z);
+                    f.AnchorYaw = f.OwnDoor.w;
+                    f.Timer = CarryInMin + Roll(f.Individual, (uint)s.Clock, 0x54u) * (CarryInMax - CarryInMin);
+                    States[p.Petter] = f;
+                    return;
+                }
+                if (s.Mode == CreatureMode.Held && s.Holder == key)
+                    return;
+                Free(ref s, ref p);
+            }
+
+            void Free(ref CreatureState s, ref HouseholdPet p)
+            {
+                p.Petter = Entity.Null;
+                p.Carry = false;
+                p.PetCool = PetCoolMin + Roll(s.Individual, (uint)s.Clock, 0x55u) * (PetCoolMax - PetCoolMin);
             }
 
             /// <summary>A roll 0..1 from an individual and a moment (seconds, whole).</summary>

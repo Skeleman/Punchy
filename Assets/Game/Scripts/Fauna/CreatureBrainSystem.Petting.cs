@@ -10,7 +10,8 @@ namespace Punchy.Fauna
         // stands again. Players wearing an animal's body are noticed here, at the folk's own decision moments.
         partial struct BrainJob
         {
-            const byte PetGo = CreatureAnimator.PetGo, PetCrouch = CreatureAnimator.PetCrouch, PetShoo = CreatureAnimator.PetShoo;
+            const byte PetGo = CreatureAnimator.PetGo, PetCrouch = CreatureAnimator.PetCrouch, PetShoo = CreatureAnimator.PetShoo,
+                       PetFetch = CreatureAnimator.PetFetch;
             /// <summary>How far off a player in an animal's body is noticed (m), and how far they may go before the folk gives up.</summary>
             const float PlayerPetNotice = 6f, PlayerPetLose = 4f;
             /// <summary>Where the folk stops to crouch, from the animal's middle (m).</summary>
@@ -52,7 +53,8 @@ namespace Punchy.Fauna
             /// <summary>
             /// Idle stages PetGo, PetCrouch and PetShoo: over to the animal (Partner, or Focus for a player in an animal's
             /// body), crouched stroking it while it's being petted (Holder: this folk's key), or flapping it away. Stands
-            /// and goes on when the animal is done, walks off, or its time runs out. True while it's walking.
+            /// and goes on when the animal is done, walks off, or its time runs out. PetFetch (row 3): a child over to its
+            /// own pet, to wait by it to be picked up. True while it's walking.
             /// </summary>
             bool Petting(Entity self, ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt)
             {
@@ -78,7 +80,7 @@ namespace Punchy.Fauna
                     s.Focus = at.xz;
                 var to = at.xz - s.Position.xz;
                 var gap = math.length(to);
-                if (s.Stage == PetGo && s.Timer > 0f)
+                if ((s.Stage == PetGo || s.Stage == PetFetch) && s.Timer > 0f)
                 {
                     M.LookKind = 2;
                     M.LookAt = at;
@@ -89,6 +91,9 @@ namespace Punchy.Fauna
                         s.Target = at.xz - to / math.max(gap, 0.01f) * PetReach;
                         return true;
                     }
+                }
+                if (s.Stage == PetGo && s.Timer > 0f)
+                {
                     // (Down to it: the crouch and the stroke come up together over the action's first moment, CreatureAnimator.)
                     s.Stage = PetCrouch;
                     s.StageTime = 0f;
@@ -100,7 +105,9 @@ namespace Punchy.Fauna
                 s.Speed = 0f;
                 if (gap > 0.01f)
                     s.Yaw = WrapAngle(s.Yaw + math.clamp(WrapAngle(math.atan2(to.x, to.y) - s.Yaw), -b.TurnRate * dt, b.TurnRate * dt));
-                if (s.Stage == PetShoo)
+                // (Row 3: a child by its own pet stands facing it till HouseholdPetSystem picks it up into its arms and
+                // takes the child home, or lets it be.)
+                if (s.Stage == PetShoo || s.Stage == PetFetch)
                 {
                     if (s.Timer <= 0f)
                         EndPetting(ref s, ref rng);
