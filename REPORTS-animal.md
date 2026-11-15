@@ -5235,3 +5235,13 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Solo/host/client: local text only, nothing sent.
 - Shares: TalkBook parse ("quests", "topics" for any section) on LiveJsonFile/JsonProblems. Parallel not folded in: the hermit lines live in WorkSets assets (FolkWorkSets.AloneLinesFor); Plural() stays in code (grammar, not lines).
 - NEXT (stopped for v0.16): the build check, then row 3 (dialogue-options design note, drafted, not posted). Not ready for PR until the build check passes.
+
+## 11-15 A-125 row 1 (#360): fish and dolphins splash the water both ways - done (verified)
+- fauna/swimmer-splash 96f46d7e. A swimmer crossing the surface fast, out or in, adds a cosmetic ring sized by its body (trout ~a hand across, dolphin >2 m). Player/wader splash unchanged.
+- World lane, FYI: additive edit in WaterPatchSystem.Creatures (swimmer branch after the upright splash) plus a SwimmerSplashTotal probe counter. No other world code touched.
+- Verified in play: forced leaps by eval at a sea shore (dolphin) and a lake (trout); counter rose both ways (in 5 / out 6). Shots unviewed except one: D:/Unity/PunchyMilestones/A-125 (Dolphin-*, Trout-*).
+- Debug: -splashshot N shoots the watched swimmer's crossings; -watchfrom over water now sits above the surface (was under it). Natural leaps are rare (4/min only while moving).
+- Solo/host/client: per machine, cosmetic, nothing on the wire. No timing done.
+- Shares: the one WaterPatchSystem splash source list (Splashes) the player and waders already use; no second ring system.
+- Ready for PR. R-38 (render/playtest-1114 cf8ef6e9) reviewed: behind -sunstep only, no conflict with my branches.
+- NEXT (stopped for v0.16): row 2 (sized TraceSystem.Splash for dolphin breaches). far-life still waits on the rule 11 answer.
