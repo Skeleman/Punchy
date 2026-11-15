@@ -110,3 +110,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-15: v0.16.0 released (main 40478293 + version bump, PRs #362, #373-#394). Checklist release/checklist-v0.16.md.
 - 11-15: v0.16 playtest notes from Zach carded: riding #396 (P-40); menus, Start/Select #397 and facing prompts #398 (P-39); buildings #399, cuts #403, sunken temple #405, water strips #301 (W-173); tunnel hitch #400 (bench 96); 3D distance #401, glow and darker nights #402, igloo light pop-in #302, water rebound #269 (R-39); dune palms #404 (A-130).
 - 11-15: Zach: ground reshaping is the top recurring problem; W-174 (#406) carded, folds in #403 and #405. A-130 to reuse W-126's clearing mask.
+- 11-15: Zach picked R-34's wet look and wants the stone function as the base rock pattern, with wetness only adding shine (R-34 row 2, #332).
