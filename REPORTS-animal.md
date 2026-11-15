@@ -5104,3 +5104,12 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Fingerprint DDE01A70, unchanged: Style is drawn per individual at runtime and is not baked, so no re-pin. Suite 40/40. No shot (a number check).
 - Risk: existing individuals may show different hair or limb styles, which is the intended change.
 - Shares: SpawnTable.Scramble, the one avalanche step, reused rather than copied; callers are HairColor and the CreatureAnimator limb StyleGroups.
+
+## 11-15 A-120 row 3 (#340): a child carries a household pet indoors - done (verified), A-120 ready for PR
+- Branch fauna/folk-pets @ 06cf31a3 (pushed). c2905824 is the row; 06cf31a3 merges origin/main in. The only conflict was CreatureAnimator.cs: the notice-board arms (A-116) and the pet-shoo arms both kept. File is 1976 lines.
+- The row: a child going to its own household's pet (a neighbour's at half the chance) may pick it up instead of petting it, carry it home, go in, come out, and the pet squirms free. The indoor stay is capped at 25 s (HouseholdPetSystem.CarryInCap). After the cap the child puts the pet down at the doorstep, which fixes the rain stay-in bug from the last entry.
+- Host + joined client: the client saw the pet Held by the folk holder key (-173), child-to-pet gap 0.3-0.38 m all the way to the door, NaN 0. Solo walk as before (32 m home, fade at the door, out, free).
+- Fixed on the way: the pet choice used biome-name strings, which broke BiomeLiteralTests. It now uses BiomeDef.Family (Arid / Cold). Mountains now counts as Cold, so mountain houses can get a fox or dog.
+- Suite on the merged branch: 39/40. The one failure is Follow_ArrivesWithinFourMetres, and it is a harness artifact: TestSceneSetup.Spawn waits for a *new* "DebugControls: spawned 1 Dog" line by comparing the text with the last one, and LogWatch keeps lines across runs in one editor session. A second run of that test in the same session never sees a change, so it times out. Run alone it passes, both on main and on the merged branch. Suggested fix (shared test harness, so your call): compare line counts instead of text. LiveFolk_BeastResponse passed this run (a known flake).
+- Shares: extended Interactions PickUp/Holder (FolkHolder key) and HeldPoseSystem, the same path as the player's carry. A parallel I found but didn't fold in: PoseGear carried items/gear draw by a separate path.
+- NEXT: A-127 (#368) on folk/playtest-1114.
