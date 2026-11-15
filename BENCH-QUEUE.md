@@ -794,7 +794,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
   for the glow pass (Glow.hlsl loop) and `LightBudget.Resolve`; count active glow slots and light requests.
 - Report only; flag Glow over 0.5 ms GPU or Resolve over 0.2 ms main.
 
-## Job 79 (2026-11-14, QUEUED after 78; supervisor, audit 11-13, #311, W3): cloud cost
+## Job 79 (2026-11-14, RUNNING 11-15 (q121.job); supervisor, audit 11-13, #311, W3): cloud cost
 - Main. Profile build, 1080p, Medium and Ultra, uncapped, noon; Clear vs Overcast; clouds on vs off (existing
   switch, or `-benchtune` if none). Two views: coast looking inland, peak looking out.
 - GPU ms per case and the cloud pass's share. Report only.

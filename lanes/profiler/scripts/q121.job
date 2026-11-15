@@ -1,0 +1,15 @@
+# Job 79 (audit 11-13, #311, W3): cloud cost on main 3b192717 (shelf build). Clear and Overcast, clouds on and off
+# (-skyoff 3: no cloud march (1) and no far clouds (2), Sky.hlsl's test bits). Noon, Medium and Ultra, 3 rounds.
+# Views: the hilltop over the sea (job 56's, -3460,2425 facing west: "peak looking out") and the lake shore of job 43
+# (-1624,-488) facing east, inland ("coast looking inland": the bench has no sea-beach pose; a lake shore stands in).
+# The cloud share per case = on - off.
+Q=q121; TITLE="job 79 cloud cost"
+BUILDS="3b19271"
+VIEWS="peak shore"
+view() { case $1 in
+  peak)  echo "-goto -3460,2425 -benchstops spot -benchspot -3460,2425,270 -benchhour 12";;
+  shore) echo "-goto -1624,-488 -benchstops spot -benchspot -1624,-488,90 -benchhour 12";; esac; }
+ARMS="clear clearoff overcast overcastoff"
+arm() { case $1 in clear) echo "Profile-3b19271 -benchweather Clear";; clearoff) echo "Profile-3b19271 -benchweather Clear -skyoff 3";;
+  overcast) echo "Profile-3b19271 -benchweather Overcast";; overcastoff) echo "Profile-3b19271 -benchweather Overcast -skyoff 3";; esac; }
+ROUNDS=3; GFX="Medium Ultra"; REF=clear
