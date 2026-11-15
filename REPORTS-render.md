@@ -666,3 +666,34 @@ with main d95e7ff1); compiles, no suite run yet.
 - Shares: no new systems. far-lights folds near and far lamp lit-state into one `LampRoutes.LitAt` path; audit-fixes
   folds its cap into main's source job. Parallel found, not folded: cobble-depth's terrain wetness vs W-169 puddle fade.
 - NEXT: R-38 rows 1-5.
+
+## R-38 (#366), branch render/playtest-1114
+
+- Row 0 (sun every 0.1 s, trial behind a flag): cf8ef6e9, reported earlier. WeatherSystem.cs is fauna's.
+- Row 1, done (verified) for (a)(c)(d), d1b79af6: window spill fades out at its box's top and sides (no hard line
+  where stacked panes meet, no light up through roofs or eaves), glass glow 2.2 -> 1.5 (Flora.shader).
+  (b) BLOCKED: a lit hour per pane needs world's SurfaceGlow.Spill.cs and its scan, plus the shared
+  FloraGenerator.Kit Windows list. Ask world, or give the row to world.
+- Row 2 (#302, lights drop out as you walk towards them): NOT DONE here. The far/middle/near handover is the
+  `render/far-lights` branch (R-10 row 3 "real lights hand over to glow without pops", R-25 row 3 "town glow map fades
+  in by screen size"), ready for PR as 5fe0ce36. The fades it sets are in world's CaveSystem.cs / SurfaceGlow. Shoot
+  the 8-frame walk-in strip on main once far-lights lands; fix whatever drop-out is left then.
+- Row 3, done (verified), 635c59da: town and island glow maps read with a smooth B-spline filter (4 bilinear taps)
+  in Glow.hlsl, not 1. The light pool round a town from about 400 m is now round, not a blocky cross.
+  Shots: D:/Unity/PunchyMilestones/R-38/row3/ (before, after3, pair_town_after3.jpg). The sizes are #defines that
+  must match SurfaceGlow.MapSize (160) and WorldMapSize (512). GetDimensions broke some variants.
+  BENCH request: glow map reads cost 4 taps instead of 1 on terrain, flora, grass, creature and cave pixels at night.
+  Note: the first play after the edit showed magenta sea or flora while variants were still compiling. A second
+  run was clean.
+- Row 4, done (verified by construction, shots show the shafts still render), c1b30b46: underwater shafts trace
+  each point up the one refracted sun ray (parallel, fixed in the world), not towards a source tied to the camera,
+  so they don't slide as you swim. The 7-frame swim strip at (2950..2959, -6, 2970) can't prove the anchoring,
+  because the shaft noise drifts with _PunchyClock between frames (frame-to-frame match: before 0.40-0.70, after
+  -0.15-0.55). Shots: D:/Unity/PunchyMilestones/R-38/row4/{before,after}.
+- Row 5 (#269, real vertex displacement for touched water): BLOCKED on world. The water surfaces and
+  WaterPatchSystem are theirs. The archived `b/water-rows-fixes` (WaterTess tessellation, wave fields on cave water)
+  and `b/fix-waterfield-step` (wave field sleeping, step rate) already hold most of it. Revive those with world.
+- Shares: Glow.hlsl's PunchySampleSmooth is the one smooth read for every coarse light map (town, night, island).
+  Every surface shader picks it up through the shared include. Parallel found, not folded: Water.shader doesn't
+  include Glow.hlsl, so water gets no glow-map light.
+- NEXT: R-34 row 2.
