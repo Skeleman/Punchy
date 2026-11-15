@@ -625,11 +625,13 @@ namespace Punchy.EditorTools
             }
             ground = flat.SampleHeight(float2.zero);
             ref var b = ref blob.Value;
-            var output = new NativeArray<SegmentInstance>(b.Segments.Length, Allocator.Temp);
+            // (A-128: room after the body for a guard's kit or a worker's gear, when posed at that task.)
+            var output = new NativeArray<SegmentInstance>(b.Segments.Length + CreatureRenderSystem.KitParts, Allocator.Temp);
             try
             {
                 var s = State(ref b);
                 CreatureAnimator.Evaluate(ref b, in s, 0, in flat, output, 0);
+                CreatureRenderSystem.PoseKit(ref b, in s, output, b.Segments.Length);
                 modelMesh = Capsules(output, modelMesh, out bounds);
             }
             catch (Exception e)
@@ -656,6 +658,7 @@ namespace Punchy.EditorTools
                 Clock = clock,
                 Mode = modeOverride ?? (gait == Gait.Idle ? CreatureMode.Idle : CreatureMode.Wander),
                 Task = taskOverride,
+                Held = taskOverride == CreatureTask.Patrol ? HeldItem.Spear : HeldItem.None,
                 Stage = stageOverride,
                 Seed = 1u
             };
