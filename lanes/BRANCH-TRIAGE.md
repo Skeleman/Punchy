@@ -34,6 +34,7 @@ cave-entry #379, no-water-discs #380, puddle-edges #381, swell-noise #382.
 | b/cloud-shadow-map, b/fix-swapchain-stall | profiler | render | Clean; render reviews. |
 | player/netsim | P-31 | player | Merge main, re-check -netsim. |
 | player/fishing | P-33 | player | Row 4 waits on Zach's feel notes. |
+| player/take-items | P-38 (#372) | player | Rows 1-2b DONE but never PR'd (11-15 audit): merge main in, hand off ready for PR. Holds unify-items, items-pick, items-axe, hair, clothing. |
 | fauna/folk-pets, fauna/playtest-1114 | A-120, A-126 | folk, fauna | In flight. |
 
 ## Bench only (never merge)
@@ -44,8 +45,8 @@ rc-test/* (6 depth-priming tests, 10-29), wip/* (world-v09-v010, world-g18-roads
 tmp/animal-slot6, test/playtest-1108, render/ssao-source, rc/v0.10.0, rc/v0.14.0.
 
 ## Folded into other work
-- player/clothing, hair, unify-items, items-pick, items-axe: inside take-items (P-38).
-- player/armour, weapons: covered by take-items. player/tools: all but 32 lines; P-38 picks those up.
+- player/clothing, player/hair, player/unify-items, player/items-pick, player/items-axe: inside player/take-items (P-38); archive once it lands.
+- player/armour, player/weapons: covered by take-items. player/tools: all but 32 lines; P-38 picks those up.
 - player/seamless: P-37 row 3 builds on it.
 
 ## Superseded: archived and deleted 11-15 (Zach OK)
