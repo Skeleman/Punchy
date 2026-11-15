@@ -7527,3 +7527,22 @@ Branch world/waterfall-sheets, commits f42cfaba (merge main afea013c) and 21b228
 - **BENCH request:** rerun job 74 on 21b2281c: fall 22 front spot and the new fall 74 bank spot, Medium and High,
   against main. GPU cost not measured by me (rule 21).
 - **Next:** paddies bake speed-up (bench 75) on water/truth.
+
+## Bench 75: paddies bake step, blended biome sample skipped (done, verified by number check; cost to BENCH)
+
+- Branch `water/truth` 479c46c5 (pushed). One change in `Terrain/TerrainSource.Paddies.cs` (BuildPaddies): in a biome
+  map world, PondDig reads the map's sharp weights and ignores the blended `shape`, so the per-cell SampleBiomes call
+  is skipped there. All 303k paddy cells (n 551) used to pay for it; only 154-322 pass the cover gate.
+- **Number check:** BuildPaddies run again on the live source gives the same output: 113 pools, paddy height hash
+  2D88D733, the same as before the change.
+- **Shape of the saving (temporary per-stage counters in the lane editor, now removed; a function check, not a
+  timing, rule 21):** the per-cell front stage (PaddyCentre, biome sample, PondDig) fell from about 7.5-9.5 to
+  3.5-5.6 thread-seconds. The pool probe stage is 0.2-0.9. The editor's wall time stayed at about 250 ms because it is
+  spread over all workers, so the player-build saving needs the BENCH rerun.
+- **If it still misses +0.5 s:** the next step is synchronous Burst for the paddies job (the #346 pattern). Burst
+  changes float results, so the paddy hash and maybe a few pools would move, and that needs a re-pin. Another option
+  is an exact coarse pre-test that skips blocks of cells with no pond biome near them, which keeps the output the same.
+- Suite (rule 19): `completed: 41/41 passed` after an editor restart (the branch switch hit the SharedStatic gotcha
+  first).
+- **BENCH request:** rerun job 75 on water/truth 479c46c5 (the paddies bake step against the +0.5 s bar).
+- Next: W-168 row 2 on world/world-pack.
