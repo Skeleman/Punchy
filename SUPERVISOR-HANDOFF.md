@@ -345,3 +345,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-14: Zach's look notes (dog face unclear; folk shoulders: goblin arms float, human barely touch, orc sunk; crows leathery) carded as A-123 (#356) for fauna, after A-121 row 2, before A-119.
 - 11-14: Zach: puddles now sit in recesses but edges are hard; carded W-169 (#357) for world (graded rim), queue 3b4.
 - 11-14: Zach said yes to per-person build and gait; carded A-124 (#358) for fauna after A-123. Adds one NetPlayerLook build field (approved; old builds can't join, note for release).
+- 11-14: Zach clarified: puddles stop dead at a terrain square's border. Cause found: hollow depth written only for LOD0-1 chunks (BuildChunkMeshJob ~168). W-169 row 1 is now the seam fix; the graded rim is row 2.
