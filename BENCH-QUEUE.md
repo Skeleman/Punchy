@@ -802,7 +802,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
   switch, or `-benchtune` if none). Two views: coast looking inland, peak looking out.
 - GPU ms per case and the cloud pass's share. Report only.
 
-## Job 80 (2026-11-14, RUNNING 11-15 (q122.sh); supervisor, audit 11-13, #311, #270): streaming spikes
+## Job 80 (2026-11-14, REPORTED 11-15 in REPORTS-profiler.md (q122.sh; cave route needs a spot); supervisor, audit 11-13, #311, #270): streaming spikes
 - Main. Profile build, 1080p, Medium, uncapped. Three routes: walk into the nearest cave with water from 300 m;
   tunnel exit (#279 spot); fast flight jump of 1 km with the #288 flora boost.
 - Every main frame over 8 ms: its top three samples (cave water tile build, TraceSystem, flora cells, terrain

@@ -2,6 +2,29 @@
 
 Newest first.
 
+## Job 80: streaming spikes (main 3b192717, shelf build), 2026-11-15 (q122.sh): yes, streaming systems spike in the same frames (terrain chunks with colossus builds most often); cave route not measured
+**Setup:** Medium, 1920x1080, uncapped, noon, Clear; per route one Profiler-captured game (BProfileTools `-over 8`) and two plain games. Routes: the W-138 north portal (-1596,1164), a 100 m walk north at 4 m/s on the surface road (the bench can't walk inside a bore); `-benchstops townjump` (800 m out from the biggest town, jumped into its middle: #288's flora boost); and `hereentry` into wet cave c13 (1572,8,-2635).
+
+| route | GPU ms | main thread ms | median frame | 1% low fps |
+|---|---|---|---|---|
+| tunnel exit, 100 m north | 12.7-13.2 | 22.4-24.2 | 20.1-21.4 | 7.9-9.8 |
+| town jump (800 m) | 11.9-12.4 | 18.4-21.3 | 16.3-16.7 | 6.0-6.4 |
+| cave entry | — | — | — | — |
+
+- **The 8 ms line doesn't fit the laptop:** main-thread frames here are 16-24 ms at Medium, so every frame is over 8 ms (the route logs cap at 300 per game). Below I use frames over **2x the capture's median** instead.
+- **Cave entry: not measured.** "BenchRoute: hereentry: couldn't get there, skipped" in all three games: c13's point isn't one the entry walk can reach from 250 m out. A cave spot that `hereentry` takes (or the world lane's walk-in line) would fix it.
+
+**Spike frames (over 2x median) and the streaming systems in their top three samples (over 2 ms each):**
+| route | median | frames over 2x | terrain chunks | colossi (slot/LOD builds) | cave | flora | **frames with 2+ systems** |
+|---|---|---|---|---|---|---|---|
+| tunnel exit | 21.7 ms | 73 | 12 | 40 | 28 | 8 | **25** |
+| town jump | 17.1 ms | 170 | 79 | 56 | 30 | 34 | **47** |
+
+- **For #270's scheduler: yes, they stack.** The most common pairs are **terrain chunks + colossus builds** (town jump: 1.1-1.3 s frames) and **cave + colossi** (tunnel: 1.7-1.9 s frames; the cave sockets and CaveSystem.Update at 1.36-1.39 s). The worst tunnel frame (4.15 s) has cave work and terrain chunks together.
+- **Caveat:** each capture starts at launch, so its first frames are loading (Init FMOD 1.4-1.5 s, CaveSystem.OnEnable 0.65-0.7 s, IslandV2System 1.2-1.4 s); those are in the counts. The pairs above are from frames after the world was up (the colossus slot builds come after "world ready").
+
+Cost: laptop total $900 (laptop session e163d8ab; 0 builds (shelf), 9 games, 3 analyses).
+
 ## Job 79: cloud cost (main 3b192717, shelf build), 2026-11-15 (q121.job): clouds cost 0.0-0.4 ms GPU at Medium, up to ~0.8 at Ultra (2.4 at the Ultra shore, noisy)
 **Setup:** noon, 1920x1080, uncapped, arms rotated, 3 rounds, Medium and Ultra. Clouds off = `-skyoff 3` (Sky.hlsl's test bits: no cloud march, no far clouds). Views: the hilltop over the sea (-3460,2425, facing west: peak looking out) and the lake shore (-1624,-488) facing east, inland (the bench has no sea-beach pose; a lake shore stands in for "coast").
 
