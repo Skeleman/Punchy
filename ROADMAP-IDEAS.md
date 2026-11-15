@@ -14,9 +14,9 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
 - **Far views (#298).** The whole island in sight: ground to the horizon, far forest, far life. Shipped: far
   terrain ring to about 3 km (W-131), tree and shrub impostors (R-7, R-11). Next: R-22 (whole-island ground,
   far forest, weather haze, approved 11-13), R-23 (one lighting path), A-108, A-110.
-- **Cliffs (#281, DESIGN-cliffs.md).** Cliffs built as the ground itself. Shipped: steep ground reads as layered
+- **Cliffs (#281 closed, #327; DESIGN-cliffs.md). Top concern (Zach 11-15).** Cliffs built as the ground itself. Shipped: steep ground reads as layered
   rock (R-19), mountain tunnels (W-138). Shipped: the scarp builder W-155 (big cliffs and river banks, PR #377); walk and climb (row 3) and the shared rock wall with
-  caves (W-162, #327) come after. Shelves with homes, ruins and flora are later.
+  caves (W-162, #327) come after; caves climb by the same method (W-144's routes fold into W-162). Shelves with homes, ruins and flora are later.
 - **Rivers (#301, W-153).** No kinks, dead ends or water walls. Rows 1-2 done; rows 3-6 next (one course map,
   profiles and lakes on the finished ground). Shorelines that wander (W-160, #324) next.
 - **Waterfalls (#284, R-21).** One builder for every shape of fall, a subdivided curved sheet. Shipped: deforming
@@ -24,7 +24,7 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
 - **Lava and toxic pools (#303, W-154).** Shipped: first lava look and per-fluid underwater (PR #213). Next: W-154
   coarse crust normals and the far form.
 - **Lights (#302, R-25).** No light switches on as you approach. In flight: R-25 (far-lights branch, landing). Shipped: the lamplighter lights towns at dusk (A-115, PR #374).
-- **Shadows (#286).** Shipped: one shadow darkness (R-16), steady near and high-preset sun shadows (R-20 row 1,
+- **Shadows (#286 closed; bias on #354).** Shipped: one shadow darkness (R-16), steady near and high-preset sun shadows (R-20 row 1,
   R-32), blue moon shadows (R-32), no sun or cloud shadow through cave roofs (R-36). In flight: R-20 remaining rows.
 - **Stylized realism (#304, R-26), foliage (#323, R-30), grass fields (#325, R-31), salt-flat cracks (#331,
   R-33), wet stone (#332, R-34, in flight), clouds from a reference shader (#333, R-35).** Next, render lane.
@@ -43,7 +43,10 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
 - **Sea folk city and turtle folk villages (#37).** Shipped: built and populated (A-103). Far town figures fade by
   screen size (A-109, PR #373).
 - **Fishing and marsh villages, stables, ladders.** Shipped (W-119, W-122, A-117, W-147).
-- **Farm fields (#335, W-165), one material library (#336, W-166), towers with real storeys (#337, W-167),
+- **One material library (#336, W-166). Top concern (Zach 11-15):** the same look for a material whether built, held,
+  dropped, on an animal or on a colossus. In flight: row 1 audit done 11-14 and confirmed 11-15; row 2 (wood, shared
+  includes, test) next for the world lane, then the other families and the creature, item and colossus calls.
+- **Farm fields (#335, W-165), towers with real storeys (#337, W-167),
   elf towns without wood (#326, W-161), wood grain and strangler roots (#330, W-163).** Next, world lane.
 - **Castle walls (#254).** Later. Modular walls, towers, a gatehouse with a working, synced portcullis.
 - **Port town (#255).** Later. A big pier, a boardable galleon and a busy main road.
@@ -101,6 +104,7 @@ Foliage realism (Zach 11-14): crowns as leaf clusters (cut-out cards, layering, 
 - 11-14 (Zach): procedural wood grain on planks and static strangler-fig roots on swamp trunks and cave walls (W-163, #330).
 - 11-14 (Zach): caked, cracked dry ground on salt flats and cracked bark (R-33 #331, W-163 row 3).
 - 11-14 (Zach): wet-stone look trial on in-game stone (R-34 #332).
+- Reference shaders Zach sent (wood grain, cracked plates, wet stone, grass, clouds): D:/Unity/PunchyReferences (local, README lists licence and card).
 - 11-14 (Zach): explore a reference cumulus shader for cheaper or better clouds: R-35, #333.
 - 11-14 (Zach): farm fields outside towns, crops for every biome, e.g. snow potatoes, agave-like ferns (W-165, #335).
 - 11-14 (Zach): one material library: every built piece states what it is made of, families share look rules, kinds vary colour (W-166, #336).
