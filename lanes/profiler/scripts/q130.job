@@ -1,0 +1,15 @@
+# Job 88 (R-20 row 1, #286): wide sun filter + 4096 map at High (#353). Main 3b192717 (B, includes #353) vs 4df85493 (A,
+# before it). Shelf builds. Medium and High, noon, Clear, 3 rounds. Views: town 73 centre (-benchspot 2972,-885, yaw 0),
+# the forest edge (-place OakGrove), the spawn view. Arm "Bmed" = B with -sunshadowfilter medium (the cheaper fallback),
+# run at every view (the card asks once at High on town 73; the High town row is the one to read). Shadow-map memory
+# from the runner's gfx MB.
+Q=q130; TITLE="job 88 sun filter at High"
+BUILDS="3b19271 4df8549"
+VIEWS="town forest spawn"
+view() { case $1 in
+  town)   echo "-goto 2972,-885 -benchstops spot -benchspot 2972,-885,0 -benchhour 12 -benchweather Clear";;
+  forest) echo "-place OakGrove -benchstops here -benchhour 12 -benchweather Clear";;
+  spawn)  echo "-benchstops here -benchhour 12 -benchweather Clear";; esac; }
+ARMS="B A Bmed"
+arm() { case $1 in B) echo "Profile-3b19271";; A) echo "Profile-4df8549";; Bmed) echo "Profile-3b19271 -sunshadowfilter medium";; esac; }
+ROUNDS=3; GFX="Medium High"; REF=A
