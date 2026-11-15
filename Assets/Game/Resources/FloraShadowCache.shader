@@ -9,21 +9,8 @@ Shader "Punchy/FloraShadowCache"
     {
         Tags { "RenderType" = "Transparent" "Queue" = "Transparent-60" "RenderPipeline" = "UniversalPipeline" }
 
-        Pass
-        {
-            Name "FloraShadowCache"
-            Tags { "LightMode" = "UniversalForward" }
-            Blend DstColor Zero
-            ZWrite Off
-            ZTest Always
-            Cull Off
-
-            HLSLPROGRAM
-            #pragma target 4.5
-            #pragma vertex Vert
-            #pragma fragment Frag
-            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
-
+        // The shared receiver; the two passes below differ only in which pixels they take and the normal they use.
+        HLSLINCLUDE
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
@@ -72,7 +59,8 @@ Shader "Punchy/FloraShadowCache"
                      + (SAMPLE_TEXTURE2D_LOD(map, mapSampler, c + float2(t, t), 0).r < along ? 0.25 : 0);
             }
 
-            half4 Frag(Varyings input) : SV_Target
+            // blades (a constant per pass, so it compiles away): the pixel is a grass blade.
+            half4 ReceiveCache(Varyings input, bool blades)
             {
                 float2 uv = input.positionCS.xy / _ScaledScreenParams.xy;
                 float raw = SampleSceneDepth(uv);
@@ -103,9 +91,13 @@ Shader "Punchy/FloraShadowCache"
                 // shade themselves in bands (shadow acne): within a texel and the taps' spread the cached depth changes by
                 // more than 0.4 m there. The surface's normal, rebuilt from the depth across neighbouring pixels, scales the
                 // bias by the slope against the sun; a face turned away from the sun is dark from its own lighting already.
+                // R-32 row 2: grass blades take the ground's up normal. Rebuilt from the depth of thin, wind-blown
+                // blades the normal flips from pixel to pixel, so the bias and the facing test speckled the shade.
                 float3 normalWS = normalize(cross(dpdy, dpdx));
                 if (dot(normalWS, GetCameraPositionWS() - positionWS) < 0)
                     normalWS = -normalWS;
+                if (blades)
+                    normalWS = float3(0, 1, 0);
                 float facing = dot(normalWS, -_FloraReceiveSun.xyz);
                 if (facing < 0.05)
                     return 1;
@@ -134,6 +126,45 @@ Shader "Punchy/FloraShadowCache"
                 half after = ambient + sunlit * min(kept, 1 - cached);
                 return half4((after / max(before, 1e-3)).xxx, 1);
             }
+        ENDHLSL
+
+        // Everything but grass blades (Grass.shader marks its pixels with stencil bit 8).
+        Pass
+        {
+            Name "FloraShadowCache"
+            Tags { "LightMode" = "UniversalForward" }
+            Blend DstColor Zero
+            ZWrite Off
+            ZTest Always
+            Cull Off
+            Stencil { Ref 8 ReadMask 8 Comp NotEqual }
+
+            HLSLPROGRAM
+            #pragma target 4.5
+            #pragma vertex Vert
+            #pragma fragment Frag
+            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
+            half4 Frag(Varyings input) : SV_Target { return ReceiveCache(input, false); }
+            ENDHLSL
+        }
+
+        // R-32 row 2: grass blade pixels, lit with the ground's up normal. A second light mode so URP draws both passes.
+        Pass
+        {
+            Name "FloraShadowCacheBlades"
+            Tags { "LightMode" = "SRPDefaultUnlit" }
+            Blend DstColor Zero
+            ZWrite Off
+            ZTest Always
+            Cull Off
+            Stencil { Ref 8 ReadMask 8 Comp Equal }
+
+            HLSLPROGRAM
+            #pragma target 4.5
+            #pragma vertex Vert
+            #pragma fragment FragBlades
+            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
+            half4 FragBlades(Varyings input) : SV_Target { return ReceiveCache(input, true); }
             ENDHLSL
         }
     }

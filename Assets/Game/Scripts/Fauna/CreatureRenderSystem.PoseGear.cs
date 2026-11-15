@@ -517,6 +517,22 @@ namespace Punchy.Fauna
                 var upward = new Unity.Mathematics.float3(0f, 1f, 0f);
                 var h = Output[offset + hand];
                 var grip = h.Position + Unity.Mathematics.math.mul(h.Rotation, new Unity.Mathematics.float3(0f, 0f, h.Length * 0.5f));
+                // (A-115: a lamplighter's is its lamp pole: longer and thinner, a brass hook at the top, no pack. Up at
+                // a lamp it leans in toward it.)
+                if (state.Task == CreatureTask.Tend && state.Mode == CreatureMode.Work &&
+                    (state.Stage == FolkJobs.RoundWalk || state.Stage == FolkJobs.RoundReach))
+                {
+                    var lean = state.Stage == FolkJobs.RoundReach ? 0.42f : 0.12f;
+                    var pole = Unity.Mathematics.math.normalize(upward + forward * lean);
+                    var poleLength = 2.4f * scale;
+                    var foot = grip - pole * poleLength * 0.4f;
+                    Output[at] = Piece(foot, pole, forward, poleLength, 0.014f * scale, 0.011f * scale, 1f,
+                                       new Unity.Mathematics.float4(0.3f, 0.21f, 0.11f, 0f), faded, SegmentMaterial.Wood);
+                    var hook = Unity.Mathematics.math.normalize(forward - pole * 0.3f);
+                    Output[at + 1] = Piece(foot + pole * poleLength, hook, upward, 0.16f * scale, 0.012f * scale, 0.008f * scale, 1f,
+                                           new Unity.Mathematics.float4(0.62f, 0.46f, 0.2f, 0f), faded, SegmentMaterial.Metal);
+                    return;
+                }
                 var dir = Unity.Mathematics.math.normalize(upward + forward * 0.18f);
                 var length = 1.7f * scale;
                 Output[at] = Piece(grip - dir * length * 0.65f, dir, forward, length, 0.02f * scale, 0.016f * scale, 1f,

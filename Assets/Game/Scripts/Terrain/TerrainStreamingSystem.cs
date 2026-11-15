@@ -435,7 +435,8 @@ namespace Punchy.Terrain
                 Contacts = GroundContacts.Contacts,
                 ContactStrength = ContactShade.Strength,
                 ContactReach = ContactShade.ReachScale,
-                ContactPixelsPerMetre = Punchy.Settings.DetailPolicy.Current.Data.PixelsPerMetre * Punchy.Settings.GraphicsSettings.Detail
+                ContactPixelsPerMetre = Punchy.Settings.DetailPolicy.Current.Data.PixelsPerMetre * Punchy.Settings.GraphicsSettings.Detail,
+                Clay = ScarpClay.On
             };
             buildHandle = IJobParallelForExtensions.Schedule(job, count, 1);
             GroundContacts.Readers = buildHandle;   // freed only once this build is done reading them

@@ -25,6 +25,9 @@ namespace Punchy.Fauna
         public const byte HumanoidSkill = Assisted;
         /// <summary>How much faster each grade of margin climbs (of the body's own climb speed).</summary>
         public const float MarginBoost = 0.1f;
+        /// <summary>A-126: a ladder climbs this many times a body's own pace, and never slower than LadderLeast (m/s):
+        /// a human goes up a 6 m ladder in about 3.5 s, not 10.</summary>
+        public const float LadderBoost = 2.5f, LadderLeast = 1.4f;
         /// <summary>A trunk wider than this (m radius) is a hut's round wall, graded as a smooth wall, not a tree.</summary>
         public const float TreeRadiusMost = 0.7f;
 
@@ -55,6 +58,9 @@ namespace Punchy.Fauna
         public static float Speed(float baseSpeed, int skill, int grade)
         {
             var speed = math.max(baseSpeed, 0.3f) * (1f + MarginBoost * math.max(skill - grade, 0));
+            // (A-126, Zach 11-14: rungs go briskly; walls, trees and routes keep their own pace.)
+            if (grade == Ladder)
+                speed = math.max(speed * LadderBoost, LadderLeast);
             return math.isfinite(speed) ? speed : 0.3f;
         }
 

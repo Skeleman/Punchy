@@ -347,7 +347,7 @@ Shader "Punchy/Terrain Surface"
                 o.cave = input.morph.w;
                 o.strata = input.strata.x;
                 o.paving = input.strata.yw;
-                o.hollow = half2(input.strata.z, input.soak.x);
+                o.hollow = half2(TerrainHollow(input), input.soak.x);
                 return o;
             }
 
@@ -417,6 +417,12 @@ Shader "Punchy/Terrain Surface"
                 half dip = smoothstep(0.0, 0.08, input.hollow.x) * (1 - 0.65 * porosity);
                 half puddle = smoothstep(0.82, 0.9, dip * 0.4 + puddleNoise * 0.6 + wet * 0.15) * flatness * smoothstep(0.1, 0.3, wet)
                             * (1 - 0.6 * input.extra.y);   // grass pokes through, but meadow dips still pool
+                // W-169: a pool (the 2.3 m noise) fades as it shrinks from 4 to 2 reference pixels (DetailPolicy.ScreenSize),
+                // before it could sparkle; the hollow itself already morphs away before any chunk that lacks it.
+                {
+                    float ppm = _PunchyTerrainDetailPpm > 0 ? _PunchyTerrainDetailPpm : 935 * detailFar / 110;
+                    puddle *= saturate((2.3 * ppm / max(distance, 0.01) - 2) / 2);
+                }
                 half sheen = max(wet * (1 - 0.85 * porosity), shore * 0.6) * (1 - 0.8 * input.extra.y) * (1 - smoothstep(120, 450, distance));
 
                 half relief = 0.45 * (1 - puddle);   // (the octaves' fades are already in micro)

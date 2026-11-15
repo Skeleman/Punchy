@@ -35,6 +35,13 @@ float4 _PunchyWaterFallLip;
 float4 _PunchyWaterFallAxis;
 float4 _PunchyWaterFallSpan;
 
+// W-148 row 6: how thick a liquid is (0 water .. 1 lava) from its glow (x self-glow, y lava): lava 1, a glowing liquid
+// (toxic, the bat folk's white pools) 0.3, plain water exactly 0. The same as WaterPatchSystem.Viscosity.
+float PunchyLiquidViscosity(float2 glow)
+{
+    return max(saturate(glow.y), 0.3 * smoothstep(0, 0.1, glow.x));
+}
+
 // Whether a point (its place before the swell moved it) is under the fine sheet, so the chunk water leaves it out.
 bool PunchyWaterInPatch(float2 restXZ)
 {
@@ -56,6 +63,15 @@ float PunchyWaterFieldWeight(float2 restXZ)
     float row = _PunchyWaterPatchRect.z - _PunchyWaterPatchRect.x + 1;
     float2 uv = (restXZ - _PunchyWaterPatchRect.xy + 0.5) / row;
     return SAMPLE_TEXTURE2D_LOD(_PunchyWaterPatchWeight, sampler_PunchyWaterPatchWeight, uv, 0).r;
+}
+
+// W-148 row 5: how much the field shows on lattice water (cave water, landmark pools) here: 1 inside the player's
+// square, easing to 0 over its outer metres (where the field soaks its waves up), 0 outside it or with the field off.
+float PunchyWaterLatticeFieldWeight(float2 restXZ)
+{
+    float2 lo = restXZ - _PunchyWaterPatchRect.xy, hi = _PunchyWaterPatchRect.zw - restXZ;
+    float edge = min(min(lo.x, lo.y), min(hi.x, hi.y));
+    return smoothstep(1.5, 4.0, edge);
 }
 
 float2 PunchyWaterFieldUV(float2 xz)
